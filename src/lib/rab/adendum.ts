@@ -49,7 +49,36 @@ async function requireDraft(tx: Tx, revisionId: string) {
  * Hitung ulang SEMUA amount agregat dari daun (bottom-up) + totalValue revisi.
  * Item: amount = round(volume × hargaSatuan). Non-item: Σ amount anak.
  */
-async function recomputeTotals(tx: Tx, revisionId: string): Promise<bigint> {
+/**
+ * Hitung ulang agregat draft.
+ *
+ * ### Item yang TIDAK disentuh tidak boleh ikut dihitung ulang (DECISIONS 423)
+ *
+ * Versi lama menghitung ulang `amount` SETIAP item sebagai
+ * `round(volume × harga)`. Nilai yang tersimpan berasal dari berkas RAB/HPS
+ * yang diunggah user, dan berkas itu punya pembulatannya sendiri — pada basis
+ * uji 2.197 dari 11.540 item berbeda dari hasil hitung ulang, dengan selisih
+ * TENGAH hanya **4 rupiah**. Akibatnya: menambah SATU item baru menulis ulang
+ * ribuan baris lain, dan `diffRevisions` — yang menandai perubahan lewat
+ * `o.amount !== n.amount` — melaporkan ribuan "perubahan" yang volumenya sama
+ * persis dan nilainya bergeser puluhan rupiah. Peninjau adendum lalu diminta
+ * memeriksa daftar yang seluruhnya derau.
+ *
+ * Itu juga melanggar aturan pokok: angka yang DIUNGGAH user dipakai apa adanya,
+ * tidak dibetulkan diam-diam ke versi sistem (DECISIONS 203).
+ *
+ * Jadi `amount` item hanya dihitung ulang bila item itu memang baru saja
+ * diubah/ditambah — `hitungUlangItem`. Agregat kategori TETAP selalu diturunkan
+ * dari anaknya (aturan "angka agregat selalu derived"); itu aman karena
+ * kategori memang sudah sama dengan Σ anaknya (diperiksa: 0 dari 122 kategori
+ * menyimpang), sehingga total revisi tidak bergeser oleh perubahan ini.
+ */
+async function recomputeTotals(
+  tx: Tx,
+  revisionId: string,
+  hitungUlangItem: Iterable<string> = [],
+): Promise<bigint> {
+  const perluHitung = new Set(hitungUlangItem);
   const nodes = await tx.rabNode.findMany({
     where: { revisionId },
     select: { id: true, parentId: true, kind: true, volume: true, unitPrice: true, amount: true },
@@ -63,6 +92,11 @@ async function recomputeTotals(tx: Tx, revisionId: string): Promise<bigint> {
   const computed = new Map<string, bigint>();
   const compute = (n: (typeof nodes)[number]): bigint => {
     if (n.kind === "item") {
+      // Tidak disentuh → pakai nilai tersimpan apa adanya.
+      if (!perluHitung.has(n.id)) {
+        computed.set(n.id, n.amount);
+        return n.amount;
+      }
       const v = n.volume != null ? Number(n.volume) : 0;
       const p = n.unitPrice != null ? Number(n.unitPrice) : 0;
       const a = valueDone(v, p);
@@ -215,7 +249,8 @@ export async function updateDraftItemVolume(
 
     const volumeLama = node.volume != null ? Number(node.volume) : 0;
     await tx.rabNode.update({ where: { id: nodeId }, data: { volume: v } });
-    const totalValue = await recomputeTotals(tx, revisionId);
+    // Hanya item INI yang nilainya ikut berubah — sisanya tidak disentuh.
+    const totalValue = await recomputeTotals(tx, revisionId, [nodeId]);
     await auditIn(tx, userId, "rab.adendum_volume_update", "rab_node", nodeId, {
       revisionId,
       lineageKey: node.lineageKey,
@@ -285,7 +320,7 @@ export async function addDraftItem(
         sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
       },
     });
-    const totalValue = await recomputeTotals(tx, revisionId);
+    const totalValue = await recomputeTotals(tx, revisionId, [node.id]);
     await auditIn(tx, userId, "rab.adendum_item_add", "rab_node", node.id, {
       revisionId,
       lineageKey,
@@ -355,7 +390,8 @@ export async function updateDraftNewItemFields(
     if (Object.keys(data).length === 0) throw new AdendumError("Tidak ada perubahan.");
 
     await tx.rabNode.update({ where: { id: nodeId }, data });
-    const totalValue = await recomputeTotals(tx, revisionId);
+    // Harga item BARU boleh berubah → nilainya memang harus dihitung ulang.
+    const totalValue = await recomputeTotals(tx, revisionId, [nodeId]);
     await auditIn(tx, userId, "rab.adendum_new_item_update", "rab_node", nodeId, {
       revisionId,
       lineageKey: node.lineageKey,
@@ -468,6 +504,13 @@ export type DiffItem = {
   code: string;
   name: string;
   unit: string | null;
+  /**
+   * Jalur kategori/bangunan induk, mis. "II. STRUKTUR › Lantai 1"
+   * (DECISIONS 423). Tanpa ini daftar perubahan cuma deretan kode dan nama —
+   * peninjau tahu APA yang berubah tapi tidak tahu DI MANA, padahal satu RAB
+   * bisa punya belasan bangunan dengan nama pekerjaan yang berulang persis.
+   */
+  jalur: string;
   volumeLama: number | null;
   volumeBaru: number | null;
   hargaSatuan: number | null;
@@ -512,13 +555,46 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
     db.rabRevision.findUniqueOrThrow({ where: { id: oldRevisionId }, select: { totalValue: true } }),
     db.rabRevision.findUniqueOrThrow({ where: { id: newRevisionId }, select: { totalValue: true } }),
   ]);
-  const fetchItems = (revisionId: string) =>
+  const fetchNodes = (revisionId: string) =>
     db.rabNode.findMany({
-      where: { revisionId, kind: "item" },
-      select: { lineageKey: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true },
+      where: { revisionId },
+      select: {
+        id: true,
+        parentId: true,
+        kind: true,
+        lineageKey: true,
+        code: true,
+        name: true,
+        unit: true,
+        volume: true,
+        unitPrice: true,
+        amount: true,
+      },
       orderBy: { sortOrder: "asc" },
     });
-  const [oldItems, newItems] = await Promise.all([fetchItems(oldRevisionId), fetchItems(newRevisionId)]);
+  const [oldAll, newAll] = await Promise.all([fetchNodes(oldRevisionId), fetchNodes(newRevisionId)]);
+  /** Jalur induk per node: "KATEGORI › Sub › Grup". Kosong bila di akar. */
+  const jalurMap = (all: typeof oldAll) => {
+    const byId = new Map(all.map((n) => [n.id, n]));
+    const cache = new Map<string, string>();
+    const jalur = (id: string | null): string => {
+      if (!id) return "";
+      const ada = cache.get(id);
+      if (ada != null) return ada;
+      const n = byId.get(id);
+      if (!n) return "";
+      const atas = jalur(n.parentId);
+      const nama = [n.code, n.name].filter(Boolean).join(". ");
+      const hasil = atas ? `${atas} › ${nama}` : nama;
+      cache.set(id, hasil);
+      return hasil;
+    };
+    return new Map(all.filter((n) => n.kind === "item").map((n) => [n.lineageKey, jalur(n.parentId)]));
+  };
+  const jalurBaru = jalurMap(newAll);
+  const jalurLama = jalurMap(oldAll);
+  const oldItems = oldAll.filter((n) => n.kind === "item");
+  const newItems = newAll.filter((n) => n.kind === "item");
   const oldByKey = new Map(oldItems.map((n) => [n.lineageKey, n]));
   const newByKey = new Map(newItems.map((n) => [n.lineageKey, n]));
 
@@ -536,6 +612,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
         code: n.code,
         name: n.name,
         unit: n.unit,
+        jalur: jalurBaru.get(n.lineageKey) ?? "",
         volumeLama: null,
         volumeBaru,
         hargaSatuan: harga,
@@ -563,6 +640,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
           code: n.code,
           name: n.name,
           unit: n.unit,
+          jalur: jalurBaru.get(n.lineageKey) ?? "",
           volumeLama,
           volumeBaru,
           hargaSatuan: harga,
@@ -581,6 +659,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
         code: o.code,
         name: o.name,
         unit: o.unit,
+        jalur: jalurLama.get(o.lineageKey) ?? "",
         volumeLama: o.volume != null ? Number(o.volume) : null,
         volumeBaru: null,
         hargaSatuan: o.unitPrice != null ? Number(o.unitPrice) : null,

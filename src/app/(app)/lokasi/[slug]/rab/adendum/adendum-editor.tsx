@@ -48,6 +48,8 @@ export type EditorNode = {
   lineageKey: string;
   /** Volume terealisasi (batas bawah volume baru); 0 untuk item baru. */
   realized: number;
+  /** Jalur induk ("II. STRUKTUR › Lantai 1") — ikut dicari kotak Cari. */
+  jalur: string;
   isNew: boolean;
   isChanged: boolean;
   /** false bila node/subtree punya realisasi — tombol hapus dimatikan. */
@@ -143,6 +145,13 @@ export function AdendumEditor({
         minWidth: 280,
         sortable: false,
         filter: false,
+        /*
+         * Kotak Cari juga mencocokkan JALUR induk, supaya "cari galian di
+         * bangunan B" bisa dijawab dengan mengetik nama bangunannya —
+         * baris kategori sendiri tersaring keluar saat mencari, dan tanpa ini
+         * hasil pencarian kehilangan konteks tempatnya. DECISIONS 423.
+         */
+        getQuickFilterText: (p) => `${p.data?.jalur ?? ""} ${p.value ?? ""}`,
         editable: (p) => Boolean(p.data?.isNew && p.data.kind === "item"),
         cellRenderer: (p: { data?: EditorNode; value?: string }) => {
           const n = p.data;
@@ -318,6 +327,7 @@ export function AdendumEditor({
         columnDefs={columnDefs}
         getRowId={(n) => n.id}
         pagination={false}
+        quickFilter
         editMode
         onCellValueChanged={onCellValueChanged}
         rowClassRules={rowClassRules}

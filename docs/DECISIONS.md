@@ -21837,3 +21837,62 @@ tidak menghitung apa pun.
 scopeHash. Bentuk hash lingkup paket sengaja TIDAK diubah supaya penomoran deck
 paket yang sudah terbit tidak melompat mundur. Diperiksa di basis data e2e: deck
 lokasi berikutnya terbit v1 dengan hash sendiri, deck paket lanjut ke v9.
+
+## 422 — Paparan: ingatkan + minta konfirmasi bila lingkup & minggu itu sudah punya deck, 2026-08-23
+
+Permintaan user: *"lebih baik beri opsi untuk buka draft lama atau generate
+baru. harus ada pengingat dan konfirmasi"*.
+
+Sebelum ini menekan "Buat Paparan" untuk lingkup+minggu yang sudah punya deck
+diam-diam melahirkan draf kedua. Orang yang mengira klik pertamanya gagal
+berakhir punya dua draf minggu yang sama tanpa tahu mana yang sedang direview.
+
+Formulir kini menampilkan paparan TERBARU untuk lingkup+minggu terpilih (versi,
+status, kapan diperbarui), satu tautan "Buka paparan vN", dan tombol buatnya
+berganti jadi "Buat versi baru (vN+1)" yang meminta konfirmasi sekali. Yang
+dijanjikan konfirmasi itu disebut: draf lama TETAP tersimpan, versi baru
+dihitung ulang dari data terkini dan dimulai tanpa suntingan manusia.
+
+Dua hal teknis yang ikut lahir dari ini:
+
+- Daftar "sudah ada" diambil lewat SQL mentah `DISTINCT ON` yang hanya menarik
+  tiga ruas kecil dari `structured_content`. Menarik seluruh kolom JSON (berisi
+  snapshot penuh) untuk setiap artefak demi nomor minggu adalah pemborosan yang
+  tumbuh bersama jumlah paparan.
+- Tombol konfirmasi TIDAK menggantikan tombol pemicu di titik yang sama. Menukar
+  dua tombol di posisi identik membuat satu klik beruntun mengenai keduanya —
+  ketahuan dari uji e2e yang menggantung karena tombol kedua sudah `pending`
+  sebelum sempat diklik. Tombol keduanya hidup di panel pengingat, memakai
+  atribut `form`.
+
+## 423 — Adendum: derau pembulatan & letak item, 2026-08-23
+
+Laporan user: menambah SATU item baru mendadak memunculkan ratusan baris
+"berubah" yang volumenya sama persis dan nilainya bergeser puluhan rupiah;
+lalu, tidak ada cara mencari item selain menggulir, dan daftar perubahan tidak
+menyebut item itu ada di kategori mana.
+
+**1. Derau pembulatan.** `recomputeTotals` menghitung ulang `amount` SETIAP item
+sebagai `round(volume × harga)` pada setiap mutasi draft. Nilai tersimpan
+berasal dari berkas RAB/HPS yang diunggah user, yang punya pembulatannya
+sendiri: pada basis uji **2.197 dari 11.540 item** berbeda dari hasil hitung
+ulang, dengan selisih TENGAH **4 rupiah**. `diffRevisions` menandai perubahan
+lewat `o.amount !== n.amount`, jadi seluruhnya muncul sebagai "perubahan" dan
+peninjau adendum diminta memeriksa daftar yang seluruhnya derau. Ini juga
+melanggar DECISIONS 203 — angka yang diunggah user dipakai apa adanya.
+
+`amount` item kini hanya dihitung ulang bila item itu memang baru saja
+diubah/ditambah. Agregat kategori tetap selalu diturunkan dari anaknya (aturan
+"angka agregat selalu derived"); itu aman karena kategori memang sudah sama
+dengan Σ anaknya — diperiksa: 0 dari 122 kategori menyimpang — sehingga total
+revisi tidak bergeser oleh perubahan ini.
+
+**2. Mencari item.** Grid editor adendum kini punya kotak Cari (quickFilter),
+dan pencariannya ikut mencocokkan JALUR induk, supaya "galian di bangunan B"
+bisa dijawab dengan mengetik nama bangunannya — baris kategori sendiri tersaring
+keluar saat mencari.
+
+**3. Letak item.** `DiffItem` bertambah `jalur` ("II. STRUKTUR › Lantai 1") dan
+daftar perubahan mencetaknya di atas nama item. Satu RAB bisa punya belasan
+bangunan dengan nama pekerjaan yang berulang persis; tanpa jalur, peninjau tahu
+APA yang berubah tapi tidak tahu DI MANA.

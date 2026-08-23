@@ -77,6 +77,59 @@ export default async function PaparanPage({
   const tersembunyi = bersyarat.length - paket.length;
   const sebagian = paket.filter((p) => !p.bolehPaket).length;
 
+  /*
+   * PAPARAN YANG SUDAH ADA per lingkup+minggu (DECISIONS 422).
+   *
+   * Dipakai formulir untuk MENGINGATKAN sebelum membuat versi baru: tanpa ini
+   * orang menekan "Buat Paparan" dua kali karena mengira yang pertama gagal,
+   * lalu punya dua draf minggu yang sama tanpa tahu mana yang sedang direview.
+   *
+   * SQL mentah karena yang dibutuhkan hanya tiga ruas kecil di dalam
+   * `structured_content`; menarik seluruh kolom JSON (berisi snapshot penuh)
+   * untuk setiap artefak hanya demi nomor minggu adalah pemborosan yang tumbuh
+   * bersama jumlah paparan. DISTINCT ON mengambil yang TERBARU per lingkup.
+   */
+  const adaRows = await db.$queryRaw<
+    {
+      id: string;
+      version: number;
+      status: string;
+      updated_at: Date;
+      package_id: string;
+      week: number | null;
+      location_id: string | null;
+    }[]
+  >`
+    SELECT DISTINCT ON (a.package_id, week, location_id)
+      a.id,
+      a.version,
+      a.status::text AS status,
+      a.updated_at,
+      a.package_id,
+      (a.structured_content->>'weekNumber')::int AS week,
+      a.structured_content->'snapshot'->'lingkup'->>'locationId' AS location_id
+    FROM ai_artifacts a
+    JOIN packages p ON p.id = a.package_id
+    WHERE a.kind = 'paparan' AND p.org_id = ${user.orgId}::uuid
+    ORDER BY a.package_id, week, location_id, a.version DESC
+  `;
+  const bolehLihat = (r: (typeof adaRows)[number]) => {
+    const p = paket.find((x) => x.id === r.package_id);
+    if (!p) return false;
+    return r.location_id
+      ? p.lokasiPilihan.some((l) => l.id === r.location_id)
+      : p.bolehPaket;
+  };
+  const sudahAda = adaRows
+    .filter((r) => r.week != null && bolehLihat(r))
+    .map((r) => ({
+      kunci: `${r.package_id}|${r.location_id ?? ""}|${r.week}`,
+      id: r.id,
+      versi: r.version,
+      status: AI_ARTIFACT_STATUS_LABEL[r.status as keyof typeof AI_ARTIFACT_STATUS_LABEL] ?? r.status,
+      diperbarui: formatTanggalWaktu(r.updated_at),
+    }));
+
   const bolehGenerate = can(user.role, "ai.generate");
   const aiCfg = await getActiveAiConfig();
 
@@ -138,6 +191,7 @@ export default async function PaparanPage({
           paket={paket}
           initialPackageId={initialPackageId}
           initialLocationId={initialLocationId}
+          sudahAda={sudahAda}
         />
       ) : (
         <Banner tone="info" title="Anda bisa melihat paparan, tetapi tidak membuat baru (butuh ai.generate)." />
