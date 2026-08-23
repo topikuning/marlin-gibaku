@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Images, MapPin, MapPinOff, X } from "lucide-react";
-import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/photo-limits";
+import { MAX_PHOTOS_PER_UPLOAD, muatSekaliUnggah } from "@/lib/photo-limits";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
@@ -241,16 +241,12 @@ export function PhotoSourceInput({
     const sudah = new Set(dasar.map((b) => idBerkas(b.file)));
     const tambah = Array.from(baru).filter((f) => !sudah.has(idBerkas(f)));
     const gabung = [...dasar, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
-    const lebih = gabung.length - MAX_PHOTOS_PER_UPLOAD;
-    if (lebih > 0) {
-      for (const b of gabung.slice(MAX_PHOTOS_PER_UPLOAD)) URL.revokeObjectURL(b.url);
-      setPesanBatas(
-        `Maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali unggah – ${lebih} foto terakhir tidak ikut.`,
-      );
-    } else {
-      setPesanBatas(null);
-    }
-    setBerkas(gabung.slice(0, MAX_PHOTOS_PER_UPLOAD));
+    // Dua pagar: jumlah foto DAN ukuran permintaan (DECISIONS 425). Yang tidak
+    // muat disebut jumlahnya beserta sebabnya — tidak pernah hilang diam-diam.
+    const batas = muatSekaliUnggah(gabung.map((b) => b.file.size));
+    if (batas.sisa > 0) for (const b of gabung.slice(batas.muat)) URL.revokeObjectURL(b.url);
+    setPesanBatas(batas.pesan);
+    setBerkas(gabung.slice(0, batas.muat));
   };
 
   /** Buang satu foto dari pilihan (bukan dari server — belum terunggah). */

@@ -22014,3 +22014,35 @@ dan "kiri" sesudah "kanan" jadi 270° alih-alih kembali. Tombol yang tampak mace
 `Photo.rotationDeg` ditambahkan — putaran KUMULATIF terhadap berkas asli. Harus
 disimpan, bukan disimpulkan: dari dimensi saja 0° dan 180° tidak bisa dibedakan.
 Migrasinya idempoten (`ADD COLUMN IF NOT EXISTS`).
+
+## 425 — Batas foto sekali unggah: 6 → 20, dan yang tidak muat DISEBUT, 2026-08-23
+
+Keberatan user: *"laporan harian, sekali upload pilih foto dari galeri kenapa
+cuma dibatasi 6? sementara bisa menambahkan lagi."*
+
+Tepat. Batas 6 tidak melindungi apa pun — mengunggah lagi sesudahnya SELALU
+boleh, tidak ada batas total per item. Yang ia lakukan cuma memaksa memilih
+berulang kali dari galeri, pekerjaan yang paling merepotkan justru di HP dan
+justru bagi mandor.
+
+Yang benar-benar mengikat bukan JUMLAHNYA melainkan **ukuran permintaan**:
+server action dibatasi 30 MB (`next.config.ts`). Enam foto kamera modern sudah
+bisa melewatinya, jadi angka 6 pun tidak menjamin apa-apa. Maka:
+
+- `MAX_PHOTOS_PER_UPLOAD` 6 → **20**;
+- pagar barunya `MAX_UPLOAD_BYTES_TOTAL` = **28 MB** (di bawah 30 MB, sisanya
+  untuk overhead multipart), ditegakkan di KLIEN sebelum satu byte pun dikirim.
+  Tanpa ini, melonggarkan jumlah hanya memindahkan kegagalan ke tempat yang
+  lebih buruk: permintaan ditolak server dengan pesan teknis, setelah
+  pengunggahan berjalan lama di sinyal lapangan.
+
+Aturannya dipusatkan di `muatSekaliUnggah()` (murni, teruji): ia mengembalikan
+berapa yang muat, berapa sisanya, dan pesan yang menyebut **pagar mana** yang
+kena — "maksimal 20 foto" pada pilihan 8 foto besar adalah pesan yang salah
+sekaligus membingungkan.
+
+**Yang lebih penting daripada angkanya**: sisi server dulu memotong kelebihan
+dengan `.slice(0, 6)` TANPA memberi tahu siapa pun. Layarnya tetap berbunyi
+"Progres tersimpan" sementara sebagian bukti tidak pernah ada. Ketiga jalur
+unggah laporan harian (item, foto menyusul, baris material/alat) kini
+mengembalikan jumlah yang tidak tersimpan dan menyebutkannya di peringatan.
