@@ -267,9 +267,24 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
    */
   const logoY = Math.round(kepalaTengah - wordmarkH / 2);
   if (d.companyLogo) {
-    const kotakW = Math.round(wordmarkH * 2.2);
+    /*
+     * Kotaknya SELEBAR wordmark MARLIN, bukan lebih sempit (DECISIONS 424a).
+     *
+     * Versi pertama memakai 2,2× tinggi wordmark. Wordmark MARLIN sendiri
+     * hampir 4:1, jadi logo perusahaan yang juga memanjang dipaskan pada lebar
+     * yang jauh lebih sempit dan menyusut tinggal seperempatnya – persis yang
+     * dikeluhkan user. Memakai lebar yang sama tidak menambah risiko tabrakan:
+     * `logoKiri` (yang membatasi panel nama perusahaan) memang dihitung dari
+     * lebar itu.
+     *
+     * Tingginya dilonggarkan 1,25× supaya logo BUJUR SANGKAR juga terbaca, dan
+     * sisi atasnya dijepit ke marjin aman supaya kelonggaran itu tumbuh ke
+     * bawah, tidak keluar dari tepi foto.
+     */
+    const kotakH = Math.round(wordmarkH * 1.25);
+    const kotakY = Math.max(safeY, Math.round(kepalaTengah - kotakH / 2));
     parts.push(
-      `<image x="${w - safeX - kotakW}" y="${logoY}" width="${kotakW}" height="${wordmarkH}" ` +
+      `<image x="${logoKiri}" y="${kotakY}" width="${wordmarkW}" height="${kotakH}" ` +
         `preserveAspectRatio="xMaxYMid meet" href="${d.companyLogo}"/>`,
     );
   } else {

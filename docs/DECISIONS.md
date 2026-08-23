@@ -21962,3 +21962,25 @@ menggagalkan penyimpanan foto: logo hiasan, koordinat dan jam buktinya.
 
 Lebar logo dibatasi 2,2× tinggi wordmark dan rata kanan. Rasio logo vendor tidak
 diketahui; tanpa batas itu logo memanjang menabrak panel nama perusahaan.
+
+### Tumpangan 424a — logo perusahaan tercetak terlalu kecil
+
+Keluhan user langsung setelah 424 dipasang: *"entah dimana masalahnya, tapi ini
+terlalu kecil stamp logo perusahaannya"*. Dua sebab, keduanya nyata:
+
+1. **Bingkai kosong di berkas logo.** Berkas yang diunggah orang hampir selalu
+   punya margin transparan – logo memanjang di tengah kanvas persegi, atau sisa
+   ekspor. Ruang kosong itu ikut dihitung saat gambar dipaskan ke kotaknya,
+   jadi yang tampak jauh lebih kecil daripada kotak yang disediakan. Logo kini
+   di-`trim()` sebelum diperkecil.
+2. **Kotaknya lebih sempit daripada wordmark MARLIN.** Versi pertama memakai
+   2,2× tinggi wordmark, padahal wordmark MARLIN sendiri hampir 4:1. Logo
+   perusahaan yang juga memanjang karena itu dipaskan pada lebar yang jauh
+   lebih sempit. Kotaknya kini SELEBAR wordmark – tidak menambah risiko
+   tabrakan, karena `logoKiri` yang membatasi panel nama perusahaan memang
+   dihitung dari lebar itu – dan tingginya dilonggarkan 1,25× dengan sisi atas
+   dijepit ke marjin aman supaya kelonggarannya tumbuh ke bawah.
+
+Diperiksa dengan merender cap sungguhan lalu melihat hasilnya: logo ber-margin
+tampil sebagai bilah kecil, logo yang sudah di-trim tampil sepadan dengan
+wordmark MARLIN.

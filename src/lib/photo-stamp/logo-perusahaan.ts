@@ -52,8 +52,27 @@ export async function logoPerusahaanDataUri(logoKey: string | null | undefined):
   try {
     const sharp = await muatSharp();
     const raw = await r2GetBuffer(logoKey);
+    /*
+     * TRIM dulu, baru resize (DECISIONS 424a).
+     *
+     * Berkas logo yang diunggah orang hampir selalu punya bingkai kosong di
+     * sekelilingnya — kanvas persegi dengan logo memanjang di tengahnya, atau
+     * margin transparan sisa ekspor. Ruang kosong itu ikut dihitung sebagai
+     * "logo" saat dipaskan ke kotaknya, jadi yang terlihat di cap jauh lebih
+     * kecil daripada kotak yang disediakan. Keluhan user 2026-08-23: *"ini
+     * terlalu kecil stamp logo perusahaannya"*.
+     *
+     * `trim()` melempar bila gambarnya polos seluruhnya (tidak ada yang bisa
+     * dipangkas) — itu bukan kegagalan, jadi ditangkap dan dilanjut apa adanya.
+     */
+    let siap = sharp(raw, { failOn: "none" });
+    try {
+      siap = sharp(await siap.trim({ threshold: 6 }).toBuffer(), { failOn: "none" });
+    } catch {
+      siap = sharp(raw, { failOn: "none" });
+    }
     // PNG + alpha dipertahankan: logo di atas foto gelap harus bisa transparan.
-    const png = await sharp(raw, { failOn: "none" })
+    const png = await siap
       .resize(LOGO_MAX, LOGO_MAX, { fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();

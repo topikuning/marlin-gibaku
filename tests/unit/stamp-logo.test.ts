@@ -198,14 +198,25 @@ describe("logo perusahaan di cap", () => {
     expect(out).toContain("<path");
   });
 
-  it("logo dibatasi lebarnya supaya tidak menabrak nama perusahaan", () => {
+  it("kotak logo SELEBAR wordmark MARLIN, rata kanan, tidak melebihi tepi foto", () => {
+    /*
+     * Versi pertama memakai kotak yang lebih sempit dari wordmark MARLIN, dan
+     * logo perusahaan yang memanjang menyusut tinggal seperempatnya – keluhan
+     * user "terlalu kecil". Lebarnya kini sama; ini yang menjaganya.
+     */
     const out = svg(1600, 1200, { ...data, companyLogo: LOGO });
-    const m = /<image x="(\d+)" y="\d+" width="(\d+)"/.exec(out);
-    expect(m, "elemen <image> logo tidak ditemukan").not.toBeNull();
-    const x = Number(m![1]);
-    const lebar = Number(m![2]);
-    // Rata kanan di dalam marjin aman, dan tidak melebar sampai separuh foto.
+    const gambar = /<image x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/.exec(out);
+    expect(gambar, "elemen <image> logo tidak ditemukan").not.toBeNull();
+    const [x, y, lebar, tinggi] = gambar!.slice(1, 5).map(Number);
+
+    // Pembanding: wordmark MARLIN pada foto yang sama.
+    const polos = svg(1600, 1200, { ...data, companyLogo: null });
+    const wm = /translate\((\d+)[ ,]/.exec(polos);
+    expect(lebar).toBeGreaterThanOrEqual(Math.round((tinggi / 1.25) * (WORDMARK_W / WORDMARK_H)) - 2);
+    if (wm) expect(x).toBeCloseTo(Number(wm[1]), -1);
+
+    // Tetap di dalam foto, dan tidak naik ke luar tepi atas.
     expect(x + lebar).toBeLessThanOrEqual(1600);
-    expect(lebar).toBeLessThan(1600 / 2);
+    expect(y).toBeGreaterThanOrEqual(0);
   });
 });
