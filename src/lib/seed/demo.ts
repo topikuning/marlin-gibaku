@@ -91,7 +91,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
 
   // ── Users (password dev: marlin123) ─────────────────────────
   const password = await hashPassword("marlin123");
-  const users: { username: string; fullName: string; role: "super_admin" | "program_director" | "regional_manager" | "project_manager" | "site_manager" | "field_supervisor" | "exec_viewer"; mustChange?: boolean }[] = [
+  const users: { username: string; fullName: string; role: "super_admin" | "program_director" | "regional_manager" | "project_manager" | "site_manager" | "field_supervisor" | "exec_viewer" | "wakil_ppk"; mustChange?: boolean }[] = [
     { username: "admin", fullName: "Administrator Sistem", role: "super_admin" },
     { username: "hery", fullName: "Hery Purnomo", role: "program_director" },
     { username: "am-jateng", fullName: "Rina Widyastuti", role: "regional_manager" },
@@ -100,6 +100,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
     { username: "sm-02", fullName: "Dewi Anggraini", role: "site_manager", mustChange: true },
     { username: "mandor-01", fullName: "Paijo Sutrisno", role: "field_supervisor" },
     { username: "kkp-viewer", fullName: "Pengawas KKP", role: "exec_viewer" },
+    // Verifikator pemberi kerja (DECISIONS 426) — untuk mencoba workspace
+    // /verifikasi; penugasan lokasinya diberikan di blok assignment di bawah.
+    { username: "wakil-ppk-01", fullName: "Andi Wakil PPK", role: "wakil_ppk" },
   ];
   const userByName = new Map<string, string>();
   for (const u of users) {
@@ -419,6 +422,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await assign("pm-01", "tengket");
   await assign("am-jateng", "kedungmutih");
   await assign("am-jateng", "purworejo");
+  // Wakil PPK memeriksa dua lokasi Jateng (sesuai penugasan, DECISIONS 199/426).
+  await assign("wakil-ppk-01", "kedungmutih");
+  await assign("wakil-ppk-01", "purworejo");
 
   // ── Paket non-kontrak: prospek / tender / batal ─────────────
   const extraPkgs = [

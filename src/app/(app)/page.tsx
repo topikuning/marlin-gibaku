@@ -9,6 +9,7 @@ import { can } from "@/lib/authz";
 import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
+import { FINDING_STATUS_LABEL, OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 
@@ -35,7 +36,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
   const locWhere = locationScopeWhere(user, locIds);
 
-  const [locations, packages, pendingReports, openIssues, correctionReports] = await Promise.all([
+  const [locations, packages, pendingReports, openIssues, correctionReports, openFindings] = await Promise.all([
     db.location.findMany({
       where: { ...locWhere, isActive: true },
       select: { id: true, name: true, slug: true, province: true, status: true },
@@ -74,6 +75,13 @@ async function CommandCenter({ user }: { user: SessionUser }) {
           take: 10,
         })
       : Promise.resolve([]),
+    // Temuan pemeriksa yang masih terbuka (DECISIONS 426).
+    db.finding.findMany({
+      where: { status: { in: [...OPEN_FINDING_STATUSES] }, location: locWhere },
+      select: { id: true, title: true, severity: true, status: true, location: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
   ]);
 
   const progress = await getLocationsProgress(locations.map((l) => l.id));
@@ -90,7 +98,8 @@ async function CommandCenter({ user }: { user: SessionUser }) {
   }
 
   const activePackages = packages.filter((p) => !["selesai", "batal"].includes(p.stage));
-  const actionCount = pendingReports.length + correctionReports.length + critical.length + openIssues.length;
+  const actionCount =
+    pendingReports.length + correctionReports.length + critical.length + openIssues.length + openFindings.length;
 
   return (
     <div className="space-y-6">
@@ -179,6 +188,37 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                       <StatusPill
                         tone={i.severity === "kritis" || i.severity === "tinggi" ? "danger" : "warning"}
                         label={i.severity}
+                      />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
+        )}
+        {openFindings.length > 0 && (
+          <Card>
+            <CardHeader
+              title="Temuan terbuka"
+              subtitle={`${openFindings.length} temuan pemeriksa`}
+              action={
+                <Link href="/temuan" className="text-xs font-medium text-primary underline">
+                  Papan temuan
+                </Link>
+              }
+            />
+            <CardBody>
+              <ul className="divide-y divide-border">
+                {openFindings.map((f) => (
+                  <li key={f.id}>
+                    <Link href={`/temuan/${f.id}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
+                      <span className="text-sm">
+                        {f.title}
+                        <span className="ml-2 text-ink-muted">{f.location.name}</span>
+                      </span>
+                      <StatusPill
+                        tone={f.severity === "kritis" ? "danger" : f.severity === "tinggi" ? "warning" : "info"}
+                        label={FINDING_STATUS_LABEL[f.status]}
                       />
                     </Link>
                   </li>
