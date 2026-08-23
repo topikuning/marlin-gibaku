@@ -16,6 +16,8 @@ import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { PindahTanggalForm } from "./pindah-tanggal-form";
+import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
+import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
@@ -47,6 +49,10 @@ export default async function HarianWorkspacePage({
 
   const canCreate = can(user.role, "daily_report.create");
   const canReview = can(user.role, "daily_report.review");
+  // Verifikasi EKSTERNAL Wakil PPK (DECISIONS 426) — jejak pemeriksaan pemberi
+  // kerja; tidak menyentuh status laporan maupun angka resmi.
+  const canVerifyExternal = can(user.role, "report.verify_external");
+  const riwayatWakil = report ? await riwayatVerifikasi(report.id) : [];
   const canFinalize = can(user.role, "daily_report.finalize");
   const canUnfinalize = can(user.role, "daily_report.unfinalize");
   const canMoveDate = can(user.role, "daily_report.move_date");
@@ -250,6 +256,24 @@ export default async function HarianWorkspacePage({
             Pratinjau format KKP
           </ButtonLink>
         </p>
+      ) : null}
+
+      {/* Verifikasi eksternal Wakil PPK — tampil bila sudah pernah diperiksa,
+          atau bila pembacanya sendiri pemeriksa & laporannya sudah terkirim. */}
+      {report &&
+      (riwayatWakil.length > 0 ||
+        (canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final"))) ? (
+        <PanelVerifikasiWakil
+          reportId={report.id}
+          bolehVerifikasi={canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final")}
+          riwayat={riwayatWakil.map((r) => ({
+            id: r.id,
+            status: r.status,
+            note: r.note,
+            oleh: r.verifiedByName,
+            pada: r.createdAt.toISOString(),
+          }))}
+        />
       ) : null}
 
       {/*

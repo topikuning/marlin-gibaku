@@ -10,9 +10,14 @@ import { FormTemuanBaru } from "./form-baru";
 export const metadata: Metadata = { title: "Catat Temuan" };
 export const dynamic = "force-dynamic";
 
-export default async function TemuanBaruPage() {
+export default async function TemuanBaruPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ inspeksi?: string; lokasi?: string }>;
+}) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "finding.create");
+  const sp = await searchParams;
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
@@ -20,6 +25,17 @@ export default async function TemuanBaruPage() {
     orderBy: { name: "asc" },
     select: { id: true, name: true, regency: true },
   });
+
+  // Konteks inspeksi (?inspeksi=...): lokasi terkunci ke lokasi inspeksinya.
+  let inspectionId: string | undefined;
+  let presetLocationId = locations.find((l) => l.id === sp.lokasi)?.id;
+  if (sp.inspeksi) {
+    const insp = await db.inspection.findUnique({ where: { id: sp.inspeksi }, select: { id: true, locationId: true } });
+    if (insp && locations.some((l) => l.id === insp.locationId)) {
+      inspectionId = insp.id;
+      presetLocationId = insp.locationId;
+    }
+  }
 
   // Kandidat PIC per lokasi = pemegang penugasan aktif lokasi itu.
   const assignments = locations.length
@@ -47,6 +63,8 @@ export default async function TemuanBaruPage() {
             lokasi={locations.map((l) => ({ value: l.id, label: `${l.name} – ${l.regency}` }))}
             picByLocation={picByLocation}
             todayKey={jakartaDateKey(new Date())}
+            inspectionId={inspectionId}
+            presetLocationId={presetLocationId}
           />
         </CardBody>
       </Card>

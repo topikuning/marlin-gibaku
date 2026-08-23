@@ -9,14 +9,18 @@ export function FormTemuanBaru({
   lokasi,
   picByLocation,
   todayKey,
+  inspectionId,
+  presetLocationId,
 }: {
   lokasi: { value: string; label: string }[];
   picByLocation: Record<string, { id: string; fullName: string }[]>;
   todayKey: string;
+  inspectionId?: string;
+  presetLocationId?: string;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<FindingActionState, FormData>(createFindingAction, undefined);
-  const [locationId, setLocationId] = useState(lokasi.length === 1 ? lokasi[0].value : "");
+  const [locationId, setLocationId] = useState(presetLocationId ?? (lokasi.length === 1 ? lokasi[0].value : ""));
 
   useEffect(() => {
     if (state?.success) {
@@ -32,9 +36,20 @@ export function FormTemuanBaru({
 
   return (
     <form action={action} className="space-y-3">
+      {inspectionId ? <input type="hidden" name="inspectionId" value={inspectionId} /> : null}
       <div>
         <Label htmlFor="t-lokasi" required>Lokasi</Label>
-        <Combobox id="t-lokasi" name="locationId" value={locationId} onChange={setLocationId} options={lokasi} placeholder="Pilih lokasi" required />
+        <Combobox
+          id="t-lokasi"
+          name="locationId"
+          value={locationId}
+          onChange={setLocationId}
+          options={lokasi}
+          placeholder="Pilih lokasi"
+          required
+          disabled={Boolean(inspectionId)}
+        />
+        {inspectionId ? <p className="mt-1 text-xs text-ink-muted">Lokasi mengikuti inspeksi asal temuan ini.</p> : null}
       </div>
       <div>
         <Label htmlFor="t-judul" required>Judul temuan</Label>

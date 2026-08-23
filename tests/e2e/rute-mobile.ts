@@ -59,6 +59,8 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   // Pengendalian terpadu (DECISIONS 426).
   { pola: "/temuan", nama: "Papan temuan" },
   { pola: "/temuan/baru", nama: "Catat temuan" },
+  { pola: "/verifikasi", nama: "Workspace verifikasi Wakil PPK" },
+  { pola: "/verifikasi/inspeksi/baru", nama: "Catat inspeksi" },
   { pola: "/sistem", nama: "Sistem" },
   { pola: "/sistem/arsip-foto", nama: "Sistem – arsip foto" },
 ];
@@ -159,6 +161,11 @@ export const RUTE_DINAMIS: {
     isi: (k) => (k.paparanId ? [`/ai/paparan/${k.paparanId}`] : null),
   },
   { pola: "/temuan/[id]", nama: "Detail temuan", isi: (k) => (k.temuanId ? [`/temuan/${k.temuanId}`] : null) },
+  {
+    pola: "/verifikasi/inspeksi/[id]",
+    nama: "Detail inspeksi",
+    isi: (k) => (k.inspeksiId ? [`/verifikasi/inspeksi/${k.inspeksiId}`] : null),
+  },
 ];
 
 /**
