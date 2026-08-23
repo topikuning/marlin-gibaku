@@ -68,8 +68,11 @@ export async function simpanPelaksana(
   const d = parsed.data;
 
   // Penimpaan lokasi hanya menyentuh satu lokasi, jadi cukup dipegang yang
-  // mengelola lokasi itu — bukan pengelola kontrak.
-  const actor = await requireCapability("location.manage");
+  // mengelola lokasi itu — bukan pengelola kontrak. Sejak DECISIONS 419 pagarnya
+  // `location.signer` (Site Manager ke atas), bukan `location.manage`: yang
+  // diminta user adalah mengisi NAMA, bukan mengganti nama lokasi atau
+  // menggeser koordinat master.
+  const actor = await requireCapability("location.signer");
   await requireLocationAccess(actor, d.locationId);
 
   const lokasi = await db.location.findFirst({

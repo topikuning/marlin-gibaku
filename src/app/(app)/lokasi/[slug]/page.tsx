@@ -100,6 +100,9 @@ export default async function LokasiRingkasanPage({
       : false;
 
   const canManageLocation = can(user.role, "location.manage");
+  // Penanda tangan lokasi punya pagar sendiri (DECISIONS 419) — Site Manager
+  // boleh mengisinya tanpa ikut memegang master lokasi.
+  const canSigner = can(user.role, "location.signer");
   const targets = (Object.keys(LOCATION_STATUS_LABEL) as LocationStatus[])
     .filter((s) => canTransitionLocation(location.status, s))
     .map((s): [LocationStatus, string] => [s, LOCATION_STATUS_LABEL[s]]);
@@ -266,7 +269,7 @@ export default async function LokasiRingkasanPage({
           </Card>
         ) : null}
 
-        {canManageLocation ? (
+        {canSigner ? (
           <Card>
             <CardHeader
               title="Penanda tangan lokasi ini"

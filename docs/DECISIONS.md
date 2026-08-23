@@ -21729,3 +21729,28 @@ pendek di kiri sebagai titik mulai baca. Di PDF dipotong manual lewat
 Ukuran unduhan foto dinaikkan 760 → 1400×900 q82: sisi foto pada slide dua
 kolom ±417pt, jadi ini ±3,4× ukuran cetak — tajam saat diproyeksikan maupun
 dicetak.
+
+## 419 — Site Manager boleh mengisi penanda tangan LOKASI, 2026-08-23
+
+Permintaan user: *"untuk pengisian nama penandatangan site manager dijinkan"*.
+
+Kartu "Penanda tangan lokasi ini" di halaman Lokasi (nama + jabatan Pelaksana
+Lapangan, nama + firma Konsultan Pengawas lokasi itu, berikut coretan tanda
+tangannya) sebelumnya dijaga `location.manage` — kapabilitas yang baru dimiliki
+Project Manager ke atas, jadi Site Manager tidak melihat kartunya sama sekali.
+
+Dibuka lewat **kapabilitas baru `location.signer`**, bukan dengan memberi SM
+`location.manage`. Yang diminta adalah mengisi NAMA; `location.manage` ikut
+membawa ganti nama lokasi dan ubah koordinat master — dan koordinat master itu
+dipakai cap foto sebagai cadangan titik proyek (DECISIONS 197), jadi
+menggesernya menggeser klaim lokasi di atas bukti. Efek samping yang tidak
+diminta tidak diselundupkan lewat pintu yang kebetulan sama.
+
+Yang TIDAK ikut terbuka, dan dijaga uji: `location.manage`, `location.correct`,
+serta `contract.manage` — penanda tangan tingkat PAKET (PPK, Direktur, pengawas
+kontrak) tetap milik pengelola kontrak, karena satu orang mengubahnya di sana
+dan SELURUH lokasi paket ikut berubah. `requireLocationAccess` tetap berlaku:
+SM hanya menyentuh lokasi penugasannya.
+
+Diverifikasi di server standalone: sm-01 melihat kartunya, menyimpan nama, dan
+tersimpan + teraudit (`lokasi.penandatangan`); mandor-01 tidak melihat kartunya.
