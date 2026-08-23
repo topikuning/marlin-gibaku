@@ -34,6 +34,10 @@ export default async function TemuanPage({
   requireCapabilityPage(user.role, "finding.view");
   const sp = await searchParams;
   const bolehCatat = can(user.role, "finding.create");
+  const bolehEkspor = can(user.role, "report.export");
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v);
+  const hrefXlsx = `/api/temuan/xlsx${qs.size ? `?${qs.toString()}` : ""}`;
 
   const { baris, ringkas } = await papanTemuan(user, {
     status: sp.status,
@@ -48,7 +52,18 @@ export default async function TemuanPage({
       <PageHeader
         title="Temuan"
         description="Ketidaksesuaian yang dicatat pihak pemeriksa – hanya selesai setelah verifikator menutupnya."
-        actions={bolehCatat ? <ButtonLink href="/temuan/baru">Catat temuan</ButtonLink> : undefined}
+        actions={
+          bolehCatat || bolehEkspor ? (
+            <span className="flex flex-wrap gap-2">
+              {bolehEkspor ? (
+                <ButtonLink href={hrefXlsx} variant="secondary" unduhan labelSibuk="Menyiapkan…">
+                  Unduh register (.xlsx)
+                </ButtonLink>
+              ) : null}
+              {bolehCatat ? <ButtonLink href="/temuan/baru">Catat temuan</ButtonLink> : null}
+            </span>
+          ) : undefined
+        }
       />
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-5">

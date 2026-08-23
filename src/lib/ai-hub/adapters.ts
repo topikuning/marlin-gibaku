@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { getContractsBilling, getLocationsFinance } from "@/lib/finance/calc";
 import { formatRupiah, jakartaToday } from "@/lib/format";
+import { OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import type { SessionUser } from "@/lib/auth/session";
 import { kunciFakta, type FaktaResmi, type Metrik } from "./schemas";
 import {
@@ -124,6 +125,7 @@ export async function buildAdapterFacts(
   const bolehKeuangan = boleh("keuangan");
   const bolehRab = boleh("rab");
   const bolehMilestone = boleh("milestone");
+  const bolehTemuan = boleh("temuan");
 
   const lokasi: LokasiRingkas[] = await db.location.findMany({
     where: { id: { in: locIds } },
@@ -137,6 +139,7 @@ export async function buildAdapterFacts(
   if (bolehRab) await tambahRab(hasil, lokasi, periodKey);
   if (bolehKeuangan) await tambahKeuangan(hasil, lokasi, paketIds, periodKey);
   if (bolehMilestone) await tambahMilestone(hasil, lokasi, periodKey);
+  if (bolehTemuan) await tambahTemuan(hasil, lokasi, periodKey);
 
   return hasil;
 }
@@ -374,6 +377,47 @@ async function tambahMilestone(
     dorong(hasil, fakta(l.id, "milestone_total", total, periodKey, refId));
     dorong(hasil, fakta(l.id, "milestone_selesai", selesai, periodKey, refId));
     dorong(hasil, fakta(l.id, "milestone_perlu_perbaikan", perluPerbaikan, periodKey, refId));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Temuan pemeriksa (DECISIONS 426)                                    */
+/* ------------------------------------------------------------------ */
+
+async function tambahTemuan(
+  hasil: HasilAdapter,
+  lokasi: LokasiRingkas[],
+  periodKey: string,
+): Promise<void> {
+  const terbuka = await db.finding.findMany({
+    where: {
+      locationId: { in: lokasi.map((l) => l.id) },
+      status: { in: [...OPEN_FINDING_STATUSES] },
+    },
+    select: { locationId: true, severity: true, status: true, dueDate: true },
+  });
+  if (terbuka.length === 0) return;
+  const hariIni = jakartaToday();
+
+  for (const l of lokasi) {
+    const milik = terbuka.filter((t) => t.locationId === l.id);
+    if (milik.length === 0) continue;
+    const kritis = milik.filter((t) => t.severity === "kritis").length;
+    const lewat = milik.filter((t) => t.dueDate !== null && t.dueDate < hariIni).length;
+    const dibukaKembali = milik.filter((t) => t.status === "dibuka_kembali").length;
+    const refId = `${l.slug}:temuan`;
+    hasil.refs.push({
+      id: refId,
+      entityType: "finding",
+      entityId: l.id,
+      label: `${l.name} – temuan pemeriksa terbuka`,
+      value: `${milik.length} terbuka · ${kritis} kritis · ${lewat} lewat tenggat · ${dibukaKembali} dibuka kembali`,
+      href: `/temuan?status=terbuka&lokasi=${l.slug}`,
+    });
+    dorong(hasil, fakta(l.id, "temuan_terbuka", milik.length, periodKey, refId));
+    dorong(hasil, fakta(l.id, "temuan_kritis", kritis, periodKey, refId));
+    dorong(hasil, fakta(l.id, "temuan_lewat_tenggat", lewat, periodKey, refId));
+    dorong(hasil, fakta(l.id, "temuan_dibuka_kembali", dibukaKembali, periodKey, refId));
   }
 }
 
