@@ -326,6 +326,26 @@ export function totalWeeksBetween(start: Date, end: Date, mode: WeekPeriodMode):
  * Awal M1 selalu = `start` (mode kalender: M1 pendek). Bila `end` diberikan,
  * akhir minggu terakhir dipangkas ke `end`.
  */
+/**
+ * Fraksi HARI kumulatif pada AKHIR tiap minggu, relatif total hari kontrak —
+ * grid evaluasi generator kurva-S untuk mode `senin_minggu` (M1/minggu akhir
+ * pendek menyumbang fraksi lebih kecil). Naik ketat; elemen terakhir = 1.
+ * Mode `tujuh_hari` TIDAK memakai grid ini (generator tetap grid seragam
+ * lamanya) supaya angka baseline yang sudah beredar tidak bergeser.
+ */
+export function weekEndFractions(start: Date, end: Date, mode: WeekPeriodMode): number[] {
+  const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1);
+  const n = totalWeeksBetween(start, end, mode);
+  const out: number[] = [];
+  for (let k = 1; k <= n; k++) {
+    const r = weekDateRange(start, k, mode, end);
+    const days = Math.round((r.end.getTime() - start.getTime()) / DAY_MS) + 1;
+    out.push(Math.min(1, days / totalDays));
+  }
+  out[n - 1] = 1;
+  return out;
+}
+
 export function weekDateRange(
   start: Date,
   n: number,
