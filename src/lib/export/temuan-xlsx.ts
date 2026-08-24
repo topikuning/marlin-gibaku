@@ -2,7 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import type { BarisTemuan } from "@/lib/findings/queries";
 import { formatTanggal } from "@/lib/format";
-import { FINDING_STATUS_LABEL } from "@/lib/lifecycle";
+import { FINDING_CATEGORY_LABEL, FINDING_STATUS_LABEL, ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 
 /**
  * REGISTER TEMUAN → .xlsx (DECISIONS 426). Menuangkan baris papan temuan APA
@@ -10,21 +10,6 @@ import { FINDING_STATUS_LABEL } from "@/lib/lifecycle";
  * sudah tersaring scope + saringan pengguna.
  */
 
-const SEVERITY_LABEL: Record<string, string> = {
-  kritis: "Kritis",
-  tinggi: "Tinggi",
-  sedang: "Sedang",
-  rendah: "Rendah",
-};
-const CATEGORY_LABEL: Record<string, string> = {
-  mutu: "Mutu",
-  volume: "Volume",
-  k3: "K3",
-  administrasi: "Administrasi",
-  jadwal: "Jadwal",
-  lingkungan: "Lingkungan",
-  lainnya: "Lainnya",
-};
 
 const HEAD_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
 const thin = { style: "thin" as const };
@@ -69,8 +54,8 @@ export async function buildTemuanXlsx(baris: BarisTemuan[], dibuatOleh: string):
       i + 1,
       t.title,
       t.locationName,
-      CATEGORY_LABEL[t.category] ?? t.category,
-      SEVERITY_LABEL[t.severity] ?? t.severity,
+      FINDING_CATEGORY_LABEL[t.category],
+      ISSUE_SEVERITY_LABEL[t.severity],
       FINDING_STATUS_LABEL[t.status],
       formatTanggal(t.findingDate),
       t.dueDate ? formatTanggal(t.dueDate) : "-",

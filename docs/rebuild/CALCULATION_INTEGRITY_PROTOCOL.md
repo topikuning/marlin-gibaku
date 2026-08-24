@@ -299,9 +299,17 @@ Sudah terpasang dan dijaga uji otomatis:
   index di DB, bukan hanya disiplin kode.
 - Matriks permission dibangkitkan dari kode + test penjaga.
 
+Terpasang SEBAGIAN sejak DECISIONS 426 (opsi 2 — angka pendamping):
+
+- `getLocationsProgress` menerima `statusLevel: "dilaporkan" | "terverifikasi"`
+  (`VERIFIED_REPORT_STATUSES` = disetujui+final di `lifecycle.ts`) — rumus,
+  penyebut, dan default TIDAK berubah; dipakai mesin kesiapan termin/PHO dengan
+  label "Progress Terverifikasi". Paritasnya diuji
+  `tests/integration/progress-terverifikasi.test.ts`.
+
 Belum terpasang, butuh KEPUTUSAN USER (lihat `docs/OPEN_ISSUES.md`):
 
-- Pemisahan level status (`reportedProgress` / `verifiedProgress` / `frozenProgress`)
-  dan pelarangan label generik "Realisasi".
+- Memindahkan BASIS RESMI (dashboard/blanko KKP/keuangan) ke level
+  terverifikasi, `frozenProgress`, dan pelarangan label generik "Realisasi".
 - Metadata presentasi penuh (`dataAsOf`, `calculationKey`, `statusLevel`,
   `revisionId`, `baselineId`) pada setiap angka.

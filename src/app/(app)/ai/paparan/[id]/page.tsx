@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Download } from "lucide-react";
-import { Badge, Banner, Card, CardBody, CardHeader } from "@/components/ui";
+import { Badge, Banner, Card, CardBody, CardHeader, TautanUnduh } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -90,15 +90,14 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
           <h2 className="truncate text-lg font-semibold text-ink">{content.humanEdits?.title ?? content.narasi.title}</h2>
         </div>
         <Badge tone={AI_ARTIFACT_STATUS_TONE[artifact.status]}>{AI_ARTIFACT_STATUS_LABEL[artifact.status]}</Badge>
-        <a
+        <TautanUnduh
           href={`/api/paparan/${artifact.id}/pdf`}
-          target="_blank"
-          rel="noopener"
+          labelSibuk="Menyiapkan PDF…"
           className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary-800"
         >
           <Download aria-hidden className="size-4" />
           {draf ? "Unduh PDF (draf ber-watermark)" : "Unduh PDF final"}
-        </a>
+        </TautanUnduh>
       </div>
 
       {content.narasiSumber === "deterministik" ? (

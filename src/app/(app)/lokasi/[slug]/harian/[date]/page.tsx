@@ -8,7 +8,7 @@ import { KeteranganStatus, Strip7Hari } from "@/components/knmp/strip-7-hari";
 import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
-import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
+import { ISSUE_SEVERITY_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
@@ -23,7 +23,6 @@ import { withBackTo } from "@/lib/print-back";
 export const metadata: Metadata = { title: "Laporan Harian" };
 export const dynamic = "force-dynamic";
 
-const SEVERITY_TONE = { rendah: "neutral", sedang: "info", tinggi: "warning", kritis: "danger" } as const;
 
 /**
  * WORKSPACE HARIAN SATU LAYAR — draft/koreksi (input SM), verifikasi (PM/SM),
@@ -325,7 +324,7 @@ export default async function HarianWorkspacePage({
                       <p className="text-sm font-medium text-ink">{i.title}</p>
                       {i.description ? <p className="text-xs text-ink-muted">{i.description}</p> : null}
                     </div>
-                    <Badge tone={SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
+                    <Badge tone={ISSUE_SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
                   </li>
                 ))}
               </ul>

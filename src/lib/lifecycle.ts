@@ -3,8 +3,10 @@ import type {
   AiRunStatus,
   DailyReportStatus,
   EvidenceVerifStatus,
+  FindingCategory,
   FindingStatus,
   InspectionStatus,
+  IssueSeverity,
   LocationStatus,
   PackageStage,
   ReportVerifStatus,
@@ -203,7 +205,40 @@ export const AI_ARTIFACT_STATUS_TONE: Record<AiArtifactStatus, "neutral" | "info
   terkirim: "success",
 };
 
+/* ── Tingkat keparahan (dipakai Issue DAN Finding) ──────────────────────── */
+
+/**
+ * SATU peta label & tone untuk `IssueSeverity` — dulu ditulis ulang di ≥6
+ * berkas dan sempat menyimpang (Beranda mewarnai `tinggi` merah di kartu
+ * kendala tapi kuning di kartu temuan, pada halaman yang sama). Rumah label +
+ * tone memang di sini; jangan salin lagi.
+ */
+export const ISSUE_SEVERITY_LABEL: Record<IssueSeverity, string> = {
+  rendah: "Rendah",
+  sedang: "Sedang",
+  tinggi: "Tinggi",
+  kritis: "Kritis",
+};
+
+export const ISSUE_SEVERITY_TONE: Record<IssueSeverity, "neutral" | "info" | "warning" | "danger"> = {
+  rendah: "neutral",
+  sedang: "info",
+  tinggi: "warning",
+  kritis: "danger",
+};
+
 /* ── Temuan / inspeksi / verifikasi eksternal (DECISIONS 426) ───────────── */
+
+/** Label kategori temuan — satu tempat untuk layar, PDF, dan Excel. */
+export const FINDING_CATEGORY_LABEL: Record<FindingCategory, string> = {
+  mutu: "Mutu",
+  volume: "Volume",
+  k3: "K3",
+  administrasi: "Administrasi",
+  jadwal: "Jadwal",
+  lingkungan: "Lingkungan",
+  lainnya: "Lainnya",
+};
 
 /**
  * Siklus temuan. "Ditindaklanjuti" BELUM selesai — hanya verifikator yang

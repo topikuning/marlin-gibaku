@@ -17,7 +17,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { formatTanggal } from "@/lib/format";
 import { papanKendala, HARI_SELESAI_TAMPIL, type BarisKendala } from "@/lib/kendala/queries";
-import type { IssueSeverity, IssueSource, IssueStatus } from "@/generated/prisma/enums";
+import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
+import type { IssueSource, IssueStatus } from "@/generated/prisma/enums";
 import { SaringKendala } from "./saring";
 import { PemilikForm } from "./pemilik-form";
 import { GabungForm, type KandidatInduk } from "./gabung-form";
@@ -45,12 +46,6 @@ export const dynamic = "force-dynamic";
  * keempatnya tanpa aksi pemulihan.
  */
 
-const TINGKAT_TONE: Record<IssueSeverity, "neutral" | "info" | "warning" | "danger"> = {
-  rendah: "neutral",
-  sedang: "info",
-  tinggi: "warning",
-  kritis: "danger",
-};
 
 const STATUS_LABEL: Record<IssueStatus, string> = {
   terbuka: "Terbuka",
@@ -87,7 +82,7 @@ function BarisKendalaKartu({
             >
               {k.title}
             </Link>
-            <Badge tone={TINGKAT_TONE[k.severity]} label={k.severity} />
+            <Badge tone={ISSUE_SEVERITY_TONE[k.severity]} label={ISSUE_SEVERITY_LABEL[k.severity]} />
             <StatusPill tone={k.status === "selesai" ? "success" : "neutral"} label={STATUS_LABEL[k.status]} />
             {k.lewatTenggat ? <Badge tone="danger" label="Lewat tenggat" /> : null}
             {/*

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Gauge } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui";
+import { ButtonLink, Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { formatPct } from "@/lib/format";
 import { kesiapanPortofolio } from "@/lib/kesiapan/builder";
 import { KESIAPAN_VERDICT_LABEL, KESIAPAN_VERDICT_TONE } from "@/lib/kesiapan/rules";
@@ -29,6 +30,13 @@ export default async function KesiapanPage() {
       <PageHeader
         title="Kesiapan"
         description="Kesiapan termin, PHO, FHO, dan close-out per paket – dari mesin aturan, bukan perkiraan. Progress terverifikasi = laporan disetujui + final."
+        actions={
+          can(user.role, "report.export") ? (
+            <ButtonLink href="/api/kesiapan/pdf" variant="secondary" unduhan labelSibuk="Menyiapkan…">
+              Unduh laporan (.pdf)
+            </ButtonLink>
+          ) : undefined
+        }
       />
 
       {paket.length === 0 ? (
