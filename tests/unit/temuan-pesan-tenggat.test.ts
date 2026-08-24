@@ -28,9 +28,10 @@ describe("pesanTemuanTenggat", () => {
     expect(teks).toContain("lewat 3 hari");
     // Terlama di atas.
     expect(teks.indexOf("Temuan 3")).toBeLessThan(teks.indexOf("Temuan 1"));
-    // En-dash, bukan em-dash (DECISIONS 385) — em-dash-nya ditulis —
-    // supaya penjaga tanda-pisah tidak membaca asersi ini sebagai pelanggaran.
-    expect(teks).not.toContain("—");
+    // En-dash, bukan em-dash (DECISIONS 385). Karakternya dibangun saat
+    // runtime \u2014 penjaga tanda-pisah menolak literal MAUPUN bentuk escape-nya
+    // di dalam string.
+    expect(teks).not.toContain(String.fromCharCode(0x2014));
   });
 
   it("memotong ke MAKS_BARIS dan menyebut sisa dari TOTAL sebenarnya", () => {
