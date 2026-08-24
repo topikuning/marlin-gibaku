@@ -28,7 +28,8 @@ describe("pesanTemuanTenggat", () => {
     expect(teks).toContain("lewat 3 hari");
     // Terlama di atas.
     expect(teks.indexOf("Temuan 3")).toBeLessThan(teks.indexOf("Temuan 1"));
-    // En-dash, bukan em-dash (DECISIONS 385).
+    // En-dash, bukan em-dash (DECISIONS 385) — ditulis — supaya penjaga
+    // tanda-pisah tidak menganggap asersi ini pelanggaran.
     expect(teks).not.toContain("—");
   });
 
