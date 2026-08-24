@@ -22193,3 +22193,36 @@ pengawas), bukan di awal. Dua hal dibereskan:
    rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
    Snapshot lama TIDAK dibangun ulang: dokumen final yang sudah diteken tidak
    diubah diam-diam; yang lahir setelah ini koheren selamanya.
+
+## 427d — Ganti mode minggu = SATU KLIK: jadwal lama dikonversi, bukan dibuang, 2026-08-24
+
+Ketetapan user: *"kamu jangan mengubah apa pun di proses yang lama, jadi
+tinggal klik ubah metode perhitungan mingguan, beres begitu saja, semuanya
+ikut menyesuaikan. jangan sampai ulang impor dan lain sebagainya, sistemmu
+yang menyesuaikan."*
+
+Sebelumnya ganti mode memicu `regenerateBaseline` (generator otomatis) —
+jadwal impor Excel verbatim ikut terganti dan user harus impor ulang. Dibuang:
+
+- `rebucketWeeklyToGrid` (scurve/generate, MURNI): increment tiap minggu lama
+  dianggap tersebar merata sepanjang hari-harinya, lalu di-bucket ulang ke
+  batas minggu grid baru. Bentuk rencana dalam KALENDER dipertahankan persis;
+  Σ tidak berubah; M1 pendek menerima tepat porsi hari yang jatuh di dalamnya.
+- `konversiBaselineModeMinggu` (baseline.ts): supersede baseline aktif → versi
+  baru dengan matriks per-kategori hasil konversi + kurva = Σ matriks
+  (jalur akumulasi yang sama dengan simpan jadwal). **Provenance
+  dipertahankan** — `source` baseline lama dibawa, hasil konversi impor
+  verbatim tidak menyamar jadi "auto". Baseline lama tanpa matriks
+  dikonversi lewat increment kurvanya.
+- `editContractAction`: bila HANYA mode yang berubah (SPMK & durasi tetap) →
+  konversi per lokasi; regenerate hanya fallback untuk baseline yang tidak
+  cocok grid lamanya. Perubahan SPMK/durasi tetap regenerate (perilaku lama).
+  Kedua grid dihitung dari HARI nyata (`weekEndFractions`) — juga sisi
+  tujuh_hari, supaya durasi yang tidak habis dibagi 7 terpetakan tepat.
+- Validasi impor Excel jadwal, saran mingguan, dan total minggu paparan ikut
+  dibetulkan ke jumlah kolom per mode (sisa `ceil(hari/7)` tertulis-langsung
+  dari sapuan 427b).
+
+Penjaga: blok "rebucketWeeklyToGrid" di `tests/unit/periode-minggu.test.ts`
+(identitas grid sama; Σ dipertahankan 17→18 kolom; minggu Kamis–Rabu terbelah
+4/7 + 3/7; monoton).

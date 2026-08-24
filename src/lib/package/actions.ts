@@ -14,8 +14,9 @@ import {
 } from "@/lib/lifecycle";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { weightedRealizedPct } from "@/lib/progress-calc";
+import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
+import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { existingLocationIndex } from "@/lib/master-location/queries";
 import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -1152,8 +1153,52 @@ export async function editContractAction(
 
   // Bila waktu berubah → kurva-S/baseline ikut berubah (jumlah minggu & peta
   // tanggal). Regenerate per lokasi yang punya RAB aktif; lewati yang belum.
+  //
+  // KHUSUS ganti MODE MINGGU saja (SPMK & durasi tetap): jadwal yang sudah ada
+  // TIDAK dibuang — ketetapan user 2026-08-24 (DECISIONS 427d): *"tinggal klik
+  // ubah metode... jangan sampai ulang impor, sistemmu yang menyesuaikan."*
+  // Matriks lama DIKONVERSI ke grid baru dengan bentuk kalender dipertahankan;
+  // regenerate (yang mengganti kurva dengan hasil generator) hanya untuk
+  // lokasi yang konversinya tidak mungkin (baseline tak cocok / belum ada).
   let recomputed = 0;
-  if (timeChanged) {
+  const hanyaModeBerubah =
+    weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart;
+  if (hanyaModeBerubah && startDate && endDate) {
+    // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
+    // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
+    // (minggu terakhir yang pendek dipetakan sebesar harinya).
+    const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
+      const fr = weekEndFractions(startDate, endDate, mode);
+      return { fracs: fr as number[] | null, totalWeeks: fr.length };
+    };
+    const lama = gridDari(pkg.contract.weekMode);
+    const baru = gridDari(d.weekMode!);
+    for (const loc of pkg.locations) {
+      try {
+        const hasil = await konversiBaselineModeMinggu(loc.id, {
+          oldEndFracs: lama.fracs,
+          oldTotalWeeks: lama.totalWeeks,
+          newEndFracs: baru.fracs,
+          newTotalWeeks: baru.totalWeeks,
+          userId: actor.id,
+          note: `Konversi mode periode minggu (${pkg.contract.weekMode} → ${d.weekMode})`,
+        });
+        if (hasil === "dikonversi") {
+          recomputed++;
+          continue;
+        }
+        // Tidak bisa dikonversi (baseline tak cocok grid lama) → generator.
+        await regenerateBaseline(loc.id, {
+          source: "auto",
+          note: "Ganti mode minggu – baseline lama tidak cocok grid, dihitung ulang",
+          userId: actor.id,
+        });
+        recomputed++;
+      } catch {
+        /* lokasi tanpa RAB/baseline aktif → lewati */
+      }
+    }
+  } else if (timeChanged) {
     for (const loc of pkg.locations) {
       try {
         await regenerateBaseline(loc.id, {
