@@ -190,9 +190,13 @@ SOURCE A (protokol):
   Label generik "Realisasi" DILARANG; harus "Progress Dilaporkan" /
   "Progress Terverifikasi" / "Progress Final".
 SOURCE B (kode):
-  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — SATU level, dipakai
+  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — basis RESMI, dipakai
   dashboard, blanko KKP, kurva-S, keuangan (installedValue), dan AI. UI
   melabelinya "Realisasi" di ±12 tempat.
+  UPDATE DECISIONS 426: opsi 2 SUDAH terpasang sebagai angka PENDAMPING —
+  `statusLevel: "terverifikasi"` (disetujui+final) di getLocationsProgress,
+  dipakai mesin kesiapan termin/PHO. Basis resmi TIDAK berubah; yang masih
+  menunggu keputusan tinggal opsi 3 (memindahkan basis resmi).
 BUSINESS IMPACT:
   Angka yang diteken PPK saat ini memasukkan laporan yang BARU DIKIRIM dan
   belum diverifikasi siapa pun. Pembaca tidak bisa membedakannya. Untuk

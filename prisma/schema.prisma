@@ -24,8 +24,10 @@ enum UserRole {
   site_manager
   field_supervisor
   exec_viewer
-  /// Wakil pemberi kerja — BACA SAJA, tanpa AI, hanya lokasi yang ditugaskan.
-  /// DECISIONS 199.
+  /// Wakil pemberi kerja — VERIFIKATOR (DECISIONS 426, menggantikan sebagian
+  /// 199): boleh menulis HANYA domain pemeriksaan (temuan, inspeksi,
+  /// verifikasi eksternal laporan); tetap tanpa AI/keuangan, hanya lokasi
+  /// yang ditugaskan.
   wakil_ppk
 }
 
