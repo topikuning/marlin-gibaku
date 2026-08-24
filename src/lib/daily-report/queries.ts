@@ -1,7 +1,7 @@
 import "server-only";
 import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
-import { bobotPct, prestasiPct } from "@/lib/progress-calc";
+import { weekOfDate, weekDateRange, bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
@@ -601,6 +601,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           contract: {
             select: {
               startDate: true,
+              weekMode: true,
               workTitle: true,
               contractNumber: true,
               signedDate: true,
@@ -608,6 +609,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
               supervisorFirm: true,
               supervisorTtdKey: true,
               supervisorStempelKey: true,
+              supervisorLogoKey: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
               vendor: { select: { name: true, logoKey: true, address: true } },
@@ -655,11 +657,22 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ownerLogoUrl = null;
     }
   }
+  // Logo firma konsultan pengawas di kop layar (user 2026-08-24) — pola sama.
+  let supervisorLogoUrl: string | null = null;
+  if (location.package.contract?.supervisorLogoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      supervisorLogoUrl = await r2PresignGet(location.package.contract.supervisorLogoKey, 600);
+    } catch {
+      supervisorLogoUrl = null;
+    }
+  }
   const owner = {
     ownerName: brand.ownerName,
     ownerSubtitle: brand.ownerSubtitle,
     ownerAddress: brand.ownerAddress,
     ownerLogoUrl,
+    supervisorLogoUrl,
     pekerjaan: contract?.workTitle ?? null,
   };
 
@@ -714,9 +727,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   );
 
   const startDate = location.package.contract?.startDate ?? null;
-  const weekNo = startDate
-    ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
-    : null;
+  // Nomor minggu mengikuti mode periode minggu kontrak (user 2026-08-24).
+  const weekMode = location.package.contract?.weekMode ?? "tujuh_hari";
+  const weekNo = startDate ? Math.max(1, weekOfDate(startDate, reportDate, weekMode)) : null;
 
   /**
    * Bobot hari ini per item — kolom "Bobot (%)" di halaman dokumentasi.
@@ -758,20 +771,16 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     // Periode minggu berjalan: diturunkan dari tanggal SPMK + nomor minggu yang
     // SUDAH dipakai blanko — satu sumber, jadi sampul dan blanko tidak bisa
     // menyebut minggu yang berbeda.
-    periodStart:
-      startDate && w
-        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w - 1) * 7 * 86_400_000))
-        : null,
-    periodEnd:
-      startDate && w
-        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w * 7 - 1) * 86_400_000))
-        : null,
+    periodStart: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, weekMode).start) : null,
+    periodEnd: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, weekMode).end) : null,
   });
   const lampiran = {
     contractNumber: contract?.contractNumber ?? null,
     contractDate: contract?.signedDate ? tanggalFullFmt.format(contract.signedDate) : null,
     contractorAddress: contract?.vendor?.address ?? null,
     vendorLogoKey: contract?.vendor?.logoKey ?? null,
+    // Logo firma konsultan pengawas — kop blanko harian (user 2026-08-24).
+    supervisorLogoKey: contract?.supervisorLogoKey ?? null,
     /*
      * Foto DIPILAH menurut apa yang dibuktikannya (DECISIONS 304).
      *

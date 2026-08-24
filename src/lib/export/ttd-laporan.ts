@@ -7,6 +7,8 @@ import {
   pilihPelaksana,
   pilihPengawas,
   type JenisDokumen,
+  pihakKkp,
+  pilihWakilSah,
   type SumberPelaksana,
 } from "@/lib/laporan/penandatangan";
 
@@ -77,6 +79,10 @@ const UMUR_TAUTAN = 600;
 export type SumberKunciTtd = {
   /** Pihak penyedia mana yang meneken dokumen ini. */
   penyedia: "pelaksana" | "direktur";
+  /** Pihak KKP slot "MENGETAHUI" (2026-08-24): mingguan/bulanan = Wakil Sah. */
+  kkp: "ppk" | "wakil_sah";
+  /** Coretan Wakil Sah yang SUDAH dipilih (lokasi menimpa kontrak). */
+  wakilSahTtdKey: string | null;
   /** Coretan pelaksana yang SUDAH dipilih (lokasi menimpa paket). */
   pelaksanaTtdKey: string | null;
   ppkTtdKey: string | null;
@@ -121,7 +127,9 @@ export type KunciTtd = {
 export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
   const pelaksana = s.penyedia === "pelaksana";
   return {
-    ppk: { ttd: s.ppkTtdKey, stempel: s.ppkStempelKey },
+    // Slot KKP: coretan mengikuti ORANGNYA (PPK / Wakil Sah); stempel milik
+    // INSTANSI, jadi tetap satu — ppkStempelKey (DECISIONS 408).
+    ppk: { ttd: s.kkp === "wakil_sah" ? s.wakilSahTtdKey : s.ppkTtdKey, stempel: s.ppkStempelKey },
     pengawas: { ttd: s.supervisorTtdKey, stempel: s.supervisorStempelKey },
     penyedia: {
       // Tanda tangan TIDAK pernah dipinjam antar orang: laporan harian yang
@@ -169,6 +177,9 @@ export async function muatTtdLaporan(
       supervisorName: true,
       supervisorFirm: true,
       supervisorTtdKey: true,
+      wakilSahName: true,
+      wakilSahNip: true,
+      wakilSahTtdKey: true,
       package: {
         select: {
           pelaksanaName: true,
@@ -178,6 +189,9 @@ export async function muatTtdLaporan(
             select: {
               ppkName: true,
               ppkNip: true,
+              wakilSahName: true,
+              wakilSahNip: true,
+              wakilSahTtdKey: true,
               supervisorName: true,
               supervisorFirm: true,
               contractorSignerName: true,
@@ -207,9 +221,14 @@ export async function muatTtdLaporan(
   );
   // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
   const pengawas = pilihPengawas(lokasi, k);
+  // Wakil Sah lokasi menimpa Wakil Sah kontrak – SATU BLOK (2026-08-24).
+  const wakilSah = pilihWakilSah(lokasi, k);
+  const kkp = pihakKkp(jenis);
   const kunci = pilihKunciTtd({
     ...k,
     penyedia,
+    kkp,
+    wakilSahTtdKey: wakilSah.ttdKey,
     pelaksanaTtdKey: pelaksana.ttdKey,
     supervisorTtdKey: pengawas.ttdKey,
     supervisorStempelKey: pengawas.stempelKey,
@@ -225,12 +244,21 @@ export async function muatTtdLaporan(
   ]);
 
   return {
-    ppk: {
-      nama: k.ppkName,
-      sub: k.ppkNip ? `NIP. ${k.ppkNip}` : (brand?.ownerName ?? null),
-      ttd: ppkTtd,
-      stempel: ppkStempel,
-    },
+    ppk:
+      kkp === "wakil_sah"
+        ? {
+            // Laporan mingguan/bulanan: slot KKP = WAKIL SAH (2026-08-24).
+            nama: wakilSah.nama,
+            sub: wakilSah.nip ? `NIP. ${wakilSah.nip}` : (brand?.ownerName ?? null),
+            ttd: ppkTtd,
+            stempel: ppkStempel,
+          }
+        : {
+            nama: k.ppkName,
+            sub: k.ppkNip ? `NIP. ${k.ppkNip}` : (brand?.ownerName ?? null),
+            ttd: ppkTtd,
+            stempel: ppkStempel,
+          },
     pengawas: {
       nama: pengawas.nama,
       sub: pengawas.firma,

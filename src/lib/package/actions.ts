@@ -620,6 +620,8 @@ const convertSchema = z
     retentionPercent: percentSchema,
     ppkName: z.string().trim().max(150).optional(),
     ppkNip: z.string().trim().max(60).optional(),
+    wakilSahName: z.string().trim().max(150).optional(),
+    wakilSahNip: z.string().trim().max(60).optional(),
     supervisorName: z.string().trim().max(150).optional(),
     supervisorFirm: z.string().trim().max(200).optional(),
     contractorSignerName: z.string().trim().max(150).optional(),
@@ -653,6 +655,8 @@ export async function convertToContract(
     retentionPercent: formData.get("retentionPercent"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
@@ -740,6 +744,8 @@ export async function convertToContract(
         endDate: null,
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
         supervisorName: d.supervisorName ?? null,
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
@@ -1064,6 +1070,8 @@ const editContractSchema = z.object({
   ),
   // SPMK / tanggal mulai. Kosong = SPMK belum terbit (startDate null).
   startDate: z.string().optional(),
+  // Mode periode minggu laporan (user 2026-08-24). Kosong = tidak diubah.
+  weekMode: z.enum(["tujuh_hari", "senin_minggu"]).optional(),
 });
 
 export async function editContractAction(
@@ -1081,6 +1089,7 @@ export async function editContractAction(
     signedDate: formData.get("signedDate"),
     durationDays: formData.get("durationDays"),
     startDate: optionalText(formData.get("startDate"), 20) ?? undefined,
+    weekMode: optionalText(formData.get("weekMode"), 20) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1097,7 +1106,7 @@ export async function editContractAction(
     where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, durationDays: true, startDate: true } },
+      contract: { select: { id: true, durationDays: true, startDate: true, weekMode: true } },
       locations: { select: { id: true } },
     },
   });
@@ -1112,7 +1121,11 @@ export async function editContractAction(
 
   const prevStart = pkg.contract.startDate ? pkg.contract.startDate.toISOString().slice(0, 10) : null;
   const newStart = startDate ? startDate.toISOString().slice(0, 10) : null;
-  const timeChanged = pkg.contract.durationDays !== d.durationDays || prevStart !== newStart;
+  // Mode minggu ikut menggeser peta tanggal & jumlah kolom minggu — jadi
+  // perlakuannya sama dengan perubahan waktu: kurva-S dihitung ulang.
+  const weekModeChanged = d.weekMode != null && d.weekMode !== pkg.contract.weekMode;
+  const timeChanged =
+    pkg.contract.durationDays !== d.durationDays || prevStart !== newStart || weekModeChanged;
 
   await db.$transaction(async (tx) => {
     await tx.package.update({
@@ -1132,6 +1145,7 @@ export async function editContractAction(
         durationDays: d.durationDays,
         startDate,
         endDate,
+        ...(d.weekMode ? { weekMode: d.weekMode } : {}),
       },
     });
   });
@@ -1161,6 +1175,7 @@ export async function editContractAction(
     contractValue,
     durationDays: d.durationDays,
     startDate: newStart,
+    weekMode: d.weekMode ?? null,
     timeChanged,
     baselinesRecomputed: recomputed,
   });
@@ -1181,6 +1196,8 @@ const signatoriesSchema = z.object({
   contractId: z.uuid("ID kontrak tidak valid"),
   ppkName: z.string().trim().max(150).optional(),
   ppkNip: z.string().trim().max(60).optional(),
+  wakilSahName: z.string().trim().max(150).optional(),
+  wakilSahNip: z.string().trim().max(60).optional(),
   supervisorName: z.string().trim().max(150).optional(),
   supervisorFirm: z.string().trim().max(200).optional(),
   contractorSignerName: z.string().trim().max(150).optional(),
@@ -1201,6 +1218,8 @@ export async function updateContractSignatories(
     contractId: formData.get("contractId"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
@@ -1229,6 +1248,8 @@ export async function updateContractSignatories(
       data: {
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
         supervisorName: d.supervisorName ?? null,
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
@@ -1247,6 +1268,7 @@ export async function updateContractSignatories(
   await audit(actor.id, "contract.signatories", "package", contract.packageId, {
     contractId: contract.id,
     ppkName: d.ppkName ?? null,
+    wakilSahName: d.wakilSahName ?? null,
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
     pelaksanaName: d.pelaksanaName ?? null,
@@ -1701,8 +1723,12 @@ const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
 const MEDAN_TTD = [
   "ppkTtdKey",
   "ppkStempelKey",
+  "wakilSahTtdKey",
   "supervisorTtdKey",
   "supervisorStempelKey",
+  // Logo firma pengawas ikut gelanggang ini: aturan berkas & ukurannya sama
+  // (kop blanko harian, user 2026-08-24).
+  "supervisorLogoKey",
   "contractorTtdKey",
   "contractorStempelKey",
 ] as const;
@@ -1722,8 +1748,10 @@ type MedanTtd = (typeof MEDAN_TTD)[number];
 const LABEL_TTD: Record<MedanTtd, string> = {
   ppkTtdKey: "tanda tangan PPK",
   ppkStempelKey: "stempel PPK",
+  wakilSahTtdKey: "tanda tangan Wakil Sah",
   supervisorTtdKey: "tanda tangan konsultan pengawas",
   supervisorStempelKey: "stempel konsultan pengawas",
+  supervisorLogoKey: "logo firma pengawas",
   contractorTtdKey: "tanda tangan penyedia",
   contractorStempelKey: "stempel penyedia",
 };
@@ -1748,8 +1776,10 @@ export async function updateContractSignatureImages(
       packageId: true,
       ppkTtdKey: true,
       ppkStempelKey: true,
+      wakilSahTtdKey: true,
       supervisorTtdKey: true,
       supervisorStempelKey: true,
+      supervisorLogoKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
       package: { select: { id: true, pelaksanaTtdKey: true } },

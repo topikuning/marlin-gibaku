@@ -42,6 +42,9 @@ function findLocation(slug: string) {
       supervisorName: true,
       supervisorFirm: true,
       supervisorTtdKey: true,
+      wakilSahName: true,
+      wakilSahNip: true,
+      wakilSahTtdKey: true,
       package: {
         select: {
           id: true,
@@ -59,6 +62,8 @@ function findLocation(slug: string) {
               startDate: true,
               endDate: true,
               supervisorName: true,
+              wakilSahName: true,
+              wakilSahNip: true,
               supervisorFirm: true,
               vendor: { select: { name: true } },
             },

@@ -1,4 +1,5 @@
 import { allocateRounded } from "@/lib/round-alloc";
+import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
 
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
@@ -71,6 +72,12 @@ export type KurvaSheet = {
   weeks: number[];
   /** Kelompok bulan utk header kolom (span = jumlah minggu di bulan itu). */
   monthGroups: { label: string; span: number }[];
+  /**
+   * Rentang tanggal tiap kolom minggu, label ringkas "d/M–d/M" (user
+   * 2026-08-24: kolom M1–MN perlu informasi periode tanggalnya). Mode
+   * `senin_minggu` membuat M1 (dan minggu terakhir) bisa pendek.
+   */
+  weekRanges: string[];
   categories: KurvaSheetCategory[];
   /** Σ `bobotShown` seluruh kategori (100,00 bila jadwal menutup 100%). */
   totalBobotShown: number;
@@ -87,6 +94,10 @@ export function buildKurvaSheet(input: {
   categories: { code: string; name: string; weekly: number[] }[];
   totalWeeks: number;
   contractStart: Date;
+  /** Mode periode minggu kontrak (default perilaku lama 7-hari). */
+  weekMode?: WeekPeriodMode;
+  /** Akhir kontrak — pemangkas rentang minggu terakhir (opsional). */
+  contractEnd?: Date | null;
   /** Kumulatif realisasi % per minggu (null utk minggu > minggu berjalan). */
   actualCum: (number | null)[];
   currentWeek: number;
@@ -103,10 +114,16 @@ export function buildKurvaSheet(input: {
   const n = Math.max(1, input.totalWeeks);
   const weeks = Array.from({ length: n }, (_, i) => i + 1);
 
-  // Kelompok bulan dari tanggal minggu (contractStart + (w−1)×7 hari).
+  // Kelompok bulan + rentang tanggal per minggu — batasnya mengikuti mode
+  // periode minggu kontrak (7-hari / Senin–Minggu, user 2026-08-24).
+  const mode: WeekPeriodMode = input.weekMode ?? "tujuh_hari";
   const monthGroups: { label: string; span: number }[] = [];
+  const weekRanges: string[] = [];
+  const dm = (d: Date) => `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
   for (const w of weeks) {
-    const d = new Date(input.contractStart.getTime() + (w - 1) * 7 * DAY);
+    const r = weekDateRange(input.contractStart, w, mode, input.contractEnd ?? null);
+    weekRanges.push(r.start.getTime() === r.end.getTime() ? dm(r.start) : `${dm(r.start)}–${dm(r.end)}`);
+    const d = r.start;
     const label = MONTHS_ID[d.getUTCMonth()];
     const last = monthGroups[monthGroups.length - 1];
     if (last && last.label === label) last.span += 1;
@@ -175,6 +192,7 @@ export function buildKurvaSheet(input: {
     totalWeeks: n,
     weeks,
     monthGroups,
+    weekRanges,
     categories,
     totalBobotShown,
     rencanaPerWeek,

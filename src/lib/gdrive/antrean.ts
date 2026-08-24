@@ -179,8 +179,13 @@ export async function pindaiHarian(batas = MAKS_ANTRE_BARU_PER_PUTARAN): Promise
  * Ini juga membuat pemicu dan backlog memakai SATU aturan yang sama: tidak ada
  * cabang khusus "hari ini kebetulan hari terakhir".
  */
-export function mingguRampung(startDate: Date, now: Date, totalWeeks: number): number {
-  const berjalan = mingguKontrak(startDate, now);
+export function mingguRampung(
+  startDate: Date,
+  now: Date,
+  totalWeeks: number,
+  mode: "tujuh_hari" | "senin_minggu" = "tujuh_hari",
+): number {
+  const berjalan = mingguKontrak(startDate, now, mode);
   return Math.max(0, Math.min(berjalan - 1, totalWeeks));
 }
 
@@ -226,7 +231,7 @@ export async function pindaiMingguan(
     // bisa berbeda antar lokasi dalam satu paket.
     const bounds = await getPeriodBounds(l.id);
     if (!bounds) continue;
-    const rampung = mingguRampung(mulai, now, bounds.totalWeeks);
+    const rampung = mingguRampung(mulai, now, bounds.totalWeeks, bounds.weekMode);
     for (let n = 1; n <= rampung; n++) {
       if (calon.length >= batas) break;
       const refKey = refKeyPeriodik("mingguan", l.id, n);

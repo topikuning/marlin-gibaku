@@ -87,16 +87,19 @@ export const dynamic = "force-dynamic";
  * ke komponen klien akan melahirkan salinan kedua yang bisa menyimpang dari
  * yang benar-benar dipakai saat mengirim.
  */
-function pilihanMingguPaket(startDate: Date | null): { nilai: number; label: string }[] {
+function pilihanMingguPaket(
+  startDate: Date | null,
+  weekMode: "tujuh_hari" | "senin_minggu" = "tujuh_hari",
+): { nilai: number; label: string }[] {
   if (!startDate) return [];
   const now = new Date();
-  const berjalan = mingguKontrak(startDate, now);
+  const berjalan = mingguKontrak(startDate, now, weekMode);
   if (berjalan < 1) return [];
   const keluar: { nilai: number; label: string }[] = [];
   // Minggu berjalan + hingga 8 minggu selesai terakhir — cukup untuk mengejar
   // kiriman yang terlewat tanpa membuat daftarnya jadi gulungan panjang.
   for (let n = berjalan; n >= Math.max(1, berjalan - 8); n--) {
-    const r = rentangMingguKontrak(startDate, n);
+    const r = rentangMingguKontrak(startDate, n, weekMode);
     const rentang = `${formatTanggal(r.mulai, "d MMM")} – ${formatTanggal(r.akhir, "d MMM")}`;
     keluar.push({
       nilai: n,
@@ -615,7 +618,7 @@ export default async function RingkasanPaketPage({
                         <LaporanMingguanWa
                           packageId={pkg.id}
                           punyaGrup={Boolean(pkg.waGroupId)}
-                          pilihanMinggu={pilihanMingguPaket(contract?.startDate ?? null)}
+                          pilihanMinggu={pilihanMingguPaket(contract?.startDate ?? null, contract?.weekMode)}
                         />
                       </Drawer>
                     }

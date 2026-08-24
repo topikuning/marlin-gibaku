@@ -51,7 +51,7 @@ export async function suggestWeeklyPlan(
     }),
     db.location.findUnique({
       where: { id: locationId },
-      select: { package: { select: { contract: { select: { startDate: true } } } } },
+      select: { package: { select: { contract: { select: { startDate: true, weekMode: true } } } } },
     }),
   ]);
 
@@ -102,7 +102,9 @@ export async function suggestWeeklyPlan(
   // Konteks deviasi (minggu berjalan).
   const startDate = loc?.package.contract?.startDate ?? null;
   const points = baseline?.points ?? [];
-  const currentWeek = startDate ? currentWeekNumber(startDate, totalWeeks) : Math.min(weekNumber, totalWeeks);
+  const currentWeek = startDate
+    ? currentWeekNumber(startDate, totalWeeks, new Date(), loc?.package.contract?.weekMode ?? "tujuh_hari")
+    : Math.min(weekNumber, totalWeeks);
   const planPct = Number(points[currentWeek - 1]?.plannedPct ?? points[points.length - 1]?.plannedPct ?? 0);
 
   // Deviasi di panel saran memakai formula & BASIS yang sama dengan laporan

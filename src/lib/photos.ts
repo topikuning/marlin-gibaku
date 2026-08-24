@@ -181,6 +181,11 @@ export type PhotoStamp = {
   coordNote?: string | null;
   /** Jam tidak diketahui → cap hanya menampilkan tanggal, tanpa angka jam palsu. */
   dateOnly?: boolean;
+  /**
+   * Foto galeri "gunakan apa adanya" (user 2026-08-24): cap TANPA baris
+   * koordinat & tanggal-jam — meski EXIF ada. Lokasi/pekerjaan/logo tetap.
+   */
+  tanpaTag?: boolean;
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -192,8 +197,12 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     locationName: s.locationLabel?.trim() || "–",
     categoryName: s.categoryName?.trim() || null,
     workName: s.workName?.trim() || null,
-    dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
-    coordinateText: s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
+    dateTimeText: s.tanpaTag
+      ? null
+      : s.dateOnly
+        ? formatStampDate(s.takenAt, tz)
+        : formatStampDateTime(s.takenAt, tz),
+    coordinateText: s.tanpaTag || s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
     photoId: s.showPhotoId === false ? null : s.photoId?.trim() || null,
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
@@ -255,12 +264,14 @@ export type SavePhotoInput = {
    * - "camera" (foto baru diambil): GPS real-time perangkat → EXIF → titik lokasi proyek;
    *   waktu = sekarang → EXIF.
    * - "gallery" (dipilih dari galeri): UTAMAKAN EXIF asli foto; bila EXIF tak ada,
-   *   cadangan sesuai `fallbackMode` ("project" = titik lokasi proyek, "none" = tanpa tag).
+   *   cadangan sesuai `fallbackMode` ("project" = titik lokasi proyek, "none" = tanpa tag;
+   *   "apa_adanya" = user 2026-08-24: JANGAN beri tag koordinat & waktu sama
+   *   sekali, meski EXIF ada — cap hanya lokasi/pekerjaan/logo).
    *   GPS perangkat saat upload TIDAK PERNAH dipakai untuk galeri (bisa salah saat batch).
    */
   stamp?: {
     source?: "camera" | "gallery";
-    fallbackMode?: "project" | "none";
+    fallbackMode?: "project" | "none" | "apa_adanya";
     /** Setelan wajib-GPS sedang menyala (DECISIONS 219). */
     requireGps?: boolean;
     /** Galeri: pelapor MENYATAKAN sedang berada di lokasi saat mengunggah. */
@@ -337,6 +348,15 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
+    // "Gunakan apa adanya": pengunggah menyatakan foto ini dipakai TANPA tag
+    // koordinat & waktu (user 2026-08-24). Setelan wajib-GPS (DECISIONS 219)
+    // tetap menang — mandat admin tidak bisa dilewati lewat pilihan unggah.
+    if (s?.fallbackMode === "apa_adanya" && s?.requireGps) {
+      throw new PhotoError(
+        "Setelan wajib-GPS sedang menyala – opsi \"gunakan apa adanya\" tidak bisa dipakai. " +
+          "Pilih foto yang punya GPS di EXIF-nya atau ambil lewat tombol Kamera.",
+      );
+    }
     // Urutan sumber koordinat foto GALERI (DECISIONS 220):
     //   1. EXIF foto itu sendiri — posisi NYATA saat foto diambil;
     //   2. posisi perangkat saat unggah, HANYA bila pelapor menyatakan sedang
@@ -347,7 +367,11 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // tempat MENGUNGGAH, sedangkan EXIF adalah tempat MEMOTRET. Keduanya bisa
     // berjarak ratusan meter di lokasi yang sama, dan yang dipertanggungjawabkan
     // di blanko adalah tempat pekerjaannya.
-    if (exif.lat != null && exif.lng != null) {
+    if (s?.fallbackMode === "apa_adanya") {
+      lat = null;
+      lng = null;
+      gpsSource = "none";
+    } else if (exif.lat != null && exif.lng != null) {
       lat = exif.lat;
       lng = exif.lng;
       gpsSource = "exif";
@@ -418,6 +442,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       timeSource = "server";
     }
   }
+  // Cap "apa adanya" (galeri): tanpa tag koordinat & waktu (user 2026-08-24).
+  const tanpaTag = source === "gallery" && s?.fallbackMode === "apa_adanya";
   // Penanda di cap — masing-masing hanya muncul bila nilainya memang bukan
   // data asli foto. Diam-diam menampilkannya sebagai fakta = memalsukan bukti.
   const timeNote = jamTidakDiketahui
@@ -479,9 +505,10 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       showCoordinate: cfg?.showCoordinates ?? true,
       showReporter: cfg?.showReporter ?? true,
       showPhotoId: cfg?.showPhotoId ?? true,
-      timeNote,
-      coordNote,
+      timeNote: tanpaTag ? null : timeNote,
+      coordNote: tanpaTag ? null : coordNote,
       dateOnly: jamTidakDiketahui,
+      tanpaTag,
     },
     file,
   );
@@ -538,6 +565,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifGpsLat: desimalKoordinat(lat),
       exifGpsLng: desimalKoordinat(lng),
       gpsSource,
+      stampPlain: tanpaTag,
       metadataSource: timeSource,
       uploadedById: input.userId,
     },

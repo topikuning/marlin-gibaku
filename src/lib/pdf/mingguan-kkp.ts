@@ -4,6 +4,7 @@ import { getBranding } from "@/lib/branding";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { jakartaDateKey } from "@/lib/format";
+import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
 import { createFormA4Doc, docToBuffer } from "./document";
 import { gambarSampul } from "./harian-kkp-lampiran";
 import {
@@ -73,9 +74,16 @@ const HARI_MS = 86_400_000;
  * membalik, sampul bisa menulis "MINGGU KE-3" di atas hari-hari minggu ke-4 —
  * salah yang tidak terlihat sampai orang mencocokkannya dengan kalender.
  */
-export function tanggalMinggu(startDate: Date, n: number): string[] {
-  const awal = startDate.getTime() + (n - 1) * 7 * HARI_MS;
-  return Array.from({ length: 7 }, (_, i) => jakartaDateKey(new Date(awal + i * HARI_MS)));
+export function tanggalMinggu(
+  startDate: Date,
+  n: number,
+  mode: WeekPeriodMode = "tujuh_hari",
+): string[] {
+  // Mode Senin–Minggu: M1 bisa pendek (SPMK Kamis ⇒ Kamis–Minggu, 4 hari),
+  // jadi jumlah halamannya mengikuti rentang, bukan selalu 7.
+  const r = weekDateRange(startDate, n, mode);
+  const jumlah = Math.round((r.end.getTime() - r.start.getTime()) / HARI_MS) + 1;
+  return Array.from({ length: jumlah }, (_, i) => jakartaDateKey(new Date(r.start.getTime() + i * HARI_MS)));
 }
 
 /**
@@ -119,7 +127,7 @@ export async function renderMingguanKkpPdf(
     where: { slug },
     select: {
       id: true,
-      package: { select: { contract: { select: { startDate: true } } } },
+      package: { select: { contract: { select: { startDate: true, weekMode: true } } } },
     },
   });
   const mulai = lokasi?.package.contract?.startDate ?? null;
@@ -127,7 +135,7 @@ export async function renderMingguanKkpPdf(
   // menerbitkan dokumen resmi atas tanggal karangan.
   if (!lokasi || !mulai) return null;
 
-  const tanggal = tanggalMinggu(mulai, minggu);
+  const tanggal = tanggalMinggu(mulai, minggu, lokasi.package.contract?.weekMode);
 
   // Hari mana yang BENAR-BENAR punya laporan — ditanyakan ke basis data, bukan
   // disimpulkan dari isi blankonya. `getKkpDailyData` mengembalikan blanko
@@ -161,10 +169,10 @@ export async function renderMingguanKkpPdf(
   });
 
   // Logo pelaksana untuk sampul: dimuat sekali, bukan tujuh kali.
-  const { logoVendor } = await muatLampiranFoto(hariPertama, baseUrl, 0);
+  const { logoVendor, logoPengawas } = await muatLampiranFoto(hariPertama, baseUrl, 0);
 
   doc.page.margins.bottom = 0;
-  gambarSampul(doc, hariPertama, logo, logoVendor);
+  gambarSampul(doc, hariPertama, logo, logoVendor, logoPengawas ?? null);
 
   let sisaFoto = BATAS_FOTO_MINGGUAN;
   let fotoDipotong = 0;
@@ -190,6 +198,7 @@ export async function renderMingguanKkpPdf(
     tulisBadanHarian(doc, d, {
       logoPemilik: logo,
       logoVendor: lampiran.logoVendor,
+      logoPengawas: lampiran.logoPengawas ?? null,
       foto: lampiran.foto,
       fotoMaterial: lampiran.fotoMaterial,
       fotoAlat: lampiran.fotoAlat,

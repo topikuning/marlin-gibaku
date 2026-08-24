@@ -154,7 +154,7 @@ const photoFieldsShape = {
   photoLng: z.coerce.number().min(-180).max(180).optional(),
   photoTakenAt: z.string().optional(),
   photoSource: z.enum(["camera", "gallery"]).optional(),
-  galleryFallback: z.enum(["project", "none"]).optional(),
+  galleryFallback: z.enum(["project", "none", "apa_adanya"]).optional(),
   /** "1" = pelapor menyatakan sedang berada DI LOKASI saat unggah galeri. */
   galleryAtSite: z.string().optional(),
 };

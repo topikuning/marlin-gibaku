@@ -34,6 +34,8 @@ export type ContractEditInitial = {
   signedDate: string; // yyyy-mm-dd
   durationDays: number;
   startDate: string; // yyyy-mm-dd or ""
+  /** Mode periode minggu laporan (user 2026-08-24). */
+  weekMode: "tujuh_hari" | "senin_minggu";
 };
 
 /**
@@ -126,6 +128,22 @@ export function EditContractForm({
           <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
           <HelpText>Kosongkan bila SPMK belum terbit. Selesai dihitung otomatis = SPMK + masa pelaksanaan.</HelpText>
         </div>
+        <div>
+          <Label htmlFor="ec-weekmode">Periode minggu laporan</Label>
+          <Combobox
+            id="ec-weekmode"
+            name="weekMode"
+            defaultValue={initial.weekMode}
+            options={[
+              { value: "tujuh_hari", label: "7 hari sejak SPMK (bawaan)" },
+              { value: "senin_minggu", label: "Kalender Senin–Minggu (M1 bisa pendek)" },
+            ]}
+          />
+          <HelpText>
+            Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
+            Mengubahnya menghitung ulang kurva-S semua lokasi paket ini.
+          </HelpText>
+        </div>
       </div>
 
       <Button type="submit" loading={pending}>Simpan koreksi</Button>
@@ -136,6 +154,9 @@ export function EditContractForm({
 export type Signatories = {
   ppkName: string | null;
   ppkNip: string | null;
+  /** Wakil Sah — penanda tangan pihak KKP laporan mingguan & bulanan (2026-08-24). */
+  wakilSahName: string | null;
+  wakilSahNip: string | null;
   supervisorName: string | null;
   supervisorFirm: string | null;
   contractorSignerName: string | null;
@@ -171,6 +192,14 @@ function SignatoryFields({ v }: { v?: Signatories }) {
         <Input id="sg-ppk-nip" name="ppkNip" defaultValue={v?.ppkNip ?? ""} placeholder="mis. 19700101 ..." />
       </div>
       <div>
+        <Label htmlFor="sg-ws">Nama Wakil Sah</Label>
+        <Input id="sg-ws" name="wakilSahName" defaultValue={v?.wakilSahName ?? ""} placeholder="mis. Drs. Hartono" />
+      </div>
+      <div>
+        <Label htmlFor="sg-ws-nip">NIP Wakil Sah</Label>
+        <Input id="sg-ws-nip" name="wakilSahNip" defaultValue={v?.wakilSahNip ?? ""} placeholder="mis. 19750101 ..." />
+      </div>
+      <div>
         <Label htmlFor="sg-sup">Nama Konsultan Pengawas</Label>
         <Input id="sg-sup" name="supervisorName" defaultValue={v?.supervisorName ?? ""} placeholder="mis. Agus Prasetyo" />
       </div>
@@ -196,8 +225,9 @@ function SignatoryFields({ v }: { v?: Signatories }) {
       </div>
       <p className="text-xs text-ink-muted sm:col-span-2">
         Penyedia (Direktur) meneken laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
-        meneken laporan <b>harian</b> dan <b>mingguan</b>. Lokasi boleh memakai pelaksana
-        sendiri – diatur di halaman lokasinya.
+        meneken laporan <b>harian</b> dan <b>mingguan</b>. Dari pihak KKP, laporan
+        <b> mingguan</b> dan <b>bulanan</b> diteken <b>Wakil Sah</b> – dokumen lain tetap PPK.
+        Lokasi boleh memakai pelaksana atau Wakil Sah sendiri – diatur di halaman lokasinya.
       </p>
     </div>
   );
@@ -457,9 +487,12 @@ export function AmendmentForm({ contractId }: { contractId: string }) {
 
 export type GambarTtdKontrak = {
   ppkTtdUrl: string | null;
+  wakilSahTtdUrl: string | null;
   ppkStempelUrl: string | null;
   supervisorTtdUrl: string | null;
   supervisorStempelUrl: string | null;
+  /** Logo firma pengawas — kop blanko harian (2026-08-24). */
+  supervisorLogoUrl: string | null;
   contractorTtdUrl: string | null;
   contractorStempelUrl: string | null;
   /** Pelaksana Lapangan — tersimpan di paket, ditampilkan di form yang sama. */
@@ -515,11 +548,19 @@ export function TtdStempelForm({
           stempelUrl={gambar.ppkStempelUrl}
         />
         <PihakTtdFields
+          judul="Wakil Sah"
+          medanTtd="wakilSahTtdKey"
+          ttdUrl={gambar.wakilSahTtdUrl}
+          catatanStempel="Meneken laporan mingguan dan bulanan mewakili KKP – stempelnya stempel instansi di kolom PPK."
+        />
+        <PihakTtdFields
           judul="Konsultan Pengawas"
           medanTtd="supervisorTtdKey"
           medanStempel="supervisorStempelKey"
           ttdUrl={gambar.supervisorTtdUrl}
           stempelUrl={gambar.supervisorStempelUrl}
+          medanLogo="supervisorLogoKey"
+          logoUrl={gambar.supervisorLogoUrl}
         />
         <PihakTtdFields
           judul={`Penyedia Jasa – ${gambar.vendorName}`}
@@ -563,6 +604,8 @@ function PihakTtdFields({
   stempelUrl,
   stempelCadanganUrl,
   catatanStempel,
+  medanLogo,
+  logoUrl,
 }: {
   judul: string;
   medanTtd: string;
@@ -573,6 +616,9 @@ function PihakTtdFields({
   stempelCadanganUrl?: string | null;
   /** Kalimat pengganti kotak stempel bila pihak ini menumpang stempel lain. */
   catatanStempel?: string;
+  /** Logo firma (pengawas) — tampil di kop blanko harian (2026-08-24). */
+  medanLogo?: string;
+  logoUrl?: string | null;
 }) {
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
@@ -604,6 +650,15 @@ function PihakTtdFields({
       ) : (
         catatanStempel ? <p className="text-xs text-ink-muted">{catatanStempel}</p> : null
       )}
+      {medanLogo ? (
+        <BerkasTtd
+          id={`f-${medanLogo}`}
+          medan={medanLogo}
+          label="Logo firma (kop laporan harian)"
+          url={logoUrl ?? null}
+          kelasPratinjau="size-16"
+        />
+      ) : null}
     </div>
   );
 }

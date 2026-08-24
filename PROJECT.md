@@ -304,10 +304,32 @@ Schedule berdiri sendiri ia dokumen JADWAL (Direktur). `ScurveKkpSheet` dan
 `addKurvaSheet` menuntut `jenis`. Rencana Mingguan belum diputuskan, tetap
 Direktur.
 
+Dari pihak KKP, laporan **mingguan & bulanan** diteken **WAKIL SAH**
+(`Contract.wakilSah*`, timpaan `Location.wakilSah*` — blok utuh, nama
+menentukan); dokumen lain (kurva-S/jadwal, MC, CCO, harian) tetap **PPK**.
+Penentunya satu: `pihakKkp(jenis)` di `penandatangan.ts`. Stempel slot KKP
+tetap `ppkStempelKey` — stempel milik INSTANSI, bukan orang (DECISIONS 408).
+Keputusan user 2026-08-24 (DECISIONS 427).
+
 Pelaksana tingkat paket diisi di formulir penanda tangan kontrak yang SAMA
-dengan PPK/pengawas/Direktur (nama + gambar TTD); penimpaan per lokasi punya
-formulir sendiri di halaman lokasi karena PPK & pengawas memang urusan paket.
-Logo/kop/stempel perusahaan tetap di master vendor. DECISIONS 402/403/404.
+dengan PPK/Wakil Sah/pengawas/Direktur (nama + gambar TTD); penimpaan per
+lokasi punya formulir sendiri di halaman lokasi karena PPK & pengawas memang
+urusan paket. Logo/kop/stempel perusahaan tetap di master vendor; logo firma
+PENGAWAS di kontrak (`Contract.supervisorLogoKey`) dan tampil di kop blanko
+harian. DECISIONS 402/403/404/427.
+
+### Periode minggu laporan (M1–MN)
+
+Per kontrak (`Contract.weekMode`, DECISIONS 427):
+
+- `tujuh_hari` (bawaan, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
+- `senin_minggu`: minggu KALENDER Senin–Minggu; M1 (dan minggu terakhir) bisa
+  pendek — SPMK Kamis ⇒ M1 = Kamis–Minggu (4 hari).
+
+Helper murninya HANYA di `progress-calc.ts` (`weekOfDate`, `weekDateRange`,
+`totalWeeksBetween`); `currentWeekNumber` (progress.ts) menerima mode. Semua
+kolom M1–MN (layar, PDF, Excel) menampilkan rentang tanggal minggunya.
+Mengubah mode lewat koreksi kontrak menghitung ulang kurva-S semua lokasi.
 
 ## 10. Scope yang sengaja ditunda
 

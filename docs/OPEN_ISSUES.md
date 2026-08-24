@@ -588,3 +588,9 @@ yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
   /perlu-tindakan berarti dua rumah untuk rule yang sama. Keputusan yang
   benar: satu keluarga rule dipakai dua permukaan — refactor kecil, belum
   dikerjakan.
+- 🟢 **Generator kurva-S otomatis vs M1 pendek (mode `senin_minggu`)** —
+  jumlah kolom minggu sudah mengikuti mode (DECISIONS 427), tapi pembagi
+  rencana INTERNAL generator otomatis masih menganggap tiap minggu setara;
+  M1 4-hari mendapat porsi rencana minggu penuh. Jadwal impor verbatim tidak
+  terpengaruh (kolom user dipakai apa adanya). Kalau ada paket bermode
+  kalender yang memakai generator otomatis, pembaginya perlu ditimbang hari.

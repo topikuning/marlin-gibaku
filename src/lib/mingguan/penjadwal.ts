@@ -57,13 +57,13 @@ export async function kirimLaporanMingguanTerjadwal(now = new Date()): Promise<H
       waGroupId: { not: null },
       contract: { startDate: { not: null } },
     },
-    select: { id: true, name: true, contract: { select: { startDate: true } } },
+    select: { id: true, name: true, contract: { select: { startDate: true, weekMode: true } } },
   });
 
   for (const p of kandidat) {
     const mulai = p.contract?.startDate;
     if (!mulai) continue;
-    if (!akhirMingguKontrak(mulai, now)) continue;
+    if (!akhirMingguKontrak(mulai, now, p.contract?.weekMode)) continue;
 
     hasil.diperiksa += 1;
     const r = await kirimLaporanMingguan(p.id, { manual: false, now });

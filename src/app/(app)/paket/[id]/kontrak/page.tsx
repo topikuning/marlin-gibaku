@@ -116,7 +116,9 @@ export default async function KontrakPage({
   const kunciTtd = [
     contract.ppkTtdKey,
     contract.ppkStempelKey,
+    contract.wakilSahTtdKey,
     contract.supervisorTtdKey,
+    contract.supervisorLogoKey,
     contract.supervisorStempelKey,
     contract.contractorTtdKey,
     contract.contractorStempelKey,
@@ -263,6 +265,7 @@ export default async function KontrakPage({
                     startDate: contract.startDate
                       ? contract.startDate.toISOString().slice(0, 10)
                       : "",
+                    weekMode: contract.weekMode,
                   }}
                 />
               </Drawer>
@@ -289,6 +292,8 @@ export default async function KontrakPage({
                   value={{
                     ppkName: contract.ppkName,
                     ppkNip: contract.ppkNip,
+                    wakilSahName: contract.wakilSahName,
+                    wakilSahNip: contract.wakilSahNip,
                     supervisorName: contract.supervisorName,
                     supervisorFirm: contract.supervisorFirm,
                     contractorSignerName: contract.contractorSignerName,
@@ -304,6 +309,13 @@ export default async function KontrakPage({
                     <dd className="font-medium text-ink">{contract.ppkName || "–"}</dd>
                     {contract.ppkNip ? (
                       <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd>
+                    ) : null}
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Wakil Sah – mingguan, bulanan</dt>
+                    <dd className="font-medium text-ink">{contract.wakilSahName || "–"}</dd>
+                    {contract.wakilSahNip ? (
+                      <dd className="text-xs text-ink-muted">NIP. {contract.wakilSahNip}</dd>
                     ) : null}
                   </div>
                   <div>
@@ -354,8 +366,10 @@ export default async function KontrakPage({
                   gambar={{
                     ppkTtdUrl: urlTtd(contract.ppkTtdKey),
                     ppkStempelUrl: urlTtd(contract.ppkStempelKey),
+                    wakilSahTtdUrl: urlTtd(contract.wakilSahTtdKey),
                     supervisorTtdUrl: urlTtd(contract.supervisorTtdKey),
                     supervisorStempelUrl: urlTtd(contract.supervisorStempelKey),
+                    supervisorLogoUrl: urlTtd(contract.supervisorLogoKey),
                     contractorTtdUrl: urlTtd(contract.contractorTtdKey),
                     contractorStempelUrl: urlTtd(contract.contractorStempelKey),
                     pelaksanaTtdUrl: urlTtd(pkg.pelaksanaTtdKey),

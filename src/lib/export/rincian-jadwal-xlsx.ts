@@ -149,7 +149,8 @@ export async function buildRincianJadwalXlsx(
     if (g.span > 1) ws.mergeCells(barisBulan.number, kol, barisBulan.number, kol + g.span - 1);
     kol += g.span;
   }
-  for (let i = 0; i < N; i++) barisMinggu.getCell(KOL_MINGGU_1 + i).value = `M${i + 1}`;
+  // Rentang tanggal minggu ikut tercetak (2026-08-24).
+  for (let i = 0; i < N; i++) barisMinggu.getCell(KOL_MINGGU_1 + i).value = `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`;
 
   for (const row of [barisBulan, barisMinggu]) {
     for (let c = 1; c <= kolTerakhir; c++) {
