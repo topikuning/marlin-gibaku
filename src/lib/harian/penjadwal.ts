@@ -17,6 +17,7 @@ import {
   kirimPengingatKendalaTerjadwal,
   type HasilPengingatTenggat,
 } from "@/lib/kendala/penjadwal-tenggat";
+import { kirimPengingatTemuanTerjadwal } from "@/lib/findings/penjadwal-tenggat";
 import {
   kirimPengingatNihilTerjadwal,
   type HasilPengingatNihil,
@@ -71,6 +72,8 @@ export type HasilHarian = {
   drive: HasilPutaran;
   /** Pengingat kendala lewat tenggat ke grup paket — DECISIONS 392. */
   kendala: HasilPengingatTenggat;
+  /** Pengingat TEMUAN pemeriksa lewat tenggat — DECISIONS 426; bentuk hasilnya sama. */
+  temuan: HasilPengingatTenggat;
   /** Peringatan pekerjaan berhenti N hari berturut-turut — DECISIONS 396. */
   nihil: HasilPengingatNihil;
 };
@@ -467,6 +470,7 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
       // grup yang sama akan terbaca sebagai sakelarnya rusak. Laporan mingguan
       // beda urusan — ia laporan resmi ke pemberi kerja, jadi tetap di atas.
       kendala: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
+      temuan: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
       nihil: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
       pengingat: {
         terkirim: 0,
@@ -480,6 +484,8 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
   }
   const pengingat = await kirimPengingatHarian(now);
   const kendala = await kirimPengingatKendalaTerjadwal(now);
+  // Menumpang sakelar yang sama dengan kendala — tagihan internal juga.
+  const temuan = await kirimPengingatTemuanTerjadwal(now);
   const nihil = await kirimPengingatNihilTerjadwal(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, nihil };
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, temuan, nihil };
 }
