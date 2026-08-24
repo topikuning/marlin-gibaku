@@ -572,8 +572,6 @@ Ditemukan dengan `grep -c "color-border-muted" src/app/globals.css` → 0.
 Fase pertama (temuan, inspeksi, verifikasi eksternal, kesiapan, EWS) selesai;
 yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
 
-- 🟢 **PDF register temuan & laporan kesiapan** — kini on-screen + xlsx
-  (register). PDF pakai pola `lib/pdf/` bila diminta.
 - 🟢 **Evidence explorer global** — bukti kini terlihat per temuan/inspeksi +
   galeri `/foto` + register `/dokumen`; layar pencarian gabungan lintas modul
   (lokasi × tanggal × tipe × status verifikasi) belum dibuat.

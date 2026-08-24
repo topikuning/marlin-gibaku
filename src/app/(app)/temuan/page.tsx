@@ -38,6 +38,7 @@ export default async function TemuanPage({
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v);
   const hrefXlsx = `/api/temuan/xlsx${qs.size ? `?${qs.toString()}` : ""}`;
+  const hrefPdf = `/api/temuan/pdf${qs.size ? `?${qs.toString()}` : ""}`;
 
   const { baris, ringkas } = await papanTemuan(user, {
     status: sp.status,
@@ -56,9 +57,14 @@ export default async function TemuanPage({
           bolehCatat || bolehEkspor ? (
             <span className="flex flex-wrap gap-2">
               {bolehEkspor ? (
-                <ButtonLink href={hrefXlsx} variant="secondary" unduhan labelSibuk="Menyiapkan…">
-                  Unduh register (.xlsx)
-                </ButtonLink>
+                <>
+                  <ButtonLink href={hrefPdf} variant="secondary" unduhan labelSibuk="Menyiapkan…">
+                    Unduh register (.pdf)
+                  </ButtonLink>
+                  <ButtonLink href={hrefXlsx} variant="secondary" unduhan labelSibuk="Menyiapkan…">
+                    Unduh register (.xlsx)
+                  </ButtonLink>
+                </>
               ) : null}
               {bolehCatat ? <ButtonLink href="/temuan/baru">Catat temuan</ButtonLink> : null}
             </span>
