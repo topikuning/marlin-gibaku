@@ -184,6 +184,10 @@ async function bacaKonteks(page: Page): Promise<KonteksRute> {
     aiRunId: await idDari("/ai/history", "/ai/run/"),
     paparanId: await idDari("/ai/paparan", "/ai/paparan/"),
     antrean: null,
+    temuanId: await idDari("/temuan", "/temuan/").then((id) => (id === "baru" ? null : id)),
+    inspeksiId: await idDari("/verifikasi?bagian=inspeksi", "/verifikasi/inspeksi/").then((id) =>
+      id === "baru" ? null : id,
+    ),
   };
 }
 

@@ -8,7 +8,7 @@
  */
 
 /** Satu wilayah data tambahan beserta pagar kapabilitasnya. */
-export type WilayahAdapter = "kontrak" | "keuangan" | "rab" | "milestone";
+export type WilayahAdapter = "kontrak" | "keuangan" | "rab" | "milestone" | "temuan";
 
 import type { Capability } from "@/lib/authz";
 
@@ -24,6 +24,8 @@ export const KAPABILITAS_ADAPTER: Record<WilayahAdapter, Capability> = {
   keuangan: "finance.view",
   rab: "rab.view",
   milestone: "package.view",
+  // Temuan pemeriksa (DECISIONS 426) — pagar sama dengan papan /temuan.
+  temuan: "finding.view",
 };
 
 export const LABEL_WILAYAH: Record<WilayahAdapter, string> = {
@@ -31,6 +33,7 @@ export const LABEL_WILAYAH: Record<WilayahAdapter, string> = {
   keuangan: "Keuangan",
   rab: "RAB",
   milestone: "Milestone administrasi (KKP)",
+  temuan: "Temuan pemeriksa",
 };
 
 /**

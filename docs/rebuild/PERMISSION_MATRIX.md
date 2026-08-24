@@ -13,7 +13,7 @@ Scope lokasi: `super_admin`, `program_director` = lintas lokasi
 `exec_viewer` sejak DECISIONS 190 — dibatasi `LocationAssignment` (dan paket yang
 memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
-Jumlah capability: **53**.
+Jumlah capability: **59**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer | wakil_ppk |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -47,6 +47,12 @@ Jumlah capability: **53**.
 | `gdrive.open_folder` | ✓ | – | – | – | – | – | – | – |
 | `progress.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `issue.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
+| `finding.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `finding.create` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | ✓ |
+| `finding.respond` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
+| `finding.verify` | ✓ | ✓ | – | – | – | – | – | ✓ |
+| `inspection.manage` | ✓ | ✓ | – | – | – | – | – | ✓ |
+| `report.verify_external` | ✓ | ✓ | – | – | – | – | – | ✓ |
 | `finance.view` | ✓ | – | – | – | – | – | – | – |
 | `finance.input` | ✓ | – | – | – | – | – | – | – |
 | `finance.approve` | ✓ | – | – | – | – | – | – | – |
