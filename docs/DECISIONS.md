@@ -22176,3 +22176,20 @@ Benar — batasnya dihapus, generator dibuat konsisten:
   bergeser. Jadwal impor verbatim tetap dipakai apa adanya (DECISIONS 203).
 
 Penjaga: blok "generator ditimbang HARI" di `tests/unit/periode-minggu.test.ts`.
+
+## 427c — Snapshot blanko final: weekNo mode-aware + rentang periode dibekukan, 2026-08-24
+
+Konteks user: mode periode minggu diganti DI TENGAH kontrak (permintaan
+pengawas), bukan di awal. Dua hal dibereskan:
+
+1. **Bug**: pembuat `FinalSnapshot` (`daily-report/service.ts`) masih memakai
+   rumus 7-hari yang ditulis langsung — terlewat saat `weekMode` diperkenalkan
+   (427). Blanko yang difinalkan pada mode `senin_minggu` membekukan nomor
+   minggu yang salah. Kini `weekOfDate(start, reportDate, weekMode)`.
+2. **Koherensi cetak ulang**: snapshot kini juga membekukan
+   `periodStartKey/periodEndKey` (rentang tanggal minggu ke-weekNo saat
+   difinalkan). Penyaji memakai rentang beku bila ada; snapshot LAMA (tanpa
+   kolom itu) jatuh ke derivasi mode berjalan — tanpa itu, nomor beku +
+   rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
+   Snapshot lama TIDAK dibangun ulang: dokumen final yang sudah diteken tidak
+   diubah diam-diam; yang lahir setelah ini koheren selamanya.

@@ -843,7 +843,16 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ...lampiran,
       // Nomor minggu yang DIBEKUKAN snapshot, bukan hitungan ulang — supaya
       // sampul menyebut minggu yang sama dengan blanko di halaman berikutnya.
-      ...periode(base.weekNo),
+      // Rentang tanggalnya juga dari snapshot bila ada (DECISIONS 427c):
+      // mode periode minggu bisa diganti di tengah kontrak, dan nomor beku +
+      // rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
+      // Snapshot lama (tanpa kolom ini) jatuh ke derivasi mode berjalan.
+      ...(snap.periodStartKey && snap.periodEndKey
+        ? {
+            periodStart: tanggalFullFmt.format(new Date(`${snap.periodStartKey}T00:00:00.000Z`)),
+            periodEnd: tanggalFullFmt.format(new Date(`${snap.periodEndKey}T00:00:00.000Z`)),
+          }
+        : periode(base.weekNo)),
     };
   }
 
