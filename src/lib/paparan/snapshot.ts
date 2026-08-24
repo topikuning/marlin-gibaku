@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { cumulativeVolumeByLineage, getLocationsProgress, type LocationProgress } from "@/lib/progress";
-import { prestasiPct, weightedPct } from "@/lib/progress-calc";
+import { totalWeeksBetween, prestasiPct, weightedPct } from "@/lib/progress-calc";
 import { getScurveSeries } from "@/lib/baseline";
 import { asOfMinggu, mingguKontrak, rekapPaket, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { jakartaDateKey, jakartaToday } from "@/lib/format";
@@ -647,7 +647,11 @@ export async function buatSnapshotPaparan(
     },
     periode: {
       mingguKe: weekNumber,
-      totalMinggu: Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
+      // Total minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
+      totalMinggu:
+        mode === "senin_minggu" && pkg.contract.endDate
+          ? totalWeeksBetween(start, pkg.contract.endDate, "senin_minggu")
+          : Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
       mulaiKey,
       akhirKey,
       berjalan,

@@ -141,7 +141,8 @@ export function EditContractForm({
           />
           <HelpText>
             Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
-            Mengubahnya menghitung ulang kurva-S semua lokasi paket ini.
+            Cukup diganti di sini: jadwal & kurva-S semua lokasi DIKONVERSI otomatis ke grid
+            minggu baru – bentuk rencananya dipertahankan, tidak perlu impor ulang.
           </HelpText>
         </div>
       </div>

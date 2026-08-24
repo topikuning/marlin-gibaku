@@ -6,7 +6,7 @@ import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { weekOfDate } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { contractDaysFor, totalWeeksFor } from "@/lib/rab/import";
-import {
+import { rebucketWeeklyToGrid,
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
   rescheduleToCurve,
@@ -125,6 +125,119 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     weeks: points.length,
   });
   return baseline;
+}
+
+/* ── Konversi baseline ke GRID MINGGU baru (DECISIONS 427d) ──────────────────
+   Ketetapan user 2026-08-24: ganti mode periode minggu = SATU KLIK; jadwal
+   yang sudah ada (impor Excel verbatim, edit manual, otomatis) TIDAK dibuang
+   dan TIDAK perlu diimpor ulang — sistem yang menyesuaikan. Matriks mingguan
+   tiap kategori di-bucket ulang ke batas minggu baru dengan bentuk KALENDER
+   dipertahankan (rebucketWeeklyToGrid); kurva = Σ matriks, seperti biasa. */
+
+export async function konversiBaselineModeMinggu(
+  locationId: string,
+  o: {
+    /** Grid lama & baru: fraksi hari kumulatif akhir minggu (null = seragam). */
+    oldEndFracs: number[] | null;
+    oldTotalWeeks: number;
+    newEndFracs: number[] | null;
+    newTotalWeeks: number;
+    userId: string;
+    note: string;
+  },
+): Promise<"dikonversi" | "dilewati"> {
+  const lama = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    select: {
+      id: true,
+      baselineNo: true,
+      source: true,
+      contractDays: true,
+      rabRevisionId: true,
+      points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
+      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, weekly: true } },
+    },
+  });
+  if (!lama || lama.points.length === 0) return "dilewati";
+
+  // Sumber konversi: matriks per kategori bila lengkap & cocok panjangnya;
+  // kalau tidak, increment kurva itu sendiri (baseline lama tanpa matriks).
+  const matriks = lama.scheduleItems
+    .map((s) => ({ ...s, weekly: asWeekly(s.weekly) }))
+    .filter((s) => s.weekly.length === o.oldTotalWeeks);
+  const pakaiMatriks = matriks.length > 0 && matriks.length === lama.scheduleItems.length;
+  if (!pakaiMatriks && lama.points.length !== o.oldTotalWeeks) return "dilewati";
+
+  let rows: { lineageKey: string; name: string; weightPct: number; weekly: number[] }[];
+  let weekly: number[];
+  if (pakaiMatriks) {
+    rows = matriks.map((s) => ({
+      lineageKey: s.lineageKey,
+      name: s.name,
+      weightPct: s.weightPct != null ? Number(s.weightPct) : 0,
+      weekly: rebucketWeeklyToGrid(s.weekly, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks).map(
+        (v) => Math.round(v * 1e6) / 1e6,
+      ),
+    }));
+    weekly = cumulativeFromWeeklyRows(
+      rows.map((r) => r.weekly),
+      o.newTotalWeeks,
+    );
+  } else {
+    const pts = lama.points.map((p) => Number(p.plannedPct));
+    const inc = pts.map((v, i) => Math.max(0, v - (i > 0 ? pts[i - 1] : 0)));
+    rows = [];
+    weekly = cumulativeFromWeeklyRows(
+      [rebucketWeeklyToGrid(inc, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks)],
+      o.newTotalWeeks,
+    );
+  }
+  const invalid = validateBaselinePoints(weekly);
+  if (invalid) throw new Error(invalid);
+
+  const created = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({ where: { locationId }, _max: { baselineNo: true } });
+    const baru = await tx.baseline.create({
+      data: {
+        locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        // Provenance DIPERTAHANKAN: hasil konversi impor verbatim tetap
+        // tercatat berasal dari sumber yang sama, bukan menyamar "auto".
+        source: lama.source,
+        status: "aktif",
+        rabRevisionId: lama.rabRevisionId,
+        contractDays: lama.contractDays,
+        note: o.note,
+        createdById: o.userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: weekly.map((p, i) => ({ baselineId: baru.id, weekNumber: i + 1, plannedPct: p })),
+    });
+    if (rows.length > 0) {
+      await tx.baselineScheduleItem.createMany({
+        data: rows.map((r) => ({
+          baselineId: baru.id,
+          lineageKey: r.lineageKey,
+          name: r.name,
+          weightPct: r.weightPct,
+          weekly: r.weekly as Prisma.InputJsonValue,
+        })),
+      });
+    }
+    return baru;
+  });
+  await audit(o.userId, "baseline.konversi_mode_minggu", "baseline", created.id, {
+    locationId,
+    fromBaselineId: lama.id,
+    dariMinggu: o.oldTotalWeeks,
+    keMinggu: o.newTotalWeeks,
+  });
+  return "dikonversi";
 }
 
 // ── Jadwal per pekerjaan (kategori RAB) → baseline ──────────────────────────

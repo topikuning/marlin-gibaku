@@ -168,6 +168,54 @@ export function weekOfFracEnd(f: number, n: number, fr?: number[] | null): numbe
   return n;
 }
 
+/**
+ * KONVERSI matriks mingguan antar grid minggu (DECISIONS 427d).
+ *
+ * Ketetapan user 2026-08-24: ganti mode periode minggu = SATU KLIK — jadwal
+ * yang sudah ada (impor Excel, edit manual, otomatis) TIDAK dibuang dan TIDAK
+ * perlu diimpor ulang; sistem yang menyesuaikan. Caranya: increment tiap
+ * minggu lama dianggap tersebar merata sepanjang HARI-HARInya, lalu
+ * di-bucket ulang ke batas minggu grid baru. Bentuk rencana dalam KALENDER
+ * dipertahankan persis; hanya pemotongan kolomnya yang berubah — M1 pendek
+ * menerima tepat porsi hari-hari yang jatuh di dalamnya.
+ *
+ * `oldEndFracs`/`newEndFracs` = fraksi hari kumulatif akhir minggu masing-
+ * masing grid (null = grid seragam). Σ keluaran = Σ masukan.
+ */
+export function rebucketWeeklyToGrid(
+  weekly: number[],
+  oldEndFracs: number[] | null,
+  newEndFracs: number[] | null,
+  newTotalWeeks: number,
+): number[] {
+  const oldN = weekly.length;
+  const newN = Math.max(1, Math.floor(newTotalWeeks));
+  if (oldN === 0) return new Array<number>(newN).fill(0);
+  // Kumulatif piecewise-linear pada fraksi hari t ∈ [0..1].
+  const cumBefore: number[] = [0];
+  for (let k = 1; k <= oldN; k++) cumBefore.push(cumBefore[k - 1] + (weekly[k - 1] ?? 0));
+  const cumAt = (tRaw: number): number => {
+    const t = Math.min(1, Math.max(0, tRaw));
+    for (let k = 1; k <= oldN; k++) {
+      const a = gridStartFrac(k, oldN, oldEndFracs);
+      const b = gridEndFrac(k, oldN, oldEndFracs);
+      if (t <= b + 1e-12) {
+        const frac = b - a > 1e-12 ? (t - a) / (b - a) : 1;
+        return cumBefore[k - 1] + (weekly[k - 1] ?? 0) * Math.min(1, Math.max(0, frac));
+      }
+    }
+    return cumBefore[oldN];
+  };
+  const out: number[] = [];
+  let prev = 0;
+  for (let j = 1; j <= newN; j++) {
+    const c = cumAt(gridEndFrac(j, newN, newEndFracs));
+    out.push(Math.max(0, c - prev));
+    prev = c;
+  }
+  return out;
+}
+
 /** Cubic smoothstep 3t² − 2t³ untuk bentuk S. */
 export function smoothstep(t: number): number {
   if (t <= 0) return 0;

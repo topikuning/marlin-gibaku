@@ -156,3 +156,50 @@ describe("generator ditimbang HARI, bukan indeks minggu", () => {
     expect(total).toBeCloseTo(100, 4);
   });
 });
+
+/* ── Konversi grid saat ganti mode (DECISIONS 427d) ──────────────────────────
+   Ketetapan user: ganti mode = SATU KLIK — jadwal lama (impor Excel/manual)
+   TIDAK dibuang & tidak perlu diimpor ulang; matriksnya di-bucket ulang ke
+   grid baru dengan bentuk kalender dipertahankan. */
+import { rebucketWeeklyToGrid } from "@/lib/scurve/generate";
+
+describe("rebucketWeeklyToGrid – konversi tanpa kehilangan bentuk", () => {
+  const end = new Date(SPMK.getTime() + 118 * 86_400_000); // 119 hari
+  const frBaru = weekEndFractions(SPMK, end, "senin_minggu"); // 18 kolom
+  const frLama = weekEndFractions(SPMK, end, "tujuh_hari"); // 17 kolom, grid hari 7-7-...-7-0? -> pakai untuk grid lama
+
+  it("grid sama = identitas (angka tidak bergeser)", () => {
+    const w = [0, 5, 10, 20, 30, 20, 10, 5, 0, 0];
+    expect(rebucketWeeklyToGrid(w, null, null, 10).map((v) => Math.round(v * 1e9) / 1e9)).toEqual(w);
+  });
+
+  it("Σ dipertahankan persis saat pindah 17→18 kolom", () => {
+    const w = Array.from({ length: 17 }, (_, i) => (i + 1) * 0.5);
+    const total = w.reduce((s, v) => s + v, 0);
+    const out = rebucketWeeklyToGrid(w, frLama, frBaru, 18);
+    expect(out).toHaveLength(18);
+    expect(out.reduce((s, v) => s + v, 0)).toBeCloseTo(total, 9);
+  });
+
+  it("bentuk kalender dipertahankan: minggu-1 lama (Kamis–Rabu) terbelah 4/7 + 3/7", () => {
+    // Seluruh bobot 7 di minggu-1 mode lama = 7 hari Kamis s/d Rabu.
+    // Grid baru: M1 = Kamis–Minggu (4 hari), M2 = Senin–Minggu (7 hari, tapi
+    // hanya 3 hari pertamanya beririsan dengan minggu-1 lama).
+    const w = [7, ...new Array(16).fill(0)];
+    const out = rebucketWeeklyToGrid(w, frLama, frBaru, 18);
+    expect(out[0]).toBeCloseTo(4, 6);
+    expect(out[1]).toBeCloseTo(3, 6);
+    expect(out.slice(2).reduce((s, v) => s + v, 0)).toBeCloseTo(0, 6);
+  });
+
+  it("kumulatif hasil konversi monoton", () => {
+    const w = Array.from({ length: 17 }, () => 100 / 17);
+    const out = rebucketWeeklyToGrid(w, frLama, frBaru, 18);
+    let acc = 0;
+    for (const v of out) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      acc += v;
+    }
+    expect(acc).toBeCloseTo(100, 6);
+  });
+});

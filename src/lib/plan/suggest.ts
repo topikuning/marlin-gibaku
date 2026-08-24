@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber } from "@/lib/progress";
-import { bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
+import { totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
 import { contractDaysFor } from "@/lib/rab/import";
 import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
@@ -51,11 +51,18 @@ export async function suggestWeeklyPlan(
     }),
     db.location.findUnique({
       where: { id: locationId },
-      select: { package: { select: { contract: { select: { startDate: true, weekMode: true } } } } },
+      select: {
+        package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
+      },
     }),
   ]);
 
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  // Jumlah minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
+  const kontrakSuggest = loc?.package.contract;
+  const totalWeeks =
+    kontrakSuggest?.weekMode === "senin_minggu" && kontrakSuggest.startDate && kontrakSuggest.endDate
+      ? totalWeeksBetween(kontrakSuggest.startDate, kontrakSuggest.endDate, "senin_minggu")
+      : Math.max(1, Math.ceil(contractDays / 7));
 
   // Kategori per lineage (prefix terpanjang) — sama seperti regenerateBaseline.
   // Identitas = lineageKey, nama hanya label/klasifikasi (CALC-04).
