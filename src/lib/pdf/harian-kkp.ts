@@ -52,6 +52,8 @@ export type LampiranHarian = {
   /** Logo pemilik pekerjaan — kop blanko. PNG; lihat catatan data-URI di bawah. */
   logoPemilik?: Buffer | null;
   logoVendor: Buffer | null;
+  /** Logo firma konsultan pengawas — kop blanko & sampul (2026-08-24). */
+  logoPengawas?: Buffer | null;
   foto: FotoDok[];
   /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
   fotoMaterial?: FotoPelengkapDok[];
@@ -144,6 +146,7 @@ export function tulisBadanHarian(
     ],
     { ...kopKanan, minRowHeight: kopBawah - atas },
   );
+  const firmaAtas = ny;
   ny = gridRow(
     doc,
     ny,
@@ -153,6 +156,24 @@ export function tulisBadanHarian(
     ],
     { ...kopKanan, minRowHeight: Math.max(12, ky - ny) },
   );
+  // Logo firma pengawas di sudut kiri sel KONSULTAN PENGAWAS (user 2026-08-24)
+  // — data URI, alasan yang sama dengan logo pemilik di bawah.
+  const logoPengawas = lampiran?.logoPengawas ?? null;
+  if (logoPengawas) {
+    const sisi = Math.min(ny - firmaAtas - 4, 18);
+    if (sisi > 6) {
+      try {
+        const src = `data:image/png;base64,${logoPengawas.toString("base64")}`;
+        doc.image(src, x + kiriW + 3, firmaAtas + (ny - firmaAtas - sisi) / 2, {
+          fit: [sisi, sisi],
+          align: "center",
+          valign: "center",
+        });
+      } catch (err) {
+        console.error("[laporan-harian] logo pengawas gagal digambar di kop PDF:", err);
+      }
+    }
+  }
   y = Math.max(ky, ny);
 
   // Logo pemilik pekerjaan dari menu Sistem — bukan hardcode KKP (DECISIONS 166).
@@ -502,7 +523,7 @@ export async function buildHarianKkpPdf(
      berkas mingguan sendiri atau cuma butuh blankonya. */
   if (!lampiran?.tanpaSampul) {
     doc.page.margins.bottom = 0;
-    gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null);
+    gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null, lampiran?.logoPengawas ?? null);
     doc.addPage();
   }
 
@@ -510,6 +531,7 @@ export async function buildHarianKkpPdf(
     ...lampiran,
     logoPemilik: logo ?? null,
     logoVendor: lampiran?.logoVendor ?? null,
+    logoPengawas: lampiran?.logoPengawas ?? null,
     foto: lampiran?.foto ?? [],
   });
   kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU – belum difinalisasi");
@@ -569,6 +591,8 @@ export async function muatLampiranFoto(
   sisaFoto: number | null = null,
 ): Promise<{
   logoVendor: Buffer | null;
+  /** Logo firma konsultan pengawas — kop blanko & sampul (2026-08-24). */
+  logoPengawas?: Buffer | null;
   foto: FotoDok[];
   fotoMaterial: FotoPelengkapDok[];
   fotoAlat: FotoPelengkapDok[];
@@ -582,6 +606,7 @@ export async function muatLampiranFoto(
   };
   let dipotong = 0;
   let logoVendor: Buffer | null = null;
+  let logoPengawas: Buffer | null = null;
   const foto: FotoDok[] = [];
   const fotoMaterial: FotoPelengkapDok[] = [];
   const fotoAlat: FotoPelengkapDok[] = [];
@@ -594,6 +619,13 @@ export async function muatLampiranFoto(
           logoVendor = await sharp(await r2GetBuffer(data.vendorLogoKey)).png().toBuffer();
         } catch {
           logoVendor = null;
+        }
+      }
+      if (data.supervisorLogoKey) {
+        try {
+          logoPengawas = await sharp(await r2GetBuffer(data.supervisorLogoKey)).png().toBuffer();
+        } catch {
+          logoPengawas = null;
         }
       }
       for (const p of data.photos ?? []) {
@@ -652,7 +684,7 @@ export async function muatLampiranFoto(
   } catch (err) {
     console.error("[laporan-kkp] lampiran dokumentasi gagal disiapkan:", err);
   }
-  return { logoVendor, foto, fotoMaterial, fotoAlat, dipotong };
+  return { logoVendor, logoPengawas, foto, fotoMaterial, fotoAlat, dipotong };
 }
 
 export async function renderHarianKkpPdf(
@@ -668,11 +700,12 @@ export async function renderHarianKkpPdf(
   ]);
   if (!data || !loc) return null;
   const logo = await muatLogoPemilik(branding.ownerLogoKey);
-  const { logoVendor, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
+  const { logoVendor, logoPengawas, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
   const gambarTtd = await muatTtdPdf(loc.id, "harian").catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,
+      logoPengawas,
       foto,
       fotoMaterial,
       fotoAlat,

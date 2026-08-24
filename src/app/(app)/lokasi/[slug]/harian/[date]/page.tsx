@@ -8,7 +8,7 @@ import { KeteranganStatus, Strip7Hari } from "@/components/knmp/strip-7-hari";
 import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
-import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
+import { ISSUE_SEVERITY_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
@@ -16,12 +16,13 @@ import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { PindahTanggalForm } from "./pindah-tanggal-form";
+import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
+import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
 export const dynamic = "force-dynamic";
 
-const SEVERITY_TONE = { rendah: "neutral", sedang: "info", tinggi: "warning", kritis: "danger" } as const;
 
 /**
  * WORKSPACE HARIAN SATU LAYAR — draft/koreksi (input SM), verifikasi (PM/SM),
@@ -47,6 +48,10 @@ export default async function HarianWorkspacePage({
 
   const canCreate = can(user.role, "daily_report.create");
   const canReview = can(user.role, "daily_report.review");
+  // Verifikasi EKSTERNAL Wakil PPK (DECISIONS 426) — jejak pemeriksaan pemberi
+  // kerja; tidak menyentuh status laporan maupun angka resmi.
+  const canVerifyExternal = can(user.role, "report.verify_external");
+  const riwayatWakil = report ? await riwayatVerifikasi(report.id) : [];
   const canFinalize = can(user.role, "daily_report.finalize");
   const canUnfinalize = can(user.role, "daily_report.unfinalize");
   const canMoveDate = can(user.role, "daily_report.move_date");
@@ -252,6 +257,24 @@ export default async function HarianWorkspacePage({
         </p>
       ) : null}
 
+      {/* Verifikasi eksternal Wakil PPK — tampil bila sudah pernah diperiksa,
+          atau bila pembacanya sendiri pemeriksa & laporannya sudah terkirim. */}
+      {report &&
+      (riwayatWakil.length > 0 ||
+        (canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final"))) ? (
+        <PanelVerifikasiWakil
+          reportId={report.id}
+          bolehVerifikasi={canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final")}
+          riwayat={riwayatWakil.map((r) => ({
+            id: r.id,
+            status: r.status,
+            note: r.note,
+            oleh: r.verifiedByName,
+            pada: r.createdAt.toISOString(),
+          }))}
+        />
+      ) : null}
+
       {/*
         Pindah tanggal (DECISIONS 415) — super admin saja, berlaku di SEMUA
         status. Salah tanggal paling sering ketahuan saat verifikasi (laporan
@@ -301,7 +324,7 @@ export default async function HarianWorkspacePage({
                       <p className="text-sm font-medium text-ink">{i.title}</p>
                       {i.description ? <p className="text-xs text-ink-muted">{i.description}</p> : null}
                     </div>
-                    <Badge tone={SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
+                    <Badge tone={ISSUE_SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
                   </li>
                 ))}
               </ul>

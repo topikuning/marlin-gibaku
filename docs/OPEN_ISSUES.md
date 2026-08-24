@@ -190,9 +190,13 @@ SOURCE A (protokol):
   Label generik "Realisasi" DILARANG; harus "Progress Dilaporkan" /
   "Progress Terverifikasi" / "Progress Final".
 SOURCE B (kode):
-  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — SATU level, dipakai
+  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — basis RESMI, dipakai
   dashboard, blanko KKP, kurva-S, keuangan (installedValue), dan AI. UI
   melabelinya "Realisasi" di ±12 tempat.
+  UPDATE DECISIONS 426: opsi 2 SUDAH terpasang sebagai angka PENDAMPING —
+  `statusLevel: "terverifikasi"` (disetujui+final) di getLocationsProgress,
+  dipakai mesin kesiapan termin/PHO. Basis resmi TIDAK berubah; yang masih
+  menunggu keputusan tinggal opsi 3 (memindahkan basis resmi).
 BUSINESS IMPACT:
   Angka yang diteken PPK saat ini memasukkan laporan yang BARU DIKIRIM dan
   belum diverifikasi siapa pun. Pembaca tidak bisa membedakannya. Untuk
@@ -562,3 +566,25 @@ daripada niat aslinya). Mana yang benar keputusan tampilan, bukan keputusan
 kode.
 
 Ditemukan dengan `grep -c "color-border-muted" src/app/globals.css` → 0.
+
+## FUTURE · Pengendalian Terpadu — lanjutan yang sengaja ditunda (DECISIONS 426)
+
+Fase pertama (temuan, inspeksi, verifikasi eksternal, kesiapan, EWS) selesai;
+yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
+
+- 🟢 **Evidence explorer global** — bukti kini terlihat per temuan/inspeksi +
+  galeri `/foto` + register `/dokumen`; layar pencarian gabungan lintas modul
+  (lokasi × tanggal × tipe × status verifikasi) belum dibuat.
+- 🟢 **Unggah foto langsung dari form inspeksi** — kini inspeksi menautkan
+  foto yang sudah ada (Foto Cepat tetap jalur jepret). Unggah langsung butuh
+  jalur kompresi+cap yang sama dengan laporan harian.
+- 🟢 **E2E Playwright alur temuan/verifikasi** — unit + integrasi hijau;
+  E2E menyusul (pola defer yang sama dengan AI Hub).
+- 🟢 **Ambang termin dari kontrak** — ambang 25/50/80/100 kini konstanta
+  (`lib/kesiapan/rules.ts`, DECISIONS 078). Kalau ada paket bertermin lain,
+  angkanya harus pindah ke data kontrak.
+- 🔵 **EWS "GPS di luar radius" & "pekerjaan tanpa evidence"** — rule kualitas
+  data ini sudah ada di ai-hub (`quality-rules.ts`); menyalinnya ke
+  /perlu-tindakan berarti dua rumah untuk rule yang sama. Keputusan yang
+  benar: satu keluarga rule dipakai dua permukaan — refactor kecil, belum
+  dikerjakan.

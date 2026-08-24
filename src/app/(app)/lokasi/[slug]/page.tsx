@@ -39,7 +39,7 @@ export default async function LokasiRingkasanPage({
 
   // Pratinjau tanda tangan/stempel pelaksana lokasi ini. Satu presign untuk
   // keduanya; yang belum diunggah tidak ikut diminta.
-  const kunciPelaksana = [location.pelaksanaTtdKey, location.supervisorTtdKey].filter(
+  const kunciPelaksana = [location.pelaksanaTtdKey, location.supervisorTtdKey, location.wakilSahTtdKey].filter(
     (k): k is string => !!k,
   );
   const urlsPelaksana =
@@ -291,6 +291,13 @@ export default async function LokasiRingkasanPage({
                 warisanPengawas={{
                   nama: contract?.supervisorName ?? null,
                   firma: contract?.supervisorFirm ?? null,
+                }}
+                wakilSahNama={location.wakilSahName}
+                wakilSahNip={location.wakilSahNip}
+                wakilSahTtdUrl={urlTtdPelaksana(location.wakilSahTtdKey)}
+                warisanWakilSah={{
+                  nama: contract?.wakilSahName ?? null,
+                  nip: contract?.wakilSahNip ?? null,
                 }}
               />
             </CardBody>

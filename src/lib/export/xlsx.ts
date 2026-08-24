@@ -111,6 +111,8 @@ async function addKurvaSheet(
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: r.header.contractStart,
+    weekMode: r.header.weekMode,
+    contractEnd: r.header.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -175,7 +177,9 @@ async function addKurvaSheet(
     c += g.span;
   }
   const weekRow = ws.addRow([]);
-  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}`;
+  // Rentang tanggal minggu ikut tercetak (2026-08-24) — batas mengikuti mode
+  // periode minggu kontrak (M1 bisa pendek pada mode Senin–Minggu).
+  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`;
   ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
   ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
   ws.mergeCells(monthRow.number, 3, weekRow.number, 3);

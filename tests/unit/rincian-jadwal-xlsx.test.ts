@@ -157,8 +157,10 @@ describe("berkas mengikuti tata letak acuan", () => {
 
   it("kolom minggu dikelompokkan per BULAN, dengan baris M1..MN di bawahnya", async () => {
     const { teks } = await baca();
-    expect(teks).toContain("M1");
-    expect(teks).toContain(`M${TOTAL_MINGGU}`);
+    // Sel minggu kini "M1\n<rentang tanggal>" (user 2026-08-24) — yang dijaga
+    // token pertamanya.
+    expect(teks.some((t) => t.split(/\s/)[0] === "M1")).toBe(true);
+    expect(teks.some((t) => t.split(/\s/)[0] === `M${TOTAL_MINGGU}`)).toBe(true);
     expect(teks.some((t) => /JUNI|JULI/.test(t))).toBe(true);
   });
 

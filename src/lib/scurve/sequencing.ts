@@ -31,7 +31,14 @@
  * Semua deterministik & pure (tak sentuh DB) → bisa diuji terhadap korpus RAB.
  */
 
-import { categoryWeeklyIncrements, smoothstep } from "./generate";
+import {
+  categoryWeeklyIncrements,
+  gridEndFrac,
+  gridStartFrac,
+  smoothstep,
+  weekOfFracEnd,
+  weekOfFracStart,
+} from "./generate";
 
 export type WorkType = "gedung" | "jalan" | "marine" | "utilitas" | "lansekap" | "umum";
 
@@ -379,22 +386,47 @@ function resourceRamp(t: number): number {
  * antar lokasi sesuai komposisinya. placeItems/stagePlannedFraction TETAP dipakai
  * rekomendasi mingguan (urutan pekerjaan) — tak diubah. DECISIONS 077.
  */
-export function scheduleBySequence(items: SeqItem[], contractDays: number): number[] {
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+export function scheduleBySequence(
+  items: SeqItem[],
+  contractDays: number,
+  /** Grid minggu tak-seragam (mode senin_minggu) — lihat generate.ts. */
+  weekEndFracs?: number[] | null,
+): number[] {
+  const totalWeeks = weekEndFracs?.length ?? Math.max(1, Math.ceil(contractDays / 7));
   const placements = placeItems(items);
   if (placements.length === 0) return new Array(totalWeeks).fill(0);
 
-  // (2) histogram biaya mingguan (bobot ÷ durasi, disebar seragam dalam jendela)
+  // (2) histogram biaya mingguan. Grid seragam (mode tujuh_hari) memakai rumus
+  // LAMA persis — angka baseline yang sudah beredar tidak boleh bergeser. Grid
+  // tak-seragam menyebar bobot proporsional TUMPANG-TINDIH HARI tiap minggu
+  // dengan jendela item — M1 pendek menerima porsi sebesar harinya.
   const velocity = new Array(totalWeeks).fill(0);
-  for (const p of placements) {
-    const s = Math.max(0, Math.min(totalWeeks - 1, Math.floor(p.start * totalWeeks)));
-    const e = Math.max(s, Math.min(totalWeeks - 1, Math.ceil(p.end * totalWeeks) - 1));
-    const perWeek = p.weightPct / (e - s + 1);
-    for (let w = s; w <= e; w++) velocity[w] += perWeek;
+  if (weekEndFracs) {
+    for (const p of placements) {
+      const span = Math.max(1e-9, p.end - p.start);
+      for (let w = 0; w < totalWeeks; w++) {
+        const a = gridStartFrac(w + 1, totalWeeks, weekEndFracs);
+        const b = gridEndFrac(w + 1, totalWeeks, weekEndFracs);
+        const overlap = Math.min(b, p.end) - Math.max(a, p.start);
+        if (overlap > 0) velocity[w] += p.weightPct * (overlap / span);
+      }
+    }
+  } else {
+    for (const p of placements) {
+      const s = Math.max(0, Math.min(totalWeeks - 1, Math.floor(p.start * totalWeeks)));
+      const e = Math.max(s, Math.min(totalWeeks - 1, Math.ceil(p.end * totalWeeks) - 1));
+      const perWeek = p.weightPct / (e - s + 1);
+      for (let w = s; w <= e; w++) velocity[w] += perWeek;
+    }
   }
 
   // (3) modulasi envelope + normalisasi + akumulasi
-  const modulated = velocity.map((v, i) => v * resourceRamp((i + 0.5) / totalWeeks));
+  const modulated = velocity.map((v, i) =>
+    v *
+    resourceRamp(
+      (gridStartFrac(i + 1, totalWeeks, weekEndFracs) + gridEndFrac(i + 1, totalWeeks, weekEndFracs)) / 2,
+    ),
+  );
   const sum = modulated.reduce((a, b) => a + b, 0) || 1;
   const out: number[] = [];
   let acc = 0;
@@ -520,8 +552,10 @@ export function scheduleFromItems(
   contractDays: number,
   /** Jendela kategori; dipanggil dengan (nama, kunci) — kunci untuk lookup jadwal tersimpan. */
   categoryWindowFrac: (categoryName: string, categoryKey?: string) => [number, number],
+  /** Grid minggu tak-seragam (mode senin_minggu) — lihat generate.ts. */
+  weekEndFracs?: number[] | null,
 ): { totalWeeks: number; grand: number; categories: CategoryWeekly[] } {
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const totalWeeks = weekEndFracs?.length ?? Math.max(1, Math.ceil(contractDays / 7));
   const positive = items.filter((it) => it.amount > 0n);
   const grand = positive.reduce((s, it) => s + Number(it.amount), 0);
   if (grand <= 0) return { totalWeeks, grand: 0, categories: [] };
@@ -548,10 +582,10 @@ export function scheduleFromItems(
     const stage = classifyStage(wt, it.name, it.categoryName);
     const [cs, ce] = categoryWindowFrac(it.categoryName, it.categoryKey);
     const [isF, ieF] = nestedItemWindow(wt, stage, cs, ce);
-    const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(isF * totalWeeks) + 1));
-    const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ieF * totalWeeks)));
+    const sWeek = weekOfFracStart(isF, totalWeeks, weekEndFracs);
+    const eWeek = Math.max(sWeek, weekOfFracEnd(ieF, totalWeeks, weekEndFracs));
     const w = (Number(it.amount) / grand) * 100;
-    const inc = categoryWeeklyIncrements(w, sWeek, eWeek, totalWeeks);
+    const inc = categoryWeeklyIncrements(w, sWeek, eWeek, totalWeeks, weekEndFracs);
     let entry = catAcc.get(key);
     if (!entry) {
       entry = { weightPct: 0, weekly: new Array<number>(totalWeeks).fill(0) };

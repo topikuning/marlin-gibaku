@@ -271,3 +271,98 @@ export function weightedPct(rows: { grandTotal: bigint; pct: number }[]): number
   }
   return grand > 0 ? acc / grand : 0;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * PERIODE MINGGU LAPORAN (user 2026-08-24) — MURNI, tanpa DB.
+ *
+ * Dua cara menghitung "minggu ke-n" sejak SPMK, dipilih per kontrak
+ * (`Contract.weekMode`):
+ *
+ * - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari,
+ *   +6 hari]. Semua minggu 7 hari; hari mulainya mengikuti hari SPMK.
+ * - `senin_minggu`: minggu KALENDER Senin–Minggu. Minggu pertama bisa pendek:
+ *   SPMK hari Kamis ⇒ M1 = Kamis–Minggu (4 hari). Minggu terakhir juga bisa
+ *   pendek bila kontrak berakhir sebelum hari Minggu.
+ *
+ * Semua tanggal di sini adalah TANGGAL KERJA @db.Date (UTC-midnight), jadi
+ * `getUTCDay()` adalah hari kalender tanggal itu — bukan hari di zona lain.
+ * Deret baseline kurva-S TIDAK ditafsirkan ulang: titik ke-n tetap "akhir
+ * minggu ke-n"; yang berubah hanya tanggal kalender batas minggunya.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type WeekPeriodMode = "tujuh_hari" | "senin_minggu";
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** Senin (UTC-midnight) pada minggu kalender yang memuat `d`. */
+function seninPekan(d: Date): Date {
+  const dow = (d.getUTCDay() + 6) % 7; // Senin=0 … Minggu=6
+  return new Date(d.getTime() - dow * DAY_MS);
+}
+
+/**
+ * Minggu ke berapa `date` jatuh, dihitung dari `start` menurut `mode`.
+ * 0 = sebelum mulai. TIDAK di-clamp ke total minggu — pemanggil yang tahu
+ * batasnya (lihat `currentWeekNumber` di progress.ts).
+ */
+export function weekOfDate(start: Date, date: Date, mode: WeekPeriodMode): number {
+  // Sebelum SPMK = belum mulai (DECISIONS 202) — juga pada mode kalender,
+  // walau tanggalnya berada di minggu Senin–Minggu yang sama dengan SPMK.
+  if (date.getTime() < start.getTime()) return 0;
+  if (mode === "senin_minggu") {
+    return Math.floor((seninPekan(date).getTime() - seninPekan(start).getTime()) / (7 * DAY_MS)) + 1;
+  }
+  return Math.floor((date.getTime() - start.getTime()) / (7 * DAY_MS)) + 1;
+}
+
+/** Jumlah minggu (kolom M) yang menutup [start, end] menurut `mode`. Min 1. */
+export function totalWeeksBetween(start: Date, end: Date, mode: WeekPeriodMode): number {
+  if (end.getTime() < start.getTime()) return 1;
+  return Math.max(1, weekOfDate(start, end, mode));
+}
+
+/**
+ * Rentang tanggal minggu ke-n (date-only, UTC-midnight).
+ * Awal M1 selalu = `start` (mode kalender: M1 pendek). Bila `end` diberikan,
+ * akhir minggu terakhir dipangkas ke `end`.
+ */
+/**
+ * Fraksi HARI kumulatif pada AKHIR tiap minggu, relatif total hari kontrak —
+ * grid evaluasi generator kurva-S untuk mode `senin_minggu` (M1/minggu akhir
+ * pendek menyumbang fraksi lebih kecil). Naik ketat; elemen terakhir = 1.
+ * Mode `tujuh_hari` TIDAK memakai grid ini (generator tetap grid seragam
+ * lamanya) supaya angka baseline yang sudah beredar tidak bergeser.
+ */
+export function weekEndFractions(start: Date, end: Date, mode: WeekPeriodMode): number[] {
+  const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1);
+  const n = totalWeeksBetween(start, end, mode);
+  const out: number[] = [];
+  for (let k = 1; k <= n; k++) {
+    const r = weekDateRange(start, k, mode, end);
+    const days = Math.round((r.end.getTime() - start.getTime()) / DAY_MS) + 1;
+    out.push(Math.min(1, days / totalDays));
+  }
+  out[n - 1] = 1;
+  return out;
+}
+
+export function weekDateRange(
+  start: Date,
+  n: number,
+  mode: WeekPeriodMode,
+  end?: Date | null,
+): { start: Date; end: Date } {
+  let s: Date;
+  let e: Date;
+  if (mode === "senin_minggu") {
+    const senin1 = seninPekan(start);
+    s = new Date(senin1.getTime() + (n - 1) * 7 * DAY_MS);
+    e = new Date(s.getTime() + 6 * DAY_MS);
+    if (s.getTime() < start.getTime()) s = start; // M1 pendek
+  } else {
+    s = new Date(start.getTime() + (n - 1) * 7 * DAY_MS);
+    e = new Date(s.getTime() + 6 * DAY_MS);
+  }
+  if (end && e.getTime() > end.getTime() && end.getTime() >= s.getTime()) e = end;
+  return { start: s, end: e };
+}

@@ -175,6 +175,12 @@ export const METRIK = {
   milestone_total: { satuan: "hitungan", toleransi: 0 },
   milestone_selesai: { satuan: "hitungan", toleransi: 0 },
   milestone_perlu_perbaikan: { satuan: "hitungan", toleransi: 0 },
+
+  // Temuan pemeriksa (DECISIONS 426) — hitungan, tanpa toleransi.
+  temuan_terbuka: { satuan: "hitungan", toleransi: 0 },
+  temuan_kritis: { satuan: "hitungan", toleransi: 0 },
+  temuan_lewat_tenggat: { satuan: "hitungan", toleransi: 0 },
+  temuan_dibuka_kembali: { satuan: "hitungan", toleransi: 0 },
 } as const;
 export type Metrik = keyof typeof METRIK;
 export const NAMA_METRIK = Object.keys(METRIK) as Metrik[];

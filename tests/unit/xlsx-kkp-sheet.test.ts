@@ -76,6 +76,12 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
       periodeEnd: new Date(start.getTime() + 13 * 86_400_000),
       ppkName: "Budi Santoso",
       ppkNip: "19800101 200501 1 001",
+      weekMode: "tujuh_hari" as const,
+      contractEnd: null,
+      // Mingguan/bulanan kini diteken WAKIL SAH (2026-08-24) — fixture memakai
+      // nama yang sama supaya assertion blok TTD tetap satu nama.
+      wakilSahName: "Budi Santoso",
+      wakilSahNip: "19800101 200501 1 001",
       supervisorName: "Rina Wijaya",
       supervisorFirm: "PT Konsultan Pengawas Nusantara",
       contractorSignerName: "Andi Prasetyo",
@@ -384,6 +390,10 @@ describe("blok tanda tangan", () => {
         ...fixture().header,
         ppkName: null,
         ppkNip: null,
+        weekMode: "tujuh_hari" as const,
+        contractEnd: null,
+        wakilSahName: null,
+        wakilSahNip: null,
         supervisorName: null,
         contractorSignerName: null,
       },

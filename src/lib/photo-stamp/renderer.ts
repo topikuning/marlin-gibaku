@@ -43,8 +43,12 @@ export type StampRenderData = {
    * null = tidak ada (mis. foto kegiatan lapangan).
    */
   workName?: string | null;
-  /** Sudah diformat: "Sabtu, 25 Juli 2026 • 16:15 WIB". */
-  dateTimeText: string;
+  /**
+   * Sudah diformat: "Sabtu, 25 Juli 2026 • 16:15 WIB". null = baris tanggal
+   * DISEMBUNYIKAN — foto galeri "gunakan apa adanya" (user 2026-08-24): cap
+   * tetap ada (lokasi/pekerjaan/logo) tapi tanpa tag koordinat & waktu.
+   */
+  dateTimeText: string | null;
   /** Sudah diformat: "6.871010°S, 109.253123°E" — null = sembunyikan. */
   coordinateText: string | null;
   reporterName: string | null; // null = sembunyikan
@@ -322,12 +326,13 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const workLineH = Math.round(fsWork * 1.28);
   const gapWork = Math.round(base * 0.006);
 
+  const hasDate = d.dateTimeText != null && d.dateTimeText.trim() !== "";
   const total =
     (hasBadge ? badgeH + gapBadgeLoc : 0) +
     (workText ? workLineH + gapWork : 0) +
     loc.lines.length * locLineH +
     gapLocDate +
-    dateH +
+    (hasDate ? dateH : 0) +
     gapDateDiv +
     2 +
     gapDivMeta +
@@ -381,15 +386,17 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   }
   cy += gapLocDate;
 
-  // Tanggal & waktu.
-  cy += Math.round(fsDate * 0.85);
-  const timeNote = d.timeNote
-    ? `<tspan font-size="${Math.round(fsDate * 0.72)}" fill="${NOTE_AMBER}"> · ${esc(d.timeNote)}</tspan>`
-    : "";
-  parts.push(
-    `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText)}${timeNote}</text>`,
-  );
-  cy += dateH - Math.round(fsDate * 0.85);
+  // Tanggal & waktu – dilewati bila cap "apa adanya" (tanpa tag waktu).
+  if (hasDate) {
+    cy += Math.round(fsDate * 0.85);
+    const timeNote = d.timeNote
+      ? `<tspan font-size="${Math.round(fsDate * 0.72)}" fill="${NOTE_AMBER}"> · ${esc(d.timeNote)}</tspan>`
+      : "";
+    parts.push(
+      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText!)}${timeNote}</text>`,
+    );
+    cy += dateH - Math.round(fsDate * 0.85);
+  }
   cy += gapDateDiv;
 
   // Garis pemisah.

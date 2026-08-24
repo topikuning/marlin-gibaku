@@ -22046,3 +22046,183 @@ dengan `.slice(0, 6)` TANPA memberi tahu siapa pun. Layarnya tetap berbunyi
 "Progres tersimpan" sementara sebagian bukti tidak pernah ada. Ketiga jalur
 unggah laporan harian (item, foto menyusul, baris material/alat) kini
 mengembalikan jumlah yang tidak tersimpan dan menyebutkannya di peringatan.
+
+---
+
+## 426 — Pengendalian Terpadu: temuan, inspeksi, verifikasi eksternal; Wakil PPK jadi VERIFIKATOR, 2026-08-24
+
+**Konteks.** Prompt user "MARLIN — Integrated Project Control & Assurance":
+kembangkan MARLIN dari monitoring sisi kontraktor menjadi platform
+pengendalian terpadu — workspace Wakil PPK (inspeksi, verifikasi laporan &
+evidence, temuan, klarifikasi), model temuan formal, evidence yang bisa
+dirujuk silang, kesiapan termin/PHO/FHO, EWS rule-based — SEMUA di dalam
+MARLIN, bukan sistem terpisah. Audit + arsitektur: `docs/integrated-control/`.
+
+**Keputusan.**
+
+1. **Temuan (`Finding`) ≠ kendala (`Issue`)** — entitas baru dengan siklus
+   `baru → menunggu_klarifikasi → ditindaklanjuti → menunggu_verifikasi →
+   selesai → dibuka_kembali` (mesin di `lifecycle.ts`), histori status
+   append-only (trigger DB), klarifikasi Q/A, catatan tindak lanjut, dan
+   `reopenCount`. Kendala tetap ada dan tidak berubah.
+2. **Wakil PPK berubah dari BACA SAJA menjadi VERIFIKATOR** — menggantikan
+   sebagian DECISIONS 199. Capability tulisnya whitelist tegas:
+   `finding.create`, `finding.verify`, `inspection.manage`,
+   `report.verify_external`. Yang dipertahankan dari 199: tanpa `ai.*`, tanpa
+   `finance.*`, tanpa capability apa pun yang mengubah data pelaksana, dan
+   tetap sesuai penugasan lokasi. Tes penjaga ditulis ulang jadi whitelist.
+3. **Pemisahan tugas berbasis PERAN**: pihak pelaksana (SM/PM/AM) tidak punya
+   `finding.verify` — yang menutup temuan bukan yang ditindak; pemeriksa tidak
+   punya `finding.respond` — tidak menindaklanjuti temuannya sendiri. SA/PD
+   break-glass ter-audit.
+4. **Verifikasi eksternal laporan harian** = `ReportVerification` append-only
+   (baris terakhir = keadaan; "belum diperiksa" = tidak ada baris). SENGAJA
+   tidak menyentuh `DailyReport.status` maupun `COUNTED_REPORT_STATUSES` —
+   angka resmi tidak berubah karena wakil menekan tombol; memindahkan basis
+   angka ke level terverifikasi tetap KEPUTUSAN terpisah di OPEN_ISSUES.
+5. **Evidence = tautan, bukan salinan**: `EvidenceLink` menunjuk `Photo` ATAU
+   `Document` (CHECK constraint XOR) dan menempel ke temuan/inspeksi/
+   klarifikasi (CHECK minimal satu induk), dengan status verifikasi per-tautan.
+6. **Tidak dibuat**: model DocumentRequirement (matrix dokumen = AdminMilestone
+   45 item yang sudah ada), penghidupan model `Alert` (EWS derived on-the-fly),
+   formula progress baru, sistem kedua di samping MARLIN.
+
+**Verifikasi**: migrasi `20260823183241_pengendalian_terpadu_temuan` (tabel
+baru saja, + trigger append-only + CHECK), matriks izin regen (59 capability),
+uji `wakil-ppk`/`authz`/`lifecycle` hijau.
+
+## 427 — Wakil Sah, mode periode minggu, cap galeri "apa adanya", logo pengawas, 2026-08-24
+
+Empat permintaan user 2026-08-24, semua dikonfirmasi lewat pertanyaan pilihan:
+
+1. **Wakil Sah** — *"pendandatangan di laporan mingguan dan bulanan bukan PPK,
+   tapi istilahnya Wakil Sah. Wakil Sah bisa per lokasi beda."* Pilihan user:
+   HANYA mingguan + bulanan; kurva-S/jadwal, MC, CCO, harian tetap PPK.
+   - `Contract.wakilSahName/Nip/TtdKey` + timpaan `Location.wakilSah*` —
+     `pilihWakilSah()` blok utuh, nama penentu (pola DECISIONS 402/409).
+   - SATU penentu pihak KKP per jenis dokumen: `pihakKkp(jenis)` +
+     `labelPihakKkp(jenis)` di `lib/laporan/penandatangan.ts`; dipakai layar
+     (`kkp-period-report`, `scurve-kkp-sheet`), PDF (`periodik-kkp`), Excel
+     (`xlsx-gaya.blokTandaTangan`), dan pemuat gambar TTD (`pilihKunciTtd`).
+   - Stempel slot KKP TETAP `ppkStempelKey` — stempel milik instansi
+     (DECISIONS 408); yang berganti hanya coretan orangnya.
+   - Form: kontrak (nama+NIP+TTD) dan penimpaan per lokasi di form penanda
+     tangan lokasi. Penjaga: `tests/unit/wakil-sah.test.ts`.
+
+2. **Mode periode minggu per kontrak** (`Contract.weekMode`):
+   - `tujuh_hari` (bawaan) = perilaku lama; `senin_minggu` = minggu kalender
+     Senin–Minggu, M1 bisa pendek (contoh user: SPMK Kamis ⇒ M1 Kamis–Minggu,
+     4 hari). Pilihan user: per paket/kontrak.
+   - Helper murni di `progress-calc.ts` (`weekOfDate`/`weekDateRange`/
+     `totalWeeksBetween`); dialirkan ke `currentWeekNumber`, `periodic-report`
+     (periode, bucketing, weekIndex), `baseline.getScurveSeries`,
+     `mingguan/kirim` (penjadwal WA + rentang), `paparan/snapshot`,
+     `gdrive/antrean`, `daily-report.queries` (weekNo + periode blanko),
+     `mingguan-kkp.tanggalMinggu` (berkas minggu pendek = halaman lebih sedikit),
+     dan `rab/import.totalWeeksFor` (jumlah kolom baseline/jadwal).
+   - **Kolom M1–MN kini menampilkan rentang tanggalnya** (permintaan user) —
+     `buildKurvaSheet.weekRanges`, tampil di layar, PDF periodik, dan kedua
+     ekspor Excel; parser impor jadwal menerima "M1\n<rentang>" (token pertama).
+   - Mengubah mode lewat koreksi kontrak = perlakuan sama dengan perubahan
+     waktu: kurva-S seluruh lokasi dihitung ulang. Penjaga:
+     `tests/unit/periode-minggu.test.ts`.
+   - Batas sadar: pembagi rencana INTERNAL generator kurva-S otomatis tetap
+     menganggap tiap minggu setara (jadwal impor verbatim tidak terpengaruh —
+     kolom user dipakai apa adanya, DECISIONS 203).
+
+3. **Foto galeri "gunakan apa adanya"** — opsi ketiga dialog galeri. Pilihan
+   user: cap TETAP dibubuhkan (lokasi/pekerjaan/logo) tapi TANPA baris
+   koordinat & tanggal-jam, meski EXIF ada. `Photo.stampPlain` disimpan supaya
+   perbaikan cap tidak menambahkannya kembali; mengisi koordinat/waktu secara
+   manual saat perbaikan cap mematikan penanda itu (tag memang diminta tampil).
+   Setelan wajib-GPS (DECISIONS 219) tetap menang: opsi ini ditolak saat
+   wajib-GPS menyala. Selaras DECISIONS 197 — cap tidak menyatakan yang tidak
+   dijamin; di sini user memilih tidak menyatakan apa-apa.
+
+4. **Logo firma pengawas** (`Contract.supervisorLogoKey`) — unggah di form
+   TTD kontrak; tampil UTAMA di blanko laporan harian (kop sel KONSULTAN
+   PENGAWAS di layar & PDF, + sampul berkas mingguan yang slotnya memang sudah
+   ada). Milik FIRMA, jadi di kontrak — alasan yang sama dengan stempel
+   (DECISIONS 408).
+
+**Verifikasi**: migrasi `20260824110000_*` idempoten; typecheck + lint bersih;
+2159 unit + 872 integrasi hijau (fixture PeriodHeader diperluas; parser jadwal
+round-trip tetap hijau dengan sel "M1\n<rentang>").
+
+## 427b — Generator kurva-S otomatis sadar-grid minggu, 2026-08-24
+
+Keberatan user atas batas sadar di 427: *"kenapa harus ada ini, kan kamu
+harusnya menyesuaikan. atau kurva-s otomatis menyesuaikan, harus konsisten."*
+Benar — batasnya dihapus, generator dibuat konsisten:
+
+- Grid minggu tak-seragam: `weekEndFractions(start, end, mode)` di
+  `progress-calc.ts` = fraksi HARI kumulatif pada akhir tiap minggu (M1 pendek
+  = fraksi kecil). `totalWeeksFor()` (rab/import) mengembalikannya sekalian —
+  SATU sumber untuk jumlah kolom DAN pembagi hari.
+- Seluruh primitif generator menerima grid opsional dan mengevaluasi lonceng/
+  kurva pada FRAKSI HARI, bukan indeks minggu: `cumulativeFromSegments`,
+  `categoryWeeklyIncrements`, `weeklyFromSegments`, `curveFromCategorySchedule`,
+  `autoCategorySchedule`, `generateScurve`, `scheduleItems` (generate.ts) serta
+  `scheduleFromItems`, `scheduleBySequence` (sequencing.ts, pemetaan
+  fraksi→minggu lewat `weekOfFracStart/End`).
+- Dialirkan ke semua pembuat baseline/jadwal otomatis: `regenerateBaseline`,
+  `deriveCategorySchedule`, `saveCategorySchedule`, `hitungJadwalBaru`, dan
+  fallback jadwal `getPeriodReport`. Ini sekaligus menutup cacat panjang
+  matriks: sebelum ini `scheduleFromItems` internal masih `ceil(hari/7)`
+  sementara jumlah kolom resmi sudah mode-aware — bisa selisih satu kolom
+  pada mode `senin_minggu`.
+- **Tanpa grid (mode `tujuh_hari` / SPMK belum terbit) rumusnya BIT-IDENTIK
+  dengan yang lama** — diuji eksplisit; baseline yang sudah beredar tidak
+  bergeser. Jadwal impor verbatim tetap dipakai apa adanya (DECISIONS 203).
+
+Penjaga: blok "generator ditimbang HARI" di `tests/unit/periode-minggu.test.ts`.
+
+## 427c — Snapshot blanko final: weekNo mode-aware + rentang periode dibekukan, 2026-08-24
+
+Konteks user: mode periode minggu diganti DI TENGAH kontrak (permintaan
+pengawas), bukan di awal. Dua hal dibereskan:
+
+1. **Bug**: pembuat `FinalSnapshot` (`daily-report/service.ts`) masih memakai
+   rumus 7-hari yang ditulis langsung — terlewat saat `weekMode` diperkenalkan
+   (427). Blanko yang difinalkan pada mode `senin_minggu` membekukan nomor
+   minggu yang salah. Kini `weekOfDate(start, reportDate, weekMode)`.
+2. **Koherensi cetak ulang**: snapshot kini juga membekukan
+   `periodStartKey/periodEndKey` (rentang tanggal minggu ke-weekNo saat
+   difinalkan). Penyaji memakai rentang beku bila ada; snapshot LAMA (tanpa
+   kolom itu) jatuh ke derivasi mode berjalan — tanpa itu, nomor beku +
+   rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
+   Snapshot lama TIDAK dibangun ulang: dokumen final yang sudah diteken tidak
+   diubah diam-diam; yang lahir setelah ini koheren selamanya.
+
+## 427d — Ganti mode minggu = SATU KLIK: jadwal lama dikonversi, bukan dibuang, 2026-08-24
+
+Ketetapan user: *"kamu jangan mengubah apa pun di proses yang lama, jadi
+tinggal klik ubah metode perhitungan mingguan, beres begitu saja, semuanya
+ikut menyesuaikan. jangan sampai ulang impor dan lain sebagainya, sistemmu
+yang menyesuaikan."*
+
+Sebelumnya ganti mode memicu `regenerateBaseline` (generator otomatis) —
+jadwal impor Excel verbatim ikut terganti dan user harus impor ulang. Dibuang:
+
+- `rebucketWeeklyToGrid` (scurve/generate, MURNI): increment tiap minggu lama
+  dianggap tersebar merata sepanjang hari-harinya, lalu di-bucket ulang ke
+  batas minggu grid baru. Bentuk rencana dalam KALENDER dipertahankan persis;
+  Σ tidak berubah; M1 pendek menerima tepat porsi hari yang jatuh di dalamnya.
+- `konversiBaselineModeMinggu` (baseline.ts): supersede baseline aktif → versi
+  baru dengan matriks per-kategori hasil konversi + kurva = Σ matriks
+  (jalur akumulasi yang sama dengan simpan jadwal). **Provenance
+  dipertahankan** — `source` baseline lama dibawa, hasil konversi impor
+  verbatim tidak menyamar jadi "auto". Baseline lama tanpa matriks
+  dikonversi lewat increment kurvanya.
+- `editContractAction`: bila HANYA mode yang berubah (SPMK & durasi tetap) →
+  konversi per lokasi; regenerate hanya fallback untuk baseline yang tidak
+  cocok grid lamanya. Perubahan SPMK/durasi tetap regenerate (perilaku lama).
+  Kedua grid dihitung dari HARI nyata (`weekEndFractions`) — juga sisi
+  tujuh_hari, supaya durasi yang tidak habis dibagi 7 terpetakan tepat.
+- Validasi impor Excel jadwal, saran mingguan, dan total minggu paparan ikut
+  dibetulkan ke jumlah kolom per mode (sisa `ceil(hari/7)` tertulis-langsung
+  dari sapuan 427b).
+
+Penjaga: blok "rebucketWeeklyToGrid" di `tests/unit/periode-minggu.test.ts`
+(identitas grid sama; Σ dipertahankan 17→18 kolom; minggu Kamis–Rabu terbelah
+4/7 + 3/7; monoton).

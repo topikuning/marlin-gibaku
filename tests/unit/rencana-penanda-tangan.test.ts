@@ -134,6 +134,10 @@ function rencana(): RencanaMingguan {
       // medannya ada di kop, tapi blok TTD rencana tetap memakai direktur.
       pelaksanaName: "Joko Susilo",
       pelaksanaTitle: "Pelaksana Lapangan",
+      weekMode: "tujuh_hari" as const,
+      contractEnd: null,
+      wakilSahName: null,
+      wakilSahNip: null,
       ...kopTtd,
     },
     weekNumber: 2,

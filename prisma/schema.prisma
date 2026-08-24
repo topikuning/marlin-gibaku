@@ -24,8 +24,10 @@ enum UserRole {
   site_manager
   field_supervisor
   exec_viewer
-  /// Wakil pemberi kerja — BACA SAJA, tanpa AI, hanya lokasi yang ditugaskan.
-  /// DECISIONS 199.
+  /// Wakil pemberi kerja — VERIFIKATOR (DECISIONS 426, menggantikan sebagian
+  /// 199): boleh menulis HANYA domain pemeriksaan (temuan, inspeksi,
+  /// verifikasi eksternal laporan); tetap tanpa AI/keuangan, hanya lokasi
+  /// yang ditugaskan.
   wakil_ppk
 }
 
@@ -143,6 +145,15 @@ enum PhotoMetadataSource {
 /// karena keduanya bisa berbeda sumber. `project` = titik lokasi proyek dari
 /// database — cadangan saat foto tidak membawa GPS; itu BUKAN posisi foto dan
 /// tidak boleh dihitung sebagai bukti GPS (DECISIONS 197).
+/// Cara menghitung periode MINGGU laporan (per kontrak; user 2026-08-24).
+/// - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
+/// - `senin_minggu`: minggu kalender Senin–Minggu; minggu pertama bisa pendek
+///   (SPMK hari Kamis ⇒ M1 = Kamis–Minggu, 4 hari).
+enum WeekMode {
+  tujuh_hari
+  senin_minggu
+}
+
 enum PhotoGpsSource {
   exif
   device
@@ -810,6 +821,12 @@ model Contract {
   // pergantian personel). PPK = pihak KKP; Pengawas = konsultan; Penyedia = pelaksana.
   ppkName               String?   @map("ppk_name")
   ppkNip                String?   @map("ppk_nip")
+  /// WAKIL SAH — penanda tangan pihak KKP untuk laporan MINGGUAN & BULANAN
+  /// (user 2026-08-24: "pendandatangan di laporan mingguan dan bulanan bukan
+  /// PPK, tapi istilahnya Wakil Sah"). PPK tetap dipakai dokumen lain
+  /// (kurva-S/jadwal, MC, CCO). Bisa ditimpa per lokasi (Location.wakilSah*).
+  wakilSahName          String?   @map("wakil_sah_name")
+  wakilSahNip           String?   @map("wakil_sah_nip")
   supervisorName        String?   @map("supervisor_name")
   supervisorFirm        String?   @map("supervisor_firm")
   contractorSignerName  String?   @map("contractor_signer_name")
@@ -823,8 +840,14 @@ model Contract {
   /// master vendor, supaya tidak perlu diunggah ulang tiap kontrak.
   ppkTtdKey             String?   @map("ppk_ttd_key")
   ppkStempelKey         String?   @map("ppk_stempel_key")
+  wakilSahTtdKey        String?   @map("wakil_sah_ttd_key")
   supervisorTtdKey      String?   @map("supervisor_ttd_key")
   supervisorStempelKey  String?   @map("supervisor_stempel_key")
+  /// Logo firma KONSULTAN PENGAWAS — tampil di kop blanko laporan harian
+  /// (dan blanko lain yang memuat pengawas). Milik firma, jadi di kontrak.
+  supervisorLogoKey     String?   @map("supervisor_logo_key")
+  /// Cara menghitung periode minggu laporan lokasi-lokasi paket ini.
+  weekMode              WeekMode  @default(tujuh_hari) @map("week_mode")
   contractorTtdKey      String?   @map("contractor_ttd_key")
   contractorStempelKey  String?   @map("contractor_stempel_key")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -896,6 +919,13 @@ model Location {
   supervisorFirm      String? @map("supervisor_firm")
   supervisorTtdKey    String? @map("supervisor_ttd_key")
 
+  /// Penimpaan WAKIL SAH untuk lokasi ini (user 2026-08-24: "Wakil Sah bisa
+  /// per lokasi beda"). Kosong = pakai milik kontrak. Aturan blok sama dengan
+  /// Pelaksana/Pengawas: nama penentu, blok tidak dicampur antar orang.
+  wakilSahName        String? @map("wakil_sah_name")
+  wakilSahNip         String? @map("wakil_sah_nip")
+  wakilSahTtdKey      String? @map("wakil_sah_ttd_key")
+
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -920,6 +950,8 @@ model Location {
   weatherObservations WeatherObservation[]
   masterLocation      MasterLocation?
   gdriveJobs          GDriveJob[]
+  findings            Finding[]
+  inspections         Inspection[]
 
   @@index([packageId])
   @@index([province])
@@ -1197,6 +1229,8 @@ model DailyReport {
   statusHistory DailyReportStatusHistory[]
   photos        Photo[]
   issues        Issue[]
+  findings      Finding[]
+  verifications ReportVerification[]
 
   @@unique([locationId, reportDate])
   @@index([status])
@@ -1380,6 +1414,11 @@ model Photo {
   exifGpsLat         Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
   exifGpsLng         Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
   gpsSource          PhotoGpsSource      @default(none) @map("gps_source")
+  /// Foto galeri "gunakan apa adanya" (user 2026-08-24): cap TETAP dibubuhkan
+  /// (lokasi/pekerjaan/logo) tapi TANPA baris koordinat & tanggal-jam — meski
+  /// EXIF ada. Disimpan supaya perbaikan cap (restamp) tidak menambahkannya
+  /// kembali. Selaras DECISIONS 197: cap tidak menyatakan yang tidak dijamin.
+  stampPlain         Boolean             @default(false) @map("stamp_plain")
   /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
   /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
   /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).
@@ -1419,6 +1458,7 @@ model Photo {
   activity        FieldActivity?        @relation(fields: [activityId], references: [id])
 
   stampRevisions PhotoStampRevision[]
+  evidenceLinks  EvidenceLink[]
 
   @@unique([locationId, sha256])
   @@index([reportId])
@@ -1797,6 +1837,7 @@ model Document {
   versions     Document[]         @relation("docVersions")
   rabRevisions RabRevision[]      @relation("rabSourceDoc")
   expenses     Expense[]          @relation("expenseEvidence")
+  evidenceLinks EvidenceLink[]
 
   @@unique([orgId, driveFileId], name: "documents_org_drive_file_key")
   @@index([packageId, phase])
@@ -2491,6 +2532,250 @@ model AhspPadanan {
   @@index([entryId])
   @@index([metode])
   @@map("ahsp_padanan")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PENGENDALIAN TERPADU: TEMUAN, INSPEKSI, VERIFIKASI, BUKTI
+// (Integrated Project Control & Assurance — DECISIONS 426)
+// ─────────────────────────────────────────────────────────────
+
+/// Dari mana sebuah TEMUAN lahir. Temuan ≠ kendala (`Issue`): kendala adalah
+/// hambatan yang dilaporkan pelaksana; temuan adalah ketidaksesuaian yang
+/// dicatat PIHAK PEMERIKSA (Wakil PPK / manajemen pengendali) dan hanya
+/// selesai setelah pemeriksanya menutup.
+enum FindingSource {
+  inspeksi
+  laporan_harian
+  dokumen
+  manual
+}
+
+enum FindingCategory {
+  mutu
+  volume
+  k3
+  administrasi
+  jadwal
+  lingkungan
+  lainnya
+}
+
+/// Siklus temuan. "Ditindaklanjuti" BELUM selesai — verifikator yang menutup.
+enum FindingStatus {
+  baru
+  menunggu_klarifikasi
+  ditindaklanjuti
+  menunggu_verifikasi
+  selesai
+  dibuka_kembali
+}
+
+/// Alur inspeksi lapangan pemeriksa: draft → final (final tidak diedit lagi).
+enum InspectionStatus {
+  draft
+  final
+}
+
+/// Hasil pemeriksaan EKSTERNAL (Wakil PPK) atas satu laporan harian.
+/// "Belum diperiksa" = tidak ada baris, bukan status tersimpan.
+enum ReportVerifStatus {
+  diverifikasi
+  perlu_klarifikasi
+  ditolak
+}
+
+/// Status verifikasi SATU tautan bukti.
+enum EvidenceVerifStatus {
+  belum
+  diterima
+  ditolak
+}
+
+/// TEMUAN formal pihak pemeriksa (DECISIONS 426).
+///
+/// `locationId` wajib; paket diturunkan lewat relasi lokasi → paket, TIDAK
+/// disimpan ganda (prinsip anti-duplikasi data). Item RAB terkait disimpan
+/// sebagai `lineageKey` (path stabil lintas revisi) + nama snapshot — bukan FK
+/// ke `RabNode` yang mati saat revisi diganti.
+model Finding {
+  id           String          @id @default(uuid()) @db.Uuid
+  locationId   String          @map("location_id") @db.Uuid
+  source       FindingSource   @default(manual)
+  /// Inspeksi yang melahirkan temuan ini (bila source = inspeksi).
+  inspectionId String?         @map("inspection_id") @db.Uuid
+  /// Laporan harian yang diperiksa saat temuan lahir (bila relevan).
+  reportId     String?         @map("report_id") @db.Uuid
+  lineageKey   String?         @map("lineage_key")
+  /// Nama item RAB SAAT temuan dibuat — snapshot tampilan, bukan sumber angka.
+  workItemName String?         @map("work_item_name")
+  category     FindingCategory @default(lainnya)
+  severity     IssueSeverity   @default(sedang)
+  title        String
+  description  String?         @db.Text
+  findingDate  DateTime        @map("finding_date") @db.Date
+  dueDate      DateTime?       @map("due_date") @db.Date
+  status       FindingStatus   @default(baru)
+  /// PIC tindak lanjut di MARLIN; `assignedName` untuk pihak luar (pola Issue).
+  assignedToId String?         @map("assigned_to_id") @db.Uuid
+  assignedName String?         @map("assigned_name")
+  raisedById   String          @map("raised_by_id") @db.Uuid
+  closedById   String?         @map("closed_by_id") @db.Uuid
+  closedAt     DateTime?       @map("closed_at") @db.Timestamptz
+  /// Berapa kali dibuka kembali setelah selesai — bahan rule EWS
+  /// "temuan berulang", diturunkan dari histori tapi disimpan supaya bisa
+  /// diindeks tanpa agregasi (dinaikkan HANYA oleh aksi buka-kembali).
+  reopenCount  Int             @default(0) @map("reopen_count")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  location       Location               @relation(fields: [locationId], references: [id])
+  inspection     Inspection?            @relation(fields: [inspectionId], references: [id])
+  report         DailyReport?           @relation(fields: [reportId], references: [id])
+  statusHistory  FindingStatusHistory[]
+  clarifications FindingClarification[]
+  notes          FindingNote[]
+  evidences      EvidenceLink[]
+
+  @@index([locationId, status])
+  @@index([status, dueDate])
+  @@index([severity, status])
+  @@index([inspectionId])
+  @@index([reportId])
+  @@map("findings")
+}
+
+/// APPEND-ONLY (trigger): histori transisi status temuan + alasannya.
+model FindingStatusHistory {
+  id          String         @id @default(uuid()) @db.Uuid
+  findingId   String         @map("finding_id") @db.Uuid
+  fromStatus  FindingStatus? @map("from_status")
+  toStatus    FindingStatus  @map("to_status")
+  changedById String         @map("changed_by_id") @db.Uuid
+  changedAt   DateTime       @default(now()) @map("changed_at") @db.Timestamptz
+  note        String?
+
+  finding Finding @relation(fields: [findingId], references: [id])
+
+  @@index([findingId, changedAt])
+  @@map("finding_status_history")
+}
+
+/// Permintaan klarifikasi verifikator → jawaban pelaksana. Terbuka selama
+/// `response` masih null.
+model FindingClarification {
+  id            String    @id @default(uuid()) @db.Uuid
+  findingId     String    @map("finding_id") @db.Uuid
+  question      String    @db.Text
+  askedById     String    @map("asked_by_id") @db.Uuid
+  askedAt       DateTime  @default(now()) @map("asked_at") @db.Timestamptz
+  dueDate       DateTime? @map("due_date") @db.Date
+  response      String?   @db.Text
+  respondedById String?   @map("responded_by_id") @db.Uuid
+  respondedAt   DateTime? @map("responded_at") @db.Timestamptz
+
+  finding   Finding        @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  evidences EvidenceLink[]
+
+  @@index([findingId, askedAt])
+  @@map("finding_clarifications")
+}
+
+/// Catatan tindak lanjut pelaksana (append; koreksi = catatan baru).
+model FindingNote {
+  id          String   @id @default(uuid()) @db.Uuid
+  findingId   String   @map("finding_id") @db.Uuid
+  note        String   @db.Text
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([findingId, createdAt])
+  @@map("finding_notes")
+}
+
+/// Inspeksi lapangan PIHAK PEMERIKSA (Wakil PPK). Berbeda dari
+/// `FieldActivity` yang merupakan dokumentasi pelaksana: inspeksi bisa
+/// melahirkan `Finding` dan difinalkan pemeriksanya sendiri.
+model Inspection {
+  id             String           @id @default(uuid()) @db.Uuid
+  locationId     String           @map("location_id") @db.Uuid
+  inspectorId    String           @map("inspector_id") @db.Uuid
+  inspectionDate DateTime         @map("inspection_date") @db.Date
+  title          String
+  notes          String?          @db.Text
+  recommendation String?          @db.Text
+  gpsLat         Decimal?         @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng         Decimal?         @map("gps_lng") @db.Decimal(10, 7)
+  status         InspectionStatus @default(draft)
+  finalizedAt    DateTime?        @map("finalized_at") @db.Timestamptz
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  location  Location       @relation(fields: [locationId], references: [id])
+  findings  Finding[]
+  evidences EvidenceLink[]
+
+  @@index([locationId, inspectionDate])
+  @@index([inspectorId, inspectionDate])
+  @@map("inspections")
+}
+
+/// TAUTAN BUKTI — abstraksi evidence TANPA duplikasi berkas (DECISIONS 426).
+///
+/// Sumbernya TEPAT SATU: `photoId` ATAU `documentId` (CHECK constraint di
+/// migration). Induknya MINIMAL SATU: temuan / inspeksi / klarifikasi (CHECK).
+/// Berkas tetap tinggal di `Photo`/`Document`; satu bukti boleh ditautkan dari
+/// beberapa objek tanpa disalin.
+model EvidenceLink {
+  id              String              @id @default(uuid()) @db.Uuid
+  findingId       String?             @map("finding_id") @db.Uuid
+  inspectionId    String?             @map("inspection_id") @db.Uuid
+  clarificationId String?             @map("clarification_id") @db.Uuid
+  photoId         String?             @map("photo_id") @db.Uuid
+  documentId      String?             @map("document_id") @db.Uuid
+  caption         String?
+  addedById       String              @map("added_by_id") @db.Uuid
+  /// Verifikasi bukti oleh pemeriksa — per TAUTAN, karena bukti yang sama bisa
+  /// diterima untuk satu temuan dan tidak relevan untuk temuan lain.
+  verifStatus     EvidenceVerifStatus @default(belum) @map("verif_status")
+  verifiedById    String?             @map("verified_by_id") @db.Uuid
+  verifiedAt      DateTime?           @map("verified_at") @db.Timestamptz
+  verifNote       String?             @map("verif_note")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  finding       Finding?              @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  inspection    Inspection?           @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  clarification FindingClarification? @relation(fields: [clarificationId], references: [id], onDelete: Cascade)
+  photo         Photo?                @relation(fields: [photoId], references: [id])
+  document      Document?             @relation(fields: [documentId], references: [id])
+
+  @@index([findingId])
+  @@index([inspectionId])
+  @@index([clarificationId])
+  @@index([photoId])
+  @@index([documentId])
+  @@map("evidence_links")
+}
+
+/// Verifikasi EKSTERNAL laporan harian oleh Wakil PPK — APPEND-ONLY by
+/// convention: tiap aksi = baris baru; baris terakhir per laporan = keadaan
+/// terkini. SENGAJA tidak menyentuh `DailyReport.status` maupun
+/// `COUNTED_REPORT_STATUSES`: angka resmi tidak berubah karena wakil menekan
+/// tombol — memindahkan basis angka ke level terverifikasi adalah keputusan
+/// user terpisah (lihat OPEN_ISSUES "Level status progress").
+model ReportVerification {
+  id           String            @id @default(uuid()) @db.Uuid
+  reportId     String            @map("report_id") @db.Uuid
+  status       ReportVerifStatus
+  note         String?
+  verifiedById String            @map("verified_by_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  report DailyReport @relation(fields: [reportId], references: [id])
+
+  @@index([reportId, createdAt])
+  @@map("report_verifications")
 }
 
 /// HARGA SATUAN DASAR (HSD) per lokasi — DECISIONS 327.

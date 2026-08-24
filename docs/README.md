@@ -11,6 +11,7 @@ Mulai dari mana tergantung yang Anda cari.
 | Apa yang masih rusak / belum selesai | [`OPEN_ISSUES.md`](./OPEN_ISSUES.md) |
 | Kenapa sesuatu diputuskan begitu | [`DECISIONS.md`](./DECISIONS.md) — append-only |
 | Menyentuh progress / laporan / kurva-S / uang | [`rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./rebuild/CALCULATION_INTEGRITY_PROTOCOL.md) — **wajib** |
+| Temuan / inspeksi / verifikasi Wakil PPK / EWS / kesiapan | [`integrated-control/`](./integrated-control/CURRENT_STATE_AUDIT.md) — audit, arsitektur, UX IA (DECISIONS 426) |
 
 ## Kalau Anda mau MENJALANKAN / DEPLOY
 

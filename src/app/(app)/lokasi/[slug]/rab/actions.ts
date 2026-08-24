@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
-import { activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import { totalWeeksFor, activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
 import {
   cabutPersetujuan,
   pastikanBolehAktivasi,
@@ -358,8 +358,10 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
   }
 
-  const contractDays = await contractDaysFor(location.id);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  // Jumlah kolom minggu mengikuti MODE periode minggu kontrak (DECISIONS 427)
+  // — pada mode senin_minggu M1 pendek menambah satu kolom, dan Excel yang
+  // benar justru berkolom segitu; ceil(hari/7) akan MENOLAK berkas yang benar.
+  const { totalWeeks } = await totalWeeksFor(location.id);
   if (parsed.totalWeeks !== totalWeeks) {
     return {
       error: `Jumlah minggu di Excel (${parsed.totalWeeks}) ≠ durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan file berasal dari lokasi & durasi yang sama.`,

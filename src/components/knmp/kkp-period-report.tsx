@@ -173,7 +173,8 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
 
       {/* ── TTD ── */}
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
-        <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} {...gambarPihak(ttd, "ppk")} />
+        {/* Mingguan & bulanan diteken WAKIL SAH, bukan PPK (2026-08-24). */}
+        <Sign title="Mengetahui" role="Wakil Sah" name={h.wakilSahName} sub={h.wakilSahNip ? `NIP. ${h.wakilSahNip}` : null} {...gambarPihak(ttd, "ppk")} />
         <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} {...gambarPihak(ttd, "pengawas")} />
         <Sign title="Dibuat Oleh" role={`Penyedia Jasa – ${h.vendorName}`} name={penyedia.nama} sub={penyedia.sub} {...gambarPihak(ttd, "penyedia")} />
       </div>

@@ -63,6 +63,22 @@ export const CAPABILITIES = [
   "progress.view",
   "issue.manage",
   /*
+   * PENGENDALIAN TERPADU — temuan, inspeksi, verifikasi eksternal
+   * (DECISIONS 426). Pemisahan tugasnya berbasis PERAN dan disengaja:
+   * pihak pelaksana (SM/PM/AM) TIDAK memegang `finding.verify` — yang menutup
+   * temuan bukan yang ditindak; pemeriksa (wakil_ppk) TIDAK memegang
+   * `finding.respond` — pemeriksa tidak menindaklanjuti temuannya sendiri.
+   * SA/PD memegang keduanya sebagai break-glass yang selalu ter-audit.
+   */
+  "finding.view",
+  "finding.create",
+  "finding.respond",
+  "finding.verify",
+  "inspection.manage",
+  // Verifikasi EKSTERNAL laporan harian (jejak pemeriksaan wakil pemberi
+  // kerja). TIDAK mengubah status laporan & TIDAK menyentuh angka resmi.
+  "report.verify_external",
+  /*
    * KEUANGAN DITAHAN: SEMENTARA super_admin saja (permintaan user 2026-08-22).
    *
    * *"menu keuangan saat ini belum siap, jadi selain superadmin, tidak usah
@@ -124,6 +140,9 @@ const VIEW_ALL: Capability[] = [
   "rab.view",
   "progress.view",
   "document.view",
+  // Papan temuan terbuka untuk semua yang boleh melihat lokasi — temuan yang
+  // disembunyikan dari pelaksananya sendiri tidak akan pernah ditindaklanjuti.
+  "finding.view",
 ];
 
 /**
@@ -220,6 +239,11 @@ const SITE_MANAGER: Capability[] = [
    */
   "location.signer",
   "issue.manage",
+  // Temuan (DECISIONS 426): SM boleh MENCATAT temuan (QA internal) dan
+  // MENINDAKLANJUTI temuan yang dialamatkan padanya — tapi TIDAK memverifikasi
+  // penutupan (lihat catatan pemisahan tugas di daftar capability).
+  "finding.create",
+  "finding.respond",
   "document.upload",
   "report.export",
   "wa.chat",
@@ -326,11 +350,23 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
    * Bukan CROSS_LOCATION_ROLES: hanya lokasi yang ditugaskan (permintaan user
    * "sesuai penugasan juga"). Tanpa penugasan → NOL lokasi, gagal ke arah aman.
    */
+  /**
+   * DECISIONS 426 memperluas peran ini dari BACA SAJA menjadi VERIFIKATOR
+   * (prompt user 2026-08-24: workspace Wakil PPK dengan inspeksi, verifikasi
+   * laporan & evidence, temuan, klarifikasi). Menggantikan sebagian
+   * DECISIONS 199. Yang TIDAK berubah: tanpa `ai.*`, tanpa `finance.*`,
+   * tanpa satu pun capability yang mengubah data PELAKSANA (laporan, RAB,
+   * dokumen, keuangan), dan tetap sesuai penugasan lokasi.
+   */
   wakil_ppk: new Set<Capability>([
     ...VIEW_ALL,
     "portfolio.view",
     "package.view",
     "report.export",
+    "finding.create",
+    "finding.verify",
+    "inspection.manage",
+    "report.verify_external",
   ]),
 };
 

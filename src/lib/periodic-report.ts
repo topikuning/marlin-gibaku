@@ -1,10 +1,21 @@
 import "server-only";
-import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
+import { pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
-import { bobotPct, distributeWithCaps, itemAchievement, planFractionFromWeekly, prestasiPct } from "@/lib/progress-calc";
+import {
+  bobotPct,
+  distributeWithCaps,
+  itemAchievement,
+  planFractionFromWeekly,
+  prestasiPct,
+  totalWeeksBetween,
+  weekDateRange,
+  weekEndFractions,
+  weekOfDate,
+  type WeekPeriodMode,
+} from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 import type {
@@ -30,7 +41,10 @@ import type {
  *   bucketing = report.reportDate (sudah tanggal kerja, date-only)
  *   vk/harga  = RabNode revisi AKTIF by lineageKey
  * Periode:
- *   mingguan ke-n = [startDate + (n−1)×7 hari, +6 hari]
+ *   mingguan ke-n = tergantung `Contract.weekMode` (user 2026-08-24):
+ *     tujuh_hari   → [startDate + (n−1)×7 hari, +6 hari] (perilaku lama)
+ *     senin_minggu → minggu kalender Senin–Minggu; M1 bisa pendek
+ *   (helper murni `weekDateRange`/`weekOfDate` di progress-calc.ts)
  *   bulanan  ke-n = bulan kalender ke-n sejak startDate
  */
 
@@ -114,9 +128,20 @@ export type PeriodHeader = {
   contractStart: Date;
   periodeStart: Date;
   periodeEnd: Date;
+  /** Cara menghitung periode minggu kontrak ini — utk label rentang kolom M. */
+  weekMode: WeekPeriodMode;
+  /** Tanggal akhir kontrak (null = SPMK belum terbit) — pemangkas minggu terakhir. */
+  contractEnd: Date | null;
   /** Penanda tangan dokumen KKP (null = blok TTD dikosongkan). */
   ppkName: string | null;
   ppkNip: string | null;
+  /**
+   * WAKIL SAH — penanda tangan pihak KKP laporan MINGGUAN & BULANAN
+   * (user 2026-08-24; PPK tetap utk kurva-S/jadwal, MC, CCO). Timpaan
+   * per lokasi sudah diselesaikan `pilihWakilSah` — penyaji tinggal pakai.
+   */
+  wakilSahName: string | null;
+  wakilSahNip: string | null;
   supervisorName: string | null;
   supervisorFirm: string | null;
   contractorSignerName: string | null;
@@ -223,6 +248,10 @@ export const HEADER_LOCATION_SELECT = {
   supervisorName: true,
   supervisorFirm: true,
   supervisorTtdKey: true,
+  // Penimpaan Wakil Sah per lokasi (user 2026-08-24) — `pilihWakilSah`.
+  wakilSahName: true,
+  wakilSahNip: true,
+  wakilSahTtdKey: true,
   package: {
     select: {
       name: true,
@@ -236,8 +265,13 @@ export const HEADER_LOCATION_SELECT = {
           contractValue: true,
           workTitle: true,
           durationDays: true,
+          endDate: true,
+          weekMode: true,
           ppkName: true,
           ppkNip: true,
+          wakilSahName: true,
+          wakilSahNip: true,
+          wakilSahTtdKey: true,
           supervisorName: true,
           supervisorFirm: true,
           supervisorTtdKey: true,
@@ -273,6 +307,8 @@ export function buildPeriodHeader(
   );
   // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
   const pengawas = pilihPengawas(location, contract);
+  // Wakil Sah lokasi menimpa Wakil Sah kontrak – SATU BLOK (2026-08-24).
+  const wakilSah = pilihWakilSah(location, contract);
   return {
     locationName: location.name,
     village: location.village,
@@ -292,8 +328,12 @@ export function buildPeriodHeader(
     contractStart: o.startDate,
     periodeStart: o.periodeStart,
     periodeEnd: o.periodeEnd,
+    weekMode: contract.weekMode,
+    contractEnd: contract.endDate,
     ppkName: contract.ppkName,
     ppkNip: contract.ppkNip,
+    wakilSahName: wakilSah.nama,
+    wakilSahNip: wakilSah.nip,
     supervisorName: pengawas.nama,
     supervisorFirm: pengawas.firma,
     contractorSignerName: contract.contractorSignerName,
@@ -313,6 +353,7 @@ export type PeriodBounds = {
   currentMonth: number;
   /** true = SPMK belum terbit; startDate diasumsikan HARI INI (jadwal/kurva-S saja). */
   assumed: boolean;
+  weekMode: WeekPeriodMode;
 };
 
 /**
@@ -332,11 +373,16 @@ export async function getPeriodBounds(
     where: { id: locationId },
     select: {
       id: true,
-      package: { select: { contract: { select: { startDate: true, endDate: true, durationDays: true } } } },
+      package: {
+        select: {
+          contract: { select: { startDate: true, endDate: true, durationDays: true, weekMode: true } },
+        },
+      },
     },
   });
   const contract = location?.package.contract;
   if (!contract) return null;
+  const weekMode = contract.weekMode;
 
   let startDate: Date;
   let endDate: Date;
@@ -353,7 +399,9 @@ export async function getPeriodBounds(
     return null;
   }
 
-  const totalWeeks = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime() + DAY) / (7 * DAY)));
+  // Jumlah kolom minggu mengikuti mode kontrak: 7-hari (lama) atau kalender
+  // Senin–Minggu (M1 bisa pendek — SPMK Kamis ⇒ M1 = Kamis–Minggu).
+  const totalWeeks = totalWeeksBetween(startDate, endDate, weekMode);
   const totalMonths = Math.max(
     1,
     (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
@@ -361,12 +409,12 @@ export async function getPeriodBounds(
       1,
   );
   const now = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
-  const currentWeek = currentWeekNumber(startDate, totalWeeks, now);
+  const currentWeek = currentWeekNumber(startDate, totalWeeks, now, weekMode);
   const monthsElapsed = Math.floor(
     (now.getUTCFullYear() - startDate.getUTCFullYear()) * 12 + (now.getUTCMonth() - startDate.getUTCMonth()),
   );
   const currentMonth = Math.max(1, Math.min(totalMonths, monthsElapsed + 1));
-  return { locationId, startDate, endDate, totalWeeks, totalMonths, currentWeek, currentMonth, assumed };
+  return { locationId, startDate, endDate, totalWeeks, totalMonths, currentWeek, currentMonth, assumed, weekMode };
 }
 
 /**
@@ -392,7 +440,7 @@ export async function getPeriodReport(
 
   const bounds = await getPeriodBounds(locationId, opts);
   if (!bounds) return null;
-  const { startDate, totalWeeks, totalMonths } = bounds;
+  const { startDate, totalWeeks, totalMonths, weekMode } = bounds;
   const maxN = kind === "mingguan" ? totalWeeks : totalMonths;
   if (n > maxN) return null;
 
@@ -400,8 +448,10 @@ export async function getPeriodReport(
   let periodeStart: Date;
   let periodeEnd: Date;
   if (kind === "mingguan") {
-    periodeStart = new Date(startDate.getTime() + (n - 1) * 7 * DAY);
-    periodeEnd = new Date(periodeStart.getTime() + 6 * DAY);
+    // Batas minggu mengikuti mode kontrak (7-hari / Senin–Minggu). Akhir minggu
+    // TIDAK dipangkas ke endDate — perilaku lama dipertahankan: laporan minggu
+    // terakhir tetap memuat 7 hari kalender penuhnya.
+    ({ start: periodeStart, end: periodeEnd } = weekDateRange(startDate, n, weekMode));
   } else {
     periodeStart = addMonths(startDate, n - 1);
     periodeEnd = new Date(addMonths(startDate, n).getTime() - DAY);
@@ -609,7 +659,11 @@ export async function getPeriodReport(
         return { name: nd.name, categoryKey: root, categoryName: catNameByRoot.get(root) ?? "", amount: nd.amount };
       });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
-    kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
+    // Grid minggu tak-seragam (mode senin_minggu) — generator fallback memakai
+    // pembagi hari yang sama dengan regenerateBaseline (DECISIONS 427b).
+    const fracsFallback =
+      weekMode === "senin_minggu" ? weekEndFractions(startDate, bounds.endDate, weekMode) : null;
+    kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac, fracsFallback).categories.map((c) => ({
       lineageKey: c.categoryKey,
       code: catByRootNode.get(c.categoryKey)?.code ?? "",
       name: c.categoryName,
@@ -636,10 +690,7 @@ export async function getPeriodReport(
   const weeklyVolume = new Map<string, number[]>();
   for (const r of realRows) {
     if (!itemLineages.has(r.lineageKey)) continue;
-    const wk = Math.min(
-      seriesLen,
-      Math.max(1, Math.floor((r.report.reportDate.getTime() - startDate.getTime()) / (7 * DAY)) + 1),
-    );
+    const wk = Math.min(seriesLen, Math.max(1, weekOfDate(startDate, r.report.reportDate, weekMode)));
     let arr = weeklyVolume.get(r.lineageKey);
     if (!arr) {
       arr = new Array<number>(seriesLen).fill(0);
@@ -651,9 +702,7 @@ export async function getPeriodReport(
 
   // Minggu akhir periode yang diminta (mingguan = n; bulanan = minggu berisi periodeEnd).
   const weekIndex =
-    kind === "mingguan"
-      ? n
-      : Math.min(seriesLen, Math.max(1, Math.floor((periodeEnd.getTime() - startDate.getTime()) / (7 * DAY)) + 1));
+    kind === "mingguan" ? n : Math.min(seriesLen, Math.max(1, weekOfDate(startDate, periodeEnd, weekMode)));
   // Realisasi & deviasi kurva-S HANYA terisi s/d akhir periode yang diminta (dan tak
   // melampaui minggu berjalan). Laporan "Minggu ke-n" adalah snapshot s/d minggu n —
   // bukan s/d hari ini — jadi kolom minggu > n tidak diisi realisasi/deviasi.
@@ -681,9 +730,7 @@ export async function getPeriodReport(
   // tidak punya pendahulu ⇒ 0 (bukan planSeries[0] — itu akan membuat "rencana
   // minggu ini" pada minggu-1 tertulis nol padahal ada rencananya).
   const prevWeekIndex =
-    kind === "mingguan"
-      ? n - 1
-      : Math.floor((periodeStart.getTime() - DAY - startDate.getTime()) / (7 * DAY)) + 1;
+    kind === "mingguan" ? n - 1 : weekOfDate(startDate, new Date(periodeStart.getTime() - DAY), weekMode);
   const planPrevPct =
     prevWeekIndex < 1
       ? 0

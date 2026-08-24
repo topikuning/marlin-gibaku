@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { cumulativeVolumeByLineage, getLocationsProgress, type LocationProgress } from "@/lib/progress";
-import { prestasiPct, weightedPct } from "@/lib/progress-calc";
+import { totalWeeksBetween, prestasiPct, weightedPct } from "@/lib/progress-calc";
 import { getScurveSeries } from "@/lib/baseline";
 import { asOfMinggu, mingguKontrak, rekapPaket, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { jakartaDateKey, jakartaToday } from "@/lib/format";
@@ -49,7 +49,8 @@ export async function buatSnapshotPaparan(
   now = new Date(),
 ): Promise<PaparanSnapshot> {
   const start = pkg.contract.startDate;
-  const berjalanKe = mingguKontrak(start, now);
+  const mode = pkg.contract.weekMode;
+  const berjalanKe = mingguKontrak(start, now, mode);
   if (weekNumber < 1) throw new PaparanSnapshotError("Nomor minggu tidak valid.");
   if (weekNumber > berjalanKe) {
     throw new PaparanSnapshotError(
@@ -57,8 +58,8 @@ export async function buatSnapshotPaparan(
     );
   }
   const berjalan = weekNumber >= berjalanKe;
-  const rentang = rentangMingguKontrak(start, weekNumber);
-  const asOf = asOfMinggu(start, weekNumber, now);
+  const rentang = rentangMingguKontrak(start, weekNumber, mode);
+  const asOf = asOfMinggu(start, weekNumber, now, mode);
   const mulaiKey = dateKey(rentang.mulai);
   const akhirKey = dateKey(rentang.akhir);
   const asOfKey = jakartaDateKey(asOf);
@@ -74,11 +75,11 @@ export async function buatSnapshotPaparan(
   const [kini, sebelum, sebelum2] = await Promise.all([
     getLocationsProgress(ids, { asOf }),
     weekNumber > 1
-      ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 1).akhir })
+      ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 1, mode).akhir })
       : kosong(),
     // Minggu N−2 — titik ketiga jendela realisasi kurva-S (pola contoh Mataram).
     weekNumber > 2
-      ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 2).akhir })
+      ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 2, mode).akhir })
       : kosong(),
   ]);
 
@@ -646,7 +647,11 @@ export async function buatSnapshotPaparan(
     },
     periode: {
       mingguKe: weekNumber,
-      totalMinggu: Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
+      // Total minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
+      totalMinggu:
+        mode === "senin_minggu" && pkg.contract.endDate
+          ? totalWeeksBetween(start, pkg.contract.endDate, "senin_minggu")
+          : Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
       mulaiKey,
       akhirKey,
       berjalan,

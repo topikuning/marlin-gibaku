@@ -22,7 +22,9 @@ lebih dulu — protokol itu wajib, bukan anjuran.
 - **Alur inti**: Paket (prospek→tender→kontrak→pelaksanaan→serah terima) → Lokasi →
   RAB (revisi + lineage) → Baseline kurva-S → Laporan Harian terpadu
   (draft→dikirim→perlu_koreksi→disetujui→final) → Progress → Keuangan transaksional →
-  Laporan KKP
+  Laporan KKP. Lapisan pengendalian (DECISIONS 426): verifikasi eksternal
+  Wakil PPK + temuan (klarifikasi→tindak lanjut→verifikasi penutupan) +
+  inspeksi + kesiapan termin/PHO/FHO + EWS `/perlu-tindakan`
 - **State**: hasil rebuild total 2026-07-14 (DECISIONS 051). Belum production.
 
 ## Prinsip WAJIB
@@ -80,7 +82,9 @@ src/
 ├── app/(auth)/masuk, ganti-password
 ├── app/(app)/           # semua butuh sesi: / (command center), paket/, lokasi/,
 │                        # hari-ini/, foto-cepat/, foto/, progress/, keuangan/,
-│                        # dokumen/, laporan/, pengguna/, sistem/
+│                        # dokumen/, laporan/, pengguna/, sistem/, temuan/,
+│                        # verifikasi/ (workspace Wakil PPK), perlu-tindakan/
+│                        # (EWS), kesiapan/ (termin/PHO/FHO) — DECISIONS 426
 ├── app/cetak/           # print A4 tanpa shell
 ├── app/offline/         # halaman luring (statis, di luar (app)) — disajikan
 │                        # service worker saat navigasi gagal (DECISIONS 398)
@@ -95,6 +99,13 @@ src/
 │   │                    # tanpa induk + cap dasar, TANPA cadangan titik proyek
 │   ├── finance/         # calc (SATU-satunya tempat formula agregat) + actions
 │   ├── milestones/      # template 45 item KKP + actions
+│   ├── findings/        # temuan pemeriksa: service/actions/queries + penagih
+│   │                    # WA tenggat (DECISIONS 426; temuan ≠ kendala)
+│   ├── inspections/     # inspeksi lapangan Wakil PPK (draft→final)
+│   ├── verifikasi/      # verifikasi EKSTERNAL laporan harian (append-only,
+│   │                    # TIDAK menyentuh angka resmi)
+│   ├── kesiapan/        # rule engine kesiapan termin/PHO/FHO (derived)
+│   ├── ews/             # Early Warning System rule-based (derived, tanpa AI)
 │   ├── progress.ts      # SATU calculation layer progress
 │   └── lifecycle.ts     # mesin transisi status + label + tone
 ├── components/pwa/      # pemasang service worker + banner "dari simpanan"

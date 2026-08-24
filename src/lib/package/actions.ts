@@ -14,8 +14,9 @@ import {
 } from "@/lib/lifecycle";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { weightedRealizedPct } from "@/lib/progress-calc";
+import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
+import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { existingLocationIndex } from "@/lib/master-location/queries";
 import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -620,6 +621,8 @@ const convertSchema = z
     retentionPercent: percentSchema,
     ppkName: z.string().trim().max(150).optional(),
     ppkNip: z.string().trim().max(60).optional(),
+    wakilSahName: z.string().trim().max(150).optional(),
+    wakilSahNip: z.string().trim().max(60).optional(),
     supervisorName: z.string().trim().max(150).optional(),
     supervisorFirm: z.string().trim().max(200).optional(),
     contractorSignerName: z.string().trim().max(150).optional(),
@@ -653,6 +656,8 @@ export async function convertToContract(
     retentionPercent: formData.get("retentionPercent"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
@@ -740,6 +745,8 @@ export async function convertToContract(
         endDate: null,
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
         supervisorName: d.supervisorName ?? null,
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
@@ -1064,6 +1071,8 @@ const editContractSchema = z.object({
   ),
   // SPMK / tanggal mulai. Kosong = SPMK belum terbit (startDate null).
   startDate: z.string().optional(),
+  // Mode periode minggu laporan (user 2026-08-24). Kosong = tidak diubah.
+  weekMode: z.enum(["tujuh_hari", "senin_minggu"]).optional(),
 });
 
 export async function editContractAction(
@@ -1081,6 +1090,7 @@ export async function editContractAction(
     signedDate: formData.get("signedDate"),
     durationDays: formData.get("durationDays"),
     startDate: optionalText(formData.get("startDate"), 20) ?? undefined,
+    weekMode: optionalText(formData.get("weekMode"), 20) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1097,7 +1107,7 @@ export async function editContractAction(
     where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, durationDays: true, startDate: true } },
+      contract: { select: { id: true, durationDays: true, startDate: true, weekMode: true } },
       locations: { select: { id: true } },
     },
   });
@@ -1112,7 +1122,11 @@ export async function editContractAction(
 
   const prevStart = pkg.contract.startDate ? pkg.contract.startDate.toISOString().slice(0, 10) : null;
   const newStart = startDate ? startDate.toISOString().slice(0, 10) : null;
-  const timeChanged = pkg.contract.durationDays !== d.durationDays || prevStart !== newStart;
+  // Mode minggu ikut menggeser peta tanggal & jumlah kolom minggu — jadi
+  // perlakuannya sama dengan perubahan waktu: kurva-S dihitung ulang.
+  const weekModeChanged = d.weekMode != null && d.weekMode !== pkg.contract.weekMode;
+  const timeChanged =
+    pkg.contract.durationDays !== d.durationDays || prevStart !== newStart || weekModeChanged;
 
   await db.$transaction(async (tx) => {
     await tx.package.update({
@@ -1132,14 +1146,59 @@ export async function editContractAction(
         durationDays: d.durationDays,
         startDate,
         endDate,
+        ...(d.weekMode ? { weekMode: d.weekMode } : {}),
       },
     });
   });
 
   // Bila waktu berubah → kurva-S/baseline ikut berubah (jumlah minggu & peta
   // tanggal). Regenerate per lokasi yang punya RAB aktif; lewati yang belum.
+  //
+  // KHUSUS ganti MODE MINGGU saja (SPMK & durasi tetap): jadwal yang sudah ada
+  // TIDAK dibuang — ketetapan user 2026-08-24 (DECISIONS 427d): *"tinggal klik
+  // ubah metode... jangan sampai ulang impor, sistemmu yang menyesuaikan."*
+  // Matriks lama DIKONVERSI ke grid baru dengan bentuk kalender dipertahankan;
+  // regenerate (yang mengganti kurva dengan hasil generator) hanya untuk
+  // lokasi yang konversinya tidak mungkin (baseline tak cocok / belum ada).
   let recomputed = 0;
-  if (timeChanged) {
+  const hanyaModeBerubah =
+    weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart;
+  if (hanyaModeBerubah && startDate && endDate) {
+    // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
+    // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
+    // (minggu terakhir yang pendek dipetakan sebesar harinya).
+    const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
+      const fr = weekEndFractions(startDate, endDate, mode);
+      return { fracs: fr as number[] | null, totalWeeks: fr.length };
+    };
+    const lama = gridDari(pkg.contract.weekMode);
+    const baru = gridDari(d.weekMode!);
+    for (const loc of pkg.locations) {
+      try {
+        const hasil = await konversiBaselineModeMinggu(loc.id, {
+          oldEndFracs: lama.fracs,
+          oldTotalWeeks: lama.totalWeeks,
+          newEndFracs: baru.fracs,
+          newTotalWeeks: baru.totalWeeks,
+          userId: actor.id,
+          note: `Konversi mode periode minggu (${pkg.contract.weekMode} → ${d.weekMode})`,
+        });
+        if (hasil === "dikonversi") {
+          recomputed++;
+          continue;
+        }
+        // Tidak bisa dikonversi (baseline tak cocok grid lama) → generator.
+        await regenerateBaseline(loc.id, {
+          source: "auto",
+          note: "Ganti mode minggu – baseline lama tidak cocok grid, dihitung ulang",
+          userId: actor.id,
+        });
+        recomputed++;
+      } catch {
+        /* lokasi tanpa RAB/baseline aktif → lewati */
+      }
+    }
+  } else if (timeChanged) {
     for (const loc of pkg.locations) {
       try {
         await regenerateBaseline(loc.id, {
@@ -1161,6 +1220,7 @@ export async function editContractAction(
     contractValue,
     durationDays: d.durationDays,
     startDate: newStart,
+    weekMode: d.weekMode ?? null,
     timeChanged,
     baselinesRecomputed: recomputed,
   });
@@ -1181,6 +1241,8 @@ const signatoriesSchema = z.object({
   contractId: z.uuid("ID kontrak tidak valid"),
   ppkName: z.string().trim().max(150).optional(),
   ppkNip: z.string().trim().max(60).optional(),
+  wakilSahName: z.string().trim().max(150).optional(),
+  wakilSahNip: z.string().trim().max(60).optional(),
   supervisorName: z.string().trim().max(150).optional(),
   supervisorFirm: z.string().trim().max(200).optional(),
   contractorSignerName: z.string().trim().max(150).optional(),
@@ -1201,6 +1263,8 @@ export async function updateContractSignatories(
     contractId: formData.get("contractId"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
@@ -1229,6 +1293,8 @@ export async function updateContractSignatories(
       data: {
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
         supervisorName: d.supervisorName ?? null,
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
@@ -1247,6 +1313,7 @@ export async function updateContractSignatories(
   await audit(actor.id, "contract.signatories", "package", contract.packageId, {
     contractId: contract.id,
     ppkName: d.ppkName ?? null,
+    wakilSahName: d.wakilSahName ?? null,
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
     pelaksanaName: d.pelaksanaName ?? null,
@@ -1701,8 +1768,12 @@ const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
 const MEDAN_TTD = [
   "ppkTtdKey",
   "ppkStempelKey",
+  "wakilSahTtdKey",
   "supervisorTtdKey",
   "supervisorStempelKey",
+  // Logo firma pengawas ikut gelanggang ini: aturan berkas & ukurannya sama
+  // (kop blanko harian, user 2026-08-24).
+  "supervisorLogoKey",
   "contractorTtdKey",
   "contractorStempelKey",
 ] as const;
@@ -1722,8 +1793,10 @@ type MedanTtd = (typeof MEDAN_TTD)[number];
 const LABEL_TTD: Record<MedanTtd, string> = {
   ppkTtdKey: "tanda tangan PPK",
   ppkStempelKey: "stempel PPK",
+  wakilSahTtdKey: "tanda tangan Wakil Sah",
   supervisorTtdKey: "tanda tangan konsultan pengawas",
   supervisorStempelKey: "stempel konsultan pengawas",
+  supervisorLogoKey: "logo firma pengawas",
   contractorTtdKey: "tanda tangan penyedia",
   contractorStempelKey: "stempel penyedia",
 };
@@ -1748,8 +1821,10 @@ export async function updateContractSignatureImages(
       packageId: true,
       ppkTtdKey: true,
       ppkStempelKey: true,
+      wakilSahTtdKey: true,
       supervisorTtdKey: true,
       supervisorStempelKey: true,
+      supervisorLogoKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
       package: { select: { id: true, pelaksanaTtdKey: true } },

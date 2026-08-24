@@ -45,7 +45,7 @@ export default async function PaparanPage({
     select: {
       id: true,
       name: true,
-      contract: { select: { startDate: true } },
+      contract: { select: { startDate: true, weekMode: true } },
       locations: {
         where: { isActive: true },
         orderBy: { name: "asc" },
@@ -65,8 +65,8 @@ export default async function PaparanPage({
         /** Seluruh lokasi aktif tercakup → lingkup paket boleh dipilih. */
         bolehPaket: terlihat.length === p.locations.length,
         lokasiPilihan: terlihat.map((l) => ({ id: l.id, name: l.name })),
-        mingguBerjalan: mingguKontrak(p.contract!.startDate!, now),
-        mingguSelesai: mingguSelesaiTerakhir(p.contract!.startDate!, now),
+        mingguBerjalan: mingguKontrak(p.contract!.startDate!, now, p.contract!.weekMode),
+        mingguSelesai: mingguSelesaiTerakhir(p.contract!.startDate!, now, p.contract!.weekMode),
       };
     })
     // Paket yang TIDAK SATU pun lokasinya terlihat memang tidak ada urusannya

@@ -36,6 +36,15 @@ diklik sampai data pembentuknya; mobile lapangan ringan; desktop manajemen padat
   dari judul yang diketik. Asal berkas: `unggahan` atau `drive_kkp` (impor dari
   folder Drive KKP, isi disalin ke R2 — DECISIONS 184).
 - **Transaksi keuangan**: `draft/diajukan → disetujui|ditolak → (dibayar_sebagian → lunas)`.
+- **Finding (temuan pemeriksa, DECISIONS 426)**: `baru → menunggu_klarifikasi →
+  ditindaklanjuti → menunggu_verifikasi → selesai → dibuka_kembali`. Temuan ≠
+  kendala (`Issue`): hanya verifikator (`finding.verify`) yang menutup/membuka
+  kembali; pihak pelaksana menindaklanjuti (`finding.respond`).
+- **Inspection**: `draft → final` (draft hanya bisa diubah pemeriksanya sendiri).
+- **Verifikasi eksternal laporan harian** (`ReportVerification`): BUKAN state
+  machine tersimpan — append-only, baris terakhir per laporan = keadaan
+  (`diverifikasi/perlu_klarifikasi/ditolak`); TIDAK menyentuh status laporan
+  maupun angka resmi.
 - Mesin transisi: `src/lib/lifecycle.ts` — satu-satunya tempat aturan transisi + label + tone.
 
 ## 3. Domain model (ringkas — detail docs/rebuild/DOMAIN_MODEL.md)
@@ -50,6 +59,13 @@ Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
          → WeeklyPlan advisory
          → DailyReport (uniq lokasi+tanggal) → Item (uniq report+lineage) +
            Worker/Material/Equipment + StatusHistory (append-only) + Photo (sha256 dedup)
+         → Finding (temuan pemeriksa, DECISIONS 426) → FindingStatusHistory
+           (append-only) + FindingClarification + FindingNote + EvidenceLink
+           (bukti = TAUTAN ke Photo/Document existing, XOR + wajib induk via
+            CHECK constraint; verifikasi bukti per-tautan)
+         → Inspection (inspeksi Wakil PPK, draft→final) → Finding/EvidenceLink
+         → DailyReport → ReportVerification (verifikasi eksternal, append-only —
+           jejak pemeriksaan pemberi kerja, TIDAK menggerakkan angka)
          → Issue → RecoveryAction → RecoveryUpdate
            (Issue = SATU-satunya bentuk kendala yang bisa ditagih: punya
             source/PIC/tenggat/penutup, papan lintas lokasi di `/kendala`,
@@ -106,9 +122,13 @@ realisasi PPC = kumulatif s/d akhir minggu − kumulatif s/d sehari sebelum ming
 tanpa rencana minggu lalu ⇒ PPC null (BUKAN 0 — "tidak berjanji" ≠ "gagal total")
 ```
 
-Level status yang dihitung: `COUNTED_REPORT_STATUSES` = dikirim + disetujui +
-final (satu level; belum dipisah dilaporkan/terverifikasi/final — lihat
-docs/OPEN_ISSUES.md). Kurva-S: smoothstep per fase kategori + penjadwalan
+Level status yang dihitung: ANGKA RESMI tetap `COUNTED_REPORT_STATUSES` =
+dikirim + disetujui + final. Sejak DECISIONS 426 `getLocationsProgress` punya
+parameter opsional `statusLevel: "terverifikasi"` (= `VERIFIED_REPORT_STATUSES`,
+disetujui + final — rumus & penyebut SAMA, hanya saringan status) sebagai angka
+PENDAMPING berlabel "Progress Terverifikasi" (dipakai mesin kesiapan
+termin/PHO). Memindahkan BASIS resmi ke level terverifikasi tetap keputusan
+terbuka — lihat docs/OPEN_ISSUES.md. Kurva-S: smoothstep per fase kategori + penjadwalan
 per-trade. PPN: RAB pre-PPN vs kontrak incl-PPN, warning selisih >0.1%.
 
 Invarian yang dijaga uji (`tests/integration/periodic-report.test.ts`): kolom
@@ -120,23 +140,33 @@ tercampur.
 ## 4. Permission
 
 Capability-based (`src/lib/authz.ts`, matrix di docs/rebuild/PERMISSION_MATRIX.md).
-7 role: super_admin, program_director, regional_manager (Area Manager),
-project_manager, site_manager, field_supervisor (Mandor), exec_viewer.
-Cross-location: super_admin, program_director, exec_viewer; lainnya via
-LocationAssignment. Backend selalu re-check (`requireCapability` +
+8 role: super_admin, program_director, regional_manager (Area Manager),
+project_manager, site_manager, field_supervisor (Mandor), exec_viewer,
+wakil_ppk (Wakil PPK — VERIFIKATOR pemberi kerja, DECISIONS 426: capability
+tulisnya hanya domain pemeriksaan — finding.create/verify, inspection.manage,
+report.verify_external; tanpa `ai.*`/`finance.*`, sesuai penugasan lokasi).
+Cross-location: super_admin & program_director SAJA; lainnya (termasuk
+exec_viewer — DECISIONS 190 — dan wakil_ppk) via LocationAssignment. Backend selalu re-check (`requireCapability` +
 `requireLocationAccess`); middleware hanya redirect login. Session DB revocable;
 rate limit login; wajib ganti password first-login; audit log tiap mutasi.
 RLS TIDAK diklaim (lihat OPEN_ISSUES).
 
 ## 5. Informasi arsitektur
 
-Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md. Menu: Beranda (Command
+(docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md = ARSIP rebuild; IA
+pengendalian terpadu di docs/integrated-control/UX_INFORMATION_ARCHITECTURE.md.)
+Menu: Beranda (Command
 Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
 Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
 RAB/RAPL (Petakan→Setujui→Kebutuhan→Harga; cetak A4 `/cetak/rapl/[slug]` + unduh xlsx)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
-Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan ·
-Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
-tujuan per role.
+Hari Ini (landing lapangan mobile) · Progress · Kendala · **Temuan** (papan
+temuan pemeriksa + register .xlsx) · **Verifikasi** (workspace Wakil PPK:
+antrean laporan, inspeksi, temuan menunggu verifikasi) · **Perlu Tindakan**
+(EWS rule-based, tanpa AI) · **Kesiapan** (termin/PHO/FHO/close-out per paket)
+· Keuangan · Dokumen · Laporan · Pengguna · Sistem — empat menu tercetak tebal
+= Pengendalian Terpadu, DECISIONS 426; rincian di `docs/integrated-control/`.
+Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5 tujuan per role
+(wakil_ppk punya baris khusus: Beranda/Verifikasi/Temuan/Lokasi).
 
 ## 5a. AI Intelligence Hub (DECISIONS 133, 193)
 
@@ -274,10 +304,32 @@ Schedule berdiri sendiri ia dokumen JADWAL (Direktur). `ScurveKkpSheet` dan
 `addKurvaSheet` menuntut `jenis`. Rencana Mingguan belum diputuskan, tetap
 Direktur.
 
+Dari pihak KKP, laporan **mingguan & bulanan** diteken **WAKIL SAH**
+(`Contract.wakilSah*`, timpaan `Location.wakilSah*` — blok utuh, nama
+menentukan); dokumen lain (kurva-S/jadwal, MC, CCO, harian) tetap **PPK**.
+Penentunya satu: `pihakKkp(jenis)` di `penandatangan.ts`. Stempel slot KKP
+tetap `ppkStempelKey` — stempel milik INSTANSI, bukan orang (DECISIONS 408).
+Keputusan user 2026-08-24 (DECISIONS 427).
+
 Pelaksana tingkat paket diisi di formulir penanda tangan kontrak yang SAMA
-dengan PPK/pengawas/Direktur (nama + gambar TTD); penimpaan per lokasi punya
-formulir sendiri di halaman lokasi karena PPK & pengawas memang urusan paket.
-Logo/kop/stempel perusahaan tetap di master vendor. DECISIONS 402/403/404.
+dengan PPK/Wakil Sah/pengawas/Direktur (nama + gambar TTD); penimpaan per
+lokasi punya formulir sendiri di halaman lokasi karena PPK & pengawas memang
+urusan paket. Logo/kop/stempel perusahaan tetap di master vendor; logo firma
+PENGAWAS di kontrak (`Contract.supervisorLogoKey`) dan tampil di kop blanko
+harian. DECISIONS 402/403/404/427.
+
+### Periode minggu laporan (M1–MN)
+
+Per kontrak (`Contract.weekMode`, DECISIONS 427):
+
+- `tujuh_hari` (bawaan, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
+- `senin_minggu`: minggu KALENDER Senin–Minggu; M1 (dan minggu terakhir) bisa
+  pendek — SPMK Kamis ⇒ M1 = Kamis–Minggu (4 hari).
+
+Helper murninya HANYA di `progress-calc.ts` (`weekOfDate`, `weekDateRange`,
+`totalWeeksBetween`); `currentWeekNumber` (progress.ts) menerima mode. Semua
+kolom M1–MN (layar, PDF, Excel) menampilkan rentang tanggal minggunya.
+Mengubah mode lewat koreksi kontrak menghitung ulang kurva-S semua lokasi.
 
 ## 10. Scope yang sengaja ditunda
 

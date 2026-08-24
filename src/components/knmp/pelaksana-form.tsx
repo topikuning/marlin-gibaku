@@ -28,6 +28,10 @@ export function PelaksanaForm({
   pengawasFirma,
   pengawasTtdUrl,
   warisanPengawas,
+  wakilSahNama,
+  wakilSahNip,
+  wakilSahTtdUrl,
+  warisanWakilSah,
 }: {
   locationId: string;
   nama: string | null;
@@ -40,6 +44,12 @@ export function PelaksanaForm({
   pengawasTtdUrl: string | null;
   /** Pengawas kontrak yang berlaku bila lokasi ini dikosongkan. */
   warisanPengawas?: { nama: string | null; firma: string | null } | null;
+  /** Wakil Sah lokasi ini (2026-08-24) — meneken laporan mingguan & bulanan. */
+  wakilSahNama: string | null;
+  wakilSahNip: string | null;
+  wakilSahTtdUrl: string | null;
+  /** Wakil Sah kontrak yang berlaku bila lokasi ini dikosongkan. */
+  warisanWakilSah?: { nama: string | null; nip: string | null } | null;
 }) {
   const [state, kirim, sibuk] = useAksiKlik<PelaksanaActionState>(simpanPelaksana, undefined);
 
@@ -194,6 +204,63 @@ export function PelaksanaForm({
             Lokasi ini memakai pengawasnya sendiri tetapi belum mengunggah tanda tangan, jadi
             blok TTD pengawas tercetak kosong. Coretan pengawas paket sengaja tidak dipinjam –
             pengawas adalah pihak yang memeriksa pekerjaan ini.
+          </HelpText>
+        ) : null}
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <p className="text-sm font-medium text-ink">Wakil Sah</p>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          Meneken laporan mingguan &amp; bulanan mewakili KKP. Isi HANYA bila Wakil Sah
+          lokasi ini berbeda dari paketnya.
+        </p>
+
+        {!wakilSahNama && warisanWakilSah?.nama ? (
+          <Banner
+            className="mt-3"
+            tone="info"
+            title={`Mengikuti paket: ${warisanWakilSah.nama}${warisanWakilSah.nip ? ` – NIP. ${warisanWakilSah.nip}` : ""}`}
+            description="Kosongkan kolom di bawah supaya tetap mengikuti paket."
+          />
+        ) : null}
+
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="ws-nama-lokasi">Nama Wakil Sah</Label>
+            <Input
+              id="ws-nama-lokasi"
+              name="wakilSahNama"
+              defaultValue={wakilSahNama ?? ""}
+              maxLength={150}
+              placeholder="kosongkan = ikut paket"
+            />
+          </div>
+          <div>
+            <Label htmlFor="ws-nip-lokasi">NIP</Label>
+            <Input
+              id="ws-nip-lokasi"
+              name="wakilSahNip"
+              defaultValue={wakilSahNip ?? ""}
+              maxLength={60}
+              placeholder="opsional"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <BerkasTtd
+            id="ws-ttd-lokasi"
+            medan="wakilSahTtdKey"
+            label="Tanda tangan"
+            url={wakilSahTtdUrl}
+            kelasPratinjau="h-12 w-full"
+          />
+        </div>
+
+        {wakilSahNama && !wakilSahTtdUrl ? (
+          <HelpText>
+            Lokasi ini memakai Wakil Sah-nya sendiri tetapi belum mengunggah tanda tangan, jadi
+            blok TTD-nya tercetak kosong. Coretan Wakil Sah paket sengaja tidak dipinjam.
           </HelpText>
         ) : null}
       </div>

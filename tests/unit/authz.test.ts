@@ -30,6 +30,9 @@ describe("authz capability matrix", () => {
       // Foto Cepat (DECISIONS 253). Dipisah dari daily_report.create karena
       // justru gunanya memotret TANPA harus punya laporan lebih dulu.
       "photo.quick",
+      // Papan temuan terbaca semua pemegang location.view (DECISIONS 426) —
+      // temuan yang disembunyikan dari pelaksananya tidak akan ditindaklanjuti.
+      "finding.view",
     ]);
     for (const cap of CAPABILITIES) {
       expect(can("field_supervisor", cap), cap).toBe(expected.has(cap));

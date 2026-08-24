@@ -37,6 +37,7 @@ export type PaketPaparan = {
     startDate: Date;
     endDate: Date | null;
     durationDays: number;
+    weekMode: "tujuh_hari" | "senin_minggu";
     ppkName: string | null;
     supervisorName: string | null;
     supervisorFirm: string | null;
@@ -80,6 +81,7 @@ export async function muatPaketPaparan(
           startDate: true,
           endDate: true,
           durationDays: true,
+          weekMode: true,
           ppkName: true,
           supervisorName: true,
           supervisorFirm: true,
