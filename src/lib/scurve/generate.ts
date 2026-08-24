@@ -120,6 +120,7 @@ export type CategorySchedule = {
 export function autoCategorySchedule(
   categories: { lineageKey: string; name: string; amount: bigint }[],
   totalWeeks: number,
+  weekEndFracs?: number[] | null,
 ): CategorySchedule[] {
   const n = Math.max(1, Math.floor(totalWeeks));
   const positive = categories.filter((c) => c.amount > 0n);
@@ -127,8 +128,8 @@ export function autoCategorySchedule(
   if (grand <= 0) return [];
   return positive.map((c) => {
     const [sf, ef] = getCategoryPhase(c.name);
-    const startWeek = Math.max(1, Math.min(n, Math.floor(sf * n) + 1));
-    const endWeek = Math.max(startWeek, Math.min(n, Math.ceil(ef * n)));
+    const startWeek = weekOfFracStart(sf, n, weekEndFracs);
+    const endWeek = Math.max(startWeek, weekOfFracEnd(ef, n, weekEndFracs));
     return {
       lineageKey: c.lineageKey,
       name: c.name,
@@ -137,6 +138,34 @@ export function autoCategorySchedule(
       endWeek,
     };
   });
+}
+
+/* ── Grid minggu tak-seragam (mode senin_minggu, DECISIONS 427b) ─────────────
+   `weekEndFracs[k-1]` = fraksi HARI kumulatif pada akhir minggu ke-k (naik
+   ketat, elemen terakhir 1) — dihitung `weekEndFractions()` di progress-calc.
+   Tanpa grid (null/undefined) semua fungsi memakai grid seragam k/n lamanya,
+   jadi angka baseline mode `tujuh_hari` yang sudah beredar TIDAK bergeser. */
+
+/** Fraksi akhir minggu ke-k (1-based). */
+export function gridEndFrac(k: number, n: number, fr?: number[] | null): number {
+  return fr && fr.length === n ? fr[k - 1] : k / n;
+}
+
+/** Fraksi awal minggu ke-k (1-based) = akhir minggu sebelumnya. */
+export function gridStartFrac(k: number, n: number, fr?: number[] | null): number {
+  return k <= 1 ? 0 : gridEndFrac(k - 1, n, fr);
+}
+
+/** Minggu yang MEMUAT fraksi `f` (untuk awal jendela). Clamp [1..n]. */
+export function weekOfFracStart(f: number, n: number, fr?: number[] | null): number {
+  for (let k = 1; k <= n; k++) if (gridEndFrac(k, n, fr) > f + 1e-12) return k;
+  return n;
+}
+
+/** Minggu TERAKHIR sebuah jendela yang berakhir pada fraksi `f`. Clamp [1..n]. */
+export function weekOfFracEnd(f: number, n: number, fr?: number[] | null): number {
+  for (let k = 1; k <= n; k++) if (gridEndFrac(k, n, fr) >= f - 1e-12) return k;
+  return n;
 }
 
 /** Cubic smoothstep 3t² − 2t³ untuk bentuk S. */
@@ -160,10 +189,12 @@ export function smoothstep(t: number): number {
 export function cumulativeFromSegments(
   segments: { weightPct: number; start: number; end: number }[],
   totalWeeks: number,
+  /** Grid minggu tak-seragam — lihat catatan di atas. */
+  weekEndFracs?: number[] | null,
 ): number[] {
   const out: number[] = [];
   for (let week = 1; week <= totalWeeks; week++) {
-    const t = week / totalWeeks;
+    const t = gridEndFrac(week, totalWeeks, weekEndFracs);
     let acc = 0;
     for (const seg of segments) {
       const span = Math.max(1e-9, seg.end - seg.start);
@@ -181,8 +212,9 @@ export function cumulativeFromSegments(
 export function generateScurve(
   categories: { name: string; totalValue: bigint }[],
   contractDays: number = DEFAULT_CONTRACT_DAYS,
+  weekEndFracs?: number[] | null,
 ): number[] {
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const totalWeeks = weekEndFracs?.length ?? Math.max(1, Math.ceil(contractDays / 7));
   const grandTotal = categories
     .filter((c) => c.totalValue > 0n)
     .reduce((sum, c) => sum + Number(c.totalValue), 0);
@@ -194,7 +226,7 @@ export function generateScurve(
       const [start, end] = getCategoryPhase(c.name);
       return { weightPct: (Number(c.totalValue) / grandTotal) * 100, start, end };
     });
-  return cumulativeFromSegments(segments, totalWeeks);
+  return cumulativeFromSegments(segments, totalWeeks, weekEndFracs);
 }
 
 // ── Penjadwalan per item berbasis "trade" (jenis pekerjaan) ─────────────────
@@ -381,8 +413,9 @@ export function classifyTrade(itemName: string, categoryName: string): TradeKey 
 export function scheduleItems(
   items: { name: string; categoryName: string; amount: bigint }[],
   contractDays: number = DEFAULT_CONTRACT_DAYS,
+  weekEndFracs?: number[] | null,
 ): number[] {
-  const n = Math.max(1, Math.ceil(contractDays / 7));
+  const n = weekEndFracs?.length ?? Math.max(1, Math.ceil(contractDays / 7));
   const grand = items.reduce((s, it) => s + (it.amount > 0n ? Number(it.amount) : 0), 0);
   if (grand <= 0) return new Array(n).fill(0);
 
@@ -394,7 +427,7 @@ export function scheduleItems(
       const w = windows[classifyTrade(it.name, it.categoryName)];
       return { weightPct: (Number(it.amount) / grand) * 100, start: w.start, end: w.end };
     });
-  return cumulativeFromSegments(segments, n);
+  return cumulativeFromSegments(segments, n, weekEndFracs);
 }
 
 // ── Kurva-S dari jadwal per pekerjaan (editor manual) ───────────────────────
@@ -424,17 +457,23 @@ export function categoryWeeklyIncrements(
   startWeek: number,
   endWeek: number,
   totalWeeks: number,
+  /** Grid minggu tak-seragam: lonceng dievaluasi pada fraksi HARI, bukan indeks
+      minggu — minggu pendek (M1 mode senin_minggu) mendapat porsi lebih kecil. */
+  weekEndFracs?: number[] | null,
 ): number[] {
   const n = Math.max(1, Math.floor(totalWeeks));
   const out = new Array<number>(n).fill(0);
   if (!(weightPct > 0)) return out;
   const s = Math.max(1, Math.min(n, Math.floor(startWeek)));
   const e = Math.max(s, Math.min(n, Math.floor(endWeek)));
-  const d = e - s + 1;
+  const w0 = gridStartFrac(s, n, weekEndFracs);
+  const w1 = gridEndFrac(e, n, weekEndFracs);
+  const span = Math.max(1e-9, w1 - w0);
   let prev = 0;
-  for (let k = 1; k <= d; k++) {
-    const cum = smoothstep(k / d); // kumulatif aktivitas: S 0→1 sepanjang jendela
-    out[s - 1 + (k - 1)] = weightPct * (cum - prev);
+  for (let k = s; k <= e; k++) {
+    // Kumulatif aktivitas: S 0→1 sepanjang jendela, diukur dalam HARI.
+    const cum = smoothstep((gridEndFrac(k, n, weekEndFracs) - w0) / span);
+    out[k - 1] = weightPct * (cum - prev);
     prev = cum;
   }
   return out;
@@ -452,11 +491,12 @@ export function categoryWeeklyIncrements(
 export function curveFromCategorySchedule(
   rows: CategoryScheduleRow[],
   totalWeeks: number,
+  weekEndFracs?: number[] | null,
 ): number[] {
   const n = Math.max(1, Math.floor(totalWeeks));
   const weekly = new Array<number>(n).fill(0);
   for (const r of rows) {
-    const inc = categoryWeeklyIncrements(r.weightPct, r.startWeek, r.endWeek, n);
+    const inc = categoryWeeklyIncrements(r.weightPct, r.startWeek, r.endWeek, n, weekEndFracs);
     for (let i = 0; i < n; i++) weekly[i] += inc[i];
   }
   const out: number[] = [];
@@ -485,6 +525,7 @@ export function weeklyFromSegments(
   weightPct: number,
   segments: WeekSegment[],
   totalWeeks: number,
+  weekEndFracs?: number[] | null,
 ): number[] {
   const n = Math.max(1, Math.floor(totalWeeks));
   const out = new Array<number>(n).fill(0);
@@ -497,10 +538,19 @@ export function weeklyFromSegments(
     .filter((s) => s.e >= s.s)
     .sort((a, b) => a.s - b.s);
   if (segs.length === 0) return out;
-  const totalLen = segs.reduce((t, s) => t + (s.e - s.s + 1), 0);
+  // Porsi antar segmen ditimbang PANJANG HARI segmen, bukan jumlah minggunya —
+  // segmen yang memuat M1 pendek tidak boleh dihitung selebar minggu penuh.
+  const segLen = (s: { s: number; e: number }) =>
+    gridEndFrac(s.e, n, weekEndFracs) - gridStartFrac(s.s, n, weekEndFracs);
+  const totalLen = segs.reduce((t, s) => t + segLen(s), 0) || 1e-9;
   for (const seg of segs) {
-    const len = seg.e - seg.s + 1;
-    const inc = categoryWeeklyIncrements(weightPct * (len / totalLen), seg.s, seg.e, n);
+    const inc = categoryWeeklyIncrements(
+      weightPct * (segLen(seg) / totalLen),
+      seg.s,
+      seg.e,
+      n,
+      weekEndFracs,
+    );
     for (let i = 0; i < n; i++) out[i] += inc[i];
   }
   return out;

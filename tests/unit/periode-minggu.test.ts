@@ -82,3 +82,77 @@ describe("mode senin_minggu – minggu kalender", () => {
     expect(key(m3.end)).toBe("2026-03-17"); // dipangkas, bukan Minggu
   });
 });
+
+/* ── Generator kurva-S sadar-grid (DECISIONS 427b) ───────────────────────────
+   Keberatan user 2026-08-24: generator otomatis harus KONSISTEN dengan mode
+   minggu — M1 pendek tidak boleh mendapat porsi rencana minggu penuh. */
+import { weekEndFractions } from "@/lib/progress-calc";
+import {
+  categoryWeeklyIncrements,
+  cumulativeFromSegments,
+  weeklyFromSegments,
+} from "@/lib/scurve/generate";
+import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
+
+describe("weekEndFractions – grid hari per minggu", () => {
+  it("SPMK Kamis, 119 hari: 18 elemen, naik ketat, M1 = 4/119, akhir = 1", () => {
+    const end = new Date(SPMK.getTime() + 118 * 86_400_000);
+    const fr = weekEndFractions(SPMK, end, "senin_minggu");
+    expect(fr).toHaveLength(18);
+    expect(fr[0]).toBeCloseTo(4 / 119, 10);
+    expect(fr[1]).toBeCloseTo(11 / 119, 10);
+    for (let i = 1; i < fr.length; i++) expect(fr[i]).toBeGreaterThan(fr[i - 1]);
+    expect(fr[fr.length - 1]).toBe(1);
+  });
+});
+
+describe("generator ditimbang HARI, bukan indeks minggu", () => {
+  const end = new Date(SPMK.getTime() + 118 * 86_400_000);
+  const fr = weekEndFractions(SPMK, end, "senin_minggu");
+
+  it("tanpa grid = rumus lama persis (angka tujuh_hari tidak bergeser)", () => {
+    const seragam = categoryWeeklyIncrements(10, 1, 4, 18);
+    const eksplisit = categoryWeeklyIncrements(10, 1, 4, 18, null);
+    expect(eksplisit).toEqual(seragam);
+  });
+
+  it("M1 pendek mendapat porsi LEBIH KECIL daripada versi seragam", () => {
+    const seragam = categoryWeeklyIncrements(10, 1, 4, 18);
+    const berGrid = categoryWeeklyIncrements(10, 1, 4, 18, fr);
+    expect(berGrid[0]).toBeLessThan(seragam[0]);
+    // Total bobot jendela tetap utuh.
+    const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+    expect(sum(berGrid)).toBeCloseTo(10, 6);
+    expect(sum(seragam)).toBeCloseTo(10, 6);
+  });
+
+  it("kurva kumulatif ber-grid: monoton, mulai rendah, akhir 100", () => {
+    const curve = cumulativeFromSegments([{ weightPct: 100, start: 0, end: 1 }], 18, fr);
+    expect(curve).toHaveLength(18);
+    for (let i = 1; i < curve.length; i++) expect(curve[i]).toBeGreaterThanOrEqual(curve[i - 1]);
+    expect(curve[17]).toBe(100);
+    // Titik M1 ber-grid < titik M1 seragam: minggu 4 hari baru menempuh 4/119 durasi.
+    const seragam = cumulativeFromSegments([{ weightPct: 100, start: 0, end: 1 }], 18);
+    expect(curve[0]).toBeLessThan(seragam[0]);
+  });
+
+  it("weeklyFromSegments ber-grid: Σ tetap = bobot", () => {
+    const w = weeklyFromSegments(25, [{ startWeek: 1, endWeek: 6 }, { startWeek: 9, endWeek: 12 }], 18, fr);
+    expect(w).toHaveLength(18);
+    expect(w.reduce((s, v) => s + v, 0)).toBeCloseTo(25, 6);
+    expect(w[6]).toBe(0); // minggu jeda tetap jeda
+  });
+
+  it("scheduleFromItems ber-grid: panjang matriks = jumlah kolom grid, Σ = 100", () => {
+    const items = [
+      { name: "Galian tanah", categoryKey: "I", categoryName: "PEKERJAAN TANAH", amount: 40_000_000n },
+      { name: "Pasangan bata", categoryKey: "II", categoryName: "PEKERJAAN DINDING", amount: 60_000_000n },
+    ];
+    const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
+    const sched = scheduleFromItems(items, 119, winFrac, fr);
+    expect(sched.totalWeeks).toBe(18);
+    for (const c of sched.categories) expect(c.weekly).toHaveLength(18);
+    const total = sched.categories.reduce((s, c) => s + c.weekly.reduce((a, b) => a + b, 0), 0);
+    expect(total).toBeCloseTo(100, 4);
+  });
+});

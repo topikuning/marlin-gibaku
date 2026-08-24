@@ -22148,3 +22148,31 @@ Empat permintaan user 2026-08-24, semua dikonfirmasi lewat pertanyaan pilihan:
 **Verifikasi**: migrasi `20260824110000_*` idempoten; typecheck + lint bersih;
 2159 unit + 872 integrasi hijau (fixture PeriodHeader diperluas; parser jadwal
 round-trip tetap hijau dengan sel "M1\n<rentang>").
+
+## 427b — Generator kurva-S otomatis sadar-grid minggu, 2026-08-24
+
+Keberatan user atas batas sadar di 427: *"kenapa harus ada ini, kan kamu
+harusnya menyesuaikan. atau kurva-s otomatis menyesuaikan, harus konsisten."*
+Benar — batasnya dihapus, generator dibuat konsisten:
+
+- Grid minggu tak-seragam: `weekEndFractions(start, end, mode)` di
+  `progress-calc.ts` = fraksi HARI kumulatif pada akhir tiap minggu (M1 pendek
+  = fraksi kecil). `totalWeeksFor()` (rab/import) mengembalikannya sekalian —
+  SATU sumber untuk jumlah kolom DAN pembagi hari.
+- Seluruh primitif generator menerima grid opsional dan mengevaluasi lonceng/
+  kurva pada FRAKSI HARI, bukan indeks minggu: `cumulativeFromSegments`,
+  `categoryWeeklyIncrements`, `weeklyFromSegments`, `curveFromCategorySchedule`,
+  `autoCategorySchedule`, `generateScurve`, `scheduleItems` (generate.ts) serta
+  `scheduleFromItems`, `scheduleBySequence` (sequencing.ts, pemetaan
+  fraksi→minggu lewat `weekOfFracStart/End`).
+- Dialirkan ke semua pembuat baseline/jadwal otomatis: `regenerateBaseline`,
+  `deriveCategorySchedule`, `saveCategorySchedule`, `hitungJadwalBaru`, dan
+  fallback jadwal `getPeriodReport`. Ini sekaligus menutup cacat panjang
+  matriks: sebelum ini `scheduleFromItems` internal masih `ceil(hari/7)`
+  sementara jumlah kolom resmi sudah mode-aware — bisa selisih satu kolom
+  pada mode `senin_minggu`.
+- **Tanpa grid (mode `tujuh_hari` / SPMK belum terbit) rumusnya BIT-IDENTIK
+  dengan yang lama** — diuji eksplisit; baseline yang sudah beredar tidak
+  bergeser. Jadwal impor verbatim tetap dipakai apa adanya (DECISIONS 203).
+
+Penjaga: blok "generator ditimbang HARI" di `tests/unit/periode-minggu.test.ts`.

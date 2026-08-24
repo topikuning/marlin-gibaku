@@ -174,7 +174,7 @@ async function activeCategoriesWithWeights(locationId: string) {
 export async function deriveCategorySchedule(locationId: string): Promise<CategoryScheduleData | null> {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) return null;
-  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
+  const { totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const weightFor = (catAmount: bigint) => (Number(catAmount) / base.grand) * 100;
 
@@ -218,6 +218,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
   const auto = autoCategorySchedule(
     base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
     totalWeeks,
+    weekEndFracs,
   );
   const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
 
@@ -233,7 +234,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
         name: c.name,
         weightPct,
         segments,
-        weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
+        weekly: weeklyFromSegments(weightPct, segments, totalWeeks, weekEndFracs),
       };
     }),
   };
@@ -260,7 +261,7 @@ export async function saveCategorySchedule(
 ) {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
-  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
+  const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r]));
   const rows = base.categories.map((c) => {
@@ -287,7 +288,7 @@ export async function saveCategorySchedule(
       name: c.name,
       weightPct,
       // Matriks kanonik: lonceng per segmen, 0 di minggu jeda.
-      weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
+      weekly: weeklyFromSegments(weightPct, segments, totalWeeks, weekEndFracs),
     };
   });
 
@@ -400,7 +401,7 @@ export async function hitungJadwalBaru(
 ) {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
-  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
+  const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));
 
@@ -424,6 +425,7 @@ export async function hitungJadwalBaru(
     const auto = autoCategorySchedule(
       base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
       totalWeeks,
+      weekEndFracs,
     );
     const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
     rows = base.categories.map((c) => {
@@ -438,7 +440,12 @@ export async function hitungJadwalBaru(
         matched += 1;
       } else {
         const a = autoByKey.get(c.lineageKey);
-        weekly = weeklyFromSegments(weightPct, [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }], totalWeeks);
+        weekly = weeklyFromSegments(
+          weightPct,
+          [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }],
+          totalWeeks,
+          weekEndFracs,
+        );
       }
       return { lineageKey: c.lineageKey, name: c.name, weightPct, weekly };
     });

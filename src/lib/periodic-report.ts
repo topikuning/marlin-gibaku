@@ -12,6 +12,7 @@ import {
   prestasiPct,
   totalWeeksBetween,
   weekDateRange,
+  weekEndFractions,
   weekOfDate,
   type WeekPeriodMode,
 } from "@/lib/progress-calc";
@@ -658,7 +659,11 @@ export async function getPeriodReport(
         return { name: nd.name, categoryKey: root, categoryName: catNameByRoot.get(root) ?? "", amount: nd.amount };
       });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
-    kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
+    // Grid minggu tak-seragam (mode senin_minggu) — generator fallback memakai
+    // pembagi hari yang sama dengan regenerateBaseline (DECISIONS 427b).
+    const fracsFallback =
+      weekMode === "senin_minggu" ? weekEndFractions(startDate, bounds.endDate, weekMode) : null;
+    kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac, fracsFallback).categories.map((c) => ({
       lineageKey: c.categoryKey,
       code: catByRootNode.get(c.categoryKey)?.code ?? "",
       name: c.categoryName,
