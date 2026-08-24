@@ -216,20 +216,29 @@ export function sanitizeText(s: string): string {
 
 /** Kop laporan: nama app + konteks proyek (kiri) & judul dokumen (kanan), garis navy. */
 export function reportHeader(doc: PdfDoc, appName: string, context: string, title: string): void {
-  const top = PAGE_MARGIN;
-  const leftW = CONTENT_WIDTH * 0.5 - 8;
-  const rightX = PAGE_MARGIN + CONTENT_WIDTH * 0.5 + 8;
-  const rightW = CONTENT_WIDTH * 0.5 - 8;
+  reportHeaderAt(doc, appName, context, title, PAGE_MARGIN, CONTENT_WIDTH);
+}
+
+/** Kop laporan yang sama untuk dokumen A4 LANSKAP (margin & lebar konten lanskap). */
+export function reportHeaderLandscape(doc: PdfDoc, appName: string, context: string, title: string): void {
+  reportHeaderAt(doc, appName, context, title, LANDSCAPE_MARGIN, A4.height - LANDSCAPE_MARGIN * 2);
+}
+
+function reportHeaderAt(doc: PdfDoc, appName: string, context: string, title: string, margin: number, contentW: number): void {
+  const top = margin;
+  const leftW = contentW * 0.5 - 8;
+  const rightX = margin + contentW * 0.5 + 8;
+  const rightW = contentW * 0.5 - 8;
   doc
     .font(PDF_FONT.bold)
     .fontSize(9)
     .fillColor(PDF_COLORS.inkMuted)
-    .text(sanitizeText(appName).toUpperCase(), PAGE_MARGIN, top, { characterSpacing: 1, width: leftW });
+    .text(sanitizeText(appName).toUpperCase(), margin, top, { characterSpacing: 1, width: leftW });
   doc
     .font(PDF_FONT.regular)
     .fontSize(8)
     .fillColor(PDF_COLORS.inkMuted)
-    .text(sanitizeText(context), PAGE_MARGIN, doc.y + 1, { width: leftW });
+    .text(sanitizeText(context), margin, doc.y + 1, { width: leftW });
   const leftBottom = doc.y;
   // Judul di KOLOM KANAN saja (boleh wrap) — tak menabrak teks kiri.
   doc
@@ -238,9 +247,9 @@ export function reportHeader(doc: PdfDoc, appName: string, context: string, titl
     .fillColor(PDF_COLORS.primary)
     .text(sanitizeText(title).toUpperCase(), rightX, top, { width: rightW, align: "right" });
   const lineY = Math.max(leftBottom, doc.y, top + 34) + 4;
-  doc.moveTo(PAGE_MARGIN, lineY).lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY).lineWidth(2.5).strokeColor(PDF_COLORS.primary).stroke();
+  doc.moveTo(margin, lineY).lineTo(margin + contentW, lineY).lineWidth(2.5).strokeColor(PDF_COLORS.primary).stroke();
   doc.y = lineY + 12;
-  doc.x = PAGE_MARGIN;
+  doc.x = margin;
 }
 
 /** Blok identitas: judul besar + subteks + kotak rincian (label:value). */
@@ -311,15 +320,20 @@ export function ensureSpace(doc: PdfDoc, need: number): void {
  */
 export function stampFooters(doc: PdfDoc, leftText: string): void {
   const range = doc.bufferedPageRange();
-  const y = A4.height - PAGE_MARGIN + 14;
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(range.start + i);
+    // Dimensi & margin dibaca per halaman — dokumen lanskap punya tinggi/lebar
+    // dan margin berbeda dari A4 potret (kaki di posisi potret jatuh DI LUAR
+    // halaman lanskap, tak terlihat).
+    const margin = doc.page.margins.left;
+    const contentW = doc.page.width - margin * 2;
+    const y = doc.page.height - doc.page.margins.bottom + 14;
     const savedBottom = doc.page.margins.bottom;
     doc.page.margins.bottom = 0; // izinkan menulis di pita margin tanpa memicu halaman baru
     doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.inkFaint);
-    doc.text(leftText, PAGE_MARGIN, y, { width: CONTENT_WIDTH * 0.7, lineBreak: false });
-    doc.text(`Hal. ${i + 1}/${range.count}`, PAGE_MARGIN, y, {
-      width: CONTENT_WIDTH,
+    doc.text(leftText, margin, y, { width: contentW * 0.7, lineBreak: false });
+    doc.text(`Hal. ${i + 1}/${range.count}`, margin, y, {
+      width: contentW,
       align: "right",
       lineBreak: false,
     });

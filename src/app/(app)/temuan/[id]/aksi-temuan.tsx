@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
+import { Banner, Button, Combobox, ConfirmSubmit, Input, Label, Textarea } from "@/components/ui";
 import type { FindingStatus } from "@/generated/prisma/enums";
 import {
   addFollowUpAction,
@@ -132,7 +132,12 @@ function FormTutup({ findingId, tolak }: { findingId: string; tolak: boolean }) 
         <input type="hidden" name="findingId" value={findingId} />
         <Label htmlFor={`tp-${findingId}`}>Tutup temuan (verifikasi selesai)</Label>
         <Textarea id={`tp-${findingId}`} name="note" rows={2} required placeholder="Catatan penutup – wajib" />
-        <Button type="submit" size="sm" loading={pendingTutup}>Tutup temuan</Button>
+        <ConfirmSubmit
+          label="Tutup temuan"
+          title="Tutup temuan ini?"
+          description="Temuan dinyatakan selesai atas nama Anda sebagai verifikator dan hilang dari daftar terbuka. Membatalkannya hanya bisa lewat buka kembali, yang tercatat sebagai riwayat."
+          loading={pendingTutup}
+        />
         <HasilAksi state={stateTutup} />
       </form>
       {tolak ? (
@@ -140,7 +145,13 @@ function FormTutup({ findingId, tolak }: { findingId: string; tolak: boolean }) 
           <input type="hidden" name="findingId" value={findingId} />
           <Label htmlFor={`to-${findingId}`}>Tolak pengajuan – kembalikan</Label>
           <Textarea id={`to-${findingId}`} name="reason" rows={2} required placeholder="Alasan penolakan – wajib" />
-          <Button type="submit" size="sm" variant="danger" loading={pendingTolak}>Tolak – belum selesai</Button>
+          <ConfirmSubmit
+            label="Tolak – belum selesai"
+            title="Tolak pengajuan verifikasi?"
+            description="Temuan dikembalikan ke status tindak lanjut dan pelaksana harus mengajukan ulang. Alasan penolakan Anda tercatat di linimasa."
+            variant="danger"
+            loading={pendingTolak}
+          />
           <HasilAksi state={stateTolak} />
         </form>
       ) : null}
@@ -155,7 +166,13 @@ function FormBukaKembali({ findingId }: { findingId: string }) {
       <input type="hidden" name="findingId" value={findingId} />
       <Label htmlFor={`bk-${findingId}`}>Buka kembali</Label>
       <Textarea id={`bk-${findingId}`} name="reason" rows={2} required placeholder="Alasan dibuka kembali – wajib" />
-      <Button type="submit" size="sm" variant="danger" loading={pending}>Buka kembali temuan</Button>
+      <ConfirmSubmit
+        label="Buka kembali temuan"
+        title="Buka kembali temuan yang sudah ditutup?"
+        description="Status kembali ke tindak lanjut, hitungan dibuka-ulang bertambah, dan penutupan sebelumnya tetap tercatat di linimasa."
+        variant="danger"
+        loading={pending}
+      />
       <HasilAksi state={state} />
     </form>
   );

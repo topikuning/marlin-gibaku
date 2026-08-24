@@ -12,8 +12,11 @@ import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import {
   EVIDENCE_VERIF_STATUS_LABEL,
   EVIDENCE_VERIF_STATUS_TONE,
+  FINDING_CATEGORY_LABEL,
   FINDING_STATUS_LABEL,
   FINDING_STATUS_TONE,
+  ISSUE_SEVERITY_LABEL,
+  ISSUE_SEVERITY_TONE,
 } from "@/lib/lifecycle";
 import { isR2Configured, r2PresignGet } from "@/lib/r2";
 import { AksiTemuan, FormBukti, FormVerifikasiBukti } from "./aksi-temuan";
@@ -21,12 +24,6 @@ import { AksiTemuan, FormBukti, FormVerifikasiBukti } from "./aksi-temuan";
 export const metadata: Metadata = { title: "Detail Temuan" };
 export const dynamic = "force-dynamic";
 
-const SEVERITY_TONE = { kritis: "danger", tinggi: "warning", sedang: "info", rendah: "neutral" } as const;
-const SEVERITY_LABEL = { kritis: "Kritis", tinggi: "Tinggi", sedang: "Sedang", rendah: "Rendah" } as const;
-const CATEGORY_LABEL: Record<string, string> = {
-  mutu: "Mutu", volume: "Volume", k3: "K3", administrasi: "Administrasi",
-  jadwal: "Jadwal", lingkungan: "Lingkungan", lainnya: "Lainnya",
-};
 const SOURCE_LABEL: Record<string, string> = {
   inspeksi: "Inspeksi lapangan", laporan_harian: "Laporan harian", dokumen: "Pemeriksaan dokumen", manual: "Dicatat langsung",
 };
@@ -98,8 +95,8 @@ export default async function DetailTemuanPage({ params }: { params: Promise<{ i
         description={
           <span className="flex flex-wrap items-center gap-2">
             <StatusPill tone={FINDING_STATUS_TONE[t.status]} label={FINDING_STATUS_LABEL[t.status]} />
-            <Badge tone={SEVERITY_TONE[t.severity]} label={SEVERITY_LABEL[t.severity]} />
-            <Badge tone="neutral" label={CATEGORY_LABEL[t.category] ?? t.category} />
+            <Badge tone={ISSUE_SEVERITY_TONE[t.severity]} label={ISSUE_SEVERITY_LABEL[t.severity]} />
+            <Badge tone="neutral" label={FINDING_CATEGORY_LABEL[t.category]} />
             {t.reopenCount > 0 ? <Badge tone="warning" label={`Dibuka ulang ${t.reopenCount}×`} /> : null}
           </span>
         }

@@ -1,9 +1,9 @@
 import "server-only";
-import { A4, createLandscapeA4Doc, docToBuffer, LANDSCAPE_MARGIN, PDF_COLORS, PDF_FONT, sanitizeText, stampFooters } from "./document";
+import { A4, createLandscapeA4Doc, docToBuffer, LANDSCAPE_MARGIN, PDF_COLORS, PDF_FONT, reportHeaderLandscape, sanitizeText, stampFooters } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 import type { BarisTemuan } from "@/lib/findings/queries";
 import { formatTanggal } from "@/lib/format";
-import { FINDING_STATUS_LABEL } from "@/lib/lifecycle";
+import { FINDING_CATEGORY_LABEL, FINDING_STATUS_LABEL, ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 
 /**
  * REGISTER TEMUAN → PDF A4 landscape (DECISIONS 426). Menuangkan baris papan
@@ -11,11 +11,6 @@ import { FINDING_STATUS_LABEL } from "@/lib/lifecycle";
  * menghitung apa pun.
  */
 
-const SEVERITY_LABEL: Record<string, string> = { kritis: "Kritis", tinggi: "Tinggi", sedang: "Sedang", rendah: "Rendah" };
-const CATEGORY_LABEL: Record<string, string> = {
-  mutu: "Mutu", volume: "Volume", k3: "K3", administrasi: "Administrasi",
-  jadwal: "Jadwal", lingkungan: "Lingkungan", lainnya: "Lainnya",
-};
 
 // Landscape: lebar halaman = tinggi A4.
 const PAGE_W = A4.height;
@@ -49,13 +44,13 @@ export async function buildTemuanRegisterPdf(baris: BarisTemuan[], dibuatOleh: s
   };
 
   const kop = (): number => {
-    doc.font(PDF_FONT.bold).fontSize(14).fillColor(PDF_COLORS.primary)
-      .text("REGISTER TEMUAN", LANDSCAPE_MARGIN, LANDSCAPE_MARGIN, { width: CONTENT_W });
+    // Kop standar yang sama dengan laporan A4 lain (Laporan Kesiapan dst.).
+    reportHeaderLandscape(doc, "MARLIN", `Dibuat ${formatTanggal(new Date())} oleh ${sanitizeText(dibuatOleh)}`, "Register Temuan");
     doc.font(PDF_FONT.regular).fontSize(8).fillColor(PDF_COLORS.inkMuted)
       .text(
-        sanitizeText(`Dibuat ${formatTanggal(new Date())} oleh ${dibuatOleh} – ${baris.length} temuan. Temuan hanya selesai setelah verifikator menutupnya.`),
+        sanitizeText(`${baris.length} temuan. Temuan hanya selesai setelah verifikator menutupnya.`),
         LANDSCAPE_MARGIN,
-        doc.y + 2,
+        doc.y,
         { width: CONTENT_W },
       );
     let y = doc.y + 8;
@@ -69,8 +64,8 @@ export async function buildTemuanRegisterPdf(baris: BarisTemuan[], dibuatOleh: s
       { text: String(i + 1), align: "center" },
       { text: sanitizeText(t.title) },
       { text: sanitizeText(t.locationName) },
-      { text: CATEGORY_LABEL[t.category] ?? t.category },
-      { text: SEVERITY_LABEL[t.severity] ?? t.severity, bold: t.severity === "kritis" },
+      { text: FINDING_CATEGORY_LABEL[t.category] },
+      { text: ISSUE_SEVERITY_LABEL[t.severity], bold: t.severity === "kritis" },
       { text: FINDING_STATUS_LABEL[t.status] },
       { text: formatTanggal(t.findingDate), align: "center" },
       { text: t.dueDate ? formatTanggal(t.dueDate) : "-", align: "center" },

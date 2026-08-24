@@ -23,7 +23,7 @@ export async function GET() {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="Laporan Kesiapan ${jakartaDateKey(new Date())}.pdf"`,
+      "Content-Disposition": `attachment; filename="laporan-kesiapan-${jakartaDateKey(new Date())}.pdf"`,
     },
   });
 }

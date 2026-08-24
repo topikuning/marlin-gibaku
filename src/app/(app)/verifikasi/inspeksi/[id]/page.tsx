@@ -15,6 +15,8 @@ import {
   FINDING_STATUS_TONE,
   INSPECTION_STATUS_LABEL,
   INSPECTION_STATUS_TONE,
+  ISSUE_SEVERITY_LABEL,
+  ISSUE_SEVERITY_TONE,
 } from "@/lib/lifecycle";
 import { isR2Configured, r2PresignGet } from "@/lib/r2";
 import { AksiInspeksi, FormBuktiInspeksi } from "./aksi-inspeksi";
@@ -69,8 +71,6 @@ export default async function DetailInspeksiPage({ params }: { params: Promise<{
     take: 100,
     select: { id: true, stampPhotoId: true, createdAt: true },
   });
-
-  const SEVERITY_TONE = { kritis: "danger", tinggi: "warning", sedang: "info", rendah: "neutral" } as const;
 
   return (
     <div className="space-y-4">
@@ -145,7 +145,7 @@ export default async function DetailInspeksiPage({ params }: { params: Promise<{
                   <Link href={`/temuan/${f.id}`} className="flex flex-wrap items-center justify-between gap-2 py-2 hover:bg-surface-muted">
                     <span className="font-medium text-ink">{f.title}</span>
                     <span className="flex items-center gap-2">
-                      <Badge tone={SEVERITY_TONE[f.severity]} label={f.severity} />
+                      <Badge tone={ISSUE_SEVERITY_TONE[f.severity]} label={ISSUE_SEVERITY_LABEL[f.severity]} />
                       <StatusPill tone={FINDING_STATUS_TONE[f.status]} label={FINDING_STATUS_LABEL[f.status]} />
                     </span>
                   </Link>

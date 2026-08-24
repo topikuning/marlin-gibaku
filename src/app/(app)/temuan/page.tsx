@@ -7,23 +7,12 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { papanTemuan } from "@/lib/findings/queries";
 import { formatTanggal } from "@/lib/format";
-import { FINDING_STATUS_LABEL, FINDING_STATUS_TONE } from "@/lib/lifecycle";
+import { FINDING_CATEGORY_LABEL, FINDING_STATUS_LABEL, FINDING_STATUS_TONE, ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
 import { SaringTemuan } from "./saring";
 
 export const metadata: Metadata = { title: "Temuan" };
 export const dynamic = "force-dynamic";
 
-const SEVERITY_TONE = { kritis: "danger", tinggi: "warning", sedang: "info", rendah: "neutral" } as const;
-const SEVERITY_LABEL = { kritis: "Kritis", tinggi: "Tinggi", sedang: "Sedang", rendah: "Rendah" } as const;
-const CATEGORY_LABEL: Record<string, string> = {
-  mutu: "Mutu",
-  volume: "Volume",
-  k3: "K3",
-  administrasi: "Administrasi",
-  jadwal: "Jadwal",
-  lingkungan: "Lingkungan",
-  lainnya: "Lainnya",
-};
 
 export default async function TemuanPage({
   searchParams,
@@ -117,8 +106,8 @@ export default async function TemuanPage({
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill tone={FINDING_STATUS_TONE[t.status]} label={FINDING_STATUS_LABEL[t.status]} />
-                      <Badge tone={SEVERITY_TONE[t.severity]} label={SEVERITY_LABEL[t.severity]} />
-                      <Badge tone="neutral" label={CATEGORY_LABEL[t.category] ?? t.category} />
+                      <Badge tone={ISSUE_SEVERITY_TONE[t.severity]} label={ISSUE_SEVERITY_LABEL[t.severity]} />
+                      <Badge tone="neutral" label={FINDING_CATEGORY_LABEL[t.category]} />
                       {t.lewatTenggat ? <Badge tone="danger" label="Lewat tenggat" /> : null}
                       {t.reopenCount > 0 ? <Badge tone="warning" label={`Dibuka ulang ${t.reopenCount}×`} /> : null}
                     </div>

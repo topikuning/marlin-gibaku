@@ -9,7 +9,7 @@ import { can } from "@/lib/authz";
 import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
-import { FINDING_STATUS_LABEL, OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
+import { FINDING_STATUS_LABEL, ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 
@@ -185,10 +185,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                         {i.title}
                         <span className="ml-2 text-ink-muted">{i.location.name}</span>
                       </span>
-                      <StatusPill
-                        tone={i.severity === "kritis" || i.severity === "tinggi" ? "danger" : "warning"}
-                        label={i.severity}
-                      />
+                      <StatusPill tone={ISSUE_SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
                     </Link>
                   </li>
                 ))}
@@ -216,10 +213,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                         {f.title}
                         <span className="ml-2 text-ink-muted">{f.location.name}</span>
                       </span>
-                      <StatusPill
-                        tone={f.severity === "kritis" ? "danger" : f.severity === "tinggi" ? "warning" : "info"}
-                        label={FINDING_STATUS_LABEL[f.status]}
-                      />
+                      <StatusPill tone={ISSUE_SEVERITY_TONE[f.severity]} label={FINDING_STATUS_LABEL[f.status]} />
                     </Link>
                   </li>
                 ))}

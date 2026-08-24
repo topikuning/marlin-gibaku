@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const buffer = await buildTemuanXlsx(baris, user.fullName);
   await audit(user.id, "finding.export_register", "finding", null, { jumlah: baris.length });
 
-  const nama = `Register Temuan ${jakartaDateKey(new Date())}.xlsx`;
+  const nama = `register-temuan-${jakartaDateKey(new Date())}.xlsx`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
