@@ -7,7 +7,7 @@ import { canTransitionReport } from "@/lib/lifecycle";
 import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
-import { prestasiPct } from "@/lib/progress-calc";
+import { weekOfDate, weekDateRange, prestasiPct } from "@/lib/progress-calc";
 import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { dominantWeatherCode, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { Prisma } from "@/generated/prisma/client";
@@ -699,6 +699,16 @@ export type FinalSnapshot = {
   reportDate: string; // YYYY-MM-DD
   location: { name: string; slug: string; village: string; regency: string; province: string };
   weekNo: number | null;
+  /**
+   * Rentang tanggal minggu `weekNo` (kunci YYYY-MM-DD), DIBEKUKAN bersama
+   * nomornya (DECISIONS 427c): mode periode minggu kontrak bisa diganti di
+   * tengah jalan, dan blanko final yang sudah diteken harus tetap koheren
+   * dengan dirinya sendiri — nomor beku + rentang yang dihitung ulang dari
+   * mode BARU bisa tidak memuat tanggal laporannya. null = snapshot lama
+   * (sebelum kolom ini ada) → penyaji jatuh ke derivasi mode berjalan.
+   */
+  periodStartKey?: string | null;
+  periodEndKey?: string | null;
   tahunAnggaran: number;
   weather: WeatherCode | null;
   /** Kondisi per jam 07–21 (bila diambil otomatis) — dibekukan bersama laporan. */
@@ -761,7 +771,7 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
           village: true,
           regency: true,
           province: true,
-          package: { select: { contract: { select: { startDate: true } } } },
+          package: { select: { contract: { select: { startDate: true, weekMode: true } } } },
         },
       },
       // Urut RAB (sortOrder), BUKAN urutan input — supaya baris laporan
@@ -790,9 +800,13 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
 
   const dateKey = jakartaDateKey(report.reportDate);
   const startDate = report.location.package.contract?.startDate ?? null;
-  const weekNo = startDate
-    ? Math.max(1, Math.floor((report.reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
-    : null;
+  // Nomor minggu mengikuti MODE PERIODE MINGGU kontrak (DECISIONS 427) — rumus
+  // 7-hari yang dulu ditulis langsung di sini terlewat saat mode diperkenalkan,
+  // sehingga blanko yang difinalkan pada mode senin_minggu membekukan nomor
+  // yang salah. Rentang tanggalnya ikut dibekukan (DECISIONS 427c).
+  const weekMode = report.location.package.contract?.weekMode ?? "tujuh_hari";
+  const weekNo = startDate ? Math.max(1, weekOfDate(startDate, report.reportDate, weekMode)) : null;
+  const periodeMinggu = startDate && weekNo ? weekDateRange(startDate, weekNo, weekMode) : null;
 
   // Blanko harian KKP adalah DOKUMEN RESMI ⇒ hanya baris basis aktif
   // (DECISIONS 215). Pekerjaan yang dilaporkan atas usulan adendum belum punya
@@ -838,6 +852,8 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
       province: report.location.province,
     },
     weekNo,
+    periodStartKey: periodeMinggu ? periodeMinggu.start.toISOString().slice(0, 10) : null,
+    periodEndKey: periodeMinggu ? periodeMinggu.end.toISOString().slice(0, 10) : null,
     tahunAnggaran: (startDate ?? report.reportDate).getUTCFullYear(),
     weather: report.weather,
     weatherHourly: parseHourlyWeather(report.weatherHourly),
