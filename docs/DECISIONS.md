@@ -22090,3 +22090,61 @@ MARLIN, bukan sistem terpisah. Audit + arsitektur: `docs/integrated-control/`.
 **Verifikasi**: migrasi `20260823183241_pengendalian_terpadu_temuan` (tabel
 baru saja, + trigger append-only + CHECK), matriks izin regen (59 capability),
 uji `wakil-ppk`/`authz`/`lifecycle` hijau.
+
+## 427 — Wakil Sah, mode periode minggu, cap galeri "apa adanya", logo pengawas, 2026-08-24
+
+Empat permintaan user 2026-08-24, semua dikonfirmasi lewat pertanyaan pilihan:
+
+1. **Wakil Sah** — *"pendandatangan di laporan mingguan dan bulanan bukan PPK,
+   tapi istilahnya Wakil Sah. Wakil Sah bisa per lokasi beda."* Pilihan user:
+   HANYA mingguan + bulanan; kurva-S/jadwal, MC, CCO, harian tetap PPK.
+   - `Contract.wakilSahName/Nip/TtdKey` + timpaan `Location.wakilSah*` —
+     `pilihWakilSah()` blok utuh, nama penentu (pola DECISIONS 402/409).
+   - SATU penentu pihak KKP per jenis dokumen: `pihakKkp(jenis)` +
+     `labelPihakKkp(jenis)` di `lib/laporan/penandatangan.ts`; dipakai layar
+     (`kkp-period-report`, `scurve-kkp-sheet`), PDF (`periodik-kkp`), Excel
+     (`xlsx-gaya.blokTandaTangan`), dan pemuat gambar TTD (`pilihKunciTtd`).
+   - Stempel slot KKP TETAP `ppkStempelKey` — stempel milik instansi
+     (DECISIONS 408); yang berganti hanya coretan orangnya.
+   - Form: kontrak (nama+NIP+TTD) dan penimpaan per lokasi di form penanda
+     tangan lokasi. Penjaga: `tests/unit/wakil-sah.test.ts`.
+
+2. **Mode periode minggu per kontrak** (`Contract.weekMode`):
+   - `tujuh_hari` (bawaan) = perilaku lama; `senin_minggu` = minggu kalender
+     Senin–Minggu, M1 bisa pendek (contoh user: SPMK Kamis ⇒ M1 Kamis–Minggu,
+     4 hari). Pilihan user: per paket/kontrak.
+   - Helper murni di `progress-calc.ts` (`weekOfDate`/`weekDateRange`/
+     `totalWeeksBetween`); dialirkan ke `currentWeekNumber`, `periodic-report`
+     (periode, bucketing, weekIndex), `baseline.getScurveSeries`,
+     `mingguan/kirim` (penjadwal WA + rentang), `paparan/snapshot`,
+     `gdrive/antrean`, `daily-report.queries` (weekNo + periode blanko),
+     `mingguan-kkp.tanggalMinggu` (berkas minggu pendek = halaman lebih sedikit),
+     dan `rab/import.totalWeeksFor` (jumlah kolom baseline/jadwal).
+   - **Kolom M1–MN kini menampilkan rentang tanggalnya** (permintaan user) —
+     `buildKurvaSheet.weekRanges`, tampil di layar, PDF periodik, dan kedua
+     ekspor Excel; parser impor jadwal menerima "M1\n<rentang>" (token pertama).
+   - Mengubah mode lewat koreksi kontrak = perlakuan sama dengan perubahan
+     waktu: kurva-S seluruh lokasi dihitung ulang. Penjaga:
+     `tests/unit/periode-minggu.test.ts`.
+   - Batas sadar: pembagi rencana INTERNAL generator kurva-S otomatis tetap
+     menganggap tiap minggu setara (jadwal impor verbatim tidak terpengaruh —
+     kolom user dipakai apa adanya, DECISIONS 203).
+
+3. **Foto galeri "gunakan apa adanya"** — opsi ketiga dialog galeri. Pilihan
+   user: cap TETAP dibubuhkan (lokasi/pekerjaan/logo) tapi TANPA baris
+   koordinat & tanggal-jam, meski EXIF ada. `Photo.stampPlain` disimpan supaya
+   perbaikan cap tidak menambahkannya kembali; mengisi koordinat/waktu secara
+   manual saat perbaikan cap mematikan penanda itu (tag memang diminta tampil).
+   Setelan wajib-GPS (DECISIONS 219) tetap menang: opsi ini ditolak saat
+   wajib-GPS menyala. Selaras DECISIONS 197 — cap tidak menyatakan yang tidak
+   dijamin; di sini user memilih tidak menyatakan apa-apa.
+
+4. **Logo firma pengawas** (`Contract.supervisorLogoKey`) — unggah di form
+   TTD kontrak; tampil UTAMA di blanko laporan harian (kop sel KONSULTAN
+   PENGAWAS di layar & PDF, + sampul berkas mingguan yang slotnya memang sudah
+   ada). Milik FIRMA, jadi di kontrak — alasan yang sama dengan stempel
+   (DECISIONS 408).
+
+**Verifikasi**: migrasi `20260824110000_*` idempoten; typecheck + lint bersih;
+2159 unit + 872 integrasi hijau (fixture PeriodHeader diperluas; parser jadwal
+round-trip tetap hijau dengan sel "M1\n<rentang>").

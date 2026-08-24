@@ -108,6 +108,8 @@ export type KkpDailyData = {
   ownerAddress?: string;
   /** URL logo pemilik (presigned, opsional). */
   ownerLogoUrl?: string | null;
+  /** URL presign logo firma konsultan pengawas — kop layar (2026-08-24). */
+  supervisorLogoUrl?: string | null;
   /** Penanda tangan (dari kontrak, current — null = baris kosong). */
   supervisorName?: string | null;
   supervisorSub?: string | null;
@@ -132,6 +134,8 @@ export type KkpDailyData = {
   /** Kop perusahaan di sampul & tiap kartu dokumentasi. */
   contractorAddress?: string | null;
   vendorLogoKey?: string | null;
+  /** Logo firma konsultan pengawas (kontrak) — kop blanko (2026-08-24). */
+  supervisorLogoKey?: string | null;
   /**
    * Foto bukti hari itu untuk halaman DOKUMENTASI PEKERJAAN.
    *
@@ -223,7 +227,13 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
               <Cell>{value}</Cell>
               {i === 0 ? (
                 <>
-                  <Cell center rowSpan={3}>{d.supervisorFirm ?? <>&nbsp;</>}</Cell>
+                  <Cell center rowSpan={3}>
+                    {d.supervisorLogoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- URL presign singkat
+                      <img src={d.supervisorLogoUrl} alt="" className="mx-auto mb-0.5 max-h-8 w-auto" />
+                    ) : null}
+                    {d.supervisorFirm ?? <>&nbsp;</>}
+                  </Cell>
                   <Cell center rowSpan={3}>{d.contractorFirm ?? <>&nbsp;</>}</Cell>
                 </>
               ) : null}

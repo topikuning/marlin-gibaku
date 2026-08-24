@@ -145,6 +145,15 @@ enum PhotoMetadataSource {
 /// karena keduanya bisa berbeda sumber. `project` = titik lokasi proyek dari
 /// database — cadangan saat foto tidak membawa GPS; itu BUKAN posisi foto dan
 /// tidak boleh dihitung sebagai bukti GPS (DECISIONS 197).
+/// Cara menghitung periode MINGGU laporan (per kontrak; user 2026-08-24).
+/// - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
+/// - `senin_minggu`: minggu kalender Senin–Minggu; minggu pertama bisa pendek
+///   (SPMK hari Kamis ⇒ M1 = Kamis–Minggu, 4 hari).
+enum WeekMode {
+  tujuh_hari
+  senin_minggu
+}
+
 enum PhotoGpsSource {
   exif
   device
@@ -812,6 +821,12 @@ model Contract {
   // pergantian personel). PPK = pihak KKP; Pengawas = konsultan; Penyedia = pelaksana.
   ppkName               String?   @map("ppk_name")
   ppkNip                String?   @map("ppk_nip")
+  /// WAKIL SAH — penanda tangan pihak KKP untuk laporan MINGGUAN & BULANAN
+  /// (user 2026-08-24: "pendandatangan di laporan mingguan dan bulanan bukan
+  /// PPK, tapi istilahnya Wakil Sah"). PPK tetap dipakai dokumen lain
+  /// (kurva-S/jadwal, MC, CCO). Bisa ditimpa per lokasi (Location.wakilSah*).
+  wakilSahName          String?   @map("wakil_sah_name")
+  wakilSahNip           String?   @map("wakil_sah_nip")
   supervisorName        String?   @map("supervisor_name")
   supervisorFirm        String?   @map("supervisor_firm")
   contractorSignerName  String?   @map("contractor_signer_name")
@@ -825,8 +840,14 @@ model Contract {
   /// master vendor, supaya tidak perlu diunggah ulang tiap kontrak.
   ppkTtdKey             String?   @map("ppk_ttd_key")
   ppkStempelKey         String?   @map("ppk_stempel_key")
+  wakilSahTtdKey        String?   @map("wakil_sah_ttd_key")
   supervisorTtdKey      String?   @map("supervisor_ttd_key")
   supervisorStempelKey  String?   @map("supervisor_stempel_key")
+  /// Logo firma KONSULTAN PENGAWAS — tampil di kop blanko laporan harian
+  /// (dan blanko lain yang memuat pengawas). Milik firma, jadi di kontrak.
+  supervisorLogoKey     String?   @map("supervisor_logo_key")
+  /// Cara menghitung periode minggu laporan lokasi-lokasi paket ini.
+  weekMode              WeekMode  @default(tujuh_hari) @map("week_mode")
   contractorTtdKey      String?   @map("contractor_ttd_key")
   contractorStempelKey  String?   @map("contractor_stempel_key")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -897,6 +918,13 @@ model Location {
   supervisorName      String? @map("supervisor_name")
   supervisorFirm      String? @map("supervisor_firm")
   supervisorTtdKey    String? @map("supervisor_ttd_key")
+
+  /// Penimpaan WAKIL SAH untuk lokasi ini (user 2026-08-24: "Wakil Sah bisa
+  /// per lokasi beda"). Kosong = pakai milik kontrak. Aturan blok sama dengan
+  /// Pelaksana/Pengawas: nama penentu, blok tidak dicampur antar orang.
+  wakilSahName        String? @map("wakil_sah_name")
+  wakilSahNip         String? @map("wakil_sah_nip")
+  wakilSahTtdKey      String? @map("wakil_sah_ttd_key")
 
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
@@ -1386,6 +1414,11 @@ model Photo {
   exifGpsLat         Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
   exifGpsLng         Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
   gpsSource          PhotoGpsSource      @default(none) @map("gps_source")
+  /// Foto galeri "gunakan apa adanya" (user 2026-08-24): cap TETAP dibubuhkan
+  /// (lokasi/pekerjaan/logo) tapi TANPA baris koordinat & tanggal-jam — meski
+  /// EXIF ada. Disimpan supaya perbaikan cap (restamp) tidak menambahkannya
+  /// kembali. Selaras DECISIONS 197: cap tidak menyatakan yang tidak dijamin.
+  stampPlain         Boolean             @default(false) @map("stamp_plain")
   /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
   /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
   /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).

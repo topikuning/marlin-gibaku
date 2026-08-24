@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
+import { weekOfDate } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
-import { contractDaysFor } from "@/lib/rab/import";
+import { contractDaysFor, totalWeeksFor } from "@/lib/rab/import";
 import {
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
@@ -173,8 +174,7 @@ async function activeCategoriesWithWeights(locationId: string) {
 export async function deriveCategorySchedule(locationId: string): Promise<CategoryScheduleData | null> {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) return null;
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
 
   const weightFor = (catAmount: bigint) => (Number(catAmount) / base.grand) * 100;
 
@@ -260,8 +260,7 @@ export async function saveCategorySchedule(
 ) {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r]));
   const rows = base.categories.map((c) => {
@@ -401,8 +400,7 @@ export async function hitungJadwalBaru(
 ) {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));
 
@@ -658,7 +656,7 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
     }),
     db.location.findUnique({
       where: { id: locationId },
-      select: { package: { select: { contract: { select: { startDate: true } } } } },
+      select: { package: { select: { contract: { select: { startDate: true, weekMode: true } } } } },
     }),
   ]);
 
@@ -670,7 +668,8 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
   const totalWeeks = planPct.length;
   // startDate kontrak = minggu-1; fallback tanggal baseline dibuat (lokasi tanpa kontrak).
   const startDate = loc?.package.contract?.startDate ?? baseline.createdAt;
-  const currentWeek = currentWeekNumber(startDate, totalWeeks);
+  const weekMode = loc?.package.contract?.weekMode ?? "tujuh_hari";
+  const currentWeek = currentWeekNumber(startDate, totalWeeks, new Date(), weekMode);
 
   let grandTotal = 0n;
   /** Volume mingguan per lineage — hanya item yang benar-benar dilaporkan. */
@@ -711,7 +710,7 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
       select: { lineageKey: true, volumeDone: true, report: { select: { reportDate: true } } },
     });
     for (const r of rows) {
-      const wk = Math.floor((r.report.reportDate.getTime() - startDate.getTime()) / WEEK_MS) + 1;
+      const wk = weekOfDate(startDate, r.report.reportDate, weekMode);
       const idx = Math.max(1, Math.min(wk, totalWeeks)) - 1;
       let arr = weeklyVolume.get(r.lineageKey);
       if (!arr) {

@@ -1,3 +1,4 @@
+import { totalWeeksBetween } from "@/lib/progress-calc";
 import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
@@ -209,6 +210,35 @@ export async function contractDaysFor(locationId: string): Promise<number> {
   return days > 0 ? days : DEFAULT_CONTRACT_DAYS;
 }
 
+/**
+ * Jumlah KOLOM MINGGU jadwal/baseline lokasi ini — mengikuti mode periode
+ * minggu kontrak (user 2026-08-24):
+ * - `tujuh_hari` / SPMK belum terbit → ceil(durasi/7) (perilaku lama).
+ * - `senin_minggu` + SPMK ada → jumlah minggu kalender Senin–Minggu yang
+ *   menutup [SPMK, akhir kontrak]; M1 bisa pendek, jadi jumlahnya bisa
+ *   1 kolom lebih banyak daripada ceil(durasi/7).
+ * Disatukan di sini supaya baseline, jadwal kategori, dan laporan periodik
+ * menghitung kolom dengan aturan yang SAMA.
+ */
+export async function totalWeeksFor(locationId: string): Promise<{ contractDays: number; totalWeeks: number }> {
+  const loc = await db.location.findUnique({
+    where: { id: locationId },
+    select: {
+      package: {
+        select: {
+          contract: { select: { durationDays: true, startDate: true, endDate: true, weekMode: true } },
+        },
+      },
+    },
+  });
+  const c = loc?.package.contract;
+  const contractDays = (c?.durationDays ?? 0) > 0 ? c!.durationDays : DEFAULT_CONTRACT_DAYS;
+  if (c?.weekMode === "senin_minggu" && c.startDate && c.endDate) {
+    return { contractDays, totalWeeks: totalWeeksBetween(c.startDate, c.endDate, "senin_minggu") };
+  }
+  return { contractDays, totalWeeks: Math.max(1, Math.ceil(contractDays / 7)) };
+}
+
 export type RegenerateBaselineOpts = {
   source: BaselineSource;
   /** Default: revisi aktif lokasi. */
@@ -239,8 +269,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     orderBy: { sortOrder: "asc" },
   });
 
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { contractDays, totalWeeks } = await totalWeeksFor(locationId);
 
   // JADWAL BERBASIS ITEM (DECISIONS 082) = sumber tunggal. Tiap item RAB
   // ditempatkan menurut TAHAP-nya, bersarang di jendela PRESEDENSI kategori

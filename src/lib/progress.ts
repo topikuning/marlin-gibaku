@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { pct } from "@/lib/money";
+import { weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
+import { jakartaDateKey } from "@/lib/format";
 
 /**
  * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
@@ -51,7 +53,19 @@ export type LocationProgress = {
  * yang seharusnya sudah tercapai, realisasi 0, dan muncul deviasi negatif untuk
  * hari yang pekerjaannya belum boleh dimulai (DECISIONS 202).
  */
-export function currentWeekNumber(startDate: Date, totalWeeks: number, now = new Date()): number {
+export function currentWeekNumber(
+  startDate: Date,
+  totalWeeks: number,
+  now = new Date(),
+  mode: WeekPeriodMode = "tujuh_hari",
+): number {
+  if (mode === "senin_minggu") {
+    // Hari-dalam-minggu harus dihitung pada TANGGAL KERJA Asia/Jakarta —
+    // jam dinding UTC bisa masih "kemarin" padahal di Jakarta sudah Senin.
+    const today = new Date(`${jakartaDateKey(now)}T00:00:00.000Z`);
+    const wk = weekOfDate(startDate, today, "senin_minggu");
+    return wk === 0 ? 0 : Math.min(wk, Math.max(totalWeeks, 1));
+  }
   const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;
   if (wk < 1) return 0;
   return Math.min(wk, Math.max(totalWeeks, 1));
@@ -155,7 +169,7 @@ export async function getLocationsProgress(
     }),
     db.contract.findMany({
       where: { package: { locations: { some: { id: { in: locationIds } } } } },
-      select: { startDate: true, package: { select: { locations: { select: { id: true } } } } },
+      select: { startDate: true, weekMode: true, package: { select: { locations: { select: { id: true } } } } },
     }),
   ]);
 
@@ -165,9 +179,9 @@ export async function getLocationsProgress(
   for (const r of revisions) if (!revByLoc.has(r.locationId)) revByLoc.set(r.locationId, r.id);
   const baseByLoc = new Map<string, (typeof baselines)[number]>();
   for (const b of baselines) if (!baseByLoc.has(b.locationId)) baseByLoc.set(b.locationId, b);
-  const startByLoc = new Map<string, Date | null>();
+  const startByLoc = new Map<string, { start: Date | null; weekMode: WeekPeriodMode }>();
   for (const c of contracts) {
-    for (const l of c.package.locations) startByLoc.set(l.id, c.startDate);
+    for (const l of c.package.locations) startByLoc.set(l.id, { start: c.startDate, weekMode: c.weekMode });
   }
 
   const revIds = revisions.map((r) => r.id);
@@ -230,8 +244,11 @@ export async function getLocationsProgress(
     const realizedValue = realizedByLoc.get(locId) ?? 0n;
     const points = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
     const totalWeeks = points.length || Math.ceil((baseline?.contractDays ?? 0) / 7);
-    const start = startByLoc.get(locId);
-    const weekNumber = start ? currentWeekNumber(start, totalWeeks, asOf ?? new Date()) : 1;
+    const kontrak = startByLoc.get(locId);
+    const start = kontrak?.start;
+    const weekNumber = start
+      ? currentWeekNumber(start, totalWeeks, asOf ?? new Date(), kontrak?.weekMode ?? "tujuh_hari")
+      : 1;
     const planPct = planPctAtWeek(points, weekNumber);
     const realizedPct = pct(realizedValue, grandTotal);
     result.set(locId, {

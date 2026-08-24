@@ -1,5 +1,5 @@
 import "server-only";
-import { penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
+import { labelPihakKkp, penyediaLaporan, pihakKkp, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
 import { getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
@@ -123,6 +123,8 @@ export async function buildPeriodikKkpPdf(
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: h.contractStart,
+    weekMode: h.weekMode,
+    contractEnd: h.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -147,7 +149,14 @@ export async function buildPeriodikKkpPdf(
     { text: "", head: true },
     { text: "", head: true },
     { text: "", head: true },
-    ...Array.from({ length: N }, (_, i): GridCell => ({ text: `M${i + 1}`, head: true, align: "center" })),
+    // Rentang tanggal tiap minggu ikut tercetak (user 2026-08-24) — batasnya
+    // mengikuti mode periode minggu kontrak (M1 bisa pendek pada mode
+    // Senin–Minggu).
+    ...Array.from({ length: N }, (_, i): GridCell => ({
+      text: `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`,
+      head: true,
+      align: "center",
+    })),
     { text: "", head: true },
   ];
   const kurvaHead = () => {
@@ -533,7 +542,13 @@ function signatureBlock(
         o.y,
         [
           {
-            text: `MENGETAHUI :\nPEJABAT PEMBUAT KOMITMEN${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
+            // Mingguan/bulanan diteken WAKIL SAH, bukan PPK (2026-08-24);
+            // dokumen lain yang memakai blok ini tetap PPK — satu penentu:
+            // `pihakKkp(jenis)` di lib/laporan/penandatangan.ts.
+            text:
+              pihakKkp(o.jenis) === "wakil_sah"
+                ? `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.wakilSahName, o.h.wakilSahNip ? `NIP. ${o.h.wakilSahNip}` : null)}`
+                : `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
             align: "center",
           },
           {

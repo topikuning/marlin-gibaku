@@ -64,7 +64,7 @@ async function uploadPhotos(opts: {
   companyLogoKey?: string | null;
   dateKey: string;
   source: "camera" | "gallery";
-  fallbackMode: "project" | "none";
+  fallbackMode: "project" | "none" | "apa_adanya";
   lat: number | null;
   lng: number | null;
   takenAt: Date | null;
@@ -124,9 +124,13 @@ function filesFrom(formData: FormData): File[] {
 }
 
 /** Sumber foto ("camera"/"gallery") + mode cadangan tag dari formData. */
-function photoSourceFrom(formData: FormData): { source: "camera" | "gallery"; fallbackMode: "project" | "none" } {
+function photoSourceFrom(formData: FormData): {
+  source: "camera" | "gallery";
+  fallbackMode: "project" | "none" | "apa_adanya";
+} {
   const source = formData.get("photoSource") === "gallery" ? "gallery" : "camera";
-  const fallbackMode = formData.get("galleryFallback") === "none" ? "none" : "project";
+  const raw = formData.get("galleryFallback");
+  const fallbackMode = raw === "none" ? "none" : raw === "apa_adanya" ? "apa_adanya" : "project";
   return { source, fallbackMode };
 }
 

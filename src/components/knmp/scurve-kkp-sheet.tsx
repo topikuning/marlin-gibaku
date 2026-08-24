@@ -1,5 +1,5 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
-import { penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
+import { labelPihakKkp, pihakKkp, penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -56,6 +56,8 @@ export function ScurveKkpSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: r.header.contractStart,
+    weekMode: r.header.weekMode,
+    contractEnd: r.header.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -158,7 +160,10 @@ export function ScurveKkpSheet({
             <tr>
               {sheet.weeks.map((w) => (
                 <th key={w} className="border border-black font-normal" style={{ height: HEAD_H }}>
+                  {/* Rentang tanggal minggu ikut tampil (2026-08-24) — batasnya
+                      mengikuti mode periode minggu kontrak. */}
                   M{w}
+                  <span className="block text-[6px] leading-tight text-slate-600">{sheet.weekRanges[w - 1]}</span>
                 </th>
               ))}
             </tr>
@@ -255,11 +260,20 @@ export function ScurveKkpSheet({
 
       {/* Tanda tangan */}
       <div className="mt-6 flex justify-between px-8 text-center text-[8.5px]">
+        {/* Mingguan/bulanan: slot KKP = WAKIL SAH; jadwal tetap PPK (2026-08-24). */}
         <SignBlock
           title="MENGETAHUI :"
-          role="PEJABAT PEMBUAT KOMITMEN"
-          name={hdr.ppkName}
-          sub={hdr.ppkNip ? `NIP. ${hdr.ppkNip}` : null}
+          role={labelPihakKkp(jenis)}
+          name={pihakKkp(jenis) === "wakil_sah" ? hdr.wakilSahName : hdr.ppkName}
+          sub={
+            pihakKkp(jenis) === "wakil_sah"
+              ? hdr.wakilSahNip
+                ? `NIP. ${hdr.wakilSahNip}`
+                : null
+              : hdr.ppkNip
+                ? `NIP. ${hdr.ppkNip}`
+                : null
+          }
           {...gambarPihak(ttd, "ppk")}
         />
         <SignBlock

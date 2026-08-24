@@ -31,6 +31,8 @@ export type NilaiCap = {
   categoryName: string | null;
   workName: string | null;
   photoId: string | null;
+  /** Foto galeri "gunakan apa adanya": cap tanpa tag koordinat & waktu (2026-08-24). */
+  stampPlain: boolean;
 };
 
 const SIZE_SCALE: Record<StampSize, number> = { compact: 0.85, standard: 1, large: 1.15 };
@@ -79,9 +81,10 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     showCoordinate: cfg?.showCoordinates ?? true,
     showReporter: cfg?.showReporter ?? true,
     showPhotoId: cfg?.showPhotoId ?? true,
-    timeNote: timeNoteFor(v),
-    coordNote: coordNoteFor(v.lat == null ? "none" : v.gpsSource),
+    timeNote: v.stampPlain ? null : timeNoteFor(v),
+    coordNote: v.stampPlain ? null : coordNoteFor(v.lat == null ? "none" : v.gpsSource),
     dateOnly: !v.jamDiketahui,
+    tanpaTag: v.stampPlain,
   };
 }
 
@@ -94,6 +97,7 @@ export function ringkasNilai(v: NilaiCap): Record<string, unknown> {
     lat: v.lat,
     lng: v.lng,
     sumberKoordinat: v.gpsSource,
+    capPolos: v.stampPlain,
     lokasi: v.locationLabel,
     perusahaan: v.companyName,
     pelapor: v.reporterName,
@@ -146,6 +150,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       gpsSource: true,
       metadataSource: true,
       stampPhotoId: true,
+      stampPlain: true,
       stampRevision: true,
       rotationDeg: true,
       locationId: true,
@@ -242,6 +247,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       categoryName: bangunanCap ?? p.activity?.title ?? null,
     workName: p.reportItem?.rabNode.name ?? null,
       photoId: p.stampPhotoId,
+      stampPlain: p.stampPlain,
     },
   };
 }

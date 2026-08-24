@@ -160,6 +160,10 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       // Photo ID SENGAJA tidak ikut berubah — identitas foto sudah beredar di
       // berkas yang diserahkan. Foto lama yang belum punya dibuatkan sekali.
       photoId: lama.photoId ?? photoIdCadangan(k, takenAt),
+      // Cap "apa adanya" bertahan saat perbaikan teks; tapi begitu manusia
+      // mengisi koordinat/waktu secara sadar, tag-nya memang diminta tampil.
+      stampPlain:
+        lama.stampPlain && !manualFields.includes("koordinat") && !manualFields.includes("waktu"),
     };
 
     if (manualFields.length === 0) {
@@ -206,6 +210,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
             gpsSource,
             metadataSource: timeSource,
             stampPhotoId: baru.photoId,
+            stampPlain: baru.stampPlain,
             stampRevision: revisi,
           },
         });

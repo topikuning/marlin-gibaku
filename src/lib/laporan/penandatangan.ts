@@ -76,6 +76,32 @@ export function pihakPenyedia(jenis: JenisDokumen): PihakPenyedia {
 }
 
 /**
+ * Pihak KKP yang meneken slot "MENGETAHUI" per jenis dokumen (2026-08-24):
+ * laporan MINGGUAN & BULANAN diteken WAKIL SAH; dokumen lain tetap PPK.
+ * `Record` lengkap dengan alasan yang sama seperti `PENEKEN` di atas.
+ */
+export type PihakKkp = "ppk" | "wakil_sah";
+
+const PENEKEN_KKP: Record<JenisDokumen, PihakKkp> = {
+  harian: "ppk",
+  mingguan: "wakil_sah",
+  bulanan: "wakil_sah",
+  mc: "ppk",
+  cco: "ppk",
+  jadwal: "ppk",
+  rencana: "ppk",
+};
+
+export function pihakKkp(jenis: JenisDokumen): PihakKkp {
+  return PENEKEN_KKP[jenis];
+}
+
+/** Label jabatan slot KKP pada blok tanda tangan, per jenis dokumen. */
+export function labelPihakKkp(jenis: JenisDokumen): string {
+  return pihakKkp(jenis) === "wakil_sah" ? "WAKIL SAH" : "PEJABAT PEMBUAT KOMITMEN";
+}
+
+/**
  * Satu blok penanda tangan: nama, jabatan, dan CORETAN TANDA TANGANNYA.
  *
  * TANPA stempel, dan itu keputusan (DECISIONS 408). Keberatan user 2026-08-22:
@@ -211,6 +237,64 @@ export function pilihPengawas(
     ttdKey: kontrak.supervisorTtdKey ?? null,
     stempelKey: kontrak.supervisorStempelKey ?? null,
   };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * WAKIL SAH PER LOKASI (user 2026-08-24)
+ *
+ * *"pendandatangan di laporan mingguan dan bulanan bukan PPK, tapi istilahnya
+ * Wakil Sah. Wakil Sah bisa per lokasi beda."*
+ *
+ * Wakil Sah = pihak KKP yang meneken laporan MINGGUAN & BULANAN. PPK tetap
+ * dipakai dokumen lain (lembar kurva-S/jadwal, MC, CCO) — ketetapan user
+ * 2026-08-24, opsi "mingguan + bulanan saja". Aturan bloknya sama dengan
+ * Pelaksana/Pengawas: kontrak menyediakan yang berlaku umum, lokasi boleh
+ * menimpa, dan penimpaan diambil SATU BLOK dengan NAMA sebagai penentu —
+ * coretan tanda tangan Wakil Sah kontrak di bawah nama Wakil Sah lokasi
+ * adalah pernyataan yang tidak benar pada dokumen resmi.
+ *
+ * Stempel TIDAK ikut blok ini: stempel milik INSTANSI (DECISIONS 408), tetap
+ * `Contract.ppkStempelKey` — instansinya satu walau wakilnya berbeda-beda.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type BlokWakilSah = {
+  nama: string | null;
+  /** NIP – baris di bawah nama pada blok tanda tangan (boleh kosong). */
+  nip: string | null;
+  ttdKey: string | null;
+};
+
+export type SumberWakilSah = {
+  wakilSahName: string | null;
+  wakilSahNip: string | null;
+  wakilSahTtdKey: string | null;
+};
+
+/**
+ * Wakil Sah untuk satu lokasi: penimpaan lokasi kalau ada, kalau tidak kontrak.
+ * Penentunya NAMA — sama seperti {@link pilihPelaksana}.
+ */
+export function pilihWakilSah(
+  lokasi: SumberWakilSah | null | undefined,
+  kontrak: SumberWakilSah | null | undefined,
+): BlokWakilSah {
+  const sumber = lokasi && !kosong(lokasi.wakilSahName) ? lokasi : kontrak;
+  if (!sumber || kosong(sumber.wakilSahName)) return { nama: null, nip: null, ttdKey: null };
+  return {
+    nama: sumber.wakilSahName!.trim(),
+    nip: kosong(sumber.wakilSahNip) ? null : sumber.wakilSahNip!.trim(),
+    ttdKey: sumber.wakilSahTtdKey ?? null,
+  };
+}
+
+/** Lokasi ini memakai Wakil Sah-nya sendiri, atau ikut kontrak? */
+export function asalWakilSah(
+  lokasi: SumberWakilSah | null | undefined,
+  kontrak: SumberWakilSah | null | undefined,
+): "lokasi" | "kontrak" | "belum diisi" {
+  if (lokasi && !kosong(lokasi.wakilSahName)) return "lokasi";
+  if (kontrak && !kosong(kontrak.wakilSahName)) return "kontrak";
+  return "belum diisi";
 }
 
 /** Lokasi ini memakai pengawasnya sendiri, atau ikut kontrak? */

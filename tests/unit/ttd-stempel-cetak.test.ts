@@ -47,6 +47,8 @@ const KOSONG: SumberKunciTtd = {
   // Dokumen yang diteken Direktur – dasar semua kasus di berkas ini kecuali
   // yang menyebut sebaliknya (DECISIONS 402).
   penyedia: "direktur",
+  kkp: "ppk",
+  wakilSahTtdKey: null,
   pelaksanaTtdKey: null,
   ppkTtdKey: null,
   ppkStempelKey: null,

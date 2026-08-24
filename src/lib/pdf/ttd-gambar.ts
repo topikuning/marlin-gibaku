@@ -1,8 +1,10 @@
 import "server-only";
 import {
+  pihakKkp,
   pihakPenyedia,
   pilihPelaksana,
   pilihPengawas,
+  pilihWakilSah,
   type JenisDokumen,
   type SumberPelaksana,
 } from "@/lib/laporan/penandatangan";
@@ -66,6 +68,9 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
         supervisorName: true,
         supervisorFirm: true,
         supervisorTtdKey: true,
+        wakilSahName: true,
+        wakilSahNip: true,
+        wakilSahTtdKey: true,
         package: {
           select: {
             pelaksanaName: true,
@@ -75,6 +80,9 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
               select: {
                 ppkTtdKey: true,
                 ppkStempelKey: true,
+                wakilSahName: true,
+                wakilSahNip: true,
+                wakilSahTtdKey: true,
                 supervisorName: true,
                 supervisorFirm: true,
                 supervisorTtdKey: true,
@@ -96,9 +104,13 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
       lokasi.package as SumberPelaksana,
     );
     const pengawas = pilihPengawas(lokasi, k);
+    // Wakil Sah lokasi menimpa kontrak – slot KKP mingguan/bulanan (2026-08-24).
+    const wakilSah = pilihWakilSah(lokasi, k);
     const kunci = pilihKunciTtd({
       ...k,
       penyedia: pihakPenyedia(jenis),
+      kkp: pihakKkp(jenis),
+      wakilSahTtdKey: wakilSah.ttdKey,
       pelaksanaTtdKey: pelaksana.ttdKey,
       supervisorTtdKey: pengawas.ttdKey,
       supervisorStempelKey: pengawas.stempelKey,
