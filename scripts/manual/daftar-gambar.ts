@@ -32,12 +32,38 @@ export type Gambar = {
    * bukunya tidak cocok dengan yang ia lihat.
    */
   lebar: "ponsel" | "layar";
-  /** Potong hanya bagian ini (CSS selector) — mis. satu kartu, bukan seisi halaman. */
-  potong?: string;
+  /**
+   * Potong hanya bagian ini — mis. satu kartu, bukan seisi halaman.
+   *
+   * String = satu elemen (CSS selector, boleh Playwright `:has-text`).
+   * Array = GABUNGAN kotak pembungkus beberapa elemen sekaligus (dipotret
+   * sebagai satu persegi yang mencakup semuanya) — dipakai saat yang perlu
+   * ditunjukkan ada di DUA elemen bertetangga yang bukan satu leluhur bersama
+   * yang rapi (mis. banner peringatan + form di bawahnya).
+   *
+   * Wajib dipakai untuk halaman ponsel yang isinya panjang (form + daftar item
+   * + pelengkap KKP bisa 3-4 layar HP): screenshot SETINGGI ITU cetak jadi
+   * gambar raksasa yang melintasi banyak halaman PDF dan meninggalkan halaman
+   * sebelumnya kosong separuh (`figure { page-break-inside: avoid }` mendorong
+   * seluruh gambar ke halaman berikutnya kalau tak muat di sisa halaman
+   * berjalan) — lihat DECISIONS 434.
+   */
+  potong?: string | string[];
   /** Tunggu teks ini muncul sebelum menjepret; penjaga anti-halaman-setengah-jadi. */
   tunggu?: string;
   /** Gulir ke elemen ini dulu (untuk bagian yang jauh di bawah). */
   gulirKe?: string;
+  /**
+   * Alih-alih memotret `path` langsung: buka `path`, lalu IKUTI tautan pertama
+   * yang teksnya cocok regex ini, dan potret halaman tujuannya.
+   *
+   * Dipakai saat URL sasaran tak bisa ditebak dari luar (mis. tanggal laporan
+   * "perlu koreksi" — beda tiap kali `pnpm manual:seed` dijalankan). Tautannya
+   * tetap diambil DARI APLIKASI (href sungguhan), bukan dihitung sendiri di
+   * skrip ini — kalau seedingnya berubah dan tautannya hilang, penjepretnya
+   * gagal keras, bukan diam-diam memotret halaman yang salah.
+   */
+  viaLinkText?: string;
   /**
    * Dipotret TANPA sesi.
    *
@@ -67,15 +93,44 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
   {
     id: "hari-ini",
     keterangan:
-      "Halaman Hari Ini — daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
+      "Halaman Hari Ini – daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
     peran: "sm-01",
     path: "/hari-ini",
     lebar: "ponsel",
+    // Satu kartu lokasi saja (peran ini bisa ditugaskan ke lebih dari satu
+    // lokasi — kartu kedua cuma mengulang bentuk yang sama, DECISIONS 434).
+    potong: 'section:has-text("Purworejo")',
+  },
+  {
+    id: "harian-isi",
+    keterangan:
+      "Mengisi laporan hari ini – pilih pekerjaan, isi volume yang selesai, lampirkan foto.",
+    peran: "sm-01",
+    path: "/lokasi/{lokasi}/harian/{hari}",
+    lebar: "ponsel",
+    tunggu: "Tambah / ubah progres pekerjaan",
+    // Hanya form-nya — halaman penuh (form + daftar item + pelengkap KKP) bisa
+    // 3-4 layar HP tinggi, jadi gambarnya raksasa dan halaman sebelumnya
+    // kosong separuh saat dicetak (DECISIONS 434).
+    potong: 'form:has-text("Tambah / ubah progres pekerjaan")',
+  },
+  {
+    id: "harian-koreksi",
+    keterangan:
+      "Laporan yang dikembalikan SM untuk diperbaiki – alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
+    peran: "sm-01",
+    path: "/hari-ini",
+    viaLinkText: "Perbaiki laporan",
+    lebar: "ponsel",
+    tunggu: "Laporan dikembalikan",
+    // Banner peringatan + form di bawahnya — bukan satu leluhur yang rapi,
+    // jadi digabung lewat DUA selector (lihat catatan `potong` di atas).
+    potong: ['[role="status"]:has-text("Laporan dikembalikan")', 'form:has-text("Tambah / ubah progres pekerjaan")'],
   },
   {
     id: "foto-cepat",
     keterangan:
-      "Foto Cepat — jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
+      "Foto Cepat – jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
     peran: "sm-01",
     path: "/foto-cepat",
     lebar: "ponsel",
@@ -86,14 +141,22 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
     peran: "sm-01",
     path: "/lokasi/{lokasi}",
     lebar: "ponsel",
+    tunggu: "Kurva-S",
+    // Sampai kurva-S saja — Rencana minggu/Kendala/Status lokasi di bawahnya
+    // sudah ada gambar sendiri-sendiri, tak perlu diulang di sini (DECISIONS 434).
+    potong: ["@awal", 'section:has-text("Kurva-S")'],
   },
   {
     id: "rencana-mingguan",
     keterangan:
-      "Rencana Mingguan — target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
+      "Rencana Mingguan – target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
     peran: "sm-01",
     path: "/lokasi/{lokasi}/rab?bagian=rencana",
     lebar: "ponsel",
+    tunggu: "Saran otomatis",
+    // Sampai kartu "Saran otomatis" — form tambah rencana + daftar item di
+    // bawahnya bukan inti cerita layar ini (DECISIONS 434).
+    potong: ["@awal", 'button:has-text("Sarankan otomatis")'],
   },
 ];
 
@@ -106,7 +169,7 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
 export const GAMBAR_MANAJEMEN: Gambar[] = [
   {
     id: "beranda",
-    keterangan: "Beranda — ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
+    keterangan: "Beranda – ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
     peran: "hery",
     path: "/",
     lebar: "layar",
@@ -122,7 +185,7 @@ export const GAMBAR_MANAJEMEN: Gambar[] = [
   {
     id: "progress-kendala",
     keterangan:
-      "Tertinggal & Kendala — sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
+      "Tertinggal & Kendala – sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
     peran: "pm-01",
     path: "/lokasi/{lokasi}/progress?bagian=kendala",
     lebar: "layar",

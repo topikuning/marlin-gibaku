@@ -44,44 +44,52 @@ export function ChangePasswordForm() {
   return (
     <form action={action} className="rounded-lg border border-border bg-surface p-6 shadow-sm">
       {state?.error ? (
-        <Banner tone="error" title="Gagal mengganti password" description={state.error} className="mb-4" />
+        <Banner tone="error" title="Gagal mengganti password" description={state.error} className="mb-5" />
       ) : null}
 
-      <Label htmlFor="currentPassword" required>
-        Password sekarang
-      </Label>
-      <PasswordInput
-        id="currentPassword"
-        name="currentPassword"
-        autoComplete="current-password"
-        required
-        invalid={!!errors.currentPassword}
-        onInvalid={onInvalid("currentPassword")}
-        onInput={clear("currentPassword")}
-        className="mb-1"
-      />
-      <FieldError className="mb-3">{errors.currentPassword}</FieldError>
+      {/*
+       * Jarak antar-kelompok ada di PEMBUNGKUS, bukan di <FieldError> yang
+       * hilang saat tidak ada error — lihat catatan sama di login-form.tsx
+       * (DECISIONS 431). Checklist kekuatan tetap satu kelompok dengan kolom
+       * "Password baru" karena ia menerangkan kolom itu.
+       */}
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="currentPassword" required>
+            Password sekarang
+          </Label>
+          <PasswordInput
+            id="currentPassword"
+            name="currentPassword"
+            autoComplete="current-password"
+            required
+            invalid={!!errors.currentPassword}
+            onInvalid={onInvalid("currentPassword")}
+            onInput={clear("currentPassword")}
+          />
+          <FieldError>{errors.currentPassword}</FieldError>
+        </div>
 
-      <Label htmlFor="newPassword" required>
-        Password baru
-      </Label>
-      <PasswordInput
-        id="newPassword"
-        name="newPassword"
-        autoComplete="new-password"
-        required
-        minLength={8}
-        invalid={!!errors.newPassword}
-        value={pw}
-        onChange={(e) => setPw(e.currentTarget.value)}
-        onInvalid={onInvalid("newPassword")}
-        onInput={clear("newPassword")}
-        className="mb-1"
-      />
-      <FieldError className="mb-2">{errors.newPassword}</FieldError>
+        <div>
+          <Label htmlFor="newPassword" required>
+            Password baru
+          </Label>
+          <PasswordInput
+            id="newPassword"
+            name="newPassword"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            invalid={!!errors.newPassword}
+            value={pw}
+            onChange={(e) => setPw(e.currentTarget.value)}
+            onInvalid={onInvalid("newPassword")}
+            onInput={clear("newPassword")}
+          />
+          <FieldError>{errors.newPassword}</FieldError>
 
-      {/* Checklist kekuatan (live) — panduan, hanya "min 8" yang wajib. */}
-      <ul className="mb-4 space-y-1" aria-label="Rekomendasi kekuatan password">
+          {/* Checklist kekuatan (live) — panduan, hanya "min 8" yang wajib. */}
+          <ul className="mt-2 space-y-1" aria-label="Rekomendasi kekuatan password">
         {RULES.map((r) => {
           const ok = r.test(pw);
           return (
@@ -97,38 +105,41 @@ export function ChangePasswordForm() {
               </span>
             </li>
           );
-        })}
-      </ul>
+            })}
+          </ul>
+        </div>
 
-      <Label htmlFor="confirmPassword" required>
-        Ulangi password baru
-      </Label>
-      <PasswordInput
-        id="confirmPassword"
-        name="confirmPassword"
-        autoComplete="new-password"
-        required
-        minLength={8}
-        invalid={!!errors.confirmPassword || matchState === "mismatch"}
-        value={confirm}
-        onChange={(e) => setConfirm(e.currentTarget.value)}
-        onInvalid={onInvalid("confirmPassword")}
-        onInput={clear("confirmPassword")}
-        className="mb-1"
-      />
-      {matchState === "mismatch" ? (
-        <p className="mb-4 flex items-center gap-1.5 text-[13px] text-danger">
-          <X aria-hidden className="size-3.5" /> Password belum sama.
-        </p>
-      ) : matchState === "match" ? (
-        <p className="mb-4 flex items-center gap-1.5 text-[13px] text-success">
-          <Check aria-hidden className="size-3.5" /> Password cocok.
-        </p>
-      ) : (
-        <FieldError className="mb-4">{errors.confirmPassword}</FieldError>
-      )}
+        <div>
+          <Label htmlFor="confirmPassword" required>
+            Ulangi password baru
+          </Label>
+          <PasswordInput
+            id="confirmPassword"
+            name="confirmPassword"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            invalid={!!errors.confirmPassword || matchState === "mismatch"}
+            value={confirm}
+            onChange={(e) => setConfirm(e.currentTarget.value)}
+            onInvalid={onInvalid("confirmPassword")}
+            onInput={clear("confirmPassword")}
+          />
+          {matchState === "mismatch" ? (
+            <p className="mt-1 flex items-center gap-1.5 text-[13px] text-danger">
+              <X aria-hidden className="size-3.5" /> Password belum sama.
+            </p>
+          ) : matchState === "match" ? (
+            <p className="mt-1 flex items-center gap-1.5 text-[13px] text-success">
+              <Check aria-hidden className="size-3.5" /> Password cocok.
+            </p>
+          ) : (
+            <FieldError>{errors.confirmPassword}</FieldError>
+          )}
+        </div>
+      </div>
 
-      <Button type="submit" loading={pending} className="w-full">
+      <Button type="submit" loading={pending} className="mt-6 w-full">
         {pending ? "Menyimpan…" : "Simpan password baru"}
       </Button>
     </form>

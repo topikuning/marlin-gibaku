@@ -7,13 +7,25 @@
   },
   {
     "id": "hari-ini",
-    "keterangan": "Halaman Hari Ini — daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
+    "keterangan": "Halaman Hari Ini – daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "harian-isi",
+    "keterangan": "Mengisi laporan hari ini – pilih pekerjaan, isi volume yang selesai, lampirkan foto.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "harian-koreksi",
+    "keterangan": "Laporan yang dikembalikan SM untuk diperbaiki – alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
     "peran": "sm-01",
     "lebar": "ponsel"
   },
   {
     "id": "foto-cepat",
-    "keterangan": "Foto Cepat — jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
+    "keterangan": "Foto Cepat – jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
     "peran": "sm-01",
     "lebar": "ponsel"
   },
@@ -25,13 +37,13 @@
   },
   {
     "id": "rencana-mingguan",
-    "keterangan": "Rencana Mingguan — target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
+    "keterangan": "Rencana Mingguan – target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
     "peran": "sm-01",
     "lebar": "ponsel"
   },
   {
     "id": "beranda",
-    "keterangan": "Beranda — ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
+    "keterangan": "Beranda – ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
     "peran": "hery",
     "lebar": "layar"
   },
@@ -43,7 +55,7 @@
   },
   {
     "id": "progress-kendala",
-    "keterangan": "Tertinggal & Kendala — sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
+    "keterangan": "Tertinggal & Kendala – sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
     "peran": "pm-01",
     "lebar": "layar"
   },

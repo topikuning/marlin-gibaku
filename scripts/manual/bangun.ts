@@ -60,13 +60,18 @@ const GAYA = `
     background: #eff6ff; color: #1e3a8a;
   }
   /* Gambar TIDAK boleh terpotong dua halaman: setengah tangkapan layar tidak
-     mengajarkan apa pun. */
+     mengajarkan apa pun. Ponsel dipotret utuh (satu layar HP bisa panjang
+     sekali kalau discroll) — max-height DI SINI memaksa gambar mengecil
+     lebih dulu daripada dipaksa muat, jadi tinggi cetaknya tidak pernah
+     melebihi satu halaman (DECISIONS 434; tinggi tiap gambar ideal-nya sudah
+     dipotong pas di daftar-gambar.ts, ini jaring pengaman kalau lupa). */
   figure { margin: 4mm 0; page-break-inside: avoid; }
   figure img {
-    display: block; width: 100%; height: auto;
+    display: block; height: auto; max-height: 200mm;
     border: 0.3mm solid #e2e8f0; border-radius: 1.5mm;
   }
-  figure.ponsel img { width: 62mm; margin: 0 auto; }
+  figure.layar img { width: 100%; }
+  figure.ponsel img { width: 80mm; margin: 0 auto; }
   figcaption {
     margin-top: 1.5mm; font-size: 8.5pt; color: #64748b; text-align: center;
   }
