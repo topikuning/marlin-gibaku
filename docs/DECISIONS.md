@@ -22226,3 +22226,43 @@ jadwal impor Excel verbatim ikut terganti dan user harus impor ulang. Dibuang:
 Penjaga: blok "rebucketWeeklyToGrid" di `tests/unit/periode-minggu.test.ts`
 (identitas grid sama; Σ dipertahankan 17→18 kolom; minggu Kamis–Rabu terbelah
 4/7 + 3/7; monoton).
+
+## 428 — Rombak workspace Chat Grup + kurasi relevansi manual, 2026-08-25
+
+Permintaan user (dengan referensi visual): *"rombak ui/ux halaman chat
+group"*. Halaman `/chat-grup` ditata ulang mengikuti referensi — tiga panel:
+
+- **Kiri** (`sidebar-grup.tsx`): cari grup/paket, tab Semua Grup | Favorit
+  (favorit per-browser via `localStorage`, kunci `marlin.chatgrup.fav`,
+  sinkron antar komponen lewat `useSyncExternalStore`), daftar grup dengan
+  jumlah pesan + tanggal pesan terakhir + "Lihat semua grup (N)", kartu
+  Tanggal ber-badge jumlah & status ringkasan + kalender loncat cepat.
+- **Tengah** (`panel-pesan.tsx`): header grup (bintang favorit, Paket ·
+  Vendor · N pesan, "Tanggal aktif"), tab Pesan relevan | Kiriman MARLIN |
+  Arsip lengkap, bilah kurasi massal (Pilih semua / Tandai relevan / Abaikan /
+  Kembali otomatis), baris pesan ber-checkbox + avatar inisial + badge
+  relevansi (label UI `perlu_interpretasi` → "Perlu review") + chip lampiran +
+  menu per-pesan, paginasi 20/halaman "Menampilkan a–b dari N".
+- **Kanan** (`panel-ringkasan.tsx`): restyle panel Ringkasan AI — tanggal +
+  chip status, kotak preview/editor draft, tombol besar "Hasilkan draft AI",
+  Aksi lainnya (Simpan draft · Salin · Finalkan), blok "Teruskan ke pimpinan",
+  tabel Status draft (versi/status, dibuat oleh, diperbarui, sumber pesan).
+  **Siklus hidup TIDAK berubah**: draft_ai → edited_draft → final → sent
+  (DECISIONS 139) — finalisasi tetap wajib sebelum kirim.
+
+Fitur baru di baliknya — **kurasi relevansi manual**:
+
+- Kolom `WaMessage.relevanceOverride` (enum `WaRelevanceOverride`
+  relevan|diabaikan, nullable; migrasi `20260824170000` idempoten). null =
+  ikut klasifikasi otomatis (DECISIONS 139); timpaan reviewer MENANG.
+- SATU aturan `ChatMessageView.dipakai` dipakai layar, KPI, dan
+  `generateChatSummary` — janji kaki halaman ("hanya pesan yang ditandai
+  relevan yang digunakan untuk membuat Ringkasan AI") selalu benar: yang
+  Diabaikan tidak pernah masuk prompt, yang Ditandai relevan selalu masuk.
+- Server action `setMessageRelevanceAction` (relevansi-actions.ts): massal per
+  ids, gate `wa.chat`, kepemilikan diverifikasi lewat `packageScopeWhere`,
+  `audit("wa.chat_relevansi")`.
+- KPI atas jadi GLOBAL lintas grup pada tanggal aktif (`globalDayStats`,
+  aturan `dipakai` yang sama): pesan relevan "dari N grup" + kiriman MARLIN.
+
+`message-card.tsx` & `evidence-tabs.tsx` dihapus (digantikan panel-pesan).
