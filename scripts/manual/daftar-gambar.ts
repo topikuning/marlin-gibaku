@@ -46,7 +46,7 @@ export type Gambar = {
    * gambar raksasa yang melintasi banyak halaman PDF dan meninggalkan halaman
    * sebelumnya kosong separuh (`figure { page-break-inside: avoid }` mendorong
    * seluruh gambar ke halaman berikutnya kalau tak muat di sisa halaman
-   * berjalan) — lihat DECISIONS 368.
+   * berjalan) — lihat DECISIONS 434.
    */
   potong?: string | string[];
   /** Tunggu teks ini muncul sebelum menjepret; penjaga anti-halaman-setengah-jadi. */
@@ -93,31 +93,31 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
   {
     id: "hari-ini",
     keterangan:
-      "Halaman Hari Ini — daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
+      "Halaman Hari Ini – daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
     peran: "sm-01",
     path: "/hari-ini",
     lebar: "ponsel",
     // Satu kartu lokasi saja (peran ini bisa ditugaskan ke lebih dari satu
-    // lokasi — kartu kedua cuma mengulang bentuk yang sama, DECISIONS 368).
+    // lokasi — kartu kedua cuma mengulang bentuk yang sama, DECISIONS 434).
     potong: 'section:has-text("Purworejo")',
   },
   {
     id: "harian-isi",
     keterangan:
-      "Mengisi laporan hari ini — pilih pekerjaan, isi volume yang selesai, lampirkan foto.",
+      "Mengisi laporan hari ini – pilih pekerjaan, isi volume yang selesai, lampirkan foto.",
     peran: "sm-01",
     path: "/lokasi/{lokasi}/harian/{hari}",
     lebar: "ponsel",
     tunggu: "Tambah / ubah progres pekerjaan",
     // Hanya form-nya — halaman penuh (form + daftar item + pelengkap KKP) bisa
     // 3-4 layar HP tinggi, jadi gambarnya raksasa dan halaman sebelumnya
-    // kosong separuh saat dicetak (DECISIONS 368).
+    // kosong separuh saat dicetak (DECISIONS 434).
     potong: 'form:has-text("Tambah / ubah progres pekerjaan")',
   },
   {
     id: "harian-koreksi",
     keterangan:
-      "Laporan yang dikembalikan SM untuk diperbaiki — alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
+      "Laporan yang dikembalikan SM untuk diperbaiki – alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
     peran: "sm-01",
     path: "/hari-ini",
     viaLinkText: "Perbaiki laporan",
@@ -130,7 +130,7 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
   {
     id: "foto-cepat",
     keterangan:
-      "Foto Cepat — jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
+      "Foto Cepat – jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
     peran: "sm-01",
     path: "/foto-cepat",
     lebar: "ponsel",
@@ -143,19 +143,19 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
     lebar: "ponsel",
     tunggu: "Kurva-S",
     // Sampai kurva-S saja — Rencana minggu/Kendala/Status lokasi di bawahnya
-    // sudah ada gambar sendiri-sendiri, tak perlu diulang di sini (DECISIONS 368).
+    // sudah ada gambar sendiri-sendiri, tak perlu diulang di sini (DECISIONS 434).
     potong: ["@awal", 'section:has-text("Kurva-S")'],
   },
   {
     id: "rencana-mingguan",
     keterangan:
-      "Rencana Mingguan — target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
+      "Rencana Mingguan – target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
     peran: "sm-01",
     path: "/lokasi/{lokasi}/rab?bagian=rencana",
     lebar: "ponsel",
     tunggu: "Saran otomatis",
     // Sampai kartu "Saran otomatis" — form tambah rencana + daftar item di
-    // bawahnya bukan inti cerita layar ini (DECISIONS 368).
+    // bawahnya bukan inti cerita layar ini (DECISIONS 434).
     potong: ["@awal", 'button:has-text("Sarankan otomatis")'],
   },
 ];
@@ -169,7 +169,7 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
 export const GAMBAR_MANAJEMEN: Gambar[] = [
   {
     id: "beranda",
-    keterangan: "Beranda — ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
+    keterangan: "Beranda – ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
     peran: "hery",
     path: "/",
     lebar: "layar",
@@ -185,7 +185,7 @@ export const GAMBAR_MANAJEMEN: Gambar[] = [
   {
     id: "progress-kendala",
     keterangan:
-      "Tertinggal & Kendala — sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
+      "Tertinggal & Kendala – sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
     peran: "pm-01",
     path: "/lokasi/{lokasi}/progress?bagian=kendala",
     lebar: "layar",

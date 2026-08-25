@@ -63,7 +63,7 @@ const GAYA = `
      mengajarkan apa pun. Ponsel dipotret utuh (satu layar HP bisa panjang
      sekali kalau discroll) — max-height DI SINI memaksa gambar mengecil
      lebih dulu daripada dipaksa muat, jadi tinggi cetaknya tidak pernah
-     melebihi satu halaman (DECISIONS 368; tinggi tiap gambar ideal-nya sudah
+     melebihi satu halaman (DECISIONS 434; tinggi tiap gambar ideal-nya sudah
      dipotong pas di daftar-gambar.ts, ini jaring pengaman kalau lupa). */
   figure { margin: 4mm 0; page-break-inside: avoid; }
   figure img {

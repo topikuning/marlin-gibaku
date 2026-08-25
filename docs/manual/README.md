@@ -71,7 +71,7 @@ Keterangan yang disalin ke dua tempat cepat atau lambat berbeda.
 
 ```bash
 pnpm db:seed          # dasar (org/user/paket/lokasi/RAB/baseline)
-pnpm manual:seed      # dandani Purworejo jadi lokasi "wajar" (DECISIONS 366)
+pnpm manual:seed      # dandani Purworejo jadi lokasi "wajar" (DECISIONS 432)
 ```
 
 `manual:seed` men-generate ulang baseline Purworejo dengan tanggal kontrak
@@ -95,7 +95,7 @@ tsx scripts/manual/mock-r2.ts 9444 /tmp/mock-r2/data <cert.pem> <key.pem>
 
 ## Yang belum selesai
 
-- [x] Bab lapangan (DECISIONS 367): masuk, Hari Ini, isi laporan harian langkah
+- [x] Bab lapangan (DECISIONS 433): masuk, Hari Ini, isi laporan harian langkah
       demi langkah, alur koreksi (`perlu_koreksi` → perbaiki → kirim ulang),
       Foto Cepat, ringkasan lokasi, rencana mingguan. Chat WhatsApp belum —
       belum ada gambar/bagian untuk itu.
@@ -107,7 +107,7 @@ tsx scripts/manual/mock-r2.ts 9444 /tmp/mock-r2/data <cert.pem> <key.pem>
 - [ ] Daftar isi otomatis + nomor halaman per bab.
 - [ ] Pertimbangkan ukuran repo: 11 gambar ≈ 1,4 MB. Buku penuh (60+ layar) bisa
       10–20 MB, dan tumbuh tiap kali UI berubah.
-- [ ] Bug ditemukan (bukan diperbaiki, DECISIONS 368): kartu Kurva-S di
+- [ ] Bug ditemukan (bukan diperbaiki, DECISIONS 434): kartu Kurva-S di
       `/lokasi/{slug}` meluber horizontal 390px→470px pada viewport ponsel
       (kategori sama dengan DECISIONS 230). Penjepret buku sudah dijaga
       (potongan dibatasi lebar viewport), tapi bug aslinya di app masih ada.

@@ -44,7 +44,7 @@ async function masuk(page: Page, peran: PeranPotret): Promise<void> {
  * ada (mis. `pnpm manual:seed` belum dijalankan), jatuh ke lokasi pertama apa
  * adanya, sama seperti sebelumnya.
  */
-const LOKASI_WAJAR = "purworejo"; // DECISIONS 366 — progres wajar, bukan darurat kritis
+const LOKASI_WAJAR = "purworejo"; // DECISIONS 432 — progres wajar, bukan darurat kritis
 async function contohLokasi(page: Page): Promise<string> {
   await page.goto(`${BASE}/lokasi`, { waitUntil: "domcontentloaded" });
   // MarlinGrid (AG Grid) merender baris SESUDAH hidrasi klien — `domcontentloaded`
@@ -124,7 +124,7 @@ async function jepret(page: Page, g: Gambar, lokasi: string): Promise<void> {
     const x = Math.min(...kotak.map((b) => b.x));
     const y = Math.min(...kotak.map((b) => b.y));
     // Lebar dibatasi lebar viewport — beberapa halaman ponsel meluber tipis ke
-    // kanan (bug tersendiri, lihat DECISIONS 368), dan potongan buku TIDAK
+    // kanan (bug tersendiri, lihat DECISIONS 434), dan potongan buku TIDAK
     // BOLEH ikut menampilkan margin abu-abu dari luberan itu.
     const kanan = Math.min(viewport?.width ?? Infinity, Math.max(...kotak.map((b) => b.x + b.width)));
     const bawah = Math.max(...kotak.map((b) => b.y + b.height));

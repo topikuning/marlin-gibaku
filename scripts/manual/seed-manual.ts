@@ -1,5 +1,5 @@
 /**
- * Runner: pnpm manual:seed — DECISIONS 366. Logika di src/lib/seed/manual.ts.
+ * Runner: pnpm manual:seed — DECISIONS 432. Logika di src/lib/seed/manual.ts.
  * Prasyarat: `pnpm db:seed` sudah pernah jalan di database yang sama (butuh
  * org/user/lokasi purworejo + RAB + baseline dasar).
  */

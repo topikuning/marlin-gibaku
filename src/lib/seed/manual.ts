@@ -1,5 +1,5 @@
 /**
- * SEED KHUSUS buku manual (DECISIONS 366) — bukan seed dev/e2e biasa.
+ * SEED KHUSUS buku manual (DECISIONS 432) — bukan seed dev/e2e biasa.
  *
  * Seed dev (`runDemoSeed`) sengaja menampilkan Kedung Mutih dalam keadaan
  * DARURAT (4 hari laporan saja, kontrak sudah lewat tanggal selesai) supaya
@@ -42,6 +42,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { scheduleFromItems, cumulativeFromCategoryWeekly, autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
 import { weeklyFromSegments } from "@/lib/scurve/generate";
+import { weekEndFractions, weekOfDate, weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
 import { valueDone as calcValueDone } from "@/lib/money";
 import { buildStampSvg, overlayAlphaFor, type StampRenderData } from "@/lib/photo-stamp/renderer";
 import { formatStampDateTime, formatCoordinate, generatePhotoId, locationCodeFromName, DEFAULT_STAMP_TZ } from "@/lib/photo-stamp/format";
@@ -96,11 +97,16 @@ const dateKeyOf = jakartaDateKeyOf;
  * Duplikat SENGAJA dari `src/lib/progress.ts` (`currentWeekNumber`/`planPctAtWeek`)
  * — modul itu punya `import "server-only"`, yang MELEMPAR di proses Node biasa
  * (skrip seed ini, dijalankan `tsx` di luar Next), bukan cuma di bundle klien.
- * Dua fungsi murni ini kecil & stabil; menyalinnya lebih aman daripada
- * melonggarkan batas server-only demi satu skrip seed.
+ * `weekOfDate` sendiri diimpor langsung dari `progress-calc.ts` (murni, tanpa
+ * `server-only`) — hanya pembungkus "hari ini di Asia/Jakarta" ini yang disalin.
  */
 const WEEK_MS = 7 * 24 * 3600 * 1000;
-function currentWeekNumber(startDate: Date, totalWeeks: number, now = new Date()): number {
+function currentWeekNumber(startDate: Date, totalWeeks: number, mode: WeekPeriodMode, now = new Date()): number {
+  if (mode === "senin_minggu") {
+    const today = new Date(`${jakartaDateKeyOf(now)}T00:00:00.000Z`);
+    const wk = weekOfDate(startDate, today, "senin_minggu");
+    return wk === 0 ? 0 : Math.min(wk, Math.max(totalWeeks, 1));
+  }
   const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;
   if (wk < 1) return 0;
   return Math.min(wk, Math.max(totalWeeks, 1));
@@ -134,9 +140,13 @@ type RabNodeRow = {
   unitPrice: unknown; // Decimal | null
 };
 
-/** Kurva-S baseline — logika PERSIS `src/lib/seed/demo.ts` (jadwal berbasis item, DECISIONS 082). */
-function buildBaselinePoints(catNodes: RabNodeRow[], itemNodes: RabNodeRow[], contractDays: number) {
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+/**
+ * Kurva-S baseline — logika PERSIS `src/lib/seed/demo.ts` (jadwal berbasis item,
+ * DECISIONS 082), grid minggu mengikuti `Contract.weekMode` lewat `endFracs`
+ * (DECISIONS 427b/429) — bukan lagi diasumsikan 7 hari seragam.
+ */
+function buildBaselinePoints(catNodes: RabNodeRow[], itemNodes: RabNodeRow[], contractDays: number, endFracs: number[]) {
+  const totalWeeks = endFracs.length;
   const catKeysS = catNodes
     .map((n) => ({ key: n.lineageKey, name: n.name }))
     .sort((a, b) => b.key.length - a.key.length);
@@ -158,7 +168,7 @@ function buildBaselinePoints(catNodes: RabNodeRow[], itemNodes: RabNodeRow[], co
     const [s, e] = catWinS.get(key ?? "") ?? [1, totalWeeks];
     return [(s - 1) / totalWeeks, e / totalWeeks];
   };
-  const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS);
+  const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS, endFracs);
   const weekly = cumulativeFromCategoryWeekly(schedFromItems.categories, totalWeeks);
   const weeklyByKeyS = new Map(schedFromItems.categories.map((c) => [c.categoryKey, c.weekly]));
   const schedule = catNodes
@@ -170,7 +180,8 @@ function buildBaselinePoints(catNodes: RabNodeRow[], itemNodes: RabNodeRow[], co
         lineageKey: c.lineageKey,
         name: c.name,
         weightPct,
-        weekly: weeklyByKeyS.get(c.lineageKey) ?? weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
+        weekly:
+          weeklyByKeyS.get(c.lineageKey) ?? weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks, endFracs),
       };
     });
   return { weekly, schedule, catForS };
@@ -193,7 +204,7 @@ async function gambarSintetis(seed: number): Promise<Buffer> {
     <rect x="460" y="380" width="680" height="26" fill="hsl(${hue2},14%,42%)"/>
     <rect x="520" y="470" width="90" height="140" fill="hsl(${hue2},10%,30%)"/>
     <rect x="960" y="470" width="90" height="140" fill="hsl(${hue2},10%,30%)"/>
-    <text x="800" y="1130" font-family="sans-serif" font-size="32" fill="rgba(255,255,255,0.8)" text-anchor="middle">Ilustrasi contoh — bukan foto lapangan asli</text>
+    <text x="800" y="1130" font-family="sans-serif" font-size="32" fill="rgba(255,255,255,0.8)" text-anchor="middle">Ilustrasi contoh – bukan foto lapangan asli</text>
   </svg>`;
   return sharp(Buffer.from(svg)).jpeg({ quality: 82 }).toBuffer();
 }
@@ -239,7 +250,7 @@ async function buatFoto(
 
   const stampData: StampRenderData = {
     companyName: opts.companyName || null,
-    locationName: opts.locationLabel || "—",
+    locationName: opts.locationLabel || "–",
     categoryName: opts.categoryName || null,
     workName: opts.workName || null,
     dateTimeText: formatStampDateTime(opts.takenAt, DEFAULT_STAMP_TZ),
@@ -303,7 +314,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     db.user.findUnique({ where: { username: "mandor-01" } }),
   ]);
   if (!admin || !sm || !mandor) {
-    throw new Error("User dasar belum ada — jalankan `pnpm db:seed` dulu, baru `pnpm manual:seed`.");
+    throw new Error("User dasar belum ada – jalankan `pnpm db:seed` dulu, baru `pnpm manual:seed`.");
   }
 
   const loc = await db.location.findUnique({
@@ -311,7 +322,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     include: { package: { include: { contract: true } } },
   });
   if (!loc || !loc.package.contract) {
-    throw new Error("Lokasi purworejo (+ kontrak) belum ada — jalankan `pnpm db:seed` dulu, baru `pnpm manual:seed`.");
+    throw new Error("Lokasi purworejo (+ kontrak) belum ada – jalankan `pnpm db:seed` dulu, baru `pnpm manual:seed`.");
   }
   const contract = loc.package.contract;
   const vendor = await db.vendor.findUnique({ where: { id: contract.vendorId } });
@@ -325,7 +336,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
   });
 
   // Sekali jadi, selamanya jadi: `daily_report_status_history` APPEND-ONLY
-  // (trigger DB menolak UPDATE/DELETE — lihat DECISIONS 366) jadi laporan yang
+  // (trigger DB menolak UPDATE/DELETE — lihat DECISIONS 432) jadi laporan yang
   // sudah dibuat tidak bisa ditimpa ulang. Skrip ini idempotent lewat SKIP, bukan
   // lewat hapus-lalu-buat-ulang: kalau Purworejo sudah pernah di-seed, lewati
   // seluruh bagian di bawah (kontrak/baseline/laporan/rencana/kendala/foto) apa
@@ -333,21 +344,28 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
   // database dev/e2e dulu (`pnpm db:reset` lalu `pnpm db:seed`).
   const sudahAda = await db.dailyReport.count({ where: { locationId: loc.id } });
   if (sudahAda > 0) {
-    console.log(`  purworejo sudah punya ${sudahAda} laporan dari seed sebelumnya — dilewati (append-only).`);
+    console.log(`  purworejo sudah punya ${sudahAda} laporan dari seed sebelumnya – dilewati (append-only).`);
     return;
   }
 
   // ── Kontrak digeser relatif ke SEKARANG — lihat catatan di atas kenapa.
   const WEEKS_PAST = 12;
   const WEEKS_FUTURE = 8;
-  const totalWeeks = WEEKS_PAST + WEEKS_FUTURE;
-  const contractDays = totalWeeks * 7;
   const startDate = daysFromNow(-WEEKS_PAST * 7);
   const endDate = daysFromNow(WEEKS_FUTURE * 7);
+  const contractDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / DAY));
   await db.contract.update({
     where: { id: contract.id },
     data: { startDate, endDate, durationDays: contractDays, signedDate: daysFromNow(-WEEKS_PAST * 7 - 7) },
   });
+  // Grid minggu ikut `Contract.weekMode` (default `senin_minggu`, DECISIONS 429)
+  // — sama seperti demo.ts, supaya baseline manual tidak menyimpang dari grid
+  // yang benar-benar dipakai layar. `contract.weekMode` sudah pasti ada (kontrak
+  // diverifikasi non-null di atas).
+  const weekMode: WeekPeriodMode = contract.weekMode as WeekPeriodMode;
+  const endFracs = weekEndFractions(startDate, endDate, weekMode);
+  const totalWeeks = endFracs.length;
+  const weekRange = (w: number) => weekDateRange(startDate, w, weekMode, endDate);
 
   const revision = await db.rabRevision.findFirstOrThrow({ where: { locationId: loc.id, status: "aktif" } });
   const allNodes = await db.rabNode.findMany({
@@ -360,7 +378,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
 
   // ── Baseline (kurva-S) digenerate ULANG untuk jendela kontrak baru ────────
   const baseline = await db.baseline.findFirstOrThrow({ where: { locationId: loc.id, status: "aktif" } });
-  const { weekly: planCurve, schedule, catForS } = buildBaselinePoints(catNodes, itemNodes, contractDays);
+  const { weekly: planCurve, schedule, catForS } = buildBaselinePoints(catNodes, itemNodes, contractDays, endFracs);
   await db.baseline.update({ where: { id: baseline.id }, data: { contractDays } });
   await db.baselinePoint.deleteMany({ where: { baselineId: baseline.id } });
   await db.baselinePoint.createMany({
@@ -380,9 +398,9 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
   }
 
   const now = new Date();
-  const currentWeek = currentWeekNumber(startDate, totalWeeks, now);
+  const currentWeek = currentWeekNumber(startDate, totalWeeks, weekMode, now);
   const planPctNow = planPctAtWeek(planCurve, currentWeek);
-  console.log(`  minggu ke-${currentWeek}/${totalWeeks} — rencana kumulatif ${planPctNow.toFixed(1)}%`);
+  console.log(`  minggu ke-${currentWeek}/${totalWeeks} – rencana kumulatif ${planPctNow.toFixed(1)}%`);
 
   // ── Target penyelesaian PER ITEM (SEMUA item, bukan sebagian — realisasi
   // keseluruhan lokasi adalah rata-rata TERTIMBANG nilai semua item, jadi
@@ -593,7 +611,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     date: daysFromNow(-3),
     status: "perlu_koreksi",
     items: koreksiItems,
-    reason: "Foto pasangan batu talud belum menunjukkan sambungan antar segmen — mohon difoto ulang dari sisi laut, dan volume dicek kembali.",
+    reason: "Foto pasangan batu talud belum menunjukkan sambungan antar segmen – mohon difoto ulang dari sisi laut, dan volume dicek kembali.",
     varIdx: 3,
   });
   if ((r2 !== null) && koreksiItems[0]) {
@@ -661,19 +679,21 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
   }
 
   // ── Rencana mingguan: minggu lalu (evaluasi PPC) + minggu ini (target) ────
-  const weekStart = (w: number) => new Date(startDate.getTime() + (w - 1) * 7 * DAY);
-  const weekEnd = (w: number) => new Date(weekStart(w).getTime() + 6 * DAY);
+  // Rentang tanggal tiap minggu ikut grid `weekMode` (M1/minggu akhir bisa
+  // pendek pada mode kalender senin_minggu) — BUKAN offset 7-hari seragam.
   const actualInWeek = (w: number, nodeId: string) => {
-    const s = weekStart(w).getTime();
-    const e = weekEnd(w).getTime();
+    const { start: s0, end: e0 } = weekRange(w);
+    const s = s0.getTime();
+    const e = e0.getTime();
     let sum = 0;
     for (const d of deltas) if (d.date.getTime() >= s && d.date.getTime() <= e) sum += d.perNode.get(nodeId) ?? 0;
     return sum;
   };
   if (currentWeek > 1) {
     const lastWeek = currentWeek - 1;
+    const lastWeekRange = weekRange(lastWeek);
     const plan = await db.weeklyPlan.create({
-      data: { locationId: loc.id, weekNumber: lastWeek, weekStart: weekStart(lastWeek), weekEnd: weekEnd(lastWeek), createdById: sm.id },
+      data: { locationId: loc.id, weekNumber: lastWeek, weekStart: lastWeekRange.start, weekEnd: lastWeekRange.end, createdById: sm.id },
     });
     // Item yang BENAR-BENAR ada laporannya minggu lalu (bukan "tracked" acak —
     // targetnya harus nyambung dengan realisasi supaya PPC tidak 0/kosong).
@@ -687,8 +707,9 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
       });
     }
   }
+  const thisWeekRange = weekRange(currentWeek);
   const thisWeekPlan = await db.weeklyPlan.create({
-    data: { locationId: loc.id, weekNumber: currentWeek, weekStart: weekStart(currentWeek), weekEnd: weekEnd(currentWeek), createdById: sm.id },
+    data: { locationId: loc.id, weekNumber: currentWeek, weekStart: thisWeekRange.start, weekEnd: thisWeekRange.end, createdById: sm.id },
   });
   for (const [idx, node] of tracked.slice(0, 4).entries()) {
     const target = Math.max(0.2, Number(node.volume) * 0.02);
@@ -702,7 +723,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     data: {
       locationId: loc.id,
       title: "Pasokan batu belah terlambat dari pemasok",
-      description: "Pengiriman batu belah untuk talud molor 3 hari dari jadwal — stok di lokasi tinggal cukup untuk 1 hari kerja.",
+      description: "Pengiriman batu belah untuk talud molor 3 hari dari jadwal – stok di lokasi tinggal cukup untuk 1 hari kerja.",
       severity: "sedang",
       status: "terbuka",
       raisedById: sm.id,
@@ -723,7 +744,7 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     data: {
       locationId: loc.id,
       title: "Akses jalan kerja becek saat hujan",
-      description: "Jalur masuk material becek dan licin sesudah hujan — mobilisasi dump truck sempat tertunda setengah hari.",
+      description: "Jalur masuk material becek dan licin sesudah hujan – mobilisasi dump truck sempat tertunda setengah hari.",
       severity: "sedang",
       status: "selesai",
       raisedById: sm.id,
@@ -740,11 +761,11 @@ export async function runManualSeed(db: PrismaClient): Promise<void> {
     },
   });
   await db.recoveryUpdate.create({
-    data: { actionId: aksiSelesai.id, note: "Rabat selesai dicor — akses lancar kembali, tidak ada penundaan lagi.", createdById: sm.id, createdAt: daysFromNow(-30) },
+    data: { actionId: aksiSelesai.id, note: "Rabat selesai dicor – akses lancar kembali, tidak ada penundaan lagi.", createdById: sm.id, createdAt: daysFromNow(-30) },
   });
 
   if (r2 === null) {
-    console.log("  (R2 tidak dikonfigurasi — foto contoh DILEWATI. Lihat scripts/manual/mock-r2.ts.)");
+    console.log("  (R2 tidak dikonfigurasi – foto contoh DILEWATI. Lihat scripts/manual/mock-r2.ts.)");
   }
   console.log(`  purworejo: ${deltas.filter((d) => d.perNode.size > 0).length + 3} laporan, 2 rencana mingguan, 2 kendala.`);
   console.log("Seed manual selesai.");
