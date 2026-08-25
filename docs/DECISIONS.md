@@ -22446,3 +22446,56 @@ tidak dilibatkan: korespondensi resmi bukan pekerjaannya.
 Penjaga: `tests/unit/lampiran-klasifikasi.test.ts` (foto lapangan tidak
 menuntut persetujuan; surat yang difoto tetap ditanyakan; stiker diabaikan)
 dan `tests/unit/surat-lifecycle.test.ts` (transisi, utang jawab, ambang EWS).
+
+## 433 — Kalender harian tidak loncat ke atas; kiriman WA ke nomor pribadi dimatikan, 2026-08-25
+
+### 1. Klik tanggal melempar gulir ke puncak
+
+Keluhan user: *"saat kalender di pelaksanaan harian diklik, halaman tidak bisa
+fokus saja, seakan-akan langsung ke scroll ke atas lagi jika di area kalender
+bawah."* Benar, dan terukur di peramban sungguhan: `scrollY` **631 → 0**.
+
+Sebabnya `<Link>` Next.js: bawaannya `scroll: true`, yang mengembalikan gulir
+ke atas SETIAP kali beralih — termasuk saat alamatnya halaman yang SAMA dan
+hanya `?tgl=` yang berubah. Orang yang menatap baris bawah kalender kehilangan
+tempatnya, lalu harus menggulir turun lagi untuk melihat akibat ketukannya.
+
+Diperbaiki dengan `scroll={false}` pada navigasi SEHALAMAN: petak tanggal, nav
+bulan, dan chip saringan. Tautan yang benar-benar PINDAH halaman (buka
+formulir, impor) sengaja dibiarkan menggulir ke atas — itu memang halaman baru.
+Terverifikasi sesudahnya: 631 → 631, URL tetap berubah.
+
+Cacat sejenis di `/surat` dan `/lampiran` (buatan sendiri, DECISIONS 432) ikut
+dibetulkan: keduanya memakai `<a>` biasa, yang bahkan lebih buruk — memuat
+ulang seluruh halaman, bukan sekadar meloncat.
+
+### 2. Kiriman WhatsApp ke nomor pribadi dimatikan (bawaan)
+
+Ketetapan user: *"matikan dulu fitur dari web marlin untuk kirim whatsapp ke
+nomor personal langsung (non group, buat saja toggle nya di sistem). karena
+whatsapp agak agresif pemblokiran jika chat personal."*
+
+- Pagarnya duduk di **gateway** (`sendWaMessage`), bukan di tiap fitur: itulah
+  satu-satunya jalan keluar seluruh kiriman WA, jadi fitur yang ditambahkan
+  besok pun tidak bisa lolos.
+- Penolakannya **dicatat di outbox** beserta sebabnya, bukan dilempar diam-diam
+  — admin harus bisa melihat kiriman mana yang tertahan dan kenapa.
+- `tujuanGrup()` (murni) tinggal di `grup-id.ts`, BUKAN `config.ts`: predikat
+  yang hanya bisa diuji lewat DB akan berhenti diuji. Uji pertamanya gagal
+  justru karena salah tempat, dan itu yang memindahkannya.
+- Toggle di Sistem DIPISAH dari tombol "Simpan konfigurasi WhatsApp": ini
+  keputusan risiko, bukan setelan sambungan, dan menumpangkannya di sana akan
+  membuatnya ikut berubah tanpa disadari.
+
+Penjaga: `tests/unit/wa-tujuan-grup.test.ts` (grup vs orang, termasuk nama yang
+menipu) + `tests/integration/wa-pagar-personal.test.ts` (bawaan menutup,
+penolakan tercatat, kiriman GRUP tidak tersentuh, pagar bisa dibuka sadar).
+
+### 3. Teks penjadwal mingguan WA yang kontradiktif
+
+User menemukan: layar Sistem masih berbunyi *"mengikuti tanggal SPMK, jadi
+harinya berbeda antar paket"*, padahal sejak DECISIONS 429 bawaannya
+Senin–Minggu — yang justru mengirim pada hari yang SAMA (Minggu) untuk semua
+paket. Diperiksa: **logikanya sudah benar** (penjadwal meneruskan
+`weekMode` kontrak ke `akhirMingguKontrak`); yang tertinggal hanya teksnya.
+Kini teks layar dan komentar kodenya menyebut kedua mode apa adanya.
