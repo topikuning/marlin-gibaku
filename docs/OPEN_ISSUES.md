@@ -98,6 +98,15 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Teknis
 
+- 🟡 **E2E flaky: "Enter di kolom Qty/Volume MENYIMPAN"**
+  (`tests/e2e/harian-tata-letak-input.spec.ts:222`). Setelah Enter dan banner
+  "Pelengkap laporan tersimpan." muncul, `materialQty` pertama kadang kembali
+  ke nilai seed (40), bukan 7 — gagal di CI 2026-08-25 (lolos saat retry) dan
+  tereproduksi lokal. Dugaan: re-render pasca-simpan menukar urutan baris atau
+  nilai belum terpersistensi saat form dipasang ulang — perlu diselidiki
+  apakah ini murni uji rapuh (`first()` tidak stabil) atau bug nyata
+  Enter-simpan kehilangan angka. Belum dikerjakan; terpisah dari pekerjaan
+  mode minggu.
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.
