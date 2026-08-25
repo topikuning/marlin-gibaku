@@ -22337,3 +22337,39 @@ Penjaga: `tests/integration/snapshot-periode-backfill.test.ts` — rentang hasil
 backfill memuat tanggal laporan sementara weekNo/planPct/deviationPct tidak
 berubah; snapshot ber-rentang beku tidak disentuh; jalan kedua no-op; penyaji
 mencetak 5–11 Mar (uji-balik: tanpa perbaikan ia mencetak 8 Mar).
+
+## 431 — Jarak form auth: spasi tidak boleh menumpang komponen yang bisa hilang, 2026-08-25
+
+Keluhan user atas layar Masuk: *"rasanya kurang proporsional komposisi
+jaraknya."* Benar, dan sebabnya cacat kode, bukan selera.
+
+`<FieldError>` mengembalikan `null` bila tidak ada error. Kedua form auth
+menempelkan jarak antar-kelompok PADA komponen itu (`className="mb-3"`,
+`"mb-4"`), sehingga margin tersebut lenyap justru pada keadaan NORMAL —
+yang tersisa hanya `mb-1` di kolomnya. Terukur di peramban sungguhan:
+
+  jarak                  sebelum → sesudah
+  label → kolom            4px  →  4px
+  antar-kelompok kolom     4px  → 16px
+  kolom terakhir → tombol  4px  → 24px
+  padding kartu           25px  → 25px
+
+Ketiganya 4px: label, antar-kelompok, dan tombol utama diperlakukan sama
+persis, sementara bingkainya lega 25px. Itulah yang terbaca "tidak
+proporsional" — tombol Masuk menempel ke kolom password seolah bagian
+darinya.
+
+Perbaikan: jarak pindah ke PEMBUNGKUS yang selalu ada (`space-y-4` per
+kelompok kolom) dan tombol dipisah `mt-6` = padding kartu, sehingga aksi
+terbaca sebagai lapisan tersendiri. Irama menaik 4 · 16 · 24/25.
+
+Kepala halaman ikut dirapikan: tagline dan konteks proyeknya hanya berjarak
+2px (menempel) sementara blok identitas ke kartu 24px — kini 4px dan 32px.
+
+Berlaku untuk `/masuk` DAN `/ganti-password` (cacat yang sama; keduanya
+layar pertama yang ditemui pengguna lapangan). Diverifikasi dengan mengukur
+kotak elemen di peramban, bukan membaca CSS: `git stash` untuk angka
+"sebelum", lalu diukur ulang sesudahnya.
+
+Pelajaran umum: **jangan menaruh margin pada elemen yang render-nya
+bersyarat.** Jarak milik pembungkus yang selalu hadir.
