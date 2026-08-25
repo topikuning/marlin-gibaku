@@ -135,8 +135,8 @@ export function EditContractForm({
             name="weekMode"
             defaultValue={initial.weekMode}
             options={[
-              { value: "tujuh_hari", label: "7 hari sejak SPMK (bawaan)" },
-              { value: "senin_minggu", label: "Kalender Senin–Minggu (M1 bisa pendek)" },
+              { value: "senin_minggu", label: "Kalender Senin–Minggu, M1 bisa pendek (bawaan)" },
+              { value: "tujuh_hari", label: "7 hari sejak SPMK" },
             ]}
           />
           <HelpText>

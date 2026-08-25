@@ -857,7 +857,7 @@ model Contract {
   /// (dan blanko lain yang memuat pengawas). Milik firma, jadi di kontrak.
   supervisorLogoKey     String?   @map("supervisor_logo_key")
   /// Cara menghitung periode minggu laporan lokasi-lokasi paket ini.
-  weekMode              WeekMode  @default(tujuh_hari) @map("week_mode")
+  weekMode              WeekMode  @default(senin_minggu) @map("week_mode")
   contractorTtdKey      String?   @map("contractor_ttd_key")
   contractorStempelKey  String?   @map("contractor_stempel_key")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz

@@ -75,8 +75,48 @@ async function bootstrapAdmin() {
   }
 }
 
+/**
+ * Migrasi data yang butuh formula TS (tidak bisa di SQL) — idempoten, jalan
+ * tiap boot dan berhenti sendiri lewat penanda AppSetting. DECISIONS 429.
+ */
+async function migrasiDataOtomatis() {
+  // URUTAN PENTING: rentang periode snapshot lama dibekukan DULU (memakai mode
+  // 7-hari, sesuai cara nomor minggunya dulu dihitung), baru mode kontrak
+  // diubah. Terbalik pun hasilnya sama — backfill tidak membaca mode kontrak —
+  // tapi urutan ini membuat jendela "mode sudah baru, rentang belum beku"
+  // tidak pernah ada sama sekali.
+  try {
+    const { backfillPeriodeSnapshotLama } = await import("@/lib/migrasi/snapshot-periode-backfill");
+    const b = await backfillPeriodeSnapshotLama();
+    if (b.status === "selesai" && b.diisi > 0) {
+      console.log(
+        `[migrasi] rentang periode snapshot final lama dibekukan: ${b.diisi} dari ${b.diperiksa} laporan ` +
+          `(${b.dilewati} sudah punya / tanpa SPMK).`,
+      );
+    }
+  } catch (err) {
+    console.error("[migrasi] backfill periode snapshot gagal (dicoba lagi boot berikutnya):", err);
+  }
+
+  try {
+    const { terapkanDefaultSeninMinggu } = await import("@/lib/migrasi/mode-minggu-default");
+    const r = await terapkanDefaultSeninMinggu();
+    if (r.status === "selesai") {
+      console.log(
+        `[migrasi] default mode minggu Senin–Minggu diterapkan: ${r.kontrak} kontrak, ` +
+          `${r.dikonversi} baseline dikonversi, ${r.digenerate} dihitung ulang.`,
+      );
+    } else if (r.status === "ditunda") {
+      console.warn("[migrasi] default mode minggu ditunda (belum ada user) – dicoba lagi boot berikutnya.");
+    }
+  } catch (err) {
+    console.error("[migrasi] default mode minggu gagal (dicoba lagi boot berikutnya):", err);
+  }
+}
+
 // Dijalankan saat modul dimuat (sekali per start server Node).
 export const bootstrapDone: Promise<void> = (async () => {
   await bootstrapAdmin();
   await bootstrapDemoData();
+  await migrasiDataOtomatis();
 })();

@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { weeklyFromSegments } from "@/lib/scurve/generate";
+import { weekEndFractions } from "@/lib/progress-calc";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
@@ -285,8 +286,18 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         where: { locationId_baselineNo: { locationId: location.id, baselineNo: 1 } },
       });
       if (!hasBaseline) {
-        const contractDays = Math.round((dateOnly(m.end_date).getTime() - dateOnly(m.start_date).getTime()) / DAY);
-        const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+        // Grid minggu mengikuti KONTRAK paket (tanggal + mode) — sumber yang
+        // sama dengan laporan & template kurva-S, supaya baseline demo tidak
+        // menyimpang dari grid yang dipakai layar (DECISIONS 427b/429).
+        const kontrakGrid = await db.contract.findFirst({
+          where: { package: { locations: { some: { id: location.id } } } },
+          select: { startDate: true, endDate: true, weekMode: true },
+        });
+        const gStart = kontrakGrid?.startDate ?? dateOnly(m.start_date);
+        const gEnd = kontrakGrid?.endDate ?? dateOnly(m.end_date);
+        const contractDays = Math.max(1, Math.round((gEnd.getTime() - gStart.getTime()) / DAY));
+        const endFracs = weekEndFractions(gStart, gEnd, kontrakGrid?.weekMode ?? "senin_minggu");
+        const totalWeeks = endFracs.length;
         // Jadwal BERBASIS ITEM (DECISIONS 082) = sumber tunggal.
         const catNodes = nodes.filter((n) => n.kind === "kategori");
         const catKeysS = catNodes
@@ -312,7 +323,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
           const [s, e] = catWinS.get(key ?? "") ?? [1, totalWeeks];
           return [(s - 1) / totalWeeks, e / totalWeeks];
         };
-        const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS);
+        const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS, endFracs);
         const weekly = cumulativeFromCategoryWeekly(schedFromItems.categories, totalWeeks);
         const weeklyByKeyS = new Map(schedFromItems.categories.map((c) => [c.categoryKey, c.weekly]));
         const schedule = catNodes
@@ -326,7 +337,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
               weightPct,
               weekly:
                 weeklyByKeyS.get(c.lineageKey) ??
-                weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
+                weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks, endFracs),
             };
           });
         const baseline = await db.baseline.create({
