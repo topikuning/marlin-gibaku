@@ -2,7 +2,9 @@
 
 import { useActionState, useTransition, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, StatusPill, Textarea } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, StatusPill, Textarea,
+  Badge,
+} from "@/components/ui";
 
 /**
  * Tab switcher client-side untuk hub Pengaturan Sistem — ganti panel tanpa
@@ -62,6 +64,7 @@ import {
 } from "@/lib/system/actions";
 import {
   saveWahaConfigAction,
+  setWahaIzinPersonalAction,
   wahaStatusAction,
   generateWahaWebhookSecretAction,
   testWahaCaptureAction,
@@ -86,9 +89,13 @@ import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 export function WahaConfigPanel({
   initial,
 }: {
-  initial: { baseUrl: string; session: string; hasApiKey: boolean };
+  initial: { baseUrl: string; session: string; hasApiKey: boolean; izinkanPersonal: boolean };
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(saveWahaConfigAction, undefined);
+  const [izinState, izinAction, izinPending] = useActionState<WaActionState, FormData>(
+    setWahaIzinPersonalAction,
+    undefined,
+  );
   const [testing, startTest] = useTransition();
   const [result, setResult] = useState<
     { ok: true; status: string; me: string | null } | { ok: false; error: string } | null
@@ -123,6 +130,29 @@ export function WahaConfigPanel({
           <Input id="waha-session" name="session" defaultValue={initial.session} placeholder="default" />
         </div>
         <Button type="submit" loading={pending}>Simpan konfigurasi WhatsApp</Button>
+      </form>
+
+      {/* Pagar risiko, DIPISAH dari tombol simpan konfigurasi (DECISIONS 433) —
+          ini keputusan risiko, bukan setelan sambungan. */}
+      <form action={izinAction} className="space-y-2 border-t border-border pt-3">
+        {izinState?.error ? <Banner tone="error" title={izinState.error} /> : null}
+        {izinState?.success ? <Banner tone="success" title={izinState.success} /> : null}
+        <p className="text-sm font-medium text-ink">Kiriman ke nomor pribadi (non-grup)</p>
+        <p className="text-[13px] text-ink-muted">
+          WhatsApp memblokir nomor yang terlalu sering mengirim chat pribadi, dan blokir itu ikut
+          mematikan kiriman ke GRUP – yang justru inti pemakaian MARLIN. Karena itu jalur ini
+          dimatikan secara bawaan. Kiriman ke grup tidak terpengaruh sama sekali.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            tone={initial.izinkanPersonal ? "warning" : "success"}
+            label={initial.izinkanPersonal ? "Sedang DIBUKA" : "Sedang dimatikan"}
+          />
+          <input type="hidden" name="izinkan" value={initial.izinkanPersonal ? "0" : "1"} />
+          <Button type="submit" size="sm" variant="secondary" loading={izinPending}>
+            {initial.izinkanPersonal ? "Matikan kiriman pribadi" : "Buka kiriman pribadi"}
+          </Button>
+        </div>
       </form>
 
       <div className="border-t border-border pt-3">

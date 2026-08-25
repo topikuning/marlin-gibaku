@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader } from "@/components/ui";
 import { Inbox } from "lucide-react";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
@@ -109,12 +110,15 @@ export default async function LampiranPage({
               : "Berkas dokumen & kemungkinan surat yang belum diputuskan."
           }
           action={
-            <a
+            <Link
               href={tampilSemua ? "/lampiran" : "/lampiran?semua=1"}
+              // Menyaring di halaman yang sama — jangan memuat ulang halaman
+              // dan jangan melempar pembaca ke puncak (DECISIONS 433).
+              scroll={false}
               className="text-sm text-primary hover:underline"
             >
               {tampilSemua ? "Tampilkan yang perlu ditetapkan saja" : "Lihat semua lampiran"}
-            </a>
+            </Link>
           }
         />
         <CardBody>

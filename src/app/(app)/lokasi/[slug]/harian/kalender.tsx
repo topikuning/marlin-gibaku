@@ -141,7 +141,9 @@ function NavBulan({ arah, href }: { arah: "mundur" | "maju"; href: string | null
     );
   }
   return (
-    <Link href={href} aria-label={label} className={cn(kelas, "text-ink hover:bg-surface-muted")}>
+    // Ganti bulan = kalender yang sama, isinya saja berganti — pembacanya
+    // harus tetap menatap kalendernya (DECISIONS 433).
+    <Link href={href} aria-label={label} scroll={false} className={cn(kelas, "text-ink hover:bg-surface-muted")}>
       <Ikon className="size-4" />
     </Link>
   );
@@ -163,6 +165,17 @@ function SelHariKalender({
       href={href}
       // 42 sel × prefetch = 42 permintaan hanya untuk membuka satu bulan.
       prefetch={false}
+      /*
+       * JANGAN loncat ke puncak halaman (DECISIONS 433).
+       *
+       * `<Link>` Next.js mengembalikan gulir ke atas setiap kali beralih —
+       * termasuk saat alamatnya HALAMAN YANG SAMA dan hanya tanggalnya yang
+       * berubah. Terukur: mengetuk petak di baris bawah kalender melempar
+       * gulir dari 631px ke 0. Orang yang sedang menatap satu baris tanggal
+       * kehilangan tempatnya, lalu harus menggulir turun lagi untuk melihat
+       * akibat ketukannya sendiri.
+       */
+      scroll={false}
       aria-current={terpilih ? "date" : undefined}
       /* Menyebut AKIBATNYA, bukan cuma keadaannya: sel kosong membuka formulir
          langsung (DECISIONS 355), dan tujuan yang berbeda dari sel tetangganya

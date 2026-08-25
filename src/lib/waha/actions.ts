@@ -66,6 +66,33 @@ export async function saveWahaConfigAction(
 }
 
 /**
+ * Buka/tutup pagar kiriman ke NOMOR PRIBADI (DECISIONS 433).
+ *
+ * Dipisah dari `saveWahaConfigAction` dengan sengaja: ini bukan setelan
+ * sambungan melainkan keputusan RISIKO, dan menumpangkannya pada tombol
+ * "Simpan konfigurasi" akan membuatnya ikut berubah tanpa disadari.
+ */
+export async function setWahaIzinPersonalAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const izinkan = String(formData.get("izinkan") ?? "") === "1";
+    await setWahaConfig({ izinkanPersonal: izinkan });
+    await audit(user.id, "system.waha_izin_personal", "app_setting", null, { izinkan });
+    revalidatePath("/sistem");
+    return {
+      success: izinkan
+        ? "Kiriman ke nomor pribadi DIBUKA. Pakai seperlunya – WhatsApp memblokir nomor yang terlalu sering mengirim chat pribadi."
+        : "Kiriman ke nomor pribadi dimatikan. Kiriman ke grup tidak terpengaruh.",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
  * Buat/rotasi secret webhook inbound WAHA. Secret masuk query `?token=` pada URL
  * webhook yang dipasang di WAHA. Merotasi = URL lama tak berlaku. DECISIONS 119.
  */

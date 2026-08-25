@@ -10,7 +10,8 @@ import {
   kirimMentahTeks,
   type FilePayload,
 } from "./client";
-import { kanonikGrupId } from "./grup-id";
+import { kanonikGrupId, tujuanGrup } from "./grup-id";
+import { izinKirimPersonal } from "./config";
 import { statusBerikutnya, statusDariAck } from "./status-kirim";
 
 /**
@@ -121,6 +122,25 @@ export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> 
       lastError: `Tujuan tidak terbaca: ${input.destination}`,
     });
     return hasil(baris.id, "ditolak", null, `Tujuan tidak terbaca: ${input.destination}`);
+  }
+
+  /*
+   * PAGAR NOMOR PRIBADI (DECISIONS 433).
+   *
+   * Ditaruh di gateway, bukan di tiap fitur: inilah satu-satunya jalan keluar
+   * semua kiriman WhatsApp, jadi menutupnya di sini berarti tidak ada fitur
+   * yang bisa lolos — sekarang maupun yang ditambahkan nanti.
+   *
+   * Ditolaknya DICATAT di outbox, bukan dilempar diam-diam: admin harus bisa
+   * melihat kiriman mana yang tertahan dan kenapa, lalu memutuskan membuka
+   * pagarnya di Sistem atau memindahkan tujuannya ke grup.
+   */
+  if (!tujuanGrup(chatId) && !(await izinKirimPersonal())) {
+    const alasan =
+      "Kiriman ke nomor pribadi sedang dimatikan (Sistem → WhatsApp). " +
+      "WhatsApp memblokir nomor yang banyak mengirim chat pribadi, dan blokir itu ikut mematikan kiriman ke grup.";
+    const b = await catat(key, input, chatId, "ditolak", { lastError: alasan });
+    return hasil(b.id, "ditolak", null, alasan);
   }
 
   /*

@@ -459,6 +459,10 @@ function Chip({ href, aktif, label }: { href: string; aktif: boolean; label: str
     <Link
       href={href}
       aria-current={aktif ? "page" : undefined}
+      // Menyaring di halaman yang sama — jangan melempar pembaca ke puncak
+      // (DECISIONS 433). Tautan yang benar-benar PINDAH halaman di berkas ini
+      // sengaja dibiarkan menggulir ke atas: itu memang halaman baru.
+      scroll={false}
       className={
         aktif
           ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-[13px] font-semibold text-white"

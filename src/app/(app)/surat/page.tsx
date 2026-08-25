@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader } from "@/components/ui";
 import { Mail } from "lucide-react";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
@@ -157,13 +158,16 @@ export default async function SuratPage({
                   aktif: status === "perlu_jawaban",
                 },
               ].map((f) => (
-                <a
+                <Link
                   key={f.label}
                   href={f.href}
+                  // Saringan sehalaman: tanpa muat ulang, tanpa loncat ke atas
+                  // (DECISIONS 433).
+                  scroll={false}
                   className={f.aktif ? "font-medium text-primary" : "text-ink-muted hover:text-ink"}
                 >
                   {f.label}
-                </a>
+                </Link>
               ))}
             </span>
           }
