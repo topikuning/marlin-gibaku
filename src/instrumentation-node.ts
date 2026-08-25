@@ -75,8 +75,30 @@ async function bootstrapAdmin() {
   }
 }
 
+/**
+ * Migrasi data yang butuh formula TS (tidak bisa di SQL) — idempoten, jalan
+ * tiap boot dan berhenti sendiri lewat penanda AppSetting. DECISIONS 429.
+ */
+async function migrasiDataOtomatis() {
+  try {
+    const { terapkanDefaultSeninMinggu } = await import("@/lib/migrasi/mode-minggu-default");
+    const r = await terapkanDefaultSeninMinggu();
+    if (r.status === "selesai") {
+      console.log(
+        `[migrasi] default mode minggu Senin–Minggu diterapkan: ${r.kontrak} kontrak, ` +
+          `${r.dikonversi} baseline dikonversi, ${r.digenerate} dihitung ulang.`,
+      );
+    } else if (r.status === "ditunda") {
+      console.warn("[migrasi] default mode minggu ditunda (belum ada user) – dicoba lagi boot berikutnya.");
+    }
+  } catch (err) {
+    console.error("[migrasi] default mode minggu gagal (dicoba lagi boot berikutnya):", err);
+  }
+}
+
 // Dijalankan saat modul dimuat (sekali per start server Node).
 export const bootstrapDone: Promise<void> = (async () => {
   await bootstrapAdmin();
   await bootstrapDemoData();
+  await migrasiDataOtomatis();
 })();

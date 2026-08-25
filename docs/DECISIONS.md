@@ -22266,3 +22266,34 @@ Fitur baru di baliknya — **kurasi relevansi manual**:
   aturan `dipakai` yang sama): pesan relevan "dari N grup" + kiriman MARLIN.
 
 `message-card.tsx` & `evidence-tabs.tsx` dihapus (digantikan panel-pesan).
+
+## 429 — Default mode periode minggu = SENIN–MINGGU, kontrak lama dikonversi otomatis, 2026-08-25
+
+Kesepakatan user: *"perhitungan laporan mingguan default adalah senin-minggu,
+dengan m1 menyesuaikan… bisakah kita menyesuaikan semua laporan yang aktif dan
+yang akan datang menjadi default ini, jadi aku tidak perlu ubah satu-satu."*
+
+- **Kontrak BARU**: default DB `Contract.weekMode` diganti `senin_minggu`
+  (migrasi `20260825050000`, ALTER DEFAULT — idempoten). Label "(bawaan)" di
+  form kontrak pindah ke opsi Senin–Minggu.
+- **Kontrak LAMA**: migrasi data satu-kali
+  `src/lib/migrasi/mode-minggu-default.ts` dijalankan otomatis saat boot
+  server (instrumentation-node) — pipeline deploy menyelesaikan semuanya
+  sendiri, tanpa langkah manual. Semua kontrak `tujuh_hari` diubah ke
+  `senin_minggu` dan baselinenya dikonversi lewat JALUR 427d yang sama dengan
+  tombol ganti mode (rebucket kalender-faithful, provenance & Σ
+  dipertahankan; generator hanya fallback bila baseline tak cocok grid lama).
+  Konversi baseline butuh formula TS (rebucketWeeklyToGrid) — karena formula
+  dilarang diduplikasi di SQL, jalannya di boot, bukan di migrasi Prisma.
+- **Idempoten & tidak memaksa**: penanda AppSetting
+  `migrasi.mode_minggu_default_senin` ditulis sekali tuntas; kontrak yang
+  KELAK sengaja disetel kembali ke `tujuh_hari` oleh user TIDAK dipaksa balik
+  pada boot berikutnya. Boot terpotong = penanda belum tertulis → sisa
+  kontrak dilanjutkan boot depan.
+- Fallback kode `?? "tujuh_hari"` SENGAJA tidak diubah: ia hanya untuk data
+  historis (snapshot pra-427c yang memang dibuat di era 7-hari) dan kasus
+  tanpa kontrak — nilai tersimpan di kontraklah yang menentukan.
+
+Penjaga: `tests/integration/migrasi-mode-minggu-default.test.ts` (default DB
+kontrak baru; konversi Kamis–Rabu terbelah 4/7+3/7 dgn provenance manual
+dipertahankan; jalan kedua no-op).
