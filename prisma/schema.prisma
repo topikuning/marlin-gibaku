@@ -707,6 +707,14 @@ model GDriveJob {
 /// integrasi AI: arsip percakapan lapangan per paket untuk diringkas/ditelusur.
 /// Hanya menyimpan pesan dari grup yang tertaut paket (Package.waGroupId).
 /// DECISIONS 119.
+/// Kurasi RELEVANSI manual pesan chat grup (rombak UI 2026-08-24): reviewer
+/// bisa menimpa klasifikasi otomatis — `relevan` memaksa ikut ke Ringkasan AI,
+/// `diabaikan` mengeluarkannya. null = ikut klasifikasi otomatis (default).
+enum WaRelevanceOverride {
+  relevan
+  diabaikan
+}
+
 model WaMessage {
   id          String   @id @default(uuid()) @db.Uuid
   packageId   String?  @map("package_id") @db.Uuid
@@ -723,6 +731,8 @@ model WaMessage {
   fromMe      Boolean  @default(false) @map("from_me")
   timestamp   DateTime @db.Timestamptz // waktu pesan (dari WAHA)
   raw         Json?    @db.JsonB // event mentah (audit/debug)
+  /// Timpaan relevansi oleh reviewer — null = ikut klasifikasi otomatis.
+  relevanceOverride WaRelevanceOverride? @map("relevance_override")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   package Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)

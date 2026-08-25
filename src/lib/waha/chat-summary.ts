@@ -112,6 +112,13 @@ export type ChatMessageView = {
   sender: ResolvedSender;
   /** Bobot relevansi + kategori informasi (deterministik, DECISIONS 139). */
   class: MessageClass;
+  /** Timpaan reviewer (kurasi manual, 2026-08-24). null = ikut klasifikasi. */
+  override: "relevan" | "diabaikan" | null;
+  /**
+   * IKUT ke Ringkasan AI? SATU aturan untuk layar, KPI, dan generator:
+   * timpaan reviewer menang; tanpa timpaan ikut klasifikasi otomatis.
+   */
+  dipakai: boolean;
 };
 
 /** Pesan satu hari (Jakarta) utk tampilan + bahan prompt (dgn tanda noise). */
@@ -135,10 +142,12 @@ export async function getChatMessages(
       hasMedia: true,
       fromMe: true,
       timestamp: true,
+      relevanceOverride: true,
     },
   });
   return msgs.map((m) => {
     const noise = isNoiseMessage(m.body, { fromMe: m.fromMe });
+    const kelas = classifyMessage({ body: m.body, hasMedia: m.hasMedia, noise, fromMe: m.fromMe });
     return {
       id: m.id,
       fromName: m.fromName ?? m.fromNumber ?? "Anggota",
@@ -155,9 +164,43 @@ export async function getChatMessages(
         { senderJid: m.senderJid, fromNumber: m.fromNumber, fromName: m.fromName, fromMe: m.fromMe },
         dir,
       ),
-      class: classifyMessage({ body: m.body, hasMedia: m.hasMedia, noise, fromMe: m.fromMe }),
+      class: kelas,
+      override: m.relevanceOverride ?? null,
+      dipakai: m.relevanceOverride ? m.relevanceOverride === "relevan" : kelas.useForSummary,
     };
   });
+}
+
+/**
+ * Angka KPI GLOBAL satu tanggal lintas semua grup dalam scope: pesan yang
+ * DIPAKAI ringkasan (klasifikasi + timpaan reviewer, aturan yang sama dengan
+ * `getChatMessages`) dan kiriman MARLIN yang terekam di grup.
+ */
+export async function globalDayStats(
+  packageIds: string[],
+  dateKey: string,
+): Promise<{ pesanRelevan: number; kirimanMarlin: number; grupBerpesan: number }> {
+  const range = jakartaDayRange(dateKey);
+  if (!range || packageIds.length === 0) return { pesanRelevan: 0, kirimanMarlin: 0, grupBerpesan: 0 };
+  const msgs = await db.waMessage.findMany({
+    where: { packageId: { in: packageIds }, timestamp: { gte: range.start, lt: range.end } },
+    select: { packageId: true, body: true, hasMedia: true, fromMe: true, relevanceOverride: true },
+  });
+  let pesanRelevan = 0;
+  let kirimanMarlin = 0;
+  const grup = new Set<string>();
+  for (const m of msgs) {
+    if (m.packageId) grup.add(m.packageId);
+    if (m.fromMe) {
+      kirimanMarlin++;
+      continue;
+    }
+    const noise = isNoiseMessage(m.body, { fromMe: m.fromMe });
+    const kelas = classifyMessage({ body: m.body, hasMedia: m.hasMedia, noise, fromMe: m.fromMe });
+    const dipakai = m.relevanceOverride ? m.relevanceOverride === "relevan" : kelas.useForSummary;
+    if (dipakai) pesanRelevan++;
+  }
+  return { pesanRelevan, kirimanMarlin, grupBerpesan: grup.size };
 }
 
 /** Konteks paket (pekerjaan, pelaksana, lokasi) — grup WA sering bernama generik. */
@@ -265,7 +308,9 @@ export async function generateChatSummary(
     getChatMessages(packageId, dateKey, dir),
     getMarlinDispatches(packageId, dateKey),
   ]);
-  const messages = all.filter((m) => m.class.useForSummary);
+  // Kurasi reviewer menang atas klasifikasi otomatis (m.dipakai) — janji di
+  // kaki halaman: yang Diabaikan tidak pernah ikut ke prompt.
+  const messages = all.filter((m) => !m.fromMe && m.dipakai);
   // Tetap bisa meringkas bila chat kosong tapi MARLIN mengirim laporan/kegiatan.
   if (messages.length === 0 && dispatches.length === 0) {
     return {
