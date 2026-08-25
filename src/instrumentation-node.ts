@@ -80,6 +80,24 @@ async function bootstrapAdmin() {
  * tiap boot dan berhenti sendiri lewat penanda AppSetting. DECISIONS 429.
  */
 async function migrasiDataOtomatis() {
+  // URUTAN PENTING: rentang periode snapshot lama dibekukan DULU (memakai mode
+  // 7-hari, sesuai cara nomor minggunya dulu dihitung), baru mode kontrak
+  // diubah. Terbalik pun hasilnya sama — backfill tidak membaca mode kontrak —
+  // tapi urutan ini membuat jendela "mode sudah baru, rentang belum beku"
+  // tidak pernah ada sama sekali.
+  try {
+    const { backfillPeriodeSnapshotLama } = await import("@/lib/migrasi/snapshot-periode-backfill");
+    const b = await backfillPeriodeSnapshotLama();
+    if (b.status === "selesai" && b.diisi > 0) {
+      console.log(
+        `[migrasi] rentang periode snapshot final lama dibekukan: ${b.diisi} dari ${b.diperiksa} laporan ` +
+          `(${b.dilewati} sudah punya / tanpa SPMK).`,
+      );
+    }
+  } catch (err) {
+    console.error("[migrasi] backfill periode snapshot gagal (dicoba lagi boot berikutnya):", err);
+  }
+
   try {
     const { terapkanDefaultSeninMinggu } = await import("@/lib/migrasi/mode-minggu-default");
     const r = await terapkanDefaultSeninMinggu();

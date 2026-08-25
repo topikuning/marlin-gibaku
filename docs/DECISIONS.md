@@ -22297,3 +22297,43 @@ yang akan datang menjadi default ini, jadi aku tidak perlu ubah satu-satu."*
 Penjaga: `tests/integration/migrasi-mode-minggu-default.test.ts` (default DB
 kontrak baru; konversi Kamis–Rabu terbelah 4/7+3/7 dgn provenance manual
 dipertahankan; jalan kedua no-op).
+
+## 430 — Blanko final lama: rentang periode dibekukan surut, penyaji tidak lagi memakai mode berjalan, 2026-08-25
+
+Bug yang ditemukan saat menjawab pertanyaan user *"apakah aku perlu bangun
+ulang snapshotnya"* setelah DECISIONS 429 menjadikan senin_minggu default.
+
+**Gejalanya**: snapshot blanko final yang dibekukan SEBELUM 427c hanya
+menyimpan NOMOR minggu — rentang tanggalnya diturunkan saat cetak, memakai
+mode kontrak yang SEDANG berlaku. Begitu mode kontrak berubah ke
+senin_minggu, blanko lama menyebut periode yang TIDAK MEMUAT tanggal
+laporannya sendiri. Contoh terbukti di uji: SPMK Kamis 5 Mar, laporan 11 Mar
+→ cetakan menulis periode berakhir 8 Maret.
+
+**Akarnya**: sebelum 427c `buildFinalSnapshot` menghitung nomor minggu dengan
+rumus 7-hari yang ditulis langsung (`floor((tgl − SPMK)/7)+1`), TERLEPAS dari
+mode kontrak. Jadi setiap snapshot tanpa rentang beku pasti bernomor minggu
+versi 7-hari — dan hanya rentang 7-hari yang cocok dengannya.
+
+Diperbaiki DUA LAPIS (pertahanan berlapis; keduanya perlu):
+
+1. **Data** — `src/lib/migrasi/snapshot-periode-backfill.ts`, jalan otomatis
+   saat boot sebelum migrasi 429. Mengisi `periodStartKey`/`periodEndKey`
+   snapshot lama dari SPMK + nomor minggu bekunya, mode `tujuh_hari`.
+   Idempoten (penanda AppSetting + filter "belum punya rentang"), batch
+   ber-cursor, boot terpotong dilanjutkan boot berikutnya.
+2. **Penyaji** — `getKkpDailyData`: snapshot tanpa rentang beku diturunkan
+   dengan mode `tujuh_hari`, bukan mode berjalan. Jaring pengaman untuk
+   snapshot yang lolos backfill (pulih dari cadangan, boot belum tuntas).
+
+**Yang SENGAJA tidak dilakukan**: menghitung ulang isi snapshot. Blanko final
+sudah diteken — nomor minggu, rencana, deviasi, dan volume tidak boleh
+berubah. Tombol `rebuildFinalSnapshots` di Sistem (DECISIONS 148) memang
+menghitung ulang segalanya; ia BUKAN alat untuk kasus ini, karena akan
+menggeser angka rencana/deviasi ke baseline hasil konversi 429 pada dokumen
+yang sudah ditandatangani.
+
+Penjaga: `tests/integration/snapshot-periode-backfill.test.ts` — rentang hasil
+backfill memuat tanggal laporan sementara weekNo/planPct/deviationPct tidak
+berubah; snapshot ber-rentang beku tidak disentuh; jalan kedua no-op; penyaji
+mencetak 5–11 Mar (uji-balik: tanpa perbaikan ia mencetak 8 Mar).

@@ -1,7 +1,13 @@
 import "server-only";
 import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
-import { weekOfDate, weekDateRange, bobotPct, prestasiPct } from "@/lib/progress-calc";
+import {
+  weekOfDate,
+  weekDateRange,
+  bobotPct,
+  prestasiPct,
+  type WeekPeriodMode,
+} from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
@@ -767,12 +773,12 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
    * Foto & identitas kontrak bukan angka progres, jadi mengambilnya dari data
    * hidup tidak menyentuh keimutabelan snapshot.
    */
-  const periode = (w: number | null) => ({
+  const periode = (w: number | null, mode: WeekPeriodMode = weekMode) => ({
     // Periode minggu berjalan: diturunkan dari tanggal SPMK + nomor minggu yang
     // SUDAH dipakai blanko — satu sumber, jadi sampul dan blanko tidak bisa
     // menyebut minggu yang berbeda.
-    periodStart: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, weekMode).start) : null,
-    periodEnd: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, weekMode).end) : null,
+    periodStart: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, mode).start) : null,
+    periodEnd: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, mode).end) : null,
   });
   const lampiran = {
     contractNumber: contract?.contractNumber ?? null,
@@ -846,13 +852,18 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       // Rentang tanggalnya juga dari snapshot bila ada (DECISIONS 427c):
       // mode periode minggu bisa diganti di tengah kontrak, dan nomor beku +
       // rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
-      // Snapshot lama (tanpa kolom ini) jatuh ke derivasi mode berjalan.
+      // Snapshot lama (tanpa kolom ini) diturunkan dengan mode `tujuh_hari`,
+      // BUKAN mode berjalan (DECISIONS 430): sebelum 427c nomor minggunya
+      // dihitung dengan rumus 7-hari yang ditulis langsung, apa pun mode
+      // kontraknya — jadi hanya rentang 7-hari yang memuat tanggal laporannya.
+      // Memakai mode berjalan di sini membuat blanko lama menyebut periode yang
+      // tidak memuat tanggalnya sendiri begitu mode kontrak berubah.
       ...(snap.periodStartKey && snap.periodEndKey
         ? {
             periodStart: tanggalFullFmt.format(new Date(`${snap.periodStartKey}T00:00:00.000Z`)),
             periodEnd: tanggalFullFmt.format(new Date(`${snap.periodEndKey}T00:00:00.000Z`)),
           }
-        : periode(base.weekNo)),
+        : periode(base.weekNo, "tujuh_hari")),
     };
   }
 
