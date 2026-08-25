@@ -58,6 +58,7 @@ const SUMBER_LABEL: Record<IssueSource, string> = {
   laporan_harian: "Laporan harian",
   kegiatan_lapangan: "Kegiatan lapangan",
   ai: "Ask MARLIN",
+  surat: "Surat",
 };
 
 function BarisKendalaKartu({

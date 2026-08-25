@@ -22373,3 +22373,76 @@ kotak elemen di peramban, bukan membaca CSS: `git stash` untuk angka
 
 Pelajaran umum: **jangan menaruh margin pada elemen yang render-nya
 bersyarat.** Jarak milik pembungkus yang selalu hadir.
+
+## 432 — Penangkap lampiran grup WA + register surat masuk/keluar, 2026-08-25
+
+Permintaan user: *"pantau semua attachment yang dikirim ke group (langsung
+abaikan kalau kamu sendiri yang kirim), pahami apa itu yang dikirim, lalu
+kamu juga perlu memutuskan apa yang harus dilakukan terhadap file itu,
+apakah itu dianggap surat atau bagaimana"* + *"untuk surat masuk keluar tadi
+kerjakan semua 1-4"*.
+
+### Temuan yang mendahului: berkas tidak pernah diunduh
+
+`WaMessage` hanya mencatat `hasMedia` + `mediaType`. Berkasnya TIDAK pernah
+diambil, dan URL media WAHA berumur pendek — jadi surat yang dikirim ke grup
+lenyap tak lama setelah dikirim. Ini ditutup lebih dulu karena ia satu-satunya
+bagian yang kehilangan data selama ditunda.
+
+### Penangkap (WaAttachment)
+
+- `ingest-parse` kini membawa `mediaUrl` + `mediaFileName` (dibaca defensif —
+  medannya berbeda antar engine WAHA).
+- Ditangkap DI JALUR WEBHOOK, karena menunda = kehilangan. `fromMe` dilewati.
+  Kegagalan menangkap tidak pernah menggagalkan penyimpanan pesan.
+- **Urutan simpan (ketetapan user)**: *"jangan langsung simpan di R2, kan bisa
+  disimpan di lokal marlin"* → *"disimpan di lokal dulu, baru kemudian saat
+  dokumen itu dikonfirmasi, baru ke R2."* Jadi: unduh → disk lokal → baris DB;
+  R2 hanya saat MANUSIA mengkonfirmasi. Akibatnya disengaja: arsip permanen
+  hanya memuat berkas yang dinyatakan berguna, bukan seluruh isi grup.
+  Catatan jujur yang disampaikan ke user: disk Railway bersifat sementara,
+  jadi berkas yang tak pernah dikonfirmasi memang boleh hilang.
+- Dedup `sha256`: satu surat sering dilempar berkali-kali di grup; ketetapan
+  manusia atas berkas identik ikut dibawa supaya tidak ditanya berulang.
+
+### Memahami — aturan dulu, AI belakangan
+
+`lampiran-klasifikasi.ts` MURNI & unit-tested: MIME + nama berkas + caption →
+`foto_lapangan | dokumen | surat_kandidat | media_lain | abaikan`. Aturan bisa
+diuji, AI tidak; AI hanya dipanggil untuk yang perlu dibaca isinya.
+
+**Keputusan desain terpenting: foto lapangan TIDAK masuk antrean persetujuan.**
+83 grup × puluhan foto/hari akan menenggelamkan antrean, dan antrean yang tidak
+dibaca sama saja dengan tidak ada. Stiker/audio/video diabaikan tanpa disimpan.
+
+### Mengusulkan, bukan memutuskan
+
+Ketetapan user: *"jangan langsung putuskan tapi sarankan"*. `saranKind` +
+`saranAlasan` (aturan) dan `saranRingkas` (AI) hanyalah usulan; `decision`
+hanya berubah lewat tindakan orang. Prompt `surat.pahami` melarang nada
+memutuskan dan mewajibkan "tidak jelas" saat keterangan tidak cukup.
+
+### Register surat (tahap 1–4 sekaligus)
+
+Surat BUKAN berkas dan BUKAN jenis masalah — ia percakapan bertanggal yang
+bisa menuntut jawaban. Karena itu entitas sendiri (`Letter`), berkasnya boleh
+menumpang `WaAttachment`/`Document`.
+
+1. **Register** — nomor agenda otomatis per org per tahun, arah, pihak,
+   nomor & tanggal surat, perihal. Arah dipilih PER SURAT, jadi sistem tidak
+   dikunci pada satu peran ("MARLIN berdiri sebagai siapa" sengaja dibuang).
+2. **Kaitan** — paket/lokasi + kategori perihal.
+3. **Utang jawab** — `needsReply` + `replyDueDate` + rantai `inReplyToId`;
+   surat lewat tenggat muncul di `/perlu-tindakan` lewat aturan EWS baru
+   (`evaluasiEwsSurat`, MURNI). Inilah yang membuat register tidak mati:
+   bukan arsip rapi, tapi surat yang mendiamkan diri jadi kelihatan.
+4. **Pemetaan** — tombol "Jadikan kendala/temuan" dengan sumber TEGAS `surat`
+   (`IssueSource.surat`, `FindingSource.surat`) + `letterId`, sehingga papan
+   terpusat tetap satu pintu dan asal-usulnya bisa dibuka (pola 392/426).
+
+Capability baru `letter.view`/`letter.manage` — SM ke atas. Pelaksana sengaja
+tidak dilibatkan: korespondensi resmi bukan pekerjaannya.
+
+Penjaga: `tests/unit/lampiran-klasifikasi.test.ts` (foto lapangan tidak
+menuntut persetujuan; surat yang difoto tetap ditanyakan; stiker diabaikan)
+dan `tests/unit/surat-lifecycle.test.ts` (transisi, utang jawab, ambang EWS).

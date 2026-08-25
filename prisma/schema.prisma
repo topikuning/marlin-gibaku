@@ -208,6 +208,8 @@ enum IssueSource {
   kegiatan_lapangan
   /// Dibuat dari hasil analisis Ask MARLIN.
   ai
+  /// Lahir dari surat masuk/keluar (register korespondensi, DECISIONS 432).
+  surat
 }
 
 enum RecoveryStatus {
@@ -518,6 +520,8 @@ model Package {
   documents       Document[]
   milestones      AdminMilestone[]
   waMessages      WaMessage[]
+  waAttachments   WaAttachment[]
+  letters         Letter[]
   waChatSummaries WaChatSummary[]
   gdriveUploads   GDriveUpload[]
   gdriveJobs      GDriveJob[]
@@ -735,11 +739,198 @@ model WaMessage {
   relevanceOverride WaRelevanceOverride? @map("relevance_override")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  package Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  package     Package?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  attachments WaAttachment[]
 
   @@index([packageId, timestamp])
   @@index([chatId, timestamp])
   @@map("wa_messages")
+}
+
+/// Hasil penangkapan berkas lampiran WA (DECISIONS 432).
+enum WaAttachmentStatus {
+  /// Berkas berhasil diunduh & tersimpan.
+  tertangkap
+  /// Sengaja tidak disimpan (stiker, terlalu besar, jenis diabaikan).
+  dilewati
+  /// Gagal diunduh — URL kedaluwarsa / WAHA tak terjangkau. `failReason` mengapa.
+  gagal
+}
+
+/// Dugaan JENIS berkas — hasil aturan deterministik, bukan AI.
+enum WaAttachmentKind {
+  /// Foto lapangan biasa dari anggota grup. TIDAK masuk antrean persetujuan.
+  foto_lapangan
+  /// Dokumen kerja (jadwal, RAB, daftar) yang perlu dilihat orang.
+  dokumen
+  /// Berpotensi surat resmi — inilah yang paling perlu ditetapkan orang.
+  surat_kandidat
+  /// Media lain yang tidak dikenali perannya.
+  media_lain
+  /// Bukan bahan kerja (stiker, meme) — tidak menuntut apa pun.
+  abaikan
+}
+
+/// Ketetapan MANUSIA atas satu lampiran. Mesin hanya mengusulkan (`saranKind` +
+/// `saranAlasan`); kolom ini hanya berubah lewat tindakan orang. Ketetapan user
+/// 2026-08-25: *"jangan langsung putuskan tapi sarankan"*.
+enum WaAttachmentDecision {
+  belum
+  jadi_surat
+  jadi_dokumen
+  bukan_apa_apa
+}
+
+/// Berkas yang dikirim ke grup WA, ditangkap supaya tidak hilang (DECISIONS 432).
+///
+/// Sebelum ini MARLIN hanya mencatat BAHWA ada lampiran (`WaMessage.hasMedia`)
+/// tanpa pernah mengunduh berkasnya — surat yang dikirim ke grup lenyap begitu
+/// URL WAHA kedaluwarsa. Tabel ini menyimpan berkasnya beserta dugaan perannya.
+model WaAttachment {
+  id        String @id @default(uuid()) @db.Uuid
+  messageId String @map("message_id") @db.Uuid
+  packageId String? @map("package_id") @db.Uuid
+
+  fileName  String? @map("file_name")
+  mimeType  String? @map("mime_type")
+  sizeBytes Int?    @map("size_bytes")
+  /// Sidik jari isi berkas — satu surat sering dikirim ulang berkali-kali di
+  /// grup; ini yang membuat kiriman ulang dikenali sebagai berkas yang sama.
+  sha256    String?
+
+  /// Simpanan LOKAL (cepat, ditulis saat webhook). Di Railway disk kontainer
+  /// bersifat sementara, jadi ini persinggahan — bukan arsip.
+  localPath String? @map("local_path")
+  /// Arsip permanen di R2, diisi belakangan oleh pemindah di latar.
+  r2Key     String? @map("r2_key")
+
+  status     WaAttachmentStatus @default(tertangkap)
+  failReason String?            @map("fail_reason")
+
+  /// Dugaan mesin + alasannya, supaya orang bisa menilai usulnya, bukan
+  /// disodori vonis tanpa dasar.
+  saranKind   WaAttachmentKind @default(media_lain) @map("saran_kind")
+  saranAlasan String?          @map("saran_alasan")
+  /// Ringkasan isi dari AI (opsional) — usulan, bukan data resmi.
+  saranRingkas String?         @map("saran_ringkas") @db.Text
+
+  decision    WaAttachmentDecision @default(belum)
+  decidedById String?              @map("decided_by_id") @db.Uuid
+  decidedAt   DateTime?            @map("decided_at") @db.Timestamptz
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  message WaMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  package Package?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  @@index([packageId, createdAt])
+  @@index([decision, saranKind])
+  @@index([sha256])
+  letters Letter[]
+
+  @@map("wa_attachments")
+}
+
+/* ── Register surat masuk & keluar (DECISIONS 432) ─────────────────────────
+   Surat BUKAN berkas, dan bukan pula jenis masalah. Surat adalah percakapan
+   bertanggal yang bisa menuntut jawaban. Karena itu ia entitas sendiri —
+   berkasnya boleh menumpang `Document`/`WaAttachment`, tapi arah, lawan
+   bicara, tenggat jawaban, dan rantai balasannya tidak punya rumah di sana. */
+
+enum LetterDirection {
+  masuk
+  keluar
+}
+
+/// Lawan bicara. Sengaja TIDAK menetapkan "MARLIN berdiri sebagai siapa":
+/// arah dipilih per surat, jadi sistem tidak terkunci pada satu peran.
+enum LetterParty {
+  penyedia
+  wakil_ppk
+  ppk
+  konsultan
+  dinas
+  internal
+  lainnya
+}
+
+/// Perihal surat itu soal apa — dipakai memetakan ke temuan/kendala.
+enum LetterCategory {
+  mutu
+  jadwal
+  pembayaran
+  administrasi
+  koordinasi
+  k3
+  lainnya
+}
+
+/// Siklus surat. `perlu_jawaban` adalah inti fitur ini: surat yang mendiamkan
+/// diri harus kelihatan, bukan sekadar terarsip rapi.
+enum LetterStatus {
+  baru
+  perlu_jawaban
+  dijawab
+  selesai
+  arsip
+}
+
+model Letter {
+  id        String  @id @default(uuid()) @db.Uuid
+  orgId     String  @map("org_id") @db.Uuid
+  packageId String? @map("package_id") @db.Uuid
+  locationId String? @map("location_id") @db.Uuid
+
+  /// Nomor agenda internal (urut per organisasi per tahun) — dibuat sistem.
+  agendaNo   Int     @map("agenda_no")
+  agendaYear Int     @map("agenda_year")
+
+  direction LetterDirection
+  party     LetterParty     @default(lainnya)
+  /// Nama pihak sebenarnya (mis. "CV SAKHA", "Ir. Bagus Setiawan").
+  partyName String?         @map("party_name")
+
+  /// Nomor & tanggal surat MENURUT SURATNYA, bukan tanggal catat.
+  letterNumber String?   @map("letter_number")
+  letterDate   DateTime? @map("letter_date") @db.Date
+  /// Tanggal diterima (surat masuk) atau dikirim (surat keluar).
+  handledDate  DateTime  @map("handled_date") @db.Date
+
+  subject  String
+  summary  String?        @db.Text
+  category LetterCategory @default(lainnya)
+  status   LetterStatus   @default(baru)
+
+  /// Utang jawab — jantung fitur ini (tahap 3).
+  needsReply   Boolean   @default(false) @map("needs_reply")
+  replyDueDate DateTime? @map("reply_due_date") @db.Date
+  /// Surat ini menjawab surat yang mana (rantai balasan).
+  inReplyToId  String?   @map("in_reply_to_id") @db.Uuid
+  repliedAt    DateTime? @map("replied_at") @db.Timestamptz
+
+  /// Berkasnya: lampiran WA yang ditetapkan jadi surat, dan/atau dokumen arsip.
+  attachmentId String? @map("attachment_id") @db.Uuid
+  documentId   String? @map("document_id") @db.Uuid
+
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  package   Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  location  Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  inReplyTo Letter?       @relation("BalasanSurat", fields: [inReplyToId], references: [id], onDelete: SetNull)
+  balasan   Letter[]      @relation("BalasanSurat")
+  attachment WaAttachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  document   Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  /// Kendala & temuan yang LAHIR dari surat ini (tahap 4).
+  issues   Issue[]
+  findings Finding[]
+
+  @@unique([orgId, agendaYear, agendaNo])
+  @@index([orgId, handledDate])
+  @@index([packageId, direction])
+  @@index([status, replyDueDate])
+  @@map("letters")
 }
 
 /// Cache pengamatan cuaca per lokasi per tanggal (sumber luar, bukan angka
@@ -966,6 +1157,8 @@ model Location {
   @@index([packageId])
   @@index([province])
   @@index([status])
+  letters Letter[]
+
   @@map("locations")
 }
 
@@ -1533,6 +1726,9 @@ model Issue {
   /// Kegiatan lapangan yang melahirkan kendala ini — supaya bisa dibuka lagi.
   fieldActivityId String? @map("field_activity_id") @db.Uuid
 
+  /// Surat yang melahirkan kendala ini (bila source = surat, DECISIONS 432).
+  letterId String? @map("letter_id") @db.Uuid
+
   /// PEMILIK kendala — yang ditagih, bukan yang melapor (`raisedById`).
   ///
   /// Dulu PIC hanya ada di `RecoveryAction`, jadi kendala baru punya pemilik
@@ -1581,6 +1777,8 @@ model Issue {
   @@index([status, dueDate])
   @@index([fieldActivityId])
   @@index([mergedIntoId])
+  letter Letter? @relation(fields: [letterId], references: [id], onDelete: SetNull)
+
   @@map("issues")
 }
 
@@ -1855,6 +2053,8 @@ model Document {
   @@index([orgId, sha256])
   @@index([orgId, status])
   @@index([type])
+  letters Letter[]
+
   @@map("documents")
 }
 
@@ -2558,6 +2758,8 @@ enum FindingSource {
   laporan_harian
   dokumen
   manual
+  /// Lahir dari surat masuk/keluar (register korespondensi, DECISIONS 432).
+  surat
 }
 
 enum FindingCategory {
@@ -2615,6 +2817,8 @@ model Finding {
   inspectionId String?         @map("inspection_id") @db.Uuid
   /// Laporan harian yang diperiksa saat temuan lahir (bila relevan).
   reportId     String?         @map("report_id") @db.Uuid
+  /// Surat yang melahirkan temuan ini (bila source = surat, DECISIONS 432).
+  letterId     String?         @map("letter_id") @db.Uuid
   lineageKey   String?         @map("lineage_key")
   /// Nama item RAB SAAT temuan dibuat — snapshot tampilan, bukan sumber angka.
   workItemName String?         @map("work_item_name")
@@ -2651,6 +2855,8 @@ model Finding {
   @@index([severity, status])
   @@index([inspectionId])
   @@index([reportId])
+  letter Letter? @relation(fields: [letterId], references: [id], onDelete: SetNull)
+
   @@map("findings")
 }
 
