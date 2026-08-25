@@ -19,7 +19,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; 
   if (!parseDateKey(date)) return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 404 });
 
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   if (!can(user.role, "report.export")) {
     return NextResponse.json({ error: "Tidak punya izin mengekspor laporan" }, { status: 403 });
   }

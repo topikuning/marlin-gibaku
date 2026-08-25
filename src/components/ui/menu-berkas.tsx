@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { GalatUnduh, klikBiasa, useUnduhBerkas } from "./unduh";
 
 /**
  * SATU tombol berkas, isinya pilihan cara mengeluarkannya (DECISIONS 334).
@@ -41,6 +42,32 @@ import { cn } from "@/lib/cn";
  * "Unduh PDF" berarti dua klik untuk hal yang dilakukan setiap hari. `utama`
  * membuat separuh kiri tombol langsung mengerjakannya; panah di kanan tetap
  * membuka sisanya.
+ *
+ * ---
+ *
+ * ### Kenapa keluhan yang sama datang lagi (DECISIONS 400)
+ *
+ * User 2026-08-21: *"aku sudah pernah komplain terkait klik whatsapp dan upload
+ * ke drive, atau aksi apapun di sini, ketika diklik tidak memberikan tanda
+ * apapun kalau sedang proses. tapi kenapa masih belum tersolusikan!"*
+ *
+ * Karena DECISIONS 360 hanya menutup SEPARUH pintu. Tipe lama menulis
+ * `PilihanTautan = { loading?: never; labelSibuk?: never }` — artinya tautan
+ * **dilarang oleh kompiler** punya keadaan sibuk. Itu bukan kelalaian yang
+ * kelupaan diperbaiki; itu keyakinan yang saya tuliskan ke dalam tipe: "tautan
+ * pasti cepat". Diukur di halaman Laporan Periodik: unduh PDF mingguan **4,1
+ * detik**, dan selama itu layar sama sekali diam.
+ *
+ * Karena itu tautan sekarang WAJIB menyatakan `jenis`:
+ *
+ * - `"berkas"` — href menghasilkan PDF/Excel. Dijemput lewat `fetch` lalu
+ *   diserahkan ke peramban sebagai unduhan, supaya penanda sibuknya mengikuti
+ *   lamanya server bekerja SUNGGUHAN, bukan tebakan. Bonusnya: galat 403/500
+ *   sekarang terbaca sebagai kalimat, bukan tab kosong berisi JSON.
+ * - `"tab"` — href adalah HALAMAN (mis. versi cetak). Tab barunya sendiri yang
+ *   jadi penanda; mengaku "sedang memuat" di halaman induk hanya mengarang.
+ *
+ * Kompiler yang menagih, bukan ingatan — sama seperti `PilihanAksi`.
  */
 
 type Dasar = {
@@ -52,9 +79,28 @@ type Dasar = {
   hint?: string;
 };
 
-/** Pilihan yang hanya membuka tautan (unduh/cetak) — tak punya keadaan sibuk. */
+/**
+ * Tautan yang menghasilkan BERKAS (PDF/Excel).
+ *
+ * `labelSibuk` wajib dengan alasan yang sama seperti pada {@link PilihanAksi}:
+ * yang menagihnya harus kompiler. Berkas laporan dibangun di server — kurva-S,
+ * foto, exceljs — dan itu memakan detik, bukan milidetik.
+ */
+export type PilihanUnduh = Dasar & {
+  href: string;
+  jenis: "berkas";
+  /** Kata KERJA selagi berkasnya disiapkan: "Menyiapkan PDF…". */
+  labelSibuk: string;
+  /** Cadangan nama berkas bila server tidak mengirim `Content-Disposition`. */
+  namaBerkas?: string;
+  onSelect?: never;
+  loading?: never;
+};
+
+/** Tautan ke HALAMAN yang dibuka di tab baru — tab itu sendiri penandanya. */
 export type PilihanTautan = Dasar & {
   href: string;
+  jenis: "tab";
   onSelect?: never;
   loading?: never;
   labelSibuk?: never;
@@ -78,7 +124,7 @@ export type PilihanAksi = Dasar & {
   labelSibuk: string;
 };
 
-export type PilihanBerkas = PilihanTautan | PilihanAksi;
+export type PilihanBerkas = PilihanUnduh | PilihanTautan | PilihanAksi;
 
 export function MenuBerkas({
   label,
@@ -144,12 +190,37 @@ export function MenuBerkas({
   }, [terbuka]);
 
   /*
+   * Unduhan yang sedang disiapkan. Dipegang di sini, bukan di pemanggil: tautan
+   * tidak punya `useActionState` yang bisa dititipi keadaan sibuk, dan menuntut
+   * setiap pemanggil membuat state sendiri berarti mengulang cacat lamanya —
+   * yang lupa, lupa diam-diam.
+   */
+  /*
+   * Mesin unduhannya BERSAMA dengan `ButtonLink unduhan` (DECISIONS 401).
+   * Disatukan supaya tidak ada dua perilaku unduhan yang bisa menyimpang —
+   * dua kali keluhan yang sama lahir dari penanda yang dipasang per tempat.
+   */
+  const { sibuk: sedangUnduh, galat, bersihkanGalat, unduh } = useUnduhBerkas();
+  const [labelUnduh, setLabelUnduh] = useState<string | null>(null);
+
+  function jemputBerkas(p: PilihanUnduh) {
+    setLabelUnduh(p.labelSibuk);
+    void unduh(p.href, p.namaBerkas);
+  }
+
+  /*
    * Satu aksi yang sedang berjalan mematikan SELURUH kendali ini, bukan hanya
    * dirinya sendiri: "Kirim ke WhatsApp" dan "Upload ke Drive" pada berkas yang
    * sama tidak pernah dimaksudkan berjalan bersamaan, dan menyisakan satu pintu
    * terbuka hanya memindahkan kiriman gandanya ke pintu sebelah.
+   *
+   * Unduhan ikut menutup pintu dengan alasan yang sama: menekan "Unduh" tiga
+   * kali karena layarnya diam berarti server membangun PDF yang sama tiga kali.
    */
-  const sibuk = [utama, ...pilihan].find((p) => p?.loading) ?? null;
+  const sibuk: { labelSibuk: string } | null =
+    (sedangUnduh && labelUnduh ? { labelSibuk: labelUnduh } : null) ??
+    ([utama, ...pilihan].find((p) => p?.loading) as PilihanAksi | undefined) ??
+    null;
 
   const kelasTombol = cn(
     "inline-flex h-9 items-center gap-1.5 border px-3 text-[13px] font-medium transition-colors",
@@ -161,6 +232,10 @@ export function MenuBerkas({
   if (sibuk) {
     return (
       <span
+        // Halaman ini kadang menaruh beberapa menu bersebelahan; `role="status"`
+        // membuat kepingan sibuknya diumumkan sebagai satu wilayah yang berdiri
+        // sendiri, bukan potongan teks yang mengambang.
+        role="status"
         aria-busy="true"
         // `aria-live` supaya perubahannya juga SAMPAI ke pembaca layar; tanpa
         // ini penanda sibuk hanya ada untuk yang melihat layar.
@@ -178,7 +253,22 @@ export function MenuBerkas({
 
   return (
     <div ref={ref} className={cn("relative inline-flex", className)}>
-      {utama ? <TombolUtama utama={utama} label={label} icon={icon} kelas={kelasTombol} /> : null}
+      {/*
+        Galat unduhan dikatakan DI SINI, menempel pada tombolnya. Sebelumnya ia
+        mendarat sebagai JSON di tab baru yang terbuka di belakang – dari kursi
+        pemakai itu sama saja dengan "tidak terjadi apa-apa".
+      */}
+      {galat ? <GalatUnduh galat={galat} onTutup={bersihkanGalat} /> : null}
+
+      {utama ? (
+        <TombolUtama
+          utama={utama}
+          label={label}
+          icon={icon}
+          kelas={kelasTombol}
+          onUnduh={jemputBerkas}
+        />
+      ) : null}
 
       {/* `static`: panel di dalamnya menjangkar ke pembungkus, supaya pada mode
           terpisah ia sejajar dengan SELURUH kendali, bukan cuma panahnya. */}
@@ -218,7 +308,12 @@ export function MenuBerkas({
           style={{ top: "100%" }}
         >
           {pilihan.map((p) => (
-            <ItemMenu key={p.label} p={p} onTutup={() => setTerbuka(false)} />
+            <ItemMenu
+              key={p.label}
+              p={p}
+              onTutup={() => setTerbuka(false)}
+              onUnduh={jemputBerkas}
+            />
           ))}
         </div>
       </details>
@@ -232,11 +327,13 @@ function TombolUtama({
   label,
   icon,
   kelas,
+  onUnduh,
 }: {
   utama: PilihanBerkas;
   label: string;
   icon?: ReactNode;
   kelas: string;
+  onUnduh: (p: PilihanUnduh) => void;
 }) {
   const isi = (
     <>
@@ -256,8 +353,30 @@ function TombolUtama({
     );
   }
   if (utama.href) {
+    /*
+     * Tetap `<a href>` walau berkasnya dijemput lewat fetch: klik-tengah,
+     * "Buka di tab baru", dan "Simpan tautan sebagai" tetap bekerja seperti
+     * yang orang harapkan dari sebuah tautan. Yang diambil alih hanya klik
+     * biasa — supaya ada yang bisa mengatakan "sedang disiapkan".
+     */
+    const berkas = utama.jenis === "berkas";
     return (
-      <a href={utama.href} target="_blank" rel="noopener" className={bentuk} title={utama.label}>
+      <a
+        href={utama.href}
+        target={berkas ? undefined : "_blank"}
+        rel="noopener"
+        className={bentuk}
+        title={utama.label}
+        onClick={
+          berkas
+            ? (e) => {
+                if (!klikBiasa(e)) return;
+                e.preventDefault();
+                onUnduh(utama);
+              }
+            : undefined
+        }
+      >
         {isi}
       </a>
     );
@@ -269,7 +388,15 @@ function TombolUtama({
   );
 }
 
-function ItemMenu({ p, onTutup }: { p: PilihanBerkas; onTutup: () => void }) {
+function ItemMenu({
+  p,
+  onTutup,
+  onUnduh,
+}: {
+  p: PilihanBerkas;
+  onTutup: () => void;
+  onUnduh: (p: PilihanUnduh) => void;
+}) {
   const mati = !!p.disabledReason;
   const isi = (
     <>
@@ -299,8 +426,22 @@ function ItemMenu({ p, onTutup }: { p: PilihanBerkas; onTutup: () => void }) {
     );
   }
   if (p.href) {
+    const berkas = p.jenis === "berkas";
     return (
-      <a role="menuitem" href={p.href} target="_blank" rel="noopener" onClick={onTutup} className={kelas}>
+      <a
+        role="menuitem"
+        href={p.href}
+        target={berkas ? undefined : "_blank"}
+        rel="noopener"
+        onClick={(e) => {
+          if (berkas && klikBiasa(e)) {
+            e.preventDefault();
+            onUnduh(p);
+          }
+          onTutup();
+        }}
+        className={kelas}
+      >
         {isi}
       </a>
     );

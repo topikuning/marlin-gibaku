@@ -1,10 +1,13 @@
+import type { NoActivityReason } from "@/generated/prisma/enums";
+import { alasanTidakBisaNihil } from "./nihil";
 import { db } from "@/lib/db";
 import { audit, auditIn } from "@/lib/audit";
 import { requestIp } from "@/lib/auth/session";
 import { canTransitionReport } from "@/lib/lifecycle";
+import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
-import { prestasiPct } from "@/lib/progress-calc";
+import { weekOfDate, weekDateRange, prestasiPct } from "@/lib/progress-calc";
 import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { dominantWeatherCode, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { Prisma } from "@/generated/prisma/client";
@@ -140,7 +143,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
         ? "draft_adendum"
         : (() => {
             throw new DailyReportError(
-              "Item RAB berasal dari revisi lama yang sudah digantikan — muat ulang halaman",
+              "Item RAB berasal dari revisi lama yang sudah digantikan – muat ulang halaman",
             );
           })();
 
@@ -468,7 +471,7 @@ async function assertVolumeWithinRab(
   }
   if (offending.length > 0) {
     throw new DailyReportError(
-      `Volume kumulatif melebihi RAB — laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
+      `Volume kumulatif melebihi RAB – laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
     );
   }
 }
@@ -549,15 +552,37 @@ async function transition(
  * tetap jujur.
  */
 export async function submitReport(reportId: string, userId: string) {
-  const [itemCount, materialCount, equipmentCount] = await Promise.all([
+  const [itemCount, materialCount, equipmentCount, laporan] = await Promise.all([
     db.dailyReportItem.count({ where: { reportId } }),
     db.dailyReportMaterial.count({ where: { reportId } }),
     db.dailyReportEquipment.count({ where: { reportId } }),
+    db.dailyReport.findUnique({
+      where: { id: reportId },
+      select: { noActivity: true, noActivityReason: true },
+    }),
   ]);
   if (itemCount === 0 && materialCount === 0 && equipmentCount === 0) {
-    throw new DailyReportError(
-      "Laporan masih kosong — isi minimal satu item pekerjaan, material masuk, atau alat.",
-    );
+    /*
+     * Hari nihil BOLEH dikirim — tapi hanya kalau dinyatakan, berikut sebabnya
+     * (DECISIONS 396). Pagarnya tidak dilonggarkan, melainkan diberi satu pintu
+     * yang harus dilewati dengan sadar: laporan yang LUPA diisi tetap ditolak,
+     * dan itulah yang membuat hari nihil bisa dipercaya sebagai pernyataan.
+     */
+    if (!laporan?.noActivity) {
+      throw new DailyReportError(
+        "Laporan masih kosong – isi minimal satu item pekerjaan, material masuk, atau alat. " +
+          "Kalau hari ini memang tidak ada kegiatan, centang \"Tidak ada kegiatan\" dan sebutkan sebabnya.",
+      );
+    }
+    if (!laporan.noActivityReason) {
+      /*
+       * Tanpa sebab, hari nihil tidak bisa dibedakan satu sama lain — padahal
+       * hujan adalah dasar klaim perpanjangan waktu, libur netral, dan
+       * "menunggu" adalah kendala yang harus ditagih. Di kurva-S ketiganya 0%;
+       * di manajemen ketiganya berbeda.
+       */
+      throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+    }
   }
   const { updated } = await transition(
     reportId,
@@ -598,35 +623,57 @@ export async function returnReport(reportId: string, reason: string, userId: str
  * ada satu orang aktif per lokasi (permintaan user). Yang penting: keadaannya
  * TERBACA, bukan jadi asumsi diam-diam.
  */
+/**
+ * Alasan pemisahan tugas yang MENGHALANGI finalisasi, atau null bila bebas —
+ * bentuk yang tidak melempar.
+ *
+ * Dipakai jalur yang perlu TAHU LEBIH DULU, bukan sekadar dihentikan di tengah:
+ * pindah tanggal laporan final (DECISIONS 415) membuka kunci lalu memfinalkan
+ * ulang, dan gagal di langkah terakhir akan meninggalkan laporan terbuka di
+ * tanggal baru — separuh jadi, tanpa ada yang memintanya begitu.
+ */
+export async function alasanTakBolehFinalkan(
+  reportId: string,
+  userId: string,
+): Promise<string | null> {
+  const { getPolicy } = await import("@/lib/policy");
+  const policy = await getPolicy();
+  if (!policy.finalizerMustDiffer) return null;
+  const rep = await db.dailyReport.findUniqueOrThrow({
+    where: { id: reportId },
+    select: { verifiedById: true },
+  });
+  if (rep.verifiedById !== userId) return null;
+  return (
+    "Laporan ini kamu sendiri yang menyetujui – pemfinalnya harus orang lain. " +
+    "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian."
+  );
+}
+
 async function assertPemisahanTugas(
   reportId: string,
   userId: string,
   langkah: "approve" | "finalize",
 ) {
+  if (langkah === "finalize") {
+    const alasan = await alasanTakBolehFinalkan(reportId, userId);
+    if (alasan) throw new DailyReportError(alasan);
+    return;
+  }
   const { getPolicy } = await import("@/lib/policy");
   const policy = await getPolicy();
-  const aktif = langkah === "approve" ? policy.approverMustDiffer : policy.finalizerMustDiffer;
-  if (!aktif) return;
+  if (!policy.approverMustDiffer) return;
 
   const rep = await db.dailyReport.findUniqueOrThrow({
     where: { id: reportId },
     select: { submittedById: true, verifiedById: true, createdById: true },
   });
-  if (langkah === "approve") {
-    // Pembanding utama = PENGIRIM. `createdById` ikut diperiksa untuk laporan
-    // yang dikirim orang lain tapi seluruh isinya diketik penyetuju sendiri.
-    const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
-    if (sendiri) {
-      throw new DailyReportError(
-        "Laporan ini kamu sendiri yang mengirim — penyetujunya harus orang lain. " +
-          "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
-      );
-    }
-    return;
-  }
-  if (rep.verifiedById === userId) {
+  // Pembanding utama = PENGIRIM. `createdById` ikut diperiksa untuk laporan
+  // yang dikirim orang lain tapi seluruh isinya diketik penyetuju sendiri.
+  const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
+  if (sendiri) {
     throw new DailyReportError(
-      "Laporan ini kamu sendiri yang menyetujui — pemfinalnya harus orang lain. " +
+      "Laporan ini kamu sendiri yang mengirim – penyetujunya harus orang lain. " +
         "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
     );
   }
@@ -652,6 +699,16 @@ export type FinalSnapshot = {
   reportDate: string; // YYYY-MM-DD
   location: { name: string; slug: string; village: string; regency: string; province: string };
   weekNo: number | null;
+  /**
+   * Rentang tanggal minggu `weekNo` (kunci YYYY-MM-DD), DIBEKUKAN bersama
+   * nomornya (DECISIONS 427c): mode periode minggu kontrak bisa diganti di
+   * tengah jalan, dan blanko final yang sudah diteken harus tetap koheren
+   * dengan dirinya sendiri — nomor beku + rentang yang dihitung ulang dari
+   * mode BARU bisa tidak memuat tanggal laporannya. null = snapshot lama
+   * (sebelum kolom ini ada) → penyaji jatuh ke derivasi mode berjalan.
+   */
+  periodStartKey?: string | null;
+  periodEndKey?: string | null;
   tahunAnggaran: number;
   weather: WeatherCode | null;
   /** Kondisi per jam 07–21 (bila diambil otomatis) — dibekukan bersama laporan. */
@@ -714,7 +771,7 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
           village: true,
           regency: true,
           province: true,
-          package: { select: { contract: { select: { startDate: true } } } },
+          package: { select: { contract: { select: { startDate: true, weekMode: true } } } },
         },
       },
       // Urut RAB (sortOrder), BUKAN urutan input — supaya baris laporan
@@ -743,9 +800,13 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
 
   const dateKey = jakartaDateKey(report.reportDate);
   const startDate = report.location.package.contract?.startDate ?? null;
-  const weekNo = startDate
-    ? Math.max(1, Math.floor((report.reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
-    : null;
+  // Nomor minggu mengikuti MODE PERIODE MINGGU kontrak (DECISIONS 427) — rumus
+  // 7-hari yang dulu ditulis langsung di sini terlewat saat mode diperkenalkan,
+  // sehingga blanko yang difinalkan pada mode senin_minggu membekukan nomor
+  // yang salah. Rentang tanggalnya ikut dibekukan (DECISIONS 427c).
+  const weekMode = report.location.package.contract?.weekMode ?? "tujuh_hari";
+  const weekNo = startDate ? Math.max(1, weekOfDate(startDate, report.reportDate, weekMode)) : null;
+  const periodeMinggu = startDate && weekNo ? weekDateRange(startDate, weekNo, weekMode) : null;
 
   // Blanko harian KKP adalah DOKUMEN RESMI ⇒ hanya baris basis aktif
   // (DECISIONS 215). Pekerjaan yang dilaporkan atas usulan adendum belum punya
@@ -791,6 +852,8 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
       province: report.location.province,
     },
     weekNo,
+    periodStartKey: periodeMinggu ? periodeMinggu.start.toISOString().slice(0, 10) : null,
+    periodEndKey: periodeMinggu ? periodeMinggu.end.toISOString().slice(0, 10) : null,
     tahunAnggaran: (startDate ?? report.reportDate).getUTCFullYear(),
     weather: report.weather,
     weatherHourly: parseHourlyWeather(report.weatherHourly),
@@ -899,16 +962,53 @@ export type IssueInput = {
   severity: IssueSeverity;
 };
 
-/** Catat kendala lapangan yang menempel ke laporan harian. */
-export async function addIssueFromReport(reportId: string, input: IssueInput, userId: string) {
+export type HasilKendalaLaporan =
+  | { jadi: "dibuat"; issueId: string; title: string }
+  | { jadi: "duplikat"; issueId: string; title: string };
+
+/**
+ * Catat kendala lapangan yang menempel ke laporan harian.
+ *
+ * ### Penjaga duplikat ada DI SINI, bukan di layarnya (DECISIONS 407)
+ *
+ * User 2026-08-21: *"saat kirim laporan ada pilihan lagi ada kendala atau tidak,
+ * ini terlalu rancu dan beresiko input kendala ganda."* Betul: fungsi ini
+ * dipanggil dari DUA layar (lembar kirim dan formulir kendala saat verifikasi)
+ * dan dua-duanya dulu membuat baris baru tanpa memeriksa apa pun — sementara
+ * papan kendala lokasi dan kegiatan lapangan sudah punya penjaganya sejak
+ * DECISIONS 392. Satu masalah yang sama karena itu bisa muncul empat kali.
+ *
+ * `paksa` disediakan untuk orang yang MEMANG bermaksud mencatat masalah kedua
+ * yang kalimatnya mirip. Menolak tanpa jalan keluar hanya melatih orang menulis
+ * judul yang sengaja dibedakan supaya lolos, dan duplikat yang menyamar lebih
+ * sulit dikenali daripada duplikat terang-terangan.
+ */
+export async function addIssueFromReport(
+  reportId: string,
+  input: IssueInput,
+  userId: string,
+  opts: { paksa?: boolean } = {},
+): Promise<HasilKendalaLaporan> {
   const report = await getReportOrThrow(reportId);
   // Laporan final beku — kendala baru dicatat lewat menu Kendala lokasi, bukan
   // menempel diam-diam ke dokumen yang sudah final (audit 2026-07-27, B16c).
   if (report.status === "final") {
-    throw new DailyReportError("Laporan sudah final — catat kendala lewat menu Kendala lokasi");
+    throw new DailyReportError("Laporan sudah final – catat kendala lewat menu Kendala lokasi");
   }
   if (!input.title || input.title.trim().length === 0) {
     throw new DailyReportError("Judul kendala wajib diisi");
+  }
+  if (!opts.paksa) {
+    const mirip = await kendalaSerupaTerbuka(report.locationId, input.title.trim());
+    if (mirip.length) {
+      await audit(userId, "issue.duplikat_dilewati", "issue", mirip[0].id, {
+        locationId: report.locationId,
+        reportId,
+        judulBaru: input.title.trim(),
+        skor: Number(mirip[0].skor.toFixed(3)),
+      });
+      return { jadi: "duplikat", issueId: mirip[0].id, title: mirip[0].title };
+    }
   }
   const issue = await db.issue.create({
     data: {
@@ -918,8 +1018,65 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
       description: input.description?.trim() || null,
       severity: input.severity,
       raisedById: userId,
+      // Ditulis TEGAS, bukan mengandalkan default `manual` di skema. Tanpa ini
+      // kendala dari laporan harian berlabel "Dicatat langsung" di papan, dan
+      // saringan Sumber diam-diam salah – label yang salah lebih buruk
+      // daripada label yang tidak ada. DECISIONS 392.
+      source: "laporan_harian",
     },
   });
-  await audit(userId, "issue.create", "issue", issue.id, { reportId, severity: input.severity });
-  return issue;
+  await audit(userId, "issue.create", "issue", issue.id, {
+    reportId,
+    severity: input.severity,
+    ...(opts.paksa ? { duplikatDiabaikan: true } : {}),
+  });
+  return { jadi: "dibuat", issueId: issue.id, title: issue.title };
+}
+
+/**
+ * Nyatakan / batalkan "hari ini tidak ada kegiatan" (DECISIONS 396).
+ *
+ * Sengaja BUKAN sekadar menulis kolom: penjaganya memastikan pernyataan ini
+ * tidak pernah berdiri bersama item pekerjaan, material, atau alat. Dua
+ * pernyataan yang saling menyangkal membuat laporan mengatakan dua hal
+ * sekaligus, dan pembacanya yang disuruh memilih mana yang benar.
+ */
+export async function setHariNihil(
+  reportId: string,
+  input: { nihil: boolean; alasan?: NoActivityReason | null; catatan?: string | null },
+  userId: string,
+) {
+  const report = await getReportOrThrow(reportId);
+  if (report.status === "final") {
+    throw new DailyReportError("Laporan sudah final – tidak bisa diubah.");
+  }
+
+  if (input.nihil) {
+    if (!input.alasan) throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+    const [jumlahItem, jumlahMaterial, jumlahAlat] = await Promise.all([
+      db.dailyReportItem.count({ where: { reportId } }),
+      db.dailyReportMaterial.count({ where: { reportId } }),
+      db.dailyReportEquipment.count({ where: { reportId } }),
+    ]);
+    const halangan = alasanTidakBisaNihil({ jumlahItem, jumlahMaterial, jumlahAlat });
+    if (halangan) throw new DailyReportError(halangan);
+  }
+
+  const updated = await db.dailyReport.update({
+    where: { id: reportId },
+    data: {
+      noActivity: input.nihil,
+      // Dikosongkan saat pembatalan, bukan dibiarkan menggantung: sebab yang
+      // tertinggal dari pernyataan yang sudah dicabut akan terbaca lagi oleh
+      // laporan periodik dan hitungan hari hujan.
+      noActivityReason: input.nihil ? (input.alasan ?? null) : null,
+      noActivityNote: input.nihil ? (input.catatan?.trim() || null) : null,
+    },
+  });
+  await audit(userId, "daily_report.set_nihil", "daily_report", reportId, {
+    locationId: report.locationId,
+    nihil: input.nihil,
+    alasan: input.nihil ? input.alasan : null,
+  });
+  return updated;
 }

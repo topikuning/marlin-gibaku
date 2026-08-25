@@ -194,7 +194,7 @@ describe("KASUS INTI: tanpa diminta apa pun, angka Excel yang jadi baseline", ()
     expect(b.points.map((p) => Number(p.plannedPct))).toEqual([10, 40, 80, 100]);
   });
 
-  it("jeda (sel kosong) tetap jeda — kurva mendatar di minggu itu", async () => {
+  it("jeda (sel kosong) tetap jeda – kurva mendatar di minggu itu", async () => {
     await importJadwalAction(
       undefined,
       fd(
@@ -209,7 +209,7 @@ describe("KASUS INTI: tanpa diminta apa pun, angka Excel yang jadi baseline", ()
     expect(b.points.map((p) => Number(p.plannedPct))).toEqual([10, 70, 70, 100]);
   });
 
-  it("banner menyebut selisihnya terhadap RAB — pilihan user, bukan angka diam-diam", async () => {
+  it("banner menyebut selisihnya terhadap RAB – pilihan user, bukan angka diam-diam", async () => {
     const res = await importJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
     expect(res?.success).toContain("apa adanya");
     expect(res?.success).toContain("Pekerjaan Persiapan 10,00% (RAB 5,00%)");

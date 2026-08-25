@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { jakartaDateKey } from "@/lib/format";
+import type { WaOutboundStatus } from "@/generated/prisma/enums";
 import { isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { kumpulkanPengingat } from "./penjadwal";
@@ -23,6 +24,23 @@ export type RiwayatHariIni = {
   /** Ada ID pesan dari WhatsApp = bukti pesannya benar-benar masuk antrean. */
   adaBukti: boolean;
   error: string | null;
+  /**
+   * Nasib SEBENARNYA kiriman itu menurut outbox (DECISIONS 380).
+   *
+   * `DailyReminderLog.status` ditulis **"sukses" SEBELUM pesannya berangkat**
+   * dan hanya berubah kalau pemanggilan melempar. Padahal justru kegagalan yang
+   * paling berbahaya terjadi SESUDAH itu: WAHA menerbitkan id, lalu WhatsApp
+   * menolak sendiri (mis. error 463, nomor pengirim dibatasi menghubungi nomor
+   * baru) — penolakan yang tidak pernah terlihat dari respons API (`WA-01`).
+   *
+   * Sejak DECISIONS 374 nasib itu TERCATAT di `wa_outbound` dan diperbarui
+   * `message.ack`. Yang kurang cuma menyambungkannya ke layar ini: tanpa itu
+   * pengingat yang ditolak WhatsApp tetap tampil "ada ID pesan", yang terbaca
+   * seperti baik-baik saja.
+   *
+   * `null` = tidak ada barisnya (kiriman lama sebelum outbox ada).
+   */
+  statusKirim: WaOutboundStatus | null;
 };
 
 export type PratinjauPengingat = {
@@ -99,6 +117,22 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
     },
   });
   const sudah = new Map(log.map((l) => [l.userId, l]));
+
+  /*
+   * Nasib sebenarnya tiap kiriman — dibaca dari outbox lewat `waMessageId`
+   * (DECISIONS 380). SATU query untuk semua, bukan per orang.
+   */
+  const idPesan = log.map((l) => l.waMessageId).filter((x): x is string => !!x);
+  const outbox = idPesan.length
+    ? await db.waOutbound.findMany({
+        where: { waMessageId: { in: idPesan } },
+        select: { waMessageId: true, status: true },
+      })
+    : [];
+  const statusOutbox = new Map(
+    outbox.map((o) => [o.waMessageId as string, o.status] as const),
+  );
+
   const riwayat = (userId: string): RiwayatHariIni | null => {
     const l = sudah.get(userId);
     if (!l) return null;
@@ -107,6 +141,7 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
       status: l.status,
       adaBukti: !!l.waMessageId,
       error: l.error,
+      statusKirim: l.waMessageId ? (statusOutbox.get(l.waMessageId) ?? null) : null,
     };
   };
 
@@ -130,13 +165,14 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
       riwayat: riwayat(p.userId),
     })),
     sudahDikirim: log.map((l) => ({
-      nama: namaOrg.get(l.userId) ?? "—",
+      nama: namaOrg.get(l.userId) ?? "–",
       lokasi: l.locations,
       tujuan: l.chatId,
       attempts: l.attempts,
       status: l.status,
       adaBukti: !!l.waMessageId,
       error: l.error,
+      statusKirim: l.waMessageId ? (statusOutbox.get(l.waMessageId) ?? null) : null,
     })),
     tanpaNomor: await penanggungJawabTanpaNomor(now, orgId),
   };

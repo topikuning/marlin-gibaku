@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { weeklyFromSegments } from "@/lib/scurve/generate";
+import { weekEndFractions } from "@/lib/progress-calc";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
@@ -45,12 +46,12 @@ type SeedFile = ParsedRab & {
 
 // Paket: grup lokasi per kontrak. BGK = satu kontrak dua lokasi (multi-lokasi).
 const PACKAGES: { name: string; number: string; slugs: string[]; contractNumber: string }[] = [
-  { name: "Paket KNMP Demak — Kedungmutih", number: "PKT-2026-001", slugs: ["kedungmutih"], contractNumber: "SPK-KNMP-2026-KDM-001" },
+  { name: "Paket KNMP Demak – Kedungmutih", number: "PKT-2026-001", slugs: ["kedungmutih"], contractNumber: "SPK-KNMP-2026-KDM-001" },
   { name: "Paket KNMP Purworejo", number: "PKT-2026-002", slugs: ["purworejo"], contractNumber: "SPK-KNMP-2026-PWJ-002" },
-  { name: "Paket KNMP Jepara — Ujungwatu", number: "PKT-2026-003", slugs: ["ujungwatu"], contractNumber: "SPK-KNMP-2026-JPR-003" },
-  { name: "Paket KNMP Jepara — Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
+  { name: "Paket KNMP Jepara – Ujungwatu", number: "PKT-2026-003", slugs: ["ujungwatu"], contractNumber: "SPK-KNMP-2026-JPR-003" },
+  { name: "Paket KNMP Jepara – Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
   { name: "Paket KNMP Bangkalan (2 lokasi)", number: "PKT-2026-005", slugs: ["batah-timur", "tengket"], contractNumber: "SPK-KNMP-2026-BGK-005" },
-  { name: "Paket KNMP Lamongan — Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
+  { name: "Paket KNMP Lamongan – Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
 ];
 
 /**
@@ -91,7 +92,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
 
   // ── Users (password dev: marlin123) ─────────────────────────
   const password = await hashPassword("marlin123");
-  const users: { username: string; fullName: string; role: "super_admin" | "program_director" | "regional_manager" | "project_manager" | "site_manager" | "field_supervisor" | "exec_viewer"; mustChange?: boolean }[] = [
+  const users: { username: string; fullName: string; role: "super_admin" | "program_director" | "regional_manager" | "project_manager" | "site_manager" | "field_supervisor" | "exec_viewer" | "wakil_ppk"; mustChange?: boolean }[] = [
     { username: "admin", fullName: "Administrator Sistem", role: "super_admin" },
     { username: "hery", fullName: "Hery Purnomo", role: "program_director" },
     { username: "am-jateng", fullName: "Rina Widyastuti", role: "regional_manager" },
@@ -100,6 +101,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
     { username: "sm-02", fullName: "Dewi Anggraini", role: "site_manager", mustChange: true },
     { username: "mandor-01", fullName: "Paijo Sutrisno", role: "field_supervisor" },
     { username: "kkp-viewer", fullName: "Pengawas KKP", role: "exec_viewer" },
+    // Verifikator pemberi kerja (DECISIONS 426) — untuk mencoba workspace
+    // /verifikasi; penugasan lokasinya diberikan di blok assignment di bawah.
+    { username: "wakil-ppk-01", fullName: "Andi Wakil PPK", role: "wakil_ppk" },
   ];
   const userByName = new Map<string, string>();
   for (const u of users) {
@@ -282,8 +286,18 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         where: { locationId_baselineNo: { locationId: location.id, baselineNo: 1 } },
       });
       if (!hasBaseline) {
-        const contractDays = Math.round((dateOnly(m.end_date).getTime() - dateOnly(m.start_date).getTime()) / DAY);
-        const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+        // Grid minggu mengikuti KONTRAK paket (tanggal + mode) — sumber yang
+        // sama dengan laporan & template kurva-S, supaya baseline demo tidak
+        // menyimpang dari grid yang dipakai layar (DECISIONS 427b/429).
+        const kontrakGrid = await db.contract.findFirst({
+          where: { package: { locations: { some: { id: location.id } } } },
+          select: { startDate: true, endDate: true, weekMode: true },
+        });
+        const gStart = kontrakGrid?.startDate ?? dateOnly(m.start_date);
+        const gEnd = kontrakGrid?.endDate ?? dateOnly(m.end_date);
+        const contractDays = Math.max(1, Math.round((gEnd.getTime() - gStart.getTime()) / DAY));
+        const endFracs = weekEndFractions(gStart, gEnd, kontrakGrid?.weekMode ?? "senin_minggu");
+        const totalWeeks = endFracs.length;
         // Jadwal BERBASIS ITEM (DECISIONS 082) = sumber tunggal.
         const catNodes = nodes.filter((n) => n.kind === "kategori");
         const catKeysS = catNodes
@@ -309,7 +323,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
           const [s, e] = catWinS.get(key ?? "") ?? [1, totalWeeks];
           return [(s - 1) / totalWeeks, e / totalWeeks];
         };
-        const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS);
+        const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS, endFracs);
         const weekly = cumulativeFromCategoryWeekly(schedFromItems.categories, totalWeeks);
         const weeklyByKeyS = new Map(schedFromItems.categories.map((c) => [c.categoryKey, c.weekly]));
         const schedule = catNodes
@@ -323,7 +337,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
               weightPct,
               weekly:
                 weeklyByKeyS.get(c.lineageKey) ??
-                weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
+                weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks, endFracs),
             };
           });
         const baseline = await db.baseline.create({
@@ -419,11 +433,14 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await assign("pm-01", "tengket");
   await assign("am-jateng", "kedungmutih");
   await assign("am-jateng", "purworejo");
+  // Wakil PPK memeriksa dua lokasi Jateng (sesuai penugasan, DECISIONS 199/426).
+  await assign("wakil-ppk-01", "kedungmutih");
+  await assign("wakil-ppk-01", "purworejo");
 
   // ── Paket non-kontrak: prospek / tender / batal ─────────────
   const extraPkgs = [
-    { number: "PKT-2027-001", name: "Paket KNMP Tahap II — Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
-    { number: "PKT-2027-002", name: "Paket KNMP Tahap II — Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
+    { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
+    { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
     { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
   ];
   for (const e of extraPkgs) {
@@ -546,7 +563,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
           fromStatus: (from ?? undefined) as never,
           toStatus: to as never,
           changedById: to === "dikirim" ? mandorId : smId,
-          reason: to === "perlu_koreksi" ? "Volume pasangan batu tidak sesuai foto — mohon cek ulang" : null,
+          reason: to === "perlu_koreksi" ? "Volume pasangan batu tidak sesuai foto – mohon cek ulang" : null,
         },
       });
     }
@@ -600,6 +617,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   }
 
   // Kendala + pemulihan
+  // KEMBAR-OK: penjaga idempotensi seed. Yang ditanya "sudah pernah di-seed
+  // atau belum", bukan "berapa kendala yang berlaku" — kembar yang
+  // digabungkan tetap bukti seed pernah jalan.
   const hasIssue = await db.issue.count({ where: { locationId: kdm.id } });
   if (hasIssue === 0) {
     const issue = await db.issue.create({

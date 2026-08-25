@@ -43,7 +43,7 @@ describe("isLidJid & senderKeyOf", () => {
   });
 });
 
-describe("resolveSender — prioritas berlapis", () => {
+describe("resolveSender – prioritas berlapis", () => {
   it("1. alias manual menang (menyelesaikan kasus @lid)", () => {
     const r = resolveSender(
       { senderJid: "99887766554433@lid", fromNumber: null, fromName: null, fromMe: false },

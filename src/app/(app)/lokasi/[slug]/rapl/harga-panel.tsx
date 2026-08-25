@@ -135,7 +135,7 @@ export function HargaPanel({
 
       {canInput ? (
         <p className="text-[13px] text-ink-muted">
-          Klik sel <strong>Harga satuan</strong> lalu ketik angkanya — Enter pindah ke baris
+          Klik sel <strong>Harga satuan</strong> lalu ketik angkanya – Enter pindah ke baris
           berikutnya, seperti Excel. Kosongkan selnya untuk menghapus harga.
         </p>
       ) : null}
@@ -150,7 +150,7 @@ export function HargaPanel({
         persistKey="rapl-harga"
         editMode={canInput}
         getRowId={(d: Baris) => `${d.kategori}|${d.nama}|${d.satuan}`}
-        emptyText="Belum ada kebutuhan — setujui padanan AHSP lebih dulu."
+        emptyText="Belum ada kebutuhan – setujui padanan AHSP lebih dulu."
         onCellValueChanged={(e: CellValueChangedEvent<Baris>) => {
           if (e.colDef.field !== "hargaNum") return;
           const d = e.data;
@@ -198,7 +198,7 @@ export function HargaPanel({
 
       <p className="text-[12px] text-ink-muted">
         {belum} dari {data.length} sumber daya belum berharga. Kolom &ldquo;Harga di lokasi
-        lain&rdquo; hanya bahan pertimbangan — sekabupaten disebut lebih dulu.
+        lain&rdquo; hanya bahan pertimbangan – sekabupaten disebut lebih dulu.
       </p>
     </div>
   );

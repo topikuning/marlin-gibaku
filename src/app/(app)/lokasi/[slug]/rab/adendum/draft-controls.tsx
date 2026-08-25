@@ -67,13 +67,13 @@ export function DraftControls({
           }`}
         >
           <p className="font-medium text-ink">
-            Persetujuan aktivasi — butuh DUA orang berbeda: Program Director + Area/Project/Site Manager
+            Persetujuan aktivasi – butuh DUA orang berbeda: Program Director + Area/Project/Site Manager
           </p>
           {persetujuan.berlaku.length > 0 ? (
             <ul className="mt-1 space-y-0.5 text-ink-muted">
               {persetujuan.berlaku.map((p) => (
                 <li key={`${p.nama}-${p.waktu}`}>
-                  ✓ {p.nama} ({p.peran}) — {p.waktu}
+                  ✓ {p.nama} ({p.peran}) – {p.waktu}
                 </li>
               ))}
             </ul>
@@ -86,7 +86,7 @@ export function DraftControls({
           {persetujuan.gugur.length > 0 ? (
             <p className="mt-1 text-warning">
               Gugur karena draft berubah setelah disetujui:{" "}
-              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")} — perlu menyetujui ulang.
+              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")} – perlu menyetujui ulang.
             </p>
           ) : null}
           {persetujuan.bolehTtd ? (
@@ -123,12 +123,12 @@ export function DraftControls({
         type="button"
         loading={pending}
         disabled={terkunci}
-        title={terkunci ? `Terkunci — masih kurang: ${persetujuan?.kurang.join(" + ")}` : undefined}
+        title={terkunci ? `Terkunci – masih kurang: ${persetujuan?.kurang.join(" + ")}` : undefined}
         onClick={() =>
           run(
             activateDraftAction,
             `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
-              (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman — pastikan sudah dibaca.\n\n" : "") +
+              (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman – pastikan sudah dibaca.\n\n" : "") +
               "Revisi aktif lama menjadi arsip (jejak tetap ada), kurva-S di-regenerate, dan realisasi tersambung otomatis via lineage.",
           )
         }

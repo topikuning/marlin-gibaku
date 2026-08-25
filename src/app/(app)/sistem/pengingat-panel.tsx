@@ -10,7 +10,34 @@ import {
   setPengingatAktifAction,
   type PengingatState,
 } from "@/lib/harian/actions";
-import type { PratinjauPengingat } from "@/lib/harian/pratinjau";
+import type { PratinjauPengingat, RiwayatHariIni } from "@/lib/harian/pratinjau";
+import { LABEL_STATUS_KIRIM, NADA_STATUS_KIRIM } from "@/lib/waha/status-kirim";
+
+/**
+ * Nasib kiriman apa adanya (DECISIONS 380).
+ *
+ * Sebelum ini layar hanya bisa mengatakan "ada ID pesan", karena memang itu
+ * satu-satunya yang diketahui. Sejak DECISIONS 374 nasib sebenarnya tercatat di
+ * outbox dan diperbarui `message.ack` — dan pengingat yang DITOLAK WhatsApp
+ * (mis. error 463) selama ini tetap tampil "ada ID pesan", yang terbaca seperti
+ * baik-baik saja.
+ *
+ * Urutan bacanya: outbox lebih tahu daripada `DailyReminderLog.status`, yang
+ * ditulis "sukses" SEBELUM pesannya berangkat.
+ */
+function labelRiwayat(r: Pick<RiwayatHariIni, "status" | "adaBukti" | "statusKirim">): string {
+  if (r.statusKirim) return LABEL_STATUS_KIRIM[r.statusKirim];
+  if (r.status === "gagal") return "GAGAL terkirim";
+  return r.adaBukti ? "ada ID pesan" : "tanpa ID pesan (tidak bisa dipastikan sampai)";
+}
+
+function nadaRiwayat(
+  r: Pick<RiwayatHariIni, "status" | "adaBukti" | "statusKirim">,
+): "neutral" | "info" | "success" | "warning" | "danger" {
+  if (r.statusKirim) return NADA_STATUS_KIRIM[r.statusKirim];
+  if (r.status === "gagal") return "danger";
+  return r.adaBukti ? "neutral" : "warning";
+}
 
 /**
  * Kirim pengingat laporan harian SEKARANG (DECISIONS 205/207/260).
@@ -68,7 +95,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title="WhatsApp (WAHA) belum dikonfigurasi"
-          description="Tanpa itu tidak ada pesan yang bisa dikirim — baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
+          description="Tanpa itu tidak ada pesan yang bisa dikirim – baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
         />
       ) : pratinjau.sesiStatus !== "WORKING" ? (
         /* Keterangan, BUKAN pagar. Status sesi berguna untuk membaca hasil,
@@ -77,7 +104,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title={`Status sesi WhatsApp: ${pratinjau.sesiStatus}`}
-          description="Di luar WORKING, pesan bisa saja tidak sampai walau WAHA menjawab 2xx. Tombol kirim tetap bisa dipakai — hasil per orang ditampilkan setelahnya, lengkap dengan ada/tidaknya ID pesan."
+          description="Di luar WORKING, pesan bisa saja tidak sampai walau WAHA menjawab 2xx. Tombol kirim tetap bisa dipakai – hasil per orang ditampilkan setelahnya, lengkap dengan ada/tidaknya ID pesan."
         />
       ) : null}
 
@@ -98,7 +125,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           <span>
             Tidak ada penanggung jawab yang perlu ditagih sekarang
             {pratinjau.sudahDikirim.length > 0
-              ? ` — ${pratinjau.sudahDikirim.length} orang sudah menerima pengingat hari ini.`
+              ? ` – ${pratinjau.sudahDikirim.length} orang sudah menerima pengingat hari ini.`
               : "."}
           </span>
         </div>
@@ -121,14 +148,8 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
                       <span className="tabular text-[13px] text-ink-faint">{p.tujuan}</span>
                       {p.riwayat ? (
                         <StatusPill
-                          tone={p.riwayat.status === "gagal" ? "danger" : "neutral"}
-                          label={
-                            p.riwayat.status === "gagal"
-                              ? `${p.riwayat.attempts}× hari ini · GAGAL`
-                              : p.riwayat.adaBukti
-                                ? `${p.riwayat.attempts}× hari ini · ada ID pesan`
-                                : `${p.riwayat.attempts}× hari ini · tanpa ID pesan`
-                          }
+                          tone={nadaRiwayat(p.riwayat)}
+                          label={`${p.riwayat.attempts}× hari ini · ${labelRiwayat(p.riwayat)}`}
                         />
                       ) : null}
                     </div>
@@ -176,18 +197,14 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-muted">
             {pratinjau.sudahDikirim.map((s, i) => (
               <li key={`${s.nama}-${i}`} className="flex items-start gap-2">
-                {s.status === "gagal" || !s.adaBukti ? (
+                {nadaRiwayat(s) === "danger" || !s.adaBukti ? (
                   <AlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0 text-danger" />
                 ) : null}
                 <span>
-                  {s.nama} — {s.lokasi} lokasi · {s.attempts}× ·{" "}
+                  {s.nama} – {s.lokasi} lokasi · {s.attempts}× ·{" "}
                   <span className="tabular">{s.tujuan ?? "nomor tidak tercatat"}</span>
-                  {s.status === "gagal"
-                    ? " · GAGAL terkirim"
-                    : s.adaBukti
-                      ? " · ada ID pesan"
-                      : " · tanpa ID pesan (tidak bisa dipastikan sampai)"}
-                  {s.error ? <span className="text-danger"> — {s.error}</span> : null}
+                  {` · ${labelRiwayat(s)}`}
+                  {s.error ? <span className="text-danger"> – {s.error}</span> : null}
                 </span>
               </li>
             ))}
@@ -241,7 +258,7 @@ function SakelarOtomatis({
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja — tombol kirim di halaman ini tetap bisa dipakai."
+                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja – tombol kirim di halaman ini tetap bisa dipakai."
                 : "Penjadwal tidak mengirim apa pun. Tombol kirim di halaman ini TETAP bekerja, dan aktivasi SPMK jatuh tempo juga tetap berjalan."}
             </p>
           </div>
@@ -334,8 +351,11 @@ function HasilKirim({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium text-ink">{r.nama}</span>
               <span className="tabular text-ink-faint">{r.tujuan}</span>
+              {/* SENGAJA bukan "terkirim": WAHA menjawab 2xx juga saat sesinya
+                  belum login, dan penolakan WhatsApp datang sesudah id terbit
+                  (DECISIONS 374). Status sampai/dibaca menyusul lewat ack. */}
               {r.ok && r.waMessageId ? (
-                <StatusPill tone="success" label="terkirim + ID pesan" />
+                <StatusPill tone="info" label="diterima WAHA + ID pesan" />
               ) : r.ok ? (
                 <StatusPill tone="warning" label="tanpa ID pesan" />
               ) : (
@@ -345,7 +365,7 @@ function HasilKirim({
             {r.error ? <p className="mt-1 text-danger">{r.error}</p> : null}
             {r.ok && !r.waMessageId ? (
               <p className="mt-1 text-ink-muted">
-                WAHA menerima permintaannya tetapi tidak memberi ID pesan — tidak bisa dipastikan
+                WAHA menerima permintaannya tetapi tidak memberi ID pesan – tidak bisa dipastikan
                 sampai.
               </p>
             ) : null}

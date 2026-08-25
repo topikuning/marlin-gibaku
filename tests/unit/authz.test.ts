@@ -30,6 +30,9 @@ describe("authz capability matrix", () => {
       // Foto Cepat (DECISIONS 253). Dipisah dari daily_report.create karena
       // justru gunanya memotret TANPA harus punya laporan lebih dulu.
       "photo.quick",
+      // Papan temuan terbaca semua pemegang location.view (DECISIONS 426) —
+      // temuan yang disembunyikan dari pelaksananya tidak akan ditindaklanjuti.
+      "finding.view",
     ]);
     for (const cap of CAPABILITIES) {
       expect(can("field_supervisor", cap), cap).toBe(expected.has(cap));
@@ -43,9 +46,23 @@ describe("authz capability matrix", () => {
       "contract.edit", // koreksi kontrak
       "wa.configure", // set grup WA (sementara)
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
+      // Pindahkan laporan ke tanggal lain (DECISIONS 415). Menggeser tanggal
+      // menggeser volume ke hari lain — kurva-S, deviasi, dan angka kumulatif
+      // laporan di antaranya ikut berubah. Setara membuka laporan final.
+      "daily_report.move_date",
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
       "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)
+      // Tautan KELUAR ke folder Drive vendor ("Lihat di Drive", DECISIONS 406).
+      // Di seberang tautan itu tidak ada lagi pembatasan lokasi milik MARLIN.
+      "gdrive.open_folder",
+      // SEMENTARA (DECISIONS 411): menu Keuangan belum siap dipakai siapa pun
+      // selain super_admin. Baris-baris ini yang HARUS dihapus saat dibuka lagi
+      // — kalau uji ini tetap hijau padahal capability-nya sudah dikembalikan,
+      // berarti pengembaliannya tidak pernah sampai ke peran mana pun.
+      "finance.view",
+      "finance.input",
+      "finance.approve",
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {
@@ -68,10 +85,34 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("exec_viewer tidak bisa finance.input (hanya lihat)", () => {
+  it("exec_viewer: baca saja, dan Keuangan sedang ditahan", () => {
+    /*
+     * Baris `finance.view` di sini dulu berbunyi `true` — itu aturan LAMA.
+     * Keuangan ditahan sementara untuk semua peran selain super_admin
+     * (DECISIONS 411, "menu keuangan saat ini belum siap"). Saat dibuka lagi,
+     * baris inilah yang harus dikembalikan ke `true`.
+     */
     expect(can("exec_viewer", "finance.input")).toBe(false);
-    expect(can("exec_viewer", "finance.view")).toBe(true);
+    expect(can("exec_viewer", "finance.view")).toBe(false);
     expect(can("exec_viewer", "daily_report.create")).toBe(false);
+  });
+
+  it("Keuangan SEMENTARA super_admin saja – dan pintunya, bukan cuma menunya", () => {
+    /*
+     * Permintaan user 2026-08-22: *"menu keuangan saat ini belum siap, jadi
+     * selain superadmin, tidak usah ditampilkan dulu."*
+     *
+     * Diuji sebagai CAPABILITY, bukan sebagai "menu tidak tampil". Menyembunyikan
+     * menu saja meninggalkan alamat /keuangan terbuka bagi siapa pun yang pernah
+     * membukanya atau menyimpan tautannya — dan fitur yang belum siap akan tetap
+     * ditemukan orang.
+     */
+    for (const cap of ["finance.view", "finance.input", "finance.approve"] as const) {
+      expect(can("super_admin", cap), cap).toBe(true);
+      for (const role of ALL_ROLES.filter((r) => r !== "super_admin")) {
+        expect(can(role, cap), `${role}/${cap}`).toBe(false);
+      }
+    }
   });
 
   /**
@@ -102,8 +143,52 @@ describe("authz capability matrix", () => {
     expect(can("site_manager", "contract.manage")).toBe(false);
     expect(can("site_manager", "contract.edit")).toBe(false);
     expect(can("site_manager", "amendment.manage")).toBe(false);
-    // Kisi mingguan kurva berasal dari tanggal kontrak — tetap terkunci.
-    expect(can("project_manager", "contract.manage")).toBe(false);
+    /*
+     * Project Manager KINI memegang contract.manage (DECISIONS 421) — batas itu
+     * pindah, bukan hilang. Yang menjaga kisi mingguan kurva sekarang
+     * `contract.edit`: KOREKSI nomor/nilai/PPN/tanggal kontrak yang sudah
+     * berjalan tetap super_admin saja.
+     */
+    expect(can("project_manager", "contract.edit")).toBe(false);
+    expect(can("regional_manager", "contract.edit")).toBe(false);
+    expect(can("program_director", "contract.edit")).toBe(false);
+  });
+
+  it("kontrak normal terbuka untuk PM & AM, koreksi kontrak tidak (DECISIONS 421)", () => {
+    for (const role of ["project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      // Nama penanda tangan, gambar TTD & stempel, input kontrak, vendor+logo.
+      expect(can(role, "contract.manage"), role).toBe(true);
+      expect(can(role, "amendment.manage"), role).toBe(true);
+    }
+    // Di bawah PM tetap tertutup — ini hak kontrak, bukan hak lapangan.
+    expect(can("site_manager", "contract.manage")).toBe(false);
+    expect(can("field_supervisor", "contract.manage")).toBe(false);
+    expect(can("wakil_ppk", "contract.manage")).toBe(false);
+    expect(can("exec_viewer", "contract.manage")).toBe(false);
+    // Koreksi lokasi paket berkontrak juga tetap super_admin.
+    expect(can("project_manager", "location.correct")).toBe(false);
+  });
+
+  it("penanda tangan lokasi: SM ke atas boleh, pelaksana tidak (DECISIONS 419)", () => {
+    for (const role of ["site_manager", "project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      expect(can(role, "location.signer"), role).toBe(true);
+    }
+    expect(can("field_supervisor", "location.signer")).toBe(false);
+    expect(can("exec_viewer", "location.signer")).toBe(false);
+    expect(can("wakil_ppk", "location.signer")).toBe(false);
+  });
+
+  it("location.signer TIDAK menyeret hak master lokasi & kontrak ikut terbuka", () => {
+    /*
+     * Batas keputusan 419. Yang diminta user adalah mengisi NAMA penanda
+     * tangan. Kalau salah satu baris ini ikut hijau untuk SM, pelonggarannya
+     * merembet: ganti nama lokasi, geser koordinat master (dipakai cap foto
+     * sebagai bukti titik), atau ubah penanda tangan tingkat paket yang
+     * berlaku untuk SELURUH lokasi.
+     */
+    expect(can("site_manager", "location.manage")).toBe(false);
+    expect(can("site_manager", "location.correct")).toBe(false);
+    expect(can("site_manager", "contract.manage")).toBe(false);
   });
 
   it("baseline.manage DIWARISI dari Site Manager, tidak didaftar dua kali", () => {
@@ -131,7 +216,7 @@ describe("authz capability matrix", () => {
     expect(isCrossLocation("project_manager")).toBe(false);
   });
 
-  it("exec_viewer BUTUH penugasan — bukan lintas lokasi (DECISIONS 190)", () => {
+  it("exec_viewer BUTUH penugasan – bukan lintas lokasi (DECISIONS 190)", () => {
     // Permintaan user 2026-07-31: Executive View tidak boleh otomatis melihat
     // semua lokasi. Tanpa penugasan ia melihat NOL, bukan semuanya.
     expect(isCrossLocation("exec_viewer")).toBe(false);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Images, MapPin, MapPinOff, X } from "lucide-react";
-import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/photo-limits";
+import { MAX_PHOTOS_PER_UPLOAD, muatSekaliUnggah } from "@/lib/photo-limits";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
@@ -149,6 +149,11 @@ export function PhotoSourceInput({
   // Jawaban "sedang di lokasi proyek?" untuk unggahan GALERI (DECISIONS 220).
   // null = belum dijawab → pemilih berkas belum dibuka.
   const [diLokasi, setDiLokasi] = useState<boolean | null>(null);
+  /**
+   * Galeri "gunakan apa adanya" (user 2026-08-24): foto dipakai TANPA tag
+   * koordinat & waktu — cap hanya lokasi/pekerjaan/logo, meski EXIF ada.
+   */
+  const [apaAdanya, setApaAdanya] = useState(false);
   const [tanyaLokasi, setTanyaLokasi] = useState(false);
   const [izin, setIzin] = useState<"granted" | "denied" | "prompt" | "unsupported" | "unknown">("unknown");
   const [mintaIzin, setMintaIzin] = useState(false);
@@ -241,16 +246,12 @@ export function PhotoSourceInput({
     const sudah = new Set(dasar.map((b) => idBerkas(b.file)));
     const tambah = Array.from(baru).filter((f) => !sudah.has(idBerkas(f)));
     const gabung = [...dasar, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
-    const lebih = gabung.length - MAX_PHOTOS_PER_UPLOAD;
-    if (lebih > 0) {
-      for (const b of gabung.slice(MAX_PHOTOS_PER_UPLOAD)) URL.revokeObjectURL(b.url);
-      setPesanBatas(
-        `Maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali unggah — ${lebih} foto terakhir tidak ikut.`,
-      );
-    } else {
-      setPesanBatas(null);
-    }
-    setBerkas(gabung.slice(0, MAX_PHOTOS_PER_UPLOAD));
+    // Dua pagar: jumlah foto DAN ukuran permintaan (DECISIONS 425). Yang tidak
+    // muat disebut jumlahnya beserta sebabnya — tidak pernah hilang diam-diam.
+    const batas = muatSekaliUnggah(gabung.map((b) => b.file.size));
+    if (batas.sisa > 0) for (const b of gabung.slice(batas.muat)) URL.revokeObjectURL(b.url);
+    setPesanBatas(batas.pesan);
+    setBerkas(gabung.slice(0, batas.muat));
   };
 
   /** Buang satu foto dari pilihan (bukan dari server — belum terunggah). */
@@ -350,6 +351,7 @@ export function PhotoSourceInput({
    */
   const jawabLokasi = (ya: boolean) => {
     setDiLokasi(ya);
+    setApaAdanya(false);
     setTanyaLokasi(false);
     setSource("gallery");
     clearGps();
@@ -412,6 +414,7 @@ export function PhotoSourceInput({
     <div className="space-y-2">
       <input type="hidden" name={n("photoSource")} value={source} />
       <input type="hidden" name={n("galleryAtSite")} value={diLokasi === true ? "1" : ""} />
+      {apaAdanya ? <input type="hidden" name={n("galleryFallback")} value="apa_adanya" /> : null}
       <input type="hidden" name={n("photoTakenAt")} value={takenAt} />
       <input ref={latRef} type="hidden" name={n(latName)} defaultValue="" />
       <input ref={lngRef} type="hidden" name={n(lngName)} defaultValue="" />
@@ -420,7 +423,7 @@ export function PhotoSourceInput({
           Dulu ini diam saja dan fotonya diam-diam dicap titik proyek. */}
       {sunyiIzin ? null : izin === "granted" ? (
         <p className="flex items-center gap-1.5 text-xs text-success">
-          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif — foto kamera akan membawa
+          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif – foto kamera akan membawa
           koordinat asli.
         </p>
       ) : izin === "unsupported" ? (
@@ -438,7 +441,7 @@ export function PhotoSourceInput({
               : "Izin lokasi belum diberikan"}
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong> — bukan posisi
+            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong> – bukan posisi
             sebenarnya saat memotret.
             {izin === "denied"
               ? " Buka setelan situs di browser (ikon di kiri address bar) → izinkan Lokasi, lalu muat ulang halaman."
@@ -562,6 +565,22 @@ export function PhotoSourceInput({
               >
                 <MapPinOff aria-hidden className="size-5" /> Tidak
               </button>
+              {/* Jalur ketiga (user 2026-08-24): foto dipakai apa adanya —
+                  cap TANPA tag koordinat & waktu, meski EXIF ada. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setApaAdanya(true);
+                  setDiLokasi(null);
+                  setTanyaLokasi(false);
+                  setSource("gallery");
+                  clearGps();
+                  galRef.current?.click();
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-muted"
+              >
+                Gunakan apa adanya – tanpa tag koordinat & waktu
+              </button>
             </div>
           </div>
         </div>
@@ -570,7 +589,11 @@ export function PhotoSourceInput({
       {/* Hasil jawaban, disebut SESUDAH dijawab — bukan saklar yang bisa
           membatalkannya. Yang perlu diketahui pelapor cuma satu: koordinat mana
           yang akan menempel di fotonya. */}
-      {source === "gallery" && diLokasi !== null ? (
+      {source === "gallery" && apaAdanya ? (
+        <p className="text-xs text-ink-muted">
+          Foto galeri: dipakai apa adanya – cap tanpa tag koordinat & waktu.
+        </p>
+      ) : source === "gallery" && diLokasi !== null ? (
         <p className="text-xs text-ink-muted">
           {diLokasi
             ? "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, posisimu sekarang."
@@ -589,7 +612,7 @@ export function PhotoSourceInput({
             Perangkat ini tidak bisa menggabungkan beberapa kali pemilihan foto
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Pilih SEMUA foto sekaligus dalam satu ketukan — yang terkirim hanya pemilihan terakhir.
+            Pilih SEMUA foto sekaligus dalam satu ketukan – yang terkirim hanya pemilihan terakhir.
             Unggahnya tetap jalan.
           </p>
           <p className="mt-1 text-[11px] break-words text-ink-muted">{rakitGagal}</p>

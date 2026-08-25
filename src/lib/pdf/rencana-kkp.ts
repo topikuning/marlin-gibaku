@@ -5,7 +5,7 @@ import { getRencanaMingguan, type RencanaMingguan } from "@/lib/plan/rencana-min
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * FORMULIR RENCANA KERJA MINGGUAN — PDF A4 potret (DECISIONS 258).
@@ -41,7 +41,7 @@ export async function buildRencanaKkpPdf(
   gambarTtd?: TtdPdf | null,
 ): Promise<Buffer> {
   const doc = createFormA4Doc({
-    title: `Rencana Kerja Mingguan — Minggu ke-${r.weekNumber} — ${r.header.locationName}`,
+    title: `Rencana Kerja Mingguan – Minggu ke-${r.weekNumber} – ${r.header.locationName}`,
   });
   const x = FORM_MARGIN;
   const width = doc.page.width - FORM_MARGIN * 2;
@@ -86,7 +86,7 @@ export async function buildRencanaKkpPdf(
     ["Paket Pekerjaan", h.packageName, "Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`],
     [
       "Lokasi",
-      `${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
+      `${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
       "Nilai Fisik Lokasi",
       rupiah(Number(h.locationValue)),
     ],
@@ -138,7 +138,7 @@ export async function buildRencanaKkpPdf(
   // orang yang menandatangani, bukan sekadar angka dalam kotak.
   const proyeksiTeks =
     `Bila seluruh komitmen dalam formulir ini dikerjakan penuh, realisasi pada akhir minggu ke-${r.weekNumber} ` +
-    `menjadi ${p2(r.proyeksi.proyeksiPct)}, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)} — ` +
+    `menjadi ${p2(r.proyeksi.proyeksiPct)}, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)} – ` +
     (r.proyeksi.masihTertinggal
       ? `MASIH TERTINGGAL ${p2(Math.abs(r.proyeksi.selisihPct))}. Rencana ini belum cukup untuk kembali ke ` +
         `jadwal; perlu tambahan sumber daya, perpanjangan jam kerja, atau penyesuaian jadwal yang disepakati.`
@@ -154,7 +154,7 @@ export async function buildRencanaKkpPdf(
       [
         {
           text:
-            "Tidak ada rencana tercatat untuk minggu sebelumnya — tidak ada komitmen yang bisa " +
+            "Tidak ada rencana tercatat untuk minggu sebelumnya – tidak ada komitmen yang bisa " +
             "dievaluasi. Ini bukan nilai 0%.",
         },
       ],
@@ -173,11 +173,11 @@ export async function buildRencanaKkpPdf(
     );
     draw(
       [
-        { text: `${p2(r.ppc.pct)} — ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`, bold: true, align: "center" },
-        { text: r.ppc.volumePct == null ? "—" : `${p2(r.ppc.volumePct)} (pelengkap)`, align: "center" },
+        { text: `${p2(r.ppc.pct)} – ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`, bold: true, align: "center" },
+        { text: r.ppc.volumePct == null ? "–" : `${p2(r.ppc.volumePct)} (pelengkap)`, align: "center" },
         {
           text:
-            "PPC dihitung per komitmen dan biner — tuntas atau tidak. Pekerjaan yang baru 80% selesai " +
+            "PPC dihitung per komitmen dan biner – tuntas atau tidak. Pekerjaan yang baru 80% selesai " +
             "tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: 70%.",
         },
       ],
@@ -264,20 +264,20 @@ export async function buildRencanaKkpPdf(
       const cells: GridCell[] = [
         { text: String(no++), align: "right" },
         { text: `${b.code} · ${b.name}${b.note?.trim() ? `\nCatatan: ${b.note}` : ""}` },
-        { text: b.unit ?? "—", align: "center" },
+        { text: b.unit ?? "–", align: "center" },
         { text: volFmt.format(b.volumeKontrak), align: "right" },
         { text: b.realisasi > 0 ? volFmt.format(b.realisasi) : "–", align: "right" },
         { text: volFmt.format(b.sisa), align: "right" },
         { text: volFmt.format(b.target), align: "right", bold: true },
         { text: bobot(b.bobotTarget), align: "right" },
         { text: rupiah(b.nilaiTarget), align: "right" },
-        { text: b.picName ?? "—" },
+        { text: b.picName ?? "–" },
       ];
       fit(gridRowHeight(doc, cells, kOpt), kHead);
       y = gridRow(doc, y, cells, kOpt);
     }
     const totalCells: GridCell[] = [
-      { text: `JUMLAH — ${r.baris.length} komitmen`, span: 7, bold: true, align: "right" },
+      { text: `JUMLAH – ${r.baris.length} komitmen`, span: 7, bold: true, align: "right" },
       { text: p2(r.totalBobot), bold: true, align: "right" },
       { text: rupiah(r.totalNilai), bold: true, align: "right" },
       { text: "" },
@@ -287,7 +287,7 @@ export async function buildRencanaKkpPdf(
 
     y += 3;
     const catatanKaki =
-      `Kolom Bobot = nilai target dibagi nilai fisik lokasi (${rupiah(Number(h.locationValue))}), dalam poin persen — ` +
+      `Kolom Bobot = nilai target dibagi nilai fisik lokasi (${rupiah(Number(h.locationValue))}), dalam poin persen – ` +
       `dasar yang sama dengan kurva-S dan laporan mingguan KKP. Kolom Realisasi = volume kumulatif s/d formulir ini disusun.`;
     doc.font(PDF_FONT.regular).fontSize(6).fillColor(PDF_COLORS.inkMuted);
     // Tinggi DIUKUR, bukan ditebak: catatan ini membungkus jadi 2–3 baris
@@ -315,45 +315,55 @@ export async function buildRencanaKkpPdf(
   fit(120);
   const kolom = width / 3;
   const atasTtd = y;
+  /*
+   * Gambar tanda tangan & stempel digambar LEBIH DULU, seluruh teksnya menyusul
+   * (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar itulah
+   * lapisannya. Sebelum ini judul & peran digambar duluan lalu ketiban stempel.
+   */
+  const RUANG = 72;
   ttd.forEach((t, i) => {
     const cx = x + i * kolom;
-    let cy = atasTtd;
-    doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.inkMuted);
-    doc.text(t.title, cx, cy, { width: kolom, align: "center" });
-    cy += 11;
-    doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
-    doc.text(t.role, cx, cy, { width: kolom, align: "center" });
-    // Ruang tanda tangan basah, sekaligus batas tinggi stempel: ia tidak boleh
-    // melimpah keluar blok dan menembus tabel di atasnya (DECISIONS 333).
-    const RUANG = 72;
-    cy += RUANG;
-    // Tempel gambar tanda tangan & stempel di ruang itu (DECISIONS 328).
     // Pihaknya dibaca dari `t.pihak`, BUKAN dari indeks `i`: kalau urutan blok
     // diubah, mencocokkan lewat indeks akan menempelkan stempel PPK di kolom
     // penyedia — dan itu baru ketahuan setelah dokumennya beredar.
-    if (gambarTtd) {
-      // 40 poin ≈ 1,4 cm; muat di ruang 48 poin di atas garisnya.
-      gambarTtdPdf(doc, gambarTtd[t.pihak], {
-        xTengah: cx + kolom / 2,
-        yDasar: cy,
-        lebarKolom: kolom,
-        ruangDiAtasNama: RUANG,
-      });
-    }
-    doc
-      .moveTo(cx + kolom * 0.12, cy)
-      .lineTo(cx + kolom * 0.88, cy)
-      .lineWidth(0.5)
-      .strokeColor(PDF_COLORS.inkMuted)
-      .stroke();
-    cy += 3;
-    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
-    doc.text(t.name ?? "(………………………)", cx, cy, { width: kolom, align: "center" });
-    cy += 10;
-    if (t.sub) {
-      doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.inkMuted);
-      doc.text(t.sub, cx, cy, { width: kolom, align: "center" });
-    }
+    const yDasar = atasTtd + 11 + RUANG;
+    blokTandaTanganPdf(
+      doc,
+      gambarTtd
+        ? [
+            {
+              berkas: gambarTtd[t.pihak],
+              opsi: { xTengah: cx + kolom / 2, yDasar, lebarKolom: kolom, ruangDiAtasNama: RUANG },
+            },
+          ]
+        : [],
+      () => {
+        let cy = atasTtd;
+        doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.inkMuted);
+        doc.text(t.title, cx, cy, { width: kolom, align: "center" });
+        cy += 11;
+        doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
+        doc.text(t.role, cx, cy, { width: kolom, align: "center" });
+        // Ruang tanda tangan basah, sekaligus batas tinggi stempel: ia tidak
+        // boleh melimpah keluar blok dan menembus tabel di atasnya
+        // (DECISIONS 333).
+        cy += RUANG;
+        doc
+          .moveTo(cx + kolom * 0.12, cy)
+          .lineTo(cx + kolom * 0.88, cy)
+          .lineWidth(0.5)
+          .strokeColor(PDF_COLORS.inkMuted)
+          .stroke();
+        cy += 3;
+        doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
+        doc.text(t.name ?? "(………………………)", cx, cy, { width: kolom, align: "center" });
+        cy += 10;
+        if (t.sub) {
+          doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.inkMuted);
+          doc.text(t.sub, cx, cy, { width: kolom, align: "center" });
+        }
+      },
+    );
   });
 
   /* ── Footer tiap halaman ── */
@@ -404,7 +414,7 @@ export async function renderRencanaKkpPdf(
   if (!rencana) return null;
   // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
   // bukan PDF yang gagal terbit.
-  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(locationId, "rencana").catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildRencanaKkpPdf(rencana, branding.appName, gambarTtd),
     locationId,

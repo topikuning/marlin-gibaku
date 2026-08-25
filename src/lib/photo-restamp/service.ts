@@ -1,4 +1,5 @@
 import "server-only";
+import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { DEFAULT_STAMP_ACCENT, getPhotoStampConfig, type StampSize } from "@/lib/photo-stamp/config";
@@ -24,10 +25,14 @@ export type NilaiCap = {
   timeSource: PhotoMetadataSource;
   locationLabel: string | null;
   companyName: string | null;
+  /** Kunci R2 logo perusahaan — dipakai cap ulang juga (DECISIONS 424). */
+  companyLogoKey?: string | null;
   reporterName: string | null;
   categoryName: string | null;
   workName: string | null;
   photoId: string | null;
+  /** Foto galeri "gunakan apa adanya": cap tanpa tag koordinat & waktu (2026-08-24). */
+  stampPlain: boolean;
 };
 
 const SIZE_SCALE: Record<StampSize, number> = { compact: 0.85, standard: 1, large: 1.15 };
@@ -64,6 +69,7 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     lng: v.lng,
     locationLabel: v.locationLabel,
     companyName: v.companyName,
+    companyLogo: await logoPerusahaanDataUri(v.companyLogoKey),
     reporterName: v.reporterName,
     categoryName: v.categoryName,
     workName: v.workName,
@@ -75,9 +81,10 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     showCoordinate: cfg?.showCoordinates ?? true,
     showReporter: cfg?.showReporter ?? true,
     showPhotoId: cfg?.showPhotoId ?? true,
-    timeNote: timeNoteFor(v),
-    coordNote: coordNoteFor(v.lat == null ? "none" : v.gpsSource),
+    timeNote: v.stampPlain ? null : timeNoteFor(v),
+    coordNote: v.stampPlain ? null : coordNoteFor(v.lat == null ? "none" : v.gpsSource),
     dateOnly: !v.jamDiketahui,
+    tanpaTag: v.stampPlain,
   };
 }
 
@@ -90,6 +97,7 @@ export function ringkasNilai(v: NilaiCap): Record<string, unknown> {
     lat: v.lat,
     lng: v.lng,
     sumberKoordinat: v.gpsSource,
+    capPolos: v.stampPlain,
     lokasi: v.locationLabel,
     perusahaan: v.companyName,
     pelapor: v.reporterName,
@@ -104,6 +112,8 @@ export type KonteksFoto = {
   locationName: string | null;
   locationSlug: string | null;
   companyName: string | null;
+  /** Kunci R2 logo perusahaan — dipakai cap ulang juga (DECISIONS 424). */
+  companyLogoKey?: string | null;
   reporterName: string | null;
   categoryName: string | null;
   workName: string | null;
@@ -115,6 +125,8 @@ export type KonteksFoto = {
   r2Key: string;
   thumbnailKey: string | null;
   stampRevision: number;
+  /** Putaran kumulatif terhadap berkas asli, derajat (DECISIONS 424c). */
+  rotationDeg: number;
   saatIni: NilaiCap;
 };
 
@@ -138,7 +150,9 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       gpsSource: true,
       metadataSource: true,
       stampPhotoId: true,
+      stampPlain: true,
       stampRevision: true,
+      rotationDeg: true,
       locationId: true,
       uploadedById: true,
       // lineageKey ikut dibaca: badge cap = BANGUNAN/kategori RAB, dan
@@ -156,7 +170,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
           package: {
             select: {
               organization: { select: { name: true } },
-              contract: { select: { vendor: { select: { name: true } } } },
+              contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
             },
           },
         },
@@ -205,6 +219,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     locationSlug: p.location?.slug ?? null,
     companyName:
       p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
+    companyLogoKey: p.location?.package.contract?.vendor?.logoKey ?? null,
     reporterName: pelapor?.fullName ?? null,
     categoryName: bangunanCap ?? p.activity?.title ?? null,
     workName: p.reportItem?.rabNode.name ?? null,
@@ -216,6 +231,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     r2Key: p.r2Key,
     thumbnailKey: p.thumbnailKey,
     stampRevision: p.stampRevision,
+    rotationDeg: p.rotationDeg,
     saatIni: {
       takenAt: p.exifTakenAt ?? workDate ?? new Date(),
       jamDiketahui,
@@ -226,10 +242,12 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       locationLabel: p.location?.name ?? null,
       companyName:
         p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
+      companyLogoKey: p.location?.package.contract?.vendor?.logoKey ?? null,
       reporterName: pelapor?.fullName ?? null,
       categoryName: bangunanCap ?? p.activity?.title ?? null,
     workName: p.reportItem?.rabNode.name ?? null,
       photoId: p.stampPhotoId,
+      stampPlain: p.stampPlain,
     },
   };
 }

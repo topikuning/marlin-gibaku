@@ -81,12 +81,9 @@ export const WEATHER_KKP_CATEGORY: Record<WeatherCode, "Cerah" | "Mendung" | "Hu
   banjir: "Hujan",
 };
 
-export const ISSUE_SEVERITY_LABEL: Record<"rendah" | "sedang" | "tinggi" | "kritis", string> = {
-  rendah: "Rendah",
-  sedang: "Sedang",
-  tinggi: "Tinggi",
-  kritis: "Kritis",
-};
+/** Rumahnya PINDAH ke `lifecycle.ts` (bersama tone-nya); di-ekspor ulang di
+ *  sini supaya pemanggil lama tidak berubah. */
+export { ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 
 /** Toleransi pembulatan guard volume kumulatif. */
 export const VOLUME_EPSILON = 1e-6;

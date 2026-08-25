@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, requireUser, type SessionUser } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
+import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -83,6 +84,13 @@ export type PackageStats = {
   tender: number;
   berkontrak: number;
   totalHps: bigint;
+  /**
+   * Jumlah paket PER TAHAP — bahan bilah funnel di daftar paket
+   * (DECISIONS 368). Dihitung sekali di sini, bukan dari baris yang tampil di
+   * layar: daftarnya bisa tersaring, dan funnel yang ikut menyusut saat orang
+   * memilih satu tahap berhenti menjadi gambaran keseluruhan.
+   */
+  perStage: Record<PackageStage, number>;
 };
 
 /** KPI ringkas daftar paket (ter-scope sama dengan daftarnya). HPS total tidak menghitung paket batal. */
@@ -91,7 +99,7 @@ export async function getPackageStats(
   scopedLocationIds: string[] | null,
 ): Promise<PackageStats> {
   const scope = packageScopeWhere(user, scopedLocationIds);
-  const [total, tender, berkontrak, hps] = await Promise.all([
+  const [total, tender, berkontrak, hps, perStageRaw] = await Promise.all([
     db.package.count({ where: scope }),
     db.package.count({ where: { ...scope, stage: "tender" } }),
     db.package.count({ where: { ...scope, stage: { in: BERKONTRAK_STAGES } } }),
@@ -99,8 +107,17 @@ export async function getPackageStats(
       where: { ...scope, stage: { not: "batal" } },
       _sum: { hpsValue: true },
     }),
+    db.package.groupBy({ by: ["stage"], where: scope, _count: { _all: true } }),
   ]);
-  return { total, tender, berkontrak, totalHps: hps._sum.hpsValue ?? 0n };
+
+  // Tahap yang TIDAK punya paket tetap muncul dengan nol. Funnel yang
+  // melompati tahap kosong membuat orang mengira tahap itu tidak ada.
+  const perStage = Object.fromEntries(
+    (Object.keys(PACKAGE_STAGE_LABEL) as PackageStage[]).map((s) => [s, 0]),
+  ) as Record<PackageStage, number>;
+  for (const row of perStageRaw) perStage[row.stage] = row._count._all;
+
+  return { total, tender, berkontrak, totalHps: hps._sum.hpsValue ?? 0n, perStage };
 }
 
 /**
@@ -139,6 +156,12 @@ export const getPackageWorkspace = cache(async (id: string) => {
       note: true,
       isBypass: true,
       cancelReason: true,
+      // Pelaksana Lapangan – penanda tangan laporan harian & mingguan
+      // (DECISIONS 402). Di paket, bukan kontrak: orangnya melekat pada
+      // pelaksanaan pekerjaan dan bertahan saat kontraknya diganti.
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
       waGroupId: true,
       waGroupName: true,
       driveFolderId: true,
@@ -157,8 +180,11 @@ export const getPackageWorkspace = cache(async (id: string) => {
           durationDays: true,
           startDate: true,
           endDate: true,
+          weekMode: true,
           ppkName: true,
           ppkNip: true,
+          wakilSahName: true,
+          wakilSahNip: true,
           supervisorName: true,
           supervisorFirm: true,
           contractorSignerName: true,
@@ -166,8 +192,10 @@ export const getPackageWorkspace = cache(async (id: string) => {
           // Gambar tanda tangan & stempel utk laporan cetak (DECISIONS 328).
           ppkTtdKey: true,
           ppkStempelKey: true,
+          wakilSahTtdKey: true,
           supervisorTtdKey: true,
           supervisorStempelKey: true,
+          supervisorLogoKey: true,
           contractorTtdKey: true,
           contractorStempelKey: true,
           vendor: { select: { id: true, name: true, stempelKey: true } },
@@ -266,7 +294,7 @@ export async function getStageHistory(packageId: string) {
   const nameById = new Map(users.map((u) => [u.id, u.fullName]));
   return rows.map((r) => ({
     ...r,
-    changedByName: r.changedById ? (nameById.get(r.changedById) ?? "—") : "Sistem (terjadwal)",
+    changedByName: r.changedById ? (nameById.get(r.changedById) ?? "–") : "Sistem (terjadwal)",
   }));
 }
 

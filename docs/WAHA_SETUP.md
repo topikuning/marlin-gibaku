@@ -136,8 +136,77 @@ seperti arsip percakapan di atas.
 | "mana yang deviasinya negatif" | lokasi tertinggal dari kurva-S, paling parah dulu |
 | "siapa yang belum lapor" | kelengkapan laporan harian |
 
-Di luar keempatnya MARLIN akan **mengaku belum mengerti** dan menyebut apa yang
-bisa dijawab — ia tidak menebak niat yang paling mirip.
+**Pertanyaan "kenapa" dijawab dari CATATAN LAPANGAN** (DECISIONS 383)
+
+Pertanyaan yang tidak masuk keempat kategori di atas — *"kenapa Kedung Mutih
+tertinggal?"*, *"masalah material apa saja?"* — dicari di catatan laporan
+harian, catatan kegiatan, dan uraian kendala. Yang dikirim adalah **kutipan
+apa adanya** dari kalimat yang ditulis pelapor, lengkap dengan lokasi, jenis
+sumber, dan tanggalnya.
+
+- **Tidak ada AI yang merangkum**, jadi tidak ada yang bisa mengarang — dan
+  jawabannya **tetap muncul saat layanan AI mati**.
+- Balasannya selalu menutup dengan penanda bahwa itu **kutipan catatan
+  pelapor, bukan angka resmi hasil hitungan MARLIN**. Angka di dalam catatan
+  ("cor 12 m3", "tenaga 8 orang") adalah kata pelapor.
+- Hanya laporan **final/disetujui** yang dicari — laporan yang masih draft atau
+  perlu koreksi tidak pernah ikut.
+- Lingkupnya sama dengan jawaban lain: hanya lokasi yang boleh dilihat penanya
+  (di grup: lokasi paket grup itu).
+
+Kalau tidak ada catatan yang cocok, MARLIN tetap **mengaku belum mengerti** dan
+menyebut apa yang bisa dijawab — ia tidak menebak niat yang paling mirip.
+
+**Pola yang jelas dijawab tanpa AI** (DECISIONS 375)
+
+Pertanyaan yang tidak punya tafsir kedua — "progress hari ini", "ada kendala
+apa", "siapa yang belum lapor", "laporan tanggal 12", "laporan mingguan",
+"mana yang deviasinya negatif" — dibaca langsung tanpa memanggil layanan AI.
+Akibatnya tiga hal: balasannya lebih cepat, tidak memakai kuota AI, dan
+**tetap berfungsi saat layanan AI sedang mati**.
+
+Syaratnya seluruh kata dalam kalimat harus terjelaskan. Begitu ada kata yang
+tidak dikenali — termasuk nama tempat yang tidak ada di katalog — pertanyaannya
+diserahkan ke AI seperti biasa. Jalur cepat ini karena itu hanya bisa
+mempercepat, tidak pernah melebarkan jawaban: "progress di Kedung Mutih" tidak
+akan berubah diam-diam menjadi progress seluruh lokasi.
+
+Di **Sistem → WhatsApp**, jejak audit tiap jawaban menyebut `jalur`:
+`deterministik` (tanpa AI), `lanjutan` (susulan yang disambung dari konteks),
+`klarifikasi` (jawaban atas pilihan), atau `ai`.
+
+**Pertanyaan susulan** (DECISIONS 377)
+
+Anda tidak perlu mengulang subjeknya. Setelah bertanya *"progress hari ini di
+Kedung Mutih"*, cukup tulis *"kalau kemarin?"* — MARLIN menyambungnya sendiri
+(niatnya dipinjam dari pertanyaan sebelumnya, tanggalnya dari yang baru Anda
+tulis), tanpa memanggil AI.
+
+- Berlaku **30 menit**; sesudah itu MARLIN menawarkan pilihan seperti biasa.
+- Milik **Anda saja** — konteks orang lain di grup yang sama tidak terpakai.
+- Kalau susulan Anda menyebut lokasi sendiri, lokasi itu yang dipakai; konteks
+  tidak pernah menambahinya.
+- Konteks **tidak pernah memperlebar** apa yang boleh Anda lihat. Lokasi yang
+  kini di luar penugasan Anda (atau di luar paket grup tempat Anda bertanya)
+  tidak akan muncul — MARLIN mengaku tidak menemukannya.
+
+**Pertanyaan yang kabur DITAWARI pilihan** (DECISIONS 376)
+
+Kalau pertanyaannya menyebut waktu tanpa menyebut maksud — mis. *"bagaimana
+yang kemarin?"* — MARLIN tidak lagi menjawab "belum mengerti". Ia menawarkan
+2–3 tafsir memakai kata yang Anda tulis sendiri, dan Anda cukup **membalas
+angkanya** (`1`, `2`, `3`).
+
+| Hal | Perilaku |
+|---|---|
+| Berlaku | 12 menit; sesudah itu MARLIN mengatakan pilihannya sudah ditutup |
+| Milik siapa | **Hanya penanya**. Di grup, orang lain yang mengetik `1` tidak mengambil alih klarifikasi Anda |
+| Biaya AI | Nol — tawaran maupun jawabannya tidak memanggil AI |
+| Angka dalam kalimat | *"laporan tanggal 2"* tetap dibaca sebagai pertanyaan, bukan pilihan |
+
+Kalau pengirim di grup tidak bisa dikenali sama sekali (tidak ada nomor maupun
+@lid di payload), pilihan **tidak** ditawarkan — kalau ditawarkan, siapa pun
+yang membaca bisa menjawabnya.
 
 **Dua syarat yang sering jadi sebab "MARLIN tidak menjawab"**
 
@@ -151,14 +220,62 @@ bisa dijawab — ia tidak menebak niat yang paling mirip.
 
 **Apa yang boleh keluar di grup**
 
-Jawaban di grup selalu **dipotong ke lokasi paket grup itu saja** — juga untuk
-super admin, karena yang menentukan bukan izin penanya melainkan siapa yang ikut
-membaca. Pemotongannya selalu ditulis di balasan. Grup yang belum tertaut paket
-tidak dilayani.
+Jawaban di grup **tertaut paket** selalu dipotong ke lokasi paket grup itu saja —
+juga untuk super admin, karena yang menentukan bukan izin penanya melainkan siapa
+yang ikut membaca. Pemotongannya selalu ditulis di balasan.
+
+Grup yang **belum tertaut paket** tidak dilayani, dengan satu pengecualian
+(DECISIONS 371): pengirim yang terverifikasi sebagai **Super Admin** atau
+**Program Director** dijawab memakai lingkup **organisasinya**, dan balasannya
+diawali penanda yang menyebut dasar itu supaya anggota grup lain tahu kenapa data
+proyek muncul di grup yang tidak tertaut apa pun. Verifikasinya lewat nomor/LID
+tersimpan — nama tampilan WhatsApp tidak pernah menjadi bukti identitas.
+
+Seluruh keputusan "siapa dilayani di mana dengan lingkup apa" ada di satu tempat,
+`src/lib/waha/resolver-kanal.ts`. Kalau aturannya perlu diubah, ubah di sana —
+bukan di `tanya.ts`.
+
+**Status pengiriman — apa artinya**
+
+Sejak DECISIONS 374 setiap kiriman WhatsApp lewat SATU gateway dan tercatat di
+outbox. Statusnya berarti persis apa yang tertulis:
+
+| Status | Artinya |
+|---|---|
+| `Diterima WAHA` | WAHA menerima permintaannya. **Belum tentu sampai** — WAHA menjawab 2xx juga saat sesinya belum login. |
+| `Terkirim` | Sampai server WhatsApp (`message.ack` = 1). |
+| `Sampai` | Sampai perangkat tujuan (ack = 2). |
+| `Dibaca` | Sudah dibaca (ack ≥ 3). |
+| `Gagal` | Gagal kirim — layak dicoba lagi (mis. jaringan, sesi mati). |
+| `Ditolak` | WhatsApp menolak (4xx, mis. 463 nomor tak terdaftar). **Mengulanginya tidak akan berhasil** — periksa tujuannya. |
+
+Status hanya boleh NAIK; ack yang datang terlambat tidak menurunkannya.
+Kegagalan adalah pengecualian: ia punya bukti sendiri dan menang atas status
+maju mana pun.
+
+Agar `Terkirim`/`Sampai`/`Dibaca` benar-benar muncul, **event `message.ack`
+harus diaktifkan di WAHA** untuk URL webhook yang sama. Tanpa itu, kiriman akan
+berhenti di `Diterima WAHA` selamanya — dan itu jujur: memang tidak ada bukti
+lain yang pernah tiba.
+
+Diagnosanya di **Sistem → WhatsApp → Pengiriman keluar**.
 
 **Batas**
 
-- Hanya periode **hari ini** (lihat OPEN_ISSUES `WATANYA-02`).
+- Periode bebas: hari ini, kemarin, tanggal tertentu, minggu/bulan (DECISIONS
+  356–358). Progress & deviasi untuk tanggal lampau dihitung **pada tanggal itu**
+  (DECISIONS 369).
+- **Kendala** punya tiga cara baca, dan untuk periode lampau MARLIN
+  **menawarkan pilihan** alih-alih memilihkan (DECISIONS 381):
+
+  | Anda tulis | MARLIN |
+  |---|---|
+  | "ada kendala apa" / "kendala hari ini" | langsung: yang masih terbuka sekarang |
+  | "kendala minggu lalu" | menawarkan **1.** semua yang *dibuka* minggu lalu (termasuk yang sudah selesai) **2.** yang dibuka minggu lalu dan *masih terbuka* |
+
+  Yang tetap TIDAK bisa dijawab: *"kendala apa yang berstatus terbuka **pada**
+  hari X"*. Itu butuh riwayat status yang belum dicatat, dan tidak satu pun
+  pilihan di atas berpura-pura bisa menjawabnya.
 - Maksimal 15 baris per jawaban (20 untuk kendala); pemotongannya disebutkan.
 - Memakai kuota AI Hub — kill-switch & batas laju di **Sistem → AI Hub** berlaku,
   dan tiap pertanyaan tercatat di `ai_runs` sebagai kind `tanya`.

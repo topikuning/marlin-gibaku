@@ -1,7 +1,10 @@
+import { PendaftarServiceWorker } from "@/components/pwa/pendaftar-sw";
+import { PemasangAplikasi } from "@/components/pwa/pemasang-aplikasi";
 import { AppShell } from "@/components/shell/app-shell";
 import { filterNav, MOBILE_NAV } from "@/components/shell/nav-config";
 import { Banner } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { logout } from "@/lib/auth/actions";
 import { getBranding } from "@/lib/branding";
 
@@ -26,11 +29,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         await logout();
       }}
     >
+      {/* Pemasang service worker (DECISIONS 398) + pengakuan halaman-dari-simpanan.
+          Di layout supaya berlaku untuk seluruh aplikasi: yang memasangnya cuma
+          perlu sekali terbuka di mana saja, dan pengakuannya harus muncul di
+          halaman mana pun yang kelak disajikan luring. */}
+      <PendaftarServiceWorker pemilik={user.id} siapkanFotoCepat={can(user.role, "photo.quick")} />
+      {/* Tawaran pasang PWA (DECISIONS 405) – tombolnya di dalam MARLIN, bukan
+          di menu ⋮ peramban yang tidak akan ditemukan orang lapangan. Menyaring
+          dirinya sendiri: tidak muncul bila sudah terpasang, bila peramban tidak
+          menawarkan, atau bila baru saja ditutup. */}
+      <PemasangAplikasi />
       {tanpaPenugasan ? (
         <Banner
           tone="warning"
           title="Akun Anda belum ditugaskan ke lokasi mana pun"
-          description="Karena itu daftar paket, lokasi, progres, dan laporan tampil kosong — bukan karena datanya tidak ada. Minta admin menugaskan lokasi ke akun Anda."
+          description="Karena itu daftar paket, lokasi, progres, dan laporan tampil kosong – bukan karena datanya tidak ada. Minta admin menugaskan lokasi ke akun Anda."
           className="mb-4"
         />
       ) : null}

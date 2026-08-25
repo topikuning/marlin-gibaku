@@ -14,8 +14,9 @@ import {
 } from "@/lib/lifecycle";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { weightedRealizedPct } from "@/lib/progress-calc";
+import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
+import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { existingLocationIndex } from "@/lib/master-location/queries";
 import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -181,7 +182,7 @@ export async function updatePackage(
   });
   if (!pkg) return { error: "Paket tidak ditemukan." };
   if (pkg.contract || !PRA_KONTRAK.includes(pkg.stage)) {
-    return { error: "Paket sudah berkontrak/terkunci — identitas dan HPS tidak bisa diubah." };
+    return { error: "Paket sudah berkontrak/terkunci – identitas dan HPS tidak bisa diubah." };
   }
 
   await db.package.update({
@@ -240,7 +241,7 @@ export async function advanceStage(
         error: `Progress paket baru ${pct.toLocaleString("id-ID", {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
-        })}% — serah terima hanya bisa saat pekerjaan 100%. Selesaikan/verifikasi laporan lokasi dulu.`,
+        })}% – serah terima hanya bisa saat pekerjaan 100%. Selesaikan/verifikasi laporan lokasi dulu.`,
       };
     }
   }
@@ -462,7 +463,7 @@ export async function addTargetLocationsFromCatalog(
     });
     if (masters.length !== ids.data.length) return { error: "Sebagian lokasi tak ditemukan di katalog." };
     const used = masters.filter((m) => m.assignedLocationId);
-    if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+    if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain – segarkan halaman.` };
 
     // Tolak yang kunci alaminya sudah ada sebagai Location riil (cegah ganda).
     const existing = await existingLocationIndex(actor.orgId);
@@ -536,12 +537,12 @@ export async function removeTargetLocation(locationId: string): Promise<PackageA
       },
     });
     if (!loc) return { error: "Lokasi tidak ditemukan." as string };
-    if (loc.isActive) return { error: "Lokasi sudah aktif — tidak bisa dihapus." };
+    if (loc.isActive) return { error: "Lokasi sudah aktif – tidak bisa dihapus." };
     if (loc._count.rabRevisions > 0) {
-      return { error: "Lokasi sudah punya RAB — tidak bisa dihapus." };
+      return { error: "Lokasi sudah punya RAB – tidak bisa dihapus." };
     }
     if (loc._count.statusHistory > 0 || loc._count.dailyReports > 0) {
-      return { error: "Lokasi sudah punya riwayat — tidak bisa dihapus." };
+      return { error: "Lokasi sudah punya riwayat – tidak bisa dihapus." };
     }
     await tx.location.delete({ where: { id: id.data } });
     return { loc };
@@ -620,10 +621,17 @@ const convertSchema = z
     retentionPercent: percentSchema,
     ppkName: z.string().trim().max(150).optional(),
     ppkNip: z.string().trim().max(60).optional(),
+    wakilSahName: z.string().trim().max(150).optional(),
+    wakilSahNip: z.string().trim().max(60).optional(),
     supervisorName: z.string().trim().max(150).optional(),
     supervisorFirm: z.string().trim().max(200).optional(),
     contractorSignerName: z.string().trim().max(150).optional(),
     contractorSignerTitle: z.string().trim().max(120).optional(),
+    // Form konversi memakai `SignatoryFields` YANG SAMA, jadi ia ikut membawa
+    // Pelaksana Lapangan. Tanpa baris ini zod membuangnya diam-diam dan yang
+    // sudah diketik hilang tanpa satu pun pesan (DECISIONS 404).
+    pelaksanaName: z.string().trim().max(150).optional(),
+    pelaksanaTitle: z.string().trim().max(120).optional(),
   })
   .refine((d) => d.vendorId || d.vendorName, {
     message: "Pilih vendor atau isi nama vendor baru.",
@@ -648,10 +656,14 @@ export async function convertToContract(
     retentionPercent: formData.get("retentionPercent"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
+    pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -690,7 +702,7 @@ export async function convertToContract(
       };
     }
     if (pkg.stage !== "penetapan" && pkg.stage !== "kontrak") {
-      return { error: `Paket di tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} — konversi kontrak tidak berlaku.` };
+      return { error: `Paket di tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} – konversi kontrak tidak berlaku.` };
     }
     if (pkg.locations.length === 0) {
       return { error: "Tambahkan minimal satu lokasi target dulu (tab Lokasi)." };
@@ -733,6 +745,8 @@ export async function convertToContract(
         endDate: null,
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
         supervisorName: d.supervisorName ?? null,
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
@@ -740,6 +754,18 @@ export async function convertToContract(
       },
       select: { id: true },
     });
+
+    // Pelaksana Lapangan tersimpan di PAKET, bukan kontrak (DECISIONS 402) —
+    // tapi diketik di formulir yang sama, jadi ditulis di transaksi yang sama.
+    if (d.pelaksanaName !== undefined || d.pelaksanaTitle !== undefined) {
+      await tx.package.update({
+        where: { id: d.packageId },
+        data: {
+          pelaksanaName: d.pelaksanaName ?? null,
+          pelaksanaTitle: d.pelaksanaTitle ?? null,
+        },
+      });
+    }
 
     // Semua lokasi paket jadi aktif; tulis history persiapan bila belum ada.
     await tx.location.updateMany({
@@ -777,7 +803,7 @@ export async function convertToContract(
 
   if ("error" in result) return { error: result.error };
   if ("alreadyExists" in result) {
-    return { success: "Kontrak untuk paket ini sudah tercatat — tidak dibuat duplikat." };
+    return { success: "Kontrak untuk paket ini sudah tercatat – tidak dibuat duplikat." };
   }
 
   await audit(actor.id, "contract.convert", "package", d.packageId, {
@@ -789,7 +815,7 @@ export async function convertToContract(
   revalidatePath("/paket");
   revalidatePath(`/paket/${d.packageId}`, "layout");
   return {
-    success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan — lanjut import RAB per lokasi.`,
+    success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan – lanjut import RAB per lokasi.`,
   };
 }
 
@@ -881,7 +907,7 @@ export async function createDirectProject(
     }
     const used = masters.filter((m) => m.assignedLocationId);
     if (used.length > 0) {
-      return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+      return { error: `${used.length} lokasi sudah dipakai proyek lain – segarkan halaman.` };
     }
 
     // Mitigasi lokasi GANDA: tolak master yang kunci alaminya (prov|kab|kec|desa)
@@ -891,7 +917,7 @@ export async function createDirectProject(
     if (clash.length > 0) {
       const list = clash.map((m) => `${m.village} (${m.regency})`).join(", ");
       return {
-        error: `Lokasi berikut sudah ada di sistem — tidak dibuat ganda: ${list}. Hapus dari pilihan, atau gunakan lokasi yang sudah ada.`,
+        error: `Lokasi berikut sudah ada di sistem – tidak dibuat ganda: ${list}. Hapus dari pilihan, atau gunakan lokasi yang sudah ada.`,
       };
     }
 
@@ -930,7 +956,7 @@ export async function createDirectProject(
         province: d.province ?? masters[0]?.province ?? null,
         stage: "kontrak",
         isBypass: true,
-        note: "Dibuat via jalur cepat admin (bypass) — dokumen pengadaan menyusul.",
+        note: "Dibuat via jalur cepat admin (bypass) – dokumen pengadaan menyusul.",
         createdById: actor.id,
       },
       select: { id: true },
@@ -941,7 +967,7 @@ export async function createDirectProject(
         fromStage: null,
         toStage: "kontrak",
         changedById: actor.id,
-        note: `Jalur cepat (bypass) — kontrak ${d.contractNumber}`,
+        note: `Jalur cepat (bypass) – kontrak ${d.contractNumber}`,
       },
     });
 
@@ -996,7 +1022,7 @@ export async function createDirectProject(
           fromStatus: null,
           toStatus: "persiapan",
           changedById: actor.id,
-          note: `Jalur cepat — kontrak ${d.contractNumber}`,
+          note: `Jalur cepat – kontrak ${d.contractNumber}`,
         },
       });
     }
@@ -1045,6 +1071,8 @@ const editContractSchema = z.object({
   ),
   // SPMK / tanggal mulai. Kosong = SPMK belum terbit (startDate null).
   startDate: z.string().optional(),
+  // Mode periode minggu laporan (user 2026-08-24). Kosong = tidak diubah.
+  weekMode: z.enum(["tujuh_hari", "senin_minggu"]).optional(),
 });
 
 export async function editContractAction(
@@ -1062,6 +1090,7 @@ export async function editContractAction(
     signedDate: formData.get("signedDate"),
     durationDays: formData.get("durationDays"),
     startDate: optionalText(formData.get("startDate"), 20) ?? undefined,
+    weekMode: optionalText(formData.get("weekMode"), 20) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1078,7 +1107,7 @@ export async function editContractAction(
     where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, durationDays: true, startDate: true } },
+      contract: { select: { id: true, durationDays: true, startDate: true, weekMode: true } },
       locations: { select: { id: true } },
     },
   });
@@ -1093,7 +1122,11 @@ export async function editContractAction(
 
   const prevStart = pkg.contract.startDate ? pkg.contract.startDate.toISOString().slice(0, 10) : null;
   const newStart = startDate ? startDate.toISOString().slice(0, 10) : null;
-  const timeChanged = pkg.contract.durationDays !== d.durationDays || prevStart !== newStart;
+  // Mode minggu ikut menggeser peta tanggal & jumlah kolom minggu — jadi
+  // perlakuannya sama dengan perubahan waktu: kurva-S dihitung ulang.
+  const weekModeChanged = d.weekMode != null && d.weekMode !== pkg.contract.weekMode;
+  const timeChanged =
+    pkg.contract.durationDays !== d.durationDays || prevStart !== newStart || weekModeChanged;
 
   await db.$transaction(async (tx) => {
     await tx.package.update({
@@ -1113,19 +1146,64 @@ export async function editContractAction(
         durationDays: d.durationDays,
         startDate,
         endDate,
+        ...(d.weekMode ? { weekMode: d.weekMode } : {}),
       },
     });
   });
 
   // Bila waktu berubah → kurva-S/baseline ikut berubah (jumlah minggu & peta
   // tanggal). Regenerate per lokasi yang punya RAB aktif; lewati yang belum.
+  //
+  // KHUSUS ganti MODE MINGGU saja (SPMK & durasi tetap): jadwal yang sudah ada
+  // TIDAK dibuang — ketetapan user 2026-08-24 (DECISIONS 427d): *"tinggal klik
+  // ubah metode... jangan sampai ulang impor, sistemmu yang menyesuaikan."*
+  // Matriks lama DIKONVERSI ke grid baru dengan bentuk kalender dipertahankan;
+  // regenerate (yang mengganti kurva dengan hasil generator) hanya untuk
+  // lokasi yang konversinya tidak mungkin (baseline tak cocok / belum ada).
   let recomputed = 0;
-  if (timeChanged) {
+  const hanyaModeBerubah =
+    weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart;
+  if (hanyaModeBerubah && startDate && endDate) {
+    // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
+    // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
+    // (minggu terakhir yang pendek dipetakan sebesar harinya).
+    const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
+      const fr = weekEndFractions(startDate, endDate, mode);
+      return { fracs: fr as number[] | null, totalWeeks: fr.length };
+    };
+    const lama = gridDari(pkg.contract.weekMode);
+    const baru = gridDari(d.weekMode!);
+    for (const loc of pkg.locations) {
+      try {
+        const hasil = await konversiBaselineModeMinggu(loc.id, {
+          oldEndFracs: lama.fracs,
+          oldTotalWeeks: lama.totalWeeks,
+          newEndFracs: baru.fracs,
+          newTotalWeeks: baru.totalWeeks,
+          userId: actor.id,
+          note: `Konversi mode periode minggu (${pkg.contract.weekMode} → ${d.weekMode})`,
+        });
+        if (hasil === "dikonversi") {
+          recomputed++;
+          continue;
+        }
+        // Tidak bisa dikonversi (baseline tak cocok grid lama) → generator.
+        await regenerateBaseline(loc.id, {
+          source: "auto",
+          note: "Ganti mode minggu – baseline lama tidak cocok grid, dihitung ulang",
+          userId: actor.id,
+        });
+        recomputed++;
+      } catch {
+        /* lokasi tanpa RAB/baseline aktif → lewati */
+      }
+    }
+  } else if (timeChanged) {
     for (const loc of pkg.locations) {
       try {
         await regenerateBaseline(loc.id, {
           source: "auto",
-          note: "Koreksi kontrak (waktu) — hitung ulang kurva-S",
+          note: "Koreksi kontrak (waktu) – hitung ulang kurva-S",
           userId: actor.id,
         });
         recomputed++;
@@ -1142,6 +1220,7 @@ export async function editContractAction(
     contractValue,
     durationDays: d.durationDays,
     startDate: newStart,
+    weekMode: d.weekMode ?? null,
     timeChanged,
     baselinesRecomputed: recomputed,
   });
@@ -1162,10 +1241,16 @@ const signatoriesSchema = z.object({
   contractId: z.uuid("ID kontrak tidak valid"),
   ppkName: z.string().trim().max(150).optional(),
   ppkNip: z.string().trim().max(60).optional(),
+  wakilSahName: z.string().trim().max(150).optional(),
+  wakilSahNip: z.string().trim().max(60).optional(),
   supervisorName: z.string().trim().max(150).optional(),
   supervisorFirm: z.string().trim().max(200).optional(),
   contractorSignerName: z.string().trim().max(150).optional(),
   contractorSignerTitle: z.string().trim().max(120).optional(),
+  // Pelaksana Lapangan ikut formulir ini (DECISIONS 404) walau tersimpan di
+  // PAKET, bukan kontrak: yang disatukan formulirnya, bukan tempat simpannya.
+  pelaksanaName: z.string().trim().max(150).optional(),
+  pelaksanaTitle: z.string().trim().max(120).optional(),
 });
 
 /** Perbarui nama penanda tangan dokumen KKP (PPK / pengawas / penyedia). */
@@ -1178,10 +1263,14 @@ export async function updateContractSignatories(
     contractId: formData.get("contractId"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
     ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    wakilSahName: optionalText(formData.get("wakilSahName"), 150) ?? undefined,
+    wakilSahNip: optionalText(formData.get("wakilSahNip"), 60) ?? undefined,
     supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
+    pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1192,23 +1281,42 @@ export async function updateContractSignatories(
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
-  await db.contract.update({
-    where: { id: d.contractId },
-    data: {
-      ppkName: d.ppkName ?? null,
-      ppkNip: d.ppkNip ?? null,
-      supervisorName: d.supervisorName ?? null,
-      supervisorFirm: d.supervisorFirm ?? null,
-      contractorSignerName: d.contractorSignerName ?? null,
-      contractorSignerTitle: d.contractorSignerTitle ?? null,
-    },
-  });
+  /*
+   * Satu transaksi untuk DUA tabel: nama penanda tangan kontrak di `contracts`,
+   * Pelaksana Lapangan di `packages`. Satu formulir yang menulis separuh lalu
+   * gagal akan meninggalkan blok tanda tangan yang setengah diperbarui — dan
+   * ketidakcocokannya baru terlihat pada kertas yang sudah dicetak.
+   */
+  await db.$transaction([
+    db.contract.update({
+      where: { id: d.contractId },
+      data: {
+        ppkName: d.ppkName ?? null,
+        ppkNip: d.ppkNip ?? null,
+        wakilSahName: d.wakilSahName ?? null,
+        wakilSahNip: d.wakilSahNip ?? null,
+        supervisorName: d.supervisorName ?? null,
+        supervisorFirm: d.supervisorFirm ?? null,
+        contractorSignerName: d.contractorSignerName ?? null,
+        contractorSignerTitle: d.contractorSignerTitle ?? null,
+      },
+    }),
+    db.package.update({
+      where: { id: contract.packageId },
+      data: {
+        pelaksanaName: d.pelaksanaName ?? null,
+        pelaksanaTitle: d.pelaksanaTitle ?? null,
+      },
+    }),
+  ]);
 
   await audit(actor.id, "contract.signatories", "package", contract.packageId, {
     contractId: contract.id,
     ppkName: d.ppkName ?? null,
+    wakilSahName: d.wakilSahName ?? null,
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
+    pelaksanaName: d.pelaksanaName ?? null,
   });
   revalidatePath(`/paket/${contract.packageId}`, "layout");
   return { success: "Penanda tangan kontrak diperbarui." };
@@ -1238,7 +1346,7 @@ export async function startPelaksanaan(
       },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
-    if (!pkg.contract) return { error: "Belum ada kontrak — konversi kontrak dulu." };
+    if (!pkg.contract) return { error: "Belum ada kontrak – konversi kontrak dulu." };
     if (!canTransitionPackage(pkg.stage, "pelaksanaan")) {
       return {
         error: `Transisi ${PACKAGE_STAGE_LABEL[pkg.stage]} → Pelaksanaan tidak diizinkan.`,
@@ -1300,7 +1408,7 @@ export async function startPelaksanaan(
     revalidatePath(`/paket/${id.data}`, "layout");
     return {
       success:
-        `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai — status paket & lokasi ` +
+        `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai – status paket & lokasi ` +
         `berubah otomatis pada tanggal tersebut, supaya kurva-S tidak menghitung hari ` +
         `sebelum pekerjaan dimulai.`,
     };
@@ -1312,7 +1420,7 @@ export async function startPelaksanaan(
   });
   revalidatePath("/paket");
   revalidatePath(`/paket/${id.data}`, "layout");
-  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) — ${result.started} lokasi berstatus Berjalan.` };
+  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) – ${result.started} lokasi berstatus Berjalan.` };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1449,7 +1557,7 @@ const correctLocationSchema = z.object({
   reason: z
     .string()
     .trim()
-    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) — tercatat di audit.")
+    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) – tercatat di audit.")
     .max(500, "Alasan maksimal 500 karakter"),
 });
 
@@ -1503,7 +1611,7 @@ export async function correctAddLocationAction(
     if (!pkg.contract || PRA_KONTRAK.includes(pkg.stage)) {
       return {
         error:
-          "Paket ini belum berkontrak — pakai jalur normal “Tambah lokasi target”, koreksi ini khusus paket yang sudah berkontrak.",
+          "Paket ini belum berkontrak – pakai jalur normal “Tambah lokasi target”, koreksi ini khusus paket yang sudah berkontrak.",
       };
     }
     if (!KOREKSI_LOKASI_STAGES.includes(pkg.stage)) {
@@ -1595,7 +1703,7 @@ export async function correctAddLocationAction(
         fromStage: pkg.stage,
         toStage: pkg.stage,
         changedById: actor.id,
-        note: `Koreksi data (bukan adendum): lokasi "${loc.name}" ditambahkan — ${d.reason}`,
+        note: `Koreksi data (bukan adendum): lokasi "${loc.name}" ditambahkan – ${d.reason}`,
       },
     });
     await auditIn(
@@ -1650,25 +1758,51 @@ export async function correctAddLocationAction(
 
 const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
 
-/** Enam medan kontrak yang bisa diisi gambar; nama medan = nama field form. */
+/**
+ * Medan gambar pada KONTRAK; nama medan = nama field form.
+ *
+ * Pelaksana Lapangan TIDAK di sini karena tersimpan di paket — lihat
+ * {@link MEDAN_TTD_PAKET}. Formulirnya satu, tempat simpannya dua
+ * (DECISIONS 404).
+ */
 const MEDAN_TTD = [
   "ppkTtdKey",
   "ppkStempelKey",
+  "wakilSahTtdKey",
   "supervisorTtdKey",
   "supervisorStempelKey",
+  // Logo firma pengawas ikut gelanggang ini: aturan berkas & ukurannya sama
+  // (kop blanko harian, user 2026-08-24).
+  "supervisorLogoKey",
   "contractorTtdKey",
   "contractorStempelKey",
 ] as const;
+
+/** Medan gambar Pelaksana Lapangan — tersimpan di `packages`. */
+/*
+ * HANYA tanda tangan (DECISIONS 408/410). Stempel milik PERUSAHAAN, bukan
+ * orang, jadi Pelaksana Lapangan memakai stempel penyedia yang sama. Kolom
+ * `pelaksana_stempel_key` sudah DIHAPUS dari basis data sesudah dipastikan
+ * tidak ada berkas yang terlanjur diunggah ke sana.
+ */
+const MEDAN_TTD_PAKET = ["pelaksanaTtdKey"] as const;
+type MedanTtdPaket = (typeof MEDAN_TTD_PAKET)[number];
 
 type MedanTtd = (typeof MEDAN_TTD)[number];
 
 const LABEL_TTD: Record<MedanTtd, string> = {
   ppkTtdKey: "tanda tangan PPK",
   ppkStempelKey: "stempel PPK",
+  wakilSahTtdKey: "tanda tangan Wakil Sah",
   supervisorTtdKey: "tanda tangan konsultan pengawas",
   supervisorStempelKey: "stempel konsultan pengawas",
+  supervisorLogoKey: "logo firma pengawas",
   contractorTtdKey: "tanda tangan penyedia",
   contractorStempelKey: "stempel penyedia",
+};
+
+const LABEL_TTD_PAKET: Record<MedanTtdPaket, string> = {
+  pelaksanaTtdKey: "tanda tangan pelaksana lapangan",
 };
 
 /** Unggah/hapus gambar tanda tangan & stempel pada kontrak. */
@@ -1687,17 +1821,39 @@ export async function updateContractSignatureImages(
       packageId: true,
       ppkTtdKey: true,
       ppkStempelKey: true,
+      wakilSahTtdKey: true,
       supervisorTtdKey: true,
       supervisorStempelKey: true,
+      supervisorLogoKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
+      package: { select: { id: true, pelaksanaTtdKey: true } },
     },
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
   const { isR2Configured, r2Put } = await import("@/lib/r2");
   const data: Partial<Record<MedanTtd, string | null>> = {};
+  const dataPaket: Partial<Record<MedanTtdPaket, string | null>> = {};
   const berubah: string[] = [];
+
+  /** Olah satu berkas gambar jadi WebP 800px – aturan yang sama untuk semua pihak. */
+  const olah = async (berkas: File, label: string, key: string): Promise<string | { error: string }> => {
+    if (berkas.size > BERKAS_TTD_MAKS) return { error: `Berkas ${label} terlalu besar (maks 2 MB).` };
+    if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
+      return { error: `Format ${label} harus PNG/JPG/WebP.` };
+    }
+    if (!isR2Configured()) {
+      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
+    }
+    const sharp = (await import("sharp")).default;
+    const buf = await sharp(Buffer.from(await berkas.arrayBuffer()), { failOn: "none" })
+      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 92 })
+      .toBuffer();
+    await r2Put(key, buf, "image/webp");
+    return key;
+  };
 
   for (const medan of MEDAN_TTD) {
     if (formData.get(`hapus_${medan}`) === "1") {
@@ -1718,7 +1874,7 @@ export async function updateContractSignatureImages(
       return { error: `Format ${LABEL_TTD[medan]} harus PNG/JPG/WebP.` };
     }
     if (!isR2Configured()) {
-      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi — gambar tidak dapat diunggah." };
+      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
     }
     const sharp = (await import("sharp")).default;
     // 800px sisi terpanjang: cukup tajam untuk cetak A4 pada ruang ±2 cm,
@@ -1733,11 +1889,40 @@ export async function updateContractSignatureImages(
     berubah.push(`${LABEL_TTD[medan]} diperbarui`);
   }
 
-  if (berubah.length === 0) {
-    return { error: "Tidak ada berkas yang dipilih — pilih gambar atau centang “lepas”." };
+  /*
+   * Pelaksana Lapangan diproses di gelanggang yang sama walau tersimpan di
+   * PAKET (DECISIONS 402/404). Aturan ukuran, format, dan penamaan berkasnya
+   * persis sama; yang berbeda cuma tabel tujuannya.
+   */
+  for (const medan of MEDAN_TTD_PAKET) {
+    if (formData.get(`hapus_${medan}`) === "1") {
+      if (contract.package[medan] !== null) {
+        dataPaket[medan] = null;
+        berubah.push(`${LABEL_TTD_PAKET[medan]} dilepas`);
+      }
+      continue;
+    }
+    const berkas = formData.get(medan);
+    if (!(berkas instanceof File) || berkas.size === 0) continue;
+    const hasil = await olah(
+      berkas,
+      LABEL_TTD_PAKET[medan],
+      `paket/${contract.package.id}/${medan}.webp`,
+    );
+    if (typeof hasil !== "string") return hasil;
+    dataPaket[medan] = hasil;
+    berubah.push(`${LABEL_TTD_PAKET[medan]} diperbarui`);
   }
 
-  await db.contract.update({ where: { id: contract.id }, data });
+  if (berubah.length === 0) {
+    return { error: "Tidak ada berkas yang dipilih – pilih gambar atau centang “lepas”." };
+  }
+
+  // Satu transaksi: formulirnya satu, jadi hasilnya tidak boleh setengah jadi.
+  await db.$transaction([
+    db.contract.update({ where: { id: contract.id }, data }),
+    db.package.update({ where: { id: contract.package.id }, data: dataPaket }),
+  ]);
   await audit(actor.id, "contract.ttd", "package", contract.packageId, {
     contractId: contract.id,
     berubah,

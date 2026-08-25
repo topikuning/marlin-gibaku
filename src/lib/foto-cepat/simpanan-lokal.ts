@@ -87,7 +87,7 @@ export class SimpananGagal extends Error {
     super(
       tahap === "batas waktu"
         ? "Simpanan foto di HP tidak menjawab dalam 10 detik."
-        : `Simpanan foto di HP gagal — tahap: ${tahap}; galat: ${namaGalat(sebab)}`,
+        : `Simpanan foto di HP gagal – tahap: ${tahap}; galat: ${namaGalat(sebab)}`,
     );
   }
 }
@@ -243,7 +243,7 @@ export function simpananTersedia(): boolean {
 export class SimpananTakTerbaca extends Error {
   constructor() {
     super(
-      "Foto tersimpan tapi TIDAK bisa dibaca kembali dari HP ini — jangan diandalkan. Potret ulang sekarang selagi masih di lokasi.",
+      "Foto tersimpan tapi TIDAK bisa dibaca kembali dari HP ini – jangan diandalkan. Potret ulang sekarang selagi masih di lokasi.",
     );
   }
 }
@@ -436,7 +436,7 @@ export async function pindahkanWarisan(): Promise<{ pindah: number; rusak: numbe
           ...tanpaBlob,
           status: "rusak" as StatusAntrean,
           pesan:
-            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) — tidak bisa dikirim. Buang saja lalu potret ulang.",
+            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) – tidak bisa dikirim. Buang saja lalu potret ulang.",
           ukuran: 0,
           tipe: r.tipe || "image/jpeg",
         });

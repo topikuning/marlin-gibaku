@@ -129,7 +129,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
       ) : basis.belumSelesai ? (
         <Banner
           tone="error"
-          title="Basis AHSP belum lengkap — impornya terputus"
+          title="Basis AHSP belum lengkap – impornya terputus"
           description="Angka di halaman ini belum bisa dipercaya. Buka halaman Sistem dan ulangi impor basis AHSP lebih dulu."
         />
       ) : null}
@@ -148,7 +148,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
         <Banner
           tone="warning"
           title={`${cakupan.putus} baris kehilangan padanannya saat basis AHSP diganti`}
-          description="Ini bukan keputusan siapa pun — analisa yang dulu dipilih tidak ada lagi di terbitan sekarang. Tekan “Petakan otomatis” untuk menyambungnya kembali."
+          description="Ini bukan keputusan siapa pun – analisa yang dulu dipilih tidak ada lagi di terbitan sekarang. Tekan “Petakan otomatis” untuk menyambungnya kembali."
         />
       ) : null}
 
@@ -160,7 +160,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
         <CardBody>
           <Kenapa judul="Kenapa harus disetujui dulu?">
             Mesin mencocokkan uraian RAB dengan analisa AHSP, tapi tiga dari empat padanan otomatis
-            berstatus &ldquo;beda tipis&rdquo; — unggul cuma sedikit dari kandidat kedua. Karena
+            berstatus &ldquo;beda tipis&rdquo; – unggul cuma sedikit dari kandidat kedua. Karena
             itu usulan mesin TIDAK pernah dipakai menghitung kebutuhan sebelum ada yang
             menyetujuinya. Skor tetap ditampilkan setelah disetujui supaya jejaknya tidak hilang.
           </Kenapa>
@@ -180,7 +180,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
       <Card>
         <CardHeader
           title="3 · Kebutuhan sumber daya"
-          subtitle={`Dari padanan yang sudah disetujui — menutup ${formatPct(pctNilai, 1)} nilai RAB (${formatRupiah(cakupan.nilaiDisetujui)}).`}
+          subtitle={`Dari padanan yang sudah disetujui – menutup ${formatPct(pctNilai, 1)} nilai RAB (${formatRupiah(cakupan.nilaiDisetujui)}).`}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
@@ -188,7 +188,13 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
                 Cetak A4
               </ButtonLink>
               {canExport ? (
-                <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan>
+                <ButtonLink
+                  href={`/lokasi/${slug}/rapl/kebutuhan`}
+                  variant="secondary"
+                  size="sm"
+                  unduhan
+                  labelSibuk="Menyiapkan Excel…"
+                >
                   <Download aria-hidden className="size-3.5" />
                   Unduh Excel
                 </ButtonLink>
@@ -201,7 +207,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
             Kebutuhan dihitung Σ (koefisien analisa × volume item). Satu baris RAB hanya ikut kalau
             padanannya sudah disetujui, analisanya punya koefisien terstruktur, satuannya sepadan
             dengan satuan analisa, dan volumenya ada. Yang tidak memenuhi dikeluarkan dan
-            dilaporkan lengkap dengan nilai rupiahnya — bukan disembunyikan.
+            dilaporkan lengkap dengan nilai rupiahnya – bukan disembunyikan.
           </Kenapa>
           <div className="mt-3">
             <SimulasiKebutuhan
@@ -236,7 +242,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
         />
         <CardBody>
           <Kenapa judul="Kenapa harganya per lokasi, dan kenapa selisihnya belum boleh disebut untung?">
-            Harga pasir di Demak dan di Sumenep memang berbeda — itu justru yang membuat RAPL
+            Harga pasir di Demak dan di Sumenep memang berbeda – itu justru yang membuat RAPL
             berguna. Harga dari lokasi lain hanya ditawarkan sebagai bahan pertimbangan, tidak
             pernah dipakai sendiri. Dan selisih terhadap nilai kontrak baru berarti apa adanya
             kalau DUA cakupan penuh: seluruh nilai RAB masuk hitungan kebutuhan, dan seluruh sumber

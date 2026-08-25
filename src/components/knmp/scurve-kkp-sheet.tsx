@@ -1,4 +1,5 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { labelPihakKkp, pihakKkp, penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -26,8 +27,23 @@ export function ScurveKkpSheet({
   titleOverride,
   periodeOverride,
   ttd,
+  jenis,
 }: {
   r: PeriodReport;
+  /**
+   * Dokumen apa lembar ini bagian darinya (DECISIONS 402/403).
+   *
+   * WAJIB, karena lembar kurva-S yang sama muncul di dua dokumen berbeda:
+   * sebagai **bagian laporan periodik** (ikut jenis laporannya – mingguan
+   * diteken Pelaksana) dan sebagai **Time Schedule berdiri sendiri** (dokumen
+   * jadwal, diteken Direktur). Ketetapan user 2026-08-21: *"kurva s yang
+   * menyatu dalam laporan mingguan adalah laporan mingguan, jangan
+   * campuradukkan dengan kurva s sebagai jadwal."*
+   *
+   * Kompiler yang menagih, supaya tidak ada pemanggil yang diam-diam memakai
+   * bawaan yang salah.
+   */
+  jenis: JenisDokumen;
   /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
   titleOverride?: string;
   /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
@@ -35,10 +51,13 @@ export function ScurveKkpSheet({
   /** Gambar tanda tangan & stempel; null = ruang kosong utk tanda tangan pena. */
   ttd?: TtdLaporan | null;
 }) {
+  const penyedia = penyediaLaporan(jenis, r.header);
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: r.header.contractStart,
+    weekMode: r.header.weekMode,
+    contractEnd: r.header.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -141,7 +160,10 @@ export function ScurveKkpSheet({
             <tr>
               {sheet.weeks.map((w) => (
                 <th key={w} className="border border-black font-normal" style={{ height: HEAD_H }}>
+                  {/* Rentang tanggal minggu ikut tampil (2026-08-24) — batasnya
+                      mengikuti mode periode minggu kontrak. */}
                   M{w}
+                  <span className="block text-[6px] leading-tight text-slate-600">{sheet.weekRanges[w - 1]}</span>
                 </th>
               ))}
             </tr>
@@ -238,11 +260,20 @@ export function ScurveKkpSheet({
 
       {/* Tanda tangan */}
       <div className="mt-6 flex justify-between px-8 text-center text-[8.5px]">
+        {/* Mingguan/bulanan: slot KKP = WAKIL SAH; jadwal tetap PPK (2026-08-24). */}
         <SignBlock
           title="MENGETAHUI :"
-          role="PEJABAT PEMBUAT KOMITMEN"
-          name={hdr.ppkName}
-          sub={hdr.ppkNip ? `NIP. ${hdr.ppkNip}` : null}
+          role={labelPihakKkp(jenis)}
+          name={pihakKkp(jenis) === "wakil_sah" ? hdr.wakilSahName : hdr.ppkName}
+          sub={
+            pihakKkp(jenis) === "wakil_sah"
+              ? hdr.wakilSahNip
+                ? `NIP. ${hdr.wakilSahNip}`
+                : null
+              : hdr.ppkNip
+                ? `NIP. ${hdr.ppkNip}`
+                : null
+          }
           {...gambarPihak(ttd, "ppk")}
         />
         <SignBlock
@@ -254,9 +285,9 @@ export function ScurveKkpSheet({
         />
         <SignBlock
           title="DIBUAT OLEH :"
-          role={`PENYEDIA JASA — ${hdr.vendorName}`}
-          name={hdr.contractorSignerName}
-          sub={hdr.contractorSignerTitle}
+          role={`PENYEDIA JASA – ${hdr.vendorName}`}
+          name={penyedia.nama}
+          sub={penyedia.sub}
           {...gambarPihak(ttd, "penyedia")}
         />
       </div>

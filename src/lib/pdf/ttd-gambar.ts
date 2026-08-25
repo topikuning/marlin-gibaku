@@ -1,4 +1,13 @@
 import "server-only";
+import {
+  pihakKkp,
+  pihakPenyedia,
+  pilihPelaksana,
+  pilihPengawas,
+  pilihWakilSah,
+  type JenisDokumen,
+  type SumberPelaksana,
+} from "@/lib/laporan/penandatangan";
 import { ukuranTtd } from "@/lib/export/ttd-ukuran";
 import type { PdfDoc } from "./document";
 
@@ -41,7 +50,7 @@ export const TANPA_TTD_PDF: TtdPdf = {
  * terbit tidak berguna sama sekali. Cacat yang sama pernah menghilangkan logo
  * diam-diam di semua keluaran PDF, jadi kegagalannya DICATAT.
  */
-export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
+export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promise<TtdPdf> {
   try {
     const [{ db }, { pilihKunciTtd }, { isR2Configured, r2GetBuffer }] = await Promise.all([
       import("@/lib/db"),
@@ -53,12 +62,29 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
     const lokasi = await db.location.findUnique({
       where: { id: locationId },
       select: {
+        pelaksanaName: true,
+        pelaksanaTitle: true,
+        pelaksanaTtdKey: true,
+        supervisorName: true,
+        supervisorFirm: true,
+        supervisorTtdKey: true,
+        wakilSahName: true,
+        wakilSahNip: true,
+        wakilSahTtdKey: true,
         package: {
           select: {
+            pelaksanaName: true,
+            pelaksanaTitle: true,
+            pelaksanaTtdKey: true,
             contract: {
               select: {
                 ppkTtdKey: true,
                 ppkStempelKey: true,
+                wakilSahName: true,
+                wakilSahNip: true,
+                wakilSahTtdKey: true,
+                supervisorName: true,
+                supervisorFirm: true,
                 supervisorTtdKey: true,
                 supervisorStempelKey: true,
                 contractorTtdKey: true,
@@ -73,7 +99,23 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
     const k = lokasi?.package.contract;
     if (!k) return TANPA_TTD_PDF;
 
-    const kunci = pilihKunciTtd({ ...k, vendorStempelKey: k.vendor.stempelKey });
+    const pelaksana = pilihPelaksana(
+      lokasi as SumberPelaksana,
+      lokasi.package as SumberPelaksana,
+    );
+    const pengawas = pilihPengawas(lokasi, k);
+    // Wakil Sah lokasi menimpa kontrak – slot KKP mingguan/bulanan (2026-08-24).
+    const wakilSah = pilihWakilSah(lokasi, k);
+    const kunci = pilihKunciTtd({
+      ...k,
+      penyedia: pihakPenyedia(jenis),
+      kkp: pihakKkp(jenis),
+      wakilSahTtdKey: wakilSah.ttdKey,
+      pelaksanaTtdKey: pelaksana.ttdKey,
+      supervisorTtdKey: pengawas.ttdKey,
+      supervisorStempelKey: pengawas.stempelKey,
+      vendorStempelKey: k.vendor.stempelKey,
+    });
     const sharp = (await import("sharp")).default;
     const png = async (key: string | null): Promise<Buffer | null> => {
       if (!key) return null;
@@ -132,11 +174,45 @@ function sebagaiArrayBuffer(b: Buffer): ArrayBuffer {
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 }
 
-export function gambarTtdPdf(
+/**
+ * URUTAN GAMBAR: stempel → tanda tangan → TEKS (DECISIONS 412).
+ *
+ * Keluhan user 2026-08-22 dengan tangkapan layar: stempel perusahaan menutupi
+ * tulisan "Dibuat Oleh : / Kontraktor Pelaksana / CV. …" di blok tanda tangan.
+ *
+ * Sebabnya bukan ukuran atau posisi, melainkan URUTAN MENGGAMBAR. **PDF tidak
+ * punya z-index**: yang digambar belakangan menimpa yang lebih dulu, titik.
+ * Blok teksnya digambar lebih dulu, lalu gambar stempel ditempel di atasnya —
+ * dan stempel hasil pindaian membawa latar putih yang tidak tembus pandang,
+ * jadi ia benar-benar menghapus teks di bawahnya.
+ *
+ * Di layar tidak kelihatan karena penyaji HTML memakai `mix-blend-multiply`
+ * (`components/knmp/blok-ttd.tsx`) — latar putihnya jadi transparan di sana.
+ * pdfkit tidak menyediakan blend mode, jadi kertas TIDAK bisa memakai obat yang
+ * sama.
+ *
+ * Pembungkus ini yang menegakkan urutannya: gambar dulu, teks sesudahnya. Teks
+ * diserahkan sebagai closure supaya pemanggil TIDAK BISA menaruhnya lebih dulu
+ * tanpa sengaja — persis kesalahan yang sedang diperbaiki. Nilai kembalian
+ * closure diteruskan apa adanya (biasanya `y` berikutnya dari `gridRow`).
+ */
+export function blokTandaTanganPdf<T>(
   doc: PdfDoc,
-  berkas: BerkasTtd,
-  opsi: { xTengah: number; yDasar: number; lebarKolom: number; ruangDiAtasNama: number },
-): void {
+  gambar: { berkas: BerkasTtd; opsi: OpsiGambarTtd }[],
+  teks: () => T,
+): T {
+  for (const g of gambar) gambarTtdPdf(doc, g.berkas, g.opsi);
+  return teks();
+}
+
+export type OpsiGambarTtd = {
+  xTengah: number;
+  yDasar: number;
+  lebarKolom: number;
+  ruangDiAtasNama: number;
+};
+
+export function gambarTtdPdf(doc: PdfDoc, berkas: BerkasTtd, opsi: OpsiGambarTtd): void {
   const { xTengah, yDasar, lebarKolom, ruangDiAtasNama } = opsi;
   const u = ukuranTtd(lebarKolom, ruangDiAtasNama);
   try {

@@ -15,13 +15,14 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
     <div className="space-y-4">
       <PageHeader
         title="AI Intelligence"
-        description="Pusat analisis lintas lokasi. Angka selalu dari sistem MARLIN; AI hanya menjelaskan, memprioritaskan, dan menyusun draf — keputusan tetap di manusia."
+        description="Pusat analisis lintas lokasi. Angka selalu dari sistem MARLIN; AI hanya menjelaskan, memprioritaskan, dan menyusun draf – keputusan tetap di manusia."
       />
       <LinkTabs
         items={[
           { label: "Portfolio Pulse", href: "/ai", exact: true },
           { label: "Perlu Tindakan", href: "/ai/actions" },
           { label: "Report Studio", href: "/ai/reports" },
+          { label: "Paparan KKP", href: "/ai/paparan" },
           { label: "Ask MARLIN", href: "/ai/ask" },
           { label: "Riwayat & Audit", href: "/ai/history" },
         ]}

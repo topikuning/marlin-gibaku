@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { PemilihKantong, UbinAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
@@ -62,7 +63,7 @@ export function FotoBarisPelengkap({
     <div className="space-y-1.5 border-t border-dashed border-border pt-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-ink-muted">
-          Foto {label ? `— ${label}` : "bukti"}
+          Foto {label ? `– ${label}` : "bukti"}
         </span>
         {/* Jumlahnya DISEBUT, termasuk nol: "0 foto" memberi tahu bahwa foto
             memang bisa ditambahkan di sini. */}
@@ -78,6 +79,7 @@ export function FotoBarisPelengkap({
           thumbClass="h-12 w-12"
           canDelete={bolehHapus}
           deleteAction={removeReportPhotoAction}
+          rotateAction={bolehHapus ? putarFotoAction : undefined}
         />
       ) : null}
 

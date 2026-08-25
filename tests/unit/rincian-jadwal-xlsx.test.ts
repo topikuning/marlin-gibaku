@@ -122,7 +122,7 @@ describe("sebaran mingguan per item", () => {
     expect(mingguan[i1][0]).toBeCloseTo(mingguan[i2][0], 6);
   });
 
-  it("minggu di luar jendela kategori tetap KOSONG — jeda tidak ketempelan", () => {
+  it("minggu di luar jendela kategori tetap KOSONG – jeda tidak ketempelan", () => {
     const { rows, mingguan } = siapkan();
     const beton = rows.findIndex((r) => r.name === "Beton K250");
     expect(mingguan[beton][0]).toBe(0);
@@ -157,8 +157,10 @@ describe("berkas mengikuti tata letak acuan", () => {
 
   it("kolom minggu dikelompokkan per BULAN, dengan baris M1..MN di bawahnya", async () => {
     const { teks } = await baca();
-    expect(teks).toContain("M1");
-    expect(teks).toContain(`M${TOTAL_MINGGU}`);
+    // Sel minggu kini "M1\n<rentang tanggal>" (user 2026-08-24) — yang dijaga
+    // token pertamanya.
+    expect(teks.some((t) => t.split(/\s/)[0] === "M1")).toBe(true);
+    expect(teks.some((t) => t.split(/\s/)[0] === `M${TOTAL_MINGGU}`)).toBe(true);
     expect(teks.some((t) => /JUNI|JULI/.test(t))).toBe(true);
   });
 
@@ -170,7 +172,7 @@ describe("berkas mengikuti tata letak acuan", () => {
     expect(teks.some((t) => t.includes("KUMULATIF KEMAJUAN"))).toBe(true);
   });
 
-  it("JUMLAH HARGA & BOBOT berupa RUMUS — berkas yang diedit tetap jujur", async () => {
+  it("JUMLAH HARGA & BOBOT berupa RUMUS – berkas yang diedit tetap jujur", async () => {
     const { ws, cariBaris } = await baca();
     const n = cariBaris("a");
     const jumlah = ws.getRow(n).getCell(8).value as { formula?: string };
@@ -191,7 +193,7 @@ describe("berkas mengikuti tata letak acuan", () => {
     expect(f).toMatch(/^SUM\(J\d+:J\d+\)$/);
   });
 
-  it("KUMULATIF RENCANA berakhir 100% — kurva resmi tidak bergeser", async () => {
+  it("KUMULATIF RENCANA berakhir 100% – kurva resmi tidak bergeser", async () => {
     const { ws, sheet } = await baca();
     let akhir: number | undefined;
     ws.eachRow((row) => {

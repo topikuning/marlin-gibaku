@@ -114,7 +114,7 @@ function BarisAntrean({ item, kind }: { item: AntreanItem; kind: AntreanKind }) 
         ) : null}
 
         <p className="mt-1 text-xs text-ink-faint">
-          {perluKoreksi ? "Dikembalikan" : "Dikirim"} {item.olehNama ?? "—"}
+          {perluKoreksi ? "Dikembalikan" : "Dikirim"} {item.olehNama ?? "–"}
           {item.olehPada ? ` · ${formatTanggalWaktu(item.olehPada)}` : ""}
           {perluKoreksi && item.pelaporNama ? ` · pelapor ${item.pelaporNama}` : ""}
           {` · ${item.itemCount} item`}

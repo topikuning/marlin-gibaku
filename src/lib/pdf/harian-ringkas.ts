@@ -84,15 +84,15 @@ const signedPct = (n: number) => `${n >= 0 ? "+" : "−"}${nf2.format(Math.abs(n
 function statusTone(s: RingkasHarian["status"]): { bg: string; fg: string; label: string } {
   switch (s) {
     case "final":
-      return { bg: "#dcfce7", fg: "#166534", label: "FINAL — ANGKA TERKUNCI" };
+      return { bg: "#dcfce7", fg: "#166534", label: "FINAL – ANGKA TERKUNCI" };
     case "disetujui":
-      return { bg: "#dbeafe", fg: "#1e40af", label: "DISETUJUI — MENUNGGU FINALISASI" };
+      return { bg: "#dbeafe", fg: "#1e40af", label: "DISETUJUI – MENUNGGU FINALISASI" };
     case "dikirim":
-      return { bg: "#fef3c7", fg: "#92400e", label: "DIKIRIM — BELUM DIVERIFIKASI" };
+      return { bg: "#fef3c7", fg: "#92400e", label: "DIKIRIM – BELUM DIVERIFIKASI" };
     case "perlu_koreksi":
-      return { bg: "#fee2e2", fg: "#991b1b", label: "PERLU KOREKSI — DIKEMBALIKAN KE PELAPOR" };
+      return { bg: "#fee2e2", fg: "#991b1b", label: "PERLU KOREKSI – DIKEMBALIKAN KE PELAPOR" };
     case "draft":
-      return { bg: "#fee2e2", fg: "#991b1b", label: "DRAF — BELUM DIKIRIM PELAPOR" };
+      return { bg: "#fee2e2", fg: "#991b1b", label: "DRAF – BELUM DIKIRIM PELAPOR" };
     default:
       return { bg: "#f1f5f9", fg: "#475569", label: "BELUM ADA LAPORAN HARIAN" };
   }
@@ -117,7 +117,7 @@ export function buildHarianRingkasPdf(
   opts: { logoPerusahaan?: Buffer | null } = {},
 ): Promise<Buffer> {
   const doc = createA4Doc({
-    title: `Ringkasan Pelaksanaan Harian — ${d.locationName} — ${d.dateKey}`,
+    title: `Ringkasan Pelaksanaan Harian – ${d.locationName} – ${d.dateKey}`,
   });
 
   kop(doc, d, opts.logoPerusahaan ?? null);
@@ -408,7 +408,7 @@ function identitas(doc: PdfDoc, d: RingkasHarian): void {
   let y = startY + pad;
 
   const sel = (label: string, value: string, x: number, yy: number, w: number): number => {
-    const val = sanitizeText(value || "—");
+    const val = sanitizeText(value || "–");
     doc
       .font(PDF_FONT.regular)
       .fontSize(5.8)
@@ -442,10 +442,10 @@ function identitas(doc: PdfDoc, d: RingkasHarian): void {
   const yBaris = y;
   const lebarKontrak = 150;
   const lebarPekerjaan = CONTENT_WIDTH - pad * 2 - lebarKontrak - gap;
-  const bawahPekerjaan = sel("Pekerjaan", d.workTitle ?? "—", PAGE_MARGIN + pad, yBaris, lebarPekerjaan);
+  const bawahPekerjaan = sel("Pekerjaan", d.workTitle ?? "–", PAGE_MARGIN + pad, yBaris, lebarPekerjaan);
   const bawahKontrak = sel(
     "No. Kontrak",
-    d.contractNumber ?? "—",
+    d.contractNumber ?? "–",
     PAGE_MARGIN + pad + lebarPekerjaan + gap,
     yBaris,
     lebarKontrak,
@@ -483,12 +483,12 @@ function pitaKinerja(doc: PdfDoc, d: RingkasHarian): void {
     { label: "Realisasi s/d hari ini", nilai: pct(d.realizedPct), warna: PDF_COLORS.ink },
     {
       label: "Rencana kurva-S",
-      nilai: adaBaseline ? pct(d.planPct) : "—",
+      nilai: adaBaseline ? pct(d.planPct) : "–",
       warna: adaBaseline ? PDF_COLORS.ink : PDF_COLORS.inkFaint,
     },
     {
       label: "Deviasi",
-      nilai: adaBaseline ? signedPct(d.deviationPct) : "—",
+      nilai: adaBaseline ? signedPct(d.deviationPct) : "–",
       warna: adaBaseline ? deviasiTone(d.deviationPct) : PDF_COLORS.inkFaint,
     },
     {
@@ -584,7 +584,7 @@ function pitaKinerja(doc: PdfDoc, d: RingkasHarian): void {
 
   // Kalimat penutup pita: apa artinya angka-angka itu.
   const kalimat = !adaBaseline
-    ? "Baseline kurva-S belum ada, jadi rencana dan deviasi belum bisa dihitung — bukan bernilai nol."
+    ? "Baseline kurva-S belum ada, jadi rencana dan deviasi belum bisa dihitung – bukan bernilai nol."
     : d.deviationPct >= 0
       ? `Realisasi berada ${signedPct(d.deviationPct)} terhadap rencana kurva-S minggu ke-${d.weekNumber}.`
       : `Realisasi tertinggal ${nf2.format(Math.abs(d.deviationPct))}% dari rencana kurva-S minggu ke-${d.weekNumber}.`;
@@ -691,7 +691,7 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
       const sel = [
         p.code,
         p.name,
-        p.unit ?? "—",
+        p.unit ?? "–",
         nf3.format(p.volumeToday),
         pct(p.bobotToday),
         formatRupiah(p.valueToday),
@@ -841,7 +841,7 @@ function bagianKendala(doc: PdfDoc, d: RingkasHarian): void {
       .fontSize(7.5)
       .fillColor(PDF_COLORS.ink)
       .text(
-        sanitizeText(`• ${k.title}  —  tingkat ${k.severity}, status ${k.status}`),
+        sanitizeText(`• ${k.title}  –  tingkat ${k.severity}, status ${k.status}`),
         PAGE_MARGIN,
         doc.y,
         { width: CONTENT_WIDTH },
@@ -856,10 +856,10 @@ function bagianKondisiKerja(doc: PdfDoc, d: RingkasHarian): void {
   judul(doc, "Kondisi kerja");
 
   const jam =
-    d.workStart && d.workEnd ? `${d.workStart} – ${d.workEnd}` : (d.workStart ?? d.workEnd ?? "—");
+    d.workStart && d.workEnd ? `${d.workStart} – ${d.workEnd}` : (d.workStart ?? d.workEnd ?? "–");
   const tenagaTeks =
     d.tenaga.length > 0
-      ? `${nf0.format(d.totalTenaga)} orang — ${d.tenaga.map((t) => `${t.label} ${t.count}`).join(", ")}`
+      ? `${nf0.format(d.totalTenaga)} orang – ${d.tenaga.map((t) => `${t.label} ${t.count}`).join(", ")}`
       : "tidak dilaporkan";
   const materialTeks =
     d.material.length > 0
@@ -942,7 +942,7 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
       .fillColor(PDF_COLORS.inkMuted)
       .text(
         sanitizeText(
-          "Foto dipangkas agar rapi — ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.",
+          "Foto dipangkas agar rapi – ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.",
         ),
         PAGE_MARGIN,
         doc.y,
@@ -1027,7 +1027,7 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
       .fillColor(PDF_COLORS.inkMuted)
       .text(
         sanitizeText(
-          `${d.fotoDisembunyikan} foto lain tidak dimuat di dokumen ini — semuanya tetap tersimpan di sistem.`,
+          `${d.fotoDisembunyikan} foto lain tidak dimuat di dokumen ini – semuanya tetap tersimpan di sistem.`,
         ),
         PAGE_MARGIN,
         doc.y,

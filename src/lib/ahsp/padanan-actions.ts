@@ -43,12 +43,12 @@ export async function petakanRabAction(
     if (h.baru === 0) {
       const alasan =
         h.belumKetemu > 0
-          ? `${h.belumKetemu} uraian belum ketemu padanannya — pilih sendiri di daftar di bawah.`
+          ? `${h.belumKetemu} uraian belum ketemu padanannya – pilih sendiri di daftar di bawah.`
           : "Semua uraian sudah punya padanan.";
       return { success: `Tidak ada padanan baru. ${alasan}` };
     }
     const bagian = [
-      `${h.baru} uraian dipetakan (${h.baruMeyakinkan} meyakinkan, ${h.baru - h.baruMeyakinkan} beda tipis — perlu diperiksa)`,
+      `${h.baru} uraian dipetakan (${h.baruMeyakinkan} meyakinkan, ${h.baru - h.baruMeyakinkan} beda tipis – perlu diperiksa)`,
     ];
     if (h.dipulihkan > 0) {
       bagian.push(
@@ -188,7 +188,7 @@ export async function setujuiPadananAction(
     revalidatePath(`/lokasi/${parsed.data.slug}/rapl`);
 
     if (h.disetujui === 0) {
-      return { error: "Tidak ada yang disetujui — pilihannya sudah diputuskan orang lain lebih dulu." };
+      return { error: "Tidak ada yang disetujui – pilihannya sudah diputuskan orang lain lebih dulu." };
     }
     const selisih =
       h.disetujui < tanda.length
@@ -196,7 +196,7 @@ export async function setujuiPadananAction(
         : "";
     return {
       success:
-        `${h.disetujui} uraian disetujui dan sekarang dipakai simulasi RAPL — berlaku juga di lokasi lain yang uraiannya sama.${selisih}`,
+        `${h.disetujui} uraian disetujui dan sekarang dipakai simulasi RAPL – berlaku juga di lokasi lain yang uraiannya sama.${selisih}`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

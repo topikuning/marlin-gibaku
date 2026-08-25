@@ -53,7 +53,7 @@ export async function mergeVendorsAction(_prev: VendorActionState, formData: For
     revalidatePath("/master/perusahaan");
     revalidatePath("/paket");
     return {
-      success: `"${from.name}" digabung ke "${to.name}" — ${result.contracts} kontrak & ${result.commitments} komitmen dialihkan.`,
+      success: `"${from.name}" digabung ke "${to.name}" – ${result.contracts} kontrak & ${result.commitments} komitmen dialihkan.`,
     };
   } catch (err) {
     return fail(err);
@@ -72,7 +72,7 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
     });
     if (!vendor) return { error: "Vendor tidak ditemukan." };
     if (vendor._count.contracts > 0 || vendor._count.commitments > 0) {
-      return { error: "Vendor masih dipakai kontrak/komitmen — gabungkan ke vendor lain, jangan hapus." };
+      return { error: "Vendor masih dipakai kontrak/komitmen – gabungkan ke vendor lain, jangan hapus." };
     }
     await db.vendor.delete({ where: { id: vendor.id } });
     await audit(actor.id, "vendor.delete", "vendor", vendor.id, { name: vendor.name });
@@ -127,7 +127,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       where: { orgId: actor.orgId, name: d.name, id: { not: d.id } },
       select: { id: true },
     });
-    if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain — gunakan fitur gabung bila memang sama.` };
+    if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain – gunakan fitur gabung bila memang sama.` };
 
     const { isR2Configured, r2Put } = await import("@/lib/r2");
     const processImage = async (
@@ -139,7 +139,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     ): Promise<{ key: string } | { error: string }> => {
       if (file.size > LOGO_MAX_BYTES) return { error: `${label} terlalu besar (maks 2 MB).` };
       if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: `Format ${label} harus PNG/JPG/WebP.` };
-      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi — gambar tidak dapat diunggah." };
+      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
       const sharp = (await import("sharp")).default;
       const buf = await sharp(Buffer.from(await file.arrayBuffer()), { failOn: "none" })
         .resize(maxW, maxH, { fit: "inside", withoutEnlargement: true })

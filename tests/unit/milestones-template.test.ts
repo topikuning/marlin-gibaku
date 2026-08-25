@@ -7,7 +7,7 @@ import {
   milestoneScope,
 } from "@/lib/milestones/template";
 
-describe("scope milestone (induk paket vs lokasi) — DECISIONS 078", () => {
+describe("scope milestone (induk paket vs lokasi) – DECISIONS 078", () => {
   it("partisi induk + lokasi = total, tanpa tumpang tindih", () => {
     expect(PAKET_MILESTONES.length + LOKASI_MILESTONES.length).toBe(ADMIN_MILESTONE_TOTAL);
     const paketKeys = new Set(PAKET_MILESTONES.map((t) => t.key));

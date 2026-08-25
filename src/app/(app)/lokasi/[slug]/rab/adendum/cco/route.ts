@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { buildCcoXlsx } from "@/lib/export/cco-xlsx";
 import type { CcoNode } from "@/lib/rab/cco-rows";
+import { pilihPengawas } from "@/lib/laporan/penandatangan";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       district: true,
       regency: true,
       province: true,
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
       package: {
         select: {
           name: true,
@@ -87,6 +91,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
               ppkNip: true,
               supervisorName: true,
               supervisorFirm: true,
+              supervisorTtdKey: true,
+              supervisorStempelKey: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
               vendor: { select: { name: true } },
@@ -111,8 +117,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       select: { id: true, revisionNo: true, totalValue: true },
     }),
   ]);
-  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif — tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
-  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum — buat draftnya dulu di tab Adendum" }, { status: 404 });
+  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif – tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
+  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum – buat draftnya dulu di tab Adendum" }, { status: 404 });
 
   const [nodeLama, nodeBaru] = await Promise.all([
     db.rabNode.findMany({ where: { revisionId: aktif.id }, orderBy: { sortOrder: "asc" }, select: pilih }),
@@ -120,6 +126,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   ]);
 
   const c = location.package.contract;
+  const pengawas = pilihPengawas(location, c);
   const buf = await buildCcoXlsx({
     locationName: location.name,
     packageName: location.package.name,
@@ -143,8 +150,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     realisasiByLineage: await cumulativeVolumeByLineage(location.id),
     ppkName: c?.ppkName ?? null,
     ppkNip: c?.ppkNip ?? null,
-    supervisorName: c?.supervisorName ?? null,
-    supervisorFirm: c?.supervisorFirm ?? null,
+    // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+    supervisorName: pengawas.nama,
+    supervisorFirm: pengawas.firma,
     contractorSignerName: c?.contractorSignerName ?? null,
     contractorSignerTitle: c?.contractorSignerTitle ?? null,
     lama: nodeLama.map(keCcoNode),

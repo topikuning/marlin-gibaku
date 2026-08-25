@@ -43,6 +43,15 @@ export type ParsedWaMessage = {
    * di grup, dan WhatsApp tidak selalu menyertakan mention di situ.
    */
   balasanKepada: string | null;
+  /**
+   * ID pesan YANG DIKUTIP, bila pesan ini sebuah balasan (DECISIONS 376).
+   *
+   * Berbeda dari `balasanKepada`, yang menyebut SIAPA yang dibalas. Untuk
+   * mengikat jawaban `1`/`2`/`3` ke tawaran klarifikasi tertentu, yang
+   * dibutuhkan pesan MANA — di grup ramai beberapa tawaran bisa berumur
+   * bersamaan, dan pemiliknya sama-sama MARLIN.
+   */
+  balasanKePesanId: string | null;
 };
 
 import { toInternationalId } from "@/lib/contacts/model";
@@ -145,6 +154,45 @@ export function isWaMessageEvent(body: unknown): boolean {
   return e === "message" || e === "message.any";
 }
 
+/**
+ * Event tanda terima `message.ack` (DECISIONS 374).
+ *
+ * Dipisahkan dari event pesan karena maknanya berlawanan: `message` adalah
+ * sesuatu yang MASUK, `message.ack` adalah kabar tentang sesuatu yang sudah
+ * KELUAR. Menyatukannya di satu penjaga membuat ack ikut diantrekan sebagai
+ * pertanyaan — dan MARLIN akan mencoba menjawab tanda terimanya sendiri.
+ */
+export function isWaAckEvent(body: unknown): boolean {
+  return (body as AnyObj)?.event === "message.ack";
+}
+
+export type ParsedWaAck = { waMessageId: string; ack: number | string | null; chatId: string | null };
+
+/**
+ * Baca `message.ack` dengan toleransi bentuk yang sama seperti event pesan:
+ * medan yang sama ditulis berbeda antar versi & engine WAHA, dan menebak satu
+ * bentuk berarti seluruh rekonsiliasi diam-diam mati pada engine lainnya.
+ */
+export function parseWaAck(body: unknown): ParsedWaAck | null {
+  if (!isWaAckEvent(body)) return null;
+  const p = ((body as AnyObj).payload ?? {}) as AnyObj;
+  const data = (p._data ?? {}) as AnyObj;
+  const key = (p.key ?? data.key ?? {}) as AnyObj;
+
+  const idMentah = p.id ?? data.id ?? key.id;
+  const waMessageId =
+    typeof idMentah === "string"
+      ? idMentah
+      : str((idMentah as AnyObj)?._serialized) ?? null;
+  if (!waMessageId) return null;
+
+  const ackMentah = p.ack ?? data.ack ?? p.ackName ?? p.status;
+  const ack =
+    typeof ackMentah === "number" || typeof ackMentah === "string" ? ackMentah : null;
+
+  return { waMessageId, ack, chatId: normalizeChatId(str(p.from) ?? str(p.to) ?? str(key.remoteJid)) };
+}
+
 export function parseWaEvent(body: unknown): ParsedWaMessage | null {
   const root = body as AnyObj;
   if (!isWaMessageEvent(root)) return null;
@@ -220,6 +268,7 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
     mentionedJids: bacaMention(p, data),
     balasanKepada: bacaBalasanKepada(p, data),
+    balasanKePesanId: bacaBalasanKePesanId(p, data),
     senderLid: isLid(senderJid) ? senderJid : null,
   };
 }
@@ -349,6 +398,38 @@ export function kerangkaPayload(body: unknown, batas = 400): string {
   pindai(p, "", 0);
   const s = keluar.join(" ");
   return s.length > batas ? `${s.slice(0, batas)}…` : s;
+}
+
+/**
+ * ID pesan yang DIKUTIP — dibaca defensif seperti medan lain di berkas ini,
+ * karena namanya berbeda antar engine WAHA (DECISIONS 376).
+ *
+ * `stanzaId` adalah nama Baileys/NOWEB; `quotedMsg.id` dan `replyTo.id` dipakai
+ * engine berbasis browser. Tidak ada yang dijamin ada — balasan tanpa id kutipan
+ * tetap sah, dan penanganannya di `ambilPilihan` sengaja memperlakukan
+ * ketiadaan id sebagai "tidak tahu", bukan sebagai "bukan untuk kita".
+ */
+function bacaBalasanKePesanId(p: AnyObj, data: AnyObj): string | null {
+  const pesan = (p.message ?? data.message ?? {}) as AnyObj;
+  const konteks = [
+    p.contextInfo,
+    data.contextInfo,
+    (p._data as AnyObj)?.contextInfo,
+    (pesan.extendedTextMessage as AnyObj)?.contextInfo,
+  ].filter(Boolean) as AnyObj[];
+  const kandidat = [
+    ...konteks.map((c) => c.stanzaId),
+    ...konteks.map((c) => c.stanzaID),
+    (p.replyTo as AnyObj)?.id,
+    (p.quotedMsg as AnyObj)?.id,
+    data.quotedMessageId,
+    (p._data as AnyObj)?.quotedStanzaID,
+  ];
+  for (const v of kandidat) {
+    const s = typeof v === "string" ? v : str((v as AnyObj)?._serialized);
+    if (s) return s;
+  }
+  return null;
 }
 
 /**

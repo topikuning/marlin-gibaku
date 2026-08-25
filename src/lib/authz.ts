@@ -21,6 +21,11 @@ export const CAPABILITIES = [
   // Koreksi susunan lokasi paket BERKONTRAK (lokasi ketinggalan saat input) —
   // super_admin SAJA, bukan adendum. DECISIONS 187.
   "location.correct",
+  // Isi nama & unggah coretan tanda tangan PENANDA TANGAN LOKASI (pelaksana +
+  // pengawas lokasi itu) — Site Manager ke atas. SENGAJA dipisah dari
+  // `location.manage`, yang ikut membawa ganti nama lokasi & ubah koordinat
+  // master (dipakai cap foto). DECISIONS 419.
+  "location.signer",
   "rab.view",
   "rab.manage",
   "baseline.manage",
@@ -30,6 +35,12 @@ export const CAPABILITIES = [
   "daily_report.finalize",
   // Buka kunci laporan final untuk koreksi — super_admin SAJA (DECISIONS 149).
   "daily_report.unfinalize",
+  // Pindahkan laporan ke tanggal lain (salah input tanggal) — super_admin SAJA
+  // (permintaan user 2026-08-22, DECISIONS 415). Menggeser tanggal berarti
+  // menggeser volume ke hari lain: kurva-S, deviasi, dan angka kumulatif
+  // laporan di antaranya ikut berubah. Karena itu setara membuka laporan final,
+  // bukan setara mengedit isi.
+  "daily_report.move_date",
   "field_activity.manage",
   // Foto Cepat: jepret/simpan foto DULU (koordinat + jam terekam saat itu),
   // itemnya dipilih belakangan. Dipisah dari daily_report.create karena justru
@@ -42,8 +53,49 @@ export const CAPABILITIES = [
   // itu TIDAK bisa diperbaiki lagi — karena itu terpisah dari photo.restamp.
   "photo.archive_purge",
   "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA (sementara super_admin saja)
+  // Tautan KELUAR ke folder Google Drive vendor ("Lihat di Drive") — super_admin
+  // SAJA (permintaan user 2026-08-22). Di seberang tautan itu tidak ada lagi
+  // pembatasan lokasi yang berlaku di MARLIN, dan bagi orang lapangan ia tidak
+  // menambah apa pun: keadaan "sudah ke Drive" sudah terbaca dari lencananya.
+  // Ini kemampuan MELIHAT TAUTAN, bukan mengunggah — unggahannya tetap
+  // `report.export`.
+  "gdrive.open_folder",
   "progress.view",
   "issue.manage",
+  /*
+   * PENGENDALIAN TERPADU — temuan, inspeksi, verifikasi eksternal
+   * (DECISIONS 426). Pemisahan tugasnya berbasis PERAN dan disengaja:
+   * pihak pelaksana (SM/PM/AM) TIDAK memegang `finding.verify` — yang menutup
+   * temuan bukan yang ditindak; pemeriksa (wakil_ppk) TIDAK memegang
+   * `finding.respond` — pemeriksa tidak menindaklanjuti temuannya sendiri.
+   * SA/PD memegang keduanya sebagai break-glass yang selalu ter-audit.
+   */
+  "finding.view",
+  "finding.create",
+  "finding.respond",
+  "finding.verify",
+  "inspection.manage",
+  // Verifikasi EKSTERNAL laporan harian (jejak pemeriksaan wakil pemberi
+  // kerja). TIDAK mengubah status laporan & TIDAK menyentuh angka resmi.
+  "report.verify_external",
+  /*
+   * KEUANGAN DITAHAN: SEMENTARA super_admin saja (permintaan user 2026-08-22).
+   *
+   * *"menu keuangan saat ini belum siap, jadi selain superadmin, tidak usah
+   * ditampilkan dulu."*
+   *
+   * Ditahan di CAPABILITY, bukan sekadar disembunyikan dari menu. Menyembunyikan
+   * menu saja meninggalkan alamatnya terbuka — siapa pun yang pernah membuka
+   * /keuangan atau menyimpan tautannya tetap masuk, dan fitur yang "belum siap"
+   * akan tetap ditemukan orang. Di sini pintunya yang ditutup; menunya hilang
+   * dengan sendirinya karena nav memang menyaring dengan capability.
+   *
+   * CARA MEMBUKANYA KEMBALI: hapus `!c.startsWith("finance.")` pada penyaring
+   * program_director di bawah, lalu kembalikan `finance.input` ke SITE_MANAGER,
+   * `finance.view` ke PROJECT_MANAGER + exec_viewer, dan `finance.approve` ke
+   * AREA_MANAGER. Empat tempat, sengaja ditulis di sini supaya pemulihannya
+   * tidak jadi pekerjaan menebak.
+   */
   "finance.view",
   "finance.input",
   "finance.approve",
@@ -88,6 +140,9 @@ const VIEW_ALL: Capability[] = [
   "rab.view",
   "progress.view",
   "document.view",
+  // Papan temuan terbuka untuk semua yang boleh melihat lokasi — temuan yang
+  // disembunyikan dari pelaksananya sendiri tidak akan pernah ditindaklanjuti.
+  "finding.view",
 ];
 
 /**
@@ -168,8 +223,27 @@ const SITE_MANAGER: Capability[] = [
   "baseline.manage",
   "daily_report.review",
   "daily_report.finalize",
+  /**
+   * PENANDA TANGAN LOKASI: Site Manager boleh mengisinya (DECISIONS 419).
+   *
+   * Permintaan user 2026-08-23 *"untuk pengisian nama penandatangan site
+   * manager dijinkan"*. Yang dibuka HANYA penimpaan per-lokasi — nama+jabatan
+   * Pelaksana Lapangan dan nama+firma Konsultan Pengawas lokasi itu, berikut
+   * coretan tanda tangannya. Penanda tangan tingkat PAKET (PPK, Direktur,
+   * pengawas kontrak) tetap `contract.manage`: satu orang mengubahnya di sana,
+   * seluruh lokasi paket ikut berubah.
+   *
+   * Kapabilitas sendiri, bukan `location.manage`, karena yang diminta adalah
+   * mengisi nama — bukan mengganti nama lokasi dan bukan menggeser koordinat
+   * master yang dipakai cap foto sebagai bukti titik.
+   */
+  "location.signer",
   "issue.manage",
-  "finance.input",
+  // Temuan (DECISIONS 426): SM boleh MENCATAT temuan (QA internal) dan
+  // MENINDAKLANJUTI temuan yang dialamatkan padanya — tapi TIDAK memverifikasi
+  // penutupan (lihat catatan pemisahan tugas di daftar capability).
+  "finding.create",
+  "finding.respond",
   "document.upload",
   "report.export",
   "wa.chat",
@@ -187,12 +261,31 @@ const PROJECT_MANAGER: Capability[] = [
   ...SITE_MANAGER,
   "portfolio.view",
   "location.manage",
+  /**
+   * KONTRAK NORMAL: Project Manager (dan karenanya Area Manager) mengurus
+   * kontraknya sendiri (DECISIONS 421).
+   *
+   * Permintaan user 2026-08-23: *"project manager dan area manager bisa
+   * melakukan semua hal yang berhubungan dengan kontrak normal, isi penanda
+   * tangan, ajukan adendum, isi logo, dsb"*.
+   *
+   * Yang ikut terbuka bersama `contract.manage` — disebut apa adanya, bukan
+   * diam-diam: input data kontrak (convertToContract), nama penanda tangan,
+   * gambar tanda tangan & stempel, memulai pelaksanaan, membuat vendor, serta
+   * master Perusahaan termasuk logo/kop/stempel vendor.
+   *
+   * Yang TETAP super_admin, dan sengaja: `contract.edit` — KOREKSI kontrak yang
+   * sudah berjalan (nomor, nilai, PPN, tanggal). Itu bukan pekerjaan kontrak
+   * normal melainkan pembetulan data yang menggeser kisi mingguan kurva-S dan
+   * dasar semua angka deviasi; sama alasannya dengan `location.correct`.
+   */
+  "contract.manage",
+  "amendment.manage",
   // `rab.manage` (DECISIONS 302) dan `baseline.manage` (DECISIONS 353) kini
   // datang dari SITE_MANAGER — tidak didaftar ulang di sini supaya jelas
   // keduanya hak yang DIWARISI, bukan hak khas Project Manager yang kebetulan
   // sama namanya. Mendaftarnya dua kali membuat pencabutan di SM kelak tidak
   // terlihat efeknya di PM, dan itu cara matriks izin diam-diam jadi bohong.
-  "finance.view",
   "document.verify",
   "document.edit",
   "document.void",
@@ -204,7 +297,6 @@ const AREA_MANAGER: Capability[] = [
   ...PROJECT_MANAGER,
   // Yang KHAS Area Manager: mengesahkan, bukan menyusun. Dua ini sengaja tidak
   // dimiliki PM supaya penyusun dan pengesah tetap terpisah jenjang.
-  "finance.approve",
   "ai.report_approve",
 ];
 
@@ -214,16 +306,22 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // contract.edit = koreksi data kontrak, khusus super_admin.
     // wa.configure (set grup WhatsApp paket) sementara khusus super_admin juga.
     // daily_report.unfinalize = membuka laporan yang sudah final, super_admin saja.
+    // daily_report.move_date = memindahkan laporan ke tanggal lain, super_admin saja.
     // contact.view_all = melihat kontak milik akun lain, super_admin saja.
     // document.delete = hapus permanen dokumen, super_admin saja (batalkan cukup).
+    // gdrive.open_folder = tautan keluar ke folder Drive vendor, super_admin saja.
+    // finance.* = SEMENTARA super_admin saja — lihat catatan di bawah.
     CAPABILITIES.filter(
       (c) =>
+        !c.startsWith("finance.") &&
         c !== "system.manage" &&
         c !== "contract.edit" &&
         c !== "wa.configure" &&
         c !== "daily_report.unfinalize" &&
+        c !== "daily_report.move_date" &&
         c !== "contact.view_all" &&
         c !== "document.delete" &&
+        c !== "gdrive.open_folder" &&
         c !== "location.correct",
     ),
   ),
@@ -235,7 +333,6 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     ...VIEW_ALL,
     "portfolio.view",
     "package.view",
-    "finance.view",
     "report.export",
     "ai.view",
     "ai.generate",
@@ -253,11 +350,23 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
    * Bukan CROSS_LOCATION_ROLES: hanya lokasi yang ditugaskan (permintaan user
    * "sesuai penugasan juga"). Tanpa penugasan → NOL lokasi, gagal ke arah aman.
    */
+  /**
+   * DECISIONS 426 memperluas peran ini dari BACA SAJA menjadi VERIFIKATOR
+   * (prompt user 2026-08-24: workspace Wakil PPK dengan inspeksi, verifikasi
+   * laporan & evidence, temuan, klarifikasi). Menggantikan sebagian
+   * DECISIONS 199. Yang TIDAK berubah: tanpa `ai.*`, tanpa `finance.*`,
+   * tanpa satu pun capability yang mengubah data PELAKSANA (laporan, RAB,
+   * dokumen, keuangan), dan tetap sesuai penugasan lokasi.
+   */
   wakil_ppk: new Set<Capability>([
     ...VIEW_ALL,
     "portfolio.view",
     "package.view",
     "report.export",
+    "finding.create",
+    "finding.verify",
+    "inspection.manage",
+    "report.verify_external",
   ]),
 };
 

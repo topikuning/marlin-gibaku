@@ -52,7 +52,7 @@ export function normalizeR2Endpoint(raw: string): string {
   }
   if (url.hostname.endsWith(".r2.dev") || url.hostname === "r2.dev") {
     throw new EnvError(
-      "R2_ENDPOINT memakai domain r2.dev — itu domain publik, bukan endpoint S3. Pakai <accountid>.r2.cloudflarestorage.com",
+      "R2_ENDPOINT memakai domain r2.dev – itu domain publik, bukan endpoint S3. Pakai <accountid>.r2.cloudflarestorage.com",
     );
   }
   if (url.pathname !== "/" && url.pathname !== "") {
@@ -76,7 +76,7 @@ function loadEnv() {
     const r2Parsed = r2Schema.safeParse(process.env);
     if (!r2Parsed.success) {
       throw new EnvError(
-        `Konfigurasi R2 tidak lengkap: ${r2Parsed.error.issues.map((i) => i.path.join(".")).join(", ")} — isi semua variabel R2 atau kosongkan semuanya`,
+        `Konfigurasi R2 tidak lengkap: ${r2Parsed.error.issues.map((i) => i.path.join(".")).join(", ")} – isi semua variabel R2 atau kosongkan semuanya`,
       );
     }
     r2 = {

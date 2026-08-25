@@ -35,7 +35,7 @@ const LABEL = [
   "Tertinggal & Kendala",
 ];
 
-test.describe("Progress lokasi — sub-tab", () => {
+test.describe("Progress lokasi – sub-tab", () => {
   test("keempat bagian terlihat utuh TANPA menggulir", async ({ page }) => {
     await login(page);
     /*

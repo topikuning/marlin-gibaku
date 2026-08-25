@@ -43,7 +43,7 @@ describe("kelengkapanVendor", () => {
     expect(r.kurang).toEqual([]);
   });
 
-  it("persen SELALU turunan dari daftar kurang — keduanya tidak bisa berbeda", () => {
+  it("persen SELALU turunan dari daftar kurang – keduanya tidak bisa berbeda", () => {
     /*
      * Invarian yang paling penting di sini. Kalau persentase dihitung terpisah,
      * suatu saat ia akan menulis "100%" di samping daftar yang masih berisi —

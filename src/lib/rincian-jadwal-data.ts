@@ -84,6 +84,8 @@ export async function muatRincianJadwal(
     categories: report.kurvaSchedule,
     totalWeeks: report.totalWeeks,
     contractStart: report.header.contractStart,
+    weekMode: report.header.weekMode,
+    contractEnd: report.header.contractEnd,
     actualCum: report.scurve.actualPct,
     currentWeek: report.scurve.currentWeek,
     planCumOfficial: report.scurve.planPct,

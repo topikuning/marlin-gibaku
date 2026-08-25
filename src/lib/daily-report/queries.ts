@@ -1,6 +1,13 @@
 import "server-only";
+import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
-import { bobotPct, prestasiPct } from "@/lib/progress-calc";
+import {
+  weekOfDate,
+  weekDateRange,
+  bobotPct,
+  prestasiPct,
+  type WeekPeriodMode,
+} from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
@@ -11,6 +18,7 @@ import type {
   WeatherCode,
   WeatherSource,
   WorkerRole,
+  NoActivityReason,
 } from "@/generated/prisma/enums";
 import { hourlyCategoryEntries, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { WEATHER_KKP_CATEGORY } from "./constants";
@@ -174,6 +182,10 @@ export type WorkspaceReport = {
   workStart: string | null;
   workEnd: string | null;
   notes: string | null;
+  /** Pernyataan "hari ini tidak ada kegiatan" (DECISIONS 396). */
+  noActivity: boolean;
+  noActivityReason: NoActivityReason | null;
+  noActivityNote: string | null;
   items: WorkspaceItem[];
   totalValueToday: string; // BigInt string
   workers: { role: WorkerRole; count: number }[];
@@ -242,7 +254,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         equipment: { orderBy: { name: "asc" } },
         statusHistory: { orderBy: { changedAt: "asc" } },
         photos: { orderBy: { createdAt: "asc" } },
-        issues: { orderBy: { createdAt: "asc" } },
+        issues: { where: { mergedIntoId: null }, orderBy: { createdAt: "asc" } },
       },
     }),
     getRecentDays(location.id, 14, dateKey),
@@ -371,7 +383,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         fromStatus: h.fromStatus,
         toStatus: h.toStatus,
         changedAt: h.changedAt.toISOString(),
-        changedByName: nameById.get(h.changedById) ?? "—",
+        changedByName: nameById.get(h.changedById) ?? "–",
         reason: h.reason,
       })),
       issues: report.issues.map((i) => ({
@@ -384,6 +396,9 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       photos: photoViews,
       photosTanpaItem,
       lastCorrectionReason: lastCorrection?.reason ?? null,
+      noActivity: report.noActivity,
+      noActivityReason: report.noActivityReason,
+      noActivityNote: report.noActivityNote,
       isFinal: report.status === "final",
     },
   };
@@ -578,16 +593,29 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       name: true,
       regency: true,
       province: true,
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
       package: {
         select: {
+          pelaksanaName: true,
+          pelaksanaTitle: true,
+          pelaksanaTtdKey: true,
           contract: {
             select: {
               startDate: true,
+              weekMode: true,
               workTitle: true,
               contractNumber: true,
               signedDate: true,
               supervisorName: true,
               supervisorFirm: true,
+              supervisorTtdKey: true,
+              supervisorStempelKey: true,
+              supervisorLogoKey: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
               vendor: { select: { name: true, logoKey: true, address: true } },
@@ -600,13 +628,24 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   if (!location) return null;
 
   const contract = location.package.contract;
+  /*
+   * Laporan HARIAN diteken PELAKSANA LAPANGAN, bukan direktur (DECISIONS 402).
+   *
+   * Sebelum ini blok "Dibuat Oleh" memuat `contractorSignerName` — nama
+   * direktur — pada dokumen yang diisi dan ditandatangani orang lapangan.
+   * Nama yang belum diisi dibiarkan null: tercetak sebagai baris kosong untuk
+   * ditandatangani tangan, TIDAK jatuh ke nama direktur.
+   */
+  const pelaksana = pilihPelaksana(location, location.package);
+  // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+  const pengawas = pilihPengawas(location, contract);
   const signatories = {
-    supervisorName: contract?.supervisorName ?? null,
-    supervisorSub: contract?.supervisorFirm ?? null,
-    contractorName: contract?.contractorSignerName ?? null,
-    contractorSub: contract?.contractorSignerTitle ?? null,
+    supervisorName: pengawas.nama,
+    supervisorSub: pengawas.firma,
+    contractorName: pelaksana.nama,
+    contractorSub: pelaksana.jabatan,
     // Nama perusahaan untuk kop blanko (posisi "logo perusahaan" di contoh KKP).
-    supervisorFirm: contract?.supervisorFirm ?? null,
+    supervisorFirm: pengawas.firma,
     contractorFirm: contract?.vendor?.name ?? null,
   };
 
@@ -624,11 +663,22 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ownerLogoUrl = null;
     }
   }
+  // Logo firma konsultan pengawas di kop layar (user 2026-08-24) — pola sama.
+  let supervisorLogoUrl: string | null = null;
+  if (location.package.contract?.supervisorLogoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      supervisorLogoUrl = await r2PresignGet(location.package.contract.supervisorLogoKey, 600);
+    } catch {
+      supervisorLogoUrl = null;
+    }
+  }
   const owner = {
     ownerName: brand.ownerName,
     ownerSubtitle: brand.ownerSubtitle,
     ownerAddress: brand.ownerAddress,
     ownerLogoUrl,
+    supervisorLogoUrl,
     pekerjaan: contract?.workTitle ?? null,
   };
 
@@ -683,9 +733,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   );
 
   const startDate = location.package.contract?.startDate ?? null;
-  const weekNo = startDate
-    ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
-    : null;
+  // Nomor minggu mengikuti mode periode minggu kontrak (user 2026-08-24).
+  const weekMode = location.package.contract?.weekMode ?? "tujuh_hari";
+  const weekNo = startDate ? Math.max(1, weekOfDate(startDate, reportDate, weekMode)) : null;
 
   /**
    * Bobot hari ini per item — kolom "Bobot (%)" di halaman dokumentasi.
@@ -723,24 +773,20 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
    * Foto & identitas kontrak bukan angka progres, jadi mengambilnya dari data
    * hidup tidak menyentuh keimutabelan snapshot.
    */
-  const periode = (w: number | null) => ({
+  const periode = (w: number | null, mode: WeekPeriodMode = weekMode) => ({
     // Periode minggu berjalan: diturunkan dari tanggal SPMK + nomor minggu yang
     // SUDAH dipakai blanko — satu sumber, jadi sampul dan blanko tidak bisa
     // menyebut minggu yang berbeda.
-    periodStart:
-      startDate && w
-        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w - 1) * 7 * 86_400_000))
-        : null,
-    periodEnd:
-      startDate && w
-        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w * 7 - 1) * 86_400_000))
-        : null,
+    periodStart: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, mode).start) : null,
+    periodEnd: startDate && w ? tanggalFullFmt.format(weekDateRange(startDate, w, mode).end) : null,
   });
   const lampiran = {
     contractNumber: contract?.contractNumber ?? null,
     contractDate: contract?.signedDate ? tanggalFullFmt.format(contract.signedDate) : null,
     contractorAddress: contract?.vendor?.address ?? null,
     vendorLogoKey: contract?.vendor?.logoKey ?? null,
+    // Logo firma konsultan pengawas — kop blanko harian (user 2026-08-24).
+    supervisorLogoKey: contract?.supervisorLogoKey ?? null,
     /*
      * Foto DIPILAH menurut apa yang dibuktikannya (DECISIONS 304).
      *
@@ -803,7 +849,21 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ...lampiran,
       // Nomor minggu yang DIBEKUKAN snapshot, bukan hitungan ulang — supaya
       // sampul menyebut minggu yang sama dengan blanko di halaman berikutnya.
-      ...periode(base.weekNo),
+      // Rentang tanggalnya juga dari snapshot bila ada (DECISIONS 427c):
+      // mode periode minggu bisa diganti di tengah kontrak, dan nomor beku +
+      // rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
+      // Snapshot lama (tanpa kolom ini) diturunkan dengan mode `tujuh_hari`,
+      // BUKAN mode berjalan (DECISIONS 430): sebelum 427c nomor minggunya
+      // dihitung dengan rumus 7-hari yang ditulis langsung, apa pun mode
+      // kontraknya — jadi hanya rentang 7-hari yang memuat tanggal laporannya.
+      // Memakai mode berjalan di sini membuat blanko lama menyebut periode yang
+      // tidak memuat tanggalnya sendiri begitu mode kontrak berubah.
+      ...(snap.periodStartKey && snap.periodEndKey
+        ? {
+            periodStart: tanggalFullFmt.format(new Date(`${snap.periodStartKey}T00:00:00.000Z`)),
+            periodEnd: tanggalFullFmt.format(new Date(`${snap.periodEndKey}T00:00:00.000Z`)),
+          }
+        : periode(base.weekNo, "tujuh_hari")),
     };
   }
 
@@ -866,6 +926,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       };
     }),
+    // Pernyataan "tidak ada kegiatan" ikut ke blanko cetak (DECISIONS 396).
+    noActivity: report?.noActivity ?? false,
+    noActivityReason: report?.noActivityReason ?? null,
+    noActivityNote: report?.noActivityNote ?? null,
     isFinal: report?.status === "final",
     ...signatories,
   };
@@ -1020,7 +1084,7 @@ export async function getDetailHari(
       workEnd: true,
       updatedAt: true,
       _count: { select: { items: true, photos: true, workers: true } },
-      issues: { where: { status: { not: "selesai" } }, select: { id: true } },
+      issues: { where: { status: { not: "selesai" }, mergedIntoId: null }, select: { id: true } },
     },
   });
   if (!r) return null;

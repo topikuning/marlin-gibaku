@@ -89,7 +89,7 @@ test.describe("aktivasi adendum: empat mata", () => {
     await expect(page.getByText(/Masih kurang:/)).toContainText("Program Director");
   });
 
-  test("PD saja belum cukup — masih menunggu AM/PM/SM", async ({ page }) => {
+  test("PD saja belum cukup – masih menunggu AM/PM/SM", async ({ page }) => {
     await login(page, "hery");
     await page.goto(URL);
     await tombolSetuju(page).click();

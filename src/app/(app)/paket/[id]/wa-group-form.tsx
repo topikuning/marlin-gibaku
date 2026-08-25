@@ -97,7 +97,7 @@ export function WaGroupForm({
 
       {/* Cara 1: pilih dari daftar (butuh sesi WORKING) */}
       <div className="rounded-md border border-border p-3">
-        <p className="mb-2 text-[13px] font-medium text-ink">Cara 1 — pilih dari daftar grup</p>
+        <p className="mb-2 text-[13px] font-medium text-ink">Cara 1 – pilih dari daftar grup</p>
         <Button
           type="button"
           size="sm"
@@ -114,7 +114,7 @@ export function WaGroupForm({
           <Banner
             tone="warning"
             title="Belum bisa memuat daftar grup"
-            description={`${loadErr} — sementara itu, pakai Cara 2 (isi ID grup manual) di bawah.`}
+            description={`${loadErr} – sementara itu, pakai Cara 2 (isi ID grup manual) di bawah.`}
             className="mt-2"
           />
         ) : null}
@@ -149,7 +149,7 @@ export function WaGroupForm({
 
       {/* Cara 2: link undangan → resolve ID otomatis (tak butuh store NOWEB) */}
       <div className="rounded-md border border-border p-3">
-        <p className="mb-1 text-[13px] font-medium text-ink">Cara 2 — pakai link undangan grup (disarankan)</p>
+        <p className="mb-1 text-[13px] font-medium text-ink">Cara 2 – pakai link undangan grup (disarankan)</p>
         <p className="mb-2 text-xs text-ink-muted">
           Di WhatsApp: buka grup → <b>Info grup</b> → <b>Tautan undangan grup</b> → Salin. Tempel di sini,
           sistem ambil ID grup otomatis. Pastikan nomor pengirim jadi anggota grup.
@@ -180,7 +180,7 @@ export function WaGroupForm({
 
       {/* Cara 3: isi manual (selalu tersedia) */}
       <div className="rounded-md border border-border p-3">
-        <p className="mb-2 text-[13px] font-medium text-ink">Cara 3 — isi ID grup manual</p>
+        <p className="mb-2 text-[13px] font-medium text-ink">Cara 3 – isi ID grup manual</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="wa-group-id">ID grup (…@g.us)</Label>
@@ -210,7 +210,7 @@ export function WaGroupForm({
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-ink-muted">
             <li>Cara termudah: klik <b>Muat daftar grup</b> di atas (butuh sesi WhatsApp sudah login/WORKING).</li>
             <li>Atau buka dashboard WAHA → endpoint <code>GET /api/&#123;session&#125;/groups</code> → salin nilai <code>id</code> yang berakhiran <code>@g.us</code>.</li>
-            <li>ID grup berbentuk angka panjang diakhiri <code>@g.us</code> (bukan nomor HP). Boleh tempel angkanya saja — sistem menambah <code>@g.us</code> otomatis.</li>
+            <li>ID grup berbentuk angka panjang diakhiri <code>@g.us</code> (bukan nomor HP). Boleh tempel angkanya saja – sistem menambah <code>@g.us</code> otomatis.</li>
           </ul>
         </details>
       </div>

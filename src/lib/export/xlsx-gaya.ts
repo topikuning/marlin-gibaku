@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs";
+import { pihakKkp, penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import type { PeriodHeader } from "@/lib/periodic-report";
 import type { LogoGambar, LogoLaporan } from "@/lib/export/logo-laporan";
 import { formatTanggal } from "@/lib/format";
@@ -207,8 +208,17 @@ export function logoPasanganKanan(
  */
 export function blokTandaTangan(
   ws: ExcelJS.Worksheet,
-  o: { lastCol: number; h: PeriodHeader; tanggal?: Date },
+  o: { lastCol: number; h: PeriodHeader; tanggal?: Date; jenis: JenisDokumen },
 ): void {
+  // Siapa yang meneken bergantung dokumennya (DECISIONS 402) — dan jawabannya
+  // hanya boleh datang dari satu tempat, supaya PDF dan Excel dari laporan yang
+  // sama tidak pernah menyebut dua orang berbeda.
+  const penyedia = penyediaLaporan(o.jenis, o.h);
+  // Slot KKP: mingguan/bulanan = WAKIL SAH, lainnya PPK (2026-08-24) — satu
+  // penentu `pihakKkp`, sama dengan layar dan PDF.
+  const kkpWakilSah = pihakKkp(o.jenis) === "wakil_sah";
+  const kkpNama = kkpWakilSah ? o.h.wakilSahName : o.h.ppkName;
+  const kkpNip = kkpWakilSah ? o.h.wakilSahNip : o.h.ppkNip;
   const L = Math.max(3, o.lastCol);
   const lebar = Math.floor(L / 3);
   const blok: [number, number][] = [
@@ -256,9 +266,9 @@ export function blokTandaTangan(
   tulis(["Mengetahui,", "Diperiksa,", "Dibuat Oleh,"], { size: 9, color: WARNA.teksRedup });
   tulis(
     [
-      "Pejabat Pembuat Komitmen",
+      kkpWakilSah ? "Wakil Sah" : "Pejabat Pembuat Komitmen",
       o.h.supervisorFirm?.trim() || "Konsultan Pengawas",
-      o.h.vendorName?.trim() ? `Penyedia Jasa — ${o.h.vendorName.trim()}` : "Penyedia Jasa",
+      o.h.vendorName?.trim() ? `Penyedia Jasa – ${o.h.vendorName.trim()}` : "Penyedia Jasa",
     ],
     { bold: true, size: 9 },
   );
@@ -268,15 +278,15 @@ export function blokTandaTangan(
   const garisTtd = "( ……………………………………… )";
   tulis(
     [
-      o.h.ppkName?.trim() ? `( ${o.h.ppkName.trim()} )` : garisTtd,
+      kkpNama?.trim() ? `( ${kkpNama.trim()} )` : garisTtd,
       o.h.supervisorName?.trim() ? `( ${o.h.supervisorName.trim()} )` : garisTtd,
-      o.h.contractorSignerName?.trim() ? `( ${o.h.contractorSignerName.trim()} )` : garisTtd,
+      penyedia.nama ? `( ${penyedia.nama} )` : garisTtd,
     ],
     { bold: true, size: 9, garisAtas: true },
   );
   tulis(
     [
-      o.h.ppkNip?.trim() ? `NIP. ${o.h.ppkNip.trim()}` : null,
+      kkpNip?.trim() ? `NIP. ${kkpNip.trim()}` : null,
       o.h.supervisorName?.trim() ? "Konsultan Pengawas" : null,
       o.h.contractorSignerTitle?.trim() || null,
     ],

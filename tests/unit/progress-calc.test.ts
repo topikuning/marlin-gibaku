@@ -9,7 +9,7 @@ describe("prestasiPct", () => {
     expect(prestasiPct(100, 100)).toBe(100);
   });
 
-  it("dibatasi 100% — pekerjaan tidak bisa 110% selesai", () => {
+  it("dibatasi 100% – pekerjaan tidak bisa 110% selesai", () => {
     expect(prestasiPct(110, 100)).toBe(100);
     expect(prestasiPct(1e9, 1)).toBe(100);
   });
@@ -25,7 +25,7 @@ describe("prestasiPct", () => {
   });
 });
 
-describe("itemAchievement — kolom blanko KKP", () => {
+describe("itemAchievement – kolom blanko KKP", () => {
   it("kasus normal: lalu + ini = s/d", () => {
     const a = itemAchievement({ volK: 100, volLalu: 30, volIni: 20, bobot: 10 });
     expect(a.prestasiLalu).toBe(30);
@@ -35,7 +35,7 @@ describe("itemAchievement — kolom blanko KKP", () => {
     expect(a.bobotSd).toBeCloseTo(5, 12);
   });
 
-  it("REGRESI: volume melebihi kontrak — kolom TETAP berjumlah", () => {
+  it("REGRESI: volume melebihi kontrak – kolom TETAP berjumlah", () => {
     // Pembatas 100% per kolom (cara lama) menghasilkan lalu 50 + ini 60 = 110
     // padahal s/d 100 → baris di blanko KKP tidak jumlah.
     const a = itemAchievement({ volK: 100, volLalu: 50, volIni: 60, bobot: 10 });

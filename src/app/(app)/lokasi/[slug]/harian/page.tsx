@@ -29,6 +29,7 @@ import {
   type SelKalender,
 } from "@/lib/daily-report/kalender-harian";
 import { Kalender } from "./kalender";
+import { PanelHari } from "./panel-hari";
 import { DaftarHarian, type BarisHarian } from "./daftar-harian";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,14 @@ export default async function HarianIndexPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ bulan?: string; tgl?: string; saring?: string; tampilan?: string }>;
+  searchParams: Promise<{
+    bulan?: string;
+    tgl?: string;
+    saring?: string;
+    tampilan?: string;
+    /** "1" = buka ringkasan tanggal sebagai pop-up (DECISIONS 414). */
+    panel?: string;
+  }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -114,12 +122,17 @@ export default async function HarianIndexPage({
     sel.find((s) => s.bulanIni && s.dateKey === hariIniKey) ??
     sel.find((s) => s.bulanIni)!;
   const detail = await getDetailHari(location.id, terpilih.dateKey);
+  // Pop-up ringkasan tanggal hanya terbuka kalau petak tanggal yang memintanya
+  // — bukan setiap kali halaman dibuka (DECISIONS 414).
+  const bukaPanel = sp.panel === "1" && !!diminta;
 
   const taut = (ubah: {
     bulan?: string;
     tgl?: string;
     saring?: SaringHarian;
     tampilan?: "kalender" | "daftar";
+    /** Minta ringkasan tanggal terbuka sebagai pop-up di layar sempit. */
+    panel?: boolean;
   }) => {
     const q = new URLSearchParams();
     const b = ubah.bulan ?? bulan;
@@ -132,6 +145,12 @@ export default async function HarianIndexPage({
     if (s !== "semua") q.set("saring", s);
     const tp = ubah.tampilan ?? (daftarMode ? "daftar" : "kalender");
     if (tp === "daftar") q.set("tampilan", "daftar");
+    /*
+     * `panel` SENGAJA tidak diwariskan dari URL sekarang (DECISIONS 414):
+     * hanya petak tanggal yang memintanya. Kalau ia menempel, mengganti bulan
+     * atau saringan akan ikut membuka pop-up yang tidak diminta siapa pun.
+     */
+    if (ubah.panel) q.set("panel", "1");
     const qs = q.toString();
     return qs ? `/lokasi/${slug}/harian?${qs}` : `/lokasi/${slug}/harian`;
   };
@@ -244,7 +263,7 @@ export default async function HarianIndexPage({
                 ? ` ${daftar.disembunyikan} hari tidak didaftar karena belum tiba atau di luar masa kontrak.`
                 : ""}
               {saring !== "semua"
-                ? ` Saringan aktif — ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
+                ? ` Saringan aktif – ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
                 : ""}
             </p>
           </section>
@@ -280,19 +299,24 @@ export default async function HarianIndexPage({
               </div>
 
               <p className="text-[12px] text-ink-muted">
-                Penyebut = {ringkas.wajib} hari yang dihitung di {judulBulan(bulan)} — dalam
+                Penyebut = {ringkas.wajib} hari yang dihitung di {judulBulan(bulan)} – dalam
                 masa kontrak dan sudah lewat, atau sudah punya laporan.
                 {ringkas.luarKontrak > 0
                   ? ` ${ringkas.luarKontrak} hari di luar masa kontrak (tidak dihitung).`
                   : ""}
                 {ringkas.belumTiba > 0 ? ` ${ringkas.belumTiba} hari belum tiba.` : ""}
                 {saring !== "semua" && diredupkan > 0
-                  ? ` Saringan aktif — ${diredupkan} hari diredupkan, tidak dihapus.`
+                  ? ` Saringan aktif – ${diredupkan} hari diredupkan, tidak dihapus.`
                   : ""}
               </p>
             </section>
 
-            <PanelTanggal detail={detail} sel={terpilih} slug={slug} />
+            <PanelHari
+              bukaPanel={bukaPanel}
+              judul={formatTanggal(new Date(`${terpilih.dateKey}T00:00:00Z`), "EEEE, d MMMM yyyy")}
+            >
+              <PanelTanggal detail={detail} sel={terpilih} slug={slug} />
+            </PanelHari>
           </div>
         )}
       </CardBody>
@@ -362,7 +386,7 @@ function PanelTanggal({
       ) : (
         <p className="mt-3 rounded-lg border border-border bg-surface p-3 text-[12px] text-ink-muted">
           {sel.keadaan === "luar_kontrak"
-            ? "Tanggal ini di luar masa kontrak — tidak ada laporan yang ditagih."
+            ? "Tanggal ini di luar masa kontrak – tidak ada laporan yang ditagih."
             : sel.keadaan === "belum_tiba"
               ? "Tanggal ini belum tiba."
               : "Belum ada laporan untuk tanggal ini."}

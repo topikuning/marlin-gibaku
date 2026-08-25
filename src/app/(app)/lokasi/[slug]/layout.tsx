@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
+import { ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
@@ -20,7 +20,7 @@ function remainingDaysUntil(endDate: Date): number {
   return Math.ceil((endDate.getTime() - Date.now()) / DAY_MS);
 }
 
-function tabItems(slug: string): LinkTabItem[] {
+function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
   const base = `/lokasi/${slug}`;
   return [
     { label: "Ringkasan", href: base, exact: true },
@@ -33,7 +33,10 @@ function tabItems(slug: string): LinkTabItem[] {
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
     { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
     { label: "RAPL", href: `${base}/rapl` },
-    { label: "Keuangan", href: `${base}/keuangan` },
+    // Keuangan DITAHAN sementara (DECISIONS 411): halamannya sendiri sudah
+    // dijaga `finance.view`, jadi tab yang tetap tampil hanya akan menuntun
+    // orang ke layar "tidak punya izin".
+    ...(bolehKeuangan ? [{ label: "Keuangan", href: `${base}/keuangan` }] : []),
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
     { label: "Laporan", href: `${base}/laporan-lokasi` },
   ];
@@ -105,14 +108,27 @@ export default async function LokasiLayout({
               />
             </div>
             <p className="mt-1 text-[13px] text-ink-muted">
-              {location.village}, {location.regency} — {location.province}
+              {location.village}, {location.regency} – {location.province}
             </p>
           </div>
-          <div className="text-right text-[13px]">
+          <div className="flex flex-col items-end gap-1.5 text-right text-[13px]">
             <Link href={`/paket/${location.package.id}`} className="font-medium text-primary hover:underline">
               {location.package.name}
             </Link>
             {contract ? <p className="text-ink-muted">{contract.vendor.name}</p> : null}
+            {/*
+              Presentasi SATU lokasi (DECISIONS 420). Tautannya membawa
+              ?lokasi= sehingga formulirnya terbuka dengan lingkup lokasi ini
+              sudah terpilih — bukan lingkup paket yang harus diganti sendiri.
+            */}
+            {can(user.role, "ai.generate") && contract?.startDate && location.isActive ? (
+              <ButtonLink
+                href={`/ai/paparan?paket=${location.package.id}&lokasi=${location.id}`}
+                size="sm"
+              >
+                Buat Presentasi
+              </ButtonLink>
+            ) : null}
           </div>
         </div>
 
@@ -121,7 +137,7 @@ export default async function LokasiLayout({
             {contract ? (
               <span className="tabular">{formatRupiah(contract.contractValue)}</span>
             ) : (
-              <span className="text-ink-faint">—</span>
+              <span className="text-ink-faint">–</span>
             )}
             {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
           </StatCell>
@@ -131,7 +147,7 @@ export default async function LokasiLayout({
                 {formatTanggal(contract.startDate)} – {formatTanggal(contract.endDate)}
               </span>
             ) : contract ? (
-              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari — menunggu SPMK</span>
+              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari – menunggu SPMK</span>
             ) : (
               <span className="text-ink-faint">Belum ada</span>
             )}
@@ -188,7 +204,7 @@ export default async function LokasiLayout({
         </span>
       </div>
 
-      <LinkTabs items={tabItems(location.slug)} />
+      <LinkTabs items={tabItems(location.slug, can(user.role, "finance.view"))} />
 
       {children}
     </div>

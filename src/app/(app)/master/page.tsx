@@ -6,6 +6,7 @@ import { can } from "@/lib/authz";
 export default async function MasterIndexPage() {
   const user = await requireUser();
   if (can(user.role, "contract.manage")) redirect("/master/perusahaan");
+  if (can(user.role, "package.bypass")) redirect("/master/lokasi");
   if (can(user.role, "wa.chat")) redirect("/master/kontak");
   if (can(user.role, "user.create")) redirect("/master/pengguna");
   notFound();

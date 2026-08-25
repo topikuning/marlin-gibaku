@@ -29,7 +29,7 @@ async function login(page: Page, username: string, password = "marlin123") {
 /** Elemen yang benar-benar menggulir mendatar di AG Grid 36. */
 const PENGGULIR = ".ag-body-horizontal-scroll-viewport";
 
-test.describe("daftar lokasi — identitas terkunci di kiri", () => {
+test.describe("daftar lokasi – identitas terkunci di kiri", () => {
   test("nama lokasi + wilayah tetap terbaca sesudah digulir mentok ke kanan", async ({ page }) => {
     await login(page, "admin");
     await page.goto("/lokasi");

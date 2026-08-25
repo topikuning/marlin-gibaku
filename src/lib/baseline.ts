@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
+import { weekOfDate } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
-import { contractDaysFor } from "@/lib/rab/import";
-import {
+import { contractDaysFor, totalWeeksFor } from "@/lib/rab/import";
+import { rebucketWeeklyToGrid,
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
   rescheduleToCurve,
@@ -126,6 +127,119 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
   return baseline;
 }
 
+/* ── Konversi baseline ke GRID MINGGU baru (DECISIONS 427d) ──────────────────
+   Ketetapan user 2026-08-24: ganti mode periode minggu = SATU KLIK; jadwal
+   yang sudah ada (impor Excel verbatim, edit manual, otomatis) TIDAK dibuang
+   dan TIDAK perlu diimpor ulang — sistem yang menyesuaikan. Matriks mingguan
+   tiap kategori di-bucket ulang ke batas minggu baru dengan bentuk KALENDER
+   dipertahankan (rebucketWeeklyToGrid); kurva = Σ matriks, seperti biasa. */
+
+export async function konversiBaselineModeMinggu(
+  locationId: string,
+  o: {
+    /** Grid lama & baru: fraksi hari kumulatif akhir minggu (null = seragam). */
+    oldEndFracs: number[] | null;
+    oldTotalWeeks: number;
+    newEndFracs: number[] | null;
+    newTotalWeeks: number;
+    userId: string;
+    note: string;
+  },
+): Promise<"dikonversi" | "dilewati"> {
+  const lama = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    select: {
+      id: true,
+      baselineNo: true,
+      source: true,
+      contractDays: true,
+      rabRevisionId: true,
+      points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
+      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, weekly: true } },
+    },
+  });
+  if (!lama || lama.points.length === 0) return "dilewati";
+
+  // Sumber konversi: matriks per kategori bila lengkap & cocok panjangnya;
+  // kalau tidak, increment kurva itu sendiri (baseline lama tanpa matriks).
+  const matriks = lama.scheduleItems
+    .map((s) => ({ ...s, weekly: asWeekly(s.weekly) }))
+    .filter((s) => s.weekly.length === o.oldTotalWeeks);
+  const pakaiMatriks = matriks.length > 0 && matriks.length === lama.scheduleItems.length;
+  if (!pakaiMatriks && lama.points.length !== o.oldTotalWeeks) return "dilewati";
+
+  let rows: { lineageKey: string; name: string; weightPct: number; weekly: number[] }[];
+  let weekly: number[];
+  if (pakaiMatriks) {
+    rows = matriks.map((s) => ({
+      lineageKey: s.lineageKey,
+      name: s.name,
+      weightPct: s.weightPct != null ? Number(s.weightPct) : 0,
+      weekly: rebucketWeeklyToGrid(s.weekly, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks).map(
+        (v) => Math.round(v * 1e6) / 1e6,
+      ),
+    }));
+    weekly = cumulativeFromWeeklyRows(
+      rows.map((r) => r.weekly),
+      o.newTotalWeeks,
+    );
+  } else {
+    const pts = lama.points.map((p) => Number(p.plannedPct));
+    const inc = pts.map((v, i) => Math.max(0, v - (i > 0 ? pts[i - 1] : 0)));
+    rows = [];
+    weekly = cumulativeFromWeeklyRows(
+      [rebucketWeeklyToGrid(inc, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks)],
+      o.newTotalWeeks,
+    );
+  }
+  const invalid = validateBaselinePoints(weekly);
+  if (invalid) throw new Error(invalid);
+
+  const created = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({ where: { locationId }, _max: { baselineNo: true } });
+    const baru = await tx.baseline.create({
+      data: {
+        locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        // Provenance DIPERTAHANKAN: hasil konversi impor verbatim tetap
+        // tercatat berasal dari sumber yang sama, bukan menyamar "auto".
+        source: lama.source,
+        status: "aktif",
+        rabRevisionId: lama.rabRevisionId,
+        contractDays: lama.contractDays,
+        note: o.note,
+        createdById: o.userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: weekly.map((p, i) => ({ baselineId: baru.id, weekNumber: i + 1, plannedPct: p })),
+    });
+    if (rows.length > 0) {
+      await tx.baselineScheduleItem.createMany({
+        data: rows.map((r) => ({
+          baselineId: baru.id,
+          lineageKey: r.lineageKey,
+          name: r.name,
+          weightPct: r.weightPct,
+          weekly: r.weekly as Prisma.InputJsonValue,
+        })),
+      });
+    }
+    return baru;
+  });
+  await audit(o.userId, "baseline.konversi_mode_minggu", "baseline", created.id, {
+    locationId,
+    fromBaselineId: lama.id,
+    dariMinggu: o.oldTotalWeeks,
+    keMinggu: o.newTotalWeeks,
+  });
+  return "dikonversi";
+}
+
 // ── Jadwal per pekerjaan (kategori RAB) → baseline ──────────────────────────
 
 export type CategoryScheduleView = {
@@ -173,8 +287,7 @@ async function activeCategoriesWithWeights(locationId: string) {
 export async function deriveCategorySchedule(locationId: string): Promise<CategoryScheduleData | null> {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) return null;
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const weightFor = (catAmount: bigint) => (Number(catAmount) / base.grand) * 100;
 
@@ -218,6 +331,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
   const auto = autoCategorySchedule(
     base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
     totalWeeks,
+    weekEndFracs,
   );
   const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
 
@@ -233,7 +347,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
         name: c.name,
         weightPct,
         segments,
-        weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
+        weekly: weeklyFromSegments(weightPct, segments, totalWeeks, weekEndFracs),
       };
     }),
   };
@@ -259,14 +373,13 @@ export async function saveCategorySchedule(
   userId: string,
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
+  const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r]));
   const rows = base.categories.map((c) => {
     const r = byKey.get(c.lineageKey);
-    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap — muat ulang halaman.`);
+    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap – muat ulang halaman.`);
     const segments = (r.segments ?? []).map((s) => ({
       startWeek: Math.floor(s.startWeek),
       endWeek: Math.floor(s.endWeek),
@@ -288,7 +401,7 @@ export async function saveCategorySchedule(
       name: c.name,
       weightPct,
       // Matriks kanonik: lonceng per segmen, 0 di minggu jeda.
-      weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
+      weekly: weeklyFromSegments(weightPct, segments, totalWeeks, weekEndFracs),
     };
   });
 
@@ -341,7 +454,7 @@ export async function saveCategorySchedule(
         status: "aktif",
         rabRevisionId: base.revisionId,
         contractDays,
-        note: "Jadwal per pekerjaan (kategori) — editor manual",
+        note: "Jadwal per pekerjaan (kategori) – editor manual",
         createdById: userId,
       },
     });
@@ -400,9 +513,8 @@ export async function hitungJadwalBaru(
   mode: ModeJadwal = "apaadanya",
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
+  const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));
 
@@ -426,6 +538,7 @@ export async function hitungJadwalBaru(
     const auto = autoCategorySchedule(
       base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
       totalWeeks,
+      weekEndFracs,
     );
     const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
     rows = base.categories.map((c) => {
@@ -440,7 +553,12 @@ export async function hitungJadwalBaru(
         matched += 1;
       } else {
         const a = autoByKey.get(c.lineageKey);
-        weekly = weeklyFromSegments(weightPct, [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }], totalWeeks);
+        weekly = weeklyFromSegments(
+          weightPct,
+          [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }],
+          totalWeeks,
+          weekEndFracs,
+        );
       }
       return { lineageKey: c.lineageKey, name: c.name, weightPct, weekly };
     });
@@ -658,7 +776,7 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
     }),
     db.location.findUnique({
       where: { id: locationId },
-      select: { package: { select: { contract: { select: { startDate: true } } } } },
+      select: { package: { select: { contract: { select: { startDate: true, weekMode: true } } } } },
     }),
   ]);
 
@@ -670,7 +788,8 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
   const totalWeeks = planPct.length;
   // startDate kontrak = minggu-1; fallback tanggal baseline dibuat (lokasi tanpa kontrak).
   const startDate = loc?.package.contract?.startDate ?? baseline.createdAt;
-  const currentWeek = currentWeekNumber(startDate, totalWeeks);
+  const weekMode = loc?.package.contract?.weekMode ?? "tujuh_hari";
+  const currentWeek = currentWeekNumber(startDate, totalWeeks, new Date(), weekMode);
 
   let grandTotal = 0n;
   /** Volume mingguan per lineage — hanya item yang benar-benar dilaporkan. */
@@ -711,7 +830,7 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
       select: { lineageKey: true, volumeDone: true, report: { select: { reportDate: true } } },
     });
     for (const r of rows) {
-      const wk = Math.floor((r.report.reportDate.getTime() - startDate.getTime()) / WEEK_MS) + 1;
+      const wk = weekOfDate(startDate, r.report.reportDate, weekMode);
       const idx = Math.max(1, Math.min(wk, totalWeeks)) - 1;
       let arr = weeklyVolume.get(r.lineageKey);
       if (!arr) {

@@ -156,6 +156,23 @@ export type LaggingInput = {
   amount: number;
   /** Volume yang sudah direalisasi s/d sekarang. */
   volSd: number;
+  /**
+   * Fraksi rencana SELESAI item INI pada minggu berjalan (0..1) — DECISIONS 391.
+   *
+   * Dulu parameter ini satu angka untuk SELURUH item: fraksi kurva-S global.
+   * Artinya setiap item dianggap berjalan serentak sejak minggu 1 dengan laju
+   * yang sama, dan itu tidak pernah benar di konstruksi. Akibatnya di produksi:
+   * *"Pekerjaan Tarik Kabel NYY"* – pekerjaan ME yang jadwalnya di ujung –
+   * muncul sebagai item PALING tertinggal pada **minggu ke-3**, dengan
+   * "kekurangan" 47,846 m dan Rp 6,6 jt. Padahal menurut jadwalnya sendiri ia
+   * memang belum boleh dimulai.
+   *
+   * `0` = belum dijadwalkan minggu ini ⇒ item TIDAK bisa tertinggal, dan
+   * disaring keluar. Item yang belum jatuh tempo bukan item yang terlambat;
+   * menyebutnya terlambat membuat daftar ini menuntut orang mengejar pekerjaan
+   * yang justru belum boleh dikerjakan.
+   */
+  planFrac: number;
 };
 
 export type LaggingItem = {
@@ -169,6 +186,34 @@ export type LaggingItem = {
 };
 
 /**
+ * Fraksi rencana SELESAI satu item pada akhir minggu ke-N, dari jadwal yang
+ * BENAR-BENAR tersimpan (DECISIONS 391).
+ *
+ * `weekly` adalah increment bobot per minggu milik item itu di
+ * `BaselineScheduleItem` — nol berarti minggu jeda. Yang dikembalikan porsi
+ * kumulatifnya terhadap total bobot item, jadi:
+ *
+ *   - minggu sebelum item mulai   → 0   (belum dijadwalkan, tidak bisa telat)
+ *   - minggu sesudah item selesai → 1
+ *
+ * Mengembalikan `null` bila jadwalnya tidak ada atau kosong — pemanggil yang
+ * memutuskan cadangannya. Sengaja TIDAK diam-diam jatuh ke 1 atau ke fraksi
+ * global: keduanya menghasilkan angka yang terlihat sah padahal tidak berdasar.
+ */
+export function itemPlanFracDariJadwal(weekly: number[], weekNumber: number): number | null {
+  if (!Array.isArray(weekly) || weekly.length === 0) return null;
+  let total = 0;
+  let sd = 0;
+  for (let i = 0; i < weekly.length; i++) {
+    const v = typeof weekly[i] === "number" && Number.isFinite(weekly[i]) ? weekly[i] : 0;
+    total += v;
+    if (i < weekNumber) sd += v;
+  }
+  if (!(total > 0)) return null;
+  return Math.max(0, Math.min(1, sd / total));
+}
+
+/**
  * Item yang tertinggal terhadap fraksi rencana (0..1) — dipakai panel
  * "paling tertinggal" di halaman Progress.
  *
@@ -177,13 +222,11 @@ export type LaggingItem = {
  * boleh kosong di RAB hasil impor, dan menambalnya dengan `amount / volume`
  * berarti mengarang angka yang tidak ada di dokumen RAB (audit 2026-07-27, M6).
  */
-export function laggingItems(items: LaggingInput[], planFraction: number, limit = 10): LaggingItem[] {
-  if (!(planFraction > 0)) return [];
-  const frac = Math.min(1, planFraction);
+export function laggingItems(items: LaggingInput[], limit = 10): LaggingItem[] {
   return items
-    .filter((it) => it.volK > 0)
+    .filter((it) => it.volK > 0 && it.planFrac > 0)
     .map((it) => {
-      const expected = it.volK * frac;
+      const expected = it.volK * Math.min(1, it.planFrac);
       const shortfall = Math.max(0, expected - it.volSd);
       return {
         lineageKey: it.lineageKey,
@@ -227,4 +270,99 @@ export function weightedPct(rows: { grandTotal: bigint; pct: number }[]): number
     acc += r.pct * w;
   }
   return grand > 0 ? acc / grand : 0;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * PERIODE MINGGU LAPORAN (user 2026-08-24) — MURNI, tanpa DB.
+ *
+ * Dua cara menghitung "minggu ke-n" sejak SPMK, dipilih per kontrak
+ * (`Contract.weekMode`):
+ *
+ * - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari,
+ *   +6 hari]. Semua minggu 7 hari; hari mulainya mengikuti hari SPMK.
+ * - `senin_minggu`: minggu KALENDER Senin–Minggu. Minggu pertama bisa pendek:
+ *   SPMK hari Kamis ⇒ M1 = Kamis–Minggu (4 hari). Minggu terakhir juga bisa
+ *   pendek bila kontrak berakhir sebelum hari Minggu.
+ *
+ * Semua tanggal di sini adalah TANGGAL KERJA @db.Date (UTC-midnight), jadi
+ * `getUTCDay()` adalah hari kalender tanggal itu — bukan hari di zona lain.
+ * Deret baseline kurva-S TIDAK ditafsirkan ulang: titik ke-n tetap "akhir
+ * minggu ke-n"; yang berubah hanya tanggal kalender batas minggunya.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type WeekPeriodMode = "tujuh_hari" | "senin_minggu";
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** Senin (UTC-midnight) pada minggu kalender yang memuat `d`. */
+function seninPekan(d: Date): Date {
+  const dow = (d.getUTCDay() + 6) % 7; // Senin=0 … Minggu=6
+  return new Date(d.getTime() - dow * DAY_MS);
+}
+
+/**
+ * Minggu ke berapa `date` jatuh, dihitung dari `start` menurut `mode`.
+ * 0 = sebelum mulai. TIDAK di-clamp ke total minggu — pemanggil yang tahu
+ * batasnya (lihat `currentWeekNumber` di progress.ts).
+ */
+export function weekOfDate(start: Date, date: Date, mode: WeekPeriodMode): number {
+  // Sebelum SPMK = belum mulai (DECISIONS 202) — juga pada mode kalender,
+  // walau tanggalnya berada di minggu Senin–Minggu yang sama dengan SPMK.
+  if (date.getTime() < start.getTime()) return 0;
+  if (mode === "senin_minggu") {
+    return Math.floor((seninPekan(date).getTime() - seninPekan(start).getTime()) / (7 * DAY_MS)) + 1;
+  }
+  return Math.floor((date.getTime() - start.getTime()) / (7 * DAY_MS)) + 1;
+}
+
+/** Jumlah minggu (kolom M) yang menutup [start, end] menurut `mode`. Min 1. */
+export function totalWeeksBetween(start: Date, end: Date, mode: WeekPeriodMode): number {
+  if (end.getTime() < start.getTime()) return 1;
+  return Math.max(1, weekOfDate(start, end, mode));
+}
+
+/**
+ * Rentang tanggal minggu ke-n (date-only, UTC-midnight).
+ * Awal M1 selalu = `start` (mode kalender: M1 pendek). Bila `end` diberikan,
+ * akhir minggu terakhir dipangkas ke `end`.
+ */
+/**
+ * Fraksi HARI kumulatif pada AKHIR tiap minggu, relatif total hari kontrak —
+ * grid evaluasi generator kurva-S untuk mode `senin_minggu` (M1/minggu akhir
+ * pendek menyumbang fraksi lebih kecil). Naik ketat; elemen terakhir = 1.
+ * Mode `tujuh_hari` TIDAK memakai grid ini (generator tetap grid seragam
+ * lamanya) supaya angka baseline yang sudah beredar tidak bergeser.
+ */
+export function weekEndFractions(start: Date, end: Date, mode: WeekPeriodMode): number[] {
+  const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1);
+  const n = totalWeeksBetween(start, end, mode);
+  const out: number[] = [];
+  for (let k = 1; k <= n; k++) {
+    const r = weekDateRange(start, k, mode, end);
+    const days = Math.round((r.end.getTime() - start.getTime()) / DAY_MS) + 1;
+    out.push(Math.min(1, days / totalDays));
+  }
+  out[n - 1] = 1;
+  return out;
+}
+
+export function weekDateRange(
+  start: Date,
+  n: number,
+  mode: WeekPeriodMode,
+  end?: Date | null,
+): { start: Date; end: Date } {
+  let s: Date;
+  let e: Date;
+  if (mode === "senin_minggu") {
+    const senin1 = seninPekan(start);
+    s = new Date(senin1.getTime() + (n - 1) * 7 * DAY_MS);
+    e = new Date(s.getTime() + 6 * DAY_MS);
+    if (s.getTime() < start.getTime()) s = start; // M1 pendek
+  } else {
+    s = new Date(start.getTime() + (n - 1) * 7 * DAY_MS);
+    e = new Date(s.getTime() + 6 * DAY_MS);
+  }
+  if (end && e.getTime() > end.getTime() && end.getTime() >= s.getTime()) e = end;
+  return { start: s, end: e };
 }

@@ -8,19 +8,21 @@ import { KeteranganStatus, Strip7Hari } from "@/components/knmp/strip-7-hari";
 import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
-import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
+import { ISSUE_SEVERITY_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
+import { PindahTanggalForm } from "./pindah-tanggal-form";
+import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
+import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
 export const dynamic = "force-dynamic";
 
-const SEVERITY_TONE = { rendah: "neutral", sedang: "info", tinggi: "warning", kritis: "danger" } as const;
 
 /**
  * WORKSPACE HARIAN SATU LAYAR — draft/koreksi (input SM), verifikasi (PM/SM),
@@ -46,8 +48,13 @@ export default async function HarianWorkspacePage({
 
   const canCreate = can(user.role, "daily_report.create");
   const canReview = can(user.role, "daily_report.review");
+  // Verifikasi EKSTERNAL Wakil PPK (DECISIONS 426) — jejak pemeriksaan pemberi
+  // kerja; tidak menyentuh status laporan maupun angka resmi.
+  const canVerifyExternal = can(user.role, "report.verify_external");
+  const riwayatWakil = report ? await riwayatVerifikasi(report.id) : [];
   const canFinalize = can(user.role, "daily_report.finalize");
   const canUnfinalize = can(user.role, "daily_report.unfinalize");
+  const canMoveDate = can(user.role, "daily_report.move_date");
 
   const editable = canCreate && !isFuture && (!report || status === "draft" || status === "perlu_koreksi");
   // Pelengkap KKP (cuaca, jam kerja, tenaga kerja, material, alat). Dulu hanya
@@ -107,6 +114,11 @@ export default async function HarianWorkspacePage({
           // Foto hanya bisa dihapus selama laporan masih bisa diedit; siapa yang
           // boleh (pengunggah / Site Manager / Super Admin) ditegakkan di server.
           bolehHapusFoto={editable}
+          nihil={{
+            aktif: report?.noActivity ?? false,
+            alasan: report?.noActivityReason ?? null,
+            catatan: report?.noActivityNote ?? null,
+          }}
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
           photoEnabled={isR2Configured()}
         />
@@ -194,7 +206,7 @@ export default async function HarianWorkspacePage({
             <div className="flex flex-wrap gap-x-6 gap-y-1">
               <span>
                 <span className="text-ink-muted">Cuaca:</span>{" "}
-                {report.weather ? WEATHER_LABEL[report.weather] : "—"}
+                {report.weather ? WEATHER_LABEL[report.weather] : "–"}
               </span>
               <span>
                 <span className="text-ink-muted">Jam kerja:</span> {report.workStart ?? "…"}–{report.workEnd ?? "…"}
@@ -245,6 +257,36 @@ export default async function HarianWorkspacePage({
         </p>
       ) : null}
 
+      {/* Verifikasi eksternal Wakil PPK — tampil bila sudah pernah diperiksa,
+          atau bila pembacanya sendiri pemeriksa & laporannya sudah terkirim. */}
+      {report &&
+      (riwayatWakil.length > 0 ||
+        (canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final"))) ? (
+        <PanelVerifikasiWakil
+          reportId={report.id}
+          bolehVerifikasi={canVerifyExternal && (status === "dikirim" || status === "disetujui" || status === "final")}
+          riwayat={riwayatWakil.map((r) => ({
+            id: r.id,
+            status: r.status,
+            note: r.note,
+            oleh: r.verifiedByName,
+            pada: r.createdAt.toISOString(),
+          }))}
+        />
+      ) : null}
+
+      {/*
+        Pindah tanggal (DECISIONS 415) — super admin saja, berlaku di SEMUA
+        status. Salah tanggal paling sering ketahuan saat verifikasi (laporan
+        dikembalikan dengan alasan "salah penginputan tanggal"), tapi bisa juga
+        baru ketahuan setelah final; yang final dibuka & difinalkan ulang
+        otomatis. Ditaruh di dasar halaman, di balik pengungkap: ini koreksi,
+        bukan langkah dalam alur normal.
+      */}
+      {report && canMoveDate ? (
+        <PindahTanggalForm reportId={report.id} tanggalSekarang={date} hariIni={todayKey} />
+      ) : null}
+
       {/* Foto */}
       {report && report.photos.length > 0 ? (
         <Card>
@@ -282,7 +324,7 @@ export default async function HarianWorkspacePage({
                       <p className="text-sm font-medium text-ink">{i.title}</p>
                       {i.description ? <p className="text-xs text-ink-muted">{i.description}</p> : null}
                     </div>
-                    <Badge tone={SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
+                    <Badge tone={ISSUE_SEVERITY_TONE[i.severity]} label={ISSUE_SEVERITY_LABEL[i.severity]} />
                   </li>
                 ))}
               </ul>

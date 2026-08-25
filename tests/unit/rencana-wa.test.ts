@@ -54,10 +54,10 @@ const dasar: IsiPesanRencana = {
 
 describe("pesan WhatsApp rencana mingguan (forum PPK/dinas)", () => {
   it("nama lokasi LENGKAP dengan kabupatennya (permintaan user 2026-08-06)", () => {
-    expect(pesanRencanaWa(dasar)).toContain("Kedung Mutih — Demak, Jawa Tengah");
+    expect(pesanRencanaWa(dasar)).toContain("Kedung Mutih – Demak, Jawa Tengah");
   });
 
-  it("TIDAK menyebut pelaksana per item — itu bukan urusan forum pengawasan", () => {
+  it("TIDAK menyebut pelaksana per item – itu bukan urusan forum pengawasan", () => {
     // Inti koreksinya: grup ini berisi PPK, dinas, pejabat. Menyebut siapa
     // mengerjakan apa memindahkan pengarahan internal ke ruang pengawasan.
     const t = pesanRencanaWa(dasar);
@@ -129,7 +129,7 @@ describe("pesan WhatsApp rencana mingguan (forum PPK/dinas)", () => {
     expect(pesanRencanaWa({ ...dasar, catatan: null })).not.toContain("*Catatan*");
   });
 
-  it("angka memakai format Indonesia — satu konvensi dengan dokumen cetaknya", () => {
+  it("angka memakai format Indonesia – satu konvensi dengan dokumen cetaknya", () => {
     const t = pesanRencanaWa(dasar);
     expect(t).toContain("Rp 30.000.000");
     expect(t).not.toMatch(/\d\.\d\d%/); // tidak ada "12.40%"

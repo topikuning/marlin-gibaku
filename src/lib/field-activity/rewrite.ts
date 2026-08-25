@@ -41,7 +41,7 @@ export const REWRITE_STYLE_LABEL: Record<RewriteStyle, string> = {
 };
 
 export const REWRITE_STYLE_HINT: Record<RewriteStyle, string> = {
-  rapi: "Bahasa Indonesia baku yang lugas — kalimat lapangan dirapikan seperlunya.",
+  rapi: "Bahasa Indonesia baku yang lugas – kalimat lapangan dirapikan seperlunya.",
   teknis: "Register teknis laporan konstruksi (kalimat pasif, istilah baku pekerjaan sipil).",
 };
 
@@ -107,7 +107,7 @@ export function buildBatchRewritePrompt(input: {
   lines.push("Rapikan SETIAP bagian di bawah. Balas dengan penanda bagian yang sama persis:");
   lines.push(input.fields.map((f) => SECTION_MARK[f.field]).join(" "), "");
   for (const f of input.fields) {
-    lines.push(`${SECTION_MARK[f.field]} ${REWRITE_FIELD_LABEL[f.field]} — ${FIELD_INSTRUCTION[f.field]}`);
+    lines.push(`${SECTION_MARK[f.field]} ${REWRITE_FIELD_LABEL[f.field]} – ${FIELD_INSTRUCTION[f.field]}`);
     lines.push(f.text.trim(), "");
   }
   return lines.join("\n");
@@ -213,7 +213,7 @@ export function verifyRewrite(original: string, rewritten: string): RewriteVerdi
   // Memanjang itu normal saat membakukan kalimat pendek; hanya diberi catatan
   // bila selisihnya besar sekali.
   if (out.length > Math.max(400, asli.length * 3)) {
-    warnings.push("Hasil jauh lebih panjang dari teks asli — periksa apakah ada tambahan yang tidak Anda maksud.");
+    warnings.push("Hasil jauh lebih panjang dari teks asli – periksa apakah ada tambahan yang tidak Anda maksud.");
   }
 
   if (/^(baik|tentu|berikut|maaf|sebagai model|saya tidak)\b/i.test(out)) {

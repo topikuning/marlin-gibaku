@@ -23,10 +23,10 @@ async function bootstrapDemoData() {
   try {
     const { db } = await import("@/lib/db");
     const { runDemoSeed } = await import("@/lib/seed/demo");
-    console.log("[bootstrap] BOOTSTRAP_DEMO_DATA=true — memuat data demo…");
+    console.log("[bootstrap] BOOTSTRAP_DEMO_DATA=true – memuat data demo…");
     await runDemoSeed(db);
     console.log(
-      "[bootstrap] data demo termuat (7 lokasi, user demo password 'marlin123' — wajib diganti). " +
+      "[bootstrap] data demo termuat (7 lokasi, user demo password 'marlin123' – wajib diganti). " +
         "HAPUS env BOOTSTRAP_DEMO_DATA setelah ini.",
     );
   } catch (err) {
@@ -38,7 +38,7 @@ async function bootstrapAdmin() {
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (!password) return;
   if (password.length < 8) {
-    console.error("[bootstrap] BOOTSTRAP_ADMIN_PASSWORD minimal 8 karakter — admin tidak dibuat");
+    console.error("[bootstrap] BOOTSTRAP_ADMIN_PASSWORD minimal 8 karakter – admin tidak dibuat");
     return;
   }
   const username = (process.env.BOOTSTRAP_ADMIN_USERNAME ?? "admin").trim();
@@ -47,7 +47,7 @@ async function bootstrapAdmin() {
     const { db } = await import("@/lib/db");
     const existing = await db.user.findUnique({ where: { username }, select: { id: true } });
     if (existing) {
-      console.log(`[bootstrap] user '${username}' sudah ada — dilewati`);
+      console.log(`[bootstrap] user '${username}' sudah ada – dilewati`);
       return;
     }
     const { hashPassword } = await import("@/lib/auth/password");
@@ -67,7 +67,7 @@ async function bootstrapAdmin() {
       },
     });
     console.log(
-      `[bootstrap] admin '${username}' berhasil dibuat — login lalu ganti password. ` +
+      `[bootstrap] admin '${username}' berhasil dibuat – login lalu ganti password. ` +
         "Setelah itu HAPUS env BOOTSTRAP_ADMIN_PASSWORD & BOOTSTRAP_ADMIN_USERNAME.",
     );
   } catch (err) {
@@ -75,8 +75,48 @@ async function bootstrapAdmin() {
   }
 }
 
+/**
+ * Migrasi data yang butuh formula TS (tidak bisa di SQL) — idempoten, jalan
+ * tiap boot dan berhenti sendiri lewat penanda AppSetting. DECISIONS 429.
+ */
+async function migrasiDataOtomatis() {
+  // URUTAN PENTING: rentang periode snapshot lama dibekukan DULU (memakai mode
+  // 7-hari, sesuai cara nomor minggunya dulu dihitung), baru mode kontrak
+  // diubah. Terbalik pun hasilnya sama — backfill tidak membaca mode kontrak —
+  // tapi urutan ini membuat jendela "mode sudah baru, rentang belum beku"
+  // tidak pernah ada sama sekali.
+  try {
+    const { backfillPeriodeSnapshotLama } = await import("@/lib/migrasi/snapshot-periode-backfill");
+    const b = await backfillPeriodeSnapshotLama();
+    if (b.status === "selesai" && b.diisi > 0) {
+      console.log(
+        `[migrasi] rentang periode snapshot final lama dibekukan: ${b.diisi} dari ${b.diperiksa} laporan ` +
+          `(${b.dilewati} sudah punya / tanpa SPMK).`,
+      );
+    }
+  } catch (err) {
+    console.error("[migrasi] backfill periode snapshot gagal (dicoba lagi boot berikutnya):", err);
+  }
+
+  try {
+    const { terapkanDefaultSeninMinggu } = await import("@/lib/migrasi/mode-minggu-default");
+    const r = await terapkanDefaultSeninMinggu();
+    if (r.status === "selesai") {
+      console.log(
+        `[migrasi] default mode minggu Senin–Minggu diterapkan: ${r.kontrak} kontrak, ` +
+          `${r.dikonversi} baseline dikonversi, ${r.digenerate} dihitung ulang.`,
+      );
+    } else if (r.status === "ditunda") {
+      console.warn("[migrasi] default mode minggu ditunda (belum ada user) – dicoba lagi boot berikutnya.");
+    }
+  } catch (err) {
+    console.error("[migrasi] default mode minggu gagal (dicoba lagi boot berikutnya):", err);
+  }
+}
+
 // Dijalankan saat modul dimuat (sekali per start server Node).
 export const bootstrapDone: Promise<void> = (async () => {
   await bootstrapAdmin();
   await bootstrapDemoData();
+  await migrasiDataOtomatis();
 })();

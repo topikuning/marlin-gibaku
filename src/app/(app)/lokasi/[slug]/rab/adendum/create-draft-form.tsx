@@ -32,7 +32,7 @@ export function CreateDraftForm({
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-ink">Kaitkan ke adendum kontrak (CCO)</span>
           <Combobox name="amendmentId" defaultValue="">
-            <option value="">— Tanpa kaitan CCO (bisa dikaitkan belakangan) —</option>
+            <option value="">– Tanpa kaitan CCO (bisa dikaitkan belakangan) –</option>
             {amendments.map((a) => {
               const d = BigInt(a.valueDelta);
               return (
@@ -45,7 +45,7 @@ export function CreateDraftForm({
         </label>
       ) : (
         <p className="text-[13px] text-ink-muted">
-          Belum ada adendum kontrak (CCO) tercatat di paket — draft tetap bisa dibuat, catat CCO-nya
+          Belum ada adendum kontrak (CCO) tercatat di paket – draft tetap bisa dibuat, catat CCO-nya
           di halaman Kontrak paket bila sudah resmi.
         </p>
       )}
@@ -53,7 +53,7 @@ export function CreateDraftForm({
         <span className="mb-1 block font-medium text-ink">Catatan (opsional)</span>
         <input
           name="note"
-          placeholder="mis. Adendum 01 — pekerjaan tambah kurang"
+          placeholder="mis. Adendum 01 – pekerjaan tambah kurang"
           className="w-full rounded border border-border bg-surface px-2.5 py-1.5 text-sm"
         />
       </label>

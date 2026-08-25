@@ -18,7 +18,7 @@ const H = (hour: number, category: HourlyWeather["category"], precipMm = 0, code
   code,
 });
 
-describe("categoryFromWmo — kode WMO → tiga kategori blanko KKP", () => {
+describe("categoryFromWmo – kode WMO → tiga kategori blanko KKP", () => {
   it("cerah / mendung / hujan sesuai rentang kode", () => {
     expect(categoryFromWmo(0, 0)).toBe("Cerah");
     expect(categoryFromWmo(1, 0)).toBe("Cerah");
@@ -37,7 +37,7 @@ describe("categoryFromWmo — kode WMO → tiga kategori blanko KKP", () => {
   });
 });
 
-describe("buildHourlyWeather — ambil hanya tanggal & jam blanko", () => {
+describe("buildHourlyWeather – ambil hanya tanggal & jam blanko", () => {
   const time: string[] = [];
   const weatherCode: number[] = [];
   const precipitation: number[] = [];
@@ -76,7 +76,7 @@ describe("buildHourlyWeather — ambil hanya tanggal & jam blanko", () => {
   });
 });
 
-describe("dominantWeatherCode — ringkasan satu nilai untuk kolom lama", () => {
+describe("dominantWeatherCode – ringkasan satu nilai untuk kolom lama", () => {
   it("hujan deras bila ada jam ≥4 mm atau kode hujan lebat", () => {
     expect(dominantWeatherCode([H(7, "Cerah"), H(13, "Hujan", 6)])).toBe("hujan_deras");
     expect(dominantWeatherCode([H(13, "Hujan", 1, 95)])).toBe("hujan_deras");
@@ -109,7 +109,7 @@ describe("turunan jam hujan", () => {
   });
 });
 
-describe("parseHourlyWeather — baca Json DB dengan aman", () => {
+describe("parseHourlyWeather – baca Json DB dengan aman", () => {
   it("bentuk benar → terbaca & terurut", () => {
     const parsed = parseHourlyWeather([
       { hour: 9, category: "Hujan", precipMm: 1, code: 61 },
@@ -127,7 +127,7 @@ describe("parseHourlyWeather — baca Json DB dengan aman", () => {
   });
 });
 
-describe("hourlyCategoryEntries — peta untuk centang blanko", () => {
+describe("hourlyCategoryEntries – peta untuk centang blanko", () => {
   it("objek biasa (aman menyeberang ke komponen), jam tanpa data absen", () => {
     const map = hourlyCategoryEntries([H(7, "Cerah"), H(13, "Hujan", 2)]);
     expect(map).toEqual({ 7: "Cerah", 13: "Hujan" });

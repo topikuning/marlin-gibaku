@@ -372,7 +372,7 @@ export function usulkanPadanan(
 
   const bagian = [`skor ${(terbaik.s * 100).toFixed(0)}%`];
   let meyakinkan = terbaik.s - kedua >= AMBANG_YAKIN;
-  if (!meyakinkan) bagian.push("beda tipis dengan kandidat lain — perlu diperiksa");
+  if (!meyakinkan) bagian.push("beda tipis dengan kandidat lain – perlu diperiksa");
 
   /*
    * KEMIRIPAN NAMA SAJA TIDAK CUKUP.
@@ -394,7 +394,7 @@ export function usulkanPadanan(
     (token.kelasDiameter !== null && token.kelasDiameter === terbaik.k.token.kelasDiameter);
   if (!buktiTeknis) {
     meyakinkan = false;
-    bagian.push("cocok dari kemiripan nama saja — tanpa bukti satuan/ukuran/istilah");
+    bagian.push("cocok dari kemiripan nama saja – tanpa bukti satuan/ukuran/istilah");
   }
 
   /*
@@ -415,8 +415,8 @@ export function usulkanPadanan(
       meyakinkan = false;
       bagian.push(
         bedaElemen
-          ? "uraian tidak menyebut elemen struktur, kandidatnya beda elemen — periksa gambar/parent item"
-          : "uraian tidak menyebut elemen struktur — periksa gambar/parent item",
+          ? "uraian tidak menyebut elemen struktur, kandidatnya beda elemen – periksa gambar/parent item"
+          : "uraian tidak menyebut elemen struktur – periksa gambar/parent item",
       );
     }
   }

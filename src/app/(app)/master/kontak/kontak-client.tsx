@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Pencil, Plus, UserRoundSearch } from "lucide-react";
 import { useActionState, useMemo, useState } from "react";
-import { Badge, Banner, Button, EmptyState, Input, KpiCard, Label } from "@/components/ui";
+import { Badge, Banner, Button, EmptyState, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
 import { Laci } from "@/components/master/laci";
 import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
@@ -99,7 +99,7 @@ export function KontakClient({
     temuan.push({
       judul: `${kenaGanda} kontak menunjuk tujuan yang sama`,
       keterangan:
-        "Nama boleh berbeda, tapi alamat WhatsApp-nya sama — laporan terkirim dua kali ke penerima yang sama.",
+        "Nama boleh berbeda, tapi alamat WhatsApp-nya sama – laporan terkirim dua kali ke penerima yang sama.",
       nada: "peringatan",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaringTujuan("ganda")}>
@@ -187,7 +187,7 @@ function ContactSection({
       <div className="border-b border-border px-3 pt-3">
         <p className="text-[13px] font-semibold text-ink">Kontak tujuan kirim</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          Ke mana laporan dikirim lewat WhatsApp. Daftar ini milik akun Anda sendiri — akun lain
+          Ke mana laporan dikirim lewat WhatsApp. Daftar ini milik akun Anda sendiri – akun lain
           tidak melihatnya.
         </p>
       </div>
@@ -226,7 +226,7 @@ function ContactSection({
       {mineShown.length === 0 ? (
         <p className="p-4 text-sm text-ink-muted">
           {mine.length === 0
-            ? "Belum ada kontak — tambahkan lewat “Kontak baru”."
+            ? "Belum ada kontak – tambahkan lewat “Kontak baru”."
             : "Tidak ada kontak yang cocok dengan saringan ini."}
         </p>
       ) : (
@@ -240,7 +240,7 @@ function ContactSection({
             onClick={() => setShowOthers((v) => !v)}
             className="text-sm text-primary hover:underline"
           >
-            {showOthers ? "Sembunyikan" : "Tampilkan"} kontak akun lain ({others.length}) — khusus
+            {showOthers ? "Sembunyikan" : "Tampilkan"} kontak akun lain ({others.length}) – khusus
             super admin
           </button>
           {showOthers ? (
@@ -259,7 +259,7 @@ function ContactSection({
         buka={dibuka !== null}
         onTutup={() => setIdBuka(null)}
         judul={dibuka?.name ?? "Kontak"}
-        keterangan={dibuka && !dibuka.mine ? `Milik ${dibuka.ownerName} — perubahan tercatat di jejak audit.` : "Tujuan kirim laporan WhatsApp"}
+        keterangan={dibuka && !dibuka.mine ? `Milik ${dibuka.ownerName} – perubahan tercatat di jejak audit.` : "Tujuan kirim laporan WhatsApp"}
       >
         {dibuka ? <FormKontak c={dibuka} action={edit} pending={editing} /> : null}
       </Laci>
@@ -299,9 +299,9 @@ function BarisKontak({
           </Button>
           <form action={delAction}>
             <input type="hidden" name="id" value={c.id} />
-            <Button type="submit" size="sm" variant="ghost">
+            <TombolKirim size="sm" variant="ghost" labelSibuk="Menghapus…">
               Hapus
-            </Button>
+            </TombolKirim>
           </form>
         </>
       }
@@ -391,7 +391,7 @@ function AliasSection({ aliases }: { aliases: AliasItem[] }) {
       <div className="border-b border-border px-3 pt-3">
         <p className="text-[13px] font-semibold text-ink">Nama pengirim grup</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          Siapa pemilik nomor yang muncul di grup WhatsApp. Dipakai bersama satu perusahaan — sekali
+          Siapa pemilik nomor yang muncul di grup WhatsApp. Dipakai bersama satu perusahaan – sekali
           dinamai, semua ringkasan menyebut nama itu.
         </p>
       </div>
@@ -502,9 +502,9 @@ function BarisAlias({
           </Button>
           <form action={delAction}>
             <input type="hidden" name="id" value={a.id} />
-            <Button type="submit" size="sm" variant="ghost">
+            <TombolKirim size="sm" variant="ghost" labelSibuk="Melepas…">
               Lepas nama
-            </Button>
+            </TombolKirim>
           </form>
         </>
       }

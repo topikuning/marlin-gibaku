@@ -24,6 +24,7 @@
     "manual:tangkap": "tsx scripts/manual/tangkap.ts",
     "manual:bangun": "tsx scripts/manual/bangun.ts",
     "docs:permission": "tsx scripts/gen-permission-matrix.mts",
+    "waha:grup-ganda": "tsx scripts/waha-grup-ganda.ts",
     "audit:ahsp": "tsx scripts/audit-ahsp.mts",
     "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts"
   },

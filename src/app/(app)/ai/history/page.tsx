@@ -8,7 +8,7 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { AI_RUN_STATUS_LABEL, AI_RUN_STATUS_TONE } from "@/lib/lifecycle";
 import { formatTanggalWaktu } from "@/lib/format";
 
-export const metadata: Metadata = { title: "AI Intelligence — Riwayat & Audit" };
+export const metadata: Metadata = { title: "AI Intelligence – Riwayat & Audit" };
 export const dynamic = "force-dynamic";
 
 const KIND_LABEL: Record<string, string> = {
@@ -18,6 +18,7 @@ const KIND_LABEL: Record<string, string> = {
   kualitas_data: "Audit Kualitas Data",
   laporan: "Report Studio",
   tanya: "Ask MARLIN",
+  paparan: "Paparan KKP",
 };
 
 /** Riwayat run AI: siapa, kapan, scope, provider/model, token, latency, biaya. */
@@ -110,24 +111,24 @@ export default async function AiHistoryPage() {
                       {/* Penanya grup WhatsApp tidak punya pengguna — dikatakan
                           apa adanya, bukan "—" yang terbaca seperti data hilang. */}
                       {r.userId
-                        ? (nameOf.get(r.userId) ?? "—")
+                        ? (nameOf.get(r.userId) ?? "–")
                         : r.waChatId
                           ? "Grup WhatsApp"
-                          : "—"}
+                          : "–"}
                     </td>
                     <td className="px-3 py-2">
                       <Badge tone={AI_RUN_STATUS_TONE[r.status]} label={AI_RUN_STATUS_LABEL[r.status]} />
                     </td>
                     <td className="px-3 py-2 text-xs">
-                      {r.provider ? `${r.provider} / ${r.model}` : "—"}
+                      {r.provider ? `${r.provider} / ${r.model}` : "–"}
                       <span className="block text-ink-faint">{r.promptVersion}</span>
                     </td>
                     <td className="tabular px-3 py-2 text-right">
-                      {r.inputTokens != null ? `${r.inputTokens}/${r.outputTokens ?? 0}` : "—"}
+                      {r.inputTokens != null ? `${r.inputTokens}/${r.outputTokens ?? 0}` : "–"}
                     </td>
-                    <td className="tabular px-3 py-2 text-right">{r.latencyMs != null ? `${(r.latencyMs / 1000).toFixed(1)}s` : "—"}</td>
+                    <td className="tabular px-3 py-2 text-right">{r.latencyMs != null ? `${(r.latencyMs / 1000).toFixed(1)}s` : "–"}</td>
                     <td className="tabular px-3 py-2 text-right">
-                      {r.estimatedCostUsd != null ? `$${Number(r.estimatedCostUsd).toFixed(4)}` : "—"}
+                      {r.estimatedCostUsd != null ? `$${Number(r.estimatedCostUsd).toFixed(4)}` : "–"}
                     </td>
                     <td className="px-3 py-2">
                       <Link href={`/ai/run/${r.id}`} className="text-primary hover:underline">

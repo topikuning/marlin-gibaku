@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { MarlinGrid, dateCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
+import { KESIAPAN_LABEL, KESIAPAN_TONE, type KesiapanPaket } from "@/lib/package/kesiapan";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 export type PaketRow = {
@@ -23,6 +24,10 @@ export type PaketRow = {
   waGroupName: string | null;
   /** Folder Google Drive KKP sudah ditautkan? */
   hasDrive: boolean;
+  /** Kesiapan data, dihitung di server (`lib/package/kesiapan.ts`). */
+  kesiapan: KesiapanPaket;
+  /** Apa saja yang kurang — supaya lencananya bisa ditindaklanjuti. */
+  kurang: string[];
   updatedAt: string;
 };
 
@@ -71,6 +76,39 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
           ) : null,
         valueFormatter: (p) =>
           p.value ? PACKAGE_STAGE_LABEL[p.value as PackageStage] : "",
+      },
+      {
+        /*
+         * STATUS DATA — rancangan user 2026-08-19 (DECISIONS 368).
+         *
+         * Menjawab "paket mana yang belum bisa dipakai bekerja?" tanpa membuka
+         * satu per satu. Letaknya SENGAJA tepat sesudah Stage, bukan di ujung
+         * kanan: kolom yang harus digulir dulu untuk dilihat sama saja dengan
+         * tidak ada — dan tahap + kesiapan memang dibaca berpasangan
+         * ("pelaksanaan, tapi lokasinya belum ada").
+         *
+         * Yang kurang ditulis di tooltip DAN di CSV: lencana tanpa penyebutnya
+         * cuma memindahkan pekerjaan menebak, tidak menghilangkannya.
+         */
+        field: "kesiapan",
+        headerName: "Status Data",
+        width: 150,
+        tooltipValueGetter: (p) =>
+          p.data?.kurang.length ? `Kurang: ${p.data.kurang.join(", ")}` : "Data paket lengkap",
+        cellRenderer: (p: ICellRendererParams<GridRow>) =>
+          p.data ? (
+            <span title={p.data.kurang.join(", ")}>
+              <StatusPill
+                tone={KESIAPAN_TONE[p.data.kesiapan]}
+                label={KESIAPAN_LABEL[p.data.kesiapan]}
+              />
+            </span>
+          ) : null,
+        valueFormatter: (p) => {
+          const k = KESIAPAN_LABEL[p.value as KesiapanPaket] ?? "";
+          const kurang = p.data?.kurang ?? [];
+          return kurang.length ? `${k} – ${kurang.join(", ")}` : k;
+        },
       },
       { field: "province", headerName: "Provinsi", width: 160 },
       rupiahCol<GridRow>("hpsValue", "HPS", { width: 170 }),

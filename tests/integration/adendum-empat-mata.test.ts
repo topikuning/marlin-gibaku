@@ -136,7 +136,7 @@ describe("super admin tidak bisa mengaktifkan sendiri", () => {
     await expect(setujuiRevisi(draft.id, orang.sa!)).rejects.toThrow(/tidak berhak/i);
   });
 
-  it("super_admin + PD tidak cukup — kursi penugasan tetap kosong", async () => {
+  it("super_admin + PD tidak cukup – kursi penugasan tetap kosong", async () => {
     await buatRevisi(1, "aktif");
     const draft = await buatRevisi(2, "draft");
     await setujuiRevisi(draft.id, orang.pd!);

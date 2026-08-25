@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MapPin } from "lucide-react";
 import {
+  Banner,
   Card,
   CardBody,
   CardHeader,
+  Drawer,
   EmptyState,
   StatusPill,
 } from "@/components/ui";
@@ -15,6 +17,8 @@ import { can } from "@/lib/authz";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { getPackageWorkspace } from "@/lib/package/queries";
 import { getAvailableCatalog } from "@/lib/master-location/queries";
+import { getLocationsProgress } from "@/lib/progress";
+import { formatPct } from "@/lib/format";
 import {
   AddLocationForm,
   CatalogLocationPicker,
@@ -46,9 +50,12 @@ export default async function LokasiPaketPage({
     !!pkg.contract &&
     ["kontrak", "pelaksanaan"].includes(pkg.stage);
   const perluKatalog = (praKontrak && canProspect) || bolehKoreksi;
-  const { available: catalog, hiddenExistingCount } = perluKatalog
-    ? await getAvailableCatalog(user.orgId)
-    : { available: [], hiddenExistingCount: 0 };
+  const [{ available: catalog, hiddenExistingCount }, progressMap] = await Promise.all([
+    perluKatalog
+      ? getAvailableCatalog(user.orgId)
+      : Promise.resolve({ available: [], hiddenExistingCount: 0 }),
+    getLocationsProgress(pkg.locations.map((l) => l.id)),
+  ]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
@@ -73,7 +80,7 @@ export default async function LokasiPaketPage({
                 pkg.locationsHidden > 0
                   ? `Paket ini punya ${pkg.locationsHidden} lokasi, tetapi tidak ada satu pun yang ditugaskan kepada Anda.`
                   : praKontrak
-                    ? "Tambahkan lokasi target — wajib minimal satu sebelum konversi kontrak."
+                    ? "Tambahkan lokasi target – wajib minimal satu sebelum konversi kontrak."
                     : "Paket ini belum memiliki lokasi."
               }
             />
@@ -87,8 +94,8 @@ export default async function LokasiPaketPage({
                   l._count.statusHistory === 0 &&
                   l._count.dailyReports === 0;
                 return (
-                  <li key={l.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
+                  <li key={l.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5">
+                    <div className="min-w-[9rem] flex-1">
                       <Link
                         href={`/lokasi/${l.slug}`}
                         className="text-sm font-medium text-primary hover:underline"
@@ -99,12 +106,21 @@ export default async function LokasiPaketPage({
                         {[l.village, l.regency, l.province].filter(Boolean).join(", ")}
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <StatusPill
                         tone={LOCATION_STATUS_TONE[l.status]}
                         label={LOCATION_STATUS_LABEL[l.status]}
                       />
                       {!l.isActive ? <StatusPill tone="neutral" label="Target" /> : null}
+                      {/*
+                        Progres realisasi ikut ditampilkan supaya daftar ini
+                        menjawab "lokasi mana yang tertinggal" tanpa membuka
+                        satu per satu. Angkanya dari calculation layer yang
+                        sama dengan Ringkasan – bukan hitungan kedua.
+                      */}
+                      <span className="tabular w-12 text-right text-[13px] font-semibold text-ink">
+                        {progressMap.get(l.id) ? formatPct(progressMap.get(l.id)!.realizedPct) : "–"}
+                      </span>
                       {removable ? <RemoveLocationButton locationId={l.id} name={l.name} /> : null}
                     </div>
                   </li>
@@ -141,15 +157,33 @@ export default async function LokasiPaketPage({
       ) : bolehKoreksi ? (
         <Card className="self-start">
           <CardHeader
-            title="Koreksi susunan lokasi (super admin)"
-            subtitle="Paket sudah berkontrak — komposisi lokasi terkunci. Panel ini hanya untuk membetulkan lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar."
+            title="Susunan lokasi sudah terkunci"
+            subtitle="Paket sudah berkontrak. Perubahan lingkup yang sesungguhnya dilakukan lewat proses adendum."
           />
-          <CardBody>
-            <CorrectAddLocationForm
-              packageId={pkg.id}
-              catalog={catalog}
-              hiddenExistingCount={hiddenExistingCount}
+          <CardBody className="space-y-3">
+            {/*
+              Formnya di belakang satu tombol, bukan terbuka begitu saja.
+              Alasannya bukan kerapian: koreksi susunan lokasi paket
+              BERKONTRAK adalah tindakan yang seharusnya jarang, dan form yang
+              selalu terbuka mengundangnya dipakai sebagai jalan pintas
+              menggantikan adendum.
+            */}
+            <Banner
+              tone="warning"
+              title="Bukan pengganti adendum"
+              description="Panel ini hanya untuk lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar. Tindakannya tercatat di audit log."
             />
+            <Drawer
+              trigger="Koreksi lokasi (super admin)"
+              title="Koreksi susunan lokasi paket berkontrak"
+              subtitle="Hanya untuk lokasi yang terlewat saat input paket berkontrak."
+            >
+              <CorrectAddLocationForm
+                packageId={pkg.id}
+                catalog={catalog}
+                hiddenExistingCount={hiddenExistingCount}
+              />
+            </Drawer>
           </CardBody>
         </Card>
       ) : (
@@ -159,7 +193,7 @@ export default async function LokasiPaketPage({
             <p className="text-sm text-ink-muted">
               {praKontrak
                 ? "Penambahan lokasi target dilakukan pemegang akses prospek."
-                : "Paket sudah berkontrak — komposisi lokasi terkunci. Perubahan lingkup lewat adendum; lokasi yang ketinggalan saat input dikoreksi super admin."}
+                : "Paket sudah berkontrak – komposisi lokasi terkunci. Perubahan lingkup lewat adendum; lokasi yang ketinggalan saat input dikoreksi super admin."}
             </p>
           </CardBody>
         </Card>

@@ -112,7 +112,7 @@ export function WahaConfigPanel({
             name="apiKey"
             type="password"
             autoComplete="new-password"
-            placeholder={initial.hasApiKey ? "•••••••• (tersimpan — isi untuk mengganti)" : "API key WAHA"}
+            placeholder={initial.hasApiKey ? "•••••••• (tersimpan – isi untuk mengganti)" : "API key WAHA"}
           />
           <p className="mt-1 text-xs text-ink-muted">
             Kosongkan untuk mempertahankan key yang sudah tersimpan. Ketik tanda minus lalu simpan untuk menghapus.
@@ -147,7 +147,7 @@ export function WahaConfigPanel({
               <StatusPill tone={statusTone(result.status)} label={result.status} />
             </div>
             {result.status === "WORKING" ? (
-              <p className="text-[13px] text-ink-muted">Terhubung sebagai {result.me ?? "—"}. Siap mengirim.</p>
+              <p className="text-[13px] text-ink-muted">Terhubung sebagai {result.me ?? "–"}. Siap mengirim.</p>
             ) : (
               <p className="text-[13px] text-warning">
                 Sesi belum siap. Buka dashboard WAHA dan scan QR dengan akun WhatsApp pengirim.
@@ -180,7 +180,7 @@ export function BrandingPanel({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
         Identitas produk dipakai di halaman masuk & seluruh aplikasi. Nama aplikasi, tagline, dan nama
-        pemilik pekerjaan wajib diisi. Kolom bertanda <em>tambahan</em> boleh dikosongkan — kalau
+        pemilik pekerjaan wajib diisi. Kolom bertanda <em>tambahan</em> boleh dikosongkan – kalau
         dikosongkan, barisnya memang hilang dari layar, bukan kembali ke bawaan.
       </p>
       <div>
@@ -211,14 +211,14 @@ export function BrandingPanel({
           placeholder={defaults.projectContext}
         />
         <p className="mt-1 text-xs text-ink-muted">
-          Muncul di sidebar & halaman Masuk. Kosongkan bila tidak ingin menampilkannya sama sekali —
+          Muncul di sidebar & halaman Masuk. Kosongkan bila tidak ingin menampilkannya sama sekali –
           untuk mengembalikan teks bawaan, ketik ulang.
         </p>
       </div>
       <div className="mt-4 space-y-3 rounded-md border border-border bg-surface-muted p-3">
         <p className="text-sm font-semibold text-ink">Pemilik Pekerjaan (kop laporan)</p>
         <p className="text-xs text-ink-muted">
-          Nama, keterangan, dan logo instansi pemberi pekerjaan — dipakai di kop blanko laporan harian
+          Nama, keterangan, dan logo instansi pemberi pekerjaan – dipakai di kop blanko laporan harian
           dan periodik. Ubah bila proyek ini bukan milik KKP.
         </p>
         <div>
@@ -265,10 +265,10 @@ export function BrandingPanel({
             <div className="mb-2 flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={ownerLogoUrl} alt="Logo pemilik pekerjaan" className="h-12 w-auto rounded border border-border bg-white p-1" />
-              <span className="text-xs text-ink-muted">Logo terpasang — unggah berkas baru untuk mengganti.</span>
+              <span className="text-xs text-ink-muted">Logo terpasang – unggah berkas baru untuk mengganti.</span>
             </div>
           ) : (
-            <p className="mb-2 text-xs text-ink-muted">Belum ada logo — kop memakai teks saja.</p>
+            <p className="mb-2 text-xs text-ink-muted">Belum ada logo – kop memakai teks saja.</p>
           )}
           <FileInput id="brand-owner-logo" name="ownerLogo" accept="image/png,image/jpeg,image/webp" />
         </div>
@@ -312,7 +312,7 @@ export function R2TestPanel({ configured }: { configured: boolean }) {
       {result?.stampSampleDataUri && (
         <div className="space-y-1">
           <p className="text-xs text-ink-muted">
-            Pratinjau cap foto (dirender di server ini) — teks harus terbaca. Bila kosong/tanpa teks, cap
+            Pratinjau cap foto (dirender di server ini) – teks harus terbaca. Bila kosong/tanpa teks, cap
             bermasalah di host ini.
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element -- data URI hasil render server, bukan asset Next */}
@@ -343,7 +343,7 @@ export function RebuildSnapshotPanel({ locations }: { locations: { id: string; n
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
         Menghitung ulang angka pada <span className="font-medium">cetakan laporan harian final</span> dari data
-        laporan yang sama. Status, volume, dan input TIDAK disentuh — aman diulang. Perlu dijalankan setelah
+        laporan yang sama. Status, volume, dan input TIDAK disentuh – aman diulang. Perlu dijalankan setelah
         perbaikan rumus supaya laporan yang terlanjur final ikut benar.
       </p>
       <div className="flex flex-wrap items-end gap-2">
@@ -408,7 +408,7 @@ export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
         Warna aksen dipakai semua elemen cap (garis panel, badge, ikon, aksen logo). Perubahan berlaku
-        pada cap foto berikutnya — tidak mengubah warna foto asli.
+        pada cap foto berikutnya – tidak mengubah warna foto asli.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -567,12 +567,42 @@ export function WahaWebhookPanel({
   capturedCount,
   lastCapturedAt,
   hits,
+  antrean,
+  pengiriman,
 }: {
   webhookUrl: string | null;
   hasSecret: boolean;
   capturedCount: number;
   lastCapturedAt: string | null;
   hits: { at: string; tokenOk: boolean; event: string; chatId: string | null; outcome: string }[];
+  /**
+   * Antrean jawaban (DECISIONS 372). Pekerjaan yang GAGAL permanen harus
+   * terlihat: dead-letter yang tidak terlihat sama saja dengan pesan yang
+   * hilang — dan gejalanya di lapangan identik ("bot-nya tidak menjawab").
+   */
+  antrean: {
+    antre: number;
+    berjalan: number;
+    gagal: number;
+    contohGagal: { chatId: string; lastError: string | null; attempts: number }[];
+  };
+  /**
+   * Diagnosa PENGIRIMAN (DECISIONS 374). Dipisah dari antrean masuk: yang satu
+   * soal pertanyaan yang belum dijawab, yang ini soal pesan yang sudah
+   * berangkat — dan pertanyaan "kenapa laporan saya tidak sampai" hanya bisa
+   * dijawab dari sini.
+   */
+  pengiriman: {
+    per: { status: string; jumlah: number }[];
+    gagalTerbaru: {
+      chatId: string;
+      sourceType: string;
+      status: string;
+      lastError: string | null;
+      errorCode: string | null;
+      createdAt: string;
+    }[];
+  };
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(
     generateWahaWebhookSecretAction,
@@ -588,14 +618,14 @@ export function WahaWebhookPanel({
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
-        Menangkap percakapan grup WhatsApp (hanya grup yang sudah ditautkan ke paket) ke arsip —
+        Menangkap percakapan grup WhatsApp (hanya grup yang sudah ditautkan ke paket) ke arsip –
         fondasi ringkasan/telusur berbasis AI. Butuh langkah di WAHA: pasang URL webhook di bawah &
         aktifkan event <span className="font-mono">message.any</span>.
       </p>
       <Banner
         tone="info"
         title="Pakai message.any, bukan message"
-        description="Event message hanya membawa pesan MASUK. Kiriman MARLIN sendiri (laporan harian/kegiatan yang dikirim ke grup) hanya ikut terarsip lewat message.any — tanpa itu ringkasan harian tidak utuh."
+        description="Event message hanya membawa pesan MASUK. Kiriman MARLIN sendiri (laporan harian/kegiatan yang dikirim ke grup) hanya ikut terarsip lewat message.any – tanpa itu ringkasan harian tidak utuh."
       />
       {/* Tanya-jawab bebas memakai webhook yang SAMA — tidak ada yang perlu
           dipasang lagi. Yang perlu diketahui admin hanya dua syaratnya, dan
@@ -603,7 +633,7 @@ export function WahaWebhookPanel({
       <Banner
         tone="info"
         title="Webhook ini juga dipakai tanya-jawab bebas"
-        description="Pertanyaan berbahasa bebas (mis. “ada kendala apa hari ini”) dijawab dari data sistem. Dua syaratnya: (1) nomor WhatsApp penanya harus terisi di data penggunanya — nama tampilan WhatsApp tidak dipakai; (2) di grup, MARLIN hanya menjawab bila di-mention. Jawaban di grup selalu dipotong ke lokasi paket grup itu saja."
+        description="Pertanyaan berbahasa bebas (mis. “ada kendala apa hari ini”) dijawab dari data sistem. Dua syaratnya: (1) nomor WhatsApp penanya harus terisi di data penggunanya – nama tampilan WhatsApp tidak dipakai; (2) di grup, MARLIN hanya menjawab bila di-mention. Jawaban di grup selalu dipotong ke lokasi paket grup itu saja."
       />
 
       {hasSecret && webhookUrl ? (
@@ -664,10 +694,74 @@ export function WahaWebhookPanel({
           </form>
         </div>
         <p className="mt-1 text-xs text-ink-muted">
-          Tombol di atas mensimulasikan 1 event WAHA ke grup tertaut — membuktikan jalur terima→simpan
+          Tombol di atas mensimulasikan 1 event WAHA ke grup tertaut – membuktikan jalur terima→simpan
           MARLIN sehat, lepas dari WAHA. Tabel di bawah mencatat <b>setiap</b> POST yang benar-benar
           mendarat (10 terakhir): kalau kosong setelah kirim pesan → WAHA belum sampai ke server.
         </p>
+
+        <div className="mt-3 rounded-md border border-border bg-surface-muted p-3">
+          <p className="text-[13px] font-semibold text-ink">Antrean jawaban</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Webhook hanya menaruh pekerjaan di antrean lalu langsung membalas 200; AI dan
+            pengiriman dijalankan processor. Satu pesan masuk = satu pekerjaan, berapa pun kali
+            WAHA mengirim ulang.
+          </p>
+          <p className="tabular mt-2 text-[13px]">
+            <span className="text-ink-muted">Antre</span>{" "}
+            <b>{antrean.antre}</b>
+            <span className="text-ink-faint"> · </span>
+            <span className="text-ink-muted">Berjalan</span> <b>{antrean.berjalan}</b>
+            <span className="text-ink-faint"> · </span>
+            <span className="text-ink-muted">Gagal</span>{" "}
+            <b className={antrean.gagal > 0 ? "text-danger" : undefined}>{antrean.gagal}</b>
+          </p>
+          {antrean.contohGagal.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              {antrean.contohGagal.map((g, i) => (
+                <li key={i}>
+                  <span className="font-mono">{g.chatId}</span> – {g.attempts}× gagal:{" "}
+                  <span className="text-danger">{g.lastError ?? "(tanpa pesan)"}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        <div className="mt-3 rounded-md border border-border bg-surface-muted p-3">
+          <p className="text-[13px] font-semibold text-ink">Pengiriman keluar</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            <b>Diterima WAHA</b> berarti WAHA menerima permintaannya – <b>belum tentu sampai</b>.
+            Status <b>Terkirim / Sampai / Dibaca</b> hanya muncul setelah tanda terima WhatsApp
+            (<code>message.ack</code>) tiba.
+          </p>
+          {pengiriman.per.length === 0 ? (
+            <p className="mt-2 text-[13px] text-ink-muted">Belum ada kiriman tercatat.</p>
+          ) : (
+            <p className="tabular mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
+              {pengiriman.per.map((p) => (
+                <span key={p.status}>
+                  <span className="text-ink-muted">{p.status}</span>{" "}
+                  <b className={p.status === "gagal" || p.status === "ditolak" ? "text-danger" : undefined}>
+                    {p.jumlah}
+                  </b>
+                </span>
+              ))}
+            </p>
+          )}
+          {pengiriman.gagalTerbaru.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              {pengiriman.gagalTerbaru.map((g, i) => (
+                <li key={i}>
+                  <span className="font-mono">{g.chatId}</span> · {g.sourceType} ·{" "}
+                  <span className="text-danger">
+                    {g.status}
+                    {g.errorCode ? ` (${g.errorCode})` : ""}: {g.lastError ?? "(tanpa pesan)"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
 
         {hits.length === 0 ? (
           <p className="mt-2 text-[13px] text-ink-muted">
@@ -791,7 +885,7 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
             placeholder={`atau ketik manual (mis. ${p.defaultModel})`}
           />
           <p className="mt-1 text-xs text-ink-muted">
-            Pilih dari daftar (klik <b>Muat model</b> untuk daftar terkini{fetched.length > 0 ? ` — ${fetched.length} dari API` : ""})
+            Pilih dari daftar (klik <b>Muat model</b> untuk daftar terkini{fetched.length > 0 ? ` – ${fetched.length} dari API` : ""})
             atau ketik nama model kustom.
           </p>
         </div>
@@ -802,7 +896,7 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
             name="apiKey"
             type="password"
             autoComplete="new-password"
-            placeholder={p.hasApiKey ? "•••••••• (tersimpan — isi untuk mengganti)" : `API key dari ${p.keyHint}`}
+            placeholder={p.hasApiKey ? "•••••••• (tersimpan – isi untuk mengganti)" : `API key dari ${p.keyHint}`}
           />
           <p className="mt-1 text-xs text-ink-muted">
             Kosongkan untuk mempertahankan key tersimpan. Ketik tanda minus lalu simpan untuk menghapus.

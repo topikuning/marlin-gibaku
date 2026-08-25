@@ -108,6 +108,125 @@ async function draftNode(revisionId: string, lineageKey: string) {
   return db.rabNode.findFirstOrThrow({ where: { revisionId, lineageKey } });
 }
 
+/**
+ * DERAU PEMBULATAN: menambah satu item tidak boleh menulis ulang nilai item
+ * lain (DECISIONS 423).
+ *
+ * Laporan user 2026-08-23: menambah item baru mendadak memunculkan ratusan
+ * baris "berubah" yang volumenya sama persis dan nilainya bergeser puluhan
+ * rupiah. Sebabnya `recomputeTotals` menghitung ulang `amount` SETIAP item dari
+ * `volume × harga`, sementara nilai tersimpan berasal dari berkas yang
+ * diunggah user dengan pembulatannya sendiri.
+ *
+ * Fixture ini sengaja memakai item yang `amount`-nya TIDAK sama dengan
+ * `round(volume × harga)` — persis keadaan berkas nyata. Kalau penjaganya
+ * lepas, item itu ikut tertulis ulang dan muncul di `diff.diubah`.
+ */
+describe("adendum tidak menulis ulang nilai item yang tidak disentuh", () => {
+  it("tambah item baru: item lain tetap apa adanya, tidak muncul sebagai perubahan", async () => {
+    // Lokasi SENDIRI: draft yang ditinggalkan di sini tidak boleh menghalangi
+    // `createAdendumDraft` pada uji lain (satu lokasi = satu draft).
+    const pkgId = (
+      await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } })
+    ).packageId;
+    const lokDerau = await db.location.create({
+      data: {
+        packageId: pkgId,
+        name: "Lokasi Derau",
+        slug: `lokasi-derau-${suffix}`,
+        village: "Desa",
+        regency: "Kab",
+        province: "Prov",
+        status: "berjalan",
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    const rev = await db.rabRevision.create({
+      data: { locationId: lokDerau.id, revisionNo: 1, source: "hps_awal", status: "draft", totalValue: 1_000_003n },
+    });
+    const kat = await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "Z", name: "KAT DERAU", amount: 1_000_003n, lineageKey: "Z", sortOrder: 1 },
+    });
+    // 3,333 × 300.001,25 = 1.000.004,16 → hitung ulang memberi 1.000.004,
+    // sedangkan berkas menulis 1.000.003. Selisihnya SATU rupiah: derau.
+    const derau = await db.rabNode.create({
+      data: {
+        revisionId: rev.id, parentId: kat.id, kind: "item", code: "9", name: "Item derau",
+        volume: 3.333, unit: "m3", unitPrice: 300_001.25, amount: 1_000_003n, lineageKey: "Z#9", sortOrder: 2,
+      },
+    });
+    expect(Math.round(3.333 * 300_001.25)).not.toBe(Number(derau.amount));
+
+    // Draft = salinan; nilai item disalin apa adanya.
+    const salinanKat = await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "Z2", name: "KAT LAIN", amount: 0n, lineageKey: "Z2", sortOrder: 3 },
+    });
+    // Tambah item baru ke kategori kedua revisi yang SAMA (memakai jalur yang
+    // sama dengan editor: addDraftItem → recomputeTotals).
+    await addDraftItem(
+      rev.id,
+      salinanKat.id,
+      { code: "10", name: "Item baru", unit: "ls", volume: 1, unitPrice: 5_000_000 },
+      userId,
+    );
+
+    const sesudah = await db.rabNode.findUniqueOrThrow({ where: { id: derau.id }, select: { amount: true } });
+    expect(sesudah.amount, "nilai item yang tidak disentuh ikut ditulis ulang").toBe(1_000_003n);
+  });
+});
+
+describe("daftar perubahan menyebut LETAK item", () => {
+  it("setiap baris diff membawa jalur kategori induknya (DECISIONS 423)", async () => {
+    /*
+     * Revisi tandingan dibangun langsung (bukan lewat editor) supaya uji ini
+     * tidak merebut "satu draft per lokasi" dari uji lain. Yang diperiksa
+     * `diffRevisions`, dan ia tidak peduli bagaimana revisinya lahir.
+     */
+    const pkgId2 = (
+      await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } })
+    ).packageId;
+    // Lokasi sendiri: menambah revisi di lokasi utama akan menggeser nomor
+    // revisi yang diuji blok lain.
+    const lokJalur = await db.location.create({
+      data: {
+        packageId: pkgId2, name: "Lokasi Jalur", slug: `lokasi-jalur-${suffix}`,
+        village: "Desa", regency: "Kab", province: "Prov", status: "berjalan", isActive: true,
+      },
+      select: { id: true },
+    });
+    const revLama = await db.rabRevision.create({
+      data: { locationId: lokJalur.id, revisionNo: 1, source: "hps_awal", status: "digantikan", totalValue: 125_000_000n },
+    });
+    const katLama = await db.rabNode.create({
+      data: { revisionId: revLama.id, kind: "kategori", code: "I", name: "PEKERJAAN UJI", amount: 125_000_000n, lineageKey: "I", sortOrder: 1 },
+    });
+    await db.rabNode.create({
+      data: {
+        revisionId: revLama.id, parentId: katLama.id, kind: "item", code: "1", name: "Pasangan batu",
+        volume: 100, unit: "m3", unitPrice: 1_000_000, amount: 100_000_000n, lineageKey: "I#1", sortOrder: 2,
+      },
+    });
+    const rev = await db.rabRevision.create({
+      data: { locationId: lokJalur.id, revisionNo: 2, source: "adendum", status: "aktif", totalValue: 145_000_000n },
+    });
+    const kat = await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "I", name: "PEKERJAAN UJI", amount: 145_000_000n, lineageKey: "I", sortOrder: 1 },
+    });
+    await db.rabNode.create({
+      data: {
+        revisionId: rev.id, parentId: kat.id, kind: "item", code: "1", name: "Pasangan batu",
+        volume: 120, unit: "m3", unitPrice: 1_000_000, amount: 120_000_000n, lineageKey: "I#1", sortOrder: 2,
+      },
+    });
+    const diff = await diffRevisions(revLama.id, rev.id);
+    const baris = diff.diubah.find((d) => d.lineageKey === "I#1");
+    // Tanpa jalur, satu RAB dengan belasan bangunan menampilkan "Pasangan batu"
+    // berulang kali tanpa penanda mana yang mana.
+    expect(baris?.jalur).toBe("I. PEKERJAAN UJI");
+  });
+});
+
 describe("editor draft adendum", () => {
   let draftId: string;
 
@@ -169,7 +288,7 @@ describe("editor draft adendum", () => {
     expect(pondasi.lineageKey).toBe("II#1");
   });
 
-  it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak — terkunci", async () => {
+  it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak – terkunci", async () => {
     const sondir = await draftNode(draftId, "I#3");
     const naik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 3_000_000 }, userId);
     expect(naik.totalValue).toBe(165_000_000n); // 163jt + 4 titik × 500rb

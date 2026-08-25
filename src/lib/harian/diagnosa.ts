@@ -43,7 +43,7 @@ export function sebabTidakAdaPenerima(d: DiagnosaPengingat): string | null {
     if (d.orangNonaktif > 0) bagian.push(`${d.orangNonaktif} akunnya nonaktif`);
     return (
       `${d.lokasiPerluDitagih} lokasi belum melapor dan ${d.orangDitugaskan} orang ditugaskan, ` +
-      `tetapi ${bagian.join(" dan ")} — jadi tidak ada tujuan yang bisa dikirimi. ` +
+      `tetapi ${bagian.join(" dan ")} – jadi tidak ada tujuan yang bisa dikirimi. ` +
       "Isi nomor WhatsApp mereka di Master Data → Pengguna."
     );
   }

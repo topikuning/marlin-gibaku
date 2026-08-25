@@ -79,7 +79,7 @@ export default async function HariIniPage() {
             {s.corrections.length > 0 && (
               <Banner
                 tone="warning"
-                title={`${s.corrections.length} laporan dikembalikan — perlu koreksi`}
+                title={`${s.corrections.length} laporan dikembalikan – perlu koreksi`}
                 description={s.corrections
                   .map(
                     (c) =>

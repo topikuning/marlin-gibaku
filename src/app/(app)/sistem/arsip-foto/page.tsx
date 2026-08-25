@@ -59,7 +59,7 @@ export default async function ArsipFotoPage() {
   const namaLokasi = new Map(locations.map((l) => [l.id, l.name]));
   const baris = perPaket
     .map((r) => ({
-      nama: r.locationId ? (namaLokasi.get(r.locationId) ?? "—") : "Tanpa lokasi",
+      nama: r.locationId ? (namaLokasi.get(r.locationId) ?? "–") : "Tanpa lokasi",
       jumlah: r._count._all,
       bytes: r._sum.originalBytes ?? 0,
     }))
@@ -72,7 +72,7 @@ export default async function ArsipFotoPage() {
     <div className="space-y-4">
       <PageHeader
         title="Arsip Foto Asli"
-        description="Berkas asli tanpa cap — dipakai bila cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
+        description="Berkas asli tanpa cap – dipakai bila cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
       />
 
       <div className="grid gap-2 sm:grid-cols-3">

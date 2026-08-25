@@ -193,18 +193,18 @@ function SnapshotPanel({ snap, onClose }: { snap: LocationSnapshot; onClose: () 
         </div>
         <div className="flex justify-between gap-2">
           <dt className="shrink-0 text-ink-muted">Pelaksana</dt>
-          <dd className="truncate text-right font-medium text-ink">{snap.vendorName ?? "—"}</dd>
+          <dd className="truncate text-right font-medium text-ink">{snap.vendorName ?? "–"}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="shrink-0 text-ink-muted">Kontrak</dt>
           <dd className="truncate text-right font-medium text-ink" title={snap.contractNumber ?? undefined}>
-            {snap.contractNumber ?? "—"}
+            {snap.contractNumber ?? "–"}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="shrink-0 text-ink-muted">Nilai</dt>
           <dd className="text-right font-medium text-ink tabular-nums">
-            {snap.contractValue !== null ? formatRupiahShort(BigInt(snap.contractValue)) : "—"}
+            {snap.contractValue !== null ? formatRupiahShort(BigInt(snap.contractValue)) : "–"}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
@@ -212,7 +212,7 @@ function SnapshotPanel({ snap, onClose }: { snap: LocationSnapshot; onClose: () 
           <dd className="text-right font-medium text-ink">
             {snap.startDate && snap.endDate
               ? `${formatTanggal(new Date(snap.startDate))} – ${formatTanggal(new Date(snap.endDate))}`
-              : "—"}
+              : "–"}
           </dd>
         </div>
       </dl>

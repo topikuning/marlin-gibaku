@@ -107,7 +107,7 @@ async function paketDenganAkses(packageId: string, orgId: string) {
   if (!pkg || pkg.orgId !== orgId) throw new DocumentError("Paket tidak ditemukan");
   if (!pkg.driveFolderId) {
     throw new DocumentError(
-      "Paket ini belum punya folder Google Drive — isi ID folder KKP di halaman paket dulu.",
+      "Paket ini belum punya folder Google Drive – isi ID folder KKP di halaman paket dulu.",
     );
   }
   return pkg;
@@ -254,7 +254,7 @@ export async function commitDriveImport(
   if (selections.length === 0) throw new DocumentError("Tidak ada berkas yang dipilih.");
   if (selections.length > MAX_IMPORT_PER_BATCH) {
     throw new DocumentError(
-      `Maksimum ${MAX_IMPORT_PER_BATCH} berkas per impor — pilih sebagian dulu, sisanya menyusul.`,
+      `Maksimum ${MAX_IMPORT_PER_BATCH} berkas per impor – pilih sebagian dulu, sisanya menyusul.`,
     );
   }
 
@@ -283,7 +283,7 @@ export async function commitDriveImport(
       // lagi walau lolos ke daftar pilihan (pratinjau basi / permintaan dijahili).
       if (meta.terbitanMarlin) {
         throw new DocumentError(
-          "Berkas ini terbitan MARLIN sendiri (laporan yang diunggah dari sini) — datanya sudah ada, tidak perlu diimpor",
+          "Berkas ini terbitan MARLIN sendiri (laporan yang diunggah dari sini) – datanya sudah ada, tidak perlu diimpor",
         );
       }
       if (!mimeDidukung(meta.mimeType)) {
@@ -318,7 +318,7 @@ export async function commitDriveImport(
           type: sel.type,
           title: baseName(meta.name),
           docDate: extractDocDate(meta.name),
-          description: `Diimpor dari Google Drive KKP${sel.path ? ` — ${bersihkanPath(sel.path)}` : ""}`,
+          description: `Diimpor dari Google Drive KKP${sel.path ? ` – ${bersihkanPath(sel.path)}` : ""}`,
           origin: {
             driveFileId: meta.id,
             driveWebLink: meta.webViewLink,

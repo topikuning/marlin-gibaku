@@ -149,13 +149,13 @@ export function VoidDocumentForm({ target, displayName }: { target: ManageTarget
           name="reason"
           rows={2}
           required
-          placeholder="Mis. salah lokasi — berkas ini milik Desa Pesisir, bukan Kedungrejo"
+          placeholder="Mis. salah lokasi – berkas ini milik Desa Pesisir, bukan Kedungrejo"
         />
       </div>
       <ConfirmSubmit
         label="Batalkan dokumen"
         title="Batalkan dokumen ini?"
-        description={`"${displayName}" akan hilang dari daftar dokumen dan tidak lagi dihitung sebagai bukti milestone administrasi. File & jejak audit tetap tersimpan — dokumen bisa dipulihkan kembali.`}
+        description={`"${displayName}" akan hilang dari daftar dokumen dan tidak lagi dihitung sebagai bukti milestone administrasi. File & jejak audit tetap tersimpan – dokumen bisa dipulihkan kembali.`}
         confirmLabel="Ya, batalkan"
         variant="danger"
         confirmVariant="danger"
@@ -205,7 +205,7 @@ export function DeleteDocumentForm({
       <ConfirmSubmit
         label="Hapus permanen"
         title="Hapus dokumen ini permanen?"
-        description={`"${displayName}" dan filenya dihapus dari penyimpanan. TIDAK BISA dipulihkan — yang tersisa hanya catatan audit bahwa dokumen ini pernah ada dan siapa yang menghapusnya.`}
+        description={`"${displayName}" dan filenya dihapus dari penyimpanan. TIDAK BISA dipulihkan – yang tersisa hanya catatan audit bahwa dokumen ini pernah ada dan siapa yang menghapusnya.`}
         confirmLabel="Ya, hapus permanen"
         variant="danger"
         confirmVariant="danger"

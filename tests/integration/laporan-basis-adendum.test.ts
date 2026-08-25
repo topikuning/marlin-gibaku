@@ -151,7 +151,7 @@ describe("KASUS INTI: laporan atas adendum yang belum sah TIDAK menggerakkan ang
     expect(item.lineageKey).toBe(LK_BARU);
   });
 
-  it("volume di ATAS batas RAB aktif bisa dilaporkan lewat draft — itu memang inti masalahnya", async () => {
+  it("volume di ATAS batas RAB aktif bisa dilaporkan lewat draft – itu memang inti masalahnya", async () => {
     // RAB aktif membatasi 100; draft menaikkan jadi 150. Lewat item draft,
     // 130 masih sah — dan itulah pekerjaan yang di lapangan sudah jalan.
     const item = await upsertItem(reportId, { rabNodeId: nodeDraftNaikId, volumeDone: 130 }, userId);
@@ -223,7 +223,7 @@ describe("pagar yang tetap berlaku", () => {
     ).rejects.toThrow(/melebihi sisa RAB/i);
   });
 
-  it("lewat item DRAFT, batasnya volume draft — dan tetap ditegakkan", async () => {
+  it("lewat item DRAFT, batasnya volume draft – dan tetap ditegakkan", async () => {
     await expect(
       upsertItem(reportId, { rabNodeId: nodeDraftNaikId, volumeDone: 151 }, userId),
     ).rejects.toThrow(/melebihi sisa RAB/i);
@@ -231,7 +231,7 @@ describe("pagar yang tetap berlaku", () => {
 });
 
 describe("dokumen resmi lain juga tidak ikut bergerak", () => {
-  it("kurva-S realisasi tetap 0% — item yang lineage-nya ada di KEDUA revisi pun tak bocor", async () => {
+  it("kurva-S realisasi tetap 0% – item yang lineage-nya ada di KEDUA revisi pun tak bocor", async () => {
     // LK_NAIK ada di RAB aktif DAN di draft. Menyaring lineage ke revisi aktif
     // saja tidak menutup kebocoran ini; yang menutup adalah filter basis.
     // Blok "pagar" mengembalikan laporan ke draft — dikirim lagi supaya baris

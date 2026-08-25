@@ -20,8 +20,10 @@ import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/wea
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import { bacaKendalaKirim } from "./kirim-kendala";
+import { ALASAN_NIHIL, judulKendalaDariNihil } from "./nihil";
 import {
   addIssueFromReport,
+  setHariNihil,
   approveReport,
   CREATOR_ENRICHABLE_STATUSES,
   DailyReportError,
@@ -44,7 +46,38 @@ import {
  */
 
 export type DailyActionState =
-  | { error?: string; success?: string; warning?: string }
+  | {
+      error?: string;
+      success?: string;
+      warning?: string;
+      /**
+       * Kendala TERBUKA yang mirip – tawaran, bukan kegagalan (DECISIONS 407).
+       *
+       * Menggantikan `usulKendala` lama (DECISIONS 396), yang justru menjadi
+       * PINTU KEDUA untuk mencatat kendala hari yang sama: satu di panel hari
+       * nihil, satu lagi di lembar kirim. Sekarang pertanyaannya cuma ada di
+       * lembar kirim, dan sisa pekerjaan di sini adalah menahan kembarnya.
+       */
+      kendalaDuplikat?: { id: string; title: string };
+      /** Isian yang sudah diketik – dikembalikan supaya tidak perlu diketik ulang. */
+      kendalaNilai?: { title: string; description: string; severity: string };
+      /**
+       * Hasil pindah tanggal (DECISIONS 415) — dipakai layarnya untuk menyebut
+       * AKIBAT yang tidak ikut pindah sendiri, dan menautkan ke tanggal baru.
+       * Halaman yang sedang dibuka bertanggal LAMA, jadi tanpa tautan itu orang
+       * ditinggal menatap "Belum ada laporan" tanpa tahu isinya pindah ke mana.
+       */
+      pindah?: {
+        slug: string;
+        ke: string;
+        lewatFinal: boolean;
+        cuacaDibuang: boolean;
+        waDilepas: boolean;
+        fotoPerluCapUlang: number;
+        fotoTakBisaDiperbaiki: number;
+        snapshotDibangunUlang: number;
+      };
+    }
   | undefined;
 
 /**
@@ -78,7 +111,7 @@ function errState(err: unknown): DailyActionState {
 
   console.error("[laporan-harian] galat tak terduga", err);
   const nama = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  return { error: `Gagal diproses — ${nama}. Salin pesan ini saat melapor.` };
+  return { error: `Gagal diproses – ${nama}. Salin pesan ini saat melapor.` };
 }
 
 /** Ambil report + slug/dateKey untuk otorisasi & revalidate. */
@@ -121,7 +154,7 @@ const photoFieldsShape = {
   photoLng: z.coerce.number().min(-180).max(180).optional(),
   photoTakenAt: z.string().optional(),
   photoSource: z.enum(["camera", "gallery"]).optional(),
-  galleryFallback: z.enum(["project", "none"]).optional(),
+  galleryFallback: z.enum(["project", "none", "apa_adanya"]).optional(),
   /** "1" = pelapor menyatakan sedang berada DI LOKASI saat unggah galeri. */
   galleryAtSite: z.string().optional(),
 };
@@ -160,11 +193,13 @@ function photoFieldsFrom(formData: FormData) {
  * diam-diam.
  */
 function fotoBarisDariForm(formData: FormData, awalan: string) {
+  const semua = formData
+    .getAll(`${awalan}photos`)
+    .filter((f): f is File => f instanceof File && f.size > 0);
   return {
-    files: formData
-      .getAll(`${awalan}photos`)
-      .filter((f): f is File => f instanceof File && f.size > 0)
-      .slice(0, MAX_PHOTOS_PER_UPLOAD),
+    files: semua.slice(0, MAX_PHOTOS_PER_UPLOAD),
+    /** Yang TIDAK ikut tersimpan — wajib disebut, bukan dibuang diam-diam. */
+    dibuang: Math.max(0, semua.length - MAX_PHOTOS_PER_UPLOAD),
     kantong: formData.getAll(`${awalan}kantongPhotoIds`).map(String).filter(Boolean),
     foto: {
       photoLat: formData.get(`${awalan}photoLat`) || undefined,
@@ -177,12 +212,23 @@ function fotoBarisDariForm(formData: FormData, awalan: string) {
   };
 }
 
-/** Berkas foto dari FormData (maks 6/unggah, yang kosong dibuang). */
-const fotoDariForm = (formData: FormData) =>
-  formData
+/**
+ * Berkas foto dari FormData; yang kosong dibuang.
+ *
+ * Kelebihan di atas batas TIDAK dipotong diam-diam (DECISIONS 425): jumlahnya
+ * dikembalikan supaya penjawabnya bisa mengatakan berapa yang belum tersimpan.
+ * Pemotongan senyap adalah cara paling mudah kehilangan bukti tanpa ada yang
+ * tahu — pengunggahnya melihat "tersimpan" dan mengira semuanya masuk.
+ */
+function fotoDariForm(formData: FormData): { files: File[]; dibuang: number } {
+  const semua = formData
     .getAll("photos")
-    .filter((f): f is File => f instanceof File && f.size > 0)
-    .slice(0, MAX_PHOTOS_PER_UPLOAD);
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  return {
+    files: semua.slice(0, MAX_PHOTOS_PER_UPLOAD),
+    dibuang: Math.max(0, semua.length - MAX_PHOTOS_PER_UPLOAD),
+  };
+}
 
 /** Lokasi + nama perusahaan untuk cap foto (pelaksana sesuai KONTRAK). */
 async function muatLokasiCap(locationId: string) {
@@ -199,7 +245,7 @@ async function muatLokasiCap(locationId: string) {
       package: {
         select: {
           organization: { select: { name: true } },
-          contract: { select: { vendor: { select: { name: true } } } },
+          contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
         },
       },
     },
@@ -209,6 +255,10 @@ async function muatLokasiCap(locationId: string) {
     location,
     companyName:
       location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
+    // Logo ikut nama: yang tercetak di cap harus milik perusahaan yang sama
+    // dengan yang namanya tertulis (DECISIONS 424). Organisasi tidak punya
+    // logo cap sendiri, jadi tanpa vendor → wordmark MARLIN.
+    companyLogoKey: location.package?.contract?.vendor?.logoKey ?? null,
   };
 }
 
@@ -237,6 +287,7 @@ async function unggahFotoPelengkap(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   jenis: "material" | "alat";
   barisId: string;
@@ -291,6 +342,7 @@ async function unggahFotoPelengkap(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: badge,
           workName: p.namaBaris,
@@ -321,6 +373,7 @@ async function unggahFotoItem(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   itemId: string;
   rabNodeId: string;
@@ -402,6 +455,7 @@ async function unggahFotoItem(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: buildingName ?? workName,
           workName: buildingName ? workName : null,
@@ -480,7 +534,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       user.id,
     );
 
-    // Foto bukti (opsional, maks 6/unggah). Gagal satu foto ≠ gagal item.
+    // Foto bukti (opsional). Gagal satu foto ≠ gagal item.
+    const fotoItem = fotoDariForm(formData);
     const photoErrors = await unggahFotoItem({
       user,
       location,
@@ -489,7 +544,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       itemId: item.id,
       rabNodeId: d.rabNodeId,
       dateKey: d.dateKey,
-      files: fotoDariForm(formData),
+      files: fotoItem.files,
       foto: d,
     });
 
@@ -513,12 +568,17 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       else if (hasil.gagalCap.length > 0)
         kantongGagal =
           `${hasil.gagalCap.length} foto kantong memakai cap dasar ` +
-          `(${[...new Set(hasil.gagalCap)].join(", ")}) — foto & datanya tetap utuh.`;
+          `(${[...new Set(hasil.gagalCap)].join(", ")}) – foto & datanya tetap utuh.`;
     }
 
     revalidateReport(location.slug, d.dateKey);
     const peringatan = [
       photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+      // Kelebihan foto DISEBUT. Diam-diam dipotong = bukti hilang tanpa ada
+      // yang tahu, karena layarnya tetap berbunyi "tersimpan" (DECISIONS 425).
+      fotoItem.dibuang > 0
+        ? `${fotoItem.dibuang} foto belum tersimpan – maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim. Tambahkan lagi dari daftar pekerjaan.`
+        : null,
       kantongGagal ?? null,
     ].filter(Boolean);
     return {
@@ -568,7 +628,7 @@ export async function addItemPhotosAction(
     // Batas yang sama dengan hapus foto: begitu laporan dikirim, fotonya sudah
     // jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
     if (!EDITABLE_STATUSES.includes(ctx.status)) {
-      return { error: "Laporan sudah dikirim — foto tidak bisa ditambah lagi." };
+      return { error: "Laporan sudah dikirim – foto tidak bisa ditambah lagi." };
     }
 
     const item = await db.dailyReportItem.findFirst({
@@ -577,7 +637,7 @@ export async function addItemPhotosAction(
     });
     if (!item) return { error: "Item tidak ditemukan di laporan ini." };
 
-    const files = fotoDariForm(formData);
+    const { files, dibuang } = fotoDariForm(formData);
     if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
 
     const { location, companyName } = await muatLokasiCap(ctx.locationId);
@@ -601,9 +661,15 @@ export async function addItemPhotosAction(
     }
     return {
       success: `${berhasil} foto ditambahkan.`,
-      warning: photoErrors.length
-        ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
-        : undefined,
+      warning:
+        [
+          photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+          dibuang > 0
+            ? `${dibuang} foto belum tersimpan – maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
     };
   } catch (err) {
     return errState(err);
@@ -839,7 +905,7 @@ export async function fetchWeatherAction(_prev: DailyActionState, formData: Form
       !can(user.role, "daily_report.review") &&
       !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
     ) {
-      return { error: "Laporan sudah dikirim — data KKP dilengkapi oleh Site Manager saat verifikasi." };
+      return { error: "Laporan sudah dikirim – data KKP dilengkapi oleh Site Manager saat verifikasi." };
     }
 
     let result;
@@ -862,7 +928,7 @@ export async function fetchWeatherAction(_prev: DailyActionState, formData: Form
     return {
       success:
         `Cuaca ${result.hours.length} jam terisi otomatis` +
-        (hujan > 0 ? ` — ${hujan} jam hujan.` : " — tidak ada jam hujan.") +
+        (hujan > 0 ? ` – ${hujan} jam hujan.` : " – tidak ada jam hujan.") +
         " Ubah manual bila berbeda dengan kondisi di lapangan.",
     };
   } catch (err) {
@@ -889,7 +955,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
       !can(user.role, "daily_report.review") &&
       !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
     ) {
-      return { error: "Laporan sudah dikirim — data KKP dilengkapi oleh Site Manager saat verifikasi." };
+      return { error: "Laporan sudah dikirim – data KKP dilengkapi oleh Site Manager saat verifikasi." };
     }
 
     const workers = WORKER_ROLE_ORDER.map((role: WorkerRole) => ({
@@ -965,6 +1031,12 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
         for (const [i, barisId] of j.ids.entries()) {
           const b = fotoBarisDariForm(formData, `${j.awalan}${i}_`);
           if (b.files.length === 0 && b.kantong.length === 0) continue;
+          // Kelebihan foto pada baris ini DISEBUT, bukan hilang diam-diam.
+          if (b.dibuang > 0) {
+            galatFoto.push(
+              `${b.dibuang} foto belum tersimpan (maks ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim)`,
+            );
+          }
           if (!barisId) {
             // Baris tanpa nama dibuang penyimpanan — fotonya tidak punya induk.
             galatFoto.push("ada foto pada baris yang namanya belum diisi");
@@ -1005,7 +1077,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
 
     revalidateReport(ctx.slug, ctx.dateKey);
     const kabar = fotoBaru > 0
-      ? `Pelengkap laporan tersimpan — ${fotoBaru} foto ditambahkan.`
+      ? `Pelengkap laporan tersimpan – ${fotoBaru} foto ditambahkan.`
       : "Pelengkap laporan tersimpan.";
     return {
       success: kabar,
@@ -1046,24 +1118,34 @@ export async function submitReportAction(_prev: DailyActionState, formData: Form
       description: formData.get("kendalaDescription"),
     });
     if (!kendala.ok) return { error: kendala.error };
-    if (kendala.kendala) {
-      await addIssueFromReport(
-        ctx.id,
-        {
-          title: kendala.kendala.title,
-          description: kendala.kendala.description,
-          severity: kendala.kendala.severity,
-        },
-        user.id,
-      );
-    }
+    /*
+     * Kendala yang mirip dengan yang MASIH TERBUKA tidak dicatat dua kali
+     * (DECISIONS 407) – dan itu TIDAK menggagalkan pengiriman laporan. Menahan
+     * laporan harian karena urusan papan kendala berarti menukar kerugian kecil
+     * (satu baris kembar) dengan kerugian besar (laporan hari itu tidak terkirim
+     * sama sekali).
+     */
+    const hasil = kendala.kendala
+      ? await addIssueFromReport(
+          ctx.id,
+          {
+            title: kendala.kendala.title,
+            description: kendala.kendala.description,
+            severity: kendala.kendala.severity,
+          },
+          user.id,
+        )
+      : null;
 
     await submitReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     return {
-      success: kendala.kendala
-        ? "Laporan terkirim beserta 1 kendala — menunggu verifikasi."
-        : "Laporan terkirim — menunggu verifikasi.",
+      success:
+        hasil?.jadi === "dibuat"
+          ? "Laporan terkirim beserta 1 kendala – menunggu verifikasi."
+          : hasil?.jadi === "duplikat"
+            ? `Laporan terkirim – menunggu verifikasi. Kendala serupa sudah terbuka ("${hasil.title}"), jadi tidak dicatat dua kali.`
+            : "Laporan terkirim – menunggu verifikasi.",
     };
   } catch (err) {
     return errState(err);
@@ -1137,7 +1219,7 @@ export async function finalizeReportAction(_prev: DailyActionState, formData: Fo
     await finalizeReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     dorongAntreanDrive();
-    return { success: "Laporan difinalisasi — siap dicetak." };
+    return { success: "Laporan difinalisasi – siap dicetak." };
   } catch (err) {
     return errState(err);
   }
@@ -1176,6 +1258,71 @@ export async function unfinalizeReportAction(
   }
 }
 
+/**
+ * PINDAHKAN LAPORAN KE TANGGAL LAIN (DECISIONS 415).
+ *
+ * User 2026-08-22, atas laporan yang dikembalikan karena salah tanggal: *"ini
+ * terlalu ribet untuk edit, padahal bisa sekali klik, ganti tanggal saja."*
+ *
+ * Super admin SAJA (pilihan user) — menggeser tanggal berarti menggeser volume
+ * ke hari lain, dan itu menggerakkan kurva-S serta deviasi.
+ */
+export async function pindahTanggalAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.move_date");
+    const parsed = z
+      .object({
+        reportId: z.uuid(),
+        tanggalBaru: z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tujuan wajib diisi"),
+        alasan: z.string().trim().min(10, "Alasan pemindahan wajib diisi (minimal 10 karakter)"),
+      })
+      .safeParse({
+        reportId: formData.get("reportId"),
+        tanggalBaru: formData.get("tanggalBaru"),
+        alasan: formData.get("alasan"),
+      });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const ctx = await loadReportContext(parsed.data.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+
+    const { pindahTanggalLaporan } = await import("./pindah-tanggal-service");
+    const hasil = await pindahTanggalLaporan({
+      reportId: parsed.data.reportId,
+      tanggalBaru: parsed.data.tanggalBaru,
+      alasan: parsed.data.alasan,
+      userId: user.id,
+    });
+
+    // DUA tanggal disegarkan: yang ditinggalkan sekarang kosong, dan yang
+    // dituju sekarang berisi. Menyegarkan salah satunya saja meninggalkan
+    // kalender yang menampilkan laporan di dua tempat sekaligus.
+    revalidateReport(ctx.slug, hasil.dari);
+    revalidateReport(ctx.slug, hasil.ke);
+    return {
+      success: `Laporan dipindah ke ${hasil.ke}.`,
+      pindah: {
+        slug: ctx.slug,
+        ke: hasil.ke,
+        lewatFinal: hasil.lewatFinal,
+        cuacaDibuang: hasil.cuacaDibuang,
+        waDilepas: hasil.waDilepas,
+        fotoPerluCapUlang: hasil.foto.perluCapUlang,
+        fotoTakBisaDiperbaiki: hasil.foto.takBisaDiperbaiki,
+        snapshotDibangunUlang: hasil.snapshotDibangunUlang,
+      },
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Kendala (Issue) dari laporan
 // ─────────────────────────────────────────────────────────────
@@ -1185,6 +1332,8 @@ const issueSchema = z.object({
   title: z.string().trim().min(3, "Judul kendala wajib diisi (min 3 karakter)").max(200),
   description: z.string().trim().max(2000).optional(),
   severity: z.enum(["rendah", "sedang", "tinggi", "kritis"]),
+  /** Dikirim hanya oleh tombol "Tetap buat baru" sesudah tawaran duplikat. */
+  paksa: z.boolean().optional(),
 });
 
 export async function addIssueAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -1198,11 +1347,12 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
       title: formData.get("title"),
       description: formData.get("description") ?? undefined,
       severity: formData.get("severity"),
+      paksa: String(formData.get("paksa") ?? "") === "1" || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const ctx = await loadReportContext(parsed.data.reportId);
     await requireLocationAccess(user, ctx.locationId);
-    await addIssueFromReport(
+    const hasil = await addIssueFromReport(
       ctx.id,
       {
         title: parsed.data.title,
@@ -1210,9 +1360,93 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
         severity: parsed.data.severity,
       },
       user.id,
+      { paksa: parsed.data.paksa },
     );
     revalidateReport(ctx.slug, ctx.dateKey);
+    if (hasil.jadi === "duplikat") {
+      /*
+       * Bukan galat – tawaran (DECISIONS 407). Yang sudah diketik dikembalikan
+       * bersama tawarannya supaya "Tetap buat baru" tidak berarti mengetik ulang.
+       */
+      return {
+        kendalaDuplikat: { id: hasil.issueId, title: hasil.title },
+        kendalaNilai: {
+          title: parsed.data.title,
+          description: parsed.data.description ?? "",
+          severity: parsed.data.severity,
+        },
+      };
+    }
     return { success: "Kendala tercatat." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+const hariNihilSchema = z.object({
+  /*
+   * Lokasi + tanggal, BUKAN reportId.
+   *
+   * Hari yang benar-benar tanpa kegiatan belum punya draft sama sekali — draft
+   * baru lahir saat item pertama disimpan. Menuntut `reportId` membuat fitur
+   * ini mustahil dipakai justru di hari yang membutuhkannya. DECISIONS 396.
+   */
+  locationId: z.uuid(),
+  dateKey: z.iso.date("Tanggal tidak valid"),
+  nihil: z.boolean(),
+  alasan: z.enum(ALASAN_NIHIL).optional(),
+  catatan: z.string().trim().max(500).optional(),
+});
+
+/**
+ * Nyatakan / batalkan "hari ini tidak ada kegiatan" (DECISIONS 396).
+ *
+ * Bila sebabnya "menunggu", pengembaliannya membawa `usulKendala` — layar
+ * MENAWARKAN mencatatnya sebagai kendala supaya ditagih, tidak memaksanya.
+ * Memaksa akan memenuhi papan dengan baris dari hari yang sebenarnya satu
+ * masalah berlarut; tidak menawarkan sama sekali mengulang cacat yang baru saja
+ * diperbaiki — hambatan tercatat lalu tidak ditagih siapa pun.
+ */
+export async function setHariNihilAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = hariNihilSchema.safeParse({
+      locationId: formData.get("locationId"),
+      dateKey: formData.get("dateKey"),
+      nihil: String(formData.get("nihil") ?? "") === "1",
+      alasan: String(formData.get("alasan") ?? "").trim() || undefined,
+      catatan: String(formData.get("catatan") ?? "").trim() || undefined,
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+    await requireLocationAccess(user, d.locationId);
+    // Draft dibuat kalau belum ada — inilah jalur yang membuat hari kosong
+    // bisa dilaporkan sama sekali.
+    const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
+    const ctx = await loadReportContext(report.id);
+
+    await setHariNihil(
+      ctx.id,
+      { nihil: d.nihil, alasan: d.alasan ?? null, catatan: d.catatan ?? null },
+      user.id,
+    );
+    revalidateReport(ctx.slug, ctx.dateKey);
+
+    if (!d.nihil) return { success: "Pernyataan tidak ada kegiatan dibatalkan." };
+    /*
+     * TIDAK ada tawaran kendala di sini lagi (DECISIONS 407).
+     *
+     * Dulu jawabannya membawa `usulKendala` dan panel hari-nihil memasang
+     * formulir "Catat sebagai kendala" – lalu lembar kirim menanyakan hal yang
+     * sama sekali lagi beberapa detik kemudian. Dua pertanyaan untuk satu
+     * hambatan: rancu, dan kembarnya lahir dari sana. Usulannya sekarang
+     * DIBAWA ke lembar kirim (`judulKendalaDariNihil` dipanggil di layar), jadi
+     * hambatan yang sama tetap tidak hilang – hanya ditanyakan satu kali.
+     */
+    return { success: "Hari ini dinyatakan tidak ada kegiatan." };
   } catch (err) {
     return errState(err);
   }

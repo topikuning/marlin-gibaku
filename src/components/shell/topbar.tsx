@@ -1,4 +1,5 @@
 import { LogOut } from "lucide-react";
+import { PemasangAplikasi } from "@/components/pwa/pemasang-aplikasi";
 import type { ReactNode } from "react";
 import type { UserRole } from "@/generated/prisma/enums";
 import type { Branding } from "@/lib/branding";
@@ -31,6 +32,10 @@ export function Topbar({ brand, user, logoutAction, children }: TopbarProps) {
         <div className="min-w-0 truncate text-sm text-ink-muted">{children}</div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {/* Jalan pasang PERMANEN (DECISIONS 405): banner boleh ditutup 14 hari,
+            tombol ini tidak ikut diredam. Menyaring dirinya sendiri – hanya
+            terbit bila peramban memang menawarkan dan belum terpasang. */}
+        <PemasangAplikasi varian="ringkas" />
         <div className="text-right">
           <p className="text-[13px] leading-tight font-medium text-ink">
             {user.fullName}

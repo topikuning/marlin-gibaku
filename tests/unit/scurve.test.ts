@@ -75,7 +75,7 @@ describe("classifyTrade", () => {
     expect(classifyTrade("Dokumentasi", "")).toBe("lainnya");
   });
 
-  it("kalibrasi korpus RAB NTB — item yang dulu 'lainnya'", () => {
+  it("kalibrasi korpus RAB NTB – item yang dulu 'lainnya'", () => {
     // listrik/plumbing → mep
     expect(classifyTrade("Pekerjaan Pemasangan MCB 2 Ampere", "")).toBe("mep");
     expect(classifyTrade("Biaya Pasang Baru Daya 33 KVA", "PEKERJAAN PERSIAPAN")).toBe("mep");
@@ -204,7 +204,7 @@ describe("scheduleItems", () => {
   });
 });
 
-describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi LONCENG — DECISIONS 081)", () => {
+describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi LONCENG – DECISIONS 081)", () => {
   it("satu pekerjaan penuh durasi → bell: landai-curam-landai, tengah ~50, akhir 100", () => {
     const c = curveFromCategorySchedule([{ weightPct: 100, startWeek: 1, endWeek: 10 }], 10);
     expect(c).toHaveLength(10);
@@ -260,7 +260,7 @@ describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi LONCENG �
   });
 });
 
-describe("weeklyFromSegments / segmentsFromWeekly / cumulativeFromWeeklyRows (matriks per-minggu, JEDA — DECISIONS 103)", () => {
+describe("weeklyFromSegments / segmentsFromWeekly / cumulativeFromWeeklyRows (matriks per-minggu, JEDA – DECISIONS 103)", () => {
   it("satu segmen = identik dgn lonceng jendela tunggal; Σ = bobot", () => {
     const w = weeklyFromSegments(60, [{ startWeek: 3, endWeek: 5 }], 6);
     expect(w).toHaveLength(6);
@@ -316,7 +316,7 @@ describe("weeklyFromSegments / segmentsFromWeekly / cumulativeFromWeeklyRows (ma
   });
 });
 
-describe("autoCategorySchedule (presedensi kategori — DECISIONS 079)", () => {
+describe("autoCategorySchedule (presedensi kategori – DECISIONS 079)", () => {
   const cats = [
     { lineageKey: "I", name: "PEKERJAAN PERSIAPAN", amount: 100n },
     { lineageKey: "II", name: "PEKERJAAN PONDASI BANGUNAN", amount: 300n },

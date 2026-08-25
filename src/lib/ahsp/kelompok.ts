@@ -179,7 +179,7 @@ export function hitungTahap(uraian: BarisUraian[]): KemajuanTahap[] {
       sisa: 0,
       selesai: 0,
       nilaiSisa: 0n,
-      ajakan: "Belum dikerjakan — harga satuan dasar per lokasi adalah langkah berikutnya.",
+      ajakan: "Belum dikerjakan – harga satuan dasar per lokasi adalah langkah berikutnya.",
     },
   ];
 

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { getWahaWebhookSecret, recordWahaHit } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
-import { jawabPertanyaanWa } from "@/lib/waha/tanya";
+import { antreJawaban, prosesAntrean } from "@/lib/waha/antrean";
+import { isWaAckEvent, parseWaAck } from "@/lib/waha/ingest-parse";
+import { terapkanAck } from "@/lib/waha/gateway";
 
 export const dynamic = "force-dynamic";
 
@@ -63,40 +65,86 @@ export async function POST(req: Request) {
   } else if (body === null) {
     status = 400;
     outcome = "body bukan JSON";
+  } else if (isWaAckEvent(body)) {
+    /*
+     * TANDA TERIMA — jalur tersendiri, dan sengaja SEBELUM ingest
+     * (DECISIONS 374).
+     *
+     * `message.ack` mengabarkan sesuatu yang sudah KELUAR, bukan sesuatu yang
+     * masuk. Kalau ia dilewatkan ke jalur pesan, ia akan diarsipkan sebagai
+     * pesan lalu diantrekan sebagai pertanyaan — MARLIN mencoba menjawab tanda
+     * terimanya sendiri.
+     */
+    try {
+      const a = parseWaAck(body);
+      chatId = a?.chatId ?? null;
+      if (!a) {
+        outcome = "ack: payload tidak terbaca";
+      } else {
+        const r = await terapkanAck(a.waMessageId, a.ack);
+        outcome = r.cocok
+          ? r.berubah
+            ? `ack: ${r.dari} → ${r.ke}`
+            : `ack: tidak mengubah apa pun (status ${r.dari})`
+          : `ack: ${r.alasan}`;
+      }
+    } catch (err) {
+      console.error("[waha/webhook] gagal memproses ack:", err);
+      outcome = "ack: gagal diproses (lihat log)";
+    }
   } else {
     try {
       const result = await ingestWaEvent(body);
       chatId = result.chatId ?? null;
-      outcome = result.stored ? "tersimpan ✓" : `diabaikan — ${result.reason}`;
+      outcome = result.stored ? "tersimpan ✓" : `diabaikan – ${result.reason}`;
 
       /**
-       * Tanya-jawab bebas (DECISIONS 339) — TERPISAH dari ingest, dan sengaja.
+       * Tanya-jawab bebas (DECISIONS 339) — DIANTREKAN, tidak dijalankan di
+       * sini (DECISIONS 372).
        *
-       * Ingest hanya menyimpan pesan grup yang tertaut paket; tanya-jawab juga
-       * melayani chat pribadi, yang tidak pernah disimpan. Kalau keduanya
-       * disatukan, chat pribadi tidak akan pernah terjawab — atau seluruh chat
-       * pribadi ikut tersimpan, yang tidak diminta siapa pun.
+       * Sebelumnya webhook menunggu identitas, guard, provider AI, query data,
+       * DAN pengiriman WAHA sebelum mengembalikan 200. Dua panggilan jaringan
+       * ke pihak lain ada di dalam rantai itu, dan keduanya bisa lambat tanpa
+       * batas — webhook timeout, WAHA me-retry, lalu event yang sama memicu AI
+       * dan balasan untuk KEDUA kalinya.
        *
-       * Kegagalan di sini TIDAK boleh menggagalkan ingest yang sudah berhasil:
-       * pesan yang sudah tersimpan tetap tersimpan.
+       * Ingest tetap terpisah dari antrean, dan tetap sengaja: ingest hanya
+       * menyimpan pesan grup tertaut paket, sedangkan tanya-jawab juga melayani
+       * chat pribadi yang memang tidak pernah diarsipkan.
+       *
+       * Kegagalan di sini TIDAK boleh menggagalkan ingest yang sudah berhasil.
        */
       try {
-        const jawab = await jawabPertanyaanWa(body);
+        const antre = await antreJawaban(body);
         /*
-         * SELALU dicatat, termasuk saat TIDAK dijawab (DECISIONS 345).
+         * SELALU dicatat, termasuk saat TIDAK diantrekan (DECISIONS 345).
          *
-         * Versi pertama hanya mencatat saat berhasil menjawab, sehingga setiap
-         * jalur diam — nomor tak dikenal, grup tanpa mention, pesan dari kita
-         * sendiri — tidak meninggalkan jejak apa pun. Ketika user melapor
-         * *"tidak ada respon sama sekali"*, log hit di Sistem sama sekali tidak
-         * bisa membedakan "webhook tidak pernah datang" dari "datang, lalu
-         * sengaja didiamkan". Diam yang tidak tercatat membuat diagnosis
-         * mustahil justru pada kegagalan yang paling mungkin terjadi.
+         * Jalur yang diam — payload tak terbaca, pesan dari kita sendiri, event
+         * yang sudah pernah masuk — adalah jalur yang paling sering perlu
+         * didiagnosis, dan dulu tidak meninggalkan jejak apa pun.
          */
-        outcome += ` · tanya: ${jawab.dijawab ? "" : "diam — "}${jawab.alasan}`;
+        outcome += antre.antre
+          ? ` · tanya: ${antre.baru ? "diantrekan" : "sudah pernah diantrekan (idempoten)"}`
+          : ` · tanya: tidak diantrekan – ${antre.alasan}`;
+
+        /*
+         * Diproses TANPA ditunggu — 200 tidak boleh menunggu provider AI.
+         *
+         * Ini jalur cepat, bukan jaminan. Jaminannya ada di cron
+         * `/api/cron/waha`: kalau proses ini mati di tengah jalan, pekerjaannya
+         * tetap `antre` di basis data dan diambil putaran berikutnya. Karena
+         * itu kegagalannya cukup dicatat ke log, bukan diteruskan ke WAHA —
+         * memberi tahu WAHA berarti mengundang retry untuk pekerjaan yang
+         * sudah tersimpan dengan aman.
+         */
+        if (antre.antre && antre.baru) {
+          void prosesAntrean(3).catch((err) =>
+            console.error("[waha/webhook] pemrosesan latar gagal:", err),
+          );
+        }
       } catch (err) {
-        console.error("[waha/webhook] gagal menjawab pertanyaan:", err);
-        outcome += " · tanya: gagal (lihat log)";
+        console.error("[waha/webhook] gagal mengantrekan pertanyaan:", err);
+        outcome += " · tanya: gagal mengantrekan (lihat log)";
       }
     } catch (err) {
       console.error("[waha/webhook] gagal ingest:", err);

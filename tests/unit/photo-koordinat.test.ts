@@ -15,7 +15,7 @@ import {
 } from "@/lib/photo-koordinat";
 
 describe("KASUS INTI: NaN tidak boleh lolos sebagai koordinat", () => {
-  it("NaN ditolak — pemeriksaan tipe saja meloloskannya", () => {
+  it("NaN ditolak – pemeriksaan tipe saja meloloskannya", () => {
     expect(typeof NaN === "number", "premis bug aslinya").toBe(true);
     expect(angkaKoordinat(NaN, 90)).toBeNull();
   });
@@ -38,7 +38,7 @@ describe("KASUS INTI: NaN tidak boleh lolos sebagai koordinat", () => {
     expect(angkaKoordinat(180, 180)).toBe(180);
   });
 
-  it("di luar rentang ditolak — koordinat mustahil bukan koordinat", () => {
+  it("di luar rentang ditolak – koordinat mustahil bukan koordinat", () => {
     // EXIF cacat bisa memberi angka berhingga tapi mustahil. Kalau lolos, ia
     // jadi bukti GPS palsu di cap foto.
     expect(angkaKoordinat(200, 90)).toBeNull();
@@ -72,7 +72,7 @@ describe("lapis terakhir sebelum kolom Decimal", () => {
     expect(desimalKoordinat(undefined)).toBeNull();
   });
 
-  it("angka ditulis 7 desimal — presisi kolom Decimal(10,7)", () => {
+  it("angka ditulis 7 desimal – presisi kolom Decimal(10,7)", () => {
     expect(desimalKoordinat(-6.917464)).toBe("-6.9174640");
     expect(desimalKoordinat(0)).toBe("0.0000000");
   });

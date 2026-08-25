@@ -16,7 +16,6 @@ import {
   bersihkanMention,
   cocokkanNomorPengguna,
   diajakBicara,
-  lingkupJawaban,
   niatLintasLokasi,
   type AsalPesan,
 } from "@/lib/waha/tanya-izin";
@@ -66,7 +65,7 @@ describe("kapan MARLIN menjawab", () => {
     }
   });
 
-  it("menulis '@marlin' di teks TIDAK cukup — penyebutan dibaca dari JID", () => {
+  it("menulis '@marlin' di teks TIDAK cukup – penyebutan dibaca dari JID", () => {
     // Nama tampilan bisa diubah siapa saja; JID tidak. Kalau teks yang dipercaya,
     // siapa pun bisa memancing balasan dengan mengetik nama.
     expect(
@@ -105,163 +104,15 @@ describe("membersihkan penyebutan dari badan pesan", () => {
   });
 });
 
-describe("apa yang boleh disebut — TIDAK selesai oleh mention", () => {
-  it("chat pribadi: seluruh lingkup penggunanya", () => {
-    const l = lingkupJawaban({
-      grup: false,
-      lokasiPengguna: ["a", "b"],
-      lokasiGrup: null,
-      namaPaketGrup: null,
-    });
-    expect(l).toEqual({ boleh: true, lokasiIds: ["a", "b"], catatanPemotongan: null });
-  });
-
-  it("chat pribadi super admin: lintas lokasi", () => {
-    const l = lingkupJawaban({
-      grup: false,
-      lokasiPengguna: null,
-      lokasiGrup: null,
-      namaPaketGrup: null,
-    });
-    expect(l.boleh && l.lokasiIds).toBeNull();
-  });
-
-  it("GRUP: jawaban dipotong ke lokasi paket grup itu saja", () => {
-    // Inti pagar ini. Tanpa potongan, pertanyaan "mana yang deviasinya negatif"
-    // di grup Paket A akan menyebut Paket B dan C ke seluruh anggota grup A —
-    // termasuk vendornya.
-    const l = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: ["a", "b", "c", "d"],
-      lokasiGrup: ["a", "b"],
-      namaPaketGrup: "Paket Jateng 1",
-    });
-    expect(l.boleh && l.lokasiIds).toEqual(["a", "b"]);
-  });
-
-  it("super admin pun DIPOTONG di grup", () => {
-    // Izin penanya tidak menaikkan apa yang pantas dibaca ANGGOTA GRUP.
-    const l = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: null,
-      lokasiGrup: ["a"],
-      namaPaketGrup: "Paket X",
-    });
-    expect(l.boleh && l.lokasiIds).toEqual(["a"]);
-  });
-
-  it("pemotongan SELALU disebutkan di balasan", () => {
-    // Jawaban sebagian yang tidak mengaku sebagian akan dibaca lengkap.
-    const l = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: null,
-      lokasiGrup: ["a"],
-      namaPaketGrup: "Paket X",
-    });
-    expect(l.boleh && l.catatanPemotongan).toContain("Paket X");
-    expect(l.boleh && l.catatanPemotongan).toContain("chat pribadi");
-  });
-
-  it("grup yang tidak tertaut paket TIDAK dilayani", () => {
-    // Tanpa tautan, tidak ada dasar memutuskan apa yang pantas dibaca anggotanya.
-    for (const lokasiGrup of [null, []]) {
-      const l = lingkupJawaban({
-        grup: true,
-        lokasiPengguna: null,
-        lokasiGrup,
-        namaPaketGrup: null,
-      });
-      expect(l.boleh).toBe(false);
-    }
-  });
-
-  /*
-   * DUA UJI DI BAWAH INI DIBALIK OLEH DECISIONS 351 — sengaja, bukan karena
-   * pagarnya melemah.
-   *
-   * Versi lama meng-irisan lokasi grup dengan izin penanya, dan menuntut
-   * penanya terdaftar. Instruksi user 2026-08-17: *"untuk mention di group
-   * nomor yang mention tidak perlu terdaftar. selama itu chat di dalam group,
-   * jawab sesuai paket group itu."*
-   *
-   * Alasannya kuat: BALASANNYA DIKIRIM KE GRUP. Seluruh anggota membacanya,
-   * siapa pun yang mengetik — jadi memotong menurut izin si pengetik tidak
-   * pernah melindungi siapa pun, ia hanya membuat isi jawaban berubah-ubah di
-   * depan audiens yang sama persis.
-   */
-  it("izin penanya TIDAK memotong jawaban grup", () => {
-    const l = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: ["z"], // sama sekali tidak beririsan dengan paket grup
-      lokasiGrup: ["a", "b"],
-      namaPaketGrup: "Paket X",
-    });
-    expect(l.boleh).toBe(true);
-    expect(l.boleh && l.lokasiIds).toEqual(["a", "b"]);
-  });
-
-  it("penanya TAK TERDAFTAR (tanpa izin apa pun) tetap dijawab sesuai paket grup", () => {
-    const l = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: null,
-      lokasiGrup: ["a", "b"],
-      namaPaketGrup: "Paket X",
-    });
-    expect(l.boleh && l.lokasiIds).toEqual(["a", "b"]);
-  });
-
-  it("lingkup grup SELALU persis paket grupnya — tidak kurang, tidak lebih", () => {
-    /*
-     * Invarian pengganti. Yang lama ("selalu himpunan bagian dari izin
-     * penanya") kini salah arah; yang tetap benar dan justru lebih ketat:
-     * jawaban di grup tidak pernah memuat lokasi di luar paket grup itu, dan
-     * tidak pernah kehilangan lokasi yang ada di dalamnya.
-     *
-     * Sisi "tidak lebih" itu yang menahan kebocoran antar paket — dan ia tidak
-     * bergantung sama sekali pada siapa yang bertanya.
-     */
-    const kombinasi = [
-      { pengguna: ["a", "b"], grupL: ["b", "c"] },
-      { pengguna: ["a"], grupL: ["a"] },
-      { pengguna: ["a", "b", "c"], grupL: ["a"] },
-      { pengguna: null, grupL: ["a", "b"] },
-      { pengguna: [], grupL: ["a"] },
-    ];
-    for (const k of kombinasi) {
-      const l = lingkupJawaban({
-        grup: true,
-        lokasiPengguna: k.pengguna,
-        lokasiGrup: k.grupL,
-        namaPaketGrup: "P",
-      });
-      expect(l.boleh, JSON.stringify(k)).toBe(true);
-      expect(l.boleh && l.lokasiIds, JSON.stringify(k)).toEqual(k.grupL);
-    }
-  });
-
-  it("pembalikan yang dihilangkan: terdaftar tidak boleh melihat LEBIH SEDIKIT", () => {
-    /*
-     * Digabung dengan kebijakan baru, aturan irisan lama menghasilkan keadaan
-     * yang tak bisa dipertahankan: orang tak terdaftar di grup mendapat data
-     * paket, sementara pengguna terdaftar yang tidak ditugaskan ke paket itu
-     * ditolak — di grup yang SAMA. Terdaftar membuat seseorang melihat lebih
-     * sedikit.
-     */
-    const takTerdaftar = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: null,
-      lokasiGrup: ["a", "b"],
-      namaPaketGrup: "P",
-    });
-    const terdaftarTanpaTugas = lingkupJawaban({
-      grup: true,
-      lokasiPengguna: ["z"],
-      lokasiGrup: ["a", "b"],
-      namaPaketGrup: "P",
-    });
-    expect(terdaftarTanpaTugas).toEqual(takTerdaftar);
-  });
-});
+/*
+ * Blok "apa yang boleh disebut" PINDAH ke `waha-resolver-kanal.test.ts`
+ * (DECISIONS 371).
+ *
+ * `lingkupJawaban()` dihapus dan aturannya dilebur ke `putuskanLayanan()`
+ * bersama keputusan kanal & identitas — brief 2026-08-19 melarang aturan ini
+ * hidup di dua tempat yang saling menutupi. Seluruh invarian di blok lama
+ * dipindahkan apa adanya ke berkas itu, termasuk yang dibalik DECISIONS 351.
+ */
 
 describe("niat lintas lokasi", () => {
   it("tanpa lokasi disebut = lintas lokasi", () => {
@@ -296,7 +147,7 @@ describe("mencocokkan nomor pengirim ke pengguna", () => {
      * ini ikut berubah bersamanya alih-alih membeku pada bentuk lama.
      */
     const tersimpan = normalizeWaTarget("0812-3456-7890");
-    expect(tersimpan, "bentuk simpanan berubah — periksa pencocok").toContain("@c.us");
+    expect(tersimpan, "bentuk simpanan berubah – periksa pencocok").toContain("@c.us");
     const r = cocokkanNomorPengguna([u("a", tersimpan)], "6281234567890");
     expect(r).toEqual({ jenis: "tepat", id: "a" });
   });
@@ -382,7 +233,7 @@ describe("nomor yang DILIHAT orang vs yang DISIMPAN", () => {
     expect(normalizeWaTarget(nomorWaUntukTampil(disimpan))).toBe(disimpan);
   });
 
-  it("ID GRUP tidak dipotong — sufiksnya bagian dari identitas", () => {
+  it("ID GRUP tidak dipotong – sufiksnya bagian dari identitas", () => {
     expect(nomorWaUntukTampil("12036300000000001@g.us")).toBe("12036300000000001@g.us");
   });
 
@@ -434,7 +285,7 @@ describe("pengirim ber-@lid (DECISIONS 347)", () => {
     }
   });
 
-  it("LID BUKAN nomor telepon — tidak pernah dicocokkan ke kolom nomor", () => {
+  it("LID BUKAN nomor telepon – tidak pernah dicocokkan ke kolom nomor", () => {
     /*
      * Penjaga terpenting di blok ini. Pengguna "a" bernomor sama persis dengan
      * angka LID pengirim; menjawabnya berarti mengirim data orang lain.

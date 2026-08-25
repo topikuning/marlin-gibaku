@@ -81,6 +81,6 @@ describe("kop PDF laporan harian: logo pemilik", () => {
     });
     await buildHarianKkpPdf(dasar, "MARLIN", await logoPng());
     spy.mockRestore();
-    expect(errs, "console.error harus kosong — logo tergambar tanpa error").toEqual([]);
+    expect(errs, "console.error harus kosong – logo tergambar tanpa error").toEqual([]);
   }, 30000);
 });

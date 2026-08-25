@@ -103,12 +103,12 @@ export async function r2SelfTest(): Promise<{ ok: boolean; steps: R2SelfTestStep
 export function classifyR2Error(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   const name = err instanceof Error ? err.name : "";
-  if (/ENOTFOUND|EAI_AGAIN/.test(msg)) return `DNS gagal — endpoint salah? (${msg})`;
-  if (/certificate|TLS|SSL/i.test(msg)) return `TLS gagal — jangan bypass, cek endpoint (${msg})`;
+  if (/ENOTFOUND|EAI_AGAIN/.test(msg)) return `DNS gagal – endpoint salah? (${msg})`;
+  if (/certificate|TLS|SSL/i.test(msg)) return `TLS gagal – jangan bypass, cek endpoint (${msg})`;
   if (name === "InvalidAccessKeyId" || /InvalidAccessKeyId/.test(msg)) return "Access Key ID salah";
   if (name === "SignatureDoesNotMatch" || /SignatureDoesNotMatch/.test(msg)) return "Secret Access Key salah";
   if (name === "NoSuchBucket" || /NoSuchBucket/.test(msg)) return "Bucket tidak ada";
-  if (name === "AccessDenied" || /AccessDenied/.test(msg)) return "Ditolak — cek permission token R2";
+  if (name === "AccessDenied" || /AccessDenied/.test(msg)) return "Ditolak – cek permission token R2";
   if (/ETIMEDOUT|timeout/i.test(msg)) return `Timeout jaringan (${msg})`;
   return msg;
 }

@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
-import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
-import { isWahaConfigured, sendText } from "@/lib/waha/client";
+import { weekDateRange, weekOfDate, weightedPct, weightedRealizedPct, type WeekPeriodMode } from "@/lib/progress-calc";
+import { isWahaConfigured } from "@/lib/waha/client";
+import { sendText } from "@/lib/waha/kirim";
 import { formatTanggal } from "@/lib/format";
 import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
 
@@ -29,7 +30,8 @@ const HARI_MS = 86_400_000;
  * pelaksanaannya lewat dari jadwal, yang benar adalah mengatakan minggu ke-25,
  * bukan menahannya di 20.
  */
-export function mingguKontrak(startDate: Date, now: Date): number {
+export function mingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): number {
+  if (mode === "senin_minggu") return weekOfDate(startDate, new Date(tengahMalam(now)), "senin_minggu");
   const hari = Math.floor((tengahMalam(now) - tengahMalam(startDate)) / HARI_MS);
   return Math.floor(hari / 7) + 1;
 }
@@ -43,8 +45,12 @@ export function mingguKontrak(startDate: Date, now: Date): number {
  * harinya mengikuti tanggal SPMK tiap paket (pilihan user), bukan hari tetap
  * dalam seminggu yang bisa jatuh di tengah minggu kontrak.
  */
-export function akhirMingguKontrak(startDate: Date, now: Date): boolean {
+export function akhirMingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): boolean {
   const hari = Math.floor((tengahMalam(now) - tengahMalam(startDate)) / HARI_MS);
+  if (mode === "senin_minggu") {
+    // Minggu kalender berakhir hari MINGGU (dow 0 UTC pada tanggal kerja).
+    return hari >= 0 && new Date(tengahMalam(now)).getUTCDay() === 0;
+  }
   return hari >= 0 && hari % 7 === 6;
 }
 
@@ -62,10 +68,14 @@ function tengahMalam(d: Date): number {
  * — jawaban benar untuk minggu yang salah, dan penerimanya (PPK, konsultan)
  * tidak punya cara mengetahuinya.
  */
-export function rentangMingguKontrak(startDate: Date, mingguKe: number): { mulai: Date; akhir: Date } {
+export function rentangMingguKontrak(
+  startDate: Date,
+  mingguKe: number,
+  mode: WeekPeriodMode = "tujuh_hari",
+): { mulai: Date; akhir: Date } {
   const n = Math.max(1, Math.floor(mingguKe));
-  const awal = tengahMalam(startDate) + (n - 1) * 7 * HARI_MS;
-  return { mulai: new Date(awal), akhir: new Date(awal + 6 * HARI_MS) };
+  const r = weekDateRange(new Date(tengahMalam(startDate)), n, mode);
+  return { mulai: r.start, akhir: r.end };
 }
 
 /**
@@ -75,8 +85,8 @@ export function rentangMingguKontrak(startDate: Date, mingguKe: number): { mulai
  * ke-0". Pemanggil WAJIB memeriksanya; menawarkan "kirim minggu terakhir" pada
  * kontrak yang baru berjalan tiga hari menjanjikan laporan yang isinya belum ada.
  */
-export function mingguSelesaiTerakhir(startDate: Date, now: Date): number {
-  return mingguKontrak(startDate, now) - 1;
+export function mingguSelesaiTerakhir(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): number {
+  return mingguKontrak(startDate, now, mode) - 1;
 }
 
 /**
@@ -86,10 +96,10 @@ export function mingguSelesaiTerakhir(startDate: Date, now: Date): number {
  * tanggal DEPAN, dan `report_date <= asOf` akan diam-diam memasukkan laporan
  * yang belum ada sambil membuat nomor minggunya melompat.
  */
-export function asOfMinggu(startDate: Date, mingguKe: number, now: Date): Date {
-  const berjalan = mingguKontrak(startDate, now);
+export function asOfMinggu(startDate: Date, mingguKe: number, now: Date, mode: WeekPeriodMode = "tujuh_hari"): Date {
+  const berjalan = mingguKontrak(startDate, now, mode);
   if (mingguKe >= berjalan) return now;
-  return rentangMingguKontrak(startDate, mingguKe).akhir;
+  return rentangMingguKontrak(startDate, mingguKe, mode).akhir;
 }
 
 /**
@@ -133,7 +143,7 @@ async function muatPaket(packageId: string) {
       id: true,
       name: true,
       waGroupId: true,
-      contract: { select: { startDate: true, vendor: { select: { name: true } } } },
+      contract: { select: { startDate: true, weekMode: true, vendor: { select: { name: true } } } },
       locations: {
         where: { isActive: true },
         orderBy: { name: "asc" },
@@ -168,13 +178,13 @@ export async function pratinjauMingguan(
   }
   if (pkg.locations.length === 0) return { alasan: "Paket ini belum punya lokasi aktif." };
 
-  const mingguBerjalan = mingguKontrak(pkg.contract.startDate, now);
+  const mingguBerjalan = mingguKontrak(pkg.contract.startDate, now, pkg.contract.weekMode);
   const mingguKe = mingguDiminta ?? mingguBerjalan;
   if (mingguKe < 1) {
     return { alasan: "Kontrak ini belum melewati satu minggu penuh, jadi belum ada minggu selesai yang bisa dilaporkan." };
   }
   if (mingguKe > mingguBerjalan) {
-    return { alasan: `Minggu ke-${mingguKe} belum terjadi — minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
+    return { alasan: `Minggu ke-${mingguKe} belum terjadi – minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
   }
   const berjalan = mingguKe >= mingguBerjalan;
   /*
@@ -183,7 +193,7 @@ export async function pratinjauMingguan(
    * mana yang ikut dihitung (`report_date <= asOf`). Tanpa ini, judul "Minggu
    * ke-6" akan memuat realisasi hari ini.
    */
-  const asOf = asOfMinggu(pkg.contract.startDate, mingguKe, now);
+  const asOf = asOfMinggu(pkg.contract.startDate, mingguKe, now, pkg.contract.weekMode);
   const baris: BarisLokasiMingguan[] = [];
   /** Hanya yang punya kurva-S yang boleh ikut rekap — lihat `rekapPaket`. */
   const berkurva: LocationProgress[] = [];
@@ -205,7 +215,7 @@ export async function pratinjauMingguan(
     });
   }
 
-  const rentang = rentangMingguKontrak(pkg.contract.startDate, mingguKe);
+  const rentang = rentangMingguKontrak(pkg.contract.startDate, mingguKe, pkg.contract.weekMode);
   const body = susunPesanMingguan({
     pelaksana: pkg.contract.vendor.name,
     mingguKe,

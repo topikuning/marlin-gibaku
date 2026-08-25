@@ -102,7 +102,7 @@ describe("tanggal yang DITULIS penanya", () => {
     );
   });
 
-  it("tahun DISEBUT dipakai apa adanya, walau di depan — tapi diberi catatan", () => {
+  it("tahun DISEBUT dipakai apa adanya, walau di depan – tapi diberi catatan", () => {
     const r = bacaPeriode({ jenis: "tanggal", hari: 1, bulan: 12, tahun: 2027 }, HARI_INI);
     expect(r.mulai).toBe("2027-12-01");
     expect(r.catatan).toContain("belum terjadi");
@@ -176,6 +176,20 @@ describe("pekan untuk niat laporan mingguan (DECISIONS 358)", () => {
     const p = pekanDari(bacaPeriode(null, HARI_INI), HARI_INI);
     expect(p.mulai).toBe("2026-08-17");
     expect(p.akhir).toBe("2026-08-17");
+    expect(p.catatan).toContain("Pekan berjalan");
+  });
+
+  it("HARI MINGGU: pekan berjalan MASIH berjalan – laporan hari itu belum masuk", () => {
+    /*
+     * Batas yang sempat lolos: tepat di hari Minggu, akhir pekan == hari ini
+     * dan catatan "Pekan berjalan" hilang — seolah angkanya final, padahal
+     * laporan hari Minggu masih akan masuk. Ketahuan dari uji integrasi yang
+     * kebetulan berjalan lewat tengah malam WIB hari Minggu.
+     */
+    const MINGGU = "2026-08-23"; // Minggu
+    const p = pekanDari(bacaPeriode(null, MINGGU), MINGGU);
+    expect(p.mulai).toBe("2026-08-17");
+    expect(p.akhir).toBe("2026-08-23");
     expect(p.catatan).toContain("Pekan berjalan");
   });
 

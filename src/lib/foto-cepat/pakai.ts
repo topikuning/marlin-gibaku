@@ -87,7 +87,7 @@ export async function pakaiFotoKeTujuan(
     if (!baris) return { error: "Baris material/alat tidak ditemukan." };
     if (!EDITABLE_STATUSES.includes(baris.report.status))
       return {
-        error: "Laporan itu sudah dikirim/disetujui — lampirannya tidak bisa diubah dari sini.",
+        error: "Laporan itu sudah dikirim/disetujui – lampirannya tidak bisa diubah dari sini.",
       };
     tujuanLocationId = baris.report.locationId;
     reportId = baris.reportId;
@@ -101,7 +101,7 @@ export async function pakaiFotoKeTujuan(
     });
     if (!keg) return { error: "Kegiatan tidak ditemukan." };
     if (keg.status !== "draft")
-      return { error: "Kegiatan itu sudah difinalkan — fotonya tidak bisa ditambah lagi." };
+      return { error: "Kegiatan itu sudah difinalkan – fotonya tidak bisa ditambah lagi." };
     tujuanLocationId = keg.locationId;
     activityId = keg.id;
     labelTujuan = `kegiatan "${keg.title}"`;
@@ -118,7 +118,7 @@ export async function pakaiFotoKeTujuan(
     if (!item) return { error: "Item laporan tidak ditemukan." };
     if (!EDITABLE_STATUSES.includes(item.report.status))
       return {
-        error: "Laporan itu sudah dikirim/disetujui — lampirannya tidak bisa diubah dari sini.",
+        error: "Laporan itu sudah dikirim/disetujui – lampirannya tidak bisa diubah dari sini.",
       };
     tujuanLocationId = item.report.locationId;
     reportId = item.reportId;

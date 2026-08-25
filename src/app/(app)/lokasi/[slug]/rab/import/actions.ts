@@ -115,13 +115,13 @@ async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
   if (h.dihapus.length > 0) {
     warnings.push(
       `${h.dihapus.length} item DINYATAKAN DICABUT lewat kolom Keterangan: ${daftar(h.dihapus)}. ` +
-        `Item yang sudah punya realisasi akan disebut terpisah di bawah — periksa dulu sebelum melanjutkan.`,
+        `Item yang sudah punya realisasi akan disebut terpisah di bawah – periksa dulu sebelum melanjutkan.`,
     );
   }
   if (h.volumeNol.length > 0) {
     warnings.push(
       `${h.volumeNol.length} item volumenya dijadikan 0: ${daftar(h.volumeNol)}. ` +
-        `Item ini TETAP tercantum di RAB dengan nilai nol — nol bukan penghapusan. ` +
+        `Item ini TETAP tercantum di RAB dengan nilai nol – nol bukan penghapusan. ` +
         `Kalau maksudnya mencabut item, tulis HAPUS di kolom Keterangan.`,
     );
   }
@@ -130,7 +130,7 @@ async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
       `${h.itemBaru.length} item baru disisipkan: ` +
         h.itemBaru.slice(0, 8).map((x) => `${x.code} ${x.name} (${x.kategori})`).join("; ") +
         (h.itemBaru.length > 8 ? `; +${h.itemBaru.length - 8} lainnya` : "") +
-        `. Harga item baru dipakai apa adanya — ia memang belum pernah disepakati.`,
+        `. Harga item baru dipakai apa adanya – ia memang belum pernah disepakati.`,
     );
   }
   return { ...h, warnings };
@@ -258,7 +258,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         const labels = lostKeys.map((k) => nameByKey.get(k) ?? k);
         const shown = labels.slice(0, 8);
         warnings.push(
-          `PERHATIAN — ${lostKeys.length} item yang SUDAH punya realisasi tidak ditemukan di file baru: ` +
+          `PERHATIAN – ${lostKeys.length} item yang SUDAH punya realisasi tidak ditemukan di file baru: ` +
             `${shown.join("; ")}${labels.length > shown.length ? `; +${labels.length - shown.length} lainnya` : ""}. ` +
             `Realisasi item tersebut TIDAK akan tersambung ke revisi baru sehingga progress lokasi bisa turun. ` +
             `Pastikan kode/struktur item di file sama dengan RAB aktif, atau lanjutkan hanya bila item memang dihapus lewat adendum resmi.`,
@@ -308,15 +308,15 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       if (beda.hargaBerubah.length > 0) {
         const naik = beda.hargaBerubah.filter((h) => h.dampakRupiah > 0n).length;
         const dampak = beda.hargaBerubah.reduce((t, h) => t + h.dampakRupiah, 0n);
-        const harga = (v: number | null) => (v == null ? "—" : formatNumber(v));
+        const harga = (v: number | null) => (v == null ? "–" : formatNumber(v));
         const contoh = beda.hargaBerubah
           .slice(0, 5)
           .map((h) => `${h.code} ${h.name} (${harga(h.dari)} → ${harga(h.ke)})`);
         warnings.push(
-          `PERHATIAN — harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
+          `PERHATIAN – harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
             `(${naik} naik, ${beda.hargaBerubah.length - naik} turun; dampak neto ${formatRupiah(dampak)}): ` +
             `${contoh.join("; ")}${beda.hargaBerubah.length > contoh.length ? `; +${beda.hargaBerubah.length - contoh.length} lainnya` : ""}. ` +
-            `Adendum mengubah VOLUME — harga satuan item yang sudah ada di kontrak seharusnya tetap. ` +
+            `Adendum mengubah VOLUME – harga satuan item yang sudah ada di kontrak seharusnya tetap. ` +
             `Angka file TIDAK diubah sendiri; pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
         );
       }
@@ -371,7 +371,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return {
         preview: {
           ...preview,
-          notice: "File berubah sejak pratinjau — belum disimpan. Periksa ringkasan baru lalu simpan lagi.",
+          notice: "File berubah sejak pratinjau – belum disimpan. Periksa ringkasan baru lalu simpan lagi.",
         },
       };
     }
@@ -389,7 +389,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         return {
           preview,
           notice:
-            "Belum ada RAB aktif di lokasi ini — impor draft adendum butuh RAB aktif sebagai pembanding. Impor sebagai RAB aktif dulu.",
+            "Belum ada RAB aktif di lokasi ini – impor draft adendum butuh RAB aktif sebagai pembanding. Impor sebagai RAB aktif dulu.",
         } as ImportState;
       }
       const amendmentId = draft?.amendmentId ?? null;
@@ -416,7 +416,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return {
         success:
           `Draft adendum revisi #${resDraft.revisionNo} terisi dari ${file.name} ` +
-          `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah — ` +
+          `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah – ` +
           `draft ini baru berlaku setelah diaktifkan.` +
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : ""),
       };
@@ -445,7 +445,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       revalidatePath(`/lokasi/${location.slug}`, "layout");
       return {
         success:
-          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) — belum aktif. ` +
+          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) – belum aktif. ` +
           `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
           `Buka tab Adendum untuk meminta persetujuan lalu mengaktifkannya.`,
       };
@@ -491,11 +491,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return {
         error:
           `Revisi RAB #${res.revisionNo} SUDAH AKTIF, tetapi kurva-S GAGAL di-regenerate (${baselineError}). ` +
-          `Grafik & deviasi masih memakai baseline lama — buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
+          `Grafik & deviasi masih memakai baseline lama – buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
       };
     }
     return {
-      success: `Revisi RAB #${res.revisionNo} (${source === "adendum" ? "adendum" : "HPS awal"}) aktif — ${res.itemCount} item. Baseline kurva-S di-regenerate.${carryInfo}`,
+      success: `Revisi RAB #${res.revisionNo} (${source === "adendum" ? "adendum" : "HPS awal"}) aktif – ${res.itemCount} item. Baseline kurva-S di-regenerate.${carryInfo}`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -529,7 +529,7 @@ async function arsipkanSumber(a: {
         locationId: a.location.id,
         phase: a.adendum ? "adendum" : "kontrak",
         type: "hps",
-        title: `HPS/RAB ${a.adendum ? `adendum (revisi #${a.revisionNo})` : "awal"} — ${a.location.name}`,
+        title: `HPS/RAB ${a.adendum ? `adendum (revisi #${a.revisionNo})` : "awal"} – ${a.location.name}`,
         r2Key: key,
         fileName: a.file.name,
         mimeType: a.file.type || XLSX_MIME[0],

@@ -23,13 +23,25 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const terkirim: { chatId: string; teks: string }[] = [];
 
 vi.mock("@/lib/waha/client", () => ({
+  // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
+  // yang sudah bermigrasi ke identitas privasi: mention di grup berisi @lid.
+  getIdentitasMarlin: async () => ({ nomor: NOMOR_MARLIN, lid: LID_MARLIN }),
+}));
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client` (DECISIONS 374).
+ *
+ * Sejak gateway kanonik ada, pemanggil fitur tidak lagi menyentuh `client`
+ * langsung: `client` tinggal transport mentah, dan `kirim` yang menumpang
+ * gateway (periksa sesi → catat outbox → simpan message id). Memalsukan
+ * `client` saja membuat uji menembus gateway sungguhan — yang benar, tapi
+ * bukan yang sedang diuji berkas ini.
+ */
+vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, teks: string) => {
     terkirim.push({ chatId, teks });
     return "mock-id";
   },
-  // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
-  // yang sudah bermigrasi ke identitas privasi: mention di grup berisi @lid.
-  getIdentitasMarlin: async () => ({ nomor: NOMOR_MARLIN, lid: LID_MARLIN }),
 }));
 
 /** Niat yang "dibaca AI" — disetel per uji. */
@@ -56,6 +68,15 @@ vi.mock("@/lib/ai/structured", () => ({
       : { ok: false, errorCode: "provider_down", error: "uji", meta: null, attempts: 1 },
 }));
 
+/**
+ * Pertanyaan yang MEMANG harus dibaca AI.
+ *
+ * Tidak memuat satu pun kata kunci niat dan tidak menyebut waktu, jadi parser
+ * deterministik menyerahkannya — persis jalur yang diuji oleh uji-uji AI di
+ * berkas ini.
+ */
+const TANYA_BUTUH_AI = "bagaimana keadaan pekerjaan tanggul";
+
 const NOMOR_MARLIN = "6281200000000";
 const LID_MARLIN = "77712345678901";
 
@@ -66,6 +87,8 @@ const { normalizeWaTarget } = await import("@/lib/contacts/model");
 const suffix = `wt${Date.now().toString(36)}`;
 const GRUP_A = `12036300000000001@g.us`;
 const GRUP_LAIN_ORG = `12036300000000002@g.us`;
+/** Grup yang TIDAK tertaut paket mana pun — jalur baru brief 5A. */
+const GRUP_LEPAS = `12036300000000003@g.us`;
 
 let orgId = "";
 let orgLainId = "";
@@ -75,19 +98,26 @@ let lokB1 = "";
 let nomorSM = "6285700000001";
 const nomorSmB = "6285700000009";
 let nomorAdmin = "6285700000002";
+/** Program Director org kita — peran istimewa kedua (brief 5A). */
+const nomorPD = "6285700000003";
+/** Super admin ORGANISASI LAIN — dipakai membuktikan batas tenancy. */
+const nomorAdminLain = "6285700000004";
 
 async function buatPaket(oid: string, nama: string, waGroupId: string | null) {
   return db.package.create({ data: { orgId: oid, name: `${nama} ${suffix}`, waGroupId } });
 }
 
-async function buatLokasi(packageId: string, nama: string) {
+async function buatLokasi(packageId: string, nama: string, regency = "Kab") {
   const l = await db.location.create({
     data: {
       packageId,
       name: nama,
       slug: `${nama.toLowerCase().replace(/\s+/g, "")}-${suffix}`,
       village: nama,
-      regency: "Kab",
+      // Kabupaten SUNGGUHAN, bukan "Kab" untuk semua: penanya lapangan menyebut
+      // daerah, dan kabupaten yang seragam membuat perilaku itu tak teruji
+      // (DECISIONS 367).
+      regency,
       province: "Prov",
       // `isActive` default-nya FALSE di skema; lokasi non-aktif tidak menagih
       // laporan dan sengaja tidak masuk katalog jawaban.
@@ -124,18 +154,23 @@ function event(p: {
   teks: string;
   mention?: string[];
   fromMe?: boolean;
+  /** Dipakai uji idempotensi: webhook yang sama dikirim ulang membawa id sama. */
+  id?: string;
+  /** ID pesan yang DIKUTIP — pengikat jawaban pilihan (DECISIONS 376). */
+  mengutip?: string;
 }) {
   const grup = p.chatId.endsWith("@g.us");
   return {
     event: "message",
     payload: {
-      id: `msg-${Math.random().toString(36).slice(2)}`,
+      id: p.id ?? `msg-${Math.random().toString(36).slice(2)}`,
       from: grup ? p.chatId : `${p.dari}@c.us`,
       author: grup ? `${p.dari}@c.us` : undefined,
       fromMe: p.fromMe ?? false,
       body: p.teks,
       timestamp: Math.floor(Date.now() / 1000),
       mentionedIds: p.mention ?? [],
+      ...(p.mengutip ? { contextInfo: { stanzaId: p.mengutip } } : {}),
     },
   };
 }
@@ -152,10 +187,10 @@ beforeAll(async () => {
   const pkgB = await buatPaket(orgId, "Paket B", null);
   const pkgLain = await buatPaket(orgLainId, "Paket Tetangga", GRUP_LAIN_ORG);
 
-  lokA1 = await buatLokasi(pkgA.id, "Kedung Mutih");
-  lokA2 = await buatLokasi(pkgA.id, "Kedungmalang");
-  lokB1 = await buatLokasi(pkgB.id, "Tengket");
-  await buatLokasi(pkgLain.id, "Batah Timur");
+  lokA1 = await buatLokasi(pkgA.id, "Kedung Mutih", "Demak");
+  lokA2 = await buatLokasi(pkgA.id, "Kedungmalang", "Demak");
+  lokB1 = await buatLokasi(pkgB.id, "Tengket", "Bangkalan");
+  await buatLokasi(pkgLain.id, "Batah Timur", "Bangkalan");
 
   // Site Manager: ditugaskan ke SELURUH lokasi org (A1, A2, B1).
   const sm = await buatUser(orgId, "SiteManager", "site_manager", nomorSM);
@@ -164,6 +199,9 @@ beforeAll(async () => {
   }
   // Super admin: lintas lokasi, TANPA penugasan.
   await buatUser(orgId, "SuperAdmin", "super_admin", nomorAdmin);
+  // Peran istimewa kedua + super admin organisasi lain (brief 5A).
+  await buatUser(orgId, "ProgramDirector", "program_director", nomorPD);
+  await buatUser(orgLainId, "AdminOrgLain", "super_admin", nomorAdminLain);
   // Orang organisasi LAIN — dipakai menguji pemetaan @lid lintas organisasi.
   await buatUser(orgLainId, "OrangOrgLain", "site_manager", null);
   // Pengguna TERDAFTAR yang ditugaskan HANYA ke paket B — dipakai membuktikan
@@ -180,10 +218,30 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   terkirim.length = 0;
   aiSehat = true;
   niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+  /*
+   * Kuota AI (20 analisis/jam/pengguna) dinolkan tiap uji.
+   *
+   * Tanpa ini, JUMLAH uji di berkas ini ikut menentukan hasilnya: uji-uji awal
+   * menghabiskan jatah SiteManager, lalu uji yang jauh di bawah menerima
+   * "Batas 20 analisis AI per jam tercapai" alih-alih jawaban yang sedang
+   * diperiksa. Persis itu yang terjadi saat dua uji kabupaten ditambahkan —
+   * uji yang merah bukan uji yang berubah. Satu uji sudah membersihkannya
+   * sendiri sejak dulu; pembersihan itu memang milik seluruh berkas.
+   *
+   * Tidak ada uji di sini yang menguji BATASnya sendiri — yang ada menghitung
+   * SELISIH baris ai_runs, dan selisih tidak terganggu penolan.
+   */
+  await db.aiRun.deleteMany({});
+  // Tawaran klarifikasi juga durable (DECISIONS 376): tawaran yang tersisa dari
+  // uji sebelumnya akan membuat "1" di uji berikutnya menjawab pertanyaan lain.
+  await db.waPendingClarification.deleteMany({});
+  // Konteks susulan juga durable (DECISIONS 377): konteks sisa uji sebelumnya
+  // akan membuat "kalau kemarin?" menyambung ke pertanyaan yang salah.
+  await db.waChatContext.deleteMany({});
 });
 
 describe("kapan MARLIN benar-benar membalas", () => {
@@ -263,7 +321,7 @@ describe("apa yang boleh bocor ke grup", () => {
     expect(teks.toLowerCase()).toContain("chat pribadi");
   });
 
-  it("chat pribadi orang yang sama: Tengket ikut — jadi pemotongan tadi nyata", async () => {
+  it("chat pribadi orang yang sama: Tengket ikut – jadi pemotongan tadi nyata", async () => {
     // Tanpa uji pasangan ini, "tidak menyebut Tengket" bisa saja karena
     // Tengket memang tidak pernah muncul di jawaban mana pun.
     niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
@@ -355,6 +413,47 @@ describe("nama lokasi di pertanyaan", () => {
     expect(teks).not.toContain("Kedung Mutih");
   });
 
+  it("nama KABUPATEN dijawab, bukan 'tidak menemukan lokasi'", async () => {
+    /*
+     * Keluhan user 2026-08-19 dari WhatsApp sungguhan: *"apa jember kemarin
+     * laporan?"* → *"Saya tidak menemukan lokasi: jember. Mungkin salah ketik,
+     * atau di luar penugasan Anda."* Padahal Jember kabupaten, dan lokasinya
+     * ada. Katalog nama saja tidak cukup — orang lapangan menyebut daerah.
+     */
+    niatPalsu = { niat: "progress", lokasiDisebut: ["Demak"], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress di Demak" }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).not.toContain("tidak menemukan lokasi");
+    // Kedua lokasi di Kabupaten Demak ikut …
+    expect(teks).toContain("Kedung Mutih");
+    expect(teks).toContain("Kedungmalang");
+    // … yang di kabupaten lain TIDAK.
+    expect(teks).not.toContain("Tengket");
+    // Dan balasannya MENGAKU bahwa yang dibaca itu kabupaten — tanpa ini,
+    // penanya mengira sedang membaca angka satu lokasi.
+    expect(teks).toContain("Kabupaten Demak");
+    expect(teks).toContain("2 lokasi");
+  });
+
+  it("kabupaten di luar lingkup penanya tetap 'tidak ditemukan'", async () => {
+    // Menyebut kabupaten tidak boleh jadi jalan pintas melewati pemotongan
+    // izin: Batah Timur (Bangkalan) milik organisasi LAIN.
+    niatPalsu = { niat: "progress", lokasiDisebut: ["Bangkalan"], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "progress di Bangkalan",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).toContain("tidak menemukan lokasi");
+    expect(teks).not.toContain("Batah Timur");
+  });
+
   it("satu lokasi disebut: hanya lokasi itu yang dijawab", async () => {
     niatPalsu = { niat: "progress", lokasiDisebut: ["Tengket"], periode: "hari_ini" };
     await jawabPertanyaanWa(
@@ -363,6 +462,186 @@ describe("nama lokasi di pertanyaan", () => {
     const teks = terkirim[0]?.teks ?? "";
     expect(teks).toContain("Tengket");
     expect(teks).not.toContain("Kedung Mutih");
+  });
+});
+
+describe("periode lampau: jujur soal WAKTU yang dijawab (DECISIONS 369)", () => {
+  const tanya = async (teks: string) => {
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }));
+    return terkirim[0]?.teks ?? "";
+  };
+
+  it("deviasi lampau TIDAK lagi mengaku 'posisi HARI INI'", async () => {
+    /*
+     * Kalimat itu dulu benar dan sekarang salah. `dataDeviasi` menerima
+     * `dateKey` dan meneruskannya sebagai `asOf`, jadi angkanya memang posisi
+     * tanggal yang ditanya — keterangan lama berubah dari pengakuan jujur
+     * menjadi keterangan keliru, dan keterangan keliru yang terdengar
+     * berhati-hati lebih merusak daripada tidak ada keterangan sama sekali.
+     */
+    niatPalsu = {
+      niat: "deviasi",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 7 },
+    };
+    const teks = await tanya("deviasi seminggu lalu");
+    expect(teks.toLowerCase()).not.toContain("posisi hari ini");
+    expect(teks.toLowerCase()).not.toContain("belum bisa menghitung deviasi");
+  });
+
+  it("laporan harian untuk RENTANG tetap menyebut tanggal mana yang diambil", async () => {
+    // Laporan harian selalu satu tanggal. Meminjam label rentang ("minggu
+    // lalu") untuk isi satu hari adalah judul yang tidak dijawab isinya.
+    niatPalsu = {
+      niat: "laporan",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 1 },
+    };
+    const teks = await tanya("minta laporan minggu lalu");
+    expect(teks).toContain("Laporan harian selalu satu tanggal");
+    expect(teks.toLowerCase()).toContain("hari terakhirnya");
+  });
+
+  it("kendala 'terbuka sekarang' untuk periode lampau TETAP mengaku begitu", async () => {
+    /*
+     * Cabang `terbuka_sekarang` masih ada dan masih harus jujur: daftarnya
+     * keadaan SEKARANG, bukan keadaan pada periode yang ditanya.
+     *
+     * Pertanyaannya sengaja yang MEMANG lewat AI. Sejak DECISIONS 381, teks
+     * yang menyebut "kendala" + periode lampau dicegat parser dan DITAWARI dua
+     * cara baca — jadi memakai teks itu di sini akan menguji jalur yang tidak
+     * pernah sampai ke cabang ini.
+     */
+    niatPalsu = {
+      niat: "kendala",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 1 },
+    };
+    const teks = await tanya(TANYA_BUTUH_AI);
+    expect(teks).toContain("masih TERBUKA sekarang");
+  });
+
+  it("'kendala kemarin' kini DITAWARI dua cara baca, bukan dipilihkan", async () => {
+    /*
+     * Koreksi user 2026-08-19 (DECISIONS 381): mesin klarifikasi memang dibuat
+     * untuk kasus ini. Sebelumnya MARLIN memilih sendiri — menjawab semua yang
+     * terbuka sekarang lalu menempel catatan bahwa itu bukan keadaan pada
+     * periode yang ditanya. Jujur, tapi menjawab pertanyaan yang tidak
+     * ditanyakan.
+     */
+    const teks = await tanya("kendala kemarin apa saja");
+    expect(teks).toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("DIBUKA");
+    expect(teks).toContain("MASIH TERBUKA");
+  });
+});
+
+describe("akses istimewa Super Admin & Program Director (brief 5A, DECISIONS 371)", () => {
+  const mention = [`${NOMOR_MARLIN}@c.us`];
+
+  const tanya = async (chatId: string, dari: string, teks: string, pakaiMention = false) => {
+    await jawabPertanyaanWa(
+      event({ chatId, dari, teks, ...(pakaiMention ? { mention } : {}) }),
+    );
+    return terkirim[0]?.teks ?? "";
+  };
+
+  it("super admin dijawab lewat DM", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(`${nomorAdmin}@c.us`, nomorAdmin, "deviasi");
+    expect(teks).not.toBe("");
+    // 3 lokasi org kita (A1, A2, B1) — bukan 4 (Batah Timur milik org lain).
+    expect(teks).toContain("3 yang saya periksa");
+  });
+
+  it("program director dijawab lewat DM", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(`${nomorPD}@c.us`, nomorPD, "deviasi");
+    expect(teks).toContain("3 yang saya periksa");
+  });
+
+  it("keduanya dijawab di grup TIDAK tertaut, sesudah mention", async () => {
+    /*
+     * Ini jalur yang sebelumnya selalu ditolak. Yang membuatnya aman bukan
+     * grupnya — grup itu tidak menyatakan apa pun — melainkan identitas
+     * pengirim yang terverifikasi lewat nomor tersimpan.
+     */
+    for (const nomor of [nomorAdmin, nomorPD]) {
+      terkirim.length = 0;
+      await db.aiRun.deleteMany({});
+      niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+      const teks = await tanya(GRUP_LEPAS, nomor, "deviasi", true);
+      expect(teks, nomor).not.toContain("belum tertaut paket");
+      expect(teks, nomor).toContain("3 yang saya periksa");
+    }
+  });
+
+  it("jawaban di grup tak tertaut MENYEBUT dasar lingkupnya", async () => {
+    // Anggota grup lain berhak tahu kenapa data proyek muncul di grup yang
+    // tidak tertaut paket apa pun.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorPD, "deviasi", true);
+    expect(teks).toContain("Program Director");
+    expect(teks).toContain("tidak tertaut paket");
+  });
+
+  it("scope-nya dari ORG + PERAN, bukan dari grupnya", async () => {
+    /*
+     * Super admin ORGANISASI LAIN bertanya di grup yang sama. Kalau lingkupnya
+     * diambil dari grup, ia akan menerima data org kita. Yang benar: ia hanya
+     * melihat organisasinya sendiri — yang di fixture ini berisi 1 lokasi.
+     */
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorAdminLain, "deviasi", true);
+    expect(teks).toContain("1 yang saya periksa");
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("pengguna BIASA di grup tak tertaut TIDAK memperoleh data proyek", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorSM, "deviasi", true);
+    expect(teks).toContain("belum tertaut paket");
+    expect(teks).not.toContain("yang saya periksa");
+  });
+
+  it("nomor TIDAK dikenal di grup tak tertaut tetap ditolak", async () => {
+    // Nama tampilan yang meniru direktur tidak pernah sampai ke resolver
+    // sebagai identitas — yang dibaca hanya nomor/LID.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, "6289999999999", "deviasi", true);
+    expect(teks).toContain("belum tertaut paket");
+  });
+
+  it("di grup TERTAUT, super admin tetap dipotong ke paket grup", async () => {
+    /*
+     * Pagar yang paling gampang jebol saat aturan 5A ditambahkan. Balasannya
+     * dibaca seluruh anggota grup paket A, termasuk vendornya — melebarkannya
+     * karena yang bertanya direktur berarti data paket B bocor ke sana.
+     */
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_A, nomorAdmin, "deviasi", true);
+    expect(teks).toContain("2 yang saya periksa"); // A1 + A2 saja
+    expect(teks).not.toContain("Tengket");
+    expect(teks).toContain("hanya mencakup");
+  });
+
+  it("audit mencatat asal scope dan peran yang dipakai", async () => {
+    // Brief 5A: audit harus menyebut kanal, grup tertaut atau tidak, asal
+    // scope, dan perannya — tanpa itu, kejadian ini tidak bisa ditelusuri.
+    // `audit_logs` append-only di level basis data (trigger menolak
+    // UPDATE/DELETE), jadi barisnya tidak dibersihkan — cukup ambil yang
+    // TERBARU sesudah aksi ini.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    await tanya(GRUP_LEPAS, nomorPD, "deviasi", true);
+    const baris = await db.auditLog.findFirst({
+      where: { action: "waha.tanya" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    const meta = baris?.payload as Record<string, unknown> | null;
+    expect(meta?.asalScope).toBe("privileged_user");
+    expect(meta?.peranDipakai).toBe("program_director");
+    expect(meta?.grup).toBe(true);
   });
 });
 
@@ -379,8 +658,14 @@ describe("mengaku saat tidak bisa", () => {
 
   it("AI mati: mengaku, TIDAK mengarang jawaban", async () => {
     aiSehat = false;
+    /*
+     * Pertanyaannya sengaja yang MEMANG butuh AI (DECISIONS 375). "mana yang
+     * deviasinya negatif" tidak lagi menyentuh provider sama sekali, jadi
+     * memakainya di sini akan menguji matinya AI lewat jalur yang tidak pernah
+     * memanggil AI — hijau yang tidak membuktikan apa pun.
+     */
     await jawabPertanyaanWa(
-      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
     );
     const teks = terkirim[0]?.teks ?? "";
     expect(teks.toLowerCase()).toContain("tidak bisa membaca");
@@ -388,12 +673,33 @@ describe("mengaku saat tidak bisa", () => {
     expect(teks).not.toContain("Kedung");
   });
 
-  it("pemakaian AI tercatat di ai_runs — kuota guard menghitung dari sana", async () => {
+  it("pemakaian AI tercatat di ai_runs – kuota guard menghitung dari sana", async () => {
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
+    );
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum + 1);
+  });
+
+  it("pola JELAS dijawab tanpa menyentuh AI sama sekali (DECISIONS 375)", async () => {
+    /*
+     * Sisi lain dari uji di atas, dan alasan seluruh parser deterministik ada.
+     *
+     * Yang dibuktikan bukan "lebih murah", melainkan tiga hal yang terukur:
+     * tidak ada baris `ai_runs` (kuota tidak terpakai), jawabannya tetap
+     * lengkap, dan — lewat `aiSehat = false` — ia tetap terjawab WALAU provider
+     * AI sedang mati total.
+     */
+    aiSehat = false;
     const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
     await jawabPertanyaanWa(
       event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
     );
-    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum + 1);
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).not.toContain("tidak bisa membaca");
+    expect(teks.toLowerCase()).toContain("deviasi");
   });
 
   it("jawaban yang berhasil ditulis ke audit", async () => {
@@ -560,7 +866,7 @@ describe("mention MARLIN di grup, apa pun bentuk identitasnya (DECISIONS 349)", 
     expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
   });
 
-  it("mention ke ORANG LAIN tetap diam — pagarnya tidak ikut longgar", async () => {
+  it("mention ke ORANG LAIN tetap diam – pagarnya tidak ikut longgar", async () => {
     const r = await jawabPertanyaanWa(grupEvent({ mentionedIds: ["99900000000000@lid"] }));
     expect(r.dijawab).toBe(false);
     expect(terkirim).toHaveLength(0);
@@ -710,7 +1016,7 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
     expect(terkirim[0]?.teks ?? "").not.toContain("belum terdaftar");
   });
 
-  it("CHAT PRIBADI tidak ikut longgar — nomor tak dikenal tetap DIDIAMKAN", async () => {
+  it("CHAT PRIBADI tidak ikut longgar – nomor tak dikenal tetap DIDIAMKAN", async () => {
     /*
      * Pagar yang tidak boleh ikut terbuka. Di chat pribadi tidak ada grup yang
      * membatasi apa pun, jadi identitas penanya satu-satunya dasar. Balasan apa
@@ -767,7 +1073,7 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
     expect(olehAsing).toBe(olehSM);
   });
 
-  it("pemakaian AI penanya tak terdaftar TETAP tercatat — kuota tidak bocor", async () => {
+  it("pemakaian AI penanya tak terdaftar TETAP tercatat – kuota tidak bocor", async () => {
     /*
      * Tanpa ini, satu grup ramai bisa menghabiskan anggaran AI sepanjang hari
      * sementara panel AI Hub melaporkan nol pemakaian. `userId` null, tapi
@@ -779,7 +1085,9 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
       event({
         chatId: GRUP_A,
         dari: ORANG_ASING,
-        teks: "siapa yang belum lapor",
+        // Butuh AI: "siapa yang belum lapor" kini dijawab deterministik, dan
+        // jalur itu memang TIDAK menulis ai_runs — bukan itu yang diuji di sini.
+        teks: TANYA_BUTUH_AI,
         mention: [`${NOMOR_MARLIN}@c.us`],
       }),
     );
@@ -868,7 +1176,7 @@ describe("pembalikan yang dihilangkan DECISIONS 351", () => {
   });
 });
 
-describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
+describe("periode & niat baru – MARLIN yang luwes (DECISIONS 356)", () => {
   /*
    * Permintaan user 2026-08-17: *"aku ingin chat whatsapp ke marlin menjadi
    * seluwes mungkin … minta laporan harian, progress tanggal tertentu atau
@@ -935,24 +1243,53 @@ describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
     expect(teks).toContain("3 Juli 2026");
   });
 
-  it("DEVIASI untuk hari lampau MENGAKU bahwa angkanya posisi hari ini", async () => {
+  it("DEVIASI untuk hari lampau kini benar-benar historis, tanpa caveat lama", async () => {
     /*
-     * Pagar kejujuran yang paling penting di blok ini. Deviasi dihitung
-     * terhadap posisi kurva-S HARI INI; menyajikannya di bawah judul "kemarin"
-     * adalah jawaban benar untuk hari yang salah, dan penerimanya — yang akan
-     * men-screenshot lalu meneruskannya ke PPK — tidak punya cara mengetahuinya.
+     * Uji ini DIBALIK, bukan dihapus — dan pembalikannya sengaja dicatat.
+     *
+     * Versi lamanya menuntut kalimat *"Deviasi ini posisi HARI INI; saya belum
+     * bisa menghitung deviasi pada …"*. Waktu itu ia pagar kejujuran yang
+     * benar: angkanya memang posisi hari ini apa pun periode yang ditanya.
+     *
+     * Audit user 2026-08-19 menunjukkan premisnya keliru sejak awal —
+     * `getLocationsProgress` sudah menerima `asOf` sejak DECISIONS 275, jadi
+     * yang kurang cuma meneruskan tanggalnya. Sesudah diteruskan, kalimat itu
+     * berubah dari pengakuan jujur menjadi keterangan yang SALAH.
+     *
+     * Uji yang mengunci keterbatasan harus ikut dibalik saat keterbatasannya
+     * hilang; kalau tidak, ia menjadi alasan untuk mempertahankan cacat.
+     * DECISIONS 369.
      */
     niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 2 } };
     const { teks } = await tanya("deviasi kemarin lusa");
-    expect(teks).toContain("posisi HARI INI");
     expect(teks).toContain("kemarin lusa");
+    expect(teks).not.toContain("posisi HARI INI");
+    expect(teks.toLowerCase()).not.toContain("belum bisa menghitung deviasi");
   });
 
-  it("KENDALA untuk hari lampau MENGAKU bahwa daftarnya keadaan sekarang", async () => {
-    // Sistem tidak menyimpan riwayat "kendala apa yang terbuka pada hari X".
+  it("KENDALA 'terbuka sekarang' untuk hari lampau MENGAKU keadaannya sekarang", async () => {
+    // Teksnya yang MEMANG lewat AI — "kendala kemarin" kini dicegat parser dan
+    // ditawari dua cara baca (DECISIONS 381).
     niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 1 } };
-    const { teks } = await tanya("kendala kemarin");
+    const { teks } = await tanya(TANYA_BUTUH_AI);
     expect(teks).toContain("masih TERBUKA sekarang");
+  });
+
+  it("niat kendala_dibuka TIDAK memakai catatan 'keadaan sekarang'", async () => {
+    /*
+     * Catatan itu benar untuk `terbuka_sekarang`, tapi untuk cabang periode ia
+     * berubah dari pengakuan jujur menjadi keterangan yang SALAH — dan
+     * keterangan salah yang terdengar berhati-hati lebih merusak daripada tidak
+     * ada keterangan sama sekali.
+     */
+    niatPalsu = {
+      niat: "kendala_dibuka",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 1 },
+    };
+    const { teks } = await tanya(TANYA_BUTUH_AI);
+    expect(teks).not.toContain("masih TERBUKA sekarang");
+    expect(teks).toContain("Kendala yang dibuka");
   });
 
   it("deviasi HARI INI tidak memberi catatan yang tidak perlu", async () => {
@@ -1083,5 +1420,630 @@ describe("laporan MINGGUAN vs laporan HARIAN (DECISIONS 358)", () => {
     const { teks } = await tanya("kamu bisa apa saja");
     expect(teks).toContain("Laporan harian");
     expect(teks).toContain("Laporan mingguan");
+  });
+});
+
+
+describe("klarifikasi tertunda – pilihan yang benar-benar bisa dijawab (DECISIONS 376)", () => {
+  const ORANG_LAIN = "6289811111111";
+
+  /** Ajukan pertanyaan kabur, kembalikan teks tawaran yang dikirim MARLIN. */
+  async function tawarkan(dari = nomorSM, chatId = `${nomorSM}@c.us`) {
+    const r = await jawabPertanyaanWa(
+      event({ chatId, dari, teks: "bagaimana yang kemarin?" }),
+    );
+    return { hasil: r, teks: terkirim.at(-1)?.teks ?? "" };
+  }
+
+  it("pertanyaan kabur DITAWARI pilihan, bukan ditolak mentah", async () => {
+    /*
+     * Keberatan user 2026-08-19: "niat = null → tidak mengerti" terlalu cepat
+     * menyerah. Tafsirnya cuma tiga, dan menyebutkannya memakai kata yang ia
+     * tulis sendiri jauh lebih menolong daripada menu kemampuan generik.
+     */
+    const { teks } = await tawarkan();
+    expect(teks).toContain("1.");
+    expect(teks).toContain("2.");
+    expect(teks).toContain("kemarin");
+    expect(teks.toLowerCase()).not.toContain("belum mengerti");
+  });
+
+  it("tawaran TIDAK memanggil AI", async () => {
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    aiSehat = false; // provider mati — tawarannya tetap harus muncul
+    const { teks } = await tawarkan();
+    expect(teks).toContain("1.");
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+  });
+
+  it('balasan "2" dijalankan – juga TANPA panggilan AI kedua', async () => {
+    /*
+     * Inti butir 22 brief. Kandidatnya sudah dihitung saat tawaran dibuat dan
+     * disimpan utuh; membayar panggilan AI kedua untuk membaca ulang
+     * pertanyaan yang sama adalah pemborosan yang tidak menambah apa pun.
+     */
+    await tawarkan();
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    aiSehat = false;
+    terkirim.length = 0;
+
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "2" }),
+    );
+    expect(r.dijawab).toBe(true);
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+    // Pilihan ke-2 = "laporan" (urutan kandidat: progress, laporan, kendala).
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Laporan harian");
+  });
+
+  it("orang LAIN di grup tidak bisa membajak klarifikasi dengan mengetik 1", async () => {
+    /*
+     * Pagar paling penting di fitur ini, dan alasan kuncinya chat + PENGIRIM.
+     * Kalau dikunci per chat saja, jawaban orang lain akan tampil seolah
+     * menjawab pertanyaan si penanya asli — dan tidak ada yang bisa
+     * membedakannya.
+     */
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "bagaimana yang kemarin?",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("1.");
+    terkirim.length = 0;
+
+    // Orang lain menjawab "1" di grup yang sama.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_LAIN,
+        teks: "1",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    // Bukan jawaban pilihan → jatuh ke jalur biasa, BUKAN menjalankan pilihan
+    // milik orang lain.
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+
+    // Tawaran penanya asli masih utuh — belum terpakai oleh siapa pun.
+    const baris = await db.waPendingClarification.findFirst({
+      where: { chatId: GRUP_A, senderKey: `${nomorSM}@c.us` },
+      select: { answeredAt: true },
+    });
+    expect(baris?.answeredAt).toBeNull();
+  });
+
+  it("tawaran KEDALUWARSA dikatakan, tidak didiamkan", async () => {
+    await tawarkan();
+    // Dituakan langsung di basis data — menunggu 12 menit di uji tidak masuk akal.
+    await db.waPendingClarification.updateMany({
+      where: { chatId: `${nomorSM}@c.us` },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Diam di sini terbaca seperti sistem rusak: penanya baru saja mengetik "1".
+    expect(teks.toLowerCase()).toContain("sudah lewat");
+  });
+
+  it("angka di LUAR daftar disebut batasnya", async () => {
+    await tawarkan();
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "7" }));
+    expect(terkirim.at(-1)?.teks ?? "").toContain("1–3");
+  });
+
+  it("webhook yang DIULANG tidak menawarkan dua kali", async () => {
+    const id = "msg-ulang-tawaran";
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "bagaimana yang kemarin?", id }),
+    );
+    const setelahSatu = terkirim.length;
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "bagaimana yang kemarin?", id }),
+    );
+    expect(terkirim.length).toBe(setelahSatu);
+    expect(r.dijawab).toBe(false);
+  });
+
+  it("jawaban yang DIULANG tidak dijalankan dua kali", async () => {
+    await tawarkan();
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    const setelahSatu = terkirim.length;
+    expect(setelahSatu).toBe(1);
+
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    // Balasan kedua BUKAN pengulangan jawaban pilihan.
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+  });
+
+  it("balasan yang MENGUTIP pesan lain bukan jawaban untuk tawaran ini", async () => {
+    /*
+     * Di grup ramai beberapa percakapan berjalan bersamaan. Angka yang mengutip
+     * pesan lain, kalau dijalankan, menjawab percakapan yang salah.
+     */
+    await tawarkan();
+    terkirim.length = 0;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "1",
+        mengutip: "pesan-percakapan-lain",
+      }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+  });
+
+  it("pertanyaan yang JELAS tidak pernah ditawari pilihan", async () => {
+    // Menawarkan pilihan untuk "progress hari ini" akan membuang waktu yang
+    // justru sedang dihemat parser deterministik.
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress hari ini" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Maksud Anda yang mana?");
+  });
+
+  it("jejak audit menyebut tawaran DAN pilihannya", async () => {
+    await tawarkan();
+    const tawar = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.tawar" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(tawar).not.toBeNull();
+
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "3" }));
+    const pilih = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.klarifikasi" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect((pilih?.payload as { pilihan?: number } | null)?.pilihan).toBe(3);
+  });
+});
+
+
+describe("pertanyaan susulan – dilengkapi dari konteks (DECISIONS 377)", () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+
+  it('"bagaimana yang kemarin?" MENYAMBUNG pertanyaan sebelumnya, bukan ditanya balik', async () => {
+    /*
+     * Percakapan lapangan tidak mengulang subjeknya. Menawarkan daftar pilihan
+     * di sini berarti menanyakan sesuatu yang BARU SAJA kita jawab sendiri.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini" }),
+    );
+    terkirim.length = 0;
+
+    aiSehat = false; // menyambung konteks tidak boleh memanggil AI
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    expect(teks).not.toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("Progress");
+  });
+
+  it("periode diambil dari SUSULAN, niat dari konteks", async () => {
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "ada kendala apa" }),
+    );
+    terkirim.length = 0;
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "kalau kemarin?" }),
+    );
+    // Niat "kendala" dipinjam; periodenya yang ia sebut sendiri.
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Kendala");
+  });
+
+  it("NIAT yang disebut susulan menang atas konteks – bukan dibajak", async () => {
+    /*
+     * Cacat produksi 2026-08-20, dilaporkan user dengan tangkapan layar:
+     *
+     *   "siapa yang belum lapor kemarin?" → Kelengkapan laporan, kemarin ✓
+     *   "kendala minggu lalu"             → Kelengkapan laporan, minggu lalu ✗
+     *
+     * Pertanyaan kedua menyebut "kendala" sejelas-jelasnya. Yang bercabang
+     * cuma cara membacanya (DECISIONS 381), dan cabang itu dulu bertipe sama
+     * dengan "pertanyaan tanpa niat" – jadi konteks meminjam niat lama dan
+     * membuang kata yang baru saja ditulis penanya.
+     *
+     * Ini kelas kesalahan terburuk di fitur ini: bukan gagal menjawab,
+     * melainkan menjawab pertanyaan yang TIDAK diajukan – dengan angka yang
+     * benar untuk pertanyaan yang salah.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "siapa yang belum lapor kemarin?" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Kelengkapan laporan");
+    terkirim.length = 0;
+
+    aiSehat = false; // jalur deterministik: tidak boleh menyentuh AI
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "kendala minggu lalu" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Yang BENAR: ditawarkan dua cara baca kendala, bukan dijawab kelengkapan.
+    expect(teks).not.toContain("Kelengkapan laporan");
+    expect(teks).toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("MASIH TERBUKA");
+  });
+
+  it("lokasi yang DISEBUT di susulan menang atas konteks", async () => {
+    // Konteks tidak pernah menambahi lokasi pada pertanyaan yang sudah
+    // menyebut lokasinya sendiri.
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini di Kedung Mutih" }),
+    );
+    terkirim.length = 0;
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana Kedungmalang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    expect(teks).toContain("Kedungmalang");
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("konteks TIDAK memperlebar lingkup ke lokasi di luar hak penanya", async () => {
+    /*
+     * Syarat keras brief butir 23, dan alasan konteks menyimpan NAMA bukan id
+     * hasil resolusi: nama dicocokkan ULANG terhadap katalog yang berlaku saat
+     * susulan datang. Di sini konteks dibuat seolah penanya tadi bertanya
+     * tentang lokasi milik organisasi LAIN.
+     */
+    // "Batah Timur" milik Paket Tetangga di organisasi LAIN — di luar katalog
+    // Site Manager, apa pun isi konteksnya.
+    const lokasiLain = await db.location.findFirstOrThrow({
+      where: { package: { orgId: orgLainId } },
+      select: { name: true },
+    });
+    await db.waChatContext.create({
+      data: {
+        chatId: pribadi(),
+        senderKey: `${nomorSM}@c.us`,
+        niat: "progress",
+        lokasiDisebut: [lokasiLain.name],
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+      },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Namanya tidak cocok di katalog penanya → MENGAKU tidak menemukan.
+    // Yang DILARANG adalah diam-diam melebar jadi seluruh lokasi.
+    expect(teks).toContain("tidak menemukan lokasi");
+    // Yang DILARANG: diam-diam melebar jadi seluruh lokasi penanya.
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("konteks orang LAIN bukan konteks Anda", async () => {
+    const ORANG_LAIN = "6289822222222";
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "ada kendala apa",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    terkirim.length = 0;
+
+    // Orang lain bertanya susulan di grup yang sama — tidak boleh mewarisi
+    // konteks milik penanya sebelumnya.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_LAIN,
+        teks: "bagaimana yang kemarin?",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    // Ditawari pilihan (konteksnya sendiri kosong), BUKAN dijawab "kendala".
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Maksud Anda yang mana?");
+  });
+
+  it("konteks BASI tidak dipakai – ditawari pilihan seperti biasa", async () => {
+    /*
+     * Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
+     * pertanyaan lama dengan percaya diri.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "ada kendala apa" }),
+    );
+    await db.waChatContext.updateMany({
+      where: { chatId: pribadi() },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Maksud Anda yang mana?");
+  });
+
+  it("konteks disimpan SESUDAH balasan berangkat, dan jejaknya tercatat", async () => {
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini di Kedung Mutih" }),
+    );
+    const k = await db.waChatContext.findFirst({ where: { chatId: pribadi() } });
+    expect(k?.niat).toBe("progress");
+    expect(k?.lokasiDisebut).toEqual(["kedung mutih"]);
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.lanjutan" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect((jejak?.payload as { niatDipinjam?: string } | null)?.niatDipinjam).toBe("progress");
+  });
+});
+
+
+describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
+  const tanya = async (teks: string) => {
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }));
+    return terkirim.at(-1)?.teks ?? "";
+  };
+
+  beforeEach(async () => {
+    await db.dailyReport.deleteMany({ where: { locationId: lokA1 } });
+    const pelapor = await db.user.findFirstOrThrow({
+      where: { fullName: "SiteManager" },
+      select: { id: true },
+    });
+    await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-08-14T00:00:00.000Z"),
+        status: "final",
+        notes: "Pengecoran tertunda karena hujan deras, tenaga 8 orang dipulangkan.",
+        createdById: pelapor.id,
+      },
+    });
+  });
+
+  it("pertanyaan yang dulu selalu 'belum mengerti' kini dijawab dari catatan", async () => {
+    /*
+     * Inilah pertanyaan yang jadi alasan seluruh Fase F: jawabannya ADA di
+     * catatan pelapor, hanya tidak pernah bisa dicari. Menyodorkan menu
+     * kemampuan untuk pertanyaan yang datanya justru tersedia membuat penanya
+     * menyimpulkan MARLIN tidak tahu apa-apa.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("Catatan lapangan");
+    expect(teks).toContain("hujan deras");
+    expect(teks.toLowerCase()).not.toContain("belum mengerti");
+  });
+
+  it("KUTIPAN persis, dan ditandai sebagai kata pelapor", async () => {
+    /*
+     * Balasan WhatsApp di-screenshot lalu diteruskan ke PPK. Angka di dalam
+     * catatan ("8 orang") adalah kata pelapor, bukan hitungan MARLIN — kalau
+     * tidak dikatakan, pembacanya memperlakukannya sebagai angka resmi.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("tenaga 8 orang dipulangkan");
+    expect(teks).toContain("KUTIPAN catatan pelapor");
+    expect(teks).toContain("Bukan angka resmi");
+  });
+
+  it("TETAP menjawab walau layanan AI mati total", async () => {
+    /*
+     * Pencarian catatan tidak memanggil provider mana pun, jadi justru di saat
+     * seperti inilah ia paling berguna. Menyerah tanpa mencobanya berarti
+     * membuang jawaban yang sudah ada di tangan.
+     */
+    aiSehat = false;
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("hujan deras");
+    expect(teks.toLowerCase()).not.toContain("tidak bisa membaca");
+  });
+
+  it("tanpa catatan yang cocok → tetap mengaku belum mengerti", async () => {
+    // Pagar arah sebaliknya: pencarian yang terlalu longgar akan menjawab
+    // pertanyaan apa pun dengan catatan yang tidak berhubungan.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("zxqwerty tidak ada di catatan mana pun");
+    expect(teks.toLowerCase()).toContain("belum mengerti");
+  });
+
+  it("jejak audit mencatat jalur catatan lapangan", async () => {
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await tanya("kenapa pengecoran tertunda?");
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.narasi" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect(jejak).not.toBeNull();
+    expect((jejak?.payload as { potongan?: number } | null)?.potongan).toBeGreaterThan(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Empat cacat yang dilaporkan user dari PRODUKSI (DECISIONS 390)      */
+/* ------------------------------------------------------------------ */
+
+describe("cacat produksi 2026-08-20 – dilaporkan user dengan tangkapan layar", () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+
+  const tanyaWa = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  it('"progress terbaik" TIDAK lagi dijawab daftar yang terburuk', async () => {
+    /*
+     * Yang terjadi di produksi: "progress terbaik" dijawab tiga lokasi
+     * ber-realisasi 0,00% – yaitu justru yang terburuk – karena kata
+     * superlatifnya dibuang diam-diam lalu daftarnya diurut abjad.
+     *
+     * Membuang kata yang menentukan isi jawaban adalah bentuk mengarang yang
+     * paling halus: yang dikarang bukan angkanya, melainkan PERTANYAANNYA.
+     */
+    aiSehat = false; // wajib dijawab jalur deterministik
+    const teks = await tanyaWa("progress terbaik");
+    // Judulnya MENGAKU diurutkan – daftar terurut yang tidak mengaku terbaca
+    // sebagai "inilah lokasinya", padahal ia "inilah yang teratas".
+    expect(teks).toContain("terbaik dulu");
+    /*
+     * Urutan angkanya SENGAJA tidak diperiksa di sini.
+     *
+     * Lokasi uji berkas ini semuanya berealisasi 0,00%, jadi "menurun" dan
+     * "menaik" sama-sama lolos – asersi yang terlihat teliti tanpa pernah
+     * menguji apa pun. Ketahuan lewat uji gigi: pengurutannya dilepas, uji ini
+     * tetap hijau. Pengurutannya diuji sungguhan dengan angka berbeda di
+     * `tests/unit/waha-urutan-progress.test.ts`.
+     */
+  });
+
+  it('"progress terburuk" juga dijawab tanpa AI dan mengaku urutannya', async () => {
+    aiSehat = false;
+    expect(await tanyaWa("progress terburuk")).toContain("terburuk dulu");
+  });
+
+  it("kepala balasan menyebut TANGGAL nyata, bukan cuma 'kemarin lusa'", async () => {
+    /*
+     * Permintaan user: "jawaban sudah lumayan oke, tapi seharusnya jawaban ini
+     * disertai tanggal". Balasan WhatsApp di-screenshot lalu diteruskan ke PPK
+     * berhari-hari kemudian; di situ "kemarin lusa" bukan cuma tidak berarti,
+     * tapi menyesatkan – "kemarin"-nya pembaca bukan "kemarin"-nya penanya.
+     */
+    aiSehat = false;
+    const teks = await tanyaWa("progress kemarin lusa");
+    expect(teks).toContain("kemarin lusa");
+    // Ada tanggal sungguhan: "18 Agustus 2026" dst.
+    expect(teks).toMatch(/\d{1,2} \w+ \d{4}/);
+  });
+
+  it('baris item TIDAK menulis "hari ini" saat yang ditanya hari lain', async () => {
+    /*
+     * Terlihat di tangkapan layar: pertanyaan "kalau kemarin lusa?" dijawab
+     * dengan baris "2 item dilaporkan HARI INI". Itemnya memang dua, tapi
+     * dilaporkan kemarin lusa – hari yang salah ditempelkan pada angka yang
+     * benar, jenis kesalahan yang paling sulit dibantah.
+     */
+    aiSehat = false;
+    const teks = await tanyaWa("progress kemarin lusa");
+    expect(teks).not.toContain("dilaporkan hari ini");
+    expect(teks).not.toContain("belum ada laporan hari ini");
+  });
+});
+
+describe('perintah "abaikan" benar-benar melepas konteks (DECISIONS 390)', () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+  const kirim = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  it('"abaikan" mengaku melupakan, dan susulan sesudahnya TIDAK menyambung lagi', async () => {
+    /*
+     * User mengetik "abaikan" setelah menerima jawaban yang melenceng, dan
+     * MARLIN membalas "belum mengerti" sambil TETAP memegang konteks yang
+     * salah – jadi pertanyaan berikutnya melenceng lagi dengan cara yang sama.
+     */
+    aiSehat = false;
+    await kirim("progress hari ini di Kedung Mutih");
+
+    const lepas = await kirim("abaikan");
+    expect(lepas.toLowerCase()).toContain("lupakan");
+    expect(lepas.toLowerCase()).not.toContain("belum mengerti");
+
+    // Susulan yang dulu menyambung kini tidak punya apa pun untuk disambung.
+    const susulan = await kirim("kalau kemarin?");
+    expect(susulan).toContain("Maksud Anda yang mana?");
+  });
+
+  it('"abaikan" saat tidak ada konteks mengatakannya apa adanya', async () => {
+    aiSehat = false;
+    await kirim("abaikan"); // pastikan kosong
+    const teks = await kirim("abaikan");
+    expect(teks.toLowerCase()).toContain("tidak ada percakapan");
+  });
+});
+
+describe('pertanyaan "kenapa" & nama bespasi (DECISIONS 390)', () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+  const kirim = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  beforeAll(async () => {
+    // Catatan lapangan MILIK uji ini – supaya tidak bergantung pada sisa
+    // seeding blok lain, yang urutannya bisa berubah kapan saja.
+    const pelapor = await db.user.findFirstOrThrow({
+      where: { fullName: "SiteManager" },
+      select: { id: true },
+    });
+    await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-08-13T00:00:00.000Z"),
+        status: "final",
+        notes: "Tertinggal karena material terlambat datang dan hujan tiap sore.",
+        createdById: pelapor.id,
+      },
+    });
+  });
+
+  it('"kenapa … tertinggal" menjawab angka DAN sebabnya', async () => {
+    /*
+     * Keberatan user: *"kenapa randuputih tertinggal, malah cuma jawab
+     * progress"*. Balasannya benar tapi menjawab "berapa", bukan "kenapa" –
+     * dan angkanya justru sudah diketahui penanya; itulah sebabnya ia bertanya.
+     */
+    aiSehat = false;
+    const teks = await kirim("kenapa Kedung Mutih tertinggal");
+    // Angka resmi tetap di depan dan tidak tersentuh.
+    expect(teks).toContain("Deviasi");
+    // Sebabnya menyusul sebagai KUTIPAN bertanda, bukan karangan model.
+    expect(teks).toContain("Catatan lapangan");
+    expect(teks).toContain("KUTIPAN catatan pelapor");
+  });
+
+  it("pertanyaan biasa TIDAK ikut ditempeli catatan", async () => {
+    // Pagar arah sebaliknya: kalau setiap jawaban dibuntuti kutipan, penanda
+    // "ini kata pelapor, bukan angka MARLIN" kehilangan artinya.
+    aiSehat = false;
+    const teks = await kirim("progress hari ini");
+    expect(teks).not.toContain("KUTIPAN catatan pelapor");
+  });
+
+  it("nama tak dikenal DISEBUT di jalur catatan lapangan", async () => {
+    /*
+     * Yang paling merusak di layar user bukan cakupannya, melainkan diamnya:
+     * balasan berisi catatan lokasi lain tanpa satu kata pun bahwa nama yang
+     * ia tulis tidak dikenali – jadi terbaca sebagai jawaban ATAS lokasi itu.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    aiSehat = true;
+    const teks = await kirim("kenapa zxqwertylokasi hujan terus");
+    if (teks.includes("Catatan lapangan")) {
+      expect(teks).toContain("Tidak saya kenali");
+    }
   });
 });

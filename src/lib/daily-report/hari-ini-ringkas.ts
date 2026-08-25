@@ -86,7 +86,7 @@ const TAMPIL = TAMPIL_STATUS;
 
 const KOSONG: Pick<SelHari, "kata" | "huruf" | "nada" | "perluTindakan"> = {
   kata: "Belum",
-  huruf: "—",
+  huruf: "–",
   nada: "neutral",
   perluTindakan: true,
 };
@@ -97,7 +97,7 @@ export function selHari(dateKey: string, status: DailyReportStatus | null, tangg
     dateKey,
     status,
     ...t,
-    judul: `${tanggalPanjang} — ${status ? TAMPIL[status].kata : "belum ada laporan"}`,
+    judul: `${tanggalPanjang} – ${status ? TAMPIL[status].kata : "belum ada laporan"}`,
   };
 }
 

@@ -28,6 +28,18 @@ let gagalKirim = false;
 vi.mock("@/lib/waha/client", () => ({
   isWahaConfigured: async () => wahaHidup,
   getSessionStatus: async () => ({ name: "default", status: "WORKING" }),
+}));
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client` (DECISIONS 374).
+ *
+ * Sejak gateway kanonik ada, pemanggil fitur tidak lagi menyentuh `client`
+ * langsung: `client` tinggal transport mentah, dan `kirim` yang menumpang
+ * gateway (periksa sesi → catat outbox → simpan message id). Memalsukan
+ * `client` saja membuat uji menembus gateway sungguhan — yang benar, tapi
+ * bukan yang sedang diuji berkas ini.
+ */
+vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, text: string) => {
     if (gagalKirim) throw new Error("WAHA mati");
     terkirim.push({ chatId, text });
@@ -223,7 +235,7 @@ describe("kapan minggu kontrak berakhir", () => {
     }
   });
 
-  it("nomor minggu TIDAK dibatasi panjang kurva-S — kontrak molor tetap jujur", () => {
+  it("nomor minggu TIDAK dibatasi panjang kurva-S – kontrak molor tetap jujur", () => {
     // Kalau angka ini di-clamp ke jumlah minggu baseline, kontrak yang lewat
     // jadwal akan selamanya melaporkan "Minggu Ke : 20" padahal sudah 25.
     expect(mingguKontrak(SPMK, new Date("2027-01-04T00:00:00Z"))).toBe(27);
@@ -258,7 +270,7 @@ describe("penjadwal", () => {
     expect(lagi.terkirim).toBe(0);
   });
 
-  it("minggu BERIKUTNYA tetap dikirim — yang dikunci minggunya, bukan paketnya", async () => {
+  it("minggu BERIKUTNYA tetap dikirim – yang dikunci minggunya, bukan paketnya", async () => {
     const h = await kirimLaporanMingguanTerjadwal(new Date("2026-07-19T09:00:00Z"));
     expect(h.terkirim).toBe(1);
     expect(terkirim[0].text).toContain("Minggu Ke : 2");
@@ -337,7 +349,7 @@ describe("memilih minggu yang dilaporkan (DECISIONS 357)", () => {
    */
   const KINI = new Date("2026-08-19T03:00:00.000Z"); // minggu berjalan ke-7
 
-  it("tanpa pilihan: tetap minggu BERJALAN — kebiasaan lama tidak berubah", async () => {
+  it("tanpa pilihan: tetap minggu BERJALAN – kebiasaan lama tidak berubah", async () => {
     const r = await pratinjauMingguan(packageId, KINI);
     expect("alasan" in r, "alasan" in r ? r.alasan : "").toBe(false);
     if ("alasan" in r) return;

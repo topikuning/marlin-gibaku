@@ -52,9 +52,9 @@ export async function fetchHourlyWeather(args: {
   const daysBack = Math.round(
     (Date.parse(`${args.todayKey}T00:00:00Z`) - Date.parse(`${args.dateKey}T00:00:00Z`)) / 86_400_000,
   );
-  if (daysBack < 0) throw new WeatherFetchError("Tanggal di masa depan — cuaca hanya untuk hari yang sudah berjalan.");
+  if (daysBack < 0) throw new WeatherFetchError("Tanggal di masa depan – cuaca hanya untuk hari yang sudah berjalan.");
   if (daysBack > MAX_PAST_DAYS)
-    throw new WeatherFetchError(`Tanggal lebih dari ${MAX_PAST_DAYS} hari lalu — data per jam tidak tersedia.`);
+    throw new WeatherFetchError(`Tanggal lebih dari ${MAX_PAST_DAYS} hari lalu – data per jam tidak tersedia.`);
 
   const url = new URL(baseUrl());
   url.searchParams.set("latitude", args.lat.toFixed(4));

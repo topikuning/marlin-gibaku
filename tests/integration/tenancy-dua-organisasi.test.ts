@@ -81,7 +81,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("TEST-01 — isolasi antar-organisasi", () => {
+describe("TEST-01 – isolasi antar-organisasi", () => {
   it("super_admin org A TIDAK punya akses ke lokasi org B (dan sebaliknya)", async () => {
     expect(await hasLocationAccess(A.admin, A.locationId)).toBe(true);
     expect(await hasLocationAccess(A.admin, B.locationId)).toBe(false);
@@ -89,7 +89,7 @@ describe("TEST-01 — isolasi antar-organisasi", () => {
     expect(await hasLocationAccess(B.admin, B.locationId)).toBe(true);
   });
 
-  it("site_manager hanya lokasi yang ditugaskan — lintas organisasi tetap ditolak", async () => {
+  it("site_manager hanya lokasi yang ditugaskan – lintas organisasi tetap ditolak", async () => {
     expect(await hasLocationAccess(A.sm, A.locationId)).toBe(true);
     expect(await hasLocationAccess(A.sm, B.locationId)).toBe(false);
     expect(await accessibleLocationIds(A.sm)).toEqual([A.locationId]);

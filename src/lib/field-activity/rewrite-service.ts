@@ -66,7 +66,7 @@ export async function suggestActivityRewrite(
   }
 
   if (!(await getActiveAiConfig())) {
-    return { ok: false, error: "AI belum dikonfigurasi — atur penyedia & API key di halaman Sistem." };
+    return { ok: false, error: "AI belum dikonfigurasi – atur penyedia & API key di halaman Sistem." };
   }
 
   const inputChars = fields.reduce((n, f) => n + f.text.length, 0);
@@ -117,7 +117,7 @@ export async function suggestActivityRewrite(
       .join(" · ");
     return {
       ok: false,
-      error: `Tidak ada usulan yang bisa dipakai — ${rincian}. Teks asli dibiarkan apa adanya.`,
+      error: `Tidak ada usulan yang bisa dipakai – ${rincian}. Teks asli dibiarkan apa adanya.`,
     };
   }
 

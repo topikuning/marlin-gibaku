@@ -51,7 +51,7 @@ export function ReviewActions({
       {mode === "koreksi" ? (
         <p className="text-[13px] text-ink-muted">
           Laporan berstatus Disetujui tidak bisa diedit. Kembalikan ke Perlu Koreksi supaya isinya
-          bisa diperbaiki — <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
+          bisa diperbaiki – <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
           sampai laporan dikirim &amp; disetujui ulang.
         </p>
       ) : null}
@@ -94,7 +94,7 @@ export function ReviewActions({
               required
               minLength={3}
               maxLength={1000}
-              placeholder="mis. volume pasangan bata tidak sesuai foto — cek ulang zona B"
+              placeholder="mis. volume pasangan bata tidak sesuai foto – cek ulang zona B"
             />
           </div>
           <Button type="submit" variant="danger" loading={returnPending}>
@@ -130,7 +130,7 @@ export function FinalizePanel({
     return (
       <div className="space-y-2">
         <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium text-ink">Laporan final — angka dibekukan untuk cetak KKP.</p>
+          <p className="text-sm font-medium text-ink">Laporan final – angka dibekukan untuk cetak KKP.</p>
           <Link
             href={withBackTo(`/cetak/harian/${slug}/${dateKey}`, `/lokasi/${slug}/harian/${dateKey}`)}
             target="_blank"
@@ -190,7 +190,7 @@ function UnfinalizeForm({ reportId }: { reportId: string }) {
       <h3 className="text-sm font-semibold text-ink">Buka kembali laporan final</h3>
       <p className="text-[12px] text-ink-muted">
         Status kembali ke <span className="font-medium">Disetujui</span> supaya angka bisa dikoreksi. Snapshot
-        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini —
+        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini –
         yang mengubah angka adalah editan setelahnya.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -256,6 +256,20 @@ export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai
     <form action={formAction} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {/*
+        Kendala serupa yang MASIH TERBUKA ditawarkan, bukan ditolak
+        (DECISIONS 407). Isian yang sudah diketik dikembalikan lewat
+        `defaultValue`, dan "Tetap buat baru" mengirim `paksa=1` – untuk masalah
+        kedua yang kalimatnya memang mirip. Menolak tanpa jalan keluar hanya
+        melatih orang menulis judul yang sengaja dibedakan supaya lolos.
+      */}
+      {state?.kendalaDuplikat ? (
+        <Banner
+          tone="info"
+          title={`Sudah ada kendala serupa yang masih terbuka: "${state.kendalaDuplikat.title}"`}
+          description="Belum dicatat. Kalau ini masalah yang sama, tutup formulir ini – yang lama sudah menagihnya."
+        />
+      ) : null}
       <input type="hidden" name="reportId" value={reportId} />
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="min-w-0 flex-1">
@@ -268,13 +282,14 @@ export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai
             required
             minLength={3}
             maxLength={200}
+            defaultValue={state?.kendalaNilai?.title ?? ""}
             placeholder="mis. hujan deras sejak siang, cor ditunda"
             className="h-9 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-primary-600"
           />
         </div>
         <div className="w-full sm:w-32">
           <Label htmlFor="is-severity">Tingkat</Label>
-          <Combobox id="is-severity" name="severity" defaultValue="sedang">
+          <Combobox id="is-severity" name="severity" defaultValue={state?.kendalaNilai?.severity ?? "sedang"}>
             {(Object.keys(ISSUE_SEVERITY_LABEL) as (keyof typeof ISSUE_SEVERITY_LABEL)[]).map((s) => (
               <option key={s} value={s}>
                 {ISSUE_SEVERITY_LABEL[s]}
@@ -285,12 +300,27 @@ export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai
       </div>
       <div>
         <Label htmlFor="is-desc">Uraian (opsional)</Label>
-        <Textarea id="is-desc" name="description" rows={2} maxLength={2000} />
+        <Textarea
+          id="is-desc"
+          name="description"
+          rows={2}
+          maxLength={2000}
+          defaultValue={state?.kendalaNilai?.description ?? ""}
+        />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="secondary" loading={pending}>
-          Catat Kendala
-        </Button>
+        {state?.kendalaDuplikat ? (
+          <>
+            <input type="hidden" name="paksa" value="1" />
+            <Button type="submit" variant="secondary" loading={pending}>
+              Tetap buat baru
+            </Button>
+          </>
+        ) : (
+          <Button type="submit" variant="secondary" loading={pending}>
+            Catat Kendala
+          </Button>
+        )}
         {onSelesai ? (
           <Button type="button" variant="ghost" onClick={onSelesai}>
             Batal

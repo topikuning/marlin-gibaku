@@ -22,7 +22,7 @@ const L = (province: string, regency: string, district: string | null, village: 
   village,
 });
 
-describe("buildExistingLocationIndex — katalog ↔ Location riil", () => {
+describe("buildExistingLocationIndex – katalog ↔ Location riil", () => {
   it("KASUS BUG: Location riil tanpa kecamatan tetap mengenali katalog yang berkecamatan", () => {
     const idx = buildExistingLocationIndex([L("Jawa Tengah", "Jepara", null, "Ujungwatu")]);
     expect(idx.has(L("Jawa Tengah", "Jepara", "Donorojo", "Ujungwatu"))).toBe(true);
@@ -68,7 +68,7 @@ describe("buildExistingLocationIndex — katalog ↔ Location riil", () => {
   });
 });
 
-describe("locationKey — pembanding KETAT, tetap menyertakan kecamatan", () => {
+describe("locationKey – pembanding KETAT, tetap menyertakan kecamatan", () => {
   it("dipakai untuk katalog ↔ katalog: kecamatan berbeda = baris berbeda", () => {
     expect(locationKey(L("Jawa Tengah", "Demak", "Bonang", "Purworejo"))).not.toBe(
       locationKey(L("Jawa Tengah", "Demak", "Wedung", "Purworejo")),

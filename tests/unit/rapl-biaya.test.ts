@@ -106,7 +106,7 @@ describe("bandingkanDenganKontrak", () => {
     expect(p.selisihPersen).toBeCloseTo(30, 5);
   });
 
-  it("SELALU membawa keandalan — dan menolak disebut utuh saat cakupannya kurang", () => {
+  it("SELALU membawa keandalan – dan menolak disebut utuh saat cakupannya kurang", () => {
     /*
      * Ini inti seluruh berkas ini. Selisih Rp300 juta yang dihitung dari 72%
      * nilai RAB dan 40% sumber daya berharga BUKAN untung Rp300 juta: biaya

@@ -78,7 +78,7 @@ function rinci(u: Ukuran, n = 5): string {
     u.pelanggar
       .slice(0, n)
       .map((p) => `    <${p.tag}> lebar=${p.width} kanan=${p.right} class="${p.cls}" teks="${p.text}"`)
-      .join("\n") || "    (tidak ada elemen tunggal — periksa margin/padding negatif)"
+      .join("\n") || "    (tidak ada elemen tunggal – periksa margin/padding negatif)"
   );
 }
 
@@ -118,7 +118,7 @@ async function periksa(page: Page, path: string): Promise<string[]> {
     const buka = await ukur(page);
     if (buka.scrollWidth > buka.clientWidth) {
       gagal.push(
-        `${path} — menu "${label}" DIBUKA → ${buka.scrollWidth}px > ${buka.clientWidth}px\n${rinci(buka)}`,
+        `${path} – menu "${label}" DIBUKA → ${buka.scrollWidth}px > ${buka.clientWidth}px\n${rinci(buka)}`,
       );
     }
     await s.click({ timeout: 3_000 }).catch(() => {});
@@ -182,7 +182,12 @@ async function bacaKonteks(page: Page): Promise<KonteksRute> {
     dokumenId: await idDari("/dokumen", "/dokumen/"),
     fotoId: await idDari("/foto", "/foto/"),
     aiRunId: await idDari("/ai/history", "/ai/run/"),
+    paparanId: await idDari("/ai/paparan", "/ai/paparan/"),
     antrean: null,
+    temuanId: await idDari("/temuan", "/temuan/").then((id) => (id === "baru" ? null : id)),
+    inspeksiId: await idDari("/verifikasi?bagian=inspeksi", "/verifikasi/inspeksi/").then((id) =>
+      id === "baru" ? null : id,
+    ),
   };
 }
 

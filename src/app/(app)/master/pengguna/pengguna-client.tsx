@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { Plus, Search, Settings2 } from "lucide-react";
-import { Badge, Banner, Button, Combobox, Input, KpiCard, Label } from "@/components/ui";
+import { Badge, Banner, Button, Combobox, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
 import { Laci } from "@/components/master/laci";
 import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
@@ -403,7 +403,7 @@ function Lencana({ u, masalah }: { u: UserRow; masalah: MasalahAkun[] }) {
   return (
     <>
       {u.akar ? (
-        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
+        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun – ubah variabel lingkungannya lebih dulu.">
           <Badge tone="success" label="Super admin utama" />
         </span>
       ) : null}
@@ -668,9 +668,13 @@ function TombolAktif({ user }: { user: UserRow }) {
           else if (r?.success) setPesan({ tone: "success", text: r.success });
         }}
       >
-        <Button size="sm" variant={user.isActive ? "danger" : "primary"} type="submit">
+        <TombolKirim
+          size="sm"
+          variant={user.isActive ? "danger" : "primary"}
+          labelSibuk={user.isActive ? "Menonaktifkan…" : "Mengaktifkan…"}
+        >
           {user.isActive ? "Nonaktifkan akun" : "Aktifkan akun"}
-        </Button>
+        </TombolKirim>
       </form>
     </div>
   );

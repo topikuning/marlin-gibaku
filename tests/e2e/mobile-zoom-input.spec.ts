@@ -50,7 +50,7 @@ function laporkan(kontrol: { nama: string; px: number }[]): string {
 test.describe("kontrol form ≥16px di ponsel", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("halaman login — sumber zoom yang terbawa ke dashboard", async ({ page }) => {
+  test("halaman login – sumber zoom yang terbawa ke dashboard", async ({ page }) => {
     test.skip(test.info().project.name !== "mobile", "perilaku khusus ponsel");
     await page.goto("/masuk");
     const kontrol = await ukurFont(page);

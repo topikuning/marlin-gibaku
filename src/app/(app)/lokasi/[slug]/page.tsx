@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PelaksanaForm } from "@/components/knmp/pelaksana-form";
+import { presignKeys } from "@/lib/photos";
 import Link from "next/link";
 import { AlertTriangle, CalendarRange, ClipboardList } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, StatusPill } from "@/components/ui";
@@ -35,6 +37,15 @@ export default async function LokasiRingkasanPage({
   const { user, location } = await requireLocationPage(slug);
   const contract = location.package.contract;
 
+  // Pratinjau tanda tangan/stempel pelaksana lokasi ini. Satu presign untuk
+  // keduanya; yang belum diunggah tidak ikut diminta.
+  const kunciPelaksana = [location.pelaksanaTtdKey, location.supervisorTtdKey, location.wakilSahTtdKey].filter(
+    (k): k is string => !!k,
+  );
+  const urlsPelaksana =
+    kunciPelaksana.length > 0 ? await presignKeys(kunciPelaksana) : new Map<string, string>();
+  const urlTtdPelaksana = (k: string | null) => (k ? (urlsPelaksana.get(k) ?? null) : null);
+
   const [progress, series, packageLocationCount] = await Promise.all([
     getLocationProgress(location.id),
     getScurveSeries(location.id),
@@ -59,7 +70,7 @@ export default async function LokasiRingkasanPage({
       },
     }),
     db.issue.findMany({
-      where: { locationId: location.id, status: { not: "selesai" } },
+      where: { locationId: location.id, status: { not: "selesai" }, mergedIntoId: null },
       orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
       take: 5,
       select: { id: true, title: true, severity: true, status: true, createdAt: true },
@@ -89,6 +100,9 @@ export default async function LokasiRingkasanPage({
       : false;
 
   const canManageLocation = can(user.role, "location.manage");
+  // Penanda tangan lokasi punya pagar sendiri (DECISIONS 419) — Site Manager
+  // boleh mengisinya tanpa ikut memegang master lokasi.
+  const canSigner = can(user.role, "location.signer");
   const targets = (Object.keys(LOCATION_STATUS_LABEL) as LocationStatus[])
     .filter((s) => canTransitionLocation(location.status, s))
     .map((s): [LocationStatus, string] => [s, LOCATION_STATUS_LABEL[s]]);
@@ -239,7 +253,7 @@ export default async function LokasiRingkasanPage({
           <Card>
             <CardHeader
               title="Alamat & koordinat"
-              subtitle="Titik GPS proyek — dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
+              subtitle="Titik GPS proyek – dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
             />
             <CardBody>
               <LocationMasterForm
@@ -250,6 +264,41 @@ export default async function LokasiRingkasanPage({
                 province={location.province}
                 gpsLat={location.gpsLat != null ? location.gpsLat.toString() : null}
                 gpsLng={location.gpsLng != null ? location.gpsLng.toString() : null}
+              />
+            </CardBody>
+          </Card>
+        ) : null}
+
+        {canSigner ? (
+          <Card>
+            <CardHeader
+              title="Penanda tangan lokasi ini"
+              subtitle="Isi HANYA bila lokasi ini dikerjakan pelaksana atau diperiksa pengawas yang berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
+            />
+            <CardBody>
+              <PelaksanaForm
+                locationId={location.id}
+                nama={location.pelaksanaName}
+                jabatan={location.pelaksanaTitle}
+                ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
+                warisan={{
+                  nama: location.package.pelaksanaName,
+                  jabatan: location.package.pelaksanaTitle,
+                }}
+                pengawasNama={location.supervisorName}
+                pengawasFirma={location.supervisorFirm}
+                pengawasTtdUrl={urlTtdPelaksana(location.supervisorTtdKey)}
+                warisanPengawas={{
+                  nama: contract?.supervisorName ?? null,
+                  firma: contract?.supervisorFirm ?? null,
+                }}
+                wakilSahNama={location.wakilSahName}
+                wakilSahNip={location.wakilSahNip}
+                wakilSahTtdUrl={urlTtdPelaksana(location.wakilSahTtdKey)}
+                warisanWakilSah={{
+                  nama: contract?.wakilSahName ?? null,
+                  nip: contract?.wakilSahNip ?? null,
+                }}
               />
             </CardBody>
           </Card>
@@ -281,7 +330,7 @@ export default async function LokasiRingkasanPage({
                     </span>
                     <span className="text-xs text-ink-muted">
                       {formatTanggal(h.changedAt)}
-                      {h.note ? ` — ${h.note}` : ""}
+                      {h.note ? ` – ${h.note}` : ""}
                     </span>
                   </li>
                 ))}

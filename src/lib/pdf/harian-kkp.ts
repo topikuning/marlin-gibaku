@@ -22,7 +22,7 @@ import {
   type FotoPelengkapDok,
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -52,6 +52,8 @@ export type LampiranHarian = {
   /** Logo pemilik pekerjaan — kop blanko. PNG; lihat catatan data-URI di bawah. */
   logoPemilik?: Buffer | null;
   logoVendor: Buffer | null;
+  /** Logo firma konsultan pengawas — kop blanko & sampul (2026-08-24). */
+  logoPengawas?: Buffer | null;
   foto: FotoDok[];
   /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
   fotoMaterial?: FotoPelengkapDok[];
@@ -144,6 +146,7 @@ export function tulisBadanHarian(
     ],
     { ...kopKanan, minRowHeight: kopBawah - atas },
   );
+  const firmaAtas = ny;
   ny = gridRow(
     doc,
     ny,
@@ -153,6 +156,24 @@ export function tulisBadanHarian(
     ],
     { ...kopKanan, minRowHeight: Math.max(12, ky - ny) },
   );
+  // Logo firma pengawas di sudut kiri sel KONSULTAN PENGAWAS (user 2026-08-24)
+  // — data URI, alasan yang sama dengan logo pemilik di bawah.
+  const logoPengawas = lampiran?.logoPengawas ?? null;
+  if (logoPengawas) {
+    const sisi = Math.min(ny - firmaAtas - 4, 18);
+    if (sisi > 6) {
+      try {
+        const src = `data:image/png;base64,${logoPengawas.toString("base64")}`;
+        doc.image(src, x + kiriW + 3, firmaAtas + (ny - firmaAtas - sisi) / 2, {
+          fit: [sisi, sisi],
+          align: "center",
+          valign: "center",
+        });
+      } catch (err) {
+        console.error("[laporan-harian] logo pengawas gagal digambar di kop PDF:", err);
+      }
+    }
+  }
   y = Math.max(ky, ny);
 
   // Logo pemilik pekerjaan dari menu Sistem — bukan hardcode KKP (DECISIONS 166).
@@ -307,7 +328,7 @@ export function tulisBadanHarian(
   draw(
     [
       { text: "Jam Kerja", head: true },
-      { text: `mulai ${d.workStart ?? "……"} — selesai ${d.workEnd ?? "……"}` },
+      { text: `mulai ${d.workStart ?? "……"} – selesai ${d.workEnd ?? "……"}` },
     ],
     jam,
   );
@@ -320,7 +341,7 @@ export function tulisBadanHarian(
   const rrRight: GridOptions = { x: x + rrHalf, width: rrHalf, cols: colWidths(rrHalf, [0.5, 6]), fontSize: 6.5 };
   const rencanaTeks = (d.rencana ?? []).map(
     (r) =>
-      `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
+      `${r.name}${r.volume > 0 ? ` – ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
       (r.picName ? ` (${r.picName})` : ""),
   );
   // Dikelompokkan per BANGUNAN/KATEGORI — sumbernya sama dengan blanko layar
@@ -361,7 +382,7 @@ export function tulisBadanHarian(
         {
           text:
             `${d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui ` +
-            `sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. ` +
+            `sehingga tidak dicetak di blanko ini – belum ada dasar kontraknya. ` +
             `Rinciannya ada di pantauan internal MARLIN.`,
         },
       ],
@@ -378,47 +399,59 @@ export function tulisBadanHarian(
   const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 94 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
     `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+  /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
+     atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
+     itulah lapisannya. Kolomnya dua sama lebar: pengawas kiri, penyedia kanan —
+     urutan yang sama dengan teksnya. Baris nama "( … )" ada di baris ke-6 blok;
+     coretan berpijak tepat di atasnya. */
   const yTtd = y;
-  y = gridRow(
-    doc,
-    y,
-    [
-      {
-        text: blokTtd("Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub, d.supervisorName, "Inspector"),
-        align: "center",
-      },
-      {
-        text: blokTtd("Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm, d.contractorName, d.contractorSub || "Pelaksana"),
-        align: "center",
-      },
-    ],
-    ttd,
-  );
-
-  /* Tempel gambar tanda tangan & stempel DI ATAS blok yang baru digambar
-     (DECISIONS 328). Baris nama "( … )" berada di baris ke-6 blok; coretan
-     berpijak tepat di atasnya. Kolomnya dua sama lebar: pengawas kiri,
-     penyedia kanan — urutan yang sama dengan teksnya. */
   const gbr = lampiran?.ttd;
-  if (gbr) {
-    const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
-    // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
-    // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
-    const RUANG_TTD_PDF = 70;
-    const yDasar = yTtd + RUANG_TTD_PDF;
-    gambarTtdPdf(doc, gbr.pengawas, {
-      xTengah: x + kolomKiri / 2,
-      yDasar,
-      lebarKolom: kolomKiri,
-      ruangDiAtasNama: RUANG_TTD_PDF,
-    });
-    gambarTtdPdf(doc, gbr.penyedia, {
-      xTengah: x + kolomKiri + kolomKanan / 2,
-      yDasar,
-      lebarKolom: kolomKanan,
-      ruangDiAtasNama: RUANG_TTD_PDF,
-    });
-  }
+  const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
+  // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
+  // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
+  const RUANG_TTD_PDF = 70;
+  const yDasarTtd = yTtd + RUANG_TTD_PDF;
+  y = blokTandaTanganPdf(
+    doc,
+    gbr
+      ? [
+          {
+            berkas: gbr.pengawas,
+            opsi: {
+              xTengah: x + kolomKiri / 2,
+              yDasar: yDasarTtd,
+              lebarKolom: kolomKiri,
+              ruangDiAtasNama: RUANG_TTD_PDF,
+            },
+          },
+          {
+            berkas: gbr.penyedia,
+            opsi: {
+              xTengah: x + kolomKiri + kolomKanan / 2,
+              yDasar: yDasarTtd,
+              lebarKolom: kolomKanan,
+              ruangDiAtasNama: RUANG_TTD_PDF,
+            },
+          },
+        ]
+      : [],
+    () =>
+      gridRow(
+        doc,
+        yTtd,
+        [
+          {
+            text: blokTtd("Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub, d.supervisorName, "Inspector"),
+            align: "center",
+          },
+          {
+            text: blokTtd("Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm, d.contractorName, d.contractorSub || "Pelaksana"),
+            align: "center",
+          },
+        ],
+        ttd,
+      ),
+  );
 
   /* ── Halaman 3+: DOKUMENTASI PEKERJAAN ────────────────────────────── */
   const halamanBaru = () => {
@@ -479,7 +512,7 @@ export async function buildHarianKkpPdf(
   logo?: Buffer | null,
   lampiran?: LampiranHarian & { tanpaSampul?: boolean },
 ): Promise<Buffer> {
-  const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
+  const doc = createFormA4Doc({ title: `Laporan Harian KKP – ${d.locationName}` });
 
   /* ── Halaman 1: SAMPUL ─────────────────────────────────────────────────
      Blanko di halaman berikutnya TIDAK berubah sedikit pun (permintaan user
@@ -490,7 +523,7 @@ export async function buildHarianKkpPdf(
      berkas mingguan sendiri atau cuma butuh blankonya. */
   if (!lampiran?.tanpaSampul) {
     doc.page.margins.bottom = 0;
-    gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null);
+    gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null, lampiran?.logoPengawas ?? null);
     doc.addPage();
   }
 
@@ -498,9 +531,10 @@ export async function buildHarianKkpPdf(
     ...lampiran,
     logoPemilik: logo ?? null,
     logoVendor: lampiran?.logoVendor ?? null,
+    logoPengawas: lampiran?.logoPengawas ?? null,
     foto: lampiran?.foto ?? [],
   });
-  kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU — belum difinalisasi");
+  kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU – belum difinalisasi");
   return docToBuffer(doc);
 }
 
@@ -557,6 +591,8 @@ export async function muatLampiranFoto(
   sisaFoto: number | null = null,
 ): Promise<{
   logoVendor: Buffer | null;
+  /** Logo firma konsultan pengawas — kop blanko & sampul (2026-08-24). */
+  logoPengawas?: Buffer | null;
   foto: FotoDok[];
   fotoMaterial: FotoPelengkapDok[];
   fotoAlat: FotoPelengkapDok[];
@@ -570,6 +606,7 @@ export async function muatLampiranFoto(
   };
   let dipotong = 0;
   let logoVendor: Buffer | null = null;
+  let logoPengawas: Buffer | null = null;
   const foto: FotoDok[] = [];
   const fotoMaterial: FotoPelengkapDok[] = [];
   const fotoAlat: FotoPelengkapDok[] = [];
@@ -582,6 +619,13 @@ export async function muatLampiranFoto(
           logoVendor = await sharp(await r2GetBuffer(data.vendorLogoKey)).png().toBuffer();
         } catch {
           logoVendor = null;
+        }
+      }
+      if (data.supervisorLogoKey) {
+        try {
+          logoPengawas = await sharp(await r2GetBuffer(data.supervisorLogoKey)).png().toBuffer();
+        } catch {
+          logoPengawas = null;
         }
       }
       for (const p of data.photos ?? []) {
@@ -640,7 +684,7 @@ export async function muatLampiranFoto(
   } catch (err) {
     console.error("[laporan-kkp] lampiran dokumentasi gagal disiapkan:", err);
   }
-  return { logoVendor, foto, fotoMaterial, fotoAlat, dipotong };
+  return { logoVendor, logoPengawas, foto, fotoMaterial, fotoAlat, dipotong };
 }
 
 export async function renderHarianKkpPdf(
@@ -656,11 +700,12 @@ export async function renderHarianKkpPdf(
   ]);
   if (!data || !loc) return null;
   const logo = await muatLogoPemilik(branding.ownerLogoKey);
-  const { logoVendor, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
-  const gambarTtd = await muatTtdPdf(loc.id).catch(() => TANPA_TTD_PDF);
+  const { logoVendor, logoPengawas, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
+  const gambarTtd = await muatTtdPdf(loc.id, "harian").catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,
+      logoPengawas,
       foto,
       fotoMaterial,
       fotoAlat,

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error — skrip preDeploy sengaja .mjs polos (dijalankan di image runner).
-import { alasanTidakIdempoten } from "../../scripts/migrate-deploy.mjs";
+import { alasanTidakIdempoten, namaMigrasiGagal } from "../../scripts/migrate-deploy.mjs";
 
 /**
  * MIGRASI HARUS IDEMPOTEN (DECISIONS 167).
@@ -95,9 +95,66 @@ describe("pendeteksi idempoten (dipakai preDeploy untuk memutuskan pemulihan)", 
     expect(alasanTidakIdempoten(`CREATE TYPE "Peran" AS ENUM ('a');`)).toHaveLength(1);
   });
 
-  it("mengabaikan isi KOMENTAR — frasa penjelas tidak boleh dianggap pernyataan", () => {
+  it("mengabaikan isi KOMENTAR – frasa penjelas tidak boleh dianggap pernyataan", () => {
     expect(
       alasanTidakIdempoten('-- tiap ADD CONSTRAINT harus didahului DROP CONSTRAINT\n/* CREATE INDEX contoh */'),
     ).toEqual([]);
+  });
+});
+
+describe("membaca nama migrasi yang GAGAL dari keluaran Prisma", () => {
+  /*
+   * Bug laten yang baru ketahuan saat dev Railway benar-benar macet
+   * (2026-08-19, DECISIONS 373): pemulihan otomatis mencari nama migrasi gagal
+   * lewat `prisma migrate status` — dan pada Prisma 7 perintah itu SAMA SEKALI
+   * tidak menyebutnya, hanya mendaftar yang belum diterapkan. Jadi pemulihannya
+   * selalu berhenti di "nama migrasinya tidak terbaca", dan deploy tetap mentok
+   * persis pada keadaan yang seharusnya ia selamatkan.
+   *
+   * Teks di bawah adalah keluaran SUNGGUHAN, disalin apa adanya. Uji yang
+   * memakai teks karangan tidak akan pernah menangkap kegagalan ini — karena
+   * yang salah bukan pola regex-nya, melainkan sumber teks yang dibaca.
+   */
+  const KELUARAN_DEPLOY_P3009 = `60 migrations found in prisma/migrations
+Error: P3009
+migrate found failed migrations in the target database, new migrations will not be applied. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve
+The \`20260819120000_wa_group_unik\` migration started at 2026-08-19 07:40:19.101506 UTC failed`;
+
+  const KELUARAN_DEPLOY_P3018 = `Error: P3018
+A migration failed to apply. New migrations cannot be applied before the error is recovered from.
+Migration name: 20260819120000_wa_group_unik
+Database error code: P0001`;
+
+  const KELUARAN_STATUS_PRISMA7 = `60 migrations found in prisma/migrations
+Following migration have not yet been applied:
+20260819140000_wa_reply_job
+
+To apply migrations in production run prisma migrate deploy.`;
+
+  it("P3009 dari keluaran deploy terbaca", () => {
+    expect(namaMigrasiGagal(KELUARAN_DEPLOY_P3009)).toEqual(["20260819120000_wa_group_unik"]);
+  });
+
+  it("P3018 (baris 'Migration name:') juga terbaca", () => {
+    expect(namaMigrasiGagal(KELUARAN_DEPLOY_P3018)).toEqual(["20260819120000_wa_group_unik"]);
+  });
+
+  it("`migrate status` Prisma 7 memang TIDAK memuat migrasi gagal", () => {
+    /*
+     * Ini bukan uji terhadap kode kita, melainkan terhadap ASUMSI yang dulu
+     * dipegang diam-diam. Kalau suatu saat Prisma mulai menyebutkannya, uji ini
+     * merah — dan itu kabar baik yang layak diketahui, bukan kegagalan.
+     */
+    expect(namaMigrasiGagal(KELUARAN_STATUS_PRISMA7)).toEqual([]);
+  });
+
+  it("keluaran sukses tidak menghasilkan nama apa pun", () => {
+    expect(namaMigrasiGagal("All migrations have been successfully applied.")).toEqual([]);
+  });
+
+  it("nama yang sama dari dua baris tidak diduakalikan", () => {
+    expect(namaMigrasiGagal(`${KELUARAN_DEPLOY_P3009}\n${KELUARAN_DEPLOY_P3018}`)).toEqual([
+      "20260819120000_wa_group_unik",
+    ]);
   });
 });

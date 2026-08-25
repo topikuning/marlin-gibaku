@@ -140,7 +140,7 @@ describe("adaFilterAktif", () => {
 });
 
 describe("tautFilter", () => {
-  it("tanggal SELALU ikut — berpindah saringan tidak boleh melompat ke hari ini", () => {
+  it("tanggal SELALU ikut – berpindah saringan tidak boleh melompat ke hari ini", () => {
     const t = tautFilter("2026-08-06", FILTER_KOSONG, { drive: "belum" });
     expect(t).toContain("tanggal=2026-08-06");
     expect(t).toContain("drive=belum");
@@ -158,7 +158,7 @@ describe("tautFilter", () => {
     expect(t).toContain("wa=sudah");
   });
 
-  it("nilai 'semua' TIDAK ikut ditulis — alamatnya tetap pendek & terbaca", () => {
+  it("nilai 'semua' TIDAK ikut ditulis – alamatnya tetap pendek & terbaca", () => {
     const t = tautFilter("2026-08-06", FILTER_KOSONG, {});
     expect(t).toBe("/laporan/status-harian?tanggal=2026-08-06");
   });

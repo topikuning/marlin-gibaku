@@ -22,6 +22,13 @@ import type { PeriodeDiminta } from "./tanya-tanggal";
 
 export const NIAT = [
   "kendala",
+  /**
+   * Kendala yang DIBUKA pada periode itu — apa pun statusnya sekarang
+   * (DECISIONS 381).
+   */
+  "kendala_dibuka",
+  /** Kendala yang dibuka pada periode itu DAN masih terbuka sekarang. */
+  "kendala_periode_terbuka",
   "progress",
   "deviasi",
   "kelengkapan",
@@ -36,6 +43,8 @@ export type Niat = (typeof NIAT)[number];
 
 export const NIAT_LABEL: Record<Niat, string> = {
   kendala: "kendala lapangan",
+  kendala_dibuka: "kendala yang dibuka pada suatu periode",
+  kendala_periode_terbuka: "kendala dari suatu periode yang masih terbuka",
   progress: "progress pekerjaan",
   deviasi: "deviasi terhadap kurva-S",
   kelengkapan: "kelengkapan laporan harian",
@@ -113,22 +122,28 @@ export const SISTEM_PROMPT = [
   "Tugasmu HANYA mengubah pertanyaan berbahasa Indonesia bebas menjadi struktur JSON.",
   "",
   "Arti tiap niat:",
-  "- kendala     : masalah/hambatan/kendala di lapangan",
+  "- kendala     : masalah/hambatan/kendala yang MASIH TERBUKA sekarang",
+  "- kendala_dibuka : kendala yang DIBUKA/MUNCUL pada periode tertentu, apa pun",
+  "                   statusnya sekarang. Dipakai untuk 'kendala apa saja minggu lalu',",
+  "                   'kendala yang muncul kemarin'.",
+  "- kendala_periode_terbuka : kendala yang dibuka pada periode itu DAN masih",
+  "                   terbuka sekarang. Dipakai untuk 'kendala minggu lalu yang belum",
+  "                   selesai'.",
   "- progress    : kemajuan/realisasi pekerjaan, berapa persen, sudah sampai mana",
   "- deviasi     : keterlambatan, deviasi, siapa yang tertinggal dari jadwal",
   "- kelengkapan : siapa yang sudah/belum membuat laporan harian",
-  "- laporan     : ISI laporan harian satu tanggal — apa yang dikerjakan, cuaca,",
+  "- laporan     : ISI laporan harian satu tanggal – apa yang dikerjakan, cuaca,",
   "                jam kerja, jumlah tenaga kerja, foto. Dipakai untuk permintaan",
   "                seperti 'minta laporan harian', 'laporan tanggal 12', 'kirim",
   "                laporan kemarin'.",
-  "- laporan_mingguan : rekap satu PEKAN — realisasi vs rencana, berapa hari sudah",
+  "- laporan_mingguan : rekap satu PEKAN – realisasi vs rencana, berapa hari sudah",
   "                     dilaporkan. Dipakai untuk 'laporan mingguan', 'rekap mingguan',",
   "                     'laporan minggu lalu', 'progress mingguan'.",
   "                     PENTING: 'laporan MINGGUAN' selalu laporan_mingguan, JANGAN",
   "                     dipetakan ke 'laporan' (yang itu laporan HARIAN satu tanggal).",
   "- bantuan     : penanya bertanya APA SAJA yang bisa kamu jawab / kamu bisa apa",
   "",
-  "PERIODE — kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",
+  "PERIODE – kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",
   "Kamu TIDAK tahu hari ini tanggal berapa, jadi menghitung sendiri pasti salah.",
   "  'hari ini', tidak disebut          -> {\"jenis\":\"hari_ini\"}",
   "  'kemarin'                          -> {\"jenis\":\"mundur_hari\",\"hari\":1}",
@@ -146,6 +161,9 @@ export const SISTEM_PROMPT = [
   "   JANGAN memilih yang paling mirip. Menebak lebih berbahaya daripada mengaku tidak tahu.",
   "2. lokasiDisebut diisi nama lokasi APA ADANYA seperti ditulis penanya, tanpa dibetulkan",
   "   ejaannya. Kalau tidak ada lokasi disebut, isi larik kosong.",
+  "   Nama DAERAH ikut dihitung lokasi: desa, kecamatan, kabupaten, provinsi.",
+  "   'apa jember kemarin laporan?' -> lokasiDisebut: [\"jember\"]. Pencocokannya",
+  "   bukan tugasmu; MARLIN yang memutuskan itu kabupaten atau bukan.",
   "3. JANGAN pernah mengarang angka, tanggal, atau nama lokasi yang tidak ditulis penanya.",
   "4. Nama bulan/hari yang disebut penanya BUKAN nama lokasi.",
 ].join("\n");
@@ -154,11 +172,47 @@ export const SISTEM_PROMPT = [
 /* Pencocokan nama lokasi                                              */
 /* ------------------------------------------------------------------ */
 
-export type LokasiKatalog = { id: string; nama: string };
+/**
+ * Katalog lokasi yang boleh disebut penanya.
+ *
+ * Wilayah administratif IKUT, dan itu bukan kelengkapan data belaka: orang
+ * lapangan menyebut daerah, bukan hanya nama titik proyek. *"apa jember kemarin
+ * laporan?"* dijawab "tidak menemukan lokasi: jember" selama katalog ini hanya
+ * berisi `nama` — padahal Jember adalah kabupaten, dan lokasinya ada
+ * (DECISIONS 367).
+ *
+ * Keempatnya WAJIB diisi (kecamatan boleh `null` karena memang opsional di DB).
+ * Dibuat wajib, bukan opsional, supaya pembuat katalog baru tidak diam-diam
+ * kehilangan kemampuan ini — gejalanya cuma "tidak ketemu", yang terbaca
+ * seperti salah ketik penanya.
+ */
+export type LokasiKatalog = {
+  id: string;
+  nama: string;
+  desa: string;
+  kecamatan: string | null;
+  kabupaten: string;
+  provinsi: string;
+};
+
+export const TINGKAT_WILAYAH = ["desa", "kecamatan", "kabupaten", "provinsi"] as const;
+export type TingkatWilayah = (typeof TINGKAT_WILAYAH)[number];
+
+export const LABEL_TINGKAT: Record<TingkatWilayah, string> = {
+  desa: "Desa",
+  kecamatan: "Kecamatan",
+  kabupaten: "Kabupaten",
+  provinsi: "Provinsi",
+};
+
+/** Satu wilayah yang cocok, beserta seluruh lokasi di dalamnya. */
+export type CocokWilayah = { tingkat: TingkatWilayah; nama: string; lokasi: LokasiKatalog[] };
 
 export type HasilCocok =
   | { jenis: "tepat"; lokasi: LokasiKatalog }
+  | { jenis: "wilayah"; wilayah: CocokWilayah }
   | { jenis: "ambigu"; kandidat: LokasiKatalog[] }
+  | { jenis: "ambigu_wilayah"; pilihan: CocokWilayah[] }
   | { jenis: "tidak_ada" };
 
 /** Samakan bentuk untuk perbandingan: huruf kecil, tanpa tanda baca & spasi ganda. */
@@ -171,15 +225,64 @@ export function normalNama(s: string): string {
 }
 
 /**
+ * Buang awalan jenis wilayah supaya "kabupaten jember" dan "jember" sama.
+ *
+ * Dipakai di KEDUA sisi: penanya menulis "kab. jember", sementara data bisa
+ * menyimpan "Jember" polos (seperti sekarang) atau "Kabupaten Jember" kelak.
+ * Tanpa ini, pencocokannya bergantung pada gaya pengetikan operator data.
+ */
+const AWALAN_WILAYAH = /^(kabupaten|kabupate|kab|kotamadya|kota|kecamatan|kec|provinsi|prov|kelurahan|kel|desa)\s+/;
+
+export function normalWilayah(s: string): string {
+  const n = normalNama(s);
+  const tanpa = n.replace(AWALAN_WILAYAH, "").trim();
+  // "kota" sendirian bukan awalan — ia bisa saja nama wilayahnya.
+  return tanpa || n;
+}
+
+/**
+ * Bentuk RAPAT — nama tanpa spasi sama sekali.
+ *
+ * Nama desa ditulis orang dengan dan tanpa spasi, dan keduanya sama benarnya:
+ * "Randuputih" di basis data, "randu putih" yang diketik penanya. Sebelum ini
+ * yang kedua TIDAK cocok dengan apa pun, lalu pertanyaannya jatuh ke jalur
+ * catatan lapangan — dan dijawab dengan catatan lokasi LAIN, tanpa satu pun
+ * tanda bahwa nama yang ia tulis tidak dikenali. Dilaporkan user 2026-08-20
+ * dengan tangkapan layar: *"aku sengaja ketik randu putih … malah daerahnya
+ * kemana-mana"*.
+ *
+ * Dipakai sebagai lapis TERAKHIR sebelum menyerah ke pencocokan wilayah, bukan
+ * menggantikan pencocokan biasa: "batah timur" tetap harus lebih dulu dicoba
+ * apa adanya.
+ */
+export function rapatNama(s: string): string {
+  return normalNama(s).replace(/\s+/g, "");
+}
+
+/** Nilai wilayah satu lokasi pada satu tingkat. */
+function nilaiWilayah(l: LokasiKatalog, t: TingkatWilayah): string | null {
+  if (t === "desa") return l.desa;
+  if (t === "kecamatan") return l.kecamatan;
+  if (t === "kabupaten") return l.kabupaten;
+  return l.provinsi;
+}
+
+/**
  * Cocokkan satu nama yang disebut penanya ke katalog lokasi.
  *
  * Berlapis dari yang paling pasti:
- *   1. sama persis (setelah dinormalkan)
- *   2. katalog MENGANDUNG yang diketik ("kedung" → "Kedung Mutih")
+ *   1. nama lokasi sama persis (setelah dinormalkan)
+ *   2. nama lokasi MENGANDUNG yang diketik ("kedung" → "Kedung Mutih")
+ *   3. **nama WILAYAH** — desa, kecamatan, kabupaten, provinsi (DECISIONS 367)
  *
- * Kalau lapis 2 menghasilkan lebih dari satu, hasilnya **ambigu** — bukan yang
- * pertama. Memilih sendiri menghasilkan jawaban yang benar untuk lokasi yang
- * salah, dan penanya tidak punya cara mengetahuinya.
+ * Nama lokasi menang lebih dulu karena ia yang paling khusus: kalau ada lokasi
+ * bernama persis "Demak", itulah yang dimaksud, bukan seluruh Kabupaten Demak.
+ *
+ * Lapis 3 menghasilkan BANYAK lokasi, dan itu BUKAN keadaan ambigu — "Jember"
+ * memang berarti seluruh lokasi di Jember. Yang ambigu adalah kalau satu kata
+ * cocok di lebih dari satu TINGKAT dengan isi berbeda (mis. ada Kecamatan Demak
+ * di dalam Kabupaten Demak): di situ MARLIN balik bertanya, karena memilih
+ * sendiri menghasilkan jawaban yang benar untuk daerah yang salah.
  */
 export function cocokkanLokasi(diketik: string, katalog: LokasiKatalog[]): HasilCocok {
   const q = normalNama(diketik);
@@ -193,31 +296,120 @@ export function cocokkanLokasi(diketik: string, katalog: LokasiKatalog[]): Hasil
   if (mengandung.length === 1) return { jenis: "tepat", lokasi: mengandung[0] };
   if (mengandung.length > 1) return { jenis: "ambigu", kandidat: mengandung };
 
-  return { jenis: "tidak_ada" };
+  /*
+   * Lapis RAPAT: spasi diabaikan sepenuhnya di kedua sisi.
+   *
+   * "randu putih" → "randuputih" = nama desa yang di basis data memang ditulis
+   * menyatu. Dicoba SESUDAH pencocokan biasa supaya nama yang memang bespasi
+   * tidak kalah oleh kebetulan.
+   */
+  const qr = rapatNama(diketik);
+  if (qr) {
+    const rapat = katalog.filter((l) => rapatNama(l.nama) === qr);
+    if (rapat.length === 1) return { jenis: "tepat", lokasi: rapat[0] };
+    if (rapat.length > 1) return { jenis: "ambigu", kandidat: rapat };
+
+    const rapatSebagian = katalog.filter((l) => rapatNama(l.nama).includes(qr));
+    if (rapatSebagian.length === 1) return { jenis: "tepat", lokasi: rapatSebagian[0] };
+    if (rapatSebagian.length > 1) return { jenis: "ambigu", kandidat: rapatSebagian };
+  }
+
+  const w = normalWilayah(diketik);
+  if (!w) return { jenis: "tidak_ada" };
+
+  const pilihan: CocokWilayah[] = [];
+  for (const tingkat of TINGKAT_WILAYAH) {
+    const lokasi = katalog.filter((l) => {
+      const v = nilaiWilayah(l, tingkat);
+      return v != null && normalWilayah(v) === w;
+    });
+    if (lokasi.length === 0) continue;
+    // Nama tampilan diambil dari DATA, bukan dari ketikan penanya — supaya
+    // balasannya menyebut "Jember" seperti tertulis di sistem, bukan "jember".
+    const nama = nilaiWilayah(lokasi[0], tingkat)!;
+    pilihan.push({ tingkat, nama, lokasi });
+  }
+  if (pilihan.length === 0) return { jenis: "tidak_ada" };
+
+  // Tingkat berbeda yang isinya PERSIS SAMA bukan pilihan sungguhan (desa
+  // "Tengket" di kecamatan "Tengket" berisi satu lokasi yang sama). Ambil yang
+  // paling khusus, jangan repotkan penanya dengan pertanyaan tanpa beda.
+  const kunci = (c: CocokWilayah) =>
+    c.lokasi
+      .map((l) => l.id)
+      .sort()
+      .join("|");
+  const unik = new Map<string, CocokWilayah>();
+  for (const p of pilihan) if (!unik.has(kunci(p))) unik.set(kunci(p), p);
+
+  const daftar = [...unik.values()];
+  if (daftar.length === 1) {
+    const satu = daftar[0];
+    // Satu wilayah berisi satu lokasi = sama saja dengan menyebut lokasinya.
+    if (satu.lokasi.length === 1) return { jenis: "tepat", lokasi: satu.lokasi[0] };
+    return { jenis: "wilayah", wilayah: satu };
+  }
+  return { jenis: "ambigu_wilayah", pilihan: daftar };
 }
+
+/** Wilayah yang dipakai memperluas sasaran — WAJIB disebut di balasan. */
+export type CatatanWilayah = {
+  diketik: string;
+  tingkat: TingkatWilayah;
+  nama: string;
+  jumlah: number;
+};
 
 export type HasilResolusi = {
   /** Lokasi yang berhasil dicocokkan tepat. */
   cocok: LokasiKatalog[];
+  /**
+   * Nama yang ternyata WILAYAH, bukan lokasi tunggal. Wajib tercetak di
+   * balasan: menjawab 5 lokasi untuk pertanyaan yang menyebut satu kata, tanpa
+   * mengatakan kata itu adalah kabupaten, membuat penanya mengira ia sedang
+   * membaca angka satu lokasi.
+   */
+  wilayah: CatatanWilayah[];
   /** Nama yang ambigu, beserta kandidatnya — penanya harus ditanya balik. */
   ambigu: { diketik: string; kandidat: LokasiKatalog[] }[];
+  /** Satu kata cocok di beberapa TINGKAT wilayah — juga harus ditanya balik. */
+  ambiguWilayah: { diketik: string; pilihan: CocokWilayah[] }[];
   /** Nama yang tidak ada di katalog (atau di luar izin penanya). */
   tidakDikenal: string[];
 };
 
 /** Cocokkan seluruh nama yang disebut; kumpulkan yang bermasalah, jangan buang. */
 export function resolusiLokasi(diketik: string[], katalog: LokasiKatalog[]): HasilResolusi {
-  const hasil: HasilResolusi = { cocok: [], ambigu: [], tidakDikenal: [] };
+  const hasil: HasilResolusi = {
+    cocok: [],
+    wilayah: [],
+    ambigu: [],
+    ambiguWilayah: [],
+    tidakDikenal: [],
+  };
   const sudah = new Set<string>();
+  const tambah = (l: LokasiKatalog) => {
+    if (sudah.has(l.id)) return;
+    sudah.add(l.id);
+    hasil.cocok.push(l);
+  };
+
   for (const nama of diketik) {
     const c = cocokkanLokasi(nama, katalog);
     if (c.jenis === "tepat") {
-      if (!sudah.has(c.lokasi.id)) {
-        sudah.add(c.lokasi.id);
-        hasil.cocok.push(c.lokasi);
-      }
+      tambah(c.lokasi);
+    } else if (c.jenis === "wilayah") {
+      for (const l of c.wilayah.lokasi) tambah(l);
+      hasil.wilayah.push({
+        diketik: nama,
+        tingkat: c.wilayah.tingkat,
+        nama: c.wilayah.nama,
+        jumlah: c.wilayah.lokasi.length,
+      });
     } else if (c.jenis === "ambigu") {
       hasil.ambigu.push({ diketik: nama, kandidat: c.kandidat });
+    } else if (c.jenis === "ambigu_wilayah") {
+      hasil.ambiguWilayah.push({ diketik: nama, pilihan: c.pilihan });
     } else {
       hasil.tidakDikenal.push(nama);
     }

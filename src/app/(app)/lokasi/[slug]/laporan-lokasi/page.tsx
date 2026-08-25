@@ -1,19 +1,22 @@
-import Link from "next/link";
+import { peringatanPelaksana, pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { notFound } from "next/navigation";
-import { CalendarClock, FileText, ListTree, Printer, Sheet } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
+import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
 import { MenuBerkas } from "@/components/ui";
-import { MenuLaporanHarian, MenuLaporanPeriodik } from "./menu-laporan";
+import { MenuLaporanPeriodik } from "./menu-laporan";
+import { BarisLaporanHarian } from "./baris-harian";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
+import { COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
-import { jakartaDateKey, formatTanggal, formatTanggalWaktu } from "@/lib/format";
+import { ambilRiwayatHarian } from "@/lib/laporan/riwayat-queries";
 import { withBackTo } from "@/lib/print-back";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +38,19 @@ export default async function LaporanLokasiPage({
     select: {
       id: true,
       name: true,
-      package: { select: { id: true, waGroupId: true, driveFolderId: true } },
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      package: {
+        select: {
+          id: true,
+          waGroupId: true,
+          driveFolderId: true,
+          pelaksanaName: true,
+          pelaksanaTitle: true,
+          pelaksanaTtdKey: true,
+        },
+      },
     },
   });
   if (!location) notFound();
@@ -45,6 +60,17 @@ export default async function LaporanLokasiPage({
   const hasGroup = !!location.package?.waGroupId;
   const hasDrive = !!location.package?.driveFolderId;
   const driveOn = (await getGDriveConfigDisplay()).connected;
+
+  /*
+   * Peringatan Pelaksana Lapangan (DECISIONS 402) – DI SINI, di layar tempat
+   * orang menekan cetak/kirim, bukan hanya di halaman pengaturan yang mungkin
+   * tidak pernah dibuka. Yang kosong tetap bisa dicetak: blok TTD-nya keluar
+   * tanpa nama untuk ditandatangani tangan. Yang TIDAK dilakukan adalah
+   * memakai nama Direktur sebagai pengganti.
+   */
+  const peringatanTtd = peringatanPelaksana(
+    pilihPelaksana(location, location.package ?? null),
+  );
 
   // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
   // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
@@ -58,33 +84,37 @@ export default async function LaporanLokasiPage({
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
   const shown = sp.show === "1" && !!bounds;
 
-  const [report, finalReports, driveLogs] = await Promise.all([
+  const [report, riwayat, terhitung] = await Promise.all([
     shown ? getPeriodReport(location.id, kind, n) : Promise.resolve(null),
-    db.dailyReport.findMany({
-      where: { locationId: location.id, status: "final" },
-      orderBy: { reportDate: "desc" },
-      take: 30,
-      select: { id: true, reportDate: true, waSentAt: true, _count: { select: { items: true } } },
+    ambilRiwayatHarian({ locationId: location.id, slug }),
+    // Bahan laporan periodik = status yang DIHITUNG progres, bukan hanya final.
+    db.dailyReport.count({
+      where: { locationId: location.id, status: { in: [...COUNTED_REPORT_STATUSES] } },
     }),
-    // Upload Drive sukses terakhir per laporan harian (log append-only).
-    hasDrive
-      ? db.gDriveUpload.findMany({
-          where: { locationId: location.id, kind: "laporan_harian", status: "sukses" },
-          orderBy: { createdAt: "desc" },
-          take: 60,
-          select: { refKey: true, createdAt: true },
-        })
-      : Promise.resolve([]),
   ]);
-  const driveUploadedAt = new Map<string, Date>();
-  for (const l of driveLogs) if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, l.createdAt);
+  const { baris, ringkas, tersembunyi } = riwayat;
+
+  /*
+   * Syarat yang belum terpenuhi dikatakan SEKALI di kepala kartu, bukan
+   * diulang pada tiga puluh baris. Faktanya milik PAKET (grup WA / folder Drive
+   * belum diatur), jadi mengulangnya per hari hanya menutupi daftar dengan
+   * kalimat yang sama persis.
+   */
+  const alasanMati = [
+    !wahaOn ? "WhatsApp belum dikonfigurasi" : !hasGroup ? "Paket ini belum punya grup WhatsApp" : null,
+    !driveOn ? "Google Drive belum terhubung" : !hasDrive ? "Paket ini belum punya folder Drive" : null,
+  ].filter((v): v is string => !!v);
 
   return (
     <div className="space-y-6">
+      {peringatanTtd ? (
+        <Banner tone="warning" title="Pelaksana Lapangan belum diisi" description={peringatanTtd} />
+      ) : null}
+
       <Card>
         <CardHeader
           title="Laporan Periodik KKP"
-          subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
+          subtitle="Mingguan / bulanan – dihitung dari laporan harian terkirim (satu calculation layer)."
           action={
             scheduleBounds ? (
               // Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
@@ -100,19 +130,24 @@ export default async function LaporanLokasiPage({
                     label: "Buka untuk dicetak",
                     icon: <Printer aria-hidden className="size-3.5" />,
                     href: withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`),
+                    jenis: "tab",
                     hint: "Kurva-S seluruh masa kontrak",
                   },
                   {
                     label: "Unduh Excel",
                     icon: <Sheet aria-hidden className="size-3.5" />,
                     href: `/lokasi/${slug}/jadwal/export`,
+                    jenis: "berkas",
+                    labelSibuk: "Menyiapkan Excel jadwal…",
                     hint: "Bobot per kategori × minggu",
                   },
                   {
-                    label: "Unduh Excel — rincian item",
+                    label: "Unduh Excel – rincian item",
                     icon: <ListTree aria-hidden className="size-3.5" />,
                     href: `/lokasi/${slug}/jadwal/rincian`,
-                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item.",
+                    jenis: "berkas",
+                    labelSibuk: "Menyiapkan Excel rincian…",
+                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item.",
                   },
                 ]}
               />
@@ -124,7 +159,28 @@ export default async function LaporanLokasiPage({
             <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik butuh periode kontrak." />
           ) : (
             <>
-              <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} shown={shown} />
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} />
+                {/*
+                  Yang disebut hanya SUMBERNYA, bukan "14 hari terakhir sinkron"
+                  seperti di rancangan: tidak ada apa pun di sistem yang bisa
+                  membuktikan kalimat itu, dan lencana hijau yang mengaku
+                  "sinkron" tanpa dasar adalah cara tercepat membuat orang
+                  berhenti memeriksa.
+
+                  Angkanya `terhitung`, BUKAN jumlah laporan final. Versi
+                  pertama lencana ini memakai jumlah final – salah, dan salah
+                  dengan cara yang paling merugikan: laporan periodik menghitung
+                  `dikirim`, `disetujui`, DAN `final` (COUNTED_REPORT_STATUSES),
+                  jadi angkanya akan JAUH lebih kecil daripada bahan yang
+                  sebenarnya dipakai, dan orang akan mengira laporannya kurang
+                  lengkap lalu mengejar hari yang tidak perlu dikejar.
+                */}
+                <Badge tone="success" className="gap-1.5">
+                  <CircleCheck aria-hidden className="size-3.5" />
+                  Sumber data: {terhitung} laporan harian terkirim
+                </Badge>
+              </div>
               {!shown ? (
                 <EmptyState
                   icon={FileText}
@@ -146,7 +202,7 @@ export default async function LaporanLokasiPage({
                   />
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
-                    <ScurveKkpSheet r={report} />
+                    <ScurveKkpSheet r={report} jenis={report.kind} />
                   </div>
                   {/* Hal-2+: tabel detail item */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
@@ -162,43 +218,94 @@ export default async function LaporanLokasiPage({
       </Card>
 
       <Card>
-        <CardHeader title="Laporan harian final" subtitle="Snapshot beku — siap cetak KKP" />
-        <CardBody>
-          {finalReports.length === 0 ? (
+        <CardHeader
+          title="Laporan harian final"
+          subtitle="Snapshot beku – siap cetak KKP. Yang diutamakan di sini: sudah sampai ke Drive dan grup WhatsApp atau belum."
+        />
+        <CardBody className="space-y-4">
+          {ringkas.total === 0 ? (
             <EmptyState icon={FileText} title="Belum ada laporan final" description="Finalisasi dilakukan dari workspace harian setelah disetujui." />
           ) : (
-            <ul className="divide-y divide-border text-sm">
-              {finalReports.map((r) => {
-                const key = jakartaDateKey(r.reportDate);
-                return (
-                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span>
-                      {formatTanggal(r.reportDate, "EEEE, d MMM yyyy")}
-                      <span className="ml-2 text-ink-muted">{r._count.items} item</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-3">
-                      <MenuLaporanHarian
-                        slug={slug}
-                        dateKey={key}
-                        hasGroup={hasGroup}
-                        hasDrive={hasDrive}
-                        wahaOn={wahaOn}
-                        driveOn={driveOn}
-                        sentAt={r.waSentAt ? formatTanggalWaktu(r.waSentAt) : null}
-                        uploadedAt={
-                          driveUploadedAt.has(`${slug}:${key}`)
-                            ? formatTanggalWaktu(driveUploadedAt.get(`${slug}:${key}`)!)
-                            : null
-                        }
-                      />
-                      <Link href={withBackTo(`/cetak/harian/${slug}/${key}`, `/lokasi/${slug}/laporan-lokasi`)} className="font-medium text-primary hover:underline">
-                        Cetak
-                      </Link>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              {/* Dihitung dari SELURUH laporan final lokasi ini, bukan dari yang
+                  kebetulan tampil di daftar – lihat riwayat-queries.ts. */}
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard label="Laporan final" value={ringkas.total} sub="Seluruh masa kontrak" />
+                <KpiCard
+                  label="Sudah ke Drive"
+                  value={`${ringkas.drive}/${ringkas.total}`}
+                  tone={ringkas.drive === ringkas.total ? "success" : "default"}
+                  sub="Arsip yang diperiksa KKP"
+                />
+                <KpiCard
+                  label="Sudah ke WhatsApp"
+                  value={`${ringkas.wa}/${ringkas.total}`}
+                  tone={ringkas.wa === ringkas.total ? "success" : "default"}
+                  sub="Kabar ke grup paket"
+                />
+                <KpiCard
+                  label="Belum dikirim"
+                  value={ringkas.belum}
+                  tone={ringkas.belum > 0 ? "warning" : "success"}
+                  sub="Belum ke Drive maupun WhatsApp"
+                />
+              </div>
+
+              {alasanMati.length > 0 ? (
+                <Banner
+                  tone="info"
+                  title="Sebagian tombol kiriman dimatikan"
+                  description={`${alasanMati.join(". ")}. Unduh dan cetak tetap bisa dipakai.`}
+                />
+              ) : null}
+
+              {/*
+                Judul kolom hanya di layar lebar – di situ saja barisnya benar-
+                benar berbentuk tabel. Di layar sempit tiap baris menumpuk
+                menjadi kartu, dan judul kolom yang menggantung di atas tumpukan
+                justru menunjuk ke tempat yang salah.
+
+                Catatan "tombol diringkas otomatis" ditulis di sebelahnya supaya
+                yang memakai laptop kecil tahu tombolnya TIDAK hilang, cuma
+                terlipat – tanpa itu, layar yang sama terbaca seperti dua versi
+                aplikasi yang berbeda.
+              */}
+              {/* Lebar kolomnya PERSIS sama dengan barisnya (`11rem` tetap +
+                  `gap-x-6`), supaya judul benar-benar berdiri di atas kolomnya
+                  dan bukan sekadar dekat. */}
+              <div className="hidden gap-x-6 border-b border-border pb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase xl:grid xl:grid-cols-[11rem_minmax(0,1fr)_auto]">
+                <span>Tanggal</span>
+                <span>Ringkasan &amp; riwayat</span>
+                <span className="justify-self-end">Aksi</span>
+              </div>
+              <p className="text-[12px] text-ink-muted xl:hidden">
+                Tombolnya diringkas jadi satu menu karena lebar layar tidak cukup – isinya sama.
+              </p>
+
+              <ul className="divide-y divide-border">
+                {baris.map((r) => (
+                  <BarisLaporanHarian
+                    key={r.id}
+                    r={r}
+                    slug={slug}
+                    hasGroup={hasGroup}
+                    hasDrive={hasDrive}
+                    wahaOn={wahaOn}
+                    driveOn={driveOn}
+                    bolehBukaDrive={can(user.role, "gdrive.open_folder")}
+                  />
+                ))}
+              </ul>
+
+              {/* Yang tidak ditampilkan DISEBUT jumlahnya: daftar yang diam-diam
+                  dipotong terbaca sebagai "cuma segini laporannya". */}
+              {tersembunyi > 0 ? (
+                <p className="text-[12px] text-ink-muted">
+                  {tersembunyi} laporan final lebih lama tidak ditampilkan di daftar ini. Angka
+                  ringkas di atas tetap menghitung semuanya.
+                </p>
+              ) : null}
+            </>
           )}
         </CardBody>
       </Card>

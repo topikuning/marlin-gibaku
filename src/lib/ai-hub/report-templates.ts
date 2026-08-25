@@ -33,7 +33,7 @@ export type AiReportTemplate = {
 
 const PAGAR_SUMBER = pagarSumber(
   "angka, temuan, dan narasi pada blok DATA yang dilampirkan",
-  "Tiap bagian laporan wajib bisa ditunjuk sumbernya; bila datanya tidak ada, tulis bahwa datanya belum tersedia — jangan ditambal kalimat pelengkap.",
+  "Tiap bagian laporan wajib bisa ditunjuk sumbernya; bila datanya tidak ada, tulis bahwa datanya belum tersedia – jangan ditambal kalimat pelengkap.",
 );
 
 const TEMPLATES: readonly AiReportTemplate[] = [
@@ -98,7 +98,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "wa_update",
     label: "WhatsApp Update",
-    desc: "Narasi ringkas untuk pimpinan via WA — angka sama dgn laporan.",
+    desc: "Narasi ringkas untuk pimpinan via WA – angka sama dgn laporan.",
     instruction:
       "Sangat ringkas (maks ~1200 karakter di waSummary): kondisi umum 1-2 kalimat, 3-5 poin lokasi prioritas, penutup tindakan. Tanpa markdown.",
     version: 1,

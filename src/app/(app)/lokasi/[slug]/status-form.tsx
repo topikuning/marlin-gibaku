@@ -20,7 +20,7 @@ export function LocationStatusForm({
   );
 
   if (targets.length === 0) {
-    return <p className="text-sm text-ink-muted">Status sudah final — tidak ada transisi lanjutan.</p>;
+    return <p className="text-sm text-ink-muted">Status sudah final – tidak ada transisi lanjutan.</p>;
   }
 
   return (

@@ -5,7 +5,12 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { parseMasterLocationXlsx, type ParsedMasterRow } from "./import";
-import { existingLocationIndex, locationKey } from "./queries";
+import {
+  cariDuplikat,
+  existingLocationIndex,
+  locationKey,
+  type KandidatDuplikat,
+} from "./queries";
 
 export type MasterImportPreview = {
   parsed: number;
@@ -161,7 +166,7 @@ export async function commitMasterImportAction(
       updated,
       vendors: vendorNames.length,
     });
-    revalidatePath("/paket/katalog");
+    revalidatePath("/master/lokasi");
     revalidatePath("/paket/bypass");
     return {
       success: `Impor selesai: ${created} lokasi baru, ${updated} diperbarui, ${vendorNames.length} vendor diproses.`,
@@ -169,5 +174,161 @@ export async function commitMasterImportAction(
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan impor." };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tambah satu lokasi — jalur manual (DECISIONS 368)                   */
+/* ------------------------------------------------------------------ */
+
+export type TambahLokasiState =
+  | {
+      error?: string;
+      success?: string;
+      /**
+       * Kandidat lokasi yang mungkin SAMA. Bukan pesan galat: selama ini ada,
+       * formulir menahan diri dan memperlihatkannya supaya orang memutuskan —
+       * membuat entri baru diam-diam adalah cara paling mudah melahirkan lokasi
+       * ganda, dan akibatnya baru terasa berbulan-bulan kemudian saat angka satu
+       * desa terpecah dua.
+       */
+      kandidat?: KandidatDuplikat[];
+      /** Nilai yang tadi diketik, supaya formulir tidak kosong lagi setelah ditahan. */
+      isian?: Record<string, string>;
+    }
+  | undefined;
+
+const teks = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim().replace(/\s+/g, " ");
+
+/** Koordinat: kosong DIIZINKAN (jadi "perlu verifikasi"); isi harus masuk akal. */
+function bacaKoordinat(fd: FormData): { lat: number | null; lng: number | null } | { error: string } {
+  const mentahLat = String(fd.get("latitude") ?? "").trim().replace(",", ".");
+  const mentahLng = String(fd.get("longitude") ?? "").trim().replace(",", ".");
+  if (!mentahLat && !mentahLng) return { lat: null, lng: null };
+  /*
+   * Setengah koordinat DITOLAK, bukan disimpan apa adanya.
+   *
+   * Lintang tanpa bujur tidak menunjuk tempat mana pun, tapi kolomnya terisi —
+   * sehingga lokasinya lolos dari status "perlu verifikasi" dan tak seorang pun
+   * kembali memperbaikinya. Kosong seluruhnya jujur; separuh terisi menipu.
+   */
+  if (!mentahLat || !mentahLng) {
+    return { error: "Isi lintang DAN bujur, atau kosongkan keduanya. Separuh koordinat tidak menunjuk tempat mana pun." };
+  }
+  const lat = Number(mentahLat);
+  const lng = Number(mentahLng);
+  if (!Number.isFinite(lat) || lat < -11 || lat > 6) {
+    return { error: "Lintang di luar wilayah Indonesia (−11 sampai 6). Periksa apakah tertukar dengan bujur." };
+  }
+  if (!Number.isFinite(lng) || lng < 94 || lng > 142) {
+    return { error: "Bujur di luar wilayah Indonesia (94 sampai 142). Periksa apakah tertukar dengan lintang." };
+  }
+  return { lat, lng };
+}
+
+export async function tambahLokasiMasterAction(
+  _prev: TambahLokasiState,
+  formData: FormData,
+): Promise<TambahLokasiState> {
+  try {
+    const actor = await requireCapability("package.bypass");
+
+    const province = teks(formData, "province");
+    const regency = teks(formData, "regency");
+    const district = teks(formData, "district");
+    const village = teks(formData, "village");
+    const candidateVendor = teks(formData, "candidateVendor");
+    const isian = { province, regency, district, village, candidateVendor };
+
+    if (!province || !regency || !village) {
+      return { error: "Provinsi, Kabupaten/Kota, dan Desa/Kelurahan wajib diisi.", isian };
+    }
+
+    const koordinat = bacaKoordinat(formData);
+    if ("error" in koordinat) return { error: koordinat.error, isian };
+
+    const identitas = { province, regency, district: district || null, village };
+
+    const [katalog, lokasiRiil] = await Promise.all([
+      db.masterLocation.findMany({
+        where: { orgId: actor.orgId },
+        select: { id: true, province: true, regency: true, district: true, village: true },
+      }),
+      db.location.findMany({
+        where: { package: { orgId: actor.orgId } },
+        select: {
+          id: true,
+          name: true,
+          province: true,
+          regency: true,
+          district: true,
+          village: true,
+        },
+      }),
+    ]);
+
+    const kandidat = cariDuplikat(identitas, katalog, lokasiRiil);
+    const persis = kandidat.some((k) => k.kemiripan === "persis");
+
+    /*
+     * Dua perlakuan berbeda, sengaja:
+     *
+     * - `persis` TIDAK PERNAH boleh dipaksa. Indeks unik basis data akan
+     *   menolaknya, jadi memberi tombol "tetap simpan" cuma menjanjikan sesuatu
+     *   yang berakhir dengan galat mentah.
+     * - `mirip` boleh dipaksa SESUDAH orang melihat kandidatnya. Desa senama di
+     *   kecamatan berbeda itu nyata, dan menolaknya berarti melarang data yang
+     *   benar demi mencegah data yang salah.
+     */
+    const dipaksa = formData.get("konfirmasi") === "ya";
+    if (kandidat.length > 0 && (persis || !dipaksa)) {
+      return { kandidat, isian };
+    }
+
+    const dibuat = await db.masterLocation.create({
+      data: {
+        orgId: actor.orgId,
+        province,
+        regency,
+        // Kolomnya `String?` tapi indeks uniknya ikut memakai kecamatan —
+        // `null` membuat baris berbeda selalu dianggap unik oleh Postgres.
+        // Impor batch sudah memakai "" untuk alasan yang sama; disamakan.
+        district: district || "",
+        village,
+        latitude: dec(koordinat.lat),
+        longitude: dec(koordinat.lng),
+        candidateVendor: candidateVendor || null,
+      },
+      select: { id: true },
+    });
+
+    if (candidateVendor) {
+      await db.vendor.upsert({
+        where: { orgId_name: { orgId: actor.orgId, name: candidateVendor } },
+        update: {},
+        create: { orgId: actor.orgId, name: candidateVendor },
+      });
+    }
+
+    await audit(actor.id, "master_location.create", "master_location", dibuat.id, {
+      province,
+      regency,
+      district: district || null,
+      village,
+      tanpaKoordinat: koordinat.lat == null,
+      dipaksaMeskipunMirip: kandidat.length > 0,
+    });
+
+    revalidatePath("/master/lokasi");
+    revalidatePath("/paket/bypass");
+    return {
+      success:
+        koordinat.lat == null
+          ? `${village} tersimpan tanpa koordinat – statusnya "Perlu verifikasi" sampai koordinatnya diisi.`
+          : `${village} tersimpan di katalog.`,
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan lokasi." };
   }
 }

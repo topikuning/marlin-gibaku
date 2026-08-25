@@ -65,7 +65,7 @@ describe("deteksi blok tambah/kurang", () => {
     expect(ws.getRow(3).getCell(peta.volDasar).value).toBe(100); // volD baris 1
   });
 
-  it("LABEL TIDAK MENENTUKAN — 'MC - 0' sebagai blok dasar tidak ikut terambil", () => {
+  it("LABEL TIDAK MENENTUKAN – 'MC - 0' sebagai blok dasar tidak ikut terambil", () => {
     // Inti jebakannya: di satu berkas KKP "MC-0" adalah HASIL, di berkas lain
     // ia KEADAAN AWAL. Menyimpulkan peran dari namanya pasti salah di salah
     // satunya.
@@ -83,7 +83,7 @@ describe("deteksi blok tambah/kurang", () => {
     expect(ws.getRow(3).getCell(peta.col.unit).value).toBe("m³");
   });
 
-  it("satuan & harga satuan diambil dari blok DASAR — adendum mengubah volume, bukan harga", () => {
+  it("satuan & harga satuan diambil dari blok DASAR – adendum mengubah volume, bukan harga", () => {
     const ws = sheetCco({ labelDasar: "RAB", labelHasil: "MC 0" });
     const peta = deteksiCco(ws)!;
     expect(peta.col.price).toBeGreaterThanOrEqual(peta.blokDasar.mulai);

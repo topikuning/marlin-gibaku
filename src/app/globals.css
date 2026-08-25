@@ -266,3 +266,48 @@ html,
 body {
   overscroll-behavior-y: contain;
 }
+
+/*
+ * SIDEBAR YANG DIRINGKAS (DECISIONS 413).
+ *
+ * Permintaan user 2026-08-22: *"sidebar yang bisa di collapsible, jadi bisa
+ * memperlebar pandangan di desktop"*, lalu *"tidak perlu ramping, collapsible
+ * saja"* — jadi lebar terbentangnya (15rem) TIDAK diubah sama sekali.
+ *
+ * Dikendalikan atribut `data-nav="ringkas"` pada <html>, bukan state React.
+ * Alasannya bukan selera: yang harus ikut menyempit ada DUA benda di cabang
+ * pohon yang berbeda — sidebar dan bantalan kiri konten. Lewat atribut di akar,
+ * keduanya membaca sumber yang sama dan mustahil berselisih; lewat state React,
+ * keduanya butuh context yang dipasang mengelilingi seluruh shell hanya untuk
+ * satu boolean.
+ *
+ * Skrip pra-lukis di root layout memasang atribut ini SEBELUM halaman dilukis,
+ * jadi tidak ada kedipan "lebar dulu, lalu melompat menyempit" di tiap
+ * perpindahan halaman.
+ *
+ * Hanya berlaku ≥lg: di bawah itu sidebarnya memang tidak ada (nav bawah +
+ * laci), dan meringkas sesuatu yang tidak tampak cuma menghasilkan bug diam.
+ */
+@media (min-width: 64rem) {
+  [data-nav="ringkas"] .marlin-sidebar {
+    width: 4rem;
+  }
+
+  [data-nav="ringkas"] .marlin-konten {
+    padding-left: 4rem;
+  }
+
+  /* Teks yang menghilang: labelnya, bukan tautannya. Tautannya tetap utuh —
+     ikon, area klik, dan nama yang terbaca pembaca layar lewat aria-label. */
+  [data-nav="ringkas"] .marlin-nav-teks {
+    display: none;
+  }
+
+  /* Ikon jadi satu-satunya penanda: ia harus duduk di tengah, bukan menempel
+     kiri dengan sisa ruang menganga di kanannya. */
+  [data-nav="ringkas"] .marlin-nav-tautan {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

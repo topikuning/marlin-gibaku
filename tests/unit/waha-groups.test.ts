@@ -17,7 +17,7 @@ const { normalizeWahaBaseUrl, isInternalHost } = await import("../../src/lib/wah
  * parser respons /groups lintas engine/versi.
  */
 
-describe("normalizeWahaBaseUrl — skema default", () => {
+describe("normalizeWahaBaseUrl – skema default", () => {
   it("host internal Railway tanpa skema → http (private networking tanpa TLS)", () => {
     expect(normalizeWahaBaseUrl("waha.railway.internal:3000")).toBe("http://waha.railway.internal:3000");
     expect(normalizeWahaBaseUrl("localhost:3000")).toBe("http://localhost:3000");
@@ -48,7 +48,7 @@ describe("normalizeWahaBaseUrl — skema default", () => {
   });
 });
 
-describe("terjemahkanWahaError — error engine jadi instruksi", () => {
+describe("terjemahkanWahaError – error engine jadi instruksi", () => {
   it("store NOWEB mati → sebut env yang harus diset + jalan keluar (link undangan)", () => {
     const msg = terjemahkanWahaError(
       500,
@@ -73,7 +73,7 @@ describe("terjemahkanWahaError — error engine jadi instruksi", () => {
   });
 });
 
-describe("parseGroupsResponse — lintas engine/versi WAHA", () => {
+describe("parseGroupsResponse – lintas engine/versi WAHA", () => {
   const ID1 = "120363011111111111@g.us";
   const ID2 = "120363022222222222@g.us";
 

@@ -92,7 +92,7 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(link.formula).toBe(`'Detail RAB'!F${rTanahDetail}`);
     expect(link.result).toBe(25_000_000);
 
-    const rSubtotal = barisDengan(sub, 2, "JUMLAH I — PEKERJAAN GEDUNG");
+    const rSubtotal = barisDengan(sub, 2, "JUMLAH I – PEKERJAAN GEDUNG");
     const st = rumus(sub.getCell(rSubtotal, 3));
     expect(st.formula).toMatch(/^C\d+\+C\d+$/);
     expect(st.result).toBe(125_000_000);
@@ -102,7 +102,7 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     const wb = await bangun();
     const sub = wb.getWorksheet("Sub Resume")!;
     const res = wb.getWorksheet("Resume")!;
-    const rSubtotalI = barisDengan(sub, 2, "JUMLAH I — PEKERJAAN GEDUNG");
+    const rSubtotalI = barisDengan(sub, 2, "JUMLAH I – PEKERJAAN GEDUNG");
     const rKatResume = barisDengan(res, 2, "PEKERJAAN GEDUNG");
     // No = roman di kolomnya sendiri, uraian = nama saja (tanpa kode tergabung).
     expect(res.getCell(rKatResume, 1).value).toBe("I");

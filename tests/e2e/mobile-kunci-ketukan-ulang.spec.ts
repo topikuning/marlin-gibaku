@@ -91,7 +91,7 @@ test.describe("kunci ketukan ulang", () => {
     await tautan.click({ force: true });
     await expect
       .poll(() => navigasi.length, {
-        message: "ketukan sesudah ambang lambat masih ditelan — pengguna terkunci tanpa tanda",
+        message: "ketukan sesudah ambang lambat masih ditelan – pengguna terkunci tanpa tanda",
         timeout: 3000,
       })
       .toBe(2);

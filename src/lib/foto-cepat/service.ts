@@ -109,7 +109,7 @@ export async function lengkapiCap(
         data: {
           photoId,
           revision: revisi,
-          reason: "Foto Cepat dipakai — informasi cap dilengkapi otomatis",
+          reason: "Foto Cepat dipakai – informasi cap dilengkapi otomatis",
           before: ringkasNilai(lama) as object,
           after: ringkasNilai(baru) as object,
           // KOSONG dengan sengaja: tidak ada satu nilai pun yang diketik manusia.
@@ -148,7 +148,7 @@ export async function hapusFotoKantong(photoId: string, actorId: string): Promis
   // Pagar terakhir: yang boleh dibuang lewat jalur ini HANYA foto tanpa induk.
   // Foto yang sudah jadi lampiran laporan adalah bukti — menghapusnya lewat
   // tombol kantong akan melewati seluruh aturan pembatalan laporan.
-  if (p.reportId || p.activityId) throw new Error("Foto ini sudah dipakai — hapus lewat laporannya.");
+  if (p.reportId || p.activityId) throw new Error("Foto ini sudah dipakai – hapus lewat laporannya.");
 
   await db.$transaction(async (tx) => {
     await tx.photoStampRevision.deleteMany({ where: { photoId } });

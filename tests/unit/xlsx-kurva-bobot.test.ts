@@ -43,10 +43,16 @@ function fixture(): PeriodReport {
       periodeEnd: new Date(start.getTime() + 6 * 86_400_000),
       ppkName: null,
       ppkNip: null,
+      weekMode: "tujuh_hari" as const,
+      contractEnd: null,
+      wakilSahName: null,
+      wakilSahNip: null,
       supervisorName: null,
       supervisorFirm: null,
       contractorSignerName: null,
       contractorSignerTitle: null,
+  pelaksanaName: "Joko Susilo",
+  pelaksanaTitle: "Pelaksana Lapangan",
     },
     categories: [],
     totals: { bobotLalu: 0, bobotIni: 0, bobotSd: 0, bobotRencana: 0 },
@@ -79,7 +85,7 @@ const numOf = (v: ExcelJS.CellValue): number => {
   return 0;
 };
 
-describe("sheet Kurva S — kolom Bobot (%) = SUM kolom minggu", () => {
+describe("sheet Kurva S – kolom Bobot (%) = SUM kolom minggu", () => {
   it("tiap baris kategori: rumus SUM(D:J), dan Σ sel minggu yang tertulis = hasilnya", async () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load((await buildJadwalXlsx(fixture())) as unknown as ArrayBuffer);

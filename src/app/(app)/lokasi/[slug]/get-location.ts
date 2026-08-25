@@ -32,11 +32,26 @@ function findLocation(slug: string) {
       gpsLng: true,
       status: true,
       isActive: true,
+      // Pelaksana Lapangan lokasi ini (penimpaan) + milik paket sebagai
+      // cadangan — dibaca `pilihPelaksana` (DECISIONS 402).
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      // Konsultan Pengawas lokasi ini (penimpaan) + milik kontrak sebagai
+      // cadangan — dibaca `pilihPengawas` (DECISIONS 409).
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
+      wakilSahName: true,
+      wakilSahNip: true,
+      wakilSahTtdKey: true,
       package: {
         select: {
           id: true,
           name: true,
           packageNumber: true,
+          pelaksanaName: true,
+          pelaksanaTitle: true,
           contract: {
             select: {
               id: true,
@@ -46,6 +61,10 @@ function findLocation(slug: string) {
               durationDays: true,
               startDate: true,
               endDate: true,
+              supervisorName: true,
+              wakilSahName: true,
+              wakilSahNip: true,
+              supervisorFirm: true,
               vendor: { select: { name: true } },
             },
           },

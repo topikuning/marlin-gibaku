@@ -1,9 +1,10 @@
+import { totalWeeksBetween, weekEndFractions } from "@/lib/progress-calc";
 import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { DEFAULT_CONTRACT_DAYS, weeklyFromSegments } from "@/lib/scurve/generate";
+import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
@@ -189,7 +190,7 @@ export async function discardDraft(revisionId: string, userId: string) {
     select: { id: true, status: true, revisionNo: true, locationId: true },
   });
   if (rev.status !== "draft") {
-    throw new Error(`Revisi #${rev.revisionNo} bukan draft — tidak boleh dihapus.`);
+    throw new Error(`Revisi #${rev.revisionNo} bukan draft – tidak boleh dihapus.`);
   }
   await db.rabRevision.delete({ where: { id: rev.id } });
   await audit(userId, "rab.revision_discard", "rab_revision", rev.id, {
@@ -207,6 +208,45 @@ export async function contractDaysFor(locationId: string): Promise<number> {
   });
   const days = loc?.package.contract?.durationDays ?? 0;
   return days > 0 ? days : DEFAULT_CONTRACT_DAYS;
+}
+
+/**
+ * Jumlah KOLOM MINGGU jadwal/baseline lokasi ini — mengikuti mode periode
+ * minggu kontrak (user 2026-08-24):
+ * - `tujuh_hari` / SPMK belum terbit → ceil(durasi/7) (perilaku lama).
+ * - `senin_minggu` + SPMK ada → jumlah minggu kalender Senin–Minggu yang
+ *   menutup [SPMK, akhir kontrak]; M1 bisa pendek, jadi jumlahnya bisa
+ *   1 kolom lebih banyak daripada ceil(durasi/7).
+ * Disatukan di sini supaya baseline, jadwal kategori, dan laporan periodik
+ * menghitung kolom dengan aturan yang SAMA.
+ */
+export async function totalWeeksFor(locationId: string): Promise<{
+  contractDays: number;
+  totalWeeks: number;
+  /**
+   * Grid minggu tak-seragam untuk generator kurva-S (DECISIONS 427b) — hanya
+   * terisi pada mode `senin_minggu` dengan SPMK+akhir kontrak diketahui.
+   * null = grid seragam lama (mode `tujuh_hari` / SPMK belum terbit).
+   */
+  weekEndFracs: number[] | null;
+}> {
+  const loc = await db.location.findUnique({
+    where: { id: locationId },
+    select: {
+      package: {
+        select: {
+          contract: { select: { durationDays: true, startDate: true, endDate: true, weekMode: true } },
+        },
+      },
+    },
+  });
+  const c = loc?.package.contract;
+  const contractDays = (c?.durationDays ?? 0) > 0 ? c!.durationDays : DEFAULT_CONTRACT_DAYS;
+  if (c?.weekMode === "senin_minggu" && c.startDate && c.endDate) {
+    const weekEndFracs = weekEndFractions(c.startDate, c.endDate, "senin_minggu");
+    return { contractDays, totalWeeks: weekEndFracs.length, weekEndFracs };
+  }
+  return { contractDays, totalWeeks: Math.max(1, Math.ceil(contractDays / 7)), weekEndFracs: null };
 }
 
 export type RegenerateBaselineOpts = {
@@ -239,8 +279,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     orderBy: { sortOrder: "asc" },
   });
 
-  const contractDays = await contractDaysFor(locationId);
-  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   // JADWAL BERBASIS ITEM (DECISIONS 082) = sumber tunggal. Tiap item RAB
   // ditempatkan menurut TAHAP-nya, bersarang di jendela PRESEDENSI kategori
@@ -268,16 +307,18 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const catWindowWeeks = new Map<string, [number, number]>();
   for (const c of catNodes) {
     const [cs, ce] = autoCategoryWindowFrac(c.name);
-    const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(cs * totalWeeks) + 1));
-    const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ce * totalWeeks)));
+    // Pemetaan fraksi→minggu lewat grid: pada mode senin_minggu, M1 pendek
+    // menempati fraksi hari yang lebih kecil (DECISIONS 427b).
+    const sWeek = weekOfFracStart(cs, totalWeeks, weekEndFracs);
+    const eWeek = Math.max(sWeek, weekOfFracEnd(ce, totalWeeks, weekEndFracs));
     catWindowWeeks.set(c.lineageKey, [sWeek, eWeek]);
   }
   const winFrac = (_name: string, key?: string): [number, number] => {
     const [s, e] = catWindowWeeks.get(key ?? "") ?? [1, totalWeeks];
-    return [(s - 1) / totalWeeks, e / totalWeeks];
+    return [gridStartFrac(s, totalWeeks, weekEndFracs), gridEndFrac(e, totalWeeks, weekEndFracs)];
   };
 
-  const sched = scheduleFromItems(items, contractDays, winFrac);
+  const sched = scheduleFromItems(items, contractDays, winFrac, weekEndFracs);
   const weekly = cumulativeFromCategoryWeekly(sched.categories, totalWeeks);
 
   // Matriks mingguan per kategori (bentuk kanonik, DECISIONS 103): dari jadwal
@@ -290,7 +331,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
       const weightPct = (Number(c.amount) / grandCat) * 100;
       const catWeekly =
         weeklyByKey.get(c.lineageKey) ??
-        weeklyFromSegments(weightPct, [{ startWeek: sWeek, endWeek: eWeek }], totalWeeks);
+        weeklyFromSegments(weightPct, [{ startWeek: sWeek, endWeek: eWeek }], totalWeeks, weekEndFracs);
       return {
         lineageKey: c.lineageKey,
         name: c.name,

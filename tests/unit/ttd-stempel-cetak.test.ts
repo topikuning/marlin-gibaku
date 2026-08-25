@@ -44,6 +44,12 @@ const KOP: SumberTtdRencana["header"] = {
 };
 
 const KOSONG: SumberKunciTtd = {
+  // Dokumen yang diteken Direktur – dasar semua kasus di berkas ini kecuali
+  // yang menyebut sebaliknya (DECISIONS 402).
+  penyedia: "direktur",
+  kkp: "ppk",
+  wakilSahTtdKey: null,
+  pelaksanaTtdKey: null,
   ppkTtdKey: null,
   ppkStempelKey: null,
   supervisorTtdKey: null,
@@ -65,7 +71,7 @@ describe("identitas pihak dibawa datanya, bukan urutan larik", () => {
     expect(perPihak.get("ppk")?.name).toBe("Budi Santoso");
   });
 
-  it("ketiga pihak berbeda — tidak ada dua blok yang mengaku pihak yang sama", () => {
+  it("ketiga pihak berbeda – tidak ada dua blok yang mengaku pihak yang sama", () => {
     const blok = pihakTandaTanganRencana({ header: KOP });
     expect(new Set(blok.map((b) => b.pihak)).size).toBe(3);
   });
@@ -99,6 +105,47 @@ describe("pemilihan kunci gambar", () => {
   it("stempel penyedia jatuh ke master vendor bila kontrak tidak punya", () => {
     const k = pilihKunciTtd({ ...KOSONG, vendorStempelKey: "vendors/v1/stempel.webp" });
     expect(k.penyedia.stempel).toBe("vendors/v1/stempel.webp");
+  });
+
+  it("SATU perusahaan, SATU stempel – tidak bergantung siapa yang meneken", () => {
+    /*
+     * Keberatan user 2026-08-22: *"kenapa pelaksana dan direktur yang jelas 1
+     * perusahaan stempelnya muncul 2x?"* (DECISIONS 408).
+     *
+     * Coretan tanda tangan milik ORANG; stempel milik PERUSAHAAN. Pelaksana
+     * Lapangan dan Direktur bekerja di perusahaan yang sama, jadi laporan
+     * harian dan laporan bulanan dari lokasi yang sama WAJIB membawa stempel
+     * yang sama. Sebelum ini keduanya mengambil dari kotak unggah yang berbeda,
+     * sehingga satu bisa diperbarui dan yang lain tertinggal.
+     */
+    const sumber = {
+      ...KOSONG,
+      contractorStempelKey: "kontrak/1/contractorStempelKey.webp",
+      contractorTtdKey: "kontrak/1/contractorTtdKey.webp",
+      pelaksanaTtdKey: "paket/1/pelaksanaTtdKey.webp",
+    };
+    const harian = pilihKunciTtd({ ...sumber, penyedia: "pelaksana" });
+    const bulanan = pilihKunciTtd({ ...sumber, penyedia: "direktur" });
+
+    expect(harian.penyedia.stempel).toBe(bulanan.penyedia.stempel);
+    expect(harian.penyedia.stempel).toBe("kontrak/1/contractorStempelKey.webp");
+
+    // Yang TETAP berbeda: coretannya. Tanda tangan pelaksana pada laporan
+    // bulanan adalah pernyataan yang tidak benar, bukan sekadar gambar keliru.
+    expect(harian.penyedia.ttd).toBe("paket/1/pelaksanaTtdKey.webp");
+    expect(bulanan.penyedia.ttd).toBe("kontrak/1/contractorTtdKey.webp");
+  });
+
+  it("stempel pelaksana jatuh ke master vendor juga, lewat jalur yang sama", () => {
+    // Tanpa stempel di kontrak, kedua jenis dokumen sama-sama memakai stempel
+    // master perusahaan – bukan salah satunya kosong.
+    const sumber = { ...KOSONG, vendorStempelKey: "vendors/v1/stempel.webp" };
+    expect(pilihKunciTtd({ ...sumber, penyedia: "pelaksana" }).penyedia.stempel).toBe(
+      "vendors/v1/stempel.webp",
+    );
+    expect(pilihKunciTtd({ ...sumber, penyedia: "direktur" }).penyedia.stempel).toBe(
+      "vendors/v1/stempel.webp",
+    );
   });
 
   it("cadangan vendor TIDAK berlaku untuk tanda tangan", () => {
@@ -211,7 +258,7 @@ describe("ukuran stempel tetap sepadan dokumen asli", () => {
 });
 
 describe("bentuk & letak", () => {
-  it("stempel BUNDAR — lebar sama dengan tingginya", () => {
+  it("stempel BUNDAR – lebar sama dengan tingginya", () => {
     for (const d of DOKUMEN) {
       const u = ukuran(d.lebar, d.ruang);
       expect(u.stempel.lebar, d.nama).toBe(u.stempel.tinggi);

@@ -58,7 +58,7 @@ export function pihakTandaTanganRencana(r: SumberTtdRencana): [PihakTtd, PihakTt
     {
       pihak: "penyedia",
       title: "Disusun Oleh,",
-      role: `Penyedia Jasa — ${h.vendorName}`,
+      role: `Penyedia Jasa – ${h.vendorName}`,
       // BUKAN `disusunOleh`. Lihat catatan modul.
       name: h.contractorSignerName?.trim() || null,
       sub: h.contractorSignerTitle?.trim() || null,

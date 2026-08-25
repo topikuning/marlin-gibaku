@@ -76,7 +76,7 @@ export default async function CetakRaplPage({
             kontrak={location.package.contract?.contractNumber ?? null}
             penyedia={location.package.contract?.vendor.name ?? null}
             sumberAhsp={basis?.name ?? "belum dimuat"}
-            shaAhsp={basis?.fileSha256 ?? "—"}
+            shaAhsp={basis?.fileSha256 ?? "–"}
             dicetakOleh={user.fullName}
             rapl={rapl}
             harga={harga}

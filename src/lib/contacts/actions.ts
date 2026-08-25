@@ -211,7 +211,7 @@ export async function deleteAliasAction(_prev: ContactState, formData: FormData)
     });
     revalidateContacts();
     return {
-      success: `Nama "${target.displayName}" dilepas — pengirim itu kembali tampil sebagai nomor sampai dinamai lagi.`,
+      success: `Nama "${target.displayName}" dilepas – pengirim itu kembali tampil sebagai nomor sampai dinamai lagi.`,
     };
   } catch (err) {
     return fail(err);

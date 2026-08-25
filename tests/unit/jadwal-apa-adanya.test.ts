@@ -69,7 +69,7 @@ describe("angka Excel dipakai apa adanya", () => {
   });
 });
 
-describe("penyelarasan ke 100% — seragam, dan dikatakan", () => {
+describe("penyelarasan ke 100% – seragam, dan dikatakan", () => {
   it("total 99% diskalakan SATU faktor; perbandingan antar-pekerjaan tetap", () => {
     const kurang = new Map<string, number[]>([
       ["A", [9.9, 0, 0, 0]],
@@ -116,7 +116,7 @@ describe("penyelarasan ke 100% — seragam, dan dikatakan", () => {
 });
 
 describe("yang tidak bisa diikuti ditolak dengan sebutan barisnya", () => {
-  it("nilai negatif ditolak — kurva kumulatif tidak boleh turun", () => {
+  it("nilai negatif ditolak – kurva kumulatif tidak boleh turun", () => {
     const negatif = new Map<string, number[]>([
       ["A", [10, 0, 0, 0]],
       ["B", [0, 40, -5, 25]],

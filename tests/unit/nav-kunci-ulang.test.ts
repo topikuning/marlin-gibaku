@@ -60,7 +60,7 @@ describe("kuncinya TERBUKA saat pemberitahuan lambat muncul", () => {
 });
 
 describe("yang TIDAK ikut terkunci", () => {
-  it("alamat lain selalu lolos — pengguna berubah pikiran tidak dihukum", () => {
+  it("alamat lain selalu lolos – pengguna berubah pikiran tidak dihukum", () => {
     const kunci = kunciKetukan("/lokasi/abc", T0);
     expect(tahanKetukan(kunci, "/lokasi/xyz", T0 + 200)).toBe(false);
     expect(tahanKetukan(kunci, "/progress", T0 + 200)).toBe(false);

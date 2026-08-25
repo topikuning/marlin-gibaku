@@ -71,11 +71,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
-- 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent,
-  DAN antrean foto di IndexedDB yang bertahan melewati muat ulang (DECISIONS 257).
-  Yang masih kurang: tanpa service worker, halaman TIDAK bisa DIBUKA dari nol saat
-  benar-benar offline — foto yang sudah dijepret selamat, tapi aplikasinya sendiri
-  perlu sekali terbuka lebih dulu. Belum ada manifest installable/background sync.
+- 🟡 **Offline di luar `/foto-cepat`** — sekarang: draft lokal (localStorage) + submit
+  idempotent, antrean foto di IndexedDB yang bertahan melewati muat ulang
+  (DECISIONS 257), manifest installable, DAN service worker yang membuat
+  `/foto-cepat` bisa DIBUKA dari nol tanpa sinyal (dengan banner "dari simpanan")
+  sementara halaman lain jatuh ke `/offline` (DECISIONS 398). Halamannya
+  disiapkan otomatis tiap aplikasi dibuka, jadi mode pesawat tidak menuntut
+  Foto Cepat pernah dibuka lebih dulu (DECISIONS 399).
+  Yang masih kurang: menu lain belum bisa dibuka luring (sadar — HTML ber-sesi yang
+  menetap di HP adalah risiko, dan halaman lain tidak bisa ditindaklanjuti tanpa
+  jaringan), background sync/unggah setelah aplikasi ditutup, dan push notification.
+  Dua yang terakhir menuntut cangkang native (Capacitor/TWA), bukan peramban —
+  lihat DECISIONS 398 untuk kenapa aplikasi Android penuh ditolak.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
@@ -91,6 +98,15 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Teknis
 
+- 🟡 **E2E flaky: "Enter di kolom Qty/Volume MENYIMPAN"**
+  (`tests/e2e/harian-tata-letak-input.spec.ts:222`). Setelah Enter dan banner
+  "Pelengkap laporan tersimpan." muncul, `materialQty` pertama kadang kembali
+  ke nilai seed (40), bukan 7 — gagal di CI 2026-08-25 (lolos saat retry) dan
+  tereproduksi lokal. Dugaan: re-render pasca-simpan menukar urutan baris atau
+  nilai belum terpersistensi saat form dipasang ulang — perlu diselidiki
+  apakah ini murni uji rapuh (`first()` tidak stabil) atau bug nyata
+  Enter-simpan kehilangan angka. Belum dikerjakan; terpisah dari pekerjaan
+  mode minggu.
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.
@@ -99,6 +115,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   (pengecualian terdokumentasi di OPEN_SOURCE_LICENSE_AUDIT.md).
 - 🟢 Foto stamp memakai font DejaVu bundel; verifikasi otomatis foto (flag GPS/waktu)
   belum dievaluasi rutin (dedup sha256 jalan).
+- 🟡 **UI-05 · Penjaga en-dash buta terhadap literal regex.**
+  `tests/unit/tanda-pisah-ui.test.ts` memindai dengan tokenizer buatan sendiri
+  yang hanya mengenal `//`, `/* */`, dan tiga jenis tanda kutip — literal regex
+  tidak dikenali. Satu regex berisi tanda kutip **ganjil** (mis.
+  `/filename="?([^";]+)"?/`) membalik parity-nya, dan SISA berkas terbaca sebagai
+  isi string: komentar biasa pun dilaporkan sebagai pelanggaran em-dash.
+  Ditemukan 2026-08-21 saat `menu-berkas.tsx` mendadak melanggar pada baris
+  komentar yang sudah ada berbulan-bulan.
+  Dampak: **false positive**, bukan lubang — jadi tidak ada em-dash yang lolos.
+  Akalannya sekarang: tulis tanda kutip di dalam regex sebagai `\x22`/`\x27`.
+  Perbaikan sesungguhnya butuh tokenizer yang bisa membedakan pembagian dari
+  literal regex; belum dikerjakan karena harganya tidak sepadan dengan dampaknya.
 
 ## FUTURE · Serah terima parsial (PHO parsial per pekerjaan) — DECISIONS 078
 Kontrak KNMP membolehkan PHO PARSIAL atas pekerjaan yang sudah 100% (mis. revetmen)
@@ -123,6 +151,14 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
 - Estimasi biaya: pricing per-provider (sekarang satu set harga global aktif).
 - Rotasi AI_SECRET_ENCRYPTION_KEY: prosedur = set kunci baru + simpan ulang API
   key dari Sistem → AI (re-encrypt); belum ada tooling re-encrypt massal.
+- Pemicu WhatsApp Paparan KKP ("@MARLIN buat paparan …", DECISIONS 416):
+  DITUNDA sadar sampai jalur web stabil di produksi. Wajib memanggil
+  `generatePaparan` yang sama (jangan service kedua), hanya membuat DRAFT,
+  balasan berupa tautan review ber-autentikasi — bukan PDF ke grup.
+- Distribusi artefak paparan (beku → terkirim) belum dibuka — unduh PDF final
+  manual dulu; transisi `terkirim` sengaja ditolak di `transisiPaparanAction`.
+- Kurva-S PAKET pada slide progres masih visual rencana-vs-realisasi sederhana;
+  seri kurva-S agregat paket butuh builder calculation-layer sendiri.
 
 ## FUTURE · Chat grup & kop surat — lanjutan (DECISIONS 135)
 - Penjadwalan OTOMATIS ringkasan harian chat grup (tiap pagi utk H-1) — butuh
@@ -163,9 +199,13 @@ SOURCE A (protokol):
   Label generik "Realisasi" DILARANG; harus "Progress Dilaporkan" /
   "Progress Terverifikasi" / "Progress Final".
 SOURCE B (kode):
-  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — SATU level, dipakai
+  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — basis RESMI, dipakai
   dashboard, blanko KKP, kurva-S, keuangan (installedValue), dan AI. UI
   melabelinya "Realisasi" di ±12 tempat.
+  UPDATE DECISIONS 426: opsi 2 SUDAH terpasang sebagai angka PENDAMPING —
+  `statusLevel: "terverifikasi"` (disetujui+final) di getLocationsProgress,
+  dipakai mesin kesiapan termin/PHO. Basis resmi TIDAK berubah; yang masih
+  menunggu keputusan tinggal opsi 3 (memindahkan basis resmi).
 BUSINESS IMPACT:
   Angka yang diteken PPK saat ini memasukkan laporan yang BARU DIKIRIM dan
   belum diverifikasi siapa pun. Pembaca tidak bisa membedakannya. Untuk
@@ -303,7 +343,7 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
   dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
   `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).
 
-## WA-01 · ID pesan WAHA BUKAN bukti sampai (DECISIONS 222)
+## 🟢 WA-01 · Error 463 tidak bisa diakali dari aplikasi (DECISIONS 222 → 374/380)
 
 Log server user 2026-08-02:
 
@@ -317,19 +357,21 @@ berhasil — lalu mesin WAHA menolak sendiri karena WhatsApp membatasi nomor
 pengirim menghubungi nomor BARU. Penolakannya terjadi SESUDAH id terbit dan
 tidak terlihat dari respons API.
 
-Sudah dilakukan: kalimat hasil kirim tidak lagi mengaku bukti sampai; ia
-menyebut batas pengetahuannya dan menunjuk log WAHA + error 463.
+**Sisi perangkat lunak SUDAH selesai.** DECISIONS 374 memasang outbox
+(`wa_outbound`) + rekonsiliasi `message.ack`, sehingga nasib tiap kiriman
+tercatat dan bisa naik (`terkirim`→`sampai`→`dibaca`) atau berakhir
+`gagal`/`ditolak`. DECISIONS 380 menyambungkannya ke layar pengingat harian:
+`DailyReminderLog` dicocokkan ke outbox lewat **ID pesan**, jadi pengingat yang
+ditolak WhatsApp tidak lagi tampil "ada ID pesan".
 
-**Belum**: MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim.
-Jalan keluarnya menerima webhook status dari WAHA (`message.ack`: sent →
-delivered → read) dan merekonsiliasi ke `DailyReminderLog`, sehingga
-"terkirim" bisa naik jadi "sampai" atau turun jadi "ditolak". Perlu diputuskan
-user karena menambah endpoint webhook baru.
-
-**Catatan operasional (bukan bug kode)**: error 463 tidak bisa diakali dari
-aplikasi. Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah
-"hangat" (dipakai wajar, punya riwayat percakapan dua arah), atau penerima
+**Yang tersisa BUKAN bug kode**: error 463 tidak bisa diakali dari aplikasi.
+Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah "hangat"
+(dipakai wajar, punya riwayat percakapan dua arah), atau penerima
 menyimpan/menghubungi nomor itu lebih dulu.
+
+**Syarat operasional**: event `message.ack` harus diaktifkan di WAHA untuk URL
+webhook yang sama. Tanpa itu status berhenti di `Diterima WAHA` selamanya — dan
+itu jujur: memang tidak ada bukti lain yang pernah tiba.
 
 ## UX-01 · `loading.tsx` masih terhalang: `router.refresh()` tidak selesai di balik batas Suspense (DECISIONS 245)
 
@@ -489,25 +531,69 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
-## 🟢 WATANYA-02 · Tanya-jawab WhatsApp hanya mengenal "hari ini"
+## 🟡 UJI-01 · `tugas-harian.test.ts` tidak bisa dijalankan dua kali berturut-turut
 
-Tanya-jawab bebas sudah jalan (DECISIONS 338 + 339): DM + grup ber-mention,
-empat niat (kendala, progress, deviasi, kelengkapan), angka dari calc layer.
+Ditemukan 2026-08-19 saat menelusuri kegagalan yang tampak tidak berhubungan.
 
-Yang belum: **periode selain hari ini**. `skemaNiat.periode` hanya punya satu
-nilai, jadi *"progress minggu lalu"* dijawab dengan angka HARI INI — benar untuk
-hari ini, tetapi bukan yang ditanyakan, dan penanya tidak diberi tahu bahwa
-periodenya diabaikan.
+Berkas itu sengaja TIDAK membersihkan fixture-nya (histori tahap & status
+bersifat append-only), sementara beberapa ujinya menegaskan hasil fungsi yang
+menyapu **seluruh** basis data. Akibatnya paket sisa RUN SEBELUMNYA ikut
+terhitung.
 
-Dua pilihan, dan keduanya butuh keputusan user:
+Terbukti pada `HEAD` bersih, tanpa perubahan apa pun: basis data dikosongkan →
+18 lulus; dijalankan lagi tanpa dibersihkan → 1 merah. Merahnya di uji yang
+sama sekali tidak menunjuk ke sebabnya.
 
-1. **Menolak dengan jujur** — kalau AI mendeteksi periode lain, balas "saya baru
-   bisa menjawab untuk hari ini". Kecil, bisa dikerjakan kapan saja.
-2. **Mendukung periode** — tambah nilai enum + alirkan `asOf` ke
-   `getLocationsProgress` (jalurnya sudah ada, DECISIONS 275) dan `dateKey` ke
-   pengambil kelengkapan. Untuk kendala perlu keputusan terpisah: "kendala
-   minggu lalu" berarti yang dibuka minggu lalu, atau yang masih terbuka pada
-   akhir minggu lalu?
+**Sudah diperbaiki sebagian** (DECISIONS 381): dua penegasan SPMK kini
+memeriksa **nama paketnya sendiri** (`hasil.paket`), bukan hitungan global —
+lebih kuat, sekaligus kebal baris asing.
 
-Sampai salah satu dikerjakan, jangan menulis di mana pun bahwa MARLIN bisa
-ditanyai periode — ia tidak bisa.
+**Belum**: uji `PAKSA mengirim ulang di hari yang sama` masih menghitung jumlah
+pesan terkirim secara global, jadi lokasi sisa run sebelumnya membuatnya
+mengharapkan 2 tapi menerima 7. Perbaikannya sejenis — saring ke fixture-nya
+sendiri — tapi menyentuh uji yang tidak berhubungan dengan pekerjaan berjalan,
+jadi dikerjakan terpisah.
+
+Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
+(berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
+dijalankan sendirian berulang kali.
+
+## 🟡 UI-04 · `border-border-muted` tidak pernah ada — 9 berkas memakai kelas mati
+
+Ditemukan 2026-08-20 saat menambah papan kendala.
+
+`--color-border-muted` **tidak pernah didefinisikan** di `src/app/globals.css`,
+tapi `border-border-muted` dipakai di 9 berkas komponen. Tailwind 4 membangun
+kelas dari token yang ada; token yang tidak ada tidak menghasilkan aturan CSS
+apa pun. Jadi elemen-elemen itu tampil **tanpa garis batas sama sekali**, bukan
+dengan garis yang lebih samar seperti yang jelas dimaksudkan penulisnya.
+
+Tidak merusak fungsi, dan tidak diperbaiki sekalian karena dua kemungkinan
+perbaikannya berbeda hasil: mendefinisikan tokennya (9 tempat itu mendadak
+bergaris) atau mengganti ke `border-border` yang ada (garisnya lebih tegas
+daripada niat aslinya). Mana yang benar keputusan tampilan, bukan keputusan
+kode.
+
+Ditemukan dengan `grep -c "color-border-muted" src/app/globals.css` → 0.
+
+## FUTURE · Pengendalian Terpadu — lanjutan yang sengaja ditunda (DECISIONS 426)
+
+Fase pertama (temuan, inspeksi, verifikasi eksternal, kesiapan, EWS) selesai;
+yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
+
+- 🟢 **Evidence explorer global** — bukti kini terlihat per temuan/inspeksi +
+  galeri `/foto` + register `/dokumen`; layar pencarian gabungan lintas modul
+  (lokasi × tanggal × tipe × status verifikasi) belum dibuat.
+- 🟢 **Unggah foto langsung dari form inspeksi** — kini inspeksi menautkan
+  foto yang sudah ada (Foto Cepat tetap jalur jepret). Unggah langsung butuh
+  jalur kompresi+cap yang sama dengan laporan harian.
+- 🟢 **E2E Playwright alur temuan/verifikasi** — unit + integrasi hijau;
+  E2E menyusul (pola defer yang sama dengan AI Hub).
+- 🟢 **Ambang termin dari kontrak** — ambang 25/50/80/100 kini konstanta
+  (`lib/kesiapan/rules.ts`, DECISIONS 078). Kalau ada paket bertermin lain,
+  angkanya harus pindah ke data kontrak.
+- 🔵 **EWS "GPS di luar radius" & "pekerjaan tanpa evidence"** — rule kualitas
+  data ini sudah ada di ai-hub (`quality-rules.ts`); menyalinnya ke
+  /perlu-tindakan berarti dua rumah untuk rule yang sama. Keputusan yang
+  benar: satu keluarga rule dipakai dua permukaan — refactor kecil, belum
+  dikerjakan.

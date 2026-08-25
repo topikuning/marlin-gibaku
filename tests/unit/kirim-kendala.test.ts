@@ -49,7 +49,7 @@ describe('pilihan "ada kendala"', () => {
     });
   });
 
-  it("judul KOSONG ditolak — bukan dikirim diam-diam tanpa kendala", () => {
+  it("judul KOSONG ditolak – bukan dikirim diam-diam tanpa kendala", () => {
     // Inti berkas ini.
     for (const t of [null, "", "   ", "ok"]) {
       const r = bacaKendalaKirim({ ...kosong, pilihan: "ada", title: t });

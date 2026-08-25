@@ -17,7 +17,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage, getProgresDraftAdendum } from "@/lib/progress";
-import { laggingItems } from "@/lib/progress-calc";
+import { itemPlanFracDariJadwal, laggingItems } from "@/lib/progress-calc";
 import { bacaBagianProgress, hrefBagianProgress, type BagianProgress } from "@/lib/progress-bagian";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
@@ -143,19 +143,25 @@ export default async function ProgressLokasiPage({
                 >
                   <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
                 </Link>
-                <a
+                <ButtonLink
                   href={`/lokasi/${slug}/jadwal/export`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-border-strong hover:bg-surface-muted"
+                  unduhan
+                  labelSibuk="Menyiapkan Excel…"
+                  size="md"
+                  className="gap-1.5"
                 >
                   <Sheet aria-hidden className="size-4" /> Unduh Excel
-                </a>
-                <a
+                </ButtonLink>
+                <ButtonLink
                   href={`/lokasi/${slug}/jadwal/rincian`}
-                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item."
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-border-strong hover:bg-surface-muted"
+                  unduhan
+                  labelSibuk="Menyiapkan rincian…"
+                  size="md"
+                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item."
+                  className="gap-1.5"
                 >
                   <ListTree aria-hidden className="size-4" /> Rincian Item
-                </a>
+                </ButtonLink>
               </div>
             ) : null
           }
@@ -237,7 +243,7 @@ async function BagianRingkasan({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-ink">
-                Pantauan internal — progres atas usulan adendum (draft revisi #{draftProg.revisionNo})
+                Pantauan internal – progres atas usulan adendum (draft revisi #{draftProg.revisionNo})
               </p>
               <p className="mt-0.5 text-[11px] text-ink-muted">
                 Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S,
@@ -276,7 +282,7 @@ async function BagianRingkasan({
           </div>
           <p className="mt-2 text-[11px] text-ink-muted">
             {draftProg.barisBasisDraft === 0
-              ? "Belum ada baris laporan yang dicatat terhadap draft ini — angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
+              ? "Belum ada baris laporan yang dicatat terhadap draft ini – angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
               : `${draftProg.barisBasisDraft} baris laporan dicatat terhadap draft ini (pekerjaan yang belum ada dasarnya di kontrak berjalan).`}
           </p>
         </section>
@@ -329,11 +335,11 @@ async function BagianRingkasan({
                         </td>
                         <td className="tabular px-3 py-1.5 text-right">{formatPct(plan)}</td>
                         <td className="tabular px-3 py-1.5 text-right">
-                          {actual == null ? "—" : formatPct(actual)}
+                          {actual == null ? "–" : formatPct(actual)}
                         </td>
                         <td className="px-3 py-1.5">
                           {actual == null ? (
-                            <span className="text-ink-faint">—</span>
+                            <span className="text-ink-faint">–</span>
                           ) : (
                             <DeltaBadge value={actual - plan} />
                           )}
@@ -368,7 +374,7 @@ async function BagianRingkasan({
           <div className="p-3">
             {!forecast.enoughData ? (
               <p className="text-sm text-ink-muted">
-                {fcStatus.label} — prognosa tampil setelah ada realisasi minimal 2 minggu.
+                {fcStatus.label} – prognosa tampil setelah ada realisasi minimal 2 minggu.
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -395,7 +401,7 @@ async function BagianRingkasan({
                     rencana:{" "}
                     {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
                     {forecast.beyondHorizon
-                      ? " · laju realisasi terlalu rendah — proyeksi jatuh >1 tahun melewati rencana"
+                      ? " · laju realisasi terlalu rendah – proyeksi jatuh >1 tahun melewati rencana"
                       : forecast.slipWeeks != null
                         ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
                         : ""}
@@ -418,10 +424,10 @@ async function BagianRingkasan({
                     Laju terkini / dibutuhkan
                   </div>
                   <div className="mt-1 text-base font-semibold text-ink">
-                    {forecast.velocityPerWeek != null ? `${forecast.velocityPerWeek.toFixed(2)}%` : "—"}
+                    {forecast.velocityPerWeek != null ? `${forecast.velocityPerWeek.toFixed(2)}%` : "–"}
                     <span className="text-ink-muted">
                       {" / "}
-                      {forecast.requiredPerWeek != null ? `${forecast.requiredPerWeek.toFixed(2)}%` : "—"}/mgg
+                      {forecast.requiredPerWeek != null ? `${forecast.requiredPerWeek.toFixed(2)}%` : "–"}/mgg
                     </span>
                   </div>
                   {forecast.spi != null ? (
@@ -497,7 +503,7 @@ async function BagianBaseline({
         <section className="rounded-lg border border-warning-border bg-warning-soft p-3">
           <p className="text-[13px] font-semibold text-ink">Belum ada baseline aktif</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Tanpa baseline, tidak ada rencana untuk dibandingkan — deviasi dan prognosa tidak bisa
+            Tanpa baseline, tidak ada rencana untuk dibandingkan – deviasi dan prognosa tidak bisa
             dihitung. Baseline terbentuk otomatis saat RAB diimpor, atau bisa dihitung ulang di sini.
           </p>
         </section>
@@ -515,7 +521,7 @@ async function BagianBaseline({
         <section className="rounded-lg border border-border p-3">
           <p className="text-[13px] font-semibold text-ink">Cara lain: hitung ulang dari RAB</p>
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
-            Tanpa Excel — sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
+            Tanpa Excel – sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
             (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
           <RecalcBaselineButton locationId={locationId} />
@@ -545,7 +551,7 @@ async function BagianBaseline({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Riwayat baseline</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Baseline tidak pernah diedit in place — setiap perubahan membuat versi baru. Centang
+            Baseline tidak pernah diedit in place – setiap perubahan membuat versi baru. Centang
             beberapa versi untuk membandingkan kurvanya; versi lama bisa dipulihkan (dibuat sebagai
             salinan baru).
           </p>
@@ -592,9 +598,9 @@ async function BagianJadwal({
   return (
     <div className="space-y-3 p-3">
       <p className="rounded-md border border-info-border bg-info-soft p-2.5 text-[11px] text-ink-muted">
-        Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan — boleh lebih
+        Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan – boleh lebih
         dari satu rentang bila terputus (jeda); bobot mengikuti RAB. Punya jadwal dari Excel? Pakai
-        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline —
+        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline –
         di sana berkasnya diperiksa dulu sebelum diterapkan.
       </p>
       <ScheduleEditor
@@ -633,10 +639,12 @@ async function BagianKendala({
     gapValue: number;
   };
 
-  const [realizedVol, issues, activeItems] = await Promise.all([
+  const [realizedVol, issues, activeItems, jadwalItem] = await Promise.all([
     planFraction > 0 ? cumulativeVolumeByLineage(locationId) : Promise.resolve(new Map<string, number>()),
     db.issue.findMany({
-      where: { locationId },
+      // Kembar yang sudah digabungkan berhenti muncul di sini: baris yang
+      // hilang setelah digabungkan justru umpan balik yang benar.
+      where: { locationId, mergedIntoId: null },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       select: {
         id: true,
@@ -676,23 +684,69 @@ async function BagianKendala({
           },
         })
       : Promise.resolve([]),
+    /*
+     * JADWAL PER ITEM — inilah yang membuat panel ini berhenti berbohong
+     * (DECISIONS 391). `weekly` = increment bobot per minggu milik item itu;
+     * 0 berarti minggu jeda. Sudah tersimpan sejak baseline dibuat, hanya
+     * belum pernah dibaca panel ini.
+     */
+    planFraction > 0
+      ? db.baseline.findFirst({
+          where: { locationId, status: "aktif" },
+          orderBy: { baselineNo: "desc" },
+          select: { scheduleItems: { select: { lineageKey: true, weekly: true } } },
+        })
+      : Promise.resolve(null),
   ]);
 
-  // ── Item tertinggal: realisasi kumulatif < target proporsional plan ──────
-  // Sederhana & jelas: target volume item minggu ini = volume RAB × plan% —
-  // asumsi semua item bergerak proporsional terhadap kurva rencana.
+  /*
+   * ── Item tertinggal: dibandingkan terhadap JADWAL ITEM ITU SENDIRI ──────
+   *
+   * Dilaporkan user 2026-08-20: *"kenapa ada item penarikan kabel yang mana
+   * pekerjaan ME, padahal ini baru minggu ketiga"*. Betul – dan sebabnya ada
+   * di rumus lamanya: target tiap item = volume RAB × persen kurva-S GLOBAL,
+   * yaitu asumsi bahwa semua pekerjaan berjalan serentak sejak minggu 1 dengan
+   * laju yang sama. Di konstruksi itu tidak pernah benar.
+   *
+   * Sekarang fraksi rencananya diambil per item dari jadwal yang memang sudah
+   * tersimpan. Item yang minggu ini belum dijadwalkan berfraksi 0 dan TIDAK
+   * bisa tertinggal – bukan disembunyikan, melainkan memang belum jatuh tempo.
+   */
   let lagging: LaggingItem[] = [];
+  let pakaiJadwalItem = false;
   if (planFraction > 0) {
     // Formula ada di calculation layer, bukan di halaman (audit 2026-07-27, M6).
     const meta = new Map(activeItems.map((n) => [n.lineageKey, n]));
+    const weeklyByKey = new Map<string, number[]>();
+    for (const s of jadwalItem?.scheduleItems ?? []) {
+      weeklyByKey.set(
+        s.lineageKey,
+        Array.isArray(s.weekly)
+          ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
+          : [],
+      );
+    }
     lagging = laggingItems(
-      activeItems.map((n) => ({
-        lineageKey: n.lineageKey,
-        volK: n.volume != null ? Number(n.volume) : 0,
-        amount: Number(n.amount),
-        volSd: realizedVol.get(n.lineageKey) ?? 0,
-      })),
-      planFraction,
+      activeItems.map((n) => {
+        /*
+         * Cadangannya fraksi GLOBAL, dan itu disengaja: lokasi yang baselinenya
+         * belum menyimpan jadwal per item kembali ke perilaku lama, bukan
+         * kehilangan panel ini sama sekali. Yang berubah cuma ketepatannya,
+         * dan bedanya disebut di layar.
+         */
+        const dariJadwal = itemPlanFracDariJadwal(
+          weeklyByKey.get(n.lineageKey) ?? [],
+          currentWeek,
+        );
+        if (dariJadwal !== null) pakaiJadwalItem = true;
+        return {
+          lineageKey: n.lineageKey,
+          volK: n.volume != null ? Number(n.volume) : 0,
+          amount: Number(n.amount),
+          volSd: realizedVol.get(n.lineageKey) ?? 0,
+          planFrac: dariJadwal ?? planFraction,
+        };
+      }),
     ).map((it) => {
       const n = meta.get(it.lineageKey)!;
       return {
@@ -731,8 +785,19 @@ async function BagianKendala({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Item tertinggal</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Realisasi kumulatif di bawah target proporsional rencana ({formatPct(planNow)} pada
-            minggu {currentWeek}) — 10 terbesar berdasar nilai kekurangan.
+            {pakaiJadwalItem ? (
+              <>
+                Realisasi kumulatif di bawah target <b>jadwal item itu sendiri</b> pada minggu{" "}
+                {currentWeek} – 10 terbesar berdasar nilai kekurangan. Item yang menurut jadwalnya
+                belum dimulai TIDAK dihitung tertinggal.
+              </>
+            ) : (
+              <>
+                Baseline lokasi ini belum menyimpan jadwal per item, jadi pembandingnya target
+                proporsional kurva-S ({formatPct(planNow)} pada minggu {currentWeek}) – semua item
+                dianggap berjalan serentak. Perbarui kurva-S untuk perbandingan per item.
+              </>
+            )}
           </p>
         </header>
         {lagging.length === 0 ? (

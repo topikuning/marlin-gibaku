@@ -61,7 +61,7 @@ export async function getAccessToken(): Promise<string> {
   const auth = await getGDriveAuth();
   if (!auth) throw new GDriveError("Client ID/secret Google belum diisi (Sistem → Integrasi → Google Drive).");
   if (!auth.refreshToken)
-    throw new GDriveError("Akun Google belum terhubung — klik “Hubungkan akun Google” di Sistem.");
+    throw new GDriveError("Akun Google belum terhubung – klik “Hubungkan akun Google” di Sistem.");
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -78,7 +78,7 @@ export async function getAccessToken(): Promise<string> {
     // invalid_grant = token dicabut/kedaluwarsa (mis. app masih status Testing).
     throw new GDriveError(
       msg.includes("invalid_grant")
-        ? "Token Google kedaluwarsa/dicabut — hubungkan ulang akun di Sistem. (Pastikan OAuth app berstatus In production, bukan Testing.)"
+        ? "Token Google kedaluwarsa/dicabut – hubungkan ulang akun di Sistem. (Pastikan OAuth app berstatus In production, bukan Testing.)"
         : `Gagal menyegarkan token Google: ${msg}`,
     );
   }

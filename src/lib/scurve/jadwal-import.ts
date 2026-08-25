@@ -62,10 +62,13 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
   for (let r = 1; r <= maxScan && weekRow < 0; r++) {
     const row = ws.getRow(r);
     for (let c = 1; c <= Math.min(ws.columnCount, 40); c++) {
-      if (cellText(row.getCell(c).value).toUpperCase() === "M1") {
+      // Sel minggu bisa memuat rentang tanggal di baris kedua ("M1\n5/6–11/6",
+      // user 2026-08-24) — yang dicocokkan hanya token pertamanya.
+      const tokenM = (v: unknown) => cellText(v as never).toUpperCase().split(/\s/)[0] ?? "";
+      if (tokenM(row.getCell(c).value) === "M1") {
         // Hitung berapa banyak M{k} berurutan.
         let n = 0;
-        while (cellText(row.getCell(c + n).value).toUpperCase() === `M${n + 1}`) n++;
+        while (tokenM(row.getCell(c + n).value) === `M${n + 1}`) n++;
         if (n >= 1) {
           weekRow = r;
           weekCol0 = c;
@@ -76,7 +79,7 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
     }
   }
   if (weekRow < 0) {
-    throw new Error("Header minggu (M1, M2, …) tidak ditemukan — pastikan file dari Unduh Excel Jadwal.");
+    throw new Error("Header minggu (M1, M2, …) tidak ditemukan – pastikan file dari Unduh Excel Jadwal.");
   }
 
   // 2) Baris kategori setelah header minggu: kolom B = nama, kolom A = kode,

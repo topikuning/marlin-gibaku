@@ -149,7 +149,8 @@ export async function buildRincianJadwalXlsx(
     if (g.span > 1) ws.mergeCells(barisBulan.number, kol, barisBulan.number, kol + g.span - 1);
     kol += g.span;
   }
-  for (let i = 0; i < N; i++) barisMinggu.getCell(KOL_MINGGU_1 + i).value = `M${i + 1}`;
+  // Rentang tanggal minggu ikut tercetak (2026-08-24).
+  for (let i = 0; i < N; i++) barisMinggu.getCell(KOL_MINGGU_1 + i).value = `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`;
 
   for (const row of [barisBulan, barisMinggu]) {
     for (let c = 1; c <= kolTerakhir; c++) {
@@ -308,7 +309,7 @@ export async function buildRincianJadwalXlsx(
   /* ── Catatan: apa yang fakta, apa yang turunan ──────────────────────────── */
   ws.addRow([]);
   const catatan = ws.addRow([
-    "Bobot tiap item dihitung dari nilai RAB-nya sendiri (fakta). Sebaran mingguan DI DALAM satu kategori adalah TURUNAN — " +
+    "Bobot tiap item dihitung dari nilai RAB-nya sendiri (fakta). Sebaran mingguan DI DALAM satu kategori adalah TURUNAN – " +
       "sistem menyimpan jadwal per KATEGORI, bukan per item, jadi tiap item disebar sebanding nilainya sepanjang jendela " +
       "kategorinya. Jumlah tiap kolom minggu tetap persis sama dengan kurva-S resmi; yang boleh disesuaikan orang sipil " +
       "adalah sebaran di dalam kategorinya.",

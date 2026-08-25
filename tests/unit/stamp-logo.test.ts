@@ -51,7 +51,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).toContain(PATH_KURVA);
   });
 
-  it("SEMUA huruf M-A-R-L-I-N ada sebagai path — bukan sebagai teks", () => {
+  it("SEMUA huruf M-A-R-L-I-N ada sebagai path – bukan sebagai teks", () => {
     const s = rapat(svg());
     // Setiap path huruf di berkas resmi harus muncul di cap. Ini yang membuat
     // wordmark tidak lagi bergantung pada font apa pun.
@@ -66,7 +66,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).not.toContain("Monitoring, Analysis");
   });
 
-  it("tidak ada plat gelap — cap menumpang di atas foto, bukan menutupinya", () => {
+  it("tidak ada plat gelap – cap menumpang di atas foto, bukan menutupinya", () => {
     expect(svg()).not.toContain(`<rect width="1800" height="640"`);
   });
 
@@ -79,7 +79,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).toContain('stroke="#FFFFFF"');
   });
 
-  it("mask takik kurva ikut disertakan di <defs> — tanpa itu ikonnya beda bentuk", () => {
+  it("mask takik kurva ikut disertakan di <defs> – tanpa itu ikonnya beda bentuk", () => {
     expect(svg()).toContain(WORDMARK_DEFS);
     expect(rapat(BERKAS)).toContain('maskUnits="userSpaceOnUse"');
   });
@@ -93,7 +93,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
 
 describe("halo dua ruang koordinat", () => {
   // Huruf diperkecil 0,134× dan ikon diperbesar 3,125×. Satu angka stroke yang
-  // sama akan tampil ~23× lebih tebal di ikon daripada di huruf — cacat yang
+  // sama akan tampil ~23× lebih tebal di ikon daripada di huruf – cacat yang
   // baru kelihatan setelah dicetak, jadi dijaga di sini.
   it("tebal halo huruf dan ikon dihitung terpisah", () => {
     const s = wordmarkSvgInner(0, 0, 400, { halo: "#FFFFFF" });
@@ -163,5 +163,60 @@ describe("ikon lepas (dipakai UI web)", () => {
     expect(markSvgInner(10, 20, 48)).toContain("translate(10,20) scale(0.50000)");
     expect(wordmarkSvgInner(0, 0, WORDMARK_W / 2)).toContain("scale(0.500000)");
     expect(WORDMARK_W / WORDMARK_H).toBeCloseTo(3.983, 2);
+  });
+});
+
+/*
+ * LOGO PERUSAHAAN MENGGANTIKAN WORDMARK (DECISIONS 424).
+ *
+ * Permintaan user 2026-08-23: logo perusahaan bila diisi, MARLIN bila tidak.
+ * Yang paling mudah salah adalah menggambar KEDUANYA – cap yang memuat dua logo
+ * di sudut yang sama lebih buruk daripada cap yang memuat logo yang salah,
+ * karena keduanya saling menimpa dan tidak ada yang terbaca.
+ */
+describe("logo perusahaan di cap", () => {
+  const LOGO = "data:image/png;base64,iVBORw0KGgo=";
+
+  it("logo perusahaan diisi → wordmark MARLIN TIDAK ikut digambar", () => {
+    const out = svg(1600, 1200, { ...data, companyLogo: LOGO });
+    expect(out).toContain(`href="${LOGO}"`);
+    /*
+     * Wordmark dikenali dari GAMBARNYA, bukan dari `<defs>`: defs selalu ikut
+     * ditulis. Yang harus hilang adalah goresan huruf vektornya.
+     */
+    const gambarWordmark = wordmarkSvgInner(0, 0, 100, { halo: "#FFFFFF" });
+    const potongan = gambarWordmark.slice(gambarWordmark.indexOf("<path"), gambarWordmark.indexOf("<path") + 60);
+    expect(potongan.length).toBeGreaterThan(20);
+    expect(out).not.toContain(potongan);
+  });
+
+  it("logo kosong → tetap wordmark MARLIN, tidak ada <image> nyasar", () => {
+    const out = svg(1600, 1200, { ...data, companyLogo: null });
+    expect(out).toContain(WORDMARK_DEFS);
+    expect(out).not.toContain("<image");
+    // Dan wordmark-nya memang DIGAMBAR, bukan cuma didefinisikan.
+    expect(out).toContain("<path");
+  });
+
+  it("kotak logo SELEBAR wordmark MARLIN, rata kanan, tidak melebihi tepi foto", () => {
+    /*
+     * Versi pertama memakai kotak yang lebih sempit dari wordmark MARLIN, dan
+     * logo perusahaan yang memanjang menyusut tinggal seperempatnya – keluhan
+     * user "terlalu kecil". Lebarnya kini sama; ini yang menjaganya.
+     */
+    const out = svg(1600, 1200, { ...data, companyLogo: LOGO });
+    const gambar = /<image x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/.exec(out);
+    expect(gambar, "elemen <image> logo tidak ditemukan").not.toBeNull();
+    const [x, y, lebar, tinggi] = gambar!.slice(1, 5).map(Number);
+
+    // Pembanding: wordmark MARLIN pada foto yang sama.
+    const polos = svg(1600, 1200, { ...data, companyLogo: null });
+    const wm = /translate\((\d+)[ ,]/.exec(polos);
+    expect(lebar).toBeGreaterThanOrEqual(Math.round((tinggi / 1.25) * (WORDMARK_W / WORDMARK_H)) - 2);
+    if (wm) expect(x).toBeCloseTo(Number(wm[1]), -1);
+
+    // Tetap di dalam foto, dan tidak naik ke luar tepi atas.
+    expect(x + lebar).toBeLessThanOrEqual(1600);
+    expect(y).toBeGreaterThanOrEqual(0);
   });
 });

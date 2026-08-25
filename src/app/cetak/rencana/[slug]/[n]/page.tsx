@@ -26,7 +26,7 @@ export default async function CetakRencanaPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id);
+  const ttd = await muatTtdLaporan(location.id, "rencana");
 
   const rencana = await getRencanaMingguan(location.id, minggu);
   if (!rencana) notFound();

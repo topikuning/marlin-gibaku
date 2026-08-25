@@ -24,7 +24,10 @@ import { test, expect, type Page } from "@playwright/test";
 const LOKASI = process.env.E2E_SLUG ?? "kedungmutih";
 
 /** Semua sub-halaman lokasi — tab aktifnya bergeser makin ke kanan. */
-const SUB = ["", "/rab", "/rapl", "/harian", "/kegiatan", "/progress", "/keuangan", "/dokumen", "/laporan-lokasi"];
+// "/keuangan" tidak ikut: tabnya DITAHAN untuk non-super_admin (DECISIONS 411)
+// dan akun uji ini Program Director, jadi rutenya 404 – bukan tab yang bisa
+// diperiksa geometrinya. Kembalikan bersama capability-nya.
+const SUB = ["", "/rab", "/rapl", "/harian", "/kegiatan", "/progress", "/dokumen", "/laporan-lokasi"];
 
 async function geometri(page: Page) {
   return page.evaluate(() => {
@@ -68,7 +71,7 @@ test.describe("tab lokasi di ponsel", () => {
     await page.waitForTimeout(1_000);
 
     const awal = await geometri(page);
-    expect(awal.ada, "deret tab tidak ditemukan — selector uji ini sudah basi").toBe(true);
+    expect(awal.ada, "deret tab tidak ditemukan – selector uji ini sudah basi").toBe(true);
 
     // Halaman harus benar-benar bisa digulir; kalau tidak, uji ini tidak
     // membuktikan apa pun tentang "melekat".
@@ -170,7 +173,7 @@ test.describe("kalender harian: sel kosong", () => {
     const jumlah = await petak.locator("a").filter({ hasText: "Belum" }).count();
     // Kalau tidak ada satu pun, uji ini tidak membuktikan apa-apa — dan
     // "melewati" akan terbaca seperti "lulus".
-    expect(jumlah, "tidak ada sel kosong di bulan ini — data uji tidak menguji apa pun").toBeGreaterThan(0);
+    expect(jumlah, "tidak ada sel kosong di bulan ini – data uji tidak menguji apa pun").toBeGreaterThan(0);
 
     await kosong.click();
     await page.waitForLoadState("domcontentloaded");

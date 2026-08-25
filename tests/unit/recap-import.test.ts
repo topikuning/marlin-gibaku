@@ -10,7 +10,7 @@ import { matchRows, parseRecapWorkbook, type RecapLeaf } from "@/lib/daily-repor
 async function buildRecap(rows: (string | number)[][]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Rekap");
-  ws.addRow(["Rekap Laporan Harian — Lokasi Uji"]); // baris judul (harus dilewati)
+  ws.addRow(["Rekap Laporan Harian – Lokasi Uji"]); // baris judul (harus dilewati)
   ws.addRow(["Tanggal", "Kode", "Uraian Pekerjaan", "Volume"]); // header
   for (const r of rows) ws.addRow(r);
   const buf = await wb.xlsx.writeBuffer();

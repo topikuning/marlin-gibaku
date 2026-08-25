@@ -40,7 +40,7 @@ describe("rentang minggu kontrak", () => {
     }
   });
 
-  it("SALING MEMBALIK dengan mingguKontrak — tiap hari di rentang memberi nomor yang sama", () => {
+  it("SALING MEMBALIK dengan mingguKontrak – tiap hari di rentang memberi nomor yang sama", () => {
     /*
      * Inti berkas ini. Kalau salah satu rumus digeser satu hari, judul pesan
      * dan angka di dalamnya akan berasal dari minggu yang berbeda — dan

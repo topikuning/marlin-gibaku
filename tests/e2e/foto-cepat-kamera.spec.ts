@@ -25,7 +25,7 @@ test.use({
   },
 });
 
-test.describe("Foto Cepat — rana di dalam aplikasi", () => {
+test.describe("Foto Cepat – rana di dalam aplikasi", () => {
   test.beforeEach(async ({ page, context }) => {
     test.skip(test.info().project.name !== "mobile", "alur lapangan = ponsel");
     await context.grantPermissions(["geolocation", "camera"]);

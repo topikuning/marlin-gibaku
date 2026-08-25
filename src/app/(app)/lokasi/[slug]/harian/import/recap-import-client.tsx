@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, FileUp, Upload } from "lucide-react";
-import { Banner, Button, Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
+import { Banner, Button, Card, CardBody, CardHeader, StatusPill, useAksiKlik } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
 import {
@@ -27,8 +27,15 @@ const rupiah = new Intl.NumberFormat("id-ID");
 export function RecapImportClient({ locationId, slug, hasRab }: { locationId: string; slug: string; hasRab: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, previewAction, previewing] = useActionState<RecapImportState, FormData>(previewRecapAction, undefined);
-  const [commit, commitAction, committing] = useActionState<RecapImportState, FormData>(commitRecapAction, undefined);
+  /*
+   * `useAksiKlik`, BUKAN `useActionState` telanjang: kedua aksi ini dijalankan
+   * dari `onClick`, dan di situ `isPending` milik `useActionState` tidak pernah
+   * menyala (DECISIONS 401). Impor rekap membaca berkas Excel dan menulis
+   * puluhan laporan harian – justru yang paling lama, dan paling mahal kalau
+   * ditekan dua kali.
+   */
+  const [preview, previewAction, previewing] = useAksiKlik<RecapImportState>(previewRecapAction, undefined);
+  const [commit, commitAction, committing] = useAksiKlik<RecapImportState>(commitRecapAction, undefined);
 
   const buildForm = () => {
     const fd = new FormData();
@@ -42,7 +49,7 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
   const previewData = preview?.ok && preview.phase === "preview" && !done ? preview.preview : null;
 
   if (!hasRab) {
-    return <Banner tone="warning" title="Lokasi ini belum punya RAB revisi aktif — impor rekap butuh item RAB untuk dicocokkan." />;
+    return <Banner tone="warning" title="Lokasi ini belum punya RAB revisi aktif – impor rekap butuh item RAB untuk dicocokkan." />;
   }
 
   if (done) {
@@ -132,9 +139,9 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
                     return (
                       <tr key={r.rowNum} className={r.status === "ok" ? "" : "bg-surface-muted/40"}>
                         <td className="px-2 py-1.5"><StatusPill tone={meta.tone} label={meta.label} /></td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-ink-muted">{r.dateKey ?? (r.rawDate || "—")}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-ink-muted">{r.dateKey ?? (r.rawDate || "–")}</td>
                         <td className="px-2 py-1.5">
-                          <span className="text-ink">{r.matchedName ?? (r.name || r.code || "—")}</span>
+                          <span className="text-ink">{r.matchedName ?? (r.name || r.code || "–")}</span>
                           {r.matchedCode ? <span className="ml-1 text-xs text-ink-muted">{r.matchedCode}</span> : null}
                         </td>
                         <td className="px-2 py-1.5 text-right whitespace-nowrap text-ink">
@@ -153,7 +160,7 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
                 Simpan {previewData.okCount} item ke {previewData.dates.length} laporan (kirim untuk verifikasi)
               </Button>
             ) : (
-              <Banner tone="warning" title="Tidak ada baris yang siap disimpan — perbaiki file lalu pratinjau ulang." />
+              <Banner tone="warning" title="Tidak ada baris yang siap disimpan – perbaiki file lalu pratinjau ulang." />
             )}
           </div>
         )}

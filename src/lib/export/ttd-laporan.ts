@@ -2,6 +2,15 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import {
+  pihakPenyedia,
+  pilihPelaksana,
+  pilihPengawas,
+  type JenisDokumen,
+  pihakKkp,
+  pilihWakilSah,
+  type SumberPelaksana,
+} from "@/lib/laporan/penandatangan";
 
 /**
  * TANDA TANGAN & STEMPEL untuk laporan yang DICETAK (DECISIONS 328).
@@ -23,6 +32,16 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
  *
  * Yang TIDAK dilakukan: menaruh tanda tangan pada dokumen yang belum disetujui.
  * Pemanggilnya yang menentukan; berkas ini hanya menyediakan gambarnya.
+ *
+ * ---
+ *
+ * ### `jenis` WAJIB disebut (DECISIONS 402)
+ *
+ * Pihak penyedia yang meneken BERBEDA menurut dokumennya: harian dan mingguan
+ * diteken Pelaksana Lapangan, bulanan/MC/CCO diteken Direktur. Karena itu
+ * {@link muatTtdLaporan} menuntut jenis dokumennya — kompiler yang menanyakan,
+ * bukan ingatan penulisnya. Sebelum ini tidak ada satu pun tempat yang pernah
+ * menanyakannya, dan akibatnya SEMUA dokumen memakai nama direktur.
  */
 
 export type GambarTtd = {
@@ -58,8 +77,17 @@ const UMUR_TAUTAN = 600;
 
 /** Medan kontrak + stempel vendor yang dibutuhkan pemilihan kunci. */
 export type SumberKunciTtd = {
+  /** Pihak penyedia mana yang meneken dokumen ini. */
+  penyedia: "pelaksana" | "direktur";
+  /** Pihak KKP slot "MENGETAHUI" (2026-08-24): mingguan/bulanan = Wakil Sah. */
+  kkp: "ppk" | "wakil_sah";
+  /** Coretan Wakil Sah yang SUDAH dipilih (lokasi menimpa kontrak). */
+  wakilSahTtdKey: string | null;
+  /** Coretan pelaksana yang SUDAH dipilih (lokasi menimpa paket). */
+  pelaksanaTtdKey: string | null;
   ppkTtdKey: string | null;
   ppkStempelKey: string | null;
+  /** Blok pengawas yang SUDAH dipilih (lokasi menimpa kontrak) – DECISIONS 409. */
   supervisorTtdKey: string | null;
   supervisorStempelKey: string | null;
   contractorTtdKey: string | null;
@@ -83,13 +111,34 @@ export type KunciTtd = {
  * berkas yang identik, dan yang pertama terlewat adalah yang paling sering
  * dicetak. Cadangan ini TIDAK berlaku untuk tanda tangan: coretan tanda tangan
  * milik ORANG, dan orangnya ditunjuk per kontrak.
+ *
+ * ### SATU perusahaan, SATU stempel (DECISIONS 408)
+ *
+ * Stempel penyedia TIDAK bergantung pada siapa yang meneken. Versi sebelumnya
+ * memilih stempel milik pelaksana untuk laporan harian/mingguan dan stempel
+ * kontrak untuk bulanan/MC/CCO — dua kotak unggah untuk satu benda yang sama,
+ * persis yang dikeluhkan user 2026-08-22: *"kenapa pelaksana dan direktur yang
+ * jelas 1 perusahaan stempelnya muncul 2x?"*
+ *
+ * Akibatnya bukan cuma layar yang penuh: dua salinan stempel yang sama bisa
+ * menyimpang (yang satu diperbarui, yang lain tidak), dan dokumen dari lokasi
+ * yang SAMA akan membawa stempel berbeda menurut jenis laporannya.
  */
 export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
+  const pelaksana = s.penyedia === "pelaksana";
   return {
-    ppk: { ttd: s.ppkTtdKey, stempel: s.ppkStempelKey },
+    // Slot KKP: coretan mengikuti ORANGNYA (PPK / Wakil Sah); stempel milik
+    // INSTANSI, jadi tetap satu — ppkStempelKey (DECISIONS 408).
+    ppk: { ttd: s.kkp === "wakil_sah" ? s.wakilSahTtdKey : s.ppkTtdKey, stempel: s.ppkStempelKey },
     pengawas: { ttd: s.supervisorTtdKey, stempel: s.supervisorStempelKey },
     penyedia: {
-      ttd: s.contractorTtdKey,
+      // Tanda tangan TIDAK pernah dipinjam antar orang: laporan harian yang
+      // ditandatangani pelaksana tetapi memakai coretan direktur adalah
+      // pernyataan yang tidak benar, bukan sekadar gambar yang keliru.
+      ttd: pelaksana ? s.pelaksanaTtdKey : s.contractorTtdKey,
+      // Stempel beda urusan — ia benda milik PERUSAHAAN, bukan milik orang.
+      // Karena itu SAMA untuk Pelaksana maupun Direktur: kontrak dulu, lalu
+      // master vendor. Tidak ada stempel "milik pelaksana".
       stempel: s.contractorStempelKey ?? s.vendorStempelKey,
     },
   };
@@ -108,17 +157,41 @@ async function gambar(key: string | null | undefined): Promise<GambarTtd | null>
   }
 }
 
-/** Siapkan tanda tangan + stempel tiga pihak untuk satu lokasi. */
-export async function muatTtdLaporan(locationId: string): Promise<TtdLaporan> {
+/**
+ * Siapkan tanda tangan + stempel tiga pihak untuk satu lokasi.
+ *
+ * `jenis` menentukan SIAPA yang mengisi slot penyedia — lihat
+ * `lib/laporan/penandatangan.ts`. Wajib, supaya tiap pemanggil menyatakan
+ * dokumen apa yang sedang ia cetak.
+ */
+export async function muatTtdLaporan(
+  locationId: string,
+  jenis: JenisDokumen,
+): Promise<TtdLaporan> {
   const lokasi = await db.location.findUnique({
     where: { id: locationId },
     select: {
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
+      wakilSahName: true,
+      wakilSahNip: true,
+      wakilSahTtdKey: true,
       package: {
         select: {
+          pelaksanaName: true,
+          pelaksanaTitle: true,
+          pelaksanaTtdKey: true,
           contract: {
             select: {
               ppkName: true,
               ppkNip: true,
+              wakilSahName: true,
+              wakilSahNip: true,
+              wakilSahTtdKey: true,
               supervisorName: true,
               supervisorFirm: true,
               contractorSignerName: true,
@@ -141,7 +214,26 @@ export async function muatTtdLaporan(locationId: string): Promise<TtdLaporan> {
 
   const brand = await getBranding().catch(() => null);
 
-  const kunci = pilihKunciTtd({ ...k, vendorStempelKey: k.vendor.stempelKey });
+  const penyedia = pihakPenyedia(jenis);
+  const pelaksana = pilihPelaksana(
+    lokasi as SumberPelaksana,
+    lokasi.package as SumberPelaksana,
+  );
+  // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+  const pengawas = pilihPengawas(lokasi, k);
+  // Wakil Sah lokasi menimpa Wakil Sah kontrak – SATU BLOK (2026-08-24).
+  const wakilSah = pilihWakilSah(lokasi, k);
+  const kkp = pihakKkp(jenis);
+  const kunci = pilihKunciTtd({
+    ...k,
+    penyedia,
+    kkp,
+    wakilSahTtdKey: wakilSah.ttdKey,
+    pelaksanaTtdKey: pelaksana.ttdKey,
+    supervisorTtdKey: pengawas.ttdKey,
+    supervisorStempelKey: pengawas.stempelKey,
+    vendorStempelKey: k.vendor.stempelKey,
+  });
   const [ppkTtd, ppkStempel, pgwTtd, pgwStempel, pnyTtd, pnyStempel] = await Promise.all([
     gambar(kunci.ppk.ttd),
     gambar(kunci.ppk.stempel),
@@ -152,23 +244,39 @@ export async function muatTtdLaporan(locationId: string): Promise<TtdLaporan> {
   ]);
 
   return {
-    ppk: {
-      nama: k.ppkName,
-      sub: k.ppkNip ? `NIP. ${k.ppkNip}` : (brand?.ownerName ?? null),
-      ttd: ppkTtd,
-      stempel: ppkStempel,
-    },
+    ppk:
+      kkp === "wakil_sah"
+        ? {
+            // Laporan mingguan/bulanan: slot KKP = WAKIL SAH (2026-08-24).
+            nama: wakilSah.nama,
+            sub: wakilSah.nip ? `NIP. ${wakilSah.nip}` : (brand?.ownerName ?? null),
+            ttd: ppkTtd,
+            stempel: ppkStempel,
+          }
+        : {
+            nama: k.ppkName,
+            sub: k.ppkNip ? `NIP. ${k.ppkNip}` : (brand?.ownerName ?? null),
+            ttd: ppkTtd,
+            stempel: ppkStempel,
+          },
     pengawas: {
-      nama: k.supervisorName,
-      sub: k.supervisorFirm,
+      nama: pengawas.nama,
+      sub: pengawas.firma,
       ttd: pgwTtd,
       stempel: pgwStempel,
     },
-    penyedia: {
-      nama: k.contractorSignerName,
-      sub: k.contractorSignerTitle ?? k.vendor.name,
-      ttd: pnyTtd,
-      stempel: pnyStempel,
-    },
+    penyedia:
+      penyedia === "pelaksana"
+        ? // Nama boleh null: yang belum diisi tercetak sebagai baris kosong
+          // untuk ditandatangani tangan. Yang TIDAK boleh adalah jatuh ke nama
+          // direktur — dokumennya akan selalu tampak lengkap sambil menyatakan
+          // orang yang tidak membuatnya (DECISIONS 402).
+          { nama: pelaksana.nama, sub: pelaksana.jabatan, ttd: pnyTtd, stempel: pnyStempel }
+        : {
+            nama: k.contractorSignerName,
+            sub: k.contractorSignerTitle ?? k.vendor.name,
+            ttd: pnyTtd,
+            stempel: pnyStempel,
+          },
   };
 }

@@ -40,7 +40,7 @@ export function UploadForm({
       <div>
         <Label htmlFor="d-package">Paket</Label>
         <Combobox id="d-package" name="packageId" defaultValue="">
-          <option value="">— tidak terkait paket —</option>
+          <option value="">– tidak terkait paket –</option>
           {packages.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
@@ -49,7 +49,7 @@ export function UploadForm({
       <div>
         <Label htmlFor="d-location">Lokasi</Label>
         <Combobox id="d-location" name="locationId" defaultValue="">
-          <option value="">— tidak terkait lokasi —</option>
+          <option value="">– tidak terkait lokasi –</option>
           {locations.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}

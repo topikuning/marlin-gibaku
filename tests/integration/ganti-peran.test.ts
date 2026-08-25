@@ -110,7 +110,7 @@ describe("KASUS INTI: Pelaksana → Site Manager", () => {
     expect(log?.payload).toMatchObject({ dari: "field_supervisor", ke: "site_manager" });
   });
 
-  it("penugasan lokasi TIDAK ikut terhapus — peran ≠ tempat", async () => {
+  it("penugasan lokasi TIDAK ikut terhapus – peran ≠ tempat", async () => {
     const pkg = await db.package.create({ data: { orgId, name: `Paket ${suffix}${Math.random()}` } });
     const loc = await db.location.create({
       data: {
@@ -152,7 +152,7 @@ describe("pagar", () => {
     expect(u.role).toBe("super_admin");
   });
 
-  it("PM sama sekali tidak bisa mengganti peran — membuat akun ≠ mengelola akun", async () => {
+  it("PM sama sekali tidak bisa mengganti peran – membuat akun ≠ mengelola akun", async () => {
     // PM punya `user.create` (boleh mengangkat SM/Pelaksana BARU) tapi TIDAK
     // punya `user.manage`. Gerbangnya sengaja `user.manage`, sama seperti reset
     // password & nonaktifkan: menaikkan peran orang yang sudah ada adalah

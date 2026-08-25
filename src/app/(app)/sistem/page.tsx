@@ -7,6 +7,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
+import { ringkasAntreanWa } from "@/lib/waha/antrean";
+import { ringkasPengiriman } from "@/lib/waha/gateway";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
 import { parseAkar } from "@/lib/akar";
@@ -176,10 +178,12 @@ export default async function SistemPage() {
   const webhookUrl = wahaDisplay.webhookSecret
     ? `${origin}/api/waha/webhook?token=${encodeURIComponent(wahaDisplay.webhookSecret)}`
     : null;
-  const [waCapturedCount, waLast, waHits] = await Promise.all([
+  const [waCapturedCount, waLast, waHits, antreanWa, kirimWa] = await Promise.all([
     db.waMessage.count(),
     db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     getWahaHits(),
+    ringkasAntreanWa(),
+    ringkasPengiriman(),
   ]);
   const waHitsFmt = waHits.map((hit) => ({ ...hit, at: formatTanggalWaktu(new Date(hit.at)) }));
 
@@ -225,7 +229,7 @@ export default async function SistemPage() {
             tone: "success" as const,
             status: akarAda.map((a) => a.username).join(", "),
             detail:
-              "Ditetapkan dari variabel lingkungan, jadi akun yang bocor tidak bisa mengangkat dirinya sendiri. Akun ini tidak bisa disentuh dari layar mana pun — ubah variabelnya lebih dulu.",
+              "Ditetapkan dari variabel lingkungan, jadi akun yang bocor tidak bisa mengangkat dirinya sendiri. Akun ini tidak bisa disentuh dari layar mana pun – ubah variabelnya lebih dulu.",
           };
 
   const roleCountMap = new Map<UserRole, number>(roleCounts.map((r) => [r.role, r._count._all]));
@@ -267,7 +271,7 @@ export default async function SistemPage() {
           {bootstrapTertinggal && (
             <HealthRow
               label="BOOTSTRAP_ADMIN_PASSWORD"
-              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah basi begitu password diganti saat login pertama — jadi ia tidak membeli apa pun, tapi tetap terlihat siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
+              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah basi begitu password diganti saat login pertama – jadi ia tidak membeli apa pun, tapi tetap terlihat siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
               tone="warning"
               status="Masih terpasang"
             />
@@ -281,7 +285,7 @@ export default async function SistemPage() {
         <CardBody>
           <ConfigRow label="Zona waktu" value="Asia/Jakarta (WIB/WITA/WIT)" />
           <ConfigRow label="Locale" value="id-ID (Bahasa Indonesia)" />
-          <ConfigRow label="Mata uang" value="IDR — Rupiah (BigInt)" />
+          <ConfigRow label="Mata uang" value="IDR – Rupiah (BigInt)" />
           <ConfigRow label="Retensi audit" value="Append-only (permanen)" />
           <ConfigRow label="Owner agency" value="KKP" />
         </CardBody>
@@ -303,7 +307,7 @@ export default async function SistemPage() {
               <div className="min-w-0">
                 <p className="truncate font-mono text-[13px]">{l.action}</p>
                 <p className="mt-0.5 text-[13px] text-ink-muted">
-                  {l.user ? l.user.fullName : "—"} · {l.resourceType}
+                  {l.user ? l.user.fullName : "–"} · {l.resourceType}
                 </p>
               </div>
               <span className="tabular flex-none text-[13px] whitespace-nowrap text-ink-muted">
@@ -350,7 +354,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Tangkap Percakapan WhatsApp (webhook)"
-          subtitle="Arsipkan pesan grup tertaut paket — fondasi ringkasan/telusur berbasis AI"
+          subtitle="Arsipkan pesan grup tertaut paket – fondasi ringkasan/telusur berbasis AI"
         />
         <CardBody>
           <WahaWebhookPanel
@@ -359,6 +363,14 @@ export default async function SistemPage() {
             capturedCount={waCapturedCount}
             lastCapturedAt={waLast ? formatTanggalWaktu(waLast.createdAt) : null}
             hits={waHitsFmt}
+            antrean={antreanWa}
+            pengiriman={{
+              per: kirimWa.per,
+              gagalTerbaru: kirimWa.gagalTerbaru.map((g) => ({
+                ...g,
+                createdAt: formatTanggalWaktu(g.createdAt),
+              })),
+            }}
           />
         </CardBody>
       </Card>
@@ -383,7 +395,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Basis data AHSP"
-          subtitle="Analisa Harga Satuan Pekerjaan SE DJBK 47/2026 — dasar penurunan kebutuhan bahan, upah, dan alat dari RAB"
+          subtitle="Analisa Harga Satuan Pekerjaan SE DJBK 47/2026 – dasar penurunan kebutuhan bahan, upah, dan alat dari RAB"
         />
         <CardBody>
           <AhspPanel ringkas={await ringkasAhsp()} />
@@ -393,7 +405,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Unggah otomatis ke Drive KKP"
-          subtitle="Laporan harian final & laporan mingguan tiap lokasi naik sendiri — dicicil berlaju supaya tidak diblok Google"
+          subtitle="Laporan harian final & laporan mingguan tiap lokasi naik sendiri – dicicil berlaju supaya tidak diblok Google"
         />
         <CardBody>
           <GDriveOtomatisPanel
@@ -445,7 +457,7 @@ export default async function SistemPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-mono text-[13px]">{l.action}</p>
-                    <p className="mt-0.5 text-[13px] text-ink-muted">{l.user ? l.user.fullName : "—"}</p>
+                    <p className="mt-0.5 text-[13px] text-ink-muted">{l.user ? l.user.fullName : "–"}</p>
                   </div>
                   <span className="tabular flex-none text-[13px] whitespace-nowrap text-ink-muted">
                     {formatTanggalWaktu(l.createdAt)}
@@ -460,7 +472,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Hak Akses per Peran"
-          subtitle="Matriks kapabilitas (read-only) — sumber: src/lib/authz.ts"
+          subtitle="Matriks kapabilitas (read-only) – sumber: src/lib/authz.ts"
         />
         <CardBody>
           <div className="overflow-x-auto">
@@ -540,7 +552,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Provider AI"
-          subtitle="Atur Claude, ChatGPT (OpenAI), Mistral, Grok — pilih satu yang aktif untuk fitur AI"
+          subtitle="Atur Claude, ChatGPT (OpenAI), Mistral, Grok – pilih satu yang aktif untuk fitur AI"
         />
         <CardBody>
           <AiProvidersPanel activeProvider={aiConfig.activeProvider} providers={aiConfig.providers} />
@@ -549,7 +561,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Kontrol AI Hub"
-          subtitle="Kill switch, rate limit, batas ukuran, dan pricing token — mengatur seluruh fitur AI Intelligence (DECISIONS 133)"
+          subtitle="Kill switch, rate limit, batas ukuran, dan pricing token – mengatur seluruh fitur AI Intelligence (DECISIONS 133)"
         />
         <CardBody>
           <AiGuardPanel
@@ -590,7 +602,7 @@ export default async function SistemPage() {
 
       <Card>
         <CardHeader
-          title="Cap Foto — Warna Aksen & Tata Letak"
+          title="Cap Foto – Warna Aksen & Tata Letak"
           subtitle="Warna aksen photo stamp, kekuatan overlay, ukuran, dan elemen yang ditampilkan"
         />
         <CardBody>
@@ -616,7 +628,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pengingat laporan harian"
-          subtitle="Kirim sekarang, di luar jadwal — memakai perhitungan yang sama dengan penjadwal"
+          subtitle="Kirim sekarang, di luar jadwal – memakai perhitungan yang sama dengan penjadwal"
         />
         <CardBody>
           <PengingatPanel pratinjau={pratinjau} />
@@ -632,7 +644,7 @@ export default async function SistemPage() {
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar — harian, plus antrean Drive tiap jam" />
+        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar – harian, plus antrean Drive tiap jam" />
         <CardBody className="space-y-3 text-[13px] text-ink-muted">
           <p>
             Pekerjaan harian (aktivasi SPMK yang jatuh tempo + pengingat WA) dijalankan penjadwal
@@ -643,26 +655,26 @@ export default async function SistemPage() {
             yang berjalan tiap hari 09.00 UTC (16.00 WIB).
           </p>
           <p>
-            Antrean unggah Drive punya rute sendiri —{" "}
+            Antrean unggah Drive punya rute sendiri –{" "}
             <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/gdrive</code>{" "}
             (<code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-gdrive.yml</code>,
             tiap jam). Bukan pemborosan: tiap putaran sengaja menahan diri supaya akun Google tidak
             diblok, jadi tunggakan besar habis lewat putaran yang lebih SERING, bukan yang lebih
-            rakus. Tanpa jadwal itu antrean tetap jalan — hanya sekali sehari, menumpang putaran
+            rakus. Tanpa jadwal itu antrean tetap jalan – hanya sekali sehari, menumpang putaran
             harian.
           </p>
           <HealthRow
             label="CRON_SECRET"
             detail={
               cronSecretSiap
-                ? "Terisi — endpoint penjadwal menerima permintaan yang membawa rahasia yang benar."
-                : "KOSONG — endpoint penjadwal menolak SEMUA permintaan, jadi pekerjaan harian tidak berjalan."
+                ? "Terisi – endpoint penjadwal menerima permintaan yang membawa rahasia yang benar."
+                : "KOSONG – endpoint penjadwal menolak SEMUA permintaan, jadi pekerjaan harian tidak berjalan."
             }
             tone={cronSecretSiap ? "success" : "warning"}
             status={cronSecretSiap ? "Terisi" : "Belum diisi"}
           />
           <p>
-            Tanpa penjadwal, tombol di atas tetap bisa dipakai — bedanya harus ditekan manusia tiap
+            Tanpa penjadwal, tombol di atas tetap bisa dipakai – bedanya harus ditekan manusia tiap
             hari.
           </p>
         </CardBody>
@@ -689,7 +701,7 @@ export default async function SistemPage() {
                 {auditLogs.map((l) => (
                   <tr key={l.id}>
                     <td className="tabular py-1.5 pr-3 whitespace-nowrap">{formatTanggalWaktu(l.createdAt)}</td>
-                    <td className="py-1.5 pr-3">{l.user ? `${l.user.fullName} (@${l.user.username})` : "—"}</td>
+                    <td className="py-1.5 pr-3">{l.user ? `${l.user.fullName} (@${l.user.username})` : "–"}</td>
                     <td className="py-1.5 pr-3 font-mono text-xs">{l.action}</td>
                     <td className="py-1.5 text-xs text-ink-muted">
                       {l.resourceType}

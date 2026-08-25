@@ -26,7 +26,7 @@ async function login(page: Page, username = "admin") {
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Bagian Rencana & RAB" });
 
-test.describe("Rencana & RAB — sub-tab", () => {
+test.describe("Rencana & RAB – sub-tab", () => {
   test("ketiga bagian terlihat TANPA menggulir", async ({ page }) => {
     await login(page);
     /*

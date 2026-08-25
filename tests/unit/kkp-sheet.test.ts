@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildKurvaSheet, orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 
-describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item — DECISIONS 082)", () => {
+describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item – DECISIONS 082)", () => {
   // Profil mingguan per kategori (increment %/minggu) — sudah dihitung upstream.
   const categories = [
     { code: "I", name: "PEKERJAAN PERSIAPAN", weekly: [8, 6, 4, 0, 0, 0] },
@@ -47,7 +47,7 @@ describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item — DEC
   });
 });
 
-describe("angka tampil kolom Bobot (%) — kolom WAJIB menjumlah (Excel: =SUM(M1:MN))", () => {
+describe("angka tampil kolom Bobot (%) – kolom WAJIB menjumlah (Excel: =SUM(M1:MN))", () => {
   // Angka yang tidak habis dibagi: bila tiap sel dibulatkan sendiri-sendiri,
   // Σ sel minggu meleset dari bobot kategori dan `=SUM(...)` di Excel akan
   // menampilkan angka yang berbeda dari bobot resmi.
@@ -106,7 +106,7 @@ describe("angka tampil kolom Bobot (%) — kolom WAJIB menjumlah (Excel: =SUM(M1
   });
 });
 
-describe("angka tampil — properti bertahan di 300 jadwal acak (LCG deterministik)", () => {
+describe("angka tampil – properti bertahan di 300 jadwal acak (LCG deterministik)", () => {
   // Pembulatan penjaga-jumlah gampang bocor di kasus pinggir: kategori 1 minggu,
   // bobot sangat kecil, jadwal berlubang, minggu sangat banyak. Fuzz deterministik
   // (tanpa Math.random supaya kegagalan bisa diulang) menyapu bentuk-bentuk itu.
@@ -189,7 +189,7 @@ describe("orderCategoriesByRab", () => {
     // belakang daftar karena namanya tidak lagi cocok dengan RAB.
     const stored = [
       { lineageKey: "II", name: "PEKERJAAN REVETMENT" },
-      { lineageKey: "I", name: "PEKERJAAN (kategori I — judul tidak ada di file)" },
+      { lineageKey: "I", name: "PEKERJAAN (kategori I – judul tidak ada di file)" },
       { lineageKey: "III", name: "PEKERJAAN TAMBATAN PERAHU" },
     ];
     expect(orderCategoriesByRab(stored, rab, key).map(key)).toEqual(["I", "II", "III"]);

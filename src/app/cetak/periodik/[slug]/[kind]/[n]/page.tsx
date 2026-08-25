@@ -28,7 +28,9 @@ export default async function CetakPeriodikPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id);
+  // `kind` menentukan penanda tangannya: mingguan diteken Pelaksana Lapangan,
+  // bulanan diteken Direktur (DECISIONS 402).
+  const ttd = await muatTtdLaporan(location.id, kind as PeriodKind);
 
   const report = await getPeriodReport(location.id, kind as PeriodKind, periodN);
   if (!report) notFound();
@@ -48,7 +50,9 @@ export default async function CetakPeriodikPage({
             (overflow-x-auto), print tetap utuh (print:overflow-visible). */}
         {/* Hal-1: KURVA S (landscape) */}
         <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
-          <ScurveKkpSheet r={report} ttd={ttd} />
+          {/* Bagian DARI laporan periodik – ikut penanda tangan laporannya
+              (DECISIONS 403), bukan penanda tangan dokumen jadwal. */}
+          <ScurveKkpSheet r={report} ttd={ttd} jenis={kind as PeriodKind} />
         </section>
         {/* Hal-2+: tabel detail item */}
         <section className="mx-auto w-full max-w-[1100px] overflow-x-auto p-6 print:overflow-visible print:p-0">

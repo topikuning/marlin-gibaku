@@ -359,7 +359,7 @@ export type ParseHpsResult = {
 function pesanSheetTakAdaDariNama(nama: string[]): string {
   if (nama.some((n) => /^\s*CCO\s*-?\s*\d+/i.test(n))) {
     return (
-      "Berkas ini berbentuk dokumen CCO, tapi kolom volume/harga/jumlah-nya tidak bisa dipastikan — " +
+      "Berkas ini berbentuk dokumen CCO, tapi kolom volume/harga/jumlah-nya tidak bisa dipastikan – " +
       "pada baris contoh, volume × harga satuan tidak sama dengan jumlah harga. " +
       "Periksa apakah susunan kolomnya berubah atau angkanya belum lengkap; kalau ragu, pakai Template Adendum dari halaman ini."
     );
@@ -440,14 +440,14 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const priceColumn = peta
     ? {
         source: "hps" as const,
-        label: `CCO KKP — volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
+        label: `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
       }
     : priceColumnInfo(priceSource, col);
   if (peta) {
     const { berubah, total } = hitungPerubahan(ws, peta);
     warnings.push(
       `Berkas berformat tambah/kurang KKP. Volume diambil dari blok "${peta.blokHasil.label}" ` +
-        `(kolom ${colLetter(peta.col.vol)}) — keadaan SESUDAH adendum; satuan & harga satuan dari blok ` +
+        `(kolom ${colLetter(peta.col.vol)}) – keadaan SESUDAH adendum; satuan & harga satuan dari blok ` +
         `"${peta.blokDasar.label}". ${berubah} dari ${total} item volumenya berbeda dari blok "${peta.blokDasar.label}".`,
     );
     // Nilai total kedua blok bisa SAMA PERSIS sementara ratusan item berbeda
@@ -456,11 +456,11 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   }
   if (priceSource === "nego")
     warnings.push(
-      `File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,
+      `File punya kolom HARGA NEGOSIASI – nilai kontrak diambil dari kolom ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,
     );
   else if (priceSource === "penawaran")
     warnings.push(
-      `File tidak punya kolom NEGOSIASI — nilai kontrak diambil dari kolom PENAWARAN ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,
+      `File tidak punya kolom NEGOSIASI – nilai kontrak diambil dari kolom PENAWARAN ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,
     );
 
   let project = "";
@@ -541,7 +541,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const openInferredCategory = (roman: string): void => {
     cat = {
       roman,
-      name: `PEKERJAAN (kategori ${roman} — judul tidak ada di file)`,
+      name: `PEKERJAAN (kategori ${roman} – judul tidak ada di file)`,
       total_value: 0,
       subcategories: [],
       direct_items: [],
@@ -553,7 +553,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     subSeen = new Map();
     byCode = new Map();
     warnings.push(
-      `Kategori ${roman} tidak punya baris judul di file — dibuat otomatis dari sub-kode ${roman}.x agar totalnya tidak tergabung ke kategori sebelumnya. Mohon lengkapi judul kategori ${roman}.`,
+      `Kategori ${roman} tidak punya baris judul di file – dibuat otomatis dari sub-kode ${roman}.x agar totalnya tidak tergabung ke kategori sebelumnya. Mohon lengkapi judul kategori ${roman}.`,
     );
   };
 
@@ -587,7 +587,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     // rekap yang kebetulan berkode, penggelembungannya ketahuan sejak pratinjau.
     if (SUMMARY_PREFIX.test(name.trim()))
       warnings.push(
-        `Baris ${row.number} "${name}" berkode "${code}" — namanya menyerupai baris rekap, tapi karena berkode ia DIHITUNG sebagai pekerjaan. Periksa bila totalnya terasa berlebih.`,
+        `Baris ${row.number} "${name}" berkode "${code}" – namanya menyerupai baris rekap, tapi karena berkode ia DIHITUNG sebagai pekerjaan. Periksa bila totalnya terasa berlebih.`,
       );
 
     // Kategori (roman + nama diawali "PEKERJAAN")
@@ -683,16 +683,16 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
 
   if (hiddenSkipped > 0)
     warnings.push(
-      `${hiddenSkipped} baris tersembunyi (hidden) di Excel diabaikan — tidak masuk perhitungan (mengikuti resume kontrak).`,
+      `${hiddenSkipped} baris tersembunyi (hidden) di Excel diabaikan – tidak masuk perhitungan (mengikuti resume kontrak).`,
     );
 
   // Jaring pengaman deteksi kolom: kalau >30% baris berharga gagal uji
   // volume × harga = jumlah, kemungkinan besar kolom nilai salah terbaca.
   if (crossChecked >= 20 && crossMismatch / crossChecked > 0.3)
     warnings.push(
-      `PERHATIAN — ${crossMismatch} dari ${crossChecked} baris berharga tidak memenuhi "volume × harga satuan = jumlah" ` +
+      `PERHATIAN – ${crossMismatch} dari ${crossChecked} baris berharga tidak memenuhi "volume × harga satuan = jumlah" ` +
         `pada kolom ${colLetter(col.price)}/${colLetter(col.amount)} (${priceColumn.label}). ` +
-        `Kemungkinan kolom nilai salah terdeteksi — periksa header file sebelum melanjutkan.`,
+        `Kemungkinan kolom nilai salah terdeteksi – periksa header file sebelum melanjutkan.`,
     );
 
   // Hitung total dari leaf

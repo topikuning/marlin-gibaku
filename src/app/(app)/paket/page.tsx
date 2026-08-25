@@ -13,7 +13,9 @@ import {
   type PackageListFilter,
 } from "@/lib/package/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
+import { kesiapanPaket } from "@/lib/package/kesiapan";
 import { nomorPaket } from "./nomor";
+import { FunnelPaket } from "./funnel";
 import { PaketGrid, type PaketRow } from "./paket-grid";
 
 export const metadata: Metadata = { title: "Paket" };
@@ -48,26 +50,48 @@ export default async function PaketPage({
 
   // BigInt → string di boundary server→client (JSON tidak dukung BigInt).
   const rows = bigintToString(
-    packages.map((p) => ({
-      id: p.id,
-      packageNumber: nomorPaket(p.packageNumber, p.contract?.contractNumber),
-      name: p.name,
-      stage: p.stage,
-      province: p.province ?? "—",
-      hpsValue: p.hpsValue,
-      vendorName: p.contract?.vendor.name ?? p.candidateVendorName ?? "—",
-      locationCount: p._count.locations,
-      waGroupName: p.waGroupId ? p.waGroupName || p.waGroupId : null,
-      hasDrive: p.driveFolderId != null && p.driveFolderId !== "",
-      updatedAt: p.updatedAt.toISOString(),
-    })),
+    packages.map((p) => {
+      const vendorName = p.contract?.vendor.name ?? p.candidateVendorName ?? null;
+      const waGroupName = p.waGroupId ? p.waGroupName || p.waGroupId : null;
+      const hasDrive = p.driveFolderId != null && p.driveFolderId !== "";
+      // Kesiapan dihitung di SERVER — komponen grid hanya menampilkan.
+      const kesiapan = kesiapanPaket({
+        stage: p.stage,
+        locationCount: p._count.locations,
+        adaVendor: vendorName != null,
+      });
+      return {
+        id: p.id,
+        packageNumber: nomorPaket(p.packageNumber, p.contract?.contractNumber),
+        name: p.name,
+        stage: p.stage,
+        province: p.province ?? "–",
+        hpsValue: p.hpsValue,
+        vendorName: vendorName ?? "–",
+        locationCount: p._count.locations,
+        waGroupName,
+        hasDrive,
+        kesiapan: kesiapan.status,
+        kurang: kesiapan.kurang,
+        updatedAt: p.updatedAt.toISOString(),
+      };
+    }),
   ) as unknown as PaketRow[];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Paket"
-        description="Funnel paket pekerjaan: prospek → tender → penetapan → kontrak → pelaksanaan."
+        /*
+         * Funnel-nya MENGGANTIKAN deskripsi, bukan berdiri di bawahnya.
+         *
+         * Kalimat lamanya berbunyi "Funnel paket pekerjaan: prospek → tender →
+         * penetapan → kontrak → pelaksanaan." — persis kata demi kata dengan
+         * lencana di bawahnya, hanya tanpa angka dan tidak bisa diklik. Dua
+         * baris yang mengatakan hal yang sama membuat yang berguna terlihat
+         * seperti hiasan. Keberatan user 2026-08-19.
+         */
+        description={<FunnelPaket perStage={stats.perStage} aktif={filter} />}
         actions={
           <div className="flex flex-wrap gap-2">
             {can(user.role, "contract.manage") ? (
@@ -81,7 +105,7 @@ export default async function PaketPage({
             {can(user.role, "package.bypass") ? (
               <>
                 <Link
-                  href="/paket/katalog"
+                  href="/master/lokasi"
                   className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
                 >
                   Katalog Lokasi

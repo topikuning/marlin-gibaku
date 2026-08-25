@@ -45,7 +45,7 @@ afterEach(() => {
   captured.length = 0;
 });
 
-describe("fetchHourlyWeather — tanggal laporan, bukan hari ini", () => {
+describe("fetchHourlyWeather – tanggal laporan, bukan hari ini", () => {
   it("laporan 3 hari lalu → minta cukup hari mundur & kembalikan jam tanggal ITU", async () => {
     stubFetch(bodyFor(["2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29"]));
 
@@ -78,7 +78,7 @@ describe("fetchHourlyWeather — tanggal laporan, bukan hari ini", () => {
     expect(hours.every((h) => h.category === "Cerah")).toBe(true);
   });
 
-  it("tanggal di masa depan ditolak — tidak menembak penyedia sama sekali", async () => {
+  it("tanggal di masa depan ditolak – tidak menembak penyedia sama sekali", async () => {
     stubFetch(bodyFor(["2026-07-30"]));
     await expect(
       fetchHourlyWeather({ lat: -8.4, lng: 114.3, dateKey: "2026-07-30", todayKey: "2026-07-29" }),

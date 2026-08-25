@@ -24,7 +24,7 @@ describe("tahanGagalKirim", () => {
     expect(await aksi(undefined, new FormData())).toEqual({ success: "Tersimpan" });
   });
 
-  it("meneruskan galat logika dari server apa adanya — bukan urusannya", async () => {
+  it("meneruskan galat logika dari server apa adanya – bukan urusannya", async () => {
     // Validasi/izin sudah jadi state di sisi server; jangan ditimpa.
     const aksi = tahanGagalKirim<AksiState>(async () => ({ error: "Volume wajib diisi" }));
     expect(await aksi(undefined, new FormData())).toEqual({ error: "Volume wajib diisi" });
@@ -95,7 +95,7 @@ describe("tab basi karena deploy", () => {
     );
   });
 
-  it("TIDAK menyuruh mencoba lagi — menekan tombol lagi tidak akan pernah berhasil", async () => {
+  it("TIDAK menyuruh mencoba lagi – menekan tombol lagi tidak akan pernah berhasil", async () => {
     const err = new Error("Server Action \"x\" was not found on the server.");
     err.name = "UnrecognizedActionError";
     const pesan = await pesanDeploy(err);

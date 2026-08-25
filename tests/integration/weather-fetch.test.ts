@@ -102,7 +102,7 @@ describe("pengambilan cuaca otomatis", () => {
     expect(parseHourlyWeather(saved.weatherHourly)).toHaveLength(15);
   });
 
-  it("panggilan berikutnya memakai cache — penyedia tidak ditembak lagi", async () => {
+  it("panggilan berikutnya memakai cache – penyedia tidak ditembak lagi", async () => {
     const before = providerCalls;
     const again = await getObservation(locationId, DATE_KEY);
     expect(again.cached).toBe(true);

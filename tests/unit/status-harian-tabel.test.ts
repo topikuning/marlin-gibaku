@@ -27,7 +27,7 @@ const sumber = (over: Partial<SumberBaris> = {}): SumberBaris => ({
   ...over,
 });
 
-describe("barisTabel — nilai datar yang bisa disortir", () => {
+describe("barisTabel – nilai datar yang bisa disortir", () => {
   it("prasyarat jadi kolom sendiri, bukan kalimat panjang", () => {
     // Inti tegurannya: "kalau memang belum punya folder drive, kasih aja
     // seperti tombol atau symbol X warna merah". Kolom boolean itulah yang
@@ -92,7 +92,7 @@ describe("barisTabel — nilai datar yang bisa disortir", () => {
     expect(barisTabel(sumber({ itemCount: 0, fotoCount: 0, kegiatanCount: 1 })).adaIsi).toBe(true);
   });
 
-  it("keterangan Drive memuat sebab kegagalan — di `title`, bukan di kolom", () => {
+  it("keterangan Drive memuat sebab kegagalan – di `title`, bukan di kolom", () => {
     const b = barisTabel(
       sumber({ drive: { status: "gagal", webLink: null, at: null, error: "kuota habis", fileSukses: 0 } }),
     );

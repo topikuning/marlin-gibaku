@@ -70,7 +70,7 @@ export function KkpDailyCover({
         <Baris label="TANGGAL KONTRAK" isi={d.contractDate} />
         <div className="h-2" />
         <Baris label="PEKERJAAN" isi={d.pekerjaan} />
-        <Baris label="LOKASI" isi={`${d.locationName} — ${d.regency}, ${d.province}`} />
+        <Baris label="LOKASI" isi={`${d.locationName} – ${d.regency}, ${d.province}`} />
         <Baris label="TAHUN ANGGARAN" isi={String(d.tahunAnggaran)} />
       </dl>
 

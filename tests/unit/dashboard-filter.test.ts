@@ -24,15 +24,15 @@ const BIASA_BELUM_LAPOR: [MarkerTone, StatusLapor] = ["neutral", "belum"];
 const BELUM_MULAI: [MarkerTone, StatusLapor] = ["idle", "belum_mulai"];
 
 describe("KASUS INTI: pin merah yang belum lapor", () => {
-  it('masuk "Belum Submit" — dulu raib karena bukan pin abu', () => {
+  it('masuk "Belum Submit" – dulu raib karena bukan pin abu', () => {
     expect(cocokFilter("belum", ...KRITIS_BELUM_LAPOR)).toBe(true);
   });
 
-  it('TIDAK masuk "Sudah Submit" — dulu ikut terhitung karena warnanya merah', () => {
+  it('TIDAK masuk "Sudah Submit" – dulu ikut terhitung karena warnanya merah', () => {
     expect(cocokFilter("submit", ...KRITIS_BELUM_LAPOR)).toBe(false);
   });
 
-  it('tetap masuk "Kritis" — sinyal mendesaknya tidak hilang', () => {
+  it('tetap masuk "Kritis" – sinyal mendesaknya tidak hilang', () => {
     expect(cocokFilter("kritis", ...KRITIS_BELUM_LAPOR)).toBe(true);
   });
 });

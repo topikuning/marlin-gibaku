@@ -45,7 +45,7 @@ describe("kelompokkanPerUraian", () => {
     expect(hasil[0].kodeContoh).toBe("1");
   });
 
-  it("diurut dari NILAI TERBESAR — bukan urutan dokumen", () => {
+  it("diurut dari NILAI TERBESAR – bukan urutan dokumen", () => {
     // Daftar pekerjaan yang berguna dimulai dari yang paling menentukan uang.
     const hasil = kelompokkanPerUraian([
       baris({ tanda: "kecil", uraian: "Kecil", amount: 1_000n }),

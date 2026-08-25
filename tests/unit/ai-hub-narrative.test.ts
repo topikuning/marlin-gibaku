@@ -49,7 +49,7 @@ function bundle(over: Partial<NarrativeBundle["locations"][number]> = {}): Narra
   };
 }
 
-describe("ai-hub/narrative — truncateText", () => {
+describe("ai-hub/narrative – truncateText", () => {
   it("null/kosong -> null", () => {
     expect(truncateText(null)).toBeNull();
     expect(truncateText("   ")).toBeNull();
@@ -66,7 +66,7 @@ describe("ai-hub/narrative — truncateText", () => {
   });
 });
 
-describe("ai-hub/narrative — toNarrativeSourceRefs", () => {
+describe("ai-hub/narrative – toNarrativeSourceRefs", () => {
   it("bangun satu ref granular per laporan & per kegiatan dgn href drill-down", () => {
     const refs = toNarrativeSourceRefs(bundle());
     expect(refs).toHaveLength(2);
@@ -84,13 +84,13 @@ describe("ai-hub/narrative — toNarrativeSourceRefs", () => {
   });
 });
 
-describe("ai-hub/narrative — narrativeEntryCount", () => {
+describe("ai-hub/narrative – narrativeEntryCount", () => {
   it("menjumlahkan laporan + kegiatan lintas lokasi", () => {
     expect(narrativeEntryCount(bundle())).toBe(2);
   });
 });
 
-describe("ai-hub/prompt — buildNarrativePayload", () => {
+describe("ai-hub/prompt – buildNarrativePayload", () => {
   it("kosong -> pesan eksplisit tanpa entri", () => {
     const empty: NarrativeBundle = { locations: [{ locationId: "x", locationName: "X", slug: "x", reports: [], activities: [] }] };
     const text = buildNarrativePayload(empty);
@@ -135,7 +135,7 @@ describe("ai-hub/prompt — buildNarrativePayload", () => {
     expect(text).toContain("terpotong karena batas ukuran");
   });
 
-  it("tidak mengandung angka progres resmi — hanya narasi/foto count", () => {
+  it("tidak mengandung angka progres resmi – hanya narasi/foto count", () => {
     const text = buildNarrativePayload(bundle());
     expect(text).not.toMatch(/deviasi|readiness/i);
   });

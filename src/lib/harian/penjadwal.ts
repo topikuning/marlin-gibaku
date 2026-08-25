@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, formatTanggal, parseDateKey } from "@/lib/format";
 import { canTransitionLocation } from "@/lib/lifecycle";
-import { sendText, isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
+import { isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
+import { sendText } from "@/lib/waha/kirim";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { pesanPengingat, type LokasiTertagih } from "./pesan";
 import type { DiagnosaPengingat } from "./diagnosa";
@@ -12,6 +13,15 @@ import {
   type HasilMingguan,
 } from "@/lib/mingguan/penjadwal";
 import type { HasilPutaran } from "@/lib/gdrive/antrean";
+import {
+  kirimPengingatKendalaTerjadwal,
+  type HasilPengingatTenggat,
+} from "@/lib/kendala/penjadwal-tenggat";
+import { kirimPengingatTemuanTerjadwal } from "@/lib/findings/penjadwal-tenggat";
+import {
+  kirimPengingatNihilTerjadwal,
+  type HasilPengingatNihil,
+} from "@/lib/daily-report/penjadwal-nihil";
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dijalankan penjadwal luar lewat
@@ -60,6 +70,12 @@ export type HasilHarian = {
   mingguan: HasilMingguan;
   /** Antrean unggah laporan ke Drive KKP — DECISIONS 313. */
   drive: HasilPutaran;
+  /** Pengingat kendala lewat tenggat ke grup paket — DECISIONS 392. */
+  kendala: HasilPengingatTenggat;
+  /** Pengingat TEMUAN pemeriksa lewat tenggat — DECISIONS 426; bentuk hasilnya sama. */
+  temuan: HasilPengingatTenggat;
+  /** Peringatan pekerjaan berhenti N hari berturut-turut — DECISIONS 396. */
+  nihil: HasilPengingatNihil;
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -448,6 +464,14 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
       spmk,
       mingguan,
       drive,
+      // Pengingat kendala menumpang sakelar yang SAMA dengan pengingat harian,
+      // bukan sakelar sendiri: dua-duanya tagihan internal ke orang lapangan.
+      // Mematikan tagihan karena libur bersama lalu tetap menagih kendala ke
+      // grup yang sama akan terbaca sebagai sakelarnya rusak. Laporan mingguan
+      // beda urusan — ia laporan resmi ke pemberi kerja, jadi tetap di atas.
+      kendala: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
+      temuan: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
+      nihil: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
       pengingat: {
         terkirim: 0,
         gagal: 0,
@@ -459,5 +483,9 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
     };
   }
   const pengingat = await kirimPengingatHarian(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive };
+  const kendala = await kirimPengingatKendalaTerjadwal(now);
+  // Menumpang sakelar yang sama dengan kendala — tagihan internal juga.
+  const temuan = await kirimPengingatTemuanTerjadwal(now);
+  const nihil = await kirimPengingatNihilTerjadwal(now);
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, temuan, nihil };
 }

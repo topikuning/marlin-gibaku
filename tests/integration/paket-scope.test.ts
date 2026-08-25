@@ -98,7 +98,7 @@ beforeEach(jadiAdminOrgA);
 const namaSaja = (rows: { id: string }[]) => rows.map((r) => r.id).sort();
 
 describe("daftar paket (listPackages)", () => {
-  it("role lintas lokasi melihat semua paket ORGANISASINYA — bukan organisasi lain", async () => {
+  it("role lintas lokasi melihat semua paket ORGANISASINYA – bukan organisasi lain", async () => {
     const rows = await listPackages(sessionUser as never, scopedLocations);
     expect(namaSaja(rows)).toEqual([pkgDitugaskan, pkgKosong, pkgLain].sort());
     expect(rows.map((r) => r.id)).not.toContain(pkgOrgLain);
@@ -124,7 +124,7 @@ describe("KPI paket (getPackageStats)", () => {
   });
 });
 
-describe("workspace paket (getPackageWorkspace) — penjaga URL", () => {
+describe("workspace paket (getPackageWorkspace) – penjaga URL", () => {
   it("role ter-scope tidak bisa membuka paket yang tidak ditugaskan (null = notFound)", async () => {
     jadiSmOrgA();
     expect(await getPackageWorkspace(pkgDitugaskan)).not.toBeNull();
@@ -139,7 +139,7 @@ describe("workspace paket (getPackageWorkspace) — penjaga URL", () => {
   });
 });
 
-describe("packageScopeWhere — bentuk filternya sendiri", () => {
+describe("packageScopeWhere – bentuk filternya sendiri", () => {
   it("null (lintas lokasi) tetap membatasi ke organisasi user", () => {
     expect(packageScopeWhere({ orgId: "o1" } as never, null)).toEqual({ orgId: "o1" });
   });

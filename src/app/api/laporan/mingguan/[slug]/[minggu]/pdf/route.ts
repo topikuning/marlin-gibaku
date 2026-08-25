@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   if (!can(user.role, "report.export")) {
     return NextResponse.json({ error: "Tidak punya izin mengekspor laporan" }, { status: 403 });
   }
@@ -39,7 +39,7 @@ export async function GET(
     // Sebab paling sering: SPMK belum terbit, jadi "minggu ke-n" belum punya
     // tanggal. Disebutkan, bukan dijawab 404 telanjang.
     return NextResponse.json(
-      { error: "Berkas mingguan belum bisa disusun — lokasi ini belum punya tanggal SPMK." },
+      { error: "Berkas mingguan belum bisa disusun – lokasi ini belum punya tanggal SPMK." },
       { status: 404 },
     );
   }

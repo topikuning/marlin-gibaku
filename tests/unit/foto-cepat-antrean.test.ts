@@ -128,7 +128,7 @@ describe("batas antrean", () => {
   });
 });
 
-describe("kirimMacet — baris yang kehilangan halamannya", () => {
+describe("kirimMacet – baris yang kehilangan halamannya", () => {
   // Laporan user 2026-08-07: *"ada yg stuck. sudah coba logout, ganti user,
   // tetap muncul di hp awal. coba ambil foto berhasil terupload langsung, tapi
   // foto yang gantung ini stuck"*.
@@ -166,7 +166,7 @@ describe("kirimMacet — baris yang kehilangan halamannya", () => {
     }
   });
 
-  it("baris macet tetap DITOLAK `bolehCoba` — pembebasannya harus disengaja", () => {
+  it("baris macet tetap DITOLAK `bolehCoba` – pembebasannya harus disengaja", () => {
     // Kedua aturan ini sengaja terpisah. `bolehCoba` menjaga satu foto tidak
     // dikirim dua kali bersamaan; membebaskan yang macet adalah tindakan lain
     // yang menurunkan statusnya lebih dulu. Kalau `bolehCoba` sendiri yang
@@ -175,7 +175,7 @@ describe("kirimMacet — baris yang kehilangan halamannya", () => {
   });
 });
 
-describe("putaranDitinggalkan — kunci yang pemegangnya sudah tidak ada", () => {
+describe("putaranDitinggalkan – kunci yang pemegangnya sudah tidak ada", () => {
   // Laporan lanjutan user 2026-08-07: foto TETAP stuck sesudah perbaikan
   // pembebasan baris macet naik ke server. Sebabnya satu lapis lebih dalam:
   // tidak ada satu pun batas waktu di jalur itu. Kalau yang ditunggu tidak
@@ -209,7 +209,7 @@ describe("putaranDitinggalkan — kunci yang pemegangnya sudah tidak ada", () =>
   });
 });
 
-describe("status 'rusak' — isi fotonya hilang dari simpanan", () => {
+describe("status 'rusak' – isi fotonya hilang dari simpanan", () => {
   // Bukti dari perangkat user 2026-08-07, dua peramban sekaligus:
   //   UnknownError: Error preparing Blob/File data to be stored in object store
   // dan di peramban kedua, pratinjaunya muncul sebagai ikon gambar rusak.
@@ -237,7 +237,7 @@ describe("status 'rusak' — isi fotonya hilang dari simpanan", () => {
     expect(r.ditolak).toBe(1);
   });
 
-  it("tetap menuntut perhatian — bukan disembunyikan", () => {
+  it("tetap menuntut perhatian – bukan disembunyikan", () => {
     // Foto yang hilang harus terlihat supaya bisa dibuang lalu dipotret ulang;
     // menyembunyikannya berarti pemiliknya mengira buktinya masih ada.
     expect(ringkasAntrean([{ status: "rusak" }]).perluPerhatian).toBe(true);

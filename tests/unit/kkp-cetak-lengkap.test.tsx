@@ -116,7 +116,7 @@ describe("halaman dokumentasi cetak HTML", () => {
     expect(html).not.toContain("0,00");
   });
 
-  it("foto tanpa item tetap dicetak — bukti tetap bukti", () => {
+  it("foto tanpa item tetap dicetak – bukti tetap bukti", () => {
     const html = renderToStaticMarkup(
       <KkpDailyPhotos d={data()} foto={[foto({ pekerjaan: null, kategori: null })]} />,
     );
@@ -177,7 +177,7 @@ describe("halaman dokumentasi cetak HTML", () => {
       expect(html).toContain('rel="noopener noreferrer"');
     });
 
-    it("gambarnya SAMA PERSIS dengan atau tanpa tautan — tidak di-crop, tidak diubah", () => {
+    it("gambarnya SAMA PERSIS dengan atau tanpa tautan – tidak di-crop, tidak diubah", () => {
       const tag = (h: string) => h.match(/<img[^>]*>/)?.[0] ?? "";
       const dengan = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />));
       const tanpa = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />));
@@ -185,7 +185,7 @@ describe("halaman dokumentasi cetak HTML", () => {
       expect(dengan).toContain("object-contain"); // bukan object-cover = tidak dipotong
     });
 
-    it("tanpa tautan, fotonya tetap tampil — bukan hilang", () => {
+    it("tanpa tautan, fotonya tetap tampil – bukan hilang", () => {
       // origin tidak diketahui (mis. render di luar request) tidak boleh
       // membuat bukti ikut lenyap; cukup tidak bisa diklik.
       const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />);
@@ -194,13 +194,24 @@ describe("halaman dokumentasi cetak HTML", () => {
     });
   });
 
-  it("tiap halaman dokumentasi mulai di halaman kertas baru", () => {
-    // Tanpa ini, kartu dokumentasi menempel di ekor blanko dan hasil Ctrl+P
-    // tidak lagi menyerupai PDF-nya.
+  it("blok dokumentasi mulai di halaman kertas baru, SEKALI", () => {
+    /*
+     * Versi uji ini sebelumnya berbunyi "5 kartu = 3 halaman (2 kartu per
+     * halaman)" dan menegaskan `break-before-page` sebanyak 3 kali — yaitu
+     * MENGUNCI cacat yang dikeluhkan user 2026-08-20: tiap pasangan kartu
+     * dipaksa ke halaman sendiri, sehingga 8 foto memakan 4 halaman A4 yang
+     * masing-masing terisi seperempat.
+     *
+     * Maksud aslinya tetap dijaga di sini — dokumentasi TIDAK boleh menempel di
+     * ekor blanko — tapi yang menentukan pemenggalan halaman berikutnya
+     * sekarang tinggi kartunya, bukan angka 2 yang dituliskan di kode. Dicetak
+     * sungguhan lewat Chromium: 8 kartu satu-foto = 6 kartu per halaman.
+     */
     const banyak = Array.from({ length: 5 }, (_, i) => foto({ pekerjaan: `Pekerjaan ${i}` }));
     const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={banyak} />);
-    // 5 pekerjaan berbeda = 5 kartu = 3 halaman (2 kartu per halaman).
-    expect(html.match(/break-before-page/g) ?? []).toHaveLength(3);
+    expect(html.match(/break-before-page/g) ?? []).toHaveLength(1);
+    // Barisnya dijaga utuh supaya kartu kiri & kanan tidak terpisah halaman.
+    expect(html.match(/break-inside-avoid/g) ?? []).not.toHaveLength(0);
   });
 });
 
@@ -229,13 +240,13 @@ describe("halaman dokumentasi material & peralatan", () => {
     expect(html).toContain('href="https://marlin.uji/api/foto/tokM"');
   });
 
-  it("jumlah yang TIDAK diisi ditulis \u2014, bukan 0", () => {
+  it("jumlah yang TIDAK diisi ditulis \u2013, bukan 0", () => {
     // "belum diisi" berbeda dari "nol"; menulis 0 mengarang angka yang tidak
     // pernah dilaporkan siapa pun.
     const html = renderToStaticMarkup(
       <KkpDailyPelengkapPhotos d={data()} foto={[bukti({ keterangan: null })]} judul="Dokumentasi Peralatan" labelBaris="Alat" />,
     );
-    expect(html).toContain("\u2014");
+    expect(html).toContain("\u2013");
     expect(html).not.toContain(">0<");
   });
 

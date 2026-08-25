@@ -226,7 +226,7 @@ export function CorrectAddLocationForm({
 
       <Banner
         tone="warning"
-        title="Ini jalur koreksi kesalahan input — bukan adendum"
+        title="Ini jalur koreksi kesalahan input – bukan adendum"
         description="Pakai hanya bila lokasi memang ketinggalan saat data paket diinput, sementara nilai kontraknya sudah benar. Bila lingkup kontrak benar-benar bertambah, yang sah adalah adendum, bukan koreksi ini. Setiap koreksi tercatat di audit & histori paket."
       />
 
@@ -278,7 +278,7 @@ export function CorrectAddLocationForm({
           <p className="mt-1 text-xs text-ink-muted">
             Hanya lokasi yang BELUM terpakai yang tampil
             {hiddenExistingCount > 0
-              ? ` — ${hiddenExistingCount} baris katalog disembunyikan karena lokasinya sudah ada di sistem`
+              ? ` – ${hiddenExistingCount} baris katalog disembunyikan karena lokasinya sudah ada di sistem`
               : ""}
             . Tidak ketemu? Berarti lokasi itu sudah dipakai; pakai isian manual bila memang beda
             lokasi.

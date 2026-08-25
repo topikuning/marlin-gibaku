@@ -12,8 +12,12 @@ import {
   submitReportAction,
   type DailyActionState,
 } from "@/lib/daily-report/actions";
+import { HariNihilPanel } from "@/components/knmp/hari-nihil-panel";
+import type { NoActivityReason } from "@/generated/prisma/enums";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
+import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
@@ -72,6 +76,7 @@ export function ReportEditor({
   photoEnabled,
   photosTanpaItem,
   bolehHapusFoto,
+  nihil,
 }: {
   locationId: string;
   slug: string;
@@ -85,17 +90,36 @@ export function ReportEditor({
   photosTanpaItem: PhotoView[];
   /** Laporan masih bisa diedit (draft / perlu koreksi). */
   bolehHapusFoto: boolean;
+  /** Pernyataan "tidak ada kegiatan" hari itu (DECISIONS 396). */
+  nihil: { aktif: boolean; alasan: NoActivityReason | null; catatan: string | null };
 }) {
   return (
     <div className="space-y-4">
       {correctionReason ? (
         <Banner
           tone="warning"
-          title="Laporan dikembalikan — perlu koreksi"
+          title="Laporan dikembalikan – perlu koreksi"
           description={correctionReason}
         />
       ) : null}
-      <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
+      {/*
+        Panel hari-nihil hanya muncul saat laporan MASIH KOSONG, atau saat
+        pernyataannya sudah terpasang (supaya bisa dibatalkan). Menawarkannya di
+        samping pekerjaan yang sudah tercatat cuma mengundang orang mencentang
+        dua pernyataan yang saling menyangkal. DECISIONS 396.
+      */}
+      {nihil.aktif || items.length === 0 ? (
+        <HariNihilPanel
+          locationId={locationId}
+          dateKey={dateKey}
+          nihil={nihil.aktif}
+          alasan={nihil.alasan}
+          catatan={nihil.catatan}
+        />
+      ) : null}
+      {nihil.aktif ? null : (
+        <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
+      )}
       <ItemList
         reportId={reportId}
         locationId={locationId}
@@ -115,7 +139,7 @@ export function ReportEditor({
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
           <p className="mt-0.5 text-xs text-muted">
             Foto ini ikut terlepas saat pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
-            kantong Foto Cepat — dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
+            kantong Foto Cepat – dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
             memang tidak terpakai.
           </p>
           <div className="mt-2">
@@ -124,6 +148,7 @@ export function ReportEditor({
               thumbClass="h-14 w-14"
               canDelete={bolehHapusFoto}
               deleteAction={removeReportPhotoAction}
+              rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
               reuse={
                 bolehHapusFoto
                   ? {
@@ -136,13 +161,23 @@ export function ReportEditor({
           </div>
         </section>
       ) : null}
-      {reportId && items.length > 0 ? (
+      {/*
+        Hari yang DINYATAKAN nihil juga harus bisa dikirim — kalau tidak, seluruh
+        fitur hari-nihil berhenti di draft dan tidak pernah sampai ke pemeriksa.
+        Ketahuan 2026-08-20 saat menjajal alurnya di aplikasi yang berjalan:
+        tombol Kirim digantung pada `items.length > 0`, dan hari nihil memang
+        tidak punya item. DECISIONS 396.
+      */}
+      {reportId && (items.length > 0 || nihil.aktif) ? (
         <SubmitPanel
           reportId={reportId}
           slug={slug}
           dateKey={dateKey}
           jumlahItem={items.length}
           jumlahFoto={items.reduce((n, it) => n + it.photos.length, 0)}
+          nihil={nihil.aktif}
+          nihilAlasan={nihil.alasan}
+          nihilCatatan={nihil.catatan}
         />
       ) : null}
     </div>
@@ -385,7 +420,7 @@ function ItemForm({
                           (DECISIONS 210). */}
                       {n.basis === "draft_adendum" ? (
                         <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                          Pengajuan adendum — belum resmi
+                          Pengajuan adendum – belum resmi
                         </div>
                       ) : null}
                       <div className="text-xs text-ink-muted">
@@ -427,7 +462,7 @@ function ItemForm({
         {picked?.remaining != null ? (
           <p className="mt-1 text-xs text-ink-muted">
             Sisa yang bisa dilaporkan: {formatNumber(picked.remaining)} {picked.unit} (dari volume RAB{" "}
-            {picked.volume != null ? formatNumber(picked.volume) : "—"}).
+            {picked.volume != null ? formatNumber(picked.volume) : "–"}).
           </p>
         ) : null}
       </div>
@@ -437,7 +472,7 @@ function ItemForm({
         <Label>3 · Foto bukti (opsional)</Label>
         {!photoEnabled ? (
           <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-ink">
-            Penyimpanan foto (Cloudflare R2) belum diaktifkan — unggah foto sementara tidak tersedia.
+            Penyimpanan foto (Cloudflare R2) belum diaktifkan – unggah foto sementara tidak tersedia.
             Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
           </p>
         ) : (
@@ -761,6 +796,7 @@ function ItemRow({
           thumbClass="h-14 w-14"
           canDelete={bolehHapusFoto}
           deleteAction={removeReportPhotoAction}
+          rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
         />
       ) : null}
       {/* Foto ketinggalan itu keadaan yang wajar — jalan memperbaikinya harus
@@ -833,7 +869,7 @@ function ItemList({
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-ink-muted">
-        Belum ada item pekerjaan hari ini — mulai dari form di atas.
+        Belum ada item pekerjaan hari ini – mulai dari form di atas.
       </p>
     );
   }
@@ -889,17 +925,35 @@ function SubmitPanel({
   slug,
   dateKey,
   jumlahItem,
+  nihil,
+  nihilAlasan,
+  nihilCatatan,
   jumlahFoto,
 }: {
   reportId: string;
   slug: string;
   dateKey: string;
   jumlahItem: number;
+  /** Hari dinyatakan tanpa kegiatan — ringkasannya berbeda. */
+  nihil?: boolean;
+  nihilAlasan?: NoActivityReason | null;
+  nihilCatatan?: string | null;
   jumlahFoto: number;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
   const [buka, setBuka] = useState(false);
-  const [pilihan, setPilihan] = useState<"" | "tidak_ada" | "ada">("");
+  /*
+   * Hari nihil karena MENUNGGU sudah menyatakan hambatannya (DECISIONS 407).
+   * Jawabannya dibawa ke sini sebagai isian yang sudah terisi, bukan ditanyakan
+   * ulang lewat formulir kedua di panel hari-nihil – dua pertanyaan untuk satu
+   * hambatan itulah yang melahirkan kendala kembar.
+   *
+   * "Ada kendala" hanya DIPILIHKAN, bukan dikunci: yang menyatakan hari nihil
+   * tetap boleh menjawab "Tidak ada" – mis. menunggu yang sudah ada kendalanya
+   * di papan sejak kemarin.
+   */
+  const usulKendala = nihil ? judulKendalaDariNihil(nihilAlasan, nihilCatatan) : null;
+  const [pilihan, setPilihan] = useState<"" | "tidak_ada" | "ada">(usulKendala ? "ada" : "");
   const [siap, setSiap] = useState(false);
 
   useEffect(() => {
@@ -956,7 +1010,9 @@ function SubmitPanel({
                   {/* Ringkasan sebelum berpisah dari laporan: angka yang paling
                       sering baru disadari salah SESUDAH terkirim. */}
                   <p className="mt-0.5 text-xs text-ink-muted">
-                    {jumlahItem} item pekerjaan · {jumlahFoto} foto
+                    {nihil
+                      ? "Hari ini dinyatakan TIDAK ADA KEGIATAN"
+                      : `${jumlahItem} item pekerjaan · ${jumlahFoto} foto`}
                   </p>
                 </div>
                 <button
@@ -993,6 +1049,12 @@ function SubmitPanel({
 
               {pilihan === "ada" ? (
                 <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+                  {usulKendala ? (
+                    <p className="text-[12px] text-ink-muted">
+                      Diisikan dari sebab hari nihil. Boleh diubah – yang tersimpan yang tertulis di
+                      sini. Kalau kendala serupa masih terbuka di papan, tidak dicatat dua kali.
+                    </p>
+                  ) : null}
                   <div>
                     <Label htmlFor="kk-title" required>
                       Kendala
@@ -1003,6 +1065,7 @@ function SubmitPanel({
                       required
                       minLength={3}
                       maxLength={200}
+                      defaultValue={usulKendala ?? ""}
                       placeholder="mis. hujan deras sejak siang, cor ditunda"
                     />
                   </div>

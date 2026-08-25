@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import ExifReader from "exifreader";
+import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
 import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
@@ -93,7 +94,7 @@ async function loadSharp(): Promise<typeof import("sharp")["default"]> {
     return mod.default;
   } catch (err) {
     console.error("[photos] sharp tidak tersedia:", err);
-    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini — hubungi admin");
+    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini – hubungi admin");
   }
 }
 
@@ -156,6 +157,8 @@ export type PhotoStamp = {
   lng: number | null;
   locationLabel: string | null;
   companyName?: string | null;
+  /** Logo perusahaan sebagai data URI PNG — menggantikan wordmark MARLIN. */
+  companyLogo?: string | null;
   reporterName?: string | null;
   /** Badge besar: BANGUNAN/KATEGORI RAB (laporan harian) / jenis kegiatan. */
   categoryName?: string | null;
@@ -178,6 +181,11 @@ export type PhotoStamp = {
   coordNote?: string | null;
   /** Jam tidak diketahui → cap hanya menampilkan tanggal, tanpa angka jam palsu. */
   dateOnly?: boolean;
+  /**
+   * Foto galeri "gunakan apa adanya" (user 2026-08-24): cap TANPA baris
+   * koordinat & tanggal-jam — meski EXIF ada. Lokasi/pekerjaan/logo tetap.
+   */
+  tanpaTag?: boolean;
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -185,11 +193,16 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const tz = s.timezone ?? DEFAULT_STAMP_TZ;
   const data: StampRenderData = {
     companyName: s.companyName?.trim() || null,
-    locationName: s.locationLabel?.trim() || "—",
+    companyLogo: s.companyLogo ?? null,
+    locationName: s.locationLabel?.trim() || "–",
     categoryName: s.categoryName?.trim() || null,
     workName: s.workName?.trim() || null,
-    dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
-    coordinateText: s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
+    dateTimeText: s.tanpaTag
+      ? null
+      : s.dateOnly
+        ? formatStampDate(s.takenAt, tz)
+        : formatStampDateTime(s.takenAt, tz),
+    coordinateText: s.tanpaTag || s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
     photoId: s.showPhotoId === false ? null : s.photoId?.trim() || null,
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
@@ -251,12 +264,14 @@ export type SavePhotoInput = {
    * - "camera" (foto baru diambil): GPS real-time perangkat → EXIF → titik lokasi proyek;
    *   waktu = sekarang → EXIF.
    * - "gallery" (dipilih dari galeri): UTAMAKAN EXIF asli foto; bila EXIF tak ada,
-   *   cadangan sesuai `fallbackMode` ("project" = titik lokasi proyek, "none" = tanpa tag).
+   *   cadangan sesuai `fallbackMode` ("project" = titik lokasi proyek, "none" = tanpa tag;
+   *   "apa_adanya" = user 2026-08-24: JANGAN beri tag koordinat & waktu sama
+   *   sekali, meski EXIF ada — cap hanya lokasi/pekerjaan/logo).
    *   GPS perangkat saat upload TIDAK PERNAH dipakai untuk galeri (bisa salah saat batch).
    */
   stamp?: {
     source?: "camera" | "gallery";
-    fallbackMode?: "project" | "none";
+    fallbackMode?: "project" | "none" | "apa_adanya";
     /** Setelan wajib-GPS sedang menyala (DECISIONS 219). */
     requireGps?: boolean;
     /** Galeri: pelapor MENYATAKAN sedang berada di lokasi saat mengunggah. */
@@ -272,6 +287,11 @@ export type SavePhotoInput = {
     workDate?: Date | null;
     locationLabel?: string | null;
     companyName?: string | null;
+    /**
+     * Kunci R2 logo perusahaan (vendor). Diisi → logo itu yang tercetak di
+     * pojok kanan cap; kosong → wordmark MARLIN. DECISIONS 424.
+     */
+    companyLogoKey?: string | null;
     reporterName?: string | null;
     /** Badge besar: bangunan/kategori RAB (laporan harian) / jenis kegiatan. */
     categoryName?: string | null;
@@ -328,6 +348,15 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
+    // "Gunakan apa adanya": pengunggah menyatakan foto ini dipakai TANPA tag
+    // koordinat & waktu (user 2026-08-24). Setelan wajib-GPS (DECISIONS 219)
+    // tetap menang — mandat admin tidak bisa dilewati lewat pilihan unggah.
+    if (s?.fallbackMode === "apa_adanya" && s?.requireGps) {
+      throw new PhotoError(
+        "Setelan wajib-GPS sedang menyala – opsi \"gunakan apa adanya\" tidak bisa dipakai. " +
+          "Pilih foto yang punya GPS di EXIF-nya atau ambil lewat tombol Kamera.",
+      );
+    }
     // Urutan sumber koordinat foto GALERI (DECISIONS 220):
     //   1. EXIF foto itu sendiri — posisi NYATA saat foto diambil;
     //   2. posisi perangkat saat unggah, HANYA bila pelapor menyatakan sedang
@@ -338,7 +367,11 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // tempat MENGUNGGAH, sedangkan EXIF adalah tempat MEMOTRET. Keduanya bisa
     // berjarak ratusan meter di lokasi yang sama, dan yang dipertanggungjawabkan
     // di blanko adalah tempat pekerjaannya.
-    if (exif.lat != null && exif.lng != null) {
+    if (s?.fallbackMode === "apa_adanya") {
+      lat = null;
+      lng = null;
+      gpsSource = "none";
+    } else if (exif.lat != null && exif.lng != null) {
       lat = exif.lat;
       lng = exif.lng;
       gpsSource = "exif";
@@ -355,7 +388,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       // dikeluhkan user.
       throw new PhotoError(
         `"${file.name}" tidak punya data GPS di dalam fotonya. ` +
-          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang — " +
+          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang – " +
           "atau ambil ulang lewat tombol Kamera.",
       );
     } else {
@@ -409,6 +442,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       timeSource = "server";
     }
   }
+  // Cap "apa adanya" (galeri): tanpa tag koordinat & waktu (user 2026-08-24).
+  const tanpaTag = source === "gallery" && s?.fallbackMode === "apa_adanya";
   // Penanda di cap — masing-masing hanya muncul bila nilainya memang bukan
   // data asli foto. Diam-diam menampilkannya sebagai fakta = memalsukan bukti.
   const timeNote = jamTidakDiketahui
@@ -458,6 +493,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       lng,
       locationLabel: input.stamp?.locationLabel ?? null,
       companyName: input.stamp?.companyName ?? null,
+      companyLogo: await logoPerusahaanDataUri(input.stamp?.companyLogoKey),
       reporterName: input.stamp?.reporterName ?? null,
       categoryName: input.stamp?.categoryName ?? null,
       workName: input.stamp?.workName ?? null,
@@ -469,9 +505,10 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       showCoordinate: cfg?.showCoordinates ?? true,
       showReporter: cfg?.showReporter ?? true,
       showPhotoId: cfg?.showPhotoId ?? true,
-      timeNote,
-      coordNote,
+      timeNote: tanpaTag ? null : timeNote,
+      coordNote: tanpaTag ? null : coordNote,
       dateOnly: jamTidakDiketahui,
+      tanpaTag,
     },
     file,
   );
@@ -528,6 +565,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifGpsLat: desimalKoordinat(lat),
       exifGpsLng: desimalKoordinat(lng),
       gpsSource,
+      stampPlain: tanpaTag,
       metadataSource: timeSource,
       uploadedById: input.userId,
     },
@@ -583,7 +621,7 @@ export async function processWithSharpOrOriginal(
   try {
     sharp = await loadSharp();
   } catch (err) {
-    console.error("[photos] sharp tak tersedia — simpan gambar asli tanpa cap:", err);
+    console.error("[photos] sharp tak tersedia – simpan gambar asli tanpa cap:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
@@ -606,7 +644,7 @@ export async function processWithSharpOrOriginal(
     width = resized.info.width ?? null;
     height = resized.info.height ?? null;
   } catch (err) {
-    console.error("[photos] sharp gagal resize — simpan gambar asli:", err);
+    console.error("[photos] sharp gagal resize – simpan gambar asli:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
@@ -627,7 +665,7 @@ export async function processWithSharpOrOriginal(
       "cap",
     );
   } catch (err) {
-    console.error("[photos] cap gagal/timeout — simpan hasil resize tanpa cap:", err);
+    console.error("[photos] cap gagal/timeout – simpan hasil resize tanpa cap:", err);
     main = await sharp(resizedData, { failOn: "none" }).webp({ quality: 80 }).toBuffer();
   }
 

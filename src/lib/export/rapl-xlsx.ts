@@ -108,7 +108,7 @@ function tulisRingkasan(
 
   ws.mergeCells("A1:D1");
   const judul = ws.getCell("A1");
-  judul.value = "RENCANA ANGGARAN PELAKSANAAN LAPANGAN — KEBUTUHAN SUMBER DAYA";
+  judul.value = "RENCANA ANGGARAN PELAKSANAAN LAPANGAN – KEBUTUHAN SUMBER DAYA";
   gayaKepala(judul, { size: 12 });
   ws.getRow(1).height = 26;
   logoPasanganKanan(wb, ws, logo, { rowAtas: 1, kolomKiri: 1, kolomKanan: 4, tinggiPx: 26 });
@@ -117,8 +117,8 @@ function tulisRingkasan(
     ["Lokasi", kepala.lokasi],
     ["Paket", kepala.paket],
     ["Wilayah", `${kepala.kabupaten}, ${kepala.provinsi}`],
-    ["Kontrak", kepala.kontrak ?? "—"],
-    ["Penyedia jasa", kepala.penyedia ?? "—"],
+    ["Kontrak", kepala.kontrak ?? "–"],
+    ["Penyedia jasa", kepala.penyedia ?? "–"],
     ["Sumber analisa", kepala.sumberAhsp],
     ["Versi berkas AHSP (sha256)", kepala.shaAhsp],
     ["Dicetak", `${tanggal(kepala.dicetakPada)} oleh ${kepala.dicetakOleh}`],
@@ -197,7 +197,7 @@ function tulisRingkasan(
   }
   if (perAlasan.size === 0) {
     ws.mergeCells(r, 1, r, 4);
-    ws.getCell(r, 1).value = "Tidak ada — seluruh baris kerja masuk hitungan.";
+    ws.getCell(r, 1).value = "Tidak ada – seluruh baris kerja masuk hitungan.";
     r += 1;
   } else {
     for (const [alasan, a] of [...perAlasan].sort((x, y) => Number(y[1].nilai - x[1].nilai))) {
@@ -263,9 +263,9 @@ function tulisRingkasan(
   ws.mergeCells(r, 1, r + 3, 4);
   const catatan = ws.getCell(r, 1);
   catatan.value =
-    "CARA MEMBACA. Angka di lembar “Kebutuhan” adalah Σ (koefisien AHSP × volume item RAB) — VOLUME kebutuhan, BUKAN harga. " +
+    "CARA MEMBACA. Angka di lembar “Kebutuhan” adalah Σ (koefisien AHSP × volume item RAB) – VOLUME kebutuhan, BUKAN harga. " +
     "Hanya baris yang padanan AHSP-nya sudah disetujui orang yang ikut dihitung; usulan mesin yang belum disetujui sengaja tidak dipakai. " +
-    "Nama sumber daya tidak disatukan antar ejaan yang berbeda (“Semen PC” dan “Semen Portland” tetap dua baris) — menggabungkannya keputusan yang harus diambil manusia. " +
+    "Nama sumber daya tidak disatukan antar ejaan yang berbeda (“Semen PC” dan “Semen Portland” tetap dua baris) – menggabungkannya keputusan yang harus diambil manusia. " +
     "Baris bertanda “kategori janggal” adalah komponen yang di berkas AHSP resminya terdaftar sebagai UPAH padahal satuannya satuan bahan; MARLIN tidak memindahkannya sendiri.";
   catatan.alignment = { wrapText: true, vertical: "top" };
   catatan.font = { size: 10, color: { argb: WARNA.teksRedup } };
@@ -332,7 +332,7 @@ function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl, harga?: Keadaa
       const jum = ws.getCell(r, 3);
       jum.value = k.jumlah;
       jum.numFmt = FMT_ANGKA;
-      ws.getCell(r, 4).value = k.satuan || "—";
+      ws.getCell(r, 4).value = k.satuan || "–";
 
       const h = petaHarga.get(`${k.kategori}|${k.nama}|${k.satuan.trim().toLowerCase()}`);
       // Sel harga dibiarkan KOSONG kalau belum diisi — bukan nol. Nol berarti
@@ -354,7 +354,7 @@ function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl, harga?: Keadaa
 
       ws.getCell(r, 7).value = k.dariBaris;
       ws.getCell(r, 8).value = k.janggal
-        ? "kategori janggal — terdaftar sebagai upah di berkas AHSP padahal satuannya satuan bahan"
+        ? "kategori janggal – terdaftar sebagai upah di berkas AHSP padahal satuannya satuan bahan"
         : "";
       if (k.janggal) {
         ws.getCell(r, 8).font = { size: 9, color: { argb: WARNA.negatif } };
@@ -422,7 +422,7 @@ function tulisDilewat(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
 
   if (urut.length === 0) {
     ws.mergeCells(2, 1, 2, 5);
-    ws.getCell(2, 1).value = "Tidak ada — seluruh baris kerja RAB masuk hitungan.";
+    ws.getCell(2, 1).value = "Tidak ada – seluruh baris kerja RAB masuk hitungan.";
     ws.getCell(2, 1).font = { italic: true, size: 10 };
     return;
   }

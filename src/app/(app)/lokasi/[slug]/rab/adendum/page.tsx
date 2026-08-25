@@ -64,7 +64,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
         <CardHeader title="Adendum RAB" />
         <CardBody>
           <p className="text-sm text-ink-muted">
-            Belum ada revisi RAB aktif — adendum butuh RAB untuk disalin. Impor HPS dulu di{" "}
+            Belum ada revisi RAB aktif – adendum butuh RAB untuk disalin. Impor HPS dulu di{" "}
             <Link href={`/lokasi/${slug}/rab/import`} className="font-medium text-primary hover:underline">
               Impor HPS
             </Link>
@@ -86,7 +86,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       <Card>
         <CardHeader
           title="Adendum RAB"
-          subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)} — draft adendum menyalinnya penuh; angka live tidak tersentuh sampai draft diaktifkan.`}
+          subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)} – draft adendum menyalinnya penuh; angka live tidak tersentuh sampai draft diaktifkan.`}
         />
         <CardBody>
           <CreateDraftForm slug={slug} amendments={amendmentOptions} />
@@ -146,7 +146,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   for (const r of byParent.get(null) ?? []) sumRealized(r.id, r.lineageKey, r.kind);
 
   const nodes: EditorNode[] = [];
-  const walk = (parentId: string | null, depth: number) => {
+  const walk = (parentId: string | null, depth: number, jalurInduk: string) => {
     for (const n of byParent.get(parentId) ?? []) {
       const lama = activeByLineage.get(n.lineageKey);
       const volume = n.volume == null ? null : Number(n.volume);
@@ -167,16 +167,18 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
         delta: (n.amount - amountLama).toString(),
         lineageKey: n.lineageKey,
         realized: realizedMap.get(n.lineageKey) ?? 0,
+        jalur: jalurInduk,
         isNew: !lama,
         isChanged:
           n.kind === "item" && lama != null && Math.abs((volume ?? 0) - (volumeLama ?? 0)) > 1e-6,
         canDelete: (subtreeRealized.get(n.id) ?? 0) <= 1e-6,
         depth,
       });
-      walk(n.id, depth + 1);
+      const namaSaya = [n.code, n.name].filter(Boolean).join(". ");
+      walk(n.id, depth + 1, jalurInduk ? `${jalurInduk} › ${namaSaya}` : namaSaya);
     }
   };
-  walk(null, 0);
+  walk(null, 0, "");
 
   const diff = active ? await diffRevisions(active.id, draft.id) : null;
 
@@ -223,7 +225,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
     const batas = revisiAwal.totalValue / 10n;
     if (delta > batas) {
       peringatan.push(
-        `Nilai kontrak naik ${fmtDelta(delta)} — melebihi 10% nilai RAB kontrak awal ` +
+        `Nilai kontrak naik ${fmtDelta(delta)} – melebihi 10% nilai RAB kontrak awal ` +
           `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}). ` +
           `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
       );
@@ -252,14 +254,14 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       .slice(0, 5)
       .map(
         (r) =>
-          `${r.code} ${r.name} (${r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "—"} → ${
-            r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "—"
+          `${r.code} ${r.name} (${r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "–"} → ${
+            r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "–"
           })`,
       );
     peringatan.push(
       `Harga satuan ${hargaBergeser.length} item KONTRAK LAMA bergeser di draft ini: ` +
         `${contoh.join("; ")}${hargaBergeser.length > contoh.length ? `; +${hargaBergeser.length - contoh.length} lainnya` : ""}. ` +
-        `Adendum mengubah volume — harga item yang sudah ada di kontrak seharusnya tetap. ` +
+        `Adendum mengubah volume – harga item yang sudah ada di kontrak seharusnya tetap. ` +
         `Pastikan pergeseran ini memang ada dasarnya sebelum aktivasi.`,
     );
   }
@@ -288,7 +290,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           title="Isi draft dari file Excel"
           subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
           action={
-            <ButtonLink href={`/lokasi/${slug}/rab/adendum/template`} variant="secondary" size="sm" unduhan>
+            <ButtonLink
+              href={`/lokasi/${slug}/rab/adendum/template`}
+              variant="secondary"
+              size="sm"
+              unduhan
+              labelSibuk="Menyiapkan template…"
+            >
               <Download aria-hidden className="size-3.5" />
               Unduh template adendum
             </ButtonLink>
@@ -299,11 +307,11 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               (DECISIONS 216). Diunggah balik lewat form yang sama — sistem
               mengenalinya dari penanda di berkasnya. */}
           <p className="mb-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-[13px] text-ink-muted">
-            Belum punya file adendum? <strong className="text-ink">Unduh template</strong> di atas —
+            Belum punya file adendum? <strong className="text-ink">Unduh template</strong> di atas –
             isinya RAB aktif dengan kolom <strong className="text-ink">VOLUME ADENDUM</strong> siap
             diisi, lalu unggah balik di sini. Harga satuan item kontrak lama tetap; item baru
             disisipkan di dalam kategorinya. Volume 0 berarti volumenya nol,{" "}
-            <strong className="text-ink">bukan</strong> item dihapus — untuk mencabut item, tulis{" "}
+            <strong className="text-ink">bukan</strong> item dihapus – untuk mencabut item, tulis{" "}
             <code className="rounded bg-surface-inset px-1">HAPUS</code> di kolom Keterangan.
           </p>
           {/* adaAktif WAJIB diisi. Halaman ini hanya dirender ketika lokasi punya
@@ -317,7 +325,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
 
       <Card>
         <CardHeader
-          title={`Draft adendum — revisi #${draft.revisionNo}`}
+          title={`Draft adendum – revisi #${draft.revisionNo}`}
           subtitle={
             (draft.amendment ? `Terkait CCO ${draft.amendment.ccoNumber} · ` : "") +
             (draft.note ??
@@ -328,7 +336,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               {/* Dokumen pengajuan CCO format KKP (DECISIONS 236). Butuh RAB
                   aktif DAN draft sekaligus — MC-0 vs CCO-01 — jadi tombolnya
                   hanya masuk akal di kartu draft ini. */}
-              <ButtonLink href={`/lokasi/${slug}/rab/adendum/cco`} variant="secondary" size="sm" unduhan>
+              <ButtonLink
+                href={`/lokasi/${slug}/rab/adendum/cco`}
+                variant="secondary"
+                size="sm"
+                unduhan
+                labelSibuk="Menyiapkan CCO…"
+              >
                 <FileSpreadsheet aria-hidden className="size-3.5" />
                 Unduh CCO (format KKP)
               </ButtonLink>
@@ -386,7 +400,7 @@ function DiffCard({ diff, activeNo, draftNo }: { diff: RevisionDiff; activeNo: n
     <Card>
       <CardHeader
         title={`Perubahan revisi #${activeNo} → draft #${draftNo}`}
-        subtitle="Jejak permanen — revisi lama tidak pernah diubah, jadi item yang dihapus tetap tercatat."
+        subtitle="Jejak permanen – revisi lama tidak pernah diubah, jadi item yang dihapus tetap tercatat."
       />
       <CardBody>
         {kosong ? (
@@ -441,14 +455,21 @@ function DiffSection({
               return (
                 <tr key={r.lineageKey}>
                   <td className="px-3 py-1.5">
+                    {/* Jalur induk DI ATAS nama: satu RAB bisa punya belasan
+                        bangunan dengan nama pekerjaan yang berulang persis,
+                        jadi "Pasangan batu" saja tidak memberi tahu di mana.
+                        DECISIONS 423. */}
+                    {r.jalur ? (
+                      <span className="block text-[11px] text-ink-faint">{r.jalur}</span>
+                    ) : null}
                     <span className="text-ink-muted">{r.code}</span> {r.name}
                     {r.unit ? <span className="text-ink-muted"> ({r.unit})</span> : null}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums">
-                    {r.volumeLama != null ? volFmt.format(r.volumeLama) : mode === "tambah" ? "—" : ""}
+                    {r.volumeLama != null ? volFmt.format(r.volumeLama) : mode === "tambah" ? "–" : ""}
                   </td>
                   <td className="px-3 py-1.5 text-right font-medium tabular-nums">
-                    {r.volumeBaru != null ? volFmt.format(r.volumeBaru) : mode === "hapus" ? "—" : ""}
+                    {r.volumeBaru != null ? volFmt.format(r.volumeBaru) : mode === "hapus" ? "–" : ""}
                   </td>
                   {/* Harga item kontrak lama yang bergeser ditulis "lama → baru"
                       dan diberi warna bahaya: kalau hanya harga barunya yang
@@ -459,8 +480,8 @@ function DiffSection({
                   >
                     {r.hargaBergeser ? (
                       <>
-                        {r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "—"} →{" "}
-                        {r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "—"}
+                        {r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "–"} →{" "}
+                        {r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "–"}
                       </>
                     ) : r.hargaSatuan != null ? (
                       rupiah.format(r.hargaSatuan)
@@ -469,10 +490,10 @@ function DiffSection({
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-ink-muted">
-                    {mode === "tambah" ? "—" : rupiah.format(r.amountLama)}
+                    {mode === "tambah" ? "–" : rupiah.format(r.amountLama)}
                   </td>
                   <td className="px-3 py-1.5 text-right font-medium tabular-nums">
-                    {mode === "hapus" ? "—" : rupiah.format(r.amountBaru)}
+                    {mode === "hapus" ? "–" : rupiah.format(r.amountBaru)}
                   </td>
                   <td
                     className={`px-3 py-1.5 text-right font-medium tabular-nums ${d >= 0n ? "text-success" : "text-danger"}`}

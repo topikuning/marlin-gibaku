@@ -34,6 +34,8 @@ export type ContractEditInitial = {
   signedDate: string; // yyyy-mm-dd
   durationDays: number;
   startDate: string; // yyyy-mm-dd or ""
+  /** Mode periode minggu laporan (user 2026-08-24). */
+  weekMode: "tujuh_hari" | "senin_minggu";
 };
 
 /**
@@ -126,6 +128,23 @@ export function EditContractForm({
           <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
           <HelpText>Kosongkan bila SPMK belum terbit. Selesai dihitung otomatis = SPMK + masa pelaksanaan.</HelpText>
         </div>
+        <div>
+          <Label htmlFor="ec-weekmode">Periode minggu laporan</Label>
+          <Combobox
+            id="ec-weekmode"
+            name="weekMode"
+            defaultValue={initial.weekMode}
+            options={[
+              { value: "senin_minggu", label: "Kalender Senin–Minggu, M1 bisa pendek (bawaan)" },
+              { value: "tujuh_hari", label: "7 hari sejak SPMK" },
+            ]}
+          />
+          <HelpText>
+            Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
+            Cukup diganti di sini: jadwal & kurva-S semua lokasi DIKONVERSI otomatis ke grid
+            minggu baru – bentuk rencananya dipertahankan, tidak perlu impor ulang.
+          </HelpText>
+        </div>
       </div>
 
       <Button type="submit" loading={pending}>Simpan koreksi</Button>
@@ -136,10 +155,29 @@ export function EditContractForm({
 export type Signatories = {
   ppkName: string | null;
   ppkNip: string | null;
+  /** Wakil Sah — penanda tangan pihak KKP laporan mingguan & bulanan (2026-08-24). */
+  wakilSahName: string | null;
+  wakilSahNip: string | null;
   supervisorName: string | null;
   supervisorFirm: string | null;
   contractorSignerName: string | null;
   contractorSignerTitle: string | null;
+  /**
+   * Pelaksana Lapangan — penanda tangan laporan harian & mingguan
+   * (DECISIONS 402/404).
+   *
+   * Ikut di formulir ini, bukan di kartunya sendiri. Keberatan user
+   * 2026-08-21: *"kamu terlalu mengistimewakan pelaksana di paket, jadikan
+   * saja satu form dengan penginputan ppk pengawas dsb."* Benar — ia satu
+   * pihak lagi yang namanya tercetak di blok tanda tangan, sama seperti PPK
+   * dan pengawas. Kartu sendiri membuatnya tampak sebagai urusan terpisah,
+   * padahal yang mengisi memikirkan satu hal: siapa saja yang meneken.
+   *
+   * Disimpan di PAKET (bukan kontrak) — lihat DECISIONS 402. Yang disatukan
+   * formulirnya, bukan tempat simpannya.
+   */
+  pelaksanaName: string | null;
+  pelaksanaTitle: string | null;
 };
 
 /** Field penanda tangan KKP (dipakai form konversi & form edit). Semua opsional. */
@@ -153,6 +191,14 @@ function SignatoryFields({ v }: { v?: Signatories }) {
       <div>
         <Label htmlFor="sg-ppk-nip">NIP PPK</Label>
         <Input id="sg-ppk-nip" name="ppkNip" defaultValue={v?.ppkNip ?? ""} placeholder="mis. 19700101 ..." />
+      </div>
+      <div>
+        <Label htmlFor="sg-ws">Nama Wakil Sah</Label>
+        <Input id="sg-ws" name="wakilSahName" defaultValue={v?.wakilSahName ?? ""} placeholder="mis. Drs. Hartono" />
+      </div>
+      <div>
+        <Label htmlFor="sg-ws-nip">NIP Wakil Sah</Label>
+        <Input id="sg-ws-nip" name="wakilSahNip" defaultValue={v?.wakilSahNip ?? ""} placeholder="mis. 19750101 ..." />
       </div>
       <div>
         <Label htmlFor="sg-sup">Nama Konsultan Pengawas</Label>
@@ -170,6 +216,20 @@ function SignatoryFields({ v }: { v?: Signatories }) {
         <Label htmlFor="sg-ctr-title">Jabatan Penyedia</Label>
         <Input id="sg-ctr-title" name="contractorSignerTitle" defaultValue={v?.contractorSignerTitle ?? ""} placeholder="mis. Direktur" />
       </div>
+      <div>
+        <Label htmlFor="sg-pl">Nama Pelaksana Lapangan</Label>
+        <Input id="sg-pl" name="pelaksanaName" defaultValue={v?.pelaksanaName ?? ""} placeholder="mis. Joko Susilo" />
+      </div>
+      <div>
+        <Label htmlFor="sg-pl-title">Jabatan Pelaksana</Label>
+        <Input id="sg-pl-title" name="pelaksanaTitle" defaultValue={v?.pelaksanaTitle ?? ""} placeholder="Pelaksana Lapangan" />
+      </div>
+      <p className="text-xs text-ink-muted sm:col-span-2">
+        Penyedia (Direktur) meneken laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
+        meneken laporan <b>harian</b> dan <b>mingguan</b>. Dari pihak KKP, laporan
+        <b> mingguan</b> dan <b>bulanan</b> diteken <b>Wakil Sah</b> – dokumen lain tetap PPK.
+        Lokasi boleh memakai pelaksana atau Wakil Sah sendiri – diatur di halaman lokasinya.
+      </p>
     </div>
   );
 }
@@ -313,7 +373,7 @@ export function ConvertContractForm({
         </div>
       </div>
       <HelpText>
-        Kontrak belum menetapkan tanggal mulai — pekerjaan baru berjalan saat <b>SPMK</b> terbit.
+        Kontrak belum menetapkan tanggal mulai – pekerjaan baru berjalan saat <b>SPMK</b> terbit.
         Tanggal mulai &amp; selesai diisi nanti di langkah <b>Mulai Pelaksanaan</b> (selesai = SPMK +
         masa pelaksanaan).
       </HelpText>
@@ -329,7 +389,7 @@ export function ConvertContractForm({
 
       <HelpText>
         Konversi menaikkan stage Penetapan → Kontrak dan mengaktifkan semua lokasi target. Aksi
-        aman diulang — kontrak tidak akan terduplikasi.
+        aman diulang – kontrak tidak akan terduplikasi.
       </HelpText>
 
       <Button type="submit" loading={pending}>
@@ -428,11 +488,16 @@ export function AmendmentForm({ contractId }: { contractId: string }) {
 
 export type GambarTtdKontrak = {
   ppkTtdUrl: string | null;
+  wakilSahTtdUrl: string | null;
   ppkStempelUrl: string | null;
   supervisorTtdUrl: string | null;
   supervisorStempelUrl: string | null;
+  /** Logo firma pengawas — kop blanko harian (2026-08-24). */
+  supervisorLogoUrl: string | null;
   contractorTtdUrl: string | null;
   contractorStempelUrl: string | null;
+  /** Pelaksana Lapangan — tersimpan di paket, ditampilkan di form yang sama. */
+  pelaksanaTtdUrl: string | null;
   /** Stempel dari master perusahaan — cadangan bila kontrak tidak punya sendiri. */
   vendorStempelUrl: string | null;
   vendorName: string;
@@ -464,7 +529,18 @@ export function TtdStempelForm({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="contractId" value={contractId} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/*
+        Kolomnya mengikuti lebar WADAH, bukan lebar jendela (DECISIONS 408).
+
+        Keluhan user 2026-08-22: *"layoutmu berantakan"*. Sebabnya `xl:grid-cols-4`
+        — media query itu mengukur JENDELA, sementara formulir ini hidup di dalam
+        Drawer selebar `max-w-lg` (512px). Di layar 1440px syaratnya terpenuhi,
+        lalu empat kolom dijejalkan ke ruang 480px: tiap kolom ±110px, tombol
+        "Pilih berkas" melimpah ke kolom sebelah, dan tiap kata turun satu baris.
+        `@container` menanyakan lebar yang benar-benar tersedia.
+      */}
+      <div className="@container">
+        <div className="grid gap-4 @md:grid-cols-2">
         <PihakTtdFields
           judul="Pejabat Pembuat Komitmen"
           medanTtd="ppkTtdKey"
@@ -473,20 +549,40 @@ export function TtdStempelForm({
           stempelUrl={gambar.ppkStempelUrl}
         />
         <PihakTtdFields
+          judul="Wakil Sah"
+          medanTtd="wakilSahTtdKey"
+          ttdUrl={gambar.wakilSahTtdUrl}
+          catatanStempel="Meneken laporan mingguan dan bulanan mewakili KKP – stempelnya stempel instansi di kolom PPK."
+        />
+        <PihakTtdFields
           judul="Konsultan Pengawas"
           medanTtd="supervisorTtdKey"
           medanStempel="supervisorStempelKey"
           ttdUrl={gambar.supervisorTtdUrl}
           stempelUrl={gambar.supervisorStempelUrl}
+          medanLogo="supervisorLogoKey"
+          logoUrl={gambar.supervisorLogoUrl}
         />
         <PihakTtdFields
-          judul={`Penyedia Jasa — ${gambar.vendorName}`}
+          judul={`Penyedia Jasa – ${gambar.vendorName}`}
           medanTtd="contractorTtdKey"
           medanStempel="contractorStempelKey"
           ttdUrl={gambar.contractorTtdUrl}
           stempelUrl={gambar.contractorStempelUrl}
           stempelCadanganUrl={gambar.vendorStempelUrl}
         />
+        {/*
+          Pelaksana Lapangan = pihak keempat, di gelanggang yang SAMA
+          (DECISIONS 404). Tersimpan di paket, bukan kontrak – tapi yang
+          mengunggah tidak perlu tahu itu; ia cuma memikirkan siapa yang meneken.
+        */}
+        <PihakTtdFields
+          judul="Pelaksana Lapangan"
+          medanTtd="pelaksanaTtdKey"
+          ttdUrl={gambar.pelaksanaTtdUrl}
+          catatanStempel={`Memakai stempel ${gambar.vendorName} di kolom sebelah – satu perusahaan, satu stempel.`}
+        />
+        </div>
       </div>
 
       <HelpText>
@@ -508,13 +604,22 @@ function PihakTtdFields({
   ttdUrl,
   stempelUrl,
   stempelCadanganUrl,
+  catatanStempel,
+  medanLogo,
+  logoUrl,
 }: {
   judul: string;
   medanTtd: string;
-  medanStempel: string;
+  /** Kosongkan untuk pihak yang TIDAK punya stempel sendiri (Pelaksana). */
+  medanStempel?: string;
   ttdUrl: string | null;
-  stempelUrl: string | null;
+  stempelUrl?: string | null;
   stempelCadanganUrl?: string | null;
+  /** Kalimat pengganti kotak stempel bila pihak ini menumpang stempel lain. */
+  catatanStempel?: string;
+  /** Logo firma (pengawas) — tampil di kop blanko harian (2026-08-24). */
+  medanLogo?: string;
+  logoUrl?: string | null;
 }) {
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
@@ -529,24 +634,44 @@ function PihakTtdFields({
         // mengikuti bentuk itu, bukan bujur sangkar.
         kelasPratinjau="h-12 w-full"
       />
-      <BerkasTtd
-        id={`f-${medanStempel}`}
-        medan={medanStempel}
-        label="Stempel"
-        url={stempelUrl}
-        kelasPratinjau="size-16"
-        catatan={
-          !stempelUrl && stempelCadanganUrl
-            ? "Kosong — memakai stempel dari master perusahaan."
-            : null
-        }
-        urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
-      />
+      {medanStempel ? (
+        <BerkasTtd
+          id={`f-${medanStempel}`}
+          medan={medanStempel}
+          label="Stempel"
+          url={stempelUrl ?? null}
+          kelasPratinjau="size-16"
+          catatan={
+            !stempelUrl && stempelCadanganUrl
+              ? "Kosong – memakai stempel dari master perusahaan."
+              : null
+          }
+          urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
+        />
+      ) : (
+        catatanStempel ? <p className="text-xs text-ink-muted">{catatanStempel}</p> : null
+      )}
+      {medanLogo ? (
+        <BerkasTtd
+          id={`f-${medanLogo}`}
+          medan={medanLogo}
+          label="Logo firma (kop laporan harian)"
+          url={logoUrl ?? null}
+          kelasPratinjau="size-16"
+        />
+      ) : null}
     </div>
   );
 }
 
-function BerkasTtd({
+/**
+ * Satu medan berkas tanda tangan/stempel + pratinjau yang sedang berlaku.
+ *
+ * DIEKSPOR karena formulir Pelaksana Lapangan (DECISIONS 402) memakai bentuk
+ * yang sama persis. Menyalinnya berarti dua kotak unggah yang lambat laun
+ * berbeda aturan ukuran dan kata-katanya, untuk pekerjaan yang identik.
+ */
+export function BerkasTtd({
   id,
   medan,
   label,

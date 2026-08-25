@@ -1,4 +1,5 @@
 import "server-only";
+import type { JenisDokumen } from "@/lib/laporan/penandatangan";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
@@ -99,12 +100,19 @@ type KurvaSheetResult = {
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
-  opts?: { sheetName?: string; logo?: LogoLaporan },
+  /**
+   * `jenis` WAJIB: lembar kurva-S yang sama dipakai dua dokumen berbeda —
+   * sebagai bagian laporan periodik (ikut jenis laporannya) dan sebagai Time
+   * Schedule berdiri sendiri (dokumen jadwal). DECISIONS 403.
+   */
+  opts: { jenis: JenisDokumen; sheetName?: string; logo?: LogoLaporan },
 ): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: r.header.contractStart,
+    weekMode: r.header.weekMode,
+    contractEnd: r.header.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -140,12 +148,12 @@ async function addKurvaSheet(
     return row;
   };
   const barisJudul = banner(
-    `KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    `KURVA S – ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
     true,
     12,
     WARNA.kepala,
   );
-  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
+  banner(`${r.header.packageName} – ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
   // Tata letak berkas acuan (Time Schedule): identitas di kiri, PASANGAN logo
   // pemilik + kontraktor BERJAJAR DI KANAN — bukan kiri-kanan terpisah.
   ws.getRow(barisJudul.number + 1).height = 34;
@@ -169,7 +177,9 @@ async function addKurvaSheet(
     c += g.span;
   }
   const weekRow = ws.addRow([]);
-  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}`;
+  // Rentang tanggal minggu ikut tercetak (2026-08-24) — batas mengikuti mode
+  // periode minggu kontrak (M1 bisa pendek pada mode Senin–Minggu).
+  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`;
   ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
   ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
   ws.mergeCells(monthRow.number, 3, weekRow.number, 3);
@@ -415,7 +425,7 @@ async function addKurvaSheet(
   // Blok tanda tangan (permintaan user 2026-08-06): kurva-S ikut ditandatangani
   // seperti blanko KKP. Diletakkan di bawah baris helper tersembunyi supaya
   // tidak mengganggu rentang data grafik.
-  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header });
+  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header, jenis: opts.jenis });
 
   return {
     chart,
@@ -442,7 +452,7 @@ const lokasiLengkap = (h: PeriodReport["header"]): string => {
     h.regency,
     h.province,
   ].filter(Boolean);
-  return `${h.locationName} — ${wilayah.join(", ")}`;
+  return `${h.locationName} – ${wilayah.join(", ")}`;
 };
 
 const labelPeriode = (r: PeriodReport): string =>
@@ -604,7 +614,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   kv("Tahun Anggaran", String(h.tahunAnggaran));
   kv("Pemberi Tugas", h.ownerAgency);
   kv("Kontraktor", h.vendorName);
-  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "—");
+  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–");
   kv("Alamat", lokasiLengkap(h));
   kv(`${periodeLabel} ke`, `${r.n} dari ${r.maxN}`);
   kv(
@@ -728,7 +738,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   const ket = dev < -0.005 ? "TERLAMBAT" : dev > 0.005 ? "LEBIH CEPAT" : "SESUAI RENCANA";
   const warnaDev = dev < -0.005 ? WARNA.negatif : dev > 0.005 ? WARNA.positif : WARNA.teks;
   rowDev.getCell(5).font = { size: 9, bold: true, color: { argb: warnaDev } };
-  rowDev.getCell(1).value = `DEVIASI — ${ket}`;
+  rowDev.getCell(1).value = `DEVIASI – ${ket}`;
   rowDev.getCell(1).font = { size: 9, bold: true, color: { argb: warnaDev } };
 
   const catatan = ws.addRow([
@@ -739,7 +749,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
   catatan.height = 24;
 
-  blokTandaTangan(ws, { lastCol: LAST, h });
+  blokTandaTangan(ws, { lastCol: LAST, h, jenis: r.kind });
 }
 
 /**
@@ -751,7 +761,7 @@ export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLapor
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule", logo: opts?.logo });
+  const { chart } = await addKurvaSheet(wb, r, { jenis: "jadwal", sheetName: "Time Schedule", logo: opts?.logo });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -771,7 +781,9 @@ export async function buildPeriodReportXlsx(
   // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S → rincian.
   addCoverSheet(wb, r, logo);
   addRekapSheet(wb, r, logo);
-  const kurva = await addKurvaSheet(wb, r, { logo });
+  // Sheet "Kurva S" di dalam workbook LAPORAN adalah bagian laporannya,
+  // bukan dokumen jadwal (DECISIONS 403).
+  const kurva = await addKurvaSheet(wb, r, { jenis: r.kind, logo });
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -825,7 +837,7 @@ export async function buildPeriodReportXlsx(
     return { cell: value, row: row.number };
   };
   kv("Paket Pekerjaan", h.packageName);
-  kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
+  kv("Lokasi", `${h.locationName} – ${h.village}, ${h.regency}, ${h.province}`);
   kv("Nomor Kontrak", h.contractNumber);
   kv("Kontraktor Pelaksana", h.vendorName);
   kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
@@ -1057,12 +1069,12 @@ export async function buildPeriodReportXlsx(
   kv("Ringkasan", r.cuacaRingkas);
   section("Kendala");
   if (r.kendala.length === 0) {
-    kv("—", "Tidak ada kendala tercatat pada periode ini");
+    kv("–", "Tidak ada kendala tercatat pada periode ini");
   } else {
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
 
-  blokTandaTangan(ws, { lastCol: COL_COUNT, h });
+  blokTandaTangan(ws, { lastCol: COL_COUNT, h, jenis: r.kind });
 
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita

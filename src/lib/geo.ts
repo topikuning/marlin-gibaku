@@ -54,7 +54,7 @@ export function parseCoordinatePair(rawLat: unknown, rawLng: unknown): CoordPars
   ) {
     return {
       ok: false,
-      error: `Latitude dan longitude tampaknya tertukar — coba latitude ${lng} dan longitude ${lat}.`,
+      error: `Latitude dan longitude tampaknya tertukar – coba latitude ${lng} dan longitude ${lat}.`,
     };
   }
   if (lat < LAT_MIN || lat > LAT_MAX) {

@@ -1,11 +1,12 @@
 import "server-only";
+import { labelPihakKkp, penyediaLaporan, pihakKkp, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
 import { getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Mingguan/Bulanan format KKP — BLANKO RESMI, bukan ringkasan naratif.
@@ -42,7 +43,7 @@ export async function buildPeriodikKkpPdf(
 ): Promise<Buffer> {
   const kindLabel = r.kind === "mingguan" ? "MINGGU" : "BULAN";
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
-  const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} — ${r.header.locationName}` });
+  const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} – ${r.header.locationName}` });
   const x = LANDSCAPE_MARGIN;
   const width = doc.page.width - LANDSCAPE_MARGIN * 2;
   const bottom = doc.page.height - LANDSCAPE_MARGIN - 14;
@@ -122,6 +123,8 @@ export async function buildPeriodikKkpPdf(
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: h.contractStart,
+    weekMode: h.weekMode,
+    contractEnd: h.contractEnd,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
     planCumOfficial: r.scurve.planPct,
@@ -146,7 +149,14 @@ export async function buildPeriodikKkpPdf(
     { text: "", head: true },
     { text: "", head: true },
     { text: "", head: true },
-    ...Array.from({ length: N }, (_, i): GridCell => ({ text: `M${i + 1}`, head: true, align: "center" })),
+    // Rentang tanggal tiap minggu ikut tercetak (user 2026-08-24) — batasnya
+    // mengikuti mode periode minggu kontrak (M1 bisa pendek pada mode
+    // Senin–Minggu).
+    ...Array.from({ length: N }, (_, i): GridCell => ({
+      text: `M${i + 1}\n${sheet.weekRanges[i] ?? ""}`,
+      head: true,
+      align: "center",
+    })),
     { text: "", head: true },
   ];
   const kurvaHead = () => {
@@ -211,7 +221,7 @@ export async function buildPeriodikKkpPdf(
   });
 
   y += 8;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */
   newPage();
@@ -235,7 +245,7 @@ export async function buildPeriodikKkpPdf(
   draw(
     [
       { text: "Lokasi", head: true },
-      { text: `${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}` },
+      { text: `${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}` },
       { text: "Nilai Fisik Lokasi", head: true },
       { text: rupiah(Number(h.locationValue)) },
     ],
@@ -395,7 +405,7 @@ export async function buildPeriodikKkpPdf(
     ] as GridCell[],
     ...(rows.length > 0
       ? rows.map(([a, b]): GridCell[] => [{ text: a }, { text: b, align: "right" }])
-      : [[{ text: "—", span: 2, align: "center" }] as GridCell[]]),
+      : [[{ text: "–", span: 2, align: "center" }] as GridCell[]]),
   ]);
   const maxRes = Math.max(...resRows.map((t) => t.length));
   for (let i = 0; i < maxRes; i++) {
@@ -414,7 +424,7 @@ export async function buildPeriodikKkpPdf(
     .font(PDF_FONT.regular)
     .fontSize(7.5)
     .fillColor(PDF_COLORS.ink)
-    .text(`Ringkasan cuaca periode: ${r.cuacaRingkas || "—"}`, x, y, { width });
+    .text(`Ringkasan cuaca periode: ${r.cuacaRingkas || "–"}`, x, y, { width });
   y += 14;
 
   sectionTitle(doc, "3. Kendala Lapangan", x, () => y, (v) => (y = v));
@@ -445,7 +455,7 @@ export async function buildPeriodikKkpPdf(
   }
 
   y += 10;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
   /* ── Catatan kaki tiap halaman ──────────────────────────────────────── */
   const range = doc.bufferedPageRange();
@@ -488,6 +498,8 @@ function signatureBlock(
     fit: (need: number) => void;
     setY: (v: number) => void;
     gambarTtd?: TtdPdf | null;
+    /** Menentukan siapa yang mengisi slot penyedia (DECISIONS 402). */
+    jenis: JenisDokumen;
   },
 ): void {
   const opt: GridOptions = {
@@ -499,46 +511,58 @@ function signatureBlock(
   };
   const nameOf = (n: string | null, sub: string | null) =>
     `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
+  const penyedia = penyediaLaporan(o.jenis, o.h);
   o.fit(90);
-  const y = gridRow(
+  /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
+     atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
+     itulah lapisannya. Urutan kolomnya tetap: PPK · pengawas · penyedia — sama
+     dengan teks. Baris nama "( … )" ada di baris ke-5 blok; coretan berpijak
+     tepat di atasnya. */
+  const lebarKolomTtd = o.width / 3;
+  // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
+  // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
+  const RUANG_TTD = 68;
+  const URUT_TTD = ["ppk", "pengawas", "penyedia"] as const;
+  const y = blokTandaTanganPdf(
     doc,
-    o.y,
-    [
-      {
-        text: `MENGETAHUI :\nPEJABAT PEMBUAT KOMITMEN${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
-        align: "center",
-      },
-      {
-        text: `DIPERIKSA :\nKONSULTAN PENGAWAS${nameOf(o.h.supervisorName, o.h.supervisorFirm)}`,
-        align: "center",
-      },
-      {
-        text: `DIBUAT OLEH :\nPENYEDIA JASA — ${o.h.vendorName}${nameOf(o.h.contractorSignerName, o.h.contractorSignerTitle)}`,
-        align: "center",
-      },
-    ],
-    opt,
+    o.gambarTtd
+      ? URUT_TTD.map((pihak, i) => ({
+          berkas: o.gambarTtd![pihak],
+          opsi: {
+            xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
+            yDasar: o.y + RUANG_TTD,
+            lebarKolom: lebarKolomTtd,
+            ruangDiAtasNama: RUANG_TTD,
+          },
+        }))
+      : [],
+    () =>
+      gridRow(
+        doc,
+        o.y,
+        [
+          {
+            // Mingguan/bulanan diteken WAKIL SAH, bukan PPK (2026-08-24);
+            // dokumen lain yang memakai blok ini tetap PPK — satu penentu:
+            // `pihakKkp(jenis)` di lib/laporan/penandatangan.ts.
+            text:
+              pihakKkp(o.jenis) === "wakil_sah"
+                ? `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.wakilSahName, o.h.wakilSahNip ? `NIP. ${o.h.wakilSahNip}` : null)}`
+                : `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
+            align: "center",
+          },
+          {
+            text: `DIPERIKSA :\nKONSULTAN PENGAWAS${nameOf(o.h.supervisorName, o.h.supervisorFirm)}`,
+            align: "center",
+          },
+          {
+            text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(penyedia.nama, penyedia.sub)}`,
+            align: "center",
+          },
+        ],
+        opt,
+      ),
   );
-
-  /* Tempel gambar tanda tangan & stempel (DECISIONS 328). Urutan kolomnya
-     tetap: PPK · pengawas · penyedia — sama dengan teks di atas. Baris nama
-     "( … )" ada di baris ke-5 blok; coretan berpijak tepat di atasnya. */
-  if (o.gambarTtd) {
-    const lebarKolom = o.width / 3;
-    // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
-    // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
-    const RUANG = 68;
-    const yDasar = o.y + RUANG;
-    const urut = ["ppk", "pengawas", "penyedia"] as const;
-    urut.forEach((pihak, i) => {
-      gambarTtdPdf(doc, o.gambarTtd![pihak], {
-        xTengah: o.x + i * lebarKolom + lebarKolom / 2,
-        yDasar,
-        lebarKolom,
-        ruangDiAtasNama: RUANG,
-      });
-    });
-  }
 
   o.setY(y);
 }
@@ -623,6 +647,6 @@ export async function renderPeriodikKkpPdf(
   if (!report) return null;
   // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
   // bukan PDF yang gagal terbit.
-  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(locationId, kind).catch(() => TANPA_TTD_PDF);
   return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd) };
 }

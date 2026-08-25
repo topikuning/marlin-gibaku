@@ -163,7 +163,7 @@ export function gambarSampul(
   baris("TANGGAL KONTRAK", d.contractDate);
   y += 10;
   baris("PEKERJAAN", d.pekerjaan);
-  baris("LOKASI", `${d.locationName} — ${d.regency}, ${d.province}`);
+  baris("LOKASI", `${d.locationName} – ${d.regency}, ${d.province}`);
   baris("TAHUN ANGGARAN", String(d.tahunAnggaran));
 
   /* ── Dua pihak di kaki halaman: KOP BERLOGO + garis tanda tangan ──────
@@ -263,7 +263,7 @@ function gambarKartu(
   const kategori = kartu[0]?.kategori;
   const label = colWidths(w, [1.1, 3.4]);
   y = gridRow(doc, y, [{ text: "Pekerjaan" }, { text: pekerjaan ?? "(tanpa item pekerjaan)", bold: true }], opsi(label));
-  y = gridRow(doc, y, [{ text: "Bangunan" }, { text: kategori ?? "—" }], opsi(label));
+  y = gridRow(doc, y, [{ text: "Bangunan" }, { text: kategori ?? "–" }], opsi(label));
 
   /* Foto: baris judul (nama pekerjaan | Bobot %) lalu baris gambar. */
   const kolomFoto = colWidths(w, [4.2, 1]);
@@ -307,7 +307,37 @@ function gambarKartu(
 }
 
 /**
- * Halaman-halaman dokumentasi: dua kartu berdampingan per halaman.
+ * Tinggi kepala kartu: kop pelaksana + judul + dua baris identitas.
+ * Angkanya sama dengan yang dipakai penaksir ruang di bawah — SATU tempat,
+ * supaya taksiran pemenggalan halaman tidak menyimpang dari yang digambar.
+ */
+const TINGGI_KEPALA_KARTU = 30 /* kop */ + 3 * 14 /* judul + 2 baris identitas */;
+/** Tinggi baris judul di atas tiap foto. */
+const TINGGI_JUDUL_FOTO = 12;
+/** Jarak antar BARIS kartu di halaman yang sama. */
+const JARAK_BARIS = 10;
+
+/** Taksiran tinggi satu baris (dua kartu berdampingan) sebelum digambar. */
+function tinggiBarisKartu(banyakFoto: number, tinggiFoto: number): number {
+  return TINGGI_KEPALA_KARTU + banyakFoto * (TINGGI_JUDUL_FOTO + tinggiFoto);
+}
+
+/**
+ * Halaman-halaman dokumentasi: dua kartu berdampingan, BARISNYA MENGALIR.
+ *
+ * Sampai 2026-08-21 tiap pasang kartu dipaksa mulai halaman baru
+ * (`mulaiHalamanBaru()` di dalam perulangan). Akibatnya satu hari dengan 8 item
+ * berfoto memakan 4 lembar A4 yang masing-masing terisi seperempat — keluhan
+ * user: *"ternyata, itu sangat membuang-buang kertas saat dicetak"*.
+ *
+ * Yang MEMANG diminta user cuma dua hal: tata letak kartu dua kolom mengikuti
+ * contoh KKP (DECISIONS 301) dan material/alat mulai di halaman sendiri
+ * (DECISIONS 304). Pemenggalan per pasang kartu tidak pernah diminta dan tidak
+ * pernah dicatat sebagai keputusan — itu kelalaian, dan versi HTML-nya sudah
+ * diperbaiki lebih dulu (DECISIONS 395) sementara jalur PDF ini tertinggal.
+ *
+ * Sekarang halaman baru terjadi hanya ketika baris berikutnya TIDAK MUAT.
+ *
  * Tidak menggambar apa pun bila tidak ada foto — halaman kosong berjudul
  * "DOKUMENTASI PEKERJAAN" hanya membuat pembaca mengira fotonya hilang.
  */
@@ -322,17 +352,30 @@ export function gambarDokumentasi(doc: PdfDoc, d: KkpDailyData, foto: FotoDok[],
   const bawah = doc.page.height - FORM_MARGIN - 12;
   const vendor = { nama: d.contractorFirm, alamat: d.contractorAddress, logo: null as Buffer | null };
 
+  let y = FORM_MARGIN;
+  let adaHalaman = false;
+
   for (let i = 0; i < kartu.length; i += 2) {
-    mulaiHalamanBaru();
-    let y = FORM_MARGIN;
-    // Tinggi foto dihitung dari ruang yang tersisa supaya kartu paling penuh
-    // tetap muat satu halaman — bukan angka tetap yang kadang meluber.
     const terbanyak = Math.max(kartu[i].length, kartu[i + 1]?.length ?? 0);
-    const sisa = bawah - y - 30 /* kop */ - 3 * 14 /* judul + 2 baris identitas */ - terbanyak * 12;
+    /*
+     * Tinggi foto tetap ditaksir dari SATU halaman penuh dan dibatasi 150pt.
+     * Batas itulah yang membuat kartu berfoto sedikit tidak melar memenuhi
+     * halaman — dan karena itu beberapa baris bisa berbagi satu lembar.
+     */
+    const sisa = bawah - FORM_MARGIN - TINGGI_KEPALA_KARTU - terbanyak * TINGGI_JUDUL_FOTO;
     const tinggiFoto = Math.max(90, Math.min(150, Math.floor(sisa / terbanyak)));
+    const tinggiBaris = tinggiBarisKartu(terbanyak, tinggiFoto);
+
+    // Halaman baru hanya untuk baris PERTAMA, atau saat barisnya tidak muat.
+    if (!adaHalaman || y + tinggiBaris > bawah) {
+      mulaiHalamanBaru();
+      y = FORM_MARGIN;
+      adaHalaman = true;
+    }
+
     gambarKartu(doc, kartu[i], x, y, wKartu, vendor, tinggiFoto);
     if (kartu[i + 1]) gambarKartu(doc, kartu[i + 1], x + wKartu + gap, y, wKartu, vendor, tinggiFoto);
-    y = bawah;
+    y += tinggiBaris + JARAK_BARIS;
   }
 }
 
@@ -375,15 +418,28 @@ export function gambarDokumentasiPelengkap(
   const wKartu = (width - gap) / 2;
   const bawah = doc.page.height - FORM_MARGIN - 12;
 
+  // Barisnya mengalir, sama seperti dokumentasi pekerjaan. Yang tetap dijaga:
+  // blok ini SELALU mulai di halaman sendiri (permintaan user 2026-08-08) —
+  // itu yang dilakukan cabang `!adaHalaman` pada perulangan pertama.
+  let y = FORM_MARGIN;
+  let adaHalaman = false;
+
   for (let i = 0; i < kartu.length; i += 2) {
-    mulaiHalamanBaru();
-    const y = FORM_MARGIN;
     const terbanyak = Math.max(kartu[i].length, kartu[i + 1]?.length ?? 0);
-    const sisa = bawah - y - 30 /* kop */ - 3 * 14 /* judul + 2 baris identitas */;
+    const sisa = bawah - FORM_MARGIN - TINGGI_KEPALA_KARTU;
     const tinggiFoto = Math.max(90, Math.min(150, Math.floor(sisa / terbanyak)));
+    const tinggiBaris = tinggiBarisKartu(terbanyak, tinggiFoto);
+
+    if (!adaHalaman || y + tinggiBaris > bawah) {
+      mulaiHalamanBaru();
+      y = FORM_MARGIN;
+      adaHalaman = true;
+    }
+
     gambarKartuPelengkap(doc, kartu[i], x, y, wKartu, d, judul, labelBaris, tinggiFoto);
     if (kartu[i + 1])
       gambarKartuPelengkap(doc, kartu[i + 1], x + wKartu + gap, y, wKartu, d, judul, labelBaris, tinggiFoto);
+    y += tinggiBaris + JARAK_BARIS;
   }
 }
 
@@ -411,10 +467,10 @@ function gambarKartuPelengkap(
 
   y = gridRow(doc, y, [{ text: judul.toUpperCase(), head: true, align: "center" }], opsi([w], 9));
   const label = colWidths(w, [1.1, 3.4]);
-  y = gridRow(doc, y, [{ text: labelBaris }, { text: kartu[0]?.nama ?? "—", bold: true }], opsi(label));
+  y = gridRow(doc, y, [{ text: labelBaris }, { text: kartu[0]?.nama ?? "–", bold: true }], opsi(label));
   // "—" untuk jumlah yang tidak diisi; 0 akan MENGARANG angka yang tak pernah
   // dilaporkan siapa pun.
-  y = gridRow(doc, y, [{ text: "Jumlah" }, { text: kartu[0]?.keterangan ?? "—" }], opsi(label));
+  y = gridRow(doc, y, [{ text: "Jumlah" }, { text: kartu[0]?.keterangan ?? "–" }], opsi(label));
 
   for (const f of kartu) {
     doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(x, y, w, tinggiFoto).stroke();

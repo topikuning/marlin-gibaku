@@ -60,10 +60,16 @@ function fixture(): PeriodReport {
       periodeEnd: new Date(start.getTime() + 6 * 86_400_000),
       ppkName: null,
       ppkNip: null,
+      weekMode: "tujuh_hari" as const,
+      contractEnd: null,
+      wakilSahName: null,
+      wakilSahNip: null,
       supervisorName: null,
       supervisorFirm: null,
       contractorSignerName: null,
       contractorSignerTitle: null,
+  pelaksanaName: "Joko Susilo",
+  pelaksanaTitle: "Pelaksana Lapangan",
     },
     categories: [
       {
@@ -96,7 +102,7 @@ function fixture(): PeriodReport {
 
 const html = () => renderToStaticMarkup(<KkpPeriodReport r={fixture()} />);
 
-describe("blanko periodik KKP — satu konvensi desimal (FMT-01)", () => {
+describe("blanko periodik KKP – satu konvensi desimal (FMT-01)", () => {
   it("persen memakai KOMA desimal, bukan titik", () => {
     const t = html();
     expect(t).toContain("12,40%"); // bobot kategori

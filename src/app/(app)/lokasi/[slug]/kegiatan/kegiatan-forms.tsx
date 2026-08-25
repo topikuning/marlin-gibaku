@@ -98,7 +98,7 @@ export function SendPdfToWaButton({
                 <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
               ) : null
             ) : (
-              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA — pakai “tujuan lain”.</span>
+              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA – pakai “tujuan lain”.</span>
             )
           ) : null}
         </div>
@@ -147,7 +147,7 @@ export function SendToWaButton({
         ) : null}
         {disabled ? (
           <span className="text-[12px] text-ink-muted">
-            Paket belum punya grup WA — atur di halaman Paket.
+            Paket belum punya grup WA – atur di halaman Paket.
           </span>
         ) : groupName ? (
           <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
@@ -273,6 +273,11 @@ export function CreateActivityForm({
           <div>
             <Label htmlFor="fa-kendala">Kendala</Label>
             <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
+            {/* Orang berhak tahu tulisannya akan ditagih, bukan sekadar tersimpan. */}
+            <p className="mt-1 text-xs text-ink-muted">
+              Saat kegiatan difinalkan, isian ini otomatis masuk papan kendala dan akan ditagih
+              sampai ditutup.
+            </p>
           </div>
           <div>
             <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>
@@ -563,7 +568,7 @@ function AddPhotoPanel({
       <form ref={formRef} action={action}>
         <input type="hidden" name="activityId" value={activityId} />
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
+          <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " – mengunggah…" : ""}</span>
           <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
             Tutup
           </button>

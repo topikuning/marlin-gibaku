@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { parseDateKey } from "@/lib/format";
@@ -13,7 +14,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string; d
   if (!parseDateKey(date)) return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 404 });
 
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   // Mengunduh PDF = EKSPOR dokumen, bukan sekadar melihat layar: capability
   // `report.export` ditegakkan di route, bukan hanya menyembunyikan tombol
   // (audit Codex 2026-07-28, AUTH-05 — direct GET tetap bisa dipanggil).
@@ -36,6 +37,31 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string; d
     tanpaSampul,
   });
   if (!result) return NextResponse.json({ error: "Laporan harian tidak ditemukan" }, { status: 404 });
+
+  /*
+   * UNDUHAN DICATAT (DECISIONS 406) — bukan untuk mengawasi orang, melainkan
+   * supaya tab Laporan bisa menjawab "berkas ini pernah diambil belum" tanpa
+   * mengarang. Dicatat SESUDAH PDF-nya jadi: percobaan yang gagal bukan
+   * pengambilan berkas.
+   *
+   * Ditulis di sini, bukan di tombolnya: tombol bisa dilewati (alamat ini bisa
+   * dibuka langsung), dan yang dicatat harus kejadian yang sungguh terjadi di
+   * server. `audit()` best-effort — gagal mencatat tidak boleh menggagalkan
+   * unduhannya.
+   */
+  const report = await db.dailyReport.findUnique({
+    where: {
+      locationId_reportDate: { locationId: loc.id, reportDate: new Date(`${date}T00:00:00.000Z`) },
+    },
+    select: { id: true },
+  });
+  if (report) {
+    await audit(user.id, "report.pdf_unduh", "daily_report", report.id, {
+      locationId: loc.id,
+      dateKey: date,
+      tanpaSampul,
+    });
+  }
 
   return new NextResponse(new Uint8Array(result.buffer), {
     status: 200,

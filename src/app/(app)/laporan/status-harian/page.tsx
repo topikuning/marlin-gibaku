@@ -47,7 +47,7 @@ export default async function StatusHarianPage({
   // Nama desa berulang antar kabupaten, jadi label pemilih menyebut keduanya.
   const opsiLokasi = (data?.rows ?? []).map((r) => ({
     value: r.slug,
-    label: `${r.locationName} — ${r.regency}`,
+    label: `${r.locationName} – ${r.regency}`,
   }));
 
   const geser = (n: number) => {

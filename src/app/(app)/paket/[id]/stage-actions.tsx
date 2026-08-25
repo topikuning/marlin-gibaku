@@ -122,7 +122,7 @@ export function RevertStageButton({
           name="reason"
           required
           minLength={5}
-          placeholder="mis. Salah klik — pekerjaan belum serah terima"
+          placeholder="mis. Salah klik – pekerjaan belum serah terima"
         />
       </div>
       <div className="flex gap-2">

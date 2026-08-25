@@ -15,7 +15,7 @@ export type AiStructuredResult<T> =
   | { ok: false; errorCode: string; error: string; meta: AiCallResult | null; attempts: number };
 
 const JSON_RULES =
-  "Jawab HANYA dengan satu objek JSON valid sesuai skema yang diminta — tanpa penjelasan, tanpa markdown, tanpa teks lain di luar JSON.";
+  "Jawab HANYA dengan satu objek JSON valid sesuai skema yang diminta – tanpa penjelasan, tanpa markdown, tanpa teks lain di luar JSON.";
 
 function tryParse<T>(schema: z.ZodType<T>, text: string): { data?: T; issue?: string } {
   const block = extractJsonBlock(text);

@@ -128,10 +128,10 @@ export function PromptPanel({ items }: { items: PromptItem[] }) {
         tone="info"
         title="Teks perintah untuk semua aksi AI"
         description={
-          `Perubahan langsung berlaku pada aksi AI berikutnya — tanpa deploy. ` +
+          `Perubahan langsung berlaku pada aksi AI berikutnya – tanpa deploy. ` +
           `${diubah} dari ${items.length} prompt sedang memakai teks khusus. ` +
           `AI tetap bukan sumber angka: semua angka laporan berasal dari calculation layer, apa pun isi prompt di sini. ` +
-          `Setiap prompt WAJIB tetap memuat larangan mengarang di luar sumber (“JANGAN MENGARANG”) — simpan ditolak bila frasa itu hilang.`
+          `Setiap prompt WAJIB tetap memuat larangan mengarang di luar sumber (“JANGAN MENGARANG”) – simpan ditolak bila frasa itu hilang.`
         }
       />
 

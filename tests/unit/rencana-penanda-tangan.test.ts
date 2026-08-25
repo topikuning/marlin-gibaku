@@ -52,12 +52,12 @@ describe("pihak penanda tangan rencana mingguan", () => {
   it("penyedia jasa ditandatangani oleh penanda tangan KONTRAK", () => {
     const [penyedia] = pihakTandaTanganRencana({ header: kopTtd });
     expect(penyedia.title).toBe("Disusun Oleh,");
-    expect(penyedia.role).toBe("Penyedia Jasa — PT Kurnia Alam Sentosa");
+    expect(penyedia.role).toBe("Penyedia Jasa – PT Kurnia Alam Sentosa");
     expect(penyedia.name).toBe(PENANDA_KONTRAK);
     expect(penyedia.sub).toBe("Direktur");
   });
 
-  it("nama penyusun tidak bisa masuk — bentuk datanya yang menolak", () => {
+  it("nama penyusun tidak bisa masuk – bentuk datanya yang menolak", () => {
     // Penjaga struktural: `SumberTtdRencana` hanya memuat medan kop kontrak.
     // Selama blok TTD dibangun dari sini, `disusunOleh` TIDAK TERSEDIA untuk
     // dipakai — bukan sekadar "diingat supaya jangan".
@@ -73,7 +73,7 @@ describe("pihak penanda tangan rencana mingguan", () => {
     expect(ppk).toMatchObject({ name: "Budi Santoso", sub: "NIP. 19800101 200501 1 001" });
   });
 
-  it("penanda tangan yang belum diisi jadi null — bukan ditambal nama lain", () => {
+  it("penanda tangan yang belum diisi jadi null – bukan ditambal nama lain", () => {
     // null adalah isyarat bagi penyaji untuk menulis garis titik-titik. Kolom
     // kosong yang jujur masih bisa ditandatangani manual; kolom yang diisi orang
     // yang salah tidak bisa dibatalkan setelah dokumennya beredar.
@@ -120,7 +120,7 @@ function rencana(): RencanaMingguan {
       district: "Rembang",
       regency: "Rembang",
       province: "Jawa Tengah",
-      packageName: "Pembangunan Kampung Nelayan Merah Putih — Pasar Banggi",
+      packageName: "Pembangunan Kampung Nelayan Merah Putih – Pasar Banggi",
       ownerAgency: "Kementerian Kelautan dan Perikanan",
       contractNumber: "B.17105/DJPT.6/PI.420/PPK/VI/2026",
       contractValue: 5_872_342_857n,
@@ -130,6 +130,14 @@ function rencana(): RencanaMingguan {
       contractStart: start,
       periodeStart: new Date(start.getTime() + 7 * 86_400_000),
       periodeEnd: new Date(start.getTime() + 13 * 86_400_000),
+      // Rencana mingguan BELUM diputuskan pindah ke Pelaksana (DECISIONS 402);
+      // medannya ada di kop, tapi blok TTD rencana tetap memakai direktur.
+      pelaksanaName: "Joko Susilo",
+      pelaksanaTitle: "Pelaksana Lapangan",
+      weekMode: "tujuh_hari" as const,
+      contractEnd: null,
+      wakilSahName: null,
+      wakilSahNip: null,
       ...kopTtd,
     },
     weekNumber: 2,

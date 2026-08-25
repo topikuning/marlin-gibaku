@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { jakartaDateKey, jakartaToday, formatTanggal, formatTanggalWaktu } from "@/lib/format";
@@ -197,6 +198,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
               thumbClass="h-20 w-20"
               canDelete={canManage && a.status === "draft"}
               deleteAction={removeActivityPhotoAction}
+              rotateAction={canManage ? putarFotoAction : undefined}
             />
           ) : (
             <p className="text-[12px] text-ink-faint">Belum ada foto.</p>

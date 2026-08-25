@@ -39,11 +39,15 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
 
   return (
     <>
+      {/* Ukuran kertas ditentukan di sini, bukan diserahkan ke bawaan peramban
+          — kalau tidak, hasil cetaknya berbeda tergantung siapa yang menekan
+          Cetak. DECISIONS 395. */}
+      <style>{`@media print { @page { size: A4 portrait; margin: 12mm; } }`}</style>
       <PrintToolbar backHref={artifact.runId ? `/ai/run/${artifact.runId}` : "/ai/reports"} />
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
         {artifact.status === "draft" || artifact.status === "direview" ? (
           <p className="no-print mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm">
-            Draf AI — belum disetujui/beku. Jangan distribusikan versi ini.
+            Draf AI – belum disetujui/beku. Jangan distribusikan versi ini.
           </p>
         ) : null}
         <div

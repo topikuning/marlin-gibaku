@@ -23,29 +23,31 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/", nama: "Beranda / command center" },
   { pola: "/aktivitas", nama: "Dashboard eksekutif" },
   { pola: "/ai", nama: "AI Hub" },
-  { pola: "/ai/actions", nama: "AI — tindakan" },
-  { pola: "/ai/ask", nama: "AI — tanya" },
-  { pola: "/ai/history", nama: "AI — riwayat run" },
-  { pola: "/ai/reports", nama: "AI — laporan" },
+  { pola: "/ai/actions", nama: "AI – tindakan" },
+  { pola: "/ai/ask", nama: "AI – tanya" },
+  { pola: "/ai/history", nama: "AI – riwayat run" },
+  { pola: "/ai/reports", nama: "AI – laporan" },
+  { pola: "/ai/paparan", nama: "AI – Paparan KKP" },
   { pola: "/chat-grup", nama: "Chat grup" },
   { pola: "/chat-grup/global", nama: "Chat grup global" },
   { pola: "/dokumen", nama: "Dokumen" },
-  { pola: "/dokumen/impor", nama: "Dokumen — impor" },
-  { pola: "/dokumen/upload", nama: "Dokumen — unggah" },
+  { pola: "/dokumen/impor", nama: "Dokumen – impor" },
+  { pola: "/dokumen/upload", nama: "Dokumen – unggah" },
   { pola: "/foto", nama: "Foto lapangan" },
   { pola: "/foto-cepat", nama: "Foto Cepat" },
   { pola: "/hari-ini", nama: "Hari Ini (mandor)" },
-  { pola: "/keuangan", nama: "Keuangan" },
+  { pola: "/kendala", nama: "Papan kendala terpusat" },
   { pola: "/kontak-wa", nama: "Kontak WhatsApp" },
   { pola: "/laporan", nama: "Laporan" },
   { pola: "/laporan-wa", nama: "Laporan WhatsApp" },
   { pola: "/laporan/status-harian", nama: "Status laporan harian" },
   { pola: "/lokasi", nama: "Daftar lokasi" },
   { pola: "/master", nama: "Master data" },
-  { pola: "/master/kontak", nama: "Master — kontak" },
-  { pola: "/master/kontak-wa", nama: "Master — kontak WhatsApp" },
-  { pola: "/master/pengguna", nama: "Master — pengguna" },
-  { pola: "/master/perusahaan", nama: "Master — perusahaan" },
+  { pola: "/master/kontak", nama: "Master – kontak" },
+  { pola: "/master/kontak-wa", nama: "Master – kontak WhatsApp" },
+  { pola: "/master/lokasi", nama: "Master – katalog lokasi" },
+  { pola: "/master/pengguna", nama: "Master – pengguna" },
+  { pola: "/master/perusahaan", nama: "Master – perusahaan" },
   { pola: "/paket", nama: "Daftar paket" },
   { pola: "/paket/baru", nama: "Paket baru" },
   { pola: "/paket/bypass", nama: "Paket bypass" },
@@ -54,8 +56,15 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/pengguna", nama: "Pengguna" },
   { pola: "/peta", nama: "Peta" },
   { pola: "/progress", nama: "Progress portofolio" },
+  // Pengendalian terpadu (DECISIONS 426).
+  { pola: "/temuan", nama: "Papan temuan" },
+  { pola: "/temuan/baru", nama: "Catat temuan" },
+  { pola: "/verifikasi", nama: "Workspace verifikasi Wakil PPK" },
+  { pola: "/verifikasi/inspeksi/baru", nama: "Catat inspeksi" },
+  { pola: "/kesiapan", nama: "Kesiapan termin/PHO/FHO" },
+  { pola: "/perlu-tindakan", nama: "Perlu Tindakan (EWS)" },
   { pola: "/sistem", nama: "Sistem" },
-  { pola: "/sistem/arsip-foto", nama: "Sistem — arsip foto" },
+  { pola: "/sistem/arsip-foto", nama: "Sistem – arsip foto" },
 ];
 
 /**
@@ -71,7 +80,13 @@ export type KonteksRute = {
   dokumenId: string | null;
   fotoId: string | null;
   aiRunId: string | null;
+  /** Artefak paparan KKP yang benar-benar ada (bisa null bila belum ada yang dibuat). */
+  paparanId: string | null;
   antrean: string | null;
+  /** Temuan yang benar-benar ada (bisa null bila belum ada). DECISIONS 426. */
+  temuanId: string | null;
+  /** Inspeksi Wakil PPK yang benar-benar ada (bisa null). DECISIONS 426. */
+  inspeksiId: string | null;
 };
 
 export const RUTE_DINAMIS: {
@@ -127,7 +142,6 @@ export const RUTE_DINAMIS: {
   },
   { pola: "/lokasi/[slug]/dokumen", nama: "Dokumen lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/dokumen`] : null) },
   { pola: "/lokasi/[slug]/kegiatan", nama: "Kegiatan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/kegiatan`] : null) },
-  { pola: "/lokasi/[slug]/keuangan", nama: "Keuangan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/keuangan`] : null) },
   { pola: "/lokasi/[slug]/progress", nama: "Progress lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/progress`] : null) },
   { pola: "/lokasi/[slug]/rab", nama: "RAB lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab`] : null) },
   { pola: "/lokasi/[slug]/rab/adendum", nama: "Adendum RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/adendum`] : null) },
@@ -143,6 +157,17 @@ export const RUTE_DINAMIS: {
   { pola: "/dokumen/[id]", nama: "Detail dokumen", isi: (k) => (k.dokumenId ? [`/dokumen/${k.dokumenId}`] : null) },
   { pola: "/foto/[id]/cap", nama: "Cap foto", isi: (k) => (k.fotoId ? [`/foto/${k.fotoId}/cap`] : null) },
   { pola: "/ai/run/[id]", nama: "Detail run AI", isi: (k) => (k.aiRunId ? [`/ai/run/${k.aiRunId}`] : null) },
+  {
+    pola: "/ai/paparan/[id]",
+    nama: "Detail paparan KKP",
+    isi: (k) => (k.paparanId ? [`/ai/paparan/${k.paparanId}`] : null),
+  },
+  { pola: "/temuan/[id]", nama: "Detail temuan", isi: (k) => (k.temuanId ? [`/temuan/${k.temuanId}`] : null) },
+  {
+    pola: "/verifikasi/inspeksi/[id]",
+    nama: "Detail inspeksi",
+    isi: (k) => (k.inspeksiId ? [`/verifikasi/inspeksi/${k.inspeksiId}`] : null),
+  },
 ];
 
 /**
@@ -152,7 +177,21 @@ export const RUTE_DINAMIS: {
  * Aturannya: alasan harus menyebut kenapa halaman ini tidak bisa diuji lebar,
  * bukan sekadar "belum sempat".
  */
-export const DIKECUALIKAN: Record<string, string> = {};
+export const DIKECUALIKAN: Record<string, string> = {
+  /*
+   * Keuangan DITAHAN untuk semua peran selain super_admin (DECISIONS 411,
+   * "menu keuangan saat ini belum siap"). Akun sapuan ini `hery` (Program
+   * Director), jadi kedua rutenya menjawab 404 — bukan halaman sempit yang
+   * bisa diukur lebarnya.
+   *
+   * DIKECUALIKAN, bukan dihapus dari daftar: begitu Keuangan dibuka lagi,
+   * kedua baris ini yang harus dipindahkan kembali ke daftar sapuan. Dihapus
+   * berarti halamannya diam-diam berhenti disapu selamanya.
+   */
+  "/keuangan": "Keuangan ditahan untuk non-super_admin (DECISIONS 411) – akun sapuan Program Director",
+  "/lokasi/[slug]/keuangan":
+    "Keuangan ditahan untuk non-super_admin (DECISIONS 411) – akun sapuan Program Director",
+};
 
 /** Semua pola yang dianggap tercakup — dipakai `rute-terjaga.test.ts`. */
 export function polaTercakup(): Set<string> {
