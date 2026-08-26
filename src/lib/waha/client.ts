@@ -1,6 +1,7 @@
 import "server-only";
 import { getWahaConfig } from "@/lib/waha/config";
 import { wajibKanonikGrupId } from "./grup-id";
+import { nomorDariBalasanLid } from "./lid-baca";
 
 /**
  * Klien WAHA (WhatsApp HTTP API) — https://waha.devlike.pro.
@@ -309,6 +310,32 @@ export async function listGroups(): Promise<WahaGroup[]> {
   const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`, undefined, 60_000);
   const data = (await res.json()) as unknown;
   return parseGroupsResponse(data);
+}
+
+/**
+ * Tanya WAHA: nomor telepon di balik satu identitas `@lid` (DECISIONS 444).
+ *
+ * `@lid` adalah identitas privasi WhatsApp yang TIDAK memuat nomor telepon,
+ * dan sejak 2025 ia makin sering muncul di `payload.from` — pada engine mana
+ * pun, WEBJS termasuk (lihat waha#1608 & waha#1711). Yang memegang pemetaannya
+ * hanya sesi WhatsApp itu sendiri, jadi satu-satunya cara yang benar adalah
+ * MENANYAKANNYA, bukan menebak nama medan payload.
+ *
+ * Bentuk balasannya TIDAK didokumentasikan resmi, jadi dibaca defensif seperti
+ * medan payload lain di repo ini: yang diambil adalah nilai PERTAMA yang
+ * berbentuk JID bernomor. `null` = WAHA sendiri tidak tahu — itu jawaban yang
+ * sah dan memang terjadi (waha#1830), bukan kegagalan yang perlu dilempar.
+ */
+export async function lidKeNomor(lid: string): Promise<string | null> {
+  const c = await cfg();
+  let res: Response;
+  try {
+    res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/lids/${encodeURIComponent(lid)}`);
+  } catch {
+    return null; // WAHA versi lama tidak punya rute ini — bukan alasan gagal.
+  }
+  const data = (await res.json().catch(() => null)) as unknown;
+  return nomorDariBalasanLid(data);
 }
 
 /**

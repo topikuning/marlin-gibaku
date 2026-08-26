@@ -22936,3 +22936,78 @@ ringkasan antrean. "Diam" diberi nada peringatan supaya terlihat berbeda dari
 Pagarnya sendiri TIDAK dilonggarkan: menjawab orang tak dikenal berarti
 membocorkan angka proyek. Yang diperbaiki adalah kebutaannya — sebab yang
 tersimpan tapi tak pernah ditampilkan sama saja dengan tidak dicatat.
+
+---
+
+## 444 · Nomor di balik `@lid` ditanyakan ke WAHA, lintas engine (2026-08-26)
+
+**Masalah.** Laporan user: dengan NOMOR YANG SAMA, mention di grup dijawab,
+tapi chat pribadi didiamkan total.
+
+Itu bukan kebetulan, dan bukan pula pelanggaran aturan: DECISIONS 351 memang
+menetapkan di grup pengirim TIDAK perlu terdaftar (balasannya masuk ke grup,
+identitas pengetik tidak menentukan siapa yang melihat), sementara di chat
+pribadi identitas adalah satu-satunya dasar. Jadi jawaban di grup sama sekali
+tidak membuktikan nomornya dikenali — dan itulah yang menyesatkan.
+
+**Sebab teknisnya.** WhatsApp makin sering mengirim identitas privasi `@lid`
+alih-alih nomor di `payload.from`, **pada engine mana pun — WEBJS termasuk**
+(waha#1608, waha#1711). `@lid` TIDAK memuat nomor telepon, jadi pencarian
+pengguna gagal dan pesannya didiamkan.
+
+**Kenapa tidak ditebak dari payload.** Pemetaan `@lid` ↔ nomor hanya dipegang
+sesi WhatsApp. Menebaknya dari nama medan payload berarti mengejar rilis WAHA
+satu tebakan per pesan asli — jebakan yang sudah dicatat DECISIONS 347.
+Dokumentasi WAHA sendiri hanya menampilkan `from` dan menyebut `_data` sebagai
+"engine-specific", jadi tidak ada nama medan yang bisa diandalkan.
+
+**Keputusan.** Nomornya DITANYAKAN ke WAHA lewat rute resminya
+`GET /api/{session}/lids/{lid}`, lalu diingat.
+
+1. Hanya dipanggil bila pesan BELUM membawa nomor — yang sudah membawa nomor
+   tidak perlu menunggu panggilan jaringan tambahan.
+2. Balasannya dibaca DEFENSIF: bentuknya tidak didokumentasikan, jadi yang
+   diambil adalah nilai pertama yang berbentuk JID bernomor, di mana pun
+   letaknya. `@lid` tidak pernah diterima sebagai jawaban — itu yang sedang
+   dicari padanannya.
+3. Hasilnya disimpan (AppSetting `waha.lid.<lid>`) supaya pesan berikutnya
+   tidak menunggu jaringan. Yang GAGAL tidak disimpan, supaya percobaan
+   berikutnya masih punya kesempatan.
+4. WAHA versi lama yang tidak punya rute ini, atau yang menjawab tanpa nomor
+   (waha#1830), diperlakukan sebagai "belum diketahui" — bukan galat. Pesannya
+   tetap didiamkan seperti sebelumnya, tapi alasannya kini menyebut bahwa
+   **WAHA pun tidak mengenali `@lid` ini**, bukan sekadar "nomor tidak cocok".
+
+Pagar identitas TIDAK dilonggarkan: menjawab nomor tak dikenal berarti
+membocorkan angka proyek ke siapa pun yang menebak nomor MARLIN.
+
+Penjaga: `tests/unit/waha-lid-nomor.test.ts` — yang diuji sifatnya, bukan satu
+bentuk balasan: nomor ditemukan apa pun nama medannya (termasuk bersarang &
+dalam larik), `@lid` tidak pernah lolos, balasan kosong menghasilkan `null`
+bukan tebakan, dan satu LID selalu menghasilkan satu kunci ingatan.
+
+---
+
+## 445 · Isian `@lid` DIBUANG – manusia hanya tahu nomor WA (2026-08-26)
+
+**Teguran user:** *"tahu darimana kami kode lid, kenapa ada inputan itu di
+master pengguna, GAK BERGUNA. kami manusia tahunya nomor wa, sudah, tugasmu
+cari nomor wa di data WAHA ada dimana."*
+
+Benar, dan itu memang cacat rancangan DECISIONS 347: kolom yang cara
+mengisinya menuntut orang membaca log dan menyalin deret angka bukan kolom —
+itu pekerjaan sistem yang dilimpahkan ke manusia.
+
+**Yang dibuang.** Isian "ID WhatsApp / @lid" di Master → Pengguna, pada
+formulir tambah maupun sunting. Petunjuk "isi kolom @lid" di alasan diam juga
+dibuang; yang disebut sekarang hanya hal yang memang diketahui manusia:
+**isi nomor WhatsApp orang ini di Master → Pengguna**.
+
+**Yang menggantikannya.** Sistem mencari nomornya sendiri (DECISIONS 444),
+lalu MENGINGAT padanannya: begitu satu `@lid` terbukti milik seorang pengguna
+lewat nomor yang dipadankan WAHA, padanan itu ditulis ke akunnya. Pesan
+berikutnya cocok tanpa panggilan jaringan, tanpa seorang pun mengetik apa pun.
+
+Kolom `waLid` di basis data DIPERTAHANKAN — bukan sisa: ia kini diisi sistem,
+bukan orang, dan baris lama yang terlanjur terisi tetap dipakai mencocokkan.
+Yang hilang cuma tuntutan mengisinya dengan tangan.
