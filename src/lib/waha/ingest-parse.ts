@@ -245,7 +245,7 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
         : null;
 
   const media = (p.media ?? {}) as AnyObj;
-  const noweb = pesanMediaNoweb(p);
+  const dalam = blokMediaDalam(p);
   const jenis = (str(p.type) ?? str(data.type) ?? "").toLowerCase();
 
   return {
@@ -269,10 +269,10 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
       null,
     body: str(p.body) ?? str(p.caption) ?? "",
     hasMedia:
-      p.hasMedia === true || !!media.url || !!media.mimetype || noweb !== null || JENIS_MEDIA.has(jenis),
+      p.hasMedia === true || !!media.url || !!media.mimetype || dalam !== null || JENIS_MEDIA.has(jenis),
     mediaType:
       str(media.mimetype) ??
-      str(noweb?.mimetype) ??
+      str(dalam?.mimetype) ??
       str((p._data as AnyObj)?.mimetype) ??
       str(p.type) ??
       str(data.type) ??
@@ -282,8 +282,8 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     mediaFileName:
       str(media.filename) ??
       str((media as AnyObj).fileName) ??
-      str(noweb?.fileName) ??
-      str(noweb?.title) ??
+      str(dalam?.fileName) ??
+      str(dalam?.title) ??
       str((p._data as AnyObj)?.filename) ??
       str((data as AnyObj).filename) ??
       str((data as AnyObj).fileName) ??
@@ -301,6 +301,9 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
  * Jenis pesan yang MEMBAWA berkas. Dipakai sebagai penanda cadangan ketika
  * payload tidak menyetel `hasMedia` maupun `media` — persis yang terjadi pada
  * PDF yang lolos 2026-08-26 sementara stiker di menit yang sama tertangkap.
+ *
+ * Sengaja lintas-engine: `type` ada di WEBJS maupun NOWEB, jadi penanda ini
+ * bekerja tanpa perlu tahu engine mana yang sedang dipakai.
  */
 const JENIS_MEDIA = new Set([
   "image",
@@ -313,8 +316,8 @@ const JENIS_MEDIA = new Set([
 ]);
 
 /**
- * Blok media pada payload engine NOWEB, yang menaruhnya di
- * `_data.message.<jenis>Message` alih-alih di `media`.
+ * Blok media yang ditaruh di `_data.message.<jenis>Message` alih-alih di
+ * `media`.
  *
  * PDF berketerangan datang terbungkus lagi sebagai `documentWithCaptionMessage`
  * — satu lapis lebih dalam. Tidak membacanya berarti berkasnya tidak pernah
@@ -324,7 +327,7 @@ const JENIS_MEDIA = new Set([
  * CDN WhatsApp yang isinya terenkripsi dan butuh kunci media untuk dibuka.
  * Memakainya akan menyimpan berkas rusak yang terlihat berhasil.
  */
-function pesanMediaNoweb(p: AnyObj): AnyObj | null {
+function blokMediaDalam(p: AnyObj): AnyObj | null {
   const msg = ((p._data as AnyObj)?.message ?? {}) as AnyObj;
   const langsung =
     (msg.documentMessage as AnyObj) ??

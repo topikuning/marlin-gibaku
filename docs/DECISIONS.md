@@ -22771,28 +22771,34 @@ sama tetap ditahan, dan balasan di luar jendela 24 jam ditolak.
 
 ---
 
-## 440 · Lampiran berkas bentuk NOWEB ikut terbaca (2026-08-26)
+## 440 · Lampiran berkas terbaca LINTAS ENGINE WAHA (2026-08-26)
 
 **Masalah.** Laporan user: PDF yang dikirim ke grup TIDAK tertangkap, padahal
 stiker di menit yang sama tertangkap.
 
 **Sebabnya bukan setelan WAHA, melainkan parser kita.** `hasMedia` hanya dibaca
 dari `payload.hasMedia`, `payload.media.url`, dan `payload.media.mimetype`.
-Engine NOWEB menaruh berkas di `_data.message.documentMessage`, dan PDF
-BERKETERANGAN satu lapis lebih dalam lagi
-(`documentWithCaptionMessage.message.documentMessage`). Yang tidak terbaca di
-situ tidak pernah memanggil `tangkapLampiran()` sama sekali — jadi berkasnya
-tidak muncul di antrean Lampiran Masuk bahkan sebagai kegagalan. Hilang tanpa
-jejak, yang lebih buruk daripada gagal dengan sebab.
+Berkas yang tidak terbaca di situ tidak pernah memanggil `tangkapLampiran()`
+sama sekali — jadi tidak muncul di antrean Lampiran Masuk bahkan sebagai
+kegagalan. Hilang tanpa jejak, yang lebih buruk daripada gagal dengan sebab.
+
+**Ketetapan user 2026-08-26:** *"kenapa harus bingung noweb atau bukan, saat
+ini aku pakai webjs. seharusnya apa pun enginenya kamu bisa handle."* Betul —
+engine bisa berganti tanpa kode ini tahu, jadi pembacaannya TIDAK boleh
+bergantung pada engine mana yang sedang dipakai. Yang dibaca adalah setiap
+BENTUK payload yang pernah membawa berkas, bukan satu engine:
+`payload.media.*`, `payload._data.mimetype`/`filename` (WEBJS),
+`_data.message.<jenis>Message` termasuk `documentWithCaptionMessage` yang satu
+lapis lebih dalam (NOWEB), dan `type` yang ada di keduanya.
 
 **Perbaikan.**
-1. Blok media NOWEB dibaca, termasuk yang terbungkus keterangan.
+1. Blok media bersarang dibaca, termasuk yang terbungkus keterangan.
 2. Jenis pesan (`document`/`image`/`video`/`audio`/`sticker`) dipakai sebagai
-   penanda cadangan: kalau jenisnya saja sudah menyatakan ada berkas, itu cukup
-   untuk masuk antrean.
+   penanda cadangan LINTAS ENGINE: kalau jenisnya saja sudah menyatakan ada
+   berkas, itu cukup untuk masuk antrean.
 3. `mediaType` dan `mediaFileName` ikut dibaca dari blok itu (`mimetype`,
    `fileName`, `title`).
-4. **`url` di dalam blok NOWEB SENGAJA tidak dipakai** sebagai `mediaUrl`: itu
+4. **`url` di dalam blok bersarang SENGAJA tidak dipakai** sebagai `mediaUrl`: itu
    URL CDN WhatsApp yang isinya terenkripsi dan butuh kunci media. Memakainya
    akan menyimpan berkas rusak yang terlihat berhasil — lebih buruk daripada
    mengaku tidak punya URL.
@@ -22801,5 +22807,6 @@ jejak, yang lebih buruk daripada gagal dengan sebab.
    `WHATSAPP_DOWNLOAD_MEDIA`, dan pastikan `WHATSAPP_FILES_MIMETYPES` tidak
    menyaring jenis berkas itu.
 
-Penjaga: `tests/unit/wa-ingest-parse.test.ts` (5 uji baru) — dibuktikan
-menangkap bug: penanda lama dikembalikan → 3 uji gagal.
+Penjaga: `tests/unit/wa-ingest-parse.test.ts` (7 uji baru, menutup bentuk WEBJS
+dan NOWEB sekaligus) — dibuktikan menangkap bug: penanda lama dikembalikan →
+uji gagal.

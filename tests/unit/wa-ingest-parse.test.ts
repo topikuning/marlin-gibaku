@@ -549,15 +549,18 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
   });
 });
 
-/* ── Lampiran berkas: bentuk NOWEB (DECISIONS 440) ───────────────────────
+/* ── Lampiran berkas: LINTAS ENGINE (DECISIONS 440) ──────────────────────
  *
  * Laporan user 2026-08-26: PDF ke grup TIDAK tertangkap, sementara stiker di
  * menit yang sama tertangkap. Sebabnya di sini: `hasMedia` hanya dibaca dari
- * `payload.hasMedia`/`payload.media`, padahal engine NOWEB menaruh berkas di
- * `_data.message.documentMessage` — dan PDF berketerangan satu lapis lebih
- * dalam lagi. Yang tidak terbaca tidak pernah sampai ke antrean lampiran.
+ * `payload.hasMedia`/`payload.media`.
+ *
+ * Ketetapan user: *"kenapa harus bingung noweb atau bukan... seharusnya apa
+ * pun enginenya kamu bisa handle"*. Jadi yang diuji BUKAN satu engine,
+ * melainkan setiap bentuk payload yang pernah membawa berkas — WEBJS (yang
+ * dipakai sekarang) maupun NOWEB — dan penanda `type` yang ada di keduanya.
  */
-describe("lampiran bentuk NOWEB", () => {
+describe("lampiran lintas engine", () => {
   const bungkus = (p: Record<string, unknown>) => ({
     event: "message",
     payload: { id: "x1", from: "628@g.us", timestamp: 1, ...p },
@@ -601,6 +604,25 @@ describe("lampiran bentuk NOWEB", () => {
     );
     expect(m!.hasMedia).toBe(true);
     expect(m!.mediaFileName).toBe("RAB revisi.pdf");
+  });
+
+  it("WEBJS: dokumen dengan hasMedia + _data.mimetype/filename", () => {
+    const m = parseWaEvent(
+      bungkus({
+        hasMedia: true,
+        type: "document",
+        _data: { type: "document", mimetype: "application/pdf", filename: "Adendum 1.pdf" },
+      }),
+    );
+    expect(m!.hasMedia).toBe(true);
+    expect(m!.mediaType).toBe("application/pdf");
+    expect(m!.mediaFileName).toBe("Adendum 1.pdf");
+  });
+
+  it("WEBJS: hasMedia TIDAK diset pun tetap terbaca dari _data.type", () => {
+    const m = parseWaEvent(bungkus({ _data: { type: "document", mimetype: "application/pdf" } }));
+    expect(m!.hasMedia).toBe(true);
+    expect(m!.mediaType).toBe("application/pdf");
   });
 
   it("jenis pesan saja sudah cukup jadi penanda media", () => {
