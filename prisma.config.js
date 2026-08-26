@@ -10,10 +10,14 @@ try {
   // .env absent (CI/production — env provided by the platform)
 }
 
+// `postgresql+asyncpg://` (bentuk SQLAlchemy) dirapikan jadi `postgresql://`
+// sebelum sampai ke Prisma — DECISIONS 446, lihat prisma/db-url.cjs.
+const { normalizeDatabaseUrl } = require("./prisma/db-url.cjs");
+
 module.exports = {
   schema: "prisma/schema.prisma",
   datasource: {
-    url: process.env.DATABASE_URL ?? "",
+    url: normalizeDatabaseUrl(process.env.DATABASE_URL ?? ""),
   },
   migrations: {
     path: "prisma/migrations",

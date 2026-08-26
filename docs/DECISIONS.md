@@ -23011,3 +23011,39 @@ berikutnya cocok tanpa panggilan jaringan, tanpa seorang pun mengetik apa pun.
 Kolom `waLid` di basis data DIPERTAHANKAN — bukan sisa: ia kini diisi sistem,
 bukan orang, dan baris lama yang terlanjur terisi tetap dipakai mencocokkan.
 Yang hilang cuma tuntutan mengisinya dengan tangan.
+
+---
+
+## 446 · `DATABASE_URL` bentuk SQLAlchemy dirapikan, bukan ditolak (2026-08-26)
+
+**Kejadian.** User mengganti `DATABASE_URL` menjadi
+`postgresql+asyncpg://postgres:…@postgres-wkb.railway.internal:5432/railway`,
+lalu deploy gagal. Sebabnya satu potong kata: `+asyncpg` adalah penanda driver
+milik SQLAlchemy (Python), bukan bagian dari protokol PostgreSQL. Prisma
+menolaknya dengan `P1013: The scheme is not recognized in database URL` —
+pesan yang terbaca seperti "URL Anda salah total", padahal host, sandi, port,
+dan nama basis datanya sudah benar semua.
+
+Bentuk itu tidak muncul dari kelalaian: panel database memajang beberapa
+varian URL untuk SATU database yang sama, sebagian ditujukan untuk pustaka
+bahasa lain, dan bedanya cuma satu kata di tengah skema.
+
+**Keputusan.** Sistem yang menyesuaikan. `postgresql+<driver>://` dan
+`postgres+<driver>://` dinormalisasi menjadi `postgresql://` di semua pintu
+masuk: `src/lib/env.ts` (aplikasi), `prisma.config.js` (CLI `migrate deploy`
+saat preDeploy), seed, dan skrip diagnosa.
+
+**Yang SENGAJA tidak dilakukan.** Hanya SKEMA yang disentuh. Host, port,
+kredensial, nama database, dan query string dibiarkan apa adanya — menebak
+salah satu dari itu berarti menyambung ke database yang tidak diminta. Sandi
+yang memuat `+` atau `@` tidak ikut berubah. Skema yang memang bukan
+PostgreSQL (`mysql://`, `mongodb://`) tetap DITOLAK dengan menyebut skemanya,
+bukan dipaksa jadi postgres.
+
+**Salinan yang dijaga.** Logikanya ada dua kali: `src/lib/db-url.ts` (kanonik)
+dan `prisma/db-url.cjs` (dimuat Prisma CLI di image runtime, yang tidak punya
+loader TypeScript). Keduanya diuji terhadap tabel kasus yang SAMA di
+`tests/unit/database-url.test.ts`, jadi salinan itu tidak bisa melenceng
+diam-diam. Beda perilaku yang disengaja: versi CLI mengembalikan URL tak
+dikenal apa adanya supaya pesan galat Prisma sendiri yang sampai ke log
+deploy.

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DatabaseUrlError, normalizeDatabaseUrl } from "@/lib/db-url";
 
 /**
  * Validasi environment saat startup. Import module ini = validasi jalan.
@@ -69,6 +70,15 @@ function loadEnv() {
     );
   }
 
+  // Bentuk `postgresql+asyncpg://` (SQLAlchemy) dirapikan, bukan ditolak —
+  // lihat `lib/db-url.ts`. Skema non-PostgreSQL tetap ditolak.
+  let databaseUrl: string;
+  try {
+    databaseUrl = normalizeDatabaseUrl(parsed.data.DATABASE_URL);
+  } catch (e) {
+    throw e instanceof DatabaseUrlError ? new EnvError(e.message) : e;
+  }
+
   const anyR2 =
     process.env.R2_ENDPOINT || process.env.R2_BUCKET || process.env.R2_ACCESS_KEY_ID || process.env.R2_SECRET_ACCESS_KEY;
   let r2: R2Config | null = null;
@@ -87,7 +97,7 @@ function loadEnv() {
     };
   }
 
-  return { ...parsed.data, r2 };
+  return { ...parsed.data, DATABASE_URL: databaseUrl, r2 };
 }
 
 export const env = loadEnv();
