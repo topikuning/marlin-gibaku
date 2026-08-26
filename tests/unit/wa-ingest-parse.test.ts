@@ -548,3 +548,78 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
     expect(medanJidPayload(asli)).toContain("key.remoteJidAlt=6281234757999@s.whatsapp.net");
   });
 });
+
+/* ── Lampiran berkas: bentuk NOWEB (DECISIONS 440) ───────────────────────
+ *
+ * Laporan user 2026-08-26: PDF ke grup TIDAK tertangkap, sementara stiker di
+ * menit yang sama tertangkap. Sebabnya di sini: `hasMedia` hanya dibaca dari
+ * `payload.hasMedia`/`payload.media`, padahal engine NOWEB menaruh berkas di
+ * `_data.message.documentMessage` — dan PDF berketerangan satu lapis lebih
+ * dalam lagi. Yang tidak terbaca tidak pernah sampai ke antrean lampiran.
+ */
+describe("lampiran bentuk NOWEB", () => {
+  const bungkus = (p: Record<string, unknown>) => ({
+    event: "message",
+    payload: { id: "x1", from: "628@g.us", timestamp: 1, ...p },
+  });
+
+  it("PDF polos di _data.message.documentMessage terbaca sebagai media", () => {
+    const m = parseWaEvent(
+      bungkus({
+        _data: {
+          message: {
+            documentMessage: {
+              mimetype: "application/pdf",
+              fileName: "Surat Teguran 12.pdf",
+              url: "https://mmg.whatsapp.net/enc-jangan-dipakai",
+            },
+          },
+        },
+      }),
+    );
+    expect(m!.hasMedia).toBe(true);
+    expect(m!.mediaType).toBe("application/pdf");
+    expect(m!.mediaFileName).toBe("Surat Teguran 12.pdf");
+    // URL terenkripsi WhatsApp TIDAK dipakai — menyimpannya berarti berkas
+    // rusak yang terlihat berhasil.
+    expect(m!.mediaUrl).toBeNull();
+  });
+
+  it("PDF BERKETERANGAN (documentWithCaptionMessage) juga terbaca", () => {
+    const m = parseWaEvent(
+      bungkus({
+        _data: {
+          message: {
+            documentWithCaptionMessage: {
+              message: {
+                documentMessage: { mimetype: "application/pdf", fileName: "RAB revisi.pdf" },
+              },
+            },
+          },
+        },
+      }),
+    );
+    expect(m!.hasMedia).toBe(true);
+    expect(m!.mediaFileName).toBe("RAB revisi.pdf");
+  });
+
+  it("jenis pesan saja sudah cukup jadi penanda media", () => {
+    const m = parseWaEvent(bungkus({ type: "document" }));
+    expect(m!.hasMedia).toBe(true);
+  });
+
+  it("pesan teks biasa TIDAK ikut dianggap membawa berkas", () => {
+    const m = parseWaEvent(bungkus({ type: "chat", body: "pagi pak" }));
+    expect(m!.hasMedia).toBe(false);
+  });
+
+  it("URL media yang benar (dari WAHA) tetap dipakai", () => {
+    const m = parseWaEvent(
+      bungkus({
+        hasMedia: true,
+        media: { url: "https://waha.local/api/files/a.pdf", mimetype: "application/pdf" },
+      }),
+    );
+    expect(m!.mediaUrl).toBe("https://waha.local/api/files/a.pdf");
+  });
+});

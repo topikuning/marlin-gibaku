@@ -22768,3 +22768,38 @@ Dua lapis, karena satu tidak cukup:
 Penjaga: `tests/integration/wa-pagar-personal.test.ts` — penanda palsu tanpa
 pesan masuk DITOLAK, balasan sah lewat, kiriman inisiatif MARLIN ke chat yang
 sama tetap ditahan, dan balasan di luar jendela 24 jam ditolak.
+
+---
+
+## 440 · Lampiran berkas bentuk NOWEB ikut terbaca (2026-08-26)
+
+**Masalah.** Laporan user: PDF yang dikirim ke grup TIDAK tertangkap, padahal
+stiker di menit yang sama tertangkap.
+
+**Sebabnya bukan setelan WAHA, melainkan parser kita.** `hasMedia` hanya dibaca
+dari `payload.hasMedia`, `payload.media.url`, dan `payload.media.mimetype`.
+Engine NOWEB menaruh berkas di `_data.message.documentMessage`, dan PDF
+BERKETERANGAN satu lapis lebih dalam lagi
+(`documentWithCaptionMessage.message.documentMessage`). Yang tidak terbaca di
+situ tidak pernah memanggil `tangkapLampiran()` sama sekali — jadi berkasnya
+tidak muncul di antrean Lampiran Masuk bahkan sebagai kegagalan. Hilang tanpa
+jejak, yang lebih buruk daripada gagal dengan sebab.
+
+**Perbaikan.**
+1. Blok media NOWEB dibaca, termasuk yang terbungkus keterangan.
+2. Jenis pesan (`document`/`image`/`video`/`audio`/`sticker`) dipakai sebagai
+   penanda cadangan: kalau jenisnya saja sudah menyatakan ada berkas, itu cukup
+   untuk masuk antrean.
+3. `mediaType` dan `mediaFileName` ikut dibaca dari blok itu (`mimetype`,
+   `fileName`, `title`).
+4. **`url` di dalam blok NOWEB SENGAJA tidak dipakai** sebagai `mediaUrl`: itu
+   URL CDN WhatsApp yang isinya terenkripsi dan butuh kunci media. Memakainya
+   akan menyimpan berkas rusak yang terlihat berhasil — lebih buruk daripada
+   mengaku tidak punya URL.
+5. Karena itu, bila WAHA tidak menyertakan URL unduhannya, barisnya tetap
+   dibuat dengan sebab yang MENYEBUT JALAN KELUARNYA: nyalakan
+   `WHATSAPP_DOWNLOAD_MEDIA`, dan pastikan `WHATSAPP_FILES_MIMETYPES` tidak
+   menyaring jenis berkas itu.
+
+Penjaga: `tests/unit/wa-ingest-parse.test.ts` (5 uji baru) — dibuktikan
+menangkap bug: penanda lama dikembalikan → 3 uji gagal.
