@@ -201,8 +201,17 @@ export async function ringkasAntreanWa(): Promise<{
   berjalan: number;
   gagal: number;
   contohGagal: { chatId: string; lastError: string | null; attempts: number }[];
+  /**
+   * Pekerjaan TERAKHIR yang selesai, lengkap dengan alasannya (DECISIONS 443).
+   *
+   * "Diam" bukan kegagalan — jobnya selesai normal — jadi ia tidak pernah
+   * muncul di `contohGagal`. Padahal justru inilah pertanyaan yang paling
+   * sering diajukan: *"kenapa MARLIN tidak menjawab?"* Alasannya sudah
+   * ditulis ke `hasil` sejak DECISIONS 372; yang kurang cuma jendelanya.
+   */
+  terakhir: { chatId: string; hasil: string | null; selesaiPada: string | null }[];
 }> {
-  const [antre, berjalan, gagal, contoh] = await Promise.all([
+  const [antre, berjalan, gagal, contoh, rampung] = await Promise.all([
     db.waReplyJob.count({ where: { status: "antre" } }),
     db.waReplyJob.count({ where: { status: "berjalan" } }),
     db.waReplyJob.count({ where: { status: "gagal" } }),
@@ -212,6 +221,22 @@ export async function ringkasAntreanWa(): Promise<{
       take: 5,
       select: { chatId: true, lastError: true, attempts: true },
     }),
+    db.waReplyJob.findMany({
+      where: { status: "selesai" },
+      orderBy: { finishedAt: "desc" },
+      take: 8,
+      select: { chatId: true, hasil: true, finishedAt: true },
+    }),
   ]);
-  return { antre, berjalan, gagal, contohGagal: contoh };
+  return {
+    antre,
+    berjalan,
+    gagal,
+    contohGagal: contoh,
+    terakhir: rampung.map((r) => ({
+      chatId: r.chatId,
+      hasil: r.hasil,
+      selesaiPada: r.finishedAt?.toISOString() ?? null,
+    })),
+  };
 }

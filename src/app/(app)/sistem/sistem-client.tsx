@@ -620,6 +620,7 @@ export function WahaWebhookPanel({
     berjalan: number;
     gagal: number;
     contohGagal: { chatId: string; lastError: string | null; attempts: number }[];
+    terakhir: { chatId: string; hasil: string | null; selesaiPada: string | null }[];
   };
   /**
    * Diagnosa PENGIRIMAN (DECISIONS 374). Dipisah dari antrean masuk: yang satu
@@ -750,6 +751,31 @@ export function WahaWebhookPanel({
             <span className="text-ink-muted">Gagal</span>{" "}
             <b className={antrean.gagal > 0 ? "text-danger" : undefined}>{antrean.gagal}</b>
           </p>
+          {/*
+            Jawaban TERAKHIR beserta alasannya (DECISIONS 443). "Diam" adalah
+            pekerjaan yang SELESAI normal, jadi ia tidak pernah muncul di daftar
+            gagal di bawah — padahal justru inilah yang ditanyakan orang:
+            "kenapa MARLIN tidak menjawab?". Alasannya sudah lama disimpan;
+            yang kurang cuma jendelanya.
+          */}
+          {antrean.terakhir.length > 0 ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-ink-muted">
+                8 jawaban terakhir – termasuk yang sengaja DIAM &amp; alasannya
+              </summary>
+              <ul className="mt-1 space-y-1 text-xs text-ink-muted">
+                {antrean.terakhir.map((t, i) => (
+                  <li key={i}>
+                    <span className="font-mono">{t.chatId}</span>
+                    {" – "}
+                    <span className={t.hasil?.startsWith("diam") ? "text-warning" : undefined}>
+                      {t.hasil ?? "(tanpa keterangan)"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
           {antrean.contohGagal.length > 0 ? (
             <ul className="mt-2 space-y-1 text-xs text-ink-muted">
               {antrean.contohGagal.map((g, i) => (

@@ -22905,3 +22905,34 @@ memang kosong sesudah langkah 4, dan Terapkan tetap berhasil.
 Penjaga: `tests/e2e/perbarui-kurva-s.spec.ts` — dibuktikan menangkap bug:
 pembungkusnya dilepas → uji gagal dengan galat "wajib dipilih" yang sama persis
 seperti laporan user.
+
+---
+
+## 443 · Alasan MARLIN DIAM di WhatsApp ditampilkan (2026-08-26)
+
+**Masalah.** Laporan user: pagar nomor pribadi sudah dibuka, tapi WA ke MARLIN
+tetap tidak dijawab — bahkan untuk perintah sederhana seperti "kendala hari
+ini". Dan tidak ada satu pun layar yang bisa menjawab kenapa.
+
+**Yang menyebabkan diam, semuanya sudah tercatat sejak DECISIONS 372** di
+`wa_reply_jobs.hasil` (`"diam – <alasan>"`). Yang tidak ada adalah jendelanya:
+panel Sistem → WhatsApp hanya menampilkan pekerjaan yang GAGAL. Diam bukan
+gagal — jobnya selesai normal — jadi alasannya tersimpan rapi tanpa pernah
+terbaca siapa pun.
+
+Alasan diam yang paling sering:
+- `nomor <x> tidak cocok dengan pengguna mana pun` — nomor WhatsApp penanya
+  belum terpasang di akun MARLIN-nya. MARLIN sengaja tidak menjawab orang yang
+  tidak dikenalinya: jawabannya memuat angka proyek.
+- chat ber-`@lid` (identitas privasi WhatsApp yang TIDAK memuat nomor telepon,
+  DECISIONS 347) — perlu kolom "ID WhatsApp (@lid)" diisi.
+- di GRUP: MARLIN hanya menjawab bila disebut/di-mention (DECISIONS 338).
+
+**Keputusan.** `ringkasAntreanWa()` ikut mengembalikan 8 pekerjaan terakhir
+yang selesai beserta `hasil`-nya, dan panelnya menampilkannya di bawah
+ringkasan antrean. "Diam" diberi nada peringatan supaya terlihat berbeda dari
+"dijawab".
+
+Pagarnya sendiri TIDAK dilonggarkan: menjawab orang tak dikenal berarti
+membocorkan angka proyek. Yang diperbaiki adalah kebutaannya — sebab yang
+tersimpan tapi tak pernah ditampilkan sama saja dengan tidak dicatat.
