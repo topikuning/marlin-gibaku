@@ -47,6 +47,19 @@ export const PDF_COLORS = {
   warning: "#b45309",
   success: "#15803d",
   white: "#ffffff",
+  /*
+   * Nada status — nilai yang SAMA dengan token layar (globals.css), supaya
+   * "kritis" berwarna sama di layar, di PDF, dan di dokumen yang diteruskan.
+   * Pasangan `*Soft` dipakai sebagai latar sel, bukan warna teks.
+   */
+  danger: "#dc2626",
+  dangerSoft: "#fef2f2",
+  warningStrong: "#d97706",
+  warningSoft: "#fffbeb",
+  successStrong: "#16a34a",
+  successSoft: "#f0fdf4",
+  info: "#1d4ed8",
+  infoSoft: "#eff6ff",
 } as const;
 
 /** Nama font terdaftar (dipakai via doc.font(...)). */

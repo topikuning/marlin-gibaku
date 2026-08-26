@@ -2136,3 +2136,47 @@ describe("daftar panjang dikirim sebagai PDF", () => {
     expect(terkirim.map((t) => t.teks).join("\n")).toContain("Kendala belum selesai");
   });
 });
+
+/* ── "progress 5 terbaik" ≠ "progress hari ini" (DECISIONS 449) ──────────
+ *
+ * Keberatan user 2026-08-26: *"pertanyaan ke wa 'progress hari ini' dan
+ * 'progress 5 terbaik' sama sekali tidak memberikan perbedaan hasil"*.
+ *
+ * Dua sebab bertumpuk: "5" diperlakukan sebagai kata asing sehingga kalimatnya
+ * jatuh ke AI, dan jalur AI membuang superlatifnya tanpa satu pun tanda.
+ * Keduanya diuji di sini — termasuk kalimat yang MEMANG harus lewat AI.
+ */
+describe("urutan & cacahan tidak hilang", () => {
+  const judul = () => terkirim.map((t) => t.teks).join("\n");
+
+  it('"progress hari ini" berjudul Progress polos', async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress hari ini" }),
+    );
+    expect(judul()).toContain("*Progress*");
+    expect(judul()).not.toContain("terbaik");
+  });
+
+  it('"progress 5 terbaik" berjudul lain, menyebut cacahan & arahnya', async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress 5 terbaik" }),
+    );
+    expect(judul()).toContain("Progress – 5 terbaik");
+  });
+
+  it("kalimat yang lewat AI pun tidak kehilangan superlatifnya", async () => {
+    // Kata di luar katalog memaksa jalur AI — persis keadaan yang dulu
+    // membuang urutannya.
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "tolong progress 5 terbaik untuk wilayah pesisir",
+      }),
+    );
+    expect(judul()).toContain("Progress – 5 terbaik");
+  });
+});

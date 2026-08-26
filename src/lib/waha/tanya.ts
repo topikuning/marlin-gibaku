@@ -42,6 +42,8 @@ import {
   type Niat,
 } from "./tanya-niat";
 import {
+  bacaBatas,
+  bacaUrutan,
   frasaSisa,
   mintaLupakanKonteks,
   mintaSebab,
@@ -471,6 +473,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
      * salah baca menghasilkan daftar yang berkebalikan tanpa satu pun tanda.
      */
     urutan?: UrutanJawaban | null;
+    /** Banyak baris yang diminta ("5 terbaik"); null = batas bawaan. */
+    batas?: number | null;
   };
 
   // `m` sudah dipastikan ada di awal fungsi, tapi penyempitan itu tidak ikut
@@ -552,7 +556,30 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       await balasWa(pesan.chatId, balasTidakMengerti());
       return { dijawab: true, alasan: "niat tidak dikenali" };
     }
-    return { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
+    /*
+     * URUTAN & CACAHAN TIDAK IKUT HILANG DI JALUR AI (DECISIONS 449).
+     *
+     * Keberatan user 2026-08-26: *"'progress hari ini' dan 'progress 5
+     * terbaik' sama sekali tidak memberikan perbedaan hasil"*. Sebabnya: kata
+     * "5" bukan nama lokasi, jadi seluruh kalimat diserahkan ke AI — dan
+     * jalur AI dulu mengembalikan niat/lokasi/periode SAJA. Superlatifnya
+     * lenyap tanpa satu pun tanda, jadi jawabannya identik dengan pertanyaan
+     * yang tidak menyebutnya.
+     *
+     * Yang ditambahkan BUKAN tebakan AI: keduanya dibaca dari teks aslinya
+     * oleh pembaca deterministik yang sama dengan jalur cepat. Alasan lama
+     * ("AI tidak diminta menebak superlatif") tetap dihormati — yang berubah
+     * hanya bahwa kata yang JELAS tertulis tidak lagi dibuang.
+     */
+    const bisaDiurut = d.niat === "progress" || d.niat === "deviasi";
+    const urutan = bisaDiurut ? bacaUrutan(teks) : null;
+    return {
+      niat: d.niat,
+      lokasiDisebut: d.lokasiDisebut,
+      periode: d.periode,
+      urutan,
+      batas: urutan ? bacaBatas(teks) : null,
+    };
   }
 
   /**
@@ -682,6 +709,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         lokasiDisebut: rencana.lokasiDisebut,
         periode: rencana.periode,
         urutan: rencana.urutan,
+        batas: rencana.batas,
       };
     } else if (rencana.jenis === "ambigu") {
       /*
@@ -954,13 +982,13 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: catatanPeriodeKendala }),
     );
   } else if (niat.niat === "progress") {
-    const d = await dataProgress(sasaran, dateKey, niat.urutan ?? null);
+    const d = await dataProgress(sasaran, dateKey, niat.urutan ?? null, niat.batas ?? null);
     balasan = balasProgress(
-      { tanggal, baris: d.baris, urutan: niat.urutan ?? null },
+      { tanggal, baris: d.baris, urutan: niat.urutan ?? null, batas: niat.batas ?? null },
       { ...opts, catatanBatas: d.catatanBatas },
     );
     tabel = tabelProgress(
-      { judul: judulProgress(niat.urutan ?? null), tanggal, baris: d.baris },
+      { judul: judulProgress(niat.urutan ?? null, niat.batas ?? null), tanggal, baris: d.baris },
       peta,
       // Diminta "terbaik/terburuk dulu" → itu PERINGKAT; urutannya tidak boleh
       // ditimpa pengelompokan perusahaan, karena judulnya sudah menjanjikannya.

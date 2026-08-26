@@ -120,3 +120,14 @@ describe("urutan sampai ke rencana deterministik", () => {
     expect(r.lokasiDisebut).toEqual(["kemantren"]);
   });
 });
+
+/* ── Judul menyebut cacahannya (DECISIONS 449) ─────────────────────────── */
+describe("judulProgress", () => {
+  it("menyebut berapa baris yang diminta – daftar terpotong tanpa penyebut terbaca sebagai seluruhnya", async () => {
+    const { judulProgress } = await import("@/lib/waha/tanya-format");
+    expect(judulProgress("terbaik", 5)).toBe("Progress – 5 terbaik");
+    expect(judulProgress("terburuk", 10)).toBe("Progress – 10 terburuk");
+    expect(judulProgress("terbaik", null)).toBe("Progress – terbaik dulu");
+    expect(judulProgress(null, 5)).toBe("Progress");
+  });
+});

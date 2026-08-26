@@ -23159,3 +23159,46 @@ kelengkapan, laporan harian, laporan mingguan. Satu pencetak untuk semuanya
 (`lib/pdf/wa-tabel.ts`) di atas satu bentuk perantara (`lib/waha/tanya-tabel.ts`),
 supaya niat baru tidak menambah pencetak baru yang harus ikut diperbaiki tiap
 kali gaya dokumennya berubah.
+
+---
+
+## 449 · "progress 5 terbaik" akhirnya berbeda dari "progress hari ini" (2026-08-26)
+
+Keberatan user: *"pertanyaan ke wa 'progress hari ini' dan 'progress 5
+terbaik' sama sekali tidak memberikan perbedaan hasil!"* – dan itu benar.
+
+**Dua sebab, bertumpuk.**
+
+1. **"5" diperlakukan sebagai nama lokasi.** Parser deterministik
+   (DECISIONS 375) menyerahkan ke AI setiap kalimat yang memuat kata di luar
+   katalog lokasi. Angka "5" bukan lokasi, jadi seluruh kalimat jatuh ke AI.
+2. **Jalur AI membuang superlatifnya.** Jalur itu mengembalikan
+   niat/lokasi/periode SAJA. `urutan` sengaja hanya lahir dari parser
+   deterministik (DECISIONS 390) – alasannya benar: superlatif yang salah baca
+   menghasilkan daftar berkebalikan tanpa satu pun tanda. Tapi akibatnya, kata
+   yang JELAS tertulis ikut lenyap, dan jawabannya identik dengan pertanyaan
+   yang tidak menyebutnya.
+
+**Perbaikan.**
+
+- `bacaBatas()`: angka 1–99 dibaca sebagai CACAHAN baris, tetapi **hanya
+  bersama kata urutan**. "progress 5" sendirian tetap diserahkan ke AII – ia
+  tidak berarti apa-apa ("lima teratas"? "tanggal 5"?), dan menebaknya
+  memotong daftar diam-diam. Angka yang sudah terbaca sebagai cacahan tidak
+  lagi ikut dicocokkan sebagai nama lokasi.
+- Jalur AI membaca `urutan` dan `batas` dari teks aslinya lewat pembaca
+  DETERMINISTIK yang sama. Ini bukan pembalikan DECISIONS 390: AI tetap tidak
+  diminta menebak superlatif; yang berubah hanya bahwa kata yang jelas
+  tertulis tidak lagi dibuang.
+- `dataProgress` menerima `batas`; potongannya tidak pernah melebihi
+  `BATAS_BARIS` – pagar panjang pesan tetap milik sistem, bukan penanya.
+- Judulnya menyebut cacahannya: **"Progress – 5 terbaik"**. Daftar yang
+  dipotong tanpa menyebut cacahannya terbaca sebagai "inilah seluruhnya".
+
+**Catatan warna (lanjutan DECISIONS 448).** Sel tabel PDF kini bernada, dengan
+kosakata dan nilai yang SAMA dengan status di layar (`ISSUE_SEVERITY_TONE`,
+token `globals.css`): kritis merah, tinggi oranye, sedang biru, rendah abu;
+deviasi minus merah dan plus hijau; "belum ada laporan" oranye. Bukan palet
+kedua yang harus ikut diperbaiki tiap kali tone layar berubah. Latar lembut
+hanya untuk nada yang bukan netral – kalau semua sel berlatar, tidak ada yang
+menonjol.

@@ -216,17 +216,27 @@ export type BarisProgress = {
  * "inilah lokasinya" – padahal ia "inilah 15 teratas". Bedanya menentukan
  * tindakan orang yang membacanya.
  */
-export function judulProgress(urutan: "terbaik" | "terburuk" | null): string {
-  if (urutan === "terbaik") return "Progress – terbaik dulu";
-  if (urutan === "terburuk") return "Progress – terburuk dulu";
-  return "Progress";
+export function judulProgress(
+  urutan: "terbaik" | "terburuk" | null,
+  batas: number | null = null,
+): string {
+  if (!urutan) return "Progress";
+  // "5 terbaik" disebut apa adanya: daftar yang dipotong tanpa menyebut
+  // cacahannya terbaca sebagai "inilah seluruhnya".
+  const arah = urutan === "terbaik" ? "terbaik" : "terburuk";
+  return batas ? `Progress – ${batas} ${arah}` : `Progress – ${arah} dulu`;
 }
 
 export function balasProgress(
-  r: { tanggal: string; baris: BarisProgress[]; urutan?: "terbaik" | "terburuk" | null },
+  r: {
+    tanggal: string;
+    baris: BarisProgress[];
+    urutan?: "terbaik" | "terburuk" | null;
+    batas?: number | null;
+  },
   opts: OpsiKaki = {},
 ): string {
-  const judul = judulProgress(r.urutan ?? null);
+  const judul = judulProgress(r.urutan ?? null, r.batas ?? null);
   if (r.baris.length === 0) {
     return kepala(judul, r.tanggal) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
   }

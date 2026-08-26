@@ -288,3 +288,47 @@ describe("kendala + periode LAMPAU: dua tafsir, penanya yang memilih (DECISIONS 
     expect(r.jenis === "yakin" && r.kandidat.niat).toBe("kendala");
   });
 });
+
+/* ── "5 terbaik": angka = CACAHAN baris, bukan nama lokasi (DECISIONS 449) ──
+ *
+ * Keberatan user 2026-08-26: *"pertanyaan ke wa 'progress hari ini' dan
+ * 'progress 5 terbaik' sama sekali tidak memberikan perbedaan hasil"*.
+ *
+ * Sebabnya berlapis. Yang pertama di sini: "5" tidak ada di katalog lokasi,
+ * jadi seluruh kalimat diserahkan ke AI — dan jalur AI dulu membuang
+ * superlatifnya. Yang diuji: angka bersama kata urutan dibaca sebagai
+ * cacahan, dan tanpa kata urutan ia TETAP kata asing (menebaknya lebih buruk
+ * daripada menyerah).
+ */
+describe("cacahan baris", () => {
+  const KAT = [
+    { id: "a", nama: "Kedung Mutih", desa: "Kedung Mutih", kecamatan: "Wedung", kabupaten: "Demak", provinsi: "Jawa Tengah" },
+  ];
+
+  it("bacaBatas hanya menerima 1–99", async () => {
+    const { bacaBatas } = await import("@/lib/waha/parser-niat");
+    expect(bacaBatas("progress 5 terbaik")).toBe(5);
+    expect(bacaBatas("progress 15 terburuk")).toBe(15);
+    // Tahun / nomor kontrak bukan cacahan baris.
+    expect(bacaBatas("progress 2026 terbaik")).toBeNull();
+    expect(bacaBatas("progress terbaik")).toBeNull();
+  });
+
+  it('"progress 5 terbaik" dijawab TANPA AI, lengkap dengan urutan & cacahannya', () => {
+    const r = rencanaDeterministik("progress 5 terbaik", KAT);
+    expect(r.jenis).toBe("jalan");
+    if (r.jenis === "jalan") {
+      expect(r.niat).toBe("progress");
+      expect(r.urutan).toBe("terbaik");
+      expect(r.batas).toBe(5);
+      // Angkanya TIDAK ikut terbaca sebagai nama lokasi.
+      expect(r.lokasiDisebut).toEqual([]);
+    }
+  });
+
+  it('"progress 5" tanpa kata urutan tetap diserahkan ke AI', () => {
+    // "lima teratas"? "tanggal 5"? Menebak di sini menghasilkan daftar yang
+    // dipotong diam-diam.
+    expect(rencanaDeterministik("progress 5", KAT).jenis).toBe("serahkan_ai");
+  });
+});

@@ -8,6 +8,7 @@ import type {
   BarisProgress,
 } from "./tanya-format";
 import type { LokasiKatalog } from "./tanya-niat";
+import { ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
 
 /**
  * Balasan WhatsApp berdata → BENTUK TABEL, untuk dicetak jadi PDF
@@ -34,11 +35,33 @@ import type { LokasiKatalog } from "./tanya-niat";
  * modul murni bisa diuji tanpa lingkungan lengkap.
  */
 
+/**
+ * Nada sel – kosakata yang SAMA dengan status di layar (`lifecycle.ts`),
+ * supaya "kritis" berwarna sama di layar, di PDF, dan di dokumen yang
+ * diteruskan ke PPK. Bukan palet kedua yang harus ikut diperbaiki tiap kali
+ * tone di layar berubah.
+ */
+export type NadaSel = "neutral" | "info" | "warning" | "danger" | "success";
+
 export type SelTabel = {
   teks: string;
   align?: "left" | "center" | "right";
   tebal?: boolean;
+  nada?: NadaSel;
 };
+
+/** Nada status kendala – terbuka menuntut perhatian, ditangani sudah dipegang. */
+function nadaStatusKendala(status: string): NadaSel {
+  if (status === "terbuka") return "warning";
+  if (status === "ditangani" || status === "sedang_ditangani") return "info";
+  return "neutral";
+}
+
+/** Deviasi: minus itu tertinggal, plus itu di depan rencana. */
+function nadaDeviasi(n: number | null): NadaSel {
+  if (n === null) return "neutral";
+  return n < 0 ? "danger" : "success";
+}
 
 export type KolomTabel = {
   label: string;
@@ -215,8 +238,14 @@ export function tabelKendala(
     ],
     urut(r.baris, peta, o).map((b, i) => [
       ...awal(i + 1, b.lokasi, peta),
-      { teks: b.tingkat, align: "center", tebal: b.tingkat === "kritis" },
-      { teks: b.status, align: "center" },
+      {
+        teks: b.tingkat,
+        align: "center",
+        tebal: b.tingkat === "kritis",
+        // Tingkat kendala memakai tone yang sama dengan StatusPill di layar.
+        nada: ISSUE_SEVERITY_TONE[b.tingkat as keyof typeof ISSUE_SEVERITY_TONE] ?? "neutral",
+      },
+      { teks: b.status, align: "center", nada: nadaStatusKendala(b.status) },
       { teks: `${b.umurHari} hari`, align: "center" },
       { teks: b.judul },
     ]),
@@ -243,8 +272,14 @@ export function tabelProgress(
       ...awal(i + 1, b.lokasi, peta),
       { teks: pct(b.realisasiPct), align: "right" },
       { teks: pct(b.rencanaPct), align: "right" },
-      { teks: bertanda(b.deviasiPct), align: "right", tebal: b.deviasiPct < 0 },
       {
+        teks: bertanda(b.deviasiPct),
+        align: "right",
+        tebal: b.deviasiPct < 0,
+        nada: nadaDeviasi(b.deviasiPct),
+      },
+      {
+        nada: b.itemHariIni === null ? "warning" : "neutral",
         teks:
           b.itemHariIni === null
             ? "belum ada laporan"
@@ -271,7 +306,7 @@ export function tabelDeviasi(
     ],
     urut(r.baris, peta, o).map((b, i) => [
       ...awal(i + 1, b.lokasi, peta),
-      { teks: bertanda(b.deviasiPct), align: "right", tebal: true },
+      { teks: bertanda(b.deviasiPct), align: "right", tebal: true, nada: nadaDeviasi(b.deviasiPct) },
       { teks: pct(b.realisasiPct), align: "right" },
       { teks: pct(b.rencanaPct), align: "right" },
     ]),
@@ -290,7 +325,7 @@ export function tabelKelengkapan(
     [...KOL_AWAL, { label: "Keterangan", bobot: 40 }],
     urut(r.baris, peta, o).map((b, i) => [
       ...awal(i + 1, b.lokasi, peta),
-      { teks: b.status, tebal: b.perluTindakan },
+      { teks: b.status, tebal: b.perluTindakan, nada: b.perluTindakan ? "warning" : "neutral" },
     ]),
     o,
   );
@@ -316,7 +351,11 @@ export function tabelLaporan(
     ],
     urut(r.baris, peta, o).map((b, i) => [
       ...awal(i + 1, b.lokasi, peta),
-      { teks: b.status ?? "belum ada laporan", align: "center" },
+      {
+        teks: b.status ?? "belum ada laporan",
+        align: "center",
+        nada: b.status ? "neutral" : "warning",
+      },
       { teks: String(b.itemCount), align: "center" },
       { teks: String(b.pekerjaCount), align: "center" },
       { teks: String(b.fotoCount), align: "center" },
@@ -353,6 +392,7 @@ export function tabelMingguan(
         teks: b.deviasiPct === null ? "–" : bertanda(b.deviasiPct),
         align: "right",
         tebal: b.deviasiPct !== null && b.deviasiPct < 0,
+        nada: nadaDeviasi(b.deviasiPct),
       },
       { teks: `${b.hariBerlaporan}/${b.totalHari}`, align: "center" },
     ]),

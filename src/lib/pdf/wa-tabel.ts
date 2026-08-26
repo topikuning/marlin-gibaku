@@ -27,6 +27,21 @@ import { formatTanggal } from "@/lib/format";
  * (kendala, contoh item) tidak terbaca pada lebar portrait.
  */
 
+/**
+ * Nada sel → warna teks + latar lembut.
+ *
+ * Nilainya diambil dari palet dokumen yang menyalin token layar, jadi "kritis"
+ * merah yang sama di layar dan di berkas. Latar hanya dipakai untuk nada yang
+ * BUKAN netral: kalau semua sel berlatar, tidak ada yang menonjol.
+ */
+const NADA: Record<string, { color: string; bg?: string }> = {
+  neutral: { color: PDF_COLORS.ink },
+  info: { color: PDF_COLORS.info, bg: PDF_COLORS.infoSoft },
+  warning: { color: PDF_COLORS.warningStrong, bg: PDF_COLORS.warningSoft },
+  danger: { color: PDF_COLORS.danger, bg: PDF_COLORS.dangerSoft },
+  success: { color: PDF_COLORS.successStrong, bg: PDF_COLORS.successSoft },
+};
+
 const PAGE_W = A4.height;
 const PAGE_H = A4.width;
 const CONTENT_W = PAGE_W - LANDSCAPE_MARGIN * 2;
@@ -90,11 +105,16 @@ export async function buildTabelWaPdf(t: TabelWa, opts: OpsiPdfTabel = {}): Prom
 
   let y = kop();
   for (const baris of t.baris) {
-    const cells: GridCell[] = baris.map((s, i) => ({
-      text: sanitizeText(s.teks || "–"),
-      align: s.align ?? t.kolom[i]?.align ?? "left",
-      bold: s.tebal,
-    }));
+    const cells: GridCell[] = baris.map((s, i) => {
+      const n = s.nada ? NADA[s.nada] : undefined;
+      return {
+        text: sanitizeText(s.teks || "–"),
+        align: s.align ?? t.kolom[i]?.align ?? "left",
+        bold: s.tebal,
+        color: n?.color,
+        bg: n?.bg,
+      };
+    });
     if (y + gridRowHeight(doc, cells, o) > BOTTOM) {
       doc.addPage();
       y = kop();
