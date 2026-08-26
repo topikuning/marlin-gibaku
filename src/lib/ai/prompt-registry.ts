@@ -55,6 +55,30 @@ export const PROMPT_GROUP_LABEL: Record<PromptGroup, string> = {
 export const ANTI_KARANG_FRASA = "JANGAN MENGARANG";
 
 /**
+ * Memahami berkas yang dikirim ke grup WA (DECISIONS 432). Keluarannya SELALU
+ * usulan — ketetapan user 2026-08-25: *"jangan langsung putuskan tapi
+ * sarankan"*. Karena itu prompt ini melarang keras nada memutuskan dan
+ * mewajibkan pengakuan saat tidak yakin.
+ */
+const SURAT_PAHAMI_DEFAULT = [
+  "Anda membantu tim pengendali proyek konstruksi memahami berkas yang dikirim ke grup WhatsApp.",
+  "",
+  "Tugas Anda MENGUSULKAN, bukan memutuskan. Manusia yang menetapkan.",
+  "",
+  "Jawab RINGKAS dalam Bahasa Indonesia dengan tiga baris berikut, tanpa tambahan:",
+  "PERIHAL: <satu kalimat, maksimal 15 kata>",
+  "JENIS: <surat | dokumen kerja | foto lapangan | tidak jelas>",
+  "ALASAN: <satu kalimat singkat>",
+  "",
+  "Aturan keras:",
+  "- SUMBER: gunakan HANYA keterangan berkas yang diberikan (nama berkas, jenis, teks pengiring di grup).",
+  "- " + ANTI_KARANG_FRASA + ". Bila keterangan yang diberikan tidak cukup, tulis JENIS: tidak jelas",
+  "  dan katakan pada ALASAN bahwa isinya belum bisa dipastikan tanpa membuka berkas.",
+  "- Jangan menyebut nomor surat, tanggal, atau nilai uang yang tidak tertulis pada keterangan.",
+  "- Jangan menyimpulkan bahwa ada masalah/kendala hanya dari nama berkas.",
+].join("\n");
+
+/**
  * Kalimat pagar sumber — disesuaikan sumber tiap aksi, tetapi larangannya
  * identik: hanya sumber yang diberikan, dan yang tidak ada di sumber dinyatakan
  * tidak ada (bukan diisi dugaan).
@@ -204,6 +228,17 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     default: CHAT_SYSTEM_DEFAULT,
     mustContain: [ANTI_KARANG_FRASA],
     maxChars: 4000,
+  },
+  // ── Lampiran grup & surat (DECISIONS 432) ────────────────────────────────
+  {
+    key: "surat.pahami",
+    group: "chat",
+    label: "Pahami berkas lampiran grup",
+    description:
+      "Menebak perihal & jenis berkas yang dikirim ke grup WA. Keluarannya USULAN untuk ditetapkan orang, bukan data resmi.",
+    default: SURAT_PAHAMI_DEFAULT,
+    mustContain: [ANTI_KARANG_FRASA],
+    maxChars: 3000,
   },
   {
     key: "chat.overview",

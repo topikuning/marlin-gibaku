@@ -101,6 +101,9 @@ export const CAPABILITIES = [
   "finance.approve",
   "document.view",
   "document.upload",
+  // Register surat masuk/keluar + antrean lampiran WA (DECISIONS 432).
+  "letter.view",
+  "letter.manage",
   "document.verify",
   // Koreksi metadata dokumen (jenis/fase/nomor/tanggal/tautan) — salah unggah
   // dulu menetap selamanya. DECISIONS 183.
@@ -245,6 +248,11 @@ const SITE_MANAGER: Capability[] = [
   "finding.create",
   "finding.respond",
   "document.upload",
+  // Register surat: SM ke atas. Pelaksana tidak dilibatkan — korespondensi
+  // resmi bukan pekerjaannya, dan daftar surat memuat hal yang tidak perlu
+  // dibaca seluruh lapangan.
+  "letter.view",
+  "letter.manage",
   "report.export",
   "wa.chat",
   "user.create", // bikin Pelaksana di bawahnya

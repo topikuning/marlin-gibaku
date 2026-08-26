@@ -68,3 +68,17 @@ export function wajibKanonikGrupId(raw: string): string {
   }
   return k;
 }
+
+/**
+ * Apakah chatId menunjuk GRUP? MURNI, tanpa DB — sengaja tinggal di modul ini,
+ * bukan di `config.ts` yang menyeret basis data: pagar kiriman ke nomor pribadi
+ * (DECISIONS 433) harus bisa diuji tanpa lingkungan lengkap, dan predikat yang
+ * hanya bisa diuji lewat DB akan berhenti diuji.
+ *
+ * Grup WhatsApp berdomain `@g.us`; sisanya (`@c.us`, `@lid`) adalah perorangan.
+ * Yang menentukan AKHIRAN domainnya — nama grup yang kebetulan memuat teks
+ * "@g.us" di tengah tidak boleh lolos.
+ */
+export function tujuanGrup(chatId: string): boolean {
+  return chatId.trim().toLowerCase().endsWith("@g.us");
+}

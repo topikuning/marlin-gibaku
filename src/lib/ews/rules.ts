@@ -20,7 +20,15 @@ export const EWS_SEVERITY_LABEL: Record<EwsSeverity, string> = {
   sedang: "Sedang",
 };
 
-export type EwsKategori = "progress" | "kontrak" | "laporan" | "temuan" | "kendala" | "dokumen" | "administrasi";
+export type EwsKategori =
+  | "progress"
+  | "kontrak"
+  | "laporan"
+  | "temuan"
+  | "kendala"
+  | "dokumen"
+  | "administrasi"
+  | "surat";
 
 export const EWS_KATEGORI_LABEL: Record<EwsKategori, string> = {
   progress: "Progress",
@@ -30,6 +38,7 @@ export const EWS_KATEGORI_LABEL: Record<EwsKategori, string> = {
   kendala: "Kendala",
   dokumen: "Dokumen",
   administrasi: "Administrasi",
+  surat: "Surat",
 };
 
 export type EwsWarning = {
@@ -57,6 +66,8 @@ export const AMBANG = {
   konsumsiWaktuSenjangPp: 20,
   dokKadaluarsaSegeraHari: 30,
   laporanMenggantungSedang: 3,
+  /// Surat yang menuntut jawaban dianggap kritis bila lewat tenggat sekian hari.
+  suratTelatKritisHari: 7,
 } as const;
 
 export type EwsLocationFacts = {
@@ -317,4 +328,36 @@ export function urutkanWarning(list: EwsWarning[]): EwsWarning[] {
   return [...list].sort(
     (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.objek.localeCompare(b.objek),
   );
+}
+
+
+/* ── Surat yang belum dijawab lewat tenggat (DECISIONS 432) ─────────────────
+   Inti register surat: bukan arsip yang rapi, tapi surat yang MENDIAMKAN DIRI
+   harus kelihatan. Aturan ini MURNI supaya bisa diuji tanpa DB. */
+
+export type EwsSuratFacts = {
+  letterId: string;
+  /** Nomor agenda utk penyebutan di layar ("Agenda 12/2026"). */
+  agenda: string;
+  subject: string;
+  pihak: string;
+  /** Hari keterlambatan menjawab (positif = sudah lewat). */
+  telatHari: number;
+};
+
+/** Satu peringatan per surat yang lewat tenggat jawab. MURNI. */
+export function evaluasiEwsSurat(f: EwsSuratFacts): EwsWarning[] {
+  if (f.telatHari <= 0) return [];
+  const kritis = f.telatHari >= AMBANG.suratTelatKritisHari;
+  return [
+    {
+      ruleId: "surat.belum_dijawab",
+      kategori: "surat",
+      severity: kritis ? "kritis" : "tinggi",
+      objek: `Agenda ${f.agenda} – ${f.subject}`,
+      alasan: `Surat dari ${f.pihak} menunggu jawaban, lewat tenggat ${f.telatHari} hari.`,
+      tindakan: "Balas suratnya, lalu tandai sudah dijawab di register surat.",
+      href: `/surat?sorot=${f.letterId}`,
+    },
+  ];
 }

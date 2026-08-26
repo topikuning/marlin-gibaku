@@ -9,9 +9,11 @@ import {
   AMBANG,
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
+  evaluasiEwsSurat,
   urutkanWarning,
   type EwsWarning,
 } from "./rules";
+import { PIHAK_LABEL } from "@/lib/surat/lifecycle";
 
 /**
  * PENGUMPUL FAKTA EWS (DECISIONS 426). Semua angka progres dari calculation
@@ -168,6 +170,43 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
         }),
       );
     }
+  }
+
+  /*
+   * Surat yang menunggu jawaban dan lewat tenggat (DECISIONS 432). Dihitung
+   * lintas paket dalam scope user — surat bisa saja belum menempel ke lokasi
+   * tertentu, jadi ia tidak ikut jalur per-lokasi di atas.
+   */
+  const suratTelat = await db.letter.findMany({
+    where: {
+      orgId: user.orgId,
+      needsReply: true,
+      status: { in: ["baru", "perlu_jawaban"] },
+      replyDueDate: { lt: today },
+      ...(locIds ? { OR: [{ packageId: null }, { package: { locations: { some: { id: { in: locIds } } } } }] } : {}),
+    },
+    select: {
+      id: true,
+      agendaNo: true,
+      agendaYear: true,
+      subject: true,
+      party: true,
+      partyName: true,
+      replyDueDate: true,
+    },
+    orderBy: { replyDueDate: "asc" },
+    take: 50,
+  });
+  for (const s of suratTelat) {
+    warnings.push(
+      ...evaluasiEwsSurat({
+        letterId: s.id,
+        agenda: `${s.agendaNo}/${s.agendaYear}`,
+        subject: s.subject,
+        pihak: s.partyName || PIHAK_LABEL[s.party],
+        telatHari: selisihHari(today, s.replyDueDate!),
+      }),
+    );
   }
 
   return urutkanWarning(warnings);

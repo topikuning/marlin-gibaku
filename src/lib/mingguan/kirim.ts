@@ -39,11 +39,15 @@ export function mingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode =
 /**
  * Apakah `now` jatuh pada HARI TERAKHIR sebuah minggu kontrak.
  *
- * Minggu ke-N mencakup hari ke-(N−1)×7 sampai N×7−1 sejak SPMK, jadi hari
- * terakhirnya adalah yang sisa-baginya 6. Penjadwal dipanggil harian dan
- * memakai ini sebagai satu-satunya penentu "sudah waktunya" — dengan begitu
- * harinya mengikuti tanggal SPMK tiap paket (pilihan user), bukan hari tetap
- * dalam seminggu yang bisa jatuh di tengah minggu kontrak.
+ * Penjadwal dipanggil harian dan memakai ini sebagai satu-satunya penentu
+ * "sudah waktunya", sehingga harinya SELALU ikut mode periode minggu kontrak —
+ * tidak pernah hari tetap yang jatuh di tengah minggu kontrak:
+ *
+ *   `senin_minggu` (bawaan sejak DECISIONS 429): minggu kalender berakhir hari
+ *     MINGGU, jadi seluruh paket dikirimi pada hari yang sama.
+ *   `tujuh_hari`: minggu ke-N mencakup hari ke-(N−1)×7 sampai N×7−1 sejak SPMK,
+ *     jadi hari terakhirnya yang sisa-baginya 6 — harinya berbeda antar paket
+ *     karena mengikuti tanggal SPMK masing-masing.
  */
 export function akhirMingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): boolean {
   const hari = Math.floor((tengahMalam(now) - tengahMalam(startDate)) / HARI_MS);

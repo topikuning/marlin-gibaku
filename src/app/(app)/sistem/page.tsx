@@ -637,7 +637,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Laporan progres mingguan → grup WA"
-          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket, mengikuti tanggal SPMK-nya sendiri"
+          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket – mengikuti mode periode minggu di kontraknya (Senin–Minggu atau 7 hari sejak SPMK)"
         />
         <CardBody>
           <MingguanPanel aktif={await getMingguanAktif()} />

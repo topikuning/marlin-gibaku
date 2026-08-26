@@ -19,6 +19,16 @@ export const WAHA_KEYS = {
   apiKey: "waha.api_key",
   session: "waha.session",
   webhookSecret: "waha.webhook_secret",
+  /**
+   * Boleh mengirim ke NOMOR PRIBADI (bukan grup)? "1" = boleh.
+   *
+   * Bawaannya MATI (DECISIONS 433). Ketetapan user 2026-08-25: WhatsApp
+   * memblokir nomor cukup agresif bila banyak mengirim chat pribadi, dan
+   * nomor yang terblokir menjatuhkan SELURUH kanal WA — termasuk kiriman ke
+   * grup yang justru inti pemakaian MARLIN. Karena itu pagar ini menutup
+   * secara bawaan, dan hanya dibuka sadar oleh admin di Sistem.
+   */
+  izinkanPersonal: "waha.izinkan_personal",
 } as const;
 
 export class WahaConfigError extends Error {}
@@ -92,6 +102,7 @@ export async function getWahaConfigDisplay(): Promise<{
   session: string;
   hasApiKey: boolean;
   webhookSecret: string;
+  izinkanPersonal: boolean;
 }> {
   const s = await latestSettings();
   return {
@@ -100,7 +111,14 @@ export async function getWahaConfigDisplay(): Promise<{
     hasApiKey: !!s.get(WAHA_KEYS.apiKey)?.trim(),
     // Secret webhook ditampilkan penuh (admin harus menyalinnya ke WAHA).
     webhookSecret: s.get(WAHA_KEYS.webhookSecret)?.trim() ?? "",
+    izinkanPersonal: (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1",
   };
+}
+
+/** Boleh kirim ke nomor pribadi? Bawaan: TIDAK (lihat catatan di WAHA_KEYS). */
+export async function izinKirimPersonal(): Promise<boolean> {
+  const s = await latestSettings();
+  return (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1";
 }
 
 /** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
@@ -159,6 +177,8 @@ export async function setWahaConfig(input: {
   apiKey?: string;
   session?: string;
   webhookSecret?: string;
+  /** Buka/tutup pagar kiriman ke nomor pribadi (DECISIONS 433). */
+  izinkanPersonal?: boolean;
 }): Promise<void> {
   const effectiveFrom = jakartaToday();
   const put = async (key: string, value: string) => {
@@ -172,6 +192,9 @@ export async function setWahaConfig(input: {
   if (input.baseUrl !== undefined) {
     const v = input.baseUrl.trim();
     await put(WAHA_KEYS.baseUrl, v ? normalizeWahaBaseUrl(v) : "");
+  }
+  if (input.izinkanPersonal !== undefined) {
+    await put(WAHA_KEYS.izinkanPersonal, input.izinkanPersonal ? "1" : "0");
   }
   if (input.session !== undefined) {
     await put(WAHA_KEYS.session, input.session.trim() || "default");

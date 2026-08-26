@@ -22,6 +22,8 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Mail,
+  Inbox,
 } from "lucide-react";
 import type { UserRole } from "@/generated/prisma/enums";
 import { can, type Capability } from "@/lib/authz";
@@ -56,6 +58,8 @@ export const ICONS = {
   shieldCheck: ShieldCheck,
   siren: Siren,
   gauge: Gauge,
+  mail: Mail,
+  inbox: Inbox,
 } as const;
 
 export type NavItem = {
@@ -92,6 +96,9 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Kesiapan", href: "/kesiapan", icon: "gauge", capability: "package.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
+  // Register surat + antrean lampiran grup WA (DECISIONS 432).
+  { label: "Surat", href: "/surat", icon: "mail", capability: "letter.view" },
+  { label: "Lampiran Masuk", href: "/lampiran", icon: "inbox", capability: "letter.manage" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
   // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS 193/194.
   // Route /laporan-wa dialihkan ke sana; jangan hidupkan lagi sebagai menu.

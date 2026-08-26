@@ -22337,3 +22337,165 @@ Penjaga: `tests/integration/snapshot-periode-backfill.test.ts` — rentang hasil
 backfill memuat tanggal laporan sementara weekNo/planPct/deviationPct tidak
 berubah; snapshot ber-rentang beku tidak disentuh; jalan kedua no-op; penyaji
 mencetak 5–11 Mar (uji-balik: tanpa perbaikan ia mencetak 8 Mar).
+
+## 431 — Jarak form auth: spasi tidak boleh menumpang komponen yang bisa hilang, 2026-08-25
+
+Keluhan user atas layar Masuk: *"rasanya kurang proporsional komposisi
+jaraknya."* Benar, dan sebabnya cacat kode, bukan selera.
+
+`<FieldError>` mengembalikan `null` bila tidak ada error. Kedua form auth
+menempelkan jarak antar-kelompok PADA komponen itu (`className="mb-3"`,
+`"mb-4"`), sehingga margin tersebut lenyap justru pada keadaan NORMAL —
+yang tersisa hanya `mb-1` di kolomnya. Terukur di peramban sungguhan:
+
+  jarak                  sebelum → sesudah
+  label → kolom            4px  →  4px
+  antar-kelompok kolom     4px  → 16px
+  kolom terakhir → tombol  4px  → 24px
+  padding kartu           25px  → 25px
+
+Ketiganya 4px: label, antar-kelompok, dan tombol utama diperlakukan sama
+persis, sementara bingkainya lega 25px. Itulah yang terbaca "tidak
+proporsional" — tombol Masuk menempel ke kolom password seolah bagian
+darinya.
+
+Perbaikan: jarak pindah ke PEMBUNGKUS yang selalu ada (`space-y-4` per
+kelompok kolom) dan tombol dipisah `mt-6` = padding kartu, sehingga aksi
+terbaca sebagai lapisan tersendiri. Irama menaik 4 · 16 · 24/25.
+
+Kepala halaman ikut dirapikan: tagline dan konteks proyeknya hanya berjarak
+2px (menempel) sementara blok identitas ke kartu 24px — kini 4px dan 32px.
+
+Berlaku untuk `/masuk` DAN `/ganti-password` (cacat yang sama; keduanya
+layar pertama yang ditemui pengguna lapangan). Diverifikasi dengan mengukur
+kotak elemen di peramban, bukan membaca CSS: `git stash` untuk angka
+"sebelum", lalu diukur ulang sesudahnya.
+
+Pelajaran umum: **jangan menaruh margin pada elemen yang render-nya
+bersyarat.** Jarak milik pembungkus yang selalu hadir.
+
+## 432 — Penangkap lampiran grup WA + register surat masuk/keluar, 2026-08-25
+
+Permintaan user: *"pantau semua attachment yang dikirim ke group (langsung
+abaikan kalau kamu sendiri yang kirim), pahami apa itu yang dikirim, lalu
+kamu juga perlu memutuskan apa yang harus dilakukan terhadap file itu,
+apakah itu dianggap surat atau bagaimana"* + *"untuk surat masuk keluar tadi
+kerjakan semua 1-4"*.
+
+### Temuan yang mendahului: berkas tidak pernah diunduh
+
+`WaMessage` hanya mencatat `hasMedia` + `mediaType`. Berkasnya TIDAK pernah
+diambil, dan URL media WAHA berumur pendek — jadi surat yang dikirim ke grup
+lenyap tak lama setelah dikirim. Ini ditutup lebih dulu karena ia satu-satunya
+bagian yang kehilangan data selama ditunda.
+
+### Penangkap (WaAttachment)
+
+- `ingest-parse` kini membawa `mediaUrl` + `mediaFileName` (dibaca defensif —
+  medannya berbeda antar engine WAHA).
+- Ditangkap DI JALUR WEBHOOK, karena menunda = kehilangan. `fromMe` dilewati.
+  Kegagalan menangkap tidak pernah menggagalkan penyimpanan pesan.
+- **Urutan simpan (ketetapan user)**: *"jangan langsung simpan di R2, kan bisa
+  disimpan di lokal marlin"* → *"disimpan di lokal dulu, baru kemudian saat
+  dokumen itu dikonfirmasi, baru ke R2."* Jadi: unduh → disk lokal → baris DB;
+  R2 hanya saat MANUSIA mengkonfirmasi. Akibatnya disengaja: arsip permanen
+  hanya memuat berkas yang dinyatakan berguna, bukan seluruh isi grup.
+  Catatan jujur yang disampaikan ke user: disk Railway bersifat sementara,
+  jadi berkas yang tak pernah dikonfirmasi memang boleh hilang.
+- Dedup `sha256`: satu surat sering dilempar berkali-kali di grup; ketetapan
+  manusia atas berkas identik ikut dibawa supaya tidak ditanya berulang.
+
+### Memahami — aturan dulu, AI belakangan
+
+`lampiran-klasifikasi.ts` MURNI & unit-tested: MIME + nama berkas + caption →
+`foto_lapangan | dokumen | surat_kandidat | media_lain | abaikan`. Aturan bisa
+diuji, AI tidak; AI hanya dipanggil untuk yang perlu dibaca isinya.
+
+**Keputusan desain terpenting: foto lapangan TIDAK masuk antrean persetujuan.**
+83 grup × puluhan foto/hari akan menenggelamkan antrean, dan antrean yang tidak
+dibaca sama saja dengan tidak ada. Stiker/audio/video diabaikan tanpa disimpan.
+
+### Mengusulkan, bukan memutuskan
+
+Ketetapan user: *"jangan langsung putuskan tapi sarankan"*. `saranKind` +
+`saranAlasan` (aturan) dan `saranRingkas` (AI) hanyalah usulan; `decision`
+hanya berubah lewat tindakan orang. Prompt `surat.pahami` melarang nada
+memutuskan dan mewajibkan "tidak jelas" saat keterangan tidak cukup.
+
+### Register surat (tahap 1–4 sekaligus)
+
+Surat BUKAN berkas dan BUKAN jenis masalah — ia percakapan bertanggal yang
+bisa menuntut jawaban. Karena itu entitas sendiri (`Letter`), berkasnya boleh
+menumpang `WaAttachment`/`Document`.
+
+1. **Register** — nomor agenda otomatis per org per tahun, arah, pihak,
+   nomor & tanggal surat, perihal. Arah dipilih PER SURAT, jadi sistem tidak
+   dikunci pada satu peran ("MARLIN berdiri sebagai siapa" sengaja dibuang).
+2. **Kaitan** — paket/lokasi + kategori perihal.
+3. **Utang jawab** — `needsReply` + `replyDueDate` + rantai `inReplyToId`;
+   surat lewat tenggat muncul di `/perlu-tindakan` lewat aturan EWS baru
+   (`evaluasiEwsSurat`, MURNI). Inilah yang membuat register tidak mati:
+   bukan arsip rapi, tapi surat yang mendiamkan diri jadi kelihatan.
+4. **Pemetaan** — tombol "Jadikan kendala/temuan" dengan sumber TEGAS `surat`
+   (`IssueSource.surat`, `FindingSource.surat`) + `letterId`, sehingga papan
+   terpusat tetap satu pintu dan asal-usulnya bisa dibuka (pola 392/426).
+
+Capability baru `letter.view`/`letter.manage` — SM ke atas. Pelaksana sengaja
+tidak dilibatkan: korespondensi resmi bukan pekerjaannya.
+
+Penjaga: `tests/unit/lampiran-klasifikasi.test.ts` (foto lapangan tidak
+menuntut persetujuan; surat yang difoto tetap ditanyakan; stiker diabaikan)
+dan `tests/unit/surat-lifecycle.test.ts` (transisi, utang jawab, ambang EWS).
+
+## 433 — Kalender harian tidak loncat ke atas; kiriman WA ke nomor pribadi dimatikan, 2026-08-25
+
+### 1. Klik tanggal melempar gulir ke puncak
+
+Keluhan user: *"saat kalender di pelaksanaan harian diklik, halaman tidak bisa
+fokus saja, seakan-akan langsung ke scroll ke atas lagi jika di area kalender
+bawah."* Benar, dan terukur di peramban sungguhan: `scrollY` **631 → 0**.
+
+Sebabnya `<Link>` Next.js: bawaannya `scroll: true`, yang mengembalikan gulir
+ke atas SETIAP kali beralih — termasuk saat alamatnya halaman yang SAMA dan
+hanya `?tgl=` yang berubah. Orang yang menatap baris bawah kalender kehilangan
+tempatnya, lalu harus menggulir turun lagi untuk melihat akibat ketukannya.
+
+Diperbaiki dengan `scroll={false}` pada navigasi SEHALAMAN: petak tanggal, nav
+bulan, dan chip saringan. Tautan yang benar-benar PINDAH halaman (buka
+formulir, impor) sengaja dibiarkan menggulir ke atas — itu memang halaman baru.
+Terverifikasi sesudahnya: 631 → 631, URL tetap berubah.
+
+Cacat sejenis di `/surat` dan `/lampiran` (buatan sendiri, DECISIONS 432) ikut
+dibetulkan: keduanya memakai `<a>` biasa, yang bahkan lebih buruk — memuat
+ulang seluruh halaman, bukan sekadar meloncat.
+
+### 2. Kiriman WhatsApp ke nomor pribadi dimatikan (bawaan)
+
+Ketetapan user: *"matikan dulu fitur dari web marlin untuk kirim whatsapp ke
+nomor personal langsung (non group, buat saja toggle nya di sistem). karena
+whatsapp agak agresif pemblokiran jika chat personal."*
+
+- Pagarnya duduk di **gateway** (`sendWaMessage`), bukan di tiap fitur: itulah
+  satu-satunya jalan keluar seluruh kiriman WA, jadi fitur yang ditambahkan
+  besok pun tidak bisa lolos.
+- Penolakannya **dicatat di outbox** beserta sebabnya, bukan dilempar diam-diam
+  — admin harus bisa melihat kiriman mana yang tertahan dan kenapa.
+- `tujuanGrup()` (murni) tinggal di `grup-id.ts`, BUKAN `config.ts`: predikat
+  yang hanya bisa diuji lewat DB akan berhenti diuji. Uji pertamanya gagal
+  justru karena salah tempat, dan itu yang memindahkannya.
+- Toggle di Sistem DIPISAH dari tombol "Simpan konfigurasi WhatsApp": ini
+  keputusan risiko, bukan setelan sambungan, dan menumpangkannya di sana akan
+  membuatnya ikut berubah tanpa disadari.
+
+Penjaga: `tests/unit/wa-tujuan-grup.test.ts` (grup vs orang, termasuk nama yang
+menipu) + `tests/integration/wa-pagar-personal.test.ts` (bawaan menutup,
+penolakan tercatat, kiriman GRUP tidak tersentuh, pagar bisa dibuka sadar).
+
+### 3. Teks penjadwal mingguan WA yang kontradiktif
+
+User menemukan: layar Sistem masih berbunyi *"mengikuti tanggal SPMK, jadi
+harinya berbeda antar paket"*, padahal sejak DECISIONS 429 bawaannya
+Senin–Minggu — yang justru mengirim pada hari yang SAMA (Minggu) untuk semua
+paket. Diperiksa: **logikanya sudah benar** (penjadwal meneruskan
+`weekMode` kontrak ke `akhirMingguKontrak`); yang tertinggal hanya teksnya.
+Kini teks layar dan komentar kodenya menyebut kedua mode apa adanya.

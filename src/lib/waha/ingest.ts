@@ -59,8 +59,9 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
     return { stored: false, reason: "grup tidak tertaut paket", chatId: m.chatId };
   }
 
+  let messageRowId: string | null = null;
   try {
-    await db.waMessage.upsert({
+    const row = await db.waMessage.upsert({
       where: { waMessageId: m.waMessageId },
       update: {}, // idempoten — pesan sama tidak ditimpa
       create: {
@@ -77,7 +78,9 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
         timestamp: m.timestamp,
         raw: body as Prisma.InputJsonValue,
       },
+      select: { id: true },
     });
+    messageRowId = row.id;
   } catch (err) {
     // Race idempoten: pesan sama tiba lewat `message` + `message.any` berbarengan
     // → dua INSERT dengan wa_message_id sama. Salah satu menang; yang kalah kena
@@ -88,5 +91,31 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
     throw err;
   }
   console.log(`[waha] TERSIMPAN pesan grup "${m.chatId}" → paket ${pkg.id} (from=${m.fromNumber ?? "?"})`);
+
+  /*
+   * Lampiran ditangkap SEKARANG, bukan nanti (DECISIONS 432): URL media WAHA
+   * berumur pendek, jadi menundanya berarti kehilangan berkasnya. Kiriman
+   * MARLIN sendiri dilewati — permintaan user 2026-08-25: *"langsung abaikan
+   * kalau kamu sendiri yang kirim"*.
+   *
+   * Kegagalan menangkap TIDAK boleh menggagalkan penyimpanan pesan: pesannya
+   * sudah tersimpan dan itu yang utama.
+   */
+  if (messageRowId && m.hasMedia && !m.fromMe) {
+    try {
+      const { tangkapLampiran } = await import("./lampiran-tangkap");
+      await tangkapLampiran({
+        messageId: messageRowId,
+        packageId: pkg.id,
+        mediaUrl: m.mediaUrl,
+        mimeType: m.mediaType,
+        fileName: m.mediaFileName,
+        caption: m.body,
+      });
+    } catch (err) {
+      console.error("[waha] gagal menangkap lampiran:", err);
+    }
+  }
+
   return { stored: true, packageId: pkg.id, chatId: m.chatId };
 }

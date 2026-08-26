@@ -15,6 +15,10 @@ export type ParsedWaMessage = {
   body: string;
   hasMedia: boolean;
   mediaType: string | null;
+  /** URL berkas lampiran di server WAHA (berumur pendek – harus segera diunduh). */
+  mediaUrl: string | null;
+  /** Nama berkas asli bila dibawa payload. */
+  mediaFileName: string | null;
   fromMe: boolean;
   timestamp: Date;
   /**
@@ -264,6 +268,14 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     body: str(p.body) ?? str(p.caption) ?? "",
     hasMedia: p.hasMedia === true || !!media.url || !!media.mimetype,
     mediaType: str(media.mimetype) ?? str(p.type) ?? str(data.type) ?? null,
+    // URL & nama berkas dibaca defensif: medannya berbeda antar engine WAHA.
+    mediaUrl: str(media.url) ?? str((p._data as AnyObj)?.mediaUrl) ?? str(data.mediaUrl) ?? null,
+    mediaFileName:
+      str(media.filename) ??
+      str((media as AnyObj).fileName) ??
+      str((data as AnyObj).filename) ??
+      str((data as AnyObj).fileName) ??
+      null,
     fromMe,
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
     mentionedJids: bacaMention(p, data),
