@@ -22869,3 +22869,39 @@ menghapus HSD; kalkulasi juga mengabaikan nol lama agar cakupan harga tidak
 menjadi penuh secara palsu. Harga manual dan persetujuan massal usulan AI
 ditulis bersama audit dalam satu transaksi. Nominal HSD dibatasi Rp1 sampai
 Rp1 triliun per satuan dan tetap disimpan sebagai `BigInt`.
+
+---
+
+## 442 · Impor Kurva-S: berkas ikut ke langkah "Terapkan" (2026-08-26)
+
+**Masalah.** Laporan user: di `/lokasi/…/progress` → Perbarui Kurva-S, langkah 4
+(Periksa) berhasil dan tabel selisihnya tampil, tapi menekan **Terapkan**
+menjawab *"File jadwal (.xlsx) wajib dipilih"* — padahal nama berkasnya jelas
+terpampang di layar.
+
+**Sebabnya React 19 me-RESET form setelah `action` selesai**, persis seperti
+form bawaan peramban. Jadi begitu langkah 4 tuntas, `<input type="file">`
+kosong lagi. Yang tidak ikut ter-reset adalah `useState` penyimpan NAMA berkas —
+sehingga layar tetap memperlihatkan berkas yang sebenarnya sudah tidak ada di
+input. Tombol Terapkan lalu mengirim form tanpa berkas, dan penolakan servernya
+benar; yang salah adalah kiriman itu berangkat kosong.
+
+Diukur di peramban, bukan ditebak: sesudah aksi periksa selesai,
+`input.files.length === 0`.
+
+**Perbaikan.** Berkasnya dipegang di state komponen dan dititipkan ke FormData
+lewat satu pembungkus (`denganBerkas`) yang dipakai langkah 4 DAN 5 — sehingga
+yang diterapkan persis berkas yang barusan diperiksa, bukan sisa isi input.
+Pola yang sama sudah dipakai impor rekap harian (`buildForm()`); sekarang
+seragam.
+
+**Kenapa lolos selama ini:** uji E2E `perbarui-kurva-s.spec.ts` berhenti di
+langkah 4. Uji round-trip di sana pun TIDAK bisa menangkapnya — berkas yang
+tidak disunting menghasilkan kurva identik, jadi tombol Terapkan memang tidak
+ditawarkan. Ditambah uji baru yang menyunting satu bobot mingguan lebih dulu
+supaya langkah 5 benar-benar dilalui, lalu menegaskan dua hal: input berkas
+memang kosong sesudah langkah 4, dan Terapkan tetap berhasil.
+
+Penjaga: `tests/e2e/perbarui-kurva-s.spec.ts` — dibuktikan menangkap bug:
+pembungkusnya dilepas → uji gagal dengan galat "wajib dipilih" yang sama persis
+seperti laporan user.
