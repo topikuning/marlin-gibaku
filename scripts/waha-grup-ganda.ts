@@ -19,6 +19,7 @@
  */
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { normalizeDatabaseUrl } from "../src/lib/db-url";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -26,7 +27,7 @@ if (!url) {
   process.exit(1);
 }
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: normalizeDatabaseUrl(url) }) });
 
 /** Cerminan SQL migrasi — bukan `kanonikGrupId`, supaya yang diperiksa adalah
  *  bentuk yang benar-benar akan dihasilkan migrasi itu. */

@@ -97,6 +97,27 @@ describe("idempotensi antrean", () => {
     expect(await db.waReplyJob.count()).toBe(1);
   });
 
+  it("event kedua TIDAK mencoba INSERT lagi – log produksi tidak dikotori", async () => {
+    /*
+     * WAHA mengirim `message` DAN `message.any` untuk pesan yang sama, jadi
+     * tabrakan indeks unik bukan kejadian langka — ia terjadi untuk SETIAP
+     * pesan masuk yang sehat. Membiarkannya selalu menabrak membuat PostgreSQL
+     * mencatat `ERROR: duplicate key value violates unique constraint
+     * "wa_reply_jobs_wa_message_id_key"` di log produksi tiap pesan (terlihat
+     * 2026-08-26), dan log yang penuh galat palsu menyembunyikan galat asli.
+     */
+    const ev = event();
+    await antreJawaban(ev);
+    const mata = vi.spyOn(db.waReplyJob, "create");
+    try {
+      const b = await antreJawaban({ ...ev, event: "message.any" });
+      expect(b).toMatchObject({ antre: true, baru: false });
+      expect(mata).not.toHaveBeenCalled();
+    } finally {
+      mata.mockRestore();
+    }
+  });
+
   it("dua event bersamaan (balapan INSERT) tetap satu pekerjaan", async () => {
     /*
      * Diselesaikan basis data lewat indeks unik, BUKAN oleh pemeriksaan

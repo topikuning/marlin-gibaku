@@ -65,6 +65,23 @@ export async function antreJawaban(body: unknown): Promise<HasilAntre> {
   if (!m) return { antre: false, alasan: "payload tidak dikenali" };
   if (m.fromMe) return { antre: false, alasan: "pesan dari MARLIN sendiri" };
 
+  /*
+   * Jalan cepat: WAHA mengirim `message` DAN `message.any` untuk pesan yang
+   * sama, jadi event kedua BUKAN kejadian langka — ia datang untuk setiap
+   * pesan. Membiarkannya selalu menabrak indeks unik membuat PostgreSQL
+   * mencatat `ERROR: duplicate key value violates unique constraint` di log
+   * produksi untuk tiap pesan masuk yang sehat; log yang penuh galat palsu
+   * membuat galat sungguhan tidak terlihat.
+   *
+   * Pemeriksaan ini TIDAK menggantikan pagar unik — ia tetap punya celah
+   * balapan, dan celah itu tetap ditutup basis data di `catch` di bawah.
+   */
+  const sudahAda = await db.waReplyJob.findUnique({
+    where: { waMessageId: m.waMessageId },
+    select: { id: true },
+  });
+  if (sudahAda) return { antre: true, baru: false, jobId: sudahAda.id };
+
   try {
     const job = await db.waReplyJob.create({
       data: {

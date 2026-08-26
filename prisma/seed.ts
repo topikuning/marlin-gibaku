@@ -7,6 +7,7 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { runDemoSeed } from "../src/lib/seed/demo";
+import { normalizeDatabaseUrl } from "../src/lib/db-url";
 
 try {
   process.loadEnvFile();
@@ -19,7 +20,7 @@ if ((process.env.APP_ENV ?? "development") === "production") {
   process.exit(1);
 }
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: normalizeDatabaseUrl(process.env.DATABASE_URL ?? "") }) });
 
 runDemoSeed(db)
   .catch((e) => {
