@@ -1,17 +1,23 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type {
   CellClassParams,
   CellValueChangedEvent,
   ColDef,
   ValueFormatterParams,
 } from "ag-grid-community";
-import { Banner } from "@/components/ui";
+import { Check, Sparkles } from "lucide-react";
+import { Banner, Button } from "@/components/ui";
 import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
-import { simpanHargaSel } from "@/lib/ahsp/hsd-actions";
+import {
+  mintaUsulanHargaAiAction,
+  simpanHargaSel,
+  terapkanUsulanHargaAiAction,
+} from "@/lib/ahsp/hsd-actions";
 
 /**
  * Pengisian HARGA SATUAN DASAR memakai MarlinGrid (DECISIONS 328).
@@ -50,34 +56,62 @@ type Baris = BarisHargaRow & {
   hargaNum: number | null;
   biayaNum: number | null;
   rekomendasiTeks: string;
+  usulanAiNum: number | null;
+  keyakinanAi: string;
+  alasanAi: string;
 };
+
+type UsulanAi = {
+  kategori: string;
+  nama: string;
+  satuan: string;
+  harga: string;
+  keyakinan: "rendah" | "sedang" | "tinggi";
+  alasan: string;
+};
+
+const kunci = (r: { kategori: string; nama: string; satuan: string }) =>
+  JSON.stringify([r.kategori, r.nama, r.satuan.trim().toLowerCase()]);
 
 export function HargaPanel({
   locationId,
   slug,
   rows,
   canInput,
+  canUseAi,
 }: {
   locationId: string;
   slug: string;
   rows: BarisHargaRow[];
   canInput: boolean;
+  canUseAi: boolean;
 }) {
+  const router = useRouter();
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
-  const [, mulai] = useTransition();
+  const [, mulaiSimpan] = useTransition();
+  const [aiPending, mulaiAi] = useTransition();
+  const [terapkanPending, mulaiTerapkan] = useTransition();
   const [data, setData] = useState<BarisHargaRow[]>(rows);
+  const [modelAi, setModelAi] = useState<string | null>(null);
+  const [usulanAi, setUsulanAi] = useState<Map<string, UsulanAi>>(new Map());
 
   const baris: Baris[] = useMemo(
     () =>
-      data.map((r) => ({
-        ...r,
-        hargaNum: r.harga === null ? null : Number(r.harga),
-        biayaNum: r.biaya === null ? null : Number(r.biaya),
-        rekomendasiTeks: r.rekomendasi
-          .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
-          .join("  |  "),
-      })),
-    [data],
+      data.map((r) => {
+        const usulan = usulanAi.get(kunci(r));
+        return {
+          ...r,
+          hargaNum: r.harga === null ? null : Number(r.harga),
+          biayaNum: r.biaya === null ? null : Number(r.biaya),
+          rekomendasiTeks: r.rekomendasi
+            .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
+            .join("  |  "),
+          usulanAiNum: usulan ? Number(usulan.harga) : null,
+          keyakinanAi: usulan ? `Keyakinan ${usulan.keyakinan}` : "",
+          alasanAi: usulan?.alasan ?? "",
+        };
+      }),
+    [data, usulanAi],
   );
 
   const kolom: ColDef<Baris>[] = useMemo(
@@ -114,7 +148,26 @@ export function HargaPanel({
         editable: canInput,
         cellClass: () => cn("tabular text-right", canInput && "bg-[var(--color-surface-muted)]"),
       },
+      {
+        ...rupiahCol<Baris>("usulanAiNum", "Usulan AI"),
+        width: 150,
+        cellClass: "tabular text-right text-brand",
+      },
+      {
+        field: "keyakinanAi",
+        headerName: "Keyakinan AI",
+        width: 130,
+        cellClass: "text-ink-muted",
+      },
       { ...rupiahCol<Baris>("biayaNum", "Biaya"), width: 160 },
+      {
+        field: "sumber",
+        headerName: "Sumber harga",
+        minWidth: 190,
+        flex: 1,
+        filter: true,
+        cellClass: "text-ink-muted",
+      },
       {
         field: "rekomendasiTeks",
         headerName: "Harga di lokasi lain",
@@ -123,21 +176,110 @@ export function HargaPanel({
         cellClass: "text-ink-muted",
         tooltipField: "rekomendasiTeks",
       },
+      {
+        field: "alasanAi",
+        headerName: "Dasar usulan AI",
+        flex: 1,
+        minWidth: 260,
+        cellClass: "text-ink-muted",
+        tooltipField: "alasanAi",
+      },
     ],
     [canInput],
   );
 
   const belum = data.filter((r) => r.harga === null).length;
+  const daftarUsulan = [...usulanAi.values()];
 
   return (
     <div className="space-y-3">
       {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
 
-      {canInput ? (
-        <p className="text-[13px] text-ink-muted">
-          Klik sel <strong>Harga satuan</strong> lalu ketik angkanya – Enter pindah ke baris
-          berikutnya, seperti Excel. Kosongkan selnya untuk menghapus harga.
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-inset px-3 py-2">
+        <p className="min-w-[240px] flex-1 text-[13px] text-ink-muted">
+          {canInput ? (
+            <>Klik sel <strong>Harga satuan</strong> untuk input manual. Enter berpindah ke baris berikutnya.</>
+          ) : (
+            <>Harga hanya dapat diubah oleh pengguna dengan hak input keuangan.</>
+          )}
         </p>
+        {canInput && canUseAi && belum > 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={aiPending}
+            onClick={() => {
+              setPesan(null);
+              mulaiAi(async () => {
+                const hasil = await mintaUsulanHargaAiAction({ locationId, slug });
+                if (!hasil.ok) {
+                  setPesan({ tone: "error", teks: hasil.error });
+                  return;
+                }
+                setModelAi(hasil.model);
+                setUsulanAi(new Map(hasil.usulan.map((u) => [kunci(u), u])));
+                setPesan({
+                  tone: "success",
+                  teks: `${hasil.usulan.length} draf harga dari ${hasil.model} siap direview. Belum ada yang disimpan.`,
+                });
+              });
+            }}
+          >
+            <Sparkles aria-hidden className="size-3.5" />
+            Minta estimasi AI
+          </Button>
+        ) : null}
+        {canInput && daftarUsulan.length > 0 ? (
+          <Button
+            type="button"
+            size="sm"
+            loading={terapkanPending}
+            onClick={() => {
+              setPesan(null);
+              mulaiTerapkan(async () => {
+                const hasil = await terapkanUsulanHargaAiAction({
+                  locationId,
+                  slug,
+                  usulan: daftarUsulan.map(({ kategori, nama, satuan, harga }) => ({
+                    kategori,
+                    nama,
+                    satuan,
+                    harga,
+                  })),
+                });
+                if (!hasil.ok) {
+                  setPesan({ tone: "error", teks: hasil.error });
+                  return;
+                }
+                const tersimpan = new Map(hasil.tersimpan.map((h) => [kunci(h), h]));
+                setData((lama) =>
+                  lama.map((r) => {
+                    const h = tersimpan.get(kunci(r));
+                    return h ? { ...r, harga: h.harga, biaya: h.biaya, sumber: h.sumber } : r;
+                  }),
+                );
+                setUsulanAi(new Map());
+                setPesan({
+                  tone: "success",
+                  teks: `${hasil.tersimpan.length} usulan AI diterima dan masuk kalkulasi RAPL.`,
+                });
+                router.refresh();
+              });
+            }}
+          >
+            <Check aria-hidden className="size-3.5" />
+            Pakai {daftarUsulan.length} usulan
+          </Button>
+        ) : null}
+      </div>
+
+      {daftarUsulan.length > 0 ? (
+        <Banner
+          tone="warning"
+          title={`Usulan ${modelAi ?? "AI"} belum tersimpan`}
+          description="Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan. Angka ini bukan survei pasar atau penawaran pemasok; tombol Pakai usulan adalah persetujuan manusia untuk memasukkannya ke RAPL."
+        />
       ) : null}
 
       <MarlinGrid<Baris>
@@ -156,7 +298,7 @@ export function HargaPanel({
           const d = e.data;
           const teks = e.newValue == null || e.newValue === "" ? "" : String(e.newValue);
           setPesan(null);
-          mulai(async () => {
+          mulaiSimpan(async () => {
             const hasil = await simpanHargaSel({
               locationId,
               slug,
@@ -164,6 +306,7 @@ export function HargaPanel({
               nama: d.nama,
               satuan: d.satuan,
               harga: teks,
+              sumber: teks === "" ? null : "Input manual",
             });
             if (!hasil.ok) {
               setPesan({ tone: "error", teks: hasil.error });
@@ -177,10 +320,8 @@ export function HargaPanel({
                   ? {
                       ...r,
                       harga: hasil.harga,
-                      biaya:
-                        hasil.harga === null
-                          ? null
-                          : String(Math.round(r.jumlah * Number(hasil.harga))),
+                      biaya: hasil.biaya,
+                      sumber: hasil.sumber,
                     }
                   : r,
               ),
@@ -192,6 +333,7 @@ export function HargaPanel({
                   ? `Harga "${d.nama}" dikosongkan.`
                   : `Harga "${d.nama}" disimpan.`,
             });
+            router.refresh();
           });
         }}
       />
@@ -204,7 +346,7 @@ export function HargaPanel({
   );
 }
 
-/** Ringkasan biaya + perbandingan dengan kontrak. */
+/** Ringkasan biaya + potensi margin terhadap nilai RAB aktif. */
 export function RingkasBiaya({
   totalBiaya,
   berharga,
@@ -217,13 +359,13 @@ export function RingkasBiaya({
   belumBerharga: number;
   perKategori: { kategori: string; biaya: string; berharga: number; total: number }[];
   perbandingan: {
-    nilaiKontrak: string;
-    selisih: string;
-    selisihPersen: number;
+    nilaiProyek: string;
+    margin: string;
+    marginPersen: number;
     cakupanNilai: number;
     cakupanHarga: number;
     utuh: boolean;
-  } | null;
+  };
 }) {
   return (
     <div className="space-y-3">
@@ -243,14 +385,13 @@ export function RingkasBiaya({
         ))}
       </div>
 
-      {perbandingan ? (
-        <div
-          className={cn(
-            "rounded-lg border p-3",
-            perbandingan.utuh ? "border-line bg-surface" : "border-warning-border bg-warning-soft",
-          )}
-        >
-          <div className="grid gap-3 sm:grid-cols-3">
+      <div
+        className={cn(
+          "rounded-lg border p-3",
+          perbandingan.utuh ? "border-line bg-surface" : "border-warning-border bg-warning-soft",
+        )}
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya RAPL</p>
               <p className="tabular text-lg font-semibold text-ink">
@@ -258,48 +399,46 @@ export function RingkasBiaya({
               </p>
             </div>
             <div>
-              <p className="text-[12px] tracking-wide text-ink-muted uppercase">Nilai kontrak</p>
+              <p className="text-[12px] tracking-wide text-ink-muted uppercase">Nilai RAB aktif</p>
               <p className="tabular text-lg font-semibold text-ink">
-                {formatRupiah(BigInt(perbandingan.nilaiKontrak))}
+                {formatRupiah(BigInt(perbandingan.nilaiProyek))}
               </p>
+              <p className="text-[11px] text-ink-muted">nilai proyek pra-PPN</p>
             </div>
             <div>
-              <p className="text-[12px] tracking-wide text-ink-muted uppercase">Selisih</p>
+              <p className="text-[12px] tracking-wide text-ink-muted uppercase">
+                {perbandingan.utuh ? "Potensi margin" : "Selisih sementara"}
+              </p>
               <p
                 className={cn(
                   "tabular text-lg font-semibold",
-                  BigInt(perbandingan.selisih) >= 0n ? "text-success" : "text-danger",
+                  BigInt(perbandingan.margin) >= 0n ? "text-success" : "text-danger",
                 )}
               >
-                {formatRupiah(BigInt(perbandingan.selisih))}
+                {formatRupiah(BigInt(perbandingan.margin))}
                 <span className="ms-1 text-[13px] font-normal">
-                  ({formatPct(perbandingan.selisihPersen, 1)})
+                  ({formatPct(perbandingan.marginPersen, 1)})
                 </span>
               </p>
             </div>
-          </div>
-
-          {!perbandingan.utuh ? (
-            <p className="mt-2.5 border-t border-warning-border pt-2 text-[13px] text-ink">
-              <strong>Selisih ini BELUM bisa dibaca sebagai keuntungan.</strong> Ia dihitung dari{" "}
-              {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan kebutuhan, dan
-              baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang berharga
-              {belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk
-              akan MENGECILKAN selisihnya, bukan membesarkan.
-            </p>
-          ) : (
-            <p className="mt-2.5 border-t border-line pt-2 text-[13px] text-ink-muted">
-              Seluruh nilai RAB masuk hitungan dan seluruh {berharga} sumber daya sudah berharga.
-            </p>
-          )}
         </div>
-      ) : (
-        <Banner
-          tone="info"
-          title="Lokasi ini belum punya kontrak"
-          description="Biaya RAPL tetap dihitung, tapi belum ada nilai kontrak untuk dibandingkan."
-        />
-      )}
+
+        {!perbandingan.utuh ? (
+          <p className="mt-2.5 border-t border-warning-border pt-2 text-[13px] text-ink">
+            <strong>Selisih ini BELUM bisa dibaca sebagai keuntungan.</strong> Ia dihitung dari{" "}
+            {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan kebutuhan, dan
+            baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang berharga
+            {belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk
+            akan MENGECILKAN selisihnya, bukan membesarkan.
+          </p>
+        ) : (
+          <p className="mt-2.5 border-t border-line pt-2 text-[13px] text-ink-muted">
+            Seluruh nilai RAB masuk hitungan dan seluruh {berharga} sumber daya sudah berharga.
+            Angka ini adalah potensi margin pelaksanaan, bukan profit neto setelah pajak dan biaya
+            lain di luar breakdown RAPL.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

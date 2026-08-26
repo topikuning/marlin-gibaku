@@ -22737,3 +22737,135 @@ pengawas yang isinya hanya titik-titik sebelumnya terlihat menggantung di pojok.
 Diverifikasi dengan merender KEDUA jalur: HTML lewat peramban, PDF lewat
 `buildHarianKkpPdf` dengan logo tiruan lalu gambarnya diperiksa — empat slot
 logo (sampul x2, kop x2) terisi di kedua jalur, dan isi kotak terpusat.
+
+---
+
+## 439 · Pagar nomor pribadi jadi SATU ARAH (2026-08-26)
+
+**Masalah.** Laporan user: *"aku kirim wa ke marlin, kenapa marlin tidak
+merespon?"* Pagar DECISIONS 433 duduk di gateway — satu-satunya pintu keluar
+semua kiriman WhatsApp — sehingga ia ikut menahan BALASAN atas pesan yang
+masuk. Jalur tanya-jawab WhatsApp (`tanya.ts`) mati total untuk chat pribadi.
+
+Penempatan di gateway itu benar (tidak ada fitur yang bisa lolos), yang salah
+adalah pagarnya tidak membedakan arah.
+
+**Keputusan.** Yang ditahan hanya kiriman yang DIMULAI MARLIN: penjadwal,
+tombol di layar, laporan terjadwal. Balasan atas pesan yang masuk tetap
+berjalan — yang dilarang WhatsApp adalah menyapa duluan, bukan menjawab orang
+yang menyapa kita.
+
+Dua lapis, karena satu tidak cukup:
+1. `KirimWaInput.balasanMasuk` — penanda yang HANYA dipasang `balasWa()`,
+   fungsi tersendiri yang dipakai penjawab pesan masuk. Jalur lain tidak bisa
+   lewat tanpa sadar mengubah fungsi yang dipanggilnya.
+2. Penandanya **dibuktikan ke data**: harus benar-benar ada pesan MASUK
+   (`fromMe: false`) dari chat itu dalam 24 jam terakhir. Penanda yang hanya
+   dipercaya begitu saja akan dipasang jalur mana pun kelak, dan pagarnya bocor
+   tanpa ada yang sadar. Jendela 24 jam mengikuti kebiasaan percakapan:
+   balasan yang datang berhari-hari kemudian sudah bukan balasan lagi.
+
+Penjaga: `tests/integration/wa-pagar-personal.test.ts` — penanda palsu tanpa
+pesan masuk DITOLAK, balasan sah lewat, kiriman inisiatif MARLIN ke chat yang
+sama tetap ditahan, dan balasan di luar jendela 24 jam ditolak.
+
+---
+
+## 440 · Lampiran berkas terbaca LINTAS ENGINE WAHA (2026-08-26)
+
+**Masalah.** Laporan user: PDF yang dikirim ke grup TIDAK tertangkap, padahal
+stiker di menit yang sama tertangkap.
+
+**Sebabnya bukan setelan WAHA, melainkan parser kita.** `hasMedia` hanya dibaca
+dari `payload.hasMedia`, `payload.media.url`, dan `payload.media.mimetype`.
+Berkas yang tidak terbaca di situ tidak pernah memanggil `tangkapLampiran()`
+sama sekali — jadi tidak muncul di antrean Lampiran Masuk bahkan sebagai
+kegagalan. Hilang tanpa jejak, yang lebih buruk daripada gagal dengan sebab.
+
+**Ketetapan user 2026-08-26:** *"kenapa harus bingung noweb atau bukan, saat
+ini aku pakai webjs. seharusnya apa pun enginenya kamu bisa handle."* Betul —
+engine bisa berganti tanpa kode ini tahu, jadi pembacaannya TIDAK boleh
+bergantung pada engine mana yang sedang dipakai. Yang dibaca adalah setiap
+BENTUK payload yang pernah membawa berkas, bukan satu engine:
+`payload.media.*`, `payload._data.mimetype`/`filename` (WEBJS),
+`_data.message.<jenis>Message` termasuk `documentWithCaptionMessage` yang satu
+lapis lebih dalam (NOWEB), dan `type` yang ada di keduanya.
+
+**Perbaikan.**
+1. Blok media bersarang dibaca, termasuk yang terbungkus keterangan.
+2. Jenis pesan (`document`/`image`/`video`/`audio`/`sticker`) dipakai sebagai
+   penanda cadangan LINTAS ENGINE: kalau jenisnya saja sudah menyatakan ada
+   berkas, itu cukup untuk masuk antrean.
+3. `mediaType` dan `mediaFileName` ikut dibaca dari blok itu (`mimetype`,
+   `fileName`, `title`).
+4. **`url` di dalam blok bersarang SENGAJA tidak dipakai** sebagai `mediaUrl`: itu
+   URL CDN WhatsApp yang isinya terenkripsi dan butuh kunci media. Memakainya
+   akan menyimpan berkas rusak yang terlihat berhasil — lebih buruk daripada
+   mengaku tidak punya URL.
+5. Karena itu, bila WAHA tidak menyertakan URL unduhannya, barisnya tetap
+   dibuat dengan sebab yang MENYEBUT JALAN KELUARNYA: nyalakan
+   `WHATSAPP_DOWNLOAD_MEDIA`, dan pastikan `WHATSAPP_FILES_MIMETYPES` tidak
+   menyaring jenis berkas itu.
+
+Penjaga: `tests/unit/wa-ingest-parse.test.ts` (7 uji baru, menutup bentuk WEBJS
+dan NOWEB sekaligus) — dibuktikan menangkap bug: penanda lama dikembalikan →
+uji gagal.
+
+---
+
+## 441 · RAPL menjadi workspace estimasi biaya; AI hanya mengusulkan HSD (2026-08-26)
+
+Arahan user: RAPL harus membaca RAB aktif, memecah kebutuhan proyek secara
+rinci (material, tenaga, alat, dan kebutuhan lain), menerima harga manual atau
+bantuan AI, lalu menunjukkan potensi profit proyek.
+
+### Orientasi halaman
+
+Pekerjaan teknis pemetaan AHSP tetap wajib, tetapi tidak lagi menjadi wajah
+utama RAPL. Halaman dibagi menjadi tiga subbagian berbasis URL:
+
+1. **Ringkasan estimasi** – nilai RAB aktif, cakupan breakdown, cakupan harga,
+   biaya pelaksanaan, dan potensi margin.
+2. **Kebutuhan & harga** – satu grid sumber daya yang menyatukan volume
+   kebutuhan, HSD manual, rekomendasi lokasi lain, biaya, sumber harga, serta
+   draf AI.
+3. **Validasi breakdown** – pemetaan RAB→AHSP dan daftar yang tidak masuk
+   hitungan untuk pengguna yang perlu memperbaiki dasar angkanya.
+
+### Basis margin
+
+RAPL adalah halaman per-lokasi. Nilai kontrak berada pada tingkat paket dan
+bisa mencakup beberapa lokasi; membandingkan biaya satu lokasi dengan nilai
+kontrak seluruh paket membesarkan margin secara palsu. Pembandingnya sekarang
+**nilai RAB aktif lokasi (pra-PPN)**:
+
+    potensi margin pelaksanaan = nilai RAB aktif lokasi − biaya RAPL
+
+Rumus tetap hanya hidup di `src/lib/ahsp/rapl-calc.ts`. Selama cakupan
+breakdown atau harga belum penuh, layar/cetak/Excel wajib menyebutnya
+**selisih sementara**, bukan profit. Saat penuh pun labelnya "potensi margin
+pelaksanaan", bukan profit neto setelah pajak atau biaya di luar RAPL.
+
+### Pengecualian terkontrol untuk AI
+
+DECISIONS 193 melarang AI menjadi sumber angka final. Untuk HSD, AI sekarang
+boleh memberi **draf estimasi** dengan syarat:
+
+- hanya untuk komponen yang harganya masih kosong;
+- respons terstruktur dan divalidasi server;
+- draf tampil terpisah dari harga yang dipakai kalkulasi;
+- tidak pernah disimpan otomatis;
+- pengguna berhak `ai.generate` dan `finance.input` harus menekan persetujuan;
+- sumber tersimpan berbunyi "Usulan AI – disetujui pengguna";
+- UI menyatakan bahwa hasilnya bukan survei pasar atau penawaran pemasok.
+
+Harga manual, rekomendasi lokasi lain, dan draf AI tetap HSD per lokasi. Tidak
+ada satu pun jalur yang mengubah koefisien AHSP atau formula kebutuhan.
+
+### Integritas input HSD
+
+Harga kosong atau nol berarti **belum berharga**, bukan gratis. Input tersebut
+menghapus HSD; kalkulasi juga mengabaikan nol lama agar cakupan harga tidak
+menjadi penuh secara palsu. Harga manual dan persetujuan massal usulan AI
+ditulis bersama audit dalam satu transaksi. Nominal HSD dibatasi Rp1 sampai
+Rp1 triliun per satuan dan tetap disimpan sebagai `BigInt`.

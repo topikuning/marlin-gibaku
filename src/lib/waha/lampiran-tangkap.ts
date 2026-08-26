@@ -100,7 +100,13 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
       data: {
         ...dasar,
         status: "gagal",
-        failReason: "Payload webhook tidak memuat URL berkas – tidak bisa diunduh.",
+        failReason:
+          "Payload webhook tidak memuat URL berkas – tidak bisa diunduh. " +
+          "Di WAHA, unduh media MENYALA secara bawaan, jadi sebab tersering adalah " +
+          "WHATSAPP_FILES_MIMETYPES yang diisi (kalau diisi, HANYA jenis itu yang diunduh – " +
+          "contoh bawaannya image/jpeg,image/png, yang membuang PDF). Kosongkan variabel itu, " +
+          "atau tambahkan application/pdf. Periksa juga WHATSAPP_DOWNLOAD_MEDIA tidak diset false " +
+          "dan WAHA_MEDIA_STORAGE terpasang.",
       },
       select: { id: true },
     });

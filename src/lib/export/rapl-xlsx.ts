@@ -231,10 +231,10 @@ function tulisRingkasan(
     ];
     if (p) {
       barisBiaya.push(
-        ["Nilai kontrak", Number(p.nilaiKontrak), "rupiah", "pembanding"],
+        ["Nilai RAB aktif", Number(p.nilaiProyek), "rupiah", "nilai proyek lokasi, pra-PPN"],
         [
-          "Selisih (kontrak − RAPL)",
-          Number(p.selisih),
+          p.keandalan.utuh ? "Potensi margin pelaksanaan" : "Selisih sementara",
+          Number(p.margin),
           "rupiah",
           p.keandalan.utuh
             ? "Seluruh nilai RAB masuk hitungan dan seluruh sumber daya sudah berharga."

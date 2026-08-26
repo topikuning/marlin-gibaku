@@ -245,6 +245,8 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
         : null;
 
   const media = (p.media ?? {}) as AnyObj;
+  const dalam = blokMediaDalam(p);
+  const jenis = (str(p.type) ?? str(data.type) ?? "").toLowerCase();
 
   return {
     waMessageId,
@@ -266,13 +268,23 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
       str(data.senderName) ??
       null,
     body: str(p.body) ?? str(p.caption) ?? "",
-    hasMedia: p.hasMedia === true || !!media.url || !!media.mimetype,
-    mediaType: str(media.mimetype) ?? str(p.type) ?? str(data.type) ?? null,
+    hasMedia:
+      p.hasMedia === true || !!media.url || !!media.mimetype || dalam !== null || JENIS_MEDIA.has(jenis),
+    mediaType:
+      str(media.mimetype) ??
+      str(dalam?.mimetype) ??
+      str((p._data as AnyObj)?.mimetype) ??
+      str(p.type) ??
+      str(data.type) ??
+      null,
     // URL & nama berkas dibaca defensif: medannya berbeda antar engine WAHA.
     mediaUrl: str(media.url) ?? str((p._data as AnyObj)?.mediaUrl) ?? str(data.mediaUrl) ?? null,
     mediaFileName:
       str(media.filename) ??
       str((media as AnyObj).fileName) ??
+      str(dalam?.fileName) ??
+      str(dalam?.title) ??
+      str((p._data as AnyObj)?.filename) ??
       str((data as AnyObj).filename) ??
       str((data as AnyObj).fileName) ??
       null,
@@ -283,6 +295,50 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     balasanKePesanId: bacaBalasanKePesanId(p, data),
     senderLid: isLid(senderJid) ? senderJid : null,
   };
+}
+
+/**
+ * Jenis pesan yang MEMBAWA berkas. Dipakai sebagai penanda cadangan ketika
+ * payload tidak menyetel `hasMedia` maupun `media` — persis yang terjadi pada
+ * PDF yang lolos 2026-08-26 sementara stiker di menit yang sama tertangkap.
+ *
+ * Sengaja lintas-engine: `type` ada di WEBJS maupun NOWEB, jadi penanda ini
+ * bekerja tanpa perlu tahu engine mana yang sedang dipakai.
+ */
+const JENIS_MEDIA = new Set([
+  "image",
+  "video",
+  "audio",
+  "voice",
+  "ptt",
+  "document",
+  "sticker",
+]);
+
+/**
+ * Blok media yang ditaruh di `_data.message.<jenis>Message` alih-alih di
+ * `media`.
+ *
+ * PDF berketerangan datang terbungkus lagi sebagai `documentWithCaptionMessage`
+ * — satu lapis lebih dalam. Tidak membacanya berarti berkasnya tidak pernah
+ * terlihat sistem sama sekali, bukan sekadar gagal diunduh.
+ *
+ * `url` DI DALAM blok ini sengaja TIDAK dipakai sebagai `mediaUrl`: itu URL
+ * CDN WhatsApp yang isinya terenkripsi dan butuh kunci media untuk dibuka.
+ * Memakainya akan menyimpan berkas rusak yang terlihat berhasil.
+ */
+function blokMediaDalam(p: AnyObj): AnyObj | null {
+  const msg = ((p._data as AnyObj)?.message ?? {}) as AnyObj;
+  const langsung =
+    (msg.documentMessage as AnyObj) ??
+    (msg.imageMessage as AnyObj) ??
+    (msg.videoMessage as AnyObj) ??
+    (msg.audioMessage as AnyObj) ??
+    (msg.stickerMessage as AnyObj);
+  if (langsung && typeof langsung === "object") return langsung;
+  const berketerangan = ((msg.documentWithCaptionMessage as AnyObj)?.message ?? {}) as AnyObj;
+  const dalam = berketerangan.documentMessage as AnyObj | undefined;
+  return dalam && typeof dalam === "object" ? dalam : null;
 }
 
 function isLid(jid: string | null): boolean {

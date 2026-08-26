@@ -143,6 +143,11 @@ export function WahaConfigPanel({
           mematikan kiriman ke GRUP – yang justru inti pemakaian MARLIN. Karena itu jalur ini
           dimatikan secara bawaan. Kiriman ke grup tidak terpengaruh sama sekali.
         </p>
+        <p className="text-[13px] text-ink-muted">
+          Pagar ini <strong>satu arah</strong>: yang ditahan hanya kiriman yang DIMULAI MARLIN
+          (penjadwal, tombol di layar). Kalau orang menyapa MARLIN lewat WhatsApp, balasannya tetap
+          berjalan – yang dilarang WhatsApp adalah menyapa duluan, bukan menjawab yang menyapa kita.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             tone={initial.izinkanPersonal ? "warning" : "success"}

@@ -293,7 +293,14 @@ export function kunciSumberDaya(kategori: string, nama: string, satuan: string):
  * padahal separuh isinya belum berharga adalah cara paling mudah salah menawar.
  */
 export function hitungBiaya(kebutuhan: Kebutuhan[], harga: HargaSatuan[]): HasilBiaya {
-  const peta = new Map(harga.map((h) => [kunciSumberDaya(h.kategori, h.nama, h.satuan), h.harga]));
+  // Harga nol diperlakukan sebagai belum diketahui, bukan sumber daya gratis.
+  // Ini juga menjaga data lama yang mungkin tersimpan sebelum input HSD
+  // menghapus nilai nol secara eksplisit.
+  const peta = new Map(
+    harga
+      .filter((h) => h.harga > 0n)
+      .map((h) => [kunciSumberDaya(h.kategori, h.nama, h.satuan), h.harga]),
+  );
 
   const baris: BarisBiaya[] = kebutuhan.map((k) => {
     const h = peta.get(kunciSumberDaya(k.kategori, k.nama, k.satuan)) ?? null;
@@ -339,12 +346,12 @@ export function hitungBiaya(kebutuhan: Kebutuhan[], harga: HargaSatuan[]): Hasil
 export type Perbandingan = {
   /** Total biaya pelaksanaan menurut RAPL (hanya yang sudah berharga). */
   biayaRapl: bigint;
-  /** Nilai kontrak / HPS yang dibandingkan. */
-  nilaiKontrak: bigint;
-  /** kontrak − RAPL. Positif = kontrak lebih besar. */
-  selisih: bigint;
-  /** selisih ÷ kontrak × 100. */
-  selisihPersen: number;
+  /** Nilai RAB aktif lokasi (pra-PPN) yang menjadi nilai proyek. */
+  nilaiProyek: bigint;
+  /** Nilai proyek − RAPL. Positif = ada ruang margin pelaksanaan. */
+  margin: bigint;
+  /** margin ÷ nilai proyek × 100. */
+  marginPersen: number;
   /**
    * Seberapa boleh dipercaya perbandingan ini: hasil kali cakupan pemetaan dan
    * cakupan harga. Perbandingan tanpa angka ini adalah angka yang menyesatkan.
@@ -360,32 +367,32 @@ export type Perbandingan = {
 };
 
 /**
- * Bandingkan biaya RAPL dengan nilai kontrak.
+ * Bandingkan biaya RAPL dengan nilai proyek dari RAB aktif lokasi.
  *
  * Yang dikembalikan SELALU membawa `keandalan`. Selisih Rp1,5 M yang dihitung
  * dari 72% nilai RAB dan 40% sumber daya berharga BUKAN keuntungan Rp1,5 M —
  * ia angka setengah jadi, dan menyajikannya telanjang adalah cara sistem ini
  * bisa menyebabkan orang salah menawar.
  */
-export function bandingkanDenganKontrak(args: {
+export function bandingkanDenganNilaiProyek(args: {
   biayaRapl: bigint;
-  nilaiKontrak: bigint;
+  nilaiProyek: bigint;
   nilaiRabTerhitung: bigint;
   nilaiRabTotal: bigint;
   sumberDayaBerharga: number;
   sumberDayaTotal: number;
 }): Perbandingan {
-  const selisih = args.nilaiKontrak - args.biayaRapl;
+  const margin = args.nilaiProyek - args.biayaRapl;
   const cakupanNilai =
     args.nilaiRabTotal > 0n ? (Number(args.nilaiRabTerhitung) / Number(args.nilaiRabTotal)) * 100 : 0;
   const cakupanHarga =
     args.sumberDayaTotal > 0 ? (args.sumberDayaBerharga / args.sumberDayaTotal) * 100 : 0;
   return {
     biayaRapl: args.biayaRapl,
-    nilaiKontrak: args.nilaiKontrak,
-    selisih,
-    selisihPersen:
-      args.nilaiKontrak > 0n ? (Number(selisih) / Number(args.nilaiKontrak)) * 100 : 0,
+    nilaiProyek: args.nilaiProyek,
+    margin,
+    marginPersen:
+      args.nilaiProyek > 0n ? (Number(margin) / Number(args.nilaiProyek)) * 100 : 0,
     keandalan: {
       cakupanNilai,
       cakupanHarga,
