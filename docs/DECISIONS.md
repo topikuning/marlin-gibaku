@@ -22499,3 +22499,70 @@ Senin–Minggu — yang justru mengirim pada hari yang SAMA (Minggu) untuk semua
 paket. Diperiksa: **logikanya sudah benar** (penjadwal meneruskan
 `weekMode` kontrak ke `akhirMingguKontrak`); yang tertinggal hanya teksnya.
 Kini teks layar dan komentar kodenya menyebut kedua mode apa adanya.
+
+## 434 — Unggah surat + pemetaan AI SEKALI JALAN; lokasi berdiri sendiri, 2026-08-26
+
+Teguran user atas DECISIONS 432: register surat hanya punya dua jalan masuk —
+lampiran grup WA, atau formulir kosong. *"ada juga surat yang sudah berupa
+file, seharusnya aku tinggal upload AI petakan tanggal dan lain sebagainya."*
+Benar, dan itu jalan yang paling wajar untuk surat yang datang lewat email,
+diantar langsung, atau dipindai.
+
+### Satu permintaan, bukan beberapa
+
+Ketetapan user: *"sekali kirim kamu seharusnya petakan semua via AI... termasuk
+memetakan isi dan maksud surat, jadi sekali request saja."* Jadi SATU panggilan
+menghasilkan seluruh isian: nomor, tanggal, pihak + namanya, arah, perihal,
+kategori, lokasi & paket yang disebut, tuntutan jawaban + tenggatnya, ringkasan
+maksud, dan dugaan potensi kendala/temuan.
+
+- Prompt `surat.baca` mengeluarkan BARIS BERLABEL, bukan JSON: model kadang
+  membungkus JSON dalam pagar kode, dan `JSON.parse` yang gagal menghanguskan
+  seluruh pemetaan. Parser baris mengambil yang bisa diambil.
+- `baca-hasil.ts` MURNI & unit-tested. Prinsip yang dijaga: **yang tidak
+  terbaca menjadi null, tidak pernah ditebak** — formulir yang terisi tebakan
+  lebih berbahaya daripada formulir kosong, karena orang cenderung menyetujui
+  apa yang sudah terisi. Tanggal tak sah ditolak (2026-02-31 tidak digeser jadi
+  3 Maret); hanya kata "ya" yang memasang tenggat penagih.
+- `cocokkanSebutan` KETAT: sebutan yang ambigu (dua lokasi sama-sama cocok)
+  menghasilkan null. Tautan ke lokasi yang salah lebih buruk daripada tanpa
+  tautan. Sebutan yang tidak cocok tetap DITAMPILKAN, supaya tidak terbaca
+  seolah surat tidak menyebut lokasi apa pun.
+
+### Lokasi berdiri sendiri dari paket
+
+Ketetapan user: *"surat ini kan bukan cuma terhadap paket, bisa jadi dia
+langsung merujuk terhadap lokasi, tapi tidak selalu."* Karena itu `packageId`
+dan `locationId` diisi TERPISAH — di formulir maupun di pemetaan AI. Lokasi
+tidak pernah diturunkan dari paket; surat boleh menunjuk satu lokasi saja,
+satu paket saja, keduanya, atau tidak sama sekali.
+
+### Lapisan AI jadi multimodal
+
+`AiRequest` menerima `attachments` (base64 + MIME). Bentuk payload berbeda per
+gaya API dan itu ditangani di satu tempat:
+- Anthropic: blok `document` (PDF) / `image`, ditaruh SEBELUM teks.
+- OpenAI-compatible (OpenAI/Grok/Mistral): `image_url` data-URI; **PDF tidak
+  didukung** di endpoint chat completions.
+
+`dukunganLampiran()` mengatakan itu apa adanya, dan pemanggil memeriksanya
+DULU — sehingga PDF pada provider yang tidak mampu ditolak dengan kalimat yang
+menyebut jalan keluarnya ("pilih provider Claude di Sistem → AI"), bukan galat
+HTTP mentah. MARLIN tetap provider-agnostik lewat HTTP mentah; memasang SDK
+satu vendor akan mematikan pilihan provider yang jadi inti desain AI-nya.
+
+Jalur lampiran grup WA ikut naik: AI kini membaca ISI berkasnya bila masih
+tertangkap dan provider aktif mampu — sebelumnya hanya menebak dari nama
+berkas, dan "IMG-0032.jpg" tidak memberi tahu apa pun.
+
+### Berkas surat
+
+Kolom `Letter.fileR2Key/fileName/fileMime` (migrasi `20260826020000`).
+Berbeda dari lampiran WA yang menunggu konfirmasi, berkas yang diunggah ke
+register diarsipkan LANGSUNG: mencatat suratnya itu sendiri sudah merupakan
+konfirmasinya. R2 belum siap → surat tetap tercatat tanpa berkas, dan itu
+DIKATAKAN di pesan hasilnya.
+
+Penjaga: `tests/unit/surat-baca-hasil.test.ts` (13 uji — terutama kapan parser
+MENOLAK mengisi: tanda minus, tanggal tak sah, jawaban mengambang, enum di luar
+daftar, sebutan ambigu).

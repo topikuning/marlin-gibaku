@@ -55,6 +55,53 @@ export const PROMPT_GROUP_LABEL: Record<PromptGroup, string> = {
 export const ANTI_KARANG_FRASA = "JANGAN MENGARANG";
 
 /**
+ * SATU permintaan yang memetakan seluruh isi surat (DECISIONS 434).
+ *
+ * Ketetapan user 2026-08-26: *"sekali kirim kamu seharusnya petakan semua via
+ * AI... termasuk memetakan isi dan maksud surat, jadi sekali request saja."*
+ * Karena itu satu panggilan menghasilkan SEMUA medan formulir sekaligus —
+ * bukan beberapa panggilan yang masing-masing mengambil sepotong.
+ *
+ * Bentuk keluarannya BARIS BERLABEL, bukan JSON: model kadang membungkus JSON
+ * dalam pagar kode atau menambah komentar, dan parser baris berlabel tidak
+ * peduli soal itu. Medan yang tidak diketahui WAJIB ditulis "-" — itulah yang
+ * membedakan "tidak tertulis di surat" dari karangan.
+ */
+const SURAT_BACA_DEFAULT = [
+  "Anda membaca satu berkas SURAT resmi proyek konstruksi dan memetakan isinya untuk dicatat di register.",
+  "",
+  "Tugas Anda MENGUSULKAN isian formulir. Manusia yang memeriksa dan menetapkan.",
+  "",
+  "Jawab PERSIS dalam format baris berikut, satu baris per medan, tanpa tambahan apa pun:",
+  "NOMOR: <nomor surat apa adanya, atau ->",
+  "TANGGAL: <YYYY-MM-DD, atau ->",
+  "PIHAK: <penyedia|wakil_ppk|ppk|konsultan|dinas|internal|lainnya>",
+  "NAMA_PIHAK: <nama badan/orang yang mengirim, atau ->",
+  "ARAH: <masuk|keluar>",
+  "PERIHAL: <perihal surat, maksimal 15 kata>",
+  "KATEGORI: <mutu|jadwal|pembayaran|administrasi|koordinasi|k3|lainnya>",
+  "LOKASI: <nama lokasi/kampung/desa yang DISEBUT surat, atau ->",
+  "PAKET: <nama atau nomor paket yang DISEBUT surat, atau ->",
+  "BUTUH_JAWABAN: <ya|tidak>",
+  "TENGGAT: <YYYY-MM-DD bila surat menyebut batas waktu menjawab, atau ->",
+  "RINGKASAN: <2-3 kalimat: apa isinya dan apa maksud pengirimnya>",
+  "POTENSI: <kendala|temuan|tidak>",
+  "ALASAN_POTENSI: <satu kalimat singkat>",
+  "",
+  "Aturan keras:",
+  "- SUMBER: gunakan HANYA isi berkas yang diberikan.",
+  "- " + ANTI_KARANG_FRASA + ". Medan yang tidak tertulis di surat diisi tanda minus, JANGAN ditebak.",
+  "- TANGGAL adalah tanggal surat itu sendiri, bukan tanggal Anda membacanya.",
+  "- LOKASI dan PAKET hanya diisi bila BENAR-BENAR disebut di surat. Surat bisa",
+  "  menunjuk satu lokasi saja, satu paket saja, keduanya, atau tidak sama sekali –",
+  "  jangan menyimpulkan salah satunya dari yang lain.",
+  "- ARAH: tulis masuk bila surat itu DITUJUKAN kepada pengelola proyek; keluar bila justru dikirim oleh pengelola proyek.",
+  "- POTENSI kendala hanya bila surat menyebut hal yang MENGHAMBAT pelaksanaan;",
+  "  POTENSI temuan hanya bila memuat teguran/ketidaksesuaian hasil pemeriksaan.",
+  "  Bila sekadar administrasi biasa, tulis tidak.",
+].join("\n");
+
+/**
  * Memahami berkas yang dikirim ke grup WA (DECISIONS 432). Keluarannya SELALU
  * usulan — ketetapan user 2026-08-25: *"jangan langsung putuskan tapi
  * sarankan"*. Karena itu prompt ini melarang keras nada memutuskan dan
@@ -230,6 +277,16 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     maxChars: 4000,
   },
   // ── Lampiran grup & surat (DECISIONS 432) ────────────────────────────────
+  {
+    key: "surat.baca",
+    group: "chat",
+    label: "Baca & petakan berkas surat",
+    description:
+      "SATU permintaan: membaca berkas surat lalu memetakan nomor, tanggal, pihak, perihal, maksud, dan potensinya. Keluarannya usulan untuk diperiksa manusia.",
+    default: SURAT_BACA_DEFAULT,
+    mustContain: [ANTI_KARANG_FRASA],
+    maxChars: 4000,
+  },
   {
     key: "surat.pahami",
     group: "chat",

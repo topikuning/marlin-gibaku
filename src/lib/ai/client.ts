@@ -21,7 +21,46 @@ import {
 
 export type AiResult = { ok: true; text: string; model: string } | { ok: false; error: string };
 
-export type AiRequest = { system?: string; prompt: string; maxTokens?: number; timeoutMs?: number };
+/**
+ * Berkas yang ikut dibaca AI (DECISIONS 434). `dataBase64` TANPA baris baru —
+ * API menolak base64 ber-newline.
+ */
+export type AiAttachment = {
+  /** MIME asli, mis. `image/jpeg` atau `application/pdf`. */
+  mediaType: string;
+  dataBase64: string;
+};
+
+export type AiRequest = {
+  system?: string;
+  prompt: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+  /**
+   * Berkas yang HARUS dibaca isinya (surat hasil pindai). Tidak semua provider
+   * bisa; lihat `dukunganLampiran()` — pemanggil wajib memeriksanya dulu supaya
+   * kegagalannya terbaca sebagai "provider ini tidak mendukung", bukan galat
+   * HTTP mentah yang membingungkan admin.
+   */
+  attachments?: AiAttachment[];
+};
+
+/** Yang bisa dibaca provider aktif. MURNI — dipakai layar & pemanggil. */
+export type DukunganLampiran = { gambar: boolean; pdf: boolean; alasan: string };
+
+export function dukunganLampiran(apiStyle: string): DukunganLampiran {
+  if (apiStyle === "anthropic") {
+    // Claude menerima blok `image` DAN `document` (PDF) base64 secara langsung.
+    return { gambar: true, pdf: true, alasan: "Claude membaca gambar dan PDF." };
+  }
+  // Bentuk OpenAI-compatible (OpenAI/Grok/Mistral): gambar lewat `image_url`
+  // data-URI. PDF TIDAK diterima di endpoint chat completions.
+  return {
+    gambar: true,
+    pdf: false,
+    alasan: "Provider ini hanya bisa membaca GAMBAR. Untuk PDF, pilih provider Claude di Sistem → AI.",
+  };
+}
 
 export type AiCallResult =
   | {
@@ -49,6 +88,36 @@ async function readError(res: Response): Promise<string> {
   return `HTTP ${res.status}${body ? ` – ${body}` : ""}`;
 }
 
+/**
+ * Isi pesan untuk API bentuk Anthropic. Lampiran ditaruh SEBELUM teks —
+ * urutan yang dianjurkan dokumentasi: model membaca berkasnya dulu, baru
+ * perintahnya.
+ */
+function kontenAnthropic(req: AiRequest): unknown {
+  const lampiran = req.attachments ?? [];
+  if (lampiran.length === 0) return req.prompt;
+  const blok: unknown[] = lampiran.map((a) =>
+    a.mediaType === "application/pdf"
+      ? { type: "document", source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 } }
+      : { type: "image", source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 } },
+  );
+  blok.push({ type: "text", text: req.prompt });
+  return blok;
+}
+
+/** Isi pesan untuk API bentuk OpenAI. PDF tidak didukung di jalur ini. */
+function kontenOpenAi(req: AiRequest): unknown {
+  const lampiran = (req.attachments ?? []).filter((a) => a.mediaType !== "application/pdf");
+  if (lampiran.length === 0) return req.prompt;
+  return [
+    { type: "text", text: req.prompt },
+    ...lampiran.map((a) => ({
+      type: "image_url",
+      image_url: { url: `data:${a.mediaType};base64,${a.dataBase64}` },
+    })),
+  ];
+}
+
 function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; init: RequestInit } {
   const maxTokens = req.maxTokens ?? 1024;
   if (cfg.apiStyle === "anthropic") {
@@ -65,14 +134,14 @@ function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; ini
           model: cfg.model,
           max_tokens: maxTokens,
           ...(req.system ? { system: req.system } : {}),
-          messages: [{ role: "user", content: req.prompt }],
+          messages: [{ role: "user", content: kontenAnthropic(req) }],
         }),
       },
     };
   }
-  const messages: { role: string; content: string }[] = [];
+  const messages: { role: string; content: unknown }[] = [];
   if (req.system) messages.push({ role: "system", content: req.system });
-  messages.push({ role: "user", content: req.prompt });
+  messages.push({ role: "user", content: kontenOpenAi(req) });
   return {
     url: `${cfg.baseUrl}/chat/completions`,
     init: {

@@ -912,6 +912,13 @@ model Letter {
   attachmentId String? @map("attachment_id") @db.Uuid
   documentId   String? @map("document_id") @db.Uuid
 
+  /// Berkas surat yang DIUNGGAH langsung (bukan lewat grup WA) — DECISIONS 434.
+  /// Surat yang tercatat berarti sudah dikonfirmasi manusia, jadi berkasnya
+  /// boleh langsung diarsipkan ke R2 tanpa persinggahan lokal.
+  fileR2Key String? @map("file_r2_key")
+  fileName  String? @map("file_name")
+  fileMime  String? @map("file_mime")
+
   createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz

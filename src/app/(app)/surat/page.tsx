@@ -140,7 +140,7 @@ export default async function SuratPage({
         <KpiCard label="Surat keluar" value={keluar} sub="seluruh register" />
       </div>
 
-      {bolehKelola ? <CatatSurat paket={paket} /> : null}
+      {bolehKelola ? <CatatSurat paket={paket} lokasi={lokasi} /> : null}
 
       <Card>
         <CardHeader
