@@ -158,22 +158,27 @@ export function tulisBadanHarian(
   );
   // Logo firma pengawas di sudut kiri sel KONSULTAN PENGAWAS (user 2026-08-24)
   // — data URI, alasan yang sama dengan logo pemilik di bawah.
-  const logoPengawas = lampiran?.logoPengawas ?? null;
-  if (logoPengawas) {
-    const sisi = Math.min(ny - firmaAtas - 4, 18);
-    if (sisi > 6) {
-      try {
-        const src = `data:image/png;base64,${logoPengawas.toString("base64")}`;
-        doc.image(src, x + kiriW + 3, firmaAtas + (ny - firmaAtas - sisi) / 2, {
-          fit: [sisi, sisi],
-          align: "center",
-          valign: "center",
-        });
-      } catch (err) {
-        console.error("[laporan-harian] logo pengawas gagal digambar di kop PDF:", err);
-      }
+  const sisiLogoKop = Math.min(ny - firmaAtas - 4, 18);
+  const logoKop = (buf: Buffer | null, kolomKiri: number, siapa: string) => {
+    if (!buf || sisiLogoKop <= 6) return;
+    try {
+      const src = `data:image/png;base64,${buf.toString("base64")}`;
+      doc.image(src, kolomKiri + 3, firmaAtas + (ny - firmaAtas - sisiLogoKop) / 2, {
+        fit: [sisiLogoKop, sisiLogoKop],
+        align: "center",
+        valign: "center",
+      });
+    } catch (err) {
+      console.error(`[laporan-harian] logo ${siapa} gagal digambar di kop PDF:`, err);
     }
-  }
+  };
+  logoKop(lampiran?.logoPengawas ?? null, x + kiriW, "pengawas");
+  /*
+   * Logo PELAKSANA di kop (laporan user 2026-08-26). Sebelumnya hanya pengawas
+   * yang berlogo, jadi dua pihak sederajat ditampilkan tidak setara — dan itu
+   * terbaca di dokumen resmi.
+   */
+  logoKop(lampiran?.logoVendor ?? null, x + kiriW + kananW / 2, "pelaksana");
   y = Math.max(ky, ny);
 
   // Logo pemilik pekerjaan dari menu Sistem — bukan hardcode KKP (DECISIONS 166).

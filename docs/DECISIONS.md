@@ -22709,3 +22709,31 @@ surat batal TIDAK menagih walau tenggatnya lewat) dan
 `tests/integration/surat-duplikat.test.ts` (2 uji baru — nomor & berkas milik
 surat yang dibatalkan boleh dicatat ulang, barisnya tetap ada, agenda tidak
 didaur ulang).
+
+---
+
+## 438 · Blanko harian: logo dua pihak setara, isi kotak dipusatkan (2026-08-26)
+
+Tiga cacat pada laporan harian, dilaporkan user dari layar `/cetak/harian`.
+
+**1. Logo pengawas hilang di sampul.** `KopPihak` untuk KONSULTAN PENGAWAS
+tidak pernah diberi `logoUrl` — jalur PDF sudah menggambarnya sejak 2026-08-24,
+jalur HTML tidak. Dokumen yang sama tidak boleh berbeda tergantung tombol mana
+yang ditekan (prinsip yang sudah tertulis di berkas itu sendiri, tapi tidak
+dijaga). Kini memakai `d.supervisorLogoUrl` yang sebenarnya sudah tersedia.
+
+**2. Logo pelaksana tidak ada di kop blanko.** Sel KONSULTAN PENGAWAS berlogo,
+sel KONTRAKTOR PELAKSANA hanya bertuliskan nama — dua pihak sederajat
+ditampilkan tidak setara di dokumen resmi. Ditambah `vendorLogoUrl` (presign di
+`queries.ts`, satu sumber untuk semua jalur render), digambar di kop HTML
+maupun PDF. Penggambar logo kop di PDF dijadikan SATU fungsi supaya kedua pihak
+tidak bisa lagi menyimpang sendiri-sendiri.
+
+**3. Isi kotak pihak menempel kiri.** Dipusatkan pada dua sumbu: di HTML
+(`justify-center` + `text-center`), di PDF (lebar gugus logo+teks diukur dulu
+lalu digeser ke tengah, teks dipusatkan tegak terhadap tinggi kotak). Kotak
+pengawas yang isinya hanya titik-titik sebelumnya terlihat menggantung di pojok.
+
+Diverifikasi dengan merender KEDUA jalur: HTML lewat peramban, PDF lewat
+`buildHarianKkpPdf` dengan logo tiruan lalu gambarnya diperiksa — empat slot
+logo (sampul x2, kop x2) terisi di kedua jalur, dan isi kotak terpusat.
