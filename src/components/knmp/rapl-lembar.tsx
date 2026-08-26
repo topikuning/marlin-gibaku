@@ -10,7 +10,7 @@ import type { KeadaanHarga } from "@/lib/ahsp/hsd";
  * Lembar ini keluar dari MARLIN dan hidup sendiri: dibawa ke rapat, difoto,
  * dikirim WhatsApp. Semua peringatan di layar hilang; yang tersisa cuma angka
  * di kertas. Biaya Rp x yang tidak menyebut bahwa ia baru menutup 72% nilai RAB
- * akan dibaca sebagai biaya seluruh proyek — dan selisihnya terhadap kontrak
+ * akan dibaca sebagai biaya seluruh proyek — dan selisihnya terhadap nilai proyek
  * akan dibaca sebagai untung. Karena itu cakupan bukan lampiran; ia bagian dari
  * angkanya.
  */
@@ -94,14 +94,13 @@ export function RaplLembar({
         {pctNilai < 99.95 || pctHarga < 99.95 ? (
           <p className="mt-1.5 border-t border-black pt-1 leading-snug">
             <strong>Angka di lembar ini BELUM mencakup seluruh proyek.</strong> Biaya yang belum
-            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai kontrak – jadi selisih
+            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai RAB aktif – jadi selisih
             di bawah belum boleh dibaca sebagai keuntungan.
           </p>
         ) : null}
       </section>
 
-      {p ? (
-        <section className="mb-3 border border-black">
+      <section className="mb-3 border border-black">
           <table className="w-full">
             <tbody>
               <tr className="border-b border-black">
@@ -109,21 +108,18 @@ export function RaplLembar({
                 <td className="px-2 py-1 text-right font-bold">{formatRupiah(harga.totalBiaya)}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-1">Nilai kontrak</td>
-                <td className="px-2 py-1 text-right font-bold">{formatRupiah(p.nilaiKontrak)}</td>
+                <td className="px-2 py-1">Nilai RAB aktif (pra-PPN)</td>
+                <td className="px-2 py-1 text-right font-bold">{formatRupiah(p.nilaiProyek)}</td>
               </tr>
               <tr>
-                <td className="px-2 py-1">Selisih (kontrak − RAPL)</td>
+                <td className="px-2 py-1">{p.keandalan.utuh ? "Potensi margin pelaksanaan" : "Selisih sementara"}</td>
                 <td className="px-2 py-1 text-right font-bold">
-                  {formatRupiah(p.selisih)} ({formatPct(p.selisihPersen, 1)})
+                  {formatRupiah(p.margin)} ({formatPct(p.marginPersen, 1)})
                 </td>
               </tr>
             </tbody>
           </table>
-        </section>
-      ) : (
-        <p className="mb-3">Lokasi ini belum punya kontrak, jadi tidak ada pembanding.</p>
-      )}
+      </section>
 
       {harga.perKategori.map((kat) => {
         const baris = harga.baris

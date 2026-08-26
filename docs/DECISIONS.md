@@ -22606,3 +22606,62 @@ API masing-masing.
 
 Penjaga: `tests/unit/ai-lampiran-pdf.test.ts` (9 uji — termasuk uji yang
 menolak munculnya kembali frasa "provider ini tidak bisa").
+
+---
+
+## 436 · RAPL menjadi workspace estimasi biaya; AI hanya mengusulkan HSD (2026-08-26)
+
+Arahan user: RAPL harus membaca RAB aktif, memecah kebutuhan proyek secara
+rinci (material, tenaga, alat, dan kebutuhan lain), menerima harga manual atau
+bantuan AI, lalu menunjukkan potensi profit proyek.
+
+### Orientasi halaman
+
+Pekerjaan teknis pemetaan AHSP tetap wajib, tetapi tidak lagi menjadi wajah
+utama RAPL. Halaman dibagi menjadi tiga subbagian berbasis URL:
+
+1. **Ringkasan estimasi** – nilai RAB aktif, cakupan breakdown, cakupan harga,
+   biaya pelaksanaan, dan potensi margin.
+2. **Kebutuhan & harga** – satu grid sumber daya yang menyatukan volume
+   kebutuhan, HSD manual, rekomendasi lokasi lain, biaya, sumber harga, serta
+   draf AI.
+3. **Validasi breakdown** – pemetaan RAB→AHSP dan daftar yang tidak masuk
+   hitungan untuk pengguna yang perlu memperbaiki dasar angkanya.
+
+### Basis margin
+
+RAPL adalah halaman per-lokasi. Nilai kontrak berada pada tingkat paket dan
+bisa mencakup beberapa lokasi; membandingkan biaya satu lokasi dengan nilai
+kontrak seluruh paket membesarkan margin secara palsu. Pembandingnya sekarang
+**nilai RAB aktif lokasi (pra-PPN)**:
+
+    potensi margin pelaksanaan = nilai RAB aktif lokasi − biaya RAPL
+
+Rumus tetap hanya hidup di `src/lib/ahsp/rapl-calc.ts`. Selama cakupan
+breakdown atau harga belum penuh, layar/cetak/Excel wajib menyebutnya
+**selisih sementara**, bukan profit. Saat penuh pun labelnya "potensi margin
+pelaksanaan", bukan profit neto setelah pajak atau biaya di luar RAPL.
+
+### Pengecualian terkontrol untuk AI
+
+DECISIONS 193 melarang AI menjadi sumber angka final. Untuk HSD, AI sekarang
+boleh memberi **draf estimasi** dengan syarat:
+
+- hanya untuk komponen yang harganya masih kosong;
+- respons terstruktur dan divalidasi server;
+- draf tampil terpisah dari harga yang dipakai kalkulasi;
+- tidak pernah disimpan otomatis;
+- pengguna berhak `ai.generate` dan `finance.input` harus menekan persetujuan;
+- sumber tersimpan berbunyi "Usulan AI – disetujui pengguna";
+- UI menyatakan bahwa hasilnya bukan survei pasar atau penawaran pemasok.
+
+Harga manual, rekomendasi lokasi lain, dan draf AI tetap HSD per lokasi. Tidak
+ada satu pun jalur yang mengubah koefisien AHSP atau formula kebutuhan.
+
+### Integritas input HSD
+
+Harga kosong atau nol berarti **belum berharga**, bukan gratis. Input tersebut
+menghapus HSD; kalkulasi juga mengabaikan nol lama agar cakupan harga tidak
+menjadi penuh secara palsu. Harga manual dan persetujuan massal usulan AI
+ditulis bersama audit dalam satu transaksi. Nominal HSD dibatasi Rp1 sampai
+Rp1 triliun per satuan dan tetap disimpan sebagai `BigInt`.
