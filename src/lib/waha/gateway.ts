@@ -142,7 +142,27 @@ async function balasanSah(input: KirimWaInput, chatId: string): Promise<boolean>
     where: { chatId, fromMe: false, timestamp: { gte: sejak } },
     select: { id: true },
   });
-  return masuk !== null;
+  if (masuk) return true;
+
+  /*
+   * Chat PRIBADI tidak pernah masuk `wa_messages` — `ingest.ts` sengaja hanya
+   * mengarsipkan grup yang tertaut paket (privasi, DECISIONS 119). Jadi bukti
+   * di atas HANYA bisa ada untuk grup, sementara pagar ini justru dipasang
+   * untuk chat pribadi: gerbang satu arah itu tidak pernah benar-benar terbuka
+   * (kejadian 2026-08-26 — user membalas WA, MARLIN diam, log menyebut
+   * "kiriman ke nomor pribadi sedang dimatikan" untuk sebuah BALASAN).
+   *
+   * Buktinya diambil dari antrean jawaban, yang memang ada untuk chat pribadi
+   * dan sama tidak-bisa-dipalsukannya: satu baris `wa_reply_jobs` hanya lahir
+   * dari event webhook WAHA yang `fromMe:false` (lihat `antreJawaban`). Ia
+   * menyatakan hal yang persis sama — "chat ini yang menyapa duluan" — bukan
+   * penanda yang kita pasang sendiri.
+   */
+  const pekerjaan = await db.waReplyJob.findFirst({
+    where: { chatId, createdAt: { gte: sejak } },
+    select: { id: true },
+  });
+  return pekerjaan !== null;
 }
 
 export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> {

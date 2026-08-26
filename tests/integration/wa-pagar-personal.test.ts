@@ -172,3 +172,76 @@ describe("balasan atas pesan masuk tetap lewat", () => {
     expect(r.status).toBe("ditolak");
   });
 });
+
+/* ── Bukti balasan untuk chat PRIBADI (DECISIONS 447) ────────────────────
+ *
+ * Uji di atas membuat sendiri baris `wa_messages` untuk chat pribadi — dan di
+ * situlah pagar satu arah lolos dari pengawasan: produksi TIDAK PERNAH menulis
+ * baris itu. `ingest.ts` sengaja hanya mengarsipkan grup yang tertaut paket
+ * (privasi, DECISIONS 119), jadi untuk chat pribadi buktinya selalu nihil dan
+ * gerbang satu arah tidak pernah benar-benar terbuka.
+ *
+ * Kejadian produksi 2026-08-26: user membalas WA, MARLIN diam, dan log
+ * menyebut "kiriman ke nomor pribadi sedang dimatikan" untuk sebuah BALASAN.
+ *
+ * Yang dijaga di sini: keadaan seperti PRODUKSI — tidak ada arsip pesan sama
+ * sekali, hanya pekerjaan di antrean jawaban.
+ */
+describe("chat pribadi: buktinya dari antrean jawaban, bukan arsip pesan", () => {
+  const chat = `62813${Date.now().toString().slice(-9)}@c.us`;
+
+  it("balasan lewat walau chat itu TIDAK PERNAH diarsipkan", async () => {
+    await db.waReplyJob.create({
+      data: {
+        waMessageId: `uji-job-${suffix}`,
+        chatId: chat,
+        payload: {},
+      },
+    });
+    // Justru inilah keadaan produksinya: nol baris arsip.
+    expect(await db.waMessage.count({ where: { chatId: chat } })).toBe(0);
+
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: chat,
+      payload: { teks: "progres hari ini 12,3%" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-job-balas-${suffix}`,
+    });
+    expect(r.error ?? "").not.toContain("nomor pribadi");
+  });
+
+  it("tanpa penanda balasan, chat yang sama tetap ditahan", async () => {
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: chat,
+      payload: { teks: "pengingat terjadwal" },
+      sourceType: "penjadwal",
+      idempotencyKey: `uji-job-inisiatif-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+    expect(r.error).toContain("nomor pribadi");
+  });
+
+  it("pekerjaan yang lebih tua dari jendela 24 jam tidak membuka pagar", async () => {
+    const lama = `62814${Date.now().toString().slice(-9)}@c.us`;
+    await db.waReplyJob.create({
+      data: {
+        waMessageId: `uji-job-lama-${suffix}`,
+        chatId: lama,
+        payload: {},
+        createdAt: new Date(Date.now() - 30 * 3_600_000),
+      },
+    });
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: lama,
+      payload: { teks: "maaf baru sempat" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-job-basi-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+  });
+});

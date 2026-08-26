@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Put } from "@/lib/r2";
 import { klasifikasiLampiran, terlaluBesar } from "./lampiran-klasifikasi";
@@ -32,6 +33,40 @@ import { klasifikasiLampiran, terlaluBesar } from "./lampiran-klasifikasi";
 /** Direktori simpanan lokal. Dibuat otomatis bila belum ada. */
 export function direktoriLampiran(): string {
   return process.env.LAMPIRAN_DIR ?? join(process.cwd(), ".data", "lampiran");
+}
+
+/**
+ * Direktori yang BENAR-BENAR bisa ditulis, dengan cadangan.
+ *
+ * Kejadian 2026-08-26 di produksi: `EACCES: permission denied, mkdir
+ * '/app/.data'`. Kontainer berjalan sebagai pengguna non-root (`marlin`),
+ * sedangkan `/app` dibuat root oleh `WORKDIR` — jadi berkas grup yang sudah
+ * berhasil diunduh dibuang lagi tepat di langkah terakhir. Direktorinya kini
+ * disiapkan di Dockerfile, tapi itu saja tidak cukup: `LAMPIRAN_DIR` bisa
+ * diarahkan ke tempat yang tidak boleh ditulis, dan lingkungan lain bisa
+ * memasang berkas sistem read-only.
+ *
+ * Cadangannya `os.tmpdir()`. Itu bukan penurunan mutu: simpanan lokal memang
+ * SUDAH bersifat sementara (hilang tiap redeploy) dan hanya persinggahan
+ * sebelum berkas yang dikonfirmasi naik ke R2. Kehilangan berkas yang sudah di
+ * tangan jauh lebih mahal daripada menyimpannya di tempat yang lebih fana.
+ */
+export async function siapkanDirektoriLampiran(): Promise<string> {
+  const utama = direktoriLampiran();
+  try {
+    await mkdir(utama, { recursive: true });
+    return utama;
+  } catch (err) {
+    const kode = (err as { code?: string } | null)?.code;
+    if (kode !== "EACCES" && kode !== "EPERM" && kode !== "EROFS") throw err;
+    const cadangan = join(tmpdir(), "marlin-lampiran");
+    await mkdir(cadangan, { recursive: true });
+    console.warn(
+      `[waha] "${utama}" tidak bisa ditulis (${kode}) – lampiran disimpan sementara di "${cadangan}". ` +
+        `Setel LAMPIRAN_DIR ke direktori yang boleh ditulis pengguna aplikasi.`,
+    );
+    return cadangan;
+  }
 }
 
 /** Batas unduh — melindungi dari berkas raksasa yang menyumbat webhook. */
@@ -154,8 +189,7 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
 
   let localPath = kembar?.localPath ?? null;
   if (!kembar) {
-    const dir = direktoriLampiran();
-    await mkdir(dir, { recursive: true });
+    const dir = await siapkanDirektoriLampiran();
     const nama = `${sha}${ekstensiDari(input.mimeType, input.fileName)}`;
     localPath = join(dir, nama);
     await writeFile(localPath, buf);

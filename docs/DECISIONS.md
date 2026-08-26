@@ -23047,3 +23047,64 @@ loader TypeScript). Keduanya diuji terhadap tabel kasus yang SAMA di
 diam-diam. Beda perilaku yang disengaja: versi CLI mengembalikan URL tak
 dikenal apa adanya supaya pesan galat Prisma sendiri yang sampai ke log
 deploy.
+
+---
+
+## 447 · Tiga cacat produksi WhatsApp: balasan pribadi, log ganda, disk lampiran (2026-08-26)
+
+Log produksi 2026-08-26 memperlihatkan tiga hal yang berbeda sebabnya tapi
+sama akibatnya – kerja yang sudah benar dibuang di langkah terakhir.
+
+### 1. Gerbang satu arah tidak pernah benar-benar terbuka
+
+```
+[waha/antrean] job … percobaan 1 gagal: Kiriman ke nomor pribadi sedang
+dimatikan (Sistem → WhatsApp) …
+```
+
+Itu terjadi pada sebuah BALASAN – persis hal yang DECISIONS 439 janjikan tetap
+lewat. Sebabnya: `balasanSah()` membuktikan "chat ini menyapa duluan" dengan
+mencari baris di `wa_messages`, sedangkan `ingest.ts` SENGAJA tidak pernah
+mengarsipkan chat pribadi (privasi, DECISIONS 119). Jadi buktinya nihil untuk
+satu-satunya kasus yang pagar itu perlu izinkan.
+
+Uji integrasinya lolos karena ia MEMBUAT sendiri baris `wa_messages` untuk chat
+pribadi – keadaan yang tidak pernah ada di produksi. Itu pelajarannya: bukti
+yang dikarang uji bisa menyembunyikan jalur yang mustahil di dunia nyata.
+
+**Perbaikan.** Buktinya diambil dari `wa_reply_jobs`, yang memang ada untuk chat
+pribadi dan sama tidak-bisa-dipalsukannya: satu baris hanya lahir dari event
+webhook WAHA ber-`fromMe:false`. Jendela 24 jam tetap. Ujinya kini bertolak dari
+keadaan produksi – NOL baris arsip.
+
+### 2. Log PostgreSQL dikotori galat palsu tiap pesan
+
+```
+ERROR: duplicate key value violates unique constraint "wa_reply_jobs_wa_message_id_key"
+```
+
+WAHA mengirim `message` DAN `message.any` untuk satu pesan, jadi tabrakan indeks
+unik terjadi untuk SETIAP pesan sehat. Tabrakan itu memang ditangkap kode
+(P2002) dan bukan kegagalan – tapi PostgreSQL tetap mencatatnya sebagai ERROR,
+dan log yang penuh galat palsu membuat galat sungguhan tak terlihat.
+
+**Perbaikan.** `antreJawaban` memeriksa dulu (`findUnique`) sebelum menyisipkan.
+Pagar uniknya TIDAK dicabut – celah balapan tetap ditutup basis data di `catch`;
+yang hilang hanya tabrakan yang bisa diramalkan.
+
+### 3. Lampiran grup terunduh lalu dibuang
+
+```
+[waha] gagal menangkap lampiran: EACCES: permission denied, mkdir '/app/.data'
+```
+
+Kontainer berjalan sebagai pengguna non-root `marlin`, sedangkan `/app` dibuat
+root oleh `WORKDIR`. Berkasnya sudah berhasil diunduh dari WAHA – hanya gagal
+ditulis.
+
+**Perbaikan.** Dockerfile menyiapkan `/app/.data/lampiran` milik `marlin`.
+Ditambah cadangan di kode: bila direktori tujuan tidak bisa ditulis
+(EACCES/EPERM/EROFS), berkas ditulis ke `os.tmpdir()` disertai peringatan yang
+menyebut `LAMPIRAN_DIR`. Itu bukan penurunan mutu – simpanan lokal memang sudah
+bersifat sementara (DECISIONS 432); kehilangan berkas yang sudah di tangan jauh
+lebih mahal daripada menyimpannya di tempat yang lebih fana.

@@ -69,6 +69,12 @@ COPY --from=builder --chown=marlin:marlin /app/scripts/migrate-deploy.mjs ./scri
 # Data demo untuk BOOTSTRAP_DEMO_DATA=true (deployment uji coba)
 COPY --from=builder --chown=marlin:marlin /app/seed-data ./seed-data
 
+# Simpanan SEMENTARA lampiran WhatsApp (DECISIONS 432). /app dibuat root oleh
+# WORKDIR, sedangkan proses berjalan sebagai `marlin` — tanpa baris ini
+# `mkdir /app/.data` gagal EACCES dan berkas grup yang sudah terunduh dibuang
+# lagi tepat di langkah terakhir (kejadian produksi 2026-08-26).
+RUN mkdir -p /app/.data/lampiran && chown -R marlin:marlin /app/.data
+
 USER marlin
 EXPOSE 3000
 # Railway menyuntik $PORT; Next standalone membaca PORT env.
