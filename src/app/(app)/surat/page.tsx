@@ -37,13 +37,21 @@ export default async function SuratPage({
   requireCapabilityPage(user.role, "letter.view");
   const sp = await searchParams;
   const bolehKelola = can(user.role, "letter.manage");
+  const bolehBatalkan = can(user.role, "letter.void");
   const hariIni = jakartaToday();
 
   const arah = sp.arah === "masuk" || sp.arah === "keluar" ? sp.arah : null;
   const status =
-    sp.status && ["baru", "perlu_jawaban", "dijawab", "selesai", "arsip"].includes(sp.status)
-      ? (sp.status as "baru" | "perlu_jawaban" | "dijawab" | "selesai" | "arsip")
+    sp.status && ["baru", "perlu_jawaban", "dijawab", "selesai", "arsip", "dibatalkan"].includes(sp.status)
+      ? (sp.status as "baru" | "perlu_jawaban" | "dijawab" | "selesai" | "arsip" | "dibatalkan")
       : null;
+  /*
+   * Surat yang dibatalkan DISEMBUNYIKAN dari daftar & hitungan (DECISIONS
+   * 437) — itu memang gunanya. Tapi tidak dihapus dan tidak disembunyikan
+   * mutlak: saringan "Dibatalkan" membukanya lagi lengkap dengan sebabnya,
+   * supaya pembatalan tetap bisa diperiksa dan dipulihkan.
+   */
+  const tanpaBatal = { status: { not: "dibatalkan" as const } };
 
   const izin = await accessibleLocationIds(user);
   // Surat yang belum menempel ke paket tetap terlihat — kalau disembunyikan,
@@ -57,7 +65,11 @@ export default async function SuratPage({
 
   const [daftar, perluJawaban, masuk, keluar, paket, lokasi] = await Promise.all([
     db.letter.findMany({
-      where: { ...scopeSurat, ...(arah ? { direction: arah } : {}), ...(status ? { status } : {}) },
+      where: {
+        ...scopeSurat,
+        ...(arah ? { direction: arah } : {}),
+        ...(status ? { status } : tanpaBatal),
+      },
       orderBy: [{ handledDate: "desc" }, { agendaNo: "desc" }],
       take: 100,
       select: {
@@ -77,6 +89,8 @@ export default async function SuratPage({
         replyDueDate: true,
         fileR2Key: true,
         fileName: true,
+        voidedAt: true,
+        voidReason: true,
         package: { select: { name: true } },
         location: { select: { name: true, slug: true } },
         _count: { select: { issues: true, findings: true } },
@@ -85,8 +99,8 @@ export default async function SuratPage({
     db.letter.count({
       where: { ...scopeSurat, needsReply: true, status: { in: ["baru", "perlu_jawaban"] } },
     }),
-    db.letter.count({ where: { ...scopeSurat, direction: "masuk" } }),
-    db.letter.count({ where: { ...scopeSurat, direction: "keluar" } }),
+    db.letter.count({ where: { ...scopeSurat, ...tanpaBatal, direction: "masuk" } }),
+    db.letter.count({ where: { ...scopeSurat, ...tanpaBatal, direction: "keluar" } }),
     bolehKelola
       ? db.package.findMany({
           where: izin ? { locations: { some: { id: { in: izin } } } } : { orgId: user.orgId },
@@ -148,7 +162,11 @@ export default async function SuratPage({
       <Card>
         <CardHeader
           title="Register surat"
-          subtitle={`${daftar.length} surat ditampilkan (terbaru dulu).`}
+          subtitle={
+            status === "dibatalkan"
+              ? `${daftar.length} surat dibatalkan – sebab & pembatalnya tercatat, dan bisa dipulihkan.`
+              : `${daftar.length} surat ditampilkan (terbaru dulu). Yang dibatalkan disembunyikan.`
+          }
           action={
             <span className="flex flex-wrap gap-2 text-sm">
               {[
@@ -159,6 +177,11 @@ export default async function SuratPage({
                   label: "Perlu jawaban",
                   href: filterLink(arah, "perlu_jawaban"),
                   aktif: status === "perlu_jawaban",
+                },
+                {
+                  label: "Dibatalkan",
+                  href: filterLink(arah, "dibatalkan"),
+                  aktif: status === "dibatalkan",
                 },
               ].map((f) => (
                 <Link
@@ -206,6 +229,9 @@ export default async function SuratPage({
                   lokasiSlug={l.location?.slug ?? null}
                   punyaBerkas={Boolean(l.fileR2Key)}
                   namaBerkas={l.fileName}
+                  dibatalkan={Boolean(l.voidedAt)}
+                  alasanBatal={l.voidReason}
+                  bolehBatalkan={bolehBatalkan}
                   sisaHari={l.needsReply ? sisaHariJawab(l.replyDueDate, hariIni) : null}
                   jumlahKendala={l._count.issues}
                   jumlahTemuan={l._count.findings}

@@ -126,3 +126,52 @@ describe("duplikat berkas", () => {
     ).rejects.toThrow(/surat\.pdf/);
   });
 });
+
+describe("pembatalan melepaskan nomornya (DECISIONS 437)", () => {
+  it("nomor surat yang DIBATALKAN boleh dicatat ulang", async () => {
+    const salah = await buatSurat({ ...dasar(), letterNumber: "30/PPM/VIII/2026", subject: "Salah ketik" });
+    // Selama masih berdiri, nomornya memang terkunci.
+    await expect(buatSurat({ ...dasar(), letterNumber: "30/PPM/VIII/2026" })).rejects.toThrow(
+      SuratDuplikatError,
+    );
+
+    await db.letter.update({
+      where: { id: salah.id },
+      data: { status: "dibatalkan", voidedAt: new Date(), voidReason: "salah ketik" },
+    });
+
+    // Setelah dibatalkan, nomor yang benar bisa dipakai — kalau tidak, satu
+    // salah ketik menjadi hukuman seumur register.
+    const benar = await buatSurat({ ...dasar(), letterNumber: "30/PPM/VIII/2026", subject: "Yang benar" });
+    expect(benar.id).not.toBe(salah.id);
+
+    // Barisnya TIDAK hilang: yang dibatalkan tetap ada dengan sebabnya.
+    const batal = await db.letter.findUnique({
+      where: { id: salah.id },
+      select: { status: true, voidReason: true, agendaNo: true },
+    });
+    expect(batal!.status).toBe("dibatalkan");
+    expect(batal!.voidReason).toBe("salah ketik");
+
+    // Nomor agendanya TIDAK didaur ulang.
+    expect(benar.agendaNo).not.toBe(batal!.agendaNo);
+  });
+
+  it("berkas milik surat yang dibatalkan boleh dicatat ulang", async () => {
+    const kunci = `surat/${"b".repeat(64)}`;
+    const salah = await buatSurat({
+      ...dasar(),
+      letterNumber: "31/PPM/VIII/2026",
+      fileR2Key: kunci,
+      fileName: "salah.pdf",
+    });
+    await db.letter.update({ where: { id: salah.id }, data: { status: "dibatalkan" } });
+    const benar = await buatSurat({
+      ...dasar(),
+      letterNumber: "32/PPM/VIII/2026",
+      fileR2Key: kunci,
+      fileName: "benar.pdf",
+    });
+    expect(benar.id).not.toBe(salah.id);
+  });
+});

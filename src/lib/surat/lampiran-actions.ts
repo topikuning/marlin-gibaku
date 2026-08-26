@@ -319,6 +319,10 @@ export async function buatSurat(input: {
           direction: input.direction,
           agendaYear: tahun,
           letterNumber: { not: null },
+          // Surat yang DIBATALKAN tidak lagi memegang nomornya (DECISIONS
+          // 437) — kalau tetap menghalangi, salah ketik menjadi hukuman
+          // seumur register: nomor yang benar tak bisa dicatat ulang.
+          status: { not: "dibatalkan" },
         },
         select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
       });
@@ -338,7 +342,7 @@ export async function buatSurat(input: {
       // Kunci R2 berkas surat = sha256 isinya, jadi kunci yang sama berarti
       // berkas yang sama persis – bukan sekadar nama berkas yang mirip.
       const samaBerkas = await tx.letter.findFirst({
-        where: { orgId: input.orgId, fileR2Key: input.fileR2Key },
+        where: { orgId: input.orgId, fileR2Key: input.fileR2Key, status: { not: "dibatalkan" } },
         select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
       });
       if (samaBerkas) {

@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
-import { transisiSurat } from "./lifecycle";
+import { statusPulih, suratDibatalkan, transisiSurat } from "./lifecycle";
 import { buatSurat } from "./lampiran-actions";
 import type { LetterStatus } from "@/generated/prisma/enums";
 
@@ -194,6 +194,9 @@ export async function ubahStatusSuratAction(_prev: SuratState, formData: FormDat
       select: { id: true, status: true, packageId: true },
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
+    if (suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini dibatalkan – pulihkan dulu bila memang masih berlaku." };
+    }
 
     const gate = transisiSurat(surat.status as LetterStatus, parsed.data.status);
     if (!gate.ok) return { error: gate.error };
@@ -213,6 +216,133 @@ export async function ubahStatusSuratAction(_prev: SuratState, formData: FormDat
     revalidatePath("/surat");
     revalidatePath("/perlu-tindakan");
     return { success: "Status surat diperbarui." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ── Batalkan / pulihkan surat (DECISIONS 437) ──────────────────────────── */
+
+const batalSchema = z.object({
+  letterId: z.uuid(),
+  alasan: z
+    .string()
+    .trim()
+    .min(5, "Tulis sebab pembatalannya (minimal 5 karakter)")
+    .max(300),
+});
+
+/**
+ * Batalkan surat: salah catat, duplikat, atau suratnya sendiri batal.
+ *
+ * TIDAK ADA hapus permanen, dan itu disengaja. Register yang barisnya bisa
+ * lenyap tidak bisa dipercaya: nomor agenda yang hilang di tengah menimbulkan
+ * pertanyaan yang tidak bisa dijawab siapa pun enam bulan kemudian. Yang
+ * dibatalkan hilang dari daftar, hitungan, EWS, dan halaman lokasi — tapi
+ * barisnya tetap ada, lengkap dengan sebab, waktu, dan pembatalnya.
+ *
+ * Nomor agendanya TIDAK didaur ulang. Agenda 3 yang dibatalkan tetap agenda 3
+ * yang dibatalkan; memberikannya ke surat berikutnya membuat dua surat berbeda
+ * memakai nomor yang sama di jejak audit.
+ */
+export async function batalkanSuratAction(_prev: SuratState, formData: FormData): Promise<SuratState> {
+  try {
+    const user = await requireCapability("letter.void");
+    const parsed = batalSchema.safeParse({
+      letterId: formData.get("letterId"),
+      alasan: formData.get("alasan") ?? "",
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const surat = await db.letter.findFirst({
+      where: { id: parsed.data.letterId, orgId: user.orgId },
+      select: {
+        id: true,
+        status: true,
+        packageId: true,
+        agendaNo: true,
+        agendaYear: true,
+        _count: { select: { issues: true, findings: true } },
+      },
+    });
+    if (!surat) return { error: "Surat tidak ditemukan." };
+    if (suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini sudah dibatalkan." };
+    }
+
+    const gate = transisiSurat(surat.status as LetterStatus, "dibatalkan");
+    if (!gate.ok) return { error: gate.error };
+
+    await db.letter.update({
+      where: { id: surat.id },
+      data: {
+        status: "dibatalkan",
+        voidedAt: new Date(),
+        voidedById: user.id,
+        voidReason: parsed.data.alasan,
+      },
+    });
+    await audit(user.id, "surat.batalkan", "package", surat.packageId, {
+      letterId: surat.id,
+      agenda: `${surat.agendaNo}/${surat.agendaYear}`,
+      dari: surat.status,
+      alasan: parsed.data.alasan,
+      kendalaTertinggal: surat._count.issues,
+      temuanTertinggal: surat._count.findings,
+    });
+    revalidatePath("/surat");
+    revalidatePath("/perlu-tindakan");
+
+    /*
+     * Kendala/temuan yang TERLANJUR lahir dari surat ini tidak ikut dibatalkan.
+     * Membatalkannya diam-diam akan menghapus pekerjaan orang lain; jadi
+     * jumlahnya DIKATAKAN supaya ditangani sendiri, bukan ditinggalkan.
+     */
+    const sisa = surat._count.issues + surat._count.findings;
+    return {
+      success:
+        `Surat agenda ${surat.agendaNo}/${surat.agendaYear} dibatalkan.` +
+        (sisa > 0
+          ? ` ${surat._count.issues} kendala & ${surat._count.findings} temuan yang lahir dari surat ini TETAP berdiri – tutup sendiri bila ikut batal.`
+          : ""),
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Pulihkan surat yang dibatalkan. Kembali ke keadaan awal, bukan ke status terakhir. */
+export async function pulihkanSuratAction(_prev: SuratState, formData: FormData): Promise<SuratState> {
+  try {
+    const user = await requireCapability("letter.void");
+    const id = z.uuid().safeParse(formData.get("letterId"));
+    if (!id.success) return { error: "Surat tidak valid." };
+
+    const surat = await db.letter.findFirst({
+      where: { id: id.data, orgId: user.orgId },
+      select: { id: true, status: true, packageId: true, needsReply: true, agendaNo: true, agendaYear: true },
+    });
+    if (!surat) return { error: "Surat tidak ditemukan." };
+    if (!suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini tidak sedang dibatalkan." };
+    }
+
+    const tujuan = statusPulih(surat.needsReply);
+    const gate = transisiSurat("dibatalkan", tujuan);
+    if (!gate.ok) return { error: gate.error };
+
+    await db.letter.update({
+      where: { id: surat.id },
+      data: { status: gate.status, voidedAt: null, voidedById: null, voidReason: null },
+    });
+    await audit(user.id, "surat.pulihkan", "package", surat.packageId, {
+      letterId: surat.id,
+      agenda: `${surat.agendaNo}/${surat.agendaYear}`,
+      ke: gate.status,
+    });
+    revalidatePath("/surat");
+    revalidatePath("/perlu-tindakan");
+    return { success: `Surat agenda ${surat.agendaNo}/${surat.agendaYear} dipulihkan.` };
   } catch (err) {
     return fail(err);
   }
@@ -248,7 +378,15 @@ export async function petakanSuratAction(_prev: SuratState, formData: FormData):
 
     const surat = await db.letter.findFirst({
       where: { id: d.letterId, orgId: user.orgId },
-      select: { id: true, subject: true, summary: true, category: true, handledDate: true, packageId: true },
+      select: {
+        id: true,
+        status: true,
+        subject: true,
+        summary: true,
+        category: true,
+        handledDate: true,
+        packageId: true,
+      },
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
 

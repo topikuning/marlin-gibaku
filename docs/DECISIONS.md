@@ -22656,3 +22656,56 @@ ini.
 Penjaga: `tests/unit/surat-duplikat.test.ts` (6 uji normalisasi nomor + pesan)
 dan `tests/integration/surat-duplikat.test.ts` (10 uji — dibuktikan gagal saat
 pagarnya dimatikan).
+
+---
+
+## 437 · Surat bisa dibatalkan – reversibel, ber-alasan, tanpa hapus permanen (2026-08-26)
+
+**Masalah.** Register surat dibangun tanpa jalan keluar sama sekali. Laporan
+user: *"dimana ada flag hapus untuk surat ini, kalau tidak di awal akan banyak
+sekali resiko noice data yang crowded dengan kesalahan dsb"*. Betul, dan
+akibatnya berlapis: salah catat tidak bisa dicabut, KPI "menunggu jawaban" ikut
+salah selamanya, EWS menagih surat yang tidak ada, dan pagar duplikat
+DECISIONS 436 justru mengunci nomor yang salah ketik seumur register.
+
+**Keputusan: batalkan, BUKAN hapus.**
+Status baru `LetterStatus.dibatalkan` + kolom `voidedAt` / `voidedById` /
+`voidReason`. Yang dibatalkan hilang dari daftar, KPI, EWS, dan kartu surat di
+halaman lokasi — tapi barisnya tetap ada dan bisa dibuka lewat saringan
+"Dibatalkan" lengkap dengan sebab, waktu, dan pembatalnya.
+
+Alasan tidak menyediakan hapus permanen: register yang barisnya bisa lenyap
+tidak bisa dipercaya. Nomor agenda yang hilang di tengah menimbulkan pertanyaan
+yang tidak bisa dijawab siapa pun enam bulan kemudian — dan justru di situlah
+register surat dipakai.
+
+**Turunannya:**
+1. **Sebab WAJIB ditulis** (minimal 5 karakter). Baris yang hilang tanpa alasan
+   sama membingungkannya dengan baris yang hilang.
+2. **Nomor surat kembali bebas.** Pagar duplikat mengabaikan surat yang
+   dibatalkan — kalau tidak, satu salah ketik menjadi hukuman seumur register.
+3. **Nomor agenda TIDAK didaur ulang.** Agenda 3 yang dibatalkan tetap agenda 3
+   yang dibatalkan; memberikannya ke surat berikutnya membuat dua surat berbeda
+   memakai nomor sama di jejak audit.
+4. **Pulih ke keadaan AWAL**, bukan ke status terakhir (`perlu_jawaban` bila
+   menuntut jawaban, selain itu `baru`). Menghidupkan kembali "sudah dijawab"
+   padahal jawabannya mungkin ikut batal lebih menyesatkan daripada meminta
+   orang menandainya lagi.
+5. **Surat batal tidak bisa ditindaklanjuti**: tidak bisa ganti status, tidak
+   bisa dijadikan kendala/temuan. Pulihkan dulu.
+6. **Kendala/temuan yang TERLANJUR lahir dari surat itu tidak ikut dibatalkan**
+   — membatalkannya diam-diam menghapus pekerjaan orang lain. Jumlahnya
+   disebut di pesan hasil supaya ditangani sendiri.
+
+**Capability `letter.void`, satu jenjang dengan `letter.manage` (Site Manager
+ke atas).** Sengaja TIDAK mengikuti `document.void` yang PM ke atas: dokumen
+adalah bukti milestone, surat adalah catatan korespondensi; dan yang mencatat
+surat itulah yang salah ketik. Pembatalannya reversibel, ber-jejak audit, dan
+tetap terlihat di saringan — jadi jenjang rendah tidak menghilangkan apa pun.
+Kalau kelak dinilai terlalu longgar, pemindahannya satu baris di `authz.ts`.
+
+Penjaga: `tests/unit/surat-lifecycle.test.ts` (5 uji baru — termasuk bahwa
+surat batal TIDAK menagih walau tenggatnya lewat) dan
+`tests/integration/surat-duplikat.test.ts` (2 uji baru — nomor & berkas milik
+surat yang dibatalkan boleh dicatat ulang, barisnya tetap ada, agenda tidak
+didaur ulang).

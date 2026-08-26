@@ -100,7 +100,11 @@ export default async function LokasiRingkasanPage({
      */
     db.letter.findMany({
       // locationId/packageId sudah mengunci ke organisasi ini.
-      where: { OR: [{ locationId: location.id }, { packageId: location.package.id }] },
+      // Surat yang dibatalkan tidak ikut (DECISIONS 437).
+      where: {
+        status: { not: "dibatalkan" },
+        OR: [{ locationId: location.id }, { packageId: location.package.id }],
+      },
       orderBy: [{ handledDate: "desc" }, { agendaNo: "desc" }],
       take: 8,
       select: {
