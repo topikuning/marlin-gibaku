@@ -38,6 +38,12 @@ vi.mock("@/lib/waha/client", () => ({
  * bukan yang sedang diuji berkas ini.
  */
 vi.mock("@/lib/waha/kirim", () => ({
+  // `balasWa` = jalur balasan atas pesan MASUK (DECISIONS 439). `sendText`
+  // ikut ditiru karena berkas lain memakainya; keduanya dicatat sama.
+  balasWa: async (chatId: string, teks: string) => {
+    terkirim.push({ chatId, teks });
+    return "mock-id";
+  },
   sendText: async (chatId: string, teks: string) => {
     terkirim.push({ chatId, teks });
     return "mock-id";
