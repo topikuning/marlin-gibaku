@@ -45,20 +45,36 @@ export type AiRequest = {
   attachments?: AiAttachment[];
 };
 
-/** Yang bisa dibaca provider aktif. MURNI — dipakai layar & pemanggil. */
+/**
+ * Yang bisa dibaca lewat jalur yang SUDAH DIBANGUN MARLIN. MURNI.
+ *
+ * PENTING — ini pernyataan tentang MARLIN, bukan tentang kemampuan provider.
+ * Yang terverifikasi hanya jalur Anthropic (blok `document`/`image` base64,
+ * sesuai dokumentasi resminya). Untuk gaya OpenAI, MARLIN baru mengirim gambar
+ * lewat `image_url` data-URI; jalur PDF-nya belum dibangun DAN belum diuji ke
+ * dokumentasi masing-masing provider.
+ *
+ * Jangan menuliskannya sebagai "provider X tidak bisa PDF": OpenAI dan Mistral
+ * punya jalur dokumen sendiri (bentuk medannya berbeda dari `image_url`, dan
+ * berbeda pula antar provider). Menyatakan ketidakmampuan pihak lain
+ * berdasarkan yang belum kita bangun adalah klaim yang tidak kita punya
+ * dasarnya. Lihat docs/OPEN_ISSUES.md — perlu diverifikasi ke dokumentasi
+ * resmi lalu ditambahkan per provider.
+ */
 export type DukunganLampiran = { gambar: boolean; pdf: boolean; alasan: string };
 
 export function dukunganLampiran(apiStyle: string): DukunganLampiran {
   if (apiStyle === "anthropic") {
-    // Claude menerima blok `image` DAN `document` (PDF) base64 secara langsung.
+    // Terverifikasi terhadap dokumentasi Anthropic: blok `document` (PDF) dan
+    // `image` base64 diterima langsung di /v1/messages.
     return { gambar: true, pdf: true, alasan: "Claude membaca gambar dan PDF." };
   }
-  // Bentuk OpenAI-compatible (OpenAI/Grok/Mistral): gambar lewat `image_url`
-  // data-URI. PDF TIDAK diterima di endpoint chat completions.
   return {
     gambar: true,
     pdf: false,
-    alasan: "Provider ini hanya bisa membaca GAMBAR. Untuk PDF, pilih provider Claude di Sistem → AI.",
+    alasan:
+      "MARLIN baru bisa mengirim GAMBAR ke provider ini – jalur PDF-nya belum dibangun. " +
+      "Untuk PDF, pilih provider Claude di Sistem → AI, atau ubah suratnya menjadi foto/gambar.",
   };
 }
 
@@ -105,7 +121,11 @@ function kontenAnthropic(req: AiRequest): unknown {
   return blok;
 }
 
-/** Isi pesan untuk API bentuk OpenAI. PDF tidak didukung di jalur ini. */
+/**
+ * Isi pesan untuk API bentuk OpenAI. Yang dikirim MARLIN baru GAMBAR
+ * (`image_url` data-URI). PDF disaring di sini karena jalurnya belum
+ * dibangun — bukan karena providernya dipastikan tidak mampu.
+ */
 function kontenOpenAi(req: AiRequest): unknown {
   const lampiran = (req.attachments ?? []).filter((a) => a.mediaType !== "application/pdf");
   if (lampiran.length === 0) return req.prompt;

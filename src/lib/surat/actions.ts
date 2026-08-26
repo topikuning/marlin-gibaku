@@ -401,7 +401,7 @@ export async function bacaBerkasSuratAction(
     if (pdf && !dukung.pdf) return { error: dukung.alasan };
     if (!pdf && !mime.startsWith("image/")) {
       return {
-        error: "Hanya PDF dan gambar yang bisa dibaca AI. Untuk berkas lain, isi formulirnya sendiri.",
+        error: "Baru PDF dan gambar yang bisa dibaca AI. Untuk berkas lain, isi formulirnya sendiri.",
       };
     }
 
