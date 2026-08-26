@@ -22566,3 +22566,43 @@ DIKATAKAN di pesan hasilnya.
 Penjaga: `tests/unit/surat-baca-hasil.test.ts` (13 uji — terutama kapan parser
 MENOLAK mengisi: tanda minus, tanggal tak sah, jawaban mengambang, enum di luar
 daftar, sebutan ambigu).
+
+---
+
+## 435 · Jalur PDF per provider AI, diverifikasi ke SDK resmi (2026-08-26)
+
+**Masalah.** DECISIONS 434 mengirim PDF hanya ke Anthropic, dan layar berbunyi
+"provider ini tidak bisa PDF" untuk sisanya. Klaim itu TIDAK PUNYA DASAR –
+hanya ingatan. User menanyakan dasarnya; tidak ada.
+
+**Sebab teknisnya.** Kode memakai `apiStyle` untuk memutuskan bentuk lampiran.
+OpenAI, Mistral, dan Grok memang sama-sama "kompatibel-OpenAI" untuk teks, tapi
+bentuk medan BERKAS-nya berbeda-beda. Menyamakan tiganya lewat `apiStyle`
+membuat "belum dibangun" tertulis sebagai "tidak mampu".
+
+**Verifikasi.** Dokumentasi HTML ketiga provider diblokir proxy egress, jadi
+dasar diambil dari sumber yang setara otoritatifnya dan bisa diambil di sini:
+tipe SDK resmi (registry npm tidak diblokir), yang di-generate dari spesifikasi
+API masing-masing.
+
+| Provider | Jalur PDF | Sumber |
+| --- | --- | --- |
+| Claude | `{type:"document", source:{type:"base64", media_type, data}}` | dokumentasi Anthropic |
+| ChatGPT | `{type:"file", file:{filename, file_data}}` | `openai@7.5.0` – `ChatCompletionContentPart.File` |
+| Mistral | `{type:"document_url", document_url:"data:…;base64,…", document_name?}` | `@mistralai/mistralai@2.6.4` – `DocumentURLChunk` |
+| Grok | tidak inline; unggah Files API lalu `attachments:[{file_id}]` | dokumentasi xAI Files |
+
+**Keputusan.**
+1. `AiProviderMeta.jalurPdf` (`JalurPdf`) menentukan bentuk lampiran, BUKAN
+   `apiStyle`. Ikut masuk ke `ResolvedAiConfig`.
+2. Claude, ChatGPT, dan Mistral menerima PDF; Grok belum karena alurnya dua
+   langkah dan MARLIN belum membangunnya.
+3. Pemisahan berkas murni ke `src/lib/ai/lampiran.ts` supaya bentuk medannya
+   bisa diuji unit (client.ts menarik db lewat config.ts).
+4. **Aturan penulisan:** kalau suatu jalur belum dibangun, teks di layar dan di
+   kode berbunyi "MARLIN belum bisa", TIDAK PERNAH "provider X tidak bisa".
+   Menyatakan ketidakmampuan pihak lain tanpa dasar adalah kesalahan yang
+   melahirkan keputusan ini.
+
+Penjaga: `tests/unit/ai-lampiran-pdf.test.ts` (9 uji — termasuk uji yang
+menolak munculnya kembali frasa "provider ini tidak bisa").

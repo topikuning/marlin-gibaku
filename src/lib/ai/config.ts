@@ -9,6 +9,7 @@ import {
   aiProvider,
   isAiProviderId,
   type AiApiStyle,
+  type JalurPdf,
   type AiProviderId,
 } from "./providers";
 
@@ -130,6 +131,7 @@ export async function setActiveAiProvider(id: AiProviderId): Promise<void> {
 export type ResolvedAiConfig = {
   id: AiProviderId;
   apiStyle: AiApiStyle;
+  jalurPdf: JalurPdf;
   baseUrl: string;
   tokenParam: "max_tokens" | "max_completion_tokens";
   model: string;
@@ -148,6 +150,7 @@ export async function getAiProviderConfig(id: AiProviderId): Promise<ResolvedAiC
   return {
     id,
     apiStyle: meta.apiStyle,
+    jalurPdf: meta.jalurPdf,
     baseUrl: meta.baseUrl,
     tokenParam: meta.tokenParam,
     model: s.get(keyModel(id))?.trim() || meta.defaultModel,

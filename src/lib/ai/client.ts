@@ -1,6 +1,15 @@
 import "server-only";
 import { getActiveAiConfig, getAiProviderConfig, type ResolvedAiConfig } from "./config";
 import type { AiProviderId } from "./providers";
+export {
+  dukunganLampiran,
+  kontenAnthropic,
+  kontenOpenAi,
+  type AiAttachment,
+  type AiRequest,
+  type DukunganLampiran,
+} from "./lampiran";
+import { kontenAnthropic, kontenOpenAi, type AiRequest } from "./lampiran";
 import {
   errorCodeFromStatus,
   parseAnthropicBody,
@@ -20,63 +29,6 @@ import {
  */
 
 export type AiResult = { ok: true; text: string; model: string } | { ok: false; error: string };
-
-/**
- * Berkas yang ikut dibaca AI (DECISIONS 434). `dataBase64` TANPA baris baru —
- * API menolak base64 ber-newline.
- */
-export type AiAttachment = {
-  /** MIME asli, mis. `image/jpeg` atau `application/pdf`. */
-  mediaType: string;
-  dataBase64: string;
-};
-
-export type AiRequest = {
-  system?: string;
-  prompt: string;
-  maxTokens?: number;
-  timeoutMs?: number;
-  /**
-   * Berkas yang HARUS dibaca isinya (surat hasil pindai). Tidak semua provider
-   * bisa; lihat `dukunganLampiran()` — pemanggil wajib memeriksanya dulu supaya
-   * kegagalannya terbaca sebagai "provider ini tidak mendukung", bukan galat
-   * HTTP mentah yang membingungkan admin.
-   */
-  attachments?: AiAttachment[];
-};
-
-/**
- * Yang bisa dibaca lewat jalur yang SUDAH DIBANGUN MARLIN. MURNI.
- *
- * PENTING — ini pernyataan tentang MARLIN, bukan tentang kemampuan provider.
- * Yang terverifikasi hanya jalur Anthropic (blok `document`/`image` base64,
- * sesuai dokumentasi resminya). Untuk gaya OpenAI, MARLIN baru mengirim gambar
- * lewat `image_url` data-URI; jalur PDF-nya belum dibangun DAN belum diuji ke
- * dokumentasi masing-masing provider.
- *
- * Jangan menuliskannya sebagai "provider X tidak bisa PDF": OpenAI dan Mistral
- * punya jalur dokumen sendiri (bentuk medannya berbeda dari `image_url`, dan
- * berbeda pula antar provider). Menyatakan ketidakmampuan pihak lain
- * berdasarkan yang belum kita bangun adalah klaim yang tidak kita punya
- * dasarnya. Lihat docs/OPEN_ISSUES.md — perlu diverifikasi ke dokumentasi
- * resmi lalu ditambahkan per provider.
- */
-export type DukunganLampiran = { gambar: boolean; pdf: boolean; alasan: string };
-
-export function dukunganLampiran(apiStyle: string): DukunganLampiran {
-  if (apiStyle === "anthropic") {
-    // Terverifikasi terhadap dokumentasi Anthropic: blok `document` (PDF) dan
-    // `image` base64 diterima langsung di /v1/messages.
-    return { gambar: true, pdf: true, alasan: "Claude membaca gambar dan PDF." };
-  }
-  return {
-    gambar: true,
-    pdf: false,
-    alasan:
-      "MARLIN baru bisa mengirim GAMBAR ke provider ini – jalur PDF-nya belum dibangun. " +
-      "Untuk PDF, pilih provider Claude di Sistem → AI, atau ubah suratnya menjadi foto/gambar.",
-  };
-}
 
 export type AiCallResult =
   | {
@@ -104,40 +56,6 @@ async function readError(res: Response): Promise<string> {
   return `HTTP ${res.status}${body ? ` – ${body}` : ""}`;
 }
 
-/**
- * Isi pesan untuk API bentuk Anthropic. Lampiran ditaruh SEBELUM teks —
- * urutan yang dianjurkan dokumentasi: model membaca berkasnya dulu, baru
- * perintahnya.
- */
-function kontenAnthropic(req: AiRequest): unknown {
-  const lampiran = req.attachments ?? [];
-  if (lampiran.length === 0) return req.prompt;
-  const blok: unknown[] = lampiran.map((a) =>
-    a.mediaType === "application/pdf"
-      ? { type: "document", source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 } }
-      : { type: "image", source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 } },
-  );
-  blok.push({ type: "text", text: req.prompt });
-  return blok;
-}
-
-/**
- * Isi pesan untuk API bentuk OpenAI. Yang dikirim MARLIN baru GAMBAR
- * (`image_url` data-URI). PDF disaring di sini karena jalurnya belum
- * dibangun — bukan karena providernya dipastikan tidak mampu.
- */
-function kontenOpenAi(req: AiRequest): unknown {
-  const lampiran = (req.attachments ?? []).filter((a) => a.mediaType !== "application/pdf");
-  if (lampiran.length === 0) return req.prompt;
-  return [
-    { type: "text", text: req.prompt },
-    ...lampiran.map((a) => ({
-      type: "image_url",
-      image_url: { url: `data:${a.mediaType};base64,${a.dataBase64}` },
-    })),
-  ];
-}
-
 function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; init: RequestInit } {
   const maxTokens = req.maxTokens ?? 1024;
   if (cfg.apiStyle === "anthropic") {
@@ -161,7 +79,7 @@ function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; ini
   }
   const messages: { role: string; content: unknown }[] = [];
   if (req.system) messages.push({ role: "system", content: req.system });
-  messages.push({ role: "user", content: kontenOpenAi(req) });
+  messages.push({ role: "user", content: kontenOpenAi(req, cfg.jalurPdf) });
   return {
     url: `${cfg.baseUrl}/chat/completions`,
     init: {

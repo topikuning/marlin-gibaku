@@ -98,19 +98,13 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Teknis
 
-- 🟡 **AI-01 · Jalur PDF hanya dibangun untuk Anthropic; provider lain belum
-  diverifikasi.** `dukunganLampiran()` mengembalikan `pdf: false` untuk gaya
-  API OpenAI (OpenAI/Mistral/Grok). Itu menyatakan **apa yang sudah dibangun
-  MARLIN**, BUKAN kemampuan providernya — dan bedanya penting: OpenAI dan
-  Mistral punya jalur dokumen sendiri dengan bentuk medan yang berbeda dari
-  `image_url`, dan berbeda pula satu sama lain.
-  Ditemukan 2026-08-26 saat user menanyakan dasar klaimnya; jawabannya: tidak
-  ada dasar terverifikasi, hanya ingatan. Dokumentasi resmi ketiga provider
-  DIBLOKIR proxy egress di lingkungan kerja ini, jadi verifikasinya tertunda.
-  Yang perlu dikerjakan: baca dokumentasi resmi tiap provider, lalu tambahkan
-  jalur PDF per provider (bentuk medannya berbeda-beda — jangan disamakan).
-  Sampai itu dikerjakan, teks di layar harus tetap berbunyi "MARLIN belum bisa",
-  bukan "provider tidak bisa".
+- 🟡 **AI-01 (sisa) · Grok/xAI belum bisa menerima PDF dari MARLIN.** Jalur PDF
+  OpenAI (`type:"file"`) dan Mistral (`type:"document_url"`) sudah dibangun dan
+  diuji bentuk medannya (DECISIONS 435). xAI belum: PDF di sana tidak bisa
+  disisipkan langsung di pesan – harus diunggah dulu lewat Files API lalu
+  dirujuk `attachments:[{file_id}]`, alur dua langkah yang perlu penyimpanan
+  file_id + pembersihannya. Sampai itu dibangun, teks layar berbunyi "MARLIN
+  belum bisa", BUKAN "Grok tidak bisa".
 - 🟡 **E2E flaky: "Enter di kolom Qty/Volume MENYIMPAN"**
   (`tests/e2e/harian-tata-letak-input.spec.ts:222`). Setelah Enter dan banner
   "Pelengkap laporan tersimpan." muncul, `materialQty` pertama kadang kembali

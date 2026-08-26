@@ -124,12 +124,12 @@ export async function usulkanIsiLampiranAction(
      * 434). Tanpa ini AI hanya menebak dari nama berkas — dan surat hasil
      * pindai bernama "IMG-0032.jpg" tidak memberi tahu apa pun.
      */
-    const lampiranAi: { mediaType: string; dataBase64: string }[] = [];
+    const lampiranAi: { mediaType: string; dataBase64: string; nama?: string }[] = [];
     if (att.status === "tertangkap" && att.localPath && att.mimeType) {
       const { getActiveAiConfig } = await import("@/lib/ai/config");
       const { dukunganLampiran } = await import("@/lib/ai/client");
       const cfg = await getActiveAiConfig();
-      const dukung = cfg ? dukunganLampiran(cfg.apiStyle) : null;
+      const dukung = cfg ? dukunganLampiran(cfg.jalurPdf) : null;
       const pdf = att.mimeType === "application/pdf";
       const bisa = dukung ? (pdf ? dukung.pdf : att.mimeType.startsWith("image/") && dukung.gambar) : false;
       if (bisa) {
@@ -138,7 +138,11 @@ export async function usulkanIsiLampiranAction(
           const buf = await readFile(att.localPath);
           // Berkas raksasa tidak dikirim — biaya & timeout tidak sepadan.
           if (buf.byteLength <= 20 * 1024 * 1024) {
-            lampiranAi.push({ mediaType: att.mimeType, dataBase64: buf.toString("base64") });
+            lampiranAi.push({
+              mediaType: att.mimeType,
+              dataBase64: buf.toString("base64"),
+              ...(att.fileName ? { nama: att.fileName } : {}),
+            });
           }
         } catch {
           /* berkas lokal sudah hilang (kontainer ter-deploy ulang) → tetap

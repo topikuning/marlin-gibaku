@@ -396,7 +396,7 @@ export async function bacaBerkasSuratAction(
 
     const mime = file.type || "application/octet-stream";
     const { dukunganLampiran } = await import("@/lib/ai/client");
-    const dukung = dukunganLampiran(cfg.apiStyle);
+    const dukung = dukunganLampiran(cfg.jalurPdf);
     const pdf = mime === "application/pdf";
     if (pdf && !dukung.pdf) return { error: dukung.alasan };
     if (!pdf && !mime.startsWith("image/")) {
@@ -415,7 +415,7 @@ export async function bacaBerkasSuratAction(
       prompt:
         `Berkas: ${file.name}\n` +
         "Petakan isi surat ini ke medan-medan yang diminta. Jawab hanya baris berlabel.",
-      attachments: [{ mediaType: mime, dataBase64: b64 }],
+      attachments: [{ mediaType: mime, dataBase64: b64, nama: file.name }],
       maxTokens: 900,
       timeoutMs: 120_000,
     });
