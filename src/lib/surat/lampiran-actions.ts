@@ -8,6 +8,7 @@ import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { arsipkanLampiran } from "@/lib/waha/lampiran-tangkap";
 import { jakartaToday } from "@/lib/format";
+import { SuratDuplikatError, alasanDuplikat, normalNomorSurat } from "./duplikat";
 import { aiCall } from "@/lib/ai/client";
 import { promptDefault } from "@/lib/ai/prompt-registry";
 import { resolvePrompt } from "@/lib/ai/prompts";
@@ -304,6 +305,54 @@ export async function buatSurat(input: {
 }): Promise<{ id: string; agendaNo: number; agendaYear: number }> {
   const tahun = jakartaToday().getUTCFullYear();
   return db.$transaction(async (tx) => {
+    /*
+     * Pagar duplikat (DECISIONS 436) — DI DALAM transaksi yang sama dengan
+     * penomoran agenda, supaya dua kiriman yang beriringan (tombol simpan
+     * ditekan dua kali) tidak sama-sama lolos pemeriksaan lalu sama-sama
+     * membuat baris.
+     */
+    const nomorBaru = normalNomorSurat(input.letterNumber);
+    if (nomorBaru) {
+      const sekandidat = await tx.letter.findMany({
+        where: {
+          orgId: input.orgId,
+          direction: input.direction,
+          agendaYear: tahun,
+          letterNumber: { not: null },
+        },
+        select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
+      });
+      const kembar = sekandidat.find((l) => normalNomorSurat(l.letterNumber) === nomorBaru);
+      if (kembar) {
+        throw new SuratDuplikatError(
+          alasanDuplikat(
+            { nomorNormal: nomorBaru, direction: input.direction, fileR2Key: input.fileR2Key ?? null },
+            kembar,
+            "nomor",
+          ),
+          "nomor",
+        );
+      }
+    }
+    if (input.fileR2Key) {
+      // Kunci R2 berkas surat = sha256 isinya, jadi kunci yang sama berarti
+      // berkas yang sama persis – bukan sekadar nama berkas yang mirip.
+      const samaBerkas = await tx.letter.findFirst({
+        where: { orgId: input.orgId, fileR2Key: input.fileR2Key },
+        select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
+      });
+      if (samaBerkas) {
+        throw new SuratDuplikatError(
+          alasanDuplikat(
+            { nomorNormal: nomorBaru, direction: input.direction, fileR2Key: input.fileR2Key },
+            samaBerkas,
+            "berkas",
+          ),
+          "berkas",
+        );
+      }
+    }
+
     const terakhir = await tx.letter.aggregate({
       where: { orgId: input.orgId, agendaYear: tahun },
       _max: { agendaNo: true },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Badge, Banner, Button, Card, CardBody, Combobox, FileInput, Input, Label, Textarea } from "@/components/ui";
 import { Plus, Sparkles } from "lucide-react";
 import { bacaBerkasSuratAction, catatSuratAction, type BacaSuratState, type SuratState } from "@/lib/surat/actions";
@@ -84,6 +84,17 @@ export function CatatSurat({
   const [potensi, setPotensi] = useState<{ jenis: string; alasan: string | null } | null>(null);
   const hariIni = new Date().toISOString().slice(0, 10);
 
+  /*
+   * Berkasnya ditahan di state, BUKAN di dalam form baca.
+   *
+   * Bug DECISIONS 436: dulu input berkas berada di dalam form "baca dengan AI",
+   * sehingga saat tombol simpan ditekan berkas itu tidak ikut terkirim —
+   * suratnya tercatat, berkasnya lenyap. Satu berkas kini dipegang di sini dan
+   * dipakai dua-duanya: dikirim ke AI untuk dibaca, dan ikut disimpan.
+   */
+  const [berkas, setBerkas] = useState<File | null>(null);
+  const [membaca, mulaiBaca] = useTransition();
+
   // Hasil AI mengisi formulir sekali, lalu bebas disunting orang.
   const hasil = bacaState && "hasil" in bacaState ? bacaState.hasil : undefined;
   const [sudahTerisi, setSudahTerisi] = useState(false);
@@ -112,6 +123,35 @@ export function CatatSurat({
     setIsi(KOSONG);
     setPotensi(null);
     setSudahTerisi(false);
+    setBerkas(null);
+  };
+
+  /*
+   * Setelah tersimpan, formulirnya DITUTUP (DECISIONS 436).
+   *
+   * Laporan user 2026-08-26: form tetap aktif setelah "Surat tercatat", jadi
+   * menekan simpan sekali lagi membuat baris kedua yang bisa ditindaklanjuti
+   * sendiri-sendiri. Pagar servernya sudah ada, tapi layar yang membiarkan
+   * orang menekan tombol yang pasti gagal tetap salah.
+   */
+  const [suksesTerakhir, setSuksesTerakhir] = useState<string | null>(null);
+  if (state?.success && state.success !== suksesTerakhir) {
+    setSuksesTerakhir(state.success);
+    tutup();
+  }
+
+  const bacaBerkas = () => {
+    if (!berkas) return;
+    const fd = new FormData();
+    fd.set("file", berkas);
+    mulaiBaca(() => bacaAction(fd));
+  };
+
+  /** Berkas yang dipegang state ikut dititipkan ke FormData saat menyimpan. */
+  const simpan = (fd: FormData) => {
+    if (berkas) fd.set("file", berkas);
+    else fd.delete("file");
+    action(fd);
   };
 
   if (!buka) {
@@ -169,28 +209,47 @@ export function CatatSurat({
   return (
     <Card>
       <CardBody className="space-y-3">
-        {/* Langkah AI: unggah → satu permintaan memetakan semuanya. */}
-        {mode === "ai" ? (
-          <form action={bacaAction} className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
-            <Label htmlFor="cs-file-ai" required>
-              Berkas surat (PDF atau foto)
-            </Label>
-            <FileInput id="cs-file-ai" name="file" accept="application/pdf,image/*" />
+        {/*
+          Satu kotak berkas untuk dua-duanya: dibaca AI DAN ikut tersimpan pada
+          suratnya. Sengaja di LUAR kedua form supaya tidak lagi terjadi berkas
+          yang hanya sampai ke AI lalu hilang saat disimpan (DECISIONS 436).
+        */}
+        <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+          <Label htmlFor="cs-file" required={mode === "ai"}>
+            {mode === "ai" ? "Berkas surat (PDF atau foto)" : "Berkas surat (opsional)"}
+          </Label>
+          <FileInput
+            key={`berkas-${mode}-${suksesTerakhir ?? "0"}`}
+            id="cs-file"
+            name="fileTampilan"
+            accept={mode === "ai" ? "application/pdf,image/*" : undefined}
+            onPilih={(f) => setBerkas(f[0] ?? null)}
+            petunjuk="Berkas ini diarsipkan bersama suratnya dan bisa dibuka lagi dari register."
+          />
+          {mode === "ai" ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" size="sm" disabled={bacaPending} loading={bacaPending}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={bacaBerkas}
+                disabled={!berkas || bacaPending || membaca}
+                loading={bacaPending || membaca}
+              >
                 <Sparkles aria-hidden className="size-3.5" />
-                {bacaPending ? "Membaca surat…" : "Baca & petakan dengan AI"}
+                {bacaPending || membaca ? "Membaca surat…" : "Baca & petakan dengan AI"}
               </Button>
               <span className="text-[13px] text-ink-muted">
-                Satu permintaan – semua isian di bawah terisi sekaligus.
+                {berkas
+                  ? "Satu permintaan – semua isian di bawah terisi sekaligus."
+                  : "Pilih berkasnya dulu."}
               </span>
             </div>
-            {bacaState?.error ? <p className="text-sm text-danger">{bacaState.error}</p> : null}
-            {bacaState && "catatan" in bacaState && bacaState.catatan ? (
-              <p className="text-[13px] text-warning">{bacaState.catatan}</p>
-            ) : null}
-          </form>
-        ) : null}
+          ) : null}
+          {bacaState?.error ? <p className="text-sm text-danger">{bacaState.error}</p> : null}
+          {bacaState && "catatan" in bacaState && bacaState.catatan ? (
+            <p className="text-[13px] text-warning">{bacaState.catatan}</p>
+          ) : null}
+        </div>
 
         {hasil ? (
           <Banner
@@ -208,15 +267,7 @@ export function CatatSurat({
           />
         ) : null}
 
-        <form action={action} className="space-y-3">
-          {/* Berkas ikut tersimpan pada suratnya. */}
-          {mode === "manual" ? (
-            <div>
-              <Label htmlFor="cs-file">Berkas surat (opsional)</Label>
-              <FileInput id="cs-file" name="file" />
-            </div>
-          ) : null}
-
+        <form action={simpan} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <Label htmlFor="cs-arah" required>

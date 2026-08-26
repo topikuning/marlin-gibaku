@@ -105,6 +105,12 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   dirujuk `attachments:[{file_id}]`, alur dua langkah yang perlu penyimpanan
   file_id + pembersihannya. Sampai itu dibangun, teks layar berbunyi "MARLIN
   belum bisa", BUKAN "Grok tidak bisa".
+- 🟢 **Ringkasan lokasi: dua keluhan konsol React (bukan penghalang).** Terlihat
+  saat memverifikasi DECISIONS 436 di peramban, TIDAK berkaitan dengan surat:
+  (a) `PelaksanaForm` hidrasi tidak cocok – `encType` server `null` vs klien
+  `multipart/form-data`; (b) `scurve-chart` mengirim `cy=NaN` saat seri
+  realisasi kosong. Keduanya kosmetik hari ini, tapi (b) berarti ada titik yang
+  digambar dari nilai yang tidak ada.
 - 🟡 **E2E flaky: "Enter di kolom Qty/Volume MENYIMPAN"**
   (`tests/e2e/harian-tata-letak-input.spec.ts:222`). Setelah Enter dan banner
   "Pelengkap laporan tersimpan." muncul, `materialQty` pertama kadang kembali

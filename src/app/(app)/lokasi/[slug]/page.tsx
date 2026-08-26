@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PelaksanaForm } from "@/components/knmp/pelaksana-form";
 import { presignKeys } from "@/lib/photos";
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, ClipboardList } from "lucide-react";
+import { AlertTriangle, CalendarRange, ClipboardList, Mail } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, StatusPill } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -20,6 +20,12 @@ import {
   canTransitionLocation,
 } from "@/lib/lifecycle";
 import type { LocationStatus } from "@/generated/prisma/enums";
+import {
+  ARAH_LABEL,
+  PIHAK_LABEL,
+  STATUS_SURAT_LABEL,
+  STATUS_SURAT_TONE,
+} from "@/lib/surat/lifecycle";
 import { requireLocationPage } from "./get-location";
 import { LocationStatusForm } from "./status-form";
 import { LocationMasterForm } from "./master-form";
@@ -52,7 +58,7 @@ export default async function LokasiRingkasanPage({
     db.location.count({ where: { packageId: location.package.id } }),
   ]);
 
-  const [weeklyPlan, openIssues, lastReport, statusHistory] = await Promise.all([
+  const [weeklyPlan, openIssues, lastReport, statusHistory, surat] = await Promise.all([
     db.weeklyPlan.findUnique({
       where: { locationId_weekNumber: { locationId: location.id, weekNumber: progress.weekNumber } },
       select: {
@@ -85,6 +91,32 @@ export default async function LokasiRingkasanPage({
       orderBy: { changedAt: "desc" },
       take: 5,
       select: { id: true, fromStatus: true, toStatus: true, changedAt: true, note: true },
+    }),
+    /*
+     * Riwayat surat lokasi ini (DECISIONS 436). Surat yang menunjuk lokasi
+     * secara langsung DAN surat paket ikut, karena surat paket tetap mengikat
+     * lokasi ini — dipisahkan penandanya supaya tidak terbaca seolah semuanya
+     * menyebut kampung ini.
+     */
+    db.letter.findMany({
+      // locationId/packageId sudah mengunci ke organisasi ini.
+      where: { OR: [{ locationId: location.id }, { packageId: location.package.id }] },
+      orderBy: [{ handledDate: "desc" }, { agendaNo: "desc" }],
+      take: 8,
+      select: {
+        id: true,
+        agendaNo: true,
+        agendaYear: true,
+        direction: true,
+        subject: true,
+        partyName: true,
+        party: true,
+        handledDate: true,
+        status: true,
+        locationId: true,
+        fileR2Key: true,
+        fileName: true,
+      },
     }),
   ]);
 
@@ -242,6 +274,63 @@ export default async function LokasiRingkasanPage({
                       <StatusPill tone={ISSUE_SEVERITY_TONE[issue.severity]} label={ISSUE_SEVERITY_LABEL[issue.severity]} />
                       <StatusPill tone={ISSUE_STATUS_TONE[issue.status]} label={ISSUE_STATUS_LABEL[issue.status]} />
                     </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+
+
+        {/*
+          Riwayat surat lokasi ini (DECISIONS 436). Sebelum ini surat hanya
+          hidup di /surat, jadi orang yang membuka lokasi tidak pernah tahu ada
+          korespondensi yang menyangkut kampungnya.
+        */}
+        <Card>
+          <CardHeader
+            title="Surat terkait"
+            subtitle="Surat yang menunjuk lokasi ini atau paketnya – terbaru dulu."
+            action={
+              <ButtonLink href="/surat" variant="ghost" size="sm">
+                Buka register
+              </ButtonLink>
+            }
+          />
+          <CardBody>
+            {surat.length === 0 ? (
+              <EmptyState icon={Mail} title="Belum ada surat terkait lokasi ini" className="py-6" />
+            ) : (
+              <ul className="divide-y divide-border">
+                {surat.map((l) => (
+                  <li key={l.id} className="py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium text-ink">{l.subject}</p>
+                      <StatusPill tone={STATUS_SURAT_TONE[l.status]} label={STATUS_SURAT_LABEL[l.status]} />
+                    </div>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {[
+                        `#${l.agendaNo}/${l.agendaYear}`,
+                        ARAH_LABEL[l.direction],
+                        l.partyName || PIHAK_LABEL[l.party],
+                        formatTanggal(l.handledDate),
+                        // Surat paket yang tidak menyebut kampung ini DIKATAKAN
+                        // begitu, supaya tidak terbaca sebagai surat lokasi.
+                        l.locationId === location.id ? null : "lewat paket",
+                      ]
+                        .filter(Boolean)
+                        .join(" \u00b7 ")}
+                    </p>
+                    {l.fileR2Key ? (
+                      <a
+                        href={`/api/surat/${l.id}/berkas`}
+                        target="_blank"
+                        rel="noopener"
+                        className="mt-0.5 inline-block text-xs text-primary hover:underline"
+                      >
+                        {l.fileName || "Buka berkas surat"}
+                      </a>
+                    ) : null}
                   </li>
                 ))}
               </ul>

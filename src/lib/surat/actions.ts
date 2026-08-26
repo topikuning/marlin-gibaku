@@ -433,11 +433,36 @@ export async function bacaBerkasSuratAction(
       }),
       db.location.findMany({
         where: izin ? { id: { in: izin } } : { package: { orgId: user.orgId } },
-        select: { id: true, name: true },
+        select: { id: true, name: true, packageId: true, package: { select: { id: true, name: true } } },
       }),
     ]);
-    const paket = cocokkanSebutan(h.paketSebutan, paketList);
+    let paket = cocokkanSebutan(h.paketSebutan, paketList);
     const lokasi = cocokkanSebutan(h.lokasiSebutan, lokasiList);
+
+    /*
+     * Lokasi SUDAH menentukan paketnya (DECISIONS 436). Surat lapangan hampir
+     * selalu menyebut nama kampung, bukan nama paket kontraknya — jadi
+     * membiarkan paket kosong padahal lokasinya sudah dikenali membuat orang
+     * mengisi ulang sesuatu yang sebenarnya sudah diketahui sistem.
+     *
+     * Arah sebaliknya HANYA bila paketnya berlokasi tunggal: paket dengan
+     * banyak lokasi tidak menunjuk salah satunya, dan menebak berarti menautkan
+     * surat ke kampung yang tidak disebut suratnya.
+     */
+    let paketDariLokasi: string | null = null;
+    let lokasiDariPaket: string | null = null;
+    if (lokasi && !paket && lokasi.package) {
+      paket = { id: lokasi.package.id, name: lokasi.package.name };
+      paketDariLokasi = lokasi.name;
+    }
+    let lokasiTerpilih: { id: string; name: string } | null = lokasi;
+    if (paket && !lokasi) {
+      const isiPaket = lokasiList.filter((l) => l.packageId === paket.id);
+      if (isiPaket.length === 1) {
+        lokasiTerpilih = { id: isiPaket[0].id, name: isiPaket[0].name };
+        lokasiDariPaket = paket.name;
+      }
+    }
 
     await audit(user.id, "surat.baca_berkas_ai", "app_setting", null, {
       fileName: file.name,
@@ -451,8 +476,11 @@ export async function bacaBerkasSuratAction(
      * lokasi apa pun, padahal sebenarnya sistem yang tidak mengenalinya.
      */
     const tidakCocok: string[] = [];
-    if (h.lokasiSebutan && !lokasi) tidakCocok.push(`lokasi "${h.lokasiSebutan}"`);
+    if (h.lokasiSebutan && !lokasiTerpilih) tidakCocok.push(`lokasi "${h.lokasiSebutan}"`);
     if (h.paketSebutan && !paket) tidakCocok.push(`paket "${h.paketSebutan}"`);
+    const disimpulkan: string[] = [];
+    if (paketDariLokasi) disimpulkan.push(`Paket diisi dari lokasi ${paketDariLokasi}`);
+    if (lokasiDariPaket) disimpulkan.push(`Lokasi diisi karena paket ${lokasiDariPaket} hanya punya satu lokasi`);
 
     return {
       hasil: {
@@ -470,14 +498,20 @@ export async function bacaBerkasSuratAction(
         alasanPotensi: h.alasanPotensi,
         packageId: paket?.id ?? null,
         packageNama: paket?.name ?? null,
-        locationId: lokasi?.id ?? null,
-        locationNama: lokasi?.name ?? null,
+        locationId: lokasiTerpilih?.id ?? null,
+        locationNama: lokasiTerpilih?.name ?? null,
         lokasiSebutan: h.lokasiSebutan,
         paketSebutan: h.paketSebutan,
       },
-      catatan: tidakCocok.length
-        ? `Surat menyebut ${tidakCocok.join(" dan ")}, tapi tidak cocok dengan data – pilih sendiri bila perlu.`
-        : undefined,
+      catatan:
+        [
+          tidakCocok.length
+            ? `Surat menyebut ${tidakCocok.join(" dan ")}, tapi tidak cocok dengan data – pilih sendiri bila perlu.`
+            : null,
+          disimpulkan.length ? `${disimpulkan.join(". ")} – ganti bila keliru.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined,
     };
   } catch (err) {
     return fail(err) as BacaSuratState;

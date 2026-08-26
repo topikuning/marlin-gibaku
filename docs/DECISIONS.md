@@ -22606,3 +22606,53 @@ API masing-masing.
 
 Penjaga: `tests/unit/ai-lampiran-pdf.test.ts` (9 uji — termasuk uji yang
 menolak munculnya kembali frasa "provider ini tidak bisa").
+
+---
+
+## 436 · Register surat: berkas benar-benar tersimpan, duplikat ditahan, paket ikut dari lokasi (2026-08-26)
+
+Empat cacat dilaporkan user dari layar `/surat` sekaligus. Ketiganya berakar
+pada hal yang sama: fitur dinyatakan selesai padahal jalur datanya belum tuntas.
+
+**1. Berkas surat TIDAK PERNAH tersimpan di jalur AI.** Kotak berkas berada di
+dalam `<form>` "Baca & petakan dengan AI", terpisah dari `<form>` simpan. Jadi
+berkas hanya sampai ke AI, lalu hilang: `Letter.fileR2Key` null, dan tidak ada
+apa pun untuk dibuka. Kini berkasnya dipegang state komponen, dipakai dua-duanya
+— dikirim ke AI DAN dititipkan ke FormData saat simpan.
+
+**2. Berkas tidak punya pintu.** Bahkan surat manual yang berkasnya terarsip
+tidak bisa dibuka: tidak ada rute pengunduh. Ditambah
+`GET /api/surat/[id]/berkas` (auth → capability `letter.view` → scope lokasi →
+presigned R2 120 detik), dan tautannya muncul di baris register. Arsip yang
+tidak bisa dibuka sama saja dengan tidak diarsipkan.
+
+**3. Form tetap aktif setelah tersimpan → duplikat.** *"berantakan total, tiap
+duplikasi bisa dilakukan tindak lanjut berbeda"*. Dua hal diperbaiki, bukan
+satu:
+  - **Layar**: formulir ditutup begitu simpan berhasil.
+  - **Pagar**: `buatSurat()` menolak duplikat DI DALAM transaksi penomoran
+    agenda — nomor surat yang sama pada arah yang sama (dibandingkan setelah
+    dinormalkan: spasi, huruf besar, dan pemisah `/ - .` disamakan), atau
+    berkas yang isinya sama persis (kunci R2 = sha256 isi). Layar bukan pagar:
+    kiriman ganda bisa datang dari tombol ditekan dua kali, jaringan yang
+    mengulang, atau tab kedua.
+  Perihal & tanggal SENGAJA tidak dipakai sebagai penanda duplikat — dua surat
+  berbeda bisa berperihal sama di hari yang sama, dan menolaknya menghalangi
+  pekerjaan yang sah.
+
+**4. Lokasi tidak menurunkan paket.** Surat lapangan menyebut nama kampung,
+bukan nama paket kontrak. Kalau lokasinya sudah dikenali, paketnya sudah
+diketahui — membiarkannya kosong menyuruh orang mengisi ulang yang sudah
+diketahui sistem. Kini paket diisi dari lokasi, dan arah sebaliknya HANYA bila
+paketnya berlokasi tunggal (paket multi-lokasi tidak menunjuk salah satunya).
+Yang disimpulkan DIKATAKAN di layar ("Paket diisi dari lokasi X – ganti bila
+keliru"), tidak diam-diam.
+
+**5. Riwayat surat di halaman lokasi.** Kartu "Surat terkait" pada
+`/lokasi/[slug]`: surat yang menunjuk lokasi ini maupun paketnya, dengan
+penanda "lewat paket" supaya surat paket tidak terbaca seolah menyebut kampung
+ini.
+
+Penjaga: `tests/unit/surat-duplikat.test.ts` (6 uji normalisasi nomor + pesan)
+dan `tests/integration/surat-duplikat.test.ts` (10 uji — dibuktikan gagal saat
+pagarnya dimatikan).

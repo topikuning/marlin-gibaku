@@ -75,7 +75,10 @@ export default async function SuratPage({
         status: true,
         needsReply: true,
         replyDueDate: true,
+        fileR2Key: true,
+        fileName: true,
         package: { select: { name: true } },
+        location: { select: { name: true, slug: true } },
         _count: { select: { issues: true, findings: true } },
       },
     }),
@@ -199,6 +202,10 @@ export default async function SuratPage({
                   statusTone={STATUS_SURAT_TONE[l.status]}
                   status={l.status}
                   paketNama={l.package?.name ?? null}
+                  lokasiNama={l.location?.name ?? null}
+                  lokasiSlug={l.location?.slug ?? null}
+                  punyaBerkas={Boolean(l.fileR2Key)}
+                  namaBerkas={l.fileName}
                   sisaHari={l.needsReply ? sisaHariJawab(l.replyDueDate, hariIni) : null}
                   jumlahKendala={l._count.issues}
                   jumlahTemuan={l._count.findings}

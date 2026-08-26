@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
+import { Paperclip } from "lucide-react";
 import { Badge, Button, Combobox, Input, Label, type BadgeTone } from "@/components/ui";
 import {
   petakanSuratAction,
@@ -23,6 +25,11 @@ export type BarisSuratProps = {
   statusTone: BadgeTone;
   status: string;
   paketNama: string | null;
+  lokasiNama: string | null;
+  lokasiSlug: string | null;
+  /** Berkas surat terarsip di R2 – dibuka lewat /api/surat/[id]/berkas. */
+  punyaBerkas: boolean;
+  namaBerkas: string | null;
   /** Sisa hari menuju tenggat; negatif = lewat. null = tidak menuntut jawaban. */
   sisaHari: number | null;
   jumlahKendala: number;
@@ -71,9 +78,34 @@ export function BarisSurat(p: BarisSuratProps) {
               p.tanggalSurat ? `Surat ${p.tanggalSurat}` : null,
               `Ditangani ${p.tanggalTangani}`,
               p.paketNama,
+              p.lokasiNama,
             ]
               .filter(Boolean)
               .join(" · ")}
+          </p>
+          {/*
+            Berkas & lokasi diberi PINTU, bukan sekadar disebut (DECISIONS 436).
+            Arsip yang tidak bisa dibuka sama saja dengan tidak diarsipkan.
+          */}
+          <p className="mt-1 flex flex-wrap items-center gap-3 text-xs">
+              {p.punyaBerkas ? (
+                <a
+                  href={`/api/surat/${p.id}/berkas`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  <Paperclip aria-hidden className="size-3.5" />
+                  {p.namaBerkas || "Buka berkas surat"}
+                </a>
+              ) : (
+                <span className="text-ink-faint">Tanpa berkas terarsip</span>
+              )}
+              {p.lokasiSlug ? (
+                <Link href={`/lokasi/${p.lokasiSlug}`} className="text-primary hover:underline">
+                  Buka lokasi
+                </Link>
+            ) : null}
           </p>
         </div>
         <span className="flex flex-wrap items-center gap-1">
