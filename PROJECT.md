@@ -82,7 +82,8 @@ AHSP    → AhspSource (SE DJBK 47/2026 terbitan 5.0-universal, sha256 + matchin
            pemetaan item RAB → analisa; `otomatis` = usulan mesin, `disetujui`/`koreksi`
            = keputusan manusia — HANYA yang terakhir dipakai menghitung RAPL)
 Location → HargaSatuanDasar (HSD per lokasi; kunci kategori+nama+satuan sama persis
-           dengan kunci kebutuhan RAPL. Harga lokasi lain = rekomendasi, tak pernah dipakai sendiri)
+           dengan kunci kebutuhan RAPL. Harga lokasi lain = rekomendasi, tak pernah dipakai sendiri;
+           AI boleh memberi DRAF harga, tetapi baru menjadi HSD setelah disetujui manusia)
 Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting effective-dated
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)
@@ -158,7 +159,9 @@ pengendalian terpadu di docs/integrated-control/UX_INFORMATION_ARCHITECTURE.md.)
 Menu: Beranda (Command
 Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
 Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
-RAB/RAPL (Petakan→Setujui→Kebutuhan→Harga; cetak A4 `/cetak/rapl/[slug]` + unduh xlsx)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
+RAB/RAPL (Ringkasan estimasi → Kebutuhan & Harga → Validasi breakdown;
+biaya dan potensi margin memakai nilai RAB aktif lokasi; cetak A4
+`/cetak/rapl/[slug]` + unduh xlsx)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
 Hari Ini (landing lapangan mobile) · Progress · Kendala · **Temuan** (papan
 temuan pemeriksa + register .xlsx) · **Verifikasi** (workspace Wakil PPK:
 antrean laporan, inspeksi, temuan menunggu verifikasi) · **Perlu Tindakan**

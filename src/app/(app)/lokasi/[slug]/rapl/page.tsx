@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
 import { Download, Printer } from "lucide-react";
-import { Banner, ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
+import {
+  Banner,
+  ButtonLink,
+  Card,
+  CardBody,
+  CardHeader,
+  KpiCard,
+  SubTabs,
+} from "@/components/ui";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatPct, formatRupiah } from "@/lib/format";
@@ -32,14 +40,25 @@ export const dynamic = "force-dynamic";
  * "Kenapa begini?" — tetap ada karena angkanya memang perlu dijelaskan, tapi
  * tidak lagi menutupi pekerjaannya.
  */
-export default async function RaplPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function RaplPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ bagian?: string }>;
+}) {
   const { slug } = await params;
+  const query = await searchParams;
+  const bagian = ["ringkasan", "kebutuhan", "validasi"].includes(query.bagian ?? "")
+    ? (query.bagian as "ringkasan" | "kebutuhan" | "validasi")
+    : "ringkasan";
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
   const canManage = can(user.role, "rab.manage");
   const canExport = can(user.role, "report.export");
 
   const canInput = can(user.role, "finance.input");
+  const canUseAi = can(user.role, "ai.generate");
 
   const [basis, { baris, cakupan }, rapl, harga] = await Promise.all([
     ringkasAhsp(),
@@ -113,10 +132,34 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
   const saringAwal =
     aktif === "petakan" ? "kerjakan" : aktif === "setujui" ? "menunggu" : "kerjakan";
 
-  const pctNilai =
-    cakupan.nilaiTotal > 0n
-      ? (Number(cakupan.nilaiDisetujui) / Number(cakupan.nilaiTotal)) * 100
+  const pctBreakdown =
+    rapl.nilaiRab > 0n
+      ? (Number(rapl.dipakai.nilai) / Number(rapl.nilaiRab)) * 100
       : 0;
+
+  const pctHarga = harga.baris.length > 0 ? (harga.berharga / harga.baris.length) * 100 : 0;
+  const p = harga.perbandingan;
+  const ringkasanBiaya = (
+    <RingkasBiaya
+      totalBiaya={harga.totalBiaya.toString()}
+      berharga={harga.berharga}
+      belumBerharga={harga.belumBerharga}
+      perKategori={harga.perKategori.map((k) => ({
+        kategori: k.kategori,
+        biaya: k.biaya.toString(),
+        berharga: k.berharga,
+        total: k.total,
+      }))}
+      perbandingan={{
+        nilaiProyek: p.nilaiProyek.toString(),
+        margin: p.margin.toString(),
+        marginPersen: p.marginPersen,
+        cakupanNilai: p.keandalan.cakupanNilai,
+        cakupanHarga: p.keandalan.cakupanHarga,
+        utuh: p.keandalan.utuh,
+      }}
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -140,9 +183,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
           title="Belum ada revisi RAB aktif"
           description="RAPL bekerja dari RAB yang berlaku. Aktifkan revisi RAB lokasi ini lebih dulu."
         />
-      ) : (
-        <Stepper tahapan={tahapView} />
-      )}
+      ) : null}
 
       {cakupan.putus > 0 ? (
         <Banner
@@ -152,135 +193,140 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
         />
       ) : null}
 
-      <Card>
-        <CardHeader
-          title="1–2 · Petakan & setujui"
-          subtitle={`${rows.length} uraian · satu keputusan berlaku untuk semua baris RAB yang uraiannya sama, di lokasi mana pun.`}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="Nilai RAB aktif" value={formatRupiah(p.nilaiProyek)} sub="nilai proyek pra-PPN" />
+        <KpiCard
+          label="Breakdown kebutuhan"
+          value={formatPct(pctBreakdown, 1)}
+          sub={`${rapl.dipakai.baris} dari ${rapl.barisRab} baris RAB masuk hitungan`}
+          tone={pctBreakdown >= 99.95 ? "success" : "warning"}
         />
-        <CardBody>
-          <Kenapa judul="Kenapa harus disetujui dulu?">
-            Mesin mencocokkan uraian RAB dengan analisa AHSP, tapi tiga dari empat padanan otomatis
-            berstatus &ldquo;beda tipis&rdquo; – unggul cuma sedikit dari kandidat kedua. Karena
-            itu usulan mesin TIDAK pernah dipakai menghitung kebutuhan sebelum ada yang
-            menyetujuinya. Skor tetap ditampilkan setelah disetujui supaya jejaknya tidak hilang.
-          </Kenapa>
-          <div className="mt-3">
-            <PadananPanel
-              locationId={location.id}
-              slug={slug}
-              rows={rows}
-              canManage={canManage}
-              basisAda={basis !== null && !basis.belumSelesai}
-              saringAwal={saringAwal}
-            />
-          </div>
-        </CardBody>
-      </Card>
+        <KpiCard
+          label="Harga terisi"
+          value={formatPct(pctHarga, 1)}
+          sub={`${harga.berharga} dari ${harga.baris.length} komponen`}
+          tone={pctHarga >= 99.95 ? "success" : "warning"}
+        />
+        <KpiCard
+          label={p.keandalan.utuh ? "Potensi margin" : "Selisih sementara"}
+          value={formatRupiah(p.margin)}
+          sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum boleh dibaca sebagai profit"}
+          tone={p.keandalan.utuh ? (p.margin >= 0n ? "success" : "danger") : "warning"}
+        />
+      </div>
 
       <Card>
-        <CardHeader
-          title="3 · Kebutuhan sumber daya"
-          subtitle={`Dari padanan yang sudah disetujui – menutup ${formatPct(pctNilai, 1)} nilai RAB (${formatRupiah(cakupan.nilaiDisetujui)}).`}
-          action={
-            <div className="flex flex-wrap items-center gap-2">
-              <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
-                <Printer aria-hidden className="size-3.5" />
-                Cetak A4
-              </ButtonLink>
-              {canExport ? (
-                <ButtonLink
-                  href={`/lokasi/${slug}/rapl/kebutuhan`}
-                  variant="secondary"
-                  size="sm"
-                  unduhan
-                  labelSibuk="Menyiapkan Excel…"
-                >
-                  <Download aria-hidden className="size-3.5" />
-                  Unduh Excel
-                </ButtonLink>
-              ) : null}
-            </div>
-          }
+        <SubTabs
+          active={bagian}
+          label="Bagian RAPL"
+          items={[
+            { key: "ringkasan", label: "Ringkasan estimasi", labelPendek: "Ringkasan", href: `/lokasi/${slug}/rapl?bagian=ringkasan` },
+            { key: "kebutuhan", label: "Kebutuhan & harga", labelPendek: "Harga", href: `/lokasi/${slug}/rapl?bagian=kebutuhan`, badge: harga.belumBerharga || undefined },
+            { key: "validasi", label: "Validasi breakdown", labelPendek: "Validasi", href: `/lokasi/${slug}/rapl?bagian=validasi`, badge: ((tahapan[0]?.sisa ?? 0) + (tahapan[1]?.sisa ?? 0)) || undefined },
+          ]}
         />
-        <CardBody>
-          <Kenapa judul="Kenapa angkanya belum mencakup seluruh proyek?">
-            Kebutuhan dihitung Σ (koefisien analisa × volume item). Satu baris RAB hanya ikut kalau
-            padanannya sudah disetujui, analisanya punya koefisien terstruktur, satuannya sepadan
-            dengan satuan analisa, dan volumenya ada. Yang tidak memenuhi dikeluarkan dan
-            dilaporkan lengkap dengan nilai rupiahnya – bukan disembunyikan.
-          </Kenapa>
-          <div className="mt-3">
-            <SimulasiKebutuhan
-              kebutuhan={rapl.kebutuhan.map((k) => ({
-                kategori: k.kategori,
-                nama: k.nama,
-                satuan: k.satuan,
-                jumlah: k.jumlah,
-                dariBaris: k.dariBaris,
-                janggal: k.janggal,
-              }))}
-              dilewat={rapl.dilewat.map((d) => ({
-                code: d.code,
-                uraian: d.uraian,
-                amount: d.amount.toString(),
-                alasan: d.alasan,
-                rinci: d.rinci,
-              }))}
-              nilaiDipakai={rapl.dipakai.nilai.toString()}
-              barisDipakai={rapl.dipakai.baris}
-              nilaiRab={rapl.nilaiRab.toString()}
-              barisRab={rapl.barisRab}
-            />
-          </div>
-        </CardBody>
-      </Card>
 
-      <Card>
-        <CardHeader
-          title="4 · Harga satuan dasar & biaya"
-          subtitle={`${harga.berharga} dari ${harga.baris.length} sumber daya sudah berharga · biaya RAPL ${formatRupiah(harga.totalBiaya)}.`}
-        />
-        <CardBody>
-          <Kenapa judul="Kenapa harganya per lokasi, dan kenapa selisihnya belum boleh disebut untung?">
-            Harga pasir di Demak dan di Sumenep memang berbeda – itu justru yang membuat RAPL
-            berguna. Harga dari lokasi lain hanya ditawarkan sebagai bahan pertimbangan, tidak
-            pernah dipakai sendiri. Dan selisih terhadap nilai kontrak baru berarti apa adanya
-            kalau DUA cakupan penuh: seluruh nilai RAB masuk hitungan kebutuhan, dan seluruh sumber
-            daya sudah berharga. Selama belum, biaya yang belum masuk akan mengecilkan selisihnya.
-          </Kenapa>
-
-          <div className="mt-3 space-y-4">
-            <RingkasBiaya
-              totalBiaya={harga.totalBiaya.toString()}
-              berharga={harga.berharga}
-              belumBerharga={harga.belumBerharga}
-              perKategori={harga.perKategori.map((k) => ({
-                kategori: k.kategori,
-                biaya: k.biaya.toString(),
-                berharga: k.berharga,
-                total: k.total,
-              }))}
-              perbandingan={
-                harga.perbandingan
-                  ? {
-                      nilaiKontrak: harga.perbandingan.nilaiKontrak.toString(),
-                      selisih: harga.perbandingan.selisih.toString(),
-                      selisihPersen: harga.perbandingan.selisihPersen,
-                      cakupanNilai: harga.perbandingan.keandalan.cakupanNilai,
-                      cakupanHarga: harga.perbandingan.keandalan.cakupanHarga,
-                      utuh: harga.perbandingan.keandalan.utuh,
-                    }
-                  : null
+        {bagian === "ringkasan" ? (
+          <>
+            <CardHeader
+              title="Estimasi biaya pelaksanaan proyek"
+              subtitle="RAB aktif diurai menjadi material, tenaga, alat, dan fasilitas; harga melahirkan biaya serta potensi margin."
+              action={
+                <div className="flex flex-wrap items-center gap-2">
+                  <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
+                    <Printer aria-hidden className="size-3.5" />
+                    Cetak A4
+                  </ButtonLink>
+                  {canExport ? (
+                    <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan labelSibuk="Menyiapkan Excel…">
+                      <Download aria-hidden className="size-3.5" />
+                      Unduh Excel
+                    </ButtonLink>
+                  ) : null}
+                </div>
               }
             />
-            <HargaPanel
-              locationId={location.id}
-              slug={slug}
-              canInput={canInput}
-              rows={barisHarga}
+            <CardBody className="space-y-4">
+              {cakupan.item > 0 ? <Stepper tahapan={tahapView} /> : null}
+              {ringkasanBiaya}
+              <div className="flex flex-wrap gap-2">
+                <ButtonLink href={`/lokasi/${slug}/rapl?bagian=kebutuhan`}>
+                  Buka kebutuhan & isi harga
+                </ButtonLink>
+                {(tahapan[0]?.sisa ?? 0) + (tahapan[1]?.sisa ?? 0) > 0 ? (
+                  <ButtonLink href={`/lokasi/${slug}/rapl?bagian=validasi`} variant="secondary">
+                    Lengkapi breakdown yang tertahan
+                  </ButtonLink>
+                ) : null}
+              </div>
+            </CardBody>
+          </>
+        ) : null}
+
+        {bagian === "kebutuhan" ? (
+          <>
+            <CardHeader
+              title="Kebutuhan proyek & harga satuan"
+              subtitle={`${harga.baris.length} komponen dari RAB aktif · input manual atau minta draf estimasi AI untuk harga yang masih kosong.`}
+              action={
+                canExport ? (
+                  <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan labelSibuk="Menyiapkan Excel…">
+                    <Download aria-hidden className="size-3.5" />
+                    Unduh Excel
+                  </ButtonLink>
+                ) : null
+              }
             />
-          </div>
-        </CardBody>
+            <CardBody className="space-y-4">
+              {ringkasanBiaya}
+              <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
+                Harga manual langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
+                komponen yang kosong dan tidak masuk kalkulasi sebelum kamu menekan tombol persetujuan.
+                Harga lokasi lain juga hanya referensi. Semua sumber harga terlihat di grid.
+              </Kenapa>
+              <HargaPanel
+                locationId={location.id}
+                slug={slug}
+                canInput={canInput}
+                canUseAi={canUseAi}
+                rows={barisHarga}
+              />
+            </CardBody>
+          </>
+        ) : null}
+
+        {bagian === "validasi" ? (
+          <>
+            <CardHeader
+              title="Validasi breakdown RAB ke AHSP"
+              subtitle={`${rows.length} uraian RAB · ruang teknis untuk memastikan breakdown kebutuhan dapat dipertanggungjawabkan.`}
+            />
+            <CardBody className="space-y-4">
+              {cakupan.item > 0 ? <Stepper tahapan={tahapView} /> : null}
+              <Kenapa judul="Kenapa ada pekerjaan yang belum masuk breakdown?">
+                Kebutuhan hanya diturunkan dari padanan AHSP yang sudah disetujui, punya koefisien,
+                satuannya sepadan, dan volumenya tersedia. Lubang data tetap ditampilkan agar estimasi
+                biaya tidak terlihat lengkap padahal belum.
+              </Kenapa>
+              <PadananPanel
+                locationId={location.id}
+                slug={slug}
+                rows={rows}
+                canManage={canManage}
+                basisAda={basis !== null && !basis.belumSelesai}
+                saringAwal={saringAwal}
+              />
+              <SimulasiKebutuhan
+                kebutuhan={rapl.kebutuhan.map((k) => ({ kategori: k.kategori, nama: k.nama, satuan: k.satuan, jumlah: k.jumlah, dariBaris: k.dariBaris, janggal: k.janggal }))}
+                dilewat={rapl.dilewat.map((d) => ({ code: d.code, uraian: d.uraian, amount: d.amount.toString(), alasan: d.alasan, rinci: d.rinci }))}
+                nilaiDipakai={rapl.dipakai.nilai.toString()}
+                barisDipakai={rapl.dipakai.baris}
+                nilaiRab={rapl.nilaiRab.toString()}
+                barisRab={rapl.barisRab}
+              />
+            </CardBody>
+          </>
+        ) : null}
       </Card>
     </div>
   );
