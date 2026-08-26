@@ -873,6 +873,10 @@ enum LetterStatus {
   dijawab
   selesai
   arsip
+  /// Dibatalkan: salah catat / duplikat / surat batal. Hilang dari daftar &
+  /// hitungan, tapi barisnya TETAP ADA lengkap dengan sebab & pembatalnya —
+  /// register yang barisnya bisa lenyap tidak bisa dipercaya. DECISIONS 437.
+  dibatalkan
 }
 
 model Letter {
@@ -911,6 +915,20 @@ model Letter {
   /// Berkasnya: lampiran WA yang ditetapkan jadi surat, dan/atau dokumen arsip.
   attachmentId String? @map("attachment_id") @db.Uuid
   documentId   String? @map("document_id") @db.Uuid
+
+  /// Berkas surat yang DIUNGGAH langsung (bukan lewat grup WA) — DECISIONS 434.
+  /// Surat yang tercatat berarti sudah dikonfirmasi manusia, jadi berkasnya
+  /// boleh langsung diarsipkan ke R2 tanpa persinggahan lokal.
+  fileR2Key String? @map("file_r2_key")
+  fileName  String? @map("file_name")
+  fileMime  String? @map("file_mime")
+
+  /// Pembatalan (DECISIONS 437) — reversibel, dan sebabnya WAJIB ditulis:
+  /// baris yang hilang tanpa alasan meninggalkan pertanyaan yang tidak bisa
+  /// dijawab siapa pun enam bulan kemudian.
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason")
 
   createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz

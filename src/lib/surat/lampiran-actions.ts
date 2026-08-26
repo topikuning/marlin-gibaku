@@ -8,6 +8,7 @@ import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { arsipkanLampiran } from "@/lib/waha/lampiran-tangkap";
 import { jakartaToday } from "@/lib/format";
+import { SuratDuplikatError, alasanDuplikat, normalNomorSurat } from "./duplikat";
 import { aiCall } from "@/lib/ai/client";
 import { promptDefault } from "@/lib/ai/prompt-registry";
 import { resolvePrompt } from "@/lib/ai/prompts";
@@ -110,6 +111,8 @@ export async function usulkanIsiLampiranAction(
         id: true,
         fileName: true,
         mimeType: true,
+        status: true,
+        localPath: true,
         saranAlasan: true,
         message: { select: { body: true, fromName: true } },
         package: { select: { name: true, contract: { select: { workTitle: true } } } },
@@ -117,8 +120,42 @@ export async function usulkanIsiLampiranAction(
     });
     if (!att) return { error: "Lampiran tidak ditemukan dalam scope Anda." };
 
+    /*
+     * Berkasnya IKUT DIBACA bila tertangkap dan providernya mampu (DECISIONS
+     * 434). Tanpa ini AI hanya menebak dari nama berkas — dan surat hasil
+     * pindai bernama "IMG-0032.jpg" tidak memberi tahu apa pun.
+     */
+    const lampiranAi: { mediaType: string; dataBase64: string; nama?: string }[] = [];
+    if (att.status === "tertangkap" && att.localPath && att.mimeType) {
+      const { getActiveAiConfig } = await import("@/lib/ai/config");
+      const { dukunganLampiran } = await import("@/lib/ai/client");
+      const cfg = await getActiveAiConfig();
+      const dukung = cfg ? dukunganLampiran(cfg.jalurPdf) : null;
+      const pdf = att.mimeType === "application/pdf";
+      const bisa = dukung ? (pdf ? dukung.pdf : att.mimeType.startsWith("image/") && dukung.gambar) : false;
+      if (bisa) {
+        try {
+          const { readFile } = await import("node:fs/promises");
+          const buf = await readFile(att.localPath);
+          // Berkas raksasa tidak dikirim — biaya & timeout tidak sepadan.
+          if (buf.byteLength <= 20 * 1024 * 1024) {
+            lampiranAi.push({
+              mediaType: att.mimeType,
+              dataBase64: buf.toString("base64"),
+              ...(att.fileName ? { nama: att.fileName } : {}),
+            });
+          }
+        } catch {
+          /* berkas lokal sudah hilang (kontainer ter-deploy ulang) → tetap
+             jalan dengan keterangan saja, bukan gagal */
+        }
+      }
+    }
+
     const r = await aiCall({
-      system: (await resolvePrompt("surat.pahami")) || promptDefault("surat.pahami"),
+      system: (await resolvePrompt(lampiranAi.length ? "surat.baca" : "surat.pahami")) ||
+        promptDefault(lampiranAi.length ? "surat.baca" : "surat.pahami"),
+      ...(lampiranAi.length ? { attachments: lampiranAi } : {}),
       prompt:
         `Paket: ${att.package?.name ?? "-"}${att.package?.contract?.workTitle ? ` (${att.package.contract.workTitle})` : ""}\n` +
         `Nama berkas: ${att.fileName ?? "(tanpa nama)"}\n` +
@@ -126,8 +163,8 @@ export async function usulkanIsiLampiranAction(
         `Pengirim: ${att.message.fromName ?? "anggota grup"}\n` +
         `Teks pengiring di grup: ${att.message.body?.trim() || "(tidak ada)"}\n` +
         `Dugaan sistem: ${att.saranAlasan ?? "-"}`,
-      maxTokens: 300,
-      timeoutMs: 60_000,
+      maxTokens: lampiranAi.length ? 900 : 300,
+      timeoutMs: lampiranAi.length ? 120_000 : 60_000,
     });
     if (!r.ok) return { error: r.error };
 
@@ -135,9 +172,16 @@ export async function usulkanIsiLampiranAction(
       where: { id: att.id },
       data: { saranRingkas: r.text.trim().slice(0, 2000) },
     });
-    await audit(user.id, "wa.lampiran.usul_ai", "wa_attachment", att.id, { provider: r.provider });
+    await audit(user.id, "wa.lampiran.usul_ai", "wa_attachment", att.id, {
+      provider: r.provider,
+      berkasDibaca: lampiranAi.length > 0,
+    });
     revalidatePath("/lampiran");
-    return { success: "Usulan AI tersimpan – periksa sebelum menetapkan." };
+    return {
+      success: lampiranAi.length
+        ? "AI membaca isi berkasnya – periksa usulannya sebelum menetapkan."
+        : "Usulan AI tersimpan (dari keterangan berkas saja) – periksa sebelum menetapkan.",
+    };
   } catch (err) {
     return fail(err);
   }
@@ -254,9 +298,65 @@ export async function buatSurat(input: {
   replyDueDate: Date | null;
   attachmentId?: string | null;
   documentId?: string | null;
+  /** Berkas surat yang diunggah langsung (DECISIONS 434). */
+  fileR2Key?: string | null;
+  fileName?: string | null;
+  fileMime?: string | null;
 }): Promise<{ id: string; agendaNo: number; agendaYear: number }> {
   const tahun = jakartaToday().getUTCFullYear();
   return db.$transaction(async (tx) => {
+    /*
+     * Pagar duplikat (DECISIONS 436) — DI DALAM transaksi yang sama dengan
+     * penomoran agenda, supaya dua kiriman yang beriringan (tombol simpan
+     * ditekan dua kali) tidak sama-sama lolos pemeriksaan lalu sama-sama
+     * membuat baris.
+     */
+    const nomorBaru = normalNomorSurat(input.letterNumber);
+    if (nomorBaru) {
+      const sekandidat = await tx.letter.findMany({
+        where: {
+          orgId: input.orgId,
+          direction: input.direction,
+          agendaYear: tahun,
+          letterNumber: { not: null },
+          // Surat yang DIBATALKAN tidak lagi memegang nomornya (DECISIONS
+          // 437) — kalau tetap menghalangi, salah ketik menjadi hukuman
+          // seumur register: nomor yang benar tak bisa dicatat ulang.
+          status: { not: "dibatalkan" },
+        },
+        select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
+      });
+      const kembar = sekandidat.find((l) => normalNomorSurat(l.letterNumber) === nomorBaru);
+      if (kembar) {
+        throw new SuratDuplikatError(
+          alasanDuplikat(
+            { nomorNormal: nomorBaru, direction: input.direction, fileR2Key: input.fileR2Key ?? null },
+            kembar,
+            "nomor",
+          ),
+          "nomor",
+        );
+      }
+    }
+    if (input.fileR2Key) {
+      // Kunci R2 berkas surat = sha256 isinya, jadi kunci yang sama berarti
+      // berkas yang sama persis – bukan sekadar nama berkas yang mirip.
+      const samaBerkas = await tx.letter.findFirst({
+        where: { orgId: input.orgId, fileR2Key: input.fileR2Key, status: { not: "dibatalkan" } },
+        select: { agendaNo: true, agendaYear: true, letterNumber: true, fileName: true },
+      });
+      if (samaBerkas) {
+        throw new SuratDuplikatError(
+          alasanDuplikat(
+            { nomorNormal: nomorBaru, direction: input.direction, fileR2Key: input.fileR2Key },
+            samaBerkas,
+            "berkas",
+          ),
+          "berkas",
+        );
+      }
+    }
+
     const terakhir = await tx.letter.aggregate({
       where: { orgId: input.orgId, agendaYear: tahun },
       _max: { agendaNo: true },
@@ -285,6 +385,9 @@ export async function buatSurat(input: {
         replyDueDate: input.replyDueDate,
         attachmentId: input.attachmentId ?? null,
         documentId: input.documentId ?? null,
+        fileR2Key: input.fileR2Key ?? null,
+        fileName: input.fileName ?? null,
+        fileMime: input.fileMime ?? null,
         createdById: input.createdById,
       },
       select: { id: true, agendaNo: true, agendaYear: true },

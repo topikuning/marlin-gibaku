@@ -673,12 +673,28 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       supervisorLogoUrl = null;
     }
   }
+  /*
+   * Logo PELAKSANA di kop blanko (laporan user 2026-08-26): sel KONSULTAN
+   * PENGAWAS berlogo sementara KONTRAKTOR PELAKSANA hanya bertuliskan nama —
+   * dua pihak sederajat ditampilkan tidak setara. Presign-nya di sini supaya
+   * SEMUA jalur render memakai sumber yang sama.
+   */
+  let vendorLogoUrl: string | null = null;
+  if (contract?.vendor?.logoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      vendorLogoUrl = await r2PresignGet(contract.vendor.logoKey, 600);
+    } catch {
+      vendorLogoUrl = null;
+    }
+  }
   const owner = {
     ownerName: brand.ownerName,
     ownerSubtitle: brand.ownerSubtitle,
     ownerAddress: brand.ownerAddress,
     ownerLogoUrl,
     supervisorLogoUrl,
+    vendorLogoUrl,
     pekerjaan: contract?.workTitle ?? null,
   };
 

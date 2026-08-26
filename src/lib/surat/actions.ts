@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
-import { transisiSurat } from "./lifecycle";
+import { statusPulih, suratDibatalkan, transisiSurat } from "./lifecycle";
 import { buatSurat } from "./lampiran-actions";
 import type { LetterStatus } from "@/generated/prisma/enums";
 
@@ -30,6 +30,10 @@ const tanggal = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal tidak va
 
 const catatSchema = z.object({
   packageId: z.uuid().optional().or(z.literal("")),
+  // Surat bisa merujuk LANGSUNG ke satu lokasi tanpa lewat paket, atau ke
+  // keduanya, atau tidak sama sekali (ketetapan user 2026-08-26). Karena itu
+  // keduanya berdiri sendiri — bukan lokasi yang diturunkan dari paket.
+  locationId: z.uuid().optional().or(z.literal("")),
   direction: z.enum(["masuk", "keluar"]),
   party: z.enum(["penyedia", "wakil_ppk", "ppk", "konsultan", "dinas", "internal", "lainnya"]),
   partyName: z.string().trim().max(150).optional(),
@@ -50,6 +54,7 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
     const user = await requireCapability("letter.manage");
     const parsed = catatSchema.safeParse({
       packageId: formData.get("packageId") ?? "",
+      locationId: formData.get("locationId") ?? "",
       direction: formData.get("direction"),
       party: formData.get("party"),
       partyName: formData.get("partyName") ?? undefined,
@@ -66,11 +71,50 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
 
-    // Paket harus dalam scope user — surat menempel pada paket yang ia pegang.
+    // Paket & lokasi diperiksa TERPISAH terhadap scope user.
+    const izin = await accessibleLocationIds(user);
     if (d.packageId) {
-      const scope = packageScopeWhere(user, await accessibleLocationIds(user));
+      const scope = packageScopeWhere(user, izin);
       const pkg = await db.package.findFirst({ where: { AND: [{ id: d.packageId }, scope] }, select: { id: true } });
       if (!pkg) return { error: "Paket tidak ditemukan dalam scope Anda." };
+    }
+    if (d.locationId) {
+      const lok = await db.location.findFirst({
+        where: { id: d.locationId, ...(izin ? { id: { in: izin } } : {}) },
+        select: { id: true },
+      });
+      if (!lok) return { error: "Lokasi tidak ditemukan dalam scope Anda." };
+    }
+
+    /*
+     * Berkas surat diarsipkan LANGSUNG ke R2 di sini — beda dari lampiran WA
+     * yang menunggu konfirmasi. Alasannya: mencatat surat ITU SENDIRI adalah
+     * konfirmasinya. Bila R2 belum siap, suratnya tetap tercatat tanpa berkas
+     * dan itu DIKATAKAN, bukan gagal diam-diam.
+     */
+    let fileR2Key: string | null = null;
+    let fileName: string | null = null;
+    let fileMime: string | null = null;
+    let catatanBerkas = "";
+    const berkas = formData.get("file");
+    if (berkas instanceof File && berkas.size > 0) {
+      const { isR2Configured, r2Put } = await import("@/lib/r2");
+      if (!isR2Configured()) {
+        catatanBerkas = " Berkas tidak diarsipkan – R2 belum dikonfigurasi (Sistem).";
+      } else {
+        try {
+          const { createHash } = await import("node:crypto");
+          const buf = Buffer.from(await berkas.arrayBuffer());
+          const sha = createHash("sha256").update(buf).digest("hex");
+          const key = `surat/${sha}`;
+          await r2Put(key, buf, berkas.type || "application/octet-stream");
+          fileR2Key = key;
+          fileName = berkas.name;
+          fileMime = berkas.type || null;
+        } catch {
+          catatanBerkas = " Berkas gagal diarsipkan – suratnya tetap tercatat.";
+        }
+      }
     }
 
     const needsReply = d.needsReply === "ya";
@@ -78,6 +122,7 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
       orgId: user.orgId,
       createdById: user.id,
       packageId: d.packageId || null,
+      locationId: d.locationId || null,
       direction: d.direction,
       party: d.party,
       partyName: d.partyName || null,
@@ -89,6 +134,9 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
       category: d.category,
       needsReply,
       replyDueDate: needsReply && d.replyDueDate ? new Date(`${d.replyDueDate}T00:00:00.000Z`) : null,
+      fileR2Key,
+      fileName,
+      fileMime,
     });
 
     // Surat keluar yang menjawab surat masuk: rantainya ditutup sekalian,
@@ -117,7 +165,9 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
       needsReply,
     });
     revalidatePath("/surat");
-    return { success: `Surat tercatat – agenda ${surat.agendaNo}/${surat.agendaYear}.` };
+    return {
+      success: `Surat tercatat – agenda ${surat.agendaNo}/${surat.agendaYear}.${catatanBerkas}`,
+    };
   } catch (err) {
     return fail(err);
   }
@@ -144,6 +194,9 @@ export async function ubahStatusSuratAction(_prev: SuratState, formData: FormDat
       select: { id: true, status: true, packageId: true },
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
+    if (suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini dibatalkan – pulihkan dulu bila memang masih berlaku." };
+    }
 
     const gate = transisiSurat(surat.status as LetterStatus, parsed.data.status);
     if (!gate.ok) return { error: gate.error };
@@ -163,6 +216,133 @@ export async function ubahStatusSuratAction(_prev: SuratState, formData: FormDat
     revalidatePath("/surat");
     revalidatePath("/perlu-tindakan");
     return { success: "Status surat diperbarui." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ── Batalkan / pulihkan surat (DECISIONS 437) ──────────────────────────── */
+
+const batalSchema = z.object({
+  letterId: z.uuid(),
+  alasan: z
+    .string()
+    .trim()
+    .min(5, "Tulis sebab pembatalannya (minimal 5 karakter)")
+    .max(300),
+});
+
+/**
+ * Batalkan surat: salah catat, duplikat, atau suratnya sendiri batal.
+ *
+ * TIDAK ADA hapus permanen, dan itu disengaja. Register yang barisnya bisa
+ * lenyap tidak bisa dipercaya: nomor agenda yang hilang di tengah menimbulkan
+ * pertanyaan yang tidak bisa dijawab siapa pun enam bulan kemudian. Yang
+ * dibatalkan hilang dari daftar, hitungan, EWS, dan halaman lokasi — tapi
+ * barisnya tetap ada, lengkap dengan sebab, waktu, dan pembatalnya.
+ *
+ * Nomor agendanya TIDAK didaur ulang. Agenda 3 yang dibatalkan tetap agenda 3
+ * yang dibatalkan; memberikannya ke surat berikutnya membuat dua surat berbeda
+ * memakai nomor yang sama di jejak audit.
+ */
+export async function batalkanSuratAction(_prev: SuratState, formData: FormData): Promise<SuratState> {
+  try {
+    const user = await requireCapability("letter.void");
+    const parsed = batalSchema.safeParse({
+      letterId: formData.get("letterId"),
+      alasan: formData.get("alasan") ?? "",
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const surat = await db.letter.findFirst({
+      where: { id: parsed.data.letterId, orgId: user.orgId },
+      select: {
+        id: true,
+        status: true,
+        packageId: true,
+        agendaNo: true,
+        agendaYear: true,
+        _count: { select: { issues: true, findings: true } },
+      },
+    });
+    if (!surat) return { error: "Surat tidak ditemukan." };
+    if (suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini sudah dibatalkan." };
+    }
+
+    const gate = transisiSurat(surat.status as LetterStatus, "dibatalkan");
+    if (!gate.ok) return { error: gate.error };
+
+    await db.letter.update({
+      where: { id: surat.id },
+      data: {
+        status: "dibatalkan",
+        voidedAt: new Date(),
+        voidedById: user.id,
+        voidReason: parsed.data.alasan,
+      },
+    });
+    await audit(user.id, "surat.batalkan", "package", surat.packageId, {
+      letterId: surat.id,
+      agenda: `${surat.agendaNo}/${surat.agendaYear}`,
+      dari: surat.status,
+      alasan: parsed.data.alasan,
+      kendalaTertinggal: surat._count.issues,
+      temuanTertinggal: surat._count.findings,
+    });
+    revalidatePath("/surat");
+    revalidatePath("/perlu-tindakan");
+
+    /*
+     * Kendala/temuan yang TERLANJUR lahir dari surat ini tidak ikut dibatalkan.
+     * Membatalkannya diam-diam akan menghapus pekerjaan orang lain; jadi
+     * jumlahnya DIKATAKAN supaya ditangani sendiri, bukan ditinggalkan.
+     */
+    const sisa = surat._count.issues + surat._count.findings;
+    return {
+      success:
+        `Surat agenda ${surat.agendaNo}/${surat.agendaYear} dibatalkan.` +
+        (sisa > 0
+          ? ` ${surat._count.issues} kendala & ${surat._count.findings} temuan yang lahir dari surat ini TETAP berdiri – tutup sendiri bila ikut batal.`
+          : ""),
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Pulihkan surat yang dibatalkan. Kembali ke keadaan awal, bukan ke status terakhir. */
+export async function pulihkanSuratAction(_prev: SuratState, formData: FormData): Promise<SuratState> {
+  try {
+    const user = await requireCapability("letter.void");
+    const id = z.uuid().safeParse(formData.get("letterId"));
+    if (!id.success) return { error: "Surat tidak valid." };
+
+    const surat = await db.letter.findFirst({
+      where: { id: id.data, orgId: user.orgId },
+      select: { id: true, status: true, packageId: true, needsReply: true, agendaNo: true, agendaYear: true },
+    });
+    if (!surat) return { error: "Surat tidak ditemukan." };
+    if (!suratDibatalkan(surat.status as LetterStatus)) {
+      return { error: "Surat ini tidak sedang dibatalkan." };
+    }
+
+    const tujuan = statusPulih(surat.needsReply);
+    const gate = transisiSurat("dibatalkan", tujuan);
+    if (!gate.ok) return { error: gate.error };
+
+    await db.letter.update({
+      where: { id: surat.id },
+      data: { status: gate.status, voidedAt: null, voidedById: null, voidReason: null },
+    });
+    await audit(user.id, "surat.pulihkan", "package", surat.packageId, {
+      letterId: surat.id,
+      agenda: `${surat.agendaNo}/${surat.agendaYear}`,
+      ke: gate.status,
+    });
+    revalidatePath("/surat");
+    revalidatePath("/perlu-tindakan");
+    return { success: `Surat agenda ${surat.agendaNo}/${surat.agendaYear} dipulihkan.` };
   } catch (err) {
     return fail(err);
   }
@@ -198,7 +378,15 @@ export async function petakanSuratAction(_prev: SuratState, formData: FormData):
 
     const surat = await db.letter.findFirst({
       where: { id: d.letterId, orgId: user.orgId },
-      select: { id: true, subject: true, summary: true, category: true, handledDate: true, packageId: true },
+      select: {
+        id: true,
+        status: true,
+        subject: true,
+        summary: true,
+        category: true,
+        handledDate: true,
+        packageId: true,
+      },
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
 
@@ -275,5 +463,195 @@ function kategoriTemuanDari(k: string): "mutu" | "volume" | "k3" | "administrasi
       return "administrasi";
     default:
       return "lainnya";
+  }
+}
+
+/* ── Unggah berkas surat + pemetaan AI SEKALI JALAN (DECISIONS 434) ──────── */
+
+export type BacaSuratState =
+  | { error?: string; hasil?: undefined }
+  | {
+      error?: undefined;
+      /** Semua isian formulir hasil satu panggilan AI. */
+      hasil: {
+        nomor: string | null;
+        tanggal: string | null;
+        pihak: string;
+        namaPihak: string | null;
+        arah: string;
+        perihal: string | null;
+        kategori: string;
+        butuhJawaban: boolean;
+        tenggat: string | null;
+        ringkasan: string | null;
+        potensi: string;
+        alasanPotensi: string | null;
+        /** Hasil pencocokan sebutan surat ke data — null bila tidak yakin. */
+        packageId: string | null;
+        packageNama: string | null;
+        locationId: string | null;
+        locationNama: string | null;
+        /** Apa yang disebut surat, ditampilkan walau tidak cocok ke data. */
+        lokasiSebutan: string | null;
+        paketSebutan: string | null;
+      };
+      catatan?: string;
+    }
+  | undefined;
+
+/** Batas berkas yang dikirim ke AI — melindungi dari PDF ratusan halaman. */
+const BATAS_BACA_BYTE = 20 * 1024 * 1024;
+
+/**
+ * Baca berkas surat dan petakan SELURUH isinya dalam SATU permintaan AI.
+ *
+ * Ketetapan user 2026-08-26: *"sekali kirim kamu seharusnya petakan semua via
+ * AI... sekali request saja."* Jadi nomor, tanggal, pihak, perihal, kategori,
+ * tuntutan jawaban, ringkasan maksud, dugaan potensi kendala/temuan, sampai
+ * lokasi & paket yang disebut — semuanya dari satu panggilan.
+ *
+ * Hasilnya HANYA mengisi formulir. Tidak ada yang tersimpan di sini; orang
+ * memeriksa lalu menekan simpan. Berkasnya sendiri diarsipkan saat surat
+ * disimpan, bukan saat dibaca — membaca bukan tanda berkas itu berguna.
+ */
+export async function bacaBerkasSuratAction(
+  _prev: BacaSuratState,
+  formData: FormData,
+): Promise<BacaSuratState> {
+  try {
+    const user = await requireCapability("letter.manage");
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Pilih berkas suratnya dulu." };
+    }
+    if (file.size > BATAS_BACA_BYTE) {
+      return { error: `Berkas ${Math.round(file.size / 1024 / 1024)} MB terlalu besar untuk dibaca AI.` };
+    }
+
+    const { getActiveAiConfig } = await import("@/lib/ai/config");
+    const cfg = await getActiveAiConfig();
+    if (!cfg) return { error: "Provider AI belum siap – atur di Sistem → AI, atau isi formulirnya sendiri." };
+
+    const mime = file.type || "application/octet-stream";
+    const { dukunganLampiran } = await import("@/lib/ai/client");
+    const dukung = dukunganLampiran(cfg.jalurPdf);
+    const pdf = mime === "application/pdf";
+    if (pdf && !dukung.pdf) return { error: dukung.alasan };
+    if (!pdf && !mime.startsWith("image/")) {
+      return {
+        error: "Baru PDF dan gambar yang bisa dibaca AI. Untuk berkas lain, isi formulirnya sendiri.",
+      };
+    }
+
+    const { aiCall } = await import("@/lib/ai/client");
+    const { promptDefault } = await import("@/lib/ai/prompt-registry");
+    const { resolvePrompt } = await import("@/lib/ai/prompts");
+    const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+
+    const r = await aiCall({
+      system: (await resolvePrompt("surat.baca")) || promptDefault("surat.baca"),
+      prompt:
+        `Berkas: ${file.name}\n` +
+        "Petakan isi surat ini ke medan-medan yang diminta. Jawab hanya baris berlabel.",
+      attachments: [{ mediaType: mime, dataBase64: b64, nama: file.name }],
+      maxTokens: 900,
+      timeoutMs: 120_000,
+    });
+    if (!r.ok) return { error: r.error };
+
+    const { bacaHasilSurat, cocokkanSebutan } = await import("./baca-hasil");
+    const h = bacaHasilSurat(r.text);
+
+    // Cocokkan sebutan surat ke data yang benar-benar ada, dalam scope user.
+    const izin = await accessibleLocationIds(user);
+    const [paketList, lokasiList] = await Promise.all([
+      db.package.findMany({
+        where: izin ? { locations: { some: { id: { in: izin } } } } : { orgId: user.orgId },
+        select: { id: true, name: true },
+      }),
+      db.location.findMany({
+        where: izin ? { id: { in: izin } } : { package: { orgId: user.orgId } },
+        select: { id: true, name: true, packageId: true, package: { select: { id: true, name: true } } },
+      }),
+    ]);
+    let paket = cocokkanSebutan(h.paketSebutan, paketList);
+    const lokasi = cocokkanSebutan(h.lokasiSebutan, lokasiList);
+
+    /*
+     * Lokasi SUDAH menentukan paketnya (DECISIONS 436). Surat lapangan hampir
+     * selalu menyebut nama kampung, bukan nama paket kontraknya — jadi
+     * membiarkan paket kosong padahal lokasinya sudah dikenali membuat orang
+     * mengisi ulang sesuatu yang sebenarnya sudah diketahui sistem.
+     *
+     * Arah sebaliknya HANYA bila paketnya berlokasi tunggal: paket dengan
+     * banyak lokasi tidak menunjuk salah satunya, dan menebak berarti menautkan
+     * surat ke kampung yang tidak disebut suratnya.
+     */
+    let paketDariLokasi: string | null = null;
+    let lokasiDariPaket: string | null = null;
+    if (lokasi && !paket && lokasi.package) {
+      paket = { id: lokasi.package.id, name: lokasi.package.name };
+      paketDariLokasi = lokasi.name;
+    }
+    let lokasiTerpilih: { id: string; name: string } | null = lokasi;
+    if (paket && !lokasi) {
+      const isiPaket = lokasiList.filter((l) => l.packageId === paket.id);
+      if (isiPaket.length === 1) {
+        lokasiTerpilih = { id: isiPaket[0].id, name: isiPaket[0].name };
+        lokasiDariPaket = paket.name;
+      }
+    }
+
+    await audit(user.id, "surat.baca_berkas_ai", "app_setting", null, {
+      fileName: file.name,
+      provider: r.provider,
+      potensi: h.potensi,
+    });
+
+    /*
+     * Sebutan yang TIDAK cocok tetap dikembalikan supaya terlihat di layar.
+     * Menelannya diam-diam membuat orang mengira surat itu tidak menyebut
+     * lokasi apa pun, padahal sebenarnya sistem yang tidak mengenalinya.
+     */
+    const tidakCocok: string[] = [];
+    if (h.lokasiSebutan && !lokasiTerpilih) tidakCocok.push(`lokasi "${h.lokasiSebutan}"`);
+    if (h.paketSebutan && !paket) tidakCocok.push(`paket "${h.paketSebutan}"`);
+    const disimpulkan: string[] = [];
+    if (paketDariLokasi) disimpulkan.push(`Paket diisi dari lokasi ${paketDariLokasi}`);
+    if (lokasiDariPaket) disimpulkan.push(`Lokasi diisi karena paket ${lokasiDariPaket} hanya punya satu lokasi`);
+
+    return {
+      hasil: {
+        nomor: h.nomor,
+        tanggal: h.tanggal,
+        pihak: h.pihak,
+        namaPihak: h.namaPihak,
+        arah: h.arah,
+        perihal: h.perihal,
+        kategori: h.kategori,
+        butuhJawaban: h.butuhJawaban,
+        tenggat: h.tenggat,
+        ringkasan: h.ringkasan,
+        potensi: h.potensi,
+        alasanPotensi: h.alasanPotensi,
+        packageId: paket?.id ?? null,
+        packageNama: paket?.name ?? null,
+        locationId: lokasiTerpilih?.id ?? null,
+        locationNama: lokasiTerpilih?.name ?? null,
+        lokasiSebutan: h.lokasiSebutan,
+        paketSebutan: h.paketSebutan,
+      },
+      catatan:
+        [
+          tidakCocok.length
+            ? `Surat menyebut ${tidakCocok.join(" dan ")}, tapi tidak cocok dengan data – pilih sendiri bila perlu.`
+            : null,
+          disimpulkan.length ? `${disimpulkan.join(". ")} – ganti bila keliru.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined,
+    };
+  } catch (err) {
+    return fail(err) as BacaSuratState;
   }
 }

@@ -1,6 +1,15 @@
 import "server-only";
 import { getActiveAiConfig, getAiProviderConfig, type ResolvedAiConfig } from "./config";
 import type { AiProviderId } from "./providers";
+export {
+  dukunganLampiran,
+  kontenAnthropic,
+  kontenOpenAi,
+  type AiAttachment,
+  type AiRequest,
+  type DukunganLampiran,
+} from "./lampiran";
+import { kontenAnthropic, kontenOpenAi, type AiRequest } from "./lampiran";
 import {
   errorCodeFromStatus,
   parseAnthropicBody,
@@ -20,8 +29,6 @@ import {
  */
 
 export type AiResult = { ok: true; text: string; model: string } | { ok: false; error: string };
-
-export type AiRequest = { system?: string; prompt: string; maxTokens?: number; timeoutMs?: number };
 
 export type AiCallResult =
   | {
@@ -65,14 +72,14 @@ function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; ini
           model: cfg.model,
           max_tokens: maxTokens,
           ...(req.system ? { system: req.system } : {}),
-          messages: [{ role: "user", content: req.prompt }],
+          messages: [{ role: "user", content: kontenAnthropic(req) }],
         }),
       },
     };
   }
-  const messages: { role: string; content: string }[] = [];
+  const messages: { role: string; content: unknown }[] = [];
   if (req.system) messages.push({ role: "system", content: req.system });
-  messages.push({ role: "user", content: req.prompt });
+  messages.push({ role: "user", content: kontenOpenAi(req, cfg.jalurPdf) });
   return {
     url: `${cfg.baseUrl}/chat/completions`,
     init: {

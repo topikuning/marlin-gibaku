@@ -47,6 +47,7 @@ export const STATUS_SURAT_LABEL: Record<LetterStatus, string> = {
   dijawab: "Sudah dijawab",
   selesai: "Selesai",
   arsip: "Arsip",
+  dibatalkan: "Dibatalkan",
 };
 
 export const STATUS_SURAT_TONE: Record<LetterStatus, BadgeTone> = {
@@ -55,16 +56,42 @@ export const STATUS_SURAT_TONE: Record<LetterStatus, BadgeTone> = {
   dijawab: "success",
   selesai: "success",
   arsip: "neutral",
+  dibatalkan: "danger",
 };
 
-/** Transisi status surat yang diizinkan. */
+/**
+ * Transisi status surat yang diizinkan.
+ *
+ * `dibatalkan` bisa dicapai dari MANA SAJA (salah catat bisa ketahuan kapan
+ * pun) dan hanya bisa kembali ke keadaan awal — memulihkan surat langsung ke
+ * "selesai" akan menyembunyikan bahwa ia sempat dibatalkan. DECISIONS 437.
+ */
 const TRANSISI: Record<LetterStatus, LetterStatus[]> = {
-  baru: ["perlu_jawaban", "selesai", "arsip"],
-  perlu_jawaban: ["dijawab", "selesai", "arsip"],
-  dijawab: ["selesai", "perlu_jawaban", "arsip"],
-  selesai: ["arsip", "perlu_jawaban"],
-  arsip: ["baru"],
+  baru: ["perlu_jawaban", "selesai", "arsip", "dibatalkan"],
+  perlu_jawaban: ["dijawab", "selesai", "arsip", "dibatalkan"],
+  dijawab: ["selesai", "perlu_jawaban", "arsip", "dibatalkan"],
+  selesai: ["arsip", "perlu_jawaban", "dibatalkan"],
+  arsip: ["baru", "dibatalkan"],
+  dibatalkan: ["baru", "perlu_jawaban"],
 };
+
+/**
+ * Surat yang dibatalkan TIDAK ikut daftar, hitungan, EWS, maupun laporan.
+ * Satu predikat supaya tidak ada layar yang lupa menyaringnya. MURNI.
+ */
+export function suratDibatalkan(status: LetterStatus): boolean {
+  return status === "dibatalkan";
+}
+
+/**
+ * Status pemulihan: kembali menjadi utang jawab bila memang menuntut jawaban.
+ * Keadaan sebelum dibatalkan sengaja TIDAK disimpan — menghidupkan kembali
+ * "sudah dijawab" padahal jawabannya mungkin ikut batal lebih menyesatkan
+ * daripada meminta orang menandainya lagi.
+ */
+export function statusPulih(needsReply: boolean): LetterStatus {
+  return needsReply ? "perlu_jawaban" : "baru";
+}
 
 export type TransisiHasil = { ok: true; status: LetterStatus } | { ok: false; error: string };
 
@@ -89,6 +116,8 @@ export function terlambatDijawab(
 ): boolean {
   if (!surat.needsReply || !surat.replyDueDate) return false;
   if (surat.status === "dijawab" || surat.status === "selesai" || surat.status === "arsip") return false;
+  // Surat yang dibatalkan tidak menagih siapa pun (DECISIONS 437).
+  if (suratDibatalkan(surat.status)) return false;
   return surat.replyDueDate.getTime() < hariIni.getTime();
 }
 

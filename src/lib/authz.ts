@@ -104,6 +104,11 @@ export const CAPABILITIES = [
   // Register surat masuk/keluar + antrean lampiran WA (DECISIONS 432).
   "letter.view",
   "letter.manage",
+  // Batalkan / pulihkan surat: hilang dari daftar & hitungan, barisnya tetap
+  // ada lengkap dengan sebab & pembatalnya (DECISIONS 437). Sengaja SATU
+  // jenjang dengan letter.manage: yang mencatat surat itulah yang salah ketik,
+  // dan pembatalannya reversibel + ber-jejak audit. TIDAK ADA hapus permanen.
+  "letter.void",
   "document.verify",
   // Koreksi metadata dokumen (jenis/fase/nomor/tanggal/tautan) — salah unggah
   // dulu menetap selamanya. DECISIONS 183.
@@ -253,6 +258,7 @@ const SITE_MANAGER: Capability[] = [
   // dibaca seluruh lapangan.
   "letter.view",
   "letter.manage",
+  "letter.void",
   "report.export",
   "wa.chat",
   "user.create", // bikin Pelaksana di bawahnya

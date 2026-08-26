@@ -78,12 +78,21 @@ export function KkpDailyCover({
           Tiap pihak tampil sebagai KOP PERUSAHAAN (logo kiri, nama + alamat
           kanan), lalu garis paraf di bawahnya pada ketinggian yang sama. */}
       <div className="mt-auto grid grid-cols-2 gap-6 pt-16">
-        <KopPihak judul="KONSULTAN PENGAWAS" firma={d.supervisorFirm ?? d.supervisorSub} />
+        {/*
+          Logo pengawas SEMPAT hilang di sini padahal ada di jalur PDF: kotak
+          kiri tidak pernah diberi logoUrl (laporan user 2026-08-26). Dokumen
+          yang sama tidak boleh berbeda tergantung tombol mana yang ditekan.
+        */}
+        <KopPihak
+          judul="KONSULTAN PENGAWAS"
+          firma={d.supervisorFirm ?? d.supervisorSub}
+          logoUrl={d.supervisorLogoUrl}
+        />
         <KopPihak
           judul="KONTRAKTOR PELAKSANA"
           firma={d.contractorFirm}
           alamat={d.contractorAddress}
-          logoUrl={logoVendorUrl}
+          logoUrl={logoVendorUrl ?? d.vendorLogoUrl}
         />
       </div>
     </section>
@@ -115,12 +124,18 @@ function KopPihak({
   return (
     <div className="flex flex-col">
       <div className="text-center text-[11px] font-bold">{judul}</div>
-      <div className="mt-2 flex min-h-[52px] items-center gap-2 border border-slate-500 px-2 py-1.5">
+      {/*
+        Isi kotak dipusatkan pada DUA sumbu (permintaan user 2026-08-26):
+        `justify-center` + `items-center`, dan teksnya `text-center`. Sebelumnya
+        isinya menempel kiri, jadi kotak pengawas yang hanya berisi titik-titik
+        terlihat menggantung di pojok.
+      */}
+      <div className="mt-2 flex min-h-[52px] items-center justify-center gap-2 border border-slate-500 px-2 py-1.5">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt="" className="h-10 w-10 shrink-0 object-contain" />
         ) : null}
-        <div className="min-w-0">
+        <div className="min-w-0 text-center">
           <div className="text-[9px] leading-tight font-bold uppercase">
             {firma || "……………………………………"}
           </div>

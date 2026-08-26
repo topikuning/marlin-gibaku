@@ -1,9 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
+import { Paperclip } from "lucide-react";
 import { Badge, Button, Combobox, Input, Label, type BadgeTone } from "@/components/ui";
 import {
+  batalkanSuratAction,
   petakanSuratAction,
+  pulihkanSuratAction,
   ubahStatusSuratAction,
   type SuratState,
 } from "@/lib/surat/actions";
@@ -23,11 +27,20 @@ export type BarisSuratProps = {
   statusTone: BadgeTone;
   status: string;
   paketNama: string | null;
+  lokasiNama: string | null;
+  lokasiSlug: string | null;
+  /** Berkas surat terarsip di R2 – dibuka lewat /api/surat/[id]/berkas. */
+  punyaBerkas: boolean;
+  namaBerkas: string | null;
   /** Sisa hari menuju tenggat; negatif = lewat. null = tidak menuntut jawaban. */
   sisaHari: number | null;
   jumlahKendala: number;
   jumlahTemuan: number;
   bolehKelola: boolean;
+  /** Boleh membatalkan/memulihkan surat (capability `letter.void`). */
+  bolehBatalkan: boolean;
+  dibatalkan: boolean;
+  alasanBatal: string | null;
   lokasi: { id: string; name: string }[];
 };
 
@@ -45,8 +58,17 @@ export function BarisSurat(p: BarisSuratProps) {
     petakanSuratAction,
     undefined,
   );
+  const [batalState, batalAction, batalPending] = useActionState<SuratState, FormData>(
+    batalkanSuratAction,
+    undefined,
+  );
+  const [pulihState, pulihAction, pulihPending] = useActionState<SuratState, FormData>(
+    pulihkanSuratAction,
+    undefined,
+  );
   const [formPetakan, setFormPetakan] = useState(false);
-  const pesan = statusState ?? petakanState;
+  const [formBatal, setFormBatal] = useState(false);
+  const pesan = statusState ?? petakanState ?? batalState ?? pulihState;
 
   const tenggat =
     p.sisaHari == null
@@ -71,9 +93,34 @@ export function BarisSurat(p: BarisSuratProps) {
               p.tanggalSurat ? `Surat ${p.tanggalSurat}` : null,
               `Ditangani ${p.tanggalTangani}`,
               p.paketNama,
+              p.lokasiNama,
             ]
               .filter(Boolean)
               .join(" · ")}
+          </p>
+          {/*
+            Berkas & lokasi diberi PINTU, bukan sekadar disebut (DECISIONS 436).
+            Arsip yang tidak bisa dibuka sama saja dengan tidak diarsipkan.
+          */}
+          <p className="mt-1 flex flex-wrap items-center gap-3 text-xs">
+              {p.punyaBerkas ? (
+                <a
+                  href={`/api/surat/${p.id}/berkas`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  <Paperclip aria-hidden className="size-3.5" />
+                  {p.namaBerkas || "Buka berkas surat"}
+                </a>
+              ) : (
+                <span className="text-ink-faint">Tanpa berkas terarsip</span>
+              )}
+              {p.lokasiSlug ? (
+                <Link href={`/lokasi/${p.lokasiSlug}`} className="text-primary hover:underline">
+                  Buka lokasi
+                </Link>
+            ) : null}
           </p>
         </div>
         <span className="flex flex-wrap items-center gap-1">
@@ -85,7 +132,27 @@ export function BarisSurat(p: BarisSuratProps) {
         </span>
       </div>
 
-      {p.bolehKelola ? (
+      {/*
+        Surat yang dibatalkan tidak menawarkan tindak lanjut apa pun
+        (DECISIONS 437): sebabnya dibaca dulu, lalu dipulihkan bila keliru.
+      */}
+      {p.dibatalkan ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-xs text-danger">
+            Dibatalkan{p.alasanBatal ? ` – ${p.alasanBatal}` : ""}.
+          </p>
+          {p.bolehBatalkan ? (
+            <form action={pulihAction}>
+              <input type="hidden" name="letterId" value={p.id} />
+              <Button type="submit" size="sm" variant="secondary" disabled={pulihPending}>
+                Pulihkan surat
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
+      {p.bolehKelola && !p.dibatalkan ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
           <form action={statusAction} className="flex gap-1.5">
             <input type="hidden" name="letterId" value={p.id} />
@@ -103,7 +170,39 @@ export function BarisSurat(p: BarisSuratProps) {
           <Button size="sm" variant="ghost" onClick={() => setFormPetakan((v) => !v)}>
             {formPetakan ? "Batal" : "Jadikan kendala/temuan"}
           </Button>
+          {p.bolehBatalkan ? (
+            <Button size="sm" variant="ghost" onClick={() => setFormBatal((v) => !v)}>
+              {formBatal ? "Urung" : "Batalkan surat"}
+            </Button>
+          ) : null}
         </div>
+      ) : null}
+
+      {/*
+        Sebab pembatalan WAJIB ditulis. Baris yang hilang tanpa alasan
+        meninggalkan pertanyaan yang tak bisa dijawab siapa pun kelak.
+      */}
+      {formBatal && !p.dibatalkan ? (
+        <form action={batalAction} className="mt-2 space-y-2 rounded-md border border-border bg-surface-muted p-3">
+          <input type="hidden" name="letterId" value={p.id} />
+          <Label htmlFor={`alasan-${p.id}`} required>
+            Sebab pembatalan
+          </Label>
+          <Input
+            id={`alasan-${p.id}`}
+            name="alasan"
+            required
+            minLength={5}
+            placeholder="mis. salah ketik nomor, atau surat ini duplikat agenda 3/2026"
+          />
+          <Button type="submit" size="sm" variant="danger" disabled={batalPending} loading={batalPending}>
+            Batalkan surat ini
+          </Button>
+          <p className="text-[11px] text-ink-faint">
+            Surat tidak dihapus: ia hilang dari daftar &amp; hitungan, tapi tetap bisa dibuka lewat saringan
+            &quot;Dibatalkan&quot; dan dipulihkan. Nomor agendanya tidak dipakai ulang.
+          </p>
+        </form>
       ) : null}
 
       {formPetakan ? (

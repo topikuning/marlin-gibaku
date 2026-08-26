@@ -8,10 +8,41 @@
 export type AiProviderId = "claude" | "openai" | "mistral" | "grok";
 export type AiApiStyle = "anthropic" | "openai";
 
+/**
+ * Cara mengirim PDF ke provider (DECISIONS 435). `apiStyle` TIDAK cukup:
+ * OpenAI, Mistral, dan Grok sama-sama "kompatibel-OpenAI" untuk teks, tapi
+ * bentuk medan berkasnya berbeda-beda. Diverifikasi ke tipe SDK resmi
+ * masing-masing, bukan dari ingatan — lihat catatan per nilai.
+ */
+export type JalurPdf =
+  /** Anthropic /v1/messages: `{type:"document", source:{type:"base64", media_type, data}}`. */
+  | "anthropic_document"
+  /**
+   * OpenAI chat-completions: `{type:"file", file:{filename, file_data}}`.
+   * Terverifikasi di tipe SDK resmi `openai` 7.5.0 —
+   * `ChatCompletionContentPart.File` (`file_data` = "base64 encoded file data").
+   */
+  | "openai_file"
+  /**
+   * Mistral chat-completions: `{type:"document_url", document_url:"data:application/pdf;base64,…"}`.
+   * Terverifikasi di tipe SDK resmi `@mistralai/mistralai` 2.6.4 —
+   * `DocumentURLChunk` di union `ContentChunk`.
+   */
+  | "mistral_document_url"
+  /**
+   * xAI/Grok: PDF TIDAK bisa disisipkan langsung di pesan. Berkas harus
+   * diunggah dulu lewat Files API lalu dirujuk `attachments:[{file_id}]` —
+   * alur dua langkah yang MARLIN belum bangun. Ini keterangan tentang bentuk
+   * API-nya, bukan klaim bahwa Grok tidak mampu membaca PDF.
+   */
+  | "unggah_dulu";
+
 export type AiProviderMeta = {
   id: AiProviderId;
   label: string;
   apiStyle: AiApiStyle;
+  /** Bentuk medan untuk menyisipkan PDF (DECISIONS 435). */
+  jalurPdf: JalurPdf;
   /** Base URL endpoint (tanpa trailing slash). */
   baseUrl: string;
   defaultModel: string;
@@ -31,6 +62,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     id: "claude",
     label: "Claude (Anthropic)",
     apiStyle: "anthropic",
+    jalurPdf: "anthropic_document",
     baseUrl: "https://api.anthropic.com",
     defaultModel: "claude-opus-5",
     keyHint: "console.anthropic.com → API keys",
@@ -49,6 +81,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     id: "openai",
     label: "ChatGPT (OpenAI)",
     apiStyle: "openai",
+    jalurPdf: "openai_file",
     baseUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-5",
     keyHint: "platform.openai.com → API keys",
@@ -59,6 +92,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     id: "mistral",
     label: "Mistral",
     apiStyle: "openai",
+    jalurPdf: "mistral_document_url",
     baseUrl: "https://api.mistral.ai/v1",
     defaultModel: "mistral-large-latest",
     keyHint: "console.mistral.ai → API Keys",
@@ -76,6 +110,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     id: "grok",
     label: "Grok (xAI)",
     apiStyle: "openai",
+    jalurPdf: "unggah_dulu",
     baseUrl: "https://api.x.ai/v1",
     defaultModel: "grok-4",
     keyHint: "console.x.ai → API Keys",

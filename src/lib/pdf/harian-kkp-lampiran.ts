@@ -189,14 +189,38 @@ export function gambarSampul(
 
     const yk = yTtd + 16;
     doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(kx, yk, w, tinggiKotak).stroke();
-    if (logo) logoDiKotak(doc, logo, kx + 4, yk + 4, 40, tinggiKotak - 8);
-    const xn = kx + (logo ? 50 : 8);
-    const wn = w - (xn - kx) - 8;
+
+    /*
+     * Isi kotak DIPUSATKAN pada dua sumbu (permintaan user 2026-08-26).
+     * Sebelumnya logo menempel kiri dan teks mulai di titik tetap, jadi kotak
+     * yang isinya pendek terlihat menggantung di pojok. Lebar gugusnya diukur
+     * dulu (logo + jarak + teks terlebar), baru digeser ke tengah.
+     */
+    const wLogo = logo ? 40 : 0;
+    const jarak = logo ? 6 : 0;
+    const teksFirma = (firma || "……………………………………").toUpperCase();
+    doc.font(PDF_FONT.bold).fontSize(7.5);
+    const wFirma = doc.widthOfString(teksFirma);
+    let wAlamat = 0;
+    if (alamat) {
+      doc.font(PDF_FONT.regular).fontSize(5.5);
+      wAlamat = doc.widthOfString(alamat);
+    }
+    // Sisakan 8 pt padding di kedua sisi supaya teks tidak menempel garis.
+    const wTeks = Math.min(Math.max(wFirma, wAlamat), w - wLogo - jarak - 16);
+    const wGugus = wLogo + jarak + wTeks;
+    const x0 = kx + Math.max(8, (w - wGugus) / 2);
+
+    if (logo) logoDiKotak(doc, logo, x0, yk + 4, wLogo, tinggiKotak - 8);
+    const xn = x0 + wLogo + jarak;
+    // Teks dipusatkan tegak: satu baris di tengah, dua baris (dengan alamat)
+    // dibagi merata terhadap tinggi kotak.
+    const yFirma = alamat ? yk + tinggiKotak / 2 - 9 : yk + tinggiKotak / 2 - 4;
     doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(R.ink)
-      .text((firma || "……………………………………").toUpperCase(), xn, yk + 7, { width: wn, lineBreak: false });
+      .text(teksFirma, xn, yFirma, { width: wTeks, align: "center", lineBreak: false });
     if (alamat)
       doc.font(PDF_FONT.regular).fontSize(5.5).fillColor(R.inkMuted)
-        .text(alamat, xn, yk + 18, { width: wn, height: tinggiKotak - 22 });
+        .text(alamat, xn, yFirma + 11, { width: wTeks, align: "center", height: tinggiKotak - 22 });
 
     // Garis paraf pada ketinggian yang SAMA di kedua kolom — di contoh
     // keduanya melayang beda tinggi mengikuti panjang teks.

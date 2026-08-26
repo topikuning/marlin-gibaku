@@ -22499,3 +22499,241 @@ Senin–Minggu — yang justru mengirim pada hari yang SAMA (Minggu) untuk semua
 paket. Diperiksa: **logikanya sudah benar** (penjadwal meneruskan
 `weekMode` kontrak ke `akhirMingguKontrak`); yang tertinggal hanya teksnya.
 Kini teks layar dan komentar kodenya menyebut kedua mode apa adanya.
+
+## 434 — Unggah surat + pemetaan AI SEKALI JALAN; lokasi berdiri sendiri, 2026-08-26
+
+Teguran user atas DECISIONS 432: register surat hanya punya dua jalan masuk —
+lampiran grup WA, atau formulir kosong. *"ada juga surat yang sudah berupa
+file, seharusnya aku tinggal upload AI petakan tanggal dan lain sebagainya."*
+Benar, dan itu jalan yang paling wajar untuk surat yang datang lewat email,
+diantar langsung, atau dipindai.
+
+### Satu permintaan, bukan beberapa
+
+Ketetapan user: *"sekali kirim kamu seharusnya petakan semua via AI... termasuk
+memetakan isi dan maksud surat, jadi sekali request saja."* Jadi SATU panggilan
+menghasilkan seluruh isian: nomor, tanggal, pihak + namanya, arah, perihal,
+kategori, lokasi & paket yang disebut, tuntutan jawaban + tenggatnya, ringkasan
+maksud, dan dugaan potensi kendala/temuan.
+
+- Prompt `surat.baca` mengeluarkan BARIS BERLABEL, bukan JSON: model kadang
+  membungkus JSON dalam pagar kode, dan `JSON.parse` yang gagal menghanguskan
+  seluruh pemetaan. Parser baris mengambil yang bisa diambil.
+- `baca-hasil.ts` MURNI & unit-tested. Prinsip yang dijaga: **yang tidak
+  terbaca menjadi null, tidak pernah ditebak** — formulir yang terisi tebakan
+  lebih berbahaya daripada formulir kosong, karena orang cenderung menyetujui
+  apa yang sudah terisi. Tanggal tak sah ditolak (2026-02-31 tidak digeser jadi
+  3 Maret); hanya kata "ya" yang memasang tenggat penagih.
+- `cocokkanSebutan` KETAT: sebutan yang ambigu (dua lokasi sama-sama cocok)
+  menghasilkan null. Tautan ke lokasi yang salah lebih buruk daripada tanpa
+  tautan. Sebutan yang tidak cocok tetap DITAMPILKAN, supaya tidak terbaca
+  seolah surat tidak menyebut lokasi apa pun.
+
+### Lokasi berdiri sendiri dari paket
+
+Ketetapan user: *"surat ini kan bukan cuma terhadap paket, bisa jadi dia
+langsung merujuk terhadap lokasi, tapi tidak selalu."* Karena itu `packageId`
+dan `locationId` diisi TERPISAH — di formulir maupun di pemetaan AI. Lokasi
+tidak pernah diturunkan dari paket; surat boleh menunjuk satu lokasi saja,
+satu paket saja, keduanya, atau tidak sama sekali.
+
+### Lapisan AI jadi multimodal
+
+`AiRequest` menerima `attachments` (base64 + MIME). Bentuk payload berbeda per
+gaya API dan itu ditangani di satu tempat:
+- Anthropic: blok `document` (PDF) / `image`, ditaruh SEBELUM teks.
+- OpenAI-compatible (OpenAI/Grok/Mistral): `image_url` data-URI; **PDF tidak
+  didukung** di endpoint chat completions.
+
+`dukunganLampiran()` mengatakan itu apa adanya, dan pemanggil memeriksanya
+DULU — sehingga PDF pada provider yang tidak mampu ditolak dengan kalimat yang
+menyebut jalan keluarnya ("pilih provider Claude di Sistem → AI"), bukan galat
+HTTP mentah. MARLIN tetap provider-agnostik lewat HTTP mentah; memasang SDK
+satu vendor akan mematikan pilihan provider yang jadi inti desain AI-nya.
+
+Jalur lampiran grup WA ikut naik: AI kini membaca ISI berkasnya bila masih
+tertangkap dan provider aktif mampu — sebelumnya hanya menebak dari nama
+berkas, dan "IMG-0032.jpg" tidak memberi tahu apa pun.
+
+### Berkas surat
+
+Kolom `Letter.fileR2Key/fileName/fileMime` (migrasi `20260826020000`).
+Berbeda dari lampiran WA yang menunggu konfirmasi, berkas yang diunggah ke
+register diarsipkan LANGSUNG: mencatat suratnya itu sendiri sudah merupakan
+konfirmasinya. R2 belum siap → surat tetap tercatat tanpa berkas, dan itu
+DIKATAKAN di pesan hasilnya.
+
+Penjaga: `tests/unit/surat-baca-hasil.test.ts` (13 uji — terutama kapan parser
+MENOLAK mengisi: tanda minus, tanggal tak sah, jawaban mengambang, enum di luar
+daftar, sebutan ambigu).
+
+---
+
+## 435 · Jalur PDF per provider AI, diverifikasi ke SDK resmi (2026-08-26)
+
+**Masalah.** DECISIONS 434 mengirim PDF hanya ke Anthropic, dan layar berbunyi
+"provider ini tidak bisa PDF" untuk sisanya. Klaim itu TIDAK PUNYA DASAR –
+hanya ingatan. User menanyakan dasarnya; tidak ada.
+
+**Sebab teknisnya.** Kode memakai `apiStyle` untuk memutuskan bentuk lampiran.
+OpenAI, Mistral, dan Grok memang sama-sama "kompatibel-OpenAI" untuk teks, tapi
+bentuk medan BERKAS-nya berbeda-beda. Menyamakan tiganya lewat `apiStyle`
+membuat "belum dibangun" tertulis sebagai "tidak mampu".
+
+**Verifikasi.** Dokumentasi HTML ketiga provider diblokir proxy egress, jadi
+dasar diambil dari sumber yang setara otoritatifnya dan bisa diambil di sini:
+tipe SDK resmi (registry npm tidak diblokir), yang di-generate dari spesifikasi
+API masing-masing.
+
+| Provider | Jalur PDF | Sumber |
+| --- | --- | --- |
+| Claude | `{type:"document", source:{type:"base64", media_type, data}}` | dokumentasi Anthropic |
+| ChatGPT | `{type:"file", file:{filename, file_data}}` | `openai@7.5.0` – `ChatCompletionContentPart.File` |
+| Mistral | `{type:"document_url", document_url:"data:…;base64,…", document_name?}` | `@mistralai/mistralai@2.6.4` – `DocumentURLChunk` |
+| Grok | tidak inline; unggah Files API lalu `attachments:[{file_id}]` | dokumentasi xAI Files |
+
+**Keputusan.**
+1. `AiProviderMeta.jalurPdf` (`JalurPdf`) menentukan bentuk lampiran, BUKAN
+   `apiStyle`. Ikut masuk ke `ResolvedAiConfig`.
+2. Claude, ChatGPT, dan Mistral menerima PDF; Grok belum karena alurnya dua
+   langkah dan MARLIN belum membangunnya.
+3. Pemisahan berkas murni ke `src/lib/ai/lampiran.ts` supaya bentuk medannya
+   bisa diuji unit (client.ts menarik db lewat config.ts).
+4. **Aturan penulisan:** kalau suatu jalur belum dibangun, teks di layar dan di
+   kode berbunyi "MARLIN belum bisa", TIDAK PERNAH "provider X tidak bisa".
+   Menyatakan ketidakmampuan pihak lain tanpa dasar adalah kesalahan yang
+   melahirkan keputusan ini.
+
+Penjaga: `tests/unit/ai-lampiran-pdf.test.ts` (9 uji — termasuk uji yang
+menolak munculnya kembali frasa "provider ini tidak bisa").
+
+---
+
+## 436 · Register surat: berkas benar-benar tersimpan, duplikat ditahan, paket ikut dari lokasi (2026-08-26)
+
+Empat cacat dilaporkan user dari layar `/surat` sekaligus. Ketiganya berakar
+pada hal yang sama: fitur dinyatakan selesai padahal jalur datanya belum tuntas.
+
+**1. Berkas surat TIDAK PERNAH tersimpan di jalur AI.** Kotak berkas berada di
+dalam `<form>` "Baca & petakan dengan AI", terpisah dari `<form>` simpan. Jadi
+berkas hanya sampai ke AI, lalu hilang: `Letter.fileR2Key` null, dan tidak ada
+apa pun untuk dibuka. Kini berkasnya dipegang state komponen, dipakai dua-duanya
+— dikirim ke AI DAN dititipkan ke FormData saat simpan.
+
+**2. Berkas tidak punya pintu.** Bahkan surat manual yang berkasnya terarsip
+tidak bisa dibuka: tidak ada rute pengunduh. Ditambah
+`GET /api/surat/[id]/berkas` (auth → capability `letter.view` → scope lokasi →
+presigned R2 120 detik), dan tautannya muncul di baris register. Arsip yang
+tidak bisa dibuka sama saja dengan tidak diarsipkan.
+
+**3. Form tetap aktif setelah tersimpan → duplikat.** *"berantakan total, tiap
+duplikasi bisa dilakukan tindak lanjut berbeda"*. Dua hal diperbaiki, bukan
+satu:
+  - **Layar**: formulir ditutup begitu simpan berhasil.
+  - **Pagar**: `buatSurat()` menolak duplikat DI DALAM transaksi penomoran
+    agenda — nomor surat yang sama pada arah yang sama (dibandingkan setelah
+    dinormalkan: spasi, huruf besar, dan pemisah `/ - .` disamakan), atau
+    berkas yang isinya sama persis (kunci R2 = sha256 isi). Layar bukan pagar:
+    kiriman ganda bisa datang dari tombol ditekan dua kali, jaringan yang
+    mengulang, atau tab kedua.
+  Perihal & tanggal SENGAJA tidak dipakai sebagai penanda duplikat — dua surat
+  berbeda bisa berperihal sama di hari yang sama, dan menolaknya menghalangi
+  pekerjaan yang sah.
+
+**4. Lokasi tidak menurunkan paket.** Surat lapangan menyebut nama kampung,
+bukan nama paket kontrak. Kalau lokasinya sudah dikenali, paketnya sudah
+diketahui — membiarkannya kosong menyuruh orang mengisi ulang yang sudah
+diketahui sistem. Kini paket diisi dari lokasi, dan arah sebaliknya HANYA bila
+paketnya berlokasi tunggal (paket multi-lokasi tidak menunjuk salah satunya).
+Yang disimpulkan DIKATAKAN di layar ("Paket diisi dari lokasi X – ganti bila
+keliru"), tidak diam-diam.
+
+**5. Riwayat surat di halaman lokasi.** Kartu "Surat terkait" pada
+`/lokasi/[slug]`: surat yang menunjuk lokasi ini maupun paketnya, dengan
+penanda "lewat paket" supaya surat paket tidak terbaca seolah menyebut kampung
+ini.
+
+Penjaga: `tests/unit/surat-duplikat.test.ts` (6 uji normalisasi nomor + pesan)
+dan `tests/integration/surat-duplikat.test.ts` (10 uji — dibuktikan gagal saat
+pagarnya dimatikan).
+
+---
+
+## 437 · Surat bisa dibatalkan – reversibel, ber-alasan, tanpa hapus permanen (2026-08-26)
+
+**Masalah.** Register surat dibangun tanpa jalan keluar sama sekali. Laporan
+user: *"dimana ada flag hapus untuk surat ini, kalau tidak di awal akan banyak
+sekali resiko noice data yang crowded dengan kesalahan dsb"*. Betul, dan
+akibatnya berlapis: salah catat tidak bisa dicabut, KPI "menunggu jawaban" ikut
+salah selamanya, EWS menagih surat yang tidak ada, dan pagar duplikat
+DECISIONS 436 justru mengunci nomor yang salah ketik seumur register.
+
+**Keputusan: batalkan, BUKAN hapus.**
+Status baru `LetterStatus.dibatalkan` + kolom `voidedAt` / `voidedById` /
+`voidReason`. Yang dibatalkan hilang dari daftar, KPI, EWS, dan kartu surat di
+halaman lokasi — tapi barisnya tetap ada dan bisa dibuka lewat saringan
+"Dibatalkan" lengkap dengan sebab, waktu, dan pembatalnya.
+
+Alasan tidak menyediakan hapus permanen: register yang barisnya bisa lenyap
+tidak bisa dipercaya. Nomor agenda yang hilang di tengah menimbulkan pertanyaan
+yang tidak bisa dijawab siapa pun enam bulan kemudian — dan justru di situlah
+register surat dipakai.
+
+**Turunannya:**
+1. **Sebab WAJIB ditulis** (minimal 5 karakter). Baris yang hilang tanpa alasan
+   sama membingungkannya dengan baris yang hilang.
+2. **Nomor surat kembali bebas.** Pagar duplikat mengabaikan surat yang
+   dibatalkan — kalau tidak, satu salah ketik menjadi hukuman seumur register.
+3. **Nomor agenda TIDAK didaur ulang.** Agenda 3 yang dibatalkan tetap agenda 3
+   yang dibatalkan; memberikannya ke surat berikutnya membuat dua surat berbeda
+   memakai nomor sama di jejak audit.
+4. **Pulih ke keadaan AWAL**, bukan ke status terakhir (`perlu_jawaban` bila
+   menuntut jawaban, selain itu `baru`). Menghidupkan kembali "sudah dijawab"
+   padahal jawabannya mungkin ikut batal lebih menyesatkan daripada meminta
+   orang menandainya lagi.
+5. **Surat batal tidak bisa ditindaklanjuti**: tidak bisa ganti status, tidak
+   bisa dijadikan kendala/temuan. Pulihkan dulu.
+6. **Kendala/temuan yang TERLANJUR lahir dari surat itu tidak ikut dibatalkan**
+   — membatalkannya diam-diam menghapus pekerjaan orang lain. Jumlahnya
+   disebut di pesan hasil supaya ditangani sendiri.
+
+**Capability `letter.void`, satu jenjang dengan `letter.manage` (Site Manager
+ke atas).** Sengaja TIDAK mengikuti `document.void` yang PM ke atas: dokumen
+adalah bukti milestone, surat adalah catatan korespondensi; dan yang mencatat
+surat itulah yang salah ketik. Pembatalannya reversibel, ber-jejak audit, dan
+tetap terlihat di saringan — jadi jenjang rendah tidak menghilangkan apa pun.
+Kalau kelak dinilai terlalu longgar, pemindahannya satu baris di `authz.ts`.
+
+Penjaga: `tests/unit/surat-lifecycle.test.ts` (5 uji baru — termasuk bahwa
+surat batal TIDAK menagih walau tenggatnya lewat) dan
+`tests/integration/surat-duplikat.test.ts` (2 uji baru — nomor & berkas milik
+surat yang dibatalkan boleh dicatat ulang, barisnya tetap ada, agenda tidak
+didaur ulang).
+
+---
+
+## 438 · Blanko harian: logo dua pihak setara, isi kotak dipusatkan (2026-08-26)
+
+Tiga cacat pada laporan harian, dilaporkan user dari layar `/cetak/harian`.
+
+**1. Logo pengawas hilang di sampul.** `KopPihak` untuk KONSULTAN PENGAWAS
+tidak pernah diberi `logoUrl` — jalur PDF sudah menggambarnya sejak 2026-08-24,
+jalur HTML tidak. Dokumen yang sama tidak boleh berbeda tergantung tombol mana
+yang ditekan (prinsip yang sudah tertulis di berkas itu sendiri, tapi tidak
+dijaga). Kini memakai `d.supervisorLogoUrl` yang sebenarnya sudah tersedia.
+
+**2. Logo pelaksana tidak ada di kop blanko.** Sel KONSULTAN PENGAWAS berlogo,
+sel KONTRAKTOR PELAKSANA hanya bertuliskan nama — dua pihak sederajat
+ditampilkan tidak setara di dokumen resmi. Ditambah `vendorLogoUrl` (presign di
+`queries.ts`, satu sumber untuk semua jalur render), digambar di kop HTML
+maupun PDF. Penggambar logo kop di PDF dijadikan SATU fungsi supaya kedua pihak
+tidak bisa lagi menyimpang sendiri-sendiri.
+
+**3. Isi kotak pihak menempel kiri.** Dipusatkan pada dua sumbu: di HTML
+(`justify-center` + `text-center`), di PDF (lebar gugus logo+teks diukur dulu
+lalu digeser ke tengah, teks dipusatkan tegak terhadap tinggi kotak). Kotak
+pengawas yang isinya hanya titik-titik sebelumnya terlihat menggantung di pojok.
+
+Diverifikasi dengan merender KEDUA jalur: HTML lewat peramban, PDF lewat
+`buildHarianKkpPdf` dengan logo tiruan lalu gambarnya diperiksa — empat slot
+logo (sampul x2, kop x2) terisi di kedua jalur, dan isi kotak terpusat.

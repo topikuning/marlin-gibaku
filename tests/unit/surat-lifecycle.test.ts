@@ -7,7 +7,15 @@
  * bisa berbeda pendapat tentang surat yang sama.
  */
 import { describe, expect, it } from "vitest";
-import { sisaHariJawab, terlambatDijawab, transisiSurat } from "@/lib/surat/lifecycle";
+import {
+  STATUS_SURAT_LABEL,
+  STATUS_SURAT_TONE,
+  sisaHariJawab,
+  statusPulih,
+  suratDibatalkan,
+  terlambatDijawab,
+  transisiSurat,
+} from "@/lib/surat/lifecycle";
 import { evaluasiEwsSurat } from "@/lib/ews/rules";
 
 const tgl = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -90,5 +98,48 @@ describe("aturan EWS surat", () => {
     expect(w.alasan).toContain("5 hari");
     expect(w.alasan).toContain("Wakil PPK");
     expect(w.href).toContain("/surat");
+  });
+});
+
+/* ── Pembatalan surat (DECISIONS 437) ───────────────────────────────────── */
+
+describe("pembatalan surat", () => {
+  it("bisa dibatalkan dari status mana pun – salah catat bisa ketahuan kapan saja", () => {
+    for (const dari of ["baru", "perlu_jawaban", "dijawab", "selesai", "arsip"] as const) {
+      expect(transisiSurat(dari, "dibatalkan").ok, dari).toBe(true);
+    }
+  });
+
+  it("pulih hanya ke keadaan AWAL, tidak melompat ke 'selesai'", () => {
+    expect(transisiSurat("dibatalkan", "baru").ok).toBe(true);
+    expect(transisiSurat("dibatalkan", "perlu_jawaban").ok).toBe(true);
+    expect(transisiSurat("dibatalkan", "selesai").ok).toBe(false);
+    expect(transisiSurat("dibatalkan", "dijawab").ok).toBe(false);
+    expect(transisiSurat("dibatalkan", "arsip").ok).toBe(false);
+  });
+
+  it("statusPulih mengembalikan utang jawab hanya bila memang menuntut jawaban", () => {
+    expect(statusPulih(true)).toBe("perlu_jawaban");
+    expect(statusPulih(false)).toBe("baru");
+  });
+
+  it("surat batal TIDAK menagih siapa pun walau tenggatnya lewat", () => {
+    const lewat = {
+      needsReply: true,
+      replyDueDate: new Date("2026-08-01T00:00:00.000Z"),
+      status: "dibatalkan" as const,
+    };
+    expect(terlambatDijawab(lewat, new Date("2026-08-26T00:00:00.000Z"))).toBe(false);
+    // Pembandingnya: surat yang sama tapi belum dibatalkan MEMANG menagih.
+    expect(
+      terlambatDijawab({ ...lewat, status: "perlu_jawaban" }, new Date("2026-08-26T00:00:00.000Z")),
+    ).toBe(true);
+  });
+
+  it("punya label & nada sendiri, tidak menumpang status lain", () => {
+    expect(STATUS_SURAT_LABEL.dibatalkan).toBe("Dibatalkan");
+    expect(STATUS_SURAT_TONE.dibatalkan).toBe("danger");
+    expect(suratDibatalkan("dibatalkan")).toBe(true);
+    expect(suratDibatalkan("arsip")).toBe(false);
   });
 });
