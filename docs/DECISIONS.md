@@ -22869,3 +22869,145 @@ menghapus HSD; kalkulasi juga mengabaikan nol lama agar cakupan harga tidak
 menjadi penuh secara palsu. Harga manual dan persetujuan massal usulan AI
 ditulis bersama audit dalam satu transaksi. Nominal HSD dibatasi Rp1 sampai
 Rp1 triliun per satuan dan tetap disimpan sebagai `BigInt`.
+
+---
+
+## 442 · Impor Kurva-S: berkas ikut ke langkah "Terapkan" (2026-08-26)
+
+**Masalah.** Laporan user: di `/lokasi/…/progress` → Perbarui Kurva-S, langkah 4
+(Periksa) berhasil dan tabel selisihnya tampil, tapi menekan **Terapkan**
+menjawab *"File jadwal (.xlsx) wajib dipilih"* — padahal nama berkasnya jelas
+terpampang di layar.
+
+**Sebabnya React 19 me-RESET form setelah `action` selesai**, persis seperti
+form bawaan peramban. Jadi begitu langkah 4 tuntas, `<input type="file">`
+kosong lagi. Yang tidak ikut ter-reset adalah `useState` penyimpan NAMA berkas —
+sehingga layar tetap memperlihatkan berkas yang sebenarnya sudah tidak ada di
+input. Tombol Terapkan lalu mengirim form tanpa berkas, dan penolakan servernya
+benar; yang salah adalah kiriman itu berangkat kosong.
+
+Diukur di peramban, bukan ditebak: sesudah aksi periksa selesai,
+`input.files.length === 0`.
+
+**Perbaikan.** Berkasnya dipegang di state komponen dan dititipkan ke FormData
+lewat satu pembungkus (`denganBerkas`) yang dipakai langkah 4 DAN 5 — sehingga
+yang diterapkan persis berkas yang barusan diperiksa, bukan sisa isi input.
+Pola yang sama sudah dipakai impor rekap harian (`buildForm()`); sekarang
+seragam.
+
+**Kenapa lolos selama ini:** uji E2E `perbarui-kurva-s.spec.ts` berhenti di
+langkah 4. Uji round-trip di sana pun TIDAK bisa menangkapnya — berkas yang
+tidak disunting menghasilkan kurva identik, jadi tombol Terapkan memang tidak
+ditawarkan. Ditambah uji baru yang menyunting satu bobot mingguan lebih dulu
+supaya langkah 5 benar-benar dilalui, lalu menegaskan dua hal: input berkas
+memang kosong sesudah langkah 4, dan Terapkan tetap berhasil.
+
+Penjaga: `tests/e2e/perbarui-kurva-s.spec.ts` — dibuktikan menangkap bug:
+pembungkusnya dilepas → uji gagal dengan galat "wajib dipilih" yang sama persis
+seperti laporan user.
+
+---
+
+## 443 · Alasan MARLIN DIAM di WhatsApp ditampilkan (2026-08-26)
+
+**Masalah.** Laporan user: pagar nomor pribadi sudah dibuka, tapi WA ke MARLIN
+tetap tidak dijawab — bahkan untuk perintah sederhana seperti "kendala hari
+ini". Dan tidak ada satu pun layar yang bisa menjawab kenapa.
+
+**Yang menyebabkan diam, semuanya sudah tercatat sejak DECISIONS 372** di
+`wa_reply_jobs.hasil` (`"diam – <alasan>"`). Yang tidak ada adalah jendelanya:
+panel Sistem → WhatsApp hanya menampilkan pekerjaan yang GAGAL. Diam bukan
+gagal — jobnya selesai normal — jadi alasannya tersimpan rapi tanpa pernah
+terbaca siapa pun.
+
+Alasan diam yang paling sering:
+- `nomor <x> tidak cocok dengan pengguna mana pun` — nomor WhatsApp penanya
+  belum terpasang di akun MARLIN-nya. MARLIN sengaja tidak menjawab orang yang
+  tidak dikenalinya: jawabannya memuat angka proyek.
+- chat ber-`@lid` (identitas privasi WhatsApp yang TIDAK memuat nomor telepon,
+  DECISIONS 347) — perlu kolom "ID WhatsApp (@lid)" diisi.
+- di GRUP: MARLIN hanya menjawab bila disebut/di-mention (DECISIONS 338).
+
+**Keputusan.** `ringkasAntreanWa()` ikut mengembalikan 8 pekerjaan terakhir
+yang selesai beserta `hasil`-nya, dan panelnya menampilkannya di bawah
+ringkasan antrean. "Diam" diberi nada peringatan supaya terlihat berbeda dari
+"dijawab".
+
+Pagarnya sendiri TIDAK dilonggarkan: menjawab orang tak dikenal berarti
+membocorkan angka proyek. Yang diperbaiki adalah kebutaannya — sebab yang
+tersimpan tapi tak pernah ditampilkan sama saja dengan tidak dicatat.
+
+---
+
+## 444 · Nomor di balik `@lid` ditanyakan ke WAHA, lintas engine (2026-08-26)
+
+**Masalah.** Laporan user: dengan NOMOR YANG SAMA, mention di grup dijawab,
+tapi chat pribadi didiamkan total.
+
+Itu bukan kebetulan, dan bukan pula pelanggaran aturan: DECISIONS 351 memang
+menetapkan di grup pengirim TIDAK perlu terdaftar (balasannya masuk ke grup,
+identitas pengetik tidak menentukan siapa yang melihat), sementara di chat
+pribadi identitas adalah satu-satunya dasar. Jadi jawaban di grup sama sekali
+tidak membuktikan nomornya dikenali — dan itulah yang menyesatkan.
+
+**Sebab teknisnya.** WhatsApp makin sering mengirim identitas privasi `@lid`
+alih-alih nomor di `payload.from`, **pada engine mana pun — WEBJS termasuk**
+(waha#1608, waha#1711). `@lid` TIDAK memuat nomor telepon, jadi pencarian
+pengguna gagal dan pesannya didiamkan.
+
+**Kenapa tidak ditebak dari payload.** Pemetaan `@lid` ↔ nomor hanya dipegang
+sesi WhatsApp. Menebaknya dari nama medan payload berarti mengejar rilis WAHA
+satu tebakan per pesan asli — jebakan yang sudah dicatat DECISIONS 347.
+Dokumentasi WAHA sendiri hanya menampilkan `from` dan menyebut `_data` sebagai
+"engine-specific", jadi tidak ada nama medan yang bisa diandalkan.
+
+**Keputusan.** Nomornya DITANYAKAN ke WAHA lewat rute resminya
+`GET /api/{session}/lids/{lid}`, lalu diingat.
+
+1. Hanya dipanggil bila pesan BELUM membawa nomor — yang sudah membawa nomor
+   tidak perlu menunggu panggilan jaringan tambahan.
+2. Balasannya dibaca DEFENSIF: bentuknya tidak didokumentasikan, jadi yang
+   diambil adalah nilai pertama yang berbentuk JID bernomor, di mana pun
+   letaknya. `@lid` tidak pernah diterima sebagai jawaban — itu yang sedang
+   dicari padanannya.
+3. Hasilnya disimpan (AppSetting `waha.lid.<lid>`) supaya pesan berikutnya
+   tidak menunggu jaringan. Yang GAGAL tidak disimpan, supaya percobaan
+   berikutnya masih punya kesempatan.
+4. WAHA versi lama yang tidak punya rute ini, atau yang menjawab tanpa nomor
+   (waha#1830), diperlakukan sebagai "belum diketahui" — bukan galat. Pesannya
+   tetap didiamkan seperti sebelumnya, tapi alasannya kini menyebut bahwa
+   **WAHA pun tidak mengenali `@lid` ini**, bukan sekadar "nomor tidak cocok".
+
+Pagar identitas TIDAK dilonggarkan: menjawab nomor tak dikenal berarti
+membocorkan angka proyek ke siapa pun yang menebak nomor MARLIN.
+
+Penjaga: `tests/unit/waha-lid-nomor.test.ts` — yang diuji sifatnya, bukan satu
+bentuk balasan: nomor ditemukan apa pun nama medannya (termasuk bersarang &
+dalam larik), `@lid` tidak pernah lolos, balasan kosong menghasilkan `null`
+bukan tebakan, dan satu LID selalu menghasilkan satu kunci ingatan.
+
+---
+
+## 445 · Isian `@lid` DIBUANG – manusia hanya tahu nomor WA (2026-08-26)
+
+**Teguran user:** *"tahu darimana kami kode lid, kenapa ada inputan itu di
+master pengguna, GAK BERGUNA. kami manusia tahunya nomor wa, sudah, tugasmu
+cari nomor wa di data WAHA ada dimana."*
+
+Benar, dan itu memang cacat rancangan DECISIONS 347: kolom yang cara
+mengisinya menuntut orang membaca log dan menyalin deret angka bukan kolom —
+itu pekerjaan sistem yang dilimpahkan ke manusia.
+
+**Yang dibuang.** Isian "ID WhatsApp / @lid" di Master → Pengguna, pada
+formulir tambah maupun sunting. Petunjuk "isi kolom @lid" di alasan diam juga
+dibuang; yang disebut sekarang hanya hal yang memang diketahui manusia:
+**isi nomor WhatsApp orang ini di Master → Pengguna**.
+
+**Yang menggantikannya.** Sistem mencari nomornya sendiri (DECISIONS 444),
+lalu MENGINGAT padanannya: begitu satu `@lid` terbukti milik seorang pengguna
+lewat nomor yang dipadankan WAHA, padanan itu ditulis ke akunnya. Pesan
+berikutnya cocok tanpa panggilan jaringan, tanpa seorang pun mengetik apa pun.
+
+Kolom `waLid` di basis data DIPERTAHANKAN — bukan sisa: ia kini diisi sistem,
+bukan orang, dan baris lama yang terlanjur terisi tetap dipakai mencocokkan.
+Yang hilang cuma tuntutan mengisinya dengan tangan.

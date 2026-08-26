@@ -154,9 +154,14 @@ async function cariPengguna(
   const c = cocokkanNomorPengguna(daftar, fromNumber, senderLid);
   if (c.jenis === "tidak_ada") {
     const siapa = fromNumber ?? senderLid ?? "?";
+    /*
+     * TIDAK menyuruh siapa pun mengisi LID (DECISIONS 445): tak seorang pun
+     * tahu LID-nya sendiri. Yang disebut adalah hal yang MEMANG diketahui
+     * manusia — nomor WhatsApp-nya.
+     */
     const petunjuk = senderLid && !fromNumber
-      ? ` – chat ber-@lid, isi kolom "ID WhatsApp (@lid)" pengguna dengan ${senderLid}`
-      : "";
+      ? " – chat ini datang tanpa nomor (identitas privasi WhatsApp) dan WAHA belum bisa memadankannya; pastikan nomor WA orang ini terisi di Master → Pengguna"
+      : " – isi nomor WhatsApp orang ini di Master → Pengguna";
     return { user: null, alasan: `nomor ${siapa} tidak cocok dengan pengguna mana pun${petunjuk}` };
   }
   if (c.jenis === "ganda") {
@@ -304,7 +309,43 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const teks = bersihkanMention(m.body).slice(0, BATAS_TANYA);
 
   // (3) Siapa penanyanya — nomor, bukan nama tampilan.
-  const { user, alasan: alasanNomor0 } = await cariPengguna(m.fromNumber, m.senderLid);
+  /*
+   * Nomor di balik `@lid` DITANYAKAN ke WAHA lebih dulu (DECISIONS 444).
+   *
+   * Sejak WhatsApp memakai identitas privasi `@lid`, `payload.from` chat
+   * pribadi sering tidak memuat nomor — pada engine mana pun, WEBJS termasuk.
+   * Tanpa langkah ini, orang yang SAMA dijawab di grup tapi didiamkan di chat
+   * pribadi, dan tidak ada yang bisa dilakukannya selain menunggu admin
+   * menyalin LID-nya dengan tangan.
+   *
+   * Sengaja hanya untuk yang BELUM punya nomor: pesan yang sudah membawa nomor
+   * tidak perlu menunggu satu panggilan jaringan tambahan.
+   */
+  let nomorPengirim = m.fromNumber;
+  if (!nomorPengirim && m.senderLid) {
+    const { nomorDariLid } = await import("./lid");
+    nomorPengirim = await nomorDariLid(m.senderLid);
+  }
+  const { user, alasan: alasanNomor0 } = await cariPengguna(nomorPengirim, m.senderLid);
+
+  /*
+   * MARLIN mengingat padanannya SENDIRI (DECISIONS 445).
+   *
+   * Begitu satu `@lid` terbukti milik seorang pengguna — lewat nomor yang
+   * dipadankan WAHA — padanan itu ditulis ke akunnya. Pesan berikutnya cocok
+   * tanpa jaringan, dan tidak ada manusia yang pernah diminta mengetik LID
+   * yang memang tidak bisa diketahuinya.
+   */
+  if (user && m.senderLid && !m.fromNumber) {
+    try {
+      await db.user.updateMany({
+        where: { id: user.id, waLid: null },
+        data: { waLid: m.senderLid },
+      });
+    } catch {
+      /* gagal mengingat tidak boleh menggagalkan jawaban */
+    }
+  }
   /*
    * Pengirim ber-@lid yang TIDAK ketemu: catat medan JID apa saja yang benar-
    * benar ada di payload (DECISIONS 347). Tanpa ini, menutup celahnya berarti
@@ -313,8 +354,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * Isi pesan TIDAK ikut tercatat; hanya nama medan + nilai berbentuk JID.
    */
   const alasanNomor =
-    !user && m.senderLid && !m.fromNumber
-      ? `${alasanNomor0} · medan payload: ${medanJidPayload(body).slice(0, 300) || "(tidak ada medan berbentuk JID)"}`
+    !user && m.senderLid && !nomorPengirim
+      ? `${alasanNomor0} · WAHA juga tidak mengenali @lid ini · medan payload: ${medanJidPayload(body).slice(0, 300) || "(tidak ada medan berbentuk JID)"}`
       : alasanNomor0;
 
   /*

@@ -508,17 +508,7 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
           Dipakai pengingat laporan harian. Dikosongkan = tidak menerima pengingat.
         </p>
       </div>
-      <div>
-        <Label htmlFor="u-lid">ID WhatsApp / @lid (opsional)</Label>
-        <Input id="u-lid" name="waLid" inputMode="numeric" placeholder="143026840146095" />
-        {/* Diisi HANYA kalau perlu, dan alamat mencarinya disebut — kolom yang
-            tak seorang pun tahu cara mengisinya sama saja dengan tidak ada
-            (DECISIONS 347). */}
-        <p className="mt-1 text-[11px] text-ink-faint">
-          Isi bila chat pribadi orang ini tidak terjawab. Salin dari Sistem →
-          WhatsApp, baris log yang berakhir <code>@lid</code>.
-        </p>
-      </div>
+
       <div>
         <Label htmlFor="u-role" required>Peran</Label>
         <Combobox id="u-role" name="role" required defaultValue={roles[0]}>
@@ -582,19 +572,7 @@ function EditProfile({ user }: { user: UserRow }) {
             placeholder="0812xxxxxxx"
           />
         </div>
-        <div>
-          <Label htmlFor={`ep-lid-${user.id}`}>ID WhatsApp (@lid)</Label>
-          <Input
-            id={`ep-lid-${user.id}`}
-            name="waLid"
-            inputMode="numeric"
-            defaultValue={user.waLid ?? ""}
-            placeholder="143026840146095"
-          />
-          <p className="mt-1 text-[11px] text-ink-faint">
-            Dari Sistem → WhatsApp, baris log berakhiran <code>@lid</code>.
-          </p>
-        </div>
+
       </div>
       <Button size="sm" type="submit" loading={pending}>Simpan identitas</Button>
     </form>

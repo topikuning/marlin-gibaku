@@ -64,11 +64,32 @@ export function PerbaruiKurvaS({
     undefined,
   );
 
+  /*
+   * Berkasnya DIPEGANG di state, bukan hanya di input (DECISIONS 442).
+   *
+   * React 19 me-RESET form setelah `action` selesai, persis seperti form
+   * bawaan peramban. Jadi begitu langkah 4 (periksa) tuntas, `<input
+   * type="file">` sudah kosong lagi — sementara nama berkasnya masih terpampang
+   * di layar karena disimpan di state. Tombol "Terapkan" lalu mengirim form
+   * TANPA berkas dan ditolak "File jadwal (.xlsx) wajib dipilih", padahal
+   * orangnya jelas melihat berkasnya di layar.
+   */
+  const [berkas, setBerkas] = useState<File | null>(null);
   const [namaBerkas, setNamaBerkas] = useState<string | null>(null);
   const [sudahUnduh, setSudahUnduh] = useState(false);
   const [sesuaikan, setSesuaikan] = useState(false);
   const berkasRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  /**
+   * Titipkan berkas yang dipegang state ke FormData sebelum aksinya berangkat.
+   * Dipakai langkah 4 DAN 5, supaya yang diterapkan persis berkas yang barusan
+   * diperiksa — bukan sisa isi input yang sudah dikosongkan React.
+   */
+  const denganBerkas = (aksi: (fd: FormData) => void) => (fd: FormData) => {
+    if (berkas) fd.set("file", berkas);
+    aksi(fd);
+  };
 
   const data = pratinjau?.data ?? null;
   const selesai = !!terap?.success;
@@ -173,7 +194,7 @@ export function PerbaruiKurvaS({
         {/* SATU form untuk langkah 3–5. Tombol "Terapkan" memakai
             `formAction`, sehingga berkas yang DITERAPKAN persis berkas yang
             barusan diperiksa — bukan salinan yang disusun ulang di klien. */}
-        <form ref={formRef} action={periksa} className="space-y-3">
+        <form ref={formRef} action={denganBerkas(periksa)} className="space-y-3">
           <div className="rounded-md border border-border bg-surface p-3">
           <input type="hidden" name="locationId" value={locationId} />
           <p className="text-[12px] font-semibold text-ink">3. Unggah berkas yang sudah disunting</p>
@@ -188,7 +209,11 @@ export function PerbaruiKurvaS({
               name="file"
               accept=".xlsx,.xls"
               className="hidden"
-              onChange={(e) => setNamaBerkas(e.target.files?.[0]?.name ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setBerkas(f);
+                setNamaBerkas(f?.name ?? null);
+              }}
             />
             <Button type="button" size="sm" variant="secondary" onClick={() => berkasRef.current?.click()}>
               <FileUp aria-hidden className="size-3.5" />
@@ -324,7 +349,7 @@ export function PerbaruiKurvaS({
                 />
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="submit" formAction={terapkan} size="sm" loading={menerapkan}>
+                  <Button type="submit" formAction={denganBerkas(terapkan)} size="sm" loading={menerapkan}>
                     <Upload aria-hidden className="size-3.5" />
                     Terapkan sebagai baseline baru
                   </Button>
@@ -346,6 +371,7 @@ export function PerbaruiKurvaS({
               size="sm"
               variant="secondary"
               onClick={() => {
+                setBerkas(null);
                 setNamaBerkas(null);
                 setSudahUnduh(false);
                 if (berkasRef.current) berkasRef.current.value = "";

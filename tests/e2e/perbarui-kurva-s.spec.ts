@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import ExcelJS from "exceljs";
 
 /**
  * PERBARUI KURVA-S — alurnya harus benar-benar bisa dijalani (DECISIONS 364).
@@ -113,6 +114,77 @@ test.describe("Perbarui Kurva-S", () => {
       const selisih = Number(cocok[2].replace(",", "."));
       expect(selisih, `pergeseran terlalu besar: ${teks}`).toBeLessThan(1);
     }
+  });
+
+  /*
+   * LANGKAH 5 — yang dulu tidak pernah diuji, dan karena itu rusak diam-diam
+   * (DECISIONS 442). Laporan user: menekan "Terapkan" menjawab *"File jadwal
+   * (.xlsx) wajib dipilih"* padahal berkasnya jelas terpampang di layar.
+   *
+   * Sebabnya React 19 me-RESET form setelah `action` selesai, seperti form
+   * bawaan peramban: input berkas KOSONG lagi begitu langkah 4 tuntas.
+   *
+   * Uji round-trip di atas tidak bisa menangkap ini — berkas yang tidak
+   * disunting menghasilkan kurva identik, jadi tombol "Terapkan" memang tidak
+   * ditawarkan. Di sini berkasnya SENGAJA diubah supaya langkah 5 benar-benar
+   * dilalui.
+   */
+  test("terapkan: berkas ikut walau input sudah dikosongkan React", async ({ page }) => {
+    test.setTimeout(180_000);
+    await login(page);
+    await page.goto(`/lokasi/${LOKASI}/progress?bagian=baseline`);
+
+    const unduh = page.waitForEvent("download");
+    await page.getByRole("link", { name: /Unduh template Kurva-S/ }).click();
+    const berkas = await unduh;
+    const jalur = `/tmp/kurva-s-sunting-${Date.now()}.xlsx`;
+    await berkas.saveAs(jalur);
+    await expect(page.locator('li[aria-current="step"]')).toContainText("Sunting di Excel");
+
+    /*
+     * Sunting seperlunya: geser bobot antar-minggu pada satu pekerjaan. Jumlah
+     * barisnya tidak berubah, jadi kurvanya tetap tuntas 100% — yang bergeser
+     * cuma bentuknya, dan itu sudah cukup membuat "Terapkan" ditawarkan.
+     */
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(jalur);
+    const ws = wb.worksheets[0];
+    let tersunting = false;
+    for (let r = 6; r <= ws.rowCount && !tersunting; r += 1) {
+      const isi: { kolom: number; nilai: number }[] = [];
+      for (let c = 5; c <= ws.columnCount; c += 1) {
+        const v = ws.getRow(r).getCell(c).value;
+        if (typeof v === "number" && v > 0) isi.push({ kolom: c, nilai: v });
+        if (isi.length === 2) break;
+      }
+      if (isi.length === 2) {
+        ws.getRow(r).getCell(isi[0].kolom).value = isi[1].nilai;
+        ws.getRow(r).getCell(isi[1].kolom).value = isi[0].nilai;
+        tersunting = true;
+      }
+    }
+    expect(tersunting, "template tidak memuat bobot mingguan yang bisa disunting").toBe(true);
+    await wb.xlsx.writeFile(jalur);
+
+    await page.locator('input[type="file"][name="file"]').setInputFiles(jalur);
+    await page.getByRole("button", { name: /Periksa hasilnya/ }).click();
+    await expect(page.getByText("Hasil pemeriksaan")).toBeVisible({ timeout: 30_000 });
+
+    // Inti cacatnya: input berkas SUDAH kosong di titik ini.
+    await expect
+      .poll(async () =>
+        page
+          .locator('input[type="file"][name="file"]')
+          .evaluate((el) => (el as HTMLInputElement).files?.length ?? 0),
+      )
+      .toBe(0);
+
+    // …namun langkah 5 tetap harus berjalan, karena berkasnya dipegang state.
+    const terapkan = page.getByRole("button", { name: /Terapkan sebagai baseline baru/ });
+    await expect(terapkan).toBeVisible();
+    await terapkan.click();
+    await expect(page.getByText(/wajib dipilih/)).toHaveCount(0);
+    await expect(page.getByText("Mulai pembaruan lain")).toBeVisible({ timeout: 60_000 });
   });
 
   test("tanpa wewenang baseline, alurnya tidak ditawarkan", async ({ page }) => {
