@@ -68,6 +68,15 @@ export type KirimWaInput = {
   idempotencyKey?: string;
   sourceType: string;
   sourceId?: string | null;
+  /**
+   * Kiriman ini adalah BALASAN atas pesan yang masuk dari WhatsApp — bukan
+   * kiriman yang dimulai MARLIN (DECISIONS 439).
+   *
+   * Hanya jalur penjawab pesan masuk yang menyalakannya. Pagar nomor pribadi
+   * membiarkannya lewat, karena yang dilarang WhatsApp adalah menyapa duluan,
+   * bukan menjawab orang yang menyapa kita.
+   */
+  balasanMasuk?: boolean;
 };
 
 export type HasilKirimWa = {
@@ -113,6 +122,29 @@ async function sesiSiap(): Promise<{ siap: true } | { siap: false; alasan: strin
   }
 }
 
+/**
+ * Benarkah ini balasan atas percakapan yang DIMULAI orang lain?
+ *
+ * Penanda `balasanMasuk` saja tidak cukup: penanda yang hanya dipercaya
+ * begitu saja bisa dipasang jalur mana pun kelak, dan pagarnya bocor tanpa
+ * ada yang sadar. Jadi ia DIBUKTIKAN ke data — harus benar-benar ada pesan
+ * MASUK dari chat itu dalam jendela percakapan.
+ *
+ * Jendelanya 24 jam, mengikuti kebiasaan percakapan: balasan yang datang
+ * berhari-hari kemudian sudah bukan balasan lagi, melainkan menyapa duluan.
+ */
+const JENDELA_BALASAN_JAM = 24;
+
+async function balasanSah(input: KirimWaInput, chatId: string): Promise<boolean> {
+  if (!input.balasanMasuk) return false;
+  const sejak = new Date(Date.now() - JENDELA_BALASAN_JAM * 3_600_000);
+  const masuk = await db.waMessage.findFirst({
+    where: { chatId, fromMe: false, timestamp: { gte: sejak } },
+    select: { id: true },
+  });
+  return masuk !== null;
+}
+
 export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> {
   const chatId = kanonikGrupId(input.destination);
   const key = input.idempotencyKey ?? `auto:${randomUUID()}`;
@@ -135,10 +167,11 @@ export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> 
    * melihat kiriman mana yang tertahan dan kenapa, lalu memutuskan membuka
    * pagarnya di Sistem atau memindahkan tujuannya ke grup.
    */
-  if (!tujuanGrup(chatId) && !(await izinKirimPersonal())) {
+  if (!tujuanGrup(chatId) && !(await izinKirimPersonal()) && !(await balasanSah(input, chatId))) {
     const alasan =
       "Kiriman ke nomor pribadi sedang dimatikan (Sistem → WhatsApp). " +
-      "WhatsApp memblokir nomor yang banyak mengirim chat pribadi, dan blokir itu ikut mematikan kiriman ke grup.";
+      "WhatsApp memblokir nomor yang banyak mengirim chat pribadi, dan blokir itu ikut mematikan kiriman ke grup. " +
+      "Pagar ini SATU ARAH: balasan atas pesan yang masuk dari WhatsApp tetap berjalan.";
     const b = await catat(key, input, chatId, "ditolak", { lastError: alasan });
     return hasil(b.id, "ditolak", null, alasan);
   }

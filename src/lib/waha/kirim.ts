@@ -42,6 +42,26 @@ export async function sendText(chatId: string, text: string): Promise<string | n
   return r.waMessageId;
 }
 
+/**
+ * BALASAN atas pesan yang masuk dari WhatsApp (DECISIONS 439).
+ *
+ * Sengaja fungsi tersendiri, bukan parameter tambahan di `sendText`: penjawab
+ * pesan masuk memanggil ini, semua jalur lain tidak bisa lewat pagar nomor
+ * pribadi tanpa sadar mengubah fungsinya. Pagar itu satu arah — yang dilarang
+ * WhatsApp adalah menyapa duluan, bukan menjawab yang menyapa kita.
+ */
+export async function balasWa(chatId: string, text: string): Promise<string | null> {
+  const r = await sendWaMessage({
+    kind: "teks",
+    destination: chatId,
+    payload: { teks: text },
+    sourceType: "balasan_wa",
+    balasanMasuk: true,
+  });
+  if (r.error) throw new Error(r.error);
+  return r.waMessageId;
+}
+
 export async function sendImage(
   chatId: string,
   file: FilePayload,

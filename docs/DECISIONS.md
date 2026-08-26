@@ -22737,3 +22737,34 @@ pengawas yang isinya hanya titik-titik sebelumnya terlihat menggantung di pojok.
 Diverifikasi dengan merender KEDUA jalur: HTML lewat peramban, PDF lewat
 `buildHarianKkpPdf` dengan logo tiruan lalu gambarnya diperiksa — empat slot
 logo (sampul x2, kop x2) terisi di kedua jalur, dan isi kotak terpusat.
+
+---
+
+## 439 · Pagar nomor pribadi jadi SATU ARAH (2026-08-26)
+
+**Masalah.** Laporan user: *"aku kirim wa ke marlin, kenapa marlin tidak
+merespon?"* Pagar DECISIONS 433 duduk di gateway — satu-satunya pintu keluar
+semua kiriman WhatsApp — sehingga ia ikut menahan BALASAN atas pesan yang
+masuk. Jalur tanya-jawab WhatsApp (`tanya.ts`) mati total untuk chat pribadi.
+
+Penempatan di gateway itu benar (tidak ada fitur yang bisa lolos), yang salah
+adalah pagarnya tidak membedakan arah.
+
+**Keputusan.** Yang ditahan hanya kiriman yang DIMULAI MARLIN: penjadwal,
+tombol di layar, laporan terjadwal. Balasan atas pesan yang masuk tetap
+berjalan — yang dilarang WhatsApp adalah menyapa duluan, bukan menjawab orang
+yang menyapa kita.
+
+Dua lapis, karena satu tidak cukup:
+1. `KirimWaInput.balasanMasuk` — penanda yang HANYA dipasang `balasWa()`,
+   fungsi tersendiri yang dipakai penjawab pesan masuk. Jalur lain tidak bisa
+   lewat tanpa sadar mengubah fungsi yang dipanggilnya.
+2. Penandanya **dibuktikan ke data**: harus benar-benar ada pesan MASUK
+   (`fromMe: false`) dari chat itu dalam 24 jam terakhir. Penanda yang hanya
+   dipercaya begitu saja akan dipasang jalur mana pun kelak, dan pagarnya bocor
+   tanpa ada yang sadar. Jendela 24 jam mengikuti kebiasaan percakapan:
+   balasan yang datang berhari-hari kemudian sudah bukan balasan lagi.
+
+Penjaga: `tests/integration/wa-pagar-personal.test.ts` — penanda palsu tanpa
+pesan masuk DITOLAK, balasan sah lewat, kiriman inisiatif MARLIN ke chat yang
+sama tetap ditahan, dan balasan di luar jendela 24 jam ditolak.

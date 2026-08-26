@@ -89,3 +89,86 @@ describe("pagar bisa dibuka sadar oleh admin", () => {
     expect(await izinKirimPersonal()).toBe(false);
   });
 });
+
+/* ── Pagar SATU ARAH (DECISIONS 439) ─────────────────────────────────────
+ *
+ * Laporan user 2026-08-26: *"aku kirim wa ke marlin, kenapa marlin tidak
+ * merespon?"* — pagar DECISIONS 433 duduk di gateway, jadi ia ikut menahan
+ * BALASAN atas pesan yang masuk. Yang diminta cuma satu arah: MARLIN tidak
+ * menyapa duluan ke nomor pribadi; kalau disapa, ia menjawab.
+ */
+describe("balasan atas pesan masuk tetap lewat", () => {
+  const chatPribadi = `62811${Date.now().toString().slice(-9)}@c.us`;
+
+  it("penanda balasan TANPA pesan masuk sungguhan tetap DITOLAK", async () => {
+    // Penanda yang dipercaya begitu saja akan membocorkan pagar; ia harus
+    // dibuktikan ke data.
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: chatPribadi,
+      payload: { teks: "halo duluan" },
+      sourceType: "uji",
+      balasanMasuk: true,
+      idempotencyKey: `uji-balasan-palsu-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+    expect(r.error).toContain("nomor pribadi");
+  });
+
+  it("setelah ada pesan MASUK dari chat itu, balasannya diizinkan", async () => {
+    await db.waMessage.create({
+      data: {
+        chatId: chatPribadi,
+        waMessageId: `uji-masuk-${suffix}`,
+        fromMe: false,
+        timestamp: new Date(),
+        body: "pak, progres hari ini berapa?",
+      },
+    });
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: chatPribadi,
+      payload: { teks: "progres hari ini 12,3%" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-balasan-sah-${suffix}`,
+    });
+    // Lolos pagar. Statusnya bergantung sesi WAHA (tidak ada di lingkungan
+    // uji), yang penting BUKAN ditolak karena nomor pribadi.
+    expect(r.error ?? "").not.toContain("nomor pribadi");
+  });
+
+  it("kiriman yang DIMULAI MARLIN ke chat yang sama tetap ditahan", async () => {
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: chatPribadi,
+      payload: { teks: "pengingat terjadwal" },
+      sourceType: "penjadwal",
+      idempotencyKey: `uji-inisiatif-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+    expect(r.error).toContain("nomor pribadi");
+  });
+
+  it("balasan yang datang setelah jendela 24 jam bukan balasan lagi", async () => {
+    const lama = `62812${Date.now().toString().slice(-9)}@c.us`;
+    await db.waMessage.create({
+      data: {
+        chatId: lama,
+        waMessageId: `uji-masuk-lama-${suffix}`,
+        fromMe: false,
+        timestamp: new Date(Date.now() - 30 * 3_600_000),
+        body: "pesan tiga puluh jam lalu",
+      },
+    });
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: lama,
+      payload: { teks: "maaf baru sempat" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-balasan-basi-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+  });
+});

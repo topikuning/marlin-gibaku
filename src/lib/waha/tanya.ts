@@ -13,7 +13,7 @@ import {
   type PemakaiAi,
 } from "@/lib/ai-hub/guard";
 import { getIdentitasMarlin } from "./client";
-import { sendText } from "./kirim";
+import { balasWa } from "./kirim";
 import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
 import { kanonikGrupId } from "./grup-id";
 import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";
@@ -351,7 +351,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   if (keputusan.jenis === "diam") return DIAM(keputusan.alasan);
   if (keputusan.jenis === "tolak") {
-    await sendText(m.chatId, balasDitolak(keputusan.pesan));
+    await balasWa(m.chatId, balasDitolak(keputusan.pesan));
     await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {
       chatId: m.chatId,
       grup,
@@ -361,7 +361,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   }
 
   if (!teks) {
-    await sendText(m.chatId, balasTidakMengerti());
+    await balasWa(m.chatId, balasTidakMengerti());
     return { dijawab: true, alasan: "mention tanpa pertanyaan" };
   }
 
@@ -445,7 +445,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       });
     } catch (err) {
       if (err instanceof AiGuardError) {
-        await sendText(pesan.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
+        await balasWa(pesan.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
         return { dijawab: true, alasan: `guard AI menolak (${err.code})` };
       }
       throw err;
@@ -472,7 +472,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
        */
       const narasi = await jawabDariCatatan();
       if (narasi) return narasi;
-      await sendText(
+      await balasWa(
         pesan.chatId,
         "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
       );
@@ -493,7 +493,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
        */
       const narasi = await jawabDariCatatan();
       if (narasi) return narasi;
-      await sendText(pesan.chatId, balasTidakMengerti());
+      await balasWa(pesan.chatId, balasTidakMengerti());
       return { dijawab: true, alasan: "niat tidak dikenali" };
     }
     return { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
@@ -535,7 +535,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     });
     if (potongan.length === 0) return null;
 
-    await sendText(
+    await balasWa(
       pesan.chatId,
       balasNarasi(
         {
@@ -583,7 +583,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    */
   if (mintaLupakanKonteks(teks)) {
     const adaKonteks = await lupakanKonteks(m);
-    await sendText(m.chatId, balasLupakan(adaKonteks));
+    await balasWa(m.chatId, balasLupakan(adaKonteks));
     await audit(user?.id ?? null, "waha.tanya.lupakan", "wa_message", m.waMessageId, {
       chatId: m.chatId,
       adaKonteks,
@@ -595,11 +595,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   if (pilihan.jenis === "kedaluwarsa") {
     // DIKATAKAN, bukan didiamkan: penanya baru saja mengetik angka dan berhak
     // tahu kenapa tidak terjadi apa-apa. Diam terbaca seperti sistem rusak.
-    await sendText(m.chatId, balasPilihanKedaluwarsa(pilihan.pertanyaan, UMUR_KLARIFIKASI_MENIT));
+    await balasWa(m.chatId, balasPilihanKedaluwarsa(pilihan.pertanyaan, UMUR_KLARIFIKASI_MENIT));
     return { dijawab: true, alasan: "pilihan klarifikasi kedaluwarsa" };
   }
   if (pilihan.jenis === "di_luar_daftar") {
-    await sendText(m.chatId, balasPilihanTakAda(pilihan.jumlah));
+    await balasWa(m.chatId, balasPilihanTakAda(pilihan.jumlah));
     return { dijawab: true, alasan: "pilihan di luar daftar" };
   }
 
@@ -692,7 +692,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
           return { dijawab: false, alasan: "tawaran klarifikasi sudah pernah dikirim" };
       }
       if (simpan.jenis === "disimpan") {
-        const idPesan = await sendText(
+        const idPesan = await balasWa(
           m.chatId,
           balasPilihan(teks, rencana.kandidat, UMUR_KLARIFIKASI_MENIT),
         );
@@ -730,13 +730,13 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   // (7) Cocokkan nama terhadap katalog yang SUDAH dipotong izin.
   const resolusi = resolusiLokasi(niat.lokasiDisebut, katalog);
   if (resolusi.ambigu.length > 0 || resolusi.ambiguWilayah.length > 0) {
-    await sendText(m.chatId, balasAmbigu(resolusi.ambigu, resolusi.ambiguWilayah));
+    await balasWa(m.chatId, balasAmbigu(resolusi.ambigu, resolusi.ambiguWilayah));
     return { dijawab: true, alasan: "nama lokasi ambigu – balik bertanya" };
   }
   // Nama disebut tapi TIDAK SATU PUN dikenali: jangan diam-diam melebar jadi
   // "semua lokasi" — itu menjawab pertanyaan yang tidak ditanyakan.
   if (niat.lokasiDisebut.length > 0 && resolusi.cocok.length === 0) {
-    await sendText(
+    await balasWa(
       m.chatId,
       `Saya tidak menemukan lokasi: ${resolusi.tidakDikenal.join(", ")}. Mungkin salah ketik, atau di luar penugasan Anda.`,
     );
@@ -938,7 +938,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     : balasan;
   const { bagian } = potongPesan(utuh);
   for (const b of bagian) {
-    await sendText(m.chatId, b);
+    await balasWa(m.chatId, b);
   }
 
   /*
@@ -978,7 +978,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         {},
       );
       for (const b of potongPesan(teksSebab).bagian) {
-        await sendText(m.chatId, b);
+        await balasWa(m.chatId, b);
       }
       await audit(user?.id ?? null, "waha.tanya.sebab", "wa_message", m.waMessageId, {
         chatId: m.chatId,
