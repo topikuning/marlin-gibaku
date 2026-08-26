@@ -21,8 +21,10 @@ import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tany
  * akan diteruskan apa adanya.
  */
 
-const pct = (n: number) => `${n.toFixed(2).replace(".", ",")}%`;
-const bertanda = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2).replace(".", ",")}%`;
+/** Persen apa adanya – dipakai balasan teks DAN tabel PDF (DECISIONS 448). */
+export const pct = (n: number) => `${n.toFixed(2).replace(".", ",")}%`;
+/** Angka bertanda; sama persis dengan yang terbaca di WhatsApp. */
+export const bertanda = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2).replace(".", ",")}%`;
 
 /** Sapaan tetap di kepala tiap balasan, supaya jelas ini balasan MARLIN. */
 function kepala(judul: string, tanggal: string): string {
@@ -214,7 +216,7 @@ export type BarisProgress = {
  * "inilah lokasinya" – padahal ia "inilah 15 teratas". Bedanya menentukan
  * tindakan orang yang membacanya.
  */
-function judulProgress(urutan: "terbaik" | "terburuk" | null): string {
+export function judulProgress(urutan: "terbaik" | "terburuk" | null): string {
   if (urutan === "terbaik") return "Progress – terbaik dulu";
   if (urutan === "terburuk") return "Progress – terburuk dulu";
   return "Progress";

@@ -99,6 +99,15 @@ export async function katalogLokasi(
       district: true,
       regency: true,
       province: true,
+      // Perusahaan pelaksana: vendor pada kontrak; sebelum kontrak ada, calon
+      // vendor paket. Keduanya boleh kosong — lokasi yang paketnya belum
+      // berkontrak memang belum punya pelaksana.
+      package: {
+        select: {
+          candidateVendorName: true,
+          contract: { select: { vendor: { select: { name: true } } } },
+        },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -109,6 +118,7 @@ export async function katalogLokasi(
     kecamatan: r.district,
     kabupaten: r.regency,
     provinsi: r.province,
+    pelaksana: r.package?.contract?.vendor.name ?? r.package?.candidateVendorName ?? null,
   }));
 }
 
