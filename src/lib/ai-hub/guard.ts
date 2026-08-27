@@ -4,7 +4,13 @@ import { jakartaDateKey } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { latestSettings, putAiSetting } from "@/lib/ai/config";
 import type { SessionUser } from "@/lib/auth/session";
-import { decideAiGuard, parseGuardConfig, type AiGuardConfig } from "./guard-rules";
+import {
+  decideAiGuard,
+  keadaanTunggu,
+  parseGuardConfig,
+  type AiGuardConfig,
+  type KeadaanTunggu,
+} from "./guard-rules";
 
 /**
  * Guard AI Hub: kill-switch global + rate limit per user/jam & per org/hari +
@@ -149,4 +155,9 @@ export async function checkAiGuard(
     throw new AiGuardError(verdict.code, verdict.reason);
   }
   return cfg;
+}
+
+/** Keadaan tunggu percakapan pada saat ini – pembungkus tak-murni dari keadaanTunggu(). */
+export function keadaanTungguSekarang(pendingSince: Date | null, cfg: AiGuardConfig): KeadaanTunggu {
+  return keadaanTunggu(pendingSince, cfg, Date.now());
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
 import { PemilihLokasi } from "@/components/knmp/pemilih-lokasi";
 import { askMarlinAction, type AiHubState } from "@/lib/ai-hub/actions";
@@ -32,6 +33,10 @@ type Msg = {
 /** Chat Ask MARLIN: percakapan tersimpan, jawaban bersitasi + confidence. */
 export function AskClient({
   conversation,
+  menunggu,
+  terputus,
+  pendingSinceMs,
+  batasJawabanDetik,
   locations,
   aiReady,
 }: {
@@ -43,12 +48,45 @@ export function AskClient({
     periodEnd: string;
     messages: Msg[];
   } | null;
+  /** Pertanyaan sudah tercatat, jawabannya sedang disusun di latar. */
+  menunggu: boolean;
+  /** Penanda tunggu melewati batas – prosesnya mati sebelum sempat menjawab. */
+  terputus: boolean;
+  /** Kapan pertanyaan diterima (epoch ms) – dasar penghitung detik di layar. */
+  pendingSinceMs: number | null;
+  batasJawabanDetik: number;
   locations: { id: string; name: string; packageName?: string | null }[];
   aiReady: boolean;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState<AiHubState, FormData>(askMarlinAction, undefined);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [question, setQuestion] = useState("");
+  const [detik, setDetik] = useState(0);
+
+  /*
+   * Menunggu di layar, bukan di dalam request (DECISIONS 455).
+   *
+   * `router.refresh()` menarik ulang server component, jadi jawaban muncul
+   * begitu tertulis tanpa endpoint status tersendiri. Penghitung detik jalan
+   * terpisah supaya penunggu melihat sesuatu bergerak di antara dua tarikan —
+   * dan supaya batas waktunya diketahui, bukan ditebak.
+   *
+   * Detiknya dihitung dari `pendingSinceMs`, bukan dari pencacah yang naik
+   * sendiri: kalau halaman ditinggal lalu dibuka lagi, angkanya tetap benar.
+   */
+  useEffect(() => {
+    if (!menunggu || pendingSinceMs == null) return;
+    const hitung = () => setDetik(Math.max(0, Math.round((Date.now() - pendingSinceMs) / 1000)));
+    const jam = setInterval(hitung, 1000);
+    const tarik = setInterval(() => router.refresh(), 3000);
+    return () => {
+      clearInterval(jam);
+      clearInterval(tarik);
+    };
+  }, [menunggu, pendingSinceMs, router]);
+
+  const terkunci = pending || menunggu;
 
   return (
     <Card>
@@ -147,6 +185,20 @@ export function AskClient({
         )}
 
         {state?.error ? <Banner tone="error" title={state.error} /> : null}
+        {menunggu ? (
+          <Banner
+            tone="info"
+            title={`Sedang menyusun jawaban… ${detik} detik`}
+            description={`Pertanyaan Anda sudah tercatat. Halaman ini memperbarui sendiri begitu jawabannya siap – boleh ditinggal, jawabannya tetap masuk ke percakapan ini. Batas tunggu ${batasJawabanDetik} detik.`}
+          />
+        ) : null}
+        {terputus ? (
+          <Banner
+            tone="warning"
+            title="Jawaban sebelumnya tidak selesai"
+            description="Prosesnya berhenti sebelum jawaban tertulis – biasanya karena aplikasi dimuat ulang saat itu. Pertanyaannya masih ada di atas; kirim ulang untuk mencoba lagi."
+          />
+        ) : null}
 
         <form action={formAction} className="space-y-2">
           {conversation ? (
@@ -166,11 +218,12 @@ export function AskClient({
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Contoh: lokasi mana yang paling perlu tindakan hari ini?"
               aria-label="Pertanyaan untuk MARLIN"
-              className="h-10 flex-1 rounded-md border border-border bg-surface px-3 text-sm"
+              className="h-10 flex-1 rounded-md border border-border bg-surface px-3 text-sm disabled:bg-surface-muted"
               maxLength={1000}
+              disabled={terkunci}
             />
-            <Button type="submit" disabled={!aiReady || pending || question.trim().length < 3}>
-              {pending ? "Menjawab…" : "Kirim"}
+            <Button type="submit" disabled={!aiReady || terkunci || question.trim().length < 3}>
+              {terkunci ? "Menjawab…" : "Kirim"}
             </Button>
           </div>
           <div className="flex flex-wrap gap-1.5">

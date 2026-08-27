@@ -2515,6 +2515,11 @@ model AiConversation {
   periodEnd   DateTime @map("period_end") @db.Date
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  /// Kapan pertanyaan yang BELUM terjawab diterima (DECISIONS 455). Diisi saat
+  /// pesan penanya ditulis, dikosongkan begitu jawaban atau kegagalannya
+  /// tercatat. Layar memakai kolom ini untuk tahu ia harus menunggu — bukan
+  /// menahan request HTTP sampai provider selesai.
+  pendingSince DateTime? @map("pending_since") @db.Timestamptz
 
   messages AiMessage[]
 

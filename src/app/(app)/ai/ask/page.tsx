@@ -6,7 +6,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getActiveAiConfig } from "@/lib/ai/config";
-import { getAiGuardConfig } from "@/lib/ai-hub/guard";
+import { getAiGuardConfig, keadaanTungguSekarang } from "@/lib/ai-hub/guard";
 import { resolveAiScope } from "@/lib/ai-hub/source";
 import { formatTanggalWaktu } from "@/lib/format";
 import { AskClient } from "./ask-client";
@@ -45,6 +45,7 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
           scopeIds: true,
           periodStart: true,
           periodEnd: true,
+          pendingSince: true,
           messages: {
             orderBy: { createdAt: "asc" },
             select: { id: true, role: true, content: true, citations: true, confidence: true, runId: true },
@@ -61,6 +62,15 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
     orderBy: { name: "asc" },
   });
   const aiReady = guard.enabled && !!aiCfg && can(user.role, "ai.ask");
+
+  /*
+   * Tiga keadaan, bukan dua (DECISIONS 455): belum ditanya, sedang dijawab, dan
+   * TERPUTUS. Yang ketiga terjadi bila proses mati di tengah (deploy ulang,
+   * container restart) — penandanya tertinggal menyala. Menampilkannya sebagai
+   * "sedang dijawab" selamanya adalah berbohong kepada penunggunya.
+   */
+  const pendingSince = active?.pendingSince ?? null;
+  const tunggu = keadaanTungguSekarang(pendingSince, guard);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -122,6 +132,10 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
                 }
               : null
           }
+          menunggu={tunggu.menunggu}
+          terputus={tunggu.terputus}
+          pendingSinceMs={pendingSince ? pendingSince.getTime() : null}
+          batasJawabanDetik={Math.round(tunggu.batasMs / 1000)}
           locations={locations.map((l) => ({ id: l.id, name: l.name, packageName: l.package?.name ?? null }))}
           aiReady={aiReady}
         />

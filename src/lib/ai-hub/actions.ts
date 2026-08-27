@@ -14,17 +14,23 @@ import { sendWaMessage } from "@/lib/waha/gateway";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { jakartaToday, parseDateKey } from "@/lib/format";
 import type { AiArtifactStatus, AiRunKind } from "@/generated/prisma/enums";
-import { AiGuardError, getAiGuardConfig } from "./guard";
+import { AiGuardError, checkAiGuard, getAiGuardConfig } from "./guard";
+import { batasJawabanMs } from "./guard-rules";
 import { AiRunError, executeAiRun } from "./runs";
+import { resolveAiScope } from "./source";
+import { mulaiJawabanLatar } from "./tanya-latar";
 import { isAiReportTemplateKey, aiReportTemplate } from "./report-templates";
 import { parseAiReportContent, renderAiReportWhatsApp } from "./render";
-import { reportOutputSchema, type AskOutput, type ReportOutput } from "./schemas";
-import type { SourceRef } from "./types";
+import { reportOutputSchema, type ReportOutput } from "./schemas";
 
 /**
  * Server Actions AI Hub — SEMUA mutasi: requireCapability + zod + audit.
- * Alur sinkron (satu panggilan provider per operasi); status run/artefak
- * selalu konsisten meski provider gagal. DECISIONS 133.
+ * Satu panggilan provider per operasi; status run/artefak selalu konsisten
+ * meski provider gagal. DECISIONS 133.
+ *
+ * Analisis dan laporan tetap sinkron (dipicu sadar, layarnya menunggu satu
+ * hasil). Ask MARLIN TIDAK: pertanyaannya dicatat lalu dijawab di latar,
+ * karena anggaran waktunya melampaui kesabaran peramban. DECISIONS 455.
  */
 
 export type AiHubState = { error?: string; ok?: string } | undefined;
@@ -650,6 +656,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
     let startKey: string;
     let endKey: string;
     let conversationHistory: { role: "user" | "assistant"; content: string }[] = [];
+    let existing: { id: string; pendingSince: Date | null } | null = null;
     if (existingId) {
       const convo = await db.aiConversation.findFirst({
         where: { id: existingId, userId: user.id },
@@ -658,6 +665,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
           scopeIds: true,
           periodStart: true,
           periodEnd: true,
+          pendingSince: true,
           _count: { select: { messages: true } },
           messages: {
             orderBy: { createdAt: "desc" },
@@ -670,7 +678,13 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       if (convo._count.messages >= guardCfg.maxAskPerConversation * 2) {
         return { error: "Percakapan sudah mencapai batas – mulai percakapan baru." };
       }
-      conversationId = convo.id;
+      // Satu percakapan menjawab satu pertanyaan pada satu waktu. Penanda yang
+      // sudah lewat batas dianggap putus (proses mati di tengah) dan boleh
+      // ditimpa – lihat batasJawabanMs().
+      if (convo.pendingSince && Date.now() - convo.pendingSince.getTime() < batasJawabanMs(guardCfg)) {
+        return { error: "Pertanyaan sebelumnya masih dijawab – tunggu jawabannya muncul dulu." };
+      }
+      existing = { id: convo.id, pendingSince: convo.pendingSince };
       locationIds = (convo.scopeIds as string[]) ?? [];
       startKey = convo.periodStart.toISOString().slice(0, 10);
       endKey = convo.periodEnd.toISOString().slice(0, 10);
@@ -688,87 +702,57 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       endKey = scope.endKey;
     }
 
-    const result = await executeAiRun(user, {
-      kind: "tanya",
-      locationIds,
-      startKey,
-      endKey,
-      question,
-      conversationHistory,
-    });
-    const run = await db.aiRun.findUnique({
-      where: { id: result.runId },
-      select: { outputJson: true, scopeIds: true, errorMessage: true },
-    });
+    /*
+     * PEMERIKSAAN AWAL TETAP SINKRON (DECISIONS 455).
+     *
+     * Scope kosong, kill switch, dan kuota harus ditolak SEKARANG — itu jawaban
+     * yang bisa diberikan tanpa memanggil provider sama sekali, dan pengguna
+     * berhak tahu seketika. Yang dilepas ke latar hanya bagian yang memang
+     * lama: menyusun sumber dan memanggil provider.
+     *
+     * `executeAiRun` memeriksa keduanya lagi di latar; keduanya murni baca
+     * (lihat checkAiGuard) sehingga tidak ada kuota yang terhitung dua kali.
+     */
+    const scopeResmi = await resolveAiScope(user, locationIds);
+    if (scopeResmi.ids.length === 0) return { error: "Tidak ada lokasi dalam scope." };
+    await checkAiGuard(user, { kind: "tanya", locationCount: scopeResmi.ids.length });
 
-    if (!existingId) {
+    if (existing) {
+      conversationId = existing.id;
+    } else {
       const convo = await db.aiConversation.create({
         data: {
           userId: user.id,
           title: question.slice(0, 80),
-          scopeIds: run?.scopeIds ?? locationIds,
+          scopeIds: scopeResmi.ids,
           periodStart: new Date(`${startKey}T00:00:00.000Z`),
           periodEnd: new Date(`${endKey}T00:00:00.000Z`),
         },
         select: { id: true },
       });
       conversationId = convo.id;
-    } else {
-      conversationId = existingId;
-      await db.aiConversation.update({ where: { id: existingId }, data: { updatedAt: new Date() } });
     }
 
-    const out = run?.outputJson as
-      | { tanya?: AskOutput; official?: { sourceRefs?: SourceRef[] } }
-      | null;
-    const answer = out?.tanya;
+    // Pertanyaan tercatat DULU, lalu penanda tunggu. Urutannya penting: layar
+    // harus bisa menampilkan pertanyaan yang sedang diproses, bukan kotak
+    // kosong yang berputar.
+    await db.aiMessage.create({ data: { conversationId, role: "user", content: question } });
+    await db.aiConversation.update({
+      where: { id: conversationId },
+      data: { pendingSince: new Date() },
+    });
+    await audit(user.id, "ai.tanya.mulai", "ai_conversation", conversationId, {
+      locations: scopeResmi.ids.length,
+      period: `${startKey}..${endKey}`,
+    });
 
-    /*
-     * Sitasi disimpan LENGKAP dengan label & tautannya (DECISIONS 378).
-     *
-     * Sebelumnya yang tersimpan hanya `sourceRefId`, dan layar percakapan
-     * menampilkannya apa adanya: *"sumber: kedung-mutih:progress"*. Itu tidak
-     * memberi tahu pembaca angka apa yang dirujuk, dan tidak bisa diklik untuk
-     * memeriksanya — jadi "berbasis sumber" hanya benar di dalam kode.
-     *
-     * Diperkaya SAAT MENULIS, bukan saat render: pesan percakapan hidup lebih
-     * lama daripada run-nya, dan sumber yang diresolusi belakangan akan
-     * berubah/hilang begitu datanya bergerak. Yang tersimpan di sini adalah apa
-     * yang benar SAAT jawaban itu diberikan.
-     */
-    const refs = new Map((out?.official?.sourceRefs ?? []).map((r) => [r.id, r]));
-    const citationNotes = new Map((answer?.citations ?? []).map((citation) => [citation.sourceRefId, citation.note]));
-    const citedIds = new Set((answer?.citations ?? []).map((citation) => citation.sourceRefId));
-    for (const part of answer?.answerParts ?? []) {
-      for (const sourceRefId of part.sourceRefIds ?? []) citedIds.add(sourceRefId);
-      for (const claim of part.claims) citedIds.add(claim.sourceRefId);
-      for (const quote of part.kutipan ?? []) citedIds.add(quote.chunkId);
-    }
-    const sitasi = [...citedIds].map((sourceRefId) => {
-      const r = refs.get(sourceRefId);
-      return {
-        sourceRefId,
-        note: citationNotes.get(sourceRefId) ?? null,
-        label: r?.label ?? null,
-        value: r?.value ?? null,
-        href: r?.href ?? null,
-      };
-    });
-    await db.aiMessage.create({
-      data: { conversationId, role: "user", content: question },
-    });
-    await db.aiMessage.create({
-      data: {
-        conversationId,
-        role: "asisten",
-        content:
-          result.status === "siap" && answer
-            ? answer.answer
-            : `Maaf, analisis gagal: ${run?.errorMessage ?? "provider AI tidak tersedia"}.`,
-        citations: answer ? JSON.parse(JSON.stringify(sitasi)) : undefined,
-        confidence: answer?.confidence ?? null,
-        runId: result.runId,
-      },
+    mulaiJawabanLatar(user, {
+      conversationId,
+      question,
+      locationIds,
+      startKey,
+      endKey,
+      conversationHistory,
     });
   } catch (err) {
     return fail(err);

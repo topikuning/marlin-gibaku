@@ -124,6 +124,17 @@ Tiga hal yang perlu dibaca sebagaimana adanya:
   mutu: rujukan sumber otomatis memang tidak lagi berlaku untuk kalimat yang
   ditulis manusia.
 
+Pertanyaan yang berat butuh waktu. MARLIN mencatat pertanyaan Anda lebih dulu,
+lalu menyusun jawabannya di latar: layar menampilkan **Sedang menyusun
+jawaban…** beserta hitungan detik dan batas tunggunya. Halaman boleh
+ditinggalkan – jawabannya tetap masuk ke percakapan yang sama, dan bisa dibaca
+kapan saja lewat daftar **Percakapan**. Selama satu pertanyaan masih dijawab,
+pertanyaan berikutnya di percakapan itu ditahan dulu.
+
+Bila muncul **Jawaban sebelumnya tidak selesai**, prosesnya berhenti sebelum
+jawaban tertulis – biasanya karena aplikasi dimuat ulang saat itu. Pertanyaannya
+masih ada di layar; kirim ulang untuk mencoba lagi.
+
 Jika jawaban menyatakan tidak punya sumber yang cukup, jangan memaksa AI
 menjawab ulang dengan kalimat yang lebih meyakinkan. Periksa laporan harian,
 baseline, kendala, atau sumber lain yang disebut belum tersedia.

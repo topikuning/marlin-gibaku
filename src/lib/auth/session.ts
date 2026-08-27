@@ -176,7 +176,22 @@ export async function accessibleLocationIds(user: SessionUser): Promise<string[]
   return rows.map((r) => r.locationId);
 }
 
+/**
+ * IP pemanggil, bila memang ada requestnya.
+ *
+ * `headers()` hanya hidup di dalam scope request. Sejak Ask MARLIN menjawab di
+ * LATAR (DECISIONS 455), `audit()` ikut dipanggil setelah respons dikirim —
+ * tanpa penjagaan ini, pekerjaan latar mati di baris audit dan penanya
+ * menunggu jawaban yang tidak akan pernah datang.
+ *
+ * Mengembalikan undefined di luar request adalah jawaban yang BENAR, bukan
+ * penambalan: pekerjaan latar memang tidak punya IP klien sendiri.
+ */
 export async function requestIp(): Promise<string | undefined> {
-  const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined;
+  try {
+    const h = await headers();
+    return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined;
+  } catch {
+    return undefined;
+  }
 }

@@ -23425,3 +23425,54 @@ diedit — lalu tidak pernah dibaca siapa pun.
 
 Dijaga `tests/unit/ai-laporan-excel.test.ts` dan tambahan di
 `tests/unit/ai-laporan-isi.test.ts`.
+
+---
+
+## 455 · Ask MARLIN dijawab di latar, bukan di dalam request (2026-08-27)
+
+Log edge produksi 2026-08-27 15:27 WIB: `POST /ai/ask` berakhir **499** pada
+detik ke-125 dengan `txBytes: 0` — peramban menyerah sementara server masih
+memanggil provider.
+
+Anggarannya memang sah selama itu, dan jauh lebih panjang: `timeoutMs` 90 detik
+per panggilan, `aiCallWithConfig` mencoba dua kali (timeout + retry, jeda 1,5
+detik), dan `aiStructured` boleh meminta perbaikan skema sekali lagi — maksimal
+**empat panggilan provider, ±6 menit**, tanpa satu byte pun terkirim. Tidak ada
+peramban yang menunggu selama itu. Jawabannya tetap tersimpan dan token tetap
+terbayar, tetapi penanyanya tidak pernah melihatnya.
+
+**Keputusan.** Ask MARLIN memisah menjadi dua langkah. Ini mengubah pilihan
+"semua sinkron" pada DECISIONS 133 — HANYA untuk `kind=tanya`; analisis dan
+laporan tetap sinkron karena dipicu sadar dan layarnya memang menunggu satu
+hasil.
+
+1. **Request hanya mencatat.** `askMarlinAction` memeriksa scope, kill switch,
+   dan kuota SECARA SINKRON — penolakan yang bisa dijawab tanpa provider harus
+   sampai seketika — lalu menulis pesan penanya, menandai percakapan
+   `pendingSince`, dan selesai. `executeAiRun` dilepas ke latar lewat
+   `mulaiJawabanLatar()`.
+2. **`checkAiGuard` dipanggil dua kali dan itu aman**: fungsinya murni baca
+   (menghitung baris `ai_runs`) plus audit saat menolak. Tidak ada kuota yang
+   terhitung dua kali.
+3. **Percakapan selalu mendapat kabar.** `tanya-latar.ts` tidak boleh melempar
+   ke pemanggil; setiap jalur keluar menulis pesan (jawaban atau kegagalan) dan
+   mengosongkan `pendingSince`. Percakapan yang menggantung tanpa kabar lebih
+   buruk daripada pesan galat.
+4. **Keadaan TERPUTUS diakui.** Bila proses mati di tengah (deploy ulang,
+   container restart), penanda tunggu tertinggal menyala. `batasJawabanMs()`
+   menurunkan batasnya dari anggaran nyata (`timeoutMs × 4 + 30 detik`), jadi
+   ikut berubah saat admin mengubah timeout. Lewat batas, layar mengatakan
+   jawabannya tidak selesai — bukan memutar penanda tunggu selamanya.
+5. **Layar menunggu, bukan request.** `router.refresh()` tiap 3 detik menarik
+   ulang server component, jadi tidak perlu endpoint status tersendiri.
+   Penghitung detik dihitung dari `pendingSince` supaya tetap benar bila
+   halaman ditinggal lalu dibuka lagi.
+6. **Satu pertanyaan per percakapan pada satu waktu.** Kiriman kedua saat masih
+   menunggu ditolak dengan alasannya; penanda yang sudah lewat batas boleh
+   ditimpa.
+
+Jalur WhatsApp (`lib/waha/tanya.ts`) tidak berubah — di sana penanya memang
+tidak menunggu koneksi HTTP terbuka.
+
+Migrasi `20260827160000_ai_ask_asinkron` menambah `ai_conversations.pending_since`.
+Dijaga `tests/unit/ai-tanya-asinkron.test.ts`.
