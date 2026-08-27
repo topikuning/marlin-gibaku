@@ -128,12 +128,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   manusia: E-01 (pemahaman 30 detik oleh pembaca sungguhan), E-04 (apakah judul
   keputusan benar-benar dapat disetujui/ditolak/ditugaskan), E-07 (lifecycle
   edit → beku di peramban), dan E-08 (deploy Railway tanpa perintah manual).
-- 🟢 **Ask MARLIN: jawaban di latar tidak selamat dari restart container.**
-  Konsekuensi sadar DECISIONS 455 – pekerjaannya hidup di proses yang sama,
-  tanpa queue. Bila Railway men-deploy ulang saat pertanyaan sedang dijawab,
-  percakapan itu masuk keadaan **terputus** dan penanya diminta mengirim ulang.
-  Dapat diangkat jadi tahan-restart kalau memang sering terjadi: `pendingSince`
-  yang lewat batas sudah cukup sebagai antrean untuk dijemput cron.
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.

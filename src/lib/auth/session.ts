@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { can, isCrossLocation, type Capability } from "@/lib/authz";
+import { diLatar } from "./latar";
 import type { UserRole } from "@/generated/prisma/enums";
 
 export const SESSION_COOKIE = "marlin_session";
@@ -181,17 +182,20 @@ export async function accessibleLocationIds(user: SessionUser): Promise<string[]
  *
  * `headers()` hanya hidup di dalam scope request. Sejak Ask MARLIN menjawab di
  * LATAR (DECISIONS 455), `audit()` ikut dipanggil setelah respons dikirim —
- * tanpa penjagaan ini, pekerjaan latar mati di baris audit dan penanya
- * menunggu jawaban yang tidak akan pernah datang.
+ * tanpa penjagaan, pekerjaan latar mati di baris audit dan penanya menunggu
+ * jawaban yang tidak akan pernah datang.
  *
- * Mengembalikan undefined di luar request adalah jawaban yang BENAR, bukan
- * penambalan: pekerjaan latar memang tidak punya IP klien sendiri.
+ * Penjagaannya BUKAN `try/catch` yang menelan semua galat (DECISIONS 456).
+ * Itu memang menyelamatkan jalur latar, tetapi ongkosnya dibayar seluruh
+ * aplikasi: kegagalan `headers()` yang sungguhan DI DALAM request pun ikut
+ * senyap, dan auditnya kehilangan IP tanpa satu pun tanda.
+ *
+ * Yang dipakai: penanda eksplisit dari pemanggil latar. Di sana IP klien
+ * memang tidak ada — `undefined` adalah jawaban yang BENAR, bukan penambalan.
+ * Di dalam request, fungsi ini kembali ketat: galat berarti galat.
  */
 export async function requestIp(): Promise<string | undefined> {
-  try {
-    const h = await headers();
-    return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined;
-  } catch {
-    return undefined;
-  }
+  if (diLatar()) return undefined;
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined;
 }

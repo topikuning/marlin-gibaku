@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { prosesAntrean, ringkasAntreanWa } from "@/lib/waha/antrean";
 import { bersihkanKlarifikasiBasi } from "@/lib/waha/klarifikasi";
 import { bersihkanKonteksBasi } from "@/lib/waha/konteks-lanjutan";
+import { jemputTanyaTertunda } from "@/lib/ai-hub/tanya-tertunda";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -50,7 +51,23 @@ export async function POST(req: Request) {
      */
     const klarifikasiDibuang = await bersihkanKlarifikasiBasi();
     const konteksDibuang = await bersihkanKonteksBasi();
-    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang, konteksDibuang });
+    /*
+     * Pertanyaan Ask MARLIN yang MENGGANTUNG ikut dijemput di sini
+     * (DECISIONS 456). Jawaban di latar hidup di proses yang sama, jadi deploy
+     * ulang di tengah jalan membuatnya hilang; penanda `pendingSince` yang
+     * lewat batas sudah cukup sebagai antreannya. Menumpang route ini karena
+     * ia memang dipicu tiap menit — bukan sekali sehari.
+     *
+     * Kegagalan penjemputan TIDAK boleh menggagalkan antrean WhatsApp: dua
+     * pekerjaan yang tidak berhubungan tidak boleh saling menjatuhkan.
+     */
+    let tanyaTertunda: unknown = null;
+    try {
+      tanyaTertunda = await jemputTanyaTertunda();
+    } catch (err) {
+      console.error("[cron/waha] jemput tanya tertunda gagal:", err);
+    }
+    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang, konteksDibuang, tanyaTertunda });
   } catch (err) {
     console.error("[cron/waha] gagal:", err);
     return NextResponse.json(

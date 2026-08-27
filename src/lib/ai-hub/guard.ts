@@ -71,14 +71,8 @@ export function estimateCostUsd(
   );
 }
 
-export class AiGuardError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { AiGuardError } from "./guard-rules";
+export { AiGuardError };
 
 /**
  * Siapa yang memakai AI — dan bukan selalu seorang pengguna (DECISIONS 351).

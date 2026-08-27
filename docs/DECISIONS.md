@@ -23476,3 +23476,71 @@ tidak menunggu koneksi HTTP terbuka.
 
 Migrasi `20260827160000_ai_ask_asinkron` menambah `ai_conversations.pending_since`.
 Dijaga `tests/unit/ai-tanya-asinkron.test.ts`.
+
+---
+
+## 456 · Tiga kelemahan rombakan AI ditutup: latar tahan restart, galat tidak bocor, requestIp presisi (2026-08-27)
+
+Tinjauan atas DECISIONS 452–455 (rombakan asisten AI dari sesi lain).
+Penalarannya kuat dan pagar anti-karangannya utuh; tiga hal di bawah ini yang
+ditinggalkan, dan ketiganya bisa ditutup tanpa membongkar rancangannya.
+
+### 1. Jawaban di latar kini dijemput cron, bukan minta diketik ulang
+
+DECISIONS 455 memindahkan penjawaban ke latar di proses yang sama, tanpa
+antrean — dan mencatat sendiri konsekuensinya: deploy ulang di tengah jalan
+menghapus pekerjaannya. Layar memang tidak berputar selamanya (`keadaanTunggu`
+menyebutnya TERPUTUS), tetapi penanya diminta mengetik ulang pertanyaan yang
+sudah ia kirim.
+
+Catatan aslinya sudah menunjuk jalan keluarnya: `pendingSince` yang lewat batas
+SUDAH cukup sebagai antrean. `jemputTanyaTertunda()` menjemputnya, menumpang
+`/api/cron/waha` karena route itu memang dipicu tiap menit.
+
+Tiga pagar, dan ketiganya perlu — pembeda "tahan restart" dari "menjawab dobel":
+
+1. **Hanya yang lewat `batasJawabanMs()`** (anggaran TERBESAR satu jawaban).
+   Lewat dari itu prosesnya memang mati, bukan sekadar lambat.
+2. **Hanya bila pesan TERAKHIR dari penanya.** Proses lama bisa mati sesudah
+   menulis jawaban tetapi sebelum mengosongkan penanda; percakapan seperti itu
+   cukup dibersihkan penandanya.
+3. **Penanda DIKLAIM lebih dulu** (`updateMany` ber-syarat `pendingSince` yang
+   sama), jadi dua cron yang tumpang tindih tidak bisa menang berdua.
+
+Kuota tetap berlaku: penjemputan lewat jalur yang sama, jadi pagarnya
+diperiksa ulang. Yang lewat kuota menerima penolakan, bukan jawaban gratis.
+
+### 2. Galat provider tidak lagi bocor mentah ke percakapan
+
+`Maaf, analisis gagal: ${run.errorMessage}` menaruh pesan pihak ketiga —
+berbahasa Inggris, kadang memuat nama model/endpoint/potongan payload — ke
+gelembung percakapan, dan menyimpannya di `AiMessage` selamanya.
+
+`pesanGagalUntukPenanya()` memisahkan dua hal yang memang berbeda: penolakan
+PAGAR (kuota, kill switch, lingkup) disampaikan APA ADANYA karena itu kalimat
+buatan MARLIN sendiri dan justru menyebut apa yang harus dilakukan penanya;
+galat provider diganti satu kalimat yang mengaku gagal dan menunjuk ke riwayat
+analisis. Rinciannya tidak hilang — tetap di `AiRun.errorMessage` dan di log.
+
+`AiGuardError` dipindah ke `guard-rules.ts` (modul murni) supaya pembeda itu
+bisa diuji tanpa DB; `guard.ts` tetap mengekspornya ulang.
+
+### 3. `requestIp()` presisi lagi
+
+Penambalan DECISIONS 455 membungkus `requestIp()` dengan `try/catch` yang
+menelan SEMUA galat. Itu menyelamatkan jalur latar, tetapi ongkosnya dibayar
+seluruh aplikasi: kegagalan `headers()` yang SUNGGUHAN di dalam request pun
+ikut senyap, dan auditnya kehilangan IP tanpa satu pun tanda.
+
+Yang dipakai sekarang bukan menebak dari galat melainkan MENYATAKAN niat:
+`jalankanDiLatar()` (AsyncLocalStorage) menandai pekerjaan latar, dan
+`requestIp()` tidak menyentuh `headers()` di sana. Di dalam request ia kembali
+ketat — galat berarti galat.
+
+### Yang TIDAK diperbaiki, dan kenapa
+
+Commit `WIP: state dari Codex sebelum limit` (560 insertion, badan pesan
+kosong) sudah terlanjur ada di `dev` yang dipakai bersama. Menulis ulang
+riwayat branch bersama lebih merusak daripada satu pesan commit yang buruk.
+Dicatat di sini supaya siapa pun yang mem-bisect tahu commit itu tidak bisa
+dibaca sebagaimana commit lain di repo ini.

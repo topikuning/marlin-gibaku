@@ -157,3 +157,21 @@ export function decideAiGuard(cfg: AiGuardConfig, f: GuardFacts): GuardVerdict {
   }
   return { ok: true };
 }
+
+/**
+ * Penolakan PAGAR — kill switch, kuota, lingkup.
+ *
+ * Tinggal di modul MURNI (bukan `guard.ts` yang menyeret DB) sejak
+ * DECISIONS 456: pembeda "pesan buatan MARLIN" vs "galat provider" dipakai
+ * saat menyusun kalimat untuk penanya, dan pembeda itu harus bisa diuji tanpa
+ * lingkungan lengkap. `guard.ts` tetap mengekspornya ulang, jadi tidak ada
+ * pemanggil yang perlu berubah.
+ */
+export class AiGuardError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}

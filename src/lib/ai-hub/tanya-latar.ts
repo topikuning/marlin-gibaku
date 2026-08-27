@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth/session";
+import { jalankanDiLatar } from "@/lib/auth/latar";
+import { pesanGagalUntukPenanya } from "./pesan-gagal";
 import { executeAiRun } from "./runs";
 import type { AskOutput } from "./schemas";
 import type { SourceRef } from "./types";
@@ -78,6 +80,11 @@ async function tulisJawaban(user: SessionUser, input: TanyaLatarInput): Promise<
   });
   const out = run?.outputJson as { tanya?: AskOutput; official?: { sourceRefs?: SourceRef[] } } | null;
   const answer = out?.tanya;
+  if (result.status !== "siap" || !answer) {
+    // Rinciannya tetap ada di `AiRun.errorMessage`; yang masuk percakapan
+    // hanya kalimat yang berguna bagi penanya.
+    console.error(`[ai/tanya-latar] run ${result.runId} gagal: ${run?.errorMessage ?? "(tanpa pesan)"}`);
+  }
   await db.aiMessage.create({
     data: {
       conversationId: input.conversationId,
@@ -85,7 +92,7 @@ async function tulisJawaban(user: SessionUser, input: TanyaLatarInput): Promise<
       content:
         result.status === "siap" && answer
           ? answer.answer
-          : `Maaf, analisis gagal: ${run?.errorMessage ?? "provider AI tidak tersedia"}.`,
+          : pesanGagalUntukPenanya(null),
       citations: answer ? JSON.parse(JSON.stringify(rakitSitasi(answer, out?.official?.sourceRefs ?? []))) : undefined,
       confidence: answer?.confidence ?? null,
       runId: result.runId,
@@ -98,20 +105,22 @@ async function tulisJawaban(user: SessionUser, input: TanyaLatarInput): Promise<
  * pemanggil (server action) harus bisa membalas seketika.
  */
 export function mulaiJawabanLatar(user: SessionUser, input: TanyaLatarInput): void {
-  void (async () => {
+  // Ditandai LATAR (DECISIONS 456): `requestIp()` tidak boleh menyentuh
+  // `headers()` di sini, dan tidak perlu lagi menelan galat untuk semua orang.
+  void jalankanDiLatar(async () => {
     try {
       await tulisJawaban(user, input);
     } catch (err) {
       // Termasuk penolakan guard dan kegagalan tak terduga. Percakapan HARUS
       // tetap mendapat kabar; kalau tidak, penanya menunggu sesuatu yang tidak
       // akan pernah datang.
-      const pesan = err instanceof Error ? err.message : "kesalahan tidak dikenal";
+      console.error("[ai/tanya-latar] pekerjaan latar gagal:", err);
       await db.aiMessage
         .create({
           data: {
             conversationId: input.conversationId,
             role: "asisten",
-            content: `Maaf, pertanyaan ini tidak selesai dijawab: ${pesan}. Silakan coba lagi.`,
+            content: pesanGagalUntukPenanya(err),
           },
         })
         .catch(() => {
@@ -124,5 +133,5 @@ export function mulaiJawabanLatar(user: SessionUser, input: TanyaLatarInput): vo
           /* Bila ini gagal, batasJawabanMs() di layar yang menutup penantiannya. */
         });
     }
-  })();
+  });
 }

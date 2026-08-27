@@ -68,3 +68,26 @@ describe("keadaan tunggu percakapan", () => {
     expect(keadaanTunggu(mulai, cfg, pada(1)).batasMs).toBe(batasJawabanMs(cfg));
   });
 });
+
+/* ── Pesan gagal untuk PENANYA, bukan galat mentah (DECISIONS 456) ─────── */
+describe("pesanGagalUntukPenanya", () => {
+  it("penolakan PAGAR disampaikan apa adanya – itu yang bisa ditindak penanya", async () => {
+    const { AiGuardError } = await import("@/lib/ai-hub/guard-rules");
+    const { pesanGagalUntukPenanya } = await import("@/lib/ai-hub/pesan-gagal");
+    const pesan = pesanGagalUntukPenanya(
+      new AiGuardError("kuota", "Batas 20 analisis AI per jam tercapai."),
+    );
+    expect(pesan).toBe("Batas 20 analisis AI per jam tercapai.");
+  });
+
+  it("galat provider TIDAK bocor mentah ke percakapan", async () => {
+    const { pesanGagalUntukPenanya } = await import("@/lib/ai-hub/pesan-gagal");
+    const bocor = "429 Too Many Requests from api.anthropic.com model=claude-x key=sk-abc";
+    const pesan = pesanGagalUntukPenanya(new Error(bocor));
+    expect(pesan).not.toContain("api.anthropic.com");
+    expect(pesan).not.toContain("sk-abc");
+    // Tetap mengaku gagal, dan menyebut ke mana rinciannya bisa dicari.
+    expect(pesan.toLowerCase()).toContain("belum bisa dijawab");
+    expect(pesan.toLowerCase()).toContain("riwayat analisis");
+  });
+});
