@@ -252,6 +252,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
               a.kind === "laporan"
                 ? ((a.structuredContent as { official?: import("@/lib/ai-hub/render").AiReportContent["official"] })?.official ?? null)
                 : null,
+            humanEdited: a.kind === "laporan" && !!(a.structuredContent as { humanEdited?: boolean })?.humanEdited,
           }))}
           contacts={contacts}
           canReview={can(user.role, "ai.report_review")}

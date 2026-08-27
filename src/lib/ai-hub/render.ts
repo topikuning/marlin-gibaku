@@ -12,6 +12,13 @@ import type { PulseRow, PulseTotals } from "./types";
 export type AiReportContent = {
   templateKey: string;
   templateVersion: number;
+  /**
+   * Ditandai saat reviewer mengedit narasi. Setelah diedit, `confidence`
+   * dinolkan (rujukan sumber AI tidak lagi berlaku) — tanpa penanda ini setiap
+   * kanal menulis "cakupan bukti 0%", yang terbaca sebagai "laporan tidak bisa
+   * dipercaya" padahal justru sudah lolos tangan manusia. DECISIONS 454.
+   */
+  humanEdited?: boolean;
   report: ReportOutput;
   official: {
     periodStart: string;
@@ -55,10 +62,30 @@ export type ExecutiveBrief = {
   status: ReportOutput["overallStatus"];
   statusLabel: string;
   headline: string;
+  /** Peringatan "jangan menilai kinerja fisik dulu" — SATU kalimat untuk semua kanal. */
+  dataWarning: string | null;
+  /** Label kepercayaan: cakupan bukti AI, atau penanda narasi hasil edit manusia. */
+  evidenceLabel: string;
   kpis: { label: string; value: string; note: string }[];
   priorities: ExecutivePriority[];
   decisions: { title: string; reason: string }[];
+  /**
+   * Rekomendasi di luar tiga teratas. Jumlahnya DISEBUT di setiap kanal —
+   * "tidak muncul" tidak boleh terbaca sebagai "tidak ada" (CLAUDE.md).
+   */
+  decisionsHidden: number;
 };
+
+/**
+ * Batas format eksekutif (DECISIONS 453/454). Dipakai bersama oleh validator
+ * keluaran AI, form edit reviewer, dan seluruh renderer supaya angka batasnya
+ * tidak berbeda-beda per tempat.
+ */
+export const MAKS_PRIORITAS = 3;
+export const MAKS_KEPUTUSAN = 3;
+export const MAKS_ANALISIS = 4;
+/** WhatsApp lebih ketat: pesan harus tetap terbaca di layar ponsel (E-06). */
+export const MAKS_ANALISIS_WA = 3;
 
 function fmtPp(v: number): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`;
@@ -93,9 +120,11 @@ function persenKelengkapan(t: PulseTotals): number | null {
 }
 
 function alasanPrioritas(w: PulseRow): { reason: string; tone: ExecutivePriority["tone"] } {
+  // Alasan MELENGKAPI angka, tidak mengulangnya: setiap kanal sudah menampilkan
+  // rasio laporan final di sebelah nama lokasi.
   if (w.finalReports === 0 && w.expectedReports > 0) {
     return {
-      reason: `Belum ada laporan final; kondisi fisik belum dapat dinilai (${w.finalReports}/${w.expectedReports}).`,
+      reason: "Kondisi fisik belum dapat dinilai sampai laporan harian masuk.",
       tone: "danger",
     };
   }
@@ -127,7 +156,7 @@ function alasanPrioritas(w: PulseRow): { reason: string; tone: ExecutivePriority
 export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
   const totals = c.official.totals;
   const reportingRate = persenKelengkapan(totals);
-  const priorities = c.official.rows.slice(0, 3).map((row) => {
+  const priorities = c.official.rows.slice(0, MAKS_PRIORITAS).map((row) => {
     const why = alasanPrioritas(row);
     return {
       name: row.name,
@@ -147,6 +176,12 @@ export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
     status,
     statusLabel: STATUS_LABEL[status],
     headline: ringkas(c.report.executiveSummary, 520),
+    dataWarning: dataBelumMemadai(totals)
+      ? `Kinerja fisik belum bisa dinilai: baru ${totals.reportsFinal} dari ${totals.reportsExpected} laporan harian yang final. Angka deviasi di bawah mencerminkan data yang belum masuk, bukan pekerjaan yang berhenti.`
+      : null,
+    evidenceLabel: c.humanEdited
+      ? "narasi sudah diedit dan diverifikasi manusia"
+      : `cakupan bukti ${c.report.confidence}%`,
     kpis: [
       { label: "Lokasi dipantau", value: String(totals.locations), note: "Dalam scope laporan" },
       {
@@ -163,12 +198,36 @@ export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
       { label: "Recovery overdue", value: String(totals.overdueRecoveries), note: "Melewati tenggat" },
     ],
     priorities,
-    decisions: c.report.recommendations.slice(0, 3).map((item) => ({ title: item.title, reason: item.reason })),
+    decisions: c.report.recommendations
+      .slice(0, MAKS_KEPUTUSAN)
+      .map((item) => ({ title: item.title, reason: item.reason })),
+    decisionsHidden: Math.max(0, c.report.recommendations.length - MAKS_KEPUTUSAN),
   };
 }
 
-/** Baris "Nama: realisasi X vs rencana Y" — menandai baris yang tanpa laporan. */
-function barisPrioritas(w: PulseRow): string {
+/**
+ * Analisis pendukung untuk kanal yang ruangnya terbatas (WhatsApp). Sisa yang
+ * tidak ditampilkan dikembalikan sebagai angka, bukan dibuang diam-diam.
+ */
+export function analisisPendukung(
+  c: AiReportContent,
+  maks: number,
+): { items: { heading: string; body: string }[]; hidden: number } {
+  const isi = c.report.sections.filter((s) => s.body.trim().length > 0);
+  return {
+    items: isi.slice(0, maks).map((s) => ({ heading: s.heading, body: s.body })),
+    hidden: Math.max(0, isi.length - maks),
+  };
+}
+
+/**
+ * Baris "Nama: realisasi X vs rencana Y" — menandai baris yang tanpa laporan.
+ * Menerima PulseRow maupun ExecutivePriority: angkanya identik, dan dengan
+ * begitu urutan WA tidak perlu mengindeks ulang `official.rows`.
+ */
+function barisPrioritas(
+  w: Pick<PulseRow, "name" | "finalReports" | "expectedReports" | "planPct" | "actualPct" | "deviationPp">,
+): string {
   const tanpaLaporan = w.finalReports === 0;
   const angka = tanpaLaporan
     ? `belum ada laporan final (0/${w.expectedReports}) · rencana ${w.planPct.toFixed(1)}%`
@@ -187,23 +246,17 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   const r = c.report;
   const o = c.official;
   const brief = buildExecutiveBrief(c);
-  const status = brief.status;
-  const kosong = dataBelumMemadai(o.totals);
 
   const lines: string[] = [
     `*${r.title}*`,
-    `Periode ${o.periodStart} s/d ${o.periodEnd} · status: ${STATUS_LABEL[status]}`,
+    `Periode ${o.periodStart} s/d ${o.periodEnd} · status: ${brief.statusLabel}`,
     "",
   ];
 
   // Saat data belum masuk, kalimat pembuka menyebut sebabnya lebih dulu —
-  // supaya pimpinan tidak menyimpulkan pekerjaan mandek.
-  if (kosong) {
-    lines.push(
-      `_Kinerja belum bisa dinilai: baru ${o.totals.reportsFinal} dari ${o.totals.reportsExpected} laporan harian yang final. Angka deviasi di bawah mencerminkan data yang belum masuk, bukan pekerjaan yang berhenti._`,
-      "",
-    );
-  }
+  // supaya pimpinan tidak menyimpulkan pekerjaan mandek. Kalimatnya sama persis
+  // dengan layar, PDF, dan Excel karena sumbernya satu: brief.dataWarning.
+  if (brief.dataWarning) lines.push(`_${brief.dataWarning}_`, "");
   lines.push("*KESIMPULAN 30 DETIK*", ringkas(r.waSummary.trim() || brief.headline, 650), "");
 
   lines.push(
@@ -213,8 +266,15 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   );
 
   if (brief.priorities.length) {
-    lines.push("", "*3 PRIORITAS UTAMA*");
-    for (const w of o.rows.slice(0, 3)) lines.push(barisPrioritas(w));
+    lines.push("", `*${MAKS_PRIORITAS} PRIORITAS UTAMA*`);
+    // Angka kunci SAJA tidak cukup: pimpinan perlu tahu mengapa lokasi ini yang
+    // naik ke atas (E-03). Alasannya deterministik, dari alasanPrioritas().
+    for (const p of brief.priorities) {
+      lines.push(barisPrioritas(p), `  ↳ ${ringkas(p.reason, 160)}`);
+    }
+    if (o.rows.length > brief.priorities.length) {
+      lines.push(`_${o.rows.length - brief.priorities.length} lokasi lain ada di laporan lengkap._`);
+    }
   }
 
   if (brief.decisions.length) {
@@ -222,12 +282,18 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
     for (const [i, a] of brief.decisions.entries()) {
       lines.push(`${i + 1}. *${a.title}* – ${ringkas(a.reason, 180)}`);
     }
+    if (brief.decisionsHidden > 0) {
+      lines.push(`_${brief.decisionsHidden} usulan lain tidak ditampilkan – buka laporan lengkap._`);
+    }
   }
 
-  const sections = r.sections.filter((x) => x.body.trim().length > 0).slice(0, 3);
-  if (sections.length) {
+  const analisis = analisisPendukung(c, MAKS_ANALISIS_WA);
+  if (analisis.items.length) {
     lines.push("", "*DASAR ANALISIS*");
-    for (const sec of sections) lines.push(`• *${sec.heading}* – ${ringkas(sec.body, 220)}`);
+    for (const sec of analisis.items) lines.push(`• *${sec.heading}* – ${ringkas(sec.body, 220)}`);
+    if (analisis.hidden > 0) {
+      lines.push(`_${analisis.hidden} bagian analisis lain ada di laporan lengkap._`);
+    }
   }
 
   // SEMUA keterbatasan, bukan hanya yang pertama.
@@ -294,21 +360,25 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
   const decisions = brief.decisions.length
     ? `<ol class="decision-list">${brief.decisions
         .map((x) => `<li><strong>${esc(x.title)}</strong><p>${esc(x.reason)}</p></li>`)
-        .join("")}</ol>`
+        .join("")}</ol>${
+        brief.decisionsHidden > 0
+          ? `<p class="sisa">${brief.decisionsHidden} usulan lain di luar tiga teratas tidak ditampilkan – buka editor laporan untuk melihatnya.</p>`
+          : ""
+      }`
     : `<p class="empty">Tidak ada keputusan yang diminta pada periode ini.</p>`;
   const limits = r.limitations.length
     ? `<div class="limits"><strong>Keterbatasan analisis:</strong><ul>${r.limitations
         .map((l) => `<li>${esc(l)}</li>`)
         .join("")}</ul></div>`
     : "";
-  const dataWarning = dataBelumMemadai(o.totals)
-    ? `<div class="data-warning"><strong>Jangan menilai kinerja fisik dulu.</strong> Baru ${o.totals.reportsFinal} dari ${o.totals.reportsExpected} laporan harian yang final; deviasi saat ini terutama menunjukkan data yang belum masuk.</div>`
+  const dataWarning = brief.dataWarning
+    ? `<div class="data-warning"><strong>Jangan menilai kinerja fisik dulu.</strong> ${esc(brief.dataWarning)}</div>`
     : "";
   return `<article class="ai-report">
 <header>
   <p class="eyebrow">EXECUTIVE CONTROL BRIEF</p>
   <h1>${esc(r.title)}</h1>
-  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "–"} · cakupan bukti ${r.confidence}%</p>
+  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "–"} · ${esc(brief.evidenceLabel)}</p>
 </header>
 <div class="status status-${brief.status}"><span>Status portofolio</span><strong>${esc(brief.statusLabel)}</strong></div>
 ${dataWarning}

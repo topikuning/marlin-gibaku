@@ -111,6 +111,19 @@ disimpan tertutup sampai diperlukan; tabel lengkap tersedia di PDF dan lembar
 **Angka Resmi** pada Excel. WhatsApp memakai urutan yang sama agar pesan dapat
 dipahami tanpa membuka lampiran.
 
+Tiga hal yang perlu dibaca sebagaimana adanya:
+
+- Bila laporan harian belum masuk, laporan membuka dengan peringatan **jangan
+  menilai kinerja fisik dulu** – di layar, PDF, Excel, maupun WhatsApp. Deviasi
+  pada keadaan itu menunjukkan data yang belum masuk, bukan pekerjaan berhenti.
+- Laporan hanya meminta **maksimal tiga keputusan**. Bila artefak lama memuat
+  lebih banyak usulan, jumlah yang tidak ditampilkan disebutkan; buka **Edit
+  seluruh laporan** untuk melihat atau menghapusnya.
+- Setelah reviewer mengedit narasi, keterangan **cakupan bukti** berganti
+  menjadi *narasi sudah diedit dan diverifikasi manusia*. Itu bukan penurunan
+  mutu: rujukan sumber otomatis memang tidak lagi berlaku untuk kalimat yang
+  ditulis manusia.
+
 Jika jawaban menyatakan tidak punya sumber yang cukup, jangan memaksa AI
 menjawab ulang dengan kalimat yang lebih meyakinkan. Periksa laporan harian,
 baseline, kendala, atau sumber lain yang disebut belum tersedia.

@@ -66,3 +66,8 @@ dipakai sebagai acuan implementasi** — masing-masing sudah diberi banner ARSIP
   — **Naskah uji manual** tanya-jawab WhatsApp & AI, fase A–F. Yang diketik,
   yang harus keluar, dan yang dihitung GAGAL. Dipakai untuk memeriksa sendiri
   tanpa membaca kode.
+- [`rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md`](./rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md)
+  — **Naskah uji manual** laporan AI format eksekutif (E-01…E-08): pemahaman 30
+  detik, data kosong ≠ pekerjaan berhenti, prioritas exception-first, paritas
+  layar/PDF/Excel/WhatsApp, lifecycle edit, dan deploy tanpa perintah manual.
+  Semua dijalankan dari UI (DECISIONS 453/454).

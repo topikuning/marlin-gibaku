@@ -120,6 +120,14 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   apakah ini murni uji rapuh (`first()` tidak stabil) atau bug nyata
   Enter-simpan kehilangan angka. Belum dikerjakan; terpisah dari pekerjaan
   mode minggu.
+- 🟡 **Laporan AI eksekutif: uji penerimaan manusia E-01…E-08 belum dijalankan.**
+  Naskahnya di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md` (DECISIONS
+  453/454). Yang sudah tertutup uji otomatis: urutan bagian di keempat kanal,
+  paritas angka layar/PDF/Excel/WA, peringatan data kosong, batas 3 keputusan /
+  4 analisis, dan penyebutan sisa yang tidak ditampilkan. Yang MASIH butuh
+  manusia: E-01 (pemahaman 30 detik oleh pembaca sungguhan), E-04 (apakah judul
+  keputusan benar-benar dapat disetujui/ditolak/ditugaskan), E-07 (lifecycle
+  edit → beku di peramban), dan E-08 (deploy Railway tanpa perintah manual).
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.

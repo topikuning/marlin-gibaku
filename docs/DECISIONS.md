@@ -23382,3 +23382,46 @@ ringkasan mempunyai fallback kompatibel.
 Kontrak pemahaman dan urutan kanal dijaga unit test. Uji penerimaan manusia,
 paritas kanal, lifecycle, WhatsApp, dan deploy Railway tanpa terminal dicatat
 di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md`.
+
+---
+
+## 454 · Batas format eksekutif ditegakkan, sisanya disebut bukan dibuang (2026-08-27)
+
+Lanjutan 453. Format eksekutif baru diperintahkan lewat prompt, sementara
+kode masih memotong diam-diam: setiap kanal hanya menampilkan tiga rekomendasi
+teratas padahal skema mengizinkan sepuluh dan form reviewer mengizinkan
+penambahan sampai sepuluh. Butir keempat dan seterusnya bisa ditulis, disimpan,
+diedit — lalu tidak pernah dibaca siapa pun.
+
+**Keputusan.**
+
+1. **Batasnya satu tempat.** `MAKS_PRIORITAS/MAKS_KEPUTUSAN/MAKS_ANALISIS/
+   MAKS_ANALISIS_WA` di `src/lib/ai-hub/render.ts` dipakai bersama oleh
+   validator keluaran AI, form edit reviewer, dan seluruh renderer.
+2. **Ditegakkan saat validasi, bukan hanya diminta di prompt.** Keluaran model
+   dipangkas ke 3 keputusan / 4 bagian analisis, dan pemangkasannya masuk
+   `limitations` sehingga terbaca di semua kanal. Pemangkasan dilakukan SESUDAH
+   `confidence` dihitung: ini urusan penyajian, bukan kegagalan grounding —
+   kalau dibalik, laporan yang justru kaya bukti tampil dengan cakupan rendah.
+3. **Yang disembunyikan disebut jumlahnya.** Artefak lama yang terlanjur punya
+   lebih dari tiga usulan tidak dipotong isinya; setiap kanal menuliskan berapa
+   yang tidak ditampilkan dan di mana melihatnya. Sama untuk lokasi di luar tiga
+   prioritas dan bagian analisis yang tidak muat di WhatsApp.
+4. **Peringatan data kosong satu kalimat untuk semua kanal** (`brief.dataWarning`),
+   dan sekarang ikut tampil di LAYAR — sebelumnya hanya PDF dan WhatsApp, jadi
+   pembaca layar bisa menilai kinerja fisik dari deviasi yang sebenarnya cuma
+   laporan belum masuk.
+5. **Narasi hasil edit manusia tidak dicap "cakupan bukti 0%".** `confidence`
+   memang dinolkan setelah diedit (rujukan AI tidak lagi berlaku), tetapi
+   kalimat itu terbaca sebagai laporan yang tidak bisa dipercaya. Artefak yang
+   diedit ditandai `humanEdited` dan kanal menulis "narasi sudah diedit dan
+   diverifikasi manusia".
+6. **Prioritas membawa alasannya di WhatsApp**, bukan hanya angka realisasi vs
+   rencana — alasan exception-first sudah ada di layar dan PDF (E-03).
+7. **Pembangun workbook Excel dipindah** dari route API ke `src/lib/ai-hub/excel.ts`
+   sebagai fungsi murni supaya paritas kanal diuji, bukan dipercaya. Nomor baris
+   hardcoded diganti pencarian judul bagian, dan lebar kolom ditetapkan sebelum
+   data masuk.
+
+Dijaga `tests/unit/ai-laporan-excel.test.ts` dan tambahan di
+`tests/unit/ai-laporan-isi.test.ts`.

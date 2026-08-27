@@ -12,7 +12,7 @@ import {
 import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecycle";
 import type { AiArtifactStatus } from "@/generated/prisma/enums";
 import type { ReportOutput } from "@/lib/ai-hub/schemas";
-import { buildExecutiveBrief, type AiReportContent } from "@/lib/ai-hub/render";
+import { MAKS_ANALISIS, MAKS_KEPUTUSAN, buildExecutiveBrief, type AiReportContent } from "@/lib/ai-hub/render";
 
 type ArtifactView = {
   id: string;
@@ -26,6 +26,7 @@ type ArtifactView = {
   waSummary: string;
   report: ReportOutput | null;
   official: AiReportContent["official"] | null;
+  humanEdited: boolean;
   renderedText: string | null;
   distributions: { at: string; target: string }[];
 };
@@ -138,6 +139,7 @@ function ArtifactCard({
       ? buildExecutiveBrief({
           templateKey: a.templateKey ?? "exec_portfolio",
           templateVersion: a.version,
+          humanEdited: a.humanEdited,
           report: a.report,
           official: a.official,
         })
@@ -193,8 +195,8 @@ function ArtifactCard({
             />
             <div className="space-y-2 border-t border-border-muted pt-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-ink">Bagian laporan</p>
-                {sections.length < 12 ? (
+                <p className="text-xs font-medium text-ink">Analisis pendukung (maks {MAKS_ANALISIS} bagian)</p>
+                {sections.length < MAKS_ANALISIS ? (
                   <Button
                     type="button"
                     size="sm"
@@ -242,8 +244,11 @@ function ArtifactCard({
             </div>
             <div className="space-y-2 border-t border-border-muted pt-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-ink">Rekomendasi</p>
-                {recommendations.length < 10 ? (
+                {/* Batasnya sama dengan yang benar-benar tampil di layar, PDF,
+                    Excel, dan WA – supaya reviewer tidak menulis butir yang
+                    tidak pernah dibaca siapa pun (DECISIONS 454). */}
+                <p className="text-xs font-medium text-ink">Keputusan yang diminta (maks {MAKS_KEPUTUSAN})</p>
+                {recommendations.length < MAKS_KEPUTUSAN ? (
                   <Button
                     type="button"
                     size="sm"
@@ -251,11 +256,11 @@ function ArtifactCard({
                     onClick={() =>
                       setRecommendations((current) => [
                         ...current,
-                        { title: "Rekomendasi baru", reason: "", locationId: null, sourceRefIds: [], originalIndex: -1 },
+                        { title: "Keputusan baru", reason: "", locationId: null, sourceRefIds: [], originalIndex: -1 },
                       ])
                     }
                   >
-                    Tambah rekomendasi
+                    Tambah keputusan
                   </Button>
                 ) : null}
               </div>
@@ -268,7 +273,7 @@ function ArtifactCard({
                     onChange={(event) =>
                       setRecommendations((current) => current.map((item, i) => (i === index ? { ...item, title: event.target.value } : item)))
                     }
-                    aria-label={`Judul rekomendasi ${index + 1}`}
+                    aria-label={`Judul keputusan ${index + 1}`}
                     className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm font-medium"
                   />
                   <textarea
@@ -277,12 +282,12 @@ function ArtifactCard({
                     onChange={(event) =>
                       setRecommendations((current) => current.map((item, i) => (i === index ? { ...item, reason: event.target.value } : item)))
                     }
-                    aria-label={`Alasan rekomendasi ${index + 1}`}
+                    aria-label={`Alasan keputusan ${index + 1}`}
                     rows={3}
                     className="w-full rounded-md border border-border bg-surface p-2 text-sm"
                   />
                   <Button type="button" size="sm" variant="ghost" onClick={() => setRecommendations((current) => current.filter((_, i) => i !== index))}>
-                    Hapus rekomendasi
+                    Hapus keputusan
                   </Button>
                 </div>
               ))}
@@ -301,12 +306,19 @@ function ArtifactCard({
           <div className="space-y-4">
             {brief ? (
               <>
+                {/* Peringatan data kosong tampil di layar juga, bukan hanya di
+                    PDF/WA – pembaca layar tidak boleh menilai kinerja fisik
+                    dari deviasi yang sebenarnya cuma laporan belum masuk. */}
+                {brief.dataWarning ? (
+                  <Banner tone="warning" title="Jangan menilai kinerja fisik dulu" description={brief.dataWarning} />
+                ) : null}
                 <div className="rounded-lg border border-border bg-surface-inset p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Kesimpulan 30 detik</p>
                     <Badge tone={briefTone[brief.status]} label={brief.statusLabel} />
                   </div>
                   <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-relaxed text-ink">{brief.headline}</p>
+                  <p className="mt-2 text-xs text-ink-faint">{brief.evidenceLabel}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
@@ -347,14 +359,24 @@ function ArtifactCard({
                   <section>
                     <h4 className="mb-2 font-semibold text-ink">Keputusan yang diminta</h4>
                     {brief.decisions.length ? (
-                      <ol className="space-y-2">
-                        {brief.decisions.map((decision, index) => (
-                          <li key={`${decision.title}-${index}`} className="rounded-md border border-border-muted p-3">
-                            <p className="font-medium text-ink">{index + 1}. {decision.title}</p>
-                            <p className="mt-1 text-ink-muted">{decision.reason}</p>
-                          </li>
-                        ))}
-                      </ol>
+                      <>
+                        <ol className="space-y-2">
+                          {brief.decisions.map((decision, index) => (
+                            <li key={`${decision.title}-${index}`} className="rounded-md border border-border-muted p-3">
+                              <p className="font-medium text-ink">{index + 1}. {decision.title}</p>
+                              <p className="mt-1 text-ink-muted">{decision.reason}</p>
+                            </li>
+                          ))}
+                        </ol>
+                        {/* Yang disembunyikan disebut jumlahnya – "tidak muncul"
+                            tidak boleh terbaca "tidak ada". */}
+                        {brief.decisionsHidden > 0 ? (
+                          <p className="mt-2 text-xs text-ink-faint">
+                            {brief.decisionsHidden} usulan lain di luar tiga teratas tidak ditampilkan – buka “Edit seluruh
+                            laporan” untuk melihat atau menghapusnya.
+                          </p>
+                        ) : null}
+                      </>
                     ) : (
                       <p className="rounded-md border border-border-muted p-3 text-ink-muted">Tidak ada keputusan yang diminta pada periode ini.</p>
                     )}

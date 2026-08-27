@@ -44,6 +44,7 @@ import {
   type GroundingContext,
 } from "./schemas";
 import { aiReportTemplate } from "./report-templates";
+import { MAKS_ANALISIS, MAKS_KEPUTUSAN } from "./render";
 import type { PortfolioPulse, QualityFinding, SourceRef } from "./types";
 
 /**
@@ -549,6 +550,34 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     // Angka dari model tidak pernah dipakai sebagai rasa percaya diri. Nilai
     // ini adalah cakupan bagian yang selamat dari validator sumber.
     output.confidence = evidenceCandidates > 0 ? Math.round((Math.max(0, evidenceKept) / evidenceCandidates) * 100) : 0;
+  }
+
+  /*
+   * BATAS FORMAT EKSEKUTIF (DECISIONS 453/454) — ditegakkan di sini, bukan
+   * cuma diminta lewat prompt, karena model tetap sering mengirim lebih.
+   *
+   * Letaknya SESUDAH `confidence` dihitung dengan sengaja: pemangkasan ini
+   * urusan penyajian, bukan kegagalan grounding. Kalau dipangkas lebih dulu,
+   * laporan yang justru kaya bukti malah tampil dengan cakupan bukti rendah.
+   *
+   * Yang dipangkas DISEBUTKAN di limitations — pemangkasan diam-diam persis
+   * masalah yang sedang diperbaiki.
+   */
+  if (input.kind === "laporan") {
+    const sections = (output.sections as unknown[] | undefined) ?? [];
+    if (sections.length > MAKS_ANALISIS) {
+      output.sections = sections.slice(0, MAKS_ANALISIS);
+      droppedNotes.push(
+        `${sections.length - MAKS_ANALISIS} bagian analisis dipangkas: format eksekutif memuat maksimal ${MAKS_ANALISIS} bagian pendukung`,
+      );
+    }
+    const recommendations = (output.recommendations as unknown[] | undefined) ?? [];
+    if (recommendations.length > MAKS_KEPUTUSAN) {
+      output.recommendations = recommendations.slice(0, MAKS_KEPUTUSAN);
+      droppedNotes.push(
+        `${recommendations.length - MAKS_KEPUTUSAN} usulan dipangkas: pimpinan diminta memutuskan maksimal ${MAKS_KEPUTUSAN} hal per laporan`,
+      );
+    }
   }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.
   if (typeof output.summary === "string" && !numericClaimsValid(output.summary, globals)) {

@@ -514,6 +514,11 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       return { error: "Isi laporan belum valid. Pastikan judul, ringkasan, bagian, dan ringkasan WhatsApp tidak kosong atau terlalu panjang." };
     }
     content.report = nextReport.data;
+    // Penanda ini yang membuat kanal menulis "narasi sudah diedit dan
+    // diverifikasi manusia", bukan "cakupan bukti 0%" — angka 0 itu benar
+    // (rujukan AI tidak lagi berlaku) tetapi terbaca sebagai laporan yang
+    // tidak bisa dipercaya. DECISIONS 454.
+    content.humanEdited = true;
     await db.aiArtifact.update({
       where: { id: artifact.id },
       data: {
