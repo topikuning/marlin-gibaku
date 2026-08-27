@@ -92,7 +92,15 @@ export async function jawabPertanyaanBebasTergrounding(input: {
 
   const allowedRefs = new Set(sourceRefs.map((ref) => ref.id));
   const potonganAsli = new Map(potongan.map((p) => [p.id, p.teks]));
-  const parts = providerResult.data.answerParts as BagianJawaban[];
+  /*
+   * `as` TANPA penjagaan adalah bohong pada pemeriksa tipe: bila keluaran tidak
+   * membawa `answerParts`, yang terjadi bukan "jawaban tanpa bagian" melainkan
+   * TypeError di dalam validator — dan penanya WhatsApp menerima diam, bukan
+   * kalimat "sumber tidak cukup". Skema memang memberi default [], jadi ini
+   * pagar untuk keluaran di luar skema (provider lama, stub uji), sama seperti
+   * yang sudah dilakukan `executeAiRun`.
+   */
+  const parts = (providerResult.data.answerParts as BagianJawaban[] | undefined) ?? [];
   const validation = validasiKlaimTerikat(
     parts,
     gabungFakta(faktaResmi(pulse), tambahan.fakta),

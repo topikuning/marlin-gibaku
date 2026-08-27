@@ -71,12 +71,36 @@ vi.mock("@/lib/waha/kirim", () => ({
 let niatPalsu: unknown = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
 let aiSehat = true;
 
+/**
+ * Keluaran ask-shaped untuk jalur TANYA BEBAS (`tanya-bebas.ts`).
+ *
+ * `aiStructured` melayani DUA kontrak di berkas ini: pembaca niat dan penjawab
+ * bebas. Dulu stub-nya mengembalikan niat untuk keduanya, jadi penjawab bebas
+ * membaca `answerParts` dari objek niat dan meledak dengan
+ * "parts is not iterable" — kegagalan stub yang menyamar sebagai bug produksi.
+ *
+ * Tanpa bagian jawaban, penjawab bebas jatuh ke kalimat "sumber tidak cukup".
+ * Itu memang keluaran yang benar untuk uji-uji di sini: yang diperiksa adalah
+ * lapisan di sekitarnya (pengenalan lokasi, kutipan catatan, penanda), bukan
+ * karangan model.
+ */
+const jawabanBebasPalsu: unknown = {
+  answer: "Belum ada bagian jawaban yang bersumber untuk data uji ini.",
+  answerParts: [],
+  citations: [],
+  confidence: 0,
+  limitations: [],
+};
+
 vi.mock("@/lib/ai/structured", () => ({
-  aiStructured: async () =>
+  aiStructured: async (_skema: unknown, req?: { schemaHint?: string }) =>
     aiSehat
       ? {
           ok: true,
-          data: niatPalsu,
+          // Hanya SCHEMA_HINTS.ask yang memuat "answerParts" — pembeda yang
+          // tegas antara kedua kontrak, tanpa mengimpor apa pun ke dalam
+          // factory vi.mock yang ter-hoisting.
+          data: req?.schemaHint?.includes("answerParts") ? jawabanBebasPalsu : niatPalsu,
           meta: {
             ok: true,
             provider: "anthropic",
