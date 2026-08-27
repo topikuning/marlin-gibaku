@@ -23544,3 +23544,94 @@ kosong) sudah terlanjur ada di `dev` yang dipakai bersama. Menulis ulang
 riwayat branch bersama lebih merusak daripada satu pesan commit yang buruk.
 Dicatat di sini supaya siapa pun yang mem-bisect tahu commit itu tidak bisa
 dibaca sebagaimana commit lain di repo ini.
+
+---
+
+## 457 · Blanko harian berhenti meluber, lampiran foto mengalir dua kolom, jejak unggah terjadwal tercatat (2026-08-27)
+
+**Konteks.** User menyerahkan berkas yang benar-benar naik ke Drive —
+`Laporan Harian - Suradadi - 2026-08-26.pdf` — dengan dua keberatan: *"pdf yang
+diunggah ke drive berantakan saat itemnya banyak, lalu foto juga susunannya
+berantakan"* dan *"daftar laporan harian, informasi terupload ke drive tidak
+ada, padahal file sudah terupload di drive untuk hari itu, sepertinya terunggah
+terjadwal, tapi tidak ada informasi"*.
+
+Berkasnya dibaca halaman per halaman, dan tiap gejala ditelusuri ke barisnya.
+
+### 1. Blanko meluber keluar kertas
+
+Blok RENCANA | REALISASI memesan ruang untuk SELURUH barisnya sekaligus
+(`fit(14 * (barisRR + 1))`) lalu menggambar tanpa penjagaan lagi. Begitu
+realisasinya lebih panjang dari satu halaman — 20 item sudah cukup — tidak ada
+apa pun yang menghentikannya:
+
+* halaman 2 tergambar terus melewati tepi bawah; barisnya hilang dari cetakan;
+* satu baris yang membungkus tepat di tepi memicu pdfkit membuka halaman
+  sendiri, dan EKOR baris itu berdiri sendirian di halaman 3 — penggalan
+  "· dari 1.754 m³ · 51,3%)" yang terlihat di berkasnya;
+* halaman itu tidak dimatikan paginasi otomatisnya, sehingga `kakiHalaman()`
+  yang menulis di bawah margin bawah memicu DUA halaman kosong lagi di ekor
+  berkas, lengkap dengan kaki halaman yang terbelah dan penomoran "dari 6" pada
+  berkas berisi 8 lembar.
+
+Sekarang blok itu dipenggal PER BARIS dengan kepala dua kolom yang diulang, dan
+`kakiHalaman()` mematikan paginasi otomatis pada tiap halaman yang ditulisinya.
+
+Ditemukan sekalian, di blok yang sama: kolom TENAGA KERJA | MATERIAL berhenti
+dengan `break` begitu kotaknya penuh. Baris material ke-9 dan seterusnya tidak
+pernah tercetak sementara blankonya terbaca lengkap — memotong diam-diam,
+persis yang dilarang CLAUDE.md. Kedua kolom kini lanjut ke halaman berikutnya.
+
+### 2. Susunan foto
+
+Kartu dokumentasi dipasangkan dua-dua dan tinggi barisnya ditentukan kartu yang
+paling banyak fotonya, jadi ruang di bawah kartu yang lebih pendek tidak pernah
+terpakai. Ditambah tinggi foto yang dipatok 150 pt — dua kartu dua-foto butuh
+792 pt sekolom sementara kolomnya 782 pt, meleset SEPULUH POIN — empat kartu
+di berkas itu memakan dua lembar yang keduanya setengah kosong.
+
+Sekarang kolomnya MENGALIR sendiri-sendiri: tiap kartu jatuh ke kolom yang saat
+itu paling pendek. Tinggi fotonya dipilih sebesar mungkin dan dikecilkan HANYA
+selama pengecilan itu membuat satu kartu tambahan muat sekolom, tidak pernah di
+bawah 120 pt — di bawah itu foto lapangan tidak bisa dipakai memeriksa
+pekerjaan, dan menghemat kertas dengan cara itu membuang gunanya dokumentasi.
+Susunan berkas 26 Agustus 2026 kini muat satu lembar.
+
+Perhitungannya di modul MURNI `lib/daily-report/kkp-lampiran-susun.ts` supaya
+bisa diuji tanpa menggambar.
+
+### 3. Stempel menghapus nama penanda tangan
+
+DECISIONS 412 sudah membalik urutan menggambar (gambar dulu, teks sesudahnya)
+dan itu memang perlu, tetapi tidak cukup: membalik urutan hanya menentukan siapa
+yang menang di piksel yang sama, ia tidak membuat latar stempelnya tembus
+pandang. Pindaian stempel selalu membawa kertas putih di sekelilingnya, dan
+kertas putih itu kotak legap seluas gambarnya — di berkas itu ia menutupi baris
+"( Ahmad Mu'min )".
+
+Penyaji HTML tidak pernah kena karena memakai `mix-blend-multiply`; pdfkit tidak
+punya blend mode sama sekali. Karena itu putihnya DIBUANG dari gambarnya sendiri
+sebelum masuk PDF (`lib/export/ttd-latar.ts`, murni & teruji). Aturan UKURAN
+tidak berubah: stempel tetap BOLEH melimpah menimpa nama perusahaan dan nama
+penanda tangan (DECISIONS 330) — yang tidak boleh adalah menghapusnya.
+
+### 4. Unggahan terjadwal tidak meninggalkan jejak
+
+Yang paling merugikan, dan paling senyap. Rantainya:
+
+1. penjadwal (`gdrive/antrean.ts`) memanggil dengan `byId: null` — memang tidak
+   ada orang yang menekan tombol;
+2. `konteksUnggah` mengubahnya jadi `""`;
+3. `GDriveUpload.created_by_id` bertipe `uuid` dan menolak string kosong, jadi
+   INSERT-nya gagal;
+4. `.catch(() => {})` menelan galatnya tanpa sisa.
+
+Berkasnya sampai di Drive, jejaknya tidak pernah ditulis, dan daftar laporan
+harian — yang membaca `GDriveUpload` — menulis "Belum ke Drive". Bukan cuma
+salah: itu mengundang orang mengunggah ulang berkas yang sudah ada di sana.
+
+`byId` sekarang bertipe `string | null` sampai ke pencatatnya dan ditulis
+sebagai NULL. Kegagalan mencatat tetap TIDAK menggagalkan unggahannya —
+berkasnya sudah terlanjur ada di Drive, dan melempar hanya membuat penjadwal
+mengulang yang sudah berhasil — tetapi tidak boleh senyap lagi: yang senyap
+tidak pernah diperbaiki.

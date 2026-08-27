@@ -19,13 +19,43 @@ export type UploadTarget = {
   rootFolderId: string;
   kind: GDriveUploadKind;
   refKey: string;
-  byId: string;
+  /** null = unggahan TERJADWAL, tidak ada orang yang menekan tombol. */
+  byId: string | null;
 };
 
 export type UploadItem = { fileName: string; mime: string; data: Buffer };
 
 
+/**
+ * Catat satu berkas ke `GDriveUpload`.
+ *
+ * ### `byId` kosong ≠ string kosong
+ *
+ * Jejak inilah yang dibaca daftar laporan harian untuk menjawab "sudah naik ke
+ * Drive atau belum". Sampai 2026-08-27 jalur TERJADWAL tidak pernah muncul di
+ * sana: penjadwal memanggil dengan `byId: null`, `konteksUnggah` mengubahnya
+ * jadi `""`, dan `created_by_id` bertipe `uuid` menolak string kosong. Barisnya
+ * gagal ditulis — lalu `.catch(() => {})` menelan galatnya tanpa sisa.
+ *
+ * Akibatnya persis yang dilaporkan user: berkasnya ADA di Drive, tetapi
+ * daftarnya menulis "Belum ke Drive". Bukan hanya salah, tetapi mengundang
+ * orang mengunggah ulang berkas yang sudah ada di sana.
+ *
+ * Kegagalan mencatat tetap TIDAK menggagalkan unggahannya — berkasnya sudah
+ * terlanjur ada di Drive, dan melempar di sini hanya membuat penjadwal
+ * mengulangnya. Tetapi tidak boleh senyap lagi: yang senyap tidak pernah
+ * diperbaiki.
+ */
 async function log(
+  t: UploadTarget,
+  fileName: string,
+  status: "sukses" | "gagal",
+  extra: { fileId?: string | null; webLink?: string | null; error?: string | null },
+): Promise<void> {
+  await catatUnggah(t, fileName, status, extra);
+}
+
+export async function catatUnggah(
   t: UploadTarget,
   fileName: string,
   status: "sukses" | "gagal",
@@ -43,10 +73,15 @@ async function log(
         webLink: extra.webLink ?? null,
         status,
         error: extra.error ?? null,
-        createdById: t.byId,
+        createdById: t.byId || null,
       },
     })
-    .catch(() => {});
+    .catch((err) => {
+      console.error(
+        `[gdrive] jejak unggah "${fileName}" (${t.kind} ${t.refKey}) gagal dicatat:`,
+        err,
+      );
+    });
 }
 
 /** Detail galat Drive (status HTTP + Retry-After) bila galatnya memang dari Drive. */

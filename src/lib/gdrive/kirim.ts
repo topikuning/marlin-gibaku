@@ -109,7 +109,10 @@ export async function konteksUnggah(
       rootFolderId: loc.package.driveFolderId,
       kind,
       refKey,
-      byId: byId ?? "",
+      // JANGAN dijadikan "" — kolom `created_by_id` bertipe uuid dan menolak
+      // string kosong, sehingga seluruh jejak unggahan TERJADWAL hilang tanpa
+      // suara. Lihat catatan `catatUnggah` di `upload.ts`.
+      byId,
     },
   };
 }
