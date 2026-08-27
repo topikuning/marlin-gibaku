@@ -23351,3 +23351,34 @@ yang dibawa Docker image dan otomatis diterapkan oleh Railway melalui
 `preDeployCommand` → `scripts/migrate-deploy.mjs` sebelum server baru hidup.
 Tidak ada langkah konfigurasi atau perintah migrasi yang harus dijalankan user.
 Kontrak ini dijaga uji unit terhadap `railway.json` dan `Dockerfile`.
+
+---
+
+## 453 · Laporan AI memakai executive brief satu pandangan (2026-08-27)
+
+User menolak laporan AI yang benar secara teknis tetapi tetap berupa kumpulan
+paragraf dan tabel. Dalam bentuk itu, pimpinan harus membaca seluruh dokumen
+untuk menemukan kondisi, pengecualian, dan tindakan; tujuan laporan eksekutif
+tidak tercapai.
+
+**Keputusan.** Setiap artefak laporan kini mempunyai lapisan penyajian
+deterministik yang sama di layar, PDF, Excel, dan WhatsApp: **kesimpulan 30
+detik → lima KPI resmi → tiga lokasi prioritas → maksimal tiga keputusan →
+analisis pendukung**. Tabel lokasi lengkap dipindahkan setelah page break pada
+PDF dan ke lembar kedua pada Excel. Analisis panjang dilipat di layar.
+
+KPI, status efektif, urutan lokasi, dan alasan pengecualian diturunkan dari
+snapshot calculation layer, bukan dari model. Model hanya menulis headline,
+analisis pendukung, dan usulan keputusan. Ringkasan model sekarang wajib
+membawa `sourceRefIds` sendiri; bila tidak sah, sistem menggantinya dengan
+ringkasan pendek dari bagian yang telah lolos grounding. Angka `confidence`
+tetap berarti cakupan bukti.
+
+Template laporan dinaikkan ke versi 2 dan memerintahkan tiga kalimat eksekutif,
+maksimal tiga keputusan konkret, serta maksimal empat bagian pendukung tanpa
+pengulangan tabel. Artefak versi lama tetap dapat dirender karena field sumber
+ringkasan mempunyai fallback kompatibel.
+
+Kontrak pemahaman dan urutan kanal dijaga unit test. Uji penerimaan manusia,
+paritas kanal, lifecycle, WhatsApp, dan deploy Railway tanpa terminal dicatat
+di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md`.

@@ -104,6 +104,13 @@ belum beku, reviewer dapat mengedit judul, ringkasan, semua bagian, rekomendasi,
 dan ringkasan WhatsApp. Setelah beku, isi tidak dapat diubah; perubahan harus
 dibuat sebagai versi baru.
 
+Artefak laporan dibuka sebagai **ringkasan satu pandangan**: kesimpulan 30
+detik, lima indikator resmi, tiga lokasi prioritas, dan maksimal tiga keputusan
+yang diminta. Gunakan bagian ini untuk briefing pimpinan. **Analisis pendukung**
+disimpan tertutup sampai diperlukan; tabel lengkap tersedia di PDF dan lembar
+**Angka Resmi** pada Excel. WhatsApp memakai urutan yang sama agar pesan dapat
+dipahami tanpa membuka lampiran.
+
 Jika jawaban menyatakan tidak punya sumber yang cukup, jangan memaksa AI
 menjawab ulang dengan kalimat yang lebih meyakinkan. Periksa laporan harian,
 baseline, kendala, atau sumber lain yang disebut belum tersedia.

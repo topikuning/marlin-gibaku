@@ -12,6 +12,7 @@ import {
 import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecycle";
 import type { AiArtifactStatus } from "@/generated/prisma/enums";
 import type { ReportOutput } from "@/lib/ai-hub/schemas";
+import { buildExecutiveBrief, type AiReportContent } from "@/lib/ai-hub/render";
 
 type ArtifactView = {
   id: string;
@@ -24,6 +25,7 @@ type ArtifactView = {
   executiveSummary: string;
   waSummary: string;
   report: ReportOutput | null;
+  official: AiReportContent["official"] | null;
   renderedText: string | null;
   distributions: { at: string; target: string }[];
 };
@@ -131,6 +133,18 @@ function ArtifactCard({
   }
 
   const editable = canReview && !a.frozen && (a.status === "draft" || a.status === "direview" || a.status === "disetujui");
+  const brief =
+    a.report && a.official
+      ? buildExecutiveBrief({
+          templateKey: a.templateKey ?? "exec_portfolio",
+          templateVersion: a.version,
+          report: a.report,
+          official: a.official,
+        })
+      : null;
+  const briefTone = { normal: "success", perhatian: "warning", kritis: "danger", data_kurang: "neutral" } as const;
+  const priorityTone = { danger: "danger", warning: "warning", neutral: "neutral" } as const;
+  const priorityLabel = { danger: "Mendesak", warning: "Perhatian", neutral: "Pantau" } as const;
 
   return (
     <Card>
@@ -284,25 +298,85 @@ function ArtifactCard({
             </div>
           </form>
         ) : (
-          <div className="space-y-3">
-            <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p>
-            {a.report?.sections.map((section, index) => (
-              <section key={index} className="rounded-md border border-border-muted p-3">
-                <h4 className="font-medium text-ink">{section.heading}</h4>
-                <p className="mt-1 whitespace-pre-wrap text-ink-muted">{section.body}</p>
-              </section>
-            ))}
-            {a.report?.recommendations.length ? (
-              <div>
-                <p className="font-medium text-ink">Rekomendasi</p>
-                <ul className="mt-1 list-disc space-y-1 pl-5 text-ink-muted">
-                  {a.report.recommendations.map((recommendation, index) => (
-                    <li key={index}>
-                      <span className="font-medium text-ink">{recommendation.title}:</span> {recommendation.reason}
-                    </li>
+          <div className="space-y-4">
+            {brief ? (
+              <>
+                <div className="rounded-lg border border-border bg-surface-inset p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Kesimpulan 30 detik</p>
+                    <Badge tone={briefTone[brief.status]} label={brief.statusLabel} />
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-relaxed text-ink">{brief.headline}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                  {brief.kpis.map((kpi) => (
+                    <div key={kpi.label} className="rounded-md border border-border-muted p-3">
+                      <p className="text-xs text-ink-muted">{kpi.label}</p>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{kpi.value}</p>
+                      <p className="text-xs text-ink-muted">{kpi.note}</p>
+                    </div>
                   ))}
-                </ul>
-              </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <section>
+                    <h4 className="mb-2 font-semibold text-ink">3 prioritas utama</h4>
+                    <div className="space-y-2">
+                      {brief.priorities.map((priority, index) => (
+                        <div key={`${priority.name}-${index}`} className="flex gap-3 rounded-md border border-border-muted p-3">
+                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-inset text-xs font-semibold text-ink">
+                            {index + 1}
+                          </span>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-ink">{priority.name}</p>
+                              <Badge tone={priorityTone[priority.tone]} label={priorityLabel[priority.tone]} />
+                            </div>
+                            <p className="text-xs text-ink-muted">{priority.packageName} · {priority.province}</p>
+                            <p className="mt-1 text-ink-muted">{priority.reason}</p>
+                            <p className="mt-1 text-xs tabular-nums text-ink-muted">
+                              Realisasi {priority.actualPct.toFixed(1)}% · rencana {priority.planPct.toFixed(1)}% · laporan {priority.finalReports}/{priority.expectedReports}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h4 className="mb-2 font-semibold text-ink">Keputusan yang diminta</h4>
+                    {brief.decisions.length ? (
+                      <ol className="space-y-2">
+                        {brief.decisions.map((decision, index) => (
+                          <li key={`${decision.title}-${index}`} className="rounded-md border border-border-muted p-3">
+                            <p className="font-medium text-ink">{index + 1}. {decision.title}</p>
+                            <p className="mt-1 text-ink-muted">{decision.reason}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="rounded-md border border-border-muted p-3 text-ink-muted">Tidak ada keputusan yang diminta pada periode ini.</p>
+                    )}
+                  </section>
+                </div>
+              </>
+            ) : (
+              <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p>
+            )}
+
+            {a.report?.sections.length ? (
+              <details className="rounded-md border border-border-muted">
+                <summary className="cursor-pointer px-3 py-2 font-medium text-ink">Buka analisis pendukung</summary>
+                <div className="space-y-2 border-t border-border-muted p-3">
+                  {a.report.sections.map((section, index) => (
+                    <section key={index}>
+                      <h4 className="font-medium text-ink">{section.heading}</h4>
+                      <p className="mt-1 whitespace-pre-wrap text-ink-muted">{section.body}</p>
+                    </section>
+                  ))}
+                </div>
+              </details>
             ) : null}
           </div>
         )}

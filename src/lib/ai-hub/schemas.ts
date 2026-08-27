@@ -107,6 +107,8 @@ export type QualityOutput = z.infer<typeof qualityOutputSchema>;
 export const reportOutputSchema = z.object({
   title: z.string().max(160),
   executiveSummary: z.string().min(20).max(4000),
+  /** Sumber khusus ringkasan; tanpa ini ringkasan model tidak boleh dipercaya. */
+  executiveSummarySourceRefIds: z.array(z.string()).max(12).default([]),
   overallStatus: z.enum(["normal", "perhatian", "kritis", "data_kurang"]),
   confidence: z.number().int().min(0).max(100),
   sections: z
@@ -131,6 +133,7 @@ export const reportOutputSchema = z.object({
     )
     .max(10),
   waSummary: z.string().min(10).max(1800),
+  waSummarySourceRefIds: z.array(z.string()).max(12).default([]),
   limitations: z.array(z.string().max(300)).max(10),
 });
 export type ReportOutput = z.infer<typeof reportOutputSchema>;
@@ -640,12 +643,15 @@ export const SCHEMA_HINTS = {
   "limitations": [string]
 }`,
   report: `{
-  "title": string, "executiveSummary": string,
+  "title": string,
+  "executiveSummary": string (maksimal 3 kalimat: kondisi, penyebab utama, keputusan/fokus),
+  "executiveSummarySourceRefIds": [string dari daftar sumber],
   "overallStatus": "normal"|"perhatian"|"kritis"|"data_kurang",
   "confidence": number 0-100,
   "sections": [{ "heading": string, "body": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
   "recommendations": [{ "title": string, "reason": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
-  "waSummary": string (ringkas utk WhatsApp, tanpa markdown),
+  "waSummary": string (maksimal 3 kalimat, siap dibaca pimpinan di WhatsApp, tanpa markdown),
+  "waSummarySourceRefIds": [string dari daftar sumber],
   "limitations": [string]
 }`,
   ask: `{

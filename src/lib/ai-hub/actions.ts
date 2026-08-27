@@ -499,7 +499,14 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       ...content.report,
       title: parsed.data.title,
       executiveSummary: String(formData.get("executiveSummary") ?? "").trim(),
+      executiveSummarySourceRefIds: [],
+      confidence: 0,
       waSummary: String(formData.get("waSummary") ?? "").trim(),
+      waSummarySourceRefIds: [],
+      limitations: [
+        ...content.report.limitations.filter((item) => !item.startsWith("Narasi telah diedit manusia")),
+        "Narasi telah diedit manusia; cakupan bukti AI tidak lagi berlaku untuk teks hasil edit.",
+      ].slice(0, 10),
       sections,
       recommendations,
     });
