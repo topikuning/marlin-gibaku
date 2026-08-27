@@ -192,8 +192,21 @@ describe("backfillPeriodeSnapshotLama", () => {
   });
 });
 
-describe("penyaji cetak – jaring pengaman untuk snapshot lama yang belum ter-backfill", () => {
-  it("menurunkan rentang dengan mode 7-hari, bukan mode kontrak sekarang", async () => {
+/*
+ * DECISIONS 451 membalik jaring pengaman ini.
+ *
+ * Dulu penyaji cetak menurunkan rentang snapshot lama dengan mode `tujuh_hari`
+ * yang ditulis mati, supaya nomor minggu BEKU dan rentangnya tetap sepakat.
+ * Akibatnya sampul laporan yang sudah final tidak pernah ikut berubah saat mode
+ * minggu kontrak diganti — keberatan user 2026-08-27.
+ *
+ * Sekarang NOMOR dan RENTANG sama-sama dihitung ulang dari mode kontrak yang
+ * berlaku. Invarian yang dijaga DECISIONS 430 tetap berdiri, dan justru itu
+ * yang diuji di sini: periode yang tercetak WAJIB memuat tanggal laporannya
+ * sendiri.
+ */
+describe("penyaji cetak – snapshot lama mengikuti mode kontrak yang berlaku", () => {
+  it("nomor & rentang dihitung ulang bersama; periodenya tetap memuat tanggal laporan", async () => {
     // Dibuat SETELAH backfill (penanda sudah ada) → sengaja tidak tersentuh,
     // meniru snapshot yang lolos: data dipulihkan dari cadangan, laporan
     // organisasi baru, atau boot yang belum sempat menuntaskan backfill.
@@ -211,11 +224,15 @@ describe("penyaji cetak – jaring pengaman untuk snapshot lama yang belum ter-b
 
     const data = await getKkpDailyData(slugPenyaji, "2026-03-11");
     expect(data).toBeTruthy();
-    expect(data!.weekNo).toBe(1);
-    // 11 Maret 2026 HARUS berada di dalam periode yang dicetak. Mode kontrak
-    // kini senin_minggu (minggu 1 = 5–8 Mar) — memakainya di sini membuat
-    // blanko menyebut periode yang tidak memuat tanggalnya sendiri.
-    expect(data!.periodStart).toBe("5 Maret 2026");
-    expect(data!.periodEnd).toBe("11 Maret 2026");
+    /*
+     * Mode kontrak senin_minggu, SPMK Kamis 5 Mar:
+     *   minggu 1 = 5–8 Mar, minggu 2 = 9–15 Mar.
+     * Laporan 11 Mar (Rabu) jatuh di minggu 2 — bukan minggu 1 yang beku di
+     * snapshot era 7-hari. Keduanya berubah bersama, jadi periodenya tetap
+     * memuat 11 Maret.
+     */
+    expect(data!.weekNo).toBe(2);
+    expect(data!.periodStart).toBe("9 Maret 2026");
+    expect(data!.periodEnd).toBe("15 Maret 2026");
   });
 });
