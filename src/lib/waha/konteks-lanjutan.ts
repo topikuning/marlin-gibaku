@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Niat } from "./tanya-niat";
 import type { ParsedWaMessage } from "./ingest-parse";
 import { kunciPengirim } from "./klarifikasi-kunci";
+import { sanitizeConversationHistory, type AiConversationTurn } from "@/lib/ai/conversation";
 
 /**
  * KONTEKS PERTANYAAN SUSULAN (DECISIONS 377).
@@ -13,22 +14,14 @@ import { kunciPengirim } from "./klarifikasi-kunci";
  * menawarinya daftar pilihan, padahal ia baru saja menjawab pertanyaan yang
  * melengkapinya.
  *
- * ### Bukan penulisan ulang oleh AI
+ * ### Riwayat percakapan yang dipagari
  *
- * Brief menyebut "6–10 pesan terakhir dipakai HANYA untuk menulis ulang
- * pertanyaan susulan menjadi pertanyaan yang berdiri sendiri". Yang dipakai di
- * sini lebih sempit dan lebih murah: bukan riwayat pesan mentah yang dibaca AI,
- * melainkan **pertanyaan terakhir yang sudah selesai diresolusi** — niat + nama
- * lokasi yang benar-benar dipakai menjawab.
+ * Selain niat + nama lokasi terakhir untuk susulan deterministik, MARLIN
+ * menyimpan maksimal delapan giliran tanya-jawab. Riwayat ini membantu model
+ * membaca rujukan seperti "yang tadi", tetapi pesan terbaru selalu menang.
  *
- * Alasannya dua, dan keduanya soal keandalan, bukan ongkos:
- *
- * 1. **Tepat, bukan tafsir.** Kita sudah TAHU apa yang dijawab tadi; menyuruh
- *    AI menyimpulkannya kembali dari teks mentah hanya menambah kesempatan
- *    salah pada informasi yang sudah pasti.
- * 2. **Tidak bisa mengarang lingkup.** Model yang membaca riwayat bisa
- *    memunculkan nama lokasi yang tidak pernah ditulis siapa pun. Di sini tidak
- *    ada yang bisa dikarang: yang tersimpan persis apa yang diketik.
+ * Scope tidak pernah dipinjam dari riwayat. Setiap pesan tetap melewati resolver
+ * kanal dan katalog izin saat ini; nama lokasi dari konteks dicocokkan ulang.
  *
  * ### Kenapa NAMA, bukan id lokasi
  *
@@ -48,21 +41,41 @@ import { kunciPengirim } from "./klarifikasi-kunci";
  */
 export const UMUR_KONTEKS_MENIT = 30;
 
-export type KonteksLanjutan = { niat: Niat; lokasiDisebut: string[] };
+export type KonteksLanjutan = { niat: Niat | null; lokasiDisebut: string[]; history: AiConversationTurn[] };
+
+export function bacaHistoryPercakapan(value: unknown): AiConversationTurn[] {
+  return sanitizeConversationHistory(value);
+}
 
 /** Simpan pertanyaan yang BARU SAJA dijawab sebagai konteks berikutnya. */
 export async function simpanKonteks(
   m: Pick<ParsedWaMessage, "chatId" | "senderJid" | "senderLid" | "fromNumber">,
-  niat: Niat,
+  niat: Niat | null,
   lokasiDisebut: string[],
   sekarang = new Date(),
+  exchange?: { question: string; answer: string },
 ): Promise<void> {
   const senderKey = kunciPengirim(m);
   if (!senderKey) return;
 
+  const existing = exchange
+    ? await db.waChatContext.findUnique({
+        where: { chatId_senderKey: { chatId: m.chatId, senderKey } },
+        select: { history: true },
+      })
+    : null;
+  const history = exchange
+    ? [
+        ...bacaHistoryPercakapan(existing?.history),
+        { role: "user" as const, content: exchange.question.slice(0, 2_000) },
+        { role: "assistant" as const, content: exchange.answer.slice(0, 2_000) },
+      ].slice(-8)
+    : bacaHistoryPercakapan(existing?.history);
+
   const data = {
     niat,
     lokasiDisebut: lokasiDisebut as unknown as object,
+    history: history as unknown as object,
     expiresAt: new Date(sekarang.getTime() + UMUR_KONTEKS_MENIT * 60_000),
   };
   await db.waChatContext.upsert({
@@ -82,15 +95,16 @@ export async function ambilKonteks(
 
   const baris = await db.waChatContext.findUnique({
     where: { chatId_senderKey: { chatId: m.chatId, senderKey } },
-    select: { niat: true, lokasiDisebut: true, expiresAt: true },
+    select: { niat: true, lokasiDisebut: true, history: true, expiresAt: true },
   });
   if (!baris) return null;
   if (baris.expiresAt.getTime() <= sekarang.getTime()) return null;
 
   const lokasi = baris.lokasiDisebut;
   return {
-    niat: baris.niat as Niat,
+    niat: (baris.niat as Niat | null) ?? null,
     lokasiDisebut: Array.isArray(lokasi) ? (lokasi as string[]) : [],
+    history: bacaHistoryPercakapan(baris.history),
   };
 }
 

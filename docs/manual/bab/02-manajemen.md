@@ -79,3 +79,42 @@ Yang terjadi setelah diterapkan:
 > **Jangan mengunggah berkas RAB** atau Excel buatan sendiri. Hanya template yang
 > diunduh dari halaman ini yang punya kolom minggu dan identitas pekerjaan yang
 > bisa dibaca sistem.
+
+## 5. Memakai Asisten Pengendalian
+
+Asisten Pengendalian bukan tempat memasukkan angka baru. Ia membaca data yang
+sudah ada di MARLIN, membantu menjelaskan kondisi, dan menyusun draf. Mulailah
+dari kebutuhan, bukan dari nama mode:
+
+1. Buka **Asisten Pengendalian → Tanya MARLIN**.
+2. Pilih lokasi bila pertanyaan hanya untuk lokasi tertentu. Pilihan kosong
+   berarti seluruh lokasi yang memang boleh Anda lihat.
+3. Tulis pertanyaan dengan bahasa biasa, misalnya *“mana yang paling perlu saya
+   kejar minggu ini dan apa buktinya?”*.
+4. Buka sumber pada jawaban. **Cakupan bukti** menunjukkan berapa banyak bagian
+   jawaban yang selamat dari pemeriksaan sumber; ini bukan tingkat kepastian
+   ramalan AI.
+5. Ajukan pertanyaan susulan tanpa mengulang semuanya. Percakapan terakhir ikut
+   dibawa, tetapi izin lokasi selalu dihitung ulang.
+6. Pilih **Buat laporan dari scope ini** bila jawabannya perlu menjadi keluaran
+   kerja.
+
+Alur laporan adalah: **draf → direview → disetujui → beku → dikirim**. Selama
+belum beku, reviewer dapat mengedit judul, ringkasan, semua bagian, rekomendasi,
+dan ringkasan WhatsApp. Setelah beku, isi tidak dapat diubah; perubahan harus
+dibuat sebagai versi baru.
+
+Jika jawaban menyatakan tidak punya sumber yang cukup, jangan memaksa AI
+menjawab ulang dengan kalimat yang lebih meyakinkan. Periksa laporan harian,
+baseline, kendala, atau sumber lain yang disebut belum tersedia.
+
+### Bertanya melalui WhatsApp
+
+Di chat pribadi, hanya nomor pengguna terdaftar yang dilayani. Di grup proyek,
+mention MARLIN lalu tulis pertanyaan biasa. Pertanyaan rutin seperti *“progress
+hari ini”* dijawab langsung dari calculation layer; pertanyaan terbuka dirangkai
+dari snapshot dan catatan lapangan yang lolos pemeriksaan sumber.
+
+MARLIN mengingat maksimal delapan giliran selama 30 menit untuk memahami
+susulan. Ketik **“abaikan”** atau **“lupakan”** untuk melepas konteks. Riwayat
+tidak pernah memperluas paket grup atau penugasan pengguna.

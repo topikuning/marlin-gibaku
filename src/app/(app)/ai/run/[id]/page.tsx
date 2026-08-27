@@ -175,7 +175,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
             ulang dari calc layer saat generate, bukan membekukan run ini. */}
         {run.status === "siap" && LAPORAN_TEMPLATE_FOR_KIND[run.runKind] ? (
           <Link
-            href={`/ai/reports?template=${LAPORAN_TEMPLATE_FOR_KIND[run.runKind]}&scopeIds=${(run.scopeIds as string[]).join(",")}`}
+            href={`/ai/reports?template=${LAPORAN_TEMPLATE_FOR_KIND[run.runKind]}&scopeIds=${(run.scopeIds as string[]).join(",")}&originRunId=${run.id}`}
             className="ml-auto text-[13px] font-medium text-primary hover:underline"
           >
             Jadikan laporan →
@@ -185,7 +185,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <KpiCard label="Readiness rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "–"} />
-        <KpiCard label="Confidence AI" value={run.confidence != null ? `${run.confidence}%` : "–"} />
+        <KpiCard label="Cakupan bukti" value={run.confidence != null ? `${run.confidence}%` : "–"} />
         <KpiCard label="Provider" value={run.provider ? `${run.provider}` : "–"} sub={run.model ?? undefined} />
         <KpiCard
           label="Token in/out"
@@ -244,6 +244,10 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
             waSummary: a.kind === "laporan" ? ((a.structuredContent as { report?: ReportOutput })?.report?.waSummary ?? "") : "",
             renderedText: a.renderedText,
             distributions: (a.distributions as { at: string; target: string }[] | null) ?? [],
+            report:
+              a.kind === "laporan"
+                ? ((a.structuredContent as { report?: ReportOutput })?.report ?? null)
+                : null,
           }))}
           contacts={contacts}
           canReview={can(user.role, "ai.report_review")}
@@ -410,7 +414,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           title="Analisis AI – Portfolio Pulse"
           subtitle={
             <span>
-              Status keseluruhan: <Badge tone={STATUS_TONE[p.overallStatus]} label={p.overallStatus} /> · confidence {p.confidence}%
+              Status keseluruhan: <Badge tone={STATUS_TONE[p.overallStatus]} label={p.overallStatus} /> · cakupan bukti {p.confidence}%
             </span>
           }
         />
@@ -454,7 +458,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const v = out.deviasi as VarianceOutput;
     return (
       <Card>
-        <CardHeader title="Analisis AI – Explain Variance" subtitle={`Confidence ${v.confidence}% · deviasi resmi TIDAK diubah AI`} />
+        <CardHeader title="Penjelasan deviasi" subtitle={`Cakupan bukti ${v.confidence}% · deviasi resmi tidak diubah AI`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{v.summary}</p>
           {v.locations.map((l) => (
@@ -507,7 +511,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const r = out.risiko as RiskOutput;
     return (
       <Card>
-        <CardHeader title="Analisis AI – Risk Intelligence" subtitle={`Confidence ${r.confidence}% · skor risiko dari rule, AI hanya memberi rasional`} />
+        <CardHeader title="Prioritas risiko" subtitle={`Cakupan bukti ${r.confidence}% · skor risiko dari aturan MARLIN, AI hanya memberi alasan`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{r.summary}</p>
           <ul className="space-y-1.5">
@@ -570,7 +574,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           subtitle={
             a.confidence === 0
               ? "Tanpa sumber terverifikasi – tidak ada klaim angka yang cocok data resmi"
-              : `Keyakinan ${a.confidence}% (dihitung dari klaim yang lolos validasi)`
+              : `Cakupan bukti ${a.confidence}% (dihitung dari bagian yang lolos validasi)`
           }
         />
         <CardBody className="space-y-2 text-sm">

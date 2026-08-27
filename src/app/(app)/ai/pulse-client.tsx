@@ -17,10 +17,10 @@ const SEV_TONE = { kritis: "danger", tinggi: "warning", sedang: "info" } as cons
 const GRADE_TONE = { poor: "danger", limited: "warning", adequate: "info", strong: "success" } as const;
 
 const ACTIONS: { kind: string; label: string; desc: string }[] = [
-  { kind: "pulse", label: "Analisis Portfolio", desc: "Ringkasan + prioritas AI atas lokasi terpilih." },
-  { kind: "deviasi", label: "Jelaskan Deviasi", desc: "Pisahkan data gap dari keterlambatan fisik." },
-  { kind: "risiko", label: "Prioritaskan Risiko", desc: "Urutkan fokus dari skor risiko rule." },
-  { kind: "kualitas_data", label: "Audit Kualitas Data", desc: "Periksa laporan, volume, foto, GPS, transaksi." },
+  { kind: "pulse", label: "Cari yang perlu ditangani", desc: "Ringkas kondisi dan lokasi yang paling menuntut perhatian." },
+  { kind: "deviasi", label: "Terangkan penyebab deviasi", desc: "Pisahkan kekurangan data dari keterlambatan fisik." },
+  { kind: "risiko", label: "Susun urutan risiko", desc: "Urutkan fokus berdasarkan skor aturan MARLIN." },
+  { kind: "kualitas_data", label: "Periksa kelayakan data", desc: "Periksa laporan, volume, foto, GPS, dan transaksi." },
 ];
 
 function fmtPp(v: number): string {
@@ -85,7 +85,7 @@ export function PulseClient({
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
       <Card>
         <CardHeader
-          title="Portfolio Intelligence"
+          title="Daftar lokasi dan indikator resmi"
           subtitle={`Urutan exception-first (risiko → readiness → deviasi). Data terakhir berubah: ${dataAsOf ? new Date(dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }) + " WIB" : "belum ada data"}.`}
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
@@ -211,7 +211,7 @@ export function PulseClient({
       </Card>
 
       <Card className="self-start xl:sticky xl:top-4">
-        <CardHeader title="Scope aksi" subtitle={`${selected.size} lokasi dipilih`} />
+        <CardHeader title="Pilih lokasi untuk dianalisis" subtitle={`${selected.size} lokasi dipilih`} />
         <CardBody className="space-y-3">
           {state?.error ? <Banner tone="error" title={state.error} /> : null}
           {selectedRows.length === 0 ? (

@@ -45,10 +45,12 @@ format, container gagal start dengan pesan jelas di log.
 
 ## 4. Migrasi database
 
-`railway.json` sudah berisi `preDeployCommand: "prisma migrate deploy"` —
-Railway menjalankannya sebelum tiap deploy (CLI prisma 7.8.0 sudah terpasang di
-image). Tidak perlu tindakan manual; JANGAN pernah menjalankan `migrate dev`
-atau reset di production.
+`railway.json` sudah berisi `preDeployCommand: "node scripts/migrate-deploy.mjs"`.
+Skrip itu menjalankan `prisma migrate deploy` dan memulihkan otomatis migrasi
+idempoten yang sempat tercatat gagal. Railway menjalankannya sebelum setiap
+deploy; CLI Prisma 7.8.0, schema, dan seluruh migration sudah dibawa di image.
+Tidak perlu tindakan manual; JANGAN pernah menjalankan `migrate dev`, migrate
+manual, atau reset di production.
 
 ## 5. Deploy pertama & verifikasi
 

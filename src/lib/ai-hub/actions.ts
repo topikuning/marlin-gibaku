@@ -18,7 +18,7 @@ import { AiGuardError, getAiGuardConfig } from "./guard";
 import { AiRunError, executeAiRun } from "./runs";
 import { isAiReportTemplateKey, aiReportTemplate } from "./report-templates";
 import { parseAiReportContent, renderAiReportWhatsApp } from "./render";
-import type { AskOutput, ReportOutput } from "./schemas";
+import { reportOutputSchema, type AskOutput, type ReportOutput } from "./schemas";
 import type { SourceRef } from "./types";
 
 /**
@@ -111,7 +111,67 @@ export async function generateAiReportAction(_prev: AiHubState, formData: FormDa
     if (!isAiReportTemplateKey(templateKey)) return { error: "Template laporan tidak dikenal." };
     const template = aiReportTemplate(templateKey)!;
     const { locationIds, startKey, endKey } = readScope(formData);
-    const result = await executeAiRun(user, { kind: "laporan", locationIds, startKey, endKey, templateKey });
+    const originRunId = z.string().uuid().safeParse(String(formData.get("originRunId") ?? ""));
+    const originConversationId = z.string().uuid().safeParse(
+      String(formData.get("originConversationId") ?? ""),
+    );
+    const accessible = await accessibleLocationIds(user);
+    let originContext: string | undefined;
+    let origin: { runId?: string; conversationId?: string } | undefined;
+
+    if (originRunId.success) {
+      const source = await db.aiRun.findFirst({
+        where: { id: originRunId.data, orgId: user.orgId },
+        select: { id: true, runKind: true, scopeIds: true, outputJson: true },
+      });
+      if (source && scopeCoveredBy(accessible, source.scopeIds)) {
+        const json = (source.outputJson ?? {}) as Record<string, unknown>;
+        const insight = json[source.runKind];
+        if (insight) {
+          originContext = [
+            `Analisis asal (${source.runKind}) berikut diminta pengguna untuk diteruskan ke laporan.`,
+            "Pertahankan maksud, prioritas, dan temuan kualitatifnya. JANGAN salin angka lama; semua angka wajib diambil ulang dari DATA resmi run baru.",
+            JSON.stringify(insight).slice(0, 10_000),
+          ].join("\n");
+          origin = { runId: source.id };
+        }
+      }
+    } else if (originConversationId.success) {
+      const conversation = await db.aiConversation.findFirst({
+        where: { id: originConversationId.data, userId: user.id },
+        select: {
+          id: true,
+          scopeIds: true,
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 8,
+            select: { role: true, content: true },
+          },
+        },
+      });
+      if (conversation && scopeCoveredBy(accessible, conversation.scopeIds)) {
+        originContext = [
+          "Percakapan berikut diminta pengguna untuk diteruskan menjadi laporan.",
+          "Pertahankan pertanyaan, kesimpulan, dan kebutuhan pengguna. JANGAN salin angka lama; gunakan DATA resmi run baru.",
+          ...conversation.messages
+            .slice()
+            .reverse()
+            .map((message) => `${message.role === "user" ? "Penanya" : "MARLIN"}: ${message.content}`),
+        ]
+          .join("\n")
+          .slice(0, 10_000);
+        origin = { conversationId: conversation.id };
+      }
+    }
+
+    const result = await executeAiRun(user, {
+      kind: "laporan",
+      locationIds,
+      startKey,
+      endKey,
+      templateKey,
+      originContext,
+    });
     runId = result.runId;
     if (result.status === "siap") {
       const run = await db.aiRun.findUnique({ where: { id: runId }, select: { outputJson: true, scopeIds: true } });
@@ -142,6 +202,7 @@ export async function generateAiReportAction(_prev: AiHubState, formData: FormDa
                 templateVersion: template.version,
                 report: out.laporan,
                 official: out.official,
+                origin,
               }),
             ),
             createdById: user.id,
@@ -380,8 +441,9 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
 
 const editSchema = z.object({
   artifactId: z.string().uuid(),
-  executiveSummary: z.string().min(20).max(4000),
-  waSummary: z.string().min(10).max(1800),
+  title: z.string().min(3).max(160),
+  sectionCount: z.coerce.number().int().min(1).max(12),
+  recommendationCount: z.coerce.number().int().min(0).max(10),
   note: z.string().max(300).optional(),
 });
 
@@ -390,11 +452,12 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
     const user = await requireCapability("ai.report_review");
     const parsed = editSchema.safeParse({
       artifactId: String(formData.get("artifactId") ?? ""),
-      executiveSummary: String(formData.get("executiveSummary") ?? ""),
-      waSummary: String(formData.get("waSummary") ?? ""),
+      title: String(formData.get("title") ?? "").trim(),
+      sectionCount: String(formData.get("sectionCount") ?? ""),
+      recommendationCount: String(formData.get("recommendationCount") ?? ""),
       note: String(formData.get("note") ?? "") || undefined,
     });
-    if (!parsed.success) return { error: "Isian edit tidak valid (ringkasan terlalu pendek/panjang)." };
+    if (!parsed.success) return { error: "Isian laporan tidak valid atau jumlah bagiannya melampaui batas." };
     const artifact = await db.aiArtifact.findUnique({
       where: { id: parsed.data.artifactId },
       select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true, run: { select: { scopeIds: true } } },
@@ -407,11 +470,47 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       return { error: "Artefak tidak dapat diedit pada status ini." };
     }
     const content = parseAiReportContent(artifact.structuredContent);
-    content.report.executiveSummary = parsed.data.executiveSummary;
-    content.report.waSummary = parsed.data.waSummary;
+    const originalIndex = (key: string, index: number, max: number): number => {
+      const candidate = Number(formData.get(`${key}:${index}`));
+      return Number.isInteger(candidate) && candidate >= 0 && candidate < max ? candidate : -1;
+    };
+    const sections = Array.from({ length: parsed.data.sectionCount }, (_, index) => {
+      const sourceIndex = originalIndex("sectionOriginalIndex", index, content.report.sections.length);
+      return {
+        heading: String(formData.get(`sectionHeading:${index}`) ?? "").trim(),
+        body: String(formData.get(`sectionBody:${index}`) ?? "").trim(),
+        locationId: sourceIndex >= 0 ? content.report.sections[sourceIndex]?.locationId ?? null : null,
+        // Begitu teks diubah manusia, sitasi keluaran model tidak lagi dapat
+        // menjamin kalimat baru. Kosongkan bukti AI alih-alih memberi kesan
+        // bahwa edit manusia sudah diverifikasi otomatis.
+        sourceRefIds: [],
+      };
+    });
+    const recommendations = Array.from({ length: parsed.data.recommendationCount }, (_, index) => {
+      const sourceIndex = originalIndex("recommendationOriginalIndex", index, content.report.recommendations.length);
+      return {
+        title: String(formData.get(`recommendationTitle:${index}`) ?? "").trim(),
+        reason: String(formData.get(`recommendationReason:${index}`) ?? "").trim(),
+        locationId: sourceIndex >= 0 ? content.report.recommendations[sourceIndex]?.locationId ?? null : null,
+        sourceRefIds: [],
+      };
+    });
+    const nextReport = reportOutputSchema.safeParse({
+      ...content.report,
+      title: parsed.data.title,
+      executiveSummary: String(formData.get("executiveSummary") ?? "").trim(),
+      waSummary: String(formData.get("waSummary") ?? "").trim(),
+      sections,
+      recommendations,
+    });
+    if (!nextReport.success) {
+      return { error: "Isi laporan belum valid. Pastikan judul, ringkasan, bagian, dan ringkasan WhatsApp tidak kosong atau terlalu panjang." };
+    }
+    content.report = nextReport.data;
     await db.aiArtifact.update({
       where: { id: artifact.id },
       data: {
+        title: nextReport.data.title,
         structuredContent: JSON.parse(JSON.stringify(content)),
         humanEditNote: parsed.data.note ?? "diedit manual",
       },
@@ -538,10 +637,22 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
     let locationIds: string[];
     let startKey: string;
     let endKey: string;
+    let conversationHistory: { role: "user" | "assistant"; content: string }[] = [];
     if (existingId) {
       const convo = await db.aiConversation.findFirst({
         where: { id: existingId, userId: user.id },
-        select: { id: true, scopeIds: true, periodStart: true, periodEnd: true, _count: { select: { messages: true } } },
+        select: {
+          id: true,
+          scopeIds: true,
+          periodStart: true,
+          periodEnd: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 8,
+            select: { role: true, content: true },
+          },
+        },
       });
       if (!convo) return { error: "Percakapan tidak ditemukan." };
       if (convo._count.messages >= guardCfg.maxAskPerConversation * 2) {
@@ -551,6 +662,13 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       locationIds = (convo.scopeIds as string[]) ?? [];
       startKey = convo.periodStart.toISOString().slice(0, 10);
       endKey = convo.periodEnd.toISOString().slice(0, 10);
+      conversationHistory = convo.messages
+        .slice()
+        .reverse()
+        .map((message) => ({
+          role: message.role === "user" ? "user" : "assistant",
+          content: message.content,
+        }));
     } else {
       const scope = readScope(formData);
       locationIds = scope.locationIds;
@@ -558,7 +676,14 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       endKey = scope.endKey;
     }
 
-    const result = await executeAiRun(user, { kind: "tanya", locationIds, startKey, endKey, question });
+    const result = await executeAiRun(user, {
+      kind: "tanya",
+      locationIds,
+      startKey,
+      endKey,
+      question,
+      conversationHistory,
+    });
     const run = await db.aiRun.findUnique({
       where: { id: result.runId },
       select: { outputJson: true, scopeIds: true, errorMessage: true },
@@ -600,11 +725,18 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
      * yang benar SAAT jawaban itu diberikan.
      */
     const refs = new Map((out?.official?.sourceRefs ?? []).map((r) => [r.id, r]));
-    const sitasi = (answer?.citations ?? []).map((c) => {
-      const r = refs.get(c.sourceRefId);
+    const citationNotes = new Map((answer?.citations ?? []).map((citation) => [citation.sourceRefId, citation.note]));
+    const citedIds = new Set((answer?.citations ?? []).map((citation) => citation.sourceRefId));
+    for (const part of answer?.answerParts ?? []) {
+      for (const sourceRefId of part.sourceRefIds ?? []) citedIds.add(sourceRefId);
+      for (const claim of part.claims) citedIds.add(claim.sourceRefId);
+      for (const quote of part.kutipan ?? []) citedIds.add(quote.chunkId);
+    }
+    const sitasi = [...citedIds].map((sourceRefId) => {
+      const r = refs.get(sourceRefId);
       return {
-        sourceRefId: c.sourceRefId,
-        note: c.note,
+        sourceRefId,
+        note: citationNotes.get(sourceRefId) ?? null,
         label: r?.label ?? null,
         value: r?.value ?? null,
         href: r?.href ?? null,

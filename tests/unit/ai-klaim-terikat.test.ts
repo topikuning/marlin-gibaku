@@ -153,11 +153,14 @@ describe("angka tanpa klaim", () => {
     expect(r.dibuang[0]).toContain("angka tanpa sumber");
   });
 
-  it("bagian TANPA angka boleh lewat tanpa claims", () => {
-    // Kalimat penghubung bukan klaim; menuntut sitasi untuknya hanya
-    // memaksa model mengarang rujukan.
+  it("bagian TANPA angka tetap harus membawa sumber kualitatif", () => {
     const r = jalankan([bagian("Berikut ringkasannya.", [])]);
-    expect(r.hidup).toHaveLength(1);
+    expect(r.hidup).toHaveLength(0);
+
+    const bersumber = jalankan([
+      { text: "Pelaporan lokasi ini perlu diperiksa.", claims: [], sourceRefIds: ["a:progress"] },
+    ]);
+    expect(bersumber.hidup).toHaveLength(1);
   });
 });
 
@@ -172,22 +175,12 @@ describe("keyakinan deterministik", () => {
     expect(hitungKeyakinan(r, 1)).toBe(0);
   });
 
-  it("NOL walau semua bagian SELAMAT, bila tak satu pun membawa klaim", () => {
-    /*
-     * Kasus yang justru dituju butir 26, dan yang paling mudah terlewat:
-     * bagian tanpa angka memang boleh lewat tanpa sitasi, jadi ia SELAMAT.
-     * Menghitung keyakinan dari porsi bagian yang selamat saja akan
-     * menghasilkan 100% untuk jawaban yang tidak memuat satu pun angka
-     * terverifikasi — persis rasa percaya diri tanpa dasar yang dilarang.
-     *
-     * Uji ini ditambahkan setelah uji gigi memperlihatkan pagar `klaimValid
-     * === 0` bisa dilepas tanpa satu pun uji memerah.
-     */
+  it("NOL bila bagian kualitatif tidak membawa sumber", () => {
     const r = jalankan([
       bagian("Berikut ringkasannya.", []),
       bagian("Silakan periksa detailnya.", []),
     ]);
-    expect(r.hidup).toHaveLength(2);
+    expect(r.hidup).toHaveLength(0);
     expect(r.klaimValid).toBe(0);
     expect(hitungKeyakinan(r, 2)).toBe(0);
   });
@@ -293,11 +286,9 @@ describe("kutipan catatan lapangan: verbatim, dan angkanya boleh (DECISIONS 382)
     expect(r.hidup).toHaveLength(0);
   });
 
-  it("bagian tanpa angka dan tanpa kutipan tetap boleh lewat", () => {
-    // Kalimat penghubung bukan klaim; menuntut sitasi untuknya hanya memaksa
-    // model mengarang rujukan.
+  it("bagian tanpa angka dan tanpa bukti ikut dibuang", () => {
     const r = jalankanDenganKutipan([{ text: "Berikut ringkasannya.", claims: [], kutipan: [] }]);
-    expect(r.hidup).toHaveLength(1);
+    expect(r.hidup).toHaveLength(0);
   });
 
   it("angka dari klaim metrik tetap sah walau ditulis gaya Indonesia", () => {

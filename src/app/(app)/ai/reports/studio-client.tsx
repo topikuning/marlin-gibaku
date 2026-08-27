@@ -17,11 +17,15 @@ export function ReportStudioClient({
   aiReady,
   initialTemplate,
   initialScopeIds = [],
+  originRunId,
+  originConversationId,
 }: {
   locations: { id: string; name: string; packageName: string }[];
   aiReady: boolean;
   initialTemplate?: string;
   initialScopeIds?: string[];
+  originRunId?: string;
+  originConversationId?: string;
 }) {
   const [template, setTemplate] = useState(
     AI_REPORT_TEMPLATES.some((t) => t.key === initialTemplate)
@@ -37,7 +41,7 @@ export function ReportStudioClient({
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <Card className="self-start">
-        <CardHeader title="Template" subtitle="Satu structured report utk pratinjau, cetak/PDF, Excel, dan WhatsApp – angka identik." />
+        <CardHeader title="Pilih bentuk laporan" subtitle="Satu isi yang sama untuk pratinjau, PDF, Excel, dan WhatsApp." />
         <CardBody className="space-y-1.5">
           {AI_REPORT_TEMPLATES.map((t) => (
             <button
@@ -57,10 +61,14 @@ export function ReportStudioClient({
       </Card>
 
       <Card className="self-start">
-        <CardHeader title="Scope & periode" subtitle="Pilih lokasi (kosong = seluruh lokasi yang Anda pegang, dibatasi limit) lalu generate." />
+        <CardHeader title="Pilih lokasi dan periode" subtitle="Kosong berarti seluruh lokasi yang Anda pegang, tetap dibatasi pagar sistem." />
         <CardBody>
           <form action={formAction} className="space-y-3">
             <input type="hidden" name="templateKey" value={template} />
+            {originRunId ? <input type="hidden" name="originRunId" value={originRunId} /> : null}
+            {originConversationId ? (
+              <input type="hidden" name="originConversationId" value={originConversationId} />
+            ) : null}
             {[...selected].map((id) => (
               <input key={id} type="hidden" name="locationId" value={id} />
             ))}
@@ -82,10 +90,17 @@ export function ReportStudioClient({
                 <option value="30hari">30 hari terakhir</option>
               </Combobox>
               <Button type="submit" disabled={!aiReady || pending}>
-                {pending ? "Menyusun draf…" : "Generate Draft"}
+                {pending ? "Menyusun draf…" : "Susun draf laporan"}
               </Button>
             </div>
             {state?.error ? <Banner tone="error" title={state.error} /> : null}
+            {originRunId || originConversationId ? (
+              <Banner
+                tone="info"
+                title="Konteks asal akan dibawa ke laporan"
+                description="Temuan dan maksud sebelumnya dipertahankan; angka tetap dihitung ulang dari data resmi terbaru."
+              />
+            ) : null}
             <p className="text-xs text-ink-faint">
               Draf disusun AI dari angka resmi MARLIN dan selalu berstatus <strong>Draft</strong> – wajib review →
               approve → bekukan sebelum distribusi.

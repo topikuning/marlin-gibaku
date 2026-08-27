@@ -5,6 +5,7 @@ import { jakartaDateKey, jakartaToday, formatTanggal, parseDateKey } from "@/lib
 import type { SessionUser } from "@/lib/auth/session";
 import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
+import { conversationContextBlock } from "@/lib/ai/conversation";
 import {
   AiGuardError,
   checkAiGuard,
@@ -12,6 +13,7 @@ import {
   getAiPricing,
   type PemakaiAi,
 } from "@/lib/ai-hub/guard";
+import type { SourceRef } from "@/lib/ai-hub/types";
 import { getIdentitasMarlin } from "./client";
 import { balasFileWa, balasWa } from "./kirim";
 import {
@@ -88,6 +90,7 @@ import {
   type SaringKendala,
 } from "./tanya-data";
 import { bacaPeriode, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
+import { jawabPertanyaanBebasTergrounding } from "./tanya-bebas";
 
 /**
  * TANYA-JAWAB WHATSAPP BEBAS — perangkai (DECISIONS 339).
@@ -484,6 +487,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   // Sama alasannya dengan `pesan`: penyempitan `keputusan` ke varian "jawab"
   // tidak ikut masuk ke dalam closure di bawah.
   const catatanPemotongan = keputusan.catatanPemotongan;
+  let konteksCache: Awaited<ReturnType<typeof ambilKonteks>> | undefined;
+  const konteksAktif = async () => {
+    if (konteksCache === undefined) konteksCache = await ambilKonteks(pesan);
+    return konteksCache;
+  };
 
   /**
    * Jalur AI — guard, provider, pencatatan kuota.
@@ -513,9 +521,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
     // AI → struktur niat. AI TIDAK PERNAH menyentuh data.
     const mulai = Date.now();
+    const konteks = await konteksAktif();
+    const historyBlock = conversationContextBlock(konteks?.history ?? [], { maxTurns: 8, maxChars: 4_000 });
     const hasil = await aiStructured(skemaNiat, {
       system: SISTEM_PROMPT,
-      prompt: `Pertanyaan:\n"""${teks}"""`,
+      prompt: `${historyBlock ? `${historyBlock}\n\n` : ""}Pertanyaan terbaru (selalu menang atas riwayat):\n"""${teks}"""`,
       schemaHint: PETUNJUK_SKEMA,
       maxTokens: 300,
       timeoutMs: 25_000,
@@ -541,20 +551,71 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
     const d = hasil.data;
     if (d.niat === null) {
-      /*
-       * Niat tidak dikenali — cari CATATAN LAPANGAN sebelum menyerah
-       * (DECISIONS 383).
-       *
-       * Inilah pertanyaan yang selama ini selalu berakhir "belum mengerti":
-       * *"kenapa Kedung Mutih tertinggal?"*. Jawabannya ada, di catatan
-       * pelapor — hanya tidak pernah bisa dicari. Menyodorkan menu kemampuan
-       * untuk pertanyaan yang datanya justru tersedia adalah kegagalan yang
-       * paling mahal, karena penanya menyimpulkan MARLIN tidak tahu apa-apa.
-       */
+      // Pertanyaan di luar sembilan intent lama tidak lagi otomatis ditolak.
+      // Model kedua boleh menyusun jawaban dari snapshot MARLIN + kutipan,
+      // tetapi validator kode membuang setiap bagian tanpa bukti yang sah.
+      const resolusiBebas = resolusiLokasi(d.lokasiDisebut, katalog);
+      if (resolusiBebas.ambigu.length > 0 || resolusiBebas.ambiguWilayah.length > 0) {
+        await balasWa(pesan.chatId, balasAmbigu(resolusiBebas.ambigu, resolusiBebas.ambiguWilayah));
+        return { dijawab: true, alasan: "pertanyaan bebas – lokasi ambigu" };
+      }
+      if (d.lokasiDisebut.length > 0 && resolusiBebas.cocok.length === 0) {
+        await balasWa(
+          pesan.chatId,
+          `Saya tidak menemukan lokasi: ${resolusiBebas.tidakDikenal.join(", ")}. Mungkin salah ketik, atau di luar penugasan Anda.`,
+        );
+        return { dijawab: true, alasan: "pertanyaan bebas – lokasi tidak dikenal" };
+      }
+      const lokasiBebas = resolusiBebas.cocok.length > 0 ? resolusiBebas.cocok : katalog;
+      const hariIni = jakartaDateKey(new Date());
+      const periodeBebas = bacaPeriode(d.periode, hariIni);
+      try {
+        await checkAiGuard(pemakaiAi, {
+          kind: "waha.jawab_bebas",
+          locationCount: lokasiBebas.length,
+          inputChars: teks.length + (historyBlock?.length ?? 0),
+        });
+      } catch (err) {
+        if (err instanceof AiGuardError) {
+          const narasi = await jawabDariCatatan();
+          if (narasi) return narasi;
+          await balasWa(pesan.chatId, `Maaf, jawaban lanjutan tidak bisa diproses: ${err.message}`);
+          return { dijawab: true, alasan: `guard jawaban bebas menolak (${err.code})` };
+        }
+        throw err;
+      }
+      const mulaiBebas = Date.now();
+      const bebas = await jawabPertanyaanBebasTergrounding({
+        user: penyaring,
+        locationIds: lokasiBebas.map((location) => location.id),
+        question: teks,
+        startKey: periodeBebas.mulai,
+        endKey: periodeBebas.akhir,
+        history: konteks?.history ?? [],
+        adapterUser: grup ? undefined : user ?? undefined,
+      });
+      await catatRun(pemakaiAi, lokasiBebas, bebas.providerResult, Date.now() - mulaiBebas, {
+        promptVersion: "waha-bebas-1",
+        startKey: periodeBebas.mulai,
+        endKey: periodeBebas.akhir,
+        outputJson: bebas.output ? { tanya: bebas.output } : undefined,
+        sourcesJson: bebas.sourceRefs,
+      });
+      if (bebas.text) {
+        for (const bagian of potongPesan(bebas.text).bagian) await balasWa(pesan.chatId, bagian);
+        await simpanKonteks(pesan, null, d.lokasiDisebut, new Date(), { question: teks, answer: bebas.text });
+        await audit(user?.id ?? null, "waha.tanya.bebas", "wa_message", pesan.waMessageId, {
+          chatId: pesan.chatId,
+          lokasiDijawab: lokasiBebas.length,
+          periode: `${periodeBebas.mulai}..${periodeBebas.akhir}`,
+          bagianLolos: bebas.output?.answerParts.length ?? 0,
+        });
+        return { dijawab: true, alasan: "dijawab fleksibel dari sumber MARLIN" };
+      }
       const narasi = await jawabDariCatatan();
       if (narasi) return narasi;
       await balasWa(pesan.chatId, balasTidakMengerti());
-      return { dijawab: true, alasan: "niat tidak dikenali" };
+      return { dijawab: true, alasan: "jawaban bebas tidak memiliki bagian tergrounding" };
     }
     /*
      * URUTAN & CACAHAN TIDAK IKUT HILANG DI JALUR AI (DECISIONS 449).
@@ -742,8 +803,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
        * menjawab", melainkan menjawab pertanyaan yang tidak diajukan, dengan
        * angka yang benar untuk pertanyaan yang salah.
        */
-      const konteks = rencana.sebab === "tanpa_niat" ? await ambilKonteks(m) : null;
-      if (konteks) {
+      const konteks = rencana.sebab === "tanpa_niat" ? await konteksAktif() : null;
+      if (konteks?.niat) {
         jalur = "lanjutan";
         const disebutSusulan = rencana.kandidat[0].lokasiDisebut;
         niat = {
@@ -1177,7 +1238,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * resolusi. Nama harus dicocokkan ulang terhadap katalog yang berlaku saat
    * susulan datang; menyimpan id akan mengawetkan izin lama.
    */
-  await simpanKonteks(m, niat.niat, niat.lokasiDisebut);
+  await simpanKonteks(m, niat.niat, niat.lokasiDisebut, new Date(), { question: teks, answer: utuh });
 
   await audit(user?.id ?? null, "waha.tanya", "wa_message", m.waMessageId, {
     chatId: m.chatId,
@@ -1211,6 +1272,13 @@ async function catatRun(
   katalog: LokasiKatalog[],
   hasil: Awaited<ReturnType<typeof aiStructured<unknown>>>,
   latencyMs: number,
+  detail?: {
+    promptVersion?: string;
+    startKey?: string;
+    endKey?: string;
+    outputJson?: unknown;
+    sourcesJson?: SourceRef[];
+  },
 ): Promise<void> {
   try {
     const hariIni = jakartaToday();
@@ -1228,11 +1296,13 @@ async function catatRun(
         status: hasil.ok ? "siap" : "gagal",
         scopeType: "all",
         scopeIds: katalog.map((l) => l.id),
-        periodStart: hariIni,
-        periodEnd: hariIni,
+        periodStart: detail?.startKey ? new Date(`${detail.startKey}T00:00:00.000Z`) : hariIni,
+        periodEnd: detail?.endKey ? new Date(`${detail.endKey}T00:00:00.000Z`) : hariIni,
         provider: hasil.meta?.provider ?? null,
         model: hasil.meta?.model ?? null,
-        promptVersion: "waha-tanya-1",
+        promptVersion: detail?.promptVersion ?? "waha-tanya-2",
+        outputJson: detail?.outputJson ? JSON.parse(JSON.stringify(detail.outputJson)) : undefined,
+        sourcesJson: detail?.sourcesJson ? JSON.parse(JSON.stringify(detail.sourcesJson)) : undefined,
         inputTokens: usage?.inputTokens ?? null,
         outputTokens: usage?.outputTokens ?? null,
         latencyMs,

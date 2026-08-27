@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
+import { conversationContextBlock, type AiConversationTurn } from "@/lib/ai/conversation";
 import type { AiRunKind } from "@/generated/prisma/enums";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
@@ -64,11 +65,25 @@ export type ExecuteRunInput = {
   templateKey?: string;
   /** kind=tanya */
   question?: string;
+  /** Riwayat yang sudah dipotong ke percakapan milik user dan scope yang sama. */
+  conversationHistory?: AiConversationTurn[];
+  /** Temuan run/percakapan asal yang memang diminta dibawa ke artefak baru. */
+  originContext?: string;
 };
 
 function hashInput(userId: string, i: ExecuteRunInput): string {
   return createHash("sha256")
-    .update([userId, i.kind, [...i.locationIds].sort().join(","), i.startKey, i.endKey, i.templateKey ?? "", i.question ?? ""].join("|"))
+    .update([
+      userId,
+      i.kind,
+      [...i.locationIds].sort().join(","),
+      i.startKey,
+      i.endKey,
+      i.templateKey ?? "",
+      i.question ?? "",
+      JSON.stringify(i.conversationHistory ?? []),
+      i.originContext ?? "",
+    ].join("|"))
     .digest("hex");
 }
 
@@ -301,8 +316,13 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   }
   const qualityBlock = qualityFindings.length ? `\n\n${buildQualityPayload(qualityFindings)}` : "";
   const narrativeBlock = narrativeBundle ? `\n\n${buildNarrativePayload(narrativeBundle)}` : "";
+  const historyBlock = conversationContextBlock(input.conversationHistory ?? []);
+  const conversationBlock = historyBlock ? `\n\n${historyBlock}` : "";
+  const originBlock = input.originContext?.trim()
+    ? `\n\nKONTEKS ASAL YANG WAJIB DIPERTAHANKAN:\n${input.originContext.trim()}`
+    : "";
   const questionBlock = input.question ? `\n\nPERTANYAAN USER:\n${input.question}` : "";
-  const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${narrativeBlock}${questionBlock}`;
+  const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${narrativeBlock}${conversationBlock}${originBlock}${questionBlock}`;
   if (prompt.length > guardCfg.maxInputChars) {
     return fail("input_too_big", "Data sumber melebihi batas – persempit scope/periode.");
   }
@@ -339,6 +359,19 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   // ditambah fakta adapter yang boleh dilihat penanya (DECISIONS 379).
   const fakta = gabungFakta(faktaResmi(pulse), tambahan.fakta);
   const output = result.data as Record<string, unknown>;
+  const evidenceCount = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+  const evidenceCandidates =
+    input.kind === "pulse"
+      ? evidenceCount(output.priorityLocations) + evidenceCount(output.actionsToConsider)
+      : input.kind === "deviasi"
+        ? evidenceCount(output.locations)
+        : input.kind === "risiko"
+          ? evidenceCount(output.rationales)
+          : input.kind === "kualitas_data"
+            ? evidenceCount(output.explanations)
+            : input.kind === "laporan"
+              ? evidenceCount(output.sections) + evidenceCount(output.recommendations)
+              : 0;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
     if (!Array.isArray(arr)) return [];
@@ -356,6 +389,15 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   } else if (input.kind === "kualitas_data") {
     output.explanations = applyFilter(output.explanations as never[]);
   } else if (input.kind === "laporan") {
+    if (Array.isArray(output.sections)) {
+      const before = output.sections.length;
+      output.sections = (output.sections as { sourceRefIds?: string[] }[]).filter(
+        (section) => Array.isArray(section.sourceRefIds) && section.sourceRefIds.length > 0,
+      );
+      if (before > (output.sections as unknown[]).length) {
+        droppedNotes.push(`${before - (output.sections as unknown[]).length} bagian laporan dibuang: tidak memiliki sumber`);
+      }
+    }
     output.sections = applyFilter(output.sections as never[]);
     // Isi bagian (body) ikut divalidasi — dulu hanya reason/explanation
     // (audit B10): angka karangan bisa bersembunyi di paragraf isi.
@@ -367,7 +409,39 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       const removed = before - (output.sections as unknown[]).length;
       if (removed > 0) droppedNotes.push(`${removed} bagian laporan dibuang: isi memuat angka tanpa sumber`);
     }
+    if ((output.sections as unknown[]).length === 0) {
+      output.sections = [
+        {
+          heading: "Bagian analisis perlu ditulis ulang",
+          body: "Tidak ada bagian keluaran AI yang lolos pemeriksaan sumber. Gunakan editor laporan untuk menulis kesimpulan hasil review manusia.",
+          locationId: null,
+          sourceRefIds: [],
+        },
+      ];
+    }
+    if (Array.isArray(output.recommendations)) {
+      const before = output.recommendations.length;
+      output.recommendations = (output.recommendations as { sourceRefIds?: string[] }[]).filter(
+        (recommendation) => Array.isArray(recommendation.sourceRefIds) && recommendation.sourceRefIds.length > 0,
+      );
+      if (before > (output.recommendations as unknown[]).length) {
+        droppedNotes.push(`${before - (output.recommendations as unknown[]).length} rekomendasi dibuang: tidak memiliki sumber`);
+      }
+    }
     output.recommendations = applyFilter(output.recommendations as never[]);
+    const groundedSections = (output.sections as { body?: string; sourceRefIds?: string[] }[]).filter(
+      (section) => (section.sourceRefIds?.length ?? 0) > 0 && typeof section.body === "string" && section.body.trim().length > 0,
+    );
+    // Ringkasan dan judul tidak punya tempat sitasi sendiri pada format lama.
+    // Turunkan dari bagian yang SUDAH lolos grounding, bukan mempercayai dua
+    // paragraf bebas yang tidak dapat diikat ke sumber mana pun.
+    output.title = template?.label ?? "Laporan Pengendalian";
+    output.executiveSummary = groundedSections.length
+      ? groundedSections.map((section) => section.body!.trim()).join("\n\n").slice(0, 4_000)
+      : "Tidak ada narasi AI yang lolos pemeriksaan sumber. Reviewer perlu menulis ringkasan berdasarkan data resmi yang tersedia.";
+    output.waSummary = groundedSections.length
+      ? groundedSections.map((section) => section.body!.trim()).join(" ").slice(0, 1_800)
+      : "Tidak ada narasi AI yang lolos pemeriksaan sumber.";
     // executiveSummary & title DULU tidak diperiksa sama sekali (cek generik di
     // bawah menyasar `output.summary` yang tidak ada di skema laporan, jadi
     // lewat diam-diam) — padahal keduanya tampil di panel, PDF, dan Excel.
@@ -441,12 +515,31 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       );
     }
   }
+  if (input.kind !== "tanya") {
+    const evidenceKept =
+      input.kind === "pulse"
+        ? evidenceCount(output.priorityLocations) + evidenceCount(output.actionsToConsider)
+        : input.kind === "deviasi"
+          ? evidenceCount(output.locations)
+          : input.kind === "risiko"
+            ? evidenceCount(output.rationales)
+            : input.kind === "kualitas_data"
+              ? evidenceCount(output.explanations)
+              : input.kind === "laporan"
+                ? evidenceCount(output.sections) + evidenceCount(output.recommendations) -
+                  ((output.sections as { sourceRefIds?: string[] }[] | undefined)?.filter((section) => section.sourceRefIds?.length === 0).length ?? 0)
+                : 0;
+    // Angka dari model tidak pernah dipakai sebagai rasa percaya diri. Nilai
+    // ini adalah cakupan bagian yang selamat dari validator sumber.
+    output.confidence = evidenceCandidates > 0 ? Math.round((Math.max(0, evidenceKept) / evidenceCandidates) * 100) : 0;
+  }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.
   if (typeof output.summary === "string" && !numericClaimsValid(output.summary, globals)) {
     droppedNotes.push("ringkasan memuat angka yang tidak cocok data resmi – verifikasi manual");
   }
   const limitations = [
     ...((output.limitations as string[] | undefined) ?? []),
+    ...(pulse.limitations ?? []),
     ...droppedNotes,
   ].slice(0, 15);
   output.limitations = limitations;
