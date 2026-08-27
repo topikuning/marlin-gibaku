@@ -134,26 +134,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   percakapan itu masuk keadaan **terputus** dan penanya diminta mengirim ulang.
   Dapat diangkat jadi tahan-restart kalau memang sering terjadi: `pendingSince`
   yang lewat batas sudah cukup sebagai antrean untuk dijemput cron.
-- 🟠 **`tests/integration/waha-tanya-jawab.test.ts` – perbaikan sudah dipasang,
-  BELUM diverifikasi.** CI 2026-08-27 gagal: `TypeError: parts is not iterable`
-  di `validasiKlaimTerikat` (`schemas.ts:444`) lewat `tanya-bebas.ts`. Dua
-  penyebab, dua-duanya sudah diperbaiki: (a) stub `aiStructured` di berkas uji
-  mengembalikan objek NIAT untuk semua panggilan, termasuk untuk penjawab bebas
-  yang membaca `answerParts` – kini memilah lewat `schemaHint`; (b)
-  `tanya-bebas.ts` memakai `as BagianJawaban[]` tanpa `?? []` seperti
-  `runs.ts`, sehingga bentuk di luar skema meledak alih-alih jatuh ke "sumber
-  tidak cukup". **Belum dijalankan** karena mesin kerja tidak punya
-  Postgres/Docker. Wajib dijalankan sebelum dianggap selesai:
-  `DATABASE_URL=postgresql://marlin:marlin@localhost:5432/marlin_test APP_ENV=test pnpm vitest run tests/integration/waha-tanya-jawab.test.ts`
-  Pembeda kontrak yang jadi tumpuan perbaikan (a) dikunci
-  `tests/unit/ai-klaim-terikat.test.ts`. Asalnya commit 8f4ec4b, bukan regresi baru.
-- 🟡 **Jalur tanya bebas WhatsApp tidak pernah diuji dengan jawaban bersumber.**
-  Stub uji integrasi selalu mengembalikan `answerParts: []`, jadi jalur itu
-  selalu jatuh ke "sumber tidak cukup". Tepat untuk uji-uji yang ada (yang
-  diperiksa lapisan sekitarnya), tetapi penyusunan jawaban bersitasi di
-  WhatsApp belum tertutup uji. Perlu satu kasus dengan `answerParts` berisi
-  klaim yang cocok data seed – tulis setelah uji integrasi bisa dijalankan,
-  jangan menulisnya buta.
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.

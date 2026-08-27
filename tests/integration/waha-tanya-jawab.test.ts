@@ -92,15 +92,48 @@ const jawabanBebasPalsu: unknown = {
   limitations: [],
 };
 
+/**
+ * Bila menyala, penjawab bebas MENYALIN satu fakta dari prompt-nya sendiri.
+ *
+ * Butir terbuka yang ditinggalkan sesi sebelumnya: jalur tanya bebas tidak
+ * pernah diuji dengan jawaban yang benar-benar bersumber, karena stub-nya
+ * selalu mengembalikan `answerParts: []` sehingga selalu jatuh ke "sumber
+ * tidak cukup". Yang lolos validator dengan begitu tidak pernah tersentuh uji.
+ *
+ * Faktanya TIDAK dikarang di sini: ia dibaca dari baris "FAKTA YANG BOLEH
+ * DIKLAIM" di dalam prompt — persis seperti model sungguhan yang hanya boleh
+ * mengklaim angka yang disodorkan MARLIN. Menuliskan id/angka tetap di uji
+ * akan membuatnya lulus untuk alasan yang salah (dan pecah tiap kali data seed
+ * berubah).
+ */
+let jawabanBersumber = false;
+
+/** Baris fakta pertama di prompt → satu klaim yang sah. `null` bila tak ada. */
+function klaimDariPrompt(prompt: string): Record<string, unknown> | null {
+  const m = /- locationId=(\S+) metric=(\S+) value=(\S+) periodKey=(\S+) sourceRefId=(\S+)/.exec(
+    prompt,
+  );
+  if (!m) return null;
+  return {
+    locationId: m[1],
+    metric: m[2],
+    value: Number(m[3]),
+    periodKey: m[4],
+    sourceRefId: m[5],
+  };
+}
+
 vi.mock("@/lib/ai/structured", () => ({
-  aiStructured: async (_skema: unknown, req?: { schemaHint?: string }) =>
+  aiStructured: async (_skema: unknown, req?: { schemaHint?: string; prompt?: string }) =>
     aiSehat
       ? {
           ok: true,
           // Hanya SCHEMA_HINTS.ask yang memuat "answerParts" — pembeda yang
           // tegas antara kedua kontrak, tanpa mengimpor apa pun ke dalam
           // factory vi.mock yang ter-hoisting.
-          data: req?.schemaHint?.includes("answerParts") ? jawabanBebasPalsu : niatPalsu,
+          data: req?.schemaHint?.includes("answerParts")
+            ? bebas(req?.prompt ?? "")
+            : niatPalsu,
           meta: {
             ok: true,
             provider: "anthropic",
@@ -122,6 +155,29 @@ vi.mock("@/lib/ai/structured", () => ({
  * deterministik menyerahkannya — persis jalur yang diuji oleh uji-uji AI di
  * berkas ini.
  */
+function bebas(prompt: string): unknown {
+  if (!jawabanBersumber) return jawabanBebasPalsu;
+  const klaim = klaimDariPrompt(prompt);
+  if (!klaim) return jawabanBebasPalsu;
+  return {
+    // Teks SENGAJA tanpa angka: angka yang tidak berasal dari klaim/kutipan
+    // dianggap karangan dan membatalkan bagiannya. Yang diuji di sini bukan
+    // perakitan kalimat, melainkan bahwa bagian bersumber selamat.
+    answer: "Pekerjaan tanggul masih berjalan di lokasi yang saya periksa.",
+    answerParts: [
+      {
+        text: "Pekerjaan tanggul masih berjalan di lokasi yang saya periksa.",
+        claims: [klaim],
+        kutipan: [],
+        sourceRefIds: [],
+      },
+    ],
+    citations: [{ sourceRefId: klaim.sourceRefId, note: null }],
+    confidence: 80,
+    limitations: [],
+  };
+}
+
 const TANYA_BUTUH_AI = "bagaimana keadaan pekerjaan tanggul";
 
 const NOMOR_MARLIN = "6281200000000";
@@ -269,6 +325,7 @@ beforeEach(async () => {
   terkirim.length = 0;
   berkasTerkirim.length = 0;
   aiSehat = true;
+  jawabanBersumber = false;
   niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
   /*
    * Kuota AI (20 analisis/jam/pengguna) dinolkan tiap uji.
@@ -2204,5 +2261,63 @@ describe("urutan & cacahan tidak hilang", () => {
       }),
     );
     expect(judul()).toContain("Progress – 5 terbaik");
+  });
+});
+
+/* ── Jalur TANYA BEBAS dengan jawaban yang benar-benar bersumber ─────────
+ *
+ * Butir terbuka yang ditinggalkan sesi sebelumnya: stub selalu mengembalikan
+ * `answerParts: []`, jadi jalur ini SELALU jatuh ke "sumber tidak cukup" dan
+ * cabang yang lolos validator tidak pernah tersentuh uji sama sekali.
+ *
+ * Di sini stub menyalin satu fakta dari prompt-nya sendiri — persis seperti
+ * model sungguhan yang hanya boleh mengklaim angka yang disodorkan MARLIN.
+ * Yang dijaga: bagian bersumber SELAMAT, jawabannya terkirim, dan sumbernya
+ * ikut disebut supaya bisa diperiksa orang.
+ */
+describe("tanya bebas: jawaban bersumber", () => {
+  it("bagian dengan klaim yang cocok fakta resmi LOLOS dan terkirim", async () => {
+    jawabanBersumber = true;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
+    );
+
+    expect(r.dijawab).toBe(true);
+    // Bukan "belum mengerti", bukan "sumber tidak cukup".
+    expect(r.alasan).toBe("dijawab fleksibel dari sumber MARLIN");
+    const teks = terkirim.map((t) => t.teks).join("\n");
+    expect(teks).toContain("Pekerjaan tanggul masih berjalan");
+    // Sumbernya disebut — jawaban bersumber yang tidak menyebut sumbernya
+    // tidak bisa diperiksa siapa pun.
+    expect(teks).toContain("Sumber yang bisa diperiksa");
+  });
+
+  it("run AI-nya mencatat berapa bagian yang LOLOS, bukan berapa yang dikirim model", async () => {
+    jawabanBersumber = true;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
+    );
+    const run = await db.aiRun.findFirst({
+      where: { promptVersion: "waha-bebas-1" },
+      orderBy: { createdAt: "desc" },
+      select: { outputJson: true },
+    });
+    const keluaran = (run?.outputJson as { tanya?: { answerParts?: unknown[]; confidence?: number } })
+      ?.tanya;
+    expect(keluaran?.answerParts).toHaveLength(1);
+    // Keyakinan DIHITUNG dari hasil validasi, bukan diakui model (yang mengaku 80).
+    expect(keluaran?.confidence).toBe(100);
+  });
+
+  it("tanpa bagian bersumber, tetap mengaku – bukan mengarang", async () => {
+    jawabanBersumber = false;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
+    );
+    expect(r.alasan).not.toBe("dijawab fleksibel dari sumber MARLIN");
+    expect(terkirim.map((t) => t.teks).join("\n")).not.toContain("Pekerjaan tanggul masih berjalan");
   });
 });
