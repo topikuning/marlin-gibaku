@@ -442,6 +442,30 @@ export function mintaLupakanKonteks(teksMentah: string): boolean {
   return POLA_LUPAKAN.test(bersih(teksMentah));
 }
 
+/**
+ * "5 terbaik" → 5. Berapa banyak baris yang diminta penanya (DECISIONS 449).
+ *
+ * Keberatan user 2026-08-26: *"pertanyaan ke wa 'progress hari ini' dan
+ * 'progress 5 terbaik' sama sekali tidak memberikan perbedaan hasil"*. Dua
+ * sebabnya bertumpuk, dan angka inilah yang pertama: "5" bukan nama lokasi,
+ * tapi dulu ia diperlakukan sebagai kata sisa yang tidak dikenal — sehingga
+ * seluruh kalimat diserahkan ke AI, dan di jalur itu urutannya hilang.
+ *
+ * Hanya dibaca BERSAMA kata urutan. "progress 5" sendirian tidak berarti
+ * "lima teratas" — ia tidak berarti apa-apa, dan menebaknya lebih buruk
+ * daripada menyerah.
+ *
+ * Batasnya 1–99: angka lain hampir pasti bukan cacahan baris (tahun, nomor
+ * kontrak), dan menafsirkannya sebagai cacahan akan diam-diam memotong daftar.
+ */
+export function bacaBatas(teksMentah: string): number | null {
+  const t = bersih(teksMentah);
+  const m = /\b(\d{1,2})\b/.exec(t);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n <= 99 ? n : null;
+}
+
 export function bacaUrutan(teksMentah: string): UrutanJawaban | null {
   const t = bersih(teksMentah);
   for (const u of URUTAN) if (u.pola.test(t)) return u.arah;
@@ -516,6 +540,8 @@ export type RencanaDeterministik =
       lokasiDisebut: string[];
       /** Urutan yang diminta penanya; null = urutan bawaan. */
       urutan: UrutanJawaban | null;
+      /** Banyak baris yang diminta ("5 terbaik"); null = batas bawaan. */
+      batas: number | null;
     }
   /** Jelas tafsirnya terbatas — tawarkan pilihan, juga tanpa AI. */
   | { jenis: "ambigu"; sebab: SebabAmbigu; kandidat: KandidatNiat[] }
@@ -547,8 +573,11 @@ export function rencanaDeterministik(
   const parse = parseNiatDeterministik(teksMentah);
   if (parse.jenis === "tidak_tahu") return { jenis: "serahkan_ai", alasan: "niat tidak terbaca" };
   const urutan = bacaUrutan(teksMentah);
+  // Angka hanya berarti cacahan baris bila ada kata urutannya; tanpa itu ia
+  // tetap kata asing dan kalimatnya diserahkan ke AI seperti dulu.
+  const batas = urutan ? bacaBatas(teksMentah) : null;
 
-  const sisa = frasaSisa(teksMentah);
+  const sisa = frasaSisa(teksMentah).filter((f) => batas == null || f !== String(batas));
   for (const f of sisa) {
     if (cocokkanLokasi(f, katalog).jenis === "tidak_ada") {
       return { jenis: "serahkan_ai", alasan: `kata di luar katalog: "${f}"` };
@@ -581,5 +610,6 @@ export function rencanaDeterministik(
     periode: parse.kandidat.periode,
     lokasiDisebut: sisa,
     urutan: bisaDiurut ? urutan : null,
+    batas: bisaDiurut ? batas : null,
   };
 }

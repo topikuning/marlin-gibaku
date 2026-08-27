@@ -21,6 +21,9 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 /** Pesan yang "terkirim" ke WhatsApp — inti seluruh pembuktian di berkas ini. */
 const terkirim: { chatId: string; teks: string }[] = [];
+/** Berkas yang "terkirim" — jalur PDF untuk daftar panjang (DECISIONS 448). */
+const berkasTerkirim: { chatId: string; nama: string; mime: string; caption: string; bytes: number }[] =
+  [];
 
 vi.mock("@/lib/waha/client", () => ({
   // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
@@ -46,6 +49,20 @@ vi.mock("@/lib/waha/kirim", () => ({
   },
   sendText: async (chatId: string, teks: string) => {
     terkirim.push({ chatId, teks });
+    return "mock-id";
+  },
+  balasFileWa: async (
+    chatId: string,
+    file: { mimetype: string; filename: string; data: string },
+    caption?: string,
+  ) => {
+    berkasTerkirim.push({
+      chatId,
+      nama: file.filename,
+      mime: file.mimetype,
+      caption: caption ?? "",
+      bytes: Buffer.from(file.data, "base64").length,
+    });
     return "mock-id";
   },
 }));
@@ -226,6 +243,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   terkirim.length = 0;
+  berkasTerkirim.length = 0;
   aiSehat = true;
   niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
   /*
@@ -2051,5 +2069,114 @@ describe('pertanyaan "kenapa" & nama bespasi (DECISIONS 390)', () => {
     if (teks.includes("Catatan lapangan")) {
       expect(teks).toContain("Tidak saya kenali");
     }
+  });
+});
+
+/* ── Daftar panjang dijawab dengan PDF (DECISIONS 448) ───────────────────
+ *
+ * Permintaan user 2026-08-26: *"kalau dalam data yang banyak begitu, misal
+ * kendala hari ini, alih-alih ngasih chat panjang lebar, wa merespon dengan
+ * format pdf rapi"*.
+ *
+ * Yang dijaga di sini bukan rupa dokumennya (itu uji unit pencetaknya),
+ * melainkan KEPUTUSANNYA: banyak baris → satu berkas; sedikit baris → tetap
+ * teks. Dan yang paling mudah hilang: keterangan berkasnya harus tetap memuat
+ * kepala jawaban, supaya pesan itu berarti tanpa membuka lampiran.
+ */
+describe("daftar panjang dikirim sebagai PDF", () => {
+  const banyakKendala = async (jumlah: number) => {
+    await db.issue.deleteMany({ where: { locationId: lokA1 } });
+    for (let i = 1; i <= jumlah; i++) {
+      await db.issue.create({
+        data: {
+          locationId: lokA1,
+          title: `Kendala nomor ${i} di lokasi ini, dengan judul yang cukup panjang`,
+          severity: i % 3 === 0 ? "kritis" : "sedang",
+          status: "terbuka",
+        },
+      });
+    }
+  };
+
+  afterAll(async () => {
+    await db.issue.deleteMany({ where: { locationId: lokA1 } });
+  });
+
+  it("12 kendala → satu berkas PDF, bukan berkas gelembung teks", async () => {
+    await banyakKendala(12);
+    niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "ada kendala apa" }),
+    );
+
+    expect(r.dijawab).toBe(true);
+    expect(berkasTerkirim).toHaveLength(1);
+    const b = berkasTerkirim[0];
+    expect(b.mime).toBe("application/pdf");
+    expect(b.nama).toMatch(/^marlin-kendala-belum-selesai-\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(b.bytes).toBeGreaterThan(1000);
+
+    // Keterangannya berdiri sendiri: judul + jumlah baris, tanpa membuka berkas.
+    expect(b.caption).toContain("Kendala belum selesai");
+    expect(b.caption).toContain("12 baris");
+
+    // Dan TIDAK ada gelembung daftar panjang yang ikut terkirim.
+    expect(terkirim).toHaveLength(0);
+  });
+
+  it("2 kendala → tetap teks; berkas hanya untuk yang memang panjang", async () => {
+    await banyakKendala(2);
+    niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "ada kendala apa" }),
+    );
+
+    expect(berkasTerkirim).toHaveLength(0);
+    expect(terkirim.length).toBeGreaterThan(0);
+    expect(terkirim.map((t) => t.teks).join("\n")).toContain("Kendala belum selesai");
+  });
+});
+
+/* ── "progress 5 terbaik" ≠ "progress hari ini" (DECISIONS 449) ──────────
+ *
+ * Keberatan user 2026-08-26: *"pertanyaan ke wa 'progress hari ini' dan
+ * 'progress 5 terbaik' sama sekali tidak memberikan perbedaan hasil"*.
+ *
+ * Dua sebab bertumpuk: "5" diperlakukan sebagai kata asing sehingga kalimatnya
+ * jatuh ke AI, dan jalur AI membuang superlatifnya tanpa satu pun tanda.
+ * Keduanya diuji di sini — termasuk kalimat yang MEMANG harus lewat AI.
+ */
+describe("urutan & cacahan tidak hilang", () => {
+  const judul = () => terkirim.map((t) => t.teks).join("\n");
+
+  it('"progress hari ini" berjudul Progress polos', async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress hari ini" }),
+    );
+    expect(judul()).toContain("*Progress*");
+    expect(judul()).not.toContain("terbaik");
+  });
+
+  it('"progress 5 terbaik" berjudul lain, menyebut cacahan & arahnya', async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress 5 terbaik" }),
+    );
+    expect(judul()).toContain("Progress – 5 terbaik");
+  });
+
+  it("kalimat yang lewat AI pun tidak kehilangan superlatifnya", async () => {
+    // Kata di luar katalog memaksa jalur AI — persis keadaan yang dulu
+    // membuang urutannya.
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "tolong progress 5 terbaik untuk wilayah pesisir",
+      }),
+    );
+    expect(judul()).toContain("Progress – 5 terbaik");
   });
 });

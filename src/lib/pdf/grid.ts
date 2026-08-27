@@ -20,6 +20,10 @@ export type GridCell = {
   align?: "left" | "center" | "right";
   bold?: boolean;
   head?: boolean;
+  /** Warna teks sel; kosong = warna baku (ink / inkMuted untuk kepala). */
+  color?: string;
+  /** Latar sel; kosong = tanpa latar (kepala tetap memakai latar bakunya). */
+  bg?: string;
 };
 
 export type GridOptions = {
@@ -71,12 +75,13 @@ export function gridRow(doc: PdfDoc, y: number, cells: GridCell[], o: GridOption
     for (let k = 0; k < span && ci + k < o.cols.length; k++) w += o.cols[ci + k];
     ci += span;
 
-    if (c.head) doc.rect(x, y, w, h).fill(GRID_HEAD_BG);
+    const latar = c.bg ?? (c.head ? GRID_HEAD_BG : null);
+    if (latar) doc.rect(x, y, w, h).fill(latar);
     doc.rect(x, y, w, h).lineWidth(0.5).strokeColor(GRID_LINE).stroke();
     doc
       .font(c.bold || c.head ? PDF_FONT.bold : PDF_FONT.regular)
       .fontSize(fs)
-      .fillColor(c.head ? PDF_COLORS.inkMuted : PDF_COLORS.ink)
+      .fillColor(c.color ?? (c.head ? PDF_COLORS.inkMuted : PDF_COLORS.ink))
       .text(c.text || " ", x + padX, y + padY, {
         width: Math.max(4, w - padX * 2),
         align: c.align ?? "left",

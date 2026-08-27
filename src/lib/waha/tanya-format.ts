@@ -21,8 +21,10 @@ import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tany
  * akan diteruskan apa adanya.
  */
 
-const pct = (n: number) => `${n.toFixed(2).replace(".", ",")}%`;
-const bertanda = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2).replace(".", ",")}%`;
+/** Persen apa adanya – dipakai balasan teks DAN tabel PDF (DECISIONS 448). */
+export const pct = (n: number) => `${n.toFixed(2).replace(".", ",")}%`;
+/** Angka bertanda; sama persis dengan yang terbaca di WhatsApp. */
+export const bertanda = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2).replace(".", ",")}%`;
 
 /** Sapaan tetap di kepala tiap balasan, supaya jelas ini balasan MARLIN. */
 function kepala(judul: string, tanggal: string): string {
@@ -214,17 +216,27 @@ export type BarisProgress = {
  * "inilah lokasinya" – padahal ia "inilah 15 teratas". Bedanya menentukan
  * tindakan orang yang membacanya.
  */
-function judulProgress(urutan: "terbaik" | "terburuk" | null): string {
-  if (urutan === "terbaik") return "Progress – terbaik dulu";
-  if (urutan === "terburuk") return "Progress – terburuk dulu";
-  return "Progress";
+export function judulProgress(
+  urutan: "terbaik" | "terburuk" | null,
+  batas: number | null = null,
+): string {
+  if (!urutan) return "Progress";
+  // "5 terbaik" disebut apa adanya: daftar yang dipotong tanpa menyebut
+  // cacahannya terbaca sebagai "inilah seluruhnya".
+  const arah = urutan === "terbaik" ? "terbaik" : "terburuk";
+  return batas ? `Progress – ${batas} ${arah}` : `Progress – ${arah} dulu`;
 }
 
 export function balasProgress(
-  r: { tanggal: string; baris: BarisProgress[]; urutan?: "terbaik" | "terburuk" | null },
+  r: {
+    tanggal: string;
+    baris: BarisProgress[];
+    urutan?: "terbaik" | "terburuk" | null;
+    batas?: number | null;
+  },
   opts: OpsiKaki = {},
 ): string {
-  const judul = judulProgress(r.urutan ?? null);
+  const judul = judulProgress(r.urutan ?? null, r.batas ?? null);
   if (r.baris.length === 0) {
     return kepala(judul, r.tanggal) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
   }

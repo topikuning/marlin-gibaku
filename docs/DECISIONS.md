@@ -23108,3 +23108,97 @@ Ditambah cadangan di kode: bila direktori tujuan tidak bisa ditulis
 menyebut `LAMPIRAN_DIR`. Itu bukan penurunan mutu – simpanan lokal memang sudah
 bersifat sementara (DECISIONS 432); kehilangan berkas yang sudah di tangan jauh
 lebih mahal daripada menyimpannya di tempat yang lebih fana.
+
+---
+
+## 448 · Jawaban WhatsApp berdaftar panjang dikirim sebagai PDF (2026-08-26)
+
+Permintaan user: *"aku butuh output seperti ini saat aku wa ke marlin, jadi
+marlin kalau dalam data yang banyak begitu, misal kendala hari ini, alih-alih
+ngasih chat panjang lebar, wa merespon dengan format pdf rapi seperti ini"* –
+disertai contoh berkas: tabel A4 landscape berkolom No · Lokasi ·
+Kabupaten/Kota · Provinsi · Status · Keterangan untuk 27 lokasi.
+
+Lanjutannya: *"nama perusahaan, urutkan berdasar nama perusahaan dan lokasi"*.
+
+**Keputusan.** Balasan berdata yang PANJANG dikirim sebagai satu berkas PDF,
+bukan beberapa gelembung teks. Isinya SAMA PERSIS dengan balasan teksnya –
+baris yang sama, angka yang diformat fungsi yang sama (`pct`/`bertanda` di
+`tanya-format.ts`, kini diekspor supaya tidak ada versi kedua). Tidak ada satu
+pun angka yang lahir di jalur PDF.
+
+**Kapan.** `perluPdf()`: baris ≥ 10, ATAU teksnya tidak muat satu pesan
+WhatsApp (sudah dipecah `potongPesan`). Nol baris TIDAK PERNAH jadi berkas –
+"tidak ada yang cocok" sebagai lampiran adalah lelucon yang mahal.
+
+**Kolom & urutan.** Setiap tabel dibuka No · Perusahaan · Lokasi ·
+Kabupaten/Kota · Provinsi, lalu kolom khas niatnya. Barisnya diurutkan
+**perusahaan lalu lokasi**: daftar lintas lokasi ditagihkan per perusahaan,
+jadi baris satu perusahaan harus berdampingan.
+
+Yang TIDAK disusun ulang: jawaban yang memang sebuah PERINGKAT – deviasi, dan
+progress yang diminta "terbaik/terburuk dulu". Judulnya sudah menjanjikan
+urutan tertentu; menyusun ulang isinya membuat judul itu berbohong.
+
+Perusahaan diambil dari vendor kontrak paket, mundur ke calon vendor paket
+bila kontraknya belum ada. Yang tidak diketahui ditulis "–" dan ditaruh di
+BELAKANG – bukan ditebak, dan bukan di depan (di mana "–" kecil menurut abjad
+akan menaruh baris paling tidak bisa ditindak di halaman pertama). Menebak
+perusahaan pada daftar kendala bukan sekadar kolom salah: itu tuduhan.
+
+**Yang ikut, dan tidak boleh hilang.** Keterangan berkas memuat judul, tanggal,
+jumlah baris, dan SELURUH catatan "jawaban ini sebagian" (pemotongan lingkup,
+pemotongan baris, periode yang digeser). Berkas justru lebih mudah diteruskan
+daripada gelembung teks, jadi pengakuan itu tidak boleh hanya ada di dalamnya.
+
+**Kalau gagal.** Pembuatan atau pengiriman berkas yang gagal TIDAK menelan
+jawabannya: balasan teks tetap berangkat, dan kegagalannya tercatat di log.
+
+**Cakupan.** Enam niat berdaftar: kendala (3 cara baca), progress, deviasi,
+kelengkapan, laporan harian, laporan mingguan. Satu pencetak untuk semuanya
+(`lib/pdf/wa-tabel.ts`) di atas satu bentuk perantara (`lib/waha/tanya-tabel.ts`),
+supaya niat baru tidak menambah pencetak baru yang harus ikut diperbaiki tiap
+kali gaya dokumennya berubah.
+
+---
+
+## 449 · "progress 5 terbaik" akhirnya berbeda dari "progress hari ini" (2026-08-26)
+
+Keberatan user: *"pertanyaan ke wa 'progress hari ini' dan 'progress 5
+terbaik' sama sekali tidak memberikan perbedaan hasil!"* – dan itu benar.
+
+**Dua sebab, bertumpuk.**
+
+1. **"5" diperlakukan sebagai nama lokasi.** Parser deterministik
+   (DECISIONS 375) menyerahkan ke AI setiap kalimat yang memuat kata di luar
+   katalog lokasi. Angka "5" bukan lokasi, jadi seluruh kalimat jatuh ke AI.
+2. **Jalur AI membuang superlatifnya.** Jalur itu mengembalikan
+   niat/lokasi/periode SAJA. `urutan` sengaja hanya lahir dari parser
+   deterministik (DECISIONS 390) – alasannya benar: superlatif yang salah baca
+   menghasilkan daftar berkebalikan tanpa satu pun tanda. Tapi akibatnya, kata
+   yang JELAS tertulis ikut lenyap, dan jawabannya identik dengan pertanyaan
+   yang tidak menyebutnya.
+
+**Perbaikan.**
+
+- `bacaBatas()`: angka 1–99 dibaca sebagai CACAHAN baris, tetapi **hanya
+  bersama kata urutan**. "progress 5" sendirian tetap diserahkan ke AII – ia
+  tidak berarti apa-apa ("lima teratas"? "tanggal 5"?), dan menebaknya
+  memotong daftar diam-diam. Angka yang sudah terbaca sebagai cacahan tidak
+  lagi ikut dicocokkan sebagai nama lokasi.
+- Jalur AI membaca `urutan` dan `batas` dari teks aslinya lewat pembaca
+  DETERMINISTIK yang sama. Ini bukan pembalikan DECISIONS 390: AI tetap tidak
+  diminta menebak superlatif; yang berubah hanya bahwa kata yang jelas
+  tertulis tidak lagi dibuang.
+- `dataProgress` menerima `batas`; potongannya tidak pernah melebihi
+  `BATAS_BARIS` – pagar panjang pesan tetap milik sistem, bukan penanya.
+- Judulnya menyebut cacahannya: **"Progress – 5 terbaik"**. Daftar yang
+  dipotong tanpa menyebut cacahannya terbaca sebagai "inilah seluruhnya".
+
+**Catatan warna (lanjutan DECISIONS 448).** Sel tabel PDF kini bernada, dengan
+kosakata dan nilai yang SAMA dengan status di layar (`ISSUE_SEVERITY_TONE`,
+token `globals.css`): kritis merah, tinggi oranye, sedang biru, rendah abu;
+deviasi minus merah dan plus hijau; "belum ada laporan" oranye. Bukan palet
+kedua yang harus ikut diperbaiki tiap kali tone layar berubah. Latar lembut
+hanya untuk nada yang bukan netral – kalau semua sel berlatar, tidak ada yang
+menonjol.

@@ -193,6 +193,17 @@ export type LokasiKatalog = {
   kecamatan: string | null;
   kabupaten: string;
   provinsi: string;
+  /**
+   * Nama PERUSAHAAN pelaksana (vendor kontrak; sebelum kontrak, calon vendor
+   * paket). Permintaan user 2026-08-26 – laporan lintas lokasi dibaca per
+   * perusahaan lebih dulu, karena itulah yang ditagih.
+   *
+   * Opsional: katalog yang dirakit jalur lain (uji, pemeriksa niat) boleh
+   * tidak tahu. Yang tidak tahu menulis "–" di dokumen, TIDAK menebak — salah
+   * menuliskan perusahaan pada daftar kendala adalah tuduhan, bukan sekadar
+   * kolom kosong.
+   */
+  pelaksana?: string | null;
 };
 
 export const TINGKAT_WILAYAH = ["desa", "kecamatan", "kabupaten", "provinsi"] as const;

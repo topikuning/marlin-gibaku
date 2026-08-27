@@ -62,6 +62,29 @@ export async function balasWa(chatId: string, text: string): Promise<string | nu
   return r.waMessageId;
 }
 
+/**
+ * BALASAN berupa BERKAS atas pesan yang masuk (DECISIONS 448).
+ *
+ * Sama alasannya dengan `balasWa`: hanya penjawab pesan masuk yang boleh
+ * menyalakan `balasanMasuk`, jadi ia berdiri sebagai fungsinya sendiri dan
+ * bukan parameter tambahan di `sendFile` yang dipakai jalur lain.
+ */
+export async function balasFileWa(
+  chatId: string,
+  file: FilePayload,
+  caption?: string,
+): Promise<string | null> {
+  const r = await sendWaMessage({
+    kind: "berkas",
+    destination: chatId,
+    payload: { file, caption },
+    sourceType: "balasan_wa_berkas",
+    balasanMasuk: true,
+  });
+  if (r.error) throw new Error(r.error);
+  return r.waMessageId;
+}
+
 export async function sendImage(
   chatId: string,
   file: FilePayload,

@@ -99,6 +99,15 @@ export async function katalogLokasi(
       district: true,
       regency: true,
       province: true,
+      // Perusahaan pelaksana: vendor pada kontrak; sebelum kontrak ada, calon
+      // vendor paket. Keduanya boleh kosong — lokasi yang paketnya belum
+      // berkontrak memang belum punya pelaksana.
+      package: {
+        select: {
+          candidateVendorName: true,
+          contract: { select: { vendor: { select: { name: true } } } },
+        },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -109,6 +118,7 @@ export async function katalogLokasi(
     kecamatan: r.district,
     kabupaten: r.regency,
     provinsi: r.province,
+    pelaksana: r.package?.contract?.vendor.name ?? r.package?.candidateVendorName ?? null,
   }));
 }
 
@@ -256,6 +266,12 @@ export async function dataProgress(
    * yang salah tapi terlihat benar.
    */
   urutan: UrutanJawaban | null = null,
+  /**
+   * Banyak baris yang diminta ("5 terbaik", DECISIONS 449). null = batas
+   * bawaan. TIDAK pernah melebihi `BATAS_BARIS`: pagar panjang pesan tetap
+   * milik sistem, bukan milik penanya.
+   */
+  batas: number | null = null,
 ): Promise<HasilProgress> {
   if (lokasi.length === 0) return { baris: [], catatanBatas: null };
   const dipakai = urutan ? lokasi : lokasi.slice(0, BATAS_BARIS);
@@ -297,7 +313,7 @@ export async function dataProgress(
   }
 
   const urut = urutkanProgress(baris, urutan);
-  const potong = urut.slice(0, BATAS_BARIS);
+  const potong = urut.slice(0, Math.min(batas ?? BATAS_BARIS, BATAS_BARIS));
   return {
     baris: potong,
     catatanBatas: catatanBatas(potong.length, urut.length, "lokasi"),

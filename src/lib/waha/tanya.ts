@@ -13,7 +13,21 @@ import {
   type PemakaiAi,
 } from "@/lib/ai-hub/guard";
 import { getIdentitasMarlin } from "./client";
-import { balasWa } from "./kirim";
+import { balasFileWa, balasWa } from "./kirim";
+import {
+  keteranganBerkas,
+  namaBerkasTabel,
+  perluPdf,
+  petaLokasi,
+  tabelDeviasi,
+  tabelKelengkapan,
+  tabelKendala,
+  tabelLaporan,
+  tabelMingguan,
+  tabelProgress,
+  type OpsiTabel,
+  type TabelWa,
+} from "./tanya-tabel";
 import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
 import { kanonikGrupId } from "./grup-id";
 import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";
@@ -28,6 +42,8 @@ import {
   type Niat,
 } from "./tanya-niat";
 import {
+  bacaBatas,
+  bacaUrutan,
   frasaSisa,
   mintaLupakanKonteks,
   mintaSebab,
@@ -58,6 +74,7 @@ import {
   balasPilihanTakAda,
   balasProgress,
   balasTidakMengerti,
+  judulProgress,
   type OpsiKaki,
 } from "./tanya-format";
 import {
@@ -456,6 +473,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
      * salah baca menghasilkan daftar yang berkebalikan tanpa satu pun tanda.
      */
     urutan?: UrutanJawaban | null;
+    /** Banyak baris yang diminta ("5 terbaik"); null = batas bawaan. */
+    batas?: number | null;
   };
 
   // `m` sudah dipastikan ada di awal fungsi, tapi penyempitan itu tidak ikut
@@ -537,7 +556,30 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       await balasWa(pesan.chatId, balasTidakMengerti());
       return { dijawab: true, alasan: "niat tidak dikenali" };
     }
-    return { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
+    /*
+     * URUTAN & CACAHAN TIDAK IKUT HILANG DI JALUR AI (DECISIONS 449).
+     *
+     * Keberatan user 2026-08-26: *"'progress hari ini' dan 'progress 5
+     * terbaik' sama sekali tidak memberikan perbedaan hasil"*. Sebabnya: kata
+     * "5" bukan nama lokasi, jadi seluruh kalimat diserahkan ke AI — dan
+     * jalur AI dulu mengembalikan niat/lokasi/periode SAJA. Superlatifnya
+     * lenyap tanpa satu pun tanda, jadi jawabannya identik dengan pertanyaan
+     * yang tidak menyebutnya.
+     *
+     * Yang ditambahkan BUKAN tebakan AI: keduanya dibaca dari teks aslinya
+     * oleh pembaca deterministik yang sama dengan jalur cepat. Alasan lama
+     * ("AI tidak diminta menebak superlatif") tetap dihormati — yang berubah
+     * hanya bahwa kata yang JELAS tertulis tidak lagi dibuang.
+     */
+    const bisaDiurut = d.niat === "progress" || d.niat === "deviasi";
+    const urutan = bisaDiurut ? bacaUrutan(teks) : null;
+    return {
+      niat: d.niat,
+      lokasiDisebut: d.lokasiDisebut,
+      periode: d.periode,
+      urutan,
+      batas: urutan ? bacaBatas(teks) : null,
+    };
   }
 
   /**
@@ -667,6 +709,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         lokasiDisebut: rencana.lokasiDisebut,
         periode: rencana.periode,
         urutan: rencana.urutan,
+        batas: rencana.batas,
       };
     } else if (rencana.jenis === "ambigu") {
       /*
@@ -826,6 +869,18 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         : `${periode.label} · posisi ${tanggalNyata}`;
   opts.catatanPeriode = periode.catatan;
   let balasan: string;
+  /*
+   * Bentuk TABEL dari jawaban yang sama (DECISIONS 448) — dipakai hanya bila
+   * barisnya banyak, dan berisi data yang PERSIS sama dengan balasan teksnya.
+   * `null` = niat yang memang bukan daftar (mis. bantuan).
+   */
+  let tabel: TabelWa | null = null;
+  const peta = petaLokasi(katalog);
+  const optTabel = (o: OpsiTabel = {}): OpsiTabel => ({
+    catatanPemotongan: keputusan.catatanPemotongan,
+    penandaLingkup: keputusan.penandaLingkup,
+    ...o,
+  });
 
   if (niat.niat === "bantuan") {
     balasan = balasBantuan();
@@ -839,6 +894,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       { periode: pekan.label, baris: d.baris },
       { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: pekan.catatan },
     );
+    tabel = tabelMingguan(
+      { judul: "Laporan mingguan", periode: pekan.label, baris: d.baris },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: pekan.catatan }),
+    );
   } else if (niat.niat === "laporan") {
     const d = await dataLaporan(sasaran, dateKey);
     /*
@@ -851,15 +911,18 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
      * diambil, bukan meminjam label rentang yang tidak dijawab.
      */
     const rentangDiminta = !periode.satuHari;
+    const tglLaporan = formatTanggal(parseDateKey(dateKey) ?? jakartaToday(), "d MMMM yyyy");
+    const catatanPeriodeLaporan = rentangDiminta
+      ? `Laporan harian selalu satu tanggal. Anda menyebut ${periode.label}, jadi saya ambil hari terakhirnya. Untuk rekap sepekan, tanya "laporan mingguan".`
+      : periode.catatan;
     balasan = balasLaporan(
-      { tanggal: formatTanggal(parseDateKey(dateKey) ?? jakartaToday(), "d MMMM yyyy"), baris: d.baris },
-      {
-        ...opts,
-        catatanBatas: d.catatanBatas,
-        catatanPeriode: rentangDiminta
-          ? `Laporan harian selalu satu tanggal. Anda menyebut ${periode.label}, jadi saya ambil hari terakhirnya. Untuk rekap sepekan, tanya "laporan mingguan".`
-          : periode.catatan,
-      },
+      { tanggal: tglLaporan, baris: d.baris },
+      { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: catatanPeriodeLaporan },
+    );
+    tabel = tabelLaporan(
+      { judul: "Laporan harian", tanggal: tglLaporan, baris: d.baris },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: catatanPeriodeLaporan }),
     );
   } else if (
     niat.niat === "kendala" ||
@@ -896,31 +959,40 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         : saring === "dibuka_periode_masih_terbuka"
           ? "Kendala yang dibuka & masih terbuka"
           : "Kendala belum selesai";
+    /*
+     * Catatan lama ("ini keadaan sekarang, bukan pada periode itu") hanya
+     * dipakai untuk cabang `terbuka_sekarang`. Untuk dua cabang periode ia
+     * berubah dari pengakuan jujur menjadi keterangan yang SALAH — dan
+     * keterangan salah yang terdengar berhati-hati lebih merusak daripada
+     * tidak ada keterangan sama sekali.
+     */
+    const catatanPeriodeKendala =
+      saring !== "terbuka_sekarang"
+        ? periode.catatan
+        : periode.satuHari && dateKey === hariIniKey
+          ? periode.catatan
+          : `Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada ${periode.label}.`;
     balasan = balasKendala(
       { tanggal, baris: d.baris, lokasiDiperiksa: d.lokasiDiperiksa, judul },
-      {
-        ...opts,
-        catatanBatas: d.catatanBatas,
-        /*
-         * Catatan lama ("ini keadaan sekarang, bukan pada periode itu") hanya
-         * dipakai untuk cabang `terbuka_sekarang`. Untuk dua cabang periode ia
-         * berubah dari pengakuan jujur menjadi keterangan yang SALAH — dan
-         * keterangan salah yang terdengar berhati-hati lebih merusak daripada
-         * tidak ada keterangan sama sekali.
-         */
-        catatanPeriode:
-          saring !== "terbuka_sekarang"
-            ? periode.catatan
-            : periode.satuHari && dateKey === hariIniKey
-              ? periode.catatan
-              : `Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada ${periode.label}.`,
-      },
+      { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: catatanPeriodeKendala },
+    );
+    tabel = tabelKendala(
+      { judul, tanggal, baris: d.baris },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: catatanPeriodeKendala }),
     );
   } else if (niat.niat === "progress") {
-    const d = await dataProgress(sasaran, dateKey, niat.urutan ?? null);
+    const d = await dataProgress(sasaran, dateKey, niat.urutan ?? null, niat.batas ?? null);
     balasan = balasProgress(
-      { tanggal, baris: d.baris, urutan: niat.urutan ?? null },
+      { tanggal, baris: d.baris, urutan: niat.urutan ?? null, batas: niat.batas ?? null },
       { ...opts, catatanBatas: d.catatanBatas },
+    );
+    tabel = tabelProgress(
+      { judul: judulProgress(niat.urutan ?? null, niat.batas ?? null), tanggal, baris: d.baris },
+      peta,
+      // Diminta "terbaik/terburuk dulu" → itu PERINGKAT; urutannya tidak boleh
+      // ditimpa pengelompokan perusahaan, karena judulnya sudah menjanjikannya.
+      optTabel({ catatanBatas: d.catatanBatas, peringkat: niat.urutan != null }),
     );
   } else if (niat.niat === "deviasi") {
     const d = await dataDeviasi(sasaran, dateKey);
@@ -941,11 +1013,31 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         catatanPeriode: periode.catatan,
       },
     );
+    tabel = tabelDeviasi(
+      {
+        // Judul yang SAMA dengan balasan teksnya — dokumen dan gelembung
+        // WhatsApp tidak boleh menyebut dirinya dengan dua nama berbeda.
+        judul: `Deviasi negatif – ${d.negatif.length} dari ${d.diperiksa} lokasi`,
+        tanggal,
+        baris: d.negatif,
+      },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: periode.catatan, peringkat: true }),
+    );
   } else {
     const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);
     balasan = balasKelengkapan(
       { tanggal, perlu: d.perlu, total: d.total },
       { ...opts, catatanBatas: d.catatanBatas },
+    );
+    tabel = tabelKelengkapan(
+      {
+        judul: `Kelengkapan laporan – ${d.total - d.perlu.length} dari ${d.total} beres`,
+        tanggal,
+        baris: d.perlu,
+      },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas }),
     );
   }
 
@@ -978,8 +1070,53 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     ? `${keputusan.penandaLingkup}\n\n${balasan}`
     : balasan;
   const { bagian } = potongPesan(utuh);
-  for (const b of bagian) {
-    await balasWa(m.chatId, b);
+
+  /*
+   * DAFTAR PANJANG DIKIRIM SEBAGAI PDF, bukan lima gelembung (DECISIONS 448).
+   *
+   * Permintaan user 2026-08-26: *"kalau dalam data yang banyak begitu, misal
+   * kendala hari ini, alih-alih ngasih chat panjang lebar, wa merespon dengan
+   * format pdf rapi"*. Isinya SAMA PERSIS dengan balasan teks — baris yang
+   * sama, angka yang diformat fungsi yang sama — hanya wadahnya berbeda.
+   *
+   * Keterangan berkas tetap memuat kepala jawaban dan seluruh catatan
+   * "jawaban ini sebagian", supaya pengakuan itu terbaca tanpa membuka
+   * lampiran. Berkas justru LEBIH mudah diteruskan daripada gelembung teks,
+   * jadi catatan itu tidak boleh hanya ada di dalamnya.
+   *
+   * Kalau pembuatan atau pengiriman berkasnya gagal, jawabannya TETAP
+   * berangkat sebagai teks. Balasan panjang jauh lebih baik daripada tidak ada
+   * balasan sama sekali — dan kegagalannya tercatat, tidak ditelan.
+   */
+  let lewatPdf = false;
+  if (tabel && perluPdf(bagian.length, tabel.baris.length)) {
+    try {
+      const { buildTabelWaPdf } = await import("@/lib/pdf/wa-tabel");
+      const pdf = await buildTabelWaPdf(tabel, { untuk: user?.fullName ?? null });
+      await balasFileWa(
+        m.chatId,
+        {
+          mimetype: "application/pdf",
+          filename: namaBerkasTabel(tabel, dateKey),
+          data: pdf.toString("base64"),
+        },
+        keteranganBerkas(tabel),
+      );
+      lewatPdf = true;
+      await audit(user?.id ?? null, "waha.tanya.pdf", "wa_message", m.waMessageId, {
+        chatId: m.chatId,
+        niat: niat.niat,
+        baris: tabel.baris.length,
+      });
+    } catch (err) {
+      console.error("[waha/tanya] gagal mengirim jawaban sebagai PDF:", err);
+    }
+  }
+
+  if (!lewatPdf) {
+    for (const b of bagian) {
+      await balasWa(m.chatId, b);
+    }
   }
 
   /*
