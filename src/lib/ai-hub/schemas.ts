@@ -115,12 +115,20 @@ export const reportOutputSchema = z.object({
         heading: z.string().max(120),
         body: z.string().max(4000),
         locationId: z.string().nullable(),
+        sourceRefIds: z.array(z.string()).max(12).default([]),
       }),
     )
     .min(1)
     .max(12),
   recommendations: z
-    .array(z.object({ title: z.string().max(160), reason: z.string().max(500), locationId: z.string().nullable() }))
+    .array(
+      z.object({
+        title: z.string().max(160),
+        reason: z.string().max(500),
+        locationId: z.string().nullable(),
+        sourceRefIds: z.array(z.string()).max(12).default([]),
+      }),
+    )
     .max(10),
   waSummary: z.string().min(10).max(1800),
   limitations: z.array(z.string().max(300)).max(10),
@@ -233,6 +241,8 @@ export const askOutputSchema = z.object({
         claims: z.array(klaimSchema).max(8),
         /** Kutipan VERBATIM catatan lapangan (DECISIONS 382). */
         kutipan: z.array(kutipanSchema).max(4).default([]),
+        /** Sumber kualitatif yang menopang bagian tanpa klaim angka/kutipan. */
+        sourceRefIds: z.array(z.string()).max(8).default([]),
       }),
     )
     .max(12)
@@ -291,7 +301,7 @@ export function faktaResmi(pulse: PortfolioPulse): Map<string, FaktaResmi> {
 
 /* ── Kutipan narasi lapangan (DECISIONS 382, Fase F2) ─────────────────── */
 
-export type BagianJawaban = { text: string; claims: Klaim[]; kutipan?: Kutipan[] };
+export type BagianJawaban = { text: string; claims: Klaim[]; kutipan?: Kutipan[]; sourceRefIds?: string[] };
 
 /** Samakan spasi supaya kutipan tidak gagal hanya karena baris baru. */
 function ratakan(s: string): string {
@@ -434,6 +444,10 @@ export function validasiKlaimTerikat(
   for (const part of parts) {
     const alasan: string[] = [];
     const klaimSah: Klaim[] = [];
+    const referensiSah = (part.sourceRefIds ?? []).filter((id) => allowedSourceRefIds.has(id));
+    if (referensiSah.length !== (part.sourceRefIds ?? []).length) {
+      alasan.push("bagian menunjuk sumber yang tidak tersedia");
+    }
 
     for (const k of part.claims) {
       const f = fakta.get(kunciFakta(k.locationId, k.metric));
@@ -466,6 +480,11 @@ export function validasiKlaimTerikat(
     if (hasilKutipan.dibuang.length > 0) alasan.push(hasilKutipan.dibuang[0]);
     klaimValid += hasilKutipan.sah.length;
 
+    // Bagian kualitatif tetap harus dapat ditelusuri. Sebelumnya kalimat tanpa
+    // angka dapat lolos tanpa satu sumber pun, sehingga "grounded" hanya benar
+    // untuk angka dan bukan untuk kesimpulan operasionalnya.
+    klaimValid += referensiSah.length;
+
     /*
      * ANGKA yang tidak berasal dari calculation layer MAUPUN dari kutipan
      * verbatim = karangan, dan itu satu-satunya hal yang dilarang tanpa
@@ -478,6 +497,9 @@ export function validasiKlaimTerikat(
     const liar = angkaTakBersumber(part, klaimSah, hasilKutipan.sah);
     if (liar.length > 0) {
       alasan.push(`angka tanpa sumber: ${liar.slice(0, 3).join(", ")}`);
+    }
+    if (klaimSah.length === 0 && hasilKutipan.sah.length === 0 && referensiSah.length === 0) {
+      alasan.push("bagian tidak memiliki sumber yang dapat diperiksa");
     }
 
     if (alasan.length > 0) {
@@ -621,8 +643,8 @@ export const SCHEMA_HINTS = {
   "title": string, "executiveSummary": string,
   "overallStatus": "normal"|"perhatian"|"kritis"|"data_kurang",
   "confidence": number 0-100,
-  "sections": [{ "heading": string, "body": string, "locationId": string|null }],
-  "recommendations": [{ "title": string, "reason": string, "locationId": string|null }],
+  "sections": [{ "heading": string, "body": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
+  "recommendations": [{ "title": string, "reason": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
   "waSummary": string (ringkas utk WhatsApp, tanpa markdown),
   "limitations": [string]
 }`,
@@ -631,9 +653,10 @@ export const SCHEMA_HINTS = {
   "answerParts": [{
     "text": string (satu bagian jawaban, boleh 1-3 kalimat),
     "kutipan": [{ "chunkId": string dari daftar CATATAN LAPANGAN, "teks": string SALINAN PERSIS }],
+    "sourceRefIds": [string dari daftar sumber yang menopang bagian ini],
     "claims": [{
       "locationId": string (dari daftar scope),
-      "metric": "rencana"|"realisasi"|"deviasi"|"kesiapan"|"laporan_final"|"laporan_diharapkan"|"kendala_terbuka"|"kendala_kritis",
+      "metric": ${NAMA_METRIK.map((metric) => `"${metric}"`).join("|")},
       "value": number (PERSIS seperti angka resmi yang kamu kutip),
       "periodKey": string (tanggal berlaku angka itu, YYYY-MM-DD, dari daftar sumber),
       "sourceRefId": string (sumber angka itu)
@@ -643,6 +666,6 @@ export const SCHEMA_HINTS = {
   "confidence": number 0-100,
   "limitations": [string]
 }
-ATURAN KERAS: setiap bagian yang MENYEBUT ANGKA wajib membawa claims-nya.
+ATURAN KERAS: setiap bagian wajib membawa claims, kutipan, atau sourceRefIds yang sah; setiap bagian yang MENYEBUT ANGKA wajib membawa claims/kutipan angkanya.
 Bagian yang menyebut angka tanpa claims akan DIBUANG dan tidak sampai ke penanya.`,
 } as const;

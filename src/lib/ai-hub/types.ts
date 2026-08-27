@@ -119,4 +119,6 @@ export type PortfolioPulse = {
   rows: PulseRow[]; // exception-first
   risks: RiskItem[];
   sourceRefs: SourceRef[];
+  /** Batas rekonstruksi snapshot (mis. entitas tanpa histori status). */
+  limitations?: string[];
 };

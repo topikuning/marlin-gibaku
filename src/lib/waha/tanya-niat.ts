@@ -166,6 +166,9 @@ export const SISTEM_PROMPT = [
   "   bukan tugasmu; MARLIN yang memutuskan itu kabupaten atau bukan.",
   "3. JANGAN pernah mengarang angka, tanggal, atau nama lokasi yang tidak ditulis penanya.",
   "4. Nama bulan/hari yang disebut penanya BUKAN nama lokasi.",
+  "5. Bila riwayat percakapan diberikan, pakai HANYA untuk melengkapi bagian yang",
+  "   dihilangkan dalam pertanyaan susulan. Pertanyaan terbaru selalu menang, dan",
+  "   riwayat tidak boleh menambah lokasi yang tidak ditulis atau memperluas scope.",
 ].join("\n");
 
 /* ------------------------------------------------------------------ */

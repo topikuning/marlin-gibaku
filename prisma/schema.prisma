@@ -2221,10 +2221,14 @@ model WaChatContext {
   senderKey String @map("sender_key")
 
   /// Niat pertanyaan terakhir yang berhasil dijawab.
-  niat String
+  niat String?
 
   /// Nama lokasi apa adanya seperti diketik penanya (`string[]`).
   lokasiDisebut Json @map("lokasi_disebut")
+
+  /// Maksimal delapan giliran user/asisten terakhir. Hanya dipakai membantu
+  /// memahami susulan; scope selalu dihitung ulang dari izin saat ini.
+  history Json? @db.JsonB
 
   /// Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
   /// pertanyaan lama dengan percaya diri.

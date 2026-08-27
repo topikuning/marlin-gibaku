@@ -64,7 +64,7 @@ export function AskClient({
             // Doktrin DECISIONS 193: jawaban tidak berhenti sebagai teks chat —
             // scope percakapan terbawa ke Report Studio jadi artefak ber-lifecycle.
             <Link
-              href={`/ai/reports?template=wa_update&scopeIds=${conversation.scopeIds.join(",")}`}
+              href={`/ai/reports?template=wa_update&scopeIds=${conversation.scopeIds.join(",")}&originConversationId=${conversation.id}`}
               className="text-[13px] font-medium text-primary hover:underline"
             >
               Buat laporan dari scope ini →
@@ -93,7 +93,7 @@ export function AskClient({
                       */}
                       {m.confidence != null ? (
                         <span className={m.confidence === 0 ? "font-medium text-danger" : undefined}>
-                          {m.confidence === 0 ? "tanpa sumber terverifikasi" : `keyakinan ${m.confidence}%`}
+                          {m.confidence === 0 ? "tanpa sumber terverifikasi" : `cakupan bukti ${m.confidence}%`}
                         </span>
                       ) : null}
                       {m.runId ? (

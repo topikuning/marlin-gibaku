@@ -74,7 +74,7 @@ Keterangan yang disalin ke dua tempat cepat atau lambat berbeda.
       darurat sebagai keadaan normal. Perlu lokasi contoh dengan progres wajar.
 - [ ] Bab lapangan: mengisi laporan harian langkah demi langkah, alur koreksi
       (`perlu_koreksi` → perbaiki → kirim ulang), dan chat WhatsApp.
-- [ ] Bab manajemen: keuangan, laporan periodik KKP, RAPL, AI.
+- [ ] Bab manajemen: keuangan, laporan periodik KKP, dan RAPL. Panduan AI dasar sudah ada; screenshot menyusul setelah seed manual diperbaiki.
 - [ ] Daftar isi otomatis + nomor halaman per bab.
 - [ ] Pertimbangkan ukuran repo: 9 gambar = 1,3 MB. Buku penuh (60+ layar) bisa
       10–20 MB, dan tumbuh tiap kali UI berubah.

@@ -13,7 +13,7 @@ import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecyc
 import { formatTanggalWaktu } from "@/lib/format";
 import { ReportStudioClient } from "./studio-client";
 
-export const metadata: Metadata = { title: "AI Intelligence – Report Studio" };
+export const metadata: Metadata = { title: "Asisten Pengendalian – Buat Laporan" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -32,6 +32,9 @@ export default async function AiReportsPage({
   const initialTemplate = typeof sp.template === "string" ? sp.template : undefined;
   const initialScopeIds =
     typeof sp.scopeIds === "string" ? sp.scopeIds.split(",").filter(Boolean) : [];
+  const originRunId = typeof sp.originRunId === "string" ? sp.originRunId : undefined;
+  const originConversationId =
+    typeof sp.originConversationId === "string" ? sp.originConversationId : undefined;
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
@@ -91,6 +94,8 @@ export default async function AiReportsPage({
         aiReady={aiReady && can(user.role, "ai.generate")}
         initialTemplate={initialTemplate}
         initialScopeIds={initialScopeIds}
+        originRunId={originRunId}
+        originConversationId={originConversationId}
       />
 
       <Card>

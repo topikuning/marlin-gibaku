@@ -14,17 +14,17 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
   return (
     <div className="space-y-4">
       <PageHeader
-        title="AI Intelligence"
-        description="Pusat analisis lintas lokasi. Angka selalu dari sistem MARLIN; AI hanya menjelaskan, memprioritaskan, dan menyusun draf – keputusan tetap di manusia."
+        title="Asisten Pengendalian"
+        description="Tanyakan kondisi proyek, cari prioritas, lalu ubah hasilnya menjadi laporan yang dapat direview dan dikirim. Semua angka tetap dihitung MARLIN."
       />
       <LinkTabs
         items={[
-          { label: "Portfolio Pulse", href: "/ai", exact: true },
-          { label: "Perlu Tindakan", href: "/ai/actions" },
-          { label: "Report Studio", href: "/ai/reports" },
+          { label: "Ringkasan", href: "/ai", exact: true },
+          { label: "Tanya MARLIN", href: "/ai/ask" },
+          { label: "Buat Laporan", href: "/ai/reports" },
+          { label: "Tindak Lanjut", href: "/ai/actions" },
           { label: "Paparan KKP", href: "/ai/paparan" },
-          { label: "Ask MARLIN", href: "/ai/ask" },
-          { label: "Riwayat & Audit", href: "/ai/history" },
+          { label: "Riwayat", href: "/ai/history" },
         ]}
       />
       {children}

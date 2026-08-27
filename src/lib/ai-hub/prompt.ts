@@ -62,6 +62,9 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
     "",
     "DAFTAR SUMBER (pakai id ini utk sourceRefIds):",
     ...refs,
+    ...((pulse.limitations?.length ?? 0) > 0
+      ? ["", "BATAS SNAPSHOT (WAJIB disebut bila relevan):", ...(pulse.limitations ?? []).map((x) => `- ${x}`)]
+      : []),
   ].join("\n");
 }
 
@@ -177,4 +180,3 @@ export const KIND_INSTRUCTION: Record<string, string> = {
   kualitas_data: promptDefault("hub.kind.kualitas_data"),
   tanya: promptDefault("hub.kind.tanya"),
 };
-

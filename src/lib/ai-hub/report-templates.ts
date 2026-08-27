@@ -39,7 +39,7 @@ const PAGAR_SUMBER = pagarSumber(
 const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "exec_portfolio",
-    label: "Executive Portfolio Brief",
+    label: "Ringkasan Eksekutif Portofolio",
     desc: "Ringkasan lintas lokasi untuk direksi: kondisi, prioritas, tindakan.",
     instruction:
       "Format untuk direksi: ringkas, tajam, mulai dari kesimpulan. Sertakan bagian per-lokasi hanya untuk lokasi bermasalah; lokasi stabil cukup satu kalimat kolektif.",
@@ -47,7 +47,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   },
   {
     key: "exec_lokasi",
-    label: "Executive Location Brief",
+    label: "Ringkasan Eksekutif per Lokasi",
     desc: "Brief mendalam satu/beberapa lokasi terpilih.",
     instruction:
       "Satu bagian per lokasi: kondisi jadwal, kepatuhan lapor, kendala, langkah minggu depan. Pisahkan masalah data vs masalah fisik.",
@@ -71,7 +71,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   },
   {
     key: "owner_brief",
-    label: "Owner / PPK Brief",
+    label: "Ringkasan untuk PPK",
     desc: "Brief formal berbasis bukti untuk pemberi kerja.",
     instruction:
       "Formal & berbasis bukti: setiap klaim merujuk data (laporan final, foto, milestone). Hindari spekulasi; tandai jelas hal yang perlu validasi.",
@@ -79,7 +79,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   },
   {
     key: "kendala_recovery",
-    label: "Kendala & Recovery",
+    label: "Kendala dan Pemulihan",
     desc: "Rekap kendala terbuka + status rencana pemulihan.",
     instruction:
       "Fokus kendala: daftar per lokasi dgn tingkat keparahan, status recovery, yang overdue, dan usulan eskalasi. Urutkan paling kritis dulu.",
@@ -97,7 +97,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   },
   {
     key: "wa_update",
-    label: "WhatsApp Update",
+    label: "Pembaruan WhatsApp",
     desc: "Narasi ringkas untuk pimpinan via WA – angka sama dgn laporan.",
     instruction:
       "Sangat ringkas (maks ~1200 karakter di waSummary): kondisi umum 1-2 kalimat, 3-5 poin lokasi prioritas, penutup tindakan. Tanpa markdown.",

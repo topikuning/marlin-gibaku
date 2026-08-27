@@ -195,7 +195,7 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
   return `<article class="ai-report">
 <header>
   <h1>${esc(r.title)}</h1>
-  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "–"} · status: <strong>${STATUS_LABEL[statusEfektif(c)]}</strong> · confidence AI ${r.confidence}%</p>
+  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "–"} · status: <strong>${STATUS_LABEL[statusEfektif(c)]}</strong> · cakupan bukti ${r.confidence}%</p>
 </header>
 <div class="summary"><strong>Ringkasan (Analisis AI)</strong><p>${esc(r.executiveSummary).replace(/\n/g, "<br/>")}</p></div>
 <h3>Angka Resmi MARLIN</h3>

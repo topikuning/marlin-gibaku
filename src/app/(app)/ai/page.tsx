@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Banner, KpiCard } from "@/components/ui";
+import Link from "next/link";
+import { Banner, Card, CardBody, CardHeader, KpiCard } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -9,7 +10,7 @@ import { buildPortfolioPulse, resolveAiScope } from "@/lib/ai-hub/source";
 import { jakartaToday } from "@/lib/format";
 import { PulseClient } from "./pulse-client";
 
-export const metadata: Metadata = { title: "AI Intelligence – Portfolio Pulse" };
+export const metadata: Metadata = { title: "Asisten Pengendalian – Ringkasan" };
 export const dynamic = "force-dynamic";
 
 function shiftKey(key: string, deltaDays: number): string {
@@ -57,6 +58,23 @@ export default async function AiPulsePage({
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader title="Mulai dari kebutuhan Anda" subtitle="Tidak perlu menghafal istilah atau mode analisis." />
+        <CardBody className="grid gap-2 text-sm md:grid-cols-3">
+          <Link href="/ai/ask" className="rounded-md border border-border p-3 hover:border-primary">
+            <span className="block font-medium text-ink">1. Ajukan pertanyaan</span>
+            <span className="text-ink-muted">Tulis dengan bahasa biasa dan lanjutkan percakapannya.</span>
+          </Link>
+          <span className="rounded-md border border-border p-3">
+            <span className="block font-medium text-ink">2. Periksa sumber</span>
+            <span className="text-ink-muted">Buka bukti di jawaban; bagian tanpa sumber dibuang otomatis.</span>
+          </span>
+          <Link href="/ai/reports" className="rounded-md border border-border p-3 hover:border-primary">
+            <span className="block font-medium text-ink">3. Jadikan keluaran kerja</span>
+            <span className="text-ink-muted">Susun draf, edit seluruh isi, review, bekukan, lalu kirim.</span>
+          </Link>
+        </CardBody>
+      </Card>
       {!guard.enabled ? (
         <Banner
           tone="warning"

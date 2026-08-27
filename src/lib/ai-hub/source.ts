@@ -29,7 +29,7 @@ const DAY_MS = 24 * 3600 * 1000;
  */
 async function dataWatermark(locIds: string[]): Promise<string | null> {
   if (locIds.length === 0) return null;
-  const [lastReport, lastActivity] = await Promise.all([
+  const [lastReport, lastActivity, lastIssue, lastRecovery, lastMilestone, lastPhoto] = await Promise.all([
     db.dailyReport.findFirst({
       where: { locationId: { in: locIds } },
       orderBy: { updatedAt: "desc" },
@@ -40,8 +40,35 @@ async function dataWatermark(locIds: string[]): Promise<string | null> {
       orderBy: { updatedAt: "desc" },
       select: { updatedAt: true },
     }),
+    db.issue.findFirst({
+      where: { locationId: { in: locIds }, mergedIntoId: null },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+    db.recoveryAction.findFirst({
+      where: { issue: { locationId: { in: locIds } } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+    db.adminMilestone.findFirst({
+      where: { locationId: { in: locIds } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+    db.photo.findFirst({
+      where: { locationId: { in: locIds } },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
   ]);
-  const times = [lastReport?.updatedAt, lastActivity?.updatedAt].filter((t): t is Date => t != null);
+  const times = [
+    lastReport?.updatedAt,
+    lastActivity?.updatedAt,
+    lastIssue?.updatedAt,
+    lastRecovery?.updatedAt,
+    lastMilestone?.updatedAt,
+    lastPhoto?.createdAt,
+  ].filter((t): t is Date => t != null);
   if (times.length === 0) return null;
   return new Date(Math.max(...times.map((t) => t.getTime()))).toISOString();
 }
@@ -99,6 +126,16 @@ export async function buildPortfolioPulse(
    * Penjepitan yang sama sudah dipakai `endMs` untuk laporan yang diharapkan.
    */
   const asOf = new Date(Math.min(end.getTime(), today.getTime()));
+  const asOfExclusive = new Date(asOf.getTime() + DAY_MS);
+  const historical = jakartaDateKey(asOf) < jakartaDateKey(today);
+  const limitations: string[] = [];
+  if (historical) {
+    limitations.push(
+      "Status recovery pada periode lampau direkonstruksi dari data saat ini karena riwayat perubahan status belum tersimpan lengkap.",
+      "Status milestone administrasi lampau tidak direkonstruksi; indikator milestone historis dikosongkan agar tidak mencampur kondisi saat ini.",
+      "Riwayat perubahan tingkat dan penggabungan kendala belum berversi; atribut tersebut memakai keadaan yang tersimpan saat analisis dijalankan.",
+    );
+  }
 
   if (locIds.length === 0) {
     return {
@@ -117,6 +154,7 @@ export async function buildPortfolioPulse(
       rows: [],
       risks: [],
       sourceRefs: [],
+      limitations,
     };
   }
 
@@ -139,18 +177,22 @@ export async function buildPortfolioPulse(
       getLocationsProgress(locIds, { asOf }),
       db.dailyReport.groupBy({
         by: ["locationId", "status"],
-        where: { locationId: { in: locIds }, reportDate: { gte: start, lte: end } },
+        where: { locationId: { in: locIds }, reportDate: { gte: start, lte: asOf } },
         _count: { _all: true },
       }),
       db.dailyReport.findMany({
-        where: { locationId: { in: locIds }, status: { in: [...COUNTED_REPORT_STATUSES] } },
+        where: {
+          locationId: { in: locIds },
+          status: { in: [...COUNTED_REPORT_STATUSES] },
+          reportDate: { lte: asOf },
+        },
         distinct: ["locationId"],
         orderBy: [{ locationId: "asc" }, { reportDate: "desc" }],
         select: { locationId: true, reportDate: true },
       }),
       db.fieldActivity.groupBy({
         by: ["locationId"],
-        where: { locationId: { in: locIds }, activityDate: { gte: start, lte: end } },
+        where: { locationId: { in: locIds }, activityDate: { gte: start, lte: asOf } },
         _count: { _all: true },
       }),
       db.$queryRaw<
@@ -166,7 +208,7 @@ export async function buildPortfolioPulse(
         FROM photos p
         LEFT JOIN daily_reports dr ON dr.id = p.report_id
         LEFT JOIN field_activities fa ON fa.id = p.activity_id
-        WHERE p.created_at >= ${start} AND p.created_at < ${new Date(end.getTime() + DAY_MS)}
+        WHERE p.created_at >= ${start} AND p.created_at < ${asOfExclusive}
           AND (dr.location_id = ANY(${locIds}::uuid[]) OR fa.location_id = ANY(${locIds}::uuid[]))
         GROUP BY 1
       `,
@@ -178,25 +220,33 @@ export async function buildPortfolioPulse(
                COUNT(*) FILTER (WHERE i.severity = 'kritis')::bigint AS critical,
                COUNT(*) FILTER (WHERE NOT EXISTS (
                  SELECT 1 FROM recovery_actions ra
-                 WHERE ra.issue_id = i.id AND ra.status IN ('direncanakan','berjalan','selesai')
+                 WHERE ra.issue_id = i.id
+                   AND ra.created_at < ${asOfExclusive}
+                   AND ra.status IN ('direncanakan','berjalan','selesai')
                ))::bigint AS no_recovery
         FROM issues i
-        WHERE i.location_id = ANY(${locIds}::uuid[]) AND i.status IN ('terbuka','ditangani')
+        WHERE i.location_id = ANY(${locIds}::uuid[])
+          AND i.created_at < ${asOfExclusive}
+          AND i.merged_into_id IS NULL
+          AND (i.closed_at IS NULL OR i.closed_at >= ${asOfExclusive})
         GROUP BY 1
       `,
       db.recoveryAction.findMany({
         where: {
           status: { in: ["direncanakan", "berjalan"] },
-          dueDate: { lt: today },
+          createdAt: { lt: asOfExclusive },
+          dueDate: { lt: asOf },
           issue: { locationId: { in: locIds } },
         },
         select: { issue: { select: { locationId: true } } },
       }),
-      db.adminMilestone.groupBy({
-        by: ["locationId"],
-        where: { locationId: { in: locIds }, status: "perlu_perbaikan" },
-        _count: { _all: true },
-      }),
+      historical
+        ? Promise.resolve([])
+        : db.adminMilestone.groupBy({
+            by: ["locationId"],
+            where: { locationId: { in: locIds }, status: "perlu_perbaikan" },
+            _count: { _all: true },
+          }),
     ]);
 
   const reportsByLoc = new Map<string, Record<string, number>>();
@@ -256,7 +306,7 @@ export async function buildPortfolioPulse(
       draftReports: rep.draft ?? 0,
       needFixReports: rep.perlu_koreksi ?? 0,
       daysSinceLastReport: lastReport
-        ? Math.max(0, Math.floor((today.getTime() - lastReport.getTime()) / DAY_MS))
+        ? Math.max(0, Math.floor((asOf.getTime() - lastReport.getTime()) / DAY_MS))
         : null,
       activityCount: actsByLoc.get(l.id) ?? 0,
       photoCount: Number(photos?.total ?? 0n),
@@ -351,6 +401,7 @@ export async function buildPortfolioPulse(
     rows: ordered,
     risks: risks.sort((a, b) => b.ruleScore - a.ruleScore),
     sourceRefs,
+    limitations,
   };
 }
 

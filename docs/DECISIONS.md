@@ -23299,3 +23299,55 @@ difinalkan.
 kontrak diganti menghasilkan nomor minggu dan periode yang berbeda dari salinan
 yang terlanjur dikirim. Itu memang yang diminta: satu kalender untuk seluruh
 proyek, bukan campuran dua kalender di dokumen yang berdampingan.
+
+---
+
+## 452 · Asisten Pengendalian: percakapan, bukti, artefak penuh, dan WA luwes (2026-08-27)
+
+User menyatakan keluaran AI saat ini tidak dapat dipakai, cara penggunaannya
+membingungkan, dan AI WhatsApp terlalu kaku. Audit menemukan empat sebab yang
+bukan masalah model semata: chat web tidak mengirim riwayat ke run, hasil Ask
+hilang ketika dijadikan laporan, editor artefak hanya mengubah dua ringkasan,
+dan WA berhenti pada sembilan intent tertutup.
+
+**Keputusan.** AI diperlakukan sebagai satu alur kerja: **tanya → periksa bukti
+→ jadikan laporan → edit seluruh isi → review → bekukan → kirim**. Navigasi dan
+istilah UI mengikuti tugas pengguna, bukan nama fitur/model.
+
+**Percakapan.** Web mengirim delapan pesan terakhir ke run. WA menyimpan delapan
+giliran per chat + pengirim selama 30 menit. Pesan terbaru selalu menang;
+riwayat hanya melengkapi yang dihilangkan dan tidak pernah menentukan scope.
+Scope dihitung ulang dari izin/paket grup pada setiap pertanyaan. Perintah
+“abaikan/lupakan” tetap menghapus konteks.
+
+**WA luwes dengan dua jalur.** Pertanyaan rutin tetap memakai parser dan
+calculation layer deterministik. Bila pertanyaan tidak cocok intent lama,
+MARLIN melakukan panggilan kedua yang menyusun jawaban dari snapshot resmi dan
+potongan catatan lapangan. Setiap panggilan dijaga kuota dan dicatat sebagai
+run tersendiri. Pada chat pribadi, adapter kontrak/RAB/keuangan/milestone/temuan
+ikut sesuai kapabilitas pengguna; di grup adapter berkapabilitas itu tidak
+pernah disuntikkan karena balasannya terlihat semua anggota. Ini sengaja
+melonggarkan bahasa, bukan sumber kebenaran atau batas akses.
+
+**Grounding semantik.** Setiap bagian jawaban, bagian laporan, dan rekomendasi
+wajib membawa `sourceRefIds`, klaim angka terikat, atau kutipan verbatim yang
+sah. Bagian tanpa bukti atau dengan rujukan asing dibuang. Angka `confidence`
+dari model ditimpa menjadi **cakupan bukti** yang dihitung validator; ia tidak
+lagi dipresentasikan sebagai rasa yakin AI.
+
+**Artefak.** Jembatan Ask/run ke laporan membawa konteks asal, sedangkan semua
+angka dihitung ulang dari sumber resmi. Reviewer dapat mengedit judul,
+ringkasan, seluruh bagian, rekomendasi, dan ringkasan WA. Sitasi AI dikosongkan
+pada teks yang diedit manusia agar kalimat baru tidak terlihat seolah telah
+diverifikasi model; edit tetap masuk audit. Artefak beku tetap immutable.
+
+**Snapshot historis.** Laporan, kegiatan, foto, kendala, dan umur laporan
+dibatasi ke `asOf`. Status milestone lampau sengaja dikosongkan karena model
+datanya belum punya histori status; status recovery lampau diberi limitation
+eksplisit. Kondisi hari ini tidak boleh diam-diam dicampur ke laporan masa lalu.
+
+**Deploy tanpa pekerjaan operator.** Migrasi konteks WA ikut folder migration
+yang dibawa Docker image dan otomatis diterapkan oleh Railway melalui
+`preDeployCommand` → `scripts/migrate-deploy.mjs` sebelum server baru hidup.
+Tidak ada langkah konfigurasi atau perintah migrasi yang harus dijalankan user.
+Kontrak ini dijaga uji unit terhadap `railway.json` dan `Dockerfile`.

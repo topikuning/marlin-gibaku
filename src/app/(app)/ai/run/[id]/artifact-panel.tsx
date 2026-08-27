@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai-hub/actions";
 import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecycle";
 import type { AiArtifactStatus } from "@/generated/prisma/enums";
+import type { ReportOutput } from "@/lib/ai-hub/schemas";
 
 type ArtifactView = {
   id: string;
@@ -22,6 +23,7 @@ type ArtifactView = {
   frozen: boolean;
   executiveSummary: string;
   waSummary: string;
+  report: ReportOutput | null;
   renderedText: string | null;
   distributions: { at: string; target: string }[];
 };
@@ -91,6 +93,12 @@ function ArtifactCard({
   canSend: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const [sections, setSections] = useState(() =>
+    (a.report?.sections ?? []).map((section, originalIndex) => ({ ...section, originalIndex })),
+  );
+  const [recommendations, setRecommendations] = useState(() =>
+    (a.report?.recommendations ?? []).map((recommendation, originalIndex) => ({ ...recommendation, originalIndex })),
+  );
   const [editState, editFormAction, editPending] = useActionState<AiHubState, FormData>(editArtifactAction, undefined);
   const [distState, distFormAction, distPending] = useActionState<AiHubState, FormData>(distributeArtifactAction, undefined);
 
@@ -138,6 +146,17 @@ function ArtifactCard({
         {editing && editable ? (
           <form action={editFormAction} className="space-y-2">
             <input type="hidden" name="artifactId" value={a.id} />
+            <input type="hidden" name="sectionCount" value={sections.length} />
+            <input type="hidden" name="recommendationCount" value={recommendations.length} />
+            <label className="block text-xs font-medium text-ink-muted" htmlFor={`title-${a.id}`}>
+              Judul laporan
+            </label>
+            <input
+              id={`title-${a.id}`}
+              name="title"
+              defaultValue={a.report?.title ?? a.title}
+              className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm"
+            />
             <label className="block text-xs font-medium text-ink-muted" htmlFor={`sum-${a.id}`}>
               Ringkasan eksekutif (editan manusia tercatat)
             </label>
@@ -158,6 +177,102 @@ function ArtifactCard({
               rows={4}
               className="w-full rounded-md border border-border bg-surface p-2 text-sm"
             />
+            <div className="space-y-2 border-t border-border-muted pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-ink">Bagian laporan</p>
+                {sections.length < 12 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setSections((current) => [
+                        ...current,
+                        { heading: "Bagian baru", body: "", locationId: null, sourceRefIds: [], originalIndex: -1 },
+                      ])
+                    }
+                  >
+                    Tambah bagian
+                  </Button>
+                ) : null}
+              </div>
+              {sections.map((section, index) => (
+                <div key={`${section.originalIndex}-${index}`} className="space-y-2 rounded-md border border-border-muted p-3">
+                  <input type="hidden" name={`sectionOriginalIndex:${index}`} value={section.originalIndex} />
+                  <input
+                    name={`sectionHeading:${index}`}
+                    value={section.heading}
+                    onChange={(event) =>
+                      setSections((current) => current.map((item, i) => (i === index ? { ...item, heading: event.target.value } : item)))
+                    }
+                    aria-label={`Judul bagian ${index + 1}`}
+                    className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm font-medium"
+                  />
+                  <textarea
+                    name={`sectionBody:${index}`}
+                    value={section.body}
+                    onChange={(event) =>
+                      setSections((current) => current.map((item, i) => (i === index ? { ...item, body: event.target.value } : item)))
+                    }
+                    aria-label={`Isi bagian ${index + 1}`}
+                    rows={5}
+                    className="w-full rounded-md border border-border bg-surface p-2 text-sm"
+                  />
+                  {sections.length > 1 ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setSections((current) => current.filter((_, i) => i !== index))}>
+                      Hapus bagian
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 border-t border-border-muted pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-ink">Rekomendasi</p>
+                {recommendations.length < 10 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setRecommendations((current) => [
+                        ...current,
+                        { title: "Rekomendasi baru", reason: "", locationId: null, sourceRefIds: [], originalIndex: -1 },
+                      ])
+                    }
+                  >
+                    Tambah rekomendasi
+                  </Button>
+                ) : null}
+              </div>
+              {recommendations.map((recommendation, index) => (
+                <div key={`${recommendation.originalIndex}-${index}`} className="space-y-2 rounded-md border border-border-muted p-3">
+                  <input type="hidden" name={`recommendationOriginalIndex:${index}`} value={recommendation.originalIndex} />
+                  <input
+                    name={`recommendationTitle:${index}`}
+                    value={recommendation.title}
+                    onChange={(event) =>
+                      setRecommendations((current) => current.map((item, i) => (i === index ? { ...item, title: event.target.value } : item)))
+                    }
+                    aria-label={`Judul rekomendasi ${index + 1}`}
+                    className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm font-medium"
+                  />
+                  <textarea
+                    name={`recommendationReason:${index}`}
+                    value={recommendation.reason}
+                    onChange={(event) =>
+                      setRecommendations((current) => current.map((item, i) => (i === index ? { ...item, reason: event.target.value } : item)))
+                    }
+                    aria-label={`Alasan rekomendasi ${index + 1}`}
+                    rows={3}
+                    className="w-full rounded-md border border-border bg-surface p-2 text-sm"
+                  />
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setRecommendations((current) => current.filter((_, i) => i !== index))}>
+                    Hapus rekomendasi
+                  </Button>
+                </div>
+              ))}
+            </div>
             <input name="note" placeholder="Catatan edit (opsional)" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm" />
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={editPending}>
@@ -169,7 +284,27 @@ function ArtifactCard({
             </div>
           </form>
         ) : (
-          <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p>
+          <div className="space-y-3">
+            <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p>
+            {a.report?.sections.map((section, index) => (
+              <section key={index} className="rounded-md border border-border-muted p-3">
+                <h4 className="font-medium text-ink">{section.heading}</h4>
+                <p className="mt-1 whitespace-pre-wrap text-ink-muted">{section.body}</p>
+              </section>
+            ))}
+            {a.report?.recommendations.length ? (
+              <div>
+                <p className="font-medium text-ink">Rekomendasi</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-ink-muted">
+                  {a.report.recommendations.map((recommendation, index) => (
+                    <li key={index}>
+                      <span className="font-medium text-ink">{recommendation.title}:</span> {recommendation.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
@@ -188,7 +323,7 @@ function ArtifactCard({
         <div className="flex flex-wrap items-center gap-2">
           {editable && !editing ? (
             <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(true)}>
-              Edit ringkasan
+              Edit seluruh laporan
             </Button>
           ) : null}
           {a.status === "draft" && canReview ? (
