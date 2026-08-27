@@ -23253,3 +23253,49 @@ kendala, keputusan "perlu berkas atau tidak" tidak lagi boleh menghitung baris:
 teks panjang – persis yang DECISIONS 448 hindari. Yang dihitung sekarang butir
 datanya. Keterangan berkasnya pun menyebut "12 rincian di 1 baris", bukan
 "1 baris" yang akan terbaca sebagai satu kendala.
+
+---
+
+## 451 · Sampul laporan harian mengikuti mode minggu kontrak, juga saat final (2026-08-27)
+
+Laporan user: *"sampul di laporan harian, masih tidak menyesuaikan periode
+mingguan"*.
+
+**Yang sebenarnya terjadi.** Pratinjau SUDAH benar sejak DECISIONS 427 — ia
+menghitung "MINGGU KE-n" dan PERIODE dari mode minggu kontrak. Yang tidak ikut
+adalah cabang FINAL `getKkpDailyData`:
+
+- nomor mingguNya dibaca dari `snapshot.weekNo` (beku), dan
+- rentangnya dari `snapshot.periodStartKey/EndKey`; kalau snapshot belum
+  membekukan rentang, diturunkan dengan `tujuh_hari` yang **ditulis mati**
+  (DECISIONS 430).
+
+Karena laporan lapangan yang sungguhan hampir semuanya sudah final — dan
+snapshot lama sudah di-backfill dengan rentang 7-hari — sampulnya memang tidak
+pernah ikut berubah saat mode kontrak diganti. Dari kursi user: "tidak
+menyesuaikan".
+
+**Keputusan.** Nomor minggu dan rentang periode pada dokumen harian dihitung
+dari mode kontrak YANG BERLAKU, termasuk untuk laporan final.
+
+**Kenapa ini tidak melanggar keimutabelan snapshot.** Keduanya bukan angka
+pengukuran, melainkan hitungan kalender murni dari (tanggal SPMK, tanggal
+laporan, mode minggu) — sekelas kategori RAB, foto, kop, dan logo yang memang
+sudah lama diambil dari data hidup di berkas yang sama. Volume, bobot,
+realisasi, dan deviasi tetap dari snapshot dan tidak tersentuh sama sekali.
+
+**Kekhawatiran DECISIONS 430 tetap dijaga, bukan diabaikan.** Ia benar bahwa
+nomor BEKU + rentang mode BARU bisa menghasilkan periode yang tidak memuat
+tanggal laporannya sendiri. Masalah itu hilang justru karena keduanya kini
+dihitung ulang BERSAMA dengan mode yang sama. Ujinya diubah dari "harus jatuh
+ke 7-hari" menjadi invarian yang sesungguhnya: **periode yang tercetak wajib
+memuat tanggal laporannya**.
+
+`snapshot.periodStartKey/EndKey` dan `weekNo` TIDAK dihapus, dan backfill-nya
+tidak dicabut: keduanya tetap catatan kalender yang berlaku saat dokumen
+difinalkan.
+
+**Konsekuensi yang disengaja.** Mencetak ulang laporan lama sesudah mode
+kontrak diganti menghasilkan nomor minggu dan periode yang berbeda dari salinan
+yang terlanjur dikirim. Itu memang yang diminta: satu kalender untuk seluruh
+proyek, bukan campuran dua kalender di dokumen yang berdampingan.

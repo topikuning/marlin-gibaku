@@ -863,23 +863,37 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ...owner,
       rencana,
       ...lampiran,
-      // Nomor minggu yang DIBEKUKAN snapshot, bukan hitungan ulang — supaya
-      // sampul menyebut minggu yang sama dengan blanko di halaman berikutnya.
-      // Rentang tanggalnya juga dari snapshot bila ada (DECISIONS 427c):
-      // mode periode minggu bisa diganti di tengah kontrak, dan nomor beku +
-      // rentang hasil mode BARU bisa tidak memuat tanggal laporannya sendiri.
-      // Snapshot lama (tanpa kolom ini) diturunkan dengan mode `tujuh_hari`,
-      // BUKAN mode berjalan (DECISIONS 430): sebelum 427c nomor minggunya
-      // dihitung dengan rumus 7-hari yang ditulis langsung, apa pun mode
-      // kontraknya — jadi hanya rentang 7-hari yang memuat tanggal laporannya.
-      // Memakai mode berjalan di sini membuat blanko lama menyebut periode yang
-      // tidak memuat tanggalnya sendiri begitu mode kontrak berubah.
-      ...(snap.periodStartKey && snap.periodEndKey
-        ? {
-            periodStart: tanggalFullFmt.format(new Date(`${snap.periodStartKey}T00:00:00.000Z`)),
-            periodEnd: tanggalFullFmt.format(new Date(`${snap.periodEndKey}T00:00:00.000Z`)),
-          }
-        : periode(base.weekNo, "tujuh_hari")),
+      /*
+       * MINGGU KE-n & PERIODE mengikuti MODE MINGGU KONTRAK YANG BERLAKU —
+       * juga untuk laporan yang sudah final (DECISIONS 451, membalik 430).
+       *
+       * Laporan user 2026-08-27: *"sampul di laporan harian, masih tidak
+       * menyesuaikan periode mingguan"*. Memang: pratinjau sudah mengikuti mode
+       * kontrak, tetapi cabang final ini membaca nomor beku snapshot dan —
+       * untuk snapshot lama yang tidak pernah membekukan rentang — menurunkan
+       * rentangnya dengan `tujuh_hari` yang ditulis mati. Karena laporan
+       * lapangan yang sungguhan hampir semuanya SUDAH final, sampulnya tidak
+       * pernah ikut berubah saat mode kontrak diganti.
+       *
+       * Kenapa ini tidak melanggar keimutabelan snapshot: nomor minggu dan
+       * rentangnya bukan angka pengukuran, melainkan HITUNGAN KALENDER murni
+       * dari (tanggal SPMK, tanggal laporan, mode minggu) — sekelas kategori
+       * RAB dan foto yang memang sudah diambil dari data hidup di berkas ini.
+       * Volume, bobot, dan realisasi tetap dari snapshot dan tidak tersentuh.
+       *
+       * Kekhawatiran DECISIONS 430 — "nomor beku + rentang mode baru bisa tidak
+       * memuat tanggal laporannya sendiri" — hilang justru karena KEDUANYA kini
+       * dihitung ulang bersama, dengan mode yang sama. Kolom `periodStartKey`
+       * di snapshot TIDAK dihapus: ia tetap menjadi catatan kalender yang
+       * berlaku saat dokumen difinalkan.
+       *
+       * Konsekuensi yang disengaja: mencetak ulang laporan lama setelah mode
+       * kontrak diganti menghasilkan nomor minggu & periode yang berbeda dari
+       * salinan yang terlanjur dikirim. Itu memang yang diminta — satu kalender
+       * untuk seluruh proyek, bukan campuran dua kalender.
+       */
+      weekNo,
+      ...periode(weekNo),
     };
   }
 
