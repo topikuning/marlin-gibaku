@@ -2116,9 +2116,11 @@ describe("daftar panjang dikirim sebagai PDF", () => {
     expect(b.nama).toMatch(/^marlin-kendala-belum-selesai-\d{4}-\d{2}-\d{2}\.pdf$/);
     expect(b.bytes).toBeGreaterThan(1000);
 
-    // Keterangannya berdiri sendiri: judul + jumlah baris, tanpa membuka berkas.
+    // Keterangannya berdiri sendiri: judul + jumlah, tanpa membuka berkas.
+    // 12 kendala di SATU lokasi = 1 baris tabel (DECISIONS 450), jadi yang
+    // disebut rinciannya — "1 baris" akan terbaca sebagai "cuma 1 kendala".
     expect(b.caption).toContain("Kendala belum selesai");
-    expect(b.caption).toContain("12 baris");
+    expect(b.caption).toContain("12 rincian di 1 baris");
 
     // Dan TIDAK ada gelembung daftar panjang yang ikut terkirim.
     expect(terkirim).toHaveLength(0);

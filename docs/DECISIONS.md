@@ -23202,3 +23202,54 @@ deviasi minus merah dan plus hijau; "belum ada laporan" oranye. Bukan palet
 kedua yang harus ikut diperbaiki tiap kali tone layar berubah. Latar lembut
 hanya untuk nada yang bukan netral – kalau semua sel berlatar, tidak ada yang
 menonjol.
+
+---
+
+## 450 · Register kendala: satu baris per lokasi, kembar dibuang (2026-08-27)
+
+Keberatan user atas dokumen yang BENAR-BENAR terkirim: *"duplikasi terjadi
+berkali-kali, kamu seharusnya membuang duplikat. lalu memfilter jika masalah
+mirip dimunculkan satu, jika ada beberapa masalah dalam satu lokasi pun,
+seharusnya kamu bukan menjadi 2 baris, tapi dalam 2 baris itu kendalanya ada
+beberapa"*.
+
+Yang ia lihat memang begitu: Betahwalang dua baris dengan kalimat PERSIS sama;
+Junganyar tiga baris untuk dua persoalan; "Pekerjaan tertahan menunggu lahan /
+izin" berdiri sendiri di sebelah kalimat yang memuatnya utuh. Daftar begitu
+tidak bisa dipakai menagih siapa pun.
+
+**Keputusan.** Register kendala = **satu baris per LOKASI**. Kolom Kendala
+memuat semua kendala lokasi itu, bernomor bila lebih dari satu.
+Tingkat/status/umur menampilkan yang PALING MENUNTUT di lokasi itu – tingkat
+tertinggi, status paling belum tertangani, umur terlama. Rata-rata tidak
+menentukan apa-apa; yang menentukan urutan kerja adalah yang terburuk.
+
+**Yang digabung, dan HANYA itu.** Dua aturan, keduanya bisa diperiksa ulang
+manusia:
+
+1. kalimat yang SAMA setelah huruf besar/kecil, tanda baca, dan spasi
+   diseragamkan;
+2. kalimat yang seluruhnya TERMUAT sebagai rangkaian kata di kalimat lain yang
+   lebih panjang – yang lebih lengkap dipakai.
+
+Aturan kedua dipagari dua kali: dicocokkan per KATA (tanpa itu "izin" tertelan
+kata mana pun yang memuat hurufnya), dan minimal TIGA kata (kalimat sependek
+"Lainnya" atau "Sosialisasi" terlalu umum untuk dianggap bagian dari kalimat
+lain). Kalimat yang sekadar MIRIP tidak digabung: yang hilang dari daftar
+tagihan adalah pekerjaan yang tidak ditagih, dan itu jauh lebih mahal daripada
+satu baris kembar yang terlihat.
+
+**Tidak pernah diam-diam.** Jumlah baris yang digabung disebut di dokumen dan
+di balasan teks ("N baris kendala kembar digabung – …"). Daftar yang dipadatkan
+tanpa mengaku terlihat lebih pendek dari kenyataannya.
+
+**Satu peringkas untuk dua wadah.** `ringkasKendalaPerLokasi()` dipakai balasan
+teks WhatsApp DAN tabel PDF. Dua daftar yang mengaku isi yang sama tidak boleh
+berbeda jumlah barisnya tergantung wadahnya.
+
+**`jumlahIsi` pada `TabelWa`.** Karena satu baris kini bisa memuat beberapa
+kendala, keputusan "perlu berkas atau tidak" tidak lagi boleh menghitung baris:
+12 kendala di satu lokasi hanya satu baris, dan akan terkirim sebagai gelembung
+teks panjang – persis yang DECISIONS 448 hindari. Yang dihitung sekarang butir
+datanya. Keterangan berkasnya pun menyebut "12 rincian di 1 baris", bukan
+"1 baris" yang akan terbaca sebagai satu kendala.

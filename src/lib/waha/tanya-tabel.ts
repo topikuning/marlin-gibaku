@@ -9,6 +9,7 @@ import type {
 } from "./tanya-format";
 import type { LokasiKatalog } from "./tanya-niat";
 import { ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
+import { catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
 
 /**
  * Balasan WhatsApp berdata → BENTUK TABEL, untuk dicetak jadi PDF
@@ -77,6 +78,16 @@ export type TabelWa = {
   kolom: KolomTabel[];
   baris: SelTabel[][];
   /**
+   * Berapa BUTIR data yang diwakili tabel ini – biasanya sama dengan jumlah
+   * baris, tetapi tidak untuk register kendala: di sana satu baris (satu
+   * lokasi) bisa memuat beberapa kendala (DECISIONS 450).
+   *
+   * Dipakai memutuskan "perlu berkas atau tidak". Menghitung baris saja akan
+   * mengirim 12 kendala di satu lokasi sebagai gelembung teks panjang, karena
+   * barisnya cuma satu.
+   */
+  jumlahIsi: number;
+  /**
    * Pengakuan bahwa jawabannya sebagian (pemotongan baris, pemotongan lingkup,
    * periode yang digeser). WAJIB ikut tercetak – lihat `tanya-format.ts`:
    * jawaban sebagian yang tidak mengaku sebagian akan diteruskan apa adanya
@@ -102,9 +113,9 @@ export const AMBANG_BARIS_PDF = 10;
  *  - teksnya tidak muat satu pesan WhatsApp, jadi ia akan dipecah menjadi
  *    beberapa gelembung yang urutannya harus dirakit sendiri oleh pembaca.
  */
-export function perluPdf(jumlahBagianPesan: number, jumlahBaris: number): boolean {
-  if (jumlahBaris === 0) return false;
-  return jumlahBaris >= AMBANG_BARIS_PDF || jumlahBagianPesan > 1;
+export function perluPdf(jumlahBagianPesan: number, jumlahIsi: number): boolean {
+  if (jumlahIsi === 0) return false;
+  return jumlahIsi >= AMBANG_BARIS_PDF || jumlahBagianPesan > 1;
 }
 
 /** Keterangan tetap per nama lokasi – kolom pembuka setiap tabel. */
@@ -196,6 +207,8 @@ export type OpsiTabel = {
    */
   peringkat?: boolean;
   catatanBatas?: string | null;
+  /** Pengakuan bahwa baris kembar sudah digabung (DECISIONS 450). */
+  catatanGabung?: string | null;
   catatanPeriode?: string | null;
   catatanPemotongan?: string | null;
   penandaLingkup?: string | null;
@@ -207,13 +220,21 @@ function rakit(
   kolom: KolomTabel[],
   baris: SelTabel[][],
   o: OpsiTabel,
+  jumlahIsi: number = baris.length,
 ): TabelWa {
   return {
     judul,
     subjudul,
     kolom,
     baris,
-    catatan: catatan(o.penandaLingkup, o.catatanPeriode, o.catatanBatas, o.catatanPemotongan),
+    jumlahIsi,
+    catatan: catatan(
+      o.penandaLingkup,
+      o.catatanPeriode,
+      o.catatanBatas,
+      o.catatanGabung,
+      o.catatanPemotongan,
+    ),
   };
 }
 
@@ -221,11 +242,24 @@ function rakit(
 /* Per niat                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Register kendala – SATU BARIS PER LOKASI (DECISIONS 450).
+ *
+ * Keberatan user 2026-08-27 atas dokumen yang benar-benar terkirim: satu lokasi
+ * bisa memakan tiga baris untuk dua persoalan, dan kalimat yang persis sama
+ * muncul dua kali. Peringkasannya dipakai bersama balasan teks
+ * (`ringkasKendalaPerLokasi`), jadi jumlah baris keduanya tidak bisa berbeda.
+ *
+ * Kolom tingkat/status/umur menampilkan yang PALING MENUNTUT di lokasi itu –
+ * tingkat tertinggi, status paling belum tertangani, umur terlama. Itu yang
+ * menentukan urutan kerja; rata-rata tidak menentukan apa-apa.
+ */
 export function tabelKendala(
   r: { judul: string; tanggal: string; baris: BarisKendala[] },
   peta: PetaLokasi,
   o: OpsiTabel = {},
 ): TabelWa {
+  const { baris: perLokasi, digabung } = ringkasKendalaPerLokasi(r.baris);
   return rakit(
     r.judul,
     r.tanggal,
@@ -236,7 +270,7 @@ export function tabelKendala(
       { label: "Umur", bobot: 6, align: "center" },
       { label: "Kendala", bobot: 38 },
     ],
-    urut(r.baris, peta, o).map((b, i) => [
+    urut(perLokasi, peta, o).map((b, i) => [
       ...awal(i + 1, b.lokasi, peta),
       {
         teks: b.tingkat,
@@ -247,9 +281,18 @@ export function tabelKendala(
       },
       { teks: b.status, align: "center", nada: nadaStatusKendala(b.status) },
       { teks: `${b.umurHari} hari`, align: "center" },
-      { teks: b.judul },
+      // Beberapa kendala dalam satu sel, bernomor supaya jumlahnya terbaca
+      // sekali lihat. Satu kendala tidak diberi nomor – "1." untuk satu-satunya
+      // baris hanya menambah derau.
+      {
+        teks:
+          b.kendala.length === 1
+            ? b.kendala[0]
+            : b.kendala.map((k, n) => `${n + 1}. ${k}`).join("\n"),
+      },
     ]),
-    o,
+    { ...o, catatanGabung: catatanGabung(digabung) },
+    perLokasi.reduce((n, l) => n + l.kendala.length, 0),
   );
 }
 
@@ -426,7 +469,13 @@ export function namaBerkasTabel(t: TabelWa, dateKey: string): string {
 export function keteranganBerkas(t: TabelWa): string {
   const b = [`*${t.judul}*`];
   if (t.subjudul) b.push(`_${t.subjudul}_`);
-  b.push("", `${t.baris.length} baris – selengkapnya di berkas terlampir.`);
+  // Register kendala memampatkan beberapa kendala ke satu baris; menyebut
+  // barisnya saja akan terbaca "cuma 1 kendala" untuk 12 kendala di satu lokasi.
+  const ringkas =
+    t.jumlahIsi > t.baris.length
+      ? `${t.jumlahIsi} rincian di ${t.baris.length} baris`
+      : `${t.baris.length} baris`;
+  b.push("", `${ringkas} – selengkapnya di berkas terlampir.`);
   if (t.catatan.length > 0) b.push("", ...t.catatan);
   return b.join("\n");
 }
