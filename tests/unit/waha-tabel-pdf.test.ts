@@ -54,18 +54,18 @@ const kendala = (n: number) => ({
 });
 
 describe("perluPdf", () => {
-  it("banyak baris → berkas", () => {
+  it("banyak rincian → berkas", () => {
     expect(perluPdf(1, AMBANG_BARIS_PDF)).toBe(true);
     expect(perluPdf(1, AMBANG_BARIS_PDF - 1)).toBe(false);
   });
 
-  it("teks yang tidak muat satu pesan → berkas, walau barisnya sedikit", () => {
+  it("teks yang tidak muat satu pesan → berkas, walau rinciannya sedikit", () => {
     // Beberapa gelembung yang urutannya harus dirakit sendiri oleh pembaca
     // adalah persis keadaan yang berkas ini gantikan.
     expect(perluPdf(2, 3)).toBe(true);
   });
 
-  it("tidak ada baris → TIDAK PERNAH berkas", () => {
+  it("tidak ada rincian → TIDAK PERNAH berkas", () => {
     // "Tidak ada yang cocok" sebagai lampiran PDF adalah lelucon yang mahal.
     expect(perluPdf(5, 0)).toBe(false);
   });
@@ -139,14 +139,18 @@ describe("tabelKendala", () => {
     expect(x.baris.map((r) => r[2].teks)).toEqual(["Kedungmutih", "Tengket"]);
   });
 
-  it("jumlah barisnya sama dengan balasan teks – tidak ada yang hilang/ditambah", () => {
+  it("satu baris per LOKASI, dan tidak satu pun kendala hilang dari selnya", () => {
+    // Register lama memakai satu baris per kendala, jadi satu lokasi bisa
+    // memakan tiga baris untuk dua persoalan (keberatan user 2026-08-27).
     const baris = Array.from({ length: 7 }, (_, i) => kendala(i + 1));
     const teks = balasKendala({ tanggal: "hari ini", baris, lokasiDiperiksa: 2, judul: "Kendala" });
     const tabel = tabelKendala({ judul: "Kendala", tanggal: "hari ini", baris }, peta);
-    expect(tabel.baris).toHaveLength(baris.length);
-    for (const b of baris) expect(teks).toContain(b.judul);
+    // 7 kendala di 2 lokasi → 2 baris.
+    expect(tabel.baris).toHaveLength(2);
+    const semuaSel = tabel.baris.flat().map((s) => s.teks).join("\n");
     for (const b of baris) {
-      expect(tabel.baris.some((r) => r.some((s) => s.teks === b.judul))).toBe(true);
+      expect(teks).toContain(b.judul);
+      expect(semuaSel).toContain(b.judul);
     }
   });
 });
@@ -192,6 +196,25 @@ describe("catatan & pengantar berkas", () => {
     expect(k).toContain("26 Agustus 2026");
     expect(k).toContain("1 baris");
     expect(k).toContain("Ditampilkan 15 dari 40 kendala.");
+  });
+
+  it("kendala yang dipadatkan menyebut RINCIANNYA, bukan cuma jumlah baris", () => {
+    // 3 kendala di satu lokasi = 1 baris; "1 baris" akan terbaca "1 kendala".
+    const t = tabelKendala(
+      {
+        judul: "Kendala",
+        tanggal: "hari ini",
+        baris: [
+          { ...kendala(1), lokasi: "Tengket", judul: "Menunggu lahan" },
+          { ...kendala(2), lokasi: "Tengket", judul: "Akses jalan sempit" },
+          { ...kendala(3), lokasi: "Tengket", judul: "Sosialisasi warga" },
+        ],
+      },
+      peta,
+    );
+    expect(t.baris).toHaveLength(1);
+    expect(t.jumlahIsi).toBe(3);
+    expect(keteranganBerkas(t)).toContain("3 rincian di 1 baris");
   });
 
   it("nama berkas terbaca manusia dan menyebut tanggalnya", () => {

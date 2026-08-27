@@ -1089,7 +1089,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * balasan sama sekali — dan kegagalannya tercatat, tidak ditelan.
    */
   let lewatPdf = false;
-  if (tabel && perluPdf(bagian.length, tabel.baris.length)) {
+  if (tabel && perluPdf(bagian.length, tabel.jumlahIsi)) {
     try {
       const { buildTabelWaPdf } = await import("@/lib/pdf/wa-tabel");
       const pdf = await buildTabelWaPdf(tabel, { untuk: user?.fullName ?? null });

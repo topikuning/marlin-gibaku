@@ -1,4 +1,5 @@
 import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tanya-niat";
+import { catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
 
 /**
  * Perakit BALASAN WhatsApp — MURNI, dari angka yang SUDAH dihitung
@@ -48,6 +49,11 @@ export type OpsiKaki = {
   catatanPeriode?: string | null;
   /** Pemotongan JUMLAH baris ("ditampilkan 15 dari 40"). */
   catatanBatas?: string | null;
+  /**
+   * Pengakuan bahwa baris kembar sudah digabung (DECISIONS 450). Daftar yang
+   * dipadatkan diam-diam terlihat lebih pendek dari kenyataannya.
+   */
+  catatanGabung?: string | null;
   resolusi?: HasilResolusi | null;
 };
 
@@ -72,6 +78,7 @@ function kaki(opts: OpsiKaki): string {
   }
   if (opts.catatanPeriode) b.push(`ℹ️ ${opts.catatanPeriode}`);
   if (opts.catatanBatas) b.push(`ℹ️ ${opts.catatanBatas}`);
+  if (opts.catatanGabung) b.push(`ℹ️ ${opts.catatanGabung}`);
   if (opts.catatanPemotongan) b.push(`ℹ️ ${opts.catatanPemotongan}`);
   return b.length > 0 ? `\n\n${b.join("\n")}` : "";
 }
@@ -177,24 +184,24 @@ export function balasKendala(
       kaki(opts)
     );
   }
-  // Dikelompokkan per lokasi supaya terbaca sebagai daftar kerja, bukan aliran.
-  const perLokasi = new Map<string, BarisKendala[]>();
-  for (const b of r.baris) {
-    const k = perLokasi.get(b.lokasi) ?? [];
-    k.push(b);
-    perLokasi.set(b.lokasi, k);
-  }
-  const isi = [...perLokasi.entries()].map(([lokasi, baris]) => {
-    const item = baris.map(
-      (b) => `  • ${b.judul} _(${b.tingkat}, ${b.status}, ${b.umurHari} hari)_`,
-    );
-    return [`*${lokasi}*`, ...item].join("\n");
+  /*
+   * Satu blok per lokasi, dan KEMBARNYA dibuang (DECISIONS 450).
+   *
+   * Peringkasan yang sama dipakai balasan teks DAN tabel PDF – dua daftar yang
+   * mengaku isi yang sama tidak boleh berbeda jumlah barisnya tergantung
+   * wadahnya.
+   */
+  const { baris: perLokasi, digabung } = ringkasKendalaPerLokasi(r.baris);
+  const jumlahKendala = perLokasi.reduce((n, l) => n + l.kendala.length, 0);
+  const isi = perLokasi.map((l) => {
+    const item = l.kendala.map((k) => `  • ${k}`);
+    return [`*${l.lokasi}* _(${l.tingkat}, ${l.status}, ${l.umurHari} hari)_`, ...item].join("\n");
   });
   return (
-    kepala(`${judul} – ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
+    kepala(`${judul} – ${jumlahKendala} di ${perLokasi.length} lokasi`, r.tanggal) +
     "\n\n" +
     isi.join("\n\n") +
-    kaki(opts)
+    kaki({ ...opts, catatanGabung: catatanGabung(digabung) })
   );
 }
 
