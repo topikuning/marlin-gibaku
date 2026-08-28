@@ -52,6 +52,32 @@ const PACKAGES: { name: string; number: string; slugs: string[]; contractNumber:
   { name: "Paket KNMP Jepara – Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
   { name: "Paket KNMP Bangkalan (2 lokasi)", number: "PKT-2026-005", slugs: ["batah-timur", "tengket"], contractNumber: "SPK-KNMP-2026-BGK-005" },
   { name: "Paket KNMP Lamongan – Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
+
+  /*
+   * Empat paket berikut memberi seed bentuk yang selama ini TIDAK ADA, dan
+   * karena tidak ada, tidak pernah diuji oleh siapa pun:
+   *
+   *  - Kontrak EMPAT lokasi. Sampai di sini paket terbesar cuma dua lokasi,
+   *    sementara `alokasiBelumTertagih()` membagi tagihan satu kontrak ke
+   *    banyak lokasi menurut nilai terpasang — pembagian yang pada dua lokasi
+   *    nyaris tak bisa keliru, dan pada empat mulai bisa.
+   *  - Rentang nilai 1,16–5,89 miliar per lokasi. Sebelumnya semua lokasi
+   *    seukuran, jadi kartu portofolio, urutan, dan bobot antarlokasi selalu
+   *    tampak rapi tanpa pernah diuji ketimpangannya.
+   *  - Empat provinsi baru (Bali, NTB, Banten) di samping Jawa, sehingga
+   *    pengelompokan wilayah punya lebih dari satu bentuk.
+   *  - RAB berlebar wajar (360–1.269 node), bukan hanya yang ~2.000.
+   *
+   * Struktur RAB-nya nyata — diambil dari salinan lapangan lewat
+   * `pnpm rab:siapkan`, yang HANYA membawa kategori/item/volume/harga dan
+   * mengganti seluruh identitas (desa, kabupaten, vendor, nomor kontrak,
+   * tanggal). Petanya ada di `scripts/siapkan-rab-lapangan.mts`, ditulis
+   * lengkap supaya bisa diperiksa mata.
+   */
+  { name: "Paket KNMP Rembang (4 lokasi)", number: "PKT-2026-011", slugs: ["tasikharjo-rembang", "pandangan-kulon-rembang", "sendangmulyo-rembang", "karangturi-rembang"], contractNumber: "SPK-KNMP-2026-RBG-011" },
+  { name: "Paket KNMP Lombok (2 lokasi)", number: "PKT-2026-012", slugs: ["gili-gede-lombok-barat", "labuhan-haji-lombok-timur"], contractNumber: "SPK-KNMP-2026-NTB-012" },
+  { name: "Paket KNMP Klungkung – Kusamba", number: "PKT-2026-013", slugs: ["kusamba-klungkung"], contractNumber: "SPK-KNMP-2026-BLI-013" },
+  { name: "Paket KNMP Tangerang (2 lokasi)", number: "PKT-2026-014", slugs: ["kronjo-tangerang", "lontar-tangerang"], contractNumber: "SPK-KNMP-2026-BTN-014" },
 ];
 
 /**

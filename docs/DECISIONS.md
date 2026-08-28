@@ -24091,3 +24091,71 @@ sama, dan pembacanya tidak punya cara menebak mana yang benar.
   dipakai atau tidak. Menargetkannya lebih murah dan lebih akurat, tetapi
   mengubah apa yang sampai ke model — artinya mengubah jawabannya, dan itu tidak
   bisa dibuktikan tanpa menjalankan provider serta uji integrasi.
+
+---
+
+## 463 · Seed demo memakai struktur RAB lapangan, identitas diganti (2026-08-28)
+
+Salinan basis data lapangan (24 Agustus 2026) diperiksa untuk menilai apakah ia
+layak jadi bahan seed demo. Layak — tetapi hanya sebagiannya, dan pembagiannya
+harus tegas.
+
+### 1. Yang diambil: bentuk, bukan isi
+
+Seed lama punya 7 lokasi, paket maksimal DUA lokasi, nilai kontrak nyaris
+seragam, dan tiga provinsi. Bentuk itu membuat beberapa jalur tidak pernah
+tersentuh siapa pun:
+
+- `alokasiBelumTertagih()` membagi tagihan satu kontrak ke banyak lokasi menurut
+  nilai terpasang. Pada dua lokasi pembagian itu nyaris tak bisa keliru; pada
+  empat, bisa. Sampai sekarang tidak ada satu pun paket empat lokasi di seed.
+- Kartu portofolio, urutan, dan bobot antarlokasi selalu tampak rapi karena
+  semua lokasi seukuran.
+- RAB seed semuanya ~2.000 node, sementara yang wajar di lapangan 360–1.269.
+
+Salinan lapangan punya ketiganya. Yang diambil karena itu **hanya struktur
+RAB** — kategori, sub, grup, item, volume, satuan, harga satuan, nilai. Item
+konstruksi bersifat baku dan tidak terikat tempat; justru inilah bagian yang
+tidak mungkin dikarang meyakinkan.
+
+Sembilan RAB dipilih, dan hasilnya diperiksa terhadap sumbernya: jumlah node
+dan grand total **sama persis sampai rupiah** untuk kesembilannya.
+
+### 2. Yang tidak diambil, dan kenapa
+
+Nama paket, desa, kabupaten, vendor, nomor kontrak, tanggal, orang, foto,
+dokumen, pesan WhatsApp, jejak audit, sesi — semuanya diganti atau dibuang.
+Kunci foto (`r2_key`) dan berkas Drive khususnya: ia menunjuk berkas nyata yang
+tidak akan pernah ada di lingkungan demo, jadi yang lahir cuma gambar rusak.
+
+Identitas penggantinya ditulis LENGKAP di `scripts/siapkan-rab-lapangan.mts`,
+bukan diturunkan otomatis dari sumbernya — supaya bisa diperiksa mata bahwa
+tidak ada yang bocor. Sudah dipastikan: tak satu pun desa maupun slug pengganti
+ada di salinan lapangan. Kabupaten pengganti sengaja tidak selalu sama dengan
+asal RAB-nya.
+
+### 3. `app_settings` TIDAK boleh disalin ke mana pun
+
+Salinan itu memuat `ai.claude.api_key` (`sk-ant-…`), `waha.api_key`, dan
+`waha.webhook_secret` dalam bentuk **telanjang**; hanya kredensial Google yang
+terenkripsi (`enc:v1:`). Dua sebabnya ada di kode dan belum ditutup:
+
+- `waha/config.ts` menulis `apiKey` apa adanya, sementara `ai/config.ts`
+  memanggil `encryptSecret` dan bahkan menolak menyimpan plaintext di
+  production. Dua modul menyimpan rahasia dengan dua standar berbeda.
+- Kunci AI tetap telanjang WALAU penjaga itu ada, karena ia baris lama dari
+  sebelum penjaga dipasang dan `readStoredSecret` menerima plaintext demi
+  kompatibilitas. Penjaga yang hanya mengawasi tulisan baru membiarkan yang
+  lama hidup selamanya.
+
+Dicatat di sini karena ini temuan keamanan yang berdiri sendiri, bukan urusan
+seed. Perbaikannya menunggu keputusan user.
+
+### 4. Yang belum dikerjakan
+
+Kepadatan laporan harian masih seperti sebelumnya — hanya `kedungmutih` yang
+punya laporan. Di lapangan 50 dari 73 lokasi punya laporan dengan ekor yang
+timpang (teramai 35, banyak yang nol), dan itulah keadaan yang membuat EWS dan
+`/perlu-tindakan` berarti. Menambahkannya menyentuh mesin laporan seed dan 31
+berkas uji yang bergantung pada slug seed sekarang, jadi dipisah dari perubahan
+ini supaya kegagalannya — bila ada — bisa dibaca.
