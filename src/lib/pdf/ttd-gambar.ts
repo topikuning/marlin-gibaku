@@ -117,10 +117,28 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
       vendorStempelKey: k.vendor.stempelKey,
     });
     const sharp = (await import("sharp")).default;
+    const { hapusLatarPutih } = await import("@/lib/export/ttd-latar");
     const png = async (key: string | null): Promise<Buffer | null> => {
       if (!key) return null;
       try {
-        return await sharp(await r2GetBuffer(key)).png().toBuffer();
+        // Dikecilkan dulu: di kertas gambar ini tidak pernah lebih besar dari
+        // ±70 pt, sementara pindaian stempel bisa ribuan piksel. Tanpa batas
+        // ini, memindai pikselnya di bawah membebani kontainer 512 MB tanpa
+        // menambah ketajaman apa pun.
+        const { data, info } = await sharp(await r2GetBuffer(key))
+          .resize(600, 600, { fit: "inside", withoutEnlargement: true })
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        // Latar putihnya dibuang — pdfkit tidak punya `mix-blend-multiply`
+        // seperti penyaji HTML, jadi tanpa ini kertas putih di sekeliling
+        // stempel MENGHAPUS baris nama di bawahnya (lihat lib/export/ttd-latar).
+        hapusLatarPutih(data);
+        return await sharp(data, {
+          raw: { width: info.width, height: info.height, channels: 4 },
+        })
+          .png()
+          .toBuffer();
       } catch (err) {
         console.error(`[pdf] gambar tanda tangan/stempel "${key}" gagal dimuat:`, err);
         return null;

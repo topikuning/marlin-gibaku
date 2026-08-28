@@ -276,20 +276,41 @@ export function tulisBadanHarian(
     }),
   ];
 
-  // Dua kolom digambar sejajar dari y yang SAMA; y akhir = sisi terpanjang.
+  /* Dua kolom digambar sejajar dari y yang SAMA; kalau salah satunya belum
+     habis saat halaman penuh, KEDUANYA lanjut di halaman berikutnya dari titik
+     yang sama lagi.
+
+     Sampai 2026-08-27 sisa barisnya justru DIBUANG (`break` tanpa kelanjutan).
+     Pada blanko dengan banyak material, baris ke-9 dan seterusnya tidak pernah
+     tercetak sementara blankonya terbaca lengkap — memotong diam-diam, persis
+     yang dilarang CLAUDE.md. */
   fit(60);
-  const sideTop = y;
-  let ly = sideTop;
-  for (const row of leftRows) {
-    if (ly + gridRowHeight(doc, row, leftOpt) > bottom) break;
-    ly = gridRow(doc, ly, row, leftOpt);
+  let li = 0;
+  let ri = 0;
+  let sisiAtas = y;
+  for (;;) {
+    let ly = sisiAtas;
+    let ry = sisiAtas;
+    // `ly > sisiAtas` menjamin sekurang-kurangnya satu baris tergambar tiap
+    // halaman, jadi perulangan ini selalu maju dan tidak bisa berputar abadi.
+    while (li < leftRows.length) {
+      const h = gridRowHeight(doc, leftRows[li], leftOpt);
+      if (ly > sisiAtas && ly + h > bottom) break;
+      ly = gridRow(doc, ly, leftRows[li], leftOpt);
+      li++;
+    }
+    while (ri < matRows.length) {
+      const h = gridRowHeight(doc, matRows[ri], rightOpt);
+      if (ry > sisiAtas && ry + h > bottom) break;
+      ry = gridRow(doc, ry, matRows[ri], rightOpt);
+      ri++;
+    }
+    y = Math.max(ly, ry);
+    if (li >= leftRows.length && ri >= matRows.length) break;
+    doc.addPage();
+    noAutoBreak();
+    sisiAtas = FORM_MARGIN;
   }
-  let ry = sideTop;
-  for (const row of matRows) {
-    if (ry + gridRowHeight(doc, row, rightOpt) > bottom) break;
-    ry = gridRow(doc, ry, row, rightOpt);
-  }
-  y = Math.max(ly, ry);
 
   /* ── Kondisi cuaca per jam ─────────────────────────────────────────── */
   const weatherCols = colWidths(width, [2.2, ...HOURS.map(() => 1), 1.8]);
@@ -355,15 +376,30 @@ export function tulisBadanHarian(
   const realisasiBaris = barisRealisasiKkp(d.items);
   const barisRR = Math.max(MIN_RR_ROWS, rencanaTeks.length, realisasiBaris.length);
   let noLanjut = d.items.length;
-  fit(14 * (barisRR + 1));
+
+  /* Kepala DUA kolom sekaligus — diulang tiap kali blok ini pindah halaman,
+     supaya lembar lanjutannya tetap bisa dibaca sendiri. */
+  const kepalaRR = (yy: number): number => {
+    gridRow(doc, yy, [{ text: "REALISASI PEKERJAAN", head: true, align: "center", span: 2 }], rrRight);
+    return gridRow(doc, yy, [{ text: "RENCANA PEKERJAAN", head: true, align: "center", span: 2 }], rrLeft);
+  };
+  // Cukup ruang untuk kepala + satu baris; sisanya dipenggal PER BARIS di bawah.
+  //
+  // Sebelum 2026-08-27 blok ini memesan ruang untuk SELURUH barisnya sekaligus
+  // (`fit(14 * (barisRR + 1))`) lalu menggambar tanpa penjagaan lagi. Begitu
+  // realisasinya lebih panjang dari satu halaman — 20 item sudah cukup —
+  // barisnya digambar terus melewati tepi bawah kertas: sebagian hilang, dan
+  // baris yang kebetulan membungkus tepat di tepi memicu pdfkit membuka halaman
+  // sendiri dan menaruh penggalan ekornya di sana. Itulah "· dari 1.754 m³ ·
+  // 51,3%)" yang berdiri sendirian di halaman 3 berkas 26 Agustus 2026.
+  fit(14 * 2);
 
   // Kedua kolom digambar BARIS PER BARIS dengan tinggi yang SAMA
   // (= yang paling tinggi di antara keduanya). Kalau digambar sebagai dua
   // loop terpisah, satu teks realisasi yang membungkus jadi dua baris
   // menggeser seluruh sisanya dan garis mendatar kiri–kanan tidak lagi
   // bertemu — cacat yang dilaporkan 28 Juli 2026.
-  let rry = gridRow(doc, y, [{ text: "RENCANA PEKERJAAN", head: true, align: "center", span: 2 }], rrLeft);
-  gridRow(doc, y, [{ text: "REALISASI PEKERJAAN", head: true, align: "center", span: 2 }], rrRight);
+  let rry = kepalaRR(y);
   for (let i = 0; i < barisRR; i++) {
     const kiri: GridCell[] = [{ text: String(i + 1), align: "center" }, { text: rencanaTeks[i] ?? " " }];
     const br = realisasiBaris[i];
@@ -372,6 +408,11 @@ export function tulisBadanHarian(
       ? [{ text: " ", align: "center" }, { text: br.text, head: true }]
       : [{ text: br ? br.no : String(noLanjut), align: "center" }, { text: br?.text ?? " " }];
     const tinggi = Math.max(gridRowHeight(doc, kiri, rrLeft), gridRowHeight(doc, kanan, rrRight));
+    if (rry + tinggi > bottom) {
+      doc.addPage();
+      noAutoBreak();
+      rry = kepalaRR(FORM_MARGIN);
+    }
     gridRow(doc, rry, kiri, { ...rrLeft, minRowHeight: tinggi });
     rry = gridRow(doc, rry, kanan, { ...rrRight, minRowHeight: tinggi });
   }
@@ -492,6 +533,18 @@ export function kakiHalaman(doc: PdfDoc, appName: string, status: string): void 
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    /*
+     * Matikan paginasi otomatis pada halaman yang sedang ditulisi.
+     *
+     * Badan laporan sudah melakukannya untuk tiap halaman yang IA buat, tetapi
+     * halaman yang dibuka pdfkit SENDIRI (mis. teks yang membungkus tepat di
+     * tepi bawah) tetap memakai margin bawah bakunya. Kaki halaman ditulis di
+     * BAWAH margin itu, jadi pdfkit menganggapnya tidak muat, membuka halaman
+     * baru, dan menaruh kaki halamannya di sana — satu lembar kosong per
+     * pemanggilan `text()`. Dua lembar kosong di ekor berkas 26 Agustus 2026
+     * lahir persis begitu, lengkap dengan kaki halaman yang terbelah.
+     */
+    doc.page.margins.bottom = 0;
     doc
       .font(PDF_FONT.regular)
       .fontSize(6.5)

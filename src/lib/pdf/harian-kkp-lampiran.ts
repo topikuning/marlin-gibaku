@@ -1,6 +1,13 @@
 import "server-only";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
-import { susunKartu, terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
+import {
+  susunKartu,
+  taruhDuaKolom,
+  terbilang,
+  tinggiFotoDokumentasi,
+  tinggiKartu,
+  TINGGI_JUDUL_FOTO,
+} from "@/lib/daily-report/kkp-lampiran-susun";
 import { PDF_COLORS, PDF_FONT, FORM_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 
@@ -331,19 +338,15 @@ function gambarKartu(
 }
 
 /**
- * Tinggi kepala kartu: kop pelaksana + judul + dua baris identitas.
- * Angkanya sama dengan yang dipakai penaksir ruang di bawah — SATU tempat,
- * supaya taksiran pemenggalan halaman tidak menyimpang dari yang digambar.
+ * Ukuran kolom cetak blok dokumentasi — dipakai kedua penyaji di bawah.
+ * `gap` = jarak mendatar antar kolom.
  */
-const TINGGI_KEPALA_KARTU = 30 /* kop */ + 3 * 14 /* judul + 2 baris identitas */;
-/** Tinggi baris judul di atas tiap foto. */
-const TINGGI_JUDUL_FOTO = 12;
-/** Jarak antar BARIS kartu di halaman yang sama. */
-const JARAK_BARIS = 10;
-
-/** Taksiran tinggi satu baris (dua kartu berdampingan) sebelum digambar. */
-function tinggiBarisKartu(banyakFoto: number, tinggiFoto: number): number {
-  return TINGGI_KEPALA_KARTU + banyakFoto * (TINGGI_JUDUL_FOTO + tinggiFoto);
+function kerangkaDokumentasi(doc: PdfDoc) {
+  const x = FORM_MARGIN;
+  const width = doc.page.width - FORM_MARGIN * 2;
+  const gap = 14;
+  const bawah = doc.page.height - FORM_MARGIN - 12;
+  return { x, gap, wKartu: (width - gap) / 2, tinggiKolom: bawah - FORM_MARGIN };
 }
 
 /**
@@ -360,7 +363,12 @@ function tinggiBarisKartu(banyakFoto: number, tinggiFoto: number): number {
  * pernah dicatat sebagai keputusan — itu kelalaian, dan versi HTML-nya sudah
  * diperbaiki lebih dulu (DECISIONS 395) sementara jalur PDF ini tertinggal.
  *
- * Sekarang halaman baru terjadi hanya ketika baris berikutnya TIDAK MUAT.
+ * Sekarang halaman baru terjadi hanya ketika kartu berikutnya TIDAK MUAT.
+ *
+ * Sejak 2026-08-27 kolomnya juga MENGALIR SENDIRI-SENDIRI (lihat catatan tata
+ * letak di `lib/daily-report/kkp-lampiran-susun.ts`): kartu jatuh ke kolom yang
+ * paling pendek, bukan ke pasangan tetap, jadi kartu berfoto satu tidak lagi
+ * meninggalkan lubang di sebelah kartu berfoto tiga.
  *
  * Tidak menggambar apa pun bila tidak ada foto — halaman kosong berjudul
  * "DOKUMENTASI PEKERJAAN" hanya membuat pembaca mengira fotonya hilang.
@@ -369,37 +377,31 @@ export function gambarDokumentasi(doc: PdfDoc, d: KkpDailyData, foto: FotoDok[],
   const kartu = susunKartu(foto);
   if (kartu.length === 0) return;
 
-  const x = FORM_MARGIN;
-  const width = doc.page.width - FORM_MARGIN * 2;
-  const gap = 14;
-  const wKartu = (width - gap) / 2;
-  const bawah = doc.page.height - FORM_MARGIN - 12;
+  const { x, gap, wKartu, tinggiKolom } = kerangkaDokumentasi(doc);
   const vendor = { nama: d.contractorFirm, alamat: d.contractorAddress, logo: null as Buffer | null };
 
-  let y = FORM_MARGIN;
-  let adaHalaman = false;
+  const banyak = kartu.map((k) => k.length);
+  const tinggiFoto = tinggiFotoDokumentasi(banyak, tinggiKolom);
+  const letak = taruhDuaKolom(
+    banyak.map((n) => tinggiKartu(n, tinggiFoto)),
+    tinggiKolom,
+  );
 
-  for (let i = 0; i < kartu.length; i += 2) {
-    const terbanyak = Math.max(kartu[i].length, kartu[i + 1]?.length ?? 0);
-    /*
-     * Tinggi foto tetap ditaksir dari SATU halaman penuh dan dibatasi 150pt.
-     * Batas itulah yang membuat kartu berfoto sedikit tidak melar memenuhi
-     * halaman — dan karena itu beberapa baris bisa berbagi satu lembar.
-     */
-    const sisa = bawah - FORM_MARGIN - TINGGI_KEPALA_KARTU - terbanyak * TINGGI_JUDUL_FOTO;
-    const tinggiFoto = Math.max(90, Math.min(150, Math.floor(sisa / terbanyak)));
-    const tinggiBaris = tinggiBarisKartu(terbanyak, tinggiFoto);
-
-    // Halaman baru hanya untuk baris PERTAMA, atau saat barisnya tidak muat.
-    if (!adaHalaman || y + tinggiBaris > bawah) {
+  let halaman = -1;
+  for (let i = 0; i < kartu.length; i++) {
+    if (letak[i].halaman !== halaman) {
       mulaiHalamanBaru();
-      y = FORM_MARGIN;
-      adaHalaman = true;
+      halaman = letak[i].halaman;
     }
-
-    gambarKartu(doc, kartu[i], x, y, wKartu, vendor, tinggiFoto);
-    if (kartu[i + 1]) gambarKartu(doc, kartu[i + 1], x + wKartu + gap, y, wKartu, vendor, tinggiFoto);
-    y += tinggiBaris + JARAK_BARIS;
+    gambarKartu(
+      doc,
+      kartu[i],
+      x + letak[i].kolom * (wKartu + gap),
+      FORM_MARGIN + letak[i].y,
+      wKartu,
+      vendor,
+      tinggiFoto,
+    );
   }
 }
 
@@ -436,34 +438,40 @@ export function gambarDokumentasiPelengkap(
   const kartu = susunKartu(foto.map((f) => ({ ...f, pekerjaan: f.nama })));
   if (kartu.length === 0) return;
 
-  const x = FORM_MARGIN;
-  const width = doc.page.width - FORM_MARGIN * 2;
-  const gap = 14;
-  const wKartu = (width - gap) / 2;
-  const bawah = doc.page.height - FORM_MARGIN - 12;
+  const { x, gap, wKartu, tinggiKolom } = kerangkaDokumentasi(doc);
 
-  // Barisnya mengalir, sama seperti dokumentasi pekerjaan. Yang tetap dijaga:
-  // blok ini SELALU mulai di halaman sendiri (permintaan user 2026-08-08) —
-  // itu yang dilakukan cabang `!adaHalaman` pada perulangan pertama.
-  let y = FORM_MARGIN;
-  let adaHalaman = false;
+  // Kartunya mengalir per kolom, sama seperti dokumentasi pekerjaan. Yang tetap
+  // dijaga: blok ini SELALU mulai di halaman sendiri (permintaan user
+  // 2026-08-08) — itu yang dilakukan `halaman = -1` pada kartu pertama.
+  //
+  // Bedanya cuma satu: kartu pelengkap TIDAK punya baris judul di atas tiap
+  // foto, jadi tinggi judulnya nol. Dulu penaksirnya tetap menghitung 12 pt per
+  // foto seperti kartu pekerjaan, dan taksiran yang terlalu besar itu ikut
+  // menyumbang lembar setengah kosong.
+  const banyak = kartu.map((k) => k.length);
+  const tinggiFoto = tinggiFotoDokumentasi(banyak, tinggiKolom, 0);
+  const letak = taruhDuaKolom(
+    banyak.map((n) => tinggiKartu(n, tinggiFoto, 0)),
+    tinggiKolom,
+  );
 
-  for (let i = 0; i < kartu.length; i += 2) {
-    const terbanyak = Math.max(kartu[i].length, kartu[i + 1]?.length ?? 0);
-    const sisa = bawah - FORM_MARGIN - TINGGI_KEPALA_KARTU;
-    const tinggiFoto = Math.max(90, Math.min(150, Math.floor(sisa / terbanyak)));
-    const tinggiBaris = tinggiBarisKartu(terbanyak, tinggiFoto);
-
-    if (!adaHalaman || y + tinggiBaris > bawah) {
+  let halaman = -1;
+  for (let i = 0; i < kartu.length; i++) {
+    if (letak[i].halaman !== halaman) {
       mulaiHalamanBaru();
-      y = FORM_MARGIN;
-      adaHalaman = true;
+      halaman = letak[i].halaman;
     }
-
-    gambarKartuPelengkap(doc, kartu[i], x, y, wKartu, d, judul, labelBaris, tinggiFoto);
-    if (kartu[i + 1])
-      gambarKartuPelengkap(doc, kartu[i + 1], x + wKartu + gap, y, wKartu, d, judul, labelBaris, tinggiFoto);
-    y += tinggiBaris + JARAK_BARIS;
+    gambarKartuPelengkap(
+      doc,
+      kartu[i],
+      x + letak[i].kolom * (wKartu + gap),
+      FORM_MARGIN + letak[i].y,
+      wKartu,
+      d,
+      judul,
+      labelBaris,
+      tinggiFoto,
+    );
   }
 }
 

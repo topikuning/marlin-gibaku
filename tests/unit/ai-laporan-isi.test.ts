@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { computeReadiness } from "@/lib/ai-hub/readiness";
 import { reportOutputSchema } from "@/lib/ai-hub/schemas";
 import {
+  buildExecutiveBrief,
   dataBelumMemadai,
   renderAiReportHtml,
   renderAiReportWhatsApp,
@@ -112,17 +113,17 @@ function konten(over: {
 describe("WA membawa ISI laporan, bukan cuma judul + tabel angka", () => {
   const wa = renderAiReportWhatsApp(konten());
 
-  it("memuat catatan lapangan dari sections", () => {
-    expect(wa).toContain("*Catatan lapangan:*");
+  it("memuat dasar analisis dari sections setelah informasi eksekutif", () => {
+    expect(wa).toContain("*DASAR ANALISIS*");
     expect(wa).toContain("Kondisi umum");
     expect(wa).toContain("Mobilisasi alat belum jalan di dua lokasi.");
     expect(wa).toContain("Pemancangan tertunda karena cuaca.");
   });
 
-  it("memuat tindakan yang disarankan dari recommendations, bernomor", () => {
-    expect(wa).toContain("*Tindakan yang disarankan:*");
-    expect(wa).toContain("1. Percepat mobilisasi alat");
-    expect(wa).toContain("2. Tagih laporan harian Tengket");
+  it("memuat keputusan yang diminta dari recommendations, bernomor", () => {
+    expect(wa).toContain("*KEPUTUSAN YANG DIMINTA*");
+    expect(wa).toContain("1. *Percepat mobilisasi alat*");
+    expect(wa).toContain("2. *Tagih laporan harian Tengket*");
   });
 
   it("memuat SEMUA keterbatasan, bukan hanya yang pertama", () => {
@@ -152,10 +153,10 @@ describe("WA membawa ISI laporan, bukan cuma judul + tabel angka", () => {
         },
       }),
     );
-    expect(banyak).toContain("Bagian 5");
-    expect(banyak).not.toContain("Bagian 6");
-    expect(banyak).toContain("5. Aksi 5");
-    expect(banyak).not.toContain("6. Aksi 6");
+    expect(banyak).toContain("Bagian 3");
+    expect(banyak).not.toContain("Bagian 4");
+    expect(banyak).toContain("3. *Aksi 3*");
+    expect(banyak).not.toContain("4. *Aksi 4*");
   });
 
   it("body panjang dipotong di batas kata dengan elipsis, bukan di tengah kata", () => {
@@ -170,7 +171,134 @@ describe("WA membawa ISI laporan, bukan cuma judul + tabel angka", () => {
   });
 });
 
-/* ── 2. Status dipaksa data_kurang saat laporannya yang kosong ───────────── */
+/* ── 2. Hierarki laporan eksekutif ─────────────────────────────────────── */
+
+describe("laporan terbaca dalam satu pandangan", () => {
+  it("menyajikan status, lima KPI, tiga prioritas, lalu keputusan", () => {
+    const c = konten();
+    const brief = buildExecutiveBrief(c);
+    expect(brief.statusLabel).toBe("Kritis");
+    expect(brief.kpis).toHaveLength(5);
+    expect(brief.kpis.find((kpi) => kpi.label === "Kelengkapan laporan")?.value).toBe("86%");
+    expect(brief.priorities[0]).toMatchObject({ name: "Tengket", tone: "warning" });
+    expect(brief.decisions.map((decision) => decision.title)).toEqual([
+      "Percepat mobilisasi alat",
+      "Tagih laporan harian Tengket",
+    ]);
+  });
+
+  it("HTML menaruh kesimpulan, KPI, prioritas, dan keputusan sebelum tabel detail", () => {
+    const html = renderAiReportHtml(konten());
+    const summaryAt = html.indexOf("Kesimpulan 30 detik");
+    const kpiAt = html.indexOf("Kelengkapan laporan");
+    const priorityAt = html.indexOf("3 prioritas utama");
+    const decisionAt = html.indexOf("Keputusan yang diminta");
+    const detailAt = html.indexOf("Angka resmi per lokasi");
+    expect(summaryAt).toBeGreaterThan(0);
+    expect(summaryAt).toBeLessThan(kpiAt);
+    expect(kpiAt).toBeLessThan(priorityAt);
+    expect(priorityAt).toBeLessThan(decisionAt);
+    expect(decisionAt).toBeLessThan(detailAt);
+  });
+
+  it("WhatsApp membuka dengan kesimpulan dan angka sebelum detail analisis", () => {
+    const wa = renderAiReportWhatsApp(konten());
+    expect(wa.indexOf("*KESIMPULAN 30 DETIK*")).toBeLessThan(wa.indexOf("*Angka resmi MARLIN:*"));
+    expect(wa.indexOf("*Angka resmi MARLIN:*")).toBeLessThan(wa.indexOf("*DASAR ANALISIS*"));
+  });
+});
+
+/* ── 3. Tidak ada isi yang hilang diam-diam ─────────────────────────────── */
+
+describe("yang tidak ditampilkan selalu disebut jumlahnya", () => {
+  const banyak = () =>
+    konten({
+      report: {
+        sections: [1, 2, 3, 4, 5].map((i) => ({
+          heading: `Bagian ${i}`,
+          body: `Isi bagian ${i}.`,
+          locationId: null,
+        })),
+        recommendations: [1, 2, 3, 4, 5].map((i) => ({
+          title: `Aksi ${i}`,
+          reason: `Alasan ${i}`,
+          locationId: null,
+        })),
+      },
+      rows: ["A", "B", "C", "D", "E"].map((n) => row({ locationId: `loc-${n}`, name: n, slug: n.toLowerCase() })),
+    });
+
+  it("WhatsApp menyebut sisa keputusan, analisis, dan lokasi", () => {
+    const wa = renderAiReportWhatsApp(banyak());
+    expect(wa).toContain("2 usulan lain tidak ditampilkan");
+    expect(wa).toContain("2 bagian analisis lain ada di laporan lengkap");
+    expect(wa).toContain("2 lokasi lain ada di laporan lengkap");
+  });
+
+  it("HTML menyebut sisa keputusan di bawah daftar tiga teratas", () => {
+    const html = renderAiReportHtml(banyak());
+    expect(html).toContain("2 usulan lain di luar tiga teratas tidak ditampilkan");
+  });
+
+  it("laporan tanpa sisa tidak memunculkan catatan apa pun", () => {
+    const wa = renderAiReportWhatsApp(konten());
+    expect(wa).not.toContain("tidak ditampilkan");
+    expect(wa).not.toContain("ada di laporan lengkap");
+  });
+});
+
+/* ── 4. Prioritas membawa alasannya, bukan angka telanjang ──────────────── */
+
+describe("prioritas menjelaskan mengapa lokasi ini yang naik", () => {
+  it("WhatsApp menuliskan alasan di bawah tiap baris prioritas", () => {
+    const wa = renderAiReportWhatsApp(konten());
+    expect(wa).toContain("- Tengket: realisasi 38.0%");
+    expect(wa).toContain("↳ Realisasi tertinggal 2.0 poin persentase dari rencana.");
+  });
+
+  it("lokasi tanpa laporan final diberi alasan itu, bukan deviasi", () => {
+    const c = konten({ rows: [row({ finalReports: 0, expectedReports: 7 })] });
+    const brief = buildExecutiveBrief(c);
+    expect(brief.priorities[0]!.tone).toBe("danger");
+    expect(brief.priorities[0]!.reason).toBe("Kondisi fisik belum dapat dinilai sampai laporan harian masuk.");
+    // Angkanya tetap ada di baris lokasinya, tidak diulang di alasan.
+    const wa = renderAiReportWhatsApp(c);
+    expect(wa).toContain("belum ada laporan final (0/7)");
+    expect(wa).toContain("Kondisi fisik belum dapat dinilai sampai laporan harian masuk.");
+  });
+});
+
+/* ── 5. Peringatan data & label bukti bersumber satu tempat ─────────────── */
+
+describe("peringatan data dan label keyakinan seragam lintas kanal", () => {
+  it("kalimat peringatan di HTML sama persis dengan yang dipakai WhatsApp", () => {
+    const c = konten({ totals: { reportsExpected: 100, reportsFinal: 3 } });
+    const kalimat = buildExecutiveBrief(c).dataWarning!;
+    expect(kalimat).toContain("3 dari 100");
+    expect(renderAiReportHtml(c)).toContain(kalimat);
+    expect(renderAiReportWhatsApp(c)).toContain(kalimat);
+  });
+
+  it("data memadai → tidak ada peringatan yang dipaksakan", () => {
+    expect(buildExecutiveBrief(konten()).dataWarning).toBeNull();
+    expect(renderAiReportHtml(konten())).not.toContain("Jangan menilai kinerja fisik dulu");
+  });
+
+  it("artefak hasil edit manusia tidak dicap cakupan bukti 0%", () => {
+    const c: AiReportContent = { ...konten({ report: { confidence: 0 } }), humanEdited: true };
+    expect(buildExecutiveBrief(c).evidenceLabel).toBe("narasi sudah diedit dan diverifikasi manusia");
+    const html = renderAiReportHtml(c, true);
+    expect(html).toContain("narasi sudah diedit dan diverifikasi manusia");
+    expect(html).not.toContain("cakupan bukti 0%");
+  });
+
+  it("artefak murni AI tetap menampilkan cakupan buktinya", () => {
+    expect(buildExecutiveBrief(konten()).evidenceLabel).toBe("cakupan bukti 75%");
+    expect(renderAiReportHtml(konten())).toContain("cakupan bukti 75%");
+  });
+});
+
+/* ── 6. Status dipaksa data_kurang saat laporannya yang kosong ───────────── */
 
 describe("data belum masuk ≠ pekerjaan mandek", () => {
   it("dataBelumMemadai: di bawah 25% laporan final, atau tanpa kewajiban lapor", () => {
@@ -186,7 +314,7 @@ describe("data belum masuk ≠ pekerjaan mandek", () => {
     const wa = renderAiReportWhatsApp(c);
     expect(wa).toContain("Data belum lengkap");
     expect(wa).not.toContain("status: Kritis");
-    expect(wa).toContain("Kinerja belum bisa dinilai");
+    expect(wa).toContain("Kinerja fisik belum bisa dinilai");
     expect(wa).toContain("3 dari 100");
   });
 

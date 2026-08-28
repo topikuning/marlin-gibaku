@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  SCHEMA_HINTS,
   hitungKeyakinan,
   kunciFakta,
   validasiKlaimTerikat,
   type BagianJawaban,
   type FaktaResmi,
 } from "@/lib/ai-hub/schemas";
+import { PETUNJUK_SKEMA } from "@/lib/waha/tanya-niat";
 
 /**
  * VALIDASI KLAIM TERIKAT + keyakinan deterministik (DECISIONS 378).
@@ -364,5 +366,36 @@ describe("angka dibandingkan sebagai NILAI, bukan sebagai teks", () => {
       new Map([[CHUNK, "Hari ini cor 12 m3 selesai tanpa kendala."]]),
     );
     expect(r.hidup).toHaveLength(1);
+  });
+});
+
+/* ── Dua kontrak AI di jalur WhatsApp tidak boleh tertukar ───────────────── */
+
+describe("petunjuk skema membedakan pembaca niat dari penjawab bebas", () => {
+  /*
+   * CI 2026-08-27: "TypeError: parts is not iterable" di validasiKlaimTerikat.
+   * Penyebabnya bukan validator, melainkan stub uji yang mengembalikan objek
+   * NIAT untuk setiap panggilan `aiStructured` — termasuk untuk penjawab bebas,
+   * yang lalu membaca `answerParts` dari objek yang tidak punya field itu.
+   *
+   * Stub sekarang memilah berdasarkan ada-tidaknya "answerParts" di
+   * schemaHint. Kalau pembeda itu hilang, stub diam-diam kembali menyuapi niat
+   * ke jalur jawaban dan kegagalannya menyamar lagi sebagai bug produksi.
+   */
+  it("hanya skema jawaban yang menyebut answerParts", () => {
+    expect(SCHEMA_HINTS.ask).toContain("answerParts");
+    expect(PETUNJUK_SKEMA).not.toContain("answerParts");
+  });
+
+  it("skema niat memang skema niat, bukan jawaban", () => {
+    expect(PETUNJUK_SKEMA).toContain("lokasiDisebut");
+    expect(SCHEMA_HINTS.ask).not.toContain("lokasiDisebut");
+  });
+
+  it("validator menolak dipanggil tanpa daftar bagian – pemanggil wajib memberi []", () => {
+    // Kontraknya array; yang salah adalah pemanggil yang meneruskan undefined
+    // di balik `as`. Dikunci supaya perbaikan di tanya-bebas.ts tidak dicabut.
+    expect(() => validasiKlaimTerikat(undefined as never, FAKTA, new Set())).toThrow();
+    expect(validasiKlaimTerikat([], FAKTA, new Set()).hidup).toEqual([]);
   });
 });

@@ -2,10 +2,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import type { SessionUser } from "@/lib/auth/session";
-import { getLocationsProgress } from "@/lib/progress";
+import { getLocationsProgress, getLocationsProgressRentang } from "@/lib/progress";
 import { getStatusHarian } from "@/lib/daily-report/status-harian";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
-import { parseDateKey } from "@/lib/format";
+import { formatTanggal, parseDateKey } from "@/lib/format";
 import type { LokasiKatalog } from "./tanya-niat";
 import type { UrutanJawaban } from "./parser-niat";
 import { urutkanProgress } from "./urutan-progress";
@@ -278,13 +278,22 @@ export async function dataProgress(
   const ids = dipakai.map((l) => l.id);
   const reportDate = parseDateKey(dateKey);
 
-  const [progress, laporan] = await Promise.all([
+  const [progress, rentang, laporan] = await Promise.all([
     /*
      * `reportDate` null (dateKey tak terbaca) → tanpa `asOf` = posisi terkini.
      * Itu perilaku lama, dan dipertahankan HANYA untuk keadaan yang memang
      * tidak punya tanggal — bukan sebagai jalan pintas diam-diam.
      */
     getLocationsProgress(ids, reportDate ? { asOf: reportDate } : {}),
+    /*
+     * Tambahan HARI ITU saja (DECISIONS 458). Tanpa ini balasan "progres
+     * kemarin" hanya memuat angka kumulatif, yang persis sama dengan angka di
+     * balasan "laporan mingguan" — dan user tidak bisa membedakan keduanya.
+     * Rentangnya satu hari: sejak = sampai = tanggal yang ditanyakan.
+     */
+    reportDate
+      ? getLocationsProgressRentang(ids, reportDate, reportDate)
+      : Promise.resolve(null),
     reportDate
       ? db.dailyReport.findMany({
           where: { locationId: { in: ids }, reportDate },
@@ -303,6 +312,9 @@ export async function dataProgress(
       realisasiPct: p?.realizedPct ?? 0,
       rencanaPct: p?.planPct ?? 0,
       deviasiPct: p?.deviationPct ?? 0,
+      // null = tanggalnya tak terbaca, jadi "tambahan" tidak punya arti. Nol
+      // BUKAN penggantinya: nol menyatakan hari itu memang tidak bergerak.
+      tambahanPct: rentang ? (rentang.get(l.id)?.tambahanPct ?? 0) : null,
       itemHariIni: r ? r._count.items : null,
       statusHariIni: r ? REPORT_STATUS_LABEL[r.status] : null,
     };
@@ -513,6 +525,8 @@ export type BarisMingguan = {
   rencanaPct: number | null;
   realisasiPct: number;
   deviasiPct: number | null;
+  /** Tambahan realisasi SEPANJANG pekan itu, poin persen (DECISIONS 458). */
+  tambahanPct: number;
   /** Berapa hari dalam pekan itu yang punya laporan. */
   hariBerlaporan: number;
   /** Penyebutnya: hari dalam pekan yang sudah lewat. */
@@ -544,8 +558,13 @@ export async function dataMingguan(
   const dAkhir = parseDateKey(akhir);
   if (!dMulai || !dAkhir) return { baris: [], catatanBatas: null };
 
-  const [progress, laporan] = await Promise.all([
+  const [progress, rentang, laporan] = await Promise.all([
     getLocationsProgress(ids, { asOf: dAkhir }),
+    // Tambahan SEPANJANG PEKAN ITU (DECISIONS 458) — pasangan dari angka
+    // kumulatif di sebelahnya. Tanpa ini rekap mingguan menampilkan angka yang
+    // sama persis dengan balasan progres harian, dan tidak ada cara membedakan
+    // "sudah sampai mana" dari "pekan ini ngapain".
+    getLocationsProgressRentang(ids, dMulai, dAkhir),
     db.dailyReport.groupBy({
       by: ["locationId"],
       where: { locationId: { in: ids }, reportDate: { gte: dMulai, lte: dAkhir } },
@@ -567,10 +586,142 @@ export async function dataMingguan(
         rencanaPct: adaKurva ? (p?.planPct ?? 0) : null,
         realisasiPct: p?.realizedPct ?? 0,
         deviasiPct: adaKurva ? (p?.deviationPct ?? 0) : null,
+        tambahanPct: rentang.get(l.id)?.tambahanPct ?? 0,
         hariBerlaporan: jumlahById.get(l.id) ?? 0,
         totalHari,
       };
     }),
+    catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* RENCANA kerja (satu-satunya yang menghadap KE DEPAN)                */
+/* ------------------------------------------------------------------ */
+
+export type ItemRencanaWa = {
+  nama: string;
+  satuan: string | null;
+  target: number;
+  /** Sisa volume kontrak yang belum terealisasi. */
+  sisa: number;
+  pic: string | null;
+};
+
+export type BarisRencanaWa = {
+  lokasi: string;
+  /** null = lokasi belum punya kontrak/baseline, jadi pekannya belum bernomor. */
+  minggu: number | null;
+  totalMinggu: number | null;
+  periode: string | null;
+  /** Tuntutan kurva-S di akhir pekan itu. */
+  targetPct: number | null;
+  realisasiPct: number | null;
+  deviasiPct: number | null;
+  /** Kosong = rencana pekan itu BELUM disusun siapa pun. */
+  item: ItemRencanaWa[];
+  itemTersembunyi: number;
+  /** Bobot seluruh komitmen pekan itu terhadap nilai RAB lokasi (poin persen). */
+  bobotTarget: number | null;
+  /** Komitmen pekan LALU yang tidak tuntas — bahan pertama untuk mengejar. */
+  tidakTuntas: { nama: string; satuan: string | null; target: number; realisasi: number }[];
+};
+
+export type HasilRencana = { baris: BarisRencanaWa[]; catatanBatas: string | null };
+
+/** Item yang dirinci per lokasi — sisanya disebut jumlahnya, tidak dibuang diam-diam. */
+const BATAS_ITEM_RENCANA = 8;
+/**
+ * Lokasi yang dirinci sekali jawab.
+ *
+ * Jauh lebih ketat daripada `BATAS_BARIS` dan memang harus: tiap lokasi di sini
+ * berarti satu penyusunan rencana mingguan penuh (RAB aktif + kumulatif per
+ * lineage + kurva-S). Menjawab "rencana minggu depan" untuk 83 lokasi sekaligus
+ * berarti puluhan ribu baris dibaca untuk satu pesan WhatsApp.
+ */
+const BATAS_LOKASI_RENCANA = 5;
+
+/**
+ * RENCANA KERJA satu pekan per lokasi (DECISIONS 458).
+ *
+ * ### Kenapa niat ini ada
+ *
+ * Tangkapan layar user 2026-08-28 memuat tiga pertanyaan yang semuanya
+ * menghadap ke depan — *"rencana seminggu ke depan untuk kemantren?"*,
+ * *"apa yang perlu dilakukan minggu depan?"*, *"pekerjaan apa yang perlu
+ * dilakukan untuk mengejar progress?"* — dan tidak satu pun terjawab. Yang
+ * lewat WhatsApp malah dibalas KUTIPAN notulen rapat 10 Agustus, disodorkan di
+ * bawah judul yang membuatnya terbaca sebagai rencana.
+ *
+ * Datanya sebenarnya sudah ada dan sudah dipakai di tempat lain: `WeeklyPlan`
+ * beserta itemnya, yang dirakit `getRencanaMingguan` untuk formulir rencana
+ * mingguan, PDF, Excel, dan siaran WhatsApp. Yang tidak ada cuma sambungannya
+ * ke tanya-jawab.
+ *
+ * ### Tidak menghitung apa pun
+ *
+ * Sama seperti seluruh berkas ini: angka datang bulat-bulat dari
+ * `getRencanaMingguan`, yang sendirinya bersandar pada calculation layer.
+ */
+export async function dataRencana(
+  lokasi: LokasiKatalog[],
+  pekanDepan: boolean,
+): Promise<HasilRencana> {
+  if (lokasi.length === 0) return { baris: [], catatanBatas: null };
+  const dipakai = lokasi.slice(0, BATAS_LOKASI_RENCANA);
+  const { getRencanaMingguan } = await import("@/lib/plan/rencana-mingguan");
+
+  const baris: BarisRencanaWa[] = [];
+  for (const l of dipakai) {
+    // Pekan berjalan dulu — dari situlah nomor pekan berikutnya diketahui.
+    // `getRencanaMingguan` tidak menerima "pekan depan", ia menerima NOMOR.
+    const kini = await getRencanaMingguan(l.id);
+    if (!kini) {
+      baris.push({
+        lokasi: l.nama,
+        minggu: null,
+        totalMinggu: null,
+        periode: null,
+        targetPct: null,
+        realisasiPct: null,
+        deviasiPct: null,
+        item: [],
+        itemTersembunyi: 0,
+        bobotTarget: null,
+        tidakTuntas: [],
+      });
+      continue;
+    }
+    const r = pekanDepan ? ((await getRencanaMingguan(l.id, kini.currentWeek + 1)) ?? kini) : kini;
+    const semua = r.baris;
+    baris.push({
+      lokasi: l.nama,
+      minggu: r.weekNumber,
+      totalMinggu: r.totalWeeks,
+      periode: `${formatTanggal(r.header.periodeStart, "d MMM yyyy")} – ${formatTanggal(r.header.periodeEnd, "d MMM yyyy")}`,
+      targetPct: r.targetPct,
+      realisasiPct: r.actualPct,
+      deviasiPct: r.deviationPct,
+      item: semua.slice(0, BATAS_ITEM_RENCANA).map((b) => ({
+        nama: b.name,
+        satuan: b.unit,
+        target: b.target,
+        sisa: b.sisa,
+        pic: b.picName,
+      })),
+      itemTersembunyi: Math.max(0, semua.length - BATAS_ITEM_RENCANA),
+      bobotTarget: r.totalBobot,
+      tidakTuntas: r.tidakTuntas.map((t) => ({
+        nama: t.name,
+        satuan: t.unit,
+        target: t.target,
+        realisasi: t.realisasi,
+      })),
+    });
+  }
+
+  return {
+    baris,
     catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
   };
 }

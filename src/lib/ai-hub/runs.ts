@@ -44,6 +44,7 @@ import {
   type GroundingContext,
 } from "./schemas";
 import { aiReportTemplate } from "./report-templates";
+import { MAKS_ANALISIS, MAKS_KEPUTUSAN } from "./render";
 import type { PortfolioPulse, QualityFinding, SourceRef } from "./types";
 
 /**
@@ -370,7 +371,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
           : input.kind === "kualitas_data"
             ? evidenceCount(output.explanations)
             : input.kind === "laporan"
-              ? evidenceCount(output.sections) + evidenceCount(output.recommendations)
+              ? evidenceCount(output.sections) + evidenceCount(output.recommendations) + 2
               : 0;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
@@ -432,16 +433,31 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     const groundedSections = (output.sections as { body?: string; sourceRefIds?: string[] }[]).filter(
       (section) => (section.sourceRefIds?.length ?? 0) > 0 && typeof section.body === "string" && section.body.trim().length > 0,
     );
-    // Ringkasan dan judul tidak punya tempat sitasi sendiri pada format lama.
-    // Turunkan dari bagian yang SUDAH lolos grounding, bukan mempercayai dua
-    // paragraf bebas yang tidak dapat diikat ke sumber mana pun.
-    output.title = template?.label ?? "Laporan Pengendalian";
-    output.executiveSummary = groundedSections.length
-      ? groundedSections.map((section) => section.body!.trim()).join("\n\n").slice(0, 4_000)
+    const refRingkasanValid = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.length > 0 && value.every((ref) => typeof ref === "string" && ctx.allowedSourceRefIds.has(ref));
+    const fallbackRefs = [...new Set(groundedSections.flatMap((section) => section.sourceRefIds ?? []))].slice(0, 12);
+    const fallbackSummary = groundedSections.length
+      ? groundedSections
+          .slice(0, 3)
+          .map((section) => section.body!.trim().replace(/\s+/g, " ").slice(0, 320))
+          .join(" ")
+          .slice(0, 960)
       : "Tidak ada narasi AI yang lolos pemeriksaan sumber. Reviewer perlu menulis ringkasan berdasarkan data resmi yang tersedia.";
-    output.waSummary = groundedSections.length
-      ? groundedSections.map((section) => section.body!.trim()).join(" ").slice(0, 1_800)
-      : "Tidak ada narasi AI yang lolos pemeriksaan sumber.";
+
+    // Ringkasan kini membawa sumbernya sendiri. Keluaran model dipertahankan
+    // hanya bila semua rujukan sah; artefak lama/tanpa sumber memakai fallback
+    // singkat dari maksimal tiga bagian yang sudah lolos grounding.
+    output.title = template?.label ?? "Laporan Pengendalian";
+    if (!refRingkasanValid(output.executiveSummarySourceRefIds)) {
+      output.executiveSummary = fallbackSummary;
+      output.executiveSummarySourceRefIds = fallbackRefs;
+      droppedNotes.push("ringkasan eksekutif model diganti: tidak memiliki sumber yang sah");
+    }
+    if (!refRingkasanValid(output.waSummarySourceRefIds)) {
+      output.waSummary = fallbackSummary.slice(0, 1_800);
+      output.waSummarySourceRefIds = fallbackRefs;
+      droppedNotes.push("ringkasan WhatsApp model diganti: tidak memiliki sumber yang sah");
+    }
     // executiveSummary & title DULU tidak diperiksa sama sekali (cek generik di
     // bawah menyasar `output.summary` yang tidak ada di skema laporan, jadi
     // lewat diam-diam) — padahal keduanya tampil di panel, PDF, dan Excel.
@@ -527,11 +543,41 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
               ? evidenceCount(output.explanations)
               : input.kind === "laporan"
                 ? evidenceCount(output.sections) + evidenceCount(output.recommendations) -
-                  ((output.sections as { sourceRefIds?: string[] }[] | undefined)?.filter((section) => section.sourceRefIds?.length === 0).length ?? 0)
+                  ((output.sections as { sourceRefIds?: string[] }[] | undefined)?.filter((section) => section.sourceRefIds?.length === 0).length ?? 0) +
+                  (evidenceCount(output.executiveSummarySourceRefIds) > 0 ? 1 : 0) +
+                  (evidenceCount(output.waSummarySourceRefIds) > 0 ? 1 : 0)
                 : 0;
     // Angka dari model tidak pernah dipakai sebagai rasa percaya diri. Nilai
     // ini adalah cakupan bagian yang selamat dari validator sumber.
     output.confidence = evidenceCandidates > 0 ? Math.round((Math.max(0, evidenceKept) / evidenceCandidates) * 100) : 0;
+  }
+
+  /*
+   * BATAS FORMAT EKSEKUTIF (DECISIONS 453/454) — ditegakkan di sini, bukan
+   * cuma diminta lewat prompt, karena model tetap sering mengirim lebih.
+   *
+   * Letaknya SESUDAH `confidence` dihitung dengan sengaja: pemangkasan ini
+   * urusan penyajian, bukan kegagalan grounding. Kalau dipangkas lebih dulu,
+   * laporan yang justru kaya bukti malah tampil dengan cakupan bukti rendah.
+   *
+   * Yang dipangkas DISEBUTKAN di limitations — pemangkasan diam-diam persis
+   * masalah yang sedang diperbaiki.
+   */
+  if (input.kind === "laporan") {
+    const sections = (output.sections as unknown[] | undefined) ?? [];
+    if (sections.length > MAKS_ANALISIS) {
+      output.sections = sections.slice(0, MAKS_ANALISIS);
+      droppedNotes.push(
+        `${sections.length - MAKS_ANALISIS} bagian analisis dipangkas: format eksekutif memuat maksimal ${MAKS_ANALISIS} bagian pendukung`,
+      );
+    }
+    const recommendations = (output.recommendations as unknown[] | undefined) ?? [];
+    if (recommendations.length > MAKS_KEPUTUSAN) {
+      output.recommendations = recommendations.slice(0, MAKS_KEPUTUSAN);
+      droppedNotes.push(
+        `${recommendations.length - MAKS_KEPUTUSAN} usulan dipangkas: pimpinan diminta memutuskan maksimal ${MAKS_KEPUTUSAN} hal per laporan`,
+      );
+    }
   }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.
   if (typeof output.summary === "string" && !numericClaimsValid(output.summary, globals)) {

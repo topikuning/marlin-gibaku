@@ -241,4 +241,35 @@ describe("buildTabelWaPdf", () => {
       expect(buf.length).toBeGreaterThan(1000);
     }
   });
+
+  it("KERTASNYA A4, dan tetap A4 (permintaan user 2026-08-28)", async () => {
+    /*
+     * *"pastikan pdfnya itu ukuran A4 atau kertas yang standar."*
+     *
+     * Berkas ini diteruskan ke PPK dan DICETAK. Ukuran non-standar — atau
+     * ukuran yang ikut melar mengikuti jumlah kolom — membuat cetakannya
+     * mengecil sendiri di printer, atau terpotong.
+     *
+     * Diperiksa dari MediaBox di byte PDF-nya, bukan dari konstanta di kode:
+     * yang dicetak orang adalah berkasnya, bukan niat penulisnya. A4 lanskap =
+     * 841,89 × 595,28 pt (A4 tegak yang diputar), dan lanskap memang perlu —
+     * tabel kendala punya enam kolom.
+     */
+    const peta = petaLokasi(KATALOG);
+    const t = tabelKendala(
+      { judul: "Kendala belum selesai", tanggal: "26 Agustus 2026", baris: [kendala(1)] },
+      peta,
+      {},
+    );
+    const buf = await buildTabelWaPdf(t, { dibuatPada: new Date("2026-08-26T03:00:00Z") });
+    const mediaBox = [...buf.toString("latin1").matchAll(/\/MediaBox\s*\[([^\]]+)\]/g)].map((m) =>
+      m[1].trim().split(/\s+/).map(Number),
+    );
+    expect(mediaBox.length, "PDF wajib menyatakan MediaBox").toBeGreaterThan(0);
+    for (const box of mediaBox) {
+      const lebar = Math.round(box[2] - box[0]);
+      const tinggi = Math.round(box[3] - box[1]);
+      expect([lebar, tinggi]).toEqual([842, 595]);
+    }
+  });
 });

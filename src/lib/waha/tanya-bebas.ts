@@ -16,7 +16,13 @@ import {
 } from "@/lib/ai-hub/schemas";
 import { LABEL_JENIS, cariNarasiAman } from "@/lib/narasi/cari";
 import type { SourceRef } from "@/lib/ai-hub/types";
-import { buildAdapterFacts, gabungFakta, LABEL_WILAYAH, type HasilAdapter } from "@/lib/ai-hub/adapters";
+import {
+  buildAdapterFacts,
+  gabungFakta,
+  LABEL_WILAYAH,
+  type HasilAdapter,
+  type WilayahAdapter,
+} from "@/lib/ai-hub/adapters";
 
 export type HasilJawabanBebas = {
   providerResult: AiStructuredResult<AskOutput>;
@@ -41,8 +47,25 @@ export async function jawabPertanyaanBebasTergrounding(input: {
   history?: AiConversationTurn[];
   /** Hanya chat pribadi; data berkapabilitas tidak boleh bocor ke seluruh grup. */
   adapterUser?: SessionUser;
+  /**
+   * true = pertanyaan datang dari GRUP, sehingga seluruh wilayah berkapabilitas
+   * (kontrak, RAB, temuan, kesiapan, peringatan dini, verifikasi, inspeksi,
+   * surat, keuangan) sengaja ditahan.
+   *
+   * Penahanannya benar dan tidak diubah: satu grup berisi orang dengan hak yang
+   * berbeda-beda, dan jawaban di sana dibaca semuanya sekaligus. Yang salah
+   * adalah DIAMNYA — penanya cuma menerima "tidak ada datanya", lalu mengira
+   * MARLIN tidak punya datanya, padahal ia hanya tidak boleh menyebutnya di
+   * ruang itu. Dengan penanda ini, penahanannya ikut dikatakan berikut jalan
+   * keluarnya: tanya lagi lewat chat pribadi.
+   */
+  ditahanKarenaGrup?: boolean;
 }): Promise<HasilJawabanBebas> {
-  const tanpaAdapter: HasilAdapter = { refs: [], fakta: [], dilewati: [] };
+  const tanpaAdapter: HasilAdapter = {
+    refs: [],
+    fakta: [],
+    dilewati: input.ditahanKarenaGrup ? (Object.keys(LABEL_WILAYAH) as WilayahAdapter[]) : [],
+  };
   const [pulse, potongan, tambahan] = await Promise.all([
     buildPortfolioPulse(input.user, input.locationIds, input.startKey, input.endKey),
     cariNarasiAman({ locationIds: input.locationIds, pertanyaan: input.question, batas: 8 }),
@@ -92,7 +115,15 @@ export async function jawabPertanyaanBebasTergrounding(input: {
 
   const allowedRefs = new Set(sourceRefs.map((ref) => ref.id));
   const potonganAsli = new Map(potongan.map((p) => [p.id, p.teks]));
-  const parts = providerResult.data.answerParts as BagianJawaban[];
+  /*
+   * `as` TANPA penjagaan adalah bohong pada pemeriksa tipe: bila keluaran tidak
+   * membawa `answerParts`, yang terjadi bukan "jawaban tanpa bagian" melainkan
+   * TypeError di dalam validator — dan penanya WhatsApp menerima diam, bukan
+   * kalimat "sumber tidak cukup". Skema memang memberi default [], jadi ini
+   * pagar untuk keluaran di luar skema (provider lama, stub uji), sama seperti
+   * yang sudah dilakukan `executeAiRun`.
+   */
+  const parts = (providerResult.data.answerParts as BagianJawaban[] | undefined) ?? [];
   const validation = validasiKlaimTerikat(
     parts,
     gabungFakta(faktaResmi(pulse), tambahan.fakta),
@@ -104,7 +135,11 @@ export async function jawabPertanyaanBebasTergrounding(input: {
     ...providerResult.data.limitations,
     ...(pulse.limitations ?? []),
     ...(tambahan.dilewati.length
-      ? [`Tidak ditampilkan untuk peran Anda: ${tambahan.dilewati.map((wilayah) => LABEL_WILAYAH[wilayah]).join(", ")}.`]
+      ? [
+          input.ditahanKarenaGrup
+            ? `Tidak saya sebutkan di grup: ${tambahan.dilewati.map((wilayah) => LABEL_WILAYAH[wilayah]).join(", ")}. Tanyakan lewat chat pribadi ke MARLIN – di sana jawabannya mengikuti hak akses Anda sendiri.`
+            : `Tidak ditampilkan untuk peran Anda: ${tambahan.dilewati.map((wilayah) => LABEL_WILAYAH[wilayah]).join(", ")}.`,
+        ]
       : []),
     ...validation.dibuang,
   ].slice(0, 8);

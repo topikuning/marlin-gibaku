@@ -8,7 +8,17 @@
  */
 
 /** Satu wilayah data tambahan beserta pagar kapabilitasnya. */
-export type WilayahAdapter = "kontrak" | "keuangan" | "rab" | "milestone" | "temuan";
+export type WilayahAdapter =
+  | "kontrak"
+  | "keuangan"
+  | "rab"
+  | "milestone"
+  | "temuan"
+  | "kesiapan"
+  | "ews"
+  | "verifikasi"
+  | "inspeksi"
+  | "surat";
 
 import type { Capability } from "@/lib/authz";
 
@@ -26,6 +36,20 @@ export const KAPABILITAS_ADAPTER: Record<WilayahAdapter, Capability> = {
   milestone: "package.view",
   // Temuan pemeriksa (DECISIONS 426) — pagar sama dengan papan /temuan.
   temuan: "finding.view",
+  /*
+   * LAPISAN PENGENDALIAN & PERSURATAN (DECISIONS 459). Pagarnya SAMA PERSIS
+   * dengan halaman masing-masing — pintu AI tidak boleh jadi jalan memutar:
+   *   /kesiapan         → package.view
+   *   /perlu-tindakan   → portfolio.view
+   *   /verifikasi       → report.verify_external
+   *   inspeksi lapangan → inspection.manage
+   *   /surat            → letter.view
+   */
+  kesiapan: "package.view",
+  ews: "portfolio.view",
+  verifikasi: "report.verify_external",
+  inspeksi: "inspection.manage",
+  surat: "letter.view",
 };
 
 export const LABEL_WILAYAH: Record<WilayahAdapter, string> = {
@@ -34,6 +58,11 @@ export const LABEL_WILAYAH: Record<WilayahAdapter, string> = {
   rab: "RAB",
   milestone: "Milestone administrasi (KKP)",
   temuan: "Temuan pemeriksa",
+  kesiapan: "Kesiapan termin/PHO/FHO",
+  ews: "Peringatan dini (perlu tindakan)",
+  verifikasi: "Verifikasi laporan oleh Wakil PPK",
+  inspeksi: "Inspeksi lapangan",
+  surat: "Persuratan resmi",
 };
 
 /**

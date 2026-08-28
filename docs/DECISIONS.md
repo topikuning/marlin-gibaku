@@ -23351,3 +23351,451 @@ yang dibawa Docker image dan otomatis diterapkan oleh Railway melalui
 `preDeployCommand` → `scripts/migrate-deploy.mjs` sebelum server baru hidup.
 Tidak ada langkah konfigurasi atau perintah migrasi yang harus dijalankan user.
 Kontrak ini dijaga uji unit terhadap `railway.json` dan `Dockerfile`.
+
+---
+
+## 453 · Laporan AI memakai executive brief satu pandangan (2026-08-27)
+
+User menolak laporan AI yang benar secara teknis tetapi tetap berupa kumpulan
+paragraf dan tabel. Dalam bentuk itu, pimpinan harus membaca seluruh dokumen
+untuk menemukan kondisi, pengecualian, dan tindakan; tujuan laporan eksekutif
+tidak tercapai.
+
+**Keputusan.** Setiap artefak laporan kini mempunyai lapisan penyajian
+deterministik yang sama di layar, PDF, Excel, dan WhatsApp: **kesimpulan 30
+detik → lima KPI resmi → tiga lokasi prioritas → maksimal tiga keputusan →
+analisis pendukung**. Tabel lokasi lengkap dipindahkan setelah page break pada
+PDF dan ke lembar kedua pada Excel. Analisis panjang dilipat di layar.
+
+KPI, status efektif, urutan lokasi, dan alasan pengecualian diturunkan dari
+snapshot calculation layer, bukan dari model. Model hanya menulis headline,
+analisis pendukung, dan usulan keputusan. Ringkasan model sekarang wajib
+membawa `sourceRefIds` sendiri; bila tidak sah, sistem menggantinya dengan
+ringkasan pendek dari bagian yang telah lolos grounding. Angka `confidence`
+tetap berarti cakupan bukti.
+
+Template laporan dinaikkan ke versi 2 dan memerintahkan tiga kalimat eksekutif,
+maksimal tiga keputusan konkret, serta maksimal empat bagian pendukung tanpa
+pengulangan tabel. Artefak versi lama tetap dapat dirender karena field sumber
+ringkasan mempunyai fallback kompatibel.
+
+Kontrak pemahaman dan urutan kanal dijaga unit test. Uji penerimaan manusia,
+paritas kanal, lifecycle, WhatsApp, dan deploy Railway tanpa terminal dicatat
+di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md`.
+
+---
+
+## 454 · Batas format eksekutif ditegakkan, sisanya disebut bukan dibuang (2026-08-27)
+
+Lanjutan 453. Format eksekutif baru diperintahkan lewat prompt, sementara
+kode masih memotong diam-diam: setiap kanal hanya menampilkan tiga rekomendasi
+teratas padahal skema mengizinkan sepuluh dan form reviewer mengizinkan
+penambahan sampai sepuluh. Butir keempat dan seterusnya bisa ditulis, disimpan,
+diedit — lalu tidak pernah dibaca siapa pun.
+
+**Keputusan.**
+
+1. **Batasnya satu tempat.** `MAKS_PRIORITAS/MAKS_KEPUTUSAN/MAKS_ANALISIS/
+   MAKS_ANALISIS_WA` di `src/lib/ai-hub/render.ts` dipakai bersama oleh
+   validator keluaran AI, form edit reviewer, dan seluruh renderer.
+2. **Ditegakkan saat validasi, bukan hanya diminta di prompt.** Keluaran model
+   dipangkas ke 3 keputusan / 4 bagian analisis, dan pemangkasannya masuk
+   `limitations` sehingga terbaca di semua kanal. Pemangkasan dilakukan SESUDAH
+   `confidence` dihitung: ini urusan penyajian, bukan kegagalan grounding —
+   kalau dibalik, laporan yang justru kaya bukti tampil dengan cakupan rendah.
+3. **Yang disembunyikan disebut jumlahnya.** Artefak lama yang terlanjur punya
+   lebih dari tiga usulan tidak dipotong isinya; setiap kanal menuliskan berapa
+   yang tidak ditampilkan dan di mana melihatnya. Sama untuk lokasi di luar tiga
+   prioritas dan bagian analisis yang tidak muat di WhatsApp.
+4. **Peringatan data kosong satu kalimat untuk semua kanal** (`brief.dataWarning`),
+   dan sekarang ikut tampil di LAYAR — sebelumnya hanya PDF dan WhatsApp, jadi
+   pembaca layar bisa menilai kinerja fisik dari deviasi yang sebenarnya cuma
+   laporan belum masuk.
+5. **Narasi hasil edit manusia tidak dicap "cakupan bukti 0%".** `confidence`
+   memang dinolkan setelah diedit (rujukan AI tidak lagi berlaku), tetapi
+   kalimat itu terbaca sebagai laporan yang tidak bisa dipercaya. Artefak yang
+   diedit ditandai `humanEdited` dan kanal menulis "narasi sudah diedit dan
+   diverifikasi manusia".
+6. **Prioritas membawa alasannya di WhatsApp**, bukan hanya angka realisasi vs
+   rencana — alasan exception-first sudah ada di layar dan PDF (E-03).
+7. **Pembangun workbook Excel dipindah** dari route API ke `src/lib/ai-hub/excel.ts`
+   sebagai fungsi murni supaya paritas kanal diuji, bukan dipercaya. Nomor baris
+   hardcoded diganti pencarian judul bagian, dan lebar kolom ditetapkan sebelum
+   data masuk.
+
+Dijaga `tests/unit/ai-laporan-excel.test.ts` dan tambahan di
+`tests/unit/ai-laporan-isi.test.ts`.
+
+---
+
+## 455 · Ask MARLIN dijawab di latar, bukan di dalam request (2026-08-27)
+
+Log edge produksi 2026-08-27 15:27 WIB: `POST /ai/ask` berakhir **499** pada
+detik ke-125 dengan `txBytes: 0` — peramban menyerah sementara server masih
+memanggil provider.
+
+Anggarannya memang sah selama itu, dan jauh lebih panjang: `timeoutMs` 90 detik
+per panggilan, `aiCallWithConfig` mencoba dua kali (timeout + retry, jeda 1,5
+detik), dan `aiStructured` boleh meminta perbaikan skema sekali lagi — maksimal
+**empat panggilan provider, ±6 menit**, tanpa satu byte pun terkirim. Tidak ada
+peramban yang menunggu selama itu. Jawabannya tetap tersimpan dan token tetap
+terbayar, tetapi penanyanya tidak pernah melihatnya.
+
+**Keputusan.** Ask MARLIN memisah menjadi dua langkah. Ini mengubah pilihan
+"semua sinkron" pada DECISIONS 133 — HANYA untuk `kind=tanya`; analisis dan
+laporan tetap sinkron karena dipicu sadar dan layarnya memang menunggu satu
+hasil.
+
+1. **Request hanya mencatat.** `askMarlinAction` memeriksa scope, kill switch,
+   dan kuota SECARA SINKRON — penolakan yang bisa dijawab tanpa provider harus
+   sampai seketika — lalu menulis pesan penanya, menandai percakapan
+   `pendingSince`, dan selesai. `executeAiRun` dilepas ke latar lewat
+   `mulaiJawabanLatar()`.
+2. **`checkAiGuard` dipanggil dua kali dan itu aman**: fungsinya murni baca
+   (menghitung baris `ai_runs`) plus audit saat menolak. Tidak ada kuota yang
+   terhitung dua kali.
+3. **Percakapan selalu mendapat kabar.** `tanya-latar.ts` tidak boleh melempar
+   ke pemanggil; setiap jalur keluar menulis pesan (jawaban atau kegagalan) dan
+   mengosongkan `pendingSince`. Percakapan yang menggantung tanpa kabar lebih
+   buruk daripada pesan galat.
+4. **Keadaan TERPUTUS diakui.** Bila proses mati di tengah (deploy ulang,
+   container restart), penanda tunggu tertinggal menyala. `batasJawabanMs()`
+   menurunkan batasnya dari anggaran nyata (`timeoutMs × 4 + 30 detik`), jadi
+   ikut berubah saat admin mengubah timeout. Lewat batas, layar mengatakan
+   jawabannya tidak selesai — bukan memutar penanda tunggu selamanya.
+5. **Layar menunggu, bukan request.** `router.refresh()` tiap 3 detik menarik
+   ulang server component, jadi tidak perlu endpoint status tersendiri.
+   Penghitung detik dihitung dari `pendingSince` supaya tetap benar bila
+   halaman ditinggal lalu dibuka lagi.
+6. **Satu pertanyaan per percakapan pada satu waktu.** Kiriman kedua saat masih
+   menunggu ditolak dengan alasannya; penanda yang sudah lewat batas boleh
+   ditimpa.
+
+Jalur WhatsApp (`lib/waha/tanya.ts`) tidak berubah — di sana penanya memang
+tidak menunggu koneksi HTTP terbuka.
+
+Migrasi `20260827160000_ai_ask_asinkron` menambah `ai_conversations.pending_since`.
+Dijaga `tests/unit/ai-tanya-asinkron.test.ts`.
+
+---
+
+## 456 · Tiga kelemahan rombakan AI ditutup: latar tahan restart, galat tidak bocor, requestIp presisi (2026-08-27)
+
+Tinjauan atas DECISIONS 452–455 (rombakan asisten AI dari sesi lain).
+Penalarannya kuat dan pagar anti-karangannya utuh; tiga hal di bawah ini yang
+ditinggalkan, dan ketiganya bisa ditutup tanpa membongkar rancangannya.
+
+### 1. Jawaban di latar kini dijemput cron, bukan minta diketik ulang
+
+DECISIONS 455 memindahkan penjawaban ke latar di proses yang sama, tanpa
+antrean — dan mencatat sendiri konsekuensinya: deploy ulang di tengah jalan
+menghapus pekerjaannya. Layar memang tidak berputar selamanya (`keadaanTunggu`
+menyebutnya TERPUTUS), tetapi penanya diminta mengetik ulang pertanyaan yang
+sudah ia kirim.
+
+Catatan aslinya sudah menunjuk jalan keluarnya: `pendingSince` yang lewat batas
+SUDAH cukup sebagai antrean. `jemputTanyaTertunda()` menjemputnya, menumpang
+`/api/cron/waha` karena route itu memang dipicu tiap menit.
+
+Tiga pagar, dan ketiganya perlu — pembeda "tahan restart" dari "menjawab dobel":
+
+1. **Hanya yang lewat `batasJawabanMs()`** (anggaran TERBESAR satu jawaban).
+   Lewat dari itu prosesnya memang mati, bukan sekadar lambat.
+2. **Hanya bila pesan TERAKHIR dari penanya.** Proses lama bisa mati sesudah
+   menulis jawaban tetapi sebelum mengosongkan penanda; percakapan seperti itu
+   cukup dibersihkan penandanya.
+3. **Penanda DIKLAIM lebih dulu** (`updateMany` ber-syarat `pendingSince` yang
+   sama), jadi dua cron yang tumpang tindih tidak bisa menang berdua.
+
+Kuota tetap berlaku: penjemputan lewat jalur yang sama, jadi pagarnya
+diperiksa ulang. Yang lewat kuota menerima penolakan, bukan jawaban gratis.
+
+### 2. Galat provider tidak lagi bocor mentah ke percakapan
+
+`Maaf, analisis gagal: ${run.errorMessage}` menaruh pesan pihak ketiga —
+berbahasa Inggris, kadang memuat nama model/endpoint/potongan payload — ke
+gelembung percakapan, dan menyimpannya di `AiMessage` selamanya.
+
+`pesanGagalUntukPenanya()` memisahkan dua hal yang memang berbeda: penolakan
+PAGAR (kuota, kill switch, lingkup) disampaikan APA ADANYA karena itu kalimat
+buatan MARLIN sendiri dan justru menyebut apa yang harus dilakukan penanya;
+galat provider diganti satu kalimat yang mengaku gagal dan menunjuk ke riwayat
+analisis. Rinciannya tidak hilang — tetap di `AiRun.errorMessage` dan di log.
+
+`AiGuardError` dipindah ke `guard-rules.ts` (modul murni) supaya pembeda itu
+bisa diuji tanpa DB; `guard.ts` tetap mengekspornya ulang.
+
+### 3. `requestIp()` presisi lagi
+
+Penambalan DECISIONS 455 membungkus `requestIp()` dengan `try/catch` yang
+menelan SEMUA galat. Itu menyelamatkan jalur latar, tetapi ongkosnya dibayar
+seluruh aplikasi: kegagalan `headers()` yang SUNGGUHAN di dalam request pun
+ikut senyap, dan auditnya kehilangan IP tanpa satu pun tanda.
+
+Yang dipakai sekarang bukan menebak dari galat melainkan MENYATAKAN niat:
+`jalankanDiLatar()` (AsyncLocalStorage) menandai pekerjaan latar, dan
+`requestIp()` tidak menyentuh `headers()` di sana. Di dalam request ia kembali
+ketat — galat berarti galat.
+
+### Yang TIDAK diperbaiki, dan kenapa
+
+Commit `WIP: state dari Codex sebelum limit` (560 insertion, badan pesan
+kosong) sudah terlanjur ada di `dev` yang dipakai bersama. Menulis ulang
+riwayat branch bersama lebih merusak daripada satu pesan commit yang buruk.
+Dicatat di sini supaya siapa pun yang mem-bisect tahu commit itu tidak bisa
+dibaca sebagaimana commit lain di repo ini.
+
+---
+
+## 457 · Blanko harian berhenti meluber, lampiran foto mengalir dua kolom, jejak unggah terjadwal tercatat (2026-08-27)
+
+**Konteks.** User menyerahkan berkas yang benar-benar naik ke Drive —
+`Laporan Harian - Suradadi - 2026-08-26.pdf` — dengan dua keberatan: *"pdf yang
+diunggah ke drive berantakan saat itemnya banyak, lalu foto juga susunannya
+berantakan"* dan *"daftar laporan harian, informasi terupload ke drive tidak
+ada, padahal file sudah terupload di drive untuk hari itu, sepertinya terunggah
+terjadwal, tapi tidak ada informasi"*.
+
+Berkasnya dibaca halaman per halaman, dan tiap gejala ditelusuri ke barisnya.
+
+### 1. Blanko meluber keluar kertas
+
+Blok RENCANA | REALISASI memesan ruang untuk SELURUH barisnya sekaligus
+(`fit(14 * (barisRR + 1))`) lalu menggambar tanpa penjagaan lagi. Begitu
+realisasinya lebih panjang dari satu halaman — 20 item sudah cukup — tidak ada
+apa pun yang menghentikannya:
+
+* halaman 2 tergambar terus melewati tepi bawah; barisnya hilang dari cetakan;
+* satu baris yang membungkus tepat di tepi memicu pdfkit membuka halaman
+  sendiri, dan EKOR baris itu berdiri sendirian di halaman 3 — penggalan
+  "· dari 1.754 m³ · 51,3%)" yang terlihat di berkasnya;
+* halaman itu tidak dimatikan paginasi otomatisnya, sehingga `kakiHalaman()`
+  yang menulis di bawah margin bawah memicu DUA halaman kosong lagi di ekor
+  berkas, lengkap dengan kaki halaman yang terbelah dan penomoran "dari 6" pada
+  berkas berisi 8 lembar.
+
+Sekarang blok itu dipenggal PER BARIS dengan kepala dua kolom yang diulang, dan
+`kakiHalaman()` mematikan paginasi otomatis pada tiap halaman yang ditulisinya.
+
+Ditemukan sekalian, di blok yang sama: kolom TENAGA KERJA | MATERIAL berhenti
+dengan `break` begitu kotaknya penuh. Baris material ke-9 dan seterusnya tidak
+pernah tercetak sementara blankonya terbaca lengkap — memotong diam-diam,
+persis yang dilarang CLAUDE.md. Kedua kolom kini lanjut ke halaman berikutnya.
+
+### 2. Susunan foto
+
+Kartu dokumentasi dipasangkan dua-dua dan tinggi barisnya ditentukan kartu yang
+paling banyak fotonya, jadi ruang di bawah kartu yang lebih pendek tidak pernah
+terpakai. Ditambah tinggi foto yang dipatok 150 pt — dua kartu dua-foto butuh
+792 pt sekolom sementara kolomnya 782 pt, meleset SEPULUH POIN — empat kartu
+di berkas itu memakan dua lembar yang keduanya setengah kosong.
+
+Sekarang kolomnya MENGALIR sendiri-sendiri: tiap kartu jatuh ke kolom yang saat
+itu paling pendek. Tinggi fotonya dipilih sebesar mungkin dan dikecilkan HANYA
+selama pengecilan itu membuat satu kartu tambahan muat sekolom, tidak pernah di
+bawah 120 pt — di bawah itu foto lapangan tidak bisa dipakai memeriksa
+pekerjaan, dan menghemat kertas dengan cara itu membuang gunanya dokumentasi.
+Susunan berkas 26 Agustus 2026 kini muat satu lembar.
+
+Perhitungannya di modul MURNI `lib/daily-report/kkp-lampiran-susun.ts` supaya
+bisa diuji tanpa menggambar.
+
+### 3. Stempel menghapus nama penanda tangan
+
+DECISIONS 412 sudah membalik urutan menggambar (gambar dulu, teks sesudahnya)
+dan itu memang perlu, tetapi tidak cukup: membalik urutan hanya menentukan siapa
+yang menang di piksel yang sama, ia tidak membuat latar stempelnya tembus
+pandang. Pindaian stempel selalu membawa kertas putih di sekelilingnya, dan
+kertas putih itu kotak legap seluas gambarnya — di berkas itu ia menutupi baris
+"( Ahmad Mu'min )".
+
+Penyaji HTML tidak pernah kena karena memakai `mix-blend-multiply`; pdfkit tidak
+punya blend mode sama sekali. Karena itu putihnya DIBUANG dari gambarnya sendiri
+sebelum masuk PDF (`lib/export/ttd-latar.ts`, murni & teruji). Aturan UKURAN
+tidak berubah: stempel tetap BOLEH melimpah menimpa nama perusahaan dan nama
+penanda tangan (DECISIONS 330) — yang tidak boleh adalah menghapusnya.
+
+### 4. Unggahan terjadwal tidak meninggalkan jejak
+
+Yang paling merugikan, dan paling senyap. Rantainya:
+
+1. penjadwal (`gdrive/antrean.ts`) memanggil dengan `byId: null` — memang tidak
+   ada orang yang menekan tombol;
+2. `konteksUnggah` mengubahnya jadi `""`;
+3. `GDriveUpload.created_by_id` bertipe `uuid` dan menolak string kosong, jadi
+   INSERT-nya gagal;
+4. `.catch(() => {})` menelan galatnya tanpa sisa.
+
+Berkasnya sampai di Drive, jejaknya tidak pernah ditulis, dan daftar laporan
+harian — yang membaca `GDriveUpload` — menulis "Belum ke Drive". Bukan cuma
+salah: itu mengundang orang mengunggah ulang berkas yang sudah ada di sana.
+
+`byId` sekarang bertipe `string | null` sampai ke pencatatnya dan ditulis
+sebagai NULL. Kegagalan mencatat tetap TIDAK menggagalkan unggahannya —
+berkasnya sudah terlanjur ada di Drive, dan melempar hanya membuat penjadwal
+mengulang yang sudah berhasil — tetapi tidak boleh senyap lagi: yang senyap
+tidak pernah diperbaiki.
+
+---
+
+## 458 · Progres harian vs mingguan dibedakan, dan pertanyaan "mau ngapain" punya jawabannya (2026-08-28)
+
+**Konteks.** User mengirim tiga tangkapan layar — Ask MARLIN dan WhatsApp —
+dengan satu kalimat: *"banyak pertanyaan yang tidak jelas jawabannya, progress
+kemarin dan total progress mingguan tidak bisa dibedakan."*
+
+Empat kegagalan terlihat di sana, dan ketiga yang terakhir berbagi satu sebab.
+
+### 1. Dua pertanyaan, satu angka
+
+    "progres kemantren kemarin"      → realisasi 7,19% · rencana 5,06% · +2,13%
+    "laporan mingguan di kemantren"  → realisasi 7,19% · rencana 5,06% · +2,13%
+
+Balasannya tidak salah — ia cuma tidak menjawab. `realizedPct` SELALU kumulatif
+s/d tanggal yang ditanya, jadi selama tidak ada laporan baru di antara kedua
+tanggal itu angkanya memang identik. Yang hilang dua hal: TAMBAHAN pada rentang
+yang ditanya, dan satu kata yang mengaku bahwa sisanya kumulatif.
+
+`getLocationsProgressRentang()` (di lapisan hitung, bukan di penyaji) memberi
+keduanya sekaligus. Pengurangannya sah karena penyebutnya tidak bergerak:
+`grandTotal` selalu revisi RAB `aktif`, tidak bergantung `asOf`. Balasan
+sekarang membuka dengan `+0,00% hari itu` / `+1,95% sepanjang pekan`, dan
+angka kumulatifnya diberi label `kumulatif` apa adanya.
+
+### 2. Pertanyaan yang menghadap ke depan tidak punya jawaban
+
+Tiga pertanyaan di tangkapan layar itu semuanya tentang yang AKAN datang:
+
+* WhatsApp — *"rencana seminggu ke depan untuk kemantren?"*
+* Ask MARLIN — *"apa yang perlu dilakukan minggu depan?"*
+* Ask MARLIN — *"pekerjaan apa yang perlu dilakukan untuk mengejar progress?"*
+
+Yang lewat WhatsApp paling merusak: ia dibalas KUTIPAN notulen rapat 10 Agustus
+di bawah judul "Catatan lapangan", ditutup catatan *"Tidak saya kenali: rencana
+seminggu, depan"*. Kutipannya benar apa adanya, tetapi diletakkan sebagai
+jawaban atas pertanyaan tentang pekan depan.
+
+Datanya sudah lama ada — `WeeklyPlan`, dirakit `getRencanaMingguan`, dipakai
+formulir rencana mingguan, PDF, Excel, dan siaran WhatsApp. Yang tidak ada cuma
+sambungannya ke tanya-jawab. Sekarang ada niat `rencana`: merinci komitmen
+pekan itu (item, target, sisa, PIC), tuntutan kurva-S, dan komitmen pekan lalu
+yang belum tuntas.
+
+Penanda "ke depan" SENGAJA tidak dimasukkan ke tabel `PERIODE`. Seluruh modul
+tanggal dibangun menghadap ke belakang dan menolak tanggal depan dengan sadar —
+hari yang belum terjadi akan dijawab data kosong yang terbaca seperti "tidak ada
+pekerjaan". Melonggarkan penjagaan itu untuk SEMUA niat demi satu niat yang
+memang berbeda sifatnya adalah harga yang salah. Niat `rencana` bekerja atas
+NOMOR PEKAN, bukan tanggal laporan.
+
+Yang tetap dijaga: lokasi yang rencananya belum disusun ditulis apa adanya —
+"BELUM disusun". Kosong yang diakui menyuruh orang menyusun rencananya; kutipan
+lama yang berjudul meyakinkan menyuruh orang percaya rencananya sudah ada.
+
+### 3. "Saya tidak punya angka bersumber untuk menjawab itu"
+
+Ask MARLIN menolak menjawab *"pekerjaan apa yang perlu dilakukan untuk mengejar
+progress?"* dengan penanda merah "tanpa sumber terverifikasi" — padahal tepat
+di bawahnya terpampang progres, laporan harian, dan kendala.
+
+Penolakannya JUJUR, dan itu yang menjadikannya cacat serius: SELURUH fakta yang
+dirakit `buildPortfolioPulse` melaporkan apa yang sudah terjadi. Tidak satu pun
+menyebut apa yang direncanakan. Model yang dipagari agar tidak mengarang memang
+tidak punya pilihan selain menolak — dan penanya membaca penolakan itu sebagai
+"MARLIN tidak tahu apa-apa".
+
+Ditambahkan menyeluruh, karena setengahnya tidak menyelesaikan apa pun:
+
+* `LocationFacts` memuat `plannedItemsThisWeek`, `plannedItemNames`,
+  `unfinishedLastWeek` (opsional — "belum ada" harus bisa dibedakan dari "nol");
+* sitasi `<slug>:rencana` dipasang selama pekannya bernomor, TERMASUK saat
+  rencananya belum disusun;
+* metrik `rencana_item_pekan_ini` & `komitmen_belum_tuntas` didaftarkan sebagai
+  FAKTA YANG BOLEH DIKLAIM. Tanpa langkah terakhir ini cacatnya cuma berpindah
+  sisi: angkanya terlihat di drawer, tetapi tiap kalimat yang menyebutnya
+  ditolak validator dan penanya tetap menerima "tidak punya angka bersumber";
+* `rowLine()` menuliskannya ke prompt — struktur data yang tidak sampai ke
+  prompt sama saja dengan tidak ada.
+
+Realisasi per item untuk menilai komitmen pekan lalu diambil lewat
+`cumulativeVolumeByLineageMulti()` (baru, di lapisan hitung): satu query untuk
+seluruh lokasi. Versi satu-lokasi di dalam perulangan berarti 83 query di jalur
+yang dijalankan tiap kali orang bertanya.
+
+---
+
+## 459 · Cakupan AI didaftar & ditegakkan; lapisan pengendalian ikut terjawab (2026-08-28)
+
+**Konteks.** Dua permintaan user: *"pastikan semua hal yang ada di marlin bisa
+ditanyakan secara jelas di ai (kecuali keuangan) … semua hal terkait kendala,
+progress, semuanya terkait pekerjaan bisa dihandle dan ditanyakan di AI"* dan
+*"pastikan pdfnya itu ukuran A4 atau kertas yang standar"*.
+
+### 1. Kertas balasan WhatsApp: SUDAH A4, sekarang dijaga
+
+Diperiksa dari berkas yang benar-benar dihasilkan, bukan dari konstanta:
+`pdfinfo` menyebut `841.89 x 595.28 pts (A4)` — A4 lanskap. Lanskapnya perlu:
+tabel kendala punya enam kolom.
+
+Yang ditambah adalah PENJAGANYA. `waha-tabel-pdf` kini membaca MediaBox dari
+byte PDF-nya dan menuntut 842 × 595. Berkas ini diteruskan ke PPK dan dicetak;
+ukuran yang diam-diam melar membuat cetakannya mengecil sendiri atau terpotong.
+
+### 2. Cakupan AI: dari janji jadi daftar yang ditegakkan
+
+Audit seluruh rute `(app)` menemukan enam wilayah kerja yang tidak pernah
+sampai ke AI sama sekali — halamannya ada, datanya ada, tetapi pertanyaan
+seperti *"sudah bisa ajukan termin belum?"* dijawab "tidak ada datanya":
+
+| Wilayah | Halaman | Pagar |
+|---|---|---|
+| Kesiapan termin/PHO/FHO | `/kesiapan` | `package.view` |
+| Peringatan dini | `/perlu-tindakan` | `portfolio.view` |
+| Verifikasi eksternal Wakil PPK | `/verifikasi` | `report.verify_external` |
+| Inspeksi lapangan | `/verifikasi` | `inspection.manage` |
+| Persuratan & utang jawab | `/surat` | `letter.view` |
+
+(Temuan pemeriksa sudah punya adapter sejak DECISIONS 426.)
+
+Ditambahkan sebagai ADAPTER, bukan sebagai niat WhatsApp baru, dan itu pilihan
+yang menghemat separuh pekerjaan: jalur tanya-bebas WhatsApp memakai
+`buildAdapterFacts` yang SAMA dengan Ask MARLIN, jadi satu tempat menutup kedua
+permukaan sekaligus.
+
+Pagarnya disalin PERSIS dari `requireCapabilityPage` tiap halaman. Pintu AI
+tidak boleh jadi jalan memutar — dan `ai-cakupan.test.ts` menguncinya baris per
+baris, supaya halaman yang kelak diperketat tidak meninggalkan pintu AI terbuka.
+
+### 3. Petanya, dan kenapa peta itu yang sebenarnya diminta
+
+`lib/ai-hub/cakupan.ts` mendaftar tiap wilayah kerja berikut jalur jawabnya
+(niat cepat WA / fakta pulse / adapter berpagar). Ujinya menegakkan DUA arah:
+
+1. tiap wilayah yang didaftar benar-benar punya jalur;
+2. **tiap niat & tiap adapter yang ADA benar-benar terdaftar.**
+
+Arah kedua itu intinya. Sejarah repo ini jelas: temuan & verifikasi lahir di
+DECISIONS 426 tanpa pernah tersambung ke AI, rencana kerja baru tersambung di
+DECISIONS 458 setelah user mengeluh dijawab "tidak punya angka bersumber". Tiap
+kali, kegagalannya SUNYI — tidak ada galat, tidak ada uji merah, hanya jawaban
+sopan yang salah. Sekarang menambah wilayah tanpa mendaftarkannya MEMERAHKAN
+uji, dan penulisnya dipaksa memutuskan: dijawab AI, atau ditulis alasannya.
+
+Keuangan tetap tercantum dengan alasan pengecualiannya ditulis. Dihapus dari
+daftar, ia akan terbaca sebagai "terlupakan"; yang benar adalah "sengaja, ini
+sebabnya". Adapternya sendiri tetap ada dan tetap dipagari `finance.view`.
+
+### 4. Di grup, penahanan data DIKATAKAN
+
+Ditemukan saat menelusuri cakupan: `adapterUser: grup ? undefined : user`
+mematikan SELURUH wilayah berkapabilitas untuk pertanyaan dari grup. Aturannya
+benar dan tidak diubah — satu grup berisi orang dengan hak berbeda-beda, dan
+jawaban di sana dibaca semuanya sekaligus.
+
+Yang salah adalah DIAMNYA. Penanya cuma menerima "tidak ada datanya", lalu
+mengira MARLIN tidak punya datanya — padahal ia hanya tidak boleh menyebutnya
+di ruang itu. Sekarang penahanannya ikut disebut berikut jalan keluarnya:
+*"Tidak saya sebutkan di grup: … Tanyakan lewat chat pribadi."*
+
+Ini kelanjutan langsung dari prinsip DECISIONS 379: yang ditahan adalah
+angkanya, bukan keberadaan pagarnya.

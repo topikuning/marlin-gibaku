@@ -100,6 +100,37 @@ describe("dokumentasi pekerjaan mengalir, tidak satu baris per lembar", () => {
     expect(h12).toBeLessThan(h4 * 3);
   });
 
+  it("REGRESI: susunan berkas 26 Agustus 2026 muat dalam SATU lembar", async () => {
+    /*
+     * Angka nyata dari berkas yang dikeluhkan user: empat item berfoto dengan
+     * 1, 2, 2, dan 1 foto. Cetakannya memakai DUA lembar — halaman 5 memuat
+     * kartu 1–2 dengan lubang menganga di bawah kartu satu-foto, halaman 6
+     * memuat kartu 3–4 dengan lubang yang sama.
+     *
+     * Sebabnya kartu dipasangkan dua-dua dan tinggi barisnya ditentukan kartu
+     * yang paling banyak fotonya, jadi ruang di bawah kartu yang lebih pendek
+     * tidak pernah terpakai. Dengan kolom yang mengalir, kartu berikutnya
+     * mengisi ruang itu.
+     */
+    const buf = await gambarContoh();
+    const foto: FotoDok[] = [];
+    [1, 2, 2, 1].forEach((banyak, i) => {
+      for (let k = 0; k < banyak; k++) {
+        foto.push({
+          buf,
+          pekerjaan: `Pekerjaan ${i + 1}`,
+          kategori: "PEKERJAAN BANGUNAN SHELTER",
+          bobot: 0.19,
+          link: null,
+        });
+      }
+    });
+    const doc = createFormA4Doc();
+    doc.page.margins.bottom = 0;
+    gambarDokumentasi(doc, d, foto, halamanBaruSepertiProduksi(doc));
+    expect(lembarLampiran(await docToBuffer(doc))).toBe(1);
+  });
+
   it("tanpa foto tidak menerbitkan halaman dokumentasi sama sekali", async () => {
     /*
      * Halaman berjudul "DOKUMENTASI PEKERJAAN" tanpa isi membuat pembaca

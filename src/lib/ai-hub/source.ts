@@ -1,7 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, ForbiddenError, type SessionUser } from "@/lib/auth/session";
-import { COUNTED_REPORT_STATUSES, getLocationsProgress } from "@/lib/progress";
+import {
+  COUNTED_REPORT_STATUSES,
+  cumulativeVolumeByLineageMulti,
+  getLocationsProgress,
+} from "@/lib/progress";
 import { jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
 import { computeReadiness } from "./readiness";
 import { computeRisks, exceptionFirst } from "./risk";
@@ -266,6 +270,74 @@ export async function buildPortfolioPulse(
   }
   const milestonesByLoc = new Map(milestoneGroups.map((m) => [m.locationId, m._count._all]));
 
+  /*
+   * RENCANA KERJA pekan berjalan & komitmen pekan lalu (DECISIONS 458).
+   *
+   * Diambil SESUDAH `progress`, dan itu wajib: pekan berjalan tiap lokasi
+   * berasal dari `weekNumber` di sana — kontraknya mulai pada tanggal yang
+   * berbeda-beda, jadi tidak ada satu "minggu ke-n" yang berlaku untuk semua.
+   *
+   * Satu query untuk kedua pekan sekaligus. Menariknya per lokasi akan menjadi
+   * 166 query untuk 83 lokasi, di jalur yang dipanggil tiap kali orang bertanya.
+   */
+  const pekanBerjalan = new Map<string, number>();
+  for (const id of locIds) {
+    const w = progress.get(id)?.weekNumber ?? 0;
+    if (w > 0) pekanBerjalan.set(id, w);
+  }
+  const rencanaPekan = pekanBerjalan.size
+    ? await db.weeklyPlan.findMany({
+        where: {
+          OR: [...pekanBerjalan].flatMap(([locationId, w]) => [
+            { locationId, weekNumber: w },
+            { locationId, weekNumber: w - 1 },
+          ]),
+        },
+        select: {
+          locationId: true,
+          weekNumber: true,
+          items: {
+            orderBy: [{ priority: "asc" }, { id: "asc" }],
+            select: { targetVolume: true, rabNode: { select: { name: true, lineageKey: true } } },
+          },
+        },
+      })
+    : [];
+  const rencanaIni = new Map<string, (typeof rencanaPekan)[number]>();
+  const rencanaLalu = new Map<string, (typeof rencanaPekan)[number]>();
+  for (const r of rencanaPekan) {
+    const w = pekanBerjalan.get(r.locationId);
+    if (w == null) continue;
+    if (r.weekNumber === w) rencanaIni.set(r.locationId, r);
+    else if (r.weekNumber === w - 1) rencanaLalu.set(r.locationId, r);
+  }
+  // Realisasi kumulatif per item, untuk menilai komitmen pekan lalu mana yang
+  // belum tuntas. Dari calculation layer, dan hanya bila memang ada rencana
+  // pekan lalu yang perlu dinilai.
+  const realisasiPerItem = rencanaLalu.size
+    ? await cumulativeVolumeByLineageMulti([...rencanaLalu.keys()], asOf)
+    : new Map<string, Map<string, number>>();
+
+  /** Fakta rencana satu lokasi — `null` bila pekannya memang belum bernomor. */
+  const rencanaFakta = (locId: string) => {
+    if (!pekanBerjalan.has(locId)) {
+      return { plannedItemsThisWeek: null, plannedItemNames: [], unfinishedLastWeek: null };
+    }
+    const ini = rencanaIni.get(locId);
+    const lalu = rencanaLalu.get(locId);
+    const realisasi = realisasiPerItem.get(locId);
+    const belumTuntas = (lalu?.items ?? []).filter(
+      (it) => (realisasi?.get(it.rabNode.lineageKey) ?? 0) < Number(it.targetVolume),
+    ).length;
+    return {
+      // 0 = pekannya bernomor tapi rencananya BELUM disusun; null di atas =
+      // pekannya sendiri belum ada. Dua kabar yang berbeda.
+      plannedItemsThisWeek: ini?.items.length ?? 0,
+      plannedItemNames: (ini?.items ?? []).slice(0, 6).map((it) => it.rabNode.name),
+      unfinishedLastWeek: lalu ? belumTuntas : null,
+    };
+  };
+
   const endMs = asOf.getTime();
   const rows: PulseRow[] = [];
   const risks: RiskItem[] = [];
@@ -317,6 +389,7 @@ export async function buildPortfolioPulse(
       issuesWithoutRecovery: Number(iss?.no_recovery ?? 0n),
       overdueRecoveries: overdueByLoc.get(l.id) ?? 0,
       milestonesNeedFix: milestonesByLoc.get(l.id) ?? 0,
+      ...rencanaFakta(l.id),
     };
 
     const readiness = computeReadiness(facts);
@@ -369,6 +442,33 @@ export async function buildPortfolioPulse(
         href: `/lokasi/${l.slug}/kegiatan`,
       },
     );
+    /*
+     * Sitasi RENCANA — dipasang selama pekannya bernomor, TERMASUK ketika
+     * rencananya belum disusun (DECISIONS 458).
+     *
+     * Justru keadaan "belum disusun" yang paling perlu punya sitasi: itulah
+     * jawaban atas *"pekerjaan apa yang perlu dilakukan untuk mengejar
+     * progress?"* di lokasi yang memang belum merencanakan apa pun, dan tanpa
+     * sumber, model yang dipagari hanya bisa menolak menjawab — persis balasan
+     * "Saya tidak punya angka bersumber untuk menjawab itu" yang dikeluhkan.
+     */
+    if (facts.plannedItemsThisWeek != null) {
+      const belum =
+        facts.unfinishedLastWeek != null
+          ? ` · ${facts.unfinishedLastWeek} komitmen pekan lalu belum tuntas`
+          : "";
+      sourceRefs.push({
+        id: `${l.slug}:rencana`,
+        entityType: "location",
+        entityId: l.id,
+        label: `${l.name} – rencana kerja minggu ${facts.currentWeek}`,
+        value:
+          facts.plannedItemsThisWeek > 0
+            ? `${facts.plannedItemsThisWeek} item direncanakan${belum}`
+            : `belum disusun${belum}`,
+        href: `/lokasi/${l.slug}/rab`,
+      });
+    }
     if (facts.milestonesNeedFix > 0) {
       sourceRefs.push({
         id: `${l.slug}:milestone`,

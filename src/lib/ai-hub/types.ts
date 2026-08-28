@@ -49,6 +49,28 @@ export type LocationFacts = {
   issuesWithoutRecovery: number;
   overdueRecoveries: number;
   milestonesNeedFix: number;
+
+  /* ── RENCANA KERJA: satu-satunya fakta yang menghadap KE DEPAN ──────────
+   *
+   * Keluhan user 2026-08-28: *"pekerjaan apa yang perlu dilakukan untuk
+   * mengejar progress?"* dijawab **"Saya tidak punya angka bersumber untuk
+   * menjawab itu"** — padahal drawer sitasinya penuh angka.
+   *
+   * Penolakannya JUJUR, dan itu yang menjadikannya cacat serius: seluruh fakta
+   * di atas melaporkan apa yang SUDAH terjadi. Tidak satu pun menyebut apa yang
+   * direncanakan. Model yang dipagari agar tidak mengarang memang tidak punya
+   * pilihan lain selain menolak.
+   *
+   * Datanya sudah lama ada (`WeeklyPlan`) dan sudah dipakai formulir rencana
+   * mingguan, PDF, Excel, dan siaran WhatsApp. Yang tidak ada cuma sambungannya
+   * ke sini. Opsional karena lokasi tanpa kontrak/baseline memang belum punya
+   * pekan bernomor — dan "belum ada" harus bisa dibedakan dari "nol". */
+  /** Item yang direncanakan untuk pekan berjalan. null = pekannya belum bernomor. */
+  plannedItemsThisWeek?: number | null;
+  /** Nama beberapa item yang direncanakan — bahan jawaban "ngapain pekan ini". */
+  plannedItemNames?: string[];
+  /** Komitmen pekan LALU yang belum tuntas — bahan pertama untuk mengejar. */
+  unfinishedLastWeek?: number | null;
 };
 
 export type ReadinessFinding = {

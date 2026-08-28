@@ -42,6 +42,46 @@ export const AI_GUARD_DEFAULTS: AiGuardConfig = {
   timeoutMs: 90_000,
 };
 
+/**
+ * Batas hidup satu pertanyaan yang sedang dijawab di latar (DECISIONS 455).
+ *
+ * Diturunkan dari anggaran waktu yang BENAR-BENAR mungkin, bukan angka ajaib:
+ * `aiCallWithConfig` mencoba dua kali (timeout + retry) dan `aiStructured`
+ * boleh meminta perbaikan skema sekali lagi — jadi maksimal empat panggilan
+ * provider, ditambah dua jeda 1,5 detik dan waktu menyusun sumber.
+ *
+ * Lewat dari ini, percakapan yang masih bertanda menunggu berarti prosesnya
+ * mati di tengah (deploy ulang, container restart) dan layar harus mengatakan
+ * itu apa adanya — bukan memutar penanda tunggu selamanya.
+ */
+export function batasJawabanMs(cfg: AiGuardConfig): number {
+  return cfg.timeoutMs * 4 + 30_000;
+}
+
+export type KeadaanTunggu = {
+  /** Pertanyaan tercatat, jawabannya masih disusun. */
+  menunggu: boolean;
+  /** Penanda tunggu lewat batas – prosesnya mati sebelum menjawab. */
+  terputus: boolean;
+  menungguMs: number;
+  batasMs: number;
+};
+
+/**
+ * Terjemahkan `AiConversation.pendingSince` menjadi keadaan layar. MURNI:
+ * "sekarang" diberikan pemanggil supaya bisa diuji tanpa mengunci jam.
+ */
+export function keadaanTunggu(
+  pendingSince: Date | null,
+  cfg: AiGuardConfig,
+  sekarangMs: number,
+): KeadaanTunggu {
+  const batasMs = batasJawabanMs(cfg);
+  if (!pendingSince) return { menunggu: false, terputus: false, menungguMs: 0, batasMs };
+  const menungguMs = Math.max(0, sekarangMs - pendingSince.getTime());
+  return { menunggu: menungguMs < batasMs, terputus: menungguMs >= batasMs, menungguMs, batasMs };
+}
+
 /** Parse JSON setting (partial) → config lengkap dgn default. Toleran nilai rusak. */
 export function parseGuardConfig(raw: string | undefined | null): AiGuardConfig {
   if (!raw) return { ...AI_GUARD_DEFAULTS };
@@ -116,4 +156,22 @@ export function decideAiGuard(cfg: AiGuardConfig, f: GuardFacts): GuardVerdict {
     };
   }
   return { ok: true };
+}
+
+/**
+ * Penolakan PAGAR — kill switch, kuota, lingkup.
+ *
+ * Tinggal di modul MURNI (bukan `guard.ts` yang menyeret DB) sejak
+ * DECISIONS 456: pembeda "pesan buatan MARLIN" vs "galat provider" dipakai
+ * saat menyusun kalimat untuk penanya, dan pembeda itu harus bisa diuji tanpa
+ * lingkungan lengkap. `guard.ts` tetap mengekspornya ulang, jadi tidak ada
+ * pemanggil yang perlu berubah.
+ */
+export class AiGuardError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
 }

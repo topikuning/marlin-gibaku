@@ -107,6 +107,8 @@ export type QualityOutput = z.infer<typeof qualityOutputSchema>;
 export const reportOutputSchema = z.object({
   title: z.string().max(160),
   executiveSummary: z.string().min(20).max(4000),
+  /** Sumber khusus ringkasan; tanpa ini ringkasan model tidak boleh dipercaya. */
+  executiveSummarySourceRefIds: z.array(z.string()).max(12).default([]),
   overallStatus: z.enum(["normal", "perhatian", "kritis", "data_kurang"]),
   confidence: z.number().int().min(0).max(100),
   sections: z
@@ -131,6 +133,7 @@ export const reportOutputSchema = z.object({
     )
     .max(10),
   waSummary: z.string().min(10).max(1800),
+  waSummarySourceRefIds: z.array(z.string()).max(12).default([]),
   limitations: z.array(z.string().max(300)).max(10),
 });
 export type ReportOutput = z.infer<typeof reportOutputSchema>;
@@ -159,6 +162,36 @@ export const METRIK = {
   laporan_diharapkan: { satuan: "hitungan", toleransi: 0 },
   kendala_terbuka: { satuan: "hitungan", toleransi: 0 },
   kendala_kritis: { satuan: "hitungan", toleransi: 0 },
+
+  /*
+   * RENCANA KERJA — satu-satunya metrik yang menghadap KE DEPAN (DECISIONS 458).
+   *
+   * Tanpa keduanya, pertanyaan *"pekerjaan apa yang perlu dilakukan untuk
+   * mengejar progress?"* tidak punya SATU pun fakta yang boleh diklaim, dan
+   * jawabannya jatuh ke "Saya tidak punya angka bersumber" — penolakan yang
+   * jujur atas kekosongan yang kita sendiri buat.
+   *
+   * Toleransi nol: ini cacahan item, bukan persen yang boleh dibulatkan.
+   */
+  rencana_item_pekan_ini: { satuan: "hitungan", toleransi: 0 },
+  komitmen_belum_tuntas: { satuan: "hitungan", toleransi: 0 },
+
+  /*
+   * LAPISAN PENGENDALIAN (DECISIONS 459) — kesiapan termin/PHO/FHO, peringatan
+   * dini, verifikasi eksternal, inspeksi lapangan.
+   *
+   * Semuanya cacahan, jadi toleransinya nol: "3 syarat belum terpenuhi" yang
+   * dijawab "sekitar 3" bukan jawaban, dan angka kesiapan dibaca orang yang
+   * sedang memutuskan mengajukan termin.
+   */
+  kesiapan_syarat_belum: { satuan: "hitungan", toleransi: 0 },
+  peringatan_terbuka: { satuan: "hitungan", toleransi: 0 },
+  peringatan_kritis: { satuan: "hitungan", toleransi: 0 },
+  laporan_belum_diverifikasi: { satuan: "hitungan", toleransi: 0 },
+  laporan_sudah_diverifikasi: { satuan: "hitungan", toleransi: 0 },
+  inspeksi_final: { satuan: "hitungan", toleransi: 0 },
+  surat_perlu_jawab: { satuan: "hitungan", toleransi: 0 },
+  surat_lewat_tenggat: { satuan: "hitungan", toleransi: 0 },
 
   /*
    * Metrik dari adapter sumber (DECISIONS 379) — kontrak, RAB, keuangan,
@@ -295,6 +328,16 @@ export function faktaResmi(pulse: PortfolioPulse): Map<string, FaktaResmi> {
     const kendala = `${r.slug}:kendala`;
     tambah("kendala_terbuka", r.openIssues, kendala);
     tambah("kendala_kritis", r.criticalIssues, kendala);
+    // Fakta rencana hanya didaftarkan bila pekannya memang bernomor; `null`
+    // berarti lokasi ini belum punya kontrak/baseline, dan mengarang nol di
+    // situ akan membuat model menyatakan "tidak ada yang direncanakan" untuk
+    // lokasi yang memang belum boleh merencanakan apa pun.
+    if (r.plannedItemsThisWeek != null) {
+      tambah("rencana_item_pekan_ini", r.plannedItemsThisWeek, `${r.slug}:rencana`);
+    }
+    if (r.unfinishedLastWeek != null) {
+      tambah("komitmen_belum_tuntas", r.unfinishedLastWeek, `${r.slug}:rencana`);
+    }
   }
   return out;
 }
@@ -640,12 +683,15 @@ export const SCHEMA_HINTS = {
   "limitations": [string]
 }`,
   report: `{
-  "title": string, "executiveSummary": string,
+  "title": string,
+  "executiveSummary": string (maksimal 3 kalimat: kondisi, penyebab utama, keputusan/fokus),
+  "executiveSummarySourceRefIds": [string dari daftar sumber],
   "overallStatus": "normal"|"perhatian"|"kritis"|"data_kurang",
   "confidence": number 0-100,
   "sections": [{ "heading": string, "body": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
   "recommendations": [{ "title": string, "reason": string, "locationId": string|null, "sourceRefIds": [string dari daftar sumber] }],
-  "waSummary": string (ringkas utk WhatsApp, tanpa markdown),
+  "waSummary": string (maksimal 3 kalimat, siap dibaca pimpinan di WhatsApp, tanpa markdown),
+  "waSummarySourceRefIds": [string dari daftar sumber],
   "limitations": [string]
 }`,
   ask: `{
