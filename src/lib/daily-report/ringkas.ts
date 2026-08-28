@@ -378,7 +378,19 @@ export async function getRingkasHarian(
     deviationPct: progress?.deviationPct ?? 0,
     grandTotal,
 
-    bobotHariIni: bobotPct(Number(nilaiHariIni), Number(grandTotal)),
+    /*
+     * DITURUNKAN dari kolom itemnya, bukan dihitung sendiri dari `valueDone`.
+     *
+     * Sejak `bobotToday` pindah ke basis volume × amount revisi aktif (audit
+     * 2026-08-28, I-1), total yang tetap memakai Σ `valueDone` akan MENYIMPANG
+     * dari jumlah kolomnya begitu ada adendum harga — laporan yang kolomnya
+     * tidak berjumlah adalah laporan yang tidak bisa dipercaya siapa pun.
+     * Menurunkannya membuat "Σ kolom = total" benar menurut konstruksi.
+     *
+     * `nilaiHariIni` (rupiah) tetap Σ `valueDone`: itu memang NILAI yang
+     * dilaporkan hari itu pada harga saat itu, bukan basis sebuah bobot.
+     */
+    bobotHariIni: pekerjaan.reduce((s, p) => s + p.bobotToday, 0),
     nilaiHariIni,
     pekerjaan,
     draftItemCount: semuaItem.length - itemAktif.length,
