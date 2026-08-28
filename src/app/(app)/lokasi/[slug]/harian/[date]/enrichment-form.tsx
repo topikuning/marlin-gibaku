@@ -39,6 +39,44 @@ type Row = { key: number; id: string; name: string; a: string; b: string };
 let rowSeq = 1;
 
 /**
+ * TANDA baris dari data SERVER — pembanding untuk tahu kapan layar harus
+ * menyusul basis data.
+ *
+ * Sengaja memuat NILAI, bukan hanya id: sesudah menyimpan, jumlah dan urutan
+ * barisnya biasanya sama persis; yang berubah cuma angkanya. Tanda berbasis id
+ * tidak akan pernah bergerak, dan layar akan tetap menampilkan angka lama.
+ */
+function tandaBaris(report: WorkspaceReport): string {
+  const m = report.materials.map((x) => `${x.id}:${x.name}:${x.unit ?? ""}:${x.qty ?? ""}`).join("|");
+  const a = report.equipment.map((x) => `${x.id}:${x.name}:${x.count}`).join("|");
+  return `${m}#${a}`;
+}
+
+function barisMaterial(report: WorkspaceReport): Row[] {
+  return report.materials.length
+    ? report.materials.map((m) => ({
+        key: rowSeq++,
+        id: m.id,
+        name: m.name,
+        a: m.unit ?? "",
+        b: m.qty != null ? String(m.qty) : "",
+      }))
+    : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }];
+}
+
+function barisAlat(report: WorkspaceReport): Row[] {
+  return report.equipment.length
+    ? report.equipment.map((e) => ({
+        key: rowSeq++,
+        id: e.id,
+        name: e.name,
+        a: String(e.count),
+        b: "",
+      }))
+    : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }];
+}
+
+/**
  * Foto yang menempel pada satu baris — dibaca dari data SERVER, bukan state.
  *
  * Inilah perbaikan angka "0 foto" yang keras kepala (DECISIONS 343): jumlahnya
@@ -227,28 +265,51 @@ function BadanForm({
   pending: boolean;
 }) {
   const workerMap = new Map(report.workers.map((w) => [w.role, w.count]));
-  const [materials, setMaterials] = useState<Row[]>(
-    report.materials.length
-      ? report.materials.map((m) => ({
-          key: rowSeq++,
-          id: m.id,
-          name: m.name,
-          a: m.unit ?? "",
-          b: m.qty != null ? String(m.qty) : "",
-        }))
-      : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }],
-  );
-  const [equipment, setEquipment] = useState<Row[]>(
-    report.equipment.length
-      ? report.equipment.map((e) => ({
-          key: rowSeq++,
-          id: e.id,
-          name: e.name,
-          a: String(e.count),
-          b: "",
-        }))
-      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }],
-  );
+  const [materials, setMaterials] = useState<Row[]>(() => barisMaterial(report));
+  const [equipment, setEquipment] = useState<Row[]>(() => barisAlat(report));
+
+  /*
+   * LAYAR IKUT DATA SERVER BEGITU DATA ITU BERUBAH.
+   *
+   * Cacat yang ditutup (E2E `harian-tata-letak-input.spec.ts`): isi 7 di kolom
+   * Qty, tekan Enter, muncul "Pelengkap laporan tersimpan." — dan angkanya
+   * MUNDUR ke 40. DB menyimpan 7 dengan benar; yang salah cuma layarnya.
+   *
+   * Gejalanya PERSIS sama dengan DECISIONS 342 — "mengetik 41 lalu Enter
+   * mengembalikan 40" — tetapi sebabnya lain, dan yang itu memang sudah
+   * ditutup (tombol cuaca tak lagi membajak Enter). Ini penyebab KEDUA dengan
+   * gejala yang sama, dan hanya muncul saat draft punya lebih dari satu baris
+   * material. Siapa pun yang melihat angka 40 lagi jangan mengira 342 kambuh.
+   *
+   * Sebabnya kolom-kolom ini TIDAK TERKENDALI (`defaultValue={row.b}`), jadi
+   * angka yang diketik hanya hidup di DOM. State React tetap memegang nilai
+   * lama, dan begitu React memasang ulang baris itu, `defaultValue` memasang
+   * kembali nilai lama tadi. Berdamping dengan spanduk "tersimpan", layar
+   * berbohong tentang isi basis data — dan pelapor yang percaya pada layar akan
+   * mengetiknya lagi.
+   *
+   * Perbaikannya menyeed ulang baris dari `report` setiap kali TANDA data
+   * server berubah. Sesudah simpan, revalidasi membawa data baru, tandanya
+   * berubah, dan layar menyusul DB — berapa pun urutan tibanya spanduk sukses
+   * dan props baru.
+   *
+   * Konsekuensi yang disengaja: baris yang ditambah tapi BELUM disimpan akan
+   * tergantikan ketika data server benar-benar berubah. Itu memang lebih baik:
+   * data server berubah artinya ada yang tersimpan, dan layar yang tidak sama
+   * dengan basis data jauh lebih mahal daripada satu baris kosong yang harus
+   * ditambahkan ulang.
+   */
+  const [tanda, setTanda] = useState(() => tandaBaris(report));
+  const tandaKini = tandaBaris(report);
+  if (tandaKini !== tanda) {
+    // Disesuaikan SAAT RENDER, bukan di dalam effect: React menjalankan ulang
+    // render ini sebelum apa pun tampil, jadi tidak ada kedipan angka lama dan
+    // tidak ada render bertingkat. Ini pola resmi "menyesuaikan state ketika
+    // props berubah".
+    setTanda(tandaKini);
+    setMaterials(barisMaterial(report));
+    setEquipment(barisAlat(report));
+  }
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs">

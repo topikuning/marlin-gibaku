@@ -219,10 +219,18 @@ export async function getRingkasHarian(
             volumeDone: true,
             valueDone: true,
             notes: true,
-            // `volume` + `amount` revisi AKTIF: bobot hari ini diturunkan dari
-            // keduanya, bukan dari `valueDone` yang harganya beku (audit
-            // 2026-08-28, I-1).
-            rabNode: { select: { code: true, name: true, unit: true, volume: true, amount: true } },
+            /*
+             * `lineageKey` = jembatan ke revisi AKTIF.
+             *
+             * `rabNode` di bawah adalah node revisi yang aktif SAAT LAPORAN
+             * DIBUAT — dipakai untuk kode/nama/satuan, yang memang harus tampil
+             * apa adanya seperti dilaporkan. Ia TIDAK boleh dipakai menghitung
+             * bobot: penyebutnya (`grandTotal`) datang dari revisi aktif
+             * SEKARANG, dan mencampur dua revisi melahirkan kembali cacat yang
+             * hendak ditutup.
+             */
+            lineageKey: true,
+            rabNode: { select: { code: true, name: true, unit: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -276,6 +284,47 @@ export async function getRingkasHarian(
   const nilaiHariIni = itemAktif.reduce((s, i) => s + i.valueDone, 0n);
   const grandTotal = progress?.grandTotal ?? 0n;
 
+  /*
+   * NODE REVISI AKTIF, dicocokkan lewat `lineageKey` (perbaikan 2026-08-28).
+   *
+   * Versi pertama perbaikan I-1 memakai `item.rabNode` — node yang MENEMPEL di
+   * laporan, milik revisi yang aktif saat laporan itu ditulis. Penyebutnya
+   * (`grandTotal`) datang dari revisi aktif sekarang, jadi sesudah adendum yang
+   * membuat revisi baru, pembilang dan penyebut berasal dari dua revisi
+   * berbeda: persis cacat yang hendak ditutup, hanya berpindah dari harga ke
+   * node. Komentarnya bahkan mengklaim "revisi aktif" — dan klaim yang salah
+   * lebih berbahaya daripada tidak ada komentar.
+   *
+   * `lineageKey` memang ada untuk ini: ia stabil lintas revisi (PROJECT.md §3).
+   */
+  const nodeAktif = new Map<string, { volK: number; amount: number }>();
+  {
+    const rows = await db.rabNode.findMany({
+      where: { revision: { locationId: location.id, status: "aktif" }, kind: "item" },
+      select: { lineageKey: true, volume: true, amount: true },
+    });
+    for (const n of rows) {
+      nodeAktif.set(n.lineageKey, {
+        volK: n.volume ? Number(n.volume.toString()) : 0,
+        amount: Number(n.amount),
+      });
+    }
+  }
+
+  /**
+   * Bobot satu baris hari ini = (volume hari ini / volume kontrak) × bobot item.
+   *
+   * Item yang lineage-nya TIDAK ADA di revisi aktif menyumbang 0 — bukan
+   * ditaksir dari node lamanya. Pekerjaan yang dihapus adendum memang tidak
+   * lagi punya bobot terhadap kontrak yang berlaku, dan invarian "lineage mati
+   * tidak ikut" sudah dipegang jalur progres lainnya.
+   */
+  function bobotHarian(lineageKey: string, volumeHariIni: number): number {
+    const n = nodeAktif.get(lineageKey);
+    if (!n) return 0;
+    return (prestasiPct(volumeHariIni, n.volK) / 100) * bobotPct(n.amount, Number(grandTotal));
+  }
+
   const pekerjaan: RingkasPekerjaan[] = itemAktif.map((i) => ({
     code: i.rabNode.code,
     name: i.rabNode.name,
@@ -291,9 +340,7 @@ export async function getRingkasHarian(
      * (DECISIONS 151; audit 2026-08-28, I-1). Batas 100% ikut terbawa dari
      * `prestasiPct`, jadi satu hari tak bisa menyumbang lebih dari bobot itemnya.
      */
-    bobotToday:
-      (prestasiPct(Number(i.volumeDone), Number(i.rabNode.volume ?? 0)) / 100) *
-      bobotPct(Number(i.rabNode.amount), Number(grandTotal)),
+    bobotToday: bobotHarian(i.lineageKey, Number(i.volumeDone)),
     valueToday: i.valueDone,
     notes: i.notes,
   }));
