@@ -24159,3 +24159,58 @@ timpang (teramai 35, banyak yang nol), dan itulah keadaan yang membuat EWS dan
 `/perlu-tindakan` berarti. Menambahkannya menyentuh mesin laporan seed dan 31
 berkas uji yang bergantung pada slug seed sekarang, jadi dipisah dari perubahan
 ini supaya kegagalannya — bila ada — bisa dibaca.
+
+---
+
+## 464 · `BOOTSTRAP_DEMO_DATA` akhirnya punya penjaga (2026-08-28)
+
+Pertanyaan user setelah DECISIONS 463 — "pastikan ini hanya di demo, tidak
+memengaruhi production" — dijawab dengan memeriksa jalannya, bukan dengan
+meyakinkan.
+
+### Yang diperiksa
+
+Ada DUA jalan `runDemoSeed()` bisa dipanggil:
+
+1. `pnpm db:seed` → `prisma/seed.ts` MENOLAK `APP_ENV=production`. Aman.
+2. `BOOTSTRAP_DEMO_DATA=true` → dijalankan `instrumentation-node.ts` tiap boot,
+   **tanpa penjaga apa pun**. Yang ada hanya komentar "JANGAN dipakai saat sudah
+   ada data operasional sungguhan" — dan komentar bukan penjaga.
+
+Salinan lapangan 24 Agustus diperiksa untuk memastikan jalan kedua belum pernah
+terjadi: 0 paket demo, 0 kontrak `SPK-KNMP-2026-*`, 0 vendor demo, dan user
+`admin` tidak ada. Satu-satunya username yang cocok adalah `hery` — orang
+sungguhan, bukan bekas seed. Jadi seed demo memang belum pernah menyentuh
+lapangan, dan DECISIONS 463 tidak mengubah itu.
+
+Tetapi lubangnya nyata: satu env var salah pasang cukup untuk menyuntikkan 16
+lokasi contoh dan 9 user berpassword `marlin123`, dan kegagalannya SUNYI — tidak
+ada galat, hanya paket demo yang tiba-tiba ada di daftar. DECISIONS 463 justru
+memperbesar muatannya dari 7 lokasi menjadi 16.
+
+### Penjaganya membaca ISI, bukan nama lingkungan
+
+`APP_ENV !== "production"` TIDAK dipakai sebagai syarat: deployment uji coba
+memang berjalan dengan `APP_ENV=production` — itu sebabnya `pnpm db:seed`
+ditolak di sana dan env bootstrap ini yang dipakai. Memakai nama lingkungan
+sebagai pagar akan mematikan satu-satunya pemakaian yang sah.
+
+Yang membedakan adalah isi basis datanya. `bolehMuatDemo()` menolak begitu ada
+SATU paket yang bukan buatan seed — termasuk paket TANPA nomor, karena paket
+yang dibuat lewat layar belum tentu bernomor dan menganggapnya "bukan asing"
+akan membuka pintu untuk seluruh seed. Basis data kosong tetap boleh, dan basis
+data berisi paket demo saja tetap boleh (seed idempotent, aman diulang).
+
+Penolakannya menyebut paket yang menghalangi. Penolakan yang tidak menyebut
+sebabnya akan dibaca sebagai kerusakan, lalu env-nya dipasang ulang lebih keras.
+
+### Daftarnya diturunkan, tidak ditulis dua kali
+
+`NOMOR_PAKET_DEMO` dihitung dari `PACKAGES` + `PAKET_PIPELINE`, bukan disalin.
+Daftar kembar akan menyimpang diam-diam, dan yang menyimpang di sini berarti
+seed menolak basis datanya sendiri — lalu orang menyangka penjaganya rusak dan
+mematikannya. `tests/integration/seed-demo-penjaga.test.ts` menjaga bahwa
+`packageNumber` hanya pernah ditulis dari kedua array itu.
+
+Seluruh uji dibuktikan MERAH dulu dengan mematikan penjaganya (3 dari 5 gagal),
+lalu hijau lagi.

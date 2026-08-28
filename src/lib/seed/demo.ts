@@ -80,6 +80,59 @@ const PACKAGES: { name: string; number: string; slugs: string[]; contractNumber:
   { name: "Paket KNMP Tangerang (2 lokasi)", number: "PKT-2026-014", slugs: ["kronjo-tangerang", "lontar-tangerang"], contractNumber: "SPK-KNMP-2026-BTN-014" },
 ];
 
+/** Paket tanpa kontrak — supaya tahap prospek/tender/batal punya data. */
+const PAKET_PIPELINE = [
+  { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
+  { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
+  { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
+];
+
+/**
+ * SELURUH nomor paket yang mungkin dibuat seed demo.
+ *
+ * Dipakai `bolehMuatDemo()` untuk mengenali "basis data ini isinya demo, bukan
+ * data operasional". Diturunkan dari kedua daftar di atas, tidak ditulis ulang
+ * — daftar kembar akan menyimpang diam-diam, dan yang menyimpang di sini
+ * berarti penjaga yang membiarkan seed menimpa data sungguhan.
+ */
+export const NOMOR_PAKET_DEMO: readonly string[] = [
+  ...PACKAGES.map((p) => p.number),
+  ...PAKET_PIPELINE.map((p) => p.number),
+];
+
+export type IzinMuatDemo = { boleh: true } | { boleh: false; alasan: string };
+
+/**
+ * Boleh tidaknya seed demo dijalankan pada basis data INI.
+ *
+ * `BOOTSTRAP_DEMO_DATA=true` adalah satu-satunya jalan seed demo bisa menyentuh
+ * server yang sudah berjalan, dan sampai sekarang ia tidak punya penjaga apa
+ * pun: komentarnya berbunyi "JANGAN dipakai saat sudah ada data operasional
+ * sungguhan", dan komentar bukan penjaga. Satu env var salah pasang sudah cukup
+ * untuk menyuntikkan 16 lokasi contoh + 9 user berpassword `marlin123` ke
+ * basis data yang berisi pekerjaan nyata.
+ *
+ * Aturannya sengaja BUKAN `APP_ENV !== "production"`: deployment uji coba
+ * memang berjalan dengan `APP_ENV=production` (itu sebabnya `pnpm db:seed`
+ * ditolak di sana dan env ini yang dipakai). Yang membedakan bukan nama
+ * lingkungan, melainkan ISI basis datanya — satu saja paket yang bukan buatan
+ * seed berarti ada yang bekerja sungguhan di sini.
+ */
+export async function bolehMuatDemo(db: PrismaClient): Promise<IzinMuatDemo> {
+  const asing = await db.package.findFirst({
+    where: { OR: [{ packageNumber: null }, { packageNumber: { notIn: [...NOMOR_PAKET_DEMO] } }] },
+    select: { name: true, packageNumber: true },
+  });
+  if (!asing) return { boleh: true };
+  return {
+    boleh: false,
+    alasan:
+      `basis data ini sudah berisi paket yang BUKAN buatan seed demo ` +
+      `(${asing.packageNumber ?? "tanpa nomor"} – ${asing.name}). ` +
+      `Seed demo menolak menyentuhnya.`,
+  };
+}
+
 /**
  * Muat data demo (idempotent). Dipanggil dari:
  *  - prisma/seed.ts (dev: pnpm db:seed)
@@ -479,12 +532,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await assign("wakil-ppk-01", "purworejo");
 
   // ── Paket non-kontrak: prospek / tender / batal ─────────────
-  const extraPkgs = [
-    { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
-    { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
-    { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
-  ];
-  for (const e of extraPkgs) {
+  for (const e of PAKET_PIPELINE) {
     const exist = await db.package.findFirst({ where: { orgId: org.id, packageNumber: e.number } });
     if (!exist) {
       const pkg = await db.package.create({
