@@ -296,11 +296,21 @@ export async function getRingkasHarian(
    * lebih berbahaya daripada tidak ada komentar.
    *
    * `lineageKey` memang ada untuk ini: ia stabil lintas revisi (PROJECT.md §3).
+   *
+   * Yang diambil HANYA lineage yang benar-benar dilaporkan hari itu — belasan
+   * baris, bukan seluruh RAB lokasi yang bisa mencapai dua ribu node. Tak satu
+   * pun node di luar daftar ini pernah dibaca: `bobotHarian` selalu mencarinya
+   * lewat `lineageKey` baris laporan.
    */
+  const lineageDilaporkan = [...new Set(itemAktif.map((i) => i.lineageKey))];
   const nodeAktif = new Map<string, { volK: number; amount: number }>();
-  {
+  if (lineageDilaporkan.length > 0) {
     const rows = await db.rabNode.findMany({
-      where: { revision: { locationId: location.id, status: "aktif" }, kind: "item" },
+      where: {
+        revision: { locationId: location.id, status: "aktif" },
+        kind: "item",
+        lineageKey: { in: lineageDilaporkan },
+      },
       select: { lineageKey: true, volume: true, amount: true },
     });
     for (const n of rows) {
