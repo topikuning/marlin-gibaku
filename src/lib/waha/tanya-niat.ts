@@ -36,6 +36,15 @@ export const NIAT = [
   "laporan",
   /** Rekap posisi pekerjaan satu PEKAN — DECISIONS 358. */
   "laporan_mingguan",
+  /**
+   * RENCANA KERJA satu pekan — apa yang AKAN dikerjakan (DECISIONS 458).
+   *
+   * Satu-satunya niat yang menghadap KE DEPAN. Semua niat lain melaporkan apa
+   * yang sudah terjadi; yang ini menjawab "minggu depan ngapain" dan "apa yang
+   * harus dikerjakan untuk mengejar" — pertanyaan yang dulu jatuh ke jalur
+   * kutipan catatan lapangan dan dijawab dengan notulen rapat bulan lalu.
+   */
+  "rencana",
   /** "kamu bisa apa saja?" — MARLIN menjelaskan dirinya sendiri. */
   "bantuan",
 ] as const;
@@ -50,6 +59,7 @@ export const NIAT_LABEL: Record<Niat, string> = {
   kelengkapan: "kelengkapan laporan harian",
   laporan: "isi laporan harian satu tanggal",
   laporan_mingguan: "rekap mingguan (realisasi vs rencana per pekan)",
+  rencana: "rencana kerja pekan ini atau pekan depan",
   bantuan: "daftar hal yang bisa saya jawab",
 };
 
@@ -108,7 +118,7 @@ export const skemaNiat = z.object({
 export type NiatTerbaca = z.infer<typeof skemaNiat>;
 
 export const PETUNJUK_SKEMA = `{
-  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "bantuan" | null,
+  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "rencana" | "bantuan" | null,
   "lokasiDisebut": string[],
   "periode":
       { "jenis": "hari_ini" }
@@ -141,6 +151,12 @@ export const SISTEM_PROMPT = [
   "                     'laporan minggu lalu', 'progress mingguan'.",
   "                     PENTING: 'laporan MINGGUAN' selalu laporan_mingguan, JANGAN",
   "                     dipetakan ke 'laporan' (yang itu laporan HARIAN satu tanggal).",
+  "- rencana     : RENCANA KERJA – apa yang AKAN dikerjakan, bukan yang sudah.",
+  "                Dipakai untuk 'rencana minggu depan', 'rencana seminggu ke depan',",
+  "                'apa yang perlu dikerjakan', 'pekerjaan apa untuk mengejar",
+  "                progress', 'target minggu ini'. Satu-satunya niat yang menghadap",
+  "                KE DEPAN – kalau pertanyaannya tentang yang akan datang, ini",
+  "                jawabannya, JANGAN dipetakan ke progress atau laporan_mingguan.",
   "- bantuan     : penanya bertanya APA SAJA yang bisa kamu jawab / kamu bisa apa",
   "",
   "PERIODE – kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",

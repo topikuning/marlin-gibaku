@@ -164,6 +164,19 @@ export const METRIK = {
   kendala_kritis: { satuan: "hitungan", toleransi: 0 },
 
   /*
+   * RENCANA KERJA — satu-satunya metrik yang menghadap KE DEPAN (DECISIONS 458).
+   *
+   * Tanpa keduanya, pertanyaan *"pekerjaan apa yang perlu dilakukan untuk
+   * mengejar progress?"* tidak punya SATU pun fakta yang boleh diklaim, dan
+   * jawabannya jatuh ke "Saya tidak punya angka bersumber" — penolakan yang
+   * jujur atas kekosongan yang kita sendiri buat.
+   *
+   * Toleransi nol: ini cacahan item, bukan persen yang boleh dibulatkan.
+   */
+  rencana_item_pekan_ini: { satuan: "hitungan", toleransi: 0 },
+  komitmen_belum_tuntas: { satuan: "hitungan", toleransi: 0 },
+
+  /*
    * Metrik dari adapter sumber (DECISIONS 379) — kontrak, RAB, keuangan,
    * milestone KKP.
    *
@@ -298,6 +311,16 @@ export function faktaResmi(pulse: PortfolioPulse): Map<string, FaktaResmi> {
     const kendala = `${r.slug}:kendala`;
     tambah("kendala_terbuka", r.openIssues, kendala);
     tambah("kendala_kritis", r.criticalIssues, kendala);
+    // Fakta rencana hanya didaftarkan bila pekannya memang bernomor; `null`
+    // berarti lokasi ini belum punya kontrak/baseline, dan mengarang nol di
+    // situ akan membuat model menyatakan "tidak ada yang direncanakan" untuk
+    // lokasi yang memang belum boleh merencanakan apa pun.
+    if (r.plannedItemsThisWeek != null) {
+      tambah("rencana_item_pekan_ini", r.plannedItemsThisWeek, `${r.slug}:rencana`);
+    }
+    if (r.unfinishedLastWeek != null) {
+      tambah("komitmen_belum_tuntas", r.unfinishedLastWeek, `${r.slug}:rencana`);
+    }
   }
   return out;
 }

@@ -165,6 +165,20 @@ export function bacaPeriodeTeks(teksMentah: string): PeriodeDiminta | null {
  */
 const KUNCI: { niat: Niat; pola: RegExp }[] = [
   { niat: "bantuan", pola: /\b(bantuan\w*|bisa apa|apa saja yang bisa|kamu bisa|help|menu)\b/ },
+  /*
+   * RENCANA ditulis SEBELUM `laporan_mingguan`, dan bentuk "rencana mingguan"
+   * sengaja ditaruh paling depan di dalam alternasinya sendiri.
+   *
+   * Sebabnya `buangYangTermuat` membandingkan RENTANG TEKS: kalau yang cocok
+   * hanya kata "rencana", potongan "mingguan" di sebelahnya tetap menjadi
+   * temuan `laporan_mingguan` yang terpisah, dan pertanyaan yang gamblang
+   * berubah jadi ambigu. Dengan potongan yang menelan kedua katanya, niat
+   * mingguan yang termuat di dalamnya gugur sebagaimana mestinya.
+   */
+  {
+    niat: "rencana",
+    pola: /\b(rencana (?:mingguan|kerja|minggu\w*|pekan\w*)|rencana\w*|jadwal kerja|akan dikerjakan|mau dikerjakan|yang perlu dikerjakan|perlu dilakukan|harus dikerjakan|target mingguan)\b/,
+  },
   { niat: "laporan_mingguan", pola: /\b(laporan mingguan|rekap mingguan|mingguan|progress mingguan|rekap pekan)\b/ },
   { niat: "kendala", pola: /\b(kendala\w*|masalah\w*|hambatan\w*|problem\w*)\b/ },
   { niat: "deviasi", pola: /\b(deviasi\w*|terlambat\w*|tertinggal\w*|keterlambatan\w*|telat\w*)\b/ },
@@ -233,8 +247,30 @@ const LABEL_NIAT: Record<Niat, string> = {
   kelengkapan: "Siapa yang sudah/belum lapor",
   laporan: "Isi laporan harian",
   laporan_mingguan: "Rekap laporan mingguan",
+  rencana: "Rencana kerja",
   bantuan: "Daftar yang bisa saya jawab",
 };
+
+/**
+ * Penanda bahwa yang ditanya adalah pekan YANG AKAN DATANG.
+ *
+ * Sengaja BUKAN bagian dari tabel `PERIODE`. Seluruh modul tanggal
+ * (`tanya-tanggal.ts`) memang dibangun menghadap ke belakang — ia menolak
+ * tanggal depan dengan sadar, karena "hari yang belum terjadi" akan dijawab
+ * dengan data kosong yang terbaca seperti "tidak ada pekerjaan". Menambahkan
+ * periode maju ke tabel itu akan melonggarkan penjagaan tersebut untuk SEMUA
+ * niat, demi satu niat yang memang berbeda sifatnya.
+ *
+ * Jadi penanda ini hanya dibaca oleh niat `rencana`, yang datanya
+ * (`WeeklyPlan`) memang bernomor pekan, bukan bertanggal laporan.
+ */
+const POLA_KE_DEPAN =
+  /\b(?:(?:se)?(?:minggu|pekan)\s+(?:ini\s+)?ke\s?depan|(?:minggu|pekan)\s+depan|ke\s?depan|kedepan|mendatang|selanjutnya|berikutnya)\b/;
+
+export function mintaPekanDepan(teksMentah: string): boolean {
+  // Kata urutan dibuang dulu: "paling depan" adalah superlatif, bukan waktu.
+  return POLA_KE_DEPAN.test(hapusUrutan(bersih(teksMentah)));
+}
 
 /** Periode yang artinya "hari ini" — di situ kendala tidak ambigu. */
 function periodeHariIni(p: PeriodeDiminta): boolean {
@@ -514,7 +550,14 @@ function hapusPeriode(t: string): string {
  * pencocokannya tugas `cocokkanLokasi`, bukan tugas parser ini.
  */
 export function frasaSisa(teksMentah: string): string[] {
-  let sisa = hapusUrutan(hapusPeriode(bersih(teksMentah)));
+  // Penanda "ke depan" DIJELASKAN, bukan dibiarkan jadi kata asing. Tanpa baris
+  // ini, "rencana seminggu ke depan" melaporkan *"Tidak saya kenali: seminggu,
+  // depan"* — persis balasan yang dikeluhkan user 2026-08-28, di bawah jawaban
+  // yang juga sudah salah.
+  let sisa = hapusUrutan(hapusPeriode(bersih(teksMentah))).replace(
+    new RegExp(POLA_KE_DEPAN.source, "g"),
+    " ",
+  );
   for (const k of KUNCI) sisa = sisa.replace(new RegExp(k.pola.source, "g"), " ");
 
   const frasa: string[] = [];

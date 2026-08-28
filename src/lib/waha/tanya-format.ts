@@ -210,11 +210,34 @@ export type BarisProgress = {
   realisasiPct: number;
   rencanaPct: number;
   deviasiPct: number;
+  /**
+   * Tambahan realisasi PADA HARI ITU saja, poin persen (DECISIONS 458).
+   * null = tanggalnya tidak terbaca, jadi tambahannya tidak punya arti.
+   */
+  tambahanPct?: number | null;
   /** null = belum ada laporan hari ini. 0 = ada laporan, isinya masih kosong. */
   itemHariIni: number | null;
   /** Label status laporan hari ini (null = belum ada laporannya). */
   statusHariIni?: string | null;
 };
+
+/**
+ * Baris "sekian bertambah di rentang yang ditanyakan".
+ *
+ * Keluhan user 2026-08-28: *"progress kemarin dan total progress mingguan tidak
+ * bisa dibedakan."* Betul — keduanya menampilkan `realizedPct`, yang SELALU
+ * kumulatif, jadi selama tidak ada laporan baru di antaranya angkanya sama
+ * persis. Tidak ada satu kata pun di balasan lama yang menyatakan itu angka
+ * kumulatif.
+ *
+ * Karena itu tiap balasan progres kini membuka dengan TAMBAHAN pada rentang
+ * yang ditanya, dan angka kumulatifnya diberi label "kumulatif" apa adanya.
+ * Dua balasan yang isinya berbeda jadi terlihat berbeda.
+ */
+function barisTambahan(tambahanPct: number | null | undefined, sebutan: string): string | null {
+  if (tambahanPct == null) return null;
+  return `  ${bertanda(tambahanPct)} ${sebutan}`;
+}
 
 /**
  * Judul yang MENGAKU diurutkan.
@@ -266,9 +289,15 @@ export function balasProgress(
         : `${b.itemHariIni} item dilaporkan` + (b.statusHariIni ? ` (${b.statusHariIni})` : "");
     return [
       `*${b.lokasi}*`,
-      `  realisasi ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct)}`,
+      // "hari itu", bukan "hari ini" — alasan yang sama dengan catatan di atas:
+      // pertanyaan bisa menyebut tanggal lampau, dan harinya sudah disebut
+      // sekali di kepala balasan.
+      barisTambahan(b.tambahanPct, "hari itu"),
+      `  kumulatif ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct)}`,
       `  ${laporan}`,
-    ].join("\n");
+    ]
+      .filter((x): x is string => x !== null)
+      .join("\n");
   });
   return kepala(judul, r.tanggal) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
@@ -395,6 +424,8 @@ export function balasBantuan(): string {
     "• *Progress* – “progress hari ini”, “progress kemarin di Kedung Mutih”",
     "• *Laporan harian* – isi laporan SATU tanggal: “laporan hari ini”, “laporan tanggal 12”",
     "• *Laporan mingguan* – rekap SEPEKAN: “laporan mingguan”, “laporan mingguan minggu lalu”",
+    "• *Rencana kerja* – apa yang AKAN dikerjakan: “rencana minggu depan”,",
+    "  “rencana kerja di Kemantren”, “apa yang perlu dikerjakan”",
     "• *Kendala* – “ada kendala apa”, “kendala di Tengket”",
     "• *Deviasi* – “mana yang deviasinya negatif”, “siapa yang tertinggal”",
     "• *Kelengkapan* – “siapa yang belum lapor hari ini”",
@@ -402,6 +433,7 @@ export function balasBantuan(): string {
     "*Periode yang saya mengerti*",
     "hari ini · kemarin · kemarin lusa · N hari lalu · tanggal tertentu",
     "(“17 agustus”, “tanggal 3”) · minggu ini/lalu · bulan ini/lalu",
+    "Khusus rencana kerja, saya juga mengerti “minggu depan” / “ke depan”.",
     "",
     "Sebut nama lokasi kalau mau dipersempit. Kalau tidak disebut, saya jawab",
     "untuk seluruh lokasi yang boleh Anda lihat.",
@@ -417,6 +449,8 @@ export type BarisMingguanWa = {
   rencanaPct: number | null;
   realisasiPct: number;
   deviasiPct: number | null;
+  /** Tambahan realisasi SEPANJANG pekan itu, poin persen (DECISIONS 458). */
+  tambahanPct?: number | null;
   hariBerlaporan: number;
   totalHari: number;
 };
@@ -442,13 +476,19 @@ export function balasMingguan(
       b.rencanaPct == null
         ? // Lokasi tanpa kurva-S TIDAK dicetak "rencana 0%" — rencana yang belum
           // ada bukan rencana nol, dan di sini ia akan terbaca sebagai prestasi.
-          `  realisasi ${pct(b.realisasiPct)} · rencana belum ada (kurva-S belum disusun)`
-        : `  realisasi ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct ?? 0)}`;
+          `  kumulatif ${pct(b.realisasiPct)} · rencana belum ada (kurva-S belum disusun)`
+        : `  kumulatif ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct ?? 0)}`;
     return [
       `*${b.lokasi}*`,
+      // Sebutan yang MEMBEDAKAN balasan ini dari balasan progres harian:
+      // "sepanjang pekan" vs "hari itu". Tanpa itu keduanya menampilkan angka
+      // kumulatif yang sama dan pembacanya tidak bisa tahu bedanya.
+      barisTambahan(b.tambahanPct, "sepanjang pekan"),
       angka,
       `  ${b.hariBerlaporan} dari ${b.totalHari} hari sudah dilaporkan`,
-    ].join("\n");
+    ]
+      .filter((x): x is string => x !== null)
+      .join("\n");
   });
   return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
@@ -563,4 +603,116 @@ export function balasNarasi(
     "Bukan angka resmi hasil hitungan MARLIN." +
     kaki(opts)
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Rencana kerja — satu-satunya balasan yang menghadap KE DEPAN        */
+/* ------------------------------------------------------------------ */
+
+export type ItemRencanaBaris = {
+  nama: string;
+  satuan: string | null;
+  target: number;
+  sisa: number;
+  pic: string | null;
+};
+
+export type BarisRencanaWaFmt = {
+  lokasi: string;
+  minggu: number | null;
+  totalMinggu: number | null;
+  periode: string | null;
+  targetPct: number | null;
+  realisasiPct: number | null;
+  deviasiPct: number | null;
+  item: ItemRencanaBaris[];
+  itemTersembunyi: number;
+  bobotTarget: number | null;
+  tidakTuntas: { nama: string; satuan: string | null; target: number; realisasi: number }[];
+};
+
+const vol = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
+const poin = (n: number) => `${n.toFixed(2).replace(".", ",")} pp`;
+
+/**
+ * Balasan RENCANA KERJA (DECISIONS 458).
+ *
+ * ### Yang paling penting di sini adalah kejujuran saat rencananya BELUM ADA
+ *
+ * Sebelum niat ini ada, *"rencana seminggu ke depan untuk kemantren?"* jatuh ke
+ * jalur kutipan catatan lapangan dan dibalas notulen rapat 10 Agustus di bawah
+ * judul "Catatan lapangan". Kutipannya benar apa adanya, tetapi ditempatkan
+ * sebagai jawaban atas pertanyaan tentang pekan depan — dan pembacanya tidak
+ * punya cara tahu bahwa MARLIN sebenarnya tidak menjawab pertanyaannya.
+ *
+ * Karena itu lokasi yang rencananya belum disusun ditulis APA ADANYA: "belum
+ * disusun". Kosong yang diakui jauh lebih berguna daripada isi yang mirip.
+ */
+export function balasRencana(
+  r: { pekanDepan: boolean; baris: BarisRencanaWaFmt[] },
+  opts: OpsiKaki = {},
+): string {
+  const judul = "Rencana kerja";
+  const label = r.pekanDepan ? "pekan depan" : "pekan berjalan";
+  if (r.baris.length === 0) {
+    return kepala(judul, label) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+  }
+
+  const isi = r.baris.map((b) => {
+    const kepalaLokasi =
+      b.minggu != null && b.totalMinggu != null
+        ? `*${b.lokasi}* (minggu ${b.minggu}/${b.totalMinggu})`
+        : `*${b.lokasi}*`;
+    const garis: string[] = [kepalaLokasi];
+
+    if (b.minggu == null) {
+      // Bukan "belum ada rencana": yang belum ada adalah DASARNYA. Menyebutnya
+      // salah akan mengirim orang menyusun rencana yang memang belum bisa
+      // disusun.
+      garis.push("  Belum ada kontrak/kurva-S aktif – pekannya belum bernomor.");
+      return garis.join("\n");
+    }
+
+    if (b.periode) garis.push(`  periode ${b.periode}`);
+    if (b.targetPct != null && b.realisasiPct != null && b.deviasiPct != null) {
+      garis.push(
+        `  target kurva-S ${pct(b.targetPct)} · kumulatif ${pct(b.realisasiPct)} · deviasi ${bertanda(b.deviasiPct)}`,
+      );
+    }
+
+    if (b.item.length === 0) {
+      garis.push("  Rencana pekan ini BELUM disusun di MARLIN.");
+    } else {
+      const bobot = b.bobotTarget != null ? ` · bobot ${poin(b.bobotTarget)}` : "";
+      garis.push(`  komitmen: ${b.item.length + b.itemTersembunyi} item${bobot}`);
+      for (const it of b.item) {
+        const satuan = it.satuan ? ` ${it.satuan}` : "";
+        const pic = it.pic ? ` · ${it.pic}` : "";
+        garis.push(
+          `  • ${it.nama} – ${vol.format(it.target)}${satuan} (sisa ${vol.format(it.sisa)}${satuan})${pic}`,
+        );
+      }
+      if (b.itemTersembunyi > 0) {
+        garis.push(`  … ${b.itemTersembunyi} item lain tidak dirinci di sini.`);
+      }
+    }
+
+    if (b.tidakTuntas.length > 0) {
+      // Komitmen pekan lalu yang meleset adalah bahan PERTAMA untuk mengejar,
+      // jadi ia ikut disebut — bukan disembunyikan karena kurang enak dibaca.
+      garis.push("  Belum tuntas pekan lalu:");
+      for (const t of b.tidakTuntas.slice(0, 5)) {
+        const satuan = t.satuan ? ` ${t.satuan}` : "";
+        garis.push(
+          `  • ${t.nama} – target ${vol.format(t.target)}${satuan}, terealisasi ${vol.format(t.realisasi)}${satuan}`,
+        );
+      }
+      if (b.tidakTuntas.length > 5) {
+        garis.push(`  … ${b.tidakTuntas.length - 5} lagi.`);
+      }
+    }
+    return garis.join("\n");
+  });
+
+  return kepala(judul, label) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }

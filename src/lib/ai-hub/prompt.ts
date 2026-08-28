@@ -30,6 +30,23 @@ function rowLine(r: PulseRow): string {
     `kendala=${r.openIssues}(kritis=${r.criticalIssues},tanpa_recovery=${r.issuesWithoutRecovery})`,
     `recovery_overdue=${r.overdueRecoveries}`,
     `readiness=${r.readiness.score}(${r.readiness.grade})`,
+    /*
+     * RENCANA KERJA — satu-satunya baris yang menghadap KE DEPAN
+     * (DECISIONS 458).
+     *
+     * Fakta di atas semuanya melaporkan apa yang SUDAH terjadi. Tanpa baris
+     * ini, pertanyaan *"pekerjaan apa yang perlu dilakukan untuk mengejar
+     * progress?"* memang tidak punya bahan, dan model yang dipagari agar tidak
+     * mengarang hanya bisa menolak menjawab.
+     *
+     * `null` (pekan belum bernomor) dibedakan dari 0 (pekan bernomor, rencana
+     * belum disusun): keduanya menuntut tindakan yang berbeda.
+     */
+    r.plannedItemsThisWeek == null
+      ? "rencana_pekan=belum_bernomor"
+      : `rencana_item_pekan_ini=${r.plannedItemsThisWeek}` +
+        (r.plannedItemNames?.length ? ` [${r.plannedItemNames.join("; ")}]` : "") +
+        (r.unfinishedLastWeek != null ? ` komitmen_belum_tuntas=${r.unfinishedLastWeek}` : ""),
   ];
   return "- " + parts.join(" | ");
 }

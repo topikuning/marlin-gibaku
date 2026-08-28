@@ -46,6 +46,7 @@ import {
 import {
   bacaBatas,
   bacaUrutan,
+  mintaPekanDepan,
   frasaSisa,
   mintaLupakanKonteks,
   mintaSebab,
@@ -70,6 +71,7 @@ import {
   balasLupakan,
   balasLaporan,
   balasMingguan,
+  balasRencana,
   balasNarasi,
   balasPilihan,
   balasPilihanKedaluwarsa,
@@ -85,6 +87,7 @@ import {
   dataKendala,
   dataLaporan,
   dataMingguan,
+  dataRencana,
   dataProgress,
   katalogLokasi,
   type SaringKendala,
@@ -905,6 +908,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const sekarang = new Date();
   const hariIniKey = jakartaDateKey(sekarang);
   const periode = bacaPeriode(niat.periode, hariIniKey);
+  // Penanda "ke depan" dibaca dari TEKS ASLINYA, bukan dari `periode`: modul
+  // tanggal sengaja menolak tanggal depan (lihat catatan di parser-niat).
+  const pekanDepan = mintaPekanDepan(teks);
   // Satu hari → tanggal itu. Rentang → ujung akhirnya, karena angka kumulatif
   // (progress/deviasi) selalu "posisi PADA suatu hari", bukan penjumlahan hari.
   const dateKey = periode.akhir;
@@ -959,6 +965,19 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       { judul: "Laporan mingguan", periode: pekan.label, baris: d.baris },
       peta,
       optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: pekan.catatan }),
+    );
+  } else if (niat.niat === "rencana") {
+    /*
+     * Satu-satunya niat yang menghadap KE DEPAN (DECISIONS 458), jadi ia TIDAK
+     * memakai `periode` sama sekali: seluruh modul tanggal dibangun menghadap
+     * ke belakang dan dengan sengaja menolak tanggal depan. Yang dipakai
+     * penanda "ke depan" dari teks aslinya, dan datanya bernomor PEKAN
+     * (`WeeklyPlan`), bukan bertanggal laporan.
+     */
+    const d = await dataRencana(sasaran, pekanDepan);
+    balasan = balasRencana(
+      { pekanDepan, baris: d.baris },
+      { ...opts, catatanBatas: d.catatanBatas },
     );
   } else if (niat.niat === "laporan") {
     const d = await dataLaporan(sasaran, dateKey);

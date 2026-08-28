@@ -23635,3 +23635,89 @@ sebagai NULL. Kegagalan mencatat tetap TIDAK menggagalkan unggahannya —
 berkasnya sudah terlanjur ada di Drive, dan melempar hanya membuat penjadwal
 mengulang yang sudah berhasil — tetapi tidak boleh senyap lagi: yang senyap
 tidak pernah diperbaiki.
+
+---
+
+## 458 · Progres harian vs mingguan dibedakan, dan pertanyaan "mau ngapain" punya jawabannya (2026-08-28)
+
+**Konteks.** User mengirim tiga tangkapan layar — Ask MARLIN dan WhatsApp —
+dengan satu kalimat: *"banyak pertanyaan yang tidak jelas jawabannya, progress
+kemarin dan total progress mingguan tidak bisa dibedakan."*
+
+Empat kegagalan terlihat di sana, dan ketiga yang terakhir berbagi satu sebab.
+
+### 1. Dua pertanyaan, satu angka
+
+    "progres kemantren kemarin"      → realisasi 7,19% · rencana 5,06% · +2,13%
+    "laporan mingguan di kemantren"  → realisasi 7,19% · rencana 5,06% · +2,13%
+
+Balasannya tidak salah — ia cuma tidak menjawab. `realizedPct` SELALU kumulatif
+s/d tanggal yang ditanya, jadi selama tidak ada laporan baru di antara kedua
+tanggal itu angkanya memang identik. Yang hilang dua hal: TAMBAHAN pada rentang
+yang ditanya, dan satu kata yang mengaku bahwa sisanya kumulatif.
+
+`getLocationsProgressRentang()` (di lapisan hitung, bukan di penyaji) memberi
+keduanya sekaligus. Pengurangannya sah karena penyebutnya tidak bergerak:
+`grandTotal` selalu revisi RAB `aktif`, tidak bergantung `asOf`. Balasan
+sekarang membuka dengan `+0,00% hari itu` / `+1,95% sepanjang pekan`, dan
+angka kumulatifnya diberi label `kumulatif` apa adanya.
+
+### 2. Pertanyaan yang menghadap ke depan tidak punya jawaban
+
+Tiga pertanyaan di tangkapan layar itu semuanya tentang yang AKAN datang:
+
+* WhatsApp — *"rencana seminggu ke depan untuk kemantren?"*
+* Ask MARLIN — *"apa yang perlu dilakukan minggu depan?"*
+* Ask MARLIN — *"pekerjaan apa yang perlu dilakukan untuk mengejar progress?"*
+
+Yang lewat WhatsApp paling merusak: ia dibalas KUTIPAN notulen rapat 10 Agustus
+di bawah judul "Catatan lapangan", ditutup catatan *"Tidak saya kenali: rencana
+seminggu, depan"*. Kutipannya benar apa adanya, tetapi diletakkan sebagai
+jawaban atas pertanyaan tentang pekan depan.
+
+Datanya sudah lama ada — `WeeklyPlan`, dirakit `getRencanaMingguan`, dipakai
+formulir rencana mingguan, PDF, Excel, dan siaran WhatsApp. Yang tidak ada cuma
+sambungannya ke tanya-jawab. Sekarang ada niat `rencana`: merinci komitmen
+pekan itu (item, target, sisa, PIC), tuntutan kurva-S, dan komitmen pekan lalu
+yang belum tuntas.
+
+Penanda "ke depan" SENGAJA tidak dimasukkan ke tabel `PERIODE`. Seluruh modul
+tanggal dibangun menghadap ke belakang dan menolak tanggal depan dengan sadar —
+hari yang belum terjadi akan dijawab data kosong yang terbaca seperti "tidak ada
+pekerjaan". Melonggarkan penjagaan itu untuk SEMUA niat demi satu niat yang
+memang berbeda sifatnya adalah harga yang salah. Niat `rencana` bekerja atas
+NOMOR PEKAN, bukan tanggal laporan.
+
+Yang tetap dijaga: lokasi yang rencananya belum disusun ditulis apa adanya —
+"BELUM disusun". Kosong yang diakui menyuruh orang menyusun rencananya; kutipan
+lama yang berjudul meyakinkan menyuruh orang percaya rencananya sudah ada.
+
+### 3. "Saya tidak punya angka bersumber untuk menjawab itu"
+
+Ask MARLIN menolak menjawab *"pekerjaan apa yang perlu dilakukan untuk mengejar
+progress?"* dengan penanda merah "tanpa sumber terverifikasi" — padahal tepat
+di bawahnya terpampang progres, laporan harian, dan kendala.
+
+Penolakannya JUJUR, dan itu yang menjadikannya cacat serius: SELURUH fakta yang
+dirakit `buildPortfolioPulse` melaporkan apa yang sudah terjadi. Tidak satu pun
+menyebut apa yang direncanakan. Model yang dipagari agar tidak mengarang memang
+tidak punya pilihan selain menolak — dan penanya membaca penolakan itu sebagai
+"MARLIN tidak tahu apa-apa".
+
+Ditambahkan menyeluruh, karena setengahnya tidak menyelesaikan apa pun:
+
+* `LocationFacts` memuat `plannedItemsThisWeek`, `plannedItemNames`,
+  `unfinishedLastWeek` (opsional — "belum ada" harus bisa dibedakan dari "nol");
+* sitasi `<slug>:rencana` dipasang selama pekannya bernomor, TERMASUK saat
+  rencananya belum disusun;
+* metrik `rencana_item_pekan_ini` & `komitmen_belum_tuntas` didaftarkan sebagai
+  FAKTA YANG BOLEH DIKLAIM. Tanpa langkah terakhir ini cacatnya cuma berpindah
+  sisi: angkanya terlihat di drawer, tetapi tiap kalimat yang menyebutnya
+  ditolak validator dan penanya tetap menerima "tidak punya angka bersumber";
+* `rowLine()` menuliskannya ke prompt — struktur data yang tidak sampai ke
+  prompt sama saja dengan tidak ada.
+
+Realisasi per item untuk menilai komitmen pekan lalu diambil lewat
+`cumulativeVolumeByLineageMulti()` (baru, di lapisan hitung): satu query untuk
+seluruh lokasi. Versi satu-lokasi di dalam perulangan berarti 83 query di jalur
+yang dijalankan tiap kali orang bertanya.

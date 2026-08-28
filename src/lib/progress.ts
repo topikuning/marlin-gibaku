@@ -289,6 +289,77 @@ export async function getLocationProgress(
 }
 
 /**
+ * Progres KUMULATIF s/d `sampai`, berikut TAMBAHAN yang terjadi di dalam
+ * rentang `sejak … sampai`.
+ *
+ * ### Kenapa ini ada
+ *
+ * Keluhan user 2026-08-28: *"progress kemarin dan total progress mingguan tidak
+ * bisa dibedakan."* Memang tidak — dan bukan salah tampilannya. `realizedPct`
+ * SELALU kumulatif s/d `asOf`, jadi "progres kemarin" dan "laporan mingguan"
+ * mengembalikan angka yang sama persis ketika di antara keduanya tidak ada
+ * laporan baru. Balasan WhatsApp menampilkan 7,19% di kedua tempat, tanpa satu
+ * kata pun yang menyatakan bahwa itu angka kumulatif, bukan capaian hari atau
+ * pekan itu.
+ *
+ * Yang kurang bukan angka kumulatifnya melainkan pasangannya: berapa yang
+ * BERTAMBAH di rentang yang ditanyakan. Dua-duanya perlu — kumulatif menjawab
+ * "sudah sampai mana", tambahan menjawab "kemarin/pekan ini ngapain".
+ *
+ * ### Kenapa pengurangan di sini SAH
+ *
+ * `grandTotal` (penyebutnya) TIDAK bergantung pada `asOf` sama sekali — ia
+ * selalu revisi RAB yang berstatus `aktif` (lihat catatan panjang di
+ * `getLocationsProgress`). Jadi dua pemanggilan di bawah memakai penyebut yang
+ * sama persis, dan selisih pembilangnya adalah realisasi yang benar-benar
+ * ditambahkan laporan di dalam rentang itu. Kalau penyebutnya ikut bergerak,
+ * selisih persennya tidak berarti apa-apa.
+ *
+ * Ditaruh di modul ini, bukan di penyaji WhatsApp, karena CLAUDE.md menaruh
+ * SELURUH formula angka di lapisan hitung. Penyaji hanya boleh memformat.
+ */
+export type ProgressRentang = {
+  /** Posisi kumulatif s/d `sampai` — apa adanya dari `getLocationsProgress`. */
+  kumulatif: LocationProgress;
+  /**
+   * Tambahan realisasi DI DALAM rentang, dalam POIN PERSEN.
+   *
+   * Bisa negatif: koreksi laporan lampau memang menurunkan realisasi, dan
+   * menyembunyikannya berarti berbohong tentang arah pekerjaan.
+   */
+  tambahanPct: number;
+};
+
+export async function getLocationsProgressRentang(
+  locationIds: string[],
+  sejak: Date,
+  sampai: Date,
+  opts: ProgressAsOf = {},
+): Promise<Map<string, ProgressRentang>> {
+  const hasil = new Map<string, ProgressRentang>();
+  if (locationIds.length === 0) return hasil;
+
+  // Sehari SEBELUM rentangnya dimulai. Memakai `sejak` itu sendiri akan ikut
+  // menghitung laporan hari pertama sebagai "sudah ada sebelumnya", sehingga
+  // capaian hari itu hilang dari tambahannya.
+  const sebelum = new Date(sejak.getTime() - 86_400_000);
+  const [kini, awal] = await Promise.all([
+    getLocationsProgress(locationIds, { ...opts, asOf: sampai }),
+    getLocationsProgress(locationIds, { ...opts, asOf: sebelum }),
+  ]);
+
+  for (const locId of locationIds) {
+    const k = kini.get(locId);
+    if (!k) continue;
+    hasil.set(locId, {
+      kumulatif: k,
+      tambahanPct: k.realizedPct - (awal.get(locId)?.realizedPct ?? 0),
+    });
+  }
+  return hasil;
+}
+
+/**
  * Kumulatif volume per lineageKey utk satu lokasi (laporan status counted).
  *
  * Tanpa `upToDate` → kumulatif TOTAL lintas semua tanggal: dipakai guard anti-lebih
@@ -328,6 +399,56 @@ export async function cumulativeVolumeByLineage(
     _sum: { volumeDone: true },
   });
   return new Map(rows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));
+}
+
+/**
+ * Versi BANYAK LOKASI dari `cumulativeVolumeByLineage` — satu query, bukan satu
+ * per lokasi.
+ *
+ * Ada karena `buildPortfolioPulse` perlu tahu komitmen rencana pekan lalu mana
+ * yang belum tuntas, untuk SELURUH lokasi dalam lingkup pertanyaan sekaligus
+ * (DECISIONS 458). Memanggil versi satu-lokasi di dalam perulangan berarti 83
+ * query di jalur yang dijalankan tiap kali orang bertanya ke Ask MARLIN.
+ *
+ * Kunci luar = locationId, kunci dalam = lineageKey. Saringan status &
+ * basisnya sama persis dengan versi satu-lokasi — dua angka "kumulatif" yang
+ * berbeda aturan adalah cara tercepat membuat dua layar tidak sepakat.
+ */
+export async function cumulativeVolumeByLineageMulti(
+  locationIds: string[],
+  upToDate?: Date,
+  cakupan: CakupanBasis = "aktif",
+): Promise<Map<string, Map<string, number>>> {
+  const hasil = new Map<string, Map<string, number>>();
+  if (locationIds.length === 0) return hasil;
+  const rows = await db.dailyReportItem.groupBy({
+    by: ["lineageKey", "reportId"],
+    where: {
+      ...(cakupan === "aktif" ? { basis: "aktif" } : {}),
+      report: {
+        locationId: { in: locationIds },
+        status: { in: [...COUNTED_REPORT_STATUSES] },
+        ...(upToDate ? { reportDate: { lte: upToDate } } : {}),
+      },
+    },
+    _sum: { volumeDone: true },
+  });
+  // `groupBy` Prisma tidak bisa mengelompokkan lewat relasi, jadi lokasinya
+  // dipetakan dari reportId — satu query tambahan yang ringan, tetap jauh di
+  // bawah satu query per lokasi.
+  const laporan = await db.dailyReport.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.reportId))] } },
+    select: { id: true, locationId: true },
+  });
+  const lokasiByLaporan = new Map(laporan.map((l) => [l.id, l.locationId]));
+  for (const r of rows) {
+    const locId = lokasiByLaporan.get(r.reportId);
+    if (!locId) continue;
+    const peta = hasil.get(locId) ?? new Map<string, number>();
+    peta.set(r.lineageKey, (peta.get(r.lineageKey) ?? 0) + Number(r._sum.volumeDone ?? 0));
+    hasil.set(locId, peta);
+  }
+  return hasil;
 }
 
 /* ── Progres "seandainya adendum disetujui" (DECISIONS 210) ──────────────── */
