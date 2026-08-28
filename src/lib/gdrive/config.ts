@@ -1,5 +1,5 @@
 import "server-only";
-import { encryptionKeyFromEnv, encryptSecret, readStoredSecret } from "@/lib/ai/crypto";
+import { encryptionKeyFromEnv, readStoredSecret, secretUntukSimpan } from "@/lib/ai/crypto";
 import { latestSettings, putAiSetting } from "@/lib/ai/config";
 
 /**
@@ -51,10 +51,12 @@ export async function getGDriveAuth(): Promise<GDriveAuth | null> {
   };
 }
 
-function protect(plain: string): string {
-  const key = encryptionKeyFromEnv();
-  return key ? encryptSecret(plain, key) : plain;
-}
+/**
+ * Dulu: `key ? encryptSecret(...) : plain` — tanpa kunci, rahasia Google masuk
+ * basis data telanjang tanpa sepatah kata pun, di lingkungan apa pun. Sekarang
+ * aturannya satu untuk semua penyimpan rahasia (audit 2026-08-28).
+ */
+const protect = secretUntukSimpan;
 
 export async function saveGDriveClient(clientId: string, clientSecret: string | null): Promise<void> {
   await putAiSetting(KEY_CLIENT_ID, clientId);

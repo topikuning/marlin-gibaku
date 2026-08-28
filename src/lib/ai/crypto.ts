@@ -69,3 +69,47 @@ export function readStoredSecret(stored: string, key: Buffer | null): string | n
     return null;
   }
 }
+
+export class SecretEncryptionUnavailable extends Error {}
+
+/**
+ * Bentuk simpan untuk SATU nilai rahasia — SATU aturan untuk semua penyimpan.
+ *
+ * Sampai audit 2026-08-28 ada tiga penyimpan dengan tiga perilaku berbeda:
+ * `ai/config.ts` mengenkripsi dan MENOLAK menulis plaintext di production;
+ * `gdrive/config.ts` diam-diam menulis plaintext bila kunci tak ada; dan
+ * `waha/config.ts` tidak pernah mengenkripsi sama sekali. Akibatnya terlihat di
+ * cadangan lapangan 24 Agustus: kredensial Google terenkripsi, tetapi
+ * `waha.api_key` dan `waha.webhook_secret` telanjang — dan siapa pun yang
+ * memegang salinan basis data memegang kuncinya.
+ *
+ * Aturan yang berlaku sekarang, satu tempat:
+ *   - ada `AI_SECRET_ENCRYPTION_KEY` → selalu terenkripsi;
+ *   - tidak ada, di production → MELEMPAR. Rahasia tidak boleh masuk basis data
+ *     telanjang hanya karena satu env lupa dipasang, dan kegagalan yang senyap
+ *     di sini tidak akan pernah ketahuan sampai basis datanya bocor;
+ *   - tidak ada, di dev/test → plaintext, supaya pengembangan tetap jalan.
+ */
+export function secretUntukSimpan(plain: string): string {
+  const key = encryptionKeyFromEnv();
+  if (key) return encryptSecret(plain, key);
+  if ((process.env.APP_ENV ?? "development") === "production") {
+    throw new SecretEncryptionUnavailable(
+      "AI_SECRET_ENCRYPTION_KEY belum diset di server – rahasia TIDAK disimpan. " +
+        "Set env tersebut lalu ulangi.",
+    );
+  }
+  return plain;
+}
+
+/**
+ * Kunci `AppSetting` yang isinya rahasia — dipakai migrasi enkripsi-ulang.
+ *
+ * Berbasis POLA, bukan daftar nama: kunci rahasia berikutnya (`*.api_key`
+ * provider baru, misalnya) ikut terjaring tanpa siapa pun harus ingat
+ * memperbarui daftar. Daftar nama yang harus diingat manusia adalah daftar yang
+ * akan tertinggal.
+ */
+export function kunciRahasia(key: string): boolean {
+  return /(^|\.)(api_key|client_secret|refresh_token|webhook_secret)$/.test(key);
+}

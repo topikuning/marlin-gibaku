@@ -24214,3 +24214,70 @@ mematikannya. `tests/integration/seed-demo-penjaga.test.ts` menjaga bahwa
 
 Seluruh uji dibuktikan MERAH dulu dengan mematikan penjaganya (3 dari 5 gagal),
 lalu hijau lagi.
+
+---
+
+## 465 · Rahasia di AppSetting: satu aturan, dan yang lama ikut ditutup (2026-08-28)
+
+Temuan dari pemeriksaan cadangan lapangan (DECISIONS 463 §3): `ai.claude.api_key`
+(`sk-ant-…`), `waha.api_key`, dan `waha.webhook_secret` tersimpan **telanjang**,
+sementara kredensial Google di baris sebelahnya terenkripsi.
+
+### 1. Tiga penyimpan, tiga perilaku — sekarang satu
+
+| Modul | Dulu |
+|---|---|
+| `ai/config.ts` | mengenkripsi; menolak menulis plaintext di production |
+| `gdrive/config.ts` | `key ? encryptSecret(...) : plain` — diam-diam plaintext |
+| `waha/config.ts` | tidak pernah mengenkripsi sama sekali |
+
+Perbedaan itu bukan kelalaian sesaat, melainkan akibat tiap modul memutuskan
+sendiri. Aturannya kini hidup di satu tempat, `secretUntukSimpan()`: ada kunci →
+selalu terenkripsi; tidak ada kunci di production → **melempar**; dev/test →
+plaintext supaya pengembangan tetap jalan. Ketiga modul memanggilnya.
+
+String KOSONG tetap ditulis kosong, tidak dienkripsi: ciphertext dari string
+kosong adalah nilai tak kosong, dan layar Sistem akan mengaku terkonfigurasi
+padahal kuncinya sudah dihapus.
+
+### 2. Penjaga penulisan tidak menyentuh yang sudah telanjang
+
+Inilah sebabnya kunci Claude tetap terbaca WALAU `ai/config.ts` sudah menolak
+plaintext sejak DECISIONS 133: penjaga itu hanya mengawasi tulisan BARU, dan
+`readStoredSecret` menerima plaintext demi kompatibilitas. Barisnya terus
+bekerja, tak pernah mengeluh, dan tak akan pernah ketahuan sampai salinan basis
+datanya berpindah tangan.
+
+`migrasi/rahasia-terenkripsi.ts` mengenkripsi-ulangnya saat boot. Berjalan
+sendiri, bukan daftar langkah manual: satu langkah yang terlewat meninggalkan
+kunci hidup di basis data untuk waktu yang tak ditentukan.
+
+Sengaja TIDAK berhenti lewat penanda `AppSetting` seperti migrasi lain — ia
+murah, dan rahasia telanjang bisa lahir lagi dari baris `effectiveFrom` baru
+yang ditulis ketika `AI_SECRET_ENCRYPTION_KEY` kebetulan belum terpasang.
+Migrasi yang mematikan dirinya sendiri tidak akan pernah menangkap yang kedua.
+
+Tanpa kunci, migrasi tidak diam: ia melaporkan berapa yang telanjang, dan
+boot mencetaknya sebagai galat. Rahasia telanjang yang tidak ada yang tahu
+adalah bentuk terburuknya.
+
+### 3. Kunci mana yang rahasia — pola, bukan daftar
+
+`kunciRahasia()` mencocokkan akhiran `api_key` · `client_secret` ·
+`refresh_token` · `webhook_secret`. Provider AI berikutnya ikut terjaring tanpa
+siapa pun harus ingat memperbarui daftar; daftar nama yang harus diingat manusia
+adalah daftar yang akan tertinggal.
+
+### 4. Pembuktian
+
+Uji dibuktikan MERAH dulu dengan mengembalikan kedua cacatnya (3 dari 6 gagal),
+lalu hijau. Migrasinya juga dijalankan pada SALINAN data lapangan sungguhan:
+tiga nilai telanjang menjadi `enc:v1:` dan tetap terbaca sama, sementara dua
+nilai Google yang sudah terenkripsi tidak tersentuh sama sekali.
+
+### 5. Yang tetap harus dikerjakan manusia
+
+Enkripsi at-rest **tidak** membatalkan kunci yang sudah beredar. Ketiga kunci
+itu ada di cadangan yang sudah berpindah tangan, jadi ketiganya tetap harus
+DIROTASI di penyedia masing-masing. Kode hanya memastikan yang berikutnya tidak
+ikut telanjang.

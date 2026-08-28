@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { jakartaToday } from "@/lib/format";
-import { encryptionKeyFromEnv, encryptSecret, readStoredSecret } from "@/lib/ai/crypto";
+import { encryptionKeyFromEnv, readStoredSecret, secretUntukSimpan } from "@/lib/ai/crypto";
 import {
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
@@ -109,17 +109,9 @@ export async function setAiProviderConfig(
       await put(keyApiKey(id), "");
       return;
     }
-    const key = encryptionKeyFromEnv();
-    if (key) {
-      await put(keyApiKey(id), encryptSecret(plain, key));
-    } else if (env.APP_ENV === "production") {
-      // Jangan pernah diam-diam menyimpan plaintext baru di production.
-      throw new Error(
-        "AI_SECRET_ENCRYPTION_KEY belum diset di server – API key tidak disimpan. Set env tersebut lalu ulangi.",
-      );
-    } else {
-      await put(keyApiKey(id), plain); // dev/test: transisi, tetap jalan
-    }
+    // Aturannya kini satu tempat untuk SEMUA penyimpan rahasia — dulu tiga
+    // modul memutuskannya sendiri-sendiri, dan dua di antaranya salah.
+    await put(keyApiKey(id), secretUntukSimpan(plain));
   }
 }
 

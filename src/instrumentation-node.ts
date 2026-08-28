@@ -100,6 +100,26 @@ async function migrasiDataOtomatis() {
   // diubah. Terbalik pun hasilnya sama — backfill tidak membaca mode kontrak —
   // tapi urutan ini membuat jendela "mode sudah baru, rentang belum beku"
   // tidak pernah ada sama sekali.
+  /*
+   * Rahasia telanjang di AppSetting dienkripsi-ulang lebih DULU: selama masih
+   * telanjang, tiap salinan basis data yang dibuat sementara migrasi lain
+   * berjalan ikut membawa kuncinya.
+   */
+  try {
+    const { enkripsiUlangRahasiaTelanjang } = await import("@/lib/migrasi/rahasia-terenkripsi");
+    const r = await enkripsiUlangRahasiaTelanjang();
+    if (r.status === "dilewati" && r.telanjang > 0) {
+      console.error(
+        `[migrasi] ${r.telanjang} rahasia tersimpan TELANJANG di AppSetting dan tidak bisa ` +
+          "dienkripsi: AI_SECRET_ENCRYPTION_KEY belum diset. Set env tersebut lalu deploy ulang.",
+      );
+    } else if (r.status === "selesai" && r.dienkripsi > 0) {
+      console.log(`[migrasi] ${r.dienkripsi} rahasia AppSetting dienkripsi (dari ${r.diperiksa}).`);
+    }
+  } catch (err) {
+    console.error("[migrasi] enkripsi ulang rahasia gagal (dicoba lagi boot berikutnya):", err);
+  }
+
   try {
     const { backfillPeriodeSnapshotLama } = await import("@/lib/migrasi/snapshot-periode-backfill");
     const b = await backfillPeriodeSnapshotLama();
