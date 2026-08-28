@@ -1,0 +1,106 @@
+// SEMUA WILAYAH PEKERJAAN HARUS BISA DITANYAKAN KE AI (DECISIONS 459).
+//
+// Permintaan user 2026-08-28: *"pastikan semua hal yang ada di marlin bisa
+// ditanyakan secara jelas di ai (kecuali keuangan), artinya kamu harus
+// memastikan semua hal terkait kendala, progress, semuanya terkait pekerjaan
+// bisa dihandle dan ditanyakan di AI."*
+//
+// "Sudah dipastikan" tanpa daftar adalah janji, bukan jaminan — dan sejarahnya
+// jelas: temuan & verifikasi lahir di DECISIONS 426 tanpa pernah sampai ke AI,
+// rencana kerja baru tersambung di DECISIONS 458 setelah user mengeluh dijawab
+// "Saya tidak punya angka bersumber". Tiap kali, kegagalannya SUNYI.
+//
+// Uji ini menegakkan dua arah:
+//   1. tiap wilayah yang didaftar benar-benar punya jalur jawab;
+//   2. tiap niat & adapter yang ADA di sistem benar-benar terdaftar.
+//
+// Arah kedua yang menangkap wilayah baru: menambah adapter atau niat tanpa
+// mencantumkannya di peta cakupan akan MEMERAHKAN berkas ini, dan penulisnya
+// dipaksa memutuskan — dijawab AI, atau ditulis alasannya kenapa tidak.
+import { describe, expect, it } from "vitest";
+import {
+  CAKUPAN_AI,
+  adapterBelumTerdaftar,
+  niatBelumTerdaftar,
+} from "@/lib/ai-hub/cakupan";
+import { KAPABILITAS_ADAPTER, LABEL_WILAYAH } from "@/lib/ai-hub/adapters-pagar";
+import { NIAT } from "@/lib/waha/tanya-niat";
+
+describe("peta cakupan menutup seluruh wilayah", () => {
+  it("tidak ada wilayah tanpa jalur jawab", () => {
+    for (const w of CAKUPAN_AI) {
+      expect(w.jalur.length, `"${w.nama}" tidak punya jalur jawab sama sekali`).toBeGreaterThan(0);
+    }
+  });
+
+  it("REGRESI: tidak ada NIAT yang lahir tanpa masuk peta cakupan", () => {
+    /*
+     * Kalau ini merah: sebuah niat WhatsApp ditambahkan tanpa dicantumkan di
+     * `CAKUPAN_AI`. Daftarkan wilayahnya di sana — atau, kalau memang niat
+     * teknis yang bukan wilayah data, masukkan ke `NIAT_BUKAN_DATA`.
+     */
+    expect(niatBelumTerdaftar()).toEqual([]);
+  });
+
+  it("REGRESI: tidak ada ADAPTER yang lahir tanpa masuk peta cakupan", () => {
+    // Kalau ini merah: wilayah data baru sudah punya adapter tapi belum diakui
+    // di peta cakupan – persis cara temuan & verifikasi dulu luput.
+    expect(adapterBelumTerdaftar()).toEqual([]);
+  });
+
+  it("tiap wilayah menunjuk niat dan adapter yang BENAR-BENAR ada", () => {
+    const niatSah = new Set<string>(NIAT);
+    const adapterSah = new Set(Object.keys(LABEL_WILAYAH));
+    for (const w of CAKUPAN_AI) {
+      for (const j of w.jalur) {
+        if (j.jenis === "niat") {
+          for (const n of j.niat) expect(niatSah.has(n), `niat "${n}" tidak ada`).toBe(true);
+        }
+        if (j.jenis === "adapter") {
+          expect(adapterSah.has(j.wilayah), `adapter "${j.wilayah}" tidak ada`).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+describe("lapisan pengendalian ikut terjawab", () => {
+  /*
+   * Empat wilayah DECISIONS 426 yang sebelumnya tidak pernah sampai ke AI.
+   * Disebut satu per satu, bukan dihitung: kalau salah satunya dilepas, uji
+   * yang menghitung "ada 14 wilayah" akan tetap hijau selama ada penggantinya.
+   */
+  it.each(["kesiapan", "ews", "verifikasi", "inspeksi", "temuan", "surat"])(
+    "wilayah %s punya adapter berpagar",
+    (w) => {
+      expect(Object.keys(LABEL_WILAYAH)).toContain(w);
+      expect(KAPABILITAS_ADAPTER[w as keyof typeof KAPABILITAS_ADAPTER]).toBeTruthy();
+    },
+  );
+
+  it("pagarnya SAMA dengan halaman masing-masing", () => {
+    /*
+     * Pintu AI tidak boleh jadi jalan memutar. Angka-angka ini disalin dari
+     * `requireCapabilityPage` tiap halaman; kalau halamannya diperketat dan
+     * baris ini tidak ikut, AI akan tetap menjawab yang layarnya sudah tutup.
+     */
+    expect(KAPABILITAS_ADAPTER.kesiapan).toBe("package.view");
+    expect(KAPABILITAS_ADAPTER.ews).toBe("portfolio.view");
+    expect(KAPABILITAS_ADAPTER.verifikasi).toBe("report.verify_external");
+    expect(KAPABILITAS_ADAPTER.inspeksi).toBe("inspection.manage");
+    expect(KAPABILITAS_ADAPTER.surat).toBe("letter.view");
+    expect(KAPABILITAS_ADAPTER.temuan).toBe("finding.view");
+  });
+});
+
+describe("keuangan", () => {
+  it("dikecualikan dengan ALASAN TERTULIS, bukan dihilangkan diam-diam", () => {
+    const uang = CAKUPAN_AI.find((w) => w.nama.toLowerCase().includes("keuangan"));
+    expect(uang, "keuangan wajib tetap tercantum – yang dikecualikan harus terlihat").toBeTruthy();
+    expect(uang?.lewatSengaja, "pengecualian tanpa alasan tertulis tidak bisa diperiksa").toBeTruthy();
+  });
+
+  it("pagarnya tetap finance.view, tidak dilonggarkan demi AI", () => {
+    expect(KAPABILITAS_ADAPTER.keuangan).toBe("finance.view");
+  });
+});

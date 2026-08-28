@@ -177,6 +177,23 @@ export const METRIK = {
   komitmen_belum_tuntas: { satuan: "hitungan", toleransi: 0 },
 
   /*
+   * LAPISAN PENGENDALIAN (DECISIONS 459) — kesiapan termin/PHO/FHO, peringatan
+   * dini, verifikasi eksternal, inspeksi lapangan.
+   *
+   * Semuanya cacahan, jadi toleransinya nol: "3 syarat belum terpenuhi" yang
+   * dijawab "sekitar 3" bukan jawaban, dan angka kesiapan dibaca orang yang
+   * sedang memutuskan mengajukan termin.
+   */
+  kesiapan_syarat_belum: { satuan: "hitungan", toleransi: 0 },
+  peringatan_terbuka: { satuan: "hitungan", toleransi: 0 },
+  peringatan_kritis: { satuan: "hitungan", toleransi: 0 },
+  laporan_belum_diverifikasi: { satuan: "hitungan", toleransi: 0 },
+  laporan_sudah_diverifikasi: { satuan: "hitungan", toleransi: 0 },
+  inspeksi_final: { satuan: "hitungan", toleransi: 0 },
+  surat_perlu_jawab: { satuan: "hitungan", toleransi: 0 },
+  surat_lewat_tenggat: { satuan: "hitungan", toleransi: 0 },
+
+  /*
    * Metrik dari adapter sumber (DECISIONS 379) — kontrak, RAB, keuangan,
    * milestone KKP.
    *

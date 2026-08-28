@@ -596,6 +596,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         endKey: periodeBebas.akhir,
         history: konteks?.history ?? [],
         adapterUser: grup ? undefined : user ?? undefined,
+        // Di grup penahanannya DIKATAKAN, bukan dibiarkan terbaca sebagai
+        // "datanya tidak ada" (DECISIONS 459).
+        ditahanKarenaGrup: grup,
       });
       await catatRun(pemakaiAi, lokasiBebas, bebas.providerResult, Date.now() - mulaiBebas, {
         promptVersion: "waha-bebas-1",

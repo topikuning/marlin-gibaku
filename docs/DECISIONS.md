@@ -23721,3 +23721,81 @@ Realisasi per item untuk menilai komitmen pekan lalu diambil lewat
 `cumulativeVolumeByLineageMulti()` (baru, di lapisan hitung): satu query untuk
 seluruh lokasi. Versi satu-lokasi di dalam perulangan berarti 83 query di jalur
 yang dijalankan tiap kali orang bertanya.
+
+---
+
+## 459 · Cakupan AI didaftar & ditegakkan; lapisan pengendalian ikut terjawab (2026-08-28)
+
+**Konteks.** Dua permintaan user: *"pastikan semua hal yang ada di marlin bisa
+ditanyakan secara jelas di ai (kecuali keuangan) … semua hal terkait kendala,
+progress, semuanya terkait pekerjaan bisa dihandle dan ditanyakan di AI"* dan
+*"pastikan pdfnya itu ukuran A4 atau kertas yang standar"*.
+
+### 1. Kertas balasan WhatsApp: SUDAH A4, sekarang dijaga
+
+Diperiksa dari berkas yang benar-benar dihasilkan, bukan dari konstanta:
+`pdfinfo` menyebut `841.89 x 595.28 pts (A4)` — A4 lanskap. Lanskapnya perlu:
+tabel kendala punya enam kolom.
+
+Yang ditambah adalah PENJAGANYA. `waha-tabel-pdf` kini membaca MediaBox dari
+byte PDF-nya dan menuntut 842 × 595. Berkas ini diteruskan ke PPK dan dicetak;
+ukuran yang diam-diam melar membuat cetakannya mengecil sendiri atau terpotong.
+
+### 2. Cakupan AI: dari janji jadi daftar yang ditegakkan
+
+Audit seluruh rute `(app)` menemukan enam wilayah kerja yang tidak pernah
+sampai ke AI sama sekali — halamannya ada, datanya ada, tetapi pertanyaan
+seperti *"sudah bisa ajukan termin belum?"* dijawab "tidak ada datanya":
+
+| Wilayah | Halaman | Pagar |
+|---|---|---|
+| Kesiapan termin/PHO/FHO | `/kesiapan` | `package.view` |
+| Peringatan dini | `/perlu-tindakan` | `portfolio.view` |
+| Verifikasi eksternal Wakil PPK | `/verifikasi` | `report.verify_external` |
+| Inspeksi lapangan | `/verifikasi` | `inspection.manage` |
+| Persuratan & utang jawab | `/surat` | `letter.view` |
+
+(Temuan pemeriksa sudah punya adapter sejak DECISIONS 426.)
+
+Ditambahkan sebagai ADAPTER, bukan sebagai niat WhatsApp baru, dan itu pilihan
+yang menghemat separuh pekerjaan: jalur tanya-bebas WhatsApp memakai
+`buildAdapterFacts` yang SAMA dengan Ask MARLIN, jadi satu tempat menutup kedua
+permukaan sekaligus.
+
+Pagarnya disalin PERSIS dari `requireCapabilityPage` tiap halaman. Pintu AI
+tidak boleh jadi jalan memutar — dan `ai-cakupan.test.ts` menguncinya baris per
+baris, supaya halaman yang kelak diperketat tidak meninggalkan pintu AI terbuka.
+
+### 3. Petanya, dan kenapa peta itu yang sebenarnya diminta
+
+`lib/ai-hub/cakupan.ts` mendaftar tiap wilayah kerja berikut jalur jawabnya
+(niat cepat WA / fakta pulse / adapter berpagar). Ujinya menegakkan DUA arah:
+
+1. tiap wilayah yang didaftar benar-benar punya jalur;
+2. **tiap niat & tiap adapter yang ADA benar-benar terdaftar.**
+
+Arah kedua itu intinya. Sejarah repo ini jelas: temuan & verifikasi lahir di
+DECISIONS 426 tanpa pernah tersambung ke AI, rencana kerja baru tersambung di
+DECISIONS 458 setelah user mengeluh dijawab "tidak punya angka bersumber". Tiap
+kali, kegagalannya SUNYI — tidak ada galat, tidak ada uji merah, hanya jawaban
+sopan yang salah. Sekarang menambah wilayah tanpa mendaftarkannya MEMERAHKAN
+uji, dan penulisnya dipaksa memutuskan: dijawab AI, atau ditulis alasannya.
+
+Keuangan tetap tercantum dengan alasan pengecualiannya ditulis. Dihapus dari
+daftar, ia akan terbaca sebagai "terlupakan"; yang benar adalah "sengaja, ini
+sebabnya". Adapternya sendiri tetap ada dan tetap dipagari `finance.view`.
+
+### 4. Di grup, penahanan data DIKATAKAN
+
+Ditemukan saat menelusuri cakupan: `adapterUser: grup ? undefined : user`
+mematikan SELURUH wilayah berkapabilitas untuk pertanyaan dari grup. Aturannya
+benar dan tidak diubah — satu grup berisi orang dengan hak berbeda-beda, dan
+jawaban di sana dibaca semuanya sekaligus.
+
+Yang salah adalah DIAMNYA. Penanya cuma menerima "tidak ada datanya", lalu
+mengira MARLIN tidak punya datanya — padahal ia hanya tidak boleh menyebutnya
+di ruang itu. Sekarang penahanannya ikut disebut berikut jalan keluarnya:
+*"Tidak saya sebutkan di grup: … Tanyakan lewat chat pribadi."*
+
+Ini kelanjutan langsung dari prinsip DECISIONS 379: yang ditahan adalah
+angkanya, bukan keberadaan pagarnya.
