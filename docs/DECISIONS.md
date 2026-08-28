@@ -24363,3 +24363,60 @@ urutan: `bolehMuatDemo()` sengaja memeriksa SELURUH basis data tanpa menyaring
 organisasi (memuat seed demo ke basis data berisi pekerjaan organisasi lain sama
 merusaknya), sementara ujinya hanya membersihkan org-nya sendiri. Kini ia
 mengosongkan tabel paket lebih dulu.
+
+---
+
+## 467 · Lampiran WhatsApp: tangkap ganda ditutup, dan berkasnya bisa dibuka (2026-08-28)
+
+Dua pertanyaan user atas layar `/lampiran`, dengan tangkapan layar: *"kenapa
+tertangkap ganda, lalu apa gunanya kalau tidak bisa dicek isinya, atau
+dibuka?"* Keduanya benar, dan sebabnya berbeda.
+
+### 1. Tangkap ganda: idempoten untuk PESAN, bukan untuk LAMPIRAN
+
+`ingest.ts` meng-`upsert` pesan berdasarkan `waMessageId`, tetapi hanya cabang
+RACE — dua INSERT berbarengan yang berujung P2002 — yang berhenti lebih awal.
+Pengiriman ulang yang BERURUTAN jatuh ke `update: {}`, mengembalikan id baris
+yang sama, lalu lanjut menangkap lampirannya sekali lagi. Dan pengulangan
+berurutan itu normal: WAHA memancarkan `message` dan `message.any` untuk pesan
+yang sama, dan webhook yang gagal akan dicoba lagi.
+
+Penyaring sidik jari di `tangkapLampiran` tidak menolong — ia menghindari
+mengunduh dan menulis BERKASnya dua kali, tetapi barisnya tetap dibuat. Itu
+sebabnya kartu kembar di tangkapan layar punya ukuran yang sama persis: memang
+satu berkas, dua baris.
+
+Akibatnya bukan sekadar berantakan: orang diminta memutuskan dua kali untuk satu
+berkas, dan bisa menetapkannya BERBEDA — satu "surat", satu "bukan bahan kerja"
+— tanpa ada yang tahu mana yang berlaku.
+
+Sekarang penangkapan dilewati bila pesan itu sudah punya baris lampiran, dengan
+indeks `[messageId]` supaya pertanyaannya murah.
+
+Yang sengaja TIDAK diubah: dua kiriman TERPISAH dengan berkas sama tetap dicatat
+dua baris. Itu memang dua peristiwa di grup dan jejaknya tidak boleh dihapus;
+yang menjaga orang tidak ditanyai dua kali adalah pewarisan ketetapan lewat
+sidik jari, bukan penghapusan barisnya.
+
+### 2. Ketetapan diminta tanpa menyediakan buktinya
+
+Layar `/lampiran` menyodorkan tiga tombol — "Catat sebagai surat", "Simpan
+sebagai dokumen", "Bukan bahan kerja" — atas berkas yang **tidak bisa dibuka
+siapa pun**. Tidak ada rutenya sama sekali; yang tersedia hanya nama berkas,
+ukuran, dan dugaan mesin. Satu-satunya cara benar-benar melihat isinya adalah
+membuka WhatsApp sendiri, yang membuat layar ini tidak menghemat apa pun.
+
+Meminta ketetapan tanpa menyediakan buktinya bukan alur kerja; itu tebakan yang
+dicatat — dan dicatat sebagai keputusan manusia, yang justru membuatnya lebih
+dipercaya daripada dugaan mesin di sebelahnya.
+
+`GET /api/waha/lampiran/[id]` melayani berkasnya: `r2Key` lewat presigned URL,
+`localPath` di-stream langsung. Pagar SAMA dengan halamannya (`letter.manage`)
+plus lingkup organisasi lewat paketnya; lampiran tanpa paket tidak dilayani,
+karena tanpa paket tidak ada dasar memeriksa lingkupnya dan menebak berarti
+membuka berkas satu organisasi kepada organisasi lain.
+
+Disajikan `inline`, bukan unduhan: berkas ini dibuka untuk DINILAI, bukan
+dikoleksi. Berkas yang simpanan lokalnya sudah hilang (lazim setelah redeploy)
+dijawab 410 berikut sebabnya, bukan 404 telanjang — "hilang karena deploy ulang"
+dan "tidak pernah ada" menuntut tindakan yang berbeda.

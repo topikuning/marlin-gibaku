@@ -102,6 +102,32 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
    * sudah tersimpan dan itu yang utama.
    */
   if (messageRowId && m.hasMedia && !m.fromMe) {
+    /*
+     * Sudah pernah ditangkap? JANGAN ulangi.
+     *
+     * `upsert` di atas idempoten untuk PESANnya, tetapi hanya cabang RACE
+     * (P2002) yang berhenti lebih awal. Pengiriman ulang yang BERURUTAN — WAHA
+     * memancarkan `message` dan `message.any` untuk pesan yang sama, dan
+     * webhook yang gagal akan dicoba lagi — jatuh ke `update: {}`, mengembalikan
+     * id baris yang sama, lalu lanjut menangkap lampirannya SEKALI LAGI.
+     *
+     * Hasilnya dua kartu kembar di `/lampiran`: nama, ukuran, pengirim, dan jam
+     * yang sama persis, dua-duanya menunggu ketetapan. Orang jadi diminta
+     * memutuskan dua kali untuk satu berkas — dan yang lebih buruk, bisa
+     * menetapkannya berbeda.
+     *
+     * Penyaring sidik jari di `tangkapLampiran` tidak menolong di sini: ia
+     * menghindari mengunduh dan menulis berkasnya dua kali, tetapi barisnya
+     * tetap dibuat.
+     */
+    const sudahAda = await db.waAttachment.findFirst({
+      where: { messageId: messageRowId },
+      select: { id: true },
+    });
+    if (sudahAda) {
+      console.log(`[waha] lampiran pesan "${m.waMessageId}" sudah pernah ditangkap – dilewati`);
+      return { stored: true, packageId: pkg.id, chatId: m.chatId };
+    }
     try {
       const { tangkapLampiran } = await import("./lampiran-tangkap");
       await tangkapLampiran({

@@ -71,8 +71,26 @@ export function BarisLampiran(p: BarisLampiranProps) {
           )}
         </span>
         <div className="min-w-0 flex-1">
+          {/*
+            Nama berkas = TAUTAN membuka berkasnya. Sebelumnya layar ini meminta
+            orang memilih "surat / dokumen / bukan bahan kerja" atas berkas yang
+            tidak bisa mereka buka — satu-satunya cara melihat isinya adalah
+            membuka WhatsApp sendiri, yang membuat layar ini tidak menghemat apa
+            pun. Berkas gagal tangkap tidak ditautkan: tidak ada yang dibuka.
+          */}
           <p className="truncate text-sm font-medium text-ink">
-            {p.fileName || <span className="italic text-ink-muted">(tanpa nama berkas)</span>}
+            {p.gagal ? (
+              p.fileName || <span className="italic text-ink-muted">(tanpa nama berkas)</span>
+            ) : (
+              <a
+                href={`/api/waha/lampiran/${p.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-dotted underline-offset-2 hover:text-primary-700"
+              >
+                {p.fileName || "(tanpa nama berkas) – buka"}
+              </a>
+            )}
           </p>
           <p className="mt-0.5 text-xs text-ink-faint">
             {[p.paketNama, p.pengirim, p.waktu, ukuran(p.sizeBytes)].filter(Boolean).join(" · ")}
