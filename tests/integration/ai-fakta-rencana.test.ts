@@ -106,6 +106,9 @@ beforeAll(async () => {
     });
   const pondasi = await buatItem("1.1", "Pondasi Batu Belah 1 : 5", 2);
   const urugan = await buatItem("1.2", "Urugan Tanah", 3);
+  // Item ketiga khusus menguji cacat review 2026-08-28: dikerjakan BANYAK jauh
+  // sebelum pekan lalu, lalu dikomitmenkan lagi pekan lalu dan tidak disentuh.
+  const beton = await buatItem("1.3", "Beton K-225", 4);
 
   const baseline = await db.baseline.create({
     data: { locationId: locId, baselineNo: 1, source: "auto", status: "aktif", contractDays: 140 },
@@ -158,32 +161,57 @@ beforeAll(async () => {
       },
     });
   };
-  await buatRencana(MINGGU_BERJALAN - 1, [{ rabNodeId: urugan.id, target: 20 }]);
+  await buatRencana(MINGGU_BERJALAN - 1, [
+    { rabNodeId: urugan.id, target: 20 },
+    { rabNodeId: beton.id, target: 10 },
+  ]);
   await buatRencana(MINGGU_BERJALAN, [
     { rabNodeId: pondasi.id, target: 12 },
     { rabNodeId: urugan.id, target: 8 },
   ]);
 
-  // Realisasi 5 m³ Urugan — di bawah target pekan lalu (20).
-  const lap = await db.dailyReport.create({
-    data: {
-      locationId: locId,
-      reportDate: parseDateKey("2026-08-20")!,
-      status: "dikirim",
-      createdById: pm.id,
-    },
-    select: { id: true },
-  });
-  await db.dailyReportItem.create({
-    data: {
-      reportId: lap.id,
-      rabNodeId: urugan.id,
-      lineageKey: urugan.lineageKey,
-      basis: "aktif",
-      volumeDone: 5,
-      valueDone: 5_000_000n,
-    },
-  });
+  const buatLaporan = async (
+    dateKey: string,
+    item: { id: string; lineageKey: string },
+    volume: number,
+  ) => {
+    const lap = await db.dailyReport.create({
+      data: {
+        locationId: locId,
+        reportDate: parseDateKey(dateKey)!,
+        status: "dikirim",
+        createdById: pm.id,
+      },
+      select: { id: true },
+    });
+    await db.dailyReportItem.create({
+      data: {
+        reportId: lap.id,
+        rabNodeId: item.id,
+        lineageKey: item.lineageKey,
+        basis: "aktif",
+        volumeDone: volume,
+        valueDone: BigInt(volume) * 1_000_000n,
+      },
+    });
+  };
+
+  /*
+   * Pekan ke-12 (pekan LALU) = 17 s/d 23 Agustus 2026, dihitung dari SPMK
+   * 1 Juni 2026.
+   *
+   *   5 Agu  Beton  25 m³  → SEBELUM pekan lalu
+   *  20 Agu  Urugan  5 m³  → DI DALAM pekan lalu
+   *
+   * Komitmen pekan lalu: Urugan 20 m³, Beton 10 m³. Keduanya BELUM tuntas —
+   * Urugan baru 5 dari 20, dan Beton tidak disentuh sama sekali pekan itu.
+   *
+   * Betonlah yang menangkap cacatnya: membandingkan target mingguan dengan
+   * kumulatif seumur proyek membuat 25 m³ lama terbaca sebagai pemenuhan janji
+   * 10 m³ pekan lalu, dan lokasi yang mandek dinyatakan menepati komitmen.
+   */
+  await buatLaporan("2026-08-05", beton, 25);
+  await buatLaporan("2026-08-20", urugan, 5);
 });
 
 afterAll(async () => {
@@ -202,11 +230,20 @@ describe("fakta rencana ikut ke Ask MARLIN", () => {
     expect(row?.plannedItemNames).toContain("Pondasi Batu Belah 1 : 5");
   });
 
-  it("komitmen pekan lalu yang belum tuntas ikut terhitung", async () => {
-    // 20 m³ dikomitmenkan, 5 m³ terealisasi → satu item belum tuntas. Inilah
-    // jawaban paling langsung atas "apa yang perlu dikerjakan untuk mengejar".
+  it("REGRESI: yang dinilai realisasi SELAMA pekan lalu, bukan kumulatif proyek", async () => {
+    /*
+     * Temuan review 2026-08-28. Dua item dikomitmenkan pekan lalu dan KEDUANYA
+     * belum tuntas:
+     *   - Urugan: 5 dari 20 m³ dikerjakan pekan itu;
+     *   - Beton : 0 dari 10 m³ pekan itu — 25 m³-nya dikerjakan 5 Agustus,
+     *             jauh sebelum pekan lalu.
+     *
+     * Versi lama membandingkan target dengan kumulatif seumur proyek, jadi
+     * Beton terbaca TUNTAS dan jawabannya 1. Angkanya tidak sekadar meleset:
+     * ia menyatakan lokasi yang mandek sudah menepati janjinya.
+     */
     const p = await buildPortfolioPulse(user, [locId], PERIODE_MULAI, PERIODE_AKHIR);
-    expect(p.rows.find((r) => r.locationId === locId)?.unfinishedLastWeek).toBe(1);
+    expect(p.rows.find((r) => r.locationId === locId)?.unfinishedLastWeek).toBe(2);
   });
 
   it("REGRESI: sitasinya ADA, jadi jawabannya tidak lagi 'tanpa sumber'", async () => {
@@ -220,7 +257,7 @@ describe("fakta rencana ikut ke Ask MARLIN", () => {
     expect(ref, "sitasi rencana wajib ada").toBeTruthy();
     expect(ref?.label).toContain(`minggu ${MINGGU_BERJALAN}`);
     expect(ref?.value).toContain("2 item direncanakan");
-    expect(ref?.value).toContain("1 komitmen pekan lalu belum tuntas");
+    expect(ref?.value).toContain("2 komitmen pekan lalu belum tuntas");
   });
 
   it("REGRESI: faktanya BOLEH DIKLAIM, bukan cuma tampil di drawer", async () => {

@@ -28,6 +28,31 @@ import type { SourceRef } from "./types";
 
 export type TanyaLatarInput = {
   conversationId: string;
+  /**
+   * PENANDA PEKERJAAN — nilai `pendingSince` yang dipasang pemanggil TEPAT
+   * sebelum pekerjaan ini dimulai (temuan review 2026-08-28).
+   *
+   * ### Kenapa perlu, dan apa yang rusak tanpanya
+   *
+   * Sesudah lewat `batasJawabanMs()`, penanya BOLEH mengirim ulang
+   * pertanyaannya (`ai-hub/actions.ts`) — memang begitu rancangannya, karena
+   * proses yang mati tidak akan pernah menjawab. Tetapi "lewat batas" tidak
+   * berarti "sudah mati": pekerja lama bisa saja masih berjalan, cuma lambat.
+   *
+   * Versi pertama membersihkan penanda HANYA berdasarkan id percakapan. Pekerja
+   * lama yang selesai belakangan karenanya bisa:
+   *   1. menghapus penanda tunggu milik pertanyaan BARU — layar berhenti
+   *      menunggu padahal jawabannya belum ada;
+   *   2. menuliskan jawaban LAMA sesudah pertanyaan baru masuk, sehingga
+   *      jawaban itu terbaca sebagai jawaban atas pertanyaan yang salah;
+   *   3. membuka pintu bagi pertanyaan KETIGA selagi pekerja kedua masih jalan.
+   *
+   * Penanda ini yang mengikat keduanya: setiap tulisan dijaga
+   * `updateMany` bersyarat `pendingSince` yang sama persis. Pekerja yang
+   * penandanya sudah tidak berlaku menulis NOL baris dan diam — tanpa perlu
+   * kolom baru, memakai pola klaim yang sama dengan `jemputTanyaTertunda`.
+   */
+  penanda: Date;
   question: string;
   locationIds: string[];
   startKey: string;
@@ -65,6 +90,49 @@ function rakitSitasi(
   });
 }
 
+/**
+ * Tulis satu pesan asisten HANYA bila pekerjaan ini masih pemilik percakapan.
+ *
+ * Klaim & tulisan dijadikan SATU transaksi: kalau prosesnya mati di tengah,
+ * keduanya batal, penandanya utuh, dan `jemputTanyaTertunda` masih bisa
+ * menjemputnya. Membersihkan penanda lebih dulu di luar transaksi akan
+ * meninggalkan percakapan tanpa penanda DAN tanpa jawaban — menggantung
+ * selamanya, tanpa satu pun jalur yang menjemputnya.
+ *
+ * @returns true bila tulisannya jadi; false bila pekerjaan ini sudah basi.
+ */
+type IsiPesanAsisten = {
+  role: "asisten";
+  content: string;
+  citations?: object;
+  confidence?: number | null;
+  runId?: string;
+};
+
+async function tulisBilaMasihMilik(
+  input: TanyaLatarInput,
+  data: IsiPesanAsisten,
+): Promise<boolean> {
+  return db.$transaction(async (tx) => {
+    const klaim = await tx.aiConversation.updateMany({
+      where: { id: input.conversationId, pendingSince: input.penanda },
+      data: { pendingSince: null },
+    });
+    if (klaim.count === 0) return false;
+    await tx.aiMessage.create({
+      data: {
+        conversationId: input.conversationId,
+        role: data.role,
+        content: data.content,
+        citations: data.citations ? JSON.parse(JSON.stringify(data.citations)) : undefined,
+        confidence: data.confidence ?? null,
+        runId: data.runId,
+      },
+    });
+    return true;
+  });
+}
+
 async function tulisJawaban(user: SessionUser, input: TanyaLatarInput): Promise<void> {
   const result = await executeAiRun(user, {
     kind: "tanya",
@@ -85,19 +153,23 @@ async function tulisJawaban(user: SessionUser, input: TanyaLatarInput): Promise<
     // hanya kalimat yang berguna bagi penanya.
     console.error(`[ai/tanya-latar] run ${result.runId} gagal: ${run?.errorMessage ?? "(tanpa pesan)"}`);
   }
-  await db.aiMessage.create({
-    data: {
-      conversationId: input.conversationId,
-      role: "asisten",
-      content:
-        result.status === "siap" && answer
-          ? answer.answer
-          : pesanGagalUntukPenanya(null),
-      citations: answer ? JSON.parse(JSON.stringify(rakitSitasi(answer, out?.official?.sourceRefs ?? []))) : undefined,
-      confidence: answer?.confidence ?? null,
-      runId: result.runId,
-    },
+  const jadi = await tulisBilaMasihMilik(input, {
+    role: "asisten",
+    content:
+      result.status === "siap" && answer ? answer.answer : pesanGagalUntukPenanya(null),
+    citations: answer ? rakitSitasi(answer, out?.official?.sourceRefs ?? []) : undefined,
+    confidence: answer?.confidence ?? null,
+    runId: result.runId,
   });
+  if (!jadi) {
+    // Penanya sudah mengirim ulang pertanyaannya dan pekerja lain yang
+    // memegang percakapan ini. Jawaban ini SENGAJA dibuang: menuliskannya
+    // akan menempelkan jawaban lama pada pertanyaan baru. Run-nya tetap
+    // tersimpan di `AiRun`, jadi ongkosnya tetap terlihat.
+    console.warn(
+      `[ai/tanya-latar] jawaban run ${result.runId} dibuang – percakapan ${input.conversationId} sudah dipegang pekerjaan lain`,
+    );
+  }
 }
 
 /**
@@ -115,20 +187,23 @@ export function mulaiJawabanLatar(user: SessionUser, input: TanyaLatarInput): vo
       // tetap mendapat kabar; kalau tidak, penanya menunggu sesuatu yang tidak
       // akan pernah datang.
       console.error("[ai/tanya-latar] pekerjaan latar gagal:", err);
-      await db.aiMessage
-        .create({
-          data: {
-            conversationId: input.conversationId,
-            role: "asisten",
-            content: pesanGagalUntukPenanya(err),
-          },
-        })
-        .catch(() => {
-          /* DB pun tidak bisa ditulis — penanda tunggu di bawah yang menyelamatkan layar. */
-        });
+      await tulisBilaMasihMilik(input, {
+        role: "asisten",
+        content: pesanGagalUntukPenanya(err),
+      }).catch(() => {
+        /* DB pun tidak bisa ditulis — penanda di bawah yang menyelamatkan layar. */
+      });
     } finally {
+      /*
+       * Jaring pengaman, dan SELALU bersyarat penanda: kalau kedua cabang di
+       * atas gagal menulis, penantian layar tetap harus berakhir — tetapi
+       * penanda milik pertanyaan BARU tidak boleh ikut terhapus.
+       */
       await db.aiConversation
-        .update({ where: { id: input.conversationId }, data: { pendingSince: null } })
+        .updateMany({
+          where: { id: input.conversationId, pendingSince: input.penanda },
+          data: { pendingSince: null },
+        })
         .catch(() => {
           /* Bila ini gagal, batasJawabanMs() di layar yang menutup penantiannya. */
         });

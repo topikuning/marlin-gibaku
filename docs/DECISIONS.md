@@ -23799,3 +23799,95 @@ di ruang itu. Sekarang penahanannya ikut disebut berikut jalan keluarnya:
 
 Ini kelanjutan langsung dari prinsip DECISIONS 379: yang ditahan adalah
 angkanya, bukan keberadaan pagarnya.
+
+---
+
+## 460 · Empat cacat DECISIONS 458/459 ditutup setelah review (2026-08-28)
+
+Review atas DECISIONS 458/459 menemukan dua cacat berat dan dua kondisi tepi.
+Semuanya sahih; keempatnya diperbaiki berikut uji yang dibuktikan MERAH dulu.
+
+### 1. "Komitmen pekan lalu belum tuntas" salah hitung (berat)
+
+`buildPortfolioPulse` membandingkan target MINGGUAN dengan realisasi KUMULATIF
+sepanjang proyek. Lokasi yang sudah mengerjakan 25 m³ jauh sebelum pekan lalu
+karenanya dinyatakan MEMENUHI target 20 m³ pekan lalu — padahal pekan lalu ia
+tidak mengerjakan apa pun.
+
+Angkanya tidak sekadar meleset: ia MEMBALIK kesimpulannya, tepat di metrik yang
+dipakai menjawab *"apa yang perlu dikerjakan untuk mengejar progress?"* — dan
+lokasi yang mandek dinyatakan menepati janjinya.
+
+Implementasi yang benar sudah lama ada di `lib/plan/rencana-mingguan.ts` (PPC):
+kumulatif akhir pekan dikurangi kumulatif sehari sebelum pekan mulai. Yang
+kurang cuma dipakai. Sekarang lapisan hitung punya
+`volumeDalamRentangByLineage()` — hasil yang sama, satu query, dan menerima
+rentang BERBEDA per lokasi (tiap paket mulai pada tanggal yang berbeda, jadi
+"pekan lalu" tidak sama tanggalnya). `cumulativeVolumeByLineageMulti()` yang
+lahir bersama cacat ini dibuang: dua helper yang mirip, satu di antaranya
+salah dipakai, adalah jebakan berikutnya.
+
+Ujinya memakai item yang dikerjakan 25 m³ SEBELUM pekan lalu lalu dikomitmenkan
+10 m³ dan tidak disentuh — persis bentuk yang diloloskan versi lama.
+
+### 2. Pekerjaan latar lama merusak status pertanyaan baru (berat)
+
+Sesudah lewat `batasJawabanMs()`, penanya BOLEH mengirim ulang pertanyaannya —
+proses yang mati tidak akan pernah menjawab. Tetapi "lewat batas" tidak sama
+dengan "sudah mati": pekerja lama bisa saja cuma lambat.
+
+Versi 455/456 membersihkan `pendingSince` HANYA berdasarkan id percakapan.
+Pekerja lama yang selesai belakangan karenanya bisa menghapus penanda tunggu
+milik pertanyaan BARU, menuliskan jawaban LAMA sesudah pertanyaan baru masuk,
+dan membuka pintu bagi pertanyaan ketiga selagi pekerja kedua masih jalan.
+Ketiganya SENYAP.
+
+Sekarang tiap pekerjaan membawa PENANDA — nilai `pendingSince` yang dipasang
+tepat sebelum ia mulai — dan tiap tulisan dijaga `updateMany` bersyarat penanda
+yang sama. Tanpa kolom baru: pola klaim yang sama sudah dipakai
+`jemputTanyaTertunda`.
+
+Klaim dan tulisan disatukan dalam SATU transaksi, dan urutannya disengaja.
+Membersihkan penanda lebih dulu di luar transaksi akan meninggalkan percakapan
+tanpa penanda DAN tanpa jawaban bila prosesnya mati di sela itu — menggantung
+selamanya, tanpa satu pun jalur yang menjemputnya.
+
+Penjemput cron juga memasang penanda SEBELUM pekerja mulai, dalam `updateMany`
+yang sama dengan klaimnya. Versi lama mengosongkan penanda → mulai → memasang
+lagi; di sela itu percakapan terlihat "tidak sedang dijawab".
+
+### 3. "Rencana pekan depan" diam-diam jadi pekan berjalan (sedang)
+
+Di minggu terakhir kontrak, `getRencanaMingguan(n + 1)` mengembalikan null dan
+kodenya jatuh kembali ke pekan berjalan — sementara kepala balasannya tetap
+berbunyi "pekan depan". Jawaban yang benar untuk pekan yang salah: jenis
+kesalahan yang paling sulit dibantah, karena angkanya sendiri tidak keliru.
+
+Sekarang kejatuhannya DIKATAKAN, di baris paling atas blok lokasi itu, sebelum
+angkanya terbaca: *"Minggu 21 di luar masa kontrak (kontrak berakhir di minggu
+20) – yang saya tampilkan pekan berjalan."*
+
+### 4. Cakupan EWS yang diklaim lengkap masih kehilangan data (sedang)
+
+Adapter memetakan warning dengan `href.includes("/lokasi/<slug>")`. Dua cacat:
+peringatan tingkat PAKET (`/paket/<id>/dokumen`), SURAT (`/surat?sorot=<id>`),
+dan sebagian peringatan lokasi (`/temuan?…`, `/kendala?…`) tidak pernah masuk;
+dan slug yang saling berawalan bisa tertukar ("kranji" di dalam "kranji-2").
+
+`EwsWarning` kini membawa `locationSlug` / `packageId` / `letterId` eksplisit —
+dicap sekali di ujung tiap fungsi aturan, bukan diulang per aturan supaya
+aturan baru tidak diam-diam kehilangan identitasnya lagi. Pemetaannya jadi
+perbandingan sama-persis, dan peringatan tingkat paket dilekatkan ke tiap
+lokasi paket itu dengan label yang menyebut paketnya.
+
+### 5. Uji cakupan yang tidak bisa ketinggalan zaman
+
+Keberatan terakhir review: uji cakupan hanya membandingkan daftar MANUAL dengan
+niat/adapter, jadi halaman baru yang lahir tanpa adapter tetap tidak terdeteksi
+— cacat yang sama dengan yang hendak dicegah peta itu.
+
+Sekarang tiap wilayah menyebut RUTE `(app)` yang dilayaninya, ujinya MEMBACA
+daftar direktori rute dari disk, dan menuntut tiap rute punya rumah: di
+`CAKUPAN_AI`, atau di `RUTE_BUKAN_WILAYAH` berikut alasan tertulisnya. Halaman
+baru tanpa jalur AI karenanya memerahkan uji. Arah sebaliknya ikut dijaga: rute
+yang dihapus tidak boleh meninggalkan baris yang menyesatkan.

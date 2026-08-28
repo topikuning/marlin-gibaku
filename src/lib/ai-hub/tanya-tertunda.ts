@@ -32,9 +32,13 @@ import { mulaiJawabanLatar } from "./tanya-latar";
  *    setelah menulis jawaban tetapi sebelum mengosongkan penanda. Percakapan
  *    seperti itu sudah punya jawabannya; ia cukup dibersihkan penandanya, dan
  *    menjawab ulang justru membuat jawaban dobel.
- * 3. **Penandanya DIKLAIM lebih dulu** (`updateMany` ber-syarat `pendingSince`
- *    yang sama). Dua cron yang kebetulan tumpang tindih tidak bisa sama-sama
- *    memenangkan percakapan yang sama.
+ * 3. **Penandanya DIKLAIM sekaligus DIPERBARUI** dalam satu `updateMany`
+ *    ber-syarat `pendingSince` yang sama. Dua cron yang tumpang tindih tidak
+ *    bisa sama-sama memenangkan percakapan yang sama — dan tidak ada sela
+ *    "tanpa penanda" yang membuat penanya bisa mengirim ulang pertanyaannya
+ *    selagi pekerja baru sudah berjalan. Nilai penanda barunya sekaligus
+ *    menjadi IDENTITAS pekerjaan itu: pekerja hanya boleh menulis selama
+ *    nilainya belum berubah (lihat `TanyaLatarInput.penanda`).
  *
  * Kuota tetap berlaku: penjemputan memakai jalur yang sama, jadi pagarnya
  * diperiksa ulang. Yang lewat kuota menerima kalimat penolakan — bukan
@@ -78,17 +82,36 @@ export async function jemputTanyaTertunda(sekarang = new Date()): Promise<HasilJ
   const hasil: HasilJemput = { diperiksa: tertunda.length, dijemput: 0, dibersihkan: 0 };
 
   for (const convo of tertunda) {
-    // Klaim: hanya yang penandanya masih sama persis. Yang kalah balapan
-    // mendapat count 0 dan dilewati tanpa efek samping.
+    /*
+     * Klaim SEKALIGUS memasang penanda BARU — satu `updateMany`, bukan dua
+     * langkah (perbaikan review 2026-08-28).
+     *
+     * Versi pertama mengosongkan penanda, memulai pekerja, lalu memasang
+     * penanda baru SESUDAHNYA. Di sela itu percakapan terlihat "tidak sedang
+     * dijawab", sehingga penanya bisa mengirim ulang pertanyaannya dan dua
+     * pekerja berjalan atas percakapan yang sama.
+     *
+     * Nilai barunya juga menjadi IDENTITAS pekerjaan ini: pekerja hanya boleh
+     * menulis selama `pendingSince` masih sama persis (lihat `tanya-latar.ts`).
+     */
+    const penanda = new Date();
     const klaim = await db.aiConversation.updateMany({
       where: { id: convo.id, pendingSince: convo.pendingSince },
-      data: { pendingSince: null },
+      data: { pendingSince: penanda },
     });
     if (klaim.count === 0) continue;
+
+    /** Lepas penanda yang baru saja kita pasang — hanya bila masih milik kita. */
+    const lepas = () =>
+      db.aiConversation.updateMany({
+        where: { id: convo.id, pendingSince: penanda },
+        data: { pendingSince: null },
+      });
 
     const terakhir = convo.messages[0];
     if (!terakhir || terakhir.role !== "user") {
       // Jawabannya sudah ada — penandanya saja yang tertinggal.
+      await lepas();
       hasil.dibersihkan++;
       continue;
     }
@@ -97,13 +120,17 @@ export async function jemputTanyaTertunda(sekarang = new Date()): Promise<HasilJ
       where: { id: convo.userId },
       select: { id: true, orgId: true, fullName: true, username: true, email: true, role: true, mustChangePassword: true },
     });
-    // Pengguna dihapus/dinonaktifkan sesudah bertanya: penandanya sudah
-    // dibersihkan di atas, dan itu memang seluruh yang boleh dilakukan.
-    if (!user) continue;
+    // Pengguna dihapus/dinonaktifkan sesudah bertanya: penandanya dilepas, dan
+    // itu memang seluruh yang boleh dilakukan.
+    if (!user) {
+      await lepas();
+      continue;
+    }
 
     const sisa = convo.messages.slice(1);
     mulaiJawabanLatar(user as SessionUser, {
       conversationId: convo.id,
+      penanda,
       question: terakhir.content,
       locationIds: (convo.scopeIds as string[]) ?? [],
       startKey: convo.periodStart.toISOString().slice(0, 10),
@@ -113,8 +140,6 @@ export async function jemputTanyaTertunda(sekarang = new Date()): Promise<HasilJ
         .reverse()
         .map((m) => ({ role: m.role === "user" ? ("user" as const) : ("assistant" as const), content: m.content })),
     });
-    // Penanda dipasang lagi supaya layar tahu jawabannya sedang disusun ulang.
-    await db.aiConversation.update({ where: { id: convo.id }, data: { pendingSince: new Date() } });
     hasil.dijemput++;
   }
 

@@ -43,6 +43,20 @@ export const EWS_KATEGORI_LABEL: Record<EwsKategori, string> = {
 
 export type EwsWarning = {
   ruleId: string;
+  /**
+   * IDENTITAS objek yang bermasalah — terisi salah satu, sesuai tingkat
+   * aturannya (perbaikan review 2026-08-28).
+   *
+   * Sebelumnya satu-satunya petunjuk objek adalah `objek` (nama untuk dibaca)
+   * dan `href`. Pemakai di luar layar — adapter AI — terpaksa menebak dari
+   * teks href, sehingga peringatan tingkat PAKET dan SURAT tidak pernah
+   * terpetakan sama sekali, dan pencocokan `includes` bisa menyamakan slug
+   * yang saling berawalan ("kranji" dengan "kranji-2"). Id yang eksplisit
+   * menutup keduanya sekaligus.
+   */
+  locationSlug?: string;
+  packageId?: string;
+  letterId?: string;
   kategori: EwsKategori;
   severity: EwsSeverity;
   /** Objek yang bermasalah ("Lokasi Sugihwaras", "Paket KNMP NTB 1"). */
@@ -94,6 +108,11 @@ export type EwsLocationFacts = {
 };
 
 export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
+  /*
+   * Identitas lokasinya dicap SEKALI di akhir, bukan diulang di tiap aturan:
+   * satu aturan baru yang lupa mencantumkannya akan hilang lagi dari AI, dan
+   * hilangnya tidak menghasilkan galat apa pun.
+   */
   const w: EwsWarning[] = [];
   const lok = f.locationName;
   const hrefLokasi = `/lokasi/${f.locationSlug}`;
@@ -271,7 +290,7 @@ export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
     });
   }
 
-  return w;
+  return w.map((x) => ({ ...x, locationSlug: f.locationSlug }));
 }
 
 export type EwsPackageFacts = {
@@ -283,6 +302,7 @@ export type EwsPackageFacts = {
 };
 
 export function evaluasiEwsPaket(f: EwsPackageFacts): EwsWarning[] {
+  // Dicap sekali di akhir — alasan yang sama dengan `evaluasiEwsLokasi`.
   const w: EwsWarning[] = [];
   const hrefDok = `/paket/${f.packageId}/dokumen`;
   if (f.dokSudahKadaluarsa.length > 0) {
@@ -319,7 +339,7 @@ export function evaluasiEwsPaket(f: EwsPackageFacts): EwsWarning[] {
       href: hrefDok,
     });
   }
-  return w;
+  return w.map((x) => ({ ...x, packageId: f.packageId }));
 }
 
 const SEVERITY_RANK: Record<EwsSeverity, number> = { kritis: 0, tinggi: 1, sedang: 2 };
@@ -337,6 +357,8 @@ export function urutkanWarning(list: EwsWarning[]): EwsWarning[] {
 
 export type EwsSuratFacts = {
   letterId: string;
+  /** Paket yang menaungi surat ini; null = surat tingkat organisasi. */
+  packageId?: string | null;
   /** Nomor agenda utk penyebutan di layar ("Agenda 12/2026"). */
   agenda: string;
   subject: string;
@@ -358,6 +380,8 @@ export function evaluasiEwsSurat(f: EwsSuratFacts): EwsWarning[] {
       alasan: `Surat dari ${f.pihak} menunggu jawaban, lewat tenggat ${f.telatHari} hari.`,
       tindakan: "Balas suratnya, lalu tandai sudah dijawab di register surat.",
       href: `/surat?sorot=${f.letterId}`,
+      letterId: f.letterId,
+      packageId: f.packageId ?? undefined,
     },
   ];
 }

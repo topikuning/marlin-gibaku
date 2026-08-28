@@ -402,40 +402,50 @@ export async function cumulativeVolumeByLineage(
 }
 
 /**
- * Versi BANYAK LOKASI dari `cumulativeVolumeByLineage` — satu query, bukan satu
- * per lokasi.
+ * Volume yang dikerjakan DI DALAM sebuah rentang tanggal, per lokasi per item.
  *
- * Ada karena `buildPortfolioPulse` perlu tahu komitmen rencana pekan lalu mana
- * yang belum tuntas, untuk SELURUH lokasi dalam lingkup pertanyaan sekaligus
- * (DECISIONS 458). Memanggil versi satu-lokasi di dalam perulangan berarti 83
- * query di jalur yang dijalankan tiap kali orang bertanya ke Ask MARLIN.
+ * ### Kenapa ini berbeda dari kumulatif, dan kenapa bedanya penting
  *
- * Kunci luar = locationId, kunci dalam = lineageKey. Saringan status &
- * basisnya sama persis dengan versi satu-lokasi — dua angka "kumulatif" yang
- * berbeda aturan adalah cara tercepat membuat dua layar tidak sepakat.
+ * Temuan review 2026-08-28 atas DECISIONS 459: penilaian "komitmen pekan lalu
+ * belum tuntas" membandingkan target MINGGUAN dengan realisasi KUMULATIF
+ * sepanjang proyek. Akibatnya lokasi yang sudah mengerjakan 25 m³ jauh sebelum
+ * pekan lalu dinyatakan MEMENUHI target 20 m³ pekan lalu — padahal pekan lalu
+ * ia tidak mengerjakan apa pun. Angkanya tidak sekadar meleset; ia membalik
+ * kesimpulannya, dan justru di metrik yang dipakai menjawab "apa yang perlu
+ * dikerjakan untuk mengejar".
+ *
+ * `lib/plan/rencana-mingguan.ts` sudah lama melakukannya dengan benar untuk
+ * PPC: kumulatif akhir pekan dikurangi kumulatif sehari sebelum pekan mulai.
+ * Fungsi ini memberi hasil yang sama persis — laporan yang tanggalnya jatuh di
+ * dalam rentang — dalam SATU query, dan untuk banyak lokasi dengan rentang
+ * yang berbeda-beda sekaligus (tiap paket mulai pada tanggal yang berbeda,
+ * jadi "pekan lalu" tidak sama tanggalnya antar lokasi).
+ *
+ * Saringan status & basisnya sama persis dengan dua fungsi kumulatif di atas.
  */
-export async function cumulativeVolumeByLineageMulti(
-  locationIds: string[],
-  upToDate?: Date,
+export async function volumeDalamRentangByLineage(
+  rentang: { locationId: string; sejak: Date; sampai: Date }[],
   cakupan: CakupanBasis = "aktif",
 ): Promise<Map<string, Map<string, number>>> {
   const hasil = new Map<string, Map<string, number>>();
-  if (locationIds.length === 0) return hasil;
+  if (rentang.length === 0) return hasil;
   const rows = await db.dailyReportItem.groupBy({
     by: ["lineageKey", "reportId"],
     where: {
       ...(cakupan === "aktif" ? { basis: "aktif" } : {}),
       report: {
-        locationId: { in: locationIds },
         status: { in: [...COUNTED_REPORT_STATUSES] },
-        ...(upToDate ? { reportDate: { lte: upToDate } } : {}),
+        OR: rentang.map((r) => ({
+          locationId: r.locationId,
+          reportDate: { gte: r.sejak, lte: r.sampai },
+        })),
       },
     },
     _sum: { volumeDone: true },
   });
+  if (rows.length === 0) return hasil;
   // `groupBy` Prisma tidak bisa mengelompokkan lewat relasi, jadi lokasinya
-  // dipetakan dari reportId — satu query tambahan yang ringan, tetap jauh di
-  // bawah satu query per lokasi.
+  // dipetakan dari reportId — satu query tambahan yang ringan.
   const laporan = await db.dailyReport.findMany({
     where: { id: { in: [...new Set(rows.map((r) => r.reportId))] } },
     select: { id: true, locationId: true },

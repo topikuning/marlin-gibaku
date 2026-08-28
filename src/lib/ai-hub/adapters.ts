@@ -501,11 +501,24 @@ async function tambahKesiapan(
 /**
  * Peringatan dini (`/perlu-tindakan`).
  *
- * Warning EWS menyebut objeknya lewat `href`, bukan lewat id. Karena itu
- * pemetaan ke lokasi dilakukan atas SLUG di dalam href — dan yang tidak
- * menunjuk lokasi mana pun (peringatan tingkat paket/surat) sengaja tidak
- * dipaksa menempel pada satu lokasi: memaksanya berarti menerbitkan angka yang
- * salah alamat.
+ * ### Yang diperbaiki review 2026-08-28
+ *
+ * Versi pertama memetakan warning ke lokasi dengan `href.includes("/lokasi/" +
+ * slug)`. Dua cacat sekaligus:
+ *
+ * 1. **Setengah datanya tidak pernah sampai.** Peringatan tingkat PAKET
+ *    (dokumen kadaluarsa, milestone terlambat) ber-href `/paket/<id>/dokumen`,
+ *    peringatan SURAT ber-href `/surat?sorot=<id>`, dan sebagian peringatan
+ *    lokasi ber-href `/temuan?...` atau `/kendala?...`. Tidak satu pun cocok
+ *    dengan polanya — jadi adapter yang mengaku "peringatan dini" hanya
+ *    membawa sebagian, tanpa mengaku sebagian.
+ * 2. **Slug berawalan sama bisa tertukar.** "kranji" cocok di dalam
+ *    "kranji-2".
+ *
+ * Sekarang `EwsWarning` membawa `locationSlug` / `packageId` / `letterId`
+ * eksplisit, dan pemetaannya perbandingan sama-persis. Peringatan tingkat
+ * paket dilekatkan ke tiap lokasi paket itu dengan LABEL yang menyebut
+ * paketnya — sama seperti kesiapan, dan dengan alasan yang sama.
  */
 async function tambahEws(
   hasil: HasilAdapter,
@@ -517,17 +530,32 @@ async function tambahEws(
   const warning = await bangunEws(user);
   if (warning.length === 0) return;
 
+  const paketLokasi = new Set(lokasi.map((l) => l.packageId));
   for (const l of lokasi) {
-    const milik = warning.filter((w) => w.href.includes(`/lokasi/${l.slug}`));
+    /*
+     * Milik lokasi ini = yang menyebut slug-nya, DITAMBAH yang menyebut
+     * paketnya (dokumen/milestone/surat paket). Peringatan paket memang
+     * menyangkut tiap lokasi di dalamnya: dokumen jaminan yang kadaluarsa
+     * menahan seluruh paket, bukan satu titik.
+     */
+    const milik = warning.filter(
+      (w) =>
+        w.locationSlug === l.slug ||
+        (w.packageId != null && w.packageId === l.packageId && paketLokasi.has(l.packageId)),
+    );
     if (milik.length === 0) continue;
     const kritis = milik.filter((w) => w.severity === "kritis").length;
+    const tingkatPaket = milik.filter((w) => w.locationSlug == null).length;
     const refId = `${l.slug}:peringatan`;
     hasil.refs.push({
       id: refId,
       entityType: "location",
       entityId: l.id,
       label: `${l.name} – peringatan dini`,
-      value: `${milik.length} peringatan (${kritis} kritis) · terparah: ${milik[0].alasan}`,
+      value:
+        `${milik.length} peringatan (${kritis} kritis` +
+        (tingkatPaket > 0 ? `, ${tingkatPaket} tingkat paket` : "") +
+        `) · terparah: ${milik[0].alasan}`,
       href: `/perlu-tindakan`,
     });
     dorong(hasil, fakta(l.id, "peringatan_terbuka", milik.length, periodKey, refId));

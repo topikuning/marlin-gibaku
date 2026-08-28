@@ -17,11 +17,15 @@
 // Arah kedua yang menangkap wilayah baru: menambah adapter atau niat tanpa
 // mencantumkannya di peta cakupan akan MEMERAHKAN berkas ini, dan penulisnya
 // dipaksa memutuskan — dijawab AI, atau ditulis alasannya kenapa tidak.
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CAKUPAN_AI,
+  RUTE_BUKAN_WILAYAH,
   adapterBelumTerdaftar,
   niatBelumTerdaftar,
+  ruteTercakup,
 } from "@/lib/ai-hub/cakupan";
 import { KAPABILITAS_ADAPTER, LABEL_WILAYAH } from "@/lib/ai-hub/adapters-pagar";
 import { NIAT } from "@/lib/waha/tanya-niat";
@@ -60,6 +64,46 @@ describe("peta cakupan menutup seluruh wilayah", () => {
           expect(adapterSah.has(j.wilayah), `adapter "${j.wilayah}" tidak ada`).toBe(true);
         }
       }
+    }
+  });
+});
+
+describe("halaman baru tidak bisa lolos diam-diam", () => {
+  /**
+   * Rute NYATA di `src/app/(app)/` — dibaca dari disk, bukan disalin.
+   *
+   * Inilah jawaban atas keberatan review 2026-08-28: uji versi pertama hanya
+   * membandingkan daftar manual dengan niat/adapter, jadi halaman baru yang
+   * lahir tanpa jalur AI tetap tidak terdeteksi. Yang membuat peta cakupan
+   * berarti bukan isinya, melainkan bahwa ia DIPAKSA menjawab seluruh rute.
+   */
+  function ruteNyata(): string[] {
+    const akar = join(process.cwd(), "src", "app", "(app)");
+    return readdirSync(akar).filter((e) => statSync(join(akar, e)).isDirectory());
+  }
+
+  it("REGRESI: tiap rute (app) punya rumah – di peta cakupan atau di pengecualian", () => {
+    const punyaRumah = ruteTercakup();
+    const yatim = ruteNyata().filter((r) => !punyaRumah.has(r));
+    expect(
+      yatim,
+      "rute ini belum diputuskan: masukkan ke CAKUPAN_AI (bila datanya bisa ditanyakan) " +
+        "atau ke RUTE_BUKAN_WILAYAH berikut alasannya",
+    ).toEqual([]);
+  });
+
+  it("tiap rute yang didaftar memang ada di disk", () => {
+    // Arah sebaliknya: rute yang dihapus/di-rename tidak boleh meninggalkan
+    // baris yang menyesatkan di peta.
+    const ada = new Set(ruteNyata());
+    for (const r of ruteTercakup()) {
+      expect(ada.has(r), `rute "${r}" tercantum di peta cakupan tapi tidak ada di (app)`).toBe(true);
+    }
+  });
+
+  it("tiap pengecualian membawa ALASAN, bukan sekadar nama", () => {
+    for (const [rute, alasan] of Object.entries(RUTE_BUKAN_WILAYAH)) {
+      expect(alasan.length, `pengecualian "${rute}" tanpa alasan tertulis`).toBeGreaterThan(20);
     }
   });
 });

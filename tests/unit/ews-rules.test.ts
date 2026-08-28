@@ -123,3 +123,74 @@ describe("urutan", () => {
     expect(urut[urut.length - 1].severity).toBe("sedang");
   });
 });
+
+describe("identitas objek ikut di tiap warning (review 2026-08-28)", () => {
+  /*
+   * Sebelum ini satu-satunya petunjuk objek adalah `objek` (nama untuk dibaca)
+   * dan `href`. Pemakai di luar layar — adapter AI — terpaksa menebak dari teks
+   * href, dan tebakan itu gagal dua arah: peringatan tingkat PAKET & SURAT
+   * tidak pernah terpetakan sama sekali, sementara pencocokan substring bisa
+   * menyamakan slug yang saling berawalan.
+   */
+  it("warning LOKASI membawa slug-nya, termasuk yang href-nya ke /temuan & /kendala", () => {
+    const w = evaluasiEwsLokasi({
+      ...dasar,
+      status: "terhenti",
+      temuanKritisTerbuka: 2,
+      kendalaLewatTenggat: 1,
+    });
+    expect(w.length).toBeGreaterThan(2);
+    for (const x of w) expect(x.locationSlug).toBe("lokasi-uji");
+    // Justru dua ini yang dulu hilang: href-nya tidak memuat "/lokasi/<slug>".
+    const luarLokasi = w.filter((x) => !x.href.startsWith("/lokasi/"));
+    expect(luarLokasi.length).toBeGreaterThan(0);
+    for (const x of luarLokasi) expect(x.locationSlug).toBe("lokasi-uji");
+  });
+
+  it("warning PAKET membawa packageId, bukan cuma nama paket", () => {
+    const w = evaluasiEwsPaket({
+      packageId: "pkg-1",
+      packageName: "Paket Uji",
+      dokSudahKadaluarsa: [{ title: "Jaminan pelaksanaan" }],
+      dokSegeraKadaluarsa: [],
+      milestoneTerlambat: 2,
+    });
+    expect(w.length).toBe(2);
+    for (const x of w) {
+      expect(x.packageId).toBe("pkg-1");
+      // Bukan warning lokasi – jangan sampai tertempel ke satu titik proyek.
+      expect(x.locationSlug).toBeUndefined();
+    }
+  });
+
+  it("warning SURAT membawa letterId & packageId-nya", async () => {
+    const { evaluasiEwsSurat } = await import("@/lib/ews/rules");
+    const w = evaluasiEwsSurat({
+      letterId: "surat-1",
+      packageId: "pkg-1",
+      agenda: "12/2026",
+      subject: "Klarifikasi volume",
+      pihak: "PPK",
+      telatHari: 5,
+    });
+    expect(w).toHaveLength(1);
+    expect(w[0].letterId).toBe("surat-1");
+    expect(w[0].packageId).toBe("pkg-1");
+  });
+
+  it("surat tanpa paket TIDAK mengarang packageId", () => {
+    // Surat tingkat organisasi memang tidak punya paket. Mengisinya dengan
+    // tebakan akan melekatkan peringatan itu ke paket yang salah.
+    return import("@/lib/ews/rules").then(({ evaluasiEwsSurat }) => {
+      const w = evaluasiEwsSurat({
+        letterId: "surat-2",
+        packageId: null,
+        agenda: "13/2026",
+        subject: "Edaran",
+        pihak: "Dinas",
+        telatHari: 3,
+      });
+      expect(w[0].packageId).toBeUndefined();
+    });
+  });
+});
