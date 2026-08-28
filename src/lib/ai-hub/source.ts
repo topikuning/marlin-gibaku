@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { accessibleLocationIds, ForbiddenError, type SessionUser } from "@/lib/auth/session";
 import {
   COUNTED_REPORT_STATUSES,
-  cumulativeVolumeByLineageMulti,
   getLocationsProgress,
+  volumeDalamRentangByLineage,
 } from "@/lib/progress";
 import { jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
 import { computeReadiness } from "./readiness";
@@ -296,6 +296,8 @@ export async function buildPortfolioPulse(
         select: {
           locationId: true,
           weekNumber: true,
+          weekStart: true,
+          weekEnd: true,
           items: {
             orderBy: [{ priority: "asc" }, { id: "asc" }],
             select: { targetVolume: true, rabNode: { select: { name: true, lineageKey: true } } },
@@ -311,11 +313,30 @@ export async function buildPortfolioPulse(
     if (r.weekNumber === w) rencanaIni.set(r.locationId, r);
     else if (r.weekNumber === w - 1) rencanaLalu.set(r.locationId, r);
   }
-  // Realisasi kumulatif per item, untuk menilai komitmen pekan lalu mana yang
-  // belum tuntas. Dari calculation layer, dan hanya bila memang ada rencana
-  // pekan lalu yang perlu dinilai.
-  const realisasiPerItem = rencanaLalu.size
-    ? await cumulativeVolumeByLineageMulti([...rencanaLalu.keys()], asOf)
+  /*
+   * Realisasi SELAMA pekan lalu — bukan kumulatif (perbaikan review 2026-08-28).
+   *
+   * Versi pertama membandingkan target MINGGUAN dengan kumulatif sepanjang
+   * proyek. Lokasi yang sudah mengerjakan 25 m³ jauh sebelum pekan lalu
+   * karenanya dinyatakan MEMENUHI target 20 m³ pekan lalu, padahal pekan lalu
+   * ia tidak mengerjakan apa pun — angkanya tidak sekadar meleset, ia membalik
+   * kesimpulannya, tepat di metrik yang dipakai menjawab "apa yang perlu
+   * dikerjakan untuk mengejar".
+   *
+   * Rentangnya diambil dari `weekStart`/`weekEnd` rencana itu sendiri, jadi
+   * benar untuk tiap paket yang mulainya berbeda tanggal. Cara yang sama sudah
+   * lama dipakai PPC di `lib/plan/rencana-mingguan.ts`.
+   */
+  const realisasiPekanLalu = rencanaLalu.size
+    ? await volumeDalamRentangByLineage(
+        [...rencanaLalu.values()].map((r) => ({
+          locationId: r.locationId,
+          sejak: r.weekStart,
+          // Tidak pernah melewati batas snapshot: pekan yang masih berjalan
+          // hanya dihitung sampai `asOf`.
+          sampai: r.weekEnd < asOf ? r.weekEnd : asOf,
+        })),
+      )
     : new Map<string, Map<string, number>>();
 
   /** Fakta rencana satu lokasi — `null` bila pekannya memang belum bernomor. */
@@ -325,7 +346,7 @@ export async function buildPortfolioPulse(
     }
     const ini = rencanaIni.get(locId);
     const lalu = rencanaLalu.get(locId);
-    const realisasi = realisasiPerItem.get(locId);
+    const realisasi = realisasiPekanLalu.get(locId);
     const belumTuntas = (lalu?.items ?? []).filter(
       (it) => (realisasi?.get(it.rabNode.lineageKey) ?? 0) < Number(it.targetVolume),
     ).length;

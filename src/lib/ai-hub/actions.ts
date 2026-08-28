@@ -737,9 +737,13 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
     // harus bisa menampilkan pertanyaan yang sedang diproses, bukan kotak
     // kosong yang berputar.
     await db.aiMessage.create({ data: { conversationId, role: "user", content: question } });
+    // Penanda ini SEKALIGUS jadi identitas pekerjaannya (review 2026-08-28):
+    // pekerja latar hanya boleh menulis selama `pendingSince` masih bernilai
+    // sama persis. Lihat catatan `TanyaLatarInput.penanda`.
+    const penanda = new Date();
     await db.aiConversation.update({
       where: { id: conversationId },
-      data: { pendingSince: new Date() },
+      data: { pendingSince: penanda },
     });
     await audit(user.id, "ai.tanya.mulai", "ai_conversation", conversationId, {
       locations: scopeResmi.ids.length,
@@ -748,6 +752,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
 
     mulaiJawabanLatar(user, {
       conversationId,
+      penanda,
       question,
       locationIds,
       startKey,

@@ -187,6 +187,7 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
     },
     select: {
       id: true,
+      packageId: true,
       agendaNo: true,
       agendaYear: true,
       subject: true,
@@ -201,6 +202,7 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
     warnings.push(
       ...evaluasiEwsSurat({
         letterId: s.id,
+        packageId: s.packageId,
         agenda: `${s.agendaNo}/${s.agendaYear}`,
         subject: s.subject,
         pihak: s.partyName || PIHAK_LABEL[s.party],

@@ -55,6 +55,17 @@ export type WilayahCakupan = {
   nama: string;
   /** Halaman MARLIN yang memuatnya — supaya daftar ini bisa diperiksa mata. */
   halaman: string;
+  /**
+   * RUTE di `src/app/(app)/` yang wilayah ini layani.
+   *
+   * Ini yang membuat peta ini tidak bisa ketinggalan zaman diam-diam
+   * (perbaikan review 2026-08-28): ujinya membaca daftar direktori rute yang
+   * SUNGGUHAN dan menuntut tiap rute punya rumah — di sini, atau di
+   * `RUTE_BUKAN_WILAYAH` berikut alasannya. Halaman baru yang lahir tanpa
+   * jalur AI karenanya MEMERAHKAN uji, bukan lolos karena tidak ada yang
+   * ingat menambahkannya.
+   */
+  rute: string[];
   jalur: JalurJawab[];
   /**
    * Terisi = wilayah ini SENGAJA tidak dijawab AI, berikut alasannya.
@@ -67,6 +78,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Progress pekerjaan & deviasi kurva-S",
     halaman: "/progress, /lokasi/[slug]/progress",
+    rute: ["progress", "lokasi"],
     jalur: [
       { jenis: "niat", niat: ["progress", "deviasi", "laporan_mingguan"] },
       { jenis: "pulse", sourceRefSuffix: "progress" },
@@ -75,6 +87,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Laporan harian (isi & kelengkapan)",
     halaman: "/laporan/status-harian, /lokasi/[slug]/laporan-lokasi",
+    rute: ["laporan", "hari-ini"],
     jalur: [
       { jenis: "niat", niat: ["laporan", "kelengkapan"] },
       { jenis: "pulse", sourceRefSuffix: "laporan" },
@@ -83,6 +96,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Kendala lapangan & tindak lanjut (recovery)",
     halaman: "/kendala",
+    rute: ["kendala"],
     jalur: [
       { jenis: "niat", niat: ["kendala", "kendala_dibuka", "kendala_periode_terbuka"] },
       { jenis: "pulse", sourceRefSuffix: "kendala" },
@@ -91,6 +105,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Rencana kerja mingguan (yang AKAN dikerjakan)",
     halaman: "/lokasi/[slug]/rab (formulir rencana mingguan)",
+    rute: [],
     jalur: [
       { jenis: "niat", niat: ["rencana"] },
       { jenis: "pulse", sourceRefSuffix: "rencana" },
@@ -99,56 +114,67 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Dokumentasi foto & kegiatan lapangan",
     halaman: "/foto, /aktivitas",
+    rute: ["foto", "foto-cepat", "aktivitas", "peta"],
     jalur: [{ jenis: "pulse", sourceRefSuffix: "foto" }],
   },
   {
     nama: "Kontrak & masa pelaksanaan",
     halaman: "/paket/[id]",
+    rute: ["paket"],
     jalur: [{ jenis: "adapter", wilayah: "kontrak" }],
   },
   {
     nama: "RAB & revisinya",
     halaman: "/lokasi/[slug]/rab",
+    rute: [],
     jalur: [{ jenis: "adapter", wilayah: "rab" }],
   },
   {
     nama: "Milestone administrasi & kelengkapan dokumen KKP",
     halaman: "/dokumen, /lokasi/[slug]/administrasi",
+    rute: ["dokumen"],
     jalur: [{ jenis: "adapter", wilayah: "milestone" }],
   },
   {
     nama: "Temuan pemeriksa",
     halaman: "/temuan",
+    rute: ["temuan"],
     jalur: [{ jenis: "adapter", wilayah: "temuan" }],
   },
   {
     nama: "Kesiapan termin / PHO / FHO",
     halaman: "/kesiapan",
+    rute: ["kesiapan"],
     jalur: [{ jenis: "adapter", wilayah: "kesiapan" }],
   },
   {
     nama: "Peringatan dini (perlu tindakan)",
     halaman: "/perlu-tindakan",
+    rute: ["perlu-tindakan"],
     jalur: [{ jenis: "adapter", wilayah: "ews" }],
   },
   {
     nama: "Verifikasi eksternal laporan oleh Wakil PPK",
     halaman: "/verifikasi",
+    rute: ["verifikasi"],
     jalur: [{ jenis: "adapter", wilayah: "verifikasi" }],
   },
   {
     nama: "Inspeksi lapangan",
     halaman: "/verifikasi (tab inspeksi)",
+    rute: [],
     jalur: [{ jenis: "adapter", wilayah: "inspeksi" }],
   },
   {
     nama: "Persuratan resmi & utang jawab",
     halaman: "/surat",
+    rute: ["surat"],
     jalur: [{ jenis: "adapter", wilayah: "surat" }],
   },
   {
     nama: "Keuangan (uang internal pelaksana)",
     halaman: "/keuangan",
+    rute: ["keuangan"],
     // Adapternya ADA dan tetap dipagari `finance.view`; yang sengaja tidak
     // dibuat adalah jalur cepat WhatsApp. Permintaan user 2026-08-28
     // mengecualikan keuangan, dan pagarnya sendiri sudah lebih ketat daripada
@@ -159,6 +185,25 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
       "Dikecualikan user 2026-08-28. Faktanya tetap ada di adapter dan tetap dipagari finance.view; yang tidak dibuat adalah niat WhatsApp-nya.",
   },
 ];
+
+/**
+ * Rute `(app)` yang memang BUKAN wilayah data pekerjaan — berikut alasannya.
+ *
+ * Daftar ini sengaja menuntut alasan tertulis, bukan sekadar nama: "kenapa
+ * halaman ini tidak bisa ditanyakan ke AI" adalah pertanyaan yang pantas
+ * dijawab sekali, di tempat yang terbaca, daripada ditanyakan ulang tiap kali
+ * ada yang memeriksa.
+ */
+export const RUTE_BUKAN_WILAYAH: Record<string, string> = {
+  ai: "Permukaan Ask MARLIN itu sendiri – bukan data yang ditanyakan.",
+  "chat-grup": "Arsip percakapan WhatsApp; isinya masuk AI lewat pencarian narasi, bukan sebagai wilayah fakta.",
+  "kontak-wa": "Pengaturan kanal WhatsApp – konfigurasi, bukan data pekerjaan.",
+  lampiran: "Kurasi lampiran WhatsApp masuk – tahap sebelum data jadi dokumen/laporan.",
+  "laporan-wa": "Riwayat kiriman WhatsApp – jejak pengiriman, bukan keadaan pekerjaan.",
+  master: "Basis AHSP: data acuan harga/koefisien nasional, bukan keadaan satu pekerjaan.",
+  pengguna: "Administrasi akun – di luar lingkup pekerjaan lapangan.",
+  sistem: "Pengaturan aplikasi – di luar lingkup pekerjaan lapangan.",
+};
 
 /** Niat yang memang bukan wilayah data — tidak perlu masuk peta cakupan. */
 export const NIAT_BUKAN_DATA: Niat[] = ["bantuan"];
@@ -185,6 +230,13 @@ export function adapterTercakup(): Set<WilayahAdapter> {
 export function niatBelumTerdaftar(): Niat[] {
   const dipakai = niatTercakup();
   return NIAT.filter((n) => !dipakai.has(n) && !NIAT_BUKAN_DATA.includes(n));
+}
+
+/** Rute yang sudah punya rumah — di peta cakupan atau di daftar pengecualian. */
+export function ruteTercakup(): Set<string> {
+  const out = new Set<string>(Object.keys(RUTE_BUKAN_WILAYAH));
+  for (const w of CAKUPAN_AI) for (const r of w.rute) out.add(r);
+  return out;
 }
 
 /** Wilayah adapter yang ADA tetapi belum tercantum di peta cakupan. */

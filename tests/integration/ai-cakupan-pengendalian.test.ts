@@ -107,6 +107,33 @@ beforeAll(async () => {
     },
   });
 
+  /*
+   * Dokumen paket yang SUDAH kadaluarsa → peringatan dini tingkat PAKET.
+   *
+   * Inilah yang dulu tidak pernah sampai ke AI (temuan review 2026-08-28):
+   * href-nya `/paket/<id>/dokumen`, sementara adapter menyaring warning dengan
+   * `href.includes("/lokasi/<slug>")`. Dokumen jaminan yang mati menahan
+   * seluruh paket — justru peringatan yang paling perlu terjawab.
+   */
+  await db.document.create({
+    data: {
+      orgId: org.id,
+      packageId: pkg.id,
+      phase: "kontrak",
+      type: "jaminan",
+      title: "Jaminan Pelaksanaan",
+      status: "aktif",
+      // Kadaluarsa jauh sebelum hari ini, apa pun tanggal uji ini dijalankan.
+      expiryDate: new Date(Date.now() - 30 * 86_400_000),
+      uploadedById: sa.id,
+      r2Key: `dok-${suffix}`,
+      fileName: "jaminan.pdf",
+      mimeType: "application/pdf",
+      bytes: 1024,
+      sha256: `sha-${suffix}`,
+    },
+  });
+
   // Surat yang menuntut jawaban dan sudah lewat tenggat.
   await db.letter.create({
     data: {
@@ -126,7 +153,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE report_verifications, inspections, letters, daily_reports, contracts, vendors, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE report_verifications, inspections, letters, documents, daily_reports, contracts, vendors, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
   );
   await db.$disconnect();
 });
@@ -161,6 +188,24 @@ describe("wilayah pengendalian mengeluarkan fakta", () => {
     expect(ref?.value).toContain("1 perlu dijawab");
     expect(ref?.value).toContain("1 lewat tenggat");
     expect(hasil.fakta.some((f) => f.metric === "surat_perlu_jawab" && f.value === 1)).toBe(true);
+  });
+
+  it("REGRESI: peringatan tingkat PAKET ikut, bukan cuma yang ber-href lokasi", async () => {
+    /*
+     * Adapter versi pertama memetakan warning dengan
+     * `href.includes("/lokasi/<slug>")`. Peringatan dokumen kadaluarsa
+     * ber-href `/paket/<id>/dokumen`, jadi ia tidak pernah masuk — adapter yang
+     * mengaku "peringatan dini" hanya membawa sebagian, tanpa mengaku sebagian.
+     */
+    const { id } = await refs();
+    const ref = id("peringatan");
+    expect(ref, "sitasi peringatan dini wajib ada").toBeTruthy();
+    /*
+     * DUA peringatan tingkat paket di fixture ini, dan keduanya dulu tidak
+     * pernah terpetakan: dokumen kadaluarsa (`/paket/<id>/dokumen`) dan surat
+     * lewat tenggat jawab (`/surat?sorot=<id>`).
+     */
+    expect(ref?.value).toContain("2 tingkat paket");
   });
 
   it("kesiapan termin/PHO/FHO ikut, dan labelnya menyebut PAKET", async () => {

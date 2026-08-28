@@ -638,6 +638,8 @@ export type BarisRencanaWaFmt = {
   item: ItemRencanaBaris[];
   itemTersembunyi: number;
   bobotTarget: number | null;
+  /** Pekan yang diminta tidak bisa dijawab apa adanya – WAJIB tercetak. */
+  catatan?: string | null;
   tidakTuntas: { nama: string; satuan: string | null; target: number; realisasi: number }[];
 };
 
@@ -683,6 +685,12 @@ export function balasRencana(
       return garis.join("\n");
     }
 
+    /*
+     * Catatan pekan yang meleset ditulis DULUAN, sebelum angkanya. Kalau ia
+     * ditaruh di bawah, pembaca sudah terlanjur membaca angka pekan berjalan
+     * sebagai angka pekan depan.
+     */
+    if (b.catatan) garis.push(`  ⚠️ ${b.catatan}`);
     if (b.periode) garis.push(`  periode ${b.periode}`);
     if (b.targetPct != null && b.realisasiPct != null && b.deviasiPct != null) {
       garis.push(

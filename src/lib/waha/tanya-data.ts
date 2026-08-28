@@ -623,6 +623,12 @@ export type BarisRencanaWa = {
   itemTersembunyi: number;
   /** Bobot seluruh komitmen pekan itu terhadap nilai RAB lokasi (poin persen). */
   bobotTarget: number | null;
+  /**
+   * Terisi bila pekan yang DIMINTA tidak bisa dijawab apa adanya — mis. pekan
+   * depan sudah di luar masa kontrak. Balasan WAJIB menyebutkannya
+   * (perbaikan review 2026-08-28).
+   */
+  catatan: string | null;
   /** Komitmen pekan LALU yang tidak tuntas — bahan pertama untuk mengejar. */
   tidakTuntas: { nama: string; satuan: string | null; target: number; realisasi: number }[];
 };
@@ -688,11 +694,33 @@ export async function dataRencana(
         item: [],
         itemTersembunyi: 0,
         bobotTarget: null,
+        catatan: null,
         tidakTuntas: [],
       });
       continue;
     }
-    const r = pekanDepan ? ((await getRencanaMingguan(l.id, kini.currentWeek + 1)) ?? kini) : kini;
+    /*
+     * Pekan depan bisa saja TIDAK ADA — di minggu terakhir kontrak,
+     * `getRencanaMingguan(n + 1)` mengembalikan null karena nomornya melewati
+     * `totalWeeks`.
+     *
+     * Versi pertama diam-diam jatuh kembali ke pekan berjalan, sementara
+     * kepala balasannya tetap berbunyi "pekan depan": jawaban yang benar untuk
+     * pekan yang salah, persis jenis kesalahan yang paling sulit dibantah
+     * karena angkanya sendiri tidak keliru. Sekarang kejatuhannya DIKATAKAN.
+     */
+    let catatan: string | null = null;
+    let r = kini;
+    if (pekanDepan) {
+      const depan = await getRencanaMingguan(l.id, kini.currentWeek + 1);
+      if (depan) {
+        r = depan;
+      } else {
+        catatan =
+          `Minggu ${kini.currentWeek + 1} di luar masa kontrak (kontrak berakhir di minggu ` +
+          `${kini.totalWeeks}) – yang saya tampilkan pekan berjalan.`;
+      }
+    }
     const semua = r.baris;
     baris.push({
       lokasi: l.nama,
@@ -711,6 +739,7 @@ export async function dataRencana(
       })),
       itemTersembunyi: Math.max(0, semua.length - BATAS_ITEM_RENCANA),
       bobotTarget: r.totalBobot,
+      catatan,
       tidakTuntas: r.tidakTuntas.map((t) => ({
         nama: t.name,
         satuan: t.unit,
