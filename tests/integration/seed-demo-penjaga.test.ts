@@ -13,7 +13,7 @@
 // bootstrap ini ada. Yang membedakan bukan nama lingkungan, melainkan apakah
 // ada yang sudah bekerja sungguhan di sana.
 import { readFileSync } from "node:fs";
-import { afterEach, afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
 process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
@@ -33,8 +33,19 @@ beforeAll(async () => {
   orgId = org.id;
 });
 
-afterEach(async () => {
-  await db.package.deleteMany({ where: { orgId } });
+beforeEach(async () => {
+  /*
+   * SELURUH paket dibersihkan, bukan hanya milik org uji ini.
+   *
+   * `bolehMuatDemo()` sengaja memeriksa seluruh basis data tanpa menyaring
+   * organisasi — memuat seed demo ke basis data berisi pekerjaan organisasi
+   * LAIN sama merusaknya. Uji yang hanya membersihkan org-nya sendiri karena
+   * itu bergantung pada sisa berkas uji lain yang kebetulan jalan lebih dulu,
+   * dan hijau/merahnya jadi soal urutan.
+   */
+  // TRUNCATE ... CASCADE, bukan `deleteMany`: paket sisa berkas lain masih
+  // digantungi lokasi/kontrak, dan penghapusan biasa ditolak kunci asing.
+  await db.$executeRawUnsafe(`TRUNCATE TABLE packages RESTART IDENTITY CASCADE`);
 });
 
 afterAll(async () => {

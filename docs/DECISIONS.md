@@ -24281,3 +24281,85 @@ Enkripsi at-rest **tidak** membatalkan kunci yang sudah beredar. Ketiga kunci
 itu ada di cadangan yang sudah berpindah tangan, jadi ketiganya tetap harus
 DIROTASI di penyedia masing-masing. Kode hanya memastikan yang berikutnya tidak
 ikut telanjang.
+
+---
+
+## 466 · Empat temuan review kedua ditutup (2026-08-28)
+
+### 1. Rekap bulanan menyebut dirinya mingguan
+
+`laporan_bulanan` memakai perakit yang sama dengan mingguan — rumusnya memang
+sama, dan itu disengaja (DECISIONS 462). Yang tidak disengaja: `balasMingguan()`
+memaku judul "Laporan mingguan" dan sebutan "sepanjang pekan", sementara PDF
+lampirannya sudah berjudul "Laporan bulanan". Chat dan lampirannya menyebut dua
+kadens berbeda untuk satu jawaban.
+
+Ini persis keluhan user 2026-08-18 — *"gak jelas apa yang kuminta, sistem kasih
+apa"* — hanya sepasang kata lebih halus, dan justru karena halus lebih lama tidak
+terbantah: angkanya benar, sebutannya yang bohong.
+
+Judul & sebutan kini DIBERIKAN pemanggil. Ujinya lewat `jawabPertanyaanWa`,
+bukan lewat perakitnya langsung: cacatnya ada di penyambungan, dan uji yang
+memanggil perakit dengan judul yang benar akan hijau justru ketika
+penyambungnya salah — sudah dibuktikan, uji unit perakit tetap hijau saat
+penyambungnya dirusak.
+
+### 2. Penjemput menjalankan ulang pertanyaan pemilik yang sudah dinonaktifkan
+
+`tanya-tertunda.ts` hanya memeriksa apakah baris user-nya ADA, padahal
+komentarnya sendiri berbunyi "dihapus/dinonaktifkan". Akun jarang benar-benar
+dihapus — relasi ke percakapan dan audit membuatnya jarang mungkin — jadi
+menonaktifkan adalah cara yang lazim, dan justru cara itulah yang tidak
+tertangkap.
+
+Akibatnya pertanyaan milik akun yang sudah dimatikan tetap dijalankan ulang di
+latar: memakan kuota provider, dan menuliskan jawaban ke percakapan yang
+pemiliknya sudah tidak boleh masuk. `isActive` kini ikut diperiksa; penandanya
+tetap dilepas supaya percakapannya tidak dijemput lagi tiap menit.
+
+### 3. Surat tingkat ORGANISASI hilang dari fakta AI
+
+Register surat membolehkan surat tanpa paket (`packageId: null`) — surat masuk
+sering datang sebelum diketahui paket mana yang harus menjawabnya. Dua tempat
+menjatuhkannya: `tambahSurat` menyaring `packageId in paketIds`, dan `tambahEws`
+menuntut `packageId != null`.
+
+Akibatnya surat itu terlihat di halaman Surat dan di `/perlu-tindakan` tetapi AI
+menjawab "tidak ada". Fakta yang ada di layar tapi tidak ada di AI lebih buruk
+daripada tidak ada sama sekali: penanya menyimpulkan tidak ada surat yang
+menunggu, padahal ada yang sudah lewat tenggat.
+
+Surat organisasi kini dilekatkan ke setiap lokasi dalam lingkup — sama seperti
+peringatan tingkat paket — dan jumlahnya DISEBUT terpisah ("N tingkat
+organisasi"), termasuk di ringkasan EWS. Menyebutnya "tingkat paket" akan
+mengirim orang mencarinya di paket yang salah.
+
+### 4. Penjaga cakupan hanya membaca direktori tingkat satu
+
+`ruteNyata()` memakai `readdirSync` tingkat atas, jadi halaman baru di bawah
+`lokasi/[slug]/…` atau `paket/[id]/…` otomatis terhitung tercakup oleh entri
+"lokasi"/"paket". Justru dua tempat itulah yang paling sering ditambahi halaman,
+dan domain datanya berlainan: `rapl` bukan `progress`, `keuangan` bukan `rab`.
+Jaminan yang tertulis di komentar peta belum berlaku persis di tempat ia paling
+dibutuhkan.
+
+Sekarang SETIAP direktori ber-`page.tsx` diperiksa dengan jalur penuh (74
+halaman). Akhiran `/*` mencakup subpohon dan itu KEPUTUSAN yang harus ditulis:
+`lokasi/[slug]/rab/*` berarti "apa pun di bawah RAB adalah RAB". Menuliskannya
+membuat keputusan itu terlihat di peta, bukan tersembunyi di dalam uji.
+
+Satu domain yang selama ini lolos jadi terlihat dan dicatat: `lokasi/[slug]/rapl`
+belum punya jalur AI. Ditulis di `RUTE_BUKAN_WILAYAH` berikut alasannya, bukan
+dibiarkan diam.
+
+Ditambah penjaga untuk penjaganya: uji terpisah menuntut `ruteNyata()` benar-
+benar memuat halaman bersarang. Kalau ia suatu saat kembali membaca tingkat atas
+saja, uji yatim akan tetap hijau dan lubang ini terbuka lagi tanpa suara.
+
+### Catatan uji
+
+`tests/integration/seed-demo-penjaga.test.ts` sempat hijau/merah tergantung
+urutan: `bolehMuatDemo()` sengaja memeriksa SELURUH basis data tanpa menyaring
+organisasi (memuat seed demo ke basis data berisi pekerjaan organisasi lain sama
+merusaknya), sementara ujinya hanya membersihkan org-nya sendiri. Kini ia
+mengosongkan tabel paket lebih dulu.

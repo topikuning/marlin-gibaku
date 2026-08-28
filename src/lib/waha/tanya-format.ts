@@ -534,20 +534,36 @@ export type BarisMingguanWa = {
 };
 
 /**
- * Rekap MINGGUAN per lokasi (DECISIONS 358).
+ * Rekap per lokasi untuk SATU RENTANG (DECISIONS 358; bulanan DECISIONS 462).
  *
- * Judulnya "Laporan mingguan", dan itu bukan kosmetik: keluhan user 2026-08-18
- * adalah *"gak jelas apa yang kuminta, sistem kasih apa"* — ia meminta laporan
- * mingguan dan menerima kotak berjudul "Laporan harian". Judul yang tidak sama
- * dengan yang diminta membuat penerimanya harus menebak apakah sistemnya salah
- * paham atau memang begitu isinya.
+ * Judulnya bukan kosmetik: keluhan user 2026-08-18 adalah *"gak jelas apa yang
+ * kuminta, sistem kasih apa"* — ia meminta laporan mingguan dan menerima kotak
+ * berjudul "Laporan harian". Judul yang tidak sama dengan yang diminta membuat
+ * penerimanya harus menebak apakah sistemnya salah paham atau memang begitu
+ * isinya.
+ *
+ * Karena itu `judul` dan `sebutan` DIBERIKAN pemanggil, tidak dipatok di sini.
+ * Rekap bulanan memakai perakit yang sama (rumusnya memang sama), dan versi
+ * pertamanya membiarkan keduanya terpatok "mingguan" — sehingga chat berbunyi
+ * "Laporan mingguan · sepanjang pekan" sementara PDF lampirannya berjudul
+ * "Laporan bulanan". Persis kesalahan yang sama dengan keluhan 2026-08-18,
+ * hanya sepasang kata lebih halus.
  */
 export function balasMingguan(
-  r: { periode: string; baris: BarisMingguanWa[] },
+  r: {
+    periode: string;
+    baris: BarisMingguanWa[];
+    /** Bawaan "Laporan mingguan" — bulanan mengirim judulnya sendiri. */
+    judul?: string;
+    /** Sebutan rentang pada baris tambahan, mis. "sepanjang pekan". */
+    sebutan?: string;
+  },
   opts: OpsiKaki = {},
 ): string {
+  const judul = r.judul ?? "Laporan mingguan";
+  const sebutan = r.sebutan ?? "sepanjang pekan";
   if (r.baris.length === 0) {
-    return kepala("Laporan mingguan", r.periode) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+    return kepala(judul, r.periode) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
   }
   const isi = r.baris.map((b) => {
     const angka =
@@ -561,14 +577,14 @@ export function balasMingguan(
       // Sebutan yang MEMBEDAKAN balasan ini dari balasan progres harian:
       // "sepanjang pekan" vs "hari itu". Tanpa itu keduanya menampilkan angka
       // kumulatif yang sama dan pembacanya tidak bisa tahu bedanya.
-      barisTambahan(b.tambahanPct, "sepanjang pekan"),
+      barisTambahan(b.tambahanPct, sebutan),
       angka,
       `  ${b.hariBerlaporan} dari ${b.totalHari} hari sudah dilaporkan`,
     ]
       .filter((x): x is string => x !== null)
       .join("\n");
   });
-  return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
+  return kepala(judul, r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
 
 /**

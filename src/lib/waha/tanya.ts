@@ -991,7 +991,10 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     const bulan = bulanDari(periode, hariIniKey);
     const d = await dataMingguan(sasaran, bulan.mulai, bulan.akhir);
     balasan = balasMingguan(
-      { periode: bulan.label, baris: d.baris },
+      // Judul & sebutan DISEBUT: perakitnya sama dengan mingguan, dan yang
+      // dipatok "mingguan" akan membuat chat berbunyi "Laporan mingguan"
+      // sementara PDF lampirannya berjudul "Laporan bulanan".
+      { periode: bulan.label, baris: d.baris, judul: "Laporan bulanan", sebutan: "sepanjang bulan" },
       { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: bulan.catatan },
     );
     tabel = tabelMingguan(

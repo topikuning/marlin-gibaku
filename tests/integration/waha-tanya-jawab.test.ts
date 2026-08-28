@@ -405,6 +405,43 @@ describe("kapan MARLIN benar-benar membalas", () => {
   });
 });
 
+describe("kadens rekap disebut sesuai yang diminta", () => {
+  /*
+   * Rekap BULANAN memakai pengambil data dan perakit balasan yang SAMA dengan
+   * mingguan (DECISIONS 462) — rumusnya memang sama, dan itu disengaja. Yang
+   * tidak disengaja: versi pertama membiarkan judul dan sebutan periodenya
+   * terpatok "mingguan", sehingga chat berbunyi "Laporan mingguan · sepanjang
+   * pekan" sementara PDF lampirannya berjudul "Laporan bulanan".
+   *
+   * Diuji lewat `jawabPertanyaanWa`, BUKAN lewat perakitnya langsung: cacatnya
+   * ada di penyambungan, dan uji yang memanggil perakit dengan judul yang benar
+   * akan hijau justru ketika penyambungnya salah.
+   */
+  it("REGRESI: laporan_bulanan menyebut BULAN, bukan pekan", async () => {
+    niatPalsu = { niat: "laporan_bulanan", lokasiDisebut: [], periode: "bulan_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "rekap bulanan" }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks, "tidak ada balasan yang terkirim").not.toBe("");
+    expect(teks).toContain("Laporan bulanan");
+    expect(teks).not.toContain("Laporan mingguan");
+    expect(teks).not.toContain("sepanjang pekan");
+  });
+
+  it("laporan_mingguan tetap menyebut PEKAN – kadens lama tidak ikut berubah", async () => {
+    // Uji pasangan: tanpa ini, "tidak menyebut mingguan" bisa saja karena
+    // kata itu memang tak pernah muncul di jalur mana pun.
+    niatPalsu = { niat: "laporan_mingguan", lokasiDisebut: [], periode: "minggu_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "rekap mingguan" }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks).toContain("Laporan mingguan");
+    expect(teks).not.toContain("Laporan bulanan");
+  });
+});
+
 describe("apa yang boleh bocor ke grup", () => {
   it("jawaban di grup TIDAK menyebut lokasi paket lain", async () => {
     // Inti seluruh fitur. Pertanyaan lintas lokasi yang dijawab jujur akan

@@ -156,6 +156,37 @@ describe("pagar: yang TIDAK boleh dijemput", () => {
     expect(convo?.pendingSince).toBeNull();
   });
 
+  it("REGRESI: pemilik yang DINONAKTIFKAN tidak dijalankan ulang", async () => {
+    /*
+     * Versi pertama hanya memeriksa apakah baris user-nya ADA, padahal
+     * komentarnya sendiri berbunyi "dihapus/dinonaktifkan". Akun jarang
+     * benar-benar dihapus — menonaktifkan adalah cara yang lazim, dan
+     * relasi ke percakapan/audit membuat penghapusan penuh jarang mungkin.
+     *
+     * Akibatnya pertanyaan milik akun yang sudah dimatikan tetap dijalankan
+     * ulang di latar: memakan kuota provider, dan menuliskan jawaban ke
+     * percakapan yang pemiliknya sudah tidak boleh masuk. Penandanya tetap
+     * DILEPAS supaya percakapannya tidak dijemput lagi tiap menit.
+     */
+    const id = await buatPercakapan({
+      umurMs: batasMs + 60_000,
+      pesan: [{ role: "user", content: "pertanyaan dari akun yang lalu dimatikan" }],
+    });
+    await db.user.update({ where: { id: userId }, data: { isActive: false } });
+    try {
+      const hasil = await jemputTanyaTertunda();
+      expect(hasil.dijemput, "akun nonaktif tidak boleh dijalankan").toBe(0);
+      expect(dijalankan).toEqual([]);
+      const convo = await db.aiConversation.findUnique({
+        where: { id },
+        select: { pendingSince: true },
+      });
+      expect(convo?.pendingSince, "penandanya tetap dilepas").toBeNull();
+    } finally {
+      await db.user.update({ where: { id: userId }, data: { isActive: true } });
+    }
+  });
+
   it("cron menit berikutnya TIDAK menjemput ulang yang baru saja dijalankan", async () => {
     /*
      * Ini keadaan nyatanya: route ini dipicu tiap menit. Penanda yang dipasang

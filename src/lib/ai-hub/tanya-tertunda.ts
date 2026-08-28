@@ -118,11 +118,26 @@ export async function jemputTanyaTertunda(sekarang = new Date()): Promise<HasilJ
 
     const user = await db.user.findUnique({
       where: { id: convo.userId },
-      select: { id: true, orgId: true, fullName: true, username: true, email: true, role: true, mustChangePassword: true },
+      select: {
+        id: true,
+        orgId: true,
+        fullName: true,
+        username: true,
+        email: true,
+        role: true,
+        mustChangePassword: true,
+        // `isActive` IKUT DIPERIKSA (review 2026-08-28). Versi pertama hanya
+        // memeriksa keberadaan barisnya, padahal menonaktifkan akun adalah cara
+        // yang lazim — akun jarang benar-benar dihapus. Akibatnya pertanyaan
+        // milik akun yang sudah dimatikan tetap dijalankan ulang di latar:
+        // memakai kuota provider, dan menuliskan jawaban ke percakapan yang
+        // pemiliknya sudah tidak boleh masuk.
+        isActive: true,
+      },
     });
     // Pengguna dihapus/dinonaktifkan sesudah bertanya: penandanya dilepas, dan
     // itu memang seluruh yang boleh dilakukan.
-    if (!user) {
+    if (!user || !user.isActive) {
       await lepas();
       continue;
     }

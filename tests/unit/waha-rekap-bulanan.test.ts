@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bulanDari, type PeriodeTerbaca } from "@/lib/waha/tanya-tanggal";
 import { parseNiatDeterministik } from "@/lib/waha/parser-niat";
+import { balasMingguan } from "@/lib/waha/tanya-format";
 
 /**
  * REKAP BULANAN (audit 2026-08-28).
@@ -85,5 +86,56 @@ describe("bulanDari: batas bulan kalender", () => {
     const b = bulanDari(periodeDi("bukan-tanggal"), "2026-08-28");
     expect(b.mulai).toBe("2026-08-01");
     expect(b.akhir).toBe("2026-08-28");
+  });
+});
+
+describe("balasan bulanan menyebut BULAN, bukan pekan", () => {
+  /*
+   * Rekap bulanan memakai perakit balasan yang SAMA dengan mingguan — rumusnya
+   * memang sama, dan itu disengaja. Yang tidak disengaja: versi pertama
+   * membiarkan judul dan sebutan periodenya terpatok "mingguan", sehingga chat
+   * berbunyi "Laporan mingguan · sepanjang pekan" sementara PDF lampirannya
+   * berjudul "Laporan bulanan".
+   *
+   * Ini persis keluhan user 2026-08-18 — *"gak jelas apa yang kuminta, sistem
+   * kasih apa"* — hanya sepasang kata lebih halus, dan justru karena halus ia
+   * lebih lama tidak terbantah: angkanya benar, sebutannya yang bohong.
+   */
+  const baris = [
+    {
+      lokasi: "Kedungmutih",
+      rencanaPct: 40,
+      realisasiPct: 35,
+      deviasiPct: -5,
+      tambahanPct: 8,
+      hariBerlaporan: 20,
+      totalHari: 28,
+    },
+  ];
+
+  it("judul & sebutan ikut yang diminta", () => {
+    const t = balasMingguan({
+      periode: "1–28 Agustus 2026",
+      baris,
+      judul: "Laporan bulanan",
+      sebutan: "sepanjang bulan",
+    });
+    expect(t).toContain("Laporan bulanan");
+    expect(t).toContain("sepanjang bulan");
+    expect(t).not.toContain("Laporan mingguan");
+    expect(t).not.toContain("sepanjang pekan");
+  });
+
+  it("tanpa diberi apa pun, tetap mingguan – kadens lama tidak ikut berubah", () => {
+    const t = balasMingguan({ periode: "Minggu 12", baris });
+    expect(t).toContain("Laporan mingguan");
+    expect(t).toContain("sepanjang pekan");
+  });
+
+  it("lokasi kosong pun memakai judul yang diminta", () => {
+    // Kepala kotak dicetak di DUA cabang; yang satu mudah terlupa.
+    const t = balasMingguan({ periode: "Agustus 2026", baris: [], judul: "Laporan bulanan" });
+    expect(t).toContain("Laporan bulanan");
+    expect(t).not.toContain("Laporan mingguan");
   });
 });
