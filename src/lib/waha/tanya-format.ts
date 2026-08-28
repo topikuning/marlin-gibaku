@@ -89,7 +89,16 @@ function kaki(opts: OpsiKaki): string {
 
 /** Niat tidak dikenali — mengaku, lalu menyebut yang bisa dijawab. */
 export function balasTidakMengerti(): string {
-  const daftar = (Object.keys(NIAT_LABEL) as Niat[]).map((n) => `• ${NIAT_LABEL[n]}`).join("\n");
+  /*
+   * `produksi` sengaja TIDAK ikut didaftar. Daftar ini berjudul "yang bisa saya
+   * jawab", sedangkan produksi justru satu-satunya niat yang jawabannya adalah
+   * pengakuan tidak bisa. Mencantumkannya di sini akan menjanjikan hal yang
+   * kemudian ditolak MARLIN sendiri (audit 2026-08-28).
+   */
+  const daftar = (Object.keys(NIAT_LABEL) as Niat[])
+    .filter((n) => n !== "produksi")
+    .map((n) => `• ${NIAT_LABEL[n]}`)
+    .join("\n");
   return [
     "Maaf, saya belum mengerti pertanyaan itu.",
     "",
@@ -447,6 +456,65 @@ export function balasBantuan(): string {
     "",
     "Sebut nama lokasi kalau mau dipersempit. Kalau tidak disebut, saya jawab",
     "untuk seluruh lokasi yang boleh Anda lihat.",
+  ].join("\n");
+}
+
+/**
+ * TAFSIR YANG DIPAKAI, DITULIS DI DEPAN JAWABAN (audit 2026-08-28).
+ *
+ * Hanya untuk pertanyaan yang niatnya dibaca AI, bukan parser deterministik.
+ *
+ * Sebabnya mode gagal AI berbeda dari mode gagal parser. Parser yang tidak
+ * yakin menawarkan pilihan; AI selalu memilih. Kalau pilihannya meleset,
+ * MARLIN mengeksekusinya dengan sempurna, mengarangkannya dengan rapi, dan
+ * menyertakan sumber yang benar — untuk pertanyaan yang tidak ditanyakan.
+ * Salahnya jadi SUNYI, dan makin rapi jawabannya makin lama ketahuannya.
+ *
+ * Satu baris di depan memindahkan pemeriksaan itu ke orang yang paling tahu
+ * maksudnya sendiri, dalam satu detik, sebelum ia membaca angkanya.
+ *
+ * `null` untuk niat yang tafsirnya tidak menambah apa pun: `bantuan` sudah
+ * menjelaskan dirinya, dan `produksi` seluruh balasannya memang tentang apa
+ * yang dibaca MARLIN.
+ */
+export function barisTafsir(niat: Niat): string | null {
+  if (niat === "bantuan" || niat === "produksi") return null;
+  return `_Saya baca sebagai: ${NIAT_LABEL[niat]}._`;
+}
+
+/**
+ * Balasan untuk PERINTAH membuat/mengirim artefak (audit 2026-08-28).
+ *
+ * MARLIN memang belum bisa memproduksi laporan dari WhatsApp, dan itu bukan
+ * kekurangan yang perlu disembunyikan: artefak resmi wajib lewat
+ * review→setujui→beku di Report Studio, dan melompati pagar itu lewat pintu
+ * WhatsApp akan membatalkan keputusan yang dibuat sengaja (DECISIONS 193).
+ *
+ * Yang penting balasannya tidak berhenti pada "tidak bisa". Tiga hal harus ada:
+ * pengakuan, jalan yang benar, dan hal terdekat yang BISA dilakukan sekarang —
+ * karena orang yang meminta laporan biasanya sedang butuh angkanya, bukan
+ * berkasnya.
+ */
+export function balasProduksi(): string {
+  return [
+    "*Membuat & mengirim laporan belum bisa lewat chat*",
+    "",
+    "Laporan resmi harus melewati review → disetujui → dibekukan dulu supaya",
+    "angkanya tidak berubah setelah dikirim. Pagar itu ada di aplikasi, bukan di",
+    "chat – jadi saya tidak bisa membuatnya dari sini.",
+    "",
+    "*Jalannya*",
+    "Buka MARLIN → menu *AI* → *Report Studio*. Di sana laporan disusun, diperiksa,",
+    "disetujui, lalu dikirim sebagai PDF/Excel/WhatsApp dengan angka yang sama persis.",
+    "",
+    "*Yang bisa saya berikan sekarang juga*",
+    "Angkanya, langsung di chat ini:",
+    "• “progress minggu ini”",
+    "• “laporan mingguan”",
+    "• “deviasi” – siapa yang tertinggal",
+    "• “kendala” – yang masih terbuka",
+    "",
+    "Sebut nama lokasi kalau mau dipersempit.",
   ].join("\n");
 }
 

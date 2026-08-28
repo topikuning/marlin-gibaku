@@ -80,7 +80,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
     halaman: "/progress, /lokasi/[slug]/progress",
     rute: ["progress", "lokasi"],
     jalur: [
-      { jenis: "niat", niat: ["progress", "deviasi", "laporan_mingguan"] },
+      { jenis: "niat", niat: ["progress", "deviasi", "laporan_mingguan", "laporan_bulanan"] },
       { jenis: "pulse", sourceRefSuffix: "progress" },
     ],
   },
@@ -205,8 +205,16 @@ export const RUTE_BUKAN_WILAYAH: Record<string, string> = {
   sistem: "Pengaturan aplikasi – di luar lingkup pekerjaan lapangan.",
 };
 
-/** Niat yang memang bukan wilayah data — tidak perlu masuk peta cakupan. */
-export const NIAT_BUKAN_DATA: Niat[] = ["bantuan"];
+/**
+ * Niat yang memang bukan wilayah data — tidak perlu masuk peta cakupan.
+ *
+ * `produksi` masuk sini bukan karena terlupakan, melainkan karena ia PERINTAH,
+ * bukan pertanyaan: penanya meminta artefak, dan artefak resmi lahir di Report
+ * Studio lewat review→setujui→beku (DECISIONS 193), bukan dari WhatsApp.
+ * Niatnya tetap ada supaya perintah semacam itu dikenali dan dijawab jujur,
+ * alih-alih salah dipetakan jadi pertanyaan lain (audit 2026-08-28).
+ */
+export const NIAT_BUKAN_DATA: Niat[] = ["bantuan", "produksi"];
 
 /** Seluruh niat yang dipakai peta cakupan. */
 export function niatTercakup(): Set<Niat> {

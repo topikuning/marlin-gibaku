@@ -64,6 +64,8 @@ import { LABEL_JENIS, cariNarasiAman } from "@/lib/narasi/cari";
 import {
   balasAmbigu,
   balasBantuan,
+  barisTafsir,
+  balasProduksi,
   balasDeviasi,
   balasDitolak,
   balasKelengkapan,
@@ -92,7 +94,7 @@ import {
   katalogLokasi,
   type SaringKendala,
 } from "./tanya-data";
-import { bacaPeriode, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
+import { bacaPeriode, bulanDari, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
 import { jawabPertanyaanBebasTergrounding } from "./tanya-bebas";
 
 /**
@@ -954,6 +956,14 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   if (niat.niat === "bantuan") {
     balasan = balasBantuan();
+  } else if (niat.niat === "produksi") {
+    /*
+     * PERINTAH, bukan pertanyaan. Tidak ada query yang perlu dijalankan: yang
+     * diminta penanya adalah artefak, dan artefak resmi tidak boleh lahir tanpa
+     * review→setujui→beku (DECISIONS 193). Balasannya mengaku, menunjukkan
+     * jalannya, lalu menawarkan angka yang bisa diberikan sekarang juga.
+     */
+    balasan = balasProduksi();
   } else if (niat.niat === "laporan_mingguan") {
     // Berapa pun bentuk periode yang ditulis penanya, jawabannya satu PEKAN
     // penuh — "laporan mingguan 17 agustus" berarti pekan yang memuat 17
@@ -968,6 +978,26 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       { judul: "Laporan mingguan", periode: pekan.label, baris: d.baris },
       peta,
       optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: pekan.catatan }),
+    );
+  } else if (niat.niat === "laporan_bulanan") {
+    /*
+     * Rekap BULANAN memakai pengambil data dan perakit balasan yang SAMA
+     * dengan mingguan — `dataMingguan` menerima rentang apa pun, dan tidak ada
+     * satu pun rumus baru di sini (audit 2026-08-28). Yang berbeda hanya batas
+     * tanggalnya, dan itu memang satu-satunya yang boleh berbeda: dua rekap
+     * dengan aturan hitung berlainan akan menyebut dua angka untuk hal yang
+     * sama, dan pembacanya tidak punya cara menebak mana yang benar.
+     */
+    const bulan = bulanDari(periode, hariIniKey);
+    const d = await dataMingguan(sasaran, bulan.mulai, bulan.akhir);
+    balasan = balasMingguan(
+      { periode: bulan.label, baris: d.baris },
+      { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: bulan.catatan },
+    );
+    tabel = tabelMingguan(
+      { judul: "Laporan bulanan", periode: bulan.label, baris: d.baris },
+      peta,
+      optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: bulan.catatan }),
     );
   } else if (niat.niat === "rencana") {
     /*
@@ -1149,9 +1179,17 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * mendarat sebelum "bagian 1/3" lebih membingungkan daripada satu pesan
    * panjang.
    */
-  const utuh = keputusan.penandaLingkup
-    ? `${keputusan.penandaLingkup}\n\n${balasan}`
-    : balasan;
+  /*
+   * Tafsir ditulis HANYA bila niatnya dibaca AI (`jalur === "ai"`).
+   *
+   * Jalur deterministik tidak perlu: ia cocok kata demi kata, dan yang tidak
+   * yakin sudah ditawari pilihan lebih dulu. Jalur klarifikasi malah sudah
+   * MEMINTA penanya memilih sendiri. Menempelkan baris ini di ketiganya cuma
+   * menambah kalimat yang selalu benar dan karena itu berhenti dibaca —
+   * padahal justru di jalur AI ia harus tetap dibaca (audit 2026-08-28).
+   */
+  const tafsir = jalur === "ai" ? barisTafsir(niat.niat) : null;
+  const utuh = [tafsir, keputusan.penandaLingkup, balasan].filter(Boolean).join("\n\n");
   const { bagian } = potongPesan(utuh);
 
   /*

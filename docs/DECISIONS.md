@@ -24012,3 +24012,82 @@ ujinya.
 - **Pemecahan berkas >1.000 baris**: restrukturisasi besar tanpa cacat yang
   terbukti; risikonya melebihi manfaatnya dalam satu putaran perbaikan.
 - **Node lokal v22 vs pin 24**: urusan mesin pengembang, bukan isi repo.
+
+---
+
+## 462 · Perintah natural dipahami sebagai perintah, dan tafsirnya ditulis (2026-08-28)
+
+Pemeriksaan kemampuan AI atas permintaan user: *"perintah natural dapat dipahami
+lalu dipetakan menjadi permintaan ke marlin, lalu outputnya bisa dibaca manusia
+level eksekutif"*. Parser niat dijalankan langsung terhadap kalimat bergaya
+eksekutif, dan hasilnya memisahkan tiga tahap itu dengan tajam: keluaran
+eksekutif sudah matang (kesimpulan 30 detik → 5 KPI → 3 prioritas → keputusan,
+ditegakkan uji), pemetaan sudah benar, tetapi PEMAHAMAN PERINTAH buta.
+
+### 1. Kata KERJA menang atas kata benda
+
+Parser mencocokkan kata benda dan membuang kata kerjanya, jadi:
+
+| Ditulis | Dijawab |
+|---|---|
+| "buatkan laporan eksekutif untuk direksi" | isi laporan harian HARI INI |
+| "buatkan laporan bulanan" | isi laporan harian HARI INI |
+| "kirim pdf laporan ke pak PPK" | isi laporan harian HARI INI |
+| "export excel progress semua lokasi" | jawaban progress biasa |
+
+Dan semuanya berstatus `yakin` — tidak jatuh ke AI, tidak menawarkan pilihan.
+Bukan "tidak mengerti", melainkan salah paham yang PERCAYA DIRI, tepat pada
+bentuk kalimat yang paling sering dipakai eksekutif: imperatif.
+
+Niat `produksi` ditambahkan. Ia TIDAK menjalankan perintahnya — artefak resmi
+tetap lahir di Report Studio lewat review→setujui→beku (DECISIONS 193), dan
+melompati pagar itu lewat WhatsApp membatalkan keputusan yang dibuat sengaja.
+Yang dilakukannya: mengaku tidak bisa, menyebut alasannya, menunjukkan jalannya,
+lalu menawarkan angka yang bisa diberikan sekarang juga — karena orang yang
+meminta laporan biasanya sedang butuh angkanya, bukan berkasnya.
+
+Dua jebakan bahasa Indonesia dijaga uji: "buat" yang berarti UNTUK ("laporan
+buat direksi" = permintaan MELIHAT), dan "sudah/belum kirim laporan" yang
+merupakan pengakuan pelapor, bukan perintah.
+
+### 2. Tafsir AI ditulis di depan jawaban
+
+Mode gagal jalur AI berbeda dari jalur parser: parser yang ragu menawarkan
+pilihan, AI selalu memilih. Kalau pilihannya meleset, MARLIN mengeksekusinya
+dengan sempurna, merangkainya dengan rapi, dan menyertakan sumber yang benar —
+untuk pertanyaan yang tidak ditanyakan. Salahnya SUNYI, dan makin rapi
+jawabannya makin lama ketahuannya.
+
+Sekarang balasan yang niatnya dibaca AI (`jalur === "ai"`, bukan deterministik
+maupun klarifikasi) dibuka satu baris: *"Saya baca sebagai: …"*. Pemeriksaannya
+pindah ke orang yang paling tahu maksudnya sendiri, dalam satu detik, sebelum ia
+membaca angkanya.
+
+### 3. Rekap bulanan
+
+Kadens pelaporan ke pemberi kerja bulanan; satu-satunya rekap yang ada berhenti
+di pekan. Ditambahkan `laporan_bulanan` + `bulanDari()`.
+
+Tidak ada rumus baru: `dataMingguan` ternyata sudah generik terhadap rentang
+(progres s/d akhir, tambahan sepanjang rentang, hari berlaporan dari N hari),
+jadi yang berbeda hanya batas tanggalnya. Aturan potongnya dibuat SAMA persis
+dengan mingguan — bulan berjalan dipotong hari ini dan pemotongannya dikatakan.
+Dua rekap dengan aturan hitung berlainan akan menyebut dua angka untuk hal yang
+sama, dan pembacanya tidak punya cara menebak mana yang benar.
+
+### Yang TIDAK dikerjakan, dan sebabnya
+
+- **Produksi artefak dari WhatsApp.** Bukan pekerjaan yang tersisa melainkan
+  keputusan produk: siapa yang boleh memicu, dan bagaimana review→setujui→beku
+  dijalankan tanpa layar. Sampai itu diputuskan, mengaku lebih baik daripada
+  menebak.
+- **Niat deterministik untuk wilayah adapter** (temuan, kesiapan, kontrak, dst).
+  Sepuluh wilayah itu hanya hidup lewat jalur AI, jadi pertanyaan paling khas
+  eksekutif — uang, kontrak, kesiapan termin — justru yang mati saat provider
+  bermasalah. Memperbaikinya berarti merancang isi jawaban tiap wilayah satu per
+  satu; itu aturan bisnis, dan protokol integritas melarang menebaknya.
+- **Pengambilan fakta yang tertarget.** Jalur bebas hari ini menumpahkan pulse +
+  seluruh fakta adapter + 8 potongan narasi untuk SETIAP pertanyaan tak dikenal,
+  dipakai atau tidak. Menargetkannya lebih murah dan lebih akurat, tetapi
+  mengubah apa yang sampai ke model — artinya mengubah jawabannya, dan itu tidak
+  bisa dibuktikan tanpa menjalankan provider serta uji integrasi.
