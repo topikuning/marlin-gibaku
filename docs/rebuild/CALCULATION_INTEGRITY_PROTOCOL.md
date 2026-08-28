@@ -22,9 +22,17 @@ Gunakan protokol ini untuk setiap pekerjaan yang menyentuh progress, deviasi, ku
 
 ## File wajib dibaca sebelum coding
 
-- `PROJECT.md`
-- `docs/rebuild/DATA_MODEL_AUDIT.md`
+- `PROJECT.md` — arsitektur, domain model, dan **daftar tunggal calculation
+  layer kanonik** (§3, lima berkas)
+- `docs/DECISIONS.md` — riwayat keputusan angka (051/151/152/203/426/460)
 - `docs/rebuild/TEST_PLAN.md`
+
+> **JANGAN** memakai `docs/rebuild/DATA_MODEL_AUDIT.md` sebagai acuan. Dokumen
+> itu ARSIP — schema & formula sistem LAMA (`b6e77af`), dan sampai audit
+> 2026-08-28 protokol ini justru mewajibkannya. Membacanya sebagai spesifikasi
+> berjalan adalah persis mode kegagalan yang diperingatkan di pembukaan
+> protokol ini: "memperbaiki" kode agar cocok dengan dokumen yang salah.
+> Ia boleh dibuka HANYA untuk memahami sejarah.
 - `src/lib/progress.ts`
 - `src/lib/periodic-report.ts`
 - `src/lib/scurve/*`
@@ -292,7 +300,11 @@ Pekerjaan progress/laporan selesai hanya bila:
 
 Sudah terpasang dan dijaga uji otomatis:
 
-- Calculation layer tunggal: `src/lib/progress-calc.ts` (murni) + `src/lib/progress.ts` (DB).
+- Calculation layer tunggal: **daftarnya di `PROJECT.md` §3** (lima berkas —
+  `progress-calc.ts`, `progress.ts`, `finance/calc.ts`, `plan/rencana-format.ts`,
+  `ahsp/rapl-calc.ts`). Jangan menyalin daftar itu ke sini; versi sebelumnya
+  hanya menyebut dua berkas dan itu membuat tiga dokumen saling bertentangan
+  (audit 2026-08-28, C-1 · DECISIONS 461).
 - Reconciliation gate, date-as-of gate, revision/lineage gate, fixture emas —
   `tests/integration/periodic-report.test.ts`.
 - Satu revisi RAB & satu baseline aktif per lokasi ditegakkan partial unique

@@ -38,10 +38,11 @@ lebih dulu — protokol itu wajib, bukan anjuran.
 5. **Status hanya berubah lewat mesin transisi** `src/lib/lifecycle.ts` + tulis histori.
 6. Bug baru → `docs/OPEN_ISSUES.md` (yang SELESAI dihapus dari sana, bukan
    dicoret); keputusan baru → append `docs/DECISIONS.md`.
-7. **Formula angka hanya boleh ditulis di `src/lib/progress-calc.ts` +
-   `src/lib/progress.ts` + `src/lib/finance/calc.ts` +
-   `src/lib/ahsp/rapl-calc.ts` (kebutuhan + biaya RAPL, DECISIONS 320/327).** Komponen,
-   PDF, Excel, dan prompt AI dilarang menghitung ulang.
+7. **Formula angka hanya boleh ditulis di calculation layer kanonik — daftarnya
+   ada di `PROJECT.md` §3 (LIMA berkas, DECISIONS 461).** Jangan menyalin
+   daftarnya ke sini: sampai audit 2026-08-28, CLAUDE.md, PROJECT.md, dan
+   protokol integritas memuat tiga daftar berbeda. Komponen, PDF, Excel, dan
+   prompt AI dilarang menghitung ulang.
 
 ## Commands
 

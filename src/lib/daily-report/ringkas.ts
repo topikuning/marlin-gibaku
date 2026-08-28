@@ -5,7 +5,7 @@ import { getBranding } from "@/lib/branding";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { formatTanggal, parseDateKey } from "@/lib/format";
 import { jamTakDiketahui } from "@/lib/photo-stamp/format";
-import { bobotPct } from "@/lib/progress-calc";
+import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { getLocationProgress } from "@/lib/progress";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "./constants";
 
@@ -219,7 +219,10 @@ export async function getRingkasHarian(
             volumeDone: true,
             valueDone: true,
             notes: true,
-            rabNode: { select: { code: true, name: true, unit: true } },
+            // `volume` + `amount` revisi AKTIF: bobot hari ini diturunkan dari
+            // keduanya, bukan dari `valueDone` yang harganya beku (audit
+            // 2026-08-28, I-1).
+            rabNode: { select: { code: true, name: true, unit: true, volume: true, amount: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -278,8 +281,19 @@ export async function getRingkasHarian(
     name: i.rabNode.name,
     unit: i.rabNode.unit,
     volumeToday: Number(i.volumeDone),
-    // Formula bobot dari progress-calc — tidak dihitung ulang di sini.
-    bobotToday: bobotPct(Number(i.valueDone), Number(grandTotal)),
+    /*
+     * Bobot hari ini = (volume hari ini / volume kontrak) × bobot item.
+     *
+     * Keduanya dari progress-calc, tidak ada formula baru di sini. Pembilangnya
+     * sengaja BUKAN `valueDone`: nilai itu dibekukan memakai harga satuan revisi
+     * yang aktif saat laporan dibuat, jadi begitu ada adendum harga, kolom bobot
+     * di PDF harian dan angka dashboard mulai berbeda tanpa ada yang salah input
+     * (DECISIONS 151; audit 2026-08-28, I-1). Batas 100% ikut terbawa dari
+     * `prestasiPct`, jadi satu hari tak bisa menyumbang lebih dari bobot itemnya.
+     */
+    bobotToday:
+      (prestasiPct(Number(i.volumeDone), Number(i.rabNode.volume ?? 0)) / 100) *
+      bobotPct(Number(i.rabNode.amount), Number(grandTotal)),
     valueToday: i.valueDone,
     notes: i.notes,
   }));

@@ -477,7 +477,13 @@ export async function deleteActivityAction(
     if (ctx.status === "final") return { error: "Kegiatan final tidak bisa dihapus – buka kembali dulu bila perlu koreksi." };
 
     const [photos, attachments] = await Promise.all([
-      db.photo.findMany({ where: { activityId: ctx.id }, select: { r2Key: true, thumbnailKey: true } }),
+      db.photo.findMany({
+        where: { activityId: ctx.id },
+        // `originalKey` IKUT: begitu barisnya hilang, tidak ada lagi yang
+        // menunjuk ke berkas aslinya di R2 – ia bukan arsip lagi, melainkan
+        // sampah tanpa induk yang terus dibayar (audit 2026-08-28, I-5).
+        select: { r2Key: true, thumbnailKey: true, originalKey: true },
+      }),
       db.fieldActivityAttachment.findMany({ where: { activityId: ctx.id }, select: { r2Key: true } }),
     ]);
     await db.$transaction([
@@ -486,7 +492,7 @@ export async function deleteActivityAction(
       db.fieldActivity.delete({ where: { id: ctx.id } }),
     ]);
     await deleteR2Keys([
-      ...photos.flatMap((p) => [p.r2Key, p.thumbnailKey]),
+      ...photos.flatMap((p) => [p.r2Key, p.thumbnailKey, p.originalKey]),
       ...attachments.map((a) => a.r2Key),
     ]);
     await audit(user.id, "field_activity.delete", "field_activity", ctx.id, { locationId: ctx.locationId });
@@ -512,6 +518,7 @@ export async function removeActivityPhotoAction(
         id: true,
         r2Key: true,
         thumbnailKey: true,
+        originalKey: true,
         activity: { select: { id: true, status: true, locationId: true, location: { select: { slug: true } } } },
       },
     });
@@ -520,7 +527,14 @@ export async function removeActivityPhotoAction(
     if (photo.activity.status === "final") return { error: "Kegiatan sudah final – buka kembali dulu untuk menghapus foto." };
 
     await db.photo.delete({ where: { id: photo.id } });
-    await deleteR2Keys([photo.r2Key, photo.thumbnailKey]);
+    // `originalKey` ikut dihapus (audit 2026-08-28, I-5) — tanpa barisnya,
+    // berkas asli tidak bisa ditemukan siapa pun lagi.
+    await deleteR2Keys([photo.r2Key, photo.thumbnailKey, photo.originalKey]);
+    // Penghapusan permanen WAJIB berjejak (CLAUDE.md butir 3, audit I-4).
+    await audit(user.id, "field_activity.photo_delete", "photo", photo.id, {
+      activityId: photo.activity.id,
+      locationId: photo.activity.locationId,
+    });
     revalidate(photo.activity.location.slug);
     return { success: "Foto dihapus." };
   } catch (err) {
@@ -633,7 +647,7 @@ export async function removeActivityAttachmentAction(
       select: {
         id: true,
         r2Key: true,
-        activity: { select: { status: true, locationId: true, location: { select: { slug: true } } } },
+        activity: { select: { id: true, status: true, locationId: true, location: { select: { slug: true } } } },
       },
     });
     if (!att?.activity) return { error: "Lampiran tidak ditemukan." };
@@ -642,6 +656,11 @@ export async function removeActivityAttachmentAction(
 
     await db.fieldActivityAttachment.delete({ where: { id: att.id } });
     await deleteR2Keys([att.r2Key]);
+    // Penghapusan permanen WAJIB berjejak (CLAUDE.md butir 3, audit I-4).
+    await audit(user.id, "field_activity.attachment_delete", "field_activity_attachment", att.id, {
+      activityId: att.activity.id,
+      locationId: att.activity.locationId,
+    });
     revalidate(att.activity.location.slug);
     return { success: "Lampiran dihapus." };
   } catch (err) {

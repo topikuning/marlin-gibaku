@@ -23891,3 +23891,124 @@ daftar direktori rute dari disk, dan menuntut tiap rute punya rumah: di
 `CAKUPAN_AI`, atau di `RUTE_BUKAN_WILAYAH` berikut alasan tertulisnya. Halaman
 baru tanpa jalur AI karenanya memerahkan uji. Arah sebaliknya ikut dijaga: rute
 yang dihapus tidak boleh meninggalkan baris yang menyesatkan.
+
+---
+
+## 461 · Perbaikan temuan audit kesehatan 2026-08-28 (2026-08-28)
+
+Audit menyeluruh (`docs/AUDIT_KESEHATAN_2026-08-28.md`) menghasilkan 5 🔴, 8 🟡,
+6 🟢. Entri ini mencatat keputusan yang diambil saat memperbaikinya — termasuk
+dua yang di laporan ditandai "menunggu keputusan user", dan sengaja diputuskan
+ke arah paling konservatif.
+
+### 1. Daftar calculation layer kanonik: LIMA berkas, satu tempat
+
+CLAUDE.md, PROJECT.md, dan protokol integritas memuat daftar yang BERBEDA —
+gabungannya lima berkas, tak satu pun memuat kelimanya. Selama patokannya
+bercabang, larangan duplikasi formula tidak bisa ditegakkan: tiap pembaca
+menarik garis di tempat berbeda.
+
+Diputuskan **gabungan**, bukan irisan: `progress-calc.ts`, `progress.ts`,
+`finance/calc.ts`, `plan/rencana-format.ts`, `ahsp/rapl-calc.ts`. Irisan akan
+MENCABUT perlindungan dari berkas yang selama ini dianggap terlindungi, dan
+mencabut pagar bukan cara menyelesaikan dokumen yang tidak sinkron.
+
+Daftarnya kini hanya hidup di `PROJECT.md` §3. Dua dokumen lain merujuk, tidak
+menyalin — penyalinan itulah yang membuat ketiganya bisa menyimpang diam-diam.
+
+### 2. Protokol tidak lagi menyuruh membaca dokumen ARSIP
+
+`CALCULATION_INTEGRITY_PROTOCOL.md` mencantumkan `DATA_MODEL_AUDIT.md` sebagai
+bacaan WAJIB sebelum menyentuh angka. Dokumen itu berbanner ARSIP: schema dan
+formula sistem LAMA (`b6e77af`). Protokol yang diikuti dengan patuh justru
+mengantar orang ke formula pra-rebuild — persis mode kegagalan yang protokol itu
+peringatkan di pembukaannya sendiri. Rujukannya diganti `PROJECT.md` §3 +
+`DECISIONS.md`, dengan peringatan tegas.
+
+### 3. Agregasi uang keluar dari komponen halaman
+
+Σ nilai terpasang lintas lokasi dan alokasi proporsional "belum tertagih" untuk
+kontrak multi-lokasi hidup di `app/(app)/keuangan/page.tsx`. Kini jadi
+`alokasiBelumTertagih()` + `totalPortofolio()` di `finance/calc.ts`.
+
+Pemotongan pembagian BigInt (Σ porsi bisa kurang beberapa rupiah dari sisa
+kontraknya) **dipertahankan apa adanya** dan justru diuji. Memperbaikinya
+mengubah angka yang sudah dilihat orang; itu keputusan tersendiri, bukan efek
+samping perapian kode.
+
+Efek sampingnya: `ai-hub/adapters.ts` selama ini menolak menyediakan angka
+"belum tertagih" KARENA formulanya hanya ada di halaman. Alasan itu gugur.
+Yang tersisa murni soal kapabilitas — dicatat di komentarnya, tidak dikerjakan
+di sini karena itu keputusan produk.
+
+### 4. `finance/calc.ts` akhirnya punya uji
+
+Nol berkas uji mengimpornya, sementara `progress.ts` punya 10. Uang adalah satu-
+satunya angka yang salahnya tidak bisa dinegosiasikan. `tests/unit/finance-calc.test.ts`
+(19 uji) menutup `unbilledWork`, `cashRequirement`, dan dua fungsi baru di atas —
+termasuk PPN 0/11/12%, pembulatan setengah-naik, nilai negatif, tertagih melebihi
+terpasang, dan pemotongan porsi.
+
+### 5. `bobotToday` tidak lagi bersandar `valueDone`
+
+`daily-report/ringkas.ts` menghitung bobot harian dari `valueDone`, padahal
+protokol menyatakan nilai itu "bukan basis agregat mana pun": harganya dibekukan
+saat laporan dibuat. Setelah adendum harga, PDF harian dan dashboard menyebut dua
+angka untuk hal yang sama (DECISIONS 151).
+
+Diputuskan **memperbaiki basisnya**, bukan mengganti namanya:
+`(prestasi hari ini) × (bobot item revisi aktif)`, keduanya dari `progress-calc`.
+Mengganti nama hanya melegalkan angka yang basisnya salah.
+
+Efek angka yang diketahui: pada kasus adendum harga +20%, kolom bobot PDF harian
+yang tadinya 8,33% menjadi 10,00% — yang benar. Tanpa adendum, tidak ada
+perubahan sama sekali; itu sebabnya cacat ini tak pernah terlihat.
+
+### 6. `buatSurat` keluar dari modul `"use server"`
+
+Tiap ekspor modul `"use server"` adalah endpoint yang bisa dipanggil klien.
+`buatSurat` memutasi register surat resmi dan menerima `orgId` + `createdById`
+sebagai ARGUMEN — dipanggil langsung, ia mencatat surat atas nama user lain, di
+organisasi lain, tanpa jejak. Belum tentu sudah bisa dieksploitasi (action ID-nya
+tampaknya tak pernah masuk bundel klien), tapi obskuritas bukan pagar.
+
+Dipindah ke `src/lib/surat/buat.ts`, meniru pola `kendala/naikkan.ts` yang sudah
+menyelesaikan persoalan sama dengan cara sama. Penjaganya tetap satu tempat di
+pemanggil.
+
+### 7. Penghapusan permanen berjejak, dan tidak meninggalkan yatim
+
+`removeActivityPhotoAction` / `removeActivityAttachmentAction` menghapus baris
+dan objek R2 tanpa `audit()` — dua-duanya satu-satunya mutasi berkapabilitas
+tanpa jejak di seluruh repo. Sekarang beraudit.
+
+Sekalian: dua jalur hapus di `field-activity/actions.ts` tidak menghapus
+`Photo.originalKey`, sementara dua jalur lain menghapusnya. Barisnya hilang,
+berkas aslinya tinggal di R2 tanpa penunjuk. DECISIONS 197 melarang menghapus
+JALUR ARSIP; ia tidak mewajibkan menyimpan berkas yang induknya sudah tiada.
+`originalKey` kini ikut dibersihkan.
+
+### 8. Seed punya satu paket yang BERSELISIH, supaya ujinya berarti
+
+Semua kontrak seed bernilai persis `withPpn(hpsTotal, 11)`, jadi banner selisih
+kontrak vs RAB tidak pernah punya data — dan uji E2E-nya selalu `test.skip`.
+Paket pertama kini bernilai 2% di atas RAB+PPN (jauh di atas toleransi 0,1%),
+dan skip-nya diganti kegagalan tegas.
+
+Prinsipnya sudah tertulis di repo ini sendiri
+(`tests/e2e/harian-tata-letak-input.spec.ts:72`): *"Uji yang melewat tidak
+membuktikan apa pun"*. Yang benar adalah menyediakan datanya, bukan mematikan
+ujinya.
+
+### Yang TIDAK dikerjakan, dan sebabnya
+
+- **Presentation contract penuh** (`calculationKey`, `sourceEntityIds` — nol
+  pemakaian): perubahan desain lintas seluruh angka, dan protokol sendiri
+  menyatakannya menunggu keputusan user. Bukan perbaikan cacat.
+- **`tests/e2e/konfirmasi.spec.ts:39`**: skip-nya bergantung pada ada-tidaknya
+  penanggung jawab yang perlu ditagih HARI ITU. Preconditionnya tidak bisa
+  dipastikan deterministik tanpa menjalankan aplikasi + DB, dan CI yang merah
+  palsu lebih buruk daripada skip yang jujur. Dibiarkan, dicatat.
+- **Pemecahan berkas >1.000 baris**: restrukturisasi besar tanpa cacat yang
+  terbukti; risikonya melebihi manfaatnya dalam satu putaran perbaikan.
+- **Node lokal v22 vs pin 24**: urusan mesin pengembang, bukan isi repo.

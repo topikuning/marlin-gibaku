@@ -181,7 +181,22 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
       }
     }
 
-    const contractValue = withPpn(hpsTotal, 11);
+    /*
+     * SATU paket sengaja BERSELISIH kontrak vs RAB (audit 2026-08-28, I-6).
+     *
+     * Sebelumnya semua kontrak seed bernilai persis `withPpn(hpsTotal, 11)`,
+     * jadi banner "selisih kontrak" tidak pernah punya data — dan uji E2E-nya
+     * (`tests/e2e/paket-drawer.spec.ts`) selalu melewatkan diri. Uji yang selalu
+     * melewat terbaca hijau tanpa membuktikan apa pun.
+     *
+     * 2% di atas RAB+PPN, jauh di atas toleransi 0,1% (`contractMismatch`), dan
+     * realistis: nilai kontrak hasil negosiasi memang lazim tidak persis sama
+     * dengan RAB. Paket PERTAMA dipilih supaya letaknya tetap dan mudah dicari.
+     */
+    const berselisihSengaja = p.number === PACKAGES[0].number;
+    const contractValue = berselisihSengaja
+      ? (withPpn(hpsTotal, 11) * 102n) / 100n
+      : withPpn(hpsTotal, 11);
     await db.contract.upsert({
       where: { contractNumber: p.contractNumber },
       update: {},

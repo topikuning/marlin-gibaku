@@ -17,7 +17,7 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 vi.mock("server-only", () => ({}));
 
 const { db } = await import("@/lib/db");
-const { buatSurat } = await import("@/lib/surat/lampiran-actions");
+const { buatSurat } = await import("@/lib/surat/buat");
 const { SuratDuplikatError } = await import("@/lib/surat/duplikat");
 
 const suffix = `dup${Date.now().toString(36)}`;

@@ -1,5 +1,6 @@
 import type { WeekSegment } from "@/lib/scurve/generate";
 import { allocateRounded } from "@/lib/round-alloc";
+import { bobotPct } from "@/lib/progress-calc";
 
 /**
  * RINCIAN TIME SCHEDULE sampai level ITEM — penyusun barisnya, MURNI (tanpa db,
@@ -129,7 +130,9 @@ export function susunRincian(
       unit: n.unit,
       unitPrice: n.unitPrice,
       amount: n.amount,
-      bobotPct: (n.amount / grandTotal) * 100,
+      // Formula bobot dari calculation layer, bukan diketik ulang di sini
+      // (audit 2026-08-28, I-2).
+      bobotPct: bobotPct(n.amount, grandTotal),
       kategori: kat?.name ?? "–",
       kategoriKey: kat?.lineageKey ?? null,
       segments,

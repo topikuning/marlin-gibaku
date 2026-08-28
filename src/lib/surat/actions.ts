@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { statusPulih, suratDibatalkan, transisiSurat } from "./lifecycle";
-import { buatSurat } from "./lampiran-actions";
+import { buatSurat } from "./buat";
 import type { LetterStatus } from "@/generated/prisma/enums";
 
 /**

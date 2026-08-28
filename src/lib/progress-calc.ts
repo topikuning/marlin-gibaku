@@ -77,6 +77,30 @@ export function realizedPctFromItems(
   return sum;
 }
 
+/**
+ * Realisasi kumulatif (%) satu KATEGORI = Σ (prestasi item × nilai item) dibagi
+ * nilai kategori.
+ *
+ * Bedanya dengan `realizedPctFromItems`: penyebutnya nilai KATEGORI, bukan grand
+ * total lokasi — dipakai bar per kategori di paparan KKP, yang menjawab
+ * "kategori ini sudah berapa persen", bukan "menyumbang berapa persen ke lokasi".
+ *
+ * Diangkat ke sini pada audit 2026-08-28 (I-3): sebelumnya penjumlahannya
+ * disusun sendiri di `paparan/snapshot.ts`, di berkas yang justru menyatakan
+ * dirinya tidak menulis ulang formula.
+ */
+export function realisasiKategoriPct(
+  items: { volSd: number; volK: number; amount: number }[],
+  amountKategori: number,
+): number {
+  if (!(amountKategori > 0)) return 0;
+  let nilai = 0;
+  for (const it of items) nilai += (prestasiPct(it.volSd, it.volK) / 100) * it.amount;
+  const p = (nilai / amountKategori) * 100;
+  if (!Number.isFinite(p)) return 0;
+  return Math.min(100, Math.max(0, p));
+}
+
 /** Bobot satu item terhadap grand total (%) — 0 bila grand total tak sah. */
 export function bobotPct(amount: number, grandTotal: number): number {
   if (!(grandTotal > 0)) return 0;

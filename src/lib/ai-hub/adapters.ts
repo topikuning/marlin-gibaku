@@ -59,18 +59,20 @@ import type { SourceRef } from "./types";
  * berhak **tidak menerima angkanya sama sekali** — bukan menerima angka lalu
  * diminta tidak menyebutnya.
  *
- * ### "Belum tertagih" sengaja TIDAK ada di sini
+ * ### "Belum tertagih" belum ada di sini — tapi halangannya sudah hilang
  *
- * Angka itu berguna, tapi menghitungnya butuh Σ nilai terpasang seluruh lokasi
- * satu kontrak plus alokasi proporsional untuk kontrak multi-lokasi — dan
- * penjumlahan itu hari ini hidup di dalam halaman Keuangan
- * (`src/app/(app)/keuangan/page.tsx`), bukan di `finance/calc.ts`.
+ * Dulu angka ini tidak bisa disediakan tanpa menyalin formulanya: Σ nilai
+ * terpasang satu kontrak + alokasi proporsional untuk kontrak multi-lokasi
+ * hidup di dalam halaman Keuangan, bukan di calculation layer.
  *
- * Menyalinnya ke sini akan melahirkan IMPLEMENTASI KEDUA dari satu formula
- * uang. Dua salinan berarti dua jawaban yang bisa berbeda tanpa ada yang
- * memberi tahu — persis yang dilarang CLAUDE.md. Menambahkannya dengan benar
- * berarti memindahkan Σ + alokasinya ke `finance/calc.ts` lebih dulu, dan itu
- * perubahan tersendiri yang menyentuh halaman yang sudah bekerja.
+ * Sejak audit 2026-08-28 (C-4) penjumlahan itu sudah dipindah ke
+ * `finance/calc.ts` sebagai `alokasiBelumTertagih()`. Menambahkan faktanya di
+ * sini kini tinggal MEMANGGIL fungsi itu — tanpa implementasi kedua.
+ *
+ * Yang masih menahan bukan lagi soal teknis melainkan kapabilitas: uang
+ * INTERNAL pelaksana bukan urusan tiap pembaca, jadi fakta ini harus ikut
+ * pagar kapabilitas seperti adapter keuangan lainnya. Itu keputusan produk,
+ * bukan pekerjaan yang tersisa.
  *
  * ### Yang dilewati DIKATAKAN
  *
