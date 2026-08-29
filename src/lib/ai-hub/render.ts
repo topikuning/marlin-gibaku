@@ -68,7 +68,7 @@ export type ExecutiveBrief = {
   evidenceLabel: string;
   kpis: { label: string; value: string; note: string }[];
   priorities: ExecutivePriority[];
-  decisions: { title: string; reason: string }[];
+  decisions: { title: string; reason: string; scopeLabel: string }[];
   /**
    * Rekomendasi di luar tiga teratas. Jumlahnya DISEBUT di setiap kanal —
    * "tidak muncul" tidak boleh terbaca sebagai "tidak ada" (CLAUDE.md).
@@ -156,6 +156,7 @@ function alasanPrioritas(w: PulseRow): { reason: string; tone: ExecutivePriority
 export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
   const totals = c.official.totals;
   const reportingRate = persenKelengkapan(totals);
+  const lokasiById = new Map(c.official.rows.map((row) => [row.locationId, row]));
   const priorities = c.official.rows.slice(0, MAKS_PRIORITAS).map((row) => {
     const why = alasanPrioritas(row);
     return {
@@ -200,7 +201,18 @@ export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
     priorities,
     decisions: c.report.recommendations
       .slice(0, MAKS_KEPUTUSAN)
-      .map((item) => ({ title: item.title, reason: item.reason })),
+      .map((item) => {
+        const lokasi = item.locationId ? lokasiById.get(item.locationId) : null;
+        return {
+          title: item.title,
+          reason: item.reason,
+          scopeLabel: item.locationId
+            ? lokasi
+              ? `${lokasi.name} · ${lokasi.province}`
+              : "Lokasi perlu dikonfirmasi"
+            : "Seluruh portofolio",
+        };
+      }),
     decisionsHidden: Math.max(0, c.report.recommendations.length - MAKS_KEPUTUSAN),
   };
 }
@@ -280,7 +292,7 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   if (brief.decisions.length) {
     lines.push("", "*KEPUTUSAN YANG DIMINTA*");
     for (const [i, a] of brief.decisions.entries()) {
-      lines.push(`${i + 1}. *${a.title}* – ${ringkas(a.reason, 180)}`);
+      lines.push(`${i + 1}. *${a.title}* [${a.scopeLabel}] – ${ringkas(a.reason, 180)}`);
     }
     if (brief.decisionsHidden > 0) {
       lines.push(`_${brief.decisionsHidden} usulan lain tidak ditampilkan – buka laporan lengkap._`);
@@ -359,7 +371,10 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
     : `<p class="empty">Tidak ada lokasi dalam scope laporan.</p>`;
   const decisions = brief.decisions.length
     ? `<ol class="decision-list">${brief.decisions
-        .map((x) => `<li><strong>${esc(x.title)}</strong><p>${esc(x.reason)}</p></li>`)
+        .map(
+          (x) =>
+            `<li><strong>${esc(x.title)}</strong><small>Fokus: ${esc(x.scopeLabel)}</small><p>${esc(x.reason)}</p></li>`,
+        )
         .join("")}</ol>${
         brief.decisionsHidden > 0
           ? `<p class="sisa">${brief.decisionsHidden} usulan lain di luar tiga teratas tidak ditampilkan – buka editor laporan untuk melihatnya.</p>`

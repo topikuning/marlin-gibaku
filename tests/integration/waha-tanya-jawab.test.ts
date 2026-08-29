@@ -458,7 +458,7 @@ describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
       where: { orgId, role: "super_admin" },
       select: { id: true },
     });
-    const laporan = await db.dailyReport.create({
+    const laporanSebelumBatas = await db.dailyReport.create({
       data: {
         locationId: lokA1,
         reportDate: new Date("2026-06-29T00:00:00.000Z"),
@@ -467,14 +467,32 @@ describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
       },
       select: { id: true },
     });
-    await db.reportVerification.create({
+    const laporanSetelahBatas = await db.dailyReport.create({
       data: {
-        reportId: laporan.id,
-        status: "diverifikasi",
-        verifiedById: pemeriksa.id,
-        // Pada 30 Juni pemeriksaan ini belum terjadi.
-        createdAt: new Date("2026-07-01T00:00:00.000Z"),
+        locationId: lokA1,
+        reportDate: new Date("2026-06-30T00:00:00.000Z"),
+        status: "dikirim",
+        createdById: pemeriksa.id,
       },
+      select: { id: true },
+    });
+    await db.reportVerification.createMany({
+      data: [
+        {
+          reportId: laporanSebelumBatas.id,
+          status: "diverifikasi",
+          verifiedById: pemeriksa.id,
+          // 30 Juni 23.59.59 WIB — masih harus dihitung.
+          createdAt: new Date("2026-06-30T16:59:59.000Z"),
+        },
+        {
+          reportId: laporanSetelahBatas.id,
+          status: "diverifikasi",
+          verifiedById: pemeriksa.id,
+          // 1 Juli 00.00 WIB — pada akhir 30 Juni belum terjadi.
+          createdAt: new Date("2026-06-30T17:00:00.000Z"),
+        },
+      ],
     });
 
     try {
@@ -495,11 +513,12 @@ describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
       );
       expect(hasil.dijawab, hasil.alasan).toBe(true);
       expect(terkirim.map((x) => x.teks).join("\n")).toContain(
-        "Sudah diperiksa sampai akhir periode: 0 laporan.",
+        "Sudah diperiksa sampai akhir periode: 1 laporan.",
       );
     } finally {
-      await db.reportVerification.deleteMany({ where: { reportId: laporan.id } });
-      await db.dailyReport.delete({ where: { id: laporan.id } });
+      const ids = [laporanSebelumBatas.id, laporanSetelahBatas.id];
+      await db.reportVerification.deleteMany({ where: { reportId: { in: ids } } });
+      await db.dailyReport.deleteMany({ where: { id: { in: ids } } });
     }
   });
 });

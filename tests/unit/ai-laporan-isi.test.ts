@@ -123,7 +123,7 @@ describe("WA membawa ISI laporan, bukan cuma judul + tabel angka", () => {
   it("memuat keputusan yang diminta dari recommendations, bernomor", () => {
     expect(wa).toContain("*KEPUTUSAN YANG DIMINTA*");
     expect(wa).toContain("1. *Percepat mobilisasi alat*");
-    expect(wa).toContain("2. *Tagih laporan harian Tengket*");
+    expect(wa).toContain("2. *Tagih laporan harian Tengket* [Tengket · Jawa Timur]");
   });
 
   it("memuat SEMUA keterbatasan, bukan hanya yang pertama", () => {
@@ -185,6 +185,10 @@ describe("laporan terbaca dalam satu pandangan", () => {
       "Percepat mobilisasi alat",
       "Tagih laporan harian Tengket",
     ]);
+    expect(brief.decisions.map((decision) => decision.scopeLabel)).toEqual([
+      "Seluruh portofolio",
+      "Tengket · Jawa Timur",
+    ]);
   });
 
   it("HTML menaruh kesimpulan, KPI, prioritas, dan keputusan sebelum tabel detail", () => {
@@ -199,6 +203,7 @@ describe("laporan terbaca dalam satu pandangan", () => {
     expect(kpiAt).toBeLessThan(priorityAt);
     expect(priorityAt).toBeLessThan(decisionAt);
     expect(decisionAt).toBeLessThan(detailAt);
+    expect(html).toContain("Fokus: Tengket · Jawa Timur");
   });
 
   it("WhatsApp membuka dengan kesimpulan dan angka sebelum detail analisis", () => {
