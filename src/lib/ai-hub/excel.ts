@@ -86,9 +86,9 @@ export function buildAiReportWorkbook(content: AiReportContent): ExcelJS.Workboo
   summary.addRow([]);
   judulBagian(summary, "KEPUTUSAN YANG DIMINTA");
   if (brief.decisions.length) {
-    kepalaTabel(summary, ["Keputusan", "Alasan / konsekuensi bila ditunda"]);
+    kepalaTabel(summary, ["Keputusan", "Fokus", "Alasan / konsekuensi bila ditunda"]);
     for (const [index, decision] of brief.decisions.entries()) {
-      summary.addRow([`${index + 1}. ${decision.title}`, decision.reason]);
+      summary.addRow([`${index + 1}. ${decision.title}`, decision.scopeLabel, decision.reason]);
     }
     // Yang disembunyikan DISEBUT jumlahnya — "tidak muncul" tidak boleh
     // terbaca sebagai "tidak ada".

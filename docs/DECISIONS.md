@@ -24733,3 +24733,38 @@ layarnya mengatakan itu apa adanya.
 
 Penghabis umur simpan menumpang putaran harian (`/api/cron/harian`) — yang
 dikejar umur berhari-hari, bukan menit.
+
+---
+
+## 473 · Waktu verifikasi mengikuti saat diperiksa, bukan tanggal laporannya (2026-08-29)
+
+Pertanyaan “berapa laporan yang sudah diperiksa per 30 Juni” memiliki dua waktu:
+tanggal laporan dan saat Wakil PPK benar-benar mencatat verifikasinya. Membatasi
+tanggal laporan saja tidak cukup; laporan Juni yang baru diperiksa Juli akan
+terbaca seolah sudah diperiksa pada akhir Juni.
+
+Untuk jawaban historis, keduanya kini dibatasi. `DailyReport.reportDate` tidak
+boleh melewati akhir periode dan `ReportVerification.createdAt` harus lebih kecil
+dari tengah malam Asia/Jakarta sesudah akhir periode. Batasnya sengaja eksklusif
+dan berzona Jakarta karena proses Railway berjalan di UTC: pukul 00.00 WIB sudah
+merupakan hari berikutnya walaupun tanggal UTC-nya masih hari sebelumnya.
+
+Karena keadaan ini dapat direkonstruksi dari timestamp, fakta verifikasi memakai
+periode yang diminta dan tidak lagi diberi cap “keadaan hari ini”. Pembuktiannya
+harus lewat `jawabPertanyaanWa`, bukan hanya pemanggilan adapter.
+
+---
+
+## 474 · Setiap keputusan laporan eksekutif harus menyebut fokusnya (2026-08-29)
+
+`recommendations.locationId` sebelumnya berhenti sebagai metadata internal dan
+dibuang semua renderer. Untuk pembaca yang menangani banyak lokasi, kalimat
+“percepat mobilisasi” tanpa lokasi bukan keputusan yang bisa langsung diberikan
+kepada tim.
+
+Model satu-pandangan kini menurunkan label fokus dari snapshot resmi MARLIN:
+nama lokasi dan provinsi untuk keputusan lokasi, atau “Seluruh portofolio” untuk
+keputusan lintas lokasi. Label yang sama wajib tampil pada panel review,
+HTML/PDF, WhatsApp, dan Excel. ID mentah tidak boleh disajikan; lokasi yang tidak
+lagi cocok dengan snapshot ditandai “Lokasi perlu dikonfirmasi” agar reviewer
+melihat masalahnya sebelum distribusi.

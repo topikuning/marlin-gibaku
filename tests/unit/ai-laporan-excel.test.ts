@@ -179,6 +179,9 @@ describe("Excel artefak: lembar pertama adalah ringkasan eksekutif", () => {
     const isi = kolomA(summary);
     expect(isi).toContain("1. Percepat mobilisasi alat");
     expect(isi).toContain("2. Tagih laporan harian Tengket");
+    const baris = summary.getRow(cariBaris(summary, "2. Tagih laporan harian Tengket"));
+    expect(baris.getCell(2).value).toBe("Tengket · Jawa Timur");
+    expect(baris.getCell(3).value).toBe("Laporan final tertinggal");
   });
 
   it("judul, status, dan periode terbaca di kepala lembar", () => {
