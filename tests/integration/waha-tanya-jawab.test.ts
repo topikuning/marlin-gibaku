@@ -2063,6 +2063,10 @@ describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
   };
 
   beforeEach(async () => {
+    // Kelompok uji historis di atas sengaja membuat jejak verifikasi. Bersihkan
+    // anaknya lebih dulu supaya kegagalan assertion sebelumnya tidak berubah
+    // menjadi rentetan foreign-key palsu pada kelompok catatan lapangan ini.
+    await db.reportVerification.deleteMany({ where: { report: { locationId: lokA1 } } });
     await db.dailyReport.deleteMany({ where: { locationId: lokA1 } });
     const pelapor = await db.user.findFirstOrThrow({
       where: { fullName: "SiteManager" },
