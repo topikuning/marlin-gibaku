@@ -405,6 +405,38 @@ describe("kapan MARLIN benar-benar membalas", () => {
   });
 });
 
+describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
+  /*
+   * Keluhan user 2026-08-29, dengan tangkapan layar: *"buat laporan kemarin
+   * untuk kranji"* dijawab kutipan catatan lapangan berikut keluhan *"Tidak
+   * saya kenali: buat"* — sementara yang ia harapkan adalah berkas laporan
+   * lengkap berikut kendalanya.
+   *
+   * DUA cacat bertumpuk, dan yang pertama membuat yang kedua tak pernah
+   * kelihatan:
+   *
+   * 1. Niat `produksi` memang dikenali `parseNiatDeterministik`, tetapi
+   *    `rencanaDeterministik` menuntut tidak ada kata yang tak terjelaskan dan
+   *    "buat" tidak pernah dihapus dari sisa frasa — jadi kalimatnya
+   *    diserahkan ke AI, yang menjawabnya sebagai pencarian catatan.
+   * 2. Sekalipun sampai, balasannya hanya menolak: "buka Report Studio".
+   *
+   * Diuji lewat `jawabPertanyaanWa` dengan parser SUNGGUHAN (bukan niat palsu),
+   * karena cacat pertama justru ada di penyambungan — persis pelajaran dari
+   * kadens bulanan.
+   */
+  it("REGRESI: 'buat laporan …' tidak lagi jatuh ke pencarian catatan", async () => {
+    niatPalsu = null; // paksa jalur deterministik + AI sungguhan
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "buat laporan kemarin untuk kedung mutih" }),
+    );
+    const teks = terkirim.map((t) => t.teks).join("\n");
+    expect(teks, "tidak ada balasan").not.toBe("");
+    expect(teks).not.toContain("Tidak saya kenali: buat");
+    expect(teks).toContain("Blanko harian");
+  });
+});
+
 describe("kadens rekap disebut sesuai yang diminta", () => {
   /*
    * Rekap BULANAN memakai pengambil data dan perakit balasan yang SAMA dengan

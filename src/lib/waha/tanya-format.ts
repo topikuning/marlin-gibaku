@@ -495,6 +495,26 @@ export function barisTafsir(niat: Niat): string | null {
  * karena orang yang meminta laporan biasanya sedang butuh angkanya, bukan
  * berkasnya.
  */
+/**
+ * Balasan saat blanko hariannya MEMANG dikirim.
+ *
+ * Menyebut lokasi dan tanggalnya, karena berkas WhatsApp diteruskan tanpa
+ * konteks percakapannya — penerima kedua tidak pernah melihat pertanyaannya.
+ */
+export function balasProduksiBerkas(lokasi: string, dateKey: string): string {
+  return [
+    `*Blanko harian ${lokasi}* – ${dateKey}`,
+    "",
+    "Berkasnya menyusul di pesan berikut: pekerjaan, tenaga, material, alat,",
+    "cuaca, foto, dan kendala yang tercatat hari itu.",
+    "",
+    "Ini blanko lapangan, BUKAN laporan eksekutif yang ditandatangani. Yang",
+    "ditandatangani disusun di MARLIN → *AI* → *Report Studio* lewat",
+    "review → disetujui → dibekukan, supaya angkanya tidak berubah setelah",
+    "dikirim.",
+  ].join("\n");
+}
+
 export function balasProduksi(): string {
   return [
     "*Membuat & mengirim laporan belum bisa lewat chat*",

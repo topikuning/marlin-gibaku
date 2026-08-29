@@ -24532,3 +24532,61 @@ peringatan dengan mencabutnya akan menukar peringatan dengan kerusakan.
 - **Produksi artefak dari WhatsApp & RAPL di AI** bukan cacat: keduanya
   keputusan sadar yang sudah tertulis (DECISIONS 193/462 dan
   `RUTE_BUKAN_WILAYAH`). Mengubahnya keputusan produk, bukan perbaikan.
+
+---
+
+## 469 · "Buat laporan" akhirnya benar-benar membuat laporannya (2026-08-29)
+
+Keluhan user dengan tangkapan layar: *"buat laporan kemarin untuk kranji"*
+dijawab kutipan catatan lapangan, ditutup keluhan *"Tidak saya kenali: buat"*.
+Yang ia harapkan berkas laporan lengkap berikut kendalanya.
+
+### 1. Niat `produksi` tidak pernah benar-benar menyala
+
+DECISIONS 462 menambahkan niat `produksi` supaya perintah tidak lagi dijawab
+sebagai pertanyaan. `parseNiatDeterministik` memang mengenalinya. Tetapi
+`rencanaDeterministik` — pembungkus yang sebenarnya dipakai — menuntut **tidak
+ada satu kata pun yang tak terjelaskan**, dan `frasaSisa()` tidak pernah
+menghapus kata kerja produksinya. "buat" karenanya tersisa sebagai kata di luar
+katalog lokasi, kalimatnya diserahkan ke AI, dan AI menjawabnya sebagai
+pencarian catatan sambil mengeluh nama lokasi "buat" tidak dikenal.
+
+Artinya SETIAP bentuk perintah gagal: *"buatkan laporan bulanan"* — contoh yang
+ditulis DECISIONS 462 sendiri — juga jatuh ke AI.
+
+Pelajarannya sama persis dengan cacat kadens bulanan sehari sebelumnya, dan aku
+mengulanginya: menguji `parseNiatDeterministik` sendirian membuktikan niatnya
+TERBACA, bukan bahwa jalurnya SAMPAI. Yang memutuskan adalah pembungkusnya.
+Ujinya karena itu lewat `jawabPertanyaanWa` dengan parser sungguhan.
+
+Sekalian: karena kata kerjanya kini dihapus, sisa frasanya bersih dan nama
+lokasi di kalimat perintah IKUT terbaca — "kranji" tidak lagi hilang.
+
+Jebakan "buat = untuk" tetap terjaga: `POLA_PRODUKSI` menuntut kata kerja
+langsung diikuti kata benda artefak, jadi *"laporan buat pak PPK"* tetap
+diserahkan ke AI, bukan dibaca sebagai perintah.
+
+### 2. Batas artefaknya digeser ke tempat yang benar
+
+Balasan lama menolak SEMUA permintaan artefak dengan alasan
+review→setujui→beku (DECISIONS 193). Alasan itu benar untuk laporan EKSEKUTIF —
+angkanya ditandatangani. Tetapi BLANKO HARIAN bukan artefak yang dijaga gerbang
+itu: ia sudah dibentuk tiap hari dan diunggah sendiri ke Drive tanpa persetujuan
+siapa pun. Menolak mengirim berkas yang setiap malam dikirim otomatis adalah
+pagar yang tidak menjaga apa-apa — ia hanya menyulitkan orang yang bertanya.
+
+Batasnya sekarang:
+
+- **satu lokasi + satu tanggal** → blanko hariannya DIKIRIM sebagai PDF, lengkap
+  dengan pekerjaan, tenaga, material, alat, cuaca, foto, dan kendala. Tidak ada
+  pembentuk baru: `renderHarianRingkasPdf` yang sudah dipakai layar dan Drive.
+- **selain itu** (lintas lokasi, rentang tanggal, laporan eksekutif) → tetap
+  mengaku tidak bisa dan menunjukkan jalannya.
+
+Balasan teksnya menyebut lokasi dan tanggal, dan menyatakan tegas bahwa ini
+blanko lapangan, BUKAN laporan eksekutif yang ditandatangani — berkas WhatsApp
+diteruskan tanpa percakapannya, dan penerima kedua tidak pernah melihat
+pertanyaannya.
+
+Kegagalan membentuk berkas TIDAK ditelan: penanya diberi tahu, karena "tidak ada
+berkas" tanpa sepatah kata terbaca sebagai "tidak ada laporannya".
