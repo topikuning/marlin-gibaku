@@ -107,6 +107,10 @@ sendiri maupun tulisan agen lain:
   melaporkan E2E merah dan kegagalannya perlu direproduksi.
 - Tiap temuan pengoreksi yang ditutup harus menyebut **tes mana** yang
   membuktikannya. "Sudah diperbaiki" tanpa nama berkas tes bukan penutupan.
+- **Memberi nomor entri `docs/DECISIONS.md`** yang masih ditulis `## (baru) · …`,
+  mengikuti urutan masuk, lalu mengarahkan rujukan "DECISIONS NNN" di komentar
+  kode ke nomor itu. Penulis sengaja tidak memilih nomor sendiri – alasannya di
+  kepala `DECISIONS.md`. Dijaga `tests/unit/decisions-nomor.test.ts`.
 
 ---
 
