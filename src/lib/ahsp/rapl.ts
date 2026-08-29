@@ -145,7 +145,7 @@ export type KeadaanItemRapl = {
 };
 
 /**
- * Biaya + margin per item RAB (RAPL-08, DECISIONS 473).
+ * Biaya + margin per item RAB (RAPL-08, DECISIONS 475).
  *
  * Ringkasannya sengaja hanya menjumlahkan item yang LENGKAP: mencampur item
  * yang biayanya baru separuh diketahui ke dalam satu total akan menghasilkan

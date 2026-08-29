@@ -1,5 +1,5 @@
 // Draf harga AI: siapa boleh menerapkannya, dan dari mana angkanya diambil
-// (RAPL-05/RAPL-06, DECISIONS 473).
+// (RAPL-05/RAPL-06, DECISIONS 475).
 //
 // Yang diuji di sini adalah BATAS-BATASNYA, bukan mutu estimasinya:
 //

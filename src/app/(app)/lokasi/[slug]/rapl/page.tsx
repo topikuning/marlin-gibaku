@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  * friendly") sah, dan cacat terbesarnya bukan selera: daftarnya menyodorkan
  * 1.616 baris RAB untuk 480 keputusan.
  *
- * ### Siapa boleh melihat UANGNYA (RAPL-07, DECISIONS 473)
+ * ### Siapa boleh melihat UANGNYA (RAPL-07, DECISIONS 475)
  *
  * Breakdown kebutuhan (volume bahan/upah/alat) memakai `rab.view` — ia bagian
  * dari memahami pekerjaan. Tetapi HARGA, BIAYA, dan MARGIN menuntut

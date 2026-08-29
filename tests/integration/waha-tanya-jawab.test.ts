@@ -107,12 +107,17 @@ const jawabanBebasPalsu: unknown = {
  * berubah).
  */
 let jawabanBersumber = false;
+/** Bila diisi, jawaban bebas menyalin metrik ini – bukan fakta pertama. */
+let metrikJawabanBersumber: string | null = null;
 
 /** Baris fakta pertama di prompt → satu klaim yang sah. `null` bila tak ada. */
-function klaimDariPrompt(prompt: string): Record<string, unknown> | null {
-  const m = /- locationId=(\S+) metric=(\S+) value=(\S+) periodKey=(\S+) sourceRefId=(\S+)/.exec(
-    prompt,
-  );
+function klaimDariPrompt(prompt: string, metric?: string | null): Record<string, unknown> | null {
+  const semua = [
+    ...prompt.matchAll(
+      /- locationId=(\S+) metric=(\S+) value=(\S+) periodKey=(\S+) sourceRefId=(\S+)/g,
+    ),
+  ];
+  const m = metric ? semua.find((x) => x[2] === metric) : semua[0];
   if (!m) return null;
   return {
     locationId: m[1],
@@ -157,16 +162,18 @@ vi.mock("@/lib/ai/structured", () => ({
  */
 function bebas(prompt: string): unknown {
   if (!jawabanBersumber) return jawabanBebasPalsu;
-  const klaim = klaimDariPrompt(prompt);
+  const klaim = klaimDariPrompt(prompt, metrikJawabanBersumber);
   if (!klaim) return jawabanBebasPalsu;
+  const teks = metrikJawabanBersumber
+    ? `Sudah diperiksa sampai akhir periode: ${klaim.value} laporan.`
+    : "Pekerjaan tanggul masih berjalan di lokasi yang saya periksa.";
   return {
-    // Teks SENGAJA tanpa angka: angka yang tidak berasal dari klaim/kutipan
-    // dianggap karangan dan membatalkan bagiannya. Yang diuji di sini bukan
-    // perakitan kalimat, melainkan bahwa bagian bersumber selamat.
-    answer: "Pekerjaan tanggul masih berjalan di lokasi yang saya periksa.",
+    // Angka hanya dipakai bila disalin dari klaim yang sama; jalur bawaan
+    // sengaja tetap tanpa angka untuk menjaga uji jawaban kualitatif lama.
+    answer: teks,
     answerParts: [
       {
-        text: "Pekerjaan tanggul masih berjalan di lokasi yang saya periksa.",
+        text: teks,
         claims: [klaim],
         kutipan: [],
         sourceRefIds: [],
@@ -326,6 +333,7 @@ beforeEach(async () => {
   berkasTerkirim.length = 0;
   aiSehat = true;
   jawabanBersumber = false;
+  metrikJawabanBersumber = null;
   niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
   /*
    * Kuota AI (20 analisis/jam/pengguna) dinolkan tiap uji.
@@ -434,6 +442,83 @@ describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
     expect(teks, "tidak ada balasan").not.toBe("");
     expect(teks).not.toContain("Tidak saya kenali: buat");
     expect(teks).toContain("Blanko harian");
+    expect(berkasTerkirim, "teks menjanjikan berkas, tetapi tidak ada PDF yang dikirim").toHaveLength(1);
+    expect(berkasTerkirim[0]).toMatchObject({
+      chatId: `${nomorSM}@c.us`,
+      mime: "application/pdf",
+    });
+    expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-.*\.pdf$/);
+    expect(berkasTerkirim[0].bytes).toBeGreaterThan(0);
+  });
+});
+
+describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
+  it("REGRESI: verifikasi yang dibuat SESUDAH akhir periode belum dihitung pada periode itu", async () => {
+    const pemeriksa = await db.user.findFirstOrThrow({
+      where: { orgId, role: "super_admin" },
+      select: { id: true },
+    });
+    const laporanSebelumBatas = await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-06-29T00:00:00.000Z"),
+        status: "dikirim",
+        createdById: pemeriksa.id,
+      },
+      select: { id: true },
+    });
+    const laporanSetelahBatas = await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-06-30T00:00:00.000Z"),
+        status: "dikirim",
+        createdById: pemeriksa.id,
+      },
+      select: { id: true },
+    });
+    await db.reportVerification.createMany({
+      data: [
+        {
+          reportId: laporanSebelumBatas.id,
+          status: "diverifikasi",
+          verifiedById: pemeriksa.id,
+          // 30 Juni 23.59.59 WIB — masih harus dihitung.
+          createdAt: new Date("2026-06-30T16:59:59.000Z"),
+        },
+        {
+          reportId: laporanSetelahBatas.id,
+          status: "diverifikasi",
+          verifiedById: pemeriksa.id,
+          // 1 Juli 00.00 WIB — pada akhir 30 Juni belum terjadi.
+          createdAt: new Date("2026-06-30T17:00:00.000Z"),
+        },
+      ],
+    });
+
+    niatPalsu = {
+      niat: null,
+      lokasiDisebut: ["Kedung Mutih"],
+      periode: { jenis: "tanggal", hari: 30, bulan: 6, tahun: 2026 },
+    };
+    jawabanBersumber = true;
+    metrikJawabanBersumber = "laporan_sudah_diverifikasi";
+
+    const hasil = await jawabPertanyaanWa(
+      event({
+        // Verifikasi eksternal dipagari kapabilitas. Pakai Super Admin supaya
+        // yang diuji benar-benar integritas waktunya, bukan penolakan izin SM.
+        chatId: `${nomorAdmin}@c.us`,
+        dari: nomorAdmin,
+        teks: "berapa laporan yang sudah diperiksa wakil PPK per 30 Juni 2026?",
+      }),
+    );
+    expect(hasil.dijawab, hasil.alasan).toBe(true);
+    expect(hasil.alasan).toBe("dijawab fleksibel dari sumber MARLIN");
+    expect(terkirim.map((x) => x.teks).join("\n")).toContain(
+      "Sudah diperiksa sampai akhir periode: 1 laporan.",
+    );
+    // ReportVerification append-only. Jejak uji tidak dihapus satu per satu;
+    // teardown berkas melakukan TRUNCATE ... CASCADE seperti fixture lain.
   });
 });
 
@@ -1977,7 +2062,12 @@ describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
   };
 
   beforeEach(async () => {
-    await db.dailyReport.deleteMany({ where: { locationId: lokA1 } });
+    // Jejak verifikasi bersifat append-only. Laporan historis dari kelompok uji
+    // di atas dibiarkan sampai TRUNCATE teardown; hanya laporan tanpa jejak yang
+    // aman dibersihkan untuk menyiapkan catatan lapangan berikutnya.
+    await db.dailyReport.deleteMany({
+      where: { locationId: lokA1, verifications: { none: {} } },
+    });
     const pelapor = await db.user.findFirstOrThrow({
       where: { fullName: "SiteManager" },
       select: { id: true },

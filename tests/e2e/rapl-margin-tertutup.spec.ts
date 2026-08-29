@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * RAPL-07 (DECISIONS 473): biaya, harga satuan, dan MARGIN hanya untuk pemegang
+ * RAPL-07 (DECISIONS 475): biaya, harga satuan, dan MARGIN hanya untuk pemegang
  * `finance.view`.
  *
  * Yang dijaga bukan kerapian menu. `/lokasi/[slug]/rapl` dulu hanya dijaga

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader } from "@/components/ui";
+import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { Inbox } from "lucide-react";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
@@ -26,6 +26,11 @@ export const dynamic = "force-dynamic";
  * dikecualikan. Kalau 83 grup mengirim puluhan foto sehari, antrean berisi
  * ribuan baris dan berhenti dibaca orang — dan antrean yang tidak dibaca sama
  * saja dengan tidak ada. Foto tetap tersimpan & terlihat di galeri chat.
+ *
+ * Layarnya sengaja HANYA daftar (ketetapan user 2026-08-29). Tiga kartu angka
+ * dan banner penjelas foto lapangan dibuang: keduanya menjelaskan hal yang
+ * sudah diketahui pemakainya setiap hari, dan menyita layar di atas satu-satunya
+ * yang perlu dikerjakan — barisnya.
  */
 export default async function LampiranPage({
   searchParams,
@@ -39,8 +44,7 @@ export default async function LampiranPage({
 
   const scope = packageScopeWhere(user, await accessibleLocationIds(user));
 
-  const [antre, jumlahMenunggu, jumlahGagal, jumlahDitetapkan] = await Promise.all([
-    db.waAttachment.findMany({
+  const antre = await db.waAttachment.findMany({
       where: {
         package: scope,
         ...(tampilSemua
@@ -71,46 +75,13 @@ export default async function LampiranPage({
         package: { select: { name: true } },
         message: { select: { body: true, fromName: true, timestamp: true } },
       },
-    }),
-    db.waAttachment.count({
-      where: {
-        package: scope,
-        decision: "belum",
-        saranKind: { in: ["surat_kandidat", "dokumen", "media_lain"] },
-        status: { not: "kedaluwarsa" },
-      },
-    }),
-    db.waAttachment.count({ where: { package: scope, status: "gagal" } }),
-    db.waAttachment.count({ where: { package: scope, decision: { not: "belum" } } }),
-  ]);
+    });
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Lampiran Masuk"
         description="Berkas yang dikirim ke grup WhatsApp. Sistem menduga jenisnya; Anda yang menetapkan."
-      />
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <KpiCard
-          label="Menunggu ditetapkan"
-          value={jumlahMenunggu}
-          sub="berkas perlu keputusan"
-          tone={jumlahMenunggu > 0 ? "warning" : "default"}
-        />
-        <KpiCard label="Sudah ditetapkan" value={jumlahDitetapkan} sub="surat/dokumen/bukan bahan kerja" />
-        <KpiCard
-          label="Gagal diunduh"
-          value={jumlahGagal}
-          sub="berkasnya tidak terselamatkan"
-          tone={jumlahGagal > 0 ? "danger" : "default"}
-        />
-      </div>
-
-      <Banner
-        tone="info"
-        title="Foto lapangan tidak masuk antrean ini"
-        description="Foto biasa dari anggota grup tetap tersimpan dan bisa dilihat di Chat Grup. Yang diminta ditetapkan di sini hanya berkas dokumen dan yang berpotensi surat – supaya antreannya tetap bisa dibaca."
       />
 
       <Card>
@@ -174,13 +145,6 @@ export default async function LampiranPage({
         </CardBody>
       </Card>
 
-      {jumlahGagal > 0 ? (
-        <p className="text-xs text-ink-faint">
-          <Badge tone="danger" label={String(jumlahGagal)} /> berkas gagal diunduh. Tautan berkas WhatsApp
-          berumur pendek – yang gagal umumnya sudah kedaluwarsa sebelum sempat diambil, dan tidak bisa
-          diselamatkan lagi.
-        </p>
-      ) : null}
     </div>
   );
 }

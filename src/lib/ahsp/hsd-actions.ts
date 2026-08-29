@@ -226,7 +226,7 @@ const mintaSkema = z.object({
 });
 
 /**
- * MINTA draf harga kepada AI — request hanya MENCATAT (RAPL-01, DECISIONS 473).
+ * MINTA draf harga kepada AI — request hanya MENCATAT (RAPL-01, DECISIONS 475).
  *
  * Yang tetap dikerjakan sinkron: kapabilitas, akses lokasi, penyiapan target,
  * dan `checkAiGuard`. Penolakan yang bisa dijawab tanpa provider harus sampai
@@ -323,7 +323,7 @@ const putusanSkema = z.object({
 });
 
 /**
- * TERAPKAN draf yang dipilih orang (RAPL-05/RAPL-06, DECISIONS 473).
+ * TERAPKAN draf yang dipilih orang (RAPL-05/RAPL-06, DECISIONS 475).
  *
  * Dua hal yang berubah dari versi pertama, dan keduanya penting:
  *

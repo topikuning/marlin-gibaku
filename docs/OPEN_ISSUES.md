@@ -611,9 +611,9 @@ yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
   dikerjakan.
 
 
-## RAPL — sisa setelah RAPL-01…RAPL-08 ditutup (DECISIONS 473/474)
+## RAPL — sisa setelah RAPL-01…RAPL-08 ditutup (DECISIONS 475/476)
 
-Kedelapan temuan audit 2026-08-29 sudah dikerjakan (DECISIONS 474). Yang
+Kedelapan temuan audit 2026-08-29 sudah dikerjakan (DECISIONS 476). Yang
 BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 
 - 🟡 **Lembar cetak A4 RAPL masih bentuk agregat.** `/cetak/rapl/[slug]`

@@ -10,7 +10,7 @@ import { BATAS_USULAN_HARGA_AI, pilihTargetUsulan } from "./usulan-target";
 export type { UsulanHargaAi } from "./hsd-ai-parse";
 
 /**
- * Draf Harga Satuan Dasar dari AI (DECISIONS 441, dirombak DECISIONS 473).
+ * Draf Harga Satuan Dasar dari AI (DECISIONS 441, dirombak DECISIONS 475).
  *
  * Angka di sini TIDAK disimpan sebagai HSD dan TIDAK ikut kalkulasi. Ia menjadi
  * baris `HsdUsulanAi` berstatus `draf`; hanya penerimaan oleh orang yang
