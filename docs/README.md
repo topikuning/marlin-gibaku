@@ -7,6 +7,7 @@ Mulai dari mana tergantung yang Anda cari.
 | Butuh | Baca |
 |---|---|
 | Aturan kerja & perintah harian | [`../CLAUDE.md`](../CLAUDE.md) |
+| Pembagian kerja tiga agen (penulis/pengoreksi, syarat merah-dulu) | [`CARA_KERJA_AGEN.md`](./CARA_KERJA_AGEN.md) |
 | Arsitektur, domain model, **formula angka kanonik** | [`../PROJECT.md`](../PROJECT.md) — *single source of truth* |
 | Apa yang masih rusak / belum selesai | [`OPEN_ISSUES.md`](./OPEN_ISSUES.md) |
 | Kenapa sesuatu diputuskan begitu | [`DECISIONS.md`](./DECISIONS.md) — append-only |

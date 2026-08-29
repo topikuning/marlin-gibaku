@@ -7,6 +7,8 @@ Instruksi untuk Claude Code saat bekerja di repo ini.
 2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO sebelum fitur baru
 3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only (051 = rebuild total)
 4. [`docs/README.md`](./docs/README.md) — peta seluruh dokumentasi (mana yang hidup, mana yang arsip)
+5. [`docs/CARA_KERJA_AGEN.md`](./docs/CARA_KERJA_AGEN.md) — repo ini dikerjakan TIGA agen:
+   siapa penulis, siapa pengoreksi, syarat merah-dulu, daftar blind spot yang sudah terbukti
 
 **Menyentuh progress / deviasi / kurva-S / laporan / uang?** Baca
 [`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md)
