@@ -243,6 +243,45 @@ export function pekanDari(p: PeriodeTerbaca, hariIniKey: TanggalKey): PeriodeTer
   };
 }
 
+/**
+ * BULAN KALENDER yang memuat akhir periode yang diminta (audit 2026-08-28).
+ *
+ * Pasangan `pekanDari` untuk rekap bulanan. Aturannya sengaja SAMA persis —
+ * awal bulan sampai akhir bulan, dipotong hari ini bila bulannya masih
+ * berjalan, dan pemotongan itu DIKATAKAN. Dua rekap yang aturan potongnya
+ * berbeda akan menghasilkan dua angka untuk hal yang sama, dan tidak ada yang
+ * bisa menebak mana yang benar.
+ *
+ * Tidak ada rumus baru di sini: rekap bulanan memakai pengambil data yang sama
+ * dengan mingguan (`dataMingguan` menerima rentang apa pun), jadi yang berbeda
+ * hanya batas tanggalnya.
+ */
+export function bulanDari(p: PeriodeTerbaca, hariIniKey: TanggalKey): PeriodeTerbaca {
+  const acuan = keTitik(p.akhir) != null ? p.akhir : hariIniKey;
+  const [ys, ms] = acuan.split("-");
+  const tahun = Number(ys);
+  const bulan = Number(ms);
+  if (!Number.isFinite(tahun) || !Number.isFinite(bulan)) return p;
+
+  const awal = `${ys}-${ms}-01`;
+  // Hari ke-0 bulan BERIKUTNYA = hari terakhir bulan ini; ikut menangani
+  // kabisat tanpa tabel jumlah hari sendiri.
+  const hariTerakhir = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
+  const ujung = `${ys}-${ms}-${String(hariTerakhir).padStart(2, "0")}`;
+  const akhir = ujung > hariIniKey ? hariIniKey : ujung;
+  const berjalan = hariIniKey <= ujung;
+
+  return {
+    mulai: awal,
+    akhir,
+    satuHari: awal === akhir,
+    label: `bulan ${formatKey(awal)} – ${formatKey(ujung)}`,
+    catatan: berjalan
+      ? `Bulan berjalan – baru dihitung sampai hari ini (${formatKey(akhir)}).`
+      : null,
+  };
+}
+
 /** Rentang dijadikan daftar tanggal — dibatasi supaya tidak meledak. */
 export function daftarTanggal(p: PeriodeTerbaca, batas = 40): TanggalKey[] {
   const a = keTitik(p.mulai);

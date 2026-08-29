@@ -17,7 +17,7 @@
 // Arah kedua yang menangkap wilayah baru: menambah adapter atau niat tanpa
 // mencantumkannya di peta cakupan akan MEMERAHKAN berkas ini, dan penulisnya
 // dipaksa memutuskan — dijawab AI, atau ditulis alasannya kenapa tidak.
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -26,6 +26,7 @@ import {
   adapterBelumTerdaftar,
   niatBelumTerdaftar,
   ruteTercakup,
+  rutePunyaRumah,
 } from "@/lib/ai-hub/cakupan";
 import { KAPABILITAS_ADAPTER, LABEL_WILAYAH } from "@/lib/ai-hub/adapters-pagar";
 import { NIAT } from "@/lib/waha/tanya-niat";
@@ -78,26 +79,65 @@ describe("halaman baru tidak bisa lolos diam-diam", () => {
    * berarti bukan isinya, melainkan bahwa ia DIPAKSA menjawab seluruh rute.
    */
   function ruteNyata(): string[] {
+    /*
+     * SETIAP direktori ber-`page.tsx`, dengan jalur PENUH — bukan hanya
+     * direktori tingkat satu (review kedua 2026-08-28).
+     *
+     * Versi pertama membaca `readdirSync` tingkat atas saja, jadi halaman baru
+     * di bawah `lokasi/[slug]/…` atau `paket/[id]/…` otomatis terhitung
+     * tercakup oleh entri "lokasi"/"paket". Justru dua tempat itulah yang
+     * paling sering ditambahi halaman, dan domain datanya berlainan: `rapl`
+     * bukan `progress`, `keuangan` bukan `rab`. Jaminan yang ditulis di
+     * komentar peta karenanya belum berlaku persis di tempat ia paling
+     * dibutuhkan.
+     */
     const akar = join(process.cwd(), "src", "app", "(app)");
-    return readdirSync(akar).filter((e) => statSync(join(akar, e)).isDirectory());
+    const out: string[] = [];
+    const telusur = (dir: string, prefix: string) => {
+      for (const e of readdirSync(dir)) {
+        const penuh = join(dir, e);
+        if (!statSync(penuh).isDirectory()) continue;
+        const rute = prefix ? `${prefix}/${e}` : e;
+        if (existsSync(join(penuh, "page.tsx"))) out.push(rute);
+        telusur(penuh, rute);
+      }
+    };
+    if (existsSync(join(akar, "page.tsx"))) out.push(".");
+    telusur(akar, "");
+    return out.sort();
   }
 
-  it("REGRESI: tiap rute (app) punya rumah – di peta cakupan atau di pengecualian", () => {
-    const punyaRumah = ruteTercakup();
-    const yatim = ruteNyata().filter((r) => !punyaRumah.has(r));
+  it("REGRESI: tiap HALAMAN (app) punya rumah – di peta cakupan atau di pengecualian", () => {
+    const pola = ruteTercakup();
+    const yatim = ruteNyata().filter((r) => !rutePunyaRumah(r, pola));
     expect(
       yatim,
-      "rute ini belum diputuskan: masukkan ke CAKUPAN_AI (bila datanya bisa ditanyakan) " +
+      "halaman ini belum diputuskan: masukkan ke CAKUPAN_AI (bila datanya bisa ditanyakan) " +
         "atau ke RUTE_BUKAN_WILAYAH berikut alasannya",
     ).toEqual([]);
   });
 
-  it("tiap rute yang didaftar memang ada di disk", () => {
+  it("bukan cuma tingkat satu – halaman bersarang ikut diperiksa", () => {
+    /*
+     * Penjaga untuk penjaganya. Kalau `ruteNyata()` suatu saat kembali hanya
+     * membaca tingkat atas, uji yatim di atas akan tetap hijau — dan lubang
+     * yang baru ditutup ini terbuka lagi tanpa suara.
+     */
+    const nyata = ruteNyata();
+    expect(nyata).toContain("lokasi/[slug]/progress");
+    expect(nyata).toContain("paket/[id]/kontrak");
+    expect(nyata.some((r) => r.split("/").length >= 3)).toBe(true);
+  });
+
+  it("tiap pola yang didaftar memang mengenai halaman yang ada", () => {
     // Arah sebaliknya: rute yang dihapus/di-rename tidak boleh meninggalkan
     // baris yang menyesatkan di peta.
-    const ada = new Set(ruteNyata());
-    for (const r of ruteTercakup()) {
-      expect(ada.has(r), `rute "${r}" tercantum di peta cakupan tapi tidak ada di (app)`).toBe(true);
+    const nyata = ruteNyata();
+    for (const p of ruteTercakup()) {
+      expect(
+        nyata.some((r) => rutePunyaRumah(r, [p])),
+        `pola "${p}" tercantum di peta cakupan tapi tidak mengenai halaman mana pun di (app)`,
+      ).toBe(true);
     }
   });
 

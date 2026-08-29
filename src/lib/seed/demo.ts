@@ -52,7 +52,86 @@ const PACKAGES: { name: string; number: string; slugs: string[]; contractNumber:
   { name: "Paket KNMP Jepara – Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
   { name: "Paket KNMP Bangkalan (2 lokasi)", number: "PKT-2026-005", slugs: ["batah-timur", "tengket"], contractNumber: "SPK-KNMP-2026-BGK-005" },
   { name: "Paket KNMP Lamongan – Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
+
+  /*
+   * Empat paket berikut memberi seed bentuk yang selama ini TIDAK ADA, dan
+   * karena tidak ada, tidak pernah diuji oleh siapa pun:
+   *
+   *  - Kontrak EMPAT lokasi. Sampai di sini paket terbesar cuma dua lokasi,
+   *    sementara `alokasiBelumTertagih()` membagi tagihan satu kontrak ke
+   *    banyak lokasi menurut nilai terpasang — pembagian yang pada dua lokasi
+   *    nyaris tak bisa keliru, dan pada empat mulai bisa.
+   *  - Rentang nilai 1,16–5,89 miliar per lokasi. Sebelumnya semua lokasi
+   *    seukuran, jadi kartu portofolio, urutan, dan bobot antarlokasi selalu
+   *    tampak rapi tanpa pernah diuji ketimpangannya.
+   *  - Empat provinsi baru (Bali, NTB, Banten) di samping Jawa, sehingga
+   *    pengelompokan wilayah punya lebih dari satu bentuk.
+   *  - RAB berlebar wajar (360–1.269 node), bukan hanya yang ~2.000.
+   *
+   * Struktur RAB-nya nyata — diambil dari salinan lapangan lewat
+   * `pnpm rab:siapkan`, yang HANYA membawa kategori/item/volume/harga dan
+   * mengganti seluruh identitas (desa, kabupaten, vendor, nomor kontrak,
+   * tanggal). Petanya ada di `scripts/siapkan-rab-lapangan.mts`, ditulis
+   * lengkap supaya bisa diperiksa mata.
+   */
+  { name: "Paket KNMP Rembang (4 lokasi)", number: "PKT-2026-011", slugs: ["tasikharjo-rembang", "pandangan-kulon-rembang", "sendangmulyo-rembang", "karangturi-rembang"], contractNumber: "SPK-KNMP-2026-RBG-011" },
+  { name: "Paket KNMP Lombok (2 lokasi)", number: "PKT-2026-012", slugs: ["gili-gede-lombok-barat", "labuhan-haji-lombok-timur"], contractNumber: "SPK-KNMP-2026-NTB-012" },
+  { name: "Paket KNMP Klungkung – Kusamba", number: "PKT-2026-013", slugs: ["kusamba-klungkung"], contractNumber: "SPK-KNMP-2026-BLI-013" },
+  { name: "Paket KNMP Tangerang (2 lokasi)", number: "PKT-2026-014", slugs: ["kronjo-tangerang", "lontar-tangerang"], contractNumber: "SPK-KNMP-2026-BTN-014" },
 ];
+
+/** Paket tanpa kontrak — supaya tahap prospek/tender/batal punya data. */
+const PAKET_PIPELINE = [
+  { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
+  { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
+  { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
+];
+
+/**
+ * SELURUH nomor paket yang mungkin dibuat seed demo.
+ *
+ * Dipakai `bolehMuatDemo()` untuk mengenali "basis data ini isinya demo, bukan
+ * data operasional". Diturunkan dari kedua daftar di atas, tidak ditulis ulang
+ * — daftar kembar akan menyimpang diam-diam, dan yang menyimpang di sini
+ * berarti penjaga yang membiarkan seed menimpa data sungguhan.
+ */
+export const NOMOR_PAKET_DEMO: readonly string[] = [
+  ...PACKAGES.map((p) => p.number),
+  ...PAKET_PIPELINE.map((p) => p.number),
+];
+
+export type IzinMuatDemo = { boleh: true } | { boleh: false; alasan: string };
+
+/**
+ * Boleh tidaknya seed demo dijalankan pada basis data INI.
+ *
+ * `BOOTSTRAP_DEMO_DATA=true` adalah satu-satunya jalan seed demo bisa menyentuh
+ * server yang sudah berjalan, dan sampai sekarang ia tidak punya penjaga apa
+ * pun: komentarnya berbunyi "JANGAN dipakai saat sudah ada data operasional
+ * sungguhan", dan komentar bukan penjaga. Satu env var salah pasang sudah cukup
+ * untuk menyuntikkan 16 lokasi contoh + 9 user berpassword `marlin123` ke
+ * basis data yang berisi pekerjaan nyata.
+ *
+ * Aturannya sengaja BUKAN `APP_ENV !== "production"`: deployment uji coba
+ * memang berjalan dengan `APP_ENV=production` (itu sebabnya `pnpm db:seed`
+ * ditolak di sana dan env ini yang dipakai). Yang membedakan bukan nama
+ * lingkungan, melainkan ISI basis datanya — satu saja paket yang bukan buatan
+ * seed berarti ada yang bekerja sungguhan di sini.
+ */
+export async function bolehMuatDemo(db: PrismaClient): Promise<IzinMuatDemo> {
+  const asing = await db.package.findFirst({
+    where: { OR: [{ packageNumber: null }, { packageNumber: { notIn: [...NOMOR_PAKET_DEMO] } }] },
+    select: { name: true, packageNumber: true },
+  });
+  if (!asing) return { boleh: true };
+  return {
+    boleh: false,
+    alasan:
+      `basis data ini sudah berisi paket yang BUKAN buatan seed demo ` +
+      `(${asing.packageNumber ?? "tanpa nomor"} – ${asing.name}). ` +
+      `Seed demo menolak menyentuhnya.`,
+  };
+}
 
 /**
  * Muat data demo (idempotent). Dipanggil dari:
@@ -181,7 +260,22 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
       }
     }
 
-    const contractValue = withPpn(hpsTotal, 11);
+    /*
+     * SATU paket sengaja BERSELISIH kontrak vs RAB (audit 2026-08-28, I-6).
+     *
+     * Sebelumnya semua kontrak seed bernilai persis `withPpn(hpsTotal, 11)`,
+     * jadi banner "selisih kontrak" tidak pernah punya data — dan uji E2E-nya
+     * (`tests/e2e/paket-drawer.spec.ts`) selalu melewatkan diri. Uji yang selalu
+     * melewat terbaca hijau tanpa membuktikan apa pun.
+     *
+     * 2% di atas RAB+PPN, jauh di atas toleransi 0,1% (`contractMismatch`), dan
+     * realistis: nilai kontrak hasil negosiasi memang lazim tidak persis sama
+     * dengan RAB. Paket PERTAMA dipilih supaya letaknya tetap dan mudah dicari.
+     */
+    const berselisihSengaja = p.number === PACKAGES[0].number;
+    const contractValue = berselisihSengaja
+      ? (withPpn(hpsTotal, 11) * 102n) / 100n
+      : withPpn(hpsTotal, 11);
     await db.contract.upsert({
       where: { contractNumber: p.contractNumber },
       update: {},
@@ -438,12 +532,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await assign("wakil-ppk-01", "purworejo");
 
   // ── Paket non-kontrak: prospek / tender / batal ─────────────
-  const extraPkgs = [
-    { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
-    { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
-    { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
-  ];
-  for (const e of extraPkgs) {
+  for (const e of PAKET_PIPELINE) {
     const exist = await db.package.findFirst({ where: { orgId: org.id, packageNumber: e.number } });
     if (!exist) {
       const pkg = await db.package.create({

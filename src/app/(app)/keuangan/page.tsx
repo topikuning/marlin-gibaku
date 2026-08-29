@@ -6,7 +6,7 @@ import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { getContractsBilling, unbilledWork } from "@/lib/finance/calc";
+import { alokasiBelumTertagih, getContractsBilling, totalPortofolio } from "@/lib/finance/calc";
 import { financeSummary, pendingApprovals } from "@/lib/finance/queries";
 import { formatRupiah, formatRupiahShort } from "@/lib/format";
 import { ApprovalQueue, type QueueItem } from "./approval-queue";
@@ -39,47 +39,31 @@ export default async function KeuanganPage() {
   ]);
   const billing = await getContractsBilling(contracts.map((c) => c.id));
 
-  // ── Belum tertagih per lokasi: kontrak multi-lokasi dialokasikan proporsional terpasang ──
+  /*
+   * Angka uang TIDAK dihitung di halaman ini — halaman hanya menyaring lingkup
+   * lalu memanggil calculation layer (`finance/calc.ts`). Sebelumnya Σ dan
+   * alokasi proporsionalnya ditulis di sini, dan itu membuat angka "belum
+   * tertagih" mustahil dipakai AI/PDF/Excel tanpa menyalin formulanya.
+   */
   const inScope = new Set(ids);
-  const unbilledByLoc = new Map<string, bigint>();
-  let totalBilled = 0n;
-  let totalDisbursed = 0n;
-  for (const c of contracts) {
-    const b = billing.get(c.id);
-    const contractLocs = c.package.locations.filter((l) => inScope.has(l.id));
-    const installedTotal = contractLocs.reduce(
-      (s, l) => s + (summary.get(l.id)?.installedValue ?? 0n),
-      0n,
-    );
-    const unbilled = unbilledWork(installedTotal, b?.billed ?? 0n, Number(c.ppnPercent));
-    totalBilled += b?.billed ?? 0n;
-    totalDisbursed += b?.disbursed ?? 0n;
-    for (const l of contractLocs) {
-      const share =
-        contractLocs.length === 1
-          ? unbilled
-          : installedTotal > 0n
-            ? (unbilled * (summary.get(l.id)?.installedValue ?? 0n)) / installedTotal
-            : 0n;
-      unbilledByLoc.set(l.id, (unbilledByLoc.get(l.id) ?? 0n) + share);
-    }
-  }
+  const terpasangPerLokasi = new Map(
+    [...summary.entries()].map(([id, s]) => [id, s.installedValue] as const),
+  );
+  const {
+    perLokasi: unbilledByLoc,
+    totalBilled,
+    totalDisbursed,
+  } = alokasiBelumTertagih(
+    contracts.map((c) => ({
+      contractId: c.id,
+      ppnPercent: Number(c.ppnPercent),
+      locationIds: c.package.locations.filter((l) => inScope.has(l.id)).map((l) => l.id),
+    })),
+    billing,
+    terpasangPerLokasi,
+  );
 
-  // ── Total portfolio ──
-  let totalBudget = 0n;
-  let totalExpense = 0n;
-  let totalCommitment = 0n;
-  let totalAvailable = 0n;
-  let totalOutstanding = 0n;
-  let totalInstalled = 0n;
-  for (const s of summary.values()) {
-    totalBudget += s.budgetTotal;
-    totalExpense += s.expenseApproved;
-    totalCommitment += s.commitmentOpen;
-    totalAvailable += s.availableBudget;
-    totalOutstanding += s.outstandingPayable;
-    totalInstalled += s.installedValue;
-  }
+  const total = totalPortofolio(summary.values());
 
   const gridRows: PortfolioRow[] = locations.map((l) => {
     const s = summary.get(l.id);
@@ -166,18 +150,18 @@ export default async function KeuanganPage() {
       </section>
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Ringkasan keuangan">
-        <KpiCard label="Budget" value={formatRupiahShort(totalBudget)} href="#per-lokasi" />
-        <KpiCard label="Realisasi" value={formatRupiahShort(totalExpense)} href="#per-lokasi" />
-        <KpiCard label="Komitmen terbuka" value={formatRupiahShort(totalCommitment)} href="#per-lokasi" />
+        <KpiCard label="Budget" value={formatRupiahShort(total.budget)} href="#per-lokasi" />
+        <KpiCard label="Realisasi" value={formatRupiahShort(total.expense)} href="#per-lokasi" />
+        <KpiCard label="Komitmen terbuka" value={formatRupiahShort(total.commitment)} href="#per-lokasi" />
         <KpiCard
           label="Available budget"
-          value={formatRupiahShort(totalAvailable)}
-          tone={totalAvailable < 0n ? "danger" : "default"}
-          sub={totalAvailable < 0n ? formatRupiah(totalAvailable) : undefined}
+          value={formatRupiahShort(total.available)}
+          tone={total.available < 0n ? "danger" : "default"}
+          sub={total.available < 0n ? formatRupiah(total.available) : undefined}
           href="#per-lokasi"
         />
-        <KpiCard label="Outstanding payable" value={formatRupiahShort(totalOutstanding)} href="#per-lokasi" />
-        <KpiCard label="Terpasang" value={formatRupiahShort(totalInstalled)} sub="dilaporkan (dikirim+disetujui+final) – belum tentu terverifikasi" href="#per-lokasi" />
+        <KpiCard label="Outstanding payable" value={formatRupiahShort(total.outstanding)} href="#per-lokasi" />
+        <KpiCard label="Terpasang" value={formatRupiahShort(total.installed)} sub="dilaporkan (dikirim+disetujui+final) – belum tentu terverifikasi" href="#per-lokasi" />
         <KpiCard label="Tertagih" value={formatRupiahShort(totalBilled)} sub="owner billing diajukan+" href="#per-lokasi" />
         <KpiCard label="Cair" value={formatRupiahShort(totalDisbursed)} sub="pencairan diterima" href="#per-lokasi" />
       </section>

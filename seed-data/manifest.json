@@ -1,14 +1,23 @@
 {
-  "generated_at": "2026-07-10",
-  "total_locations": 7,
+  "generated_at": "2026-08-28",
+  "total_locations": 16,
   "slugs": [
     "batah-timur",
+    "gili-gede-lombok-barat",
     "karanggondang",
-    "kemantren",
-    "tengket",
-    "ujungwatu",
+    "karangturi-rembang",
     "kedungmutih",
-    "purworejo"
+    "kemantren",
+    "kronjo-tangerang",
+    "kusamba-klungkung",
+    "labuhan-haji-lombok-timur",
+    "lontar-tangerang",
+    "pandangan-kulon-rembang",
+    "purworejo",
+    "sendangmulyo-rembang",
+    "tasikharjo-rembang",
+    "tengket",
+    "ujungwatu"
   ],
   "summary": {
     "PT Contoh Konstruksi Nusantara": [
@@ -23,6 +32,23 @@
       "batah-timur",
       "tengket",
       "kemantren"
+    ],
+    "PT Samudra Karya Perkasa": [
+      "tasikharjo-rembang",
+      "pandangan-kulon-rembang",
+      "sendangmulyo-rembang",
+      "karangturi-rembang"
+    ],
+    "PT Rinjani Bahari Sejahtera": [
+      "gili-gede-lombok-barat",
+      "labuhan-haji-lombok-timur"
+    ],
+    "CV Dewata Bangun Samudra": [
+      "kusamba-klungkung"
+    ],
+    "PT Cilegon Marine Konstruksi": [
+      "kronjo-tangerang",
+      "lontar-tangerang"
     ]
   }
 }

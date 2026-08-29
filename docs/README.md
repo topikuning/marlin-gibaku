@@ -45,6 +45,28 @@ dipakai sebagai acuan implementasi** — masing-masing sudah diberi banner ARSIP
 `TRACEABILITY_MATRIX` · `FINAL_REPORT` · `DOCKER_VERIFICATION` ·
 `DEPLOYMENT_ARCHITECTURE` · `OPEN_SOURCE_LICENSE_AUDIT`
 
+## AUDIT — pemeriksaan kesehatan repo
+
+| Dokumen | Isi |
+|---|---|
+| [`AUDIT_KESEHATAN_2026-08-28.md`](./AUDIT_KESEHATAN_2026-08-28.md) | Audit menyeluruh terbaru: struktur, cakupan uji, kepatuhan kalkulasi, otorisasi, keamanan, kinerja. Berisi status tiap temuan |
+| [`AUDIT_MENYELURUH_2026-07-28.md`](./AUDIT_MENYELURUH_2026-07-28.md) | Audit sebelumnya (28 Juli 2026) |
+
+## MANUAL PEMAKAI
+
+Naskah manual, dibangkitkan jadi PDF lewat `pnpm manual:bangun`:
+[`manual/bab/01-lapangan.md`](./manual/bab/01-lapangan.md) (Site Manager &
+Mandor) · [`manual/bab/02-manajemen.md`](./manual/bab/02-manajemen.md)
+(manajemen & pemberi kerja).
+
+## KENDALA — desain & naskah uji
+
+[`rebuild/PETA_KENDALA.md`](./rebuild/PETA_KENDALA.md) — peta seluruh bentuk
+kendala dan mana yang bisa ditagih (DECISIONS 392) ·
+[`rebuild/UJI_KENDALA.md`](./rebuild/UJI_KENDALA.md) — naskah uji manualnya ·
+[`integrated-control/UX_INFORMATION_ARCHITECTURE.md`](./integrated-control/UX_INFORMATION_ARCHITECTURE.md)
+— IA layar lapisan pengendalian (DECISIONS 426).
+
 ## Aturan merawat dokumentasi
 
 1. **`PROJECT.md` menang.** Kalau kode dan `PROJECT.md` berbeda, kodenya yang

@@ -38,6 +38,7 @@ Arsitektur: lihat `docs/rebuild/DEPLOYMENT_ARCHITECTURE.md`. Build memakai
 | `R2_ENDPOINT` | `https://<accountid>.r2.cloudflarestorage.com` | endpoint S3 API. **BUKAN** `*.r2.dev` / custom domain — app menolak saat startup |
 | `R2_BUCKET` | nama bucket | |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | dari R2 API Token (permission Object Read & Write, scope bucket tsb) | |
+| `AI_SECRET_ENCRYPTION_KEY` | hasil `openssl rand -hex 32` | wajib begitu AI / WhatsApp / Google Drive dipakai — mengenkripsi SELURUH rahasia di AppSetting. Tanpa ini penyimpanan rahasia ditolak, dan boot mencetak galat berisi jumlah rahasia yang masih telanjang |
 
 R2 opsional: tanpa R2 aplikasi tetap jalan, fitur unggah foto/dokumen menampilkan
 pesan "belum dikonfigurasi". Validasi env dilakukan zod saat startup — kalau salah
@@ -85,12 +86,13 @@ manual, atau reset di production.
 
      Halaman **Sistem** menandainya bila masih tertinggal.
    Alternatif (dari mesin dev): script di §7.
-5. (Opsional — deployment UJI COBA) Muat **data contoh** (7 lokasi riil, ~14k item
-   RAB, laporan demo, keuangan demo): tambah env `BOOTSTRAP_DEMO_DATA=true` →
-   redeploy → log `[bootstrap] data demo termuat`. User demo (sm-01, mandor-01,
-   dst.) berpassword `marlin123`. Idempotent (aman diulang), TIDAK menimpa data
-   yang ada. **Hapus env-nya setelah termuat**, dan jangan pakai bila sudah ada
-   data operasional sungguhan.
+5. (Opsional — deployment UJI COBA) Muat **data contoh** (16 lokasi, 10 paket
+   berkontrak, RAB berstruktur nyata, laporan demo, keuangan demo): tambah env
+   `BOOTSTRAP_DEMO_DATA=true` → redeploy → log `[bootstrap] data demo termuat`.
+   User demo (sm-01, mandor-01, dst.) berpassword `marlin123`. Idempotent (aman
+   diulang). **Hapus env-nya setelah termuat.** Basis data yang sudah berisi
+   paket bukan-demo DITOLAK — log berbunyi `BOOTSTRAP_DEMO_DATA=true DIABAIKAN`
+   berikut nama paket yang menghalangi (DECISIONS 464).
 6. Login → menu **Sistem** → jalankan **tes R2** (round-trip PUT/GET/presign/DELETE
    dengan diagnosis error terklasifikasi: DNS/TLS/kredensial/bucket/permission).
 

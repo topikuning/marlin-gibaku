@@ -134,6 +134,29 @@ beforeAll(async () => {
     },
   });
 
+  /*
+   * Surat TINGKAT ORGANISASI — `packageId: null`.
+   *
+   * Register surat membolehkannya: surat masuk sering datang sebelum diketahui
+   * paket mana yang harus menjawabnya. Adapter versi pertama menyaring
+   * `packageId in paketIds` saja, jadi surat ini terlihat di halaman Surat dan
+   * di /perlu-tindakan tetapi AI menjawab "tidak ada" (review 2026-08-28).
+   */
+  await db.letter.create({
+    data: {
+      orgId: org.id,
+      packageId: null,
+      agendaNo: 2,
+      agendaYear: 2026,
+      direction: "masuk",
+      handledDate: parseDateKey("2026-08-02")!,
+      subject: "Permintaan data dukung lintas paket",
+      needsReply: true,
+      replyDueDate: parseDateKey("2026-08-12")!,
+      createdById: sa.id,
+    },
+  });
+
   // Surat yang menuntut jawaban dan sudah lewat tenggat.
   await db.letter.create({
     data: {
@@ -185,9 +208,9 @@ describe("wilayah pengendalian mengeluarkan fakta", () => {
   it("surat: utang jawab dan yang lewat tenggat", async () => {
     const { hasil, id } = await refs();
     const ref = id("surat");
-    expect(ref?.value).toContain("1 perlu dijawab");
-    expect(ref?.value).toContain("1 lewat tenggat");
-    expect(hasil.fakta.some((f) => f.metric === "surat_perlu_jawab" && f.value === 1)).toBe(true);
+    expect(ref?.value).toContain("2 perlu dijawab");
+    expect(ref?.value).toContain("2 lewat tenggat");
+    expect(hasil.fakta.some((f) => f.metric === "surat_perlu_jawab" && f.value === 2)).toBe(true);
   });
 
   it("REGRESI: peringatan tingkat PAKET ikut, bukan cuma yang ber-href lokasi", async () => {
@@ -203,9 +226,30 @@ describe("wilayah pengendalian mengeluarkan fakta", () => {
     /*
      * DUA peringatan tingkat paket di fixture ini, dan keduanya dulu tidak
      * pernah terpetakan: dokumen kadaluarsa (`/paket/<id>/dokumen`) dan surat
-     * lewat tenggat jawab (`/surat?sorot=<id>`).
+     * lewat tenggat jawab (`/surat?sorot=<id>`). DITAMBAH satu peringatan
+     * tingkat ORGANISASI — surat tanpa paket, yang juga dijatuhkan adapter
+     * versi kedua (review 2026-08-28).
+     *
+     * Keduanya dihitung TERPISAH: menyebut peringatan organisasi sebagai
+     * "tingkat paket" akan mengirim orang mencarinya di paket yang salah.
      */
     expect(ref?.value).toContain("2 tingkat paket");
+    expect(ref?.value).toContain("1 tingkat organisasi");
+  });
+
+  it("REGRESI: surat TINGKAT ORGANISASI ikut, dan disebut sebagai tingkat organisasi", async () => {
+    /*
+     * Fakta yang ada di layar tetapi tidak ada di AI lebih buruk daripada tidak
+     * ada sama sekali: penanya menyimpulkan tidak ada surat yang menunggu,
+     * padahal ada yang sudah lewat tenggat.
+     */
+    const { hasil, id } = await refs();
+    const ref = id("surat");
+    expect(ref?.value).toContain("2 perlu dijawab");
+    expect(ref?.value).toContain("2 lewat tenggat");
+    // Disebut, supaya tidak terbaca sebagai surat milik lokasi ini.
+    expect(ref?.value).toContain("1 tingkat organisasi");
+    expect(hasil.fakta.some((f) => f.metric === "surat_perlu_jawab" && f.value === 2)).toBe(true);
   });
 
   it("kesiapan termin/PHO/FHO ikut, dan labelnya menyebut PAKET", async () => {

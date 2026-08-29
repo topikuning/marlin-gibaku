@@ -89,7 +89,16 @@ function kaki(opts: OpsiKaki): string {
 
 /** Niat tidak dikenali — mengaku, lalu menyebut yang bisa dijawab. */
 export function balasTidakMengerti(): string {
-  const daftar = (Object.keys(NIAT_LABEL) as Niat[]).map((n) => `• ${NIAT_LABEL[n]}`).join("\n");
+  /*
+   * `produksi` sengaja TIDAK ikut didaftar. Daftar ini berjudul "yang bisa saya
+   * jawab", sedangkan produksi justru satu-satunya niat yang jawabannya adalah
+   * pengakuan tidak bisa. Mencantumkannya di sini akan menjanjikan hal yang
+   * kemudian ditolak MARLIN sendiri (audit 2026-08-28).
+   */
+  const daftar = (Object.keys(NIAT_LABEL) as Niat[])
+    .filter((n) => n !== "produksi")
+    .map((n) => `• ${NIAT_LABEL[n]}`)
+    .join("\n");
   return [
     "Maaf, saya belum mengerti pertanyaan itu.",
     "",
@@ -450,6 +459,65 @@ export function balasBantuan(): string {
   ].join("\n");
 }
 
+/**
+ * TAFSIR YANG DIPAKAI, DITULIS DI DEPAN JAWABAN (audit 2026-08-28).
+ *
+ * Hanya untuk pertanyaan yang niatnya dibaca AI, bukan parser deterministik.
+ *
+ * Sebabnya mode gagal AI berbeda dari mode gagal parser. Parser yang tidak
+ * yakin menawarkan pilihan; AI selalu memilih. Kalau pilihannya meleset,
+ * MARLIN mengeksekusinya dengan sempurna, mengarangkannya dengan rapi, dan
+ * menyertakan sumber yang benar — untuk pertanyaan yang tidak ditanyakan.
+ * Salahnya jadi SUNYI, dan makin rapi jawabannya makin lama ketahuannya.
+ *
+ * Satu baris di depan memindahkan pemeriksaan itu ke orang yang paling tahu
+ * maksudnya sendiri, dalam satu detik, sebelum ia membaca angkanya.
+ *
+ * `null` untuk niat yang tafsirnya tidak menambah apa pun: `bantuan` sudah
+ * menjelaskan dirinya, dan `produksi` seluruh balasannya memang tentang apa
+ * yang dibaca MARLIN.
+ */
+export function barisTafsir(niat: Niat): string | null {
+  if (niat === "bantuan" || niat === "produksi") return null;
+  return `_Saya baca sebagai: ${NIAT_LABEL[niat]}._`;
+}
+
+/**
+ * Balasan untuk PERINTAH membuat/mengirim artefak (audit 2026-08-28).
+ *
+ * MARLIN memang belum bisa memproduksi laporan dari WhatsApp, dan itu bukan
+ * kekurangan yang perlu disembunyikan: artefak resmi wajib lewat
+ * review→setujui→beku di Report Studio, dan melompati pagar itu lewat pintu
+ * WhatsApp akan membatalkan keputusan yang dibuat sengaja (DECISIONS 193).
+ *
+ * Yang penting balasannya tidak berhenti pada "tidak bisa". Tiga hal harus ada:
+ * pengakuan, jalan yang benar, dan hal terdekat yang BISA dilakukan sekarang —
+ * karena orang yang meminta laporan biasanya sedang butuh angkanya, bukan
+ * berkasnya.
+ */
+export function balasProduksi(): string {
+  return [
+    "*Membuat & mengirim laporan belum bisa lewat chat*",
+    "",
+    "Laporan resmi harus melewati review → disetujui → dibekukan dulu supaya",
+    "angkanya tidak berubah setelah dikirim. Pagar itu ada di aplikasi, bukan di",
+    "chat – jadi saya tidak bisa membuatnya dari sini.",
+    "",
+    "*Jalannya*",
+    "Buka MARLIN → menu *AI* → *Report Studio*. Di sana laporan disusun, diperiksa,",
+    "disetujui, lalu dikirim sebagai PDF/Excel/WhatsApp dengan angka yang sama persis.",
+    "",
+    "*Yang bisa saya berikan sekarang juga*",
+    "Angkanya, langsung di chat ini:",
+    "• “progress minggu ini”",
+    "• “laporan mingguan”",
+    "• “deviasi” – siapa yang tertinggal",
+    "• “kendala” – yang masih terbuka",
+    "",
+    "Sebut nama lokasi kalau mau dipersempit.",
+  ].join("\n");
+}
+
 /* ------------------------------------------------------------------ */
 /* Laporan mingguan                                                    */
 /* ------------------------------------------------------------------ */
@@ -466,20 +534,36 @@ export type BarisMingguanWa = {
 };
 
 /**
- * Rekap MINGGUAN per lokasi (DECISIONS 358).
+ * Rekap per lokasi untuk SATU RENTANG (DECISIONS 358; bulanan DECISIONS 462).
  *
- * Judulnya "Laporan mingguan", dan itu bukan kosmetik: keluhan user 2026-08-18
- * adalah *"gak jelas apa yang kuminta, sistem kasih apa"* — ia meminta laporan
- * mingguan dan menerima kotak berjudul "Laporan harian". Judul yang tidak sama
- * dengan yang diminta membuat penerimanya harus menebak apakah sistemnya salah
- * paham atau memang begitu isinya.
+ * Judulnya bukan kosmetik: keluhan user 2026-08-18 adalah *"gak jelas apa yang
+ * kuminta, sistem kasih apa"* — ia meminta laporan mingguan dan menerima kotak
+ * berjudul "Laporan harian". Judul yang tidak sama dengan yang diminta membuat
+ * penerimanya harus menebak apakah sistemnya salah paham atau memang begitu
+ * isinya.
+ *
+ * Karena itu `judul` dan `sebutan` DIBERIKAN pemanggil, tidak dipatok di sini.
+ * Rekap bulanan memakai perakit yang sama (rumusnya memang sama), dan versi
+ * pertamanya membiarkan keduanya terpatok "mingguan" — sehingga chat berbunyi
+ * "Laporan mingguan · sepanjang pekan" sementara PDF lampirannya berjudul
+ * "Laporan bulanan". Persis kesalahan yang sama dengan keluhan 2026-08-18,
+ * hanya sepasang kata lebih halus.
  */
 export function balasMingguan(
-  r: { periode: string; baris: BarisMingguanWa[] },
+  r: {
+    periode: string;
+    baris: BarisMingguanWa[];
+    /** Bawaan "Laporan mingguan" — bulanan mengirim judulnya sendiri. */
+    judul?: string;
+    /** Sebutan rentang pada baris tambahan, mis. "sepanjang pekan". */
+    sebutan?: string;
+  },
   opts: OpsiKaki = {},
 ): string {
+  const judul = r.judul ?? "Laporan mingguan";
+  const sebutan = r.sebutan ?? "sepanjang pekan";
   if (r.baris.length === 0) {
-    return kepala("Laporan mingguan", r.periode) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+    return kepala(judul, r.periode) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
   }
   const isi = r.baris.map((b) => {
     const angka =
@@ -493,14 +577,14 @@ export function balasMingguan(
       // Sebutan yang MEMBEDAKAN balasan ini dari balasan progres harian:
       // "sepanjang pekan" vs "hari itu". Tanpa itu keduanya menampilkan angka
       // kumulatif yang sama dan pembacanya tidak bisa tahu bedanya.
-      barisTambahan(b.tambahanPct, "sepanjang pekan"),
+      barisTambahan(b.tambahanPct, sebutan),
       angka,
       `  ${b.hariBerlaporan} dari ${b.totalHari} hari sudah dilaporkan`,
     ]
       .filter((x): x is string => x !== null)
       .join("\n");
   });
-  return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
+  return kepala(judul, r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
 
 /**

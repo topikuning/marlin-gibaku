@@ -97,10 +97,17 @@ formula ini di modul, komponen, PDF, Excel, atau prompt AI mana pun):
 
 | Modul | Isi |
 |---|---|
-| `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct` |
+| `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct`, `realisasiKategoriPct` |
 | `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES` |
-| `src/lib/finance/calc.ts` | agregat keuangan |
+| `src/lib/finance/calc.ts` | agregat keuangan + `unbilledWork`, `alokasiBelumTertagih`, `totalPortofolio` |
 | `src/lib/plan/rencana-format.ts` | MURNI: penilaian RENCANA — `hitungProyeksi`, `hitungPpc`, `statusDeviasi`, `labelKejar` (DECISIONS 258) |
+| `src/lib/ahsp/rapl-calc.ts` | MURNI: kebutuhan + biaya RAPL (DECISIONS 320/327) |
+
+**Daftar LIMA berkas di atas adalah satu-satunya daftar yang berlaku**
+(DECISIONS 461). `CLAUDE.md` dan `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`
+merujuk ke sini, tidak menyalinnya — sampai audit 2026-08-28 ketiganya memuat
+daftar yang BERBEDA, dan gerbang anti-duplikasi tidak bisa ditegakkan kalau
+patokannya sendiri bercabang.
 
 Formula kanonik:
 

@@ -5,7 +5,7 @@ import { getBranding } from "@/lib/branding";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { formatTanggal, parseDateKey } from "@/lib/format";
 import { jamTakDiketahui } from "@/lib/photo-stamp/format";
-import { bobotPct } from "@/lib/progress-calc";
+import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { getLocationProgress } from "@/lib/progress";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "./constants";
 
@@ -219,6 +219,17 @@ export async function getRingkasHarian(
             volumeDone: true,
             valueDone: true,
             notes: true,
+            /*
+             * `lineageKey` = jembatan ke revisi AKTIF.
+             *
+             * `rabNode` di bawah adalah node revisi yang aktif SAAT LAPORAN
+             * DIBUAT — dipakai untuk kode/nama/satuan, yang memang harus tampil
+             * apa adanya seperti dilaporkan. Ia TIDAK boleh dipakai menghitung
+             * bobot: penyebutnya (`grandTotal`) datang dari revisi aktif
+             * SEKARANG, dan mencampur dua revisi melahirkan kembali cacat yang
+             * hendak ditutup.
+             */
+            lineageKey: true,
             rabNode: { select: { code: true, name: true, unit: true } },
           },
           orderBy: { createdAt: "asc" },
@@ -273,13 +284,73 @@ export async function getRingkasHarian(
   const nilaiHariIni = itemAktif.reduce((s, i) => s + i.valueDone, 0n);
   const grandTotal = progress?.grandTotal ?? 0n;
 
+  /*
+   * NODE REVISI AKTIF, dicocokkan lewat `lineageKey` (perbaikan 2026-08-28).
+   *
+   * Versi pertama perbaikan I-1 memakai `item.rabNode` — node yang MENEMPEL di
+   * laporan, milik revisi yang aktif saat laporan itu ditulis. Penyebutnya
+   * (`grandTotal`) datang dari revisi aktif sekarang, jadi sesudah adendum yang
+   * membuat revisi baru, pembilang dan penyebut berasal dari dua revisi
+   * berbeda: persis cacat yang hendak ditutup, hanya berpindah dari harga ke
+   * node. Komentarnya bahkan mengklaim "revisi aktif" — dan klaim yang salah
+   * lebih berbahaya daripada tidak ada komentar.
+   *
+   * `lineageKey` memang ada untuk ini: ia stabil lintas revisi (PROJECT.md §3).
+   *
+   * Yang diambil HANYA lineage yang benar-benar dilaporkan hari itu — belasan
+   * baris, bukan seluruh RAB lokasi yang bisa mencapai dua ribu node. Tak satu
+   * pun node di luar daftar ini pernah dibaca: `bobotHarian` selalu mencarinya
+   * lewat `lineageKey` baris laporan.
+   */
+  const lineageDilaporkan = [...new Set(itemAktif.map((i) => i.lineageKey))];
+  const nodeAktif = new Map<string, { volK: number; amount: number }>();
+  if (lineageDilaporkan.length > 0) {
+    const rows = await db.rabNode.findMany({
+      where: {
+        revision: { locationId: location.id, status: "aktif" },
+        kind: "item",
+        lineageKey: { in: lineageDilaporkan },
+      },
+      select: { lineageKey: true, volume: true, amount: true },
+    });
+    for (const n of rows) {
+      nodeAktif.set(n.lineageKey, {
+        volK: n.volume ? Number(n.volume.toString()) : 0,
+        amount: Number(n.amount),
+      });
+    }
+  }
+
+  /**
+   * Bobot satu baris hari ini = (volume hari ini / volume kontrak) × bobot item.
+   *
+   * Item yang lineage-nya TIDAK ADA di revisi aktif menyumbang 0 — bukan
+   * ditaksir dari node lamanya. Pekerjaan yang dihapus adendum memang tidak
+   * lagi punya bobot terhadap kontrak yang berlaku, dan invarian "lineage mati
+   * tidak ikut" sudah dipegang jalur progres lainnya.
+   */
+  function bobotHarian(lineageKey: string, volumeHariIni: number): number {
+    const n = nodeAktif.get(lineageKey);
+    if (!n) return 0;
+    return (prestasiPct(volumeHariIni, n.volK) / 100) * bobotPct(n.amount, Number(grandTotal));
+  }
+
   const pekerjaan: RingkasPekerjaan[] = itemAktif.map((i) => ({
     code: i.rabNode.code,
     name: i.rabNode.name,
     unit: i.rabNode.unit,
     volumeToday: Number(i.volumeDone),
-    // Formula bobot dari progress-calc — tidak dihitung ulang di sini.
-    bobotToday: bobotPct(Number(i.valueDone), Number(grandTotal)),
+    /*
+     * Bobot hari ini = (volume hari ini / volume kontrak) × bobot item.
+     *
+     * Keduanya dari progress-calc, tidak ada formula baru di sini. Pembilangnya
+     * sengaja BUKAN `valueDone`: nilai itu dibekukan memakai harga satuan revisi
+     * yang aktif saat laporan dibuat, jadi begitu ada adendum harga, kolom bobot
+     * di PDF harian dan angka dashboard mulai berbeda tanpa ada yang salah input
+     * (DECISIONS 151; audit 2026-08-28, I-1). Batas 100% ikut terbawa dari
+     * `prestasiPct`, jadi satu hari tak bisa menyumbang lebih dari bobot itemnya.
+     */
+    bobotToday: bobotHarian(i.lineageKey, Number(i.volumeDone)),
     valueToday: i.valueDone,
     notes: i.notes,
   }));
@@ -364,7 +435,19 @@ export async function getRingkasHarian(
     deviationPct: progress?.deviationPct ?? 0,
     grandTotal,
 
-    bobotHariIni: bobotPct(Number(nilaiHariIni), Number(grandTotal)),
+    /*
+     * DITURUNKAN dari kolom itemnya, bukan dihitung sendiri dari `valueDone`.
+     *
+     * Sejak `bobotToday` pindah ke basis volume × amount revisi aktif (audit
+     * 2026-08-28, I-1), total yang tetap memakai Σ `valueDone` akan MENYIMPANG
+     * dari jumlah kolomnya begitu ada adendum harga — laporan yang kolomnya
+     * tidak berjumlah adalah laporan yang tidak bisa dipercaya siapa pun.
+     * Menurunkannya membuat "Σ kolom = total" benar menurut konstruksi.
+     *
+     * `nilaiHariIni` (rupiah) tetap Σ `valueDone`: itu memang NILAI yang
+     * dilaporkan hari itu pada harga saat itu, bukan basis sebuah bobot.
+     */
+    bobotHariIni: pekerjaan.reduce((s, p) => s + p.bobotToday, 0),
     nilaiHariIni,
     pekerjaan,
     draftItemCount: semuaItem.length - itemAktif.length,

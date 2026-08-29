@@ -37,6 +37,19 @@ export const NIAT = [
   /** Rekap posisi pekerjaan satu PEKAN — DECISIONS 358. */
   "laporan_mingguan",
   /**
+   * Rekap posisi pekerjaan satu BULAN kalender (audit 2026-08-28).
+   *
+   * Bukan rumus baru: `dataMingguan` menerima rentang apa pun, jadi yang
+   * berbeda dari mingguan hanya batas tanggalnya — dan aturan potongnya dibuat
+   * SAMA persis supaya dua rekap tidak menghasilkan dua angka untuk hal yang
+   * sama.
+   *
+   * Ditambahkan karena kadens pelaporan ke pemberi kerja memang bulanan,
+   * sementara satu-satunya rekap yang ada berhenti di pekan — sehingga
+   * "laporan bulanan" terbaca sebagai laporan harian HARI INI.
+   */
+  "laporan_bulanan",
+  /**
    * RENCANA KERJA satu pekan — apa yang AKAN dikerjakan (DECISIONS 458).
    *
    * Satu-satunya niat yang menghadap KE DEPAN. Semua niat lain melaporkan apa
@@ -45,6 +58,23 @@ export const NIAT = [
    * kutipan catatan lapangan dan dijawab dengan notulen rapat bulan lalu.
    */
   "rencana",
+  /**
+   * PERMINTAAN MEMBUAT/MENGIRIM ARTEFAK — "buatkan laporan eksekutif",
+   * "export excel progress", "kirim pdf laporan ke pak PPK" (audit 2026-08-28).
+   *
+   * Bukan pertanyaan, melainkan PERINTAH. Dulu tidak ada niat untuk ini, dan
+   * akibatnya bukan "tidak mengerti" melainkan salah paham yang PERCAYA DIRI:
+   * kata kerjanya ("buatkan", "export", "kirim") dibuang, kata bendanya yang
+   * memutuskan, sehingga *"buatkan laporan eksekutif untuk direksi"* dijawab
+   * dengan ISI LAPORAN HARIAN HARI INI — lengkap, rapi, dan bukan yang diminta.
+   *
+   * Register eksekutif justru imperatif. Karena itu niat ini ada bukan untuk
+   * menjalankan perintahnya (produksi artefak tetap di Report Studio, dengan
+   * review→setujui→beku yang memang tidak boleh dilewati dari WhatsApp),
+   * melainkan supaya MARLIN MENGAKU tidak bisa dan menunjukkan jalannya —
+   * jauh lebih berguna daripada menjawab pertanyaan yang tidak ditanyakan.
+   */
+  "produksi",
   /** "kamu bisa apa saja?" — MARLIN menjelaskan dirinya sendiri. */
   "bantuan",
 ] as const;
@@ -59,7 +89,9 @@ export const NIAT_LABEL: Record<Niat, string> = {
   kelengkapan: "kelengkapan laporan harian",
   laporan: "isi laporan harian satu tanggal",
   laporan_mingguan: "rekap mingguan (realisasi vs rencana per pekan)",
+  laporan_bulanan: "rekap bulanan (realisasi vs rencana satu bulan)",
   rencana: "rencana kerja pekan ini atau pekan depan",
+  produksi: "permintaan MEMBUAT atau MENGIRIM laporan/paparan/Excel/PDF",
   bantuan: "daftar hal yang bisa saya jawab",
 };
 
@@ -118,7 +150,11 @@ export const skemaNiat = z.object({
 export type NiatTerbaca = z.infer<typeof skemaNiat>;
 
 export const PETUNJUK_SKEMA = `{
-  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "rencana" | "bantuan" | null,
+  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "laporan_bulanan" | "rencana" | "produksi" | "bantuan" | null,
+  // "produksi" = penanya MEMERINTAHKAN membuat/mengirim artefak ("buatkan
+  // laporan eksekutif", "export excel", "kirim pdf ke pak PPK") – bukan
+  // bertanya. Pilih ini walau kata bendanya sama dengan niat lain; kata
+  // KERJANYA yang menentukan.
   "lokasiDisebut": string[],
   "periode":
       { "jenis": "hari_ini" }

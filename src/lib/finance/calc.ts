@@ -158,6 +158,103 @@ export function unbilledWork(installedReportedPreTax: bigint, billed: bigint, pp
   return installedInclPpn > billed ? installedInclPpn - billed : 0n;
 }
 
+/**
+ * Satu kontrak untuk alokasi "belum tertagih". `locationIds` HANYA berisi lokasi
+ * yang masih dalam lingkup pembaca — penyaringan lingkup tetap tugas pemanggil,
+ * supaya fungsi ini murni dan bisa diuji tanpa sesi maupun DB.
+ */
+export type KontrakUntukAlokasi = {
+  contractId: string;
+  ppnPercent: number;
+  locationIds: string[];
+};
+
+export type AlokasiBelumTertagih = {
+  /** Belum tertagih per lokasi (inklusif PPN, sesuai `unbilledWork`). */
+  perLokasi: Map<string, bigint>;
+  totalBilled: bigint;
+  totalDisbursed: bigint;
+};
+
+/**
+ * Belum tertagih per LOKASI untuk sekumpulan kontrak.
+ *
+ * Kontrak ditagihkan per KONTRAK, sedangkan portofolio ditampilkan per LOKASI —
+ * jadi kontrak multi-lokasi harus dibagi. Pembaginya nilai terpasang: lokasi
+ * yang mengerjakan lebih banyak menanggung porsi tagihan yang lebih besar.
+ *
+ * Sebelumnya penjumlahan ini hidup di dalam `app/(app)/keuangan/page.tsx`,
+ * sehingga satu-satunya cara memakai angkanya di AI/PDF/Excel adalah menyalin
+ * formulanya — dua salinan uang yang bisa berbeda tanpa ada yang memberi tahu.
+ *
+ * Pembagian BigInt memotong ke bawah, jadi Σ porsi bisa kurang beberapa rupiah
+ * dari `unbilled` kontraknya. Itu perilaku yang SUDAH berjalan dan sengaja
+ * dipertahankan apa adanya: memperbaikinya mengubah angka yang sudah dilihat
+ * orang, dan itu keputusan tersendiri.
+ */
+export function alokasiBelumTertagih(
+  kontrak: KontrakUntukAlokasi[],
+  billing: Map<string, { billed: bigint; disbursed: bigint }>,
+  terpasangPerLokasi: Map<string, bigint>,
+): AlokasiBelumTertagih {
+  const perLokasi = new Map<string, bigint>();
+  let totalBilled = 0n;
+  let totalDisbursed = 0n;
+
+  for (const c of kontrak) {
+    const b = billing.get(c.contractId);
+    const terpasangKontrak = c.locationIds.reduce(
+      (s, id) => s + (terpasangPerLokasi.get(id) ?? 0n),
+      0n,
+    );
+    const unbilled = unbilledWork(terpasangKontrak, b?.billed ?? 0n, c.ppnPercent);
+    totalBilled += b?.billed ?? 0n;
+    totalDisbursed += b?.disbursed ?? 0n;
+    for (const id of c.locationIds) {
+      const porsi =
+        c.locationIds.length === 1
+          ? unbilled
+          : terpasangKontrak > 0n
+            ? (unbilled * (terpasangPerLokasi.get(id) ?? 0n)) / terpasangKontrak
+            : 0n;
+      perLokasi.set(id, (perLokasi.get(id) ?? 0n) + porsi);
+    }
+  }
+  return { perLokasi, totalBilled, totalDisbursed };
+}
+
+export type TotalPortofolio = {
+  budget: bigint;
+  expense: bigint;
+  commitment: bigint;
+  available: bigint;
+  outstanding: bigint;
+  installed: bigint;
+};
+
+/** Σ seluruh lokasi dalam lingkup — enam angka atas halaman Keuangan. */
+export function totalPortofolio(
+  rows: Iterable<LocationFinance & { installedValue: bigint }>,
+): TotalPortofolio {
+  const total: TotalPortofolio = {
+    budget: 0n,
+    expense: 0n,
+    commitment: 0n,
+    available: 0n,
+    outstanding: 0n,
+    installed: 0n,
+  };
+  for (const s of rows) {
+    total.budget += s.budgetTotal;
+    total.expense += s.expenseApproved;
+    total.commitment += s.commitmentOpen;
+    total.available += s.availableBudget;
+    total.outstanding += s.outstandingPayable;
+    total.installed += s.installedValue;
+  }
+  return total;
+}
+
 /** cashRequirement: komitmen jatuh tempo ≤ horizon + forecast − kas tersedia − pencairan dijadwalkan. */
 export function cashRequirement(params: {
   commitmentsDue: bigint;

@@ -23891,3 +23891,532 @@ daftar direktori rute dari disk, dan menuntut tiap rute punya rumah: di
 `CAKUPAN_AI`, atau di `RUTE_BUKAN_WILAYAH` berikut alasan tertulisnya. Halaman
 baru tanpa jalur AI karenanya memerahkan uji. Arah sebaliknya ikut dijaga: rute
 yang dihapus tidak boleh meninggalkan baris yang menyesatkan.
+
+---
+
+## 461 · Perbaikan temuan audit kesehatan 2026-08-28 (2026-08-28)
+
+Audit menyeluruh (`docs/AUDIT_KESEHATAN_2026-08-28.md`) menghasilkan 5 🔴, 8 🟡,
+6 🟢. Entri ini mencatat keputusan yang diambil saat memperbaikinya — termasuk
+dua yang di laporan ditandai "menunggu keputusan user", dan sengaja diputuskan
+ke arah paling konservatif.
+
+### 1. Daftar calculation layer kanonik: LIMA berkas, satu tempat
+
+CLAUDE.md, PROJECT.md, dan protokol integritas memuat daftar yang BERBEDA —
+gabungannya lima berkas, tak satu pun memuat kelimanya. Selama patokannya
+bercabang, larangan duplikasi formula tidak bisa ditegakkan: tiap pembaca
+menarik garis di tempat berbeda.
+
+Diputuskan **gabungan**, bukan irisan: `progress-calc.ts`, `progress.ts`,
+`finance/calc.ts`, `plan/rencana-format.ts`, `ahsp/rapl-calc.ts`. Irisan akan
+MENCABUT perlindungan dari berkas yang selama ini dianggap terlindungi, dan
+mencabut pagar bukan cara menyelesaikan dokumen yang tidak sinkron.
+
+Daftarnya kini hanya hidup di `PROJECT.md` §3. Dua dokumen lain merujuk, tidak
+menyalin — penyalinan itulah yang membuat ketiganya bisa menyimpang diam-diam.
+
+### 2. Protokol tidak lagi menyuruh membaca dokumen ARSIP
+
+`CALCULATION_INTEGRITY_PROTOCOL.md` mencantumkan `DATA_MODEL_AUDIT.md` sebagai
+bacaan WAJIB sebelum menyentuh angka. Dokumen itu berbanner ARSIP: schema dan
+formula sistem LAMA (`b6e77af`). Protokol yang diikuti dengan patuh justru
+mengantar orang ke formula pra-rebuild — persis mode kegagalan yang protokol itu
+peringatkan di pembukaannya sendiri. Rujukannya diganti `PROJECT.md` §3 +
+`DECISIONS.md`, dengan peringatan tegas.
+
+### 3. Agregasi uang keluar dari komponen halaman
+
+Σ nilai terpasang lintas lokasi dan alokasi proporsional "belum tertagih" untuk
+kontrak multi-lokasi hidup di `app/(app)/keuangan/page.tsx`. Kini jadi
+`alokasiBelumTertagih()` + `totalPortofolio()` di `finance/calc.ts`.
+
+Pemotongan pembagian BigInt (Σ porsi bisa kurang beberapa rupiah dari sisa
+kontraknya) **dipertahankan apa adanya** dan justru diuji. Memperbaikinya
+mengubah angka yang sudah dilihat orang; itu keputusan tersendiri, bukan efek
+samping perapian kode.
+
+Efek sampingnya: `ai-hub/adapters.ts` selama ini menolak menyediakan angka
+"belum tertagih" KARENA formulanya hanya ada di halaman. Alasan itu gugur.
+Yang tersisa murni soal kapabilitas — dicatat di komentarnya, tidak dikerjakan
+di sini karena itu keputusan produk.
+
+### 4. `finance/calc.ts` akhirnya punya uji
+
+Nol berkas uji mengimpornya, sementara `progress.ts` punya 10. Uang adalah satu-
+satunya angka yang salahnya tidak bisa dinegosiasikan. `tests/unit/finance-calc.test.ts`
+(19 uji) menutup `unbilledWork`, `cashRequirement`, dan dua fungsi baru di atas —
+termasuk PPN 0/11/12%, pembulatan setengah-naik, nilai negatif, tertagih melebihi
+terpasang, dan pemotongan porsi.
+
+### 5. `bobotToday` tidak lagi bersandar `valueDone`
+
+`daily-report/ringkas.ts` menghitung bobot harian dari `valueDone`, padahal
+protokol menyatakan nilai itu "bukan basis agregat mana pun": harganya dibekukan
+saat laporan dibuat. Setelah adendum harga, PDF harian dan dashboard menyebut dua
+angka untuk hal yang sama (DECISIONS 151).
+
+Diputuskan **memperbaiki basisnya**, bukan mengganti namanya:
+`(prestasi hari ini) × (bobot item revisi aktif)`, keduanya dari `progress-calc`.
+Mengganti nama hanya melegalkan angka yang basisnya salah.
+
+Efek angka yang diketahui: pada kasus adendum harga +20%, kolom bobot PDF harian
+yang tadinya 8,33% menjadi 10,00% — yang benar. Tanpa adendum, tidak ada
+perubahan sama sekali; itu sebabnya cacat ini tak pernah terlihat.
+
+### 6. `buatSurat` keluar dari modul `"use server"`
+
+Tiap ekspor modul `"use server"` adalah endpoint yang bisa dipanggil klien.
+`buatSurat` memutasi register surat resmi dan menerima `orgId` + `createdById`
+sebagai ARGUMEN — dipanggil langsung, ia mencatat surat atas nama user lain, di
+organisasi lain, tanpa jejak. Belum tentu sudah bisa dieksploitasi (action ID-nya
+tampaknya tak pernah masuk bundel klien), tapi obskuritas bukan pagar.
+
+Dipindah ke `src/lib/surat/buat.ts`, meniru pola `kendala/naikkan.ts` yang sudah
+menyelesaikan persoalan sama dengan cara sama. Penjaganya tetap satu tempat di
+pemanggil.
+
+### 7. Penghapusan permanen berjejak, dan tidak meninggalkan yatim
+
+`removeActivityPhotoAction` / `removeActivityAttachmentAction` menghapus baris
+dan objek R2 tanpa `audit()` — dua-duanya satu-satunya mutasi berkapabilitas
+tanpa jejak di seluruh repo. Sekarang beraudit.
+
+Sekalian: dua jalur hapus di `field-activity/actions.ts` tidak menghapus
+`Photo.originalKey`, sementara dua jalur lain menghapusnya. Barisnya hilang,
+berkas aslinya tinggal di R2 tanpa penunjuk. DECISIONS 197 melarang menghapus
+JALUR ARSIP; ia tidak mewajibkan menyimpan berkas yang induknya sudah tiada.
+`originalKey` kini ikut dibersihkan.
+
+### 8. Seed punya satu paket yang BERSELISIH, supaya ujinya berarti
+
+Semua kontrak seed bernilai persis `withPpn(hpsTotal, 11)`, jadi banner selisih
+kontrak vs RAB tidak pernah punya data — dan uji E2E-nya selalu `test.skip`.
+Paket pertama kini bernilai 2% di atas RAB+PPN (jauh di atas toleransi 0,1%),
+dan skip-nya diganti kegagalan tegas.
+
+Prinsipnya sudah tertulis di repo ini sendiri
+(`tests/e2e/harian-tata-letak-input.spec.ts:72`): *"Uji yang melewat tidak
+membuktikan apa pun"*. Yang benar adalah menyediakan datanya, bukan mematikan
+ujinya.
+
+### Yang TIDAK dikerjakan, dan sebabnya
+
+- **Presentation contract penuh** (`calculationKey`, `sourceEntityIds` — nol
+  pemakaian): perubahan desain lintas seluruh angka, dan protokol sendiri
+  menyatakannya menunggu keputusan user. Bukan perbaikan cacat.
+- **`tests/e2e/konfirmasi.spec.ts:39`**: skip-nya bergantung pada ada-tidaknya
+  penanggung jawab yang perlu ditagih HARI ITU. Preconditionnya tidak bisa
+  dipastikan deterministik tanpa menjalankan aplikasi + DB, dan CI yang merah
+  palsu lebih buruk daripada skip yang jujur. Dibiarkan, dicatat.
+- **Pemecahan berkas >1.000 baris**: restrukturisasi besar tanpa cacat yang
+  terbukti; risikonya melebihi manfaatnya dalam satu putaran perbaikan.
+- **Node lokal v22 vs pin 24**: urusan mesin pengembang, bukan isi repo.
+
+---
+
+## 462 · Perintah natural dipahami sebagai perintah, dan tafsirnya ditulis (2026-08-28)
+
+Pemeriksaan kemampuan AI atas permintaan user: *"perintah natural dapat dipahami
+lalu dipetakan menjadi permintaan ke marlin, lalu outputnya bisa dibaca manusia
+level eksekutif"*. Parser niat dijalankan langsung terhadap kalimat bergaya
+eksekutif, dan hasilnya memisahkan tiga tahap itu dengan tajam: keluaran
+eksekutif sudah matang (kesimpulan 30 detik → 5 KPI → 3 prioritas → keputusan,
+ditegakkan uji), pemetaan sudah benar, tetapi PEMAHAMAN PERINTAH buta.
+
+### 1. Kata KERJA menang atas kata benda
+
+Parser mencocokkan kata benda dan membuang kata kerjanya, jadi:
+
+| Ditulis | Dijawab |
+|---|---|
+| "buatkan laporan eksekutif untuk direksi" | isi laporan harian HARI INI |
+| "buatkan laporan bulanan" | isi laporan harian HARI INI |
+| "kirim pdf laporan ke pak PPK" | isi laporan harian HARI INI |
+| "export excel progress semua lokasi" | jawaban progress biasa |
+
+Dan semuanya berstatus `yakin` — tidak jatuh ke AI, tidak menawarkan pilihan.
+Bukan "tidak mengerti", melainkan salah paham yang PERCAYA DIRI, tepat pada
+bentuk kalimat yang paling sering dipakai eksekutif: imperatif.
+
+Niat `produksi` ditambahkan. Ia TIDAK menjalankan perintahnya — artefak resmi
+tetap lahir di Report Studio lewat review→setujui→beku (DECISIONS 193), dan
+melompati pagar itu lewat WhatsApp membatalkan keputusan yang dibuat sengaja.
+Yang dilakukannya: mengaku tidak bisa, menyebut alasannya, menunjukkan jalannya,
+lalu menawarkan angka yang bisa diberikan sekarang juga — karena orang yang
+meminta laporan biasanya sedang butuh angkanya, bukan berkasnya.
+
+Dua jebakan bahasa Indonesia dijaga uji: "buat" yang berarti UNTUK ("laporan
+buat direksi" = permintaan MELIHAT), dan "sudah/belum kirim laporan" yang
+merupakan pengakuan pelapor, bukan perintah.
+
+### 2. Tafsir AI ditulis di depan jawaban
+
+Mode gagal jalur AI berbeda dari jalur parser: parser yang ragu menawarkan
+pilihan, AI selalu memilih. Kalau pilihannya meleset, MARLIN mengeksekusinya
+dengan sempurna, merangkainya dengan rapi, dan menyertakan sumber yang benar —
+untuk pertanyaan yang tidak ditanyakan. Salahnya SUNYI, dan makin rapi
+jawabannya makin lama ketahuannya.
+
+Sekarang balasan yang niatnya dibaca AI (`jalur === "ai"`, bukan deterministik
+maupun klarifikasi) dibuka satu baris: *"Saya baca sebagai: …"*. Pemeriksaannya
+pindah ke orang yang paling tahu maksudnya sendiri, dalam satu detik, sebelum ia
+membaca angkanya.
+
+### 3. Rekap bulanan
+
+Kadens pelaporan ke pemberi kerja bulanan; satu-satunya rekap yang ada berhenti
+di pekan. Ditambahkan `laporan_bulanan` + `bulanDari()`.
+
+Tidak ada rumus baru: `dataMingguan` ternyata sudah generik terhadap rentang
+(progres s/d akhir, tambahan sepanjang rentang, hari berlaporan dari N hari),
+jadi yang berbeda hanya batas tanggalnya. Aturan potongnya dibuat SAMA persis
+dengan mingguan — bulan berjalan dipotong hari ini dan pemotongannya dikatakan.
+Dua rekap dengan aturan hitung berlainan akan menyebut dua angka untuk hal yang
+sama, dan pembacanya tidak punya cara menebak mana yang benar.
+
+### Yang TIDAK dikerjakan, dan sebabnya
+
+- **Produksi artefak dari WhatsApp.** Bukan pekerjaan yang tersisa melainkan
+  keputusan produk: siapa yang boleh memicu, dan bagaimana review→setujui→beku
+  dijalankan tanpa layar. Sampai itu diputuskan, mengaku lebih baik daripada
+  menebak.
+- **Niat deterministik untuk wilayah adapter** (temuan, kesiapan, kontrak, dst).
+  Sepuluh wilayah itu hanya hidup lewat jalur AI, jadi pertanyaan paling khas
+  eksekutif — uang, kontrak, kesiapan termin — justru yang mati saat provider
+  bermasalah. Memperbaikinya berarti merancang isi jawaban tiap wilayah satu per
+  satu; itu aturan bisnis, dan protokol integritas melarang menebaknya.
+- **Pengambilan fakta yang tertarget.** Jalur bebas hari ini menumpahkan pulse +
+  seluruh fakta adapter + 8 potongan narasi untuk SETIAP pertanyaan tak dikenal,
+  dipakai atau tidak. Menargetkannya lebih murah dan lebih akurat, tetapi
+  mengubah apa yang sampai ke model — artinya mengubah jawabannya, dan itu tidak
+  bisa dibuktikan tanpa menjalankan provider serta uji integrasi.
+
+---
+
+## 463 · Seed demo memakai struktur RAB lapangan, identitas diganti (2026-08-28)
+
+Salinan basis data lapangan (24 Agustus 2026) diperiksa untuk menilai apakah ia
+layak jadi bahan seed demo. Layak — tetapi hanya sebagiannya, dan pembagiannya
+harus tegas.
+
+### 1. Yang diambil: bentuk, bukan isi
+
+Seed lama punya 7 lokasi, paket maksimal DUA lokasi, nilai kontrak nyaris
+seragam, dan tiga provinsi. Bentuk itu membuat beberapa jalur tidak pernah
+tersentuh siapa pun:
+
+- `alokasiBelumTertagih()` membagi tagihan satu kontrak ke banyak lokasi menurut
+  nilai terpasang. Pada dua lokasi pembagian itu nyaris tak bisa keliru; pada
+  empat, bisa. Sampai sekarang tidak ada satu pun paket empat lokasi di seed.
+- Kartu portofolio, urutan, dan bobot antarlokasi selalu tampak rapi karena
+  semua lokasi seukuran.
+- RAB seed semuanya ~2.000 node, sementara yang wajar di lapangan 360–1.269.
+
+Salinan lapangan punya ketiganya. Yang diambil karena itu **hanya struktur
+RAB** — kategori, sub, grup, item, volume, satuan, harga satuan, nilai. Item
+konstruksi bersifat baku dan tidak terikat tempat; justru inilah bagian yang
+tidak mungkin dikarang meyakinkan.
+
+Sembilan RAB dipilih, dan hasilnya diperiksa terhadap sumbernya: jumlah node
+dan grand total **sama persis sampai rupiah** untuk kesembilannya.
+
+### 2. Yang tidak diambil, dan kenapa
+
+Nama paket, desa, kabupaten, vendor, nomor kontrak, tanggal, orang, foto,
+dokumen, pesan WhatsApp, jejak audit, sesi — semuanya diganti atau dibuang.
+Kunci foto (`r2_key`) dan berkas Drive khususnya: ia menunjuk berkas nyata yang
+tidak akan pernah ada di lingkungan demo, jadi yang lahir cuma gambar rusak.
+
+Identitas penggantinya ditulis LENGKAP di `scripts/siapkan-rab-lapangan.mts`,
+bukan diturunkan otomatis dari sumbernya — supaya bisa diperiksa mata bahwa
+tidak ada yang bocor. Sudah dipastikan: tak satu pun desa maupun slug pengganti
+ada di salinan lapangan. Kabupaten pengganti sengaja tidak selalu sama dengan
+asal RAB-nya.
+
+### 3. `app_settings` TIDAK boleh disalin ke mana pun
+
+Salinan itu memuat `ai.claude.api_key` (`sk-ant-…`), `waha.api_key`, dan
+`waha.webhook_secret` dalam bentuk **telanjang**; hanya kredensial Google yang
+terenkripsi (`enc:v1:`). Dua sebabnya ada di kode dan belum ditutup:
+
+- `waha/config.ts` menulis `apiKey` apa adanya, sementara `ai/config.ts`
+  memanggil `encryptSecret` dan bahkan menolak menyimpan plaintext di
+  production. Dua modul menyimpan rahasia dengan dua standar berbeda.
+- Kunci AI tetap telanjang WALAU penjaga itu ada, karena ia baris lama dari
+  sebelum penjaga dipasang dan `readStoredSecret` menerima plaintext demi
+  kompatibilitas. Penjaga yang hanya mengawasi tulisan baru membiarkan yang
+  lama hidup selamanya.
+
+Dicatat di sini karena ini temuan keamanan yang berdiri sendiri, bukan urusan
+seed. Perbaikannya menunggu keputusan user.
+
+### 4. Yang belum dikerjakan
+
+Kepadatan laporan harian masih seperti sebelumnya — hanya `kedungmutih` yang
+punya laporan. Di lapangan 50 dari 73 lokasi punya laporan dengan ekor yang
+timpang (teramai 35, banyak yang nol), dan itulah keadaan yang membuat EWS dan
+`/perlu-tindakan` berarti. Menambahkannya menyentuh mesin laporan seed dan 31
+berkas uji yang bergantung pada slug seed sekarang, jadi dipisah dari perubahan
+ini supaya kegagalannya — bila ada — bisa dibaca.
+
+---
+
+## 464 · `BOOTSTRAP_DEMO_DATA` akhirnya punya penjaga (2026-08-28)
+
+Pertanyaan user setelah DECISIONS 463 — "pastikan ini hanya di demo, tidak
+memengaruhi production" — dijawab dengan memeriksa jalannya, bukan dengan
+meyakinkan.
+
+### Yang diperiksa
+
+Ada DUA jalan `runDemoSeed()` bisa dipanggil:
+
+1. `pnpm db:seed` → `prisma/seed.ts` MENOLAK `APP_ENV=production`. Aman.
+2. `BOOTSTRAP_DEMO_DATA=true` → dijalankan `instrumentation-node.ts` tiap boot,
+   **tanpa penjaga apa pun**. Yang ada hanya komentar "JANGAN dipakai saat sudah
+   ada data operasional sungguhan" — dan komentar bukan penjaga.
+
+Salinan lapangan 24 Agustus diperiksa untuk memastikan jalan kedua belum pernah
+terjadi: 0 paket demo, 0 kontrak `SPK-KNMP-2026-*`, 0 vendor demo, dan user
+`admin` tidak ada. Satu-satunya username yang cocok adalah `hery` — orang
+sungguhan, bukan bekas seed. Jadi seed demo memang belum pernah menyentuh
+lapangan, dan DECISIONS 463 tidak mengubah itu.
+
+Tetapi lubangnya nyata: satu env var salah pasang cukup untuk menyuntikkan 16
+lokasi contoh dan 9 user berpassword `marlin123`, dan kegagalannya SUNYI — tidak
+ada galat, hanya paket demo yang tiba-tiba ada di daftar. DECISIONS 463 justru
+memperbesar muatannya dari 7 lokasi menjadi 16.
+
+### Penjaganya membaca ISI, bukan nama lingkungan
+
+`APP_ENV !== "production"` TIDAK dipakai sebagai syarat: deployment uji coba
+memang berjalan dengan `APP_ENV=production` — itu sebabnya `pnpm db:seed`
+ditolak di sana dan env bootstrap ini yang dipakai. Memakai nama lingkungan
+sebagai pagar akan mematikan satu-satunya pemakaian yang sah.
+
+Yang membedakan adalah isi basis datanya. `bolehMuatDemo()` menolak begitu ada
+SATU paket yang bukan buatan seed — termasuk paket TANPA nomor, karena paket
+yang dibuat lewat layar belum tentu bernomor dan menganggapnya "bukan asing"
+akan membuka pintu untuk seluruh seed. Basis data kosong tetap boleh, dan basis
+data berisi paket demo saja tetap boleh (seed idempotent, aman diulang).
+
+Penolakannya menyebut paket yang menghalangi. Penolakan yang tidak menyebut
+sebabnya akan dibaca sebagai kerusakan, lalu env-nya dipasang ulang lebih keras.
+
+### Daftarnya diturunkan, tidak ditulis dua kali
+
+`NOMOR_PAKET_DEMO` dihitung dari `PACKAGES` + `PAKET_PIPELINE`, bukan disalin.
+Daftar kembar akan menyimpang diam-diam, dan yang menyimpang di sini berarti
+seed menolak basis datanya sendiri — lalu orang menyangka penjaganya rusak dan
+mematikannya. `tests/integration/seed-demo-penjaga.test.ts` menjaga bahwa
+`packageNumber` hanya pernah ditulis dari kedua array itu.
+
+Seluruh uji dibuktikan MERAH dulu dengan mematikan penjaganya (3 dari 5 gagal),
+lalu hijau lagi.
+
+---
+
+## 465 · Rahasia di AppSetting: satu aturan, dan yang lama ikut ditutup (2026-08-28)
+
+Temuan dari pemeriksaan cadangan lapangan (DECISIONS 463 §3): `ai.claude.api_key`
+(`sk-ant-…`), `waha.api_key`, dan `waha.webhook_secret` tersimpan **telanjang**,
+sementara kredensial Google di baris sebelahnya terenkripsi.
+
+### 1. Tiga penyimpan, tiga perilaku — sekarang satu
+
+| Modul | Dulu |
+|---|---|
+| `ai/config.ts` | mengenkripsi; menolak menulis plaintext di production |
+| `gdrive/config.ts` | `key ? encryptSecret(...) : plain` — diam-diam plaintext |
+| `waha/config.ts` | tidak pernah mengenkripsi sama sekali |
+
+Perbedaan itu bukan kelalaian sesaat, melainkan akibat tiap modul memutuskan
+sendiri. Aturannya kini hidup di satu tempat, `secretUntukSimpan()`: ada kunci →
+selalu terenkripsi; tidak ada kunci di production → **melempar**; dev/test →
+plaintext supaya pengembangan tetap jalan. Ketiga modul memanggilnya.
+
+String KOSONG tetap ditulis kosong, tidak dienkripsi: ciphertext dari string
+kosong adalah nilai tak kosong, dan layar Sistem akan mengaku terkonfigurasi
+padahal kuncinya sudah dihapus.
+
+### 2. Penjaga penulisan tidak menyentuh yang sudah telanjang
+
+Inilah sebabnya kunci Claude tetap terbaca WALAU `ai/config.ts` sudah menolak
+plaintext sejak DECISIONS 133: penjaga itu hanya mengawasi tulisan BARU, dan
+`readStoredSecret` menerima plaintext demi kompatibilitas. Barisnya terus
+bekerja, tak pernah mengeluh, dan tak akan pernah ketahuan sampai salinan basis
+datanya berpindah tangan.
+
+`migrasi/rahasia-terenkripsi.ts` mengenkripsi-ulangnya saat boot. Berjalan
+sendiri, bukan daftar langkah manual: satu langkah yang terlewat meninggalkan
+kunci hidup di basis data untuk waktu yang tak ditentukan.
+
+Sengaja TIDAK berhenti lewat penanda `AppSetting` seperti migrasi lain — ia
+murah, dan rahasia telanjang bisa lahir lagi dari baris `effectiveFrom` baru
+yang ditulis ketika `AI_SECRET_ENCRYPTION_KEY` kebetulan belum terpasang.
+Migrasi yang mematikan dirinya sendiri tidak akan pernah menangkap yang kedua.
+
+Tanpa kunci, migrasi tidak diam: ia melaporkan berapa yang telanjang, dan
+boot mencetaknya sebagai galat. Rahasia telanjang yang tidak ada yang tahu
+adalah bentuk terburuknya.
+
+### 3. Kunci mana yang rahasia — pola, bukan daftar
+
+`kunciRahasia()` mencocokkan akhiran `api_key` · `client_secret` ·
+`refresh_token` · `webhook_secret`. Provider AI berikutnya ikut terjaring tanpa
+siapa pun harus ingat memperbarui daftar; daftar nama yang harus diingat manusia
+adalah daftar yang akan tertinggal.
+
+### 4. Pembuktian
+
+Uji dibuktikan MERAH dulu dengan mengembalikan kedua cacatnya (3 dari 6 gagal),
+lalu hijau. Migrasinya juga dijalankan pada SALINAN data lapangan sungguhan:
+tiga nilai telanjang menjadi `enc:v1:` dan tetap terbaca sama, sementara dua
+nilai Google yang sudah terenkripsi tidak tersentuh sama sekali.
+
+### 5. Yang tetap harus dikerjakan manusia
+
+Enkripsi at-rest **tidak** membatalkan kunci yang sudah beredar. Ketiga kunci
+itu ada di cadangan yang sudah berpindah tangan, jadi ketiganya tetap harus
+DIROTASI di penyedia masing-masing. Kode hanya memastikan yang berikutnya tidak
+ikut telanjang.
+
+---
+
+## 466 · Empat temuan review kedua ditutup (2026-08-28)
+
+### 1. Rekap bulanan menyebut dirinya mingguan
+
+`laporan_bulanan` memakai perakit yang sama dengan mingguan — rumusnya memang
+sama, dan itu disengaja (DECISIONS 462). Yang tidak disengaja: `balasMingguan()`
+memaku judul "Laporan mingguan" dan sebutan "sepanjang pekan", sementara PDF
+lampirannya sudah berjudul "Laporan bulanan". Chat dan lampirannya menyebut dua
+kadens berbeda untuk satu jawaban.
+
+Ini persis keluhan user 2026-08-18 — *"gak jelas apa yang kuminta, sistem kasih
+apa"* — hanya sepasang kata lebih halus, dan justru karena halus lebih lama tidak
+terbantah: angkanya benar, sebutannya yang bohong.
+
+Judul & sebutan kini DIBERIKAN pemanggil. Ujinya lewat `jawabPertanyaanWa`,
+bukan lewat perakitnya langsung: cacatnya ada di penyambungan, dan uji yang
+memanggil perakit dengan judul yang benar akan hijau justru ketika
+penyambungnya salah — sudah dibuktikan, uji unit perakit tetap hijau saat
+penyambungnya dirusak.
+
+### 2. Penjemput menjalankan ulang pertanyaan pemilik yang sudah dinonaktifkan
+
+`tanya-tertunda.ts` hanya memeriksa apakah baris user-nya ADA, padahal
+komentarnya sendiri berbunyi "dihapus/dinonaktifkan". Akun jarang benar-benar
+dihapus — relasi ke percakapan dan audit membuatnya jarang mungkin — jadi
+menonaktifkan adalah cara yang lazim, dan justru cara itulah yang tidak
+tertangkap.
+
+Akibatnya pertanyaan milik akun yang sudah dimatikan tetap dijalankan ulang di
+latar: memakan kuota provider, dan menuliskan jawaban ke percakapan yang
+pemiliknya sudah tidak boleh masuk. `isActive` kini ikut diperiksa; penandanya
+tetap dilepas supaya percakapannya tidak dijemput lagi tiap menit.
+
+### 3. Surat tingkat ORGANISASI hilang dari fakta AI
+
+Register surat membolehkan surat tanpa paket (`packageId: null`) — surat masuk
+sering datang sebelum diketahui paket mana yang harus menjawabnya. Dua tempat
+menjatuhkannya: `tambahSurat` menyaring `packageId in paketIds`, dan `tambahEws`
+menuntut `packageId != null`.
+
+Akibatnya surat itu terlihat di halaman Surat dan di `/perlu-tindakan` tetapi AI
+menjawab "tidak ada". Fakta yang ada di layar tapi tidak ada di AI lebih buruk
+daripada tidak ada sama sekali: penanya menyimpulkan tidak ada surat yang
+menunggu, padahal ada yang sudah lewat tenggat.
+
+Surat organisasi kini dilekatkan ke setiap lokasi dalam lingkup — sama seperti
+peringatan tingkat paket — dan jumlahnya DISEBUT terpisah ("N tingkat
+organisasi"), termasuk di ringkasan EWS. Menyebutnya "tingkat paket" akan
+mengirim orang mencarinya di paket yang salah.
+
+### 4. Penjaga cakupan hanya membaca direktori tingkat satu
+
+`ruteNyata()` memakai `readdirSync` tingkat atas, jadi halaman baru di bawah
+`lokasi/[slug]/…` atau `paket/[id]/…` otomatis terhitung tercakup oleh entri
+"lokasi"/"paket". Justru dua tempat itulah yang paling sering ditambahi halaman,
+dan domain datanya berlainan: `rapl` bukan `progress`, `keuangan` bukan `rab`.
+Jaminan yang tertulis di komentar peta belum berlaku persis di tempat ia paling
+dibutuhkan.
+
+Sekarang SETIAP direktori ber-`page.tsx` diperiksa dengan jalur penuh (74
+halaman). Akhiran `/*` mencakup subpohon dan itu KEPUTUSAN yang harus ditulis:
+`lokasi/[slug]/rab/*` berarti "apa pun di bawah RAB adalah RAB". Menuliskannya
+membuat keputusan itu terlihat di peta, bukan tersembunyi di dalam uji.
+
+Satu domain yang selama ini lolos jadi terlihat dan dicatat: `lokasi/[slug]/rapl`
+belum punya jalur AI. Ditulis di `RUTE_BUKAN_WILAYAH` berikut alasannya, bukan
+dibiarkan diam.
+
+Ditambah penjaga untuk penjaganya: uji terpisah menuntut `ruteNyata()` benar-
+benar memuat halaman bersarang. Kalau ia suatu saat kembali membaca tingkat atas
+saja, uji yatim akan tetap hijau dan lubang ini terbuka lagi tanpa suara.
+
+### Catatan uji
+
+`tests/integration/seed-demo-penjaga.test.ts` sempat hijau/merah tergantung
+urutan: `bolehMuatDemo()` sengaja memeriksa SELURUH basis data tanpa menyaring
+organisasi (memuat seed demo ke basis data berisi pekerjaan organisasi lain sama
+merusaknya), sementara ujinya hanya membersihkan org-nya sendiri. Kini ia
+mengosongkan tabel paket lebih dulu.
+
+---
+
+## 467 · Lampiran WhatsApp: tangkap ganda ditutup, dan berkasnya bisa dibuka (2026-08-28)
+
+Dua pertanyaan user atas layar `/lampiran`, dengan tangkapan layar: *"kenapa
+tertangkap ganda, lalu apa gunanya kalau tidak bisa dicek isinya, atau
+dibuka?"* Keduanya benar, dan sebabnya berbeda.
+
+### 1. Tangkap ganda: idempoten untuk PESAN, bukan untuk LAMPIRAN
+
+`ingest.ts` meng-`upsert` pesan berdasarkan `waMessageId`, tetapi hanya cabang
+RACE — dua INSERT berbarengan yang berujung P2002 — yang berhenti lebih awal.
+Pengiriman ulang yang BERURUTAN jatuh ke `update: {}`, mengembalikan id baris
+yang sama, lalu lanjut menangkap lampirannya sekali lagi. Dan pengulangan
+berurutan itu normal: WAHA memancarkan `message` dan `message.any` untuk pesan
+yang sama, dan webhook yang gagal akan dicoba lagi.
+
+Penyaring sidik jari di `tangkapLampiran` tidak menolong — ia menghindari
+mengunduh dan menulis BERKASnya dua kali, tetapi barisnya tetap dibuat. Itu
+sebabnya kartu kembar di tangkapan layar punya ukuran yang sama persis: memang
+satu berkas, dua baris.
+
+Akibatnya bukan sekadar berantakan: orang diminta memutuskan dua kali untuk satu
+berkas, dan bisa menetapkannya BERBEDA — satu "surat", satu "bukan bahan kerja"
+— tanpa ada yang tahu mana yang berlaku.
+
+Sekarang penangkapan dilewati bila pesan itu sudah punya baris lampiran, dengan
+indeks `[messageId]` supaya pertanyaannya murah.
+
+Yang sengaja TIDAK diubah: dua kiriman TERPISAH dengan berkas sama tetap dicatat
+dua baris. Itu memang dua peristiwa di grup dan jejaknya tidak boleh dihapus;
+yang menjaga orang tidak ditanyai dua kali adalah pewarisan ketetapan lewat
+sidik jari, bukan penghapusan barisnya.
+
+### 2. Ketetapan diminta tanpa menyediakan buktinya
+
+Layar `/lampiran` menyodorkan tiga tombol — "Catat sebagai surat", "Simpan
+sebagai dokumen", "Bukan bahan kerja" — atas berkas yang **tidak bisa dibuka
+siapa pun**. Tidak ada rutenya sama sekali; yang tersedia hanya nama berkas,
+ukuran, dan dugaan mesin. Satu-satunya cara benar-benar melihat isinya adalah
+membuka WhatsApp sendiri, yang membuat layar ini tidak menghemat apa pun.
+
+Meminta ketetapan tanpa menyediakan buktinya bukan alur kerja; itu tebakan yang
+dicatat — dan dicatat sebagai keputusan manusia, yang justru membuatnya lebih
+dipercaya daripada dugaan mesin di sebelahnya.
+
+`GET /api/waha/lampiran/[id]` melayani berkasnya: `r2Key` lewat presigned URL,
+`localPath` di-stream langsung. Pagar SAMA dengan halamannya (`letter.manage`)
+plus lingkup organisasi lewat paketnya; lampiran tanpa paket tidak dilayani,
+karena tanpa paket tidak ada dasar memeriksa lingkupnya dan menebak berarti
+membuka berkas satu organisasi kepada organisasi lain.
+
+Disajikan `inline`, bukan unduhan: berkas ini dibuka untuk DINILAI, bukan
+dikoleksi. Berkas yang simpanan lokalnya sudah hilang (lazim setelah redeploy)
+dijawab 410 berikut sebabnya, bukan 404 telanjang — "hilang karena deploy ulang"
+dan "tidak pernah ada" menuntut tindakan yang berbeda.

@@ -1,8 +1,17 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
-import { cumulativeVolumeByLineage, getLocationsProgress, type LocationProgress } from "@/lib/progress";
-import { totalWeeksBetween, prestasiPct, weightedPct } from "@/lib/progress-calc";
+import {
+  getLocationsProgress,
+  volumeDalamRentangByLineage,
+  type LocationProgress,
+} from "@/lib/progress";
+import {
+  bobotPct,
+  realisasiKategoriPct,
+  totalWeeksBetween,
+  weightedPct,
+} from "@/lib/progress-calc";
 import { getScurveSeries } from "@/lib/baseline";
 import { asOfMinggu, mingguKontrak, rekapPaket, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { jakartaDateKey, jakartaToday } from "@/lib/format";
@@ -235,43 +244,77 @@ export async function buatSnapshotPaparan(
    */
   let totalRabPaket = 0;
   for (const p of kini.values()) totalRabPaket += Number(p.grandTotal);
+
+  /*
+   * Tiga query untuk SELURUH lokasi, bukan tiga query per lokasi (audit
+   * 2026-08-28, I-7). Memanggil versi satu-lokasi di dalam perulangan membuat
+   * biayanya tumbuh linear terhadap jumlah lokasi paket tanpa perlu.
+   */
+  const lokasiIds = lokasi.map((l) => l.id);
+  const revisiAktif = await db.rabRevision.findMany({
+    where: { locationId: { in: lokasiIds }, status: "aktif" },
+    select: { id: true, locationId: true },
+  });
+  const semuaNodes = revisiAktif.length
+    ? await db.rabNode.findMany({
+        where: { revisionId: { in: revisiAktif.map((r) => r.id) }, kind: { in: ["kategori", "item"] } },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          kind: true,
+          code: true,
+          name: true,
+          lineageKey: true,
+          volume: true,
+          amount: true,
+          revisionId: true,
+        },
+      })
+    : [];
+  /*
+   * Kumulatif s/d `asOf` = rentang sejak awal waktu sampai `asOf`. Memakai
+   * `volumeDalamRentangByLineage` — helper banyak-lokasi yang memang ada —
+   * alih-alih menghidupkan kembali versi kumulatif-banyak-lokasi yang sengaja
+   * dibuang DECISIONS 460: dua helper mirip, satu di antaranya gampang salah
+   * dipakai, justru jebakan yang baru saja dirapikan.
+   */
+  const AWAL_WAKTU = new Date(0);
+  const volCumPerLokasi = await volumeDalamRentangByLineage(
+    lokasiIds.map((id) => ({ locationId: id, sejak: AWAL_WAKTU, sampai: asOf })),
+  );
+
+  const revisiPerLokasi = new Map(revisiAktif.map((r) => [r.locationId, r.id]));
+  const nodesPerRevisi = new Map<string, typeof semuaNodes>();
+  for (const n of semuaNodes) {
+    const daftar = nodesPerRevisi.get(n.revisionId);
+    if (daftar) daftar.push(n);
+    else nodesPerRevisi.set(n.revisionId, [n]);
+  }
+
   for (const l of lokasi) {
-    const rev = await db.rabRevision.findFirst({
-      where: { locationId: l.id, status: "aktif" },
-      select: { id: true },
-    });
-    if (!rev) continue;
-    const nodes = await db.rabNode.findMany({
-      where: { revisionId: rev.id, kind: { in: ["kategori", "item"] } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        kind: true,
-        code: true,
-        name: true,
-        lineageKey: true,
-        volume: true,
-        amount: true,
-      },
-    });
-    const volCum = await cumulativeVolumeByLineage(l.id, asOf);
+    const revId = revisiPerLokasi.get(l.id);
+    if (!revId) continue;
+    const nodes = nodesPerRevisi.get(revId) ?? [];
+    const volCum = volCumPerLokasi.get(l.id) ?? new Map<string, number>();
     const kelompok: KategoriLokasiPaparan["kelompok"] = [];
     for (const kat of nodes.filter((n) => n.kind === "kategori")) {
       const akar = kat.lineageKey;
       const items = nodes.filter(
         (n) => n.kind === "item" && (n.lineageKey === akar || n.lineageKey.startsWith(`${akar}#`)),
       );
-      let nilaiRealisasi = 0;
-      for (const it of items) {
-        const volK = it.volume ? Number(it.volume.toString()) : 0;
-        const volSd = volCum.get(it.lineageKey) ?? 0;
-        nilaiRealisasi += (prestasiPct(volSd, volK) / 100) * Number(it.amount);
-      }
-      const amountKat = Number(kat.amount);
+      // Formula realisasi & bobot dari calculation layer — tidak disusun ulang
+      // di sini (audit 2026-08-28, I-2 & I-3).
       kelompok.push({
         lineageKey: akar,
         nama: kat.name,
-        realisasiPct: amountKat > 0 ? Math.min(100, (nilaiRealisasi / amountKat) * 100) : 0,
-        bobotPct: totalRabPaket > 0 ? (amountKat / totalRabPaket) * 100 : 0,
+        realisasiPct: realisasiKategoriPct(
+          items.map((it) => ({
+            volSd: volCum.get(it.lineageKey) ?? 0,
+            volK: it.volume ? Number(it.volume.toString()) : 0,
+            amount: Number(it.amount),
+          })),
+          Number(kat.amount),
+        ),
+        bobotPct: bobotPct(Number(kat.amount), totalRabPaket),
       });
     }
     if (kelompok.length > 0) {

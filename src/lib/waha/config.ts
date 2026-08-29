@@ -1,4 +1,5 @@
 import "server-only";
+import { encryptionKeyFromEnv, readStoredSecret, secretUntukSimpan } from "@/lib/ai/crypto";
 import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
 
@@ -81,11 +82,24 @@ async function latestSettings(): Promise<Map<string, string>> {
   return latest;
 }
 
+/**
+ * Buka nilai rahasia tersimpan. Nilai lama yang masih plaintext tetap terbaca
+ * (migrasi boot yang mengenkripsi-ulangnya — `migrasi/rahasia-terenkripsi.ts`);
+ * ciphertext tanpa kunci yang benar terbaca `null`, dan pemanggil
+ * memperlakukannya sebagai "belum dikonfigurasi" — JANGAN pernah meneruskan
+ * ciphertext-nya sebagai kalau-kalau itu kuncinya.
+ */
+function bukaRahasia(stored: string | undefined): string {
+  const raw = stored?.trim();
+  if (!raw) return "";
+  return readStoredSecret(raw, encryptionKeyFromEnv())?.trim() ?? "";
+}
+
 /** Config lengkap (baseUrl + apiKey wajib) atau null bila belum diatur. */
 export async function getWahaConfig(): Promise<WahaConfig | null> {
   const s = await latestSettings();
   const baseUrl = s.get(WAHA_KEYS.baseUrl)?.trim();
-  const apiKey = s.get(WAHA_KEYS.apiKey)?.trim();
+  const apiKey = bukaRahasia(s.get(WAHA_KEYS.apiKey));
   const session = s.get(WAHA_KEYS.session)?.trim() || "default";
   if (!baseUrl || !apiKey) return null;
   return { baseUrl, apiKey, session };
@@ -109,8 +123,9 @@ export async function getWahaConfigDisplay(): Promise<{
     baseUrl: s.get(WAHA_KEYS.baseUrl)?.trim() ?? "",
     session: s.get(WAHA_KEYS.session)?.trim() ?? "default",
     hasApiKey: !!s.get(WAHA_KEYS.apiKey)?.trim(),
-    // Secret webhook ditampilkan penuh (admin harus menyalinnya ke WAHA).
-    webhookSecret: s.get(WAHA_KEYS.webhookSecret)?.trim() ?? "",
+    // Secret webhook ditampilkan penuh (admin harus menyalinnya ke WAHA), jadi
+    // ia memang DIBUKA di sini — layarnya sudah dipagari kapabilitas.
+    webhookSecret: bukaRahasia(s.get(WAHA_KEYS.webhookSecret)),
     izinkanPersonal: (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1",
   };
 }
@@ -124,7 +139,7 @@ export async function izinKirimPersonal(): Promise<boolean> {
 /** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
 export async function getWahaWebhookSecret(): Promise<string | null> {
   const s = await latestSettings();
-  return s.get(WAHA_KEYS.webhookSecret)?.trim() || null;
+  return bukaRahasia(s.get(WAHA_KEYS.webhookSecret)) || null;
 }
 
 /* ── Diagnostik webhook: log SETIAP POST yang mendarat (self-service Sistem) ──
@@ -199,11 +214,26 @@ export async function setWahaConfig(input: {
   if (input.session !== undefined) {
     await put(WAHA_KEYS.session, input.session.trim() || "default");
   }
+  /*
+   * apiKey & webhookSecret: TERENKRIPSI at-rest (audit 2026-08-28).
+   *
+   * Sampai audit itu keduanya ditulis apa adanya, sementara `ai/config.ts` dan
+   * `gdrive/config.ts` mengenkripsi. Akibatnya terlihat di cadangan lapangan:
+   * kredensial Google terenkripsi, `waha.api_key` dan `waha.webhook_secret`
+   * telanjang — siapa pun yang memegang salinan basis data memegang kanal
+   * WhatsApp-nya, dan webhook secret adalah yang membuktikan sebuah kiriman
+   * benar-benar datang dari WAHA.
+   *
+   * String KOSONG tetap ditulis kosong (itu "hapus"), bukan dienkripsi:
+   * ciphertext dari string kosong akan terbaca sebagai "masih ada key".
+   */
   // apiKey: hanya tulis bila DIBERIKAN (undefined = biarkan). String kosong = hapus.
   if (input.apiKey !== undefined) {
-    await put(WAHA_KEYS.apiKey, input.apiKey.trim());
+    const v = input.apiKey.trim();
+    await put(WAHA_KEYS.apiKey, v ? secretUntukSimpan(v) : "");
   }
   if (input.webhookSecret !== undefined) {
-    await put(WAHA_KEYS.webhookSecret, input.webhookSecret.trim());
+    const v = input.webhookSecret.trim();
+    await put(WAHA_KEYS.webhookSecret, v ? secretUntukSimpan(v) : "");
   }
 }

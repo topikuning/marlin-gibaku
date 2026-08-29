@@ -13,20 +13,35 @@
 
 
 /**
- * Muat data demo (7 lokasi contoh, user demo password marlin123) bila
- * BOOTSTRAP_DEMO_DATA=true. Untuk deployment UJI COBA — idempotent, aman
- * diulang. Setelah termuat, hapus env-nya. JANGAN dipakai saat sudah ada
- * data operasional sungguhan.
+ * Muat data demo bila BOOTSTRAP_DEMO_DATA=true. Untuk deployment UJI COBA —
+ * idempotent, aman diulang. Setelah termuat, hapus env-nya.
+ *
+ * Ini SATU-SATUNYA jalan seed demo bisa menyentuh server yang sedang berjalan
+ * (`pnpm db:seed` menolak `APP_ENV=production`), dan sampai 2026-08-28 ia tidak
+ * punya penjaga apa pun — hanya komentar "jangan dipakai kalau sudah ada data
+ * sungguhan". Satu env var salah pasang sudah cukup untuk menyuntikkan lokasi
+ * contoh dan user berpassword `marlin123` ke basis data berisi pekerjaan nyata.
+ *
+ * Penjaganya sekarang membaca ISI basis data, bukan nama lingkungan — lihat
+ * `bolehMuatDemo()`.
  */
 async function bootstrapDemoData() {
   if (process.env.BOOTSTRAP_DEMO_DATA !== "true") return;
   try {
     const { db } = await import("@/lib/db");
-    const { runDemoSeed } = await import("@/lib/seed/demo");
+    const { runDemoSeed, bolehMuatDemo } = await import("@/lib/seed/demo");
+    const izin = await bolehMuatDemo(db);
+    if (!izin.boleh) {
+      console.error(
+        `[bootstrap] BOOTSTRAP_DEMO_DATA=true DIABAIKAN – ${izin.alasan} ` +
+          "Hapus env tersebut; kalau memang ingin memuat demo, pakai basis data terpisah.",
+      );
+      return;
+    }
     console.log("[bootstrap] BOOTSTRAP_DEMO_DATA=true – memuat data demo…");
     await runDemoSeed(db);
     console.log(
-      "[bootstrap] data demo termuat (7 lokasi, user demo password 'marlin123' – wajib diganti). " +
+      "[bootstrap] data demo termuat (user demo password 'marlin123' – wajib diganti). " +
         "HAPUS env BOOTSTRAP_DEMO_DATA setelah ini.",
     );
   } catch (err) {
@@ -85,6 +100,26 @@ async function migrasiDataOtomatis() {
   // diubah. Terbalik pun hasilnya sama — backfill tidak membaca mode kontrak —
   // tapi urutan ini membuat jendela "mode sudah baru, rentang belum beku"
   // tidak pernah ada sama sekali.
+  /*
+   * Rahasia telanjang di AppSetting dienkripsi-ulang lebih DULU: selama masih
+   * telanjang, tiap salinan basis data yang dibuat sementara migrasi lain
+   * berjalan ikut membawa kuncinya.
+   */
+  try {
+    const { enkripsiUlangRahasiaTelanjang } = await import("@/lib/migrasi/rahasia-terenkripsi");
+    const r = await enkripsiUlangRahasiaTelanjang();
+    if (r.status === "dilewati" && r.telanjang > 0) {
+      console.error(
+        `[migrasi] ${r.telanjang} rahasia tersimpan TELANJANG di AppSetting dan tidak bisa ` +
+          "dienkripsi: AI_SECRET_ENCRYPTION_KEY belum diset. Set env tersebut lalu deploy ulang.",
+      );
+    } else if (r.status === "selesai" && r.dienkripsi > 0) {
+      console.log(`[migrasi] ${r.dienkripsi} rahasia AppSetting dienkripsi (dari ${r.diperiksa}).`);
+    }
+  } catch (err) {
+    console.error("[migrasi] enkripsi ulang rahasia gagal (dicoba lagi boot berikutnya):", err);
+  }
+
   try {
     const { backfillPeriodeSnapshotLama } = await import("@/lib/migrasi/snapshot-periode-backfill");
     const b = await backfillPeriodeSnapshotLama();

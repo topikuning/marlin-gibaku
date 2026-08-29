@@ -179,6 +179,7 @@ const KUNCI: { niat: Niat; pola: RegExp }[] = [
     niat: "rencana",
     pola: /\b(rencana (?:mingguan|kerja|minggu\w*|pekan\w*)|rencana\w*|jadwal kerja|akan dikerjakan|mau dikerjakan|yang perlu dikerjakan|perlu dilakukan|harus dikerjakan|target mingguan)\b/,
   },
+  { niat: "laporan_bulanan", pola: /\b(laporan bulanan|rekap bulanan|bulanan|progress bulanan|rekap bulan)\b/ },
   { niat: "laporan_mingguan", pola: /\b(laporan mingguan|rekap mingguan|mingguan|progress mingguan|rekap pekan)\b/ },
   { niat: "kendala", pola: /\b(kendala\w*|masalah\w*|hambatan\w*|problem\w*)\b/ },
   { niat: "deviasi", pola: /\b(deviasi\w*|terlambat\w*|tertinggal\w*|keterlambatan\w*|telat\w*)\b/ },
@@ -237,6 +238,30 @@ function labelPeriode(p: PeriodeDiminta | null): string {
   }
 }
 
+/**
+ * KATA KERJA PRODUKSI/DISTRIBUSI ARTEFAK.
+ *
+ * Dirancang supaya TIDAK termakan dua jebakan bahasa Indonesia:
+ *
+ * 1. "buat" juga berarti "untuk". *"laporan buat direksi"* adalah permintaan
+ *    MELIHAT laporan, bukan membuatnya — karena itu kata kerjanya wajib diikuti
+ *    kata benda artefak, dan "direksi" bukan artefak.
+ * 2. "kirim laporan" bisa berarti pelapor MENGAKU sudah mengirim. Karena itu
+ *    "sudah"/"belum" di depannya membatalkan — kalimat itu urusan niat
+ *    `kelengkapan`, bukan perintah kepada MARLIN.
+ */
+const ARTEFAK = "laporan|rekap|paparan|ringkasan|excel|xls\\w*|pdf|slide|dokumen|berkas|grafik|kurva";
+const POLA_PRODUKSI = new RegExp(
+  [
+    // buatkan/susun/cetak … <artefak>  (boleh disela maks 2 kata: "buatkan saya laporan")
+    `\\b(?:buat|bikin|susun|siapkan|terbitkan|cetak|print|generate)(?:kan)?\\s+(?:\\w+\\s+){0,2}?(?:${ARTEFAK})\\b`,
+    // export/unduh berdiri sendiri — objeknya selalu artefak
+    "\\b(?:export|ekspor|eksport|unduh|download)\\b",
+    // kirim(kan) … <artefak>, kecuali didahului "sudah"/"belum"
+    `(?<!sudah )(?<!belum )\\bkirim(?:kan)?\\s+(?:\\w+\\s+){0,2}?(?:${ARTEFAK})\\b`,
+  ].join("|"),
+);
+
 const LABEL_NIAT: Record<Niat, string> = {
   kendala: "Kendala yang masih terbuka",
   kendala_dibuka: "Semua kendala yang DIBUKA",
@@ -247,7 +272,9 @@ const LABEL_NIAT: Record<Niat, string> = {
   kelengkapan: "Siapa yang sudah/belum lapor",
   laporan: "Isi laporan harian",
   laporan_mingguan: "Rekap laporan mingguan",
+  laporan_bulanan: "Rekap laporan bulanan",
   rencana: "Rencana kerja",
+  produksi: "Membuat/mengirim laporan",
   bantuan: "Daftar yang bisa saya jawab",
 };
 
@@ -315,6 +342,23 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
   if (!t) return { jenis: "tidak_tahu" };
 
   const periode = bacaPeriodeTeks(teksMentah);
+
+  /*
+   * KATA KERJA MENANG ATAS KATA BENDA (audit 2026-08-28).
+   *
+   * Diperiksa PALING AWAL, sebelum tabel kata kunci. Sebabnya urutan itu yang
+   * salah selama ini: pola `laporan` cocok dengan kalimat mana pun yang memuat
+   * kata "laporan", jadi *"buatkan laporan eksekutif untuk direksi"* keluar
+   * sebagai niat `laporan` — dan `yakin`, sehingga tidak jatuh ke AI dan tidak
+   * menawarkan pilihan apa pun. Penanya menerima isi laporan harian HARI INI:
+   * jawaban yang rapi, bersumber, dan bukan yang ia minta.
+   *
+   * Perintah membuat/mengirim artefak adalah maksud tersendiri, bukan varian
+   * dari melihat data. Yang menentukan kata KERJANYA.
+   */
+  if (POLA_PRODUKSI.test(t)) {
+    return { jenis: "yakin", kandidat: kandidat("produksi", periode) };
+  }
   const temuan: Temuan[] = [];
   for (const k of KUNCI) {
     const m = t.match(k.pola);

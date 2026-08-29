@@ -1,0 +1,5666 @@
+{
+  "meta": {
+    "slug": "kusamba-klungkung",
+    "village": "Kusamba",
+    "regency": "Klungkung",
+    "province": "Bali",
+    "gps_lat": -8.5636,
+    "gps_lng": 115.4536,
+    "contract_number": "SPK-KNMP-2026-BLI-013",
+    "contractor": "CV Dewata Bangun Samudra",
+    "start_date": "2026-05-04",
+    "end_date": "2026-10-26"
+  },
+  "project": "KAMPUNG NELAYAN MERAH PUTIH",
+  "location_name_raw": "KUSAMBA, KLUNGKUNG",
+  "province_raw": "BALI",
+  "year": 2026,
+  "total": 2083700848,
+  "categories": [
+    {
+      "roman": "I",
+      "name": "PEKERJAAN PERSIAPAN",
+      "total_value": 360276952,
+      "subcategories": [],
+      "direct_items": [
+        {
+          "code": "1",
+          "name": "Buat Bedeng Pekerja Dan Gudang",
+          "volume": 25,
+          "unit": "m²",
+          "unit_price": 1440199.98,
+          "total_price": 36005000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "2",
+          "name": "Pekerjaan Sewa Rumah untuk Direksi Keetz",
+          "volume": 4.5,
+          "unit": "bln",
+          "unit_price": 2000000,
+          "total_price": 9000000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "3",
+          "name": "Papan Nama Proyek",
+          "volume": 1,
+          "unit": "bh",
+          "unit_price": 1704411.33,
+          "total_price": 1704411,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "4",
+          "name": "Listrik Kerja",
+          "volume": 4.5,
+          "unit": "bln",
+          "unit_price": 1000000,
+          "total_price": 4500000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "5",
+          "name": "Pekerjaan Pagar Sementara",
+          "volume": 100,
+          "unit": "m¹",
+          "unit_price": 414459.25,
+          "total_price": 41445925,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "6",
+          "name": "Pekerjaan Pengadaan SMK3K",
+          "volume": 0,
+          "unit": null,
+          "unit_price": null,
+          "total_price": 77675442,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": [
+            {
+              "code": "6.1",
+              "name": "Penyiapan RK3K, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 1850000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.1.a",
+                  "name": "Pembuatan Manual, Prosedur, Instruksi Kerja, Ijin Kerja dan Formulir",
+                  "volume": 2,
+                  "unit": "set",
+                  "unit_price": 800000,
+                  "total_price": 1600000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.1",
+                  "children": []
+                },
+                {
+                  "code": "6.1.b",
+                  "name": "Pembuatan Kartu Identitas Pekerja (KIP)",
+                  "volume": 50,
+                  "unit": "org",
+                  "unit_price": 5000,
+                  "total_price": 250000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.1",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.2",
+              "name": "Sosialisasi dan Promosi K3, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 450000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.2.a",
+                  "name": "Induksi K3 (Safety Induction) ; khusus untuk pekerja baru",
+                  "volume": 50,
+                  "unit": "org",
+                  "unit_price": 7500,
+                  "total_price": 375000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.2",
+                  "children": []
+                },
+                {
+                  "code": "6.2.b",
+                  "name": "Pengarahan K3 (Safety Briefing) :",
+                  "volume": 10,
+                  "unit": "org",
+                  "unit_price": 7500,
+                  "total_price": 75000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.3",
+              "name": "Alat Pelindung Kerja, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 113490,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.3.a",
+                  "name": "Pembatas Area (Restricted Area)",
+                  "volume": 1,
+                  "unit": "ls",
+                  "unit_price": 113490,
+                  "total_price": 113490,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.3",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.4",
+              "name": "Alat Pelindung Diri, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 13650000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.4.a",
+                  "name": "Topi Pelindung (Safety Helmet)",
+                  "volume": 50,
+                  "unit": "bh",
+                  "unit_price": 80000,
+                  "total_price": 4000000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.4",
+                  "children": []
+                },
+                {
+                  "code": "6.4.b",
+                  "name": "Pelindung Pernapasan dan Mulut (Masker)",
+                  "volume": 50,
+                  "unit": "bh",
+                  "unit_price": 5500,
+                  "total_price": 275000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.4",
+                  "children": []
+                },
+                {
+                  "code": "6.4.c",
+                  "name": "Sarung Tangan (Safety Gloves)",
+                  "volume": 50,
+                  "unit": "psg",
+                  "unit_price": 5500,
+                  "total_price": 275000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.4",
+                  "children": []
+                },
+                {
+                  "code": "6.4.d",
+                  "name": "Sepatu Keselamatan (Rubber Safety Shoes and Toe Cap)",
+                  "volume": 50,
+                  "unit": "psg",
+                  "unit_price": 155000,
+                  "total_price": 7750000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.4",
+                  "children": []
+                },
+                {
+                  "code": "6.4.e",
+                  "name": "Rompi Keselamatan ( Safety vest)",
+                  "volume": 50,
+                  "unit": "bh",
+                  "unit_price": 27000,
+                  "total_price": 1350000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.4",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.5",
+              "name": "Asuransi dan Perijinan, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 17735700,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.5.a",
+                  "name": "BPJS Ketenagakerjaan dan Kesehatan Kerja ; (BERDASARKAN KEPMENAKER NOMOR 44 TAHUN 2015 tentang",
+                  "volume": 1,
+                  "unit": "ls",
+                  "unit_price": 17735700,
+                  "total_price": 17735700,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.5",
+                  "children": []
+                },
+                {
+                  "code": "6.5.2",
+                  "name": "Program JK bagi pekerja harian lepas, borongan",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.5",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.6",
+              "name": "Personil K3, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 32400000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.6.a",
+                  "name": "Petugas K3",
+                  "volume": 4.5,
+                  "unit": "bln",
+                  "unit_price": 7200000,
+                  "total_price": 32400000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.6",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.7",
+              "name": "Fasilitas Sarana Kesehatan, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 5000000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.7.1",
+                  "name": "Peralatan P3K (Kotak P3K, Tandu, Tabung Oksigen, Obat Luka, Perban, dll)",
+                  "volume": 1,
+                  "unit": "ls",
+                  "unit_price": 5000000,
+                  "total_price": 5000000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.7",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.8",
+              "name": "Rambu-rambu ukuran min. 90x90, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 1190000,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.8.a",
+                  "name": "Rambu Petunjuk",
+                  "volume": 5,
+                  "unit": "bh",
+                  "unit_price": 70000,
+                  "total_price": 350000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.8",
+                  "children": []
+                },
+                {
+                  "code": "6.8.b",
+                  "name": "Rambu Larangan",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 70000,
+                  "total_price": 140000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.8",
+                  "children": []
+                },
+                {
+                  "code": "6.8.c",
+                  "name": "Rambu Peringatan",
+                  "volume": 5,
+                  "unit": "bh",
+                  "unit_price": 70000,
+                  "total_price": 350000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.8",
+                  "children": []
+                },
+                {
+                  "code": "6.8.d",
+                  "name": "Rambu Kewajiban",
+                  "volume": 5,
+                  "unit": "bh",
+                  "unit_price": 70000,
+                  "total_price": 350000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.8",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6.9",
+              "name": "Lain-lain Terkait Pengendalian Resiko K3, terdiri atas :",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 5286252,
+              "tkdn_ratio": null,
+              "parent_code": "6",
+              "children": [
+                {
+                  "code": "6.9.a",
+                  "name": "Alat Pemadam Api Ringan (APAR) ; 3 kg",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 693550,
+                  "total_price": 1387100,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.9",
+                  "children": []
+                },
+                {
+                  "code": "6.9.b",
+                  "name": "Bendera K3",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 39576,
+                  "total_price": 79152,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.9",
+                  "children": []
+                },
+                {
+                  "code": "6.9.c",
+                  "name": "Jalur Evakuasi (Escape Route)",
+                  "volume": 3,
+                  "unit": "ls",
+                  "unit_price": 550000,
+                  "total_price": 1650000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.9",
+                  "children": []
+                },
+                {
+                  "code": "6.9.d",
+                  "name": "Lampu Darurat (Emergency Lamp)",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 85000,
+                  "total_price": 170000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.9",
+                  "children": []
+                },
+                {
+                  "code": "6.9.e",
+                  "name": "Pelaporan K3 dan Program Inspeksi",
+                  "volume": 1,
+                  "unit": "Ls",
+                  "unit_price": 2000000,
+                  "total_price": 2000000,
+                  "tkdn_ratio": null,
+                  "parent_code": "6.9",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "7",
+          "name": "Pekerjaan Pembersihan Lokasi dari Pohon dan Rumput (Land Clearing)",
+          "volume": 293.71,
+          "unit": "m²",
+          "unit_price": 8452.5,
+          "total_price": 2482584,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "8",
+          "name": "Pekerjaan Stake Out Posisi Trase Saluran/Infrastruktur",
+          "volume": 293.7,
+          "unit": "m²",
+          "unit_price": 4357.12,
+          "total_price": 1279686,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "9",
+          "name": "Pekerjaan Sondir termasuk Pelaporan termasuk mobilisasi Alat dan Personil",
+          "volume": 3,
+          "unit": "ttk",
+          "unit_price": 12045468,
+          "total_price": 36136404,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "10",
+          "name": "Mobilisasi dan Demobilisasi",
+          "volume": 0,
+          "unit": null,
+          "unit_price": null,
+          "total_price": 38600000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": [
+            {
+              "code": "10.a",
+              "name": "Bulldozer",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 6500000,
+              "total_price": 6500000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.b",
+              "name": "Roller Vibrator 12 Ton",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 7000000,
+              "total_price": 7000000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.c",
+              "name": "Excavator",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 7000000,
+              "total_price": 7000000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.d",
+              "name": "Concrete Mixer 0,35 m³",
+              "volume": 5,
+              "unit": "bh",
+              "unit_price": 1100000,
+              "total_price": 5500000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.e",
+              "name": "Concrete Mixer Pump",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 9000000,
+              "total_price": 9000000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.f",
+              "name": "Stamper",
+              "volume": 3,
+              "unit": "bh",
+              "unit_price": 550000,
+              "total_price": 1650000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            },
+            {
+              "code": "10.g",
+              "name": "Mesin las",
+              "volume": 3,
+              "unit": "bh",
+              "unit_price": 650000,
+              "total_price": 1950000,
+              "tkdn_ratio": null,
+              "parent_code": "10",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "11",
+          "name": "Pekerjaan Sambungan Daya Baru Pabrik Es",
+          "volume": 0,
+          "unit": null,
+          "unit_price": null,
+          "total_price": 23500000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": [
+            {
+              "code": "11.a",
+              "name": "Pendaftaran NIDI + SLO Daya 23 Kva",
+              "volume": 1,
+              "unit": "ls",
+              "unit_price": 2500000,
+              "total_price": 2500000,
+              "tkdn_ratio": null,
+              "parent_code": "11",
+              "children": []
+            },
+            {
+              "code": "11.b",
+              "name": "Biaya Pasang Baru Daya 23 Kva",
+              "volume": 1,
+              "unit": "ls",
+              "unit_price": 21000000,
+              "total_price": 21000000,
+              "tkdn_ratio": null,
+              "parent_code": "11",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "12",
+          "name": "Pekerjaan Sambungan Daya Baru Kawasan",
+          "volume": 0,
+          "unit": null,
+          "unit_price": null,
+          "total_price": 32000000,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": [
+            {
+              "code": "12.a",
+              "name": "Pendaftaran NIDI + SLO Daya 33 Kva",
+              "volume": 1,
+              "unit": "ls",
+              "unit_price": 3000000,
+              "total_price": 3000000,
+              "tkdn_ratio": null,
+              "parent_code": "12",
+              "children": []
+            },
+            {
+              "code": "12.b",
+              "name": "Biaya Pasang Baru Daya 33 Kva",
+              "volume": 1,
+              "unit": "ls",
+              "unit_price": 29000000,
+              "total_price": 29000000,
+              "tkdn_ratio": null,
+              "parent_code": "12",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "13",
+          "name": "Pekerjaan Panel Distribusi Kawasan, LVMDP/PDTR 100KVA, termasuk pengiriman dan instalasi",
+          "volume": 1,
+          "unit": "unit",
+          "unit_price": 55947500,
+          "total_price": 55947500,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "roman": "II",
+      "name": "PEKERJAAN DINDING PENAHAN TANAH",
+      "total_value": 388602305,
+      "subcategories": [
+        {
+          "code": "II.1",
+          "name": "Pekerjaan Turap Beton",
+          "total_value": 388602305,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Tapak Beton Menerus 30 x 200 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 188804036,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "1.a",
+                  "name": "Pekerjaan Galian Tanah sampai dengan 1 m",
+                  "volume": 50.4,
+                  "unit": "m²",
+                  "unit_price": 67620,
+                  "total_price": 3408048,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.b",
+                  "name": "Pekerjaan Kayu Bekesting Pondasi",
+                  "volume": 27.6,
+                  "unit": "m²",
+                  "unit_price": 245787.75,
+                  "total_price": 6783742,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.c",
+                  "name": "Pekerjaan Pembesian Besi Beton D 13 mm - 150",
+                  "volume": 2128.98,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 49531763,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.d",
+                  "name": "Pekerjaan Pembesian Besi Beton D 10 mm - 150",
+                  "volume": 1113.4,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 25973607,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.e",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 25",
+                  "volume": 37.79,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 101701256,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.f",
+                  "name": "Pekerjaan Pemadatan Beton dengan Vibrator",
+                  "volume": 37.79,
+                  "unit": "m³",
+                  "unit_price": 37195.55,
+                  "total_price": 1405620,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Dinding Beton t = 20 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 199798269,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pekerjaan Bekesting Dinding 5 kali pakai (2 sisi)",
+                  "volume": 126,
+                  "unit": "m²",
+                  "unit_price": 344833.37,
+                  "total_price": 43449005,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pek. Pembesian Besi Beton D 13 mm - 150 (Vertikal)",
+                  "volume": 1753.28,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 40790918,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pek. Pembesian Besi Beton D 10 mm - 200 (Horisontal)",
+                  "volume": 901,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 21018699,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 25",
+                  "volume": 34.65,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 93250821,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.e",
+                  "name": "Pekerjaan Pemadatan Beton dengan Vibrator",
+                  "volume": 34.65,
+                  "unit": "m³",
+                  "unit_price": 37195.55,
+                  "total_price": 1288826,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "III",
+      "name": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN",
+      "total_value": 138751555,
+      "subcategories": [
+        {
+          "code": "III.1",
+          "name": "Pekerjaan Struktural",
+          "total_value": 67203770,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Bouwplank dan Uitzet",
+              "volume": 22,
+              "unit": "m¹",
+              "unit_price": 124239.46,
+              "total_price": 2733268,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Tapak Beton 30x80x80 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7998563,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pekerjaan Galian Tanah s/d 1 m",
+                  "volume": 3,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 202860,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pekerjaan Urugan Pasir t = 7 cm",
+                  "volume": 0.28,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 139304,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pekerjaan Lantai Kerja t = 3 cm",
+                  "volume": 0.12,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 237208,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pekerjaan Bekesting Pasangan Batako",
+                  "volume": 4.8,
+                  "unit": "m³",
+                  "unit_price": 310691.59,
+                  "total_price": 1491320,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.e",
+                  "name": "Pekerjaan Pembesian Besi Beton D10 mm - 150",
+                  "volume": 68.06,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1587716,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.f",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 20",
+                  "volume": 0.76,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1840022,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.g",
+                  "name": "Pekerjaan Cerucuk Kayu Dolken Ø 6 - 8 cm",
+                  "volume": 80,
+                  "unit": "m¹",
+                  "unit_price": 31251.66,
+                  "total_price": 2500133,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Pondasi Batu Belah",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 12702998,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "3.a",
+                  "name": "Pekerjaan Galian Tanah keras s.d 1 m",
+                  "volume": 5.04,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 340805,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.b",
+                  "name": "Pekerjaan Urugan Pasir urug t = 7 cm",
+                  "volume": 1.01,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 502488,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.c",
+                  "name": "Pekerjaan Pondasi Batu Belah 1 : 5",
+                  "volume": 7.92,
+                  "unit": "m³",
+                  "unit_price": 1497437.5,
+                  "total_price": 11859705,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Angkur Sloof ke pondasi batu kali",
+              "volume": 5.55,
+              "unit": "kg",
+              "unit_price": 23328.19,
+              "total_price": 129471,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Sloof Beton 25/30",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 8516290,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "5.a",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 10.8,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 2786940,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 5 D 10 mm",
+                  "volume": 55.49,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1294481,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 50,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1166410,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.d",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 20",
+                  "volume": 1.35,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 3268459,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Lantai",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7594275,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "6.a",
+                  "name": "Pekerjaan Urugan Tanah Urug",
+                  "volume": 8.55,
+                  "unit": "m³",
+                  "unit_price": 367662.82,
+                  "total_price": 3143517,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.b",
+                  "name": "Pekerjaan pemadatan tanah urug",
+                  "volume": 8.55,
+                  "unit": "m³",
+                  "unit_price": 42946.75,
+                  "total_price": 367195,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c",
+                  "name": "Pekerjaan Urugan Pasir t = 5 cm",
+                  "volume": 0.89,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 442787,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d",
+                  "name": "Pekerjaan Rabat Beton t = 7 cm",
+                  "volume": 1.25,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 2470921,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.e",
+                  "name": "Pekerjaan Acian",
+                  "volume": 17.8,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 1169855,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Kolom Beton Pedestal 25/25",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 2123767,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "7.a",
+                  "name": "Pekerjaan Kayu Bekesting Kolom",
+                  "volume": 3.2,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 874619,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 8 D 10 mm",
+                  "volume": 26.63,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 621230,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 150",
+                  "volume": 6.16,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 143702,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.2,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 484216,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Kolom Beton 25/25",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 8515992,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "8.a",
+                  "name": "Pekerjaan Kayu Bekesting Kolom",
+                  "volume": 14.32,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 3913920,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 8 D 10 mm",
+                  "volume": 75.56,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1762678,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 150",
+                  "volume": 28.31,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 660421,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.d",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 20",
+                  "volume": 0.9,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 2178973,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Balok Beton RB-1 20/35",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7774240,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "9.a",
+                  "name": "Pekerjaan Kayu Bekesting Balok",
+                  "volume": 8.1,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 2262787,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 5 D 10 mm",
+                  "volume": 55.49,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1294481,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 50,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1166410,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.d",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 20",
+                  "volume": 1.26,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 3050562,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "10",
+              "name": "Pekerjaan Kuda-Kuda Beton Atap",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 9114906,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "10.1",
+                  "name": "Balok Beton Utama 15/20",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 6930473,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": [
+                    {
+                      "code": "10.1.a",
+                      "name": "Pekerjaan Kayu Bekesting Balok",
+                      "volume": 11.54,
+                      "unit": "m²",
+                      "unit_price": 279356.39,
+                      "total_price": 3223773,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.1",
+                      "children": []
+                    },
+                    {
+                      "code": "10.1.b",
+                      "name": "Pekerjaan Pembesian Besi Beton 4 D 10",
+                      "volume": 54.22,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 1264854,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.1",
+                      "children": []
+                    },
+                    {
+                      "code": "10.1.c",
+                      "name": "Pekerjaan Pembesian Besi Beton Ø 8 - 100/150",
+                      "volume": 39.29,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 916565,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.1",
+                      "children": []
+                    },
+                    {
+                      "code": "10.1.d",
+                      "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                      "volume": 0.63,
+                      "unit": "m³",
+                      "unit_price": 2421081.08,
+                      "total_price": 1525281,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.1",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "code": "10.2",
+                  "name": "Kolom Beton 15/20",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 2184433,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": [
+                    {
+                      "code": "10.2.a",
+                      "name": "Pekerjaan Kayu Bekesting Kolom",
+                      "volume": 4.2,
+                      "unit": "m²",
+                      "unit_price": 273318.43,
+                      "total_price": 1147937,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.2",
+                      "children": []
+                    },
+                    {
+                      "code": "10.2.b",
+                      "name": "Pekerjaan Pembesian Besi Beton 4 D 10 mm",
+                      "volume": 16.28,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 379783,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.2",
+                      "children": []
+                    },
+                    {
+                      "code": "10.2.c",
+                      "name": "Pekerjaan Pembesian Besi Beton Ø 8 - 100/150",
+                      "volume": 9.47,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 220918,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.2",
+                      "children": []
+                    },
+                    {
+                      "code": "10.2.d",
+                      "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                      "volume": 0.18,
+                      "unit": "m³",
+                      "unit_price": 2421081.08,
+                      "total_price": 435795,
+                      "tkdn_ratio": null,
+                      "parent_code": "10.2",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "III.2",
+          "name": "Pekerjaan Arsitektural",
+          "total_value": 66615695,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Acian Beton",
+              "volume": 42.68,
+              "unit": "m²",
+              "unit_price": 65722.22,
+              "total_price": 2805024,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Dinding Sopi-Sopi GRC",
+              "volume": 8.98,
+              "unit": "m²",
+              "unit_price": 88699.54,
+              "total_price": 796522,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Trap Entrance",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 9786501,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "3.a",
+                  "name": "Pekerjaan Galian Tanah",
+                  "volume": 1.07,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 72354,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.b",
+                  "name": "Pekerjaan Pondasi Rolaag Bata",
+                  "volume": 18.69,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 5217746,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.c",
+                  "name": "Pekerjaan Urugan Tanah",
+                  "volume": 1.61,
+                  "unit": "m³",
+                  "unit_price": 367662.82,
+                  "total_price": 591937,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.d",
+                  "name": "Pekerjaan Urugan Pasir t = 3 cm",
+                  "volume": 0.4,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 199005,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.e",
+                  "name": "Pekerjaan Rabat Beton t = 7 cm",
+                  "volume": 0.93,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 1838365,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.f",
+                  "name": "Pekerjaan Plesteran Dinding Samping Trap",
+                  "volume": 6.66,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 553964,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.g",
+                  "name": "Pekerjaan Acian",
+                  "volume": 19.98,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 1313130,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Rangka Atap Baja Ringan",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 21373604,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "4.a",
+                  "name": "Pekerjaan Pemasangan Atap Pelana Rangka Atap Baja Ringan (Canai Dingin) profil C75 (AZ 100)",
+                  "volume": 34.68,
+                  "unit": "m²",
+                  "unit_price": 202704.2,
+                  "total_price": 7029782,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.b",
+                  "name": "Pekerjaan Pemasangan Reng Baja Ringan R32 t = 0,45 mm (AZ 100)",
+                  "volume": 214.5,
+                  "unit": "m¹",
+                  "unit_price": 21997.06,
+                  "total_price": 4718369,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.c",
+                  "name": "Pekerjaan Pemasangan Atap Genteng Plentong",
+                  "volume": 62.3,
+                  "unit": "m²",
+                  "unit_price": 118458.05,
+                  "total_price": 7379937,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.d",
+                  "name": "Pekerjaan Pemasangan Nok Genteng",
+                  "volume": 7.25,
+                  "unit": "m¹",
+                  "unit_price": 309726.38,
+                  "total_price": 2245516,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Plafond GRC t = 6  mm,termasuk rangka besi hollow Galvanis 40/40 modul 60x60 cm",
+              "volume": 42.3,
+              "unit": "m²",
+              "unit_price": 288893.96,
+              "total_price": 12220215,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Dinding GRC Motif Lokal Finishing Cat termasuk dudukan besi hollow Galvanis 40/40",
+              "volume": 13.44,
+              "unit": "m²",
+              "unit_price": 326402.01,
+              "total_price": 4386843,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Cat Dinding Luar (sealer+extreme Jotun)",
+              "volume": 51.66,
+              "unit": "m²",
+              "unit_price": 97290.58,
+              "total_price": 5026031,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Pengecatan Plafond",
+              "volume": 42.3,
+              "unit": "m²",
+              "unit_price": 44521.82,
+              "total_price": 1883273,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Listplank GRC L = 30 cm, t = 8 mm",
+              "volume": 22.69,
+              "unit": "m¹",
+              "unit_price": 156310.76,
+              "total_price": 3546691,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "10",
+              "name": "Pengecatan Listplank GRC (Wheatershield)",
+              "volume": 6.81,
+              "unit": "m²",
+              "unit_price": 97290.58,
+              "total_price": 662549,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "11",
+              "name": "Pek. Logo KKP plate galvanis Finish Cat Duco dia.40 cm",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 2079555.7,
+              "total_price": 2079556,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Huruf Timbul plate galvanis finish cat duco, SHELTER PENDARATAN IKAN uk. 20x25 cm",
+              "volume": 21,
+              "unit": "bh",
+              "unit_price": 97566,
+              "total_price": 2048886,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "III.3",
+          "name": "Pekerjaan Elektrikal",
+          "total_value": 4932090,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Instalasi Penerangan NYM 2 x 1 ½ mm²",
+              "volume": 4,
+              "unit": "ttk",
+              "unit_price": 310479.3,
+              "total_price": 1241917,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Instalasi Stop Kontak, kabel NYM 2 x 2 ½ mm²",
+              "volume": 4,
+              "unit": "ttk",
+              "unit_price": 445340.37,
+              "total_price": 1781362,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pasang Saklar Tunggal",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 36086.07,
+              "total_price": 36086,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pasang Stop Kontak",
+              "volume": 4,
+              "unit": "bh",
+              "unit_price": 46432.98,
+              "total_price": 185732,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Pasang Lampu Downlight 5 Inch LED 9 Watt",
+              "volume": 4,
+              "unit": "bh",
+              "unit_price": 212814.4,
+              "total_price": 851258,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Box Panel Listrik (MCB) 4 Group",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 835735.28,
+              "total_price": 835735,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "~1",
+              "name": "~ Box Panel Listrik 4 Group ex.Schneider",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 0,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "~1.1",
+                  "name": "~ MCB 6 A ex.Schneider (2 bh)",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "~1",
+                  "children": []
+                },
+                {
+                  "code": "~1.2",
+                  "name": "~ MCB 25 A ex.Schneider (1 bh)",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "~1",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "IV",
+      "name": "PEKERJAAN PONDASI PABRIK ES PORTABLE",
+      "total_value": 193716962,
+      "subcategories": [
+        {
+          "code": "IV.1",
+          "name": "Pekerjaan Struktural Pondasi",
+          "total_value": 140929164,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Bouwplank dan Uitzet",
+              "volume": 40,
+              "unit": "m¹",
+              "unit_price": 124239.46,
+              "total_price": 4969579,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Pondasi Batu Belah",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 40036654,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pekerjaan Galian Tanah keras sedalam 1 m",
+                  "volume": 39.96,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 2702095,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pekerjaan Aanstamping/ Batu Kosong",
+                  "volume": 11.42,
+                  "unit": "m³",
+                  "unit_price": 752028.8,
+                  "total_price": 8588169,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pekerjaan Pondasi Batu Belah 1 : 5",
+                  "volume": 16.38,
+                  "unit": "m³",
+                  "unit_price": 1497437.5,
+                  "total_price": 24528026,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pekerjaan Urugan Tanah Kembali",
+                  "volume": 13.32,
+                  "unit": "m³",
+                  "unit_price": 79350,
+                  "total_price": 1056942,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.e",
+                  "name": "Pekerjaan Pemadatan Tanah Urug",
+                  "volume": 13.32,
+                  "unit": "m³",
+                  "unit_price": 42946.75,
+                  "total_price": 572051,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.f",
+                  "name": "Pekerjaan Plesteran",
+                  "volume": 17.39,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 1446462,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.g",
+                  "name": "Pekerjaan Acian",
+                  "volume": 17.39,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 1142909,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Angkur Sloof ke pondasi batu kali",
+              "volume": 16.34,
+              "unit": "kg",
+              "unit_price": 23328.19,
+              "total_price": 381183,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Sloof Beton 30/30",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 28939296,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "4.a",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 31.14,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 8035677,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.b",
+                  "name": "Pekerjaan Pembesian Besi Beton Tulangan Utama",
+                  "volume": 324.44,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 7548255,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Sengkang",
+                  "volume": 87.83,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 2048915,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.e",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 4.67,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 11306449,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Lantai Beton t = 15 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 61318946,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "5.a",
+                  "name": "Pekerjaan Urugan Tanah Urug",
+                  "volume": 21.21,
+                  "unit": "m³",
+                  "unit_price": 367662.82,
+                  "total_price": 7798128,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.b",
+                  "name": "Pekerjaan Pemadatan Tanah Urug",
+                  "volume": 21.21,
+                  "unit": "m³",
+                  "unit_price": 42946.75,
+                  "total_price": 910901,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.c",
+                  "name": "Pekerjaan Urugan Pasir",
+                  "volume": 5.39,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 2681597,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.d",
+                  "name": "Pekerjaan Lantai Kerja",
+                  "volume": 2.69,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 5317422,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.e",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 5.22,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 1347021,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.f",
+                  "name": "Pekerjaan Pembesian Besi Lantai",
+                  "volume": 816.74,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 19053066,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.g",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 10,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 24210811,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Trap Entrance",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 1124617,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "6.a",
+                  "name": "Pekerjaan Galian Tanah",
+                  "volume": 0.12,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 8114,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.b",
+                  "name": "Pekerjaan Pondasi Rolaag Bata",
+                  "volume": 2.33,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 650473,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c",
+                  "name": "Pekerjaan Urugan Tanah",
+                  "volume": 0.18,
+                  "unit": "m³",
+                  "unit_price": 367662.82,
+                  "total_price": 66179,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d",
+                  "name": "Pekerjaan Urugan Pasir t = 3 cm",
+                  "volume": 0.04,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 19901,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.e",
+                  "name": "Pekerjaan Rabat Beton t = 7 cm",
+                  "volume": 0.08,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 158139,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.f",
+                  "name": "Pekerjaan Plesteran Dinding Samping Trap",
+                  "volume": 0.96,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 79851,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.g",
+                  "name": "Pekerjaan Acian",
+                  "volume": 2.16,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 141960,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Screeding Lantai Beton",
+              "volume": 50,
+              "unit": "m²",
+              "unit_price": 83177.78,
+              "total_price": 4158889,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "IV.2",
+          "name": "Pekerjaan Struktural Ground Water Tank Beton",
+          "total_value": 52787798,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Bouwplank dan Uitzet",
+              "volume": 12,
+              "unit": "m¹",
+              "unit_price": 124239.46,
+              "total_price": 1490874,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Galian Tanah Sedalam 1 s/d 2 m",
+              "volume": 13.42,
+              "unit": "m³",
+              "unit_price": 142830,
+              "total_price": 1916779,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Urugan Pasir t = 5 cm",
+              "volume": 0.38,
+              "unit": "m³",
+              "unit_price": 497513.46,
+              "total_price": 189055,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Lantai Kerja t = 5 cm",
+              "volume": 0.38,
+              "unit": "m³",
+              "unit_price": 1976736.79,
+              "total_price": 751160,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Urugan Tanah Kembali",
+              "volume": 5.25,
+              "unit": "m³",
+              "unit_price": 79350,
+              "total_price": 416588,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Balok Beton 15/20",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 2129337,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "6.a",
+                  "name": "Pekerjaan Kayu Bekesting Balok",
+                  "volume": 3.2,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 893941,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.b",
+                  "name": "Pembesian Besi Beton 4 D 10 mm",
+                  "volume": 19.73,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 460265,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c",
+                  "name": "Pembesian Besi Beton Ø 6 mm - 150",
+                  "volume": 5.54,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 129238,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 25",
+                  "volume": 0.24,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 645893,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Balok Beton 15/15",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 3564003,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "7.a",
+                  "name": "Pekerjaan Kayu Bekesting Balok",
+                  "volume": 6,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 1676138,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.b",
+                  "name": "Pembesian Besi Beton 4 D 10 mm",
+                  "volume": 36.25,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 845647,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.c",
+                  "name": "Pembesian Besi Beton Ø 6 mm - 150",
+                  "volume": 7.76,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 181027,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 25",
+                  "volume": 0.32,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 861191,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Lantai Beton t = 20 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 6117460,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "8.a",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 2.2,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 567710,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.b",
+                  "name": "Pekerjaan Pembesian Plat Lantai Besi Beton D10 - 150",
+                  "volume": 63.7,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1486006,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.c",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 25",
+                  "volume": 1.51,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 4063744,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Dinding Beton t = 15 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 13491351,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "9.a",
+                  "name": "Pekerjaan Bekesting Dinding",
+                  "volume": 24,
+                  "unit": "m²",
+                  "unit_price": 344833.37,
+                  "total_price": 8276001,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.b",
+                  "name": "Pekerjaan Pembesian Besi Beton D10 - 150",
+                  "volume": 15.91,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 371151,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.c",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 25",
+                  "volume": 1.8,
+                  "unit": "m³",
+                  "unit_price": 2691221.4,
+                  "total_price": 4844199,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "10",
+              "name": "Pekerjaan Dak Beton Beton t = 15 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 3668272,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "10.a",
+                  "name": "Pekerjaan Bekesting Lantai",
+                  "volume": 4.84,
+                  "unit": "m²",
+                  "unit_price": 308412.06,
+                  "total_price": 1492714,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.b",
+                  "name": "Pekerjaan Pembesian Besi Beton D10 - 150",
+                  "volume": 35.14,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 819753,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.c",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.56,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1355805,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "11",
+              "name": "Pekerjaan Manhole Cover Beton t = 6 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 388267,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "11.a",
+                  "name": "Pekerjaan Bekesting Lantai",
+                  "volume": 0.6,
+                  "unit": "m²",
+                  "unit_price": 308412.06,
+                  "total_price": 185047,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.b",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 6 mm - 150",
+                  "volume": 4.32,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 100778,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.d",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm (kupingan)",
+                  "volume": 0.24,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 5599,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.c",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.04,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 96843,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Waterproofing Coating ex.No Drop anti Panas",
+              "volume": 23.56,
+              "unit": "m²",
+              "unit_price": 165450.18,
+              "total_price": 3898006,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "13",
+              "name": "Pekerjaan PVC Waterstop lebar 200 mm",
+              "volume": 22,
+              "unit": "m¹",
+              "unit_price": 126287.25,
+              "total_price": 2778319,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "14",
+              "name": "Pekerjaan Pompa Dorong Marine Grade",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 10262115.37,
+              "total_price": 10262115,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "15",
+              "name": "Pekerjaan Pemasangan Pipa HDPE Ø 2 Inch",
+              "volume": 10,
+              "unit": "m¹",
+              "unit_price": 172621.21,
+              "total_price": 1726212,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "V",
+      "name": "PEKERJAAN BANGUNAN KIOS PERBEKALAN",
+      "total_value": 189285530,
+      "subcategories": [
+        {
+          "code": "V.1",
+          "name": "Pekerjaan Struktural",
+          "total_value": 61343694,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Bouwplank dan Uitzet",
+              "volume": 18,
+              "unit": "m¹",
+              "unit_price": 124239.46,
+              "total_price": 2236310,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Tapak Beton 30x80x80 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 6942023,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pekerjaan Galian Tanah s/d 1 m",
+                  "volume": 3.2,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 216384,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pekerjaan Urugan Pasir t = 7 cm",
+                  "volume": 0.28,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 139304,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pekerjaan Lantai Kerja t = 3 cm",
+                  "volume": 0.12,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 237208,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pekerjaan Bekesting Pasangan Batako",
+                  "volume": 4.8,
+                  "unit": "m³",
+                  "unit_price": 310691.59,
+                  "total_price": 1491320,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.e",
+                  "name": "Pekerjaan Pembesian Besi Beton D 10 mm - 150",
+                  "volume": 22.19,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 517652,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.f",
+                  "name": "Pekerjaan beton semi mekanis setara fc = 20",
+                  "volume": 0.76,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1840022,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.g",
+                  "name": "Pekerjaan Cerucuk Kayu Dolken Ø 6 - 8 cm",
+                  "volume": 80,
+                  "unit": "m¹",
+                  "unit_price": 31251.66,
+                  "total_price": 2500133,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Pondasi Pas. Batu Belah",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 12041323,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "3.a",
+                  "name": "Pekerjaan Galian Tanah sampai dengan 1 m",
+                  "volume": 5.44,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 367853,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.b",
+                  "name": "Pekerjaan Urugan Pasir urug t = 7 cm",
+                  "volume": 0.95,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 472638,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.c",
+                  "name": "Pekerjaan Pondasi Batu Belah",
+                  "volume": 7.48,
+                  "unit": "m³",
+                  "unit_price": 1497437.5,
+                  "total_price": 11200832,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Angkur Sloof ke pondasi batu kali",
+              "volume": 5.24,
+              "unit": "kg",
+              "unit_price": 23328.19,
+              "total_price": 122240,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Sloof Beton 25/30",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 4443902,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "5.a",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 3.1,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 799955,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 5 D 10 mm",
+                  "volume": 47.77,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1114388,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 43.05,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1004278,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                },
+                {
+                  "code": "5.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.63,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1525281,
+                  "tkdn_ratio": null,
+                  "parent_code": "5",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Kolom Beton Pedestal 25/25",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 2678378,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "6.a",
+                  "name": "Pekerjaan Kayu Bekesting Kolom",
+                  "volume": 4.4,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 1202601,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 8 D 10 mm",
+                  "volume": 26.63,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 621229,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 150",
+                  "volume": 8.61,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 200856,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.27,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 653692,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Kolom Beton 25/25",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 8491548,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "7.a",
+                  "name": "Pekerjaan Bekesting Kolom",
+                  "volume": 14.32,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 3913920,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 8 D 10 mm",
+                  "volume": 75.55,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1762445,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 150",
+                  "volume": 28.31,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 660421,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                },
+                {
+                  "code": "7.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.89,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 2154762,
+                  "tkdn_ratio": null,
+                  "parent_code": "7",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Kolom Beton Praktis 15/15",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 2508581,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "8.a",
+                  "name": "Pekerjaan Bekesting Kolom",
+                  "volume": 3.22,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 880085,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 4 D 10 mm",
+                  "volume": 28.33,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 660888,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 16.57,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 386548,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.24,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 581060,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Balok Beton RB-1 20/35",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 6046216,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "9.a",
+                  "name": "Pekerjaan Bekesting Balok",
+                  "volume": 6.3,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 1759945,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 5 D 10 mm",
+                  "volume": 43.15,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1006611,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 38.88,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 907000,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.98,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 2372660,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "10",
+              "name": "Pekerjaan Balok Beton B-1 20/35",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 1295435,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "10.a",
+                  "name": "Pekerjaan Bekesting Balok",
+                  "volume": 1.35,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 377131,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 5 D 10 mm",
+                  "volume": 9.24,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 215553,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 8.33,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 194324,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.21,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 508427,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "11",
+              "name": "Pekerjaan Balok Beton Praktis 15/15",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 615171,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "11.a",
+                  "name": "Pekerjaan Bekesting Balok",
+                  "volume": 0.67,
+                  "unit": "m²",
+                  "unit_price": 279356.39,
+                  "total_price": 187169,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 4 D 10 mm",
+                  "volume": 7.39,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 172395,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8 mm - 100/150",
+                  "volume": 4.73,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 110342,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.d",
+                  "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.06,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 145265,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Kuda-Kuda Beton Atap",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 8777656,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "12.1",
+                  "name": "Balok Beton Utama 15/20",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 7292129,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": [
+                    {
+                      "code": "12.1.a",
+                      "name": "Pekerjaan Kayu Bekesting Balok",
+                      "volume": 10.11,
+                      "unit": "m²",
+                      "unit_price": 279356.39,
+                      "total_price": 2824293,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.1",
+                      "children": []
+                    },
+                    {
+                      "code": "12.1.b",
+                      "name": "Pekerjaan Pembesian Besi Beton 4 D 10",
+                      "volume": 46.84,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 1092692,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.1",
+                      "children": []
+                    },
+                    {
+                      "code": "12.1.c",
+                      "name": "Pekerjaan Pembesian Besi Beton Ø 8 - 100/150",
+                      "volume": 87.6,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 2043549,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.1",
+                      "children": []
+                    },
+                    {
+                      "code": "12.1.d",
+                      "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                      "volume": 0.55,
+                      "unit": "m³",
+                      "unit_price": 2421081.08,
+                      "total_price": 1331595,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.1",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "code": "12.2",
+                  "name": "Kolom Beton 15/20",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 1485527,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": [
+                    {
+                      "code": "12.2.a",
+                      "name": "Pekerjaan Kayu Bekesting Kolom",
+                      "volume": 2.8,
+                      "unit": "m²",
+                      "unit_price": 273318.43,
+                      "total_price": 765292,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.2",
+                      "children": []
+                    },
+                    {
+                      "code": "12.2.b",
+                      "name": "Pekerjaan Pembesian Besi Beton 4 D 10",
+                      "volume": 10.85,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 253111,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.2",
+                      "children": []
+                    },
+                    {
+                      "code": "12.2.c",
+                      "name": "Pekerjaan Pembesian Besi Beton Ø 8 - 100/150",
+                      "volume": 7.57,
+                      "unit": "kg",
+                      "unit_price": 23328.19,
+                      "total_price": 176594,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.2",
+                      "children": []
+                    },
+                    {
+                      "code": "12.2.d",
+                      "name": "Pekerjaan Beton Site Mix setara fc = 20",
+                      "volume": 0.12,
+                      "unit": "m³",
+                      "unit_price": 2421081.08,
+                      "total_price": 290530,
+                      "tkdn_ratio": null,
+                      "parent_code": "12.2",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "code": "13",
+              "name": "Pekerjaan Lantai",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 5144911,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "13.a",
+                  "name": "Pekerjaan Galian Tanah (Roolag Teras)",
+                  "volume": 0.12,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 8114,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                },
+                {
+                  "code": "13.b",
+                  "name": "Pekerjaan Pondasi Rolaag Bata (Teras)",
+                  "volume": 2.31,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 644890,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                },
+                {
+                  "code": "13.c",
+                  "name": "Pekerjaan Urugan Tanah Urug",
+                  "volume": 6.36,
+                  "unit": "m³",
+                  "unit_price": 367662.82,
+                  "total_price": 2338336,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                },
+                {
+                  "code": "13.d",
+                  "name": "Pekerjaan pemadatan tanah urug",
+                  "volume": 6.36,
+                  "unit": "m³",
+                  "unit_price": 42946.75,
+                  "total_price": 273141,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                },
+                {
+                  "code": "13.e",
+                  "name": "Pekerjaan Urugan Pasir t = 5 cm",
+                  "volume": 0.76,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 378110,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                },
+                {
+                  "code": "13.f",
+                  "name": "Pekerjaan Lantai Kerja = 5 cm",
+                  "volume": 0.76,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 1502320,
+                  "tkdn_ratio": null,
+                  "parent_code": "13",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "V.2",
+          "name": "Pekerjaan Arsitektural",
+          "total_value": 95122519,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pasangan Dinding Bata Merah",
+              "volume": 53.4,
+              "unit": "m²",
+              "unit_price": 279173.14,
+              "total_price": 14907846,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Plesteran",
+              "volume": 106.81,
+              "unit": "m²",
+              "unit_price": 83177.78,
+              "total_price": 8884219,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Acian",
+              "volume": 106.81,
+              "unit": "m²",
+              "unit_price": 65722.22,
+              "total_price": 7019790,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Dinding Sopi-Sopi GRC",
+              "volume": 4.56,
+              "unit": "m²",
+              "unit_price": 88699.54,
+              "total_price": 404470,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Skonengan (Opening Kusen)",
+              "volume": 29.88,
+              "unit": "m¹",
+              "unit_price": 69552.14,
+              "total_price": 2078218,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Pintu Rooling Door Aluminium 200 x 250 m², t = 0,6 mm komplit terpasang",
+              "volume": 5,
+              "unit": "m²",
+              "unit_price": 606453.19,
+              "total_price": 3032266,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Kusen Pintu UPVC P-03",
+              "volume": 2,
+              "unit": "unit",
+              "unit_price": 2320950.5,
+              "total_price": 4641901,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Kusen Jendela BV (2 bh)",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 728284,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "8.a",
+                  "name": "Pekerjaan Kusen Aluminium 4 inch",
+                  "volume": 2.09,
+                  "unit": "m¹",
+                  "unit_price": 312648.2,
+                  "total_price": 653435,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.b",
+                  "name": "Pasang Kaca Es t = 5 mm",
+                  "volume": 0.21,
+                  "unit": "m²",
+                  "unit_price": 356425.25,
+                  "total_price": 74849,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Trap Entrance",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 900999,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "9.a",
+                  "name": "Pekerjaan Galian Tanah",
+                  "volume": 0.13,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 8791,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.b",
+                  "name": "Pekerjaan Pondasi Rolaag Bata",
+                  "volume": 2.13,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 594639,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.c",
+                  "name": "Pekerjaan Urugan Pasir t = 3 cm",
+                  "volume": 0.04,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 19900,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.d",
+                  "name": "Pekerjaan Rabat Beton t = 7 cm",
+                  "volume": 0.09,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 177906,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.e",
+                  "name": "Pekerjaan Plesteran Dinding Samping Trap",
+                  "volume": 0.67,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 55729,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                },
+                {
+                  "code": "9.f",
+                  "name": "Pekerjaan Acian",
+                  "volume": 0.67,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 44034,
+                  "tkdn_ratio": null,
+                  "parent_code": "9",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "9#2",
+              "name": "Pas. Lantai Keramik 40x40 cm Polished",
+              "volume": 9.75,
+              "unit": "m²",
+              "unit_price": 410534.54,
+              "total_price": 4002712,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "10",
+              "name": "Pas. Lantai Keramik 40x40 cm Matte",
+              "volume": 5.47,
+              "unit": "m²",
+              "unit_price": 410534.54,
+              "total_price": 2245624,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "11",
+              "name": "Pas. Dinding Keramik 20x20 cm Polished",
+              "volume": 5.18,
+              "unit": "m¹",
+              "unit_price": 363243.8,
+              "total_price": 1881603,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Rangka Atap Baja Ringan",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 16314832,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "12.a",
+                  "name": "Pekerjaan Pemasangan Atap Pelana Rangka Atap Baja Ringan (Canai Dingin) profil C75 (AZ 100)",
+                  "volume": 23.1,
+                  "unit": "m²",
+                  "unit_price": 202704.2,
+                  "total_price": 4682467,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.b",
+                  "name": "Pekerjaan Pemasangan Reng Baja Ringan R32 t = 0,45 mm (AZ 100)",
+                  "volume": 175,
+                  "unit": "m¹",
+                  "unit_price": 21997.06,
+                  "total_price": 3849486,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.c",
+                  "name": "Pekerjaan Pemasangan Atap Genteng Plentong",
+                  "volume": 49.36,
+                  "unit": "m²",
+                  "unit_price": 118458.05,
+                  "total_price": 5847089,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.d",
+                  "name": "Pekerjaan Pemasangan Nok Genteng",
+                  "volume": 6.25,
+                  "unit": "m¹",
+                  "unit_price": 309726.38,
+                  "total_price": 1935790,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "13",
+              "name": "Pekerjaan Pas. Plafond Gypsum t = 9 mm + rangka plafond besi Hollow",
+              "volume": 15.22,
+              "unit": "m²",
+              "unit_price": 266491.09,
+              "total_price": 4055994,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "14",
+              "name": "Pekerjaan Atap Kanopi 32,5 x 25,2 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 4971514,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "14.a",
+                  "name": "Pekerjaan Pondasi Kolom Pedestal",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.2",
+                  "name": "~ Pekerjaan Galian Tanah",
+                  "volume": 0.02,
+                  "unit": "m²",
+                  "unit_price": 67620,
+                  "total_price": 1352,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.3",
+                  "name": "~ Pekerjaan Bekesting Kolom",
+                  "volume": 0.44,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 120260,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.4",
+                  "name": "~ Pekerjaan Beton Site Mix setara fc = 20",
+                  "volume": 0.02,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 48422,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.5",
+                  "name": "~ Pekerjaan Dynabolt Ø 10 mm",
+                  "volume": 8,
+                  "unit": "bh",
+                  "unit_price": 9700,
+                  "total_price": 77600,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.b",
+                  "name": "Pekerjaan Rangka Atap Kanopi Besi Hollow 40/60, modul 85/80, termasuk kolom kanopi",
+                  "volume": 7.05,
+                  "unit": "m²",
+                  "unit_price": 528744.4,
+                  "total_price": 3727648,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                },
+                {
+                  "code": "14.c",
+                  "name": "Pekerjaan Pemasangan Atap Genteng Plentong",
+                  "volume": 8.41,
+                  "unit": "m²",
+                  "unit_price": 118458.05,
+                  "total_price": 996232,
+                  "tkdn_ratio": null,
+                  "parent_code": "14",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "15",
+              "name": "Pekerjaan Cat Dinding Luar",
+              "volume": 106.81,
+              "unit": "m²",
+              "unit_price": 97290.58,
+              "total_price": 10391607,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "16",
+              "name": "Pekerjaan Cat Plafond",
+              "volume": 15.22,
+              "unit": "m²",
+              "unit_price": 44521.82,
+              "total_price": 677622,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "17",
+              "name": "Pekerjaan Listplank GRC L = 30 cm, t = 8 mm",
+              "volume": 19.99,
+              "unit": "m¹",
+              "unit_price": 156310.76,
+              "total_price": 3124652,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "18",
+              "name": "Pengecatan Listplank GRC (Wheatershield)",
+              "volume": 5.99,
+              "unit": "m²",
+              "unit_price": 97290.58,
+              "total_price": 582770,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "17#2",
+              "name": "Pekerjaan Logo KKP plate galvanis Finish Cat Duco",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 2079555.7,
+              "total_price": 2079556,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "18#2",
+              "name": "Pekerjaan Huruf Timbul plate galvanis finish cat duco, KIOS PERBEKALAN uk. 20x25 cm",
+              "volume": 14,
+              "unit": "bh",
+              "unit_price": 156860,
+              "total_price": 2196040,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "V.3",
+          "name": "Pekerjaan Mekanikal Elektrikal",
+          "total_value": 32819317,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Instalasi Air Bersih Pipa PVC Ø ½ Inch",
+              "volume": 2,
+              "unit": "m¹",
+              "unit_price": 36439.81,
+              "total_price": 72880,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Instalasi Air Bersih Pipa PVC Ø 1 Inch",
+              "volume": 5,
+              "unit": "m¹",
+              "unit_price": 63233.66,
+              "total_price": 316168,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Instalasi Air Buangan Pipa PVC Ø 3 Inch",
+              "volume": 3.5,
+              "unit": "m¹",
+              "unit_price": 213438.61,
+              "total_price": 747035,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Instalasi Air Buangan Pipa PVC Ø 4 Inch",
+              "volume": 2.5,
+              "unit": "m¹",
+              "unit_price": 327291.34,
+              "total_price": 818228,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Pemasangan Closet Duduk",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 4088063.24,
+              "total_price": 4088063,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Pemasangan Jet Washer",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 203788.36,
+              "total_price": 203789,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Pemasangan Kran Air",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 118117.96,
+              "total_price": 118118,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Pemasangan Floor Drain",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 207956.23,
+              "total_price": 207956,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Pompa Dorong",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 1370211.2,
+              "total_price": 1370211,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "10",
+              "name": "Tiang Menara Toren Tangki Air 600 liter, T = 4 m",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7212567,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "10.a",
+                  "name": "Pengadaan Barang",
+                  "volume": 1,
+                  "unit": "unit",
+                  "unit_price": 989400,
+                  "total_price": 989400,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.b",
+                  "name": "Pengiriman",
+                  "volume": 1,
+                  "unit": "unit",
+                  "unit_price": 500000,
+                  "total_price": 500000,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.c",
+                  "name": "Pekerjaan Pondasi Tapak 30x60x60 cm",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.4",
+                  "name": "~ Galian Tanah",
+                  "volume": 2.3,
+                  "unit": "m³",
+                  "unit_price": 142830,
+                  "total_price": 328509,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.5",
+                  "name": "~ Pekerjaan Bekesting Pasangan Batako",
+                  "volume": 2.88,
+                  "unit": "m²",
+                  "unit_price": 310691.59,
+                  "total_price": 894792,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.6",
+                  "name": "~ Pembesian Besi D 13 - 150",
+                  "volume": 12.5,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 290819,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.7",
+                  "name": "~ Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.43,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1041065,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.d",
+                  "name": "Pekerjaan Kolom Pedestal 25/25",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.9",
+                  "name": "~ Pekerjaan Kayu Bekesting Kolom",
+                  "volume": 4.59,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 1254531,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.10",
+                  "name": "~ Pekerjaan Pembesian Besi Beton 8 D 13",
+                  "volume": 28.33,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 659111,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.11",
+                  "name": "~ Pekerjaan Pembesian Besi Beton Ø 8 - 100/150",
+                  "volume": 13.54,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 315864,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.12",
+                  "name": "~ Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.28,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 677903,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.13",
+                  "name": "~ Pekerjaan Angkur D13",
+                  "volume": 11.2,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 260573,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "11",
+              "name": "Pekerjaan Pengadaan dan Pemasangan Tangki Toren Kap.600 liter ex.Penguin TD60",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 3066626.8,
+              "total_price": 3066627,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Septiktank Bio Tech 1 m³",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 9446995,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "12.a",
+                  "name": "Pekerjaan Galian Tanah s/d 2 m",
+                  "volume": 3.93,
+                  "unit": "m³",
+                  "unit_price": 112819.28,
+                  "total_price": 443380,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.b",
+                  "name": "Pekerjaan Pasir Urug t = 10 cm",
+                  "volume": 0.22,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 109453,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.c",
+                  "name": "Pekerjaan Lantai Kerja t = 5 cm",
+                  "volume": 0.11,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 217441,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.d",
+                  "name": "Pekerjaan Pengadaan Dan Setting Bio-Tech 1 m³",
+                  "volume": 1,
+                  "unit": "unit",
+                  "unit_price": 8676721.25,
+                  "total_price": 8676721,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "13",
+              "name": "Instalasi Penerangan, kabel NYY 2 x 1 ½ mm²",
+              "volume": 4,
+              "unit": "ttk",
+              "unit_price": 310479.3,
+              "total_price": 1241917,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "14",
+              "name": "Instalasi Stop Kontak, kabel NYM 2 x 2 ½ mm²",
+              "volume": 2,
+              "unit": "ttk",
+              "unit_price": 445340.37,
+              "total_price": 890681,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "15",
+              "name": "Pasang Downlight Ø 5 Inch+ LED 9 watt",
+              "volume": 4,
+              "unit": "bh",
+              "unit_price": 212814.4,
+              "total_price": 851258,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "16",
+              "name": "Pekerjaan Saklar Ganda",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 48719.78,
+              "total_price": 48720,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "17",
+              "name": "Pekerjaan Saklar Tunggal",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 36086.07,
+              "total_price": 36086,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "18",
+              "name": "Pekerjaan Stop Kontak",
+              "volume": 2,
+              "unit": "bh",
+              "unit_price": 46432.98,
+              "total_price": 92866,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "19",
+              "name": "Pasang Kipas Angin Plafond",
+              "volume": 1,
+              "unit": "bh",
+              "unit_price": 1153416.65,
+              "total_price": 1153417,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "20",
+              "name": "Pekerjaan Box Panel Listrik (MCB) 4 Group",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 835735.28,
+              "total_price": 835735,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "~2",
+              "name": "~ Box Panel Listrik 4 Group ex.Schneider",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 0,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "~2.1",
+                  "name": "~ MCB 6 A ex.Schneider (2 bh)",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "~2",
+                  "children": []
+                },
+                {
+                  "code": "~2.2",
+                  "name": "~ MCB 25 A ex.Schneider (1 bh)",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "~2",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "VI",
+      "name": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR",
+      "total_value": 441720241,
+      "subcategories": [
+        {
+          "code": "VI.1",
+          "name": "Pekerjaan Plumbing",
+          "total_value": 11648428,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pembagian Pemipaan Distribusi",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 4187819,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "1.a",
+                  "name": "Pekerjaan Tee Pipa Galvanis Ø 2 Inch",
+                  "volume": 1,
+                  "unit": "bh",
+                  "unit_price": 228295.13,
+                  "total_price": 228295,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.b",
+                  "name": "Pekerjaan Flange Gate Valve Galvanis Ø 2 Inch",
+                  "volume": 1,
+                  "unit": "bh",
+                  "unit_price": 2920754.48,
+                  "total_price": 2920754,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.c",
+                  "name": "Pekerjaan Sambungan Pipa, Sock Ø 2 Inch, Pipa Galvanis dan Pipa HDPE",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 262867.26,
+                  "total_price": 525735,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.d",
+                  "name": "Pekerjaan Sambungan Pipa, Sock Ø 2 Inch, Pipa PVC dan Pipa HDPE",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 256517.28,
+                  "total_price": 513035,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Distribusi Air Bersih Instalasi Pipa HDPE Ø 2 Inch",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 6991159,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Tangki penampungan ke Shelter Pendaratan Ikan - Pabrik Es",
+                  "volume": 25.5,
+                  "unit": "m¹",
+                  "unit_price": 172621.21,
+                  "total_price": 4401841,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Sumur Bor ke Tangki Penampungan Air di Kios Pebekalan",
+                  "volume": 15,
+                  "unit": "m¹",
+                  "unit_price": 172621.21,
+                  "total_price": 2589318,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Instalasi Air Bersih Shelter Pendaratan Ikan",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 234725,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "3.a",
+                  "name": "Pekerjaan Instalasi Air Bersih Pipa PVC AW Ø ½ Inch",
+                  "volume": 3.2,
+                  "unit": "m¹",
+                  "unit_price": 36439.81,
+                  "total_price": 116607,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                },
+                {
+                  "code": "3.b",
+                  "name": "Pekerjaan Kran Air Ø ½ Inch",
+                  "volume": 1,
+                  "unit": "bh",
+                  "unit_price": 118117.96,
+                  "total_price": 118118,
+                  "tkdn_ratio": null,
+                  "parent_code": "3",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Instalasi Air Bersih Bangunan Pabrik Es",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 234725,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "4.a",
+                  "name": "Pekerjaan Instalasi Air Bersih Pipa PVC AW Ø ½ Inch",
+                  "volume": 3.2,
+                  "unit": "m¹",
+                  "unit_price": 36439.81,
+                  "total_price": 116607,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.b",
+                  "name": "Pekerjaan Kran Air Ø ½ Inch",
+                  "volume": 1,
+                  "unit": "bh",
+                  "unit_price": 118117.96,
+                  "total_price": 118118,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "VI.2",
+          "name": "Pekerjaan Deep Well",
+          "total_value": 0,
+          "items": []
+        },
+        {
+          "code": "VI.2.1",
+          "name": "Pekerjaan Pengeboran",
+          "total_value": 311598924,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Geo-listrik",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 33736509,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "1.a",
+                  "name": "Pekerjaan Penyelidikan Geolistrik",
+                  "volume": 2,
+                  "unit": "ttk",
+                  "unit_price": 12420000,
+                  "total_price": 24840000,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.b",
+                  "name": "Pekerjaan Pengeboran Bor Dalam Ø 2 inch untuk sample pekerjaan Geolistrik termasuk mobilisasi alat dan Personil",
+                  "volume": 60,
+                  "unit": "m¹",
+                  "unit_price": 148275.15,
+                  "total_price": 8896509,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Pemasangan Pipa Casing dan Pipa Perfoated Screen",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 224872482,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pengeboran Lubang Awal Ø 6 Inch termasuk mobilisasi alat dan Personil",
+                  "volume": 60,
+                  "unit": "m¹",
+                  "unit_price": 518656.99,
+                  "total_price": 31119419,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pekerjaan setting Pipa Galvanis Ø 6 Inch, t = 3 mm",
+                  "volume": 60,
+                  "unit": "m¹",
+                  "unit_price": 3070416.77,
+                  "total_price": 184225006,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pekerjaan Pengelasan sambungan pipa",
+                  "volume": 6.59,
+                  "unit": "m¹",
+                  "unit_price": 98299.85,
+                  "total_price": 647796,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pipa Galvanis Perfoated Screen Ø 3 Inch, t = 2 mm",
+                  "volume": 8,
+                  "unit": "m¹",
+                  "unit_price": 1110032.58,
+                  "total_price": 8880261,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Deskripsi Contoh Cutting Bor (Pemerian Litologi)",
+              "volume": 60,
+              "unit": "m¹",
+              "unit_price": 542851.15,
+              "total_price": 32571069,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pembersihan Sumur (Well Development)",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7186428,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "4.a",
+                  "name": "Sirkulasi Air (Water Circulation)",
+                  "volume": 20,
+                  "unit": "jam",
+                  "unit_price": 224575.86,
+                  "total_price": 4491517,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                },
+                {
+                  "code": "4.b",
+                  "name": "Kompresor (Air Jetting)",
+                  "volume": 12,
+                  "unit": "jam",
+                  "unit_price": 224575.86,
+                  "total_price": 2694911,
+                  "tkdn_ratio": null,
+                  "parent_code": "4",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5",
+              "name": "Pengisian Gravel Pack",
+              "volume": 1.91,
+              "unit": "m³",
+              "unit_price": 413033.3,
+              "total_price": 788894,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Uji Pompa dan Pengujian Sampel",
+              "volume": 1,
+              "unit": "ttk",
+              "unit_price": 4733860,
+              "total_price": 4733860,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Semen Grouting Bag (atas dinding Sumur)",
+              "volume": 0.02,
+              "unit": "m³",
+              "unit_price": 33538911.88,
+              "total_price": 670778,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Rumah Pompa 80x150 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 7038904,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "8.a",
+                  "name": "Pekerjaan Galian Tanah",
+                  "volume": 1.14,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 77087,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.b",
+                  "name": "Pekerjaan Lantai Beton t = 20 cm",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.3",
+                  "name": "~ Pekerjaan Bekesting Pasangan Batako",
+                  "volume": 1.24,
+                  "unit": "m²",
+                  "unit_price": 310691.59,
+                  "total_price": 385258,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.4",
+                  "name": "~ Pekerjaan Pembesian Wiremseh M8-150",
+                  "volume": 2.94,
+                  "unit": "m²",
+                  "unit_price": 11762.87,
+                  "total_price": 34583,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.5",
+                  "name": "~ Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.58,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 1404227,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.c",
+                  "name": "Pekerjaan Pasangan Bata Merah",
+                  "volume": 2.29,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 639306,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.d",
+                  "name": "Pekerjaan Plesteran",
+                  "volume": 5.11,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 425038,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.e",
+                  "name": "Pekerjaan Acian",
+                  "volume": 5.11,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 335840,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                },
+                {
+                  "code": "8.f",
+                  "name": "Pekerjaan Tutup Rumah Pompa, plat Bordes t = 2,3 mm rangka siku besi 50.50.5 mm + 40.40.4 mm, Fin. Cat",
+                  "volume": 1,
+                  "unit": "unit",
+                  "unit_price": 3737564.69,
+                  "total_price": 3737565,
+                  "tkdn_ratio": null,
+                  "parent_code": "8",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "VI.2.2",
+          "name": "Pekerjaan Pengadaan Dan Material",
+          "total_value": 118472889,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pemasangan Pompa Air Submersible Deepwell Well SP 9-10 ex.Grundfos",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 66110388.04,
+              "total_price": 66110388,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Pemasangan Panel Kontrol Pompa 3 Phase",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 4938155.2,
+              "total_price": 4938155,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan tarik Kabel Pompa NYYHY 3 x 1 ½ mm²",
+              "volume": 60,
+              "unit": "m¹",
+              "unit_price": 33627.58,
+              "total_price": 2017655,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan tarik Kabel Elektroda NYYHY 3 x 2 ½ mm²",
+              "volume": 60,
+              "unit": "m¹",
+              "unit_price": 57530.23,
+              "total_price": 3451814,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Pemasangan Elektroda - Water Level Switch Control (Vertical Float Level Switch VSM)",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 4052205.27,
+              "total_price": 4052205,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Pipa Isap/Hantar - Galvanis Med. A = 2 Inch SNI",
+              "volume": 60,
+              "unit": "m¹",
+              "unit_price": 631711.2,
+              "total_price": 37902672,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "VII",
+      "name": "PEKERJAAN PENERANGAN KAWASAN",
+      "total_value": 109479905,
+      "subcategories": [
+        {
+          "code": "VII.1",
+          "name": "Pekerjaan Penerangan Tiang T = 7 m",
+          "total_value": 69032375,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Tapak Beton 30x100x100 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 12987562,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "1.a",
+                  "name": "Pekerjaan Galian Tanah",
+                  "volume": 7.78,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 526084,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.b",
+                  "name": "Pekerjaan Urugan Pasir Urug t = 5 cm",
+                  "volume": 0.43,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 213931,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.c",
+                  "name": "Pekerjaan Lantai Kerja t = 3 cm",
+                  "volume": 0.26,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 513951,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.d",
+                  "name": "Pekerjaan Bekesting pasangan Batako",
+                  "volume": 8.64,
+                  "unit": "m²",
+                  "unit_price": 310691.59,
+                  "total_price": 2684375,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.e",
+                  "name": "Pekerjaan Pembesian Besi Beton D 10 - 150",
+                  "volume": 119.11,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 2778621,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                },
+                {
+                  "code": "1.f",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 2.59,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 6270600,
+                  "tkdn_ratio": null,
+                  "parent_code": "1",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Kolom Pedestal 50/50",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 5890811,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "2.a",
+                  "name": "Pekerjaan Kayu Bekesting Kolom",
+                  "volume": 8.4,
+                  "unit": "m²",
+                  "unit_price": 273318.43,
+                  "total_price": 2295875,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.b",
+                  "name": "Pekerjaan Pembesian Besi Beton 8 D 10",
+                  "volume": 27.37,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 638492,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.c",
+                  "name": "Pekerjaan Pembesian Besi Beton Ø 8  - 150",
+                  "volume": 17.76,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 414309,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                },
+                {
+                  "code": "2.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 1.05,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 2542135,
+                  "tkdn_ratio": null,
+                  "parent_code": "2",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Pengadaan dan Pemasangan Tiang PJU 7 meter (Oktagonal Single Arm Hot Deep Galvanis) serta Lampu LED 70 Watt",
+              "volume": 6,
+              "unit": "unit",
+              "unit_price": 6503666.89,
+              "total_price": 39022002,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Pengiriman Tiang Lampu",
+              "volume": 6,
+              "unit": "unit",
+              "unit_price": 1855333.34,
+              "total_price": 11132000,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "VII.2",
+          "name": "Pekerjaan Elektrikal",
+          "total_value": 40447530,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pengadaan dan Pemasangan Panel Distribusi",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 2679494.25,
+              "total_price": 2679494,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Pengadaan dan Pemasangan Panel Kontroler",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 1544473,
+              "total_price": 1544473,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Instalasi Penerangan Jalan, kabel NYY 4 x 2 ½ mm²",
+              "volume": 6,
+              "unit": "ttk",
+              "unit_price": 782195.61,
+              "total_price": 4693174,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Tarik Kabel NYY 2 x 4 (Supreme)",
+              "volume": 37.29,
+              "unit": "m'",
+              "unit_price": 89183.07,
+              "total_price": 3325637,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Tarik Kabel Distribusi NYY 4 x 6 (Supreme)",
+              "volume": 22.6,
+              "unit": "m'",
+              "unit_price": 111432.01,
+              "total_price": 2518363,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Sparing Pipa PVC Listrik 3/4 D",
+              "volume": 37.29,
+              "unit": "m'",
+              "unit_price": 48979.13,
+              "total_price": 1826432,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Galian Tanah (tanam kabel)",
+              "volume": 5.57,
+              "unit": "m³",
+              "unit_price": 67620,
+              "total_price": 376643,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Pemasangan MCB 2 Ampere",
+              "volume": 30,
+              "unit": "bh",
+              "unit_price": 671191.5,
+              "total_price": 20135745,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Grounding",
+              "volume": 2,
+              "unit": "unit",
+              "unit_price": 822270.7,
+              "total_price": 1644541,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "10",
+              "name": "Pekerjaan Pemasangan 5/8\" Rod Coupling",
+              "volume": 1,
+              "unit": "unit",
+              "unit_price": 1703027.67,
+              "total_price": 1703028,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "VIII",
+      "name": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN",
+      "total_value": 184661363,
+      "subcategories": [
+        {
+          "code": "VIII.1",
+          "name": "Pekerjaan Saluran Batu Belah Kawasan",
+          "total_value": 63484367,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pengukuran Saluran",
+              "volume": 12,
+              "unit": "m¹",
+              "unit_price": 4785.54,
+              "total_price": 57426,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Galian Tanah Saluran sampai dengan 1 m",
+              "volume": 9.6,
+              "unit": "m³",
+              "unit_price": 67620,
+              "total_price": 649152,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pek. Pemadatan Tanah Galian Saluran dengan Stamper",
+              "volume": 9.6,
+              "unit": "m³",
+              "unit_price": 42946.75,
+              "total_price": 412289,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Saluran Batu Belah 50/40",
+              "volume": 4.2,
+              "unit": "m³",
+              "unit_price": 1497437.5,
+              "total_price": 6289238,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Rabat Beton Lantai Saluran Kawasan t = 5 cm",
+              "volume": 0.36,
+              "unit": "m³",
+              "unit_price": 1976736.79,
+              "total_price": 711625,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Instalasi Drainase Pipa PVC Ø 4 Inch",
+              "volume": 6.61,
+              "unit": "m¹",
+              "unit_price": 327291.34,
+              "total_price": 2163396,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Plesteran Dinding Saluran",
+              "volume": 4.8,
+              "unit": "m²",
+              "unit_price": 83177.78,
+              "total_price": 399253,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "8",
+              "name": "Pekerjaan Acian Finish",
+              "volume": 4.8,
+              "unit": "m²",
+              "unit_price": 65722.22,
+              "total_price": 315467,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "9",
+              "name": "Pekerjaan Skonengan",
+              "volume": 24,
+              "unit": "m¹",
+              "unit_price": 69552.14,
+              "total_price": 1669251,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "10",
+              "name": "Pekerjaan Beton Dekkeur t = 15 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 13689013,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "10.a",
+                  "name": "Pekerjaan Kayu Bekesting Lantai",
+                  "volume": 10.25,
+                  "unit": "m²",
+                  "unit_price": 308412.06,
+                  "total_price": 3161224,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.b",
+                  "name": "Pekerjaan Pembesian Besi Beton D 13 mm - 150",
+                  "volume": 293.29,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 6823535,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                },
+                {
+                  "code": "10.c",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 1.53,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 3704254,
+                  "tkdn_ratio": null,
+                  "parent_code": "10",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "11",
+              "name": "Pekerjaan Bak Kontrol 80x80x90 cm ( 2 unit)",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 14360945,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "11.a",
+                  "name": "Pekerjaan Galian Tanah Saluran sampai dengan 1 m",
+                  "volume": 2.9,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 196098,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.b",
+                  "name": "Pekerjaan Kayu Bekesting Sloof",
+                  "volume": 11.52,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 2972736,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.c",
+                  "name": "Pekerjaan Pembesian Besi Beton D 13 mm - 150",
+                  "volume": 88.77,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 2065278,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.d",
+                  "name": "Pekerjaan Beton Semi Mekanis setara fc = 20",
+                  "volume": 0.84,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 2033708,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                },
+                {
+                  "code": "11.e",
+                  "name": "Pekerjaan Tutup Bak Kontrol (Steel Gratting) 120x120 cm",
+                  "volume": 2,
+                  "unit": "bh",
+                  "unit_price": 3546562.5,
+                  "total_price": 7093125,
+                  "tkdn_ratio": null,
+                  "parent_code": "11",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "12",
+              "name": "Pekerjaan Saluran Pasangan Bata Merah (keliling bangunan)",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 22767312,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "12.a",
+                  "name": "Pekerjaan Galian Tanah Saluran sampai dengan 1 m",
+                  "volume": 22.85,
+                  "unit": "m³",
+                  "unit_price": 67620,
+                  "total_price": 1545117,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.b",
+                  "name": "Pekerjaan Urugan Pasir t = 3 cm",
+                  "volume": 1.37,
+                  "unit": "m³",
+                  "unit_price": 497513.46,
+                  "total_price": 681593,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.c",
+                  "name": "Pekerjaan Pasangan Bata Merah",
+                  "volume": 41.13,
+                  "unit": "m²",
+                  "unit_price": 279173.14,
+                  "total_price": 11482391,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.d",
+                  "name": "Pekerjaan Plesteran",
+                  "volume": 45.7,
+                  "unit": "m²",
+                  "unit_price": 83177.78,
+                  "total_price": 3801225,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.e",
+                  "name": "Pekerjaan Acian Finish",
+                  "volume": 45.7,
+                  "unit": "m²",
+                  "unit_price": 65722.22,
+                  "total_price": 3003506,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                },
+                {
+                  "code": "12.f",
+                  "name": "Pekerjaan Rabat Beton Lantai Saluran Bangunan t = 5 cm",
+                  "volume": 1.14,
+                  "unit": "m³",
+                  "unit_price": 1976736.79,
+                  "total_price": 2253480,
+                  "tkdn_ratio": null,
+                  "parent_code": "12",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "VIII.2",
+          "name": "Pekerjaan Jalan Beton Kawasan",
+          "total_value": 87764451,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Pengukuran dan Pematokan Jalan",
+              "volume": 50.3,
+              "unit": "m¹",
+              "unit_price": 4785.54,
+              "total_price": 240713,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Pemadatan Tanah Existing",
+              "volume": 31.38,
+              "unit": "m³",
+              "unit_price": 42946.75,
+              "total_price": 1347669,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Urugan Sirtu t = 10 cm",
+              "volume": 15.69,
+              "unit": "m³",
+              "unit_price": 330790.14,
+              "total_price": 5190097,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Pemadatan Sirtu",
+              "volume": 15.69,
+              "unit": "m³",
+              "unit_price": 42946.75,
+              "total_price": 673835,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Lantai Kerja t = 5 cm",
+              "volume": 7.84,
+              "unit": "m³",
+              "unit_price": 1976736.79,
+              "total_price": 15497616,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Jalan Beton t = 15 cm",
+              "volume": 0,
+              "unit": null,
+              "unit_price": null,
+              "total_price": 64814521,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": [
+                {
+                  "code": "6.a",
+                  "name": "Pekerjaan Kayu Bekesting",
+                  "volume": 3.15,
+                  "unit": "m²",
+                  "unit_price": 258050,
+                  "total_price": 812857,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.b",
+                  "name": "Pekerjaan Pembesian Wiremesh M8-150",
+                  "volume": 156.88,
+                  "unit": "m²",
+                  "unit_price": 11762.87,
+                  "total_price": 1845359,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c",
+                  "name": "Pekerjaan Dudukan Dowel",
+                  "volume": 0,
+                  "unit": null,
+                  "unit_price": null,
+                  "total_price": 0,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.4",
+                  "name": "~ Pekerjaan Tul. Pokok Besi Beton 4 D 8 mm",
+                  "volume": 83.35,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 1944405,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.5",
+                  "name": "~ Pekerjaan Dowel Besi Beton D 8 mm - 300",
+                  "volume": 23.48,
+                  "unit": "kg",
+                  "unit_price": 23328.19,
+                  "total_price": 547746,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d",
+                  "name": "Pekerjaan Dowel Besi Beton D 13 mm - 300",
+                  "volume": 19.32,
+                  "unit": "kg",
+                  "unit_price": 23265.49,
+                  "total_price": 449489,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.e",
+                  "name": "Pekerjaan Pipa PVC AW Ø 3/4\"",
+                  "volume": 28,
+                  "unit": "m¹",
+                  "unit_price": 48979.13,
+                  "total_price": 1371416,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.c#2",
+                  "name": "Pekerjaan Beton Site Mix mutu f'c = 20 Mpa dengan Concrete Mixer Pump",
+                  "volume": 23.53,
+                  "unit": "m³",
+                  "unit_price": 2421081.08,
+                  "total_price": 56968038,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                },
+                {
+                  "code": "6.d#2",
+                  "name": "Pekerjaan Pemadatan Beton dengan Vibrator",
+                  "volume": 23.53,
+                  "unit": "m³",
+                  "unit_price": 37195.55,
+                  "total_price": 875211,
+                  "tkdn_ratio": null,
+                  "parent_code": "6",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "VIII.3",
+          "name": "Pekerjaan Pedestrian Kawasan",
+          "total_value": 33412545,
+          "items": [
+            {
+              "code": "1",
+              "name": "Pekerjaan Galian Tanah Kanstin",
+              "volume": 3.61,
+              "unit": "m³",
+              "unit_price": 67620,
+              "total_price": 244108,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "2",
+              "name": "Pekerjaan Urugan Pasir t = 5 cm",
+              "volume": 0.9,
+              "unit": "m³",
+              "unit_price": 497513.46,
+              "total_price": 447762,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "3",
+              "name": "Pekerjaan Kanstin 15x25x40 cm",
+              "volume": 60.12,
+              "unit": "m¹",
+              "unit_price": 249312.47,
+              "total_price": 14988666,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "4",
+              "name": "Pekerjaan Urugan Tanah mendatangkan t = 12 cm",
+              "volume": 23.45,
+              "unit": "m³",
+              "unit_price": 367662.82,
+              "total_price": 8621693,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "5",
+              "name": "Pekerjaan Urugan Pasir t = 7 cm",
+              "volume": 4.21,
+              "unit": "m³",
+              "unit_price": 497513.46,
+              "total_price": 2094531,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "6",
+              "name": "Pekerjaan Pemadatan Urugan Pasir",
+              "volume": 4.21,
+              "unit": "m³",
+              "unit_price": 42946.75,
+              "total_price": 180806,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            },
+            {
+              "code": "7",
+              "name": "Pekerjaan Paving Blok t = 6 cm",
+              "volume": 36.9,
+              "unit": "m²",
+              "unit_price": 185229.78,
+              "total_price": 6834979,
+              "tkdn_ratio": null,
+              "parent_code": null,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "direct_items": []
+    },
+    {
+      "roman": "IX",
+      "name": "PEKERJAAN LANDSKAPING KAWASAN",
+      "total_value": 29778990,
+      "subcategories": [],
+      "direct_items": [
+        {
+          "code": "1",
+          "name": "Pekerjaan Penanaman Rumput Gajah Mini",
+          "volume": 88.11,
+          "unit": "m²",
+          "unit_price": 110196.56,
+          "total_price": 9709419,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "2",
+          "name": "Penanaman Pohon Sedang Tabebuya (Tabebuia sp.), Diameter 3-5 cm, Tinggi 3-4 meter, Polybag 50 L",
+          "volume": 17,
+          "unit": "btg",
+          "unit_price": 1180562.98,
+          "total_price": 20069571,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "roman": "X",
+      "name": "PEKERJAAN LEVELLING LAHAN",
+      "total_value": 47427045,
+      "subcategories": [],
+      "direct_items": [
+        {
+          "code": "1",
+          "name": "Pekerjaan Urugan Tanah mendatangkan",
+          "volume": 93.71,
+          "unit": "m³",
+          "unit_price": 367662.82,
+          "total_price": 34453683,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        },
+        {
+          "code": "2",
+          "name": "Pek. Pemadatan Tanah Urug dengan alat berat tiap 20 cm",
+          "volume": 93.71,
+          "unit": "m³",
+          "unit_price": 138441.6,
+          "total_price": 12973362,
+          "tkdn_ratio": null,
+          "parent_code": null,
+          "children": []
+        }
+      ]
+    }
+  ]
+}

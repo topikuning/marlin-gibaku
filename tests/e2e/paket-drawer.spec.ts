@@ -105,7 +105,16 @@ test.describe("workspace paket – panel geser", () => {
       await expect(page.locator("#rekonsiliasi")).toBeVisible();
       return;
     }
-    test.skip(true, "Tidak ada paket berselisih kontrak vs RAB pada data seed ini.");
+    /*
+     * BUKAN `test.skip` (audit 2026-08-28, I-6). Seed menjamin paket pertama
+     * bernilai kontrak 2% di atas RAB+PPN (`src/lib/seed/demo.ts`), jadi kalau
+     * loop di atas tidak menemukan satu pun banner, yang rusak adalah jalur
+     * peringatan selisihnya — dan itu harus MERAH, bukan dilewatkan.
+     */
+    throw new Error(
+      "Tidak ada paket berselisih kontrak vs RAB. Seed menjamin ada satu; " +
+        'berarti banner "Periksa masalah" tidak lagi muncul.',
+    );
   });
 
   test("aksi cepat di kepala halaman menuju tab yang benar", async ({ page }) => {

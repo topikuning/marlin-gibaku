@@ -25,7 +25,8 @@
     "docs:permission": "tsx scripts/gen-permission-matrix.mts",
     "waha:grup-ganda": "tsx scripts/waha-grup-ganda.ts",
     "audit:ahsp": "tsx scripts/audit-ahsp.mts",
-    "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts"
+    "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts",
+    "rab:siapkan": "tsx scripts/siapkan-rab-lapangan.mts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1086.0",
@@ -58,7 +59,7 @@
     "@tailwindcss/postcss": "4.3.2",
     "@types/leaflet": "1.9.21",
     "@types/node": "24.10.9",
-    "@types/pdfkit": "^0.17.6",
+    "@types/pdfkit": "0.17.6",
     "@types/pg": "8.20.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",

@@ -59,18 +59,20 @@ import type { SourceRef } from "./types";
  * berhak **tidak menerima angkanya sama sekali** — bukan menerima angka lalu
  * diminta tidak menyebutnya.
  *
- * ### "Belum tertagih" sengaja TIDAK ada di sini
+ * ### "Belum tertagih" belum ada di sini — tapi halangannya sudah hilang
  *
- * Angka itu berguna, tapi menghitungnya butuh Σ nilai terpasang seluruh lokasi
- * satu kontrak plus alokasi proporsional untuk kontrak multi-lokasi — dan
- * penjumlahan itu hari ini hidup di dalam halaman Keuangan
- * (`src/app/(app)/keuangan/page.tsx`), bukan di `finance/calc.ts`.
+ * Dulu angka ini tidak bisa disediakan tanpa menyalin formulanya: Σ nilai
+ * terpasang satu kontrak + alokasi proporsional untuk kontrak multi-lokasi
+ * hidup di dalam halaman Keuangan, bukan di calculation layer.
  *
- * Menyalinnya ke sini akan melahirkan IMPLEMENTASI KEDUA dari satu formula
- * uang. Dua salinan berarti dua jawaban yang bisa berbeda tanpa ada yang
- * memberi tahu — persis yang dilarang CLAUDE.md. Menambahkannya dengan benar
- * berarti memindahkan Σ + alokasinya ke `finance/calc.ts` lebih dulu, dan itu
- * perubahan tersendiri yang menyentuh halaman yang sudah bekerja.
+ * Sejak audit 2026-08-28 (C-4) penjumlahan itu sudah dipindah ke
+ * `finance/calc.ts` sebagai `alokasiBelumTertagih()`. Menambahkan faktanya di
+ * sini kini tinggal MEMANGGIL fungsi itu — tanpa implementasi kedua.
+ *
+ * Yang masih menahan bukan lagi soal teknis melainkan kapabilitas: uang
+ * INTERNAL pelaksana bukan urusan tiap pembaca, jadi fakta ini harus ikut
+ * pagar kapabilitas seperti adapter keuangan lainnya. Itu keputusan produk,
+ * bukan pekerjaan yang tersisa.
  *
  * ### Yang dilewati DIKATAKAN
  *
@@ -149,7 +151,7 @@ export async function buildAdapterFacts(
   if (bolehEws) await tambahEws(hasil, user, lokasi, periodKey);
   if (bolehVerifikasi) await tambahVerifikasi(hasil, lokasi, periodKey);
   if (bolehInspeksi) await tambahInspeksi(hasil, lokasi, periodKey);
-  if (bolehSurat) await tambahSurat(hasil, lokasi, paketIds, periodKey);
+  if (bolehSurat) await tambahSurat(hasil, user, lokasi, paketIds, periodKey);
 
   return hasil;
 }
@@ -541,11 +543,20 @@ async function tambahEws(
     const milik = warning.filter(
       (w) =>
         w.locationSlug === l.slug ||
-        (w.packageId != null && w.packageId === l.packageId && paketLokasi.has(l.packageId)),
+        (w.packageId != null && w.packageId === l.packageId && paketLokasi.has(l.packageId)) ||
+        // Tingkat ORGANISASI: surat yang belum menempel ke paket mana pun
+        // (`packageId: null`). Ia ada di halaman Surat dan di /perlu-tindakan,
+        // dan versi pertama menjatuhkannya di sini — peringatan yang terlihat
+        // di layar tetapi tidak bisa ditanyakan (review 2026-08-28).
+        (w.letterId != null && w.packageId == null),
     );
     if (milik.length === 0) continue;
     const kritis = milik.filter((w) => w.severity === "kritis").length;
-    const tingkatPaket = milik.filter((w) => w.locationSlug == null).length;
+    // Dua tingkat di atas lokasi, DIHITUNG TERPISAH: menyebut peringatan
+    // organisasi sebagai "tingkat paket" akan mengirim orang mencarinya di
+    // paket yang salah.
+    const tingkatPaket = milik.filter((w) => w.locationSlug == null && w.packageId != null).length;
+    const tingkatOrg = milik.filter((w) => w.locationSlug == null && w.packageId == null).length;
     const refId = `${l.slug}:peringatan`;
     hasil.refs.push({
       id: refId,
@@ -555,6 +566,7 @@ async function tambahEws(
       value:
         `${milik.length} peringatan (${kritis} kritis` +
         (tingkatPaket > 0 ? `, ${tingkatPaket} tingkat paket` : "") +
+        (tingkatOrg > 0 ? `, ${tingkatOrg} tingkat organisasi` : "") +
         `) · terparah: ${milik[0].alasan}`,
       href: `/perlu-tindakan`,
     });
@@ -643,12 +655,29 @@ async function tambahInspeksi(
  */
 async function tambahSurat(
   hasil: HasilAdapter,
+  user: SessionUser,
   lokasi: LokasiRingkas[],
   paketIds: string[],
   periodKey: string,
 ): Promise<void> {
   const surat = await db.letter.findMany({
-    where: { packageId: { in: paketIds }, needsReply: true, status: { not: "selesai" } },
+    /*
+     * Surat TINGKAT ORGANISASI (`packageId: null`) ikut (review 2026-08-28).
+     *
+     * Register surat memang membolehkan surat yang belum menempel ke paket
+     * mana pun — surat masuk dari KKP sering datang sebelum diketahui paket
+     * mana yang harus menjawabnya. Versi pertama menyaring `packageId in
+     * paketIds` saja, jadi surat itu terlihat di halaman Surat dan di EWS,
+     * tetapi AI menjawab "tidak ada". Fakta yang ada di layar tapi tidak ada di
+     * AI lebih buruk daripada tidak ada sama sekali: penanya menyimpulkan
+     * tidak ada surat yang menunggu.
+     */
+    where: {
+      orgId: user.orgId,
+      needsReply: true,
+      status: { not: "selesai" },
+      OR: [{ packageId: { in: paketIds } }, { packageId: null }],
+    },
     orderBy: { replyDueDate: "asc" },
     select: { packageId: true, subject: true, replyDueDate: true },
   });
@@ -656,16 +685,23 @@ async function tambahSurat(
   const hariIni = jakartaToday();
 
   for (const l of lokasi) {
-    const milik = surat.filter((x) => x.packageId === l.packageId);
+    // Surat organisasi menyangkut SETIAP lokasi dalam lingkup — sama seperti
+    // peringatan tingkat paket dilekatkan ke tiap lokasi paketnya. Jumlahnya
+    // disebut supaya tidak terbaca sebagai surat milik lokasi ini.
+    const milik = surat.filter((x) => x.packageId === l.packageId || x.packageId === null);
     if (milik.length === 0) continue;
     const lewat = milik.filter((x) => x.replyDueDate != null && x.replyDueDate < hariIni).length;
+    const tingkatOrg = milik.filter((x) => x.packageId === null).length;
     const refId = `${l.slug}:surat`;
     hasil.refs.push({
       id: refId,
       entityType: "letter",
       entityId: l.packageId,
       label: `${l.name} – surat yang menunggu jawaban`,
-      value: `${milik.length} perlu dijawab · ${lewat} lewat tenggat · terdekat: "${milik[0].subject}"`,
+      value:
+        `${milik.length} perlu dijawab · ${lewat} lewat tenggat` +
+        (tingkatOrg > 0 ? ` · ${tingkatOrg} tingkat organisasi` : "") +
+        ` · terdekat: "${milik[0].subject}"`,
       href: `/surat`,
     });
     dorong(hasil, fakta(l.id, "surat_perlu_jawab", milik.length, periodKey, refId));

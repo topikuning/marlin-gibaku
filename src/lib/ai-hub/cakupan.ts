@@ -56,14 +56,25 @@ export type WilayahCakupan = {
   /** Halaman MARLIN yang memuatnya — supaya daftar ini bisa diperiksa mata. */
   halaman: string;
   /**
-   * RUTE di `src/app/(app)/` yang wilayah ini layani.
+   * RUTE HALAMAN di `src/app/(app)/` yang wilayah ini layani — jalur PENUH
+   * relatif terhadap `(app)`, mis. `lokasi/[slug]/progress`.
    *
-   * Ini yang membuat peta ini tidak bisa ketinggalan zaman diam-diam
-   * (perbaikan review 2026-08-28): ujinya membaca daftar direktori rute yang
-   * SUNGGUHAN dan menuntut tiap rute punya rumah — di sini, atau di
-   * `RUTE_BUKAN_WILAYAH` berikut alasannya. Halaman baru yang lahir tanpa
-   * jalur AI karenanya MEMERAHKAN uji, bukan lolos karena tidak ada yang
-   * ingat menambahkannya.
+   * Ini yang membuat peta ini tidak bisa ketinggalan zaman diam-diam: ujinya
+   * membaca tiap direktori ber-`page.tsx` yang SUNGGUHAN ada dan menuntut
+   * masing-masing punya rumah — di sini, atau di `RUTE_BUKAN_WILAYAH` berikut
+   * alasannya.
+   *
+   * Jalur PENUH, bukan segmen pertama (review kedua 2026-08-28): versi pertama
+   * hanya membaca direktori tingkat satu, sehingga halaman baru di bawah
+   * `lokasi/[slug]/…` atau `paket/[id]/…` otomatis dianggap tercakup oleh
+   * entri "lokasi"/"paket" — padahal domain datanya sama sekali lain. Jaminan
+   * yang tertulis di komentar ini tidak berlaku untuk justru dua tempat yang
+   * paling sering ditambahi halaman.
+   *
+   * Akhiran `/*` mencakup seluruh subpohon, dan itu KEPUTUSAN yang harus
+   * disebut: `lokasi/[slug]/rab/*` berarti "apa pun di bawah RAB adalah RAB".
+   * Menuliskannya membuat keputusan itu terlihat di peta, bukan tersembunyi di
+   * dalam uji.
    */
   rute: string[];
   jalur: JalurJawab[];
@@ -78,16 +89,16 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Progress pekerjaan & deviasi kurva-S",
     halaman: "/progress, /lokasi/[slug]/progress",
-    rute: ["progress", "lokasi"],
+    rute: ["progress", "lokasi", "lokasi/[slug]", "lokasi/[slug]/progress"],
     jalur: [
-      { jenis: "niat", niat: ["progress", "deviasi", "laporan_mingguan"] },
+      { jenis: "niat", niat: ["progress", "deviasi", "laporan_mingguan", "laporan_bulanan"] },
       { jenis: "pulse", sourceRefSuffix: "progress" },
     ],
   },
   {
     nama: "Laporan harian (isi & kelengkapan)",
     halaman: "/laporan/status-harian, /lokasi/[slug]/laporan-lokasi",
-    rute: ["laporan", "hari-ini"],
+    rute: ["laporan/*", "hari-ini", "lokasi/[slug]/harian/*", "lokasi/[slug]/laporan-lokasi"],
     jalur: [
       { jenis: "niat", niat: ["laporan", "kelengkapan"] },
       { jenis: "pulse", sourceRefSuffix: "laporan" },
@@ -114,31 +125,31 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Dokumentasi foto & kegiatan lapangan",
     halaman: "/foto, /aktivitas",
-    rute: ["foto", "foto-cepat", "aktivitas", "peta"],
+    rute: ["foto/*", "foto-cepat", "aktivitas", "peta", "lokasi/[slug]/kegiatan"],
     jalur: [{ jenis: "pulse", sourceRefSuffix: "foto" }],
   },
   {
     nama: "Kontrak & masa pelaksanaan",
     halaman: "/paket/[id]",
-    rute: ["paket"],
+    rute: ["paket/*"],
     jalur: [{ jenis: "adapter", wilayah: "kontrak" }],
   },
   {
     nama: "RAB & revisinya",
     halaman: "/lokasi/[slug]/rab",
-    rute: [],
+    rute: ["lokasi/[slug]/rab/*"],
     jalur: [{ jenis: "adapter", wilayah: "rab" }],
   },
   {
     nama: "Milestone administrasi & kelengkapan dokumen KKP",
     halaman: "/dokumen, /lokasi/[slug]/administrasi",
-    rute: ["dokumen"],
+    rute: ["dokumen/*", "lokasi/[slug]/dokumen"],
     jalur: [{ jenis: "adapter", wilayah: "milestone" }],
   },
   {
     nama: "Temuan pemeriksa",
     halaman: "/temuan",
-    rute: ["temuan"],
+    rute: ["temuan/*"],
     jalur: [{ jenis: "adapter", wilayah: "temuan" }],
   },
   {
@@ -156,7 +167,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Verifikasi eksternal laporan oleh Wakil PPK",
     halaman: "/verifikasi",
-    rute: ["verifikasi"],
+    rute: ["verifikasi/*"],
     jalur: [{ jenis: "adapter", wilayah: "verifikasi" }],
   },
   {
@@ -174,7 +185,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Keuangan (uang internal pelaksana)",
     halaman: "/keuangan",
-    rute: ["keuangan"],
+    rute: ["keuangan", "lokasi/[slug]/keuangan"],
     // Adapternya ADA dan tetap dipagari `finance.view`; yang sengaja tidak
     // dibuat adalah jalur cepat WhatsApp. Permintaan user 2026-08-28
     // mengecualikan keuangan, dan pagarnya sendiri sudah lebih ketat daripada
@@ -195,18 +206,31 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
  * ada yang memeriksa.
  */
 export const RUTE_BUKAN_WILAYAH: Record<string, string> = {
-  ai: "Permukaan Ask MARLIN itu sendiri – bukan data yang ditanyakan.",
-  "chat-grup": "Arsip percakapan WhatsApp; isinya masuk AI lewat pencarian narasi, bukan sebagai wilayah fakta.",
+  ".": "Command center – ringkasan lintas wilayah; tiap angkanya sudah punya rumahnya sendiri di bawah.",
+  "ai/*": "Permukaan Ask MARLIN itu sendiri – bukan data yang ditanyakan.",
+  "chat-grup/*": "Arsip percakapan WhatsApp; isinya masuk AI lewat pencarian narasi, bukan sebagai wilayah fakta.",
   "kontak-wa": "Pengaturan kanal WhatsApp – konfigurasi, bukan data pekerjaan.",
   lampiran: "Kurasi lampiran WhatsApp masuk – tahap sebelum data jadi dokumen/laporan.",
   "laporan-wa": "Riwayat kiriman WhatsApp – jejak pengiriman, bukan keadaan pekerjaan.",
-  master: "Basis AHSP: data acuan harga/koefisien nasional, bukan keadaan satu pekerjaan.",
+  "master/*": "Basis AHSP & katalog master: data acuan nasional, bukan keadaan satu pekerjaan.",
   pengguna: "Administrasi akun – di luar lingkup pekerjaan lapangan.",
-  sistem: "Pengaturan aplikasi – di luar lingkup pekerjaan lapangan.",
+  "sistem/*": "Pengaturan aplikasi – di luar lingkup pekerjaan lapangan.",
+  "lokasi/[slug]/rapl":
+    "RAPL: kebutuhan & biaya bahan/upah hasil analisis AHSP. Formulanya kanonik " +
+    "(`ahsp/rapl-calc.ts`) tetapi belum punya jalur AI, dan menjawabnya setengah " +
+    "jadi lebih buruk daripada mengaku belum bisa.",
 };
 
-/** Niat yang memang bukan wilayah data — tidak perlu masuk peta cakupan. */
-export const NIAT_BUKAN_DATA: Niat[] = ["bantuan"];
+/**
+ * Niat yang memang bukan wilayah data — tidak perlu masuk peta cakupan.
+ *
+ * `produksi` masuk sini bukan karena terlupakan, melainkan karena ia PERINTAH,
+ * bukan pertanyaan: penanya meminta artefak, dan artefak resmi lahir di Report
+ * Studio lewat review→setujui→beku (DECISIONS 193), bukan dari WhatsApp.
+ * Niatnya tetap ada supaya perintah semacam itu dikenali dan dijawab jujur,
+ * alih-alih salah dipetakan jadi pertanyaan lain (audit 2026-08-28).
+ */
+export const NIAT_BUKAN_DATA: Niat[] = ["bantuan", "produksi"];
 
 /** Seluruh niat yang dipakai peta cakupan. */
 export function niatTercakup(): Set<Niat> {
@@ -237,6 +261,24 @@ export function ruteTercakup(): Set<string> {
   const out = new Set<string>(Object.keys(RUTE_BUKAN_WILAYAH));
   for (const w of CAKUPAN_AI) for (const r of w.rute) out.add(r);
   return out;
+}
+
+/**
+ * Apakah satu rute halaman punya rumah di peta?
+ *
+ * Cocok PERSIS, atau berada di bawah pola ber-`/*`. Dipakai uji cakupan, dan
+ * ditaruh di sini — bukan di dalam uji — supaya aturannya bisa dibaca bersama
+ * petanya.
+ */
+export function rutePunyaRumah(rute: string, pola: Iterable<string>): boolean {
+  for (const p of pola) {
+    if (p === rute) return true;
+    if (p.endsWith("/*")) {
+      const akar = p.slice(0, -2);
+      if (rute === akar || rute.startsWith(`${akar}/`)) return true;
+    }
+  }
+  return false;
 }
 
 /** Wilayah adapter yang ADA tetapi belum tercantum di peta cakupan. */
