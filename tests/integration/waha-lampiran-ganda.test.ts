@@ -33,6 +33,17 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
  */
 const ISI = Buffer.from("%PDF-1.4 surat undangan uji\n");
 let jumlahUnduh = 0;
+/**
+ * Penahan unduhan.
+ *
+ * Sela yang jadi celah bukan antara dua `findFirst`, melainkan antara "pesan
+ * tersimpan" dan "baris lampiran tertulis" — dan yang mengisi sela itu di
+ * produksi adalah UNDUHAN berkasnya, yang makan detik. Tanpa menahannya,
+ * unduhan tiruan selesai seketika, celahnya tidak pernah terbentuk, dan uji
+ * balapan hijau untuk alasan yang salah. (Sudah terbukti begitu sekali: uji
+ * versi pertama tetap hijau walau indeks uniknya dicabut.)
+ */
+let tahanUnduh: Promise<void> | null = null;
 vi.mock("undici", async (asli) => {
   const m = (await asli()) as Record<string, unknown>;
   return {
@@ -49,6 +60,7 @@ vi.mock("undici", async (asli) => {
 const fetchAsli = globalThis.fetch;
 globalThis.fetch = (async () => {
   jumlahUnduh += 1;
+  if (tahanUnduh) await tahanUnduh;
   return new Response(new Uint8Array(ISI), {
     status: 200,
     headers: { "content-type": "application/pdf" },
@@ -125,6 +137,43 @@ describe("pesan bermedia yang dikirim ulang webhook", () => {
       "dua kartu kembar di /lampiran untuk satu berkas – orang diminta memutuskan dua kali",
     ).toBe(1);
     expect(lampiran[0].fileName).toBe("Surat_Undangan_PCM_Puncel.pdf");
+  });
+
+  it("REGRESI: webhook kedua yang tiba SELAGI berkasnya diunduh tetap satu baris", async () => {
+    /*
+     * Bentuk balapan yang sungguhan, dan satu-satunya yang bisa terjadi:
+     *
+     *   1. webhook A menyimpan pesannya, lalu MULAI mengunduh berkas (detik-an);
+     *   2. webhook B tiba — pesannya sudah ada, jadi `upsert` jatuh ke
+     *      `update: {}` dan lolos; penjaga `findFirst` belum menemukan apa pun
+     *      karena A masih mengunduh;
+     *   3. keduanya menulis baris.
+     *
+     * Balapan pada `upsert` pesan tidak menghasilkan ini — yang kalah kena P2002
+     * dan berhenti SEBELUM menyentuh lampiran. Karena itu selanya dibuka di
+     * tempat yang benar: unduhan A ditahan sampai B selesai seluruhnya.
+     *
+     * Yang menahan pada akhirnya hanya indeks unik `[messageId]`; `findFirst`
+     * sendirian tidak pernah cukup.
+     */
+    const id = `m-${suffix}-balap`;
+    let lepaskan: () => void = () => {};
+    tahanUnduh = new Promise<void>((r) => (lepaskan = r));
+
+    const a = ingestWaEvent(eventMedia(id)); // menggantung di unduhan
+    // Beri A waktu menyimpan pesannya dan sampai ke unduhan.
+    await new Promise((r) => setTimeout(r, 150));
+
+    tahanUnduh = null; // B tidak ikut ditahan
+    const hasilB = await ingestWaEvent(eventMedia(id));
+    expect(hasilB.stored, hasilB.reason).toBe(true);
+
+    lepaskan();
+    const hasilA = await a;
+    expect(hasilA.stored, hasilA.reason).toBe(true);
+
+    const lampiran = await db.waAttachment.count({ where: { message: { waMessageId: id } } });
+    expect(lampiran, "balapan webhook melahirkan kartu kembar").toBe(1);
   });
 
   it("pesan BERBEDA dengan berkas sama tetap masing-masing tercatat", async () => {

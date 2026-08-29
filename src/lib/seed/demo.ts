@@ -14,8 +14,8 @@ import { seedMasterLocations } from "@/lib/seed/master-location";
 /** Folder seed-data: repo root (dev) atau /app (container standalone). */
 function seedDataDir(): string {
   const candidates = [
-    join(process.cwd(), "seed-data"),
-    join(process.cwd(), "..", "..", "seed-data"), // .next/standalone saat run lokal
+    join(/*turbopackIgnore: true*/ process.cwd(), "seed-data"),
+    join(/*turbopackIgnore: true*/ process.cwd(), "..", "..", "seed-data"), // .next/standalone saat run lokal
   ];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(`Folder seed-data tidak ditemukan (dicari: ${candidates.join(", ")})`);

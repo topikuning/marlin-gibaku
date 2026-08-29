@@ -131,6 +131,12 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
     try {
       const { tangkapLampiran } = await import("./lampiran-tangkap");
       await tangkapLampiran({
+        // Penjaga di atas menutup pengulangan BERURUTAN. Yang menutup dua
+        // webhook BERSAMAAN adalah indeks unik `[messageId]` di basis data:
+        // keduanya lolos `findFirst`, salah satu menang INSERT, yang kalah kena
+        // P2002 — dan itu ditangani di bawah sebagai "sudah tertangkap", bukan
+        // galat. Pemeriksaan di atas tetap ada supaya jalur normal tidak
+        // mengunduh berkasnya dua kali hanya untuk dibuang.
         messageId: messageRowId,
         packageId: pkg.id,
         mediaUrl: m.mediaUrl,
@@ -139,7 +145,18 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
         caption: m.body,
       });
     } catch (err) {
-      console.error("[waha] gagal menangkap lampiran:", err);
+      /*
+       * P2002 di sini BUKAN kegagalan: dua webhook untuk pesan yang sama tiba
+       * bersamaan, keduanya lolos pemeriksaan di atas, dan indeks unik
+       * `[messageId]` menahan yang kalah. Lampirannya sudah tertangkap oleh
+       * yang menang — mencatatnya sebagai galat akan membuat orang mengejar
+       * kerusakan yang tidak ada.
+       */
+      if (err && typeof err === "object" && (err as { code?: unknown }).code === "P2002") {
+        console.log(`[waha] lampiran pesan "${m.waMessageId}" ditangkap webhook kembarnya`);
+      } else {
+        console.error("[waha] gagal menangkap lampiran:", err);
+      }
     }
   }
 
