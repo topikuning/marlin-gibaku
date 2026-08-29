@@ -16,6 +16,32 @@ Format:
 
 DDD = decision ID sequential.
 
+## Penomoran: PENULIS TIDAK MEMILIH NOMOR
+
+Tulis judulnya begini, tanpa nomor:
+
+```
+## (baru) · Judul keputusan (YYYY-MM-DD)
+```
+
+Nomornya diberikan **pemeriksa terakhir saat merge ke `dev`**, mengikuti urutan
+masuk. Alasannya kejadian nyata 2026-08-29: dua agen bekerja bersamaan, keduanya
+menambah entri, keduanya memilih 473 dan 474. Git tidak mengeluh — bagi git itu
+cuma konflik teks biasa — dan yang tersisa dua keputusan berbeda bernomor sama,
+sementara 21 komentar kode menunjuk "DECISIONS 473" tanpa cara tahu yang mana.
+Cabang yang sama bahkan sudah pernah digeser sekali (470/471 → 473/474) lalu
+tertabrak lagi.
+
+Selama nomor dipilih penulis, tabrakan itu berulang tiap kali dua orang menulis
+di hari yang sama. Diberikan saat merge, ia mustahil.
+
+Dijaga `tests/unit/decisions-nomor.test.ts`: nomor tidak boleh kembar, urutannya
+tidak boleh mundur, dan tidak boleh ada `(baru)` yang lolos merge.
+
+**Merujuk keputusan dari kode**: tulis nomornya SESUDAH ia diberikan. Kalau
+komentarmu perlu menunjuk keputusan yang masih `(baru)`, sebut judulnya; nomornya
+ditambahkan pemeriksa terakhir bersama penomorannya.
+
 ---
 
 ## 001 · 2026-07-09 · Stack utama
