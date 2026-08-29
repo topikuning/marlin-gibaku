@@ -43,3 +43,7 @@ yarn-error.log*
 
 # Keluaran audit AHSP — dibangkitkan `pnpm audit:ahsp`, bukan sumber.
 AUDIT_AHSP_JANGGAL.xlsx
+
+# Simpanan sementara lampiran WhatsApp (dan apa pun yang lahir saat aplikasi jalan).
+# Isinya berkas milik orang lain – tidak pernah boleh masuk riwayat Git.
+.data/
