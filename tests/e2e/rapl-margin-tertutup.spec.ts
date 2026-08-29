@@ -14,11 +14,28 @@ import { test, expect, type Page } from "@playwright/test";
  * halaman, lembar cetak, dan berkas unduhan — bukan dari fungsi `can()`, yang
  * hijau baik sebelum maupun sesudah perbaikan.
  *
- * Prasyarat: `pnpm db:seed`. `wakil-ppk-01` ditugaskan ke lokasi `kedungmutih`,
- * jadi ia LOLOS pemeriksaan akses lokasi — yang menahannya harus kapabilitas.
+ * ### Kenapa selectornya seketat ini
+ *
+ * Versi pertama memakai `page.getByText("Potensi margin")` dan gagal 6 kali di
+ * CI. Bukan karena penjaganya bocor — justru sebaliknya. `getByText` dengan
+ * string mencocokkan SUBSTRING dan MENGABAIKAN besar-kecil huruf, sehingga ia
+ * menjaring kalimat penjelas halaman itu sendiri: banner "…Harga satuan, biaya
+ * pelaksanaan, dan potensi margin hanya untuk pengguna berhak akses keuangan",
+ * yang justru hanya muncul ketika `finance.view` TIDAK ada.
+ *
+ * Jadi uji ini sekarang: `exact: true` untuk label KPI (cocok utuh dan peka
+ * huruf besar), dan `href` untuk subtab — bukan teks tautan, yang berganti
+ * antara layar lebar ("Kebutuhan & harga") dan sempit ("Harga").
+ *
+ * Prasyarat: `pnpm db:seed`. `wakil-ppk-01` dan `mandor-01` sama-sama
+ * ditugaskan ke `kedungmutih`, jadi keduanya LOLOS pemeriksaan akses lokasi —
+ * yang menahan mereka harus kapabilitas, bukan penugasan.
  */
 
 const SLUG = "kedungmutih";
+
+/** Kalimat yang HANYA dirender saat angka uang ditahan. Bukti positifnya. */
+const BANNER_DITAHAN = "Biaya dan margin tidak ditampilkan untuk peranmu";
 
 async function login(page: Page, username: string, password = "marlin123") {
   await page.goto("/masuk");
@@ -28,6 +45,19 @@ async function login(page: Page, username: string, password = "marlin123") {
   await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 10_000 }).catch(() => {});
 }
 
+/** Tidak ada satu pun label uang di layar. */
+async function tanpaAngkaUang(page: Page) {
+  for (const label of [
+    "Potensi margin",
+    "Selisih sementara",
+    "Biaya RAPL",
+    "Harga terisi",
+    "Harga satuan",
+  ]) {
+    await expect(page.getByText(label, { exact: true })).toHaveCount(0);
+  }
+}
+
 test.describe("RAPL: uang tertutup dari yang tidak berhak", () => {
   test("wakil PPK tidak melihat margin maupun biaya RAPL", async ({ page }) => {
     await login(page, "wakil-ppk-01");
@@ -35,23 +65,28 @@ test.describe("RAPL: uang tertutup dari yang tidak berhak", () => {
 
     // Halamannya TETAP boleh dibuka — breakdown kebutuhan bagian dari memahami
     // pekerjaan. Yang hilang khusus angka uangnya.
-    await expect(page.getByText("Breakdown kebutuhan")).toBeVisible();
+    await expect(page.getByText("Breakdown kebutuhan", { exact: true })).toBeVisible();
+    await expect(page.getByText(BANNER_DITAHAN)).toBeVisible();
 
-    await expect(page.getByText("Potensi margin")).toHaveCount(0);
-    await expect(page.getByText("Selisih sementara")).toHaveCount(0);
-    await expect(page.getByText("Biaya RAPL")).toHaveCount(0);
-    await expect(page.getByText("Harga terisi")).toHaveCount(0);
+    await tanpaAngkaUang(page);
   });
 
-  test("subtab Kebutuhan & harga tidak ada, dan alamatnya bukan pintu belakang", async ({ page }) => {
+  test("subtab uang tidak ada, dan alamatnya bukan pintu belakang", async ({ page }) => {
     await login(page, "wakil-ppk-01");
     await page.goto(`/lokasi/${SLUG}/rapl`);
-    await expect(page.getByRole("link", { name: /Kebutuhan & harga|Harga/ })).toHaveCount(0);
+
+    // Dicek lewat href, bukan teks: label subtab berganti di layar sempit.
+    await expect(page.locator('a[href*="bagian=kebutuhan"]')).toHaveCount(0);
+    await expect(page.locator('a[href*="bagian=rincian"]')).toHaveCount(0);
 
     // Mengetik alamatnya langsung dikembalikan ke Ringkasan, bukan disajikan.
     await page.goto(`/lokasi/${SLUG}/rapl?bagian=kebutuhan`);
-    await expect(page.getByText("Harga satuan")).toHaveCount(0);
-    await expect(page.getByText("Biaya RAPL")).toHaveCount(0);
+    await expect(page.getByText(BANNER_DITAHAN)).toBeVisible();
+    await tanpaAngkaUang(page);
+
+    await page.goto(`/lokasi/${SLUG}/rapl?bagian=rincian`);
+    await expect(page.getByText(BANNER_DITAHAN)).toBeVisible();
+    await tanpaAngkaUang(page);
   });
 
   test("lembar cetak RAPL tidak bisa dibuka wakil PPK", async ({ page }) => {
@@ -69,14 +104,17 @@ test.describe("RAPL: uang tertutup dari yang tidak berhak", () => {
   test("mandor pun tidak melihat margin", async ({ page }) => {
     await login(page, "mandor-01");
     await page.goto(`/lokasi/${SLUG}/rapl`);
-    await expect(page.getByText("Potensi margin")).toHaveCount(0);
-    await expect(page.getByText("Selisih sementara")).toHaveCount(0);
+    await expect(page.getByText(BANNER_DITAHAN)).toBeVisible();
+    await tanpaAngkaUang(page);
   });
 
   test("super admin tetap melihat seluruhnya", async ({ page }) => {
     await login(page, "admin");
     await page.goto(`/lokasi/${SLUG}/rapl`);
-    await expect(page.getByText("Harga terisi")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Kebutuhan & harga|Harga/ }).first()).toBeVisible();
+
+    await expect(page.getByText(BANNER_DITAHAN)).toHaveCount(0);
+    await expect(page.getByText("Harga terisi", { exact: true })).toBeVisible();
+    await expect(page.locator('a[href*="bagian=kebutuhan"]').first()).toBeVisible();
+    await expect(page.locator('a[href*="bagian=rincian"]').first()).toBeVisible();
   });
 });
