@@ -505,12 +505,15 @@ describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
 
     const hasil = await jawabPertanyaanWa(
       event({
-        chatId: `${nomorSM}@c.us`,
-        dari: nomorSM,
+        // Verifikasi eksternal dipagari kapabilitas. Pakai Super Admin supaya
+        // yang diuji benar-benar integritas waktunya, bukan penolakan izin SM.
+        chatId: `${nomorAdmin}@c.us`,
+        dari: nomorAdmin,
         teks: "berapa laporan yang sudah diperiksa wakil PPK per 30 Juni 2026?",
       }),
     );
     expect(hasil.dijawab, hasil.alasan).toBe(true);
+    expect(hasil.alasan).toBe("dijawab fleksibel dari sumber MARLIN");
     expect(terkirim.map((x) => x.teks).join("\n")).toContain(
       "Sudah diperiksa sampai akhir periode: 1 laporan.",
     );
