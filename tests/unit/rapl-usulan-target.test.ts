@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BATAS_USULAN_HARGA_AI,
+  kunciTarget,
   pilihTargetUsulan,
   type BarisTarget,
 } from "@/lib/ahsp/usulan-target";
@@ -66,6 +67,47 @@ describe("pilihTargetUsulan", () => {
     expect(hasil.target).toHaveLength(BATAS_USULAN_HARGA_AI);
     expect(hasil.totalKosong).toBe(300);
     expect(hasil.tidakDiminta).toBe(275);
+  });
+
+  /*
+   * Ditambahkan pemeriksa terakhir saat menggerbangi PR #223: jalur `dipilih`
+   * — centang pengguna di panel harga — lolos seluruh suite meski filternya
+   * dihapus. Yang hilang kalau ia diam-diam mati bukan sekadar urutan:
+   * pengguna mencentang tiga sumber daya, sistem mengirim dua puluh lima yang
+   * lain, kuota AI terpakai, dan draf harga lahir untuk baris yang tidak
+   * pernah diminta.
+   */
+  it("centang pengguna MEMBATASI, bukan sekadar mengutamakan", () => {
+    const semen = baris("Semen PC 50 kg", "bahan", 365_000_000n);
+    const besi = baris("Besi beton D16", "bahan", 180_000_000n);
+    const pasir = baris("Pasir pasang", "bahan", 2_000_000n);
+
+    const { target, totalKosong, tidakDiminta } = pilihTargetUsulan(
+      [semen, besi, pasir],
+      BATAS_USULAN_HARGA_AI,
+      new Set([kunciTarget(pasir)]),
+    );
+
+    // Pasir menahan paling sedikit; tanpa filter ia justru yang paling akhir.
+    expect(target.map((t) => t.nama)).toEqual(["Pasir pasang"]);
+    // Yang dilaporkan kosong tetap SELURUHNYA, supaya layar tidak menyiratkan
+    // dua sumber daya lain sudah berharga.
+    expect(totalKosong).toBe(3);
+    expect(tidakDiminta).toBe(2);
+  });
+
+  it("centang atas sumber daya yang sudah berharga tidak menghidupkannya lagi", () => {
+    const sudah = baris("Sudah ada", "bahan", 999_000_000n, 12_000n);
+    const belum = baris("Belum ada", "bahan", 1_000n);
+    const { target } = pilihTargetUsulan([sudah, belum], BATAS_USULAN_HARGA_AI, new Set([kunciTarget(sudah)]));
+    expect(target).toEqual([]);
+  });
+
+  it("kunci centang menyamakan huruf besar-kecil dan spasi satuan", () => {
+    const b = baris("Semen PC 50 kg", "bahan", 5_000_000n);
+    const kunci = kunciTarget({ kategori: "bahan", nama: "Semen PC 50 kg", satuan: " KG " });
+    const { target } = pilihTargetUsulan([b], BATAS_USULAN_HARGA_AI, new Set([kunci]));
+    expect(target.map((t) => t.nama)).toEqual(["Semen PC 50 kg"]);
   });
 
   it("urutannya stabil saat nilai tertahannya sama", () => {
