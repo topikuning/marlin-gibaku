@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
    * yang sama dengan layar. `report.export` saja tidak cukup: ia dimiliki juga
    * oleh `wakil_ppk` dan `exec_viewer` (RAPL-07, DECISIONS 475).
    */
-  if (!can(user.role, "report.export") || !can(user.role, "finance.view")) {
+  if (!can(user.role, "report.export") || !can(user.role, "rapl.view")) {
     return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
   }
 

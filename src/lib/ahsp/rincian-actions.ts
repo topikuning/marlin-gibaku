@@ -15,9 +15,9 @@ import { BATAS_HARGA_RUPIAH, bacaRupiah } from "./hsd-price";
 /**
  * Menyusun RINCIAN PELAKSANAAN satu item RAB (RAPL-08, DECISIONS 475).
  *
- * Kapabilitasnya `finance.input`, sama dengan HSD: yang disusun di sini
- * langsung menjadi BIAYA dan MARGIN per item — bobotnya sama dengan
- * memasukkan angka uang, bukan sekadar mengelola RAB.
+ * Kapabilitasnya `rapl.manage`, sama dengan HSD: yang disusun di sini langsung
+ * menjadi BIAYA dan MARGIN per item — bobotnya lebih dari sekadar mengelola RAB.
+ * Sengaja bukan `finance.*` (pintu menu Keuangan yang ditahan) — lihat authz.ts.
  *
  * Tiga batas yang ditegakkan di sini, dan ketiganya keputusan user 2026-08-29:
  *
@@ -38,7 +38,7 @@ const dasar = {
 };
 
 async function pastikanIzin(locationId: string) {
-  const user = await requireCapability("finance.input");
+  const user = await requireCapability("rapl.manage");
   await requireLocationAccess(user, locationId);
   return user;
 }

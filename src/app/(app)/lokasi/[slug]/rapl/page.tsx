@@ -42,12 +42,18 @@ export const dynamic = "force-dynamic";
  *
  * Breakdown kebutuhan (volume bahan/upah/alat) memakai `rab.view` — ia bagian
  * dari memahami pekerjaan. Tetapi HARGA, BIAYA, dan MARGIN menuntut
- * `finance.view`. Sebelumnya seluruh halaman hanya dijaga `rab.view`, yang
+ * `rapl.view`. Sebelumnya seluruh halaman hanya dijaga `rab.view`, yang
  * dimiliki KEDELAPAN role — termasuk `wakil_ppk`, verifikator pihak pemberi
  * kerja. Artinya perkiraan biaya internal pelaksana beserta marginnya bisa
  * dibuka dan dicetak oleh lawan bicaranya sendiri saat negosiasi dan
- * pemeriksaan termin. PROJECT.md §4 sengaja tidak memberi `finance.*` kepada
- * role itu; penjaga halaman inilah yang dulu membatalkan maksud tersebut.
+ * pemeriksaan termin.
+ *
+ * Versi pertama memakai `finance.view`, dan itu keliru: capability itu milik
+ * menu Keuangan yang sedang DITAHAN karena layarnya belum siap, jadi meminjamnya
+ * membuat penahanan satu menu ikut mematikan RAPL untuk semua orang kecuali
+ * super_admin. Sejak koreksi user 2026-08-29, RAPL punya pintunya sendiri:
+ * `rapl.view` (Project Manager ke atas + exec_viewer) untuk melihat uangnya,
+ * `rapl.manage` (Site Manager ke atas) untuk mengisinya.
  */
 export default async function RaplPage({
   params,
@@ -63,10 +69,19 @@ export default async function RaplPage({
   const canManage = can(user.role, "rab.manage");
   const canExport = can(user.role, "report.export");
 
-  const canInput = can(user.role, "finance.input");
+  const canInput = can(user.role, "rapl.manage");
   const canUseAi = can(user.role, "ai.generate");
-  /** Harga, biaya, margin. Bukan "menu disembunyikan" — datanya tidak diambil. */
-  const canSeeMoney = can(user.role, "finance.view");
+  /**
+   * MARGIN — biaya dibandingkan nilai RAB. Angka menawar, berhenti di kantor.
+   * Bukan "menu disembunyikan": datanya tidak diambil.
+   */
+  const canSeeMargin = can(user.role, "rapl.view");
+  /**
+   * HARGA & BIAYA. Yang mengisi harus melihat yang diisinya — Site Manager
+   * memegang `rapl.manage` justru karena dialah yang tahu harga bahan di
+   * lapangan. Yang tidak ia lihat cuma marginnya.
+   */
+  const canSeeMoney = canSeeMargin || canInput;
 
   const diminta = ["ringkasan", "rincian", "kebutuhan", "validasi"].includes(query.bagian ?? "")
     ? (query.bagian as "ringkasan" | "rincian" | "kebutuhan" | "validasi")
@@ -217,6 +232,7 @@ export default async function RaplPage({
           cakupanHarga: p.keandalan.cakupanHarga,
           utuh: p.keandalan.utuh,
         }}
+        tampilkanMargin={canSeeMargin}
       />
     ) : null;
 
@@ -272,12 +288,14 @@ export default async function RaplPage({
               sub={`${harga.berharga} dari ${harga.baris.length} komponen`}
               tone={pctHarga >= 99.95 ? "success" : "warning"}
             />
+            {canSeeMargin ? (
             <KpiCard
               label={p.keandalan.utuh ? "Potensi margin" : "Selisih sementara"}
               value={formatRupiah(p.margin)}
               sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum boleh dibaca sebagai profit"}
               tone={p.keandalan.utuh ? (p.margin >= 0n ? "success" : "danger") : "warning"}
             />
+            ) : null}
           </>
         ) : null}
       </div>
@@ -317,13 +335,13 @@ export default async function RaplPage({
               subtitle="RAB aktif diurai menjadi material, tenaga, alat, dan fasilitas; harga melahirkan biaya serta potensi margin."
               action={
                 <div className="flex flex-wrap items-center gap-2">
-                  {canSeeMoney ? (
+                  {canSeeMargin ? (
                     <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
                       <Printer aria-hidden className="size-3.5" />
                       Cetak A4
                     </ButtonLink>
                   ) : null}
-                  {canExport && canSeeMoney ? (
+                  {canExport && canSeeMargin ? (
                     <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan labelSibuk="Menyiapkan Excel…">
                       <Download aria-hidden className="size-3.5" />
                       Unduh Excel
@@ -377,6 +395,7 @@ export default async function RaplPage({
                 slug={slug}
                 items={itemRows}
                 canInput={canInput}
+                tampilkanMargin={canSeeMargin}
                 ringkas={{
                   biayaLengkap: perItem.biayaLengkap.toString(),
                   nilaiRabLengkap: perItem.nilaiRabLengkap.toString(),
@@ -394,7 +413,8 @@ export default async function RaplPage({
               title="Kebutuhan proyek & harga satuan"
               subtitle={`${harga.baris.length} komponen dari RAB aktif · input manual atau minta draf estimasi AI untuk harga yang masih kosong.`}
               action={
-                canExport ? (
+                // Unduhannya memuat kolom margin – ikut `rapl.view`, bukan hanya export.
+                canExport && canSeeMargin ? (
                   <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan labelSibuk="Menyiapkan Excel…">
                     <Download aria-hidden className="size-3.5" />
                     Unduh Excel
