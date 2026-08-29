@@ -495,31 +495,27 @@ describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {
       ],
     });
 
-    try {
-      niatPalsu = {
-        niat: null,
-        lokasiDisebut: ["Kedung Mutih"],
-        periode: { jenis: "tanggal", hari: 30, bulan: 6, tahun: 2026 },
-      };
-      jawabanBersumber = true;
-      metrikJawabanBersumber = "laporan_sudah_diverifikasi";
+    niatPalsu = {
+      niat: null,
+      lokasiDisebut: ["Kedung Mutih"],
+      periode: { jenis: "tanggal", hari: 30, bulan: 6, tahun: 2026 },
+    };
+    jawabanBersumber = true;
+    metrikJawabanBersumber = "laporan_sudah_diverifikasi";
 
-      const hasil = await jawabPertanyaanWa(
-        event({
-          chatId: `${nomorSM}@c.us`,
-          dari: nomorSM,
-          teks: "berapa laporan yang sudah diperiksa wakil PPK per 30 Juni 2026?",
-        }),
-      );
-      expect(hasil.dijawab, hasil.alasan).toBe(true);
-      expect(terkirim.map((x) => x.teks).join("\n")).toContain(
-        "Sudah diperiksa sampai akhir periode: 1 laporan.",
-      );
-    } finally {
-      const ids = [laporanSebelumBatas.id, laporanSetelahBatas.id];
-      await db.reportVerification.deleteMany({ where: { reportId: { in: ids } } });
-      await db.dailyReport.deleteMany({ where: { id: { in: ids } } });
-    }
+    const hasil = await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "berapa laporan yang sudah diperiksa wakil PPK per 30 Juni 2026?",
+      }),
+    );
+    expect(hasil.dijawab, hasil.alasan).toBe(true);
+    expect(terkirim.map((x) => x.teks).join("\n")).toContain(
+      "Sudah diperiksa sampai akhir periode: 1 laporan.",
+    );
+    // ReportVerification append-only. Jejak uji tidak dihapus satu per satu;
+    // teardown berkas melakukan TRUNCATE ... CASCADE seperti fixture lain.
   });
 });
 
@@ -2063,11 +2059,12 @@ describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
   };
 
   beforeEach(async () => {
-    // Kelompok uji historis di atas sengaja membuat jejak verifikasi. Bersihkan
-    // anaknya lebih dulu supaya kegagalan assertion sebelumnya tidak berubah
-    // menjadi rentetan foreign-key palsu pada kelompok catatan lapangan ini.
-    await db.reportVerification.deleteMany({ where: { report: { locationId: lokA1 } } });
-    await db.dailyReport.deleteMany({ where: { locationId: lokA1 } });
+    // Jejak verifikasi bersifat append-only. Laporan historis dari kelompok uji
+    // di atas dibiarkan sampai TRUNCATE teardown; hanya laporan tanpa jejak yang
+    // aman dibersihkan untuk menyiapkan catatan lapangan berikutnya.
+    await db.dailyReport.deleteMany({
+      where: { locationId: lokA1, verifications: { none: {} } },
+    });
     const pelapor = await db.user.findFirstOrThrow({
       where: { fullName: "SiteManager" },
       select: { id: true },
