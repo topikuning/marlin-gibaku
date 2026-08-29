@@ -24683,3 +24683,53 @@ utama: volume mengikat layanan ke satu instans, tidak punya salinan cadangan,
 dan menambah tempat kedua yang harus dijaga — sementara foto dan dokumen MARLIN
 sudah di R2. Kalau suatu saat volume tetap dipasang, `LAMPIRAN_DIR` tinggal
 diarahkan ke titik pasangnya; tidak ada kode yang perlu berubah.
+
+---
+
+## 472 · Lampiran WA: disk dulu, R2 hanya yang ditetapkan, sisanya kedaluwarsa (2026-08-29)
+
+Ketetapan pagi ini (471, "arsipkan semua begitu ditangkap") menyelamatkan berkas
+tetapi menciptakan dua masalah baru yang langsung terlihat user: **R2 menampung
+setiap foto yang lewat 19 grup**, dan daftar penetapan membengkak tanpa cara
+membersihkannya. Keduanya nyata; aturannya diperbaiki di sini, bukan
+dipertahankan.
+
+### Aturan yang berlaku sekarang
+
+| Tahap | Perilaku |
+|---|---|
+| Tangkap | Tulis ke **disk lokal** saja. Tidak ada yang naik R2. |
+| Ditetapkan surat/dokumen | Naik **R2**, permanen. Ini yang jadi surat/dokumen resmi. |
+| Ditandai bukan bahan kerja | Objek R2-nya (kalau ada dari warisan 471) **dihapus** saat itu juga. |
+| Retensi | **Foto 3 hari, berkas lain 14 hari.** Lewat itu berkasnya dihapus, barisnya jadi `kedaluwarsa` dan keluar dari daftar. Yang sudah ditetapkan surat/dokumen tidak pernah kedaluwarsa. |
+
+Dua angka, karena dua umur kegunaan yang berbeda: foto grup basi dalam hitungan
+hari, surat bisa baru dibuka pekan depannya. Angkanya ketetapan user.
+
+Baris DB-nya **tidak** dihapus, hanya berkasnya. "Pernah ada berkas ini, dari
+siapa, kapan" tetap catatan yang berguna; yang mahal cuma isinya.
+
+Berkas yang dipakai bersama beberapa baris (kiriman ulang, sidik jari sama)
+hanya dihapus kalau SELURUH baris itu ikut kedaluwarsa — kalau tidak, baris
+kembar yang masih ditunggu jadi tidak bisa dibuka.
+
+### Yang membuat "cukup di disk" tidak berarti "hilang saat deploy"
+
+**Volume Railway di production**, bukan kode: `LAMPIRAN_DIR` diarahkan ke titik
+pasang volume. Tidak ada baris kode yang berubah karena variabel itu sudah
+dibaca sejak awal.
+
+Ketetapan user: volume **hanya di production**, tidak di dev. Konsekuensinya
+disadari dan disengaja — di dev berkas lampiran memang hilang tiap deploy, dan
+layarnya mengatakan itu apa adanya.
+
+### Daftar bisa dibersihkan
+
+- Tombol **massal** "tandai bukan bahan kerja" (centang banyak → satu klik).
+  Massal SENGAJA hanya satu arah: menjadikan sesuatu surat resmi tetap satu per
+  satu, karena itu keputusan yang menuntut membaca berkasnya.
+- Baris `kedaluwarsa` tidak muncul lagi di daftar tunggu: berkasnya tidak ada,
+  jadi tidak ada yang bisa ditetapkan.
+
+Penghabis umur simpan menumpang putaran harian (`/api/cron/harian`) — yang
+dikejar umur berhari-hari, bukan menit.

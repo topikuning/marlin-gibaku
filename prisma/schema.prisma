@@ -756,6 +756,9 @@ enum WaAttachmentStatus {
   dilewati
   /// Gagal diunduh — URL kedaluwarsa / WAHA tak terjangkau. `failReason` mengapa.
   gagal
+  /// Umur simpannya habis tanpa pernah ditetapkan siapa pun: berkasnya dihapus,
+  /// catatannya tetap. Foto 3 hari, berkas lain 14 hari (DECISIONS 472).
+  kedaluwarsa
 }
 
 /// Dugaan JENIS berkas — hasil aturan deterministik, bukan AI.

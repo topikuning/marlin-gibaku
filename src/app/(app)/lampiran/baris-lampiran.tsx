@@ -25,6 +25,8 @@ export type BarisLampiranProps = {
   keputusanLabel: string;
   sudahDitetapkan: boolean;
   terarsip: boolean;
+  /** Tampilkan kotak centang untuk penandaan massal (hanya yang belum ditetapkan). */
+  bisaDipilih?: boolean;
   paketNama: string | null;
   pengirim: string | null;
   caption: string;
@@ -63,6 +65,17 @@ export function BarisLampiran(p: BarisLampiranProps) {
   return (
     <li className="rounded-md border border-border bg-surface p-3">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+        {p.bisaDipilih ? (
+          // Kotaknya milik borang pembersih massal di sekeliling daftar; baris
+          // ini tidak perlu tahu apa pun soal aksinya.
+          <input
+            type="checkbox"
+            name="attachmentId"
+            value={p.id}
+            aria-label={`Pilih ${p.fileName ?? "berkas tanpa nama"}`}
+            className="mt-1 size-4 shrink-0 rounded border-border accent-primary"
+          />
+        ) : null}
         <span aria-hidden className="mt-0.5 text-ink-faint">
           {p.mimeType?.startsWith("image/") ? (
             <Paperclip className="size-4" />

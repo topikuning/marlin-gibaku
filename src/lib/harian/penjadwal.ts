@@ -80,6 +80,8 @@ export type HasilHarian = {
   nihil: HasilPengingatNihil;
   /** Giliran pengingat harian ke GRUP paket — sakelar & jeda sendiri. */
   grup: HasilAntreGrup;
+  /** Lampiran WA yang umur simpannya habis (DECISIONS 472). */
+  lampiran: { kedaluwarsa: number; berkasDihapus: number; r2Dihapus: number };
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -471,6 +473,13 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
    */
   const grup = await antrekanPengingatGrup(now);
 
+  /*
+   * Retensi lampiran WA (DECISIONS 472): foto 3 hari, berkas lain 14 hari.
+   * Sekali sehari sudah cukup — yang dikejar umur berhari-hari, bukan menit.
+   */
+  const { kedaluwarsakanLampiran } = await import("@/lib/waha/lampiran-tangkap");
+  const lampiran = await kedaluwarsakanLampiran(now);
+
   const { getPengingatAktif } = await import("./setelan");
   if (!(await getPengingatAktif())) {
     return {
@@ -495,6 +504,7 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
         dimatikan: true,
       },
       grup,
+      lampiran,
     };
   }
   const pengingat = await kirimPengingatHarian(now);
@@ -502,5 +512,5 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
   // Menumpang sakelar yang sama dengan kendala — tagihan internal juga.
   const temuan = await kirimPengingatTemuanTerjadwal(now);
   const nihil = await kirimPengingatNihilTerjadwal(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, temuan, nihil, grup };
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, temuan, nihil, grup, lampiran };
 }
