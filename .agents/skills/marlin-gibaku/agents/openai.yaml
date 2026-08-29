@@ -1,0 +1,6 @@
+interface:
+  display_name: "Marlin Gibaku"
+  short_description: "Repo-specific patterns and workflows for marlin-gibaku"
+  default_prompt: "Use the marlin-gibaku repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
