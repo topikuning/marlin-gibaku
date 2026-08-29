@@ -146,7 +146,7 @@ export async function simpanHargaAction(
  * izinnya sama persis; yang berbeda hanya cara datanya sampai.
  *
  * `sumber` DITETAPKAN SERVER, tidak diterima dari klien (RAPL-06, DECISIONS
- * 470). Asal-usul harga adalah keterangan yang dipertahankan saat diperiksa;
+ * 473). Asal-usul harga adalah keterangan yang dipertahankan saat diperiksa;
  * membiarkan peramban menuliskannya berarti siapa pun yang boleh mengisi harga
  * juga boleh mengarang dari mana harga itu datang — termasuk mengaku "Usulan
  * AI – disetujui pengguna" atas angka yang diketik tangan.
@@ -226,7 +226,7 @@ const mintaSkema = z.object({
 });
 
 /**
- * MINTA draf harga kepada AI — request hanya MENCATAT (RAPL-01, DECISIONS 470).
+ * MINTA draf harga kepada AI — request hanya MENCATAT (RAPL-01, DECISIONS 473).
  *
  * Yang tetap dikerjakan sinkron: kapabilitas, akses lokasi, penyiapan target,
  * dan `checkAiGuard`. Penolakan yang bisa dijawab tanpa provider harus sampai
@@ -323,7 +323,7 @@ const putusanSkema = z.object({
 });
 
 /**
- * TERAPKAN draf yang dipilih orang (RAPL-05/RAPL-06, DECISIONS 470).
+ * TERAPKAN draf yang dipilih orang (RAPL-05/RAPL-06, DECISIONS 473).
  *
  * Dua hal yang berubah dari versi pertama, dan keduanya penting:
  *

@@ -30,7 +30,7 @@ export const metadata: Metadata = { title: "RAPL" };
 export const dynamic = "force-dynamic";
 
 /**
- * RAPL — Rencana Anggaran Pelaksanaan Lapangan (DECISIONS 319–326, 441, 470).
+ * RAPL — Rencana Anggaran Pelaksanaan Lapangan (DECISIONS 319–326, 441, 473).
  *
  * Halaman ini disusun sebagai TAHAPAN, bukan tumpukan tabel: Petakan → Setujui
  * → Kebutuhan → Harga. Susunan lamanya menumpuk empat tabel sekaligus dan orang
@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  * friendly") sah, dan cacat terbesarnya bukan selera: daftarnya menyodorkan
  * 1.616 baris RAB untuk 480 keputusan.
  *
- * ### Siapa boleh melihat UANGNYA (RAPL-07, DECISIONS 470)
+ * ### Siapa boleh melihat UANGNYA (RAPL-07, DECISIONS 473)
  *
  * Breakdown kebutuhan (volume bahan/upah/alat) memakai `rab.view` — ia bagian
  * dari memahami pekerjaan. Tetapi HARGA, BIAYA, dan MARGIN menuntut

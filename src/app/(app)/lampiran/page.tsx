@@ -14,6 +14,7 @@ import {
   LAMPIRAN_STATUS_LABEL,
 } from "@/lib/surat/lifecycle";
 import { BarisLampiran } from "./baris-lampiran";
+import { PembersihMassal } from "./pembersih-massal";
 
 export const metadata: Metadata = { title: "Lampiran Masuk" };
 export const dynamic = "force-dynamic";
@@ -44,7 +45,13 @@ export default async function LampiranPage({
         package: scope,
         ...(tampilSemua
           ? {}
-          : { decision: "belum", saranKind: { in: ["surat_kandidat", "dokumen", "media_lain"] } }),
+          : {
+              decision: "belum",
+              saranKind: { in: ["surat_kandidat", "dokumen", "media_lain"] },
+              // Yang umur simpannya sudah habis tidak menunggu apa-apa lagi:
+              // berkasnya tidak ada, jadi tidak ada yang bisa ditetapkan.
+              status: { not: "kedaluwarsa" as const },
+            }),
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -66,7 +73,12 @@ export default async function LampiranPage({
       },
     }),
     db.waAttachment.count({
-      where: { package: scope, decision: "belum", saranKind: { in: ["surat_kandidat", "dokumen", "media_lain"] } },
+      where: {
+        package: scope,
+        decision: "belum",
+        saranKind: { in: ["surat_kandidat", "dokumen", "media_lain"] },
+        status: { not: "kedaluwarsa" },
+      },
     }),
     db.waAttachment.count({ where: { package: scope, status: "gagal" } }),
     db.waAttachment.count({ where: { package: scope, decision: { not: "belum" } } }),
@@ -130,6 +142,7 @@ export default async function LampiranPage({
               className="py-8"
             />
           ) : (
+            <PembersihMassal jumlah={antre.filter((a) => a.decision === "belum").length}>
             <ul className="space-y-3">
               {antre.map((a) => (
                 <BarisLampiran
@@ -147,6 +160,7 @@ export default async function LampiranPage({
                   saranRingkas={a.saranRingkas}
                   keputusanLabel={LAMPIRAN_KEPUTUSAN_LABEL[a.decision]}
                   sudahDitetapkan={a.decision !== "belum"}
+                  bisaDipilih={a.decision === "belum" && a.status !== "kedaluwarsa"}
                   terarsip={!!a.r2Key}
                   paketNama={a.package?.name ?? null}
                   pengirim={a.message.fromName}
@@ -155,6 +169,7 @@ export default async function LampiranPage({
                 />
               ))}
             </ul>
+            </PembersihMassal>
           )}
         </CardBody>
       </Card>

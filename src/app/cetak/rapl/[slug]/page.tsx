@@ -34,7 +34,7 @@ export default async function CetakRaplPage({
    * Lembar ini SELURUHNYA angka uang: biaya pelaksanaan per kategori dan
    * potensi margin terhadap nilai RAB. `rab.view` saja tidak cukup — ia
    * dimiliki kedelapan role, termasuk `wakil_ppk` yang mewakili pemberi kerja
-   * (RAPL-07, DECISIONS 470).
+   * (RAPL-07, DECISIONS 473).
    */
   if (!can(user.role, "rab.view") || !can(user.role, "finance.view")) notFound();
 

@@ -37,7 +37,7 @@ export type KomponenUntukRapl = {
 
 /**
  * Rincian pelaksanaan satu item RAB yang disusun ORANG — AHSP jadi pembantu,
- * bukan gerbang (RAPL-08, DECISIONS 470).
+ * bukan gerbang (RAPL-08, DECISIONS 473).
  *
  * Tiga bentuk campur tangan, dan hanya tiga:
  *
@@ -83,7 +83,7 @@ export type ItemUntukRapl = {
    */
   adaUsulan?: boolean;
   /**
-   * Rincian yang DISUSUN ORANG untuk item ini (RAPL-08, DECISIONS 470).
+   * Rincian yang DISUSUN ORANG untuk item ini (RAPL-08, DECISIONS 473).
    * Kosong untuk item yang cukup dilayani analisa AHSP apa adanya.
    */
   rincian?: RincianItem;
@@ -601,7 +601,7 @@ export type BiayaItem = {
 };
 
 /**
- * Biaya dan margin PER ITEM RAB (RAPL-08, DECISIONS 470).
+ * Biaya dan margin PER ITEM RAB (RAPL-08, DECISIONS 473).
  *
  * Inilah bentuk yang sebenarnya dipakai orang: bukan "berapa total semen se-
  * lokasi", melainkan **item mana yang rugi**. Agregat sumber daya tetap ada

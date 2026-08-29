@@ -5,7 +5,7 @@ import { jalankanDiLatar } from "@/lib/auth/latar";
 import { siapkanTargetHarga, usulkanHargaDenganAi, type TargetSiap } from "./hsd-ai";
 
 /**
- * Meminta draf harga kepada AI DI LATAR (RAPL-01, DECISIONS 470).
+ * Meminta draf harga kepada AI DI LATAR (RAPL-01, DECISIONS 473).
  *
  * Sebelumnya seluruh panggilan provider ditahan di dalam server action yang
  * ditunggu peramban. Anggarannya sah sampai ±4 menit — `aiStructured` boleh

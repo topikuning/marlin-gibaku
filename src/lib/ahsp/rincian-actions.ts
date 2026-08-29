@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { BATAS_HARGA_RUPIAH, bacaRupiah } from "./hsd-price";
 
 /**
- * Menyusun RINCIAN PELAKSANAAN satu item RAB (RAPL-08, DECISIONS 470).
+ * Menyusun RINCIAN PELAKSANAAN satu item RAB (RAPL-08, DECISIONS 473).
  *
  * Kapabilitasnya `finance.input`, sama dengan HSD: yang disusun di sini
  * langsung menjadi BIAYA dan MARGIN per item — bobotnya sama dengan

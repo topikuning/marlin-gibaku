@@ -25,6 +25,14 @@ name: Antrean unggah Drive MARLIN
 on:
   schedule:
     - cron: "20 * * * *"
+    # Jendela tenggat KKP: berkas mingguan harus sudah di Drive sebelum MINGGU
+    # 23.59 WIB, dan sebuah minggu baru dianggap tuntas mulai pukul 23.00 WIB
+    # (`BATAS_JAM_UNGGAH_MINGGUAN`). Jendelanya karena itu cuma 16:00–16:59 UTC,
+    # dan putaran :20 sendirian terlalu tipis — telat 40 menit saja sudah
+    # melewati tengah malam WIB. Putaran kedua di :05 memberi dua kesempatan.
+    # Hari lain tidak terpengaruh: tidak ada minggu yang berakhir, jadi putaran
+    # ini hanya menemukan antrean yang memang sudah ada.
+    - cron: "5 16 * * *"
   # Tombol "Run workflow" di tab Actions — untuk mendorong antrean tanpa
   # menunggu putaran berikutnya.
   workflow_dispatch:

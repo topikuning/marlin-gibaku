@@ -452,7 +452,7 @@ const CARA_JUDUL: Record<string, string> = {
 };
 
 /**
- * Lembar RINCIAN PER ITEM (RAPL-08, DECISIONS 470).
+ * Lembar RINCIAN PER ITEM (RAPL-08, DECISIONS 473).
  *
  * Lembar-lembar lain menjawab "berapa total semen se-lokasi". Yang ini
  * menjawab pertanyaan yang benar-benar dipakai orang saat menawar: ITEM MANA

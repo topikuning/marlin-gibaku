@@ -24593,7 +24593,150 @@ berkas" tanpa sepatah kata terbaca sebagai "tidak ada laporannya".
 
 ---
 
-## 470 · Audit menu RAPL: AI-nya lambat karena polanya, dan AHSP diam-diam jadi gerbang (2026-08-29)
+## 470 · Tenggat KKP: berkas mingguan naik pukul 23, grup ditagih pukul 18 (2026-08-29)
+
+Pengumuman KKP di grup WhatsApp: laporan mingguan, laporan harian, dan
+dokumentasi dikumpulkan ke folder Google Drive tiap lokasi **selambatnya hari
+Minggu 23.59 WIB**, dan dokumentasi pekerjaan **dilaporkan setiap hari lewat
+grup WhatsApp**.
+
+Tiga dari empat permintaan itu sudah berjalan otomatis (blanko harian + fotonya
+naik saat difinalkan; laporan mingguan per minggu kontrak; struktur 9 folder
+KKP). Dua yang kurang ditutup di sini.
+
+### 1. Berkas mingguan tidak boleh baru naik hari Senin
+
+`mingguRampung` menghitung minggu ke-N tuntas hanya setelah hari terakhirnya
+LEWAT. Akibatnya berkasnya naik Senin — telat, tiap pekan.
+
+Batasnya sekarang jam, bukan hari: minggu berjalan ikut dihitung tuntas begitu
+hari terakhirnya mencapai pukul **23.00 WIB** (`BATAS_JAM_UNGGAH_MINGGUAN`).
+Angka 23 dipilih karena dua kesalahan sama-sama nyata — terlalu awal berarti
+mengunggah minggu yang laporan hari terakhirnya belum final (dan baris antrean
+yang sudah `sukses` tidak diunggah ulang), terlalu lambat berarti pasti telat.
+Ketetapan user: *"bisa jadi orang baru input jam 20, jadi jaga-jaga lebih baik
+jam 23"*.
+
+`cron-gdrive` mendapat jadwal kedua pada 16:05 UTC supaya jendela 16:00–16:59
+UTC punya dua kesempatan; putaran :20 sendirian terlalu tipis untuk keterlambatan
+runner GitHub yang biasa.
+
+### 2. Pengingat harian ke GRUP, berjeda satu menit
+
+Yang dikirim MARLIN tiap sore selama ini hanya penagih PERORANGAN ke HP
+penanggung jawab. Ke grup — tempat PPK dan konsultan membaca — tidak ada apa
+pun setiap hari.
+
+Sekarang ada, dengan sakelar sendiri (`reminder.daily_group_enabled`,
+**default MATI**, dinyalakan manusia lewat /sistem): tiap sore, paket yang
+laporan harian lokasinya belum lengkap ditagih di grupnya.
+
+Ketetapan user: **jeda minimal satu menit antar grup** — 19 pesan beruntun ke 19
+grup adalah pola yang membuat nomor ditandai spam. Karena 19 grup × 1 menit
+melewati `maxDuration` 300 detik sebuah route, gilirannya disimpan sebagai
+ANTREAN (`wa_group_reminders`, UNIQUE `(paket, tanggal)`, `send_after`
+bertingkat) yang dikuras putaran `/api/cron/waha` tiap lima menit. Jedanya
+ditegakkan JAM, bukan proses yang harus tetap hidup.
+
+Isi pesan dihitung saat KIRIM, bukan saat antre: yang belum melapor pukul 18.00
+bisa sudah melapor pukul 18.15, dan grupnya ditandai `dilewati` tanpa pesan.
+Jumlah foto sengaja tidak diatur MARLIN — ketetapan user: *"jumlah foto biarkan
+saja, itu murni orang lapangan"*.
+
+Jamnya 18.00 WIB, mengikuti jadwal `cron-harian` yang memang sudah `0 11 * * *`.
+Komentar di tiga tempat masih menulis "09:00 UTC = 16:00 WIB" padahal jadwalnya
+sudah lama berbeda; yang benar adalah jadwalnya, dan komentarnya yang diluruskan.
+
+---
+
+## 471 · Lampiran WA diarsipkan saat ditangkap, bukan saat ditetapkan (2026-08-29)
+
+Membuka lampiran yang baru masuk menjawab: *"Berkas tidak ada lagi di simpanan
+sementara (biasanya hilang saat aplikasi di-deploy ulang) dan belum sempat
+diarsipkan."*
+
+Itu akibat langsung ketetapan 2026-08-25 (*"disimpan di lokal dulu, baru
+kemudian saat dokumen itu dikonfirmasi, baru ke R2"*). Alasan lamanya masuk akal
+— arsip permanen sebaiknya hanya memuat berkas yang dinyatakan berguna manusia.
+Yang tidak diperhitungkan: disk kontainer Railway sementara, dan selama
+pengembangan masih padat, **deploy datang lebih sering daripada keputusan**.
+Berkas mati sebelum sempat diputuskan, dan yang tersisa kartu yang menunjuk
+berkas yang tidak ada.
+
+Urutannya dibalik:
+
+- `tangkapLampiran` mengarsipkan ke R2 **segera**, best-effort — kegagalannya
+  tidak menggagalkan penangkapan, dan webhook tidak tertahan.
+- `arsipkanYangTertinggal` tidak lagi menyaring `decision`. Yang belum
+  diputuskan justru yang paling mungkin hilang.
+- Penyapu itu sebelumnya **tidak pernah dipanggil dari mana pun** — jaring
+  pengaman yang tidak pernah dipasang. Sekarang ia menumpang putaran
+  `/api/cron/waha` tiap lima menit.
+- `localPath` turun pangkat jadi CACHE; yang melayani pembacaan saat berkas
+  lokalnya hilang adalah R2.
+
+Ongkosnya disadari: R2 kini memuat juga berkas yang ternyata bukan bahan kerja.
+Jauh lebih murah daripada kehilangan surat yang sudah di tangan.
+
+Alternatif "buat disknya awet" (Volume Railway) tidak diambil sebagai jawaban
+utama: volume mengikat layanan ke satu instans, tidak punya salinan cadangan,
+dan menambah tempat kedua yang harus dijaga — sementara foto dan dokumen MARLIN
+sudah di R2. Kalau suatu saat volume tetap dipasang, `LAMPIRAN_DIR` tinggal
+diarahkan ke titik pasangnya; tidak ada kode yang perlu berubah.
+
+---
+
+## 472 · Lampiran WA: disk dulu, R2 hanya yang ditetapkan, sisanya kedaluwarsa (2026-08-29)
+
+Ketetapan pagi ini (471, "arsipkan semua begitu ditangkap") menyelamatkan berkas
+tetapi menciptakan dua masalah baru yang langsung terlihat user: **R2 menampung
+setiap foto yang lewat 19 grup**, dan daftar penetapan membengkak tanpa cara
+membersihkannya. Keduanya nyata; aturannya diperbaiki di sini, bukan
+dipertahankan.
+
+### Aturan yang berlaku sekarang
+
+| Tahap | Perilaku |
+|---|---|
+| Tangkap | Tulis ke **disk lokal** saja. Tidak ada yang naik R2. |
+| Ditetapkan surat/dokumen | Naik **R2**, permanen. Ini yang jadi surat/dokumen resmi. |
+| Ditandai bukan bahan kerja | Objek R2-nya (kalau ada dari warisan 471) **dihapus** saat itu juga. |
+| Retensi | **Foto 3 hari, berkas lain 14 hari.** Lewat itu berkasnya dihapus, barisnya jadi `kedaluwarsa` dan keluar dari daftar. Yang sudah ditetapkan surat/dokumen tidak pernah kedaluwarsa. |
+
+Dua angka, karena dua umur kegunaan yang berbeda: foto grup basi dalam hitungan
+hari, surat bisa baru dibuka pekan depannya. Angkanya ketetapan user.
+
+Baris DB-nya **tidak** dihapus, hanya berkasnya. "Pernah ada berkas ini, dari
+siapa, kapan" tetap catatan yang berguna; yang mahal cuma isinya.
+
+Berkas yang dipakai bersama beberapa baris (kiriman ulang, sidik jari sama)
+hanya dihapus kalau SELURUH baris itu ikut kedaluwarsa — kalau tidak, baris
+kembar yang masih ditunggu jadi tidak bisa dibuka.
+
+### Yang membuat "cukup di disk" tidak berarti "hilang saat deploy"
+
+**Volume Railway di production**, bukan kode: `LAMPIRAN_DIR` diarahkan ke titik
+pasang volume. Tidak ada baris kode yang berubah karena variabel itu sudah
+dibaca sejak awal.
+
+Ketetapan user: volume **hanya di production**, tidak di dev. Konsekuensinya
+disadari dan disengaja — di dev berkas lampiran memang hilang tiap deploy, dan
+layarnya mengatakan itu apa adanya.
+
+### Daftar bisa dibersihkan
+
+- Tombol **massal** "tandai bukan bahan kerja" (centang banyak → satu klik).
+  Massal SENGAJA hanya satu arah: menjadikan sesuatu surat resmi tetap satu per
+  satu, karena itu keputusan yang menuntut membaca berkasnya.
+- Baris `kedaluwarsa` tidak muncul lagi di daftar tunggu: berkasnya tidak ada,
+  jadi tidak ada yang bisa ditetapkan.
+
+Penghabis umur simpan menumpang putaran harian (`/api/cron/harian`) — yang
+dikejar umur berhari-hari, bukan menit.
+
+---
+
+## 473 · Audit menu RAPL: AI-nya lambat karena polanya, dan AHSP diam-diam jadi gerbang (2026-08-29)
 
 Keluhan user setelah memakai layar sungguhnya: *"ada saran harga dari AI, tapi
 saat diklik prosesnya lumayan lama, lalu ada hasil harus klik terapkan, padahal
@@ -24687,9 +24830,9 @@ hari ini item seperti itu tidak mungkin ada.
 
 ---
 
-## 471 · RAPL-01…RAPL-08 dikerjakan: AI di latar, dan RAPL memecah RAB per item (2026-08-29)
+## 474 · RAPL-01…RAPL-08 dikerjakan: AI di latar, dan RAPL memecah RAB per item (2026-08-29)
 
-Perintah user setelah audit DECISIONS 470: *"lakukan perbaikannya langsung
+Perintah user setelah audit DECISIONS 473: *"lakukan perbaikannya langsung
 sekarang"*. Kedelapan temuan ditutup. Catatan 470 yang berbunyi "tidak ada kode
 yang diubah" berlaku untuk PR audit itu saja — bukan lagi keadaan sekarang.
 
@@ -24765,7 +24908,7 @@ ada dan tetap berguna untuk pengadaan) dan `hitungItemRapl` (biaya + margin per
 item). Agregat menjadi turunan; ia bukan lagi satu-satunya bentuk.
 
 Tiga jalan yang membuat AHSP berhenti menjadi gerbang, sesuai tiga keputusan
-user di DECISIONS 470:
+user di DECISIONS 473:
 
 1. **Faktor konversi satuan** dengan catatan WAJIB. Item m² dinding vs analisa
    m³ pasangan diselesaikan dengan menyatakan 0,15 beserta alasannya. Dijaga

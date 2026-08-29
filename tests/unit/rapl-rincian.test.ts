@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { agregasiKebutuhan, type ItemUntukRapl, type RincianItem } from "@/lib/ahsp/rapl-calc";
 
 /**
- * RINCIAN PER ITEM (RAPL-08, DECISIONS 470).
+ * RINCIAN PER ITEM (RAPL-08, DECISIONS 473).
  *
  * Sebelum ini RAPL hanya bisa menurunkan kebutuhan dari analisa AHSP yang
  * satuannya sepadan. Empat gerbang membuang sisanya, dan tidak ada satu pun

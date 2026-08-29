@@ -1,5 +1,5 @@
 -- Draf harga AI berhenti hidup di memori peramban dan berhenti menahan request
--- (RAPL-01/RAPL-02/RAPL-06, DECISIONS 470). Idempoten: DECISIONS 167.
+-- (RAPL-01/RAPL-02/RAPL-06, DECISIONS 473). Idempoten: DECISIONS 167.
 
 CREATE TABLE IF NOT EXISTS "hsd_usulan_run" (
   "id"              UUID         NOT NULL,

@@ -1,5 +1,5 @@
 -- RAPL memecah RAB per ITEM; AHSP jadi pembantu, bukan gerbang (RAPL-08,
--- DECISIONS 470). Idempoten: DECISIONS 167.
+-- DECISIONS 473). Idempoten: DECISIONS 167.
 
 CREATE TABLE IF NOT EXISTS "rapl_rincian" (
   "id"               UUID        NOT NULL,

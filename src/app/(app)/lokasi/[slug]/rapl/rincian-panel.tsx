@@ -24,7 +24,7 @@ import {
 } from "@/lib/ahsp/rincian-actions";
 
 /**
- * RINCIAN PER ITEM RAB (RAPL-08, DECISIONS 470).
+ * RINCIAN PER ITEM RAB (RAPL-08, DECISIONS 473).
  *
  * Inilah bentuk yang sebenarnya dipakai orang saat menawar: bukan "berapa
  * total semen se-lokasi", melainkan ITEM MANA YANG RUGI. Sebelum ini

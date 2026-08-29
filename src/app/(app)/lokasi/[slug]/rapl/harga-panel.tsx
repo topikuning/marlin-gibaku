@@ -22,7 +22,7 @@ import {
 
 /**
  * Pengisian HARGA SATUAN DASAR memakai MarlinGrid (DECISIONS 328), dengan draf
- * AI yang TERSIMPAN DI SERVER (DECISIONS 470).
+ * AI yang TERSIMPAN DI SERVER (DECISIONS 473).
  *
  * Yang berubah dari versi pertama, dan alasannya:
  *

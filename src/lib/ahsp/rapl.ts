@@ -12,7 +12,7 @@ import {
 } from "./rapl-calc";
 
 /**
- * Simulasi RAPL satu lokasi (DECISIONS 320, diperluas 470): baca data, lalu
+ * Simulasi RAPL satu lokasi (DECISIONS 320, diperluas 473): baca data, lalu
  * serahkan seluruh perhitungannya ke `rapl-calc.ts`. Tidak ada formula di
  * berkas ini.
  */
@@ -145,7 +145,7 @@ export type KeadaanItemRapl = {
 };
 
 /**
- * Biaya + margin per item RAB (RAPL-08, DECISIONS 470).
+ * Biaya + margin per item RAB (RAPL-08, DECISIONS 473).
  *
  * Ringkasannya sengaja hanya menjumlahkan item yang LENGKAP: mencampur item
  * yang biayanya baru separuh diketahui ke dalam satu total akan menghasilkan
