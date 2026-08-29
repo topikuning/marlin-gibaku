@@ -4,6 +4,7 @@ import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import { FMT_ANGKA, FMT_PERSEN, FMT_RUPIAH, KOTAK, WARNA, gayaKepala, isi, logoPasanganKanan } from "@/lib/export/xlsx-gaya";
 import type { SimulasiRapl } from "@/lib/ahsp/rapl";
 import type { KeadaanHarga } from "@/lib/ahsp/hsd";
+import type { BiayaItem } from "@/lib/ahsp/rapl-calc";
 
 /**
  * Unduhan KEBUTUHAN SUMBER DAYA (RAPL) — DECISIONS 322.
@@ -81,13 +82,14 @@ function tanggal(d: Date): string {
 export async function buildRaplXlsx(
   rapl: SimulasiRapl,
   kepala: KepalaRapl,
-  opsi: { logo?: LogoLaporan; harga?: KeadaanHarga } = {},
+  opsi: { logo?: LogoLaporan; harga?: KeadaanHarga; perItem?: BiayaItem[] } = {},
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = kepala.dicetakPada;
 
   tulisRingkasan(wb, rapl, kepala, opsi.logo, opsi.harga);
+  if (opsi.perItem && opsi.perItem.length > 0) tulisPerItem(wb, opsi.perItem);
   tulisKebutuhan(wb, rapl, opsi.harga);
   tulisDilewat(wb, rapl);
 
@@ -437,4 +439,120 @@ function tulisDilewat(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
     ws.getCell(r, c).fill = isi(WARNA.total);
     ws.getCell(r, c).border = KOTAK;
   }
+}
+
+/* ---------------------------------------------------------- rincian per item */
+
+const CARA_JUDUL: Record<string, string> = {
+  ahsp: "Dari AHSP",
+  manual: "Dirinci tangan",
+  campuran: "AHSP + tambahan",
+  borongan: "Borongan",
+  belum: "Belum bisa dihitung",
+};
+
+/**
+ * Lembar RINCIAN PER ITEM (RAPL-08, DECISIONS 475).
+ *
+ * Lembar-lembar lain menjawab "berapa total semen se-lokasi". Yang ini
+ * menjawab pertanyaan yang benar-benar dipakai orang saat menawar: ITEM MANA
+ * YANG RUGI. Kolom margin sengaja DIKOSONGKAN — bukan diisi nol — untuk item
+ * yang biayanya baru sebagian diketahui: separuh biaya bukan margin, dan di
+ * dalam berkas yang sudah keluar dari layar tidak ada peringatan yang menemani.
+ */
+function tulisPerItem(wb: ExcelJS.Workbook, item: BiayaItem[]): void {
+  const ws = wb.addWorksheet("Rincian per item");
+  ws.columns = [
+    { width: 12 },
+    { width: 56 },
+    { width: 10 },
+    { width: 14 },
+    { width: 20 },
+    { width: 18 },
+    { width: 20 },
+    { width: 20 },
+    { width: 12 },
+    { width: 40 },
+  ];
+
+  ws.addRow([
+    "KODE",
+    "URAIAN ITEM RAB",
+    "SATUAN",
+    "VOLUME",
+    "NILAI RAB (Rp)",
+    "CARA HITUNG",
+    "BIAYA (Rp)",
+    "MARGIN (Rp)",
+    "MARGIN %",
+    "KETERANGAN",
+  ]);
+  ws.getRow(1).eachCell((c) => gayaKepala(c, { size: 10 }));
+  ws.getRow(1).height = 22;
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
+
+  // Yang rugi paling dalam lebih dulu; sisanya dari nilai RAB terbesar. Daftar
+  // yang berguna dibuka oleh baris yang paling menentukan keputusan.
+  const urut = [...item].sort((a, b) => {
+    const ma = a.margin;
+    const mb = b.margin;
+    if (ma !== null && mb !== null && ma !== mb) return ma < mb ? -1 : 1;
+    if (ma !== null && mb === null) return -1;
+    if (ma === null && mb !== null) return 1;
+    return Number(b.nilaiRab - a.nilaiRab);
+  });
+
+  let r = 2;
+  for (const i of urut) {
+    ws.getCell(r, 1).value = i.code;
+    ws.getCell(r, 2).value = i.uraian;
+    ws.getCell(r, 3).value = i.satuan;
+    if (i.volume !== null) {
+      ws.getCell(r, 4).value = i.volume;
+      ws.getCell(r, 4).numFmt = FMT_ANGKA;
+    }
+    ws.getCell(r, 5).value = Number(i.nilaiRab);
+    ws.getCell(r, 5).numFmt = FMT_RUPIAH;
+    ws.getCell(r, 6).value = CARA_JUDUL[i.cara] ?? i.cara;
+    if (i.cara !== "belum") {
+      ws.getCell(r, 7).value = Number(i.biaya);
+      ws.getCell(r, 7).numFmt = FMT_RUPIAH;
+    }
+    if (i.margin !== null) {
+      const m = ws.getCell(r, 8);
+      m.value = Number(i.margin);
+      m.numFmt = FMT_RUPIAH;
+      if (i.margin < 0n) m.font = { size: 10, bold: true, color: { argb: "FFB42318" } };
+    }
+    if (i.marginPersen !== null) {
+      ws.getCell(r, 9).value = i.marginPersen;
+      ws.getCell(r, 9).numFmt = FMT_PERSEN;
+    }
+    ws.getCell(r, 10).value =
+      i.alasanLewat !== null
+        ? (ALASAN_JUDUL[i.alasanLewat] ?? i.alasanLewat)
+        : i.lengkap
+          ? ""
+          : `${i.komponenBelumBerharga} komponen belum berharga – margin belum bisa dihitung`;
+
+    for (let c = 1; c <= 10; c += 1) {
+      ws.getCell(r, c).border = KOTAK;
+      if (!ws.getCell(r, c).font?.bold) ws.getCell(r, c).font = { size: 10 };
+      ws.getCell(r, c).alignment = { wrapText: c === 2 || c === 10, vertical: "top" };
+    }
+    r += 1;
+  }
+
+  r += 1;
+  ws.mergeCells(r, 1, r, 10);
+  const catatan = ws.getCell(r, 1);
+  catatan.value =
+    "Kolom MARGIN sengaja dikosongkan untuk item yang masih punya komponen tanpa harga. " +
+    "Biaya yang baru sebagian diketahui selalu membuat margin terlihat lebih besar daripada " +
+    "yang sebenarnya, dan angka itulah yang dipakai orang memutuskan menawar. " +
+    "Koefisien dari AHSP tidak dapat diubah; yang ditambahkan orang ditandai di layar MARLIN.";
+  catatan.alignment = { wrapText: true, vertical: "top" };
+  catatan.font = { italic: true, size: 10 };
+  ws.getRow(r).height = 46;
 }
