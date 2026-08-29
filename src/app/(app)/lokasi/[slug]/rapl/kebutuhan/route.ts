@@ -27,7 +27,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { slug } = await params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
-  if (!can(user.role, "report.export")) {
+  /*
+   * Berkasnya memuat harga satuan, biaya per kategori, dan margin — angka uang
+   * yang sama dengan layar. `report.export` saja tidak cukup: ia dimiliki juga
+   * oleh `wakil_ppk` dan `exec_viewer` (RAPL-07, DECISIONS 470).
+   */
+  if (!can(user.role, "report.export") || !can(user.role, "finance.view")) {
     return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
   }
 

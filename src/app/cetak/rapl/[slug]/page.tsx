@@ -30,7 +30,13 @@ export default async function CetakRaplPage({
   const sp = await searchParams;
 
   const user = await requireUser();
-  if (!can(user.role, "rab.view")) notFound();
+  /*
+   * Lembar ini SELURUHNYA angka uang: biaya pelaksanaan per kategori dan
+   * potensi margin terhadap nilai RAB. `rab.view` saja tidak cukup — ia
+   * dimiliki kedelapan role, termasuk `wakil_ppk` yang mewakili pemberi kerja
+   * (RAPL-07, DECISIONS 470).
+   */
+  if (!can(user.role, "rab.view") || !can(user.role, "finance.view")) notFound();
 
   const location = await db.location.findUnique({
     where: { slug },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   CellClassParams,
@@ -8,7 +8,7 @@ import type {
   ColDef,
   ValueFormatterParams,
 } from "ag-grid-community";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
@@ -17,18 +17,26 @@ import {
   mintaUsulanHargaAiAction,
   simpanHargaSel,
   terapkanUsulanHargaAiAction,
+  tolakUsulanHargaAiAction,
 } from "@/lib/ahsp/hsd-actions";
 
 /**
- * Pengisian HARGA SATUAN DASAR memakai MarlinGrid (DECISIONS 328).
+ * Pengisian HARGA SATUAN DASAR memakai MarlinGrid (DECISIONS 328), dengan draf
+ * AI yang TERSIMPAN DI SERVER (DECISIONS 470).
  *
- * Versi sebelumnya menyusun 300 formulir kecil dengan tangan — melanggar aturan
- * repo yang sudah tertulis ("Tabel data → MarlinGrid") dan, lebih buruk,
- * membuat pengisian 300 harga jadi 300 kali klik-simpan. Grid memberi yang
- * memang dibutuhkan orang yang mengisi harga: ketik → Enter → turun ke baris
- * berikutnya, seperti Excel, plus saring & urut bawaan.
+ * Yang berubah dari versi pertama, dan alasannya:
  *
- * Kolom `harga` DIEDIT langsung; setiap sel yang berubah langsung disimpan.
+ * - **Draf tidak lagi tinggal di `useState`** (RAPL-02). Subtab RAPL berbasis
+ *   URL, jadi menekan "Ringkasan" membongkar komponen ini dan menghapus hasil
+ *   yang baru ditunggu semenit lebih. Orang lalu menyetujui tanpa memeriksa,
+ *   karena memeriksa berarti kehilangan.
+ * - **Layar menunggu, bukan request** (RAPL-01). Permintaan hanya mencatat;
+ *   halaman menarik ulang dirinya sampai drafnya muncul.
+ * - **Grid menyaring ke baris yang PUNYA usulan** begitu drafnya datang
+ *   (RAPL-04) — sebelumnya usulan dijatuhkan ke kolom yang harus dicari
+ *   sendiri di antara ratusan baris.
+ * - **Terima/tolak per baris** (RAPL-05). Persetujuan yang tidak bisa sebagian
+ *   bukan persetujuan.
  */
 
 export type BarisHargaRow = {
@@ -40,8 +48,31 @@ export type BarisHargaRow = {
   harga: string | null;
   biaya: string | null;
   sumber: string | null;
+  /** Nilai RAB yang tertahan oleh sumber daya ini — pengurut, bukan uang. */
+  nilaiTertahan: string;
   /** Harga sumber daya yang sama di lokasi lain — bahan pertimbangan. */
   rekomendasi: { harga: string; lokasi: string; kabupaten: string; seKabupaten: boolean }[];
+};
+
+export type UsulanDrafRow = {
+  id: string;
+  kategori: string;
+  nama: string;
+  satuan: string;
+  harga: string;
+  keyakinan: string;
+  alasan: string;
+};
+
+export type KeadaanUsulanView = {
+  menunggu: boolean;
+  terputus: boolean;
+  pendingSinceMs: number | null;
+  model: string | null;
+  error: string | null;
+  diminta: number;
+  totalKosong: number;
+  draf: UsulanDrafRow[];
 };
 
 const LABEL: Record<string, string> = {
@@ -56,18 +87,10 @@ type Baris = BarisHargaRow & {
   hargaNum: number | null;
   biayaNum: number | null;
   rekomendasiTeks: string;
+  usulanId: string | null;
   usulanAiNum: number | null;
   keyakinanAi: string;
   alasanAi: string;
-};
-
-type UsulanAi = {
-  kategori: string;
-  nama: string;
-  satuan: string;
-  harga: string;
-  keyakinan: "rendah" | "sedang" | "tinggi";
-  alasan: string;
 };
 
 const kunci = (r: { kategori: string; nama: string; satuan: string }) =>
@@ -79,26 +102,52 @@ export function HargaPanel({
   rows,
   canInput,
   canUseAi,
+  usulan,
 }: {
   locationId: string;
   slug: string;
   rows: BarisHargaRow[];
   canInput: boolean;
   canUseAi: boolean;
+  usulan: KeadaanUsulanView;
 }) {
   const router = useRouter();
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
   const [, mulaiSimpan] = useTransition();
   const [aiPending, mulaiAi] = useTransition();
-  const [terapkanPending, mulaiTerapkan] = useTransition();
-  const [data, setData] = useState<BarisHargaRow[]>(rows);
-  const [modelAi, setModelAi] = useState<string | null>(null);
-  const [usulanAi, setUsulanAi] = useState<Map<string, UsulanAi>>(new Map());
+  const [putusanPending, mulaiPutusan] = useTransition();
+  const [dicentang, setDicentang] = useState<Baris[]>([]);
+  const [hanyaUsulan, setHanyaUsulan] = useState(true);
+  const [detik, setDetik] = useState(0);
+
+  /*
+   * Menunggu di layar, bukan di dalam request (pola DECISIONS 455).
+   * `router.refresh()` menarik ulang server component, jadi draf muncul begitu
+   * tertulis tanpa endpoint status tersendiri. Detiknya dihitung dari
+   * `pendingSinceMs` supaya tetap benar bila halaman ditinggal lalu dibuka lagi.
+   */
+  useEffect(() => {
+    if (!usulan.menunggu || usulan.pendingSinceMs == null) return;
+    const pending = usulan.pendingSinceMs;
+    const hitung = () => setDetik(Math.max(0, Math.round((Date.now() - pending) / 1000)));
+    hitung();
+    const jam = setInterval(hitung, 1000);
+    const tarik = setInterval(() => router.refresh(), 3000);
+    return () => {
+      clearInterval(jam);
+      clearInterval(tarik);
+    };
+  }, [usulan.menunggu, usulan.pendingSinceMs, router]);
+
+  const drafPerKunci = useMemo(
+    () => new Map(usulan.draf.map((u) => [kunci(u), u])),
+    [usulan.draf],
+  );
 
   const baris: Baris[] = useMemo(
     () =>
-      data.map((r) => {
-        const usulan = usulanAi.get(kunci(r));
+      rows.map((r) => {
+        const d = drafPerKunci.get(kunci(r));
         return {
           ...r,
           hargaNum: r.harga === null ? null : Number(r.harga),
@@ -106,12 +155,24 @@ export function HargaPanel({
           rekomendasiTeks: r.rekomendasi
             .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
             .join("  |  "),
-          usulanAiNum: usulan ? Number(usulan.harga) : null,
-          keyakinanAi: usulan ? `Keyakinan ${usulan.keyakinan}` : "",
-          alasanAi: usulan?.alasan ?? "",
+          usulanId: d?.id ?? null,
+          usulanAiNum: d ? Number(d.harga) : null,
+          keyakinanAi: d ? `Keyakinan ${d.keyakinan}` : "",
+          alasanAi: d?.alasan ?? "",
         };
       }),
-    [data, usulanAi],
+    [rows, drafPerKunci],
+  );
+
+  const adaDraf = usulan.draf.length > 0;
+  /*
+   * Saringan bawaan mengikuti pekerjaan yang sedang berjalan: begitu draf
+   * datang, yang perlu dilihat orang adalah 25 baris itu — bukan 300 baris
+   * tempat 25 itu bersembunyi.
+   */
+  const tampil = useMemo(
+    () => (adaDraf && hanyaUsulan ? baris.filter((b) => b.usulanId !== null) : baris),
+    [adaDraf, hanyaUsulan, baris],
   );
 
   const kolom: ColDef<Baris>[] = useMemo(
@@ -159,6 +220,14 @@ export function HargaPanel({
         width: 130,
         cellClass: "text-ink-muted",
       },
+      {
+        field: "alasanAi",
+        headerName: "Dasar usulan AI",
+        flex: 1,
+        minWidth: 240,
+        cellClass: "text-ink-muted",
+        tooltipField: "alasanAi",
+      },
       { ...rupiahCol<Baris>("biayaNum", "Biaya"), width: 160 },
       {
         field: "sumber",
@@ -176,24 +245,60 @@ export function HargaPanel({
         cellClass: "text-ink-muted",
         tooltipField: "rekomendasiTeks",
       },
-      {
-        field: "alasanAi",
-        headerName: "Dasar usulan AI",
-        flex: 1,
-        minWidth: 260,
-        cellClass: "text-ink-muted",
-        tooltipField: "alasanAi",
-      },
     ],
     [canInput],
   );
 
-  const belum = data.filter((r) => r.harga === null).length;
-  const daftarUsulan = [...usulanAi.values()];
+  const belum = rows.filter((r) => r.harga === null).length;
+  const centangBerdraf = dicentang.filter((d) => d.usulanId !== null);
+  const centangKosong = dicentang.filter((d) => d.harga === null);
+
+  const putuskan = (
+    ids: string[],
+    aksi: typeof terapkanUsulanHargaAiAction | typeof tolakUsulanHargaAiAction,
+  ) => {
+    setPesan(null);
+    mulaiPutusan(async () => {
+      const hasil = await aksi({ locationId, slug, ids });
+      if (!hasil.ok) {
+        setPesan({ tone: "error", teks: hasil.error });
+        return;
+      }
+      setDicentang([]);
+      setPesan({
+        tone: "success",
+        teks:
+          "tersimpan" in hasil
+            ? `${hasil.tersimpan.length} usulan diterima dan masuk kalkulasi RAPL${hasil.dilewat > 0 ? ` – ${hasil.dilewat} dilewati karena sudah berharga` : ""}.`
+            : `${hasil.ditolak} usulan ditolak dan tidak akan ditawarkan lagi.`,
+      });
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-3">
       {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
+
+      {usulan.menunggu ? (
+        <Banner
+          tone="info"
+          title={`Draf harga sedang disusun – ${detik} detik`}
+          description="Permintaannya sudah tercatat, jadi halaman ini boleh ditinggal. Hasilnya muncul di sini sendiri saat siap, dan tetap ada saat kamu kembali."
+        />
+      ) : null}
+
+      {usulan.terputus ? (
+        <Banner
+          tone="warning"
+          title="Permintaan draf harga sebelumnya tidak selesai"
+          description="Prosesnya berhenti sebelum menjawab – bisa karena aplikasi di-deploy ulang. Silakan minta lagi."
+        />
+      ) : null}
+
+      {!usulan.menunggu && usulan.error ? (
+        <Banner tone="error" title="Permintaan draf harga gagal" description={usulan.error} />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-inset px-3 py-2">
         <p className="min-w-[240px] flex-1 text-[13px] text-ink-muted">
@@ -203,87 +308,108 @@ export function HargaPanel({
             <>Harga hanya dapat diubah oleh pengguna dengan hak input keuangan.</>
           )}
         </p>
+
         {canInput && canUseAi && belum > 0 ? (
           <Button
             type="button"
             variant="secondary"
             size="sm"
             loading={aiPending}
+            disabled={usulan.menunggu}
             onClick={() => {
               setPesan(null);
+              const dipilih = centangKosong.map((d) => kunci(d));
               mulaiAi(async () => {
-                const hasil = await mintaUsulanHargaAiAction({ locationId, slug });
+                const hasil = await mintaUsulanHargaAiAction({ locationId, slug, dipilih });
                 if (!hasil.ok) {
                   setPesan({ tone: "error", teks: hasil.error });
                   return;
                 }
-                setModelAi(hasil.model);
-                setUsulanAi(new Map(hasil.usulan.map((u) => [kunci(u), u])));
+                setDicentang([]);
                 setPesan({
                   tone: "success",
-                  teks: `${hasil.usulan.length} draf harga dari ${hasil.model} siap direview. Belum ada yang disimpan.`,
-                });
-              });
-            }}
-          >
-            <Sparkles aria-hidden className="size-3.5" />
-            Minta estimasi AI
-          </Button>
-        ) : null}
-        {canInput && daftarUsulan.length > 0 ? (
-          <Button
-            type="button"
-            size="sm"
-            loading={terapkanPending}
-            onClick={() => {
-              setPesan(null);
-              mulaiTerapkan(async () => {
-                const hasil = await terapkanUsulanHargaAiAction({
-                  locationId,
-                  slug,
-                  usulan: daftarUsulan.map(({ kategori, nama, satuan, harga }) => ({
-                    kategori,
-                    nama,
-                    satuan,
-                    harga,
-                  })),
-                });
-                if (!hasil.ok) {
-                  setPesan({ tone: "error", teks: hasil.error });
-                  return;
-                }
-                const tersimpan = new Map(hasil.tersimpan.map((h) => [kunci(h), h]));
-                setData((lama) =>
-                  lama.map((r) => {
-                    const h = tersimpan.get(kunci(r));
-                    return h ? { ...r, harga: h.harga, biaya: h.biaya, sumber: h.sumber } : r;
-                  }),
-                );
-                setUsulanAi(new Map());
-                setPesan({
-                  tone: "success",
-                  teks: `${hasil.tersimpan.length} usulan AI diterima dan masuk kalkulasi RAPL.`,
+                  teks: `Permintaan ${hasil.diminta} draf harga tercatat${
+                    hasil.totalKosong > hasil.diminta
+                      ? ` – ${hasil.totalKosong - hasil.diminta} sumber daya lain belum ikut dimintakan`
+                      : ""
+                  }.`,
                 });
                 router.refresh();
               });
             }}
           >
-            <Check aria-hidden className="size-3.5" />
-            Pakai {daftarUsulan.length} usulan
+            <Sparkles aria-hidden className="size-3.5" />
+            {centangKosong.length > 0
+              ? `Minta estimasi AI (${centangKosong.length} dicentang)`
+              : "Minta estimasi AI"}
           </Button>
+        ) : null}
+
+        {canInput && adaDraf ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              loading={putusanPending}
+              disabled={centangBerdraf.length === 0}
+              onClick={() =>
+                putuskan(
+                  centangBerdraf.map((d) => d.usulanId as string),
+                  terapkanUsulanHargaAiAction,
+                )
+              }
+            >
+              <Check aria-hidden className="size-3.5" />
+              Pakai {centangBerdraf.length} yang dicentang
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              loading={putusanPending}
+              disabled={centangBerdraf.length === 0}
+              onClick={() =>
+                putuskan(
+                  centangBerdraf.map((d) => d.usulanId as string),
+                  tolakUsulanHargaAiAction,
+                )
+              }
+            >
+              <X aria-hidden className="size-3.5" />
+              Tolak {centangBerdraf.length}
+            </Button>
+          </>
         ) : null}
       </div>
 
-      {daftarUsulan.length > 0 ? (
+      {adaDraf ? (
         <Banner
           tone="warning"
-          title={`Usulan ${modelAi ?? "AI"} belum tersimpan`}
-          description="Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan. Angka ini bukan survei pasar atau penawaran pemasok; tombol Pakai usulan adalah persetujuan manusia untuk memasukkannya ke RAPL."
+          title={`${usulan.draf.length} draf ${usulan.model ?? "AI"} menunggu keputusanmu – belum tersimpan`}
+          description={
+            `Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan, lalu centang yang kamu setujui. ` +
+            `Angka ini bukan survei pasar atau penawaran pemasok. ` +
+            (usulan.totalKosong > usulan.diminta
+              ? `Permintaan lalu mencakup ${usulan.diminta} dari ${usulan.totalKosong} sumber daya yang belum berharga – yang menahan nilai RAB terbesar didahulukan.`
+              : "")
+          }
         />
       ) : null}
 
+      {adaDraf ? (
+        <label className="flex items-center gap-2 text-[13px] text-ink">
+          <input
+            type="checkbox"
+            checked={hanyaUsulan}
+            onChange={(e) => setHanyaUsulan(e.target.checked)}
+            className="size-3.5"
+          />
+          Tampilkan hanya baris yang ada usulannya ({usulan.draf.length})
+        </label>
+      ) : null}
+
       <MarlinGrid<Baris>
-        rowData={baris}
+        rowData={tampil}
         columnDefs={kolom}
         quickFilter
         csvExport
@@ -291,6 +417,9 @@ export function HargaPanel({
         height="60vh"
         persistKey="rapl-harga"
         editMode={canInput}
+        rowSelection={canInput ? "multi" : undefined}
+        onSelectionChanged={canInput ? setDicentang : undefined}
+        isRowSelectable={(d: Baris) => (adaDraf ? d.usulanId !== null : d.harga === null)}
         getRowId={(d: Baris) => `${d.kategori}|${d.nama}|${d.satuan}`}
         emptyText="Belum ada kebutuhan – setujui padanan AHSP lebih dulu."
         onCellValueChanged={(e: CellValueChangedEvent<Baris>) => {
@@ -306,26 +435,11 @@ export function HargaPanel({
               nama: d.nama,
               satuan: d.satuan,
               harga: teks,
-              sumber: teks === "" ? null : "Input manual",
             });
             if (!hasil.ok) {
               setPesan({ tone: "error", teks: hasil.error });
               return;
             }
-            // Perbarui baris di tempat supaya kolom Biaya ikut benar tanpa
-            // memuat ulang seluruh halaman.
-            setData((lama) =>
-              lama.map((r) =>
-                r.kategori === d.kategori && r.nama === d.nama && r.satuan === d.satuan
-                  ? {
-                      ...r,
-                      harga: hasil.harga,
-                      biaya: hasil.biaya,
-                      sumber: hasil.sumber,
-                    }
-                  : r,
-              ),
-            );
             setPesan({
               tone: "success",
               teks:
@@ -339,7 +453,7 @@ export function HargaPanel({
       />
 
       <p className="text-[12px] text-ink-muted">
-        {belum} dari {data.length} sumber daya belum berharga. Kolom &ldquo;Harga di lokasi
+        {belum} dari {rows.length} sumber daya belum berharga. Kolom &ldquo;Harga di lokasi
         lain&rdquo; hanya bahan pertimbangan – sekabupaten disebut lebih dulu.
       </p>
     </div>

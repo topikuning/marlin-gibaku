@@ -17,6 +17,7 @@ import { keadaanPadanan } from "@/lib/ahsp/padanan";
 import { hitungTahap, kelompokkanPerUraian } from "@/lib/ahsp/kelompok";
 import { simulasiRapl } from "@/lib/ahsp/rapl";
 import { keadaanHarga } from "@/lib/ahsp/hsd";
+import { keadaanUsulanAi } from "@/lib/ahsp/hsd-usulan";
 import { requireLocationPage } from "../get-location";
 import { PadananPanel, type BarisUraianRow } from "./padanan-panel";
 import { SimulasiKebutuhan } from "./simulasi-kebutuhan";
@@ -28,7 +29,7 @@ export const metadata: Metadata = { title: "RAPL" };
 export const dynamic = "force-dynamic";
 
 /**
- * RAPL — Rencana Anggaran Pelaksanaan Lapangan (DECISIONS 319–326).
+ * RAPL — Rencana Anggaran Pelaksanaan Lapangan (DECISIONS 319–326, 441, 470).
  *
  * Halaman ini disusun sebagai TAHAPAN, bukan tumpukan tabel: Petakan → Setujui
  * → Kebutuhan → Harga. Susunan lamanya menumpuk empat tabel sekaligus dan orang
@@ -36,9 +37,16 @@ export const dynamic = "force-dynamic";
  * friendly") sah, dan cacat terbesarnya bukan selera: daftarnya menyodorkan
  * 1.616 baris RAB untuk 480 keputusan.
  *
- * Penjelasan panjang yang dulu ditempel di mana-mana sekarang dilipat di balik
- * "Kenapa begini?" — tetap ada karena angkanya memang perlu dijelaskan, tapi
- * tidak lagi menutupi pekerjaannya.
+ * ### Siapa boleh melihat UANGNYA (RAPL-07, DECISIONS 470)
+ *
+ * Breakdown kebutuhan (volume bahan/upah/alat) memakai `rab.view` — ia bagian
+ * dari memahami pekerjaan. Tetapi HARGA, BIAYA, dan MARGIN menuntut
+ * `finance.view`. Sebelumnya seluruh halaman hanya dijaga `rab.view`, yang
+ * dimiliki KEDELAPAN role — termasuk `wakil_ppk`, verifikator pihak pemberi
+ * kerja. Artinya perkiraan biaya internal pelaksana beserta marginnya bisa
+ * dibuka dan dicetak oleh lawan bicaranya sendiri saat negosiasi dan
+ * pemeriksaan termin. PROJECT.md §4 sengaja tidak memberi `finance.*` kepada
+ * role itu; penjaga halaman inilah yang dulu membatalkan maksud tersebut.
  */
 export default async function RaplPage({
   params,
@@ -49,9 +57,6 @@ export default async function RaplPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const bagian = ["ringkasan", "kebutuhan", "validasi"].includes(query.bagian ?? "")
-    ? (query.bagian as "ringkasan" | "kebutuhan" | "validasi")
-    : "ringkasan";
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
   const canManage = can(user.role, "rab.manage");
@@ -59,12 +64,21 @@ export default async function RaplPage({
 
   const canInput = can(user.role, "finance.input");
   const canUseAi = can(user.role, "ai.generate");
+  /** Harga, biaya, margin. Bukan "menu disembunyikan" — datanya tidak diambil. */
+  const canSeeMoney = can(user.role, "finance.view");
 
-  const [basis, { baris, cakupan }, rapl, harga] = await Promise.all([
+  const diminta = ["ringkasan", "kebutuhan", "validasi"].includes(query.bagian ?? "")
+    ? (query.bagian as "ringkasan" | "kebutuhan" | "validasi")
+    : "ringkasan";
+  // Alamat "?bagian=kebutuhan" tidak boleh jadi pintu belakang ke angka uang.
+  const bagian = diminta === "kebutuhan" && !canSeeMoney ? "ringkasan" : diminta;
+
+  const [basis, { baris, cakupan }, rapl, harga, usulan] = await Promise.all([
     ringkasAhsp(),
     keadaanPadanan(location.id),
     simulasiRapl(location.id),
-    keadaanHarga(location.id),
+    canSeeMoney ? keadaanHarga(location.id) : Promise.resolve(null),
+    canSeeMoney && canInput ? keadaanUsulanAi(location.id) : Promise.resolve(null),
   ]);
 
   const uraian = kelompokkanPerUraian(baris);
@@ -102,14 +116,17 @@ export default async function RaplPage({
   }));
 
   /*
-   * Urutan pengisian harga: yang BELUM berharga lebih dulu, lalu dari kebutuhan
-   * terbesar. Mengisi 20 baris teratas biasanya sudah menutup sebagian besar
-   * nilai; daftar tanpa urutan membuat orang berhenti di baris kesepuluh.
+   * Urutan pengisian harga: yang BELUM berharga lebih dulu, lalu dari NILAI RAB
+   * YANG TERTAHAN — bukan dari kuantitas. Mengisi 20 baris teratas dengan
+   * urutan ini menutup sebagian besar nilai proyek; dengan urutan kuantitas ia
+   * menutup baris yang kebetulan cacahannya besar (RAPL-03).
    */
-  const barisHarga: BarisHargaRow[] = [...harga.baris]
+  const barisHarga: BarisHargaRow[] = [...(harga?.baris ?? [])]
     .sort(
       (a, b) =>
-        Number(a.harga !== null) - Number(b.harga !== null) || b.jumlah - a.jumlah,
+        Number(a.harga !== null) - Number(b.harga !== null) ||
+        (b.nilaiTertahan > a.nilaiTertahan ? 1 : b.nilaiTertahan < a.nilaiTertahan ? -1 : 0) ||
+        b.jumlah - a.jumlah,
     )
     .map((h) => ({
       kategori: h.kategori,
@@ -119,6 +136,7 @@ export default async function RaplPage({
       harga: h.harga === null ? null : h.harga.toString(),
       biaya: h.biaya === null ? null : h.biaya.toString(),
       sumber: h.sumber,
+      nilaiTertahan: h.nilaiTertahan.toString(),
       rekomendasi: h.rekomendasi.map((r) => ({
         harga: r.harga.toString(),
         lokasi: r.lokasi,
@@ -137,29 +155,31 @@ export default async function RaplPage({
       ? (Number(rapl.dipakai.nilai) / Number(rapl.nilaiRab)) * 100
       : 0;
 
-  const pctHarga = harga.baris.length > 0 ? (harga.berharga / harga.baris.length) * 100 : 0;
-  const p = harga.perbandingan;
-  const ringkasanBiaya = (
-    <RingkasBiaya
-      totalBiaya={harga.totalBiaya.toString()}
-      berharga={harga.berharga}
-      belumBerharga={harga.belumBerharga}
-      perKategori={harga.perKategori.map((k) => ({
-        kategori: k.kategori,
-        biaya: k.biaya.toString(),
-        berharga: k.berharga,
-        total: k.total,
-      }))}
-      perbandingan={{
-        nilaiProyek: p.nilaiProyek.toString(),
-        margin: p.margin.toString(),
-        marginPersen: p.marginPersen,
-        cakupanNilai: p.keandalan.cakupanNilai,
-        cakupanHarga: p.keandalan.cakupanHarga,
-        utuh: p.keandalan.utuh,
-      }}
-    />
-  );
+  const pctHarga =
+    harga && harga.baris.length > 0 ? (harga.berharga / harga.baris.length) * 100 : 0;
+  const p = harga?.perbandingan ?? null;
+  const ringkasanBiaya =
+    harga && p ? (
+      <RingkasBiaya
+        totalBiaya={harga.totalBiaya.toString()}
+        berharga={harga.berharga}
+        belumBerharga={harga.belumBerharga}
+        perKategori={harga.perKategori.map((k) => ({
+          kategori: k.kategori,
+          biaya: k.biaya.toString(),
+          berharga: k.berharga,
+          total: k.total,
+        }))}
+        perbandingan={{
+          nilaiProyek: p.nilaiProyek.toString(),
+          margin: p.margin.toString(),
+          marginPersen: p.marginPersen,
+          cakupanNilai: p.keandalan.cakupanNilai,
+          cakupanHarga: p.keandalan.cakupanHarga,
+          utuh: p.keandalan.utuh,
+        }}
+      />
+    ) : null;
 
   return (
     <div className="space-y-4">
@@ -194,25 +214,33 @@ export default async function RaplPage({
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Nilai RAB aktif" value={formatRupiah(p.nilaiProyek)} sub="nilai proyek pra-PPN" />
+        <KpiCard
+          label="Nilai RAB aktif"
+          value={formatRupiah(rapl.nilaiRab)}
+          sub="nilai proyek pra-PPN"
+        />
         <KpiCard
           label="Breakdown kebutuhan"
           value={formatPct(pctBreakdown, 1)}
           sub={`${rapl.dipakai.baris} dari ${rapl.barisRab} baris RAB masuk hitungan`}
           tone={pctBreakdown >= 99.95 ? "success" : "warning"}
         />
-        <KpiCard
-          label="Harga terisi"
-          value={formatPct(pctHarga, 1)}
-          sub={`${harga.berharga} dari ${harga.baris.length} komponen`}
-          tone={pctHarga >= 99.95 ? "success" : "warning"}
-        />
-        <KpiCard
-          label={p.keandalan.utuh ? "Potensi margin" : "Selisih sementara"}
-          value={formatRupiah(p.margin)}
-          sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum boleh dibaca sebagai profit"}
-          tone={p.keandalan.utuh ? (p.margin >= 0n ? "success" : "danger") : "warning"}
-        />
+        {harga && p ? (
+          <>
+            <KpiCard
+              label="Harga terisi"
+              value={formatPct(pctHarga, 1)}
+              sub={`${harga.berharga} dari ${harga.baris.length} komponen`}
+              tone={pctHarga >= 99.95 ? "success" : "warning"}
+            />
+            <KpiCard
+              label={p.keandalan.utuh ? "Potensi margin" : "Selisih sementara"}
+              value={formatRupiah(p.margin)}
+              sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum boleh dibaca sebagai profit"}
+              tone={p.keandalan.utuh ? (p.margin >= 0n ? "success" : "danger") : "warning"}
+            />
+          </>
+        ) : null}
       </div>
 
       <Card>
@@ -221,7 +249,17 @@ export default async function RaplPage({
           label="Bagian RAPL"
           items={[
             { key: "ringkasan", label: "Ringkasan estimasi", labelPendek: "Ringkasan", href: `/lokasi/${slug}/rapl?bagian=ringkasan` },
-            { key: "kebutuhan", label: "Kebutuhan & harga", labelPendek: "Harga", href: `/lokasi/${slug}/rapl?bagian=kebutuhan`, badge: harga.belumBerharga || undefined },
+            ...(canSeeMoney
+              ? [
+                  {
+                    key: "kebutuhan",
+                    label: "Kebutuhan & harga",
+                    labelPendek: "Harga",
+                    href: `/lokasi/${slug}/rapl?bagian=kebutuhan`,
+                    badge: harga?.belumBerharga || undefined,
+                  },
+                ]
+              : []),
             { key: "validasi", label: "Validasi breakdown", labelPendek: "Validasi", href: `/lokasi/${slug}/rapl?bagian=validasi`, badge: ((tahapan[0]?.sisa ?? 0) + (tahapan[1]?.sisa ?? 0)) || undefined },
           ]}
         />
@@ -233,11 +271,13 @@ export default async function RaplPage({
               subtitle="RAB aktif diurai menjadi material, tenaga, alat, dan fasilitas; harga melahirkan biaya serta potensi margin."
               action={
                 <div className="flex flex-wrap items-center gap-2">
-                  <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
-                    <Printer aria-hidden className="size-3.5" />
-                    Cetak A4
-                  </ButtonLink>
-                  {canExport ? (
+                  {canSeeMoney ? (
+                    <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
+                      <Printer aria-hidden className="size-3.5" />
+                      Cetak A4
+                    </ButtonLink>
+                  ) : null}
+                  {canExport && canSeeMoney ? (
                     <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan labelSibuk="Menyiapkan Excel…">
                       <Download aria-hidden className="size-3.5" />
                       Unduh Excel
@@ -248,11 +288,19 @@ export default async function RaplPage({
             />
             <CardBody className="space-y-4">
               {cakupan.item > 0 ? <Stepper tahapan={tahapView} /> : null}
-              {ringkasanBiaya}
+              {ringkasanBiaya ?? (
+                <Banner
+                  tone="info"
+                  title="Biaya dan margin tidak ditampilkan untuk peranmu"
+                  description="Halaman ini memperlihatkan breakdown kebutuhan RAB. Harga satuan, biaya pelaksanaan, dan potensi margin hanya untuk pengguna berhak akses keuangan."
+                />
+              )}
               <div className="flex flex-wrap gap-2">
-                <ButtonLink href={`/lokasi/${slug}/rapl?bagian=kebutuhan`}>
-                  Buka kebutuhan & isi harga
-                </ButtonLink>
+                {canSeeMoney ? (
+                  <ButtonLink href={`/lokasi/${slug}/rapl?bagian=kebutuhan`}>
+                    Buka kebutuhan & isi harga
+                  </ButtonLink>
+                ) : null}
                 {(tahapan[0]?.sisa ?? 0) + (tahapan[1]?.sisa ?? 0) > 0 ? (
                   <ButtonLink href={`/lokasi/${slug}/rapl?bagian=validasi`} variant="secondary">
                     Lengkapi breakdown yang tertahan
@@ -263,7 +311,7 @@ export default async function RaplPage({
           </>
         ) : null}
 
-        {bagian === "kebutuhan" ? (
+        {bagian === "kebutuhan" && harga ? (
           <>
             <CardHeader
               title="Kebutuhan proyek & harga satuan"
@@ -281,8 +329,9 @@ export default async function RaplPage({
               {ringkasanBiaya}
               <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
                 Harga manual langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
-                komponen yang kosong dan tidak masuk kalkulasi sebelum kamu menekan tombol persetujuan.
-                Harga lokasi lain juga hanya referensi. Semua sumber harga terlihat di grid.
+                komponen yang kosong; drafnya tersimpan di server – tidak hilang saat kamu
+                berpindah tab – dan tidak masuk kalkulasi sebelum kamu mencentangnya lalu menekan
+                Pakai. Harga lokasi lain juga hanya referensi. Semua sumber harga terlihat di grid.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}
@@ -290,6 +339,20 @@ export default async function RaplPage({
                 canInput={canInput}
                 canUseAi={canUseAi}
                 rows={barisHarga}
+                usulan={{
+                  menunggu: usulan?.menunggu ?? false,
+                  terputus: usulan?.terputus ?? false,
+                  pendingSinceMs: usulan?.pendingSinceMs ?? null,
+                  model: usulan?.model ?? null,
+                  error: usulan?.error ?? null,
+                  diminta: usulan?.diminta ?? 0,
+                  totalKosong: usulan?.totalKosong ?? 0,
+                  // BigInt tidak boleh menyeberang ke komponen klien.
+                  draf: (usulan?.draf ?? []).map((d) => ({
+                    ...d,
+                    harga: d.harga.toString(),
+                  })),
+                }}
               />
             </CardBody>
           </>

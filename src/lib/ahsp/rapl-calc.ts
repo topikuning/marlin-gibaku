@@ -68,6 +68,19 @@ export type Kebutuhan = {
   /** Berapa baris RAB yang menyumbang — supaya asal angkanya bisa ditelusuri. */
   dariBaris: number;
   /**
+   * Nilai RAB (rupiah) item-item yang MEMBUTUHKAN sumber daya ini.
+   *
+   * Gunanya mengurutkan pekerjaan pengisian harga: sumber daya yang menahan
+   * Rp365 juta pekerjaan beton lebih menentukan daripada yang menahan Rp2 juta.
+   * `jumlah` tidak bisa dipakai untuk itu — 5.000 kg semen, 12 OH mandor, dan
+   * 0,3 jam excavator bukan besaran yang sebanding.
+   *
+   * **TIDAK BOLEH DIJUMLAHKAN antar baris.** Satu item RAB menyumbang nilai
+   * PENUHNYA ke setiap sumber daya yang ia butuhkan, jadi Σ seluruh baris jauh
+   * melampaui nilai RAB. Ini angka pengurut, bukan uang yang boleh ditotal.
+   */
+  nilaiTertahan: bigint;
+  /**
    * true = kategorinya JANGGAL menurut satuannya sendiri (lihat `SATUAN_UPAH`).
    * Ditandai, BUKAN dipindahkan diam-diam — lihat catatan di `SATUAN_UPAH`.
    */
@@ -201,6 +214,13 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
 
     barisDipakai += 1;
     nilaiDipakai += it.amount;
+    /*
+     * Satu item hanya boleh menyumbangkan nilainya SEKALI per sumber daya.
+     * Ada analisa yang mendaftarkan sumber daya yang sama dua kali (mis. dua
+     * baris "Semen (Kg)" dengan koefisien berbeda); tanpa penjaga ini nilai
+     * item itu terhitung dobel dan urutan pengisian harga jadi salah.
+     */
+    const sudahDariItemIni = new Set<string>();
     for (const k of it.analisa.komponen) {
       // Besar-kecil huruf satuan ("Kg" vs "kg") cuma cara mengetik — kalau ikut
       // jadi kunci, satu bahan yang sama pecah jadi dua baris berjumlah separuh
@@ -209,9 +229,12 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
       const kunci = JSON.stringify([k.kategori, k.nama, satuan.toLowerCase()]);
       const ada = peta.get(kunci);
       const tambah = k.koefisien * it.volume;
+      const baruDariItemIni = !sudahDariItemIni.has(kunci);
+      sudahDariItemIni.add(kunci);
       if (ada) {
         ada.jumlah += tambah;
         ada.dariBaris += 1;
+        if (baruDariItemIni) ada.nilaiTertahan += it.amount;
       } else {
         peta.set(kunci, {
           kategori: k.kategori,
@@ -219,6 +242,7 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
           satuan,
           jumlah: tambah,
           dariBaris: 1,
+          nilaiTertahan: it.amount,
           janggal: janggalKategori(k.kategori, satuan),
         });
       }
