@@ -12,19 +12,34 @@ Dibaca ketiganya. Kalau isinya bertentangan dengan `CLAUDE.md` atau
 
 ## 1. Pembagian peran
 
-| Agen | Peran | Kenapa |
+**Ketiganya boleh menulis kode.** Yang tidak dibagi rata hanya satu hal:
+gerbang terakhir sebelum masuk `dev`.
+
+| Agen | Boleh menulis? | Peran khasnya |
 |---|---|---|
-| Claude sesi remote | **Penulis** dan **pemeriksa terakhir** | Satu-satunya yang punya PostgreSQL uji, bisa menjalankan suite lengkap, dan bisa membuktikan sebuah temuan merah sebelum memperbaikinya |
-| ECC | **Pengoreksi pertama** – membaca diff yang sudah jadi | Sudut pandang berbeda dari penulis; terbukti menemukan cacat yang luput (lihat §5) |
-| Codex | **Pengoreksi kedua** – dengan pertanyaan yang berbeda | Bukan "cari bug", melainkan: *apakah yang diklaim selesai memang dibuktikan oleh tes yang ada?* |
+| Claude sesi remote | ya | **Pemeriksa terakhir** – satu-satunya yang punya PostgreSQL uji, bisa menjalankan suite lengkap, dan bisa membuktikan sebuah temuan MERAH sebelum diperbaiki |
+| ECC (plugin di Claude CLI) | ya | Pembaca diff dengan sudut pandang di luar penulisnya; terbukti menemukan cacat yang luput (§5) |
+| Codex | ya | Penanya yang berbeda: *apakah yang diklaim selesai memang dibuktikan oleh tes yang ada?* |
 
-Urutannya: **tulis → ECC & Codex mengoreksi → Claude menutup dengan tes → merge**.
+Alurnya:
 
-Pemeriksa terakhir bukan berarti hakim. Penulis yang menilai ulang niatnya
-sendiri adalah cacat yang justru sudah terbukti di repo ini (§5). Karena itu
-pemeriksaan terakhir bersifat **mekanis**: jalankan tesnya, buktikan merahnya,
-baru perbaiki. Temuan pengoreksi adalah daftar yang wajib dibuktikan — bukan
-pendapat yang boleh dibantah dengan penjelasan.
+```
+siapa pun menulis di cabangnya sendiri
+        ↓ PR ke dev
+dua agen lain membaca diff itu (yang menulis tidak mengoreksi dirinya)
+        ↓
+Claude sesi remote menjalankan gerbang §4 dan membuktikan tiap temuan
+        ↓ merge ke dev
+dev -> main = PR rilis
+```
+
+Gerbang terakhir ada di satu tempat bukan karena penilaian satu agen lebih
+tinggi, melainkan karena **DB uji hanya ada di sana**: tanpa itu "sudah
+diperbaiki" cuma pernyataan. Dan pemeriksaan itu bersifat **mekanis** —
+menjalankan tes dan membuktikan merahnya — bukan menilai ulang niat penulisnya.
+Kalau yang diperiksa adalah tulisan pemeriksa itu sendiri, syarat merah-dulu
+justru makin ketat: tesnya ditulis lebih dulu, dan kedua agen lain yang
+menyatakan cukup atau tidak.
 
 ---
 
@@ -66,10 +81,15 @@ performa tanpa angka, dan saran menghidupkan pola pra-rebuild (DECISIONS 051).
 
 ## 4. Gerbang sebelum merge
 
-Dijalankan pemeriksa terakhir, bukan pengoreksi:
+Dijalankan pemeriksa terakhir atas **semua** kode yang masuk `dev` — tulisannya
+sendiri maupun tulisan agen lain:
 
 - `pnpm typecheck` · `pnpm lint` · `pnpm vitest run tests/unit` · integrasi
   (butuh DB uji). ±7 menit.
+- Untuk kode dari agen lain, gerbangnya belum lengkap sampai perubahan itu
+  dibuktikan **merah tanpa perbaikannya** (§2). Kalau penulisnya tidak
+  menyertakan tes, pemeriksa terakhir yang menuliskannya — bukan meloloskannya
+  karena suite lain hijau.
 - **E2E tidak dijalankan lokal.** CI menjalankannya pada tiap PR; menjalankannya
   dua kali menambah ±14 menit tanpa menambah satu pun bukti. Perinciannya di
   `CLAUDE.md` §"Gerbang sebelum push". Satu-satunya pengecualian: CI sudah
