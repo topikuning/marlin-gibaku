@@ -93,6 +93,9 @@ beforeAll(async () => {
       status: "diverifikasi",
       note: "Cocok dengan lapangan.",
       verifiedById: sa.id,
+      // Fakta diuji per 28 Agustus; jejak pemeriksaannya juga harus sudah ada
+      // pada periode itu, bukan bergantung pada jam saat CI dijalankan.
+      createdAt: new Date("2026-08-28T16:59:59.000Z"),
     },
   });
 

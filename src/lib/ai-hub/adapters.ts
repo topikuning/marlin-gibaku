@@ -1,8 +1,9 @@
 import "server-only";
+import { TZDate } from "@date-fns/tz";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { getContractsBilling, getLocationsFinance } from "@/lib/finance/calc";
-import { formatRupiah, jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
+import { APP_TZ, formatRupiah, jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
 import { OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import type { SessionUser } from "@/lib/auth/session";
 import { kunciFakta, type FaktaResmi, type Metrik } from "./schemas";
@@ -176,7 +177,6 @@ const REF_KEADAAN_SEKARANG = new Set([
   "temuan",
   "kesiapan",
   "peringatan",
-  "verifikasi",
   "surat",
 ]);
 
@@ -686,18 +686,34 @@ async function tambahVerifikasi(
   w: WaktuAdapter,
 ): Promise<void> {
   const { COUNTED_REPORT_STATUSES } = await import("@/lib/lifecycle");
+  const tahun = w.akhirPeriode.getUTCFullYear();
+  const bulan = w.akhirPeriode.getUTCMonth();
+  const hari = w.akhirPeriode.getUTCDate();
+  // Batas eksklusif memakai tengah malam JAKARTA, bukan UTC. Railway berjalan
+  // di UTC; memakai UTC-midnight akan ikut menghitung tujuh jam pertama pada
+  // hari berikutnya sebagai bagian dari tanggal laporan yang diminta.
+  const setelahAkhirPeriode = new TZDate(tahun, bulan, hari + 1, 0, 0, 0, 0, APP_TZ);
   const laporan = await db.dailyReport.findMany({
     /*
-     * Laporan bertanggal, jadi ikut dibatasi akhir periode. Yang TIDAK bisa
-     * dibatasi adalah kapan verifikasinya ditulis — pemeriksaan atas laporan
-     * lama bisa datang belakangan; itu diakui di label, bukan ditebak.
+     * Dua waktunya sama-sama dibatasi: tanggal laporan tidak melewati periode,
+     * dan pemeriksaannya memang sudah tercatat sebelum pergantian hari Jakarta.
+     * Tanpa pagar kedua, laporan Juni yang baru diperiksa Juli terbaca seolah
+     * sudah diperiksa pada laporan historis Juni.
      */
     where: {
       locationId: { in: lokasi.map((l) => l.id) },
       status: { in: [...COUNTED_REPORT_STATUSES] },
       reportDate: { lte: w.akhirPeriode },
     },
-    select: { locationId: true, verifications: { take: 1, select: { id: true } } },
+    select: {
+      locationId: true,
+      verifications: {
+        where: { createdAt: { lt: setelahAkhirPeriode } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true },
+      },
+    },
   });
   if (laporan.length === 0) return;
 
@@ -715,8 +731,8 @@ async function tambahVerifikasi(
       value: `${sudah} sudah diperiksa · ${belum} belum diperiksa (dari ${milik.length} laporan)`,
       href: `/verifikasi`,
     });
-    dorong(hasil, fakta(l.id, "laporan_sudah_diverifikasi", sudah, w.kunciHariIni, refId));
-    dorong(hasil, fakta(l.id, "laporan_belum_diverifikasi", belum, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "laporan_sudah_diverifikasi", sudah, w.periodKey, refId));
+    dorong(hasil, fakta(l.id, "laporan_belum_diverifikasi", belum, w.periodKey, refId));
   }
 }
 

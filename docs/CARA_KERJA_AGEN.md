@@ -33,6 +33,17 @@ Claude sesi remote menjalankan gerbang §4 dan membuktikan tiap temuan
 dev -> main = PR rilis
 ```
 
+**"Siapa pun" termasuk pemeriksa terakhir.** Pada 2026-08-29 aturan ini ditulis,
+lalu tiga kali berturut-turut dilanggar oleh yang menulisnya: commit didorong
+langsung ke `dev` tanpa cabang dan tanpa PR. Alasannya selalu terdengar masuk
+akal saat itu ("toh gerbangnya sudah dijalankan") — dan justru itu yang membuat
+aturannya perlu ditulis: dengan dua agen atau lebih bekerja bersamaan, `dev`
+yang berubah tanpa PR adalah perubahan yang tidak pernah dibaca siapa-siapa,
+dan bisa menabrak pekerjaan agen lain yang sedang berjalan.
+
+Nama cabang: `claude/<topik>`, `codex/<topik>`, `ecc/<topik>` — supaya di daftar
+cabang terlihat siapa penulisnya tanpa perlu membuka commit-nya.
+
 Gerbang terakhir ada di satu tempat bukan karena penilaian satu agen lebih
 tinggi, melainkan karena **DB uji hanya ada di sana**: tanpa itu "sudah
 diperbaiki" cuma pernyataan. Dan pemeriksaan itu bersifat **mekanis** —
@@ -96,6 +107,10 @@ sendiri maupun tulisan agen lain:
   melaporkan E2E merah dan kegagalannya perlu direproduksi.
 - Tiap temuan pengoreksi yang ditutup harus menyebut **tes mana** yang
   membuktikannya. "Sudah diperbaiki" tanpa nama berkas tes bukan penutupan.
+- **Memberi nomor entri `docs/DECISIONS.md`** yang masih ditulis `## (baru) · …`,
+  mengikuti urutan masuk, lalu mengarahkan rujukan "DECISIONS NNN" di komentar
+  kode ke nomor itu. Penulis sengaja tidak memilih nomor sendiri – alasannya di
+  kepala `DECISIONS.md`. Dijaga `tests/unit/decisions-nomor.test.ts`.
 
 ---
 

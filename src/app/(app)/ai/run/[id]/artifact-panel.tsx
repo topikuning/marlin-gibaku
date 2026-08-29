@@ -364,6 +364,7 @@ function ArtifactCard({
                           {brief.decisions.map((decision, index) => (
                             <li key={`${decision.title}-${index}`} className="rounded-md border border-border-muted p-3">
                               <p className="font-medium text-ink">{index + 1}. {decision.title}</p>
+                              <p className="mt-1 text-xs font-medium text-ink-muted">Fokus: {decision.scopeLabel}</p>
                               <p className="mt-1 text-ink-muted">{decision.reason}</p>
                             </li>
                           ))}
