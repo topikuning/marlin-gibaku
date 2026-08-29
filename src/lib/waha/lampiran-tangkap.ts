@@ -14,31 +14,29 @@ import { klasifikasiLampiran, terlaluBesar } from "./lampiran-klasifikasi";
  * mengunduh berkasnya. URL media WAHA berumur pendek, jadi surat yang dikirim
  * ke grup lenyap tak lama setelah dikirim.
  *
- * Urutan sengaja: **unduh → tulis ke disk LOKAL → catat baris DB → arsipkan ke
- * R2**. Simpanan lokal tetap ada karena ia yang melayani pembacaan berikutnya
- * tanpa menembak awan, tapi ia CACHE — bukan arsip.
+ * Urutan sengaja: **unduh → tulis ke disk LOKAL → catat baris DB**. Titik.
  *
- * ### Kenapa arsipnya sekarang langsung, bukan menunggu konfirmasi
+ * ### Siapa yang naik ke R2, dan siapa yang tidak (DECISIONS 472)
  *
- * Ketetapan 2026-08-25 berbunyi *"disimpan di lokal dulu, baru kemudian saat
- * dokumen itu dikonfirmasi, baru ke R2"*, dengan alasan arsip permanen
- * sebaiknya hanya memuat berkas yang sudah dinyatakan berguna oleh manusia.
- * Yang tidak diperhitungkan: disk kontainer Railway bersifat SEMENTARA dan
- * selama pengembangan masih padat, deploy terjadi beberapa kali sehari — jauh
- * lebih cepat daripada orang sempat menetapkan. Hasilnya terlihat di layar
- * 2026-08-29: kartu lampirannya ada, berkasnya sudah tidak.
+ * Hanya berkas yang DITETAPKAN orang sebagai surat/dokumen (`arsipkanLampiran`,
+ * dipanggil dari layar penetapan dan dari penyapu). Sisanya cukup di disk.
  *
- * Ketetapan user 2026-08-29 karena itu membalik urutannya: arsipkan begitu
- * ditangkap. Ongkosnya disadari — R2 kini memuat juga berkas yang ternyata
- * bukan bahan kerja. Itu jauh lebih murah daripada kehilangan surat yang sudah
- * di tangan.
+ * Dua ketetapan sebelumnya sama-sama meleset, dan bekasnya ada di layar:
  *
- * Webhook tetap tidak boleh tertahan: pengarsipan bersifat best-effort dan
- * kegagalannya tidak menggagalkan penangkapan; `arsipkanYangTertinggal()` di
- * putaran cron menjaring sisanya.
+ *   2026-08-25 "lokal dulu, R2 setelah dikonfirmasi" — benar soal arsip, tapi
+ *     disk kontainer Railway SEMENTARA, dan deploy datang lebih sering daripada
+ *     keputusan. Berkasnya mati sebelum sempat diputuskan.
+ *   2026-08-29 pagi "arsipkan semua begitu ditangkap" — menyelamatkan berkas,
+ *     tapi R2 menampung setiap foto yang lewat 19 grup, dan daftar penetapan
+ *     ikut membengkak.
  *
- * Kalau suatu saat disknya dibuat awet (mis. Volume Railway), cukup arahkan
- * `LAMPIRAN_DIR` ke titik pasangnya — tidak ada kode yang perlu berubah.
+ * Yang membuat "cukup di disk" tidak lagi berarti "hilang saat deploy" bukan
+ * kode, melainkan VOLUME Railway di production: `LAMPIRAN_DIR` diarahkan ke
+ * titik pasangnya. Di dev tanpa volume berkasnya memang boleh hilang — dan
+ * layarnya mengatakan itu apa adanya, bukan diam.
+ *
+ * Yang tidak pernah ditetapkan tidak menumpuk selamanya: `kedaluwarsakanLampiran`
+ * menghapusnya setelah 3 hari (foto) atau 14 hari (berkas lain).
  */
 
 /** Direktori simpanan lokal. Dibuat otomatis bila belum ada. */
@@ -223,26 +221,18 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
   });
 
   /*
-   * ARSIPKAN SEKARANG, jangan menunggu keputusan orang (ketetapan user
-   * 2026-08-29, mengganti ketetapan 2026-08-25).
+   * TIDAK diarsipkan ke R2 di sini (ketetapan user 2026-08-29, DECISIONS 472).
    *
-   * Sebabnya terlihat di layar: membuka lampiran yang baru masuk menjawab
-   * "berkas tidak ada lagi di simpanan sementara". Disk kontainer Railway
-   * bersifat sementara, dan selama pengembangan masih padat, deploy terjadi
-   * beberapa kali sehari — jauh lebih cepat daripada orang sempat menetapkan
-   * berkas itu surat atau bukan. Menunggu keputusan berarti sebagian besar
-   * lampiran mati sebelum sempat diputuskan, dan kartu yang tersisa menunjuk
-   * berkas yang tidak ada.
+   * Sehari sebelumnya justru sebaliknya — semua diarsipkan begitu ditangkap —
+   * dan akibatnya langsung terlihat: R2 menampung tiap foto yang lewat 19 grup,
+   * padahal foto resmi proyek masuk lewat menu Foto. Yang naik arsip permanen
+   * hanya yang DITETAPKAN orang sebagai surat/dokumen (`arsipkanLampiran`).
    *
-   * Best-effort: kegagalan mengarsipkan TIDAK menggagalkan penangkapan.
-   * Berkasnya tetap ada di lokal dan `arsipkanYangTertinggal` menjaringnya
-   * pada putaran berikutnya.
+   * Yang membuat "cukup di disk" tidak berarti "hilang saat deploy" adalah
+   * Volume Railway di production (`LAMPIRAN_DIR` diarahkan ke titik pasangnya).
+   * Di dev tanpa volume berkasnya memang boleh hilang, dan layarnya mengatakan
+   * itu apa adanya.
    */
-  try {
-    await arsipkanLampiran(row.id);
-  } catch (err) {
-    console.error("[lampiran] arsip awal gagal:", err);
-  }
   return { ok: true, attachmentId: row.id, status: "tertangkap" };
 }
 
@@ -346,12 +336,12 @@ export async function arsipkanLampiran(
  * Jaring pengaman: lampiran tertangkap yang arsipnya belum jadi — mis. R2
  * sedang mati saat berkasnya masuk.
  *
- * Sejak 2026-08-29 penyaring `decision` DIBUANG. Sebelumnya penyapu ini hanya
- * mengejar yang sudah ditetapkan orang, sehingga berkas yang belum sempat
- * diputuskan tidak pernah punya kesempatan kedua — padahal justru itu yang
- * paling mungkin hilang, karena ia hidup paling singkat di disk sementara.
+ * Yang dikejar hanya yang SUDAH ditetapkan orang: arsip permanen memang bukan
+ * tempat seluruh isi grup (DECISIONS 472). Yang belum ditetapkan cukup di disk
+ * sampai umur simpannya habis — lihat `kedaluwarsakanLampiran`.
  *
- * Dipanggil putaran `/api/cron/waha` (tiap 5 menit), bukan hanya dari tombol.
+ * Dipanggil putaran `/api/cron/waha` (tiap 5 menit), bukan hanya dari tombol —
+ * sampai 2026-08-29 ia tidak pernah dipanggil dari mana pun.
  */
 export async function arsipkanYangTertinggal(batas = 50): Promise<{ dipindah: number; gagal: number }> {
   if (!isR2Configured()) return { dipindah: 0, gagal: 0 };
@@ -360,6 +350,7 @@ export async function arsipkanYangTertinggal(batas = 50): Promise<{ dipindah: nu
       status: "tertangkap",
       r2Key: null,
       localPath: { not: null },
+      decision: { in: ["jadi_surat", "jadi_dokumen"] },
     },
     take: batas,
     orderBy: { createdAt: "asc" },
@@ -373,4 +364,115 @@ export async function arsipkanYangTertinggal(batas = 50): Promise<{ dipindah: nu
     else gagal++;
   }
   return { dipindah, gagal };
+}
+
+/* ── Retensi: yang tidak pernah ditetapkan tidak menumpuk selamanya ───────── */
+
+/** Umur simpan FOTO yang belum ditetapkan (ketetapan user 2026-08-29). */
+export const UMUR_FOTO_HARI = 3;
+/** Umur simpan berkas lain yang belum ditetapkan. */
+export const UMUR_BERKAS_HARI = 14;
+
+const HARI_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Habiskan umur simpan lampiran yang tidak pernah ditetapkan siapa pun.
+ *
+ * Dua angka, karena dua jenis kiriman yang berbeda umurnya di mata orang: foto
+ * grup basi dalam hitungan hari, sedangkan surat bisa baru dibuka pekan
+ * depannya. Yang SUDAH ditetapkan tidak pernah kedaluwarsa — ia sudah jadi
+ * surat/dokumen resmi dan arsipnya permanen.
+ *
+ * Barisnya TIDAK dihapus, hanya berkasnya. "Pernah ada berkas ini, dari siapa,
+ * kapan" adalah catatan yang tetap berguna; yang mahal cuma isinya.
+ *
+ * Berkas yang dipakai bersama beberapa baris (kiriman ulang, sidik jari sama)
+ * hanya dihapus kalau SELURUH baris itu ikut kedaluwarsa. Menghapus lebih awal
+ * akan membuat baris kembarnya yang masih ditunggu jadi tidak bisa dibuka.
+ */
+export async function kedaluwarsakanLampiran(
+  now = new Date(),
+  batas = 200,
+): Promise<{ kedaluwarsa: number; berkasDihapus: number; r2Dihapus: number }> {
+  const batasFoto = new Date(now.getTime() - UMUR_FOTO_HARI * HARI_MS);
+  const batasBerkas = new Date(now.getTime() - UMUR_BERKAS_HARI * HARI_MS);
+
+  const calon = await db.waAttachment.findMany({
+    where: {
+      status: "tertangkap",
+      // "bukan bahan kerja" ikut kedaluwarsa: orangnya sudah bilang berkas ini
+      // tidak dipakai, jadi menyimpannya sampai kapan pun hanya menumpuk ongkos.
+      decision: { in: ["belum", "bukan_apa_apa"] },
+      OR: [
+        { saranKind: "foto_lapangan", createdAt: { lt: batasFoto } },
+        { saranKind: { not: "foto_lapangan" }, createdAt: { lt: batasBerkas } },
+      ],
+    },
+    take: batas,
+    orderBy: { createdAt: "asc" },
+    select: { id: true, localPath: true, r2Key: true, sha256: true, saranKind: true },
+  });
+  if (calon.length === 0) return { kedaluwarsa: 0, berkasDihapus: 0, r2Dihapus: 0 };
+
+  // Kembaran: baris lain yang menunjuk berkas fisik yang sama.
+  const sidik = [...new Set(calon.map((c) => c.sha256).filter((s): s is string => !!s))];
+  const sekeluarga = sidik.length
+    ? await db.waAttachment.findMany({
+        where: { sha256: { in: sidik } },
+        select: { id: true, sha256: true, decision: true, status: true },
+      })
+    : [];
+  const ikutKedaluwarsa = new Set(calon.map((c) => c.id));
+  const tertahan = new Set(
+    sekeluarga
+      .filter((s) => !ikutKedaluwarsa.has(s.id) && s.status === "tertangkap")
+      .map((s) => s.sha256!),
+  );
+
+  const { unlink } = await import("node:fs/promises");
+  let kedaluwarsa = 0;
+  let berkasDihapus = 0;
+  let r2Dihapus = 0;
+
+  for (const a of calon) {
+    const bolehHapusBerkas = !a.sha256 || !tertahan.has(a.sha256);
+    if (!bolehHapusBerkas) continue;
+
+    if (a.localPath) {
+      try {
+        await unlink(a.localPath);
+        berkasDihapus += 1;
+      } catch (err) {
+        // Sudah tidak ada (deploy ulang) bukan kegagalan — tujuannya tercapai.
+        if ((err as { code?: string } | null)?.code !== "ENOENT") {
+          console.error("[lampiran] gagal menghapus berkas kedaluwarsa:", err);
+        }
+      }
+    }
+    if (a.r2Key && isR2Configured()) {
+      try {
+        const { r2Delete } = await import("@/lib/r2");
+        await r2Delete(a.r2Key);
+        r2Dihapus += 1;
+      } catch (err) {
+        console.error("[lampiran] gagal menghapus objek R2 kedaluwarsa:", err);
+      }
+    }
+
+    const hari = a.saranKind === "foto_lapangan" ? UMUR_FOTO_HARI : UMUR_BERKAS_HARI;
+    await db.waAttachment.update({
+      where: { id: a.id },
+      data: {
+        status: "kedaluwarsa",
+        localPath: null,
+        r2Key: null,
+        failReason:
+          `Umur simpan ${hari} hari habis – berkasnya dihapus. ` +
+          "Berkas aslinya masih ada di pesan WhatsApp-nya.",
+      },
+    });
+    kedaluwarsa += 1;
+  }
+
+  return { kedaluwarsa, berkasDihapus, r2Dihapus };
 }

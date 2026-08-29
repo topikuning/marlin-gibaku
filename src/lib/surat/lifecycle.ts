@@ -149,6 +149,7 @@ export const LAMPIRAN_STATUS_LABEL: Record<WaAttachmentStatus, string> = {
   tertangkap: "Berkas tersimpan",
   dilewati: "Tidak disimpan",
   gagal: "Gagal diunduh",
+  kedaluwarsa: "Umur simpan habis",
 };
 
 export const LAMPIRAN_KEPUTUSAN_LABEL: Record<WaAttachmentDecision, string> = {

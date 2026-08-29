@@ -23,9 +23,10 @@ import { resolvePrompt } from "@/lib/ai/prompts";
  * ditetapkan perannya oleh MANUSIA. Mesin hanya mengusulkan — ketetapan user
  * 2026-08-25: *"jangan langsung putuskan tapi sarankan"*.
  *
- * Arsip R2 baru dibuat pada saat konfirmasi, bukan saat penangkapan —
- * ketetapan user: *"disimpan di lokal dulu, baru kemudian saat dokumen itu
- * dikonfirmasi, baru ke R2."*
+ * Arsip R2 baru dibuat pada saat konfirmasi, bukan saat penangkapan
+ * (DECISIONS 472): arsip permanen bukan tempat seluruh isi grup. Yang ditandai
+ * BUKAN BAHAN KERJA malah dibersihkan — objek R2-nya (kalau sempat ada dari
+ * masa ketika semua diarsipkan) dihapus saat itu juga.
  */
 
 export type LampiranState = { error?: string; success?: string } | undefined;
@@ -33,6 +34,40 @@ export type LampiranState = { error?: string; success?: string } | undefined;
 function fail(err: unknown): LampiranState {
   if (err instanceof ForbiddenError) return { error: err.message };
   return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+}
+
+/**
+ * Buang objek R2 milik lampiran yang dinyatakan BUKAN bahan kerja.
+ *
+ * Objeknya bisa ada karena warisan: pada 2026-08-29 pagi setiap lampiran
+ * diarsipkan begitu ditangkap, dan tanpa ini objek-objek itu tinggal di R2
+ * selamanya walau orangnya sudah bilang berkasnya tidak dipakai.
+ *
+ * Berkas yang dipakai bersama baris lain yang SUDAH ditetapkan berguna tidak
+ * disentuh — sidik jarinya sama, arsipnya satu.
+ */
+async function buangArsipTakTerpakai(attachmentId: string): Promise<void> {
+  const a = await db.waAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { id: true, r2Key: true, sha256: true },
+  });
+  if (!a?.r2Key) return;
+  const dipakai = await db.waAttachment.count({
+    where: {
+      id: { not: a.id },
+      decision: { in: ["jadi_surat", "jadi_dokumen"] },
+      ...(a.sha256 ? { sha256: a.sha256 } : { r2Key: a.r2Key }),
+    },
+  });
+  if (dipakai > 0) return;
+  try {
+    const { isR2Configured, r2Delete } = await import("@/lib/r2");
+    if (isR2Configured()) await r2Delete(a.r2Key);
+  } catch (err) {
+    // Gagal menghapus arsip bukan alasan menggagalkan ketetapan orang.
+    console.error("[lampiran] gagal membuang arsip tak terpakai:", err);
+  }
+  await db.waAttachment.update({ where: { id: a.id }, data: { r2Key: null } });
 }
 
 const tetapkanSchema = z.object({
@@ -70,6 +105,8 @@ export async function tetapkanLampiranAction(
       const arsip = await arsipkanLampiran(att.id);
       if (!arsip.ok) return { error: arsip.alasan };
       if (arsip.catatan) catatan = ` ${arsip.catatan}`;
+    } else {
+      await buangArsipTakTerpakai(att.id);
     }
 
     await db.waAttachment.update({
@@ -275,6 +312,62 @@ export async function lampiranJadiSuratAction(
       success:
         `Tercatat sebagai surat, agenda ${surat.agendaNo}/${surat.agendaYear}.` +
         (arsip.catatan ? ` ${arsip.catatan}` : ""),
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ── Penandaan MASSAL "bukan bahan kerja" (ketetapan user 2026-08-29) ────── */
+
+const massalSchema = z.object({
+  attachmentIds: z.array(z.uuid()).min(1, "Pilih dulu berkas yang mau ditandai.").max(200),
+});
+
+/**
+ * Tandai banyak lampiran sekaligus sebagai BUKAN bahan kerja.
+ *
+ * Keluhan user: satu-satu terlalu lambat, jadi daftarnya menumpuk dan berhenti
+ * dibaca. Yang massal hanya ke arah ini — menyatakan sesuatu BUKAN bahan kerja
+ * bisa dibatalkan (barisnya tetap ada, tinggal ditetapkan ulang), sedangkan
+ * menjadikan sesuatu surat resmi tidak boleh dilakukan borongan tanpa membaca.
+ */
+export async function tandaiMassalBukanBahanKerjaAction(
+  _prev: LampiranState,
+  formData: FormData,
+): Promise<LampiranState> {
+  try {
+    const user = await requireCapability("letter.manage");
+    const parsed = massalSchema.safeParse({
+      attachmentIds: formData.getAll("attachmentId").map(String),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const scope = packageScopeWhere(user, await accessibleLocationIds(user));
+    // Penyaringan scope dilakukan lewat kueri, bukan lewat kepercayaan pada
+    // borang: id yang dikirim datang dari peramban.
+    const boleh = await db.waAttachment.findMany({
+      where: { id: { in: parsed.data.attachmentIds }, package: scope },
+      select: { id: true },
+    });
+    if (boleh.length === 0) return { error: "Tidak ada lampiran yang bisa Anda tetapkan." };
+
+    for (const a of boleh) await buangArsipTakTerpakai(a.id);
+    await db.waAttachment.updateMany({
+      where: { id: { in: boleh.map((a) => a.id) } },
+      data: { decision: "bukan_apa_apa", decidedById: user.id, decidedAt: new Date() },
+    });
+    await audit(user.id, "wa.lampiran.tetapkan_massal", "package", null, {
+      jumlah: boleh.length,
+      keputusan: "bukan_apa_apa",
+    });
+    revalidatePath("/lampiran");
+
+    const luput = parsed.data.attachmentIds.length - boleh.length;
+    return {
+      success:
+        `${boleh.length} lampiran ditandai bukan bahan kerja dan keluar dari daftar.` +
+        (luput > 0 ? ` ${luput} dilewati karena di luar lingkup Anda.` : ""),
     };
   } catch (err) {
     return fail(err);

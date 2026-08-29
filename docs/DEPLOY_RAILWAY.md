@@ -38,11 +38,33 @@ Arsitektur: lihat `docs/rebuild/DEPLOYMENT_ARCHITECTURE.md`. Build memakai
 | `R2_ENDPOINT` | `https://<accountid>.r2.cloudflarestorage.com` | endpoint S3 API. **BUKAN** `*.r2.dev` / custom domain — app menolak saat startup |
 | `R2_BUCKET` | nama bucket | |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | dari R2 API Token (permission Object Read & Write, scope bucket tsb) | |
+| `LAMPIRAN_DIR` | `/data/lampiran` | **production saja** – titik pasang Volume (lihat §3a). Tanpa ini lampiran WA disimpan di disk kontainer yang hilang tiap deploy |
 | `AI_SECRET_ENCRYPTION_KEY` | hasil `openssl rand -hex 32` | wajib begitu AI / WhatsApp / Google Drive dipakai — mengenkripsi SELURUH rahasia di AppSetting. Tanpa ini penyimpanan rahasia ditolak, dan boot mencetak galat berisi jumlah rahasia yang masih telanjang |
 
 R2 opsional: tanpa R2 aplikasi tetap jalan, fitur unggah foto/dokumen menampilkan
 pesan "belum dikonfigurasi". Validasi env dilakukan zod saat startup — kalau salah
 format, container gagal start dengan pesan jelas di log.
+
+## 3a. Volume untuk lampiran WhatsApp (production saja)
+
+Berkas yang dikirim ke grup WA ditulis ke disk lokal dan **tidak** naik ke R2
+sampai seseorang menetapkannya sebagai surat/dokumen (DECISIONS 472 – arsip
+permanen bukan tempat seluruh isi grup). Disk kontainer Railway bersifat
+sementara, jadi tanpa volume berkas yang belum sempat ditetapkan hilang tiap
+deploy.
+
+1. Service aplikasi → **Settings → Volumes → New Volume**.
+2. Mount path: `/data` (ukurannya ikuti paket Railway-mu; isinya berkas
+   berumur pendek – foto 3 hari, berkas lain 14 hari).
+3. Tambahkan variabel `LAMPIRAN_DIR=/data/lampiran`. Direktorinya dibuat
+   sendiri saat lampiran pertama masuk.
+
+Yang perlu diketahui: volume mengikat service ke SATU instans – selama volume
+terpasang, jangan menaikkan jumlah replika.
+
+**Di dev volume ini sengaja tidak dipasang** (ketetapan user 2026-08-29):
+lampiran di dev boleh hilang tiap deploy, dan layarnya mengatakan itu apa
+adanya.
 
 ## 4. Migrasi database
 
