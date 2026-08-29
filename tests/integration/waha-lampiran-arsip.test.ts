@@ -32,11 +32,19 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
  * perilaku produksi yang benar, tapi ia menyembunyikan persis apa yang diuji
  * di sini: apa yang terjadi pada berkas yang BELUM punya arsip.
  */
+/*
+ * Isi berkas juga unik PER JALANNYA uji, bukan cuma per unduhan: sidik jari
+ * dihitung dari isi, jadi berkas dengan isi sama dari jalan sebelumnya akan
+ * dikenali sebagai kembaran — lengkap dengan `local_path` milik kontainer yang
+ * sudah tidak ada. Persis kekeliruan yang membuat uji ini merah untuk alasan
+ * yang salah.
+ */
+const JALANAN = Math.random().toString(36).slice(2);
 let nomorUnduh = 0;
 const fetchAsli = globalThis.fetch;
 globalThis.fetch = (async () => {
   nomorUnduh += 1;
-  return new Response(new Uint8Array(Buffer.from(`%PDF-1.4 surat uji arsip ${nomorUnduh}\n`)), {
+  return new Response(new Uint8Array(Buffer.from(`%PDF-1.4 surat uji arsip ${JALANAN} ${nomorUnduh}\n`)), {
     status: 200,
     headers: { "content-type": "application/pdf" },
   });
@@ -155,6 +163,31 @@ describe("arsip lampiran WA", () => {
     expect(hasil.dipindah).toBeGreaterThanOrEqual(1);
     const a = await db.waAttachment.findUnique({ where: { id }, select: { r2Key: true } });
     expect(a?.r2Key).toBeTruthy();
+  });
+
+  it("berkas yang telanjur hilang ditandai HILANG, bukan dicoba ulang selamanya", async () => {
+    // Persis keadaan sesudah deploy: barisnya ada, `local_path` menunjuk berkas
+    // yang tidak ada lagi, dan arsipnya belum sempat jadi.
+    r2Gagal = true;
+    const id = await tangkap(5);
+    r2Gagal = false;
+    await db.waAttachment.update({
+      where: { id },
+      data: { localPath: "/tmp/tidak-ada-berkas-ini.pdf" },
+    });
+
+    await arsipkanYangTertinggal();
+    const a = await db.waAttachment.findUnique({
+      where: { id },
+      select: { status: true, failReason: true, r2Key: true },
+    });
+    expect(a?.status).toBe("gagal");
+    expect(a?.failReason).toMatch(/hilang/i);
+
+    // Putaran berikutnya tidak menjaringnya lagi – tidak ada gunanya mencoba
+    // membaca berkas yang sudah tidak ada.
+    const kedua = await arsipkanYangTertinggal();
+    expect(kedua.gagal).toBe(0);
   });
 
   it("R2 belum dikonfigurasi: penangkapan tidak gagal karenanya", async () => {

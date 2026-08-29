@@ -319,6 +319,22 @@ export async function arsipkanLampiran(
     });
     return { ok: true, r2Key: key };
   } catch (err) {
+    /*
+     * Berkasnya SUDAH TIDAK ADA — keadaan yang lahir dari deploy ulang, dan
+     * satu-satunya kegagalan di sini yang tidak akan pernah membaik. Barisnya
+     * ditandai `gagal` supaya dua hal berhenti: penyapu mencoba membacanya
+     * setiap lima menit selamanya, dan layar menampilkannya seolah masih bisa
+     * dibuka. Yang hilang harus terbaca hilang.
+     */
+    if ((err as { code?: string } | null)?.code === "ENOENT") {
+      const alasan =
+        "Berkas hilang dari simpanan sementara sebelum sempat diarsipkan – biasanya karena aplikasi di-deploy ulang. Berkas aslinya masih ada di pesan WhatsApp-nya.";
+      await db.waAttachment.update({
+        where: { id: a.id },
+        data: { status: "gagal", failReason: alasan, localPath: null },
+      });
+      return { ok: false, alasan };
+    }
     return {
       ok: false,
       alasan: err instanceof Error ? `Gagal mengarsipkan: ${err.message}` : "Gagal mengarsipkan berkas.",
