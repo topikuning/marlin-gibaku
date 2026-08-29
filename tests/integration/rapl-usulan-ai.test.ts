@@ -31,7 +31,7 @@ vi.mock("next/server", () => ({ after: (fn: () => void) => fn() }));
  * dengan memakai `can()` YANG SUNGGUHAN — kalau ia dilonggarkan jadi
  * "selalu lolos", uji ini hanya akan membuktikan mock-nya sendiri.
  */
-let peranUji: "super_admin" | "site_manager" = "super_admin";
+let peranUji: "super_admin" | "field_supervisor" = "super_admin";
 
 vi.mock("@/lib/auth/session", async (importAsli) => {
   const asli = await importAsli<typeof import("@/lib/auth/session")>();
@@ -152,20 +152,46 @@ afterAll(async () => {
   await db.hsdUsulanRun.deleteMany({ where: { locationId: { in: [lokasiA, lokasiB] } } });
   await db.location.deleteMany({ where: { id: { in: [lokasiA, lokasiB] } } });
   await db.package.deleteMany({ where: { orgId } });
-  await db.user.deleteMany({ where: { orgId } });
-  await db.organization.deleteMany({ where: { id: orgId } });
+  /*
+   * User dan organisasi uji SENGAJA TIDAK dihapus.
+   *
+   * Uji ini menulis `audit_logs` (itu memang yang diperiksanya), dan
+   * `audit_logs` append-only: ada trigger DB yang menolak UPDATE maupun
+   * DELETE. Menghapus user-nya memaksa Postgres menyentuh baris audit yang
+   * merujuknya, dan trigger itu menggagalkan seluruh berkas uji — bukan cuma
+   * pembersihannya.
+   *
+   * Barisnya bersufiks unik per jalan, jadi menyisakannya tidak mengganggu uji
+   * lain. Membersihkannya berarti melemahkan sifat append-only, dan itu justru
+   * salah satu jaminan yang dijaga repo ini.
+   */
   await db.$disconnect();
 });
 
 describe("terapkan draf harga AI", () => {
-  it("prasyarat: site_manager memang tidak punya ai.generate", () => {
-    // Kalau suatu saat capability-nya dikembalikan, uji berikutnya harus
-    // ikut diperbarui — bukan diam-diam berubah arti.
-    expect(can("site_manager", "ai.generate")).toBe(false);
+  it("prasyarat: field_supervisor memang tidak punya ai.generate", () => {
+    /*
+     * Peran uji ini SENGAJA field_supervisor, dan itu perlu dijelaskan.
+     *
+     * Hari ini TIDAK ADA satu pun peran yang memegang `finance.input` tanpa
+     * `ai.generate`: `finance.*` masih ditahan di super_admin saja (authz.ts),
+     * dan `site_manager` — calon pemegangnya saat `finance.*` dikembalikan —
+     * justru SUDAH punya `ai.generate`. Jadi syarat kapabilitas di sini bukan
+     * menambal lubang yang sedang menganga, melainkan menegakkan kontrak
+     * DECISIONS 441 lebih dulu, sebelum kapabilitasnya dibuka.
+     *
+     * Yang menutup lubang RAPL-06 yang SUNGGUHAN adalah bagian lain dari
+     * perbaikan ini: aksi menerima ID DRAF, bukan angka harga kiriman klien.
+     * Itu berlaku untuk semua peran, hari ini juga.
+     *
+     * Kalau suatu saat `ai.generate` diberikan ke field_supervisor, uji ini
+     * gagal di baris ini — bukan diam-diam berubah arti.
+     */
+    expect(can("field_supervisor", "ai.generate")).toBe(false);
   });
 
   it("ditolak untuk pengguna tanpa ai.generate, dan tidak menulis HSD", async () => {
-    peranUji = "site_manager";
+    peranUji = "field_supervisor";
     const hasil = await terapkanUsulanHargaAiAction({
       locationId: lokasiA,
       slug: "apa-saja",
