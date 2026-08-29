@@ -14,20 +14,31 @@ import { klasifikasiLampiran, terlaluBesar } from "./lampiran-klasifikasi";
  * mengunduh berkasnya. URL media WAHA berumur pendek, jadi surat yang dikirim
  * ke grup lenyap tak lama setelah dikirim.
  *
- * Urutan sengaja: **unduh → tulis ke disk LOKAL → catat baris DB**. Ketetapan
- * user 2026-08-25: *"jangan langsung simpan di R2, kan bisa disimpan di lokal
- * marlin"* dan *"disimpan di lokal dulu, baru kemudian saat dokumen itu
- * dikonfirmasi, baru ke R2."* Dua alasan yang saling menguatkan: webhook harus
- * balas cepat (mengunggah ke awan di jalur webhook membuat WAHA menunggu lalu
- * mengulang kiriman), dan arsip permanen sebaiknya hanya memuat berkas yang
- * sudah dinyatakan berguna oleh manusia — bukan seluruh isi grup.
+ * Urutan sengaja: **unduh → tulis ke disk LOKAL → catat baris DB → arsipkan ke
+ * R2**. Simpanan lokal tetap ada karena ia yang melayani pembacaan berikutnya
+ * tanpa menembak awan, tapi ia CACHE — bukan arsip.
  *
- * CATATAN PENTING soal disk lokal: di Railway disk kontainer bersifat
- * SEMENTARA — hilang tiap redeploy. Jadi `localPath` adalah persinggahan,
- * bukan arsip; `arsipkanLampiran()` memindahkannya ke R2 saat dikonfirmasi.
- * Berkas yang tidak pernah dikonfirmasi memang boleh hilang — itu pilihan
- * sadar, bukan kelalaian. Selama R2 belum dikonfigurasi, berkas tetap di lokal
- * dan layarnya mengatakan itu apa adanya.
+ * ### Kenapa arsipnya sekarang langsung, bukan menunggu konfirmasi
+ *
+ * Ketetapan 2026-08-25 berbunyi *"disimpan di lokal dulu, baru kemudian saat
+ * dokumen itu dikonfirmasi, baru ke R2"*, dengan alasan arsip permanen
+ * sebaiknya hanya memuat berkas yang sudah dinyatakan berguna oleh manusia.
+ * Yang tidak diperhitungkan: disk kontainer Railway bersifat SEMENTARA dan
+ * selama pengembangan masih padat, deploy terjadi beberapa kali sehari — jauh
+ * lebih cepat daripada orang sempat menetapkan. Hasilnya terlihat di layar
+ * 2026-08-29: kartu lampirannya ada, berkasnya sudah tidak.
+ *
+ * Ketetapan user 2026-08-29 karena itu membalik urutannya: arsipkan begitu
+ * ditangkap. Ongkosnya disadari — R2 kini memuat juga berkas yang ternyata
+ * bukan bahan kerja. Itu jauh lebih murah daripada kehilangan surat yang sudah
+ * di tangan.
+ *
+ * Webhook tetap tidak boleh tertahan: pengarsipan bersifat best-effort dan
+ * kegagalannya tidak menggagalkan penangkapan; `arsipkanYangTertinggal()` di
+ * putaran cron menjaring sisanya.
+ *
+ * Kalau suatu saat disknya dibuat awet (mis. Volume Railway), cukup arahkan
+ * `LAMPIRAN_DIR` ke titik pasangnya — tidak ada kode yang perlu berubah.
  */
 
 /** Direktori simpanan lokal. Dibuat otomatis bila belum ada. */
@@ -210,6 +221,28 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
     },
     select: { id: true },
   });
+
+  /*
+   * ARSIPKAN SEKARANG, jangan menunggu keputusan orang (ketetapan user
+   * 2026-08-29, mengganti ketetapan 2026-08-25).
+   *
+   * Sebabnya terlihat di layar: membuka lampiran yang baru masuk menjawab
+   * "berkas tidak ada lagi di simpanan sementara". Disk kontainer Railway
+   * bersifat sementara, dan selama pengembangan masih padat, deploy terjadi
+   * beberapa kali sehari — jauh lebih cepat daripada orang sempat menetapkan
+   * berkas itu surat atau bukan. Menunggu keputusan berarti sebagian besar
+   * lampiran mati sebelum sempat diputuskan, dan kartu yang tersisa menunjuk
+   * berkas yang tidak ada.
+   *
+   * Best-effort: kegagalan mengarsipkan TIDAK menggagalkan penangkapan.
+   * Berkasnya tetap ada di lokal dan `arsipkanYangTertinggal` menjaringnya
+   * pada putaran berikutnya.
+   */
+  try {
+    await arsipkanLampiran(row.id);
+  } catch (err) {
+    console.error("[lampiran] arsip awal gagal:", err);
+  }
   return { ok: true, attachmentId: row.id, status: "tertangkap" };
 }
 
@@ -286,6 +319,22 @@ export async function arsipkanLampiran(
     });
     return { ok: true, r2Key: key };
   } catch (err) {
+    /*
+     * Berkasnya SUDAH TIDAK ADA — keadaan yang lahir dari deploy ulang, dan
+     * satu-satunya kegagalan di sini yang tidak akan pernah membaik. Barisnya
+     * ditandai `gagal` supaya dua hal berhenti: penyapu mencoba membacanya
+     * setiap lima menit selamanya, dan layar menampilkannya seolah masih bisa
+     * dibuka. Yang hilang harus terbaca hilang.
+     */
+    if ((err as { code?: string } | null)?.code === "ENOENT") {
+      const alasan =
+        "Berkas hilang dari simpanan sementara sebelum sempat diarsipkan – biasanya karena aplikasi di-deploy ulang. Berkas aslinya masih ada di pesan WhatsApp-nya.";
+      await db.waAttachment.update({
+        where: { id: a.id },
+        data: { status: "gagal", failReason: alasan, localPath: null },
+      });
+      return { ok: false, alasan };
+    }
     return {
       ok: false,
       alasan: err instanceof Error ? `Gagal mengarsipkan: ${err.message}` : "Gagal mengarsipkan berkas.",
@@ -294,9 +343,15 @@ export async function arsipkanLampiran(
 }
 
 /**
- * Jaring pengaman: lampiran yang SUDAH dikonfirmasi tapi arsipnya belum jadi
- * (mis. R2 sedang mati saat orang menekan tombol). Bukan penyapu massal —
- * yang belum dikonfirmasi sengaja tidak ikut.
+ * Jaring pengaman: lampiran tertangkap yang arsipnya belum jadi — mis. R2
+ * sedang mati saat berkasnya masuk.
+ *
+ * Sejak 2026-08-29 penyaring `decision` DIBUANG. Sebelumnya penyapu ini hanya
+ * mengejar yang sudah ditetapkan orang, sehingga berkas yang belum sempat
+ * diputuskan tidak pernah punya kesempatan kedua — padahal justru itu yang
+ * paling mungkin hilang, karena ia hidup paling singkat di disk sementara.
+ *
+ * Dipanggil putaran `/api/cron/waha` (tiap 5 menit), bukan hanya dari tombol.
  */
 export async function arsipkanYangTertinggal(batas = 50): Promise<{ dipindah: number; gagal: number }> {
   if (!isR2Configured()) return { dipindah: 0, gagal: 0 };
@@ -305,7 +360,6 @@ export async function arsipkanYangTertinggal(batas = 50): Promise<{ dipindah: nu
       status: "tertangkap",
       r2Key: null,
       localPath: { not: null },
-      decision: { in: ["jadi_surat", "jadi_dokumen"] },
     },
     take: batas,
     orderBy: { createdAt: "asc" },

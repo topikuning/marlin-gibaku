@@ -7,7 +7,9 @@ export const maxDuration = 300;
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dipicu penjadwal LUAR (Railway
- * Cron / cron server) sekali sehari, disarankan 16:00 WIB = 09:00 UTC.
+ * Cron / cron server) sekali sehari, disarankan 18:00 WIB = 11:00 UTC — jam
+ * yang dipakai `cron-harian.yml` dan yang ditetapkan user untuk pengingat ke
+ * grup paket.
  *
  *   curl -X POST https://<host>/api/cron/harian -H "x-cron-secret: $CRON_SECRET"
  *

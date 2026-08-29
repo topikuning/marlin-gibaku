@@ -164,6 +164,41 @@ export async function setPengingatAktifAction(
   }
 }
 
+/* ── Sakelar pengingat harian ke GRUP paket (ketetapan user 2026-08-29) ──── */
+
+/**
+ * Nyalakan/matikan pengingat harian yang masuk ke GRUP WhatsApp paket.
+ *
+ * Terpisah dari sakelar pengingat perorangan: yang membaca pesan ini PPK dan
+ * konsultan pengawas, bukan orang lapangan (alasan lengkap di `setelan-grup.ts`).
+ */
+export async function setPengingatGrupAktifAction(
+  _prev: PengingatState,
+  formData: FormData,
+): Promise<PengingatState> {
+  const parsed = z
+    .object({ aktif: z.enum(["1", "0"]) })
+    .safeParse({ aktif: formData.get("aktif") });
+  if (!parsed.success) return { error: "Nilai sakelar tidak dikenal." };
+  const aktif = parsed.data.aktif === "1";
+
+  try {
+    const user = await requireCapability("system.manage");
+    const { setPengingatGrupAktif } = await import("./setelan-grup");
+    await setPengingatGrupAktif(aktif);
+    await audit(user.id, "reminder.group.toggle", "system", null, { aktif });
+    revalidatePath("/sistem");
+    return {
+      success: aktif
+        ? "Pengingat harian ke grup DINYALAKAN. Mulai putaran sore berikutnya, tiap paket yang laporannya belum lengkap ditagih di grupnya – berjeda satu menit antar grup."
+        : "Pengingat harian ke grup DIMATIKAN. Tidak ada pesan yang dikirim ke grup mana pun.",
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan sakelar." };
+  }
+}
+
 /* ── Pengingat manual PER ORANG (permintaan user 2026-08-05) ─────────────── */
 
 /**

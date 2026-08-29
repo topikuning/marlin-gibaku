@@ -526,6 +526,7 @@ model Package {
   gdriveUploads   GDriveUpload[]
   gdriveJobs      GDriveJob[]
   weeklyWaLogs    WeeklyWaLog[]
+  groupReminders  GroupReminderJob[]
   aiArtifacts     AiArtifact[]
 
   @@index([orgId, stage])
@@ -799,9 +800,11 @@ model WaAttachment {
   sha256    String?
 
   /// Simpanan LOKAL (cepat, ditulis saat webhook). Di Railway disk kontainer
-  /// bersifat sementara, jadi ini persinggahan — bukan arsip.
+  /// bersifat sementara, jadi ini CACHE — bukan arsip.
   localPath String? @map("local_path")
-  /// Arsip permanen di R2, diisi belakangan oleh pemindah di latar.
+  /// Arsip permanen di R2. Sejak 2026-08-29 diisi SEGERA saat berkas ditangkap,
+  /// tidak lagi menunggu orang menetapkannya: deploy ulang lebih sering datang
+  /// daripada keputusan, dan berkas yang belum diarsipkan ikut hilang bersamanya.
   r2Key     String? @map("r2_key")
 
   status     WaAttachmentStatus @default(tertangkap)
@@ -2654,6 +2657,50 @@ model DailyReminderLog {
   @@unique([userId, dateKey])
   @@index([dateKey])
   @@map("daily_reminder_logs")
+}
+
+/// ANTREAN pengingat laporan harian ke GRUP WhatsApp paket — satu baris per
+/// (paket, tanggal).
+///
+/// Kenapa antrean, bukan perulangan kirim di dalam satu putaran cron: jeda
+/// antar grup minimal SATU MENIT (ketetapan user 2026-08-29), sementara 19
+/// paket berjalan berarti ±19 menit — jauh melewati `maxDuration` 300 detik
+/// sebuah route. Barisnya karena itu dibuat sekaligus dengan `sendAfter`
+/// bertingkat, lalu dikuras putaran-putaran berikutnya.
+///
+/// Isi pesannya SENGAJA tidak disimpan saat baris dibuat: yang belum melapor
+/// pukul 18.00 bisa saja sudah melapor pukul 18.15 saat gilirannya tiba. Yang
+/// dihitung ulang saat kirim, dan grup yang sudah beres ditandai `dilewati` —
+/// tanpa pesan. Pengingat yang menagih orang yang sudah mengerjakan adalah cara
+/// tercepat membuat pengingat berhenti dibaca.
+model GroupReminderJob {
+  id          String    @id @default(uuid()) @db.Uuid
+  packageId   String    @map("package_id") @db.Uuid
+  package     Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  /// Tanggal kerja Asia/Jakarta (YYYY-MM-DD) yang ditagih.
+  dateKey     String    @map("date_key")
+  /// Giliran grup ini: paling cepat boleh dikirim kapan. Inilah yang menegakkan
+  /// jeda antar grup, bukan `sleep` di dalam satu proses.
+  sendAfter   DateTime  @map("send_after") @db.Timestamptz
+  /// menunggu | terkirim | dilewati | gagal
+  /// `dilewati` = saat gilirannya tiba tidak ada lagi yang perlu ditagih.
+  status      String    @default("menunggu")
+  attempts    Int       @default(0)
+  /// Jumlah lokasi yang disebut di pesan — 0 pada baris `dilewati`.
+  locations   Int       @default(0)
+  /// ID pesan dari WAHA: satu-satunya bukti pesannya masuk antrean WhatsApp
+  /// (DECISIONS 206).
+  waMessageId String?   @map("wa_message_id")
+  /// Grup yang BENAR-BENAR dituju (…@g.us).
+  chatId      String?   @map("chat_id")
+  lastError   String?   @map("last_error")
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([packageId, dateKey])
+  @@index([status, sendAfter])
+  @@map("wa_group_reminders")
 }
 
 /// Jejak kirim LAPORAN PROGRES MINGGUAN ke grup WhatsApp paket (DECISIONS 311).
