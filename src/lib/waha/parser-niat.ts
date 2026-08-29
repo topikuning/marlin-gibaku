@@ -602,6 +602,22 @@ export function frasaSisa(teksMentah: string): string[] {
     new RegExp(POLA_KE_DEPAN.source, "g"),
     " ",
   );
+  /*
+   * KATA KERJA PRODUKSI ikut dibuang — tanpa ini `produksi` tidak pernah
+   * benar-benar menyala (keluhan user 2026-08-29, dengan tangkapan layar).
+   *
+   * `parseNiatDeterministik` memang mengenali *"buat laporan kemarin untuk
+   * kranji"* sebagai `produksi`. Tetapi `rencanaDeterministik` menuntut TIDAK
+   * ADA satu kata pun yang tak terjelaskan, dan "buat" tidak pernah dihapus di
+   * sini — jadi ia jatuh ke `serahkan_ai` dengan alasan *kata di luar katalog:
+   * "buat"*, lalu AI menjawabnya sebagai pencarian catatan lapangan dan
+   * mengeluh *"Tidak saya kenali: buat"*. Persis yang terlihat di layar.
+   *
+   * Pelajarannya sama dengan cacat kadens bulanan: menguji `parseNiat…`
+   * sendirian membuktikan niatnya terbaca, BUKAN bahwa jalurnya sampai. Yang
+   * memutuskan adalah pembungkusnya.
+   */
+  sisa = sisa.replace(new RegExp(POLA_PRODUKSI.source, "g"), " ");
   for (const k of KUNCI) sisa = sisa.replace(new RegExp(k.pola.source, "g"), " ");
 
   const frasa: string[] = [];

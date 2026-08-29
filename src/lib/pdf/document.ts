@@ -15,9 +15,9 @@ import type PDFDocumentType from "pdfkit";
  * Dengan MEMUAT lewat path absolut file yang kita bawa sendiri (di-copy Dockerfile
  * lewat `assets/`), resolusi node_modules TAK terlibat sama sekali. DECISIONS 128.
  */
-const nodeRequire = createRequire(path.join(process.cwd(), "index.js"));
+const nodeRequire = createRequire(path.join(/*turbopackIgnore: true*/ process.cwd(), "index.js"));
 const PDFDocument = nodeRequire(
-  path.join(process.cwd(), "assets", "pdfkit-standalone.cjs"),
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "assets", "pdfkit-standalone.cjs"),
 ) as typeof PDFDocumentType;
 
 /**
@@ -77,7 +77,7 @@ let fontCache: { regular: Buffer; bold: Buffer } | null = null;
 /** Muat (sekali) buffer font DejaVu dari assets. process.cwd() = root app di dev & standalone. */
 function loadFonts(): { regular: Buffer; bold: Buffer } {
   if (fontCache) return fontCache;
-  const dir = path.join(process.cwd(), "assets", "fonts");
+  const dir = path.join(/*turbopackIgnore: true*/ process.cwd(), "assets", "fonts");
   fontCache = {
     regular: readFileSync(path.join(dir, "DejaVuSans.ttf")),
     bold: readFileSync(path.join(dir, "DejaVuSans-Bold.ttf")),

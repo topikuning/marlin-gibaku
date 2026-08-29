@@ -77,8 +77,8 @@ const BELUM_SELESAI = "impor-belum-selesai";
 /** Folder seed-data: repo root (dev) atau /app (container standalone). */
 function folderSeed(): string {
   const kandidat = [
-    join(process.cwd(), "seed-data"),
-    join(process.cwd(), "..", "..", "seed-data"),
+    join(/*turbopackIgnore: true*/ process.cwd(), "seed-data"),
+    join(/*turbopackIgnore: true*/ process.cwd(), "..", "..", "seed-data"),
   ];
   for (const c of kandidat) if (existsSync(c)) return c;
   throw new Error(`Folder seed-data tidak ditemukan (dicari: ${kandidat.join(", ")})`);
@@ -96,7 +96,7 @@ export type HasilImporAhsp = ManifestAhsp["ringkas"] & {
 };
 
 async function bacaManifest(): Promise<ManifestAhsp> {
-  const path = join(folderSeed(), FOLDER_SIAP, NAMA_MANIFEST);
+  const path = join(/*turbopackIgnore: true*/ folderSeed(), FOLDER_SIAP, NAMA_MANIFEST);
   if (!existsSync(path)) {
     throw new Error(
       `Basis AHSP siap-alir belum dibangkitkan (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\` lalu commit hasilnya.`,
@@ -212,7 +212,7 @@ export async function imporAhspDariSeed(userId: string | null): Promise<HasilImp
  * — bukan seluruh basis. Ini bagian yang membuat impor muat di 512 MB.
  */
 async function alirkanEntri(sourceId: string): Promise<{ entri: number }> {
-  const path = join(folderSeed(), FOLDER_SIAP, NAMA_NDJSON);
+  const path = join(/*turbopackIgnore: true*/ folderSeed(), FOLDER_SIAP, NAMA_NDJSON);
   if (!existsSync(path)) {
     throw new Error(
       `Basis AHSP siap-alir belum dibangkitkan (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\`.`,

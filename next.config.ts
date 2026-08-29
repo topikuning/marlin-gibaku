@@ -45,6 +45,11 @@ const nextConfig: NextConfig = {
   // PLUS pdfkit: bundle SELF-CONTAINED DI-VENDOR ke assets/pdfkit-standalone.cjs
   // (lihat lib/pdf/document.ts) — dimuat via path absolut, tanpa resolusi
   // node_modules. Cukup pastikan file assets ikut ter-copy.
+  // Berkas-berkas ini dijangkau lewat `path.join(process.cwd(), ...)` di
+  // runtime, yang tidak bisa dilihat penelusur statis — karena itu disebut
+  // eksplisit di sini. Tiap pemanggilnya diberi `/*turbopackIgnore: true*/`
+  // supaya penelusur berhenti menganggapnya require dinamis dan menyeret
+  // SELURUH proyek ke image (review 2026-08-29).
   outputFileTracingIncludes: {
     "/**": [
       "./assets/**",

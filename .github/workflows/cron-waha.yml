@@ -1,0 +1,90 @@
+name: Antrean jawaban WhatsApp MARLIN
+
+# JARING PENGAMAN antrean jawaban WhatsApp + penjemput pertanyaan Ask yang
+# menggantung (DECISIONS 372/456).
+#
+# Jalur cepatnya ada di webhook: pesan masuk langsung diproses tanpa menunggu
+# putaran ini. Yang dijamin di sini adalah SISANYA — pekerjaan yang prosesnya
+# mati di tengah jalan, atau tertunda karena mundur bertahap, tetap `antre` di
+# basis data dan diambil dari sini. Begitu pula pertanyaan Ask yang penjawabnya
+# putus sebelum jawabannya tertulis.
+#
+# Kenapa workflow ini ada (review 2026-08-29): rute `/api/cron/waha` sudah lama
+# menulis "disarankan dipicu tiap menit", dan layar Ask MARLIN menjanjikan
+# jawabannya dijemput sendiri — tetapi TIDAK ADA satu pun penjadwal yang
+# memanggilnya. Janji tanpa pemanggil bukan pemulihan otomatis; ia hanya
+# menunda kesadaran bahwa jawabannya tidak akan pernah datang.
+#
+# TIAP LIMA MENIT, bukan tiap menit. GitHub Actions tidak menepati jadwal
+# semenit (lihat catatan di bawah), jadi menuliskan "* * * * *" hanya
+# menjanjikan yang tidak bisa ditepati. Lima menit adalah kadens jujur yang
+# masih jauh di bawah `batasJawabanMs`, sehingga pertanyaan yang menggantung
+# tetap dijemput sebelum penanyanya menyerah.
+#
+# Aman dipicu berkali-kali dan bersamaan: klaim pekerjaan dilakukan atomik di
+# basis data, jadi dua putaran tidak bisa mengerjakan hal yang sama.
+#
+# Perilaku GitHub yang perlu diketahui (sama dengan cron-harian & cron-gdrive):
+# scheduled workflow sering telat 5–20 menit, sesekali dilewati, dan DIMATIKAN
+# diam-diam bila repo tidak menerima commit selama 60 hari.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  # Tombol "Run workflow" di tab Actions — untuk menjemput sekarang juga.
+  workflow_dispatch:
+
+# Putaran sebelumnya masih jalan? Jangan menumpuk.
+concurrency:
+  group: cron-waha
+  cancel-in-progress: false
+
+jobs:
+  jalankan:
+    name: Panggil /api/cron/waha
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Periksa konfigurasi
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::Variable APP_URL belum diisi. Settings → Secrets and variables → Actions → Variables, isi APP_URL = https://<host-produksi> (TANPA garis miring di akhir)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET belum diisi. Nilainya harus SAMA PERSIS dengan CRON_SECRET di environment aplikasi."
+            exit 1
+          fi
+
+      - name: Jalankan satu putaran antrean
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # --fail-with-body: badan respons tetap dicetak walau status error,
+          # supaya penyebabnya terbaca di log. Rahasianya hanya ada di header,
+          # tidak pernah ikut tercetak.
+          status=0
+          body=$(curl --fail-with-body -sS -X POST \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 300 \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/waha") || status=$?
+
+          echo "Respons: ${body}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Pemanggilan gagal (curl exit ${status}). Status 404 hampir selalu berarti CRON_SECRET di sini BERBEDA dengan yang ada di aplikasi — endpoint sengaja menjawab 404, bukan 401, supaya keberadaannya tidak bisa dipetakan dari luar."
+            exit "$status"
+          fi
+
+          {
+            echo "### Antrean jawaban WhatsApp"
+            echo ""
+            echo '```json'
+            echo "${body}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

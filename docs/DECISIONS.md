@@ -24420,3 +24420,173 @@ Disajikan `inline`, bukan unduhan: berkas ini dibuka untuk DINILAI, bukan
 dikoleksi. Berkas yang simpanan lokalnya sudah hilang (lazim setelah redeploy)
 dijawab 410 berikut sebabnya, bukan 404 telanjang — "hilang karena deploy ulang"
 dan "tidak pernah ada" menuntut tindakan yang berbeda.
+
+---
+
+## 468 · Tujuh temuan review 2026-08-29 ditutup (2026-08-29)
+
+### 1. Satu jawaban tidak lagi mencampur dua waktu
+
+Adapter menerima `periodKey` — akhir periode yang DITANYAKAN — lalu
+menstempelkannya ke setiap fakta. Tetapi separuh adapternya membaca keadaan
+SEKARANG: temuan terbuka, surat tertunda, RAB aktif, kesiapan, peringatan dini,
+angka keuangan, milestone; inspeksi dan verifikasi bahkan tanpa batas tanggal
+sama sekali. Pertanyaan "kondisi per 30 Juni" karenanya bisa memadukan progres
+30 Juni dengan temuan hari ini.
+
+Yang membuatnya sulit terbantah: angkanya masing-masing BENAR. Yang salah hanya
+labelnya — dan label itulah yang dipakai pembaca untuk memutuskan. Dan komentar
+di `adapters.ts` justru menjanjikan kebalikannya, *"supaya satu jawaban tidak
+mencampur dua waktu"*; klaim yang salah lebih berbahaya daripada tidak ada
+klaim, karena pembaca berikutnya berhenti memeriksa.
+
+Keputusan user: **jalan (a) — jujur dulu, akurat kemudian.**
+
+- Yang bertanggal dan bisa dibatasi murah — inspeksi (`inspectionDate`),
+  verifikasi (`reportDate`), sisa hari kontrak — dihitung terhadap AKHIR
+  PERIODE. Membawa inspeksi yang pada tanggal itu belum terjadi adalah
+  kesalahan yang tidak bisa dibela dengan "tidak bisa direkonstruksi".
+- Yang inheren keadaan sekarang TIDAK dipaksa direkonstruksi (butuh histori
+  status yang belum tentu ada). Faktanya distempel TANGGAL HARI INI, dan
+  sitasinya membawa cap `KEADAAN HARI INI (…), bukan per …`.
+
+Stempel itu bukan kosmetik: `validasiKlaim` membandingkan `periodKey` klaim
+dengan `periodKey` fakta, jadi klaim yang memakai angka itu TERPAKSA mengaku
+"per hari ini" — kalau ia mengaku "per 30 Juni", bagiannya dibuang.
+
+Pada pertanyaan yang periodenya memang hari ini — mayoritasnya — tidak ada yang
+berubah: capnya kosong dan seluruh stempelnya sama. Bising pada jawaban yang
+benar akan membuat orang berhenti membaca peringatan yang sungguhan.
+
+**Uji lama yang justru menjaga cacatnya diperbaiki.**
+`ai-klaim-terikat-run.test.ts` menuntut `fakta.every(f => f.periodKey === AKHIR)`
+— ia membuktikan seluruh fakta berLABEL periode yang sama, bukan bahwa datanya
+dari periode itu. Keseragaman stempel itulah yang membuat pencampurannya tidak
+kelihatan.
+
+Rekonstruksi historis penuh (jalan b) tidak dikerjakan: sebagian entitas tidak
+punya histori yang cukup, dan menebaknya lebih buruk daripada mengaku.
+
+### 2. Bootstrap DITUNGGU, dan Ask benar-benar punya penjemput
+
+`register()` hanya `await import(...)` — yang selesai begitu IIFE bootstrap
+DIMULAI, bukan selesai. Server bisa melayani permintaan selagi migrasi data
+berjalan, dan yang lahir dari situ adalah angka yang salah pada permintaan
+pertama dan benar pada berikutnya: kelas kesalahan yang paling sulit dilacak
+karena tidak bisa diulang. `bootstrapDone` kini ditunggu; tiap langkahnya sudah
+idempoten dan ber-`try/catch` sendiri, jadi satu langkah gagal tidak menahan
+boot.
+
+`/api/cron/waha` sudah lama menulis "disarankan dipicu tiap menit" dan layar Ask
+menjanjikan penjemputan otomatis — tetapi TIDAK ADA penjadwal yang memanggilnya.
+Janji tanpa pemanggil bukan pemulihan otomatis. `.github/workflows/cron-waha.yml`
+memanggilnya tiap lima menit — bukan tiap menit, karena GitHub Actions tidak
+menepati kadens semenit dan menuliskannya hanya menjanjikan yang tak bisa
+ditepati.
+
+### 3. Balapan lampiran ditutup basis data, bukan pemeriksaan
+
+Penjaga `findFirst` lalu `create` hanya menutup pengulangan BERURUTAN. Bentuk
+balapan yang sungguhan berbeda: webhook A menyimpan pesan lalu MULAI mengunduh
+(detik-an), webhook B tiba, pesannya sudah ada, penjaga belum menemukan apa pun
+karena A masih mengunduh — keduanya menulis. Indeks biasa tidak menahan apa pun;
+`@@unique([messageId])` menahan, dan P2002 diperlakukan sebagai "sudah
+tertangkap", bukan galat. Migrasinya membersihkan baris kembar yang terlanjur
+ada, mempertahankan yang TERTUA — ketetapan manusia menempel padanya.
+
+Uji balapan versi pertama hijau walau indeks uniknya dicabut: `Promise.all`
+saja tidak membuka selanya, karena balapan pada `upsert` pesan berhenti sebelum
+menyentuh lampiran. Selanya kini dibuka di tempat yang benar — unduhan A ditahan
+sampai B selesai.
+
+### 4. Pesan gagal Ask tidak lagi menyuruh mengirim ulang lebih dulu
+
+Begitu penjemput terjadwal berjalan, menyuruh orang mengirim ulang menciptakan
+pertanyaan kembar: penjemput menjalankannya lagi, penanya menjalankannya lagi,
+dua jawaban masuk ke percakapan yang sama. Teksnya kini menyebut apa yang
+sungguh terjadi, dan menaruh kirim-ulang sebagai pilihan terakhir.
+
+### 5. Artefak uji dan `.data/`
+
+Uji lampiran menulis berkasnya ke `.data/lampiran/` lewat
+`siapkanDirektoriLampiran()`, lalu `git add -A` menyeretnya ikut ter-commit.
+Isinya memang mock, tetapi jalur itu tempat lampiran WhatsApp SUNGGUHAN mendarat
+— kali berikutnya belum tentu mock. Sudah dibuang; `.data/` masuk `.gitignore`.
+
+### 6. Peringatan tracing: dari tujuh jadi tiga, dan sisanya disengaja
+
+Penyebabnya bukan `outputFileTracingIncludes`, melainkan
+`path.join(process.cwd(), …)` di beberapa penolong server-only — penelusur
+Turbopack membacanya sebagai require dinamis dan menyeret seluruh proyek. Tiap
+pemanggilnya diberi `/*turbopackIgnore: true*/`.
+
+Sisanya berakar di `next.config.ts` sendiri ("Encountered unexpected file in NFT
+list") — itu daftar include yang memang disengaja: tanpa `sharp` + `@img`
+lengkap, `libvips-cpp.so` tidak ikut tersalin dan runtime gagal. Mengejar nol
+peringatan dengan mencabutnya akan menukar peringatan dengan kerusakan.
+
+### Yang TIDAK dikerjakan
+
+- **Kelayakan eksekutif (E-01/E-04/E-07/E-08)** menuntut pembaca sungguhan;
+  tidak ada yang bisa dikerjakan kode. Tetap terbuka di `OPEN_ISSUES.md`.
+- **Produksi artefak dari WhatsApp & RAPL di AI** bukan cacat: keduanya
+  keputusan sadar yang sudah tertulis (DECISIONS 193/462 dan
+  `RUTE_BUKAN_WILAYAH`). Mengubahnya keputusan produk, bukan perbaikan.
+
+---
+
+## 469 · "Buat laporan" akhirnya benar-benar membuat laporannya (2026-08-29)
+
+Keluhan user dengan tangkapan layar: *"buat laporan kemarin untuk kranji"*
+dijawab kutipan catatan lapangan, ditutup keluhan *"Tidak saya kenali: buat"*.
+Yang ia harapkan berkas laporan lengkap berikut kendalanya.
+
+### 1. Niat `produksi` tidak pernah benar-benar menyala
+
+DECISIONS 462 menambahkan niat `produksi` supaya perintah tidak lagi dijawab
+sebagai pertanyaan. `parseNiatDeterministik` memang mengenalinya. Tetapi
+`rencanaDeterministik` — pembungkus yang sebenarnya dipakai — menuntut **tidak
+ada satu kata pun yang tak terjelaskan**, dan `frasaSisa()` tidak pernah
+menghapus kata kerja produksinya. "buat" karenanya tersisa sebagai kata di luar
+katalog lokasi, kalimatnya diserahkan ke AI, dan AI menjawabnya sebagai
+pencarian catatan sambil mengeluh nama lokasi "buat" tidak dikenal.
+
+Artinya SETIAP bentuk perintah gagal: *"buatkan laporan bulanan"* — contoh yang
+ditulis DECISIONS 462 sendiri — juga jatuh ke AI.
+
+Pelajarannya sama persis dengan cacat kadens bulanan sehari sebelumnya, dan aku
+mengulanginya: menguji `parseNiatDeterministik` sendirian membuktikan niatnya
+TERBACA, bukan bahwa jalurnya SAMPAI. Yang memutuskan adalah pembungkusnya.
+Ujinya karena itu lewat `jawabPertanyaanWa` dengan parser sungguhan.
+
+Sekalian: karena kata kerjanya kini dihapus, sisa frasanya bersih dan nama
+lokasi di kalimat perintah IKUT terbaca — "kranji" tidak lagi hilang.
+
+Jebakan "buat = untuk" tetap terjaga: `POLA_PRODUKSI` menuntut kata kerja
+langsung diikuti kata benda artefak, jadi *"laporan buat pak PPK"* tetap
+diserahkan ke AI, bukan dibaca sebagai perintah.
+
+### 2. Batas artefaknya digeser ke tempat yang benar
+
+Balasan lama menolak SEMUA permintaan artefak dengan alasan
+review→setujui→beku (DECISIONS 193). Alasan itu benar untuk laporan EKSEKUTIF —
+angkanya ditandatangani. Tetapi BLANKO HARIAN bukan artefak yang dijaga gerbang
+itu: ia sudah dibentuk tiap hari dan diunggah sendiri ke Drive tanpa persetujuan
+siapa pun. Menolak mengirim berkas yang setiap malam dikirim otomatis adalah
+pagar yang tidak menjaga apa-apa — ia hanya menyulitkan orang yang bertanya.
+
+Batasnya sekarang:
+
+- **satu lokasi + satu tanggal** → blanko hariannya DIKIRIM sebagai PDF, lengkap
+  dengan pekerjaan, tenaga, material, alat, cuaca, foto, dan kendala. Tidak ada
+  pembentuk baru: `renderHarianRingkasPdf` yang sudah dipakai layar dan Drive.
+- **selain itu** (lintas lokasi, rentang tanggal, laporan eksekutif) → tetap
+  mengaku tidak bisa dan menunjukkan jalannya.
+
+Balasan teksnya menyebut lokasi dan tanggal, dan menyatakan tegas bahwa ini
+blanko lapangan, BUKAN laporan eksekutif yang ditandatangani — berkas WhatsApp
+diteruskan tanpa percakapannya, dan penerima kedua tidak pernah melihat
+pertanyaannya.
+
+Kegagalan membentuk berkas TIDAK ditelan: penanya diberi tahu, karena "tidak ada
+berkas" tanpa sepatah kata terbaca sebagai "tidak ada laporannya".

@@ -196,7 +196,16 @@ export function AskClient({
           <Banner
             tone="warning"
             title="Jawaban sebelumnya tidak selesai"
-            description="Prosesnya berhenti sebelum jawaban tertulis – biasanya karena aplikasi dimuat ulang saat itu. Pertanyaannya masih ada di atas; kirim ulang untuk mencoba lagi."
+            /*
+             * Sejak penjemput terjadwal benar-benar berjalan (`cron-waha`,
+             * review 2026-08-29), menyuruh orang mengirim ulang justru
+             * menciptakan pertanyaan kembar: penjemput menjalankannya lagi,
+             * penanya menjalankannya lagi, dan dua jawaban masuk ke percakapan
+             * yang sama. Teks ini karenanya berkata apa yang SUNGGUH terjadi,
+             * dan menaruh kirim-ulang sebagai pilihan terakhir — bukan langkah
+             * pertama.
+             */
+            description="Prosesnya berhenti sebelum jawaban tertulis – biasanya karena aplikasi dimuat ulang saat itu. Pertanyaannya sudah masuk antrean dan dijemput sendiri; halaman ini memperbarui begitu jawabannya siap. Kirim ulang hanya bila sesudah beberapa menit masih belum ada."
           />
         ) : null}
 

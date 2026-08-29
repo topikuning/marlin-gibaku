@@ -7,6 +7,8 @@ Instruksi untuk Claude Code saat bekerja di repo ini.
 2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO sebelum fitur baru
 3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only (051 = rebuild total)
 4. [`docs/README.md`](./docs/README.md) — peta seluruh dokumentasi (mana yang hidup, mana yang arsip)
+5. [`docs/CARA_KERJA_AGEN.md`](./docs/CARA_KERJA_AGEN.md) — repo ini dikerjakan TIGA agen:
+   siapa penulis, siapa pengoreksi, syarat merah-dulu, daftar blind spot yang sudah terbukti
 
 **Menyentuh progress / deviasi / kurva-S / laporan / uang?** Baca
 [`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md)
@@ -54,7 +56,7 @@ pnpm vitest run tests/unit
 DATABASE_URL=postgresql://marlin:marlin@localhost:5432/marlin_test APP_ENV=test \
   pnpm vitest run tests/integration    # butuh migrate deploy dulu ke DB test
 pnpm build               # prisma generate + next build (standalone)
-pnpm test:e2e            # Playwright (butuh server + seed)
+pnpm test:e2e            # Playwright — JANGAN dijalankan lokal, lihat di bawah
 
 pnpm db:generate         # regenerate Prisma Client (Prisma 7 → src/generated/prisma)
 pnpm db:migrate          # migration dev
@@ -67,6 +69,32 @@ pnpm audit:ahsp          # daftar temuan janggal basis AHSP → xlsx
 
 docker build --no-cache -t marlin:test .   # verifikasi deploy
 ```
+
+### Gerbang sebelum push — E2E DIJALANKAN SEKALI, DI CI
+
+Ketetapan user 2026-08-29: *"ci tetap menjalankan e2e atau tes apa pun itu,
+kalau memang harus dilakukan, lakukan salah satu"*.
+
+Jalankan lokal sebelum push: **typecheck · lint · unit · integrasi** (±7 menit).
+**JANGAN** menjalankan `pnpm test:e2e` lokal — CI sudah menjalankannya pada tiap
+PR, dan menjalankannya dua kali menambah ±14 menit tunggu tanpa menambah satu
+pun bukti. Yang lolos empat gerbang di atas dan lolos CI sama saja dengan yang
+lolos lima gerbang lokal; bedanya cuma siapa yang menunggu.
+
+Alasannya bukan penghematan buta: dari lima kali E2E lokal di sesi 2026-08-28/29,
+hanya DUA yang menemukan sesuatu, dan keduanya pada perubahan yang menyentuh
+LAYAR. Tiga sisanya perubahan lib/adapter/parser/dokumen — hijau, lalu diulang
+CI.
+
+**Satu-satunya alasan sah menjalankannya lokal**: CI sudah melaporkan E2E MERAH
+dan kegagalannya perlu direproduksi untuk diperbaiki. Di situ ia bukan
+pengulangan, melainkan satu-satunya cara beriterasi.
+
+Berlaku juga untuk `pnpm build`: ia bagian dari CI. Bangun lokal hanya bila
+memang butuh servernya jalan (mis. reproduksi E2E merah di atas).
+
+Saat iterasi, jalankan BERKAS uji yang bersangkutan saja; suite penuh cukup
+sekali, tepat sebelum commit.
 
 ## Stack (pinned exact — lihat docs/rebuild/TECHNOLOGY_AUDIT.md)
 

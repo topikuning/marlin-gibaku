@@ -826,9 +826,14 @@ model WaAttachment {
   @@index([packageId, createdAt])
   @@index([decision, saranKind])
   @@index([sha256])
-  /// Penjaga tangkap-ganda menanyakan "pesan ini sudah punya lampiran?" tiap
-  /// kali webhook mengulang pesan yang sama — tanpa indeks itu pemindaian penuh.
-  @@index([messageId])
+  /// SATU pesan hanya boleh melahirkan SATU lampiran.
+  ///
+  /// Penjaga di `ingest.ts` (findFirst lalu create) menutup pengulangan
+  /// BERURUTAN, tetapi dua webhook yang tiba bersamaan bisa sama-sama belum
+  /// menemukan barisnya lalu sama-sama membuat. Indeks biasa tidak menahan itu;
+  /// yang menahan hanya basis data. Pemanggil menangkap P2002 dan
+  /// memperlakukannya sebagai "sudah tertangkap" — bukan galat.
+  @@unique([messageId])
   letters Letter[]
 
   @@map("wa_attachments")

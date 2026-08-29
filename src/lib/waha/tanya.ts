@@ -66,6 +66,7 @@ import {
   balasBantuan,
   barisTafsir,
   balasProduksi,
+  balasProduksiBerkas,
   balasDeviasi,
   balasDitolak,
   balasKelengkapan,
@@ -947,6 +948,14 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * `null` = niat yang memang bukan daftar (mis. bantuan).
    */
   let tabel: TabelWa | null = null;
+  /**
+   * Blanko harian yang harus IKUT terkirim sebagai berkas (DECISIONS 469).
+   *
+   * Disimpan dulu, dikirim belakangan bersama jalur berkas yang sudah ada —
+   * bukan dikirim di tengah cabang niat, supaya urutan "teks dulu, berkas
+   * menyusul" tetap satu tempat dan kegagalan berkas tidak menelan balasannya.
+   */
+  let berkasHarian: { lokasi: LokasiKatalog; dateKey: string } | null = null;
   const peta = petaLokasi(katalog);
   const optTabel = (o: OpsiTabel = {}): OpsiTabel => ({
     catatanPemotongan: keputusan.catatanPemotongan,
@@ -958,12 +967,30 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     balasan = balasBantuan();
   } else if (niat.niat === "produksi") {
     /*
-     * PERINTAH, bukan pertanyaan. Tidak ada query yang perlu dijalankan: yang
-     * diminta penanya adalah artefak, dan artefak resmi tidak boleh lahir tanpa
-     * review→setujui→beku (DECISIONS 193). Balasannya mengaku, menunjukkan
-     * jalannya, lalu menawarkan angka yang bisa diberikan sekarang juga.
+     * PERINTAH, bukan pertanyaan — tetapi tidak semua artefak sama.
+     *
+     * Keluhan user 2026-08-29: *"aku mengharapkan laporan dalam bentuk file yg
+     * komprehensif mulai dari laporan dan kendala"*, dan yang ia terima adalah
+     * penolakan. Penolakan itu benar untuk laporan EKSEKUTIF — angkanya
+     * ditandatangani, jadi harus lewat review→setujui→beku (DECISIONS 193).
+     * Tetapi BLANKO HARIAN bukan artefak yang dijaga gerbang itu: ia sudah
+     * dibentuk tiap hari dan diunggah sendiri ke Drive tanpa persetujuan siapa
+     * pun. Menolak mengirim berkas yang setiap malam dikirim otomatis adalah
+     * pagar yang tidak menjaga apa-apa.
+     *
+     * Jadi batasnya digeser ke tempat yang benar:
+     *   - satu lokasi + satu tanggal → blanko hariannya DIKIRIM, lengkap
+     *     dengan pekerjaan, tenaga, material, alat, foto, dan KENDALA;
+     *   - selain itu (lintas lokasi, rentang tanggal, laporan eksekutif) →
+     *     tetap mengaku dan menunjukkan jalannya.
      */
-    balasan = balasProduksi();
+    const satuLokasi = resolusi.cocok.length === 1 ? resolusi.cocok[0] : null;
+    if (satuLokasi && periode.satuHari) {
+      berkasHarian = { lokasi: satuLokasi, dateKey };
+      balasan = balasProduksiBerkas(satuLokasi.nama, dateKey);
+    } else {
+      balasan = balasProduksi();
+    }
   } else if (niat.niat === "laporan_mingguan") {
     // Berapa pun bentuk periode yang ditulis penanya, jawabannya satu PEKAN
     // penuh — "laporan mingguan 17 agustus" berarti pekan yang memuat 17
@@ -1212,6 +1239,54 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * berangkat sebagai teks. Balasan panjang jauh lebih baik daripada tidak ada
    * balasan sama sekali — dan kegagalannya tercatat, tidak ditelan.
    */
+  /*
+   * BLANKO HARIAN dikirim sebagai berkas (DECISIONS 469).
+   *
+   * Ditaruh SEBELUM jalur PDF tabel dan tidak mematikan pengiriman teks:
+   * teksnya menyebut lokasi dan tanggal, jadi berguna sendiri walau berkasnya
+   * gagal dibentuk. Kegagalan dicatat, tidak ditelan — dan penanya diberi tahu,
+   * karena "tidak ada berkas" tanpa sepatah kata terbaca sebagai "tidak ada
+   * laporannya".
+   */
+  if (berkasHarian) {
+    try {
+      const { db } = await import("@/lib/db");
+      const lok = await db.location.findUnique({
+        where: { id: berkasHarian.lokasi.id },
+        select: { slug: true },
+      });
+      const { renderHarianRingkasPdf } = await import("@/lib/pdf/harian-ringkas");
+      const hasil = lok ? await renderHarianRingkasPdf(lok.slug, berkasHarian.dateKey) : null;
+      if (!hasil) {
+        await balasWa(
+          m.chatId,
+          `Tidak ada laporan harian ${berkasHarian.lokasi.nama} untuk ${berkasHarian.dateKey}, jadi tidak ada berkas yang bisa saya kirim.`,
+        );
+      } else {
+        await balasFileWa(
+          m.chatId,
+          {
+            mimetype: "application/pdf",
+            filename: `laporan-harian-${lok!.slug}-${berkasHarian.dateKey}.pdf`,
+            data: hasil.buffer.toString("base64"),
+          },
+          `Blanko harian ${berkasHarian.lokasi.nama} – ${berkasHarian.dateKey}`,
+        );
+        await audit(user?.id ?? null, "waha.tanya.blanko_harian", "wa_message", m.waMessageId, {
+          chatId: m.chatId,
+          lokasi: berkasHarian.lokasi.nama,
+          tanggal: berkasHarian.dateKey,
+        });
+      }
+    } catch (err) {
+      console.error("[waha/tanya] gagal mengirim blanko harian:", err);
+      await balasWa(
+        m.chatId,
+        "Berkasnya gagal saya bentuk. Angkanya tetap bisa ditanyakan di chat ini, atau buka MARLIN langsung.",
+      );
+    }
+  }
+
   let lewatPdf = false;
   if (tabel && perluPdf(bagian.length, tabel.jumlahIsi)) {
     try {

@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { getContractsBilling, getLocationsFinance } from "@/lib/finance/calc";
-import { formatRupiah, jakartaToday } from "@/lib/format";
+import { formatRupiah, jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
 import { OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import type { SessionUser } from "@/lib/auth/session";
 import { kunciFakta, type FaktaResmi, type Metrik } from "./schemas";
@@ -101,14 +101,107 @@ type LokasiRingkas = {
 };
 
 /**
+ * WAKTU yang berlaku untuk satu run adapter.
+ *
+ * Sampai review 2026-08-29 hanya `periodKey` yang diedarkan, dan komentar di
+ * bawah menjanjikan "satu jawaban tidak mencampur dua waktu" — janji yang tidak
+ * ditepati. Sebagian adapter memang membaca keadaan SEKARANG (temuan yang masih
+ * terbuka, surat yang masih menunggu jawaban, kesiapan, peringatan dini, RAB
+ * aktif, angka keuangan, milestone), lalu faktanya distempel periode yang
+ * DIMINTA. Pertanyaan "kondisi per 30 Juni" karenanya bisa memadukan progres 30
+ * Juni dengan temuan hari ini — dan tidak ada apa pun di jawabannya yang
+ * memberi tahu pembacanya.
+ *
+ * Keputusan user 2026-08-29 (jalan a): JUJUR DULU, akurat kemudian.
+ *
+ *  - Yang punya tanggal dan bisa dibatasi murah — inspeksi, verifikasi, sisa
+ *    hari kontrak — dihitung terhadap AKHIR PERIODE yang diminta.
+ *  - Yang inheren keadaan sekarang tidak dipaksa direkonstruksi (butuh histori
+ *    status yang belum tentu ada, dan menebaknya lebih buruk daripada mengaku).
+ *    Faktanya distempel TANGGAL HARI INI — bukan periode yang diminta — dan
+ *    labelnya menyebutnya. Penstempelan itu bukan kosmetik: `validasiKlaim`
+ *    membandingkan `periodKey` klaim dengan `periodKey` fakta, jadi klaim yang
+ *    memakai angka ini terpaksa mengaku "per hari ini".
+ *
+ * Pada pertanyaan yang periodenya memang hari ini — mayoritasnya — tidak ada
+ * yang berubah sama sekali: `kunciHariIni === periodKey`.
+ */
+export type WaktuAdapter = {
+  /** Akhir periode yang DIMINTA (YYYY-MM-DD). */
+  periodKey: string;
+  /** Hari ini di Asia/Jakarta (YYYY-MM-DD). */
+  kunciHariIni: string;
+  /** Akhir periode sebagai Date; jatuh ke hari ini bila kuncinya tak terbaca. */
+  akhirPeriode: Date;
+  /** Periode yang diminta sudah LEWAT — di sinilah pencampuran waktu berbahaya. */
+  historis: boolean;
+};
+
+export function waktuAdapter(periodKey: string): WaktuAdapter {
+  const hariIni = jakartaToday();
+  const kunciHariIni = jakartaDateKey(hariIni);
+  const akhir = parseDateKey(periodKey) ?? hariIni;
+  return {
+    periodKey,
+    kunciHariIni,
+    akhirPeriode: akhir,
+    historis: periodKey < kunciHariIni,
+  };
+}
+
+/**
+ * Tempelan untuk fakta yang TIDAK bisa dibaca ulang ke masa lalu.
+ *
+ * Kosong bila periodenya memang hari ini — menambahi tiap label dengan
+ * "keadaan hari ini" pada pertanyaan hari ini hanya bising, dan bising membuat
+ * orang berhenti membaca peringatan yang sungguhan.
+ */
+function capSekarang(w: WaktuAdapter): string {
+  return w.historis ? ` · KEADAAN HARI INI (${w.kunciHariIni}), bukan per ${w.periodKey}` : "";
+}
+
+/**
+ * Sitasi yang isinya KEADAAN SEKARANG, dikenali dari akhiran id-nya.
+ *
+ * Ditulis sebagai daftar di SATU tempat, bukan ditempelkan satu per satu di
+ * tiap `refs.push` — penempelan tersebar akan terlewat pada adapter berikutnya,
+ * dan yang terlewat justru tidak kelihatan (labelnya cuma kehilangan
+ * peringatan, bukan memunculkan galat).
+ */
+const REF_KEADAAN_SEKARANG = new Set([
+  "rab",
+  "keuangan",
+  "tagihan",
+  "milestone-kkp",
+  "temuan",
+  "kesiapan",
+  "peringatan",
+  "verifikasi",
+  "surat",
+]);
+
+/** Tempelkan cap "keadaan hari ini" pada sitasi yang tidak bisa dibaca ulang. */
+function tandaiKeadaanSekarang(hasil: HasilAdapter, w: WaktuAdapter): void {
+  if (!w.historis) return;
+  const cap = capSekarang(w);
+  for (const r of hasil.refs) {
+    const akhiran = r.id.split(":").pop() ?? "";
+    if (REF_KEADAAN_SEKARANG.has(akhiran)) r.value = `${r.value}${cap}`;
+  }
+}
+
+/**
  * Kumpulkan fakta tambahan untuk seluruh lokasi dalam scope — BATCHED.
  *
  * Tidak ada query per lokasi di sini: pola N+1 pada run berisi 83 lokasi
  * berarti ratusan perjalanan basis data untuk satu pertanyaan.
  *
  * `periodKey` diterima dari pemanggil (akhir periode run), sama dengan yang
- * dipakai fakta progress — supaya satu jawaban tidak mencampur dua waktu
- * (DECISIONS 369).
+ * dipakai fakta progress. Yang tidak bisa dibaca ulang ke masa lalu TIDAK
+ * dipaksa memakai kunci itu — lihat `WaktuAdapter`. Sebelum review 2026-08-29
+ * komentar di sini berbunyi "supaya satu jawaban tidak mencampur dua waktu",
+ * padahal separuh adapternya membaca keadaan sekarang; klaim yang salah lebih
+ * berbahaya daripada tidak ada klaim.
  */
 export async function buildAdapterFacts(
   user: SessionUser,
@@ -117,6 +210,7 @@ export async function buildAdapterFacts(
 ): Promise<HasilAdapter> {
   const hasil: HasilAdapter = { refs: [], fakta: [], dilewati: [] };
   if (locIds.length === 0) return hasil;
+  const w = waktuAdapter(periodKey);
 
   const boleh = (w: WilayahAdapter): boolean => {
     if (can(user.role, KAPABILITAS_ADAPTER[w])) return true;
@@ -142,17 +236,18 @@ export async function buildAdapterFacts(
 
   const paketIds = [...new Set(lokasi.map((l) => l.packageId))];
 
-  if (bolehKontrak) await tambahKontrak(hasil, lokasi, paketIds, periodKey);
-  if (bolehRab) await tambahRab(hasil, lokasi, periodKey);
-  if (bolehKeuangan) await tambahKeuangan(hasil, lokasi, paketIds, periodKey);
-  if (bolehMilestone) await tambahMilestone(hasil, lokasi, periodKey);
-  if (bolehTemuan) await tambahTemuan(hasil, lokasi, periodKey);
-  if (bolehKesiapan) await tambahKesiapan(hasil, user, lokasi, periodKey);
-  if (bolehEws) await tambahEws(hasil, user, lokasi, periodKey);
-  if (bolehVerifikasi) await tambahVerifikasi(hasil, lokasi, periodKey);
-  if (bolehInspeksi) await tambahInspeksi(hasil, lokasi, periodKey);
-  if (bolehSurat) await tambahSurat(hasil, user, lokasi, paketIds, periodKey);
+  if (bolehKontrak) await tambahKontrak(hasil, lokasi, paketIds, w);
+  if (bolehRab) await tambahRab(hasil, lokasi, w);
+  if (bolehKeuangan) await tambahKeuangan(hasil, lokasi, paketIds, w);
+  if (bolehMilestone) await tambahMilestone(hasil, lokasi, w);
+  if (bolehTemuan) await tambahTemuan(hasil, lokasi, w);
+  if (bolehKesiapan) await tambahKesiapan(hasil, user, lokasi, w);
+  if (bolehEws) await tambahEws(hasil, user, lokasi, w);
+  if (bolehVerifikasi) await tambahVerifikasi(hasil, lokasi, w);
+  if (bolehInspeksi) await tambahInspeksi(hasil, lokasi, w);
+  if (bolehSurat) await tambahSurat(hasil, user, lokasi, paketIds, w);
 
+  tandaiKeadaanSekarang(hasil, w);
   return hasil;
 }
 
@@ -164,7 +259,7 @@ async function tambahKontrak(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
   paketIds: string[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const kontrak = await db.contract.findMany({
     where: { packageId: { in: paketIds } },
@@ -180,7 +275,9 @@ async function tambahKontrak(
     },
   });
   const perPaket = new Map(kontrak.map((k) => [k.packageId, k]));
-  const hariIni = jakartaToday().getTime();
+  // Sisa hari dihitung terhadap AKHIR PERIODE yang diminta, bukan hari ini:
+  // "sisa 40 hari" pada pertanyaan per 30 Juni harus berarti sisa PER 30 JUNI.
+  const patokan = w.akhirPeriode.getTime();
 
   for (const l of lokasi) {
     const k = perPaket.get(l.packageId);
@@ -195,7 +292,7 @@ async function tambahKontrak(
      */
     const sisaHari =
       k.endDate != null
-        ? Math.ceil((k.endDate.getTime() - hariIni) / (24 * 3600 * 1000))
+        ? Math.ceil((k.endDate.getTime() - patokan) / (24 * 3600 * 1000))
         : null;
 
     hasil.refs.push({
@@ -216,10 +313,10 @@ async function tambahKontrak(
       href: `/paket/${l.packageId}/kontrak`,
     });
 
-    dorong(hasil, fakta(l.id, "nilai_kontrak", rupiahKeAngka(k.contractValue), periodKey, refId));
-    dorong(hasil, fakta(l.id, "durasi_kontrak_hari", k.durationDays, periodKey, refId));
+    dorong(hasil, fakta(l.id, "nilai_kontrak", rupiahKeAngka(k.contractValue), w.periodKey, refId));
+    dorong(hasil, fakta(l.id, "durasi_kontrak_hari", k.durationDays, w.periodKey, refId));
     if (sisaHari != null) {
-      dorong(hasil, fakta(l.id, "sisa_hari_kontrak", sisaHari, periodKey, refId));
+      dorong(hasil, fakta(l.id, "sisa_hari_kontrak", sisaHari, w.periodKey, refId));
     }
   }
 }
@@ -231,7 +328,7 @@ async function tambahKontrak(
 async function tambahRab(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const revisi = await db.rabRevision.findMany({
     where: { locationId: { in: lokasi.map((l) => l.id) }, status: "aktif" },
@@ -273,8 +370,8 @@ async function tambahRab(
       value: `nilai ${formatRupiah(r.totalValue)} (pre-PPN) · ${r._count.nodes} baris`,
       href: `/lokasi/${l.slug}/rab`,
     });
-    dorong(hasil, fakta(l.id, "rab_aktif", rupiahKeAngka(r.totalValue), periodKey, refId));
-    dorong(hasil, fakta(l.id, "rab_revisi_no", r.revisionNo, periodKey, refId));
+    dorong(hasil, fakta(l.id, "rab_aktif", rupiahKeAngka(r.totalValue), w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "rab_revisi_no", r.revisionNo, w.kunciHariIni, refId));
   }
 }
 
@@ -286,7 +383,7 @@ async function tambahKeuangan(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
   paketIds: string[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const locIds = lokasi.map((l) => l.id);
   /*
@@ -321,10 +418,10 @@ async function tambahKeuangan(
         ].join(" · "),
         href: `/keuangan?lokasi=${l.slug}`,
       });
-      dorong(hasil, fakta(l.id, "anggaran_total", rupiahKeAngka(f.budgetTotal), periodKey, refId));
-      dorong(hasil, fakta(l.id, "anggaran_tersedia", rupiahKeAngka(f.availableBudget), periodKey, refId));
-      dorong(hasil, fakta(l.id, "pengeluaran_disetujui", rupiahKeAngka(f.expenseApproved), periodKey, refId));
-      dorong(hasil, fakta(l.id, "utang_belum_bayar", rupiahKeAngka(f.outstandingPayable), periodKey, refId));
+      dorong(hasil, fakta(l.id, "anggaran_total", rupiahKeAngka(f.budgetTotal), w.kunciHariIni, refId));
+      dorong(hasil, fakta(l.id, "anggaran_tersedia", rupiahKeAngka(f.availableBudget), w.kunciHariIni, refId));
+      dorong(hasil, fakta(l.id, "pengeluaran_disetujui", rupiahKeAngka(f.expenseApproved), w.kunciHariIni, refId));
+      dorong(hasil, fakta(l.id, "utang_belum_bayar", rupiahKeAngka(f.outstandingPayable), w.kunciHariIni, refId));
     }
 
     const k = kontrakPerPaket.get(l.packageId);
@@ -343,9 +440,9 @@ async function tambahKeuangan(
       ].join(" · "),
       href: `/paket/${l.packageId}/kontrak`,
     });
-    dorong(hasil, fakta(l.id, "tertagih_owner", rupiahKeAngka(t.billed), periodKey, refTagihan));
-    dorong(hasil, fakta(l.id, "cair_owner", rupiahKeAngka(t.disbursed), periodKey, refTagihan));
-    dorong(hasil, fakta(l.id, "retensi_ditahan", rupiahKeAngka(t.retentionHeld), periodKey, refTagihan));
+    dorong(hasil, fakta(l.id, "tertagih_owner", rupiahKeAngka(t.billed), w.kunciHariIni, refTagihan));
+    dorong(hasil, fakta(l.id, "cair_owner", rupiahKeAngka(t.disbursed), w.kunciHariIni, refTagihan));
+    dorong(hasil, fakta(l.id, "retensi_ditahan", rupiahKeAngka(t.retentionHeld), w.kunciHariIni, refTagihan));
   }
 }
 
@@ -356,7 +453,7 @@ async function tambahKeuangan(
 async function tambahMilestone(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const baris = await db.adminMilestone.groupBy({
     by: ["locationId", "status"],
@@ -386,9 +483,9 @@ async function tambahMilestone(
       value: `${selesai}/${total} selesai · ${perluPerbaikan} perlu perbaikan`,
       href: `/lokasi/${l.slug}/administrasi`,
     });
-    dorong(hasil, fakta(l.id, "milestone_total", total, periodKey, refId));
-    dorong(hasil, fakta(l.id, "milestone_selesai", selesai, periodKey, refId));
-    dorong(hasil, fakta(l.id, "milestone_perlu_perbaikan", perluPerbaikan, periodKey, refId));
+    dorong(hasil, fakta(l.id, "milestone_total", total, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "milestone_selesai", selesai, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "milestone_perlu_perbaikan", perluPerbaikan, w.kunciHariIni, refId));
   }
 }
 
@@ -399,7 +496,7 @@ async function tambahMilestone(
 async function tambahTemuan(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const terbuka = await db.finding.findMany({
     where: {
@@ -409,13 +506,20 @@ async function tambahTemuan(
     select: { locationId: true, severity: true, status: true, dueDate: true },
   });
   if (terbuka.length === 0) return;
-  const hariIni = jakartaToday();
+  /*
+   * Ambang "lewat tenggat" memakai HARI INI, bukan akhir periode — himpunan
+   * temuannya sendiri adalah keadaan sekarang, dan memasangkan himpunan
+   * sekarang dengan ambang masa lalu adalah pencampuran waktu yang sama persis
+   * dengan yang sedang ditutup. Seluruh fakta di adapter ini karenanya
+   * distempel `kunciHariIni` dan labelnya membawa cap.
+   */
+  const patokan = jakartaToday();
 
   for (const l of lokasi) {
     const milik = terbuka.filter((t) => t.locationId === l.id);
     if (milik.length === 0) continue;
     const kritis = milik.filter((t) => t.severity === "kritis").length;
-    const lewat = milik.filter((t) => t.dueDate !== null && t.dueDate < hariIni).length;
+    const lewat = milik.filter((t) => t.dueDate !== null && t.dueDate < patokan).length;
     const dibukaKembali = milik.filter((t) => t.status === "dibuka_kembali").length;
     const refId = `${l.slug}:temuan`;
     hasil.refs.push({
@@ -426,10 +530,10 @@ async function tambahTemuan(
       value: `${milik.length} terbuka · ${kritis} kritis · ${lewat} lewat tenggat · ${dibukaKembali} dibuka kembali`,
       href: `/temuan?status=terbuka&lokasi=${l.slug}`,
     });
-    dorong(hasil, fakta(l.id, "temuan_terbuka", milik.length, periodKey, refId));
-    dorong(hasil, fakta(l.id, "temuan_kritis", kritis, periodKey, refId));
-    dorong(hasil, fakta(l.id, "temuan_lewat_tenggat", lewat, periodKey, refId));
-    dorong(hasil, fakta(l.id, "temuan_dibuka_kembali", dibukaKembali, periodKey, refId));
+    dorong(hasil, fakta(l.id, "temuan_terbuka", milik.length, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "temuan_kritis", kritis, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "temuan_lewat_tenggat", lewat, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "temuan_dibuka_kembali", dibukaKembali, w.kunciHariIni, refId));
   }
 }
 
@@ -467,7 +571,7 @@ async function tambahKesiapan(
   hasil: HasilAdapter,
   user: SessionUser,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const { kesiapanPortofolio } = await import("@/lib/kesiapan/builder");
   const { KESIAPAN_VERDICT_LABEL } = await import("@/lib/kesiapan/rules");
@@ -495,7 +599,7 @@ async function tambahKesiapan(
         value: `${ringkas} · ${belum} syarat belum terpenuhi`,
         href: `/kesiapan`,
       });
-      dorong(hasil, fakta(l.id, "kesiapan_syarat_belum", belum, periodKey, refId));
+      dorong(hasil, fakta(l.id, "kesiapan_syarat_belum", belum, w.kunciHariIni, refId));
     }
   }
 }
@@ -526,7 +630,7 @@ async function tambahEws(
   hasil: HasilAdapter,
   user: SessionUser,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const { bangunEws } = await import("@/lib/ews/builder");
   const warning = await bangunEws(user);
@@ -570,8 +674,8 @@ async function tambahEws(
         `) · terparah: ${milik[0].alasan}`,
       href: `/perlu-tindakan`,
     });
-    dorong(hasil, fakta(l.id, "peringatan_terbuka", milik.length, periodKey, refId));
-    dorong(hasil, fakta(l.id, "peringatan_kritis", kritis, periodKey, refId));
+    dorong(hasil, fakta(l.id, "peringatan_terbuka", milik.length, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "peringatan_kritis", kritis, w.kunciHariIni, refId));
   }
 }
 
@@ -579,13 +683,19 @@ async function tambahEws(
 async function tambahVerifikasi(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const { COUNTED_REPORT_STATUSES } = await import("@/lib/lifecycle");
   const laporan = await db.dailyReport.findMany({
+    /*
+     * Laporan bertanggal, jadi ikut dibatasi akhir periode. Yang TIDAK bisa
+     * dibatasi adalah kapan verifikasinya ditulis — pemeriksaan atas laporan
+     * lama bisa datang belakangan; itu diakui di label, bukan ditebak.
+     */
     where: {
       locationId: { in: lokasi.map((l) => l.id) },
       status: { in: [...COUNTED_REPORT_STATUSES] },
+      reportDate: { lte: w.akhirPeriode },
     },
     select: { locationId: true, verifications: { take: 1, select: { id: true } } },
   });
@@ -605,8 +715,8 @@ async function tambahVerifikasi(
       value: `${sudah} sudah diperiksa · ${belum} belum diperiksa (dari ${milik.length} laporan)`,
       href: `/verifikasi`,
     });
-    dorong(hasil, fakta(l.id, "laporan_sudah_diverifikasi", sudah, periodKey, refId));
-    dorong(hasil, fakta(l.id, "laporan_belum_diverifikasi", belum, periodKey, refId));
+    dorong(hasil, fakta(l.id, "laporan_sudah_diverifikasi", sudah, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "laporan_belum_diverifikasi", belum, w.kunciHariIni, refId));
   }
 }
 
@@ -614,10 +724,19 @@ async function tambahVerifikasi(
 async function tambahInspeksi(
   hasil: HasilAdapter,
   lokasi: LokasiRingkas[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const inspeksi = await db.inspection.findMany({
-    where: { locationId: { in: lokasi.map((l) => l.id) }, status: "final" },
+    /*
+     * Dibatasi ke AKHIR PERIODE: inspeksi punya tanggalnya sendiri, jadi
+     * "inspeksi per 30 Juni" bisa dijawab benar tanpa rekonstruksi apa pun.
+     * Tanpa batas ini, jawaban historis memuat inspeksi yang belum terjadi.
+     */
+    where: {
+      locationId: { in: lokasi.map((l) => l.id) },
+      status: "final",
+      inspectionDate: { lte: w.akhirPeriode },
+    },
     orderBy: { inspectionDate: "desc" },
     select: {
       locationId: true,
@@ -641,7 +760,7 @@ async function tambahInspeksi(
       value: `${milik.length} inspeksi final · terakhir ${terakhir.inspectionDate.toISOString().slice(0, 10)} "${terakhir.title}" (${terakhir._count.findings} temuan)`,
       href: `/verifikasi`,
     });
-    dorong(hasil, fakta(l.id, "inspeksi_final", milik.length, periodKey, refId));
+    dorong(hasil, fakta(l.id, "inspeksi_final", milik.length, w.periodKey, refId));
   }
 }
 
@@ -658,7 +777,7 @@ async function tambahSurat(
   user: SessionUser,
   lokasi: LokasiRingkas[],
   paketIds: string[],
-  periodKey: string,
+  w: WaktuAdapter,
 ): Promise<void> {
   const surat = await db.letter.findMany({
     /*
@@ -682,7 +801,8 @@ async function tambahSurat(
     select: { packageId: true, subject: true, replyDueDate: true },
   });
   if (surat.length === 0) return;
-  const hariIni = jakartaToday();
+  // Sama seperti temuan: himpunannya keadaan sekarang, jadi ambangnya hari ini.
+  const patokan = jakartaToday();
 
   for (const l of lokasi) {
     // Surat organisasi menyangkut SETIAP lokasi dalam lingkup — sama seperti
@@ -690,7 +810,7 @@ async function tambahSurat(
     // disebut supaya tidak terbaca sebagai surat milik lokasi ini.
     const milik = surat.filter((x) => x.packageId === l.packageId || x.packageId === null);
     if (milik.length === 0) continue;
-    const lewat = milik.filter((x) => x.replyDueDate != null && x.replyDueDate < hariIni).length;
+    const lewat = milik.filter((x) => x.replyDueDate != null && x.replyDueDate < patokan).length;
     const tingkatOrg = milik.filter((x) => x.packageId === null).length;
     const refId = `${l.slug}:surat`;
     hasil.refs.push({
@@ -704,8 +824,8 @@ async function tambahSurat(
         ` · terdekat: "${milik[0].subject}"`,
       href: `/surat`,
     });
-    dorong(hasil, fakta(l.id, "surat_perlu_jawab", milik.length, periodKey, refId));
-    dorong(hasil, fakta(l.id, "surat_lewat_tenggat", lewat, periodKey, refId));
+    dorong(hasil, fakta(l.id, "surat_perlu_jawab", milik.length, w.kunciHariIni, refId));
+    dorong(hasil, fakta(l.id, "surat_lewat_tenggat", lewat, w.kunciHariIni, refId));
   }
 }
 

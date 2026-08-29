@@ -32,7 +32,7 @@ import { klasifikasiLampiran, terlaluBesar } from "./lampiran-klasifikasi";
 
 /** Direktori simpanan lokal. Dibuat otomatis bila belum ada. */
 export function direktoriLampiran(): string {
-  return process.env.LAMPIRAN_DIR ?? join(process.cwd(), ".data", "lampiran");
+  return process.env.LAMPIRAN_DIR ?? join(/*turbopackIgnore: true*/ process.cwd(), ".data", "lampiran");
 }
 
 /**

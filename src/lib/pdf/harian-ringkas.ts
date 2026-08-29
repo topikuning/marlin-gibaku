@@ -358,7 +358,7 @@ let ikonCache: Buffer | null | undefined;
 function ikonMarlin(): Buffer | null {
   if (ikonCache !== undefined) return ikonCache;
   try {
-    ikonCache = readFileSync(path.join(process.cwd(), "public", "brand", "marlin-icon-192.png"));
+    ikonCache = readFileSync(path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "brand", "marlin-icon-192.png"));
   } catch {
     ikonCache = null;
   }

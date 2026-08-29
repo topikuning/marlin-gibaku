@@ -111,15 +111,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   `multipart/form-data`; (b) `scurve-chart` mengirim `cy=NaN` saat seri
   realisasi kosong. Keduanya kosmetik hari ini, tapi (b) berarti ada titik yang
   digambar dari nilai yang tidak ada.
-- 🟡 **E2E flaky: "Enter di kolom Qty/Volume MENYIMPAN"**
-  (`tests/e2e/harian-tata-letak-input.spec.ts:222`). Setelah Enter dan banner
-  "Pelengkap laporan tersimpan." muncul, `materialQty` pertama kadang kembali
-  ke nilai seed (40), bukan 7 — gagal di CI 2026-08-25 (lolos saat retry) dan
-  tereproduksi lokal. Dugaan: re-render pasca-simpan menukar urutan baris atau
-  nilai belum terpersistensi saat form dipasang ulang — perlu diselidiki
-  apakah ini murni uji rapuh (`first()` tidak stabil) atau bug nyata
-  Enter-simpan kehilangan angka. Belum dikerjakan; terpisah dari pekerjaan
-  mode minggu.
 - 🟡 **Laporan AI eksekutif: uji penerimaan manusia E-01…E-08 belum dijalankan.**
   Naskahnya di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md` (DECISIONS
   453/454). Yang sudah tertutup uji otomatis: urutan bagian di keempat kanal,

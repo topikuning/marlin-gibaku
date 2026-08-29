@@ -46,6 +46,7 @@ vi.mock("@/lib/ai/structured", () => ({
 
 const { db } = await import("@/lib/db");
 const { executeAiRun } = await import("@/lib/ai-hub/runs");
+const { jakartaDateKey, jakartaToday } = await import("@/lib/format");
 import type { SessionUser } from "@/lib/auth/session";
 
 const suffix = `klm${Date.now().toString(36)}`;
@@ -261,7 +262,24 @@ describe("payload FAKTA sampai ke model", () => {
     // Metrik hitungan IKUT — jalur regex lama tidak pernah bisa memvalidasinya.
     expect(fakta.map((f) => f.metric)).toContain("realisasi");
     expect(fakta.map((f) => f.metric)).toContain("kendala_terbuka");
-    expect(fakta.every((f) => f.periodKey === AKHIR)).toBe(true);
+    /*
+     * DULU: `fakta.every(f => f.periodKey === AKHIR)`.
+     *
+     * Baris itu justru menjaga cacatnya (review 2026-08-29). Ia membuktikan
+     * seluruh fakta berLABEL periode yang sama — bukan bahwa datanya memang
+     * dari periode itu. Sebagian adapter membaca keadaan SEKARANG (temuan
+     * terbuka, surat tertunda, RAB aktif, kesiapan, peringatan), dan stempel
+     * seragam itulah yang membuat pencampuran waktunya tidak kelihatan.
+     *
+     * Yang benar: fakta berbasis periode memakai `AKHIR`, dan fakta keadaan
+     * sekarang memakai HARI INI — sehingga klaim yang memakainya terpaksa
+     * mengaku "per hari ini" saat divalidasi.
+     */
+    const kunciHariIni = jakartaDateKey(jakartaToday());
+    expect(fakta.find((f) => f.metric === "realisasi")?.periodKey).toBe(AKHIR);
+    for (const f of fakta) {
+      expect([AKHIR, kunciHariIni], `stempel tak dikenal pada ${f.metric}`).toContain(f.periodKey);
+    }
   });
 });
 
