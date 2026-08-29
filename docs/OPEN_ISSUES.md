@@ -68,8 +68,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   (capability + scope), diuji test. RLS = hardening tahap berikut.
 - 🟡 Rate limit hanya untuk login; server action lain belum di-rate-limit.
 - 🟢 CSP/security headers belum diset di next.config.
-- 🟡 **RAPL-06 & RAPL-07** (asal-usul harga bisa dipalsukan; margin terbaca Wakil
-  PPK & Mandor) — uraian lengkapnya di bagian "RAPL — audit menu 2026-08-29".
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
@@ -612,99 +610,26 @@ yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
   benar: satu keluarga rule dipakai dua permukaan — refactor kecil, belum
   dikerjakan.
 
-## RAPL — audit menu 2026-08-29 (DECISIONS 470)
 
-Audit atas permintaan user setelah memakai layar sungguhnya: *"ada saran harga
-dari AI, tapi saat diklik prosesnya lumayan lama, lalu ada hasil harus klik
-terapkan, padahal aku ingin tahu dulu hasilnya. UI/UX-nya juga masih tidak
-memuaskan."* Delapan temuan di bawah **belum diperbaiki** — user memilih audit
-dulu, eksekusi belakangan. Arah perbaikan dan tiga keputusan desain yang sudah
-diambil ada di DECISIONS 470.
+## RAPL — sisa setelah RAPL-01…RAPL-08 ditutup (DECISIONS 470/471)
 
-- 🔴 **RAPL-01 · Permintaan estimasi AI menahan request sampai ±4 menit.**
-  `hsd-ai.ts:80-88` memakai `timeoutMs: 60_000`; `ai/structured.ts:44,50` boleh
-  memanggil dua kali (satu perbaikan skema) dan `ai/client.ts:155-164` menambah
-  satu retry per panggilan — anggaran maksimum **4 panggilan × 60 detik**,
-  seluruhnya di dalam server action yang ditunggu peramban
-  (`rapl/harga-panel.tsx:212-227`). Ini kelas cacat yang SUDAH diputus untuk
-  Ask MARLIN di DECISIONS 455 (log produksi 2026-08-27 15:27 WIB: `POST /ai/ask`
-  mati 499 di detik 125, `txBytes: 0`). Akibatnya sama: token terbayar, run
-  tercatat, layar tidak menerima apa pun, tanpa tombol batal maupun penunjuk
-  kemajuan.
+Kedelapan temuan audit 2026-08-29 sudah dikerjakan (DECISIONS 471). Yang
+BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 
-- 🔴 **RAPL-02 · Draf AI hanya hidup di memori peramban.**
-  `harga-panel.tsx:96` menyimpannya di `useState`. Subtab RAPL berbasis URL
-  (`rapl/page.tsx:52-54,219-227`), jadi menekan "Ringkasan" atau "Validasi"
-  adalah navigasi yang membongkar komponen dan menghapus draf. Memeriksa hasil
-  — yang justru diminta user — menghancurkan hasilnya, dan mengulang berarti
-  membayar panggilan lagi. Muat ulang halaman berakibat sama.
-
-- 🟡 **RAPL-03 · Hanya 25 baris diusulkan, dipilih dengan urutan yang tidak ada
-  hubungannya dengan uang, dan layar tidak mengatakannya.**
-  `hsd-ai-parse.ts:4` `BATAS_USULAN_HARGA_AI = 25`; `hsd-ai.ts:40`
-  `.slice(0, 25)` atas `harga.baris`, yang urutannya dari `rapl-calc.ts:233-238`
-  = kategori (upah→bahan→alat→fasilitas) lalu `jumlah` menurun. `jumlah` adalah
-  kuantitas fisik: 5.000 kg semen, 12 OH mandor, dan 0,3 jam excavator diurut
-  dalam satu kolom yang sama. Pesan hasilnya (`harga-panel.tsx:224`) tidak
-  pernah menyebut berapa yang TIDAK diminta, dan karena tak ada yang diterapkan,
-  menekan tombolnya lagi mengembalikan 25 yang sama.
-
-- 🟡 **RAPL-04 · Hasil AI dijatuhkan ke tiga kolom di tengah ratusan baris tanpa
-  saringan.** `harga-panel.tsx:151-186` menambah kolom Usulan AI / Keyakinan AI
-  / Dasar usulan AI, tanpa `setFilterModel`, tanpa pengurutan ke baris
-  ber-usulan, tanpa panel review. Lebar minimum kesebelas kolom ≈ 1.830 px,
-  sehingga "Dasar usulan AI" berada di luar layar pada lebar kerja yang lazim.
-  Yang benar-benar berubah di layar sesudah menunggu hanyalah satu banner dan
-  satu tombol "Pakai N usulan" — itulah kenapa terapkan terasa sebagai
-  satu-satunya jalan untuk melihat hasil.
-
-- 🟡 **RAPL-05 · Persetujuan bersifat semua-atau-tidak.**
-  `harga-panel.tsx:241-250` mengirim seluruh daftar; `usulanSchema` di
-  `hsd-actions.ts` menerima 1–25 tanpa gagasan "ditolak". Bila 20 dari 25 masuk
-  akal, pilihannya cuma menerima 5 harga yang tidak dipercaya lalu memburunya
-  satu per satu, atau membuang semuanya dan mengulang panggilan. DECISIONS 441
-  mensyaratkan persetujuan manusia; persetujuan yang tidak bisa sebagian adalah
-  stempel.
-
-- 🟡 **RAPL-06 · Cap "Usulan AI – disetujui pengguna" bisa dibubuhkan tanpa hak
-  `ai.generate`, dan servernya tidak pernah memastikan angkanya dari AI.**
-  `mintaUsulanHargaAiAction` menuntut `ai.generate` + `finance.input`, tetapi
-  `terapkanUsulanHargaAiAction` hanya menuntut `finance.input`; harganya datang
-  utuh dari muatan klien, tidak pernah dicocokkan dengan run mana pun, dan
-  `sumber` dipaksa berbunyi "Usulan AI – disetujui pengguna" apa pun asalnya.
-  `simpanHargaSel` juga menerima `sumber` bebas dari klien TANPA zod sama sekali
-  (bandingkan `skema` di berkas yang sama, yang hanya dipakai jalur form).
-  Akibatnya jejak audit `rapl.harga_ai.terapkan` menyatakan sesuatu yang tidak
-  diperiksa sistem. DECISIONS 441 menyebut syaratnya secara eksplisit.
-
-- 🟡 **RAPL-07 · Biaya RAPL dan margin terbaca oleh Wakil PPK dan Mandor.**
-  `rapl/page.tsx:56` hanya menjaga dengan `rab.view`, dan menurut
-  `docs/rebuild/PERMISSION_MATRIX.md:33` `rab.view` dimiliki KEDELAPAN role —
-  termasuk `field_supervisor` dan `wakil_ppk`. Yang dirender di balik penjaga
-  itu: KPI "Potensi margin / Selisih sementara" (`page.tsx:210-215`) dan blok
-  `RingkasBiaya` berisi Biaya RAPL + margin rupiah dan persen
-  (`harga-panel.tsx:388-424`). Lembar cetak `app/cetak/rapl/[slug]/page.tsx:33`
-  memakai penjaga yang sama. Verifikator dari pihak pemberi kerja dapat membuka
-  dan mencetak perkiraan biaya internal pelaksana beserta marginnya — padahal
-  PROJECT.md §4 sengaja tidak memberi `finance.*` kepada `wakil_ppk`.
-  **Keputusan sudah diambil (DECISIONS 470): biaya, HSD, dan margin menuntut
-  `finance.view`; breakdown kebutuhan tetap `rab.view`.**
-
-- 🟡 **RAPL-08 · RAPL tidak pernah menunjukkan rincian PER ITEM RAB, dan AHSP
-  bukan pembantu melainkan gerbang.** `rapl-calc.ts:204-225` melebur komponen
-  tiap item ke satu peta global berkunci `kategori|nama|satuan`; yang tersisa
-  dari asal-usulnya hanya pencacah `dariBaris`, dan identitas itemnya tidak bisa
-  dikembalikan. Semua permukaan hilir mewarisi bentuk itu: layar
-  (`simulasi-kebutuhan.tsx`), cetak (`rapl-lembar.tsx:126`), Excel
-  (`export/rapl-xlsx.ts` — sheet Ringkasan / Kebutuhan / Tidak masuk hitungan).
-  Empat gerbang di `rapl-calc.ts:168-200` membuang baris seluruhnya
-  (`belum_disetujui`, `tanpa_koefisien`, `volume_kosong`,
-  `satuan_tidak_sepadan` — kesetaraan satuan dituntut PERSIS di `:193`), dan
-  tidak ada jalan manusia melewatinya: `AhspEntry` hanya lahir dari impor berkas
-  master (`ahsp/actions.ts:19`), `koreksiPadananAction` cuma menunjuk analisa
-  yang sudah ada, tidak ada faktor konversi satuan, tidak ada tempat mengetik
-  koefisien sendiri, tidak ada bentuk borongan. Maka setiap item ber-satuan `Ls`
-  (mobilisasi, K3, direksi keet, dokumentasi) dan setiap pekerjaan tanpa analisa
-  padanan permanen di luar RAPL: cakupan mentok, margin selamanya berlabel
-  "selisih sementara", dan pertanyaan yang sebenarnya dipakai orang saat menawar
-  — item mana yang rugi — tidak bisa dijawab sama sekali.
+- 🟡 **Lembar cetak A4 RAPL masih bentuk agregat.** `/cetak/rapl/[slug]`
+  (`src/components/knmp/rapl-lembar.tsx`) menyajikan biaya per KATEGORI sumber
+  daya; rincian per item baru ada di layar dan di lembar Excel "Rincian per
+  item". Kertas A4 tidak muat memuat ratusan item apa adanya, jadi bentuknya
+  perlu diputuskan lebih dulu — daftar item yang RUGI saja, atau lampiran
+  berhalaman. Keputusan tampilan, bukan keputusan kode.
+- 🟢 **Permintaan draf harga AI yang menggantung tidak dijemput ulang.**
+  Kalau proses mati di tengah (deploy ulang), layar menyatakan permintaannya
+  TERPUTUS dan orang menekan tombolnya lagi — satu ketukan. Ask MARLIN punya
+  penjemput (`jemputTanyaTertunda`, DECISIONS 456) karena di sana ongkos
+  gagalnya adalah mengetik ulang pertanyaan. Di sini belum dibuat karena
+  ongkosnya tidak sebanding; kalau ternyata sering terjadi, polanya sudah ada
+  tinggal disalin.
+- 🟢 **`simpanHargaAction` (jalur FormData) tidak dipakai satu pun layar.**
+  Grid memakai `simpanHargaSel`. Ia sudah ikut diperketat (asal-usul harga
+  ditetapkan server), tetapi kode yang tidak dipanggil siapa pun sebaiknya
+  dibuang — ditunda supaya diff RAPL-01…08 tetap bisa dibaca.

@@ -15,7 +15,7 @@ import { formatPct, formatRupiah } from "@/lib/format";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { keadaanPadanan } from "@/lib/ahsp/padanan";
 import { hitungTahap, kelompokkanPerUraian } from "@/lib/ahsp/kelompok";
-import { simulasiRapl } from "@/lib/ahsp/rapl";
+import { keadaanItemRapl, simulasiRapl } from "@/lib/ahsp/rapl";
 import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { keadaanUsulanAi } from "@/lib/ahsp/hsd-usulan";
 import { requireLocationPage } from "../get-location";
@@ -23,6 +23,7 @@ import { PadananPanel, type BarisUraianRow } from "./padanan-panel";
 import { SimulasiKebutuhan } from "./simulasi-kebutuhan";
 import { Stepper, type TahapView } from "./stepper";
 import { HargaPanel, RingkasBiaya, type BarisHargaRow } from "./harga-panel";
+import { RincianPanel, type ItemRaplRow } from "./rincian-panel";
 import { Kenapa } from "./kenapa";
 
 export const metadata: Metadata = { title: "RAPL" };
@@ -67,19 +68,57 @@ export default async function RaplPage({
   /** Harga, biaya, margin. Bukan "menu disembunyikan" — datanya tidak diambil. */
   const canSeeMoney = can(user.role, "finance.view");
 
-  const diminta = ["ringkasan", "kebutuhan", "validasi"].includes(query.bagian ?? "")
-    ? (query.bagian as "ringkasan" | "kebutuhan" | "validasi")
+  const diminta = ["ringkasan", "rincian", "kebutuhan", "validasi"].includes(query.bagian ?? "")
+    ? (query.bagian as "ringkasan" | "rincian" | "kebutuhan" | "validasi")
     : "ringkasan";
-  // Alamat "?bagian=kebutuhan" tidak boleh jadi pintu belakang ke angka uang.
-  const bagian = diminta === "kebutuhan" && !canSeeMoney ? "ringkasan" : diminta;
+  // Alamat "?bagian=…" tidak boleh jadi pintu belakang ke angka uang.
+  const bagian =
+    (diminta === "kebutuhan" || diminta === "rincian") && !canSeeMoney ? "ringkasan" : diminta;
 
-  const [basis, { baris, cakupan }, rapl, harga, usulan] = await Promise.all([
+  const [basis, { baris, cakupan }, rapl, harga, usulan, perItem] = await Promise.all([
     ringkasAhsp(),
     keadaanPadanan(location.id),
     simulasiRapl(location.id),
     canSeeMoney ? keadaanHarga(location.id) : Promise.resolve(null),
     canSeeMoney && canInput ? keadaanUsulanAi(location.id) : Promise.resolve(null),
+    canSeeMoney ? keadaanItemRapl(location.id) : Promise.resolve(null),
   ]);
+
+  /*
+   * Rincian per item — bentuk yang sebenarnya dipakai orang saat menawar
+   * (RAPL-08). BigInt diserialisasi di sini; komponen klien tidak boleh
+   * menerimanya mentah.
+   */
+  const itemRows: ItemRaplRow[] = (perItem?.item ?? []).map((i) => {
+    return {
+      lineageKey: i.lineageKey,
+      code: i.code,
+      uraian: i.uraian,
+      satuan: i.satuan,
+      volume: i.volume,
+      nilaiRab: i.nilaiRab.toString(),
+      cara: i.cara,
+      komponen: i.komponen.map((k) => ({
+        kategori: k.kategori,
+        nama: k.nama,
+        satuan: k.satuan,
+        jumlah: k.jumlah,
+        dariAhsp: k.dariAhsp,
+        harga: k.harga === null ? null : k.harga.toString(),
+        biaya: k.biaya === null ? null : k.biaya.toString(),
+      })),
+      biaya: i.biaya.toString(),
+      komponenBelumBerharga: i.komponenBelumBerharga,
+      lengkap: i.lengkap,
+      margin: i.margin === null ? null : i.margin.toString(),
+      marginPersen: i.marginPersen,
+      alasanLewat: i.alasanLewat,
+      rinciLewat: i.rinciLewat,
+      faktorKonversi: i.faktorKonversi,
+      catatanKonversi: i.catatanKonversi,
+      hargaBorongan: i.hargaBorongan === null ? null : i.hargaBorongan.toString(),
+    };
+  });
 
   const uraian = kelompokkanPerUraian(baris);
   const tahapan = hitungTahap(uraian);
@@ -252,6 +291,13 @@ export default async function RaplPage({
             ...(canSeeMoney
               ? [
                   {
+                    key: "rincian",
+                    label: "Rincian per item",
+                    labelPendek: "Per item",
+                    href: `/lokasi/${slug}/rapl?bagian=rincian`,
+                    badge: perItem?.jumlahRugi || undefined,
+                  },
+                  {
                     key: "kebutuhan",
                     label: "Kebutuhan & harga",
                     labelPendek: "Harga",
@@ -307,6 +353,37 @@ export default async function RaplPage({
                   </ButtonLink>
                 ) : null}
               </div>
+            </CardBody>
+          </>
+        ) : null}
+
+        {bagian === "rincian" && perItem ? (
+          <>
+            <CardHeader
+              title="Rincian pelaksanaan per item RAB"
+              subtitle={`${itemRows.length} item · biaya dan margin dihitung per item, bukan hanya sebagai total lokasi.`}
+            />
+            <CardBody className="space-y-4">
+              <Kenapa judul="AHSP pembantu, bukan gerbang">
+                Analisa AHSP mengisi rincian tiap item, tetapi tidak lagi menentukan item mana yang
+                boleh masuk hitungan. Bila satuannya tidak sepadan, nyatakan faktor konversinya
+                beserta alasannya. Bila pekerjaannya tidak punya analisa, rinci sendiri
+                komponennya. Bila memang disubkan, nyatakan harga borongannya. Koefisien yang
+                berasal dari AHSP sendiri terkunci – ia angka resmi yang harus bisa dipertahankan
+                saat diperiksa.
+              </Kenapa>
+              <RincianPanel
+                locationId={location.id}
+                slug={slug}
+                items={itemRows}
+                canInput={canInput}
+                ringkas={{
+                  biayaLengkap: perItem.biayaLengkap.toString(),
+                  nilaiRabLengkap: perItem.nilaiRabLengkap.toString(),
+                  jumlahLengkap: perItem.jumlahLengkap,
+                  jumlahRugi: perItem.jumlahRugi,
+                }}
+              />
             </CardBody>
           </>
         ) : null}

@@ -24684,3 +24684,140 @@ RAPL-06 uji integrasi (role dengan `finance.input` tanpa `ai.generate` ditolak),
 RAPL-07 uji unit atas penjaga kapabilitas + E2E sebagai `wakil_ppk`, dan RAPL-08
 uji unit atas biaya/margin per item untuk satu item `Ls` yang dirinci tangan —
 hari ini item seperti itu tidak mungkin ada.
+
+---
+
+## 471 · RAPL-01…RAPL-08 dikerjakan: AI di latar, dan RAPL memecah RAB per item (2026-08-29)
+
+Perintah user setelah audit DECISIONS 470: *"lakukan perbaikannya langsung
+sekarang"*. Kedelapan temuan ditutup. Catatan 470 yang berbunyi "tidak ada kode
+yang diubah" berlaku untuk PR audit itu saja — bukan lagi keadaan sekarang.
+
+### Draf harga AI: dua cacat, satu sebab
+
+Panggilan provider pindah ke LATAR, mengikuti pola Ask MARLIN (DECISIONS 455)
+sampai ke detail penandanya: `HsdUsulanRun.pendingSince` dipasang pemanggil,
+dan pekerja latar hanya boleh menulis selama nilainya belum berubah
+(`updateMany` bersyarat). Request tetap memeriksa kapabilitas, akses lokasi,
+penyiapan target, dan `checkAiGuard` secara sinkron — penolakan yang bisa
+dijawab tanpa provider harus sampai seketika.
+
+Drafnya menjadi baris `HsdUsulanAi` berstatus `draf`, bukan `useState`. Ini
+yang sebenarnya menjawab keluhan user *"aku ingin tahu dulu hasilnya"*:
+sebelumnya memeriksa berarti berpindah subtab, dan berpindah subtab adalah
+navigasi yang menghapus hasil yang baru ditunggu semenit lebih. Orang lalu
+menekan "Pakai 25 usulan" tanpa memeriksa, bukan karena ceroboh, melainkan
+karena memeriksa berarti kehilangan.
+
+Tiga akibat lain ikut selesai begitu drafnya punya tempat: grid menyaring ke
+baris ber-usulan begitu drafnya datang, keputusan jadi per baris (terima /
+tolak yang dicentang), dan penolakan tercatat sebagai keputusan.
+
+### Yang 25 itu dipilih dari nilai, bukan dari cacahan
+
+`pilihTargetUsulan` (`ahsp/usulan-target.ts`, murni) mengurutkan dari
+`nilaiTertahan` — nilai RAB item-item yang membutuhkan sumber daya itu.
+Urutan lamanya mengikuti tampilan: kategori dulu, lalu `jumlah`. `jumlah`
+adalah kuantitas fisik; 5.000 kg semen, 12 OH mandor, dan 0,3 jam excavator
+tidak sebanding, dan mengurutkannya berarti mengurutkan satuan yang berbeda.
+Layar sekarang juga menyebut berapa yang TIDAK ikut dimintakan, dan pengguna
+boleh mencentang sendiri sasarannya.
+
+`nilaiTertahan` **tidak boleh dijumlahkan antar baris**: satu item menyumbang
+nilai penuhnya ke setiap sumber daya yang ia butuhkan. Ia angka pengurut, bukan
+uang.
+
+### Asal-usul harga tidak lagi bisa dikarang
+
+`terapkanUsulanHargaAiAction` menerima **ID DRAF**, bukan angka harga, dan
+menuntut `ai.generate` DAN `finance.input` sesuai syarat DECISIONS 441. Versi
+pertama menerima angka dari klien lalu menyimpannya bersumber "Usulan AI –
+disetujui pengguna": jejak audit yang menyatakan sesuatu yang tidak pernah
+diperiksa server, dan bisa dibubuhkan role yang sengaja tidak diberi akses AI.
+Asal-usul harga manual juga ditetapkan server, tidak lagi diterima dari klien.
+
+### Uang RAPL ditutup dari pemberi kerja — dengan konsekuensi yang disadari
+
+Harga, biaya, dan margin menuntut `finance.view` di layar, lembar cetak A4, dan
+unduhan Excel. `rab.view` dimiliki KEDELAPAN role, termasuk `wakil_ppk`; artinya
+verifikator pihak pemberi kerja bisa membuka dan mencetak perkiraan biaya
+internal pelaksana beserta marginnya, tepat pada saat negosiasi dan pemeriksaan
+termin.
+
+**Konsekuensi yang harus dicatat, bukan disembunyikan:** `finance.*` saat ini
+hanya dimiliki `super_admin` — ditahan sengaja di `authz.ts` karena menu
+Keuangan belum dibuka. Jadi sisi uang RAPL ikut super_admin sampai `finance.*`
+dikembalikan ke PM/exec_viewer. Cara membukanya sudah tertulis di komentar
+`authz.ts`; RAPL akan mengikuti sendiri tanpa perubahan kode. Breakdown
+kebutuhan tetap `rab.view`.
+
+### RAPL sekarang memecah RAB PER ITEM
+
+Ini permintaan pokok user: *"aku ingin RAPL itu adalah membreakdown kebutuhan
+RAB jadi rinci per item, AHSP hanya pembantu"*.
+
+`agregasiKebutuhan` dulu melebur komponen tiap item ke satu peta global
+berkunci `kategori|nama|satuan`; identitas itemnya hilang di sana dan tidak
+bisa dikembalikan, sehingga layar, cetak, dan Excel hanya bisa menyajikan
+daftar sumber daya se-lokasi. Sekarang aturan gerbangnya tinggal di SATU fungsi
+`pecahItem`, dan dua pembaca memakainya: `agregasiKebutuhan` (agregat, tetap
+ada dan tetap berguna untuk pengadaan) dan `hitungItemRapl` (biaya + margin per
+item). Agregat menjadi turunan; ia bukan lagi satu-satunya bentuk.
+
+Tiga jalan yang membuat AHSP berhenti menjadi gerbang, sesuai tiga keputusan
+user di DECISIONS 470:
+
+1. **Faktor konversi satuan** dengan catatan WAJIB. Item m² dinding vs analisa
+   m³ pasangan diselesaikan dengan menyatakan 0,15 beserta alasannya. Dijaga
+   dua lapis: penolakan di server action DAN CHECK constraint di migrasi —
+   form bisa diakali, constraint tidak. Faktor tanpa alasan diabaikan calc
+   layer, jadi tiga lapis yang sama-sama menolak.
+2. **Komponen tambahan.** Koefisien yang berasal dari AHSP TIDAK bisa disunting
+   — hanya menambah. Koefisien tambahan PER SATUAN ITEM, bukan per satuan
+   analisa, jadi faktor konversi tidak dikenakan padanya; mencampurnya akan
+   membuat faktor itu terpakai dua kali.
+3. **Borongan**: satu harga per satuan item, tanpa rincian komponen. Bentuk
+   jujur untuk pekerjaan yang memang disubkan, dan satu-satunya cara mobilisasi
+   ber-satuan `Ls` masuk hitungan tanpa mengarang kebutuhan semennya. Borongan
+   mengalahkan analisa: satu item satu cara hitung.
+
+Item yang satuannya tidak sepadan tetap digugurkan SELURUHNYA meski punya
+komponen tambahan. Memakai tambahannya saja menghasilkan kebutuhan yang
+kelihatan lengkap padahal kehilangan bagian terbesarnya — pengecilan diam-diam
+yang dilarang DECISIONS 203. Jalan keluarnya ada dan harus ditempuh orang.
+
+**Margin per item bernilai `null` selama masih ada komponen tanpa harga.**
+Biaya yang baru sebagian diketahui selalu membuat margin terlihat lebih besar
+daripada yang sebenarnya, dan itu angka yang dipakai orang memutuskan menawar.
+Ringkasan "item yang rugi" karena itu hanya menghitung item yang lengkap.
+
+Subtab baru **Rincian per item** dan satu lembar Excel "Rincian per item"
+mengikuti. Rumus tetap hanya di `src/lib/ahsp/rapl-calc.ts`; daftar LIMA berkas
+calculation layer di PROJECT.md §3 TIDAK bertambah.
+
+### Penjaga
+
+- `tests/unit/rapl-usulan-target.test.ts` (6) — ditulis lebih dulu atas aturan
+  pemilihan LAMA yang diekstrak apa adanya, dan MERAH 2 dari 6 sebelum urutan
+  diganti.
+- `tests/unit/rapl-rincian.test.ts` (17) — konversi satuan, komponen tambahan,
+  borongan, cakupan, serta biaya & margin per item. Delapan dari sebelas asersi
+  pertamanya MERAH sebelum `pecahItem` ada.
+- `tests/integration/rapl-usulan-ai.test.ts` — penerapan draf tanpa
+  `ai.generate` ditolak dan tidak menulis HSD; draf lokasi lain tidak bisa
+  diterapkan; penolakan tercatat.
+- `tests/e2e/rapl-margin-tertutup.spec.ts` — wakil PPK dan mandor tidak melihat
+  margin di layar, lembar cetaknya 404, unduhan Excel-nya 403.
+
+Dua yang terakhir TIDAK dapat dijalankan di mesin penulisnya (tanpa PostgreSQL;
+E2E milik CI). Itu dinyatakan di badan PR, bukan didiamkan.
+
+### Yang sengaja BELUM
+
+Lembar cetak A4 masih bentuk agregat — memuat ratusan item di A4 butuh
+keputusan tampilan lebih dulu. Permintaan draf yang menggantung tidak dijemput
+ulang (satu ketukan untuk mengulang, tidak sebanding dengan penjemput
+tersendiri). Keduanya tercatat di `docs/OPEN_ISSUES.md`.
+
+**Tahap C — AI mendraf RINCIAN untuk item tanpa padanan — TIDAK dikerjakan.**
+DECISIONS 326 belum dicabut user.

@@ -35,6 +35,37 @@ export type KomponenUntukRapl = {
   koefisien: number;
 };
 
+/**
+ * Rincian pelaksanaan satu item RAB yang disusun ORANG — AHSP jadi pembantu,
+ * bukan gerbang (RAPL-08, DECISIONS 470).
+ *
+ * Tiga bentuk campur tangan, dan hanya tiga:
+ *
+ * 1. `faktorKonversi` menyelamatkan item yang satuannya tidak sepadan dengan
+ *    analisanya (item m² dinding vs analisa m³ pasangan). Angkanya WAJIB
+ *    disertai alasan; konversi tanpa alasan adalah tebakan yang menyamar jadi
+ *    data (DECISIONS 203).
+ * 2. `tambahan` menambah komponen yang tidak ada di analisa. Koefisien AHSP
+ *    sendiri TIDAK bisa disunting — keputusan user 2026-08-29.
+ * 3. `hargaBorongan` untuk pekerjaan yang memang disubkan: satu harga per
+ *    satuan item, tanpa rincian komponen. Lebih jujur daripada memaksa
+ *    mobilisasi diurai jadi semen dan pasir.
+ */
+export type RincianItem = {
+  /** Pengali volume item → satuan analisa. null = satuannya memang sepadan. */
+  faktorKonversi: number | null;
+  catatanKonversi: string | null;
+  /** Rupiah per SATUAN ITEM. Bila terisi, item ini borongan. */
+  hargaBorongan: bigint | null;
+  /**
+   * Komponen tambahan. Koefisiennya PER SATUAN ITEM RAB — bukan per satuan
+   * analisa — jadi `faktorKonversi` TIDAK dikenakan padanya. Itu satuan yang
+   * dipikirkan orang saat menambah sendiri, dan mencampurnya dengan koefisien
+   * AHSP akan membuat faktor konversinya terpakai dua kali.
+   */
+  tambahan: KomponenUntukRapl[];
+};
+
 export type ItemUntukRapl = {
   lineageKey: string;
   code: string;
@@ -51,6 +82,11 @@ export type ItemUntukRapl = {
    * dikerjakan dengan cara yang sama padahal tidak.
    */
   adaUsulan?: boolean;
+  /**
+   * Rincian yang DISUSUN ORANG untuk item ini (RAPL-08, DECISIONS 470).
+   * Kosong untuk item yang cukup dilayani analisa AHSP apa adanya.
+   */
+  rincian?: RincianItem;
   analisa: {
     kode: string;
     uraian: string;
@@ -153,7 +189,124 @@ const SKALA = 10 ** DESIMAL_KEBUTUHAN;
  */
 const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3 };
 
-/** Turunkan kebutuhan sumber daya dari item RAB yang padanannya sudah disetujui. */
+
+/**
+ * Hasil membedah SATU item RAB: apa saja yang dibutuhkannya, atau kenapa ia
+ * tidak bisa dihitung.
+ *
+ * Ada supaya aturan gerbangnya hidup di SATU tempat. Agregat sumber daya dan
+ * biaya per item sama-sama memakainya; kalau keduanya menyalin aturan yang
+ * sama, cepat atau lambat mereka berbeda pendapat tentang item yang sama —
+ * dan halaman yang menampilkan keduanya berhenti bisa dipercaya.
+ */
+export type PecahanItem =
+  | {
+      ok: true;
+      /** Terisi = item ini diborongkan; `komponen` pasti kosong. */
+      borongan: bigint | null;
+      /** Kebutuhan SUDAH dikalikan volume dan faktor — tinggal dijumlahkan. */
+      komponen: { komponen: KomponenUntukRapl; jumlah: number; dariAhsp: boolean }[];
+    }
+  | { ok: false; alasan: AlasanLewat; rinci: string };
+
+/**
+ * Bedah satu item RAB menjadi kebutuhannya. MURNI.
+ *
+ * Urutan pemeriksaannya adalah urutan pekerjaan orang, bukan urutan kolom di
+ * tabel: borongan menutup perkara, lalu ada-tidaknya sumber koefisien, lalu
+ * volume, baru kesepadanan satuan.
+ */
+export function pecahItem(it: ItemUntukRapl): PecahanItem {
+  const r = it.rincian;
+  const tambahan = r?.tambahan ?? [];
+  /*
+   * Faktor konversi hanya sah bila DISERTAI ALASAN. Angka konversi tanpa
+   * keterangan adalah tebakan yang menyamar jadi data, dan di halaman yang
+   * dipakai orang menawar itu kebohongan yang paling mahal (DECISIONS 203
+   * diterapkan ke jalur RAPL).
+   */
+  const konversiSah =
+    r?.faktorKonversi != null &&
+    r.faktorKonversi > 0 &&
+    (r.catatanKonversi ?? "").trim().length > 0;
+
+  /*
+   * BORONGAN mengalahkan segalanya: satu item satu cara hitung. Pekerjaan yang
+   * disubkan memang tidak diketahui rincian bahannya, dan memaksanya diurai
+   * jadi semen-pasir hanya melahirkan angka yang tidak punya asal.
+   */
+  if (r?.hargaBorongan != null && r.hargaBorongan > 0n) {
+    if (it.volume === null) {
+      return { ok: false, alasan: "volume_kosong", rinci: "item RAB tidak punya volume" };
+    }
+    return { ok: true, borongan: r.hargaBorongan, komponen: [] };
+  }
+
+  const analisaBerkoefisien = it.analisa !== null && it.analisa.komponen.length > 0;
+
+  if (!analisaBerkoefisien && tambahan.length === 0) {
+    if (!it.analisa) {
+      return {
+        ok: false,
+        alasan: "belum_disetujui",
+        rinci: it.adaUsulan
+          ? "usulan mesin sudah ada – tinggal diperiksa lalu disetujui"
+          : "belum ada padanan sama sekali – perlu dicarikan analisanya atau dirinci tangan",
+      };
+    }
+    return {
+      ok: false,
+      alasan: "tanpa_koefisien",
+      rinci: `analisa [${it.analisa.kode}] belum punya koefisien terstruktur`,
+    };
+  }
+
+  if (it.volume === null) {
+    return { ok: false, alasan: "volume_kosong", rinci: "item RAB tidak punya volume" };
+  }
+
+  /*
+   * Satuan analisa "—" berarti berkas masternya sendiri tidak bisa membacanya;
+   * itu bukan izin untuk menganggapnya sepadan.
+   *
+   * Ketidaksepadanan menggugurkan SELURUH item, bukan cuma bagian analisanya,
+   * meski ia punya komponen tambahan. Memakai tambahannya saja menghasilkan
+   * kebutuhan yang kelihatan lengkap padahal kehilangan bagian terbesarnya —
+   * persis pengecilan diam-diam yang dilarang. Jalan keluarnya ada dan harus
+   * ditempuh orang: nyatakan faktor konversinya beserta alasannya.
+   */
+  const sepadan =
+    it.satuanNorm && it.analisa?.satuanNorm && it.satuanNorm === it.analisa.satuanNorm;
+  if (analisaBerkoefisien && !sepadan && !konversiSah) {
+    return {
+      ok: false,
+      alasan: "satuan_tidak_sepadan",
+      rinci: `item ${it.satuanNorm || "tanpa satuan"} vs analisa ${it.analisa?.satuanNorm || "tanpa satuan"}`,
+    };
+  }
+
+  /** Pengali volume untuk komponen ANALISA saja — lihat `RincianItem`. */
+  const faktor = analisaBerkoefisien && !sepadan && konversiSah ? r!.faktorKonversi! : 1;
+  const volume = it.volume;
+
+  return {
+    ok: true,
+    borongan: null,
+    komponen: [
+      ...(analisaBerkoefisien
+        ? it.analisa!.komponen.map((k) => ({
+            komponen: k,
+            jumlah: k.koefisien * volume * faktor,
+            dariAhsp: true,
+          }))
+        : []),
+      // Koefisien tambahan sudah PER SATUAN ITEM, jadi tidak ikut faktor.
+      ...tambahan.map((k) => ({ komponen: k, jumlah: k.koefisien * volume, dariAhsp: false })),
+    ],
+  };
+}
+
+/** Turunkan kebutuhan sumber daya dari seluruh item yang bisa dihitung. */
 export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
   const peta = new Map<string, Kebutuhan>();
   const dilewat: BarisDilewat[] = [];
@@ -166,54 +319,24 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
   let barisDipakai = 0;
   let nilaiDipakai = 0n;
 
-  const lewat = (it: ItemUntukRapl, alasan: AlasanLewat, rinci: string) => {
-    dilewat.push({
-      lineageKey: it.lineageKey,
-      code: it.code,
-      uraian: it.uraian,
-      amount: it.amount,
-      alasan,
-      rinci,
-    });
-    nilaiDilewat[alasan] += it.amount;
-  };
-
   for (const it of items) {
-    if (!it.analisa) {
-      lewat(
-        it,
-        "belum_disetujui",
-        it.adaUsulan
-          ? "usulan mesin sudah ada – tinggal diperiksa lalu disetujui"
-          : "belum ada padanan sama sekali – perlu dicarikan analisanya",
-      );
-      continue;
-    }
-    if (it.analisa.komponen.length === 0) {
-      lewat(
-        it,
-        "tanpa_koefisien",
-        `analisa [${it.analisa.kode}] belum punya koefisien terstruktur`,
-      );
-      continue;
-    }
-    if (it.volume === null) {
-      lewat(it, "volume_kosong", "item RAB tidak punya volume");
-      continue;
-    }
-    // Satuan analisa "—" berarti berkas masternya sendiri tidak bisa membacanya;
-    // itu bukan izin untuk menganggapnya sepadan.
-    if (!it.satuanNorm || !it.analisa.satuanNorm || it.satuanNorm !== it.analisa.satuanNorm) {
-      lewat(
-        it,
-        "satuan_tidak_sepadan",
-        `item ${it.satuanNorm || "tanpa satuan"} vs analisa ${it.analisa.satuanNorm || "tanpa satuan"}`,
-      );
+    const pecah = pecahItem(it);
+    if (!pecah.ok) {
+      dilewat.push({
+        lineageKey: it.lineageKey,
+        code: it.code,
+        uraian: it.uraian,
+        amount: it.amount,
+        alasan: pecah.alasan,
+        rinci: pecah.rinci,
+      });
+      nilaiDilewat[pecah.alasan] += it.amount;
       continue;
     }
 
     barisDipakai += 1;
     nilaiDipakai += it.amount;
+
     /*
      * Satu item hanya boleh menyumbangkan nilainya SEKALI per sumber daya.
      * Ada analisa yang mendaftarkan sumber daya yang sama dua kali (mis. dua
@@ -221,14 +344,13 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
      * item itu terhitung dobel dan urutan pengisian harga jadi salah.
      */
     const sudahDariItemIni = new Set<string>();
-    for (const k of it.analisa.komponen) {
+    for (const { komponen: k, jumlah: tambah } of pecah.komponen) {
       // Besar-kecil huruf satuan ("Kg" vs "kg") cuma cara mengetik — kalau ikut
       // jadi kunci, satu bahan yang sama pecah jadi dua baris berjumlah separuh
       // dan pembacanya menyimpulkan kebutuhannya lebih kecil dari yang sebenarnya.
       const satuan = (k.satuan ?? "").trim();
       const kunci = JSON.stringify([k.kategori, k.nama, satuan.toLowerCase()]);
       const ada = peta.get(kunci);
-      const tambah = k.koefisien * it.volume;
       const baruDariItemIni = !sudahDariItemIni.has(kunci);
       sudahDariItemIni.add(kunci);
       if (ada) {
@@ -423,4 +545,160 @@ export function bandingkanDenganNilaiProyek(args: {
       utuh: cakupanNilai >= 99.95 && cakupanHarga >= 99.95,
     },
   };
+}
+
+/* -------------------------------------------------------- BIAYA PER ITEM */
+
+export type KomponenItem = {
+  kategori: string;
+  nama: string;
+  satuan: string;
+  /** Kebutuhan untuk item ini saja — sudah dikalikan volume dan faktor. */
+  jumlah: number;
+  /** false = ditambahkan orang, bukan dari analisa AHSP. */
+  dariAhsp: boolean;
+  harga: bigint | null;
+  /** null selama harganya belum diisi — BUKAN nol. */
+  biaya: bigint | null;
+};
+
+/** Bagaimana biaya item ini disusun. */
+export type CaraItem = "ahsp" | "manual" | "campuran" | "borongan" | "belum";
+
+export type BiayaItem = {
+  lineageKey: string;
+  code: string;
+  uraian: string;
+  satuan: string;
+  volume: number | null;
+  /** Nilai item menurut RAB aktif — harga jualnya. */
+  nilaiRab: bigint;
+  cara: CaraItem;
+  komponen: KomponenItem[];
+  /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
+  biaya: bigint;
+  komponenBelumBerharga: number;
+  /** true = seluruh komponennya berharga, atau item ini borongan. */
+  lengkap: boolean;
+  /**
+   * nilaiRab − biaya. **null selama belum lengkap.** Separuh biaya bukan
+   * margin: menyajikannya telanjang membuat item yang sebenarnya rugi terlihat
+   * untung, dan itulah angka yang dipakai orang memutuskan menawar.
+   */
+  margin: bigint | null;
+  marginPersen: number | null;
+  /** Terisi = item ini tidak bisa dihitung, dan ini sebabnya. */
+  alasanLewat: AlasanLewat | null;
+  rinciLewat: string | null;
+  /**
+   * Keadaan rincian yang sedang berlaku — dibawa apa adanya supaya layar bisa
+   * mengisi formulirnya tanpa membaca ulang dari tempat lain (dan lalu
+   * menampilkan sesuatu yang berbeda dari yang dipakai menghitung).
+   */
+  faktorKonversi: number | null;
+  catatanKonversi: string | null;
+  hargaBorongan: bigint | null;
+};
+
+/**
+ * Biaya dan margin PER ITEM RAB (RAPL-08, DECISIONS 470).
+ *
+ * Inilah bentuk yang sebenarnya dipakai orang: bukan "berapa total semen se-
+ * lokasi", melainkan **item mana yang rugi**. Agregat sumber daya tetap ada
+ * dan tetap berguna untuk pengadaan, tetapi ia sekarang TURUNAN dari daftar
+ * ini — bukan sebaliknya.
+ *
+ * MURNI. Gerbangnya memakai `pecahItem` yang sama dengan `agregasiKebutuhan`,
+ * jadi item yang masuk hitungan di satu tempat tidak pernah berbeda di tempat
+ * lain.
+ */
+export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): BiayaItem[] {
+  const peta = new Map(
+    harga
+      .filter((h) => h.harga > 0n)
+      .map((h) => [kunciSumberDaya(h.kategori, h.nama, h.satuan), h.harga]),
+  );
+
+  return items.map((it) => {
+    const dasar = {
+      lineageKey: it.lineageKey,
+      code: it.code,
+      uraian: it.uraian,
+      satuan: it.satuanNorm,
+      volume: it.volume,
+      nilaiRab: it.amount,
+      faktorKonversi: it.rincian?.faktorKonversi ?? null,
+      catatanKonversi: it.rincian?.catatanKonversi ?? null,
+      hargaBorongan: it.rincian?.hargaBorongan ?? null,
+    };
+
+    const pecah = pecahItem(it);
+    if (!pecah.ok) {
+      return {
+        ...dasar,
+        cara: "belum" as CaraItem,
+        komponen: [],
+        biaya: 0n,
+        komponenBelumBerharga: 0,
+        lengkap: false,
+        margin: null,
+        marginPersen: null,
+        alasanLewat: pecah.alasan,
+        rinciLewat: pecah.rinci,
+      };
+    }
+
+    if (pecah.borongan !== null) {
+      // Borongan sudah berupa harga per satuan item: tidak ada komponen yang
+      // bisa belum berharga, jadi ia SELALU lengkap.
+      const biaya = BigInt(Math.round((it.volume ?? 0) * Number(pecah.borongan)));
+      return {
+        ...dasar,
+        cara: "borongan" as CaraItem,
+        komponen: [],
+        biaya,
+        komponenBelumBerharga: 0,
+        lengkap: true,
+        margin: it.amount - biaya,
+        marginPersen: it.amount > 0n ? (Number(it.amount - biaya) / Number(it.amount)) * 100 : 0,
+        alasanLewat: null,
+        rinciLewat: null,
+      };
+    }
+
+    const komponen: KomponenItem[] = pecah.komponen.map((c) => {
+      const satuan = (c.komponen.satuan ?? "").trim();
+      const h = peta.get(kunciSumberDaya(c.komponen.kategori, c.komponen.nama, satuan)) ?? null;
+      const jumlah = Math.round(c.jumlah * SKALA) / SKALA;
+      return {
+        kategori: c.komponen.kategori,
+        nama: c.komponen.nama,
+        satuan,
+        jumlah,
+        dariAhsp: c.dariAhsp,
+        harga: h,
+        biaya: h === null ? null : BigInt(Math.round(jumlah * Number(h))),
+      };
+    });
+
+    const biaya = komponen.reduce((a, k) => a + (k.biaya ?? 0n), 0n);
+    const belum = komponen.filter((k) => k.biaya === null).length;
+    const lengkap = komponen.length > 0 && belum === 0;
+    const adaAhsp = komponen.some((k) => k.dariAhsp);
+    const adaManual = komponen.some((k) => !k.dariAhsp);
+
+    return {
+      ...dasar,
+      cara: (adaAhsp && adaManual ? "campuran" : adaAhsp ? "ahsp" : "manual") as CaraItem,
+      komponen,
+      biaya,
+      komponenBelumBerharga: belum,
+      lengkap,
+      margin: lengkap ? it.amount - biaya : null,
+      marginPersen:
+        lengkap && it.amount > 0n ? (Number(it.amount - biaya) / Number(it.amount)) * 100 : null,
+      alasanLewat: null,
+      rinciLewat: null,
+    };
+  });
 }
