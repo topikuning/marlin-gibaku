@@ -32,7 +32,9 @@ import { listPrompts } from "@/lib/ai/prompts";
 import { PromptPanel } from "./prompt-panel";
 import { PengingatPanel } from "./pengingat-panel";
 import { MingguanPanel } from "./mingguan-panel";
+import { PengingatGrupPanel } from "./pengingat-grup-panel";
 import { getMingguanAktif } from "@/lib/mingguan/setelan";
+import { getPengingatGrupAktif } from "@/lib/harian/setelan-grup";
 import { pratinjauPengingat } from "@/lib/harian/pratinjau";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
@@ -636,6 +638,15 @@ export default async function SistemPage() {
       </Card>
       <Card>
         <CardHeader
+          title="Pengingat harian → grup WA paket"
+          subtitle="Menagih di grup tiap paket yang laporannya belum lengkap – berjeda satu menit antar grup"
+        />
+        <CardBody>
+          <PengingatGrupPanel aktif={await getPengingatGrupAktif()} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
           title="Laporan progres mingguan → grup WA"
           subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket – mengikuti mode periode minggu di kontraknya (Senin–Minggu atau 7 hari sejak SPMK)"
         />
@@ -652,7 +663,7 @@ export default async function SistemPage() {
             dengan header <code className="rounded bg-surface-inset px-1 py-0.5">x-cron-secret</code>.
             Repo ini menyertakan workflow GitHub Actions{" "}
             <code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-harian.yml</code>{" "}
-            yang berjalan tiap hari 09.00 UTC (16.00 WIB).
+            yang berjalan tiap hari 11.00 UTC (18.00 WIB).
           </p>
           <p>
             Antrean unggah Drive punya rute sendiri –{" "}

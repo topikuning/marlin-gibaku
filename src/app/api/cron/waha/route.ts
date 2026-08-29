@@ -4,6 +4,7 @@ import { prosesAntrean, ringkasAntreanWa } from "@/lib/waha/antrean";
 import { bersihkanKlarifikasiBasi } from "@/lib/waha/klarifikasi";
 import { bersihkanKonteksBasi } from "@/lib/waha/konteks-lanjutan";
 import { jemputTanyaTertunda } from "@/lib/ai-hub/tanya-tertunda";
+import { kurasPengingatGrup } from "@/lib/harian/penjadwal-grup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -67,7 +68,46 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error("[cron/waha] jemput tanya tertunda gagal:", err);
     }
-    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang, konteksDibuang, tanyaTertunda });
+    /*
+     * Giliran pengingat harian ke GRUP paket ikut dikuras di sini. Ia menumpang
+     * route ini justru karena route ini sering: jeda antar grup satu menit,
+     * jadi antreannya memang harus dicicil beberapa putaran — bukan dikerjakan
+     * sekaligus oleh putaran harian yang cuma sekali sehari.
+     *
+     * Sama seperti penjemput di atas, kegagalannya tidak boleh menjatuhkan
+     * antrean jawaban WhatsApp.
+     */
+    let pengingatGrup: unknown = null;
+    try {
+      pengingatGrup = await kurasPengingatGrup();
+    } catch (err) {
+      console.error("[cron/waha] kuras pengingat grup gagal:", err);
+    }
+    /*
+     * Lampiran yang belum sempat naik ke R2 disapu di sini.
+     *
+     * Sampai 2026-08-29 penyapu ini TIDAK PERNAH dipanggil dari mana pun —
+     * jaring pengaman yang tidak pernah dipasang. Sekarang ia menumpang putaran
+     * lima menitan, karena yang dikejar memang berkas yang umurnya di disk
+     * sementara bisa lebih pendek daripada jarak antar deploy.
+     */
+    let lampiranDiarsipkan: unknown = null;
+    try {
+      const { arsipkanYangTertinggal } = await import("@/lib/waha/lampiran-tangkap");
+      lampiranDiarsipkan = await arsipkanYangTertinggal();
+    } catch (err) {
+      console.error("[cron/waha] arsip lampiran tertinggal gagal:", err);
+    }
+    return NextResponse.json({
+      ok: true,
+      ...hasil,
+      sisa,
+      klarifikasiDibuang,
+      konteksDibuang,
+      tanyaTertunda,
+      pengingatGrup,
+      lampiranDiarsipkan,
+    });
   } catch (err) {
     console.error("[cron/waha] gagal:", err);
     return NextResponse.json(

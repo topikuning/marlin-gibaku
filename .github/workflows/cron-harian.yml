@@ -2,9 +2,13 @@ name: Pekerjaan harian MARLIN
 
 # Aktivasi SPMK yang jatuh tempo + pengingat WA laporan harian (DECISIONS 202).
 #
-# 09:00 UTC = 16:00 WIB — sore, saat orang lapangan masih sempat mengirim
-# laporan hari itu. Jadwal GitHub Actions memakai UTC dan TIDAK mengenal DST;
-# WIB juga tidak, jadi 16:00 WIB tetap 16:00 WIB sepanjang tahun.
+# 11:00 UTC = 18:00 WIB — sore, saat orang lapangan masih sempat mengirim
+# laporan hari itu, dan jam yang ditetapkan user 2026-08-29 untuk pengingat ke
+# GRUP paket. Jadwal GitHub Actions memakai UTC dan TIDAK mengenal DST; WIB juga
+# tidak, jadi 18:00 WIB tetap 18:00 WIB sepanjang tahun.
+#
+# (Sampai 2026-08-29 komentar ini berbunyi "09:00 UTC = 16:00 WIB" sementara
+# jadwalnya sudah lama `0 11 * * *`. Yang benar adalah jadwalnya.)
 #
 # CATATAN JUJUR soal keandalan: scheduled workflow di GitHub berjalan di runner
 # bersama, jadi sering TELAT 5–20 menit dan sesekali dilewati saat antreannya

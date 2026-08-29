@@ -161,6 +161,36 @@ describe("mingguRampung", () => {
     expect(mingguRampung(mulai, new Date("2026-01-08T09:00:00.000Z"), 52)).toBe(1);
   });
 
+  /*
+   * Tenggat KKP: seluruh berkas mingguan sudah harus ada di Drive paling lambat
+   * hari MINGGU pukul 23.59 WIB. Kalau minggu berjalan baru dihitung tuntas
+   * keesokan harinya, berkasnya naik hari Senin — selalu telat, tiap pekan.
+   *
+   * Batasnya pukul 23 WIB, bukan sore: orang lapangan sering baru mengisi
+   * pukul 20. Mengantre lebih awal berarti mengunggah minggu yang isinya belum
+   * lengkap, dan baris antrean yang sudah "sukses" tidak diunggah ulang.
+   */
+  it("HARI TERAKHIR pukul 23 WIB sudah dihitung tuntas – tenggat Minggu 23.59", () => {
+    // 16:10 UTC = 23:10 WIB, masih hari yang sama.
+    expect(mingguRampung(mulai, new Date("2026-01-07T16:10:00.000Z"), 52)).toBe(1);
+  });
+
+  it("hari terakhir pukul 20 WIB BELUM tuntas – masih ada yang mengisi", () => {
+    // 13:00 UTC = 20:00 WIB.
+    expect(mingguRampung(mulai, new Date("2026-01-07T13:00:00.000Z"), 52)).toBe(0);
+  });
+
+  it("pukul 23 WIB di hari yang BUKAN akhir minggu tidak mempercepat apa pun", () => {
+    // Rabu malam: minggu ke-1 belum berakhir, jadi tetap 0.
+    expect(mingguRampung(mulai, new Date("2026-01-04T16:10:00.000Z"), 52)).toBe(0);
+  });
+
+  it("mode senin_minggu: Minggu malam pukul 23 WIB tuntas", () => {
+    // Kontrak mulai Kamis 1 Jan 2026; minggu kalender pertamanya berakhir
+    // Minggu 4 Jan. 16:10 UTC = 23:10 WIB hari itu.
+    expect(mingguRampung(mulai, new Date("2026-01-04T16:10:00.000Z"), 52, "senin_minggu")).toBe(1);
+  });
+
   it("menghitung maju sesuai lamanya kontrak berjalan", () => {
     expect(mingguRampung(mulai, new Date("2026-01-15T09:00:00.000Z"), 52)).toBe(2);
     expect(mingguRampung(mulai, new Date("2026-03-05T09:00:00.000Z"), 52)).toBe(9);

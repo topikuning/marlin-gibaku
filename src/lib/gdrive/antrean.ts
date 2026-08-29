@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { mingguKontrak } from "@/lib/mingguan/kirim";
+import { jakartaHour } from "@/lib/format";
+import { akhirMingguKontrak, mingguKontrak } from "@/lib/mingguan/kirim";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { getGDriveConfigDisplay } from "./config";
 import {
@@ -168,16 +169,34 @@ export async function pindaiHarian(batas = MAKS_ANTRE_BARU_PER_PUTARAN): Promise
 }
 
 /**
+ * Jam WIB paling awal sebuah minggu boleh dianggap tuntas pada hari
+ * terakhirnya.
+ *
+ * KKP menetapkan seluruh berkas mingguan sudah harus ada di Drive selambatnya
+ * hari MINGGU pukul 23.59 WIB (pengumuman grup 2026-08-29). Angka 23 adalah
+ * kompromi antara dua kesalahan yang sama-sama nyata:
+ *
+ *   terlalu awal → minggu diunggah sebelum laporan hari terakhirnya final.
+ *                  Orang lapangan sering baru mengisi pukul 20, dan baris
+ *                  antrean yang sudah `sukses` TIDAK diunggah ulang.
+ *   terlalu lambat → berkasnya baru naik Senin. Telat, tiap pekan.
+ */
+export const BATAS_JAM_UNGGAH_MINGGUAN = 23;
+
+/**
  * Minggu kontrak yang SUDAH TUNTAS untuk sebuah lokasi.
  *
- * Minggu ke-N baru layak dilaporkan setelah hari terakhirnya LEWAT, bukan pada
- * hari terakhirnya. Bedanya nyata: penjadwal berjalan sore (16:00 WIB) dan
- * laporan harian hari itu sering belum difinalisasi, jadi dokumen yang disusun
- * pada hari terakhir akan membekukan minggu yang datanya belum lengkap — ke
- * folder pemberi kerja pula.
+ * Minggu ke-N belum layak dilaporkan sepanjang hari terakhirnya masih berjalan:
+ * penjadwal sore (18:00 WIB) akan membekukan minggu yang laporan harian
+ * terakhirnya belum difinalisasi — ke folder pemberi kerja pula.
  *
- * Ini juga membuat pemicu dan backlog memakai SATU aturan yang sama: tidak ada
- * cabang khusus "hari ini kebetulan hari terakhir".
+ * Yang menjadi pengecualian hanyalah JAM TERAKHIR hari itu
+ * (`BATAS_JAM_UNGGAH_MINGGUAN` ke atas), karena tenggat KKP jatuh pada hari itu
+ * juga. Di jam segitu praktis tidak ada lagi yang mengisi, dan menunggu
+ * keesokan hari berarti pasti telat.
+ *
+ * Backlog tetap memakai aturan yang sama: minggu-minggu lampau sudah lewat hari
+ * terakhirnya, jadi cabang jam ini tidak pernah mengubah hitungannya.
  */
 export function mingguRampung(
   startDate: Date,
@@ -186,7 +205,10 @@ export function mingguRampung(
   mode: "tujuh_hari" | "senin_minggu" = "tujuh_hari",
 ): number {
   const berjalan = mingguKontrak(startDate, now, mode);
-  return Math.max(0, Math.min(berjalan - 1, totalWeeks));
+  const hariTerakhirLarutMalam =
+    akhirMingguKontrak(startDate, now, mode) && jakartaHour(now) >= BATAS_JAM_UNGGAH_MINGGUAN;
+  const tuntas = hariTerakhirLarutMalam ? berjalan : berjalan - 1;
+  return Math.max(0, Math.min(tuntas, totalWeeks));
 }
 
 /**

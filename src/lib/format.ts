@@ -48,6 +48,18 @@ export function jakartaDateKey(date: Date): string {
   return formatDate(new TZDate(date, APP_TZ), "yyyy-MM-dd");
 }
 
+/**
+ * Jam 0–23 di Asia/Jakarta.
+ *
+ * Dipakai penjadwal yang tenggatnya JAM, bukan hari: mis. berkas mingguan KKP
+ * yang harus sudah di Drive sebelum Minggu 23.59 WIB. Zona waktunya disebut
+ * eksplisit karena server berjalan di UTC — `date.getHours()` di sana menjawab
+ * jam yang berbeda tujuh jam dari jam yang dimaksud orang di lapangan.
+ */
+export function jakartaHour(date: Date): number {
+  return Number.parseInt(formatDate(new TZDate(date, APP_TZ), "H"), 10);
+}
+
 /** Hari ini (date-only) di Asia/Jakarta sebagai Date UTC-midnight — untuk kolom @db.Date. */
 export function jakartaToday(): Date {
   return new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
