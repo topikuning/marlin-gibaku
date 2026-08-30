@@ -1,4 +1,5 @@
 import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tanya-niat";
+import type { BentukDokumen } from "./parser-niat";
 import { catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
 
 /**
@@ -483,6 +484,55 @@ export function barisTafsir(niat: Niat): string | null {
 }
 
 /**
+ * Balasan saat berkas hariannya MEMANG dikirim.
+ *
+ * Menyebut lokasi dan tanggalnya, karena berkas WhatsApp diteruskan tanpa
+ * konteks percakapannya — penerima kedua tidak pernah melihat pertanyaannya.
+ *
+ * Dan menyebut BENTUK dokumennya dengan nama yang benar. Sampai 2026-08-31
+ * balasan ini menamai "Ringkasan pelaksanaan harian" sebagai *blanko harian*
+ * lalu menjelaskannya sebagai *blanko lapangan* — dua dokumen yang berbeda,
+ * satu nama. Orang yang meminta blanko KKP karena itu menerima dokumen lain di
+ * bawah keterangan yang menamainya dokumen yang ia minta.
+ *
+ * Tiap balasan juga menunjukkan bentuk yang SATUNYA. Penanya tidak bisa
+ * mengoreksi pilihan yang tidak pernah ia tahu ada.
+ */
+export function balasProduksiBerkas(
+  lokasi: string,
+  dateKey: string,
+  bentuk: BentukDokumen,
+): string {
+  if (bentuk === "kkp") {
+    return [
+      `*Blanko harian KKP ${lokasi}* – ${dateKey}`,
+      "",
+      "Berkasnya menyusul di pesan berikut: sampul, pekerjaan, tenaga, material,",
+      "alat, cuaca, lampiran foto, dan kendala yang tercatat hari itu.",
+      "",
+      "Ini blanko setoran lapangan, BUKAN laporan eksekutif yang ditandatangani.",
+      "Yang ditandatangani disusun di MARLIN → *AI* → *Report Studio* lewat",
+      "review → disetujui → dibekukan, supaya angkanya tidak berubah setelah",
+      "dikirim.",
+      "",
+      "Kalau yang kamu butuhkan versi ringkasan untuk dibaca di grup, sebut",
+      "“ringkasan harian”.",
+    ].join("\n");
+  }
+  return [
+    `*Ringkasan pelaksanaan harian ${lokasi}* – ${dateKey}`,
+    "",
+    "Berkasnya menyusul di pesan berikut: posisi kumulatif, deviasi, pekerjaan,",
+    "tenaga, material, alat, cuaca, foto, dan kendala yang tercatat hari itu.",
+    "",
+    "Ini dokumen BACAAN untuk grup – bukan blanko setoran KKP, dan bukan laporan",
+    "eksekutif yang ditandatangani. Blanko KKP-nya tinggal diminta dengan",
+    "menyebut “versi kkp”; yang ditandatangani disusun di MARLIN → *AI* →",
+    "*Report Studio* lewat review → disetujui → dibekukan.",
+  ].join("\n");
+}
+
+/**
  * Balasan untuk PERINTAH membuat/mengirim artefak (audit 2026-08-28).
  *
  * MARLIN memang belum bisa memproduksi laporan dari WhatsApp, dan itu bukan
@@ -495,26 +545,6 @@ export function barisTafsir(niat: Niat): string | null {
  * karena orang yang meminta laporan biasanya sedang butuh angkanya, bukan
  * berkasnya.
  */
-/**
- * Balasan saat blanko hariannya MEMANG dikirim.
- *
- * Menyebut lokasi dan tanggalnya, karena berkas WhatsApp diteruskan tanpa
- * konteks percakapannya — penerima kedua tidak pernah melihat pertanyaannya.
- */
-export function balasProduksiBerkas(lokasi: string, dateKey: string): string {
-  return [
-    `*Blanko harian ${lokasi}* – ${dateKey}`,
-    "",
-    "Berkasnya menyusul di pesan berikut: pekerjaan, tenaga, material, alat,",
-    "cuaca, foto, dan kendala yang tercatat hari itu.",
-    "",
-    "Ini blanko lapangan, BUKAN laporan eksekutif yang ditandatangani. Yang",
-    "ditandatangani disusun di MARLIN → *AI* → *Report Studio* lewat",
-    "review → disetujui → dibekukan, supaya angkanya tidak berubah setelah",
-    "dikirim.",
-  ].join("\n");
-}
-
 export function balasProduksi(): string {
   return [
     "*Membuat & mengirim laporan belum bisa lewat chat*",
