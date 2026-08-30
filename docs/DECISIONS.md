@@ -25231,7 +25231,106 @@ ikut segar sesudah penarikan ulang.
 **Bisa di-revisit**: bila penantian lain di aplikasi ini butuh pola yang sama —
 saat itu bentuk `RingkasUsulanAi` layak digeneralisasi, bukan disalin.
 
-## (baru) · Lokasi itu direktori, Progress itu papan tagihan (2026-08-30)
+---
+
+## 481 · Layout kolom tersimpan tidak boleh menyembunyikan kolom baru (2026-08-30)
+
+**Konteks**: `MarlinGrid` menyimpan `getColumnState()` ke localStorage per
+`persistKey` — sepuluh grid memakainya — lalu memulihkannya dengan
+`applyColumnState({ applyOrder: true })`. Yang tidak diperhitungkan: susunan
+kolom juga berubah karena KODE berubah, bukan hanya karena penggunanya menyeret
+sesuatu.
+
+Di dalam AG Grid (`orderLiveColsLikeState`, diperiksa langsung di
+`node_modules`), `applyOrder` menyusun kolom mengikuti daftar tersimpan lalu
+menempelkan kolom yang tidak dikenal daftar itu di UJUNG KANAN. Jadi setiap
+kolom yang baru ditambahkan kode mendarat di seberang tepi gulir bagi siapa pun
+yang pernah membuka layar itu sebelumnya — bukan di posisi yang dipilih
+penulisnya, dan tanpa satu tanda pun bahwa ada yang tersembunyi.
+
+Itulah yang dilaporkan user 2026-08-30: *"saran dari ai memang masuk tabel,
+tapi secara tampilan tidak kelihatan"*. Draf harga AI memang tersimpan dan
+memang masuk barisnya; ketiga kolomnya duduk di luar layar.
+
+**Keputusan**: pemulihan layout didamaikan lebih dulu
+(`src/components/grid/column-state.ts`). Begitu ADA kolom sekarang yang tidak
+dikenal simpanan, urutan simpanan dilepas dan urutan kode yang dipakai; lebar,
+sortir, dan kolom yang disembunyikan tetap dipulihkan. Kolom yang DIHAPUS kode
+tidak membatalkan apa pun — AG Grid mengabaikan state tanpa kolom.
+
+Ditambah satu jalan pulang yang selama ini tidak ada: tombol **"Atur ulang
+kolom"** di bilah grid, yang membuang simpanannya lalu memanggil
+`resetColumnState()`. Tanpa itu, satu kolom yang tak sengaja disembunyikan ikut
+berpindah ke setiap kunjungan berikutnya, dan obat satu-satunya adalah
+membersihkan localStorage — yang tidak akan dilakukan Site Manager mana pun.
+
+**Alternatif direject**:
+
+- *Membuang seluruh simpanan begitu kolomnya berubah.* Menghukum lebar dan
+  sortir yang memang milik pengguna karena kesalahan yang bukan miliknya.
+- *Menomori versi kolom secara manual per grid.* Menuntut penulis mengingat
+  menaikkannya; yang lupa persis menghasilkan cacat yang sedang diperbaiki.
+
+**Konsekuensi**: `bacaSimpananKolom` diuji terpisah
+(`tests/unit/grid-kolom-simpanan.test.ts`), termasuk kasus aslinya. Pabrik kolom
+(`rupiahCol`/`pctCol`/`dateCol`) pindah ke `src/components/grid/kolom.ts` supaya
+susunan kolom sebuah layar bisa diuji tanpa memuat `ag-grid-react`;
+`marlin-grid.tsx` mengekspornya ulang.
+
+---
+
+## 482 · Kolom RAPL mengikuti keputusan yang sedang diminta; ringkasannya berhenti mengulang (2026-08-30)
+
+**Konteks**: keluhan kedua user pada hari yang sama: *"tampilan pandangan
+pertama user habis di balon yang sebenarnya juga tidak terlalu berguna, harusnya
+bisa dimampatkan"*.
+
+Dua sebab terukur, keduanya bukan selera:
+
+1. Grid "Kebutuhan & harga" memasang sebelas kolom tetap berlebar minimum
+   ±1.810px. Tiga di antaranya kolom draf AI yang memakan ±520px untuk memajang
+   sel KOSONG selama tidak ada draf — dan mendorong kolom lain keluar layar.
+2. Di atas tabel bertumpuk empat KpiCard halaman, empat kartu kategori, satu
+   kotak tiga kolom, satu bilah penjelasan, dan (di subtab Rincian) tiga kartu
+   lagi. Dua angka di antaranya — "Nilai RAB aktif" dan "Potensi margin" —
+   diulang persis dari KpiCard beberapa piksel di atasnya.
+
+**Keputusan**:
+
+- Susunan kolom harga jadi fungsi dari keadaan: tanpa draf, kolom AI tidak ada;
+  dengan draf, kolom keputusan (Usulan AI, Keyakinan, Harga satuan) naik ke
+  sepertiga kiri dan kolom turunan (biaya, sumber harga, kebutuhan) turun ke
+  kanan. Tidak ada kolom yang HILANG karena adanya draf — yang berubah hanya
+  urutannya, jadi yang ingin melihatnya tinggal menggulir; itu pilihannya, bukan
+  nasibnya. Sel usulan AI diberi latar `info-soft` supaya tidak terbaca sebagai
+  harga yang sudah berlaku.
+- `RingkasBiaya` berhenti mengulang angka yang sudah jadi KpiCard: ia kini satu
+  bilah "Biaya RAPL + per kategori" plus paragraf keandalannya. Paragrafnya
+  TIDAK ikut dimampatkan — ia satu-satunya tempat yang mengatakan selisih ini
+  belum boleh dibaca sebagai keuntungan (CALCULATION_INTEGRITY_PROTOCOL).
+- Tiga kartu ringkasan subtab Rincian jadi satu bilah; pemicu `Kenapa` jadi
+  tautan sebaris, bukan bilah abu-abu selebar halaman.
+- Spanduk "N baris kehilangan padanannya" mendapat tombol **"Sambungkan ulang"**
+  ke subtab tempat "Petakan otomatis" berada. Peringatan yang menyuruh orang
+  mencari tombolnya sendiri berubah jadi perabot.
+
+**Alternatif direject**:
+
+- *Mengunci kolom "Sumber daya" ke kiri (pinned).* Di ponsel 390px, kolom
+  terkunci selebar 220px menyisakan ruang gulir yang tak berguna.
+- *Membuang kolom biaya/sumber harga selama ada draf.* Memampatkan dengan
+  menghilangkan data; pengguna kehilangan pembanding justru saat ia menimbang.
+
+**Konsekuensi**: susunan kolomnya pindah ke
+`src/app/(app)/lokasi/[slug]/rapl/harga-kolom.ts` (murni, tanpa AG Grid) dan
+dijaga `tests/unit/rapl-kolom-harga.test.ts` — termasuk invarian "tidak ada
+kolom yang hilang saat draf datang" dan "Usulan AI berada di dalam 1.000px
+pertama".
+
+**Bisa di-revisit**: bila layar lain ikut kesempitan, ambang lebar itu layak
+jadi aturan bersama, bukan angka di satu berkas uji.
+
+## 483 · Lokasi itu direktori, Progress itu papan tagihan (2026-08-30)
 
 Pertanyaan user 2026-08-30: *"halaman lokasi dan progress, apa bedanya? sangat
 mirip"*. Memang mirip. Keduanya memanggil `getLocationsProgress()` yang sama dan
@@ -25287,3 +25386,4 @@ Dijaga `tests/integration/progress-terakhir-lapor.test.ts` (6 uji) dan
 `tests/e2e/lokasi-vs-progress.spec.ts` — yang terakhir menguji dari LAYAR, sebab
 kolom yang dihapus di berkas grid tapi masih terkirim dari server akan lolos
 pemeriksaan sumber dan tetap terlihat pengguna.
+
