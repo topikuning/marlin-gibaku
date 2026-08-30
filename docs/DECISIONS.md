@@ -25026,6 +25026,48 @@ tersendiri). Keduanya tercatat di `docs/OPEN_ISSUES.md`.
 **Tahap C — AI mendraf RINCIAN untuk item tanpa padanan — TIDAK dikerjakan.**
 DECISIONS 326 belum dicabut user.
 
+## 477 · RAPL punya pintunya sendiri; penahanan menu Keuangan berhenti di menu Keuangan (2026-08-29)
+
+RAPL-07 (DECISIONS 476) memindahkan harga, biaya, dan margin RAPL ke belakang
+`finance.view`, dan pengisian HSD ke `finance.input`. Alasannya benar dan tetap
+berlaku: margin internal pelaksana tidak boleh terbuka untuk `wakil_ppk` —
+lawan bicara saat negosiasi dan pemeriksaan termin — padahal `rab.view` dimiliki
+kedelapan peran.
+
+Pintunya yang salah. `finance.*` sedang DITAHAN untuk semua peran kecuali
+super_admin sejak DECISIONS 411, dan penahanan itu punya sebab yang sempit:
+menu Keuangan belum siap dipakai. Dengan RAPL menumpang di pintu yang sama,
+menahan satu menu ikut mematikan menu lain — Project Manager berhenti melihat
+biaya RAPL, Site Manager berhenti bisa mengisi harga satuan dasar. Tidak ada
+yang pernah meminta itu.
+
+Koreksi user 2026-08-29: *"yang kumaksud dari awal bahwa hanya superadmin yg
+bisa melihat keuangan itu, maksudnya tab keuangan, yang mana itu masih mentah.
+bukan membatasi fitur-fitur keuangan yang berhubungan dengan menu lain"*.
+
+**Keputusan.** RAPL memakai capability sendiri:
+
+| Capability | Isinya | Pemegang |
+|---|---|---|
+| `rab.view` | kebutuhan volume bahan/upah/alat | kedelapan peran (tidak berubah) |
+| `rapl.view` | harga satuan, biaya per item, MARGIN | Project Manager ke atas + exec_viewer |
+| `rapl.manage` | mengisi HSD, rincian pelaksanaan, borongan, faktor konversi | Site Manager ke atas |
+
+Pemisahan lihat/isi pada jenjang berbeda adalah pilihan user pada tanggal yang
+sama: yang paling tahu harga bahan di lapangan memang orang lapangan, jadi Site
+Manager mengisi — tetapi margin adalah angka menawar dan berhenti di kantor.
+Konsekuensinya disebut apa adanya: Site Manager mengisi harga tanpa melihat
+kolom margin. Ini melanggar pola superset jenjang (DECISIONS 218) secara
+sengaja, dan hanya di satu tempat ini.
+
+`finance.view/input/approve` tetap seperti adanya — ditahan, dengan cara
+membukanya kembali tertulis di `authz.ts`. Yang bertambah di sana hanya
+larangan: capability itu milik menu Keuangan, dan layar uang di luar menu itu
+wajib punya pintunya sendiri, bukan menumpang.
+
+Dijaga `tests/unit/rapl-kapabilitas.test.ts`, termasuk satu penjaga yang
+memindai berkas RAPL/HSD dan menolak kalau `finance.*` muncul lagi di sana —
+supaya yang kambuh bukan cuma gejalanya, tapi sebabnya pun tertutup.
 ---
 
 ## (baru) · Ketukan baris membuka panel di layar, bukan di bawah lipatan (2026-08-30)

@@ -36,7 +36,7 @@ export default async function CetakRaplPage({
    * dimiliki kedelapan role, termasuk `wakil_ppk` yang mewakili pemberi kerja
    * (RAPL-07, DECISIONS 475).
    */
-  if (!can(user.role, "rab.view") || !can(user.role, "finance.view")) notFound();
+  if (!can(user.role, "rab.view") || !can(user.role, "rapl.view")) notFound();
 
   const location = await db.location.findUnique({
     where: { slug },

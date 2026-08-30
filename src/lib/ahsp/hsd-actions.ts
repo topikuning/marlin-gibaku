@@ -11,9 +11,10 @@ import { kunciSumberDaya } from "./rapl-calc";
 /**
  * Aksi Harga Satuan Dasar (DECISIONS 327).
  *
- * Capability `finance.input`: ini memasukkan ANGKA UANG yang dipakai
- * membandingkan biaya pelaksanaan dengan nilai RAB aktif — bobotnya sama dengan
- * memasukkan transaksi keuangan, bukan sekadar mengelola RAB.
+ * Capability `rapl.manage`: ini memasukkan ANGKA UANG yang dipakai
+ * membandingkan biaya pelaksanaan dengan nilai RAB aktif — bobotnya lebih dari
+ * sekadar mengelola RAB. BUKAN `finance.*`: itu pintu menu Keuangan yang sedang
+ * ditahan, dan meminjamnya membuat RAPL ikut mati (koreksi user 2026-08-29).
  */
 
 export type HargaActionState = { error?: string; success?: string } | undefined;
@@ -113,7 +114,7 @@ export async function simpanHargaAction(
   if (harga === "salah") return { error: `Harga "${d.harga}" tidak terbaca sebagai angka rupiah.` };
 
   try {
-    const user = await requireCapability("finance.input");
+    const user = await requireCapability("rapl.manage");
     await requireLocationAccess(user, d.locationId);
     await simpanHargaDenganAudit({
       locationId: d.locationId,
@@ -181,7 +182,7 @@ export async function simpanHargaSel(args: {
     return { ok: false, error: `"${d.harga}" tidak terbaca sebagai angka rupiah.` };
   }
   try {
-    const user = await requireCapability("finance.input");
+    const user = await requireCapability("rapl.manage");
     await requireLocationAccess(user, d.locationId);
     await simpanHargaDenganAudit({
       locationId: d.locationId,
@@ -243,7 +244,7 @@ export async function mintaUsulanHargaAiAction(args: {
 
   try {
     const user = await requireCapability("ai.generate");
-    await requireCapability("finance.input");
+    await requireCapability("rapl.manage");
     await requireLocationAccess(user, d.locationId);
 
     // Satu permintaan per lokasi pada satu waktu. Yang sudah lewat batas
@@ -332,7 +333,7 @@ const putusanSkema = z.object({
  *    lalu menyimpannya bersumber "Usulan AI – disetujui pengguna" — jejak audit
  *    yang menyatakan sesuatu yang tidak pernah diperiksa server.
  * 2. **Kedua kapabilitas dituntut.** DECISIONS 441 mensyaratkan pengguna
- *    berhak `ai.generate` DAN `finance.input`; versi pertama hanya menuntut
+ *    berhak `ai.generate` DAN `rapl.manage`; versi pertama hanya menuntut
  *    yang kedua, sehingga role yang sengaja tidak diberi akses AI tetap bisa
  *    membubuhkan cap AI pada harga.
  */
@@ -350,7 +351,7 @@ export async function terapkanUsulanHargaAiAction(args: {
 
   try {
     const user = await requireCapability("ai.generate");
-    await requireCapability("finance.input");
+    await requireCapability("rapl.manage");
     await requireLocationAccess(user, d.locationId);
 
     const draf = await db.hsdUsulanAi.findMany({
@@ -462,7 +463,7 @@ export async function tolakUsulanHargaAiAction(args: {
   const d = parsed.data;
 
   try {
-    const user = await requireCapability("finance.input");
+    const user = await requireCapability("rapl.manage");
     await requireLocationAccess(user, d.locationId);
     const ip = await requestIp();
     const hasil = await db.$transaction(async (tx) => {

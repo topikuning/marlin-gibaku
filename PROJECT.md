@@ -168,7 +168,9 @@ Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
 Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
 RAB/RAPL (Ringkasan estimasi → Kebutuhan & Harga → Validasi breakdown;
 biaya dan potensi margin memakai nilai RAB aktif lokasi; cetak A4
-`/cetak/rapl/[slug]` + unduh xlsx)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
+`/cetak/rapl/[slug]` + unduh xlsx; kebutuhan volume `rab.view`, uang & margin
+`rapl.view` (PM ke atas + exec_viewer), mengisi HSD/rincian `rapl.manage`
+(SM ke atas) — sengaja BUKAN `finance.*` yang milik menu Keuangan)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
 Hari Ini (landing lapangan mobile) · Progress · Kendala · **Temuan** (papan
 temuan pemeriksa + register .xlsx) · **Verifikasi** (workspace Wakil PPK:
 antrean laporan, inspeksi, temuan menunggu verifikasi) · **Perlu Tindakan**

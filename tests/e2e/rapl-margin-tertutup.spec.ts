@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * RAPL-07 (DECISIONS 475): biaya, harga satuan, dan MARGIN hanya untuk pemegang
- * `finance.view`.
+ * RAPL-07 (DECISIONS 475, dikoreksi DECISIONS 477): biaya & harga satuan untuk
+ * pemegang `rapl.manage`, MARGIN hanya untuk pemegang `rapl.view`.
  *
  * Yang dijaga bukan kerapian menu. `/lokasi/[slug]/rapl` dulu hanya dijaga
  * `rab.view`, dan `rab.view` dimiliki KEDELAPAN role — termasuk `wakil_ppk`,
@@ -21,7 +21,7 @@ import { test, expect, type Page } from "@playwright/test";
  * string mencocokkan SUBSTRING dan MENGABAIKAN besar-kecil huruf, sehingga ia
  * menjaring kalimat penjelas halaman itu sendiri: banner "…Harga satuan, biaya
  * pelaksanaan, dan potensi margin hanya untuk pengguna berhak akses keuangan",
- * yang justru hanya muncul ketika `finance.view` TIDAK ada.
+ * yang justru hanya muncul ketika kedua kapabilitas RAPL TIDAK ada.
  *
  * Jadi uji ini sekarang: `exact: true` untuk label KPI (cocok utuh dan peka
  * huruf besar), dan `href` untuk subtab — bukan teks tautan, yang berganti
@@ -106,6 +106,35 @@ test.describe("RAPL: uang tertutup dari yang tidak berhak", () => {
     await page.goto(`/lokasi/${SLUG}/rapl`);
     await expect(page.getByText(BANNER_DITAHAN)).toBeVisible();
     await tanpaAngkaUang(page);
+  });
+
+  /*
+   * DECISIONS 477 – sisi lain dari penjaga yang sama, dan justru bagian yang
+   * pernah rusak: RAPL sempat menumpang `finance.*` yang sedang ditahan,
+   * sehingga Project Manager ikut kehilangan biaya dan Site Manager ikut
+   * kehilangan kotak isian harga. Dua uji berikut yang membuat kambuhnya
+   * ketahuan dari layar, bukan dari matriks izin.
+   */
+  test("project manager melihat biaya DAN marginnya", async ({ page }) => {
+    await login(page, "pm-01");
+    await page.goto(`/lokasi/${SLUG}/rapl`);
+
+    await expect(page.getByText(BANNER_DITAHAN)).toHaveCount(0);
+    await expect(page.getByText("Harga terisi", { exact: true })).toBeVisible();
+    await expect(page.locator('a[href*="bagian=kebutuhan"]').first()).toBeVisible();
+  });
+
+  test("site manager mengisi harga, tanpa melihat marginnya", async ({ page }) => {
+    await login(page, "sm-01");
+    await page.goto(`/lokasi/${SLUG}/rapl?bagian=kebutuhan`);
+
+    // Pintunya terbuka: yang mengisi harus melihat yang diisinya.
+    await expect(page.getByText(BANNER_DITAHAN)).toHaveCount(0);
+    await expect(page.getByText("Biaya RAPL", { exact: true })).toBeVisible();
+
+    // Yang tetap tertutup hanya angka menawarnya.
+    await expect(page.getByText("Potensi margin", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Selisih sementara", { exact: true })).toHaveCount(0);
   });
 
   test("super admin tetap melihat seluruhnya", async ({ page }) => {

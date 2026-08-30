@@ -103,12 +103,19 @@ export function RincianPanel({
   slug,
   items,
   canInput,
+  tampilkanMargin,
   ringkas,
 }: {
   locationId: string;
   slug: string;
   items: ItemRaplRow[];
   canInput: boolean;
+  /**
+   * `rapl.view`. Kolom Margin/Margin % dan kartu "item yang rugi" adalah angka
+   * menawar; pemegang `rapl.manage` saja (Site Manager) mengisi rinciannya
+   * tanpa melihat selisihnya terhadap nilai RAB.
+   */
+  tampilkanMargin: boolean;
   ringkas: { biayaLengkap: string; nilaiRabLengkap: string; jumlahLengkap: number; jumlahRugi: number };
 }) {
   const router = useRouter();
@@ -174,24 +181,28 @@ export function RincianPanel({
       { ...rupiahCol<Baris>("nilaiRabNum", "Nilai RAB"), width: 160 },
       { field: "caraLabel", headerName: "Cara hitung", width: 150, filter: true },
       { ...rupiahCol<Baris>("biayaNum", "Biaya pelaksanaan"), width: 170 },
-      {
-        ...rupiahCol<Baris>("marginNum", "Margin"),
-        width: 160,
-        cellClass: (p: CellClassParams<Baris>) =>
-          cn(
-            "tabular text-right",
-            p.data?.marginNum != null && p.data.marginNum < 0 && "text-danger font-semibold",
-          ),
-      },
-      {
-        field: "marginPersen",
-        headerName: "Margin %",
-        width: 110,
-        type: "numericColumn",
-        valueFormatter: (p: ValueFormatterParams<Baris>) =>
-          p.value == null ? "" : formatPct(Number(p.value), 1),
-        cellClass: "tabular text-right",
-      },
+      ...(tampilkanMargin
+        ? ([
+            {
+              ...rupiahCol<Baris>("marginNum", "Margin"),
+              width: 160,
+              cellClass: (p: CellClassParams<Baris>) =>
+                cn(
+                  "tabular text-right",
+                  p.data?.marginNum != null && p.data.marginNum < 0 && "text-danger font-semibold",
+                ),
+            },
+            {
+              field: "marginPersen",
+              headerName: "Margin %",
+              width: 110,
+              type: "numericColumn",
+              valueFormatter: (p: ValueFormatterParams<Baris>) =>
+                p.value == null ? "" : formatPct(Number(p.value), 1),
+              cellClass: "tabular text-right",
+            },
+          ] satisfies ColDef<Baris>[])
+        : []),
       {
         field: "keteranganl",
         headerName: "Keterangan",
@@ -201,7 +212,7 @@ export function RincianPanel({
         cellClass: "text-ink-muted",
       },
     ],
-    [],
+    [tampilkanMargin],
   );
 
   /**
@@ -239,13 +250,15 @@ export function RincianPanel({
     <div className="space-y-3">
       {pesan && dibuka === null ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={cn("grid gap-3", tampilkanMargin ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
         <div className="rounded-lg border border-line px-3 py-2">
           <p className="text-[12px] tracking-wide text-ink-muted uppercase">Item berrincian lengkap</p>
           <p className="tabular mt-0.5 text-lg font-semibold text-ink">
             {ringkas.jumlahLengkap} dari {items.length}
           </p>
-          <p className="text-[12px] text-ink-muted">hanya ini yang marginnya berarti</p>
+          <p className="text-[12px] text-ink-muted">
+            {tampilkanMargin ? "hanya ini yang marginnya berarti" : "rinciannya sudah bisa dihitung"}
+          </p>
         </div>
         <div className="rounded-lg border border-line px-3 py-2">
           <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya item lengkap</p>
@@ -260,6 +273,7 @@ export function RincianPanel({
           className={cn(
             "rounded-lg border px-3 py-2",
             ringkas.jumlahRugi > 0 ? "border-danger-border bg-danger-soft" : "border-line",
+            !tampilkanMargin && "hidden",
           )}
         >
           <p className="text-[12px] tracking-wide text-ink-muted uppercase">Item yang rugi</p>

@@ -504,13 +504,22 @@ export function HargaPanel({
   );
 }
 
-/** Ringkasan biaya + potensi margin terhadap nilai RAB aktif. */
+/**
+ * Ringkasan biaya + potensi margin terhadap nilai RAB aktif.
+ *
+ * `tampilkanMargin=false` untuk pemegang `rapl.manage` tanpa `rapl.view` —
+ * Site Manager yang MENGISI harga tapi tidak membaca angka menawarnya. Yang
+ * disembunyikan hanya selisih terhadap nilai RAB; biaya yang ia susun sendiri
+ * tetap terlihat, karena menyembunyikannya berarti menyuruh orang mengisi
+ * dengan mata tertutup.
+ */
 export function RingkasBiaya({
   totalBiaya,
   berharga,
   belumBerharga,
   perKategori,
   perbandingan,
+  tampilkanMargin = true,
 }: {
   totalBiaya: string;
   berharga: number;
@@ -524,6 +533,7 @@ export function RingkasBiaya({
     cakupanHarga: number;
     utuh: boolean;
   };
+  tampilkanMargin?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -546,10 +556,12 @@ export function RingkasBiaya({
       <div
         className={cn(
           "rounded-lg border p-3",
-          perbandingan.utuh ? "border-line bg-surface" : "border-warning-border bg-warning-soft",
+          !tampilkanMargin || perbandingan.utuh
+            ? "border-line bg-surface"
+            : "border-warning-border bg-warning-soft",
         )}
       >
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={cn("grid gap-3", tampilkanMargin ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
             <div>
               <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya RAPL</p>
               <p className="tabular text-lg font-semibold text-ink">
@@ -563,25 +575,34 @@ export function RingkasBiaya({
               </p>
               <p className="text-[11px] text-ink-muted">nilai proyek pra-PPN</p>
             </div>
-            <div>
-              <p className="text-[12px] tracking-wide text-ink-muted uppercase">
-                {perbandingan.utuh ? "Potensi margin" : "Selisih sementara"}
-              </p>
-              <p
-                className={cn(
-                  "tabular text-lg font-semibold",
-                  BigInt(perbandingan.margin) >= 0n ? "text-success" : "text-danger",
-                )}
-              >
-                {formatRupiah(BigInt(perbandingan.margin))}
-                <span className="ms-1 text-[13px] font-normal">
-                  ({formatPct(perbandingan.marginPersen, 1)})
-                </span>
-              </p>
-            </div>
+            {tampilkanMargin ? (
+              <div>
+                <p className="text-[12px] tracking-wide text-ink-muted uppercase">
+                  {perbandingan.utuh ? "Potensi margin" : "Selisih sementara"}
+                </p>
+                <p
+                  className={cn(
+                    "tabular text-lg font-semibold",
+                    BigInt(perbandingan.margin) >= 0n ? "text-success" : "text-danger",
+                  )}
+                >
+                  {formatRupiah(BigInt(perbandingan.margin))}
+                  <span className="ms-1 text-[13px] font-normal">
+                    ({formatPct(perbandingan.marginPersen, 1)})
+                  </span>
+                </p>
+              </div>
+            ) : null}
         </div>
 
-        {!perbandingan.utuh ? (
+        {!tampilkanMargin ? (
+          <p className="mt-2.5 border-t border-line pt-2 text-[13px] text-ink-muted">
+            {belumBerharga > 0
+              ? `${belumBerharga} sumber daya masih kosong harganya – biaya di atas akan bertambah setelah diisi.`
+              : `Seluruh ${berharga} sumber daya sudah berharga.`}{" "}
+            Perbandingan terhadap nilai RAB tidak ditampilkan untuk peranmu.
+          </p>
+        ) : !perbandingan.utuh ? (
           <p className="mt-2.5 border-t border-warning-border pt-2 text-[13px] text-ink">
             <strong>Selisih ini BELUM bisa dibaca sebagai keuntungan.</strong> Ia dihitung dari{" "}
             {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan kebutuhan, dan
