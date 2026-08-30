@@ -4,7 +4,7 @@ import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ringkasAhsp } from "@/lib/ahsp/import";
-import { simulasiRapl } from "@/lib/ahsp/rapl";
+import { keadaanItemRapl, simulasiRapl } from "@/lib/ahsp/rapl";
 import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { buildRaplXlsx } from "@/lib/export/rapl-xlsx";
 import { muatLogoLaporan } from "@/lib/export/logo-laporan";
@@ -27,7 +27,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { slug } = await params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
-  if (!can(user.role, "report.export")) {
+  /*
+   * Berkasnya memuat harga satuan, biaya per kategori, dan margin — angka uang
+   * yang sama dengan layar. `report.export` saja tidak cukup: ia dimiliki juga
+   * oleh `wakil_ppk` dan `exec_viewer` (RAPL-07, DECISIONS 475).
+   */
+  if (!can(user.role, "report.export") || !can(user.role, "rapl.view")) {
     return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
   }
 
@@ -53,11 +58,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Tidak punya akses lokasi" }, { status: 403 });
   }
 
-  const [rapl, basis, logo, harga] = await Promise.all([
+  const [rapl, basis, logo, harga, perItem] = await Promise.all([
     simulasiRapl(location.id),
     ringkasAhsp(),
     muatLogoLaporan(location.id),
     keadaanHarga(location.id),
+    keadaanItemRapl(location.id),
   ]);
   if (!basis) {
     return NextResponse.json(
@@ -80,7 +86,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       dicetakPada: new Date(),
       dicetakOleh: user.fullName,
     },
-    { logo, harga },
+    { logo, harga, perItem: perItem.item },
   );
 
   await audit(user.id, "report.export_rapl_xlsx", "location", location.id, {

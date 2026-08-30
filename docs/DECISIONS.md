@@ -24794,3 +24794,277 @@ keputusan lintas lokasi. Label yang sama wajib tampil pada panel review,
 HTML/PDF, WhatsApp, dan Excel. ID mentah tidak boleh disajikan; lokasi yang tidak
 lagi cocok dengan snapshot ditandai “Lokasi perlu dikonfirmasi” agar reviewer
 melihat masalahnya sebelum distribusi.
+
+---
+
+## 475 · Audit menu RAPL: AI-nya lambat karena polanya, dan AHSP diam-diam jadi gerbang (2026-08-29)
+
+Keluhan user setelah memakai layar sungguhnya: *"ada saran harga dari AI, tapi
+saat diklik prosesnya lumayan lama, lalu ada hasil harus klik terapkan, padahal
+aku ingin tahu dulu hasilnya. UI/UX-nya juga masih tidak memuaskan. Aku ingin
+RAPL itu adalah membreakdown kebutuhan RAB jadi rinci per item, AHSP hanya
+pembantu."*
+
+Delapan temuannya tercatat sebagai RAPL-01…RAPL-08 di `docs/OPEN_ISSUES.md`.
+**Tidak ada kode yang diubah** — user memilih audit dulu. Yang dicatat di sini
+adalah tiga hal yang tidak boleh hilang: sebab yang ditemukan, keputusan desain
+yang sudah diambil, dan urutan pengerjaannya.
+
+### Yang ditemukan: dua sebab, bukan delapan
+
+**Pertama, keluhan "lumayan lama" bukan soal provider, melainkan pola.** RAPL
+memanggil AI di dalam server action yang ditunggu peramban, dengan anggaran
+maksimum 4 panggilan × 60 detik (`aiStructured` boleh dua kali, `aiCall` punya
+satu retry). Ini persis pola yang sudah ditinggalkan Ask MARLIN di DECISIONS 455
+setelah log produksi 2026-08-27 menunjukkan `POST /ai/ask` mati 499 di detik
+125 dengan `txBytes: 0`. Yang menyusul dari situ tinggal akibat: draf disimpan
+di `useState` sehingga hilang begitu subtab ditekan (RAPL-02), hasilnya
+dijatuhkan ke kolom yang harus dicari sendiri di antara ratusan baris (RAPL-04),
+dan satu-satunya jalan ke depan yang terlihat adalah tombol "Pakai N usulan"
+yang bersifat semua-atau-tidak (RAPL-05). Permintaan user "aku ingin tahu dulu
+hasilnya" karena itu tidak bisa dijawab dengan memindah tombol: memeriksa berarti
+berpindah, dan berpindah menghapus hasilnya.
+
+**Kedua, DECISIONS 441 menulis "AI hanya mengusulkan HSD" dan itu terpenuhi,
+tetapi kalimat "RAPL harus memecah kebutuhan proyek secara rinci" TIDAK.**
+`agregasiKebutuhan` melebur komponen setiap item RAB ke satu peta global
+berkunci `kategori|nama|satuan`; identitas itemnya hilang di sana dan tidak bisa
+dikembalikan, sehingga layar, cetak, dan Excel semuanya hanya bisa menyajikan
+daftar sumber daya se-lokasi. Empat gerbang di `rapl-calc.ts` membuang baris
+seluruhnya, dan tidak ada satu pun jalan bagi manusia untuk melewatinya: analisa
+hanya lahir dari impor berkas master, koreksi padanan cuma menunjuk analisa yang
+sudah ada, dan tidak ada faktor konversi satuan maupun tempat mengetik koefisien
+sendiri. Maka AHSP bukan pembantu — ia gerbang, dan item ber-satuan `Ls`
+(mobilisasi, K3, direksi keet) permanen di luar RAPL.
+
+### Tiga keputusan desain yang diambil user hari ini
+
+Dicatat sebelum dikerjakan, supaya yang mengerjakannya nanti tidak menebak.
+
+1. **Koefisien AHSP dikunci; orang hanya boleh MENAMBAH.** Rincian per item
+   boleh ditambahi komponen yang tidak ada di analisa, tetapi koefisien yang
+   berasal dari AHSP tidak boleh disunting. Item yang tidak punya padanan sama
+   sekali tetap boleh dirinci tangan dari nol — itu jalur yang membuat cakupan
+   bisa mencapai 100%. Yang ditolak adalah "AHSP sebagai titik awal yang bebas
+   digeser": angka yang bisa digeser diam-diam berhenti bisa dipertahankan saat
+   diperiksa.
+2. **Satuan yang tidak sepadan diselesaikan dengan FAKTOR KONVERSI + catatan
+   wajib**, bukan dibuang. Orang mengisi faktornya (mis. 0,15 untuk tebal
+   dinding m² → m³) DAN alasannya; sistem tidak pernah menebak sendiri. Barisnya
+   tampil bertanda "dikonversi" di layar, cetak, dan Excel. Ini penerapan
+   DECISIONS 203 pada jalur RAPL: penyesuaian boleh, asal seragam dan dikatakan.
+3. **Biaya RAPL, HSD, dan margin menuntut `finance.view`.** Breakdown kebutuhan
+   tetap `rab.view`. Hari ini seluruh halaman hanya dijaga `rab.view`, yang
+   dimiliki kedelapan role — sehingga `wakil_ppk`, verifikator dari pihak
+   pemberi kerja, dapat membuka dan mencetak perkiraan biaya internal pelaksana
+   beserta marginnya. PROJECT.md §4 sengaja tidak memberi `finance.*` kepada
+   role itu; penjaga halaman RAPL membatalkan maksud tersebut tanpa ada yang
+   memutuskannya.
+
+### Urutan yang disepakati
+
+- **Tahap A** — mekanika AI (RAPL-01…RAPL-06) + penjaga margin (RAPL-07).
+  Panggilan pindah ke latar mengikuti DECISIONS 455, draf disimpan di server
+  sebagai baris berstatus draf yang tidak masuk `hitungBiaya`, terapkan per
+  baris berdasarkan id draf (bukan muatan klien), kuota 25 disebut apa adanya
+  dan dipilih berdasar nilai RAB yang tertahan atau centang manual pengguna.
+  Tidak menyentuh semantik RAPL, jadi bisa berdiri sendiri.
+- **Tahap B** — rincian per item menjadi objek utama; agregat sumber daya yang
+  ada sekarang menjadi TURUNAN darinya, bukan sebaliknya. Rumus tetap hanya di
+  `src/lib/ahsp/rapl-calc.ts`; daftar LIMA berkas calculation layer di
+  PROJECT.md §3 tidak bertambah.
+- **Tahap C** — AI mendraf RINCIAN untuk item tanpa padanan. **Tidak boleh
+  dikerjakan tanpa user mencabut DECISIONS 326 secara sadar**; di sana
+  pertanyaan yang sama sudah diajukan dan jawabannya "belum". Bentuk syaratnya
+  kalau suatu saat dipakai juga sudah disepakati di DECISIONS 326: draf berstatus
+  tersendiri, wajib disetujui orang, dan angkanya DIPISAH di layar maupun Excel
+  antara "dari AHSP resmi" dan "dari analisa mandiri".
+
+**Penjaga.** Belum ada — perubahan ini murni dokumen. Tiap temuan RAPL-01…
+RAPL-08 wajib membawa tesnya sendiri saat dikerjakan, dan tesnya ditulis lebih
+dulu (`docs/CARA_KERJA_AGEN.md` §2). Yang sudah bisa dipastikan bentuknya:
+RAPL-03 menuntut pemilihan kuota dipisah jadi fungsi murni supaya bisa diuji,
+RAPL-06 uji integrasi (role dengan `finance.input` tanpa `ai.generate` ditolak),
+RAPL-07 uji unit atas penjaga kapabilitas + E2E sebagai `wakil_ppk`, dan RAPL-08
+uji unit atas biaya/margin per item untuk satu item `Ls` yang dirinci tangan —
+hari ini item seperti itu tidak mungkin ada.
+
+---
+
+## 476 · RAPL-01…RAPL-08 dikerjakan: AI di latar, dan RAPL memecah RAB per item (2026-08-29)
+
+Perintah user setelah audit DECISIONS 473: *"lakukan perbaikannya langsung
+sekarang"*. Kedelapan temuan ditutup. Catatan 470 yang berbunyi "tidak ada kode
+yang diubah" berlaku untuk PR audit itu saja — bukan lagi keadaan sekarang.
+
+### Draf harga AI: dua cacat, satu sebab
+
+Panggilan provider pindah ke LATAR, mengikuti pola Ask MARLIN (DECISIONS 455)
+sampai ke detail penandanya: `HsdUsulanRun.pendingSince` dipasang pemanggil,
+dan pekerja latar hanya boleh menulis selama nilainya belum berubah
+(`updateMany` bersyarat). Request tetap memeriksa kapabilitas, akses lokasi,
+penyiapan target, dan `checkAiGuard` secara sinkron — penolakan yang bisa
+dijawab tanpa provider harus sampai seketika.
+
+Drafnya menjadi baris `HsdUsulanAi` berstatus `draf`, bukan `useState`. Ini
+yang sebenarnya menjawab keluhan user *"aku ingin tahu dulu hasilnya"*:
+sebelumnya memeriksa berarti berpindah subtab, dan berpindah subtab adalah
+navigasi yang menghapus hasil yang baru ditunggu semenit lebih. Orang lalu
+menekan "Pakai 25 usulan" tanpa memeriksa, bukan karena ceroboh, melainkan
+karena memeriksa berarti kehilangan.
+
+Tiga akibat lain ikut selesai begitu drafnya punya tempat: grid menyaring ke
+baris ber-usulan begitu drafnya datang, keputusan jadi per baris (terima /
+tolak yang dicentang), dan penolakan tercatat sebagai keputusan.
+
+### Yang 25 itu dipilih dari nilai, bukan dari cacahan
+
+`pilihTargetUsulan` (`ahsp/usulan-target.ts`, murni) mengurutkan dari
+`nilaiTertahan` — nilai RAB item-item yang membutuhkan sumber daya itu.
+Urutan lamanya mengikuti tampilan: kategori dulu, lalu `jumlah`. `jumlah`
+adalah kuantitas fisik; 5.000 kg semen, 12 OH mandor, dan 0,3 jam excavator
+tidak sebanding, dan mengurutkannya berarti mengurutkan satuan yang berbeda.
+Layar sekarang juga menyebut berapa yang TIDAK ikut dimintakan, dan pengguna
+boleh mencentang sendiri sasarannya.
+
+`nilaiTertahan` **tidak boleh dijumlahkan antar baris**: satu item menyumbang
+nilai penuhnya ke setiap sumber daya yang ia butuhkan. Ia angka pengurut, bukan
+uang.
+
+### Asal-usul harga tidak lagi bisa dikarang
+
+`terapkanUsulanHargaAiAction` menerima **ID DRAF**, bukan angka harga, dan
+menuntut `ai.generate` DAN `finance.input` sesuai syarat DECISIONS 441. Versi
+pertama menerima angka dari klien lalu menyimpannya bersumber "Usulan AI –
+disetujui pengguna": jejak audit yang menyatakan sesuatu yang tidak pernah
+diperiksa server, dan bisa dibubuhkan role yang sengaja tidak diberi akses AI.
+Asal-usul harga manual juga ditetapkan server, tidak lagi diterima dari klien.
+
+### Uang RAPL ditutup dari pemberi kerja — dengan konsekuensi yang disadari
+
+Harga, biaya, dan margin menuntut `finance.view` di layar, lembar cetak A4, dan
+unduhan Excel. `rab.view` dimiliki KEDELAPAN role, termasuk `wakil_ppk`; artinya
+verifikator pihak pemberi kerja bisa membuka dan mencetak perkiraan biaya
+internal pelaksana beserta marginnya, tepat pada saat negosiasi dan pemeriksaan
+termin.
+
+**Konsekuensi yang harus dicatat, bukan disembunyikan:** `finance.*` saat ini
+hanya dimiliki `super_admin` — ditahan sengaja di `authz.ts` karena menu
+Keuangan belum dibuka. Jadi sisi uang RAPL ikut super_admin sampai `finance.*`
+dikembalikan ke PM/exec_viewer. Cara membukanya sudah tertulis di komentar
+`authz.ts`; RAPL akan mengikuti sendiri tanpa perubahan kode. Breakdown
+kebutuhan tetap `rab.view`.
+
+### RAPL sekarang memecah RAB PER ITEM
+
+Ini permintaan pokok user: *"aku ingin RAPL itu adalah membreakdown kebutuhan
+RAB jadi rinci per item, AHSP hanya pembantu"*.
+
+`agregasiKebutuhan` dulu melebur komponen tiap item ke satu peta global
+berkunci `kategori|nama|satuan`; identitas itemnya hilang di sana dan tidak
+bisa dikembalikan, sehingga layar, cetak, dan Excel hanya bisa menyajikan
+daftar sumber daya se-lokasi. Sekarang aturan gerbangnya tinggal di SATU fungsi
+`pecahItem`, dan dua pembaca memakainya: `agregasiKebutuhan` (agregat, tetap
+ada dan tetap berguna untuk pengadaan) dan `hitungItemRapl` (biaya + margin per
+item). Agregat menjadi turunan; ia bukan lagi satu-satunya bentuk.
+
+Tiga jalan yang membuat AHSP berhenti menjadi gerbang, sesuai tiga keputusan
+user di DECISIONS 473:
+
+1. **Faktor konversi satuan** dengan catatan WAJIB. Item m² dinding vs analisa
+   m³ pasangan diselesaikan dengan menyatakan 0,15 beserta alasannya. Dijaga
+   dua lapis: penolakan di server action DAN CHECK constraint di migrasi —
+   form bisa diakali, constraint tidak. Faktor tanpa alasan diabaikan calc
+   layer, jadi tiga lapis yang sama-sama menolak.
+2. **Komponen tambahan.** Koefisien yang berasal dari AHSP TIDAK bisa disunting
+   — hanya menambah. Koefisien tambahan PER SATUAN ITEM, bukan per satuan
+   analisa, jadi faktor konversi tidak dikenakan padanya; mencampurnya akan
+   membuat faktor itu terpakai dua kali.
+3. **Borongan**: satu harga per satuan item, tanpa rincian komponen. Bentuk
+   jujur untuk pekerjaan yang memang disubkan, dan satu-satunya cara mobilisasi
+   ber-satuan `Ls` masuk hitungan tanpa mengarang kebutuhan semennya. Borongan
+   mengalahkan analisa: satu item satu cara hitung.
+
+Item yang satuannya tidak sepadan tetap digugurkan SELURUHNYA meski punya
+komponen tambahan. Memakai tambahannya saja menghasilkan kebutuhan yang
+kelihatan lengkap padahal kehilangan bagian terbesarnya — pengecilan diam-diam
+yang dilarang DECISIONS 203. Jalan keluarnya ada dan harus ditempuh orang.
+
+**Margin per item bernilai `null` selama masih ada komponen tanpa harga.**
+Biaya yang baru sebagian diketahui selalu membuat margin terlihat lebih besar
+daripada yang sebenarnya, dan itu angka yang dipakai orang memutuskan menawar.
+Ringkasan "item yang rugi" karena itu hanya menghitung item yang lengkap.
+
+Subtab baru **Rincian per item** dan satu lembar Excel "Rincian per item"
+mengikuti. Rumus tetap hanya di `src/lib/ahsp/rapl-calc.ts`; daftar LIMA berkas
+calculation layer di PROJECT.md §3 TIDAK bertambah.
+
+### Penjaga
+
+- `tests/unit/rapl-usulan-target.test.ts` (6) — ditulis lebih dulu atas aturan
+  pemilihan LAMA yang diekstrak apa adanya, dan MERAH 2 dari 6 sebelum urutan
+  diganti.
+- `tests/unit/rapl-rincian.test.ts` (17) — konversi satuan, komponen tambahan,
+  borongan, cakupan, serta biaya & margin per item. Delapan dari sebelas asersi
+  pertamanya MERAH sebelum `pecahItem` ada.
+- `tests/integration/rapl-usulan-ai.test.ts` — penerapan draf tanpa
+  `ai.generate` ditolak dan tidak menulis HSD; draf lokasi lain tidak bisa
+  diterapkan; penolakan tercatat.
+- `tests/e2e/rapl-margin-tertutup.spec.ts` — wakil PPK dan mandor tidak melihat
+  margin di layar, lembar cetaknya 404, unduhan Excel-nya 403.
+
+Dua yang terakhir TIDAK dapat dijalankan di mesin penulisnya (tanpa PostgreSQL;
+E2E milik CI). Itu dinyatakan di badan PR, bukan didiamkan.
+
+### Yang sengaja BELUM
+
+Lembar cetak A4 masih bentuk agregat — memuat ratusan item di A4 butuh
+keputusan tampilan lebih dulu. Permintaan draf yang menggantung tidak dijemput
+ulang (satu ketukan untuk mengulang, tidak sebanding dengan penjemput
+tersendiri). Keduanya tercatat di `docs/OPEN_ISSUES.md`.
+
+**Tahap C — AI mendraf RINCIAN untuk item tanpa padanan — TIDAK dikerjakan.**
+DECISIONS 326 belum dicabut user.
+
+## 477 · RAPL punya pintunya sendiri; penahanan menu Keuangan berhenti di menu Keuangan (2026-08-29)
+
+RAPL-07 (DECISIONS 476) memindahkan harga, biaya, dan margin RAPL ke belakang
+`finance.view`, dan pengisian HSD ke `finance.input`. Alasannya benar dan tetap
+berlaku: margin internal pelaksana tidak boleh terbuka untuk `wakil_ppk` —
+lawan bicara saat negosiasi dan pemeriksaan termin — padahal `rab.view` dimiliki
+kedelapan peran.
+
+Pintunya yang salah. `finance.*` sedang DITAHAN untuk semua peran kecuali
+super_admin sejak DECISIONS 411, dan penahanan itu punya sebab yang sempit:
+menu Keuangan belum siap dipakai. Dengan RAPL menumpang di pintu yang sama,
+menahan satu menu ikut mematikan menu lain — Project Manager berhenti melihat
+biaya RAPL, Site Manager berhenti bisa mengisi harga satuan dasar. Tidak ada
+yang pernah meminta itu.
+
+Koreksi user 2026-08-29: *"yang kumaksud dari awal bahwa hanya superadmin yg
+bisa melihat keuangan itu, maksudnya tab keuangan, yang mana itu masih mentah.
+bukan membatasi fitur-fitur keuangan yang berhubungan dengan menu lain"*.
+
+**Keputusan.** RAPL memakai capability sendiri:
+
+| Capability | Isinya | Pemegang |
+|---|---|---|
+| `rab.view` | kebutuhan volume bahan/upah/alat | kedelapan peran (tidak berubah) |
+| `rapl.view` | harga satuan, biaya per item, MARGIN | Project Manager ke atas + exec_viewer |
+| `rapl.manage` | mengisi HSD, rincian pelaksanaan, borongan, faktor konversi | Site Manager ke atas |
+
+Pemisahan lihat/isi pada jenjang berbeda adalah pilihan user pada tanggal yang
+sama: yang paling tahu harga bahan di lapangan memang orang lapangan, jadi Site
+Manager mengisi — tetapi margin adalah angka menawar dan berhenti di kantor.
+Konsekuensinya disebut apa adanya: Site Manager mengisi harga tanpa melihat
+kolom margin. Ini melanggar pola superset jenjang (DECISIONS 218) secara
+sengaja, dan hanya di satu tempat ini.
+
+`finance.view/input/approve` tetap seperti adanya — ditahan, dengan cara
+membukanya kembali tertulis di `authz.ts`. Yang bertambah di sana hanya
+larangan: capability itu milik menu Keuangan, dan layar uang di luar menu itu
+wajib punya pintunya sendiri, bukan menumpang.
+
+Dijaga `tests/unit/rapl-kapabilitas.test.ts`, termasuk satu penjaga yang
+memindai berkas RAPL/HSD dan menolak kalau `finance.*` muncul lagi di sana —
+supaya yang kambuh bukan cuma gejalanya, tapi sebabnya pun tertutup.

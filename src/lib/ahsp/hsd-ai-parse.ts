@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { BATAS_HARGA_RUPIAH } from "./hsd-price";
-
-export const BATAS_USULAN_HARGA_AI = 25;
+// Batasnya tinggal di `usulan-target.ts` bersama aturan pemilihannya — dua
+// definisi untuk satu angka adalah cara termudah keduanya jadi berbeda.
+import { BATAS_USULAN_HARGA_AI } from "./usulan-target";
 
 export const hasilHargaAiSchema = z.object({
   suggestions: z

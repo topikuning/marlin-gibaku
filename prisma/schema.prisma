@@ -421,6 +421,8 @@ model User {
   rabApprovals      RabRevisionApproval[]
   ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
   hsdDiubah         HargaSatuanDasar[]    @relation("HsdUpdater")
+  hsdUsulanDiminta  HsdUsulanRun[]        @relation("HsdUsulanPeminta")
+  raplRincian       RaplRincian[]         @relation("RaplRincianUpdater")
 
   @@index([orgId])
   @@index([role])
@@ -1164,6 +1166,8 @@ model Location {
 
   package             Package                 @relation(fields: [packageId], references: [id])
   hargaSatuanDasar    HargaSatuanDasar[]
+  hsdUsulanRun        HsdUsulanRun[]
+  raplRincian         RaplRincian[]
   statusHistory       LocationStatusHistory[]
   assignments         LocationAssignment[]
   rabRevisions        RabRevision[]
@@ -3115,4 +3119,141 @@ model HargaSatuanDasar {
   @@index([locationId])
   @@index([kategori, nama, satuan])
   @@map("harga_satuan_dasar")
+}
+
+/// PERMINTAAN DRAF HARGA kepada AI — satu baris per penekanan tombol.
+///
+/// Ada karena panggilan providernya TIDAK BOLEH ditahan di dalam request
+/// (RAPL-01, DECISIONS 473/455): anggaran satu panggilan terstruktur mencapai
+/// empat panggilan provider, sementara peramban menyerah jauh lebih awal.
+/// `pendingSince` memakai pola klaim yang sama dengan `AiConversation`: pekerja
+/// latar hanya boleh menulis selama nilainya belum berubah.
+///
+/// Draf yang dihasilkan disimpan di sini, BUKAN di memori peramban (RAPL-02).
+/// Draf yang hilang begitu orang berpindah tab memaksa orang menyetujui tanpa
+/// memeriksa — persis yang dikeluhkan user.
+model HsdUsulanRun {
+  id            String    @id @default(uuid()) @db.Uuid
+  locationId    String    @map("location_id") @db.Uuid
+  /// menunggu | selesai | gagal
+  status        String    @default("menunggu")
+  /// Penanda pekerjaan latar; null = tidak sedang menunggu.
+  pendingSince  DateTime? @map("pending_since") @db.Timestamptz
+  /// Model provider yang menjawab — dicatat supaya draf bisa dipertanggungjawabkan.
+  model         String?
+  errorMessage  String?   @map("error_message")
+  /// Berapa sumber daya yang DIKIRIM ke AI pada panggilan ini.
+  diminta       Int       @default(0)
+  /// Berapa sumber daya yang belum berharga SELURUHNYA saat itu — supaya layar
+  /// bisa berkata "25 dari 300", bukan "25" telanjang (RAPL-03).
+  totalKosong   Int       @default(0) @map("total_kosong")
+  requestedById String    @map("requested_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  selesaiAt     DateTime? @map("selesai_at") @db.Timestamptz
+
+  location    Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  requestedBy User          @relation("HsdUsulanPeminta", fields: [requestedById], references: [id])
+  usulan      HsdUsulanAi[]
+
+  @@index([locationId, createdAt])
+  @@index([pendingSince])
+  @@map("hsd_usulan_run")
+}
+
+/// Satu draf harga dari AI. TIDAK ikut kalkulasi apa pun sampai statusnya
+/// `diterima` DAN barisnya tersalin ke `HargaSatuanDasar` (DECISIONS 441).
+///
+/// Penerapan memakai ID BARIS INI, bukan angka kiriman peramban (RAPL-06):
+/// kalau harganya datang dari klien, cap "Usulan AI – disetujui pengguna" pada
+/// jejak audit menyatakan sesuatu yang tidak pernah diperiksa server.
+model HsdUsulanAi {
+  id        String   @id @default(uuid()) @db.Uuid
+  runId     String   @map("run_id") @db.Uuid
+  kategori  String
+  nama      String
+  satuan    String
+  /// Rupiah per satuan. BigInt seperti seluruh uang di sistem ini.
+  harga     BigInt
+  /// rendah | sedang | tinggi
+  keyakinan String
+  alasan    String
+  /// draf | diterima | ditolak
+  status    String   @default("draf")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  run HsdUsulanRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, kategori, nama, satuan])
+  @@index([runId, status])
+  @@map("hsd_usulan_ai")
+}
+
+/// RINCIAN PELAKSANAAN SATU ITEM RAB (RAPL-08, DECISIONS 473).
+///
+/// RAPL memecah RAB menjadi kebutuhan rinci PER ITEM; AHSP adalah pembantu yang
+/// mengisi rinciannya, bukan gerbang yang menentukan item mana yang boleh ada.
+/// Sebelum ini, item ber-satuan `Ls` (mobilisasi, K3, direksi keet) dan setiap
+/// pekerjaan tanpa analisa padanan PERMANEN di luar RAPL: cakupan mentok dan
+/// marginnya selamanya berlabel "selisih sementara".
+///
+/// Barisnya hanya ada bila orang memang menambahkan sesuatu — item yang cukup
+/// dilayani AHSP tidak butuh baris di sini.
+///
+/// Kunci `lineageKey`, bukan id node: revisi RAB melahirkan node baru, dan
+/// rincian yang disusun orang tidak boleh ikut hilang tiap kali RAB direvisi.
+model RaplRincian {
+  id         String @id @default(uuid()) @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+  lineageKey String @map("lineage_key")
+
+  /// Faktor konversi satuan ITEM → satuan ANALISA (DECISIONS 473 butir 2).
+  /// Mis. item m² dinding vs analisa m³ pasangan → 0,15 (tebal). WAJIB
+  /// disertai `catatanKonversi`: angka konversi tanpa alasan adalah tebakan
+  /// yang menyamar jadi data. Kosong = satuannya memang sudah sepadan.
+  faktorKonversi  Decimal? @map("faktor_konversi") @db.Decimal(18, 6)
+  catatanKonversi String?  @map("catatan_konversi")
+
+  /// BORONGAN: satu harga per SATUAN ITEM, tanpa rincian komponen — bentuk
+  /// jujur untuk pekerjaan yang memang disubkan. Rupiah, BigInt.
+  hargaBorongan   BigInt? @map("harga_borongan")
+  catatanBorongan String? @map("catatan_borongan")
+
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  location  Location               @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  updatedBy User?                  @relation("RaplRincianUpdater", fields: [updatedById], references: [id])
+  tambahan  RaplKomponenTambahan[]
+
+  @@unique([locationId, lineageKey])
+  @@index([locationId])
+  @@map("rapl_rincian")
+}
+
+/// Komponen yang DITAMBAHKAN orang pada rincian satu item.
+///
+/// Hanya TAMBAHAN. Koefisien yang berasal dari AHSP tidak disimpan di sini dan
+/// tidak bisa disunting (keputusan user 2026-08-29, DECISIONS 473 butir 1):
+/// angka yang bisa digeser diam-diam berhenti bisa dipertahankan saat diperiksa.
+///
+/// Koefisiennya PER SATUAN ITEM RAB — bukan per satuan analisa. Itulah satuan
+/// yang dipikirkan orang saat menambah sendiri, dan menyamakannya dengan
+/// koefisien AHSP akan membuat `faktorKonversi` terpakai dua kali.
+model RaplKomponenTambahan {
+  id        String  @id @default(uuid()) @db.Uuid
+  rincianId String  @map("rincian_id") @db.Uuid
+  /// upah | bahan | alat | fasilitas — kunci yang sama dengan komponen AHSP,
+  /// supaya harganya dijodohkan HSD yang sama persis.
+  kategori  String
+  nama      String
+  satuan    String
+  koefisien Decimal @db.Decimal(18, 6)
+  catatan   String?
+
+  rincian RaplRincian @relation(fields: [rincianId], references: [id], onDelete: Cascade)
+
+  @@unique([rincianId, kategori, nama, satuan])
+  @@index([rincianId])
+  @@map("rapl_komponen_tambahan")
 }
