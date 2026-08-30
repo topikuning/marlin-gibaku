@@ -26,6 +26,7 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/ai/actions", nama: "AI – tindakan" },
   { pola: "/ai/ask", nama: "AI – tanya" },
   { pola: "/ai/history", nama: "AI – riwayat run" },
+  { pola: "/ai/kronologi", nama: "AI – kronologi lokasi" },
   { pola: "/ai/reports", nama: "AI – laporan" },
   { pola: "/ai/paparan", nama: "AI – Paparan KKP" },
   { pola: "/chat-grup", nama: "Chat grup" },

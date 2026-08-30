@@ -6,6 +6,8 @@ import type { SessionUser } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
 import { conversationContextBlock, type AiConversationTurn } from "@/lib/ai/conversation";
 import type { AiRunKind } from "@/generated/prisma/enums";
+import { ambilKronologi, type KronologiLokasi } from "@/lib/kronologi/queries";
+import { buildKronologiPayload, sumberKronologi } from "./kronologi-format";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
 import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
@@ -29,6 +31,7 @@ import {
 import { resolvePrompt } from "@/lib/ai/prompts";
 import {
   SCHEMA_HINTS,
+  kronologiOutputSchema,
   askOutputSchema,
   filterGrounded,
   faktaResmi,
@@ -152,6 +155,24 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       if (d) qualityFindings.push(...runQualityRules(row, d));
     }
   }
+  /*
+   * KRONOLOGI menuntut TEPAT SATU lokasi.
+   *
+   * Bukan pembatasan teknis: kronologi lintas lokasi bukan cerita, ia tumpukan
+   * — dan model yang diberi tumpukan akan menyatukan kejadian dua tempat jadi
+   * satu alur yang terdengar masuk akal. Ditolak DI SINI, sebelum satu token
+   * pun dibayar.
+   */
+  let kronologi: KronologiLokasi | null = null;
+  if (input.kind === "kronologi") {
+    if (scope.ids.length !== 1) {
+      throw new AiRunError("Kronologi disusun untuk SATU lokasi – pilih satu lokasi lebih dulu.");
+    }
+    kronologi = await ambilKronologi(scope.ids[0]!, { sampai: input.endKey, hari: 90, batas: 60 });
+    if (!kronologi) throw new AiRunError("Lokasi tidak ditemukan.");
+  }
+  const kronologiRefs = kronologi ? sumberKronologi(kronologi) : [];
+
   let narrativeBundle: NarrativeBundle | null = null;
   if (NARRATIVE_KINDS.has(input.kind)) {
     narrativeBundle = await buildNarrativeBundle(
@@ -205,7 +226,13 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     href: p.href,
   }));
 
-  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs, ...tambahan.refs, ...narasiRefs];
+  const allSourceRefs = [
+    ...pulse.sourceRefs,
+    ...narrativeRefs,
+    ...tambahan.refs,
+    ...narasiRefs,
+    ...kronologiRefs,
+  ];
   const readinessAvg = pulse.rows.length
     ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
     : 0;
@@ -256,6 +283,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       sourceRefs: allSourceRefs,
       quality: qualityFindings,
       narrative: narrativeBundle,
+      // Kronologi deterministiknya IKUT tersimpan: layarnya harus tetap
+      // memperlihatkan garis waktu walau narasinya gagal dibentuk.
+      kronologi,
       periodStart: pulse.periodStart,
       periodEnd: pulse.periodEnd,
       dataAsOf: pulse.dataAsOf,
@@ -290,6 +320,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     })}`;
     payload += `\n\n${buildNarasiPayload(potongan)}`;
   }
+  if (kronologi) payload = buildKronologiPayload(kronologi);
   const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
   if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
 
@@ -313,7 +344,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
           ? SCHEMA_HINTS.risk
           : input.kind === "kualitas_data"
             ? SCHEMA_HINTS.quality
-            : SCHEMA_HINTS.pulse;
+            : input.kind === "kronologi"
+              ? SCHEMA_HINTS.kronologi
+              : SCHEMA_HINTS.pulse;
   }
   const qualityBlock = qualityFindings.length ? `\n\n${buildQualityPayload(qualityFindings)}` : "";
   const narrativeBlock = narrativeBundle ? `\n\n${buildNarrativePayload(narrativeBundle)}` : "";
@@ -340,7 +373,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
             ? riskOutputSchema
             : input.kind === "kualitas_data"
               ? qualityOutputSchema
-              : pulseOutputSchema;
+              : input.kind === "kronologi"
+                ? kronologiOutputSchema
+                : pulseOutputSchema;
   const result = await aiStructured(schema as never, {
     system: await resolvePrompt("hub.system"),
     prompt,
@@ -370,9 +405,11 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
           ? evidenceCount(output.rationales)
           : input.kind === "kualitas_data"
             ? evidenceCount(output.explanations)
-            : input.kind === "laporan"
-              ? evidenceCount(output.sections) + evidenceCount(output.recommendations) + 2
-              : 0;
+            : input.kind === "kronologi"
+              ? evidenceCount(output.babak)
+              : input.kind === "laporan"
+                ? evidenceCount(output.sections) + evidenceCount(output.recommendations) + 2
+                : 0;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
     if (!Array.isArray(arr)) return [];
@@ -389,6 +426,8 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     output.rationales = applyFilter(output.rationales as never[]);
   } else if (input.kind === "kualitas_data") {
     output.explanations = applyFilter(output.explanations as never[]);
+  } else if (input.kind === "kronologi") {
+    output.babak = applyFilter(output.babak as never[]);
   } else if (input.kind === "laporan") {
     if (Array.isArray(output.sections)) {
       const before = output.sections.length;
@@ -541,7 +580,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
             ? evidenceCount(output.rationales)
             : input.kind === "kualitas_data"
               ? evidenceCount(output.explanations)
-              : input.kind === "laporan"
+              : input.kind === "kronologi"
+                ? evidenceCount(output.babak)
+                : input.kind === "laporan"
                 ? evidenceCount(output.sections) + evidenceCount(output.recommendations) -
                   ((output.sections as { sourceRefIds?: string[] }[] | undefined)?.filter((section) => section.sourceRefIds?.length === 0).length ?? 0) +
                   (evidenceCount(output.executiveSummarySourceRefIds) > 0 ? 1 : 0) +

@@ -195,5 +195,6 @@ export const KIND_INSTRUCTION: Record<string, string> = {
   deviasi: promptDefault("hub.kind.deviasi"),
   risiko: promptDefault("hub.kind.risiko"),
   kualitas_data: promptDefault("hub.kind.kualitas_data"),
+  kronologi: promptDefault("hub.kind.kronologi"),
   tanya: promptDefault("hub.kind.tanya"),
 };

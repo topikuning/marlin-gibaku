@@ -104,6 +104,36 @@ export const qualityOutputSchema = z.object({
 });
 export type QualityOutput = z.infer<typeof qualityOutputSchema>;
 
+/**
+ * KRONOLOGI LOKASI — AI merangkai, TIDAK menyusun.
+ *
+ * Urutan peristiwa dan hitungan kondisi terkini sudah pasti sebelum model
+ * dipanggil (`src/lib/kronologi/susun.ts`). Yang diminta dari model hanyalah
+ * BABAK: mengelompokkan peristiwa yang berdekatan jadi cerita yang bisa dibaca
+ * PPK, dengan tiap babak menunjuk peristiwa yang mendasarinya. Babak tanpa
+ * sumber dibuang penyaring grounding — sama seperti bagian laporan.
+ */
+export const kronologiOutputSchema = z.object({
+  summary: z.string().min(20).max(3000),
+  confidence: z.number().int().min(0).max(100),
+  babak: z
+    .array(
+      z.object({
+        locationId: z.string(),
+        judul: z.string().max(160),
+        /** Rentang tanggal babak ini, apa adanya dari peristiwanya. */
+        periode: z.string().max(80),
+        reason: z.string().max(1200),
+        sourceRefIds: refIds,
+      }),
+    )
+    .max(12),
+  /** Keadaan lokasi HARI INI, dalam kalimat — angkanya sudah pasti dari data. */
+  kondisiTerkini: z.string().min(20).max(1500),
+  limitations: z.array(z.string().max(300)).max(10),
+});
+export type KronologiOutput = z.infer<typeof kronologiOutputSchema>;
+
 export const reportOutputSchema = z.object({
   title: z.string().max(160),
   executiveSummary: z.string().min(20).max(4000),
@@ -680,6 +710,13 @@ export const SCHEMA_HINTS = {
   quality: `{
   "summary": string, "confidence": number 0-100,
   "explanations": [{ "locationId": string, "findingKey": string, "explanation": string, "sourceRefIds": [string] }],
+  "limitations": [string]
+}`,
+  kronologi: `{
+  "summary": string,                       // satu paragraf: cerita lokasi ini dari awal jendela sampai hari ini
+  "confidence": number 0-100,
+  "babak": [{ "locationId": string (HARUS dari daftar scope), "judul": string, "periode": string (mis. "1–24 Agu 2026"), "reason": string (apa yang terjadi di babak ini dan artinya), "sourceRefIds": [string dari daftar sumber] }],
+  "kondisiTerkini": string,                // keadaan HARI INI; pakai angka yang SUDAH ada di DATA, jangan menghitung sendiri
   "limitations": [string]
 }`,
   report: `{

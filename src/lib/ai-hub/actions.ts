@@ -88,9 +88,9 @@ function readScope(formData: FormData): { locationIds: string[]; startKey: strin
   return { locationIds, startKey, endKey };
 }
 
-/* ── Jalankan analisis (pulse/deviasi/risiko/kualitas_data) ─────────────── */
+/* ── Jalankan analisis (pulse/deviasi/risiko/kualitas_data/kronologi) ───── */
 
-const ANALYSIS_KINDS: AiRunKind[] = ["pulse", "deviasi", "risiko", "kualitas_data"];
+const ANALYSIS_KINDS: AiRunKind[] = ["pulse", "deviasi", "risiko", "kualitas_data", "kronologi"];
 
 export async function runAnalysisAction(_prev: AiHubState, formData: FormData): Promise<AiHubState> {
   let runId: string;

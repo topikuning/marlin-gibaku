@@ -636,6 +636,14 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
   itu di Playwright. Yang belum terbukti karenanya: bahwa kolom "Usulan AI"
   memang terlihat tanpa gulir mendatar di peramban sungguhan. Menutupnya menuntut
   seed yang memuat basis AHSP + satu draf usulan.
+- 🟢 **Kronologi belum diuji di basis data sungguhan.** `susunKronologi` dan
+  bahan AI-nya diuji unit; `ambilKronologi` (query Prisma) belum punya uji
+  integrasi, dan uji integrasi tidak bisa dijalankan di mesin penulis. Yang belum
+  terbukti: pemetaan `closedAt`/`createdAt` ke tanggal Asia/Jakarta, dan bahwa
+  saringan `mergedIntoId: null` benar-benar menahan kendala kembar di jalur ini.
+- 🟢 **Narasi kronologi belum bisa diminta dari WhatsApp.** Di sana jawabannya
+  deterministik. Menambahkannya berarti membiarkan chat membelanjakan kuota AI
+  tanpa layar yang menunjukkan ongkosnya – dibuka bila memang diminta.
 - 🟢 **Grid RAPL lain belum diukur lebarnya.** Yang dirapikan baru "Kebutuhan &
   harga". `rapl-padanan` dan `rapl-rincian-item` memakai pola kolom yang sama dan
   bisa saja melewati lebar layar dengan cara yang sama – belum diperiksa.

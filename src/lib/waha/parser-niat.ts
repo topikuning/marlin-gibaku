@@ -181,6 +181,19 @@ const KUNCI: { niat: Niat; pola: RegExp }[] = [
   },
   { niat: "laporan_bulanan", pola: /\b(laporan bulanan|rekap bulanan|bulanan|progress bulanan|rekap bulan)\b/ },
   { niat: "laporan_mingguan", pola: /\b(laporan mingguan|rekap mingguan|mingguan|progress mingguan|rekap pekan)\b/ },
+  /*
+   * KRONOLOGI ditulis SEBELUM `kendala`, dan potongannya sengaja MENELAN kata
+   * "kendala"/"kegiatan" yang mengikutinya.
+   *
+   * Sebabnya sama dengan "rencana mingguan" di atas: `buangYangTermuat`
+   * membandingkan rentang teks, jadi "kronologi kendala danasari" akan
+   * menghasilkan dua temuan di dua rentang terpisah — dan pertanyaan yang
+   * gamblang berubah jadi ambigu.
+   */
+  {
+    niat: "kronologi",
+    pola: /\b(kronologi\w*(?: kendala\w*| kegiatan\w*)*|kondisi terkini|riwayat (?:lokasi|kendala|kegiatan)\w*)\b/,
+  },
   { niat: "kendala", pola: /\b(kendala\w*|masalah\w*|hambatan\w*|problem\w*)\b/ },
   { niat: "deviasi", pola: /\b(deviasi\w*|terlambat\w*|tertinggal\w*|keterlambatan\w*|telat\w*)\b/ },
   // "siapa yang belum" IKUT menelan kata "lapor"/"kirim" di belakangnya. Kalau
@@ -274,6 +287,7 @@ const LABEL_NIAT: Record<Niat, string> = {
   laporan_mingguan: "Rekap laporan mingguan",
   laporan_bulanan: "Rekap laporan bulanan",
   rencana: "Rencana kerja",
+  kronologi: "Kronologi lokasi",
   produksi: "Membuat/mengirim laporan",
   bantuan: "Daftar yang bisa saya jawab",
 };
@@ -518,6 +532,44 @@ export function mintaSebab(teksMentah: string): boolean {
   return POLA_SEBAB.test(bersih(teksMentah));
 }
 
+/**
+ * BENTUK dokumen harian yang diminta — dibaca ATURAN, bukan AI.
+ *
+ * MARLIN punya DUA dokumen harian, dan keduanya sah:
+ *
+ * - **Blanko KKP** (`renderHarianKkpPdf`) — bentuk setoran resmi, bersampul,
+ *   berlampiran foto, berblok tanda tangan.
+ * - **Ringkasan pelaksanaan harian** (`renderHarianRingkasPdf`) — dokumen
+ *   BACAAN untuk grup WhatsApp (DECISIONS 261); kepala berkasnya sendiri
+ *   menyatakan ia bukan blanko KKP.
+ *
+ * Sampai 2026-08-31 jalur WhatsApp selalu mengirim yang kedua, dan menyebutnya
+ * "blanko harian". Permintaan *"laporan harian versi kkp"* karena itu dijawab
+ * dengan dokumen yang lain, di bawah keterangan yang menamainya dokumen yang
+ * diminta — cara paling rapi untuk membuat orang tidak sadar ia salah pegang.
+ *
+ * Dibaca aturan dan bukan diserahkan ke model karena satu kata ini menentukan
+ * BERKAS MANA yang keluar ke grup PPK. Tebakan yang meleset di sini tidak
+ * menghasilkan jawaban yang kurang tepat; ia menghasilkan dokumen yang salah.
+ *
+ * `null` = penanya tidak menyebut bentuknya — pemanggil yang memutuskan
+ * bawaannya, dan balasannya menyebut bentuk yang dipakai supaya bisa dikoreksi.
+ */
+export type BentukDokumen = "kkp" | "ringkas";
+
+const POLA_KKP = /\bkkp\b/;
+const POLA_RINGKAS = /\b(ringkas|ringkasan|versi marlin|marlin)\b/;
+
+export function bacaBentukDokumen(teksMentah: string): BentukDokumen | null {
+  const t = bersih(teksMentah);
+  // KKP didahulukan: "ringkasan laporan harian versi kkp" tetap blanko KKP —
+  // yang menyebut bentuk dokumen adalah "kkp", "ringkasan" di situ kata sifat
+  // biasa.
+  if (POLA_KKP.test(t)) return "kkp";
+  if (POLA_RINGKAS.test(t)) return "ringkas";
+  return null;
+}
+
 export function mintaLupakanKonteks(teksMentah: string): boolean {
   return POLA_LUPAKAN.test(bersih(teksMentah));
 }
@@ -570,7 +622,12 @@ const KATA_ABAIKAN = new Set(
     // Tanpa ini satu kata sambung membuat susulan yang paling lazim diketik
     // dilempar ke AI, justru pada jalur yang dibuat untuk menghindarinya.
     "kalau kalo klo terus trus lalu nah oke ok juga sama gimana bagaimana yg " +
-    "hari harinya dengan dgn sampai saat waktu jam total ringkasan rekap detail rinci").split(" "),
+    "hari harinya dengan dgn sampai saat waktu jam total ringkasan rekap detail rinci " +
+    // BENTUK BERKAS, bukan nama tempat. Tanpa baris ini "laporan harian versi
+    // kkp danasari" menyisakan "versi" dan "kkp" sebagai kandidat nama lokasi —
+    // dan satu kandidat asing sudah cukup membuat pencocokan lokasi jadi
+    // ambigu, sehingga permintaan yang jelas dijawab "lokasi mana".
+    "kkp versi blanko format bentuk pdf excel berkas file dokumen").split(" "),
 );
 
 /** Buang potongan waktu dari kalimat — hanya yang benar-benar TERBACA sebagai periode. */

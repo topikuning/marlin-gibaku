@@ -15,12 +15,15 @@ import { RISK_CATEGORY_LABEL } from "@/lib/ai-hub/risk";
 import type { SourceRef, PulseRow, RiskItem, QualityFinding, PulseTotals } from "@/lib/ai-hub/types";
 import type {
   AskOutput,
+  KronologiOutput,
   PulseOutput,
   QualityOutput,
   ReportOutput,
   RiskOutput,
   VarianceOutput,
 } from "@/lib/ai-hub/schemas";
+import { KronologiGarisWaktu } from "@/components/knmp/kronologi-garis-waktu";
+import type { KronologiLokasi } from "@/lib/kronologi/queries";
 import { ArtifactPanel } from "./artifact-panel";
 
 export const metadata: Metadata = { title: "AI Intelligence – Detail Run" };
@@ -32,10 +35,12 @@ const LAPORAN_TEMPLATE_FOR_KIND: Partial<Record<string, string>> = {
   deviasi: "exec_portfolio",
   risiko: "kendala_recovery",
   kualitas_data: "exec_portfolio",
+  kronologi: "kendala_recovery",
   tanya: "wa_update",
 };
 
 const KIND_LABEL: Record<string, string> = {
+  kronologi: "Kronologi Lokasi",
   pulse: "Portfolio Pulse",
   deviasi: "Explain Variance",
   risiko: "Risk Intelligence",
@@ -84,6 +89,8 @@ type Official = {
   dataAsOf: string;
   /** Sejak DECISIONS 378 ikut tersimpan; run lama tidak punya. */
   sourceRefs?: SourceRef[];
+  /** Garis waktu deterministik run `kronologi`; null untuk jenis lain. */
+  kronologi?: KronologiLokasi | null;
 };
 
 const SEV_TONE = { kritis: "danger", tinggi: "warning", sedang: "info" } as const;
@@ -509,6 +516,41 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           ))}
         </CardBody>
       </Card>
+    );
+  }
+
+  if (kind === "kronologi") {
+    const k = out.kronologi as KronologiOutput | undefined;
+    const det = official?.kronologi ?? null;
+    return (
+      <div className="space-y-4">
+        {k ? (
+          <Card>
+            <CardHeader
+              title="Cerita lokasi ini"
+              subtitle={`Cakupan bukti ${k.confidence}% · urutan peristiwa & hitungan kondisi disusun sistem, AI merangkainya`}
+            />
+            <CardBody className="space-y-3 text-sm">
+              <p className="whitespace-pre-wrap text-ink">{k.summary}</p>
+              {k.babak.map((b, i) => (
+                <div key={i} className="rounded-md border border-border px-3 py-2">
+                  <p className="font-medium text-ink">
+                    {b.judul} <span className="text-ink-muted">· {b.periode}</span>
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap text-ink-muted">{b.reason}</p>
+                </div>
+              ))}
+              <div className="rounded-md border border-border bg-surface-inset px-3 py-2">
+                <p className="text-[12px] tracking-wide text-ink-muted uppercase">Kondisi terkini</p>
+                <p className="mt-0.5 whitespace-pre-wrap text-ink">{k.kondisiTerkini}</p>
+              </div>
+            </CardBody>
+          </Card>
+        ) : null}
+        {/* Garis waktu deterministik SELALU tampil, juga saat narasinya gagal
+            dibentuk: ia yang menjadi jawabannya, bukan pelengkapnya. */}
+        {det ? <KronologiGarisWaktu k={det} judul={`Garis waktu ${det.lokasi.nama}`} /> : null}
+      </div>
     );
   }
 
