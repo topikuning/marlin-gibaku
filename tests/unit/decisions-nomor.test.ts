@@ -9,6 +9,7 @@
 // Aturannya sekarang: penulis TIDAK memilih nomor (tulis `## (baru) · …`),
 // nomor diberikan pemeriksa terakhir saat merge. Berkas uji ini yang menjaga
 // keduanya: tidak ada nomor kembar, dan tidak ada `(baru)` yang lolos merge.
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -67,8 +68,57 @@ describe("penomoran DECISIONS.md", () => {
     expect(mundur, "urutan entri harus mengikuti nomornya").toEqual([]);
   });
 
-  it("tidak ada entri yang masih menunggu nomor", () => {
+  /**
+   * Cabang yang sedang diperiksa.
+   *
+   * Di GitHub Actions, `GITHUB_REF_NAME` berisi `dev` pada peristiwa push ke
+   * dev, tapi `223/merge` pada pemeriksaan pull request — jadi ia sekaligus
+   * membedakan "sudah masuk" dari "masih diusulkan". Di luar CI dipakai git.
+   * Kalau keduanya gagal, dikembalikan string kosong: penjaganya memilih
+   * MELEWATI, bukan menuduh.
+   */
+  function cabang(): string {
+    const dariCi = process.env.GITHUB_REF_NAME;
+    if (dariCi) return dariCi;
+    try {
+      return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+    } catch {
+      return "";
+    }
+  }
+
+  /*
+   * Penjaga ini HANYA menggigit di `dev`/`main`, dan itu memang seluruh
+   * maksudnya: "tidak boleh ada `(baru)` yang LOLOS MERGE".
+   *
+   * Versi pertama menolaknya di mana saja. Akibatnya aturan yang baru ditulis
+   * saling meniadakan dengan gerbangnya sendiri: penulis disuruh menulis
+   * `## (baru)`, lalu setiap PR yang menambah keputusan otomatis merah — dan
+   * merah yang wajar mengajari orang mengabaikan merah. Terbukti langsung
+   * pada dua cabang pertama sesudah aturannya berlaku; yang satu menyiasati
+   * dengan memilih nomor sendiri, persis yang hendak dicegah.
+   */
+  it("tidak ada entri yang masih menunggu nomor saat sudah di dev/main", () => {
     const menunggu = [...isi.matchAll(BELUM_BERNOMOR)].length;
+    const di = cabang();
+    if (di !== "dev" && di !== "main") {
+      /*
+       * Di cabang penulis, `(baru)` justru bentuk yang BENAR — yang diperiksa
+       * BENTUKNYA. Judul yang tidak berpola menyulitkan pemeriksa terakhir
+       * tepat di saat ia paling tidak punya waktu: sedang menggabungkan.
+       */
+      const pola = new RegExp(
+        `^## \\(baru\\) ${String.fromCharCode(0x00b7)} .+ \\(\\d{4}-\\d{2}-\\d{2}\\)$`,
+        "gm",
+      );
+      expect(
+        [...isi.matchAll(pola)].length,
+        "judul entri baru harus berbentuk `## (baru) \u00b7 Judul (YYYY-MM-DD)`",
+      ).toBe(menunggu);
+      return;
+    }
     expect(
       menunggu,
       "entri `## (baru)` harus diberi nomor oleh pemeriksa terakhir SEBELUM merge",

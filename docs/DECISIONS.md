@@ -38,6 +38,14 @@ di hari yang sama. Diberikan saat merge, ia mustahil.
 Dijaga `tests/unit/decisions-nomor.test.ts`: nomor tidak boleh kembar, urutannya
 tidak boleh mundur, dan tidak boleh ada `(baru)` yang lolos merge.
 
+Penjaga `(baru)` itu HANYA menggigit di `dev`/`main`. Di cabang penulis, `(baru)`
+justru bentuk yang benar, jadi yang diperiksa di sana bentuk judulnya. Versi
+pertamanya menolak `(baru)` di mana saja, dan itu membuat aturan ini melawan
+gerbangnya sendiri: penulis disuruh menulis `(baru)`, lalu setiap PR yang
+menambah keputusan otomatis merah. Terbukti pada dua cabang pertama sesudah
+aturannya berlaku — yang satu menyiasati dengan memilih nomor sendiri, persis
+yang hendak dicegah.
+
 **Merujuk keputusan dari kode**: tulis nomornya SESUDAH ia diberikan. Kalau
 komentarmu perlu menunjuk keputusan yang masih `(baru)`, sebut judulnya; nomornya
 ditambahkan pemeriksa terakhir bersama penomorannya.
