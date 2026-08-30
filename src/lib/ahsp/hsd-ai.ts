@@ -5,59 +5,103 @@ import type { SessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
 import { keadaanHarga } from "./hsd";
-import {
-  BATAS_USULAN_HARGA_AI,
-  cocokkanUsulanHarga,
-  hasilHargaAiSchema,
-  type TargetHargaAi,
-  type UsulanHargaAi,
-} from "./hsd-ai-parse";
+import { hasilHargaAiSchema, cocokkanUsulanHarga, type TargetHargaAi, type UsulanHargaAi } from "./hsd-ai-parse";
+import { BATAS_USULAN_HARGA_AI, pilihTargetUsulan } from "./usulan-target";
 export type { UsulanHargaAi } from "./hsd-ai-parse";
 
-export type HasilUsulanHargaAi =
-  | { ok: true; model: string; usulan: UsulanHargaAi[] }
-  | { ok: false; error: string };
+/**
+ * Draf Harga Satuan Dasar dari AI (DECISIONS 441, dirombak DECISIONS 475).
+ *
+ * Angka di sini TIDAK disimpan sebagai HSD dan TIDAK ikut kalkulasi. Ia menjadi
+ * baris `HsdUsulanAi` berstatus `draf`; hanya penerimaan oleh orang yang
+ * memindahkannya ke `HargaSatuanDasar`.
+ *
+ * Panggilan providernya dijalankan DI LATAR (`hsd-ai-latar.ts`). Berkas ini
+ * hanya menyiapkan targetnya dan memanggil provider — tidak tahu-menahu soal
+ * request maupun layar.
+ */
+
+export type TargetSiap = {
+  lokasi: { name: string; regency: string; province: string };
+  target: {
+    kategori: string;
+    nama: string;
+    satuan: string;
+    jumlah: number;
+    rekomendasi: { harga: string; lokasi: string; kabupaten: string }[];
+  }[];
+  totalKosong: number;
+  tidakDiminta: number;
+};
 
 /**
- * Minta draf HSD kepada provider AI aktif.
+ * Siapkan daftar sumber daya yang akan dimintakan draf harga.
  *
- * Angka ini TIDAK disimpan dan TIDAK ikut kalkulasi. Server action terpisah
- * mewajibkan pengguna menerima usulan sebelum HSD berubah.
+ * DIPANGGIL DI DALAM REQUEST — sengaja, karena penolakan yang bisa dijawab
+ * tanpa provider ("semuanya sudah berharga") harus sampai seketika.
  */
-export async function usulkanHargaDenganAi(
-  user: SessionUser,
+export async function siapkanTargetHarga(
   locationId: string,
-): Promise<HasilUsulanHargaAi> {
-  const [location, harga] = await Promise.all([
+  dipilih?: ReadonlySet<string>,
+): Promise<TargetSiap | { error: string }> {
+  const [lokasi, harga] = await Promise.all([
     db.location.findUnique({
       where: { id: locationId },
       select: { name: true, regency: true, province: true },
     }),
     keadaanHarga(locationId),
   ]);
-  if (!location) return { ok: false, error: "Lokasi tidak ditemukan." };
+  if (!lokasi) return { error: "Lokasi tidak ditemukan." };
 
-  const target = harga.baris.filter((b) => b.harga === null).slice(0, BATAS_USULAN_HARGA_AI);
-  if (target.length === 0) {
-    return { ok: false, error: "Seluruh sumber daya sudah memiliki harga." };
+  const pilihan = pilihTargetUsulan(harga.baris, BATAS_USULAN_HARGA_AI, dipilih);
+  if (pilihan.target.length === 0) {
+    return {
+      error:
+        pilihan.totalKosong === 0
+          ? "Seluruh sumber daya sudah memiliki harga."
+          : "Sumber daya yang dicentang sudah berharga – tidak ada yang perlu dimintakan draf.",
+    };
   }
 
-  const daftar = target.map((b, i) => ({
+  return {
+    lokasi,
+    target: pilihan.target.map((b) => ({
+      kategori: b.kategori,
+      nama: b.nama,
+      satuan: b.satuan,
+      jumlah: b.jumlah,
+      rekomendasi: b.rekomendasi.map((r) => ({
+        harga: r.harga.toString(),
+        lokasi: r.lokasi,
+        kabupaten: r.kabupaten,
+      })),
+    })),
+    totalKosong: pilihan.totalKosong,
+    tidakDiminta: pilihan.tidakDiminta,
+  };
+}
+
+export type HasilUsulanHargaAi =
+  | { ok: true; model: string; usulan: UsulanHargaAi[] }
+  | { ok: false; error: string };
+
+/** Panggil provider untuk target yang sudah disiapkan. Dipakai dari latar. */
+export async function usulkanHargaDenganAi(
+  user: SessionUser,
+  siap: TargetSiap,
+): Promise<HasilUsulanHargaAi> {
+  const daftar = siap.target.map((b, i) => ({
     id: `r${i + 1}`,
     kategori: b.kategori,
     nama: b.nama,
     satuan: b.satuan || "satuan",
     jumlah: b.jumlah,
-    referensi: b.rekomendasi.map((r) => ({
-      harga: r.harga.toString(),
-      lokasi: r.lokasi,
-      kabupaten: r.kabupaten,
-    })),
+    referensi: b.rekomendasi,
   }));
 
   const prompt = [
     `Tanggal estimasi: ${jakartaToday()}.`,
-    `Lokasi proyek: ${location.name}, ${location.regency}, ${location.province}, Indonesia.`,
+    `Lokasi proyek: ${siap.lokasi.name}, ${siap.lokasi.regency}, ${siap.lokasi.province}, Indonesia.`,
     "Buat estimasi HARGA SATUAN rupiah untuk setiap sumber daya berikut.",
     "Gunakan konteks pasar konstruksi daerah tersebut. Referensi lokasi lain hanya bahan pertimbangan.",
     "Jangan mengubah jumlah kebutuhan, kategori, satuan, atau id.",
@@ -88,13 +132,13 @@ export async function usulkanHargaDenganAi(
   });
   if (!result.ok) return { ok: false, error: result.error };
 
-  const targetServer: TargetHargaAi[] = target.map((d, i) => ({
+  const targetServer: TargetHargaAi[] = siap.target.map((d, i) => ({
     id: `r${i + 1}`,
     kategori: d.kategori,
     nama: d.nama,
     satuan: d.satuan,
   }));
-  const usulan: UsulanHargaAi[] = cocokkanUsulanHarga(targetServer, result.data.suggestions);
+  const usulan = cocokkanUsulanHarga(targetServer, result.data.suggestions);
   if (usulan.length === 0) {
     return { ok: false, error: "AI tidak mengembalikan usulan yang dapat dijodohkan." };
   }

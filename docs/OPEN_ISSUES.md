@@ -609,3 +609,27 @@ yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
   /perlu-tindakan berarti dua rumah untuk rule yang sama. Keputusan yang
   benar: satu keluarga rule dipakai dua permukaan — refactor kecil, belum
   dikerjakan.
+
+
+## RAPL — sisa setelah RAPL-01…RAPL-08 ditutup (DECISIONS 475/476)
+
+Kedelapan temuan audit 2026-08-29 sudah dikerjakan (DECISIONS 476). Yang
+BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
+
+- 🟡 **Lembar cetak A4 RAPL masih bentuk agregat.** `/cetak/rapl/[slug]`
+  (`src/components/knmp/rapl-lembar.tsx`) menyajikan biaya per KATEGORI sumber
+  daya; rincian per item baru ada di layar dan di lembar Excel "Rincian per
+  item". Kertas A4 tidak muat memuat ratusan item apa adanya, jadi bentuknya
+  perlu diputuskan lebih dulu — daftar item yang RUGI saja, atau lampiran
+  berhalaman. Keputusan tampilan, bukan keputusan kode.
+- 🟢 **Permintaan draf harga AI yang menggantung tidak dijemput ulang.**
+  Kalau proses mati di tengah (deploy ulang), layar menyatakan permintaannya
+  TERPUTUS dan orang menekan tombolnya lagi — satu ketukan. Ask MARLIN punya
+  penjemput (`jemputTanyaTertunda`, DECISIONS 456) karena di sana ongkos
+  gagalnya adalah mengetik ulang pertanyaan. Di sini belum dibuat karena
+  ongkosnya tidak sebanding; kalau ternyata sering terjadi, polanya sudah ada
+  tinggal disalin.
+- 🟢 **`simpanHargaAction` (jalur FormData) tidak dipakai satu pun layar.**
+  Grid memakai `simpanHargaSel`. Ia sudah ikut diperketat (asal-usul harga
+  ditetapkan server), tetapi kode yang tidak dipanggil siapa pun sebaiknya
+  dibuang — ditunda supaya diff RAPL-01…08 tetap bisa dibaca.

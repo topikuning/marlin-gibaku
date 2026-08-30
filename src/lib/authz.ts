@@ -28,6 +28,28 @@ export const CAPABILITIES = [
   "location.signer",
   "rab.view",
   "rab.manage",
+  /*
+   * RAPL — rencana anggaran PELAKSANAAN: harga satuan dasar, biaya per item,
+   * dan margin terhadap nilai RAB.
+   *
+   * Sengaja BUKAN `finance.*`. Keduanya memang uang, tapi bukan uang yang sama
+   * dan bukan pintu yang sama: `finance.*` adalah menu Keuangan (komitmen,
+   * invoice, pengeluaran) yang sampai sekarang ditahan karena layarnya belum
+   * siap, sedangkan RAPL adalah perencanaan biaya yang menempel pada RAB dan
+   * sudah dipakai. Meminjam `finance.*` untuk RAPL — yang sempat terjadi —
+   * membuat penahanan satu menu diam-diam mematikan fitur di menu lain.
+   * Keputusan user 2026-08-29.
+   *
+   * Pembagiannya (pilihan user pada tanggal yang sama):
+   * - `rapl.view` mulai Project Manager — MARGIN adalah angka menawar, dan
+   *   berhenti di kantor.
+   * - `rapl.manage` mulai Site Manager — yang paling tahu harga bahan di
+   *   lapangan memang orang lapangan, jadi ia mengisi HSD & rincian meski
+   *   kolom marginnya tidak ia lihat.
+   * Kebutuhan volume bahan/upah/alat TIDAK di sini: ia tetap `rab.view`.
+   */
+  "rapl.view",
+  "rapl.manage",
   "baseline.manage",
   "weekly_plan.manage",
   "daily_report.create",
@@ -89,6 +111,16 @@ export const CAPABILITIES = [
    * /keuangan atau menyimpan tautannya tetap masuk, dan fitur yang "belum siap"
    * akan tetap ditemukan orang. Di sini pintunya yang ditutup; menunya hilang
    * dengan sendirinya karena nav memang menyaring dengan capability.
+   *
+   * YANG DITAHAN HANYA MENU KEUANGAN ITU SENDIRI — komitmen, invoice,
+   * pengeluaran, dan adapter AI yang membacanya. Penegasan user 2026-08-29:
+   * *"yang kumaksud dari awal bahwa hanya superadmin yg bisa melihat keuangan
+   * itu, maksudnya tab keuangan, yang mana itu masih mentah. bukan membatasi
+   * fitur-fitur keuangan yang berhubungan dengan menu lain"*. Karena itu
+   * capability ini TIDAK boleh dipinjam layar lain yang kebetulan menampilkan
+   * uang; RAPL punya `rapl.view`/`rapl.manage` sendiri di atas. Kalau nanti ada
+   * layar uang baru di luar menu Keuangan, ia juga perlu pintunya sendiri —
+   * bukan menumpang di sini.
    *
    * CARA MEMBUKANYA KEMBALI: hapus `!c.startsWith("finance.")` pada penyaring
    * program_director di bawah, lalu kembalikan `finance.input` ke SITE_MANAGER,
@@ -181,6 +213,9 @@ const SITE_MANAGER: Capability[] = [
   ...PELAKSANA,
   "package.view",
   "weekly_plan.manage",
+  // Mengisi HSD & rincian pelaksanaan RAPL. Melihat marginnya TIDAK ikut —
+  // itu `rapl.view`, mulai Project Manager.
+  "rapl.manage",
   /**
    * ADENDUM: Site Manager ikut menyusun draft RAB adendum (DECISIONS 302).
    *
@@ -275,6 +310,8 @@ const PROJECT_MANAGER: Capability[] = [
   ...SITE_MANAGER,
   "portfolio.view",
   "location.manage",
+  // Biaya & margin RAPL. Mengisinya sudah diwarisi dari SITE_MANAGER.
+  "rapl.view",
   /**
    * KONTRAK NORMAL: Project Manager (dan karenanya Area Manager) mengurus
    * kontraknya sendiri (DECISIONS 421).
@@ -348,6 +385,9 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "portfolio.view",
     "package.view",
     "report.export",
+    // Biaya & margin RAPL, TANPA `rapl.manage`: peran ini membaca, tidak
+    // mengisi. Margin justru angka yang paling dicari eksekutif.
+    "rapl.view",
     "ai.view",
     "ai.generate",
     "ai.ask",

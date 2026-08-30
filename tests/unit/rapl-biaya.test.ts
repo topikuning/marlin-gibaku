@@ -20,6 +20,7 @@ const k = (over: Partial<Kebutuhan> = {}): Kebutuhan => ({
   satuan: over.satuan ?? "kg",
   jumlah: over.jumlah ?? 100,
   dariBaris: over.dariBaris ?? 1,
+  nilaiTertahan: over.nilaiTertahan ?? 0n,
   janggal: over.janggal ?? false,
 });
 
