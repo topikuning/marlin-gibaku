@@ -123,7 +123,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
      */
     nama: "Kronologi lokasi (kendala + kegiatan lapangan, berurutan)",
     halaman: "/ai/kronologi",
-    rute: [],
+    rute: ["ai/kronologi"],
     jalur: [{ jenis: "niat", niat: ["kronologi"] }],
   },
   {

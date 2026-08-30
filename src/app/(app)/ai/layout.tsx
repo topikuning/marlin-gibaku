@@ -21,6 +21,7 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
         items={[
           { label: "Ringkasan", href: "/ai", exact: true },
           { label: "Tanya MARLIN", href: "/ai/ask" },
+          { label: "Kronologi", href: "/ai/kronologi" },
           { label: "Buat Laporan", href: "/ai/reports" },
           { label: "Tindak Lanjut", href: "/ai/actions" },
           { label: "Paparan KKP", href: "/ai/paparan" },

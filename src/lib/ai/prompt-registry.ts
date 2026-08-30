@@ -255,6 +255,16 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     maxChars: 2000,
   },
   {
+    key: "hub.kind.kronologi",
+    group: "hub",
+    label: "Instruksi – Kronologi lokasi",
+    description:
+      "Ditambahkan pada run kronologi (merangkai kendala & kegiatan lapangan jadi cerita).",
+    default: PROMPT_KIND_KRONOLOGI(),
+    mustContain: ["Urutan peristiwa sudah pasti", ANTI_KARANG_FRASA],
+    maxChars: 2000,
+  },
+  {
     key: "hub.kind.tanya",
     group: "hub",
     label: "Instruksi – Ask MARLIN",
@@ -389,6 +399,15 @@ function PROMPT_KIND_KUALITAS(): string {
     pagarSumber(
       "daftar TEMUAN AUDIT yang dilampirkan",
       "Jangan menambah temuan yang tidak ada di daftar dan jangan menaksir jumlah yang tidak tertulis.",
+    )
+  );
+}
+function PROMPT_KIND_KRONOLOGI(): string {
+  return (
+    "Rangkai kronologi satu lokasi jadi cerita yang bisa dibaca pimpinan: kelompokkan peristiwa yang berdekatan jadi BABAK, sebut apa yang terjadi dan apa artinya bagi pelaksanaan, lalu tutup dengan kondisi terkininya. Urutan peristiwa sudah pasti dan hitungan kondisi terkini sudah dihitung sistem – Anda merangkai, bukan menyusun ulang maupun menghitung.\n" +
+    pagarSumber(
+      "daftar PERISTIWA (kendala & kegiatan lapangan) yang dilampirkan",
+      "Jangan menambah peristiwa yang tidak ada di daftar, jangan menebak sebab yang tidak tertulis, dan jangan mengarang tanggal.",
     )
   );
 }

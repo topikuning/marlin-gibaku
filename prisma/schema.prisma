@@ -2405,6 +2405,10 @@ enum AiRunKind {
   laporan // Report Studio — draf laporan terstruktur
   tanya // Ask MARLIN — jawaban grounded
   paparan // Paparan Mingguan KKP — deck PDF 16:9 per paket per minggu (DECISIONS 416)
+  /// Kronologi satu lokasi — kendala + kegiatan lapangan berurutan, lalu
+  /// kondisi terkininya. Bahannya deterministik (`src/lib/kronologi`); AI
+  /// hanya merangkainya jadi prosa.
+  kronologi
 }
 
 enum AiRunStatus {

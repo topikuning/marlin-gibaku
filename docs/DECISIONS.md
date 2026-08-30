@@ -25447,3 +25447,58 @@ memang memerahkannya sekali saat perubahan ini ditulis.
 
 **Bisa di-revisit**: lebar jendela 90 hari dan batas 25 peristiwa di WhatsApp
 adalah angka pertama, bukan angka yang diukur. Keduanya ada di satu tempat.
+
+---
+
+## (baru) · Kronologi masuk AI Intelligence sebagai jenis run, bukan sebagai layar tersendiri (2026-08-31)
+
+**Konteks**: user 2026-08-31 menegaskan kronologi *"masuk ke ai intellegence dan
+permintaan by wa"*. Jalur WhatsApp-nya sudah ada dan deterministik. Yang belum:
+permukaan di dalam `/ai`, dan narasinya.
+
+**Keputusan**: `kronologi` jadi `AiRunKind` baru, bukan mesin sendiri di
+sampingnya. Alasannya bukan penghematan: seluruh jaminan AI Intelligence
+menempel pada lifecycle run — snapshot sumber, kuota & kill switch, grounding
+yang membuang bagian tanpa sumber, riwayat yang bisa diperiksa ulang. Fitur AI
+yang memanggil provider di luar jalur itu akan punya jaminan yang lebih lemah
+dari saudaranya, dan tidak ada yang akan menyadarinya sampai ada yang salah.
+
+Pembagian kerjanya tegas:
+
+- **Sistem** menyusun urutan peristiwa dan menghitung kondisi terkini
+  (`src/lib/kronologi`). Angkanya disodorkan ke model SUDAH JADI, berikut
+  kalimat yang melarang menghitung ulang.
+- **AI** hanya merangkai peristiwa jadi BABAK cerita. Tiap babak wajib menunjuk
+  peristiwa yang mendasarinya; babak yang menunjuk sumber tak dikenal dibuang
+  penyaring grounding, sama seperti bagian laporan.
+
+Halaman `/ai/kronologi` menampilkan garis waktunya TANPA memanggil provider sama
+sekali. Ia tetap berguna penuh saat AI dimatikan admin atau belum
+dikonfigurasi — dan itu bukan kebetulan, melainkan pola yang sama dengan
+Portfolio Pulse (DECISIONS 133): yang deterministik berdiri sendiri, narasi
+menempel di atasnya.
+
+Run kronologi menolak scope selain SATU lokasi, dan menolaknya **sebelum satu
+token pun dibayar**.
+
+**Alternatif direject**:
+
+- *Menumpang jenis `tanya`.* Ia dirancang untuk pertanyaan bebas dengan pencarian
+  narasi; kronologi punya bahan yang sudah pasti dan bentuk keluaran yang tetap.
+- *Memanggil provider langsung dari halaman kronologi.* Melompati guard, kuota,
+  snapshot, dan grounding — empat jaminan sekaligus, demi satu berkas lebih
+  sedikit.
+- *Menyerahkan hitungan kondisi terkini ke model.* Angka yang dihitung model
+  tidak bisa dipertanggungjawabkan ke PPK, dan `numericClaimsValid` hanya
+  menangkap klaim persen — hitungan cacah akan lolos tanpa terperiksa.
+
+**Konsekuensi**: migrasi `20260831020000_ai_run_kronologi` menambah nilai enum
+(idempoten, `ADD VALUE IF NOT EXISTS`). Kontrak id sumber antara payload dan
+daftar sumber run dijaga `tests/unit/kronologi-bahan-ai.test.ts` — bila keduanya
+menyimpang satu aksara, seluruh babak dibuang penyaring dan run tampak berhasil
+dengan cakupan bukti 0%.
+
+**Bisa di-revisit**: narasi kronologi belum bisa diminta dari WhatsApp — di sana
+jawabannya tetap deterministik. Menambahkannya berarti membiarkan chat
+membelanjakan kuota AI tanpa layar yang menunjukkan ongkosnya; layak dibuka bila
+memang diminta.
