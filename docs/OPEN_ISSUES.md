@@ -629,25 +629,3 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
   gagalnya adalah mengetik ulang pertanyaan. Di sini belum dibuat karena
   ongkosnya tidak sebanding; kalau ternyata sering terjadi, polanya sudah ada
   tinggal disalin.
-- 🟢 **`simpanHargaAction` (jalur FormData) tidak dipakai satu pun layar.**
-  Grid memakai `simpanHargaSel`. Ia sudah ikut diperketat (asal-usul harga
-  ditetapkan server), tetapi kode yang tidak dipanggil siapa pun sebaiknya
-  dibuang — ditunda supaya diff RAPL-01…08 tetap bisa dibaca.
-- 🟡 **Kotak centang grid bisa tetap tercentang setelah aksi borongan.**
-  Sesudah `putuskan()` berhasil, `harga-panel.tsx` mengosongkan hitungannya
-  sendiri (`setDicentang([])`), tetapi tidak ada yang memanggil API seleksi AG
-  Grid. `MarlinGrid` menyimpan `apiRef` secara privat dan tidak menyediakan
-  jalan keluar imperatif, jadi pemanggil tidak punya cara meminta
-  `deselectAll()`. Bila AG Grid tidak melepas sendiri baris yang jadi tidak
-  terpilih sesudah data disegarkan, layar memperlihatkan baris tercentang
-  sementara tombolnya menulis "0 dicentang" dan mati. Belum terbukti terjadi —
-  karena itu ditulis di sini, bukan ditambal dengan tebakan. Perbaikannya
-  bersifat lintas-komponen (`forwardRef` pada `MarlinGrid`), menyentuh juga
-  `padanan-panel.tsx` yang berbentuk sama.
-- 🟢 **Jajak pendapat draf AI menarik ulang SELURUH halaman tiap 3 detik.**
-  `harga-panel.tsx` memanggil `router.refresh()` tiap 3 detik selama draf
-  berjalan, dan itu menjalankan ulang keenam kueri `RaplPage` (termasuk
-  `simulasiRapl` atas ratusan baris) hanya untuk membaca satu boolean. Ini
-  konsekuensi sadar dari pola DECISIONS 455 — menunggu di layar, bukan di
-  dalam request — dan dicatat sebagai ONGKOS, bukan cacat: endpoint status
-  tersendiri akan menghapusnya kalau ternyata terasa.

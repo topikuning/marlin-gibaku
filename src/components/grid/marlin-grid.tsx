@@ -21,7 +21,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { Download, Loader2 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 
 // Registrasi module sekali (module-level), bukan per-render.
@@ -111,7 +111,28 @@ function storageKey(persistKey: string): string {
   return `marlin-grid:${persistKey}`;
 }
 
+/**
+ * Jalan keluar imperatif ke grid — sesempit mungkin, sengaja.
+ *
+ * Pilihan baris dipegang AG Grid, bukan state pemanggil (lihat prop
+ * `rowSelection`). Karena `getRowId` dipasang, AG Grid MEMPERTAHANKAN pilihan
+ * per-id saat data disegarkan — jadi panel yang mengosongkan hitungannya sendiri
+ * sesudah aksi borongan bisa meninggalkan centang menyala di layar sementara
+ * tombolnya menulis "0 dicentang" dan mati. Yang dilihat pengguna dan yang
+ * dipercaya kode berbeda, tanpa pesan apa pun.
+ *
+ * Yang dibuka HANYA pelepasan pilihan. `GridApi` utuh sengaja tidak diteruskan:
+ * begitu ia terbuka, pemanggil mulai mengatur kolom, saringan, dan urutan dari
+ * luar, dan `MarlinGrid` berhenti jadi satu-satunya tempat aturan grid tinggal.
+ */
+export type MarlinGridApi = {
+  /** Melepas SEMUA centang di grid, termasuk baris yang sedang tersaring. */
+  kosongkanPilihan: () => void;
+};
+
 export interface MarlinGridProps<T> {
+  /** Pegangan imperatif seperlunya — lihat {@link MarlinGridApi}. */
+  ref?: Ref<MarlinGridApi>;
   rowData?: T[] | null;
   columnDefs: ColDef<T>[];
   /** Render input "Cari..." (quick filter) di atas grid. */
@@ -180,6 +201,7 @@ export interface MarlinGridProps<T> {
 }
 
 export function MarlinGrid<T>({
+  ref,
   rowData,
   columnDefs,
   quickFilter = false,
@@ -205,6 +227,15 @@ export function MarlinGrid<T>({
 }: MarlinGridProps<T>) {
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      // Aman dipanggil sebelum grid siap: sebelum itu tidak ada pilihan apa pun.
+      kosongkanPilihan: () => apiRef.current?.deselectAll(),
+    }),
+    [],
+  );
 
   const autoHeight =
     !serverSide && height === "auto" && (rowData?.length ?? 0) <= 100;

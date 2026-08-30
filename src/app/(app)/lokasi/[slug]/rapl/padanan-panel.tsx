@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useCallback, useMemo, useState, useTransition } from "react";
+import { useActionState, useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { CellClassParams, ColDef, ValueFormatterParams } from "ag-grid-community";
 import { AlertTriangle, Check, CheckCheck, RefreshCw, Search, X } from "lucide-react";
 import { Badge, Banner, Button, Input, PanelGeser } from "@/components/ui";
-import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
+import { MarlinGrid, rupiahCol, type MarlinGridApi } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
 import type { KeadaanUraian } from "@/lib/ahsp/kelompok";
@@ -187,6 +187,17 @@ export function PadananPanel({
    */
   const [terbukaTanda, setTerbukaTanda] = useState<string | null>(null);
   const [terpilih, setTerpilih] = useState<BarisUraianRow[]>([]);
+  const grid = useRef<MarlinGridApi>(null);
+
+  /**
+   * Melepas centang di GRID sekaligus di hitungan React — keduanya, selalu.
+   * Alasannya sama dengan di panel harga; lihat
+   * `tests/unit/grid-pilihan-dilepas.test.ts`.
+   */
+  const lepasPilihan = () => {
+    grid.current?.kosongkanPilihan();
+    setTerpilih([]);
+  };
 
   // Kandidat AHSP dipegang DI SINI, bukan di panel rincian, supaya
   // pengambilannya terjadi di penangan ketukan baris — tempat yang benar untuk
@@ -319,7 +330,7 @@ export function PadananPanel({
     fd.set("slug", slug);
     fd.set("tanda", JSON.stringify(daftar));
     setujuAction(fd);
-    setTerpilih([]);
+    lepasPilihan();
   };
 
   return (
@@ -341,7 +352,7 @@ export function PadananPanel({
             aria-pressed={saring === s.key}
             onClick={() => {
               setSaring(s.key);
-              setTerpilih([]);
+              lepasPilihan();
               setTerbukaTanda(null);
             }}
             disabled={hitung[s.key] === 0 && s.key !== saring}
@@ -396,6 +407,7 @@ export function PadananPanel({
       ) : null}
 
       <MarlinGrid<BarisUraianRow>
+        ref={grid}
         rowData={tampil}
         columnDefs={kolom}
         quickFilter
