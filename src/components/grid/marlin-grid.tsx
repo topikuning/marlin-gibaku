@@ -7,8 +7,6 @@ import {
   type CellKeyDownEvent,
   type CellValueChangedEvent,
   type ColDef,
-  type ColDefField,
-  type ColumnState,
   type GetRowIdParams,
   type GridApi,
   type GridReadyEvent,
@@ -17,12 +15,13 @@ import {
   type RowClickedEvent,
   type RowSelectionOptions,
   type SelectionChangedEvent,
-  type ValueFormatterParams,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
+import { bacaSimpananKolom, tulisSimpananKolom } from "./column-state";
+
+export { dateCol, pctCol, rupiahCol } from "./kolom";
 
 // Registrasi module sekali (module-level), bukan per-render.
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -247,7 +246,7 @@ export function MarlinGrid<T>({
       try {
         localStorage.setItem(
           storageKey(persistKey),
-          JSON.stringify(e.api.getColumnState()),
+          tulisSimpananKolom(e.api.getColumnState()),
         );
       } catch {
         // localStorage penuh/di-block — abaikan, bukan fitur kritis.
@@ -261,33 +260,50 @@ export function MarlinGrid<T>({
       apiRef.current = e.api;
       if (!persistKey) return;
       try {
-        const raw = localStorage.getItem(storageKey(persistKey));
-        if (raw) {
-          /*
-           * `pinned` DIBUANG dari state tersimpan — kolom yang dikunci selalu
-           * mengikuti kode, bukan simpanan peramban.
-           *
-           * `getColumnState()` ikut menyimpan `pinned`, termasuk `null` untuk
-           * kolom yang saat itu memang belum dikunci. Tanpa pembuangan ini,
-           * setiap orang yang PERNAH membuka daftar ini sebelum kuncinya
-           * dipasang akan membawa `pinned: null` selamanya: di layar mereka
-           * kolomnya tidak terkunci, sementara di layar orang baru terkunci —
-           * dan tidak ada satu pun tombol yang bisa menjelaskan bedanya.
-           *
-           * Yang tetap disimpan justru yang memang milik pengguna: urutan,
-           * lebar, sortir, dan kolom yang disembunyikan.
-           */
-          const state = (JSON.parse(raw) as ColumnState[]).map(
-            ({ pinned: _abaikan, ...sisa }) => sisa,
-          );
-          e.api.applyColumnState({ state, applyOrder: true });
+        /*
+         * Kolom yang ADA SEKARANG dibaca dari grid, bukan ditebak dari
+         * `columnDefs`: colId sebuah kolom boleh berasal dari `colId`, dari
+         * `field`, atau dibuatkan AG Grid sendiri. Yang menentukan cocok atau
+         * tidaknya simpanan harus nama yang sama dengan yang dipakai
+         * `applyColumnState`.
+         */
+        const kolomSekarang = e.api
+          .getColumnState()
+          .map((k) => k.colId)
+          .filter((id): id is string => typeof id === "string");
+        const simpanan = bacaSimpananKolom(
+          localStorage.getItem(storageKey(persistKey)),
+          kolomSekarang,
+        );
+        if (simpanan) {
+          e.api.applyColumnState({ state: simpanan.state, applyOrder: simpanan.applyOrder });
         }
       } catch {
-        // State korup — abaikan, pakai default.
+        // State korup / localStorage diblokir — abaikan, pakai default.
       }
     },
     [persistKey],
   );
+
+  /**
+   * Jalan pulang dari layout yang terlanjur kacau.
+   *
+   * Selama layoutnya tersimpan diam-diam, satu kolom yang tak sengaja
+   * disembunyikan atau diseret keluar layar akan ikut berpindah ke kunjungan
+   * berikutnya, dan satu-satunya obatnya adalah membersihkan localStorage —
+   * yang tidak akan dilakukan Site Manager mana pun. Tombolnya sengaja ada di
+   * bilah yang sama dengan pencarian, bukan di menu tersembunyi.
+   */
+  const aturUlangKolom = useCallback(() => {
+    if (persistKey) {
+      try {
+        localStorage.removeItem(storageKey(persistKey));
+      } catch {
+        // Diblokir peramban — resetnya tetap berlaku untuk sesi ini.
+      }
+    }
+    apiRef.current?.resetColumnState();
+  }, [persistKey]);
 
   /**
    * Satu-satunya arti dari "baris ini diaktifkan" — dipakai ketukan MAUPUN
@@ -380,7 +396,7 @@ export function MarlinGrid<T>({
     };
   }, [rowSelection, isRowSelectable]);
 
-  const showToolbar = quickFilter || csvExport;
+  const showToolbar = quickFilter || csvExport || !!persistKey;
 
   return (
     <div className={className}>
@@ -401,16 +417,29 @@ export function MarlinGrid<T>({
           ) : (
             <span />
           )}
-          {csvExport ? (
-            <button
-              type="button"
-              onClick={() => apiRef.current?.exportDataAsCsv()}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink-muted hover:bg-surface-muted hover:text-ink"
-            >
-              <Download aria-hidden className="size-4" />
-              Unduh CSV
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {persistKey ? (
+              <button
+                type="button"
+                onClick={aturUlangKolom}
+                title="Kembalikan lebar, urutan, dan kolom yang disembunyikan ke bawaan"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink-muted hover:bg-surface-muted hover:text-ink"
+              >
+                <RotateCcw aria-hidden className="size-4" />
+                <span className="hidden sm:inline">Atur ulang kolom</span>
+              </button>
+            ) : null}
+            {csvExport ? (
+              <button
+                type="button"
+                onClick={() => apiRef.current?.exportDataAsCsv()}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink-muted hover:bg-surface-muted hover:text-ink"
+              >
+                <Download aria-hidden className="size-4" />
+                Unduh CSV
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
       <div style={autoHeight ? undefined : { height: fixedHeight }}>
@@ -465,60 +494,4 @@ export function MarlinGrid<T>({
       </div>
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/* Helper kolom — formatter konsisten dari @/lib/format               */
-/* ------------------------------------------------------------------ */
-
-const NUMERIC_CELL = "tabular text-right";
-
-/** Kolom Rupiah (BigInt/number), rata kanan + tabular. */
-export function rupiahCol<T>(
-  field: ColDefField<T>,
-  headerName: string,
-  extra?: ColDef<T>,
-): ColDef<T> {
-  return {
-    field,
-    headerName,
-    valueFormatter: (p: ValueFormatterParams<T>) =>
-      p.value == null ? "" : formatRupiah(p.value as bigint | number),
-    cellClass: NUMERIC_CELL,
-    headerClass: "ag-right-aligned-header",
-    ...extra,
-  };
-}
-
-/** Kolom persen, rata kanan + tabular. */
-export function pctCol<T>(
-  field: ColDefField<T>,
-  headerName: string,
-  extra?: ColDef<T>,
-): ColDef<T> {
-  return {
-    field,
-    headerName,
-    valueFormatter: (p: ValueFormatterParams<T>) =>
-      p.value == null ? "" : formatPct(Number(p.value)),
-    cellClass: NUMERIC_CELL,
-    headerClass: "ag-right-aligned-header",
-    ...extra,
-  };
-}
-
-/** Kolom tanggal (Date | string ISO), format Asia/Jakarta. */
-export function dateCol<T>(
-  field: ColDefField<T>,
-  headerName: string,
-  extra?: ColDef<T>,
-): ColDef<T> {
-  return {
-    field,
-    headerName,
-    valueFormatter: (p: ValueFormatterParams<T>) =>
-      p.value == null ? "" : formatTanggal(new Date(p.value as string | Date)),
-    cellClass: "tabular",
-    ...extra,
-  };
 }

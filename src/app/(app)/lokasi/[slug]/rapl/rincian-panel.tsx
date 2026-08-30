@@ -250,43 +250,36 @@ export function RincianPanel({
     <div className="space-y-3">
       {pesan && dibuka === null ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
 
-      <div className={cn("grid gap-3", tampilkanMargin ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-        <div className="rounded-lg border border-line px-3 py-2">
-          <p className="text-[12px] tracking-wide text-ink-muted uppercase">Item berrincian lengkap</p>
-          <p className="tabular mt-0.5 text-lg font-semibold text-ink">
+      {/* Satu bilah, bukan tiga kartu. Ketiganya berdiri persis di bawah empat
+          KpiCard halaman dan satu bilah ringkasan biaya; tumpukan itulah yang
+          membuat tabelnya — pekerjaan yang sebenarnya — tidak pernah terlihat
+          tanpa menggulir (keluhan user 2026-08-30). */}
+      <div
+        className={cn(
+          "flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border px-3 py-2 text-[13px] text-ink-muted",
+          tampilkanMargin && ringkas.jumlahRugi > 0
+            ? "border-danger-border bg-danger-soft"
+            : "border-line",
+        )}
+      >
+        <span>
+          Item berrincian lengkap{" "}
+          <strong className="tabular text-ink">
             {ringkas.jumlahLengkap} dari {items.length}
-          </p>
-          <p className="text-[12px] text-ink-muted">
-            {tampilkanMargin ? "hanya ini yang marginnya berarti" : "rinciannya sudah bisa dihitung"}
-          </p>
-        </div>
-        <div className="rounded-lg border border-line px-3 py-2">
-          <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya item lengkap</p>
-          <p className="tabular mt-0.5 text-lg font-semibold text-ink">
-            {formatRupiah(BigInt(ringkas.biayaLengkap))}
-          </p>
-          <p className="text-[12px] text-ink-muted">
-            terhadap nilai RAB {formatRupiah(BigInt(ringkas.nilaiRabLengkap))}
-          </p>
-        </div>
-        <div
-          className={cn(
-            "rounded-lg border px-3 py-2",
-            ringkas.jumlahRugi > 0 ? "border-danger-border bg-danger-soft" : "border-line",
-            !tampilkanMargin && "hidden",
-          )}
-        >
-          <p className="text-[12px] tracking-wide text-ink-muted uppercase">Item yang rugi</p>
-          <p
-            className={cn(
-              "tabular mt-0.5 text-lg font-semibold",
-              ringkas.jumlahRugi > 0 ? "text-danger" : "text-ink",
-            )}
-          >
-            {ringkas.jumlahRugi}
-          </p>
-          <p className="text-[12px] text-ink-muted">biayanya melampaui nilai RAB-nya</p>
-        </div>
+          </strong>
+          {tampilkanMargin ? " – hanya ini yang marginnya berarti" : ""}
+        </span>
+        <span>
+          Biaya item lengkap{" "}
+          <strong className="tabular text-ink">{formatRupiah(BigInt(ringkas.biayaLengkap))}</strong>{" "}
+          terhadap nilai RAB {formatRupiah(BigInt(ringkas.nilaiRabLengkap))}
+        </span>
+        {tampilkanMargin ? (
+          <span className={ringkas.jumlahRugi > 0 ? "text-danger" : undefined}>
+            Item yang rugi <strong className="tabular">{ringkas.jumlahRugi}</strong> – biayanya
+            melampaui nilai RAB-nya
+          </span>
+        ) : null}
       </div>
 
       <MarlinGrid<Baris>
