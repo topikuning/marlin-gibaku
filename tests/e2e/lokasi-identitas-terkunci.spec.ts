@@ -32,6 +32,21 @@ const PENGGULIR = ".ag-body-horizontal-scroll-viewport";
 test.describe("daftar lokasi – identitas terkunci di kiri", () => {
   test("nama lokasi + wilayah tetap terbaca sesudah digulir mentok ke kanan", async ({ page }) => {
     await login(page, "admin");
+    /*
+     * Layar SENGAJA disempitkan.
+     *
+     * Sejak `/lokasi` dijadikan direktori dan kehilangan kolom Rencana serta
+     * Realisasi, tabelnya MUAT di lebar desktop — jadi tidak ada lagi yang bisa
+     * digulir mendatar, dan prasyarat uji ini gagal. Yang rusak prasyaratnya,
+     * bukan perilakunya: identitas terkunci tetap perlu dijaga, karena tabel
+     * ini masih lebih lebar dari layar pada perangkat yang lebih sempit — dan
+     * di situlah keluhan aslinya lahir.
+     *
+     * 700 px, bukan lebar ponsel: pada 390 px AG Grid melepas kunci kolomnya
+     * sendiri (diceritakan di kepala berkas), dan itu keadaan berbeda yang
+     * dijaga uji lain.
+     */
+    await page.setViewportSize({ width: 700, height: 900 });
     await page.goto("/lokasi");
 
     const sel = page.locator(".ag-row").first().locator(".ag-cell").first();
