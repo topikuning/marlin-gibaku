@@ -59,9 +59,6 @@ import type {
  */
 export const BATAS_BARIS = 120;
 
-/** Maksimal kendala yang dirinci — grup lapangan bisa punya puluhan sekaligus. */
-export const BATAS_KENDALA = 20;
-
 function catatanBatas(ditampilkan: number, total: number, satuan: string): string | null {
   if (total <= ditampilkan) return null;
   return `Ditampilkan ${ditampilkan} dari ${total} ${satuan}. Selengkapnya buka MARLIN.`;
@@ -205,17 +202,20 @@ export async function dataKendala(
             ...dalamPeriode,
           };
 
-  const [total, rows] = await Promise.all([
-    db.issue.count({ where }),
-    db.issue.findMany({
-      where,
-      select: { locationId: true, title: true, severity: true, status: true, createdAt: true },
-      // Paling berat dulu, lalu paling lama menganggur — itu urutan yang dipakai
-      // orang lapangan memutuskan mana yang dikerjakan pagi ini.
-      orderBy: [{ severity: "desc" }, { createdAt: "asc" }],
-      take: BATAS_KENDALA,
-    }),
-  ]);
+  /*
+   * Kendala tidak dipotong: daftar panjang dikirim sebagai PDF dan PDF itulah
+   * jawaban lengkapnya. Memotong 20 dari 28 lalu menyuruh penanya membuka
+   * MARLIN membuat lampiran tidak berguna sebagai register tindak lanjut.
+   * PDFKit sudah memecah halaman secara otomatis, jadi banyaknya baris bukan
+   * alasan untuk membuang data di lapisan pengambilan.
+   */
+  const rows = await db.issue.findMany({
+    where,
+    select: { locationId: true, title: true, severity: true, status: true, createdAt: true },
+    // Paling berat dulu, lalu paling lama menganggur — itu urutan yang dipakai
+    // orang lapangan memutuskan mana yang dikerjakan pagi ini.
+    orderBy: [{ severity: "desc" }, { createdAt: "asc" }],
+  });
 
   return {
     baris: rows.map((r) => ({
@@ -226,7 +226,7 @@ export async function dataKendala(
       umurHari: umurHari(r.createdAt, sekarang),
     })),
     lokasiDiperiksa: lokasi.length,
-    catatanBatas: catatanBatas(rows.length, total, "kendala"),
+    catatanBatas: null,
   };
 }
 

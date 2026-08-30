@@ -25078,7 +25078,7 @@ memindai berkas RAPL/HSD dan menolak kalau `finance.*` muncul lagi di sana —
 supaya yang kambuh bukan cuma gejalanya, tapi sebabnya pun tertutup.
 ---
 
-## (baru) · Ketukan baris membuka panel di layar, bukan di bawah lipatan (2026-08-30)
+## 478 · Ketukan baris membuka panel di layar, bukan di bawah lipatan (2026-08-30)
 
 **Konteks**: Laporan user, dengan tangkapan layar: *"saat atas diklik tidak
 memunculkan apapun, kalau tidak scroll bawah, tidak akan sadar penggunanya."*
@@ -25150,7 +25150,7 @@ kandidat AHSP di layar kecil.
 
 ---
 
-## (baru) · MarlinGrid membuka satu pintu imperatif: melepas pilihan (2026-08-30)
+## 479 · MarlinGrid membuka satu pintu imperatif: melepas pilihan (2026-08-30)
 
 **Konteks**: Pilihan baris diserahkan ke AG Grid, bukan ke state pemanggil
 (DECISIONS 328) — hanya dengan begitu "pilih semua" mengikuti saringan yang
@@ -25191,7 +25191,7 @@ tersebar lebih dari satu tempat.
 
 ---
 
-## (baru) · Layar menunggu dengan menengok status, bukan menarik ulang halaman (2026-08-30)
+## 480 · Layar menunggu dengan menengok status, bukan menarik ulang halaman (2026-08-30)
 
 **Konteks**: DECISIONS 455 menetapkan pola "menunggu di layar, bukan di dalam
 request", dan itu tetap berlaku. Cara menengoknya yang mahal: panel harga RAPL

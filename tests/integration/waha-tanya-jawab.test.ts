@@ -2356,13 +2356,26 @@ describe("daftar panjang dikirim sebagai PDF", () => {
     expect(b.nama).toMatch(/^marlin-kendala-belum-selesai-\d{4}-\d{2}-\d{2}\.pdf$/);
     expect(b.bytes).toBeGreaterThan(1000);
 
-    // Keterangannya berdiri sendiri: judul + jumlah, tanpa membuka berkas.
-    // 12 kendala di SATU lokasi = 1 baris tabel (DECISIONS 450), jadi yang
-    // disebut rinciannya — "1 baris" akan terbaca sebagai "cuma 1 kendala".
+    // Keterangannya berdiri sendiri: judul + kelengkapan, tanpa membuka berkas.
+    // Bahasa pengguna menyebut kendala dan lokasi, bukan struktur teknis tabel.
     expect(b.caption).toContain("Kendala belum selesai");
-    expect(b.caption).toContain("12 rincian di 1 baris");
+    expect(b.caption).toContain("Seluruh 12 kendala termuat di PDF · 1 lokasi");
 
     // Dan TIDAK ada gelembung daftar panjang yang ikut terkirim.
+    expect(terkirim).toHaveLength(0);
+  });
+
+  it("28 kendala → seluruhnya dinyatakan termuat di PDF, tanpa menyuruh membuka MARLIN", async () => {
+    await banyakKendala(28);
+    niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "kendala yang masih terbuka?" }),
+    );
+
+    expect(r.dijawab).toBe(true);
+    expect(berkasTerkirim).toHaveLength(1);
+    expect(berkasTerkirim[0].caption).toContain("Seluruh 28 kendala termuat di PDF");
+    expect(berkasTerkirim[0].caption).not.toContain("buka MARLIN");
     expect(terkirim).toHaveLength(0);
   });
 
