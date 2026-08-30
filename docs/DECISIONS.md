@@ -25387,3 +25387,63 @@ Dijaga `tests/integration/progress-terakhir-lapor.test.ts` (6 uji) dan
 kolom yang dihapus di berkas grid tapi masih terkirim dari server akan lolos
 pemeriksaan sumber dan tetap terlihat pengguna.
 
+
+---
+
+## (baru) · Kronologi lokasi: kendala dan kegiatan lapangan sebagai satu cerita (2026-08-31)
+
+**Konteks**: permintaan user 2026-08-31 — *"aku membutuhkan marlin dapat membuat
+kronologi, mengambil informasi dari kendala dan kegiatan lapangan. jadi atas
+lokasi itu atas semua informasi kendala dan kegiatan lapangan di rangkum, dan
+menjelaskan kondisi terkini dari lokasi tersebut."*
+
+Bahannya sudah ada dan sudah bisa ditanyakan satu-satu: kendala punya papannya,
+kegiatan lapangan punya tabnya, dan keduanya punya niat WhatsApp sendiri. Yang
+tidak ada adalah URUTANNYA — kapan sesuatu muncul, apa yang dikerjakan
+sesudahnya, dan di mana lokasi itu sekarang berdiri. `getActivityFeed` bukan
+jawabannya: ia denyut lintas lokasi tentang apa yang BERGERAK di sistem, tanpa
+isi catatan, tanpa status kendala, tanpa kondisi terkini.
+
+**Keputusan**: satu inti murni (`src/lib/kronologi/susun.ts`) yang menyusun
+peristiwa dan menyimpulkan kondisi terkini, satu pengambil data
+(`queries.ts`), lalu dua permukaan yang memakai keduanya.
+
+Tiga aturan di inti itu, dan ketiganya sengaja:
+
+1. **Jendela waktu tidak boleh menyentuh yang masih berjalan.** Kronologi
+   dibatasi 90 hari supaya terbaca, tetapi kendala yang MASIH TERBUKA ikut
+   berapa pun umurnya. Kendala yang dibuka empat bulan lalu dan belum selesai
+   adalah kondisi terkini yang paling menentukan; membuangnya karena "sudah
+   lama" menghasilkan kronologi yang tampak bersih justru saat lokasinya paling
+   bermasalah. Aturan yang sama berlaku untuk pemotongan JUMLAH.
+2. **Penutupan kendala adalah peristiwanya sendiri**, terpisah dari
+   pembukaannya, membawa `closingNote`. Tanpa itu daftarnya bukan cerita.
+3. **Terbaru dulu**, terbalik dari kronologi yang lazim. Kedua permukaannya
+   memotong dari bawah — WhatsApp memotong pesan panjang, layar memotong daftar
+   panjang — jadi urutan tertua-dulu membuat yang hilang justru HARI INI.
+
+Di WhatsApp ia niat deterministik `kronologi`: dijawab tanpa memanggil provider
+sama sekali, jadi tetap hidup saat AI mati dan tidak memakan kuota. Ia menuntut
+TEPAT SATU lokasi — kronologi lintas lokasi bukan cerita, ia tumpukan — dan bila
+lokasinya tidak tunggal, MARLIN menyebutkan pilihannya alih-alih menebak.
+
+**Alternatif direject**:
+
+- *Memperluas niat `kendala`.* Yang ditanyakan bukan daftar yang terbuka
+  melainkan urutan kejadiannya; menumpangkannya membuat dua pertanyaan berbeda
+  dijawab satu bentuk.
+- *Memakai `getActivityFeed`.* Ia feed lintas lokasi berbasis waktu-buat, tanpa
+  isi dan tanpa kondisi terkini — dan ia sengaja begitu.
+- *Menyerahkan seluruh penyusunannya ke AI.* Urutan dan hitungan kondisi terkini
+  adalah aturan, bukan gaya bahasa. Yang boleh diserahkan ke AI hanyalah
+  merangkainya jadi prosa, di atas bahan yang sudah pasti.
+
+**Konsekuensi**: `susunKronologi` diuji terpisah
+(`tests/unit/kronologi-susun.test.ts`), termasuk kasus yang jadi seluruh alasan
+aturan pertama: kendala terbuka berumur di luar jendela tetap muncul. Jalur
+WhatsApp-nya dijaga `tests/unit/waha-kronologi.test.ts`. Niat baru wajib
+terdaftar di `CAKUPAN_AI` — penjaga `ai-cakupan` memerahkan yang lupa, dan
+memang memerahkannya sekali saat perubahan ini ditulis.
+
+**Bisa di-revisit**: lebar jendela 90 hari dan batas 25 peristiwa di WhatsApp
+adalah angka pertama, bukan angka yang diukur. Keduanya ada di satu tempat.

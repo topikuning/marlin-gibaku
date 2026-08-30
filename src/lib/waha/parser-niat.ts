@@ -181,6 +181,19 @@ const KUNCI: { niat: Niat; pola: RegExp }[] = [
   },
   { niat: "laporan_bulanan", pola: /\b(laporan bulanan|rekap bulanan|bulanan|progress bulanan|rekap bulan)\b/ },
   { niat: "laporan_mingguan", pola: /\b(laporan mingguan|rekap mingguan|mingguan|progress mingguan|rekap pekan)\b/ },
+  /*
+   * KRONOLOGI ditulis SEBELUM `kendala`, dan potongannya sengaja MENELAN kata
+   * "kendala"/"kegiatan" yang mengikutinya.
+   *
+   * Sebabnya sama dengan "rencana mingguan" di atas: `buangYangTermuat`
+   * membandingkan rentang teks, jadi "kronologi kendala danasari" akan
+   * menghasilkan dua temuan di dua rentang terpisah — dan pertanyaan yang
+   * gamblang berubah jadi ambigu.
+   */
+  {
+    niat: "kronologi",
+    pola: /\b(kronologi\w*(?: kendala\w*| kegiatan\w*)*|kondisi terkini|riwayat (?:lokasi|kendala|kegiatan)\w*)\b/,
+  },
   { niat: "kendala", pola: /\b(kendala\w*|masalah\w*|hambatan\w*|problem\w*)\b/ },
   { niat: "deviasi", pola: /\b(deviasi\w*|terlambat\w*|tertinggal\w*|keterlambatan\w*|telat\w*)\b/ },
   // "siapa yang belum" IKUT menelan kata "lapor"/"kirim" di belakangnya. Kalau
@@ -274,6 +287,7 @@ const LABEL_NIAT: Record<Niat, string> = {
   laporan_mingguan: "Rekap laporan mingguan",
   laporan_bulanan: "Rekap laporan bulanan",
   rencana: "Rencana kerja",
+  kronologi: "Kronologi lokasi",
   produksi: "Membuat/mengirim laporan",
   bantuan: "Daftar yang bisa saya jawab",
 };

@@ -70,6 +70,8 @@ import {
   balasProduksi,
   balasProduksiBerkas,
   balasDeviasi,
+  balasKronologi,
+  balasKronologiTanpaLokasi,
   balasDitolak,
   balasKelengkapan,
   balasKendala,
@@ -1182,6 +1184,45 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       peta,
       optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: periode.catatan, peringkat: true }),
     );
+  } else if (niat.niat === "kronologi") {
+    /*
+     * KRONOLOGI menuntut TEPAT SATU lokasi (permintaan user 2026-08-31).
+     *
+     * Bukan pembatasan teknis: kronologi lintas lokasi bukan cerita, ia
+     * tumpukan. Kalau lokasinya tidak tunggal, MARLIN menyebutkan pilihannya
+     * dan berhenti — menebak satu di antaranya berarti menceritakan riwayat
+     * tempat yang tidak ditanyakan, dengan sangat meyakinkan.
+     */
+    const satu = resolusi.cocok.length === 1 ? resolusi.cocok[0]! : null;
+    if (!satu) {
+      balasan = balasKronologiTanpaLokasi(
+        sasaran.slice(0, 12).map((l) => l.nama),
+        sasaran.length,
+      );
+    } else {
+      const { ambilKronologi } = await import("@/lib/kronologi/queries");
+      /*
+       * Batas 25 peristiwa untuk WhatsApp, bukan 60 seperti bawaannya:
+       * pemotong pesan memuat 8 × 1.400 aksara, dan kronologi yang menghabiskan
+       * kuota itu sendirian menutup jawaban lain yang menyusul di belakangnya.
+       * Yang tidak muat DISEBUT jumlahnya, tidak dihilangkan diam-diam.
+       */
+      const k = await ambilKronologi(satu.id, { sampai: dateKey, hari: 90, batas: 25 });
+      balasan = k
+        ? balasKronologi(
+            {
+              lokasi: k.lokasi.nama,
+              wilayah: k.lokasi.wilayah,
+              sampai: k.sampai,
+              hari: 90,
+              peristiwa: k.peristiwa,
+              kondisi: k.kondisi,
+              dipotong: k.dipotong,
+            },
+            opts,
+          )
+        : `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun kronologinya.`;
+    }
   } else {
     const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);
     balasan = balasKelengkapan(
