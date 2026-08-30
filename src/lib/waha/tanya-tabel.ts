@@ -9,7 +9,7 @@ import type {
 } from "./tanya-format";
 import type { LokasiKatalog } from "./tanya-niat";
 import { ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
-import { catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
+import { adalahCatatanGabung, catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
 
 /**
  * Balasan WhatsApp berdata → BENTUK TABEL, untuk dicetak jadi PDF
@@ -535,7 +535,7 @@ export function keteranganBerkas(t: TabelWa): string {
         ? `Seluruh ${k.jumlahSumber} catatan diperiksa. PDF memuat ${k.jumlahUnik} kendala unik di ${k.jumlahLokasi} lokasi setelah ${k.digabung} duplikat digabung.`
         : `Seluruh ${k.jumlahUnik} kendala termuat di PDF · ${k.jumlahLokasi} lokasi.`;
     b.push("", ringkas);
-    const catatanLain = t.catatan.filter((c) => !c.includes("catatan duplikat digabung"));
+    const catatanLain = t.catatan.filter((c) => !adalahCatatanGabung(c));
     if (catatanLain.length > 0) b.push("", ...catatanLain);
     return b.join("\n");
   }

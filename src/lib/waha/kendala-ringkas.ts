@@ -157,5 +157,23 @@ export function ringkasKendalaPerLokasi(baris: BarisKendala[]): HasilRingkas {
  */
 export function catatanGabung(digabung: number): string | null {
   if (digabung <= 0) return null;
-  return `${digabung} catatan duplikat digabung agar tidak dihitung dua kali.`;
+  return `${digabung} catatan ${PENANDA_GABUNG} agar tidak dihitung dua kali.`;
+}
+
+/**
+ * Potongan kata yang menandai kalimat di atas, dan SATU-SATUNYA tempat ia
+ * ditulis.
+ *
+ * `keteranganBerkas` membuang catatan ini dari daftar catatan karena
+ * pengantar PDF sudah menyebut penggabungannya dengan kalimat yang lebih
+ * lengkap. Versi pertama mencocokkannya dengan salinan teks di berkas lain —
+ * dan salinan teks adalah cara paling sunyi sebuah penyaring berhenti bekerja:
+ * kalimatnya diperbaiki di sini, penyaringnya tetap hijau di sana, lalu
+ * pengantar PDF memuat keterangan yang sama dua kali tanpa ada yang merah.
+ */
+const PENANDA_GABUNG = "duplikat digabung";
+
+/** Apakah sebuah catatan adalah kalimat penggabungan di atas. */
+export function adalahCatatanGabung(catatan: string): boolean {
+  return catatan.includes(PENANDA_GABUNG);
 }
