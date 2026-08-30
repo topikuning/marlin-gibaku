@@ -114,6 +114,19 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
     ],
   },
   {
+    /*
+     * Bukan wilayah data baru — ia BENTUK BACA atas dua wilayah di atasnya
+     * (kendala dan kegiatan lapangan). Didaftar tersendiri karena yang
+     * ditanyakan berbeda: bukan "apa yang terbuka" melainkan "apa yang terjadi,
+     * berurutan, dan lokasi ini sekarang berdiri di mana". Permintaan user
+     * 2026-08-31.
+     */
+    nama: "Kronologi lokasi (kendala + kegiatan lapangan, berurutan)",
+    halaman: "/ai/kronologi",
+    rute: ["ai/kronologi"],
+    jalur: [{ jenis: "niat", niat: ["kronologi"] }],
+  },
+  {
     nama: "Rencana kerja mingguan (yang AKAN dikerjakan)",
     halaman: "/lokasi/[slug]/rab (formulir rencana mingguan)",
     rute: [],

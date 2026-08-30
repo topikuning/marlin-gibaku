@@ -25387,3 +25387,118 @@ Dijaga `tests/integration/progress-terakhir-lapor.test.ts` (6 uji) dan
 kolom yang dihapus di berkas grid tapi masih terkirim dari server akan lolos
 pemeriksaan sumber dan tetap terlihat pengguna.
 
+
+---
+
+## 484 · Kronologi lokasi: kendala dan kegiatan lapangan sebagai satu cerita (2026-08-31)
+
+**Konteks**: permintaan user 2026-08-31 — *"aku membutuhkan marlin dapat membuat
+kronologi, mengambil informasi dari kendala dan kegiatan lapangan. jadi atas
+lokasi itu atas semua informasi kendala dan kegiatan lapangan di rangkum, dan
+menjelaskan kondisi terkini dari lokasi tersebut."*
+
+Bahannya sudah ada dan sudah bisa ditanyakan satu-satu: kendala punya papannya,
+kegiatan lapangan punya tabnya, dan keduanya punya niat WhatsApp sendiri. Yang
+tidak ada adalah URUTANNYA — kapan sesuatu muncul, apa yang dikerjakan
+sesudahnya, dan di mana lokasi itu sekarang berdiri. `getActivityFeed` bukan
+jawabannya: ia denyut lintas lokasi tentang apa yang BERGERAK di sistem, tanpa
+isi catatan, tanpa status kendala, tanpa kondisi terkini.
+
+**Keputusan**: satu inti murni (`src/lib/kronologi/susun.ts`) yang menyusun
+peristiwa dan menyimpulkan kondisi terkini, satu pengambil data
+(`queries.ts`), lalu dua permukaan yang memakai keduanya.
+
+Tiga aturan di inti itu, dan ketiganya sengaja:
+
+1. **Jendela waktu tidak boleh menyentuh yang masih berjalan.** Kronologi
+   dibatasi 90 hari supaya terbaca, tetapi kendala yang MASIH TERBUKA ikut
+   berapa pun umurnya. Kendala yang dibuka empat bulan lalu dan belum selesai
+   adalah kondisi terkini yang paling menentukan; membuangnya karena "sudah
+   lama" menghasilkan kronologi yang tampak bersih justru saat lokasinya paling
+   bermasalah. Aturan yang sama berlaku untuk pemotongan JUMLAH.
+2. **Penutupan kendala adalah peristiwanya sendiri**, terpisah dari
+   pembukaannya, membawa `closingNote`. Tanpa itu daftarnya bukan cerita.
+3. **Terbaru dulu**, terbalik dari kronologi yang lazim. Kedua permukaannya
+   memotong dari bawah — WhatsApp memotong pesan panjang, layar memotong daftar
+   panjang — jadi urutan tertua-dulu membuat yang hilang justru HARI INI.
+
+Di WhatsApp ia niat deterministik `kronologi`: dijawab tanpa memanggil provider
+sama sekali, jadi tetap hidup saat AI mati dan tidak memakan kuota. Ia menuntut
+TEPAT SATU lokasi — kronologi lintas lokasi bukan cerita, ia tumpukan — dan bila
+lokasinya tidak tunggal, MARLIN menyebutkan pilihannya alih-alih menebak.
+
+**Alternatif direject**:
+
+- *Memperluas niat `kendala`.* Yang ditanyakan bukan daftar yang terbuka
+  melainkan urutan kejadiannya; menumpangkannya membuat dua pertanyaan berbeda
+  dijawab satu bentuk.
+- *Memakai `getActivityFeed`.* Ia feed lintas lokasi berbasis waktu-buat, tanpa
+  isi dan tanpa kondisi terkini — dan ia sengaja begitu.
+- *Menyerahkan seluruh penyusunannya ke AI.* Urutan dan hitungan kondisi terkini
+  adalah aturan, bukan gaya bahasa. Yang boleh diserahkan ke AI hanyalah
+  merangkainya jadi prosa, di atas bahan yang sudah pasti.
+
+**Konsekuensi**: `susunKronologi` diuji terpisah
+(`tests/unit/kronologi-susun.test.ts`), termasuk kasus yang jadi seluruh alasan
+aturan pertama: kendala terbuka berumur di luar jendela tetap muncul. Jalur
+WhatsApp-nya dijaga `tests/unit/waha-kronologi.test.ts`. Niat baru wajib
+terdaftar di `CAKUPAN_AI` — penjaga `ai-cakupan` memerahkan yang lupa, dan
+memang memerahkannya sekali saat perubahan ini ditulis.
+
+**Bisa di-revisit**: lebar jendela 90 hari dan batas 25 peristiwa di WhatsApp
+adalah angka pertama, bukan angka yang diukur. Keduanya ada di satu tempat.
+
+---
+
+## 485 · Kronologi masuk AI Intelligence sebagai jenis run, bukan sebagai layar tersendiri (2026-08-31)
+
+**Konteks**: user 2026-08-31 menegaskan kronologi *"masuk ke ai intellegence dan
+permintaan by wa"*. Jalur WhatsApp-nya sudah ada dan deterministik. Yang belum:
+permukaan di dalam `/ai`, dan narasinya.
+
+**Keputusan**: `kronologi` jadi `AiRunKind` baru, bukan mesin sendiri di
+sampingnya. Alasannya bukan penghematan: seluruh jaminan AI Intelligence
+menempel pada lifecycle run — snapshot sumber, kuota & kill switch, grounding
+yang membuang bagian tanpa sumber, riwayat yang bisa diperiksa ulang. Fitur AI
+yang memanggil provider di luar jalur itu akan punya jaminan yang lebih lemah
+dari saudaranya, dan tidak ada yang akan menyadarinya sampai ada yang salah.
+
+Pembagian kerjanya tegas:
+
+- **Sistem** menyusun urutan peristiwa dan menghitung kondisi terkini
+  (`src/lib/kronologi`). Angkanya disodorkan ke model SUDAH JADI, berikut
+  kalimat yang melarang menghitung ulang.
+- **AI** hanya merangkai peristiwa jadi BABAK cerita. Tiap babak wajib menunjuk
+  peristiwa yang mendasarinya; babak yang menunjuk sumber tak dikenal dibuang
+  penyaring grounding, sama seperti bagian laporan.
+
+Halaman `/ai/kronologi` menampilkan garis waktunya TANPA memanggil provider sama
+sekali. Ia tetap berguna penuh saat AI dimatikan admin atau belum
+dikonfigurasi — dan itu bukan kebetulan, melainkan pola yang sama dengan
+Portfolio Pulse (DECISIONS 133): yang deterministik berdiri sendiri, narasi
+menempel di atasnya.
+
+Run kronologi menolak scope selain SATU lokasi, dan menolaknya **sebelum satu
+token pun dibayar**.
+
+**Alternatif direject**:
+
+- *Menumpang jenis `tanya`.* Ia dirancang untuk pertanyaan bebas dengan pencarian
+  narasi; kronologi punya bahan yang sudah pasti dan bentuk keluaran yang tetap.
+- *Memanggil provider langsung dari halaman kronologi.* Melompati guard, kuota,
+  snapshot, dan grounding — empat jaminan sekaligus, demi satu berkas lebih
+  sedikit.
+- *Menyerahkan hitungan kondisi terkini ke model.* Angka yang dihitung model
+  tidak bisa dipertanggungjawabkan ke PPK, dan `numericClaimsValid` hanya
+  menangkap klaim persen — hitungan cacah akan lolos tanpa terperiksa.
+
+**Konsekuensi**: migrasi `20260831020000_ai_run_kronologi` menambah nilai enum
+(idempoten, `ADD VALUE IF NOT EXISTS`). Kontrak id sumber antara payload dan
+daftar sumber run dijaga `tests/unit/kronologi-bahan-ai.test.ts` — bila keduanya
+menyimpang satu aksara, seluruh babak dibuang penyaring dan run tampak berhasil
+dengan cakupan bukti 0%.
+
+**Bisa di-revisit**: narasi kronologi belum bisa diminta dari WhatsApp — di sana
+jawabannya tetap deterministik. Menambahkannya berarti membiarkan chat
+membelanjakan kuota AI tanpa layar yang menunjukkan ongkosnya; layak dibuka bila
+memang diminta.

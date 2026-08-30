@@ -45,12 +45,14 @@ import {
 } from "./tanya-niat";
 import {
   bacaBatas,
+  bacaBentukDokumen,
   bacaUrutan,
   mintaPekanDepan,
   frasaSisa,
   mintaLupakanKonteks,
   mintaSebab,
   rencanaDeterministik,
+  type BentukDokumen,
   type UrutanJawaban,
 } from "./parser-niat";
 import {
@@ -68,6 +70,8 @@ import {
   balasProduksi,
   balasProduksiBerkas,
   balasDeviasi,
+  balasKronologi,
+  balasKronologiTanpaLokasi,
   balasDitolak,
   balasKelengkapan,
   balasKendala,
@@ -955,7 +959,12 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * bukan dikirim di tengah cabang niat, supaya urutan "teks dulu, berkas
    * menyusul" tetap satu tempat dan kegagalan berkas tidak menelan balasannya.
    */
-  let berkasHarian: { lokasi: LokasiKatalog; dateKey: string } | null = null;
+  let berkasHarian: {
+    lokasi: LokasiKatalog;
+    dateKey: string;
+    /** Blanko KKP atau ringkasan bacaan — dibaca dari kalimatnya, bukan ditebak. */
+    bentuk: BentukDokumen;
+  } | null = null;
   const peta = petaLokasi(katalog);
   const optTabel = (o: OpsiTabel = {}): OpsiTabel => ({
     catatanPemotongan: keputusan.catatanPemotongan,
@@ -986,8 +995,16 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
      */
     const satuLokasi = resolusi.cocok.length === 1 ? resolusi.cocok[0] : null;
     if (satuLokasi && periode.satuHari) {
-      berkasHarian = { lokasi: satuLokasi, dateKey };
-      balasan = balasProduksiBerkas(satuLokasi.nama, dateKey);
+      /*
+       * Bawaannya RINGKASAN, dan itu keputusan lama yang dipertahankan: berkas
+       * ini paling sering diminta untuk dibaca di grup, bukan untuk disetorkan.
+       * Yang berubah adalah "versi kkp" kini benar-benar dibaca, dan balasannya
+       * menyebut bentuk yang dipakai — jadi bawaan yang keliru bisa dikoreksi
+       * penanya dalam satu pesan berikutnya.
+       */
+      const bentuk = bacaBentukDokumen(teks) ?? "ringkas";
+      berkasHarian = { lokasi: satuLokasi, dateKey, bentuk };
+      balasan = balasProduksiBerkas(satuLokasi.nama, dateKey, bentuk);
     } else {
       balasan = balasProduksi();
     }
@@ -1167,6 +1184,45 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       peta,
       optTabel({ catatanBatas: d.catatanBatas, catatanPeriode: periode.catatan, peringkat: true }),
     );
+  } else if (niat.niat === "kronologi") {
+    /*
+     * KRONOLOGI menuntut TEPAT SATU lokasi (permintaan user 2026-08-31).
+     *
+     * Bukan pembatasan teknis: kronologi lintas lokasi bukan cerita, ia
+     * tumpukan. Kalau lokasinya tidak tunggal, MARLIN menyebutkan pilihannya
+     * dan berhenti — menebak satu di antaranya berarti menceritakan riwayat
+     * tempat yang tidak ditanyakan, dengan sangat meyakinkan.
+     */
+    const satu = resolusi.cocok.length === 1 ? resolusi.cocok[0]! : null;
+    if (!satu) {
+      balasan = balasKronologiTanpaLokasi(
+        sasaran.slice(0, 12).map((l) => l.nama),
+        sasaran.length,
+      );
+    } else {
+      const { ambilKronologi } = await import("@/lib/kronologi/queries");
+      /*
+       * Batas 25 peristiwa untuk WhatsApp, bukan 60 seperti bawaannya:
+       * pemotong pesan memuat 8 × 1.400 aksara, dan kronologi yang menghabiskan
+       * kuota itu sendirian menutup jawaban lain yang menyusul di belakangnya.
+       * Yang tidak muat DISEBUT jumlahnya, tidak dihilangkan diam-diam.
+       */
+      const k = await ambilKronologi(satu.id, { sampai: dateKey, hari: 90, batas: 25 });
+      balasan = k
+        ? balasKronologi(
+            {
+              lokasi: k.lokasi.nama,
+              wilayah: k.lokasi.wilayah,
+              sampai: k.sampai,
+              hari: 90,
+              peristiwa: k.peristiwa,
+              kondisi: k.kondisi,
+              dipotong: k.dipotong,
+            },
+            opts,
+          )
+        : `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun kronologinya.`;
+    }
   } else {
     const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);
     balasan = balasKelengkapan(
@@ -1182,6 +1238,24 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       peta,
       optTabel({ catatanBatas: d.catatanBatas }),
     );
+  }
+
+  /*
+   * Menyebut BENTUK dokumen berarti meminta BERKASNYA.
+   *
+   * "laporan harian versi kkp danasari" bisa jatuh ke niat `laporan` (isi
+   * laporan, dijawab sebagai teks) alih-alih `produksi` — pembedanya kata
+   * kerja, dan tidak semua orang menulisnya. Padahal menyebut nama sebuah
+   * BENTUK BERKAS adalah permintaan berkas: tidak ada arti lain dari "versi
+   * kkp" selain dokumennya.
+   *
+   * Teksnya tidak diganti — jawabannya tetap terbaca di chat; berkasnya
+   * MENAMBAH, tidak menggantikan.
+   */
+  if (!berkasHarian && niat.niat === "laporan" && periode.satuHari) {
+    const bentuk = bacaBentukDokumen(teks);
+    const satu = resolusi.cocok.length === 1 ? resolusi.cocok[0] : null;
+    if (bentuk && satu) berkasHarian = { lokasi: satu, dateKey, bentuk };
   }
 
   /*
@@ -1255,8 +1329,12 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         where: { id: berkasHarian.lokasi.id },
         select: { slug: true },
       });
-      const { renderHarianRingkasPdf } = await import("@/lib/pdf/harian-ringkas");
-      const hasil = lok ? await renderHarianRingkasPdf(lok.slug, berkasHarian.dateKey) : null;
+      const kkp = berkasHarian.bentuk === "kkp";
+      const render = kkp
+        ? (await import("@/lib/pdf/harian-kkp")).renderHarianKkpPdf
+        : (await import("@/lib/pdf/harian-ringkas")).renderHarianRingkasPdf;
+      const hasil = lok ? await render(lok.slug, berkasHarian.dateKey) : null;
+      const namaDokumen = kkp ? "Blanko harian KKP" : "Ringkasan pelaksanaan harian";
       if (!hasil) {
         await balasWa(
           m.chatId,
@@ -1267,15 +1345,19 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
           m.chatId,
           {
             mimetype: "application/pdf",
-            filename: `laporan-harian-${lok!.slug}-${berkasHarian.dateKey}.pdf`,
+            // Nama berkasnya ikut membedakan: dua dokumen harian yang bernama
+            // sama di daftar berkas WhatsApp tidak bisa dibedakan lagi setelah
+            // diteruskan.
+            filename: `laporan-harian-${kkp ? "kkp-" : ""}${lok!.slug}-${berkasHarian.dateKey}.pdf`,
             data: hasil.buffer.toString("base64"),
           },
-          `Blanko harian ${berkasHarian.lokasi.nama} – ${berkasHarian.dateKey}`,
+          `${namaDokumen} ${berkasHarian.lokasi.nama} – ${berkasHarian.dateKey}`,
         );
         await audit(user?.id ?? null, "waha.tanya.blanko_harian", "wa_message", m.waMessageId, {
           chatId: m.chatId,
           lokasi: berkasHarian.lokasi.nama,
           tanggal: berkasHarian.dateKey,
+          bentuk: berkasHarian.bentuk,
         });
       }
     } catch (err) {
