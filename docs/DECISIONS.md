@@ -25233,7 +25233,7 @@ saat itu bentuk `RingkasUsulanAi` layak digeneralisasi, bukan disalin.
 
 ---
 
-## (baru) · Layout kolom tersimpan tidak boleh menyembunyikan kolom baru (2026-08-30)
+## 481 · Layout kolom tersimpan tidak boleh menyembunyikan kolom baru (2026-08-30)
 
 **Konteks**: `MarlinGrid` menyimpan `getColumnState()` ke localStorage per
 `persistKey` — sepuluh grid memakainya — lalu memulihkannya dengan
@@ -25279,7 +25279,7 @@ susunan kolom sebuah layar bisa diuji tanpa memuat `ag-grid-react`;
 
 ---
 
-## (baru) · Kolom RAPL mengikuti keputusan yang sedang diminta; ringkasannya berhenti mengulang (2026-08-30)
+## 482 · Kolom RAPL mengikuti keputusan yang sedang diminta; ringkasannya berhenti mengulang (2026-08-30)
 
 **Konteks**: keluhan kedua user pada hari yang sama: *"tampilan pandangan
 pertama user habis di balon yang sebenarnya juga tidak terlalu berguna, harusnya
@@ -25329,3 +25329,61 @@ pertama".
 
 **Bisa di-revisit**: bila layar lain ikut kesempitan, ambang lebar itu layak
 jadi aturan bersama, bukan angka di satu berkas uji.
+
+## 483 · Lokasi itu direktori, Progress itu papan tagihan (2026-08-30)
+
+Pertanyaan user 2026-08-30: *"halaman lokasi dan progress, apa bedanya? sangat
+mirip"*. Memang mirip. Keduanya memanggil `getLocationsProgress()` yang sama dan
+sama-sama memajang Rencana / Realisasi / Deviasi per lokasi; yang membedakan cuma
+hal-hal yang tidak terlihat sekilas (lingkup lokasi aktif, urutan, dan beberapa
+kolom).
+
+**Yang diputuskan: dipertajam, bukan dilebur.** Melebur sempat dipertimbangkan
+dan tidak terhalang izin — `location.view` dan `progress.view` sama-sama datang
+dari `VIEW_ALL`, jadi tidak ada peran yang punya satu tanpa yang lain. Yang
+menghalangi adalah cara pakainya: "Kedungmutih di mana" dijawab dengan MENCARI
+NAMA (urut A→Z, semua lokasi termasuk yang belum jalan); "siapa yang harus
+kutagih pagi ini" dijawab dengan PERINGKAT (deviasi terburuk dulu, hanya yang
+aktif). Satu halaman harus memilih satu urutan default, dan yang kalah jadi
+halaman yang selalu perlu diurut ulang lebih dulu. Dengan 83 lokasi itu ongkos
+harian.
+
+| | `/lokasi` | `/progress` |
+|---|---|---|
+| Perannya | direktori – mencari satu lokasi | papan tagihan – memeringkat yang tertinggal |
+| Lingkup | semua lokasi dalam akses | hanya `isActive` |
+| Urutan | nama A→Z | deviasi terburuk dulu |
+| Dari progres | **Deviasi saja** | Minggu, Rencana, Realisasi, Deviasi, Terpasang, Terakhir lapor |
+
+Rencana dan Realisasi DIBUANG dari `/lokasi`. Deviasinya tinggal, sederajat
+dengan Status: penanda "lokasi ini sedang bermasalah", bukan pemantauan.
+
+**`/progress` jadi MarlinGrid.** Sebelumnya ia tabel HTML polos — tidak bisa
+dicari, disaring, atau diekspor. Artinya halaman yang tugasnya MEMANTAU adalah
+satu-satunya daftar panjang di aplikasi ini yang harus dibaca dengan mata
+telanjang, sementara direktori yang isinya lebih pendek punya semuanya.
+
+**Kolom baru: TERAKHIR LAPOR.** Ia memisahkan dua keadaan yang di papan lama
+terlihat persis sama: deviasi buruk dengan pelaporan yang jalan, dan deviasi
+buruk yang laporannya juga mandek. Yang kedua bukan soal kecepatan pekerjaan
+lagi — realisasi dihitung dari laporan, jadi angkanya sendiri sudah tidak bisa
+dipercaya.
+
+Dua pilihan di dalamnya, keduanya diminta user pada tanggal yang sama:
+
+1. Yang dihitung **laporan yang DIKIRIM** (`submittedAt`), bukan yang disetujui.
+   Laporan yang dikembalikan jadi `perlu_koreksi` tetap pernah dikirim;
+   membuangnya akan menuduh lapangan tidak melapor justru pada hari mereka
+   melapor lalu diminta membetulkan.
+2. Yang ditampilkan **tanggal KERJA**-nya, bukan jam pengirimannya —
+   pertanyaannya "lapangan sudah melapor sampai tanggal berapa".
+
+Lokasi yang belum pernah mengirim ditulis "belum pernah", bukan diberi umur
+besar supaya kelihatan terburuk saat diurut: angka karangan di kolom tagihan
+adalah cara tercepat membuat papannya berhenti dipercaya.
+
+Dijaga `tests/integration/progress-terakhir-lapor.test.ts` (6 uji) dan
+`tests/e2e/lokasi-vs-progress.spec.ts` — yang terakhir menguji dari LAYAR, sebab
+kolom yang dihapus di berkas grid tapi masih terkirim dari server akan lolos
+pemeriksaan sumber dan tetap terlihat pengguna.
+
