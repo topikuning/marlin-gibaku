@@ -100,10 +100,24 @@ describe("penomoran DECISIONS.md", () => {
    * pada dua cabang pertama sesudah aturannya berlaku; yang satu menyiasati
    * dengan memilih nomor sendiri, persis yang hendak dicegah.
    */
+  /**
+   * PR yang menuju `main` = PR RILIS, dan di situ penjaganya harus menggigit.
+   *
+   * `GITHUB_REF_NAME` pada peristiwa pull request berbunyi `226/merge`, jadi
+   * pemeriksaan di atas melewatinya — termasuk untuk PR `dev -> main`. Padahal
+   * CI repo ini tidak berjalan pada push ke `dev` (lihat `ci.yml`: push hanya
+   * `main`), sehingga tanpa baris ini satu-satunya yang menangkap `(baru)`
+   * yang lolos adalah push SESUDAH rilis ter-merge — terlambat.
+   *
+   * Sengaja hanya `main`: PR penulis menuju `dev`, dan menggigit di sana akan
+   * menghidupkan lagi persis cacat yang catatan di atas ceritakan.
+   */
+  const menujuRilis = process.env.GITHUB_BASE_REF === "main";
+
   it("tidak ada entri yang masih menunggu nomor saat sudah di dev/main", () => {
     const menunggu = [...isi.matchAll(BELUM_BERNOMOR)].length;
     const di = cabang();
-    if (di !== "dev" && di !== "main") {
+    if (di !== "dev" && di !== "main" && !menujuRilis) {
       /*
        * Di cabang penulis, `(baru)` justru bentuk yang BENAR — yang diperiksa
        * BENTUKNYA. Judul yang tidak berpola menyulitkan pemeriksa terakhir
