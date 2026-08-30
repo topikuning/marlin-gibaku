@@ -44,9 +44,28 @@ async function login(page: Page, username: string, password = "marlin123") {
   await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 10_000 }).catch(() => {});
 }
 
-/** Sel pertama baris pertama — sasaran ketukan yang sama dengan jari pengguna. */
+/**
+ * Sel pertama baris pertama — sasaran ketukan yang sama dengan jari pengguna.
+ *
+ * TANPA awalan `.ag-center-cols-container`: itu kelas AG Grid lama. Sejak
+ * versi 36 barisnya hidup di bawah `.ag-grid-scrolling-container`, jadi
+ * pemilih berawalan itu tidak pernah cocok dan seluruh berkas ini gagal di
+ * `bukaBagian` — bukan karena panelnya rusak, melainkan karena gridnya tidak
+ * pernah ditemukan. Berkas E2E lain di repo ini memang sudah memakai `.ag-row`
+ * polos; yang ini satu-satunya yang menyimpang.
+ */
 function selPertama(page: Page) {
-  return page.locator(".ag-center-cols-container .ag-row").first().locator(".ag-cell").first();
+  /*
+   * Kolom centang pilihan DILEWATI. Ia sel pertama pada grid Validasi, tapi
+   * ketukan di situ ditelan AG Grid sebagai urusan memilih baris — bukan
+   * ketukan baris. Menjadikannya sasaran uji berarti menguji jalur yang tidak
+   * pernah dipakai orang untuk membuka rincian.
+   */
+  return page
+    .locator(".ag-row")
+    .first()
+    .locator('.ag-cell:not([col-id="ag-Grid-SelectionColumn"])')
+    .first();
 }
 
 async function bukaBagian(page: Page, bagian: string) {
