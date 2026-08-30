@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   CellClassParams,
@@ -8,14 +8,16 @@ import type {
   ColDef,
   ValueFormatterParams,
 } from "ag-grid-community";
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
-import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
+import { MarlinGrid, rupiahCol, type MarlinGridApi } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
+import { perluTarikUlang, type RingkasUsulanAi } from "@/lib/ahsp/usulan-status";
 import {
   mintaUsulanHargaAiAction,
   simpanHargaSel,
+  statusUsulanHargaAiAction,
   terapkanUsulanHargaAiAction,
   tolakUsulanHargaAiAction,
 } from "@/lib/ahsp/hsd-actions";
@@ -114,17 +116,55 @@ export function HargaPanel({
   const router = useRouter();
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
   const [, mulaiSimpan] = useTransition();
+  /*
+   * Berapa simpanan harga yang sedang di jalan.
+   *
+   * Sel AG Grid bersifat optimis: angka yang diketik sudah tampil sebelum
+   * server menjawab, jadi "tersimpan" dan "sedang menyimpan" terlihat persis
+   * sama. Pada kolom uang itu bukan perkara rasa — orang berpindah sel cepat,
+   * dan tanpa penanda ia tidak punya cara tahu apakah yang barusan diketik
+   * sudah mendarat.
+   *
+   * Ref-nya dipakai untuk keputusan di dalam penangan (nilai state di sana
+   * sudah basi karena tertutup closure); state-nya untuk merender penandanya.
+   */
+  const simpanBerjalan = useRef(0);
+  const [menyimpan, setMenyimpan] = useState(0);
   const [aiPending, mulaiAi] = useTransition();
   const [putusanPending, mulaiPutusan] = useTransition();
   const [dicentang, setDicentang] = useState<Baris[]>([]);
+  const grid = useRef<MarlinGridApi>(null);
+
+  /**
+   * Melepas centang di GRID sekaligus di hitungan React — keduanya, selalu.
+   *
+   * Pilihan barisnya dipegang AG Grid; mengosongkan `dicentang` saja hanya
+   * mengubah angka di tombol. Karena baris dikenali `getRowId`, centangnya
+   * bertahan melewati penyegaran data, dan yang tersisa adalah baris menyala
+   * dengan tombol mati di atasnya. Dijadikan satu penolong supaya tidak ada
+   * jalur yang cuma mengerjakan separuhnya; dijaga
+   * `tests/unit/grid-pilihan-dilepas.test.ts`.
+   */
+  const lepasCentang = () => {
+    grid.current?.kosongkanPilihan();
+    setDicentang([]);
+  };
   const [hanyaUsulan, setHanyaUsulan] = useState(true);
   const [detik, setDetik] = useState(0);
+  const jumlahDraf = usulan.draf.length;
 
   /*
    * Menunggu di layar, bukan di dalam request (pola DECISIONS 455).
-   * `router.refresh()` menarik ulang server component, jadi draf muncul begitu
-   * tertulis tanpa endpoint status tersendiri. Detiknya dihitung dari
-   * `pendingSinceMs` supaya tetap benar bila halaman ditinggal lalu dibuka lagi.
+   *
+   * Yang berdenyut tiap 3 detik adalah PENENGOKAN status, bukan penarikan
+   * seluruh halaman. Versi pertama memanggil `router.refresh()` tanpa syarat,
+   * dan itu menjalankan ulang keenam kueri `RaplPage` — termasuk perhitungan
+   * RAPL atas ratusan baris RAB — dua puluh kali per menit hanya untuk membaca
+   * satu boolean. Sekarang halaman ditarik ulang hanya ketika status ringkasnya
+   * memang berubah; aturannya di `perluTarikUlang`, diuji terpisah.
+   *
+   * Detiknya dihitung dari `pendingSinceMs` supaya tetap benar bila halaman
+   * ditinggal lalu dibuka lagi.
    */
   useEffect(() => {
     if (!usulan.menunggu || usulan.pendingSinceMs == null) return;
@@ -132,12 +172,42 @@ export function HargaPanel({
     const hitung = () => setDetik(Math.max(0, Math.round((Date.now() - pending) / 1000)));
     hitung();
     const jam = setInterval(hitung, 1000);
-    const tarik = setInterval(() => router.refresh(), 3000);
+
+    /*
+     * Pembanding diambil dari yang SEDANG dirender layar. `jumlahDraf` dan
+     * `terputus` ikut jadi dependensi supaya sesudah penarikan ulang,
+     * pembandingnya ikut disegarkan — kalau tidak, denyut berikutnya masih
+     * membandingkan dengan keadaan lama dan menarik ulang berulang-ulang.
+     */
+    const semula: RingkasUsulanAi = {
+      menunggu: usulan.menunggu,
+      terputus: usulan.terputus,
+      jumlahDraf,
+    };
+    let berhenti = false;
+    const tarik = setInterval(() => {
+      void statusUsulanHargaAiAction({ locationId }).then((hasil) => {
+        // Penengokan yang gagal diabaikan diam-diam: ia akan diulang 3 detik
+        // lagi, dan spanduk galat yang berkedip tiap denyut lebih menakutkan
+        // daripada gangguan jaringan yang sebenarnya terjadi.
+        if (berhenti || !hasil.ok) return;
+        if (perluTarikUlang(semula, hasil.status)) router.refresh();
+      });
+    }, 3000);
+
     return () => {
+      berhenti = true;
       clearInterval(jam);
       clearInterval(tarik);
     };
-  }, [usulan.menunggu, usulan.pendingSinceMs, router]);
+  }, [
+    usulan.menunggu,
+    usulan.terputus,
+    usulan.pendingSinceMs,
+    jumlahDraf,
+    locationId,
+    router,
+  ]);
 
   const drafPerKunci = useMemo(
     () => new Map(usulan.draf.map((u) => [kunci(u), u])),
@@ -264,7 +334,7 @@ export function HargaPanel({
         setPesan({ tone: "error", teks: hasil.error });
         return;
       }
-      setDicentang([]);
+      lepasCentang();
       setPesan({
         tone: "success",
         teks:
@@ -309,6 +379,16 @@ export function HargaPanel({
           )}
         </p>
 
+        {menyimpan > 0 ? (
+          <p
+            role="status"
+            className="flex items-center gap-1.5 text-[13px] text-ink-muted"
+          >
+            <Loader2 aria-hidden className="size-3.5 animate-spin" />
+            Menyimpan {menyimpan} harga…
+          </p>
+        ) : null}
+
         {canInput && canUseAi && belum > 0 ? (
           <Button
             type="button"
@@ -325,7 +405,7 @@ export function HargaPanel({
                   setPesan({ tone: "error", teks: hasil.error });
                   return;
                 }
-                setDicentang([]);
+                lepasCentang();
                 setPesan({
                   tone: "success",
                   teks: `Permintaan ${hasil.diminta} draf harga tercatat${
@@ -409,6 +489,7 @@ export function HargaPanel({
       ) : null}
 
       <MarlinGrid<Baris>
+        ref={grid}
         rowData={tampil}
         columnDefs={kolom}
         quickFilter
@@ -426,28 +507,48 @@ export function HargaPanel({
           if (e.colDef.field !== "hargaNum") return;
           const d = e.data;
           const teks = e.newValue == null || e.newValue === "" ? "" : String(e.newValue);
-          setPesan(null);
+          simpanBerjalan.current += 1;
+          setMenyimpan(simpanBerjalan.current);
+          // Kabar lama hanya dihapus kalau tidak ada simpanan lain yang sedang
+          // berjalan – kalau tidak, sel kedua menghapus kegagalan sel pertama.
+          if (simpanBerjalan.current === 1) setPesan(null);
           mulaiSimpan(async () => {
-            const hasil = await simpanHargaSel({
-              locationId,
-              slug,
-              kategori: d.kategori,
-              nama: d.nama,
-              satuan: d.satuan,
-              harga: teks,
-            });
-            if (!hasil.ok) {
-              setPesan({ tone: "error", teks: hasil.error });
-              return;
+            try {
+              const hasil = await simpanHargaSel({
+                locationId,
+                slug,
+                kategori: d.kategori,
+                nama: d.nama,
+                satuan: d.satuan,
+                harga: teks,
+              });
+              if (!hasil.ok) {
+                setPesan({ tone: "error", teks: hasil.error });
+                return;
+              }
+              /*
+               * Keberhasilan TIDAK menimpa kegagalan. Dua sel yang disimpan
+               * beruntun selesai sesuai kecepatan jaringan, bukan sesuai urutan
+               * ketikan; tanpa penjagaan ini, sel kedua yang berhasil menghapus
+               * kabar bahwa sel pertama gagal — dan harganya tidak tersimpan
+               * tanpa seorang pun tahu.
+               */
+              setPesan((sebelumnya) =>
+                sebelumnya?.tone === "error"
+                  ? sebelumnya
+                  : {
+                      tone: "success",
+                      teks:
+                        hasil.harga === null
+                          ? `Harga "${d.nama}" dikosongkan.`
+                          : `Harga "${d.nama}" disimpan.`,
+                    },
+              );
+              router.refresh();
+            } finally {
+              simpanBerjalan.current -= 1;
+              setMenyimpan(simpanBerjalan.current);
             }
-            setPesan({
-              tone: "success",
-              teks:
-                hasil.harga === null
-                  ? `Harga "${d.nama}" dikosongkan.`
-                  : `Harga "${d.nama}" disimpan.`,
-            });
-            router.refresh();
           });
         }}
       />

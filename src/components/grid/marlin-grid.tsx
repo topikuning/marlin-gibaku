@@ -4,6 +4,7 @@ import {
   AllCommunityModule,
   ModuleRegistry,
   themeQuartz,
+  type CellKeyDownEvent,
   type CellValueChangedEvent,
   type ColDef,
   type ColDefField,
@@ -20,7 +21,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { Download, Loader2 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 
 // Registrasi module sekali (module-level), bukan per-render.
@@ -110,7 +111,28 @@ function storageKey(persistKey: string): string {
   return `marlin-grid:${persistKey}`;
 }
 
+/**
+ * Jalan keluar imperatif ke grid — sesempit mungkin, sengaja.
+ *
+ * Pilihan baris dipegang AG Grid, bukan state pemanggil (lihat prop
+ * `rowSelection`). Karena `getRowId` dipasang, AG Grid MEMPERTAHANKAN pilihan
+ * per-id saat data disegarkan — jadi panel yang mengosongkan hitungannya sendiri
+ * sesudah aksi borongan bisa meninggalkan centang menyala di layar sementara
+ * tombolnya menulis "0 dicentang" dan mati. Yang dilihat pengguna dan yang
+ * dipercaya kode berbeda, tanpa pesan apa pun.
+ *
+ * Yang dibuka HANYA pelepasan pilihan. `GridApi` utuh sengaja tidak diteruskan:
+ * begitu ia terbuka, pemanggil mulai mengatur kolom, saringan, dan urutan dari
+ * luar, dan `MarlinGrid` berhenti jadi satu-satunya tempat aturan grid tinggal.
+ */
+export type MarlinGridApi = {
+  /** Melepas SEMUA centang di grid, termasuk baris yang sedang tersaring. */
+  kosongkanPilihan: () => void;
+};
+
 export interface MarlinGridProps<T> {
+  /** Pegangan imperatif seperlunya — lihat {@link MarlinGridApi}. */
+  ref?: Ref<MarlinGridApi>;
   rowData?: T[] | null;
   columnDefs: ColDef<T>[];
   /** Render input "Cari..." (quick filter) di atas grid. */
@@ -179,6 +201,7 @@ export interface MarlinGridProps<T> {
 }
 
 export function MarlinGrid<T>({
+  ref,
   rowData,
   columnDefs,
   quickFilter = false,
@@ -204,6 +227,15 @@ export function MarlinGrid<T>({
 }: MarlinGridProps<T>) {
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      // Aman dipanggil sebelum grid siap: sebelum itu tidak ada pilihan apa pun.
+      kosongkanPilihan: () => apiRef.current?.deselectAll(),
+    }),
+    [],
+  );
 
   const autoHeight =
     !serverSide && height === "auto" && (rowData?.length ?? 0) <= 100;
@@ -257,16 +289,27 @@ export function MarlinGrid<T>({
     [persistKey],
   );
 
-  const handleRowClicked = useCallback(
-    (e: RowClickedEvent<T>) => {
+  /**
+   * Satu-satunya arti dari "baris ini diaktifkan" — dipakai ketukan MAUPUN
+   * papan tik.
+   *
+   * Dipisah dari penangan ketukan karena sebelumnya arti itu hanya hidup di
+   * dalam `onRowClicked` AG Grid, dan event itu lahir dari tetikus/sentuhan
+   * saja. Akibatnya setiap grid yang barisnya membuka sesuatu — rincian RAPL,
+   * padanan AHSP, halaman paket — tidak punya jalan papan tik sama sekali:
+   * fokus bisa sampai ke selnya, Enter tidak melakukan apa pun. Itu WCAG 2.1.1
+   * Level A, dan ia tidak terlihat di pemeriksaan mata karena dengan tetikus
+   * semuanya bekerja.
+   */
+  const aktifkanBaris = useCallback(
+    (src: EventTarget | null | undefined, data: T | null | undefined) => {
       /*
-       * Ketukan yang mendarat di ELEMEN INTERAKTIF di dalam sel (tautan nama
+       * Aktivasi yang mendarat di ELEMEN INTERAKTIF di dalam sel (tautan nama
        * lokasi, tombol aksi) diurus elemen itu sendiri. Tanpa penjagaan ini,
        * satu ketukan pada tautan memicu DUA navigasi ke alamat yang sama —
        * tepat perilaku "request berulang" yang sedang diperbaiki, cuma kali
        * ini dibuat oleh kodenya sendiri, bukan oleh jari pengguna.
        */
-      const src = e.event?.target;
       if (src instanceof Element && src.closest("a,button,input,select,textarea,[role='button']")) return;
 
       /*
@@ -284,9 +327,33 @@ export function MarlinGrid<T>({
         src.closest(".ag-row")?.querySelector<HTMLAnchorElement>("a[href]")?.click();
         return;
       }
-      if (onRowClicked && e.data != null) onRowClicked(e.data);
+      if (onRowClicked && data != null) onRowClicked(data);
     },
     [onRowClicked, rowLink],
+  );
+
+  const handleRowClicked = useCallback(
+    (e: RowClickedEvent<T>) => aktifkanBaris(e.event?.target, e.data),
+    [aktifkanBaris],
+  );
+
+  /**
+   * Enter pada sel = ketukan pada barisnya.
+   *
+   * Space sengaja TIDAK diikutkan: pada grid berkotak-centang, Space sudah
+   * berarti "pilih/batalkan baris ini" bagi AG Grid. Merebutnya berarti
+   * menukar satu cacat papan tik dengan cacat lain — pengguna kehilangan
+   * satu-satunya cara memilih baris tanpa tetikus.
+   */
+  const handleCellKeyDown = useCallback(
+    (e: CellKeyDownEvent<T>) => {
+      // Di mode edit, Enter milik editor sel (buka editor, lalu turun sebaris).
+      if (editMode) return;
+      const ev = e.event;
+      if (!(ev instanceof KeyboardEvent) || ev.key !== "Enter") return;
+      aktifkanBaris(ev.target, e.data);
+    },
+    [aktifkanBaris, editMode],
   );
 
   const rowIdGetter = useMemo(
@@ -381,6 +448,7 @@ export function MarlinGrid<T>({
           onCellValueChanged={onCellValueChanged}
           onGridReady={onGridReady}
           onRowClicked={onRowClicked || rowLink ? handleRowClicked : undefined}
+          onCellKeyDown={onRowClicked || rowLink ? handleCellKeyDown : undefined}
           rowClass={onRowClicked || rowLink ? "cursor-pointer" : undefined}
           onSortChanged={persistKey ? saveColumnState : undefined}
           onColumnMoved={persistKey ? saveColumnState : undefined}

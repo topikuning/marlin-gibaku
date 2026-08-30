@@ -114,6 +114,20 @@ export function PanelGeser({
     const panel = panelRef.current;
     if (!panel) return;
 
+    /*
+     * Dari mana fokus datang — supaya bisa dikembalikan ke sana saat panel
+     * ditutup.
+     *
+     * {@link Drawer} mengurus ini sendiri karena pemicunya memang satu tombol
+     * yang ia render. Pemakaian TERKENDALI tidak punya tombol itu: yang
+     * membuka panel bisa berupa baris grid atau petak tanggal, dan pemanggil
+     * tidak punya tempat wajar untuk mengingatnya. Tanpa pengembalian ini,
+     * menutup panel menjatuhkan fokus ke <body> dan pengguna papan tik harus
+     * menelusuri ulang halaman dari atas hanya untuk kembali ke baris yang
+     * baru saja ia buka.
+     */
+    const asal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
     const fokusable = () =>
       Array.from(
         panel.querySelectorAll<HTMLElement>(
@@ -150,6 +164,14 @@ export function PanelGeser({
     return () => {
       panel.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = semula;
+      /*
+       * Hanya dikembalikan bila elemennya MASIH ada di dokumen. Panel yang
+       * keadaannya dibawa URL menutup setelah navigasi server, dan saat itu
+       * simpul asalnya sudah diganti — memaksa fokus ke simpul yatim justru
+       * melemparkannya ke <body>, hasil yang sama buruknya dengan tidak
+       * mengembalikan sama sekali.
+       */
+      if (asal && document.contains(asal)) asal.focus();
     };
   }, [terbuka, onTutup]);
 

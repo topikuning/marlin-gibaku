@@ -629,7 +629,3 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
   gagalnya adalah mengetik ulang pertanyaan. Di sini belum dibuat karena
   ongkosnya tidak sebanding; kalau ternyata sering terjadi, polanya sudah ada
   tinggal disalin.
-- 🟢 **`simpanHargaAction` (jalur FormData) tidak dipakai satu pun layar.**
-  Grid memakai `simpanHargaSel`. Ia sudah ikut diperketat (asal-usul harga
-  ditetapkan server), tetapi kode yang tidak dipanggil siapa pun sebaiknya
-  dibuang — ditunda supaya diff RAPL-01…08 tetap bisa dibaca.
