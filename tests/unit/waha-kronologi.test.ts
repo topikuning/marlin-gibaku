@@ -12,7 +12,11 @@
 //    Yang membaca di HP sering berhenti di layar pertama.
 import { describe, expect, it } from "vitest";
 import { parseNiatDeterministik } from "@/lib/waha/parser-niat";
-import { balasKronologi, balasKronologiTanpaLokasi } from "@/lib/waha/tanya-format";
+import {
+  balasKronologi,
+  balasKronologiRapi,
+  balasKronologiTanpaLokasi,
+} from "@/lib/waha/tanya-format";
 import { susunKronologi } from "@/lib/kronologi/susun";
 
 const niatDari = (t: string) => {
@@ -36,40 +40,41 @@ describe("niat kronologi dibaca aturan", () => {
   });
 });
 
-describe("balasKronologi", () => {
-  const k = susunKronologi({
-    sampai: "2026-08-31",
-    kendala: [
-      {
-        id: "a",
-        judul: "Lahan blok B belum bebas",
-        rincian: null,
-        tingkat: "kritis",
-        status: "terbuka",
-        dibuka: "2026-06-01",
-        ditutup: null,
-        catatanPenutup: null,
-        sumber: "manual",
-        pic: "Dinas PU",
-        tenggat: "2026-08-01",
-      },
-    ],
-    kegiatan: [
-      {
-        id: "g",
-        tanggal: "2026-08-24",
-        jenis: "Rapat koordinasi",
-        judul: "Koordinasi pembebasan lahan",
-        catatan: "Disepakati pengukuran ulang",
-        kendala: null,
-        solusi: null,
-        peserta: null,
-        status: "final",
-        jumlahFoto: 3,
-      },
-    ],
-  });
+const k = susunKronologi({
+  sampai: "2026-08-31",
+  kendala: [
+    {
+      id: "a",
+      judul: "Lahan blok B belum bebas",
+      rincian: null,
+      tingkat: "kritis",
+      status: "terbuka",
+      dibuka: "2026-06-01",
+      ditutup: null,
+      catatanPenutup: null,
+      sumber: "manual",
+      pic: "Dinas PU",
+      tenggat: "2026-08-01",
+    },
+  ],
+  kegiatan: [
+    {
+      id: "g",
+      tanggal: "2026-08-24",
+      jenis: "Rapat koordinasi",
+      judul: "Koordinasi pembebasan lahan",
+      catatan: "Disepakati pengukuran ulang",
+      kendala: null,
+      solusi: null,
+      peserta: null,
+      status: "final",
+      jumlahFoto: 3,
+    },
+  ],
+});
 
+
+describe("balasKronologi", () => {
   const teks = balasKronologi({
     lokasi: "Danasari",
     wilayah: "Pemalang, Jawa Tengah",
@@ -106,5 +111,54 @@ describe("balasKronologiTanpaLokasi", () => {
     expect(t).toContain("Danasari");
     expect(t).toContain("3 lokasi lain");
     expect(t).toContain("kronologi Danasari");
+  });
+});
+
+describe("balasKronologiRapi", () => {
+  // Keluhan user 2026-08-31 atas bentuk pertama: "jangan apa adanya semua
+  // dikirim". Yang dikunci di sini adalah bahwa bentuk rapi memang BERHENTI
+  // mengirim daftar mentahnya, bukan sekadar menambahkan paragraf di atasnya.
+  const teks = balasKronologiRapi(
+    {
+      lokasi: "Danasari",
+      wilayah: "Pemalang, Jawa Tengah",
+      sampai: k.sampai,
+      hari: 90,
+      peristiwa: k.peristiwa,
+      kondisi: k.kondisi,
+      dipotong: k.dipotong,
+    },
+    {
+      kesimpulan:
+        "Danasari saat ini tertahan pembebasan lahan blok B yang sudah terbuka 91 hari. Karena itu pekerjaan di blok tersebut belum bisa dimulai.",
+      babak: [
+        {
+          judul: "Menunggu pembebasan lahan",
+          periode: "1 Jun - 24 Agu 2026",
+          reason: "Kendala dibuka awal Juni dan belum tertutup sampai sekarang.",
+        },
+      ],
+    },
+  );
+
+  it("membuka dengan kesimpulan, bukan dengan daftar", () => {
+    const kalimatPertama = teks.split("\n").filter(Boolean)[2];
+    expect(kalimatPertama).toContain("Danasari saat ini tertahan");
+  });
+
+  it("TIDAK mengirim daftar kejadian mentahnya", () => {
+    // Judul kegiatan mentah hanya muncul di bentuk cadangan.
+    expect(teks).not.toContain("Koordinasi pembebasan lahan");
+    expect(teks).toContain("Menunggu pembebasan lahan");
+  });
+
+  it("tetap membawa angka kondisi dari sistem, bukan dari kalimat model", () => {
+    expect(teks).toContain("1 kendala terbuka");
+    expect(teks).toContain("tertua 91 hari");
+  });
+
+  it("menunjukkan di mana daftar lengkapnya bisa dilihat", () => {
+    expect(teks).toContain("MARLIN");
+    expect(teks).toContain("2 kejadian");
   });
 });

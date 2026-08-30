@@ -7,7 +7,7 @@ import { aiStructured } from "@/lib/ai/structured";
 import { conversationContextBlock, type AiConversationTurn } from "@/lib/ai/conversation";
 import type { AiRunKind } from "@/generated/prisma/enums";
 import { ambilKronologi, type KronologiLokasi } from "@/lib/kronologi/queries";
-import { buildKronologiPayload, sumberKronologi } from "./kronologi-format";
+import { buildKronologiPayload, rapikanKeluaranKronologi, sumberKronologi } from "./kronologi-format";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
 import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
@@ -32,6 +32,7 @@ import { resolvePrompt } from "@/lib/ai/prompts";
 import {
   SCHEMA_HINTS,
   kronologiOutputSchema,
+  type KronologiOutput,
   askOutputSchema,
   filterGrounded,
   faktaResmi,
@@ -406,7 +407,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
           : input.kind === "kualitas_data"
             ? evidenceCount(output.explanations)
             : input.kind === "kronologi"
-              ? evidenceCount(output.babak)
+              ? evidenceCount(output.babak) + 1
               : input.kind === "laporan"
                 ? evidenceCount(output.sections) + evidenceCount(output.recommendations) + 2
                 : 0;
@@ -427,7 +428,14 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   } else if (input.kind === "kualitas_data") {
     output.explanations = applyFilter(output.explanations as never[]);
   } else if (input.kind === "kronologi") {
-    output.babak = applyFilter(output.babak as never[]);
+    /*
+     * Kronologi tidak memakai `applyFilter` biasa: selain membuang babak tanpa
+     * sumber, batas "2–3 kalimat" pada kesimpulan harus DITEGAKKAN, bukan
+     * dipercaya dari model. Keduanya di satu penolong yang diuji terpisah.
+     */
+    const rapi = rapikanKeluaranKronologi(output as unknown as KronologiOutput, ctx.allowedSourceRefIds);
+    Object.assign(output, rapi.output);
+    droppedNotes.push(...rapi.dibuang);
   } else if (input.kind === "laporan") {
     if (Array.isArray(output.sections)) {
       const before = output.sections.length;
@@ -581,7 +589,8 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
             : input.kind === "kualitas_data"
               ? evidenceCount(output.explanations)
               : input.kind === "kronologi"
-                ? evidenceCount(output.babak)
+                ? evidenceCount(output.babak) +
+                  (evidenceCount(output.kesimpulanSourceRefIds) > 0 ? 1 : 0)
                 : input.kind === "laporan"
                 ? evidenceCount(output.sections) + evidenceCount(output.recommendations) -
                   ((output.sections as { sourceRefIds?: string[] }[] | undefined)?.filter((section) => section.sourceRefIds?.length === 0).length ?? 0) +
