@@ -2366,6 +2366,20 @@ describe("daftar panjang dikirim sebagai PDF", () => {
     expect(terkirim).toHaveLength(0);
   });
 
+  it("28 kendala → seluruhnya dinyatakan termuat di PDF, tanpa menyuruh membuka MARLIN", async () => {
+    await banyakKendala(28);
+    niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "kendala yang masih terbuka?" }),
+    );
+
+    expect(r.dijawab).toBe(true);
+    expect(berkasTerkirim).toHaveLength(1);
+    expect(berkasTerkirim[0].caption).toContain("Seluruh 28 kendala termuat di PDF");
+    expect(berkasTerkirim[0].caption).not.toContain("buka MARLIN");
+    expect(terkirim).toHaveLength(0);
+  });
+
   it("2 kendala → tetap teks; berkas hanya untuk yang memang panjang", async () => {
     await banyakKendala(2);
     niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: "hari_ini" };
