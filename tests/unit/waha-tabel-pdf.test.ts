@@ -194,7 +194,7 @@ describe("catatan & pengantar berkas", () => {
     const k = keteranganBerkas(t);
     expect(k).toContain("Kendala belum selesai");
     expect(k).toContain("26 Agustus 2026");
-    expect(k).toContain("1 baris");
+    expect(k).toContain("1 lokasi");
     expect(k).toContain("Ditampilkan 15 dari 40 kendala.");
   });
 
@@ -214,7 +214,7 @@ describe("catatan & pengantar berkas", () => {
     );
     expect(t.baris).toHaveLength(1);
     expect(t.jumlahIsi).toBe(3);
-    expect(keteranganBerkas(t)).toContain("3 rincian di 1 baris");
+    expect(keteranganBerkas(t)).toContain("Seluruh 3 kendala termuat di PDF · 1 lokasi");
   });
 
   it("caption PDF kendala menyatakan seluruh hasil termuat, bukan menyuruh membuka MARLIN", () => {
@@ -254,6 +254,11 @@ describe("catatan & pengantar berkas", () => {
       { label: "Lokasi kritis", nilai: "1", nada: "danger" },
       { label: "Kendala tertua", nilai: "32 hari", nada: "warning" },
     ]);
+    expect(t.prioritas[0]).toMatchObject({
+      tingkat: "kritis",
+      lokasi: "Kedungmutih",
+      umur: "32 hari",
+    });
   });
 
   it("nama berkas terbaca manusia dan menyebut tanggalnya", () => {

@@ -94,6 +94,24 @@ export type TabelWa = {
    * sebagai jawaban lengkap, dan PDF justru LEBIH mudah diteruskan.
    */
   catatan: string[];
+  /** Angka utama halaman pertama; kosong untuk tabel yang belum punya ringkasan. */
+  sorotan: { label: string; nilai: string; nada: NadaSel }[];
+  /** Maksimal lima pengecualian terberat untuk halaman ringkasan eksekutif. */
+  prioritas: {
+    tingkat: string;
+    nada: NadaSel;
+    perusahaan: string;
+    lokasi: string;
+    umur: string;
+    kendala: string;
+  }[];
+  /** Jejak jumlah kendala sebelum dan sesudah duplikat digabung. */
+  ringkasanKendala: {
+    jumlahSumber: number;
+    jumlahUnik: number;
+    jumlahLokasi: number;
+    digabung: number;
+  } | null;
 };
 
 /**
@@ -235,6 +253,9 @@ function rakit(
       o.catatanGabung,
       o.catatanPemotongan,
     ),
+    sorotan: [],
+    prioritas: [],
+    ringkasanKendala: null,
   };
 }
 
@@ -260,7 +281,8 @@ export function tabelKendala(
   o: OpsiTabel = {},
 ): TabelWa {
   const { baris: perLokasi, digabung } = ringkasKendalaPerLokasi(r.baris);
-  return rakit(
+  const jumlahUnik = perLokasi.reduce((n, l) => n + l.kendala.length, 0);
+  const tabel = rakit(
     r.judul,
     r.tanggal,
     [
@@ -292,8 +314,45 @@ export function tabelKendala(
       },
     ]),
     { ...o, catatanGabung: catatanGabung(digabung) },
-    perLokasi.reduce((n, l) => n + l.kendala.length, 0),
+    jumlahUnik,
   );
+  return {
+    ...tabel,
+    sorotan: [
+      { label: "Kendala unik", nilai: String(jumlahUnik), nada: "danger" },
+      { label: "Lokasi terdampak", nilai: String(perLokasi.length), nada: "warning" },
+      {
+        label: "Lokasi kritis",
+        nilai: String(perLokasi.filter((b) => b.tingkat === "kritis").length),
+        nada: "danger",
+      },
+      {
+        label: "Kendala tertua",
+        nilai: perLokasi.length > 0 ? `${Math.max(...perLokasi.map((b) => b.umurHari))} hari` : "–",
+        nada: "warning",
+      },
+    ],
+    prioritas: [...perLokasi]
+      .sort((a, b) => {
+        const tingkat = ["rendah", "sedang", "tinggi", "kritis"];
+        return tingkat.indexOf(b.tingkat) - tingkat.indexOf(a.tingkat) || b.umurHari - a.umurHari;
+      })
+      .slice(0, 5)
+      .map((b) => ({
+        tingkat: b.tingkat,
+        nada: ISSUE_SEVERITY_TONE[b.tingkat as keyof typeof ISSUE_SEVERITY_TONE] ?? "neutral",
+        perusahaan: peta.get(b.lokasi)?.pelaksana ?? "–",
+        lokasi: b.lokasi,
+        umur: `${b.umurHari} hari`,
+        kendala: b.kendala[0] ?? "–",
+      })),
+    ringkasanKendala: {
+      jumlahSumber: r.baris.length,
+      jumlahUnik,
+      jumlahLokasi: perLokasi.length,
+      digabung,
+    },
+  };
 }
 
 export function tabelProgress(
@@ -469,6 +528,17 @@ export function namaBerkasTabel(t: TabelWa, dateKey: string): string {
 export function keteranganBerkas(t: TabelWa): string {
   const b = [`*${t.judul}*`];
   if (t.subjudul) b.push(`_${t.subjudul}_`);
+  if (t.ringkasanKendala) {
+    const k = t.ringkasanKendala;
+    const ringkas =
+      k.digabung > 0
+        ? `Seluruh ${k.jumlahSumber} catatan diperiksa. PDF memuat ${k.jumlahUnik} kendala unik di ${k.jumlahLokasi} lokasi setelah ${k.digabung} duplikat digabung.`
+        : `Seluruh ${k.jumlahUnik} kendala termuat di PDF · ${k.jumlahLokasi} lokasi.`;
+    b.push("", ringkas);
+    const catatanLain = t.catatan.filter((c) => !c.includes("catatan duplikat digabung"));
+    if (catatanLain.length > 0) b.push("", ...catatanLain);
+    return b.join("\n");
+  }
   // Register kendala memampatkan beberapa kendala ke satu baris; menyebut
   // barisnya saja akan terbaca "cuma 1 kendala" untuk 12 kendala di satu lokasi.
   const ringkas =

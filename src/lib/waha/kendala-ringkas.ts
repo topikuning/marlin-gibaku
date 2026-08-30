@@ -157,5 +157,5 @@ export function ringkasKendalaPerLokasi(baris: BarisKendala[]): HasilRingkas {
  */
 export function catatanGabung(digabung: number): string | null {
   if (digabung <= 0) return null;
-  return `${digabung} baris kendala kembar digabung – kalimat yang sama, atau yang sudah termuat utuh di kalimat lain.`;
+  return `${digabung} catatan duplikat digabung agar tidak dihitung dua kali.`;
 }

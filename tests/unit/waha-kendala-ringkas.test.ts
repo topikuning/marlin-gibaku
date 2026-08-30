@@ -126,7 +126,7 @@ describe("satu baris per lokasi", () => {
 
 describe("penggabungan tidak pernah diam-diam", () => {
   it("jumlah yang digabung disebutkan", () => {
-    expect(catatanGabung(3)).toContain("3 baris");
+    expect(catatanGabung(3)).toContain("3 catatan");
   });
 
   it("tanpa kembar, tidak ada catatan sama sekali", () => {
