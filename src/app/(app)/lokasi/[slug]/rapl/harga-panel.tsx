@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   CellClassParams,
@@ -8,7 +8,7 @@ import type {
   ColDef,
   ValueFormatterParams,
 } from "ag-grid-community";
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
@@ -114,6 +114,20 @@ export function HargaPanel({
   const router = useRouter();
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
   const [, mulaiSimpan] = useTransition();
+  /*
+   * Berapa simpanan harga yang sedang di jalan.
+   *
+   * Sel AG Grid bersifat optimis: angka yang diketik sudah tampil sebelum
+   * server menjawab, jadi "tersimpan" dan "sedang menyimpan" terlihat persis
+   * sama. Pada kolom uang itu bukan perkara rasa — orang berpindah sel cepat,
+   * dan tanpa penanda ia tidak punya cara tahu apakah yang barusan diketik
+   * sudah mendarat.
+   *
+   * Ref-nya dipakai untuk keputusan di dalam penangan (nilai state di sana
+   * sudah basi karena tertutup closure); state-nya untuk merender penandanya.
+   */
+  const simpanBerjalan = useRef(0);
+  const [menyimpan, setMenyimpan] = useState(0);
   const [aiPending, mulaiAi] = useTransition();
   const [putusanPending, mulaiPutusan] = useTransition();
   const [dicentang, setDicentang] = useState<Baris[]>([]);
@@ -309,6 +323,16 @@ export function HargaPanel({
           )}
         </p>
 
+        {menyimpan > 0 ? (
+          <p
+            role="status"
+            className="flex items-center gap-1.5 text-[13px] text-ink-muted"
+          >
+            <Loader2 aria-hidden className="size-3.5 animate-spin" />
+            Menyimpan {menyimpan} harga…
+          </p>
+        ) : null}
+
         {canInput && canUseAi && belum > 0 ? (
           <Button
             type="button"
@@ -426,28 +450,48 @@ export function HargaPanel({
           if (e.colDef.field !== "hargaNum") return;
           const d = e.data;
           const teks = e.newValue == null || e.newValue === "" ? "" : String(e.newValue);
-          setPesan(null);
+          simpanBerjalan.current += 1;
+          setMenyimpan(simpanBerjalan.current);
+          // Kabar lama hanya dihapus kalau tidak ada simpanan lain yang sedang
+          // berjalan – kalau tidak, sel kedua menghapus kegagalan sel pertama.
+          if (simpanBerjalan.current === 1) setPesan(null);
           mulaiSimpan(async () => {
-            const hasil = await simpanHargaSel({
-              locationId,
-              slug,
-              kategori: d.kategori,
-              nama: d.nama,
-              satuan: d.satuan,
-              harga: teks,
-            });
-            if (!hasil.ok) {
-              setPesan({ tone: "error", teks: hasil.error });
-              return;
+            try {
+              const hasil = await simpanHargaSel({
+                locationId,
+                slug,
+                kategori: d.kategori,
+                nama: d.nama,
+                satuan: d.satuan,
+                harga: teks,
+              });
+              if (!hasil.ok) {
+                setPesan({ tone: "error", teks: hasil.error });
+                return;
+              }
+              /*
+               * Keberhasilan TIDAK menimpa kegagalan. Dua sel yang disimpan
+               * beruntun selesai sesuai kecepatan jaringan, bukan sesuai urutan
+               * ketikan; tanpa penjagaan ini, sel kedua yang berhasil menghapus
+               * kabar bahwa sel pertama gagal — dan harganya tidak tersimpan
+               * tanpa seorang pun tahu.
+               */
+              setPesan((sebelumnya) =>
+                sebelumnya?.tone === "error"
+                  ? sebelumnya
+                  : {
+                      tone: "success",
+                      teks:
+                        hasil.harga === null
+                          ? `Harga "${d.nama}" dikosongkan.`
+                          : `Harga "${d.nama}" disimpan.`,
+                    },
+              );
+              router.refresh();
+            } finally {
+              simpanBerjalan.current -= 1;
+              setMenyimpan(simpanBerjalan.current);
             }
-            setPesan({
-              tone: "success",
-              teks:
-                hasil.harga === null
-                  ? `Harga "${d.nama}" dikosongkan.`
-                  : `Harga "${d.nama}" disimpan.`,
-            });
-            router.refresh();
           });
         }}
       />

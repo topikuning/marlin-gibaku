@@ -25025,3 +25025,75 @@ tersendiri). Keduanya tercatat di `docs/OPEN_ISSUES.md`.
 
 **Tahap C — AI mendraf RINCIAN untuk item tanpa padanan — TIDAK dikerjakan.**
 DECISIONS 326 belum dicabut user.
+
+---
+
+## (baru) · Ketukan baris membuka panel di layar, bukan di bawah lipatan (2026-08-30)
+
+**Konteks**: Laporan user, dengan tangkapan layar: *"saat atas diklik tidak
+memunculkan apapun, kalau tidak scroll bawah, tidak akan sadar penggunanya."*
+
+Penelusurannya menemukan tiga cacat berbeda dengan satu akibat yang sama —
+ketukan pada baris grid tidak menghasilkan apa pun yang bisa dilihat:
+
+1. **Validasi breakdown**: panel kandidat dirender SESUDAH grid. Di atasnya
+   menumpuk KPI, subtab, tombol saringan, grid `55vh`, dan bar paginasi,
+   sehingga panelnya mulai kira-kira satu layar penuh di bawah lipatan.
+   Satu-satunya umpan balik di tempat mata pengguna berada adalah garis fokus
+   sel AG Grid. Lebih buruk lagi, mengetuk baris yang sama untuk kedua kalinya
+   MENUTUP panel — jadi urutan paling wajar (ketuk, ragu, ketuk lagi) justru
+   membuang yang baru saja muncul.
+2. **Rincian per item**: panelnya tidak muncul sama sekali. Gridnya mengoper
+   `rowLink` bersama `onRowClicked`; di `MarlinGrid`, `rowLink` diperiksa lebih
+   dulu lalu `return`, jadi `onRowClicked` tak pernah terpanggil. Barisnya tidak
+   punya tautan, sehingga ketukannya berhenti tanpa suara. Seluruh Tahap B —
+   tambah komponen, faktor konversi, harga borongan — tak terjangkau sejak
+   ditulis, dan lolos karena uji E2E-nya hanya memeriksa siapa yang boleh
+   melihat uang.
+3. **Papan tik**: `MarlinGrid` tidak pernah memasang `onCellKeyDown`. Event
+   `rowClicked` AG Grid lahir dari tetikus/sentuhan saja, jadi Enter pada sel
+   tidak melakukan apa-apa — di SEMUA grid yang barisnya membuka sesuatu, bukan
+   hanya RAPL. Itu WCAG 2.1.1 Level A, dan tak terlihat dalam pemeriksaan mata
+   karena dengan tetikus semuanya bekerja.
+
+**Keputusan**:
+
+- Panel detail baris memakai `PanelGeser`, bukan blok dalam aliran halaman. Ia
+  `fixed` terhadap viewport, jadi tidak mungkin lahir di luar layar, dan sudah
+  membawa `role="dialog"`, jebakan fokus, Escape, serta kunci gulir latar.
+  Pemberitahuan ke pembaca layar terjadi lewat perpindahan fokus — bukan lewat
+  `aria-live` buatan sendiri (WCAG 4.1.3).
+- Ketukan baris SELALU membuka baris itu. Menutup punya jalannya sendiri:
+  silang, Escape, atau ketuk latar.
+- `PanelGeser` mengembalikan fokus ke elemen asalnya saat ditutup — hanya bila
+  elemen itu masih ada di dokumen.
+- `MarlinGrid` mengartikan Enter pada sel sama dengan ketukan pada barisnya.
+  Space sengaja tidak diikutkan: pada grid berkotak-centang ia sudah berarti
+  "pilih baris ini", dan merebutnya menukar satu cacat papan tik dengan cacat
+  lain.
+- Panel yang terbuka menyimpan KUNCI barisnya, bukan potret barisnya, dan
+  isinya diturunkan ulang dari data tiap render.
+- Panel rincian TIDAK menutup sendiri setiap kali satu mutasi berhasil.
+
+**Alternatif direject**:
+
+- *Gulirkan halaman ke panel + sorot barisnya.* Menambal gejalanya. Panel tetap
+  di aliran halaman, jadi ia tetap bisa terdorong ke luar layar oleh isi yang
+  tumbuh, dan setiap perilaku aksesibilitas (fokus, Escape, kunci gulir) harus
+  ditulis dan diuji ulang dari nol — padahal `PanelGeser` sudah membawanya dan
+  sudah pernah diperbaiki lewat uji Playwright yang merah.
+- *Dua kolom, grid kiri panel kanan.* Memampatkan tujuh kolom grid untuk SEMUA
+  baris, termasuk saat tidak ada panel terbuka — ongkos permanen untuk keadaan
+  sesekali.
+- *Master/detail AG Grid.* Edisi Enterprise; dilarang repo ini.
+- *Menambahkan `aria-live` pada panel di tempatnya sekarang.* Menjawab pembaca
+  layar tapi tidak menjawab mata: pengguna awas tetap tidak melihat apa pun.
+
+**Konsekuensi**: `PanelGeser` kini mengembalikan fokus untuk SELURUH
+pemakainya (ringkasan paket, kalender harian), dan `MarlinGrid` menambah jalur
+papan tik untuk seluruh grid ber-`onRowClicked`/`rowLink` — termasuk daftar
+paket, lokasi, keuangan, dan laporan harian. Keduanya perluasan perilaku, bukan
+perubahan arti. Dijaga `tests/e2e/rapl-panel-baris.spec.ts`.
+
+**Bisa di-revisit**: bila lebar `max-w-2xl` ternyata masih sempit untuk daftar
+kandidat AHSP di layar kecil.

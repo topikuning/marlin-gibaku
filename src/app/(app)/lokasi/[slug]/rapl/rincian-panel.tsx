@@ -112,9 +112,27 @@ export function RincianPanel({
   ringkas: { biayaLengkap: string; nilaiRabLengkap: string; jumlahLengkap: number; jumlahRugi: number };
 }) {
   const router = useRouter();
-  const [dibuka, setDibuka] = useState<ItemRaplRow | null>(null);
+  /*
+   * Yang disimpan KUNCI barisnya, bukan potret barisnya.
+   *
+   * Versi pertama menyimpan objek `ItemRaplRow` hasil ketukan. Objek itu beku:
+   * sesudah menambah komponen dan `router.refresh()` membawa data baru, panel
+   * masih memperlihatkan daftar komponen yang lama — layar berbohong tentang
+   * apa yang barusan disimpan. Dengan kunci, isi panel diturunkan ulang dari
+   * `items` setiap render, jadi ia selalu sama dengan yang ada di server.
+   */
+  const [dibukaKey, setDibukaKey] = useState<string | null>(null);
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
-  const [pending, mulai] = useTransition();
+  /**
+   * Aksi mana yang sedang berjalan — bukan sekadar "ada yang berjalan".
+   *
+   * Satu bendera bersama membuat SELURUH tombol di panel berputar bersamaan:
+   * menekan "Tambahkan" ikut menyalakan "Simpan faktor" dan "Simpan borongan"
+   * yang tidak disentuh siapa pun. Umpan balik yang menunjuk tempat salah lebih
+   * buruk daripada tidak ada.
+   */
+  const [aksiSibuk, setAksiSibuk] = useState<string | null>(null);
+  const [, mulai] = useTransition();
 
   const baris: Baris[] = useMemo(
     () =>
@@ -132,6 +150,11 @@ export function RincianPanel({
               : `${i.komponenBelumBerharga} komponen belum berharga`,
       })),
     [items],
+  );
+
+  const dibuka = useMemo(
+    () => (dibukaKey === null ? null : (items.find((i) => i.lineageKey === dibukaKey) ?? null)),
+    [items, dibukaKey],
   );
 
   const kolom: ColDef<Baris>[] = useMemo(
@@ -181,23 +204,40 @@ export function RincianPanel({
     [],
   );
 
-  const jalankan = (fn: () => Promise<{ ok: boolean; error?: string }>, sukses: string) => {
+  /**
+   * Menjalankan satu mutasi panel — dan MEMBIARKAN panelnya tetap terbuka.
+   *
+   * Versi pertama menutup panel pada setiap keberhasilan. Padahal merinci satu
+   * item pada dasarnya berulang: semen, lalu pasir, lalu upah tukang. Menutup
+   * sesudah komponen pertama memaksa pengguna mencari lagi barisnya di antara
+   * ratusan baris hanya untuk mengetik komponen kedua — biaya yang dikalikan
+   * sebanyak komponen yang ia masukkan.
+   */
+  const jalankan = (
+    kunci: string,
+    fn: () => Promise<{ ok: boolean; error?: string }>,
+    sukses: string,
+  ) => {
     setPesan(null);
+    setAksiSibuk(kunci);
     mulai(async () => {
-      const hasil = await fn();
-      if (!hasil.ok) {
-        setPesan({ tone: "error", teks: hasil.error ?? "Gagal." });
-        return;
+      try {
+        const hasil = await fn();
+        if (!hasil.ok) {
+          setPesan({ tone: "error", teks: hasil.error ?? "Gagal." });
+          return;
+        }
+        setPesan({ tone: "success", teks: sukses });
+        router.refresh();
+      } finally {
+        setAksiSibuk(null);
       }
-      setPesan({ tone: "success", teks: sukses });
-      setDibuka(null);
-      router.refresh();
     });
   };
 
   return (
     <div className="space-y-3">
-      {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
+      {pesan && dibuka === null ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-line px-3 py-2">
@@ -244,14 +284,13 @@ export function RincianPanel({
         height="60vh"
         persistKey="rapl-rincian-item"
         getRowId={(d: Baris) => d.lineageKey}
-        onRowClicked={(d: Baris) => setDibuka(items.find((i) => i.lineageKey === d.lineageKey) ?? null)}
-        rowLink
+        onRowClicked={(d: Baris) => setDibukaKey(d.lineageKey)}
         emptyText="Belum ada revisi RAB aktif di lokasi ini."
       />
 
       <PanelGeser
         terbuka={dibuka !== null}
-        onTutup={() => setDibuka(null)}
+        onTutup={() => setDibukaKey(null)}
         title={dibuka ? `${dibuka.code} · ${dibuka.uraian}` : ""}
         subtitle={
           dibuka
@@ -261,6 +300,9 @@ export function RincianPanel({
       >
         {dibuka ? (
           <div className="space-y-4">
+            {/* Hasil aksi ditulis DI DALAM panel: selama panel terbuka, banner
+                di halaman tertutup lapisan gelapnya dan tak pernah terbaca. */}
+            {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
             {dibuka.alasanLewat ? (
               <Banner
                 tone="warning"
@@ -300,9 +342,10 @@ export function RincianPanel({
                           type="button"
                           variant="secondary"
                           size="sm"
-                          loading={pending}
+                          loading={aksiSibuk === `hapus:${k.kategori}|${k.nama}|${k.satuan}`}
                           onClick={() =>
                             jalankan(
+                              `hapus:${k.kategori}|${k.nama}|${k.satuan}`,
                               () =>
                                 hapusKomponenAction({
                                   locationId,
@@ -335,9 +378,10 @@ export function RincianPanel({
             {canInput ? (
               <>
                 <FormTambahKomponen
-                  pending={pending}
+                  pending={aksiSibuk === "tambah"}
                   onKirim={(v) =>
                     jalankan(
+                      "tambah",
                       () =>
                         tambahKomponenAction({
                           locationId,
@@ -351,11 +395,12 @@ export function RincianPanel({
                 />
 
                 <FormKonversi
-                  pending={pending}
+                  pending={aksiSibuk === "konversi"}
                   faktor={dibuka.faktorKonversi}
                   catatan={dibuka.catatanKonversi}
                   onKirim={(faktor, catatan) =>
                     jalankan(
+                      "konversi",
                       () =>
                         setFaktorKonversiAction({
                           locationId,
@@ -370,10 +415,11 @@ export function RincianPanel({
                 />
 
                 <FormBorongan
-                  pending={pending}
+                  pending={aksiSibuk === "borongan"}
                   harga={dibuka.hargaBorongan}
                   onKirim={(harga, catatan) =>
                     jalankan(
+                      "borongan",
                       () =>
                         setBoronganAction({
                           locationId,

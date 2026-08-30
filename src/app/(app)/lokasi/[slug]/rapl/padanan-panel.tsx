@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useMemo, useState, useTransition } from "react";
 import type { CellClassParams, ColDef, ValueFormatterParams } from "ag-grid-community";
 import { AlertTriangle, Check, CheckCheck, RefreshCw, Search, X } from "lucide-react";
-import { Badge, Banner, Button, Input } from "@/components/ui";
+import { Badge, Banner, Button, Input, PanelGeser } from "@/components/ui";
 import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
@@ -31,9 +31,26 @@ import {
  * - **Tombol saringan berhitung** di atas grid. Angkanya ("Perlu dikerjakan
  *   (312)") harus terbaca SEBELUM tabel; saringan kolom AG Grid menyembunyikan
  *   jumlahnya di balik menu.
- * - **Panel kandidat** di bawah grid. AG Grid Community tidak punya
+ * - **Panel kandidat** terpisah dari sel. AG Grid Community tidak punya
  *   master/detail (itu Enterprise), dan memaksakannya ke dalam sel akan
  *   memampatkan pencarian AHSP ke lebar satu kolom.
+ *
+ * ### Kenapa panel kandidatnya berupa PANEL GESER, bukan blok di bawah grid
+ *
+ * Versi pertama merender panel itu SESUDAH grid. Di atasnya menumpuk KPI,
+ * subtab, tombol saringan, grid setinggi 55vh, dan bar paginasi — sehingga
+ * panelnya mulai kira-kira satu layar penuh di bawah lipatan. Mengetuk baris
+ * teratas tidak mengubah apa pun di tempat mata pengguna berada; satu-satunya
+ * umpan balik adalah garis fokus sel AG Grid. Laporannya datang dari pemakai,
+ * bukan dari alat uji: "saat atas diklik tidak memunculkan apapun, kalau tidak
+ * scroll bawah, tidak akan sadar penggunanya."
+ *
+ * `PanelGeser` menyelesaikannya karena ia `fixed` terhadap viewport, bukan
+ * mengikuti aliran halaman — dan ia sudah membawa jebakan fokus, Escape, kunci
+ * gulir latar, serta `role="dialog"`, jadi pemberitahuan ke pembaca layar
+ * terjadi lewat perpindahan fokus dan bukan lewat `aria-live` buatan sendiri.
+ * Lebarnya dilebihkan dari bawaan `max-w-lg`: daftar kandidat AHSP memuat kode
+ * + uraian panjang + satuan + skor dalam satu baris.
  */
 
 export type BarisUraianRow = {
@@ -158,7 +175,17 @@ export function PadananPanel({
   saringAwal: SaringKey;
 }) {
   const [saring, setSaring] = useState<SaringKey>(saringAwal);
-  const [terbuka, setTerbuka] = useState<BarisUraianRow | null>(null);
+  /*
+   * Yang disimpan TANDA-nya, bukan potret barisnya.
+   *
+   * "Petakan otomatis" boleh ditekan kapan saja, termasuk saat satu panel
+   * sedang terbuka, dan ia me-revalidate seluruh daftar. Kalau panel memegang
+   * objek hasil ketukan, ia terus menampilkan catatan, kode AHSP, dan keadaan
+   * yang sudah usang — layar menyatakan sesuatu yang di server sudah berubah.
+   * Diturunkan dari `rows`, isinya ikut segar; dan bila barisnya lenyap dari
+   * daftar, panelnya menutup sendiri alih-alih memamerkan hantu.
+   */
+  const [terbukaTanda, setTerbukaTanda] = useState<string | null>(null);
   const [terpilih, setTerpilih] = useState<BarisUraianRow[]>([]);
 
   // Kandidat AHSP dipegang DI SINI, bukan di panel rincian, supaya
@@ -196,6 +223,11 @@ export function PadananPanel({
   const [setujuState, setujuAction, setujuPending] = useActionState<PadananActionState, FormData>(
     setujuiPadananAction,
     undefined,
+  );
+
+  const terbuka = useMemo(
+    () => (terbukaTanda === null ? null : (rows.find((r) => r.tanda === terbukaTanda) ?? null)),
+    [rows, terbukaTanda],
   );
 
   const hitung = useMemo(() => {
@@ -304,10 +336,13 @@ export function PadananPanel({
           <button
             key={s.key}
             type="button"
+            // Keadaan "sedang dipakai" tidak boleh hanya berupa warna – bagi
+            // pembaca layar tombol ini kembar semua tanpa aria-pressed.
+            aria-pressed={saring === s.key}
             onClick={() => {
               setSaring(s.key);
               setTerpilih([]);
-              setTerbuka(null);
+              setTerbukaTanda(null);
             }}
             disabled={hitung[s.key] === 0 && s.key !== saring}
             className={cn(
@@ -373,44 +408,62 @@ export function PadananPanel({
         isRowSelectable={bisaDipilih}
         onSelectionChanged={setTerpilih}
         onRowClicked={(b: BarisUraianRow) => {
-          if (terbuka?.tanda === b.tanda) {
-            setTerbuka(null);
-            return;
-          }
-          setTerbuka(b);
+          /*
+           * SELALU membuka baris yang diketuk — tidak lagi menutup bila baris
+           * yang sama diketuk dua kali.
+           *
+           * Toggle itu masuk akal selama panelnya terlihat. Begitu panelnya
+           * pindah ke panel geser, urutan paling wajar justru jadi jebakan:
+           * ketuk, panel muncul, ragu, ketuk lagi untuk memastikan — dan yang
+           * baru saja muncul hilang. Menutup punya jalannya sendiri: tombol
+           * silang, Escape, atau mengetuk latar.
+           */
+          setTerbukaTanda(b.tanda);
           setKandidat(null);
           if (canManage) ambil(b, "");
         }}
         emptyText="Tidak ada uraian pada saringan ini."
       />
 
-      {terbuka ? (
-        canManage ? (
-          <PemilihPadanan
-            key={terbuka.tanda}
-            b={terbuka}
-            locationId={locationId}
-            slug={slug}
-            kandidat={kandidat}
-            memuat={memuat}
-            galat={galat}
-            ambil={(kueri) => ambil(terbuka, kueri)}
-            onTutup={() => setTerbuka(null)}
-            koreksiAction={koreksiAction}
-            koreksiPending={koreksiPending}
-          />
-        ) : (
-          <div className="rounded-lg border border-line bg-surface-inset p-3 text-[13px] text-ink-muted">
-            <strong className="text-ink">{terbuka.uraian}</strong> –{" "}
-            {terbuka.catatan ?? "belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola RAB.
-          </div>
-        )
-      ) : (
-        <p className="text-[12px] text-ink-muted">
-          {tampil.length} dari {rows.length} uraian. Ketuk satu baris untuk mengganti padanan
-          AHSP-nya.
-        </p>
-      )}
+      <p className="text-[12px] text-ink-muted">
+        {tampil.length} dari {rows.length} uraian. Ketuk satu baris – atau tekan Enter pada barisnya
+        – untuk mengganti padanan AHSP-nya.
+      </p>
+
+      <PanelGeser
+        terbuka={terbuka !== null}
+        onTutup={() => setTerbukaTanda(null)}
+        title={terbuka?.uraian ?? ""}
+        subtitle={
+          terbuka
+            ? `${formatRupiah(BigInt(terbuka.nilai))} · ${terbuka.jumlahBaris} baris RAB${terbuka.unit ? ` · ${terbuka.unit}` : ""}`
+            : undefined
+        }
+        className="max-w-2xl"
+      >
+        {terbuka ? (
+          canManage ? (
+            <PemilihPadanan
+              key={terbuka.tanda}
+              b={terbuka}
+              locationId={locationId}
+              slug={slug}
+              kandidat={kandidat}
+              memuat={memuat}
+              galat={galat}
+              ambil={(kueri) => ambil(terbuka, kueri)}
+              onTutup={() => setTerbukaTanda(null)}
+              koreksiAction={koreksiAction}
+              koreksiPending={koreksiPending}
+            />
+          ) : (
+            <p className="text-[13px] text-ink-muted">
+              {terbuka.catatan ?? "Belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola
+              RAB.
+            </p>
+          )
+        ) : null}
+      </PanelGeser>
     </div>
   );
 }
@@ -458,32 +511,30 @@ function PemilihPadanan({
   };
 
   return (
-    <div className="rounded-lg border border-brand bg-surface-inset p-3">
-      <div className="mb-2 flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ink">{b.uraian}</p>
-          <p className="text-[12px] text-ink-muted">
-            {formatRupiah(BigInt(b.nilai))} · keputusan ini berlaku untuk{" "}
-            <strong>{b.jumlahBaris} baris RAB</strong> di lokasi ini, dan untuk semua lokasi lain
-            yang uraiannya persis sama.
-            {b.catatan ? ` ${b.catatan}` : ""}
-            {b.petunjuk ? ` ${b.petunjuk}` : ""}
-          </p>
-          {b.ahspTanpaKomponen ? (
-            <p className="mt-1 flex items-center gap-1 text-[12px] text-warning">
-              <AlertTriangle aria-hidden className="size-3.5" />
-              Analisa yang terpasang belum punya koefisien – tidak bisa dipakai menghitung kebutuhan.
-            </p>
-          ) : null}
-        </div>
-        <Button type="button" variant="ghost" size="sm" onClick={onTutup}>
-          <X aria-hidden className="size-3.5" />
-          Tutup
-        </Button>
-      </div>
+    <div>
+      {/*
+        Judul, nilai, dan tombol tutup TIDAK diulang di sini – itu sudah jadi
+        kepala `PanelGeser`. Yang tersisa di badan panel adalah keterangan yang
+        panjang dan boleh ikut tergulir; kepala panel harus tetap ringkas supaya
+        daftar kandidatnya tidak terdesak ke bawah.
+      */}
+      <p className="mb-2 text-[12px] text-ink-muted">
+        Keputusan ini berlaku untuk <strong>{b.jumlahBaris} baris RAB</strong> di lokasi ini, dan
+        untuk semua lokasi lain yang uraiannya persis sama.
+        {b.catatan ? ` ${b.catatan}` : ""}
+        {b.petunjuk ? ` ${b.petunjuk}` : ""}
+      </p>
+      {b.ahspTanpaKomponen ? (
+        <p className="mb-2 flex items-center gap-1 text-[12px] text-warning">
+          <AlertTriangle aria-hidden className="size-3.5" />
+          Analisa yang terpasang belum punya koefisien – tidak bisa dipakai menghitung kebutuhan.
+        </p>
+      ) : null}
 
       <div className="mb-2 flex items-center gap-2">
         <Input
+          // Placeholder lenyap begitu diketik; ia bukan pengganti nama.
+          aria-label="Cari analisa AHSP lain"
           value={kueri}
           onChange={(e) => setKueri(e.target.value)}
           placeholder="Cari analisa AHSP lain (min. 3 huruf)…"
