@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
-import { MarlinGrid, pctCol, rupiahCol } from "@/components/grid/marlin-grid";
+import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
@@ -15,8 +15,6 @@ export type LokasiRow = {
   wilayah: string;
   paket: string;
   status: LocationStatus;
-  planPct: number;
-  realizedPct: number;
   deviationPct: number;
   /** Nilai RAB pra-PPN (rupiah, Number — hanya display). */
   rabValue: number;
@@ -87,8 +85,19 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
       ) : null,
     valueFormatter: (p) => (p.value ? LOCATION_STATUS_LABEL[p.value as LocationStatus] : ""),
   },
-  pctCol<LokasiRow>("planPct", "Rencana", { width: 110 }),
-  pctCol<LokasiRow>("realizedPct", "Realisasi", { width: 110 }),
+  /*
+   * SATU sinyal progres saja di direktori: deviasinya.
+   *
+   * Rencana dan Realisasi dibuang dari sini (keputusan user 2026-08-30). Dua
+   * kolom itu membuat halaman ini nyaris kembar dengan papan `/progress`,
+   * padahal keduanya menjawab pertanyaan yang berlawanan cara pakainya:
+   * halaman ini untuk MENCARI satu lokasi (urut nama, semua lokasi termasuk
+   * yang belum jalan), papan itu untuk MEMERINGKAT yang tertinggal.
+   *
+   * Deviasinya sendiri tetap tinggal, sederajat dengan Status: ia penanda
+   * "lokasi ini sedang bermasalah" yang wajar dibaca di direktori — bukan
+   * pemantauan.
+   */
   {
     field: "deviationPct",
     headerName: "Deviasi",

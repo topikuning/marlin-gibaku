@@ -6,7 +6,9 @@ import { audit, auditIn } from "@/lib/audit";
 import { ForbiddenError, requestIp, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { BATAS_HARGA_RUPIAH, bacaRupiah } from "./hsd-price";
+import { statusUsulanAi } from "./hsd-usulan";
 import { kunciSumberDaya } from "./rapl-calc";
+import type { RingkasUsulanAi } from "./usulan-status";
 
 /**
  * Aksi Harga Satuan Dasar (DECISIONS 327).
@@ -16,18 +18,6 @@ import { kunciSumberDaya } from "./rapl-calc";
  * sekadar mengelola RAB. BUKAN `finance.*`: itu pintu menu Keuangan yang sedang
  * ditahan, dan meminjamnya membuat RAPL ikut mati (koreksi user 2026-08-29).
  */
-
-export type HargaActionState = { error?: string; success?: string } | undefined;
-
-const skema = z.object({
-  locationId: z.uuid(),
-  slug: z.string().min(1),
-  kategori: z.string().min(1),
-  nama: z.string().min(1),
-  satuan: z.string(),
-  /** "" = kosongkan harganya (hapus barisnya), bukan simpan nol. */
-  harga: z.string(),
-});
 
 async function simpanHargaDenganAudit(args: {
   locationId: string;
@@ -93,50 +83,6 @@ async function simpanHargaDenganAudit(args: {
       ip,
     );
   });
-}
-
-export async function simpanHargaAction(
-  _prev: HargaActionState,
-  formData: FormData,
-): Promise<HargaActionState> {
-  const parsed = skema.safeParse({
-    locationId: formData.get("locationId"),
-    slug: formData.get("slug"),
-    kategori: formData.get("kategori"),
-    nama: formData.get("nama"),
-    satuan: String(formData.get("satuan") ?? ""),
-    harga: String(formData.get("harga") ?? ""),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const d = parsed.data;
-
-  const harga = bacaRupiah(d.harga);
-  if (harga === "salah") return { error: `Harga "${d.harga}" tidak terbaca sebagai angka rupiah.` };
-
-  try {
-    const user = await requireCapability("rapl.manage");
-    await requireLocationAccess(user, d.locationId);
-    await simpanHargaDenganAudit({
-      locationId: d.locationId,
-      kategori: d.kategori,
-      nama: d.nama,
-      satuan: d.satuan,
-      harga,
-      // Asal-usul ditetapkan SERVER (RAPL-06) — lihat catatan di `simpanHargaSel`.
-      sumber: harga === null ? null : SUMBER_MANUAL,
-      userId: user.id,
-    });
-    revalidatePath(`/lokasi/${d.slug}/rapl`);
-    return {
-      success:
-        harga === null
-          ? `Harga "${d.nama}" dikosongkan.`
-          : `Harga "${d.nama}" disimpan: Rp${harga.toLocaleString("id-ID")} / ${d.satuan || "satuan"}.`,
-    };
-  } catch (err) {
-    if (err instanceof ForbiddenError) return { error: err.message };
-    return { error: err instanceof Error ? err.message : "Gagal menyimpan harga." };
-  }
 }
 
 /**
@@ -484,5 +430,30 @@ export async function tolakUsulanHargaAiAction(args: {
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Gagal menolak usulan harga AI." };
+  }
+}
+
+/**
+ * Penengokan status draf harga AI — dipanggil berkala oleh layar yang menunggu.
+ *
+ * Ia menggantikan `router.refresh()` berulang, bukan menambahinya: yang ditarik
+ * ulang cuma satu baris run, dan halaman penuh baru ditarik ketika `perluTarikUlang`
+ * memang menyatakan ada yang berubah (`@/lib/ahsp/usulan-status`).
+ *
+ * Kapabilitasnya `rapl.manage`, sama dengan pemilik layarnya — penengokan ini
+ * membocorkan keberadaan dan jumlah draf harga, jadi ia bukan endpoint terbuka.
+ */
+export async function statusUsulanHargaAiAction(args: {
+  locationId: string;
+}): Promise<{ ok: true; status: RingkasUsulanAi } | { ok: false; error: string }> {
+  try {
+    const user = await requireCapability("rapl.manage");
+    await requireLocationAccess(user, args.locationId);
+    return { ok: true, status: await statusUsulanAi(args.locationId) };
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { ok: false, error: "Tidak berhak." };
+    // Penengokan yang gagal TIDAK menghentikan layar: pemanggil mengabaikannya
+    // dan mencoba lagi pada denyut berikutnya.
+    return { ok: false, error: e instanceof Error ? e.message : "Gagal menengok status." };
   }
 }

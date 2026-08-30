@@ -225,9 +225,6 @@ export default async function RaplPage({
           total: k.total,
         }))}
         perbandingan={{
-          nilaiProyek: p.nilaiProyek.toString(),
-          margin: p.margin.toString(),
-          marginPersen: p.marginPersen,
           cakupanNilai: p.keandalan.cakupanNilai,
           cakupanHarga: p.keandalan.cakupanHarga,
           utuh: p.keandalan.utuh,
@@ -264,7 +261,22 @@ export default async function RaplPage({
         <Banner
           tone="warning"
           title={`${cakupan.putus} baris kehilangan padanannya saat basis AHSP diganti`}
-          description="Ini bukan keputusan siapa pun – analisa yang dulu dipilih tidak ada lagi di terbitan sekarang. Tekan “Petakan otomatis” untuk menyambungnya kembali."
+          description="Ini bukan keputusan siapa pun – analisa yang dulu dipilih tidak ada lagi di terbitan sekarang."
+          /* Peringatan ini muncul di SETIAP kunjungan sampai seseorang
+             menyambungnya, dan tombol penyambungnya ada di subtab lain. Menyuruh
+             orang mencarinya sendiri membuat spanduknya jadi perabot: dibaca
+             sekali, lalu dilewati selamanya. */
+          action={
+            bagian === "validasi" ? undefined : (
+              <ButtonLink
+                href={`/lokasi/${slug}/rapl?bagian=validasi`}
+                variant="secondary"
+                size="sm"
+              >
+                Sambungkan ulang
+              </ButtonLink>
+            )
+          }
         />
       ) : null}
 

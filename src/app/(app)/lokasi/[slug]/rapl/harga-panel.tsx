@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type {
-  CellClassParams,
-  CellValueChangedEvent,
-  ColDef,
-  ValueFormatterParams,
-} from "ag-grid-community";
-import { Check, Sparkles, X } from "lucide-react";
+import type { CellValueChangedEvent } from "ag-grid-community";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
-import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
+import { MarlinGrid, type MarlinGridApi } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
+import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
+import { perluTarikUlang, type RingkasUsulanAi } from "@/lib/ahsp/usulan-status";
+import { kolomHarga, LABEL_KATEGORI, type Baris, type BarisHargaRow } from "./harga-kolom";
 import {
   mintaUsulanHargaAiAction,
   simpanHargaSel,
+  statusUsulanHargaAiAction,
   terapkanUsulanHargaAiAction,
   tolakUsulanHargaAiAction,
 } from "@/lib/ahsp/hsd-actions";
@@ -39,20 +37,7 @@ import {
  *   bukan persetujuan.
  */
 
-export type BarisHargaRow = {
-  kategori: string;
-  nama: string;
-  satuan: string;
-  jumlah: number;
-  /** BigInt diserialisasi; null = belum berharga. */
-  harga: string | null;
-  biaya: string | null;
-  sumber: string | null;
-  /** Nilai RAB yang tertahan oleh sumber daya ini — pengurut, bukan uang. */
-  nilaiTertahan: string;
-  /** Harga sumber daya yang sama di lokasi lain — bahan pertimbangan. */
-  rekomendasi: { harga: string; lokasi: string; kabupaten: string; seKabupaten: boolean }[];
-};
+export type { BarisHargaRow };
 
 export type UsulanDrafRow = {
   id: string;
@@ -73,24 +58,6 @@ export type KeadaanUsulanView = {
   diminta: number;
   totalKosong: number;
   draf: UsulanDrafRow[];
-};
-
-const LABEL: Record<string, string> = {
-  bahan: "Bahan",
-  upah: "Upah",
-  alat: "Alat",
-  fasilitas: "Fasilitas",
-};
-
-type Baris = BarisHargaRow & {
-  /** Angka polos untuk grid — AG Grid tidak mengurut string rupiah. */
-  hargaNum: number | null;
-  biayaNum: number | null;
-  rekomendasiTeks: string;
-  usulanId: string | null;
-  usulanAiNum: number | null;
-  keyakinanAi: string;
-  alasanAi: string;
 };
 
 const kunci = (r: { kategori: string; nama: string; satuan: string }) =>
@@ -114,17 +81,55 @@ export function HargaPanel({
   const router = useRouter();
   const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
   const [, mulaiSimpan] = useTransition();
+  /*
+   * Berapa simpanan harga yang sedang di jalan.
+   *
+   * Sel AG Grid bersifat optimis: angka yang diketik sudah tampil sebelum
+   * server menjawab, jadi "tersimpan" dan "sedang menyimpan" terlihat persis
+   * sama. Pada kolom uang itu bukan perkara rasa — orang berpindah sel cepat,
+   * dan tanpa penanda ia tidak punya cara tahu apakah yang barusan diketik
+   * sudah mendarat.
+   *
+   * Ref-nya dipakai untuk keputusan di dalam penangan (nilai state di sana
+   * sudah basi karena tertutup closure); state-nya untuk merender penandanya.
+   */
+  const simpanBerjalan = useRef(0);
+  const [menyimpan, setMenyimpan] = useState(0);
   const [aiPending, mulaiAi] = useTransition();
   const [putusanPending, mulaiPutusan] = useTransition();
   const [dicentang, setDicentang] = useState<Baris[]>([]);
+  const grid = useRef<MarlinGridApi>(null);
+
+  /**
+   * Melepas centang di GRID sekaligus di hitungan React — keduanya, selalu.
+   *
+   * Pilihan barisnya dipegang AG Grid; mengosongkan `dicentang` saja hanya
+   * mengubah angka di tombol. Karena baris dikenali `getRowId`, centangnya
+   * bertahan melewati penyegaran data, dan yang tersisa adalah baris menyala
+   * dengan tombol mati di atasnya. Dijadikan satu penolong supaya tidak ada
+   * jalur yang cuma mengerjakan separuhnya; dijaga
+   * `tests/unit/grid-pilihan-dilepas.test.ts`.
+   */
+  const lepasCentang = () => {
+    grid.current?.kosongkanPilihan();
+    setDicentang([]);
+  };
   const [hanyaUsulan, setHanyaUsulan] = useState(true);
   const [detik, setDetik] = useState(0);
+  const jumlahDraf = usulan.draf.length;
 
   /*
    * Menunggu di layar, bukan di dalam request (pola DECISIONS 455).
-   * `router.refresh()` menarik ulang server component, jadi draf muncul begitu
-   * tertulis tanpa endpoint status tersendiri. Detiknya dihitung dari
-   * `pendingSinceMs` supaya tetap benar bila halaman ditinggal lalu dibuka lagi.
+   *
+   * Yang berdenyut tiap 3 detik adalah PENENGOKAN status, bukan penarikan
+   * seluruh halaman. Versi pertama memanggil `router.refresh()` tanpa syarat,
+   * dan itu menjalankan ulang keenam kueri `RaplPage` — termasuk perhitungan
+   * RAPL atas ratusan baris RAB — dua puluh kali per menit hanya untuk membaca
+   * satu boolean. Sekarang halaman ditarik ulang hanya ketika status ringkasnya
+   * memang berubah; aturannya di `perluTarikUlang`, diuji terpisah.
+   *
+   * Detiknya dihitung dari `pendingSinceMs` supaya tetap benar bila halaman
+   * ditinggal lalu dibuka lagi.
    */
   useEffect(() => {
     if (!usulan.menunggu || usulan.pendingSinceMs == null) return;
@@ -132,12 +137,42 @@ export function HargaPanel({
     const hitung = () => setDetik(Math.max(0, Math.round((Date.now() - pending) / 1000)));
     hitung();
     const jam = setInterval(hitung, 1000);
-    const tarik = setInterval(() => router.refresh(), 3000);
+
+    /*
+     * Pembanding diambil dari yang SEDANG dirender layar. `jumlahDraf` dan
+     * `terputus` ikut jadi dependensi supaya sesudah penarikan ulang,
+     * pembandingnya ikut disegarkan — kalau tidak, denyut berikutnya masih
+     * membandingkan dengan keadaan lama dan menarik ulang berulang-ulang.
+     */
+    const semula: RingkasUsulanAi = {
+      menunggu: usulan.menunggu,
+      terputus: usulan.terputus,
+      jumlahDraf,
+    };
+    let berhenti = false;
+    const tarik = setInterval(() => {
+      void statusUsulanHargaAiAction({ locationId }).then((hasil) => {
+        // Penengokan yang gagal diabaikan diam-diam: ia akan diulang 3 detik
+        // lagi, dan spanduk galat yang berkedip tiap denyut lebih menakutkan
+        // daripada gangguan jaringan yang sebenarnya terjadi.
+        if (berhenti || !hasil.ok) return;
+        if (perluTarikUlang(semula, hasil.status)) router.refresh();
+      });
+    }, 3000);
+
     return () => {
+      berhenti = true;
       clearInterval(jam);
       clearInterval(tarik);
     };
-  }, [usulan.menunggu, usulan.pendingSinceMs, router]);
+  }, [
+    usulan.menunggu,
+    usulan.terputus,
+    usulan.pendingSinceMs,
+    jumlahDraf,
+    locationId,
+    router,
+  ]);
 
   const drafPerKunci = useMemo(
     () => new Map(usulan.draf.map((u) => [kunci(u), u])),
@@ -157,7 +192,7 @@ export function HargaPanel({
             .join("  |  "),
           usulanId: d?.id ?? null,
           usulanAiNum: d ? Number(d.harga) : null,
-          keyakinanAi: d ? `Keyakinan ${d.keyakinan}` : "",
+          keyakinanAi: d?.keyakinan ?? "",
           alasanAi: d?.alasan ?? "",
         };
       }),
@@ -175,79 +210,7 @@ export function HargaPanel({
     [adaDraf, hanyaUsulan, baris],
   );
 
-  const kolom: ColDef<Baris>[] = useMemo(
-    () => [
-      {
-        field: "nama",
-        headerName: "Sumber daya",
-        flex: 2,
-        minWidth: 240,
-        filter: true,
-        cellClass: (p: CellClassParams<Baris>) => (p.data?.harga === null ? "text-ink-muted" : ""),
-      },
-      {
-        field: "kategori",
-        headerName: "Kategori",
-        width: 110,
-        filter: true,
-        valueFormatter: (p: ValueFormatterParams<Baris>) => LABEL[String(p.value)] ?? String(p.value),
-      },
-      {
-        field: "jumlah",
-        headerName: "Kebutuhan",
-        width: 130,
-        type: "numericColumn",
-        valueFormatter: (p: ValueFormatterParams<Baris>) =>
-          p.value == null ? "" : formatNumber(Number(p.value)),
-        cellClass: "tabular text-right",
-      },
-      { field: "satuan", headerName: "Satuan", width: 90 },
-      {
-        ...rupiahCol<Baris>("hargaNum", "Harga satuan"),
-        width: 150,
-        // Inilah satu-satunya kolom yang boleh diedit. Sisanya turunan.
-        editable: canInput,
-        cellClass: () => cn("tabular text-right", canInput && "bg-[var(--color-surface-muted)]"),
-      },
-      {
-        ...rupiahCol<Baris>("usulanAiNum", "Usulan AI"),
-        width: 150,
-        cellClass: "tabular text-right text-brand",
-      },
-      {
-        field: "keyakinanAi",
-        headerName: "Keyakinan AI",
-        width: 130,
-        cellClass: "text-ink-muted",
-      },
-      {
-        field: "alasanAi",
-        headerName: "Dasar usulan AI",
-        flex: 1,
-        minWidth: 240,
-        cellClass: "text-ink-muted",
-        tooltipField: "alasanAi",
-      },
-      { ...rupiahCol<Baris>("biayaNum", "Biaya"), width: 160 },
-      {
-        field: "sumber",
-        headerName: "Sumber harga",
-        minWidth: 190,
-        flex: 1,
-        filter: true,
-        cellClass: "text-ink-muted",
-      },
-      {
-        field: "rekomendasiTeks",
-        headerName: "Harga di lokasi lain",
-        flex: 1,
-        minWidth: 220,
-        cellClass: "text-ink-muted",
-        tooltipField: "rekomendasiTeks",
-      },
-    ],
-    [canInput],
-  );
+  const kolom = useMemo(() => kolomHarga({ canInput, adaDraf }), [canInput, adaDraf]);
 
   const belum = rows.filter((r) => r.harga === null).length;
   const centangBerdraf = dicentang.filter((d) => d.usulanId !== null);
@@ -264,7 +227,7 @@ export function HargaPanel({
         setPesan({ tone: "error", teks: hasil.error });
         return;
       }
-      setDicentang([]);
+      lepasCentang();
       setPesan({
         tone: "success",
         teks:
@@ -309,6 +272,16 @@ export function HargaPanel({
           )}
         </p>
 
+        {menyimpan > 0 ? (
+          <p
+            role="status"
+            className="flex items-center gap-1.5 text-[13px] text-ink-muted"
+          >
+            <Loader2 aria-hidden className="size-3.5 animate-spin" />
+            Menyimpan {menyimpan} harga…
+          </p>
+        ) : null}
+
         {canInput && canUseAi && belum > 0 ? (
           <Button
             type="button"
@@ -325,7 +298,7 @@ export function HargaPanel({
                   setPesan({ tone: "error", teks: hasil.error });
                   return;
                 }
-                setDicentang([]);
+                lepasCentang();
                 setPesan({
                   tone: "success",
                   teks: `Permintaan ${hasil.diminta} draf harga tercatat${
@@ -409,6 +382,7 @@ export function HargaPanel({
       ) : null}
 
       <MarlinGrid<Baris>
+        ref={grid}
         rowData={tampil}
         columnDefs={kolom}
         quickFilter
@@ -426,28 +400,48 @@ export function HargaPanel({
           if (e.colDef.field !== "hargaNum") return;
           const d = e.data;
           const teks = e.newValue == null || e.newValue === "" ? "" : String(e.newValue);
-          setPesan(null);
+          simpanBerjalan.current += 1;
+          setMenyimpan(simpanBerjalan.current);
+          // Kabar lama hanya dihapus kalau tidak ada simpanan lain yang sedang
+          // berjalan – kalau tidak, sel kedua menghapus kegagalan sel pertama.
+          if (simpanBerjalan.current === 1) setPesan(null);
           mulaiSimpan(async () => {
-            const hasil = await simpanHargaSel({
-              locationId,
-              slug,
-              kategori: d.kategori,
-              nama: d.nama,
-              satuan: d.satuan,
-              harga: teks,
-            });
-            if (!hasil.ok) {
-              setPesan({ tone: "error", teks: hasil.error });
-              return;
+            try {
+              const hasil = await simpanHargaSel({
+                locationId,
+                slug,
+                kategori: d.kategori,
+                nama: d.nama,
+                satuan: d.satuan,
+                harga: teks,
+              });
+              if (!hasil.ok) {
+                setPesan({ tone: "error", teks: hasil.error });
+                return;
+              }
+              /*
+               * Keberhasilan TIDAK menimpa kegagalan. Dua sel yang disimpan
+               * beruntun selesai sesuai kecepatan jaringan, bukan sesuai urutan
+               * ketikan; tanpa penjagaan ini, sel kedua yang berhasil menghapus
+               * kabar bahwa sel pertama gagal — dan harganya tidak tersimpan
+               * tanpa seorang pun tahu.
+               */
+              setPesan((sebelumnya) =>
+                sebelumnya?.tone === "error"
+                  ? sebelumnya
+                  : {
+                      tone: "success",
+                      teks:
+                        hasil.harga === null
+                          ? `Harga "${d.nama}" dikosongkan.`
+                          : `Harga "${d.nama}" disimpan.`,
+                    },
+              );
+              router.refresh();
+            } finally {
+              simpanBerjalan.current -= 1;
+              setMenyimpan(simpanBerjalan.current);
             }
-            setPesan({
-              tone: "success",
-              teks:
-                hasil.harga === null
-                  ? `Harga "${d.nama}" dikosongkan.`
-                  : `Harga "${d.nama}" disimpan.`,
-            });
-            router.refresh();
           });
         }}
       />
@@ -461,13 +455,24 @@ export function HargaPanel({
 }
 
 /**
- * Ringkasan biaya + potensi margin terhadap nilai RAB aktif.
+ * Ringkasan biaya per kategori + peringatan keandalannya.
+ *
+ * Sengaja SATU blok setinggi dua baris, bukan empat kartu di atas satu kotak
+ * tiga kolom. Susunan lamanya mengulang dua angka yang sudah berdiri sebagai
+ * KpiCard beberapa piksel di atasnya — "Nilai RAB aktif" dan "Potensi margin"
+ * — lalu memakai ±260px layar untuk mengulanginya. Akibatnya tabel yang
+ * menjadi pekerjaan sebenarnya terdorong seluruhnya ke bawah lipatan, dan
+ * keluhan user 2026-08-30 tepat: "tampilan pandangan pertama user habis di
+ * balon".
+ *
+ * Yang TIDAK ikut dimampatkan adalah paragraf keandalannya. Ia satu-satunya
+ * tempat yang mengatakan angka ini belum boleh dibaca sebagai keuntungan, dan
+ * memendekkannya berarti memendekkan peringatannya.
  *
  * `tampilkanMargin=false` untuk pemegang `rapl.manage` tanpa `rapl.view` —
- * Site Manager yang MENGISI harga tapi tidak membaca angka menawarnya. Yang
- * disembunyikan hanya selisih terhadap nilai RAB; biaya yang ia susun sendiri
- * tetap terlihat, karena menyembunyikannya berarti menyuruh orang mengisi
- * dengan mata tertutup.
+ * Site Manager yang MENGISI harga tapi tidak membaca angka menawarnya. Biaya
+ * yang ia susun sendiri tetap terlihat; menyembunyikannya berarti menyuruh
+ * orang mengisi dengan mata tertutup.
  */
 export function RingkasBiaya({
   totalBiaya,
@@ -481,99 +486,59 @@ export function RingkasBiaya({
   berharga: number;
   belumBerharga: number;
   perKategori: { kategori: string; biaya: string; berharga: number; total: number }[];
-  perbandingan: {
-    nilaiProyek: string;
-    margin: string;
-    marginPersen: number;
-    cakupanNilai: number;
-    cakupanHarga: number;
-    utuh: boolean;
-  };
+  perbandingan: { cakupanNilai: number; cakupanHarga: number; utuh: boolean };
   tampilkanMargin?: boolean;
 }) {
+  const berhatiHati = tampilkanMargin && !perbandingan.utuh;
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {perKategori.map((k) => (
-          <div key={k.kategori} className="rounded-lg border border-line px-3 py-2">
-            <p className="text-[12px] tracking-wide text-ink-muted uppercase">
-              {LABEL[k.kategori] ?? k.kategori}
-            </p>
-            <p className="tabular mt-0.5 text-lg font-semibold text-ink">
-              {formatRupiahShort(BigInt(k.biaya))}
-            </p>
-            <p className="text-[12px] text-ink-muted">
-              {k.berharga} dari {k.total} sudah berharga
-            </p>
-          </div>
-        ))}
+    <div
+      className={cn(
+        "rounded-lg border",
+        berhatiHati ? "border-warning-border bg-warning-soft" : "border-line bg-surface",
+      )}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2">
+        <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya RAPL</p>
+        <p className="tabular text-lg font-semibold text-ink">
+          {formatRupiah(BigInt(totalBiaya))}
+        </p>
+        <ul className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-ink-muted">
+          {perKategori.map((k) => (
+            <li key={k.kategori}>
+              {LABEL_KATEGORI[k.kategori] ?? k.kategori}{" "}
+              <span className="tabular font-medium text-ink">
+                {formatRupiahShort(BigInt(k.biaya))}
+              </span>{" "}
+              <span className="text-[12px]">
+                ({k.berharga}/{k.total} berharga)
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div
-        className={cn(
-          "rounded-lg border p-3",
-          !tampilkanMargin || perbandingan.utuh
-            ? "border-line bg-surface"
-            : "border-warning-border bg-warning-soft",
-        )}
-      >
-        <div className={cn("grid gap-3", tampilkanMargin ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-            <div>
-              <p className="text-[12px] tracking-wide text-ink-muted uppercase">Biaya RAPL</p>
-              <p className="tabular text-lg font-semibold text-ink">
-                {formatRupiah(BigInt(totalBiaya))}
-              </p>
-            </div>
-            <div>
-              <p className="text-[12px] tracking-wide text-ink-muted uppercase">Nilai RAB aktif</p>
-              <p className="tabular text-lg font-semibold text-ink">
-                {formatRupiah(BigInt(perbandingan.nilaiProyek))}
-              </p>
-              <p className="text-[11px] text-ink-muted">nilai proyek pra-PPN</p>
-            </div>
-            {tampilkanMargin ? (
-              <div>
-                <p className="text-[12px] tracking-wide text-ink-muted uppercase">
-                  {perbandingan.utuh ? "Potensi margin" : "Selisih sementara"}
-                </p>
-                <p
-                  className={cn(
-                    "tabular text-lg font-semibold",
-                    BigInt(perbandingan.margin) >= 0n ? "text-success" : "text-danger",
-                  )}
-                >
-                  {formatRupiah(BigInt(perbandingan.margin))}
-                  <span className="ms-1 text-[13px] font-normal">
-                    ({formatPct(perbandingan.marginPersen, 1)})
-                  </span>
-                </p>
-              </div>
-            ) : null}
-        </div>
-
-        {!tampilkanMargin ? (
-          <p className="mt-2.5 border-t border-line pt-2 text-[13px] text-ink-muted">
-            {belumBerharga > 0
-              ? `${belumBerharga} sumber daya masih kosong harganya – biaya di atas akan bertambah setelah diisi.`
-              : `Seluruh ${berharga} sumber daya sudah berharga.`}{" "}
-            Perbandingan terhadap nilai RAB tidak ditampilkan untuk peranmu.
-          </p>
-        ) : !perbandingan.utuh ? (
-          <p className="mt-2.5 border-t border-warning-border pt-2 text-[13px] text-ink">
-            <strong>Selisih ini BELUM bisa dibaca sebagai keuntungan.</strong> Ia dihitung dari{" "}
-            {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan kebutuhan, dan
-            baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang berharga
-            {belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk
-            akan MENGECILKAN selisihnya, bukan membesarkan.
-          </p>
-        ) : (
-          <p className="mt-2.5 border-t border-line pt-2 text-[13px] text-ink-muted">
-            Seluruh nilai RAB masuk hitungan dan seluruh {berharga} sumber daya sudah berharga.
-            Angka ini adalah potensi margin pelaksanaan, bukan profit neto setelah pajak dan biaya
-            lain di luar breakdown RAPL.
-          </p>
-        )}
-      </div>
+      {!tampilkanMargin ? (
+        <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
+          {belumBerharga > 0
+            ? `${belumBerharga} sumber daya masih kosong harganya – biaya di atas akan bertambah setelah diisi.`
+            : `Seluruh ${berharga} sumber daya sudah berharga.`}{" "}
+          Perbandingan terhadap nilai RAB tidak ditampilkan untuk peranmu.
+        </p>
+      ) : !perbandingan.utuh ? (
+        <p className="border-t border-warning-border px-3 py-2 text-[13px] text-ink">
+          <strong>Selisih terhadap nilai RAB BELUM bisa dibaca sebagai keuntungan.</strong> Ia
+          dihitung dari {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan
+          kebutuhan, dan baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang berharga
+          {belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk akan
+          MENGECILKAN selisihnya, bukan membesarkan.
+        </p>
+      ) : (
+        <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
+          Seluruh nilai RAB masuk hitungan dan seluruh {berharga} sumber daya sudah berharga. Angka
+          ini adalah potensi margin pelaksanaan, bukan profit neto setelah pajak dan biaya lain di
+          luar breakdown RAPL.
+        </p>
+      )}
     </div>
   );
 }

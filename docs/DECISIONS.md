@@ -38,6 +38,14 @@ di hari yang sama. Diberikan saat merge, ia mustahil.
 Dijaga `tests/unit/decisions-nomor.test.ts`: nomor tidak boleh kembar, urutannya
 tidak boleh mundur, dan tidak boleh ada `(baru)` yang lolos merge.
 
+Penjaga `(baru)` itu HANYA menggigit di `dev`/`main`. Di cabang penulis, `(baru)`
+justru bentuk yang benar, jadi yang diperiksa di sana bentuk judulnya. Versi
+pertamanya menolak `(baru)` di mana saja, dan itu membuat aturan ini melawan
+gerbangnya sendiri: penulis disuruh menulis `(baru)`, lalu setiap PR yang
+menambah keputusan otomatis merah. Terbukti pada dua cabang pertama sesudah
+aturannya berlaku — yang satu menyiasati dengan memilih nomor sendiri, persis
+yang hendak dicegah.
+
 **Merujuk keputusan dari kode**: tulis nomornya SESUDAH ia diberikan. Kalau
 komentarmu perlu menunjuk keputusan yang masih `(baru)`, sebut judulnya; nomornya
 ditambahkan pemeriksa terakhir bersama penomorannya.
@@ -25068,3 +25076,314 @@ wajib punya pintunya sendiri, bukan menumpang.
 Dijaga `tests/unit/rapl-kapabilitas.test.ts`, termasuk satu penjaga yang
 memindai berkas RAPL/HSD dan menolak kalau `finance.*` muncul lagi di sana —
 supaya yang kambuh bukan cuma gejalanya, tapi sebabnya pun tertutup.
+---
+
+## 478 · Ketukan baris membuka panel di layar, bukan di bawah lipatan (2026-08-30)
+
+**Konteks**: Laporan user, dengan tangkapan layar: *"saat atas diklik tidak
+memunculkan apapun, kalau tidak scroll bawah, tidak akan sadar penggunanya."*
+
+Penelusurannya menemukan tiga cacat berbeda dengan satu akibat yang sama —
+ketukan pada baris grid tidak menghasilkan apa pun yang bisa dilihat:
+
+1. **Validasi breakdown**: panel kandidat dirender SESUDAH grid. Di atasnya
+   menumpuk KPI, subtab, tombol saringan, grid `55vh`, dan bar paginasi,
+   sehingga panelnya mulai kira-kira satu layar penuh di bawah lipatan.
+   Satu-satunya umpan balik di tempat mata pengguna berada adalah garis fokus
+   sel AG Grid. Lebih buruk lagi, mengetuk baris yang sama untuk kedua kalinya
+   MENUTUP panel — jadi urutan paling wajar (ketuk, ragu, ketuk lagi) justru
+   membuang yang baru saja muncul.
+2. **Rincian per item**: panelnya tidak muncul sama sekali. Gridnya mengoper
+   `rowLink` bersama `onRowClicked`; di `MarlinGrid`, `rowLink` diperiksa lebih
+   dulu lalu `return`, jadi `onRowClicked` tak pernah terpanggil. Barisnya tidak
+   punya tautan, sehingga ketukannya berhenti tanpa suara. Seluruh Tahap B —
+   tambah komponen, faktor konversi, harga borongan — tak terjangkau sejak
+   ditulis, dan lolos karena uji E2E-nya hanya memeriksa siapa yang boleh
+   melihat uang.
+3. **Papan tik**: `MarlinGrid` tidak pernah memasang `onCellKeyDown`. Event
+   `rowClicked` AG Grid lahir dari tetikus/sentuhan saja, jadi Enter pada sel
+   tidak melakukan apa-apa — di SEMUA grid yang barisnya membuka sesuatu, bukan
+   hanya RAPL. Itu WCAG 2.1.1 Level A, dan tak terlihat dalam pemeriksaan mata
+   karena dengan tetikus semuanya bekerja.
+
+**Keputusan**:
+
+- Panel detail baris memakai `PanelGeser`, bukan blok dalam aliran halaman. Ia
+  `fixed` terhadap viewport, jadi tidak mungkin lahir di luar layar, dan sudah
+  membawa `role="dialog"`, jebakan fokus, Escape, serta kunci gulir latar.
+  Pemberitahuan ke pembaca layar terjadi lewat perpindahan fokus — bukan lewat
+  `aria-live` buatan sendiri (WCAG 4.1.3).
+- Ketukan baris SELALU membuka baris itu. Menutup punya jalannya sendiri:
+  silang, Escape, atau ketuk latar.
+- `PanelGeser` mengembalikan fokus ke elemen asalnya saat ditutup — hanya bila
+  elemen itu masih ada di dokumen.
+- `MarlinGrid` mengartikan Enter pada sel sama dengan ketukan pada barisnya.
+  Space sengaja tidak diikutkan: pada grid berkotak-centang ia sudah berarti
+  "pilih baris ini", dan merebutnya menukar satu cacat papan tik dengan cacat
+  lain.
+- Panel yang terbuka menyimpan KUNCI barisnya, bukan potret barisnya, dan
+  isinya diturunkan ulang dari data tiap render.
+- Panel rincian TIDAK menutup sendiri setiap kali satu mutasi berhasil.
+
+**Alternatif direject**:
+
+- *Gulirkan halaman ke panel + sorot barisnya.* Menambal gejalanya. Panel tetap
+  di aliran halaman, jadi ia tetap bisa terdorong ke luar layar oleh isi yang
+  tumbuh, dan setiap perilaku aksesibilitas (fokus, Escape, kunci gulir) harus
+  ditulis dan diuji ulang dari nol — padahal `PanelGeser` sudah membawanya dan
+  sudah pernah diperbaiki lewat uji Playwright yang merah.
+- *Dua kolom, grid kiri panel kanan.* Memampatkan tujuh kolom grid untuk SEMUA
+  baris, termasuk saat tidak ada panel terbuka — ongkos permanen untuk keadaan
+  sesekali.
+- *Master/detail AG Grid.* Edisi Enterprise; dilarang repo ini.
+- *Menambahkan `aria-live` pada panel di tempatnya sekarang.* Menjawab pembaca
+  layar tapi tidak menjawab mata: pengguna awas tetap tidak melihat apa pun.
+
+**Konsekuensi**: `PanelGeser` kini mengembalikan fokus untuk SELURUH
+pemakainya (ringkasan paket, kalender harian), dan `MarlinGrid` menambah jalur
+papan tik untuk seluruh grid ber-`onRowClicked`/`rowLink` — termasuk daftar
+paket, lokasi, keuangan, dan laporan harian. Keduanya perluasan perilaku, bukan
+perubahan arti. Dijaga `tests/e2e/rapl-panel-baris.spec.ts`.
+
+**Bisa di-revisit**: bila lebar `max-w-2xl` ternyata masih sempit untuk daftar
+kandidat AHSP di layar kecil.
+
+---
+
+## 479 · MarlinGrid membuka satu pintu imperatif: melepas pilihan (2026-08-30)
+
+**Konteks**: Pilihan baris diserahkan ke AG Grid, bukan ke state pemanggil
+(DECISIONS 328) — hanya dengan begitu "pilih semua" mengikuti saringan yang
+sedang aktif. Konsekuensinya yang memegang kebenaran tentang "baris mana yang
+tercentang" adalah grid.
+
+Panel RAPL mengosongkan hitungannya sendiri sesudah aksi borongan berhasil
+(`setDicentang([])`) tanpa memberi tahu grid. Karena `getRowId` dipasang, AG
+Grid mempertahankan pilihan per-id saat data disegarkan — jadi centangnya bisa
+tetap menyala sementara tombol di atasnya menulis "0 dicentang" dan mati. Yang
+dilihat pengguna dan yang dipercaya kode berbeda, tanpa satu pun pesan.
+
+**Keputusan**: `MarlinGrid` mengembalikan pegangan imperatif `MarlinGridApi`
+dengan SATU kemampuan: `kosongkanPilihan()`. Setiap panel yang memakai pilihan
+baris mengumpulkan pengosongannya di satu penolong yang memanggil grid DAN
+state, tidak boleh tersebar.
+
+**Alternatif direject**:
+
+- *Meneruskan `GridApi` utuh.* Begitu ia terbuka, pemanggil mulai mengatur
+  kolom, saringan, dan urutan dari luar, dan `MarlinGrid` berhenti jadi
+  satu-satunya tempat aturan grid tinggal. Yang dibutuhkan cuma satu perintah.
+- *Prop "penanda reset" yang dinaikkan angkanya.* Menghindari ref, tapi
+  memindahkan keadaan yang tidak punya arti sendiri ke dalam state komponen,
+  dan menyembunyikan maksudnya di balik angka yang bertambah.
+- *Membiarkannya.* Perilaku AG Grid di sini bergantung pada `isRowSelectable`
+  yang berubah setelah data segar — perilaku yang tidak dijanjikan dokumentasi
+  dan bisa berubah antarversi. Yang bisa dipastikan sendiri jangan diserahkan
+  pada tebakan.
+
+**Konsekuensi**: Dijaga `tests/unit/grid-pilihan-dilepas.test.ts` — penjaga
+sumber, karena uji unit repo ini berjalan tanpa DOM dan AG Grid tidak bisa
+dijalankan di sana. Ia menolak `setDicentang([])`/`setTerpilih([])` yang
+tersebar lebih dari satu tempat.
+
+**Bisa di-revisit**: bila ada kebutuhan imperatif kedua yang sah — tambahkan ke
+`MarlinGridApi` satu per satu, jangan dibuka seluruhnya.
+
+---
+
+## 480 · Layar menunggu dengan menengok status, bukan menarik ulang halaman (2026-08-30)
+
+**Konteks**: DECISIONS 455 menetapkan pola "menunggu di layar, bukan di dalam
+request", dan itu tetap berlaku. Cara menengoknya yang mahal: panel harga RAPL
+memanggil `router.refresh()` tiap 3 detik selama draf AI disusun, dan itu
+menjalankan ulang KEENAM kueri `RaplPage` — termasuk `simulasiRapl` atas
+ratusan baris RAB — dua puluh kali per menit hanya untuk membaca satu boolean.
+
+**Keputusan**: yang berdenyut adalah penengokan status ringkas
+(`statusUsulanAi` → satu baris run + hitungan draf, lewat
+`statusUsulanHargaAiAction`). Halaman ditarik ulang HANYA ketika status yang
+terlihat memang berubah, diputuskan fungsi murni `perluTarikUlang`
+(`src/lib/ahsp/usulan-status.ts`). Penengokan yang gagal diabaikan diam-diam
+dan diulang pada denyut berikutnya — spanduk galat yang berkedip tiap tiga
+detik lebih menakutkan daripada gangguan jaringan yang sebenarnya terjadi.
+
+`terputus` ikut dibandingkan walau ia lahir dari perjalanan waktu, bukan dari
+tulisan ke basis data: tanpa itu, permintaan yang prosesnya mati membuat layar
+menunggu selamanya tanpa kabar.
+
+**Alternatif direject**:
+
+- *Memperbesar jedanya.* Menukar ongkos dengan kelambatan; yang mahal tetap
+  mahal, cuma lebih jarang.
+- *Aliran server (SSE/WebSocket).* Ongkos infrastruktur yang tidak sebanding
+  untuk penantian yang berumur detik, dan menambah jalur yang harus dijaga
+  hidup di Railway.
+- *Menyimpan aturannya di dalam `useEffect`.* Bekerja, tapi tidak bisa diuji
+  tanpa peramban — dan justru aturan inilah yang menentukan mahal atau tidaknya
+  layar ini.
+
+**Konsekuensi**: `perluTarikUlang` diuji terpisah
+(`tests/unit/rapl-usulan-jajak.test.ts`), termasuk kasus yang jadi seluruh
+alasan perubahan ini: tidak menarik ulang saat tidak ada yang berubah.
+`jumlahDraf` dan `terputus` wajib jadi dependensi efeknya, supaya pembandingnya
+ikut segar sesudah penarikan ulang.
+
+**Bisa di-revisit**: bila penantian lain di aplikasi ini butuh pola yang sama —
+saat itu bentuk `RingkasUsulanAi` layak digeneralisasi, bukan disalin.
+
+---
+
+## 481 · Layout kolom tersimpan tidak boleh menyembunyikan kolom baru (2026-08-30)
+
+**Konteks**: `MarlinGrid` menyimpan `getColumnState()` ke localStorage per
+`persistKey` — sepuluh grid memakainya — lalu memulihkannya dengan
+`applyColumnState({ applyOrder: true })`. Yang tidak diperhitungkan: susunan
+kolom juga berubah karena KODE berubah, bukan hanya karena penggunanya menyeret
+sesuatu.
+
+Di dalam AG Grid (`orderLiveColsLikeState`, diperiksa langsung di
+`node_modules`), `applyOrder` menyusun kolom mengikuti daftar tersimpan lalu
+menempelkan kolom yang tidak dikenal daftar itu di UJUNG KANAN. Jadi setiap
+kolom yang baru ditambahkan kode mendarat di seberang tepi gulir bagi siapa pun
+yang pernah membuka layar itu sebelumnya — bukan di posisi yang dipilih
+penulisnya, dan tanpa satu tanda pun bahwa ada yang tersembunyi.
+
+Itulah yang dilaporkan user 2026-08-30: *"saran dari ai memang masuk tabel,
+tapi secara tampilan tidak kelihatan"*. Draf harga AI memang tersimpan dan
+memang masuk barisnya; ketiga kolomnya duduk di luar layar.
+
+**Keputusan**: pemulihan layout didamaikan lebih dulu
+(`src/components/grid/column-state.ts`). Begitu ADA kolom sekarang yang tidak
+dikenal simpanan, urutan simpanan dilepas dan urutan kode yang dipakai; lebar,
+sortir, dan kolom yang disembunyikan tetap dipulihkan. Kolom yang DIHAPUS kode
+tidak membatalkan apa pun — AG Grid mengabaikan state tanpa kolom.
+
+Ditambah satu jalan pulang yang selama ini tidak ada: tombol **"Atur ulang
+kolom"** di bilah grid, yang membuang simpanannya lalu memanggil
+`resetColumnState()`. Tanpa itu, satu kolom yang tak sengaja disembunyikan ikut
+berpindah ke setiap kunjungan berikutnya, dan obat satu-satunya adalah
+membersihkan localStorage — yang tidak akan dilakukan Site Manager mana pun.
+
+**Alternatif direject**:
+
+- *Membuang seluruh simpanan begitu kolomnya berubah.* Menghukum lebar dan
+  sortir yang memang milik pengguna karena kesalahan yang bukan miliknya.
+- *Menomori versi kolom secara manual per grid.* Menuntut penulis mengingat
+  menaikkannya; yang lupa persis menghasilkan cacat yang sedang diperbaiki.
+
+**Konsekuensi**: `bacaSimpananKolom` diuji terpisah
+(`tests/unit/grid-kolom-simpanan.test.ts`), termasuk kasus aslinya. Pabrik kolom
+(`rupiahCol`/`pctCol`/`dateCol`) pindah ke `src/components/grid/kolom.ts` supaya
+susunan kolom sebuah layar bisa diuji tanpa memuat `ag-grid-react`;
+`marlin-grid.tsx` mengekspornya ulang.
+
+---
+
+## 482 · Kolom RAPL mengikuti keputusan yang sedang diminta; ringkasannya berhenti mengulang (2026-08-30)
+
+**Konteks**: keluhan kedua user pada hari yang sama: *"tampilan pandangan
+pertama user habis di balon yang sebenarnya juga tidak terlalu berguna, harusnya
+bisa dimampatkan"*.
+
+Dua sebab terukur, keduanya bukan selera:
+
+1. Grid "Kebutuhan & harga" memasang sebelas kolom tetap berlebar minimum
+   ±1.810px. Tiga di antaranya kolom draf AI yang memakan ±520px untuk memajang
+   sel KOSONG selama tidak ada draf — dan mendorong kolom lain keluar layar.
+2. Di atas tabel bertumpuk empat KpiCard halaman, empat kartu kategori, satu
+   kotak tiga kolom, satu bilah penjelasan, dan (di subtab Rincian) tiga kartu
+   lagi. Dua angka di antaranya — "Nilai RAB aktif" dan "Potensi margin" —
+   diulang persis dari KpiCard beberapa piksel di atasnya.
+
+**Keputusan**:
+
+- Susunan kolom harga jadi fungsi dari keadaan: tanpa draf, kolom AI tidak ada;
+  dengan draf, kolom keputusan (Usulan AI, Keyakinan, Harga satuan) naik ke
+  sepertiga kiri dan kolom turunan (biaya, sumber harga, kebutuhan) turun ke
+  kanan. Tidak ada kolom yang HILANG karena adanya draf — yang berubah hanya
+  urutannya, jadi yang ingin melihatnya tinggal menggulir; itu pilihannya, bukan
+  nasibnya. Sel usulan AI diberi latar `info-soft` supaya tidak terbaca sebagai
+  harga yang sudah berlaku.
+- `RingkasBiaya` berhenti mengulang angka yang sudah jadi KpiCard: ia kini satu
+  bilah "Biaya RAPL + per kategori" plus paragraf keandalannya. Paragrafnya
+  TIDAK ikut dimampatkan — ia satu-satunya tempat yang mengatakan selisih ini
+  belum boleh dibaca sebagai keuntungan (CALCULATION_INTEGRITY_PROTOCOL).
+- Tiga kartu ringkasan subtab Rincian jadi satu bilah; pemicu `Kenapa` jadi
+  tautan sebaris, bukan bilah abu-abu selebar halaman.
+- Spanduk "N baris kehilangan padanannya" mendapat tombol **"Sambungkan ulang"**
+  ke subtab tempat "Petakan otomatis" berada. Peringatan yang menyuruh orang
+  mencari tombolnya sendiri berubah jadi perabot.
+
+**Alternatif direject**:
+
+- *Mengunci kolom "Sumber daya" ke kiri (pinned).* Di ponsel 390px, kolom
+  terkunci selebar 220px menyisakan ruang gulir yang tak berguna.
+- *Membuang kolom biaya/sumber harga selama ada draf.* Memampatkan dengan
+  menghilangkan data; pengguna kehilangan pembanding justru saat ia menimbang.
+
+**Konsekuensi**: susunan kolomnya pindah ke
+`src/app/(app)/lokasi/[slug]/rapl/harga-kolom.ts` (murni, tanpa AG Grid) dan
+dijaga `tests/unit/rapl-kolom-harga.test.ts` — termasuk invarian "tidak ada
+kolom yang hilang saat draf datang" dan "Usulan AI berada di dalam 1.000px
+pertama".
+
+**Bisa di-revisit**: bila layar lain ikut kesempitan, ambang lebar itu layak
+jadi aturan bersama, bukan angka di satu berkas uji.
+
+## 483 · Lokasi itu direktori, Progress itu papan tagihan (2026-08-30)
+
+Pertanyaan user 2026-08-30: *"halaman lokasi dan progress, apa bedanya? sangat
+mirip"*. Memang mirip. Keduanya memanggil `getLocationsProgress()` yang sama dan
+sama-sama memajang Rencana / Realisasi / Deviasi per lokasi; yang membedakan cuma
+hal-hal yang tidak terlihat sekilas (lingkup lokasi aktif, urutan, dan beberapa
+kolom).
+
+**Yang diputuskan: dipertajam, bukan dilebur.** Melebur sempat dipertimbangkan
+dan tidak terhalang izin — `location.view` dan `progress.view` sama-sama datang
+dari `VIEW_ALL`, jadi tidak ada peran yang punya satu tanpa yang lain. Yang
+menghalangi adalah cara pakainya: "Kedungmutih di mana" dijawab dengan MENCARI
+NAMA (urut A→Z, semua lokasi termasuk yang belum jalan); "siapa yang harus
+kutagih pagi ini" dijawab dengan PERINGKAT (deviasi terburuk dulu, hanya yang
+aktif). Satu halaman harus memilih satu urutan default, dan yang kalah jadi
+halaman yang selalu perlu diurut ulang lebih dulu. Dengan 83 lokasi itu ongkos
+harian.
+
+| | `/lokasi` | `/progress` |
+|---|---|---|
+| Perannya | direktori – mencari satu lokasi | papan tagihan – memeringkat yang tertinggal |
+| Lingkup | semua lokasi dalam akses | hanya `isActive` |
+| Urutan | nama A→Z | deviasi terburuk dulu |
+| Dari progres | **Deviasi saja** | Minggu, Rencana, Realisasi, Deviasi, Terpasang, Terakhir lapor |
+
+Rencana dan Realisasi DIBUANG dari `/lokasi`. Deviasinya tinggal, sederajat
+dengan Status: penanda "lokasi ini sedang bermasalah", bukan pemantauan.
+
+**`/progress` jadi MarlinGrid.** Sebelumnya ia tabel HTML polos — tidak bisa
+dicari, disaring, atau diekspor. Artinya halaman yang tugasnya MEMANTAU adalah
+satu-satunya daftar panjang di aplikasi ini yang harus dibaca dengan mata
+telanjang, sementara direktori yang isinya lebih pendek punya semuanya.
+
+**Kolom baru: TERAKHIR LAPOR.** Ia memisahkan dua keadaan yang di papan lama
+terlihat persis sama: deviasi buruk dengan pelaporan yang jalan, dan deviasi
+buruk yang laporannya juga mandek. Yang kedua bukan soal kecepatan pekerjaan
+lagi — realisasi dihitung dari laporan, jadi angkanya sendiri sudah tidak bisa
+dipercaya.
+
+Dua pilihan di dalamnya, keduanya diminta user pada tanggal yang sama:
+
+1. Yang dihitung **laporan yang DIKIRIM** (`submittedAt`), bukan yang disetujui.
+   Laporan yang dikembalikan jadi `perlu_koreksi` tetap pernah dikirim;
+   membuangnya akan menuduh lapangan tidak melapor justru pada hari mereka
+   melapor lalu diminta membetulkan.
+2. Yang ditampilkan **tanggal KERJA**-nya, bukan jam pengirimannya —
+   pertanyaannya "lapangan sudah melapor sampai tanggal berapa".
+
+Lokasi yang belum pernah mengirim ditulis "belum pernah", bukan diberi umur
+besar supaya kelihatan terburuk saat diurut: angka karangan di kolom tagihan
+adalah cara tercepat membuat papannya berhenti dipercaya.
+
+Dijaga `tests/integration/progress-terakhir-lapor.test.ts` (6 uji) dan
+`tests/e2e/lokasi-vs-progress.spec.ts` — yang terakhir menguji dari LAYAR, sebab
+kolom yang dihapus di berkas grid tapi masih terkirim dari server akan lolos
+pemeriksaan sumber dan tetap terlihat pengguna.
+

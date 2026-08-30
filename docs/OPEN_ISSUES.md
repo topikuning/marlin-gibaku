@@ -629,7 +629,13 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
   gagalnya adalah mengetik ulang pertanyaan. Di sini belum dibuat karena
   ongkosnya tidak sebanding; kalau ternyata sering terjadi, polanya sudah ada
   tinggal disalin.
-- 🟢 **`simpanHargaAction` (jalur FormData) tidak dipakai satu pun layar.**
-  Grid memakai `simpanHargaSel`. Ia sudah ikut diperketat (asal-usul harga
-  ditetapkan server), tetapi kode yang tidak dipanggil siapa pun sebaiknya
-  dibuang — ditunda supaya diff RAPL-01…08 tetap bisa dibaca.
+- 🟢 **Kolom draf harga AI belum punya jalur E2E.** Perbaikan 2026-08-30
+  (DECISIONS baru: kolom mengikuti keadaan) dijaga uji unit atas fungsi murni
+  `kolomHarga`, BUKAN atas grid yang benar-benar dirender: seed pengembangan
+  tidak punya basis AHSP maupun draf harga AI, jadi tidak ada jalan menuju layar
+  itu di Playwright. Yang belum terbukti karenanya: bahwa kolom "Usulan AI"
+  memang terlihat tanpa gulir mendatar di peramban sungguhan. Menutupnya menuntut
+  seed yang memuat basis AHSP + satu draf usulan.
+- 🟢 **Grid RAPL lain belum diukur lebarnya.** Yang dirapikan baru "Kebutuhan &
+  harga". `rapl-padanan` dan `rapl-rincian-item` memakai pola kolom yang sama dan
+  bisa saja melewati lebar layar dengan cara yang sama – belum diperiksa.

@@ -41,8 +41,6 @@ export default async function LokasiListPage() {
       wilayah: `${l.regency}, ${l.province}`,
       paket: l.package.name,
       status: l.status,
-      planPct: p.planPct,
-      realizedPct: p.realizedPct,
       deviationPct: p.deviationPct,
       rabValue: Number(p.grandTotal),
     };

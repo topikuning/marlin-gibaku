@@ -1,19 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader, KpiCard, Card, CardHeader, CardBody, EmptyState, ProgressBar } from "@/components/ui";
-import { DeltaBadge } from "@/components/ui/stat-delta";
-import { TrendingUp } from "lucide-react";
+import { PageHeader, KpiCard, Card, CardHeader, CardBody } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
+import { getLastSubmittedReportDates } from "@/lib/daily-report/queries";
 import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
-import { formatRupiahShort, formatPct } from "@/lib/format";
+import { formatRupiahShort, formatPct, formatTanggal, jakartaToday } from "@/lib/format";
+import { ProgressGrid, type ProgressRow } from "./progress-grid";
 
 export const metadata: Metadata = { title: "Progress" };
 export const dynamic = "force-dynamic";
+
+/** Sehari dalam milidetik — dua tanggal kerja sama-sama tengah malam UTC. */
+const SEHARI_MS = 86_400_000;
 
 export default async function ProgressPage() {
   const user = await requireUser();
@@ -31,7 +34,10 @@ export default async function ProgressPage() {
     },
     orderBy: { name: "asc" },
   });
-  const progress = await getLocationsProgress(locations.map((l) => l.id));
+  const [progress, terakhirLapor] = await Promise.all([
+    getLocationsProgress(locations.map((l) => l.id)),
+    getLastSubmittedReportDates(locations.map((l) => l.id)),
+  ]);
 
   let totalRab = 0n;
   let totalRealized = 0n;
@@ -43,9 +49,33 @@ export default async function ProgressPage() {
   const avgPlan = weightedPct([...progress.values()].map((p) => ({ grandTotal: p.grandTotal, pct: p.planPct })));
   const avgActual = weightedRealizedPct([...progress.values()]);
 
-  const rows = locations
-    .map((l) => ({ ...l, p: progress.get(l.id)! }))
-    .sort((a, b) => a.p.deviationPct - b.p.deviationPct);
+  const hariIni = jakartaToday();
+  const rows: ProgressRow[] = locations
+    .map((l) => {
+      const p = progress.get(l.id)!;
+      const lapor = terakhirLapor.get(l.id) ?? null;
+      return {
+        id: l.id,
+        slug: l.slug,
+        name: l.name,
+        provinsi: l.province,
+        paket: l.package.name,
+        minggu: `M${p.weekNumber}/${p.totalWeeks}`,
+        planPct: p.planPct,
+        realizedPct: p.realizedPct,
+        deviationPct: p.deviationPct,
+        terpasang: Number(p.realizedValue),
+        terakhirLapor: lapor ? formatTanggal(lapor) : null,
+        // Keduanya tanggal kerja (@db.Date = tengah malam UTC), jadi selisihnya
+        // bulat hari — tanpa jam yang bisa menggeser hasilnya.
+        terakhirLaporHari: lapor
+          ? Math.max(0, Math.round((hariIni.getTime() - lapor.getTime()) / SEHARI_MS))
+          : null,
+      };
+    })
+    // Deviasi terburuk dulu: itu urutan yang dicari orang saat membuka papan
+    // ini, dan grid tetap bisa diurut ulang sesuka pemakainya.
+    .sort((a, b) => a.deviationPct - b.deviationPct);
 
   return (
     <div className="space-y-6">
@@ -75,56 +105,12 @@ export default async function ProgressPage() {
         />
       </section>
       <Card>
-        <CardHeader title="Per lokasi" subtitle="Diurutkan dari deviasi terburuk" />
+        <CardHeader
+          title="Per lokasi"
+          subtitle="Diurutkan dari deviasi terburuk · kolom terakhir lapor memisahkan yang tertinggal dari yang bahkan tidak melapor"
+        />
         <CardBody>
-          {rows.length === 0 ? (
-            <EmptyState icon={TrendingUp} title="Belum ada lokasi aktif" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                    <th className="py-2 pr-3">Lokasi</th>
-                    <th className="py-2 pr-3">Paket</th>
-                    <th className="py-2 pr-3">Minggu</th>
-                    <th className="py-2 pr-3 text-right">Rencana</th>
-                    <th className="py-2 pr-3 text-right">Realisasi</th>
-                    <th className="py-2 pr-3">Deviasi</th>
-                    <th className="py-2 pr-3 text-right">Terpasang</th>
-                    <th className="py-2 w-40">Kurva</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {rows.map((l) => (
-                    <tr key={l.id}>
-                      <td className="py-2 pr-3">
-                        <Link href={`/lokasi/${l.slug}/progress`} className="font-medium text-primary hover:underline">
-                          {l.name}
-                        </Link>
-                        <div className="text-xs text-ink-muted">{l.province}</div>
-                      </td>
-                      <td className="py-2 pr-3 text-ink-muted">{l.package.name}</td>
-                      <td className="py-2 pr-3 tabular">
-                        {l.p.weekNumber}/{l.p.totalWeeks}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular">{formatPct(l.p.planPct)}</td>
-                      <td className="py-2 pr-3 text-right tabular">{formatPct(l.p.realizedPct)}</td>
-                      <td className="py-2 pr-3">
-                        <DeltaBadge value={l.p.deviationPct} />
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular">{formatRupiahShort(l.p.realizedValue)}</td>
-                      <td className="py-2">
-                        <ProgressBar
-                          value={l.p.realizedPct}
-                          tone={l.p.deviationPct < -10 ? "danger" : l.p.deviationPct < -1 ? "warning" : "success"}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ProgressGrid rows={rows} />
         </CardBody>
       </Card>
     </div>

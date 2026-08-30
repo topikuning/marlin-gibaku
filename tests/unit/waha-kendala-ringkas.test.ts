@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catatanGabung, ringkasKendalaPerLokasi } from "@/lib/waha/kendala-ringkas";
+import { adalahCatatanGabung, catatanGabung, ringkasKendalaPerLokasi } from "@/lib/waha/kendala-ringkas";
 import type { BarisKendala } from "@/lib/waha/tanya-format";
 
 /**
@@ -126,11 +126,38 @@ describe("satu baris per lokasi", () => {
 
 describe("penggabungan tidak pernah diam-diam", () => {
   it("jumlah yang digabung disebutkan", () => {
-    expect(catatanGabung(3)).toContain("3 baris");
+    expect(catatanGabung(3)).toContain("3 catatan");
   });
 
   it("tanpa kembar, tidak ada catatan sama sekali", () => {
     // Catatan yang selalu muncul akan berhenti dibaca justru saat ia berarti.
     expect(catatanGabung(0)).toBeNull();
+  });
+
+  /*
+   * `keteranganBerkas` membuang catatan ini dari daftar catatan PDF – di sana
+   * penggabungannya sudah diceritakan dengan kalimat yang lebih lengkap.
+   * Penyaringnya semula memakai SALINAN teks kalimat ini di berkas lain, dan
+   * salinan teks adalah cara paling sunyi sebuah penyaring berhenti bekerja:
+   * kalimatnya diperbaiki di satu tempat, penyaringnya tetap hijau di tempat
+   * lain, lalu keterangan yang sama muncul dua kali tanpa ada yang merah.
+   *
+   * Uji ini mengikat keduanya: kalimat dan pengenalnya harus tetap sepasang.
+   */
+  it("kalimatnya bisa dikenali penyaring, berapa pun jumlah yang digabung", () => {
+    for (const n of [1, 3, 27]) {
+      const teks = catatanGabung(n);
+      expect(teks).not.toBeNull();
+      expect(
+        adalahCatatanGabung(teks as string),
+        "kalimat gabung dan pengenalnya wajib berubah bersama – keduanya di kendala-ringkas.ts",
+      ).toBe(true);
+    }
+  });
+
+  it("catatan lain tidak ikut terjaring", () => {
+    expect(adalahCatatanGabung("Ditampilkan 20 dari 28 kendala. Selengkapnya buka MARLIN.")).toBe(
+      false,
+    );
   });
 });

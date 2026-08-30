@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getAiGuardConfig } from "@/lib/ai-hub/guard";
 import { keadaanTunggu } from "@/lib/ai-hub/guard-rules";
+import type { RingkasUsulanAi } from "./usulan-status";
 
 /**
  * Keadaan permintaan draf harga AI untuk satu lokasi — dibaca server component.
@@ -81,5 +82,35 @@ export async function keadaanUsulanAi(locationId: string): Promise<KeadaanUsulan
     diminta: run?.diminta ?? 0,
     totalKosong: run?.totalKosong ?? 0,
     draf: run?.usulan ?? [],
+  };
+}
+
+/**
+ * Penengokan MURAH: cukup untuk tahu apakah halaman perlu ditarik ulang.
+ *
+ * Dipisah dari {@link keadaanUsulanAi} karena keduanya menjawab pertanyaan yang
+ * berbeda. Yang itu menyiapkan seluruh isi layar — termasuk memuat setiap draf
+ * beserta alasannya — dan wajar dipanggil sekali saat halaman dirender. Yang
+ * ini dipanggil tiap beberapa detik selama menunggu, jadi ia hanya membaca satu
+ * baris run terakhir dan MENGHITUNG drafnya, tanpa mengangkut isinya.
+ */
+export async function statusUsulanAi(locationId: string): Promise<RingkasUsulanAi> {
+  const [run, cfg] = await Promise.all([
+    db.hsdUsulanRun.findFirst({
+      where: { locationId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        pendingSince: true,
+        _count: { select: { usulan: { where: { status: "draf" } } } },
+      },
+    }),
+    getAiGuardConfig(),
+  ]);
+
+  const tunggu = keadaanTunggu(run?.pendingSince ?? null, cfg, Date.now());
+  return {
+    menunggu: tunggu.menunggu,
+    terputus: tunggu.terputus,
+    jumlahDraf: run?._count.usulan ?? 0,
   };
 }

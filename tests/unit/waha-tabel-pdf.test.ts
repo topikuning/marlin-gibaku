@@ -194,7 +194,7 @@ describe("catatan & pengantar berkas", () => {
     const k = keteranganBerkas(t);
     expect(k).toContain("Kendala belum selesai");
     expect(k).toContain("26 Agustus 2026");
-    expect(k).toContain("1 baris");
+    expect(k).toContain("1 lokasi");
     expect(k).toContain("Ditampilkan 15 dari 40 kendala.");
   });
 
@@ -214,7 +214,51 @@ describe("catatan & pengantar berkas", () => {
     );
     expect(t.baris).toHaveLength(1);
     expect(t.jumlahIsi).toBe(3);
-    expect(keteranganBerkas(t)).toContain("3 rincian di 1 baris");
+    expect(keteranganBerkas(t)).toContain("Seluruh 3 kendala termuat di PDF · 1 lokasi");
+  });
+
+  it("caption PDF kendala menyatakan seluruh hasil termuat, bukan menyuruh membuka MARLIN", () => {
+    const baris = Array.from({ length: 28 }, (_, i) => ({
+      ...kendala(i + 1),
+      lokasi: i % 2 === 0 ? "Kedungmutih" : "Tengket",
+      judul: `Kendala unik nomor ${i + 1}`,
+    }));
+    const t = tabelKendala(
+      { judul: "Kendala belum selesai", tanggal: "hari ini · 30 Agustus 2026", baris },
+      peta,
+    );
+    const caption = keteranganBerkas(t);
+
+    expect(caption).toContain("Seluruh 28 kendala termuat di PDF");
+    expect(caption).toContain("2 lokasi");
+    expect(caption).not.toContain("buka MARLIN");
+  });
+
+  it("menyiapkan sorotan eksekutif yang bisa dipahami sekali lihat", () => {
+    const t = tabelKendala(
+      {
+        judul: "Kendala belum selesai",
+        tanggal: "hari ini · 30 Agustus 2026",
+        baris: [
+          { ...kendala(1), lokasi: "Kedungmutih", tingkat: "kritis", umurHari: 32 },
+          { ...kendala(2), lokasi: "Kedungmutih", tingkat: "sedang", umurHari: 7 },
+          { ...kendala(3), lokasi: "Tengket", tingkat: "tinggi", umurHari: 15 },
+        ],
+      },
+      peta,
+    );
+
+    expect(t.sorotan).toEqual([
+      { label: "Kendala unik", nilai: "3", nada: "danger" },
+      { label: "Lokasi terdampak", nilai: "2", nada: "warning" },
+      { label: "Lokasi kritis", nilai: "1", nada: "danger" },
+      { label: "Kendala tertua", nilai: "32 hari", nada: "warning" },
+    ]);
+    expect(t.prioritas[0]).toMatchObject({
+      tingkat: "kritis",
+      lokasi: "Kedungmutih",
+      umur: "32 hari",
+    });
   });
 
   it("nama berkas terbaca manusia dan menyebut tanggalnya", () => {
