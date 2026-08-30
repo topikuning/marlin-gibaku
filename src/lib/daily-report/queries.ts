@@ -1130,3 +1130,37 @@ export async function getDetailHari(
     updatedAt: r.updatedAt,
   };
 }
+
+/**
+ * TANGGAL KERJA LAPORAN TERAKHIR YANG DIKIRIM, per lokasi.
+ *
+ * Dipakai papan `/progress` untuk memisahkan dua keadaan yang selama ini
+ * terlihat sama: deviasi buruk dengan pelaporan yang jalan, dan deviasi buruk
+ * yang laporannya juga mandek. Yang kedua bukan soal kecepatan pekerjaan lagi –
+ * angkanya sendiri sudah tidak bisa dipercaya.
+ *
+ * "DIKIRIM" ditandai `submittedAt`, BUKAN status sekarang (pilihan user
+ * 2026-08-30). Laporan yang dikembalikan jadi `perlu_koreksi` tetap pernah
+ * dikirim, dan menghapusnya dari hitungan akan menuduh lapangan tidak melapor
+ * justru pada hari mereka melapor lalu diminta membetulkan.
+ *
+ * Yang dikembalikan tanggal KERJA (`reportDate`), bukan jam pengirimannya:
+ * pertanyaannya "lapangan sudah melapor sampai tanggal berapa", bukan "kapan
+ * tombolnya ditekan". Lokasi tanpa satu pun laporan terkirim tidak muncul di
+ * peta – pemanggilnya yang memutuskan cara menyebut ketiadaan itu.
+ */
+export async function getLastSubmittedReportDates(
+  locationIds: string[],
+): Promise<Map<string, Date>> {
+  if (locationIds.length === 0) return new Map();
+  const baris = await db.dailyReport.groupBy({
+    by: ["locationId"],
+    where: { locationId: { in: locationIds }, submittedAt: { not: null } },
+    _max: { reportDate: true },
+  });
+  const peta = new Map<string, Date>();
+  for (const b of baris) {
+    if (b._max.reportDate) peta.set(b.locationId, b._max.reportDate);
+  }
+  return peta;
+}
