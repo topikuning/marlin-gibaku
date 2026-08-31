@@ -441,14 +441,49 @@ describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
     const teks = terkirim.map((t) => t.teks).join("\n");
     expect(teks, "tidak ada balasan").not.toBe("");
     expect(teks).not.toContain("Tidak saya kenali: buat");
-    expect(teks).toContain("Blanko harian");
+    /*
+     * Namanya BERUBAH, dan perubahannya yang benar (2026-08-31).
+     *
+     * Berkas bawaan ini "RINGKASAN PELAKSANAAN HARIAN" — dokumen bacaan untuk
+     * grup (DECISIONS 261), yang kepala berkasnya sendiri menyatakan ia BUKAN
+     * blanko KKP. Sampai sekarang balasannya menamainya *"Blanko harian"*, dan
+     * uji ini ikut mengunci nama yang salah itu. Orang yang meminta blanko KKP
+     * karena itu menerima dokumen lain di bawah keterangan yang menamainya
+     * dokumen yang ia minta.
+     */
+    expect(teks).toContain("Ringkasan pelaksanaan harian");
     expect(berkasTerkirim, "teks menjanjikan berkas, tetapi tidak ada PDF yang dikirim").toHaveLength(1);
     expect(berkasTerkirim[0]).toMatchObject({
       chatId: `${nomorSM}@c.us`,
       mime: "application/pdf",
     });
-    expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-.*\.pdf$/);
+    expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-(?!kkp-).*\.pdf$/);
     expect(berkasTerkirim[0].bytes).toBeGreaterThan(0);
+  });
+
+  /**
+   * "versi kkp" menentukan BERKAS MANA yang keluar (keluhan user 2026-08-31:
+   * *"permintaanku jelas, minta laporan harian versi kkp, tapi malah pdf yang
+   * diberikan versi marlin sendiri"*).
+   *
+   * Yang diperiksa di sini balasan TEKSNYA, bukan hasil render PDF-nya:
+   * teksnya disusun sebelum berkas dibentuk dan selalu terkirim, jadi ia
+   * penanda paling jujur bahwa kata "versi kkp" benar-benar sampai ke
+   * keputusan. Render blanko KKP-nya sendiri memakai jalur yang sama persis
+   * dengan `kirimLaporanHarianKkpWa` yang sudah berjalan.
+   */
+  it("REGRESI: 'versi kkp' memilih blanko KKP, bukan ringkasan MARLIN", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "buat laporan harian versi kkp kemarin untuk kedung mutih",
+      }),
+    );
+    const teks = terkirim.map((t) => t.teks).join("\n");
+    expect(teks).toContain("Blanko harian KKP");
+    expect(teks).not.toContain("Ringkasan pelaksanaan harian");
   });
 });
 

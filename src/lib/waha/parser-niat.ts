@@ -627,7 +627,12 @@ const KATA_ABAIKAN = new Set(
     // kkp danasari" menyisakan "versi" dan "kkp" sebagai kandidat nama lokasi —
     // dan satu kandidat asing sudah cukup membuat pencocokan lokasi jadi
     // ambigu, sehingga permintaan yang jelas dijawab "lokasi mana".
-    "kkp versi blanko format bentuk pdf excel berkas file dokumen").split(" "),
+    "kkp versi blanko format bentuk pdf excel berkas file dokumen " +
+    // "harian" bukan nama tempat, dan bukan kata niat: tidak ada pola KUNCI
+    // yang memuatnya. Tanpa baris ini "buat laporan HARIAN versi kkp untuk
+    // kedung mutih" — cara paling wajar menuliskannya — menyisakan satu kata
+    // asing, dan `rencanaDeterministik` menyerahkan seluruh kalimat ke AI.
+    "harian").split(" "),
 );
 
 /** Buang potongan waktu dari kalimat — hanya yang benar-benar TERBACA sebagai periode. */
