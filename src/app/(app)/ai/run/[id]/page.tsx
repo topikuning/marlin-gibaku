@@ -527,23 +527,23 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
         {k ? (
           <Card>
             <CardHeader
-              title="Cerita lokasi ini"
-              subtitle={`Cakupan bukti ${k.confidence}% · urutan peristiwa & hitungan kondisi disusun sistem, AI merangkainya`}
+              title="Kesimpulan"
+              subtitle={`Cakupan bukti ${k.confidence}% · urutan peristiwa & hitungan kondisi disusun sistem, AI merangkai dan merapikan bahasanya`}
             />
             <CardBody className="space-y-3 text-sm">
-              <p className="whitespace-pre-wrap text-ink">{k.summary}</p>
-              {k.babak.map((b, i) => (
-                <div key={i} className="rounded-md border border-border px-3 py-2">
-                  <p className="font-medium text-ink">
-                    {b.judul} <span className="text-ink-muted">· {b.periode}</span>
-                  </p>
-                  <p className="mt-0.5 whitespace-pre-wrap text-ink-muted">{b.reason}</p>
+              <p className="text-base leading-relaxed text-ink">{k.kesimpulan}</p>
+              {k.babak.length > 0 ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  {k.babak.map((b, i) => (
+                    <div key={i} className="rounded-md border border-border px-3 py-2">
+                      <p className="font-medium text-ink">
+                        {b.judul} <span className="text-ink-muted">· {b.periode}</span>
+                      </p>
+                      <p className="mt-0.5 whitespace-pre-wrap text-ink-muted">{b.reason}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div className="rounded-md border border-border bg-surface-inset px-3 py-2">
-                <p className="text-[12px] tracking-wide text-ink-muted uppercase">Kondisi terkini</p>
-                <p className="mt-0.5 whitespace-pre-wrap text-ink">{k.kondisiTerkini}</p>
-              </div>
+              ) : null}
             </CardBody>
           </Card>
         ) : null}

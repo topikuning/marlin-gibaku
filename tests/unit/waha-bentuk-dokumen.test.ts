@@ -17,7 +17,7 @@
 // Bentuknya dibaca ATURAN, bukan AI: satu kata ini menentukan berkas mana yang
 // keluar, dan tebakan yang meleset mengirim dokumen yang salah ke grup PPK.
 import { describe, expect, it } from "vitest";
-import { bacaBentukDokumen } from "@/lib/waha/parser-niat";
+import { bacaBentukDokumen, frasaSisa } from "@/lib/waha/parser-niat";
 import { balasProduksiBerkas } from "@/lib/waha/tanya-format";
 
 describe("bacaBentukDokumen", () => {
@@ -49,6 +49,19 @@ describe("bacaBentukDokumen", () => {
   it("tidak tersulut oleh kata yang kebetulan memuat huruf yang sama", () => {
     expect(bacaBentukDokumen("laporan harian kkpx")).toBeNull();
     expect(bacaBentukDokumen("progress knmp danasari")).toBeNull();
+  });
+});
+
+describe("kata bentuk berkas bukan nama tempat", () => {
+  it("kalimat terwajarnya tetap terbaca deterministik", () => {
+    // "buat laporan HARIAN VERSI KKP untuk kedung mutih" – cara paling wajar
+    // menuliskannya. Sebelum perbaikan ini "harian", "versi", dan "kkp"
+    // tertinggal sebagai kata asing, dan `rencanaDeterministik` menyerahkan
+    // seluruh kalimat ke AI: yang menentukan berkas mana yang keluar jadi
+    // tebakan model, bukan kata yang jelas tertulis.
+    expect(frasaSisa("buat laporan harian versi kkp kemarin untuk kedung mutih")).toEqual([
+      "kedung mutih",
+    ]);
   });
 });
 

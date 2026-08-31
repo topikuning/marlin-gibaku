@@ -484,6 +484,31 @@ describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
     expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-kkp-.*\.pdf$/);
     expect(berkasTerkirim[0].bytes).toBeGreaterThan(0);
   });
+
+  /**
+   * "versi kkp" menentukan BERKAS MANA yang keluar (keluhan user 2026-08-31:
+   * *"permintaanku jelas, minta laporan harian versi kkp, tapi malah pdf yang
+   * diberikan versi marlin sendiri"*).
+   *
+   * Yang diperiksa di sini balasan TEKSNYA, bukan hasil render PDF-nya:
+   * teksnya disusun sebelum berkas dibentuk dan selalu terkirim, jadi ia
+   * penanda paling jujur bahwa kata "versi kkp" benar-benar sampai ke
+   * keputusan. Render blanko KKP-nya sendiri memakai jalur yang sama persis
+   * dengan `kirimLaporanHarianKkpWa` yang sudah berjalan.
+   */
+  it("REGRESI: 'versi kkp' memilih blanko KKP, bukan ringkasan MARLIN", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "buat laporan harian versi kkp kemarin untuk kedung mutih",
+      }),
+    );
+    const teks = terkirim.map((t) => t.teks).join("\n");
+    expect(teks).toContain("Blanko harian KKP");
+    expect(teks).not.toContain("Ringkasan pelaksanaan harian");
+  });
 });
 
 describe("kejujuran waktu sampai ke jawaban WhatsApp", () => {

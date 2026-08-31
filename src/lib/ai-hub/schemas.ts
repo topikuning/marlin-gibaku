@@ -105,16 +105,27 @@ export const qualityOutputSchema = z.object({
 export type QualityOutput = z.infer<typeof qualityOutputSchema>;
 
 /**
- * KRONOLOGI LOKASI — AI merangkai, TIDAK menyusun.
+ * KRONOLOGI LOKASI — AI merangkai dan MERAPIKAN, tidak menyusun.
  *
  * Urutan peristiwa dan hitungan kondisi terkini sudah pasti sebelum model
- * dipanggil (`src/lib/kronologi/susun.ts`). Yang diminta dari model hanyalah
- * BABAK: mengelompokkan peristiwa yang berdekatan jadi cerita yang bisa dibaca
- * PPK, dengan tiap babak menunjuk peristiwa yang mendasarinya. Babak tanpa
- * sumber dibuang penyaring grounding — sama seperti bagian laporan.
+ * dipanggil (`src/lib/kronologi/susun.ts`). Yang diminta dari model dua hal:
+ *
+ * - **`kesimpulan`** — 2–3 kalimat yang bisa dibaca sendirian. Bentuk yang
+ *   diminta user 2026-08-31: *"lokasi A saat ini ada kendala abcd, karena itu
+ *   belum bisa dikerjakan"*. Batas kalimatnya DITEGAKKAN KODE
+ *   (`potongKalimat`), bukan cuma diminta lewat prompt — DECISIONS 453/454
+ *   sudah mencatat bahwa model tetap sering mengirim lebih.
+ * - **`babak`** — peristiwa yang berdekatan dikelompokkan jadi cerita, dengan
+ *   bahasa yang dirapikan. Inilah yang menggantikan kiriman apa adanya:
+ *   keluhan user pada versi pertama adalah *"jangan apa adanya semua dikirim"*.
+ *
+ * Keduanya wajib menunjuk peristiwa yang mendasarinya; yang menunjuk sumber tak
+ * dikenal dibuang penyaring grounding.
  */
 export const kronologiOutputSchema = z.object({
-  summary: z.string().min(20).max(3000),
+  /** 2–3 kalimat. Panjangnya dipangkas kode, bukan dipercaya dari model. */
+  kesimpulan: z.string().min(20).max(1200),
+  kesimpulanSourceRefIds: refIds,
   confidence: z.number().int().min(0).max(100),
   babak: z
     .array(
@@ -128,8 +139,6 @@ export const kronologiOutputSchema = z.object({
       }),
     )
     .max(12),
-  /** Keadaan lokasi HARI INI, dalam kalimat — angkanya sudah pasti dari data. */
-  kondisiTerkini: z.string().min(20).max(1500),
   limitations: z.array(z.string().max(300)).max(10),
 });
 export type KronologiOutput = z.infer<typeof kronologiOutputSchema>;
@@ -713,10 +722,10 @@ export const SCHEMA_HINTS = {
   "limitations": [string]
 }`,
   kronologi: `{
-  "summary": string,                       // satu paragraf: cerita lokasi ini dari awal jendela sampai hari ini
+  "kesimpulan": string,                    // TEPAT 2-3 kalimat, bisa dibaca sendirian: lokasi ini sekarang bagaimana, apa yang menahannya, akibatnya apa. Contoh bentuk: "Lokasi A saat ini tertahan kendala pembebasan lahan blok B yang sudah terbuka 91 hari. Karena itu pekerjaan galian belum bisa dimulai. Kegiatan terakhir di lapangan 24 Agustus."
+  "kesimpulanSourceRefIds": [string dari daftar sumber],
   "confidence": number 0-100,
-  "babak": [{ "locationId": string (HARUS dari daftar scope), "judul": string, "periode": string (mis. "1–24 Agu 2026"), "reason": string (apa yang terjadi di babak ini dan artinya), "sourceRefIds": [string dari daftar sumber] }],
-  "kondisiTerkini": string,                // keadaan HARI INI; pakai angka yang SUDAH ada di DATA, jangan menghitung sendiri
+  "babak": [{ "locationId": string (HARUS dari daftar scope), "judul": string, "periode": string (mis. "1-24 Agu 2026"), "reason": string (rapikan bahasanya; jangan menyalin catatan lapangan apa adanya), "sourceRefIds": [string dari daftar sumber] }],
   "limitations": [string]
 }`,
   report: `{
