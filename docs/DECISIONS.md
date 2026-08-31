@@ -25390,7 +25390,7 @@ pemeriksaan sumber dan tetap terlihat pengguna.
 
 ---
 
-## (baru) · Kronologi lokasi: kendala dan kegiatan lapangan sebagai satu cerita (2026-08-31)
+## 484 · Kronologi lokasi: kendala dan kegiatan lapangan sebagai satu cerita (2026-08-31)
 
 **Konteks**: permintaan user 2026-08-31 — *"aku membutuhkan marlin dapat membuat
 kronologi, mengambil informasi dari kendala dan kegiatan lapangan. jadi atas
@@ -25450,7 +25450,7 @@ adalah angka pertama, bukan angka yang diukur. Keduanya ada di satu tempat.
 
 ---
 
-## (baru) · Kronologi masuk AI Intelligence sebagai jenis run, bukan sebagai layar tersendiri (2026-08-31)
+## 485 · Kronologi masuk AI Intelligence sebagai jenis run, bukan sebagai layar tersendiri (2026-08-31)
 
 **Konteks**: user 2026-08-31 menegaskan kronologi *"masuk ke ai intellegence dan
 permintaan by wa"*. Jalur WhatsApp-nya sudah ada dan deterministik. Yang belum:

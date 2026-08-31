@@ -442,14 +442,14 @@ describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
     expect(teks, "tidak ada balasan").not.toBe("");
     expect(teks).not.toContain("Tidak saya kenali: buat");
     /*
-     * Namanya BERUBAH, dan perubahannya yang benar (2026-08-31).
+     * Namanya "Ringkasan pelaksanaan harian", bukan "Blanko harian".
      *
-     * Berkas bawaan ini "RINGKASAN PELAKSANAAN HARIAN" — dokumen bacaan untuk
-     * grup (DECISIONS 261), yang kepala berkasnya sendiri menyatakan ia BUKAN
-     * blanko KKP. Sampai sekarang balasannya menamainya *"Blanko harian"*, dan
-     * uji ini ikut mengunci nama yang salah itu. Orang yang meminta blanko KKP
-     * karena itu menerima dokumen lain di bawah keterangan yang menamainya
-     * dokumen yang ia minta.
+     * Uji ini semula menuntut "Blanko harian" — dan itu justru menjaga
+     * cacatnya: yang dikirim memang dokumen ringkasan, sementara keterangannya
+     * menamainya blanko KKP. Orang yang meminta blanko setoran menerima
+     * dokumen lain di bawah nama yang ia minta. Diperbaiki 2026-08-31; yang
+     * dijaga sekarang PASANGANNYA — keterangan dan berkas harus dokumen yang
+     * sama.
      */
     expect(teks).toContain("Ringkasan pelaksanaan harian");
     expect(berkasTerkirim, "teks menjanjikan berkas, tetapi tidak ada PDF yang dikirim").toHaveLength(1);
@@ -457,7 +457,31 @@ describe("perintah membuat laporan benar-benar mengirim berkasnya", () => {
       chatId: `${nomorSM}@c.us`,
       mime: "application/pdf",
     });
+    // Tanpa sisipan "kkp-": bentuk bawaan adalah ringkasan.
     expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-(?!kkp-).*\.pdf$/);
+    expect(berkasTerkirim[0].bytes).toBeGreaterThan(0);
+  });
+
+  /*
+   * Sisi lain dari pasangan yang sama, dan bagian yang belum dijaga dari titik
+   * masuk sungguhan: menyebut "versi kkp" harus benar-benar mengubah dokumen
+   * yang dikirim — bukan cuma kalimat pengantarnya. Parsernya sudah diuji
+   * terpisah; yang diperiksa di sini penyambungannya sampai ke berkas.
+   */
+  it("REGRESI: 'versi kkp' mengubah dokumennya, bukan cuma keterangannya", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "buat laporan kemarin untuk kedung mutih versi kkp",
+      }),
+    );
+    const teks = terkirim.map((t) => t.teks).join("\n");
+    expect(teks).toContain("Blanko harian KKP");
+    expect(teks).not.toContain("Ringkasan pelaksanaan harian");
+    expect(berkasTerkirim).toHaveLength(1);
+    expect(berkasTerkirim[0].nama).toMatch(/^laporan-harian-kkp-.*\.pdf$/);
     expect(berkasTerkirim[0].bytes).toBeGreaterThan(0);
   });
 

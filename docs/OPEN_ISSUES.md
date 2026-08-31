@@ -317,6 +317,17 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
 
 ## WAHA — pemeriksaan sesi baru dipasang di jalur pengingat harian
 
+- 🟡 **"versi kkp" hanya terbaca pada sebagian susunan kalimat.** DECISIONS 485
+  membuat bentuk dokumen bisa diminta lewat kata "kkp", dan itu bekerja untuk
+  *"buat laporan kemarin untuk kedung mutih versi kkp"*. Tetapi
+  *"buat laporan harian versi kkp kemarin untuk kedung mutih"* — kata bentuknya
+  di TENGAH, sebelum periode dan nama lokasi — tidak lagi ditangani jalur
+  deterministik dan jatuh ke AI. Ditemukan saat menggerbangi rilis 2026-08-31;
+  pemakainya tidak punya cara tahu susunan mana yang "benar", dan yang jatuh ke
+  AI menjawab lebih lambat serta bisa salah niat. Perlu disisir di
+  `rencanaDeterministik`: kata bentuk dokumen harus dibuang dari sisa frasa di
+  posisi mana pun ia muncul, bukan hanya di ujung.
+
 - 🟡 **`sendImage` & pemakaian WAHA lain belum memeriksa status sesi.**
   DECISIONS 206 memasang `getSessionStatus() === "WORKING"` sebagai syarat di
   `kirimPengingatHarian` saja, karena itu jalur yang dilaporkan user gagal
