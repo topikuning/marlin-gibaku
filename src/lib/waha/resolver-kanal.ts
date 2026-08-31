@@ -59,7 +59,7 @@ export type PaketGrupTertaut = {
 
 export type MasukanKeputusan = {
   grup: boolean;
-  /** Hasil `diajakBicara()` — di grup: mention/balasan ke MARLIN. */
+  /** Hasil `diajakBicara()` — di grup: HANYA mention langsung ke MARLIN. */
   diajakBicara: boolean;
   /**
    * Pengirim yang cocok dengan pengguna AKTIF. null = tidak dikenal, ganda,

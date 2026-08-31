@@ -25498,7 +25498,107 @@ daftar sumber run dijaga `tests/unit/kronologi-bahan-ai.test.ts` — bila keduan
 menyimpang satu aksara, seluruh babak dibuang penyaring dan run tampak berhasil
 dengan cakupan bukti 0%.
 
-**Bisa di-revisit**: narasi kronologi belum bisa diminta dari WhatsApp — di sana
-jawabannya tetap deterministik. Menambahkannya berarti membiarkan chat
-membelanjakan kuota AI tanpa layar yang menunjukkan ongkosnya; layak dibuka bila
-memang diminta.
+**Bisa di-revisit**: ambang guard `waha.kronologi` memakai batas bawaan yang
+sama dengan jalur tanya bebas. Bila kronologi ternyata jauh lebih mahal per
+panggilan, ia layak punya ambangnya sendiri.
+
+
+---
+
+## 486 · Kronologi dirapikan AI, dan tiap lokasi punya kesimpulan 2–3 kalimat (2026-08-31)
+
+**Konteks**: koreksi user atas bentuk pertama, hari yang sama — *"yang aku
+maksud dengan kronologi, ya jangan apa adanya semua dikirim, tapi kamu minta AI
+rapikan, secara bahasa juga dirapikan. kalau seperti ini aku juga perlu
+kesimpulan dari satu lokasi. dalam 2-3 kalimat, misal lokasi A saat ini ada
+kendala abcd, karena itu belum bisa dikerjakan."*
+
+Bentuk pertama mengirim dua puluh lima kejadian apa adanya ke WhatsApp, dan
+menyerahkan perapiannya hanya pada layar. Itu keliru dua kali: yang paling
+sering dibaca justru WhatsApp, dan sebuah daftar — sepanjang apa pun — tidak
+menjawab "lokasi ini sekarang bagaimana".
+
+**Keputusan**:
+
+1. **Kesimpulan 2–3 kalimat jadi bentuk utamanya**, bukan hiasan di atas daftar.
+   Ia menyebut nama lokasi, apa yang menahannya, dan akibatnya pada pekerjaan.
+   Batas kalimatnya **ditegakkan kode** (`potongKalimat`, `src/lib/kalimat.ts`),
+   bukan cuma diminta lewat prompt: DECISIONS 453/454 sudah mencatat bahwa model
+   tetap mengirim lebih, dan sampai sekarang tidak ada satu baris kode pun yang
+   memeriksa janji "maksimal 3 kalimat" di mana pun — termasuk pada
+   `executiveSummary` dan `waSummary`.
+2. **WhatsApp mengirim bentuk yang sudah dirapikan**: kesimpulan, babak cerita,
+   lalu dua baris angka kondisi. Daftar kejadian mentahnya TIDAK ikut; yang
+   ingin melihat satu per satu diberi tahu di mana melihatnya.
+3. **Cadangannya tetap ada dan tetap dikirim.** Bila AI mati, kuotanya habis,
+   atau keluarannya tidak tergrounding, daftar sepuluh kejadian terbaru dikirim
+   berikut kalimat yang mengatakan KENAPA bentuknya begitu. Jawaban yang kurang
+   enak dibaca jauh lebih berguna daripada tidak ada jawaban, dan yang bertanya
+   lewat WhatsApp biasanya sedang tidak di depan komputer.
+
+Angka di bagian kondisi tetap datang dari `susunKronologi`, apa pun yang model
+tulis: yang dirapikan bahasanya, bukan hitungannya.
+
+Perapian WhatsApp memakai panggilan RAMPING (`src/lib/kronologi/rangkum.ts`),
+bukan `executeAiRun` — pola yang sama dengan `tanya-bebas.ts`, dan alasan yang
+sama: merakit Portfolio Pulse seluruh scope untuk satu balasan chat tidak
+sebanding. Yang tidak diringankan: bahan, skema, instruksi, dan pembersih
+keluarannya sama persis dengan jalur layar. Dua permukaan boleh berbeda ongkos;
+keduanya tidak boleh berbeda aturan.
+
+**Alternatif direject**:
+
+- *Meminta ringkas lewat prompt saja.* Sudah dilakukan di dua tempat lain, dan
+  dua tempat itu memang tidak pernah diperiksa. Janji tanpa penegak adalah
+  janji.
+- *Membuang bentuk cadangan.* Kronologi akan diam total setiap kali provider
+  bermasalah, padahal bahannya sudah ada di tangan tanpa AI sama sekali.
+- *Menghapus kesimpulan yang sitasinya meleset.* Menghapus satu-satunya jawaban
+  karena sitasinya salah meninggalkan pembaca tanpa apa pun; sumbernya yang
+  dibuang, kesimpulannya tetap, dan yang terjadi dikatakan.
+
+**Konsekuensi**: `potongKalimat` dan `rapikanKeluaranKronologi` diuji terpisah
+(`tests/unit/kalimat-potong.test.ts`, `tests/unit/kronologi-rapi.test.ts`),
+termasuk jebakan yang paling mudah terlewat: angka Indonesia memakai titik
+sebagai pemisah ribuan, jadi pemotong kalimat yang memecah di setiap titik akan
+memenggal kalimat di tengah nominal. Pemakaian AI dari WhatsApp dicatat sebagai
+`runKind: "kronologi"`, bukan menumpang nama `tanya`.
+
+**Bisa di-revisit**: `potongKalimat` sekarang hanya dipakai kronologi. Ia layak
+dipasang juga pada `executiveSummary` dan `waSummary` — dua tempat yang
+menjanjikan hal yang sama tanpa penegak — tetapi itu mengubah keluaran laporan
+yang sudah beredar, jadi bukan keputusan yang layak diselipkan di sini.
+
+## (baru) · Di grup, hanya mention langsung yang dilayani (2026-08-31)
+
+Permintaan user 2026-08-31: *"saat ada pesan dari marlin di reply di group, saat
+ini marlin tidak usah respon. hanya respon yang mention langsung."*
+
+Sampai sebelum ini, MEMBALAS (quote) pesan MARLIN di grup ikut memicu jawaban,
+sederajat dengan mention. Alasannya waktu itu masuk akal: membalas adalah cara
+orang meneruskan percakapan, dan WhatsApp tidak selalu menyertakan mention pada
+balasan.
+
+Di grup lapangan yang sebenarnya, akibatnya berbeda dari yang dibayangkan.
+Balasan ke pesan MARLIN lebih sering percakapan ANTAR ORANG tentang isi jawaban
+itu — *"ini yang mana ya?"*, *"sudah saya kirim tadi"* — bukan pertanyaan baru
+kepada MARLIN. Setiap balasan semacam itu memancing satu jawaban, dan jawaban
+yang tidak diminta di grup kerja bukan sekadar berisik: ia menenggelamkan pesan
+orang, di layar yang justru dipakai menagih laporan.
+
+**Keputusan**: di grup, `diajakBicara()` hanya membaca daftar mention. Yang
+TIDAK berubah:
+
+- Chat pribadi tetap dilayani tanpa syarat mention.
+- Membalas SAMBIL me-mention tetap jalan — jalurnya mention, bukan balasannya.
+- `balasanKepada` tetap dibaca dan tetap tercatat. Ia dipakai keterangan
+  diagnostik ("balasan ke pesan lain tidak lagi dihitung") dan bisa dihidupkan
+  kembali dengan satu baris kalau kelak diminta. Membuang parsernya berarti
+  membuang bukti, bukan menyederhanakan.
+
+Ini MENCABUT bagian "balasan dihitung" dari DECISIONS 338/339; sisanya (mention
+dibaca dari daftar JID, bukan dari teks; LID dibandingkan dengan LID) tetap
+berlaku.
+
+Dijaga `tests/unit/waha-tanya-izin.test.ts` — dua uji: balasan tanpa mention
+TIDAK dilayani, dan balasan yang disertai mention tetap dilayani.

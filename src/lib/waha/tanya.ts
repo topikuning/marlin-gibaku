@@ -71,7 +71,9 @@ import {
   balasProduksiBerkas,
   balasDeviasi,
   balasKronologi,
+  balasKronologiRapi,
   balasKronologiTanpaLokasi,
+  type KronologiWa,
   balasDitolak,
   balasKelengkapan,
   balasKendala,
@@ -100,6 +102,7 @@ import {
   type SaringKendala,
 } from "./tanya-data";
 import { bacaPeriode, bulanDari, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
+import type { AiRunKind } from "@/generated/prisma/enums";
 import { jawabPertanyaanBebasTergrounding } from "./tanya-bebas";
 
 /**
@@ -304,8 +307,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   const grup = m.chatId.endsWith("@g.us");
 
-  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention (atau pesan kita
-  // yang dibalas). Nomor DAN LID, karena mention kini berisi @lid (DECISIONS 349).
+  // (2) Diajak bicara? Di grup: HANYA kalau JID kita di-mention. Nomor DAN LID,
+  // karena mention kini berisi @lid (DECISIONS 349). Membalas pesan MARLIN tidak
+  // lagi cukup – keputusan user 2026-08-31, alasannya di `diajakBicara`.
   const kita = grup ? await getIdentitasMarlin() : { nomor: null, lid: null };
   const asal = {
     grup,
@@ -331,7 +335,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     const rinci = !siapaKita
       ? "identitas sesi WAHA belum terbaca (sesi belum WORKING?)"
       : m.mentionedJids.length === 0
-        ? `tidak ada mention terbaca di payload · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
+        ? `tidak ada mention terbaca di payload${m.balasanKepada ? " (balasan ke pesan lain tidak lagi dihitung)" : ""} · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
         : `mention terbaca [${m.mentionedJids.join(", ")}] ≠ kita (${siapaKita})`;
     return DIAM(`grup tanpa mention ke MARLIN – ${rinci}`);
   }
@@ -494,6 +498,13 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   // masuk ke dalam closure di bawah. Diikat sekali di sini supaya jalur AI
   // tidak perlu ditaburi `!`.
   const pesan: ParsedWaMessage = m;
+  /*
+   * Siapa yang membelanjakan kuota AI. Untuk penanya tak terdaftar, kuncinya
+   * CHAT-nya: satu grup ramai tidak boleh menghabiskan anggaran AI sepanjang
+   * hari (DECISIONS 351). Dihoist ke sini karena bukan hanya pembaca niat yang
+   * memanggil provider — kronologi juga.
+   */
+  const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: pesan.chatId };
   // Sama alasannya dengan `pesan`: penyempitan `keputusan` ke varian "jawab"
   // tidak ikut masuk ke dalam closure di bawah.
   const catatanPemotongan = keputusan.catatanPemotongan;
@@ -514,7 +525,6 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     // Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
     // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
     // menghabiskan anggaran AI sepanjang hari (DECISIONS 351).
-    const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: pesan.chatId };
     try {
       await checkAiGuard(pemakaiAi, {
         kind: "waha.tanya",
@@ -1202,26 +1212,87 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     } else {
       const { ambilKronologi } = await import("@/lib/kronologi/queries");
       /*
-       * Batas 25 peristiwa untuk WhatsApp, bukan 60 seperti bawaannya:
-       * pemotong pesan memuat 8 × 1.400 aksara, dan kronologi yang menghabiskan
+       * Batas 25 peristiwa: itu BAHAN untuk AI, bukan yang dikirim. Pemotong
+       * pesan WhatsApp memuat 8 x 1.400 aksara, dan kronologi yang menghabiskan
        * kuota itu sendirian menutup jawaban lain yang menyusul di belakangnya.
-       * Yang tidak muat DISEBUT jumlahnya, tidak dihilangkan diam-diam.
        */
       const k = await ambilKronologi(satu.id, { sampai: dateKey, hari: 90, batas: 25 });
-      balasan = k
-        ? balasKronologi(
+      if (!k) {
+        balasan = `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun kronologinya.`;
+      } else {
+        const tampilan: KronologiWa = {
+          lokasi: k.lokasi.nama,
+          wilayah: k.lokasi.wilayah,
+          sampai: k.sampai,
+          hari: 90,
+          peristiwa: k.peristiwa,
+          kondisi: k.kondisi,
+          dipotong: k.dipotong,
+        };
+        /*
+         * BENTUK UTAMANYA yang dirapikan AI (permintaan user 2026-08-31:
+         * "jangan apa adanya semua dikirim, tapi kamu minta AI rapikan").
+         *
+         * Kalau perapiannya tidak bisa dijalankan - AI mati, kuota habis,
+         * keluarannya tidak tergrounding - daftar apa adanya tetap dikirim,
+         * berikut kalimat yang mengatakan kenapa bentuknya begitu. Jawaban yang
+         * kurang enak dibaca jauh lebih berguna daripada tidak ada jawaban, dan
+         * yang bertanya lewat WhatsApp biasanya sedang tidak di depan komputer.
+         */
+        let rapi: {
+          kesimpulan: string;
+          babak: { judul: string; periode: string; reason: string }[];
+        } | null = null;
+        let sebabMentah: string | null = null;
+        try {
+          await checkAiGuard(pemakaiAi, {
+            kind: "waha.kronologi",
+            locationCount: 1,
+            inputChars: teks.length,
+          });
+          const { rangkumKronologi } = await import("@/lib/kronologi/rangkum");
+          const mulai = Date.now();
+          const hasil = await rangkumKronologi(k);
+          await catatRun(pemakaiAi, [satu], hasil.providerResult, Date.now() - mulai, {
+            promptVersion: "waha-kronologi-1",
+            startKey: k.sejak,
+            endKey: k.sampai,
+            runKind: "kronologi",
+            outputJson: hasil.output ? { kronologi: hasil.output } : undefined,
+            sourcesJson: hasil.sourceRefs,
+          });
+          if (hasil.output) rapi = hasil.output;
+          else sebabMentah = "layanan AI sedang tidak merespons";
+        } catch (err) {
+          sebabMentah =
+            err instanceof AiGuardError ? err.message : "perapian AI sedang tidak bisa dijalankan";
+          if (!(err instanceof AiGuardError)) {
+            console.error("[waha/tanya] kronologi gagal dirapikan:", err);
+          }
+        }
+
+        if (rapi) {
+          balasan = balasKronologiRapi(tampilan, rapi, opts);
+        } else {
+          /*
+           * Cadangan sengaja LEBIH PENDEK dari bahan AI-nya: sepuluh kejadian
+           * terbaru, sisanya disebut jumlahnya. Mengirim dua puluh lima kejadian
+           * mentah persis yang dikeluhkan.
+           */
+          const MAKS = 10;
+          balasan = balasKronologi(
             {
-              lokasi: k.lokasi.nama,
-              wilayah: k.lokasi.wilayah,
-              sampai: k.sampai,
-              hari: 90,
-              peristiwa: k.peristiwa,
-              kondisi: k.kondisi,
-              dipotong: k.dipotong,
+              ...tampilan,
+              peristiwa: k.peristiwa.slice(0, MAKS),
+              dipotong: k.dipotong + Math.max(0, k.peristiwa.length - MAKS),
             },
-            opts,
-          )
-        : `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun kronologinya.`;
+            {
+              ...opts,
+              catatanBatas: `Daftar ini belum dirapikan jadi cerita - ${sebabMentah}.`,
+            },
+          );
+        }
+      }
     }
   } else {
     const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);
@@ -1498,6 +1569,9 @@ async function catatRun(
     endKey?: string;
     outputJson?: unknown;
     sourcesJson?: SourceRef[];
+    /** Bawaan "tanya". Kronologi dicatat sebagai jenisnya sendiri supaya
+        riwayat & kuota AI tidak melaporkan pemakaian pada nama yang salah. */
+    runKind?: AiRunKind;
   },
 ): Promise<void> {
   try {
@@ -1512,7 +1586,7 @@ async function catatRun(
         userId: "jenis" in pemakai ? null : pemakai.id,
         orgId: pemakai.orgId,
         waChatId: grup?.chatId ?? null,
-        runKind: "tanya",
+        runKind: detail?.runKind ?? "tanya",
         status: hasil.ok ? "siap" : "gagal",
         scopeType: "all",
         scopeIds: katalog.map((l) => l.id),

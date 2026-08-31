@@ -75,12 +75,23 @@ export type IdentitasMarlin = {
  *
  * LID dibandingkan dengan LID, nomor dengan nomor — TIDAK pernah bersilang.
  *
- * ### Kenapa MEMBALAS pesan MARLIN juga dihitung
+ * ### Kenapa MEMBALAS pesan MARLIN TIDAK lagi dihitung
  *
- * Membalas (quote) pesan MARLIN adalah cara orang benar-benar meneruskan
- * percakapan, dan WhatsApp tidak selalu menyertakan mention di situ. Yang
- * dihitung hanya balasan ke pesan MILIK KITA, jadi ia tidak melebarkan siapa
- * pun yang boleh memicu jawaban.
+ * Sampai 2026-08-31, membalas (quote) pesan MARLIN ikut memicu jawaban —
+ * alasannya masuk akal: itu cara orang meneruskan percakapan, dan WhatsApp
+ * tidak selalu menyertakan mention di situ.
+ *
+ * Di grup lapangan yang sebenarnya, akibatnya berbeda dari yang dibayangkan.
+ * Balasan ke pesan MARLIN lebih sering merupakan percakapan ANTAR ORANG
+ * tentang isi jawaban itu ("ini yang mana ya?", "sudah saya kirim tadi") —
+ * bukan pertanyaan baru kepada MARLIN. Setiap balasan semacam itu memancing
+ * satu jawaban, dan jawaban yang tidak diminta di grup kerja bukan sekadar
+ * berisik: ia menenggelamkan pesan orang.
+ *
+ * Keputusan user 2026-08-31: di grup, HANYA mention langsung yang dilayani.
+ * `balasanKepada` tetap dibaca dan tetap tercatat — ia dipakai keterangan
+ * diagnostik dan bisa dihidupkan kembali — tapi tidak lagi membuka pintu.
+ * Membalas SAMBIL me-mention tetap jalan, lewat jalur mention di atas.
  */
 export function diajakBicara(asal: AsalPesan, marlin: IdentitasMarlin): boolean {
   if (!asal.grup) return true;
@@ -95,8 +106,9 @@ export function diajakBicara(asal: AsalPesan, marlin: IdentitasMarlin): boolean 
     return !!nomorKita && normalizePhone(t.replace(/@.*$/, "")) === nomorKita;
   };
 
-  if (asal.mentionedJids.some(menyebutKita)) return true;
-  return menyebutKita(asal.balasanKepada);
+  // Hanya mention. `asal.balasanKepada` sengaja TIDAK diperiksa – lihat catatan
+  // "Kenapa MEMBALAS pesan MARLIN TIDAK lagi dihitung" di atas.
+  return asal.mentionedJids.some(menyebutKita);
 }
 
 /** Buang penyebutan "@62812…" dari badan pesan supaya tidak mengotori niat. */

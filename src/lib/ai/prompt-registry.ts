@@ -261,7 +261,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     description:
       "Ditambahkan pada run kronologi (merangkai kendala & kegiatan lapangan jadi cerita).",
     default: PROMPT_KIND_KRONOLOGI(),
-    mustContain: ["Urutan peristiwa sudah pasti", ANTI_KARANG_FRASA],
+    mustContain: ["Urutan peristiwa sudah pasti", "KESIMPULAN 2-3 kalimat", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -404,7 +404,10 @@ function PROMPT_KIND_KUALITAS(): string {
 }
 function PROMPT_KIND_KRONOLOGI(): string {
   return (
-    "Rangkai kronologi satu lokasi jadi cerita yang bisa dibaca pimpinan: kelompokkan peristiwa yang berdekatan jadi BABAK, sebut apa yang terjadi dan apa artinya bagi pelaksanaan, lalu tutup dengan kondisi terkininya. Urutan peristiwa sudah pasti dan hitungan kondisi terkini sudah dihitung sistem – Anda merangkai, bukan menyusun ulang maupun menghitung.\n" +
+    "Rangkai kronologi satu lokasi jadi cerita yang bisa dibaca pimpinan.\n" +
+    "Mulai dengan KESIMPULAN 2-3 kalimat yang bisa dibaca sendirian: lokasi ini sekarang bagaimana, apa yang menahannya, dan akibatnya pada pekerjaan. Sebut nama lokasinya. Bentuknya seperti: \"Lokasi A saat ini tertahan kendala pembebasan lahan blok B yang sudah terbuka 91 hari. Karena itu pekerjaan galian belum bisa dimulai.\"\n" +
+    "Lalu kelompokkan peristiwa yang berdekatan jadi BABAK, dan RAPIKAN BAHASANYA – jangan menyalin catatan lapangan apa adanya, jangan menyusun ulang daftarnya jadi daftar lagi.\n" +
+    "Urutan peristiwa sudah pasti dan hitungan kondisi terkini sudah dihitung sistem – Anda merangkai dan merapikan, bukan menyusun ulang maupun menghitung.\n" +
     pagarSumber(
       "daftar PERISTIWA (kendala & kegiatan lapangan) yang dilampirkan",
       "Jangan menambah peristiwa yang tidak ada di daftar, jangan menebak sebab yang tidak tertulis, dan jangan mengarang tanggal.",

@@ -1,5 +1,7 @@
 import type { KronologiLokasi } from "@/lib/kronologi/queries";
 import type { JenisPeristiwa, Peristiwa } from "@/lib/kronologi/susun";
+import { potongKalimat } from "@/lib/kalimat";
+import type { KronologiOutput } from "./schemas";
 import type { SourceRef } from "./types";
 
 /**
@@ -87,4 +89,66 @@ export function buildKronologiPayload(k: KronologiLokasi): string {
     );
   }
   return baris.join("\n");
+}
+
+/** Kesimpulan satu lokasi: 2–3 kalimat. Angka 3 adalah batas, bukan target. */
+export const MAKS_KALIMAT_KESIMPULAN = 3;
+
+export type HasilRapi = { output: KronologiOutput; dibuang: string[] };
+
+/**
+ * Menegakkan dua janji kronologi pada keluaran model.
+ *
+ * 1. **Kesimpulan tidak lebih dari tiga kalimat.** Diminta lewat prompt DAN
+ *    dipangkas di sini: DECISIONS 453/454 sudah mencatat bahwa model tetap
+ *    mengirim lebih, dan yang membaca di WhatsApp menerima paragraf pada tempat
+ *    yang dijanjikan ringkas.
+ * 2. **Babak wajib bisa ditelusuri ke peristiwanya.** Babak adalah kalimat yang
+ *    dirapikan DARI peristiwa; yang tidak menunjuk peristiwa yang dikenal bukan
+ *    rapi, ia karangan.
+ *
+ * Sumber kesimpulan yang tak dikenal DIBUANG, tetapi kesimpulannya tidak —
+ * sama seperti `executiveSummary` laporan. Menghapus satu-satunya jawaban
+ * karena sitasinya meleset meninggalkan pembaca tanpa apa pun, padahal
+ * kalimatnya sendiri masih bisa diperiksa lewat garis waktu di sebelahnya.
+ * Yang terjadi DIKATAKAN, tidak didiamkan.
+ *
+ * Keyakinan dihitung ulang dari bagian yang selamat — angka yang diakui model
+ * tentang dirinya sendiri tidak pernah dipakai (pola yang sama dengan
+ * `executeAiRun`).
+ */
+export function rapikanKeluaranKronologi(
+  output: KronologiOutput,
+  idSah: ReadonlySet<string>,
+): HasilRapi {
+  const dibuang: string[] = [];
+
+  const kesimpulan = potongKalimat(output.kesimpulan, MAKS_KALIMAT_KESIMPULAN);
+  if (kesimpulan !== output.kesimpulan.replace(/\s+/g, " ").trim()) {
+    dibuang.push(`kesimpulan dipangkas ke ${MAKS_KALIMAT_KESIMPULAN} kalimat`);
+  }
+
+  const kesimpulanSourceRefIds = output.kesimpulanSourceRefIds.filter((r) => idSah.has(r));
+  if (kesimpulanSourceRefIds.length === 0) {
+    dibuang.push("kesimpulan tidak menyebut sumber yang dikenal – periksa lewat garis waktu");
+  }
+
+  const babak = output.babak.filter((b) => b.sourceRefIds.every((r) => idSah.has(r)));
+  if (babak.length < output.babak.length) {
+    dibuang.push(`${output.babak.length - babak.length} babak dibuang: sumbernya tidak dikenal`);
+  }
+
+  const kandidat = output.babak.length + 1;
+  const selamat = babak.length + (kesimpulanSourceRefIds.length > 0 ? 1 : 0);
+
+  return {
+    output: {
+      ...output,
+      kesimpulan,
+      kesimpulanSourceRefIds,
+      babak,
+      confidence: kandidat > 0 ? Math.round((selamat / kandidat) * 100) : 0,
+    },
+    dibuang,
+  };
 }

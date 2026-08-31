@@ -580,12 +580,18 @@ const LABEL_PERISTIWA: Record<JenisPeristiwa, string> = {
 };
 
 /**
- * KRONOLOGI satu lokasi — permintaan user 2026-08-31.
+ * KRONOLOGI satu lokasi, bentuk CADANGAN — dipakai saat AI mati, kuotanya
+ * habis, atau keluarannya tidak tergrounding.
+ *
+ * Bentuk utamanya `balasKronologiRapi` di atas. Yang ini memang daftar apa
+ * adanya, dan itu keputusan: jawaban yang kurang enak dibaca jauh lebih
+ * berguna daripada tidak ada jawaban, dan orang yang bertanya lewat WhatsApp
+ * biasanya sedang tidak di depan komputer. Bahwa perapiannya tidak jalan
+ * DIKATAKAN lewat `opts.catatanBatas`, tidak didiamkan.
  *
  * Susunannya: kondisi terkini DULU, urutan kejadian menyusul. Terbalik dari
  * bentuk kronologi yang lazim, dan sengaja: yang membaca di HP sering berhenti
- * di layar pertama, jadi kalimat pertama harus menjawab "lokasi ini sekarang
- * bagaimana" — bukan memulai cerita dari tiga bulan lalu.
+ * di layar pertama.
  *
  * Tidak ada satu angka pun yang dihitung di sini; semuanya datang dari
  * `susunKronologi`.
@@ -607,6 +613,59 @@ export type KronologiWa = {
  * nama biasanya sedang di grup yang memang cuma punya beberapa lokasi — dan
  * menampilkan namanya membuat pertanyaan susulannya cukup satu kata.
  */
+/**
+ * Kronologi yang SUDAH DIRAPIKAN AI — bentuk yang diminta user 2026-08-31:
+ * *"jangan apa adanya semua dikirim, tapi kamu minta AI rapikan"*.
+ *
+ * Yang dikirim: kesimpulan 2–3 kalimat, lalu babak ceritanya, lalu dua baris
+ * angka kondisi terkini. Daftar peristiwa mentahnya TIDAK ikut — itulah
+ * bedanya dengan bentuk cadangan di bawah. Yang ingin melihat satu per satu
+ * diberi tahu di mana melihatnya.
+ *
+ * Angka di bagian kondisi tetap datang dari `susunKronologi`, bukan dari
+ * kalimat model: yang dirapikan bahasanya, bukan hitungannya.
+ */
+export function balasKronologiRapi(
+  k: KronologiWa,
+  rapi: { kesimpulan: string; babak: { judul: string; periode: string; reason: string }[] },
+  opts: OpsiKaki = {},
+): string {
+  const c = k.kondisi;
+  const b: string[] = [`*Kronologi ${k.lokasi}* – s.d. ${k.sampai}`];
+  if (k.wilayah) b.push(`_${k.wilayah}_`);
+  b.push("", rapi.kesimpulan);
+
+  if (rapi.babak.length > 0) {
+    b.push("", "*Yang terjadi*");
+    for (const x of rapi.babak) {
+      b.push(`• *${x.judul}* – ${x.periode}`);
+      b.push(`   ${x.reason}`);
+    }
+  }
+
+  b.push("", "*Angka kondisi terkini*");
+  b.push(
+    c.kendalaTerbuka === 0
+      ? "• Tidak ada kendala yang masih terbuka."
+      : `• ${c.kendalaTerbuka} kendala terbuka` +
+        (c.kendalaKritis > 0 ? `, ${c.kendalaKritis} kritis` : "") +
+        (c.kendalaLewatTenggat > 0 ? `, ${c.kendalaLewatTenggat} lewat tenggat` : "") +
+        (c.kendalaTertuaHari !== null ? `; tertua ${c.kendalaTertuaHari} hari` : ""),
+  );
+  b.push(
+    c.kegiatanTerakhir === null
+      ? "• Belum ada kegiatan lapangan tercatat."
+      : `• Kegiatan lapangan terakhir ${c.kegiatanTerakhir}` +
+        (c.hariTanpaKegiatan !== null ? ` – ${c.hariTanpaKegiatan} hari lalu` : ""),
+  );
+
+  b.push(
+    "",
+    `_Daftar kejadian satu per satu ada di MARLIN → AI → Kronologi (${k.peristiwa.length + k.dipotong} kejadian)._`,
+  );
+  return `${b.join("\n")}${kaki(opts)}`;
+}
+
 export function balasKronologiTanpaLokasi(nama: string[], total: number): string {
   const b = [
     "*Kronologi perlu satu lokasi*",
