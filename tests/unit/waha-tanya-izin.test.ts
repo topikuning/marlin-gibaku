@@ -390,11 +390,33 @@ describe("mention MARLIN yang ber-@lid (DECISIONS 349)", () => {
     ).toBe(false);
   });
 
-  it("MEMBALAS pesan MARLIN dihitung sebagai diajak bicara", () => {
-    // Cara orang benar-benar meneruskan percakapan; WhatsApp tidak selalu
-    // menyertakan mention pada balasan.
-    expect(diajakBicara(pesan({ grup: true, balasanKepada: `${LID}@lid` }), AKU)).toBe(true);
-    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6281200000000@c.us" }), AKU)).toBe(true);
+  /*
+   * DIBALIK 2026-08-31 atas permintaan user: *"saat ada pesan dari marlin di
+   * reply di group, saat ini marlin tidak usah respon. hanya respon yang
+   * mention langsung."*
+   *
+   * Sampai sebelum ini, membalas pesan MARLIN ikut memicu jawaban. Di grup
+   * lapangan, balasan semacam itu lebih sering percakapan ANTAR ORANG tentang
+   * isi jawabannya – bukan pertanyaan baru. Setiap balasan memancing satu
+   * jawaban, dan jawaban yang tidak diminta di grup kerja menenggelamkan pesan
+   * orang.
+   */
+  it("MEMBALAS pesan MARLIN tanpa mention TIDAK lagi memancing jawaban", () => {
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: `${LID}@lid` }), AKU)).toBe(false);
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6281200000000@c.us" }), AKU)).toBe(
+      false,
+    );
+  });
+
+  it("membalas SAMBIL me-mention tetap dilayani", () => {
+    // Yang ditutup jalur balasannya, bukan cara orang bertanya lanjutan: sebut
+    // MARLIN pada balasan itu dan percakapannya jalan seperti biasa.
+    expect(
+      diajakBicara(
+        pesan({ grup: true, balasanKepada: `${LID}@lid`, mentionedJids: [`${LID}@lid`] }),
+        AKU,
+      ),
+    ).toBe(true);
   });
 
   it("membalas pesan ORANG LAIN tidak memancing jawaban", () => {
