@@ -25505,7 +25505,7 @@ panggilan, ia layak punya ambangnya sendiri.
 
 ---
 
-## (baru) · Kronologi dirapikan AI, dan tiap lokasi punya kesimpulan 2–3 kalimat (2026-08-31)
+## 486 · Kronologi dirapikan AI, dan tiap lokasi punya kesimpulan 2–3 kalimat (2026-08-31)
 
 **Konteks**: koreksi user atas bentuk pertama, hari yang sama — *"yang aku
 maksud dengan kronologi, ya jangan apa adanya semua dikirim, tapi kamu minta AI
