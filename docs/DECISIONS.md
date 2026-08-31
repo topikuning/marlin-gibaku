@@ -25568,3 +25568,37 @@ memenggal kalimat di tengah nominal. Pemakaian AI dari WhatsApp dicatat sebagai
 dipasang juga pada `executiveSummary` dan `waSummary` — dua tempat yang
 menjanjikan hal yang sama tanpa penegak — tetapi itu mengubah keluaran laporan
 yang sudah beredar, jadi bukan keputusan yang layak diselipkan di sini.
+
+## (baru) · Di grup, hanya mention langsung yang dilayani (2026-08-31)
+
+Permintaan user 2026-08-31: *"saat ada pesan dari marlin di reply di group, saat
+ini marlin tidak usah respon. hanya respon yang mention langsung."*
+
+Sampai sebelum ini, MEMBALAS (quote) pesan MARLIN di grup ikut memicu jawaban,
+sederajat dengan mention. Alasannya waktu itu masuk akal: membalas adalah cara
+orang meneruskan percakapan, dan WhatsApp tidak selalu menyertakan mention pada
+balasan.
+
+Di grup lapangan yang sebenarnya, akibatnya berbeda dari yang dibayangkan.
+Balasan ke pesan MARLIN lebih sering percakapan ANTAR ORANG tentang isi jawaban
+itu — *"ini yang mana ya?"*, *"sudah saya kirim tadi"* — bukan pertanyaan baru
+kepada MARLIN. Setiap balasan semacam itu memancing satu jawaban, dan jawaban
+yang tidak diminta di grup kerja bukan sekadar berisik: ia menenggelamkan pesan
+orang, di layar yang justru dipakai menagih laporan.
+
+**Keputusan**: di grup, `diajakBicara()` hanya membaca daftar mention. Yang
+TIDAK berubah:
+
+- Chat pribadi tetap dilayani tanpa syarat mention.
+- Membalas SAMBIL me-mention tetap jalan — jalurnya mention, bukan balasannya.
+- `balasanKepada` tetap dibaca dan tetap tercatat. Ia dipakai keterangan
+  diagnostik ("balasan ke pesan lain tidak lagi dihitung") dan bisa dihidupkan
+  kembali dengan satu baris kalau kelak diminta. Membuang parsernya berarti
+  membuang bukti, bukan menyederhanakan.
+
+Ini MENCABUT bagian "balasan dihitung" dari DECISIONS 338/339; sisanya (mention
+dibaca dari daftar JID, bukan dari teks; LID dibandingkan dengan LID) tetap
+berlaku.
+
+Dijaga `tests/unit/waha-tanya-izin.test.ts` — dua uji: balasan tanpa mention
+TIDAK dilayani, dan balasan yang disertai mention tetap dilayani.

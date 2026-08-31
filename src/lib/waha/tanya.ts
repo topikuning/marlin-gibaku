@@ -307,8 +307,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   const grup = m.chatId.endsWith("@g.us");
 
-  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention (atau pesan kita
-  // yang dibalas). Nomor DAN LID, karena mention kini berisi @lid (DECISIONS 349).
+  // (2) Diajak bicara? Di grup: HANYA kalau JID kita di-mention. Nomor DAN LID,
+  // karena mention kini berisi @lid (DECISIONS 349). Membalas pesan MARLIN tidak
+  // lagi cukup – keputusan user 2026-08-31, alasannya di `diajakBicara`.
   const kita = grup ? await getIdentitasMarlin() : { nomor: null, lid: null };
   const asal = {
     grup,
@@ -334,7 +335,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     const rinci = !siapaKita
       ? "identitas sesi WAHA belum terbaca (sesi belum WORKING?)"
       : m.mentionedJids.length === 0
-        ? `tidak ada mention terbaca di payload · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
+        ? `tidak ada mention terbaca di payload${m.balasanKepada ? " (balasan ke pesan lain tidak lagi dihitung)" : ""} · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
         : `mention terbaca [${m.mentionedJids.join(", ")}] ≠ kita (${siapaKita})`;
     return DIAM(`grup tanpa mention ke MARLIN – ${rinci}`);
   }
