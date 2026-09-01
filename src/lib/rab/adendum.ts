@@ -32,13 +32,26 @@ const EPS = VOLUME_EPSILON;
 
 type Tx = Prisma.TransactionClient;
 
-/** Draft milik lokasi + masih draft — semua mutasi editor lewat sini. */
-async function requireDraft(tx: Tx, revisionId: string) {
+/**
+ * Draft milik lokasi + masih draft — semua mutasi editor lewat sini.
+ *
+ * `locationId` WAJIB, dan itu bukan formalitas. Aksi server mengambil lokasi
+ * dari SLUG di URL lalu memeriksa akses atas lokasi itu, sementara yang diubah
+ * ditentukan oleh `revisionId`/`nodeId` dari FormData. Selama dua hal itu tidak
+ * pernah diadu, siapa pun yang berhak atas SATU lokasi bisa menyunting draft
+ * adendum lokasi mana pun asal ia tahu id revisinya — dan id revisi bocor lewat
+ * setiap halaman adendum yang pernah ia buka secara sah. UUID menaikkan biaya
+ * menebak; ia bukan kontrol otorisasi.
+ */
+async function requireDraft(tx: Tx, revisionId: string, locationId: string) {
   const rev = await tx.rabRevision.findUnique({
     where: { id: revisionId },
     select: { id: true, locationId: true, status: true, revisionNo: true },
   });
   if (!rev) throw new AdendumError("Revisi tidak ditemukan.");
+  // Disamakan dengan "tidak ditemukan": menyebut "revisi ini milik lokasi lain"
+  // sudah membocorkan bahwa id-nya benar dan drafnya ada.
+  if (rev.locationId !== locationId) throw new AdendumError("Revisi tidak ditemukan.");
   if (rev.status !== "draft") {
     throw new AdendumError(`Revisi #${rev.revisionNo} bukan draft – editan hanya untuk draft.`);
   }
@@ -222,6 +235,7 @@ export async function createAdendumDraft(
  * Volume baru minimal = volume yang sudah terealisasi di lapangan.
  */
 export async function updateDraftItemVolume(
+  locationId: string,
   revisionId: string,
   nodeId: string,
   volume: number,
@@ -231,7 +245,7 @@ export async function updateDraftItemVolume(
   const v = Math.round(volume * 1000) / 1000; // presisi Decimal(15,3)
 
   return db.$transaction(async (tx) => {
-    const rev = await requireDraft(tx, revisionId);
+    const rev = await requireDraft(tx, revisionId, locationId);
     const node = await tx.rabNode.findUnique({
       where: { id: nodeId },
       select: { id: true, revisionId: true, kind: true, name: true, volume: true, lineageKey: true },
@@ -239,7 +253,12 @@ export async function updateDraftItemVolume(
     if (!node || node.revisionId !== revisionId) throw new AdendumError("Item tidak ditemukan di draft ini.");
     if (node.kind !== "item") throw new AdendumError("Hanya item pekerjaan yang volumenya bisa diubah.");
 
-    const realized = (await cumulativeVolumeByLineage(rev.locationId)).get(node.lineageKey) ?? 0;
+    // Cakupan "semua": laporan atas item draft adendum ber-`basis=draft_adendum`
+    // (DECISIONS 210 — pekerjaan dikerjakan dulu, adendumnya menyusul). Dengan
+    // cakupan "aktif" pagar ini membaca 0 untuk justru item yang paling mungkin
+    // sudah dikerjakan, lalu meloloskan volume di bawah realisasinya.
+    const realized =
+      (await cumulativeVolumeByLineage(rev.locationId, undefined, "semua")).get(node.lineageKey) ?? 0;
     if (v + EPS < realized) {
       throw new AdendumError(
         `Volume ${node.name} tidak boleh di bawah realisasi tercatat (${realized}). ` +
@@ -281,6 +300,7 @@ async function uniqueLineage(tx: Tx, revisionId: string, base: string): Promise<
  * negosiasi (harga satuannya bebas — bukan harga kontrak lama).
  */
 export async function addDraftItem(
+  locationId: string,
   revisionId: string,
   parentId: string,
   input: { code: string; name: string; unit: string | null; volume: number; unitPrice: number },
@@ -295,7 +315,7 @@ export async function addDraftItem(
   const unitPrice = Math.round(input.unitPrice * 100) / 100;
 
   return db.$transaction(async (tx) => {
-    await requireDraft(tx, revisionId);
+    await requireDraft(tx, revisionId, locationId);
     const parent = await tx.rabNode.findUnique({
       where: { id: parentId },
       select: { id: true, revisionId: true, kind: true, lineageKey: true },
@@ -339,13 +359,14 @@ export async function addDraftItem(
  * node dalam draft sudah terbentuk dan tidak boleh goyah.
  */
 export async function updateDraftNewItemFields(
+  locationId: string,
   revisionId: string,
   nodeId: string,
   patch: { code?: string; name?: string; unit?: string | null; unitPrice?: number },
   userId: string,
 ): Promise<{ totalValue: bigint }> {
   return db.$transaction(async (tx) => {
-    const rev = await requireDraft(tx, revisionId);
+    const rev = await requireDraft(tx, revisionId, locationId);
     const node = await tx.rabNode.findUnique({
       where: { id: nodeId },
       select: { id: true, revisionId: true, kind: true, name: true, lineageKey: true },
@@ -403,6 +424,7 @@ export async function updateDraftNewItemFields(
 
 /** Tambah KATEGORI baru (bangunan/unit baru) di akar draft. */
 export async function addDraftKategori(
+  locationId: string,
   revisionId: string,
   input: { code: string; name: string },
   userId: string,
@@ -412,7 +434,7 @@ export async function addDraftKategori(
   if (!code || !name) throw new AdendumError("Kode dan nama kategori wajib diisi.");
 
   return db.$transaction(async (tx) => {
-    await requireDraft(tx, revisionId);
+    await requireDraft(tx, revisionId, locationId);
     const maxSort = await tx.rabNode.aggregate({ where: { revisionId }, _max: { sortOrder: true } });
     const lineageKey = await uniqueLineage(tx, revisionId, code);
     const node = await tx.rabNode.create({
@@ -427,6 +449,18 @@ export async function addDraftKategori(
         sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
       },
     });
+    // Menggerakkan `updatedAt` revisi. Tanda tangan persetujuan gugur dengan
+    // membandingkan `approvedAt >= updatedAt` (persetujuan-aturan.ts), dan
+    // satu-satunya yang menggerakkan cap itu di mutasi lain adalah
+    // `recomputeTotals`. Kategori kosong bernilai 0 sehingga total tidak
+    // bergerak — tanpa baris ini, menyisipkan kategori ke draft yang SUDAH
+    // ditandatangani tidak menggugurkan satu pun tanda tangan, dan yang
+    // diaktifkan bukan lagi persis yang disetujui.
+    // `recomputeTotals` SELALU menulis `totalValue` ke baris revisi, dan itulah
+    // yang menggerakkan `@updatedAt`. Dipakai di sini bukan karena totalnya
+    // berubah (kategori kosong = 0), melainkan supaya cap waktunya bergerak
+    // lewat jalur yang sama persis dengan mutasi editor lainnya.
+    await recomputeTotals(tx, revisionId);
     await auditIn(tx, userId, "rab.adendum_kategori_add", "rab_node", node.id, { revisionId, lineageKey, name });
     return { nodeId: node.id };
   });
@@ -440,12 +474,13 @@ export async function addDraftKategori(
  * Jejak penghapusan: audit log + item tetap terlihat di diff vs revisi lama.
  */
 export async function removeDraftNode(
+  locationId: string,
   revisionId: string,
   nodeId: string,
   userId: string,
 ): Promise<{ totalValue: bigint; removedItems: number }> {
   return db.$transaction(async (tx) => {
-    const rev = await requireDraft(tx, revisionId);
+    const rev = await requireDraft(tx, revisionId, locationId);
     const all = await tx.rabNode.findMany({
       where: { revisionId },
       select: { id: true, parentId: true, kind: true, name: true, lineageKey: true },
@@ -471,7 +506,11 @@ export async function removeDraftNode(
       for (const c of childrenOf.get(id) ?? []) stack.push(c);
     }
 
-    const realized = await cumulativeVolumeByLineage(rev.locationId);
+    // Cakupan "semua" — lihat alasan di updateDraftItemVolume. Dengan "aktif",
+    // item draft yang sudah dilaporkan terbaca "tanpa realisasi", pagar ini
+    // lolos, lalu `rabNode.delete` ditolak FK RESTRICT dan user hanya melihat
+    // "kesalahan tak terduga" pada item yang tidak akan pernah bisa dihapus.
+    const realized = await cumulativeVolumeByLineage(rev.locationId, undefined, "semua");
     const items = subtree.map((id) => byId.get(id)!).filter((n) => n.kind === "item");
     const blocked = items.find((n) => (realized.get(n.lineageKey) ?? 0) > EPS);
     if (blocked) {

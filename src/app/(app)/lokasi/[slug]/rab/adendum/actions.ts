@@ -78,8 +78,8 @@ export async function updateVolumeAction(_prev: AdendumActionState, formData: Fo
       nodeId: formData.get("nodeId"),
       volume: formData.get("volume"),
     });
-    const { user } = await requireCtx(d.slug);
-    await updateDraftItemVolume(d.revisionId, d.nodeId, d.volume, user.id);
+    const { user, location } = await requireCtx(d.slug);
+    await updateDraftItemVolume(location.id, d.revisionId, d.nodeId, d.volume, user.id);
     revalidate(d.slug);
     return { success: "Volume diperbarui." };
   } catch (err) {
@@ -108,14 +108,14 @@ export async function updateNewItemFieldAction(
       field: formData.get("field"),
       value: formData.get("value"),
     });
-    const { user } = await requireCtx(d.slug);
+    const { user, location } = await requireCtx(d.slug);
     const patch =
       d.field === "unitPrice"
         ? { unitPrice: Number(d.value) }
         : d.field === "unit"
           ? { unit: d.value || null }
           : { [d.field]: d.value };
-    await updateDraftNewItemFields(d.revisionId, d.nodeId, patch, user.id);
+    await updateDraftNewItemFields(location.id, d.revisionId, d.nodeId, patch, user.id);
     revalidate(d.slug);
     return { success: "Tersimpan." };
   } catch (err) {
@@ -147,8 +147,9 @@ export async function addItemAction(_prev: AdendumActionState, formData: FormDat
       volume: formData.get("volume"),
       unitPrice: formData.get("unitPrice"),
     });
-    const { user } = await requireCtx(d.slug);
+    const { user, location } = await requireCtx(d.slug);
     await addDraftItem(
+      location.id,
       d.revisionId,
       d.parentId,
       { code: d.code, name: d.name, unit: d.unit || null, volume: d.volume, unitPrice: d.unitPrice },
@@ -177,8 +178,8 @@ export async function addKategoriAction(_prev: AdendumActionState, formData: For
       code: formData.get("code"),
       name: formData.get("name"),
     });
-    const { user } = await requireCtx(d.slug);
-    await addDraftKategori(d.revisionId, { code: d.code, name: d.name }, user.id);
+    const { user, location } = await requireCtx(d.slug);
+    await addDraftKategori(location.id, d.revisionId, { code: d.code, name: d.name }, user.id);
     revalidate(d.slug);
     return { success: `Kategori "${d.name}" ditambahkan – isi item pekerjaannya.` };
   } catch (err) {
@@ -196,8 +197,8 @@ export async function removeNodeAction(_prev: AdendumActionState, formData: Form
       revisionId: formData.get("revisionId"),
       nodeId: formData.get("nodeId"),
     });
-    const { user } = await requireCtx(d.slug);
-    const res = await removeDraftNode(d.revisionId, d.nodeId, user.id);
+    const { user, location } = await requireCtx(d.slug);
+    const res = await removeDraftNode(location.id, d.revisionId, d.nodeId, user.id);
     revalidate(d.slug);
     return { success: `Dihapus (${res.removedItems} item).` };
   } catch (err) {
