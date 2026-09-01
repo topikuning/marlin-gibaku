@@ -25569,7 +25569,7 @@ dipasang juga pada `executiveSummary` dan `waSummary` — dua tempat yang
 menjanjikan hal yang sama tanpa penegak — tetapi itu mengubah keluaran laporan
 yang sudah beredar, jadi bukan keputusan yang layak diselipkan di sini.
 
-## (baru) · Di grup, hanya mention langsung yang dilayani (2026-08-31)
+## 487 · 2026-08-31 · Di grup, hanya mention langsung yang dilayani
 
 Permintaan user 2026-08-31: *"saat ada pesan dari marlin di reply di group, saat
 ini marlin tidak usah respon. hanya respon yang mention langsung."*
@@ -25602,3 +25602,90 @@ berlaku.
 
 Dijaga `tests/unit/waha-tanya-izin.test.ts` — dua uji: balasan tanpa mention
 TIDAK dilayani, dan balasan yang disertai mention tetap dilayani.
+
+---
+
+## 488 · 2026-09-01 · Impor RAB tidak lagi mengandaikan kolom NO ada di kolom A
+
+**Konteks**: berkas nyata `DRAFT_MC0_KNMP_KEMANTREN_2026_27_AGUSTUS_.xlsx`
+ditolak dengan *"Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat
+tambah/kurang KKP. Sheet yang ada di berkas ini: RAB, BACK UP VOL,
+REKAPITULASI, SUB-REKAP."* – menyebut sheet yang katanya tidak ada, di kalimat
+yang sama. Sheet RAB memang ADA, dibaca dari awal sampai akhir (2.392 baris),
+dan tetap menghasilkan nol item. Tiga cacat bertumpuk:
+
+1. **Kolom kode diandaikan kolom A.** Berkas itu menaruh NO di **B**, URAIAN di
+   C, dan huruf rincian (a, b, c) turun lagi ke **D**. Walker membaca kode hanya
+   dari kolom A – yang kosong sepanjang berkas – jadi tidak satu pun kategori
+   terbuka dan seluruh baris dibuang oleh `if (!cat) return`.
+2. **`deteksiCco` menuntut blok adendum yang sudah terisi.** Berkas ini punya
+   lima blok: RAB KONTRAK · MC-0 · TAMBAH · KURANG · CCO-01, dan CCO-01-nya
+   masih kosong karena adendumnya memang belum dikerjakan. Aturan "blok HASIL =
+   blok paling kanan" memilih blok kosong itu, gagal membuktikan
+   `volume × harga ≈ jumlah`, lalu menolak seluruh berkas.
+3. **Baris penutup bernomor ikut terhitung.** RAB-nya ditutup empat baris
+   berkode A/B/C/D: "JUMLAH HARGA", "PPN 11 %", "JUMLAH TOTAL", "DIBULATKAN".
+   Aturan rekap lama hanya membuang baris yang kolom kodenya KOSONG, jadi
+   keempatnya masuk sebagai pekerjaan – dan karena tiga di antaranya memuat
+   nilai seluruh RAB, nilai yang terbaca membengkak dari 7,97 M jadi 34,5 M.
+
+**Keputusan**:
+
+- Kolom kode **dideteksi** dari header ("NO"/"NO." di baris yang juga memuat
+  URAIAN/VOLUME), bukan diandaikan. Bila tidak meyakinkan → kolom A seperti
+  dulu, sehingga tidak ada berkas lama yang berubah perilakunya. Pada tata letak
+  bergeser, kode = sel terisi pertama yang BERBENTUK kode di kiri kolom volume,
+  namanya sel terisi berikutnya – karena di berkas semacam itu jenjang
+  dinyatakan dengan menurunkan kolom, bukan menggeser semuanya sejauh satu.
+- Blok HASIL = blok **terbukti** paling kanan sesudah "kurang". Kalau semua blok
+  sesudah "kurang" masih KOSONG, berkas dibaca sebagai keadaan DASAR apa adanya
+  dan hal itu **dikatakan** lewat peringatan impor ("blok adendumnya masih
+  KOSONG"). Kalau blok itu ada isinya tapi tak terbukti, penolakan tetap –
+  angka yang tidak terbukti tidak boleh diterka.
+- Baris penutup dikenali dari **bentuknya**: nama berkosakata penutup
+  (jumlah/total/ppn/dibulatkan/…) DAN tanpa volume DAN tanpa harga satuan.
+  Bukan dari namanya saja – ada alat ukur bernama "Total Station" di PEKERJAAN
+  PERSIAPAN yang harus tetap terhitung.
+- Pesan galat berhenti berbohong: sheet yang dibaca tapi nol baris dilaporkan
+  sebagai *"Sheet "RAB" DIBACA sampai habis, tapi tidak ada satu pun baris
+  pekerjaan yang dikenali"*, bukan sebagai "tidak ditemukan".
+
+**Alternatif direject**:
+- *Menggeser seluruh pembacaan sejauh satu kolom.* Tidak cukup: huruf rincian
+  ada di D sementara nomor item di B – pergeserannya tidak seragam, dan
+  `nameOf` yang ikut bergeser justru membaca huruf "a" sebagai nama pekerjaan.
+- *Meminta tim menyalin ulang ke template MARLIN.* Memindahkan pekerjaan tanpa
+  menambah kebenaran, dan menambah peluang salah salin (alasan yang sama dengan
+  DECISIONS 296).
+- *Menerima blok kosong sebagai "nol perubahan" tanpa memberi tahu.* Berkas
+  draft dan berkas final akan terlihat identik di layar.
+
+**Konsekuensi**: berkas KEMANTREN terbaca 19 kategori dengan total
+**7.972.813.069,140** – sama persis sampai sen dengan total MC-0 di berkasnya
+sendiri, dan tiap "JUMLAH <romawi>" per kategori juga cocok. Volume yang dipakai
+volume MC-0, bukan volume kontrak.
+
+**Susulan (2026-09-01)** – keberatan user: *"ini bukan format baru, tapi variasi
+dari berbagai macam orang, jadi kamu harus lebih adaptif kedepannya"*. Betul, dan
+perbaikan di atas masih menyandarkan diri pada label yang harus persis. Tiga
+sandaran lagi dilonggarkan, semuanya ke BENTUK, bukan ke kata:
+
+- **Kolom kode** tidak lagi menuntut label "NO". Kalau labelnya lain atau tidak
+  ada, dipilih kolom paling KIRI di kiri kolom URAIAN yang isinya paling sering
+  berbentuk kode. Paling kiri, bukan skor tertinggi: pada berkas berjenjang-kolom
+  kolom huruf rincian justru lebih sering terisi daripada kolom nomor induknya.
+  Batas kanannya kolom URAIAN (bukan kolom volume) supaya kolom angka tidak ikut
+  menang.
+- **Judul kategori** tidak lagi wajib diawali kata "PEKERJAAN". Berkas yang
+  menulis "I | PERSIAPAN" atau "I | PEK. STRUKTUR" dulu tidak membuka satu
+  kategori pun – dan berkas tanpa kategori berakhir persis seperti KEMANTREN:
+  nol item, lalu "sheet tidak ditemukan". Penggantinya bentuk baris: romawi
+  HURUF BESAR + baris tanpa volume & tanpa harga satuan + romawinya MELANJUTKAN
+  urutan. Nama berawalan "PEKERJAAN" tetap diterima tanpa syarat tambahan.
+- **Nama tab** hanya menentukan URUTAN pencarian, bukan izin masuk: "BQ",
+  "BOQ", "Daftar Kuantitas", "Lampiran", "MC-0" ikut diprioritaskan, dan yang
+  tidak dikenali tetap dicoba. Jendela pencarian baris header dilebarkan 25 → 60
+  baris (header KEMANTREN sendiri ada di baris 21).
+
+**Bisa di-revisit**: kalau muncul berkas yang kategorinya tidak berkode romawi
+sama sekali (mis. berkode A/B/C), deteksi kategori perlu sandaran ketiga.
