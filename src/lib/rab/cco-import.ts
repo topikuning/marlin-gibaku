@@ -47,6 +47,12 @@ export type PetaCco = {
   barisGrup: number;
   blokDasar: BlokNilai;
   blokHasil: BlokNilai;
+  /**
+   * Blok adendum masih KOSONG, jadi blok DASAR sendiri yang dipakai sebagai
+   * hasil. Terjadi pada berkas DRAFT (mis. MC-0 yang kolom CCO-01-nya belum
+   * diisi). Dipakai halaman impor untuk mengatakannya apa adanya.
+   */
+  hasilDariDasar: boolean;
   /** Peta kolom siap pakai untuk walker RAB: volume dari blok HASIL. */
   col: { vol: number; unit: number; price: number; amount: number; tkdn: number };
   /** Kolom volume blok DASAR — dipakai melaporkan berapa item yang berubah. */
@@ -184,10 +190,9 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   if (iTambah < 1 || iKurang <= iTambah) return null;
 
   const blokDasar = blok[iTambah - 1];
-  // Blok HASIL = blok terakhir sesudah "kurang", tanpa kolom keterangan.
+  // Kandidat blok HASIL = semua blok sesudah "kurang", tanpa kolom keterangan.
   const sesudah = blok.slice(iKurang + 1).filter((b) => !/^KET|KETERANGAN/i.test(b.label));
   if (sesudah.length === 0) return null;
-  const blokHasil = sesudah[sesudah.length - 1];
 
   // Data mulai beberapa baris di bawah grup (ada 1–3 baris sub-header).
   const contoh = barisContoh(ws, barisGrup + 1, blokDasar);
@@ -198,36 +203,76 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   const unit = kolomSatuan(ws, blokDasar, contoh);
   if (unit == null) return null;
 
-  // Volume HASIL: kolom yang, dikalikan harga satuan dasar, menghasilkan salah
-  // satu kolom di blok hasil. Kalau blok hasil tidak punya kolom jumlah,
-  // dipakai kolom angka pertama yang bukan bobot (nilai < 1 terus-menerus).
-  let volHasil: number | null = null;
-  let amountHasil: number | null = null;
-  let skorTerbaik = 0;
-  for (let v = blokHasil.mulai; v <= blokHasil.akhir; v++)
-    for (let a = blokHasil.mulai; a <= blokHasil.akhir; a++) {
-      if (a === v) continue;
-      let skor = 0;
-      for (const r of contoh) {
-        const row = ws.getRow(r);
-        const nv = angka(row.getCell(v).value);
-        const na = angka(row.getCell(a).value);
-        const np = angka(row.getCell(dasar.price).value);
-        if (nv == null || na == null || np == null || nv === 0 || na === 0 || np === 0) continue;
-        if (cocok(nv * np, na)) skor++;
+  /**
+   * Volume HASIL: kolom yang, dikalikan harga satuan dasar, menghasilkan salah
+   * satu kolom di blok hasil.
+   */
+  const buktikan = (b: BlokNilai): { vol: number; amount: number; skor: number } | null => {
+    let terbaik: { vol: number; amount: number; skor: number } | null = null;
+    for (let v = b.mulai; v <= b.akhir; v++)
+      for (let a = b.mulai; a <= b.akhir; a++) {
+        if (a === v) continue;
+        let skor = 0;
+        for (const r of contoh) {
+          const row = ws.getRow(r);
+          const nv = angka(row.getCell(v).value);
+          const na = angka(row.getCell(a).value);
+          const np = angka(row.getCell(dasar.price).value);
+          if (nv == null || na == null || np == null || nv === 0 || na === 0 || np === 0) continue;
+          if (cocok(nv * np, na)) skor++;
+        }
+        if (skor >= 3 && (!terbaik || skor > terbaik.skor)) terbaik = { vol: v, amount: a, skor };
       }
-      if (skor > skorTerbaik) {
-        skorTerbaik = skor;
-        volHasil = v;
-        amountHasil = a;
-      }
-    }
-  if (volHasil == null || amountHasil == null || skorTerbaik < 3) return null;
+    return terbaik;
+  };
+
+  /**
+   * Blok HASIL = blok TERBUKTI paling kanan sesudah "kurang" — bukan sekadar
+   * yang paling kanan.
+   *
+   * Berkas nyata `DRAFT_MC0_..._KEMANTREN` punya lima blok: RAB KONTRAK · MC-0 ·
+   * TAMBAH · KURANG · CCO-01, dan CCO-01-nya MASIH KOSONG karena adendumnya
+   * memang belum dikerjakan. Aturan "ambil yang paling kanan" memilih blok
+   * kosong itu, gagal membuktikan `volume × harga ≈ jumlah`, lalu seluruh
+   * berkas ditolak — padahal blok yang berlaku (MC-0) ada dan angkanya lengkap.
+   */
+  let blokHasil: BlokNilai | null = null;
+  let volHasil = 0;
+  let amountHasil = 0;
+  for (let i = sesudah.length - 1; i >= 0; i--) {
+    const hit = buktikan(sesudah[i]);
+    if (!hit) continue;
+    blokHasil = sesudah[i];
+    volHasil = hit.vol;
+    amountHasil = hit.amount;
+    break;
+  }
+
+  let hasilDariDasar = false;
+  if (!blokHasil) {
+    // Ada isinya tapi tidak satu pun terbukti → jangan diterka; biarkan pesan
+    // "kolom volume/harga/jumlah tidak bisa dipastikan" yang bicara.
+    const adaIsi = sesudah.some((b) =>
+      contoh.some((r) => {
+        for (let c = b.mulai; c <= b.akhir; c++)
+          if (angka(ws.getRow(r).getCell(c).value) != null) return true;
+        return false;
+      }),
+    );
+    if (adaIsi) return null;
+    // Semua blok adendum kosong = berkas DRAFT. Yang benar bukan menolaknya,
+    // melainkan membacanya sebagai keadaan DASAR apa adanya (nol perubahan).
+    blokHasil = blokDasar;
+    volHasil = dasar.vol;
+    amountHasil = dasar.amount;
+    hasilDariDasar = true;
+  }
 
   return {
     barisGrup,
     blokDasar,
     blokHasil,
+    hasilDariDasar,
     volDasar: dasar.vol,
     col: {
       // Volume ADENDUM (keadaan sesudah) — inti dari impor ini.
