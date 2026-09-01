@@ -655,34 +655,29 @@ Yang sudah diperbaiki ada di DECISIONS (peringatan berbasis rupiah · otorisasi
 lokasi · pagar realisasi · kategori menggugurkan tanda tangan). Sisanya di bawah.
 Setiap butir diverifikasi dengan membaca kode; yang masih dugaan ditandai.
 
-### Menunggu KEPUTUSAN user
+### Sudah diputuskan user 2026-09-01 (tidak lagi menunggu)
 
-- 🔴 **KEPUTUSAN · Realisasi `basis = draft_adendum` HILANG PERMANEN saat adendum
-  diaktifkan.** Laporan atas item yang hanya ada di draft dibekukan
-  `basis = "draft_adendum"` saat dikirim; angka resmi hanya menghitung
-  `basis = "aktif"` (`progress.ts`). `activateRevision` hanya membalik status
-  revisi — **tidak ada satu baris pun di repo** yang menaikkan `draft_adendum`
-  menjadi `aktif`. Jadi 300 m³ yang dilaporkan atas item draft tetap tidak
-  terhitung SELAMANYA setelah adendumnya sah, tepat pada pekerjaan yang adendum
-  itu diadakan untuk melegalkannya (DECISIONS 210). Item tampil 0%, termin tidak
-  bisa ditagih. Menaikkan basis saat aktivasi = mengubah histori laporan, jadi
-  protokol integritas menuntut keputusan + rencana backfill lebih dulu.
-  `tests/integration/laporan-basis-adendum.test.ts` menguji 14 hal, tak satu pun
-  mengaktifkan adendumnya.
-- 🟡 **KEPUTUSAN · Batas 10% hanya peringatan layar, dan basisnya HPS bukan nilai
-  kontrak.** Tidak memblokir di server sama sekali (`activateDraftAction` tidak
-  menyentuhnya); rumusnya hidup di `adendum/page.tsx` (melanggar aturan #7
-  CLAUDE.md) dan `adendum-batas-10persen.test.ts` **menyalin ulang** rumus itu,
-  jadi menghapus seluruh blok peringatan di halaman tidak membuat uji merah.
-  Basisnya `rabRevision` pertama satu lokasi, yang boleh ber-`source: hps_awal`
-  — sementara layarnya menulis "10% nilai RAB kontrak awal" dan
-  `Contract.contractValue` tersedia. Perlu diputuskan: memblokir atau tetap
-  memperingatkan, dan basis mana yang benar.
-- 🟡 **KEPUTUSAN · Pengusul boleh menandatangani usulannya sendiri.**
-  `createAdendumDraft` mencatat `createdById`; `setujuiRevisi` dan
-  `nilaiPersetujuan` tidak pernah membandingkannya dengan penandatangan.
-  Syaratnya "dua orang berbeda", bukan "bukan pengusul". Ini mungkin memang
-  sesuai DECISIONS 234 — perlu penegasan, bukan tambalan sepihak.
+Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
+
+- ✅ **Realisasi `draft_adendum` naik otomatis saat aktivasi.** *"Kalau sudah
+  diaktivasi dengan skema dua orang yang sudah kita atur, ya otomatis aktif.
+  History laporan apa yang berubah?"* — benar, tidak ada: `basis` adalah penanda
+  sistem, bukan angka yang dilaporkan siapa pun. `activateRevision` kini
+  menaikkannya dalam transaksi yang sama.
+- ✅ **Batas 10% terhadap NILAI KONTRAK, bukan per item, bukan HPS.** *"10% ini
+  terhadap apa? kontrak kan? bukan per item."* Aturannya pindah ke
+  `lib/rab/batas-adendum.ts`, dasarnya `Contract.contractValue`, dan adendum yang
+  sudah berlaku ikut dijumlahkan. Tetap PERINGATAN, bukan penghalang — itu
+  keputusan 29 Juli 2026 yang tidak dicabut.
+- ✅ **Dua orang tetap wajib.** *"Ya harus dua orang, karena ini vital, untuk
+  menjaga resiko salah."* Aturan yang berjalan sudah menuntut dua orang BERBEDA
+  (satu Program Director + satu peran penugasan, super admin tidak boleh mengisi
+  kursi mana pun — DECISIONS 234). Tidak ada perubahan kode.
+  **Satu hal yang perlu kau sadari, bukan pertanyaan**: pengusul boleh menjadi
+  salah satu dari dua itu, jadi pada kasus terburuk hanya SATU orang lain yang
+  benar-benar memeriksa. Itu masih "dua orang" dan konsisten dengan yang kau
+  minta; kalau maksudmu pengusul harus di luar keduanya, itu satu baris
+  perbandingan `createdById`.
 
 ### Perbandingan & pencocokan identitas
 

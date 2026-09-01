@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { withPpn } from "@/lib/money";
+import { nilaiAdendum } from "@/lib/rab/batas-adendum";
 import { diffRevisions, type RevisionDiff } from "@/lib/rab/adendum";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
@@ -208,39 +209,58 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
 
   // ── Peringatan nilai (informasi, bukan penghalang — MARLIN mencatat kenyataan) ──
   const peringatan: string[] = [];
-  if (diff && revisiAwal && revisiAwal.totalValue > 0n) {
-    /*
-     * Batas 10% Perpres 16/2018 Pasal 54 mengukur KENAIKAN NILAI KONTRAK
-     * (nilai akhir vs nilai awal) — BUKAN jumlah kotor pekerjaan tambah.
-     *
-     * Dulu yang diuji `totalTambah` (Σ kenaikan per item). Akibatnya adendum
-     * yang hanya MENUKAR pekerjaan — kurangi sana, tambah sini, nilai total
-     * praktis sama — dituduh melanggar batas 10%. Terjadi nyata (laporan user
-     * 2026-08-03): tambah +Rp 1.044.616.688, kurang −Rp 1.044.616.680, nilai
-     * kontrak naik Rp 8, dan peringatannya tetap berteriak melanggar.
-     *
-     * Peringatan yang menyala pada keadaan yang sah adalah cara tercepat
-     * membuat semua peringatan diabaikan — termasuk yang benar. DECISIONS 233.
-     */
-    const batas = revisiAwal.totalValue / 10n;
-    if (delta > batas) {
-      peringatan.push(
-        `Nilai kontrak naik ${fmtDelta(delta)} – melebihi 10% nilai RAB kontrak awal ` +
-          `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}). ` +
-          `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
-      );
-    } else if (diff.totalTambah > batas) {
-      /*
-       * Nilai total aman, tapi isinya berpindah banyak. Ini BUKAN pelanggaran
-       * batas 10% — tetapi tukar-menukar sebesar ini mengubah lingkup yang
-       * disepakati, jadi tetap disebut, dengan nama yang benar.
-       */
-      peringatan.push(
-        `Nilai kontrak hampir tidak berubah (${fmtDelta(delta)}), tetapi lingkupnya banyak bergeser: ` +
-          `pekerjaan tambah ${fmtDelta(diff.totalTambah)} dan pekerjaan kurang ${fmtDelta(diff.totalKurang)}. ` +
-          `Ini bukan pelanggaran batas 10% Perpres 16/2018 (yang dibatasi kenaikan NILAI kontrak), ` +
-          `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.`,
-      );
+  /*
+   * Batas 10% Perpres 16/2018 Pasal 54 mengukur KENAIKAN NILAI KONTRAK (nilai
+   * akhir vs nilai awal) — BUKAN jumlah kotor pekerjaan tambah (DECISIONS 233),
+   * dan dasarnya NILAI KONTRAK, bukan RAB revisi pertama yang bisa berupa HPS
+   * (penegasan user 2026-09-01: "10% ini terhadap apa? kontrak kan?").
+   *
+   * Aturannya tinggal di `lib/rab/batas-adendum.ts` — halaman ini tidak boleh
+   * memuat rumus angka (aturan #7 CLAUDE.md), dan versi lama yang menaruhnya di
+   * sini membuat ujinya menguji salinan rumus, bukan rumusnya.
+   */
+  if (diff) {
+    // Adendum kontrak yang SUDAH berlaku ikut dijumlahkan: tiga adendum
+    // masing-masing 4% melewati batas walau tak satu pun melewatinya sendirian.
+    // CCO yang terkait draft INI dikecualikan supaya tidak terhitung dua kali
+    // bersama deltanya sendiri.
+    const deltaBerlaku = amendments
+      .filter((a) => a.id !== draft.amendment?.id)
+      .reduce((t, a) => t + a.valueDelta, 0n);
+    const batasAdendum = nilaiAdendum({
+      nilaiKontrak: contract?.contractValue ?? null,
+      nilaiRabAwalPraPpn: revisiAwal?.totalValue ?? null,
+      deltaBerlaku,
+      deltaDraftPraPpn: delta,
+      totalTambahPraPpn: diff.totalTambah,
+      ppnPercent,
+    });
+    if (batasAdendum) {
+      const dasarKata =
+        batasAdendum.dasar === "kontrak"
+          ? "nilai kontrak awal"
+          : `RAB revisi #${revisiAwal?.revisionNo ?? 1} (kontrak belum tercatat, jadi ini BUKAN nilai kontrak)`;
+      if (batasAdendum.sinyal === "lewat-batas") {
+        peringatan.push(
+          `Nilai kontrak naik ${fmtDelta(batasAdendum.kenaikanKumulatif)} termasuk adendum yang sudah berlaku – ` +
+            `melebihi 10% ${dasarKata} (Rp ${rupiah.format(batasAdendum.nilaiAwal)}; batas Rp ${rupiah.format(batasAdendum.batas)}). ` +
+            `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+        );
+      } else if (batasAdendum.sinyal === "geser-lingkup") {
+        /*
+         * Nilai total aman, tapi isinya berpindah banyak. Ini BUKAN pelanggaran
+         * batas 10% — tetapi tukar-menukar sebesar ini mengubah lingkup yang
+         * disepakati, jadi tetap disebut, dengan nama yang benar. Peringatan
+         * yang menyala pada keadaan yang sah adalah cara tercepat membuat semua
+         * peringatan diabaikan, termasuk yang benar (DECISIONS 233).
+         */
+        peringatan.push(
+          `Nilai kontrak hampir tidak berubah (${fmtDelta(delta)}), tetapi lingkupnya banyak bergeser: ` +
+            `pekerjaan tambah ${fmtDelta(diff.totalTambah)} dan pekerjaan kurang ${fmtDelta(diff.totalKurang)}. ` +
+            `Ini bukan pelanggaran batas 10% Perpres 16/2018 (yang dibatasi kenaikan NILAI kontrak), ` +
+            `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.`,
+        );
+      }
     }
   }
   // Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum

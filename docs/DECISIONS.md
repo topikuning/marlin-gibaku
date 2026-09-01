@@ -25924,3 +25924,114 @@ setiap jalur baru yang lupa menyentuh revisi membukanya lagi, dan
 `RabRevisionApproval.totalValue` yang sudah ada tidak pernah dibaca untuk
 validasi. Yang benar adalah mengikatnya pada hash isi draft. Dicatat di
 OPEN_ISSUES sebagai pekerjaan tersendiri.
+
+---
+
+## (baru) · Adendum yang sah menaikkan laporannya menjadi resmi (2026-09-01)
+
+**Koreksi user 2026-09-01**: *"kalau sudah diaktivasi dengan skema dua orang yang
+sudah kita atur, ya otomatis aktif. history laporan apa yang berubah?"*
+
+Pertanyaanku salah bentuk, dan jawabannya: tidak ada. `DailyReportItem.basis`
+adalah penanda SISTEM tentang RAB mana item itu waktu dilaporkan — bukan angka
+yang dilaporkan siapa pun. Volume, tanggal, nilai, dan status laporan tidak
+tersentuh.
+
+**Konteks**: laporan harian atas item yang hanya ada di draft adendum dibekukan
+ber-`basis = "draft_adendum"` saat dikirim (DECISIONS 210: di lapangan pekerjaan
+sering jalan lebih dulu, adendumnya menyusul). Angka resmi — progres, kurva-S,
+blanko KKP, kesiapan termin — hanya menghitung `basis = "aktif"`.
+
+Audit 2026-09-01 menemukan **tidak ada satu baris pun di seluruh repo** yang
+menaikkan penanda itu. `activateRevision` hanya membalik status revisi.
+Akibatnya pekerjaan yang dilaporkan atas draft tetap tidak terhitung SELAMANYA
+setelah adendumnya sah lewat dua tanda tangan — tepat pada pekerjaan yang
+adendum itu diadakan untuk melegalkannya. Item tampil 0%, dan terminnya tidak
+bisa ditagih atas pekerjaan yang sudah punya dasar kontrak.
+
+**Keputusan**: `activateRevision` menaikkan `basis` seluruh baris laporan yang
+menunjuk node revisi yang diaktifkan, di dalam transaksi yang sama. Jumlah baris
+yang naik masuk ke payload audit `rab.revision_activate` — angka itulah yang
+menjelaskan lompatan progres tepat pada saat aktivasi.
+
+**Alternatif direject**: *menghitungnya di sisi baca* (memasukkan
+`draft_adendum` yang lineage-nya ada di revisi aktif). Tidak diambil: aturannya
+harus diulang di jalur SQL maupun TS di `progress.ts` dan setiap pembaca lain,
+dan `basis` yang sengaja dibekukan jadi kehilangan artinya. Aktivasi adalah
+peristiwa yang jelas dan berjejak audit; satu tulisan di situ lebih jujur
+daripada aturan turunan di enam tempat.
+
+**Konsekuensi**: progres lokasi memang MELOMPAT pada saat aktivasi. Itu benar —
+pekerjaannya sudah dilakukan pada tanggal yang tercatat, yang belum ada hanya
+dasar kontraknya. Laporan periodik yang sudah dicetak sebelum aktivasi akan
+berbeda dari yang dicetak sesudahnya; kaitannya dengan cap "FINAL – ANGKA
+TERKUNCI" (OPEN_ISSUES LBL-01) belum ditutup.
+
+---
+
+## (baru) · Batas 10% diukur terhadap NILAI KONTRAK, kumulatif, dan keluar dari komponen React (2026-09-01)
+
+**Penegasan user 2026-09-01**: *"10% ini terhadap apa? kontrak kan? bukan per
+item."*
+
+**Konteks**: tiga cacat pada satu aturan.
+
+1. **Dasarnya salah.** Kode memakai `rabRevision` pertama SATU lokasi, dan
+   revisi itu boleh ber-`source: hps_awal` — yaitu HPS, bukan nilai kontrak
+   hasil tender. Bila kontrak dimenangkan di 90% HPS, plafonnya kira-kira 11%
+   terlalu longgar, sementara layarnya menulis "10% nilai RAB kontrak awal".
+   `Contract` juga melekat pada `Package` yang bisa memayungi banyak lokasi,
+   jadi batas per-lokasi bukan batas yang dibatasi Perpres.
+2. **Tidak kumulatif.** Tiga adendum masing-masing 4% melewati batas walau tak
+   satu pun melewatinya sendirian.
+3. **Rumusnya hidup di React server component**, melanggar aturan #7 CLAUDE.md,
+   dan `tests/unit/adendum-batas-10persen.test.ts` MENYALIN ULANG rumus itu
+   sebagai fungsi lokal. Ujinya menguji salinannya sendiri: menghapus seluruh
+   blok peringatan di halaman tidak membuat satu uji pun merah.
+
+**Keputusan**:
+
+- Aturannya pindah ke `src/lib/rab/batas-adendum.ts` — murni, tanpa DB, dan
+  ujinya mengimpornya apa adanya.
+- Dasarnya `Contract.contractValue` (inklusif PPN). Δ RAB pra-PPN dinaikkan ke
+  konvensi yang sama sebelum diadu.
+- Adendum kontrak yang SUDAH berlaku (`ContractAmendment.valueDelta`) ikut
+  dijumlahkan; CCO yang terkait draft ini dikecualikan supaya tidak terhitung
+  dua kali bersama deltanya sendiri.
+- Tanpa kontrak, RAB revisi pertama dipakai sebagai cadangan **tapi dasarnya
+  ditandai** dan kalimat di layar menyatakan tegas bahwa itu bukan nilai
+  kontrak. Tanpa dasar sama sekali → `null`, bukan 0 (yang akan membuat setiap
+  adendum sekecil apa pun "melanggar 10%").
+- **Tetap PERINGATAN, bukan penghalang.** Keputusan 29 Juli 2026 (*"jadi warning
+  (bukan blocker) — MARLIN mencatat kenyataan, bukan menolaknya"*) tidak dicabut,
+  dan user tidak memintanya berubah.
+- Pemisahan "lewat batas" vs "pergeseran lingkup" dari DECISIONS 233 tetap utuh.
+
+**Konsekuensi**: pada paket berkontrak, batasnya kini bisa lebih KETAT dari
+sebelumnya (nilai kontrak biasanya di bawah HPS) sekaligus lebih longgar
+(kumulatif diukur terhadap kontrak penuh, bukan satu lokasi). Kedua arah itu
+adalah koreksi, bukan pelonggaran.
+
+**Bisa di-revisit**: `deltaBerlaku` mengandaikan setiap `ContractAmendment` yang
+tercatat memang sudah tercermin di revisi aktif lokasinya. CCO yang didaftarkan
+tapi RAB-nya tidak pernah diaktifkan akan terhitung dua kali. Bila itu terjadi
+di lapangan, yang perlu diperbaiki adalah kaitan CCO ke revisi, bukan rumusnya.
+
+---
+
+## (baru) · Dua tanda tangan tetap wajib; pengusul boleh mengisi salah satunya (2026-09-01)
+
+**Penegasan user 2026-09-01**: *"ya harus dua orang, karena ini vital, untuk
+menjaga resiko salah."*
+
+**Keputusan**: DECISIONS 234 berlaku apa adanya, tidak ada perubahan kode. Yang
+ditegakkan server sudah benar: dua tanda tangan dari dua orang BERBEDA (satu
+Program Director + satu peran penugasan), super admin tidak boleh mengisi kursi
+mana pun, dan gerbangnya dipanggil di KEDUA jalur aktivasi.
+
+**Yang sengaja dibiarkan**: pengusul draft boleh menjadi salah satu dari dua
+penanda tangan — `createdById` dicatat tapi tidak pernah diadu dengan
+penandatangan. Pada kasus terburuk hanya satu orang lain yang benar-benar
+memeriksa. Itu masih memenuhi "dua orang" sebagaimana dinyatakan user, jadi
+tidak diubah sepihak; kalau kelak diminta lebih ketat, itu satu baris
+perbandingan di `nilaiPersetujuan`.
