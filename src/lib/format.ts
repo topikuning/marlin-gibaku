@@ -11,9 +11,30 @@ const rupiahFmt = new Intl.NumberFormat("id-ID", {
 });
 
 const numberFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
+/**
+ * Rupiah BERSEN — khusus HARGA SATUAN.
+ *
+ * Nilai/total memang bulat rupiah (uang = BigInt), tapi harga satuan disimpan
+ * `Decimal(15,2)` dan berkas KKP menulisnya bersen (12.712,12). Memformatnya
+ * dengan 0 desimal membuat layar berbeda dari Excel di angka yang sama, dan
+ * orang membaca selisih yang tidak ada. Sennya ditampilkan hanya kalau memang
+ * bukan nol.
+ */
+const rupiahSenFmt = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 export function formatRupiah(value: bigint | number): string {
   return rupiahFmt.format(typeof value === "bigint" ? Number(value) : value);
+}
+
+/** Rupiah harga satuan: bersen bila sennya ada, bulat bila tidak. */
+export function formatRupiahSatuan(value: number | null | undefined): string {
+  if (value == null) return "–";
+  return Number.isInteger(value) ? rupiahFmt.format(value) : rupiahSenFmt.format(value);
 }
 
 /** Rupiah ringkas untuk KPI: 1,2 M / 345 jt. */

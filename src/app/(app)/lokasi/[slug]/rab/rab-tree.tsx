@@ -3,7 +3,7 @@
 import { Check, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
+import { formatRupiahSatuan, formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import { renameRabCategoryAction } from "./actions";
 
 /** Node RAB tersalin ke client — BigInt/Decimal SUDAH diserialisasi di server. */
@@ -272,7 +272,7 @@ export function RabTree({
                     </td>
                     <td className="px-2 py-1.5 align-top text-ink-muted">{node.unit ?? ""}</td>
                     <td className="tabular px-2 py-1.5 text-right align-top">
-                      {node.unitPrice != null ? formatRupiah(node.unitPrice) : ""}
+                      {node.unitPrice != null ? formatRupiahSatuan(node.unitPrice) : ""}
                     </td>
                     <td className="tabular px-2 py-1.5 text-right align-top">
                       {formatRupiah(Number(node.amount))}

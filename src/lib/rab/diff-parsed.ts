@@ -51,6 +51,12 @@ export type ItemHilang = BarisBeda & { realisasi: number };
  * memang belum pernah disepakati.
  */
 export type HargaBerubah = BarisBeda & {
+  /**
+   * Nama item yang sama di KONTRAK. Wajib dibawa: panel lama mencetak nama dari
+   * file baru bersama harga dari item lama, jadi pasangan yang meleset (nomor
+   * bergeser) terbaca sebagai "harga berubah" dan tidak ada cara melihatnya.
+   */
+  namaLama: string;
   dari: number | null;
   ke: number | null;
   /** Volume kontrak baru — dipakai menaksir dampak rupiahnya. */
@@ -111,6 +117,7 @@ export function bandingkanTerhadapAktif(
         lineageKey: n.lineageKey,
         code: n.code,
         name: n.name,
+        namaLama: lama.name,
         dari: hargaLama,
         ke: hargaBaruNilai,
         volume: ke,
