@@ -65,6 +65,25 @@ export type HargaBerubah = BarisBeda & {
   dampakRupiah: bigint;
 };
 
+/**
+ * Nilai (kolom JUMLAH) item KONTRAK LAMA yang bergeser padahal volume dan harga
+ * satuannya tidak bergerak.
+ *
+ * `flatten` memakai `total_price` dari berkas APA ADANYA bila kolomnya terisi
+ * (DECISIONS 212), jadi nilai item TIDAK selalu sama dengan volume × harga.
+ * Konsekuensinya: kolom JUMLAH yang diketik ulang menggeser nilai kontrak tanpa
+ * satu pun volume atau harga bergerak – dan sebelum ini tidak ada satu pun
+ * daftar yang memuatnya, sehingga item itu terhitung "tetap". Cek-silang parser
+ * baru berbunyi di atas 1% per baris; 0,9% dari berkas 8 miliar adalah puluhan
+ * juta yang lewat tanpa suara.
+ */
+export type NilaiBergeser = BarisBeda & {
+  dari: bigint;
+  ke: bigint;
+  /** ke − dari, dalam rupiah. */
+  selisih: bigint;
+};
+
 export type RingkasBeda = {
   totalAktif: bigint;
   totalBaru: bigint;
@@ -72,9 +91,53 @@ export type RingkasBeda = {
   itemHilang: ItemHilang[];
   volumeBerubah: VolumeBerubah[];
   hargaBerubah: HargaBerubah[];
-  /** Item yang lineage-nya sama, volume DAN harga satuannya tidak berubah. */
+  nilaiBergeser: NilaiBergeser[];
+  /** Item yang lineage-nya sama, volume, harga satuan DAN nilainya tidak berubah. */
   jumlahTetap: number;
 };
+
+/**
+ * Presisi SIMPAN, bukan presisi bilangan mengambang. `volume Decimal(15,3)` dan
+ * `unitPrice Decimal(15,2)` (prisma/schema.prisma) berarti angka dari berkas
+ * dibulatkan Postgres saat ditulis. Membandingkan angka berkas dengan angka
+ * tersimpan memakai epsilon yang LEBIH KECIL dari pembulatan itu membuat berkas
+ * yang identik dilaporkan berubah selamanya: file 12,3456 tersimpan 12,346,
+ * selisih 0,0004 – 400x lebih besar dari EPS 1e-6 yang dipakai sebelumnya.
+ *
+ * Jadi yang dibandingkan adalah "yang akan tersimpan" lawan "yang tersimpan":
+ * kedua sisi dibulatkan ke presisi kolomnya, lalu diadu sebagai bilangan bulat.
+ */
+const DESIMAL_VOLUME = 3;
+const DESIMAL_HARGA = 2;
+
+/**
+ * KOSONG DAN NOL ADALAH KEADAAN YANG SAMA.
+ *
+ * Laporan user 2026-09-01: sembilan item dilaporkan "harga satuan berubah"
+ * padahal harga kontraknya memang 0 sejak awal dan sel harga di berkas kosong.
+ * Sebabnya perbandingan lama menuntut KEDUA sisi bukan-null sebelum boleh
+ * mengadu angkanya, sehingga 0 lawan null tidak pernah sampai ke perbandingan
+ * dan langsung jatuh sebagai "berbeda". Panel lalu mencetak buktinya sendiri
+ * bahwa tidak ada yang berubah – "Rp 0", tanda hubung, "(+Rp 0)" – lalu tetap
+ * berteriak merah.
+ */
+function samaPadaPresisi(a: number | null, b: number | null, desimal: number): boolean {
+  const f = 10 ** desimal;
+  return Math.round((a ?? 0) * f) === Math.round((b ?? 0) * f);
+}
+
+/** Nilai rupiah item pada suatu harga satuan; volume kosong = tidak ada volume. */
+function rupiah(harga: number | null, volume: number | null): bigint {
+  return BigInt(Math.round((harga ?? 0) * (volume ?? 0)));
+}
+
+/**
+ * Toleransi nilai item: apportionment "largest remainder" di `flatten`
+ * memindahkan sisa pembulatan antar-saudara, sehingga `amount` satu item bisa
+ * bergeser 1 rupiah hanya karena saudaranya berubah. Yang dicari di sini adalah
+ * nilai yang DIKETIK ulang, bukan derau pembulatan.
+ */
+const TOLERANSI_NILAI = 2n;
 
 const EPS = 1e-6;
 
@@ -90,6 +153,7 @@ export function bandingkanTerhadapAktif(
   const itemBaru: BarisBeda[] = [];
   const volumeBerubah: VolumeBerubah[] = [];
   const hargaBerubah: HargaBerubah[] = [];
+  const nilaiBergeser: NilaiBergeser[] = [];
   let jumlahTetap = 0;
 
   for (const n of itemBaruList) {
@@ -100,18 +164,32 @@ export function bandingkanTerhadapAktif(
     }
     const dari = lama.volume;
     const ke = n.volume;
-    const volumeSama = dari == null && ke == null ? true : dari != null && ke != null && Math.abs(dari - ke) < EPS;
+    const volumeSama = samaPadaPresisi(dari, ke, DESIMAL_VOLUME);
 
     // Harga satuan diperiksa TERPISAH dari volume: item bisa volumenya tetap
     // tapi harganya bergeser, dan itu justru yang paling mudah lolos.
-    // Toleransi 0,005 = setengah rupiah-sen; di bawah itu beda pembulatan tulis
-    // dari dokumen, bukan perubahan harga.
+    //
+    // GERBANGNYA RUPIAH YANG BERPINDAH, BUKAN SELISIH DESIMAL. Uang di sistem
+    // ini BigInt rupiah tanpa sen, dan yang dijaga DECISIONS 213 adalah "nilai
+    // kontrak berubah tanpa ada pekerjaan yang bertambah". Selisih harga satuan
+    // yang tidak memindahkan satu rupiah pun karena itu bukan perubahan harga:
+    // 706.908,69 lawan 706.908,70 adalah satu nilai yang dibulatkan dua arah
+    // oleh dua dokumen, bukan harga yang bergeser. Toleransi lama 0,005 justru
+    // menangkapnya, sebab beda TERKECIL yang mungkin ada antara dua dokumen
+    // ber-dua-desimal adalah 0,01 – tepat di atas ambangnya.
     const hargaLama = lama.unitPrice;
     const hargaBaruNilai = n.unitPrice;
-    const hargaSama =
-      hargaLama == null && hargaBaruNilai == null
-        ? true
-        : hargaLama != null && hargaBaruNilai != null && Math.abs(hargaLama - hargaBaruNilai) < 0.005;
+    // Volume kosong (item lump-sum) tidak boleh membuat perubahan harga menguap:
+    // (baru − lama) × 0 = 0 akan melaporkan kenaikan 100 juta sebagai "Rp 0",
+    // lalu mengurutkannya paling bawah dan memotongnya dari layar. Untuk item
+    // itu dampaknya diambil dari pergerakan nilai tercatat.
+    const adaVolume = (ke ?? 0) > 0;
+    const dampakRupiah = adaVolume
+      ? rupiah(hargaBaruNilai, ke) - rupiah(hargaLama, ke)
+      : n.amount - lama.amount;
+    const hargaSama = adaVolume
+      ? dampakRupiah === 0n
+      : samaPadaPresisi(hargaLama, hargaBaruNilai, DESIMAL_HARGA);
     if (!hargaSama) {
       hargaBerubah.push({
         lineageKey: n.lineageKey,
@@ -121,12 +199,32 @@ export function bandingkanTerhadapAktif(
         dari: hargaLama,
         ke: hargaBaruNilai,
         volume: ke,
-        dampakRupiah: BigInt(Math.round(((hargaBaruNilai ?? 0) - (hargaLama ?? 0)) * (ke ?? 0))),
+        dampakRupiah,
+      });
+    }
+
+    // Nilai item yang bergeser SENDIRI – volume tetap, harga tetap, JUMLAH
+    // berbeda. Diperiksa hanya bila keduanya tidak bergerak; kalau salah satu
+    // bergerak, nilai memang seharusnya ikut dan barisnya sudah muncul di
+    // daftar lain.
+    const selisihNilai = n.amount - lama.amount;
+    const nilaiSama =
+      !volumeSama || !hargaSama
+        ? true
+        : (selisihNilai < 0n ? -selisihNilai : selisihNilai) <= TOLERANSI_NILAI;
+    if (!nilaiSama) {
+      nilaiBergeser.push({
+        lineageKey: n.lineageKey,
+        code: n.code,
+        name: n.name,
+        dari: lama.amount,
+        ke: n.amount,
+        selisih: selisihNilai,
       });
     }
 
     if (volumeSama) {
-      if (hargaSama) jumlahTetap++;
+      if (hargaSama && nilaiSama) jumlahTetap++;
       continue;
     }
     const realisasi = realisasiByLineage.get(n.lineageKey) ?? 0;
@@ -139,13 +237,26 @@ export function bandingkanTerhadapAktif(
       realisasi,
       // Volume kontrak di bawah yang sudah dikerjakan = ada pekerjaan yang tak
       // punya dasar bayar. Ditandai, tidak dibetulkan sendiri.
-      dibawahRealisasi: ke != null && realisasi - ke > EPS,
+      //
+      // `ke == null` ikut dihitung DI BAWAH realisasi, bukan dilewati. Volume
+      // yang menjadi tidak diketahui pada item yang sudah dikerjakan adalah
+      // keadaan yang lebih buruk, bukan lebih aman: sebelumnya syarat
+      // `ke != null` membuat item ber-realisasi 60 yang volumenya hilang dari
+      // berkas lolos tanpa menyalakan panel merah sama sekali.
+      dibawahRealisasi: realisasi > EPS && (ke == null || realisasi - ke > EPS),
     });
   }
   // Dampak rupiah terbesar disebut lebih dulu.
   hargaBerubah.sort((a, b) => {
     const av = a.dampakRupiah < 0n ? -a.dampakRupiah : a.dampakRupiah;
     const bv = b.dampakRupiah < 0n ? -b.dampakRupiah : b.dampakRupiah;
+    return bv > av ? 1 : bv < av ? -1 : a.code.localeCompare(b.code, "id");
+  });
+
+  const abs = (v: bigint) => (v < 0n ? -v : v);
+  nilaiBergeser.sort((a, b) => {
+    const av = abs(a.selisih);
+    const bv = abs(b.selisih);
     return bv > av ? 1 : bv < av ? -1 : a.code.localeCompare(b.code, "id");
   });
 
@@ -172,6 +283,7 @@ export function bandingkanTerhadapAktif(
     itemHilang,
     volumeBerubah,
     hargaBerubah,
+    nilaiBergeser,
     jumlahTetap,
   };
 }

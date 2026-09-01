@@ -380,6 +380,41 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
         </div>
       ) : null}
 
+      {/* Nilai item KONTRAK LAMA yang bergeser SENDIRI: volume tetap, harga
+          tetap, kolom JUMLAH berbeda. Berkas RAB memakai kolom JUMLAH apa
+          adanya (DECISIONS 212), jadi ini menggeser nilai kontrak tanpa satu
+          pun volume atau harga bergerak – bentuk yang sebelumnya terhitung
+          "tetap" dan tidak muncul di daftar mana pun. */}
+      {beda.nilaiBergeser.length > 0 ? (
+        <div className="rounded border border-danger-border bg-danger-soft px-2.5 py-2">
+          <p className="font-medium text-danger">
+            Nilai {beda.nilaiBergeser.length} item KONTRAK LAMA bergeser tanpa volume atau harga berubah
+          </p>
+          <p className="mt-0.5 text-ink-muted">
+            Kolom JUMLAH di file berbeda dari kontrak padahal volume dan harga satuannya sama. Selisih neto{" "}
+            <span className="tabular font-medium">
+              {formatRupiah(Number(beda.nilaiBergeser.reduce((t, h) => t + BigInt(h.selisih), 0n)))}
+            </span>
+            .
+          </p>
+          <ul className="mt-1 space-y-1 text-ink-muted">
+            {beda.nilaiBergeser.slice(0, 8).map((h) => (
+              <li key={h.lineageKey}>
+                {h.code} {h.name} – <span className="tabular">{formatRupiah(Number(h.dari))}</span> →{" "}
+                <span className="tabular font-medium text-ink">{formatRupiah(Number(h.ke))}</span>{" "}
+                <span className={Number(h.selisih) >= 0 ? "text-warning" : "text-danger"}>
+                  ({Number(h.selisih) >= 0 ? "+" : "\u2212"}
+                  {formatRupiah(Math.abs(Number(h.selisih)))})
+                </span>
+              </li>
+            ))}
+            {beda.nilaiBergeser.length > 8 ? (
+              <li>+{beda.nilaiBergeser.length - 8} lainnya</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Yang paling mahal disebut lebih dulu: pekerjaan yang SUDAH dikerjakan
           tapi tidak ada di file baru — realisasinya lepas dari RAB. */}
       {berisiko.length > 0 ? (

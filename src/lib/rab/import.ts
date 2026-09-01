@@ -158,6 +158,28 @@ export async function createRevisionFromNodes(
 }
 
 /** Aktivasi atomik: revisi aktif lama → digantikan (+supersededAt), draft → aktif. */
+/**
+ * Aktifkan revisi draft menjadi RAB kontrak yang berlaku.
+ *
+ * ### Laporan atas draft ikut NAIK menjadi resmi
+ *
+ * Laporan harian atas item yang hanya ada di draft adendum dibekukan
+ * ber-`basis = "draft_adendum"` saat dikirim (DECISIONS 210: di lapangan
+ * pekerjaan sering jalan lebih dulu dan adendumnya menyusul). Angka resmi hanya
+ * menghitung `basis = "aktif"`.
+ *
+ * Sebelum ini tidak ada satu baris pun di seluruh repo yang menaikkan penanda
+ * itu. Akibatnya pekerjaan yang dilaporkan atas draft tetap tidak terhitung
+ * SELAMANYA setelah adendumnya sah lewat dua tanda tangan — tepat pada pekerjaan
+ * yang adendum itu diadakan untuk melegalkannya. Item tampil 0%, dan terminnya
+ * tidak bisa ditagih atas pekerjaan yang sudah punya dasar kontrak.
+ *
+ * Koreksi user 2026-09-01: *"kalau sudah diaktivasi dengan skema dua orang yang
+ * sudah kita atur, ya otomatis aktif."* Yang dinaikkan hanya PENANDA basis —
+ * volume, tanggal, nilai, dan status laporan tidak disentuh sama sekali, jadi
+ * tidak ada isi laporan yang berubah. Jumlah baris yang naik ikut ke audit,
+ * karena angka itulah yang menjelaskan lompatan progres pada saat aktivasi.
+ */
 export async function activateRevision(revisionId: string, userId: string) {
   const activated = await db.$transaction(async (tx) => {
     const rev = await tx.rabRevision.findUniqueOrThrow({
@@ -171,16 +193,24 @@ export async function activateRevision(revisionId: string, userId: string) {
       where: { locationId: rev.locationId, status: "aktif" },
       data: { status: "digantikan", supersededAt: new Date() },
     });
-    return tx.rabRevision.update({
+    const naik = await tx.dailyReportItem.updateMany({
+      where: { basis: "draft_adendum", rabNode: { revisionId: rev.id } },
+      data: { basis: "aktif" },
+    });
+    const revisi = await tx.rabRevision.update({
       where: { id: rev.id },
       data: { status: "aktif" },
     });
+    return { revisi, laporanDinaikkan: naik.count };
   });
-  await audit(userId, "rab.revision_activate", "rab_revision", activated.id, {
-    locationId: activated.locationId,
-    revisionNo: activated.revisionNo,
+  await audit(userId, "rab.revision_activate", "rab_revision", activated.revisi.id, {
+    locationId: activated.revisi.locationId,
+    revisionNo: activated.revisi.revisionNo,
+    // Berapa baris laporan yang ikut menjadi resmi. Angka ini yang menjelaskan
+    // kenapa progres lokasi bisa melompat tepat pada saat aktivasi.
+    laporanDinaikkan: activated.laporanDinaikkan,
   });
-  return activated;
+  return activated.revisi;
 }
 
 /** Hapus draft + seluruh node-nya (cascade FK). Hanya draft yang boleh dibuang. */

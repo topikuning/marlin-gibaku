@@ -165,6 +165,10 @@ describe("adendum tidak menulis ulang nilai item yang tidak disentuh", () => {
     // Tambah item baru ke kategori kedua revisi yang SAMA (memakai jalur yang
     // sama dengan editor: addDraftItem → recomputeTotals).
     await addDraftItem(
+      // Lokasi PEMILIK revisi itu, bukan `locationId` global: revisi ini dibuat
+      // di `lokDerau`. Draft terikat pada lokasinya (requireDraft), jadi
+      // menyebut lokasi lain di sini akan ditolak – dan memang ditolak.
+      lokDerau.id,
       rev.id,
       salinanKat.id,
       { code: "10", name: "Item baru", unit: "ls", volume: 1, unitPrice: 5_000_000 },
@@ -243,8 +247,8 @@ describe("editor draft adendum", () => {
 
   it("volume di bawah realisasi DITOLAK; sama dengan realisasi boleh", async () => {
     const psb = await draftNode(draftId, "I#1");
-    await expect(updateDraftItemVolume(draftId, psb.id, 20, userId)).rejects.toThrow(/realisasi/i);
-    const ok = await updateDraftItemVolume(draftId, psb.id, 30, userId); // pekerjaan-kurang sampai batas realisasi
+    await expect(updateDraftItemVolume(locationId, draftId, psb.id, 20, userId)).rejects.toThrow(/realisasi/i);
+    const ok = await updateDraftItemVolume(locationId, draftId, psb.id, 30, userId); // pekerjaan-kurang sampai batas realisasi
     // total = 30×1jt + 50×500rb = 55jt
     expect(ok.totalValue).toBe(55_000_000n);
   });
@@ -259,7 +263,7 @@ describe("editor draft adendum", () => {
 
   it("agregat kategori & totalValue selalu dihitung ulang dari daun", async () => {
     const psb = await draftNode(draftId, "I#1");
-    await updateDraftItemVolume(draftId, psb.id, 120, userId); // pekerjaan-tambah
+    await updateDraftItemVolume(locationId, draftId, psb.id, 120, userId); // pekerjaan-tambah
     const kat = await draftNode(draftId, "I");
     expect(kat.amount).toBe(120_000_000n + 25_000_000n);
     const rev = await db.rabRevision.findUniqueOrThrow({ where: { id: draftId } });
@@ -269,13 +273,15 @@ describe("editor draft adendum", () => {
   it("tambah item baru (harga negosiasi bebas) + tambah kategori baru (bangunan baru)", async () => {
     const kat = await draftNode(draftId, "I");
     await addDraftItem(
+      locationId,
       draftId,
       kat.id,
       { code: "3", name: "Pekerjaan sondir", unit: "titik", volume: 4, unitPrice: 2_500_000 },
       userId,
     );
-    const bangunan = await addDraftKategori(draftId, { code: "II", name: "BANGUNAN POS JAGA" }, userId);
+    const bangunan = await addDraftKategori(locationId, draftId, { code: "II", name: "BANGUNAN POS JAGA" }, userId);
     await addDraftItem(
+      locationId,
       draftId,
       bangunan.nodeId,
       { code: "1", name: "Pondasi batu kali", unit: "m3", volume: 10, unitPrice: 800_000 },
@@ -290,23 +296,23 @@ describe("editor draft adendum", () => {
 
   it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak – terkunci", async () => {
     const sondir = await draftNode(draftId, "I#3");
-    const naik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 3_000_000 }, userId);
+    const naik = await updateDraftNewItemFields(locationId, draftId, sondir.id, { unitPrice: 3_000_000 }, userId);
     expect(naik.totalValue).toBe(165_000_000n); // 163jt + 4 titik × 500rb
-    const balik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 2_500_000 }, userId);
+    const balik = await updateDraftNewItemFields(locationId, draftId, sondir.id, { unitPrice: 2_500_000 }, userId);
     expect(balik.totalValue).toBe(163_000_000n);
 
     const psb = await draftNode(draftId, "I#1"); // item kontrak lama
     await expect(
-      updateDraftNewItemFields(draftId, psb.id, { unitPrice: 900_000 }, userId),
+      updateDraftNewItemFields(locationId, draftId, psb.id, { unitPrice: 900_000 }, userId),
     ).rejects.toThrow(/terkunci/i);
   });
 
   it("hapus item BER-realisasi DITOLAK; item tanpa realisasi boleh dan berjejak audit", async () => {
     const psb = await draftNode(draftId, "I#1");
-    await expect(removeDraftNode(draftId, psb.id, userId)).rejects.toThrow(/realisasi/i);
+    await expect(removeDraftNode(locationId, draftId, psb.id, userId)).rejects.toThrow(/realisasi/i);
 
     const galian = await draftNode(draftId, "I#2"); // tanpa realisasi
-    const res = await removeDraftNode(draftId, galian.id, userId);
+    const res = await removeDraftNode(locationId, draftId, galian.id, userId);
     expect(res.removedItems).toBe(1);
     expect(res.totalValue).toBe(138_000_000n); // 163jt − 25jt
 
@@ -330,6 +336,83 @@ describe("editor draft adendum", () => {
 
   it("mutasi pada revisi NON-draft ditolak", async () => {
     const psbAktif = await db.rabNode.findFirstOrThrow({ where: { revisionId: activeRevId, lineageKey: "I#1" } });
-    await expect(updateDraftItemVolume(activeRevId, psbAktif.id, 90, userId)).rejects.toThrow(/bukan draft/i);
+    await expect(updateDraftItemVolume(locationId, activeRevId, psbAktif.id, 90, userId)).rejects.toThrow(/bukan draft/i);
+  });
+});
+
+/**
+ * OTORISASI LINTAS LOKASI.
+ *
+ * Aksi server mengambil lokasi dari SLUG di URL lalu memeriksa akses atas
+ * lokasi itu, sementara yang diubah ditentukan `revisionId`/`nodeId` dari
+ * FormData. Sebelum perbaikan ini keduanya tidak pernah diadu: `requireDraft`
+ * membaca `locationId` draft dan tidak membandingkannya dengan apa pun. Jadi
+ * orang yang sah berhak atas Lokasi A bisa menyunting draft adendum Lokasi B
+ * asal tahu id revisinya – dan id itu tampil di setiap halaman adendum yang
+ * pernah ia buka secara sah, termasuk lokasi yang penugasannya sudah dicabut.
+ *
+ * Ujinya memanggil lapisan LAYANAN, bukan aksi, supaya menghapus gerbangnya
+ * membuat uji ini merah walau UI-nya masih menyembunyikan menunya.
+ */
+describe("draft adendum terikat pada lokasi pemiliknya", () => {
+  let lokasiLainId: string;
+  let draftLokasiLainId: string;
+  let nodeLokasiLainId: string;
+
+  beforeAll(async () => {
+    const loc = await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } });
+    const lain = await db.location.create({
+      data: {
+        packageId: loc.packageId,
+        name: "Lokasi AD Lain",
+        slug: `lokasi-lain-${suffix}`,
+        village: "Desa",
+        regency: "Kab",
+        province: "Prov",
+        status: "berjalan",
+        isActive: true,
+      },
+    });
+    lokasiLainId = lain.id;
+    const rev = await db.rabRevision.create({
+      data: { locationId: lain.id, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 10_000_000n },
+    });
+    const kat = await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "I", name: "PEKERJAAN LAIN", amount: 10_000_000n, lineageKey: "I", sortOrder: 1 },
+    });
+    await db.rabNode.create({
+      data: {
+        revisionId: rev.id, parentId: kat.id, kind: "item", code: "1", name: "Urugan",
+        volume: 10, unit: "m3", unitPrice: 1_000_000, amount: 10_000_000n, lineageKey: "I#1", sortOrder: 2,
+      },
+    });
+    const draft = await createAdendumDraft(lain.id, userId);
+    draftLokasiLainId = draft.revisionId;
+    nodeLokasiLainId = (await draftNode(draft.revisionId, "I#1")).id;
+  });
+
+  it("mengubah volume draft lokasi lain DITOLAK walau id revisinya benar", async () => {
+    await expect(
+      updateDraftItemVolume(locationId, draftLokasiLainId, nodeLokasiLainId, 99, userId),
+    ).rejects.toThrow(/tidak ditemukan/i);
+    const utuh = await db.rabNode.findUniqueOrThrow({ where: { id: nodeLokasiLainId } });
+    expect(Number(utuh.volume)).toBe(10);
+  });
+
+  it("menghapus node draft lokasi lain DITOLAK", async () => {
+    await expect(removeDraftNode(locationId, draftLokasiLainId, nodeLokasiLainId, userId)).rejects.toThrow(
+      /tidak ditemukan/i,
+    );
+  });
+
+  it("menambah kategori ke draft lokasi lain DITOLAK", async () => {
+    await expect(
+      addDraftKategori(locationId, draftLokasiLainId, { code: "ZZ", name: "SISIPAN" }, userId),
+    ).rejects.toThrow(/tidak ditemukan/i);
+  });
+
+  it("lokasi pemiliknya sendiri tetap bisa menyunting", async () => {
+    const r = await updateDraftItemVolume(lokasiLainId, draftLokasiLainId, nodeLokasiLainId, 12, userId);
+    expect(r.totalValue).toBe(12_000_000n);
   });
 });
