@@ -25569,7 +25569,7 @@ dipasang juga pada `executiveSummary` dan `waSummary` — dua tempat yang
 menjanjikan hal yang sama tanpa penegak — tetapi itu mengubah keluaran laporan
 yang sudah beredar, jadi bukan keputusan yang layak diselipkan di sini.
 
-## (baru) · Di grup, hanya mention langsung yang dilayani (2026-08-31)
+## 487 · 2026-08-31 · Di grup, hanya mention langsung yang dilayani
 
 Permintaan user 2026-08-31: *"saat ada pesan dari marlin di reply di group, saat
 ini marlin tidak usah respon. hanya respon yang mention langsung."*
@@ -25605,7 +25605,7 @@ TIDAK dilayani, dan balasan yang disertai mention tetap dilayani.
 
 ---
 
-## (baru) · Impor RAB tidak lagi mengandaikan kolom NO ada di kolom A (2026-09-01)
+## 488 · 2026-09-01 · Impor RAB tidak lagi mengandaikan kolom NO ada di kolom A
 
 **Konteks**: berkas nyata `DRAFT_MC0_KNMP_KEMANTREN_2026_27_AGUSTUS_.xlsx`
 ditolak dengan *"Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat
