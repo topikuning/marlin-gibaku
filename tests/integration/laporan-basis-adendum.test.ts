@@ -318,3 +318,61 @@ describe("KASUS INTI: baris basis draft tidak tercetak di blanko harian KKP", ()
     expect(d!.items[0].categoryCode).toBe("I");
   });
 });
+
+/**
+ * KEBALIKANNYA, dan ini yang selama ini hilang.
+ *
+ * Seluruh berkas ini menguji bahwa laporan atas adendum yang BELUM sah tidak
+ * menggerakkan angka resmi. Tak satu pun menguji apa yang terjadi ketika
+ * adendumnya AKHIRNYA sah – dan jawabannya dulu: tidak terjadi apa-apa.
+ * `activateRevision` hanya membalik status revisi, sehingga pekerjaan yang
+ * sudah dilaporkan tetap tidak terhitung SELAMANYA, tepat pada pekerjaan yang
+ * adendum itu diadakan untuk melegalkannya.
+ *
+ * Koreksi user 2026-09-01: "kalau sudah diaktivasi dengan skema dua orang yang
+ * sudah kita atur, ya otomatis aktif."
+ */
+describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () => {
+  it("aktivasi menaikkan basis draft_adendum ke aktif – dan HANYA penandanya", async () => {
+    const { activateRevision } = await import("@/lib/rab/import");
+    const draftRev = await db.rabRevision.findFirstOrThrow({
+      where: { locationId, status: "draft" },
+      select: { id: true },
+    });
+    const sebelum = await db.dailyReportItem.findMany({
+      where: { report: { locationId }, basis: "draft_adendum" },
+      select: { id: true, lineageKey: true, volumeDone: true, valueDone: true },
+      orderBy: { lineageKey: "asc" },
+    });
+    expect(sebelum.length).toBeGreaterThan(0);
+
+    await activateRevision(draftRev.id, userId);
+
+    const sesudah = await db.dailyReportItem.findMany({
+      where: { id: { in: sebelum.map((r) => r.id) } },
+      select: { id: true, basis: true, lineageKey: true, volumeDone: true, valueDone: true },
+      orderBy: { lineageKey: "asc" },
+    });
+    expect(sesudah.map((r) => r.basis)).toEqual(sebelum.map(() => "aktif"));
+    // Isi laporannya tidak disentuh: tidak ada histori yang berubah.
+    expect(sesudah.map((r) => Number(r.volumeDone))).toEqual(sebelum.map((r) => Number(r.volumeDone)));
+    expect(sesudah.map((r) => r.valueDone)).toEqual(sebelum.map((r) => r.valueDone));
+  });
+
+  it("pekerjaan itu kini terhitung di angka RESMI, bukan cuma di pantauan draft", async () => {
+    // Cakupan bawaan `cumulativeVolumeByLineage` adalah basis AKTIF – dasar
+    // yang dipakai progres, kurva-S, blanko KKP, dan kesiapan termin.
+    const resmi = await cumulativeVolumeByLineage(locationId);
+    expect(resmi.get(LK_BARU)).toBeGreaterThan(0);
+  });
+
+  it("audit menyebut berapa baris laporan yang ikut naik", async () => {
+    const log = await db.auditLog.findFirstOrThrow({
+      where: { action: "rab.revision_activate" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    // Angka inilah yang menjelaskan lompatan progres tepat pada saat aktivasi.
+    expect((log.payload as { laporanDinaikkan?: number }).laporanDinaikkan).toBeGreaterThan(0);
+  });
+});

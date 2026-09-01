@@ -74,6 +74,8 @@ export type ImportPreview = {
       /** Rupiah string — BigInt tidak bisa menyeberang ke klien. */
       dampakRupiah: string;
     }[];
+    /** Nilai item KONTRAK LAMA yang bergeser tanpa volume/harga bergerak. */
+    nilaiBergeser: { lineageKey: string; code: string; name: string; dari: string; ke: string; selisih: string }[];
   } | null;
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
@@ -389,6 +391,25 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             `Angka file TIDAK diubah sendiri; pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
         );
       }
+
+      // Nilai item yang bergeser SENDIRI. Berkas RAB memakai kolom JUMLAH apa
+      // adanya (DECISIONS 212), jadi nilai item tidak selalu sama dengan
+      // volume x harga. Kolom JUMLAH yang diketik ulang karena itu menggeser
+      // nilai kontrak tanpa satu pun volume atau harga bergerak, dan cek-silang
+      // parser baru berbunyi di atas 1% per baris.
+      if (beda.nilaiBergeser.length > 0) {
+        const selisih = beda.nilaiBergeser.reduce((t, h) => t + h.selisih, 0n);
+        const contoh = beda.nilaiBergeser
+          .slice(0, 5)
+          .map((h) => `${h.code} ${h.name} ${formatRupiah(Number(h.dari))} → ${formatRupiah(Number(h.ke))}`);
+        warnings.push(
+          `PERHATIAN – nilai ${beda.nilaiBergeser.length} item KONTRAK LAMA bergeser di file ini padahal ` +
+            `volume dan harga satuannya sama (selisih neto ${formatRupiah(Number(selisih))}): ` +
+            `${contoh.join("; ")}${beda.nilaiBergeser.length > contoh.length ? `; +${beda.nilaiBergeser.length - contoh.length} lainnya` : ""}. ` +
+            `Kolom JUMLAH di file dipakai apa adanya, jadi pergeseran ini masuk ke nilai kontrak ` +
+            `tanpa terlihat di kolom volume mana pun.`,
+        );
+      }
     }
 
     const preview: ImportPreview = {
@@ -429,6 +450,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               dari: b.dari,
               ke: b.ke,
               dampakRupiah: b.dampakRupiah.toString(),
+            })),
+            nilaiBergeser: beda.nilaiBergeser.map((b) => ({
+              lineageKey: b.lineageKey,
+              code: b.code,
+              name: b.name,
+              dari: b.dari.toString(),
+              ke: b.ke.toString(),
+              selisih: b.selisih.toString(),
             })),
           }
         : null,

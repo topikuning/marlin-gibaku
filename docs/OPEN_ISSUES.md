@@ -644,3 +644,176 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 - 🟢 **Grid RAPL lain belum diukur lebarnya.** Yang dirapikan baru "Kebutuhan &
   harga". `rapl-padanan` dan `rapl-rincian-item` memakai pola kolom yang sama dan
   bisa saja melewati lebar layar dengan cara yang sama – belum diperiksa.
+
+---
+
+## ADENDUM — temuan audit 2026-09-01 yang BELUM ditutup
+
+Audit menyeluruh jalur adendum (perbandingan · persetujuan · parser/ekspor)
+dipicu laporan user tentang peringatan "harga satuan 9 item berubah" yang palsu.
+Yang sudah diperbaiki ada di DECISIONS (peringatan berbasis rupiah · otorisasi
+lokasi · pagar realisasi · kategori menggugurkan tanda tangan). Sisanya di bawah.
+Setiap butir diverifikasi dengan membaca kode; yang masih dugaan ditandai.
+
+### Sudah diputuskan user 2026-09-01 (tidak lagi menunggu)
+
+Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
+
+- ✅ **Realisasi `draft_adendum` naik otomatis saat aktivasi.** *"Kalau sudah
+  diaktivasi dengan skema dua orang yang sudah kita atur, ya otomatis aktif.
+  History laporan apa yang berubah?"* — benar, tidak ada: `basis` adalah penanda
+  sistem, bukan angka yang dilaporkan siapa pun. `activateRevision` kini
+  menaikkannya dalam transaksi yang sama.
+- ✅ **Batas 10% terhadap NILAI KONTRAK, bukan per item, bukan HPS.** *"10% ini
+  terhadap apa? kontrak kan? bukan per item."* Aturannya pindah ke
+  `lib/rab/batas-adendum.ts`, dasarnya `Contract.contractValue`, dan adendum yang
+  sudah berlaku ikut dijumlahkan. Tetap PERINGATAN, bukan penghalang — itu
+  keputusan 29 Juli 2026 yang tidak dicabut.
+- ✅ **Dua orang tetap wajib.** *"Ya harus dua orang, karena ini vital, untuk
+  menjaga resiko salah."* Aturan yang berjalan sudah menuntut dua orang BERBEDA
+  (satu Program Director + satu peran penugasan, super admin tidak boleh mengisi
+  kursi mana pun — DECISIONS 234). Tidak ada perubahan kode.
+  **Satu hal yang perlu kau sadari, bukan pertanyaan**: pengusul boleh menjadi
+  salah satu dari dua itu, jadi pada kasus terburuk hanya SATU orang lain yang
+  benar-benar memeriksa. Itu masih "dua orang" dan konsisten dengan yang kau
+  minta; kalau maksudmu pengusul harus di luar keduanya, itu satu baris
+  perbandingan `createdById`.
+
+### Perbandingan & pencocokan identitas
+
+- 🟡 **Satuan tidak pernah dibandingkan.** `NodeAktif` tidak punya field `unit`,
+  jadi item yang satuannya berubah m² → m³ dengan angka volume sama persis
+  dihitung **"tetap"**. Di `cocok-lineage.ts` satuan hanya menyaring bila
+  kandidatnya lebih dari satu, jadi ia tidak pernah jadi veto dan perbedaannya
+  tidak dilaporkan di mana pun.
+- 🟡 **`kind: "grup"` di luar seluruh perbandingan.** `bandingkanTerhadapAktif`
+  menyaring `kind === "item"`, sedangkan `flatten` memberi `kind: "grup"` pada
+  item yang punya anak — lengkap dengan volume dan harganya. Item daun yang
+  di berkas baru dapat anak dilaporkan "item hilang" (alarm palsu); grup yang
+  jadi daun berharga dilaporkan "item baru" dan harganya tidak dibandingkan
+  dengan apa pun.
+- 🟡 **`lineageKey` otoritatif dari template dibuang lalu ditebak ulang.**
+  `adendum-template-parse.ts` membaca `lineageKey` dari kolom tersembunyi justru
+  supaya identitas tidak perlu ditebak, tapi `samakanLineage` mengabaikannya dan
+  menyusun ulang kunci dari `${induk}#${code}`. Pada template yang nomornya
+  dinomori ulang (persis yang dilakukan orang saat menyisipkan baris adendum)
+  DAN namanya disunting, item kehilangan identitas yang sudah dibawa berkasnya
+  sendiri, lalu jatuh jadi "item baru" dan realisasinya terputus.
+- 🟢 **`normalNama` terlalu tipis.** "Urugan Pasir t=3 cm" vs "t = 3 cm"
+  terbaca dua pekerjaan berbeda; `m2`/`m²` dan `-`/`–` juga tidak dirapikan.
+
+### Parser & ekspor
+
+- 🔴 **`isPriceCol` memilih kolom SATUAN sebagai kolom HARGA SATUAN.**
+  `hps-parser.ts`: `if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;` —
+  `/^SAT\b/` **tidak pernah** cocok dengan `"SATUAN"` (huruf "U" juga karakter
+  kata, jadi tidak ada batas kata sesudah "SAT"). Header bertuliskan `SATUAN`
+  karena itu lolos filter lalu ditangkap `/HARGA|NILAI|SATUAN/`, dan karena
+  pemindaian dari kiri ia ditemukan SEBELUM kolom "HARGA SATUAN". Harga lalu
+  dibaca dari sel satuan: `"m3"` → **3**, `"m2"` → **2**, `"bh"`/`"ls"` →
+  `null`. Jaring `crossMismatch` butuh ≥20 baris berangka lengkap, dan satuan
+  tanpa digit membuat baris tidak ikut dihitung — RAB bersatuan "bh/ls/kg" bisa
+  lolos tanpa satu peringatan pun. Tidak ada satu pun uji memakai ejaan `SATUAN`.
+- 🔴 **Berkas CCO terbitan MARLIN tidak bisa diimpor ulang.** `cco-xlsx.ts`
+  menulis turunan sebagai `{ formula }` **tanpa `result`**; `cco-import.ts`
+  mengembalikan `null` untuk formula tanpa cache, sehingga pembuktian
+  `volume × harga ≈ jumlah` gagal dan `deteksiCco` menyerah. Berkas jatuh ke
+  jalur RAB biasa dengan `total = 0`. Kalau berkasnya dibuka & disimpan di Excel
+  dulu, deteksinya berhasil — jadi kegagalannya menimpa persis alur yang paling
+  lazim: unduh → teruskan lewat WhatsApp → unggah balik tanpa pernah dibuka.
+- 🔴 **Dokumen CCO memakai harga LAMA untuk kedua blok.** `cco-rows.ts`
+  `hargaLama: (l ?? b)!.unitPrice` dan berkasnya cuma punya SATU kolom harga,
+  yang dipakai semua rumus. Item volume tetap dengan harga 1 jt → 1,5 jt:
+  MARLIN menghitung TAMBAH Rp 1 juta, berkas yang dikirim ke PPK menulis
+  **TETAP** dengan kolom tambah kosong. Kenaikannya tidak ada di dokumen.
+- 🔴 **`angka()` template mengembalikan 0 untuk apa pun yang tidak dikenal.**
+  `Number("")` adalah `0`, jadi sel `#REF!`, formula tanpa cache, spasi, "n/a",
+  "TBD", dan objek richText semuanya menjadi **volume 0** tanpa galat — pekerjaan
+  bernilai ratusan juta lenyap diam-diam. Sel `Date` menghasilkan angka omong
+  kosong. Bandingkan `hps-parser.cellVal` yang mengembalikan `null`: dua modul di
+  repo yang sama bersikap berbeda pada sel yang sama.
+- 🔴 **Dua parser, dua konvensi desimal yang berlawanan.**
+  `adendum-template-parse.angka()` membuang semua titik lalu koma = desimal;
+  `hps-parser.num()` membuang semua koma lalu titik = desimal. Akibatnya sel
+  teks `"12.5"` menjadi **125** di jalur template (10x lipat, tanpa sepatah
+  kata), dan `"1.500.000,50"` menjadi **null** di jalur HPS (baris hilang
+  diam-diam). Sel teks bukan hal langka: kolom ber-format Text, atau angka yang
+  ditempel dari PDF/Word.
+- 🟡 **Harga yang diubah user dipakai untuk harga, diabaikan untuk uang.**
+  `adendum-template-parse.ts` menguji `tetap` hanya dari VOLUME, lalu memakai
+  `jumlahKontrak` lama sebagai `amount` — padahal kolom Harga Satuan sengaja
+  dibuka untuk diketik. Node jadi melanggar identitasnya sendiri
+  (`amount ≠ volume × unitPrice`), dan layar menampilkan "dampak neto Rp …"
+  sementara Total baru tidak bergerak sama sekali.
+- 🟡 **Volume adendum negatif diterima diam-diam.** Tidak ada pemeriksaan tanda;
+  `G10 = -3` menghasilkan `amount` negatif dan total kategori negatif. DECISIONS
+  203 sudah menetapkan sebaliknya untuk impor jadwal; jalur adendum belum ikut.
+- 🟡 **Nilai ter-cache di template bertentangan dengan rumusnya sendiri.**
+  Kolom H diisi cache `amount` tersimpan padahal rumusnya `ROUND(G*E,0)`, dan
+  DECISIONS 212 menyatakan keduanya memang berbeda. Kolom "Selisih" menampilkan
+  Rp 1 pada baris yang tidak pernah disentuh siapa pun; `fullCalcOnLoad` tidak
+  dipasang di template (di CCO dipasang), jadi angka yang terlihat bergantung
+  pada pembacanya.
+- 🟡 **Impor Excel ke draft memintas SEMUA pagar realisasi editor.** Peringatan
+  disusun lalu commit dilanjutkan tanpa syarat, jadi pagar di `lib/rab/adendum.ts`
+  bukan invarian sistem melainkan aturan satu layar. Mungkin disengaja
+  (DECISIONS 203), tapi konsekuensinya sama dengan butir `draft_adendum` di atas:
+  lineage yang hilang membuat realisasinya lenyap dari angka resmi.
+- 🟡 **`discardDraft` bisa mengunci lokasi.** Draft yang itemnya sudah dilaporkan
+  (`rabNodeId` menunjuk node draft) tidak bisa dihapus karena FK `RESTRICT`;
+  impor pengganti gagal dengan pesan Prisma mentah dan draftnya tidak bisa
+  diganti maupun dibuang.
+- 🟢 **`HAPUS` di template cocok persis.** "Hapus item", "HAPUS?" atau
+  "hapus saja" diabaikan tanpa suara dan itemnya tetap masuk dengan volume dari
+  kolom G.
+- 🟢 **Peringatan yang menyesatkan.** `hps-parser` mencetak "karena berkode ia
+  DIHITUNG sebagai pekerjaan" untuk baris JUMLAH/TOTAL di berkas CCO, padahal
+  barisnya sebenarnya dibuang dan totalnya tepat. User disuruh mencurigai angka
+  yang benar.
+- 🟢 **Tidak ada pembandingan terhadap total yang tertulis di berkas.** Jalur
+  CCO/template tidak pernah menguji Σ item terhadap baris JUMLAH milik berkas
+  itu sendiri, sehingga salah-deteksi kolom tidak punya pemeriksa akhir.
+
+### Siklus hidup & konkurensi
+
+- 🟡 **Tanda tangan menempel pada JAM, bukan pada ISI.** Gugurnya suara semata
+  perbandingan `approvedAt >= updatedAt`. `renameRabCategoryAction` mengganti
+  nama kategori revisi MANA PUN — termasuk draft yang sudah ditandatangani dan
+  revisi yang sudah AKTIF — tanpa penjagaan status dan tanpa menyentuh revisi.
+  `RabRevisionApproval.totalValue`, yang schema-nya sendiri menyebut "untuk
+  jejak menyetujui angka yang mana", ditulis dan tidak pernah dibaca. Yang benar
+  adalah mengikat persetujuan pada hash isi draft.
+  *Dugaan, belum diverifikasi (butuh DB)*: `approved_at` ber-`DEFAULT now()`
+  (jam server DB) diadu dengan `updatedAt` dari `@updatedAt` (jam proses
+  aplikasi) — dua sumber jam berbeda, dan uji unit menetapkan "sama persis =
+  sah". Skew beberapa detik ke arah DB membuat suara bertahan melewati suntingan.
+- 🟡 **TOCTOU aktivasi.** `pastikanBolehAktivasi` dan `activateRevision` dua
+  transaksi terpisah tanpa `FOR UPDATE` dan tanpa kolom versi, dan aktivasi tidak
+  mengulang pemeriksaan persetujuan di dalam transaksinya. Dua jendela: suntingan
+  menyelinap SEBELUM aktivasi (yang diaktifkan tidak ditandatangani), dan
+  suntingan menyelinap SESUDAH (mendarat pada revisi yang sudah jadi RAB aktif,
+  lalu `recomputeTotals` menulis `totalValue` baru ke revisi aktif). Aktivasi
+  ganda sendiri sudah tertutup rapat oleh partial unique index.
+- 🟢 **Tidak ada indeks unik "satu draft per lokasi".** `createAdendumDraft`
+  hanya `findFirst` di dalam transaksi tanpa kunci, jadi dua draft bisa lahir
+  bersamaan dan tanda tangan bisa menempel di draft yang tidak ditampilkan.
+- 🟢 **Status revisi RAB di luar mesin transisi.** `RevisionStatus` tidak ada di
+  `lifecycle.ts` dan tidak punya tabel histori (melanggar prinsip WAJIB #5).
+  Mitigasinya nyata (transaksi atomik, unique index, audit, `supersededAt`), tapi
+  audit atas `digantikan` tidak menyebutkan revisi mana yang digantikan.
+- 🟢 **Fallback PPN 11% yang mengarang.** `cco/route.ts` memakai `: 11` saat
+  kontrak belum ada, lalu mencetaknya sebagai fakta ("termasuk PPN 11%") di
+  berkas yang dikirim ke KKP. Lebih baik menolak mencetak daripada menebak.
+
+### Uji yang hilang
+
+- 🟡 **Round-trip tidak menutup jalur adendum.** `rab-ekspor-impor-ulang.test.ts`
+  seluruhnya `buildRabXlsx` → `parseHpsWorkbook`. Tidak ada uji untuk
+  `buildCcoXlsx` → `deteksiCco`, sel teks, sel galat, formula tanpa cache, header
+  `SATUAN`, atau volume negatif. `cco-import.test.ts` membangun sheet sintetis
+  yang selalu berisi angka literal konsisten — persis kondisi yang TIDAK pernah
+  terjadi pada berkas terbitan MARLIN sendiri.
+- 🟡 **Tidak ada uji lintas-lokasi pada jalur persetujuan.** Yang baru ditutup
+  adalah editor draft; `approveRevisionAction` dan `activateDraftAction`
+  menyelesaikan lokasi dari `revisionId` sehingga kebal, tapi itu belum dikunci
+  uji.

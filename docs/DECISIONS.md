@@ -25763,3 +25763,292 @@ palsu, dan realisasinya tetap menempel pada pekerjaan yang benar.
 nomor pada item yang sama, ia akan terbaca sebagai item baru + item hilang.
 Peringatannya sudah menyebut keduanya; kalau ini sering terjadi, perlu lapis
 ketiga (kemiripan nama, bukan kesamaan).
+
+---
+
+## (baru) · Peringatan adendum berbunyi pada rupiah yang berpindah, bukan pada selisih desimal (2026-09-01)
+
+**Konteks**: laporan user 2026-09-01 dengan tangkapan layar pratinjau impor
+adendum: panel merah *"Harga satuan 9 item KONTRAK LAMA berubah"* menyala,
+sementara panel yang sama mencetak buktinya sendiri bahwa tidak ada yang
+berubah — sisi kontrak `Rp 0`, sisi file kosong, dampak `(+Rp 0)`. Item
+*Pekerjaan Pondasi Tapak 30x60x60* memang berharga 0 sejak awal.
+
+Tiga sebab terpisah, semuanya di `bandingkanTerhadapAktif`:
+
+1. **Nol lawan kosong dianggap berbeda.** Syarat lamanya menuntut KEDUA sisi
+   bukan-`null` sebelum boleh mengadu angka, jadi `0` lawan `null` tidak pernah
+   sampai ke perbandingan dan langsung jatuh sebagai "berbeda". Delapan dari
+   sembilan baris di layar user adalah kasus ini.
+2. **Toleransi harga dipilih setengah dari yang seharusnya.** DECISIONS 213
+   menetapkan `0,005` sebagai "setengah rupiah-sen" untuk menyerap beda
+   pembulatan tulis. Tapi nilai yang ditulis ke Excel dibulatkan ke DUA desimal,
+   sehingga beda TERKECIL yang mungkin ada antara dua dokumen adalah `0,01` —
+   tepat di atas ambangnya. Ambang itu karena itu menangkap persis artefak yang
+   ingin dibuangnya (baris APAR: 706.908,69 lawan 706.908,70).
+3. **Toleransi volume lebih kecil daripada pembulatan simpan.** `EPS = 1e-6`
+   diadu dengan kolom `volume Decimal(15,3)`: berkas berisi `12,3456` tersimpan
+   `12,346`, selisih `0,0004` — 400x lebih besar dari EPS. Berkas yang IDENTIK
+   dipratinjau ulang melaporkan "volume berubah" selamanya.
+
+**Keputusan**:
+
+- **Nol dan kosong adalah keadaan yang sama.** `samaPadaPresisi(a, b, desimal)`
+  membulatkan kedua sisi ke presisi KOLOMNYA lalu mengadunya sebagai bilangan
+  bulat — `volume` 3 desimal, `unitPrice` 2 desimal, sesuai schema. Yang
+  dibandingkan jadi "yang akan tersimpan" lawan "yang tersimpan", bukan dua
+  bilangan mengambang lewat epsilon yang tidak berhubungan dengan apa pun.
+- **Gerbang harga adalah rupiah yang berpindah.** Uang di sistem ini BigInt
+  rupiah tanpa sen, dan yang dijaga DECISIONS 213 adalah *"nilai kontrak berubah
+  tanpa ada pekerjaan yang bertambah"*. Selisih harga satuan yang tidak
+  memindahkan satu rupiah pun karena itu bukan perubahan harga.
+- **Item lump-sum tidak boleh menguap.** `(baru − lama) × volume` dengan volume
+  kosong menghasilkan `Rp 0`, sehingga kenaikan harga 100 juta dilaporkan
+  berdampak nol, lalu terurut paling bawah dan terpotong `slice(0, 8)` dari
+  layar. Untuk item bervolume kosong dampaknya diambil dari pergerakan nilai
+  tercatat, dan gerbangnya kembali ke perbandingan harga pada presisi simpan.
+- **`nilaiBergeser` — daftar baru.** `flatten` memakai kolom JUMLAH berkas APA
+  ADANYA bila terisi (DECISIONS 212), jadi nilai item tidak selalu sama dengan
+  volume × harga. Konsekuensinya kolom JUMLAH yang diketik ulang menggeser nilai
+  kontrak tanpa satu pun volume atau harga bergerak — dan sebelum ini tidak ada
+  satu pun daftar yang memuatnya, sehingga item itu terhitung **"tetap"**.
+  Cek-silang parser baru berbunyi di atas 1% per baris; 0,9% dari berkas 8
+  miliar adalah puluhan juta yang lewat tanpa suara. Toleransi ±2 rupiah karena
+  apportionment `flatten` memindahkan sisa pembulatan antar-saudara.
+- **`dibawahRealisasi` berbunyi juga saat volume baru KOSONG.** Syarat lama
+  `ke != null` membuat item ber-realisasi 60 yang volumenya hilang dari berkas
+  lolos tanpa menyalakan panel merah. Volume yang menjadi tidak diketahui pada
+  pekerjaan yang sudah dikerjakan adalah keadaan yang lebih buruk, bukan lebih
+  aman.
+- **`jumlahTetap`** kini berarti volume, harga satuan, DAN nilai tidak berubah.
+
+**Alternatif direject**:
+
+- *Menaikkan toleransi harga ke 0,015.* Menutup kasus APAR tapi tetap
+  mengambang: ambang pada harga satuan tidak pernah bisa menjawab pertanyaan
+  yang sedang ditanyakan panel ini, yaitu apakah nilai kontrak bergerak.
+- *Membuang baris ber-`namaLama !== name` dari daftar harga.* Tidak diambil:
+  ketidakcocokan nama SUDAH punya peringatannya sendiri di `import/actions.ts`
+  (dari `samakanLineage.namaBerbeda`), jadi membuang baris palsunya tidak
+  menghilangkan sinyal APAR 3 kg → 10 kg. Kalau setelah ini daftar harga masih
+  didominasi artefak pemasangan, pemisahannya baru berdasar.
+
+**Konsekuensi**: fixture uji lama yang memberi `amount: 0n` pada item file
+sementara kontraknya bernilai 2 juta kini merah, dan memang seharusnya —
+`flatten` tidak pernah menghasilkan bentuk itu. Fixture-nya diberi nilai yang
+sebenarnya, bukan gerbangnya yang dilonggarkan.
+
+**Bisa di-revisit**: kalau `nilaiBergeser` ternyata berbunyi ramai pada berkas
+nyata, yang perlu diperiksa lebih dulu adalah deteksi kolom JUMLAH di parser,
+bukan toleransinya.
+
+---
+
+## (baru) · Draft adendum terikat pada lokasi pemiliknya (2026-09-01)
+
+**Konteks**: audit adendum 2026-09-01. Aksi server editor draft mengambil lokasi
+dari **slug** di URL lalu memeriksa akses atas lokasi itu, sementara yang diubah
+ditentukan `revisionId`/`nodeId` dari **FormData**. Keduanya tidak pernah diadu:
+`requireCtx` mengembalikan `location` tapi lima dari enam pemanggilnya hanya
+mengambil `user`, dan `requireDraft` membaca `locationId` draft tanpa
+membandingkannya dengan apa pun.
+
+Akibatnya orang yang sah berhak atas satu lokasi bisa menyunting draft adendum
+lokasi mana pun asal tahu id revisinya — dan id itu tampil di setiap halaman
+adendum yang pernah ia buka secara sah, termasuk lokasi yang penugasannya sudah
+dicabut. Site Manager memegang `rab.manage` dan bukan `CROSS_LOCATION_ROLES`,
+jadi cakupannya memang dimaksudkan terbatas.
+
+**Keputusan**: `requireDraft(tx, revisionId, locationId)` — `locationId` wajib,
+dan seluruh mutasi editor (`updateDraftItemVolume`, `addDraftItem`,
+`updateDraftNewItemFields`, `addDraftKategori`, `removeDraftNode`) menerimanya
+sebagai argumen pertama. Draft milik lokasi lain ditolak dengan pesan yang sama
+persis dengan "tidak ditemukan": menyebut "revisi ini milik lokasi lain" sudah
+membocorkan bahwa id-nya benar dan drafnya ada.
+
+**Alternatif direject**: *memeriksa kepemilikan di lapisan aksi.* Meninggalkan
+jendela TOCTOU dan mengulang gerbang yang sama di lima tempat; `requireDraft`
+adalah satu-satunya pintu yang dilewati semua mutasi editor.
+
+**Konsekuensi**: UUID bukan kontrol otorisasi — ia menaikkan biaya menebak, bukan
+menutup pintunya. Ujinya memanggil lapisan LAYANAN, bukan aksi, supaya menghapus
+gerbangnya membuat uji merah walau UI-nya masih menyembunyikan menunya.
+
+---
+
+## (baru) · Pagar realisasi draft adendum membaca basis yang benar (2026-09-01)
+
+**Konteks**: audit adendum 2026-09-01. Dua pagar di `lib/rab/adendum.ts` —
+"volume tidak boleh di bawah realisasi" dan "item ber-realisasi tidak boleh
+dihapus" — memanggil `cumulativeVolumeByLineage(locationId)` dengan cakupan
+bawaan `"aktif"`. Padahal laporan atas item yang hanya ada di DRAFT adendum
+disimpan ber-`basis = "draft_adendum"` (DECISIONS 210: pekerjaan dikerjakan
+dulu, adendumnya menyusul). Jadi pagar itu membaca **0** justru untuk item yang
+paling mungkin sudah dikerjakan.
+
+Dua akibatnya berbeda arah dan dua-duanya buruk:
+- **volume**: pagar lolos, volume kontrak bisa ditulis di bawah pekerjaan yang
+  sudah dilaporkan;
+- **hapus**: pagar lolos, lalu `rabNode.delete` ditolak FK `RESTRICT` dan user
+  hanya melihat *"Terjadi kesalahan tak terduga. Coba lagi."* pada item yang
+  tidak akan pernah bisa dihapus, tanpa satu pun petunjuk sebabnya.
+
+**Keputusan**: kedua pemanggilan memakai cakupan `"semua"`.
+
+**Konsekuensi**: pesan galat FK yang tak terbaca itu tidak lagi tercapai lewat
+jalur editor. Jalur IMPOR Excel masih bisa mencapainya (`discardDraft` atas
+draft yang itemnya sudah dilaporkan) — dicatat di OPEN_ISSUES, belum ditutup.
+
+---
+
+## (baru) · Kategori baru menggugurkan tanda tangan seperti mutasi lain (2026-09-01)
+
+**Konteks**: audit adendum 2026-09-01. Persetujuan adendum gugur dengan
+membandingkan `approvedAt >= RabRevision.updatedAt` (`persetujuan-aturan.ts`).
+Komentar schema mengklaim `updatedAt` "disentuh setiap mutasi draft (editor
+SELALU menulis ulang totalValue)". Klaim itu tidak benar: `addDraftKategori`
+membuat node lalu langsung `return`, tanpa `recomputeTotals` dan tanpa menyentuh
+baris revisi. Kategori kosong bernilai 0, jadi total memang tidak bergerak —
+dan justru karena itu cap waktunya juga tidak bergerak.
+
+Akibatnya menyisipkan kategori ke draft yang SUDAH ditandatangani PD+SM tidak
+menggugurkan satu pun tanda tangan, dan yang diaktifkan bukan lagi persis yang
+disetujui.
+
+**Keputusan**: `addDraftKategori` memanggil `recomputeTotals` — bukan karena
+totalnya berubah, melainkan supaya cap waktunya bergerak lewat jalur yang sama
+persis dengan mutasi editor lainnya.
+
+**Bisa di-revisit**: mengikat persetujuan pada CAP WAKTU pada dasarnya rapuh —
+setiap jalur baru yang lupa menyentuh revisi membukanya lagi, dan
+`RabRevisionApproval.totalValue` yang sudah ada tidak pernah dibaca untuk
+validasi. Yang benar adalah mengikatnya pada hash isi draft. Dicatat di
+OPEN_ISSUES sebagai pekerjaan tersendiri.
+
+---
+
+## (baru) · Adendum yang sah menaikkan laporannya menjadi resmi (2026-09-01)
+
+**Koreksi user 2026-09-01**: *"kalau sudah diaktivasi dengan skema dua orang yang
+sudah kita atur, ya otomatis aktif. history laporan apa yang berubah?"*
+
+Pertanyaanku salah bentuk, dan jawabannya: tidak ada. `DailyReportItem.basis`
+adalah penanda SISTEM tentang RAB mana item itu waktu dilaporkan — bukan angka
+yang dilaporkan siapa pun. Volume, tanggal, nilai, dan status laporan tidak
+tersentuh.
+
+**Konteks**: laporan harian atas item yang hanya ada di draft adendum dibekukan
+ber-`basis = "draft_adendum"` saat dikirim (DECISIONS 210: di lapangan pekerjaan
+sering jalan lebih dulu, adendumnya menyusul). Angka resmi — progres, kurva-S,
+blanko KKP, kesiapan termin — hanya menghitung `basis = "aktif"`.
+
+Audit 2026-09-01 menemukan **tidak ada satu baris pun di seluruh repo** yang
+menaikkan penanda itu. `activateRevision` hanya membalik status revisi.
+Akibatnya pekerjaan yang dilaporkan atas draft tetap tidak terhitung SELAMANYA
+setelah adendumnya sah lewat dua tanda tangan — tepat pada pekerjaan yang
+adendum itu diadakan untuk melegalkannya. Item tampil 0%, dan terminnya tidak
+bisa ditagih atas pekerjaan yang sudah punya dasar kontrak.
+
+**Keputusan**: `activateRevision` menaikkan `basis` seluruh baris laporan yang
+menunjuk node revisi yang diaktifkan, di dalam transaksi yang sama. Jumlah baris
+yang naik masuk ke payload audit `rab.revision_activate` — angka itulah yang
+menjelaskan lompatan progres tepat pada saat aktivasi.
+
+**Alternatif direject**: *menghitungnya di sisi baca* (memasukkan
+`draft_adendum` yang lineage-nya ada di revisi aktif). Tidak diambil: aturannya
+harus diulang di jalur SQL maupun TS di `progress.ts` dan setiap pembaca lain,
+dan `basis` yang sengaja dibekukan jadi kehilangan artinya. Aktivasi adalah
+peristiwa yang jelas dan berjejak audit; satu tulisan di situ lebih jujur
+daripada aturan turunan di enam tempat.
+
+**Konsekuensi**: progres lokasi memang MELOMPAT pada saat aktivasi. Itu benar —
+pekerjaannya sudah dilakukan pada tanggal yang tercatat, yang belum ada hanya
+dasar kontraknya. Laporan periodik yang sudah dicetak sebelum aktivasi akan
+berbeda dari yang dicetak sesudahnya; kaitannya dengan cap "FINAL – ANGKA
+TERKUNCI" (OPEN_ISSUES LBL-01) belum ditutup.
+
+---
+
+## (baru) · Batas 10% adalah plafon SATU KONTRAK yang dibagi antar lokasi (2026-09-01)
+
+**Penegasan user 2026-09-01**: *"10% ini terhadap apa? kontrak kan? bukan per
+item."*
+
+**Konteks**: tiga cacat pada satu aturan.
+
+1. **Dasarnya salah.** Kode memakai `rabRevision` pertama SATU lokasi, dan
+   revisi itu boleh ber-`source: hps_awal` — yaitu HPS, bukan nilai kontrak
+   hasil tender. Bila kontrak dimenangkan di 90% HPS, plafonnya kira-kira 11%
+   terlalu longgar, sementara layarnya menulis "10% nilai RAB kontrak awal".
+   `Contract` juga melekat pada `Package` yang bisa memayungi banyak lokasi,
+   jadi batas per-lokasi bukan batas yang dibatasi Perpres.
+2. **Tidak kumulatif.** Tiga adendum masing-masing 4% melewati batas walau tak
+   satu pun melewatinya sendirian.
+3. **Rumusnya hidup di React server component**, melanggar aturan #7 CLAUDE.md,
+   dan `tests/unit/adendum-batas-10persen.test.ts` MENYALIN ULANG rumus itu
+   sebagai fungsi lokal. Ujinya menguji salinannya sendiri: menghapus seluruh
+   blok peringatan di halaman tidak membuat satu uji pun merah.
+
+**Keputusan**:
+
+- Aturannya pindah ke `src/lib/rab/batas-adendum.ts` — murni, tanpa DB, dan
+  ujinya mengimpornya apa adanya.
+- Dasarnya `Contract.contractValue` (inklusif PPN). Δ RAB pra-PPN dinaikkan ke
+  konvensi yang sama sebelum diadu.
+- **Plafonnya milik KONTRAK, dibagi rebutan antar lokasi.** Contoh user:
+  *"misal 2 lokasi, lokasi a kontrak 100jt, lokasi b 100jt. batas kenaikan
+  adalah 20jt. maka ketika lokasi a sudah 15jt penambahan, lokasi b maksimal
+  tinggal 5jt."* Nilai kontrak AKHIR = Σ nilai RAB **aktif** seluruh lokasi
+  paket, dengan lokasi yang sedang diadendum diganti nilai draftnya.
+- **Kenaikan dibaca dari RAB aktif, BUKAN dari `ContractAmendment.valueDelta`.**
+  Percobaan pertama memakai catatan CCO sebagai buku besar kenaikan; itu tidak
+  bisa diandalkan karena `RabRevision.amendmentId` **boleh kosong** dan tidak
+  satu pun jalur aktivasi menuntutnya. Adendum yang diaktifkan tanpa CCO
+  terdaftar karena itu tidak terhitung sama sekali, dan lokasi berikutnya akan
+  terlihat masih punya plafon penuh.
+- **Lokasi paket yang belum punya RAB aktif DISEBUT jumlahnya.** Tanpa itu,
+  nilai akhir lebih rendah dari kenyataan dan setiap adendum terlihat "aman"
+  karena separuh paketnya belum diisi.
+- **Sisa plafon ditampilkan walau aman**, bila lokasi lain sudah memakai
+  sebagian. Tanpa angka itu orang menghitung 10% dari RAB lokasinya sendiri dan
+  mengira masih lapang, padahal jatah kontraknya hampir habis – dan itu persis
+  keadaan yang dijelaskan user.
+- Tanpa kontrak, RAB revisi pertama dipakai sebagai cadangan **tapi dasarnya
+  ditandai** dan kalimat di layar menyatakan tegas bahwa itu bukan nilai
+  kontrak. Tanpa dasar sama sekali → `null`, bukan 0 (yang akan membuat setiap
+  adendum sekecil apa pun "melanggar 10%").
+- **Tetap PERINGATAN, bukan penghalang.** Keputusan 29 Juli 2026 (*"jadi warning
+  (bukan blocker) — MARLIN mencatat kenyataan, bukan menolaknya"*) tidak dicabut,
+  dan user tidak memintanya berubah.
+- Pemisahan "lewat batas" vs "pergeseran lingkup" dari DECISIONS 233 tetap utuh.
+
+**Konsekuensi**: pada paket berkontrak, batasnya kini bisa lebih KETAT dari
+sebelumnya (nilai kontrak biasanya di bawah HPS) sekaligus lebih longgar
+(kumulatif diukur terhadap kontrak penuh, bukan satu lokasi). Kedua arah itu
+adalah koreksi, bukan pelonggaran.
+
+**Bisa di-revisit**: perhitungan ini mengandaikan Σ RAB aktif seluruh lokasi
+(+PPN) memang setara nilai kontrak pada keadaan awal — andaian yang sudah
+dipakai `contractMismatch` di `lib/money.ts` dengan toleransi 0,1%. Kalau di
+lapangan ada paket yang RAB-nya sengaja tidak menjumlah ke nilai kontrak (mis.
+diskon tender tidak diturunkan ke RAB), peringatan ini akan menyala terus; yang
+perlu diperbaiki di situ adalah RAB-nya, bukan rumus batasnya.
+
+---
+
+## (baru) · Dua tanda tangan tetap wajib; pengusul boleh mengisi salah satunya (2026-09-01)
+
+**Penegasan user 2026-09-01**: *"ya harus dua orang, karena ini vital, untuk
+menjaga resiko salah."*
+
+**Keputusan**: DECISIONS 234 berlaku apa adanya, tidak ada perubahan kode. Yang
+ditegakkan server sudah benar: dua tanda tangan dari dua orang BERBEDA (satu
+Program Director + satu peran penugasan), super admin tidak boleh mengisi kursi
+mana pun, dan gerbangnya dipanggil di KEDUA jalur aktivasi.
+
+**Yang sengaja dibiarkan**: pengusul draft boleh menjadi salah satu dari dua
+penanda tangan — `createdById` dicatat tapi tidak pernah diadu dengan
+penandatangan. Pada kasus terburuk hanya satu orang lain yang benar-benar
+memeriksa. Itu masih memenuhi "dua orang" sebagaimana dinyatakan user, jadi
+tidak diubah sepihak; kalau kelak diminta lebih ketat, itu satu baris
+perbandingan di `nilaiPersetujuan`.

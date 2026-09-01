@@ -106,10 +106,15 @@ describe("identitas item = lineageKey, bukan nama", () => {
   });
 
   it("item dengan volume sama dihitung 'tetap', tidak dilaporkan sebagai perubahan", () => {
+    // `amount` diisi sama dengan kontrak. `flatten` selalu memberi nilai pada
+    // item (`total_price ?? volume x harga`), jadi item bernilai 0 di sisi file
+    // sementara kontraknya 2 juta bukan "belum diisi" melainkan pergeseran
+    // nilai kontrak sebesar 2 juta – dan sejak `nilaiBergeser` ada, itu memang
+    // dilaporkan.
     const baru = [
       kategori(3_000_000n),
-      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100 }),
-      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1 }),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, amount: 2_000_000n }),
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, amount: 1_000_000n }),
     ];
     const h = bandingkanTerhadapAktif(aktif, baru, new Map());
     expect(h.jumlahTetap).toBe(2);
@@ -146,8 +151,8 @@ describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
   it("tertangkap walau VOLUMENYA sama persis – itu bentuk yang paling mudah lolos", () => {
     const baru = [
       kategori(3_100_000n),
-      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 21_000 }),
-      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000 }),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 21_000, amount: 2_100_000n }),
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n }),
     ];
     const h = bandingkanTerhadapAktif(berharga, baru, new Map());
     expect(h.volumeBerubah).toHaveLength(0); // volume tidak bergerak sama sekali
