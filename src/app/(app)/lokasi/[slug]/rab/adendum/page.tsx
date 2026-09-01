@@ -97,7 +97,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   }
 
   // ── Draft ada: susun node terurut pohon + tanda BARU/UBAH vs revisi aktif ──
-  const [draftNodes, activeItems, realizedMap, revisiAwal] = await Promise.all([
+  const [draftNodes, activeItems, realizedMap, revisiAwal, rabAktifPaket] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: draft.id },
       orderBy: { sortOrder: "asc" },
@@ -125,6 +125,22 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       where: { locationId: location.id },
       orderBy: { revisionNo: "asc" },
       select: { totalValue: true, revisionNo: true },
+    }),
+    /*
+     * RAB AKTIF seluruh lokasi paket. Plafon 10% milik KONTRAK, dan kontrak
+     * memayungi banyak lokasi: kenaikan yang sudah dipakai lokasi lain
+     * mengurangi sisa untuk lokasi ini (penegasan user 2026-09-01).
+     *
+     * Dibaca dari RAB aktif, BUKAN dari `ContractAmendment.valueDelta`:
+     * `RabRevision.amendmentId` boleh kosong dan tidak satu pun jalur aktivasi
+     * menuntutnya, jadi adendum tanpa CCO terdaftar tidak akan terhitung.
+     */
+    db.location.findMany({
+      where: { packageId: location.package.id },
+      select: {
+        id: true,
+        rabRevisions: { where: { status: "aktif" }, select: { totalValue: true }, take: 1 },
+      },
     }),
   ]);
   const activeByLineage = new Map(activeItems.map((n) => [n.lineageKey, n]));
@@ -220,31 +236,36 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
    * sini membuat ujinya menguji salinan rumus, bukan rumusnya.
    */
   if (diff) {
-    // Adendum kontrak yang SUDAH berlaku ikut dijumlahkan: tiga adendum
-    // masing-masing 4% melewati batas walau tak satu pun melewatinya sendirian.
-    // CCO yang terkait draft INI dikecualikan supaya tidak terhitung dua kali
-    // bersama deltanya sendiri.
-    const deltaBerlaku = amendments
-      .filter((a) => a.id !== draft.amendment?.id)
-      .reduce((t, a) => t + a.valueDelta, 0n);
     const batasAdendum = nilaiAdendum({
       nilaiKontrak: contract?.contractValue ?? null,
-      nilaiRabAwalPraPpn: revisiAwal?.totalValue ?? null,
-      deltaBerlaku,
-      deltaDraftPraPpn: delta,
+      rabAktifPaket: rabAktifPaket.map((l) => ({
+        locationId: l.id,
+        totalPraPpn: l.rabRevisions[0]?.totalValue ?? null,
+      })),
+      locationIdDraft: location.id,
+      totalDraftPraPpn: draft.totalValue,
       totalTambahPraPpn: diff.totalTambah,
+      nilaiRabAwalPraPpn: revisiAwal?.totalValue ?? null,
       ppnPercent,
     });
     if (batasAdendum) {
       const dasarKata =
         batasAdendum.dasar === "kontrak"
-          ? "nilai kontrak awal"
-          : `RAB revisi #${revisiAwal?.revisionNo ?? 1} (kontrak belum tercatat, jadi ini BUKAN nilai kontrak)`;
+          ? "nilai kontrak"
+          : `RAB revisi #${revisiAwal?.revisionNo ?? 1} lokasi ini (kontrak belum tercatat, jadi ini BUKAN nilai kontrak)`;
+      // Lokasi paket yang belum punya RAB aktif membuat nilai akhir lebih
+      // rendah dari kenyataan. Disebut, bukan disembunyikan di balik "aman".
+      const catatanLokasi =
+        batasAdendum.lokasiTanpaRabAktif > 0
+          ? ` Catatan: ${batasAdendum.lokasiTanpaRabAktif} lokasi lain di paket ini belum punya RAB aktif, jadi angka di atas belum lengkap.`
+          : "";
       if (batasAdendum.sinyal === "lewat-batas") {
         peringatan.push(
-          `Nilai kontrak naik ${fmtDelta(batasAdendum.kenaikanKumulatif)} termasuk adendum yang sudah berlaku – ` +
+          `Nilai kontrak naik ${fmtDelta(batasAdendum.kenaikanKumulatif)} bila draft ini diaktifkan ` +
+            `(lokasi ini ${fmtDelta(batasAdendum.kenaikanDraft)}, lokasi lain di paket yang sama ${fmtDelta(batasAdendum.kenaikanLokasiLain)}) – ` +
             `melebihi 10% ${dasarKata} (Rp ${rupiah.format(batasAdendum.nilaiAwal)}; batas Rp ${rupiah.format(batasAdendum.batas)}). ` +
-            `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+            `Plafon 10% berlaku untuk SELURUH kontrak, bukan per lokasi. ` +
+            `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.${catatanLokasi}`,
         );
       } else if (batasAdendum.sinyal === "geser-lingkup") {
         /*
@@ -258,7 +279,19 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           `Nilai kontrak hampir tidak berubah (${fmtDelta(delta)}), tetapi lingkupnya banyak bergeser: ` +
             `pekerjaan tambah ${fmtDelta(diff.totalTambah)} dan pekerjaan kurang ${fmtDelta(diff.totalKurang)}. ` +
             `Ini bukan pelanggaran batas 10% Perpres 16/2018 (yang dibatasi kenaikan NILAI kontrak), ` +
-            `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.`,
+            `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.${catatanLokasi}`,
+        );
+      } else if (batasAdendum.dasar === "kontrak" && batasAdendum.kenaikanLokasiLain !== 0n) {
+        /*
+         * Bukan peringatan bahaya, tapi angka yang tidak terlihat di layar mana
+         * pun: berapa plafon kontrak yang sudah dipakai lokasi LAIN. Tanpa ini
+         * orang menghitung 10% dari RAB lokasinya sendiri dan mengira masih
+         * lapang, padahal jatah kontraknya sudah hampir habis.
+         */
+        peringatan.push(
+          `Lokasi lain di paket ini sudah memakai ${fmtDelta(batasAdendum.kenaikanLokasiLain)} dari plafon adendum. ` +
+            `Setelah draft ini, kenaikan kontrak menjadi ${fmtDelta(batasAdendum.kenaikanKumulatif)} dari batas ` +
+            `Rp ${rupiah.format(batasAdendum.batas)} – sisa Rp ${rupiah.format(batasAdendum.sisaPlafon)}.${catatanLokasi}`,
         );
       }
     }

@@ -1,45 +1,48 @@
 /**
  * BATAS 10% PERPRES 16/2018 PASAL 54 — modul murni, tanpa DB.
  *
- * ### Kenapa ini berdiri sendiri
+ * ### Plafonnya milik KONTRAK, dibagi rebutan antar lokasi
  *
- * Aturannya dulu hidup di dalam `app/(app)/lokasi/[slug]/rab/adendum/page.tsx`
- * (melanggar aturan #7 CLAUDE.md: rumus angka hanya di calculation layer), dan
- * `tests/unit/adendum-batas-10persen.test.ts` MENYALIN ULANG rumus itu sebagai
- * fungsi lokal. Akibatnya ujinya menguji salinannya sendiri: menghapus seluruh
- * blok peringatan di halaman tidak membuat satu uji pun merah. Aturan tata
- * kelola yang ujinya menguji salinannya sendiri sama saja dengan tidak diuji.
+ * Penegasan user 2026-09-01, dengan contohnya sendiri:
+ *
+ * > "satu kontrak bisa naik turun 10% dari batas nilai kontrak. misal 2 lokasi,
+ * > lokasi a kontrak 100jt, lokasi b 100jt. batas kenaikan adalah 20jt. maka
+ * > ketika lokasi a sudah 15jt penambahan, lokasi b maksimal tinggal 5jt."
+ *
+ * Jadi 10% BUKAN jatah per lokasi. Ia satu plafon untuk seluruh kontrak, dan
+ * setiap lokasi yang sudah menaikkan nilainya mengurangi sisa untuk lokasi lain.
+ * `Contract` melekat pada `Package` (`packageId @unique`) yang bisa memayungi
+ * banyak `Location`, sementara RAB dan adendum hidup per lokasi — di situlah
+ * batas per-lokasi menjadi salah.
+ *
+ * ### Kenaikan dibaca dari RAB AKTIF, bukan dari catatan CCO
+ *
+ * Percobaan pertama menjumlahkan `ContractAmendment.valueDelta` sebagai buku
+ * besar kenaikan. Itu tidak bisa diandalkan: `RabRevision.amendmentId` **boleh
+ * kosong** dan tidak satu pun jalur aktivasi menuntutnya. Adendum yang
+ * diaktifkan tanpa CCO terdaftar karena itu tidak terhitung sama sekali, dan
+ * lokasi berikutnya akan terlihat masih punya plafon penuh.
+ *
+ * Yang dipakai sekarang adalah keadaan yang sebenarnya berlaku: Σ nilai RAB
+ * AKTIF seluruh lokasi paket, dengan lokasi yang sedang diadendum diganti nilai
+ * DRAFT-nya. Itu persis "nilai kontrak akhir" yang dimaksud Pasal 54.
  *
  * ### Dasarnya NILAI KONTRAK, bukan RAB revisi pertama
  *
- * Pasal 54 membatasi penambahan **nilai kontrak akhir** terhadap **nilai
- * kontrak awal**. Yang dipakai kode lama adalah `rabRevision` pertama SATU
- * lokasi — dan revisi itu boleh ber-`source: hps_awal`, yaitu HPS, bukan nilai
- * kontrak hasil tender. Bila kontrak dimenangkan di 90% HPS, plafon yang
- * dipakai kira-kira 11% terlalu longgar terhadap nilai kontrak sebenarnya,
- * sementara layarnya menulis "10% nilai RAB kontrak awal". `Contract` juga
- * melekat pada `Package`, yang bisa memayungi banyak lokasi, sehingga batas
- * per-lokasi bukan batas yang dibatasi Perpres.
- *
- * Penegasan user 2026-09-01: *"10% ini terhadap apa? kontrak kan? bukan per
- * item."*
- *
- * ### Kumulatif, bukan per adendum
- *
- * Yang dibatasi adalah nilai kontrak AKHIR. Tiga adendum masing-masing 4%
- * melewati batas walau tak satu pun melewatinya sendirian, jadi adendum yang
- * SUDAH berlaku (`ContractAmendment.valueDelta`) ikut dijumlahkan.
+ * Kode lama memakai `rabRevision` pertama satu lokasi — dan revisi itu boleh
+ * ber-`source: hps_awal`, yaitu HPS, bukan nilai kontrak hasil tender. Bila
+ * kontrak dimenangkan di 90% HPS, plafonnya kira-kira 11% terlalu longgar,
+ * sementara layarnya menulis "10% nilai RAB kontrak awal".
  *
  * ### Tetap PERINGATAN, bukan penghalang
  *
- * Keputusan user 29 Juli 2026 (DECISIONS di sekitar editor adendum): *"jadi
- * warning (bukan blocker) — MARLIN mencatat kenyataan, bukan menolaknya."*
- * Modul ini karena itu mengembalikan sinyal, bukan melempar galat.
+ * Keputusan user 29 Juli 2026: *"jadi warning (bukan blocker) — MARLIN mencatat
+ * kenyataan, bukan menolaknya."* Modul ini mengembalikan sinyal, tidak melempar.
  */
 import { withPpn } from "@/lib/money";
 
 export type SinyalBatas =
-  /** Kenaikan nilai kontrak kumulatif melewati 10% nilai kontrak awal. */
+  /** Kenaikan nilai kontrak (seluruh lokasi) melewati 10% nilai kontrak awal. */
   | "lewat-batas"
   /** Nilai aman, tapi lingkupnya banyak bergeser (tukar-menukar besar). */
   | "geser-lingkup"
@@ -48,41 +51,57 @@ export type SinyalBatas =
 /**
  * Dari mana angka pembanding diambil. Dibawa keluar supaya layar bisa MENYEBUT
  * dasarnya: peringatan yang menyebut "10% nilai kontrak" sambil diam-diam
- * memakai angka HPS adalah peringatan yang salah walau angkanya kebetulan
- * dekat.
+ * memakai angka HPS adalah peringatan yang salah walau angkanya kebetulan dekat.
  */
 export type DasarBatas =
   /** `Contract.contractValue` — yang benar menurut Pasal 54. */
   | "kontrak"
-  /** Kontrak belum ada; terpaksa memakai RAB revisi pertama lokasi ini. */
+  /** Kontrak belum ada; terpaksa memakai RAB revisi pertama LOKASI INI saja. */
   | "rab-revisi-pertama";
+
+/** Nilai RAB aktif satu lokasi dalam paket. `null` = lokasi itu belum punya RAB aktif. */
+export type RabLokasi = { locationId: string; totalPraPpn: bigint | null };
 
 export type HasilBatas = {
   sinyal: SinyalBatas;
   dasar: DasarBatas;
   /** Nilai kontrak awal, inklusif PPN. */
   nilaiAwal: bigint;
-  /** 10% dari `nilaiAwal`. */
+  /** 10% dari `nilaiAwal` — plafon untuk SELURUH kontrak. */
   batas: bigint;
-  /** Kenaikan kumulatif (adendum berlaku + draft ini), inklusif PPN. */
+  /** Nilai kontrak akhir bila draft ini diaktifkan, inklusif PPN. */
+  nilaiAkhir: bigint;
+  /** `nilaiAkhir − nilaiAwal`: kenaikan seluruh lokasi, inklusif PPN. */
   kenaikanKumulatif: bigint;
-  /** Kenaikan draft ini saja, inklusif PPN. */
+  /** Kenaikan yang disumbang draft ini saja, inklusif PPN. */
   kenaikanDraft: bigint;
+  /** Kenaikan lokasi LAIN yang sudah berlaku — ini yang memakan plafon. */
+  kenaikanLokasiLain: bigint;
+  /** `batas − kenaikanKumulatif`. Negatif = sudah lewat. */
+  sisaPlafon: bigint;
   /** Σ kenaikan per item draft ini (KOTOR), inklusif PPN. */
   totalTambah: bigint;
+  /**
+   * Lokasi paket yang BELUM punya RAB aktif. Selama masih ada, `nilaiAkhir`
+   * lebih rendah dari kenyataan dan angkanya belum bisa dipercaya — harus
+   * dikatakan di layar, bukan disembunyikan di balik "aman".
+   */
+  lokasiTanpaRabAktif: number;
 };
 
 export type MasukanBatas = {
   /** `Contract.contractValue` (inklusif PPN), atau null bila kontrak belum ada. */
   nilaiKontrak: bigint | null;
-  /** `totalValue` RAB revisi pertama lokasi (PRA-PPN) — cadangan terakhir. */
-  nilaiRabAwalPraPpn: bigint | null;
-  /** Σ `valueDelta` adendum kontrak yang SUDAH berlaku (inklusif PPN). */
-  deltaBerlaku: bigint;
-  /** Δ nilai draft ini terhadap revisi aktif (PRA-PPN). */
-  deltaDraftPraPpn: bigint;
+  /** Nilai RAB AKTIF tiap lokasi dalam paket (PRA-PPN). */
+  rabAktifPaket: RabLokasi[];
+  /** Lokasi yang sedang diadendum. */
+  locationIdDraft: string;
+  /** `totalValue` draft adendum lokasi itu (PRA-PPN). */
+  totalDraftPraPpn: bigint;
   /** Σ kenaikan per item draft ini, kotor (PRA-PPN). */
   totalTambahPraPpn: bigint;
+  /** Cadangan bila kontrak belum ada: RAB revisi pertama LOKASI INI (PRA-PPN). */
+  nilaiRabAwalPraPpn: bigint | null;
   ppnPercent: number;
 };
 
@@ -92,22 +111,69 @@ export type MasukanBatas = {
  * awal, yang akan membuat setiap adendum sekecil apa pun "melanggar 10%".
  */
 export function nilaiAdendum(m: MasukanBatas): HasilBatas | null {
-  const dasar: DasarBatas = m.nilaiKontrak != null && m.nilaiKontrak > 0n ? "kontrak" : "rab-revisi-pertama";
-  const nilaiAwal =
-    dasar === "kontrak"
-      ? m.nilaiKontrak!
-      : m.nilaiRabAwalPraPpn != null
-        ? withPpn(m.nilaiRabAwalPraPpn, m.ppnPercent)
-        : 0n;
-  if (nilaiAwal <= 0n) return null;
+  const adaKontrak = m.nilaiKontrak != null && m.nilaiKontrak > 0n;
+  const dasar: DasarBatas = adaKontrak ? "kontrak" : "rab-revisi-pertama";
 
-  const batas = nilaiAwal / 10n;
-  const kenaikanDraft = withPpn(m.deltaDraftPraPpn, m.ppnPercent);
-  const kenaikanKumulatif = m.deltaBerlaku + kenaikanDraft;
+  const aktifLokasiIni = m.rabAktifPaket.find((r) => r.locationId === m.locationIdDraft)?.totalPraPpn ?? 0n;
+  const kenaikanDraft = withPpn(m.totalDraftPraPpn - aktifLokasiIni, m.ppnPercent);
   const totalTambah = withPpn(m.totalTambahPraPpn, m.ppnPercent);
 
-  const sinyal: SinyalBatas =
-    kenaikanKumulatif > batas ? "lewat-batas" : totalTambah > batas ? "geser-lingkup" : "aman";
+  if (!adaKontrak) {
+    // Tanpa kontrak tidak ada plafon paket yang bisa dihitung; yang tersisa
+    // hanya perbandingan per lokasi, dan dasarnya WAJIB ditandai supaya
+    // kalimat di layar tidak menyebutnya "nilai kontrak".
+    if (m.nilaiRabAwalPraPpn == null) return null;
+    const nilaiAwal = withPpn(m.nilaiRabAwalPraPpn, m.ppnPercent);
+    if (nilaiAwal <= 0n) return null;
+    const batas = nilaiAwal / 10n;
+    return {
+      sinyal: kenaikanDraft > batas ? "lewat-batas" : totalTambah > batas ? "geser-lingkup" : "aman",
+      dasar,
+      nilaiAwal,
+      batas,
+      nilaiAkhir: nilaiAwal + kenaikanDraft,
+      kenaikanKumulatif: kenaikanDraft,
+      kenaikanDraft,
+      kenaikanLokasiLain: 0n,
+      sisaPlafon: batas - kenaikanDraft,
+      totalTambah,
+      lokasiTanpaRabAktif: 0,
+    };
+  }
 
-  return { sinyal, dasar, nilaiAwal, batas, kenaikanKumulatif, kenaikanDraft, totalTambah };
+  const nilaiAwal = m.nilaiKontrak!;
+  const batas = nilaiAwal / 10n;
+
+  // Nilai kontrak AKHIR = Σ RAB aktif seluruh lokasi, dengan lokasi yang sedang
+  // diadendum diganti nilai draftnya.
+  let akhirPraPpn = 0n;
+  let lokasiTanpaRabAktif = 0;
+  for (const r of m.rabAktifPaket) {
+    if (r.locationId === m.locationIdDraft) {
+      akhirPraPpn += m.totalDraftPraPpn;
+      continue;
+    }
+    if (r.totalPraPpn == null) {
+      lokasiTanpaRabAktif++;
+      continue;
+    }
+    akhirPraPpn += r.totalPraPpn;
+  }
+  const nilaiAkhir = withPpn(akhirPraPpn, m.ppnPercent);
+  const kenaikanKumulatif = nilaiAkhir - nilaiAwal;
+
+  return {
+    sinyal:
+      kenaikanKumulatif > batas ? "lewat-batas" : totalTambah > batas ? "geser-lingkup" : "aman",
+    dasar,
+    nilaiAwal,
+    batas,
+    nilaiAkhir,
+    kenaikanKumulatif,
+    kenaikanDraft,
+    kenaikanLokasiLain: kenaikanKumulatif - kenaikanDraft,
+    sisaPlafon: batas - kenaikanKumulatif,
+    totalTambah,
+    lokasiTanpaRabAktif,
+  };
 }

@@ -25969,7 +25969,7 @@ TERKUNCI" (OPEN_ISSUES LBL-01) belum ditutup.
 
 ---
 
-## (baru) · Batas 10% diukur terhadap NILAI KONTRAK, kumulatif, dan keluar dari komponen React (2026-09-01)
+## (baru) · Batas 10% adalah plafon SATU KONTRAK yang dibagi antar lokasi (2026-09-01)
 
 **Penegasan user 2026-09-01**: *"10% ini terhadap apa? kontrak kan? bukan per
 item."*
@@ -25995,9 +25995,24 @@ item."*
   ujinya mengimpornya apa adanya.
 - Dasarnya `Contract.contractValue` (inklusif PPN). Δ RAB pra-PPN dinaikkan ke
   konvensi yang sama sebelum diadu.
-- Adendum kontrak yang SUDAH berlaku (`ContractAmendment.valueDelta`) ikut
-  dijumlahkan; CCO yang terkait draft ini dikecualikan supaya tidak terhitung
-  dua kali bersama deltanya sendiri.
+- **Plafonnya milik KONTRAK, dibagi rebutan antar lokasi.** Contoh user:
+  *"misal 2 lokasi, lokasi a kontrak 100jt, lokasi b 100jt. batas kenaikan
+  adalah 20jt. maka ketika lokasi a sudah 15jt penambahan, lokasi b maksimal
+  tinggal 5jt."* Nilai kontrak AKHIR = Σ nilai RAB **aktif** seluruh lokasi
+  paket, dengan lokasi yang sedang diadendum diganti nilai draftnya.
+- **Kenaikan dibaca dari RAB aktif, BUKAN dari `ContractAmendment.valueDelta`.**
+  Percobaan pertama memakai catatan CCO sebagai buku besar kenaikan; itu tidak
+  bisa diandalkan karena `RabRevision.amendmentId` **boleh kosong** dan tidak
+  satu pun jalur aktivasi menuntutnya. Adendum yang diaktifkan tanpa CCO
+  terdaftar karena itu tidak terhitung sama sekali, dan lokasi berikutnya akan
+  terlihat masih punya plafon penuh.
+- **Lokasi paket yang belum punya RAB aktif DISEBUT jumlahnya.** Tanpa itu,
+  nilai akhir lebih rendah dari kenyataan dan setiap adendum terlihat "aman"
+  karena separuh paketnya belum diisi.
+- **Sisa plafon ditampilkan walau aman**, bila lokasi lain sudah memakai
+  sebagian. Tanpa angka itu orang menghitung 10% dari RAB lokasinya sendiri dan
+  mengira masih lapang, padahal jatah kontraknya hampir habis – dan itu persis
+  keadaan yang dijelaskan user.
 - Tanpa kontrak, RAB revisi pertama dipakai sebagai cadangan **tapi dasarnya
   ditandai** dan kalimat di layar menyatakan tegas bahwa itu bukan nilai
   kontrak. Tanpa dasar sama sekali → `null`, bukan 0 (yang akan membuat setiap
@@ -26012,10 +26027,12 @@ sebelumnya (nilai kontrak biasanya di bawah HPS) sekaligus lebih longgar
 (kumulatif diukur terhadap kontrak penuh, bukan satu lokasi). Kedua arah itu
 adalah koreksi, bukan pelonggaran.
 
-**Bisa di-revisit**: `deltaBerlaku` mengandaikan setiap `ContractAmendment` yang
-tercatat memang sudah tercermin di revisi aktif lokasinya. CCO yang didaftarkan
-tapi RAB-nya tidak pernah diaktifkan akan terhitung dua kali. Bila itu terjadi
-di lapangan, yang perlu diperbaiki adalah kaitan CCO ke revisi, bukan rumusnya.
+**Bisa di-revisit**: perhitungan ini mengandaikan Σ RAB aktif seluruh lokasi
+(+PPN) memang setara nilai kontrak pada keadaan awal — andaian yang sudah
+dipakai `contractMismatch` di `lib/money.ts` dengan toleransi 0,1%. Kalau di
+lapangan ada paket yang RAB-nya sengaja tidak menjumlah ke nilai kontrak (mis.
+diskon tender tidak diturunkan ke RAB), peringatan ini akan menyala terus; yang
+perlu diperbaiki di situ adalah RAB-nya, bukan rumus batasnya.
 
 ---
 
