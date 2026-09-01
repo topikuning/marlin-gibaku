@@ -165,7 +165,10 @@ describe("adendum tidak menulis ulang nilai item yang tidak disentuh", () => {
     // Tambah item baru ke kategori kedua revisi yang SAMA (memakai jalur yang
     // sama dengan editor: addDraftItem → recomputeTotals).
     await addDraftItem(
-      locationId,
+      // Lokasi PEMILIK revisi itu, bukan `locationId` global: revisi ini dibuat
+      // di `lokDerau`. Draft terikat pada lokasinya (requireDraft), jadi
+      // menyebut lokasi lain di sini akan ditolak – dan memang ditolak.
+      lokDerau.id,
       rev.id,
       salinanKat.id,
       { code: "10", name: "Item baru", unit: "ls", volume: 1, unitPrice: 5_000_000 },
