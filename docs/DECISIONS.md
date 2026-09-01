@@ -25766,7 +25766,7 @@ ketiga (kemiripan nama, bukan kesamaan).
 
 ---
 
-## (baru) · Peringatan adendum berbunyi pada rupiah yang berpindah, bukan pada selisih desimal (2026-09-01)
+## 490 · 2026-09-01 · Peringatan adendum berbunyi pada rupiah yang berpindah, bukan pada selisih desimal
 
 **Konteks**: laporan user 2026-09-01 dengan tangkapan layar pratinjau impor
 adendum: panel merah *"Harga satuan 9 item KONTRAK LAMA berubah"* menyala,
@@ -25844,7 +25844,7 @@ bukan toleransinya.
 
 ---
 
-## (baru) · Draft adendum terikat pada lokasi pemiliknya (2026-09-01)
+## 491 · 2026-09-01 · Draft adendum terikat pada lokasi pemiliknya
 
 **Konteks**: audit adendum 2026-09-01. Aksi server editor draft mengambil lokasi
 dari **slug** di URL lalu memeriksa akses atas lokasi itu, sementara yang diubah
@@ -25876,7 +25876,7 @@ gerbangnya membuat uji merah walau UI-nya masih menyembunyikan menunya.
 
 ---
 
-## (baru) · Pagar realisasi draft adendum membaca basis yang benar (2026-09-01)
+## 492 · 2026-09-01 · Pagar realisasi draft adendum membaca basis yang benar
 
 **Konteks**: audit adendum 2026-09-01. Dua pagar di `lib/rab/adendum.ts` —
 "volume tidak boleh di bawah realisasi" dan "item ber-realisasi tidak boleh
@@ -25901,7 +25901,7 @@ draft yang itemnya sudah dilaporkan) — dicatat di OPEN_ISSUES, belum ditutup.
 
 ---
 
-## (baru) · Kategori baru menggugurkan tanda tangan seperti mutasi lain (2026-09-01)
+## 493 · 2026-09-01 · Kategori baru menggugurkan tanda tangan seperti mutasi lain
 
 **Konteks**: audit adendum 2026-09-01. Persetujuan adendum gugur dengan
 membandingkan `approvedAt >= RabRevision.updatedAt` (`persetujuan-aturan.ts`).
@@ -25927,7 +25927,7 @@ OPEN_ISSUES sebagai pekerjaan tersendiri.
 
 ---
 
-## (baru) · Adendum yang sah menaikkan laporannya menjadi resmi (2026-09-01)
+## 494 · 2026-09-01 · Adendum yang sah menaikkan laporannya menjadi resmi
 
 **Koreksi user 2026-09-01**: *"kalau sudah diaktivasi dengan skema dua orang yang
 sudah kita atur, ya otomatis aktif. history laporan apa yang berubah?"*
@@ -25969,7 +25969,7 @@ TERKUNCI" (OPEN_ISSUES LBL-01) belum ditutup.
 
 ---
 
-## (baru) · Batas 10% adalah plafon SATU KONTRAK yang dibagi antar lokasi (2026-09-01)
+## 495 · 2026-09-01 · Batas 10% adalah plafon SATU KONTRAK yang dibagi antar lokasi
 
 **Penegasan user 2026-09-01**: *"10% ini terhadap apa? kontrak kan? bukan per
 item."*
@@ -26036,7 +26036,7 @@ perlu diperbaiki di situ adalah RAB-nya, bukan rumus batasnya.
 
 ---
 
-## (baru) · Dua tanda tangan tetap wajib; pengusul boleh mengisi salah satunya (2026-09-01)
+## 496 · 2026-09-01 · Dua tanda tangan tetap wajib; pengusul boleh mengisi salah satunya
 
 **Penegasan user 2026-09-01**: *"ya harus dua orang, karena ini vital, untuk
 menjaga resiko salah."*

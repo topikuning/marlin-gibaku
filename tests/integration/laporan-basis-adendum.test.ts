@@ -15,6 +15,20 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/*
+ * WAJIB kalau berkas ini memeriksa AUDIT LOG.
+ *
+ * `audit()` memanggil `requestIp()` → `headers()`, yang hanya hidup di dalam
+ * scope request. Di luar itu ia melempar, dan `audit()` MENELAN galatnya
+ * (best-effort, by design) – jadi tidak ada satu baris pun yang tertulis dan
+ * `findFirstOrThrow` di bawah tidak akan pernah menemukan apa pun. Bukan
+ * cacat produk: `activateRevision` memang memanggil `audit()` dengan benar.
+ * Pola yang sama dipakai belasan berkas integrasi lain (mis. `return-flow`).
+ */
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined }),
+}));
 
 const { db } = await import("@/lib/db");
 const { upsertItem } = await import("@/lib/daily-report/service");
@@ -367,12 +381,24 @@ describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () =
   });
 
   /*
-   * TIDAK diuji di sini: payload audit `rab.revision_activate` yang memuat
-   * `laporanDinaikkan`. `audit()` memanggil `headers()` untuk merekam IP, dan
-   * di lingkungan uji integrasi itu selalu gagal ("headers was called outside a
-   * request scope") lalu ditelan diam-diam – terlihat di seluruh log CI untuk
-   * belasan aksi lain juga. Jadi tidak ada baris audit yang bisa dibaca di
-   * sini, untuk aksi mana pun. Menuliskan asersinya hanya menghasilkan uji yang
-   * merah karena lingkungannya, bukan karena kodenya.
+   * DIUJI LAGI. Kesimpulan sebelumnya – "audit tidak bisa diperiksa di uji
+   * integrasi karena `headers()` selalu gagal" – benar sebabnya, tapi salah
+   * kesimpulannya: yang kurang bukan kemampuan mengujinya, melainkan
+   * `vi.mock("next/headers", …)` di kepala berkas ini. Belasan berkas integrasi
+   * lain sudah memakainya (`return-flow`, `kendala-satu-pintu`, …). Dengan mock
+   * itu `audit()` menulis seperti di produksi, dan asersi di bawah kembali
+   * memeriksa hal yang memang perlu dijaga.
+   *
+   * Menghapus asersinya berarti membuang satu-satunya bukti bahwa angka yang
+   * menjelaskan lompatan progres benar-benar tercatat.
    */
+  it("audit menyebut berapa baris laporan yang ikut naik", async () => {
+    const log = await db.auditLog.findFirstOrThrow({
+      where: { action: "rab.revision_activate" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    // Angka inilah yang menjelaskan lompatan progres tepat pada saat aktivasi.
+    expect((log.payload as { laporanDinaikkan?: number }).laporanDinaikkan).toBeGreaterThan(0);
+  });
 });
