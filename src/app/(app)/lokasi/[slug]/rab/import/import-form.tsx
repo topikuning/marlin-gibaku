@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import { Banner, Button, FileInput, HelpText, Label, Textarea } from "@/components/ui";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiahSatuan, formatRupiah } from "@/lib/format";
 import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
 
 /**
@@ -347,13 +347,30 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             </span>{" "}
             tanpa ada pekerjaan yang bertambah.
           </p>
-          <ul className="mt-1 list-disc pl-4 text-ink-muted">
+          {/* Nama KONTRAK di samping nama FILE. Panel lama hanya mencetak nama
+              dari file baru bersama harga dari item lama, jadi pasangan yang
+              meleset (nomor bergeser) terbaca sebagai "harga berubah" dan tidak
+              ada satu pun cara melihatnya di layar. */}
+          <ul className="mt-1 space-y-1 text-ink-muted">
             {beda.hargaBerubah.slice(0, 8).map((h) => (
               <li key={h.lineageKey}>
-                {h.code} {h.name} – <span className="tabular">{h.dari ?? "–"}</span> →{" "}
-                <span className="tabular">{h.ke ?? "–"}</span> (
-                {Number(h.dampakRupiah) >= 0 ? "+" : "−"}
-                {formatRupiah(Math.abs(Number(h.dampakRupiah)))})
+                <span className="block">
+                  <span className="text-ink-muted">Kontrak</span> {h.code} {h.namaLama} –{" "}
+                  <span className="tabular">{formatRupiahSatuan(h.dari)}</span>
+                </span>
+                <span className="block">
+                  <span className="text-ink-muted">File</span> {h.code} {h.name} –{" "}
+                  <span className="tabular font-medium text-ink">{formatRupiahSatuan(h.ke)}</span>{" "}
+                  <span className={Number(h.dampakRupiah) >= 0 ? "text-warning" : "text-danger"}>
+                    ({Number(h.dampakRupiah) >= 0 ? "+" : "−"}
+                    {formatRupiah(Math.abs(Number(h.dampakRupiah)))})
+                  </span>
+                  {h.namaLama !== h.name ? (
+                    <span className="ml-1 rounded bg-danger-soft px-1 text-danger">
+                      nama berbeda
+                    </span>
+                  ) : null}
+                </span>
               </li>
             ))}
             {beda.hargaBerubah.length > 8 ? (

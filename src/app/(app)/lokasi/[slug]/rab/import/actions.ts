@@ -17,8 +17,9 @@ import {
 } from "@/lib/rab/import";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
+import { samakanLineage } from "@/lib/rab/cocok-lineage";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
-import { formatNumber, formatRupiah } from "@/lib/format";
+import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
 /**
@@ -67,6 +68,7 @@ export type ImportPreview = {
       lineageKey: string;
       code: string;
       name: string;
+      namaLama: string;
       dari: number | null;
       ke: number | null;
       /** Rupiah string — BigInt tidak bisa menyeberang ke klien. */
@@ -212,7 +214,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     let parsed;
     let warnings: string[];
     let priceColumn;
-    let nodes;
+    let nodes: import("@/lib/rab/flatten").FlatNode[];
     if (templateAdendum) {
       warnings = [...templateAdendum.warnings];
       priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
@@ -237,6 +239,81 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     // resmi. DECISIONS 118.
     const contractStarted = location.package?.contract?.startDate != null;
     const isAdendum = activeRevision !== null && contractStarted;
+
+    /*
+     * IDENTITAS ITEM disamakan dengan RAB aktif SEBELUM apa pun dibandingkan
+     * atau ditulis (lihat `samakanLineage`).
+     *
+     * `lineageKey` = jalur kode. Satu baris disisipkan di adendum menggeser
+     * seluruh nomor di bawahnya, dan sejak itu "item 6" file baru dipasangkan
+     * dengan "item 6" kontrak — pekerjaan yang berbeda. Akibatnya dua: pratinjau
+     * melaporkan puluhan "harga satuan berubah" yang tidak pernah terjadi, dan
+     * realisasi harian nempel ke pekerjaan yang salah tanpa suara.
+     */
+    let aktifNodes: {
+      id: string;
+      parentId: string | null;
+      lineageKey: string;
+      kind: string;
+      code: string;
+      name: string;
+      unit: string | null;
+      volume: unknown;
+      unitPrice: unknown;
+      amount: bigint;
+    }[] = [];
+    if (activeRevision) {
+      aktifNodes = await db.rabNode.findMany({
+        where: { revisionId: activeRevision.id },
+        select: {
+          id: true,
+          parentId: true,
+          lineageKey: true,
+          kind: true,
+          code: true,
+          name: true,
+          unit: true,
+          volume: true,
+          unitPrice: true,
+          amount: true,
+        },
+      });
+      const keyById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
+      const cocok = samakanLineage(
+        nodes,
+        aktifNodes.map((n) => ({
+          lineageKey: n.lineageKey,
+          parentLineageKey: n.parentId ? (keyById.get(n.parentId) ?? null) : null,
+          kind: n.kind,
+          code: n.code,
+          name: n.name,
+          unit: n.unit,
+        })),
+      );
+      nodes = cocok.nodes;
+      if (cocok.digeser.length > 0) {
+        const contoh = cocok.digeser
+          .slice(0, 8)
+          .map((d) => `${d.name} (kontrak ${d.kodeLama} → file ${d.kode})`);
+        warnings.push(
+          `${cocok.digeser.length} item dikenali lewat NAMA karena nomornya bergeser terhadap kontrak: ` +
+            `${contoh.join("; ")}${cocok.digeser.length > contoh.length ? `; +${cocok.digeser.length - contoh.length} lainnya` : ""}. ` +
+            `Realisasi harian item tersebut tetap tersambung – tanpa ini ia akan berpindah ke pekerjaan lain yang kebetulan bernomor sama.`,
+        );
+      }
+      if (cocok.namaBerbeda.length > 0) {
+        const contoh = cocok.namaBerbeda
+          .slice(0, 5)
+          .map((d) => `${d.kode}: "${d.namaLama}" → "${d.name}"`);
+        warnings.push(
+          `PERHATIAN – ${cocok.namaBerbeda.length} item bernomor sama dengan kontrak tapi NAMANYA berbeda, ` +
+            `dan tidak ada pasangan nama yang tunggal untuk dicocokkan: ${contoh.join("; ")}` +
+            `${cocok.namaBerbeda.length > contoh.length ? `; +${cocok.namaBerbeda.length - contoh.length} lainnya` : ""}. ` +
+            `Ia diperlakukan sebagai item yang sama (mengikuti nomornya) – periksa apakah ini memang penggantian nama, ` +
+            `bukan dua pekerjaan berbeda yang kebetulan bernomor sama.`,
+        );
+      }
+    }
 
     // Lineage realisasi yang HILANG di file baru: realisasi item itu tidak akan
     // tersambung ke revisi baru (progress lokasi turun diam-diam). Tampilkan di
@@ -275,18 +352,6 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     // SEBELUM ada yang ditulis, bukan sesudah (DECISIONS 209).
     let beda: RingkasBeda | null = null;
     if (activeRevision) {
-      const aktifNodes = await db.rabNode.findMany({
-        where: { revisionId: activeRevision.id },
-        select: {
-          lineageKey: true,
-          kind: true,
-          code: true,
-          name: true,
-          volume: true,
-          unitPrice: true,
-          amount: true,
-        },
-      });
       beda = bandingkanTerhadapAktif(
         aktifNodes.map((n) => ({
           lineageKey: n.lineageKey,
@@ -308,10 +373,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       if (beda.hargaBerubah.length > 0) {
         const naik = beda.hargaBerubah.filter((h) => h.dampakRupiah > 0n).length;
         const dampak = beda.hargaBerubah.reduce((t, h) => t + h.dampakRupiah, 0n);
-        const harga = (v: number | null) => (v == null ? "–" : formatNumber(v));
+        // Nama KONTRAK ikut disebut: kalau ia berbeda dari nama file, yang
+        // bergeser itu pasangannya, bukan harganya.
         const contoh = beda.hargaBerubah
           .slice(0, 5)
-          .map((h) => `${h.code} ${h.name} (${harga(h.dari)} → ${harga(h.ke)})`);
+          .map(
+            (h) =>
+              `${h.code} kontrak "${h.namaLama}" ${formatRupiahSatuan(h.dari)} → file "${h.name}" ${formatRupiahSatuan(h.ke)}`,
+          );
         warnings.push(
           `PERHATIAN – harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
             `(${naik} naik, ${beda.hargaBerubah.length - naik} turun; dampak neto ${formatRupiah(dampak)}): ` +
@@ -356,6 +425,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               lineageKey: b.lineageKey,
               code: b.code,
               name: b.name,
+              namaLama: b.namaLama,
               dari: b.dari,
               ke: b.ke,
               dampakRupiah: b.dampakRupiah.toString(),

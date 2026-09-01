@@ -25689,3 +25689,77 @@ sandaran lagi dilonggarkan, semuanya ke BENTUK, bukan ke kata:
 
 **Bisa di-revisit**: kalau muncul berkas yang kategorinya tidak berkode romawi
 sama sekali (mis. berkode A/B/C), deteksi kategori perlu sandaran ketiga.
+
+---
+
+## 489 · 2026-09-01 · Identitas item RAB dikenali dari pekerjaannya, bukan dari nomor urutnya
+
+**Konteks**: pratinjau impor MC-0 KEMANTREN melaporkan *"harga satuan 39 item
+KONTRAK LAMA berubah"*, salah satunya `6 Pekerjaan Skonengan – 1.037.988,58 →
+78.808,37`. Keberatan user 2026-09-01: *"berapa harga lamanya, tidak ada
+informasi jelas … ini kan sebenarnya bisa jadi bukan salah excel tapi lagi-lagi
+pembulatan"*.
+
+Dilacak ke berkasnya: **bukan pembulatan**. Di berkas itu 1.037.988,58 adalah
+harga **Pintu Rooling Door** (item nomor 7), dan 78.808,37 memang harga
+Skonengan (item nomor 6). Angka "lama"-nya milik item lain. Begitu pula
+`5 Plastik Cor – 482.432,32 → 12.712,12`: 482.432,32 adalah harga "Pekerjaan
+Urugan Pasir" yang muncul di puluhan baris berkas itu; 12.712,12 memang harga
+Plastik Cor.
+
+Sebabnya identitas item antar-revisi = `lineageKey`, yaitu **jalur kodenya**
+("V#6"), dan tidak pernah namanya. Satu baris disisipkan di adendum menggeser
+seluruh nomor di bawahnya, lalu item nomor 6 kontrak dibandingkan dengan item
+nomor 6 berkas baru — dua pekerjaan berbeda. Yang lebih mahal daripada panel
+yang salah: `DailyReportItem.lineageKey` memakai kunci yang sama, jadi realisasi
+harian ikut berpindah ke pekerjaan yang salah, tanpa satu pun peringatan.
+
+Pembulatan yang user lihat nyata tapi terpisah dan hanya di layar: `unit_price`
+bertipe `Decimal(15,2)` sejak migrasi awal, jadi sennya tersimpan; yang
+membuangnya `formatRupiah` (`maximumFractionDigits: 0`).
+
+**Keputusan**:
+
+1. **Identitas disamakan sebelum apa pun dibandingkan atau ditulis**
+   (`src/lib/rab/cocok-lineage.ts`), dengan urutan sandaran dari yang terkuat:
+   (a) nama + satuan **di antara saudara sekandung yang sama**, hanya bila
+   pasangannya TUNGGAL di kedua sisi; (b) jalur kode, seperti dulu — dan kalau
+   kuncinya cocok tapi namanya berbeda, itu DILAPORKAN; (c) selebihnya item
+   baru. Giliran nama diselesaikan lebih dulu untuk seluruh kelompok saudara,
+   baru sisanya boleh memakai nomor — kalau tiap baris diputuskan sendiri-
+   sendiri, item baru bernomor 6 akan mengklaim item kontrak nomor 6 sebelum
+   saudara di bawahnya sempat mencocokkan namanya.
+2. **Item baru tidak boleh mewarisi kunci item kontrak yang kebetulan senomor**
+   — kalau bentrok, ia mendapat sufiks, sama seperti dedup di
+   `flattenParsedRab`.
+3. **Pergeseran dan nama yang berbeda selalu dikatakan** di pratinjau, tidak
+   pernah didiamkan.
+4. **Panel harga menyebut pemilik angkanya**: nama item KONTRAK ditampilkan di
+   samping nama item FILE, harga satuan diformat rupiah (bersen), dan pasangan
+   yang namanya berbeda ditandai. Sebelumnya panel mencetak nama dari file baru
+   bersama harga dari item lama, dalam angka mentah tanpa "Rp" dan tanpa
+   pemisah ribuan — sampai bocor `98873.29999999999`.
+5. **Harga satuan ditampilkan bersen** (`formatRupiahSatuan`) supaya layar tidak
+   berbeda dari Excel pada angka yang sama. Nilai/total tetap bulat rupiah.
+
+**Alternatif direject**:
+- *Mencocokkan lewat nama tanpa kurungan induk.* Berkas KKP memuat nama kembar
+  berlimpah ("Pekerjaan Urugan Pasir t = 3 cm" puluhan kali); tanpa kurungan
+  saudara sekandung + syarat tunggal, pencocokan berubah jadi lemparan koin,
+  dan taruhannya realisasi harian.
+- *Pemetaan manual saat impor adendum.* Paling aman, tapi memindahkan pekerjaan
+  ke user untuk keadaan yang bisa dipastikan sendiri oleh sistem.
+- *Menolak berkas yang nomornya bergeser.* Menghukum bentuk berkas yang sah.
+- *Menganggap kunci sama + nama berbeda sebagai item berbeda.* Item yang memang
+  DIGANTI NAMA akan kehilangan seluruh realisasinya.
+
+**Konsekuensi**: kurungan "saudara sekandung yang sama" membuat akar kunci
+(`lineageKey.split("#")[0]`, dipakai enam tempat lain untuk menemukan kategori)
+dan kedalamannya tidak pernah berubah — yang bergeser hanya nomor di ujungnya.
+Berkas yang nomornya bergeser tidak lagi melaporkan puluhan "harga berubah"
+palsu, dan realisasinya tetap menempel pada pekerjaan yang benar.
+
+**Bisa di-revisit**: kalau muncul berkas yang MENGGANTI NAMA sekaligus MENGGESER
+nomor pada item yang sama, ia akan terbaca sebagai item baru + item hilang.
+Peringatannya sudah menyebut keduanya; kalau ini sering terjadi, perlu lapis
+ketiga (kemiripan nama, bukan kesamaan).
