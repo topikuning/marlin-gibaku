@@ -25692,7 +25692,7 @@ sama sekali (mis. berkode A/B/C), deteksi kategori perlu sandaran ketiga.
 
 ---
 
-## (baru) · Identitas item RAB dikenali dari pekerjaannya, bukan dari nomor urutnya (2026-09-01)
+## 489 · 2026-09-01 · Identitas item RAB dikenali dari pekerjaannya, bukan dari nomor urutnya
 
 **Konteks**: pratinjau impor MC-0 KEMANTREN melaporkan *"harga satuan 39 item
 KONTRAK LAMA berubah"*, salah satunya `6 Pekerjaan Skonengan – 1.037.988,58 →
