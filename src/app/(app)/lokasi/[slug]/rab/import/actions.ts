@@ -122,6 +122,18 @@ async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
         `Item yang sudah punya realisasi akan disebut terpisah di bawah – periksa dulu sebelum melanjutkan.`,
     );
   }
+  if (h.volumeNegatif.length > 0) {
+    // DITOLAK, bukan dibetulkan sendiri jadi 0 (DECISIONS 203). Pekerjaan-kurang
+    // dinyatakan dengan MENURUNKAN volume, bukan dengan volume negatif, jadi
+    // angka negatif di sini selalu salah ketik atau rumus yang meleset.
+    warnings.push(
+      `PERHATIAN – ${h.volumeNegatif.length} item ber-volume NEGATIF dan TIDAK diikutkan: ` +
+        h.volumeNegatif.slice(0, 8).map((x) => `${x.code} ${x.name} (${x.volume})`).join("; ") +
+        (h.volumeNegatif.length > 8 ? `; +${h.volumeNegatif.length - 8} lainnya` : "") +
+        `. Volume tidak bisa negatif – pekerjaan-kurang dinyatakan dengan MENURUNKAN volume. ` +
+        `Betulkan angkanya di berkas, lalu unggah ulang.`,
+    );
+  }
   if (h.volumeNol.length > 0) {
     warnings.push(
       `${h.volumeNol.length} item volumenya dijadikan 0: ${daftar(h.volumeNol)}. ` +
