@@ -25665,6 +25665,27 @@ dan tetap menghasilkan nol item. Tiga cacat bertumpuk:
 sendiri, dan tiap "JUMLAH <romawi>" per kategori juga cocok. Volume yang dipakai
 volume MC-0, bukan volume kontrak.
 
-**Bisa di-revisit**: kalau muncul berkas yang kolom NO-nya tidak berlabel "NO",
-deteksinya perlu sandaran kedua (mis. kolom yang isinya paling sering berbentuk
-kode).
+**Susulan (2026-09-01)** – keberatan user: *"ini bukan format baru, tapi variasi
+dari berbagai macam orang, jadi kamu harus lebih adaptif kedepannya"*. Betul, dan
+perbaikan di atas masih menyandarkan diri pada label yang harus persis. Tiga
+sandaran lagi dilonggarkan, semuanya ke BENTUK, bukan ke kata:
+
+- **Kolom kode** tidak lagi menuntut label "NO". Kalau labelnya lain atau tidak
+  ada, dipilih kolom paling KIRI di kiri kolom URAIAN yang isinya paling sering
+  berbentuk kode. Paling kiri, bukan skor tertinggi: pada berkas berjenjang-kolom
+  kolom huruf rincian justru lebih sering terisi daripada kolom nomor induknya.
+  Batas kanannya kolom URAIAN (bukan kolom volume) supaya kolom angka tidak ikut
+  menang.
+- **Judul kategori** tidak lagi wajib diawali kata "PEKERJAAN". Berkas yang
+  menulis "I | PERSIAPAN" atau "I | PEK. STRUKTUR" dulu tidak membuka satu
+  kategori pun – dan berkas tanpa kategori berakhir persis seperti KEMANTREN:
+  nol item, lalu "sheet tidak ditemukan". Penggantinya bentuk baris: romawi
+  HURUF BESAR + baris tanpa volume & tanpa harga satuan + romawinya MELANJUTKAN
+  urutan. Nama berawalan "PEKERJAAN" tetap diterima tanpa syarat tambahan.
+- **Nama tab** hanya menentukan URUTAN pencarian, bukan izin masuk: "BQ",
+  "BOQ", "Daftar Kuantitas", "Lampiran", "MC-0" ikut diprioritaskan, dan yang
+  tidak dikenali tetap dicoba. Jendela pencarian baris header dilebarkan 25 → 60
+  baris (header KEMANTREN sendiri ada di baris 21).
+
+**Bisa di-revisit**: kalau muncul berkas yang kategorinya tidak berkode romawi
+sama sekali (mis. berkode A/B/C), deteksi kategori perlu sandaran ketiga.

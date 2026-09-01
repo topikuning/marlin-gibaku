@@ -21,7 +21,12 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { deteksiCco } from "@/lib/rab/cco-import";
-import { detectCodeColumn, parseHpsBuffer, parseHpsWorkbook } from "@/lib/rab/hps-parser";
+import {
+  detectCodeColumn,
+  parseHpsBuffer,
+  parseHpsWorkbook,
+  romanToInt,
+} from "@/lib/rab/hps-parser";
 
 type Baris = {
   /** Kode di kolom B (jenjang 1–2) atau kolom D (huruf rincian). */
@@ -209,6 +214,120 @@ describe("baris penutup bernomor", () => {
     ];
     const { wb } = sheetKemantren(baris);
     expect(totalSemua(parseHpsWorkbook(wb))).toBeCloseTo(TOTAL_MC0 + 25_000_000, 3);
+  });
+});
+
+/**
+ * Susunan KLASIK: kode di A, uraian di B, nilai di E–H. Dipakai menguji hal-hal
+ * yang tidak ada hubungannya dengan pergeseran kolom.
+ */
+function sheetKlasik(
+  baris: { kode: string; nama: string; vol?: number; sat?: string; harga?: number }[],
+  opts: { namaSheet?: string; labelNo?: string } = {},
+) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(opts.namaSheet ?? "RAB");
+  ws.getRow(1).values = [
+    opts.labelNo ?? "NO",
+    "URAIAN PEKERJAAN",
+    "",
+    "",
+    "VOLUME",
+    "SAT",
+    "HARGA SATUAN",
+    "JUMLAH HARGA",
+  ];
+  baris.forEach((b, i) => {
+    const r = ws.getRow(2 + i);
+    r.getCell(1).value = b.kode;
+    r.getCell(2).value = b.nama;
+    if (b.harga == null) return;
+    r.getCell(5).value = b.vol ?? 0;
+    r.getCell(6).value = b.sat ?? "m³";
+    r.getCell(7).value = b.harga;
+    r.getCell(8).value = (b.vol ?? 0) * b.harga;
+  });
+  return { wb, ws };
+}
+
+describe("judul kategori tidak wajib berbunyi “PEKERJAAN”", () => {
+  it("“I | PERSIAPAN” tetap membuka kategori", () => {
+    // Satu kata yang tidak diwajibkan siapa pun tidak boleh jadi syarat
+    // hidup-mati: berkas tanpa satu kategori pun berakhir sebagai nol item,
+    // lalu dilaporkan sebagai "sheet tidak ditemukan".
+    const { wb } = sheetKlasik([
+      { kode: "I", nama: "PERSIAPAN" },
+      { kode: "1", nama: "Bedeng pekerja", vol: 2, harga: 1_000_000 },
+      { kode: "II", nama: "PEK. STRUKTUR" },
+      { kode: "1", nama: "Beton K-250", vol: 10, harga: 1_400_000 },
+    ]);
+    const hasil = parseHpsWorkbook(wb);
+    expect(hasil.parsed.categories.map((c) => `${c.roman} ${c.name}`)).toEqual([
+      "I PERSIAPAN",
+      "II PEK. STRUKTUR",
+    ]);
+    expect(totalSemua(hasil)).toBeCloseTo(2_000_000 + 14_000_000, 3);
+  });
+
+  it("romawi yang PUNYA volume & harga bukan judul, jadi bukan kategori", () => {
+    // Penjaga arah sebaliknya: baris berangka adalah pekerjaan, betapa pun
+    // kodenya terbaca seperti romawi.
+    const { wb } = sheetKlasik([
+      { kode: "I", nama: "PERSIAPAN" },
+      { kode: "1", nama: "Bedeng pekerja", vol: 2, harga: 1_000_000 },
+      { kode: "V", nama: "Barang berkode aneh", vol: 3, harga: 500_000 },
+    ]);
+    expect(parseHpsWorkbook(wb).parsed.categories).toHaveLength(1);
+  });
+
+  it("romawi yang MELOMPAT urutan tidak membuka kategori baru", () => {
+    const { wb } = sheetKlasik([
+      { kode: "I", nama: "PERSIAPAN" },
+      { kode: "1", nama: "Bedeng pekerja", vol: 2, harga: 1_000_000 },
+      { kode: "X", nama: "SESUATU" },
+    ]);
+    expect(parseHpsWorkbook(wb).parsed.categories).toHaveLength(1);
+  });
+
+  it("romawi → angka", () => {
+    expect([romanToInt("I"), romanToInt("IV"), romanToInt("IX"), romanToInt("XIX.")]).toEqual([
+      1, 4, 9, 19,
+    ]);
+    expect(romanToInt("A")).toBe(0);
+  });
+});
+
+describe("kolom kode dikenali dari bentuk isinya, bukan dari labelnya", () => {
+  it("tanpa label “NO” sama sekali, kolom kode tetap ketemu", () => {
+    // Label kolom kode bervariasi ("NO", "No.", "URUT", kosong). Yang tidak
+    // bervariasi: isinya berbentuk kode, dan letaknya di kiri kolom uraian.
+    const { ws } = sheetKemantren(PEKERJAAN);
+    ws.getRow(3).getCell(2).value = ""; // buang label "NO"
+    expect(detectCodeColumn(ws, 12)).toBe(2);
+  });
+
+  it("kolom angka di kanan uraian tidak ikut dihitung sebagai kolom kode", () => {
+    const { ws } = sheetKemantren(PEKERJAAN);
+    ws.getRow(3).getCell(2).value = "";
+    // Kolom F/G/H (volume kontrak) penuh angka, dan angka juga "berbentuk
+    // kode" — batas kanannya kolom URAIAN, jadi mereka di luar hitungan.
+    expect(detectCodeColumn(ws, 12)).toBeLessThan(3);
+  });
+});
+
+describe("nama tab tidak menentukan izin masuk", () => {
+  it("sheet bernama “BQ” tetap dibaca", async () => {
+    const { wb } = sheetKlasik(
+      [
+        { kode: "I", nama: "PEKERJAAN PERSIAPAN" },
+        { kode: "1", nama: "Bedeng pekerja", vol: 2, harga: 1_000_000 },
+      ],
+      { namaSheet: "BQ" },
+    );
+    wb.addWorksheet("Cover");
+    const buf = await wb.xlsx.writeBuffer();
+    const hasil = await parseHpsBuffer(buf as ArrayBuffer);
+    expect(hasil.parsed.categories).toHaveLength(1);
   });
 });
 

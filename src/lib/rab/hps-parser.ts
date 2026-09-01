@@ -210,8 +210,10 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
 
   // Baris header UTAMA = punya VOL & SAT (satuan) sebagai sel terpisah. Ini menghindari
   // salah-deteksi baris rekap "JUMLAH" (kolom B) sbg header.
+  // Sampai baris 60: berkas KKP nyata menaruh headernya di baris 21 (KEMANTREN),
+  // dan yang berkop panjang bisa lebih jauh lagi. Loop berhenti di temuan pertama.
   let mainRow: ExcelJS.Row | null = null;
-  for (let rn = 1; rn <= 25; rn++) {
+  for (let rn = 1; rn <= 60; rn++) {
     const L = labelsOf(ws.getRow(rn));
     if (L.some((l) => /^VOL/.test(l)) && L.some((l) => /^SAT/.test(l))) {
       mainRow = ws.getRow(rn);
@@ -314,34 +316,91 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   };
 }
 
+/** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
+export function berbentukKode(t: string): boolean {
+  return (
+    isRoman(t) || SUBCODE.test(t) || NUM.test(t) || DOTNUM.test(t) || DEEPCODE.test(t) || LETTER.test(t)
+  );
+}
+
+/** Label kolom uraian — bervariasi tiap penyusun, jadi dikumpulkan, bukan ditebak satu. */
+const URAIAN_RE = /^(URAIAN|JENIS|NAMA|MACAM|ITEM|DESKRIPSI|PEKERJAAN)\b/;
+
 /**
- * Kolom KODE ("NO") — DIDETEKSI, bukan diasumsikan kolom A.
+ * Kolom KODE — DIDETEKSI, bukan diasumsikan kolom A.
  *
- * Berkas `DRAFT_MC0_..._KEMANTREN` menaruh NO di kolom **B** dan URAIAN di C,
+ * Berkas RAB KKP disusun banyak orang berbeda dan tidak ada satu pun yang
+ * mengikat: `DRAFT_MC0_..._KEMANTREN` menaruh NO di kolom **B** dan URAIAN di C,
  * dengan huruf rincian (a, b, c) turun lagi ke kolom D. Walker lama membaca kode
  * HANYA dari kolom A; di berkas itu kolom A kosong sepanjang 2.392 baris,
  * sehingga tidak satu pun kategori terbuka dan SELURUH barisnya dibuang oleh
  * `if (!cat) return`. Hasilnya nol item — lalu dilaporkan sebagai *"Sheet RAB
  * tidak ditemukan"*, padahal sheetnya dibaca dari awal sampai akhir.
  *
- * Ambang kepercayaannya sengaja tinggi: label harus persis "NO"/"NO." DAN
- * sebarisnya harus ada "URAIAN" atau "VOL". Tanpa itu → kolom A seperti dulu,
- * jadi tidak ada berkas lama yang berubah perilakunya.
+ * Dua sandaran, sengaja tidak bergantung pada satu kata pun:
+ *
+ * 1. Label "NO"/"NO." di baris yang juga memuat URAIAN atau VOL.
+ * 2. Kalau labelnya lain (atau tidak ada), **bentuk isinya**: kolom paling KIRI
+ *    di kiri kolom uraian yang isinya paling sering berbentuk kode. Paling kiri,
+ *    bukan yang skornya tertinggi — pada berkas berjenjang-kolom, kolom huruf
+ *    rincian (D) justru lebih sering terisi daripada kolom nomor induknya (B).
+ *
+ * Batas kanannya kolom URAIAN, bukan kolom volume: di antara keduanya sering ada
+ * kolom angka (volume kontrak, bobot) yang isinya juga "berbentuk kode".
  */
 export function detectCodeColumn(ws: ExcelJS.Worksheet, batas: number): number {
-  for (let rn = 1; rn <= 25; rn++) {
+  const maxRow = Math.min(60, ws.rowCount);
+  const tepi = Math.min(batas, NC + 1);
+
+  let kolomUraian = 0;
+  let barisHeader = 0;
+  for (let rn = 1; rn <= maxRow && !kolomUraian; rn++) {
+    const L = labelsOf(ws.getRow(rn));
+    for (let c = 2; c < tepi; c++)
+      if (URAIAN_RE.test(L[c] ?? "")) {
+        kolomUraian = c;
+        barisHeader = rn;
+        break;
+      }
+  }
+  const kanan = kolomUraian > 1 ? kolomUraian : tepi;
+
+  // (1) Label eksplisit.
+  for (let rn = 1; rn <= maxRow; rn++) {
     const L = labelsOf(ws.getRow(rn));
     if (!L.some((l) => /^URAIAN|^VOL/.test(l ?? ""))) continue;
-    for (let c = 1; c < Math.min(batas, NC); c++) if (/^NO\.?$/.test(L[c] ?? "")) return c;
+    for (let c = 1; c < kanan; c++) if (/^NO\.?$/.test(L[c] ?? "")) return c;
+  }
+
+  // (2) Bentuk isinya. Hanya bila kolom uraian diketahui — tanpa batas kanan
+  // yang jelas, statistik ini bisa memenangkan kolom angka.
+  if (kolomUraian > 1) {
+    const skor = new Array<number>(kanan).fill(0);
+    ws.eachRow((row) => {
+      if (row.number <= barisHeader) return;
+      for (let c = 1; c < kanan; c++) {
+        const t = str(cellVal(row, c));
+        if (t && berbentukKode(t)) skor[c] += 1;
+      }
+    });
+    const terbaik = Math.max(0, ...skor);
+    if (terbaik >= 5) for (let c = 1; c < kanan; c++) if (skor[c] >= terbaik * 0.25) return c;
   }
   return 1;
 }
 
-/** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
-function berbentukKode(t: string): boolean {
-  return (
-    isRoman(t) || SUBCODE.test(t) || NUM.test(t) || DOTNUM.test(t) || DEEPCODE.test(t) || LETTER.test(t)
-  );
+/** Nilai romawi I..XXXIX → angka. 0 bila bukan romawi. */
+export function romanToInt(s: string): number {
+  const t = s.replace(/\.$/, "").toUpperCase();
+  if (!isRoman(t)) return 0;
+  const nilai: Record<string, number> = { I: 1, V: 5, X: 10 };
+  let total = 0;
+  for (let i = 0; i < t.length; i++) {
+    const kini = nilai[t[i]];
+    const nanti = nilai[t[i + 1]] ?? 0;
+    total += kini < nanti ? -kini : kini;
+  }
+  return total;
 }
 
 export function sumLeaves(items: ParsedRabItem[]): number {
@@ -440,8 +499,18 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
   const sheets = (await namaSheetXlsx(buf)).filter((s) => !s.tersembunyi);
   // Urutan kandidat: nama pasti dulu, lalu bentuk CCO, lalu sisanya. Dibatasi
   // supaya berkas dengan puluhan sheet tidak berubah jadi puluhan pemuatan.
-  const skor = (n: string) =>
-    n === "RAB" ? 0 : /^rab$/i.test(n.trim()) ? 1 : /^cco\s*-?\s*\d+$/i.test(n.trim()) ? 2 : 3;
+  // Nama tab pun tidak seragam antar penyusun: "RAB", "BQ", "BOQ", "Daftar
+  // Kuantitas", "Lampiran", "MC-0", "RAB Revisi". Yang tidak dikenali TETAP
+  // dicoba (skor terakhir) — namanya hanya menentukan URUTAN, bukan izin masuk.
+  const skor = (n: string) => {
+    const t = n.trim();
+    if (t === "RAB") return 0;
+    if (/^rab\b/i.test(t)) return 1;
+    if (/^(cco|mc)\s*-?\s*\d*$/i.test(t)) return 2;
+    if (/\brab\b|^b\.?o?\.?q\b|daftar kuantitas|kuantitas dan harga|rincian biaya|lampiran/i.test(t))
+      return 3;
+    return 4;
+  };
   const kandidat = sheets
     .map((s) => s.nama)
     .sort((a, b) => skor(a) - skor(b))
@@ -547,6 +616,8 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const categories: ParsedRabCategory[] = [];
 
   let cat: ParsedRabCategory | null = null;
+  /** Romawi kategori terakhir — dipakai menguji apakah romawi berikutnya lanjut. */
+  let romanTerakhir = "";
   let sub: ParsedRabSubcategory | null = null;
   let itemL1: ParsedRabItem | null = null; // item numerik (mis. "6")
   let itemL2: ParsedRabItem | null = null; // sub-item dotted (mis. "6.1")
@@ -657,6 +728,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * roman sub ≠ kategori berjalan, buka kategori baru (judul placeholder + warning).
    */
   const openInferredCategory = (roman: string): void => {
+    romanTerakhir = roman;
     cat = {
       roman,
       name: `PEKERJAAN (kategori ${roman} – judul tidak ada di file)`,
@@ -713,8 +785,33 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
         `Baris ${row.number} "${name}" berkode "${code}" – namanya menyerupai baris rekap, tapi karena berkode ia DIHITUNG sebagai pekerjaan. Periksa bila totalnya terasa berlebih.`,
       );
 
-    // Kategori (roman + nama diawali "PEKERJAAN")
-    if (isRoman(code) && /^PEKERJAAN/i.test(name)) {
+    /*
+     * KATEGORI. Dulu: kode romawi DAN nama diawali "PEKERJAAN".
+     *
+     * Syarat kedua itu menuntut satu kata yang tidak diwajibkan siapa pun.
+     * Berkas yang menulis "I | PERSIAPAN", "I | PEK. PERSIAPAN", atau
+     * "I | STRUKTUR" gagal membuka kategori mana pun — dan berkas tanpa satu
+     * kategori pun berakhir persis seperti KEMANTREN: nol item, lalu dilaporkan
+     * sebagai "sheet tidak ditemukan". Berkas RAB KKP ditulis banyak orang
+     * berbeda; satu kata tidak boleh jadi syarat hidup-mati.
+     *
+     * Yang menggantikannya BENTUK barisnya, bukan kata:
+     *  - kodenya romawi HURUF BESAR (huruf rincian "i"/"v"/"x" huruf kecil), dan
+     *  - barisnya baris JUDUL: tanpa volume dan tanpa harga satuan, dan
+     *  - romawinya MELANJUTKAN urutan (I, lalu II, …).
+     * Nama diawali "PEKERJAAN" tetap diterima tanpa syarat tambahan — itu
+     * bentuk yang sudah terbukti di korpus lama.
+     */
+    const romanBerikutnya = romanToInt(romanTerakhir) + 1;
+    const judulTanpaAngka =
+      num(cellVal(row, col.vol)) == null && num(cellVal(row, col.price)) == null;
+    if (
+      isRoman(code) &&
+      code === code.toUpperCase() &&
+      name !== "" &&
+      (/^PEKERJAAN/i.test(name) || (judulTanpaAngka && romanToInt(code) === romanBerikutnya))
+    ) {
+      romanTerakhir = romanCode(code);
       cat = { roman: romanCode(code), name, total_value: 0, subcategories: [], direct_items: [] };
       categories.push(cat);
       sub = null;
