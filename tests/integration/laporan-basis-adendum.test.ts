@@ -15,6 +15,20 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/*
+ * WAJIB kalau berkas ini memeriksa AUDIT LOG.
+ *
+ * `audit()` memanggil `requestIp()` → `headers()`, yang hanya hidup di dalam
+ * scope request. Di luar itu ia melempar, dan `audit()` MENELAN galatnya
+ * (best-effort, by design) – jadi tidak ada satu baris pun yang tertulis dan
+ * `findFirstOrThrow` di bawah tidak akan pernah menemukan apa pun. Bukan
+ * cacat produk: `activateRevision` memang memanggil `audit()` dengan benar.
+ * Pola yang sama dipakai belasan berkas integrasi lain (mis. `return-flow`).
+ */
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined }),
+}));
 
 const { db } = await import("@/lib/db");
 const { upsertItem } = await import("@/lib/daily-report/service");
