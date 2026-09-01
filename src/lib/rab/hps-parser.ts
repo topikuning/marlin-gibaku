@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
 import { deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
@@ -58,11 +59,14 @@ function cellVal(row: ExcelJS.Row, c: number): unknown {
 function str(v: unknown): string {
   return v == null ? "" : String(v).trim();
 }
-function num(v: unknown): number | null {
-  if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
+/**
+ * Pembaca angka BERSAMA (`lib/rab/angka-lokal`). Sebelumnya lokal di sini dan
+ * membuang semua koma lalu memperlakukan titik sebagai desimal, sementara
+ * `adendum-template-parse` melakukan KEBALIKANNYA pada sel yang sama. Sel teks
+ * `"1.500.000,50"` karena itu menjadi `null` di sini (baris hilang diam-diam)
+ * dan `"1,5"` menjadi 15 (sepuluh kali lipat). Audit 2026-09-01.
+ */
+const num = bacaAngkaLokal;
 /**
  * Kode romawi kategori — titik di ujung DIABAIKAN.
  *
@@ -240,7 +244,18 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
     const s = roleAt(c);
     if (!s || isTotalCol(c)) return false;
     if (/TKDN|KDN|BOBOT|^%$|TIMPANG/.test(s)) return false; // kolom rasio, bukan harga
-    if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;
+    // `/^SAT\b/` dulu di sini, dan ia TIDAK PERNAH cocok dengan "SATUAN":
+    // "\b" menuntut batas kata sesudah "SAT", padahal huruf berikutnya "U"
+    // juga karakter kata. Jadi header bertuliskan SATUAN lolos penyaring ini,
+    // lalu ditangkap `/HARGA|NILAI|SATUAN/` di baris bawah - dan karena
+    // pemindaian dari kiri, kolom SATUAN ditemukan SEBELUM "HARGA SATUAN".
+    // Harga lalu dibaca dari sel satuan: "m3" jadi 3, "m2" jadi 2, "bh"/"ls"
+    // jadi kosong. Cek-silang butuh 20 baris berangka lengkap, dan satuan
+    // tanpa digit membuat baris tidak ikut dihitung, jadi RAB bersatuan
+    // "bh/ls/kg" lolos tanpa satu peringatan pun. Audit 2026-09-01.
+    //
+    // Kolom "HARGA SATUAN" tidak terkena: labelnya dimulai "HARGA".
+    if (/^VOL/.test(s) || /^SAT/.test(s)) return false;
     return /HARGA|NILAI|SATUAN/.test(s);
   };
 
@@ -282,7 +297,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
       const cols: number[] = [];
       for (let c = 1; c <= NC; c++) if (re.test(blockAt(c))) cols.push(c);
       if (cols.length === 0) return null;
-      const p = cols.find(isPriceCol) ?? cols[0];
+      const p = cols.find((c) => c !== unit && isPriceCol(c)) ?? cols[0];
       const a = cols.find((c) => c > p && isTotalCol(c)) ?? p + 1;
       return { price: p, amount: a };
     };
@@ -304,7 +319,10 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
 
   if (price == null) {
     // Tanpa baris grup blok: header polos "HARGA SATUAN | JUMLAH HARGA".
-    price = findFirst(isPriceCol) ?? classic.price;
+    // Lapis kedua, tidak bergantung pada ejaan: kolom satuan tidak akan pernah
+    // menjadi kolom harga. Regex di atas menutup ejaan yang sudah diketahui;
+    // ini menutup ejaan yang belum.
+    price = findFirst((c) => c !== unit && isPriceCol(c)) ?? classic.price;
     amount = findFirst((c) => c > price! && isTotalCol(c)) ?? price + 1;
     priceSource = "hps";
   }

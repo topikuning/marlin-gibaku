@@ -403,8 +403,51 @@ function tulisBaris(
         `IF(${volN}=0,"HAPUS",` +
         `IF(${volN}>${vol0},"TAMBAH","KURANG"))))`,
     };
+    /*
+     * HASIL rumus ikut ditulis (`result`), bukan hanya rumusnya.
+     *
+     * Tanpa cache, berkas CCO terbitan MARLIN TIDAK BISA diimpor ulang: sel
+     * rumus tanpa `result` terbaca `null` oleh pembaca Excel mana pun kecuali
+     * Excel sendiri, sehingga pembuktian `volume x harga ~ jumlah` di
+     * `cco-import.deteksiCco` gagal dan berkasnya jatuh ke jalur RAB biasa
+     * dengan total 0. Kalau berkasnya dibuka lalu disimpan di Excel dulu,
+     * impornya berhasil - jadi kegagalannya menimpa persis alur yang paling
+     * lazim: unduh, teruskan lewat WhatsApp, unggah balik tanpa pernah dibuka.
+     * Audit 2026-09-01.
+     *
+     * Nilainya dihitung dari angka yang sama dengan yang menyusun rumusnya,
+     * jadi cache dan rumus tidak bisa berselisih. Kolom BOBOT sengaja tidak
+     * di-cache: penyebutnya sel TOTAL yang baru ada setelah semua baris
+     * ditulis, dan `fullCalcOnLoad` sudah dipasang di berkas ini sehingga Excel
+     * menghitungnya saat dibuka. Impor tidak memakai bobot.
+     */
+    const vLama = row.volumeLama ?? 0;
+    const vBaru = row.volumeBaru ?? 0;
+    const h = row.hargaLama ?? 0;
+    const vTambah = vBaru - vLama > 0 ? vBaru - vLama : "";
+    const vKurang = vLama - vBaru > 0 ? vLama - vBaru : "";
+    const hasil: Record<string, number | string> = {
+      jumlahLama: h * vLama,
+      jumlahBaru: h * vBaru,
+      volumeTambah: vTambah,
+      volumeKurang: vKurang,
+      jumlahTambah: vTambah === "" ? "" : h * vTambah,
+      jumlahKurang: vKurang === "" ? "" : h * vKurang,
+      ket:
+        vBaru === vLama
+          ? "TETAP"
+          : vLama === 0
+            ? "BARU"
+            : vBaru === 0
+              ? "HAPUS"
+              : vBaru > vLama
+                ? "TAMBAH"
+                : "KURANG",
+    };
     for (const [key, formula] of Object.entries(rumus)) {
-      ws.getCell(r, nomorKolom(key)).value = { formula, date1904: false };
+      const r2 = hasil[key];
+      ws.getCell(r, nomorKolom(key)).value =
+        r2 === undefined ? { formula, date1904: false } : { formula, result: r2, date1904: false };
     }
   }
 

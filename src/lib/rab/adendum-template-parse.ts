@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs";
+import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import type { FlatNode } from "@/lib/rab/flatten";
 import {
   ADENDUM_HEADER_ROW,
@@ -48,13 +49,15 @@ export function isAdendumTemplate(wb: ExcelJS.Workbook): boolean {
   return String(ws.getCell(ADENDUM_HEADER_ROW, C_LINEAGE).value ?? "").trim() === ADENDUM_TEMPLATE_MARKER;
 }
 
-function angka(v: ExcelJS.CellValue): number | null {
-  if (v == null || v === "") return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (typeof v === "object" && "result" in v) return angka((v as { result: ExcelJS.CellValue }).result);
-  const n = Number(String(v).replace(/\./g, "").replace(",", ".").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
+/**
+ * Pembaca angka BERSAMA. Versi lama di sini membiarkan `Number("")` yang
+ * bernilai **0** lolos sebagai angka sah, sehingga sel `#REF!`, rumus tanpa
+ * hasil ter-cache, spasi, `"n/a"`, dan objek richText semuanya menjadi
+ * **volume 0** tanpa satu pun galat - pekerjaan bernilai ratusan juta lenyap
+ * diam-diam. Sel `Date` bahkan menghasilkan angka omong kosong. Audit
+ * 2026-09-01.
+ */
+const angka = bacaAngkaLokal;
 
 function teks(v: ExcelJS.CellValue): string {
   if (v == null) return "";
