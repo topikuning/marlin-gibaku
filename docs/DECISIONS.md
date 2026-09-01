@@ -25602,3 +25602,69 @@ berlaku.
 
 Dijaga `tests/unit/waha-tanya-izin.test.ts` — dua uji: balasan tanpa mention
 TIDAK dilayani, dan balasan yang disertai mention tetap dilayani.
+
+---
+
+## (baru) · Impor RAB tidak lagi mengandaikan kolom NO ada di kolom A (2026-09-01)
+
+**Konteks**: berkas nyata `DRAFT_MC0_KNMP_KEMANTREN_2026_27_AGUSTUS_.xlsx`
+ditolak dengan *"Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat
+tambah/kurang KKP. Sheet yang ada di berkas ini: RAB, BACK UP VOL,
+REKAPITULASI, SUB-REKAP."* – menyebut sheet yang katanya tidak ada, di kalimat
+yang sama. Sheet RAB memang ADA, dibaca dari awal sampai akhir (2.392 baris),
+dan tetap menghasilkan nol item. Tiga cacat bertumpuk:
+
+1. **Kolom kode diandaikan kolom A.** Berkas itu menaruh NO di **B**, URAIAN di
+   C, dan huruf rincian (a, b, c) turun lagi ke **D**. Walker membaca kode hanya
+   dari kolom A – yang kosong sepanjang berkas – jadi tidak satu pun kategori
+   terbuka dan seluruh baris dibuang oleh `if (!cat) return`.
+2. **`deteksiCco` menuntut blok adendum yang sudah terisi.** Berkas ini punya
+   lima blok: RAB KONTRAK · MC-0 · TAMBAH · KURANG · CCO-01, dan CCO-01-nya
+   masih kosong karena adendumnya memang belum dikerjakan. Aturan "blok HASIL =
+   blok paling kanan" memilih blok kosong itu, gagal membuktikan
+   `volume × harga ≈ jumlah`, lalu menolak seluruh berkas.
+3. **Baris penutup bernomor ikut terhitung.** RAB-nya ditutup empat baris
+   berkode A/B/C/D: "JUMLAH HARGA", "PPN 11 %", "JUMLAH TOTAL", "DIBULATKAN".
+   Aturan rekap lama hanya membuang baris yang kolom kodenya KOSONG, jadi
+   keempatnya masuk sebagai pekerjaan – dan karena tiga di antaranya memuat
+   nilai seluruh RAB, nilai yang terbaca membengkak dari 7,97 M jadi 34,5 M.
+
+**Keputusan**:
+
+- Kolom kode **dideteksi** dari header ("NO"/"NO." di baris yang juga memuat
+  URAIAN/VOLUME), bukan diandaikan. Bila tidak meyakinkan → kolom A seperti
+  dulu, sehingga tidak ada berkas lama yang berubah perilakunya. Pada tata letak
+  bergeser, kode = sel terisi pertama yang BERBENTUK kode di kiri kolom volume,
+  namanya sel terisi berikutnya – karena di berkas semacam itu jenjang
+  dinyatakan dengan menurunkan kolom, bukan menggeser semuanya sejauh satu.
+- Blok HASIL = blok **terbukti** paling kanan sesudah "kurang". Kalau semua blok
+  sesudah "kurang" masih KOSONG, berkas dibaca sebagai keadaan DASAR apa adanya
+  dan hal itu **dikatakan** lewat peringatan impor ("blok adendumnya masih
+  KOSONG"). Kalau blok itu ada isinya tapi tak terbukti, penolakan tetap –
+  angka yang tidak terbukti tidak boleh diterka.
+- Baris penutup dikenali dari **bentuknya**: nama berkosakata penutup
+  (jumlah/total/ppn/dibulatkan/…) DAN tanpa volume DAN tanpa harga satuan.
+  Bukan dari namanya saja – ada alat ukur bernama "Total Station" di PEKERJAAN
+  PERSIAPAN yang harus tetap terhitung.
+- Pesan galat berhenti berbohong: sheet yang dibaca tapi nol baris dilaporkan
+  sebagai *"Sheet "RAB" DIBACA sampai habis, tapi tidak ada satu pun baris
+  pekerjaan yang dikenali"*, bukan sebagai "tidak ditemukan".
+
+**Alternatif direject**:
+- *Menggeser seluruh pembacaan sejauh satu kolom.* Tidak cukup: huruf rincian
+  ada di D sementara nomor item di B – pergeserannya tidak seragam, dan
+  `nameOf` yang ikut bergeser justru membaca huruf "a" sebagai nama pekerjaan.
+- *Meminta tim menyalin ulang ke template MARLIN.* Memindahkan pekerjaan tanpa
+  menambah kebenaran, dan menambah peluang salah salin (alasan yang sama dengan
+  DECISIONS 296).
+- *Menerima blok kosong sebagai "nol perubahan" tanpa memberi tahu.* Berkas
+  draft dan berkas final akan terlihat identik di layar.
+
+**Konsekuensi**: berkas KEMANTREN terbaca 19 kategori dengan total
+**7.972.813.069,140** – sama persis sampai sen dengan total MC-0 di berkasnya
+sendiri, dan tiap "JUMLAH <romawi>" per kategori juga cocok. Volume yang dipakai
+volume MC-0, bukan volume kontrak.
+
+**Bisa di-revisit**: kalau muncul berkas yang kolom NO-nya tidak berlabel "NO",
+deteksinya perlu sandaran kedua (mis. kolom yang isinya paling sering berbentuk
+kode).

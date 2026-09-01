@@ -128,6 +128,28 @@ export function isSummaryRow(name: string, code = ""): boolean {
   return SUMMARY_PREFIX.test(name.trim()) && code.trim() === "";
 }
 
+/** Kosakata baris penutup RAB — termasuk yang bukan "jumlah": PPN, dibulatkan. */
+const REKAP_PENUTUP = /^(jumlah|sub\s*total|subtotal|total|grand\s*total|rekapitulasi|ppn|pph|pajak|dibulatkan|pembulatan|terbilang)\b/i;
+
+/**
+ * Baris penutup yang PUNYA KODE — dikenali dari BENTUKNYA, bukan namanya saja.
+ *
+ * Berkas `DRAFT_MC0_..._KEMANTREN` menutup RAB-nya dengan empat baris bernomor
+ * A/B/C/D di kolom NO: "JUMLAH HARGA", "PPN 11 %", "JUMLAH TOTAL",
+ * "DIBULATKAN". Aturan lama hanya membuang baris rekap yang kolom kodenya
+ * KOSONG, jadi keempatnya masuk sebagai pekerjaan — dan karena tiga di antaranya
+ * memuat nilai TOTAL seluruh RAB, nilai kontrak yang terbaca membengkak dari
+ * 7,97 M jadi 34,5 M (4×) hanya karena baris tanda tangan.
+ *
+ * Yang membedakannya dari butir pekerjaan bukan namanya (ada alat ukur bernama
+ * "Total Station" di PEKERJAAN PERSIAPAN, dan ia harus tetap terhitung),
+ * melainkan bahwa baris penutup TIDAK punya volume DAN TIDAK punya harga
+ * satuan: ia cuma memindahkan angka dari baris-baris di atasnya.
+ */
+function adalahRekapPenutup(name: string, volume: number | null, unitPrice: number | null): boolean {
+  return REKAP_PENUTUP.test(name.trim()) && volume == null && unitPrice == null;
+}
+
 /** Peta kolom nilai (1-indexed) hasil deteksi header. */
 export type ColMap = { vol: number; unit: number; price: number; amount: number; tkdn: number };
 
@@ -292,6 +314,36 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   };
 }
 
+/**
+ * Kolom KODE ("NO") — DIDETEKSI, bukan diasumsikan kolom A.
+ *
+ * Berkas `DRAFT_MC0_..._KEMANTREN` menaruh NO di kolom **B** dan URAIAN di C,
+ * dengan huruf rincian (a, b, c) turun lagi ke kolom D. Walker lama membaca kode
+ * HANYA dari kolom A; di berkas itu kolom A kosong sepanjang 2.392 baris,
+ * sehingga tidak satu pun kategori terbuka dan SELURUH barisnya dibuang oleh
+ * `if (!cat) return`. Hasilnya nol item — lalu dilaporkan sebagai *"Sheet RAB
+ * tidak ditemukan"*, padahal sheetnya dibaca dari awal sampai akhir.
+ *
+ * Ambang kepercayaannya sengaja tinggi: label harus persis "NO"/"NO." DAN
+ * sebarisnya harus ada "URAIAN" atau "VOL". Tanpa itu → kolom A seperti dulu,
+ * jadi tidak ada berkas lama yang berubah perilakunya.
+ */
+export function detectCodeColumn(ws: ExcelJS.Worksheet, batas: number): number {
+  for (let rn = 1; rn <= 25; rn++) {
+    const L = labelsOf(ws.getRow(rn));
+    if (!L.some((l) => /^URAIAN|^VOL/.test(l ?? ""))) continue;
+    for (let c = 1; c < Math.min(batas, NC); c++) if (/^NO\.?$/.test(L[c] ?? "")) return c;
+  }
+  return 1;
+}
+
+/** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
+function berbentukKode(t: string): boolean {
+  return (
+    isRoman(t) || SUBCODE.test(t) || NUM.test(t) || DOTNUM.test(t) || DEEPCODE.test(t) || LETTER.test(t)
+  );
+}
+
 export function sumLeaves(items: ParsedRabItem[]): number {
   let t = 0;
   for (const it of items) {
@@ -356,7 +408,19 @@ export type ParseHpsResult = {
  * Berkas tambah/kurang KKP sendiri SUDAH diterima (DECISIONS 296), jadi sampai
  * di sini berarti bentuknya tak dikenali atau angkanya tidak terbukti.
  */
-function pesanSheetTakAdaDariNama(nama: string[]): string {
+function pesanSheetTakAdaDariNama(nama: string[], dibacaTapiKosong: string[] = []): string {
+  if (dibacaTapiKosong.length > 0) {
+    // Pesan lama menuduh sheetnya TIDAK ADA sambil menyebutkannya di daftar
+    // pada kalimat yang sama – kontradiksi yang membuat pemakainya mencari
+    // masalah di tempat yang salah. Sheetnya ada dan dibaca; yang tidak
+    // ditemukan adalah baris pekerjaannya.
+    const dibaca = dibacaTapiKosong.map((n) => `"${n}"`).join(", ");
+    return (
+      `Sheet ${dibaca} DIBACA sampai habis, tapi tidak ada satu pun baris pekerjaan yang dikenali. ` +
+      "Biasanya karena kolom NO/URAIAN atau kolom VOLUME/HARGA SATUAN/JUMLAH tidak berada di tempat " +
+      "yang bisa dikenali – periksa baris headernya, atau kirim berkas ini supaya susunannya ditambahkan."
+    );
+  }
   if (nama.some((n) => /^\s*CCO\s*-?\s*\d+/i.test(n))) {
     return (
       "Berkas ini berbentuk dokumen CCO, tapi kolom volume/harga/jumlah-nya tidak bisa dipastikan – " +
@@ -384,6 +448,8 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
     .slice(0, 8);
 
   let terakhir: unknown = null;
+  /** Sheet yang BERHASIL dibaca tapi nol baris — dipakai menyusun pesan jujur. */
+  const kosong: string[] = [];
   for (const nama of kandidat) {
     let wb: ExcelJS.Workbook;
     try {
@@ -400,13 +466,16 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
       // Itu bukan galat — cukup lanjut ke kandidat berikutnya.
       if (hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0))
         return hasil;
+      // Sheet bernama RAB yang kosong itu KEJANGGALAN, bukan sekadar kandidat
+      // lewat: ia harus disebut di pesan galat, bukan hilang.
+      if (/rab/i.test(nama)) kosong.push(nama);
     } catch (e) {
       terakhir = e;
     }
   }
   // Tidak ada kandidat yang berisi: laporkan dengan menyebut isi berkasnya.
   if (terakhir instanceof Error) throw terakhir;
-  throw new Error(pesanSheetTakAdaDariNama(sheets.map((s) => s.nama)));
+  throw new Error(pesanSheetTakAdaDariNama(sheets.map((s) => s.nama), kosong));
 }
 
 export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
@@ -443,7 +512,16 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
         label: `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
       }
     : priceColumnInfo(priceSource, col);
-  if (peta) {
+  const kolomKode = detectCodeColumn(ws, col.vol);
+  if (peta?.hasilDariDasar) {
+    // Berkas DRAFT: kolom adendumnya ada tapi belum diisi. Dikatakan, bukan
+    // didiamkan — pemakainya harus tahu yang masuk adalah keadaan dasar.
+    warnings.push(
+      `Berkas berformat tambah/kurang KKP, tapi blok adendumnya masih KOSONG. ` +
+        `Yang diimpor adalah blok "${peta.blokDasar.label}" apa adanya (kolom volume ${colLetter(peta.col.vol)}) – ` +
+        `belum ada perubahan volume di berkas ini.`,
+    );
+  } else if (peta) {
     const { berubah, total } = hitungPerubahan(ws, peta);
     warnings.push(
       `Berkas berformat tambah/kurang KKP. Volume diambil dari blok "${peta.blokHasil.label}" ` +
@@ -510,8 +588,48 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       children: [],
     };
   };
-  const nameOf = (row: ExcelJS.Row): string =>
-    str(cellVal(row, 2)) || str(cellVal(row, 3)) || str(cellVal(row, 4));
+  /**
+   * KODE + NAMA satu baris.
+   *
+   * Tata letak KLASIK (kode di kolom A) dibaca persis seperti dulu. Bila kolom
+   * "NO" ternyata bergeser ke kanan, kode dicari sebagai sel TERISI PERTAMA yang
+   * BERBENTUK kode di kiri kolom volume, dan namanya sel terisi berikutnya —
+   * karena di berkas semacam itu jenjang dinyatakan dengan MENURUNKAN KOLOM
+   * (NO di B untuk "1"/"6.1", tapi di D untuk huruf "a"), bukan sekadar
+   * menggeser semuanya sejauh satu kolom.
+   */
+  const kodeNamaOf = (row: ExcelJS.Row): { code: string; name: string } => {
+    if (kolomKode <= 1)
+      return {
+        code: str(cellVal(row, 1)),
+        name: str(cellVal(row, 2)) || str(cellVal(row, 3)) || str(cellVal(row, 4)),
+      };
+    const batas = Math.min(col.vol, NC + 1);
+    for (let c = kolomKode; c < batas; c++) {
+      const t = str(cellVal(row, c));
+      if (!t) continue;
+      // Sel terisi PERTAMA bukan kode ⇒ baris tanpa kode (uraian lanjutan,
+      // baris rekap, metadata). Jangan diangkat jadi kode: itu akan membuat
+      // nama pekerjaan dibaca sebagai nomor.
+      if (!berbentukKode(t)) return { code: "", name: t };
+      for (let d = c + 1; d < batas; d++) {
+        const n = str(cellVal(row, d));
+        if (n) return { code: t, name: n };
+      }
+      return { code: t, name: "" };
+    }
+    return { code: "", name: "" };
+  };
+  /** Nilai metadata (PROYEK/LOKASI/TAHUN) di kanan labelnya. */
+  const metaOf = (row: ExcelJS.Row): unknown => {
+    if (kolomKode <= 1) return cellVal(row, 4);
+    for (let c = Math.min(col.vol, NC + 1) - 1; c > kolomKode; c--) {
+      const v = cellVal(row, c);
+      const t = str(v);
+      if (t && t !== ":") return v;
+    }
+    return null;
+  };
   const pushSub = (code: string, name: string): void => {
     const clean = code.replace(/\.$/, "");
     const n = subSeen.get(clean) ?? 0;
@@ -563,25 +681,30 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     // ikut dihitung — importer mengikuti apa yang terlihat, sama seperti resume
     // kontrak. Sinyal: atribut hidden Excel; height 0 sbg cadangan defensif.
     if (row.hidden === true || row.height === 0) {
-      const c = str(cellVal(row, 1));
-      const nm = nameOf(row);
+      const { code: c, name: nm } = kodeNamaOf(row);
       if ((c || nm) && !isSummaryRow(nm)) hiddenSkipped++;
       return;
     }
 
-    const code = str(cellVal(row, 1));
-    const name = nameOf(row);
+    const { code, name } = kodeNamaOf(row);
 
     // Metadata ringan
     const joined = `${code} ${name}`.toUpperCase();
-    if (joined.includes("PROYEK") && !project) project = str(cellVal(row, 4));
-    if (code.toUpperCase() === "LOKASI" && !locationRaw) locationRaw = str(cellVal(row, 4));
-    if (joined.includes("TAHUN ANGGARAN")) year = num(cellVal(row, 4));
+    // Label metadata ada di kolom kode pada tata letak klasik, di kolom nama
+    // pada tata letak bergeser (di sana "PROYEK"/"LOKASI" bukan bentuk kode).
+    const labelMeta = (kolomKode > 1 ? name : code).toUpperCase();
+    if (joined.includes("PROYEK") && !project) project = str(metaOf(row));
+    if (labelMeta === "LOKASI" && !locationRaw) locationRaw = str(metaOf(row));
+    if (joined.includes("TAHUN ANGGARAN")) year = num(metaOf(row));
 
     if (!code && !name) return;
 
     // Baris rekap/subtotal ("JUMLAH", "SUB TOTAL", "TOTAL", dll) — JANGAN masuk pohon.
     if (isSummaryRow(name, code)) return;
+    // Baris penutup bernomor (JUMLAH HARGA / PPN / DIBULATKAN) — lihat
+    // `adalahRekapPenutup`. Dicek SEBELUM peringatan di bawah supaya baris yang
+    // memang penutup tidak jadi peringatan yang tak bisa ditindaklanjuti.
+    if (adalahRekapPenutup(name, num(cellVal(row, col.vol)), num(cellVal(row, col.price)))) return;
     // Berkode TAPI bernama seperti rekap: diperlakukan sebagai pekerjaan biasa.
     // Disebutkan supaya keputusannya terlihat — kalau ternyata ini memang baris
     // rekap yang kebetulan berkode, penggelembungannya ketahuan sejak pratinjau.
