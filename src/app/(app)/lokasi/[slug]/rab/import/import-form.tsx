@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
-import { Banner, Button, FileInput, HelpText, Label, Textarea } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, HelpText, Label, Textarea } from "@/components/ui";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { formatRupiahSatuan, formatRupiah } from "@/lib/format";
-import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
+import { importHps, type BedaPratinjau, type ImportMode, type ImportPreview, type ImportState } from "./actions";
 
 /**
  * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
@@ -54,16 +54,30 @@ export function ImportForm({
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
   const [inputKey, setInputKey] = useState(0);
+  /**
+   * PEMETAAN MANUAL: `lineageKey` item kontrak → `lineageKey` ASLI item baru di
+   * berkas. Permintaan user 2026-09-02.
+   *
+   * Disimpan di state klien dan dikirim ulang pada tiap pratinjau, sama seperti
+   * berkasnya sendiri. Memilih pasangan langsung MENJALANKAN PRATINJAU ULANG,
+   * bukan menunggu sampai disimpan: efeknya (item hilang berkurang, realisasi
+   * tidak lagi lepas) harus terlihat SEBELUM ada yang ditulis.
+   */
+  const [padanan, setPadanan] = useState<Record<string, string>>({});
   const [state, setState] = useState<ImportState>(undefined);
   const [pending, startTransition] = useTransition();
   const preview = state?.preview;
 
-  function run(confirm: boolean) {
+  function run(confirm: boolean, padananPakai: Record<string, string> = padanan) {
     if (!file) {
       setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
       return;
     }
     const fd = new FormData();
+    const pasangan = Object.entries(padananPakai)
+      .filter(([, baru]) => baru)
+      .map(([lineageLama, lineageBaru]) => ({ lineageLama, lineageBaru }));
+    if (pasangan.length > 0) fd.set("padanan", JSON.stringify(pasangan));
     fd.set("locationId", locationId);
     fd.set("file", file);
     fd.set("note", note);
@@ -96,6 +110,9 @@ export function ImportForm({
     setFile(files[0] ?? null);
     // Berkas baru → buang pratinjau lama; tombol kembali jadi "Pratinjau".
     setState(undefined);
+    // …dan buang pemetaannya: kunci baris di berkas lain belum tentu sama, dan
+    // pemetaan yang menunjuk baris yang tidak ada hanya jadi penolakan.
+    setPadanan({});
   }
 
   return (
@@ -209,6 +226,19 @@ export function ImportForm({
           />
 
           {preview.beda ? <PanelBeda beda={preview.beda} /> : null}
+          <PanelPadanan
+            padanan={preview.padanan}
+            pilihan={padanan}
+            pending={pending}
+            onPilih={(lineageLama, lineageBaru) => {
+              const berikut = { ...padanan, [lineageLama]: lineageBaru };
+              if (!lineageBaru) delete berikut[lineageLama];
+              setPadanan(berikut);
+              // Pratinjau dijalankan ULANG dengan pilihan baru: efeknya harus
+              // terlihat sebelum ada yang ditulis.
+              run(false, berikut);
+            }}
+          />
 
           <div className="text-sm text-ink">
             <p className="font-medium">
@@ -305,6 +335,71 @@ export function ImportForm({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * PEMETAAN MANUAL item kontrak ber-realisasi → item BARU di berkas.
+ *
+ * Permintaan user 2026-09-02: *"item yang sudah diinput di laporan harian lalu
+ * di draft dinolkan, bisa dimatch manual dengan item baru yang ada di draft,
+ * ini mungkin akan lebih fleksibel."*
+ *
+ * Muncul HANYA bila ada bahannya di kedua sisi. Panel yang selalu tampil dengan
+ * daftar kosong hanya menambah barang yang harus dibaca sebelum menyimpan.
+ */
+function PanelPadanan({
+  padanan,
+  pilihan,
+  pending,
+  onPilih,
+}: {
+  padanan: NonNullable<ImportPreview["padanan"]>;
+  pilihan: Record<string, string>;
+  pending: boolean;
+  onPilih: (lineageLama: string, lineageBaru: string) => void;
+}) {
+  if (padanan.lama.length === 0 || padanan.baru.length === 0) return null;
+  const opsi = [
+    { value: "", label: "– tidak dipetakan –" },
+    ...padanan.baru.map((b) => ({ value: b.lineageAsli, label: `${b.code} ${b.name}` })),
+  ];
+  return (
+    <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
+      <p className="font-medium text-ink">
+        {padanan.lama.length} item yang SUDAH dikerjakan tidak lagi punya volume di file ini
+      </p>
+      <p className="text-ink-muted">
+        Kalau pekerjaannya sebenarnya pindah ke baris lain – berganti nama atau dipecah – pasangkan di
+        sini. Realisasi hariannya ikut ke baris barunya, dan tidak ada satu pun baris laporan yang
+        diubah: yang berpindah hanya identitas itemnya.
+      </p>
+      <ul className="space-y-2">
+        {padanan.lama.map((l) => (
+          <li key={l.lineageKey} className="space-y-1">
+            <span className="block text-ink">
+              {l.code} {l.name}{" "}
+              <span className="text-ink-muted">
+                – {l.sebab === "dinolkan" ? "volumenya jadi 0" : "tidak ada di file"}, sudah dikerjakan{" "}
+                {l.realisasi}
+              </span>
+            </span>
+            <Combobox
+              value={pilihan[l.lineageKey] ?? ""}
+              onChange={(v) => onPilih(l.lineageKey, v)}
+              options={opsi}
+              disabled={pending}
+              placeholder="Pasangkan ke item baru…"
+            />
+          </li>
+        ))}
+      </ul>
+      {padanan.ditolak.length > 0 ? (
+        <p className="text-danger">
+          {padanan.ditolak.length} pemetaan tidak bisa dipakai: {padanan.ditolak[0].sebab}
+        </p>
+      ) : null}
     </div>
   );
 }

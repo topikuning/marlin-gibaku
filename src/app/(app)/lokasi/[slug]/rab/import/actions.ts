@@ -77,6 +77,21 @@ export type ImportPreview = {
     /** Nilai item KONTRAK LAMA yang bergeser tanpa volume/harga bergerak. */
     nilaiBergeser: { lineageKey: string; code: string; name: string; dari: string; ke: string; selisih: string }[];
   } | null;
+  /**
+   * Bahan PEMETAAN MANUAL (permintaan user 2026-09-02): item kontrak yang sudah
+   * punya realisasi tapi di berkas ini DINOLKAN atau hilang, beserta item BARU
+   * yang tersedia untuk dipasangkan dengannya.
+   *
+   * Pencocokan otomatis tidak bisa menebak pasangan ini — namanya berbeda DAN
+   * nomornya berbeda, jadi tidak ada satu pun sinyal yang tersisa. Yang tahu
+   * bahwa dua baris itu pekerjaan yang sama hanya orangnya.
+   */
+  padanan: {
+    lama: { lineageKey: string; code: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" }[];
+    baru: { lineageAsli: string; code: string; name: string }[];
+    dipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[];
+    ditolak: { lineageBaru: string; lineageLama: string; sebab: string }[];
+  };
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
 };
@@ -189,6 +204,21 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     // Hanya dicoba pada mode draft: template adendum memang cuma dipakai di
     // sana, dan membuka workbook dua kali untuk berkas HPS 4-5 MB itu mahal.
     const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
+    /*
+     * PEMETAAN MANUAL yang dipilih user di pratinjau. Dikirim ulang pada tiap
+     * pratinjau maupun saat menyimpan, sama seperti berkasnya sendiri — form
+     * ini memang menyusun FormData-nya sendiri, jadi tidak ada state server
+     * yang perlu dijaga tetap hidup di antara dua langkah.
+     */
+    const padananDiminta = ((): { lineageBaru: string; lineageLama: string }[] => {
+      const mentah = String(formData.get("padanan") ?? "").trim();
+      if (!mentah) return [];
+      const parsed = z
+        .array(z.object({ lineageBaru: z.string().min(1).max(300), lineageLama: z.string().min(1).max(300) }))
+        .max(500)
+        .safeParse(JSON.parse(mentah));
+      return parsed.success ? parsed.data : [];
+    })();
     let templateAdendum: Awaited<ReturnType<typeof bacaTemplateAdendum>> | null = null;
     if (mode === "draft") {
       // Nama sheet DULU, isinya belakangan. Memuat seluruh workbook cuma untuk
@@ -276,6 +306,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       unitPrice: unknown;
       amount: bigint;
     }[] = [];
+    let padananDipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[] = [];
+    let padananDitolak: { lineageBaru: string; lineageLama: string; sebab: string }[] = [];
+    let padananBaruTersedia: { lineageAsli: string; code: string; name: string }[] = [];
     if (activeRevision) {
       aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
@@ -303,8 +336,31 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           name: n.name,
           unit: n.unit,
         })),
+        { padanan: padananDiminta },
       );
       nodes = cocok.nodes;
+      padananDipakai = cocok.padananDipakai;
+      padananDitolak = cocok.padananDitolak;
+      padananBaruTersedia = cocok.itemBaruAsli;
+      if (cocok.padananDipakai.length > 0) {
+        warnings.push(
+          `${cocok.padananDipakai.length} item DIPETAKAN MANUAL ke item kontrak: ` +
+            cocok.padananDipakai
+              .slice(0, 8)
+              .map((p) => `"${p.namaLama}" → ${p.code} "${p.name}"`)
+              .join("; ") +
+            (cocok.padananDipakai.length > 8 ? `; +${cocok.padananDipakai.length - 8} lainnya` : "") +
+            `. Realisasi harian item kontrak itu ikut berpindah ke item barunya – tidak ada baris laporan yang diubah, ` +
+            `yang berpindah hanya identitas item (lineage).`,
+        );
+      }
+      if (cocok.padananDitolak.length > 0) {
+        warnings.push(
+          `PERHATIAN – ${cocok.padananDitolak.length} pemetaan TIDAK bisa dipakai: ` +
+            cocok.padananDitolak.slice(0, 5).map((p) => p.sebab).join(" ") +
+            (cocok.padananDitolak.length > 5 ? ` +${cocok.padananDitolak.length - 5} lainnya.` : ""),
+        );
+      }
       if (cocok.digeser.length > 0) {
         const contoh = cocok.digeser
           .slice(0, 8)
@@ -424,7 +480,30 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
+    /*
+     * Kandidat sisi LAMA: item kontrak yang sudah punya realisasi tapi di
+     * berkas ini dinolkan atau hilang. Dua-duanya keadaan yang sama bagi user
+     * ("pekerjaannya pindah ke baris lain"), jadi ditawarkan bersama - hanya
+     * sebabnya yang dibedakan supaya kalimat di layar tidak mengarang.
+     */
+    const padananLama = beda
+      ? [
+          ...beda.volumeBerubah
+            .filter((v) => v.realisasi > 0 && (v.ke ?? 0) === 0)
+            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, name: v.name, realisasi: v.realisasi, sebab: "dinolkan" as const })),
+          ...beda.itemHilang
+            .filter((v) => v.realisasi > 0)
+            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, name: v.name, realisasi: v.realisasi, sebab: "hilang" as const })),
+        ]
+      : [];
+
     const preview: ImportPreview = {
+      padanan: {
+        lama: padananLama,
+        baru: padananBaruTersedia,
+        dipakai: padananDipakai,
+        ditolak: padananDitolak,
+      },
       fileName: file.name,
       bytes: file.size,
       sha256,
