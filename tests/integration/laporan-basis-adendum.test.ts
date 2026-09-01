@@ -380,6 +380,18 @@ describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () =
     expect(resmi.get(LK_BARU)).toBeGreaterThan(0);
   });
 
+  /*
+   * DIUJI LAGI. Kesimpulan sebelumnya – "audit tidak bisa diperiksa di uji
+   * integrasi karena `headers()` selalu gagal" – benar sebabnya, tapi salah
+   * kesimpulannya: yang kurang bukan kemampuan mengujinya, melainkan
+   * `vi.mock("next/headers", …)` di kepala berkas ini. Belasan berkas integrasi
+   * lain sudah memakainya (`return-flow`, `kendala-satu-pintu`, …). Dengan mock
+   * itu `audit()` menulis seperti di produksi, dan asersi di bawah kembali
+   * memeriksa hal yang memang perlu dijaga.
+   *
+   * Menghapus asersinya berarti membuang satu-satunya bukti bahwa angka yang
+   * menjelaskan lompatan progres benar-benar tercatat.
+   */
   it("audit menyebut berapa baris laporan yang ikut naik", async () => {
     const log = await db.auditLog.findFirstOrThrow({
       where: { action: "rab.revision_activate" },
