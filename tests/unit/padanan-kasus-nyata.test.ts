@@ -118,3 +118,71 @@ describe("beberapa pasangan sekaligus", () => {
     expect(cari(h, `${G3}#b`).lineageKey).toBe("IV#IV.1#2#a");
   });
 });
+
+/*
+ * KASUS NYATA KEDUA (user 2026-09-03, tangkapan layar Excel + layar MARLIN).
+ *
+ * Pemetaan yang dipilih user DITOLAK dengan alasan:
+ *
+ *   Beda kategori: "Pekerjaan Galian Tanah sampai dengan 1 m" ada di IV,
+ *   "Pekerjaan Galian Tanah keras s.d 1 m" di III.
+ *
+ * Padahal di berkasnya kedua baris jelas berada dalam SATU kategori yang sama -
+ * "PEKERJAAN DINDING PENAHAN TANAH". Yang bergeser cuma NOMOR ROMAWI-nya:
+ * kategori itu bernomor IV di RAB kontrak dan III di berkas baru, karena ada
+ * kategori yang disisipkan atau dibuang di atasnya.
+ *
+ * Membandingkan KODE kategori karena itu menolak pemetaan yang sah - persis
+ * kesalahan yang sudah diperbaiki untuk ITEM (DECISIONS 489: identitas dikenali
+ * dari pekerjaannya, bukan dari nomor urutnya), tapi belum untuk KATEGORI.
+ */
+describe("KASUS USER 2: kategori sama, nomor romawinya bergeser IV -> III", () => {
+  const KAT_LAMA = "IV";
+  const KAT_BARU = "III";
+  const NAMA_KAT = "PEKERJAAN DINDING PENAHAN TANAH";
+
+  const kontrak: NodeLamaCocok[] = [
+    nodeLama(KAT_LAMA, null, "kategori", "IV", NAMA_KAT),
+    nodeLama(`${KAT_LAMA}#IV.1`, KAT_LAMA, "sub", "IV.1", "Pekerjaan Turap Beton"),
+    nodeLama(`${KAT_LAMA}#IV.1#1`, `${KAT_LAMA}#IV.1`, "grup", "1", "Pekerjaan Tapak Beton Menerus 30 x 140 cm"),
+    nodeLama(`${KAT_LAMA}#IV.1#1#a`, `${KAT_LAMA}#IV.1#1`, "item", "a", "Pekerjaan Galian Tanah sampai dengan 1 m"),
+  ];
+
+  const berkas: FlatNode[] = [
+    nodeBaru(KAT_BARU, null, "kategori", "III", NAMA_KAT, null),
+    nodeBaru(`${KAT_BARU}#III.1`, KAT_BARU, "sub", "III.1", "Pekerjaan Turap Beton", null),
+    nodeBaru(`${KAT_BARU}#III.1#1`, `${KAT_BARU}#III.1`, "grup", "1", "Pekerjaan Tapak Beton Menerus 30 x 140 cm", null),
+    nodeBaru(`${KAT_BARU}#III.1#1#a`, `${KAT_BARU}#III.1#1`, "item", "a", "Pekerjaan Galian Tanah sampai dengan 1 m", null),
+    nodeBaru(`${KAT_BARU}#III.1#3`, `${KAT_BARU}#III.1`, "grup", "3", "Pekerjaan Pondasi Batu Belah", null),
+    nodeBaru(`${KAT_BARU}#III.1#3#a`, `${KAT_BARU}#III.1#3`, "item", "a", "Pekerjaan Galian Tanah keras s.d 1 m", 32.15),
+  ];
+
+  it("kategori dikenali lewat NAMA, jadi pemetaannya DITERIMA", () => {
+    const h = samakanLineage(berkas, kontrak, {
+      padanan: [{ lineageBaru: `${KAT_BARU}#III.1#3#a`, lineageLama: `${KAT_LAMA}#IV.1#1#a` }],
+    });
+    expect(h.padananDitolak).toEqual([]);
+    expect(h.padananDipakai).toHaveLength(1);
+  });
+
+  it("3.a mewarisi kunci 1.a walau nomor kategorinya bergeser", () => {
+    const h = samakanLineage(berkas, kontrak, {
+      padanan: [{ lineageBaru: `${KAT_BARU}#III.1#3#a`, lineageLama: `${KAT_LAMA}#IV.1#1#a` }],
+    });
+    const baru = h.nodes.find((n) => n.name === "Pekerjaan Galian Tanah keras s.d 1 m")!;
+    expect(baru.lineageKey).toBe(`${KAT_LAMA}#IV.1#1#a`);
+  });
+
+  it("kategori yang benar-benar BERBEDA tetap ditolak", () => {
+    const kontrakDua: NodeLamaCocok[] = [
+      ...kontrak,
+      nodeLama("V", null, "kategori", "V", "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"),
+      nodeLama("V#1", "V", "item", "1", "Pekerjaan Bouwplank dan Uitzet"),
+    ];
+    const h = samakanLineage(berkas, kontrakDua, {
+      padanan: [{ lineageBaru: `${KAT_BARU}#III.1#3#a`, lineageLama: "V#1" }],
+    });
+    expect(h.padananDipakai).toEqual([]);
+    expect(h.padananDitolak[0].sebab).toMatch(/kategori/i);
+  });
+});
