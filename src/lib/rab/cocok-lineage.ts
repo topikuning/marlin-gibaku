@@ -176,6 +176,54 @@ export function samakanLineage(
    * dikunci, giliran nama maupun nomor tidak bisa lagi menyentuhnya.
    */
   const barisBerkas = new Map(nodes.map((n) => [n.lineageKey, n]));
+
+  /*
+   * Peta KATEGORI berkas → kategori kontrak, dicocokkan lewat NAMA.
+   *
+   * Nomor romawi kategori lazim bergeser antar revisi: satu kategori disisipkan
+   * atau dibuang, dan semua yang di bawahnya bergeser. Kasus nyata user
+   * 2026-09-03: "PEKERJAAN DINDING PENAHAN TANAH" bernomor IV di RAB kontrak
+   * dan III di berkas adendumnya. Membandingkan KODE kategori karena itu
+   * menolak pemetaan yang sah — persis kesalahan yang sudah diperbaiki untuk
+   * ITEM (DECISIONS 489: identitas dikenali dari pekerjaannya, bukan dari nomor
+   * urutnya), tapi belum untuk KATEGORI.
+   *
+   * Penelusuran pohon sendiri SUDAH menyelesaikannya: giliran nama di tingkat
+   * akar memberi kategori berkas itu kunci milik kategori kontrak. Peta ini
+   * hanya membuat pemeriksaan di muka melihat hal yang sama.
+   */
+  const kategoriBerkasKeKontrak = new Map<string, string>();
+  {
+    const akarBerkas = nodes.filter((n) => n.parentLineageKey == null);
+    const akarKontrak = lama.filter((x) => x.parentLineageKey == null);
+    for (const n of akarBerkas) {
+      const nama = normalNama(n.name);
+      /*
+       * TUNGGAL di kedua sisi, sama seperti disiplin pencocokan item.
+       *
+       * Nama kategori bisa kembar — pertanyaan user 2026-09-03 setelah membaca
+       * berkasnya sendiri, di mana satu nama pekerjaan muncul di dua kategori
+       * berbeda. Mengambil yang pertama berarti melempar koin atas milik siapa
+       * realisasi sebuah item, dan taruhannya angka resmi. Kalau kembar,
+       * pemetaan lintas-kode ditolak dan pemakainya diberi tahu — bukan
+       * ditebak diam-diam.
+       */
+      if (akarBerkas.filter((x) => normalNama(x.name) === nama).length !== 1) continue;
+      const kandidat = akarKontrak.filter((x) => normalNama(x.name) === nama);
+      if (kandidat.length !== 1) continue;
+      kategoriBerkasKeKontrak.set(n.lineageKey, kandidat[0].lineageKey);
+    }
+  }
+  /** Akar kunci berkas dan akar kunci kontrak menunjuk KATEGORI yang sama? */
+  const kategoriSetara = (lineageBaru: string, lineageLama: string): boolean => {
+    const aBaru = akar(lineageBaru);
+    const aLama = akar(lineageLama);
+    return aBaru === aLama || kategoriBerkasKeKontrak.get(aBaru) === aLama;
+  };
+  const namaKategori = (kunci: string, dariBerkas: boolean): string => {
+    const n = dariBerkas ? barisBerkas.get(akar(kunci)) : lamaByKey.get(akar(kunci));
+    return n ? `${akar(kunci)} ${n.name}` : akar(kunci);
+  };
   const reservasi = new Map<string, NodeLamaCocok>();
   for (const p of opts.padanan ?? []) {
     const tolak = (sebab: string) => padananDitolak.push({ ...p, sebab });
@@ -205,9 +253,10 @@ export function samakanLineage(
      * lazim pindah grup dalam kategori yang sama, dan itulah bentuk adendum
      * yang dilaporkan user.
      */
-    if (akar(p.lineageLama) !== akar(p.lineageBaru)) {
+    if (!kategoriSetara(p.lineageBaru, p.lineageLama)) {
       tolak(
-        `Beda kategori: "${target.name}" ada di ${akar(p.lineageLama)}, "${nBaru.name}" di ${akar(p.lineageBaru)}. ` +
+        `Beda kategori: "${target.name}" ada di ${namaKategori(p.lineageLama, false)}, ` +
+          `"${nBaru.name}" di ${namaKategori(p.lineageBaru, true)}. ` +
           `Pemetaan lintas kategori memindahkan realisasinya di blanko KKP.`,
       );
       continue;
