@@ -26321,6 +26321,57 @@ berhenti membaca peringatan.
 
 ---
 
+## (baru) · Kategori pada pemetaan manual dikenali lewat NAMA, bukan nomor romawinya (2026-09-03)
+
+**Laporan user 2026-09-03** dengan tangkapan layar berkas Excel dan layar
+MARLIN. Pemetaan yang ia pilih DITOLAK:
+
+```
+1 pemetaan tidak bisa dipakai: Beda kategori:
+"Pekerjaan Galian Tanah sampai dengan 1 m" ada di IV,
+"Pekerjaan Galian Tanah keras s.d 1 m" di III.
+```
+
+Padahal di berkasnya kedua baris jelas berada dalam **satu kategori yang sama** —
+`PEKERJAAN DINDING PENAHAN TANAH`. Yang bergeser hanya **nomor romawinya**:
+kategori itu bernomor **IV** di RAB kontrak dan **III** di berkas adendumnya,
+karena ada kategori yang disisipkan atau dibuang di atasnya.
+
+**Sebabnya** pemeriksaan kesahihan pemetaan membandingkan **kode** akar kunci
+(`lineageKey.split("#")[0]`). Itu persis kesalahan yang sudah diperbaiki untuk
+ITEM di DECISIONS 489 — *identitas dikenali dari pekerjaannya, bukan dari nomor
+urutnya* — tapi belum untuk KATEGORI.
+
+Ironisnya penelusuran pohon **sudah** menyelesaikannya sendiri: giliran nama di
+tingkat akar memberi kategori berkas itu kunci milik kategori kontrak, sehingga
+item di dalamnya memang berakhir ber-akar `IV`. Yang salah hanya pemeriksaan di
+muka, yang dipindahkan ke sana saat reservasi dibuat global sehari sebelumnya —
+versi sebelumnya membandingkan `indukFinal` dan justru benar untuk kasus ini.
+
+**Keputusan**: pemeriksaan memakai peta kategori berkas → kategori kontrak yang
+dicocokkan lewat `normalNama`, dengan kode sebagai jalur cepat. Pesan
+penolakannya ikut menyebut NAMA kategori, bukan cuma nomornya, supaya alasannya
+bisa dinilai sendiri oleh pembacanya.
+
+**Yang TIDAK berubah**: kategori yang benar-benar berbeda tetap ditolak. Akar
+kunci menentukan kategori di enam tempat lain, jadi mewarisi kunci lintas
+kategori memindahkan realisasinya di blanko KKP tanpa ada yang memindahkannya.
+
+**Pengaman yang menyertainya**: pencocokan nama kategori dituntut **TUNGGAL di
+kedua sisi**, sama seperti disiplin pencocokan item. Pertanyaan user setelah
+membaca berkasnya sendiri menunjuk ke sini: nama pekerjaan memang berulang antar
+bangunan ("Pekerjaan Galian Tanah keras s.d 1 m" ada di III grup 3 DAN IV grup
+3), dan nama kategori pun bisa kembar. Mengambil yang pertama berarti melempar
+koin atas milik siapa realisasi sebuah item, dan taruhannya angka resmi. Kalau
+kembar, pemetaan lintas-kode ditolak dan pemakainya diberi tahu.
+
+**Catatan proses**: ini regresi ketiga berturut-turut pada permukaan yang sama,
+dan ketiganya lolos karena ujinya menguji bentuk yang sudah dibayangkan penulis,
+bukan bentuk berkas yang benar-benar dipakai. Yang menemukan ketiganya adalah
+tangkapan layar user, bukan gerbang mana pun.
+
+---
+
 ## (baru) · Laporan harian menyesuaikan volume baru saat adendum DIAKTIFKAN (2026-09-03)
 
 **Permintaan user 2026-09-03**: *"saat pemetaan manual itu konfirmasi, maka
