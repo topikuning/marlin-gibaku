@@ -1,6 +1,9 @@
 # Override transitif utk menutup advisory keamanan (CI: pnpm audit --prod --high):
 #   sharp   — dedupe salinan next→sharp ke versi patched (libvips) yg sama dgn dep langsung
-#   fast-uri — patch host-confusion (transitif Prisma), >=3.1.4
+#   fast-uri — patch host-confusion (transitif Prisma). Dinaikkan 3.1.5 → 3.1.6
+#     pada 2026-09-03: advisory GHSA-jqff-g426-hqxp memperluas rentang rentan
+#     menjadi >=3.1.3 <3.1.6 (kanonikalisasi IDN dilewati pada scheme), jadi
+#     tambalan lama ikut terkena dan gerbang audit menolak SEMUA PR.
 #   postcss — patch arbitrary file read via sourceMappingURL (transitif Next), >=8.5.12
 #   brace-expansion@5 — patch DoS unbounded expansion (transitif exceljs→minimatch@10), GHSA-mh99-v99m-4gvg.
 #     HANYA lini v5 yg di-bump ke >=5.0.8 (satu-satunya instance yg benar-benar rentan). Lini v1
@@ -27,7 +30,7 @@
 #     kerentanan yang menganggur tetap kerentanan.
 overrides:
   sharp: 0.35.3
-  fast-uri@3: 3.1.5
+  fast-uri@3: 3.1.6
   postcss: '>=8.5.12'
   brace-expansion@1: 1.1.18
   brace-expansion@2: 2.1.4
@@ -55,7 +58,7 @@ minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
   - nanoid@3.3.18
-  - fast-uri@3.1.5
+  - fast-uri@3.1.6
   - '@aws-sdk/client-s3@3.1086.0'
   - '@aws-sdk/credential-provider-node@3.972.67'
   - '@aws-sdk/s3-request-presigner@3.1086.0'

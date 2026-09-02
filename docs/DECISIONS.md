@@ -26369,3 +26369,52 @@ kembar, pemetaan lintas-kode ditolak dan pemakainya diberi tahu.
 dan ketiganya lolos karena ujinya menguji bentuk yang sudah dibayangkan penulis,
 bukan bentuk berkas yang benar-benar dipakai. Yang menemukan ketiganya adalah
 tangkapan layar user, bukan gerbang mana pun.
+
+---
+
+## (baru) · Pemetaan manual TIDAK menambah volume, dan itu dikatakan sebelum dipilih (2026-09-03)
+
+**Pertanyaan user 2026-09-03**: *"apa maksudmu, padahal penambahan item baru di
+kategori III cuma 32,15 bagaimana laporan harian yang sudah diinput menyikapi
+ini"*.
+
+Pertanyaannya menangkap kalimatku yang benar tapi tidak lengkap — *"realisasi
+45,7 m³ akan ikut"* — dan ketidaklengkapan itu menyesatkan.
+
+**Yang sebenarnya terjadi.** Pemetaan memindahkan IDENTITAS item, bukan angka.
+Laporan hariannya tidak disentuh sama sekali: `volumeDone` tetap 45,7 dan tidak
+ada satu baris pun yang ditulis ulang. Yang berpindah adalah dasar kontraknya —
+dan baris pengganti di berkas itu cuma **32,15**.
+
+Diverifikasi pada berkas asli user (`DRAFT MC0 KNMP KRANJI`):
+
+```
+volume kontrak    : 45,7
+volume di berkas  : 32,1493
+sudah dikerjakan  : 45,7
+DI BAWAH realisasi: true
+selisih tak berdasar: 13,5507 m³
+```
+
+Jadi 13,55 m³ pekerjaan yang sudah dilaporkan kehilangan dasar bayarnya. Panel
+merah "volume turun DI BAWAH yang sudah dikerjakan" memang menyala — tapi baru
+SESUDAH pratinjau dihitung ulang, dan pemilihnya sendiri diam saat pilihan itu
+dibuat.
+
+**Keputusan**:
+
+- `volume` baris pengganti ikut ditampilkan di daftar pilihan, jadi cukup
+  besarnya bisa dinilai **sebelum** dipilih.
+- Begitu pasangan dipilih dan volumenya lebih kecil daripada realisasi,
+  konsekuensinya disebut di tempat itu juga: berapa selisihnya, bahwa laporan
+  hariannya TIDAK berubah, dan dua jalan keluarnya (naikkan volume baris
+  pengganti di berkas, atau pasangkan ke baris lain).
+
+**Yang sengaja TIDAK dilakukan**: pemetaannya tidak ditolak. Volume yang belum
+cukup adalah keadaan yang sah di tengah penyusunan adendum — berkasnya masih
+bisa diperbaiki. Yang tidak boleh adalah menyimpannya tanpa pemakainya tahu.
+
+**Konsekuensi angka resmi bila tetap diaktifkan**: progres item itu terkunci di
+100% (`LEAST(1, Σvol/volRAB)`), dan blanko KKP menampilkan volume terpasang di
+atas volume kontrak. Pekerjaannya tetap tercatat; yang tidak ada adalah dasar
+bayar untuk selisihnya.
