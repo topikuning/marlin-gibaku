@@ -1,0 +1,120 @@
+// KASUS NYATA user 2026-09-03: satu GRUP dinolkan, grup pengganti disisipkan.
+//
+// Bentuk berkasnya (tangkapan layar):
+//
+//   IV    PEKERJAAN DINDING PENAHAN TANAH
+//   IV.1    Pekerjaan Turap Beton
+//   1         Pekerjaan Tapak Beton Menerus 30 x 140 cm
+//   a           Pekerjaan Galian Tanah sampai dengan 1 m   103,30 -> "-"
+//   b..g        ...                                        semua  -> "-"
+//   2         Pekerjaan Dinding Beton t = 20 cm
+//   a..e        ...                                        semua  -> "-"
+//   3         Pekerjaan Pondasi Batu Belah                 (BARU)
+//   a           Pekerjaan Galian Tanah keras s.d 1 m       "-"    -> 114,85
+//   b..f        ...
+//
+// Panah user menunjuk 1.a -> 3.a: pekerjaan yang sama, nama berbeda, nomor
+// berbeda, DAN induk berbeda (grup 1 vs grup 3). Tidak ada satu pun sinyal
+// otomatis yang tersisa.
+//
+// Yang diuji: apakah pemetaan manual benar-benar bisa menyeberangi GRUP selama
+// masih dalam KATEGORI yang sama - bukan asumsi bahwa "seharusnya bisa".
+import { describe, expect, it } from "vitest";
+import { samakanLineage, type NodeLamaCocok } from "@/lib/rab/cocok-lineage";
+import type { FlatNode } from "@/lib/rab/flatten";
+
+const K = "IV";
+const S = "IV#IV.1";
+const G1 = "IV#IV.1#1";
+const G3 = "IV#IV.1#3";
+
+const nodeLama = (lineageKey: string, parent: string | null, kind: NodeLamaCocok["kind"], code: string, name: string): NodeLamaCocok => ({
+  lineageKey, parentLineageKey: parent, kind, code, name, unit: "m3",
+});
+
+/** RAB kontrak: kategori IV > sub IV.1 > grup 1 (a,b) dan grup 2 (a). */
+const KONTRAK: NodeLamaCocok[] = [
+  nodeLama(K, null, "kategori", "IV", "PEKERJAAN DINDING PENAHAN TANAH"),
+  nodeLama(S, K, "sub", "IV.1", "Pekerjaan Turap Beton"),
+  nodeLama(G1, S, "grup", "1", "Pekerjaan Tapak Beton Menerus 30 x 140 cm"),
+  nodeLama(`${G1}#a`, G1, "item", "a", "Pekerjaan Galian Tanah sampai dengan 1 m"),
+  nodeLama(`${G1}#b`, G1, "item", "b", "Pekerjaan Cerucuk Kayu Dolken 6 - 8 cm"),
+  nodeLama("IV#IV.1#2", S, "grup", "2", "Pekerjaan Dinding Beton t = 20 cm"),
+  nodeLama("IV#IV.1#2#a", "IV#IV.1#2", "item", "a", "Pekerjaan Bekesting Dinding 5 kali pakai (2 sisi)"),
+];
+
+const nodeBaru = (
+  lineageKey: string, parent: string | null, kind: FlatNode["kind"], code: string, name: string, volume: number | null,
+): FlatNode => ({
+  kind, code, name, volume, unit: "m3", unitPrice: 81_138.73,
+  amount: BigInt(Math.round((volume ?? 0) * 81_138.73)),
+  lineageKey, parentLineageKey: parent, sortOrder: 0,
+});
+
+/** Berkas: grup 1 & 2 DINOLKAN, grup 3 baru berisi penggantinya. */
+const BERKAS: FlatNode[] = [
+  nodeBaru(K, null, "kategori", "IV", "PEKERJAAN DINDING PENAHAN TANAH", null),
+  nodeBaru(S, K, "sub", "IV.1", "Pekerjaan Turap Beton", null),
+  nodeBaru(G1, S, "grup", "1", "Pekerjaan Tapak Beton Menerus 30 x 140 cm", null),
+  // Sel "-" di Excel terbaca `null`, bukan 0 - itu yang benar-benar terjadi.
+  nodeBaru(`${G1}#a`, G1, "item", "a", "Pekerjaan Galian Tanah sampai dengan 1 m", null),
+  nodeBaru(`${G1}#b`, G1, "item", "b", "Pekerjaan Cerucuk Kayu Dolken 6 - 8 cm", null),
+  nodeBaru("IV#IV.1#2", S, "grup", "2", "Pekerjaan Dinding Beton t = 20 cm", null),
+  nodeBaru("IV#IV.1#2#a", "IV#IV.1#2", "item", "a", "Pekerjaan Bekesting Dinding 5 kali pakai (2 sisi)", null),
+  nodeBaru(G3, S, "grup", "3", "Pekerjaan Pondasi Batu Belah", null),
+  nodeBaru(`${G3}#a`, G3, "item", "a", "Pekerjaan Galian Tanah keras s.d 1 m", 114.85),
+  nodeBaru(`${G3}#b`, G3, "item", "b", "Pekerjaan Urugan Pasir urug t = 7 cm", 15.42),
+];
+
+const cari = (h: { nodes: FlatNode[] }, lineageAsli: string) =>
+  h.nodes.find((n) => n.name === BERKAS.find((b) => b.lineageKey === lineageAsli)!.name)!;
+
+describe("tanpa pemetaan: grup pengganti terbaca sebagai item baru", () => {
+  it("3.a tidak mewarisi apa pun, dan 1.a tetap memegang kuncinya", () => {
+    const h = samakanLineage(BERKAS, KONTRAK);
+    expect(cari(h, `${G3}#a`).lineageKey).toBe(`${G3}#a`);
+    expect(cari(h, `${G1}#a`).lineageKey).toBe(`${G1}#a`);
+    // Item grup 3 ditawarkan sebagai kandidat pasangan.
+    expect(h.itemBaruAsli.map((x) => x.lineageAsli)).toContain(`${G3}#a`);
+  });
+});
+
+describe("KASUS USER: 1.a dipetakan ke 3.a - beda nama, beda nomor, beda GRUP", () => {
+  const h = samakanLineage(BERKAS, KONTRAK, {
+    padanan: [{ lineageBaru: `${G3}#a`, lineageLama: `${G1}#a` }],
+  });
+
+  it("pemetaan DITERIMA - grup boleh berbeda selama kategorinya sama", () => {
+    expect(h.padananDitolak).toEqual([]);
+    expect(h.padananDipakai).toHaveLength(1);
+  });
+
+  it("3.a mewarisi kunci 1.a, jadi realisasi 60 m3 ikut ke pekerjaan penggantinya", () => {
+    expect(cari(h, `${G3}#a`).lineageKey).toBe(`${G1}#a`);
+  });
+
+  it("baris 1.a yang dinolkan tetap tercantum, dengan kunci segar", () => {
+    const tua = cari(h, `${G1}#a`);
+    expect(tua.lineageKey).not.toBe(`${G1}#a`);
+    expect(tua.volume).toBeNull();
+  });
+
+  it("saudara yang TIDAK dipetakan tidak ikut bergeser", () => {
+    expect(cari(h, `${G1}#b`).lineageKey).toBe(`${G1}#b`);
+    expect(cari(h, `${G3}#b`).lineageKey).toBe(`${G3}#b`);
+  });
+});
+
+describe("beberapa pasangan sekaligus", () => {
+  it("dua item dari dua GRUP berbeda dipetakan ke grup pengganti yang sama", () => {
+    const h = samakanLineage(BERKAS, KONTRAK, {
+      padanan: [
+        { lineageBaru: `${G3}#a`, lineageLama: `${G1}#a` },
+        { lineageBaru: `${G3}#b`, lineageLama: "IV#IV.1#2#a" },
+      ],
+    });
+    expect(h.padananDitolak).toEqual([]);
+    expect(cari(h, `${G3}#a`).lineageKey).toBe(`${G1}#a`);
+    expect(cari(h, `${G3}#b`).lineageKey).toBe("IV#IV.1#2#a");
+  });
+});

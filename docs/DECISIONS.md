@@ -26210,3 +26210,58 @@ DIHITUNG sebagai pekerjaan"* kini hanya menyala bila barisnya benar-benar akan
 dihitung. Di berkas CCO, sel A–F yang ter-merge membuat label "JUMLAH" terbaca
 sebagai kode, barisnya sebenarnya dibuang, dan peringatan lama tetap menyala —
 menyuruh user mencurigai angka yang justru benar.
+
+---
+
+## (baru) · Pemetaan manual dipesan lebih dulu untuk SELURUH pohon (2026-09-03)
+
+**Laporan user 2026-09-03** dengan tangkapan layar berkas Excel-nya:
+
+```
+IV    PEKERJAAN DINDING PENAHAN TANAH
+IV.1    Pekerjaan Turap Beton
+1         Pekerjaan Tapak Beton Menerus 30 x 140 cm
+a           Pekerjaan Galian Tanah sampai dengan 1 m    103,30 → "-"
+b..g        …                                           semua  → "-"
+2         Pekerjaan Dinding Beton t = 20 cm             semua  → "-"
+3         Pekerjaan Pondasi Batu Belah                  (BARU)
+a           Pekerjaan Galian Tanah keras s.d 1 m        "-"    → 114,85
+```
+
+Pertanyaannya: *"apakah kejadian seperti ini sudah bisa kita handle dengan
+perubahanmu kemarin?"*
+
+**Jawabannya: BELUM.** Diuji dengan pohon yang meniru bentuk itu, dan pemetaan
+`1.a → 3.a` **DITOLAK** — bukan diterima diam-diam, tapi tetap gagal.
+
+**Sebabnya** halus dan hanya muncul pada bentuk berkas seperti ini. Pohon
+ditelusuri per kelompok saudara menurut urutan dokumen. Grup 1 diproses lebih
+dulu, dan baris `1.a` yang **dinolkan masih bernama sama persis** dengan item
+kontraknya — jadi ia langsung mengklaim item itu lewat pencocokan nama. Waktu
+giliran grup 3 tiba, pasangan yang dipilih user sudah diambil oleh baris yang
+justru sedang ditinggalkan.
+
+Versi pertama pemetaan manual menempatkan "giliran 0" di dalam pemrosesan tiap
+kelompok. Itu cukup untuk pasangan yang berada dalam SATU kelompok — dan uji
+pertamanya memang hanya menguji bentuk itu, sehingga lolos.
+
+**Keputusan**: target pemetaan **dikunci untuk seluruh pohon sebelum penelusuran
+dimulai**. Setelah dikunci, giliran nama maupun nomor tidak bisa lagi
+menyentuhnya, dari kelompok mana pun. Seluruh pemeriksaan kesahihan ikut pindah
+ke muka (item kontrak ada · baris berkas ada · belum diklaim · jenis baris sama ·
+kategori sama), sehingga penelusuran pohon tinggal memakai hasilnya.
+
+**Batasnya, dan alasannya**:
+
+- **GRUP dan SUB boleh berbeda.** Pekerjaan yang sama memang lazim pindah grup
+  dalam kategori yang sama — dan itulah persis bentuk adendum yang dilaporkan.
+- **KATEGORI tidak boleh berbeda.** Akar `lineageKey` adalah kode kategori, dan
+  ia menentukan kategori di enam tempat lain. Mewarisi kunci lintas kategori
+  memindahkan realisasinya di blanko KKP tanpa ada yang memindahkannya.
+- **Satu lawan satu.** Satu item kontrak hanya bisa dipetakan ke satu baris
+  baru. Pekerjaan yang dipecah menjadi dua baris belum tertangani; yang kedua
+  tetap item baru tanpa realisasi.
+
+**Konsekuensi**: baris lama yang dinolkan kehilangan kuncinya dan masuk sebagai
+item baru bernilai nol. Itu benar — identitasnya memang sudah pindah — dan
+nilainya nol sehingga tidak ada rupiah yang bergeser karenanya.
