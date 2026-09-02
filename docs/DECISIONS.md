@@ -26055,7 +26055,7 @@ perbandingan di `nilaiPersetujuan`.
 
 ---
 
-## (baru) · Peringatan harga diam saat tidak ada rupiah yang berpindah (2026-09-02)
+## 497 · 2026-09-02 · Peringatan harga diam saat tidak ada rupiah yang berpindah
 
 **Koreksi user 2026-09-02**: *"jangan mempermasalahkan jika harga berubah 0 pada
 satu item jika volume / qty nya juga 0."*
@@ -26076,7 +26076,7 @@ kosong `dampakRupiah` diambil dari pergerakan `amount`, bukan dari harga × 0.
 
 ---
 
-## (baru) · Kolom SATUAN tidak lagi terbaca sebagai kolom HARGA SATUAN (2026-09-02)
+## 498 · 2026-09-02 · Kolom SATUAN tidak lagi terbaca sebagai kolom HARGA SATUAN
 
 **Konteks**: audit 2026-09-01. Penyaring kolom harga di `hps-parser` berbunyi
 `if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;` lalu
@@ -26100,7 +26100,7 @@ belum. Kolom "HARGA SATUAN" tidak terkena karena labelnya dimulai "HARGA".
 
 ---
 
-## (baru) · Satu pembaca angka untuk seluruh jalur impor Excel (2026-09-02)
+## 499 · 2026-09-02 · Satu pembaca angka untuk seluruh jalur impor Excel
 
 **Konteks**: audit 2026-09-01 menemukan tiga pembaca angka berbeda, dua di
 antaranya berlawanan konvensi desimal pada sel yang sama.
@@ -26138,7 +26138,7 @@ yang memutuskan apa artinya baris tanpa angka.
 
 ---
 
-## (baru) · Berkas CCO terbitan MARLIN bisa diimpor ulang (2026-09-02)
+## 500 · 2026-09-02 · Berkas CCO terbitan MARLIN bisa diimpor ulang
 
 **Konteks**: `cco-xlsx` menulis semua kolom turunan sebagai `{ formula }`
 **tanpa** `result`. Pembaca Excel mana pun kecuali Excel sendiri hanya bisa
@@ -26159,7 +26159,7 @@ dipasang di berkas ini.
 
 ---
 
-## (baru) · Σ item yang terbaca diadu dengan total yang ditulis berkas (2026-09-02)
+## 501 · 2026-09-02 · Σ item yang terbaca diadu dengan total yang ditulis berkas
 
 **Pertanyaan user 2026-09-02**: *"maksud -569.812.788 itu apa? sedangkan kalau
 dihitung-hitung selisih cuma 100jtan."*
@@ -26188,7 +26188,7 @@ dengan Σ item yang terbaca. Selisih di atas 0,5% disebut, lengkap dengan arahny
 
 ---
 
-## (baru) · Volume adendum negatif ditolak, dan HAPUS tidak menuntut ejaan persis (2026-09-02)
+## 502 · 2026-09-02 · Volume adendum negatif ditolak, dan HAPUS tidak menuntut ejaan persis
 
 **Konteks**: audit 2026-09-01 pada `adendum-template-parse`.
 
@@ -26213,7 +26213,7 @@ menyuruh user mencurigai angka yang justru benar.
 
 ---
 
-## (baru) · Pemetaan manual dipesan lebih dulu untuk SELURUH pohon (2026-09-03)
+## 503 · 2026-09-03 · Pemetaan manual dipesan lebih dulu untuk SELURUH pohon
 
 **Laporan user 2026-09-03** dengan tangkapan layar berkas Excel-nya:
 
@@ -26268,7 +26268,7 @@ nilainya nol sehingga tidak ada rupiah yang bergeser karenanya.
 
 ---
 
-## (baru) · Panel harga menuntut DUA syarat: harganya beda, DAN bedanya memindahkan rupiah (2026-09-03)
+## 504 · 2026-09-03 · Panel harga menuntut DUA syarat: harganya beda, DAN bedanya memindahkan rupiah
 
 **Laporan user 2026-09-03** dengan tangkapan layar pratinjau impor:
 
