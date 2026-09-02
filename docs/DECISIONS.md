@@ -26265,3 +26265,56 @@ kategori sama), sehingga penelusuran pohon tinggal memakai hasilnya.
 **Konsekuensi**: baris lama yang dinolkan kehilangan kuncinya dan masuk sebagai
 item baru bernilai nol. Itu benar — identitasnya memang sudah pindah — dan
 nilainya nol sehingga tidak ada rupiah yang bergeser karenanya.
+
+---
+
+## (baru) · Panel harga menuntut DUA syarat: harganya beda, DAN bedanya memindahkan rupiah (2026-09-03)
+
+**Laporan user 2026-09-03** dengan tangkapan layar pratinjau impor:
+
+```
+Nilai: Rp 8.542.625.857 → Rp 7.972.813.069 (−Rp 569.812.788)
+
+Harga satuan 61 item KONTRAK LAMA berubah
+Dampak neto −Rp 1.314.006.386 tanpa ada pekerjaan yang bertambah.
+
+Kontrak 3 Pekerjaan Urugan Makadam t = 30 cm – Rp 800.171,79
+File    3 Pekerjaan Urugan Makadam t = 30 cm – Rp 800.171,79  (−Rp 372.311.932)
+```
+
+Dua hal mustahil sekaligus: harganya **sama persis** di kedua sisi pada setiap
+baris, dan dampak neto panel ini (−Rp 1,31 M) **lebih besar** daripada
+pergerakan nilai seluruh berkas (−Rp 569 juta).
+
+**Sebabnya perbaikan sehari sebelumnya.** DECISIONS "Peringatan harga diam saat
+tidak ada rupiah yang berpindah" (2026-09-02) meringkas gerbangnya menjadi satu
+syarat, `dampakRupiah === 0n`, sementara untuk item bervolume nol `dampakRupiah`
+diambil dari selisih `amount`. Pada berkas adendum yang menolkan seluruh grup
+pekerjaan, `amount` memang anjlok — **bukan karena harganya, melainkan karena
+volumenya dinolkan.** Panel harga jadi menagih perubahan volume, yang sudah
+dilaporkan di daftarnya sendiri.
+
+Peringkasan itu benar untuk kasus yang sedang diperbaiki saat itu (harga 35.000
+lawan sel kosong pada item bervolume nol) dan salah untuk kasus ini. Ujinya pun
+hanya menutup kasus yang pertama.
+
+**Keputusan**: dua syarat, keduanya wajib.
+
+1. `hargaBeda` — harga memang berbeda pada presisi kolomnya (`Decimal(15,2)`),
+   sehingga nol dan kosong tetap satu keadaan yang sama.
+2. `dampakRupiah !== 0` — perbedaan itu benar-benar memindahkan rupiah.
+
+`dampakRupiah` dihitung menurut apa yang sebenarnya bergerak:
+
+- **volume baru ada** → selisih harga × volume baru. Inilah yang membuang beda
+  pembulatan tulis satu sen (kasus APAR 706.908,69 lawan 706.908,70).
+- **volume tidak bergerak** (kosong/nol di kedua sisi) → tidak ada volume yang
+  bisa dipakai mengalikan, jadi pergerakan `amount` sepenuhnya milik harga. Ini
+  yang menjaga item lump-sum tetap terlihat.
+- **volume BERUBAH menjadi nol/kosong** → yang memindahkan uang adalah
+  volumenya. Panel harga diam; daftar volume yang melaporkannya.
+
+**Konsekuensi**: dampak neto panel harga tidak bisa lagi melebihi pergerakan
+nilai berkas lewat baris yang volumenya dinolkan — dan itu dikunci uji
+tersendiri, karena angka mustahil seperti itu yang paling cepat membuat orang
+berhenti membaca peringatan.
