@@ -26052,3 +26052,269 @@ penandatangan. Pada kasus terburuk hanya satu orang lain yang benar-benar
 memeriksa. Itu masih memenuhi "dua orang" sebagaimana dinyatakan user, jadi
 tidak diubah sepihak; kalau kelak diminta lebih ketat, itu satu baris
 perbandingan di `nilaiPersetujuan`.
+
+---
+
+## 497 · 2026-09-02 · Peringatan harga diam saat tidak ada rupiah yang berpindah
+
+**Koreksi user 2026-09-02**: *"jangan mempermasalahkan jika harga berubah 0 pada
+satu item jika volume / qty nya juga 0."*
+
+Layar mencetak *"Kontrak 3.b Pancang Cerucuk Dolken – Rp 35.000 / File 3.b – –
+(+Rp 0)"*. Harga kontrak 35.000, sel harga di berkas kosong, volume nol di kedua
+sisi. Harga apa pun dikalikan nol tetap nol, jadi tidak ada nilai kontrak yang
+bergeser.
+
+Sebabnya cabang khusus yang kutambahkan sehari sebelumnya: untuk item bervolume
+kosong, gerbangnya jatuh ke perbandingan harga pada presisi simpan supaya
+perubahan harga item **lump-sum** tidak menguap. Cabang itu menangkap lebih dari
+yang dimaksud.
+
+**Keputusan**: SATU gerbang untuk semua bentuk item — `dampakRupiah === 0n`.
+Item lump-sum tetap terjaga tanpa cabang khusus, karena untuk item bervolume
+kosong `dampakRupiah` diambil dari pergerakan `amount`, bukan dari harga × 0.
+
+---
+
+## 498 · 2026-09-02 · Kolom SATUAN tidak lagi terbaca sebagai kolom HARGA SATUAN
+
+**Konteks**: audit 2026-09-01. Penyaring kolom harga di `hps-parser` berbunyi
+`if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;` lalu
+`return /HARGA|NILAI|SATUAN/.test(s);`.
+
+`/^SAT\b/` **tidak pernah** cocok dengan `"SATUAN"`: `\b` menuntut batas kata
+sesudah "SAT", padahal huruf berikutnya "U" juga karakter kata. Header
+bertuliskan `SATUAN` karena itu lolos penyaring, lalu ditangkap
+`/HARGA|NILAI|SATUAN/`, dan karena pemindaian dari kiri ia ditemukan **sebelum**
+kolom "HARGA SATUAN". Harga lalu dibaca dari sel satuan: `"m3"` → **3**,
+`"m2"` → **2**, `"bh"`/`"ls"`/`"kg"` → kosong.
+
+Jaring `crossMismatch` tidak menangkapnya: ia butuh ≥20 baris yang ketiga
+angkanya lengkap, dan satuan tanpa digit membuat baris tidak ikut dihitung —
+jadi RAB bersatuan "bh/ls/kg" lolos tanpa satu peringatan pun. Tidak ada satu
+pun uji lama memakai ejaan `SATUAN`; semuanya `VOL`/`SAT`.
+
+**Keputusan**: diperbaiki di DUA lapis. `/^SAT\b/` → `/^SAT/` menutup ejaan yang
+sudah diketahui; `c !== unit` pada pencarian kolom harga menutup ejaan yang
+belum. Kolom "HARGA SATUAN" tidak terkena karena labelnya dimulai "HARGA".
+
+---
+
+## 499 · 2026-09-02 · Satu pembaca angka untuk seluruh jalur impor Excel
+
+**Konteks**: audit 2026-09-01 menemukan tiga pembaca angka berbeda, dua di
+antaranya berlawanan konvensi desimal pada sel yang sama.
+
+| teks di sel     | `hps-parser.num()` | `adendum-template.angka()` |
+|-----------------|--------------------|-----------------------------|
+| `1.500.000,50`  | **null** (hilang)  | 1500000,5 ✓                 |
+| `12.5`          | 12,5 ✓             | **125** (10x lipat)         |
+| `1,5`           | **15** (10x lipat) | 1,5 ✓                       |
+| `Rp 1.500.000`  | **null**           | 1500000 ✓                   |
+
+Ditambah `Number("")` yang bernilai **0**: sel `#REF!`, rumus tanpa hasil
+ter-cache, spasi, `"n/a"`, richText, dan bahkan sel `Date` semuanya menjadi
+**volume 0** tanpa satu pun galat di jalur template.
+
+**Keputusan**: satu modul `lib/rab/angka-lokal.ts`, dipakai `hps-parser`,
+`cco-import`, dan `adendum-template-parse`. Aturannya sengaja **hanya
+menafsirkan yang pasti**:
+
+1. Ada koma → koma desimal (Indonesia), titik pemisah ribuan.
+2. Tanpa koma, DUA titik atau lebih → semua titik pemisah ribuan; sebuah
+   bilangan tidak mungkin punya dua tanda desimal.
+3. Tanpa koma, SATU titik → dibiarkan sebagai desimal. Sengaja sama dengan
+   perilaku `num()` lama, supaya tidak ada berkas yang angkanya berubah
+   diam-diam oleh perbaikan ini.
+
+**Alternatif direject**: *menebak `1.500` dari pola tiga digit.* Volume
+`Decimal(15,3)` membuat `3.333` m³ lazim, sementara pemisah ribuan membuat
+`1.500` juga lazim berarti seribu lima ratus. Menebak salah mengalikan atau
+membagi angka orang dengan 1000 tanpa suara — persis kelas kesalahan yang
+sedang diperbaiki. Ambiguitasnya diakui, bukan diselesaikan dengan tebakan.
+
+**Konsekuensi**: yang tidak dikenali menjadi `null`, TIDAK PERNAH 0. Pemanggil
+yang memutuskan apa artinya baris tanpa angka.
+
+---
+
+## 500 · 2026-09-02 · Berkas CCO terbitan MARLIN bisa diimpor ulang
+
+**Konteks**: `cco-xlsx` menulis semua kolom turunan sebagai `{ formula }`
+**tanpa** `result`. Pembaca Excel mana pun kecuali Excel sendiri hanya bisa
+membaca hasil yang ter-cache, jadi `deteksiCco` gagal membuktikan
+`volume × harga ≈ jumlah` lalu menyerah, dan berkasnya jatuh ke jalur RAB biasa
+dengan total **0**.
+
+Kalau berkasnya dibuka lalu disimpan di Excel dulu, impornya berhasil. Jadi
+kegagalannya menimpa persis alur yang paling lazim di lapangan: unduh, teruskan
+lewat WhatsApp, unggah balik tanpa pernah dibuka.
+
+**Keputusan**: hasil rumus ikut ditulis untuk kolom yang dipakai impor
+(`jumlahLama`, `jumlahBaru`, volume/jumlah tambah-kurang, `ket`). Nilainya
+dihitung dari angka yang sama dengan yang menyusun rumusnya, jadi cache dan
+rumus tidak bisa berselisih. Kolom BOBOT sengaja TIDAK di-cache: penyebutnya sel
+TOTAL yang baru ada setelah semua baris ditulis, dan `fullCalcOnLoad` sudah
+dipasang di berkas ini.
+
+---
+
+## 501 · 2026-09-02 · Σ item yang terbaca diadu dengan total yang ditulis berkas
+
+**Pertanyaan user 2026-09-02**: *"maksud -569.812.788 itu apa? sedangkan kalau
+dihitung-hitung selisih cuma 100jtan."*
+
+Angka itu sendiri jujur: ia `totalBaru − totalAktif`. Yang tidak bisa dijawab
+siapa pun dari layar adalah pertanyaan sebenarnya — apakah `totalBaru` memang
+isi berkasnya, atau hasil bacaan yang bolong. Sampai audit 2026-09-01 **tidak
+ada satu pun pemeriksaan** yang mengadu hasil bacaan parser dengan angka yang
+tertulis di berkasnya sendiri.
+
+**Keputusan**: baris rekap yang dilewati parser dicatat angkanya, lalu diadu
+dengan Σ item yang terbaca. Selisih di atas 0,5% disebut, lengkap dengan arahnya
+("ada baris yang tidak terbaca" vs "ada baris yang terhitung dua kali").
+
+**Yang sengaja dibatasi, supaya tidak menjadi peringatan palsu berikutnya**:
+
+- Hanya kandidat yang berada dalam **±20% dari Σ item** yang dianggap total
+  akhir. Berkas RAB lazim memuat baris "JUMLAH" per KATEGORI; mengambil yang
+  terbesar begitu saja membuat subtotal kategori diperlakukan sebagai total
+  seluruh berkas, dan peringatannya menyala pada berkas yang sempurna. Uji
+  `hps-parser` yang lama langsung merah saat aturan longgar itu dicoba — dan
+  itu yang membuatnya diperketat.
+- Selisih yang bisa dijelaskan PPN 11%/12% tidak dianggap selisih: sebagian
+  berkas menulis baris "JUMLAH" yang sudah ber-PPN walau namanya polos.
+- Label "JUMLAH TOTAL"/"SETELAH PPN"/"DIBULATKAN" tidak ikut dicatat.
+
+---
+
+## 502 · 2026-09-02 · Volume adendum negatif ditolak, dan HAPUS tidak menuntut ejaan persis
+
+**Konteks**: audit 2026-09-01 pada `adendum-template-parse`.
+
+1. **Volume negatif diterima diam-diam.** `G10 = -3` menghasilkan `amount`
+   negatif dan total kategori negatif; yang muncul di pratinjau hanya "volume
+   berubah dari 2,5 ke −3" tanpa mengatakan bahwa angka itu mustahil. DECISIONS
+   203 sudah menetapkan sebaliknya untuk impor jadwal.
+2. **`keterangan === "HAPUS"` cocok persis.** "Hapus item", "HAPUS?", atau
+   "hapus saja" diabaikan **tanpa suara** dan itemnya tetap masuk dengan volume
+   dari kolom G — niat mencabut yang ditulis nyaris benar hilang tanpa kabar.
+
+**Keputusan**: volume negatif **DITOLAK** (barisnya tidak diikutkan) dan disebut
+di pratinjau, bukan dibetulkan sendiri jadi 0 — pekerjaan-kurang dinyatakan
+dengan MENURUNKAN volume, jadi angka negatif selalu salah ketik atau rumus yang
+meleset. `HAPUS` dicocokkan dengan `/\bHAPUS\b/`.
+
+Sekalian: peringatan *"namanya menyerupai baris rekap, tapi karena berkode ia
+DIHITUNG sebagai pekerjaan"* kini hanya menyala bila barisnya benar-benar akan
+dihitung. Di berkas CCO, sel A–F yang ter-merge membuat label "JUMLAH" terbaca
+sebagai kode, barisnya sebenarnya dibuang, dan peringatan lama tetap menyala —
+menyuruh user mencurigai angka yang justru benar.
+
+---
+
+## 503 · 2026-09-03 · Pemetaan manual dipesan lebih dulu untuk SELURUH pohon
+
+**Laporan user 2026-09-03** dengan tangkapan layar berkas Excel-nya:
+
+```
+IV    PEKERJAAN DINDING PENAHAN TANAH
+IV.1    Pekerjaan Turap Beton
+1         Pekerjaan Tapak Beton Menerus 30 x 140 cm
+a           Pekerjaan Galian Tanah sampai dengan 1 m    103,30 → "-"
+b..g        …                                           semua  → "-"
+2         Pekerjaan Dinding Beton t = 20 cm             semua  → "-"
+3         Pekerjaan Pondasi Batu Belah                  (BARU)
+a           Pekerjaan Galian Tanah keras s.d 1 m        "-"    → 114,85
+```
+
+Pertanyaannya: *"apakah kejadian seperti ini sudah bisa kita handle dengan
+perubahanmu kemarin?"*
+
+**Jawabannya: BELUM.** Diuji dengan pohon yang meniru bentuk itu, dan pemetaan
+`1.a → 3.a` **DITOLAK** — bukan diterima diam-diam, tapi tetap gagal.
+
+**Sebabnya** halus dan hanya muncul pada bentuk berkas seperti ini. Pohon
+ditelusuri per kelompok saudara menurut urutan dokumen. Grup 1 diproses lebih
+dulu, dan baris `1.a` yang **dinolkan masih bernama sama persis** dengan item
+kontraknya — jadi ia langsung mengklaim item itu lewat pencocokan nama. Waktu
+giliran grup 3 tiba, pasangan yang dipilih user sudah diambil oleh baris yang
+justru sedang ditinggalkan.
+
+Versi pertama pemetaan manual menempatkan "giliran 0" di dalam pemrosesan tiap
+kelompok. Itu cukup untuk pasangan yang berada dalam SATU kelompok — dan uji
+pertamanya memang hanya menguji bentuk itu, sehingga lolos.
+
+**Keputusan**: target pemetaan **dikunci untuk seluruh pohon sebelum penelusuran
+dimulai**. Setelah dikunci, giliran nama maupun nomor tidak bisa lagi
+menyentuhnya, dari kelompok mana pun. Seluruh pemeriksaan kesahihan ikut pindah
+ke muka (item kontrak ada · baris berkas ada · belum diklaim · jenis baris sama ·
+kategori sama), sehingga penelusuran pohon tinggal memakai hasilnya.
+
+**Batasnya, dan alasannya**:
+
+- **GRUP dan SUB boleh berbeda.** Pekerjaan yang sama memang lazim pindah grup
+  dalam kategori yang sama — dan itulah persis bentuk adendum yang dilaporkan.
+- **KATEGORI tidak boleh berbeda.** Akar `lineageKey` adalah kode kategori, dan
+  ia menentukan kategori di enam tempat lain. Mewarisi kunci lintas kategori
+  memindahkan realisasinya di blanko KKP tanpa ada yang memindahkannya.
+- **Satu lawan satu.** Satu item kontrak hanya bisa dipetakan ke satu baris
+  baru. Pekerjaan yang dipecah menjadi dua baris belum tertangani; yang kedua
+  tetap item baru tanpa realisasi.
+
+**Konsekuensi**: baris lama yang dinolkan kehilangan kuncinya dan masuk sebagai
+item baru bernilai nol. Itu benar — identitasnya memang sudah pindah — dan
+nilainya nol sehingga tidak ada rupiah yang bergeser karenanya.
+
+---
+
+## 504 · 2026-09-03 · Panel harga menuntut DUA syarat: harganya beda, DAN bedanya memindahkan rupiah
+
+**Laporan user 2026-09-03** dengan tangkapan layar pratinjau impor:
+
+```
+Nilai: Rp 8.542.625.857 → Rp 7.972.813.069 (−Rp 569.812.788)
+
+Harga satuan 61 item KONTRAK LAMA berubah
+Dampak neto −Rp 1.314.006.386 tanpa ada pekerjaan yang bertambah.
+
+Kontrak 3 Pekerjaan Urugan Makadam t = 30 cm – Rp 800.171,79
+File    3 Pekerjaan Urugan Makadam t = 30 cm – Rp 800.171,79  (−Rp 372.311.932)
+```
+
+Dua hal mustahil sekaligus: harganya **sama persis** di kedua sisi pada setiap
+baris, dan dampak neto panel ini (−Rp 1,31 M) **lebih besar** daripada
+pergerakan nilai seluruh berkas (−Rp 569 juta).
+
+**Sebabnya perbaikan sehari sebelumnya.** DECISIONS "Peringatan harga diam saat
+tidak ada rupiah yang berpindah" (2026-09-02) meringkas gerbangnya menjadi satu
+syarat, `dampakRupiah === 0n`, sementara untuk item bervolume nol `dampakRupiah`
+diambil dari selisih `amount`. Pada berkas adendum yang menolkan seluruh grup
+pekerjaan, `amount` memang anjlok — **bukan karena harganya, melainkan karena
+volumenya dinolkan.** Panel harga jadi menagih perubahan volume, yang sudah
+dilaporkan di daftarnya sendiri.
+
+Peringkasan itu benar untuk kasus yang sedang diperbaiki saat itu (harga 35.000
+lawan sel kosong pada item bervolume nol) dan salah untuk kasus ini. Ujinya pun
+hanya menutup kasus yang pertama.
+
+**Keputusan**: dua syarat, keduanya wajib.
+
+1. `hargaBeda` — harga memang berbeda pada presisi kolomnya (`Decimal(15,2)`),
+   sehingga nol dan kosong tetap satu keadaan yang sama.
+2. `dampakRupiah !== 0` — perbedaan itu benar-benar memindahkan rupiah.
+
+`dampakRupiah` dihitung menurut apa yang sebenarnya bergerak:
+
+- **volume baru ada** → selisih harga × volume baru. Inilah yang membuang beda
+  pembulatan tulis satu sen (kasus APAR 706.908,69 lawan 706.908,70).
+- **volume tidak bergerak** (kosong/nol di kedua sisi) → tidak ada volume yang
+  bisa dipakai mengalikan, jadi pergerakan `amount` sepenuhnya milik harga. Ini
+  yang menjaga item lump-sum tetap terlihat.
+- **volume BERUBAH menjadi nol/kosong** → yang memindahkan uang adalah
+  volumenya. Panel harga diam; daftar volume yang melaporkannya.
+
+**Konsekuensi**: dampak neto panel harga tidak bisa lagi melebihi pergerakan
+nilai berkas lewat baris yang volumenya dinolkan — dan itu dikunci uji
+tersendiri, karena angka mustahil seperti itu yang paling cepat membuat orang
+berhenti membaca peringatan.

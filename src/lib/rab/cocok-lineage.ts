@@ -69,11 +69,50 @@ export type NamaBerbeda = {
   namaLama: string;
 };
 
+/**
+ * PEMETAAN MANUAL — item kontrak yang DINOLKAN di berkas, dipasangkan sendiri
+ * oleh user ke item BARU di berkas yang sama.
+ *
+ * Permintaan user 2026-09-02: *"item yang sudah diinput di laporan harian lalu
+ * di draft dinolkan, bisa dimatch manual dengan item baru yang ada di draft."*
+ *
+ * Pencocokan otomatis tidak bisa menebak keadaan ini: namanya berbeda DAN
+ * nomornya berbeda, jadi tidak ada satu pun sinyal yang tersisa. Yang tahu
+ * bahwa dua baris itu pekerjaan yang sama hanya orangnya.
+ *
+ * Caranya lewat PEWARISAN lineage, BUKAN menulis ulang laporan harian:
+ * realisasi dikunci pada `lineageKey`, jadi begitu item baru mewarisi kunci
+ * item lama, realisasinya ikut dengan sendirinya — tanpa satu baris laporan pun
+ * disentuh, dan tanpa konsep baru di calculation layer.
+ */
+export type PadananManual = {
+  /** `lineageKey` item BARU sebagaimana terbaca di berkas (sebelum dicocokkan). */
+  lineageBaru: string;
+  /** `lineageKey` item KONTRAK yang realisasinya diwariskan. */
+  lineageLama: string;
+};
+
+export type PadananDipakai = PadananManual & { code: string; name: string; namaLama: string };
+export type PadananDitolak = PadananManual & { sebab: string };
+
 export type HasilCocok = {
   nodes: FlatNode[];
   digeser: Digeser[];
   namaBerbeda: NamaBerbeda[];
+  /**
+   * Item yang TIDAK punya pasangan di kontrak, menurut kunci ASLI-nya di
+   * berkas. Kunci asli — bukan kunci final — karena itulah yang dipakai
+   * `PadananManual.lineageBaru`, dan keduanya bisa berbeda saat induknya ikut
+   * bergeser.
+   */
+  itemBaruAsli: { lineageAsli: string; code: string; name: string }[];
+  padananDipakai: PadananDipakai[];
+  /** Pemetaan yang TIDAK bisa dipakai — disebut sebabnya, tidak didiamkan. */
+  padananDitolak: PadananDitolak[];
 };
+
+/** Akar kunci = kode kategori. Dipakai enam tempat lain untuk menemukan kategori. */
+const akar = (lineageKey: string): string => lineageKey.split("#")[0]!;
 
 /** Nama dibandingkan longgar: beda huruf besar/kecil & spasi bukan beda pekerjaan. */
 export function normalNama(s: string): string {
@@ -89,7 +128,11 @@ function kelas(kind: string): string {
   return kind === "kategori" ? "kategori" : kind === "sub" ? "sub" : "item";
 }
 
-export function samakanLineage(nodes: FlatNode[], lama: NodeLamaCocok[]): HasilCocok {
+export function samakanLineage(
+  nodes: FlatNode[],
+  lama: NodeLamaCocok[],
+  opts: { padanan?: PadananManual[] } = {},
+): HasilCocok {
   const lamaByKey = new Map(lama.map((n) => [n.lineageKey, n]));
   const anakLama = new Map<string, NodeLamaCocok[]>();
   for (const n of lama) {
@@ -111,7 +154,68 @@ export function samakanLineage(nodes: FlatNode[], lama: NodeLamaCocok[]): HasilC
   const terpakai = new Set<string>();
   const digeser: Digeser[] = [];
   const namaBerbeda: NamaBerbeda[] = [];
+  const itemBaruAsli: HasilCocok["itemBaruAsli"] = [];
+  const padananDipakai: PadananDipakai[] = [];
+  const padananDitolak: PadananDitolak[] = [];
+  const padananByBaru = new Map((opts.padanan ?? []).map((p) => [p.lineageBaru, p]));
   const hasil: FlatNode[] = [];
+
+  /*
+   * RESERVASI PEMETAAN MANUAL — dikerjakan SEBELUM pohon ditelusuri.
+   *
+   * Ini bukan detail: pohon ditelusuri per kelompok saudara menurut urutan
+   * dokumen, dan pasangan manual hampir selalu berada di kelompok yang BERBEDA
+   * dari lawannya. Kasus nyata user 2026-09-03: seluruh grup "Pekerjaan Tapak
+   * Beton Menerus" dinolkan dan digantikan grup baru "Pekerjaan Pondasi Batu
+   * Belah" di bawah sub yang sama. Baris lama yang dinolkan MASIH BERNAMA SAMA,
+   * jadi saat grup lama diproses ia langsung mengklaim item kontraknya lewat
+   * pencocokan nama — dan waktu giliran grup baru tiba, pasangan yang dipilih
+   * user sudah diambil oleh baris yang justru sedang ditinggalkan.
+   *
+   * Karena itu targetnya dikunci lebih dulu untuk SELURUH pohon. Setelah
+   * dikunci, giliran nama maupun nomor tidak bisa lagi menyentuhnya.
+   */
+  const barisBerkas = new Map(nodes.map((n) => [n.lineageKey, n]));
+  const reservasi = new Map<string, NodeLamaCocok>();
+  for (const p of opts.padanan ?? []) {
+    const tolak = (sebab: string) => padananDitolak.push({ ...p, sebab });
+    const target = lamaByKey.get(p.lineageLama);
+    const nBaru = barisBerkas.get(p.lineageBaru);
+    if (!target) {
+      tolak(`Item kontrak "${p.lineageLama}" tidak ditemukan di RAB aktif.`);
+      continue;
+    }
+    if (!nBaru) {
+      tolak(`Baris "${p.lineageBaru}" tidak ada di berkas ini.`);
+      continue;
+    }
+    if (dipakaiLama.has(p.lineageLama) || reservasi.has(p.lineageBaru)) {
+      tolak(`Item kontrak "${p.lineageLama}" sudah dipakai pasangan lain.`);
+      continue;
+    }
+    if (kelas(target.kind) !== kelas(nBaru.kind)) {
+      tolak(`"${nBaru.name}" dan "${target.name}" bukan jenis baris yang sama.`);
+      continue;
+    }
+    /*
+     * KATEGORI dibandingkan pada kunci ASLI kedua sisi — akar kunci adalah kode
+     * kategori, dan ia menentukan kategori di enam tempat lain. Mewarisi kunci
+     * lintas kategori memindahkan realisasinya di blanko KKP tanpa ada yang
+     * memindahkannya. GRUP dan SUB boleh berbeda: pekerjaan yang sama memang
+     * lazim pindah grup dalam kategori yang sama, dan itulah bentuk adendum
+     * yang dilaporkan user.
+     */
+    if (akar(p.lineageLama) !== akar(p.lineageBaru)) {
+      tolak(
+        `Beda kategori: "${target.name}" ada di ${akar(p.lineageLama)}, "${nBaru.name}" di ${akar(p.lineageBaru)}. ` +
+          `Pemetaan lintas kategori memindahkan realisasinya di blanko KKP.`,
+      );
+      continue;
+    }
+    dipakaiLama.add(p.lineageLama);
+    reservasi.set(p.lineageBaru, target);
+    padananDipakai.push({ ...p, code: nBaru.code, name: nBaru.name, namaLama: target.name });
+  }
 
   /**
    * Satu kelompok SAUDARA SEKANDUNG diselesaikan sekaligus, dalam DUA giliran.
@@ -128,8 +232,20 @@ export function samakanLineage(nodes: FlatNode[], lama: NodeLamaCocok[]): HasilC
     const saudaraLama = anakLama.get(indukFinal ?? "") ?? [];
     const pilihan = new Map<FlatNode, NodeLamaCocok>();
 
+    /*
+     * Giliran 0 — PEMETAAN MANUAL. Pasangannya sudah DIPESAN sebelum pohon
+     * ditelusuri (lihat `reservasi` di atas), jadi di sini tinggal dipakai.
+     */
+    for (const n of grup) {
+      const target = reservasi.get(n.lineageKey);
+      if (!target) continue;
+      pilihan.set(n, target);
+      reservasi.delete(n.lineageKey);
+    }
+
     // Giliran 1 — nama (+ satuan bila perlu), harus TUNGGAL di kedua sisi.
     for (const n of grup) {
+      if (pilihan.has(n)) continue;
       const nama = normalNama(n.name);
       const kembarBaru = grup.filter(
         (x) => kelas(x.kind) === kelas(n.kind) && normalNama(x.name) === nama,
@@ -186,6 +302,7 @@ export function samakanLineage(nodes: FlatNode[], lama: NodeLamaCocok[]): HasilC
             lineageKey: cocok.lineageKey,
           });
       } else {
+        if (kelas(n.kind) === "item") itemBaruAsli.push({ lineageAsli: n.lineageKey, code: n.code, name: n.name });
         // Item baru — kunci dari jalur kodenya, dijaga tetap unik.
         kunciFinal = kunciKode;
         for (let i = 2; terpakai.has(kunciFinal) || lamaByKey.has(kunciFinal); i++)
@@ -200,5 +317,5 @@ export function samakanLineage(nodes: FlatNode[], lama: NodeLamaCocok[]): HasilC
   };
 
   selesaikan("", null);
-  return { nodes: hasil, digeser, namaBerbeda };
+  return { nodes: hasil, digeser, namaBerbeda, itemBaruAsli, padananDipakai, padananDitolak };
 }
