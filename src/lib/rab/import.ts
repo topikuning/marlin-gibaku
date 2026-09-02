@@ -1,7 +1,11 @@
 import { totalWeeksBetween, weekEndFractions } from "@/lib/progress-calc";
 import "server-only";
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
+import type { Prisma } from "@/generated/prisma/client";
+import { audit, auditIn } from "@/lib/audit";
+import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
+import { valueDone as hitungNilai } from "@/lib/money";
+import { sesuaikanProporsional } from "@/lib/rab/sesuaikan-realisasi";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
@@ -201,7 +205,9 @@ export async function activateRevision(revisionId: string, userId: string) {
       where: { id: rev.id },
       data: { status: "aktif" },
     });
-    return { revisi, laporanDinaikkan: naik.count };
+
+    const disesuaikan = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
+    return { revisi, laporanDinaikkan: naik.count, disesuaikan };
   });
   await audit(userId, "rab.revision_activate", "rab_revision", activated.revisi.id, {
     locationId: activated.revisi.locationId,
@@ -209,8 +215,117 @@ export async function activateRevision(revisionId: string, userId: string) {
     // Berapa baris laporan yang ikut menjadi resmi. Angka ini yang menjelaskan
     // kenapa progres lokasi bisa melompat tepat pada saat aktivasi.
     laporanDinaikkan: activated.laporanDinaikkan,
+    // Berapa ITEM yang realisasinya diturunkan mengikuti volume barunya.
+    itemDisesuaikan: activated.disesuaikan,
   });
   return activated.revisi;
+}
+
+/**
+ * Turunkan realisasi laporan harian yang MELEBIHI volume barunya.
+ *
+ * Permintaan user 2026-09-03: *"saat pemetaan manual itu konfirmasi, maka
+ * laporan harian yang sebelumnya langsung menyesuaikan volume baru."*
+ *
+ * ### Kenapa DI SINI, bukan saat pemetaan dikonfirmasi
+ *
+ * Saat pemetaan dikonfirmasi, adendumnya masih DRAFT — belum ditandatangani
+ * siapa pun. Mengubah laporan harian di titik itu menggerakkan progres resmi
+ * dan nilai terpasang atas dasar adendum yang belum sah, persis yang dilarang
+ * DECISIONS 210. Dan bila drafnya kemudian dibuang, laporan yang terlanjur
+ * diubah tidak punya jalan pulang. Aktivasi adalah satu-satunya titik di mana
+ * perubahan ini punya dasar.
+ *
+ * ### Ruang lingkupnya
+ *
+ * Bukan hanya item yang dipetakan manual: SETIAP item revisi baru yang volume
+ * kontraknya kini di bawah realisasi tercatat. Sumber selisihnya tidak penting
+ * — yang penting laporan dan kontrak menyebut angka yang sama.
+ *
+ * ### Yang TIDAK disentuh
+ *
+ * Item yang realisasinya masih di bawah volume baru, dan adendum yang MENAIKKAN
+ * volume: `sesuaikanProporsional` mengembalikan `null` untuk keduanya, jadi
+ * tidak ada baris yang ditulis ulang tanpa perlu.
+ *
+ * Laporan berstatus `final` IKUT disesuaikan (keputusan user 2026-09-03):
+ * melewatinya hanya memindahkan ketidakcocokan, bukan menghilangkannya. Setiap
+ * penyesuaian masuk audit log dengan angka sebelum dan sesudahnya.
+ */
+async function sesuaikanRealisasiKeVolumeBaru(
+  tx: Prisma.TransactionClient,
+  revisionId: string,
+  locationId: string,
+  userId: string,
+): Promise<number> {
+  const items = await tx.rabNode.findMany({
+    where: { revisionId, kind: "item" },
+    select: { lineageKey: true, code: true, name: true, volume: true, unitPrice: true },
+  });
+  if (items.length === 0) return 0;
+
+  const baris = await tx.dailyReportItem.findMany({
+    where: {
+      lineageKey: { in: items.map((n) => n.lineageKey) },
+      report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } },
+    },
+    select: {
+      id: true,
+      lineageKey: true,
+      volumeDone: true,
+      report: { select: { reportDate: true, status: true } },
+    },
+    // Urutan tetap: pembagian sisa terbesar harus deterministik supaya
+    // aktivasi yang sama menghasilkan angka yang sama.
+    orderBy: [{ report: { reportDate: "asc" } }, { id: "asc" }],
+  });
+  if (baris.length === 0) return 0;
+
+  type Baris = (typeof baris)[number];
+  const perLineage = new Map<string, Baris[]>();
+  for (const b of baris) {
+    const arr = perLineage.get(b.lineageKey);
+    if (arr) arr.push(b);
+    else perLineage.set(b.lineageKey, [b]);
+  }
+
+  let jumlahItem = 0;
+  for (const n of items) {
+    const rows = perLineage.get(n.lineageKey);
+    if (!rows || n.volume == null) continue;
+    const volumeBaru = Number(n.volume);
+    const sebelum = rows.map((r) => Number(r.volumeDone));
+    const sesudah = sesuaikanProporsional(sebelum, volumeBaru);
+    if (!sesudah) continue;
+
+    const harga = Number(n.unitPrice ?? 0);
+    for (const [i, r] of rows.entries()) {
+      if (sesudah[i] === sebelum[i]) continue;
+      await tx.dailyReportItem.update({
+        where: { id: r.id },
+        // `valueDone` ikut dihitung ulang: ia dipakai layar harian dan snapshot
+        // paparan. Membiarkannya dengan volume lama membuat dua angka berbeda
+        // untuk satu baris yang sama.
+        data: { volumeDone: sesudah[i]!, valueDone: hitungNilai(sesudah[i]!, harga) },
+      });
+    }
+    jumlahItem++;
+    await auditIn(tx, userId, "rab.adendum_sesuaikan_realisasi", "rab_revision", revisionId, {
+      locationId,
+      lineageKey: n.lineageKey,
+      item: `${n.code} ${n.name}`,
+      volumeBaru,
+      totalSebelum: sebelum.reduce((t, v) => t + v, 0),
+      totalSesudah: sesudah.reduce((t, v) => t + v, 0),
+      baris: rows.map((r, i) => ({
+        tanggal: r.report.reportDate.toISOString().slice(0, 10),
+        status: r.report.status,
+        dari: sebelum[i],
+        ke: sesudah[i],
+      })),
+    });
+  }
+  return jumlahItem;
 }
 
 /** Hapus draft + seluruh node-nya (cascade FK). Hanya draft yang boleh dibuang. */
