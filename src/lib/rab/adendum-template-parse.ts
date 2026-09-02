@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs";
+import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import type { FlatNode } from "@/lib/rab/flatten";
 import {
   ADENDUM_HEADER_ROW,
@@ -37,6 +38,8 @@ export type HasilTemplateAdendum = {
   dihapus: { lineageKey: string; code: string; name: string }[];
   /** Item kontrak yang volumenya dijadikan 0 — TETAP ada, nilainya nol. */
   volumeNol: { lineageKey: string; code: string; name: string }[];
+  /** Baris ber-volume NEGATIF – ditolak, tidak diikutkan, dan disebut. */
+  volumeNegatif: { lineageKey: string; code: string; name: string; volume: number }[];
   /** Item baru yang disisipkan user (tanpa lineageKey). */
   itemBaru: { code: string; name: string; kategori: string }[];
 };
@@ -48,13 +51,15 @@ export function isAdendumTemplate(wb: ExcelJS.Workbook): boolean {
   return String(ws.getCell(ADENDUM_HEADER_ROW, C_LINEAGE).value ?? "").trim() === ADENDUM_TEMPLATE_MARKER;
 }
 
-function angka(v: ExcelJS.CellValue): number | null {
-  if (v == null || v === "") return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (typeof v === "object" && "result" in v) return angka((v as { result: ExcelJS.CellValue }).result);
-  const n = Number(String(v).replace(/\./g, "").replace(",", ".").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
+/**
+ * Pembaca angka BERSAMA. Versi lama di sini membiarkan `Number("")` yang
+ * bernilai **0** lolos sebagai angka sah, sehingga sel `#REF!`, rumus tanpa
+ * hasil ter-cache, spasi, `"n/a"`, dan objek richText semuanya menjadi
+ * **volume 0** tanpa satu pun galat - pekerjaan bernilai ratusan juta lenyap
+ * diam-diam. Sel `Date` bahkan menghasilkan angka omong kosong. Audit
+ * 2026-09-01.
+ */
+const angka = bacaAngkaLokal;
 
 function teks(v: ExcelJS.CellValue): string {
   if (v == null) return "";
@@ -73,6 +78,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   const nodes: FlatNode[] = [];
   const dihapus: HasilTemplateAdendum["dihapus"] = [];
   const volumeNol: HasilTemplateAdendum["volumeNol"] = [];
+  const volumeNegatif: HasilTemplateAdendum["volumeNegatif"] = [];
   const itemBaru: HasilTemplateAdendum["itemBaru"] = [];
 
   /** Tumpukan induk berjalan: lineageKey per kedalaman, untuk item baru. */
@@ -149,7 +155,11 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
         continue;
       }
 
-      if (keterangan === "HAPUS") {
+      // Cocok LONGGAR, bukan persis. Sebelumnya `=== "HAPUS"`, sehingga
+      // "Hapus item", "HAPUS?", atau "hapus saja" diabaikan TANPA SUARA dan
+      // itemnya tetap masuk dengan volume dari kolom G — niat mencabut yang
+      // ditulis nyaris benar hilang tanpa kabar. Audit 2026-09-01.
+      if (/\bHAPUS\b/.test(keterangan)) {
         // DINYATAKAN dicabut. Barisnya TIDAK diikutkan; diff terhadap RAB aktif
         // yang akan melaporkannya sebagai item hilang — termasuk peringatan
         // keras bila item itu sudah punya realisasi.
@@ -158,6 +168,25 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
       }
 
       const vol = volAdendum ?? 0;
+      /*
+       * Volume NEGATIF ditolak, bukan diterima diam-diam.
+       *
+       * Sebelumnya `G10 = -3` menghasilkan `amount` negatif dan total kategori
+       * negatif, dan yang muncul di pratinjau hanya "volume berubah dari 2,5 ke
+       * -3" tanpa mengatakan bahwa angka itu mustahil. DECISIONS 203 sudah
+       * menetapkan sebaliknya untuk impor jadwal: *"Nilai negatif ditolak
+       * dengan menyebut baris & minggunya. Sebelumnya parser diam-diam
+       * mengubahnya jadi 0 - persis jenis perubahan-tanpa-memberi-tahu yang
+       * sedang diperbaiki di sini."* Jalur adendum kini ikut.
+       *
+       * DITOLAK, bukan dibetulkan jadi 0: pekerjaan-kurang dinyatakan dengan
+       * MENURUNKAN volume, bukan dengan volume negatif, jadi angka negatif di
+       * sini selalu salah ketik atau rumus yang meleset.
+       */
+      if (vol < -EPS) {
+        volumeNegatif.push({ lineageKey, code: kode, name: nama, volume: vol });
+        continue;
+      }
       // Volume 0 BUKAN penghapusan (DECISIONS 216): item tetap tercantum
       // dengan nilai nol. Dicatat supaya bisa disebut di pratinjau — user perlu
       // melihat bahwa maksudnya tidak diterjemahkan jadi "dihapus".
@@ -265,5 +294,5 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   };
   for (const n of nodes) if (!n.parentLineageKey) hitung(n);
 
-  return { nodes, dihapus, volumeNol, itemBaru };
+  return { nodes, dihapus, volumeNol, volumeNegatif, itemBaru };
 }

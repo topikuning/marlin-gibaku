@@ -112,3 +112,35 @@ describe("kolom JUMLAH yang bergeser sendiri tidak boleh terhitung tetap", () =>
     expect(bandingkanTerhadapAktif(aktif, baru, new Map()).nilaiBergeser).toEqual([]);
   });
 });
+
+describe("volume 0 berarti tidak ada rupiah yang bisa berpindah", () => {
+  it("harga kontrak 35.000 lawan sel kosong, volume 0 di kedua sisi: BUKAN perubahan", () => {
+    // Laporan user 2026-09-02: "jangan mempermasalahkan jika harga berubah 0
+    // pada satu item jika volume / qty nya juga 0."
+    //
+    // Layar mencetak "Kontrak 3.b Pancang Cerucuk Dolken - Rp 35.000 / File
+    // 3.b - - (+Rp 0)". Dampaknya nol karena volumenya nol; tidak ada nilai
+    // kontrak yang bergeser, jadi tidak ada yang perlu diperingatkan.
+    const aktif = [kat, aktifItem({ lineageKey: "I#3.b", code: "3.b", name: "Pekerjaan Pancang Cerucuk Dolken", volume: 0, unitPrice: 35_000, amount: 0n })];
+    const baru = [fileKategori(0n), fileItem({ lineageKey: "I#3.b", code: "3.b", name: "Pekerjaan Pancang Cerucuk Dolken", volume: 0, unitPrice: null, amount: 0n })];
+    const h = bandingkanTerhadapAktif(aktif, baru, new Map());
+    expect(h.hargaBerubah).toEqual([]);
+    expect(h.jumlahTetap).toBe(1);
+  });
+
+  it("volume kosong di kedua sisi juga: BUKAN perubahan", () => {
+    const aktif = [kat, aktifItem({ lineageKey: "I#3.b", code: "3.b", name: "Pancang", volume: null, unitPrice: 35_000, amount: 0n })];
+    const baru = [fileKategori(0n), fileItem({ lineageKey: "I#3.b", code: "3.b", name: "Pancang", volume: null, unitPrice: null, amount: 0n })];
+    expect(bandingkanTerhadapAktif(aktif, baru, new Map()).hargaBerubah).toEqual([]);
+  });
+
+  it("TAPI item lump-sum yang NILAINYA bergerak tetap berbunyi", () => {
+    // Pembeda satu-satunya adalah rupiah: volume kosong, tapi nilai tercatat
+    // naik 100 juta. Itu perubahan kontrak, dan tidak boleh ikut didiamkan.
+    const aktif = [kat, aktifItem({ lineageKey: "I#9", code: "9", name: "Pekerjaan Ls", volume: null, unitPrice: 100_000_000, amount: 100_000_000n })];
+    const baru = [fileKategori(200_000_000n), fileItem({ lineageKey: "I#9", code: "9", name: "Pekerjaan Ls", volume: null, unitPrice: 200_000_000, amount: 200_000_000n })];
+    const h = bandingkanTerhadapAktif(aktif, baru, new Map());
+    expect(h.hargaBerubah).toHaveLength(1);
+    expect(h.hargaBerubah[0].dampakRupiah).toBe(100_000_000n);
+  });
+});

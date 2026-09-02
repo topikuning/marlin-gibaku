@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs";
+import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 
 /**
  * BERKAS TAMBAH/KURANG KKP — dibaca APA ADANYA, bukan dipaksa ke bentuk MARLIN.
@@ -72,14 +73,12 @@ function teks(v: ExcelJS.CellValue): string {
   return String(v).trim();
 }
 
-function angka(v: ExcelJS.CellValue): number | null {
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (v && typeof v === "object" && "result" in v) {
-    const r = (v as { result: ExcelJS.CellValue }).result;
-    return typeof r === "number" && Number.isFinite(r) ? r : null;
-  }
-  return null;
-}
+/**
+ * Pembaca angka BERSAMA. Versi lama di sini menolak SEMUA teks, sehingga
+ * berkas yang kolom angkanya ber-format Text tidak pernah lolos pembuktian
+ * `volume x harga ~ jumlah` dan deteksi CCO menyerah tanpa sebab yang terbaca.
+ */
+const angka = bacaAngkaLokal;
 
 const punyaTambah = (s: string) => /PEKERJAAN\s*TAMBAH|TAMBAH/i.test(s);
 const punyaKurang = (s: string) => /PEKERJAAN\s*KURANG|KURANG/i.test(s);

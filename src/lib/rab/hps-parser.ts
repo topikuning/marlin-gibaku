@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
 import { deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
@@ -58,11 +59,14 @@ function cellVal(row: ExcelJS.Row, c: number): unknown {
 function str(v: unknown): string {
   return v == null ? "" : String(v).trim();
 }
-function num(v: unknown): number | null {
-  if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
+/**
+ * Pembaca angka BERSAMA (`lib/rab/angka-lokal`). Sebelumnya lokal di sini dan
+ * membuang semua koma lalu memperlakukan titik sebagai desimal, sementara
+ * `adendum-template-parse` melakukan KEBALIKANNYA pada sel yang sama. Sel teks
+ * `"1.500.000,50"` karena itu menjadi `null` di sini (baris hilang diam-diam)
+ * dan `"1,5"` menjadi 15 (sepuluh kali lipat). Audit 2026-09-01.
+ */
+const num = bacaAngkaLokal;
 /**
  * Kode romawi kategori — titik di ujung DIABAIKAN.
  *
@@ -240,7 +244,18 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
     const s = roleAt(c);
     if (!s || isTotalCol(c)) return false;
     if (/TKDN|KDN|BOBOT|^%$|TIMPANG/.test(s)) return false; // kolom rasio, bukan harga
-    if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;
+    // `/^SAT\b/` dulu di sini, dan ia TIDAK PERNAH cocok dengan "SATUAN":
+    // "\b" menuntut batas kata sesudah "SAT", padahal huruf berikutnya "U"
+    // juga karakter kata. Jadi header bertuliskan SATUAN lolos penyaring ini,
+    // lalu ditangkap `/HARGA|NILAI|SATUAN/` di baris bawah - dan karena
+    // pemindaian dari kiri, kolom SATUAN ditemukan SEBELUM "HARGA SATUAN".
+    // Harga lalu dibaca dari sel satuan: "m3" jadi 3, "m2" jadi 2, "bh"/"ls"
+    // jadi kosong. Cek-silang butuh 20 baris berangka lengkap, dan satuan
+    // tanpa digit membuat baris tidak ikut dihitung, jadi RAB bersatuan
+    // "bh/ls/kg" lolos tanpa satu peringatan pun. Audit 2026-09-01.
+    //
+    // Kolom "HARGA SATUAN" tidak terkena: labelnya dimulai "HARGA".
+    if (/^VOL/.test(s) || /^SAT/.test(s)) return false;
     return /HARGA|NILAI|SATUAN/.test(s);
   };
 
@@ -282,7 +297,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
       const cols: number[] = [];
       for (let c = 1; c <= NC; c++) if (re.test(blockAt(c))) cols.push(c);
       if (cols.length === 0) return null;
-      const p = cols.find(isPriceCol) ?? cols[0];
+      const p = cols.find((c) => c !== unit && isPriceCol(c)) ?? cols[0];
       const a = cols.find((c) => c > p && isTotalCol(c)) ?? p + 1;
       return { price: p, amount: a };
     };
@@ -304,7 +319,10 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
 
   if (price == null) {
     // Tanpa baris grup blok: header polos "HARGA SATUAN | JUMLAH HARGA".
-    price = findFirst(isPriceCol) ?? classic.price;
+    // Lapis kedua, tidak bergantung pada ejaan: kolom satuan tidak akan pernah
+    // menjadi kolom harga. Regex di atas menutup ejaan yang sudah diketahui;
+    // ini menutup ejaan yang belum.
+    price = findFirst((c) => c !== unit && isPriceCol(c)) ?? classic.price;
     amount = findFirst((c) => c > price! && isTotalCol(c)) ?? price + 1;
     priceSource = "hps";
   }
@@ -631,6 +649,29 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   // blok A dipasangkan dgn jumlah blok B) — ini jaring pengaman untuk varian header
   // yang belum pernah ditemui, bukan untuk membetulkan angka diam-diam.
   let crossChecked = 0;
+  /*
+   * TOTAL YANG DITULIS BERKAS untuk dirinya sendiri.
+   *
+   * Sampai audit 2026-09-01 tidak ada satu pun pemeriksaan yang mengadu hasil
+   * bacaan parser dengan angka yang tertulis di berkasnya sendiri. Akibatnya
+   * berkas yang sebagian barisnya tidak terbaca menghasilkan pratinjau yang
+   * mengaku "Nilai turun Rp 569 juta" tanpa cara apa pun bagi pemakainya untuk
+   * tahu apakah penurunan itu nyata atau bacaan yang bolong. Laporan user
+   * 2026-09-02 menanyakan persis itu.
+   *
+   * Hanya baris JUMLAH/TOTAL polos yang dicatat; "JUMLAH TOTAL"/"SETELAH PPN"
+   * memuat PPN dan bukan pembanding yang sepadan dengan RAB pra-PPN.
+   */
+  const TOTAL_POLOS = /^(jumlah|jumlah\s*harga|total|grand\s*total)\b/i;
+  const TOTAL_BER_PPN = /ppn|pajak|termasuk|setelah|dibulatkan/i;
+  const totalKandidat: number[] = [];
+  const catatTotalDitulis = (nama: string, nilai: number | null) => {
+    const t = nama.trim();
+    if (!TOTAL_POLOS.test(t) || TOTAL_BER_PPN.test(t)) return;
+    if (nilai == null || !Number.isFinite(nilai) || nilai <= 0) return;
+    totalKandidat.push(nilai);
+  };
+
   let crossMismatch = 0;
 
   const mkItem = (
@@ -772,15 +813,33 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     if (!code && !name) return;
 
     // Baris rekap/subtotal ("JUMLAH", "SUB TOTAL", "TOTAL", dll) — JANGAN masuk pohon.
-    if (isSummaryRow(name, code)) return;
+    // Sebelum dilewati, angkanya DICATAT: itulah total yang ditulis berkas
+    // untuk dirinya sendiri, dan satu-satunya pembanding luar yang kita punya
+    // terhadap hasil bacaan parser (lihat `totalDitulis` di bawah).
+    if (isSummaryRow(name, code)) {
+      catatTotalDitulis(name, num(cellVal(row, col.amount)));
+      return;
+    }
     // Baris penutup bernomor (JUMLAH HARGA / PPN / DIBULATKAN) — lihat
     // `adalahRekapPenutup`. Dicek SEBELUM peringatan di bawah supaya baris yang
     // memang penutup tidak jadi peringatan yang tak bisa ditindaklanjuti.
-    if (adalahRekapPenutup(name, num(cellVal(row, col.vol)), num(cellVal(row, col.price)))) return;
+    if (adalahRekapPenutup(name, num(cellVal(row, col.vol)), num(cellVal(row, col.price)))) {
+      catatTotalDitulis(name, num(cellVal(row, col.amount)));
+      return;
+    }
     // Berkode TAPI bernama seperti rekap: diperlakukan sebagai pekerjaan biasa.
     // Disebutkan supaya keputusannya terlihat — kalau ternyata ini memang baris
     // rekap yang kebetulan berkode, penggelembungannya ketahuan sejak pratinjau.
-    if (SUMMARY_PREFIX.test(name.trim()))
+    /*
+     * Hanya bila barisnya BENAR-BENAR akan dihitung.
+     *
+     * `classifyRow` membuang baris ini sebagai "other" bila kodenya sendiri
+     * berupa kata rekap ("JUMLAH", "TOTAL"), yang lazim terjadi di berkas CCO
+     * karena sel A–F ter-merge sehingga label "JUMLAH" terbaca sebagai kode.
+     * Peringatan lama tetap menyala di situ, menyuruh user mencurigai angka
+     * yang justru benar. Audit 2026-09-01.
+     */
+    if (SUMMARY_PREFIX.test(name.trim()) && classifyRow(code, name) !== "other")
       warnings.push(
         `Baris ${row.number} "${name}" berkode "${code}" – namanya menyerupai baris rekap, tapi karena berkode ia DIHITUNG sebagai pekerjaan. Periksa bila totalnya terasa berlebih.`,
       );
@@ -924,6 +983,46 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       warnings.push(`Kategori "${c.roman} ${c.name}" total 0 (cek parsing).`);
   }
   const total = categories.reduce((t, c) => t + c.total_value, 0);
+
+  /*
+   * Σ item yang TERBACA lawan total yang DITULIS berkas.
+   *
+   * Toleransi 0,5%: pembulatan harga satuan dan subtotal per kategori memang
+   * bisa menggeser beberapa rupiah, dan peringatan yang menyala pada keadaan
+   * yang sah adalah cara tercepat membuat semua peringatan diabaikan.
+   *
+   * Selisih yang bisa dijelaskan PPN tidak dianggap selisih: sebagian berkas
+   * menulis baris "JUMLAH" yang sudah termasuk PPN walau namanya polos.
+   */
+  /*
+   * Yang dipakai HANYA angka yang masuk akal sebagai total akhir.
+   *
+   * Berkas RAB lazim memuat baris "JUMLAH" per KATEGORI di samping (kadang
+   * tanpa) satu total akhir. Mengambil yang terbesar begitu saja membuat
+   * subtotal kategori terbesar diperlakukan sebagai total seluruh berkas, dan
+   * peringatannya menyala pada berkas yang sempurna - persis kelas kesalahan
+   * yang sedang diperbaiki di berkas ini. Jadi kandidat harus berada dalam
+   * +/-20% dari Σ item sebelum boleh dianggap total akhir; subtotal kategori
+   * hampir selalu jauh di bawah itu, sementara bacaan yang bolong beberapa
+   * persen tetap tertangkap.
+   */
+  const totalDitulis =
+    totalKandidat.filter((v) => Math.abs(v - total) <= total * 0.2).sort((a, b) => b - a)[0] ?? null;
+
+  if (totalDitulis != null && total > 0) {
+    const bedaPpn = [0.11, 0.12].some((p) => Math.abs(totalDitulis - total * (1 + p)) <= total * 0.005);
+    const selisih = totalDitulis - total;
+    if (!bedaPpn && Math.abs(selisih) > total * 0.005) {
+      const persen = ((Math.abs(selisih) / totalDitulis) * 100).toFixed(1);
+      warnings.push(
+        `PERHATIAN – Σ item yang terbaca (${Math.round(total).toLocaleString("id-ID")}) berbeda ${persen}% dari ` +
+          `total yang DITULIS berkas ini sendiri (${Math.round(totalDitulis).toLocaleString("id-ID")}), ` +
+          `selisih ${selisih > 0 ? "kurang" : "lebih"} ${Math.round(Math.abs(selisih)).toLocaleString("id-ID")}. ` +
+          `${selisih > 0 ? "Ada baris yang tidak terbaca parser" : "Ada baris yang terhitung dua kali"} – ` +
+          `periksa sebelum melanjutkan, karena selisih ini masuk ke nilai kontrak tanpa terlihat di kolom mana pun.`,
+      );
+    }
+  }
 
   const parsed: ParsedRab = {
     meta: {

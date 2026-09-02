@@ -187,9 +187,17 @@ export function bandingkanTerhadapAktif(
     const dampakRupiah = adaVolume
       ? rupiah(hargaBaruNilai, ke) - rupiah(hargaLama, ke)
       : n.amount - lama.amount;
-    const hargaSama = adaVolume
-      ? dampakRupiah === 0n
-      : samaPadaPresisi(hargaLama, hargaBaruNilai, DESIMAL_HARGA);
+    // SATU gerbang untuk semua bentuk item: apakah ada rupiah yang berpindah.
+    //
+    // Versi sebelumnya, untuk item bervolume kosong, jatuh ke perbandingan
+    // harga pada presisi simpan. Itu membuat item bervolume NOL diperingatkan
+    // ketika harganya berbeda, padahal harga apa pun dikalikan nol tetap nol.
+    // Laporan user 2026-09-02: *"jangan mempermasalahkan jika harga berubah 0
+    // pada satu item jika volume / qty nya juga 0."*
+    //
+    // Item lump-sum tetap terjaga tanpa perlu cabang khusus: volumenya kosong,
+    // tapi `amount`-nya bergerak, dan `dampakRupiah` mengambil selisih itu.
+    const hargaSama = dampakRupiah === 0n;
     if (!hargaSama) {
       hargaBerubah.push({
         lineageKey: n.lineageKey,

@@ -681,6 +681,22 @@ Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
 
 ### Perbandingan & pencocokan identitas
 
+Ditutup 2026-09-02: peringatan harga pada item ber-volume NOL (koreksi user
+*"jangan mempermasalahkan jika harga berubah 0 pada satu item jika volume / qty
+nya juga 0"*) — gerbangnya kini satu untuk semua bentuk item, yaitu apakah ada
+rupiah yang berpindah.
+
+- 🟡 **KEPUTUSAN · Pemetaan manual item yang BERGANTI NAMA tapi maksudnya sama.**
+  Pertanyaan user 2026-09-02: *"ada satu kondisi dimana item yang sudah diinput
+  pada laporan harian ternyata berubah teks tapi maksudnya sama, apakah ini bisa
+  diakomodir? atau dipetakan ke item baru di draft perubahan."* Secara alur
+  MEMUNGKINKAN: pratinjau impor sudah menghitung "item hilang yang punya
+  realisasi" dan "item baru", dan `samakanLineage` sudah bisa memaksakan sebuah
+  `lineageKey`. Yang belum ada adalah layar untuk memilih pasangannya dan tempat
+  menyimpan pilihan itu supaya tidak ditanya ulang tiap impor. Perlu diputuskan:
+  pemetaan disimpan sebagai data (tabel padanan lineage) atau sekali pakai per
+  impor.
+
 - 🟡 **Satuan tidak pernah dibandingkan.** `NodeAktif` tidak punya field `unit`,
   jadi item yang satuannya berubah m² → m³ dengan angka volume sama persis
   dihitung **"tetap"**. Di `cocok-lineage.ts` satuan hanya menyaring bila
@@ -704,50 +720,26 @@ Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
 
 ### Parser & ekspor
 
-- 🔴 **`isPriceCol` memilih kolom SATUAN sebagai kolom HARGA SATUAN.**
-  `hps-parser.ts`: `if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;` —
-  `/^SAT\b/` **tidak pernah** cocok dengan `"SATUAN"` (huruf "U" juga karakter
-  kata, jadi tidak ada batas kata sesudah "SAT"). Header bertuliskan `SATUAN`
-  karena itu lolos filter lalu ditangkap `/HARGA|NILAI|SATUAN/`, dan karena
-  pemindaian dari kiri ia ditemukan SEBELUM kolom "HARGA SATUAN". Harga lalu
-  dibaca dari sel satuan: `"m3"` → **3**, `"m2"` → **2**, `"bh"`/`"ls"` →
-  `null`. Jaring `crossMismatch` butuh ≥20 baris berangka lengkap, dan satuan
-  tanpa digit membuat baris tidak ikut dihitung — RAB bersatuan "bh/ls/kg" bisa
-  lolos tanpa satu peringatan pun. Tidak ada satu pun uji memakai ejaan `SATUAN`.
-- 🔴 **Berkas CCO terbitan MARLIN tidak bisa diimpor ulang.** `cco-xlsx.ts`
-  menulis turunan sebagai `{ formula }` **tanpa `result`**; `cco-import.ts`
-  mengembalikan `null` untuk formula tanpa cache, sehingga pembuktian
-  `volume × harga ≈ jumlah` gagal dan `deteksiCco` menyerah. Berkas jatuh ke
-  jalur RAB biasa dengan `total = 0`. Kalau berkasnya dibuka & disimpan di Excel
-  dulu, deteksinya berhasil — jadi kegagalannya menimpa persis alur yang paling
-  lazim: unduh → teruskan lewat WhatsApp → unggah balik tanpa pernah dibuka.
-- 🔴 **Dokumen CCO memakai harga LAMA untuk kedua blok.** `cco-rows.ts`
-  `hargaLama: (l ?? b)!.unitPrice` dan berkasnya cuma punya SATU kolom harga,
-  yang dipakai semua rumus. Item volume tetap dengan harga 1 jt → 1,5 jt:
-  MARLIN menghitung TAMBAH Rp 1 juta, berkas yang dikirim ke PPK menulis
+Yang 🔴 sudah ditutup 2026-09-02 (lihat DECISIONS): kolom SATUAN terpilih jadi
+kolom harga · berkas CCO tidak bisa diimpor ulang · `angka()` mengembalikan 0
+untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
+
+- 🔴 **KEPUTUSAN · Dokumen CCO memakai harga LAMA untuk kedua blok.**
+  `cco-rows.ts` `hargaLama: (l ?? b)!.unitPrice`, dan berkasnya cuma punya SATU
+  kolom harga yang dipakai semua rumus. Item volume tetap dengan harga 1 jt →
+  1,5 jt: MARLIN menghitung TAMBAH Rp 1 juta, berkas yang dikirim ke PPK menulis
   **TETAP** dengan kolom tambah kosong. Kenaikannya tidak ada di dokumen.
-- 🔴 **`angka()` template mengembalikan 0 untuk apa pun yang tidak dikenal.**
-  `Number("")` adalah `0`, jadi sel `#REF!`, formula tanpa cache, spasi, "n/a",
-  "TBD", dan objek richText semuanya menjadi **volume 0** tanpa galat — pekerjaan
-  bernilai ratusan juta lenyap diam-diam. Sel `Date` menghasilkan angka omong
-  kosong. Bandingkan `hps-parser.cellVal` yang mengembalikan `null`: dua modul di
-  repo yang sama bersikap berbeda pada sel yang sama.
-- 🔴 **Dua parser, dua konvensi desimal yang berlawanan.**
-  `adendum-template-parse.angka()` membuang semua titik lalu koma = desimal;
-  `hps-parser.num()` membuang semua koma lalu titik = desimal. Akibatnya sel
-  teks `"12.5"` menjadi **125** di jalur template (10x lipat, tanpa sepatah
-  kata), dan `"1.500.000,50"` menjadi **null** di jalur HPS (baris hilang
-  diam-diam). Sel teks bukan hal langka: kolom ber-format Text, atau angka yang
-  ditempel dari PDF/Word.
+  Belum ditutup karena memperbaikinya berarti **mengubah bentuk dokumen yang
+  dikirim ke KKP** (kolom harga lama + harga baru, atau baris terpisah) — itu
+  keputusan format, bukan keputusan teknis. Catatan: harga item kontrak lama
+  memang tidak boleh berubah (DECISIONS 213), jadi keadaan ini sendiri sudah
+  janggal; pertanyaannya bagaimana dokumen harus menampilkannya kalau terjadi.
 - 🟡 **Harga yang diubah user dipakai untuk harga, diabaikan untuk uang.**
   `adendum-template-parse.ts` menguji `tetap` hanya dari VOLUME, lalu memakai
   `jumlahKontrak` lama sebagai `amount` — padahal kolom Harga Satuan sengaja
   dibuka untuk diketik. Node jadi melanggar identitasnya sendiri
   (`amount ≠ volume × unitPrice`), dan layar menampilkan "dampak neto Rp …"
   sementara Total baru tidak bergerak sama sekali.
-- 🟡 **Volume adendum negatif diterima diam-diam.** Tidak ada pemeriksaan tanda;
-  `G10 = -3` menghasilkan `amount` negatif dan total kategori negatif. DECISIONS
-  203 sudah menetapkan sebaliknya untuk impor jadwal; jalur adendum belum ikut.
 - 🟡 **Nilai ter-cache di template bertentangan dengan rumusnya sendiri.**
   Kolom H diisi cache `amount` tersimpan padahal rumusnya `ROUND(G*E,0)`, dan
   DECISIONS 212 menyatakan keduanya memang berbeda. Kolom "Selisih" menampilkan
@@ -757,22 +749,12 @@ Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
 - 🟡 **Impor Excel ke draft memintas SEMUA pagar realisasi editor.** Peringatan
   disusun lalu commit dilanjutkan tanpa syarat, jadi pagar di `lib/rab/adendum.ts`
   bukan invarian sistem melainkan aturan satu layar. Mungkin disengaja
-  (DECISIONS 203), tapi konsekuensinya sama dengan butir `draft_adendum` di atas:
-  lineage yang hilang membuat realisasinya lenyap dari angka resmi.
+  (DECISIONS 203), tapi konsekuensinya: lineage yang hilang membuat realisasinya
+  lenyap dari angka resmi.
 - 🟡 **`discardDraft` bisa mengunci lokasi.** Draft yang itemnya sudah dilaporkan
   (`rabNodeId` menunjuk node draft) tidak bisa dihapus karena FK `RESTRICT`;
   impor pengganti gagal dengan pesan Prisma mentah dan draftnya tidak bisa
   diganti maupun dibuang.
-- 🟢 **`HAPUS` di template cocok persis.** "Hapus item", "HAPUS?" atau
-  "hapus saja" diabaikan tanpa suara dan itemnya tetap masuk dengan volume dari
-  kolom G.
-- 🟢 **Peringatan yang menyesatkan.** `hps-parser` mencetak "karena berkode ia
-  DIHITUNG sebagai pekerjaan" untuk baris JUMLAH/TOTAL di berkas CCO, padahal
-  barisnya sebenarnya dibuang dan totalnya tepat. User disuruh mencurigai angka
-  yang benar.
-- 🟢 **Tidak ada pembandingan terhadap total yang tertulis di berkas.** Jalur
-  CCO/template tidak pernah menguji Σ item terhadap baris JUMLAH milik berkas
-  itu sendiri, sehingga salah-deteksi kolom tidak punya pemeriksa akhir.
 
 ### Siklus hidup & konkurensi
 

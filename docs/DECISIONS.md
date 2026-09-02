@@ -26052,3 +26052,161 @@ penandatangan. Pada kasus terburuk hanya satu orang lain yang benar-benar
 memeriksa. Itu masih memenuhi "dua orang" sebagaimana dinyatakan user, jadi
 tidak diubah sepihak; kalau kelak diminta lebih ketat, itu satu baris
 perbandingan di `nilaiPersetujuan`.
+
+---
+
+## (baru) · Peringatan harga diam saat tidak ada rupiah yang berpindah (2026-09-02)
+
+**Koreksi user 2026-09-02**: *"jangan mempermasalahkan jika harga berubah 0 pada
+satu item jika volume / qty nya juga 0."*
+
+Layar mencetak *"Kontrak 3.b Pancang Cerucuk Dolken – Rp 35.000 / File 3.b – –
+(+Rp 0)"*. Harga kontrak 35.000, sel harga di berkas kosong, volume nol di kedua
+sisi. Harga apa pun dikalikan nol tetap nol, jadi tidak ada nilai kontrak yang
+bergeser.
+
+Sebabnya cabang khusus yang kutambahkan sehari sebelumnya: untuk item bervolume
+kosong, gerbangnya jatuh ke perbandingan harga pada presisi simpan supaya
+perubahan harga item **lump-sum** tidak menguap. Cabang itu menangkap lebih dari
+yang dimaksud.
+
+**Keputusan**: SATU gerbang untuk semua bentuk item — `dampakRupiah === 0n`.
+Item lump-sum tetap terjaga tanpa cabang khusus, karena untuk item bervolume
+kosong `dampakRupiah` diambil dari pergerakan `amount`, bukan dari harga × 0.
+
+---
+
+## (baru) · Kolom SATUAN tidak lagi terbaca sebagai kolom HARGA SATUAN (2026-09-02)
+
+**Konteks**: audit 2026-09-01. Penyaring kolom harga di `hps-parser` berbunyi
+`if (/^VOL/.test(s) || /^SAT\b/.test(s)) return false;` lalu
+`return /HARGA|NILAI|SATUAN/.test(s);`.
+
+`/^SAT\b/` **tidak pernah** cocok dengan `"SATUAN"`: `\b` menuntut batas kata
+sesudah "SAT", padahal huruf berikutnya "U" juga karakter kata. Header
+bertuliskan `SATUAN` karena itu lolos penyaring, lalu ditangkap
+`/HARGA|NILAI|SATUAN/`, dan karena pemindaian dari kiri ia ditemukan **sebelum**
+kolom "HARGA SATUAN". Harga lalu dibaca dari sel satuan: `"m3"` → **3**,
+`"m2"` → **2**, `"bh"`/`"ls"`/`"kg"` → kosong.
+
+Jaring `crossMismatch` tidak menangkapnya: ia butuh ≥20 baris yang ketiga
+angkanya lengkap, dan satuan tanpa digit membuat baris tidak ikut dihitung —
+jadi RAB bersatuan "bh/ls/kg" lolos tanpa satu peringatan pun. Tidak ada satu
+pun uji lama memakai ejaan `SATUAN`; semuanya `VOL`/`SAT`.
+
+**Keputusan**: diperbaiki di DUA lapis. `/^SAT\b/` → `/^SAT/` menutup ejaan yang
+sudah diketahui; `c !== unit` pada pencarian kolom harga menutup ejaan yang
+belum. Kolom "HARGA SATUAN" tidak terkena karena labelnya dimulai "HARGA".
+
+---
+
+## (baru) · Satu pembaca angka untuk seluruh jalur impor Excel (2026-09-02)
+
+**Konteks**: audit 2026-09-01 menemukan tiga pembaca angka berbeda, dua di
+antaranya berlawanan konvensi desimal pada sel yang sama.
+
+| teks di sel     | `hps-parser.num()` | `adendum-template.angka()` |
+|-----------------|--------------------|-----------------------------|
+| `1.500.000,50`  | **null** (hilang)  | 1500000,5 ✓                 |
+| `12.5`          | 12,5 ✓             | **125** (10x lipat)         |
+| `1,5`           | **15** (10x lipat) | 1,5 ✓                       |
+| `Rp 1.500.000`  | **null**           | 1500000 ✓                   |
+
+Ditambah `Number("")` yang bernilai **0**: sel `#REF!`, rumus tanpa hasil
+ter-cache, spasi, `"n/a"`, richText, dan bahkan sel `Date` semuanya menjadi
+**volume 0** tanpa satu pun galat di jalur template.
+
+**Keputusan**: satu modul `lib/rab/angka-lokal.ts`, dipakai `hps-parser`,
+`cco-import`, dan `adendum-template-parse`. Aturannya sengaja **hanya
+menafsirkan yang pasti**:
+
+1. Ada koma → koma desimal (Indonesia), titik pemisah ribuan.
+2. Tanpa koma, DUA titik atau lebih → semua titik pemisah ribuan; sebuah
+   bilangan tidak mungkin punya dua tanda desimal.
+3. Tanpa koma, SATU titik → dibiarkan sebagai desimal. Sengaja sama dengan
+   perilaku `num()` lama, supaya tidak ada berkas yang angkanya berubah
+   diam-diam oleh perbaikan ini.
+
+**Alternatif direject**: *menebak `1.500` dari pola tiga digit.* Volume
+`Decimal(15,3)` membuat `3.333` m³ lazim, sementara pemisah ribuan membuat
+`1.500` juga lazim berarti seribu lima ratus. Menebak salah mengalikan atau
+membagi angka orang dengan 1000 tanpa suara — persis kelas kesalahan yang
+sedang diperbaiki. Ambiguitasnya diakui, bukan diselesaikan dengan tebakan.
+
+**Konsekuensi**: yang tidak dikenali menjadi `null`, TIDAK PERNAH 0. Pemanggil
+yang memutuskan apa artinya baris tanpa angka.
+
+---
+
+## (baru) · Berkas CCO terbitan MARLIN bisa diimpor ulang (2026-09-02)
+
+**Konteks**: `cco-xlsx` menulis semua kolom turunan sebagai `{ formula }`
+**tanpa** `result`. Pembaca Excel mana pun kecuali Excel sendiri hanya bisa
+membaca hasil yang ter-cache, jadi `deteksiCco` gagal membuktikan
+`volume × harga ≈ jumlah` lalu menyerah, dan berkasnya jatuh ke jalur RAB biasa
+dengan total **0**.
+
+Kalau berkasnya dibuka lalu disimpan di Excel dulu, impornya berhasil. Jadi
+kegagalannya menimpa persis alur yang paling lazim di lapangan: unduh, teruskan
+lewat WhatsApp, unggah balik tanpa pernah dibuka.
+
+**Keputusan**: hasil rumus ikut ditulis untuk kolom yang dipakai impor
+(`jumlahLama`, `jumlahBaru`, volume/jumlah tambah-kurang, `ket`). Nilainya
+dihitung dari angka yang sama dengan yang menyusun rumusnya, jadi cache dan
+rumus tidak bisa berselisih. Kolom BOBOT sengaja TIDAK di-cache: penyebutnya sel
+TOTAL yang baru ada setelah semua baris ditulis, dan `fullCalcOnLoad` sudah
+dipasang di berkas ini.
+
+---
+
+## (baru) · Σ item yang terbaca diadu dengan total yang ditulis berkas (2026-09-02)
+
+**Pertanyaan user 2026-09-02**: *"maksud -569.812.788 itu apa? sedangkan kalau
+dihitung-hitung selisih cuma 100jtan."*
+
+Angka itu sendiri jujur: ia `totalBaru − totalAktif`. Yang tidak bisa dijawab
+siapa pun dari layar adalah pertanyaan sebenarnya — apakah `totalBaru` memang
+isi berkasnya, atau hasil bacaan yang bolong. Sampai audit 2026-09-01 **tidak
+ada satu pun pemeriksaan** yang mengadu hasil bacaan parser dengan angka yang
+tertulis di berkasnya sendiri.
+
+**Keputusan**: baris rekap yang dilewati parser dicatat angkanya, lalu diadu
+dengan Σ item yang terbaca. Selisih di atas 0,5% disebut, lengkap dengan arahnya
+("ada baris yang tidak terbaca" vs "ada baris yang terhitung dua kali").
+
+**Yang sengaja dibatasi, supaya tidak menjadi peringatan palsu berikutnya**:
+
+- Hanya kandidat yang berada dalam **±20% dari Σ item** yang dianggap total
+  akhir. Berkas RAB lazim memuat baris "JUMLAH" per KATEGORI; mengambil yang
+  terbesar begitu saja membuat subtotal kategori diperlakukan sebagai total
+  seluruh berkas, dan peringatannya menyala pada berkas yang sempurna. Uji
+  `hps-parser` yang lama langsung merah saat aturan longgar itu dicoba — dan
+  itu yang membuatnya diperketat.
+- Selisih yang bisa dijelaskan PPN 11%/12% tidak dianggap selisih: sebagian
+  berkas menulis baris "JUMLAH" yang sudah ber-PPN walau namanya polos.
+- Label "JUMLAH TOTAL"/"SETELAH PPN"/"DIBULATKAN" tidak ikut dicatat.
+
+---
+
+## (baru) · Volume adendum negatif ditolak, dan HAPUS tidak menuntut ejaan persis (2026-09-02)
+
+**Konteks**: audit 2026-09-01 pada `adendum-template-parse`.
+
+1. **Volume negatif diterima diam-diam.** `G10 = -3` menghasilkan `amount`
+   negatif dan total kategori negatif; yang muncul di pratinjau hanya "volume
+   berubah dari 2,5 ke −3" tanpa mengatakan bahwa angka itu mustahil. DECISIONS
+   203 sudah menetapkan sebaliknya untuk impor jadwal.
+2. **`keterangan === "HAPUS"` cocok persis.** "Hapus item", "HAPUS?", atau
+   "hapus saja" diabaikan **tanpa suara** dan itemnya tetap masuk dengan volume
+   dari kolom G — niat mencabut yang ditulis nyaris benar hilang tanpa kabar.
+
+**Keputusan**: volume negatif **DITOLAK** (barisnya tidak diikutkan) dan disebut
+di pratinjau, bukan dibetulkan sendiri jadi 0 — pekerjaan-kurang dinyatakan
+dengan MENURUNKAN volume, jadi angka negatif selalu salah ketik atau rumus yang
+meleset. `HAPUS` dicocokkan dengan `/\bHAPUS\b/`.
+
+Sekalian: peringatan *"namanya menyerupai baris rekap, tapi karena berkode ia
+DIHITUNG sebagai pekerjaan"* kini hanya menyala bila barisnya benar-benar akan
+dihitung. Di berkas CCO, sel A–F yang ter-merge membuat label "JUMLAH" terbaca
+sebagai kode, barisnya sebenarnya dibuang, dan peringatan lama tetap menyala —
+menyuruh user mencurigai angka yang justru benar.
