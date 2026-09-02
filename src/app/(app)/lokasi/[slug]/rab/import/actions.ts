@@ -88,7 +88,9 @@ export type ImportPreview = {
    */
   padanan: {
     lama: { lineageKey: string; code: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" }[];
-    baru: { lineageAsli: string; code: string; name: string }[];
+    /** `volume` ikut dibawa: pemakainya harus bisa melihat, SEBELUM memilih,
+     *  apakah baris pengganti itu cukup menampung realisasi yang sudah ada. */
+    baru: { lineageAsli: string; code: string; name: string; volume: number | null }[];
     dipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[];
     ditolak: { lineageBaru: string; lineageLama: string; sebab: string }[];
   };
@@ -308,7 +310,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     }[] = [];
     let padananDipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[] = [];
     let padananDitolak: { lineageBaru: string; lineageLama: string; sebab: string }[] = [];
-    let padananBaruTersedia: { lineageAsli: string; code: string; name: string }[] = [];
+    let padananBaruTersedia: { lineageAsli: string; code: string; name: string; volume: number | null }[] = [];
     if (activeRevision) {
       aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
@@ -326,6 +328,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         },
       });
       const keyById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
+      // Node berkas SEBELUM dicocokkan: kunci di sini yang dipakai
+      // `PadananManual.lineageBaru`, dan volumenya yang perlu dilihat user.
+      const nodesAsli = nodes;
       const cocok = samakanLineage(
         nodes,
         aktifNodes.map((n) => ({
@@ -341,7 +346,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       nodes = cocok.nodes;
       padananDipakai = cocok.padananDipakai;
       padananDitolak = cocok.padananDitolak;
-      padananBaruTersedia = cocok.itemBaruAsli;
+      {
+        const volAsli = new Map(nodesAsli.map((n) => [n.lineageKey, n.volume]));
+        padananBaruTersedia = cocok.itemBaruAsli.map((x) => ({ ...x, volume: volAsli.get(x.lineageAsli) ?? null }));
+      }
       if (cocok.padananDipakai.length > 0) {
         warnings.push(
           `${cocok.padananDipakai.length} item DIPETAKAN MANUAL ke item kontrak: ` +

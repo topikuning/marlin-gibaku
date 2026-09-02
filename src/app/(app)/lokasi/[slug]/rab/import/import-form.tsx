@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import { Banner, Button, Combobox, FileInput, HelpText, Label, Textarea } from "@/components/ui";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
-import { formatRupiahSatuan, formatRupiah } from "@/lib/format";
+import { formatNumber, formatRupiahSatuan, formatRupiah } from "@/lib/format";
 import { importHps, type BedaPratinjau, type ImportMode, type ImportPreview, type ImportState } from "./actions";
 
 /**
@@ -361,10 +361,20 @@ function PanelPadanan({
   onPilih: (lineageLama: string, lineageBaru: string) => void;
 }) {
   if (padanan.lama.length === 0 || padanan.baru.length === 0) return null;
+  /*
+   * VOLUME ikut di label. Pemetaan tidak menambah volume apa pun — ia hanya
+   * memindahkan identitas. Kalau baris penggantinya lebih kecil daripada yang
+   * sudah dikerjakan, selisihnya menjadi pekerjaan tanpa dasar kontrak, dan itu
+   * harus terlihat SEBELUM dipilih, bukan sesudah.
+   */
   const opsi = [
     { value: "", label: "– tidak dipetakan –" },
-    ...padanan.baru.map((b) => ({ value: b.lineageAsli, label: `${b.code} ${b.name}` })),
+    ...padanan.baru.map((b) => ({
+      value: b.lineageAsli,
+      label: `${b.code} ${b.name}${b.volume == null ? "" : ` – ${formatNumber(b.volume)}`}`,
+    })),
   ];
+  const volumeBaru = new Map(padanan.baru.map((b) => [b.lineageAsli, b.volume]));
   return (
     <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
       <p className="font-medium text-ink">
@@ -392,6 +402,28 @@ function PanelPadanan({
               disabled={pending}
               placeholder="Pasangkan ke item baru…"
             />
+            {(() => {
+              const dipilih = pilihan[l.lineageKey];
+              if (!dipilih) return null;
+              const vol = volumeBaru.get(dipilih);
+              if (vol == null || vol >= l.realisasi) return null;
+              /*
+               * Pemetaan TIDAK menambah volume. Realisasi 45,7 yang mendarat di
+               * baris bervolume 32,15 tetap 45,7 di laporan hariannya – yang
+               * berubah cuma dasar kontraknya, dan sisanya jadi pekerjaan yang
+               * tidak punya dasar bayar. Dikatakan di sini, bukan ditunggu
+               * sampai muncul sebagai panel merah setelah pratinjau dihitung
+               * ulang.
+               */
+              return (
+                <span className="block text-danger">
+                  Baris penggantinya cuma {formatNumber(vol)}, sedangkan yang sudah dikerjakan{" "}
+                  {formatNumber(l.realisasi)} – selisih {formatNumber(l.realisasi - vol)} jadi pekerjaan
+                  tanpa dasar kontrak. Laporan hariannya tidak berubah; yang berpindah cuma dasarnya.
+                  Naikkan volume baris penggantinya di file, atau pasangkan ke baris lain.
+                </span>
+              );
+            })()}
           </li>
         ))}
       </ul>
