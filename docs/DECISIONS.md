@@ -26357,6 +26357,14 @@ bisa dinilai sendiri oleh pembacanya.
 kunci menentukan kategori di enam tempat lain, jadi mewarisi kunci lintas
 kategori memindahkan realisasinya di blanko KKP tanpa ada yang memindahkannya.
 
+**Pengaman yang menyertainya**: pencocokan nama kategori dituntut **TUNGGAL di
+kedua sisi**, sama seperti disiplin pencocokan item. Pertanyaan user setelah
+membaca berkasnya sendiri menunjuk ke sini: nama pekerjaan memang berulang antar
+bangunan ("Pekerjaan Galian Tanah keras s.d 1 m" ada di III grup 3 DAN IV grup
+3), dan nama kategori pun bisa kembar. Mengambil yang pertama berarti melempar
+koin atas milik siapa realisasi sebuah item, dan taruhannya angka resmi. Kalau
+kembar, pemetaan lintas-kode ditolak dan pemakainya diberi tahu.
+
 **Catatan proses**: ini regresi ketiga berturut-turut pada permukaan yang sama,
 dan ketiganya lolos karena ujinya menguji bentuk yang sudah dibayangkan penulis,
 bukan bentuk berkas yang benar-benar dipakai. Yang menemukan ketiganya adalah

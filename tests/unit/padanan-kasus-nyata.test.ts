@@ -186,3 +186,71 @@ describe("KASUS USER 2: kategori sama, nomor romawinya bergeser IV -> III", () =
     expect(h.padananDitolak[0].sebab).toMatch(/kategori/i);
   });
 });
+
+/*
+ * NAMA KEMBAR — pertanyaan user 2026-09-03 setelah membaca Excel-nya sendiri.
+ *
+ * Di berkasnya, "Pekerjaan Galian Tanah keras s.d 1 m" muncul DUA KALI di
+ * kategori berbeda: III grup 3 (baru, 32,15) dan IV grup 3 (sudah ada, 12,53,
+ * "TETAP"). Nama pekerjaan memang berulang antar bangunan.
+ *
+ * Yang diuji di sini bukan item-nya - pencocokan item sudah dikurung per
+ * kelompok saudara sehingga nama kembar antar kategori tidak bertabrakan.
+ * Yang diuji KATEGORI-nya: peta "kategori berkas -> kategori kontrak" mencocok
+ * lewat nama, dan kalau namanya kembar, mengambil yang pertama berarti
+ * melempar koin atas milik siapa realisasi sebuah item.
+ */
+describe("nama KATEGORI yang kembar tidak boleh dipetakan dengan menebak", () => {
+  const KEMBAR = "PEKERJAAN PONDASI";
+
+  const kontrakKembar: NodeLamaCocok[] = [
+    nodeLama("III", null, "kategori", "III", KEMBAR),
+    nodeLama("III#1", "III", "item", "1", "Galian Tanah"),
+    nodeLama("IV", null, "kategori", "IV", KEMBAR),
+    nodeLama("IV#1", "IV", "item", "1", "Urugan Pasir"),
+  ];
+
+  const berkasKembar: FlatNode[] = [
+    nodeBaru("V", null, "kategori", "V", KEMBAR, null),
+    nodeBaru("V#9", "V", "item", "9", "Galian Tanah Keras", 10),
+  ];
+
+  it("kategori berkas bernama kembar TIDAK dipetakan ke salah satunya", () => {
+    const h = samakanLineage(berkasKembar, kontrakKembar, {
+      padanan: [{ lineageBaru: "V#9", lineageLama: "III#1" }],
+    });
+    expect(h.padananDipakai).toEqual([]);
+    expect(h.padananDitolak).toHaveLength(1);
+    expect(h.padananDitolak[0].sebab).toMatch(/kategori/i);
+  });
+
+  it("kalau kontraknya TIDAK kembar, pemetaannya tetap jalan", () => {
+    const kontrakTunggal: NodeLamaCocok[] = [
+      nodeLama("IV", null, "kategori", "IV", KEMBAR),
+      nodeLama("IV#1", "IV", "item", "1", "Urugan Pasir"),
+    ];
+    const h = samakanLineage(berkasKembar, kontrakTunggal, {
+      padanan: [{ lineageBaru: "V#9", lineageLama: "IV#1" }],
+    });
+    expect(h.padananDitolak).toEqual([]);
+    expect(h.padananDipakai).toHaveLength(1);
+  });
+
+  it("dua kategori BERKAS bernama sama juga tidak dipetakan", () => {
+    const berkasDuaKembar: FlatNode[] = [
+      nodeBaru("V", null, "kategori", "V", KEMBAR, null),
+      nodeBaru("V#9", "V", "item", "9", "Galian Tanah Keras", 10),
+      nodeBaru("VI", null, "kategori", "VI", KEMBAR, null),
+      nodeBaru("VI#9", "VI", "item", "9", "Galian Tanah Keras Lain", 5),
+    ];
+    const kontrakTunggal: NodeLamaCocok[] = [
+      nodeLama("IV", null, "kategori", "IV", KEMBAR),
+      nodeLama("IV#1", "IV", "item", "1", "Urugan Pasir"),
+    ];
+    const h = samakanLineage(berkasDuaKembar, kontrakTunggal, {
+      padanan: [{ lineageBaru: "V#9", lineageLama: "IV#1" }],
+    });
+    expect(h.padananDipakai).toEqual([]);
+    expect(h.padananDitolak[0].sebab).toMatch(/kategori/i);
+  });
+});

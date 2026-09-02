@@ -193,12 +193,26 @@ export function samakanLineage(
    * hanya membuat pemeriksaan di muka melihat hal yang sama.
    */
   const kategoriBerkasKeKontrak = new Map<string, string>();
-  for (const n of nodes) {
-    if (n.parentLineageKey != null) continue;
-    const cocokKat = lama.find(
-      (x) => x.parentLineageKey == null && normalNama(x.name) === normalNama(n.name),
-    );
-    if (cocokKat) kategoriBerkasKeKontrak.set(n.lineageKey, cocokKat.lineageKey);
+  {
+    const akarBerkas = nodes.filter((n) => n.parentLineageKey == null);
+    const akarKontrak = lama.filter((x) => x.parentLineageKey == null);
+    for (const n of akarBerkas) {
+      const nama = normalNama(n.name);
+      /*
+       * TUNGGAL di kedua sisi, sama seperti disiplin pencocokan item.
+       *
+       * Nama kategori bisa kembar — pertanyaan user 2026-09-03 setelah membaca
+       * berkasnya sendiri, di mana satu nama pekerjaan muncul di dua kategori
+       * berbeda. Mengambil yang pertama berarti melempar koin atas milik siapa
+       * realisasi sebuah item, dan taruhannya angka resmi. Kalau kembar,
+       * pemetaan lintas-kode ditolak dan pemakainya diberi tahu — bukan
+       * ditebak diam-diam.
+       */
+      if (akarBerkas.filter((x) => normalNama(x.name) === nama).length !== 1) continue;
+      const kandidat = akarKontrak.filter((x) => normalNama(x.name) === nama);
+      if (kandidat.length !== 1) continue;
+      kategoriBerkasKeKontrak.set(n.lineageKey, kandidat[0].lineageKey);
+    }
   }
   /** Akar kunci berkas dan akar kunci kontrak menunjuk KATEGORI yang sama? */
   const kategoriSetara = (lineageBaru: string, lineageLama: string): boolean => {
