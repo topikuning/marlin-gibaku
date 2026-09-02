@@ -183,21 +183,45 @@ export function bandingkanTerhadapAktif(
     // (baru − lama) × 0 = 0 akan melaporkan kenaikan 100 juta sebagai "Rp 0",
     // lalu mengurutkannya paling bawah dan memotongnya dari layar. Untuk item
     // itu dampaknya diambil dari pergerakan nilai tercatat.
-    const adaVolume = (ke ?? 0) > 0;
-    const dampakRupiah = adaVolume
-      ? rupiah(hargaBaruNilai, ke) - rupiah(hargaLama, ke)
-      : n.amount - lama.amount;
-    // SATU gerbang untuk semua bentuk item: apakah ada rupiah yang berpindah.
-    //
-    // Versi sebelumnya, untuk item bervolume kosong, jatuh ke perbandingan
-    // harga pada presisi simpan. Itu membuat item bervolume NOL diperingatkan
-    // ketika harganya berbeda, padahal harga apa pun dikalikan nol tetap nol.
-    // Laporan user 2026-09-02: *"jangan mempermasalahkan jika harga berubah 0
-    // pada satu item jika volume / qty nya juga 0."*
-    //
-    // Item lump-sum tetap terjaga tanpa perlu cabang khusus: volumenya kosong,
-    // tapi `amount`-nya bergerak, dan `dampakRupiah` mengambil selisih itu.
-    const hargaSama = dampakRupiah === 0n;
+    /*
+     * DUA SYARAT, dan keduanya wajib: harganya memang berbeda, DAN perbedaan
+     * itu memindahkan rupiah.
+     *
+     * Syarat pertama pernah hilang, dan akibatnya parah. Versi 2026-09-02
+     * meringkas gerbangnya jadi `dampakRupiah === 0n` saja, sementara untuk
+     * item bervolume nol `dampakRupiah` diambil dari selisih `amount`. Pada
+     * berkas adendum yang menolkan seluruh grup pekerjaan, `amount` memang
+     * anjlok — bukan karena harganya, tapi karena VOLUME-nya dinolkan. Panel
+     * harga jadi menagih perubahan volume: laporan user 2026-09-03 menunjukkan
+     * 61 item "harga berubah" yang harganya SAMA PERSIS di kedua sisi
+     * (Rp 800.171,79 lawan Rp 800.171,79), dengan dampak neto −Rp 1,31 M —
+     * lebih besar dari pergerakan seluruh berkas yang cuma −Rp 569 juta.
+     *
+     * Harga dibandingkan pada presisi kolomnya (`Decimal(15,2)`), jadi nol dan
+     * kosong tetap satu keadaan yang sama.
+     */
+    const hargaBeda = !samaPadaPresisi(hargaLama, hargaBaruNilai, DESIMAL_HARGA);
+
+    /*
+     * Rupiah yang benar-benar berpindah KARENA HARGANYA:
+     *
+     * - volume baru ada    → selisih harga × volume baru. Ini yang membuang
+     *   beda pembulatan tulis satu sen (kasus APAR): dampaknya nol rupiah.
+     * - volume tidak bergerak (kosong/nol di kedua sisi) → tidak ada volume
+     *   yang bisa dipakai mengalikan, jadi pergerakan `amount` sepenuhnya milik
+     *   harga. Ini yang menjaga item lump-sum tetap terlihat.
+     * - volume BERUBAH menjadi nol/kosong → yang memindahkan uang adalah
+     *   volumenya, dan itu sudah dilaporkan di daftar volume. Panel harga tidak
+     *   boleh ikut menagihnya.
+     */
+    const dampakRupiah = !hargaBeda
+      ? 0n
+      : (ke ?? 0) > 0
+        ? rupiah(hargaBaruNilai, ke) - rupiah(hargaLama, ke)
+        : volumeSama
+          ? n.amount - lama.amount
+          : 0n;
+    const hargaSama = !hargaBeda || dampakRupiah === 0n;
     if (!hargaSama) {
       hargaBerubah.push({
         lineageKey: n.lineageKey,
