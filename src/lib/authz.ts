@@ -15,6 +15,9 @@ export const CAPABILITIES = [
   "prospect.manage",
   "contract.manage",
   "contract.edit", // koreksi kontrak (super_admin saja) — beda dari adendum
+  // Mode periode minggu laporan SAJA. Dipisah dari `contract.edit` supaya bisa
+  // diberikan tanpa ikut membuka nomor/nilai/PPN/tanggal kontrak (DECISIONS 507).
+  "contract.week_mode",
   "amendment.manage",
   "location.view",
   "location.manage",
@@ -331,6 +334,22 @@ const PROJECT_MANAGER: Capability[] = [
    * dasar semua angka deviasi; sama alasannya dengan `location.correct`.
    */
   "contract.manage",
+  /**
+   * MODE PERIODE MINGGU laporan — permintaan user 2026-09-03: *"project manager
+   * diijinkan untuk ubah periode minggu laporan."*
+   *
+   * Diberikan sebagai kapabilitas TERSENDIRI, bukan dengan membuka
+   * `contract.edit`. `contract.edit` memuat nomor, NILAI KONTRAK, PPN, tanggal
+   * TTD, SPMK, dan masa pelaksanaan; membukanya demi satu dropdown berarti
+   * memberi enam hal yang tidak diminta.
+   *
+   * Yang ikut jadi konsekuensinya, dan disebut apa adanya: mengganti mode
+   * minggu MENGKONVERSI baseline & jadwal seluruh lokasi paket ke grid tanggal
+   * baru. Itu memang inti fiturnya (DECISIONS 427d), bukan efek samping — tapi
+   * artinya PM kini bisa menggeser peta tanggal M1–MN yang jadi dasar semua
+   * angka deviasi paketnya.
+   */
+  "contract.week_mode",
   "amendment.manage",
   // `rab.manage` (DECISIONS 302) dan `baseline.manage` (DECISIONS 353) kini
   // datang dari SITE_MANAGER — tidak didaftar ulang di sini supaya jelas
