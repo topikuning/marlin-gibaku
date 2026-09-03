@@ -26795,6 +26795,124 @@ kegagalan-diam:
 lama tidak diam-diam berubah arti. Uji `batas-unggah-foto` bertambah enam
 kasus; ketiadaan pagar per-berkas dibuktikan MERAH lebih dulu.
 
-**Bisa di-revisit**: kompresi di sisi peramban untuk foto raksasa — sekali
-diputuskan, ia menghapus seluruh kelas masalah ini, tapi menuntut jawaban dulu
-soal berkas asli sebagai bukti.
+**Bisa di-revisit**: —  dijawab pada hari yang sama, lihat susulan di bawah.
+**Susulan (2026-09-03, permintaan user)**: *"seharusnya, kalau kamu memang bisa
+mengecilkan ukuran, ketika besar kamu menawarkan user apakah mau kompress,
+kalau iya, kamu kompres. itu kan ux yang ramah."*
+
+Betul, dan menolak tanpa jalan keluar adalah jalan buntu di tempat yang paling
+tidak punya jalan keluar: di lapangan tidak ada yang akan membuka aplikasi lain
+untuk mengompres berkas. Foto kebesaran kini **DITAWARI** pengecilan di HP itu
+juga (`lib/photo-kecilkan.ts` untuk keputusannya, `components/knmp/kecilkan-foto.ts`
+untuk canvas-nya): sisi terpanjang 3.000 px, tangga mutu JPEG 0,85 → 0,55,
+berhenti pada percobaan pertama yang cukup.
+
+Yang dijaga ketat: **ditawarkan, tidak pernah otomatis.** Foto itu bukti, dan
+mengubahnya — sekalipun cuma ukurannya — keputusan yang bukan milik program.
+Pengecilan hanya berjalan setelah tombolnya diketuk, dan uji
+`kecilkan-foto.test.ts` membaca sumbernya untuk memastikan `kecilkanFoto` tidak
+pernah dipanggil dari `tumpuk` maupun dari sebuah `useEffect`.
+
+Hasilnya harus cukup kecil **DAN** lebih kecil dari aslinya: JPEG bermutu tinggi
+atas sumber yang sudah terkompresi baik bisa membengkak, dan "mengecilkan" yang
+membesarkan adalah kegagalan yang tombolnya tetap terlihat bekerja. Yang gagal
+dikecilkan (HEIC yang tak terbaca peramban, panorama yang tetap kebesaran)
+disebut sebabnya, bukan menghilang.
+
+**Konsekuensi yang harus disebut**: berkas yang naik ke `Photo.originalKey`
+adalah berkas SETELAH pengecilan, bukan keluaran mentah kamera. Arsipnya tetap
+memuat "berkas sebagaimana dikirim" — yang berubah cuma dari mana berkas itu
+berasal, dan itu atas ketukan orangnya sendiri. Nama berkasnya diberi akhiran
+`-kecil.jpg` supaya tidak menyamar sebagai aslinya.
+
+**Yang TIDAK boleh ditawarkan, dan kenapa** — teguran user atas rancangan awal
+susulan ini: *"kan dikecilkan jika tidak muat, bagaimana mungkin kamu
+menawarkan hal yang tidak mungkin tercapai."*
+
+Rancangan awal menutup entri ini dengan "kalau kelak dituntut menyimpan
+keluaran kamera apa adanya, tambahkan kolom penanda". Itu omong kosong yang
+saling meniadakan: foto ini dikecilkan JUSTRU KARENA yang asli tidak bisa
+dikirim. Menyimpan aslinya di server menuntut mengunggah berkas yang, menurut
+pagar yang sama, tidak boleh diunggah. Tidak ada kolom yang bisa memperbaiki
+itu — yang dibutuhkan menaikkan `bodySizeLimit` beserta seluruh ongkosnya, dan
+itu keputusan lain sama sekali.
+
+Yang MASIH masuk akal dari gagasan itu cuma bagian pencatatannya: kolom penanda
+hanya bisa mencatat BAHWA foto pernah dikecilkan di HP — berguna untuk menilai
+mutu bukti, tapi bukan penyelamat berkas asli. Aslinya tetap ada di HP
+pemotretnya, dan hanya di sana.
+
+**Bisa di-revisit**: menaikkan `bodySizeLimit` beserta ongkos jaringannya —
+sebuah keputusan tentang anggaran permintaan, bukan tentang foto.
+
+---
+
+## 515 · 2026-09-03 · CI menjalankan job yang PERLU saja, dan "perlu" itu diuji
+
+**Konteks**: dua teguran user 2026-09-03. Yang pertama atas PR #261 yang isinya
+menomori SATU judul di `DECISIONS.md` — *"kenapa harus cek panjang x lebar
+kalau cuma soal penomoran?!"* Yang kedua atas tambalan pertama saya, yang cuma
+membedakan "markdown vs bukan" — *"kamu seharusnya bisa membedakan mana yang
+perlu tes apa, jangan konyol seperti ini, malah memperlama proses dan
+buang-buang waktu sesuatu yang sangat mahal selain token."*
+
+Keduanya benar. `on: pull_request` tanpa filter apa pun membuat satu baris
+markdown menjalankan Playwright, Postgres, dan `docker build --no-cache`: ±20
+menit untuk nol bukti. Ongkosnya bukan cuma waktu — CI yang lambat pada
+perubahan sepele mengajari orang menumpuk perubahan jadi PR besar, dan PR besar
+lebih sulit diperiksa.
+
+**Keputusan**: logikanya keluar dari YAML ke `scripts/ci-perlu.mjs`. Tiap
+berkas digolongkan, lalu kebutuhan diturunkan dari GOLONGAN yang muncul:
+
+| Golongan | Pola |
+|---|---|
+| dokumen | `*.md` di mana pun |
+| uji-e2e | `tests/e2e/**` |
+| uji-integrasi | `tests/integration/**` |
+| uji-unit | `tests/unit/**` |
+| aplikasi | **sisanya** — `src`, `prisma`, `package.json`, `Dockerfile`, `ci.yml`, `tests/stubs`, … |
+
+Ada SATU saja berkas **aplikasi** → semua job jalan. Yang bisa dilewati hanya
+perubahan yang seluruhnya dokumen dan/atau uji:
+
+- `docker` tidak pernah dibutuhkan di situ — `tests` dan `*.md` ada di
+  `.dockerignore`, jadi image-nya tidak berubah satu bit pun;
+- `e2e` hanya bila `tests/e2e/**` berubah;
+- `integration` hanya bila `tests/integration/**` berubah;
+- uji unit tidak membutuhkan ketiganya — ia dijalankan job `checks`.
+
+**`checks` TIDAK pernah digerbang.** Justru di sanalah penjaga dokumen tinggal:
+`decisions-nomor` (nomor kembar, `(baru)` yang lolos merge), `tanda-pisah-ui`,
+matriks izin. Melewatinya akan membuat perubahan dokumen jadi satu-satunya yang
+tidak diperiksa siapa pun — kebalikan dari maksudnya.
+
+**Kenapa skrip, bukan enam baris bash di dalam `run:`**: keputusan "boleh
+dilewati" adalah keputusan tentang jaring pengaman — salah sedikit, sebuah bug
+lolos dengan CI hijau. Sebagai skrip ia bisa diuji dengan daftar berkas
+sungguhan (`tests/unit/ci-perlu.test.ts`, 16 kasus termasuk PR campuran dan
+berkas yang mudah dikira aman); sebagai bash di dalam YAML ia hanya bisa
+dipelototi.
+
+Arah keraguan condong ke MENJALANKAN: daftar kosong, berkas tak dikenali, atau
+peristiwa selain `pull_request` semuanya menghasilkan "jalan semua". Salah
+menjalankan cuma membuang waktu; salah melewati membuang jaring pengaman.
+
+**Alternatif direject**:
+- *`paths-ignore` di tingkat `on:`.* Melewati SELURUH alur kerja termasuk
+  `checks` — persis yang tidak boleh. Ia juga membuat status check yang
+  diwajibkan tidak pernah terlapor, sehingga PR-nya malah tidak bisa di-merge.
+- *Action pihak ketiga (`dorny/paths-filter`).* Satu ketergantungan baru di
+  jalur tepercaya CI, dan keputusannya tetap tidak bisa diuji.
+- *Berhenti di "markdown vs bukan".* Tambalan pertama saya, dan memang belum
+  membedakan apa pun: perubahan yang hanya menyentuh `tests/e2e` tetap
+  menjalankan Postgres dan Docker.
+
+**Konsekuensi**: job yang dilewati terlapor "skipped", dan GitHub
+memperlakukannya sebagai lulus untuk status check yang diwajibkan — PR dokumen
+tetap bisa di-merge. Push ke `main` selalu menjalankan semuanya.
+
+**Bisa di-revisit**: golongan "aplikasi" masih satu gumpalan. Perubahan yang
+hanya menyentuh `src/lib/**` murni pun kemungkinan besar tidak butuh E2E — tapi
+"kemungkinan besar" bukan dasar yang cukup untuk mencabut jaring pengaman, dan
+menagihnya butuh peta ketergantungan, bukan pola nama berkas.
