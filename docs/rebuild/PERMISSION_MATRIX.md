@@ -13,7 +13,7 @@ Scope lokasi: `super_admin`, `program_director` = lintas lokasi
 `exec_viewer` sejak DECISIONS 190 — dibatasi `LocationAssignment` (dan paket yang
 memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
-Jumlah capability: **64**.
+Jumlah capability: **65**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer | wakil_ppk |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -25,6 +25,7 @@ Jumlah capability: **64**.
 | `prospect.manage` | ✓ | ✓ | – | – | – | – | – | – |
 | `contract.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `contract.edit` | ✓ | – | – | – | – | – | – | – |
+| `contract.week_mode` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `amendment.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `location.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `location.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
