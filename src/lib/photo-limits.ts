@@ -62,41 +62,100 @@ export const MAX_UPLOAD_MB_TOTAL = Math.round(MAX_UPLOAD_BYTES_TOTAL / (1024 * 1
 /** Batas TOTAL foto per kegiatan lapangan (DECISIONS 116). */
 export const MAX_PHOTOS_PER_ACTIVITY = 32;
 
+/** MB satu berkas, dibulatkan satu desimal — untuk pesan yang menyebut angkanya. */
+function mb(byte: number): string {
+  return (byte / (1024 * 1024)).toFixed(1).replace(".", ",");
+}
+
 /**
  * Berapa berkas dari satu pilihan yang MUAT dalam satu kali unggah, dan kenapa
  * sisanya tidak (DECISIONS 425). MURNI: hanya butuh ukuran tiap berkas.
  *
- * Dua pagar, dan pesannya harus menyebut yang MANA yang kena — "maksimal 20
- * foto" pada pilihan 8 foto besar adalah pesan yang membingungkan sekaligus
+ * **TIGA** pagar, dan pesannya harus menyebut yang MANA yang kena — "maksimal
+ * 20 foto" pada pilihan 8 foto besar adalah pesan yang membingungkan sekaligus
  * salah. Yang tidak muat TIDAK PERNAH dibuang diam-diam; jumlahnya selalu
  * disebutkan.
+ *
+ * ### Pagar ketiga: ukuran SATU berkas, diperiksa di sini sejak 2026-09-03
+ *
+ * Sampai hari itu batas per-berkas (25 MB) hanya ditegakkan di server, dan
+ * akibatnya ada dua celah yang keduanya persis kegagalan-diam:
+ *
+ *  1. Foto **26 MB** lolos pemeriksaan ini (26 ≤ anggaran 28 MB), jadi TIDAK
+ *     ADA peringatan apa pun. Berkasnya diunggah utuh — di sinyal lapangan itu
+ *     menit-menit — baru ditolak server. Peringatan yang datang setelah
+ *     ongkosnya dibayar bukan peringatan.
+ *  2. Foto **29 MB** membuat `muat = 0`, dan pesannya berbunyi *"Kirim yang ini
+ *     dulu, lalu tambahkan lagi"* — padahal tidak ada satu pun yang bisa
+ *     dikirim, dan sebab sebenarnya (satu foto itu sendiri kebesaran) tidak
+ *     pernah disebut.
+ *
+ * Berkas kebesaran kini ditolak DI MUKA, disebut ukurannya, dan tidak
+ * menghalangi foto lain yang masih wajar di pilihan yang sama.
  */
-export function muatSekaliUnggah(ukuran: number[]): {
+export type HasilMuatUnggah = {
+  /** Indeks berkas yang diterima, urut naik. Bukan selalu awalan daftar. */
+  terima: number[];
+  /** Sama dengan `terima.length` — dipertahankan untuk pemanggil lama. */
   muat: number;
+  /** Berapa berkas yang TIDAK ikut terkirim. */
   sisa: number;
+  /** Sebabnya, dalam bahasa manusia. `null` = semuanya muat. */
   pesan: string | null;
-} {
+};
+
+export function muatSekaliUnggah(ukuran: number[]): HasilMuatUnggah {
+  const terima: number[] = [];
+  const kebesaran: number[] = [];
   let byte = 0;
-  let muat = 0;
   let kenaByte = false;
-  for (const u of ukuran) {
-    if (muat >= MAX_PHOTOS_PER_UPLOAD) break;
+
+  for (let i = 0; i < ukuran.length; i++) {
+    const u = ukuran[i]!;
+    // Pagar per-berkas DULU: berkas 30 MB tidak akan pernah bisa dikirim,
+    // sebesar apa pun anggaran yang tersisa. Ia dikeluarkan dari perhitungan,
+    // bukan menghabiskan jatah — dan tidak menghentikan yang sesudahnya.
+    if (u > MAX_PHOTO_BYTES) {
+      kebesaran.push(i);
+      continue;
+    }
+    if (terima.length >= MAX_PHOTOS_PER_UPLOAD) continue;
     if (byte + u > MAX_UPLOAD_BYTES_TOTAL) {
-      // Satu berkas raksasa di tengah daftar tidak boleh menghentikan yang
-      // kecil sesudahnya — tapi sekali penuh, memang penuh.
+      // Sekali anggaran permintaan penuh, memang penuh.
       kenaByte = true;
-      break;
+      continue;
     }
     byte += u;
-    muat += 1;
+    terima.push(i);
   }
+
+  const muat = terima.length;
   const sisa = ukuran.length - muat;
-  if (sisa <= 0) return { muat, sisa: 0, pesan: null };
-  return {
-    muat,
-    sisa,
-    pesan: kenaByte
-      ? `Satu kali kirim maksimal ${MAX_UPLOAD_MB_TOTAL} MB – ${sisa} foto terakhir belum ikut. Kirim yang ini dulu, lalu tambahkan lagi.`
-      : `Satu kali kirim maksimal ${MAX_PHOTOS_PER_UPLOAD} foto – ${sisa} foto terakhir belum ikut. Kirim yang ini dulu, lalu tambahkan lagi.`,
-  };
+  if (sisa <= 0) return { terima, muat, sisa: 0, pesan: null };
+
+  const bagian: string[] = [];
+  if (kebesaran.length > 0) {
+    const terbesar = Math.max(...kebesaran.map((i) => ukuran[i]!));
+    bagian.push(
+      kebesaran.length === 1
+        ? `1 foto berukuran ${mb(terbesar)} MB – lebih dari batas ${MAX_PHOTO_MB} MB per foto, jadi tidak bisa dikirim.`
+        : `${kebesaran.length} foto lebih dari ${MAX_PHOTO_MB} MB per foto (terbesar ${mb(terbesar)} MB), jadi tidak bisa dikirim.`,
+    );
+  }
+  const sisaLain = sisa - kebesaran.length;
+  if (sisaLain > 0) {
+    bagian.push(
+      kenaByte
+        ? `Satu kali kirim maksimal ${MAX_UPLOAD_MB_TOTAL} MB – ${sisaLain} foto belum ikut.`
+        : `Satu kali kirim maksimal ${MAX_PHOTOS_PER_UPLOAD} foto – ${sisaLain} foto belum ikut.`,
+    );
+  }
+  // "Kirim yang ini dulu" hanya benar kalau memang ADA yang bisa dikirim.
+  // Kalimat itu pada pilihan yang seluruhnya ditolak adalah petunjuk buntu.
+  bagian.push(
+    muat > 0
+      ? "Kirim yang ini dulu, lalu tambahkan lagi."
+      : "Belum ada yang bisa dikirim – potret ulang atau pilih foto lain.",
+  );
+  return { terima, muat, sisa, pesan: bagian.join(" ") };
 }
