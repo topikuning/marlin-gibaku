@@ -26479,3 +26479,92 @@ untuk keduanya, jadi tidak ada baris yang ditulis ulang tanpa perlu.
 nilai sama-sama dibatasi `LEAST(1, Σvol/volRAB)`. Yang tidak aman adalah
 DOKUMEN-nya: blanko harian menuliskan 45,7 m³ terpasang atas baris kontrak 32,15
 m³, dan itu harus dijelaskan ke PPK setiap kali dibaca.
+
+---
+
+## (baru) · Direktori lokasi menyebut perusahaan pelaksana dan realisasinya, deviasi tidak lagi menonjol (2026-09-03)
+
+**Konteks**: permintaan user 2026-09-03 — *"aku butuh informasi di lokasi itu
+nama perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
+
+Ini membatalkan sebagian keputusan 2026-08-30 (pemisahan `/lokasi` vs
+`/progress`), yang membuang Rencana dan Realisasi dari direktori dan menyisakan
+Deviasi sebagai satu-satunya sinyal progres di sana, berbentuk lencana berwarna.
+
+Pilihan itu salah arah, dan sebabnya bisa disebut: **deviasi adalah angka
+TURUNAN** (realisasi − rencana). Menampilkannya tanpa realisasinya membuat
+satu-satunya angka progres di direktori justru yang paling tidak bisa dipakai
+apa adanya — lokasi 95% jadi dengan deviasi −6% dan lokasi 3% jadi dengan
+deviasi −6% terbaca persis sama. Ditambah lencana merah, yang paling menarik
+mata di seluruh baris adalah angka yang paling butuh konteks.
+
+Nama perusahaan pelaksana sendiri sebelumnya tidak ada di layar mana pun yang
+menyebut lokasi — padahal itu pertanyaan pertama saat menengok satu lokasi.
+
+**Keputusan**:
+
+- Kolom **Perusahaan** (dari `Contract.vendor.name`) dan **Realisasi**
+  (`realizedPct`) ditambahkan ke direktori `/lokasi`.
+- **Deviasi tetap ada, tapi turun jadi teks biasa** — bukan `DeltaBadge`.
+  Warnanya hanya dipakai saat deviasinya benar-benar buruk (≤ −10%).
+- **Rencana TIDAK dikembalikan.** Itu kolom yang benar-benar membuat direktori
+  kembar dengan papan `/progress`, dan pembagian tugasnya tidak berubah:
+  `/lokasi` untuk MENCARI satu lokasi, `/progress` untuk MEMERINGKAT yang
+  tertinggal (urut deviasi terburuk + kolom "Terakhir lapor").
+- Paket yang belum berkontrak ditulis **"belum berkontrak"**, bukan sel kosong:
+  sel kosong terbaca "datanya belum diisi", padahal keadaannya "memang belum
+  ada".
+
+**Alternatif direject**:
+- *Memakai `Package.candidateVendorName` sebagai cadangan.* Calon pemenang
+  tender bukan pelaksana; di kolom yang sama ia akan terbaca sebagai sudah
+  pasti.
+- *Membuang kolom Deviasi seluruhnya.* User minta ia tidak MENCOLOK, bukan
+  hilang — dan sebagai penanda "lokasi ini sedang bermasalah" ia masih dipakai.
+- *Mengembalikan Rencana sekalian.* Itu mengembalikan kekembaran yang justru
+  jadi keluhan awal 2026-08-30.
+
+**Konsekuensi**: uji E2E `lokasi-vs-progress` yang dulu menjaga KETIADAAN
+Realisasi di `/lokasi` dibalik arahnya — sekarang ia menjaga KEHADIRAN
+Perusahaan + Realisasi, dan tetap menjaga ketiadaan Rencana.
+
+**Bisa di-revisit**: kalau direktori terasa penuh di layar ponsel, yang pertama
+dipertimbangkan menumpuk Perusahaan ke dalam sel identitas (seperti wilayah),
+bukan membuang Realisasi lagi.
+
+---
+
+## (baru) · Daftar paket menyebut nilai kontrak, bukan cuma pagunya (2026-09-03)
+
+**Konteks**: keberatan user 2026-09-03 — *"buat apa di daftar paket kamu
+masukkan kolom HPS, sedangkan kolom kontrak tidak kamu masukkan. ini sangat
+membingungkan."*
+
+Betul, dan sebabnya sejenis dengan keputusan direktori lokasi di atas: yang
+dipajang justru angka yang paling butuh pendamping. **HPS itu PAGU** — angka
+sebelum tender. Begitu paket berkontrak, yang dipakai orang menyebut nilai
+paket adalah nilai kontraknya, dan daftar paket justru satu-satunya layar yang
+tidak memuatnya. Memajang pagu sendirian membuat pembacanya mengira itu nilai
+paketnya.
+
+**Keputusan**: kolom **Nilai Kontrak** (`Contract.contractValue`) ditambahkan
+tepat di sebelah HPS di `/paket`. Keduanya berdampingan, bukan saling
+menggantikan — selisih HPS lawan kontrak itu sendiri informasi (efisiensi hasil
+tender), dan paket yang belum berkontrak memang cuma punya pagu. Paket tanpa
+kontrak ditulis **"belum berkontrak"**, bukan sel kosong.
+
+**Alternatif direject**:
+- *Mengganti kolom HPS dengan nilai kontrak.* Paket prospek/tender kehilangan
+  satu-satunya angkanya, dan selisih pagu-lawan-kontrak ikut hilang.
+- *Menampilkan satu kolom "Nilai" yang isinya kontrak bila ada, HPS bila
+  belum.* Satu kolom berisi dua arti berbeda tanpa penanda — persis bentuk yang
+  membuat orang salah baca, dan tidak bisa dijumlahkan.
+
+**Konsekuensi**: `listPackages` ikut mengambil `contract.contractValue`. Uji
+E2E `paket-nilai-kontrak` menjaga kehadirannya DARI LAYAR, dan menjaga tiap sel
+kolom itu berbicara — rupiah atau "belum berkontrak", tidak pernah kosong.
+
+**Bisa di-revisit**: basis PPN kedua angka belum dinyatakan di layar. `CLAUDE.md`
+menyebut kontrak incl-PPN dan RAB pra-PPN, tapi HPS tidak disebut di mana pun;
+kalau ternyata beda basis, keduanya perlu diberi keterangan supaya selisihnya
+tidak dibaca sebagai efisiensi padahal sebagian cuma PPN.
