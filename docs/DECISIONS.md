@@ -26741,8 +26741,7 @@ kelak isinya puluhan ribu berkas, penyimpanannya perlu dipecah per bulan.
 
 ---
 
-## (baru) · Batas ukuran foto dikatakan SEBELUM diunggah, dan memilih foto selalu terlihat (2026-09-03)
-
+## 514 · 2026-09-03 · Batas ukuran foto dikatakan SEBELUM diunggah, dan memilih foto selalu terlihat
 **Konteks**: dua pertanyaan user 2026-09-03 — *"apakah kamu membatasi ukuran?
 kalau ukuran lebih dari batasmu, kamu sudah ngasih warning gak, atau silent
 aja"*, lalu *"kenapa aku nambah foto malah gak ada respon sama sekali, apa ini
