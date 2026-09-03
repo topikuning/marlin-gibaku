@@ -11,6 +11,10 @@
  * hapus kedua env var tersebut. Kalau env tidak diset, fungsi ini no-op.
  */
 
+// Statis, bukan `await import`: berkasnya hanya `AsyncLocalStorage` — tidak
+// menyentuh `db` maupun env, jadi tidak ada yang ikut termuat lebih awal.
+import { jalankanDiLatar } from "@/lib/auth/latar";
+
 
 /**
  * Muat data demo bila BOOTSTRAP_DEMO_DATA=true. Untuk deployment UJI COBA —
@@ -149,9 +153,25 @@ async function migrasiDataOtomatis() {
   }
 }
 
-// Dijalankan saat modul dimuat (sekali per start server Node).
-export const bootstrapDone: Promise<void> = (async () => {
+/*
+ * Dijalankan saat modul dimuat (sekali per start server Node), DI DALAM penanda
+ * latar (DECISIONS 456).
+ *
+ * Tanpa penanda itu jejak auditnya hilang tanpa suara. Boot bukan request, jadi
+ * `headers()` di `requestIp()` melempar; `audit()` menelan lemparannya dan
+ * hanya mencetak ke console — sehingga migrasi data SATU KALI yang benar-benar
+ * mengubah isi basis data tidak meninggalkan baris audit apa pun. Terlihat di
+ * log E2E CI 2026-09-03:
+ *
+ *   [audit] gagal menulis audit log: daily_report.snapshot_periode_backfill
+ *   Error: `headers` was called outside a request scope.
+ *
+ * Penandanya dipasang di SATU tempat — di sini — bukan di tiap migrasi:
+ * `AsyncLocalStorage` mengikuti seluruh rantai `await` di dalamnya, dan yang
+ * ditambahkan besok ikut terlindungi tanpa harus ingat.
+ */
+export const bootstrapDone: Promise<void> = jalankanDiLatar(async () => {
   await bootstrapAdmin();
   await bootstrapDemoData();
   await migrasiDataOtomatis();
-})();
+});
