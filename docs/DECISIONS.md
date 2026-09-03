@@ -26568,3 +26568,70 @@ kolom itu berbicara — rupiah atau "belum berkontrak", tidak pernah kosong.
 menyebut kontrak incl-PPN dan RAB pra-PPN, tapi HPS tidak disebut di mana pun;
 kalau ternyata beda basis, keduanya perlu diberi keterangan supaya selisihnya
 tidak dibaca sebagai efisiensi padahal sebagian cuma PPN.
+
+---
+
+## (baru) · Aktivasi adendum tidak boleh kehabisan waktu karena ukurannya (2026-09-03)
+
+**Konteks**: pemeriksaan `dev` 2026-09-03 atas perubahan adendum. Sejak
+penyesuaian realisasi ditambahkan ke `activateRevision`, transaksi itu memuat
+loop tulis yang panjangnya TIDAK DIBATASI apa pun kecuali ukuran adendumnya —
+satu `update` per baris laporan harian yang volumenya diturunkan, plus satu
+baris audit per item, semuanya berurutan.
+
+Batas waktu transaksi interaktif Prisma bawaannya **5 detik** (tertulis di klien
+hasil generate: `timeout ?= 5000`), dan repo ini tidak menyetel
+`transactionOptions` di mana pun. Sebelumnya isi transaksi itu cuma tiga
+pernyataan berbiaya tetap, jadi 5 detik tak pernah jadi soal.
+
+Akibat kalau tertembus bukan "lambat": SELURUH AKTIVASI DIBATALKAN — tepat pada
+adendum terbesar, yang paling penting dan paling sulit diulang.
+
+**Keputusan**: transaksi `activateRevision` diberi `{ timeout: 60_000,
+maxWait: 15_000 }`. Ongkosnya kunci baris ditahan lebih lama; itu bisa diterima
+karena aktivasi adalah tindakan admin yang jarang dan disengaja, sementara
+aktivasi yang gagal separuh jalan menyisakan pekerjaan yang harus diulang orang.
+
+**Alternatif direject**:
+- *Memindahkan penyesuaian ke luar transaksi.* Kalau ia gagal setelah revisi
+  aktif, laporan dan kontrak menyebut angka berbeda tanpa jalan pulang.
+- *Menyetel `transactionOptions` global.* Menaikkan batas SELURUH transaksi
+  repo untuk masalah satu tempat; yang lain justru sebaiknya tetap gagal cepat.
+
+**Konsekuensi**: tidak ada perubahan perilaku pada adendum berukuran normal.
+Tidak ada uji yang menjaganya — batas waktu tidak bisa diuji tanpa membuat uji
+yang lambat dengan sengaja; yang menjaga kebenaran penyesuaiannya tetap
+`sesuaikan-realisasi` (unit) dan `adendum-sesuaikan-realisasi` (integrasi).
+
+**Bisa di-revisit**: kalau aktivasi tetap mendekati satu menit, yang perlu
+diperbaiki jumlah perjalanan ke basis data (satu pernyataan per item, bukan per
+baris), bukan batas waktunya lagi.
+
+---
+
+## (baru) · Label periode laporan mengikuti jenis yang DIPILIH, bukan yang sedang tampil (2026-09-03)
+
+**Konteks**: keberatan user 2026-09-03 — *"laporan bulanan tapi sampingnya
+minggu, sedikit tidak pas saja, bukan salah yang fatal."* Di Laporan Periodik
+KKP, dropdown Jenis laporan sudah "Bulanan" sementara label di sebelahnya masih
+"Minggu ke (1–20)".
+
+Sebabnya label itu mengikuti `kind` dari URL — jenis laporan yang SUDAH
+digenerate — bukan yang sedang dipilih. Selama orang belum menekan "Tampilkan",
+dua bagian dari satu baris form menyebut dua hal berbeda, tepat pada saat orang
+sedang memutuskan mau mengisi berapa.
+
+**Keputusan**: jenis laporan disimpan sebagai state klien; label DAN batas
+`max` mengikuti pilihan yang sedang tampak di layar. Batas kedua jenis
+(`maxMinggu`, `maxBulan`) dikirim bersamaan dari server supaya tidak perlu satu
+perjalanan bolak-balik untuk jadi benar. Nilai periodenya ikut dijepit saat
+jenisnya berganti — minggu ke-18 tidak punya arti pada laporan bulanan proyek 5
+bulan, dan form yang terkirim dengan angka di luar rentang adalah kesalahan yang
+dibuat oleh layar, bukan oleh pemakainya.
+
+**Alternatif direject**: *mengirim ulang ke server tiap kali dropdown berubah.*
+Membangun laporan periodik pernah diukur 8,9 detik (DECISIONS 400); memicunya
+hanya untuk membetulkan sebuah label adalah ongkos yang tidak sepadan.
+
+**Konsekuensi**: `PeriodFilter` sekarang terkontrol penuh (jenis + nilai).
+`method="GET"` tetap dipertahankan sebagai jaring bila JS belum termuat.
