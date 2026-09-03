@@ -134,4 +134,31 @@ describe("pengecilan tidak pernah berjalan tanpa diminta", () => {
     expect(src).toContain("onClick={kecilkanSemua}");
     expect(src).not.toMatch(/useEffect\([^)]*kecilkanSemua/);
   });
+
+  it("tidak merakit DataTransfer sendiri – itu bisa MELEMPAR di ponsel", () => {
+    // Ditemukan CI 2026-09-03 lewat penjaga `galat-klien`: rancangan pertama
+    // `kecilkanSemua` merakit `DataTransfer` untuk menyerahkan hasilnya, dan
+    // perakitan itu bisa melempar di peramban ponsel (lihat `rakitGagal`).
+    // Lemparan di dalam penangan async = penolakan yang tidak tertangani =
+    // tombol yang seolah tidak bekerja, tanpa jejak apa pun.
+    //
+    // Jalan keluarnya bukan menambah try/catch kedua, melainkan menghapus
+    // sebabnya: `tumpuk` menerima `File[]`, jadi tidak ada yang perlu dirakit.
+    const src = readFileSync("src/components/knmp/photo-source-input.tsx", "utf8");
+    const i = src.indexOf("const kecilkanSemua");
+    const akhir = src.indexOf("const tolakTawaran");
+    expect(src.slice(i, akhir)).not.toContain("new DataTransfer");
+    expect(src).toContain("const tumpuk = (baru: ArrayLike<File>)");
+  });
+
+  it("TIDAK ditawarkan di perangkat yang tak bisa menerima berkas ganti", () => {
+    // Di jalur `rakitGagal` yang terkirim adalah isi pemilih terakhir apa
+    // adanya, jadi berkas HASIL pengecilan tidak akan pernah ikut. Tombol yang
+    // tidak bisa menepati janjinya lebih buruk daripada penolakan terus terang.
+    const src = readFileSync("src/components/knmp/photo-source-input.tsx", "utf8");
+    expect(src).toContain("const bolehTawar = !rakitGagal;");
+    expect(src).toContain("setTawaran(bolehTawar ?");
+    // Di situ pesan PENUH yang dipakai – yang menyebut ukurannya.
+    expect(src).toContain("setPesanBatas(bolehTawar ? batas.pesanSisa : batas.pesan);");
+  });
 });

@@ -248,7 +248,16 @@ export function PhotoSourceInput({
    */
   const idBerkas = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
-  const tumpuk = (baru: FileList) => {
+  /**
+   * @param baru Daftar berkas biasa, BUKAN `FileList`.
+   *
+   * Dulu `FileList`, dan itu memaksa pemanggil yang tidak punya satu — mis.
+   * hasil pengecilan foto — merakit `DataTransfer` sendiri hanya untuk
+   * memanggil fungsi ini. Perakitan itu bisa MELEMPAR di ponsel (lihat
+   * `rakitGagal`), jadi setiap pemanggil baru berarti satu lemparan baru yang
+   * bisa menjatuhkan halaman. `File[]` menghapus seluruh kelas masalah itu.
+   */
+  const tumpuk = (baru: ArrayLike<File>) => {
     // Saat perakitan tidak bisa dipakai, pilihan TIDAK boleh menumpuk: yang
     // benar-benar terkirim cuma isi pemilih terakhir, jadi pratinjau yang
     // menumpuk akan berbohong tentang apa yang akan terunggah.
@@ -271,12 +280,22 @@ export function PhotoSourceInput({
     for (let i = 0; i < gabung.length; i++) {
       if (!diterima.has(i)) URL.revokeObjectURL(gabung[i]!.url);
     }
-    // Yang kebesaran DITAHAN, bukan dibuang: ia yang akan ditawari pengecilan.
-    // `pesanSisa` dipakai, bukan `pesan`, supaya foto kebesaran tidak disebut
-    // dua kali — sekali sebagai penolakan, sekali sebagai tawaran.
-    setTawaran(batas.kebesaran.map((i) => gabung[i]!.file));
+    /*
+     * Yang kebesaran DITAHAN, bukan dibuang: ia yang akan ditawari pengecilan.
+     * `pesanSisa` dipakai, bukan `pesan`, supaya foto kebesaran tidak disebut
+     * dua kali — sekali sebagai penolakan, sekali sebagai tawaran.
+     *
+     * KECUALI di perangkat yang tidak bisa merakit pilihan (`rakitGagal`): di
+     * sana yang terkirim adalah isi pemilih terakhir apa adanya, jadi berkas
+     * HASIL pengecilan tidak akan pernah ikut. Menawarkan tombol yang tidak
+     * bisa menepati janjinya lebih buruk daripada menolak terus terang — di
+     * situ dipakai `pesan` penuh, yang menyebut ukurannya dan menyuruh
+     * mengecilkan lebih dulu.
+     */
+    const bolehTawar = !rakitGagal;
+    setTawaran(bolehTawar ? batas.kebesaran.map((i) => gabung[i]!.file) : []);
     setGagalKecilkan(null);
-    setPesanBatas(batas.pesanSisa);
+    setPesanBatas(bolehTawar ? batas.pesanSisa : batas.pesan);
     setBerkas(batas.terima.map((i) => gabung[i]!));
   };
 
@@ -303,11 +322,7 @@ export function PhotoSourceInput({
     setSedangKecilkan(false);
     setTawaran([]);
     setGagalKecilkan(gagal.length ? [...new Set(gagal)].join(" ") : null);
-    if (hasil.length > 0) {
-      const dt = new DataTransfer();
-      for (const f of hasil) dt.items.add(f);
-      tumpuk(dt.files);
-    }
+    if (hasil.length > 0) tumpuk(hasil);
   };
 
   /** Buang tawaran pengecilan – fotonya memang tidak jadi dikirim. */
