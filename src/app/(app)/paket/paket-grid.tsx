@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { MarlinGrid, dateCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
+import { formatRupiah } from "@/lib/format";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { KESIAPAN_LABEL, KESIAPAN_TONE, type KesiapanPaket } from "@/lib/package/kesiapan";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -18,6 +19,8 @@ export type PaketRow = {
   province: string;
   /** BigInt diserialisasi string dari server. */
   hpsValue: string;
+  /** Nilai kontrak (BigInt → string). null = paket belum berkontrak. */
+  contractValue: string | null;
   vendorName: string;
   locationCount: number;
   /** Nama (atau ID) grup WhatsApp paket; null = belum diatur. */
@@ -31,14 +34,22 @@ export type PaketRow = {
   updatedAt: string;
 };
 
-/** Row internal grid: HPS sudah number agar sort/filter numerik benar. */
-type GridRow = Omit<PaketRow, "hpsValue"> & { hpsValue: number };
+/** Row internal grid: nilai uang sudah number agar sort/filter numerik benar. */
+type GridRow = Omit<PaketRow, "hpsValue" | "contractValue"> & {
+  hpsValue: number;
+  contractValue: number | null;
+};
 
 export function PaketGrid({ rows }: { rows: PaketRow[] }) {
   const router = useRouter();
 
   const data = useMemo<GridRow[]>(
-    () => rows.map((r) => ({ ...r, hpsValue: Number(r.hpsValue) })),
+    () =>
+      rows.map((r) => ({
+        ...r,
+        hpsValue: Number(r.hpsValue),
+        contractValue: r.contractValue == null ? null : Number(r.contractValue),
+      })),
     [rows],
   );
 
@@ -112,6 +123,33 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
       },
       { field: "province", headerName: "Provinsi", width: 160 },
       rupiahCol<GridRow>("hpsValue", "HPS", { width: 170 }),
+      /*
+       * NILAI KONTRAK, tepat di sebelah HPS.
+       *
+       * Keberatan user 2026-09-03: *"buat apa di daftar paket kamu masukkan
+       * kolom HPS, sedangkan kolom kontrak tidak kamu masukkan. ini sangat
+       * membingungkan."* Betul. HPS itu PAGU – angka sebelum tender. Begitu
+       * paket berkontrak, yang dipakai orang menyebut nilainya adalah nilai
+       * kontrak, dan daftar ini justru satu-satunya yang tidak memuatnya.
+       * Memajang pagu sendirian membuat pembacanya mengira itu nilai paketnya.
+       *
+       * Keduanya ditampilkan berdampingan, bukan saling menggantikan: selisih
+       * HPS lawan kontrak itu sendiri informasi (efisiensi hasil tender), dan
+       * paket yang belum berkontrak memang cuma punya pagu.
+       */
+      rupiahCol<GridRow>("contractValue", "Nilai Kontrak", {
+        width: 180,
+        // Belum berkontrak DITULIS, tidak dikosongkan: sel kosong terbaca
+        // "datanya belum diisi", padahal keadaannya "memang belum ada".
+        cellRenderer: (p: ICellRendererParams<GridRow>) =>
+          p.data?.contractValue == null ? (
+            <span className="text-ink-muted">belum berkontrak</span>
+          ) : (
+            formatRupiah(p.data.contractValue)
+          ),
+        valueFormatter: (p) =>
+          p.value == null ? "belum berkontrak" : formatRupiah(p.value as number),
+      }),
       { field: "vendorName", headerName: "Vendor / Kandidat", width: 200 },
       {
         field: "locationCount",

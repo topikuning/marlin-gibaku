@@ -67,6 +67,7 @@ export default async function PaketPage({
         stage: p.stage,
         province: p.province ?? "–",
         hpsValue: p.hpsValue,
+        contractValue: p.contract?.contractValue ?? null,
         vendorName: vendorName ?? "–",
         locationCount: p._count.locations,
         waGroupName,
