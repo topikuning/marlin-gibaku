@@ -106,11 +106,69 @@ export function buildBatchRewritePrompt(input: {
   lines.push(input.styleInstruction?.trim() || STYLE_INSTRUCTION[input.style], "");
   lines.push("Rapikan SETIAP bagian di bawah. Balas dengan penanda bagian yang sama persis:");
   lines.push(input.fields.map((f) => SECTION_MARK[f.field]).join(" "), "");
+  // Petunjuk per bagian dipisah dari teksnya. Dulu label + petunjuk ditempel di
+  // baris yang SAMA dengan penanda ("[CATATAN] Catatan kegiatan – Catatan
+  // pelaksanaan kegiatan: …"), dan model meniru bentuk itu di balasannya —
+  // sehingga judul kami sendiri ikut masuk ke isi catatan yang tercetak di
+  // laporan. Penanda kini berdiri sendiri di barisnya.
+  lines.push("Petunjuk tiap bagian:");
   for (const f of input.fields) {
-    lines.push(`${SECTION_MARK[f.field]} ${REWRITE_FIELD_LABEL[f.field]} – ${FIELD_INSTRUCTION[f.field]}`);
+    lines.push(`- ${SECTION_MARK[f.field]} ${REWRITE_FIELD_LABEL[f.field]}: ${FIELD_INSTRUCTION[f.field]}`);
+  }
+  lines.push(
+    "",
+    "Balasan HANYA berisi penanda di baris tersendiri lalu teks hasilnya. Jangan menulis ulang label bagian, petunjuk, atau pengantar apa pun.",
+    "",
+  );
+  for (const f of input.fields) {
+    lines.push(SECTION_MARK[f.field]);
     lines.push(f.text.trim(), "");
   }
   return lines.join("\n");
+}
+
+/** Frasa pembuka petunjuk (bagian sebelum titik dua) — dipakai penjaga gema. */
+function instruksiAwalan(field: RewriteField): string {
+  const t = FIELD_INSTRUCTION[field];
+  const i = t.indexOf(":");
+  return (i > 0 ? t.slice(0, i) : t).trim();
+}
+
+// Pemisah yang mungkin ditinggalkan model sesudah gema judul. Em-dash memang
+// ikut DIBUANG di sini — teks UI kita sendiri memakai en-dash (385), tapi
+// balasan model belum tentu, dan yang dibaca di sini balasan model. Ditulis
+// lewat kode karakter supaya penjaga tanda pisah UI tidak salah menuduh.
+const PEMISAH_AWAL = new RegExp(`^[\\s:.\\-–${String.fromCharCode(0x2014)}]+`);
+
+/**
+ * Buang GEMA JUDUL di awal balasan model.
+ *
+ * Keluhan user 2026-09-03: usulan untuk catatan kegiatan datang berbunyi
+ * *"Catatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei…"*.
+ * Kalimat pembuka itu bukan tulisan pelapor dan bukan karangan model: itu label
+ * dan petunjuk dari prompt kami sendiri yang ditiru balik. Promptnya sudah
+ * diperbaiki, tapi model tetap boleh melenceng kapan saja — jadi pembuangannya
+ * dilakukan deterministik di sini, bukan diserahkan ke kepatuhan model.
+ *
+ * Hanya awalan yang PERSIS sama dengan label/petunjuk kami yang dibuang; kalau
+ * pembuangan menghabiskan seluruh teks, hasil aslinya yang dipertahankan.
+ */
+export function stripEchoedHeader(field: RewriteField, body: string): string {
+  const frasa = [REWRITE_FIELD_LABEL[field], instruksiAwalan(field), FIELD_INSTRUCTION[field]];
+  let t = body.trim();
+  for (let putaran = 0; putaran < frasa.length * 2; putaran++) {
+    const sebelum = t;
+    t = t.replace(PEMISAH_AWAL, "");
+    for (const f of frasa) {
+      if (t.slice(0, f.length).toLowerCase() === f.toLowerCase()) {
+        t = t.slice(f.length);
+        break;
+      }
+    }
+    if (t === sebelum) break;
+  }
+  t = t.replace(PEMISAH_AWAL, "").trim();
+  return t.length > 0 ? t : body.trim();
 }
 
 /**
@@ -130,7 +188,7 @@ export function parseBatchRewrite(raw: string): Partial<Record<RewriteField, str
       const idx = raw.indexOf(other, after);
       if (idx >= 0 && idx < end) end = idx;
     }
-    const body = cleanRewrite(raw.slice(after, end));
+    const body = stripEchoedHeader(field, cleanRewrite(raw.slice(after, end)));
     if (body) out[field] = body;
   }
   return out;

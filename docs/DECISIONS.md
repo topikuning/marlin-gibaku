@@ -26916,3 +26916,61 @@ tetap bisa di-merge. Push ke `main` selalu menjalankan semuanya.
 hanya menyentuh `src/lib/**` murni pun kemungkinan besar tidak butuh E2E — tapi
 "kemungkinan besar" bukan dasar yang cukup untuk mencabut jaring pengaman, dan
 menagihnya butuh peta ketergantungan, bukan pola nama berkas.
+
+---
+
+## (baru) · Perapian bahasa jadi alat tulis, bukan syarat finalisasi – dan judul prompt tidak boleh ikut tersalin (2026-09-03)
+
+**Konteks**: user melihat usulan perapian untuk catatan kegiatan berbunyi
+*"Catatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei
+lokasi…"* dan bertanya: *"kenapa sepanjang ini, sudah jelas itu ada di kolom
+catatan, untuk apa isinya memberi itu lagi. itu dari AI atau darimana, gak
+jelas begitu."* Lalu: *"perapian bahasa ini terlalu ribet kalau dari klik final
+dulu, seharusnya ada tombol rapikan teks itu, tersendiri."*
+
+**Keputusan (dua hal, satu sebab yang sama: alatnya berdiri di tempat yang salah)**
+
+1. **Kalimat pembuka itu tulisan KAMI, bukan karangan AI.** Prompt gabungan
+   menempelkan label + petunjuk di baris yang sama dengan penanda bagian
+   (`[CATATAN] Catatan kegiatan – Catatan pelaksanaan kegiatan: …`), dan model
+   meniru bentuk itu di balasannya. Pengurai mengambil apa pun sesudah penanda
+   apa adanya, jadi judul kami ikut masuk ke isi catatan yang tercetak di
+   laporan resmi. Dua perbaikan, bukan satu: penanda kini berdiri sendiri di
+   barisnya dan petunjuk dipindah ke blok terpisah, DAN `stripEchoedHeader`
+   membuang gema judul secara deterministik di pengurai. Prompt yang rapi
+   mengurangi peluang; hanya penjaga yang menjamin — model boleh melenceng
+   kapan saja.
+
+2. **"Rapikan teks" jadi tombol tersendiri di dalam form** (`RapikanTeksPanel`),
+   bekerja atas isi kotak isian yang sedang diketik — bukan atas isi basis
+   data, karena yang di layar belum tentu tersimpan. Ini mengoreksi bentuk yang
+   ditetapkan DECISIONS 179: menaruh perapian HANYA di jalur finalisasi
+   menyamakan "merapikan kalimat" dengan "menutup kegiatan", padahal yang
+   pertama bagian dari mengetik. Jalur finalisasi tetap ada sebagai jaring
+   terakhir bagi yang telanjur melewatinya.
+
+Yang TIDAK berubah: usulan tidak pernah menimpa tulisan orang tanpa dicentang
+(178), pemeriksa angka tetap menandai bukan memblokir (181), dan tidak ada yang
+tersimpan sampai pengguna menekan Simpan milik form.
+
+**Alternatif direject**:
+- *Cukup perbaiki promptnya.* Membuat kegagalan lebih jarang, bukan mustahil —
+  dan kegagalannya tidak kelihatan sampai sudah tercetak di laporan.
+- *Potong apa pun sebelum titik dua pertama.* Menghapus isi sah seperti
+  "Rapat PCM: dihadiri PPK…". Yang dibuang hanya awalan yang PERSIS sama
+  dengan label/petunjuk kami sendiri.
+- *Merapikan otomatis saat mengetik.* Ditolak sejak 179 dan tetap ditolak:
+  tulisan orang lapangan tidak boleh berubah tanpa ia melihat dan setuju.
+
+**Konsekuensi**: satu panggilan AI bisa terjadi lebih awal (saat mengetik),
+bukan sekali di akhir. Kuotanya tetap lewat `checkAiGuard` yang sama dan tetap
+dicatat `audit()` — sekarang dengan `asal: "form"` supaya dua jalur itu bisa
+dibedakan saat menagih pemakaian.
+
+**Sekalian dibereskan di layar yang sama** (keluhan user pada tangkapan layar
+yang sama): kolom form kegiatan dipaku tanpa batas tinggi, sehingga form yang
+lebih tinggi dari layar tidak bisa digulir dan tombol "Simpan kegiatan"
+menggantung di luar jangkauan – kini kolomnya berbatas tinggi + bergulir
+sendiri dan baris simpan menempel di dasarnya; dan "Foto Cepat" yang tadinya
+tautan kecil di bawah garis kini jadi ubin ketiga sejajar Kamera & Galeri,
+sama seperti di editor laporan harian – satu fitur tidak boleh punya dua rupa.

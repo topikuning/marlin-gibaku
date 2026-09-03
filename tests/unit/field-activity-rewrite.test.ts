@@ -3,6 +3,7 @@ import {
   buildBatchRewritePrompt,
   buildRewritePrompt,
   parseBatchRewrite,
+  stripEchoedHeader,
   cleanRewrite,
   REWRITE_SYSTEM_PROMPT,
   rewriteInputProblem,
@@ -160,5 +161,51 @@ describe("mode gabungan (dipakai saat finalisasi) – satu panggilan, banyak bag
     const hasil = parseBatchRewrite("[TINDAK_LANJUT]\nMulai lebih pagi.\n[CATATAN]\nPengecoran kolom.");
     expect(hasil.solusi).toBe("Mulai lebih pagi.");
     expect(hasil.notes).toBe("Pengecoran kolom.");
+  });
+});
+
+/**
+ * GEMA JUDUL — keluhan user 2026-09-03: usulan datang berbunyi
+ * "Catatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei…".
+ *
+ * Kalimatnya bukan tulisan pelapor dan bukan karangan model: itu label +
+ * petunjuk dari prompt kami sendiri, ditiru balik lalu ikut tersimpan ke teks
+ * yang dicetak di laporan resmi. Diuji dari BALASAN model, bukan dari prompt:
+ * prompt yang rapi tidak menjamin model patuh.
+ */
+describe("gema judul prompt tidak boleh ikut masuk usulan", () => {
+  it("membuang 'Catatan kegiatan – Catatan pelaksanaan kegiatan:' di depan isi", () => {
+    const hasil = parseBatchRewrite(
+      "[CATATAN]\nCatatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei lokasi untuk kebutuhan kelistrikan serta memeriksa progres pekerjaan.",
+    );
+    expect(hasil.notes).toBe(
+      "Tim PLN melakukan survei lokasi untuk kebutuhan kelistrikan serta memeriksa progres pekerjaan.",
+    );
+  });
+
+  it("membuang gema pada kendala & tindak lanjut juga", () => {
+    const hasil = parseBatchRewrite(
+      "[KENDALA]\nKendala: Alat berat terlambat tiba.\n[TINDAK_LANJUT]\nTindak lanjut – Tindak lanjut: Pekerjaan dimulai lebih pagi.",
+    );
+    expect(hasil.kendala).toBe("Alat berat terlambat tiba.");
+    expect(hasil.solusi).toBe("Pekerjaan dimulai lebih pagi.");
+  });
+
+  it("isi yang KEBETULAN diawali kata serupa tidak ikut terpotong isinya", () => {
+    const hasil = parseBatchRewrite("[KENDALA]\nKendala utama adalah cuaca.");
+    expect(hasil.kendala).toBe("utama adalah cuaca.");
+  });
+
+  it("balasan yang hanya berisi gema judul tidak berubah jadi kosong", () => {
+    expect(stripEchoedHeader("notes", "Catatan kegiatan")).toBe("Catatan kegiatan");
+  });
+
+  it("prompt tidak lagi menempelkan label pada baris penanda", () => {
+    const p = buildBatchRewritePrompt({
+      fields: [{ field: "notes", text: "tim pln survey lokasi buat listrik" }],
+      style: "rapi",
+    });
+    expect(p).not.toMatch(/^\[CATATAN\][ \t]+\S/m);
+    expect(p).toMatch(/Jangan menulis ulang label/i);
   });
 });
