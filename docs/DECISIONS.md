@@ -26418,3 +26418,64 @@ bisa diperbaiki. Yang tidak boleh adalah menyimpannya tanpa pemakainya tahu.
 100% (`LEAST(1, Σvol/volRAB)`), dan blanko KKP menampilkan volume terpasang di
 atas volume kontrak. Pekerjaannya tetap tercatat; yang tidak ada adalah dasar
 bayar untuk selisihnya.
+
+---
+
+## (baru) · Laporan harian menyesuaikan volume baru saat adendum DIAKTIFKAN (2026-09-03)
+
+**Permintaan user 2026-09-03**: *"saat pemetaan manual itu konfirmasi, maka
+laporan harian yang sebelumnya langsung menyesuaikan volume baru!"*
+
+Latarnya: item `Pekerjaan Galian Tanah sampai dengan 1 m` dilaporkan 45,7 m³ dan
+tuntas; adendum memindahkannya ke baris pengganti bervolume 32,15 m³. Penegasan
+user: *"secara nyata memang akhirnya pekerjaan itu menjadi cuma 32,15
+(menyesuaikan adendum), jadi di lapangan memang sudah terealisasi tapi dengan
+volume menyesuaikan."* Angka 45,7 karena itu bukan lagi fakta lapangan — ia sisa
+dari spesifikasi lama.
+
+### Waktunya: AKTIVASI, bukan konfirmasi pemetaan
+
+Ini menyimpang dari bunyi permintaan, dan sengaja. Saat pemetaan dikonfirmasi,
+adendumnya masih **draft** — belum ditandatangani siapa pun. Mengubah laporan
+harian di titik itu menggerakkan progres resmi dan nilai terpasang atas dasar
+adendum yang belum sah, persis yang dilarang DECISIONS 210; dan bila drafnya
+kemudian dibuang, laporan yang terlanjur diubah tidak punya jalan pulang.
+
+Penyesuaian karena itu berjalan di dalam transaksi `activateRevision`, bersama
+kenaikan `basis` dari `draft_adendum` menjadi `aktif`.
+
+### Pembagiannya PROPORSIONAL
+
+Keputusan user atas dua pilihan yang diajukan. Realisasi lazim terkumpul dari
+beberapa hari dan tidak ada cara mengetahui hari MANA yang tersalip adendum;
+membagi rata menjaga bentuk kurva progres per hari, sementara memotong dari yang
+terbaru akan menihilkan satu hari kerja yang sebenarnya ada.
+
+Dipakai pembagian sisa terbesar (Hamilton) pada satuan **mili**, presisi kolom
+`volume_done Decimal(15,3)`, sehingga Σ hasil **persis** sama dengan volume baru.
+Menskalakan lalu membulatkan tiap baris sendiri-sendiri meninggalkan sisa
+beberapa mili, dan sisa itu membuat item terbaca 99,98% selamanya — cacat yang
+mustahil ditelusuri dari layar.
+
+### Laporan `final` IKUT disesuaikan
+
+Keputusan user. Melewatinya hanya memindahkan ketidakcocokan, bukan
+menghilangkannya. Setiap penyesuaian masuk audit `rab.adendum_sesuaikan_realisasi`
+dengan `totalSebelum`, `totalSesudah`, dan rincian per baris (tanggal, status,
+dari, ke). Status laporannya sendiri TIDAK diubah — yang berubah angkanya, dan
+jejaknya di audit.
+
+### Ruang lingkup lebih luas dari yang diminta
+
+Bukan hanya item yang dipetakan manual, melainkan **setiap** item revisi baru
+yang volume kontraknya kini di bawah realisasi tercatat. Sumber selisihnya tidak
+penting; yang penting laporan dan kontrak menyebut angka yang sama.
+
+**Yang tidak disentuh**: item yang realisasinya masih di bawah volume baru, dan
+adendum yang MENAIKKAN volume — `sesuaikanProporsional` mengembalikan `null`
+untuk keduanya, jadi tidak ada baris yang ditulis ulang tanpa perlu.
+
+**Catatan**: angka RESMI sebenarnya sudah aman tanpa perubahan ini — prestasi dan
+nilai sama-sama dibatasi `LEAST(1, Σvol/volRAB)`. Yang tidak aman adalah
+DOKUMEN-nya: blanko harian menuliskan 45,7 m³ terpasang atas baris kontrak 32,15
+m³, dan itu harus dijelaskan ke PPK setiap kali dibaca.

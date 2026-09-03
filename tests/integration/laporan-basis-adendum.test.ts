@@ -347,7 +347,7 @@ describe("KASUS INTI: baris basis draft tidak tercetak di blanko harian KKP", ()
  * sudah kita atur, ya otomatis aktif."
  */
 describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () => {
-  it("aktivasi menaikkan basis draft_adendum ke aktif – dan HANYA penandanya", async () => {
+  it("aktivasi menaikkan basis draft_adendum ke aktif", async () => {
     const { activateRevision } = await import("@/lib/rab/import");
     const draftRev = await db.rabRevision.findFirstOrThrow({
       where: { locationId, status: "draft" },
@@ -368,9 +368,39 @@ describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () =
       orderBy: { lineageKey: "asc" },
     });
     expect(sesudah.map((r) => r.basis)).toEqual(sebelum.map(() => "aktif"));
-    // Isi laporannya tidak disentuh: tidak ada histori yang berubah.
-    expect(sesudah.map((r) => Number(r.volumeDone))).toEqual(sebelum.map((r) => Number(r.volumeDone)));
-    expect(sesudah.map((r) => r.valueDone)).toEqual(sebelum.map((r) => r.valueDone));
+
+    /*
+     * Volume laporan TIDAK disentuh selama ia masih muat di volume barunya.
+     *
+     * `LK_BARU` dilaporkan 20 dan volume drafnya 50 – muat, jadi angkanya tetap.
+     * Uji ini dulu menuntut SEMUA baris tetap ("hanya penandanya yang naik"),
+     * dan itu benar sampai permintaan user 2026-09-03: laporan yang MELEBIHI
+     * volume barunya kini ikut disesuaikan saat aktivasi. Yang berubah bukan
+     * kelonggaran ujinya, melainkan perilakunya – dan pemisahan di bawah yang
+     * menyatakan batasnya.
+     */
+    const muat = sesudah.filter((r) => r.lineageKey === LK_BARU);
+    expect(muat).toHaveLength(1);
+    expect(Number(muat[0]!.volumeDone)).toBe(20);
+    expect(muat[0]!.valueDone).toBe(sebelum.find((r) => r.lineageKey === LK_BARU)!.valueDone);
+  });
+
+  it("laporan yang MELEBIHI volume barunya diturunkan proporsional sampai pas", async () => {
+    /*
+     * `LK_NAIK` dilaporkan 130 lewat draft (basis draft_adendum) DAN 40 lewat
+     * item aktif di laporan lain – total 170, sedangkan volume di draft 150.
+     * Aktivasi membagi kelebihannya rata: 130 → 114,706 dan 40 → 35,294,
+     * berjumlah tepat 150. Permintaan user 2026-09-03; pembagian proporsional
+     * adalah pilihannya sendiri atas dua alternatif.
+     */
+    const rows = await db.dailyReportItem.findMany({
+      where: { lineageKey: LK_NAIK, report: { locationId } },
+      select: { volumeDone: true },
+    });
+    const total = rows.reduce((t, r) => t + Number(r.volumeDone), 0);
+    expect(Math.round(total * 1000) / 1000).toBe(150);
+    // Tidak ada baris yang dinihilkan – porsi tiap laporan tetap.
+    expect(rows.every((r) => Number(r.volumeDone) > 0)).toBe(true);
   });
 
   it("pekerjaan itu kini terhitung di angka RESMI, bukan cuma di pantauan draft", async () => {
