@@ -26799,3 +26799,75 @@ kasus; ketiadaan pagar per-berkas dibuktikan MERAH lebih dulu.
 **Bisa di-revisit**: kompresi di sisi peramban untuk foto raksasa — sekali
 diputuskan, ia menghapus seluruh kelas masalah ini, tapi menuntut jawaban dulu
 soal berkas asli sebagai bukti.
+
+---
+
+## (baru) · CI menjalankan job yang PERLU saja, dan "perlu" itu diuji (2026-09-03)
+
+**Konteks**: dua teguran user 2026-09-03. Yang pertama atas PR #261 yang isinya
+menomori SATU judul di `DECISIONS.md` — *"kenapa harus cek panjang x lebar
+kalau cuma soal penomoran?!"* Yang kedua atas tambalan pertama saya, yang cuma
+membedakan "markdown vs bukan" — *"kamu seharusnya bisa membedakan mana yang
+perlu tes apa, jangan konyol seperti ini, malah memperlama proses dan
+buang-buang waktu sesuatu yang sangat mahal selain token."*
+
+Keduanya benar. `on: pull_request` tanpa filter apa pun membuat satu baris
+markdown menjalankan Playwright, Postgres, dan `docker build --no-cache`: ±20
+menit untuk nol bukti. Ongkosnya bukan cuma waktu — CI yang lambat pada
+perubahan sepele mengajari orang menumpuk perubahan jadi PR besar, dan PR besar
+lebih sulit diperiksa.
+
+**Keputusan**: logikanya keluar dari YAML ke `scripts/ci-perlu.mjs`. Tiap
+berkas digolongkan, lalu kebutuhan diturunkan dari GOLONGAN yang muncul:
+
+| Golongan | Pola |
+|---|---|
+| dokumen | `*.md` di mana pun |
+| uji-e2e | `tests/e2e/**` |
+| uji-integrasi | `tests/integration/**` |
+| uji-unit | `tests/unit/**` |
+| aplikasi | **sisanya** — `src`, `prisma`, `package.json`, `Dockerfile`, `ci.yml`, `tests/stubs`, … |
+
+Ada SATU saja berkas **aplikasi** → semua job jalan. Yang bisa dilewati hanya
+perubahan yang seluruhnya dokumen dan/atau uji:
+
+- `docker` tidak pernah dibutuhkan di situ — `tests` dan `*.md` ada di
+  `.dockerignore`, jadi image-nya tidak berubah satu bit pun;
+- `e2e` hanya bila `tests/e2e/**` berubah;
+- `integration` hanya bila `tests/integration/**` berubah;
+- uji unit tidak membutuhkan ketiganya — ia dijalankan job `checks`.
+
+**`checks` TIDAK pernah digerbang.** Justru di sanalah penjaga dokumen tinggal:
+`decisions-nomor` (nomor kembar, `(baru)` yang lolos merge), `tanda-pisah-ui`,
+matriks izin. Melewatinya akan membuat perubahan dokumen jadi satu-satunya yang
+tidak diperiksa siapa pun — kebalikan dari maksudnya.
+
+**Kenapa skrip, bukan enam baris bash di dalam `run:`**: keputusan "boleh
+dilewati" adalah keputusan tentang jaring pengaman — salah sedikit, sebuah bug
+lolos dengan CI hijau. Sebagai skrip ia bisa diuji dengan daftar berkas
+sungguhan (`tests/unit/ci-perlu.test.ts`, 16 kasus termasuk PR campuran dan
+berkas yang mudah dikira aman); sebagai bash di dalam YAML ia hanya bisa
+dipelototi.
+
+Arah keraguan condong ke MENJALANKAN: daftar kosong, berkas tak dikenali, atau
+peristiwa selain `pull_request` semuanya menghasilkan "jalan semua". Salah
+menjalankan cuma membuang waktu; salah melewati membuang jaring pengaman.
+
+**Alternatif direject**:
+- *`paths-ignore` di tingkat `on:`.* Melewati SELURUH alur kerja termasuk
+  `checks` — persis yang tidak boleh. Ia juga membuat status check yang
+  diwajibkan tidak pernah terlapor, sehingga PR-nya malah tidak bisa di-merge.
+- *Action pihak ketiga (`dorny/paths-filter`).* Satu ketergantungan baru di
+  jalur tepercaya CI, dan keputusannya tetap tidak bisa diuji.
+- *Berhenti di "markdown vs bukan".* Tambalan pertama saya, dan memang belum
+  membedakan apa pun: perubahan yang hanya menyentuh `tests/e2e` tetap
+  menjalankan Postgres dan Docker.
+
+**Konsekuensi**: job yang dilewati terlapor "skipped", dan GitHub
+memperlakukannya sebagai lulus untuk status check yang diwajibkan — PR dokumen
+tetap bisa di-merge. Push ke `main` selalu menjalankan semuanya.
+
+**Bisa di-revisit**: golongan "aplikasi" masih satu gumpalan. Perubahan yang
+hanya menyentuh `src/lib/**` murni pun kemungkinan besar tidak butuh E2E — tapi
+"kemungkinan besar" bukan dasar yang cukup untuk mencabut jaring pengaman, dan
+menagihnya butuh peta ketergantungan, bukan pola nama berkas.
