@@ -26801,7 +26801,7 @@ soal berkas asli sebagai bukti.
 
 ---
 
-## (baru) · CI menjalankan job yang PERLU saja, dan "perlu" itu diuji (2026-09-03)
+## 515 · 2026-09-03 · CI menjalankan job yang PERLU saja, dan "perlu" itu diuji
 
 **Konteks**: dua teguran user 2026-09-03. Yang pertama atas PR #261 yang isinya
 menomori SATU judul di `DECISIONS.md` — *"kenapa harus cek panjang x lebar
