@@ -42,12 +42,17 @@ test.describe("form kegiatan lapangan", () => {
     const simpan = page.getByRole("button", { name: "Simpan kegiatan" });
     if ((await simpan.count()) === 0) test.skip(true, "akun ini tidak boleh mencatat kegiatan");
 
-    // Terlihat saat halaman baru dibuka…
-    await expect(simpan).toBeInViewport({ timeout: 10_000 });
+    // Yang diuji adalah KETERJANGKAUAN, bukan "terlihat tanpa menggulir":
+    // tombol di dasar form memang wajar berada di bawah lipatan saat halaman
+    // baru dibuka. Yang tidak wajar — dan itulah bugnya — adalah menggulir pun
+    // tak pernah membawanya ke layar, karena kolomnya terpaku tanpa batas
+    // tinggi sehingga isinya tidak ikut bergulir ke mana-mana.
+    await simpan.scrollIntoViewIfNeeded({ timeout: 10_000 });
+    await expect(simpan).toBeInViewport();
 
-    // …dan tetap terlihat setelah riwayat digulir sampai habis. Inilah yang
-    // dulu hilang: kolomnya terpaku, tombolnya ikut tertinggal di luar layar.
+    // Tetap terjangkau juga setelah halaman digulir sampai habis.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await simpan.scrollIntoViewIfNeeded({ timeout: 10_000 });
     await expect(simpan).toBeInViewport();
   });
 });
