@@ -26738,3 +26738,63 @@ dan pesan 410 kini mengatakan itu dengan sebab yang benar.
 
 **Bisa di-revisit**: `direktoriLampiran()` masih satu direktori datar. Kalau
 kelak isinya puluhan ribu berkas, penyimpanannya perlu dipecah per bulan.
+
+---
+
+## 514 · 2026-09-03 · Batas ukuran foto dikatakan SEBELUM diunggah, dan memilih foto selalu terlihat
+**Konteks**: dua pertanyaan user 2026-09-03 — *"apakah kamu membatasi ukuran?
+kalau ukuran lebih dari batasmu, kamu sudah ngasih warning gak, atau silent
+aja"*, lalu *"kenapa aku nambah foto malah gak ada respon sama sekali, apa ini
+sedang masalah?"*
+
+Batasnya ada dan sebagian besar memang sudah diperingatkan (25 MB per foto,
+20 foto sekali kirim, 28 MB total). Tapi ada TIGA celah, dan ketiganya bentuk
+kegagalan-diam:
+
+1. **Foto 25–28 MB tidak berbunyi sama sekali.** Pemeriksaan di klien hanya
+   menghitung JUMLAH dan TOTAL byte; batas per-berkas cuma ditegakkan di
+   server. Foto 26 MB lolos anggaran 28 MB, terunggah utuh — di sinyal
+   lapangan itu menit-menit — baru ditolak. Peringatan yang datang setelah
+   ongkosnya dibayar bukan peringatan.
+2. **Foto di atas 28 MB berbunyi salah.** Hasilnya `muat = 0` dengan pesan
+   *"Kirim yang ini dulu, lalu tambahkan lagi"* — tidak ada yang bisa dikirim,
+   dan sebab sebenarnya (satu foto itu sendiri kebesaran) tidak pernah disebut.
+3. **Memilih foto di baris material/alat tidak memberi tanda apa pun.** Blok
+   pratinjau dimatikan oleh prop `compact`. `compact` dibuat untuk jalur
+   AUTO-SUBMIT, tempat pratinjau memang mubazir; baris material/alat
+   memakainya demi bentuk sempit, TANPA auto-submit. Jadi satu-satunya tempat
+   foto benar-benar MENUNGGU justru yang paling diam — orang mengetuk lagi,
+   memilih lagi, lalu mengira aplikasinya rusak.
+
+**Keputusan**:
+
+- `muatSekaliUnggah` menegakkan **tiga** pagar, bukan dua: ukuran satu berkas
+  ikut diperiksa DI MUKA. Berkas kebesaran ditolak sendirian, disebut
+  ukurannya, dan **tidak menyandera** foto wajar di pilihan yang sama —
+  fungsinya kini mengembalikan `terima: number[]` (indeks), bukan sekadar
+  panjang awalan.
+- Pesannya menyebut pagar mana yang kena, ukuran fotonya, dan **tidak lagi**
+  menyuruh "kirim yang ini dulu" saat tidak ada satu pun yang bisa dikirim.
+- Pratinjau muncul kapan pun pilihannya MENUNGGU. Yang menentukan bukan lagi
+  sempit atau tidaknya tampilan (`compact`), melainkan ada tidaknya
+  auto-submit (`onPicked`).
+
+**Alternatif direject**:
+- *Menaikkan batas per-berkas ke 28 MB supaya celah 1 hilang.* Memindahkan
+  tebing satu langkah, tidak menghapusnya — dan 28 MB adalah anggaran SATU
+  PERMINTAAN, bukan anggaran satu foto.
+- *Mengecilkan foto di peramban sebelum dikirim.* Menarik, tapi ia mengubah
+  berkas ASLI yang jadi bukti; DECISIONS 197 mewajibkan aslinya diarsipkan.
+  Kalau kelak dipakai, ia harus jadi keputusan tersendiri, bukan efek samping
+  perbaikan pesan.
+- *Membiarkan `compact` menyembunyikan pratinjau dan menambah teks bantuan.*
+  Yang kurang bukan penjelasan, melainkan UMPAN BALIK bahwa fotonya terpilih.
+
+**Konsekuensi**: pemanggil `muatSekaliUnggah` memakai `terima` (indeks), bukan
+`slice(0, muat)`. `muat` dipertahankan sebagai `terima.length` supaya pemanggil
+lama tidak diam-diam berubah arti. Uji `batas-unggah-foto` bertambah enam
+kasus; ketiadaan pagar per-berkas dibuktikan MERAH lebih dulu.
+
+**Bisa di-revisit**: kompresi di sisi peramban untuk foto raksasa — sekali
+diputuskan, ia menghapus seluruh kelas masalah ini, tapi menuntut jawaban dulu
+soal berkas asli sebagai bukti.
