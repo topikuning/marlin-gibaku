@@ -85,11 +85,27 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         },
       });
     } catch {
+      /*
+       * Sampai 2026-09-03 jawabannya satu kalimat tetap: "biasanya hilang saat
+       * aplikasi di-deploy ulang". Kalimat itu benar untuk SEBAGIAN sebab, dan
+       * justru menutup sebab yang paling perlu diketahui: berkasnya ditulis di
+       * direktori yang BUKAN simpanan sekarang — mis. di dalam kontainer,
+       * sebelum penyimpanan tetap dipasang. Yang begitu tidak akan pernah
+       * kembali betapapun volumenya sudah benar, dan menyebutnya "biasanya
+       * hilang saat deploy" membuat orang mengira setelannya masih salah.
+       */
+      const { dirname } = await import("node:path");
+      const { direktoriLampiran } = await import("@/lib/waha/lampiran-simpanan");
+      const sekarang = direktoriLampiran();
+      const lain = dirname(a.localPath) !== sekarang;
       return NextResponse.json(
         {
-          error:
-            "Berkas tidak ada lagi di simpanan sementara (biasanya hilang saat aplikasi di-deploy ulang) " +
-            "dan belum sempat diarsipkan. Buka pesan aslinya di WhatsApp.",
+          error: lain
+            ? `Berkas ini ditulis di "${dirname(a.localPath)}", bukan di simpanan yang dipakai sekarang ` +
+              `("${sekarang}") – biasanya karena tersimpan sebelum penyimpanan tetap dipasang. Berkas lama ` +
+              `seperti ini tidak akan kembali; yang masuk setelahnya aman. Buka pesan aslinya di WhatsApp.`
+            : "Berkas tidak ada lagi di simpanan (hilang saat aplikasi di-deploy ulang, atau umur simpannya " +
+              "sudah habis) dan belum sempat diarsipkan. Buka pesan aslinya di WhatsApp.",
         },
         { status: 410 },
       );

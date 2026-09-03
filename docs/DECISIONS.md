@@ -26568,3 +26568,65 @@ kolom itu berbicara — rupiah atau "belum berkontrak", tidak pernah kosong.
 menyebut kontrak incl-PPN dan RAB pra-PPN, tapi HPS tidak disebut di mana pun;
 kalau ternyata beda basis, keduanya perlu diberi keterangan supaya selisihnya
 tidak dibaca sebagai efisiensi padahal sebagian cuma PPN.
+
+## (baru) · Kontainer menyiapkan volumenya sendiri, lalu melepas hak root (2026-09-03)
+
+**Konteks**: keluhan user 2026-09-03 — *"kenapa file masih hilang saat deploy
+ulang? padahal di production sudah ada volume khusus?!"*
+
+Volumenya memang terpasang. Yang tidak diperiksa siapa pun: **volume Railway
+dipasang sebagai milik root dengan mode 755**, sedangkan proses aplikasi
+berjalan sebagai `marlin` (uid 1001, sejak insiden EACCES 2026-08-26).
+Akibatnya `mkdir /data/lampiran` gagal EACCES, lalu
+`siapkanDirektoriLampiran()` melakukan persis yang dirancang: pindah ke
+cadangan `os.tmpdir()`. `/tmp` dibersihkan tiap kontainer diganti — jadi
+sepanjang waktu lampiran ditulis ke tempat yang paling fana, di sebuah
+deployment yang sudah membayar volume.
+
+Kegagalannya **diam**: satu baris `console.warn` di log, dan gejalanya di layar
+identik dengan keadaan sehat. Ini bentuk bug yang paling mahal — bukan yang
+salah, melainkan yang tidak bisa dibedakan dari benar.
+
+Perbaikannya tidak bisa berada di dua tempat yang tampak wajar:
+- **Dockerfile**: `chown /data` saat build ditimpa oleh pemasangan volume saat
+  runtime. Direktori yang di-chown itu bahkan bukan direktori yang sama.
+- **Aplikasi**: `marlin` tidak berhak mengubah pemilik direktori milik root.
+  Tidak ada kode Node yang bisa menyelesaikannya.
+
+**Keputusan**: tiga lapis, dan lapis pertama yang menutup sebabnya.
+
+1. **`scripts/docker-entrypoint.sh`** — dijalankan root saat boot: `mkdir -p`
+   + `chown marlin` atas `$LAMPIRAN_DIR`, lalu `exec gosu marlin "$@"`. Root
+   hidup selama dua perintah, tidak lebih; `USER marlin` dicabut dari Dockerfile
+   karena justru ia yang membuat `chown` mustahil. Prosesnya tetap non-root —
+   dijaga `tests/unit/entrypoint-lampiran.test.ts`.
+2. **`periksaSimpananLampiran()`** (`lib/waha/lampiran-simpanan.ts`, dipisah
+   dari `lampiran-tangkap.ts` supaya bebas Prisma) — benar-benar mencoba
+   menulis, lalu **layar Lampiran Masuk memberi peringatan** bila simpanannya
+   tidak tahan deploy. Cadangan `/tmp` tetap ada (berkas yang sudah di tangan
+   lebih baik selamat sebentar daripada hilang seketika), tapi ia tidak boleh
+   lagi menyamar sebagai keadaan sehat.
+3. **Pesan 410** saat berkas dibuka dan sudah tidak ada: membedakan berkas yang
+   ditulis di direktori LAIN (tersimpan sebelum volume dipasang — tidak akan
+   pernah kembali, betapapun setelannya kini benar) dari yang memang hilang di
+   simpanan sekarang. Kalimat lama "biasanya hilang saat aplikasi di-deploy
+   ulang" benar untuk sebagian sebab dan menyesatkan untuk sisanya.
+
+**Alternatif direject**:
+- *Menyuruh user menjalankan sesuatu di Railway.* Ketetapan user berdiri:
+  *"ketika kamu deploy, maka semua harus beres!"*
+- *Menjalankan aplikasi sebagai root supaya tidak ada urusan izin.* Menyelesaikan
+  gejala dengan membuang pagar yang dipasang justru setelah insiden 2026-08-26.
+- *Membuang cadangan `/tmp` supaya kegagalannya berisik.* Berisiknya benar, tapi
+  ongkosnya berkas grup yang sudah terunduh dibuang lagi. Yang kurang bukan
+  kerasnya kegagalan, melainkan **terlihatnya** — itu yang ditambahkan.
+- *Menaikkan semua lampiran ke R2 begitu ditangkap.* Sudah pernah dicoba dan
+  dibatalkan (DECISIONS 472): R2 menampung tiap foto yang lewat 19 grup.
+
+**Konsekuensi**: CI menjalankan `docker build`, jadi entrypoint yang rusak
+menggagalkan build — bukan boot produksi. Lampiran yang hilang SEBELUM
+perbaikan ini tidak bisa dipulihkan; berkas aslinya ada di pesan WhatsApp-nya,
+dan pesan 410 kini mengatakan itu dengan sebab yang benar.
+
+**Bisa di-revisit**: `direktoriLampiran()` masih satu direktori datar. Kalau
+kelak isinya puluhan ribu berkas, penyimpanannya perlu dipecah per bulan.

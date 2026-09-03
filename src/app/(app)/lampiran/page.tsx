@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
+import { Banner, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { Inbox } from "lucide-react";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
@@ -13,6 +13,8 @@ import {
   LAMPIRAN_KIND_TONE,
   LAMPIRAN_STATUS_LABEL,
 } from "@/lib/surat/lifecycle";
+import { isR2Configured } from "@/lib/r2";
+import { periksaSimpananLampiran } from "@/lib/waha/lampiran-simpanan";
 import { BarisLampiran } from "./baris-lampiran";
 import { PembersihMassal } from "./pembersih-massal";
 
@@ -43,6 +45,21 @@ export default async function LampiranPage({
   const tampilSemua = sp.semua === "1";
 
   const scope = packageScopeWhere(user, await accessibleLocationIds(user));
+
+  /*
+   * Keadaan simpanannya diperiksa DI SINI, bukan cuma dicatat di log.
+   *
+   * Keluhan user 2026-09-03: *"kenapa file masih hilang saat deploy ulang?
+   * padahal di production sudah ada volume khusus?!"* Sebabnya bisa saja
+   * volumenya memang terpasang tapi tidak boleh ditulis pengguna aplikasi —
+   * dan aplikasinya diam-diam pindah ke `/tmp`, yang justru dibersihkan tiap
+   * deploy. Dari layar ini keduanya dulu terlihat identik: berkas ada hari
+   * ini, hilang besok.
+   *
+   * Yang diperiksa adalah keadaan SEKARANG (benar-benar mencoba menulis), jadi
+   * peringatannya muncul sebelum berkas pertama hilang, bukan sesudahnya.
+   */
+  const simpanan = await periksaSimpananLampiran();
 
   const antre = await db.waAttachment.findMany({
       where: {
@@ -83,6 +100,21 @@ export default async function LampiranPage({
         title="Lampiran Masuk"
         description="Berkas yang dikirim ke grup WhatsApp. Sistem menduga jenisnya; Anda yang menetapkan."
       />
+
+      {simpanan.masalah ? (
+        <Banner
+          tone="warning"
+          title="Berkas lampiran akan hilang saat aplikasi di-deploy ulang"
+          description={
+            <>
+              {simpanan.masalah}{" "}
+              {isR2Configured()
+                ? "Berkas yang sudah ditetapkan sebagai surat/dokumen tetap aman – arsipnya permanen. Yang terancam hanya yang masih menunggu keputusan di daftar ini, jadi tetapkan lebih dulu yang penting."
+                : "Arsip permanen (R2) juga belum dikonfigurasi, jadi tidak ada satu pun berkas di sini yang aman – termasuk yang sudah ditetapkan."}
+            </>
+          }
+        />
+      ) : null}
 
       <Card>
         <CardHeader

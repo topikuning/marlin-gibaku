@@ -57,10 +57,25 @@ deploy.
 2. Mount path: `/data` (ukurannya ikuti paket Railway-mu; isinya berkas
    berumur pendek – foto 3 hari, berkas lain 14 hari).
 3. Tambahkan variabel `LAMPIRAN_DIR=/data/lampiran`. Direktorinya dibuat
-   sendiri saat lampiran pertama masuk.
+   sendiri saat kontainer boot.
 
 Yang perlu diketahui: volume mengikat service ke SATU instans – selama volume
 terpasang, jangan menaikkan jumlah replika.
+
+### Pemiliknya disiapkan kontainer sendiri – tidak ada langkah manual
+
+Railway memasang volume sebagai milik **root**, sedangkan aplikasi berjalan
+sebagai pengguna `marlin`. Sampai 2026-09-03 akibatnya tidak terlihat: `mkdir
+/data/lampiran` gagal EACCES, aplikasi diam-diam pindah ke `/tmp` – yang justru
+dibersihkan tiap deploy. Dari layar, "volume sudah terpasang" dan "volume tidak
+bisa ditulis" tampak persis sama: berkas ada hari ini, hilang besok.
+
+`scripts/docker-entrypoint.sh` kini menyiapkan direktori itu sebagai root
+(`mkdir` + `chown marlin`) lalu **melepas** hak root lewat `gosu` sebelum
+menjalankan aplikasi. Tidak ada yang perlu dijalankan orang di Railway.
+
+Kalau toh masih gagal (mis. titik pasangnya read-only), keadaannya **muncul
+sebagai peringatan di layar Lampiran Masuk**, bukan cuma satu baris di log.
 
 **Di dev volume ini sengaja tidak dipasang** (ketetapan user 2026-08-29):
 lampiran di dev boleh hilang tiap deploy, dan layarnya mengatakan itu apa
