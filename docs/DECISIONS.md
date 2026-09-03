@@ -26321,8 +26321,7 @@ berhenti membaca peringatan.
 
 ---
 
-## (baru) · Kategori pada pemetaan manual dikenali lewat NAMA, bukan nomor romawinya (2026-09-03)
-
+## 505 · 2026-09-03 · Kategori pada pemetaan manual dikenali lewat NAMA, bukan nomor romawinya
 **Laporan user 2026-09-03** dengan tangkapan layar berkas Excel dan layar
 MARLIN. Pemetaan yang ia pilih DITOLAK:
 
@@ -26372,8 +26371,7 @@ tangkapan layar user, bukan gerbang mana pun.
 
 ---
 
-## (baru) · Pemetaan manual TIDAK menambah volume, dan itu dikatakan sebelum dipilih (2026-09-03)
-
+## 506 · 2026-09-03 · Pemetaan manual TIDAK menambah volume, dan itu dikatakan sebelum dipilih
 **Pertanyaan user 2026-09-03**: *"apa maksudmu, padahal penambahan item baru di
 kategori III cuma 32,15 bagaimana laporan harian yang sudah diinput menyikapi
 ini"*.
@@ -26421,8 +26419,7 @@ bayar untuk selisihnya.
 
 ---
 
-## (baru) · Laporan harian menyesuaikan volume baru saat adendum DIAKTIFKAN (2026-09-03)
-
+## 507 · 2026-09-03 · Laporan harian menyesuaikan volume baru saat adendum DIAKTIFKAN
 **Permintaan user 2026-09-03**: *"saat pemetaan manual itu konfirmasi, maka
 laporan harian yang sebelumnya langsung menyesuaikan volume baru!"*
 
@@ -26482,8 +26479,7 @@ m³, dan itu harus dijelaskan ke PPK setiap kali dibaca.
 
 ---
 
-## (baru) · Direktori lokasi menyebut perusahaan pelaksana dan realisasinya, deviasi tidak lagi menonjol (2026-09-03)
-
+## 508 · 2026-09-03 · Direktori lokasi menyebut perusahaan pelaksana dan realisasinya, deviasi tidak lagi menonjol
 **Konteks**: permintaan user 2026-09-03 — *"aku butuh informasi di lokasi itu
 nama perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
 
@@ -26534,8 +26530,7 @@ bukan membuang Realisasi lagi.
 
 ---
 
-## (baru) · Daftar paket menyebut nilai kontrak, bukan cuma pagunya (2026-09-03)
-
+## 509 · 2026-09-03 · Daftar paket menyebut nilai kontrak, bukan cuma pagunya
 **Konteks**: keberatan user 2026-09-03 — *"buat apa di daftar paket kamu
 masukkan kolom HPS, sedangkan kolom kontrak tidak kamu masukkan. ini sangat
 membingungkan."*
@@ -26571,8 +26566,7 @@ tidak dibaca sebagai efisiensi padahal sebagian cuma PPN.
 
 ---
 
-## (baru) · Aktivasi adendum tidak boleh kehabisan waktu karena ukurannya (2026-09-03)
-
+## 510 · 2026-09-03 · Aktivasi adendum tidak boleh kehabisan waktu karena ukurannya
 **Konteks**: pemeriksaan `dev` 2026-09-03 atas perubahan adendum. Sejak
 penyesuaian realisasi ditambahkan ke `activateRevision`, transaksi itu memuat
 loop tulis yang panjangnya TIDAK DIBATASI apa pun kecuali ukuran adendumnya —
@@ -26609,8 +26603,7 @@ baris), bukan batas waktunya lagi.
 
 ---
 
-## (baru) · Label periode laporan mengikuti jenis yang DIPILIH, bukan yang sedang tampil (2026-09-03)
-
+## 511 · 2026-09-03 · Label periode laporan mengikuti jenis yang DIPILIH, bukan yang sedang tampil
 **Konteks**: keberatan user 2026-09-03 — *"laporan bulanan tapi sampingnya
 minggu, sedikit tidak pas saja, bukan salah yang fatal."* Di Laporan Periodik
 KKP, dropdown Jenis laporan sudah "Bulanan" sementara label di sebelahnya masih
@@ -26638,8 +26631,7 @@ hanya untuk membetulkan sebuah label adalah ongkos yang tidak sepadan.
 
 ---
 
-## (baru) · Mode periode minggu punya kapabilitas sendiri; Project Manager boleh mengubahnya (2026-09-03)
-
+## 512 · 2026-09-03 · Mode periode minggu punya kapabilitas sendiri; Project Manager boleh mengubahnya
 **Konteks**: permintaan user 2026-09-03 — *"project manager diijinkan untuk
 ubah periode minggu laporan."*
 
@@ -26686,8 +26678,7 @@ paketnya.
 
 ---
 
-## (baru) · Kontainer menyiapkan volumenya sendiri, lalu melepas hak root (2026-09-03)
-
+## 513 · 2026-09-03 · Kontainer menyiapkan volumenya sendiri, lalu melepas hak root
 **Konteks**: keluhan user 2026-09-03 — *"kenapa file masih hilang saat deploy
 ulang? padahal di production sudah ada volume khusus?!"*
 
