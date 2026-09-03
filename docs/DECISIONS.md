@@ -26795,9 +26795,55 @@ kegagalan-diam:
 lama tidak diam-diam berubah arti. Uji `batas-unggah-foto` bertambah enam
 kasus; ketiadaan pagar per-berkas dibuktikan MERAH lebih dulu.
 
-**Bisa di-revisit**: kompresi di sisi peramban untuk foto raksasa — sekali
-diputuskan, ia menghapus seluruh kelas masalah ini, tapi menuntut jawaban dulu
-soal berkas asli sebagai bukti.
+**Bisa di-revisit**: —  dijawab pada hari yang sama, lihat susulan di bawah.
+**Susulan (2026-09-03, permintaan user)**: *"seharusnya, kalau kamu memang bisa
+mengecilkan ukuran, ketika besar kamu menawarkan user apakah mau kompress,
+kalau iya, kamu kompres. itu kan ux yang ramah."*
+
+Betul, dan menolak tanpa jalan keluar adalah jalan buntu di tempat yang paling
+tidak punya jalan keluar: di lapangan tidak ada yang akan membuka aplikasi lain
+untuk mengompres berkas. Foto kebesaran kini **DITAWARI** pengecilan di HP itu
+juga (`lib/photo-kecilkan.ts` untuk keputusannya, `components/knmp/kecilkan-foto.ts`
+untuk canvas-nya): sisi terpanjang 3.000 px, tangga mutu JPEG 0,85 → 0,55,
+berhenti pada percobaan pertama yang cukup.
+
+Yang dijaga ketat: **ditawarkan, tidak pernah otomatis.** Foto itu bukti, dan
+mengubahnya — sekalipun cuma ukurannya — keputusan yang bukan milik program.
+Pengecilan hanya berjalan setelah tombolnya diketuk, dan uji
+`kecilkan-foto.test.ts` membaca sumbernya untuk memastikan `kecilkanFoto` tidak
+pernah dipanggil dari `tumpuk` maupun dari sebuah `useEffect`.
+
+Hasilnya harus cukup kecil **DAN** lebih kecil dari aslinya: JPEG bermutu tinggi
+atas sumber yang sudah terkompresi baik bisa membengkak, dan "mengecilkan" yang
+membesarkan adalah kegagalan yang tombolnya tetap terlihat bekerja. Yang gagal
+dikecilkan (HEIC yang tak terbaca peramban, panorama yang tetap kebesaran)
+disebut sebabnya, bukan menghilang.
+
+**Konsekuensi yang harus disebut**: berkas yang naik ke `Photo.originalKey`
+adalah berkas SETELAH pengecilan, bukan keluaran mentah kamera. Arsipnya tetap
+memuat "berkas sebagaimana dikirim" — yang berubah cuma dari mana berkas itu
+berasal, dan itu atas ketukan orangnya sendiri. Nama berkasnya diberi akhiran
+`-kecil.jpg` supaya tidak menyamar sebagai aslinya.
+
+**Yang TIDAK boleh ditawarkan, dan kenapa** — teguran user atas rancangan awal
+susulan ini: *"kan dikecilkan jika tidak muat, bagaimana mungkin kamu
+menawarkan hal yang tidak mungkin tercapai."*
+
+Rancangan awal menutup entri ini dengan "kalau kelak dituntut menyimpan
+keluaran kamera apa adanya, tambahkan kolom penanda". Itu omong kosong yang
+saling meniadakan: foto ini dikecilkan JUSTRU KARENA yang asli tidak bisa
+dikirim. Menyimpan aslinya di server menuntut mengunggah berkas yang, menurut
+pagar yang sama, tidak boleh diunggah. Tidak ada kolom yang bisa memperbaiki
+itu — yang dibutuhkan menaikkan `bodySizeLimit` beserta seluruh ongkosnya, dan
+itu keputusan lain sama sekali.
+
+Yang MASIH masuk akal dari gagasan itu cuma bagian pencatatannya: kolom penanda
+hanya bisa mencatat BAHWA foto pernah dikecilkan di HP — berguna untuk menilai
+mutu bukti, tapi bukan penyelamat berkas asli. Aslinya tetap ada di HP
+pemotretnya, dan hanya di sana.
+
+**Bisa di-revisit**: menaikkan `bodySizeLimit` beserta ongkos jaringannya —
+sebuah keputusan tentang anggaran permintaan, bukan tentang foto.
 
 ---
 

@@ -96,12 +96,27 @@ function mb(byte: number): string {
 export type HasilMuatUnggah = {
   /** Indeks berkas yang diterima, urut naik. Bukan selalu awalan daftar. */
   terima: number[];
+  /**
+   * Indeks berkas yang KEBESARAN sendirian (> batas per-foto).
+   *
+   * Dipisahkan dari sisa yang lain karena nasibnya berbeda: yang tidak muat
+   * karena anggaran permintaan cukup dikirim di gelombang berikutnya, sedangkan
+   * yang kebesaran tidak akan pernah muat — kecuali dikecilkan. Layar memakai
+   * daftar ini untuk MENAWARKAN pengecilan, bukan sekadar menolak.
+   */
+  kebesaran: number[];
   /** Sama dengan `terima.length` — dipertahankan untuk pemanggil lama. */
   muat: number;
   /** Berapa berkas yang TIDAK ikut terkirim. */
   sisa: number;
   /** Sebabnya, dalam bahasa manusia. `null` = semuanya muat. */
   pesan: string | null;
+  /**
+   * Bagian pesan yang BUKAN soal foto kebesaran. Dipakai layar yang sudah
+   * menawarkan pengecilan sendiri: menampilkan keduanya berarti menyebut
+   * masalah yang sama dua kali dengan nada berbeda.
+   */
+  pesanSisa: string | null;
 };
 
 export function muatSekaliUnggah(ukuran: number[]): HasilMuatUnggah {
@@ -131,31 +146,42 @@ export function muatSekaliUnggah(ukuran: number[]): HasilMuatUnggah {
 
   const muat = terima.length;
   const sisa = ukuran.length - muat;
-  if (sisa <= 0) return { terima, muat, sisa: 0, pesan: null };
+  if (sisa <= 0) return { terima, kebesaran, muat, sisa: 0, pesan: null, pesanSisa: null };
+
+  const sisaLain = sisa - kebesaran.length;
+  const bagianSisa: string[] = [];
+  if (sisaLain > 0) {
+    bagianSisa.push(
+      kenaByte
+        ? `Satu kali kirim maksimal ${MAX_UPLOAD_MB_TOTAL} MB – ${sisaLain} foto belum ikut.`
+        : `Satu kali kirim maksimal ${MAX_PHOTOS_PER_UPLOAD} foto – ${sisaLain} foto belum ikut.`,
+    );
+    // "Kirim yang ini dulu" hanya benar kalau memang ADA yang bisa dikirim.
+    // Kalimat itu pada pilihan yang seluruhnya ditolak adalah petunjuk buntu.
+    bagianSisa.push(
+      muat > 0
+        ? "Kirim yang ini dulu, lalu tambahkan lagi."
+        : "Belum ada yang bisa dikirim – potret ulang atau pilih foto lain.",
+    );
+  }
+  const pesanSisa = bagianSisa.length ? bagianSisa.join(" ") : null;
 
   const bagian: string[] = [];
   if (kebesaran.length > 0) {
     const terbesar = Math.max(...kebesaran.map((i) => ukuran[i]!));
     bagian.push(
       kebesaran.length === 1
-        ? `1 foto berukuran ${mb(terbesar)} MB – lebih dari batas ${MAX_PHOTO_MB} MB per foto, jadi tidak bisa dikirim.`
-        : `${kebesaran.length} foto lebih dari ${MAX_PHOTO_MB} MB per foto (terbesar ${mb(terbesar)} MB), jadi tidak bisa dikirim.`,
+        ? `1 foto berukuran ${mb(terbesar)} MB – lebih dari batas ${MAX_PHOTO_MB} MB per foto.`
+        : `${kebesaran.length} foto lebih dari ${MAX_PHOTO_MB} MB per foto (terbesar ${mb(terbesar)} MB).`,
     );
+    if (!pesanSisa) {
+      bagian.push(
+        muat > 0
+          ? "Kecilkan dulu, atau kirim yang lain lebih dahulu."
+          : "Kecilkan dulu supaya bisa dikirim.",
+      );
+    }
   }
-  const sisaLain = sisa - kebesaran.length;
-  if (sisaLain > 0) {
-    bagian.push(
-      kenaByte
-        ? `Satu kali kirim maksimal ${MAX_UPLOAD_MB_TOTAL} MB – ${sisaLain} foto belum ikut.`
-        : `Satu kali kirim maksimal ${MAX_PHOTOS_PER_UPLOAD} foto – ${sisaLain} foto belum ikut.`,
-    );
-  }
-  // "Kirim yang ini dulu" hanya benar kalau memang ADA yang bisa dikirim.
-  // Kalimat itu pada pilihan yang seluruhnya ditolak adalah petunjuk buntu.
-  bagian.push(
-    muat > 0
-      ? "Kirim yang ini dulu, lalu tambahkan lagi."
-      : "Belum ada yang bisa dikirim – potret ulang atau pilih foto lain.",
-  );
-  return { terima, muat, sisa, pesan: bagian.join(" ") };
+  if (pesanSisa) bagian.push(pesanSisa);
+  return { terima, kebesaran, muat, sisa, pesan: bagian.join(" "), pesanSisa };
 }
