@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Images, MapPin, MapPinOff, X } from "lucide-react";
-import { MAX_PHOTOS_PER_UPLOAD, muatSekaliUnggah } from "@/lib/photo-limits";
+import { Camera, Images, MapPin, MapPinOff, Minimize2, X } from "lucide-react";
+import { MAX_PHOTO_MB, MAX_PHOTOS_PER_UPLOAD, muatSekaliUnggah } from "@/lib/photo-limits";
+import { mbFoto } from "@/lib/photo-kecilkan";
+import { KecilkanGagal, kecilkanFoto } from "@/components/knmp/kecilkan-foto";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
@@ -133,6 +135,18 @@ export function PhotoSourceInput({
   const [berkas, setBerkas] = useState<{ file: File; url: string }[]>([]);
   const [pesanBatas, setPesanBatas] = useState<string | null>(null);
   /**
+   * Foto yang KEBESARAN, ditahan untuk ditawari pengecilan — bukan dibuang.
+   *
+   * Permintaan user 2026-09-03: *"kalau kamu memang bisa mengecilkan ukuran,
+   * ketika besar kamu menawarkan user apakah mau kompress."* Sebelumnya foto
+   * seperti ini cuma ditolak; jalan buntu di tempat yang paling tidak punya
+   * jalan keluar — di lapangan tidak ada yang akan membuka aplikasi lain untuk
+   * mengompres berkas.
+   */
+  const [tawaran, setTawaran] = useState<File[]>([]);
+  const [sedangKecilkan, setSedangKecilkan] = useState(false);
+  const [gagalKecilkan, setGagalKecilkan] = useState<string | null>(null);
+  /**
    * Berisi nama galat bila perakitan `DataTransfer` tidak bisa dipakai di
    * peramban ini. Bukan sekadar penanda: pesannya ditampilkan apa adanya,
    * karena pelapor memakai ponsel dan tidak bisa membuka console.
@@ -257,8 +271,49 @@ export function PhotoSourceInput({
     for (let i = 0; i < gabung.length; i++) {
       if (!diterima.has(i)) URL.revokeObjectURL(gabung[i]!.url);
     }
-    setPesanBatas(batas.pesan);
+    // Yang kebesaran DITAHAN, bukan dibuang: ia yang akan ditawari pengecilan.
+    // `pesanSisa` dipakai, bukan `pesan`, supaya foto kebesaran tidak disebut
+    // dua kali — sekali sebagai penolakan, sekali sebagai tawaran.
+    setTawaran(batas.kebesaran.map((i) => gabung[i]!.file));
+    setGagalKecilkan(null);
+    setPesanBatas(batas.pesanSisa);
     setBerkas(batas.terima.map((i) => gabung[i]!));
+  };
+
+  /**
+   * Kecilkan foto yang ditawarkan, lalu masukkan hasilnya ke pilihan.
+   *
+   * Dijalankan hanya atas ketukan orangnya. Yang gagal dikecilkan tetap
+   * DISEBUT sebabnya (HEIC yang tak terbaca peramban, panorama yang tetap
+   * kebesaran) — bukan menghilang dengan tombol yang seolah tidak bekerja.
+   */
+  const kecilkanSemua = async () => {
+    if (tawaran.length === 0 || sedangKecilkan) return;
+    setSedangKecilkan(true);
+    setGagalKecilkan(null);
+    const hasil: File[] = [];
+    const gagal: string[] = [];
+    for (const f of tawaran) {
+      try {
+        hasil.push(await kecilkanFoto(f));
+      } catch (e) {
+        gagal.push(e instanceof KecilkanGagal ? e.message : `${f.name}: gagal dikecilkan.`);
+      }
+    }
+    setSedangKecilkan(false);
+    setTawaran([]);
+    setGagalKecilkan(gagal.length ? [...new Set(gagal)].join(" ") : null);
+    if (hasil.length > 0) {
+      const dt = new DataTransfer();
+      for (const f of hasil) dt.items.add(f);
+      tumpuk(dt.files);
+    }
+  };
+
+  /** Buang tawaran pengecilan – fotonya memang tidak jadi dikirim. */
+  const tolakTawaran = () => {
+    setTawaran([]);
+    setGagalKecilkan(null);
   };
 
   /** Buang satu foto dari pilihan (bukan dari server — belum terunggah). */
@@ -607,6 +662,57 @@ export function PhotoSourceInput({
             : "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, dicap titik lokasi proyek dan ditandai bukan bukti GPS."}
         </p>
       ) : null}
+
+      {/*
+       * TAWARAN MENGECILKAN — bukan penolakan.
+       *
+       * Permintaan user 2026-09-03: *"seharusnya, kalau kamu memang bisa
+       * mengecilkan ukuran, ketika besar kamu menawarkan user apakah mau
+       * kompress, kalau iya, kamu kompres. itu kan ux yang ramah."*
+       *
+       * Kuncinya "menawarkan": pengecilan tidak pernah berjalan sendiri. Foto
+       * adalah bukti, dan mengubahnya — sekalipun cuma ukurannya — keputusan
+       * yang bukan milik program. Ukuran fotonya disebut supaya orang tahu
+       * sejauh apa lewatnya, bukan cuma bahwa ia lewat.
+       */}
+      {tawaran.length > 0 ? (
+        <div className="rounded-md border border-warning-border bg-warning-soft px-3 py-2">
+          <p className="text-xs font-medium text-warning">
+            {tawaran.length === 1
+              ? `Foto ini ${mbFoto(tawaran[0]!.size)} MB – lebih besar dari batas ${MAX_PHOTO_MB} MB.`
+              : `${tawaran.length} foto lebih besar dari batas ${MAX_PHOTO_MB} MB.`}
+          </p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Bisa dikecilkan dulu di HP ini supaya tetap bisa dikirim. Isinya tidak berubah – hanya
+            ukuran gambarnya yang diturunkan.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={kecilkanSemua}
+              disabled={sedangKecilkan}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-muted disabled:opacity-60"
+            >
+              <Minimize2 aria-hidden className="size-4" />
+              {sedangKecilkan
+                ? "Sedang dikecilkan…"
+                : tawaran.length === 1
+                  ? "Kecilkan lalu pakai"
+                  : `Kecilkan ${tawaran.length} foto lalu pakai`}
+            </button>
+            <button
+              type="button"
+              onClick={tolakTawaran}
+              disabled={sedangKecilkan}
+              className="inline-flex items-center rounded-md px-3 py-2 text-sm text-ink-muted hover:text-ink disabled:opacity-60"
+            >
+              Jangan, biarkan saja
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {gagalKecilkan ? <p className="text-xs text-danger">{gagalKecilkan}</p> : null}
 
       {pesanBatas ? <p className="text-xs text-warning">{pesanBatas}</p> : null}
 

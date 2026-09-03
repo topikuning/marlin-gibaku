@@ -56,7 +56,14 @@ describe("muatSekaliUnggah", () => {
   });
 
   it("pilihan kosong tidak menghasilkan peringatan palsu", () => {
-    expect(muatSekaliUnggah([])).toEqual({ terima: [], muat: 0, sisa: 0, pesan: null });
+    expect(muatSekaliUnggah([])).toEqual({
+      terima: [],
+      kebesaran: [],
+      muat: 0,
+      sisa: 0,
+      pesan: null,
+      pesanSisa: null,
+    });
   });
 
   it("SATU foto yang sendirian sudah melebihi anggaran tidak bikin muat=0 senyap", () => {
@@ -99,11 +106,29 @@ describe("batas UKURAN SATU foto diperiksa di muka", () => {
   });
 
   it("pilihan yang seluruhnya ditolak tidak menyuruh 'kirim yang ini dulu'", () => {
-    // Petunjuk buntu: tidak ada satu pun yang bisa dikirim.
+    // Petunjuk buntu: tidak ada satu pun yang bisa dikirim. Yang benar adalah
+    // menunjuk jalan keluarnya – sejak 2026-09-03 jalan itu ADA (pengecilan
+    // ditawarkan di layar), jadi pesannya menyebut itu.
     const r = muatSekaliUnggah([40 * MB]);
     expect(r.muat).toBe(0);
     expect(r.pesan).not.toContain("Kirim yang ini dulu");
-    expect(r.pesan).toContain("potret ulang");
+    expect(r.pesan).toMatch(/[Kk]ecilkan/);
+  });
+
+  it("foto kebesaran dipisahkan, supaya layar bisa MENAWARKAN pengecilan", () => {
+    // Nasibnya beda dari sisa yang lain: yang tidak muat karena anggaran cukup
+    // dikirim di gelombang berikutnya; yang kebesaran tidak akan pernah muat.
+    const r = muatSekaliUnggah([2 * MB, 30 * MB, 26 * MB]);
+    expect(r.kebesaran).toEqual([1, 2]);
+    expect(r.terima).toEqual([0]);
+  });
+
+  it("`pesanSisa` tidak menyebut foto kebesaran – layar sudah menawarkannya", () => {
+    // Menyebut masalah yang sama dua kali dengan nada berbeda (sekali sebagai
+    // penolakan, sekali sebagai tawaran) membuat orang mengira ada dua masalah.
+    const r = muatSekaliUnggah([30 * MB]);
+    expect(r.pesanSisa).toBeNull();
+    expect(r.pesan).toBeTruthy();
   });
 
   it("foto kebesaran di TENGAH tidak menyandera foto wajar sesudahnya", () => {
