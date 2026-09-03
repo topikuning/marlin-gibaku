@@ -26916,3 +26916,47 @@ tetap bisa di-merge. Push ke `main` selalu menjalankan semuanya.
 hanya menyentuh `src/lib/**` murni pun kemungkinan besar tidak butuh E2E — tapi
 "kemungkinan besar" bukan dasar yang cukup untuk mencabut jaring pengaman, dan
 menagihnya butuh peta ketergantungan, bukan pola nama berkas.
+
+---
+
+## (baru) · Pratinjau adendum menampilkan SELURUH beda, bukan delapan teratas (2026-09-03)
+
+**Konteks**: user melihat panel pratinjau impor menutup daftarnya dengan
+*"+31 lainnya"* dan menegur: *"ini kan konyol; tujuan pratinjau itu kan lihat
+apa-apa yang berbeda, kalau tidak bisa apa gunanya. ini soal adendum, harus
+jelas semua agar ketahuan."*
+
+**Keputusan**: setiap daftar beda di pratinjau impor RAB bisa dibuka
+seluruhnya. Panel tetap dibuka RINGKAS (delapan teratas) supaya tidak jadi
+gulungan sepanjang halaman, tapi sisanya selalu satu ketukan jauhnya lewat
+tombol yang menyebut jumlahnya apa adanya – *"Lihat semua 39 item (31 belum
+tampil)"* – lalu tampil dalam area bergulir sendiri.
+
+Sekalian: tiga golongan yang selama ini hanya muncul sebagai ANGKA di baris
+ringkasan (item baru, volume berubah, item hilang) kini punya rinciannya
+sendiri. "12 volume berubah" tanpa satu pun cara melihat yang mana bukan
+pratinjau; untuk adendum, barisnya justru yang diperiksa. Blok merah yang ada
+(sudah dikerjakan tapi hilang, volume turun di bawah realisasi) tetap berdiri
+sendiri karena tugasnya berbeda: menyorot yang berbahaya supaya tak mungkin
+terlewat, bukan menggantikan daftar lengkap.
+
+Datanya sendiri tidak berubah — seluruh baris memang sudah dikirim ke layar
+sejak awal; yang memotong hanya penyajiannya.
+
+**Alternatif direject**:
+- *Menampilkan semuanya sekaligus tanpa tombol.* 39 baris beda harga di atas
+  tiga blok merah lain mendorong tombol Simpan entah ke mana; yang paling
+  berbahaya justru jadi paling jauh dari mata.
+- *Menaikkan potongan dari 8 ke 50.* Memindahkan batasnya, bukan
+  menghapusnya — dan kasus adendum besar justru yang paling perlu diperiksa.
+- *Menyuruh orang mengunduh Excel-nya untuk membandingkan sendiri.* Itu
+  mengembalikan pekerjaan yang justru dibuatkan pratinjaunya.
+
+**Konsekuensi**: `PanelBeda` pindah ke berkas sendiri (`panel-beda.tsx`) supaya
+bisa diuji tanpa menyeret server action + `db` + validasi env ke proses uji.
+Dijaga `tests/unit/pratinjau-beda-adendum.test.tsx`.
+
+**Batas yang diakui**: repo belum punya alat uji DOM, jadi uji itu memeriksa
+markup awal — bahwa jalan ke daftar penuh ADA dan jumlahnya jujur, bukan bahwa
+ketukannya benar-benar membuka. Yang dulu rusak memang ada di lapisan itu:
+tidak ada apa pun untuk diketuk.
