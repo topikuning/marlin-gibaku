@@ -71,6 +71,10 @@ export async function listPackages(
           // nomor kontraknya justru nomor yang dipakai orang menyebut paket
           // itu (DECISIONS 248).
           contractNumber: true,
+          // Nilai KONTRAK, sejajar dengan HPS di kolom sebelahnya. Tanpa ini
+          // daftar paket cuma memajang paguannya — angka yang sudah tidak
+          // dipakai siapa pun begitu kontraknya jadi.
+          contractValue: true,
           vendor: { select: { name: true } },
         },
       },

@@ -9,9 +9,10 @@ import { test, expect, type Page } from "@playwright/test";
  *
  * Pembagiannya sekarang:
  *
- *  - `/lokasi` = DIREKTORI. Untuk mencari satu lokasi. Urut nama, memuat
- *    lokasi yang belum jalan sekalipun. Dari progres cuma menyisakan Deviasi,
- *    sederajat dengan Status: penanda "sedang bermasalah", bukan pemantauan.
+ *  - `/lokasi` = DIREKTORI. Untuk mencari satu lokasi dan tahu SIAPA yang
+ *    mengerjakannya sampai di mana. Urut nama, memuat lokasi yang belum jalan
+ *    sekalipun. Isinya Perusahaan + Realisasi; Deviasi ikut, tapi sebagai
+ *    angka biasa — bukan lencana yang menarik mata lebih dulu.
  *  - `/progress` = PAPAN TAGIHAN. Untuk memeringkat yang tertinggal. Hanya
  *    lokasi aktif, urut deviasi terburuk, plus kolom TERAKHIR LAPOR yang
  *    memisahkan yang tertinggal dari yang bahkan tidak melapor.
@@ -37,7 +38,10 @@ async function tungguGrid(page: Page) {
 }
 
 test.describe("lokasi = direktori, progress = papan tagihan", () => {
-  test("direktori lokasi tidak lagi memajang Rencana & Realisasi", async ({ page, isMobile }) => {
+  test("direktori lokasi memajang Perusahaan & Realisasi, tanpa Rencana", async ({
+    page,
+    isMobile,
+  }) => {
     /*
      * Hanya desktop. Di lebar ponsel AG Grid MEMVIRTUALKAN kolomnya: yang di
      * luar layar tidak ada di DOM sama sekali. Uji ketiadaan "Rencana" akan
@@ -50,13 +54,26 @@ test.describe("lokasi = direktori, progress = papan tagihan", () => {
     await page.goto("/lokasi");
     await tungguGrid(page);
 
-    // Yang tersisa dari progres: satu penanda saja.
-    await expect(page.getByRole("columnheader", { name: "Deviasi" })).toBeVisible();
+    /*
+     * Permintaan user 2026-09-03: *"aku butuh informasi di lokasi itu nama
+     * perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
+     *
+     * Ini MEMBATALKAN sebagian keputusan 2026-08-30 yang membuang Realisasi
+     * dari sini. Sebabnya: deviasi itu angka TURUNAN, dan menyisakannya
+     * sendirian membuat satu-satunya angka progres di direktori justru yang
+     * paling tidak bisa dipakai apa adanya — 95% jadi dengan deviasi −6% dan
+     * 3% jadi dengan deviasi −6% terbaca persis sama.
+     */
+    await expect(page.getByRole("columnheader", { name: "Perusahaan" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Realisasi" })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+    // Deviasi TETAP ada – yang berubah cuma penonjolannya (bukan lagi lencana
+    // berwarna), dan itu urusan gaya yang tidak diperiksa dari peran ARIA.
+    await expect(page.getByRole("columnheader", { name: "Deviasi" })).toBeVisible();
 
-    // Dua kolom yang membuatnya kembar dengan papan progress.
+    // RENCANA tetap di luar: itu kolom yang membuat halaman ini kembar dengan
+    // papan progress, dan pembagian tugasnya tidak berubah.
     await expect(page.getByRole("columnheader", { name: "Rencana" })).toHaveCount(0);
-    await expect(page.getByRole("columnheader", { name: "Realisasi" })).toHaveCount(0);
   });
 
   test("papan progress bisa dicari dan diekspor – dulu tidak bisa keduanya", async ({ page }) => {

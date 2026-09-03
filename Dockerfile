@@ -35,8 +35,11 @@ ENV HOSTNAME=0.0.0.0
 # tini = PID 1 (signal handling SIGTERM), ca-certificates + openssl utk TLS (R2/Postgres).
 # fontconfig + fonts-dejavu-core = cadangan agar cap teks foto (sharp/librsvg) tetap
 # ter-render walau config font runtime gagal (aplikasi tetap membawa font sendiri).
+# gosu = turun dari root ke `marlin` di entrypoint (lihat blok ENTRYPOINT di
+# bawah). Dipasang lewat apt supaya ketiadaannya menggagalkan BUILD, bukan
+# menggagalkan boot di produksi.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends tini ca-certificates openssl fontconfig fonts-dejavu-core && \
+    apt-get install -y --no-install-recommends tini gosu ca-certificates openssl fontconfig fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
 # Prisma CLI global (pinned) untuk preDeploy `prisma migrate deploy` di Railway.
@@ -75,8 +78,17 @@ COPY --from=builder --chown=marlin:marlin /app/seed-data ./seed-data
 # lagi tepat di langkah terakhir (kejadian produksi 2026-08-26).
 RUN mkdir -p /app/.data/lampiran && chown -R marlin:marlin /app/.data
 
-USER marlin
+# Entrypoint: menyiapkan simpanan lampiran (termasuk VOLUME yang dipasang saat
+# runtime sebagai milik root) lalu TURUN ke `marlin`.
+#
+# Kontainer sengaja tidak lagi `USER marlin`. Yang dipasang Railway saat runtime
+# tidak bisa disiapkan saat build — `chown /data` di sini akan tertimpa oleh
+# pemasangan volumenya. Root hanya hidup selama satu `mkdir` + satu `chown` di
+# `docker-entrypoint.sh`; proses aplikasinya tetap berjalan sebagai `marlin`,
+# dijaga `tests/unit/entrypoint-lampiran.test.ts`.
+COPY --from=builder --chmod=755 /app/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
 # Railway menyuntik $PORT; Next standalone membaca PORT env.
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

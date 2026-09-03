@@ -12,6 +12,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import {
+  ubahModeMingguAction,
   addAmendment,
   convertToContract,
   editContractAction,
@@ -34,8 +35,6 @@ export type ContractEditInitial = {
   signedDate: string; // yyyy-mm-dd
   durationDays: number;
   startDate: string; // yyyy-mm-dd or ""
-  /** Mode periode minggu laporan (user 2026-08-24). */
-  weekMode: "tujuh_hari" | "senin_minggu";
 };
 
 /**
@@ -127,23 +126,6 @@ export function EditContractForm({
           <Label htmlFor="ec-start">Tanggal mulai (SPMK)</Label>
           <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
           <HelpText>Kosongkan bila SPMK belum terbit. Selesai dihitung otomatis = SPMK + masa pelaksanaan.</HelpText>
-        </div>
-        <div>
-          <Label htmlFor="ec-weekmode">Periode minggu laporan</Label>
-          <Combobox
-            id="ec-weekmode"
-            name="weekMode"
-            defaultValue={initial.weekMode}
-            options={[
-              { value: "senin_minggu", label: "Kalender Senin–Minggu, M1 bisa pendek (bawaan)" },
-              { value: "tujuh_hari", label: "7 hari sejak SPMK" },
-            ]}
-          />
-          <HelpText>
-            Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
-            Cukup diganti di sini: jadwal & kurva-S semua lokasi DIKONVERSI otomatis ke grid
-            minggu baru – bentuk rencananya dipertahankan, tidak perlu impor ulang.
-          </HelpText>
         </div>
       </div>
 
@@ -400,6 +382,68 @@ export function ConvertContractForm({
 }
 
 /** Form edit penanda tangan kontrak (pergantian personel setelah kontrak berjalan). */
+/**
+ * MODE PERIODE MINGGU — formnya sendiri, di luar koreksi kontrak.
+ *
+ * Permintaan user 2026-09-03: *"project manager diijinkan untuk ubah periode
+ * minggu laporan."* Medan ini dulu tinggal di dalam form Koreksi Kontrak, yang
+ * dijaga `contract.edit` (super_admin). Memberi PM akses ke form itu berarti
+ * memberi nomor, NILAI KONTRAK, PPN, dan seluruh tanggal sekalian.
+ *
+ * Dipindah, bukan digandakan: satu nilai yang bisa diubah dari dua tempat
+ * adalah kebingungan yang pernah dikeluhkan user sendiri 2026-08-16 (*"jelas-
+ * jelas memberikan data dan hal yang sama, kenapa kamu double, rapikan"*).
+ * Super Admin melihat form ini juga — ia memegang kedua kapabilitasnya.
+ */
+export function WeekModeForm({
+  packageId,
+  weekMode,
+}: {
+  packageId: string;
+  weekMode: "tujuh_hari" | "senin_minggu";
+}) {
+  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+    ubahModeMingguAction,
+    undefined,
+  );
+
+  return (
+    <form action={action} className="space-y-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <input type="hidden" name="packageId" value={packageId} />
+      <div>
+        <Label htmlFor="wm-mode">Periode minggu laporan</Label>
+        <Combobox
+          id="wm-mode"
+          name="weekMode"
+          defaultValue={weekMode}
+          options={[
+            { value: "senin_minggu", label: "Kalender Senin–Minggu, M1 bisa pendek (bawaan)" },
+            { value: "tujuh_hari", label: "7 hari sejak SPMK" },
+          ]}
+        />
+        <HelpText>
+          Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
+          Jadwal &amp; kurva-S semua lokasi DIKONVERSI otomatis ke grid minggu baru – bentuk
+          rencananya dipertahankan, tidak perlu impor ulang.
+        </HelpText>
+      </div>
+      <Button
+        type="submit"
+        loading={pending}
+        onClick={(e) => {
+          const msg =
+            "Ganti mode periode minggu? Jadwal & kurva-S SEMUA lokasi paket ini dikonversi ke grid tanggal baru.";
+          if (typeof window !== "undefined" && !window.confirm(msg)) e.preventDefault();
+        }}
+      >
+        Simpan mode minggu
+      </Button>
+    </form>
+  );
+}
+
 export function SignatoriesForm({
   contractId,
   value,

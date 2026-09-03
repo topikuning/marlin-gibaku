@@ -1164,40 +1164,11 @@ export async function editContractAction(
   const hanyaModeBerubah =
     weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart;
   if (hanyaModeBerubah && startDate && endDate) {
-    // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
-    // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
-    // (minggu terakhir yang pendek dipetakan sebesar harinya).
-    const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
-      const fr = weekEndFractions(startDate, endDate, mode);
-      return { fracs: fr as number[] | null, totalWeeks: fr.length };
-    };
-    const lama = gridDari(pkg.contract.weekMode);
-    const baru = gridDari(d.weekMode!);
-    for (const loc of pkg.locations) {
-      try {
-        const hasil = await konversiBaselineModeMinggu(loc.id, {
-          oldEndFracs: lama.fracs,
-          oldTotalWeeks: lama.totalWeeks,
-          newEndFracs: baru.fracs,
-          newTotalWeeks: baru.totalWeeks,
-          userId: actor.id,
-          note: `Konversi mode periode minggu (${pkg.contract.weekMode} → ${d.weekMode})`,
-        });
-        if (hasil === "dikonversi") {
-          recomputed++;
-          continue;
-        }
-        // Tidak bisa dikonversi (baseline tak cocok grid lama) → generator.
-        await regenerateBaseline(loc.id, {
-          source: "auto",
-          note: "Ganti mode minggu – baseline lama tidak cocok grid, dihitung ulang",
-          userId: actor.id,
-        });
-        recomputed++;
-      } catch {
-        /* lokasi tanpa RAB/baseline aktif → lewati */
-      }
-    }
+    recomputed = await konversiModeMingguSemuaLokasi(
+      pkg.locations,
+      { startDate, endDate, dari: pkg.contract.weekMode, ke: d.weekMode! },
+      actor.id,
+    );
   } else if (timeChanged) {
     for (const loc of pkg.locations) {
       try {
@@ -1230,6 +1201,150 @@ export async function editContractAction(
     success: timeChanged
       ? `Kontrak dikoreksi. Waktu berubah → ${recomputed} kurva-S lokasi dihitung ulang.`
       : "Kontrak dikoreksi.",
+  };
+}
+
+/**
+ * Konversi baseline & jadwal SELURUH lokasi paket ke grid minggu baru.
+ *
+ * Dipakai DUA aksi: koreksi kontrak (`contract.edit`, super_admin) dan
+ * penggantian mode minggu tersendiri (`contract.week_mode`). Ditulis sekali:
+ * ini logika angka — menyalinnya ke aksi kedua berarti dua tempat yang bisa
+ * menyimpang tanpa ketahuan.
+ *
+ * Ketetapan user 2026-08-24 (DECISIONS 427d) tetap berlaku: jadwal yang sudah
+ * ada TIDAK dibuang. Matriks lama DIKONVERSI ke grid baru dengan bentuk
+ * kalender dipertahankan; generator hanya dipakai untuk lokasi yang
+ * konversinya tidak mungkin (baseline tak cocok grid lama / belum ada).
+ */
+async function konversiModeMingguSemuaLokasi(
+  locations: { id: string }[],
+  opts: {
+    startDate: Date;
+    endDate: Date;
+    dari: "tujuh_hari" | "senin_minggu";
+    ke: "tujuh_hari" | "senin_minggu";
+  },
+  userId: string,
+): Promise<number> {
+  // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
+  // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
+  // (minggu terakhir yang pendek dipetakan sebesar harinya).
+  const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
+    const fr = weekEndFractions(opts.startDate, opts.endDate, mode);
+    return { fracs: fr as number[] | null, totalWeeks: fr.length };
+  };
+  const lama = gridDari(opts.dari);
+  const baru = gridDari(opts.ke);
+  let recomputed = 0;
+  for (const loc of locations) {
+    try {
+      const hasil = await konversiBaselineModeMinggu(loc.id, {
+        oldEndFracs: lama.fracs,
+        oldTotalWeeks: lama.totalWeeks,
+        newEndFracs: baru.fracs,
+        newTotalWeeks: baru.totalWeeks,
+        userId,
+        note: `Konversi mode periode minggu (${opts.dari} → ${opts.ke})`,
+      });
+      if (hasil === "dikonversi") {
+        recomputed++;
+        continue;
+      }
+      await regenerateBaseline(loc.id, {
+        source: "auto",
+        note: "Ganti mode minggu – baseline lama tidak cocok grid, dihitung ulang",
+        userId,
+      });
+      recomputed++;
+    } catch {
+      /* lokasi tanpa RAB/baseline aktif → lewati */
+    }
+  }
+  return recomputed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mode periode minggu — aksi TERSENDIRI, di luar koreksi kontrak      */
+/* ------------------------------------------------------------------ */
+
+const weekModeSchema = z.object({
+  packageId: z.uuid("ID paket tidak valid"),
+  weekMode: z.enum(["tujuh_hari", "senin_minggu"]),
+});
+
+/**
+ * Ganti mode periode minggu laporan — TANPA menyentuh isi kontrak lain.
+ *
+ * Permintaan user 2026-09-03: *"project manager diijinkan untuk ubah periode
+ * minggu laporan."*
+ *
+ * ### Kenapa kapabilitas SENDIRI, bukan membuka `contract.edit`
+ *
+ * `contract.edit` adalah KOREKSI kontrak berjalan: nomor, nilai, PPN, tanggal
+ * TTD, SPMK, masa pelaksanaan. Ia sengaja ditahan di super_admin (lihat
+ * catatan di `authz.ts`). Membukanya untuk PM demi satu dropdown akan
+ * memberikan enam hal yang tidak diminta — termasuk mengubah NILAI KONTRAK.
+ *
+ * Karena itu mode minggu dipisah jadi aksinya sendiri dengan kapabilitasnya
+ * sendiri. Yang bisa diubah PM persis satu medan, dan itu terbaca dari daftar
+ * kapabilitas tanpa perlu membaca kode aksinya.
+ *
+ * ### Yang TETAP terjadi, dan memang harus
+ *
+ * Mode minggu menggeser peta tanggal M1–MN, jadi baseline & jadwal seluruh
+ * lokasi paket ikut dikonversi — sama persis seperti lewat koreksi kontrak,
+ * lewat helper yang sama. Jumlah lokasi yang tersentuh disebut di pesan
+ * suksesnya, bukan didiamkan.
+ */
+export async function ubahModeMingguAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("contract.week_mode");
+  const parsed = weekModeSchema.safeParse({
+    packageId: formData.get("packageId"),
+    weekMode: formData.get("weekMode"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { packageId, weekMode } = parsed.data;
+
+  const pkg = await db.package.findFirst({
+    where: { id: packageId, orgId: actor.orgId },
+    select: {
+      id: true,
+      contract: { select: { id: true, startDate: true, endDate: true, weekMode: true } },
+      locations: { select: { id: true } },
+    },
+  });
+  if (!pkg?.contract) return { error: "Paket belum berkontrak." };
+  if (pkg.contract.weekMode === weekMode) return { success: "Mode periode minggu tidak berubah." };
+
+  const { startDate, endDate, weekMode: modeLama } = pkg.contract;
+  await db.contract.update({ where: { id: pkg.contract.id }, data: { weekMode } });
+
+  // Tanpa SPMK belum ada peta tanggal untuk dikonversi; modenya tersimpan dan
+  // baru berlaku saat SPMK terbit. Dikatakan, bukan didiamkan.
+  const recomputed =
+    startDate && endDate
+      ? await konversiModeMingguSemuaLokasi(
+          pkg.locations,
+          { startDate, endDate, dari: modeLama, ke: weekMode },
+          actor.id,
+        )
+      : 0;
+
+  await audit(actor.id, "contract.week_mode", "package", pkg.id, {
+    contractId: pkg.contract.id,
+    dari: modeLama,
+    ke: weekMode,
+    baselinesRecomputed: recomputed,
+  });
+  revalidatePath(`/paket/${pkg.id}`, "layout");
+  return {
+    success: startDate
+      ? `Mode periode minggu diganti. ${recomputed} kurva-S lokasi dikonversi ke grid baru.`
+      : "Mode periode minggu diganti. Berlaku begitu SPMK terbit.",
   };
 }
 

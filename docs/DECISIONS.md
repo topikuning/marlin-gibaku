@@ -26318,3 +26318,423 @@ hanya menutup kasus yang pertama.
 nilai berkas lewat baris yang volumenya dinolkan — dan itu dikunci uji
 tersendiri, karena angka mustahil seperti itu yang paling cepat membuat orang
 berhenti membaca peringatan.
+
+---
+
+## 505 · 2026-09-03 · Kategori pada pemetaan manual dikenali lewat NAMA, bukan nomor romawinya
+**Laporan user 2026-09-03** dengan tangkapan layar berkas Excel dan layar
+MARLIN. Pemetaan yang ia pilih DITOLAK:
+
+```
+1 pemetaan tidak bisa dipakai: Beda kategori:
+"Pekerjaan Galian Tanah sampai dengan 1 m" ada di IV,
+"Pekerjaan Galian Tanah keras s.d 1 m" di III.
+```
+
+Padahal di berkasnya kedua baris jelas berada dalam **satu kategori yang sama** —
+`PEKERJAAN DINDING PENAHAN TANAH`. Yang bergeser hanya **nomor romawinya**:
+kategori itu bernomor **IV** di RAB kontrak dan **III** di berkas adendumnya,
+karena ada kategori yang disisipkan atau dibuang di atasnya.
+
+**Sebabnya** pemeriksaan kesahihan pemetaan membandingkan **kode** akar kunci
+(`lineageKey.split("#")[0]`). Itu persis kesalahan yang sudah diperbaiki untuk
+ITEM di DECISIONS 489 — *identitas dikenali dari pekerjaannya, bukan dari nomor
+urutnya* — tapi belum untuk KATEGORI.
+
+Ironisnya penelusuran pohon **sudah** menyelesaikannya sendiri: giliran nama di
+tingkat akar memberi kategori berkas itu kunci milik kategori kontrak, sehingga
+item di dalamnya memang berakhir ber-akar `IV`. Yang salah hanya pemeriksaan di
+muka, yang dipindahkan ke sana saat reservasi dibuat global sehari sebelumnya —
+versi sebelumnya membandingkan `indukFinal` dan justru benar untuk kasus ini.
+
+**Keputusan**: pemeriksaan memakai peta kategori berkas → kategori kontrak yang
+dicocokkan lewat `normalNama`, dengan kode sebagai jalur cepat. Pesan
+penolakannya ikut menyebut NAMA kategori, bukan cuma nomornya, supaya alasannya
+bisa dinilai sendiri oleh pembacanya.
+
+**Yang TIDAK berubah**: kategori yang benar-benar berbeda tetap ditolak. Akar
+kunci menentukan kategori di enam tempat lain, jadi mewarisi kunci lintas
+kategori memindahkan realisasinya di blanko KKP tanpa ada yang memindahkannya.
+
+**Pengaman yang menyertainya**: pencocokan nama kategori dituntut **TUNGGAL di
+kedua sisi**, sama seperti disiplin pencocokan item. Pertanyaan user setelah
+membaca berkasnya sendiri menunjuk ke sini: nama pekerjaan memang berulang antar
+bangunan ("Pekerjaan Galian Tanah keras s.d 1 m" ada di III grup 3 DAN IV grup
+3), dan nama kategori pun bisa kembar. Mengambil yang pertama berarti melempar
+koin atas milik siapa realisasi sebuah item, dan taruhannya angka resmi. Kalau
+kembar, pemetaan lintas-kode ditolak dan pemakainya diberi tahu.
+
+**Catatan proses**: ini regresi ketiga berturut-turut pada permukaan yang sama,
+dan ketiganya lolos karena ujinya menguji bentuk yang sudah dibayangkan penulis,
+bukan bentuk berkas yang benar-benar dipakai. Yang menemukan ketiganya adalah
+tangkapan layar user, bukan gerbang mana pun.
+
+---
+
+## 506 · 2026-09-03 · Pemetaan manual TIDAK menambah volume, dan itu dikatakan sebelum dipilih
+**Pertanyaan user 2026-09-03**: *"apa maksudmu, padahal penambahan item baru di
+kategori III cuma 32,15 bagaimana laporan harian yang sudah diinput menyikapi
+ini"*.
+
+Pertanyaannya menangkap kalimatku yang benar tapi tidak lengkap — *"realisasi
+45,7 m³ akan ikut"* — dan ketidaklengkapan itu menyesatkan.
+
+**Yang sebenarnya terjadi.** Pemetaan memindahkan IDENTITAS item, bukan angka.
+Laporan hariannya tidak disentuh sama sekali: `volumeDone` tetap 45,7 dan tidak
+ada satu baris pun yang ditulis ulang. Yang berpindah adalah dasar kontraknya —
+dan baris pengganti di berkas itu cuma **32,15**.
+
+Diverifikasi pada berkas asli user (`DRAFT MC0 KNMP KRANJI`):
+
+```
+volume kontrak    : 45,7
+volume di berkas  : 32,1493
+sudah dikerjakan  : 45,7
+DI BAWAH realisasi: true
+selisih tak berdasar: 13,5507 m³
+```
+
+Jadi 13,55 m³ pekerjaan yang sudah dilaporkan kehilangan dasar bayarnya. Panel
+merah "volume turun DI BAWAH yang sudah dikerjakan" memang menyala — tapi baru
+SESUDAH pratinjau dihitung ulang, dan pemilihnya sendiri diam saat pilihan itu
+dibuat.
+
+**Keputusan**:
+
+- `volume` baris pengganti ikut ditampilkan di daftar pilihan, jadi cukup
+  besarnya bisa dinilai **sebelum** dipilih.
+- Begitu pasangan dipilih dan volumenya lebih kecil daripada realisasi,
+  konsekuensinya disebut di tempat itu juga: berapa selisihnya, bahwa laporan
+  hariannya TIDAK berubah, dan dua jalan keluarnya (naikkan volume baris
+  pengganti di berkas, atau pasangkan ke baris lain).
+
+**Yang sengaja TIDAK dilakukan**: pemetaannya tidak ditolak. Volume yang belum
+cukup adalah keadaan yang sah di tengah penyusunan adendum — berkasnya masih
+bisa diperbaiki. Yang tidak boleh adalah menyimpannya tanpa pemakainya tahu.
+
+**Konsekuensi angka resmi bila tetap diaktifkan**: progres item itu terkunci di
+100% (`LEAST(1, Σvol/volRAB)`), dan blanko KKP menampilkan volume terpasang di
+atas volume kontrak. Pekerjaannya tetap tercatat; yang tidak ada adalah dasar
+bayar untuk selisihnya.
+
+---
+
+## 507 · 2026-09-03 · Laporan harian menyesuaikan volume baru saat adendum DIAKTIFKAN
+**Permintaan user 2026-09-03**: *"saat pemetaan manual itu konfirmasi, maka
+laporan harian yang sebelumnya langsung menyesuaikan volume baru!"*
+
+Latarnya: item `Pekerjaan Galian Tanah sampai dengan 1 m` dilaporkan 45,7 m³ dan
+tuntas; adendum memindahkannya ke baris pengganti bervolume 32,15 m³. Penegasan
+user: *"secara nyata memang akhirnya pekerjaan itu menjadi cuma 32,15
+(menyesuaikan adendum), jadi di lapangan memang sudah terealisasi tapi dengan
+volume menyesuaikan."* Angka 45,7 karena itu bukan lagi fakta lapangan — ia sisa
+dari spesifikasi lama.
+
+### Waktunya: AKTIVASI, bukan konfirmasi pemetaan
+
+Ini menyimpang dari bunyi permintaan, dan sengaja. Saat pemetaan dikonfirmasi,
+adendumnya masih **draft** — belum ditandatangani siapa pun. Mengubah laporan
+harian di titik itu menggerakkan progres resmi dan nilai terpasang atas dasar
+adendum yang belum sah, persis yang dilarang DECISIONS 210; dan bila drafnya
+kemudian dibuang, laporan yang terlanjur diubah tidak punya jalan pulang.
+
+Penyesuaian karena itu berjalan di dalam transaksi `activateRevision`, bersama
+kenaikan `basis` dari `draft_adendum` menjadi `aktif`.
+
+### Pembagiannya PROPORSIONAL
+
+Keputusan user atas dua pilihan yang diajukan. Realisasi lazim terkumpul dari
+beberapa hari dan tidak ada cara mengetahui hari MANA yang tersalip adendum;
+membagi rata menjaga bentuk kurva progres per hari, sementara memotong dari yang
+terbaru akan menihilkan satu hari kerja yang sebenarnya ada.
+
+Dipakai pembagian sisa terbesar (Hamilton) pada satuan **mili**, presisi kolom
+`volume_done Decimal(15,3)`, sehingga Σ hasil **persis** sama dengan volume baru.
+Menskalakan lalu membulatkan tiap baris sendiri-sendiri meninggalkan sisa
+beberapa mili, dan sisa itu membuat item terbaca 99,98% selamanya — cacat yang
+mustahil ditelusuri dari layar.
+
+### Laporan `final` IKUT disesuaikan
+
+Keputusan user. Melewatinya hanya memindahkan ketidakcocokan, bukan
+menghilangkannya. Setiap penyesuaian masuk audit `rab.adendum_sesuaikan_realisasi`
+dengan `totalSebelum`, `totalSesudah`, dan rincian per baris (tanggal, status,
+dari, ke). Status laporannya sendiri TIDAK diubah — yang berubah angkanya, dan
+jejaknya di audit.
+
+### Ruang lingkup lebih luas dari yang diminta
+
+Bukan hanya item yang dipetakan manual, melainkan **setiap** item revisi baru
+yang volume kontraknya kini di bawah realisasi tercatat. Sumber selisihnya tidak
+penting; yang penting laporan dan kontrak menyebut angka yang sama.
+
+**Yang tidak disentuh**: item yang realisasinya masih di bawah volume baru, dan
+adendum yang MENAIKKAN volume — `sesuaikanProporsional` mengembalikan `null`
+untuk keduanya, jadi tidak ada baris yang ditulis ulang tanpa perlu.
+
+**Catatan**: angka RESMI sebenarnya sudah aman tanpa perubahan ini — prestasi dan
+nilai sama-sama dibatasi `LEAST(1, Σvol/volRAB)`. Yang tidak aman adalah
+DOKUMEN-nya: blanko harian menuliskan 45,7 m³ terpasang atas baris kontrak 32,15
+m³, dan itu harus dijelaskan ke PPK setiap kali dibaca.
+
+---
+
+## 508 · 2026-09-03 · Direktori lokasi menyebut perusahaan pelaksana dan realisasinya, deviasi tidak lagi menonjol
+**Konteks**: permintaan user 2026-09-03 — *"aku butuh informasi di lokasi itu
+nama perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
+
+Ini membatalkan sebagian keputusan 2026-08-30 (pemisahan `/lokasi` vs
+`/progress`), yang membuang Rencana dan Realisasi dari direktori dan menyisakan
+Deviasi sebagai satu-satunya sinyal progres di sana, berbentuk lencana berwarna.
+
+Pilihan itu salah arah, dan sebabnya bisa disebut: **deviasi adalah angka
+TURUNAN** (realisasi − rencana). Menampilkannya tanpa realisasinya membuat
+satu-satunya angka progres di direktori justru yang paling tidak bisa dipakai
+apa adanya — lokasi 95% jadi dengan deviasi −6% dan lokasi 3% jadi dengan
+deviasi −6% terbaca persis sama. Ditambah lencana merah, yang paling menarik
+mata di seluruh baris adalah angka yang paling butuh konteks.
+
+Nama perusahaan pelaksana sendiri sebelumnya tidak ada di layar mana pun yang
+menyebut lokasi — padahal itu pertanyaan pertama saat menengok satu lokasi.
+
+**Keputusan**:
+
+- Kolom **Perusahaan** (dari `Contract.vendor.name`) dan **Realisasi**
+  (`realizedPct`) ditambahkan ke direktori `/lokasi`.
+- **Deviasi tetap ada, tapi turun jadi teks biasa** — bukan `DeltaBadge`.
+  Warnanya hanya dipakai saat deviasinya benar-benar buruk (≤ −10%).
+- **Rencana TIDAK dikembalikan.** Itu kolom yang benar-benar membuat direktori
+  kembar dengan papan `/progress`, dan pembagian tugasnya tidak berubah:
+  `/lokasi` untuk MENCARI satu lokasi, `/progress` untuk MEMERINGKAT yang
+  tertinggal (urut deviasi terburuk + kolom "Terakhir lapor").
+- Paket yang belum berkontrak ditulis **"belum berkontrak"**, bukan sel kosong:
+  sel kosong terbaca "datanya belum diisi", padahal keadaannya "memang belum
+  ada".
+
+**Alternatif direject**:
+- *Memakai `Package.candidateVendorName` sebagai cadangan.* Calon pemenang
+  tender bukan pelaksana; di kolom yang sama ia akan terbaca sebagai sudah
+  pasti.
+- *Membuang kolom Deviasi seluruhnya.* User minta ia tidak MENCOLOK, bukan
+  hilang — dan sebagai penanda "lokasi ini sedang bermasalah" ia masih dipakai.
+- *Mengembalikan Rencana sekalian.* Itu mengembalikan kekembaran yang justru
+  jadi keluhan awal 2026-08-30.
+
+**Konsekuensi**: uji E2E `lokasi-vs-progress` yang dulu menjaga KETIADAAN
+Realisasi di `/lokasi` dibalik arahnya — sekarang ia menjaga KEHADIRAN
+Perusahaan + Realisasi, dan tetap menjaga ketiadaan Rencana.
+
+**Bisa di-revisit**: kalau direktori terasa penuh di layar ponsel, yang pertama
+dipertimbangkan menumpuk Perusahaan ke dalam sel identitas (seperti wilayah),
+bukan membuang Realisasi lagi.
+
+---
+
+## 509 · 2026-09-03 · Daftar paket menyebut nilai kontrak, bukan cuma pagunya
+**Konteks**: keberatan user 2026-09-03 — *"buat apa di daftar paket kamu
+masukkan kolom HPS, sedangkan kolom kontrak tidak kamu masukkan. ini sangat
+membingungkan."*
+
+Betul, dan sebabnya sejenis dengan keputusan direktori lokasi di atas: yang
+dipajang justru angka yang paling butuh pendamping. **HPS itu PAGU** — angka
+sebelum tender. Begitu paket berkontrak, yang dipakai orang menyebut nilai
+paket adalah nilai kontraknya, dan daftar paket justru satu-satunya layar yang
+tidak memuatnya. Memajang pagu sendirian membuat pembacanya mengira itu nilai
+paketnya.
+
+**Keputusan**: kolom **Nilai Kontrak** (`Contract.contractValue`) ditambahkan
+tepat di sebelah HPS di `/paket`. Keduanya berdampingan, bukan saling
+menggantikan — selisih HPS lawan kontrak itu sendiri informasi (efisiensi hasil
+tender), dan paket yang belum berkontrak memang cuma punya pagu. Paket tanpa
+kontrak ditulis **"belum berkontrak"**, bukan sel kosong.
+
+**Alternatif direject**:
+- *Mengganti kolom HPS dengan nilai kontrak.* Paket prospek/tender kehilangan
+  satu-satunya angkanya, dan selisih pagu-lawan-kontrak ikut hilang.
+- *Menampilkan satu kolom "Nilai" yang isinya kontrak bila ada, HPS bila
+  belum.* Satu kolom berisi dua arti berbeda tanpa penanda — persis bentuk yang
+  membuat orang salah baca, dan tidak bisa dijumlahkan.
+
+**Konsekuensi**: `listPackages` ikut mengambil `contract.contractValue`. Uji
+E2E `paket-nilai-kontrak` menjaga kehadirannya DARI LAYAR, dan menjaga tiap sel
+kolom itu berbicara — rupiah atau "belum berkontrak", tidak pernah kosong.
+
+**Bisa di-revisit**: basis PPN kedua angka belum dinyatakan di layar. `CLAUDE.md`
+menyebut kontrak incl-PPN dan RAB pra-PPN, tapi HPS tidak disebut di mana pun;
+kalau ternyata beda basis, keduanya perlu diberi keterangan supaya selisihnya
+tidak dibaca sebagai efisiensi padahal sebagian cuma PPN.
+
+---
+
+## 510 · 2026-09-03 · Aktivasi adendum tidak boleh kehabisan waktu karena ukurannya
+**Konteks**: pemeriksaan `dev` 2026-09-03 atas perubahan adendum. Sejak
+penyesuaian realisasi ditambahkan ke `activateRevision`, transaksi itu memuat
+loop tulis yang panjangnya TIDAK DIBATASI apa pun kecuali ukuran adendumnya —
+satu `update` per baris laporan harian yang volumenya diturunkan, plus satu
+baris audit per item, semuanya berurutan.
+
+Batas waktu transaksi interaktif Prisma bawaannya **5 detik** (tertulis di klien
+hasil generate: `timeout ?= 5000`), dan repo ini tidak menyetel
+`transactionOptions` di mana pun. Sebelumnya isi transaksi itu cuma tiga
+pernyataan berbiaya tetap, jadi 5 detik tak pernah jadi soal.
+
+Akibat kalau tertembus bukan "lambat": SELURUH AKTIVASI DIBATALKAN — tepat pada
+adendum terbesar, yang paling penting dan paling sulit diulang.
+
+**Keputusan**: transaksi `activateRevision` diberi `{ timeout: 60_000,
+maxWait: 15_000 }`. Ongkosnya kunci baris ditahan lebih lama; itu bisa diterima
+karena aktivasi adalah tindakan admin yang jarang dan disengaja, sementara
+aktivasi yang gagal separuh jalan menyisakan pekerjaan yang harus diulang orang.
+
+**Alternatif direject**:
+- *Memindahkan penyesuaian ke luar transaksi.* Kalau ia gagal setelah revisi
+  aktif, laporan dan kontrak menyebut angka berbeda tanpa jalan pulang.
+- *Menyetel `transactionOptions` global.* Menaikkan batas SELURUH transaksi
+  repo untuk masalah satu tempat; yang lain justru sebaiknya tetap gagal cepat.
+
+**Konsekuensi**: tidak ada perubahan perilaku pada adendum berukuran normal.
+Tidak ada uji yang menjaganya — batas waktu tidak bisa diuji tanpa membuat uji
+yang lambat dengan sengaja; yang menjaga kebenaran penyesuaiannya tetap
+`sesuaikan-realisasi` (unit) dan `adendum-sesuaikan-realisasi` (integrasi).
+
+**Bisa di-revisit**: kalau aktivasi tetap mendekati satu menit, yang perlu
+diperbaiki jumlah perjalanan ke basis data (satu pernyataan per item, bukan per
+baris), bukan batas waktunya lagi.
+
+---
+
+## 511 · 2026-09-03 · Label periode laporan mengikuti jenis yang DIPILIH, bukan yang sedang tampil
+**Konteks**: keberatan user 2026-09-03 — *"laporan bulanan tapi sampingnya
+minggu, sedikit tidak pas saja, bukan salah yang fatal."* Di Laporan Periodik
+KKP, dropdown Jenis laporan sudah "Bulanan" sementara label di sebelahnya masih
+"Minggu ke (1–20)".
+
+Sebabnya label itu mengikuti `kind` dari URL — jenis laporan yang SUDAH
+digenerate — bukan yang sedang dipilih. Selama orang belum menekan "Tampilkan",
+dua bagian dari satu baris form menyebut dua hal berbeda, tepat pada saat orang
+sedang memutuskan mau mengisi berapa.
+
+**Keputusan**: jenis laporan disimpan sebagai state klien; label DAN batas
+`max` mengikuti pilihan yang sedang tampak di layar. Batas kedua jenis
+(`maxMinggu`, `maxBulan`) dikirim bersamaan dari server supaya tidak perlu satu
+perjalanan bolak-balik untuk jadi benar. Nilai periodenya ikut dijepit saat
+jenisnya berganti — minggu ke-18 tidak punya arti pada laporan bulanan proyek 5
+bulan, dan form yang terkirim dengan angka di luar rentang adalah kesalahan yang
+dibuat oleh layar, bukan oleh pemakainya.
+
+**Alternatif direject**: *mengirim ulang ke server tiap kali dropdown berubah.*
+Membangun laporan periodik pernah diukur 8,9 detik (DECISIONS 400); memicunya
+hanya untuk membetulkan sebuah label adalah ongkos yang tidak sepadan.
+
+**Konsekuensi**: `PeriodFilter` sekarang terkontrol penuh (jenis + nilai).
+`method="GET"` tetap dipertahankan sebagai jaring bila JS belum termuat.
+
+---
+
+## 512 · 2026-09-03 · Mode periode minggu punya kapabilitas sendiri; Project Manager boleh mengubahnya
+**Konteks**: permintaan user 2026-09-03 — *"project manager diijinkan untuk
+ubah periode minggu laporan."*
+
+Medan itu tinggal di dalam form **Koreksi Kontrak**, yang dijaga
+`contract.edit`. Cara termudah memenuhi permintaan ini salah: memberi PM
+`contract.edit`. Kapabilitas itu memuat nomor kontrak, **nilai kontrak**, PPN,
+tanggal TTD, SPMK, dan masa pelaksanaan — enam hal yang tidak diminta, salah
+satunya uang. `authz.ts` sendiri sudah menuliskan alasan `contract.edit` ditahan
+di super_admin (DECISIONS 421).
+
+**Keputusan**:
+
+- Kapabilitas baru **`contract.week_mode`**, diberikan ke `PROJECT_MANAGER`
+  (dan diwarisi Area Manager). `contract.edit` TETAP super_admin saja.
+- Aksi tersendiri **`ubahModeMingguAction`** yang hanya menulis `weekMode`.
+  Logika konversi baseline & jadwal DIPAKAI BERSAMA lewat helper
+  `konversiModeMingguSemuaLokasi` — menyalinnya ke aksi kedua berarti dua
+  tempat yang bisa menyimpang tanpa ketahuan.
+- Medan mode minggu **DIPINDAH**, bukan digandakan: ia keluar dari form Koreksi
+  Kontrak dan jadi kartu aksi sendiri di halaman kontrak. Satu nilai yang bisa
+  diubah dari dua tempat adalah kebingungan yang pernah dikeluhkan user sendiri
+  2026-08-16. Super Admin melihat kartu yang sama — ia memegang kedua
+  kapabilitasnya.
+- Paket yang SPMK-nya belum terbit: modenya tersimpan dan pesan suksesnya
+  mengatakan ia baru berlaku saat SPMK terbit — bukan diam lalu terlihat gagal.
+
+**Alternatif direject**:
+- *Memberi PM `contract.edit`.* Membuka lima medan lain, termasuk nilai
+  kontrak, demi satu dropdown.
+- *Menyalin blok konversi ke aksi baru.* Logika angka yang ditulis dua kali
+  akan menyimpang, dan yang menyimpang di sini peta tanggal seluruh kurva-S.
+
+**Konsekuensi yang harus disebut**: mengganti mode minggu MENGKONVERSI baseline
+& jadwal seluruh lokasi paket ke grid tanggal baru. Itu memang inti fiturnya
+(DECISIONS 427d), bukan efek samping — tapi artinya PM kini bisa menggeser peta
+tanggal M1–MN yang jadi dasar semua angka deviasi paketnya. Tombolnya karena itu
+meminta konfirmasi yang menyebut akibatnya, dan jumlah lokasi yang terkonversi
+disebut di pesan suksesnya.
+
+**Bisa di-revisit**: kalau ternyata PM terlalu sering menggeser grid dan angka
+deviasi jadi sulit dibandingkan antar periode, yang perlu ditambah bukan
+mencabut haknya melainkan jejak: daftar kapan mode pernah berubah, di halaman
+paketnya.
+
+---
+
+## 513 · 2026-09-03 · Kontainer menyiapkan volumenya sendiri, lalu melepas hak root
+**Konteks**: keluhan user 2026-09-03 — *"kenapa file masih hilang saat deploy
+ulang? padahal di production sudah ada volume khusus?!"*
+
+Volumenya memang terpasang. Yang tidak diperiksa siapa pun: **volume Railway
+dipasang sebagai milik root dengan mode 755**, sedangkan proses aplikasi
+berjalan sebagai `marlin` (uid 1001, sejak insiden EACCES 2026-08-26).
+Akibatnya `mkdir /data/lampiran` gagal EACCES, lalu
+`siapkanDirektoriLampiran()` melakukan persis yang dirancang: pindah ke
+cadangan `os.tmpdir()`. `/tmp` dibersihkan tiap kontainer diganti — jadi
+sepanjang waktu lampiran ditulis ke tempat yang paling fana, di sebuah
+deployment yang sudah membayar volume.
+
+Kegagalannya **diam**: satu baris `console.warn` di log, dan gejalanya di layar
+identik dengan keadaan sehat. Ini bentuk bug yang paling mahal — bukan yang
+salah, melainkan yang tidak bisa dibedakan dari benar.
+
+Perbaikannya tidak bisa berada di dua tempat yang tampak wajar:
+- **Dockerfile**: `chown /data` saat build ditimpa oleh pemasangan volume saat
+  runtime. Direktori yang di-chown itu bahkan bukan direktori yang sama.
+- **Aplikasi**: `marlin` tidak berhak mengubah pemilik direktori milik root.
+  Tidak ada kode Node yang bisa menyelesaikannya.
+
+**Keputusan**: tiga lapis, dan lapis pertama yang menutup sebabnya.
+
+1. **`scripts/docker-entrypoint.sh`** — dijalankan root saat boot: `mkdir -p`
+   + `chown marlin` atas `$LAMPIRAN_DIR`, lalu `exec gosu marlin "$@"`. Root
+   hidup selama dua perintah, tidak lebih; `USER marlin` dicabut dari Dockerfile
+   karena justru ia yang membuat `chown` mustahil. Prosesnya tetap non-root —
+   dijaga `tests/unit/entrypoint-lampiran.test.ts`.
+2. **`periksaSimpananLampiran()`** (`lib/waha/lampiran-simpanan.ts`, dipisah
+   dari `lampiran-tangkap.ts` supaya bebas Prisma) — benar-benar mencoba
+   menulis, lalu **layar Lampiran Masuk memberi peringatan** bila simpanannya
+   tidak tahan deploy. Cadangan `/tmp` tetap ada (berkas yang sudah di tangan
+   lebih baik selamat sebentar daripada hilang seketika), tapi ia tidak boleh
+   lagi menyamar sebagai keadaan sehat.
+3. **Pesan 410** saat berkas dibuka dan sudah tidak ada: membedakan berkas yang
+   ditulis di direktori LAIN (tersimpan sebelum volume dipasang — tidak akan
+   pernah kembali, betapapun setelannya kini benar) dari yang memang hilang di
+   simpanan sekarang. Kalimat lama "biasanya hilang saat aplikasi di-deploy
+   ulang" benar untuk sebagian sebab dan menyesatkan untuk sisanya.
+
+**Alternatif direject**:
+- *Menyuruh user menjalankan sesuatu di Railway.* Ketetapan user berdiri:
+  *"ketika kamu deploy, maka semua harus beres!"*
+- *Menjalankan aplikasi sebagai root supaya tidak ada urusan izin.* Menyelesaikan
+  gejala dengan membuang pagar yang dipasang justru setelah insiden 2026-08-26.
+- *Membuang cadangan `/tmp` supaya kegagalannya berisik.* Berisiknya benar, tapi
+  ongkosnya berkas grup yang sudah terunduh dibuang lagi. Yang kurang bukan
+  kerasnya kegagalan, melainkan **terlihatnya** — itu yang ditambahkan.
+- *Menaikkan semua lampiran ke R2 begitu ditangkap.* Sudah pernah dicoba dan
+  dibatalkan (DECISIONS 472): R2 menampung tiap foto yang lewat 19 grup.
+
+**Konsekuensi**: CI menjalankan `docker build`, jadi entrypoint yang rusak
+menggagalkan build — bukan boot produksi. Lampiran yang hilang SEBELUM
+perbaikan ini tidak bisa dipulihkan; berkas aslinya ada di pesan WhatsApp-nya,
+dan pesan 410 kini mengatakan itu dengan sebab yang benar.
+
+**Bisa di-revisit**: `direktoriLampiran()` masih satu direktori datar. Kalau
+kelak isinya puluhan ribu berkas, penyimpanannya perlu dipecah per bulan.

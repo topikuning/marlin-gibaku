@@ -78,7 +78,9 @@ export default async function LaporanLokasiPage({
   const scheduleBounds = await getPeriodBounds(location.id, { assume: true });
   const bounds = scheduleBounds && !scheduleBounds.assumed ? scheduleBounds : null;
   const kind: PeriodKind = sp.kind === "bulanan" ? "bulanan" : "mingguan";
-  const maxN = bounds ? (kind === "mingguan" ? bounds.totalWeeks : bounds.totalMonths) : 0;
+  const maxMinggu = bounds ? bounds.totalWeeks : 0;
+  const maxBulan = bounds ? bounds.totalMonths : 0;
+  const maxN = kind === "mingguan" ? maxMinggu : maxBulan;
   const currentN = bounds ? (kind === "mingguan" ? bounds.currentWeek : bounds.currentMonth) : 1;
   const n = Math.min(Math.max(Number.parseInt(sp.n ?? String(currentN), 10) || currentN, 1), Math.max(maxN, 1));
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
@@ -160,7 +162,13 @@ export default async function LaporanLokasiPage({
           ) : (
             <>
               <div className="flex flex-wrap items-end justify-between gap-3">
-                <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} />
+                <PeriodFilter
+                  slug={slug}
+                  kind={kind}
+                  n={n}
+                  maxMinggu={maxMinggu}
+                  maxBulan={maxBulan}
+                />
                 {/*
                   Yang disebut hanya SUMBERNYA, bukan "14 hari terakhir sinkron"
                   seperti di rancangan: tidak ada apa pun di sistem yang bisa
