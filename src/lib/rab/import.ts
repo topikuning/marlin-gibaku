@@ -185,30 +185,56 @@ export async function createRevisionFromNodes(
  * karena angka itulah yang menjelaskan lompatan progres pada saat aktivasi.
  */
 export async function activateRevision(revisionId: string, userId: string) {
-  const activated = await db.$transaction(async (tx) => {
-    const rev = await tx.rabRevision.findUniqueOrThrow({
-      where: { id: revisionId },
-      select: { id: true, locationId: true, status: true, revisionNo: true },
-    });
-    if (rev.status !== "draft") {
-      throw new Error(`Revisi #${rev.revisionNo} bukan draft (status: ${rev.status}).`);
-    }
-    await tx.rabRevision.updateMany({
-      where: { locationId: rev.locationId, status: "aktif" },
-      data: { status: "digantikan", supersededAt: new Date() },
-    });
-    const naik = await tx.dailyReportItem.updateMany({
-      where: { basis: "draft_adendum", rabNode: { revisionId: rev.id } },
-      data: { basis: "aktif" },
-    });
-    const revisi = await tx.rabRevision.update({
-      where: { id: rev.id },
-      data: { status: "aktif" },
-    });
+  const activated = await db.$transaction(
+    async (tx) => {
+      const rev = await tx.rabRevision.findUniqueOrThrow({
+        where: { id: revisionId },
+        select: { id: true, locationId: true, status: true, revisionNo: true },
+      });
+      if (rev.status !== "draft") {
+        throw new Error(`Revisi #${rev.revisionNo} bukan draft (status: ${rev.status}).`);
+      }
+      await tx.rabRevision.updateMany({
+        where: { locationId: rev.locationId, status: "aktif" },
+        data: { status: "digantikan", supersededAt: new Date() },
+      });
+      const naik = await tx.dailyReportItem.updateMany({
+        where: { basis: "draft_adendum", rabNode: { revisionId: rev.id } },
+        data: { basis: "aktif" },
+      });
+      const revisi = await tx.rabRevision.update({
+        where: { id: rev.id },
+        data: { status: "aktif" },
+      });
 
-    const disesuaikan = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
-    return { revisi, laporanDinaikkan: naik.count, disesuaikan };
-  });
+      const disesuaikan = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
+      return { revisi, laporanDinaikkan: naik.count, disesuaikan };
+    },
+    /*
+     * BATAS WAKTU TRANSAKSI DINAIKKAN — bukan penyetelan buta.
+     *
+     * Bawaan Prisma untuk transaksi interaktif 5 detik (tertulis di klien
+     * hasil generate: `timeout ?= 5000`), dan repo ini tidak menyetel
+     * `transactionOptions` di mana pun. Sampai DECISIONS 505 isi transaksi ini
+     * cuma tiga pernyataan berbiaya tetap, jadi 5 detik tak pernah jadi soal.
+     *
+     * `sesuaikanRealisasiKeVolumeBaru` mengubah itu: ia menulis SATU PER SATU
+     * tiap baris laporan harian yang volumenya diturunkan, plus satu baris
+     * audit per item — berurutan, di dalam transaksi yang sama. Banyaknya tidak
+     * dibatasi apa pun kecuali seberapa besar adendumnya. Adendum kecil aman;
+     * yang menurunkan volume puluhan item pada lokasi yang sudah berbulan-bulan
+     * melapor bisa menembus 5 detik, dan akibatnya bukan "lambat" melainkan
+     * SELURUH AKTIVASI DIBATALKAN — tepat pada adendum terbesar, yang paling
+     * penting dan paling sulit diulang.
+     *
+     * 60 detik dipilih supaya kegagalannya tidak ditentukan oleh ukuran
+     * adendum. Ongkosnya kunci baris yang ditahan lebih lama; itu bisa diterima
+     * karena aktivasi adalah tindakan admin yang jarang dan disengaja,
+     * sementara aktivasi yang gagal separuh jalan menyisakan pekerjaan yang
+     * harus diulang orang.
+     */
+    { timeout: 60_000, maxWait: 15_000 },
+  );
   await audit(userId, "rab.revision_activate", "rab_revision", activated.revisi.id, {
     locationId: activated.revisi.locationId,
     revisionNo: activated.revisi.revisionNo,

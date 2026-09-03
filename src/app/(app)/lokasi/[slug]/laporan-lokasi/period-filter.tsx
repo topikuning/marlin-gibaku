@@ -28,16 +28,42 @@ export function PeriodFilter({
   slug,
   kind,
   n,
-  maxN,
+  maxMinggu,
+  maxBulan,
 }: {
   slug: string;
+  /** Jenis yang SEDANG TAMPIL (dari URL) — bukan yang sedang dipilih di layar. */
   kind: "mingguan" | "bulanan";
   n: number;
-  maxN: number;
+  maxMinggu: number;
+  maxBulan: number;
 }) {
   const [nErr, setNErr] = useState<string | null>(null);
   const router = useRouter();
   const [menyiapkan, mulai] = useTransition();
+  /*
+   * JENIS YANG DIPILIH, bukan jenis yang sedang tampil.
+   *
+   * Keberatan user 2026-09-03: *"laporan bulanan tapi sampingnya minggu,
+   * sedikit tidak pas saja."* Betul — dan sebabnya label ini dulu mengikuti
+   * `kind` dari URL, yaitu jenis laporan yang SUDAH digenerate. Begitu orang
+   * mengganti dropdown ke "Bulanan", labelnya masih "Minggu ke (1–20)" sampai
+   * "Tampilkan" ditekan: dua bagian dari satu baris form menyebut dua hal
+   * berbeda, tepat pada saat orang sedang memutuskan mau mengisi berapa.
+   *
+   * Batasnya ikut berubah karena memang berbeda: 20 minggu bukan 20 bulan.
+   * Kedua angkanya dikirim dari server sekaligus supaya label dan `max` tidak
+   * perlu menunggu satu perjalanan bolak-balik untuk jadi benar.
+   */
+  const [jenis, setJenis] = useState<"mingguan" | "bulanan">(kind);
+  const maxN = jenis === "mingguan" ? maxMinggu : maxBulan;
+  /*
+   * Nilai periode ikut dikendalikan supaya bisa DIJEPIT saat jenisnya berganti.
+   * Minggu ke-18 tidak punya arti pada laporan bulanan proyek 5 bulan; tanpa
+   * penjepitan, form terkirim dengan angka di luar rentang lalu ditolak
+   * server — kesalahan yang dibuat oleh layar, bukan oleh pemakainya.
+   */
+  const [nilaiN, setNilaiN] = useState<number>(n);
 
   return (
     <form
@@ -62,7 +88,19 @@ export function PeriodFilter({
 
       <div>
         <Label htmlFor="lp-kind">Jenis laporan</Label>
-        <Combobox id="lp-kind" name="kind" defaultValue={kind} className="w-40">
+        <Combobox
+          id="lp-kind"
+          name="kind"
+          value={jenis}
+          onChange={(v) => {
+            const baru = v === "bulanan" ? "bulanan" : "mingguan";
+            setJenis(baru);
+            const batas = baru === "mingguan" ? maxMinggu : maxBulan;
+            if (batas > 0 && nilaiN > batas) setNilaiN(batas);
+            setNErr(null);
+          }}
+          className="w-40"
+        >
           <option value="mingguan">Mingguan</option>
           <option value="bulanan">Bulanan</option>
         </Combobox>
@@ -70,7 +108,7 @@ export function PeriodFilter({
 
       <div>
         <Label htmlFor="lp-n" required>
-          {kind === "mingguan" ? `Minggu ke (1–${maxN})` : `Bulan ke (1–${maxN})`}
+          {jenis === "mingguan" ? `Minggu ke (1–${maxN})` : `Bulan ke (1–${maxN})`}
         </Label>
         <input
           id="lp-n"
@@ -78,7 +116,8 @@ export function PeriodFilter({
           name="n"
           min={1}
           max={maxN}
-          defaultValue={n}
+          value={nilaiN}
+          onChange={(e) => setNilaiN(Number.parseInt(e.target.value, 10) || 1)}
           required
           aria-invalid={nErr ? true : undefined}
           aria-describedby={nErr ? "lp-n-err" : undefined}
