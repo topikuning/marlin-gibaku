@@ -18,6 +18,47 @@ env:
   APP_ENV: test
 
 jobs:
+  # ── Perubahan DOKUMEN saja tidak perlu E2E, integrasi, dan Docker build ────
+  #
+  # Keberatan user 2026-09-03 atas PR yang cuma menomori satu judul di
+  # DECISIONS.md: *"kenapa harus cek panjang x lebar kalau cuma soal
+  # penomoran?!"* Memang tidak perlu — `on: pull_request` tanpa filter path
+  # membuat satu baris markdown menjalankan Playwright, Postgres, dan Docker.
+  # ±20 menit menunggu untuk NOL bukti.
+  #
+  # Yang TIDAK ikut dilewati: job `checks`. Justru di sanalah penjaga dokumen
+  # tinggal — `decisions-nomor` (nomor tidak kembar, tidak ada `(baru)` yang
+  # lolos), `tanda-pisah-ui`, matriks izin. Melewatinya berarti perubahan
+  # dokumen jadi satu-satunya yang tidak diperiksa siapa pun.
+  #
+  # Push ke `main` selalu menjalankan semuanya: di sanalah rilis dipastikan,
+  # dan penghematan tidak sepadan dengan risikonya.
+  perubahan:
+    name: Deteksi perubahan
+    runs-on: ubuntu-latest
+    outputs:
+      e2e: ${{ steps.cek.outputs.e2e }}
+      integrasi: ${{ steps.cek.outputs.integrasi }}
+      docker: ${{ steps.cek.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - id: cek
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Bukan pull_request – jalankan semua."
+            printf 'e2e=true\nintegrasi=true\ndocker=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA...HEAD" | node scripts/ci-perlu.mjs
+
   checks:
     name: Lint, typecheck, unit, build
     runs-on: ubuntu-latest
@@ -71,6 +112,8 @@ jobs:
 
   integration:
     name: Integration tests (Postgres)
+    needs: perubahan
+    if: needs.perubahan.outputs.integrasi == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -108,6 +151,8 @@ jobs:
 
   docker:
     name: Docker build
+    needs: perubahan
+    if: needs.perubahan.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,6 +175,8 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
+    needs: perubahan
+    if: needs.perubahan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
