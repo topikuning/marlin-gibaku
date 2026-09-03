@@ -26479,3 +26479,55 @@ untuk keduanya, jadi tidak ada baris yang ditulis ulang tanpa perlu.
 nilai sama-sama dibatasi `LEAST(1, Σvol/volRAB)`. Yang tidak aman adalah
 DOKUMEN-nya: blanko harian menuliskan 45,7 m³ terpasang atas baris kontrak 32,15
 m³, dan itu harus dijelaskan ke PPK setiap kali dibaca.
+
+---
+
+## (baru) · Direktori lokasi menyebut perusahaan pelaksana dan realisasinya, deviasi tidak lagi menonjol (2026-09-03)
+
+**Konteks**: permintaan user 2026-09-03 — *"aku butuh informasi di lokasi itu
+nama perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
+
+Ini membatalkan sebagian keputusan 2026-08-30 (pemisahan `/lokasi` vs
+`/progress`), yang membuang Rencana dan Realisasi dari direktori dan menyisakan
+Deviasi sebagai satu-satunya sinyal progres di sana, berbentuk lencana berwarna.
+
+Pilihan itu salah arah, dan sebabnya bisa disebut: **deviasi adalah angka
+TURUNAN** (realisasi − rencana). Menampilkannya tanpa realisasinya membuat
+satu-satunya angka progres di direktori justru yang paling tidak bisa dipakai
+apa adanya — lokasi 95% jadi dengan deviasi −6% dan lokasi 3% jadi dengan
+deviasi −6% terbaca persis sama. Ditambah lencana merah, yang paling menarik
+mata di seluruh baris adalah angka yang paling butuh konteks.
+
+Nama perusahaan pelaksana sendiri sebelumnya tidak ada di layar mana pun yang
+menyebut lokasi — padahal itu pertanyaan pertama saat menengok satu lokasi.
+
+**Keputusan**:
+
+- Kolom **Perusahaan** (dari `Contract.vendor.name`) dan **Realisasi**
+  (`realizedPct`) ditambahkan ke direktori `/lokasi`.
+- **Deviasi tetap ada, tapi turun jadi teks biasa** — bukan `DeltaBadge`.
+  Warnanya hanya dipakai saat deviasinya benar-benar buruk (≤ −10%).
+- **Rencana TIDAK dikembalikan.** Itu kolom yang benar-benar membuat direktori
+  kembar dengan papan `/progress`, dan pembagian tugasnya tidak berubah:
+  `/lokasi` untuk MENCARI satu lokasi, `/progress` untuk MEMERINGKAT yang
+  tertinggal (urut deviasi terburuk + kolom "Terakhir lapor").
+- Paket yang belum berkontrak ditulis **"belum berkontrak"**, bukan sel kosong:
+  sel kosong terbaca "datanya belum diisi", padahal keadaannya "memang belum
+  ada".
+
+**Alternatif direject**:
+- *Memakai `Package.candidateVendorName` sebagai cadangan.* Calon pemenang
+  tender bukan pelaksana; di kolom yang sama ia akan terbaca sebagai sudah
+  pasti.
+- *Membuang kolom Deviasi seluruhnya.* User minta ia tidak MENCOLOK, bukan
+  hilang — dan sebagai penanda "lokasi ini sedang bermasalah" ia masih dipakai.
+- *Mengembalikan Rencana sekalian.* Itu mengembalikan kekembaran yang justru
+  jadi keluhan awal 2026-08-30.
+
+**Konsekuensi**: uji E2E `lokasi-vs-progress` yang dulu menjaga KETIADAAN
+Realisasi di `/lokasi` dibalik arahnya — sekarang ia menjaga KEHADIRAN
+Perusahaan + Realisasi, dan tetap menjaga ketiadaan Rencana.
+
+**Bisa di-revisit**: kalau direktori terasa penuh di layar ponsel, yang pertama
+dipertimbangkan menumpuk Perusahaan ke dalam sel identitas (seperti wilayah),
+bukan membuang Realisasi lagi.

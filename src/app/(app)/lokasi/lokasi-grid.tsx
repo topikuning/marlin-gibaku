@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
-import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
+import { MarlinGrid, pctCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
-import { DeltaBadge } from "@/components/ui/stat-delta";
+import { formatPct } from "@/lib/format";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import type { LocationStatus } from "@/generated/prisma/enums";
 
@@ -14,7 +14,10 @@ export type LokasiRow = {
   name: string;
   wilayah: string;
   paket: string;
+  /** Perusahaan pelaksana dari KONTRAK. null = paket belum berkontrak. */
+  perusahaan: string | null;
   status: LocationStatus;
+  realizedPct: number;
   deviationPct: number;
   /** Nilai RAB pra-PPN (rupiah, Number — hanya display). */
   rabValue: number;
@@ -74,6 +77,24 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
       ) : null,
   },
   { field: "paket", headerName: "Paket", minWidth: 180, flex: 1 },
+  {
+    /*
+     * Perusahaan PELAKSANA — dari kontrak paketnya.
+     *
+     * Paket yang belum berkontrak (prospek/tender) ditulis "belum berkontrak",
+     * bukan dikosongkan: sel kosong terbaca "datanya belum diisi", padahal
+     * keadaannya "memang belum ada". `candidateVendorName` sengaja TIDAK
+     * dipakai sebagai cadangan — calon pemenang tender bukan pelaksana, dan di
+     * kolom yang sama ia akan terbaca sebagai sudah pasti.
+     */
+    field: "perusahaan",
+    headerName: "Perusahaan",
+    minWidth: 170,
+    flex: 1,
+    cellRenderer: (p: ICellRendererParams<LokasiRow>) =>
+      p.data?.perusahaan ?? <span className="text-ink-muted">belum berkontrak</span>,
+    valueFormatter: (p) => (p.value as string | null) ?? "belum berkontrak",
+  },
   { field: "wilayah", headerName: "Wilayah", minWidth: 160 },
   {
     field: "status",
@@ -86,24 +107,48 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
     valueFormatter: (p) => (p.value ? LOCATION_STATUS_LABEL[p.value as LocationStatus] : ""),
   },
   /*
-   * SATU sinyal progres saja di direktori: deviasinya.
+   * REALISASI yang dibaca lebih dulu, deviasi menyusul sebagai angka biasa.
    *
-   * Rencana dan Realisasi dibuang dari sini (keputusan user 2026-08-30). Dua
-   * kolom itu membuat halaman ini nyaris kembar dengan papan `/progress`,
-   * padahal keduanya menjawab pertanyaan yang berlawanan cara pakainya:
-   * halaman ini untuk MENCARI satu lokasi (urut nama, semua lokasi termasuk
-   * yang belum jalan), papan itu untuk MEMERINGKAT yang tertinggal.
+   * Sejarahnya dua langkah, dan langkah kedua membatalkan sebagian yang
+   * pertama:
    *
-   * Deviasinya sendiri tetap tinggal, sederajat dengan Status: ia penanda
-   * "lokasi ini sedang bermasalah" yang wajar dibaca di direktori — bukan
-   * pemantauan.
+   *  1. 2026-08-30 — Rencana & Realisasi dibuang dari sini supaya direktori
+   *     tidak kembar dengan papan `/progress`. Yang tersisa cuma Deviasi,
+   *     sebagai penanda "lokasi ini sedang bermasalah".
+   *  2. 2026-09-03 — permintaan user: *"aku butuh informasi di lokasi itu nama
+   *     perusahaan, progress realisasi (jangan mencolokkan deviasi)."*
+   *
+   * Ternyata menyisakan DEVIASI SENDIRIAN adalah pilihan yang salah arah.
+   * Deviasi itu angka TURUNAN (realisasi − rencana); menampilkannya tanpa
+   * realisasinya membuat satu-satunya angka progres di direktori justru yang
+   * paling tidak bisa dipakai apa adanya — lokasi 95% jadi dengan deviasi −6%
+   * dan lokasi 3% jadi dengan deviasi −6% terbaca persis sama. Ditambah lencana
+   * merah, yang paling menarik mata di seluruh baris adalah angka yang paling
+   * butuh konteks.
+   *
+   * Jadi urutannya dibalik: Realisasi jadi angka progres yang dibaca, Deviasi
+   * turun jadi teks biasa di sebelahnya — tetap ada untuk yang mencarinya,
+   * tidak lagi berteriak. Yang MEMERINGKAT tetap papan `/progress` (urut
+   * deviasi terburuk, plus kolom "Terakhir lapor"); pembagian itu tidak
+   * berubah.
    */
+  pctCol<LokasiRow>("realizedPct", "Realisasi", { width: 120 }),
   {
     field: "deviationPct",
     headerName: "Deviasi",
     width: 110,
-    cellRenderer: (p: ICellRendererParams<LokasiRow>) =>
-      p.data ? <DeltaBadge value={p.data.deviationPct} /> : null,
+    // Sengaja TANPA `DeltaBadge`: lencana berwarna di direktori inilah yang
+    // "mencolok". Warnanya cuma dipakai saat deviasinya benar-benar buruk.
+    cellRenderer: (p: ICellRendererParams<LokasiRow>) => {
+      if (!p.data) return null;
+      const d = p.data.deviationPct;
+      return (
+        <span className={d <= -10 ? "tabular text-danger" : "tabular text-ink-muted"}>
+          {d > 0 ? "+" : ""}
+          {formatPct(d)}
+        </span>
+      );
+    },
     cellClass: "text-right",
     headerClass: "ag-right-aligned-header",
   },

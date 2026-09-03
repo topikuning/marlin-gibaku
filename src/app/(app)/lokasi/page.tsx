@@ -26,7 +26,16 @@ export default async function LokasiListPage() {
       regency: true,
       province: true,
       status: true,
-      package: { select: { name: true } },
+      package: {
+        select: {
+          name: true,
+          // Perusahaan PELAKSANA = vendor di KONTRAK. Bukan `candidateVendorName`
+          // (calon pemenang tender): yang belum berkontrak belum mengerjakan
+          // apa pun, dan menampilkannya di kolom yang sama akan terbaca sebagai
+          // pelaksana yang sudah pasti.
+          contract: { select: { vendor: { select: { name: true } } } },
+        },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -40,7 +49,9 @@ export default async function LokasiListPage() {
       name: l.name,
       wilayah: `${l.regency}, ${l.province}`,
       paket: l.package.name,
+      perusahaan: l.package.contract?.vendor.name ?? null,
       status: l.status,
+      realizedPct: p.realizedPct,
       deviationPct: p.deviationPct,
       rabValue: Number(p.grandTotal),
     };
