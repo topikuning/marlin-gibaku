@@ -246,12 +246,19 @@ export function PhotoSourceInput({
     const sudah = new Set(dasar.map((b) => idBerkas(b.file)));
     const tambah = Array.from(baru).filter((f) => !sudah.has(idBerkas(f)));
     const gabung = [...dasar, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
-    // Dua pagar: jumlah foto DAN ukuran permintaan (DECISIONS 425). Yang tidak
-    // muat disebut jumlahnya beserta sebabnya — tidak pernah hilang diam-diam.
+    // TIGA pagar: ukuran satu foto, jumlah foto, dan ukuran permintaan
+    // (DECISIONS 425). Yang tidak muat disebut jumlahnya beserta sebabnya —
+    // tidak pernah hilang diam-diam.
+    //
+    // Diambil per-INDEKS, bukan sebagai awalan daftar: satu foto kebesaran di
+    // tengah pilihan ditolak sendirian, dan foto wajar sesudahnya tetap ikut.
     const batas = muatSekaliUnggah(gabung.map((b) => b.file.size));
-    if (batas.sisa > 0) for (const b of gabung.slice(batas.muat)) URL.revokeObjectURL(b.url);
+    const diterima = new Set(batas.terima);
+    for (let i = 0; i < gabung.length; i++) {
+      if (!diterima.has(i)) URL.revokeObjectURL(gabung[i]!.url);
+    }
     setPesanBatas(batas.pesan);
-    setBerkas(gabung.slice(0, batas.muat));
+    setBerkas(batas.terima.map((i) => gabung[i]!));
   };
 
   /** Buang satu foto dari pilihan (bukan dari server — belum terunggah). */
@@ -619,7 +626,26 @@ export function PhotoSourceInput({
         </div>
       ) : null}
 
-      {!compact && berkas.length > 0 ? (
+      {/*
+       * PRATINJAU SELALU MUNCUL BEGITU FOTO DIPILIH — termasuk bentuk ringkas.
+       *
+       * Keluhan user 2026-09-03: *"kenapa aku nambah foto malah gak ada respon
+       * sama sekali, apa ini sedang masalah?"* Ia sedang di baris material/alat,
+       * dan di situ blok ini dulu dimatikan oleh `compact`.
+       *
+       * `compact` lahir untuk jalur AUTO-SUBMIT: di sana pratinjau memang
+       * mubazir karena formnya langsung terkirim, jadi gambarnya cuma
+       * berkelebat. Tapi baris material/alat memakai `compact` demi bentuknya
+       * yang sempit, TANPA auto-submit — fotonya menunggu barisnya disimpan.
+       * Akibatnya persis kebalikan dari maksudnya: satu-satunya tempat foto
+       * benar-benar menunggu justru yang tidak memberi tanda apa pun bahwa ia
+       * sudah terpilih. Orang mengetuk lagi, memilih lagi, lalu mengira
+       * aplikasinya rusak.
+       *
+       * Jadi yang menentukan bukan lagi sempit atau tidaknya, melainkan apakah
+       * pilihannya MENUNGGU: yang auto-submit tetap sunyi, sisanya bersuara.
+       */}
+      {(!compact || !onPicked) && berkas.length > 0 ? (
         <div className="space-y-1.5">
           <p className="text-xs text-ink-muted">
             {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}).{" "}
