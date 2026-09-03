@@ -17,8 +17,11 @@ import { test, expect, type Page } from "@playwright/test";
  * komponen tapi tertutup gaya atau syarat lain akan lolos pemeriksaan sumber
  * dan tetap tak terlihat oleh pemakainya (blind spot §5 CARA_KERJA_AGEN).
  *
- * Prasyarat: `pnpm db:seed`.
+ * Prasyarat: `pnpm db:seed` + penyimpanan foto terkonfigurasi (bagian foto di
+ * form pelengkap hanya dirakit bila `isR2Configured()`).
  */
+
+const SLUG = process.env.E2E_SLUG ?? "kedungmutih";
 
 async function login(page: Page, username: string) {
   await page.goto("/masuk");
@@ -26,6 +29,16 @@ async function login(page: Page, username: string) {
   await page.getByRole("textbox", { name: "Password", exact: true }).fill("marlin123");
   await page.getByRole("button", { name: "Masuk" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 15_000 });
+}
+
+/** Tanggal kerja hari ini di Asia/Jakarta — sama dengan yang dipakai server. */
+function hariIniJakarta() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 /** Satu JPEG kecil yang sah – cukup untuk menguji reaksi layar. */
@@ -38,30 +51,32 @@ const JPEG_1PX = Buffer.from(
 
 test.describe("baris pelengkap: memilih foto memberi tanda", () => {
   test("foto yang dipilih di baris material langsung terlihat, bukan senyap", async ({ page }) => {
-    await login(page, "admin");
+    await login(page, "sm-01");
+    await page.goto(`/lokasi/${SLUG}/harian/${hariIniJakarta()}`);
 
-    // Masuk ke editor laporan harian lewat daftar lokasi – jalur yang sama
-    // dengan yang dipakai orang, bukan URL yang dirakit sendiri.
-    await page.goto("/lokasi");
-    await expect(page.locator(".ag-row").first()).toBeVisible({ timeout: 15_000 });
-    await page.locator(".ag-row").first().click();
-    await page.waitForURL(/\/lokasi\/[^/]+$/, { timeout: 15_000 });
+    await expect(page.locator('input[name="materialName"]').first()).toBeVisible({
+      timeout: 15_000,
+    });
 
-    const keHarian = page.getByRole("link", { name: /Laporan harian|Hari ini/i }).first();
-    if ((await keHarian.count()) === 0) test.skip(true, "lokasi seed ini tidak punya pintu laporan harian");
-    await keHarian.click();
-    await page.waitForURL(/\/harian\//, { timeout: 15_000 });
+    // Baris BARU: bentuknya sama dengan baris mana pun, tapi keberadaannya tidak
+    // bergantung pada sisa data seed atau jalan uji sebelumnya.
+    await page.getByRole("button", { name: "Tambah material" }).click();
+    const baris = page.locator('[data-baris="material"]').last();
 
-    // Bagian material/peralatan – bentuk ringkas yang dikeluhkan.
-    const pemilih = page.locator('input[type="file"][name$="photos"]').first();
-    if ((await pemilih.count()) === 0) test.skip(true, "form pelengkap tidak tersedia pada laporan ini");
-
-    await pemilih.setInputFiles({ name: "bukti.jpg", mimeType: "image/jpeg", buffer: JPEG_1PX });
+    // Pemilih kamera — yang benar-benar diketuk orang. Bukan input tersembunyi
+    // ber-`name` (itu hasil rakitan state, memasukkan berkas ke sana tidak
+    // memicu apa pun dan pratinjaunya tetap kosong).
+    const kamera = baris.locator('input[type="file"][capture]');
+    if ((await kamera.count()) === 0) {
+      test.skip(true, "Penyimpanan foto (R2) tidak aktif di lingkungan ini.");
+      return;
+    }
+    await kamera.setInputFiles({ name: "bukti.jpg", mimeType: "image/jpeg", buffer: JPEG_1PX });
 
     // Inilah yang dulu tidak ada: pernyataan bahwa fotonya memang terpilih.
-    await expect(page.getByText(/1 foto dipilih/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(baris.getByText(/1 foto dipilih/i)).toBeVisible({ timeout: 10_000 });
     // Dan bisa dibatalkan – pilihan yang tidak bisa dicabut sama buruknya
     // dengan pilihan yang tidak terlihat.
-    await expect(page.getByRole("button", { name: /Buang foto 1/i }).first()).toBeVisible();
+    await expect(baris.getByRole("button", { name: "Buang foto 1" })).toBeVisible();
   });
 });
