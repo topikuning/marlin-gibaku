@@ -26,6 +26,7 @@ import {
   AmendmentForm,
   ConvertContractForm,
   EditContractForm,
+  WeekModeForm,
   SignatoriesForm,
   TtdStempelForm,
 } from "./kontrak-forms";
@@ -52,6 +53,9 @@ export default async function KontrakPage({
   const canContract = can(user.role, "contract.manage");
   const canAmend = can(user.role, "amendment.manage");
   const canEditContract = can(user.role, "contract.edit");
+  // Mode minggu punya kapabilitasnya sendiri: PM boleh, tanpa ikut membuka
+  // koreksi kontrak (DECISIONS 507).
+  const canWeekMode = can(user.role, "contract.week_mode");
 
   /* ---------- Belum ada kontrak ---------- */
   if (!contract) {
@@ -241,6 +245,22 @@ export default async function KontrakPage({
           />
         ) : null}
 
+        {canWeekMode ? (
+          <AksiTile
+            judul="Periode minggu laporan"
+            penjelasan="Batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian. Menggantinya MENGKONVERSI jadwal & kurva-S semua lokasi paket ini ke grid tanggal baru."
+            aksi={
+              <Drawer
+                trigger="Ubah periode minggu"
+                title="Periode minggu laporan"
+                subtitle="Berlaku untuk seluruh lokasi paket ini."
+              >
+                <WeekModeForm packageId={pkg.id} weekMode={contract.weekMode} />
+              </Drawer>
+            }
+          />
+        ) : null}
+
         {canEditContract ? (
           <AksiTile
             judul="Koreksi data kontrak"
@@ -265,7 +285,6 @@ export default async function KontrakPage({
                     startDate: contract.startDate
                       ? contract.startDate.toISOString().slice(0, 10)
                       : "",
-                    weekMode: contract.weekMode,
                   }}
                 />
               </Drawer>

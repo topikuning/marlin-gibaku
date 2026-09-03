@@ -26635,3 +26635,51 @@ hanya untuk membetulkan sebuah label adalah ongkos yang tidak sepadan.
 
 **Konsekuensi**: `PeriodFilter` sekarang terkontrol penuh (jenis + nilai).
 `method="GET"` tetap dipertahankan sebagai jaring bila JS belum termuat.
+
+---
+
+## (baru) · Mode periode minggu punya kapabilitas sendiri; Project Manager boleh mengubahnya (2026-09-03)
+
+**Konteks**: permintaan user 2026-09-03 — *"project manager diijinkan untuk
+ubah periode minggu laporan."*
+
+Medan itu tinggal di dalam form **Koreksi Kontrak**, yang dijaga
+`contract.edit`. Cara termudah memenuhi permintaan ini salah: memberi PM
+`contract.edit`. Kapabilitas itu memuat nomor kontrak, **nilai kontrak**, PPN,
+tanggal TTD, SPMK, dan masa pelaksanaan — enam hal yang tidak diminta, salah
+satunya uang. `authz.ts` sendiri sudah menuliskan alasan `contract.edit` ditahan
+di super_admin (DECISIONS 421).
+
+**Keputusan**:
+
+- Kapabilitas baru **`contract.week_mode`**, diberikan ke `PROJECT_MANAGER`
+  (dan diwarisi Area Manager). `contract.edit` TETAP super_admin saja.
+- Aksi tersendiri **`ubahModeMingguAction`** yang hanya menulis `weekMode`.
+  Logika konversi baseline & jadwal DIPAKAI BERSAMA lewat helper
+  `konversiModeMingguSemuaLokasi` — menyalinnya ke aksi kedua berarti dua
+  tempat yang bisa menyimpang tanpa ketahuan.
+- Medan mode minggu **DIPINDAH**, bukan digandakan: ia keluar dari form Koreksi
+  Kontrak dan jadi kartu aksi sendiri di halaman kontrak. Satu nilai yang bisa
+  diubah dari dua tempat adalah kebingungan yang pernah dikeluhkan user sendiri
+  2026-08-16. Super Admin melihat kartu yang sama — ia memegang kedua
+  kapabilitasnya.
+- Paket yang SPMK-nya belum terbit: modenya tersimpan dan pesan suksesnya
+  mengatakan ia baru berlaku saat SPMK terbit — bukan diam lalu terlihat gagal.
+
+**Alternatif direject**:
+- *Memberi PM `contract.edit`.* Membuka lima medan lain, termasuk nilai
+  kontrak, demi satu dropdown.
+- *Menyalin blok konversi ke aksi baru.* Logika angka yang ditulis dua kali
+  akan menyimpang, dan yang menyimpang di sini peta tanggal seluruh kurva-S.
+
+**Konsekuensi yang harus disebut**: mengganti mode minggu MENGKONVERSI baseline
+& jadwal seluruh lokasi paket ke grid tanggal baru. Itu memang inti fiturnya
+(DECISIONS 427d), bukan efek samping — tapi artinya PM kini bisa menggeser peta
+tanggal M1–MN yang jadi dasar semua angka deviasi paketnya. Tombolnya karena itu
+meminta konfirmasi yang menyebut akibatnya, dan jumlah lokasi yang terkonversi
+disebut di pesan suksesnya.
+
+**Bisa di-revisit**: kalau ternyata PM terlalu sering menggeser grid dan angka
+deviasi jadi sulit dibandingkan antar periode, yang perlu ditambah bukan
+mencabut haknya melainkan jejak: daftar kapan mode pernah berubah, di halaman
+paketnya.
