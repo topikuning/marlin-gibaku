@@ -27017,3 +27017,37 @@ Dijaga `tests/unit/pratinjau-beda-adendum.test.tsx`.
 markup awal — bahwa jalan ke daftar penuh ADA dan jumlahnya jujur, bukan bahwa
 ketukannya benar-benar membuka. Yang dulu rusak memang ada di lapisan itu:
 tidak ada apa pun untuk diketuk.
+
+---
+
+## (baru) · Audit keamanan CI tidak boleh menuduh: endpoint yang diam ≠ kerentanan (2026-09-04)
+
+**Konteks**: CI memerahkan PR #269 dengan *"Security audit menemukan kerentanan
+high-severity"*. Tidak ada kerentanan apa pun — endpoint advisories npm yang
+tidak menjawab (`[23] The operation was aborted due to timeout`). Penjaga lama
+hanya mengenali SATU bentuk kegagalan endpoint (`ERR_PNPM_AUDIT_BAD_RESPONSE`);
+bentuk lain jatuh ke cabang "ada kerentanan".
+
+**Keputusan**: penggolongan hasil `pnpm audit` pindah ke
+`scripts/audit-hasil.mjs` dengan tiga keluaran — `aman`, `temuan`, `endpoint` —
+dan diuji (`tests/unit/audit-hasil.test.ts`). Alasannya sama dengan seleksi job
+CI: aturan sepenting ini tidak boleh hidup sebagai `grep` di dalam YAML, tempat
+ia tidak bisa diuji dan kesalahannya baru ketahuan saat menuduh.
+
+Yang tidak dikenali digolongkan `temuan`. Bawaan yang aman: lebih baik berhenti
+untuk sesuatu yang ternyata bukan kerentanan daripada meloloskan kerentanan
+yang bentuk pesannya belum kita kenali. Temuan yang datang BERSAMA keluhan
+jaringan juga tetap merah — temuan diperiksa lebih dulu.
+
+**Kenapa ini bukan sekadar gangguan**: pesan yang menuduh lebih buruk daripada
+tidak ada pesan. Sekali orang tahu peringatan itu bisa bohong, temuan yang ASLI
+ikut tidak dipercaya — dan audit keamanan hanya bernilai sebesar kepercayaan
+pada peringatannya.
+
+**Alternatif direject**:
+- *Menambah satu pola `grep` lagi di YAML.* Menambal bentuk yang kebetulan
+  terlihat hari ini, dan tetap tak bisa diuji — persis cara cacat ini lahir.
+- *Menoleransi semua kegagalan audit.* Menghapus jaring pengamannya; kerentanan
+  sungguhan lewat tanpa suara.
+- *Mengunci ke exit code saja.* `pnpm audit` memakai exit non-nol untuk temuan
+  MAUPUN kegagalan endpoint — kodenya sendiri tidak membedakan apa pun.
