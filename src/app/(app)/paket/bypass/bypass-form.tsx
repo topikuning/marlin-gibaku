@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { Banner, Button, HelpText, Input, Label, Combobox } from "@/components/ui";
 import { createDirectProject, type PackageActionState } from "@/lib/package/actions";
 
@@ -23,7 +25,7 @@ export function BypassForm({
   vendors: VendorOption[];
   hiddenExistingCount?: number;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(createDirectProject, undefined);
+  const [state, action, pending] = useAksi<PackageActionState>(createDirectProject, undefined);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
   const [newVendor, setNewVendor] = useState(false);

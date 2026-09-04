@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import { PemilihLokasi } from "@/components/knmp/pemilih-lokasi";
 import { generateAiReportAction, type AiHubState } from "@/lib/ai-hub/actions";
@@ -36,7 +38,7 @@ export function ReportStudioClient({
     // hanya lokasi yang memang ada dalam izin user (daftar `locations`)
     new Set(initialScopeIds.filter((id) => locations.some((l) => l.id === id))),
   );
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(generateAiReportAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(generateAiReportAction, undefined);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">

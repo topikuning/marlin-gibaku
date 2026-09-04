@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { gabungkanKendala, type IssueActionState } from "@/lib/issues";
 import { kemiripan } from "@/lib/kendala/duplikat";
@@ -25,7 +27,7 @@ export function GabungForm({
   kandidat: KandidatInduk[];
 }) {
   const [buka, setBuka] = useState(false);
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(
+  const [state, action, pending] = useAksi<IssueActionState>(
     gabungkanKendala,
     undefined,
   );

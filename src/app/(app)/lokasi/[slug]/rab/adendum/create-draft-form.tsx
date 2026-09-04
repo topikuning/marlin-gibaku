@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Combobox } from "@/components/ui";
 import { createDraftAction, type AdendumActionState } from "./actions";
 
@@ -21,7 +23,7 @@ export function CreateDraftForm({
   slug: string;
   amendments: AmendmentOption[];
 }) {
-  const [state, formAction, pending] = useActionState<AdendumActionState, FormData>(
+  const [state, formAction, pending] = useAksi<AdendumActionState>(
     createDraftAction,
     undefined,
   );

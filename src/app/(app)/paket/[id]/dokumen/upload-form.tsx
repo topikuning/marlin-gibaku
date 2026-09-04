@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useEffect, useRef, useState } from "react";
 import { Banner, Button, FileInput, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 import { ALL_DOC_TYPES, ALL_PHASES, PHASE_LABEL, TYPE_LABEL, TYPES_BY_PHASE } from "@/lib/documents-meta";
@@ -18,7 +20,7 @@ export function PackageDocUploadForm({
   packageId: string;
   locations: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(uploadDocumentAction, undefined);
+  const [state, action, pending] = useAksi<UploadActionState>(uploadDocumentAction, undefined);
   const [phase, setPhase] = useState<AdminPhase>("kontrak");
   const formRef = useRef<HTMLFormElement>(null);
 

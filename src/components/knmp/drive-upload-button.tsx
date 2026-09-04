@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { HardDriveUpload } from "lucide-react";
 import { Button } from "@/components/ui";
 import {
@@ -31,7 +33,7 @@ function UploadButton({
   hasDrive: boolean;
   size?: "sm" | "md";
 }) {
-  const [state, formAction, pending] = useActionState<GDriveActionState, FormData>(action, undefined);
+  const [state, formAction, pending] = useAksi<GDriveActionState>(action, undefined);
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {doneLabel && !state?.success ? <span className="text-[12px] text-success">✓ Drive {doneLabel}</span> : null}

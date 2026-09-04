@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, FileInput, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 import { ALL_DOC_TYPES, ALL_PHASES, PHASE_LABEL, TYPE_LABEL } from "@/lib/documents-meta";
@@ -12,7 +14,7 @@ export function UploadForm({
   packages: { id: string; name: string }[];
   locations: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(uploadDocumentAction, undefined);
+  const [state, action, pending] = useAksi<UploadActionState>(uploadDocumentAction, undefined);
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       {state?.error ? <div className="sm:col-span-2"><Banner tone="error" title={state.error} /></div> : null}

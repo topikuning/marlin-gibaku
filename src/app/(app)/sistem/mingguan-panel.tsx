@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { useFormStatus } from "react-dom";
 import { CalendarCheck, CalendarOff } from "lucide-react";
 import { Banner, Button, ConfirmSubmit } from "@/components/ui";
@@ -17,7 +19,7 @@ import { setMingguanAktifAction, type MingguanState } from "@/lib/mingguan/actio
  * pemberi kerja.
  */
 export function MingguanPanel({ aktif }: { aktif: boolean }) {
-  const [state, aksi] = useActionState<MingguanState, FormData>(
+  const [state, aksi] = useAksi<MingguanState>(
     setMingguanAktifAction,
     undefined,
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { hapusKendala, type IssueActionState } from "@/lib/issues";
 
@@ -17,7 +19,7 @@ import { hapusKendala, type IssueActionState } from "@/lib/issues";
  */
 export function HapusKendalaForm({ issueId }: { issueId: string }) {
   const [buka, setBuka] = useState(false);
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(
+  const [state, action, pending] = useAksi<IssueActionState>(
     hapusKendala,
     undefined,
   );

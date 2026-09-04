@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useEffect } from "react";
 import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
 import { createInspectionAction, type InspectionActionState } from "@/lib/inspections/actions";
 
@@ -13,7 +15,7 @@ export function FormInspeksiBaru({
   todayKey: string;
 }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState<InspectionActionState, FormData>(createInspectionAction, undefined);
+  const [state, action, pending] = useAksi<InspectionActionState>(createInspectionAction, undefined);
 
   useEffect(() => {
     if (state?.success && state.inspectionId) {

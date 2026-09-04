@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import {
   Banner,
   Button,
@@ -62,7 +64,7 @@ export function DocumentEditForm({
     description: string;
   };
 }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(
+  const [state, action, pending] = useAksi<UploadActionState>(
     updateDocumentAction,
     undefined,
   );
@@ -132,7 +134,7 @@ export function DocumentEditForm({
 }
 
 export function VoidDocumentForm({ target, displayName }: { target: ManageTarget; displayName: string }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(
+  const [state, action, pending] = useAksi<UploadActionState>(
     voidDocumentAction,
     undefined,
   );
@@ -166,7 +168,7 @@ export function VoidDocumentForm({ target, displayName }: { target: ManageTarget
 }
 
 export function RestoreDocumentForm({ target }: { target: ManageTarget }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(
+  const [state, action, pending] = useAksi<UploadActionState>(
     restoreDocumentAction,
     undefined,
   );
@@ -188,7 +190,7 @@ export function DeleteDocumentForm({
   target: ManageTarget;
   displayName: string;
 }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(
+  const [state, action, pending] = useAksi<UploadActionState>(
     deleteDocumentAction,
     undefined,
   );

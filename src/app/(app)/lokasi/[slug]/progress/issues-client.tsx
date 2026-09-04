@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Input, Label, Combobox, StatusPill, Textarea } from "@/components/ui";
 import { formatTanggal } from "@/lib/format";
 import {
@@ -67,7 +69,7 @@ function TawaranDuplikat({
   locationId: string;
   state: NonNullable<IssueActionState>;
 }) {
-  const [paksaState, paksaAction, paksaPending] = useActionState<IssueActionState, FormData>(
+  const [paksaState, paksaAction, paksaPending] = useAksi<IssueActionState>(
     createIssue,
     undefined,
   );
@@ -107,7 +109,7 @@ function TawaranDuplikat({
 
 /** Form buat kendala baru. */
 function CreateIssueForm({ locationId }: { locationId: string }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(createIssue, undefined);
+  const [state, action, pending] = useAksi<IssueActionState>(createIssue, undefined);
   if (state?.duplikat?.length && state.nilai) {
     return <TawaranDuplikat locationId={locationId} state={state} />;
   }
@@ -139,7 +141,7 @@ function CreateIssueForm({ locationId }: { locationId: string }) {
 }
 
 function IssueStatusControl({ issueId, status }: { issueId: string; status: IssueStatus }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(updateIssueStatus, undefined);
+  const [state, action, pending] = useAksi<IssueActionState>(updateIssueStatus, undefined);
   return (
     <form action={action} className="flex items-center gap-1.5">
       <input type="hidden" name="issueId" value={issueId} />
@@ -155,7 +157,7 @@ function IssueStatusControl({ issueId, status }: { issueId: string; status: Issu
 }
 
 function RecoveryStatusControl({ actionId, status }: { actionId: string; status: RecoveryStatus }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(updateRecoveryStatus, undefined);
+  const [state, action, pending] = useAksi<IssueActionState>(updateRecoveryStatus, undefined);
   return (
     <form action={action} className="flex items-center gap-1.5">
       <input type="hidden" name="actionId" value={actionId} />
@@ -171,7 +173,7 @@ function RecoveryStatusControl({ actionId, status }: { actionId: string; status:
 }
 
 function AddRecoveryActionForm({ issueId, onDone }: { issueId: string; onDone: () => void }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(addRecoveryAction, undefined);
+  const [state, action, pending] = useAksi<IssueActionState>(addRecoveryAction, undefined);
   return (
     <form action={action} className="mt-2 space-y-2 rounded-md border border-border bg-surface-muted p-3">
       <StateBanners state={state} />
@@ -199,7 +201,7 @@ function AddRecoveryActionForm({ issueId, onDone }: { issueId: string; onDone: (
 }
 
 function AddUpdateForm({ actionId }: { actionId: string }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(addRecoveryUpdate, undefined);
+  const [state, action, pending] = useAksi<IssueActionState>(addRecoveryUpdate, undefined);
   return (
     <form action={action} className="mt-1.5 flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="actionId" value={actionId} />
@@ -236,7 +238,7 @@ function GabungForm({
   kandidat: IssueData[];
   onDone: () => void;
 }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(
+  const [state, action, pending] = useAksi<IssueActionState>(
     gabungkanKendala,
     undefined,
   );

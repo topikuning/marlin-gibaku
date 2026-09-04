@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { History } from "lucide-react";
 import { Banner, Button, StatusPill, type BadgeTone } from "@/components/ui";
 import { formatPct } from "@/lib/format";
@@ -88,7 +90,7 @@ function CompareChart({ series }: { series: { label: string; points: number[]; c
 }
 
 function RestoreButton({ baselineId, baselineNo }: { baselineId: string; baselineNo: number }) {
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     restoreBaselineAction,
     undefined,
   );

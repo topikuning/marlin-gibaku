@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { createPackage, type PackageActionState } from "@/lib/package/actions";
 
 export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     createPackage,
     undefined,
   );

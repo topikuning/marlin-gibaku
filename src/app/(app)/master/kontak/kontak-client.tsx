@@ -1,8 +1,10 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
 import { Pencil, Plus, UserRoundSearch } from "lucide-react";
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, Banner, Button, EmptyState, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
 import { Laci } from "@/components/master/laci";
@@ -155,9 +157,9 @@ function ContactSection({
   saring: string;
   onSaring: (v: string) => void;
 }) {
-  const [addState, add, adding] = useActionState<ContactState, FormData>(addContactAction, undefined);
-  const [editState, edit, editing] = useActionState<ContactState, FormData>(updateContactAction, undefined);
-  const [delState, del] = useActionState<ContactState, FormData>(deleteContactAction, undefined);
+  const [addState, add, adding] = useAksi<ContactState>(addContactAction, undefined);
+  const [editState, edit, editing] = useAksi<ContactState>(updateContactAction, undefined);
+  const [delState, del] = useAksi<ContactState>(deleteContactAction, undefined);
   const [idBuka, setIdBuka] = useState<string | null>(null);
   const [tambah, setTambah] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
@@ -361,8 +363,8 @@ function FormKontak({
 /* ── Nama pengirim grup ──────────────────────────────────────────────────── */
 
 function AliasSection({ aliases }: { aliases: AliasItem[] }) {
-  const [editState, edit, editing] = useActionState<ContactState, FormData>(updateAliasAction, undefined);
-  const [delState, del] = useActionState<ContactState, FormData>(deleteAliasAction, undefined);
+  const [editState, edit, editing] = useAksi<ContactState>(updateAliasAction, undefined);
+  const [delState, del] = useAksi<ContactState>(deleteAliasAction, undefined);
   const [idBuka, setIdBuka] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [saring, setSaring] = useState("");

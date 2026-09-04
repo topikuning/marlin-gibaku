@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { HardDriveUpload } from "lucide-react";
 import { Banner, Button, HelpText, Input, Label } from "@/components/ui";
 import { setPackageDriveFolderAction, type GDriveActionState } from "@/lib/gdrive/actions";
@@ -18,7 +20,7 @@ export function DriveFolderForm({
   currentFolderId: string | null;
   driveConnected: boolean;
 }) {
-  const [state, action, pending] = useActionState<GDriveActionState, FormData>(
+  const [state, action, pending] = useAksi<GDriveActionState>(
     setPackageDriveFolderAction,
     undefined,
   );

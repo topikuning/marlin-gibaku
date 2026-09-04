@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Combobox } from "@/components/ui";
 import { sendGlobalSummaryAction, type ChatSummaryState } from "@/lib/waha/summary-actions";
 
@@ -12,7 +14,7 @@ export function SendGlobalForm({
   dateKey: string;
   contacts: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<ChatSummaryState, FormData>(sendGlobalSummaryAction, undefined);
+  const [state, action, pending] = useAksi<ChatSummaryState>(sendGlobalSummaryAction, undefined);
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="dateKey" value={dateKey} />

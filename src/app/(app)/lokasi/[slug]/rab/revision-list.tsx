@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, StatusPill, type BadgeTone } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import { activateDraftAction, discardDraftAction, type RabActionState } from "./actions";
@@ -35,11 +37,11 @@ const STATUS_TONE: Record<RevisionStatus, BadgeTone> = {
 };
 
 function DraftActions({ revisionId }: { revisionId: string }) {
-  const [activateState, activate, activating] = useActionState<RabActionState, FormData>(
+  const [activateState, activate, activating] = useAksi<RabActionState>(
     activateDraftAction,
     undefined,
   );
-  const [discardState, discard, discarding] = useActionState<RabActionState, FormData>(
+  const [discardState, discard, discarding] = useAksi<RabActionState>(
     discardDraftAction,
     undefined,
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState, useTransition } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import {
@@ -29,7 +31,7 @@ export function WaGroupForm({
   currentGroupName: string | null;
   wahaConfigured: boolean;
 }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(setPackageWaGroupAction, undefined);
+  const [state, action, pending] = useAksi<WaActionState>(setPackageWaGroupAction, undefined);
   const [groupId, setGroupId] = useState(currentGroupId ?? "");
   const [groupName, setGroupName] = useState(currentGroupName ?? "");
   const [groups, setGroups] = useState<WahaGroup[] | null>(null);

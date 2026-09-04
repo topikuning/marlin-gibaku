@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { setPemilikKendala, type IssueActionState } from "@/lib/issues";
 
@@ -31,7 +33,7 @@ export function PemilikForm({
   dueDate: string;
   pengguna: { id: string; nama: string }[];
 }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(
+  const [state, action, pending] = useAksi<IssueActionState>(
     setPemilikKendala,
     undefined,
   );

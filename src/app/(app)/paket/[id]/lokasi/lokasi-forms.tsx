@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState, useTransition } from "react";
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import type { CatalogItem } from "@/lib/master-location/queries";
 import {
@@ -102,7 +104,7 @@ export function AddLocationForm({
   packageId: string;
   defaultProvince: string;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     addTargetLocation,
     undefined,
   );
@@ -174,7 +176,7 @@ export function RemoveLocationButton({
   locationId: string;
   name: string;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     async () => removeTargetLocation(locationId),
     undefined,
   );
@@ -211,7 +213,7 @@ export function CorrectAddLocationForm({
   /** Baris katalog yang disembunyikan karena lokasinya sudah ada di sistem. */
   hiddenExistingCount?: number;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     correctAddLocationAction,
     undefined,
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { GitMerge, Trash2, Pencil } from "lucide-react";
 import { Badge, Banner, Button, Combobox, FileInput, Input, KpiCard, Label } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
@@ -307,8 +309,8 @@ function TombolDetail({ onKlik }: { onKlik: () => void }) {
 
 /** Gabung & Hapus — di dalam laci, bukan di baris daftar. */
 function AksiBerbahaya({ vendor, all, dipakai }: { vendor: V; all: V[]; dipakai: boolean }) {
-  const [mergeState, mergeAction, merging] = useActionState<VendorActionState, FormData>(mergeVendorsAction, undefined);
-  const [delState, delAction, deleting] = useActionState<VendorActionState, FormData>(deleteVendorAction, undefined);
+  const [mergeState, mergeAction, merging] = useAksi<VendorActionState>(mergeVendorsAction, undefined);
+  const [delState, delAction, deleting] = useAksi<VendorActionState>(deleteVendorAction, undefined);
   const [target, setTarget] = useState("");
   const others = all.filter((v) => v.id !== vendor.id);
   const err = mergeState?.error ?? delState?.error;
@@ -377,7 +379,7 @@ function AksiBerbahaya({ vendor, all, dipakai }: { vendor: V; all: V[]; dipakai:
 
 /** Form master data perusahaan (profil kop surat + logo). */
 function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
-  const [state, action, saving] = useActionState<VendorActionState, FormData>(updateVendorAction, undefined);
+  const [state, action, saving] = useAksi<VendorActionState>(updateVendorAction, undefined);
   const k = kelengkapanVendor(vendor);
   return (
     <form action={action} className="space-y-3">

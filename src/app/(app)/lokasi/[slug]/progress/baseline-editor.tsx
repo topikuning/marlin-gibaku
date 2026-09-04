@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { SlidersHorizontal, TrendingUp, RotateCcw } from "lucide-react";
 import { Banner, Button, Input } from "@/components/ui";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -38,7 +40,7 @@ export function BaselineEditor({
   initial: number[];
 }) {
   const [pts, setPts] = useState<number[]>(() => initial.map(r1));
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     saveManualBaselineAction,
     undefined,
   );

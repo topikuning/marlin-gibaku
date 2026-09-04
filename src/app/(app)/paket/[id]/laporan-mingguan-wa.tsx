@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Send, Eye } from "lucide-react";
 import { Banner, Button, Combobox, Label } from "@/components/ui";
 import {
@@ -8,7 +8,7 @@ import {
   pratinjauMingguanAction,
   type MingguanState,
 } from "@/lib/mingguan/actions";
-import { tahanGagalKirim } from "@/lib/aksi-klien";
+import { useAksi } from "@/lib/aksi-klien";
 
 /**
  * Kirim LAPORAN PROGRES MINGGUAN paket ini ke grup WhatsApp-nya (DECISIONS 311).
@@ -38,8 +38,6 @@ import { tahanGagalKirim } from "@/lib/aksi-klien";
  * "Kirim" bisa memakai minggu yang berbeda — dan pratinjau yang tidak sama
  * dengan yang dikirim justru membatalkan gunanya pratinjau.
  */
-const pratinjau = tahanGagalKirim(pratinjauMingguanAction);
-const kirim = tahanGagalKirim(kirimMingguanAction);
 
 export type PilihanMinggu = { nilai: number; label: string };
 
@@ -60,12 +58,10 @@ export function LaporanMingguanWa({
   const [minggu, setMinggu] = useState<string>(
     pilihanMinggu.length > 0 ? String(pilihanMinggu[0].nilai) : "",
   );
-  const [statePratinjau, aksiPratinjau, sedangPratinjau] = useActionState<MingguanState, FormData>(
-    pratinjau,
+  const [statePratinjau, aksiPratinjau, sedangPratinjau] = useAksi<MingguanState>(pratinjauMingguanAction,
     undefined,
   );
-  const [stateKirim, aksiKirim, sedangKirim] = useActionState<MingguanState, FormData>(
-    kirim,
+  const [stateKirim, aksiKirim, sedangKirim] = useAksi<MingguanState>(kirimMingguanAction,
     undefined,
   );
 

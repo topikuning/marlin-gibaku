@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Banner, Button, Combobox } from "@/components/ui";
@@ -26,7 +28,7 @@ export function PemilihKronologi({
   aiSiap: boolean;
 }) {
   const router = useRouter();
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(
+  const [state, formAction, pending] = useAksi<AiHubState>(
     runAnalysisAction,
     undefined,
   );

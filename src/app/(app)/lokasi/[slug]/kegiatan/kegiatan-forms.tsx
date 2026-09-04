@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { tahanGagalKirim } from "@/lib/aksi-klien";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
@@ -35,14 +35,6 @@ import { MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
  * Aksi dibungkus supaya POST yang gagal (unggahan foto/lampiran besar) jadi
  * PESAN di form, bukan halaman mati yang menghapus isian (DECISIONS 291).
  */
-const buatKegiatan = tahanGagalKirim(createActivityAction);
-const ubahKegiatan = tahanGagalKirim(updateActivityAction);
-const tambahLampiran = tahanGagalKirim(addActivityAttachmentsAction);
-const tambahFotoKegiatan = tahanGagalKirim(addActivityPhotosAction);
-const hapusKegiatan = tahanGagalKirim(deleteActivityAction);
-const bukaKegiatan = tahanGagalKirim(reopenActivityAction);
-const kirimPdfWa = tahanGagalKirim(sendActivityPdfToWaAction);
-const kirimKegiatanWa = tahanGagalKirim(sendActivityToWaAction);
 
 /**
  * Tombol "Kirim PDF ke WhatsApp" — susun Laporan Kegiatan jadi dokumen PDF rapi
@@ -60,7 +52,7 @@ export function SendPdfToWaButton({
   hasGroup: boolean;
   groupName: string | null;
 }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(kirimPdfWa, undefined);
+  const [state, action, pending] = useAksi<WaActionState>(sendActivityPdfToWaAction, undefined);
   const [customDest, setCustomDest] = useState(false);
   if (!wahaConfigured) return null;
 
@@ -126,7 +118,7 @@ export function SendToWaButton({
   groupName: string | null;
   sentAt: string | null;
 }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(kirimKegiatanWa, undefined);
+  const [state, action, pending] = useAksi<WaActionState>(sendActivityToWaAction, undefined);
   if (!wahaConfigured) return null;
   const disabled = !hasGroup;
   return (
@@ -192,7 +184,7 @@ export function CreateActivityForm({
   todayKey: string;
   kinds: ActivityKindOption[];
 }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(buatKegiatan, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(createActivityAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [photoKey, setPhotoKey] = useState(0);
   const [showOptional, setShowOptional] = useState(false);
@@ -404,7 +396,7 @@ function EditActivityForm({
   kinds: ActivityKindOption[];
   onDone: () => void;
 }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(ubahKegiatan, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(updateActivityAction, undefined);
   useEffect(() => {
     if (state?.success) onDone();
   }, [state?.success, onDone]);
@@ -463,7 +455,7 @@ const ATTACHMENT_ACCEPT =
 
 /** Unggah lampiran dokumen (PDF/Word/Excel/gambar) ke kegiatan draft. */
 function AddAttachmentForm({ activityId }: { activityId: string }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(tambahLampiran, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(addActivityAttachmentsAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   return (
     <form ref={formRef} action={action} className="inline-flex items-center gap-1">
@@ -571,7 +563,7 @@ function AddPhotoPanel({
   locationId: string;
   onDone: () => void;
 }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(tambahFotoKegiatan, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [ambil, setAmbil] = useState(false);
   useEffect(() => {
@@ -611,7 +603,7 @@ function AddPhotoPanel({
 }
 
 function DeleteButton({ activityId }: { activityId: string }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(hapusKegiatan, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(deleteActivityAction, undefined);
   const [confirm, setConfirm] = useState(false);
   if (!confirm) {
     return (
@@ -636,7 +628,7 @@ function DeleteButton({ activityId }: { activityId: string }) {
  * (mis. hapus foto salah lalu unggah ulang dengan cap perusahaan yang benar).
  */
 export function ReopenActivityButton({ activityId }: { activityId: string }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(bukaKegiatan, undefined);
+  const [state, action, pending] = useAksi<FieldActivityState>(reopenActivityAction, undefined);
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
       <form action={action} className="inline-flex items-center gap-1">

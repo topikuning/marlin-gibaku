@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { Banner, Button, FieldError, Label, PasswordInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -22,7 +24,7 @@ const RULES = [
 type FieldErrors = { currentPassword?: string; newPassword?: string; confirmPassword?: string };
 
 export function ChangePasswordForm() {
-  const [state, action, pending] = useActionState<ChangePasswordState, FormData>(changePassword, undefined);
+  const [state, action, pending] = useAksi<ChangePasswordState>(changePassword, undefined);
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});

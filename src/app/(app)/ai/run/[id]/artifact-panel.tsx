@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, TautanUnduh } from "@/components/ui";
 import {
   distributeArtifactAction,
@@ -69,7 +71,7 @@ function TransitionButton({
   label: string;
   variant?: "primary" | "secondary" | "danger" | "ghost";
 }) {
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(transitionArtifactAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(transitionArtifactAction, undefined);
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="artifactId" value={artifactId} />
@@ -102,8 +104,8 @@ function ArtifactCard({
   const [recommendations, setRecommendations] = useState(() =>
     (a.report?.recommendations ?? []).map((recommendation, originalIndex) => ({ ...recommendation, originalIndex })),
   );
-  const [editState, editFormAction, editPending] = useActionState<AiHubState, FormData>(editArtifactAction, undefined);
-  const [distState, distFormAction, distPending] = useActionState<AiHubState, FormData>(distributeArtifactAction, undefined);
+  const [editState, editFormAction, editPending] = useAksi<AiHubState>(editArtifactAction, undefined);
+  const [distState, distFormAction, distPending] = useAksi<AiHubState>(distributeArtifactAction, undefined);
 
   if (a.kind === "saran") {
     // Isi draft DULU tidak ditampilkan sama sekali — kartunya hanya judul, dan

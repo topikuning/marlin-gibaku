@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Banner, Button } from "@/components/ui";
 import {
@@ -20,7 +22,7 @@ import {
  * kotaknya sendiri (`name="attachmentId"`) tanpa perlu tahu apa pun soal aksi.
  */
 export function PembersihMassal({ children, jumlah }: { children: ReactNode; jumlah: number }) {
-  const [state, aksi] = useActionState<LampiranState, FormData>(
+  const [state, aksi] = useAksi<LampiranState>(
     tandaiMassalBukanBahanKerjaAction,
     undefined,
   );

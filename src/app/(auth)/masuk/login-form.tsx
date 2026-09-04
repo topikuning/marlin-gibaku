@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, FieldError, Input, Label, PasswordInput } from "@/components/ui";
 import { login, type LoginState } from "@/lib/auth/actions";
 
 type FieldErrors = { identifier?: string; password?: string };
 
 export function LoginForm() {
-  const [state, action, pending] = useActionState<LoginState, FormData>(login, undefined);
+  const [state, action, pending] = useAksi<LoginState>(login, undefined);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   // Tangkap validasi native (required kosong) → tampilkan highlight merah +
