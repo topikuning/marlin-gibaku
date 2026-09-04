@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState, useTransition } from "react";
 import { Badge, Banner, Button, Card, CardBody, Combobox, FileInput, Input, Label, Textarea } from "@/components/ui";
 import { Plus, Sparkles } from "lucide-react";
 import { bacaBerkasSuratAction, catatSuratAction, type BacaSuratState, type SuratState } from "@/lib/surat/actions";
@@ -73,8 +75,8 @@ export function CatatSurat({
   paket: { id: string; name: string }[];
   lokasi: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<SuratState, FormData>(catatSuratAction, undefined);
-  const [bacaState, bacaAction, bacaPending] = useActionState<BacaSuratState, FormData>(
+  const [state, action, pending] = useAksi<SuratState>(catatSuratAction, undefined);
+  const [bacaState, bacaAction, bacaPending] = useAksi<BacaSuratState>(
     bacaBerkasSuratAction,
     undefined,
   );

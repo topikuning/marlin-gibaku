@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import { buatPaparanAction, type PaparanState } from "@/lib/paparan/actions";
 
@@ -51,7 +53,7 @@ export function PaparanGenerateClient({
   // Ganti paket → lingkup lama bisa jadi bukan milik paket baru.
   const lokasiSah = dipilih?.lokasiPilihan.some((l) => l.id === lokasiId) ?? false;
   const lokasiTerpakai = lokasiSah ? lokasiId : dipilih?.bolehPaket ? "" : (dipilih?.lokasiPilihan[0]?.id ?? "");
-  const [state, formAction, pending] = useActionState<PaparanState, FormData>(buatPaparanAction, undefined);
+  const [state, formAction, pending] = useAksi<PaparanState>(buatPaparanAction, undefined);
 
   const opsiMinggu = useMemo(() => {
     if (!dipilih) return [];

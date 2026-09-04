@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  useActionState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Images, MapPin, MapPinOff } from "lucide-react";
 import { Banner, Button, HelpText } from "@/components/ui";
@@ -280,7 +274,7 @@ export function AmbilDariKantong({
 }) {
   const router = useRouter();
   const [terpilih, setTerpilih] = useState<ReadonlySet<string>>(new Set());
-  const [state, action, pending] = useActionState(pakaiFotoAction, KOSONG);
+  const [state, action, pending] = useAksi(pakaiFotoAction, KOSONG);
 
   /*
    * `onTutup` disimpan di ref, TIDAK dijadikan dependensi effect.

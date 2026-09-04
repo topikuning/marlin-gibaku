@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { FileSpreadsheet, Plus } from "lucide-react";
 import { Banner, Button, Combobox, Input, KpiCard, Label, StatusPill } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
@@ -319,7 +321,7 @@ function FormTambahLokasi({
   vendors: string[];
   onSelesai: () => void;
 }) {
-  const [state, formAction, pending] = useActionState<TambahLokasiState, FormData>(
+  const [state, formAction, pending] = useAksi<TambahLokasiState>(
     tambahLokasiMasterAction,
     undefined,
   );

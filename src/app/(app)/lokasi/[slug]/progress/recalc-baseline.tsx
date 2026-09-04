@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import { recalcBaselineAction, type RabActionState } from "../rab/actions";
@@ -17,7 +19,7 @@ import { recalcBaselineAction, type RabActionState } from "../rab/actions";
  * ("Rencana vs realisasi").
  */
 export function RecalcBaselineButton({ locationId }: { locationId: string }) {
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     recalcBaselineAction,
     undefined,
   );

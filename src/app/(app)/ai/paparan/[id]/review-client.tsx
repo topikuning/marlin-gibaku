@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Label, Textarea } from "@/components/ui";
 import {
   pilihFotoPaparanAction,
@@ -59,11 +61,11 @@ export function PaparanReviewClient({
     actionPlan: teksAwal(e?.actionPlan, n.actionPlan ?? []),
   };
 
-  const [narasiState, narasiAction, narasiPending] = useActionState<PaparanState, FormData>(
+  const [narasiState, narasiAction, narasiPending] = useAksi<PaparanState>(
     suntingNarasiPaparanAction,
     undefined,
   );
-  const [fotoState, fotoAction, fotoPending] = useActionState<PaparanState, FormData>(
+  const [fotoState, fotoAction, fotoPending] = useAksi<PaparanState>(
     pilihFotoPaparanAction,
     undefined,
   );
@@ -194,7 +196,7 @@ export function TombolTransisi({
   label: string;
   varian?: "primary" | "secondary" | "danger";
 }) {
-  const [state, formAction, pending] = useActionState<PaparanState, FormData>(transisiPaparanAction, undefined);
+  const [state, formAction, pending] = useAksi<PaparanState>(transisiPaparanAction, undefined);
   return (
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="artifactId" value={artifactId} />

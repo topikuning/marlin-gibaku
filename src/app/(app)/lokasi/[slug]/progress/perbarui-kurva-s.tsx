@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useRef, useState } from "react";
 import { Check, Download, FileUp, PencilLine, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { Badge, Banner, Button, ButtonLink } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -55,11 +57,11 @@ export function PerbaruiKurvaS({
   slug: string;
   baselineAktif: number | null;
 }) {
-  const [pratinjau, periksa, memeriksa] = useActionState<PratinjauState, FormData>(
+  const [pratinjau, periksa, memeriksa] = useAksi<PratinjauState>(
     pratinjauJadwalAction,
     undefined,
   );
-  const [terap, terapkan, menerapkan] = useActionState<RabActionState, FormData>(
+  const [terap, terapkan, menerapkan] = useAksi<RabActionState>(
     importJadwalAction,
     undefined,
   );

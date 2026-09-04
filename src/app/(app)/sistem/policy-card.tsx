@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
 import { savePolicyAction, type PolicyState } from "@/lib/system/actions";
 import { POLICY_META, type Policy } from "@/lib/policy-meta";
@@ -16,7 +18,7 @@ import { POLICY_META, type Policy } from "@/lib/policy-meta";
  * dinyalakan. DECISIONS 218.
  */
 export function PolicyCard({ nilai }: { nilai: Policy }) {
-  const [state, action, pending] = useActionState<PolicyState, FormData>(savePolicyAction, undefined);
+  const [state, action, pending] = useAksi<PolicyState>(savePolicyAction, undefined);
   const kunci = Object.keys(POLICY_META) as (keyof Policy)[];
 
   return (

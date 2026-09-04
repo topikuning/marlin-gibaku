@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
 import { createFindingAction, type FindingActionState } from "@/lib/findings/actions";
 
@@ -19,7 +21,7 @@ export function FormTemuanBaru({
   presetLocationId?: string;
 }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(createFindingAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(createFindingAction, undefined);
   const [locationId, setLocationId] = useState(presetLocationId ?? (lokasi.length === 1 ? lokasi[0].value : ""));
 
   useEffect(() => {

@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, useDismissable } from "@/components/ui";
 import { runAnalysisAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { READINESS_GRADE_LABEL } from "@/lib/ai-hub/readiness";
@@ -50,7 +52,7 @@ export function PulseClient({
   const [drawer, setDrawer] = useState<PulseRow | null>(null);
   // Escape menutup drawer + fokus kembali ke baris pemicu (audit UI 2026-07-27).
   const dismiss = useDismissable(drawer != null, () => setDrawer(null));
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(runAnalysisAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(runAnalysisAction, undefined);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();

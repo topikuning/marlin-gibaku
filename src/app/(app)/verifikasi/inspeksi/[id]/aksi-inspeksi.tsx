@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Combobox, ConfirmSubmit, Input, Label, Textarea } from "@/components/ui";
 import { finalizeInspectionAction, updateInspectionAction, type InspectionActionState } from "@/lib/inspections/actions";
 import { linkEvidenceAction, type FindingActionState } from "@/lib/findings/actions";
@@ -24,8 +26,8 @@ export function AksiInspeksi({
   recommendation: string | null;
   dateKey: string;
 }) {
-  const [stateUbah, actionUbah, pendingUbah] = useActionState<InspectionActionState, FormData>(updateInspectionAction, undefined);
-  const [stateFinal, actionFinal] = useActionState<InspectionActionState, FormData>(finalizeInspectionAction, undefined);
+  const [stateUbah, actionUbah, pendingUbah] = useAksi<InspectionActionState>(updateInspectionAction, undefined);
+  const [stateFinal, actionFinal] = useAksi<InspectionActionState>(finalizeInspectionAction, undefined);
 
   return (
     <div className="space-y-4">
@@ -73,7 +75,7 @@ export function FormBuktiInspeksi({
   inspectionId: string;
   foto: { value: string; label: string }[];
 }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(linkEvidenceAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(linkEvidenceAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-border p-3">
       <input type="hidden" name="inspectionId" value={inspectionId} />

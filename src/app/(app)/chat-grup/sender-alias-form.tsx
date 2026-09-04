@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { saveSenderAliasAction, type ChatSummaryState } from "@/lib/waha/summary-actions";
 
@@ -12,7 +14,7 @@ import { saveSenderAliasAction, type ChatSummaryState } from "@/lib/waha/summary
  */
 export function SenderAliasForm({ senderKey, hint }: { senderKey: string; hint: string }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<ChatSummaryState, FormData>(saveSenderAliasAction, undefined);
+  const [state, action, pending] = useAksi<ChatSummaryState>(saveSenderAliasAction, undefined);
 
   if (state?.success) {
     return (

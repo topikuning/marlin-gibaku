@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button } from "@/components/ui";
 import { updateAiGuardAction, type AiHubState } from "@/lib/ai-hub/actions";
 
@@ -27,7 +29,7 @@ export function AiGuardPanel({
   pricing: { inUsdPerMTok: number; outUsdPerMTok: number } | null;
   secretStatus: { encrypted: boolean; detail: string };
 }) {
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(updateAiGuardAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(updateAiGuardAction, undefined);
   return (
     <form action={formAction} className="space-y-3">
       <Banner

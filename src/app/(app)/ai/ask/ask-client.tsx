@@ -1,8 +1,10 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
 import { PemilihLokasi } from "@/components/knmp/pemilih-lokasi";
 import { askMarlinAction, type AiHubState } from "@/lib/ai-hub/actions";
@@ -59,7 +61,7 @@ export function AskClient({
   aiReady: boolean;
 }) {
   const router = useRouter();
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(askMarlinAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(askMarlinAction, undefined);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [question, setQuestion] = useState("");
   const [detik, setDetik] = useState(0);

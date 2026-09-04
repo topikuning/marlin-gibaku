@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { useFormStatus } from "react-dom";
 import { AlertTriangle, BellOff, BellRing, CheckCircle2, RefreshCw, Send } from "lucide-react";
 import { Banner, Button, ConfirmSubmit, StatusPill } from "@/components/ui";
@@ -59,15 +61,15 @@ function nadaRiwayat(
  * dipisah supaya "sakelar tersimpan" tidak terbaca seperti "pesan terkirim".
  */
 export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat }) {
-  const [sakelar, aksiSakelar] = useActionState<PengingatState, FormData>(
+  const [sakelar, aksiSakelar] = useAksi<PengingatState>(
     setPengingatAktifAction,
     undefined,
   );
-  const [massal, aksiMassal] = useActionState<PengingatState, FormData>(
+  const [massal, aksiMassal] = useAksi<PengingatState>(
     kirimPengingatSekarangAction,
     undefined,
   );
-  const [satuan, aksiSatuan] = useActionState<PengingatState, FormData>(
+  const [satuan, aksiSatuan] = useAksi<PengingatState>(
     kirimPengingatSatuOrangAction,
     undefined,
   );

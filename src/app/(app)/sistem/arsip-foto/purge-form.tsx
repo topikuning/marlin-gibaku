@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { purgeOriginalsAction, type RestampState } from "@/lib/photo-restamp/actions";
 
@@ -18,7 +20,7 @@ export function PurgeForm({
   packages: { id: string; name: string }[];
   locations: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<RestampState, FormData>(purgeOriginalsAction, undefined);
+  const [state, action, pending] = useAksi<RestampState>(purgeOriginalsAction, undefined);
   return (
     <form action={action} className="space-y-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}

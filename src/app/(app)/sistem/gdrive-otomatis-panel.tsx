@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { CloudUpload, CloudOff, AlertTriangle } from "lucide-react";
 import { Banner, Button, ConfirmSubmit } from "@/components/ui";
@@ -30,7 +32,7 @@ export function GDriveOtomatisPanel({
   terhubung: boolean;
   antrean: RingkasAntrean;
 }) {
-  const [state, aksi] = useActionState<GDriveActionState, FormData>(
+  const [state, aksi] = useAksi<GDriveActionState>(
     setGDriveOtomatisAktifAction,
     undefined,
   );

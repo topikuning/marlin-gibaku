@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Badge, Banner, Button, ConfirmSubmit, Input, Label } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
@@ -48,11 +50,11 @@ const ACTIONS: Record<
 };
 
 function QueueRow({ item, canApprove }: { item: QueueItem; canApprove: boolean }) {
-  const [approveState, approveAction, approving] = useActionState<FinanceActionState, FormData>(
+  const [approveState, approveAction, approving] = useAksi<FinanceActionState>(
     ACTIONS[item.kind].approve,
     undefined,
   );
-  const [rejectState, rejectAction, rejecting] = useActionState<FinanceActionState, FormData>(
+  const [rejectState, rejectAction, rejecting] = useAksi<FinanceActionState>(
     ACTIONS[item.kind].reject,
     undefined,
   );

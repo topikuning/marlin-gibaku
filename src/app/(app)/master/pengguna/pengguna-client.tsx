@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { Plus, Search, Settings2 } from "lucide-react";
 import { Badge, Banner, Button, Combobox, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
@@ -478,7 +480,7 @@ function PanelKelola({
 }
 
 export function UserForm({ locations, roles }: { locations: LocationOption[]; roles: UserRole[] }) {
-  const [state, action, pending] = useActionState<UserActionState, FormData>(createUser, undefined);
+  const [state, action, pending] = useAksi<UserActionState>(createUser, undefined);
   if (roles.length === 0) {
     return <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>;
   }
@@ -531,7 +533,7 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
 }
 
 function AssignmentEditor({ user, locations }: { user: UserRow; locations: LocationOption[] }) {
-  const [state, action, pending] = useActionState<UserActionState, FormData>(setAssignments, undefined);
+  const [state, action, pending] = useAksi<UserActionState>(setAssignments, undefined);
   return (
     <form action={action} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -547,7 +549,7 @@ function AssignmentEditor({ user, locations }: { user: UserRow; locations: Locat
 }
 
 function EditProfile({ user }: { user: UserRow }) {
-  const [state, action, pending] = useActionState<UserActionState, FormData>(updateUserProfile, undefined);
+  const [state, action, pending] = useAksi<UserActionState>(updateUserProfile, undefined);
   return (
     <form action={action} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -580,7 +582,7 @@ function EditProfile({ user }: { user: UserRow }) {
 }
 
 function ResetPassword({ userId }: { userId: string }) {
-  const [state, action, pending] = useActionState<UserActionState, FormData>(resetUserPassword, undefined);
+  const [state, action, pending] = useAksi<UserActionState>(resetUserPassword, undefined);
   return (
     <form action={action} className="flex flex-wrap items-end gap-2">
       {state?.error ? <div className="w-full"><Banner tone="error" title={state.error} /></div> : null}
@@ -602,7 +604,7 @@ function ResetPassword({ userId }: { userId: string }) {
  * memeriksa ulang; daftar ini hanya supaya yang tidak mungkin tidak ditawarkan.
  */
 function RoleEditor({ user, allowedRoles }: { user: UserRow; allowedRoles: UserRole[] }) {
-  const [state, action, pending] = useActionState<UserActionState, FormData>(setUserRole, undefined);
+  const [state, action, pending] = useAksi<UserActionState>(setUserRole, undefined);
   return (
     <form action={action} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}

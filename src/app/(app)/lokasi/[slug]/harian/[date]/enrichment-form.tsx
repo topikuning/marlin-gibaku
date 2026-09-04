@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Banner, Button, Input, Label, Textarea } from "@/components/ui";
 import {
@@ -108,7 +110,7 @@ const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
  * mundur (mis. lupa 3 hari) tetap mendapat kondisi tanggal itu.
  */
 function WeatherAuto({ report }: { report: WorkspaceReport }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+  const [state, formAction, pending] = useAksi<DailyActionState>(
     fetchWeatherAction,
     undefined,
   );
@@ -224,7 +226,7 @@ export function EnrichmentForm({
   /** false = R2 mati / laporan tidak lagi bisa ditambahi foto. */
   fotoAktif: boolean;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+  const [state, formAction, pending] = useAksi<DailyActionState>(
     saveEnrichmentAction,
     undefined,
   );

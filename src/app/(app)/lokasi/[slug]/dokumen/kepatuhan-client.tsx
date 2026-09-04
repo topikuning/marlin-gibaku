@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, FileInput, Input, Label, Combobox, StatusPill, Textarea } from "@/components/ui";
 import {
   syncComplianceAction,
@@ -53,7 +55,7 @@ function MilestoneEditForm({
   canUpload: boolean;
   onClose: () => void;
 }) {
-  const [state, action, pending] = useActionState<MilestoneActionState, FormData>(updateMilestoneAction, undefined);
+  const [state, action, pending] = useAksi<MilestoneActionState>(updateMilestoneAction, undefined);
   return (
     <form action={action} className="mt-2 grid gap-3 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-2">
       {state?.error ? <div className="sm:col-span-2"><Banner tone="error" title={state.error} /></div> : null}
@@ -124,7 +126,7 @@ function VerifyButton({
   packageId?: string;
   milestoneId: string;
 }) {
-  const [state, action, pending] = useActionState<MilestoneActionState, FormData>(verifyMilestoneAction, undefined);
+  const [state, action, pending] = useAksi<MilestoneActionState>(verifyMilestoneAction, undefined);
   return (
     <form action={action} className="inline">
       <input type="hidden" name="milestoneId" value={milestoneId} />
@@ -202,7 +204,7 @@ export function MilestonePanel({
  * ke checklist kepatuhan berdasarkan jenisnya, tanpa perlu hapus & unggah ulang.
  */
 export function SyncComplianceButton({ packageId }: { packageId: string }) {
-  const [state, action, pending] = useActionState<ComplianceSyncState, FormData>(syncComplianceAction, undefined);
+  const [state, action, pending] = useAksi<ComplianceSyncState>(syncComplianceAction, undefined);
   return (
     <form action={action} className="flex flex-col items-end gap-1">
       <input type="hidden" name="packageId" value={packageId} />
@@ -226,7 +228,7 @@ export function QuickUploadForm({
   slug: string;
   milestones: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState<UploadActionState, FormData>(uploadDocumentAction, undefined);
+  const [state, action, pending] = useAksi<UploadActionState>(uploadDocumentAction, undefined);
   return (
     <form action={action} className="grid gap-2 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-2 lg:grid-cols-3">
       {state?.error ? <div className="sm:col-span-2 lg:col-span-3"><Banner tone="error" title={state.error} /></div> : null}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Button } from "@/components/ui";
 import { saveSuggestionAction, type AiHubState } from "@/lib/ai-hub/actions";
 
@@ -14,7 +16,7 @@ export function SuggestionButton(props: {
   locationName: string;
   suggestKind: "action" | "recovery";
 }) {
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(saveSuggestionAction, undefined);
+  const [state, formAction, pending] = useAksi<AiHubState>(saveSuggestionAction, undefined);
   const saved = !!state?.ok;
   return (
     <form action={formAction} className="shrink-0 text-right">

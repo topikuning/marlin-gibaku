@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, MessageCircle, Printer } from "lucide-react";
 import { sendRencanaMingguanToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { Banner, Button, ButtonLink, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
@@ -40,7 +42,7 @@ export type LeafOption = {
 const MAX_OPTIONS = 100;
 
 function RemoveButton({ itemId }: { itemId: string }) {
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     removeWeeklyPlanItem,
     undefined,
   );
@@ -64,7 +66,7 @@ function AddItemForm({
   weekNumber: number;
   options: LeafOption[];
 }) {
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     addWeeklyPlanItem,
     undefined,
   );
@@ -139,11 +141,11 @@ function AddItemForm({
 }
 
 function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
-  const [sugState, suggest, suggesting] = useActionState<SuggestState, FormData>(
+  const [sugState, suggest, suggesting] = useAksi<SuggestState>(
     getWeeklySuggestions,
     undefined,
   );
-  const [applyState, apply, applying] = useActionState<RabActionState, FormData>(
+  const [applyState, apply, applying] = useAksi<RabActionState>(
     applyWeeklySuggestions,
     undefined,
   );
@@ -306,7 +308,7 @@ function Angka({
  * hasilnya (termasuk kegagalan WAHA) muncul tepat di sebelah tombolnya.
  */
 function KirimWaButton({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(
+  const [state, action, pending] = useAksi<WaActionState>(
     sendRencanaMingguanToWaAction,
     undefined,
   );

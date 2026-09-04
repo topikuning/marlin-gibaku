@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState, useTransition } from "react";
 import { HardDriveUpload, Link2, Unplug } from "lucide-react";
 import { Badge, Banner, Button, HelpText, Input, Label } from "@/components/ui";
 import {
@@ -23,7 +25,7 @@ export function GDrivePanel({
   /** Redirect URI persis yang dikirim MARLIN; null = domain publik tak terdeteksi. */
   redirectUri: string | null;
 }) {
-  const [state, action, pending] = useActionState<GDriveActionState, FormData>(saveGDriveClientAction, undefined);
+  const [state, action, pending] = useAksi<GDriveActionState>(saveGDriveClientAction, undefined);
   const [opMsg, setOpMsg] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [busy, startOp] = useTransition();
 

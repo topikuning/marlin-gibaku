@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Badge, Banner, Button, ConfirmSubmit, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
@@ -74,8 +76,8 @@ function ApproveRejectButtons({
   approveAction: ServerAction;
   rejectAction: ServerAction;
 }) {
-  const [approveState, approve, approving] = useActionState<FinanceActionState, FormData>(approveAction, undefined);
-  const [rejectState, reject, rejecting] = useActionState<FinanceActionState, FormData>(rejectAction, undefined);
+  const [approveState, approve, approving] = useAksi<FinanceActionState>(approveAction, undefined);
+  const [rejectState, reject, rejecting] = useAksi<FinanceActionState>(rejectAction, undefined);
   const [showReject, setShowReject] = useState(false);
   return (
     <div>
@@ -128,7 +130,7 @@ function SingleActionButton({
   label: string;
   variant?: "primary" | "secondary" | "danger" | "ghost";
 }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(action, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(action, undefined);
   return (
     <div>
       <StateBanners state={state} />
@@ -205,7 +207,7 @@ export type BudgetRowUI = {
 };
 
 function BudgetEditForm({ locationId, category, onClose }: { locationId: string; category: CostCategory; onClose: () => void }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(setBudgetLine, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(setBudgetLine, undefined);
   return (
     <form action={act} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
       <StateBanners state={state} />
@@ -311,7 +313,7 @@ export function CommitmentSection({
   canInput: boolean;
   canApprove: boolean;
 }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(createCommitment, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(createCommitment, undefined);
   return (
     <div>
       {canInput ? (
@@ -472,7 +474,7 @@ export function ExpenseSection({
   canApprove: boolean;
   today: string;
 }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(createExpense, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(createExpense, undefined);
   return (
     <div>
       {canInput ? (
@@ -590,7 +592,7 @@ export type InvoiceRowUI = {
 };
 
 function PaymentForm({ invoice, today }: { invoice: InvoiceRowUI; today: string }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(addPayment, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(addPayment, undefined);
   const remaining = BigInt(invoice.amount) - BigInt(invoice.paidTotal);
   return (
     <form action={act} className="mt-2 flex flex-wrap items-end gap-2">
@@ -629,7 +631,7 @@ export function InvoiceSection({
   canApprove: boolean;
   today: string;
 }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(createInvoice, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(createInvoice, undefined);
   const [payingId, setPayingId] = useState<string | null>(null);
   return (
     <div>
@@ -759,7 +761,7 @@ export type BillingRowUI = {
 };
 
 function DisbursementForm({ billing, today }: { billing: BillingRowUI; today: string }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(addDisbursement, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(addDisbursement, undefined);
   const remaining = BigInt(billing.amount) - BigInt(billing.disbursedTotal);
   return (
     <form action={act} className="mt-2 flex flex-wrap items-end gap-2">
@@ -792,7 +794,7 @@ export function BillingSection({
   canApprove: boolean;
   today: string;
 }) {
-  const [state, act, pending] = useActionState<FinanceActionState, FormData>(createOwnerBilling, undefined);
+  const [state, act, pending] = useAksi<FinanceActionState>(createOwnerBilling, undefined);
   const [disbursingId, setDisbursingId] = useState<string | null>(null);
   const nextTermin = rows.reduce((m, r) => Math.max(m, r.terminNo), 0) + 1;
   return (

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { useFormStatus } from "react-dom";
 import { Users, UserX } from "lucide-react";
 import { Banner, Button, ConfirmSubmit } from "@/components/ui";
@@ -15,7 +17,7 @@ import { setPengingatGrupAktifAction, type PengingatState } from "@/lib/harian/a
  * bersama tidak boleh diam-diam ikut membungkam yang satunya.
  */
 export function PengingatGrupPanel({ aktif }: { aktif: boolean }) {
-  const [state, aksi] = useActionState<PengingatState, FormData>(
+  const [state, aksi] = useAksi<PengingatState>(
     setPengingatGrupAktifAction,
     undefined,
   );

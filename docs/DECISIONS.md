@@ -27051,3 +27051,48 @@ pada peringatannya.
   sungguhan lewat tanpa suara.
 - *Mengunci ke exit code saja.* `pnpm audit` memakai exit non-nol untuk temuan
   MAUPUN kegagalan endpoint — kodenya sendiri tidak membedakan apa pun.
+
+---
+
+## 519 · 2026-09-04 · Penjaga kegagalan transport tidak lagi opsional: seluruh layar lewat `useAksi`
+
+**Konteks**: user, di laporan harian, untuk kesekian kalinya: halaman berhenti
+dengan *"An unexpected response was received from the server"* dan isian yang
+belum sempat disimpan hilang. *"bisakah kamu menghentikan kegoblokanmu?"*
+
+Penjaganya sudah ada sejak DECISIONS 290/295 (`tahanGagalKirim`). Masalahnya
+bukan penjaganya, melainkan cara memasangnya: satu-satu, di tempat yang
+kebetulan diingat. Angkanya menjelaskan sendiri — 89 berkas memanggil
+`useActionState`, hanya 7 yang membungkusnya. Di HALAMAN YANG SAMA,
+`report-editor` terjaga sementara `enrichment-form` (cuaca, tenaga kerja,
+material, alat – termasuk unggahan foto, muatan terbesar di halaman itu) tidak.
+Kegagalan yang sama persis karena itu berakhir dua cara berbeda tergantung
+tombol mana yang ditekan, dan yang TIDAK terjaga justru yang paling berat
+muatannya.
+
+**Keputusan**: `useActionState` tidak lagi dipanggil langsung di mana pun.
+Seluruh layar memakai `useAksi` (pembungkus di `src/lib/aksi-klien.ts`) yang
+selalu memasang penjaga transport. Keadaan yang bentuknya bukan `{error}` —
+mis. union ber-`ok` pada impor rekap — memakai kelebihan-beban yang MEWAJIBKAN
+penyebutan cara menyatakan gagal; pembungkusnya tidak menebak bentuk yang tidak
+ia kenal. Dijaga `tests/unit/aksi-terjaga.test.ts`.
+
+**Prinsipnya**: penjaga yang harus DIINGAT bukan penjaga, ia cuma menunda
+kejadian berikutnya. Kalau sebuah aturan berlaku untuk semua pintu, ia harus
+dipasang di pintunya, bukan di ingatan orang yang lewat.
+
+**Alternatif direject**:
+- *Membungkus berkas yang bermasalah saja.* Persis cara cacat ini lahir tiga
+  kali: yang diperbaiki cuma layar yang kebetulan dilaporkan.
+- *Aturan lint kustom.* Bisa, tapi menambah plugin ESLint sendiri untuk satu
+  larangan; uji sumber sepuluh baris melakukan hal yang sama dan lebih mudah
+  dibaca alasannya.
+- *Menangkap di batas galat global saja.* Batas galat mengganti SELURUH halaman
+  — persis kerugian yang dikeluhkan: isian hilang.
+
+**Yang BELUM terjawab, dan jujur disebut**: penjaga ini mengubah halaman mati
+jadi pesan yang bisa diulang di form yang sama — ia TIDAK menyembuhkan sebab
+5xx-nya. Log produksi tidak bisa dijangkau dari lingkungan kerja ini, jadi
+penyebab persisnya (413 muatan terlalu besar, timeout proksi, atau proses mati)
+belum dipastikan. Pesan barunya membedakan "server tidak menjawab sama sekali"
+dari "server menolak permintaan ini" — itu bahan pertama untuk memastikannya.

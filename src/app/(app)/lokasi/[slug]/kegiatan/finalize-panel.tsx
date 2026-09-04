@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import {
@@ -28,11 +30,11 @@ import {
  */
 export function FinalizePanel({ activityId }: { activityId: string }) {
   const [open, setOpen] = useState(false);
-  const [suggest, suggestAction, suggesting] = useActionState<SuggestRewriteState, FormData>(
+  const [suggest, suggestAction, suggesting] = useAksi<SuggestRewriteState>(
     suggestActivityRewriteAction,
     undefined,
   );
-  const [finalState, finalizeAction, finalizing] = useActionState<FieldActivityState, FormData>(
+  const [finalState, finalizeAction, finalizing] = useAksi<FieldActivityState>(
     finalizeActivityWithTextAction,
     undefined,
   );
