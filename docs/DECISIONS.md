@@ -26919,7 +26919,7 @@ menagihnya butuh peta ketergantungan, bukan pola nama berkas.
 
 ---
 
-## (baru) · Perapian bahasa jadi alat tulis, bukan syarat finalisasi – dan judul prompt tidak boleh ikut tersalin (2026-09-03)
+## 516 · 2026-09-03 · Perapian bahasa jadi alat tulis, bukan syarat finalisasi – dan judul prompt tidak boleh ikut tersalin
 
 **Konteks**: user melihat usulan perapian untuk catatan kegiatan berbunyi
 *"Catatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei
@@ -26976,7 +26976,7 @@ tautan kecil di bawah garis kini jadi ubin ketiga sejajar Kamera & Galeri,
 sama seperti di editor laporan harian – satu fitur tidak boleh punya dua rupa.
 
 ---
-## (baru) · Pratinjau adendum menampilkan SELURUH beda, bukan delapan teratas (2026-09-03)
+## 517 · 2026-09-03 · Pratinjau adendum menampilkan SELURUH beda, bukan delapan teratas
 
 **Konteks**: user melihat panel pratinjau impor menutup daftarnya dengan
 *"+31 lainnya"* dan menegur: *"ini kan konyol; tujuan pratinjau itu kan lihat
@@ -27020,7 +27020,7 @@ tidak ada apa pun untuk diketuk.
 
 ---
 
-## (baru) · Audit keamanan CI tidak boleh menuduh: endpoint yang diam ≠ kerentanan (2026-09-04)
+## 518 · 2026-09-04 · Audit keamanan CI tidak boleh menuduh: endpoint yang diam ≠ kerentanan
 
 **Konteks**: CI memerahkan PR #269 dengan *"Security audit menemukan kerentanan
 high-severity"*. Tidak ada kerentanan apa pun — endpoint advisories npm yang
