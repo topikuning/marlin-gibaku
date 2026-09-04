@@ -768,6 +768,74 @@ export async function suggestActivityRewriteAction(
   }
 }
 
+const suggestTextsSchema = z.object({
+  locationId: z.uuid(),
+  style: z.enum(["rapi", "teknis"]),
+  type: z.string().trim().max(80).optional(),
+  title: z.string().trim().max(160).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  kendala: z.string().trim().max(2000).optional(),
+  solusi: z.string().trim().max(2000).optional(),
+});
+
+/**
+ * Rapikan teks LANGSUNG DARI FORM — tanpa menunggu kegiatannya difinalkan.
+ *
+ * Keluhan user 2026-09-03: *"perapian bahasa ini terlalu ribet kalau dari klik
+ * final dulu, seharusnya ada tombol rapikan teks itu, tersendiri"*. Benar:
+ * merapikan kalimat adalah pekerjaan MENGETIK, bukan pekerjaan menutup
+ * kegiatan. Jalur finalisasi (DECISIONS 179) tetap ada sebagai jaring terakhir
+ * bagi yang telanjur melewatinya.
+ *
+ * Karena teksnya masih di layar dan belum tentu tersimpan, yang dirapikan
+ * adalah isi form yang dikirim — bukan isi basis data. Tidak ada yang
+ * disimpan di sini: hasilnya usulan yang ditulis balik ke kotak isian hanya
+ * bila pengguna mencentangnya (DECISIONS 178).
+ */
+export async function suggestTextRewriteAction(
+  _prev: SuggestRewriteState,
+  formData: FormData,
+): Promise<SuggestRewriteState> {
+  const parsed = suggestTextsSchema.safeParse({
+    locationId: formData.get("locationId"),
+    style: formData.get("style"),
+    type: formData.get("type") ?? undefined,
+    title: formData.get("title") ?? undefined,
+    notes: formData.get("notes") ?? undefined,
+    kendala: formData.get("kendala") ?? undefined,
+    solusi: formData.get("solusi") ?? undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    await requireLocationAccess(user, d.locationId);
+
+    const kindLabel = d.type ? ((await getActivityKindLabelMap()).get(d.type) ?? d.type) : null;
+    const { suggestActivityRewrite } = await import("@/lib/field-activity/rewrite-service");
+    const res = await suggestActivityRewrite(user, {
+      texts: { notes: d.notes, kendala: d.kendala, solusi: d.solusi },
+      style: d.style,
+      kindLabel,
+      title: d.title ?? null,
+    });
+    if (!res.ok) return { error: res.error, style: d.style };
+
+    await audit(user.id, "field_activity.rapikan_teks", "location", d.locationId, {
+      asal: "form",
+      style: res.style,
+      model: res.model,
+      // Isi teks TIDAK dicatat — cukup bagian mana yang diusulkan.
+      dipakai: res.fields.filter((f) => f.suggestion).map((f) => f.field),
+      ditolak: res.fields.filter((f) => !f.suggestion).map((f) => f.field),
+    });
+    return { style: res.style, fields: res.fields };
+  } catch (err) {
+    return fail(err) as SuggestRewriteState;
+  }
+}
+
 const finalizeWithTextSchema = z.object({
   activityId: z.uuid(),
   notes: z.string().trim().max(2000).optional(),

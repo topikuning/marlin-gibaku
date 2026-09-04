@@ -280,8 +280,14 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
 
       {/* Workspace: form (kiri) + daftar (kanan) */}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+        {/* Kolom form dipaku (sticky) supaya tetap terlihat saat riwayat
+            digulir. Tanpa batas tinggi, form yang lebih tinggi dari layar jadi
+            TIDAK BISA DIGULIR sama sekali: bagian atasnya terpaku dan tombol
+            "Simpan kegiatan" di bawah menggantung di luar layar (keluhan user
+            2026-09-03). Batas tinggi + gulir sendiri mengembalikan seluruh isi
+            form ke jangkauan. */}
         {canManage ? (
-          <aside className="rounded-xl border border-border bg-surface shadow-xs lg:sticky lg:top-4">
+          <aside className="rounded-xl border border-border bg-surface shadow-xs lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
             <div className="border-b border-border p-4">
               <h2 className="text-sm font-semibold text-ink">Catat kegiatan lapangan</h2>
               <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">

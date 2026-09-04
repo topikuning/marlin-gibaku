@@ -31,14 +31,24 @@ async function login(page: Page, username: string) {
   await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 15_000 });
 }
 
-/** Tanggal kerja hari ini di Asia/Jakarta — sama dengan yang dipakai server. */
-function hariIniJakarta() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+/**
+ * Buka laporan harian yang MEMANG ADA, lewat daftarnya — bukan dengan merakit
+ * tanggal sendiri.
+ *
+ * Versi pertama uji ini pergi ke tanggal "hari ini Asia/Jakarta". Itu bom
+ * waktu: seed membuat laporannya pada tanggal mesin (UTC), dan sejak pukul
+ * 17:00 UTC Jakarta sudah berganti hari — jadi uji yang sama hijau sepanjang
+ * siang lalu merah sesudah tengah malam WIB, di layar yang benar-benar kosong
+ * karena laporan tanggal itu belum ada. Terbukti di CI 2026-09-03 19:28 UTC.
+ */
+async function bukaLaporanDraft(page: Page): Promise<boolean> {
+  await page.goto(`/lokasi/${SLUG}/harian?tampilan=daftar&saring=draft`);
+  const baris = page.locator(".ag-row");
+  await baris.first().waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  if ((await baris.count()) === 0) return false;
+  await baris.first().locator("a").first().click();
+  await page.waitForURL(/\/harian\/\d{4}-\d{2}-\d{2}$/, { timeout: 15_000 });
+  return true;
 }
 
 /** Satu JPEG kecil yang sah – cukup untuk menguji reaksi layar. */
@@ -52,7 +62,10 @@ const JPEG_1PX = Buffer.from(
 test.describe("baris pelengkap: memilih foto memberi tanda", () => {
   test("foto yang dipilih di baris material langsung terlihat, bukan senyap", async ({ page }) => {
     await login(page, "sm-01");
-    await page.goto(`/lokasi/${SLUG}/harian/${hariIniJakarta()}`);
+    if (!(await bukaLaporanDraft(page))) {
+      test.skip(true, "seed tidak menyediakan laporan draft di lokasi ini");
+      return;
+    }
 
     await expect(page.locator('input[name="materialName"]').first()).toBeVisible({
       timeout: 15_000,

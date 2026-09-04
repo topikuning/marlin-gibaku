@@ -9,8 +9,10 @@ import {
   AmbilDariKantong,
   PemilihKantong,
   TombolAmbilDariKantong,
+  UbinAmbilDariKantong,
 } from "@/components/knmp/ambil-dari-kantong";
 import { FinalizePanel } from "./finalize-panel";
+import { RapikanTeksPanel } from "./rapikan-teks";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
 /** Opsi jenis kegiatan (master data) yang dialirkan dari server ke form. */
@@ -286,9 +288,25 @@ export function CreateActivityForm({
         </div>
       </div>
 
+      <RapikanTeksPanel locationId={locationId} />
+
       <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
         <Label>Foto dokumentasi (maks {MAX_PHOTOS_PER_ACTIVITY})</Label>
-        <PhotoSourceInput key={photoKey} />
+        {/* Foto Cepat adalah SUMBER FOTO KETIGA, jadi bentuknya harus sama
+            dengan Kamera & Galeri. Sampai 2026-09-03 ia digambar sebagai
+            tautan kecil di bawah garis, padahal di editor laporan harian
+            sumber yang sama sudah berupa ubin sejajar – satu fitur, dua rupa,
+            dan yang di sini yang terlihat seperti tempelan. */}
+        <PhotoSourceInput
+          key={photoKey}
+          slotKetiga={
+            <UbinAmbilDariKantong
+              onClick={() => setBukaKantong((v) => !v)}
+              aktif={bukaKantong}
+              jumlahTerpilih={kantong.size}
+            />
+          }
+        />
         {/* KANTONG FOTO CEPAT — sejajar dengan Kamera & Galeri.
             Pertanyaan user 2026-08-07 di form ini: *"mana foto cepatnya?"*.
             Jalannya dulu cuma ada setelah kegiatan tersimpan, karena penautan
@@ -298,20 +316,15 @@ export function CreateActivityForm({
             DIPILIH sekarang dan ditautkan tepat sesudah kegiatannya tersimpan —
             lihat `kantongPhotoIds` di createActivityAction. Dari sisi pelapor
             hasilnya sama. */}
-        <div className="mt-2 space-y-2 border-t border-border pt-2">
+        <div className="mt-2 space-y-2">
           {[...kantong].map((id) => (
             <input key={id} type="hidden" name="kantongPhotoIds" value={id} />
           ))}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <TombolAmbilDariKantong
-              onClick={() => setBukaKantong((v) => !v)}
-              aktif={bukaKantong}
-              jumlahTerpilih={kantong.size}
-            />
-            {kantong.size > 0 && !bukaKantong ? (
-              <span className="text-[11px] text-ink-muted">ikut tersimpan bersama kegiatan ini</span>
-            ) : null}
-          </div>
+          {kantong.size > 0 && !bukaKantong ? (
+            <p className="text-[11px] text-ink-muted">
+              {kantong.size} foto cepat ikut tersimpan bersama kegiatan ini
+            </p>
+          ) : null}
           {bukaKantong ? (
             <div className="rounded-md border border-border bg-surface-muted p-3">
               <PemilihKantong
@@ -325,7 +338,9 @@ export function CreateActivityForm({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+      {/* Baris simpan menempel di dasar kolom yang bergulir — tombol utama
+          tidak boleh ikut hilang di bawah lipatan saat form memanjang. */}
+      <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-3">
         <Button type="button" variant="ghost" onClick={resetForm}>Reset</Button>
         <Button type="submit" loading={pending}>Simpan kegiatan</Button>
       </div>
@@ -434,6 +449,7 @@ function EditActivityForm({
           <Textarea id={`ed-solusi-${activity.id}`} name="solusi" rows={2} defaultValue={activity.solusi ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
         </div>
       </div>
+      <RapikanTeksPanel locationId={activity.locationId} />
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>Batal</Button>
         <Button type="submit" size="sm" loading={pending}>Simpan perubahan</Button>
