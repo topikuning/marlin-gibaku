@@ -27099,7 +27099,7 @@ dari "server menolak permintaan ini" — itu bahan pertama untuk memastikannya.
 
 ---
 
-## (baru) · Layar galat MENJELASKAN, bukan cuma menyebut (2026-09-04)
+## 520 · 2026-09-04 · Layar galat MENJELASKAN, bukan cuma menyebut
 
 **Konteks**: user, di layar berhenti yang berbunyi *"Error: An unexpected
 response was received from the server."*: *"yang kupermasalahkan kenapa
