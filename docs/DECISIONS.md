@@ -27096,3 +27096,47 @@ jadi pesan yang bisa diulang di form yang sama — ia TIDAK menyembuhkan sebab
 penyebab persisnya (413 muatan terlalu besar, timeout proksi, atau proses mati)
 belum dipastikan. Pesan barunya membedakan "server tidak menjawab sama sekali"
 dari "server menolak permintaan ini" — itu bahan pertama untuk memastikannya.
+
+---
+
+## (baru) · Layar galat MENJELASKAN, bukan cuma menyebut (2026-09-04)
+
+**Konteks**: user, di layar berhenti yang berbunyi *"Error: An unexpected
+response was received from the server."*: *"yang kupermasalahkan kenapa
+errornya gak kamu jelaskan!"*
+
+Betul, dan itu kegagalan panel ini pada tujuannya sendiri. DECISIONS 290
+membuatnya supaya galat tidak lagi gaib — dan berhenti di setengah jalan:
+galatnya DISEBUT (nama, pesan, alamat, peramban) tapi tidak DIJELASKAN.
+Kalimat yang ditaruh paling menonjol pun bukan kalimat kami melainkan kalimat
+Next, dalam bahasa Inggris, yang tidak menyebut apa yang terjadi, apakah
+kerjanya hilang, atau apa yang harus dilakukan. Untuk mandor yang memegang
+ponsel di lokasi, "menyebut" saja setara dengan diam.
+
+**Keputusan**: setiap layar galat menampilkan tiga hal LEBIH DULU, dalam bahasa
+orang: sebabnya, keadaan datanya, lalu langkah yang bisa dikerjakan sekarang.
+Terjemahannya ada di `src/lib/galat-penjelasan.ts` — lapisan murni, diuji dari
+string galat yang benar-benar muncul di lapangan (`jelaskanGalat`). Rincian
+teknisnya TETAP ada dan tetap bisa disalin: dari ponsel lapangan, itu
+satu-satunya bahan laporan yang kami punya.
+
+Golongan yang dikenali: kiriman yang dijawab bukan-hasil-aksi, tab basi sesudah
+deploy, sambungan putus, muatan terlalu besar, berkas aplikasi gagal dimuat,
+penyimpanan penuh, dan sesi/izin.
+
+**Yang TIDAK dikenali tidak dikarang.** Menebak sebab lebih buruk daripada
+mengaku tidak tahu: orang akan mengikuti langkah yang salah, kehilangan waktu,
+lalu berhenti memercayai layar ini — dan kepercayaan itu satu-satunya yang
+membuat laporan galat tetap dikirim. Galat asing dijawab dengan langkah yang
+aman plus permintaan melapor.
+
+**Alternatif direject**:
+- *Menerjemahkan pesan Next apa adanya ke bahasa Indonesia.* Kalimatnya jadi
+  bisa dibaca, tapi tetap tidak menjawab satu pun dari tiga pertanyaan di atas.
+- *Menyembunyikan rincian teknis supaya tidak menakutkan.* Itu memutus satu-
+  satunya kanal diagnosis dari ponsel lapangan (290).
+- *Mengandalkan log server.* Galat klien tidak meninggalkan jejak apa pun di
+  sana — justru alasan panel ini ada.
+
+**Konsekuensi**: penggolongan baru ditambahkan sebagai pola di satu berkas
+beserta ujinya, bukan disebar ke tiap layar.
