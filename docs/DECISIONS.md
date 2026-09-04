@@ -27054,7 +27054,7 @@ pada peringatannya.
 
 ---
 
-## (baru) · Penjaga kegagalan transport tidak lagi opsional: seluruh layar lewat `useAksi` (2026-09-04)
+## 519 · 2026-09-04 · Penjaga kegagalan transport tidak lagi opsional: seluruh layar lewat `useAksi`
 
 **Konteks**: user, di laporan harian, untuk kesekian kalinya: halaman berhenti
 dengan *"An unexpected response was received from the server"* dan isian yang
