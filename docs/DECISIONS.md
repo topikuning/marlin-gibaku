@@ -26916,3 +26916,138 @@ tetap bisa di-merge. Push ke `main` selalu menjalankan semuanya.
 hanya menyentuh `src/lib/**` murni pun kemungkinan besar tidak butuh E2E — tapi
 "kemungkinan besar" bukan dasar yang cukup untuk mencabut jaring pengaman, dan
 menagihnya butuh peta ketergantungan, bukan pola nama berkas.
+
+---
+
+## 516 · 2026-09-03 · Perapian bahasa jadi alat tulis, bukan syarat finalisasi – dan judul prompt tidak boleh ikut tersalin
+
+**Konteks**: user melihat usulan perapian untuk catatan kegiatan berbunyi
+*"Catatan kegiatan – Catatan pelaksanaan kegiatan: Tim PLN melakukan survei
+lokasi…"* dan bertanya: *"kenapa sepanjang ini, sudah jelas itu ada di kolom
+catatan, untuk apa isinya memberi itu lagi. itu dari AI atau darimana, gak
+jelas begitu."* Lalu: *"perapian bahasa ini terlalu ribet kalau dari klik final
+dulu, seharusnya ada tombol rapikan teks itu, tersendiri."*
+
+**Keputusan (dua hal, satu sebab yang sama: alatnya berdiri di tempat yang salah)**
+
+1. **Kalimat pembuka itu tulisan KAMI, bukan karangan AI.** Prompt gabungan
+   menempelkan label + petunjuk di baris yang sama dengan penanda bagian
+   (`[CATATAN] Catatan kegiatan – Catatan pelaksanaan kegiatan: …`), dan model
+   meniru bentuk itu di balasannya. Pengurai mengambil apa pun sesudah penanda
+   apa adanya, jadi judul kami ikut masuk ke isi catatan yang tercetak di
+   laporan resmi. Dua perbaikan, bukan satu: penanda kini berdiri sendiri di
+   barisnya dan petunjuk dipindah ke blok terpisah, DAN `stripEchoedHeader`
+   membuang gema judul secara deterministik di pengurai. Prompt yang rapi
+   mengurangi peluang; hanya penjaga yang menjamin — model boleh melenceng
+   kapan saja.
+
+2. **"Rapikan teks" jadi tombol tersendiri di dalam form** (`RapikanTeksPanel`),
+   bekerja atas isi kotak isian yang sedang diketik — bukan atas isi basis
+   data, karena yang di layar belum tentu tersimpan. Ini mengoreksi bentuk yang
+   ditetapkan DECISIONS 179: menaruh perapian HANYA di jalur finalisasi
+   menyamakan "merapikan kalimat" dengan "menutup kegiatan", padahal yang
+   pertama bagian dari mengetik. Jalur finalisasi tetap ada sebagai jaring
+   terakhir bagi yang telanjur melewatinya.
+
+Yang TIDAK berubah: usulan tidak pernah menimpa tulisan orang tanpa dicentang
+(178), pemeriksa angka tetap menandai bukan memblokir (181), dan tidak ada yang
+tersimpan sampai pengguna menekan Simpan milik form.
+
+**Alternatif direject**:
+- *Cukup perbaiki promptnya.* Membuat kegagalan lebih jarang, bukan mustahil —
+  dan kegagalannya tidak kelihatan sampai sudah tercetak di laporan.
+- *Potong apa pun sebelum titik dua pertama.* Menghapus isi sah seperti
+  "Rapat PCM: dihadiri PPK…". Yang dibuang hanya awalan yang PERSIS sama
+  dengan label/petunjuk kami sendiri.
+- *Merapikan otomatis saat mengetik.* Ditolak sejak 179 dan tetap ditolak:
+  tulisan orang lapangan tidak boleh berubah tanpa ia melihat dan setuju.
+
+**Konsekuensi**: satu panggilan AI bisa terjadi lebih awal (saat mengetik),
+bukan sekali di akhir. Kuotanya tetap lewat `checkAiGuard` yang sama dan tetap
+dicatat `audit()` — sekarang dengan `asal: "form"` supaya dua jalur itu bisa
+dibedakan saat menagih pemakaian.
+
+**Sekalian dibereskan di layar yang sama** (keluhan user pada tangkapan layar
+yang sama): kolom form kegiatan dipaku tanpa batas tinggi, sehingga form yang
+lebih tinggi dari layar tidak bisa digulir dan tombol "Simpan kegiatan"
+menggantung di luar jangkauan – kini kolomnya berbatas tinggi + bergulir
+sendiri dan baris simpan menempel di dasarnya; dan "Foto Cepat" yang tadinya
+tautan kecil di bawah garis kini jadi ubin ketiga sejajar Kamera & Galeri,
+sama seperti di editor laporan harian – satu fitur tidak boleh punya dua rupa.
+
+---
+## 517 · 2026-09-03 · Pratinjau adendum menampilkan SELURUH beda, bukan delapan teratas
+
+**Konteks**: user melihat panel pratinjau impor menutup daftarnya dengan
+*"+31 lainnya"* dan menegur: *"ini kan konyol; tujuan pratinjau itu kan lihat
+apa-apa yang berbeda, kalau tidak bisa apa gunanya. ini soal adendum, harus
+jelas semua agar ketahuan."*
+
+**Keputusan**: setiap daftar beda di pratinjau impor RAB bisa dibuka
+seluruhnya. Panel tetap dibuka RINGKAS (delapan teratas) supaya tidak jadi
+gulungan sepanjang halaman, tapi sisanya selalu satu ketukan jauhnya lewat
+tombol yang menyebut jumlahnya apa adanya – *"Lihat semua 39 item (31 belum
+tampil)"* – lalu tampil dalam area bergulir sendiri.
+
+Sekalian: tiga golongan yang selama ini hanya muncul sebagai ANGKA di baris
+ringkasan (item baru, volume berubah, item hilang) kini punya rinciannya
+sendiri. "12 volume berubah" tanpa satu pun cara melihat yang mana bukan
+pratinjau; untuk adendum, barisnya justru yang diperiksa. Blok merah yang ada
+(sudah dikerjakan tapi hilang, volume turun di bawah realisasi) tetap berdiri
+sendiri karena tugasnya berbeda: menyorot yang berbahaya supaya tak mungkin
+terlewat, bukan menggantikan daftar lengkap.
+
+Datanya sendiri tidak berubah — seluruh baris memang sudah dikirim ke layar
+sejak awal; yang memotong hanya penyajiannya.
+
+**Alternatif direject**:
+- *Menampilkan semuanya sekaligus tanpa tombol.* 39 baris beda harga di atas
+  tiga blok merah lain mendorong tombol Simpan entah ke mana; yang paling
+  berbahaya justru jadi paling jauh dari mata.
+- *Menaikkan potongan dari 8 ke 50.* Memindahkan batasnya, bukan
+  menghapusnya — dan kasus adendum besar justru yang paling perlu diperiksa.
+- *Menyuruh orang mengunduh Excel-nya untuk membandingkan sendiri.* Itu
+  mengembalikan pekerjaan yang justru dibuatkan pratinjaunya.
+
+**Konsekuensi**: `PanelBeda` pindah ke berkas sendiri (`panel-beda.tsx`) supaya
+bisa diuji tanpa menyeret server action + `db` + validasi env ke proses uji.
+Dijaga `tests/unit/pratinjau-beda-adendum.test.tsx`.
+
+**Batas yang diakui**: repo belum punya alat uji DOM, jadi uji itu memeriksa
+markup awal — bahwa jalan ke daftar penuh ADA dan jumlahnya jujur, bukan bahwa
+ketukannya benar-benar membuka. Yang dulu rusak memang ada di lapisan itu:
+tidak ada apa pun untuk diketuk.
+
+---
+
+## 518 · 2026-09-04 · Audit keamanan CI tidak boleh menuduh: endpoint yang diam ≠ kerentanan
+
+**Konteks**: CI memerahkan PR #269 dengan *"Security audit menemukan kerentanan
+high-severity"*. Tidak ada kerentanan apa pun — endpoint advisories npm yang
+tidak menjawab (`[23] The operation was aborted due to timeout`). Penjaga lama
+hanya mengenali SATU bentuk kegagalan endpoint (`ERR_PNPM_AUDIT_BAD_RESPONSE`);
+bentuk lain jatuh ke cabang "ada kerentanan".
+
+**Keputusan**: penggolongan hasil `pnpm audit` pindah ke
+`scripts/audit-hasil.mjs` dengan tiga keluaran — `aman`, `temuan`, `endpoint` —
+dan diuji (`tests/unit/audit-hasil.test.ts`). Alasannya sama dengan seleksi job
+CI: aturan sepenting ini tidak boleh hidup sebagai `grep` di dalam YAML, tempat
+ia tidak bisa diuji dan kesalahannya baru ketahuan saat menuduh.
+
+Yang tidak dikenali digolongkan `temuan`. Bawaan yang aman: lebih baik berhenti
+untuk sesuatu yang ternyata bukan kerentanan daripada meloloskan kerentanan
+yang bentuk pesannya belum kita kenali. Temuan yang datang BERSAMA keluhan
+jaringan juga tetap merah — temuan diperiksa lebih dulu.
+
+**Kenapa ini bukan sekadar gangguan**: pesan yang menuduh lebih buruk daripada
+tidak ada pesan. Sekali orang tahu peringatan itu bisa bohong, temuan yang ASLI
+ikut tidak dipercaya — dan audit keamanan hanya bernilai sebesar kepercayaan
+pada peringatannya.
+
+**Alternatif direject**:
+- *Menambah satu pola `grep` lagi di YAML.* Menambal bentuk yang kebetulan
+  terlihat hari ini, dan tetap tak bisa diuji — persis cara cacat ini lahir.
+- *Menoleransi semua kegagalan audit.* Menghapus jaring pengamannya; kerentanan
+  sungguhan lewat tanpa suara.
+- *Mengunci ke exit code saja.* `pnpm audit` memakai exit non-nol untuk temuan
+  MAUPUN kegagalan endpoint — kodenya sendiri tidak membedakan apa pun.
