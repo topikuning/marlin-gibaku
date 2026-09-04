@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox, Label, StatusPill, Textarea } from "@/components/ui";
 import type { ReportVerifStatus } from "@/generated/prisma/enums";
 import { REPORT_VERIF_STATUS_LABEL, REPORT_VERIF_STATUS_TONE } from "@/lib/lifecycle";
@@ -28,7 +30,7 @@ export function PanelVerifikasiWakil({
   bolehVerifikasi: boolean;
   riwayat: BarisRiwayat[];
 }) {
-  const [state, action, pending] = useActionState<VerifikasiActionState, FormData>(verifyReportExternalAction, undefined);
+  const [state, action, pending] = useAksi<VerifikasiActionState>(verifyReportExternalAction, undefined);
   const [status, setStatus] = useState("diverifikasi");
   const terkini = riwayat[0] ?? null;
 

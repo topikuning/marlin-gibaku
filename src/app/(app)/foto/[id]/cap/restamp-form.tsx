@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { restampPhotoAction, type RestampState } from "@/lib/photo-restamp/actions";
 
@@ -34,7 +36,7 @@ export function RestampForm({
   awal: NilaiForm;
   usulan: NilaiForm;
 }) {
-  const [state, action, pending] = useActionState<RestampState, FormData>(restampPhotoAction, undefined);
+  const [state, action, pending] = useAksi<RestampState>(restampPhotoAction, undefined);
   const [v, setV] = useState<NilaiForm>(usulan);
   const set = <K extends keyof NilaiForm>(k: K, val: NilaiForm[K]) => setV((p) => ({ ...p, [k]: val }));
   const berubah = (k: keyof NilaiForm) => v[k] !== awal[k];

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Plus, Printer, Undo2 } from "lucide-react";
 import { Banner, Button, Label, Textarea } from "@/components/ui";
@@ -33,11 +35,11 @@ export function ReviewActions({
   reportId: string;
   mode?: "verifikasi" | "koreksi";
 }) {
-  const [approveState, approveAction, approvePending] = useActionState<DailyActionState, FormData>(
+  const [approveState, approveAction, approvePending] = useAksi<DailyActionState>(
     approveReportAction,
     undefined,
   );
-  const [returnState, returnAction, returnPending] = useActionState<DailyActionState, FormData>(
+  const [returnState, returnAction, returnPending] = useAksi<DailyActionState>(
     returnReportAction,
     undefined,
   );
@@ -121,7 +123,7 @@ export function FinalizePanel({
   /** Super admin boleh membuka kembali laporan final untuk koreksi. */
   canUnfinalize?: boolean;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+  const [state, formAction, pending] = useAksi<DailyActionState>(
     finalizeReportAction,
     undefined,
   );
@@ -168,7 +170,7 @@ export function FinalizePanel({
  */
 function UnfinalizeForm({ reportId }: { reportId: string }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+  const [state, formAction, pending] = useAksi<DailyActionState>(
     unfinalizeReportAction,
     undefined,
   );
@@ -251,7 +253,7 @@ export function PanelKendala({ reportId }: { reportId: string }) {
 }
 
 export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai?: () => void }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addIssueAction, undefined);
+  const [state, formAction, pending] = useAksi<DailyActionState>(addIssueAction, undefined);
   return (
     <form action={formAction} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}

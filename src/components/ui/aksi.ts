@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useCallback, useTransition } from "react";
+import { useAksi, type AksiState } from "@/lib/aksi-klien";
+
+import { useCallback, useTransition } from "react";
 
 /**
  * SERVER ACTION YANG DIJALANKAN DARI KLIK — DENGAN `pending` YANG BENAR-BENAR
@@ -38,17 +40,32 @@ import { useActionState, useCallback, useTransition } from "react";
  * ### Karena itu: satu pintu
  *
  * Pakai hook ini untuk aksi yang dijalankan dari klik. Yang diserahkan sebagai
- * `<form action={…}>` tetap boleh memakai `useActionState` langsung — di situ
- * React yang memasang Transition-nya, dan `pending`-nya memang menyala.
+ * `<form action={…}>` tetap dijalankan lewat `useAksi` — di situ React yang
+ * memasang Transition-nya, dan `pending`-nya memang menyala.
  *
  * `pending` yang dikembalikan diambil dari `useTransition`, bukan dari
- * `useActionState`: itu yang terbukti menyala pada pengukuran di atas.
+ * `useAksi`: itu yang terbukti menyala pada pengukuran di atas.
  */
+export function useAksiKlik<S extends AksiState>(
+  aksi: (sebelumnya: S, muatan: FormData) => Promise<S>,
+  awal: S,
+): [S, (muatan: FormData) => void, boolean];
+/** Keadaan berbentuk lain: sebutkan sendiri cara menyatakan gagal kirim. */
 export function useAksiKlik<S>(
-  aksi: (sebelumnya: Awaited<S>, muatan: FormData) => S | Promise<S>,
-  awal: Awaited<S>,
-): [Awaited<S>, (muatan: FormData) => void, boolean] {
-  const [hasil, kirim] = useActionState<S, FormData>(aksi, awal);
+  aksi: (sebelumnya: S, muatan: FormData) => Promise<S>,
+  awal: S,
+  saatGagal: (pesan: string) => S,
+): [S, (muatan: FormData) => void, boolean];
+export function useAksiKlik<S>(
+  aksi: (sebelumnya: S, muatan: FormData) => Promise<S>,
+  awal: S,
+  saatGagal?: (pesan: string) => S,
+): [S, (muatan: FormData) => void, boolean] {
+  const [hasil, kirim] = useAksi<S>(
+    aksi,
+    awal,
+    saatGagal ?? ((pesan: string) => ({ error: pesan }) as S),
+  );
   const [sibuk, mulai] = useTransition();
 
   const jalankan = useCallback(

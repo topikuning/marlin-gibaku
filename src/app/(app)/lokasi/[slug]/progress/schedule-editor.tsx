@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { CalendarRange, Plus, RotateCcw, X } from "lucide-react";
 import { Banner, Button, Input } from "@/components/ui";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -44,7 +46,7 @@ export function ScheduleEditor({
   initial: CategoryScheduleView[];
 }) {
   const [rows, setRows] = useState<Row[]>(() => cloneRows(initial));
-  const [state, action, pending] = useActionState<RabActionState, FormData>(
+  const [state, action, pending] = useAksi<RabActionState>(
     saveCategoryScheduleAction,
     undefined,
   );

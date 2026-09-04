@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import { useRouter } from "next/navigation";
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Badge, Button, Card, CardBody, EmptyState } from "@/components/ui";
 import { MessageSquareText, MoreVertical, Paperclip, Star } from "lucide-react";
 import type { ChatMessageView, MarlinDispatch } from "@/lib/waha/chat-summary";
@@ -69,7 +71,7 @@ export function PanelPesan({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuId, setMenuId] = useState<string | null>(null);
   const fav = useFavorites().includes(packageId);
-  const [state, dispatchAction, pending] = useActionState<RelevansiState, FormData>(
+  const [state, dispatchAction, pending] = useAksi<RelevansiState>(
     setMessageRelevanceAction,
     undefined,
   );

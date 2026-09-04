@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ImagePlus, Search, Send, Trash2, X } from "lucide-react";
 import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
@@ -22,7 +22,7 @@ import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { tahanGagalKirim } from "@/lib/aksi-klien";
+import { useAksi } from "@/lib/aksi-klien";
 import {
   AmbilDariKantong,
   PemilihKantong,
@@ -42,10 +42,6 @@ import {
  * (DECISIONS 291). Dibungkus di tingkat modul, bukan di dalam komponen: identitas
  * fungsinya harus tetap sama antar render.
  */
-const simpanItem = tahanGagalKirim(saveItemAction);
-const tambahFoto = tahanGagalKirim(addItemPhotosAction);
-const hapusItem = tahanGagalKirim(removeItemAction);
-const kirimLaporan = tahanGagalKirim(submitReportAction);
 
 const draftPrefix = (slug: string, dateKey: string) => `marlin.harian.${slug}.${dateKey}.`;
 const draftKey = (slug: string, dateKey: string, nodeId: string) =>
@@ -199,7 +195,7 @@ function ItemForm({
   nodes: LeafNodeOption[];
   photoEnabled: boolean;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(simpanItem, undefined);
+  const [state, formAction, pending] = useAksi<DailyActionState>(saveItemAction, undefined);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
@@ -629,7 +625,7 @@ function TambahFoto({
   onToggleKantong: () => void;
   onTutupKantong: () => void;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(tambahFoto, undefined);
+  const [state, formAction, pending] = useAksi<DailyActionState>(addItemPhotosAction, undefined);
   const [buka, setBuka] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
   const panelRef = useRef<HTMLFormElement>(null);
@@ -750,7 +746,7 @@ function ItemRow({
   onToggleKantong: () => void;
   onTutupKantong: () => void;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(hapusItem, undefined);
+  const [state, formAction, pending] = useAksi<DailyActionState>(removeItemAction, undefined);
 
   // Setelah item dihapus: buang draft lokal volume untuk node ini supaya saat
   // pekerjaan yang sama dipilih ulang di form, kolom volume TIDAK terisi angka
@@ -940,7 +936,7 @@ function SubmitPanel({
   nihilCatatan?: string | null;
   jumlahFoto: number;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
+  const [state, formAction, pending] = useAksi<DailyActionState>(submitReportAction, undefined);
   const [buka, setBuka] = useState(false);
   /*
    * Hari nihil karena MENUNGGU sudah menyatakan hambatannya (DECISIONS 407).

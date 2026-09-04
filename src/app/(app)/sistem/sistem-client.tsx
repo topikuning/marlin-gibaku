@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useTransition, useState, type ReactNode } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useTransition, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, StatusPill, Textarea,
   Badge,
@@ -91,8 +93,8 @@ export function WahaConfigPanel({
 }: {
   initial: { baseUrl: string; session: string; hasApiKey: boolean; izinkanPersonal: boolean };
 }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(saveWahaConfigAction, undefined);
-  const [izinState, izinAction, izinPending] = useActionState<WaActionState, FormData>(
+  const [state, action, pending] = useAksi<WaActionState>(saveWahaConfigAction, undefined);
+  const [izinState, izinAction, izinPending] = useAksi<WaActionState>(
     setWahaIzinPersonalAction,
     undefined,
   );
@@ -206,7 +208,7 @@ export function BrandingPanel({
   defaults: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string; ownerAddress: string };
   ownerLogoUrl?: string | null;
 }) {
-  const [state, action, pending] = useActionState<BrandingState, FormData>(saveBranding, undefined);
+  const [state, action, pending] = useAksi<BrandingState>(saveBranding, undefined);
   const v = state?.values ?? initial;
   return (
     // encType multipart — form ini membawa berkas logo pemilik pekerjaan.
@@ -368,7 +370,7 @@ export function R2TestPanel({ configured }: { configured: boolean }) {
  * DECISIONS 148.
  */
 export function RebuildSnapshotPanel({ locations }: { locations: { id: string; name: string }[] }) {
-  const [state, action, pending] = useActionState<RebuildSnapshotState, FormData>(
+  const [state, action, pending] = useAksi<RebuildSnapshotState>(
     rebuildFinalSnapshots,
     undefined,
   );
@@ -402,7 +404,7 @@ export function RebuildSnapshotPanel({ locations }: { locations: { id: string; n
 }
 
 export function ResetPanel() {
-  const [state, action, pending] = useActionState<ResetState, FormData>(resetOperationalData, undefined);
+  const [state, action, pending] = useAksi<ResetState>(resetOperationalData, undefined);
   return (
     <form action={action} className="space-y-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -431,7 +433,7 @@ export function ResetPanel() {
  * warna foto asli tidak diubah.
  */
 export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
-  const [state, action, pending] = useActionState<PhotoStampState, FormData>(savePhotoStampConfigAction, undefined);
+  const [state, action, pending] = useAksi<PhotoStampState>(savePhotoStampConfigAction, undefined);
   const v = state?.values ?? initial;
   const [accent, setAccent] = useState(v.accentColor);
   const safe = normalizeHex(accent) ?? "#FF8A00";
@@ -558,7 +560,7 @@ export function ActivityKindsPanel({
 }
 
 function AddActivityKindForm() {
-  const [state, action, pending] = useActionState<ActivityKindState, FormData>(saveActivityKindAction, undefined);
+  const [state, action, pending] = useAksi<ActivityKindState>(saveActivityKindAction, undefined);
   return (
     <form action={action} className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
       <div className="min-w-56 flex-1">
@@ -573,7 +575,7 @@ function AddActivityKindForm() {
 }
 
 function ActivityKindRow({ kind }: { kind: { key: string; label: string; isActive: boolean; sortOrder: number } }) {
-  const [state, action, pending] = useActionState<ActivityKindState, FormData>(saveActivityKindAction, undefined);
+  const [state, action, pending] = useAksi<ActivityKindState>(saveActivityKindAction, undefined);
   return (
     <li className="p-3">
       <form action={action} className="flex flex-wrap items-center gap-2">
@@ -640,11 +642,11 @@ export function WahaWebhookPanel({
     }[];
   };
 }) {
-  const [state, action, pending] = useActionState<WaActionState, FormData>(
+  const [state, action, pending] = useAksi<WaActionState>(
     generateWahaWebhookSecretAction,
     undefined,
   );
-  const [testState, testAction, testing] = useActionState<WaActionState, FormData>(
+  const [testState, testAction, testing] = useAksi<WaActionState>(
     testWahaCaptureAction,
     undefined,
   );
@@ -879,13 +881,13 @@ type AiProviderCardData = {
 };
 
 function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean }) {
-  const [saveState, saveAction, saving] = useActionState<AiActionState, FormData>(saveAiProviderAction, undefined);
-  const [testState, testAction, testing] = useActionState<AiActionState, FormData>(testAiProviderAction, undefined);
-  const [activateState, activateAction, activating] = useActionState<AiActionState, FormData>(
+  const [saveState, saveAction, saving] = useAksi<AiActionState>(saveAiProviderAction, undefined);
+  const [testState, testAction, testing] = useAksi<AiActionState>(testAiProviderAction, undefined);
+  const [activateState, activateAction, activating] = useAksi<AiActionState>(
     setActiveAiProviderAction,
     undefined,
   );
-  const [modelsState, listAction, listing] = useActionState<AiModelsState, FormData>(listAiModelsAction, undefined);
+  const [modelsState, listAction, listing] = useAksi<AiModelsState>(listAiModelsAction, undefined);
   const [model, setModel] = useState(p.model);
   const banner = saveState ?? testState ?? activateState;
 

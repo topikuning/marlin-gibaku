@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Input, Label, Textarea, type ButtonVariant } from "@/components/ui";
 import {
   advanceStage,
@@ -40,7 +42,7 @@ export function AdvanceStageButton({
   /** Peringatan mencolok saat konfirmasi (tidak menghalangi; server tetap gate). */
   warn?: string;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     async () => advanceStage(packageId, toStage),
     undefined,
   );
@@ -90,7 +92,7 @@ export function RevertStageButton({
   toLabel: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     async (_prev, formData) => revertStage(packageId, String(formData.get("reason") ?? "")),
     undefined,
   );
@@ -142,7 +144,7 @@ export function RevertStageButton({
  * SPMK sebagai tanggal mulai; tanggal selesai dihitung = SPMK + masa pelaksanaan.
  */
 export function StartPelaksanaanButton({ packageId }: { packageId: string }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     async (_prev, formData) => startPelaksanaan(packageId, String(formData.get("spmkDate") ?? "")),
     undefined,
   );
@@ -170,7 +172,7 @@ export function StartPelaksanaanButton({ packageId }: { packageId: string }) {
 /** Batalkan paket — alasan wajib. */
 export function CancelPackageForm({ packageId }: { packageId: string }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     async (_prev, formData) =>
       advanceStage(packageId, "batal", String(formData.get("reason") ?? "")),
     undefined,

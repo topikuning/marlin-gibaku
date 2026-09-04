@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useMemo, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox, StatusPill } from "@/components/ui";
 import { ALL_DOC_TYPES, TYPE_LABEL } from "@/lib/documents-meta";
 import { documentDisplayName } from "@/lib/document-label";
@@ -30,11 +32,11 @@ export function ImporDriveClient({
   locations: { id: string; name: string }[];
   maxPerBatch: number;
 }) {
-  const [previewState, runPreview, previewPending] = useActionState<PreviewState, FormData>(
+  const [previewState, runPreview, previewPending] = useAksi<PreviewState>(
     previewImportAction,
     undefined,
   );
-  const [commitState, runCommit, commitPending] = useActionState<PreviewState, FormData>(
+  const [commitState, runCommit, commitPending] = useAksi<PreviewState>(
     commitImportAction,
     undefined,
   );

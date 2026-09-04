@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Badge, Button, Combobox, Textarea } from "@/components/ui";
 import { Copy, Send, Sparkles } from "lucide-react";
 import {
@@ -70,15 +72,15 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
     contacts,
   } = props;
 
-  const [genState, genAction, genPending] = useActionState<ChatSummaryState, FormData>(
+  const [genState, genAction, genPending] = useAksi<ChatSummaryState>(
     generateChatSummaryAction,
     undefined,
   );
-  const [editState, editAction, editPending] = useActionState<ChatSummaryState, FormData>(
+  const [editState, editAction, editPending] = useAksi<ChatSummaryState>(
     saveSummaryDraftAction,
     undefined,
   );
-  const [sendState, sendAction, sendPending] = useActionState<ChatSummaryState, FormData>(
+  const [sendState, sendAction, sendPending] = useAksi<ChatSummaryState>(
     sendChatSummaryAction,
     undefined,
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { setHariNihilAction, type DailyActionState } from "@/lib/daily-report/actions";
 import { ALASAN_NIHIL, LABEL_ALASAN_NIHIL } from "@/lib/daily-report/nihil";
@@ -33,7 +35,7 @@ export function HariNihilPanel({
   alasan: NoActivityReason | null;
   catatan: string | null;
 }) {
-  const [state, action, pending] = useActionState<DailyActionState, FormData>(
+  const [state, action, pending] = useAksi<DailyActionState>(
     setHariNihilAction,
     undefined,
   );

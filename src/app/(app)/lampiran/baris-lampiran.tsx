@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Badge, Button, Combobox, Input, Label, type BadgeTone } from "@/components/ui";
 import { FileText, Paperclip, Sparkles } from "lucide-react";
 import {
@@ -45,15 +47,15 @@ function ukuran(bytes: number | null): string {
  * orang harus bisa menilai usulnya, bukan disodori vonis tanpa dasar.
  */
 export function BarisLampiran(p: BarisLampiranProps) {
-  const [tetapkanState, tetapkanAction, tetapkanPending] = useActionState<LampiranState, FormData>(
+  const [tetapkanState, tetapkanAction, tetapkanPending] = useAksi<LampiranState>(
     tetapkanLampiranAction,
     undefined,
   );
-  const [aiState, aiAction, aiPending] = useActionState<LampiranState, FormData>(
+  const [aiState, aiAction, aiPending] = useAksi<LampiranState>(
     usulkanIsiLampiranAction,
     undefined,
   );
-  const [suratState, suratAction, suratPending] = useActionState<LampiranState, FormData>(
+  const [suratState, suratAction, suratPending] = useAksi<LampiranState>(
     lampiranJadiSuratAction,
     undefined,
   );

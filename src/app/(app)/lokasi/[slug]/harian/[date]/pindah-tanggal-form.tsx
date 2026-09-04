@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import Link from "next/link";
 import { CalendarRange } from "lucide-react";
 import { Banner, Button, Label, Textarea } from "@/components/ui";
@@ -67,7 +69,7 @@ export function PindahTanggalForm({
    */
   const [pilihan, setPilihan] = useState(tanggalSekarang);
   const [alasan, setAlasan] = useState("");
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+  const [state, formAction, pending] = useAksi<DailyActionState>(
     pindahTanggalAction,
     undefined,
   );

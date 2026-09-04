@@ -34,8 +34,19 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
    * puluhan laporan harian – justru yang paling lama, dan paling mahal kalau
    * ditekan dua kali.
    */
-  const [preview, previewAction, previewing] = useAksiKlik<RecapImportState>(previewRecapAction, undefined);
-  const [commit, commitAction, committing] = useAksiKlik<RecapImportState>(commitRecapAction, undefined);
+  // Keadaan impor ini bukan `{error}` biasa melainkan union ber-`ok`, jadi cara
+  // menyatakan gagal kirim disebutkan di sini — pembungkusnya tidak menebak.
+  const gagalKirim = (pesan: string): RecapImportState => ({ ok: false, error: pesan });
+  const [preview, previewAction, previewing] = useAksiKlik<RecapImportState>(
+    previewRecapAction,
+    undefined,
+    gagalKirim,
+  );
+  const [commit, commitAction, committing] = useAksiKlik<RecapImportState>(
+    commitRecapAction,
+    undefined,
+    gagalKirim,
+  );
 
   const buildForm = () => {
     const fd = new FormData();

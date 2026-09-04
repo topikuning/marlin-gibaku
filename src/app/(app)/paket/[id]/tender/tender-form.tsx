@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { updatePackage, type PackageActionState } from "@/lib/package/actions";
 
@@ -23,7 +25,7 @@ export function TenderForm({
   defaults: TenderFormDefaults;
   vendorNames?: string[];
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     updatePackage,
     undefined,
   );

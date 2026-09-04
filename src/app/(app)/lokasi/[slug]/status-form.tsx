@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+
 import { Banner, Button, Label, Combobox, Textarea } from "@/components/ui";
 import { changeLocationStatus, type StatusActionState } from "./actions";
 import type { LocationStatus } from "@/generated/prisma/enums";
@@ -14,7 +16,7 @@ export function LocationStatusForm({
   /** Transisi valid dari status sekarang: [value, label]. */
   targets: [LocationStatus, string][];
 }) {
-  const [state, action, pending] = useActionState<StatusActionState, FormData>(
+  const [state, action, pending] = useAksi<StatusActionState>(
     changeLocationStatus,
     undefined,
   );

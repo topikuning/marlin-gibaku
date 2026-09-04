@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Banner, Button, Combobox, ConfirmSubmit, Input, Label, Textarea } from "@/components/ui";
 import type { FindingStatus } from "@/generated/prisma/enums";
 import {
@@ -68,7 +70,7 @@ export function AksiTemuan({
 }
 
 function FormTindakLanjut({ findingId }: { findingId: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(addFollowUpAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(addFollowUpAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-border p-3">
       <input type="hidden" name="findingId" value={findingId} />
@@ -81,7 +83,7 @@ function FormTindakLanjut({ findingId }: { findingId: string }) {
 }
 
 function FormAjukanVerifikasi({ findingId }: { findingId: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(submitForVerificationAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(submitForVerificationAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-border p-3">
       <input type="hidden" name="findingId" value={findingId} />
@@ -94,7 +96,7 @@ function FormAjukanVerifikasi({ findingId }: { findingId: string }) {
 }
 
 function FormJawabKlarifikasi({ clarificationId, question }: { clarificationId: string; question: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(respondClarificationAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(respondClarificationAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-warning-border bg-warning-soft p-3">
       <input type="hidden" name="clarificationId" value={clarificationId} />
@@ -107,7 +109,7 @@ function FormJawabKlarifikasi({ clarificationId, question }: { clarificationId: 
 }
 
 function FormMintaKlarifikasi({ findingId }: { findingId: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(askClarificationAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(askClarificationAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-border p-3">
       <input type="hidden" name="findingId" value={findingId} />
@@ -124,8 +126,8 @@ function FormMintaKlarifikasi({ findingId }: { findingId: string }) {
 }
 
 function FormTutup({ findingId, tolak }: { findingId: string; tolak: boolean }) {
-  const [stateTutup, actionTutup, pendingTutup] = useActionState<FindingActionState, FormData>(verifyCloseAction, undefined);
-  const [stateTolak, actionTolak, pendingTolak] = useActionState<FindingActionState, FormData>(rejectVerificationAction, undefined);
+  const [stateTutup, actionTutup, pendingTutup] = useAksi<FindingActionState>(verifyCloseAction, undefined);
+  const [stateTolak, actionTolak, pendingTolak] = useAksi<FindingActionState>(rejectVerificationAction, undefined);
   return (
     <div className="space-y-3">
       <form action={actionTutup} className="space-y-2 rounded-lg border border-border p-3">
@@ -160,7 +162,7 @@ function FormTutup({ findingId, tolak }: { findingId: string; tolak: boolean }) 
 }
 
 function FormBukaKembali({ findingId }: { findingId: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(reopenFindingAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(reopenFindingAction, undefined);
   return (
     <form action={action} className="space-y-2 rounded-lg border border-danger-border p-3">
       <input type="hidden" name="findingId" value={findingId} />
@@ -188,7 +190,7 @@ export function FormBukti({
   foto: { value: string; label: string }[];
   dokumen: { value: string; label: string }[];
 }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(linkEvidenceAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(linkEvidenceAction, undefined);
   const [jenis, setJenis] = useState<"foto" | "dokumen">("foto");
   return (
     <form action={action} className="space-y-2 rounded-lg border border-border p-3">
@@ -227,7 +229,7 @@ export function FormBukti({
 
 /** Verifikator menilai satu bukti. */
 export function FormVerifikasiBukti({ linkId }: { linkId: string }) {
-  const [state, action, pending] = useActionState<FindingActionState, FormData>(verifyEvidenceAction, undefined);
+  const [state, action, pending] = useAksi<FindingActionState>(verifyEvidenceAction, undefined);
   const [status, setStatus] = useState("diterima");
   return (
     <form action={action} className="mt-2 flex flex-wrap items-end gap-2">

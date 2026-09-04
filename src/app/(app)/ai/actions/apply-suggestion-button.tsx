@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Button } from "@/components/ui";
 import { terapkanSaranAction, type AiHubState } from "@/lib/ai-hub/actions";
 
@@ -19,7 +21,7 @@ export function ApplySuggestionButton({
   artifactId: string;
   recovery: boolean;
 }) {
-  const [state, formAction, pending] = useActionState<AiHubState, FormData>(
+  const [state, formAction, pending] = useAksi<AiHubState>(
     terapkanSaranAction,
     undefined,
   );

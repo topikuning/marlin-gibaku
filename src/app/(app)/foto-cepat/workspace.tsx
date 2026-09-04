@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { tahanGagalKirim } from "@/lib/aksi-klien";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Images, MapPin, MapPinOff, RotateCw, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
@@ -47,10 +47,6 @@ const KOSONG: FotoCepatState = {};
  * layar, bukan halaman mati yang menghapus jepretan yang belum tersimpan
  * (DECISIONS 291).
  */
-const simpanFotoCepat = tahanGagalKirim(simpanFotoCepatAction);
-const hapusFotoCepat = tahanGagalKirim(hapusFotoCepatAction);
-const tetapkanLokasi = tahanGagalKirim(tetapkanLokasiAction);
-const pakaiFoto = tahanGagalKirim(pakaiFotoAction);
 
 export function FotoCepatWorkspace({
   lokasi,
@@ -113,7 +109,7 @@ function JepretCard({
 }) {
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
-  const [state, action, pending] = useActionState(simpanFotoCepat, KOSONG);
+  const [state, action, pending] = useAksi(simpanFotoCepatAction, KOSONG);
   const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang } =
     useAntreanFoto();
 
@@ -633,8 +629,8 @@ function FotoPetak({
   dipilih: boolean;
   onToggle: (id: string) => void;
 }) {
-  const [state, action, pending] = useActionState(hapusFotoCepat, KOSONG);
-  const [putarState, putarAction, putarPending] = useActionState(putarFotoAction, undefined);
+  const [state, action, pending] = useAksi(hapusFotoCepatAction, KOSONG);
+  const [putarState, putarAction, putarPending] = useAksi(putarFotoAction, undefined);
   return (
     <li className="relative">
       <button
@@ -730,7 +726,7 @@ function PanelTetapkanLokasi({
   /** Foto terpilih yang lokasinya SUDAH diketahui — tidak ikut di langkah ini. */
   diabaikan: number;
 }) {
-  const [state, action, pending] = useActionState(tetapkanLokasi, KOSONG);
+  const [state, action, pending] = useAksi(tetapkanLokasiAction, KOSONG);
   const [locationId, setLocationId] = useState("");
 
   return (
@@ -796,7 +792,7 @@ function PanelPakai({
   photoIds: string[];
   onHasil: (s: FotoCepatState) => void;
 }) {
-  const [state, action, pending] = useActionState(pakaiFoto, KOSONG);
+  const [state, action, pending] = useAksi(pakaiFotoAction, KOSONG);
   const [tujuan, setTujuan] = useState<"kegiatan" | "laporan">("laporan");
   const [kegiatanId, setKegiatanId] = useState("");
   const [reportId, setReportId] = useState("");

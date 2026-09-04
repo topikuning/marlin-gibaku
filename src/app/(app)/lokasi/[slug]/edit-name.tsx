@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useEffect, useState, type ReactNode } from "react";
 import { Pencil } from "lucide-react";
 import { Banner, Button, Input } from "@/components/ui";
 import { renameLocation, type PackageActionState } from "@/lib/package/actions";
@@ -27,7 +29,7 @@ export function EditableLocationName({
   nameSlot?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(renameLocation, undefined);
+  const [state, action, pending] = useAksi<PackageActionState>(renameLocation, undefined);
 
   useEffect(() => {
     if (!state?.success) return;

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { CellClassParams, ColDef, ValueFormatterParams } from "ag-grid-community";
 import { AlertTriangle, Check, CheckCheck, RefreshCw, Search, X } from "lucide-react";
 import { Badge, Banner, Button, Input, PanelGeser } from "@/components/ui";
@@ -223,15 +225,15 @@ export function PadananPanel({
     [locationId],
   );
 
-  const [petaState, petaAction, petaPending] = useActionState<PadananActionState, FormData>(
+  const [petaState, petaAction, petaPending] = useAksi<PadananActionState>(
     petakanRabAction,
     undefined,
   );
-  const [koreksiState, koreksiAction, koreksiPending] = useActionState<PadananActionState, FormData>(
+  const [koreksiState, koreksiAction, koreksiPending] = useAksi<PadananActionState>(
     koreksiPadananAction,
     undefined,
   );
-  const [setujuState, setujuAction, setujuPending] = useActionState<PadananActionState, FormData>(
+  const [setujuState, setujuAction, setujuPending] = useAksi<PadananActionState>(
     setujuiPadananAction,
     undefined,
   );

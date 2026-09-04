@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Banner, Button, StatusPill, Textarea } from "@/components/ui";
 import { resetPromptAction, savePromptAction, type PromptState } from "@/lib/ai/prompt-actions";
@@ -30,8 +32,8 @@ export type PromptItem = {
 };
 
 function PromptCard({ item }: { item: PromptItem }) {
-  const [saveState, saveAction, saving] = useActionState<PromptState, FormData>(savePromptAction, undefined);
-  const [resetState, resetAction, resetting] = useActionState<PromptState, FormData>(
+  const [saveState, saveAction, saving] = useAksi<PromptState>(savePromptAction, undefined);
+  const [resetState, resetAction, resetting] = useAksi<PromptState>(
     resetPromptAction,
     undefined,
   );

@@ -1,5 +1,7 @@
 "use client";
 
+import { useActionState, useMemo } from "react";
+
 /**
  * Kegagalan MENGIRIM tidak boleh menghapus isian yang sudah diketik.
  *
@@ -70,7 +72,16 @@ function basiKarenaDeploy(err: unknown): boolean {
 
 export function tahanGagalKirim<S extends AksiState>(
   aksi: (prev: S, data: FormData) => Promise<S>,
+): (prev: S, data: FormData) => Promise<S>;
+export function tahanGagalKirim<S>(
+  aksi: (prev: S, data: FormData) => Promise<S>,
+  saatGagal: (pesan: string) => S,
+): (prev: S, data: FormData) => Promise<S>;
+export function tahanGagalKirim<S>(
+  aksi: (prev: S, data: FormData) => Promise<S>,
+  saatGagal?: (pesan: string) => S,
 ): (prev: S, data: FormData) => Promise<S> {
+  const galat = saatGagal ?? ((pesan: string) => ({ error: pesan }) as S);
   return async (prev, data) => {
     try {
       return await aksi(prev, data);
@@ -94,20 +105,70 @@ export function tahanGagalKirim<S extends AksiState>(
        * akan pernah berhasil, jadi jangan menyuruh mencoba lagi.
        */
       if (basiKarenaDeploy(err)) {
-        return {
-          error:
-            "MARLIN sudah diperbarui sejak halaman ini dibuka, jadi kiriman dari halaman lama ini ditolak. " +
+        return galat(
+          "MARLIN sudah diperbarui sejak halaman ini dibuka, jadi kiriman dari halaman lama ini ditolak. " +
             "Muat ulang halaman lalu ulangi – mencoba lagi tanpa memuat ulang tidak akan berhasil. " +
             "Catat dulu isian yang belum tersimpan; foto perlu dilampirkan ulang.",
-        } as S;
+        );
       }
 
       const hidup = await serverMenjawab();
-      return {
-        error: hidup
+      return galat(
+        hidup
           ? `Gagal mengirim – server menolak permintaan ini. Isian di layar TIDAK hilang; coba tekan lagi, dan kalau tetap gagal laporkan pesan ini: ${nama}`
           : `Gagal mengirim – server sedang tidak bisa dihubungi. Isian di layar TIDAK hilang; tunggu sebentar lalu tekan lagi. (${nama})`,
-      } as S;
+      );
     }
   };
+}
+
+/**
+ * `useActionState` yang SELALU terjaga dari kegagalan transport.
+ *
+ * Keluhan user 2026-09-04, di layar laporan harian, untuk kesekian kalinya:
+ * halaman berhenti dengan *"An unexpected response was received from the
+ * server"* dan seluruh isian yang belum sempat disimpan hilang.
+ *
+ * Penjaganya sudah ada sejak DECISIONS 290/295 — tapi dipasang SATU-SATU di
+ * tempat yang kebetulan diingat. Di halaman yang sama, `report-editor`
+ * memakainya sementara `enrichment-form` (cuaca, tenaga kerja, material, alat
+ * — termasuk unggahan foto, muatan terbesar di halaman itu) tidak. Jadi
+ * kegagalan yang persis sama berakhir dua cara berbeda tergantung tombol mana
+ * yang ditekan, dan yang tidak terjaga justru yang paling berat muatannya.
+ *
+ * Penjaga yang harus DIINGAT bukan penjaga; ia cuma menunda kejadian
+ * berikutnya. Karena itu pembungkusnya tidak lagi opsional: seluruh layar
+ * memanggil `useAksi`, dan `useActionState` telanjang dijaga tetap tidak
+ * dipakai di luar berkas ini oleh `tests/unit/aksi-terjaga.test.ts`.
+ */
+export function useAksi<S extends AksiState>(
+  aksi: (prev: S, data: FormData) => Promise<S>,
+  awal: S,
+): [S, (data: FormData) => void, boolean];
+/**
+ * Keadaan yang BENTUKNYA lain (mis. union ber-`ok`) tetap dijaga, tapi harus
+ * menyebutkan sendiri cara menyatakan kegagalan — pembungkusnya tidak boleh
+ * menebak bentuk yang tidak ia kenal.
+ */
+export function useAksi<S>(
+  aksi: (prev: S, data: FormData) => Promise<S>,
+  awal: S,
+  saatGagal: (pesan: string) => S,
+): [S, (data: FormData) => void, boolean];
+export function useAksi<S>(
+  aksi: (prev: S, data: FormData) => Promise<S>,
+  awal: S,
+  saatGagal?: (pesan: string) => S,
+): [S, (data: FormData) => void, boolean] {
+  // Identitas pembungkus mengikuti aksinya: kalau tidak, tiap render membuat
+  // fungsi baru dan React menganggap aksinya berganti.
+  const dijaga = useMemo(
+    () => tahanGagalKirim(aksi, saatGagal ?? ((pesan: string) => ({ error: pesan }) as S)),
+    [aksi, saatGagal],
+  );
+  return useActionState<S, FormData>(dijaga, awal as Awaited<S>) as unknown as [
+    S,
+    (data: FormData) => void,
+    boolean,
+  ];
 }

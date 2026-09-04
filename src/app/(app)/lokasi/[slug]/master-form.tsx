@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { updateLocationMaster, type StatusActionState } from "./actions";
@@ -28,7 +30,7 @@ export function LocationMasterForm({
   gpsLng: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, action, saving] = useActionState<StatusActionState, FormData>(updateLocationMaster, undefined);
+  const [state, action, saving] = useAksi<StatusActionState>(updateLocationMaster, undefined);
 
   const adaKoordinat = !!(gpsLat && gpsLng);
 

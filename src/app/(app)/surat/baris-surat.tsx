@@ -1,7 +1,9 @@
 "use client";
 
+import { useAksi } from "@/lib/aksi-klien";
+
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Paperclip } from "lucide-react";
 import { Badge, Button, Combobox, Input, Label, type BadgeTone } from "@/components/ui";
 import {
@@ -50,19 +52,19 @@ export type BarisSuratProps = {
  * menghitung sendiri.
  */
 export function BarisSurat(p: BarisSuratProps) {
-  const [statusState, statusAction, statusPending] = useActionState<SuratState, FormData>(
+  const [statusState, statusAction, statusPending] = useAksi<SuratState>(
     ubahStatusSuratAction,
     undefined,
   );
-  const [petakanState, petakanAction, petakanPending] = useActionState<SuratState, FormData>(
+  const [petakanState, petakanAction, petakanPending] = useAksi<SuratState>(
     petakanSuratAction,
     undefined,
   );
-  const [batalState, batalAction, batalPending] = useActionState<SuratState, FormData>(
+  const [batalState, batalAction, batalPending] = useAksi<SuratState>(
     batalkanSuratAction,
     undefined,
   );
-  const [pulihState, pulihAction, pulihPending] = useActionState<SuratState, FormData>(
+  const [pulihState, pulihAction, pulihPending] = useAksi<SuratState>(
     pulihkanSuratAction,
     undefined,
   );

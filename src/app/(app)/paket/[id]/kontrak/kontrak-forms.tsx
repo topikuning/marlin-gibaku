@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useAksi } from "@/lib/aksi-klien";
+
+import { useState } from "react";
 import {
   Banner,
   Button,
@@ -49,7 +51,7 @@ export function EditContractForm({
   packageId: string;
   initial: ContractEditInitial;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     editContractAction,
     undefined,
   );
@@ -226,7 +228,7 @@ export function ConvertContractForm({
   vendors: VendorOption[];
   defaultVendorName: string;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     convertToContract,
     undefined,
   );
@@ -402,7 +404,7 @@ export function WeekModeForm({
   packageId: string;
   weekMode: "tujuh_hari" | "senin_minggu";
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     ubahModeMingguAction,
     undefined,
   );
@@ -451,7 +453,7 @@ export function SignatoriesForm({
   contractId: string;
   value: Signatories;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     updateContractSignatories,
     undefined,
   );
@@ -474,7 +476,7 @@ export function SignatoriesForm({
 
 /** Form tambah adendum/CCO (append-only). */
 export function AmendmentForm({ contractId }: { contractId: string }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     addAmendment,
     undefined,
   );
@@ -562,7 +564,7 @@ export function TtdStempelForm({
   contractId: string;
   gambar: GambarTtdKontrak;
 }) {
-  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+  const [state, action, pending] = useAksi<PackageActionState>(
     updateContractSignatureImages,
     undefined,
   );
