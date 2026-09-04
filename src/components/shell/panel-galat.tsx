@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Copy, RefreshCw, RotateCcw } from "lucide-react";
+import { jelaskanGalat } from "@/lib/galat-penjelasan";
 
 /**
  * Layar galat yang MENYEBUT galatnya.
@@ -12,6 +13,13 @@ import { Copy, RefreshCw, RotateCcw } from "lucide-react";
  * tanpa pesan, dan TANPA JEJAK DI LOG SERVER (karena memang tidak ada
  * permintaan yang pernah dikirim). Dari sisi pelapor: kerja hilang, sebabnya
  * gaib. Dari sisi kami: tidak ada apa pun untuk diperiksa.
+ *
+ * Sejak 2026-09-04 layar ini juga MENJELASKAN galatnya, bukan cuma
+ * menyebutnya: sebab dalam bahasa orang, keadaan datanya, lalu langkah yang
+ * bisa dikerjakan sekarang (`jelaskanGalat`). Menyebut tanpa menjelaskan
+ * ternyata masih meninggalkan orang di titik yang sama — keluhan user pada
+ * tanggal itu, di layar yang berbunyi "An unexpected response was received
+ * from the server".
  *
  * Pelapor kami bekerja di lapangan dengan ponsel — tidak ada inspect element,
  * tidak ada console. Jadi satu-satunya kanal diagnosis yang tersedia adalah
@@ -80,12 +88,31 @@ export function PanelGalat({
     [],
   );
 
+  const penjelasan = jelaskanGalat(error.name, error.message);
+
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
       <h1 className="text-lg font-semibold text-ink">{judul}</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Yang sudah tersimpan tidak hilang. Yang belum sempat disimpan perlu diisi ulang.
-      </p>
+
+      {/* PENJELASAN LEBIH DULU, rincian teknis belakangan.
+          Versi sebelumnya menaruh kalimat Next apa adanya di tempat paling
+          menonjol — "An unexpected response was received from the server" —
+          lalu satu baris umum tentang data. Bagi mandor yang memegang ponsel di
+          lokasi, itu tidak menyebut apa yang terjadi maupun apa yang harus
+          dilakukan. Rinciannya tetap ada dan tetap bisa disalin, hanya tidak
+          lagi menjadi satu-satunya isi layar. */}
+      <div className="mt-3 rounded-lg border border-border bg-surface-inset p-3">
+        <p className="text-sm text-ink">{penjelasan.sebab}</p>
+        <p className="mt-1.5 text-[13px] text-ink-muted">{penjelasan.tentangData}</p>
+        <p className="mt-3 text-[11px] font-bold tracking-wide text-ink-muted uppercase">
+          Yang bisa dilakukan sekarang
+        </p>
+        <ol className="mt-1 list-decimal space-y-1 pl-4 text-[13px] text-ink">
+          {penjelasan.langkah.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ol>
+      </div>
 
       <div className="mt-4 rounded-lg border border-danger-border bg-danger-soft p-3">
         <p className="text-xs font-medium text-danger">Rincian galat – kirim ini saat melapor</p>
