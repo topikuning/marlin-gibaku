@@ -27359,3 +27359,78 @@ user: total terbaca Rp 5.872.327.106 (sebelumnya Rp 199.106.207.887.358.100),
 XVIII menjadi Rp 35.150.173. Dijaga `tests/unit/rab-blok-tanda-tangan.test.ts`
 dan tambahan di `tests/unit/rab-diff-pratinjau.test.ts` +
 `tests/unit/pratinjau-beda-adendum.test.tsx`.
+
+---
+## 525 · 2026-09-05 · Dokumen CCO memakai harga BERKAS untuk sisi CCO-01, dan KET bukan tebakan dari volume nol
+
+**Konteks**: user memeriksa ekspor CCO-01 Pasar Banggi terbitan MARLIN, baris
+**V 3.b "Pekerjaan Pancang Cerucuk Dolken"**:
+
+| | volume | harga satuan | nilai |
+|---|---|---|---|
+| kontrak (MC-0, tercatat di sistem) | 0 | Rp 28.117,52 | 0 |
+| berkas adendum | 704 m¹ | **0** | **0** |
+| dokumen CCO yang terbit | tambah **704** | Rp 28.117,52 | **Rp 19.794.734** · KET **BARU** |
+
+*"kenapa kesalahan sefatal itu bisa terjadi"* — lalu, atas pembacaan saya yang
+keliru: *"harga awal jelas, volume awal jelas ada di sistem. file baru
+mengenolkan volume, kenapa di kamu malah menjadi tambah pekerjaan"* dan
+*"kalaupun user mengenolkan harganya itu karena asumsi vol baru dinolkan, jadi
+0 saja"*.
+
+Bersama IX 3.b (272 m¹ → Rp 7.647.965), JUMLAH CCO-01 di dokumen menjadi
+Rp 5.899.773.467 sementara nilai adendum yang tercatat di sistem
+Rp 5.872.327.106 — **Rp 27,4 juta pekerjaan tambah yang tidak ada di berkas
+mana pun**, di dokumen yang dipakai mengajukan perubahan nilai kontrak.
+
+**Sebabnya dua, di berkas yang sama**:
+
+1. **Satu harga dipakai untuk KEDUA sisi.** Format CCO punya satu kolom HARGA
+   SATUAN, dan `cco-xlsx` menghitung ulang seluruh baris dengan harga itu:
+   `jumlahLama = harga × volume MC-0`, `jumlahBaru = harga × volume CCO-01`,
+   `jumlahTambah = harga × selisih volume`. Harga yang dipakai selalu harga
+   KONTRAK (`hargaLama: (l ?? b).unitPrice`). Item yang di berkas adendum
+   dinolkan harganya karena volumenya memang tidak dipakai lagi, di dokumen
+   dihidupkan kembali dengan harga kontrak.
+2. **KET disimpulkan dari `volume MC-0 = 0` → "BARU".** Item yang ada di
+   kontrak sejak awal dengan volume 0 dicetak sebagai pekerjaan baru.
+
+**Keputusan**:
+
+- **Sisi CCO-01 memakai harga sisi CCO-01.** Kolom HARGA SATUAN tetap berisi
+  harga kontrak (ia memang milik blok MC-0), tapi `jumlahBaru` dihitung dengan
+  harga berkas ketika keduanya berbeda. Angka berkas dipakai apa adanya
+  (DECISIONS 203): yang dinolkan tetap nol. Bila harganya sama — keadaan normal
+  — rumusnya tetap menunjuk SEL harga, jadi mengubah harga di Excel tetap
+  menggerakkan kedua sisi (DECISIONS 236: berkas ini memang diedit lokal).
+- **PEKERJAAN TAMBAH/KURANG = selisih NILAI kedua sisi**, bukan selisih volume
+  dikali satu harga. Pada baris berharga sama hasilnya identik dengan rumus
+  lama; pada baris berharga beda ia berhenti mengarang uang. Kolom VOLUME
+  tambah/kurang tetap volume — 704 m¹ yang bertambah tetap tertulis, dengan
+  nilai nol di sebelahnya. Itu yang membuat pemeriksa bertanya, dan memang
+  harus.
+- **KET "BARU"/"HAPUS" dari KEBERADAAN item di kontrak** (`adaDiKontrak`),
+  bukan dari volume nol. Sisanya tetap formula supaya volume yang diubah di
+  Excel tetap menggerakkan TETAP/TAMBAH/KURANG.
+- **Perbedaan harga antar-sisi DIKATAKAN**: sel harganya berlatar kuning dengan
+  catatan berisi kedua angka, dan kaki dokumen menyebut jumlah itemnya, daftar
+  barisnya, serta berapa dokumen ini akan membengkak bila dihitung dengan harga
+  kontrak.
+
+**Alternatif direject**:
+- *Tetap memakai harga kontrak untuk kedua sisi, cukup diberi peringatan.*
+  Sempat saya tempuh dan salah: peringatan tidak membuat Rp 27,4 juta yang
+  dikarang jadi benar, dan dokumen pengajuan tidak boleh membantah nilai
+  adendum yang tercatat di sistemnya sendiri.
+- *Menolak berkas yang harga satuannya 0 pada item kontrak.* Impor sudah
+  memperingatkan lewat panel "harga satuan item KONTRAK LAMA berubah";
+  menolaknya berarti memaksa user membetulkan berkas yang menurut dia sudah
+  benar (nol = item tidak dipakai).
+- *Menambah kolom harga kedua di blok CCO-01.* Menyimpang dari format contoh
+  KKP yang dipegang pemeriksa; nilainya sudah terbaca dari kolom JUMLAH.
+
+**Konsekuensi**: dokumen CCO kini menjumlah ke nilai adendum yang tercatat
+(selisih tinggal derau `JUMLAH ≠ harga × volume` di RAB sumber, yang sudah
+punya baris rekonsiliasi sendiri). Dijaga
+`tests/unit/cco-harga-beda-sisi.test.ts` memakai angka Pasar Banggi apa adanya;
+sembilan klausanya dibuktikan merah lebih dulu.

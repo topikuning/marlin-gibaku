@@ -44,7 +44,27 @@ export type CcoRow = {
   satuan: string | null;
   // MC-0 (kontrak berlaku)
   volumeLama: number | null;
+  /**
+   * Harga satuan yang DIPAKAI dokumen: harga KONTRAK selama itemnya ada di
+   * kontrak (DECISIONS 213 – adendum mengubah volume, harga yang sudah
+   * disepakati tetap), harga draft untuk item yang memang baru.
+   */
   hargaLama: number | null;
+  /**
+   * Harga satuan item ini DI BERKAS ADENDUM, bila ada barisnya di draft.
+   *
+   * Wajib dibawa terpisah. Format CCO cuma punya SATU kolom harga, jadi ketika
+   * kedua sisi berbeda, dokumen memakai salah satunya dan diam-diam menghitung
+   * ulang seluruh baris dengan harga itu. Laporan user 2026-09-05 atas Pasar
+   * Banggi V 3.b: kontrak Rp 28.117,52 × volume 0, berkas adendum volume 704
+   * dengan harga 0 → dokumen mencetak pekerjaan tambah Rp 19.794.734 yang tidak
+   * ada di berkas mana pun, dan JUMLAH CCO-01 di dokumen jadi Rp 27,4 juta di
+   * atas nilai adendum yang tercatat. Selisih sebesar itu tidak boleh terjadi
+   * tanpa disebut.
+   */
+  hargaBaru: number | null;
+  /** Item ini ada di revisi AKTIF (kontrak) – dasar KET "BARU", bukan volume 0. */
+  adaDiKontrak: boolean;
   jumlahLama: bigint;
   // Pekerjaan tambah / kurang (kurang selalu POSITIF = besaran penurunan)
   volumeTambah: number | null;
@@ -153,6 +173,8 @@ export function susunBarisCco(
       satuan: (b ?? l)!.unit,
       volumeLama: volL,
       hargaLama: (l ?? b)!.unitPrice,
+      hargaBaru: b?.unitPrice ?? null,
+      adaDiKontrak: l != null,
       jumlahLama,
       volumeTambah: naik ? dVol : null,
       jumlahTambah: naik ? selisih : nol,
@@ -227,6 +249,8 @@ export function susunBarisCco(
     satuan: null,
     volumeLama: null,
     hargaLama: null,
+    hargaBaru: null,
+    adaDiKontrak: true,
     jumlahLama: totalLama,
     volumeTambah: null,
     jumlahTambah: totalTambah,
@@ -250,6 +274,8 @@ function judul(n: CcoNode, depth: number): CcoRow {
     satuan: null,
     volumeLama: null,
     hargaLama: null,
+    hargaBaru: null,
+    adaDiKontrak: true,
     jumlahLama: nol,
     volumeTambah: null,
     jumlahTambah: nol,
