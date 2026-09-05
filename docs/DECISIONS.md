@@ -27361,7 +27361,7 @@ dan tambahan di `tests/unit/rab-diff-pratinjau.test.ts` +
 `tests/unit/pratinjau-beda-adendum.test.tsx`.
 
 ---
-## (baru) · Dokumen CCO memakai harga BERKAS untuk sisi CCO-01, dan KET bukan tebakan dari volume nol (2026-09-05)
+## 525 · 2026-09-05 · Dokumen CCO memakai harga BERKAS untuk sisi CCO-01, dan KET bukan tebakan dari volume nol
 
 **Konteks**: user memeriksa ekspor CCO-01 Pasar Banggi terbitan MARLIN, baris
 **V 3.b "Pekerjaan Pancang Cerucuk Dolken"**:
