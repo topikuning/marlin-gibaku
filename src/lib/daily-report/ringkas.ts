@@ -1,4 +1,5 @@
 import "server-only";
+import { tandaKoordinat, tandaWaktu, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
 import type { DailyReportStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
@@ -92,6 +93,12 @@ export type RingkasFoto = {
    * yang tidak kelihatan (DECISIONS 197).
    */
   gpsCadangan: boolean;
+  /**
+   * Golongan asal nilai, untuk PEWARNAAN di dokumen (ketetapan user
+   * 2026-09-04): tandanya tidak lagi ditulis, tapi tetap ada.
+   */
+  tandaJam: TandaNilai;
+  tandaKoord: TandaNilai;
 };
 
 export type RingkasHarian = {
@@ -391,6 +398,11 @@ export async function getRingkasHarian(
         lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
         lng: p.exifGpsLng != null ? Number(p.exifGpsLng) : null,
         gpsCadangan: p.gpsSource === "project",
+        tandaJam: tandaWaktu({
+          jamDiketahui: !jamTakDiketahui(p.metadataSource, p.exifTakenAt),
+          timeSource: p.metadataSource,
+        }),
+        tandaKoord: tandaKoordinat(p.gpsSource),
       };
     }),
     ...kegiatanRows.flatMap((k) =>
@@ -403,6 +415,11 @@ export async function getRingkasHarian(
         lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
         lng: p.exifGpsLng != null ? Number(p.exifGpsLng) : null,
         gpsCadangan: p.gpsSource === "project",
+        tandaJam: tandaWaktu({
+          jamDiketahui: !jamTakDiketahui(p.metadataSource, p.exifTakenAt),
+          timeSource: p.metadataSource,
+        }),
+        tandaKoord: tandaKoordinat(p.gpsSource),
       })),
     ),
   ];

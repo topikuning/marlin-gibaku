@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
 import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
 import { buildStampSvg, overlayAlphaFor, type StampRenderData } from "@/lib/photo-stamp/renderer";
+import { tandaKoordinat, tandaWaktu, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
 import {
   formatStampDateTime,
   formatStampDate,
@@ -173,12 +174,11 @@ export type PhotoStamp = {
   showReporter?: boolean;
   showPhotoId?: boolean;
   /**
-   * Penanda kejujuran cap (DECISIONS 197) — teks kecil kuning di sebelah nilai.
-   * `timeNote`: "waktu unggah" / "jam tidak tercatat"; null = waktu asli jepret.
-   * `coordNote`: "titik proyek"; null = koordinat memang milik foto ini.
+   * Penanda kejujuran cap (DECISIONS 197) — sejak 2026-09-04 lewat WARNA nilai,
+   * bukan tulisan di sebelahnya. Golongannya di `photo-stamp/tanda-nilai.ts`.
    */
-  timeNote?: string | null;
-  coordNote?: string | null;
+  timeTanda?: TandaNilai;
+  coordTanda?: TandaNilai;
   /** Jam tidak diketahui → cap hanya menampilkan tanggal, tanpa angka jam palsu. */
   dateOnly?: boolean;
   /**
@@ -208,8 +208,8 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
     overlayAlpha: s.overlayAlpha ?? 0.9,
     sizeScale: s.sizeScale ?? 1,
-    timeNote: s.timeNote ?? null,
-    coordNote: s.coordNote ?? null,
+    timeTanda: s.timeTanda ?? "asli",
+    coordTanda: s.coordTanda ?? "asli",
   };
   return buildStampSvg(w, h, data, { fontFamily: STAMP_FAMILY, fontFaceCss: FONT_FACE_CSS });
 }
@@ -444,22 +444,12 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   }
   // Cap "apa adanya" (galeri): tanpa tag koordinat & waktu (user 2026-08-24).
   const tanpaTag = source === "gallery" && s?.fallbackMode === "apa_adanya";
-  // Penanda di cap — masing-masing hanya muncul bila nilainya memang bukan
-  // data asli foto. Diam-diam menampilkannya sebagai fakta = memalsukan bukti.
-  const timeNote = jamTidakDiketahui
-    ? "jam tidak tercatat"
-    : timeSource === "server"
-      ? "waktu unggah"
-      : null;
-  const coordNote =
-    gpsSource === "project"
-      ? "titik proyek"
-      : // Foto galeri yang koordinatnya dari perangkat = posisi saat MENGUNGGAH,
-        // bukan saat memotret. Cap wajib menyebutnya; tanpa itu ia mengaku
-        // sebagai posisi jepret padahal bukan (DECISIONS 197/220).
-        source === "gallery" && gpsSource === "device"
-        ? "posisi saat unggah"
-        : null;
+  // Penanda di cap — WARNA, bukan tulisan (ketetapan user 2026-09-04). Nilai
+  // yang bukan bacaan alat tetap wajib ditandai; yang berubah cuma caranya.
+  // Foto galeri yang koordinatnya dari perangkat = posisi saat MENGUNGGAH,
+  // bukan saat memotret (DECISIONS 197/220) — itu golongan tersendiri.
+  const timeTanda = tandaWaktu({ jamDiketahui: !jamTidakDiketahui, timeSource });
+  const coordTanda = tandaKoordinat(gpsSource, source === "gallery");
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
@@ -505,8 +495,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       showCoordinate: cfg?.showCoordinates ?? true,
       showReporter: cfg?.showReporter ?? true,
       showPhotoId: cfg?.showPhotoId ?? true,
-      timeNote: tanpaTag ? null : timeNote,
-      coordNote: tanpaTag ? null : coordNote,
+      timeTanda: tanpaTag ? "asli" : timeTanda,
+      coordTanda: tanpaTag ? "asli" : coordTanda,
       dateOnly: jamTidakDiketahui,
       tanpaTag,
     },

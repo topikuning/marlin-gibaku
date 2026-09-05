@@ -27140,3 +27140,55 @@ aman plus permintaan melapor.
 
 **Konsekuensi**: penggolongan baru ditambahkan sebagai pola di satu berkas
 beserta ujinya, bukan disebar ke tiap layar.
+
+---
+
+## (baru) · Asal nilai ditandai WARNA, tidak lagi ditulis (2026-09-04)
+
+**Konteks**: ketetapan user — *"hilangkan informasi jam tidak tercatat, titik
+proyek, dan lain sebagainya. gunakan pewarnaan saja yang hanya diketahui admin
+atau orang tertentu"*, dan *"semua informasi itu tidak perlu tercatat secara
+eksplisit di laporan mana pun yang kamu buat baik gambar maupun pdf. cukup
+mainkan warna pada informasinya"*.
+
+**Keputusan**: penanda asal nilai berhenti berupa tulisan dan menjadi WARNA
+nilai itu sendiri. Empat golongan, satu daftar
+(`src/lib/photo-stamp/tanda-nilai.ts`), dipakai tiga tempat sekaligus — cap
+gambar, PDF, layar:
+
+| Golongan   | Artinya                                              |
+|------------|------------------------------------------------------|
+| `asli`     | bacaan alat pada foto itu (EXIF / GPS perangkat)     |
+| `cadangan` | koordinat titik proyek; jam yang tidak diketahui     |
+| `manual`   | diketik orang                                        |
+| `unggah`   | terbaca saat mengunggah, bukan saat memotret         |
+
+Yang dihapus dari keluaran: `titik proyek`, `jam tidak tercatat`, `waktu
+unggah`, `posisi saat unggah`, `diisi manual`, dan `(titik proyek, bukan GPS
+perangkat)` di kapsi foto PDF. Di galeri layar, label "GPS ✓ / GPS titik proyek
+/ Tanpa GPS" jadi satu titik berwarna.
+
+**Ini merevisi BENTUK, bukan ISI, dari DECISIONS 197.** Larangan 197 tetap
+berlaku penuh: nilai yang bukan bacaan alat tidak boleh tampil seolah-olah
+bacaan alat, dan jam yang tidak diketahui tetap TIDAK dicetak sebagai angka.
+Yang berubah hanya cara menandainya. Menghapus tandanya sama sekali barulah
+melanggar 197 — karena itu ujinya menjaga dua sisi sekaligus: katanya hilang,
+DAN warnanya ada dan berbeda-beda (`tests/unit/tanda-nilai-warna.test.ts`,
+`tests/unit/cap-foto-jujur.test.ts`, `tests/unit/laporan-tanpa-kata-asal.test.ts`).
+
+**Keterbatasan yang diakui, bukan disembunyikan**: warna hilang pada cetakan
+hitam-putih dan fotokopi, dan tidak terbaca sebagian pembaca buta warna. Pada
+dokumen yang dicetak hitam-putih, tanda ini praktis tidak ada. Karena itu
+golongannya TETAP tersimpan di basis data (`Photo.gpsSource`,
+`Photo.metadataSource`) dan tetap bisa disaring di layar: warna adalah cara
+MENAMPILKAN, bukan tempat menyimpan. Siapa pun yang perlu memastikan status
+sebuah foto membuktikannya dari datanya, bukan dari matanya.
+
+**Alternatif direject**:
+- *Menghapus penandanya sama sekali.* Itu mencabut 197: koordinat titik proyek
+  akan terbaca sebagai bukti GPS, dan itu kebohongan yang tidak kelihatan.
+- *Menyembunyikannya di balik hak akses di layar saja.* Tidak menjawab
+  permintaannya: yang dipermasalahkan justru dokumen yang beredar keluar.
+- *Simbol kecil (asterisk/ikon) alih-alih warna.* Tetap "tercatat eksplisit"
+  bagi pembaca yang penasaran, dan menambah satu kosakata baru yang harus
+  dijelaskan.

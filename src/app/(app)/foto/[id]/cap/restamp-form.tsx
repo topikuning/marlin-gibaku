@@ -83,7 +83,8 @@ export function RestampForm({
           </label>
           {!v.jamDiketahui ? (
             <p className="mt-1 text-[11px] text-ink-faint">
-              Tidak dicentang → cap menulis TANGGAL saja + penanda &quot;jam tidak tercatat&quot;.
+              Tidak dicentang → cap menulis TANGGAL saja, dan tanggalnya diberi warna penanda
+              (asal nilai ditandai warna, tidak ditulis).
             </p>
           ) : null}
         </div>
@@ -98,8 +99,9 @@ export function RestampForm({
             <Input id="rs-lng" name="lng" value={v.lng} onChange={(e) => set("lng", e.target.value)} />
           </div>
           <p className="col-span-2 text-[11px] text-ink-faint">
-            Kosongkan keduanya untuk membuang koordinat dari cap. Nilai yang diketik ditandai
-            &quot;diisi manual&quot; – kecuali persis sama dengan titik proyek.
+            Kosongkan keduanya untuk membuang koordinat dari cap. Nilai yang diketik ditandai lewat
+            WARNA koordinat di cap – kecuali persis sama dengan titik proyek, yang punya warnanya
+            sendiri.
           </p>
         </div>
 

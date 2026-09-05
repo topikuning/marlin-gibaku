@@ -1,4 +1,5 @@
 import "server-only";
+import { tandaKoordinat, tandaWaktu, WARNA_PDF } from "@/lib/photo-stamp/tanda-nilai";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { r2GetBuffer, isR2Configured } from "@/lib/r2";
@@ -33,7 +34,17 @@ export type KegiatanPdfResult = {
   activityDate: Date;
 };
 
-export type PhotoForPdf = { jpeg: Buffer; caption: string; sub: string | null; link?: string | null };
+export type PhotoForPdf = {
+  jpeg: Buffer;
+  caption: string;
+  sub: string | null;
+  /**
+   * Potongan keterangan + WARNANYA. Asal nilai (koordinat cadangan, jam tak
+   * tercatat) ditandai warna, tidak ditulis — ketetapan user 2026-09-04.
+   */
+  subBagian?: Array<{ teks: string; warna: string }>;
+  link?: string | null;
+};
 
 /** Data siap-render (murni, tanpa I/O) — dipakai renderer produksi & pratinjau. */
 export type KegiatanPdfData = {
@@ -211,12 +222,24 @@ export async function renderKegiatanPdf(
             ? formatTanggal(p.exifTakenAt)
             : formatTanggalWaktu(p.exifTakenAt)
           : null;
-        const koordTeks =
-          koord && p.gpsSource === "project" ? `${koord} (titik proyek, bukan GPS perangkat)` : koord;
-        const sub = [waktu, koordTeks].filter(Boolean).join("  ·  ");
+        const subBagian: Array<{ teks: string; warna: string }> = [];
+        if (waktu) {
+          subBagian.push({
+            teks: waktu,
+            warna:
+              WARNA_PDF[
+                tandaWaktu({
+                  jamDiketahui: !jamTakDiketahui(p.metadataSource, p.exifTakenAt),
+                  timeSource: p.metadataSource,
+                })
+              ],
+          });
+        }
+        if (koord) subBagian.push({ teks: koord, warna: WARNA_PDF[tandaKoordinat(p.gpsSource)] });
+        const sub = subBagian.map((b) => b.teks).join("  ·  ");
         // Link publik MARLIN ke gambar PENUH (tak ter-crop) — hanya bila origin diketahui.
         const link = baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null;
-        photos.push({ jpeg, caption: `Foto ${i}`, sub: sub || null, link });
+        photos.push({ jpeg, caption: `Foto ${i}`, sub: sub || null, subBagian, link });
       } catch {
         /* lewati foto yang gagal diambil/diolah */
       }
@@ -441,11 +464,16 @@ function drawPhotoCell(doc: PdfDoc, p: PhotoForPdf, x: number, y: number, w: num
   const capX = x + 8;
   const capY = y + boxH + 5;
   doc.font(PDF_FONT.bold).fontSize(8).fillColor(PDF_COLORS.ink).text(p.caption, capX, capY, { width: w - 16, lineBreak: false });
-  if (p.sub) {
-    doc
-      .font(PDF_FONT.regular)
-      .fontSize(7)
-      .fillColor(PDF_COLORS.inkMuted)
-      .text(p.sub, capX, capY + 10, { width: w - 16, lineBreak: false, ellipsis: true });
+  // Warna tiap potongan yang menyebut asal nilainya; teksnya tetap polos.
+  const bagian = p.subBagian ?? (p.sub ? [{ teks: p.sub, warna: PDF_COLORS.inkMuted }] : []);
+  if (bagian.length > 0) {
+    doc.font(PDF_FONT.regular).fontSize(7);
+    bagian.forEach((b, i) => {
+      const akhir = i === bagian.length - 1;
+      const opsi = { width: w - 16, lineBreak: false, ellipsis: true, continued: !akhir } as const;
+      if (i === 0) doc.fillColor(b.warna).text(b.teks, capX, capY + 10, opsi);
+      else doc.fillColor(b.warna).text(b.teks, opsi);
+      if (!akhir) doc.fillColor(PDF_COLORS.inkMuted).text("  ·  ", { continued: true });
+    });
   }
 }
