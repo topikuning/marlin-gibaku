@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapPin, X } from "lucide-react";
-import { StatusPill } from "@/components/ui";
+import { Lapisan, StatusPill } from "@/components/ui";
 import { PHOTO_STATUS_LABEL, PHOTO_STATUS_TONE } from "@/lib/photo-status";
 import type { GalleryGroup, GalleryPhoto } from "@/lib/photos-gallery";
 import { KELAS_LAYAR } from "@/lib/photo-stamp/tanda-nilai";
@@ -94,7 +94,13 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
       ))}
 
       {active ? (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4" onClick={close} role="dialog" aria-modal="true">
+        <Lapisan
+          lapis="penampil"
+          className="flex items-center justify-center bg-black/80 p-4"
+          onClick={close}
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="relative flex max-h-full max-w-4xl flex-col" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara */}
             <img src={active.fullUrl ?? active.thumbUrl} alt="" className="max-h-[80vh] w-auto rounded-lg object-contain" />
@@ -141,7 +147,7 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
               </>
             ) : null}
           </div>
-        </div>
+        </Lapisan>
       ) : null}
     </div>
   );

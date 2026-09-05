@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { MapPin, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { Lapisan } from "@/components/ui";
 import type { PhotoView } from "@/lib/photos";
 
 type PhotoDeleteAction = (prev: undefined, fd: FormData) => Promise<{ error?: string } | undefined>;
@@ -160,8 +161,9 @@ export function PhotoGallery({
       </div>
 
       {active && (
-        <div
-          className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4"
+        <Lapisan
+          lapis="penampil"
+          className="flex items-center justify-center bg-black/80 p-4"
           onClick={close}
           role="dialog"
           aria-modal="true"
@@ -237,7 +239,7 @@ export function PhotoGallery({
               </>
             )}
           </div>
-        </div>
+        </Lapisan>
       )}
     </>
   );
