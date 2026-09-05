@@ -6,20 +6,24 @@ import { MapPin, X } from "lucide-react";
 import { StatusPill } from "@/components/ui";
 import { PHOTO_STATUS_LABEL, PHOTO_STATUS_TONE } from "@/lib/photo-status";
 import type { GalleryGroup, GalleryPhoto } from "@/lib/photos-gallery";
+import { KELAS_LAYAR } from "@/lib/photo-stamp/tanda-nilai";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 /**
- * Tiga keadaan, bukan dua (DECISIONS 197). Dulu foto ber-koordinat cadangan
- * titik proyek ikut berlabel "GPS ✓" — pembaca menyangka posisinya terbukti
- * dari fotonya sendiri, padahal itu koordinat dari database.
+ * Tiga keadaan, bukan dua (DECISIONS 197) — tapi sejak ketetapan user
+ * 2026-09-04 disampaikan lewat WARNA, bukan tulisan: *"gunakan pewarnaan saja
+ * yang hanya diketahui admin atau orang tertentu"*. Keadaannya tetap tiga dan
+ * tetap bisa disaring dari bilah penyaring di atas galeri; yang hilang cuma
+ * label yang mengumumkannya kepada siapa pun yang lewat.
  */
-function gpsLabel(p: GalleryPhoto): string {
-  if (p.hasGps) return "GPS ✓";
-  return p.gpsFromProject ? "GPS titik proyek" : "Tanpa GPS";
+function gpsWarna(p: GalleryPhoto): string {
+  return p.hasGps ? KELAS_LAYAR.asli : p.gpsFromProject ? KELAS_LAYAR.cadangan : KELAS_LAYAR.manual;
 }
-function gpsTone(p: GalleryPhoto): string {
-  return p.hasGps ? "text-success" : p.gpsFromProject ? "text-ink-faint" : "text-warning";
+
+/** Titik penanda: bentuknya sama, warnanya yang berbeda. */
+function TitikGps({ p }: { p: GalleryPhoto }) {
+  return <span aria-hidden className={`inline-block size-2 shrink-0 rounded-full ${gpsWarna(p)}`} />;
 }
 
 /**
@@ -80,7 +84,7 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
                   </p>
                   <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-ink-faint">
                     <span className="truncate">{p.reporterName}</span>
-                    <span className={gpsTone(p)}>{gpsLabel(p)}</span>
+                    <TitikGps p={p} />
                   </div>
                 </div>
               </article>
@@ -106,7 +110,7 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
               )}
               <span>{active.reporterName}</span>
               <span>{dateFmt.format(new Date(active.takenAtIso))}</span>
-              <span className={active.hasGps ? "text-emerald-600" : "text-amber-600"}>{gpsLabel(active)}</span>
+              <TitikGps p={active} />
               {active.hasOriginal ? (
                 <a href={`/api/foto-asli/${active.id}`} className="text-primary hover:underline">
                   Unduh foto asli (tanpa cap)

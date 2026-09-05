@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { DEFAULT_STAMP_ACCENT, getPhotoStampConfig, type StampSize } from "@/lib/photo-stamp/config";
 import { DEFAULT_STAMP_TZ, generatePhotoId, locationCodeFromName } from "@/lib/photo-stamp/format";
 import { overlayAlphaFor } from "@/lib/photo-stamp/renderer";
+import { tandaKoordinat, tandaWaktu, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
 import type { PhotoStamp } from "@/lib/photos";
 import type { Prisma } from "@/generated/prisma/client";
 import type { PhotoGpsSource, PhotoMetadataSource } from "@/generated/prisma/enums";
@@ -38,21 +39,17 @@ export type NilaiCap = {
 const SIZE_SCALE: Record<StampSize, number> = { compact: 0.85, standard: 1, large: 1.15 };
 
 /**
- * Penanda yang WAJIB muncul di cap untuk nilai yang bukan bacaan alat.
- * Aturannya satu tempat: koordinat cadangan titik proyek dan nilai yang
- * diketik manusia sama-sama tidak boleh tampil sebagai fakta (DECISIONS 197).
+ * Penanda yang WAJIB ada pada cap untuk nilai yang bukan bacaan alat — sejak
+ * 2026-09-04 berupa WARNA nilai, bukan tulisan di sebelahnya. Golongan dan
+ * daftar warnanya di `photo-stamp/tanda-nilai.ts`; larangan DECISIONS 197
+ * (nilai bukan-alat tidak boleh tampil sebagai fakta) tetap berlaku.
  */
-export function coordNoteFor(src: PhotoGpsSource): string | null {
-  if (src === "project") return "titik proyek";
-  if (src === "manual") return "diisi manual";
-  return null;
+export function coordTandaFor(src: PhotoGpsSource): TandaNilai {
+  return tandaKoordinat(src);
 }
 
-export function timeNoteFor(v: Pick<NilaiCap, "jamDiketahui" | "timeSource">): string | null {
-  if (!v.jamDiketahui) return "jam tidak tercatat";
-  if (v.timeSource === "manual") return "diisi manual";
-  if (v.timeSource === "server") return "waktu unggah";
-  return null;
+export function timeTandaFor(v: Pick<NilaiCap, "jamDiketahui" | "timeSource">): TandaNilai {
+  return tandaWaktu(v);
 }
 
 /** Bentuk `PhotoStamp` siap render dari nilai cap + konfigurasi sistem. */
@@ -81,8 +78,8 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     showCoordinate: cfg?.showCoordinates ?? true,
     showReporter: cfg?.showReporter ?? true,
     showPhotoId: cfg?.showPhotoId ?? true,
-    timeNote: v.stampPlain ? null : timeNoteFor(v),
-    coordNote: v.stampPlain ? null : coordNoteFor(v.lat == null ? "none" : v.gpsSource),
+    timeTanda: v.stampPlain ? "asli" : timeTandaFor(v),
+    coordTanda: v.stampPlain ? "asli" : coordTandaFor(v.lat == null ? "none" : v.gpsSource),
     dateOnly: !v.jamDiketahui,
     tanpaTag: v.stampPlain,
   };
