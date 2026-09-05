@@ -27192,3 +27192,47 @@ sebuah foto membuktikannya dari datanya, bukan dari matanya.
 - *Simbol kecil (asterisk/ikon) alih-alih warna.* Tetap "tercatat eksplisit"
   bagi pembaca yang penasaran, dan menambah satu kosakata baru yang harus
   dijelaskan.
+
+---
+
+## 522 · 2026-09-05 · Lapisan layar penuh lewat satu pintu, dan keluar dari kurungan induknya
+
+**Konteks**: user mengirim tangkapan layar dasbor — penampil foto terbuka, tapi
+peta beserta legendanya tetap menyala DI ATASNYA, dan penampilnya sendiri
+berdiri di tengah kartu, bukan di tengah layar: *"tumpang tindih semua"*.
+
+**Sebabnya bukan angka z kurang tinggi** — penampil itu sudah `z-[2000]`,
+jauh di atas kendali Leaflet (1000), dan tetap kalah. `position: fixed` diukur
+terhadap viewport HANYA selama tidak ada leluhur yang membuat containing block
+baru; begitu ada leluhur ber-`transform`/`filter`/`contain`, lapisan terkurung
+di dalam kartunya dan `z-index` setinggi apa pun hanya berlaku di dalam
+kurungan itu. Peta berada di luar kurungan, jadi ia menang tanpa angka besar.
+
+Dan itu bukan satu layar yang salah: ada tujuh lapisan `fixed inset-0` yang
+masing-masing memilih angkanya sendiri — 40, 50, 60, 1200, 2000. Tiga di
+antaranya (menu bawah, laci master, laci AI Pulse) bahkan di BAWAH peta.
+
+**Keputusan**: satu pintu — `src/components/ui/lapisan.tsx`. Ia mem-portal
+isinya ke `document.body` (keluar dari kurungan apa pun), mengunci gulir
+halaman, dan memakai skala z tunggal: `panel` 1200 · `kamera` 1400 ·
+`penampil` 2000, semuanya di atas 1000 milik Leaflet.
+
+Dipindahkan ke pintu itu: penampil foto galeri (dua tempat), menu bawah
+ponsel, laci master, laci AI Pulse, kamera langsung.
+
+**Yang SENGAJA tidak di-portal**, karena portal memindahkan simpulnya keluar
+dari `<form>` dan isian di dalamnya berhenti ikut terkirim — kerusakan yang
+jauh lebih mahal daripada tumpang tindih: dialog konfirmasi (tombolnya memakai
+`e.currentTarget.form?.requestSubmit()`), `Drawer`, lembar pemilih foto, dan
+lembar foto di editor laporan harian. Keempatnya ber-z 1200, jadi tetap di atas
+peta. Daftarnya ada di `tests/unit/lapisan-tak-terjebak.test.ts` beserta
+alasannya, dan uji itu menolak `fixed inset-0` baru di luar daftar — supaya
+pengecualian tetap jadi keputusan yang tercatat, bukan kelalaian yang lolos.
+
+**Alternatif direject**:
+- *Menaikkan angka z-nya lagi.* Persis yang sudah dilakukan (2000) dan tetap
+  kalah; selama lapisannya terkurung, angka tidak menentukan apa pun.
+- *Menurunkan z peta.* Menambal satu layar; lapisan berikutnya yang terkurung
+  akan kalah oleh apa pun yang lain.
+- *Mem-portal semua lapisan tanpa kecuali.* Memutus empat form dari isinya —
+  menukar cacat tampilan dengan kehilangan data.

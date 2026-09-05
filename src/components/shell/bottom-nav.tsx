@@ -4,7 +4,7 @@ import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { useDismissable } from "@/components/ui";
+import { Lapisan, useDismissable } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { NavIcon } from "./nav-progress";
 import { type NavItem } from "./nav-config";
@@ -50,7 +50,13 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
   return (
     <>
       {open ? (
-        <div className="no-print fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Semua menu">
+        <Lapisan
+          lapis="panel"
+          className="no-print lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Semua menu"
+        >
           <button
             type="button"
             aria-label="Tutup menu"
@@ -97,7 +103,7 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
               })}
             </ul>
           </div>
-        </div>
+        </Lapisan>
       ) : null}
 
       <nav
