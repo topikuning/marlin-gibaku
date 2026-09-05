@@ -27291,7 +27291,7 @@ tidak akan menggagalkan uji perilaku mana pun.
 **Bisa di-revisit**: bila user meminta jalannya dari tempat lain.
 
 ---
-## (baru) · Sel bercampur huruf bukan angka, dan tabel RAB berakhir di blok tanda tangan (2026-09-05)
+## 524 · 2026-09-05 · Sel bercampur huruf bukan angka, dan tabel RAB berakhir di blok tanda tangan
 
 **Konteks**: user mengunggah MC-0 Pasar Banggi dan pratinjau impor menyebut
 nilai kontrak **Rp 199.106.207.887.358.100** – dua ratus ribu triliun untuk
