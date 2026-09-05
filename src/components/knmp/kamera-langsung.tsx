@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type React from "react";
+import { Lapisan } from "@/components/ui";
 import { Camera, CameraOff, MapPin, MapPinOff, X } from "lucide-react";
 import { posisiJepret, type PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 
@@ -307,7 +307,7 @@ export function KameraLangsung({
 
   if (keadaan === "tak_didukung" || keadaan === "ditolak" || keadaan === "gagal") {
     return (
-      <Lapisan>
+      <Lapisan lapis="kamera" className="no-print h-[100dvh] w-screen overflow-hidden overscroll-contain bg-ink" role="dialog" aria-modal="true" aria-label="Kamera">
         <div className="flex h-full items-center justify-center p-6">
           <div className="w-full max-w-sm rounded-md border border-warning-border bg-warning-soft p-4">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
@@ -337,7 +337,7 @@ export function KameraLangsung({
   }
 
   return (
-    <Lapisan>
+    <Lapisan lapis="kamera" className="no-print h-[100dvh] w-screen overflow-hidden overscroll-contain bg-ink" role="dialog" aria-modal="true" aria-label="Kamera">
       {/* Pratinjau memenuhi layar. `object-contain`: yang terlihat = yang tersimpan. */}
       <video
         ref={videoRef}
@@ -406,32 +406,3 @@ export function KameraLangsung({
   );
 }
 
-/**
- * Lapisan layar penuh untuk kamera.
- *
- * `100dvh` (bukan `100vh`): bilah alamat peramban HP menyusut & muncul kembali,
- * dan `vh` mengunci ke tinggi TERBESAR — rana akan melorot ke luar layar.
- * `overscroll-contain` menahan gerakan seret supaya tidak merembet menggulir
- * halaman di belakangnya.
- */
-function Lapisan({ children }: { children: React.ReactNode }) {
-  // DI-PORTAL ke <body>: `position: fixed` diukur terhadap ancestor terdekat
-  // yang punya `transform`/`filter`/`contain` — satu utility Tailwind semacam
-  // itu di kartu mana pun akan diam-diam mengurung lapisan ini di dalam kartu,
-  // dan keluhan "harus scroll" balik lagi.
-  // Komponen ini hanya dipasang setelah user menekan "Buka kamera", jadi tidak
-  // pernah dirender di server; penjaga ini murni supaya tidak meledak kalau
-  // suatu saat dipakai di jalur yang ikut SSR.
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Kamera"
-      className="no-print fixed inset-0 z-60 h-[100dvh] w-screen overflow-hidden overscroll-contain bg-ink"
-    >
-      {children}
-    </div>,
-    document.body,
-  );
-}

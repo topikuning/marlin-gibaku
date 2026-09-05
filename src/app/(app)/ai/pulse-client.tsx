@@ -4,7 +4,7 @@ import { useAksi } from "@/lib/aksi-klien";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, useDismissable } from "@/components/ui";
+import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, useDismissable, Lapisan } from "@/components/ui";
 import { runAnalysisAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { READINESS_GRADE_LABEL } from "@/lib/ai-hub/readiness";
 import type { PulseRow, SourceRef } from "@/lib/ai-hub/types";
@@ -268,7 +268,7 @@ export function PulseClient({
       </Card>
 
       {drawer ? (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`Detail sumber ${drawer.name}`}>
+        <Lapisan lapis="panel" role="dialog" aria-modal="true" aria-label={`Detail sumber ${drawer.name}`}>
           <button
             type="button"
             aria-label="Tutup"
@@ -327,7 +327,7 @@ export function PulseClient({
               </div>
             </div>
           </div>
-        </div>
+        </Lapisan>
       ) : null}
     </div>
   );

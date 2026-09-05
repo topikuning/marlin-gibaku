@@ -10,6 +10,7 @@ export {
   type ButtonVariant,
 } from "./button";
 export { Card, CardBody, CardHeader, CollapsibleCard } from "./card";
+export { Lapisan, LAPIS, type NamaLapis } from "./lapisan";
 export { Drawer, PanelGeser } from "./drawer";
 export { KpiCard, type KpiCardProps, type KpiTone } from "./kpi";
 export { MiniStat } from "./mini-stat";

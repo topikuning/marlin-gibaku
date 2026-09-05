@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { Lapisan } from "@/components/ui";
 
 /**
  * LACI (drawer) untuk tambah/edit master data (DECISIONS 359).
@@ -67,7 +68,8 @@ export function Laci({
   if (!buka) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    // `kunciGulir` dimatikan: laci ini sudah mengunci gulir sendiri di efeknya.
+    <Lapisan lapis="panel" kunciGulir={false}>
       {/* Latar gelap sekaligus penutup. `aria-hidden` — isinya sudah diwakili
           panel di sebelahnya, dan tombol tutup yang sebenarnya ada di dalam. */}
       <div aria-hidden className="absolute inset-0 bg-ink/40" onClick={onTutup} />
@@ -102,6 +104,6 @@ export function Laci({
           </div>
         ) : null}
       </div>
-    </div>
+    </Lapisan>
   );
 }
