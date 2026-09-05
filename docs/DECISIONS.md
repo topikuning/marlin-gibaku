@@ -27236,3 +27236,56 @@ pengecualian tetap jadi keputusan yang tercatat, bukan kelalaian yang lolos.
   akan kalah oleh apa pun yang lain.
 - *Mem-portal semua lapisan tanpa kecuali.* Memutus empat form dari isinya —
   menukar cacat tampilan dengan kehilangan data.
+
+---
+## (baru) · Perapian bahasa hanya di form EDIT — bukan di form buat, bukan di finalisasi (2026-09-05)
+
+**Konteks**: user melihat panel "Rapikan bahasa / Bahasa teknis" terpasang di
+form BUAT kegiatan dan menegur: *"yang dulu aku maksud untuk fitur ini ada
+bukan saat difinalkan, itu bukan di sini, tapi di menu edit atau ketika inputan
+sudah jadi laporan kegiatan, bukan sebelum disimpan seperti ini!"*
+
+Teguran itu benar dan mengoreksi pekerjaan saya sendiri (DECISIONS 516):
+membaca *"tombol rapikan teks itu, tersendiri"* saya taruh panelnya di SETIAP
+form kegiatan, termasuk form buat. Padahal yang belum tersimpan belum jadi
+laporan kegiatan — merapikan bahasanya berarti mengirim tulisan yang orangnya
+sendiri belum selesai menuliskannya, dan menambah pekerjaan tepat di detik ia
+sedang mengetik.
+
+**Keputusan**: perapian bahasa berada di SATU tempat saja — form EDIT kegiatan
+yang sudah tersimpan (`RapikanTeksPanel` di `EditActivityForm`). Dua tempat
+lain dicabut:
+
+1. **Form BUAT** — panelnya dibuang. Urutannya kembali lurus: tulis → Simpan →
+   (kalau perlu) Edit → Rapikan.
+2. **Panel FINALISASI** (bentuk asli DECISIONS 179) — langkah rapikan-lalu-
+   finalkan dibuang seluruhnya. Finalisasi kini satu konfirmasi saja, karena
+   menutup kegiatan adalah keputusan, bukan pekerjaan mengetik. Sampai hari ini
+   jalur itu masih dipertahankan "sebagai jaring terakhir" (516); user menyebut
+   sendiri bahwa jaring itu memang bukan yang ia maksud.
+
+Yang ikut dibuang bukan cuma tampilannya: server action
+`suggestActivityRewriteAction` dan `finalizeActivityWithTextAction` dihapus.
+Server action yang tidak dipakai layar mana pun tetap punya endpoint sendiri
+dan tetap bisa dipanggil dari luar — menyembunyikan tombolnya saja bukan
+pencabutan. Jalur yang tinggal satu: `suggestTextRewriteAction`, yang bekerja
+atas isi form dan tidak menyimpan apa pun (178 tetap berlaku: usulan tidak
+pernah menimpa tulisan orang tanpa dicentang).
+
+**Alternatif direject**:
+- *Sembunyikan panelnya di form buat, biarkan kodenya.* Sudah cukup untuk
+  layar, tidak cukup untuk sistem — endpointnya tetap hidup.
+- *Pertahankan jalur finalisasi sebagai cadangan.* Itu bentuk yang persis
+  dikeluhkan dua kali (516 dan sekarang); "cadangan" yang tidak diminta
+  siapa pun cuma jalan kedua yang harus ikut diuji dan ikut dijaga.
+- *Munculkan panelnya otomatis begitu kegiatan tersimpan.* Menyodorkan
+  pekerjaan lagi tanpa diminta — Edit sudah satu ketukan.
+
+**Konsekuensi**: alur buat jadi lebih pendek; kegiatan yang bahasanya perlu
+dirapikan lewat Edit dulu, dan itu memang menambah satu ketukan bagi yang mau
+merapikan sebelum final. `tests/unit/rapikan-hanya-di-edit.test.ts` menjaga
+LETAK-nya (form buat & panel finalisasi bersih, form edit memuatnya, dua server
+action lama tidak ada lagi) — sebab yang salah kemarin memang letak, dan letak
+tidak akan menggagalkan uji perilaku mana pun.
+
+**Bisa di-revisit**: bila user meminta jalannya dari tempat lain.

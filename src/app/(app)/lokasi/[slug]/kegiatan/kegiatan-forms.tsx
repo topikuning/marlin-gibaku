@@ -280,7 +280,13 @@ export function CreateActivityForm({
         </div>
       </div>
 
-      <RapikanTeksPanel locationId={locationId} />
+      {/* TIDAK ADA perapian bahasa di form BUAT.
+          Ketetapan user 2026-09-05: *"yang dulu aku maksud untuk fitur ini …
+          bukan di sini, tapi di menu edit atau ketika inputan sudah jadi
+          laporan kegiatan, bukan sebelum disimpan seperti ini!"*
+          Merapikan kalimat yang belum tersimpan berarti menawarkan perubahan
+          atas sesuatu yang belum ada catatannya; tempatnya sesudah kegiatan
+          menjadi catatan — yaitu di form EDIT. */}
 
       <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
         <Label>Foto dokumentasi (maks {MAX_PHOTOS_PER_ACTIVITY})</Label>
