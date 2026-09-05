@@ -15,12 +15,12 @@ import { bandingkanTerhadapAktif, type NodeAktif } from "@/lib/rab/diff-parsed";
 import type { FlatNode } from "@/lib/rab/flatten";
 
 const kat: NodeAktif = {
-  lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN STRUKTUR",
+  lineageKey: "I", parentLineageKey: null, kind: "kategori", code: "I", name: "PEKERJAAN STRUKTUR",
   volume: null, unitPrice: null, amount: 0n,
 };
 
 const aktifItem = (o: Partial<NodeAktif> & Pick<NodeAktif, "lineageKey" | "code" | "name">): NodeAktif => ({
-  kind: "item", volume: null, unitPrice: null, amount: 0n, ...o,
+  kind: "item", parentLineageKey: "I", volume: null, unitPrice: null, amount: 0n, ...o,
 });
 
 const fileKategori = (amount: bigint): FlatNode => ({

@@ -27289,3 +27289,73 @@ action lama tidak ada lagi) — sebab yang salah kemarin memang letak, dan letak
 tidak akan menggagalkan uji perilaku mana pun.
 
 **Bisa di-revisit**: bila user meminta jalannya dari tempat lain.
+
+---
+## (baru) · Sel bercampur huruf bukan angka, dan tabel RAB berakhir di blok tanda tangan (2026-09-05)
+
+**Konteks**: user mengunggah MC-0 Pasar Banggi dan pratinjau impor menyebut
+nilai kontrak **Rp 199.106.207.887.358.100** – dua ratus ribu triliun untuk
+pekerjaan yang nilainya Rp 5,87 miliar. Seluruh kelebihannya menumpuk di satu
+kategori: XVIII PEKERJAAN BANGUNAN IPAL BIOTECH. *"lihat penjumlahan itu ada
+apa kalian ini, kenapa super berantakan."*
+
+Sebabnya SATU sel, di baris tanda tangan paling bawah berkas:
+`"NIP 199106202015031001"`.
+
+- `bacaAngkaLokal` membuang semua huruf dari teks sel
+  (`replace(/[^\d.,]/g, "")`), jadi nomor induk pegawai jadi angka;
+- barisnya sendiri – kode kosong, nama "Oc Team Leader" – masuk lewat jalur
+  "baris berkode rusak yang punya nilai sendiri" sebagai item `~1`;
+- angka 1,99 × 10¹⁷ lalu mendominasi apportionment, dan karena ia berada di
+  kategori terakhir, kategori itulah yang menampungnya.
+
+Selisih yang terlihat di layar (Rp 199.106.202.050.181.200 − NIP =
+35.150.199 ≈ Σ item XVIII 35.150.172) adalah derau presisi `double` di
+angka sebesar itu – bukti tambahan bahwa yang dijumlahkan memang NIP.
+
+**Keputusan (dua lapis, dan keduanya perlu)**
+
+1. **Sel yang bercampur huruf BUKAN angka.** `bacaAngkaLokal` kini hanya
+   menerima teks yang seluruhnya angka, dengan hiasan yang tidak mengubah
+   artinya: `Rp`/`IDR` di depan, tanda minus/kurung, spasi, persen di
+   belakang. "NIP …", "No. 12", "3 m³", "Termin 2", "Rembang, 02 Agustus 2026"
+   → `null`, bukan tebakan. Aturan desimal (koma = desimal; satu titik
+   dibiarkan desimal) TIDAK disentuh – tidak ada berkas yang angkanya berubah
+   diam-diam oleh perbaikan ini.
+2. **Tabel RAB berakhir di blok tanda tangan.** Pembacaan berhenti begitu ada
+   sel yang UTUH berbunyi "Diperiksa Oleh :", "Mengetahui", "Dibuat Oleh",
+   "NIP. 1991…", dan seterusnya. Lapis kedua bukan pengulangan lapis pertama:
+   blok tanda tangan juga memuat sel yang MEMANG angka (tanggal, nomor SK,
+   nominal honor) dan tak satu pun dari itu pekerjaan. Penanda dicocokkan utuh
+   pada isi sel, bukan sebagai kata di tengah kalimat, sehingga "Pekerjaan
+   Ruang Direktur" tidak menghentikan apa pun; dan penghenti baru menyala
+   SESUDAH ada item terbaca, supaya "Mengetahui" di kop atas tabel tidak
+   membuat berkas berakhir nol baris.
+
+**Sekalian dibereskan (keluhan yang sama, layar yang sama)**: daftar beda di
+pratinjau menyebut kode item TELANJANG – *"2.d, 2.e itu yang mana, ada banyak
+kategori di sini, seharusnya sekalian sebutkan parentnya, misal II 2.d, atau
+IV 11.c, kalau gak gitu kan konyol"*. Benar: nomor item hanya unik di dalam
+kategorinya, dan berkas ini punya delapan belas kategori. Setiap baris beda
+kini membawa `jalur` – rantai kode dari kategori sampai item ("II · 2.d"),
+dengan segmen yang sudah termuat di kode anaknya dirapatkan ("2" tidak ditulis
+lagi di depan "2.d"). Dipakai di panel maupun di kalimat peringatan.
+
+**Alternatif direject**:
+- *Menyaring baris yang nilainya "tidak masuk akal".* Ambang apa pun adalah
+  tebakan, dan berkas yang angkanya memang besar akan ikut terpotong. Yang
+  salah bukan besarnya angka, melainkan bahwa sel itu bukan angka.
+- *Berhenti di baris JUMLAH terakhir.* Berkas KKP menulis baris JUMLAH per
+  kategori juga; "yang terakhir" hanya diketahui sesudah semuanya dibaca.
+- *Hanya lapis 1.* Menutup kasus ini, membiarkan blok tanda tangan berangka.
+- *Hanya lapis 2.* Menutup kasus ini, membiarkan "3 m³" atau "No. 12" di
+  tengah tabel jadi angka.
+
+**Konsekuensi**: berkas yang menaruh satuan di dalam sel angka ("1.500 m3")
+kini terbaca `null`, bukan 1500 – dan itu memang yang diinginkan: sel semacam
+itu tidak bisa dipercaya, dan selisihnya tertangkap peringatan "Σ item yang
+terbaca berbeda … dari total yang DITULIS berkas". Bukti ulang atas berkas
+user: total terbaca Rp 5.872.327.106 (sebelumnya Rp 199.106.207.887.358.100),
+XVIII menjadi Rp 35.150.173. Dijaga `tests/unit/rab-blok-tanda-tangan.test.ts`
+dan tambahan di `tests/unit/rab-diff-pratinjau.test.ts` +
+`tests/unit/pratinjau-beda-adendum.test.tsx`.

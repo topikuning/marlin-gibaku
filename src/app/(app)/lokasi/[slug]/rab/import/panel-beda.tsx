@@ -72,6 +72,18 @@ function DaftarBeda<T>({
   );
 }
 
+/**
+ * Kode item BESERTA kategorinya, mis. "II · 2.d".
+ *
+ * Keluhan user 2026-09-05: *"2.d, 2.e itu yang mana, ada banyak kategori di
+ * sini, seharusnya sekalian sebutkan parentnya, misal II 2.d, atau IV 11.c,
+ * kalau gak gitu kan konyol"*. Nomor item hanya unik di dalam kategorinya;
+ * berkas berdelapan-belas kategori membuat "2.d" jadi teka-teki, bukan alamat.
+ */
+function Jalur({ x }: { x: { jalur?: string; code: string } }) {
+  return <span className="font-medium text-ink">{x.jalur || x.code}</span>;
+}
+
 export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
   const selisih = Number(beda.totalBaru) - Number(beda.totalAktif);
   const berisiko = beda.itemHilang.filter((i) => i.realisasi > 0);
@@ -105,7 +117,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(v) => v.code + v.name}
             baris={(v) => (
               <>
-                {v.code} {v.name} – <span className="tabular">{v.dari ?? "–"}</span> →{" "}
+                <Jalur x={v} /> {v.name} – <span className="tabular">{v.dari ?? "–"}</span> →{" "}
                 <span className="tabular font-medium text-ink">{v.ke ?? "–"}</span>
                 {v.realisasi > 0 ? `, sudah dikerjakan ${v.realisasi}` : null}
                 {v.dibawahRealisasi ? (
@@ -125,7 +137,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(i) => i.code + i.name}
             baris={(i) => (
               <>
-                {i.code} {i.name}
+                <Jalur x={i} /> {i.name}
               </>
             )}
           />
@@ -140,7 +152,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(i) => i.code + i.name}
             baris={(i) => (
               <>
-                {i.code} {i.name}
+                <Jalur x={i} /> {i.name}
                 {i.realisasi > 0 ? (
                   <span className="ml-1 rounded bg-danger-soft px-1 text-danger">
                     realisasi {i.realisasi}
@@ -179,11 +191,11 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             baris={(h) => (
               <>
                 <span className="block">
-                  <span className="text-ink-muted">Kontrak</span> {h.code} {h.namaLama} –{" "}
+                  <span className="text-ink-muted">Kontrak</span> <Jalur x={h} /> {h.namaLama} –{" "}
                   <span className="tabular">{formatRupiahSatuan(h.dari)}</span>
                 </span>
                 <span className="block">
-                  <span className="text-ink-muted">File</span> {h.code} {h.name} –{" "}
+                  <span className="text-ink-muted">File</span> <Jalur x={h} /> {h.name} –{" "}
                   <span className="tabular font-medium text-ink">{formatRupiahSatuan(h.ke)}</span>{" "}
                   <span className={Number(h.dampakRupiah) >= 0 ? "text-warning" : "text-danger"}>
                     ({Number(h.dampakRupiah) >= 0 ? "+" : "−"}
@@ -223,7 +235,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(h) => h.lineageKey}
             baris={(h) => (
               <>
-                {h.code} {h.name} – <span className="tabular">{formatRupiah(Number(h.dari))}</span> →{" "}
+                <Jalur x={h} /> {h.name} – <span className="tabular">{formatRupiah(Number(h.dari))}</span> →{" "}
                 <span className="tabular font-medium text-ink">{formatRupiah(Number(h.ke))}</span>{" "}
                 <span className={Number(h.selisih) >= 0 ? "text-warning" : "text-danger"}>
                   ({Number(h.selisih) >= 0 ? "+" : "\u2212"}
@@ -248,7 +260,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(i) => i.code + i.name}
             baris={(i) => (
               <>
-                {i.code} {i.name} – realisasi {i.realisasi}
+                <Jalur x={i} /> {i.name} – realisasi {i.realisasi}
               </>
             )}
           />
@@ -266,7 +278,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             kunci={(v) => v.code + v.name}
             baris={(v) => (
               <>
-                {v.code} {v.name} – {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
+                <Jalur x={v} /> {v.name} – {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
               </>
             )}
           />

@@ -14,9 +14,9 @@ import { bandingkanTerhadapAktif, type NodeAktif } from "@/lib/rab/diff-parsed";
 import type { FlatNode } from "@/lib/rab/flatten";
 
 const aktif: NodeAktif[] = [
-  { lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
-  { lineageKey: "I#1", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: null, amount: 2_000_000n },
-  { lineageKey: "I#2", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: null, amount: 1_000_000n },
+  { lineageKey: "I", parentLineageKey: null, kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
+  { lineageKey: "I#1", parentLineageKey: "I", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: null, amount: 2_000_000n },
+  { lineageKey: "I#2", parentLineageKey: "I", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: null, amount: 1_000_000n },
 ];
 
 const item = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
@@ -48,14 +48,14 @@ describe("KASUS INTI: yang sudah dikerjakan tapi hilang di file baru", () => {
     const baru = [kategori(2_000_000n), item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100 })];
     const h = bandingkanTerhadapAktif(aktif, baru, new Map([["I#2", 1]]));
     expect(h.itemHilang).toEqual([
-      { lineageKey: "I#2", code: "2", name: "Papan Nama", realisasi: 1 },
+      { lineageKey: "I#2", code: "2", jalur: "I · 2", name: "Papan Nama", realisasi: 1 },
     ]);
   });
 
   it("yang sudah dikerjakan diurutkan LEBIH DULU daripada yang belum", () => {
     const dua: NodeAktif[] = [
       ...aktif,
-      { lineageKey: "I#3", kind: "item", code: "3", name: "Belum Dikerjakan", volume: 5, unitPrice: null, amount: 0n },
+      { lineageKey: "I#3", parentLineageKey: "I", kind: "item", code: "3", name: "Belum Dikerjakan", volume: 5, unitPrice: null, amount: 0n },
     ];
     const baru = [kategori(2_000_000n), item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100 })];
     const h = bandingkanTerhadapAktif(dua, baru, new Map([["I#2", 1]]));
@@ -142,9 +142,9 @@ describe("nilai total dibandingkan dari kategori, bukan dijumlah ulang dari daun
 // volume memperlihatkannya, jadi ia lolos justru pada file yang volumenya
 // tampak wajar.
 const berharga: NodeAktif[] = [
-  { lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
-  { lineageKey: "I#1", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000, amount: 2_000_000n },
-  { lineageKey: "I#2", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n },
+  { lineageKey: "I", parentLineageKey: null, kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
+  { lineageKey: "I#1", parentLineageKey: "I", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000, amount: 2_000_000n },
+  { lineageKey: "I#2", parentLineageKey: "I", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n },
 ];
 
 describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
@@ -195,5 +195,60 @@ describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
     const h = bandingkanTerhadapAktif(berharga, baru, new Map());
     expect(h.hargaBerubah.map((x) => x.code)).toEqual(["2", "1"]);
     expect(h.hargaBerubah[0].dampakRupiah).toBe(-200_000n);
+  });
+});
+
+/*
+ * KODE ITEM DISEBUT BESERTA KATEGORINYA.
+ *
+ * Keluhan user 2026-09-05: *"2.d, 2.e itu yang mana, ada banyak kategori di
+ * sini, seharusnya sekalian sebutkan parentnya, misal II 2.d, atau IV 11.c,
+ * kalau gak gitu kan konyol"*. Nomor item hanya unik DI DALAM kategorinya:
+ * berkas berdelapan-belas kategori bisa punya "2.d" di beberapa tempat
+ * sekaligus, dan daftar yang menyebut "2.d" saja bukan alamat, melainkan
+ * teka-teki.
+ */
+describe("jalur kode: kategori ikut disebut", () => {
+  const katII: NodeAktif = {
+    lineageKey: "II", parentLineageKey: null, kind: "kategori", code: "II",
+    name: "PEKERJAAN REVETMENT", volume: null, unitPrice: null, amount: 1_000_000n,
+  };
+  const grup2: NodeAktif = {
+    lineageKey: "II#2", parentLineageKey: "II", kind: "grup", code: "2",
+    name: "Pekerjaan Beton", volume: null, unitPrice: null, amount: 1_000_000n,
+  };
+  const item2d: NodeAktif = {
+    lineageKey: "II#2#2.d", parentLineageKey: "II#2", kind: "item", code: "2.d",
+    name: "Pekerjaan beton semi mekanis", volume: 7.84, unitPrice: 100_000, amount: 784_000n,
+  };
+  const aktifBersarang = [katII, grup2, item2d];
+
+  const fileNode = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
+    kind: "item", volume: null, unit: null, unitPrice: null, amount: 0n,
+    parentLineageKey: null, sortOrder: 0, ...o,
+  });
+
+  const berkas = (volume: number): FlatNode[] => [
+    fileNode({ kind: "kategori", lineageKey: "II", code: "II", name: "PEKERJAAN REVETMENT", amount: 1_000_000n }),
+    fileNode({ kind: "grup", lineageKey: "II#2", code: "2", name: "Pekerjaan Beton", parentLineageKey: "II", amount: 1_000_000n }),
+    fileNode({ lineageKey: "II#2#2.d", code: "2.d", name: "Pekerjaan beton semi mekanis", parentLineageKey: "II#2", volume, unitPrice: 100_000, amount: 980_000n }),
+  ];
+
+  it("volume berubah disebut 'II · 2.d', bukan '2.d' telanjang", () => {
+    const h = bandingkanTerhadapAktif(aktifBersarang, berkas(9.8), new Map());
+    expect(h.volumeBerubah.map((v) => v.jalur)).toEqual(["II · 2.d"]);
+    // Kode aslinya tetap dibawa – ia yang dipakai mencocokkan, bukan jalurnya.
+    expect(h.volumeBerubah[0].code).toBe("2.d");
+  });
+
+  it("segmen yang sudah termuat di kode anaknya tidak diulang", () => {
+    // Rantainya II → 2 → 2.d; "2" tidak ditulis lagi karena "2.d" sudah memuatnya.
+    const h = bandingkanTerhadapAktif(aktifBersarang, berkas(9.8), new Map());
+    expect(h.volumeBerubah[0].jalur).not.toContain("· 2 ·");
+  });
+
+  it("item yang HILANG memakai jalur dari kontrak – sisi file tidak punya barisnya", () => {
+    const h = bandingkanTerhadapAktif(aktifBersarang, [], new Map());
+    expect(h.itemHilang.map((i) => i.jalur)).toEqual(["II · 2.d"]);
   });
 });

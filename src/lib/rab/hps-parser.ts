@@ -680,6 +680,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     row: ExcelJS.Row,
     parentCode: string | null,
   ): ParsedRabItem => {
+    adaItem = true; // menyenjatai penghenti blok tanda tangan (lihat PENANDA_TTD)
     const volume = num(cellVal(row, col.vol));
     const unitPrice = num(cellVal(row, col.price));
     const totalPrice = num(cellVal(row, col.amount));
@@ -788,8 +789,45 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     );
   };
 
+  /*
+   * TABEL RAB BERAKHIR DI BLOK TANDA TANGAN.
+   *
+   * Laporan user 2026-09-05 atas MC-0 Pasar Banggi: kategori XVIII terbaca
+   * Rp 199.106.202.050.181.200 karena sel `"NIP 199106202015031001"` di blok
+   * tanda tangan masuk sebagai baris pekerjaan tak berkode (`~1` "Oc Team
+   * Leader"). `bacaAngkaLokal` kini menolak sel semacam itu, tapi penjaga satu
+   * lapis tidak cukup: blok tanda tangan bisa memuat sel yang MEMANG angka
+   * (tanggal, nomor SK, nominal honor) dan semuanya sama-sama bukan pekerjaan.
+   *
+   * Karena itu pembacaan BERHENTI begitu blok tanda tangan mulai. Penandanya
+   * dicocokkan UTUH pada isi sel ("Diperiksa Oleh :", "Mengetahui", "NIP.
+   * 1991…"), bukan sebagai kata di tengah kalimat — "Pekerjaan ruang direktur"
+   * tidak boleh menghentikan apa pun.
+   *
+   * Penghenti baru berlaku SESUDAH ada item terbaca. Sebagian berkas menaruh
+   * "Disetujui oleh" di kop atas tabel; menghentikan pembacaan di situ membuat
+   * seluruh berkas berakhir nol baris — kegagalan yang jauh lebih buruk
+   * daripada satu baris berlebih.
+   */
+  const PENANDA_TTD =
+    /^(?:mengetahui|menyetujui|di\s*setujui|di\s*periksa(?:\s*oleh)?|diperiksa(?:\s*oleh)?|di\s*buat(?:\s*oleh)?|dibuat(?:\s*oleh)?|di\s*susun(?:\s*oleh)?|disusun(?:\s*oleh)?|di\s*hitung(?:\s*oleh)?|dihitung(?:\s*oleh)?|di\s*usulkan(?:\s*oleh)?|diusulkan(?:\s*oleh)?)\s*[:,.]?$|^nip\.?\s*[\d.\s]{6,}$/i;
+  const barisTandaTangan = (row: ExcelJS.Row): boolean => {
+    let ketemu = false;
+    row.eachCell({ includeEmpty: false }, (_c, kolom) => {
+      if (!ketemu && PENANDA_TTD.test(str(cellVal(row, kolom)))) ketemu = true;
+    });
+    return ketemu;
+  };
+  let adaItem = false;
+  let selesai = false;
+
   let hiddenSkipped = 0;
   ws.eachRow((row) => {
+    if (selesai) return;
+    if (adaItem && barisTandaTangan(row)) {
+      selesai = true;
+      return;
+    }
     // Baris yang SENGAJA DI-HIDE di Excel (mis. dikecualikan dari resume) tidak
     // ikut dihitung — importer mengikuti apa yang terlihat, sama seperti resume
     // kontrak. Sinyal: atribut hidden Excel; height 0 sbg cadangan defensif.

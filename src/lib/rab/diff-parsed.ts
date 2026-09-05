@@ -16,6 +16,7 @@ import type { FlatNode } from "@/lib/rab/flatten";
 
 export type NodeAktif = {
   lineageKey: string;
+  parentLineageKey: string | null;
   kind: string;
   code: string;
   name: string;
@@ -27,6 +28,17 @@ export type NodeAktif = {
 export type BarisBeda = {
   lineageKey: string;
   code: string;
+  /**
+   * Kode item BESERTA induknya, mis. `"II · 2.d"`.
+   *
+   * Keluhan user 2026-09-05: *"2.d, 2.e itu yang mana, ada banyak kategori di
+   * sini, seharusnya sekalian sebutkan parentnya, misal II 2.d, atau IV 11.c,
+   * kalau gak gitu kan konyol"*. Benar: nomor item hanya unik DI DALAM
+   * kategorinya. Berkas ini punya delapan belas kategori, dan tiga di antaranya
+   * punya item "2.d" – daftar yang menyebut "2.d" saja menyuruh orang menebak
+   * yang mana dari delapan belas.
+   */
+  jalur: string;
   name: string;
 };
 
@@ -141,12 +153,48 @@ const TOLERANSI_NILAI = 2n;
 
 const EPS = 1e-6;
 
+/**
+ * Peta lineageKey → jalur kode berinduk (`"II · 2.d"`).
+ *
+ * Rantai leluhur dirapatkan: segmen yang sudah termuat di kode anaknya dibuang,
+ * karena kode item memang sudah membawa induk ITEM-nya ("6" lalu "6.1" cukup
+ * ditulis "6.1"). Yang tersisa justru yang hilang dari layar selama ini:
+ * kategori romawinya.
+ */
+function petaJalur(
+  nodes: { lineageKey: string; parentLineageKey: string | null; code: string }[],
+): Map<string, string> {
+  const byKey = new Map(nodes.map((n) => [n.lineageKey, n]));
+  const peta = new Map<string, string>();
+  for (const n of nodes) {
+    const rantai: string[] = [];
+    let cur: (typeof nodes)[number] | undefined = n;
+    const dilewati = new Set<string>();
+    while (cur && !dilewati.has(cur.lineageKey)) {
+      dilewati.add(cur.lineageKey);
+      rantai.unshift(cur.code);
+      cur = cur.parentLineageKey ? byKey.get(cur.parentLineageKey) : undefined;
+    }
+    const padat = rantai.filter(
+      (kode, i) => i === rantai.length - 1 || !rantai[i + 1].startsWith(`${kode}.`),
+    );
+    peta.set(n.lineageKey, padat.join(" · "));
+  }
+  return peta;
+}
+
 export function bandingkanTerhadapAktif(
   aktif: NodeAktif[],
   baru: FlatNode[],
   realisasiByLineage: Map<string, number>,
 ): RingkasBeda {
   const itemAktif = new Map(aktif.filter((n) => n.kind === "item").map((n) => [n.lineageKey, n]));
+  // Jalur dihitung dari POHON UTUH kedua sisi — kategori dan sub bukan item,
+  // jadi menyaring item lebih dulu akan memutus rantai induknya.
+  const jalurAktif = petaJalur(aktif);
+  const jalurBaru = petaJalur(baru);
+  const jalurDari = (key: string, kode: string): string =>
+    jalurBaru.get(key) ?? jalurAktif.get(key) ?? kode;
   const itemBaruList = baru.filter((n) => n.kind === "item");
   const itemBaruMap = new Map(itemBaruList.map((n) => [n.lineageKey, n]));
 
@@ -159,7 +207,12 @@ export function bandingkanTerhadapAktif(
   for (const n of itemBaruList) {
     const lama = itemAktif.get(n.lineageKey);
     if (!lama) {
-      itemBaru.push({ lineageKey: n.lineageKey, code: n.code, name: n.name });
+      itemBaru.push({
+        lineageKey: n.lineageKey,
+        code: n.code,
+        jalur: jalurDari(n.lineageKey, n.code),
+        name: n.name,
+      });
       continue;
     }
     const dari = lama.volume;
@@ -226,6 +279,7 @@ export function bandingkanTerhadapAktif(
       hargaBerubah.push({
         lineageKey: n.lineageKey,
         code: n.code,
+        jalur: jalurDari(n.lineageKey, n.code),
         name: n.name,
         namaLama: lama.name,
         dari: hargaLama,
@@ -248,6 +302,7 @@ export function bandingkanTerhadapAktif(
       nilaiBergeser.push({
         lineageKey: n.lineageKey,
         code: n.code,
+        jalur: jalurDari(n.lineageKey, n.code),
         name: n.name,
         dari: lama.amount,
         ke: n.amount,
@@ -263,6 +318,7 @@ export function bandingkanTerhadapAktif(
     volumeBerubah.push({
       lineageKey: n.lineageKey,
       code: n.code,
+      jalur: jalurDari(n.lineageKey, n.code),
       name: n.name,
       dari,
       ke,
@@ -298,6 +354,7 @@ export function bandingkanTerhadapAktif(
     itemHilang.push({
       lineageKey: key,
       code: lama.code,
+      jalur: jalurAktif.get(key) ?? lama.code,
       name: lama.name,
       realisasi: realisasiByLineage.get(key) ?? 0,
     });

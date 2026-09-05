@@ -50,8 +50,8 @@ const berkas: FlatNode[] = [
 ];
 
 const aktif: NodeAktif[] = [
-  { lineageKey: KAT, kind: "kategori", code: "III", name: "PEKERJAAN DINDING PENAHAN TANAH", volume: null, unitPrice: null, amount: 4_055_183n },
-  { lineageKey: LAMA, kind: "item", code: "1.a", name: "Pekerjaan Galian Tanah sampai dengan 1 m", volume: 45.7, unitPrice: 88_734.87, amount: 4_055_183n },
+  { lineageKey: KAT, parentLineageKey: null, kind: "kategori", code: "III", name: "PEKERJAAN DINDING PENAHAN TANAH", volume: null, unitPrice: null, amount: 4_055_183n },
+  { lineageKey: LAMA, parentLineageKey: KAT, kind: "item", code: "1.a", name: "Pekerjaan Galian Tanah sampai dengan 1 m", volume: 45.7, unitPrice: 88_734.87, amount: 4_055_183n },
 ];
 
 /** Laporan harian: 45,7 m3 sudah dikerjakan atas item lama. */
