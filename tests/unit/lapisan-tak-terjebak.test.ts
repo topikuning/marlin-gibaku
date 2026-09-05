@@ -22,7 +22,7 @@ const AKAR = "src";
 /** Lapisan yang SENGAJA tidak di-portal, beserta alasannya. */
 const DIKECUALIKAN: Record<string, string> = {
   "src/components/ui/confirm-dialog.tsx":
-    "tombolnya memakai e.currentTarget.form?.requestSubmit() — portal memutus ikatan ke form-nya",
+    "tombolnya memakai e.currentTarget.form?.requestSubmit(); portal memutus ikatan ke form-nya",
   "src/components/ui/drawer.tsx": "isinya bisa memuat kendali milik form di layar pemanggil",
   "src/components/knmp/photo-source-input.tsx": "lembar pilihan foto berada DI DALAM form laporan",
   "src/app/(app)/lokasi/[slug]/harian/[date]/report-editor.tsx":
