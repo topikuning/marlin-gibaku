@@ -66,6 +66,18 @@ enum RevisionStatus {
   digantikan
 }
 
+/// Jenis perubahan LINGKUP lokasi lewat adendum (DECISIONS baru 2026-09-05).
+enum LocationScopeKind {
+  tambah
+  cabut
+}
+
+enum LocationScopeStatus {
+  draft
+  aktif
+  dibatalkan
+}
+
 enum RabNodeKind {
   kategori
   sub
@@ -409,20 +421,21 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization      Organization          @relation(fields: [orgId], references: [id])
+  organization      Organization            @relation(fields: [orgId], references: [id])
   sessions          Session[]
   assignments       LocationAssignment[]
   auditLogs         AuditLog[]
-  creator           User?                 @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers      User[]                @relation("UserCreator")
-  waContacts        WaContact[]           @relation("WaContactOwner")
-  waAliases         WaSenderAlias[]       @relation("WaSenderAliasCreator")
+  creator           User?                   @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers      User[]                  @relation("UserCreator")
+  waContacts        WaContact[]             @relation("WaContactOwner")
+  waAliases         WaSenderAlias[]         @relation("WaSenderAliasCreator")
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
-  ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
-  hsdDiubah         HargaSatuanDasar[]    @relation("HsdUpdater")
-  hsdUsulanDiminta  HsdUsulanRun[]        @relation("HsdUsulanPeminta")
-  raplRincian       RaplRincian[]         @relation("RaplRincianUpdater")
+  scopeApprovals    LocationScopeApproval[]
+  ahspPadanan       AhspPadanan[]           @relation("AhspPadananDecider")
+  hsdDiubah         HargaSatuanDasar[]      @relation("HsdUpdater")
+  hsdUsulanDiminta  HsdUsulanRun[]          @relation("HsdUsulanPeminta")
+  raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
 
   @@index([orgId])
   @@index([role])
@@ -567,24 +580,24 @@ model GDriveUpload {
 /// berkas master. Tanpa jejak ini, angka analisa cuma "kata sistem".
 /// DECISIONS 317.
 model AhspSource {
-  id            String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
   /// Kunci stabil, mis. "SE_DJBK_47_2026" — dipakai impor ulang (idempoten).
-  code          String   @unique
-  name          String
-  subject       String?
-  schemaVersion String   @map("schema_version")
+  code           String   @unique
+  name           String
+  subject        String?
+  schemaVersion  String   @map("schema_version")
   /// Kapan berkas master itu dibangkitkan (dari metadata-nya, bukan jam impor).
-  generatedAt   DateTime @map("generated_at") @db.Timestamptz
+  generatedAt    DateTime @map("generated_at") @db.Timestamptz
   /// metadata.source_documents apa adanya: nama berkas, jumlah halaman, sha256.
-  documents     Json
+  documents      Json
   /// sha256 berkas JSON yang benar-benar diimpor.
-  fileSha256    String   @map("file_sha256")
+  fileSha256     String   @map("file_sha256")
   /// `matching_engine` berkas apa adanya (padanan istilah, aturan penulangan,
   /// panduan skor). Disimpan supaya aturan pencocokan selalu seumur dengan
   /// berkas koefisiennya — bukan aturan MARLIN yang menua sendiri. DECISIONS 321.
-  matchingEngine Json?   @map("matching_engine")
-  importedAt    DateTime @default(now()) @map("imported_at") @db.Timestamptz
-  importedById  String?  @map("imported_by_id") @db.Uuid
+  matchingEngine Json?    @map("matching_engine")
+  importedAt     DateTime @default(now()) @map("imported_at") @db.Timestamptz
+  importedById   String?  @map("imported_by_id") @db.Uuid
 
   entries AhspEntry[]
 
@@ -598,31 +611,31 @@ model AhspSource {
 /// uraian/satuannya berbeda), dan panduannya menyuruh memakai id + uraian +
 /// satuan. Memakai kode sebagai kunci akan menggabungkan analisa yang berbeda.
 model AhspEntry {
-  id         String  @id @default(uuid()) @db.Uuid
-  sourceId   String  @map("source_id") @db.Uuid
-  externalId String  @map("external_id")
-  kode       String
-  uraian     String
-  satuan     String
+  id              String   @id @default(uuid()) @db.Uuid
+  sourceId        String   @map("source_id") @db.Uuid
+  externalId      String   @map("external_id")
+  kode            String
+  uraian          String
+  satuan          String
   /// sumber_daya_air | bina_marga | cipta_karya
-  bidang     String
+  bidang          String
   /// Normatif | Informatif
-  ahspType   String  @map("ahsp_type")
-  workGroup  String? @map("work_group")
-  divisi     String?
-  notes      String?
+  ahspType        String   @map("ahsp_type")
+  workGroup       String?  @map("work_group")
+  divisi          String?
+  notes           String?
   /// true = dari `supplemental_records`: TIDAK punya padanan resmi yang pasti
   /// dan menurut panduan berkasnya hanya boleh dipakai setelah diverifikasi.
-  perluVerifikasi Boolean @default(false) @map("perlu_verifikasi")
+  perluVerifikasi Boolean  @default(false) @map("perlu_verifikasi")
   /// Rujukan dokumen: lampiran + halaman PDF daftar isi & halaman analisanya.
   lampiran        String?
-  tocPdfPage      Int?    @map("toc_pdf_page")
-  analysisPdfPage Int?    @map("analysis_pdf_page")
+  tocPdfPage      Int?     @map("toc_pdf_page")
+  analysisPdfPage Int?     @map("analysis_pdf_page")
   /// Kunci teks halaman sumber — dipakai bila komponennya belum terstruktur.
-  excerptId       String? @map("excerpt_id")
+  excerptId       String?  @map("excerpt_id")
   /// `legacy.id` — id analisa yang SAMA pada terbitan berkas sebelumnya.
   /// Dipakai menyambung ulang padanan saat basis AHSP diganti (DECISIONS 323).
-  legacyId        String? @map("legacy_id")
+  legacyId        String?  @map("legacy_id")
   /// Lapisan pencocokan dari berkasnya (`search.aliases` / `search.keywords`):
   /// istilah lapangan yang menunjuk pekerjaan ini. Kosong untuk analisa
   /// supplemental — berkasnya memang tidak memberi, dan itu tidak ditambal
@@ -723,24 +736,24 @@ enum WaRelevanceOverride {
 }
 
 model WaMessage {
-  id          String   @id @default(uuid()) @db.Uuid
-  packageId   String?  @map("package_id") @db.Uuid
-  chatId      String   @map("chat_id")
-  waMessageId String   @unique @map("wa_message_id") // id pesan WAHA — dedup
-  fromNumber  String?  @map("from_number")
-  fromName    String?  @map("from_name")
+  id                String               @id @default(uuid()) @db.Uuid
+  packageId         String?              @map("package_id") @db.Uuid
+  chatId            String               @map("chat_id")
+  waMessageId       String               @unique @map("wa_message_id") // id pesan WAHA — dedup
+  fromNumber        String?              @map("from_number")
+  fromName          String?              @map("from_name")
   // JID mentah pengirim (…@c.us / …@lid). Perlu dibedakan: @lid = identitas
   // privasi WhatsApp, TIDAK mengandung nomor telepon. DECISIONS 138.
-  senderJid   String?  @map("sender_jid")
-  body        String   @db.Text
-  hasMedia    Boolean  @default(false) @map("has_media")
-  mediaType   String?  @map("media_type")
-  fromMe      Boolean  @default(false) @map("from_me")
-  timestamp   DateTime @db.Timestamptz // waktu pesan (dari WAHA)
-  raw         Json?    @db.JsonB // event mentah (audit/debug)
+  senderJid         String?              @map("sender_jid")
+  body              String               @db.Text
+  hasMedia          Boolean              @default(false) @map("has_media")
+  mediaType         String?              @map("media_type")
+  fromMe            Boolean              @default(false) @map("from_me")
+  timestamp         DateTime             @db.Timestamptz // waktu pesan (dari WAHA)
+  raw               Json?                @db.JsonB // event mentah (audit/debug)
   /// Timpaan relevansi oleh reviewer — null = ikut klasifikasi otomatis.
   relevanceOverride WaRelevanceOverride? @map("relevance_override")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz
 
   package     Package?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
   attachments WaAttachment[]
@@ -793,8 +806,8 @@ enum WaAttachmentDecision {
 /// tanpa pernah mengunduh berkasnya — surat yang dikirim ke grup lenyap begitu
 /// URL WAHA kedaluwarsa. Tabel ini menyimpan berkasnya beserta dugaan perannya.
 model WaAttachment {
-  id        String @id @default(uuid()) @db.Uuid
-  messageId String @map("message_id") @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  messageId String  @map("message_id") @db.Uuid
   packageId String? @map("package_id") @db.Uuid
 
   fileName  String? @map("file_name")
@@ -817,10 +830,10 @@ model WaAttachment {
 
   /// Dugaan mesin + alasannya, supaya orang bisa menilai usulnya, bukan
   /// disodori vonis tanpa dasar.
-  saranKind   WaAttachmentKind @default(media_lain) @map("saran_kind")
-  saranAlasan String?          @map("saran_alasan")
+  saranKind    WaAttachmentKind @default(media_lain) @map("saran_kind")
+  saranAlasan  String?          @map("saran_alasan")
   /// Ringkasan isi dari AI (opsional) — usulan, bukan data resmi.
-  saranRingkas String?         @map("saran_ringkas") @db.Text
+  saranRingkas String?          @map("saran_ringkas") @db.Text
 
   decision    WaAttachmentDecision @default(belum)
   decidedById String?              @map("decided_by_id") @db.Uuid
@@ -830,10 +843,8 @@ model WaAttachment {
 
   message WaMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   package Package?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  letters Letter[]
 
-  @@index([packageId, createdAt])
-  @@index([decision, saranKind])
-  @@index([sha256])
   /// SATU pesan hanya boleh melahirkan SATU lampiran.
   ///
   /// Penjaga di `ingest.ts` (findFirst lalu create) menutup pengulangan
@@ -842,16 +853,19 @@ model WaAttachment {
   /// yang menahan hanya basis data. Pemanggil menangkap P2002 dan
   /// memperlakukannya sebagai "sudah tertangkap" — bukan galat.
   @@unique([messageId])
-  letters Letter[]
-
+  @@index([packageId, createdAt])
+  @@index([decision, saranKind])
+  @@index([sha256])
   @@map("wa_attachments")
 }
 
-/* ── Register surat masuk & keluar (DECISIONS 432) ─────────────────────────
-   Surat BUKAN berkas, dan bukan pula jenis masalah. Surat adalah percakapan
-   bertanggal yang bisa menuntut jawaban. Karena itu ia entitas sendiri —
-   berkasnya boleh menumpang `Document`/`WaAttachment`, tapi arah, lawan
-   bicara, tenggat jawaban, dan rantai balasannya tidak punya rumah di sana. */
+/**
+ * ── Register surat masuk & keluar (DECISIONS 432) ─────────────────────────
+ * Surat BUKAN berkas, dan bukan pula jenis masalah. Surat adalah percakapan
+ * bertanggal yang bisa menuntut jawaban. Karena itu ia entitas sendiri —
+ * berkasnya boleh menumpang `Document`/`WaAttachment`, tapi arah, lawan
+ * bicara, tenggat jawaban, dan rantai balasannya tidak punya rumah di sana.
+ */
 
 enum LetterDirection {
   masuk
@@ -896,14 +910,14 @@ enum LetterStatus {
 }
 
 model Letter {
-  id        String  @id @default(uuid()) @db.Uuid
-  orgId     String  @map("org_id") @db.Uuid
-  packageId String? @map("package_id") @db.Uuid
+  id         String  @id @default(uuid()) @db.Uuid
+  orgId      String  @map("org_id") @db.Uuid
+  packageId  String? @map("package_id") @db.Uuid
   locationId String? @map("location_id") @db.Uuid
 
   /// Nomor agenda internal (urut per organisasi per tahun) — dibuat sistem.
-  agendaNo   Int     @map("agenda_no")
-  agendaYear Int     @map("agenda_year")
+  agendaNo   Int @map("agenda_no")
+  agendaYear Int @map("agenda_year")
 
   direction LetterDirection
   party     LetterParty     @default(lainnya)
@@ -950,15 +964,15 @@ model Letter {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  package   Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  location  Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  inReplyTo Letter?       @relation("BalasanSurat", fields: [inReplyToId], references: [id], onDelete: SetNull)
-  balasan   Letter[]      @relation("BalasanSurat")
+  package    Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  location   Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  inReplyTo  Letter?       @relation("BalasanSurat", fields: [inReplyToId], references: [id], onDelete: SetNull)
+  balasan    Letter[]      @relation("BalasanSurat")
   attachment WaAttachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
   document   Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
   /// Kendala & temuan yang LAHIR dari surat ini (tahap 4).
-  issues   Issue[]
-  findings Finding[]
+  issues     Issue[]
+  findings   Finding[]
 
   @@unique([orgId, agendaYear, agendaNo])
   @@index([orgId, handledDate])
@@ -1007,22 +1021,22 @@ model PackageStageHistory {
 }
 
 model Vendor {
-  id        String   @id @default(uuid()) @db.Uuid
-  orgId     String   @map("org_id") @db.Uuid
-  name      String
-  npwp      String?
-  contact   String?
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  name       String
+  npwp       String?
+  contact    String?
   // Master data perusahaan — dasar kop surat & logo (DECISIONS 134).
-  address   String?
-  phone     String?
-  email     String?
-  logoKey   String?  @map("logo_key") // key R2 logo perusahaan
-  kopKey    String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
+  address    String?
+  phone      String?
+  email      String?
+  logoKey    String?  @map("logo_key") // key R2 logo perusahaan
+  kopKey     String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
   /// Stempel perusahaan — cadangan bila kontrak belum mengunggah stempelnya
   /// sendiri. Satu perusahaan satu stempel; itu memang benda fisik yang sama.
-  stempelKey String? @map("stempel_key")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  stempelKey String?  @map("stempel_key")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id])
   contracts    Contract[]
@@ -1110,9 +1124,10 @@ model ContractAmendment {
   createdById   String?  @map("created_by_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  contract     Contract      @relation(fields: [contractId], references: [id])
+  contract     Contract              @relation(fields: [contractId], references: [id])
   documents    Document[]
   rabRevisions RabRevision[]
+  scopeChanges LocationScopeChange[]
 
   @@unique([contractId, ccoNumber])
   @@map("contract_amendments")
@@ -1135,9 +1150,9 @@ model Location {
   /// Penimpaan Pelaksana Lapangan untuk lokasi ini (DECISIONS 402).
   /// Kosong = pakai milik paket. Diambil sebagai SATU BLOK: nama, jabatan, dan
   /// gambar tanda tangannya tidak pernah dicampur antar orang.
-  pelaksanaName       String? @map("pelaksana_name")
-  pelaksanaTitle      String? @map("pelaksana_title")
-  pelaksanaTtdKey     String? @map("pelaksana_ttd_key")
+  pelaksanaName   String? @map("pelaksana_name")
+  pelaksanaTitle  String? @map("pelaksana_title")
+  pelaksanaTtdKey String? @map("pelaksana_ttd_key")
 
   /// Penimpaan KONSULTAN PENGAWAS untuk lokasi ini (DECISIONS 409).
   ///
@@ -1150,21 +1165,23 @@ model Location {
   /// TANPA stempel: stempel milik FIRMA (DECISIONS 408), diambil dari
   /// `Contract.supervisorStempelKey` — dan sengaja DIKOSONGKAN kalau lokasi
   /// menyebut firma yang berbeda.
-  supervisorName      String? @map("supervisor_name")
-  supervisorFirm      String? @map("supervisor_firm")
-  supervisorTtdKey    String? @map("supervisor_ttd_key")
+  supervisorName   String? @map("supervisor_name")
+  supervisorFirm   String? @map("supervisor_firm")
+  supervisorTtdKey String? @map("supervisor_ttd_key")
 
   /// Penimpaan WAKIL SAH untuk lokasi ini (user 2026-08-24: "Wakil Sah bisa
   /// per lokasi beda"). Kosong = pakai milik kontrak. Aturan blok sama dengan
   /// Pelaksana/Pengawas: nama penentu, blok tidak dicampur antar orang.
-  wakilSahName        String? @map("wakil_sah_name")
-  wakilSahNip         String? @map("wakil_sah_nip")
-  wakilSahTtdKey      String? @map("wakil_sah_ttd_key")
+  wakilSahName   String? @map("wakil_sah_name")
+  wakilSahNip    String? @map("wakil_sah_nip")
+  wakilSahTtdKey String? @map("wakil_sah_ttd_key")
 
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   package             Package                 @relation(fields: [packageId], references: [id])
+  /// Perubahan lingkup lewat adendum: lokasi MASUK atau DICABUT dari kontrak.
+  scopeChanges        LocationScopeChange[]
   hargaSatuanDasar    HargaSatuanDasar[]
   hsdUsulanRun        HsdUsulanRun[]
   raplRincian         RaplRincian[]
@@ -1189,12 +1206,11 @@ model Location {
   gdriveJobs          GDriveJob[]
   findings            Finding[]
   inspections         Inspection[]
+  letters             Letter[]
 
   @@index([packageId])
   @@index([province])
   @@index([status])
-  letters Letter[]
-
   @@map("locations")
 }
 
@@ -1219,6 +1235,63 @@ model LocationStatusHistory {
 // ─────────────────────────────────────────────────────────────
 // RAB & BASELINE
 // ─────────────────────────────────────────────────────────────
+
+/// PERUBAHAN LINGKUP LOKASI LEWAT ADENDUM.
+///
+/// Kebutuhan user 2026-09-05: *"ada kebutuhan dimana, adendum mengurangi lokasi
+/// atau bahkan menambah lokasi. saat ini di kamu belum ada."*
+///
+/// Perubahannya TIDAK menghapus apa pun: lokasi yang dicabut tetap ada beserta
+/// laporan, foto, dan realisasinya — yang berubah hanyalah keikutsertaannya
+/// dalam angka paket sejak tanggal berlaku CCO (ketetapan user: "ditandai
+/// dicabut per CCO, angka lampau tetap"). Karena itu status keikutsertaan
+/// DITURUNKAN dari baris ini, bukan disalin ke kolom di `locations`.
+///
+/// Wajib bernomor CCO dan wajib EMPAT MATA, sama seperti aktivasi adendum RAB
+/// (DECISIONS 234): mengubah lingkup kontrak menggeser nilai kontrak, progres,
+/// kurva-S, dan laporan KKP sekaligus.
+model LocationScopeChange {
+  id            String              @id @default(uuid()) @db.Uuid
+  locationId    String              @map("location_id") @db.Uuid
+  amendmentId   String              @map("amendment_id") @db.Uuid
+  kind          LocationScopeKind
+  /// Tanggal berlaku — disalin dari adendumnya saat diajukan supaya jejaknya
+  /// tetap walau adendum diperbaiki kemudian.
+  effectiveDate DateTime            @map("effective_date") @db.Date
+  status        LocationScopeStatus @default(draft)
+  reason        String
+  createdById   String?             @map("created_by_id") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  /// Disentuh tiap usulan diubah — menggugurkan persetujuan yang sudah ada.
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  appliedAt     DateTime?           @map("applied_at") @db.Timestamptz
+
+  location  Location                @relation(fields: [locationId], references: [id])
+  amendment ContractAmendment       @relation(fields: [amendmentId], references: [id])
+  approvals LocationScopeApproval[]
+
+  @@index([locationId, status])
+  @@index([amendmentId])
+  @@map("location_scope_changes")
+}
+
+/// Persetujuan empat mata atas perubahan lingkup lokasi — aturan yang SAMA
+/// dengan `RabRevisionApproval` (DECISIONS 234), termasuk penggugurannya bila
+/// usulannya diubah sesudah disetujui.
+model LocationScopeApproval {
+  id         String   @id @default(uuid()) @db.Uuid
+  changeId   String   @map("change_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  /// Peran SAAT menyetujui — disnapshot, bukan dibaca ulang.
+  role       UserRole
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz
+
+  change LocationScopeChange @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  user   User                @relation(fields: [userId], references: [id])
+
+  @@unique([changeId, userId])
+  @@map("location_scope_approvals")
+}
 
 model RabRevision {
   id               String            @id @default(uuid()) @db.Uuid
@@ -1443,22 +1516,21 @@ model DailyReport {
   /// dirapikan.
   noActivityNote   String?           @map("no_activity_note")
 
-  gpsLat           Decimal?          @map("gps_lat") @db.Decimal(10, 7)
-  gpsLng           Decimal?          @map("gps_lng") @db.Decimal(10, 7)
-  createdById      String            @map("created_by_id") @db.Uuid
-  submittedById    String?           @map("submitted_by_id") @db.Uuid
-  submittedAt      DateTime?         @map("submitted_at") @db.Timestamptz
-  verifiedById     String?           @map("verified_by_id") @db.Uuid
-  verifiedAt       DateTime?         @map("verified_at") @db.Timestamptz
-  finalizedById    String?           @map("finalized_by_id") @db.Uuid
-  finalizedAt      DateTime?         @map("finalized_at") @db.Timestamptz
-  finalSnapshot    Json?             @map("final_snapshot")
+  gpsLat        Decimal?  @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng        Decimal?  @map("gps_lng") @db.Decimal(10, 7)
+  createdById   String    @map("created_by_id") @db.Uuid
+  submittedById String?   @map("submitted_by_id") @db.Uuid
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamptz
+  verifiedById  String?   @map("verified_by_id") @db.Uuid
+  verifiedAt    DateTime? @map("verified_at") @db.Timestamptz
+  finalizedById String?   @map("finalized_by_id") @db.Uuid
+  finalizedAt   DateTime? @map("finalized_at") @db.Timestamptz
+  finalSnapshot Json?     @map("final_snapshot")
   // Penanda kiriman laporan ke grup WhatsApp (info "sudah dikirim").
-  waSentAt         DateTime?         @map("wa_sent_at") @db.Timestamptz
-  waSentById       String?           @map("wa_sent_by_id") @db.Uuid
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
-
+  waSentAt      DateTime? @map("wa_sent_at") @db.Timestamptz
+  waSentById    String?   @map("wa_sent_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   location      Location                   @relation(fields: [locationId], references: [id])
   items         DailyReportItem[]
@@ -1522,7 +1594,6 @@ model FieldActivity {
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
-
   location    Location                  @relation(fields: [locationId], references: [id])
   photos      Photo[]
   attachments FieldActivityAttachment[]
@@ -1570,7 +1641,6 @@ model DailyReportItem {
   reportedById String?  @map("reported_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
-
 
   report  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   rabNode RabNode     @relation(fields: [rabNodeId], references: [id])
@@ -1757,7 +1827,7 @@ model Issue {
   /// Orang lapangan tidak bisa membedakannya dari layar. Kolom ini membuat
   /// asalnya terbaca di daftar terpusat, sehingga "kendala dari kegiatan
   /// lapangan" tidak lagi menghilang.
-  source      IssueSource   @default(manual)
+  source IssueSource @default(manual)
 
   /// Kegiatan lapangan yang melahirkan kendala ini — supaya bisa dibuka lagi.
   fieldActivityId String? @map("field_activity_id") @db.Uuid
@@ -1771,10 +1841,10 @@ model Issue {
   /// SETELAH seseorang sempat merencanakan pemulihan. Padahal justru kendala
   /// yang belum disentuh yang paling perlu ditagih — dan itulah keadaan
   /// keempat kendala di tangkapan layar user: "Belum ada aksi pemulihan."
-  picUserId String? @map("pic_user_id") @db.Uuid
+  picUserId String?   @map("pic_user_id") @db.Uuid
   /// PIC di luar MARLIN (PLN, pemilik lahan, dinas). Tidak bisa dikirimi
   /// pengingat, dan layarnya mengatakan itu — keputusan user 2026-08-20.
-  picName   String? @map("pic_name")
+  picName   String?   @map("pic_name")
   dueDate   DateTime? @map("due_date") @db.Date
 
   /// Kendala ini KEMBAR, dan induknya yang berlaku (DECISIONS 393).
@@ -1797,9 +1867,8 @@ model Issue {
   /// dipertanggungjawabkan ke PPK.
   closingNote String?   @map("closing_note")
 
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
-
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   location Location         @relation(fields: [locationId], references: [id])
   report   DailyReport?     @relation(fields: [reportId], references: [id])
@@ -1807,14 +1876,13 @@ model Issue {
 
   mergedInto Issue?  @relation("IssueGabung", fields: [mergedIntoId], references: [id])
   mergedFrom Issue[] @relation("IssueGabung")
+  letter     Letter? @relation(fields: [letterId], references: [id], onDelete: SetNull)
 
   @@index([locationId, status])
   /// Papan kendala terpusat menyaring status + tenggat lintas lokasi.
   @@index([status, dueDate])
   @@index([fieldActivityId])
   @@index([mergedIntoId])
-  letter Letter? @relation(fields: [letterId], references: [id], onDelete: SetNull)
-
   @@map("issues")
 }
 
@@ -1829,7 +1897,6 @@ model RecoveryAction {
   createdById String?        @map("created_by_id") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
-
 
   issue   Issue            @relation(fields: [issueId], references: [id], onDelete: Cascade)
   updates RecoveryUpdate[]
@@ -2071,17 +2138,18 @@ model Document {
   drivePath       String?        @map("drive_path")
   driveModifiedAt DateTime?      @map("drive_modified_at") @db.Timestamptz
 
-  organization Organization       @relation(fields: [orgId], references: [id])
-  package      Package?           @relation(fields: [packageId], references: [id])
-  contract     Contract?          @relation(fields: [contractId], references: [id])
-  location     Location?          @relation(fields: [locationId], references: [id])
-  amendment    ContractAmendment? @relation(fields: [amendmentId], references: [id])
-  milestone    AdminMilestone?    @relation(fields: [milestoneId], references: [id])
-  supersedes   Document?          @relation("docVersions", fields: [supersedesId], references: [id])
-  versions     Document[]         @relation("docVersions")
-  rabRevisions RabRevision[]      @relation("rabSourceDoc")
-  expenses     Expense[]          @relation("expenseEvidence")
+  organization  Organization       @relation(fields: [orgId], references: [id])
+  package       Package?           @relation(fields: [packageId], references: [id])
+  contract      Contract?          @relation(fields: [contractId], references: [id])
+  location      Location?          @relation(fields: [locationId], references: [id])
+  amendment     ContractAmendment? @relation(fields: [amendmentId], references: [id])
+  milestone     AdminMilestone?    @relation(fields: [milestoneId], references: [id])
+  supersedes    Document?          @relation("docVersions", fields: [supersedesId], references: [id])
+  versions      Document[]         @relation("docVersions")
+  rabRevisions  RabRevision[]      @relation("rabSourceDoc")
+  expenses      Expense[]          @relation("expenseEvidence")
   evidenceLinks EvidenceLink[]
+  letters       Letter[]
 
   @@unique([orgId, driveFileId], name: "documents_org_drive_file_key")
   @@index([packageId, phase])
@@ -2089,8 +2157,6 @@ model Document {
   @@index([orgId, sha256])
   @@index([orgId, status])
   @@index([type])
-  letters Letter[]
-
   @@map("documents")
 }
 
@@ -2209,7 +2275,7 @@ model WaPendingClarification {
 
   answeredAt DateTime? @map("answered_at") @db.Timestamptz
   /// Indeks pilihan yang diambil (0-based) bila sudah dijawab.
-  pilihan Int?
+  pilihan    Int?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -2529,14 +2595,14 @@ model AiArtifact {
 
 /// Percakapan Ask MARLIN (scope + periode terkunci saat dibuat).
 model AiConversation {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  title       String?
-  scopeIds    Json     @map("scope_ids") // string[] locationId terresolve
-  periodStart DateTime @map("period_start") @db.Date
-  periodEnd   DateTime @map("period_end") @db.Date
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  title        String?
+  scopeIds     Json      @map("scope_ids") // string[] locationId terresolve
+  periodStart  DateTime  @map("period_start") @db.Date
+  periodEnd    DateTime  @map("period_end") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   /// Kapan pertanyaan yang BELUM terjawab diterima (DECISIONS 455). Diisi saat
   /// pesan penanya ditulis, dikosongkan begitu jawaban atau kegagalannya
   /// tercatat. Layar memakai kolom ini untuk tahu ia harus menunggu — bukan
@@ -2942,14 +3008,13 @@ model Finding {
   clarifications FindingClarification[]
   notes          FindingNote[]
   evidences      EvidenceLink[]
+  letter         Letter?                @relation(fields: [letterId], references: [id], onDelete: SetNull)
 
   @@index([locationId, status])
   @@index([status, dueDate])
   @@index([severity, status])
   @@index([inspectionId])
   @@index([reportId])
-  letter Letter? @relation(fields: [letterId], references: [id], onDelete: SetNull)
-
   @@map("findings")
 }
 
@@ -3099,22 +3164,22 @@ model ReportVerification {
 /// lokasi lain hanya ditawarkan sebagai REKOMENDASI yang harus dipilih orang —
 /// tidak pernah dipakai diam-diam.
 model HargaSatuanDasar {
-  id         String   @id @default(uuid()) @db.Uuid
-  locationId String   @map("location_id") @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
   /// upah | bahan | alat | fasilitas — apa adanya dari komponen AHSP.
-  kategori   String
+  kategori    String
   /// Nama sumber daya PERSIS seperti pada komponen AHSP.
-  nama       String
-  satuan     String
+  nama        String
+  satuan      String
   /// Rupiah per satuan. BigInt seperti seluruh uang di sistem ini.
-  harga      BigInt
+  harga       BigInt
   /// Dari mana harganya: survei toko, penawaran suplier, kontrak sebelumnya.
   /// Bukan hiasan — harga tanpa asal tidak bisa dipertahankan saat diperiksa.
-  sumber     String?
-  catatan    String?
-  updatedById String? @map("updated_by_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  sumber      String?
+  catatan     String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   location  Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   updatedBy User?    @relation("HsdUpdater", fields: [updatedById], references: [id])

@@ -35,6 +35,8 @@ import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { getScurveSeriesPaket } from "@/lib/baseline";
 import { getAdendumBerjalan } from "@/lib/package/adendum-berjalan";
+import { daftarPerubahanLingkup, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
+import { LingkupPanel } from "./lingkup-panel";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import {
   getPackageWorkspace,
@@ -134,7 +136,17 @@ export default async function RingkasanPaketPage({
   const canDocument = can(user.role, "document.view");
 
   const idLokasi = pkg.locations.map((l) => l.id);
-  const [progressMap, history, kepatuhan, kurvaPaket, adendum] = await Promise.all([
+  /*
+   * LINGKUP dibaca LEBIH DULU karena seluruh agregat bergantung padanya:
+   * lokasi yang sudah dicabut lewat adendum tidak boleh ikut menghitung progres,
+   * kurva-S, maupun Σ RAB paket. Angka lampaunya sendiri tidak diubah — laporan
+   * dan fotonya tetap ada di lokasinya (ketetapan user 2026-09-05).
+   */
+  const lingkup = await lingkupLokasi(idLokasi);
+  const idIkut = idLokasi.filter((id) => !lingkup.dicabut.has(id));
+  const lokasiDicabut = pkg.locations.filter((l) => lingkup.dicabut.has(l.id));
+  const [progressMap, history, kepatuhan, kurvaPaket, adendum, perubahanLingkup] =
+    await Promise.all([
     getLocationsProgress(idLokasi),
     getStageHistory(pkg.id),
     // Ringkasan kepatuhan dibaca dari papan yang SAMA dengan tab Dokumen —
@@ -144,16 +156,23 @@ export default async function RingkasanPaketPage({
     // Kurva-S paket: rencana vs realisasi seluruh lokasi, ditimbang RAB
     // (keluhan user 2026-09-05 – progres agregat tanpa rencana di sebelahnya
     // tidak bisa menjawab "telat atau tidak").
-    getScurveSeriesPaket(idLokasi),
+    getScurveSeriesPaket(idIkut),
     // Draft adendum yang sedang berjalan di lokasi-lokasi paket ini.
     getAdendumBerjalan(idLokasi),
+    // Lingkup lokasi: adendum yang menambah / mencabut lokasi (kebutuhan user
+    // 2026-09-05). Yang DICABUT keluar dari agregat sejak tanggal berlakunya;
+    // angka lampaunya tidak diubah.
+    daftarPerubahanLingkup(idLokasi),
   ]);
 
-  // Progress agregat — formula kanonik weightedRealizedPct (B13).
-  const aggregatePct = weightedRealizedPct([...progressMap.values()]);
-  // Σ RAB semua lokasi — dipakai rekonsiliasi kontrak vs RAB di bawah.
+  // Progress agregat — formula kanonik weightedRealizedPct (B13). Lokasi yang
+  // sudah dicabut lewat adendum TIDAK ikut: pekerjaannya bukan lagi bagian
+  // kontrak sejak tanggal berlaku CCO.
+  const progresIkut = idIkut.map((id) => progressMap.get(id)).filter((p) => p != null);
+  const aggregatePct = weightedRealizedPct(progresIkut);
+  // Σ RAB lokasi yang masih dalam lingkup — dipakai rekonsiliasi kontrak vs RAB.
   let totalRab = 0n;
-  for (const p of progressMap.values()) totalRab += p.grandTotal;
+  for (const p of progresIkut) totalRab += p.grandTotal;
 
   const contract = pkg.contract;
   const running = contract
@@ -191,6 +210,7 @@ export default async function RingkasanPaketPage({
     const rabSum = Number(totalRab);
     const selisih = basePraPpn - rabSum;
     const rows = pkg.locations
+      .filter((l) => !lingkup.dicabut.has(l.id))
       .map((l) => ({ name: l.name, rab: Number(progressMap.get(l.id)?.grandTotal ?? 0n) }))
       .sort((a, b) => b.rab - a.rab);
     const withRab = rows.filter((r) => r.rab > 0).length;
@@ -318,9 +338,16 @@ export default async function RingkasanPaketPage({
           value={pkg.locations.length}
           href={`/paket/${pkg.id}/lokasi`}
           sub={
-            pkg.locationsHidden > 0
-              ? `${lokasiAktif} aktif · ${pkg.locationsHidden} lokasi lain di luar penugasan`
-              : `${lokasiAktif} aktif`
+            [
+              `${lokasiAktif} aktif`,
+              pkg.locationsHidden > 0 ? `${pkg.locationsHidden} lokasi lain di luar penugasan` : null,
+              // Lokasi yang dicabut adendum tetap terhitung sebagai baris paket,
+              // tapi tidak lagi ikut angka mana pun – itu harus tertulis, bukan
+              // ditebak dari selisih angka.
+              lokasiDicabut.length > 0 ? `${lokasiDicabut.length} dicabut adendum` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
           }
         />
         <KpiCard
@@ -447,6 +474,45 @@ export default async function RingkasanPaketPage({
           )}
         </CardBody>
       </Card>
+
+      {/* LINGKUP LOKASI — adendum yang menambah atau mencabut lokasi.
+          Kebutuhan user 2026-09-05. Kartunya selalu tampil bagi pemegang
+          kontrak: tanpa pintu masuk, fiturnya sama saja dengan tidak ada. */}
+      {canContract || perubahanLingkup.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Lingkup lokasi kontrak"
+            subtitle="Adendum bisa MENAMBAH atau MENCABUT lokasi. Yang dicabut tidak dihapus – laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku CCO."
+            action={
+              lokasiDicabut.length > 0 ? (
+                <StatusPill tone="warning" label={`${lokasiDicabut.length} lokasi dicabut`} />
+              ) : null
+            }
+          />
+          <CardBody>
+            <LingkupPanel
+              packageId={pkg.id}
+              bolehUbah={canContract}
+              lokasi={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
+              adendum={(contract?.amendments ?? []).map((a) => ({
+                id: a.id,
+                label: `${a.ccoNumber} – berlaku ${formatTanggal(a.effectiveDate)}`,
+              }))}
+              perubahan={perubahanLingkup.map((p) => ({
+                id: p.id,
+                locationName: p.locationName,
+                kind: p.kind,
+                effectiveDate: formatTanggal(p.effectiveDate),
+                status: p.status,
+                reason: p.reason,
+                ccoNumber: p.ccoNumber,
+                setuju: { lengkap: p.setuju.lengkap, kurang: p.setuju.kurang },
+                suaraGugur: p.suaraGugur,
+              }))}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
 
       {/* ADENDUM BERJALAN — draft yang sedang diajukan di lokasi-lokasi paket.
           Keluhan user 2026-09-05: *"saat terjadi draft adendum, sama sekali

@@ -27496,3 +27496,53 @@ penggugurannya).
 yang disebut user pada hari yang sama. Itu menyentuh model data (status lokasi
 akibat adendum, nilai kontrak, progres, kurva-S, laporan KKP) dan menunggu
 keputusan user sebelum ditulis.
+
+
+---
+## (baru) · Adendum boleh MENAMBAH dan MENCABUT lokasi — ditandai, bukan dihapus (2026-09-05)
+
+**Konteks**: user menyebut kebutuhan yang belum ada sama sekali di sistem:
+*"ada kebutuhan dimana, adendum mengurangi lokasi atau bahkan menambah lokasi.
+saat ini di kamu belum ada."* Tiga keputusan diambil user pada hari yang sama,
+dan ketiganya menentukan angka — bukan sekadar tampilan.
+
+**Keputusan**:
+
+1. **Lokasi yang dicabut DITANDAI, bukan dihapus** ("ditandai dicabut per CCO,
+   angka lampau tetap"). Laporan, foto, dan realisasinya utuh dan halamannya
+   tetap bisa dibuka; yang berhenti hanyalah keikutsertaannya dalam angka paket
+   — progres agregat, kurva-S paket, dan Σ RAB pada rekonsiliasi — SEJAK tanggal
+   berlaku CCO. Pencabutan yang berlaku di masa depan belum mengeluarkan apa
+   pun hari ini.
+2. **Lokasi yang masuk lewat adendum mulai dari tanggal berlaku adendum.**
+   Baselinenya dihitung dulu di grid penuh (supaya urutan tahap & bobot kategori
+   memakai mesin yang sama), lalu digeser ke jendela minggu sisa: minggu sebelum
+   tanggal berlaku 0%, dan kurvanya tetap tuntas 100% di akhir kontrak.
+   Menyamakannya dengan lokasi lain membuatnya terlihat telat sejak minggu-1
+   padahal saat itu belum ada dalam kontrak — deviasi yang menuduh tanpa dasar.
+3. **Empat mata + wajib bernomor CCO**, sama seperti aktivasi adendum RAB
+   (DECISIONS 234): Program Director + satu peran penugasan. Mengubah lingkup
+   kontrak menggeser nilai kontrak, progres, kurva-S, dan laporan KKP sekaligus.
+
+**Bentuk datanya**: `LocationScopeChange` (+ `LocationScopeApproval`).
+Keikutsertaan lokasi DITURUNKAN dari tabel ini (`lingkupLokasi`), tidak pernah
+disalin jadi kolom di `locations` — dua sumber kebenaran untuk hal yang sama
+adalah kelas cacat yang paling mahal di repo ini. Persetujuan yang diberikan
+sebelum usulan diubah GUGUR, mekanisme yang sama dengan 234.
+
+**Alternatif direject**:
+- *Menghapus lokasinya dari paket.* Laporan dan foto yang sudah dikirim orang
+  lapangan ikut hilang dari jangkauan, dan angka paket yang pernah dicetak jadi
+  tidak bisa direkonstruksi.
+- *Menandai lewat `LocationStatus` (mis. `batal`).* Status lokasi menyatakan
+  KEADAAN PEKERJAAN, bukan keanggotaan kontrak; menumpuknya di sana membuat
+  "batal" berarti dua hal berbeda dan tidak menyimpan nomor CCO maupun tanggal
+  berlakunya.
+- *Cukup pemegang `contract.manage` seorang diri.* Ditolak user; lingkup kontrak
+  bukan kelas keputusan satu orang.
+
+**Konsekuensi**: seluruh agregat halaman paket kini menyaring lokasi yang
+dicabut, dan jumlahnya disebut di kartu "Jumlah lokasi" supaya selisih angka
+tidak perlu ditebak. Dijaga `tests/integration/lingkup-lokasi-adendum.test.ts`
+(gerbang paket-silang, alasan wajib, empat mata, tanggal berlaku, dan kurva
+lokasi baru yang mulai di minggu berlakunya).

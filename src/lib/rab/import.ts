@@ -1,4 +1,4 @@
-import { totalWeeksBetween, weekEndFractions } from "@/lib/progress-calc";
+import { totalWeeksBetween, weekEndFractions, weekOfDate } from "@/lib/progress-calc";
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
@@ -8,7 +8,7 @@ import { valueDone as hitungNilai } from "@/lib/money";
 import { sesuaikanProporsional } from "@/lib/rab/sesuaikan-realisasi";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
+import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, rebucketWeeklyToGrid, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
@@ -420,6 +420,72 @@ export async function totalWeeksFor(locationId: string): Promise<{
   return { contractDays, totalWeeks: Math.max(1, Math.ceil(contractDays / 7)), weekEndFracs: null };
 }
 
+/**
+ * MINGGU MULAI lokasi yang masuk kontrak lewat ADENDUM.
+ *
+ * Ketetapan user 2026-09-05: lokasi yang ditambahkan adendum kurva-S-nya
+ * *"mulai tanggal berlaku adendum"*, bukan sejak minggu-1 kontrak. Kalau
+ * disamakan dengan lokasi lain, ia terlihat telat sejak minggu pertama padahal
+ * saat itu belum ada dalam kontrak — deviasi yang menuduh tanpa dasar.
+ *
+ * Dibaca lewat query kecil di sini, BUKAN lewat `lib/package/lingkup-lokasi`:
+ * modul itu menarik auth + audit, sementara jalur ini dipanggil dari impor RAB
+ * dan migrasi latar.
+ */
+async function mingguMulaiAdendum(locationId: string, totalWeeks: number): Promise<number> {
+  const [perubahan, loc] = await Promise.all([
+    db.locationScopeChange.findFirst({
+      where: { locationId, kind: "tambah", status: "aktif" },
+      select: { effectiveDate: true },
+      orderBy: { effectiveDate: "desc" },
+    }),
+    db.location.findUnique({
+      where: { id: locationId },
+      select: { package: { select: { contract: { select: { startDate: true, weekMode: true } } } } },
+    }),
+  ]);
+  const c = loc?.package.contract;
+  if (!perubahan || !c?.startDate) return 1;
+  const w = weekOfDate(c.startDate, perubahan.effectiveDate, c.weekMode ?? "tujuh_hari");
+  return Math.min(Math.max(1, w), totalWeeks);
+}
+
+/** Kumulatif dari deret pertambahan mingguan. */
+function keKumulatif(inc: number[]): number[] {
+  const out: number[] = [];
+  let t = 0;
+  for (const v of inc) {
+    t += v;
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * Geser satu deret pertambahan mingguan ke jendela [mulai..N]: minggu sebelum
+ * `mulai` menjadi nol, seluruh isinya dirapatkan ke minggu sisa.
+ */
+function geserKeMinggu(
+  inc: number[],
+  mulai: number,
+  totalWeeks: number,
+  weekEndFracs: number[] | null,
+): number[] {
+  const sisa = totalWeeks - mulai + 1;
+  if (sisa <= 0) return new Array<number>(totalWeeks).fill(0);
+  // Grid sub-jendela: fraksi hari dinormalkan ulang ke [0..1] supaya minggu
+  // pendek (mode senin_minggu) tetap pendek sesudah digeser.
+  let subFracs: number[] | null = null;
+  if (weekEndFracs) {
+    const a0 = gridStartFrac(mulai, totalWeeks, weekEndFracs);
+    const lebar = 1 - a0;
+    subFracs =
+      lebar > 1e-9 ? weekEndFracs.slice(mulai - 1).map((f) => Math.min(1, Math.max(0, (f - a0) / lebar))) : null;
+  }
+  const padat = rebucketWeeklyToGrid(inc, weekEndFracs, subFracs, sisa);
+  return [...new Array<number>(mulai - 1).fill(0), ...padat];
+}
+
 export type RegenerateBaselineOpts = {
   source: BaselineSource;
   /** Default: revisi aktif lokasi. */
@@ -490,7 +556,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   };
 
   const sched = scheduleFromItems(items, contractDays, winFrac, weekEndFracs);
-  const weekly = cumulativeFromCategoryWeekly(sched.categories, totalWeeks);
+  let weekly = cumulativeFromCategoryWeekly(sched.categories, totalWeeks);
 
   // Matriks mingguan per kategori (bentuk kanonik, DECISIONS 103): dari jadwal
   // berbasis item bila kategori punya item; fallback lonceng jendela kategori.
@@ -510,6 +576,21 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
         weekly: catWeekly,
       };
     });
+
+  /*
+   * LOKASI YANG MASUK LEWAT ADENDUM: kurvanya mulai di minggu berlakunya.
+   *
+   * Dihitung dulu di grid penuh (supaya urutan tahap & bobot kategori tetap
+   * memakai mesin yang sama), lalu DIGESER ke jendela minggu sisa. Minggu
+   * sebelum tanggal berlaku menjadi 0% — bukan karena tertinggal, melainkan
+   * karena lokasinya memang belum ada dalam kontrak.
+   */
+  const mingguMulai = await mingguMulaiAdendum(locationId, totalWeeks);
+  if (mingguMulai > 1) {
+    const inc = weekly.map((v, i) => v - (weekly[i - 1] ?? 0));
+    weekly = keKumulatif(geserKeMinggu(inc, mingguMulai, totalWeeks, weekEndFracs));
+    for (const s of schedule) s.weekly = geserKeMinggu(s.weekly, mingguMulai, totalWeeks, weekEndFracs);
+  }
 
   // IDEMPOTENT: bila hasil hitung identik dengan baseline aktif (revisi, durasi,
   // dan seluruh titik sama), JANGAN buat versi baru — menekan "Hitung ulang"
