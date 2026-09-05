@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { formatStampDate, formatStampDateTime } from "@/lib/photo-stamp/format";
 import { buildStampSvg, type StampRenderData } from "@/lib/photo-stamp/renderer";
+import { WARNA_CAP } from "@/lib/photo-stamp/tanda-nilai";
 import { originalExt } from "@/lib/photo-file";
 
 const OPTS = { fontFamily: "X", fontFaceCss: "" };
@@ -32,25 +33,40 @@ function data(over: Partial<StampRenderData> = {}): StampRenderData {
   };
 }
 
-/* ── 1. Koordinat cadangan harus mengaku ─────────────────────────────────── */
+/* ── 1. Koordinat cadangan ditandai WARNA, tanpa menyebutkannya ──────────── */
 
-describe("koordinat titik proyek diberi penanda", () => {
-  it("tanpa penanda: koordinat tampil polos (memang GPS foto)", () => {
+/*
+ * Ketetapan user 2026-09-04: *"hilangkan informasi jam tidak tercatat, titik
+ * proyek, dan lain sebagainya … cukup mainkan warna pada informasinya"*.
+ *
+ * Larangan DECISIONS 197 TIDAK dicabut — nilai yang bukan bacaan alat tetap
+ * wajib ditandai; yang berubah cara menandainya. Karena itu dua hal diuji
+ * bersama, dan keduanya perlu: katanya HILANG, warnanya ADA. Menguji satu saja
+ * membuat "tanda hilang sama sekali" lolos.
+ */
+describe("koordinat titik proyek: warna, bukan tulisan", () => {
+  it("koordinat asli tampil putih biasa – cap normal tidak terlihat ditandai", () => {
     const svg = buildStampSvg(1200, 900, data(), OPTS);
     expect(svg).toContain("Koordinat: 6.847202°S, 108.878900°E");
-    expect(svg).not.toContain("titik proyek");
+    expect(svg).toContain(`fill="${WARNA_CAP.asli}">Koordinat:`);
   });
 
-  it("dengan coordNote: pembaca tahu itu bukan posisi fotonya", () => {
-    const svg = buildStampSvg(1200, 900, data({ coordNote: "titik proyek" }), OPTS);
+  it("koordinat cadangan: kata 'titik proyek' TIDAK ditulis, warnanya yang berbeda", () => {
+    const svg = buildStampSvg(1200, 900, data({ coordTanda: "cadangan" }), OPTS);
     expect(svg).toContain("Koordinat: 6.847202°S, 108.878900°E");
-    expect(svg).toContain("titik proyek");
+    expect(svg).not.toContain("titik proyek");
+    expect(svg).toContain(`fill="${WARNA_CAP.cadangan}">Koordinat:`);
   });
 
-  it("penanda ikut ter-escape (tidak bisa menyuntik markup ke SVG)", () => {
-    const svg = buildStampSvg(1200, 900, data({ coordNote: "<b>x</b>" }), OPTS);
-    expect(svg).not.toContain("<b>x</b>");
-    expect(svg).toContain("&lt;b&gt;x&lt;/b&gt;");
+  it("koordinat diisi manual & posisi saat unggah punya warna sendiri-sendiri", () => {
+    const manual = buildStampSvg(1200, 900, data({ coordTanda: "manual" }), OPTS);
+    expect(manual).toContain(`fill="${WARNA_CAP.manual}">Koordinat:`);
+    expect(manual).not.toMatch(/diisi manual/i);
+    const unggah = buildStampSvg(1200, 900, data({ coordTanda: "unggah" }), OPTS);
+    expect(unggah).toContain(`fill="${WARNA_CAP.unggah}">Koordinat:`);
+    expect(unggah).not.toMatch(/unggah/i);
+    // Empat golongan harus benar-benar berbeda; warna kembar = tanda yang hilang.
+    expect(new Set(Object.values(WARNA_CAP)).size).toBe(4);
   });
 });
 
@@ -75,15 +91,15 @@ describe("jam 07:00 yang selalu muncul", () => {
     expect(formatStampDateTime(jepret)).toBe("Jumat, 31 Juli 2026 • 09:15 WIB");
   });
 
-  it("penanda waktu dirender apa adanya, bukan selalu 'waktu unggah'", () => {
-    const a = buildStampSvg(1200, 900, data({ timeNote: "jam tidak tercatat" }), OPTS);
-    expect(a).toContain("jam tidak tercatat");
-    expect(a).not.toContain("waktu unggah");
-    const b = buildStampSvg(1200, 900, data({ timeNote: "waktu unggah" }), OPTS);
-    expect(b).toContain("waktu unggah");
+  it("asal waktu ditandai warna; kata 'jam tidak tercatat' / 'waktu unggah' tidak ditulis", () => {
+    const a = buildStampSvg(1200, 900, data({ timeTanda: "cadangan" }), OPTS);
+    expect(a).not.toContain("jam tidak tercatat");
+    expect(a).toContain(`fill="${WARNA_CAP.cadangan}">Jumat, 31 Juli 2026`);
+    const b = buildStampSvg(1200, 900, data({ timeTanda: "unggah" }), OPTS);
+    expect(b).not.toContain("waktu unggah");
+    expect(b).toContain(`fill="${WARNA_CAP.unggah}">Jumat, 31 Juli 2026`);
     const c = buildStampSvg(1200, 900, data(), OPTS);
-    expect(c).not.toContain("waktu unggah");
-    expect(c).not.toContain("jam tidak tercatat");
+    expect(c).toContain(`fill="${WARNA_CAP.asli}">Jumat, 31 Juli 2026`);
   });
 });
 

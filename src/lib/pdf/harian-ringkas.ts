@@ -1,4 +1,5 @@
 import "server-only";
+import { WARNA_PDF } from "@/lib/photo-stamp/tanda-nilai";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
@@ -71,6 +72,12 @@ export type FotoTertanam = {
   jpeg: Buffer;
   sumber: string;
   sub: string | null;
+  /**
+   * Potongan keterangan beserta WARNANYA (ketetapan user 2026-09-04): asal
+   * nilai ditandai warna, tidak lagi ditulis. `sub` tetap ada sebagai teks
+   * polos untuk hitungan tinggi baris.
+   */
+  subBagian?: Array<{ teks: string; warna: string }>;
   link?: string | null;
 };
 
@@ -173,7 +180,10 @@ export async function renderHarianRingkasPdf(
         foto.push({
           jpeg: await normalisasiFoto(p.r2Key),
           sumber: p.sumber,
-          sub: subFoto(p),
+          sub: subFoto(p)
+            .map((b) => b.teks)
+            .join("  ·  ") || null,
+          subBagian: subFoto(p),
           // Tanpa origin yang diketahui, link TIDAK dikarang — URL yang salah
           // lebih buruk daripada tidak ada link.
           link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
@@ -222,21 +232,29 @@ async function normalisasiFoto(r2Key: string): Promise<Buffer> {
 }
 
 /**
- * Keterangan bawah foto: waktu + koordinat, dengan penanda GPS cadangan.
+ * Keterangan bawah foto: waktu + koordinat.
  *
  * Jam hanya dicetak bila jamnya MEMANG diketahui. Foto galeri tanpa EXIF cuma
  * membawa tanggal kerjanya; memformatnya lengkap menghasilkan "07.00" — jam
  * yang tidak pernah ada, dan di dokumen bukti itu bukan ketidakrapian
  * melainkan keterangan palsu (DECISIONS 197).
+ *
+ * Asal nilai (koordinat cadangan, jam tak tercatat, isian manual) TIDAK lagi
+ * dituliskan di dokumen — ketetapan user 2026-09-04: *"tidak perlu tercatat
+ * secara eksplisit di laporan mana pun … cukup mainkan warna pada
+ * informasinya"*. Tandanya tetap ada, berupa warna potongan itu sendiri.
  */
-function subFoto(p: RingkasFoto): string | null {
-  const bagian: string[] = [];
+function subFoto(p: RingkasFoto): Array<{ teks: string; warna: string }> {
+  const bagian: Array<{ teks: string; warna: string }> = [];
   if (p.takenAt) {
-    bagian.push(p.jamTidakDiketahui ? formatTanggal(p.takenAt) : formatTanggalWaktu(p.takenAt));
+    bagian.push({
+      teks: p.jamTidakDiketahui ? formatTanggal(p.takenAt) : formatTanggalWaktu(p.takenAt),
+      warna: WARNA_PDF[p.tandaJam],
+    });
   }
   const koord = formatCoordinate(p.lat, p.lng);
-  if (koord) bagian.push(p.gpsCadangan ? `${koord} (titik proyek, bukan GPS perangkat)` : koord);
-  return bagian.length > 0 ? bagian.join("  ·  ") : null;
+  if (koord) bagian.push({ teks: koord, warna: WARNA_PDF[p.tandaKoord] });
+  return bagian;
 }
 
 /* ── Bagian-bagian dokumen ───────────────────────────────────────────────── */
@@ -1007,12 +1025,20 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
         .fontSize(7)
         .fillColor(PDF_COLORS.ink)
         .text(sanitizeText(p.sumber), x, y + boxH + 3.5, { width: w });
-      if (p.sub) {
-        doc
-          .font(PDF_FONT.regular)
-          .fontSize(6)
-          .fillColor(PDF_COLORS.inkFaint)
-          .text(sanitizeText(p.sub), x, y + boxH + 5 + ukuran[c].judul, { width: w });
+      // Tiap potongan diwarnai sendiri: warnanya yang menyebut asal nilai.
+      const bagian = p.subBagian ?? (p.sub ? [{ teks: p.sub, warna: PDF_COLORS.inkFaint }] : []);
+      if (bagian.length > 0) {
+        doc.font(PDF_FONT.regular).fontSize(6);
+        const subY = y + boxH + 5 + ukuran[c].judul;
+        bagian.forEach((b, i) => {
+          const akhir = i === bagian.length - 1;
+          if (i === 0) {
+            doc.fillColor(b.warna).text(sanitizeText(b.teks), x, subY, { width: w, continued: !akhir });
+          } else {
+            doc.fillColor(b.warna).text(sanitizeText(b.teks), { continued: !akhir });
+          }
+          if (!akhir) doc.fillColor(PDF_COLORS.inkFaint).text("  ·  ", { continued: true });
+        });
       }
     });
     doc.y = y + boxH + capH + gap;
