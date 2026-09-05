@@ -27143,7 +27143,7 @@ beserta ujinya, bukan disebar ke tiap layar.
 
 ---
 
-## (baru) · Asal nilai ditandai WARNA, tidak lagi ditulis (2026-09-04)
+## 521 · 2026-09-04 · Asal nilai ditandai WARNA, tidak lagi ditulis
 
 **Konteks**: ketetapan user — *"hilangkan informasi jam tidak tercatat, titik
 proyek, dan lain sebagainya. gunakan pewarnaan saja yang hanya diketahui admin
