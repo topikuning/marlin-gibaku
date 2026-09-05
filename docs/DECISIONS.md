@@ -27238,7 +27238,7 @@ pengecualian tetap jadi keputusan yang tercatat, bukan kelalaian yang lolos.
   menukar cacat tampilan dengan kehilangan data.
 
 ---
-## (baru) · Perapian bahasa hanya di form EDIT — bukan di form buat, bukan di finalisasi (2026-09-05)
+## 523 · 2026-09-05 · Perapian bahasa hanya di form EDIT — bukan di form buat, bukan di finalisasi
 
 **Konteks**: user melihat panel "Rapikan bahasa / Bahasa teknis" terpasang di
 form BUAT kegiatan dan menegur: *"yang dulu aku maksud untuk fitur ini ada
