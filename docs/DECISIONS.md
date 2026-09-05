@@ -27195,7 +27195,7 @@ sebuah foto membuktikannya dari datanya, bukan dari matanya.
 
 ---
 
-## (baru) · Lapisan layar penuh lewat satu pintu, dan keluar dari kurungan induknya (2026-09-05)
+## 522 · 2026-09-05 · Lapisan layar penuh lewat satu pintu, dan keluar dari kurungan induknya
 
 **Konteks**: user mengirim tangkapan layar dasbor — penampil foto terbuka, tapi
 peta beserta legendanya tetap menyala DI ATASNYA, dan penampilnya sendiri
