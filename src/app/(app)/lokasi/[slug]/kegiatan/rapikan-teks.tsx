@@ -91,8 +91,8 @@ export function RapikanTeksPanel({ locationId }: { locationId: string }) {
         ))}
       </div>
       <p className="text-[11px] leading-relaxed text-ink-muted">
-        {REWRITE_STYLE_HINT.rapi} AI hanya mengubah bahasa – angka &amp; fakta tidak boleh berubah, dan
-        tidak ada yang tersimpan sebelum Anda memakainya.
+        {REWRITE_STYLE_HINT.rapi}{" "}AI hanya mengubah bahasa – angka &amp; fakta tidak boleh berubah, dan
+        tidak ada yang tersimpan sebelum Anda memakainya lalu menekan Simpan.
       </p>
 
       {usulan.length > 0 ? (
