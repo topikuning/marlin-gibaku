@@ -60,13 +60,14 @@ export type ImportPreview = {
     totalAktif: string;
     totalBaru: string;
     jumlahTetap: number;
-    itemBaru: { code: string; name: string }[];
-    itemHilang: { code: string; name: string; realisasi: number }[];
-    volumeBerubah: { code: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
+    itemBaru: { code: string; jalur: string; name: string }[];
+    itemHilang: { code: string; jalur: string; name: string; realisasi: number }[];
+    volumeBerubah: { code: string; jalur: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
     /** Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). */
     hargaBerubah: {
       lineageKey: string;
       code: string;
+      jalur: string;
       name: string;
       namaLama: string;
       dari: number | null;
@@ -75,7 +76,7 @@ export type ImportPreview = {
       dampakRupiah: string;
     }[];
     /** Nilai item KONTRAK LAMA yang bergeser tanpa volume/harga bergerak. */
-    nilaiBergeser: { lineageKey: string; code: string; name: string; dari: string; ke: string; selisih: string }[];
+    nilaiBergeser: { lineageKey: string; code: string; jalur: string; name: string; dari: string; ke: string; selisih: string }[];
   } | null;
   /**
    * Bahan PEMETAAN MANUAL (permintaan user 2026-09-02): item kontrak yang sudah
@@ -430,9 +431,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     // SEBELUM ada yang ditulis, bukan sesudah (DECISIONS 209).
     let beda: RingkasBeda | null = null;
     if (activeRevision) {
+      // Rantai induk ikut dikirim: tanpanya pratinjau hanya bisa menyebut
+      // "2.d" – nomor yang berulang di banyak kategori (keluhan user
+      // 2026-09-05).
+      const kunciById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
       beda = bandingkanTerhadapAktif(
         aktifNodes.map((n) => ({
           lineageKey: n.lineageKey,
+          parentLineageKey: n.parentId ? (kunciById.get(n.parentId) ?? null) : null,
           kind: n.kind,
           code: n.code,
           name: n.name,
@@ -457,7 +463,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           .slice(0, 5)
           .map(
             (h) =>
-              `${h.code} kontrak "${h.namaLama}" ${formatRupiahSatuan(h.dari)} → file "${h.name}" ${formatRupiahSatuan(h.ke)}`,
+              `${h.jalur} kontrak "${h.namaLama}" ${formatRupiahSatuan(h.dari)} → file "${h.name}" ${formatRupiahSatuan(h.ke)}`,
           );
         warnings.push(
           `PERHATIAN – harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
@@ -477,7 +483,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         const selisih = beda.nilaiBergeser.reduce((t, h) => t + h.selisih, 0n);
         const contoh = beda.nilaiBergeser
           .slice(0, 5)
-          .map((h) => `${h.code} ${h.name} ${formatRupiah(Number(h.dari))} → ${formatRupiah(Number(h.ke))}`);
+          .map((h) => `${h.jalur} ${h.name} ${formatRupiah(Number(h.dari))} → ${formatRupiah(Number(h.ke))}`);
         warnings.push(
           `PERHATIAN – nilai ${beda.nilaiBergeser.length} item KONTRAK LAMA bergeser di file ini padahal ` +
             `volume dan harga satuannya sama (selisih neto ${formatRupiah(Number(selisih))}): ` +
@@ -531,10 +537,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             totalAktif: beda.totalAktif.toString(),
             totalBaru: beda.totalBaru.toString(),
             jumlahTetap: beda.jumlahTetap,
-            itemBaru: beda.itemBaru.map((b) => ({ code: b.code, name: b.name })),
-            itemHilang: beda.itemHilang.map((b) => ({ code: b.code, name: b.name, realisasi: b.realisasi })),
+            itemBaru: beda.itemBaru.map((b) => ({ code: b.code, jalur: b.jalur, name: b.name })),
+            itemHilang: beda.itemHilang.map((b) => ({ code: b.code, jalur: b.jalur, name: b.name, realisasi: b.realisasi })),
             volumeBerubah: beda.volumeBerubah.map((b) => ({
               code: b.code,
+              jalur: b.jalur,
               name: b.name,
               dari: b.dari,
               ke: b.ke,
@@ -544,6 +551,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             hargaBerubah: beda.hargaBerubah.map((b) => ({
               lineageKey: b.lineageKey,
               code: b.code,
+              jalur: b.jalur,
               name: b.name,
               namaLama: b.namaLama,
               dari: b.dari,
@@ -553,6 +561,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             nilaiBergeser: beda.nilaiBergeser.map((b) => ({
               lineageKey: b.lineageKey,
               code: b.code,
+              jalur: b.jalur,
               name: b.name,
               dari: b.dari.toString(),
               ke: b.ke.toString(),

@@ -70,6 +70,23 @@ export function bacaAngkaLokal(v: unknown): number | null {
   const mentah = String(v).trim();
   if (!/\d/.test(mentah)) return null; // "-", "n/a", "TBD", "" → bukan angka
 
+  /*
+   * SEL YANG BERISI KALIMAT BUKAN ANGKA, WALAU ADA ANGKANYA.
+   *
+   * Laporan user 2026-09-05 atas berkas MC-0 Pasar Banggi: nilai kontrak
+   * terbaca Rp 199.106.207.887.358.100 — dua ratus RIBU triliun untuk pekerjaan
+   * enam miliar. Penyebabnya satu sel di blok tanda tangan:
+   * `"NIP 199106202015031001"`. Aturan lama membuang semua huruf
+   * (`replace(/[^\d.,]/g, "")`), jadi nomor induk pegawai berubah jadi nilai
+   * pekerjaan dan langsung mendominasi seluruh berkas.
+   *
+   * Yang boleh menemani angka hanyalah hiasan yang TIDAK mengubah artinya:
+   * tanda mata uang di depan (`Rp`, `IDR`), tanda minus/kurung, spasi, dan
+   * persen di belakang. Selebihnya — "NIP …", "No. 12", "3 m³", "Termin 2" —
+   * bukan angka pekerjaan, dan jawabannya `null`, bukan tebakan.
+   */
+  if (!/^[-(]?\s*(?:rp\.?|idr)?\s*[\d.,]+\s*%?\s*\)?$/i.test(mentah)) return null;
+
   // Hanya digit, pemisah, dan tanda minus di depan yang dipertahankan.
   const negatif = /^\s*[-(]/.test(mentah);
   let t = mentah.replace(/[^\d.,]/g, "");

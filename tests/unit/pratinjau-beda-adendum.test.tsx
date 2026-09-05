@@ -25,6 +25,7 @@ function hargaBerubah(n: number): BedaPratinjau["hargaBerubah"] {
   return Array.from({ length: n }, (_, i) => ({
     lineageKey: `L${i}`,
     code: `${i + 1}`,
+    jalur: `II · ${i + 1}`,
     name: `Pekerjaan ${i + 1}`,
     namaLama: `Pekerjaan ${i + 1}`,
     dari: 100_000,
@@ -67,11 +68,12 @@ describe("pratinjau beda impor RAB", () => {
   it("item baru, volume berubah, dan item hilang punya rinciannya sendiri – bukan cuma angka", () => {
     const html = render(
       beda({
-        itemBaru: [{ code: "9", name: "Pekerjaan Tambahan" }],
-        itemHilang: [{ code: "4", name: "Pekerjaan Dihapus", realisasi: 0 }],
+        itemBaru: [{ code: "9", jalur: "IV · 9", name: "Pekerjaan Tambahan" }],
+        itemHilang: [{ code: "4", jalur: "III · 4", name: "Pekerjaan Dihapus", realisasi: 0 }],
         volumeBerubah: [
           {
             code: "2",
+            jalur: "II · 2",
             name: "Galian Tanah",
             dari: 100,
             ke: 80,
@@ -86,11 +88,28 @@ describe("pratinjau beda impor RAB", () => {
     expect(html).toContain("Galian Tanah");
   });
 
+  /*
+   * Keluhan user 2026-09-05: *"2.d, 2.e itu yang mana, ada banyak kategori di
+   * sini, seharusnya sekalian sebutkan parentnya, misal II 2.d"*. Panel harus
+   * MENCETAK jalur itu; menghitungnya di server tapi membuang di layar sama
+   * saja dengan tidak memperbaikinya.
+   */
+  it("kode item dicetak beserta kategorinya", () => {
+    const html = render(
+      beda({
+        volumeBerubah: [
+          { code: "2.d", jalur: "II · 2.d", name: "Pekerjaan beton", dari: 7.84, ke: 9.8, realisasi: 0, dibawahRealisasi: false },
+        ],
+      }),
+    );
+    expect(html).toContain("II · 2.d");
+  });
+
   it("volume yang turun di bawah realisasi tetap ditandai bahaya di daftar lengkapnya", () => {
     const html = render(
       beda({
         volumeBerubah: [
-          { code: "2", name: "Galian Tanah", dari: 100, ke: 10, realisasi: 40, dibawahRealisasi: true },
+          { code: "2", jalur: "II · 2", name: "Galian Tanah", dari: 100, ke: 10, realisasi: 40, dibawahRealisasi: true },
         ],
       }),
     );

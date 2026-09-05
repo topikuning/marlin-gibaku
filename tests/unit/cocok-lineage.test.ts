@@ -72,9 +72,10 @@ function kontrak(items: Spek[]): NodeLamaCocok[] {
 /** Kontrak yang sama, dalam bentuk yang dimengerti `bandingkanTerhadapAktif`. */
 function kontrakAktif(items: Spek[]): NodeAktif[] {
   return [
-    { lineageKey: "V", kind: "kategori", code: "V", name: "PEKERJAAN BANGUNAN KIOS", volume: null, unitPrice: null, amount: 0n },
+    { lineageKey: "V", parentLineageKey: null, kind: "kategori", code: "V", name: "PEKERJAAN BANGUNAN KIOS", volume: null, unitPrice: null, amount: 0n },
     ...items.map((it) => ({
       lineageKey: `V#${it.kode}`,
+      parentLineageKey: "V",
       kind: "item",
       code: it.kode,
       name: it.nama,
