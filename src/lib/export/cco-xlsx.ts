@@ -65,6 +65,8 @@ const VOL_FMT = "#,##0.000";
 const PCT_FMT = "0.00";
 /** Angka realisasi di dalam pesan validasi — dibaca manusia, bukan sel. */
 const VOL_ID = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
+/** Rupiah untuk teks catatan (bukan sel angka) – dua desimal bila ada. */
+const RUPIAH_ID = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 });
 
 const GARIS: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
@@ -219,12 +221,13 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
 
   // Baris yang punya realisasi — dipakai memasang sorotan merah sesudahnya.
   const barisBerealisasi: number[] = [];
-  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah, barisBerealisasi));
+  const hargaBeda: BarisHargaBeda[] = [];
+  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah, barisBerealisasi, hargaBeda));
 
   tulisKaki(ws, { barisAkhirData, barisJumlah, barisPpn, barisTotal, ppnPercent: input.ppnPercent });
   sorotBarisBerubah(ws, barisAkhirData);
   sorotDiBawahRealisasi(ws, barisBerealisasi);
-  const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input);
+  const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input, hargaBeda);
   tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input);
 
   const buf = await wb.xlsx.writeBuffer();
@@ -312,12 +315,28 @@ const tanpaIsi = (row: CcoRow) =>
   row.jumlahLama === 0n &&
   row.jumlahBaru === 0n;
 
+/**
+ * Baris yang harga satuannya BERBEDA antara kontrak dan berkas adendum.
+ *
+ * Dikumpulkan saat menulis, dipakai dua kali: menandai selnya, dan menyusun
+ * baris rekonsiliasi yang menyebut nilainya. Lihat `CcoRow.hargaBaru`.
+ */
+type BarisHargaBeda = { baris: number; no: string; uraian: string; dampak: number };
+
+/** Beda harga yang MEMINDAHKAN uang; di bawah satu sen bukan perbedaan harga. */
+function bedaHarga(row: CcoRow): number | null {
+  if (!row.adaDiKontrak || row.hargaBaru == null || row.hargaLama == null) return null;
+  if (Math.abs(row.hargaBaru - row.hargaLama) < 0.005) return null;
+  return (row.hargaLama - row.hargaBaru) * (row.volumeBaru ?? 0);
+}
+
 function tulisBaris(
   ws: ExcelJS.Worksheet,
   r: number,
   row: CcoRow,
   barisJumlah: number,
   barisBerealisasi: number[],
+  hargaBeda: BarisHargaBeda[],
 ) {
   const judul = row.jenis === "judul" || tanpaIsi(row);
   const baris = ws.getRow(r);
@@ -335,6 +354,11 @@ function tulisBaris(
     const volN = `${K.volumeBaru}${r}`;
     const harga = `${K.harga}${r}`;
 
+    // Harga satuan kedua sisi berselisih? Dipakai dua kali di bawah: menandai
+    // selnya, dan memilih harga untuk sisi CCO-01.
+    const dampakHarga = bedaHarga(row);
+    const hargaBedaSisi = dampakHarga != null;
+
     // DATA (satu-satunya nilai yang diketik) — nol ditulis eksplisit supaya
     // formula pembanding tidak menganggapnya sel kosong.
     const isiData: Record<string, number | string | null> = {
@@ -345,6 +369,28 @@ function tulisBaris(
       volumeBaru: row.volumeBaru ?? 0,
     };
     for (const [key, nilai] of Object.entries(isiData)) ws.getCell(r, nomorKolom(key)).value = nilai;
+
+    /*
+     * HARGA SATUAN YANG BERSELISIH DENGAN BERKAS ADENDUM — DITANDAI, BUKAN
+     * DIDIAMKAN.
+     *
+     * Format CCO punya satu kolom harga, dan dokumen ini memakai harga KONTRAK
+     * (DECISIONS 213). Kalau berkas adendumnya memuat harga lain, seluruh baris
+     * ini dihitung ulang dengan harga kontrak, sehingga JUMLAH CCO-01 di
+     * dokumen tidak lagi sama dengan nilai adendum yang tercatat di MARLIN.
+     * Selisih itu sah selama DIKATAKAN; yang tidak boleh adalah dokumen
+     * pengajuan yang totalnya membantah sistemnya sendiri tanpa satu pun tanda.
+     */
+    if (hargaBedaSisi) {
+      const sel = ws.getCell(r, nomorKolom("harga"));
+      sel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+      sel.note =
+        `Harga kontrak ${RUPIAH_ID.format(row.hargaLama ?? 0)}; di berkas adendum ` +
+        `${RUPIAH_ID.format(row.hargaBaru ?? 0)}. Kolom ini harga MC-0 (kontrak); JUMLAH sisi CCO-01 ` +
+        `memakai harga BERKAS – angka berkas dipakai apa adanya. Kalau yang benar harga kontrak, ` +
+        `betulkan harganya di berkas adendum lalu impor ulang.`;
+      hargaBeda.push({ baris: r, no: row.no, uraian: row.uraian, dampak: dampakHarga ?? 0 });
+    }
 
     /*
      * PENGAMAN DI LEVEL BERKAS (DECISIONS 242).
@@ -380,16 +426,44 @@ function tulisBaris(
       barisBerealisasi.push(r);
     }
 
+    /*
+     * HARGA SISI CCO-01: MILIK BERKAS ADENDUM, BUKAN HARGA KONTRAK.
+     *
+     * Kolom HARGA SATUAN berada di blok MC-0 dan memang berisi harga kontrak.
+     * Sampai laporan user 2026-09-05, SELURUH baris dihitung dengan harga itu —
+     * termasuk sisi CCO-01. Akibatnya pada Pasar Banggi V 3.b: berkas adendum
+     * menuliskan harga 0 (item itu memang dinolkan), tapi dokumen mengalikan
+     * volume 704 dengan harga kontrak Rp 28.117,52 dan mencetak PEKERJAAN
+     * TAMBAH Rp 19.794.734 — pekerjaan yang tidak diminta siapa pun. Bersama
+     * IX 3.b, JUMLAH CCO-01 di dokumen membengkak Rp 27,4 juta di atas nilai
+     * adendum yang tercatat di sistem.
+     *
+     * Angka berkas dipakai APA ADANYA (DECISIONS 203): sisi CCO-01 memakai
+     * harga sisi CCO-01. Kalau kedua harga sama — keadaan normal — rumusnya
+     * tetap menunjuk sel harga, jadi mengubah harga di Excel tetap menggerakkan
+     * kedua sisi.
+     */
+    const hargaN = hargaBedaSisi ? String(row.hargaBaru ?? 0) : harga;
+
     // TURUNAN — semuanya formula.
     const rumus: Record<string, string> = {
       // jumlah harga = harga satuan × volume (tanpa ROUND — lihat DECISIONS 075)
       jumlahLama: `${harga}*${vol0}`,
-      jumlahBaru: `${harga}*${volN}`,
+      jumlahBaru: `${hargaN}*${volN}`,
       // volume tambah = vol CCO − vol MC-0 ; kurang = vol MC-0 − vol CCO
       volumeTambah: `IF(${volN}-${vol0}>0,${volN}-${vol0},"")`,
       volumeKurang: `IF(${vol0}-${volN}>0,${vol0}-${volN},"")`,
-      jumlahTambah: `IF(${K.volumeTambah}${r}="","",${harga}*${K.volumeTambah}${r})`,
-      jumlahKurang: `IF(${K.volumeKurang}${r}="","",${harga}*${K.volumeKurang}${r})`,
+      /*
+       * TAMBAH/KURANG = selisih NILAI kedua sisi, bukan volume × satu harga.
+       *
+       * Rumus lama mengalikan selisih volume dengan harga kontrak, jadi baris
+       * yang volumenya naik tapi nilainya tidak (harga sisi CCO-01 nol) tetap
+       * dicetak sebagai pekerjaan tambah bernilai. Selisih nilai menjawab
+       * pertanyaan yang sebenarnya ditanyakan kolom ini: berapa rupiah yang
+       * bertambah. Pada baris berharga sama hasilnya identik dengan rumus lama.
+       */
+      jumlahTambah: `IF(${K.jumlahBaru}${r}-${K.jumlahLama}${r}>0,${K.jumlahBaru}${r}-${K.jumlahLama}${r},"")`,
+      jumlahKurang: `IF(${K.jumlahLama}${r}-${K.jumlahBaru}${r}>0,${K.jumlahLama}${r}-${K.jumlahBaru}${r},"")`,
       // bobot = jumlah harga ÷ TOTAL × 100 (penyebut lihat komentar berkas)
       bobotLama: `IF(${totMc0}=0,0,${K.jumlahLama}${r}/${totMc0}*100)`,
       bobotTambah: `IF(OR(${K.jumlahTambah}${r}="",${totMc0}=0),"",${K.jumlahTambah}${r}/${totMc0}*100)`,
@@ -397,11 +471,23 @@ function tulisBaris(
       bobotBaru: `IF(${totCco}=0,0,${K.jumlahBaru}${r}/${totCco}*100)`,
       // Keterangan ikut berubah kalau volumenya diubah — kalau ini nilai mati,
       // baris yang baru saja diubah tetap tertulis TETAP.
-      ket:
-        `IF(${volN}=${vol0},"TETAP",` +
-        `IF(${vol0}=0,"BARU",` +
-        `IF(${volN}=0,"HAPUS",` +
-        `IF(${volN}>${vol0},"TAMBAH","KURANG"))))`,
+      /*
+       * KET: "BARU" berarti item ini TIDAK ADA di kontrak – bukan sekadar
+       * volumenya nol.
+       *
+       * Rumus lama menyimpulkannya dari `volume MC-0 = 0`. Laporan user
+       * 2026-09-05 (Pasar Banggi V 3.b dan IX 3.b): keduanya item KONTRAK yang
+       * volumenya memang 0, lalu dinyatakan "BARU" – dokumen pengajuan
+       * menyebut pekerjaan baru untuk baris yang sudah ada di kontrak sejak
+       * awal. Keberadaannya di kontrak bukan sesuatu yang bisa disimpulkan dari
+       * satu sel volume, jadi dipasang sebagai tetapan per baris; sisanya tetap
+       * formula supaya volume yang diubah di Excel tetap menggerakkan KET.
+       */
+      ket: row.adaDiKontrak
+        ? `IF(${volN}=${vol0},"TETAP",` +
+          `IF(${volN}=0,"HAPUS",` +
+          `IF(${volN}>${vol0},"TAMBAH","KURANG")))`
+        : `"BARU"`,
     };
     /*
      * HASIL rumus ikut ditulis (`result`), bukan hanya rumusnya.
@@ -424,25 +510,27 @@ function tulisBaris(
     const vLama = row.volumeLama ?? 0;
     const vBaru = row.volumeBaru ?? 0;
     const h = row.hargaLama ?? 0;
+    const hB = hargaBedaSisi ? (row.hargaBaru ?? 0) : h;
     const vTambah = vBaru - vLama > 0 ? vBaru - vLama : "";
     const vKurang = vLama - vBaru > 0 ? vLama - vBaru : "";
+    const nLama = h * vLama;
+    const nBaru = hB * vBaru;
     const hasil: Record<string, number | string> = {
-      jumlahLama: h * vLama,
-      jumlahBaru: h * vBaru,
+      jumlahLama: nLama,
+      jumlahBaru: nBaru,
       volumeTambah: vTambah,
       volumeKurang: vKurang,
-      jumlahTambah: vTambah === "" ? "" : h * vTambah,
-      jumlahKurang: vKurang === "" ? "" : h * vKurang,
-      ket:
-        vBaru === vLama
+      jumlahTambah: nBaru - nLama > 0 ? nBaru - nLama : "",
+      jumlahKurang: nLama - nBaru > 0 ? nLama - nBaru : "",
+      ket: !row.adaDiKontrak
+        ? "BARU"
+        : vBaru === vLama
           ? "TETAP"
-          : vLama === 0
-            ? "BARU"
-            : vBaru === 0
-              ? "HAPUS"
-              : vBaru > vLama
-                ? "TAMBAH"
-                : "KURANG",
+          : vBaru === 0
+            ? "HAPUS"
+            : vBaru > vLama
+              ? "TAMBAH"
+              : "KURANG",
     };
     for (const [key, formula] of Object.entries(rumus)) {
       const r2 = hasil[key];
@@ -604,6 +692,7 @@ function tulisRekonsiliasi(
   baris: number,
   barisJumlah: number,
   input: CcoXlsxInput,
+  hargaBeda: BarisHargaBeda[] = [],
 ): number {
   const label = (r: number, teks: string) => {
     const c = ws.getCell(r, 1);
@@ -660,7 +749,36 @@ function tulisRekonsiliasi(
   c.font = { size: 8, italic: true, color: { argb: "FF9A3412" } };
   c.alignment = { horizontal: "left", wrapText: true };
   ws.mergeCells(rCatatan, 1, rCatatan, TOTAL_KOLOM);
-  return rCatatan;
+  if (hargaBeda.length === 0) return rCatatan;
+
+  /*
+   * SEBAB YANG PALING SERING, DISEBUT DENGAN NAMA DAN ANGKANYA.
+   *
+   * Catatan di atas menyebut satu kemungkinan (JUMLAH ≠ harga × volume di RAB
+   * sumber) dan berhenti di situ. Pada Pasar Banggi penyebabnya bukan itu: dua
+   * item yang harga satuannya 0 di berkas adendum tapi Rp 28.117,52 di kontrak
+   * membuat dokumen ini Rp 27,4 juta di atas nilai adendum yang tercatat.
+   * Pemeriksa tidak bisa menelusuri selisih yang tidak disebut barisnya.
+   */
+  const rHarga = rCatatan + 1;
+  const total = hargaBeda.reduce((t, x) => t + x.dampak, 0);
+  const daftar = hargaBeda
+    .slice(0, 8)
+    .map((x) => `${displayCode(x.no)} ${x.uraian}`)
+    .join("; ");
+  const sel = ws.getCell(rHarga, 1);
+  sel.value =
+    `PERHATIAN – harga satuan ${hargaBeda.length} item berbeda antara kontrak dan berkas adendum. ` +
+    `Kolom HARGA SATUAN memuat harga KONTRAK (blok MC-0); JUMLAH sisi CCO-01 dihitung dengan harga ` +
+    `BERKAS – angka berkas dipakai apa adanya (DECISIONS 203), jadi item yang dinolkan di berkas tetap ` +
+    `bernilai nol di sini. Bila dihitung dengan harga kontrak, JUMLAH CCO-01 akan ` +
+    `${total >= 0 ? "LEBIH TINGGI" : "LEBIH RENDAH"} ${RUPIAH_ID.format(Math.abs(total))}. ` +
+    `Item: ${daftar}${hargaBeda.length > 8 ? `; +${hargaBeda.length - 8} lainnya` : ""}. ` +
+    `Sel harga satuannya berlatar kuning – periksa berkas sumbernya sebelum dokumen ini diajukan.`;
+  sel.font = { size: 8, italic: true, bold: true, color: { argb: "FF9A3412" } };
+  sel.alignment = { horizontal: "left", wrapText: true };
+  ws.mergeCells(rHarga, 1, rHarga, TOTAL_KOLOM);
+  return rHarga;
 }
 
 function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number, input: CcoXlsxInput) {
