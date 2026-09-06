@@ -27546,3 +27546,94 @@ dicabut, dan jumlahnya disebut di kartu "Jumlah lokasi" supaya selisih angka
 tidak perlu ditebak. Dijaga `tests/integration/lingkup-lokasi-adendum.test.ts`
 (gerbang paket-silang, alasan wajib, empat mata, tanggal berlaku, dan kurva
 lokasi baru yang mulai di minggu berlakunya).
+
+---
+
+## (baru) · Katalog lokasi dari MASTER DATA KNMP: aktif saja, tanpa data perusahaan, bisa disunting di tempat + peta (2026-09-06)
+
+**Konteks**: katalog lokasi diisi dari berkas KKP `Data_Lokasi_KNMP_Bersih`, dan
+impornya selama ini cuma membaca TIGA kolom (provinsi, kabupaten, desa) plus
+"calon penyedia". Akibatnya empat hal yang semuanya merugikan:
+
+1. Berkas aslinya punya lima sheet, dan sheet pertama BUKAN daftar lokasi
+   (DASHBOARD). Parser lama mengambil sheet pertama — salah sheet = salah data.
+2. Berkas memuat 1.271 baris, 55 di antaranya cadangan/drop/batal/ditolak.
+   Semuanya masuk katalog seolah setara dengan yang aktif.
+3. Kolom perusahaan (nama, kontak, calon penyedia) ikut terbaca dan bahkan
+   MEMBUAT Vendor. Katalog lokasi jadi berisi nama perusahaan yang tidak pernah
+   berkontrak, dan master vendor jadi penuh nama hantu.
+4. Koordinat, jumlah nelayan, kapal, nilai EE — data yang justru dipakai untuk
+   memutuskan — tidak ikut sama sekali, dan tidak ada satu pun jalan memperbaiki
+   koordinat yang salah dari layar. Impornya juga tidak punya TEMPLAT: satu-satunya
+   cara mengetahui kolom yang dibaca adalah menebak atau membaca kodenya.
+
+Permintaan user 2026-09-06: *"lengkapi data lokasi sekalian, sesuaikan kebutuhan
+marlin ambil data dari sheet master data. ambil hanya yang aktif saja. tidak
+perlu ambil data perusahaan. di super admin halaman katalog lokasi, bisa edit
+langsung untuk koordinat, nama, dsb. kalau sudah dipakai kasih warning saja.
+untuk data lokasi baru tidak perlu informasi calon penyedianya. atau kalau
+ternyata sudah ada impor excelnya, templatenya mana, kok gak ada. lalu saat
+katalog lokasi, lokasinya diklik muncul edit itu sekalian perkiraan lokasi
+mapnya."*
+
+**Keputusan**:
+
+- **Sheet dipilih, bukan diambil yang pertama.** `pilihSheet` menilai tiap sheet
+  dari header-nya: yang punya kolom desa/kabupaten menang, nama "MASTER DATA"
+  menambah nilai, "REKAP PERUSAHAAN"/"DASHBOARD" dikurangi. Sheet yang akhirnya
+  dibaca DISEBUT di pratinjau — kalau sistem salah pilih, orangnya bisa lihat
+  sebelum menyimpan.
+- **Hanya `SL-AKT` yang masuk.** Kode status lain (cadangan, drop sosek, batal,
+  ditolak) dilewati dan **jumlahnya disebut** di pratinjau maupun di pesan hasil
+  impor — 55 baris yang hilang diam-diam tidak boleh terbaca sebagai "memang
+  cuma segitu". Berkas TANPA kolom status tidak disaring sama sekali (impor lama
+  tiga kolom tetap jalan), dan itu pun dikatakan lewat peringatan.
+- **Kolom perusahaan tidak dibaca sama sekali**, dan impor tidak lagi membuat
+  Vendor. Kolom `MasterLocation.candidateVendor` ditinggal (data lama tidak
+  dihapus) tapi tidak ada lagi jalur input yang menulisnya; formulir tambah
+  lokasi juga kehilangan isian calon penyedia.
+- **Bidang KNMP ikut masuk**: `sourceCode` (ID Lokasi KNMP-nnn — jangkar
+  penelusuran balik ke daftar KKP), nama kampung nelayan, wilayah, klaster,
+  hasil pleno, status + alasannya, status koordinat, tahap, luas lahan, jumlah
+  nelayan, kapal (tanpa mesin / bermesin / total), nilai EE. Semuanya opsional:
+  katalog tetap sah dengan wilayah + desa saja.
+- **Impor ulang tidak menimpa koordinat dengan kosong.** Kosong di berkas
+  berarti "tidak tahu", bukan "kosongkan" — berkas sumber tidak selalu lengkap,
+  dan menimpanya akan menghapus koordinat yang sudah dilengkapi orang di layar.
+- **Templat Excel disediakan** di `/master/lokasi/template`, dibangun dari
+  `HEADER_TEMPLAT` yang SAMA dengan yang dibaca parser, plus sheet PETUNJUK.
+  Kesamaannya dijaga uji: templat yang meleset dari pembacanya lebih buruk
+  daripada tidak ada templat.
+- **Baris katalog bisa disunting di tempat** (`ubahLokasiMasterAction`,
+  `package.bypass` + audit dari/ke). Lokasi yang SUDAH dipakai proyek tetap
+  boleh disunting — koordinat salah tidak berhenti salah karena lokasinya sudah
+  berjalan; yang muncul PERINGATAN, bukan gembok, dan peringatannya menyebut apa
+  yang tidak ikut berubah: lokasi proyeknya sendiri, yang punya layar dan
+  wewenangnya sendiri. Kunci alami yang menabrak baris lain ditolak dengan
+  kalimat yang bisa dibaca, bukan galat unique constraint mentah.
+- **Peta satu titik di dalam form sunting**, dua arah: klik peta atau seret
+  penandanya → kotak lintang/bujur ikut terisi. Mengetik enam desimal dari
+  ingatan adalah cara termudah menaruh kampung nelayan di tengah sawah;
+  menggeser penanda memperlihatkan salahnya seketika. Leaflet langsung (BSD-2),
+  tanpa react-leaflet — sama seperti `peta-map` yang sudah ada.
+
+**Alternatif direject**:
+- *Mengunci baris katalog yang sudah dipakai proyek.* Justru baris itulah yang
+  paling perlu dibetulkan, dan menguncinya memaksa orang memperbaiki lewat SQL.
+- *Ikut mengubah lokasi proyek saat katalognya disunting.* Satu formulir yang
+  diam-diam mengubah nama lokasi berjalan, koordinat cap foto, dan judul laporan
+  adalah kerusakan, bukan kemudahan.
+- *Menghapus kolom `candidateVendor` dari skema.* Data lama akan hilang tanpa
+  bisa ditelusuri; cukup hentikan jalur penulisannya.
+- *Menyaring keaktifan berdasar teks label saja.* Label di berkas beragam
+  ("Aktif", "Lokasi Batal", "Tidak Ada Lahan"); kode `SL-*` yang menentukan,
+  label hanya jadi cadangan bila kode kosong.
+
+**Konsekuensi**: berkas user 2026-09-06 terbaca sebagai **1.216 lokasi aktif, 55
+tidak aktif dilewati, 1.216 berkoordinat, 37 provinsi**, tanpa satu pun data
+perusahaan. Dijaga `tests/unit/master-lokasi-knmp.test.ts` (7 klausa, semuanya
+dibuktikan merah lebih dulu terhadap parser lama) dan
+`tests/integration/master-lokasi-katalog.test.ts` (7 klausa; dua pagar paling
+mudah bocor — koordinat tidak ditimpa kosong, dan tabrakan kunci alami ditolak
+terbaca — dibuktikan merah dengan melumpuhkan kodenya). Migrasi
+`20260906020000_master_lokasi_knmp` idempoten (DECISIONS 167).
