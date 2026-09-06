@@ -27785,7 +27785,7 @@ lain TIDAK ikut" + templat 9 kolom) dan
 
 ---
 
-## (baru) · Peta pindah ke MapLibre GL JS + peta dasar milik sendiri (2026-09-06)
+## 531 · 2026-09-06 · Peta pindah ke MapLibre GL JS + peta dasar milik sendiri
 
 **Konteks**: user melihat peta MARLIN dan berkata *"aku sangat tidak puas dengan
 leaflet. apa tidak ada yang lebih baik? misal MapLibre GL JS"*.
