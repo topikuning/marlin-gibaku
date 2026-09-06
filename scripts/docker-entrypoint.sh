@@ -21,6 +21,18 @@ set -e
 # dipakai untuk satu `mkdir` + satu `chown`, lalu dilepas lewat `gosu`.
 
 DIR_LAMPIRAN="${LAMPIRAN_DIR:-/app/.data/lampiran}"
+# Peta dasar (.pmtiles) tinggal di volume yang sama, dengan alasan yang sama:
+# volume Railway dipasang milik root, dan aplikasi berjalan sebagai `marlin`.
+DIR_PETA_DASAR="${PETA_DIR:-/app/.data/peta}"
+
+if [ "$(id -u)" = "0" ]; then
+  if mkdir -p "$DIR_PETA_DASAR" 2>/dev/null; then
+    chown marlin:marlin "$DIR_PETA_DASAR" 2>/dev/null ||
+      echo "[entrypoint] tidak bisa mengubah pemilik \"$DIR_PETA_DASAR\" – peta dasar tidak akan bisa diunduh; layar Sistem akan menyebutkannya." >&2
+  else
+    echo "[entrypoint] tidak bisa membuat \"$DIR_PETA_DASAR\" – peta dasar tidak akan bisa diunduh; layar Sistem akan menyebutkannya." >&2
+  fi
+fi
 
 if [ "$(id -u)" = "0" ]; then
   # `mkdir -p` juga membuat induknya (mis. `/data` yang belum berisi apa-apa).

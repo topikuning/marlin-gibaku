@@ -17,6 +17,30 @@ const baseSchema = z.object({
    * super admin tidak bisa saling menyentuh). Lihat `lib/akar.ts`.
    */
   SUPER_ADMIN_UTAMA: z.string().optional(),
+  /*
+   * PETA (user 2026-09-06). Peta dasar vektor disimpan sendiri di R2 sebagai
+   * satu berkas `.pmtiles`; kuncinya bisa diganti bila nanti ada beberapa
+   * wilayah. Citra satelit datang dari penyedia ubin luar — templat DAN
+   * atribusinya sengaja dijadikan variabel, karena atribusi adalah SYARAT
+   * pemakaian: kalau sumbernya diganti tanpa menggantinya, kita memakai citra
+   * orang tanpa menyebut siapa pemiliknya.
+   */
+  /** Direktori peta dasar di VOLUME (sejajar LAMPIRAN_DIR). */
+  PETA_DIR: z.string().optional(),
+  /**
+   * Dari mana berkas peta dasar diunduh saat tombol di /sistem ditekan. Satu
+   * berkas melayani SEMUA lingkungan — dev dan produksi punya volume
+   * masing-masing, jadi tidak ada kunci yang perlu disamakan.
+   */
+  PETA_SUMBER_URL: z.string().optional(),
+  /**
+   * Matikan peta SEPENUHNYA. Hanya diisi job E2E di CI ("1"); tidak pernah
+   * diisi di lingkungan mana pun yang dipakai orang, termasuk dev — lihat
+   * catatan panjang di `lib/peta/sumber.ts`.
+   */
+  PETA_MATI: z.string().optional(),
+  PETA_SATELIT_URL: z.string().optional(),
+  PETA_SATELIT_ATRIBUSI: z.string().optional(),
 });
 
 const r2Schema = z.object({

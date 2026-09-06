@@ -1,27 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as maplibregl from "maplibre-gl";
+import { Protocol } from "pmtiles";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { PetaMarker } from "@/lib/peta";
+import {
+  LAPIS_SATELIT,
+  adaSumber,
+  dukungWebGL,
+  gayaPeta,
+  modeTersedia,
+  type ModePeta,
+  type SumberPeta,
+} from "@/lib/peta/gaya";
 import { statusColorToken } from "./status-color";
 
 /**
- * Peta Leaflet MURNI tanpa react-leaflet (client-only — di-load via next/dynamic
- * ssr:false dari peta-client). react-leaflet dibuang: lisensinya Hippocratic-2.1
- * (pembatasan penggunaan — di luar allowlist open-source kebijakan repo);
- * leaflet sendiri BSD-2-Clause. Marker lingkaran berwarna per status; yang
- * dipilih diberi ring lebih besar + flyTo.
+ * SEBARAN LOKASI — MapLibre GL JS (BSD-3), client-only via next/dynamic.
+ *
+ * Keluhan user 2026-09-06: *"aku sangat tidak puas dengan leaflet."* Yang
+ * dipindahkan bukan cuma pustakanya:
+ *
+ * - **Ubinnya vektor**, bukan gambar yang dibesarkan. Nama desa tetap tajam di
+ *   perbesaran berapa pun, dan sumbernya milik kita sendiri — bukan server
+ *   komunitas OSM yang memang melarang pemakaian produksi dan bisa memblokir
+ *   peta proyek ini kapan saja.
+ * - **Penanda BERKELOMPOK.** Sistem ini menuju 200+ lokasi di 7 provinsi;
+ *   pada tampilan nasional, ratusan titik yang saling menimpa bukan informasi,
+ *   melainkan noda. Berkelompok, angka di dalam lingkarannya menjawab
+ *   "berapa banyak di sini" — dan mengekliknya membuka isinya.
+ * - **Lapisan satelit** untuk memeriksa apakah sebuah titik benar-benar berada
+ *   di kampung nelayan, bukan di tengah laut atau tengah sawah.
+ *
+ * Warna penanda tetap mengikuti token tema (dibaca sekali lewat
+ * getComputedStyle): MapLibre menulis warna sebagai nilai literal dan tidak
+ * memahami `var()`.
  */
 
-// Titik tengah default kira-kira pesisir utara Jawa (mayoritas lokasi KNMP).
-const DEFAULT_CENTER: [number, number] = [-6.9, 111.5];
+const PUSAT_KOSONG: [number, number] = [111.5, -6.9];
 
-/**
- * Leaflet menulis warna sebagai atribut SVG — tidak paham `var()`, jadi token
- * di-resolve sekali ke nilai literal via getComputedStyle (aman: client-only).
- */
 const MAP_TOKENS = [
   "--color-ink-faint",
   "--color-info",
@@ -32,26 +51,39 @@ const MAP_TOKENS = [
   "--color-surface",
 ] as const;
 
-function useTokenColor(): (token: string) => string {
-  const colors = useMemo(() => {
-    const style = getComputedStyle(document.documentElement);
-    const out: Record<string, string> = {};
-    for (const t of MAP_TOKENS) out[t] = style.getPropertyValue(t).trim();
-    return out;
-  }, []);
-  return (token: string) => colors[token] ?? "";
-}
-
-/** Warna pin opsional per-id (mis. status submit di dashboard) — menimpa warna
- *  default per LocationStatus. Token CSS var, di-resolve client-side. */
 const TONE_TOKEN: Record<"success" | "warning" | "danger" | "neutral" | "idle", string> = {
   success: "--color-success",
   warning: "--color-warning",
   danger: "--color-danger",
   neutral: "--color-ink-faint",
-  // "Belum mulai" (lokasi target): pin BERONGGA — surut, bukan sekadar abu lain.
   idle: "--color-ink-faint",
 };
+
+const SUMBER_LOKASI = "lokasi";
+const LAPIS_KELOMPOK = "lokasi-kelompok";
+const LAPIS_JUMLAH = "lokasi-jumlah";
+const LAPIS_TITIK = "lokasi-titik";
+const LAPIS_PILIH = "lokasi-terpilih";
+
+/**
+ * Koordinat sebuah fitur titik.
+ *
+ * Sengaja TIDAK memakai namespace global `GeoJSON`: namespace itu dulu ikut
+ * terbawa `@types/leaflet`, dan begitu Leaflet dibuang ia lenyap di pemasangan
+ * bersih — lokal masih lolos karena sisa `node_modules`, CI langsung merah.
+ * Bentuk yang dibaca di sini cuma `coordinates`, jadi itu saja yang disebut.
+ */
+function titik(f: { geometry: { coordinates?: unknown } }): [number, number] {
+  const c = f.geometry.coordinates as [number, number];
+  return [c[0], c[1]];
+}
+
+let protokolTerpasang = false;
+function pasangProtokol() {
+  if (protokolTerpasang) return;
+  maplibregl.addProtocol("pmtiles", new Protocol().tile);
+  protokolTerpasang = true;
+}
 
 export interface PetaMapProps {
   markers: PetaMarker[];
@@ -59,111 +91,251 @@ export interface PetaMapProps {
   onSelect: (id: string) => void;
   /** Timpa warna pin per-id dengan tone (dashboard: status submit). */
   toneById?: Record<string, "success" | "warning" | "danger" | "neutral" | "idle">;
+  sumber: SumberPeta;
 }
 
-export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProps) {
-  const tokenColor = useTokenColor();
+export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: PetaMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const layerRef = useRef<L.LayerGroup | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const siap = useRef(false);
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
 
-  // Inisialisasi peta sekali; view awal AUTO-FIT ke seluruh marker (bukan
-  // hardcode Jawa) — lokasi baru di NTB/luar Jawa langsung terlihat.
+  const pilihan = modeTersedia(sumber);
+  const [mode, setMode] = useState<ModePeta>(pilihan.includes("peta") ? "peta" : "satelit");
+  // Dukungan WebGL diperiksa SEBELUM render, bukan lewat setState di dalam
+  // efek: kegagalan peta harus jadi keadaan awal komponen, bukan kedipan.
+  const [webgl] = useState(dukungWebGL);
+
+  const warna = useMemo(() => {
+    if (typeof window === "undefined") return {} as Record<string, string>;
+    const style = getComputedStyle(document.documentElement);
+    const out: Record<string, string> = {};
+    for (const t of MAP_TOKENS) out[t] = style.getPropertyValue(t).trim();
+    return out;
+  }, []);
+  const token = (t: string) => warna[t] ?? "#64748b";
+
+  /** Titik-titik sebagai GeoJSON: satu sumber, dipakai semua lapisan. */
+  const data = useMemo(() => {
+    return {
+      type: "FeatureCollection" as const,
+      features: markers.map((m) => {
+        const tone = toneById?.[m.id];
+        return {
+          type: "Feature" as const,
+          geometry: { type: "Point" as const, coordinates: [m.lng, m.lat] },
+          properties: {
+            id: m.id,
+            name: m.name,
+            wilayah: `${m.regency} · ${m.province}`,
+            warna: tone ? token(TONE_TOKEN[tone]) : token(statusColorToken(m.status as LocationStatus)),
+            // "Belum mulai" digambar lebih kecil & pucat: hadir di peta, tapi
+            // jelas bukan pekerjaan berjalan yang menunggu laporan hari ini.
+            idle: tone === "idle" ? 1 : 0,
+          },
+        };
+      }),
+    };
+    // `token` stabil karena `warna` dihitung sekali.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers, toneById, warna]);
+
+  const batas = useMemo(() => {
+    if (markers.length === 0) return null;
+    const b = new maplibregl.LngLatBounds();
+    for (const m of markers) b.extend([m.lng, m.lat]);
+    return b;
+  }, [markers]);
+
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { scrollWheelZoom: true });
-    if (markers.length > 1) {
-      map.fitBounds(L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number])), {
-        padding: [28, 28],
-        maxZoom: 11,
+    if (!containerRef.current || mapRef.current || !adaSumber(sumber) || !webgl) return;
+    pasangProtokol();
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: gayaPeta(sumber, mode),
+      center: PUSAT_KOSONG,
+      zoom: 4.2,
+      attributionControl: { compact: true },
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+
+    map.on("load", () => {
+      map.addSource(SUMBER_LOKASI, {
+        type: "geojson",
+        data,
+        cluster: true,
+        clusterRadius: 46,
+        // Di atas zoom ini tiap lokasi berdiri sendiri: yang berdekatan memang
+        // benar-benar berdekatan, bukan sekadar bertumpuk karena petanya kecil.
+        clusterMaxZoom: 11,
       });
-    } else if (markers.length === 1) {
-      map.setView([markers[0].lat, markers[0].lng], 10);
-    } else {
-      map.setView(DEFAULT_CENTER, 7);
-    }
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
-    layerRef.current = L.layerGroup().addTo(map);
+      map.addLayer({
+        id: LAPIS_KELOMPOK,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": token("--color-primary"),
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": token("--color-surface"),
+          "circle-radius": ["step", ["get", "point_count"], 15, 10, 19, 50, 25],
+        },
+      });
+      map.addLayer({
+        id: LAPIS_JUMLAH,
+        type: "symbol",
+        source: SUMBER_LOKASI,
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 12,
+        },
+        paint: { "text-color": token("--color-surface") },
+      });
+      map.addLayer({
+        id: LAPIS_TITIK,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["get", "warna"],
+          "circle-opacity": ["case", ["==", ["get", "idle"], 1], 0.45, 0.95],
+          "circle-radius": ["case", ["==", ["get", "idle"], 1], 5, 7],
+          "circle-stroke-width": 1.4,
+          "circle-stroke-color": token("--color-surface"),
+        },
+      });
+      map.addLayer({
+        id: LAPIS_PILIH,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["==", ["get", "id"], "__tidak_ada__"],
+        paint: {
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-radius": 13,
+          "circle-stroke-width": 3,
+          "circle-stroke-color": token("--color-primary"),
+        },
+      });
+      siap.current = true;
+      if (batas) map.fitBounds(batas, { padding: 40, maxZoom: 11, duration: 0 });
+    });
+
+    map.on("click", LAPIS_KELOMPOK, (e) => {
+      const f = map.queryRenderedFeatures(e.point, { layers: [LAPIS_KELOMPOK] })[0];
+      const id = f?.properties?.cluster_id;
+      if (id == null) return;
+      const src = map.getSource(SUMBER_LOKASI) as maplibregl.GeoJSONSource;
+      void src.getClusterExpansionZoom(Number(id)).then((zoom) => {
+        map.easeTo({ center: titik(f), zoom });
+      });
+    });
+    map.on("click", LAPIS_TITIK, (e) => {
+      const id = e.features?.[0]?.properties?.id;
+      if (typeof id === "string") onSelectRef.current(id);
+    });
+    map.on("mousemove", LAPIS_TITIK, (e) => {
+      map.getCanvas().style.cursor = "pointer";
+      const f = e.features?.[0];
+      if (!f) return;
+      popup
+        .setLngLat(titik(f))
+        .setHTML(
+          `<div style="font-size:12px;font-weight:600">${f.properties?.name ?? ""}</div><div style="font-size:11px">${f.properties?.wilayah ?? ""}</div>`,
+        )
+        .addTo(map);
+    });
+    map.on("mouseleave", LAPIS_TITIK, () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
+    });
+    map.on("mouseenter", LAPIS_KELOMPOK, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", LAPIS_KELOMPOK, () => {
+      map.getCanvas().style.cursor = "";
+    });
+
     mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
-      layerRef.current = null;
+      siap.current = false;
     };
-    // markers hanya untuk view awal — pembaruan berikutnya lewat effect marker.
+    // Sengaja sekali jalan; data & seleksi ditangani efek di bawah.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Set marker BERUBAH (filter/tambah lokasi) & tak ada seleksi → refit bounds
-  // supaya sebaran baru (mis. NTB muncul) selalu masuk viewport.
-  const markersKey = useMemo(
-    () =>
-      markers
-        .map((m) => m.id)
-        .sort()
-        .join(","),
-    [markers],
-  );
-  const prevKeyRef = useRef(markersKey);
+  // Data berubah (filter/tambah lokasi) → perbarui sumber, lalu rapatkan
+  // pandangan ke sebaran baru bila tidak sedang menyorot satu lokasi.
+  const kunci = useMemo(() => markers.map((m) => m.id).sort().join(","), [markers]);
+  const kunciSebelumnya = useRef(kunci);
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || prevKeyRef.current === markersKey) return;
-    prevKeyRef.current = markersKey;
-    if (selectedId || markers.length === 0) return;
-    if (markers.length === 1) {
-      map.flyTo([markers[0].lat, markers[0].lng], 10, { duration: 0.6 });
-    } else {
-      map.flyToBounds(L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number])), {
-        padding: [28, 28],
-        maxZoom: 11,
-        duration: 0.6,
-      });
-    }
-  }, [markersKey, markers, selectedId]);
+    if (!map || !siap.current) return;
+    const src = map.getSource(SUMBER_LOKASI) as maplibregl.GeoJSONSource | undefined;
+    src?.setData(data);
+    if (kunciSebelumnya.current === kunci) return;
+    kunciSebelumnya.current = kunci;
+    if (selectedId || !batas) return;
+    map.fitBounds(batas, { padding: 40, maxZoom: 11, duration: 600 });
+  }, [data, kunci, batas, selectedId]);
 
-  // Gambar ulang marker saat data/seleksi berubah.
-  useEffect(() => {
-    const layer = layerRef.current;
-    if (!layer) return;
-    layer.clearLayers();
-    const statusColor = (status: LocationStatus) => tokenColor(statusColorToken(status));
-    for (const m of markers) {
-      const active = selectedId === m.id;
-      const tone = toneById?.[m.id];
-      const fill = tone ? tokenColor(TONE_TOKEN[tone]) : statusColor(m.status);
-      // Lokasi belum mulai digambar berongga & lebih kecil: hadir di peta, tetapi
-      // jelas bukan pekerjaan berjalan yang menunggu laporan hari ini.
-      const hollow = tone === "idle";
-      const marker = L.circleMarker([m.lat, m.lng], {
-        radius: active ? 11 : hollow ? 5.5 : 7,
-        color: active ? tokenColor("--color-primary") : hollow ? fill : tokenColor("--color-surface"),
-        weight: active ? 3 : hollow ? 1.6 : 1.2,
-        fillColor: hollow ? tokenColor("--color-surface") : fill,
-        fillOpacity: hollow ? 0.85 : 0.92,
-      });
-      marker.bindTooltip(
-        `<span style="font-size:12px;font-weight:600">${m.name}</span><br/><span style="font-size:11px">${m.regency} · ${m.province}</span>`,
-        { direction: "top", offset: L.point(0, -6) },
-      );
-      marker.on("click", () => onSelectRef.current(m.id));
-      marker.addTo(layer);
-    }
-  }, [markers, selectedId, tokenColor, toneById]);
-
-  // Terbang ke lokasi terpilih.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedId) return;
+    if (!map || !siap.current) return;
+    map.setFilter(LAPIS_PILIH, ["==", ["get", "id"], selectedId ?? "__tidak_ada__"]);
     const m = markers.find((x) => x.id === selectedId);
-    if (m) map.flyTo([m.lat, m.lng], 12, { duration: 0.8 });
+    if (m) map.flyTo({ center: [m.lng, m.lat], zoom: 13, duration: 800 });
   }, [selectedId, markers]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    for (const l of map.getStyle().layers ?? []) {
+      if (l.id.startsWith("lokasi-")) continue; // penanda selalu tampil
+      const satelit = l.id === LAPIS_SATELIT;
+      map.setLayoutProperty(l.id, "visibility", (satelit ? mode === "satelit" : mode === "peta") ? "visible" : "none");
+    }
+  }, [mode]);
+
+  if (!adaSumber(sumber) || !webgl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-border bg-surface-muted px-6 text-center text-[13px] text-ink-muted">
+        {!webgl
+          ? "Peta tidak bisa digambar di peramban ini (WebGL tidak tersedia). Daftar lokasi di sebelah tetap lengkap."
+          : "Peta dasar belum tersedia di server ini. Daftar lokasi di sebelah tetap lengkap – yang hilang hanya gambarnya."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {pilihan.length > 1 ? (
+        <div className="absolute top-2 left-2 z-10 flex overflow-hidden rounded-md border border-border bg-surface shadow-sm">
+          {pilihan.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setMode(p)}
+              aria-pressed={mode === p}
+              className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                mode === p ? "bg-primary/10 text-primary" : "text-ink-muted hover:bg-surface-muted"
+              }`}
+            >
+              {p === "peta" ? "Peta" : "Satelit"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }

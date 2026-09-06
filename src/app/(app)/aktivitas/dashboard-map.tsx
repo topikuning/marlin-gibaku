@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { PetaMarker } from "@/lib/peta";
+import type { SumberPeta } from "@/lib/peta/gaya";
 import { cocokFilter, type FilterPeta, type MarkerTone, type StatusLapor } from "@/lib/dashboard-filter";
 
-// Leaflet client-only (sama seperti /peta) — hindari SSR.
+// MapLibre butuh window/WebGL → client-only (sama seperti /peta).
 const PetaMap = dynamic(() => import("../peta/peta-map").then((m) => m.PetaMap), {
   ssr: false,
   loading: () => <div className="h-full w-full animate-pulse rounded-md bg-surface-inset" />,
@@ -34,10 +35,12 @@ export function DashboardMap({
   markers,
   markerTone,
   markerSubmit,
+  sumber,
 }: {
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
   markerSubmit: Record<string, StatusLapor>;
+  sumber: SumberPeta;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<FilterPeta>("semua");
@@ -71,6 +74,7 @@ export function DashboardMap({
 
       <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-lg border border-border">
         <PetaMap
+          sumber={sumber}
           markers={shown}
           selectedId={selected}
           toneById={markerTone}

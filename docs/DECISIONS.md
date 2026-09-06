@@ -27782,3 +27782,84 @@ lokasi aktif dan melewati 55 yang tidak aktif — yang berubah hanya apa yang
 disimpan. Dijaga `tests/unit/master-lokasi-knmp.test.ts` (klausa "kolom KNMP
 lain TIDAK ikut" + templat 9 kolom) dan
 `tests/integration/master-lokasi-katalog.test.ts`.
+
+---
+
+## 531 · 2026-09-06 · Peta pindah ke MapLibre GL JS + peta dasar milik sendiri
+
+**Konteks**: user melihat peta MARLIN dan berkata *"aku sangat tidak puas dengan
+leaflet. apa tidak ada yang lebih baik? misal MapLibre GL JS"*.
+
+Yang membuat peta itu terlihat murah ternyata BUKAN Leaflet-nya, melainkan
+sumber ubinnya: `tile.openstreetmap.org`. Tiga akibatnya, dan yang ketiga
+paling berbahaya:
+
+1. Ubinnya raster — gambar yang dibesarkan. Buram di layar retina, dan labelnya
+   ikut melar tiap kali orang memperbesar.
+2. Tidak ada citra satelit. Padahal pekerjaan yang sedang dilakukan orang di
+   layar katalog lokasi adalah MEMBUKTIKAN sebuah titik benar-benar di kampung
+   nelayan — dan peta jalan tidak pernah bisa menjawab itu.
+3. **Server itu memang bukan untuk aplikasi produksi.** Kebijakan penggunaan
+   ubin OSM melarangnya. Sistem pengendalian proyek pemerintah yang menghantam
+   server komunitas bisa diblokir kapan saja, dan petanya mati tanpa satu pun
+   peringatan di layar.
+
+**Keputusan**:
+
+- **MapLibre GL JS** (BSD-3) menggantikan Leaflet di kedua peta: sebaran lokasi
+  (`/peta` + dashboard) dan pemilih koordinat katalog. Ubin vektor, jadi label
+  tetap tajam pada perbesaran berapa pun. Dependensi `leaflet` dan
+  `@types/leaflet` dibuang seluruhnya.
+- **Penanda BERKELOMPOK** pada peta sebaran. Sistem ini menuju 200+ lokasi di 7
+  provinsi; pada tampilan nasional ratusan titik yang saling menimpa bukan
+  informasi, melainkan noda. Di Leaflet itu butuh plugin; di MapLibre bawaan.
+- **Peta dasar milik sendiri**: satu berkas `.pmtiles` (Protomaps, ekstrak
+  Indonesia) di R2 yang sudah kita bayar. Tanpa kunci API, tanpa kuota, tanpa
+  pihak ketiga yang bisa mematikan peta di tengah jalan. Bucketnya tertutup;
+  server menandatangani URL berbatas waktu (6 jam) dan peramban membaca
+  POTONGAN berkasnya sendiri lewat permintaan Range — yang mengalir cuma bagian
+  yang benar-benar dilihat.
+- **Zoom peta dasar berhenti di 12**, dan di atas itu orang memakai **lapisan
+  satelit** (ketetapan user hari yang sama). Bukan penghematan buta: tiap
+  tingkat zoom melipatempatkan jumlah ubin, sementara pekerjaan pada perbesaran
+  tinggi memang dijawab citra, bukan peta jalan. Tombol ganti lapisan ada di
+  peta, bukan di pengaturan.
+- **Sumber citra satelit + atribusinya adalah VARIABEL LINGKUNGAN**
+  (`PETA_SATELIT_URL`, `PETA_SATELIT_ATRIBUSI`), bawaannya Esri World Imagery.
+  Atribusi dijadikan variabel bersama sumbernya justru supaya keduanya tidak
+  bisa berpisah: mengganti citra tanpa mengganti atribusi berarti memakai citra
+  orang tanpa menyebut pemiliknya.
+- **Berkas peta dasar dibangun CI, bukan tangan orang**
+  (`.github/workflows/peta-basemap.yml` + `pnpm peta:basemap`, sebulan sekali
+  atau ditekan manual). `pmtiles extract` menarik hanya potongan Indonesia dari
+  build Protomaps lewat HTTP Range, lalu mengunggahnya ke R2. Hasilnya dipakai
+  aplikasi pada permintaan halaman berikutnya — tanpa deploy ulang.
+- **Ketidakhadiran sumber dikatakan, bukan didiamkan.** Selama berkas itu belum
+  ada, layar menulis "peta dasar belum tersedia" dan koordinat tetap bisa diisi
+  manual. Peta yang kehilangan sumbernya lalu menampilkan kanvas kosong akan
+  terbaca sebagai "tidak ada lokasi" — salah baca yang jauh lebih mahal
+  daripada peta yang mati terang-terangan.
+- **WebGL diperiksa lebih dulu.** MapLibre menggambar lewat WebGL; di HP Android
+  lawas milik orang lapangan itu tidak selalu ada. Diperiksa sebelum render,
+  dan bila tidak ada, layar mengatakannya — daftar lokasi dan kotak koordinat
+  tetap berfungsi penuh.
+
+**Alternatif direject**:
+- *Tetap Leaflet, ganti sumber raster saja.* Paling ringan, tapi
+  mempertahankan langit-langit kualitasnya: raster tetap buram diperbesar, dan
+  200+ penanda tetap butuh plugin.
+- *MapTiler / Protomaps API berkunci.* Paling cepat dikerjakan, tapi menaruh
+  peta proyek pemerintah di belakang kuota dan akun pihak ketiga.
+- *Membangun `.pmtiles` saat boot aplikasi.* Ekstraksi ratusan MB akan menunda
+  boot dan diulang tiap deploy tanpa alasan; CI tempatnya.
+- *Menyimpan peta dasar sampai zoom 19.* Berkasnya membengkak berlipat-lipat
+  untuk kegunaan yang sudah dijawab citra satelit.
+
+**Konsekuensi**: bundel klien bertambah (MapLibre jauh lebih besar dari
+Leaflet) — bebannya jatuh di layar manajemen & super admin, bukan alur harian
+lapangan (`/foto-cepat`, `/hari-ini`) yang tidak memuat peta sama sekali.
+Dijaga `tests/unit/peta-gaya.test.ts` (9 klausa; dua regresi paling mungkin —
+kembali ke ubin OSM, dan ganti mode yang MEMBUANG lapisan alih-alih
+menyembunyikannya — dibuktikan merah dengan melumpuhkan kodenya). Sebelum
+workflow peta dasar pertama kali dijalankan, R2 belum berisi berkasnya dan peta
+berjalan dengan satelit saja sambil mengatakannya.

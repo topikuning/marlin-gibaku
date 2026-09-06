@@ -19,9 +19,11 @@ import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
 import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
 import { ringkasAntrean } from "@/lib/gdrive/antrean";
 import { db } from "@/lib/db";
-import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
+import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPolicy } from "@/lib/policy";
+import { statusPeta } from "@/lib/peta/sumber";
+import { PetaPanel } from "./peta-panel";
 import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
@@ -180,6 +182,8 @@ export default async function SistemPage() {
   const webhookUrl = wahaDisplay.webhookSecret
     ? `${origin}/api/waha/webhook?token=${encodeURIComponent(wahaDisplay.webhookSecret)}`
     : null;
+  // Keadaan sumber peta (peta dasar di R2 + citra satelit) — dibaca di server.
+  const peta = await statusPeta();
   const [waCapturedCount, waLast, waHits, antreanWa, kirimWa] = await Promise.all([
     db.waMessage.count(),
     db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
@@ -279,6 +283,39 @@ export default async function SistemPage() {
             />
           )}
           <HealthRow label="Sesi aktif" detail="Login pengguna berjalan" tone="neutral" status={String(sessionCount)} />
+          {/*
+            PETA — teguran user 2026-09-06: *"tahu darimana aku kalau itu
+            beneran sudah beres atau belum. kasih instruksi yang jelas!"*
+            Selama keadaan peta hanya bisa ditebak dari layar peta yang kosong,
+            setiap orang yang memasangnya harus bertanya ke pembuatnya. Di sini
+            keadaannya disebut apa adanya, LENGKAP DENGAN langkah berikutnya.
+          */}
+          <HealthRow
+            label="Peta dasar (vektor)"
+            detail={
+              peta.dasar.ada
+                ? `${peta.dasar.lokasi} · ${peta.dasar.ukuranMb} MB${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
+                : peta.dasar.sebab
+            }
+            tone={peta.dasar.ada ? "success" : peta.dasar.sedangUnduh ? "neutral" : "warning"}
+            status={peta.dasar.ada ? "Terpasang" : peta.dasar.sedangUnduh ? "Mengunduh" : "Belum ada"}
+          />
+          <HealthRow
+            label="Citra satelit"
+            detail={
+              peta.satelit.ada
+                ? `Sumber: ${peta.satelit.sumber} · atribusi: ${peta.satelit.atribusi}`
+                : "Tidak aktif. Isi PETA_SATELIT_URL (atau kosongkan untuk memakai bawaan); nilai \"mati\" mematikannya."
+            }
+            tone={peta.satelit.ada ? "success" : "neutral"}
+            status={peta.satelit.ada ? "Aktif" : "Mati"}
+          />
+          {/* Penyiapannya di sini, bukan di CI: volume dev dan produksi
+              berbeda, jadi yang tahu volume mana yang perlu diisi adalah
+              aplikasi yang sedang berjalan di atasnya. */}
+          {!peta.dimatikan ? (
+            <PetaPanel sudahAda={peta.dasar.ada} sedangUnduh={peta.dasar.sedangUnduh} />
+          ) : null}
         </CardBody>
       </Card>
 

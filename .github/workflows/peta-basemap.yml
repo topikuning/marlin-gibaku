@@ -1,0 +1,83 @@
+name: Peta dasar MARLIN (.pmtiles ke rilis)
+
+# Membangun peta dasar vektor yang dipakai layar /peta dan pemilih koordinat
+# katalog lokasi, lalu menempelkannya ke RILIS GitHub.
+#
+# Kenapa rilis, bukan R2 (teguran user 2026-09-06): R2 dev dan produksi
+# berbeda, jadi satu workflow yang mengunggah "ke R2" hanya melayani salah
+# satunya — dan yang tidak kebagian diam saja, cuma terlihat sebagai peta
+# kosong. Berkas di rilis adalah SATU sumber untuk semua lingkungan; tiap
+# lingkungan menariknya ke VOLUME-nya sendiri lewat tombol di /sistem. Tidak
+# ada kredensial yang perlu disamakan.
+#
+# Kenapa di CI dan bukan di aplikasi: ekstraksinya butuh binari Go `pmtiles`
+# dan menarik ratusan MB — pekerjaan menit-menitan yang tidak boleh menumpang
+# di kontainer aplikasi.
+#
+# CATATAN: workflow hanya muncul di tab Actions bila berkas ini sudah ada di
+# BRANCH DEFAULT (`main`). Selama ia baru ada di `dev`, tombol "Run workflow"
+# tidak akan terlihat.
+
+on:
+  schedule:
+    # Hari ke-3 tiap bulan, 20:00 UTC = 03:00 WIB — jauh dari jam kerja lapangan.
+    - cron: "0 20 3 * *"
+  workflow_dispatch:
+    inputs:
+      build_url:
+        description: "URL build Protomaps (kosongkan untuk memakai bawaan skrip)"
+        required: false
+        type: string
+
+concurrency:
+  group: peta-basemap
+  cancel-in-progress: false
+
+jobs:
+  bangun:
+    name: Ekstrak Indonesia lalu tempelkan ke rilis
+    runs-on: ubuntu-latest
+    # Ekstraksi lewat HTTP Range lalu unggah ke rilis: lambat, tapi terbatas.
+    timeout-minutes: 90
+    permissions:
+      # Menempelkan berkas ke rilis; tidak ada secret lain yang dibutuhkan.
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Pasang binari pmtiles
+        run: |
+          set -euo pipefail
+          # Versi dipatok: ekstraksi peta dasar tidak boleh berubah perilakunya
+          # diam-diam di antara dua jalannya workflow ini.
+          VERSI=1.28.1
+          curl -sSfL "https://github.com/protomaps/go-pmtiles/releases/download/v${VERSI}/go-pmtiles_${VERSI}_Linux_x86_64.tar.gz" \
+            | tar -xz pmtiles
+          sudo mv pmtiles /usr/local/bin/
+          pmtiles version
+
+      - name: Bangun peta dasar
+        env:
+          PETA_BUILD_URL: ${{ inputs.build_url }}
+        run: pnpm peta:basemap
+
+      - name: Tempelkan ke rilis "peta-basemap"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Rilis dengan tag tetap: alamat unduhnya tidak pernah berubah, jadi
+          # aplikasi tidak perlu tahu versi apa pun.
+          gh release view peta-basemap >/dev/null 2>&1 || \
+            gh release create peta-basemap --notes "Peta dasar Indonesia (Protomaps, zoom ≤ 12) untuk MARLIN. Diperbarui otomatis." --title "Peta dasar MARLIN"
+          gh release upload peta-basemap basemap-indonesia.pmtiles --clobber
+          echo "✓ Terpasang di rilis. Tekan \"Unduh peta dasar\" di /sistem pada TIAP lingkungan."

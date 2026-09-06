@@ -19,7 +19,14 @@ import { LAPIS, Lapisan } from "@/components/ui/lapisan";
  *      baru dipasang di klien, ke `document.body`.
  */
 
-/** z-index kendali Leaflet (leaflet.css) — acuan, bukan milik kita. */
+/**
+ * z-index kendali peta — acuan, bukan milik kita.
+ *
+ * Angkanya tetap 1000 sesudah pindah dari Leaflet ke MapLibre (2026-09-06):
+ * `maplibre-gl.css` menaruh kendali navigasi & atribusinya pada tingkat yang
+ * sama. Yang dijaga uji ini tidak berubah — lapisan layar penuh MARLIN harus
+ * selalu menang atas kendali peta, siapa pun pustakanya.
+ */
 const Z_KENDALI_PETA = 1000;
 
 describe("skala lapisan layar penuh", () => {
