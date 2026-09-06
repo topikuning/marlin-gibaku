@@ -25,7 +25,7 @@ export type MasterImportPreview = {
   /** Berapa baris yang membawa koordinat; sisanya jadi "perlu verifikasi". */
   berkoordinat: number;
   warnings: string[];
-  sample: { province: string; regency: string; village: string; sourceCode: string | null }[];
+  sample: { province: string; regency: string; village: string; name: string | null }[];
 };
 
 export type MasterImportState =
@@ -93,7 +93,7 @@ export async function previewMasterImportAction(
           province: r.province,
           regency: r.regency,
           village: r.village,
-          sourceCode: r.sourceCode,
+          name: r.name,
         })),
       },
     };
@@ -145,24 +145,7 @@ export async function commitMasterImportAction(
        * menghapus koordinat yang sudah susah payah dilengkapi orang di layar.
        * Yang kosong di berkas berarti "tidak tahu", bukan "kosongkan".
        */
-      const isi = {
-        name: r.name,
-        sourceCode: r.sourceCode,
-        region: r.region,
-        cluster: r.cluster,
-        plenoResult: r.plenoResult,
-        statusCode: r.statusCode,
-        statusLabel: r.statusLabel,
-        statusReason: r.statusReason,
-        coordinateStatus: r.coordinateStatus,
-        sourceBatch: r.sourceBatch,
-        landAreaHa: r.landAreaHa == null ? null : r.landAreaHa.toFixed(4),
-        fishermenCount: r.fishermenCount,
-        boatsNoEngine: r.boatsNoEngine,
-        boatsEngine: r.boatsEngine,
-        boatsTotal: r.boatsTotal,
-        eeValue: r.eeValue == null ? null : BigInt(Math.round(r.eeValue)),
-      };
+      const isi = { name: r.name };
       const koordinat = r.latitude != null && r.longitude != null
         ? { latitude: dec(r.latitude), longitude: dec(r.longitude) }
         : {};

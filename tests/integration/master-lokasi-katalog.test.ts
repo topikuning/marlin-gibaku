@@ -197,22 +197,31 @@ describe("impor katalog dari MASTER DATA", () => {
     expect(await cariKatalog(`Desa Batal ${suffix}`)).toBeNull();
     const row = await cariKatalog(`Pasar Banggi ${suffix}`);
     expect(row).toMatchObject({
-      sourceCode: "KNMP-730",
       province: "Jawa Tengah",
       regency: "Rembang",
       district: "Rembang",
-      region: "Jawa",
-      cluster: "Klaster A",
-      plenoResult: "Hub",
-      statusCode: "SL-AKT",
-      statusLabel: "Aktif",
-      coordinateStatus: "VALID",
-      sourceBatch: "Tahap II 146",
-      fishermenCount: 484,
-      boatsTotal: 184,
+      name: `Pasar Banggi ${suffix}`,
     });
     expect(Number(row!.latitude)).toBeCloseTo(-6.6893, 4);
-    expect(row!.eeValue).toBe(2838404000n);
+    expect(Number(row!.longitude)).toBeCloseTo(111.4123, 4);
+    // Kolom KNMP lain di berkas (klaster, hasil pleno, tahap, luas lahan,
+    // nelayan, kapal, nilai EE, ID lokasi) TIDAK disimpan – MARLIN tidak
+    // memakainya (ketetapan user 2026-09-06). Katalog yang menyimpan data tak
+    // terpakai hanya jadi salinan kedua yang segera basi.
+    const kolom = Object.keys(row!);
+    for (const k of [
+      "sourceCode",
+      "cluster",
+      "plenoResult",
+      "sourceBatch",
+      "landAreaHa",
+      "fishermenCount",
+      "boatsTotal",
+      "eeValue",
+      "statusLabel",
+      "coordinateStatus",
+    ])
+      expect(kolom).not.toContain(k);
   });
 
   it("tidak membuat satu pun Vendor – katalog ini data lokasi, bukan data perusahaan", async () => {

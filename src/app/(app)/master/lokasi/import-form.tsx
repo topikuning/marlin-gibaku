@@ -101,7 +101,7 @@ export function MasterImportForm() {
             <div className="mt-2 text-[12px] text-ink-muted">
               Contoh:{" "}
               {preview.sample
-                .map((s) => `${s.village} (${s.regency})${s.sourceCode ? ` – ${s.sourceCode}` : ""}`)
+                .map((s) => `${s.village} (${s.regency})`)
                 .join(" · ")}
             </div>
           ) : null}

@@ -27637,3 +27637,64 @@ dibuktikan merah lebih dulu terhadap parser lama) dan
 mudah bocor — koordinat tidak ditimpa kosong, dan tabrakan kunci alami ditolak
 terbaca — dibuktikan merah dengan melumpuhkan kodenya). Migrasi
 `20260906020000_master_lokasi_knmp` idempoten (DECISIONS 167).
+
+---
+
+## (baru) · Katalog lokasi dirampingkan: hanya kolom yang dipakai MARLIN (2026-09-06)
+
+**Konteks**: keputusan sebelumnya (katalog lokasi dari MASTER DATA KNMP) ikut
+menyimpan belasan kolom dari berkas KKP: ID lokasi, wilayah, klaster, hasil
+pleno, status + alasannya, keterangan koordinat, tahap, luas lahan, jumlah
+nelayan, kapal (tanpa mesin / bermesin / total), dan nilai EE. Kolom itu bahkan
+ditampilkan sebagai blok "Dari berkas sumber" di layar sunting katalog.
+
+Teguran user 2026-09-06 begitu melihatnya: *"siapa yang memintamu menambahkan
+informasi ini? aku sudah bilang sesuaikan dengan kebutuhan yang ada di marlin
+saja!"*
+
+Dan itu benar. Tidak ada satu pun layar, laporan, PDF, atau perhitungan MARLIN
+yang membaca kolom-kolom itu. Yang lahir dari sana bukan kekayaan data,
+melainkan **salinan kedua** dari daftar KKP: ia tidak ikut berubah saat berkas
+aslinya diperbarui, tidak punya pemilik yang merawatnya, dan pada akhirnya akan
+dibaca orang sebagai fakta padahal sudah basi. Data yang tidak dipakai adalah
+beban, bukan cadangan.
+
+**Keputusan**:
+
+- **Katalog menyimpan tepat tiga kelompok**: wilayah (provinsi, kabupaten,
+  kecamatan, desa), nama kampung nelayan, dan koordinat. Selebihnya dibuang.
+- **Kolom status lokasi tetap DIBACA saat impor** — ia yang menyaring
+  `SL-AKT` — **tapi tidak disimpan**. Penyaringan terjadi sekali, saat berkas
+  masuk; menyimpan hasilnya berarti menyimpan keadaan yang bisa berubah di
+  sumbernya tanpa MARLIN pernah tahu.
+- **Berkas migrasi yang sudah dijalankan TIDAK diubah.** `20260906020000`
+  dibiarkan apa adanya dan kolomnya dibuang lewat migrasi baru
+  `20260906140000_katalog_lokasi_ramping`. Menulis ulang migrasi yang sudah
+  diterapkan membuat checksum `migrate deploy` tidak cocok di basis data yang
+  sudah menjalankannya — kegagalan deploy yang penyebabnya tidak terlihat di
+  layar mana pun.
+- **Templat impor ikut menyusut**: dari 22 kolom jadi 9 — sependek yang
+  benar-benar dibaca. Templat yang meminta kolom tak terpakai memaksa orang
+  menyiapkan data yang tidak akan pernah dibaca, lalu menyalahkan dirinya
+  sendiri saat data itu tidak muncul di mana pun.
+- **Ujinya dibalik arahnya**: dulu memastikan kolom-kolom itu TERBACA, sekarang
+  memastikan kolom itu **tidak ikut tersimpan**. Pagar yang menghadap ke arah
+  yang benar.
+
+**Alternatif direject**:
+- *Menyimpannya "selagi ada, siapa tahu berguna".* Itu justru jalan yang
+  ditempuh dan ditegur. Kalau nanti MARLIN memang membutuhkan salah satunya,
+  kolomnya ditambahkan saat itu — bersama layar yang memakainya.
+- *Menyembunyikan bloknya di layar tapi tetap menyimpan datanya.* Menyelesaikan
+  keluhan yang terlihat, membiarkan sebabnya: basis data tetap memelihara
+  salinan yang tidak dirawat siapa pun.
+- *Menulis ulang migrasi 20260906020000.* Lebih rapi dibaca, tapi menukar
+  kerapian riwayat dengan deploy yang gagal di basis data yang sudah
+  menerapkannya.
+
+**Konsekuensi**: `master_locations` kembali ramping (`name` + `updated_at` saja
+yang bertambah dari sebelum 2026-09-06). Impor berkas KNMP tetap membaca 1.216
+lokasi aktif dan melewati 55 yang tidak aktif — yang berubah hanya apa yang
+disimpan. Dijaga `tests/unit/master-lokasi-knmp.test.ts` (klausa "kolom KNMP
+lain TIDAK ikut" + templat 9 kolom) dan
+`tests/integration/master-lokasi-katalog.test.ts`.
