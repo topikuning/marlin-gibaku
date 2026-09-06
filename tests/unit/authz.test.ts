@@ -53,6 +53,10 @@ describe("authz capability matrix", () => {
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
       "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)
+      // Arsipkan riwayat pencabutan lokasi dari pandangan umum — dan lihat yang
+      // sudah diarsipkan (user 2026-09-06: "hanya bisa dilakukan super admin").
+      // Sengaja bukan `package.bypass`, yang juga dipegang Program Director.
+      "location_scope.archive",
       // Tautan KELUAR ke folder Drive vendor ("Lihat di Drive", DECISIONS 406).
       // Di seberang tautan itu tidak ada lagi pembatasan lokasi milik MARLIN.
       "gdrive.open_folder",

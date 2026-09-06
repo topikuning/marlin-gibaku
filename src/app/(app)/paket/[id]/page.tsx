@@ -35,8 +35,7 @@ import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { getScurveSeriesPaket } from "@/lib/baseline";
 import { getAdendumBerjalan } from "@/lib/package/adendum-berjalan";
-import { daftarPerubahanLingkup, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
-import { LingkupPanel } from "./lingkup-panel";
+import { idLokasiDiarsipkan, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import {
   getPackageWorkspace,
@@ -144,8 +143,25 @@ export default async function RingkasanPaketPage({
    */
   const lingkup = await lingkupLokasi(idLokasi);
   const idIkut = idLokasi.filter((id) => !lingkup.dicabut.has(id));
-  const lokasiDicabut = pkg.locations.filter((l) => lingkup.dicabut.has(l.id));
-  const [progressMap, history, kepatuhan, kurvaPaket, adendum, perubahanLingkup] =
+  /*
+   * ARSIP (ketetapan user 2026-09-06): pencabutan yang sudah diarsipkan super
+   * admin tidak boleh meninggalkan bekas di layar umum — termasuk angka
+   * "N dicabut adendum" di kartu KPI, yang justru mengumumkan keberadaannya.
+   * Yang disembunyikan cuma tampilannya: `idIkut` di atas tidak menyentuhnya
+   * sama sekali, jadi tidak ada satu angka pun yang bergeser karena arsip.
+   */
+  const arsip = can(user.role, "location_scope.archive")
+    ? new Set<string>()
+    : await idLokasiDiarsipkan(idLokasi);
+  const lokasiDicabut = pkg.locations.filter(
+    (l) => lingkup.dicabut.has(l.id) && !arsip.has(l.id),
+  );
+  /*
+   * Daftar yang DITAMPILKAN. Perhitungan tetap memakai `pkg.locations` /
+   * `idLokasi` seutuhnya — hanya mata orang yang dibatasi, bukan angkanya.
+   */
+  const lokasiTampil = pkg.locations.filter((l) => !arsip.has(l.id));
+  const [progressMap, history, kepatuhan, kurvaPaket, adendum] =
     await Promise.all([
     getLocationsProgress(idLokasi),
     getStageHistory(pkg.id),
@@ -159,10 +175,6 @@ export default async function RingkasanPaketPage({
     getScurveSeriesPaket(idIkut),
     // Draft adendum yang sedang berjalan di lokasi-lokasi paket ini.
     getAdendumBerjalan(idLokasi),
-    // Lingkup lokasi: adendum yang menambah / mencabut lokasi (kebutuhan user
-    // 2026-09-05). Yang DICABUT keluar dari agregat sejak tanggal berlakunya;
-    // angka lampaunya tidak diubah.
-    daftarPerubahanLingkup(idLokasi),
   ]);
 
   // Progress agregat — formula kanonik weightedRealizedPct (B13). Lokasi yang
@@ -302,7 +314,7 @@ export default async function RingkasanPaketPage({
 
   // Tahap sebelumnya yang aman untuk dimundurkan (koreksi salah-klik), bila ada.
   const revertTo = revertTargetFor(pkg.stage);
-  const lokasiAktif = pkg.locations.filter((l) => l.isActive).length;
+  const lokasiAktif = lokasiTampil.filter((l) => l.isActive).length;
   const adaKomunikasi =
     canWaConfigure || (canKirimLaporan && pkg.stage === "pelaksanaan");
 
@@ -335,7 +347,7 @@ export default async function RingkasanPaketPage({
           // labelnya harus menyebutkan itu, bukan diam-diam terbaca sebagai
           // jumlah lokasi paket (DECISIONS 201).
           label={pkg.locationsHidden > 0 ? "Lokasi Anda di paket ini" : "Jumlah lokasi"}
-          value={pkg.locations.length}
+          value={lokasiTampil.length}
           href={`/paket/${pkg.id}/lokasi`}
           sub={
             [
@@ -474,45 +486,6 @@ export default async function RingkasanPaketPage({
           )}
         </CardBody>
       </Card>
-
-      {/* LINGKUP LOKASI — adendum yang menambah atau mencabut lokasi.
-          Kebutuhan user 2026-09-05. Kartunya selalu tampil bagi pemegang
-          kontrak: tanpa pintu masuk, fiturnya sama saja dengan tidak ada. */}
-      {canContract || perubahanLingkup.length > 0 ? (
-        <Card>
-          <CardHeader
-            title="Lingkup lokasi kontrak"
-            subtitle="Adendum bisa MENAMBAH atau MENCABUT lokasi. Yang dicabut tidak dihapus – laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku CCO."
-            action={
-              lokasiDicabut.length > 0 ? (
-                <StatusPill tone="warning" label={`${lokasiDicabut.length} lokasi dicabut`} />
-              ) : null
-            }
-          />
-          <CardBody>
-            <LingkupPanel
-              packageId={pkg.id}
-              bolehUbah={canContract}
-              lokasi={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
-              adendum={(contract?.amendments ?? []).map((a) => ({
-                id: a.id,
-                label: `${a.ccoNumber} – berlaku ${formatTanggal(a.effectiveDate)}`,
-              }))}
-              perubahan={perubahanLingkup.map((p) => ({
-                id: p.id,
-                locationName: p.locationName,
-                kind: p.kind,
-                effectiveDate: formatTanggal(p.effectiveDate),
-                status: p.status,
-                reason: p.reason,
-                ccoNumber: p.ccoNumber,
-                setuju: { lengkap: p.setuju.lengkap, kurang: p.setuju.kurang },
-                suaraGugur: p.suaraGugur,
-              }))}
-            />
-          </CardBody>
-        </Card>
-      ) : null}
 
       {/* ADENDUM BERJALAN — draft yang sedang diajukan di lokasi-lokasi paket.
           Keluhan user 2026-09-05: *"saat terjadi draft adendum, sama sekali
@@ -730,11 +703,11 @@ export default async function RingkasanPaketPage({
               action={<ButtonLink href={`/paket/${pkg.id}/lokasi`}>Lihat semua</ButtonLink>}
             />
             <CardBody>
-              {pkg.locations.length === 0 ? (
+              {lokasiTampil.length === 0 ? (
                 <p className="text-sm text-ink-muted">Belum ada lokasi pada paket ini.</p>
               ) : (
                 <ul className="space-y-2">
-                  {pkg.locations.map((l) => {
+                  {lokasiTampil.map((l) => {
                     const p = progressMap.get(l.id);
                     return (
                       <li key={l.id}>

@@ -44,6 +44,8 @@ export type PerubahanLingkup = {
   diubahPada: Date;
   setuju: { direktur: boolean; penugasan: boolean; lengkap: boolean; kurang: string[] };
   suaraGugur: number;
+  /** Diarsipkan super admin — hanya super admin yang melihat baris ini. */
+  diarsipkanPada: Date | null;
 };
 
 const pilih = {
@@ -55,6 +57,7 @@ const pilih = {
   reason: true,
   appliedAt: true,
   updatedAt: true,
+  archivedAt: true,
   amendment: { select: { ccoNumber: true } },
   location: { select: { name: true, slug: true } },
   approvals: { select: { userId: true, role: true, approvedAt: true } },
@@ -69,6 +72,7 @@ function keBentuk(r: {
   reason: string;
   appliedAt: Date | null;
   updatedAt: Date;
+  archivedAt: Date | null;
   amendment: { ccoNumber: string };
   location: { name: string; slug: string };
   approvals: { userId: string; role: Parameters<typeof nilaiPersetujuan>[0][number]["role"]; approvedAt: Date }[];
@@ -94,18 +98,64 @@ function keBentuk(r: {
       kurang: status.kurang,
     },
     suaraGugur: r.approvals.length - berlaku.length,
+    diarsipkanPada: r.archivedAt,
   };
 }
 
-/** Seluruh perubahan lingkup (draft + aktif) untuk lokasi-lokasi ini. */
-export async function daftarPerubahanLingkup(locationIds: string[]): Promise<PerubahanLingkup[]> {
+/**
+ * Seluruh perubahan lingkup (draft + aktif) untuk lokasi-lokasi ini.
+ *
+ * `termasukArsip` HANYA boleh diisi true untuk pemegang `location_scope.archive`:
+ * itulah seluruh isi ketetapan user 2026-09-06 — riwayat pencabutan yang
+ * sudah diarsipkan tidak terlihat umum, tapi tidak pernah hilang bagi super
+ * admin. Defaultnya false supaya pemanggil yang lupa memikirkannya jatuh ke
+ * sisi yang aman.
+ */
+export async function daftarPerubahanLingkup(
+  locationIds: string[],
+  opts: { termasukArsip?: boolean } = {},
+): Promise<PerubahanLingkup[]> {
   if (locationIds.length === 0) return [];
   const rows = await db.locationScopeChange.findMany({
-    where: { locationId: { in: locationIds }, status: { not: "dibatalkan" } },
+    where: {
+      locationId: { in: locationIds },
+      status: { not: "dibatalkan" },
+      ...(opts.termasukArsip ? {} : { archivedAt: null }),
+    },
     select: pilih,
     orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
   });
   return rows.map(keBentuk);
+}
+
+/**
+ * Lokasi yang pencabutannya SUDAH diarsipkan — daftar hitam tampilan.
+ *
+ * Dipakai layar dan guard halaman untuk menyembunyikan lokasi itu dari yang
+ * bukan super admin. Sengaja TIDAK dipakai perhitungan apa pun: lokasi yang
+ * dicabut sudah keluar dari agregat sejak tanggal berlaku CCO-nya, jadi
+ * pengarsipan tidak boleh menggeser satu angka pun (lihat ujinya).
+ */
+export async function idLokasiDiarsipkan(locationIds: string[]): Promise<Set<string>> {
+  if (locationIds.length === 0) return new Set();
+  const rows = await db.locationScopeChange.findMany({
+    where: {
+      locationId: { in: locationIds },
+      kind: "cabut",
+      status: "aktif",
+      archivedAt: { not: null },
+    },
+    select: { locationId: true },
+  });
+  const arsip = new Set(rows.map((r) => r.locationId));
+  if (arsip.size === 0) return arsip;
+  // Lokasi yang MASUK lagi lewat adendum berikutnya bukan lokasi terarsip: ia
+  // kembali jadi bagian kontrak, dan menyembunyikannya akan menghilangkan
+  // lokasi yang sedang berjalan dari layar orang. Keikutsertaan hari ini
+  // ditanya ke `lingkupLokasi` — satu-satunya yang berwenang menjawabnya.
+  const { dicabut } = await lingkupLokasi([...arsip]);
+  for (const id of [...arsip]) if (!dicabut.has(id)) arsip.delete(id);
+  return arsip;
 }
 
 export type LingkupLokasi = {
@@ -281,4 +331,98 @@ export async function batalkanPerubahanLingkup(changeId: string): Promise<void> 
     );
   await db.locationScopeChange.update({ where: { id: changeId }, data: { status: "dibatalkan" } });
   await audit(user.id, "location_scope.batal", "location", row.locationId, { changeId });
+}
+
+/* ------------------------------------------------------------------ */
+/* PENGARSIPAN LOKASI YANG DIKELUARKAN — super admin saja (2026-09-06) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Arsipkan SELURUH pencabutan lokasi yang sudah berlaku di paket ini.
+ *
+ * Ketetapan user 2026-09-06: *"ada fitur yang langsung mengarsipkan semua
+ * lokasi yang dikeluarkan tapi hanya bisa dilakukan super admin, jadi di
+ * kontrak tidak ada bekas history yang bisa dilihat umum tapi hanya oleh super
+ * admin."*
+ *
+ * Tiga hal yang menentukan bentuknya:
+ *
+ * 1. **Tidak ada satu angka pun yang bergeser.** Lokasi yang dicabut sudah
+ *    keluar dari agregat sejak tanggal berlaku CCO-nya; pengarsipan hanya
+ *    mengubah siapa yang melihat riwayatnya. Kalau ia sampai menggerakkan
+ *    nilai kontrak atau progres, ia bukan pengarsipan melainkan penghapusan
+ *    diam-diam — dan itu dilarang keras di sistem ini.
+ * 2. **Barisnya tidak dihapus.** Super admin tetap melihat seluruh riwayat,
+ *    lengkap dengan alasan, nomor CCO, dan tanggal berlakunya. Yang hilang
+ *    cuma pandangan umum.
+ * 3. **Jejaknya sendiri tidak ikut diarsipkan.** Tindakan ini tercatat di
+ *    audit log yang append-only: menyembunyikan sesuatu dari layar tidak boleh
+ *    berarti menyembunyikan siapa yang menyembunyikannya.
+ *
+ * Hanya yang belum berlaku (draft) dan yang belum diarsipkan yang tersentuh:
+ * usulan yang masih menunggu persetujuan bukan "lokasi yang dikeluarkan".
+ */
+export async function arsipkanLokasiDicabut(packageId: string): Promise<{ jumlah: number }> {
+  const user = await requireCapability("location_scope.archive");
+  const lokasi = await db.location.findMany({
+    where: { packageId },
+    select: { id: true, name: true },
+  });
+  if (lokasi.length === 0) return { jumlah: 0 };
+
+  const { dicabut } = await lingkupLokasi(lokasi.map((l) => l.id));
+  const sasaran = await db.locationScopeChange.findMany({
+    where: {
+      locationId: { in: [...dicabut.keys()] },
+      kind: "cabut",
+      status: "aktif",
+      archivedAt: null,
+    },
+    select: { id: true, locationId: true, amendment: { select: { ccoNumber: true } } },
+  });
+  if (sasaran.length === 0) return { jumlah: 0 };
+
+  await db.locationScopeChange.updateMany({
+    where: { id: { in: sasaran.map((s) => s.id) } },
+    data: { archivedAt: new Date(), archivedById: user.id },
+  });
+
+  const nama = new Map(lokasi.map((l) => [l.id, l.name]));
+  await audit(user.id, "location_scope.arsip", "package", packageId, {
+    jumlah: sasaran.length,
+    lokasi: sasaran.map((s) => ({
+      locationId: s.locationId,
+      name: nama.get(s.locationId) ?? null,
+      ccoNumber: s.amendment.ccoNumber,
+    })),
+  });
+  return { jumlah: sasaran.length };
+}
+
+/**
+ * Kembalikan pencabutan yang diarsipkan ke pandangan umum — super admin saja.
+ *
+ * Ada karena pengarsipan tanpa jalan pulang adalah perangkap: satu klik yang
+ * salah paket akan menghilangkan riwayat dari layar semua orang, dan
+ * satu-satunya pemulihannya lewat SQL langsung ke produksi.
+ */
+export async function bukaArsipLokasiDicabut(packageId: string): Promise<{ jumlah: number }> {
+  const user = await requireCapability("location_scope.archive");
+  const lokasi = await db.location.findMany({ where: { packageId }, select: { id: true } });
+  if (lokasi.length === 0) return { jumlah: 0 };
+
+  const sasaran = await db.locationScopeChange.findMany({
+    where: { locationId: { in: lokasi.map((l) => l.id) }, archivedAt: { not: null } },
+    select: { id: true },
+  });
+  if (sasaran.length === 0) return { jumlah: 0 };
+
+  await db.locationScopeChange.updateMany({
+    where: { id: { in: sasaran.map((s) => s.id) } },
+    data: { archivedAt: null, archivedById: null },
+  });
+  await audit(user.id, "location_scope.buka_arsip", "package", packageId, {
+    jumlah: sasaran.length,
+  });
+  return { jumlah: sasaran.length };
 }
