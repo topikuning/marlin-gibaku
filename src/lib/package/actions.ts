@@ -2045,3 +2045,77 @@ export async function updateContractSignatureImages(
   revalidatePath(`/paket/${contract.packageId}`, "layout");
   return { success: `${berubah.join("; ")}.` };
 }
+
+/* ── Lingkup lokasi: adendum menambah / mencabut lokasi ───────────────────── */
+
+/**
+ * Kebutuhan user 2026-09-05: *"ada kebutuhan dimana, adendum mengurangi lokasi
+ * atau bahkan menambah lokasi"*. Aturannya ditetapkan user pada hari yang sama:
+ * lokasi dicabut DITANDAI (angka lampau tetap), lokasi baru mulai dari tanggal
+ * berlaku adendum, dan keduanya EMPAT MATA seperti aktivasi adendum RAB.
+ *
+ * Isi aturannya ada di `lib/package/lingkup-lokasi`; di sini hanya jembatan
+ * form → layanan, supaya galat layanan sampai ke layar sebagai kalimat.
+ */
+export async function ajukanLingkupLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const { ajukanPerubahanLingkup, LingkupError } = await import("@/lib/package/lingkup-lokasi");
+  const packageId = String(formData.get("packageId") ?? "");
+  const kind = String(formData.get("kind") ?? "");
+  if (kind !== "tambah" && kind !== "cabut") return { error: "Jenis perubahan tidak dikenal." };
+  try {
+    await ajukanPerubahanLingkup({
+      locationId: String(formData.get("locationId") ?? ""),
+      amendmentId: String(formData.get("amendmentId") ?? ""),
+      kind,
+      reason: String(formData.get("reason") ?? ""),
+    });
+  } catch (e) {
+    if (e instanceof LingkupError) return { error: e.message };
+    throw e;
+  }
+  if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
+  return {
+    success:
+      "Usulan perubahan lingkup dicatat. Belum berlaku – perlu persetujuan Program Director dan satu Area/Project/Site Manager.",
+  };
+}
+
+export async function setujuiLingkupLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const { setujuiPerubahanLingkup, LingkupError } = await import("@/lib/package/lingkup-lokasi");
+  const packageId = String(formData.get("packageId") ?? "");
+  let berlaku = false;
+  try {
+    ({ berlaku } = await setujuiPerubahanLingkup(String(formData.get("changeId") ?? "")));
+  } catch (e) {
+    if (e instanceof LingkupError) return { error: e.message };
+    throw e;
+  }
+  if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
+  return {
+    success: berlaku
+      ? "Persetujuan lengkap – perubahan lingkup BERLAKU sejak tanggal adendumnya."
+      : "Persetujuan Anda dicatat. Masih menunggu kursi kedua sebelum berlaku.",
+  };
+}
+
+export async function batalkanLingkupLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const { batalkanPerubahanLingkup, LingkupError } = await import("@/lib/package/lingkup-lokasi");
+  const packageId = String(formData.get("packageId") ?? "");
+  try {
+    await batalkanPerubahanLingkup(String(formData.get("changeId") ?? ""));
+  } catch (e) {
+    if (e instanceof LingkupError) return { error: e.message };
+    throw e;
+  }
+  if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
+  return { success: "Usulan perubahan lingkup dibatalkan." };
+}

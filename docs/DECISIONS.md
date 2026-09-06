@@ -27434,3 +27434,115 @@ mana pun**, di dokumen yang dipakai mengajukan perubahan nilai kontrak.
 punya baris rekonsiliasi sendiri). Dijaga
 `tests/unit/cco-harga-beda-sisi.test.ts` memakai angka Pasar Banggi apa adanya;
 sembilan klausanya dibuktikan merah lebih dulu.
+
+---
+## (baru) · Halaman paket: kurva-S gabungan + adendum berjalan yang terlihat (2026-09-05)
+
+**Konteks**: user memeriksa halaman paket dan menemukan dua lubang:
+
+1. *"saat terjadi draft adendum, sama sekali tidak ada informasi atau apa pun
+   yang bisa membantu menjelaskan"* — draft adendum hidup di halaman RAB
+   masing-masing LOKASI, sementara yang memutuskan dan yang menandatangani CCO
+   bekerja dari halaman paket. Di layar paket usulan yang menunggu persetujuan
+   tidak kelihatan sama sekali: nilai kontrak berjalan tetap angka lama, tanpa
+   satu pun tanda ada yang sedang diajukan.
+2. *"tidak ada informasi kurva S sama sekali yang bisa menjelaskan progress
+   keseluruhan lokasi"* — yang ada cuma satu persen agregat. Angka tunggal
+   tidak bisa menjawab "telat atau tidak"; yang menjawab adalah rencananya di
+   sebelahnya.
+
+**Keputusan**:
+
+- **Kurva-S PAKET** = gabungan kurva lokasi, ditimbang nilai RAB aktif.
+  Formulanya di calculation layer (`progress-calc.gabungKurvaS`), datanya lewat
+  `baseline.getScurveSeriesPaket` yang memakai `getScurveSeries` yang SAMA
+  dengan layar lokasi — dua deret berbeda untuk pekerjaan yang sama adalah
+  cacat, bukan sudut pandang. Tiga aturan yang menentukan boleh-tidaknya
+  dipercaya:
+  - lokasi tanpa baseline atau tanpa nilai RAB **tidak dipaksa masuk** (bobotnya
+    tidak diketahui, rencananya tidak ada; memasukkannya sebagai nol berarti
+    menuduhnya tertinggal 100%). Jumlah yang tidak ikut **disebut di layar**,
+    supaya "kurva paket" tidak terbaca "seluruh paket";
+  - grid minggu = minggu terpanjang; lokasi berjadwal lebih pendek rencananya
+    diteruskan 100% sesudah minggu terakhirnya — itu yang dikatakan jadwalnya;
+  - realisasi diteruskan mendatar sesudah minggu terakhir lokasi (realisasi
+    kumulatif tidak pernah turun), dan minggu yang belum punya angka di lokasi
+    mana pun tetap kosong — garisnya berhenti, tidak dijatuhkan ke nol.
+- **Panel "adendum berjalan"** di halaman paket: tiap draft adendum disebut
+  lokasinya, nilai RAB yang berlaku, nilai draft, selisihnya, nomor CCO bila
+  sudah ditautkan, dan status empat mata (DECISIONS 234) — termasuk berapa
+  persetujuan yang GUGUR karena draftnya diubah lagi sesudah disetujui. Di
+  atasnya: dampak rupiah gabungan dan nilai kontrak seandainya semua diaktifkan.
+  Tidak ada angka baru yang lahir di sini: nilainya `RabRevision.totalValue`
+  apa adanya, statusnya dinilai aturan yang sama dengan tombol aktivasi.
+
+**Alternatif direject**:
+- *Menampilkan nilai kontrak "termasuk draft" di KPI atas.* Draft belum sah;
+  menaruhnya di kartu nilai kontrak membuat angka resmi berubah tanpa satu pun
+  tanda tangan. Dampaknya disebut terpisah, sebagai "bila aktif".
+- *Memasukkan lokasi tanpa baseline sebagai 0% supaya kurvanya "lengkap".*
+  Menukar lubang yang kelihatan dengan tuduhan yang tidak kelihatan.
+- *Menghitung ulang deret kurva di halaman paket.* Itu melahirkan calculation
+  layer kedua — persis yang dilarang DECISIONS 151/152.
+
+**Konsekuensi**: halaman paket punya satu kurva lagi yang harus tetap sama
+dasarnya dengan layar lokasi; keduanya sekarang berbagi `getScurveSeries`.
+Dijaga `tests/unit/kurva-paket.test.ts` (bobot, jadwal pendek, realisasi tidak
+turun, lokasi yang tidak layak) dan
+`tests/integration/paket-adendum-berjalan.test.ts` (selisih, empat mata,
+penggugurannya).
+
+**Belum termasuk**: adendum yang MENAMBAH atau MENGURANGI lokasi — kebutuhan
+yang disebut user pada hari yang sama. Itu menyentuh model data (status lokasi
+akibat adendum, nilai kontrak, progres, kurva-S, laporan KKP) dan menunggu
+keputusan user sebelum ditulis.
+
+
+---
+## (baru) · Adendum boleh MENAMBAH dan MENCABUT lokasi — ditandai, bukan dihapus (2026-09-05)
+
+**Konteks**: user menyebut kebutuhan yang belum ada sama sekali di sistem:
+*"ada kebutuhan dimana, adendum mengurangi lokasi atau bahkan menambah lokasi.
+saat ini di kamu belum ada."* Tiga keputusan diambil user pada hari yang sama,
+dan ketiganya menentukan angka — bukan sekadar tampilan.
+
+**Keputusan**:
+
+1. **Lokasi yang dicabut DITANDAI, bukan dihapus** ("ditandai dicabut per CCO,
+   angka lampau tetap"). Laporan, foto, dan realisasinya utuh dan halamannya
+   tetap bisa dibuka; yang berhenti hanyalah keikutsertaannya dalam angka paket
+   — progres agregat, kurva-S paket, dan Σ RAB pada rekonsiliasi — SEJAK tanggal
+   berlaku CCO. Pencabutan yang berlaku di masa depan belum mengeluarkan apa
+   pun hari ini.
+2. **Lokasi yang masuk lewat adendum mulai dari tanggal berlaku adendum.**
+   Baselinenya dihitung dulu di grid penuh (supaya urutan tahap & bobot kategori
+   memakai mesin yang sama), lalu digeser ke jendela minggu sisa: minggu sebelum
+   tanggal berlaku 0%, dan kurvanya tetap tuntas 100% di akhir kontrak.
+   Menyamakannya dengan lokasi lain membuatnya terlihat telat sejak minggu-1
+   padahal saat itu belum ada dalam kontrak — deviasi yang menuduh tanpa dasar.
+3. **Empat mata + wajib bernomor CCO**, sama seperti aktivasi adendum RAB
+   (DECISIONS 234): Program Director + satu peran penugasan. Mengubah lingkup
+   kontrak menggeser nilai kontrak, progres, kurva-S, dan laporan KKP sekaligus.
+
+**Bentuk datanya**: `LocationScopeChange` (+ `LocationScopeApproval`).
+Keikutsertaan lokasi DITURUNKAN dari tabel ini (`lingkupLokasi`), tidak pernah
+disalin jadi kolom di `locations` — dua sumber kebenaran untuk hal yang sama
+adalah kelas cacat yang paling mahal di repo ini. Persetujuan yang diberikan
+sebelum usulan diubah GUGUR, mekanisme yang sama dengan 234.
+
+**Alternatif direject**:
+- *Menghapus lokasinya dari paket.* Laporan dan foto yang sudah dikirim orang
+  lapangan ikut hilang dari jangkauan, dan angka paket yang pernah dicetak jadi
+  tidak bisa direkonstruksi.
+- *Menandai lewat `LocationStatus` (mis. `batal`).* Status lokasi menyatakan
+  KEADAAN PEKERJAAN, bukan keanggotaan kontrak; menumpuknya di sana membuat
+  "batal" berarti dua hal berbeda dan tidak menyimpan nomor CCO maupun tanggal
+  berlakunya.
+- *Cukup pemegang `contract.manage` seorang diri.* Ditolak user; lingkup kontrak
+  bukan kelas keputusan satu orang.
+
+**Konsekuensi**: seluruh agregat halaman paket kini menyaring lokasi yang
+dicabut, dan jumlahnya disebut di kartu "Jumlah lokasi" supaya selisih angka
+tidak perlu ditebak. Dijaga `tests/integration/lingkup-lokasi-adendum.test.ts`
+(gerbang paket-silang, alasan wajib, empat mata, tanggal berlaku, dan kurva
+lokasi baru yang mulai di minggu berlakunya).
