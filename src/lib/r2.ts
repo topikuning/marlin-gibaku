@@ -64,6 +64,16 @@ export async function r2Exists(key: string): Promise<boolean> {
   }
 }
 
+/** Ukuran & waktu ubah objek, tanpa mengunduhnya. Null bila tidak ada. */
+export async function r2Info(key: string): Promise<{ size: number; lastModified: Date | null } | null> {
+  try {
+    const r = await r2().send(new HeadObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
+    return { size: Number(r.ContentLength ?? 0), lastModified: r.LastModified ?? null };
+  } catch {
+    return null;
+  }
+}
+
 export async function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
   return getSignedUrl(r2(), new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }), { expiresIn });
 }

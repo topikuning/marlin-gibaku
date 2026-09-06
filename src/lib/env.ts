@@ -26,6 +26,12 @@ const baseSchema = z.object({
    * orang tanpa menyebut siapa pemiliknya.
    */
   PETA_PMTILES_KEY: z.string().optional(),
+  /**
+   * Matikan peta SEPENUHNYA. Hanya diisi job E2E di CI ("1"); tidak pernah
+   * diisi di lingkungan mana pun yang dipakai orang, termasuk dev — lihat
+   * catatan panjang di `lib/peta/sumber.ts`.
+   */
+  PETA_MATI: z.string().optional(),
   PETA_SATELIT_URL: z.string().optional(),
   PETA_SATELIT_ATRIBUSI: z.string().optional(),
 });
