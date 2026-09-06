@@ -18,10 +18,14 @@ export type MasterImportPreview = {
   newCatalog: number; // belum ada di katalog
   updateCatalog: number; // sudah ada di katalog (akan diperbarui)
   alreadyReal: number; // sudah ada sebagai Location riil
-  vendorsInFile: number;
-  vendorsNew: number;
+  /** Baris berlokasi TIDAK aktif yang dilewati (cadangan/drop/batal/ditolak). */
+  tidakAktif: number;
+  /** Sheet yang dibaca — berkas KNMP punya lima, dan salah sheet = salah data. */
+  sheet: string | null;
+  /** Berapa baris yang membawa koordinat; sisanya jadi "perlu verifikasi". */
+  berkoordinat: number;
   warnings: string[];
-  sample: { province: string; regency: string; village: string; candidateVendor: string | null }[];
+  sample: { province: string; regency: string; village: string; sourceCode: string | null }[];
 };
 
 export type MasterImportState =
@@ -56,28 +60,23 @@ export async function previewMasterImportAction(
     const read = await readFile(formData);
     if ("error" in read) return { error: read.error };
 
-    const { rows, warnings } = await parseMasterLocationXlsx(read.buffer);
+    const { rows, warnings, tidakAktif, sheet } = await parseMasterLocationXlsx(read.buffer);
     if (rows.length === 0) return { error: warnings.join(" ") || "Tidak ada baris valid." };
 
     const uniq = dedupe(rows);
-    const [existingCatalog, realIndex, vendors] = await Promise.all([
+    const [existingCatalog, realIndex] = await Promise.all([
       db.masterLocation.findMany({ where: { orgId: actor.orgId }, select: { province: true, regency: true, district: true, village: true } }),
       existingLocationIndex(actor.orgId),
-      db.vendor.findMany({ where: { orgId: actor.orgId }, select: { name: true } }),
     ]);
     const catalogKeys = new Set(existingCatalog.map(locationKey));
-    const vendorNames = new Set(vendors.map((v) => v.name.trim().toLowerCase()));
 
-    let newCatalog = 0, updateCatalog = 0, alreadyReal = 0;
+    let newCatalog = 0, updateCatalog = 0, alreadyReal = 0, berkoordinat = 0;
     for (const [k, r] of uniq) {
       if (catalogKeys.has(k)) updateCatalog++;
       else newCatalog++;
       if (realIndex.has(r)) alreadyReal++;
+      if (r.latitude != null && r.longitude != null) berkoordinat++;
     }
-    const fileVendors = new Set(
-      [...uniq.values()].map((r) => r.candidateVendor?.trim()).filter((v): v is string => !!v),
-    );
-    const vendorsNew = [...fileVendors].filter((v) => !vendorNames.has(v.toLowerCase())).length;
 
     return {
       preview: {
@@ -86,14 +85,15 @@ export async function previewMasterImportAction(
         newCatalog,
         updateCatalog,
         alreadyReal,
-        vendorsInFile: fileVendors.size,
-        vendorsNew,
+        tidakAktif,
+        sheet,
+        berkoordinat,
         warnings,
         sample: [...uniq.values()].slice(0, 8).map((r) => ({
           province: r.province,
           regency: r.regency,
           village: r.village,
-          candidateVendor: r.candidateVendor,
+          sourceCode: r.sourceCode,
         })),
       },
     };
@@ -113,19 +113,18 @@ export async function commitMasterImportAction(
     const read = await readFile(formData);
     if ("error" in read) return { error: read.error };
 
-    const { rows } = await parseMasterLocationXlsx(read.buffer);
+    const { rows, tidakAktif } = await parseMasterLocationXlsx(read.buffer);
     if (rows.length === 0) return { error: "Tidak ada baris valid untuk disimpan." };
     const uniq = dedupe(rows);
 
-    // Vendor unik → master (upsert by orgId+name).
-    const vendorNames = [...new Set([...uniq.values()].map((r) => r.candidateVendor?.trim()).filter((v): v is string => !!v))];
-    for (const name of vendorNames) {
-      await db.vendor.upsert({
-        where: { orgId_name: { orgId: actor.orgId, name } },
-        update: {},
-        create: { orgId: actor.orgId, name },
-      });
-    }
+    /*
+     * DATA PERUSAHAAN TIDAK IKUT (ketetapan user 2026-09-06).
+     *
+     * Impor ini dulu juga membuat Vendor dari kolom "Calon Penyedia" berkas.
+     * Dihentikan: katalog lokasi adalah data LOKASI, dan calon penyedia di
+     * berkas perencanaan bukan penyedia yang berkontrak — memasukkannya ke
+     * master vendor membuat daftar vendor penuh nama yang tidak pernah dipakai.
+     */
 
     let created = 0, updated = 0;
     for (const r of uniq.values()) {
@@ -139,13 +138,37 @@ export async function commitMasterImportAction(
         },
       };
       const existing = await db.masterLocation.findUnique({ where, select: { id: true } });
+      /*
+       * Koordinat yang SUDAH ada tidak ditimpa dengan kosong.
+       *
+       * Berkas sumber tidak selalu lengkap, dan impor ulang berkas lama akan
+       * menghapus koordinat yang sudah susah payah dilengkapi orang di layar.
+       * Yang kosong di berkas berarti "tidak tahu", bukan "kosongkan".
+       */
+      const isi = {
+        name: r.name,
+        sourceCode: r.sourceCode,
+        region: r.region,
+        cluster: r.cluster,
+        plenoResult: r.plenoResult,
+        statusCode: r.statusCode,
+        statusLabel: r.statusLabel,
+        statusReason: r.statusReason,
+        coordinateStatus: r.coordinateStatus,
+        sourceBatch: r.sourceBatch,
+        landAreaHa: r.landAreaHa == null ? null : r.landAreaHa.toFixed(4),
+        fishermenCount: r.fishermenCount,
+        boatsNoEngine: r.boatsNoEngine,
+        boatsEngine: r.boatsEngine,
+        boatsTotal: r.boatsTotal,
+        eeValue: r.eeValue == null ? null : BigInt(Math.round(r.eeValue)),
+      };
+      const koordinat = r.latitude != null && r.longitude != null
+        ? { latitude: dec(r.latitude), longitude: dec(r.longitude) }
+        : {};
       await db.masterLocation.upsert({
         where,
-        update: {
-          latitude: dec(r.latitude),
-          longitude: dec(r.longitude),
-          candidateVendor: r.candidateVendor?.trim() || null,
-        },
+        update: { ...isi, ...koordinat },
         create: {
           orgId: actor.orgId,
           province: r.province,
@@ -154,7 +177,7 @@ export async function commitMasterImportAction(
           village: r.village,
           latitude: dec(r.latitude),
           longitude: dec(r.longitude),
-          candidateVendor: r.candidateVendor?.trim() || null,
+          ...isi,
         },
       });
       if (existing) updated++;
@@ -164,12 +187,14 @@ export async function commitMasterImportAction(
     await audit(actor.id, "master_location.import", "organization", actor.orgId, {
       created,
       updated,
-      vendors: vendorNames.length,
+      tidakAktif,
     });
     revalidatePath("/master/lokasi");
     revalidatePath("/paket/bypass");
     return {
-      success: `Impor selesai: ${created} lokasi baru, ${updated} diperbarui, ${vendorNames.length} vendor diproses.`,
+      success:
+        `Impor selesai: ${created} lokasi baru, ${updated} diperbarui.` +
+        (tidakAktif > 0 ? ` ${tidakAktif} lokasi tidak aktif di berkas TIDAK diimpor.` : ""),
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -237,8 +262,13 @@ export async function tambahLokasiMasterAction(
     const regency = teks(formData, "regency");
     const district = teks(formData, "district");
     const village = teks(formData, "village");
-    const candidateVendor = teks(formData, "candidateVendor");
-    const isian = { province, regency, district, village, candidateVendor };
+    /*
+     * CALON PENYEDIA TIDAK LAGI DIMINTA (ketetapan user 2026-09-06: *"untuk
+     * data lokasi baru tidak perlu informasi calon penyedianya"*). Kolomnya
+     * masih ada di basis data supaya data lama tidak hilang, tapi tidak ada
+     * jalur input yang menulisnya lagi.
+     */
+    const isian = { province, regency, district, village };
 
     if (!province || !regency || !village) {
       return { error: "Provinsi, Kabupaten/Kota, dan Desa/Kelurahan wajib diisi.", isian };
@@ -297,18 +327,9 @@ export async function tambahLokasiMasterAction(
         village,
         latitude: dec(koordinat.lat),
         longitude: dec(koordinat.lng),
-        candidateVendor: candidateVendor || null,
       },
       select: { id: true },
     });
-
-    if (candidateVendor) {
-      await db.vendor.upsert({
-        where: { orgId_name: { orgId: actor.orgId, name: candidateVendor } },
-        update: {},
-        create: { orgId: actor.orgId, name: candidateVendor },
-      });
-    }
 
     await audit(actor.id, "master_location.create", "master_location", dibuat.id, {
       province,
@@ -330,5 +351,131 @@ export async function tambahLokasiMasterAction(
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan lokasi." };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Ubah satu lokasi katalog — langsung dari daftar (user 2026-09-06)    */
+/* ------------------------------------------------------------------ */
+
+export type UbahLokasiState = { error?: string; success?: string } | undefined;
+
+/**
+ * Sunting baris katalog di tempat.
+ *
+ * Permintaan user 2026-09-06: *"di super admin halaman katalog lokasi, bisa
+ * edit langsung untuk koordinat, nama, dsb. kalau sudah dipakai kasih warning
+ * saja."*
+ *
+ * Jadi lokasi yang SUDAH dipakai proyek tetap boleh disunting — koordinat yang
+ * salah tidak berhenti salah hanya karena lokasinya sudah berjalan. Yang
+ * dilakukan sistem: memberi tahu, mencatat jejaknya, dan TIDAK ikut mengubah
+ * lokasi proyeknya (itu punya layar dan wewenangnya sendiri).
+ */
+export async function ubahLokasiMasterAction(
+  _prev: UbahLokasiState,
+  formData: FormData,
+): Promise<UbahLokasiState> {
+  try {
+    const actor = await requireCapability("package.bypass");
+    const id = String(formData.get("id") ?? "");
+    const sebelum = await db.masterLocation.findFirst({
+      where: { id, orgId: actor.orgId },
+      select: {
+        id: true,
+        province: true,
+        regency: true,
+        district: true,
+        village: true,
+        name: true,
+        latitude: true,
+        longitude: true,
+        assignedLocationId: true,
+      },
+    });
+    if (!sebelum) return { error: "Lokasi katalog tidak ditemukan." };
+
+    const province = teks(formData, "province");
+    const regency = teks(formData, "regency");
+    const district = teks(formData, "district");
+    const village = teks(formData, "village");
+    const nama = teks(formData, "name");
+    if (!province || !regency || !village)
+      return { error: "Provinsi, Kabupaten/Kota, dan Desa/Kelurahan wajib diisi." };
+
+    const koordinat = bacaKoordinat(formData);
+    if ("error" in koordinat) return { error: koordinat.error };
+
+    // Kunci alami berubah? Pastikan tidak menabrak baris lain lebih dulu —
+    // indeks unik akan menolak, dan galat mentahnya tidak bisa dibaca siapa pun.
+    const kunciBerubah =
+      province !== sebelum.province ||
+      regency !== sebelum.regency ||
+      (district || "") !== (sebelum.district ?? "") ||
+      village !== sebelum.village;
+    if (kunciBerubah) {
+      const bentrok = await db.masterLocation.findUnique({
+        where: {
+          orgId_province_regency_district_village: {
+            orgId: actor.orgId,
+            province,
+            regency,
+            district: district || "",
+            village,
+          },
+        },
+        select: { id: true },
+      });
+      if (bentrok && bentrok.id !== id)
+        return {
+          error: `Sudah ada baris katalog untuk ${village}, ${district || "-"}, ${regency}. Gabungkan dulu, jangan dibuat kembar.`,
+        };
+    }
+
+    await db.masterLocation.update({
+      where: { id },
+      data: {
+        province,
+        regency,
+        district: district || "",
+        village,
+        name: nama || null,
+        latitude: dec(koordinat.lat),
+        longitude: dec(koordinat.lng),
+      },
+    });
+
+    await audit(actor.id, "master_location.update", "master_location", id, {
+      dari: {
+        province: sebelum.province,
+        regency: sebelum.regency,
+        district: sebelum.district,
+        village: sebelum.village,
+        name: sebelum.name,
+        latitude: sebelum.latitude?.toString() ?? null,
+        longitude: sebelum.longitude?.toString() ?? null,
+      },
+      ke: {
+        province,
+        regency,
+        district: district || "",
+        village,
+        name: nama || null,
+        latitude: koordinat.lat,
+        longitude: koordinat.lng,
+      },
+      sudahDipakai: sebelum.assignedLocationId != null,
+    });
+
+    revalidatePath("/master/lokasi");
+    revalidatePath("/paket/bypass");
+    return {
+      success: sebelum.assignedLocationId
+        ? `${village} diperbarui di katalog. Lokasi proyek yang memakainya TIDAK ikut berubah – ubah di halaman lokasinya bila perlu.`
+        : `${village} diperbarui.`,
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan perubahan." };
   }
 }

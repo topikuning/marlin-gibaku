@@ -20,7 +20,7 @@ export default async function MasterLokasiPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "package.bypass");
 
-  const [masters, realIndex, vendors] = await Promise.all([
+  const [masters, realIndex] = await Promise.all([
     db.masterLocation.findMany({
       where: { orgId: user.orgId },
       orderBy: [{ province: "asc" }, { regency: "asc" }, { village: "asc" }],
@@ -30,18 +30,28 @@ export default async function MasterLokasiPage() {
         regency: true,
         district: true,
         village: true,
+        name: true,
         latitude: true,
         longitude: true,
         candidateVendor: true,
         assignedLocationId: true,
+        sourceCode: true,
+        region: true,
+        cluster: true,
+        plenoResult: true,
+        statusLabel: true,
+        coordinateStatus: true,
+        sourceBatch: true,
+        landAreaHa: true,
+        fishermenCount: true,
+        boatsNoEngine: true,
+        boatsEngine: true,
+        boatsTotal: true,
+        eeValue: true,
+        assignedLocation: { select: { name: true, slug: true } },
       },
     }),
     existingLocationIndex(user.orgId),
-    db.vendor.findMany({
-      where: { orgId: user.orgId },
-      orderBy: { name: "asc" },
-      select: { name: true },
-    }),
   ]);
 
   const rows: BarisKatalog[] = masters.map((m) => ({
@@ -50,12 +60,28 @@ export default async function MasterLokasiPage() {
     regency: m.regency,
     district: m.district,
     village: m.village,
+    name: m.name,
     // Decimal → string di batas server→client; komponen hanya menampilkan.
     latitude: m.latitude?.toString() ?? null,
     longitude: m.longitude?.toString() ?? null,
     candidateVendor: m.candidateVendor,
     status: statusKatalog(m, realIndex.has(m)),
+    sourceCode: m.sourceCode,
+    region: m.region,
+    cluster: m.cluster,
+    plenoResult: m.plenoResult,
+    statusLabel: m.statusLabel,
+    coordinateStatus: m.coordinateStatus,
+    sourceBatch: m.sourceBatch,
+    landAreaHa: m.landAreaHa?.toString() ?? null,
+    fishermenCount: m.fishermenCount,
+    boatsNoEngine: m.boatsNoEngine,
+    boatsEngine: m.boatsEngine,
+    boatsTotal: m.boatsTotal,
+    // BigInt tidak bisa menyeberang ke klien — dikirim sebagai string.
+    eeValue: m.eeValue?.toString() ?? null,
+    dipakaiOleh: m.assignedLocation ? { name: m.assignedLocation.name, slug: m.assignedLocation.slug } : null,
   }));
 
-  return <KatalogLokasiManager rows={rows} vendors={vendors.map((v) => v.name)} />;
+  return <KatalogLokasiManager rows={rows} />;
 }
