@@ -6,6 +6,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { LocationSnapshot, PetaMarker } from "@/lib/peta";
+import type { SumberPeta } from "@/lib/peta/gaya";
 import {
   LOCATION_STATUS_LABEL,
   LOCATION_STATUS_TONE,
@@ -28,7 +29,13 @@ const PetaMap = dynamic(() => import("./peta-map").then((m) => m.PetaMap), {
 });
 
 /** Layout dua pane ala versi lama: panel kiri (cari + filter + daftar), peta kanan. */
-export function PetaClient({ markers }: { markers: PetaMarker[] }) {
+export function PetaClient({
+  markers,
+  sumber,
+}: {
+  markers: PetaMarker[];
+  sumber: SumberPeta;
+}) {
   const [query, setQuery] = useState("");
   const [province, setProvince] = useState("");
   const [status, setStatus] = useState("");
@@ -145,7 +152,7 @@ export function PetaClient({ markers }: { markers: PetaMarker[] }) {
 
       {/* Peta kanan + panel detail overlay */}
       <div className="relative min-w-0 flex-1">
-        <PetaMap markers={filtered} selectedId={selectedId} onSelect={select} />
+        <PetaMap markers={filtered} selectedId={selectedId} onSelect={select} sumber={sumber} />
 
         {(snap || loading) && (
           <div className="absolute top-3 right-3 z-[1000] max-h-[calc(100%-24px)] w-[300px] overflow-y-auto rounded-lg border border-border bg-surface p-4 shadow-lg">

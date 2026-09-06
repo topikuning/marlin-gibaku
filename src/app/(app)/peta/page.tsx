@@ -5,6 +5,7 @@ import { Banner, EmptyState, PageHeader } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getLokasiTanpaKoordinat, getPetaMarkers } from "@/lib/peta";
+import { sumberPeta } from "@/lib/peta/sumber";
 import { PetaClient } from "./peta-client";
 
 export const metadata: Metadata = { title: "Peta" };
@@ -15,6 +16,7 @@ export default async function PetaPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "location.view");
   const scoped = await accessibleLocationIds(user);
+  const sumber = await sumberPeta();
   const [markers, tanpaKoordinat] = await Promise.all([
     getPetaMarkers(scoped, user.orgId),
     getLokasiTanpaKoordinat(scoped, user.orgId),
@@ -57,7 +59,7 @@ export default async function PetaPage() {
           description="Lengkapi koordinat GPS lokasi agar tampil di peta."
         />
       ) : (
-        <PetaClient markers={markers} />
+        <PetaClient markers={markers} sumber={sumber} />
       )}
     </div>
   );

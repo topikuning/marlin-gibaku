@@ -347,6 +347,6 @@ Mengubah mode lewat koreksi kontrak menghitung ulang kurva-S semua lokasi.
 
 ## 10. Scope yang sengaja ditunda
 
-Peta Leaflet, offline di luar `/foto-cepat` + background sync + push (butuh
+Offline di luar `/foto-cepat` + background sync + push (butuh
 cangkang native — DECISIONS 398), PR/PO/receiving granular, intake WA-text —
 tercatat di OPEN_ISSUES + REBUILD_PLAN dgn alasan.

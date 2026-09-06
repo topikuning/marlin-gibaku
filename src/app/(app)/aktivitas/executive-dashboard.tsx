@@ -25,6 +25,7 @@ import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
+import { sumberPeta } from "@/lib/peta/sumber";
 import { DashboardMap } from "./dashboard-map";
 import { DashboardSearch } from "./dashboard-search";
 
@@ -37,7 +38,11 @@ import { DashboardSearch } from "./dashboard-search";
 export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
 
-  const [data, activity] = await Promise.all([getDashboardData(locIds, user.orgId), getActivityCentre(locIds, 4)]);
+  const [data, activity, sumber] = await Promise.all([
+    getDashboardData(locIds, user.orgId),
+    getActivityCentre(locIds, 4),
+    sumberPeta(),
+  ]);
   const { kpi } = data;
 
   const jamWIB = new Intl.DateTimeFormat("id-ID", {
@@ -144,6 +149,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           <div className="flex flex-1 flex-col p-4">
             <div className="min-h-[300px] flex-1">
               <DashboardMap
+                sumber={sumber}
                 markers={data.markers}
                 markerTone={data.markerTone}
                 markerSubmit={data.markerSubmit}

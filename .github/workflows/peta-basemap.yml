@@ -1,0 +1,84 @@
+name: Peta dasar MARLIN (.pmtiles ke R2)
+
+# Menyiapkan peta dasar vektor yang dipakai layar /peta dan pemilih koordinat
+# katalog lokasi (ketetapan user 2026-09-06: peta dasar milik sendiri, tanpa
+# kunci API dan tanpa pihak ketiga yang bisa memblokirnya).
+#
+# Kenapa di CI dan bukan saat deploy: ekstraksinya menarik ratusan MB dari
+# build Protomaps dan mengunggahnya ke R2 — pekerjaan menit-menitan yang tidak
+# boleh menunda boot aplikasi, dan tidak perlu diulang tiap deploy. Hasilnya
+# duduk di R2; aplikasi memakainya pada permintaan halaman berikutnya, tanpa
+# deploy ulang.
+#
+# Dijalankan sebulan sekali (data OSM bergerak pelan) dan kapan pun ditekan
+# manual dari tab Actions.
+
+on:
+  schedule:
+    # Hari ke-3 tiap bulan, 20:00 UTC = 03:00 WIB — jauh dari jam kerja lapangan.
+    - cron: "0 20 3 * *"
+  workflow_dispatch:
+    inputs:
+      build_url:
+        description: "URL build Protomaps (kosongkan untuk memakai bawaan skrip)"
+        required: false
+        type: string
+
+concurrency:
+  group: peta-basemap
+  cancel-in-progress: false
+
+jobs:
+  bangun:
+    name: Ekstrak Indonesia lalu unggah ke R2
+    runs-on: ubuntu-latest
+    # Ekstraksi lewat HTTP Range + unggah multipart: lambat, tapi terbatas.
+    timeout-minutes: 90
+    steps:
+      - name: Periksa kredensial
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          # Gagal dengan kalimat yang bisa ditindaklanjuti, bukan galat SDK
+          # yang menyebut "credentials" tanpa menyebut yang mana.
+          for v in R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Secret $v belum diisi. Settings → Secrets and variables → Actions → Secrets, isi dengan nilai yang SAMA PERSIS dengan environment aplikasi."
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Pasang binari pmtiles
+        run: |
+          set -euo pipefail
+          # Versi dipatok: ekstraksi peta dasar tidak boleh berubah perilakunya
+          # diam-diam di antara dua jalannya workflow ini.
+          VERSI=1.28.1
+          curl -sSfL "https://github.com/protomaps/go-pmtiles/releases/download/v${VERSI}/go-pmtiles_${VERSI}_Linux_x86_64.tar.gz" \
+            | tar -xz pmtiles
+          sudo mv pmtiles /usr/local/bin/
+          pmtiles version
+
+      - name: Bangun & unggah peta dasar
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          PETA_PMTILES_KEY: ${{ vars.PETA_PMTILES_KEY }}
+          PETA_BUILD_URL: ${{ inputs.build_url }}
+        run: pnpm peta:basemap
