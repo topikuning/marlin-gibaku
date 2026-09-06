@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import {
   commitMasterImportAction,
@@ -47,6 +47,23 @@ export function MasterImportForm() {
 
   return (
     <div className="space-y-3">
+      {/* TEMPLAT — teguran user 2026-09-06: *"templatenya mana, kok gak ada"*.
+          Impor tanpa templat berarti kolom yang dibaca cuma bisa ditebak. */}
+      <div className="rounded-md border border-border bg-surface-muted px-3 py-2.5 text-[13px] text-ink-muted">
+        <a
+          href="/master/lokasi/template"
+          className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+        >
+          <Download aria-hidden className="size-3.5" />
+          Unduh templat Excel
+        </a>
+        <p className="mt-1">
+          Berisi kolom yang dibaca MARLIN beserta petunjuknya. Berkas MASTER DATA KNMP bisa langsung
+          diunggah apa adanya – sheet yang dibaca <b>MASTER DATA</b>, dan hanya lokasi berstatus
+          aktif yang diimpor. Data perusahaan tidak diambil.
+        </p>
+      </div>
+
       <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5 text-sm text-ink-muted hover:border-border-strong">
         <Upload aria-hidden className="size-4" />
         {file ? file.name : "Pilih file .xlsx"}
@@ -60,20 +77,32 @@ export function MasterImportForm() {
         <div className="rounded-md border border-border bg-surface-muted p-3 text-sm">
           <p className="font-semibold text-ink">Pratinjau impor</p>
           <ul className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[13px] text-ink sm:grid-cols-3">
-            <li>Baris terbaca: <b>{preview.parsed}</b></li>
+            <li>Baris aktif terbaca: <b>{preview.parsed}</b></li>
             <li>Unik: <b>{preview.unique}</b></li>
             <li>Lokasi baru: <b className="text-success">{preview.newCatalog}</b></li>
             <li>Diperbarui: <b>{preview.updateCatalog}</b></li>
             <li>Sudah ada sbg lokasi: <b className="text-warning">{preview.alreadyReal}</b></li>
-            <li>Vendor baru: <b>{preview.vendorsNew}</b>/{preview.vendorsInFile}</li>
+            <li>Berkoordinat: <b>{preview.berkoordinat}</b>/{preview.unique}</li>
+            {preview.tidakAktif > 0 ? (
+              <li className="col-span-2 sm:col-span-3">
+                Tidak aktif (dilewati): <b className="text-warning">{preview.tidakAktif}</b>
+              </li>
+            ) : null}
           </ul>
+          {preview.sheet ? (
+            <p className="mt-1 text-[12px] text-ink-muted">
+              Sheet yang dibaca: <b>{preview.sheet}</b>
+            </p>
+          ) : null}
           {preview.warnings.length > 0 ? (
             <p className="mt-2 text-[12px] text-warning">{preview.warnings.join(" ")}</p>
           ) : null}
           {preview.sample.length > 0 ? (
             <div className="mt-2 text-[12px] text-ink-muted">
               Contoh:{" "}
-              {preview.sample.map((s) => `${s.village} (${s.regency})`).join(" · ")}
+              {preview.sample
+                .map((s) => `${s.village} (${s.regency})`)
+                .join(" · ")}
             </div>
           ) : null}
         </div>

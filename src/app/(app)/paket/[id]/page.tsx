@@ -33,6 +33,10 @@ import {
 } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
+import { getScurveSeriesPaket } from "@/lib/baseline";
+import { getAdendumBerjalan } from "@/lib/package/adendum-berjalan";
+import { idLokasiDiarsipkan, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
+import { ScurveChart } from "@/components/knmp/scurve-chart";
 import {
   getPackageWorkspace,
   getStageHistory,
@@ -130,20 +134,57 @@ export default async function RingkasanPaketPage({
   const canKirimLaporan = can(user.role, "ai.report_send");
   const canDocument = can(user.role, "document.view");
 
-  const [progressMap, history, kepatuhan] = await Promise.all([
-    getLocationsProgress(pkg.locations.map((l) => l.id)),
+  const idLokasi = pkg.locations.map((l) => l.id);
+  /*
+   * LINGKUP dibaca LEBIH DULU karena seluruh agregat bergantung padanya:
+   * lokasi yang sudah dicabut lewat adendum tidak boleh ikut menghitung progres,
+   * kurva-S, maupun Σ RAB paket. Angka lampaunya sendiri tidak diubah — laporan
+   * dan fotonya tetap ada di lokasinya (ketetapan user 2026-09-05).
+   */
+  const lingkup = await lingkupLokasi(idLokasi);
+  const idIkut = idLokasi.filter((id) => !lingkup.dicabut.has(id));
+  /*
+   * ARSIP (ketetapan user 2026-09-06): pencabutan yang sudah diarsipkan super
+   * admin tidak boleh meninggalkan bekas di layar umum — termasuk angka
+   * "N dicabut adendum" di kartu KPI, yang justru mengumumkan keberadaannya.
+   * Yang disembunyikan cuma tampilannya: `idIkut` di atas tidak menyentuhnya
+   * sama sekali, jadi tidak ada satu angka pun yang bergeser karena arsip.
+   */
+  const arsip = can(user.role, "location_scope.archive")
+    ? new Set<string>()
+    : await idLokasiDiarsipkan(idLokasi);
+  const lokasiDicabut = pkg.locations.filter(
+    (l) => lingkup.dicabut.has(l.id) && !arsip.has(l.id),
+  );
+  /*
+   * Daftar yang DITAMPILKAN. Perhitungan tetap memakai `pkg.locations` /
+   * `idLokasi` seutuhnya — hanya mata orang yang dibatasi, bukan angkanya.
+   */
+  const lokasiTampil = pkg.locations.filter((l) => !arsip.has(l.id));
+  const [progressMap, history, kepatuhan, kurvaPaket, adendum] =
+    await Promise.all([
+    getLocationsProgress(idLokasi),
     getStageHistory(pkg.id),
     // Ringkasan kepatuhan dibaca dari papan yang SAMA dengan tab Dokumen —
     // bukan dihitung ulang di sini, supaya tidak lahir angka kedua untuk hal
     // yang sama.
     canDocument ? milestoneBoard({ packageId: pkg.id }) : Promise.resolve(null),
+    // Kurva-S paket: rencana vs realisasi seluruh lokasi, ditimbang RAB
+    // (keluhan user 2026-09-05 – progres agregat tanpa rencana di sebelahnya
+    // tidak bisa menjawab "telat atau tidak").
+    getScurveSeriesPaket(idIkut),
+    // Draft adendum yang sedang berjalan di lokasi-lokasi paket ini.
+    getAdendumBerjalan(idLokasi),
   ]);
 
-  // Progress agregat — formula kanonik weightedRealizedPct (B13).
-  const aggregatePct = weightedRealizedPct([...progressMap.values()]);
-  // Σ RAB semua lokasi — dipakai rekonsiliasi kontrak vs RAB di bawah.
+  // Progress agregat — formula kanonik weightedRealizedPct (B13). Lokasi yang
+  // sudah dicabut lewat adendum TIDAK ikut: pekerjaannya bukan lagi bagian
+  // kontrak sejak tanggal berlaku CCO.
+  const progresIkut = idIkut.map((id) => progressMap.get(id)).filter((p) => p != null);
+  const aggregatePct = weightedRealizedPct(progresIkut);
+  // Σ RAB lokasi yang masih dalam lingkup — dipakai rekonsiliasi kontrak vs RAB.
   let totalRab = 0n;
-  for (const p of progressMap.values()) totalRab += p.grandTotal;
+  for (const p of progresIkut) totalRab += p.grandTotal;
 
   const contract = pkg.contract;
   const running = contract
@@ -181,6 +222,7 @@ export default async function RingkasanPaketPage({
     const rabSum = Number(totalRab);
     const selisih = basePraPpn - rabSum;
     const rows = pkg.locations
+      .filter((l) => !lingkup.dicabut.has(l.id))
       .map((l) => ({ name: l.name, rab: Number(progressMap.get(l.id)?.grandTotal ?? 0n) }))
       .sort((a, b) => b.rab - a.rab);
     const withRab = rows.filter((r) => r.rab > 0).length;
@@ -272,7 +314,7 @@ export default async function RingkasanPaketPage({
 
   // Tahap sebelumnya yang aman untuk dimundurkan (koreksi salah-klik), bila ada.
   const revertTo = revertTargetFor(pkg.stage);
-  const lokasiAktif = pkg.locations.filter((l) => l.isActive).length;
+  const lokasiAktif = lokasiTampil.filter((l) => l.isActive).length;
   const adaKomunikasi =
     canWaConfigure || (canKirimLaporan && pkg.stage === "pelaksanaan");
 
@@ -305,12 +347,19 @@ export default async function RingkasanPaketPage({
           // labelnya harus menyebutkan itu, bukan diam-diam terbaca sebagai
           // jumlah lokasi paket (DECISIONS 201).
           label={pkg.locationsHidden > 0 ? "Lokasi Anda di paket ini" : "Jumlah lokasi"}
-          value={pkg.locations.length}
+          value={lokasiTampil.length}
           href={`/paket/${pkg.id}/lokasi`}
           sub={
-            pkg.locationsHidden > 0
-              ? `${lokasiAktif} aktif · ${pkg.locationsHidden} lokasi lain di luar penugasan`
-              : `${lokasiAktif} aktif`
+            [
+              `${lokasiAktif} aktif`,
+              pkg.locationsHidden > 0 ? `${pkg.locationsHidden} lokasi lain di luar penugasan` : null,
+              // Lokasi yang dicabut adendum tetap terhitung sebagai baris paket,
+              // tapi tidak lagi ikut angka mana pun – itu harus tertulis, bukan
+              // ditebak dari selisih angka.
+              lokasiDicabut.length > 0 ? `${lokasiDicabut.length} dicabut adendum` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
           }
         />
         <KpiCard
@@ -382,7 +431,171 @@ export default async function RingkasanPaketPage({
             </CardBody>
           </Card>
 
-          {!recon && contract && pkg.locationsHidden > 0 ? (
+          {/* KURVA-S PAKET — rencana vs realisasi seluruh lokasi, ditimbang RAB.
+          Keluhan user 2026-09-05: *"tidak ada informasi kurva S sama sekali
+          yang bisa menjelaskan progress keseluruhan lokasi"*. Angka agregat
+          sendirian tidak bisa menjawab telat atau tidak; yang menjawab adalah
+          rencananya di sebelahnya. */}
+      <Card>
+        <CardHeader
+          title="Kurva-S paket"
+          subtitle={
+            kurvaPaket.dihitung > 0
+              ? `Rencana vs realisasi gabungan ${kurvaPaket.dihitung} dari ${kurvaPaket.totalLokasi} lokasi, ditimbang nilai RAB aktif – minggu ke-${kurvaPaket.currentWeek} dari ${kurvaPaket.totalWeeks}.`
+              : "Belum ada lokasi yang punya baseline kurva-S sekaligus RAB aktif."
+          }
+          action={
+            kurvaPaket.dihitung > 0 ? (
+              <span className="text-sm">
+                <span className="text-ink-muted">Rencana</span>{" "}
+                <span className="tabular font-semibold text-ink">
+                  {formatPct(kurvaPaket.planPct[kurvaPaket.currentWeek - 1] ?? 0)}
+                </span>{" "}
+                <span className="text-ink-muted">· Realisasi</span>{" "}
+                <span className="tabular font-semibold text-ink">{formatPct(aggregatePct)}</span>
+              </span>
+            ) : null
+          }
+        />
+        <CardBody className="space-y-2">
+          {kurvaPaket.dihitung > 0 ? (
+            <>
+              <ScurveChart series={kurvaPaket} />
+              {/* Lokasi yang belum punya baseline TIDAK dipaksa masuk sebagai
+                  nol – itu akan menuduhnya tertinggal 100%. Yang tidak ikut
+                  disebut jumlahnya, supaya kurva ini tidak terbaca "seluruh
+                  paket" padahal bukan. */}
+              {kurvaPaket.dihitung < kurvaPaket.totalLokasi ? (
+                <p className="text-[13px] text-warning-700">
+                  {kurvaPaket.totalLokasi - kurvaPaket.dihitung} lokasi belum punya baseline
+                  kurva-S atau RAB aktif dan TIDAK ikut dihitung – kurva ini belum mewakili
+                  seluruh paket.
+                </p>
+              ) : null}
+              <p className="text-[13px] text-ink-muted">
+                Rencana dari baseline aktif tiap lokasi; realisasi dari laporan harian yang
+                dihitung. Lokasi yang jadwalnya lebih pendek diteruskan 100% sesudah minggu
+                terakhirnya – itu yang dikatakan jadwalnya.
+              </p>
+            </>
+          ) : (
+            <p className="text-[13px] text-ink-muted">
+              Kurva-S paket muncul begitu ada lokasi yang RAB-nya aktif dan baselinenya
+              terbentuk. Baseline dibuat otomatis saat RAB diimpor.
+            </p>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* ADENDUM BERJALAN — draft yang sedang diajukan di lokasi-lokasi paket.
+          Keluhan user 2026-09-05: *"saat terjadi draft adendum, sama sekali
+          tidak ada informasi atau apa pun yang bisa membantu menjelaskan"*.
+          Draftnya hidup di halaman RAB tiap lokasi, sementara yang memutuskan
+          bekerja dari sini. */}
+      {adendum.draft.length > 0 ? (
+        <Card>
+          <CardHeader
+            title={`${adendum.draft.length} draft adendum sedang berjalan`}
+            subtitle="Belum masuk nilai kontrak, belum menggeser progres maupun kurva-S – baru berlaku setelah diaktifkan (empat mata: Program Director + AM/PM/SM)."
+            action={
+              <StatusPill
+                tone={adendum.siapAktif > 0 ? "warning" : "info"}
+                label={
+                  adendum.siapAktif > 0
+                    ? `${adendum.siapAktif} siap diaktifkan`
+                    : "Menunggu persetujuan"
+                }
+              />
+            }
+          />
+          <CardBody className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <MiniStat label="Lokasi terdampak" value={String(adendum.draft.length)} />
+              <MiniStat
+                label="Dampak nilai (pra-PPN)"
+                value={formatRupiah(adendum.totalSelisih)}
+              />
+              <MiniStat
+                label="Nilai kontrak bila aktif"
+                value={
+                  running != null
+                    ? formatRupiah(running + adendum.totalSelisih)
+                    : formatRupiah(adendum.totalSelisih)
+                }
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-ink-muted uppercase">
+                    <th className="py-1.5 pr-3">Lokasi</th>
+                    <th className="py-1.5 pr-3 text-right">Berlaku</th>
+                    <th className="py-1.5 pr-3 text-right">Draft</th>
+                    <th className="py-1.5 pr-3 text-right">Selisih</th>
+                    <th className="py-1.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {adendum.draft.map((d) => (
+                    <tr key={d.revisionId}>
+                      <td className="py-1.5 pr-3">
+                        <Link
+                          href={`/lokasi/${d.locationSlug}/rab/adendum`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {d.locationName}
+                        </Link>
+                        <span className="block text-xs text-ink-faint">
+                          Revisi #{d.revisionNo}
+                          {d.ccoNumber ? ` · ${d.ccoNumber}` : " · belum bernomor CCO"}
+                          {d.note ? ` · ${d.note}` : ""}
+                        </span>
+                      </td>
+                      <td className="tabular py-1.5 pr-3 text-right">
+                        {d.nilaiAktif != null ? formatRupiah(d.nilaiAktif) : "–"}
+                      </td>
+                      <td className="tabular py-1.5 pr-3 text-right">{formatRupiah(d.nilaiDraft)}</td>
+                      <td
+                        className={`tabular py-1.5 pr-3 text-right ${
+                          d.selisih == null || d.selisih === 0n
+                            ? ""
+                            : d.selisih > 0n
+                              ? "text-warning"
+                              : "text-danger"
+                        }`}
+                      >
+                        {d.selisih == null ? "–" : formatRupiah(d.selisih)}
+                      </td>
+                      <td className="py-1.5">
+                        <StatusPill
+                          tone={d.setuju.lengkap ? "success" : "info"}
+                          label={d.setuju.lengkap ? "Siap diaktifkan" : "Menunggu persetujuan"}
+                        />
+                        {!d.setuju.lengkap ? (
+                          <span className="block text-xs text-ink-faint">
+                            Kurang: {d.setuju.kurang.join(" · ")}
+                          </span>
+                        ) : null}
+                        {d.suaraGugur > 0 ? (
+                          <span className="block text-xs text-warning-700">
+                            {d.suaraGugur} persetujuan gugur karena draftnya diubah lagi
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[13px] text-ink-muted">
+              Angka di atas nilai RAB pra-PPN. Nilai kontrak berjalan di kartu atas baru berubah
+              setelah adendum diaktifkan DAN nomor CCO-nya dicatat di tab Kontrak.
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {!recon && contract && pkg.locationsHidden > 0 ? (
             <Banner
               tone="info"
               title="Rekonsiliasi kontrak vs RAB tidak ditampilkan"
@@ -490,11 +703,11 @@ export default async function RingkasanPaketPage({
               action={<ButtonLink href={`/paket/${pkg.id}/lokasi`}>Lihat semua</ButtonLink>}
             />
             <CardBody>
-              {pkg.locations.length === 0 ? (
+              {lokasiTampil.length === 0 ? (
                 <p className="text-sm text-ink-muted">Belum ada lokasi pada paket ini.</p>
               ) : (
                 <ul className="space-y-2">
-                  {pkg.locations.map((l) => {
+                  {lokasiTampil.map((l) => {
                     const p = progressMap.get(l.id);
                     return (
                       <li key={l.id}>

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
-import { weekOfDate } from "@/lib/progress-calc";
+import { gabungKurvaS, weekOfDate, type KurvaPaket } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { contractDaysFor, totalWeeksFor } from "@/lib/rab/import";
 import { rebucketWeeklyToGrid,
@@ -856,4 +856,24 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
   const actualPct: (number | null)[] = cumPct.map((v, i) => (i + 1 <= currentWeek ? v : null));
 
   return { totalWeeks, currentWeek, planPct, actualPct, grandTotal };
+}
+
+/**
+ * Kurva-S GABUNGAN satu paket — rencana vs realisasi seluruh lokasinya,
+ * ditimbang nilai RAB (formula di `progress-calc.gabungKurvaS`).
+ *
+ * Keluhan user 2026-09-05: halaman paket tidak punya satu pun kurva-S, jadi
+ * "progress keseluruhan lokasi" cuma satu persen tunggal tanpa rencana di
+ * sebelahnya — tidak ada cara melihat paketnya telat atau tidak.
+ *
+ * Deret per lokasi diambil dari `getScurveSeries` yang SAMA dengan layar
+ * lokasi, bukan dihitung ulang di sini.
+ */
+export async function getScurveSeriesPaket(
+  locationIds: string[],
+): Promise<KurvaPaket & { totalLokasi: number }> {
+  if (locationIds.length === 0)
+    return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0, totalLokasi: 0 };
+  const deret = await Promise.all(locationIds.map((id) => getScurveSeries(id)));
+  return { ...gabungKurvaS(deret), totalLokasi: locationIds.length };
 }

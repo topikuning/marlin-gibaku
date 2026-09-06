@@ -24,6 +24,15 @@ export const CAPABILITIES = [
   // Koreksi susunan lokasi paket BERKONTRAK (lokasi ketinggalan saat input) —
   // super_admin SAJA, bukan adendum. DECISIONS 187.
   "location.correct",
+  // Arsipkan riwayat PENCABUTAN lokasi (adendum yang mengeluarkan lokasi) dari
+  // pandangan umum — dan lihat yang sudah diarsipkan. super_admin SAJA
+  // (ketetapan user 2026-09-06: *"hanya bisa dilakukan super admin"*).
+  //
+  // Sengaja BUKAN `package.bypass`: itu dipegang Program Director juga, dan
+  // "hanya super admin" berarti hanya super admin. Kapabilitas ini menjaga dua
+  // sisi sekaligus — yang boleh menyembunyikan dan yang boleh melihat yang
+  // tersembunyi — karena keduanya wewenang yang sama.
+  "location_scope.archive",
   // Isi nama & unggah coretan tanda tangan PENANDA TANGAN LOKASI (pelaksana +
   // pengawas lokasi itu) — Site Manager ke atas. SENGAJA dipisah dari
   // `location.manage`, yang ikut membawa ganti nama lokasi & ubah koordinat
@@ -392,7 +401,9 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "contact.view_all" &&
         c !== "document.delete" &&
         c !== "gdrive.open_folder" &&
-        c !== "location.correct",
+        c !== "location.correct" &&
+        // Arsip pencabutan lokasi: super_admin SAJA (user 2026-09-06).
+        c !== "location_scope.archive",
     ),
   ),
   regional_manager: new Set<Capability>(AREA_MANAGER),

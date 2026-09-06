@@ -10,8 +10,14 @@ import { Laci } from "@/components/master/laci";
 import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
 import { KartuBaris, SelNama } from "@/components/master/sel-nama";
 import type { StatusKatalog } from "@/lib/master-location/queries";
-import { tambahLokasiMasterAction, type TambahLokasiState } from "@/lib/master-location/actions";
+import {
+  tambahLokasiMasterAction,
+  ubahLokasiMasterAction,
+  type TambahLokasiState,
+  type UbahLokasiState,
+} from "@/lib/master-location/actions";
 import { MasterImportForm } from "./import-form";
+import { FormUbahLokasi } from "./ubah-lokasi";
 
 /**
  * KATALOG LOKASI (Master Data) — dua jalur input yang tidak bercampur
@@ -38,11 +44,16 @@ export type BarisKatalog = {
   regency: string;
   district: string | null;
   village: string;
+  /** Nama kampung nelayan dari MASTER DATA; kosong = pakai nama desa. */
+  name: string | null;
   /** Decimal diserialisasi string dari server; halaman ini hanya menampilkan. */
   latitude: string | null;
   longitude: string | null;
+  /** Data lama saja – jalur input calon penyedia sudah dicabut (user 2026-09-06). */
   candidateVendor: string | null;
   status: StatusKatalog;
+  /** Lokasi proyek yang memakai baris katalog ini – dasar peringatan saat disunting. */
+  dipakaiOleh: { name: string; slug: string } | null;
 };
 
 const LABEL_STATUS: Record<StatusKatalog, string> = {
@@ -84,16 +95,16 @@ function koordinat(r: BarisKatalog): { singkat: string; persis: string } | null 
   };
 }
 
-export function KatalogLokasiManager({
-  rows,
-  vendors,
-}: {
-  rows: BarisKatalog[];
-  vendors: string[];
-}) {
+export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
   const [cari, setCari] = useState("");
   const [saring, setSaring] = useState<Saring>("");
   const [laci, setLaci] = useState<"tambah" | "impor" | null>(null);
+  /*
+   * Baris yang sedang disunting. Permintaan user 2026-09-06: *"di super admin
+   * halaman katalog lokasi, bisa edit langsung untuk koordinat, nama, dsb"* dan
+   * *"lokasinya diklik muncul edit itu sekalian perkiraan lokasi mapnya"*.
+   */
+  const [sunting, setSunting] = useState<BarisKatalog | null>(null);
 
   const hitung = useMemo(() => {
     const per = (s: StatusKatalog) => rows.filter((r) => r.status === s).length;
@@ -238,15 +249,15 @@ export function KatalogLokasiManager({
                     <th className="px-3 py-2">Kabupaten / Kota</th>
                     <th className="px-3 py-2">Kecamatan</th>
                     <th className="px-3 py-2">Koordinat</th>
-                    <th className="px-3 py-2">Calon penyedia</th>
                     <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {tampil.map((r) => (
                     <tr key={r.id} className="align-top hover:bg-surface-muted">
                       <td className="px-3 py-2">
-                        <SelNama nama={r.village} keterangan={r.province} />
+                        <SelNama nama={r.name || r.village} keterangan={r.province} />
                       </td>
                       <td className="px-3 py-2">{r.regency}</td>
                       <td className="px-3 py-2 text-ink-muted">{r.district || "–"}</td>
@@ -260,9 +271,13 @@ export function KatalogLokasiManager({
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-2 text-ink-muted">{r.candidateVendor || "–"}</td>
                       <td className="px-3 py-2">
                         <StatusPill tone={NADA_STATUS[r.status]} label={LABEL_STATUS[r.status]} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setSunting(r)}>
+                          Ubah
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -272,19 +287,20 @@ export function KatalogLokasiManager({
 
             <div className="space-y-2 p-2 sm:hidden">
               {tampil.map((r) => (
-                <KartuBaris key={r.id}>
-                  <SelNama
-                    nama={r.village}
-                    keterangan={wilayah(r)}
-                    lencana={
-                      <StatusPill tone={NADA_STATUS[r.status]} label={LABEL_STATUS[r.status]} />
-                    }
-                  />
-                  <p className="mt-1.5 text-[11px] text-ink-muted">
-                    {koordinat(r)?.singkat ?? "Koordinat belum diisi"}
-                    {r.candidateVendor ? ` · ${r.candidateVendor}` : ""}
-                  </p>
-                </KartuBaris>
+                <button key={r.id} type="button" onClick={() => setSunting(r)} className="block w-full text-left">
+                  <KartuBaris>
+                    <SelNama
+                      nama={r.name || r.village}
+                      keterangan={wilayah(r)}
+                      lencana={
+                        <StatusPill tone={NADA_STATUS[r.status]} label={LABEL_STATUS[r.status]} />
+                      }
+                    />
+                    <p className="mt-1.5 text-[11px] text-ink-muted">
+                      {koordinat(r)?.singkat ?? "Koordinat belum diisi"}
+                    </p>
+                  </KartuBaris>
+                </button>
               ))}
             </div>
           </>
@@ -297,7 +313,22 @@ export function KatalogLokasiManager({
         judul="Tambah Lokasi"
         keterangan="Satu lokasi baru. Tidak perlu membuat berkas Excel hanya untuk menambah satu desa."
       >
-        <FormTambahLokasi vendors={vendors} onSelesai={() => setLaci(null)} />
+        <FormTambahLokasi onSelesai={() => setLaci(null)} />
+      </Laci>
+
+      <Laci
+        buka={sunting != null}
+        onTutup={() => setSunting(null)}
+        judul={sunting ? `Ubah ${sunting.name || sunting.village}` : "Ubah lokasi"}
+        keterangan="Perbaiki nama, wilayah, dan koordinatnya. Petanya bisa diklik – titiknya ikut pindah."
+      >
+        {sunting ? (
+          <FormUbahLokasi
+            baris={sunting}
+            aksi={ubahLokasiMasterAction}
+            onSelesai={() => setSunting(null)}
+          />
+        ) : null}
       </Laci>
 
       <Laci
@@ -314,13 +345,7 @@ export function KatalogLokasiManager({
 
 /* ------------------------------------------------------------------ */
 
-function FormTambahLokasi({
-  vendors,
-  onSelesai,
-}: {
-  vendors: string[];
-  onSelesai: () => void;
-}) {
+function FormTambahLokasi({ onSelesai }: { onSelesai: () => void }) {
   const [state, formAction, pending] = useAksi<TambahLokasiState>(
     tambahLokasiMasterAction,
     undefined,
@@ -427,26 +452,6 @@ function FormTambahLokasi({
           <strong className="font-semibold text-ink">Perlu verifikasi</strong> sampai koordinatnya
           diisi. Isi keduanya atau kosongkan keduanya.
         </p>
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className="text-[12px] font-semibold text-ink">Relasi operasional</legend>
-        <div>
-          <Label htmlFor="tl-vendor">Calon penyedia</Label>
-          <Combobox
-            id="tl-vendor"
-            name="candidateVendor"
-            defaultValue={isian.candidateVendor ?? ""}
-            placeholder="Belum ditentukan"
-          >
-            <option value="">Belum ditentukan</option>
-            {vendors.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </Combobox>
-        </div>
       </fieldset>
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">

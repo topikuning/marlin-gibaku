@@ -27434,3 +27434,351 @@ mana pun**, di dokumen yang dipakai mengajukan perubahan nilai kontrak.
 punya baris rekonsiliasi sendiri). Dijaga
 `tests/unit/cco-harga-beda-sisi.test.ts` memakai angka Pasar Banggi apa adanya;
 sembilan klausanya dibuktikan merah lebih dulu.
+
+---
+## 526 · 2026-09-05 · Halaman paket: kurva-S gabungan + adendum berjalan yang terlihat
+
+**Konteks**: user memeriksa halaman paket dan menemukan dua lubang:
+
+1. *"saat terjadi draft adendum, sama sekali tidak ada informasi atau apa pun
+   yang bisa membantu menjelaskan"* — draft adendum hidup di halaman RAB
+   masing-masing LOKASI, sementara yang memutuskan dan yang menandatangani CCO
+   bekerja dari halaman paket. Di layar paket usulan yang menunggu persetujuan
+   tidak kelihatan sama sekali: nilai kontrak berjalan tetap angka lama, tanpa
+   satu pun tanda ada yang sedang diajukan.
+2. *"tidak ada informasi kurva S sama sekali yang bisa menjelaskan progress
+   keseluruhan lokasi"* — yang ada cuma satu persen agregat. Angka tunggal
+   tidak bisa menjawab "telat atau tidak"; yang menjawab adalah rencananya di
+   sebelahnya.
+
+**Keputusan**:
+
+- **Kurva-S PAKET** = gabungan kurva lokasi, ditimbang nilai RAB aktif.
+  Formulanya di calculation layer (`progress-calc.gabungKurvaS`), datanya lewat
+  `baseline.getScurveSeriesPaket` yang memakai `getScurveSeries` yang SAMA
+  dengan layar lokasi — dua deret berbeda untuk pekerjaan yang sama adalah
+  cacat, bukan sudut pandang. Tiga aturan yang menentukan boleh-tidaknya
+  dipercaya:
+  - lokasi tanpa baseline atau tanpa nilai RAB **tidak dipaksa masuk** (bobotnya
+    tidak diketahui, rencananya tidak ada; memasukkannya sebagai nol berarti
+    menuduhnya tertinggal 100%). Jumlah yang tidak ikut **disebut di layar**,
+    supaya "kurva paket" tidak terbaca "seluruh paket";
+  - grid minggu = minggu terpanjang; lokasi berjadwal lebih pendek rencananya
+    diteruskan 100% sesudah minggu terakhirnya — itu yang dikatakan jadwalnya;
+  - realisasi diteruskan mendatar sesudah minggu terakhir lokasi (realisasi
+    kumulatif tidak pernah turun), dan minggu yang belum punya angka di lokasi
+    mana pun tetap kosong — garisnya berhenti, tidak dijatuhkan ke nol.
+- **Panel "adendum berjalan"** di halaman paket: tiap draft adendum disebut
+  lokasinya, nilai RAB yang berlaku, nilai draft, selisihnya, nomor CCO bila
+  sudah ditautkan, dan status empat mata (DECISIONS 234) — termasuk berapa
+  persetujuan yang GUGUR karena draftnya diubah lagi sesudah disetujui. Di
+  atasnya: dampak rupiah gabungan dan nilai kontrak seandainya semua diaktifkan.
+  Tidak ada angka baru yang lahir di sini: nilainya `RabRevision.totalValue`
+  apa adanya, statusnya dinilai aturan yang sama dengan tombol aktivasi.
+
+**Alternatif direject**:
+- *Menampilkan nilai kontrak "termasuk draft" di KPI atas.* Draft belum sah;
+  menaruhnya di kartu nilai kontrak membuat angka resmi berubah tanpa satu pun
+  tanda tangan. Dampaknya disebut terpisah, sebagai "bila aktif".
+- *Memasukkan lokasi tanpa baseline sebagai 0% supaya kurvanya "lengkap".*
+  Menukar lubang yang kelihatan dengan tuduhan yang tidak kelihatan.
+- *Menghitung ulang deret kurva di halaman paket.* Itu melahirkan calculation
+  layer kedua — persis yang dilarang DECISIONS 151/152.
+
+**Konsekuensi**: halaman paket punya satu kurva lagi yang harus tetap sama
+dasarnya dengan layar lokasi; keduanya sekarang berbagi `getScurveSeries`.
+Dijaga `tests/unit/kurva-paket.test.ts` (bobot, jadwal pendek, realisasi tidak
+turun, lokasi yang tidak layak) dan
+`tests/integration/paket-adendum-berjalan.test.ts` (selisih, empat mata,
+penggugurannya).
+
+**Belum termasuk**: adendum yang MENAMBAH atau MENGURANGI lokasi — kebutuhan
+yang disebut user pada hari yang sama. Itu menyentuh model data (status lokasi
+akibat adendum, nilai kontrak, progres, kurva-S, laporan KKP) dan menunggu
+keputusan user sebelum ditulis.
+
+
+---
+## 527 · 2026-09-05 · Adendum boleh MENAMBAH dan MENCABUT lokasi — ditandai, bukan dihapus
+
+**Konteks**: user menyebut kebutuhan yang belum ada sama sekali di sistem:
+*"ada kebutuhan dimana, adendum mengurangi lokasi atau bahkan menambah lokasi.
+saat ini di kamu belum ada."* Tiga keputusan diambil user pada hari yang sama,
+dan ketiganya menentukan angka — bukan sekadar tampilan.
+
+**Keputusan**:
+
+1. **Lokasi yang dicabut DITANDAI, bukan dihapus** ("ditandai dicabut per CCO,
+   angka lampau tetap"). Laporan, foto, dan realisasinya utuh dan halamannya
+   tetap bisa dibuka; yang berhenti hanyalah keikutsertaannya dalam angka paket
+   — progres agregat, kurva-S paket, dan Σ RAB pada rekonsiliasi — SEJAK tanggal
+   berlaku CCO. Pencabutan yang berlaku di masa depan belum mengeluarkan apa
+   pun hari ini.
+2. **Lokasi yang masuk lewat adendum mulai dari tanggal berlaku adendum.**
+   Baselinenya dihitung dulu di grid penuh (supaya urutan tahap & bobot kategori
+   memakai mesin yang sama), lalu digeser ke jendela minggu sisa: minggu sebelum
+   tanggal berlaku 0%, dan kurvanya tetap tuntas 100% di akhir kontrak.
+   Menyamakannya dengan lokasi lain membuatnya terlihat telat sejak minggu-1
+   padahal saat itu belum ada dalam kontrak — deviasi yang menuduh tanpa dasar.
+3. **Empat mata + wajib bernomor CCO**, sama seperti aktivasi adendum RAB
+   (DECISIONS 234): Program Director + satu peran penugasan. Mengubah lingkup
+   kontrak menggeser nilai kontrak, progres, kurva-S, dan laporan KKP sekaligus.
+
+**Bentuk datanya**: `LocationScopeChange` (+ `LocationScopeApproval`).
+Keikutsertaan lokasi DITURUNKAN dari tabel ini (`lingkupLokasi`), tidak pernah
+disalin jadi kolom di `locations` — dua sumber kebenaran untuk hal yang sama
+adalah kelas cacat yang paling mahal di repo ini. Persetujuan yang diberikan
+sebelum usulan diubah GUGUR, mekanisme yang sama dengan 234.
+
+**Alternatif direject**:
+- *Menghapus lokasinya dari paket.* Laporan dan foto yang sudah dikirim orang
+  lapangan ikut hilang dari jangkauan, dan angka paket yang pernah dicetak jadi
+  tidak bisa direkonstruksi.
+- *Menandai lewat `LocationStatus` (mis. `batal`).* Status lokasi menyatakan
+  KEADAAN PEKERJAAN, bukan keanggotaan kontrak; menumpuknya di sana membuat
+  "batal" berarti dua hal berbeda dan tidak menyimpan nomor CCO maupun tanggal
+  berlakunya.
+- *Cukup pemegang `contract.manage` seorang diri.* Ditolak user; lingkup kontrak
+  bukan kelas keputusan satu orang.
+
+**Konsekuensi**: seluruh agregat halaman paket kini menyaring lokasi yang
+dicabut, dan jumlahnya disebut di kartu "Jumlah lokasi" supaya selisih angka
+tidak perlu ditebak. Dijaga `tests/integration/lingkup-lokasi-adendum.test.ts`
+(gerbang paket-silang, alasan wajib, empat mata, tanggal berlaku, dan kurva
+lokasi baru yang mulai di minggu berlakunya).
+
+---
+
+## 528 · 2026-09-06 · Katalog lokasi dari MASTER DATA KNMP: aktif saja, tanpa data perusahaan, bisa disunting di tempat + peta
+
+**Konteks**: katalog lokasi diisi dari berkas KKP `Data_Lokasi_KNMP_Bersih`, dan
+impornya selama ini cuma membaca TIGA kolom (provinsi, kabupaten, desa) plus
+"calon penyedia". Akibatnya empat hal yang semuanya merugikan:
+
+1. Berkas aslinya punya lima sheet, dan sheet pertama BUKAN daftar lokasi
+   (DASHBOARD). Parser lama mengambil sheet pertama — salah sheet = salah data.
+2. Berkas memuat 1.271 baris, 55 di antaranya cadangan/drop/batal/ditolak.
+   Semuanya masuk katalog seolah setara dengan yang aktif.
+3. Kolom perusahaan (nama, kontak, calon penyedia) ikut terbaca dan bahkan
+   MEMBUAT Vendor. Katalog lokasi jadi berisi nama perusahaan yang tidak pernah
+   berkontrak, dan master vendor jadi penuh nama hantu.
+4. Koordinat, jumlah nelayan, kapal, nilai EE — data yang justru dipakai untuk
+   memutuskan — tidak ikut sama sekali, dan tidak ada satu pun jalan memperbaiki
+   koordinat yang salah dari layar. Impornya juga tidak punya TEMPLAT: satu-satunya
+   cara mengetahui kolom yang dibaca adalah menebak atau membaca kodenya.
+
+Permintaan user 2026-09-06: *"lengkapi data lokasi sekalian, sesuaikan kebutuhan
+marlin ambil data dari sheet master data. ambil hanya yang aktif saja. tidak
+perlu ambil data perusahaan. di super admin halaman katalog lokasi, bisa edit
+langsung untuk koordinat, nama, dsb. kalau sudah dipakai kasih warning saja.
+untuk data lokasi baru tidak perlu informasi calon penyedianya. atau kalau
+ternyata sudah ada impor excelnya, templatenya mana, kok gak ada. lalu saat
+katalog lokasi, lokasinya diklik muncul edit itu sekalian perkiraan lokasi
+mapnya."*
+
+**Keputusan**:
+
+- **Sheet dipilih, bukan diambil yang pertama.** `pilihSheet` menilai tiap sheet
+  dari header-nya: yang punya kolom desa/kabupaten menang, nama "MASTER DATA"
+  menambah nilai, "REKAP PERUSAHAAN"/"DASHBOARD" dikurangi. Sheet yang akhirnya
+  dibaca DISEBUT di pratinjau — kalau sistem salah pilih, orangnya bisa lihat
+  sebelum menyimpan.
+- **Hanya `SL-AKT` yang masuk.** Kode status lain (cadangan, drop sosek, batal,
+  ditolak) dilewati dan **jumlahnya disebut** di pratinjau maupun di pesan hasil
+  impor — 55 baris yang hilang diam-diam tidak boleh terbaca sebagai "memang
+  cuma segitu". Berkas TANPA kolom status tidak disaring sama sekali (impor lama
+  tiga kolom tetap jalan), dan itu pun dikatakan lewat peringatan.
+- **Kolom perusahaan tidak dibaca sama sekali**, dan impor tidak lagi membuat
+  Vendor. Kolom `MasterLocation.candidateVendor` ditinggal (data lama tidak
+  dihapus) tapi tidak ada lagi jalur input yang menulisnya; formulir tambah
+  lokasi juga kehilangan isian calon penyedia.
+- **Bidang KNMP ikut masuk**: `sourceCode` (ID Lokasi KNMP-nnn — jangkar
+  penelusuran balik ke daftar KKP), nama kampung nelayan, wilayah, klaster,
+  hasil pleno, status + alasannya, status koordinat, tahap, luas lahan, jumlah
+  nelayan, kapal (tanpa mesin / bermesin / total), nilai EE. Semuanya opsional:
+  katalog tetap sah dengan wilayah + desa saja.
+- **Impor ulang tidak menimpa koordinat dengan kosong.** Kosong di berkas
+  berarti "tidak tahu", bukan "kosongkan" — berkas sumber tidak selalu lengkap,
+  dan menimpanya akan menghapus koordinat yang sudah dilengkapi orang di layar.
+- **Templat Excel disediakan** di `/master/lokasi/template`, dibangun dari
+  `HEADER_TEMPLAT` yang SAMA dengan yang dibaca parser, plus sheet PETUNJUK.
+  Kesamaannya dijaga uji: templat yang meleset dari pembacanya lebih buruk
+  daripada tidak ada templat.
+- **Baris katalog bisa disunting di tempat** (`ubahLokasiMasterAction`,
+  `package.bypass` + audit dari/ke). Lokasi yang SUDAH dipakai proyek tetap
+  boleh disunting — koordinat salah tidak berhenti salah karena lokasinya sudah
+  berjalan; yang muncul PERINGATAN, bukan gembok, dan peringatannya menyebut apa
+  yang tidak ikut berubah: lokasi proyeknya sendiri, yang punya layar dan
+  wewenangnya sendiri. Kunci alami yang menabrak baris lain ditolak dengan
+  kalimat yang bisa dibaca, bukan galat unique constraint mentah.
+- **Peta satu titik di dalam form sunting**, dua arah: klik peta atau seret
+  penandanya → kotak lintang/bujur ikut terisi. Mengetik enam desimal dari
+  ingatan adalah cara termudah menaruh kampung nelayan di tengah sawah;
+  menggeser penanda memperlihatkan salahnya seketika. Leaflet langsung (BSD-2),
+  tanpa react-leaflet — sama seperti `peta-map` yang sudah ada.
+
+**Alternatif direject**:
+- *Mengunci baris katalog yang sudah dipakai proyek.* Justru baris itulah yang
+  paling perlu dibetulkan, dan menguncinya memaksa orang memperbaiki lewat SQL.
+- *Ikut mengubah lokasi proyek saat katalognya disunting.* Satu formulir yang
+  diam-diam mengubah nama lokasi berjalan, koordinat cap foto, dan judul laporan
+  adalah kerusakan, bukan kemudahan.
+- *Menghapus kolom `candidateVendor` dari skema.* Data lama akan hilang tanpa
+  bisa ditelusuri; cukup hentikan jalur penulisannya.
+- *Menyaring keaktifan berdasar teks label saja.* Label di berkas beragam
+  ("Aktif", "Lokasi Batal", "Tidak Ada Lahan"); kode `SL-*` yang menentukan,
+  label hanya jadi cadangan bila kode kosong.
+
+**Konsekuensi**: berkas user 2026-09-06 terbaca sebagai **1.216 lokasi aktif, 55
+tidak aktif dilewati, 1.216 berkoordinat, 37 provinsi**, tanpa satu pun data
+perusahaan. Dijaga `tests/unit/master-lokasi-knmp.test.ts` (7 klausa, semuanya
+dibuktikan merah lebih dulu terhadap parser lama) dan
+`tests/integration/master-lokasi-katalog.test.ts` (7 klausa; dua pagar paling
+mudah bocor — koordinat tidak ditimpa kosong, dan tabrakan kunci alami ditolak
+terbaca — dibuktikan merah dengan melumpuhkan kodenya). Migrasi
+`20260906020000_master_lokasi_knmp` idempoten (DECISIONS 167).
+
+---
+## 529 · 2026-09-06 · Arsip pencabutan lokasi (super admin), menu lingkup pindah ke tab Lokasi, pencarian penugasan melebar
+
+**Konteks**: tiga permintaan user pada hari yang sama, ketiganya lanjutan
+langsung dari fitur "adendum menambah/mencabut lokasi":
+
+1. *"perubahan lokasi sepertinya keputusanku salah, tapi ada baiknya itu
+   dipertahankan seperti sekarang. tapi, ada fitur yang langsung mengarsipkan
+   semua lokasi yang dikeluarkan tapi hanya bisa dilakukan super admin, jadi di
+   kontrak tidak ada bekas history yang bisa dilihat umum tapi hanya oleh super
+   admin."*
+2. *"peletakan menunya juga tidak perlu ada di ringkasan, di tab lokasi saja.
+   supaya ringkasan tidak banyak pilihan aksi!"*
+3. *"mapping lokasi untuk pengguna, searchnya juga harusnya bisa kabupaten atau
+   perusahaan, jangan saklek nama desa/lokasi. lalu kalau bisa ada centang
+   semua."*
+
+**Keputusan**:
+
+- **Pengarsipan adalah soal PANDANGAN, bukan soal angka.** `archivedAt` +
+  `archivedById` di `location_scope_changes`; barisnya tidak dihapus, status
+  `aktif` dan `effectiveDate`-nya tidak disentuh. Lokasi yang dicabut memang
+  sudah keluar dari agregat sejak tanggal berlaku CCO-nya, jadi mengarsipkan
+  TIDAK menggeser nilai kontrak, progres, kurva-S, maupun laporan — itu yang
+  diuji lebih dulu, sebelum tampilannya. Kalau suatu saat pengarsipan mulai
+  menggerakkan angka, ia sudah berubah jadi penghapusan diam-diam.
+- **Kapabilitas baru `location_scope.archive`, super_admin SAJA.** Sengaja
+  BUKAN `package.bypass`: itu juga dipegang Program Director, sementara
+  ketetapannya berbunyi "hanya bisa dilakukan super admin". Kapabilitas yang
+  sama menjaga dua sisi — yang boleh menyembunyikan dan yang boleh melihat yang
+  tersembunyi — karena keduanya wewenang yang sama.
+- **Sembunyinya sampai ke pintu terakhir.** Selain daftar riwayat, lokasi
+  terarsip hilang dari daftar lokasi paket (ringkasan + tab Lokasi), dari
+  pemilih lokasi di header, dan halaman `/lokasi/[slug]`-nya 404 bagi yang
+  bukan super admin. Menyembunyikan dari daftar tapi membiarkan halamannya
+  terbuka bagi siapa pun yang tahu slug-nya bukan pengarsipan, melainkan
+  penyamaran. Jumlah yang disembunyikan pun tidak disebut — menyebutkannya akan
+  mengumumkan hal yang justru sedang diarsipkan.
+- **Ada jalan pulang.** `bukaArsipLokasiDicabut` (super admin juga)
+  mengembalikan riwayat ke pandangan umum. Pengarsipan tanpa pembatalan adalah
+  perangkap: satu klik di paket yang salah akan menghilangkan riwayat dari layar
+  semua orang, dan satu-satunya pemulihannya lewat SQL ke produksi.
+- **Usulan DRAFT tidak ikut diarsipkan** — yang belum disetujui bukan "lokasi
+  yang dikeluarkan"; dan **lokasi yang masuk lagi lewat CCO berikutnya tidak
+  ikut tersembunyi**, karena ia kembali jadi bagian kontrak yang berjalan.
+- **Panel lingkup lokasi pindah ke tab Lokasi.** Ringkasan tetap MEMBACA
+  akibatnya (kartu "Jumlah lokasi" menyebut berapa yang dicabut), tapi tidak
+  lagi memuat tombol aksinya. Dijaga `tests/unit/lingkup-di-tab-lokasi.test.ts`
+  supaya panel itu tidak diam-diam kembali saat halaman ringkasan disusun ulang.
+- **Pencarian penugasan lokasi melebar** ke wilayah (desa/kecamatan/kabupaten/
+  provinsi), perusahaan, dan nama paket; aturannya dipisah ke
+  `lib/master/cari-lokasi.ts` supaya bisa diuji apa adanya — ia menentukan siapa
+  mendapat akses ke lokasi mana. Banyak kata MENYEMPITKAN hasil (semua kata
+  harus cocok), dan itu bukan selera: **tombol "centang semua" bekerja tepat
+  pada hasil saringan**, jadi saringan yang melebar saat orang mengetik lebih
+  banyak akan mencentang lokasi yang tidak dia maksud.
+- **Centang semua mengikuti hasil saringan, dengan jumlahnya tertulis di
+  tombol** ("Centang 12 hasil cari"), dan tidak pernah menyentuh yang sedang
+  tidak terlihat. Centang jadi state React (bukan `defaultChecked`) supaya
+  tombol itu bisa menggerakkannya tanpa menyentuh DOM.
+
+**Alternatif direject**:
+- *Menghapus baris `LocationScopeChange` yang diarsipkan.* Itu menghapus alasan,
+  nomor CCO, dan tanggal berlaku sebuah perubahan kontrak — persis bukti yang
+  dicari saat angka dipertanyakan.
+- *Memakai `package.bypass` sebagai gerbangnya.* Lebih cepat, tapi memberi
+  wewenang ini ke Program Director juga — bertentangan dengan kalimat user.
+- *Menyembunyikan lokasi terarsip lewat kolom di `locations`.* Melanggar
+  ketetapan 2026-09-05: keikutsertaan lokasi DITURUNKAN dari tabel perubahan,
+  tidak pernah disalin jadi kolom.
+- *Menyebut "N lokasi disembunyikan" seperti pada lokasi di luar penugasan.*
+  Untuk kasus lain itu benar (jangan sampai "tidak muncul" terbaca "tidak
+  ada"), tapi di sini justru membocorkan yang sedang diarsipkan.
+- *Centang semua atas SELURUH daftar, bukan hasil saringan.* Pada 1.216 lokasi
+  itu bukan kemudahan melainkan kecelakaan.
+
+**Konsekuensi**: `location_scope.archive` masuk matriks izin (regenerasi
+`docs/rebuild/PERMISSION_MATRIX.md`). Dijaga
+`tests/integration/arsip-lingkup-lokasi.test.ts` (11 klausa; gerbang izin dan
+penyembunyian riwayat dibuktikan merah dengan melumpuhkan kodenya),
+`tests/unit/lingkup-di-tab-lokasi.test.ts`, dan
+`tests/unit/cari-lokasi-penugasan.test.ts`. Migrasi
+`20260906120000_arsip_lingkup_lokasi` idempoten (DECISIONS 167).
+
+---
+
+## 530 · 2026-09-06 · Katalog lokasi dirampingkan: hanya kolom yang dipakai MARLIN
+
+**Konteks**: keputusan sebelumnya (katalog lokasi dari MASTER DATA KNMP) ikut
+menyimpan belasan kolom dari berkas KKP: ID lokasi, wilayah, klaster, hasil
+pleno, status + alasannya, keterangan koordinat, tahap, luas lahan, jumlah
+nelayan, kapal (tanpa mesin / bermesin / total), dan nilai EE. Kolom itu bahkan
+ditampilkan sebagai blok "Dari berkas sumber" di layar sunting katalog.
+
+Teguran user 2026-09-06 begitu melihatnya: *"siapa yang memintamu menambahkan
+informasi ini? aku sudah bilang sesuaikan dengan kebutuhan yang ada di marlin
+saja!"*
+
+Dan itu benar. Tidak ada satu pun layar, laporan, PDF, atau perhitungan MARLIN
+yang membaca kolom-kolom itu. Yang lahir dari sana bukan kekayaan data,
+melainkan **salinan kedua** dari daftar KKP: ia tidak ikut berubah saat berkas
+aslinya diperbarui, tidak punya pemilik yang merawatnya, dan pada akhirnya akan
+dibaca orang sebagai fakta padahal sudah basi. Data yang tidak dipakai adalah
+beban, bukan cadangan.
+
+**Keputusan**:
+
+- **Katalog menyimpan tepat tiga kelompok**: wilayah (provinsi, kabupaten,
+  kecamatan, desa), nama kampung nelayan, dan koordinat. Selebihnya dibuang.
+- **Kolom status lokasi tetap DIBACA saat impor** — ia yang menyaring
+  `SL-AKT` — **tapi tidak disimpan**. Penyaringan terjadi sekali, saat berkas
+  masuk; menyimpan hasilnya berarti menyimpan keadaan yang bisa berubah di
+  sumbernya tanpa MARLIN pernah tahu.
+- **Berkas migrasi yang sudah dijalankan TIDAK diubah.** `20260906020000`
+  dibiarkan apa adanya dan kolomnya dibuang lewat migrasi baru
+  `20260906140000_katalog_lokasi_ramping`. Menulis ulang migrasi yang sudah
+  diterapkan membuat checksum `migrate deploy` tidak cocok di basis data yang
+  sudah menjalankannya — kegagalan deploy yang penyebabnya tidak terlihat di
+  layar mana pun.
+- **Templat impor ikut menyusut**: dari 22 kolom jadi 9 — sependek yang
+  benar-benar dibaca. Templat yang meminta kolom tak terpakai memaksa orang
+  menyiapkan data yang tidak akan pernah dibaca, lalu menyalahkan dirinya
+  sendiri saat data itu tidak muncul di mana pun.
+- **Ujinya dibalik arahnya**: dulu memastikan kolom-kolom itu TERBACA, sekarang
+  memastikan kolom itu **tidak ikut tersimpan**. Pagar yang menghadap ke arah
+  yang benar.
+
+**Alternatif direject**:
+- *Menyimpannya "selagi ada, siapa tahu berguna".* Itu justru jalan yang
+  ditempuh dan ditegur. Kalau nanti MARLIN memang membutuhkan salah satunya,
+  kolomnya ditambahkan saat itu — bersama layar yang memakainya.
+- *Menyembunyikan bloknya di layar tapi tetap menyimpan datanya.* Menyelesaikan
+  keluhan yang terlihat, membiarkan sebabnya: basis data tetap memelihara
+  salinan yang tidak dirawat siapa pun.
+- *Menulis ulang migrasi 20260906020000.* Lebih rapi dibaca, tapi menukar
+  kerapian riwayat dengan deploy yang gagal di basis data yang sudah
+  menerapkannya.
+
+**Konsekuensi**: `master_locations` kembali ramping (`name` + `updated_at` saja
+yang bertambah dari sebelum 2026-09-06). Impor berkas KNMP tetap membaca 1.216
+lokasi aktif dan melewati 55 yang tidak aktif — yang berubah hanya apa yang
+disimpan. Dijaga `tests/unit/master-lokasi-knmp.test.ts` (klausa "kolom KNMP
+lain TIDAK ikut" + templat 9 kolom) dan
+`tests/integration/master-lokasi-katalog.test.ts`.
