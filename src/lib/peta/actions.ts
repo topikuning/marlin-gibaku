@@ -30,7 +30,7 @@ const SUMBER_BAWAAN =
  */
 export async function unduhPetaDasarAction(
   _prev: PetaActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<PetaActionState> {
   let aktor: { id: string } | null = null;
   try {
@@ -42,11 +42,26 @@ export async function unduhPetaDasarAction(
 
   if (unduhanBerjalan()) return { error: "Unduhan peta dasar sedang berjalan – tunggu sampai selesai." };
 
-  const sumber = env.PETA_SUMBER_URL?.trim() || SUMBER_BAWAAN;
+  /*
+   * SUMBERNYA BISA DIISI DI LAYAR — teguran user 2026-09-06: *"kalau itu harus
+   * ada di main, bagaimana aku bisa test dulu!"*
+   *
+   * Rancangan pertama mematok sumbernya ke rilis GitHub yang hanya bisa
+   * dibangun dari branch default. Artinya tidak ada satu pun cara mencoba peta
+   * di dev sebelum merilis ke produksi — urutan yang terbalik: yang belum
+   * teruji justru harus mendarat lebih dulu di tempat yang paling tidak boleh
+   * rusak. Sekarang alamatnya boleh diketik: cermin internal, berkas sementara,
+   * apa pun yang bisa diambil server ini.
+   */
+  const diketik = String(formData.get("sumber") ?? "").trim();
+  if (diketik && !/^https:\/\//i.test(diketik))
+    return { error: "Alamat sumber harus https:// – berkas peta tidak diambil lewat sambungan terbuka." };
+  const sumber = diketik || env.PETA_SUMBER_URL?.trim() || SUMBER_BAWAAN;
   try {
     const { ukuran } = await unduhBasemap(sumber);
     await audit(aktor.id, "peta.basemap_unduh", "system", null, {
       sumber,
+      diketikDiLayar: Boolean(diketik),
       ukuran,
       dir: DIR_PETA,
     });
@@ -59,7 +74,7 @@ export async function unduhPetaDasarAction(
     // Sebabnya disebut apa adanya: unduhan yang gagal tanpa alasan memaksa
     // orang menebak antara salah URL, volume penuh, dan jaringan.
     return {
-      error: `Gagal mengunduh peta dasar dari ${sumber}: ${e instanceof Error ? e.message : String(e)}`,
+      error: `Gagal mengunduh peta dasar – ${e instanceof Error ? e.message : String(e)} (sumber: ${sumber})`,
     };
   }
 }

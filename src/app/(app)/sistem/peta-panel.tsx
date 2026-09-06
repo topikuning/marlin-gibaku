@@ -1,6 +1,6 @@
 "use client";
 
-import { Banner, Button } from "@/components/ui";
+import { Banner, Button, Input, Label } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
 import { unduhPetaDasarAction, type PetaActionState } from "@/lib/peta/actions";
 
@@ -19,13 +19,42 @@ import { unduhPetaDasarAction, type PetaActionState } from "@/lib/peta/actions";
  * dimaksud. Menekan tombol ini di dev mengisi volume dev; menekannya di
  * produksi mengisi volume produksi. Tidak ada kunci yang perlu disamakan.
  */
-export function PetaPanel({ sudahAda, sedangUnduh }: { sudahAda: boolean; sedangUnduh: boolean }) {
+export function PetaPanel({
+  sudahAda,
+  sedangUnduh,
+  sumberBawaan,
+}: {
+  sudahAda: boolean;
+  sedangUnduh: boolean;
+  /** Alamat yang dipakai bila kotak di bawah dikosongkan. */
+  sumberBawaan: string;
+}) {
   const [state, aksi, pending] = useAksi<PetaActionState>(unduhPetaDasarAction, undefined);
 
   return (
     <form action={aksi} className="mt-3 space-y-2 border-t border-border pt-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {/*
+        Alamat sumber bisa diketik supaya lingkungan ini tidak perlu menunggu
+        apa pun mendarat di branch default lebih dulu (teguran user
+        2026-09-06). Dikosongkan = pakai bawaan.
+      */}
+      <div>
+        <Label htmlFor="peta-sumber">Alamat berkas .pmtiles (opsional)</Label>
+        <Input
+          id="peta-sumber"
+          name="sumber"
+          type="url"
+          inputMode="url"
+          placeholder={sumberBawaan}
+          className="font-mono text-[12px]"
+        />
+        <p className="mt-1 text-[11px] text-ink-muted">
+          Kosongkan untuk memakai bawaan. Boleh diisi cermin internal atau berkas hasil unduhan
+          sendiri – yang penting bisa diambil server ini lewat https.
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={sedangUnduh}>
           {sudahAda ? "Perbarui peta dasar" : "Unduh peta dasar"}

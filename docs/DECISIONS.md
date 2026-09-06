@@ -27863,3 +27863,103 @@ kembali ke ubin OSM, dan ganti mode yang MEMBUANG lapisan alih-alih
 menyembunyikannya — dibuktikan merah dengan melumpuhkan kodenya). Sebelum
 workflow peta dasar pertama kali dijalankan, R2 belum berisi berkasnya dan peta
 berjalan dengan satelit saja sambil mengatakannya.
+
+---
+
+## (baru) · Peta dasar tinggal di VOLUME, sumbernya bisa diketik, dan isinya diperiksa sebelum dipakai (2026-09-06)
+
+**Konteks**: tiga teguran user berturut-turut pada hari yang sama, masing-masing
+menunjuk lubang yang berbeda di rancangan awal peta (DECISIONS 531):
+
+1. *"R2 antara dev dan production berbeda, lalu apa yang kamu harapkan. kenapa
+   tidak kamu simpan langsung saja di lokal, production punya volume
+   dedicated"*
+2. *"kegoblokan macam apa yang kamu buat, kalau itu harus ada di main,
+   bagaimana aku bisa test dulu!"*
+3. *"berhasil didownload, tapi malah jadi abu2. apa masalahmu sebenarnya! lalu
+   ini terlalu memanjang ke bawah mapnya"*
+
+**Keputusan**:
+
+- **Berkas `.pmtiles` disimpan di VOLUME lingkungan masing-masing**, bukan di
+  R2. Peta dasar bukan dokumen: ia tidak dimiliki organisasi mana pun, tidak
+  perlu dicadangkan, dan sama untuk semua orang. Menaruhnya di penyimpanan
+  objek berarti membayar tanda tangan URL dan kunci akses untuk berkas statis —
+  dan, karena bucket dev dan produksi berbeda, memastikan salah satu lingkungan
+  tidak kebagian. Direktorinya mengikuti bukti, bukan tebakan: `PETA_DIR` →
+  bersebelahan dengan `LAMPIRAN_DIR` → `/data/peta` bila `/data` ada → `.data/`
+  lokal. Nilai bawaan lama (`/app/.data/peta`) jatuh DI LUAR titik pasang volume
+  Railway — pengulangan persis kegagalan lampiran 2026-09-03.
+- **Penyiapannya jadi TOMBOL di `/sistem`, bukan langkah CI.** Yang tahu volume
+  mana yang perlu diisi adalah aplikasi yang sedang berjalan di atasnya. Ditekan
+  di dev mengisi volume dev, di produksi mengisi volume produksi; tidak ada satu
+  pun kunci yang harus disamakan antar-lingkungan.
+- **Alamat sumbernya boleh diketik di layar.** Mematoknya ke rilis GitHub yang
+  hanya bisa dibangun dari branch default berarti tidak ada cara mencoba peta
+  sebelum merilis ke produksi — urutan terbalik: yang belum teruji justru harus
+  mendarat lebih dulu di tempat yang paling tidak boleh rusak. Wajib `https://`.
+- **Isi berkasnya diperiksa, bukan cuma ukurannya.** "Berhasil diunduh" dulu
+  berarti "servernya menjawab 200 dan berkasnya tidak nol byte", dan itu terlalu
+  longgar: halaman HTML "Not Found" yang cantik, halaman masuk, arsip raster,
+  dan arsip berskema OpenMapTiles semuanya punya ukuran — lalu menghasilkan peta
+  ABU-ABU tanpa satu pun pesan. Sekarang 127 byte kepala PMTiles + metadata-nya
+  dibaca, dan empat sebab peta abu-abu disebut dengan nama: bukan PMTiles (isi
+  awalnya dikutip), ubinnya bukan vektor, batas wilayahnya tidak sah, atau
+  skema lapisannya tidak beririsan dengan yang diminta gaya. Yang tidak lolos
+  DIBUANG saat unduh dan tidak pernah menyandang "Terpasang"; yang telanjur
+  duduk di volume diperlakukan sebagai tidak ada, jadi peta jatuh ke citra
+  satelit sambil mengatakan sebabnya di `/sistem`.
+- **Kegagalan MapLibre ditampilkan di atas petanya**, bukan hanya di console.
+  Diam-diam abu-abu adalah cara terburuk menyampaikan kegagalan: yang melihatnya
+  menyangka lokasinyalah yang tidak ada.
+- **Tinggi peta di dasbor dipatok** (`items-start` + `h-[340px] sm:h-[400px]`).
+  Kartu status submit di sebelahnya tumbuh mengikuti jumlah lokasi (83 sekarang,
+  arsitektur menargetkan 200+); selama baris grid meregangkan keduanya, peta
+  ikut molor melewati layar. Peta di dasbor adalah RINGKASAN sebaran — yang mau
+  menelusurinya membuka `/peta` yang memang satu layar penuh.
+
+**Alternatif direject**:
+- *Mengunduh peta dasar otomatis saat boot.* Ratusan MB di setiap boot
+  memperlambat tiap deploy dan mengulang pekerjaan yang hasilnya sudah duduk di
+  volume.
+- *Membiarkan berkas yang meragukan tetap dipasang dan "biar peramban yang
+  memutuskan".* Peramban memutuskannya dengan diam — persis keluhan yang
+  memunculkan keputusan ini.
+- *Menuntut skema arsip cocok PENUH dengan gaya.* Ekstrak wilayah wajar
+  kehilangan sebagian lapisan; yang menandakan salah skema adalah irisan yang
+  KOSONG.
+
+**Konsekuensi**: pemeriksaan isi berkas berjalan sekali per pergantian berkas
+(diingat berdasarkan ukuran + waktu ubah), jadi tidak menambah kerja per
+halaman. Dijaga `tests/unit/peta-pmtiles-kepala.test.ts`,
+`tests/unit/peta-berkas.test.ts`, dan `tests/unit/peta-tinggi-dasbor.test.ts`;
+gerbang penolakan unduhan dibuktikan MERAH lebih dulu dengan melumpuhkan
+pemeriksaannya. Offset kepala PMTiles dicocokkan dengan implementasi rujukan
+(`bytesToHeader` di pustaka `pmtiles`), bukan hanya dengan kepala buatan uji.
+
+---
+
+## (baru) · Koordinat janggal di impor katalog DITOLAK dan dilaporkan, bukan ditebak (2026-09-06)
+
+**Konteks**: user mengimpor katalog lokasi KNMP dan mendapat `numeric field
+overflow` — impor gagal seluruhnya (*"error apalagi ini"*). Penyebabnya satu
+baris: "Aewoe" tertulis `lat=-8897010, lng=121146265`, jelas kehilangan titik
+desimalnya. Kolomnya `Decimal(10,7)`, jadi Postgres menolak seluruh transaksi.
+
+**Keputusan**: koordinat divalidasi saat parsing — `lat` ≤ 90, `lng` ≤ 180,
+keduanya terisi atau keduanya kosong. Yang tidak masuk akal DIKOSONGKAN untuk
+baris itu saja, dan barisnya tetap terimpor; jumlah serta contoh barisnya
+(maksimal 5, dengan nomor baris dan nilai aslinya) dilaporkan di layar hasil
+impor.
+
+Yang sengaja TIDAK dilakukan: menebak titik desimalnya. `-8897010` "jelas"
+berarti `-8.897010` bagi orang yang melihatnya, tapi menggeser koma atas nama
+user adalah persis yang dilarang DECISIONS 203 — angka yang diunggah dipakai apa
+adanya, tidak dibetulkan diam-diam. Koordinat yang salah tebak akan menaruh
+kampung nelayan di tempat yang keliru, dan tidak ada yang tahu itu tebakan.
+Dikosongkan berarti kotak koordinatnya menunggu diisi orang yang tahu; ditebak
+berarti peta berbohong dengan percaya diri.
+
+**Konsekuensi**: satu baris rusak tidak lagi menggagalkan impor 1.270 baris.
+Dijaga `tests/unit/koordinat-impor-janggal.test.ts` (termasuk baris "Aewoe" yang
+sebenarnya).

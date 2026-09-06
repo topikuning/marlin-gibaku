@@ -20,6 +20,8 @@ export type MasterImportPreview = {
   alreadyReal: number; // sudah ada sebagai Location riil
   /** Baris berlokasi TIDAK aktif yang dilewati (cadangan/drop/batal/ditolak). */
   tidakAktif: number;
+  /** Baris yang koordinatnya tidak mungkin – lokasinya masuk tanpa koordinat. */
+  koordinatJanggal: number;
   /** Sheet yang dibaca — berkas KNMP punya lima, dan salah sheet = salah data. */
   sheet: string | null;
   /** Berapa baris yang membawa koordinat; sisanya jadi "perlu verifikasi". */
@@ -60,7 +62,7 @@ export async function previewMasterImportAction(
     const read = await readFile(formData);
     if ("error" in read) return { error: read.error };
 
-    const { rows, warnings, tidakAktif, sheet } = await parseMasterLocationXlsx(read.buffer);
+    const { rows, warnings, tidakAktif, sheet, koordinatJanggal } = await parseMasterLocationXlsx(read.buffer);
     if (rows.length === 0) return { error: warnings.join(" ") || "Tidak ada baris valid." };
 
     const uniq = dedupe(rows);
@@ -86,6 +88,7 @@ export async function previewMasterImportAction(
         updateCatalog,
         alreadyReal,
         tidakAktif,
+        koordinatJanggal,
         sheet,
         berkoordinat,
         warnings,
@@ -113,7 +116,7 @@ export async function commitMasterImportAction(
     const read = await readFile(formData);
     if ("error" in read) return { error: read.error };
 
-    const { rows, tidakAktif } = await parseMasterLocationXlsx(read.buffer);
+    const { rows, tidakAktif, koordinatJanggal } = await parseMasterLocationXlsx(read.buffer);
     if (rows.length === 0) return { error: "Tidak ada baris valid untuk disimpan." };
     const uniq = dedupe(rows);
 
@@ -171,13 +174,19 @@ export async function commitMasterImportAction(
       created,
       updated,
       tidakAktif,
+      koordinatJanggal,
     });
     revalidatePath("/master/lokasi");
     revalidatePath("/paket/bypass");
     return {
       success:
         `Impor selesai: ${created} lokasi baru, ${updated} diperbarui.` +
-        (tidakAktif > 0 ? ` ${tidakAktif} lokasi tidak aktif di berkas TIDAK diimpor.` : ""),
+        (tidakAktif > 0 ? ` ${tidakAktif} lokasi tidak aktif di berkas TIDAK diimpor.` : "") +
+        // Koordinat yang tidak mungkin tidak boleh lewat diam-diam: lokasinya
+        // masuk, titiknya tidak, dan orang perlu tahu ada yang harus dibetulkan.
+        (koordinatJanggal > 0
+          ? ` ${koordinatJanggal} baris koordinatnya tidak mungkin (di luar bumi atau separuh) – lokasinya masuk TANPA koordinat, lengkapi lewat tombol Ubah.`
+          : ""),
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
