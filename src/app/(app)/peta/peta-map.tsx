@@ -39,7 +39,18 @@ import { statusColorToken } from "./status-color";
  * memahami `var()`.
  */
 
+/** Dipakai HANYA bila tidak ada satu pun lokasi berkoordinat untuk dirapatkan. */
 const PUSAT_KOSONG: [number, number] = [111.5, -6.9];
+
+/**
+ * Cara merapatkan pandangan ke kotak lokasi — satu nilai, dipakai saat peta
+ * dibuat DAN saat sebaran lokasinya berubah, supaya keduanya tidak bisa
+ * melenceng satu sama lain.
+ *
+ * `maxZoom` menahan kasus satu lokasi: tanpa itu peta melompat ke perbesaran
+ * maksimum dan yang terlihat cuma satu blok jalan tanpa konteks apa pun.
+ */
+const BINGKAI = { padding: 40, maxZoom: 11 } as const;
 
 const MAP_TOKENS = [
   "--color-ink-faint",
@@ -157,11 +168,30 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !adaSumber(sumber) || !webgl) return;
     siapkanPeta();
+    /*
+     * PANDANGAN AWAL = KOTAK LOKASI YANG ADA, bukan seluruh Indonesia.
+     *
+     * Ketetapan user sejak DECISIONS 135 (*"PetaMap tidak lagi hardcode view
+     * Jawa — fitBounds otomatis ke seluruh marker"*), ditegaskan lagi
+     * 2026-09-06: *"tidak perlu zoom out satu wilayah indonesia, tapi hanya
+     * atas yg ada lokasi saja"*.
+     *
+     * Kepindahan ke MapLibre sempat mengembalikannya secara diam-diam: peta
+     * dibuat dengan pusat & zoom tetap (Indonesia), lalu baru dirapatkan pada
+     * event `load`. Yang dilihat orang tetap peta se-Indonesia dulu — berkedip,
+     * dan pada layar dasbor yang pendek sering berhenti di situ. Sekarang
+     * kotaknya diberikan LANGSUNG ke konstruktor, jadi bingkai pertama yang
+     * digambar sudah bingkai yang benar.
+     *
+     * `PUSAT_KOSONG` tinggal untuk satu keadaan: benar-benar tidak ada lokasi
+     * berkoordinat. Di situ tidak ada yang bisa dirapatkan.
+     */
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: gayaPeta(sumber, mode),
-      center: PUSAT_KOSONG,
-      zoom: 4.2,
+      ...(batas
+        ? { bounds: batas, fitBoundsOptions: BINGKAI }
+        : { center: PUSAT_KOSONG, zoom: 4.2 }),
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -233,7 +263,10 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
         },
       });
       siap.current = true;
-      if (batas) map.fitBounds(batas, { padding: 40, maxZoom: 11, duration: 0 });
+      // Tidak ada perapatan di sini lagi: kotaknya sudah diberikan ke
+      // konstruktor, jadi bingkai pertama sudah benar. Merapatkan ulang di
+      // `load` hanya mengulang pekerjaan yang sama — dan dulu, karena ia satu-
+      // satunya perapatan, orang sempat melihat peta se-Indonesia lebih dulu.
     });
 
     map.on("click", LAPIS_KELOMPOK, (e) => {
@@ -293,7 +326,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
     if (kunciSebelumnya.current === kunci) return;
     kunciSebelumnya.current = kunci;
     if (selectedId || !batas) return;
-    map.fitBounds(batas, { padding: 40, maxZoom: 11, duration: 600 });
+    map.fitBounds(batas, { ...BINGKAI, duration: 600 });
   }, [data, kunci, batas, selectedId]);
 
   useEffect(() => {

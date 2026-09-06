@@ -28031,3 +28031,32 @@ perbaikan hanya 1 respons 206 (kepala) dan peta kosong; sesudahnya 20 respons
 middleware). Sisa ketergantungan pihak ketiga tinggal glyph & sprite Protomaps
 (`protomaps.github.io`): kalau CDN itu mati, label dan ikon hilang tapi petanya
 tetap tergambar, dan sekarang layar mengatakannya.
+
+---
+
+## 535 · 2026-09-06 · Bingkai awal peta = kotak lokasi, bukan seluruh Indonesia
+
+**Konteks**: *"bukankah dulu aku sudah bilang untuk hanya fokus pada yang ada
+lokasi, jadi kamu tidak perlu zoom out satu wilayah indonesia, tapi hanya atas
+yg ada lokasi saja"*. Benar — itu sudah ditetapkan sejak DECISIONS 135 (*"PetaMap
+tidak lagi hardcode view Jawa — fitBounds otomatis ke seluruh marker"*).
+
+Kepindahan ke MapLibre (DECISIONS 531) mengembalikannya diam-diam: peta dibuat
+dengan pusat & zoom TETAP se-Indonesia, dan perapatan ke kotak lokasi baru
+dijalankan pada event `load`. Bingkai PERTAMA yang digambar tetap peta
+se-Indonesia — berkedip di layar cepat, dan tertinggal begitu saja kalau `load`
+lambat atau gagal (persis yang terjadi selama worker peta mati, lihat 534).
+
+**Keputusan**: kotak lokasi diberikan LANGSUNG ke konstruktor peta (`bounds` +
+`fitBoundsOptions`), jadi bingkai pertama sudah bingkai yang benar; perapatan di
+`load` dihapus karena tinggal mengulang. Aturan merapatkannya (`padding` 40,
+`maxZoom` 11) jadi satu nilai bersama yang dipakai konstruktor DAN perapatan
+saat sebaran lokasi berubah — disalin dua kali berarti peta "melompat" saat
+tapis diubah. Pusat & zoom tetap tinggal untuk SATU keadaan: tidak ada satu pun
+lokasi berkoordinat, di mana memang tidak ada yang bisa dirapatkan.
+
+**Konsekuensi**: pada sebaran yang memang lebar (7 provinsi) bingkainya tetap
+lebar — itu kotak lokasinya, bukan zoom-out. Dijaga
+`tests/unit/peta-bingkai-lokasi.test.ts`, dibuktikan **merah 4/4 pada kode
+sebelum perbaikan** (pusat/zoom tetap + fitBounds di `load`) dan hijau 4/4
+sesudahnya.
