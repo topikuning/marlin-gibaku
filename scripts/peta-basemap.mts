@@ -1,9 +1,12 @@
 /**
- * BUAT & UNGGAH PETA DASAR MARLIN (`.pmtiles`) KE R2.
+ * BANGUN PETA DASAR MARLIN (`.pmtiles`) — hasilnya ditempelkan ke rilis.
  *
- * Ketetapan user 2026-09-06: peta dasar disimpan sendiri di R2 — tanpa kunci
- * API, tanpa kuota, tanpa pihak ketiga yang bisa memblokir peta proyek
- * pemerintah di tengah jalan.
+ * Ketetapan user 2026-09-06: peta dasar milik sendiri — tanpa kunci API, tanpa
+ * kuota, tanpa pihak ketiga yang bisa memblokir peta proyek pemerintah di
+ * tengah jalan. Dan setelah teguran hari yang sama, ia TIDAK diunggah ke R2:
+ * R2 dev dan produksi berbeda, jadi satu berkas di sana cuma melayani salah
+ * satunya. Berkas hasil skrip ini ditempelkan ke RILIS GitHub, lalu tiap
+ * lingkungan mengunduhnya ke VOLUME-nya sendiri lewat tombol di /sistem.
  *
  * Cara kerjanya, dan kenapa begini:
  *
@@ -19,17 +22,14 @@
  * jalan. Tiap tingkat zoom melipatempatkan jumlah ubin, jadi berhenti di 12
  * memangkas berkasnya secara besar tanpa kehilangan satu pun kegunaan.
  *
- * Dijalankan CI (`.github/workflows/peta-basemap.yml`), bukan tangan orang:
+ * Dijalankan CI (`.github/workflows/peta-basemap.yml`):
  *   pnpm peta:basemap
  *
- * Perlu: binari `pmtiles` (Go, dipasang workflow) + kredensial R2 di env yang
- * SAMA dengan yang dipakai aplikasi.
+ * Perlu: binari `pmtiles` (Go, dipasang workflow). TIDAK perlu kredensial apa
+ * pun — keluarannya berkas biasa.
  */
 import { spawnSync } from "node:child_process";
-import { statSync, unlinkSync } from "node:fs";
-import { createReadStream } from "node:fs";
-import { S3Client } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
+import { statSync } from "node:fs";
 
 /** Kotak wilayah Indonesia: barat–selatan–timur–utara. */
 const BBOX = "94.9,-11.2,141.1,6.3";
@@ -37,27 +37,12 @@ const BBOX = "94.9,-11.2,141.1,6.3";
 const ZOOM_MAKS = 12;
 
 const sumber = process.env.PETA_BUILD_URL?.trim() || "https://build.protomaps.com/20260901.pmtiles";
-const kunci = process.env.PETA_PMTILES_KEY?.trim() || "peta/basemap.pmtiles";
-const berkas = "/tmp/marlin-basemap.pmtiles";
-
-function wajib(nama: string): string {
-  const v = process.env[nama]?.trim();
-  if (!v) {
-    console.error(`✗ ${nama} kosong. Skrip ini butuh kredensial R2 yang sama dengan aplikasi.`);
-    process.exit(1);
-  }
-  return v;
-}
-
-const endpoint = wajib("R2_ENDPOINT");
-const bucket = wajib("R2_BUCKET");
-const accessKeyId = wajib("R2_ACCESS_KEY_ID");
-const secretAccessKey = wajib("R2_SECRET_ACCESS_KEY");
+const keluaran = process.env.PETA_KELUARAN?.trim() || "basemap-indonesia.pmtiles";
 
 console.log(`▸ Mengekstrak Indonesia (bbox ${BBOX}, zoom ≤ ${ZOOM_MAKS}) dari ${sumber}`);
 const ekstrak = spawnSync(
   "pmtiles",
-  ["extract", sumber, berkas, `--bbox=${BBOX}`, `--maxzoom=${ZOOM_MAKS}`],
+  ["extract", sumber, keluaran, `--bbox=${BBOX}`, `--maxzoom=${ZOOM_MAKS}`],
   { stdio: "inherit" },
 );
 if (ekstrak.status !== 0) {
@@ -65,35 +50,7 @@ if (ekstrak.status !== 0) {
   process.exit(1);
 }
 
-const ukuran = statSync(berkas).size;
-console.log(`▸ Berkas jadi: ${(ukuran / 1024 / 1024).toFixed(1)} MB`);
-
-const s3 = new S3Client({
-  region: "auto",
-  endpoint: endpoint.startsWith("http") ? endpoint : `https://${endpoint}`,
-  credentials: { accessKeyId, secretAccessKey },
-  forcePathStyle: true,
-});
-
-// Diunggah berpotongan (multipart): berkas ratusan MB tidak boleh ditahan utuh
-// di memori runner CI.
-const unggah = new Upload({
-  client: s3,
-  params: {
-    Bucket: bucket,
-    Key: kunci,
-    Body: createReadStream(berkas),
-    ContentType: "application/octet-stream",
-  },
-  queueSize: 4,
-  partSize: 16 * 1024 * 1024,
-});
-unggah.on("httpUploadProgress", (p) => {
-  if (p.loaded && p.total) process.stdout.write(`\r  ${Math.round((p.loaded / p.total) * 100)}%`);
-});
-await unggah.done();
-process.stdout.write("\n");
-unlinkSync(berkas);
-
-console.log(`✓ Peta dasar terpasang di R2: ${bucket}/${kunci}`);
-console.log("  MARLIN memakainya otomatis pada permintaan halaman berikutnya – tanpa deploy ulang.");
+const ukuran = statSync(keluaran).size;
+console.log(`✓ ${keluaran} — ${(ukuran / 1024 / 1024).toFixed(1)} MB`);
+console.log("  Workflow menempelkannya ke rilis GitHub; aplikasi mengunduhnya");
+console.log("  ke VOLUME masing-masing lingkungan lewat tombol di /sistem.");

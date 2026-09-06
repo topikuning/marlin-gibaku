@@ -220,6 +220,12 @@ jobs:
       - name: Build
         run: pnpm build
       - name: E2E
+        # PETA_MATI: uji E2E tidak boleh mengunduh ubin peta dari CDN pihak
+        # ketiga — lamanya jadi bergantung pada server orang lain (2026-09-06:
+        # belasan menit → 40+ menit). Penanda ini HANYA ada di sini; lingkungan
+        # dev & produksi tetap menampilkan petanya.
+        env:
+          PETA_MATI: "1"
         run: pnpm test:e2e
       # `test-results/` — BUKAN `playwright-report/`. Di CI reporter-nya
       # "github" (lihat playwright.config.ts), jadi laporan HTML tidak pernah

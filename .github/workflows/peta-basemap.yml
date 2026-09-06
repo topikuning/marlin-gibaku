@@ -1,17 +1,22 @@
-name: Peta dasar MARLIN (.pmtiles ke R2)
+name: Peta dasar MARLIN (.pmtiles ke rilis)
 
-# Menyiapkan peta dasar vektor yang dipakai layar /peta dan pemilih koordinat
-# katalog lokasi (ketetapan user 2026-09-06: peta dasar milik sendiri, tanpa
-# kunci API dan tanpa pihak ketiga yang bisa memblokirnya).
+# Membangun peta dasar vektor yang dipakai layar /peta dan pemilih koordinat
+# katalog lokasi, lalu menempelkannya ke RILIS GitHub.
 #
-# Kenapa di CI dan bukan saat deploy: ekstraksinya menarik ratusan MB dari
-# build Protomaps dan mengunggahnya ke R2 — pekerjaan menit-menitan yang tidak
-# boleh menunda boot aplikasi, dan tidak perlu diulang tiap deploy. Hasilnya
-# duduk di R2; aplikasi memakainya pada permintaan halaman berikutnya, tanpa
-# deploy ulang.
+# Kenapa rilis, bukan R2 (teguran user 2026-09-06): R2 dev dan produksi
+# berbeda, jadi satu workflow yang mengunggah "ke R2" hanya melayani salah
+# satunya — dan yang tidak kebagian diam saja, cuma terlihat sebagai peta
+# kosong. Berkas di rilis adalah SATU sumber untuk semua lingkungan; tiap
+# lingkungan menariknya ke VOLUME-nya sendiri lewat tombol di /sistem. Tidak
+# ada kredensial yang perlu disamakan.
 #
-# Dijalankan sebulan sekali (data OSM bergerak pelan) dan kapan pun ditekan
-# manual dari tab Actions.
+# Kenapa di CI dan bukan di aplikasi: ekstraksinya butuh binari Go `pmtiles`
+# dan menarik ratusan MB — pekerjaan menit-menitan yang tidak boleh menumpang
+# di kontainer aplikasi.
+#
+# CATATAN: workflow hanya muncul di tab Actions bila berkas ini sudah ada di
+# BRANCH DEFAULT (`main`). Selama ia baru ada di `dev`, tombol "Run workflow"
+# tidak akan terlihat.
 
 on:
   schedule:
@@ -30,27 +35,14 @@ concurrency:
 
 jobs:
   bangun:
-    name: Ekstrak Indonesia lalu unggah ke R2
+    name: Ekstrak Indonesia lalu tempelkan ke rilis
     runs-on: ubuntu-latest
-    # Ekstraksi lewat HTTP Range + unggah multipart: lambat, tapi terbatas.
+    # Ekstraksi lewat HTTP Range lalu unggah ke rilis: lambat, tapi terbatas.
     timeout-minutes: 90
+    permissions:
+      # Menempelkan berkas ke rilis; tidak ada secret lain yang dibutuhkan.
+      contents: write
     steps:
-      - name: Periksa kredensial
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          # Gagal dengan kalimat yang bisa ditindaklanjuti, bukan galat SDK
-          # yang menyebut "credentials" tanpa menyebut yang mana.
-          for v in R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
-            if [ -z "${!v}" ]; then
-              echo "::error::Secret $v belum diisi. Settings → Secrets and variables → Actions → Secrets, isi dengan nilai yang SAMA PERSIS dengan environment aplikasi."
-              exit 1
-            fi
-          done
-
       - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4
@@ -73,12 +65,19 @@ jobs:
           sudo mv pmtiles /usr/local/bin/
           pmtiles version
 
-      - name: Bangun & unggah peta dasar
+      - name: Bangun peta dasar
         env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          PETA_PMTILES_KEY: ${{ vars.PETA_PMTILES_KEY }}
           PETA_BUILD_URL: ${{ inputs.build_url }}
         run: pnpm peta:basemap
+
+      - name: Tempelkan ke rilis "peta-basemap"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Rilis dengan tag tetap: alamat unduhnya tidak pernah berubah, jadi
+          # aplikasi tidak perlu tahu versi apa pun.
+          gh release view peta-basemap >/dev/null 2>&1 || \
+            gh release create peta-basemap --notes "Peta dasar Indonesia (Protomaps, zoom ≤ 12) untuk MARLIN. Diperbarui otomatis." --title "Peta dasar MARLIN"
+          gh release upload peta-basemap basemap-indonesia.pmtiles --clobber
+          echo "✓ Terpasang di rilis. Tekan \"Unduh peta dasar\" di /sistem pada TIAP lingkungan."

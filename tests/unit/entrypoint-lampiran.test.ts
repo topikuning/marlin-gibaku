@@ -85,3 +85,27 @@ describe("entrypoint menyiapkan direktori lalu turun ke pengguna aplikasi", () =
     expect(entrypoint.trimEnd().endsWith('exec "$@"')).toBe(true);
   });
 });
+
+describe("volume peta dasar disiapkan dengan alasan yang sama", () => {
+  /*
+   * Peta dasar (.pmtiles) tinggal di volume yang sama dengan lampiran
+   * (teguran user 2026-09-06: *"kenapa tidak kamu simpan langsung saja di
+   * lokal, production punya volume dedicated"*). Pelajaran 2026-09-03 berlaku
+   * persis sama: volume dipasang milik root, aplikasi berjalan sebagai
+   * `marlin`, jadi direktorinya harus disiapkan DI SINI — kalau tidak,
+   * unduhan peta dasar gagal EACCES di produksi dan tidak di mana pun lagi.
+   */
+  it("direktori peta dibuat dan pemiliknya diserahkan ke marlin", () => {
+    expect(entrypoint).toContain("PETA_DIR");
+    expect(entrypoint).toMatch(/mkdir -p "\$DIR_PETA_DASAR"/);
+    expect(entrypoint).toMatch(/chown marlin:marlin "\$DIR_PETA_DASAR"/);
+  });
+
+  it("kegagalannya DIKATAKAN, bukan didiamkan", () => {
+    // Direktori yang gagal dibuat tanpa pesan = tombol unduh yang gagal tanpa
+    // sebab yang bisa ditelusuri siapa pun.
+    const blok = entrypoint.slice(entrypoint.indexOf("DIR_PETA_DASAR"));
+    expect(blok).toContain("[entrypoint] tidak bisa");
+    expect(blok).toContain("layar Sistem");
+  });
+});

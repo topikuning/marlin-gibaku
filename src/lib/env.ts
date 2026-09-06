@@ -25,7 +25,20 @@ const baseSchema = z.object({
    * pemakaian: kalau sumbernya diganti tanpa menggantinya, kita memakai citra
    * orang tanpa menyebut siapa pemiliknya.
    */
-  PETA_PMTILES_KEY: z.string().optional(),
+  /** Direktori peta dasar di VOLUME (sejajar LAMPIRAN_DIR). */
+  PETA_DIR: z.string().optional(),
+  /**
+   * Dari mana berkas peta dasar diunduh saat tombol di /sistem ditekan. Satu
+   * berkas melayani SEMUA lingkungan — dev dan produksi punya volume
+   * masing-masing, jadi tidak ada kunci yang perlu disamakan.
+   */
+  PETA_SUMBER_URL: z.string().optional(),
+  /**
+   * Matikan peta SEPENUHNYA. Hanya diisi job E2E di CI ("1"); tidak pernah
+   * diisi di lingkungan mana pun yang dipakai orang, termasuk dev — lihat
+   * catatan panjang di `lib/peta/sumber.ts`.
+   */
+  PETA_MATI: z.string().optional(),
   PETA_SATELIT_URL: z.string().optional(),
   PETA_SATELIT_ATRIBUSI: z.string().optional(),
 });
