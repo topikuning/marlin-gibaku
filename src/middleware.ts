@@ -47,5 +47,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.*|.*\\.(?:svg|png|jpg|jpeg|webp|ico|css|js)$).*)"],
+  // `mjs` ikut dikecualikan: worker MapLibre disajikan dari `public/maplibre/`
+  // sebagai modul ES. Tanpa pengecualian ini middleware mengalihkannya ke
+  // /masuk, workernya memuat HTML alih-alih skrip, gagal tanpa pesan — dan
+  // petanya kembali abu-abu persis seperti kejadian 2026-09-06.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.*|.*\\.(?:svg|png|jpg|jpeg|webp|ico|css|js|mjs)$).*)"],
 };

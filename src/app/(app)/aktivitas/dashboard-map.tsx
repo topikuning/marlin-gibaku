@@ -84,17 +84,36 @@ export function DashboardMap({
             if (slug) router.push(`/lokasi/${slug}`);
           }}
         />
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[15rem] rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm">
-          <ul className="space-y-1">
-            {LEGEND.map((l) => (
-              <li key={l.tone} className="flex items-center gap-2">
-                <span className={`size-2.5 shrink-0 rounded-full ${l.dot}`} />
-                <span className="text-ink-muted">{l.label}</span>
-              </li>
-            ))}
-          </ul>
+        {/*
+          LEGENDA MENUMPANG PETA HANYA DI LAYAR LEBAR.
+          Di HP kotak ini menutup separuh peta — teguran user 2026-09-06:
+          *"peta di dashboard di tampilan mobile jadi seperti tidak berguna
+          karena tertutup legend"*. Benar: lebarnya 15rem di atas peta selebar
+          ±20rem, jadi yang tersisa cuma pinggirannya. Di HP legendanya turun ke
+          bawah peta (lihat di luar kotak ini).
+        */}
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] hidden max-w-[15rem] rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm sm:block">
+          <Legenda />
         </div>
       </div>
+
+      {/* Legenda versi HP: di BAWAH peta, tidak menutupi apa pun. */}
+      <div className="text-[11px] sm:hidden">
+        <Legenda />
+      </div>
     </div>
+  );
+}
+
+function Legenda() {
+  return (
+    <ul className="space-y-1">
+      {LEGEND.map((l) => (
+        <li key={l.tone} className="flex items-center gap-2">
+          <span className={`size-2.5 shrink-0 rounded-full ${l.dot}`} />
+          <span className="text-ink-muted">{l.label}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

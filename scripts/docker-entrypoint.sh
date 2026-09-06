@@ -21,9 +21,25 @@ set -e
 # dipakai untuk satu `mkdir` + satu `chown`, lalu dilepas lewat `gosu`.
 
 DIR_LAMPIRAN="${LAMPIRAN_DIR:-/app/.data/lampiran}"
+
 # Peta dasar (.pmtiles) tinggal di volume yang sama, dengan alasan yang sama:
 # volume Railway dipasang milik root, dan aplikasi berjalan sebagai `marlin`.
-DIR_PETA_DASAR="${PETA_DIR:-/app/.data/peta}"
+#
+# URUTANNYA WAJIB SAMA PERSIS dengan `pilihDirPeta()` di src/lib/peta/berkas.ts.
+# Kalau berbeda, root menyiapkan satu direktori sementara aplikasi menulis ke
+# direktori lain — dan yang ditulis `marlin` di atas volume milik root GAGAL
+# dengan EACCES. Itu bukan dugaan: persis begitu lampiran hilang tiap deploy
+# pada 2026-09-03, dan versi pertama berkas ini mengulanginya untuk peta
+# (entrypoint memakai /app/.data/peta, aplikasi memilih /data/peta).
+if [ -n "$PETA_DIR" ]; then
+  DIR_PETA_DASAR="$PETA_DIR"
+elif [ -n "$LAMPIRAN_DIR" ]; then
+  DIR_PETA_DASAR="$(dirname "$LAMPIRAN_DIR")/peta"
+elif [ -d /data ]; then
+  DIR_PETA_DASAR="/data/peta"
+else
+  DIR_PETA_DASAR="/app/.data/peta"
+fi
 
 if [ "$(id -u)" = "0" ]; then
   if mkdir -p "$DIR_PETA_DASAR" 2>/dev/null; then

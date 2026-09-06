@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   LAPIS_SATELIT,
@@ -13,6 +12,7 @@ import {
   type ModePeta,
   type SumberPeta,
 } from "@/lib/peta/gaya";
+import { siapkanPeta } from "@/lib/peta/klien";
 
 /**
  * PETA SATU TITIK — perkiraan letak lokasi katalog, sekaligus alat menaruhnya.
@@ -35,12 +35,6 @@ import {
 const PUSAT_KOSONG: [number, number] = [118, -2.5];
 
 /** Protokol pmtiles didaftarkan SEKALI per halaman, bukan per peta. */
-let protokolTerpasang = false;
-function pasangProtokol() {
-  if (protokolTerpasang) return;
-  maplibregl.addProtocol("pmtiles", new Protocol().tile);
-  protokolTerpasang = true;
-}
 
 export function PetaTitik({
   lat,
@@ -71,10 +65,11 @@ export function PetaTitik({
   // Dukungan WebGL diperiksa SEBELUM render, bukan lewat setState di dalam
   // efek: kegagalan peta harus jadi keadaan awal komponen, bukan kedipan.
   const [webgl] = useState(dukungWebGL);
+  const [galat, setGalat] = useState<string | null>(null);
 
   useEffect(() => {
     if (!wadah.current || peta.current || !adaSumber(sumber) || !webgl) return;
-    pasangProtokol();
+    siapkanPeta();
     const m = new maplibregl.Map({
       container: wadah.current,
       style: gayaPeta(sumber, mode),
@@ -86,6 +81,13 @@ export function PetaTitik({
       scrollZoom: false,
     });
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // Kegagalan peta dikatakan, bukan dibiarkan jadi kanvas abu-abu — di layar
+    // inilah orang menentukan letak sebuah kampung; peta yang diam-diam mati
+    // membuat titik ditaruh dengan menebak (teguran user 2026-09-06).
+    m.on("error", (e) => {
+      const pesan = (e as { error?: { message?: string } }).error?.message;
+      if (pesan) setGalat(pesan);
+    });
     m.on("click", (e: maplibregl.MapMouseEvent) => {
       pindah.current?.(Number(e.lngLat.lat.toFixed(7)), Number(e.lngLat.lng.toFixed(7)));
     });
@@ -152,6 +154,12 @@ export function PetaTitik({
   return (
     <div className="space-y-1.5">
       <div ref={wadah} style={{ height: tinggi }} className="w-full overflow-hidden rounded-md border border-border" />
+      {galat ? (
+        <p className="rounded-md border border-danger px-2 py-1 text-[11px] text-danger">
+          Sebagian peta gagal dimuat – {galat}. Koordinat tetap bisa diisi manual; keadaan peta dasar
+          ada di layar Sistem.
+        </p>
+      ) : null}
       {pilihan.length > 1 ? (
         <div className="flex gap-1">
           {pilihan.map((p) => (

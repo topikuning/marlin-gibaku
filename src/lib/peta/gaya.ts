@@ -109,6 +109,23 @@ export function gayaPeta(sumber: SumberPeta, mode: ModePeta = "peta"): StyleSpec
   };
 }
 
+/**
+ * Nama `source-layer` yang DIMINTA gaya peta dasar.
+ *
+ * Dipakai `/sistem` untuk membandingkannya dengan isi berkas `.pmtiles` yang
+ * terpasang. Arsip yang skemanya lain (mis. OpenMapTiles) akan membuat setiap
+ * lapisan gaya menunjuk nama yang tidak ada — dan hasilnya persis keluhan user
+ * 2026-09-06: peta abu-abu tanpa satu pun pesan.
+ */
+export function lapisanDiminta(): string[] {
+  const nama = new Set<string>();
+  for (const l of layers(SUMBER_DASAR, namedFlavor("light"), { lang: "id" })) {
+    const sl = (l as { "source-layer"?: string })["source-layer"];
+    if (sl) nama.add(sl);
+  }
+  return [...nama].sort();
+}
+
 /** Apakah gaya ini benar-benar punya sesuatu untuk digambar? */
 export function adaSumber(sumber: SumberPeta): boolean {
   return Boolean(sumber.pmtiles || sumber.satelit);

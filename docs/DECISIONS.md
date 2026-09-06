@@ -27863,3 +27863,297 @@ kembali ke ubin OSM, dan ganti mode yang MEMBUANG lapisan alih-alih
 menyembunyikannya — dibuktikan merah dengan melumpuhkan kodenya). Sebelum
 workflow peta dasar pertama kali dijalankan, R2 belum berisi berkasnya dan peta
 berjalan dengan satelit saja sambil mengatakannya.
+
+---
+
+## 532 · 2026-09-06 · Peta dasar tinggal di VOLUME, sumbernya bisa diketik, dan isinya diperiksa sebelum dipakai
+
+**Konteks**: tiga teguran user berturut-turut pada hari yang sama, masing-masing
+menunjuk lubang yang berbeda di rancangan awal peta (DECISIONS 531):
+
+1. *"R2 antara dev dan production berbeda, lalu apa yang kamu harapkan. kenapa
+   tidak kamu simpan langsung saja di lokal, production punya volume
+   dedicated"*
+2. *"kegoblokan macam apa yang kamu buat, kalau itu harus ada di main,
+   bagaimana aku bisa test dulu!"*
+3. *"berhasil didownload, tapi malah jadi abu2. apa masalahmu sebenarnya! lalu
+   ini terlalu memanjang ke bawah mapnya"*
+
+**Keputusan**:
+
+- **Berkas `.pmtiles` disimpan di VOLUME lingkungan masing-masing**, bukan di
+  R2. Peta dasar bukan dokumen: ia tidak dimiliki organisasi mana pun, tidak
+  perlu dicadangkan, dan sama untuk semua orang. Menaruhnya di penyimpanan
+  objek berarti membayar tanda tangan URL dan kunci akses untuk berkas statis —
+  dan, karena bucket dev dan produksi berbeda, memastikan salah satu lingkungan
+  tidak kebagian. Direktorinya mengikuti bukti, bukan tebakan: `PETA_DIR` →
+  bersebelahan dengan `LAMPIRAN_DIR` → `/data/peta` bila `/data` ada → `.data/`
+  lokal. Nilai bawaan lama (`/app/.data/peta`) jatuh DI LUAR titik pasang volume
+  Railway — pengulangan persis kegagalan lampiran 2026-09-03.
+- **Penyiapannya jadi TOMBOL di `/sistem`, bukan langkah CI.** Yang tahu volume
+  mana yang perlu diisi adalah aplikasi yang sedang berjalan di atasnya. Ditekan
+  di dev mengisi volume dev, di produksi mengisi volume produksi; tidak ada satu
+  pun kunci yang harus disamakan antar-lingkungan.
+- **Alamat sumbernya boleh diketik di layar.** Mematoknya ke rilis GitHub yang
+  hanya bisa dibangun dari branch default berarti tidak ada cara mencoba peta
+  sebelum merilis ke produksi — urutan terbalik: yang belum teruji justru harus
+  mendarat lebih dulu di tempat yang paling tidak boleh rusak. Wajib `https://`.
+- **Isi berkasnya diperiksa, bukan cuma ukurannya.** "Berhasil diunduh" dulu
+  berarti "servernya menjawab 200 dan berkasnya tidak nol byte", dan itu terlalu
+  longgar: halaman HTML "Not Found" yang cantik, halaman masuk, arsip raster,
+  dan arsip berskema OpenMapTiles semuanya punya ukuran — lalu menghasilkan peta
+  ABU-ABU tanpa satu pun pesan. Sekarang 127 byte kepala PMTiles + metadata-nya
+  dibaca, dan empat sebab peta abu-abu disebut dengan nama: bukan PMTiles (isi
+  awalnya dikutip), ubinnya bukan vektor, batas wilayahnya tidak sah, atau
+  skema lapisannya tidak beririsan dengan yang diminta gaya. Yang tidak lolos
+  DIBUANG saat unduh dan tidak pernah menyandang "Terpasang"; yang telanjur
+  duduk di volume diperlakukan sebagai tidak ada, jadi peta jatuh ke citra
+  satelit sambil mengatakan sebabnya di `/sistem`.
+- **Kegagalan MapLibre ditampilkan di atas petanya**, bukan hanya di console.
+  Diam-diam abu-abu adalah cara terburuk menyampaikan kegagalan: yang melihatnya
+  menyangka lokasinyalah yang tidak ada.
+- **Tinggi peta di dasbor dipatok** (`items-start` + `h-[340px] sm:h-[400px]`).
+  Kartu status submit di sebelahnya tumbuh mengikuti jumlah lokasi (83 sekarang,
+  arsitektur menargetkan 200+); selama baris grid meregangkan keduanya, peta
+  ikut molor melewati layar. Peta di dasbor adalah RINGKASAN sebaran — yang mau
+  menelusurinya membuka `/peta` yang memang satu layar penuh.
+
+**Alternatif direject**:
+- *Mengunduh peta dasar otomatis saat boot.* Ratusan MB di setiap boot
+  memperlambat tiap deploy dan mengulang pekerjaan yang hasilnya sudah duduk di
+  volume.
+- *Membiarkan berkas yang meragukan tetap dipasang dan "biar peramban yang
+  memutuskan".* Peramban memutuskannya dengan diam — persis keluhan yang
+  memunculkan keputusan ini.
+- *Menuntut skema arsip cocok PENUH dengan gaya.* Ekstrak wilayah wajar
+  kehilangan sebagian lapisan; yang menandakan salah skema adalah irisan yang
+  KOSONG.
+
+**Konsekuensi**: pemeriksaan isi berkas berjalan sekali per pergantian berkas
+(diingat berdasarkan ukuran + waktu ubah), jadi tidak menambah kerja per
+halaman. Dijaga `tests/unit/peta-pmtiles-kepala.test.ts`,
+`tests/unit/peta-berkas.test.ts`, dan `tests/unit/peta-tinggi-dasbor.test.ts`;
+gerbang penolakan unduhan dibuktikan MERAH lebih dulu dengan melumpuhkan
+pemeriksaannya. Offset kepala PMTiles dicocokkan dengan implementasi rujukan
+(`bytesToHeader` di pustaka `pmtiles`), bukan hanya dengan kepala buatan uji.
+
+---
+
+## 533 · 2026-09-06 · Koordinat janggal di impor katalog DITOLAK dan dilaporkan, bukan ditebak
+
+**Konteks**: user mengimpor katalog lokasi KNMP dan mendapat `numeric field
+overflow` — impor gagal seluruhnya (*"error apalagi ini"*). Penyebabnya satu
+baris: "Aewoe" tertulis `lat=-8897010, lng=121146265`, jelas kehilangan titik
+desimalnya. Kolomnya `Decimal(10,7)`, jadi Postgres menolak seluruh transaksi.
+
+**Keputusan**: koordinat divalidasi saat parsing — `lat` ≤ 90, `lng` ≤ 180,
+keduanya terisi atau keduanya kosong. Yang tidak masuk akal DIKOSONGKAN untuk
+baris itu saja, dan barisnya tetap terimpor; jumlah serta contoh barisnya
+(maksimal 5, dengan nomor baris dan nilai aslinya) dilaporkan di layar hasil
+impor.
+
+Yang sengaja TIDAK dilakukan: menebak titik desimalnya. `-8897010` "jelas"
+berarti `-8.897010` bagi orang yang melihatnya, tapi menggeser koma atas nama
+user adalah persis yang dilarang DECISIONS 203 — angka yang diunggah dipakai apa
+adanya, tidak dibetulkan diam-diam. Koordinat yang salah tebak akan menaruh
+kampung nelayan di tempat yang keliru, dan tidak ada yang tahu itu tebakan.
+Dikosongkan berarti kotak koordinatnya menunggu diisi orang yang tahu; ditebak
+berarti peta berbohong dengan percaya diri.
+
+**Konsekuensi**: satu baris rusak tidak lagi menggagalkan impor 1.270 baris.
+Dijaga `tests/unit/koordinat-impor-janggal.test.ts` (termasuk baris "Aewoe" yang
+sebenarnya).
+
+---
+
+## 534 · 2026-09-06 · Worker MapLibre disajikan sendiri — akar peta abu-abu yang sebenarnya
+
+**Konteks**: peta tetap abu-abu meski layar Sistem menyatakan berkas peta dasar
+SEHAT — PMTiles v3, ubin vektor, z0–12, batas Indonesia, 9 lapisan cocok dengan
+gaya (*"kenapa path masih itu, berhasil didownload tapi malah abu2"*). Berkas
+rilis 210 MB itu diperiksa langsung dan memang benar; jadi salahnya bukan di
+data.
+
+Sebabnya ada di rantai build, dan ia gagal dengan DIAM di tiga lapis sekaligus:
+
+1. MapLibre 6 menggambar ubin di dalam Web Worker. Workernya modul ES yang
+   mengimpor tetangganya, `./maplibre-gl-shared.mjs`.
+2. Next menyalin worker itu ke `/_next/static/media/…<hash>.mjs` **apa adanya** —
+   impor relatifnya tidak ditulis ulang, sementara tetangganya ikut di-hash jadi
+   nama lain. Worker menunjuk berkas yang tidak ada.
+3. `new Worker(url)` yang skripnya gagal dimuat **tidak melempar apa pun**:
+   kegagalannya cuma sebuah event error yang tidak didengarkan siapa pun.
+
+Hasil di layar: gaya termuat, kepala `.pmtiles` terbaca SATU kali, lalu
+berhenti — nol permintaan ubin, nol pesan galat, tersisa lapisan latar Protomaps
+`#cccccc`. Persis abu-abu yang dikeluhkan, dan tidak satu pun petunjuk di mana
+pun.
+
+**Keputusan**:
+
+- **Worker MapLibre + berkas yang diimpornya disalin ke `public/maplibre/`**
+  (`scripts/salin-worker-peta.mjs`), berdampingan, sehingga impor relatifnya
+  tetap benar; alamatnya diumumkan lewat `setWorkerUrl` di `lib/peta/klien.ts`
+  sebelum peta pertama dibuat. Disalin dari `node_modules` tiap build supaya
+  versinya tidak mungkin melenceng dari pustaka yang dipakai halaman, dan
+  skripnya BERHENTI kalau susunan `dist/` maplibre berubah.
+- **Skripnya dipanggil di `pnpm build`, `pnpm dev`, DAN Dockerfile.** Yang
+  ketiga bukan pengulangan: Dockerfile memanggil `pnpm next build` langsung,
+  jadi apa pun yang menempel di skrip npm tidak berjalan saat membangun image —
+  perbaikan yang hanya ada di package.json akan hijau di lokal dan tetap
+  abu-abu di produksi.
+- **Middleware tidak lagi mencegat `.mjs`.** Daftar kecualiannya menyebut `js`,
+  bukan `mjs`; tanpa ini worker dijawab pengalihan ke `/masuk`, memuat HTML
+  alih-alih skrip, dan gagal — sekali lagi tanpa pesan.
+- **Layar Sistem menyebut ALASAN direktori peta dipilih** dan mengatakannya
+  terang-terangan bila direktori itu bukan volume (`/app/.data/peta` ikut
+  terhapus tiap deploy). Pertanyaan *"kenapa path masih itu"* tidak boleh perlu
+  dijawab dengan membaca kode.
+- **Entrypoint memakai urutan pemilihan direktori yang SAMA PERSIS dengan
+  aplikasi.** Sebelumnya root menyiapkan `/app/.data/peta` sementara aplikasi
+  memilih `/data/peta` — dan tulisan `marlin` ke volume milik root gagal dengan
+  EACCES, pengulangan diam kegagalan lampiran 2026-09-03.
+
+**Alternatif direject**:
+- *Menunggu Next memperbaiki penyalinan worker.* Peta mati sekarang, di sistem
+  yang sudah dipakai orang.
+- *Mem-bundel worker sendiri lewat konfigurasi webpack.* Lebih rapuh dan lebih
+  sulit dijelaskan daripada dua berkas statis di `public/`.
+- *Menyalin worker ke repo (di-commit).* Versinya pasti melenceng dari
+  `node_modules` cepat atau lambat, dan melencengnya tidak kelihatan.
+
+**Konsekuensi**: dua berkas statis (±511 KB) disajikan dari asal sendiri,
+dimuat sekali lalu di-cache peramban. Dibuktikan dengan menjalankan aplikasi
+hasil `pnpm build` di peramban headless memakai berkas rilis 210 MB: sebelum
+perbaikan hanya 1 respons 206 (kepala) dan peta kosong; sesudahnya 20 respons
+206 dan peta Jawa–Bali tergambar lengkap dengan label kota. Dijaga
+`tests/unit/peta-worker.test.ts` (6 klausa, termasuk Dockerfile dan matcher
+middleware). Sisa ketergantungan pihak ketiga tinggal glyph & sprite Protomaps
+(`protomaps.github.io`): kalau CDN itu mati, label dan ikon hilang tapi petanya
+tetap tergambar, dan sekarang layar mengatakannya.
+
+---
+
+## 535 · 2026-09-06 · Bingkai awal peta = kotak lokasi, bukan seluruh Indonesia
+
+**Konteks**: *"bukankah dulu aku sudah bilang untuk hanya fokus pada yang ada
+lokasi, jadi kamu tidak perlu zoom out satu wilayah indonesia, tapi hanya atas
+yg ada lokasi saja"*. Benar — itu sudah ditetapkan sejak DECISIONS 135 (*"PetaMap
+tidak lagi hardcode view Jawa — fitBounds otomatis ke seluruh marker"*).
+
+Kepindahan ke MapLibre (DECISIONS 531) mengembalikannya diam-diam: peta dibuat
+dengan pusat & zoom TETAP se-Indonesia, dan perapatan ke kotak lokasi baru
+dijalankan pada event `load`. Bingkai PERTAMA yang digambar tetap peta
+se-Indonesia — berkedip di layar cepat, dan tertinggal begitu saja kalau `load`
+lambat atau gagal (persis yang terjadi selama worker peta mati, lihat 534).
+
+**Keputusan**: kotak lokasi diberikan LANGSUNG ke konstruktor peta (`bounds` +
+`fitBoundsOptions`), jadi bingkai pertama sudah bingkai yang benar; perapatan di
+`load` dihapus karena tinggal mengulang. Aturan merapatkannya (`padding` 40,
+`maxZoom` 11) jadi satu nilai bersama yang dipakai konstruktor DAN perapatan
+saat sebaran lokasi berubah — disalin dua kali berarti peta "melompat" saat
+tapis diubah. Pusat & zoom tetap tinggal untuk SATU keadaan: tidak ada satu pun
+lokasi berkoordinat, di mana memang tidak ada yang bisa dirapatkan.
+
+**Konsekuensi**: pada sebaran yang memang lebar (7 provinsi) bingkainya tetap
+lebar — itu kotak lokasinya, bukan zoom-out. Dijaga
+`tests/unit/peta-bingkai-lokasi.test.ts`, dibuktikan **merah 4/4 pada kode
+sebelum perbaikan** (pusat/zoom tetap + fitBounds di `load`) dan hijau 4/4
+sesudahnya.
+
+---
+
+## 536 · 2026-09-06 · Peta di layar HP: legenda tidak menumpang, halaman peta satu panel
+
+**Konteks**: *"peta di dashboard di tampilan mobile jadi seperti tidak berguna
+karena tertutup legend. begitu pula halaman peta, memang sepertinya tidak cocok
+di mobile atau kamu yang tidak bisa atur ui ux nya"* — dengan tangkapan layar
+iPhone.
+
+Keduanya cacat yang sama: tata letak dirancang untuk layar lebar lalu
+diserahkan apa adanya ke layar 390px.
+
+- Legenda selebar 15rem menumpang peta selebar ±20rem → separuh peta tertutup,
+  dan yang tersisa cuma pinggirannya.
+- Halaman `/peta` memakai dua panel: daftar 300px di kiri, peta di sisanya. Di
+  390px itu menyisakan ±170px untuk peta — terlalu sempit untuk dibaca, apalagi
+  digeser.
+
+**Keputusan**:
+
+- **Legenda menumpang peta HANYA mulai `sm`.** Di HP ia turun ke bawah peta,
+  di luar kotaknya, jadi tidak menutupi apa pun. Isinya sama persis — labelnya
+  tidak dipendekkan, sebab "Deviasi kritis (lapor atau belum)" memang harus
+  mengaku bahwa pin merah tidak berkata apa-apa soal sudah/belum lapor.
+- **Peta dasbor minimal 300px**, bukan 200px. Di bawah itu ia bukan peta lagi,
+  cuma pita bergambar.
+- **`/peta` jadi SATU panel di bawah `md`**, dengan tombol Daftar/Peta.
+  Memilih lokasi dari daftar otomatis berpindah ke peta — kalau tidak, ketukan
+  itu terasa tidak berbuat apa-apa: petanya terbang ke lokasi yang sedang tidak
+  terlihat. Perpindahan panel juga MENGGULIR panelnya ke layar, sebab di HP di
+  atasnya masih ada banner "Pasang MARLIN" + judul halaman.
+- **Tinggi panel di HP = pecahan layar (`65dvh`), bukan `100dvh − sekian rem`.**
+  Rumus "sisa layar" mengandaikan tinggi yang di atasnya tetap; di HP banner dan
+  judul membungkus jadi beberapa baris dan petanya terpotong bilah menu bawah.
+- **Panel detail lokasi melebar penuh di HP** (kartu 300px di layar 390px
+  menyisakan peta selebar jari), dan baris galat peta dipotong dua baris — pesan
+  MapLibre bisa sepanjang satu URL penuh dan justru menutupi peta yang sedang
+  dilaporkan rusak.
+
+**Alternatif direject**:
+- *Memendekkan label legenda supaya muat menumpang.* Menghemat ruang dengan
+  menghapus justru bagian yang menjaga orang tidak salah membaca pin merah.
+- *Menyembunyikan legenda sama sekali di HP.* Warna pin tanpa keterangan bukan
+  informasi, cuma dekorasi.
+- *Menyusutkan daftar jadi 120px di HP.* Nama lokasi tidak terbaca, dan petanya
+  tetap sempit — dua-duanya rugi.
+
+**Konsekuensi**: diperiksa pada aplikasi hasil `pnpm build` di peramban headless
+dengan profil iPhone 13 (390×844) memakai berkas peta 210 MB: legenda dasbor
+tidak lagi menutupi peta, dan `/peta` menampilkan satu panel penuh yang
+berpindah rapi. Dijaga `tests/unit/peta-di-hp.test.ts` (6 klausa) — regresi
+semacam ini tidak kelihatan di layar lebar, satu-satunya tempat kebanyakan orang
+memeriksanya.
+
+---
+
+## 537 · 2026-09-06 · Pengelompokan penanda bisa dimatikan; hilangnya pilihan lapisan dikatakan
+
+**Konteks**: *"apa tujuan dilakukan grouping begini? ini bisa diatur atau tidak,
+dan tadi sepertinya ada pilihan untuk tampilan satelite, kenapa sekarang malah
+tidak ada"* — dengan tangkapan layar peta bercitra satelit tanpa tombol lapisan.
+
+Dua hal berbeda, dan yang kedua sebenarnya laporan kerusakan.
+
+**1. Pengelompokan.** Tujuannya: sistem ini menuju 200+ lokasi di 7 provinsi,
+dan pada tampilan nasional ratusan pin yang saling menimpa bukan informasi
+melainkan noda — yang terlihat cuma pin paling atas, dan tidak ada yang tahu ada
+berapa di bawahnya. Angka di dalam lingkaran menjawab "berapa banyak di sini",
+dan mengekliknya membuka isinya.
+
+Tapi ia juga MENYEMBUNYIKAN titik yang justru sedang dicari orang, dan itu
+alasan yang cukup untuk menjadikannya pilihan, bukan paksaan. Sekarang ada
+tombol di peta: **Kelompok** ↔ **Semua titik**. Dimatikan lewat
+`setClusterOptions`, bukan dengan membangun ulang sumber peta — membuang lalu
+menambah sumber berarti seluruh lapisan penanda dibuat ulang dan pilihan lokasi
+serta posisi pandangan hilang di tengah pekerjaan orang.
+
+**2. Tombol Peta/Satelit yang hilang.** Ia memang hilang begitu salah satu
+sumber tidak ada lagi — tombol dua pilihan yang cuma punya satu pilihan bukan
+tombol. Yang SALAH adalah hilangnya diam-diam: terbaca sebagai fitur yang
+dicabut, padahal artinya berkas peta dasar lenyap dari server itu. Dan lenyapnya
+bukan kebetulan: selama `PETA_DIR` tidak diisi dan lingkungan itu tidak punya
+`/data`, berkasnya duduk di `/app/.data/peta` yang ikut terhapus setiap deploy
+(sudah disebut di layar Sistem sejak 534, tapi tidak di peta itu sendiri).
+
+Sekarang, saat cuma satu sumber yang tersedia, tempat tombol itu diisi
+keterangan: "Citra satelit saja – peta dasar belum ada di server ini (lihat
+Sistem)".
+
+**Konsekuensi**: bawaannya tetap berkelompok — itu yang benar untuk tampilan
+nasional. Dibuktikan di peramban headless pada aplikasi hasil `pnpm build`:
+menekan tombolnya mengubah 5 lingkaran berangka menjadi 16 titik terpisah.
+Dijaga `tests/unit/peta-kelompok.test.ts`. Yang TIDAK bisa diperbaiki dari kode:
+berkas peta dasar hanya bertahan kalau direktorinya berada di volume — isi
+`PETA_DIR` (mis. `/data/peta`) di lingkungan yang punya volume, lalu tekan
+"Unduh peta dasar" sekali di layar Sistem.

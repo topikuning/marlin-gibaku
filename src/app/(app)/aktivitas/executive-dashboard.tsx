@@ -141,12 +141,21 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       </div>
 
       {/* Peta + Status submit */}
+      {/*
+        Kedua kartu SETINGGI yang tertinggi — ketetapan user 2026-09-06:
+        *"tampilan kembali seimbangkan dengan card sampingnya, meskipun
+        memanjang"*. Percobaan memotong tinggi peta (h-[340px] + items-start)
+        memang memendekkan halaman, tapi menyisakan kartu kanan yang menjulang
+        sendirian; yang dipilih user keseimbangan barisnya, bukan panjangnya.
+      */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="flex flex-col lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
           </div>
           <div className="flex flex-1 flex-col p-4">
+            {/* `flex-1`: peta mengisi sisa tinggi kartu, jadi kartu ini
+                berakhir sejajar dengan kartu status di sebelahnya. */}
             <div className="min-h-[300px] flex-1">
               <DashboardMap
                 sumber={sumber}

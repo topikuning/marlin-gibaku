@@ -57,7 +57,37 @@ export type MasterImportResult = {
   tidakAktif: number;
   /** Nama sheet yang benar-benar dibaca. */
   sheet: string | null;
+  /**
+   * Baris yang koordinatnya TIDAK MUNGKIN (di luar bumi, atau cuma separuh).
+   * Lokasinya tetap diimpor — tanpa koordinat, dan disebut di peringatan.
+   */
+  koordinatJanggal: number;
 };
+
+/**
+ * Apakah sepasang angka ini benar-benar sebuah titik di bumi?
+ *
+ * Kejadian nyata 2026-09-06, berkas `lokasi_1270.xlsx` baris 1044 (desa Aewoe):
+ * `lat=-8897010`, `lng=121146265` — koordinat yang ditulis TANPA TITIK DESIMAL.
+ * Postgres menolaknya (`numeric field overflow`, kolomnya Decimal(10,7)) dan
+ * SELURUH impor 1.270 baris gagal karena satu sel.
+ *
+ * Yang salah bukan cuma penanganan galatnya, melainkan tidak adanya pemeriksaan
+ * sama sekali. Nilai seperti itu bukan koordinat yang "agak meleset" — ia bukan
+ * koordinat. Dan MARLIN tidak boleh menebak maksudnya: membagi 10^6 diam-diam
+ * berarti mengarang letak kampung nelayan (larangan "angka yang diunggah user
+ * dipakai apa adanya" — DECISIONS 203). Jadi koordinatnya DIBUANG, lokasinya
+ * tetap masuk, dan barisnya DISEBUT supaya bisa dibetulkan di sumbernya.
+ *
+ * Separuh koordinat (lintang tanpa bujur) juga ditolak — sama seperti formulir
+ * tambah lokasi: separuh titik bukan titik.
+ */
+export function koordinatSah(lat: number | null, lng: number | null): boolean {
+  if (lat == null && lng == null) return true; // memang tidak berkoordinat
+  if (lat == null || lng == null) return false; // separuh
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+}
 
 const cellStr = (v: ExcelJS.CellValue): string => {
   if (v == null) return "";
@@ -181,7 +211,7 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer as unknown as ArrayBuffer);
   if (wb.worksheets.length === 0)
-    return { rows: [], warnings: ["File tidak memiliki sheet."], tidakAktif: 0, sheet: null };
+    return { rows: [], warnings: ["File tidak memiliki sheet."], tidakAktif: 0, sheet: null, koordinatJanggal: 0 };
 
   const pilihan = pilihSheet(wb);
   if (!pilihan) {
@@ -192,6 +222,7 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
       ],
       tidakAktif: 0,
       sheet: null,
+      koordinatJanggal: 0,
     };
   }
   const { ws, header } = pilihan;
@@ -210,6 +241,8 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
   const rows: ParsedMasterRow[] = [];
   let skipped = 0;
   let tidakAktif = 0;
+  let koordinatJanggal = 0;
+  const contohJanggal: string[] = [];
   for (let r = headerRow + 1; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     const get = (c: number) => (c > 0 ? cellStr(row.getCell(c).value).trim() : "");
@@ -226,13 +259,22 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
       tidakAktif++;
       continue;
     }
+    let lat = num(cols.latitude);
+    let lng = num(cols.longitude);
+    if (!koordinatSah(lat, lng)) {
+      koordinatJanggal++;
+      if (contohJanggal.length < 5)
+        contohJanggal.push(`baris ${r} (${village}): ${lat ?? "kosong"} / ${lng ?? "kosong"}`);
+      lat = null;
+      lng = null;
+    }
     rows.push({
       province,
       regency,
       district: get(cols.district) || null,
       village,
-      latitude: num(cols.latitude),
-      longitude: num(cols.longitude),
+      latitude: lat,
+      longitude: lng,
       name: get(cols.name) || null,
     });
   }
@@ -241,8 +283,12 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
     warnings.push(
       `${tidakAktif} lokasi TIDAK aktif di berkas (cadangan/drop/batal/ditolak) dan tidak diimpor.`,
     );
+  if (koordinatJanggal > 0)
+    warnings.push(
+      `${koordinatJanggal} baris berkoordinat TIDAK MUNGKIN (di luar bumi atau cuma separuh) – lokasinya tetap diimpor TANPA koordinat, isi belakangan lewat tombol Ubah. Contoh: ${contohJanggal.join("; ")}.`,
+    );
   if (rows.length === 0) warnings.push("Tidak ada baris lokasi aktif yang valid.");
-  return { rows, warnings, tidakAktif, sheet: ws.name };
+  return { rows, warnings, tidakAktif, sheet: ws.name, koordinatJanggal };
 }
 
 /** Header templat impor — SATU sumber untuk parser, templat, dan ujinya. */
