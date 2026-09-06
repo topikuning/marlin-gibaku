@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
+import type { SumberPeta } from "@/lib/peta/gaya";
 import type { UbahLokasiState } from "@/lib/master-location/actions";
 import type { BarisKatalog } from "./lokasi-client";
 
@@ -42,10 +43,12 @@ const angka = (s: string | null): number | null => {
 
 export function FormUbahLokasi({
   baris,
+  sumberPeta,
   aksi,
   onSelesai,
 }: {
   baris: BarisKatalog;
+  sumberPeta: SumberPeta;
   aksi: (prev: UbahLokasiState, fd: FormData) => Promise<UbahLokasiState>;
   onSelesai: () => void;
 }) {
@@ -146,6 +149,7 @@ export function FormUbahLokasi({
           </div>
         </div>
         <PetaTitik
+          sumber={sumberPeta}
           lat={titikLat}
           lng={titikLng}
           onPindah={(la, ln) => {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { sumberPeta } from "@/lib/peta/sumber";
 import { existingLocationIndex, statusKatalog } from "@/lib/master-location/queries";
 import { KatalogLokasiManager, type BarisKatalog } from "./lokasi-client";
 
@@ -57,5 +58,8 @@ export default async function MasterLokasiPage() {
     dipakaiOleh: m.assignedLocation ? { name: m.assignedLocation.name, slug: m.assignedLocation.slug } : null,
   }));
 
-  return <KatalogLokasiManager rows={rows} />;
+  // Sumber ubin peta ditentukan di server (URL bertanda-tangan dari R2 +
+  // templat citra satelit) — komponen klien tidak boleh tahu kredensialnya.
+  const sumber = await sumberPeta();
+  return <KatalogLokasiManager rows={rows} sumberPeta={sumber} />;
 }

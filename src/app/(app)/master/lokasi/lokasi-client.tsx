@@ -17,6 +17,7 @@ import {
   type UbahLokasiState,
 } from "@/lib/master-location/actions";
 import { MasterImportForm } from "./import-form";
+import type { SumberPeta } from "@/lib/peta/gaya";
 import { FormUbahLokasi } from "./ubah-lokasi";
 
 /**
@@ -95,7 +96,13 @@ function koordinat(r: BarisKatalog): { singkat: string; persis: string } | null 
   };
 }
 
-export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
+export function KatalogLokasiManager({
+  rows,
+  sumberPeta,
+}: {
+  rows: BarisKatalog[];
+  sumberPeta: SumberPeta;
+}) {
   const [cari, setCari] = useState("");
   const [saring, setSaring] = useState<Saring>("");
   const [laci, setLaci] = useState<"tambah" | "impor" | null>(null);
@@ -324,6 +331,7 @@ export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
       >
         {sunting ? (
           <FormUbahLokasi
+            sumberPeta={sumberPeta}
             baris={sunting}
             aksi={ubahLokasiMasterAction}
             onSelesai={() => setSunting(null)}

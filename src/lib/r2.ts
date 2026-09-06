@@ -3,6 +3,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -45,6 +46,22 @@ export async function r2GetBuffer(key: string): Promise<Buffer> {
   const res = await r2().send(new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
   const bytes = await res.Body!.transformToByteArray();
   return Buffer.from(bytes);
+}
+
+/**
+ * Apakah objek ini ADA, tanpa mengunduh isinya.
+ *
+ * Dipakai peta dasar: berkas `.pmtiles` berukuran ratusan MB, jadi memeriksa
+ * keberadaannya dengan `r2GetBuffer` akan menarik seluruh berkas ke memori
+ * server hanya untuk menjawab "ada atau tidak".
+ */
+export async function r2Exists(key: string): Promise<boolean> {
+  try {
+    await r2().send(new HeadObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
