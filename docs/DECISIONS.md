@@ -27436,7 +27436,7 @@ punya baris rekonsiliasi sendiri). Dijaga
 sembilan klausanya dibuktikan merah lebih dulu.
 
 ---
-## (baru) · Halaman paket: kurva-S gabungan + adendum berjalan yang terlihat (2026-09-05)
+## 526 · 2026-09-05 · Halaman paket: kurva-S gabungan + adendum berjalan yang terlihat
 
 **Konteks**: user memeriksa halaman paket dan menemukan dua lubang:
 
@@ -27499,7 +27499,7 @@ keputusan user sebelum ditulis.
 
 
 ---
-## (baru) · Adendum boleh MENAMBAH dan MENCABUT lokasi — ditandai, bukan dihapus (2026-09-05)
+## 527 · 2026-09-05 · Adendum boleh MENAMBAH dan MENCABUT lokasi — ditandai, bukan dihapus
 
 **Konteks**: user menyebut kebutuhan yang belum ada sama sekali di sistem:
 *"ada kebutuhan dimana, adendum mengurangi lokasi atau bahkan menambah lokasi.
@@ -27549,7 +27549,7 @@ lokasi baru yang mulai di minggu berlakunya).
 
 ---
 
-## (baru) · Katalog lokasi dari MASTER DATA KNMP: aktif saja, tanpa data perusahaan, bisa disunting di tempat + peta (2026-09-06)
+## 528 · 2026-09-06 · Katalog lokasi dari MASTER DATA KNMP: aktif saja, tanpa data perusahaan, bisa disunting di tempat + peta
 
 **Konteks**: katalog lokasi diisi dari berkas KKP `Data_Lokasi_KNMP_Bersih`, dan
 impornya selama ini cuma membaca TIGA kolom (provinsi, kabupaten, desa) plus
@@ -27639,7 +27639,7 @@ terbaca — dibuktikan merah dengan melumpuhkan kodenya). Migrasi
 `20260906020000_master_lokasi_knmp` idempoten (DECISIONS 167).
 
 ---
-## (baru) · Arsip pencabutan lokasi (super admin), menu lingkup pindah ke tab Lokasi, pencarian penugasan melebar (2026-09-06)
+## 529 · 2026-09-06 · Arsip pencabutan lokasi (super admin), menu lingkup pindah ke tab Lokasi, pencarian penugasan melebar
 
 **Konteks**: tiga permintaan user pada hari yang sama, ketiganya lanjutan
 langsung dari fitur "adendum menambah/mencabut lokasi":
@@ -27724,7 +27724,7 @@ penyembunyian riwayat dibuktikan merah dengan melumpuhkan kodenya),
 
 ---
 
-## (baru) · Katalog lokasi dirampingkan: hanya kolom yang dipakai MARLIN (2026-09-06)
+## 530 · 2026-09-06 · Katalog lokasi dirampingkan: hanya kolom yang dipakai MARLIN
 
 **Konteks**: keputusan sebelumnya (katalog lokasi dari MASTER DATA KNMP) ikut
 menyimpan belasan kolom dari berkas KKP: ID lokasi, wilayah, klaster, hasil
