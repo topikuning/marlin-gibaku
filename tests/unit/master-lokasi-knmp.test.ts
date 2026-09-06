@@ -156,31 +156,30 @@ describe("data perusahaan", () => {
 });
 
 describe("bidang yang dipakai MARLIN", () => {
-  it("terbaca lengkap dari berkas KNMP", async () => {
+  it("hanya wilayah, nama kampung, dan koordinat – tidak lebih", async () => {
     const h = await parseMasterLocationXlsx(await berkasKnmp([AKTIF]));
-    expect(h.rows[0]).toMatchObject({
-      sourceCode: "KNMP-730",
+    expect(h.rows[0]).toEqual({
       province: "Nusa Tenggara Barat",
       regency: "Bima",
       district: "Sape",
       village: "Bajo Pulau",
       name: "Bajo Pulau",
-      region: "Bali dan Nusa Tenggara",
-      cluster: "BajoPulau",
-      plenoResult: "Penyangga",
       latitude: -8.5755745,
       longitude: 119.0354641,
-      coordinateStatus: "VALID",
-      statusCode: "SL-AKT",
-      statusLabel: "Aktif",
-      sourceBatch: "Tahap II 146",
-      landAreaHa: 0.6,
-      fishermenCount: 484,
-      boatsNoEngine: 44,
-      boatsEngine: 140,
-      boatsTotal: 184,
-      eeValue: 2838404000,
     });
+  });
+
+  it("kolom KNMP lain TIDAK ikut – MARLIN tidak memakainya", async () => {
+    // Berkasnya penuh kolom menarik: klaster, hasil pleno, tahap, luas lahan,
+    // jumlah nelayan, kapal, nilai EE, ID lokasi. Semuanya sengaja tidak
+    // diambil (ketetapan user 2026-09-06: "sesuaikan dengan kebutuhan yang ada
+    // di marlin saja"). Katalog yang menyimpan data tak terpakai hanya jadi
+    // salinan kedua yang segera basi terhadap berkas aslinya di KKP.
+    const h = await parseMasterLocationXlsx(await berkasKnmp([AKTIF]));
+    const isi = JSON.stringify(h.rows[0]);
+    for (const nilai of ["BajoPulau", "Penyangga", "Tahap II 146", "2838404000", "KNMP-730", "VALID"])
+      expect(isi).not.toContain(nilai);
+    expect(isi).not.toContain("484"); // jumlah nelayan
   });
 });
 
@@ -195,9 +194,7 @@ describe("templat impor", () => {
 
     const h = await parseMasterLocationXlsx(buf);
     expect(h.rows).toHaveLength(1);
-    const r = h.rows[0]!;
-    expect(r).toMatchObject({
-      sourceCode: "KNMP-730",
+    expect(h.rows[0]).toEqual({
       province: "Jawa Tengah",
       regency: "Rembang",
       district: "Rembang",
@@ -205,13 +202,21 @@ describe("templat impor", () => {
       name: "Pasar Banggi",
       latitude: -6.6893,
       longitude: 111.4123,
-      statusCode: "SL-AKT",
-      fishermenCount: 484,
-      boatsTotal: 184,
-      eeValue: 2838404000,
     });
-    // Setiap kolom templat memang dipakai; tidak ada kolom hiasan.
-    expect(HEADER_TEMPLAT.length).toBeGreaterThanOrEqual(20);
+    // Templatnya sependek yang dibaca: sembilan kolom, tanpa satu pun hiasan.
+    // Templat yang meminta kolom yang tidak dipakai memaksa orang menyiapkan
+    // data yang tidak akan pernah dibaca.
+    expect(HEADER_TEMPLAT.map((h) => h.judul)).toEqual([
+      "Provinsi",
+      "Kabupaten/Kota",
+      "Kecamatan",
+      "Desa/Kelurahan",
+      "Kampung Nelayan",
+      "Latitude",
+      "Longitude",
+      "Kode Status Lokasi",
+      "Status Lokasi",
+    ]);
   });
 });
 

@@ -35,22 +35,20 @@ export type ParsedMasterRow = {
   longitude: number | null;
   /** Nama kampung nelayan bila berkasnya menyebut; kosong = pakai nama desa. */
   name: string | null;
-  sourceCode: string | null;
-  region: string | null;
-  cluster: string | null;
-  plenoResult: string | null;
-  statusCode: string | null;
-  statusLabel: string | null;
-  statusReason: string | null;
-  coordinateStatus: string | null;
-  sourceBatch: string | null;
-  landAreaHa: number | null;
-  fishermenCount: number | null;
-  boatsNoEngine: number | null;
-  boatsEngine: number | null;
-  boatsTotal: number | null;
-  eeValue: number | null;
 };
+
+/*
+ * YANG TIDAK DIAMBIL, DAN ITU DISENGAJA.
+ *
+ * Berkas MASTER DATA KNMP membawa jauh lebih banyak kolom: klaster, hasil
+ * pleno, tahap, luas lahan, jumlah nelayan, jumlah kapal, nilai EE, ID lokasi,
+ * keterangan koordinat. Semuanya TIDAK disimpan — MARLIN tidak memakainya untuk
+ * apa pun, dan katalog yang menyimpan data yang tidak dipakai hanya menciptakan
+ * salinan kedua yang segera basi terhadap berkas aslinya di KKP.
+ *
+ * Kolom status lokasi tetap DIBACA, tapi hanya untuk menyaring yang aktif
+ * (`lokasiAktif`), tidak untuk disimpan.
+ */
 
 export type MasterImportResult = {
   rows: ParsedMasterRow[];
@@ -81,11 +79,6 @@ const cellNum = (v: ExcelJS.CellValue): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const cellInt = (v: ExcelJS.CellValue): number | null => {
-  const n = cellNum(v);
-  return n == null ? null : Math.round(n);
-};
-
 type KolomKunci =
   | "province"
   | "regency"
@@ -94,21 +87,8 @@ type KolomKunci =
   | "latitude"
   | "longitude"
   | "name"
-  | "sourceCode"
-  | "region"
-  | "cluster"
-  | "plenoResult"
   | "statusCode"
-  | "statusLabel"
-  | "statusReason"
-  | "coordinateStatus"
-  | "sourceBatch"
-  | "landAreaHa"
-  | "fishermenCount"
-  | "boatsNoEngine"
-  | "boatsEngine"
-  | "boatsTotal"
-  | "eeValue";
+  | "statusLabel";
 
 type ColMap = Record<KolomKunci, number>;
 
@@ -119,28 +99,15 @@ type ColMap = Record<KolomKunci, number>;
  * "Status Lokasi".
  */
 const MATCHERS: { key: KolomKunci; re: RegExp }[] = [
-  { key: "sourceCode", re: /^ID\s*LOKASI/i },
   { key: "province", re: /PROVINSI|PROPINSI/i },
   { key: "regency", re: /KABUPATEN|KOTA/i },
   { key: "district", re: /KECAMATAN/i },
   { key: "village", re: /DESA|KELURAHAN/i },
   { key: "name", re: /KAMPUNG\s*NELAYAN/i },
-  { key: "region", re: /^WILAYAH$/i },
-  { key: "cluster", re: /KLASTER|CLUSTER/i },
-  { key: "plenoResult", re: /HASIL\s*PLENO/i },
-  { key: "coordinateStatus", re: /STATUS\s*KOORDINAT/i },
   { key: "latitude", re: /LATITUDE|LINTANG|\bLAT\b/i },
   { key: "longitude", re: /LONGITUDE|BUJUR|\bLNG\b|\bLONG?\b/i },
   { key: "statusCode", re: /KODE\s*STATUS\s*LOKASI/i },
-  { key: "statusReason", re: /ALASAN\s*STATUS\s*LOKASI/i },
   { key: "statusLabel", re: /^STATUS\s*LOKASI$/i },
-  { key: "sourceBatch", re: /^TAHAP$/i },
-  { key: "landAreaHa", re: /LUAS\s*LAHAN/i },
-  { key: "fishermenCount", re: /JUMLAH\s*NELAYAN/i },
-  { key: "boatsNoEngine", re: /KAPAL\s*TANPA\s*MESIN/i },
-  { key: "boatsEngine", re: /KAPAL\s*DENGAN\s*MESIN/i },
-  { key: "boatsTotal", re: /TOTAL\s*KAPAL/i },
-  { key: "eeValue", re: /NILAI\s*EE/i },
 ];
 
 const KOSONG: ColMap = Object.fromEntries(MATCHERS.map((m) => [m.key, -1])) as ColMap;
@@ -247,7 +214,6 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
     const row = ws.getRow(r);
     const get = (c: number) => (c > 0 ? cellStr(row.getCell(c).value).trim() : "");
     const num = (c: number) => (c > 0 ? cellNum(row.getCell(c).value) : null);
-    const int = (c: number) => (c > 0 ? cellInt(row.getCell(c).value) : null);
     const province = get(cols.province);
     const regency = get(cols.regency);
     const village = get(cols.village);
@@ -268,21 +234,6 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
       latitude: num(cols.latitude),
       longitude: num(cols.longitude),
       name: get(cols.name) || null,
-      sourceCode: get(cols.sourceCode) || null,
-      region: get(cols.region) || null,
-      cluster: get(cols.cluster) || null,
-      plenoResult: get(cols.plenoResult) || null,
-      statusCode: get(cols.statusCode) || null,
-      statusLabel: get(cols.statusLabel) || null,
-      statusReason: get(cols.statusReason) || null,
-      coordinateStatus: get(cols.coordinateStatus) || null,
-      sourceBatch: get(cols.sourceBatch) || null,
-      landAreaHa: num(cols.landAreaHa),
-      fishermenCount: int(cols.fishermenCount),
-      boatsNoEngine: int(cols.boatsNoEngine),
-      boatsEngine: int(cols.boatsEngine),
-      boatsTotal: int(cols.boatsTotal),
-      eeValue: int(cols.eeValue),
     });
   }
   if (skipped > 0) warnings.push(`${skipped} baris dilewati (provinsi/kabupaten/desa tidak lengkap).`);
@@ -296,26 +247,13 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
 
 /** Header templat impor — SATU sumber untuk parser, templat, dan ujinya. */
 export const HEADER_TEMPLAT: { judul: string; contoh: string; catatan: string }[] = [
-  { judul: "ID Lokasi", contoh: "KNMP-730", catatan: "Opsional. Penelusuran balik ke daftar KKP." },
   { judul: "Provinsi", contoh: "Jawa Tengah", catatan: "WAJIB." },
   { judul: "Kabupaten/Kota", contoh: "Rembang", catatan: "WAJIB." },
   { judul: "Kecamatan", contoh: "Rembang", catatan: "Opsional, tapi dipakai memeriksa lokasi ganda." },
   { judul: "Desa/Kelurahan", contoh: "Pasar Banggi", catatan: "WAJIB." },
   { judul: "Kampung Nelayan", contoh: "Pasar Banggi", catatan: "Nama kampung; kosong = pakai nama desa." },
-  { judul: "Wilayah", contoh: "Jawa", catatan: "Opsional." },
-  { judul: "Klaster", contoh: "PasarBanggi", catatan: "Opsional." },
-  { judul: "Hasil Pleno", contoh: "Hub", catatan: "Opsional (Hub / Penyangga)." },
   { judul: "Latitude", contoh: "-6.6893", catatan: "Desimal, titik sebagai pemisah." },
   { judul: "Longitude", contoh: "111.4123", catatan: "Desimal." },
-  { judul: "Status Koordinat", contoh: "VALID", catatan: "Opsional, keterangan dari sumber." },
-  { judul: "Kode Status Lokasi", contoh: "SL-AKT", catatan: "HANYA SL-AKT yang diimpor." },
-  { judul: "Status Lokasi", contoh: "Aktif", catatan: "Dipakai bila kolom kode kosong." },
-  { judul: "Alasan Status Lokasi", contoh: "", catatan: "Opsional." },
-  { judul: "Tahap", contoh: "Tahap II 146", catatan: "Opsional." },
-  { judul: "Luas Lahan (Ha)", contoh: "0.6", catatan: "Opsional." },
-  { judul: "Jumlah Nelayan", contoh: "484", catatan: "Opsional." },
-  { judul: "Kapal Tanpa Mesin", contoh: "44", catatan: "Opsional." },
-  { judul: "Kapal Dengan Mesin", contoh: "140", catatan: "Opsional." },
-  { judul: "Total Kapal", contoh: "184", catatan: "Opsional." },
-  { judul: "Nilai EE", contoh: "2838404000", catatan: "Opsional, rupiah tanpa titik." },
+  { judul: "Kode Status Lokasi", contoh: "SL-AKT", catatan: "HANYA SL-AKT yang diimpor. Tidak disimpan." },
+  { judul: "Status Lokasi", contoh: "Aktif", catatan: "Dipakai bila kolom kode kosong. Tidak disimpan." },
 ];

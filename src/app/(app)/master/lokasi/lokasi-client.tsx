@@ -52,19 +52,6 @@ export type BarisKatalog = {
   /** Data lama saja – jalur input calon penyedia sudah dicabut (user 2026-09-06). */
   candidateVendor: string | null;
   status: StatusKatalog;
-  sourceCode: string | null;
-  region: string | null;
-  cluster: string | null;
-  plenoResult: string | null;
-  statusLabel: string | null;
-  coordinateStatus: string | null;
-  sourceBatch: string | null;
-  landAreaHa: string | null;
-  fishermenCount: number | null;
-  boatsNoEngine: number | null;
-  boatsEngine: number | null;
-  boatsTotal: number | null;
-  eeValue: string | null;
   /** Lokasi proyek yang memakai baris katalog ini – dasar peringatan saat disunting. */
   dipakaiOleh: { name: string; slug: string } | null;
 };
@@ -262,7 +249,6 @@ export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
                     <th className="px-3 py-2">Kabupaten / Kota</th>
                     <th className="px-3 py-2">Kecamatan</th>
                     <th className="px-3 py-2">Koordinat</th>
-                    <th className="px-3 py-2">ID / Klaster</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2 text-right">Aksi</th>
                   </tr>
@@ -284,10 +270,6 @@ export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
                             <span className="text-warning">belum diisi</span>
                           );
                         })()}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-ink-muted">
-                        {r.sourceCode || "–"}
-                        {r.cluster ? <span className="block text-ink-faint">{r.cluster}</span> : null}
                       </td>
                       <td className="px-3 py-2">
                         <StatusPill tone={NADA_STATUS[r.status]} label={LABEL_STATUS[r.status]} />
@@ -316,7 +298,6 @@ export function KatalogLokasiManager({ rows }: { rows: BarisKatalog[] }) {
                     />
                     <p className="mt-1.5 text-[11px] text-ink-muted">
                       {koordinat(r)?.singkat ?? "Koordinat belum diisi"}
-                      {r.sourceCode ? ` · ${r.sourceCode}` : ""}
                     </p>
                   </KartuBaris>
                 </button>

@@ -157,7 +157,6 @@ export function FormUbahLokasi({
           {titikLat != null && titikLng != null
             ? "Klik peta atau seret penandanya untuk memperbaiki titiknya – kotak di atas ikut terisi."
             : "Belum berkoordinat. Klik di peta untuk menaruh titiknya, atau ketik angkanya."}
-          {baris.coordinateStatus ? ` Keterangan dari berkas sumber: ${baris.coordinateStatus}.` : ""}
         </p>
         {titikLat != null && titikLng != null ? (
           <a
@@ -171,37 +170,6 @@ export function FormUbahLokasi({
         ) : null}
       </fieldset>
 
-      {/* Data dari MASTER DATA KNMP yang tidak disunting di sini – ditampilkan
-          apa adanya supaya orang tahu isi barisnya tanpa membuka berkas asli. */}
-      <fieldset className="space-y-1.5">
-        <legend className="text-[12px] font-semibold text-ink">Dari berkas sumber</legend>
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
-          <Fakta label="ID Lokasi" nilai={baris.sourceCode} />
-          <Fakta label="Status di sumber" nilai={baris.statusLabel} />
-          <Fakta label="Wilayah" nilai={baris.region} />
-          <Fakta label="Klaster" nilai={baris.cluster} />
-          <Fakta label="Hasil pleno" nilai={baris.plenoResult} />
-          <Fakta label="Tahap" nilai={baris.sourceBatch} />
-          <Fakta label="Luas lahan (Ha)" nilai={baris.landAreaHa} />
-          <Fakta label="Jumlah nelayan" nilai={baris.fishermenCount?.toLocaleString("id-ID") ?? null} />
-          <Fakta
-            label="Kapal"
-            nilai={
-              baris.boatsTotal != null
-                ? `${baris.boatsTotal.toLocaleString("id-ID")} (${baris.boatsNoEngine ?? 0} tanpa mesin · ${baris.boatsEngine ?? 0} bermesin)`
-                : null
-            }
-          />
-          <Fakta
-            label="Nilai EE"
-            nilai={baris.eeValue ? `Rp ${Number(baris.eeValue).toLocaleString("id-ID")}` : null}
-          />
-          {baris.candidateVendor ? (
-            <Fakta label="Calon penyedia (data lama)" nilai={baris.candidateVendor} />
-          ) : null}
-        </dl>
-      </fieldset>
-
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button type="submit" loading={pending}>
           Simpan perubahan
@@ -211,14 +179,5 @@ export function FormUbahLokasi({
         </Button>
       </div>
     </form>
-  );
-}
-
-function Fakta({ label, nilai }: { label: string; nilai: string | null }) {
-  return (
-    <>
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className={nilai ? "text-ink" : "text-ink-faint"}>{nilai || "–"}</dd>
-    </>
   );
 }
