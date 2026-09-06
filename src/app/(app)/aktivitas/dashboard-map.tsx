@@ -72,10 +72,6 @@ export function DashboardMap({
         ))}
       </div>
 
-      {/* Tingginya mengikuti kotak yang diberi induk (dipatok di dasbor), bukan
-          memaksa 300px sendiri: baris tapis di atas bisa membungkus jadi dua
-          baris di layar sempit, dan minimum yang terlalu besar membuat kartunya
-          molor melewati kotaknya. */}
       <div className="relative min-h-[200px] flex-1 overflow-hidden rounded-lg border border-border">
         <PetaMap
           sumber={sumber}

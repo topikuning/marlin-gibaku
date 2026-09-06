@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { PetaMarker } from "@/lib/peta";
@@ -15,6 +14,7 @@ import {
   type ModePeta,
   type SumberPeta,
 } from "@/lib/peta/gaya";
+import { siapkanPeta } from "@/lib/peta/klien";
 import { statusColorToken } from "./status-color";
 
 /**
@@ -78,12 +78,6 @@ function titik(f: { geometry: { coordinates?: unknown } }): [number, number] {
   return [c[0], c[1]];
 }
 
-let protokolTerpasang = false;
-function pasangProtokol() {
-  if (protokolTerpasang) return;
-  maplibregl.addProtocol("pmtiles", new Protocol().tile);
-  protokolTerpasang = true;
-}
 
 export interface PetaMapProps {
   markers: PetaMarker[];
@@ -162,7 +156,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !adaSumber(sumber) || !webgl) return;
-    pasangProtokol();
+    siapkanPeta();
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: gayaPeta(sumber, mode),
@@ -335,7 +329,8 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
       <div ref={containerRef} className="h-full w-full" />
       {galat ? (
         <div className="absolute right-2 bottom-8 left-2 z-10 rounded-md border border-danger bg-surface/95 px-2.5 py-1.5 text-[11px] text-danger shadow-sm">
-          Peta gagal digambar – {galat}. Buka Sistem › Kesehatan Layanan untuk keadaan peta dasar.
+          Sebagian peta gagal dimuat – {galat}. Buka Sistem › Kesehatan Layanan untuk keadaan peta
+          dasar.
         </div>
       ) : null}
       {pilihan.length > 1 ? (

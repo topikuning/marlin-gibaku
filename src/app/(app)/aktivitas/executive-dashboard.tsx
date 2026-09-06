@@ -142,22 +142,21 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
       {/* Peta + Status submit */}
       {/*
-        `items-start`: kartu peta TIDAK ikut ditarik setinggi kartu di
-        sebelahnya. Teguran user 2026-09-06: *"ini terlalu memanjang ke bawah
-        mapnya"* — daftar status submit tumbuh mengikuti jumlah lokasi (menuju
-        200+), dan selama baris grid ini meregangkan keduanya, peta ikut molor
-        sampai layar penuh. Peta di dasbor adalah RINGKASAN sebaran; yang mau
-        menelusurinya membuka /peta yang memang satu layar penuh.
+        Kedua kartu SETINGGI yang tertinggi — ketetapan user 2026-09-06:
+        *"tampilan kembali seimbangkan dengan card sampingnya, meskipun
+        memanjang"*. Percobaan memotong tinggi peta (h-[340px] + items-start)
+        memang memendekkan halaman, tapi menyisakan kartu kanan yang menjulang
+        sendirian; yang dipilih user keseimbangan barisnya, bukan panjangnya.
       */}
-      <div className="grid items-start gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="flex flex-col lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
           </div>
           <div className="flex flex-1 flex-col p-4">
-            {/* Tinggi dipatok, bukan `flex-1`: ukurannya milik peta sendiri,
-                bukan sisa ruang yang kebetulan ada. */}
-            <div className="h-[340px] sm:h-[400px]">
+            {/* `flex-1`: peta mengisi sisa tinggi kartu, jadi kartu ini
+                berakhir sejajar dengan kartu status di sebelahnya. */}
+            <div className="min-h-[300px] flex-1">
               <DashboardMap
                 sumber={sumber}
                 markers={data.markers}

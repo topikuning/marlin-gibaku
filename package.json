@@ -7,8 +7,8 @@
   },
   "packageManager": "pnpm@11.17.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
+    "dev": "node scripts/salin-worker-peta.mjs && next dev",
+    "build": "node scripts/salin-worker-peta.mjs && prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -27,7 +27,8 @@
     "waha:grup-ganda": "tsx scripts/waha-grup-ganda.ts",
     "audit:ahsp": "tsx scripts/audit-ahsp.mts",
     "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts",
-    "rab:siapkan": "tsx scripts/siapkan-rab-lapangan.mts"
+    "rab:siapkan": "tsx scripts/siapkan-rab-lapangan.mts",
+    "peta:worker": "node scripts/salin-worker-peta.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1086.0",

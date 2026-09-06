@@ -47,3 +47,6 @@ AUDIT_AHSP_JANGGAL.xlsx
 # Simpanan sementara lampiran WhatsApp (dan apa pun yang lahir saat aplikasi jalan).
 # Isinya berkas milik orang lain – tidak pernah boleh masuk riwayat Git.
 .data/
+
+# Worker MapLibre disalin dari node_modules tiap build (scripts/salin-worker-peta.mjs).
+public/maplibre/

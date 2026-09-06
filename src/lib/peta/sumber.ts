@@ -1,7 +1,14 @@
 import "server-only";
 import { cache } from "react";
 import { env } from "@/lib/env";
-import { DIR_PETA, isiBasemapTerkini, periksaBasemap, unduhanBerjalan } from "./berkas";
+import {
+  ALASAN_DIR_PETA,
+  DIR_PETA,
+  DIR_PETA_DI_VOLUME,
+  isiBasemapTerkini,
+  periksaBasemap,
+  unduhanBerjalan,
+} from "./berkas";
 import { lapisanDiminta, type SumberPeta } from "./gaya";
 import { skemaCocok } from "./pmtiles";
 
@@ -115,6 +122,10 @@ export type StatusPeta = {
     ada: boolean;
     /** Direktori tempat berkasnya duduk — disebut supaya bisa diperiksa orang. */
     lokasi: string;
+    /** Aturan mana yang memilih direktori itu (PETA_DIR, volume /data, …). */
+    alasanLokasi: string;
+    /** Direktori itu bertahan setelah deploy? `false` = ikut terhapus. */
+    lokasiDiVolume: boolean;
     ukuranMb: number | null;
     diperbarui: Date | null;
     sedangUnduh: boolean;
@@ -210,6 +221,8 @@ export async function statusPeta(): Promise<StatusPeta> {
     dasar: {
       ada: berkas.ada,
       lokasi: DIR_PETA,
+      alasanLokasi: ALASAN_DIR_PETA,
+      lokasiDiVolume: DIR_PETA_DI_VOLUME,
       ukuranMb: berkas.ada ? Math.round((berkas.ukuran / 1024 / 1024) * 10) / 10 : null,
       diperbarui: berkas.diperbarui,
       sedangUnduh: unduhanBerjalan(),

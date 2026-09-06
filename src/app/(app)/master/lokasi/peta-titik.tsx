@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   LAPIS_SATELIT,
@@ -13,6 +12,7 @@ import {
   type ModePeta,
   type SumberPeta,
 } from "@/lib/peta/gaya";
+import { siapkanPeta } from "@/lib/peta/klien";
 
 /**
  * PETA SATU TITIK — perkiraan letak lokasi katalog, sekaligus alat menaruhnya.
@@ -35,12 +35,6 @@ import {
 const PUSAT_KOSONG: [number, number] = [118, -2.5];
 
 /** Protokol pmtiles didaftarkan SEKALI per halaman, bukan per peta. */
-let protokolTerpasang = false;
-function pasangProtokol() {
-  if (protokolTerpasang) return;
-  maplibregl.addProtocol("pmtiles", new Protocol().tile);
-  protokolTerpasang = true;
-}
 
 export function PetaTitik({
   lat,
@@ -75,7 +69,7 @@ export function PetaTitik({
 
   useEffect(() => {
     if (!wadah.current || peta.current || !adaSumber(sumber) || !webgl) return;
-    pasangProtokol();
+    siapkanPeta();
     const m = new maplibregl.Map({
       container: wadah.current,
       style: gayaPeta(sumber, mode),
@@ -162,8 +156,8 @@ export function PetaTitik({
       <div ref={wadah} style={{ height: tinggi }} className="w-full overflow-hidden rounded-md border border-border" />
       {galat ? (
         <p className="rounded-md border border-danger px-2 py-1 text-[11px] text-danger">
-          Peta gagal digambar – {galat}. Koordinat tetap bisa diisi manual; keadaan peta dasar ada di
-          layar Sistem.
+          Sebagian peta gagal dimuat – {galat}. Koordinat tetap bisa diisi manual; keadaan peta dasar
+          ada di layar Sistem.
         </p>
       ) : null}
       {pilihan.length > 1 ? (

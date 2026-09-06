@@ -1,16 +1,13 @@
-// TINGGI PETA DI DASBOR DIPATOK, TIDAK IKUT TETANGGA.
+// TINGGI PETA DASBOR = SETINGGI KARTU DI SEBELAHNYA.
 //
-// Teguran user 2026-09-06: *"lalu ini terlalu memanjang ke bawah mapnya"*.
+// Ketetapan user 2026-09-06: *"tampilan kembali seimbangkan dengan card
+// sampingnya, meskipun memanjang"*.
 //
-// Sebabnya bukan peta itu sendiri, melainkan barisnya: kartu "Status Submit
-// Lokasi Hari Ini" di sebelahnya tumbuh mengikuti jumlah lokasi (83 sekarang,
-// arsitektur menargetkan 200+), dan selama baris grid meregangkan kedua kartu
-// setinggi yang tertinggi, peta ikut molor sampai jauh melewati layar.
-//
-// Dua hal yang menahannya, dan keduanya mudah hilang tanpa sengaja saat orang
-// merapikan kelas Tailwind:
-//   1. `items-start` pada barisnya — kartu tidak lagi saling menyamakan tinggi.
-//   2. tinggi PASTI pada kotak peta — bukan `flex-1` yang berarti "ambil sisa".
+// Ini pembalikan percobaan sebelumnya di hari yang sama. Memotong tinggi peta
+// (`h-[340px]` + `items-start`) memang memendekkan halaman, tapi menyisakan
+// kartu "Status Submit" menjulang sendirian di sebelahnya — dan yang dipilih
+// user keseimbangan barisnya, bukan panjangnya. Dijaga di sini supaya
+// "perapian" berikutnya tidak diam-diam memotongnya lagi.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -20,13 +17,21 @@ const dasbor = readFileSync(
 );
 
 describe("kotak peta di dasbor", () => {
-  it("barisnya tidak meregangkan kartu – items-start", () => {
-    expect(dasbor).toContain('className="grid items-start gap-4 lg:grid-cols-3"');
+  it("baris PETA meregangkan kedua kartu – tanpa items-start", () => {
+    // Diperiksa pada baris petanya saja, bukan seluruh berkas: baris lain
+    // (Activity Centre) memang memakai `items-start` dan tidak ada urusannya
+    // dengan keluhan ini.
+    const baris = /<div className="(grid[^"]*lg:grid-cols-3)">\s*<Card className="flex flex-col lg:col-span-2">/.exec(
+      dasbor,
+    );
+    expect(baris, "baris kartu peta tidak ketemu").not.toBeNull();
+    expect(baris?.[1]).not.toContain("items-start");
   });
 
-  it("kotak petanya bertinggi pasti, bukan sisa ruang", () => {
-    const kotak = /<div className="(h-\[\d+px\][^"]*)">\s*<DashboardMap/.exec(dasbor);
-    expect(kotak, "kotak <DashboardMap> harus memakai tinggi h-[..px]").not.toBeNull();
-    expect(kotak?.[1]).not.toContain("flex-1");
+  it("kotak petanya mengisi sisa tinggi kartu, bukan tinggi pasti", () => {
+    const kotak = /<div className="([^"]+)">\s*<DashboardMap/.exec(dasbor);
+    expect(kotak, "kotak <DashboardMap> tidak ketemu").not.toBeNull();
+    expect(kotak?.[1]).toContain("flex-1");
+    expect(kotak?.[1]).not.toMatch(/(^|\s)h-\[/);
   });
 });

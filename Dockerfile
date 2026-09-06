@@ -20,7 +20,14 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 # Prisma 7 generate tidak butuh koneksi DB; build Next standalone.
 # Placeholder env agar validasi zod build-time lolos; nilai riil dari Railway saat runtime.
+#
+# `salin-worker-peta.mjs` WAJIB ikut di sini, bukan hanya di skrip `pnpm build`:
+# berkas ini memanggil `pnpm next build` langsung, jadi apa pun yang menempel di
+# skrip npm TIDAK akan berjalan saat membangun image. Tanpa salinan itu, worker
+# MapLibre di produksi menunjuk berkas yang tidak ada dan peta jadi abu-abu
+# tanpa satu pun pesan (kejadian 2026-09-06) — dijaga tests/unit/peta-worker.test.ts.
 RUN pnpm prisma generate && \
+    node scripts/salin-worker-peta.mjs && \
     DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     SESSION_SECRET="build-placeholder-secret-0123456789abcdef" \
     APP_ENV="production" \

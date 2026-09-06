@@ -57,22 +57,44 @@ import {
  *   3. `/data/peta` bila `/data` ada — titik pasang volume Railway yang lazim.
  *   4. `.data/peta` di dalam aplikasi — hanya untuk pengembangan lokal.
  */
-function pilihDirPeta(): string {
+function pilihDirPeta(): { dir: string; alasan: string; volume: boolean } {
   const eksplisit = env.PETA_DIR?.trim();
-  if (eksplisit) return eksplisit;
+  if (eksplisit) return { dir: eksplisit, alasan: "PETA_DIR", volume: true };
 
   const lampiran = process.env.LAMPIRAN_DIR?.trim();
-  if (lampiran) return path.join(path.dirname(lampiran), "peta");
+  if (lampiran)
+    return { dir: path.join(path.dirname(lampiran), "peta"), alasan: "sebelah LAMPIRAN_DIR", volume: true };
 
   try {
-    if (statSync("/data").isDirectory()) return "/data/peta";
+    if (statSync("/data").isDirectory())
+      return { dir: "/data/peta", alasan: "volume /data", volume: true };
   } catch {
-    // /data tidak ada – lingkungan pengembangan.
+    // /data tidak ada – lingkungan tanpa volume.
   }
-  return path.join(process.cwd(), ".data", "peta");
+  return {
+    dir: path.join(process.cwd(), ".data", "peta"),
+    alasan: "bawaan aplikasi",
+    volume: false,
+  };
 }
 
-export const DIR_PETA = pilihDirPeta();
+const pilihan = pilihDirPeta();
+
+export const DIR_PETA = pilihan.dir;
+
+/**
+ * KENAPA direktori itu yang dipakai — dan apakah ia bertahan setelah deploy.
+ *
+ * Pertanyaan user 2026-09-06: *"kenapa path masih itu"*, melihat
+ * `/app/.data/peta` di layar Sistem. Pertanyaan yang benar, dan jawabannya
+ * tidak ada di mana pun: nilai bawaan dipakai DIAM-DIAM ketika lingkungan tidak
+ * menyebutkan volume, padahal `/app` ikut terhapus tiap deploy — jadi peta yang
+ * baru diunduh akan lenyap tanpa ada yang tahu kenapa. Sekarang layar
+ * menyebutkan aturan mana yang memilih direktori itu, dan mengatakannya
+ * terang-terangan bila direktori itu BUKAN volume.
+ */
+export const ALASAN_DIR_PETA = pilihan.alasan;
+export const DIR_PETA_DI_VOLUME = pilihan.volume;
 
 /** Nama berkasnya tetap — satu peta dasar per lingkungan, tidak berversi. */
 export const NAMA_BASEMAP = "basemap.pmtiles";

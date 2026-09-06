@@ -300,7 +300,7 @@ export default async function SistemPage() {
               peta.dasar.ada && peta.dasar.isi?.masalah
                 ? peta.dasar.isi.masalah
                 : peta.dasar.ada
-                  ? `${peta.dasar.lokasi} · ${peta.dasar.ukuranMb} MB${peta.dasar.isi?.sah ? ` · ubin ${peta.dasar.isi.jenisUbin} ${peta.dasar.isi.zoom} · wilayah ${peta.dasar.isi.wilayah} · ${peta.dasar.isi.lapisanCocok} lapisan cocok dengan gaya` : ""}${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
+                  ? `${peta.dasar.lokasi} (${peta.dasar.alasanLokasi})${peta.dasar.lokasiDiVolume ? "" : " – BUKAN volume, hilang tiap deploy; isi PETA_DIR bila lingkungan ini punya volume"} · ${peta.dasar.ukuranMb} MB${peta.dasar.isi?.sah ? ` · ubin ${peta.dasar.isi.jenisUbin} ${peta.dasar.isi.zoom} · wilayah ${peta.dasar.isi.wilayah} · ${peta.dasar.isi.lapisanCocok} lapisan cocok dengan gaya` : ""}${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
                   : peta.dasar.sebab
             }
             tone={

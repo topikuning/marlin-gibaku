@@ -27963,3 +27963,71 @@ berarti peta berbohong dengan percaya diri.
 **Konsekuensi**: satu baris rusak tidak lagi menggagalkan impor 1.270 baris.
 Dijaga `tests/unit/koordinat-impor-janggal.test.ts` (termasuk baris "Aewoe" yang
 sebenarnya).
+
+---
+
+## 534 · 2026-09-06 · Worker MapLibre disajikan sendiri — akar peta abu-abu yang sebenarnya
+
+**Konteks**: peta tetap abu-abu meski layar Sistem menyatakan berkas peta dasar
+SEHAT — PMTiles v3, ubin vektor, z0–12, batas Indonesia, 9 lapisan cocok dengan
+gaya (*"kenapa path masih itu, berhasil didownload tapi malah abu2"*). Berkas
+rilis 210 MB itu diperiksa langsung dan memang benar; jadi salahnya bukan di
+data.
+
+Sebabnya ada di rantai build, dan ia gagal dengan DIAM di tiga lapis sekaligus:
+
+1. MapLibre 6 menggambar ubin di dalam Web Worker. Workernya modul ES yang
+   mengimpor tetangganya, `./maplibre-gl-shared.mjs`.
+2. Next menyalin worker itu ke `/_next/static/media/…<hash>.mjs` **apa adanya** —
+   impor relatifnya tidak ditulis ulang, sementara tetangganya ikut di-hash jadi
+   nama lain. Worker menunjuk berkas yang tidak ada.
+3. `new Worker(url)` yang skripnya gagal dimuat **tidak melempar apa pun**:
+   kegagalannya cuma sebuah event error yang tidak didengarkan siapa pun.
+
+Hasil di layar: gaya termuat, kepala `.pmtiles` terbaca SATU kali, lalu
+berhenti — nol permintaan ubin, nol pesan galat, tersisa lapisan latar Protomaps
+`#cccccc`. Persis abu-abu yang dikeluhkan, dan tidak satu pun petunjuk di mana
+pun.
+
+**Keputusan**:
+
+- **Worker MapLibre + berkas yang diimpornya disalin ke `public/maplibre/`**
+  (`scripts/salin-worker-peta.mjs`), berdampingan, sehingga impor relatifnya
+  tetap benar; alamatnya diumumkan lewat `setWorkerUrl` di `lib/peta/klien.ts`
+  sebelum peta pertama dibuat. Disalin dari `node_modules` tiap build supaya
+  versinya tidak mungkin melenceng dari pustaka yang dipakai halaman, dan
+  skripnya BERHENTI kalau susunan `dist/` maplibre berubah.
+- **Skripnya dipanggil di `pnpm build`, `pnpm dev`, DAN Dockerfile.** Yang
+  ketiga bukan pengulangan: Dockerfile memanggil `pnpm next build` langsung,
+  jadi apa pun yang menempel di skrip npm tidak berjalan saat membangun image —
+  perbaikan yang hanya ada di package.json akan hijau di lokal dan tetap
+  abu-abu di produksi.
+- **Middleware tidak lagi mencegat `.mjs`.** Daftar kecualiannya menyebut `js`,
+  bukan `mjs`; tanpa ini worker dijawab pengalihan ke `/masuk`, memuat HTML
+  alih-alih skrip, dan gagal — sekali lagi tanpa pesan.
+- **Layar Sistem menyebut ALASAN direktori peta dipilih** dan mengatakannya
+  terang-terangan bila direktori itu bukan volume (`/app/.data/peta` ikut
+  terhapus tiap deploy). Pertanyaan *"kenapa path masih itu"* tidak boleh perlu
+  dijawab dengan membaca kode.
+- **Entrypoint memakai urutan pemilihan direktori yang SAMA PERSIS dengan
+  aplikasi.** Sebelumnya root menyiapkan `/app/.data/peta` sementara aplikasi
+  memilih `/data/peta` — dan tulisan `marlin` ke volume milik root gagal dengan
+  EACCES, pengulangan diam kegagalan lampiran 2026-09-03.
+
+**Alternatif direject**:
+- *Menunggu Next memperbaiki penyalinan worker.* Peta mati sekarang, di sistem
+  yang sudah dipakai orang.
+- *Mem-bundel worker sendiri lewat konfigurasi webpack.* Lebih rapuh dan lebih
+  sulit dijelaskan daripada dua berkas statis di `public/`.
+- *Menyalin worker ke repo (di-commit).* Versinya pasti melenceng dari
+  `node_modules` cepat atau lambat, dan melencengnya tidak kelihatan.
+
+**Konsekuensi**: dua berkas statis (±511 KB) disajikan dari asal sendiri,
+dimuat sekali lalu di-cache peramban. Dibuktikan dengan menjalankan aplikasi
+hasil `pnpm build` di peramban headless memakai berkas rilis 210 MB: sebelum
+perbaikan hanya 1 respons 206 (kepala) dan peta kosong; sesudahnya 20 respons
+206 dan peta Jawa–Bali tergambar lengkap dengan label kota. Dijaga
+`tests/unit/peta-worker.test.ts` (6 klausa, termasuk Dockerfile dan matcher
+middleware). Sisa ketergantungan pihak ketiga tinggal glyph & sprite Protomaps
+(`protomaps.github.io`): kalau CDN itu mati, label dan ikon hilang tapi petanya
+tetap tergambar, dan sekarang layar mengatakannya.
