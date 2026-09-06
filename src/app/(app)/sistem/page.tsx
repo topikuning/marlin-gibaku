@@ -23,6 +23,7 @@ import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPolicy } from "@/lib/policy";
 import { statusPeta } from "@/lib/peta/sumber";
+import { PetaPanel } from "./peta-panel";
 import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
@@ -293,11 +294,11 @@ export default async function SistemPage() {
             label="Peta dasar (vektor)"
             detail={
               peta.dasar.ada
-                ? `${peta.dasar.kunci} · ${peta.dasar.ukuranMb} MB${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
+                ? `${peta.dasar.lokasi} · ${peta.dasar.ukuranMb} MB${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
                 : peta.dasar.sebab
             }
-            tone={peta.dasar.ada ? "success" : "warning"}
-            status={peta.dasar.ada ? "Terpasang" : "Belum ada"}
+            tone={peta.dasar.ada ? "success" : peta.dasar.sedangUnduh ? "neutral" : "warning"}
+            status={peta.dasar.ada ? "Terpasang" : peta.dasar.sedangUnduh ? "Mengunduh" : "Belum ada"}
           />
           <HealthRow
             label="Citra satelit"
@@ -309,6 +310,12 @@ export default async function SistemPage() {
             tone={peta.satelit.ada ? "success" : "neutral"}
             status={peta.satelit.ada ? "Aktif" : "Mati"}
           />
+          {/* Penyiapannya di sini, bukan di CI: volume dev dan produksi
+              berbeda, jadi yang tahu volume mana yang perlu diisi adalah
+              aplikasi yang sedang berjalan di atasnya. */}
+          {!peta.dimatikan ? (
+            <PetaPanel sudahAda={peta.dasar.ada} sedangUnduh={peta.dasar.sedangUnduh} />
+          ) : null}
         </CardBody>
       </Card>
 
