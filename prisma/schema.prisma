@@ -66,6 +66,18 @@ enum RevisionStatus {
   digantikan
 }
 
+/// Jenis perubahan LINGKUP lokasi lewat adendum (DECISIONS baru 2026-09-05).
+enum LocationScopeKind {
+  tambah
+  cabut
+}
+
+enum LocationScopeStatus {
+  draft
+  aktif
+  dibatalkan
+}
+
 enum RabNodeKind {
   kategori
   sub
@@ -443,20 +455,21 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization      Organization          @relation(fields: [orgId], references: [id])
+  organization      Organization            @relation(fields: [orgId], references: [id])
   sessions          Session[]
   assignments       LocationAssignment[]
   auditLogs         AuditLog[]
-  creator           User?                 @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers      User[]                @relation("UserCreator")
-  waContacts        WaContact[]           @relation("WaContactOwner")
-  waAliases         WaSenderAlias[]       @relation("WaSenderAliasCreator")
+  creator           User?                   @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers      User[]                  @relation("UserCreator")
+  waContacts        WaContact[]             @relation("WaContactOwner")
+  waAliases         WaSenderAlias[]         @relation("WaSenderAliasCreator")
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
-  ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
-  hsdDiubah         HargaSatuanDasar[]    @relation("HsdUpdater")
-  hsdUsulanDiminta  HsdUsulanRun[]        @relation("HsdUsulanPeminta")
-  raplRincian       RaplRincian[]         @relation("RaplRincianUpdater")
+  scopeApprovals    LocationScopeApproval[]
+  ahspPadanan       AhspPadanan[]           @relation("AhspPadananDecider")
+  hsdDiubah         HargaSatuanDasar[]      @relation("HsdUpdater")
+  hsdUsulanDiminta  HsdUsulanRun[]          @relation("HsdUsulanPeminta")
+  raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
 
   @@index([orgId])
   @@index([role])
@@ -1145,9 +1158,10 @@ model ContractAmendment {
   createdById   String?  @map("created_by_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  contract     Contract      @relation(fields: [contractId], references: [id])
+  contract     Contract              @relation(fields: [contractId], references: [id])
   documents    Document[]
   rabRevisions RabRevision[]
+  scopeChanges LocationScopeChange[]
 
   @@unique([contractId, ccoNumber])
   @@map("contract_amendments")
@@ -1200,6 +1214,8 @@ model Location {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   package             Package                 @relation(fields: [packageId], references: [id])
+  /// Perubahan lingkup lewat adendum: lokasi MASUK atau DICABUT dari kontrak.
+  scopeChanges        LocationScopeChange[]
   hargaSatuanDasar    HargaSatuanDasar[]
   hsdUsulanRun        HsdUsulanRun[]
   raplRincian         RaplRincian[]
@@ -1253,6 +1269,63 @@ model LocationStatusHistory {
 // ─────────────────────────────────────────────────────────────
 // RAB & BASELINE
 // ─────────────────────────────────────────────────────────────
+
+/// PERUBAHAN LINGKUP LOKASI LEWAT ADENDUM.
+///
+/// Kebutuhan user 2026-09-05: *"ada kebutuhan dimana, adendum mengurangi lokasi
+/// atau bahkan menambah lokasi. saat ini di kamu belum ada."*
+///
+/// Perubahannya TIDAK menghapus apa pun: lokasi yang dicabut tetap ada beserta
+/// laporan, foto, dan realisasinya — yang berubah hanyalah keikutsertaannya
+/// dalam angka paket sejak tanggal berlaku CCO (ketetapan user: "ditandai
+/// dicabut per CCO, angka lampau tetap"). Karena itu status keikutsertaan
+/// DITURUNKAN dari baris ini, bukan disalin ke kolom di `locations`.
+///
+/// Wajib bernomor CCO dan wajib EMPAT MATA, sama seperti aktivasi adendum RAB
+/// (DECISIONS 234): mengubah lingkup kontrak menggeser nilai kontrak, progres,
+/// kurva-S, dan laporan KKP sekaligus.
+model LocationScopeChange {
+  id            String              @id @default(uuid()) @db.Uuid
+  locationId    String              @map("location_id") @db.Uuid
+  amendmentId   String              @map("amendment_id") @db.Uuid
+  kind          LocationScopeKind
+  /// Tanggal berlaku — disalin dari adendumnya saat diajukan supaya jejaknya
+  /// tetap walau adendum diperbaiki kemudian.
+  effectiveDate DateTime            @map("effective_date") @db.Date
+  status        LocationScopeStatus @default(draft)
+  reason        String
+  createdById   String?             @map("created_by_id") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  /// Disentuh tiap usulan diubah — menggugurkan persetujuan yang sudah ada.
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  appliedAt     DateTime?           @map("applied_at") @db.Timestamptz
+
+  location  Location                @relation(fields: [locationId], references: [id])
+  amendment ContractAmendment       @relation(fields: [amendmentId], references: [id])
+  approvals LocationScopeApproval[]
+
+  @@index([locationId, status])
+  @@index([amendmentId])
+  @@map("location_scope_changes")
+}
+
+/// Persetujuan empat mata atas perubahan lingkup lokasi — aturan yang SAMA
+/// dengan `RabRevisionApproval` (DECISIONS 234), termasuk penggugurannya bila
+/// usulannya diubah sesudah disetujui.
+model LocationScopeApproval {
+  id         String   @id @default(uuid()) @db.Uuid
+  changeId   String   @map("change_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  /// Peran SAAT menyetujui — disnapshot, bukan dibaca ulang.
+  role       UserRole
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz
+
+  change LocationScopeChange @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  user   User                @relation(fields: [userId], references: [id])
+
+  @@unique([changeId, userId])
+  @@map("location_scope_approvals")
+}
 
 model RabRevision {
   id               String            @id @default(uuid()) @db.Uuid

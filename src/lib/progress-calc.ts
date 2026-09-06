@@ -390,3 +390,99 @@ export function weekDateRange(
   if (end && e.getTime() > end.getTime() && end.getTime() >= s.getTime()) e = end;
   return { start: s, end: e };
 }
+
+/* ── Kurva-S GABUNGAN satu paket ─────────────────────────────────────────── */
+
+/**
+ * Satu lokasi sebagai bahan kurva paket.
+ *
+ * Bentuknya sengaja sama dengan `ScurveSeries` (lib/baseline) supaya deret yang
+ * sudah dipakai layar lokasi bisa dipakai ulang apa adanya — dua deret berbeda
+ * untuk pekerjaan yang sama adalah cacat, bukan sudut pandang.
+ */
+export type KurvaLokasi = {
+  totalWeeks: number;
+  currentWeek: number;
+  planPct: number[];
+  actualPct: (number | null)[];
+  /** Bobot lokasi di dalam paket = nilai RAB aktifnya. */
+  grandTotal: bigint;
+};
+
+export type KurvaPaket = {
+  totalWeeks: number;
+  currentWeek: number;
+  planPct: number[];
+  actualPct: (number | null)[];
+  /** Σ RAB lokasi yang IKUT dihitung. */
+  grandTotal: bigint;
+  /** Banyak lokasi yang ikut. */
+  dihitung: number;
+};
+
+/**
+ * Gabungkan kurva-S beberapa lokasi jadi SATU kurva paket, ditimbang nilai RAB.
+ *
+ * Keluhan user 2026-09-05 di halaman paket: *"tidak ada informasi kurva S sama
+ * sekali yang bisa menjelaskan progress keseluruhan lokasi"*. Betul — angka
+ * agregat yang ada cuma satu persen tunggal; ia tidak bisa menjawab "telat atau
+ * tidak", karena tidak ada rencananya di sebelahnya.
+ *
+ * Aturannya sedikit dan semuanya berpihak pada kejujuran:
+ *
+ * 1. **Lokasi tanpa baseline atau tanpa nilai RAB TIDAK dipaksa masuk.**
+ *    Bobotnya tidak diketahui dan rencananya tidak ada; memasukkannya sebagai
+ *    nol berarti menuduh lokasi itu tertinggal 100%. Yang ikut dihitung disebut
+ *    jumlahnya di layar, supaya "kurva paket" tidak terbaca "seluruh paket".
+ * 2. **Grid minggu = minggu terpanjang.** Lokasi yang jadwalnya lebih pendek
+ *    rencananya sudah 100% sesudah minggu terakhirnya — itu memang yang
+ *    dikatakan jadwalnya, jadi diteruskan 100%, bukan dianggap kosong.
+ * 3. **Realisasi diteruskan mendatar** sesudah minggu terakhir lokasi itu:
+ *    realisasi kumulatif tidak pernah berkurang. Minggu yang belum punya angka
+ *    di SEMUA lokasi tetap `null` — garis realisasi berhenti di minggu
+ *    berjalan, tidak dijatuhkan ke nol.
+ */
+export function gabungKurvaS(lokasi: KurvaLokasi[]): KurvaPaket {
+  const ikut = lokasi.filter((l) => l.totalWeeks > 0 && l.planPct.length > 0 && l.grandTotal > 0n);
+  const total = ikut.reduce((t, l) => t + l.grandTotal, 0n);
+  if (ikut.length === 0 || total === 0n)
+    return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0 };
+
+  const minggu = Math.max(...ikut.map((l) => l.totalWeeks));
+  const currentWeek = Math.min(minggu, Math.max(...ikut.map((l) => l.currentWeek)));
+  const planPct = new Array<number>(minggu).fill(0);
+  const actualPct = new Array<number | null>(minggu).fill(null);
+
+  for (let w = 0; w < minggu; w++) {
+    let rencana = 0;
+    let realisasi = 0;
+    let adaAngka = false;
+    for (const l of ikut) {
+      const bobot = Number(l.grandTotal) / Number(total);
+      // Rencana: sesudah minggu terakhirnya, jadwal lokasi itu menyatakan 100%.
+      const p = w < l.planPct.length ? l.planPct[w] : 100;
+      rencana += bobot * p;
+      // Realisasi: pakai angka minggu ini; kalau kosong, teruskan angka terakhir
+      // yang diketahui (realisasi kumulatif tidak turun). Belum ada sama sekali
+      // → 0, tapi tidak membuat minggu ini dianggap "sudah ada angkanya".
+      let nilai: number | null = w < l.actualPct.length ? l.actualPct[w] : null;
+      if (nilai == null) {
+        for (let k = Math.min(w, l.actualPct.length) - 1; k >= 0; k--) {
+          const v = l.actualPct[k];
+          if (v != null) {
+            nilai = v;
+            break;
+          }
+        }
+      } else {
+        adaAngka = true;
+      }
+      if (w < l.actualPct.length && l.actualPct[w] != null) adaAngka = true;
+      realisasi += bobot * (nilai ?? 0);
+    }
+    planPct[w] = rencana;
+    actualPct[w] = adaAngka ? realisasi : null;
+  }
+
+  return { totalWeeks: minggu, currentWeek, planPct, actualPct, grandTotal: total, dihitung: ikut.length };
+}
