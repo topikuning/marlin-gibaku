@@ -65,6 +65,19 @@ const LAPIS_JUMLAH = "lokasi-jumlah";
 const LAPIS_TITIK = "lokasi-titik";
 const LAPIS_PILIH = "lokasi-terpilih";
 
+/**
+ * Koordinat sebuah fitur titik.
+ *
+ * Sengaja TIDAK memakai namespace global `GeoJSON`: namespace itu dulu ikut
+ * terbawa `@types/leaflet`, dan begitu Leaflet dibuang ia lenyap di pemasangan
+ * bersih — lokal masih lolos karena sisa `node_modules`, CI langsung merah.
+ * Bentuk yang dibaca di sini cuma `coordinates`, jadi itu saja yang disebut.
+ */
+function titik(f: { geometry: { coordinates?: unknown } }): [number, number] {
+  const c = f.geometry.coordinates as [number, number];
+  return [c[0], c[1]];
+}
+
 let protokolTerpasang = false;
 function pasangProtokol() {
   if (protokolTerpasang) return;
@@ -221,7 +234,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
       if (id == null) return;
       const src = map.getSource(SUMBER_LOKASI) as maplibregl.GeoJSONSource;
       void src.getClusterExpansionZoom(Number(id)).then((zoom) => {
-        map.easeTo({ center: (f.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+        map.easeTo({ center: titik(f), zoom });
       });
     });
     map.on("click", LAPIS_TITIK, (e) => {
@@ -233,7 +246,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
       const f = e.features?.[0];
       if (!f) return;
       popup
-        .setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number])
+        .setLngLat(titik(f))
         .setHTML(
           `<div style="font-size:12px;font-weight:600">${f.properties?.name ?? ""}</div><div style="font-size:11px">${f.properties?.wilayah ?? ""}</div>`,
         )
