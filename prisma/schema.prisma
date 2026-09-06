@@ -381,15 +381,49 @@ model MasterLocation {
   village            String
   latitude           Decimal? @db.Decimal(10, 7)
   longitude          Decimal? @db.Decimal(10, 7)
+  /// TIDAK diisi lagi sejak 2026-09-06 (ketetapan user: "untuk data lokasi baru
+  /// tidak perlu informasi calon penyedianya"). Kolomnya ditinggal supaya data
+  /// lama tidak hilang; tidak ada jalur input yang menulisnya lagi.
   candidateVendor    String?  @map("candidate_vendor")
   assignedLocationId String?  @unique @map("assigned_location_id") @db.Uuid
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  /// ─── Bidang dari MASTER DATA KNMP (impor 2026-09-06) ──────────────────
+  /// Semuanya opsional: katalog tetap sah dengan wilayah + desa saja.
+  /// Data PERUSAHAAN sengaja TIDAK diambil (ketetapan user hari yang sama).
+  ///
+  /// "ID Lokasi" di berkas sumber (mis. KNMP-730) — jangkar penelusuran balik
+  /// ke daftar KKP saat angka dipertanyakan.
+  sourceCode       String?  @map("source_code")
+  /// Nama kampung nelayan; kosong = pakai nama desa.
+  name             String?
+  region           String?
+  cluster          String?
+  /// Hasil pleno (mis. Hub / Penyangga).
+  plenoResult      String?  @map("pleno_result")
+  /// Status lokasi di berkas sumber: kode (SL-AKT) + labelnya (Aktif).
+  statusCode       String?  @map("status_code")
+  statusLabel      String?  @map("status_label")
+  statusReason     String?  @map("status_reason")
+  /// Keterangan koordinat dari sumber (mis. VALID) — bukan hasil hitungan kita.
+  coordinateStatus String?  @map("coordinate_status")
+  /// Tahap/rombongan di berkas sumber (mis. "Tahap II 146").
+  sourceBatch      String?  @map("source_batch")
+  landAreaHa       Decimal? @map("land_area_ha") @db.Decimal(10, 4)
+  fishermenCount   Int?     @map("fishermen_count")
+  boatsNoEngine    Int?     @map("boats_no_engine")
+  boatsEngine      Int?     @map("boats_engine")
+  boatsTotal       Int?     @map("boats_total")
+  /// Nilai EE (engineer's estimate) dari sumber, rupiah.
+  eeValue          BigInt?  @map("ee_value")
 
   organization     Organization @relation(fields: [orgId], references: [id])
   assignedLocation Location?    @relation(fields: [assignedLocationId], references: [id])
 
   @@unique([orgId, province, regency, district, village])
   @@index([orgId])
+  @@index([orgId, sourceCode])
   @@map("master_locations")
 }
 
