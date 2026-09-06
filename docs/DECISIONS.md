@@ -28114,3 +28114,46 @@ tidak lagi menutupi peta, dan `/peta` menampilkan satu panel penuh yang
 berpindah rapi. Dijaga `tests/unit/peta-di-hp.test.ts` (6 klausa) — regresi
 semacam ini tidak kelihatan di layar lebar, satu-satunya tempat kebanyakan orang
 memeriksanya.
+
+---
+
+## 537 · 2026-09-06 · Pengelompokan penanda bisa dimatikan; hilangnya pilihan lapisan dikatakan
+
+**Konteks**: *"apa tujuan dilakukan grouping begini? ini bisa diatur atau tidak,
+dan tadi sepertinya ada pilihan untuk tampilan satelite, kenapa sekarang malah
+tidak ada"* — dengan tangkapan layar peta bercitra satelit tanpa tombol lapisan.
+
+Dua hal berbeda, dan yang kedua sebenarnya laporan kerusakan.
+
+**1. Pengelompokan.** Tujuannya: sistem ini menuju 200+ lokasi di 7 provinsi,
+dan pada tampilan nasional ratusan pin yang saling menimpa bukan informasi
+melainkan noda — yang terlihat cuma pin paling atas, dan tidak ada yang tahu ada
+berapa di bawahnya. Angka di dalam lingkaran menjawab "berapa banyak di sini",
+dan mengekliknya membuka isinya.
+
+Tapi ia juga MENYEMBUNYIKAN titik yang justru sedang dicari orang, dan itu
+alasan yang cukup untuk menjadikannya pilihan, bukan paksaan. Sekarang ada
+tombol di peta: **Kelompok** ↔ **Semua titik**. Dimatikan lewat
+`setClusterOptions`, bukan dengan membangun ulang sumber peta — membuang lalu
+menambah sumber berarti seluruh lapisan penanda dibuat ulang dan pilihan lokasi
+serta posisi pandangan hilang di tengah pekerjaan orang.
+
+**2. Tombol Peta/Satelit yang hilang.** Ia memang hilang begitu salah satu
+sumber tidak ada lagi — tombol dua pilihan yang cuma punya satu pilihan bukan
+tombol. Yang SALAH adalah hilangnya diam-diam: terbaca sebagai fitur yang
+dicabut, padahal artinya berkas peta dasar lenyap dari server itu. Dan lenyapnya
+bukan kebetulan: selama `PETA_DIR` tidak diisi dan lingkungan itu tidak punya
+`/data`, berkasnya duduk di `/app/.data/peta` yang ikut terhapus setiap deploy
+(sudah disebut di layar Sistem sejak 534, tapi tidak di peta itu sendiri).
+
+Sekarang, saat cuma satu sumber yang tersedia, tempat tombol itu diisi
+keterangan: "Citra satelit saja – peta dasar belum ada di server ini (lihat
+Sistem)".
+
+**Konsekuensi**: bawaannya tetap berkelompok — itu yang benar untuk tampilan
+nasional. Dibuktikan di peramban headless pada aplikasi hasil `pnpm build`:
+menekan tombolnya mengubah 5 lingkaran berangka menjadi 16 titik terpisah.
+Dijaga `tests/unit/peta-kelompok.test.ts`. Yang TIDAK bisa diperbaiki dari kode:
+berkas peta dasar hanya bertahan kalau direktorinya berada di volume — isi
+`PETA_DIR` (mis. `/data/peta`) di lingkungan yang punya volume, lalu tekan
+"Unduh peta dasar" sekali di layar Sistem.

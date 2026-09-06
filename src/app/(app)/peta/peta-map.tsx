@@ -52,6 +52,20 @@ const PUSAT_KOSONG: [number, number] = [111.5, -6.9];
  */
 const BINGKAI = { padding: 40, maxZoom: 11 } as const;
 
+/**
+ * Aturan pengelompokan penanda — satu tempat, dipakai saat sumber dibuat dan
+ * saat orang menyalakan/mematikannya lewat tombol di peta.
+ *
+ * `clusterMaxZoom` 11: di atas perbesaran itu tiap lokasi berdiri sendiri —
+ * yang berdekatan memang benar-benar berdekatan, bukan sekadar bertumpuk
+ * karena petanya sedang kecil.
+ */
+const KELOMPOK_OPSI = (aktif: boolean) => ({
+  cluster: aktif,
+  clusterRadius: 46,
+  clusterMaxZoom: 11,
+});
+
 const MAP_TOKENS = [
   "--color-ink-faint",
   "--color-info",
@@ -123,6 +137,19 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
    * melihatnya menyangka lokasinya yang tidak ada.
    */
   const [galat, setGalat] = useState<string | null>(null);
+  /**
+   * Gabungkan lokasi berdekatan jadi satu lingkaran berangka?
+   *
+   * Nyala secara bawaan, dan alasannya bukan selera: sistem ini menuju 200+
+   * lokasi di 7 provinsi, dan pada tampilan nasional ratusan titik yang saling
+   * menimpa bukan informasi melainkan noda — yang terlihat cuma pin paling
+   * atas, dan tidak ada yang tahu ada berapa di bawahnya.
+   *
+   * Tapi ia juga MENYEMBUNYIKAN titik yang sedang dicari orang, jadi bisa
+   * dimatikan (pertanyaan user 2026-09-06). Dimatikan = semua lokasi digambar
+   * satu per satu, apa adanya.
+   */
+  const [kelompok, setKelompok] = useState(true);
 
   const warna = useMemo(() => {
     if (typeof window === "undefined") return {} as Record<string, string>;
@@ -203,15 +230,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
 
     map.on("load", () => {
-      map.addSource(SUMBER_LOKASI, {
-        type: "geojson",
-        data,
-        cluster: true,
-        clusterRadius: 46,
-        // Di atas zoom ini tiap lokasi berdiri sendiri: yang berdekatan memang
-        // benar-benar berdekatan, bukan sekadar bertumpuk karena petanya kecil.
-        clusterMaxZoom: 11,
-      });
+      map.addSource(SUMBER_LOKASI, { type: "geojson", data, ...KELOMPOK_OPSI(true) });
       map.addLayer({
         id: LAPIS_KELOMPOK,
         type: "circle",
@@ -337,6 +356,16 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
     if (m) map.flyTo({ center: [m.lng, m.lat], zoom: 13, duration: 800 });
   }, [selectedId, markers]);
 
+  // Nyala/mati kelompok tanpa membangun ulang sumbernya: lapisan kelompok
+  // menyaring `point_count`, jadi begitu pengelompokan dimatikan lapisan itu
+  // kosong dengan sendirinya dan setiap lokasi tergambar satu per satu.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !siap.current) return;
+    const src = map.getSource(SUMBER_LOKASI) as maplibregl.GeoJSONSource | undefined;
+    void src?.setClusterOptions(KELOMPOK_OPSI(kelompok));
+  }, [kelompok]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -369,23 +398,62 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
           dasar.
         </div>
       ) : null}
-      {pilihan.length > 1 ? (
-        <div className="absolute top-2 left-2 z-10 flex overflow-hidden rounded-md border border-border bg-surface shadow-sm">
-          {pilihan.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setMode(p)}
-              aria-pressed={mode === p}
-              className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                mode === p ? "bg-primary/10 text-primary" : "text-ink-muted hover:bg-surface-muted"
-              }`}
-            >
-              {p === "peta" ? "Peta" : "Satelit"}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div className="absolute top-2 left-2 z-10 flex flex-wrap items-start gap-1.5">
+        {pilihan.length > 1 ? (
+          <div className="flex overflow-hidden rounded-md border border-border bg-surface shadow-sm">
+            {pilihan.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setMode(p)}
+                aria-pressed={mode === p}
+                className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  mode === p ? "bg-primary/10 text-primary" : "text-ink-muted hover:bg-surface-muted"
+                }`}
+              >
+                {p === "peta" ? "Peta" : "Satelit"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          /*
+            HILANGNYA PILIHAN HARUS DIKATAKAN — teguran user 2026-09-06:
+            *"tadi sepertinya ada pilihan untuk tampilan satelite, kenapa
+            sekarang malah tidak ada"*.
+            Tombolnya memang menghilang begitu salah satu sumber tidak ada lagi,
+            dan itu benar — yang salah adalah menghilang DIAM-DIAM, sehingga
+            terbaca sebagai fitur yang dicabut. Sekarang sisa sumbernya disebut.
+          */
+          <div className="rounded-md border border-border bg-surface/95 px-2 py-1 text-[10px] text-ink-muted shadow-sm">
+            {mode === "satelit"
+              ? "Citra satelit saja – peta dasar belum ada di server ini (lihat Sistem)."
+              : "Peta dasar saja – citra satelit dimatikan."}
+          </div>
+        )}
+
+        {/*
+          KELOMPOK BISA DIMATIKAN — pertanyaan user 2026-09-06: *"apa tujuan
+          dilakukan grouping begini? ini bisa diatur atau tidak"*.
+          Berkelompok berguna pada tampilan nasional (200+ lokasi yang saling
+          menimpa bukan informasi, melainkan noda), tapi menyembunyikan titik
+          yang justru sedang dicari orang. Jadi jadi pilihan, bukan paksaan.
+        */}
+        <button
+          type="button"
+          onClick={() => setKelompok((v) => !v)}
+          aria-pressed={kelompok}
+          title={
+            kelompok
+              ? "Lokasi berdekatan digabung jadi satu lingkaran berangka. Klik untuk memisahnya."
+              : "Semua lokasi digambar satu per satu, meski bertumpuk."
+          }
+          className={`rounded-md border border-border px-2.5 py-1 text-[11px] font-medium shadow-sm transition-colors ${
+            kelompok ? "bg-surface text-ink-muted hover:bg-surface-muted" : "bg-primary/10 text-primary"
+          }`}
+        >
+          {kelompok ? "Kelompok" : "Semua titik"}
+        </button>
+      </div>
     </div>
   );
 }
