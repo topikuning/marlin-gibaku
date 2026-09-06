@@ -43,6 +43,22 @@ const SATELIT_ATRIBUSI_BAWAAN = "Citra: Esri, Maxar, Earthstar Geographics";
 const UMUR_TANDA_TANGAN = 6 * 60 * 60;
 
 export const sumberPeta = cache(async (): Promise<SumberPeta> => {
+  /*
+   * DI LINGKUNGAN UJI, PETA DIMATIKAN — dan itu keputusan, bukan jalan pintas.
+   *
+   * Uji E2E yang mengunduh ubin dari CDN pihak ketiga adalah uji yang memerah
+   * ketika server orang lain sedang lambat: kegagalannya tidak mengatakan apa
+   * pun tentang MARLIN. Terbukti mahal 2026-09-06 — begitu peta dipasang,
+   * lamanya E2E melonjak dari belasan menit jadi lebih dari empat puluh, tanpa
+   * satu pun tes menguji peta itu sendiri.
+   *
+   * Yang hilang di uji hanya GAMBARNYA; layarnya tetap dirender lengkap dengan
+   * pesan "peta dasar belum tersedia", dan justru keadaan itulah yang paling
+   * pantas diuji: pengguna sungguhan akan melihatnya setiap kali berkas peta
+   * dasar belum terpasang.
+   */
+  if (env.APP_ENV === "test") return { pmtiles: null, satelit: null, satelitAtribusi: null };
+
   const satelitUrl = env.PETA_SATELIT_URL?.trim() || SATELIT_BAWAAN;
   const satelit = satelitUrl.toLowerCase() === "mati" ? null : satelitUrl;
 
