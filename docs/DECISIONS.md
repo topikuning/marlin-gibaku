@@ -27866,7 +27866,7 @@ berjalan dengan satelit saja sambil mengatakannya.
 
 ---
 
-## (baru) · Peta dasar tinggal di VOLUME, sumbernya bisa diketik, dan isinya diperiksa sebelum dipakai (2026-09-06)
+## 532 · 2026-09-06 · Peta dasar tinggal di VOLUME, sumbernya bisa diketik, dan isinya diperiksa sebelum dipakai
 
 **Konteks**: tiga teguran user berturut-turut pada hari yang sama, masing-masing
 menunjuk lubang yang berbeda di rancangan awal peta (DECISIONS 531):
@@ -27939,7 +27939,7 @@ pemeriksaannya. Offset kepala PMTiles dicocokkan dengan implementasi rujukan
 
 ---
 
-## (baru) · Koordinat janggal di impor katalog DITOLAK dan dilaporkan, bukan ditebak (2026-09-06)
+## 533 · 2026-09-06 · Koordinat janggal di impor katalog DITOLAK dan dilaporkan, bukan ditebak
 
 **Konteks**: user mengimpor katalog lokasi KNMP dan mendapat `numeric field
 overflow` — impor gagal seluruhnya (*"error apalagi ini"*). Penyebabnya satu
