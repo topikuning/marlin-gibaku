@@ -28060,3 +28060,57 @@ lebar — itu kotak lokasinya, bukan zoom-out. Dijaga
 `tests/unit/peta-bingkai-lokasi.test.ts`, dibuktikan **merah 4/4 pada kode
 sebelum perbaikan** (pusat/zoom tetap + fitBounds di `load`) dan hijau 4/4
 sesudahnya.
+
+---
+
+## 536 · 2026-09-06 · Peta di layar HP: legenda tidak menumpang, halaman peta satu panel
+
+**Konteks**: *"peta di dashboard di tampilan mobile jadi seperti tidak berguna
+karena tertutup legend. begitu pula halaman peta, memang sepertinya tidak cocok
+di mobile atau kamu yang tidak bisa atur ui ux nya"* — dengan tangkapan layar
+iPhone.
+
+Keduanya cacat yang sama: tata letak dirancang untuk layar lebar lalu
+diserahkan apa adanya ke layar 390px.
+
+- Legenda selebar 15rem menumpang peta selebar ±20rem → separuh peta tertutup,
+  dan yang tersisa cuma pinggirannya.
+- Halaman `/peta` memakai dua panel: daftar 300px di kiri, peta di sisanya. Di
+  390px itu menyisakan ±170px untuk peta — terlalu sempit untuk dibaca, apalagi
+  digeser.
+
+**Keputusan**:
+
+- **Legenda menumpang peta HANYA mulai `sm`.** Di HP ia turun ke bawah peta,
+  di luar kotaknya, jadi tidak menutupi apa pun. Isinya sama persis — labelnya
+  tidak dipendekkan, sebab "Deviasi kritis (lapor atau belum)" memang harus
+  mengaku bahwa pin merah tidak berkata apa-apa soal sudah/belum lapor.
+- **Peta dasbor minimal 300px**, bukan 200px. Di bawah itu ia bukan peta lagi,
+  cuma pita bergambar.
+- **`/peta` jadi SATU panel di bawah `md`**, dengan tombol Daftar/Peta.
+  Memilih lokasi dari daftar otomatis berpindah ke peta — kalau tidak, ketukan
+  itu terasa tidak berbuat apa-apa: petanya terbang ke lokasi yang sedang tidak
+  terlihat. Perpindahan panel juga MENGGULIR panelnya ke layar, sebab di HP di
+  atasnya masih ada banner "Pasang MARLIN" + judul halaman.
+- **Tinggi panel di HP = pecahan layar (`65dvh`), bukan `100dvh − sekian rem`.**
+  Rumus "sisa layar" mengandaikan tinggi yang di atasnya tetap; di HP banner dan
+  judul membungkus jadi beberapa baris dan petanya terpotong bilah menu bawah.
+- **Panel detail lokasi melebar penuh di HP** (kartu 300px di layar 390px
+  menyisakan peta selebar jari), dan baris galat peta dipotong dua baris — pesan
+  MapLibre bisa sepanjang satu URL penuh dan justru menutupi peta yang sedang
+  dilaporkan rusak.
+
+**Alternatif direject**:
+- *Memendekkan label legenda supaya muat menumpang.* Menghemat ruang dengan
+  menghapus justru bagian yang menjaga orang tidak salah membaca pin merah.
+- *Menyembunyikan legenda sama sekali di HP.* Warna pin tanpa keterangan bukan
+  informasi, cuma dekorasi.
+- *Menyusutkan daftar jadi 120px di HP.* Nama lokasi tidak terbaca, dan petanya
+  tetap sempit — dua-duanya rugi.
+
+**Konsekuensi**: diperiksa pada aplikasi hasil `pnpm build` di peramban headless
+dengan profil iPhone 13 (390×844) memakai berkas peta 210 MB: legenda dasbor
+tidak lagi menutupi peta, dan `/peta` menampilkan satu panel penuh yang
+berpindah rapi. Dijaga `tests/unit/peta-di-hp.test.ts` (6 klausa) — regresi
+semacam ini tidak kelihatan di layar lebar, satu-satunya tempat kebanyakan orang
+memeriksanya.

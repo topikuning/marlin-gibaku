@@ -361,7 +361,10 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       {galat ? (
-        <div className="absolute right-2 bottom-8 left-2 z-10 rounded-md border border-danger bg-surface/95 px-2.5 py-1.5 text-[11px] text-danger shadow-sm">
+        // Dipotong dua baris: pesan galat MapLibre bisa sepanjang satu URL
+        // penuh, dan di HP itu menutup peta yang justru sedang dilaporkan
+        // rusak.
+        <div className="absolute right-2 bottom-8 left-2 z-10 line-clamp-2 rounded-md border border-danger bg-surface/95 px-2.5 py-1.5 text-[11px] text-danger shadow-sm">
           Sebagian peta gagal dimuat – {galat}. Buka Sistem › Kesehatan Layanan untuk keadaan peta
           dasar.
         </div>

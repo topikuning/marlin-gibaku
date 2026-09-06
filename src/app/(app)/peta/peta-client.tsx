@@ -43,6 +43,21 @@ export function PetaClient({
   const [snap, setSnap] = useState<LocationSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const requestedId = useRef<string | null>(null);
+  /** Panel mana yang tampil di HP; di `md` ke atas keduanya tampil bersisian. */
+  const [tampil, setTampil] = useState<"daftar" | "peta">("peta");
+  const panel = useRef<HTMLDivElement>(null);
+
+  /**
+   * Pindah panel di HP sekaligus membawa panelnya ke layar.
+   *
+   * Di HP, di atas panel ini masih ada banner "Pasang MARLIN", judul, dan
+   * keterangan halaman. Berpindah ke peta tanpa menggulir berarti yang berubah
+   * ada di luar layar — ketukan yang terasa tidak berbuat apa-apa.
+   */
+  function pindah(ke: "daftar" | "peta") {
+    setTampil(ke);
+    panel.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
 
   const provinces = useMemo(() => [...new Set(markers.map((m) => m.province))].sort(), [markers]);
   const statuses = useMemo(() => [...new Set(markers.map((m) => m.status))], [markers]);
@@ -59,6 +74,10 @@ export function PetaClient({
 
   async function select(id: string) {
     setSelectedId(id);
+    // Di HP, memilih dari daftar langsung memindahkan tampilan ke peta —
+    // kalau tidak, ketukan itu seolah tidak berbuat apa-apa: petanya terbang ke
+    // lokasi yang sedang tidak terlihat.
+    pindah("peta");
     setSnap(null);
     setLoading(true);
     requestedId.current = id;
@@ -79,83 +98,129 @@ export function PetaClient({
   }
 
   return (
-    <div className="flex h-[calc(100dvh-14.5rem)] min-h-[480px] overflow-hidden rounded-lg border border-border bg-surface lg:h-[calc(100dvh-11.5rem)]">
-      {/* Panel kiri: cari + filter + daftar */}
-      <aside className="flex w-[300px] shrink-0 flex-col border-r border-border max-sm:w-[220px]">
-        <div className="space-y-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari lokasi / desa / kabupaten…"
-            aria-label="Cari lokasi"
-          />
-          <div className="flex gap-2">
-            <Combobox
-              value={province}
-              onChange={(value) => setProvince(value)}
-              aria-label="Filter provinsi"
-              className="h-8 min-w-0 flex-1 px-2 text-xs"
-            >
-              <option value="">Semua provinsi</option>
-              {provinces.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Combobox>
-            <Combobox
-              value={status}
-              onChange={(value) => setStatus(value)}
-              aria-label="Filter status"
-              className="h-8 min-w-0 flex-1 px-2 text-xs"
-            >
-              <option value="">Semua status</option>
-              {statuses.map((s) => (
-                <option key={s} value={s}>
-                  {LOCATION_STATUS_LABEL[s]}
-                </option>
-              ))}
-            </Combobox>
+    <>
+      {/*
+        DI HP: SATU PANEL, BUKAN DUA — teguran user 2026-09-06 (*"begitu pula
+        halaman peta, memang sepertinya tidak cocok di mobile"*).
+        Tata letak dua panel lahir untuk layar lebar: daftar 300px di kiri, peta
+        di sisanya. Di layar 390px daftar itu menyisakan ±170px untuk peta —
+        terlalu sempit untuk dibaca, apalagi digeser. Jadi di bawah `md` yang
+        tampil satu panel penuh, dan orang berpindah lewat tombol di bawah ini.
+        Memilih lokasi dari daftar otomatis pindah ke peta: kalau tidak, ketukan
+        itu seolah tidak berbuat apa-apa.
+      */}
+      <div className="mb-2 flex gap-1 md:hidden">
+        {(["daftar", "peta"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => pindah(t)}
+            aria-pressed={tampil === t}
+            className={`flex-1 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              tampil === t
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-ink-muted"
+            }`}
+          >
+            {t === "daftar" ? `Daftar (${filtered.length})` : "Peta"}
+          </button>
+        ))}
+      </div>
+
+      {/*
+        Tinggi di HP dipatok ke PECAHAN LAYAR (65dvh), bukan "sisa layar".
+        Rumus `100dvh − sekian rem` mengandaikan yang di atas peta selalu
+        setinggi itu; di HP tidak: banner "Pasang MARLIN", judul, dan
+        keterangan halaman membungkus jadi beberapa baris, dan petanya
+        terpotong bilah menu bawah. Pecahan layar selalu menghasilkan bidang
+        yang layak dipakai, tinggal digulir sedikit.
+      */}
+      <div ref={panel} className="flex h-[65dvh] min-h-[380px] overflow-hidden rounded-lg border border-border bg-surface md:h-[calc(100dvh-14.5rem)] lg:h-[calc(100dvh-11.5rem)]">
+        {/* Panel kiri: cari + filter + daftar */}
+        <aside
+          className={`w-full shrink-0 flex-col border-border md:flex md:w-[300px] md:border-r ${
+            tampil === "daftar" ? "flex" : "hidden"
+          }`}
+        >
+          <div className="space-y-2 border-b border-border p-3">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari lokasi / desa / kabupaten…"
+              aria-label="Cari lokasi"
+            />
+            <div className="flex gap-2">
+              <Combobox
+                value={province}
+                onChange={(value) => setProvince(value)}
+                aria-label="Filter provinsi"
+                className="h-8 min-w-0 flex-1 px-2 text-xs"
+              >
+                <option value="">Semua provinsi</option>
+                {provinces.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </Combobox>
+              <Combobox
+                value={status}
+                onChange={(value) => setStatus(value)}
+                aria-label="Filter status"
+                className="h-8 min-w-0 flex-1 px-2 text-xs"
+              >
+                <option value="">Semua status</option>
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {LOCATION_STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </Combobox>
+            </div>
+            <div className="text-[11px] text-ink-faint">
+              {filtered.length} dari {markers.length} lokasi
+            </div>
           </div>
-          <div className="text-[11px] text-ink-faint">
-            {filtered.length} dari {markers.length} lokasi
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filtered.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => select(m.id)}
-              className={`flex w-full items-center gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-surface-muted ${
-                selectedId === m.id ? "bg-info-soft" : ""
-              }`}
-            >
-              <span
-                aria-hidden
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: statusColorCss(m.status) }}
-              />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-ink">{m.name}</span>
-                <span className="block truncate text-xs text-ink-faint">
-                  {m.regency} · {m.province}
+          <div className="flex-1 overflow-y-auto">
+            {filtered.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => select(m.id)}
+                className={`flex w-full items-center gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-surface-muted ${
+                  selectedId === m.id ? "bg-info-soft" : ""
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: statusColorCss(m.status) }}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-ink">{m.name}</span>
+                  <span className="block truncate text-xs text-ink-faint">
+                    {m.regency} · {m.province}
+                  </span>
                 </span>
-              </span>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="px-3 py-4 text-sm text-ink-faint">Tidak ada lokasi cocok.</p>
-          )}
-        </div>
-      </aside>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-4 text-sm text-ink-faint">Tidak ada lokasi cocok.</p>
+            )}
+          </div>
+        </aside>
 
       {/* Peta kanan + panel detail overlay */}
-      <div className="relative min-w-0 flex-1">
+      <div
+        className={`relative min-w-0 flex-1 md:block ${tampil === "peta" ? "block" : "hidden"}`}
+      >
         <PetaMap markers={filtered} selectedId={selectedId} onSelect={select} sumber={sumber} />
 
+        {/* Di HP panel detail melebar penuh (dikurangi tepi): kartu 300px di
+            layar 390px menyisakan peta selebar jari, dan itu yang dipakai orang
+            untuk memastikan titiknya benar. */}
         {(snap || loading) && (
-          <div className="absolute top-3 right-3 z-[1000] max-h-[calc(100%-24px)] w-[300px] overflow-y-auto rounded-lg border border-border bg-surface p-4 shadow-lg">
+          <div className="absolute top-3 right-3 z-[1000] max-h-[calc(100%-24px)] overflow-y-auto rounded-lg border border-border bg-surface p-4 shadow-lg max-md:left-3 md:w-[300px]">
             {loading && !snap ? (
               <p className="text-sm text-ink-faint">Memuat…</p>
             ) : snap ? (
@@ -163,8 +228,9 @@ export function PetaClient({
             ) : null}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
