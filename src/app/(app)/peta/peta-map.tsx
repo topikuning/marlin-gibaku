@@ -108,6 +108,16 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
   // Dukungan WebGL diperiksa SEBELUM render, bukan lewat setState di dalam
   // efek: kegagalan peta harus jadi keadaan awal komponen, bukan kedipan.
   const [webgl] = useState(dukungWebGL);
+  /*
+   * KEGAGALAN MAPLIBRE DITAMPILKAN, BUKAN DIDIAMKAN — teguran user 2026-09-06:
+   * *"berhasil didownload, tapi malah jadi abu2. apa masalahmu sebenarnya!"*
+   *
+   * MapLibre memancarkan `error` untuk ubin yang gagal diambil, gaya yang tidak
+   * bisa dibaca, dan sumber yang tidak ditemukan — lalu tetap menggambar kanvas
+   * kosong. Diam-diam abu-abu adalah cara terburuk menyampaikan kegagalan: yang
+   * melihatnya menyangka lokasinya yang tidak ada.
+   */
+  const [galat, setGalat] = useState<string | null>(null);
 
   const warna = useMemo(() => {
     if (typeof window === "undefined") return {} as Record<string, string>;
@@ -161,6 +171,10 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.on("error", (e) => {
+      const pesan = (e as { error?: { message?: string } }).error?.message;
+      if (pesan) setGalat(pesan);
+    });
 
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
 
@@ -319,6 +333,11 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      {galat ? (
+        <div className="absolute right-2 bottom-8 left-2 z-10 rounded-md border border-danger bg-surface/95 px-2.5 py-1.5 text-[11px] text-danger shadow-sm">
+          Peta gagal digambar – {galat}. Buka Sistem › Kesehatan Layanan untuk keadaan peta dasar.
+        </div>
+      ) : null}
       {pilihan.length > 1 ? (
         <div className="absolute top-2 left-2 z-10 flex overflow-hidden rounded-md border border-border bg-surface shadow-sm">
           {pilihan.map((p) => (

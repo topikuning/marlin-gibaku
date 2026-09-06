@@ -141,13 +141,23 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       </div>
 
       {/* Peta + Status submit */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/*
+        `items-start`: kartu peta TIDAK ikut ditarik setinggi kartu di
+        sebelahnya. Teguran user 2026-09-06: *"ini terlalu memanjang ke bawah
+        mapnya"* — daftar status submit tumbuh mengikuti jumlah lokasi (menuju
+        200+), dan selama baris grid ini meregangkan keduanya, peta ikut molor
+        sampai layar penuh. Peta di dasbor adalah RINGKASAN sebaran; yang mau
+        menelusurinya membuka /peta yang memang satu layar penuh.
+      */}
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         <Card className="flex flex-col lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
           </div>
           <div className="flex flex-1 flex-col p-4">
-            <div className="min-h-[300px] flex-1">
+            {/* Tinggi dipatok, bukan `flex-1`: ukurannya milik peta sendiri,
+                bukan sisa ruang yang kebetulan ada. */}
+            <div className="h-[340px] sm:h-[400px]">
               <DashboardMap
                 sumber={sumber}
                 markers={data.markers}

@@ -88,6 +88,14 @@ export function MasterImportForm() {
                 Tidak aktif (dilewati): <b className="text-warning">{preview.tidakAktif}</b>
               </li>
             ) : null}
+            {/* Koordinat yang tidak mungkin: lokasinya tetap masuk, titiknya
+                tidak. Disebut di sini supaya ketahuan SEBELUM disimpan. */}
+            {preview.koordinatJanggal > 0 ? (
+              <li className="col-span-2 sm:col-span-3">
+                Koordinat tidak mungkin: <b className="text-warning">{preview.koordinatJanggal}</b>{" "}
+                <span className="text-ink-muted">– lokasinya masuk tanpa koordinat</span>
+              </li>
+            ) : null}
           </ul>
           {preview.sheet ? (
             <p className="mt-1 text-[12px] text-ink-muted">

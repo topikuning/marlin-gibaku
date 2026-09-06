@@ -290,15 +290,37 @@ export default async function SistemPage() {
             setiap orang yang memasangnya harus bertanya ke pembuatnya. Di sini
             keadaannya disebut apa adanya, LENGKAP DENGAN langkah berikutnya.
           */}
+          {/* Isi berkasnya ikut disebut: "ada" tidak sama dengan "bisa
+              digambar". Berkas yang salah jenis atau salah skema menghasilkan
+              peta abu-abu, dan itu harus terbaca DI SINI, bukan ditebak dari
+              layar peta (teguran user 2026-09-06). */}
           <HealthRow
             label="Peta dasar (vektor)"
             detail={
-              peta.dasar.ada
-                ? `${peta.dasar.lokasi} · ${peta.dasar.ukuranMb} MB${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
-                : peta.dasar.sebab
+              peta.dasar.ada && peta.dasar.isi?.masalah
+                ? peta.dasar.isi.masalah
+                : peta.dasar.ada
+                  ? `${peta.dasar.lokasi} · ${peta.dasar.ukuranMb} MB${peta.dasar.isi?.sah ? ` · ubin ${peta.dasar.isi.jenisUbin} ${peta.dasar.isi.zoom} · wilayah ${peta.dasar.isi.wilayah} · ${peta.dasar.isi.lapisanCocok} lapisan cocok dengan gaya` : ""}${peta.dasar.diperbarui ? ` · diperbarui ${formatTanggal(peta.dasar.diperbarui)}` : ""}`
+                  : peta.dasar.sebab
             }
-            tone={peta.dasar.ada ? "success" : peta.dasar.sedangUnduh ? "neutral" : "warning"}
-            status={peta.dasar.ada ? "Terpasang" : peta.dasar.sedangUnduh ? "Mengunduh" : "Belum ada"}
+            tone={
+              peta.dasar.ada
+                ? peta.dasar.isi?.masalah
+                  ? "danger"
+                  : "success"
+                : peta.dasar.sedangUnduh
+                  ? "neutral"
+                  : "warning"
+            }
+            status={
+              peta.dasar.ada
+                ? peta.dasar.isi?.masalah
+                  ? "Tidak terpakai"
+                  : "Terpasang"
+                : peta.dasar.sedangUnduh
+                  ? "Mengunduh"
+                  : "Belum ada"
+            }
           />
           <HealthRow
             label="Citra satelit"
@@ -314,7 +336,11 @@ export default async function SistemPage() {
               berbeda, jadi yang tahu volume mana yang perlu diisi adalah
               aplikasi yang sedang berjalan di atasnya. */}
           {!peta.dimatikan ? (
-            <PetaPanel sudahAda={peta.dasar.ada} sedangUnduh={peta.dasar.sedangUnduh} />
+            <PetaPanel
+              sudahAda={peta.dasar.ada}
+              sedangUnduh={peta.dasar.sedangUnduh}
+              sumberBawaan={peta.sumberBawaan}
+            />
           ) : null}
         </CardBody>
       </Card>
