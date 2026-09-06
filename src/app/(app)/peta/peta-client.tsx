@@ -32,9 +32,12 @@ const PetaMap = dynamic(() => import("./peta-map").then((m) => m.PetaMap), {
 export function PetaClient({
   markers,
   sumber,
+  kelompokAwal,
 }: {
   markers: PetaMarker[];
   sumber: SumberPeta;
+  /** Bawaan pengelompokan penanda, dari setelan Sistem. */
+  kelompokAwal: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [province, setProvince] = useState("");
@@ -214,7 +217,13 @@ export function PetaClient({
       <div
         className={`relative min-w-0 flex-1 md:block ${tampil === "peta" ? "block" : "hidden"}`}
       >
-        <PetaMap markers={filtered} selectedId={selectedId} onSelect={select} sumber={sumber} />
+        <PetaMap
+            markers={filtered}
+            selectedId={selectedId}
+            onSelect={select}
+            sumber={sumber}
+            kelompokAwal={kelompokAwal}
+          />
 
         {/* Di HP panel detail melebar penuh (dikurangi tepi): kartu 300px di
             layar 390px menyisakan peta selebar jari, dan itu yang dipakai orang

@@ -36,11 +36,14 @@ export function DashboardMap({
   markerTone,
   markerSubmit,
   sumber,
+  kelompokAwal,
 }: {
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
   markerSubmit: Record<string, StatusLapor>;
   sumber: SumberPeta;
+  /** Bawaan pengelompokan penanda, dari setelan Sistem. */
+  kelompokAwal: boolean;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<FilterPeta>("semua");
@@ -75,6 +78,7 @@ export function DashboardMap({
       <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-lg border border-border">
         <PetaMap
           sumber={sumber}
+          kelompokAwal={kelompokAwal}
           markers={shown}
           selectedId={selected}
           toneById={markerTone}

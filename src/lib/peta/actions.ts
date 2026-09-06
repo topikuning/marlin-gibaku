@@ -5,8 +5,43 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { DIR_PETA, unduhBasemap, unduhanBerjalan } from "./berkas";
+import { setKelompokBawaan } from "./setelan";
 
 export type PetaActionState = { error?: string; success?: string } | undefined;
+
+/**
+ * Atur bawaan penanda peta: berkelompok atau satu per satu.
+ *
+ * Permintaan user 2026-09-06: *"bagaimana supaya aku bisa atur default kelompok
+ * atau per titik langsung"*. Tombol di peta hanya berlaku selama layar itu
+ * terbuka; ini yang menentukan apa yang dilihat semua orang saat peta dibuka —
+ * termasuk mandor yang tidak akan pernah menyentuh tombol itu.
+ */
+export async function setKelompokPetaAction(
+  _prev: PetaActionState,
+  formData: FormData,
+): Promise<PetaActionState> {
+  let aktor: { id: string } | null = null;
+  try {
+    aktor = await requireCapability("system.manage");
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { error: e.message };
+    throw e;
+  }
+
+  const aktif = String(formData.get("kelompok") ?? "") === "1";
+  await setKelompokBawaan(aktif);
+  await audit(aktor.id, "peta.kelompok_bawaan", "system", null, { aktif });
+  revalidatePath("/sistem");
+  revalidatePath("/peta");
+  revalidatePath("/aktivitas");
+  revalidatePath("/");
+  return {
+    success: aktif
+      ? "Penanda peta digabung jadi lingkaran berangka saat peta dibuka."
+      : "Penanda peta digambar satu per satu saat peta dibuka.",
+  };
+}
 
 /**
  * Sumber bawaan berkas peta dasar: ekstrak Indonesia yang dibangun CI dan

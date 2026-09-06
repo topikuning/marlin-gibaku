@@ -23,6 +23,7 @@ import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPolicy } from "@/lib/policy";
 import { statusPeta } from "@/lib/peta/sumber";
+import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { PetaPanel } from "./peta-panel";
 import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
@@ -184,6 +185,7 @@ export default async function SistemPage() {
     : null;
   // Keadaan sumber peta (peta dasar di R2 + citra satelit) — dibaca di server.
   const peta = await statusPeta();
+  const kelompokPeta = await getKelompokBawaan();
   const [waCapturedCount, waLast, waHits, antreanWa, kirimWa] = await Promise.all([
     db.waMessage.count(),
     db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
@@ -340,6 +342,7 @@ export default async function SistemPage() {
               sudahAda={peta.dasar.ada}
               sedangUnduh={peta.dasar.sedangUnduh}
               sumberBawaan={peta.sumberBawaan}
+              kelompokBawaan={kelompokPeta}
             />
           ) : null}
         </CardBody>

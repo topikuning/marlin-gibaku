@@ -25,7 +25,10 @@ describe("pengelompokan penanda", () => {
     // Disalin dua kali berarti radius pengelompokan bisa berbeda antara
     // keadaan awal dan sesudah tombol ditekan — penanda "melompat" tanpa sebab.
     expect(peta).toContain("const KELOMPOK_OPSI = (aktif: boolean) => ({");
-    expect(peta).toContain("...KELOMPOK_OPSI(true)");
+    // Sumber dibuat dengan keadaan yang sedang berlaku (bawaan dari setelan
+    // Sistem, DECISIONS 538) — bukan `true` yang dipaku, yang akan membuat peta
+    // terbuka berkelompok lalu berkedip jadi satu per satu.
+    expect(peta).toContain("...KELOMPOK_OPSI(kelompok)");
     expect(peta).toContain("setClusterOptions(KELOMPOK_OPSI(kelompok))");
   });
 

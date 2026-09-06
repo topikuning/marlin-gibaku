@@ -28157,3 +28157,37 @@ Dijaga `tests/unit/peta-kelompok.test.ts`. Yang TIDAK bisa diperbaiki dari kode:
 berkas peta dasar hanya bertahan kalau direktorinya berada di volume — isi
 `PETA_DIR` (mis. `/data/peta`) di lingkungan yang punya volume, lalu tekan
 "Unduh peta dasar" sekali di layar Sistem.
+
+---
+
+## 538 · 2026-09-06 · Bawaan penanda peta (berkelompok / satu per satu) diatur di layar Sistem
+
+**Konteks**: *"bagaimana supaya aku bisa atur default kelompok atau per titik
+langsung"*, menyusul tombol kelompok di peta (537).
+
+Tombol di peta hanya berlaku selama layar itu terbuka: berpindah halaman
+mengembalikannya ke bawaan. Yang ditanyakan bawaannya sendiri — apa yang dilihat
+SEMUA orang saat peta pertama kali dibuka, termasuk mandor yang tidak akan
+pernah menyentuh tombol itu.
+
+**Keputusan**: setelan `peta.penanda_kelompok` di `AppSetting` ber-tanggal-
+berlaku (pola yang sama dengan sakelar mingguan & pengingat grup, jadi
+perubahannya punya jejak waktu), diubah dari layar Sistem — kartu Peta, di
+bawah tombol unduh peta dasar. Nilai bawaannya **berkelompok**, dan itu bukan
+selera: sistem ini menuju 200+ lokasi di 7 provinsi, dan pada tampilan nasional
+ratusan pin yang saling menimpa bukan informasi melainkan noda — yang terlihat
+cuma pin paling atas, dan tidak ada yang tahu ada berapa di bawahnya. Organisasi
+dengan lokasi sedikit dan berjauhan tahu sendiri keadaannya, jadi merekalah yang
+memutuskan.
+
+Tombol di peta tetap ada dan tetap menang untuk sesi itu — mengubah bawaan tidak
+boleh berarti mencabut kelincahan orang yang sedang mencari satu titik.
+
+**Konsekuensi**: perubahan bawaan menyegarkan `/peta`, `/aktivitas`, dan `/`,
+sebab setelan yang tersimpan rapi tapi tidak terlihat di layar adalah tombol
+palsu. Dijaga `tests/integration/peta-kelompok-bawaan.test.ts` (bawaan, simpan-
+baca, menimpa di hari yang sama, nilai kosong ≠ "mati") dan
+`tests/unit/peta-kelompok-setelan.test.ts` (capability + audit + rantai setelan
+sampai ke keadaan awal peta). Dibuktikan ujung-ke-ujung pada aplikasi hasil
+`pnpm build`: dengan setelan kosong peta terbuka berkelompok, dengan setelan
+`0` peta terbuka satu per satu.
