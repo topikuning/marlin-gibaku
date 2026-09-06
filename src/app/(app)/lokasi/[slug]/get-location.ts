@@ -9,6 +9,8 @@ import {
   type SessionUser,
 } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
+import { idLokasiDiarsipkan } from "@/lib/package/lingkup-lokasi";
 import { getLocationsProgress } from "@/lib/progress";
 import type { SiblingLocation } from "./location-switcher";
 
@@ -85,6 +87,17 @@ export const requireLocationPage = cache(async (slug: string): Promise<LocationC
   const location = await findLocation(slug);
   if (!location) notFound();
   if (!(await hasLocationAccess(user, location.id))) notFound();
+  /*
+   * ARSIP PENCABUTAN (ketetapan user 2026-09-06). Menyembunyikan lokasi dari
+   * daftar tapi membiarkan halamannya terbuka bagi siapa pun yang tahu
+   * slug-nya bukan pengarsipan, melainkan penyamaran. 404 dipakai — sama
+   * seperti lokasi di luar penugasan — supaya keberadaannya pun tidak bocor.
+   * Super admin tetap masuk.
+   */
+  if (!can(user.role, "location_scope.archive")) {
+    const arsip = await idLokasiDiarsipkan([location.id]);
+    if (arsip.has(location.id)) notFound();
+  }
   return { user, location };
 });
 
@@ -105,11 +118,18 @@ export const getSiblingLocations = cache(
     packageId: string,
   ): Promise<{ siblings: SiblingLocation[]; hiddenCount: number }> => {
     const scoped = await accessibleLocationIds(user);
-    const all = await db.location.findMany({
+    const semua = await db.location.findMany({
       where: { packageId },
       select: { id: true, slug: true, name: true, regency: true, status: true },
       orderBy: { name: "asc" },
     });
+    // Lokasi yang pencabutannya diarsipkan tidak muncul DAN tidak dihitung
+    // sebagai "tersembunyi": menyebut jumlahnya akan mengumumkan hal yang
+    // justru sedang diarsipkan (user 2026-09-06). Super admin melihat semua.
+    const arsip = can(user.role, "location_scope.archive")
+      ? new Set<string>()
+      : await idLokasiDiarsipkan(semua.map((l) => l.id));
+    const all = semua.filter((l) => !arsip.has(l.id));
     const boleh = scoped === null ? all : all.filter((l) => scoped.includes(l.id));
     if (boleh.length === 0) return { siblings: [], hiddenCount: all.length };
 

@@ -27637,3 +27637,87 @@ dibuktikan merah lebih dulu terhadap parser lama) dan
 mudah bocor — koordinat tidak ditimpa kosong, dan tabrakan kunci alami ditolak
 terbaca — dibuktikan merah dengan melumpuhkan kodenya). Migrasi
 `20260906020000_master_lokasi_knmp` idempoten (DECISIONS 167).
+
+---
+## (baru) · Arsip pencabutan lokasi (super admin), menu lingkup pindah ke tab Lokasi, pencarian penugasan melebar (2026-09-06)
+
+**Konteks**: tiga permintaan user pada hari yang sama, ketiganya lanjutan
+langsung dari fitur "adendum menambah/mencabut lokasi":
+
+1. *"perubahan lokasi sepertinya keputusanku salah, tapi ada baiknya itu
+   dipertahankan seperti sekarang. tapi, ada fitur yang langsung mengarsipkan
+   semua lokasi yang dikeluarkan tapi hanya bisa dilakukan super admin, jadi di
+   kontrak tidak ada bekas history yang bisa dilihat umum tapi hanya oleh super
+   admin."*
+2. *"peletakan menunya juga tidak perlu ada di ringkasan, di tab lokasi saja.
+   supaya ringkasan tidak banyak pilihan aksi!"*
+3. *"mapping lokasi untuk pengguna, searchnya juga harusnya bisa kabupaten atau
+   perusahaan, jangan saklek nama desa/lokasi. lalu kalau bisa ada centang
+   semua."*
+
+**Keputusan**:
+
+- **Pengarsipan adalah soal PANDANGAN, bukan soal angka.** `archivedAt` +
+  `archivedById` di `location_scope_changes`; barisnya tidak dihapus, status
+  `aktif` dan `effectiveDate`-nya tidak disentuh. Lokasi yang dicabut memang
+  sudah keluar dari agregat sejak tanggal berlaku CCO-nya, jadi mengarsipkan
+  TIDAK menggeser nilai kontrak, progres, kurva-S, maupun laporan — itu yang
+  diuji lebih dulu, sebelum tampilannya. Kalau suatu saat pengarsipan mulai
+  menggerakkan angka, ia sudah berubah jadi penghapusan diam-diam.
+- **Kapabilitas baru `location_scope.archive`, super_admin SAJA.** Sengaja
+  BUKAN `package.bypass`: itu juga dipegang Program Director, sementara
+  ketetapannya berbunyi "hanya bisa dilakukan super admin". Kapabilitas yang
+  sama menjaga dua sisi — yang boleh menyembunyikan dan yang boleh melihat yang
+  tersembunyi — karena keduanya wewenang yang sama.
+- **Sembunyinya sampai ke pintu terakhir.** Selain daftar riwayat, lokasi
+  terarsip hilang dari daftar lokasi paket (ringkasan + tab Lokasi), dari
+  pemilih lokasi di header, dan halaman `/lokasi/[slug]`-nya 404 bagi yang
+  bukan super admin. Menyembunyikan dari daftar tapi membiarkan halamannya
+  terbuka bagi siapa pun yang tahu slug-nya bukan pengarsipan, melainkan
+  penyamaran. Jumlah yang disembunyikan pun tidak disebut — menyebutkannya akan
+  mengumumkan hal yang justru sedang diarsipkan.
+- **Ada jalan pulang.** `bukaArsipLokasiDicabut` (super admin juga)
+  mengembalikan riwayat ke pandangan umum. Pengarsipan tanpa pembatalan adalah
+  perangkap: satu klik di paket yang salah akan menghilangkan riwayat dari layar
+  semua orang, dan satu-satunya pemulihannya lewat SQL ke produksi.
+- **Usulan DRAFT tidak ikut diarsipkan** — yang belum disetujui bukan "lokasi
+  yang dikeluarkan"; dan **lokasi yang masuk lagi lewat CCO berikutnya tidak
+  ikut tersembunyi**, karena ia kembali jadi bagian kontrak yang berjalan.
+- **Panel lingkup lokasi pindah ke tab Lokasi.** Ringkasan tetap MEMBACA
+  akibatnya (kartu "Jumlah lokasi" menyebut berapa yang dicabut), tapi tidak
+  lagi memuat tombol aksinya. Dijaga `tests/unit/lingkup-di-tab-lokasi.test.ts`
+  supaya panel itu tidak diam-diam kembali saat halaman ringkasan disusun ulang.
+- **Pencarian penugasan lokasi melebar** ke wilayah (desa/kecamatan/kabupaten/
+  provinsi), perusahaan, dan nama paket; aturannya dipisah ke
+  `lib/master/cari-lokasi.ts` supaya bisa diuji apa adanya — ia menentukan siapa
+  mendapat akses ke lokasi mana. Banyak kata MENYEMPITKAN hasil (semua kata
+  harus cocok), dan itu bukan selera: **tombol "centang semua" bekerja tepat
+  pada hasil saringan**, jadi saringan yang melebar saat orang mengetik lebih
+  banyak akan mencentang lokasi yang tidak dia maksud.
+- **Centang semua mengikuti hasil saringan, dengan jumlahnya tertulis di
+  tombol** ("Centang 12 hasil cari"), dan tidak pernah menyentuh yang sedang
+  tidak terlihat. Centang jadi state React (bukan `defaultChecked`) supaya
+  tombol itu bisa menggerakkannya tanpa menyentuh DOM.
+
+**Alternatif direject**:
+- *Menghapus baris `LocationScopeChange` yang diarsipkan.* Itu menghapus alasan,
+  nomor CCO, dan tanggal berlaku sebuah perubahan kontrak — persis bukti yang
+  dicari saat angka dipertanyakan.
+- *Memakai `package.bypass` sebagai gerbangnya.* Lebih cepat, tapi memberi
+  wewenang ini ke Program Director juga — bertentangan dengan kalimat user.
+- *Menyembunyikan lokasi terarsip lewat kolom di `locations`.* Melanggar
+  ketetapan 2026-09-05: keikutsertaan lokasi DITURUNKAN dari tabel perubahan,
+  tidak pernah disalin jadi kolom.
+- *Menyebut "N lokasi disembunyikan" seperti pada lokasi di luar penugasan.*
+  Untuk kasus lain itu benar (jangan sampai "tidak muncul" terbaca "tidak
+  ada"), tapi di sini justru membocorkan yang sedang diarsipkan.
+- *Centang semua atas SELURUH daftar, bukan hasil saringan.* Pada 1.216 lokasi
+  itu bukan kemudahan melainkan kecelakaan.
+
+**Konsekuensi**: `location_scope.archive` masuk matriks izin (regenerasi
+`docs/rebuild/PERMISSION_MATRIX.md`). Dijaga
+`tests/integration/arsip-lingkup-lokasi.test.ts` (11 klausa; gerbang izin dan
+penyembunyian riwayat dibuktikan merah dengan melumpuhkan kodenya),
+`tests/unit/lingkup-di-tab-lokasi.test.ts`, dan
+`tests/unit/cari-lokasi-penugasan.test.ts`. Migrasi
+`20260906120000_arsip_lingkup_lokasi` idempoten (DECISIONS 167).
