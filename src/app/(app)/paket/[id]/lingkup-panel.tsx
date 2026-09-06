@@ -5,7 +5,9 @@ import { Banner, Button, Combobox, Input, Label, StatusPill } from "@/components
 import { useAksi } from "@/lib/aksi-klien";
 import {
   ajukanLingkupLokasiAction,
+  arsipkanLingkupLokasiAction,
   batalkanLingkupLokasiAction,
+  bukaArsipLingkupLokasiAction,
   setujuiLingkupLokasiAction,
   type PackageActionState,
 } from "@/lib/package/actions";
@@ -32,6 +34,8 @@ export type BarisLingkup = {
   ccoNumber: string;
   setuju: { lengkap: boolean; kurang: string[] };
   suaraGugur: number;
+  /** Terisi = diarsipkan super admin; hanya super admin yang melihat baris ini. */
+  diarsipkanPada: string | null;
 };
 
 export function LingkupPanel({
@@ -40,12 +44,15 @@ export function LingkupPanel({
   adendum,
   perubahan,
   bolehUbah,
+  bolehArsip = false,
 }: {
   packageId: string;
   lokasi: { id: string; name: string }[];
   adendum: { id: string; label: string }[];
   perubahan: BarisLingkup[];
   bolehUbah: boolean;
+  /** Super admin (`location_scope.archive`) – lihat blok arsip di bawah. */
+  bolehArsip?: boolean;
 }) {
   const [buka, setBuka] = useState(false);
   const [ajukan, ajukanAction, mengajukan] = useAksi<PackageActionState>(
@@ -55,6 +62,8 @@ export function LingkupPanel({
 
   const draft = perubahan.filter((p) => p.status === "draft");
   const berlaku = perubahan.filter((p) => p.status === "aktif");
+  const terarsip = berlaku.filter((p) => p.diarsipkanPada);
+  const dicabutBerlaku = berlaku.filter((p) => p.kind === "cabut" && !p.diarsipkanPada);
 
   return (
     <div className="space-y-3">
@@ -70,6 +79,12 @@ export function LingkupPanel({
                 <span className="font-medium text-ink">{p.locationName}</span>{" "}
                 {p.kind === "cabut" ? "dicabut" : "masuk"} per {p.ccoNumber} · berlaku{" "}
                 {p.effectiveDate}
+                {p.diarsipkanPada ? (
+                  <>
+                    {" "}
+                    <StatusPill tone="neutral" label="Diarsipkan" />
+                  </>
+                ) : null}
                 <span className="block text-xs text-ink-faint">{p.reason}</span>
               </li>
             ))}
@@ -198,7 +213,72 @@ export function LingkupPanel({
           karena perubahan lingkup wajib bernomor.
         </p>
       ) : null}
+
+      {/*
+        ARSIP — ketetapan user 2026-09-06: *"ada fitur yang langsung
+        mengarsipkan semua lokasi yang dikeluarkan tapi hanya bisa dilakukan
+        super admin, jadi di kontrak tidak ada bekas history yang bisa dilihat
+        umum tapi hanya oleh super admin."*
+
+        Blok ini menyebut BATAS wewenangnya sendiri: yang berubah cuma siapa
+        yang melihat. Kalau kalimatnya tidak ada, pengarsipan mudah terbaca
+        sebagai penghapusan — dan orang akan memakainya untuk merapikan angka
+        yang sebenarnya tidak berubah.
+      */}
+      {bolehArsip && (dicabutBerlaku.length > 0 || terarsip.length > 0) ? (
+        <div className="space-y-2 rounded-md border border-border bg-surface-muted px-3 py-2.5">
+          <p className="text-[13px] font-medium text-ink">Arsip pencabutan (super admin)</p>
+          <p className="text-xs text-ink-muted">
+            Menyembunyikan riwayat pencabutan lokasi dari pandangan umum – super admin tetap
+            melihatnya di sini. Nilai kontrak, progres, kurva-S, dan laporan tidak berubah sedikit
+            pun: lokasi yang dicabut memang sudah keluar dari angka sejak tanggal berlaku CCO-nya.
+            Tindakannya tercatat di audit log.
+          </p>
+          <div className="flex flex-wrap items-start gap-2">
+            {dicabutBerlaku.length > 0 ? (
+              <TombolPaket
+                aksi={arsipkanLingkupLokasiAction}
+                packageId={packageId}
+                label={`Arsipkan ${dicabutBerlaku.length} pencabutan`}
+              />
+            ) : null}
+            {terarsip.length > 0 ? (
+              <TombolPaket
+                aksi={bukaArsipLingkupLokasiAction}
+                packageId={packageId}
+                variant="ghost"
+                label={`Buka arsip (${terarsip.length})`}
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/** Tombol aksi tingkat PAKET (arsip / buka arsip) dengan pesannya sendiri. */
+function TombolPaket({
+  aksi,
+  packageId,
+  label,
+  variant = "secondary",
+}: {
+  aksi: (prev: PackageActionState, fd: FormData) => Promise<PackageActionState>;
+  packageId: string;
+  label: string;
+  variant?: "secondary" | "ghost";
+}) {
+  const [state, action, pending] = useAksi<PackageActionState>(aksi, undefined);
+  return (
+    <form action={action} className="inline-flex flex-col gap-1">
+      <input type="hidden" name="packageId" value={packageId} />
+      <Button type="submit" size="sm" variant={variant} loading={pending}>
+        {label}
+      </Button>
+      {state?.error ? <span className="text-xs text-danger-700">{state.error}</span> : null}
+      {state?.success ? <span className="text-xs text-success-700">{state.success}</span> : null}
+    </form>
   );
 }
 

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search, Settings2 } from "lucide-react";
 import { Badge, Banner, Button, Combobox, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
+import { cocokLokasi } from "@/lib/master/cari-lokasi";
 import { Laci } from "@/components/master/laci";
 import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
 import { KartuBaris, SelNama } from "@/components/master/sel-nama";
@@ -39,12 +40,35 @@ import type { UserRole } from "@/generated/prisma/enums";
  * disaring (`@/lib/users/kesehatan-akun`).
  */
 
-type LocationOption = { id: string; name: string; company?: string | null };
+type LocationOption = {
+  id: string;
+  name: string;
+  company?: string | null;
+  /** Desa, kecamatan, kabupaten, provinsi — ditampilkan DAN ikut dicari. */
+  area?: string | null;
+  /** Ikut dicari tanpa ditampilkan (mis. nama paket). */
+  extra?: string | null;
+};
 
 /**
- * Daftar lokasi dengan pencarian (nama lokasi ATAU nama perusahaan) + centang.
- * Dipakai di form buat pengguna dan editor penugasan. Saat lokasi banyak,
- * mencari satu-satu terlalu ribet — kotak cari menyaring daftar seketika.
+ * Daftar lokasi dengan pencarian + centang. Dipakai di form buat pengguna dan
+ * editor penugasan.
+ *
+ * Permintaan user 2026-09-06: *"mapping lokasi untuk pengguna, searchnya juga
+ * harusnya bisa kabupaten atau perusahaan, jangan saklek nama desa/lokasi.
+ * lalu kalau bisa ada centang semua."*
+ *
+ * Dua akibatnya di sini:
+ *
+ * 1. **Pencarian melebar** ke wilayah (desa/kecamatan/kabupaten/provinsi),
+ *    perusahaan, dan nama paket. Orang yang menugaskan seseorang berpikir
+ *    "semua yang di Rembang", bukan nama desa satu per satu — kotak cari yang
+ *    cuma menerima nama desa memaksa dia tahu jawabannya sebelum bertanya.
+ * 2. **Centang semua mengikuti HASIL SARINGAN**, bukan seluruh daftar. Itu
+ *    yang membuatnya berguna sekaligus aman: "Rembang" lalu centang semua
+ *    menugaskan satu kabupaten dalam dua ketukan, dan tidak pernah diam-diam
+ *    ikut mencentang 70 lokasi yang sedang tidak terlihat. Jumlah yang akan
+ *    tersentuh selalu tertulis di tombolnya.
  */
 function LocationPicker({
   locations,
@@ -56,19 +80,34 @@ function LocationPicker({
   columns?: boolean;
 }) {
   const [q, setQ] = useState("");
-  // Cocokkan per-lokasi (bukan memfilter array) supaya SEMUA checkbox tetap
-  // ter-mount — yang tak cocok cuma disembunyikan (CSS). Kalau di-unmount,
-  // centang-nya hilang dari FormData saat submit.
+  // Centang jadi STATE, bukan defaultChecked: "centang semua" harus bisa
+  // mengubahnya, dan checkbox tak terkendali tidak bisa digerakkan tanpa
+  // menyentuh DOM langsung.
+  const [pilih, setPilih] = useState<Set<string>>(
+    () => new Set(isChecked ? locations.filter((l) => isChecked(l.id)).map((l) => l.id) : []),
+  );
   const needle = q.trim().toLowerCase();
-  const matches = (l: LocationOption) =>
-    !needle ||
-    l.name.toLowerCase().includes(needle) ||
-    (l.company ? l.company.toLowerCase().includes(needle) : false);
-  const matchCount = useMemo(
-    () => (needle ? locations.filter(matches).length : locations.length),
+  // Aturan pencocokannya di `lib/master/cari-lokasi` — dipisah supaya bisa
+  // diuji apa adanya (ia menentukan siapa mendapat akses ke lokasi mana).
+  const matches = (l: LocationOption) => cocokLokasi(l, q);
+  const cocok = useMemo(
+    () => locations.filter(matches),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [locations, needle],
   );
+  const matchCount = cocok.length;
+  // Semua yang SEDANG terlihat sudah tercentang? Menentukan arah tombolnya.
+  const semuaCocokTercentang = matchCount > 0 && cocok.every((l) => pilih.has(l.id));
+
+  const ubahSemua = (nyalakan: boolean) =>
+    setPilih((s) => {
+      const baru = new Set(s);
+      for (const l of cocok) {
+        if (nyalakan) baru.add(l.id);
+        else baru.delete(l.id);
+      }
+      return baru;
+    });
 
   return (
     <div className="space-y-2">
@@ -83,6 +122,24 @@ function LocationPicker({
           aria-label="Cari lokasi"
         />
       </div>
+      {locations.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={matchCount === 0}
+            onClick={() => ubahSemua(!semuaCocokTercentang)}
+          >
+            {semuaCocokTercentang
+              ? `Hapus centang ${matchCount}`
+              : `Centang ${needle ? `${matchCount} hasil cari` : "semua"}`}
+          </Button>
+          {pilih.size > 0 ? (
+            <span className="text-xs text-ink-muted">{pilih.size} lokasi tercentang</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="max-h-52 overflow-y-auto rounded-md border border-border p-2">
         {matchCount === 0 ? (
           <p className="px-1 py-2 text-sm text-ink-muted">Tidak ada lokasi yang cocok.</p>
@@ -97,12 +154,21 @@ function LocationPicker({
                 type="checkbox"
                 name="locationIds"
                 value={l.id}
-                defaultChecked={isChecked ? isChecked(l.id) : false}
+                checked={pilih.has(l.id)}
+                onChange={(e) =>
+                  setPilih((s) => {
+                    const baru = new Set(s);
+                    if (e.target.checked) baru.add(l.id);
+                    else baru.delete(l.id);
+                    return baru;
+                  })
+                }
                 className="mt-0.5 rounded border-border"
               />
               <span className="min-w-0">
                 {l.name}
                 {l.company ? <span className="block text-xs text-ink-muted">{l.company}</span> : null}
+                {l.area ? <span className="block text-xs text-ink-faint">{l.area}</span> : null}
               </span>
             </label>
           ))}
@@ -110,6 +176,7 @@ function LocationPicker({
       </div>
       <p className="text-xs text-ink-muted">
         {needle ? `${matchCount} dari ${locations.length} lokasi` : `${locations.length} lokasi`}
+        {" · cari juga bisa dengan kabupaten, provinsi, atau nama perusahaan"}
         {" · centang tetap tersimpan walau daftar difilter"}
       </p>
     </div>

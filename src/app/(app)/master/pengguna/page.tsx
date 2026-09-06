@@ -52,8 +52,16 @@ export default async function PenggunaPage() {
       select: {
         id: true,
         name: true,
+        // Wilayah ikut diambil supaya kotak cari bisa dipakai dengan kata yang
+        // memang diingat orang lapangan — "Rembang", "Jawa Tengah" — bukan
+        // hanya nama desa (permintaan user 2026-09-06).
+        village: true,
+        district: true,
+        regency: true,
+        province: true,
         package: {
           select: {
+            name: true,
             organization: { select: { name: true } },
             contract: { select: { vendor: { select: { name: true } } } },
           },
@@ -66,6 +74,11 @@ export default async function PenggunaPage() {
     id: l.id,
     name: l.name,
     company: l.package?.contract?.vendor?.name ?? l.package?.organization?.name ?? null,
+    // Ditampilkan sebagai baris wilayah DAN ikut dicari. Dua lokasi bernama
+    // sama di kabupaten berbeda tidak bisa dibedakan tanpa ini.
+    area: [l.village, l.district, l.regency, l.province].filter(Boolean).join(", "),
+    // Tidak ditampilkan, tapi ikut dicari: orang menyebut paketnya juga.
+    extra: l.package?.name ?? null,
   }));
 
   // Siapa yang jadi AKAR ditetapkan di env (DECISIONS 315). Ditandai di daftar

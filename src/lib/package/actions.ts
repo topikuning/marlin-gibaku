@@ -2119,3 +2119,45 @@ export async function batalkanLingkupLokasiAction(
   if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
   return { success: "Usulan perubahan lingkup dibatalkan." };
 }
+
+/**
+ * Arsipkan / buka arsip pencabutan lokasi — super admin saja.
+ *
+ * Ketetapan user 2026-09-06: *"ada fitur yang langsung mengarsipkan semua
+ * lokasi yang dikeluarkan tapi hanya bisa dilakukan super admin, jadi di
+ * kontrak tidak ada bekas history yang bisa dilihat umum tapi hanya oleh super
+ * admin."* Izinnya ditegakkan di lapisan layanan (`location_scope.archive`),
+ * bukan di
+ * sini — layar hanya menyembunyikan tombolnya.
+ */
+export async function arsipkanLingkupLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const { arsipkanLokasiDicabut } = await import("@/lib/package/lingkup-lokasi");
+  const packageId = String(formData.get("packageId") ?? "");
+  const { jumlah } = await arsipkanLokasiDicabut(packageId);
+  if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
+  return {
+    success:
+      jumlah === 0
+        ? "Tidak ada pencabutan lokasi yang perlu diarsipkan."
+        : `${jumlah} pencabutan lokasi diarsipkan. Riwayatnya kini hanya terlihat super admin – angka kontrak, progres, dan kurva-S tidak berubah sedikit pun.`,
+  };
+}
+
+export async function bukaArsipLingkupLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const { bukaArsipLokasiDicabut } = await import("@/lib/package/lingkup-lokasi");
+  const packageId = String(formData.get("packageId") ?? "");
+  const { jumlah } = await bukaArsipLokasiDicabut(packageId);
+  if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
+  return {
+    success:
+      jumlah === 0
+        ? "Tidak ada arsip pencabutan lokasi di paket ini."
+        : `${jumlah} pencabutan lokasi dikembalikan ke pandangan umum.`,
+  };
+}

@@ -1266,12 +1266,22 @@ model LocationScopeChange {
   updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   appliedAt     DateTime?           @map("applied_at") @db.Timestamptz
 
+  /// PENGARSIPAN (ketetapan user 2026-09-06): pencabutan lokasi yang sudah
+  /// selesai boleh disembunyikan dari pandangan umum oleh super admin, supaya
+  /// kontrak tidak memamerkan lokasi yang sudah tidak ada di dalamnya. Barisnya
+  /// TIDAK dihapus dan angkanya tidak bergeser sedikit pun — pengarsipan murni
+  /// soal siapa yang melihat, bukan soal apa yang benar. Super admin tetap
+  /// melihat seluruh riwayatnya.
+  archivedAt    DateTime?           @map("archived_at") @db.Timestamptz
+  archivedById  String?             @map("archived_by_id") @db.Uuid
+
   location  Location                @relation(fields: [locationId], references: [id])
   amendment ContractAmendment       @relation(fields: [amendmentId], references: [id])
   approvals LocationScopeApproval[]
 
   @@index([locationId, status])
   @@index([amendmentId])
+  @@index([archivedAt])
   @@map("location_scope_changes")
 }
 

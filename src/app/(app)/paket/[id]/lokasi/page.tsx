@@ -16,9 +16,16 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { getPackageWorkspace } from "@/lib/package/queries";
+import {
+  daftarPerubahanLingkup,
+  idLokasiDiarsipkan,
+  lingkupLokasi,
+} from "@/lib/package/lingkup-lokasi";
+import { formatTanggal } from "@/lib/format";
 import { getAvailableCatalog } from "@/lib/master-location/queries";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatPct } from "@/lib/format";
+import { LingkupPanel } from "../lingkup-panel";
 import {
   AddLocationForm,
   CatalogLocationPicker,
@@ -42,6 +49,10 @@ export default async function LokasiPaketPage({
   if (!pkg) notFound();
 
   const canProspect = can(user.role, "prospect.manage");
+  const canContract = can(user.role, "contract.manage");
+  // Super admin: satu-satunya yang boleh mengarsipkan riwayat pencabutan, dan
+  // satu-satunya yang tetap melihatnya sesudah diarsipkan (user 2026-09-06).
+  const bolehArsip = can(user.role, "location_scope.archive");
   const praKontrak = !pkg.contract && ["prospek", "tender", "penetapan"].includes(pkg.stage);
   // Koreksi susunan lokasi paket BERKONTRAK — super_admin saja (DECISIONS 187).
   const bolehKoreksi =
@@ -50,20 +61,36 @@ export default async function LokasiPaketPage({
     !!pkg.contract &&
     ["kontrak", "pelaksanaan"].includes(pkg.stage);
   const perluKatalog = (praKontrak && canProspect) || bolehKoreksi;
-  const [{ available: catalog, hiddenExistingCount }, progressMap] = await Promise.all([
-    perluKatalog
-      ? getAvailableCatalog(user.orgId)
-      : Promise.resolve({ available: [], hiddenExistingCount: 0 }),
-    getLocationsProgress(pkg.locations.map((l) => l.id)),
-  ]);
+  const idLokasi = pkg.locations.map((l) => l.id);
+  const [{ available: catalog, hiddenExistingCount }, progressMap, lingkup, perubahanLingkup, arsip] =
+    await Promise.all([
+      perluKatalog
+        ? getAvailableCatalog(user.orgId)
+        : Promise.resolve({ available: [], hiddenExistingCount: 0 }),
+      getLocationsProgress(idLokasi),
+      lingkupLokasi(idLokasi),
+      // Riwayat perubahan lingkup. Yang sudah diarsipkan hanya ikut untuk super
+      // admin — itu seluruh isi ketetapan user 2026-09-06.
+      daftarPerubahanLingkup(idLokasi, { termasukArsip: bolehArsip }),
+      bolehArsip ? Promise.resolve(new Set<string>()) : idLokasiDiarsipkan(idLokasi),
+    ]);
+
+  /*
+   * Daftar yang DITAMPILKAN. Lokasi yang pencabutannya diarsipkan hilang dari
+   * daftar umum; tidak ada angka yang ikut bergeser karena lokasi itu memang
+   * sudah keluar dari seluruh agregat sejak tanggal berlaku CCO-nya.
+   */
+  const lokasiTampil = pkg.locations.filter((l) => !arsip.has(l.id));
+  const lokasiDicabut = lokasiTampil.filter((l) => lingkup.dicabut.has(l.id)).length;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-      <Card className="self-start">
+      <div className="space-y-6 self-start">
+      <Card>
         <CardHeader
           title="Lokasi paket"
           subtitle={
-            `${pkg.locations.length} lokasi · ${pkg.locations.filter((l) => l.isActive).length} aktif` +
+            `${lokasiTampil.length} lokasi · ${lokasiTampil.filter((l) => l.isActive).length} aktif` +
             // Yang di luar penugasan disebut jumlahnya, tidak dihilangkan diam-diam
             // (DECISIONS 201).
             (pkg.locationsHidden > 0
@@ -72,7 +99,7 @@ export default async function LokasiPaketPage({
           }
         />
         <CardBody>
-          {pkg.locations.length === 0 ? (
+          {lokasiTampil.length === 0 ? (
             <EmptyState
               icon={MapPin}
               title="Belum ada lokasi"
@@ -86,7 +113,7 @@ export default async function LokasiPaketPage({
             />
           ) : (
             <ul className="divide-y divide-border">
-              {pkg.locations.map((l) => {
+              {lokasiTampil.map((l) => {
                 const removable =
                   canProspect &&
                   !l.isActive &&
@@ -112,6 +139,11 @@ export default async function LokasiPaketPage({
                         label={LOCATION_STATUS_LABEL[l.status]}
                       />
                       {!l.isActive ? <StatusPill tone="neutral" label="Target" /> : null}
+                      {/* Dicabut adendum: tetap terdaftar, tapi sudah di luar
+                          angka paket sejak tanggal berlaku CCO-nya. */}
+                      {lingkup.dicabut.has(l.id) ? (
+                        <StatusPill tone="warning" label="Dicabut adendum" />
+                      ) : null}
                       {/*
                         Progres realisasi ikut ditampilkan supaya daftar ini
                         menjawab "lokasi mana yang tertinggal" tanpa membuka
@@ -130,6 +162,52 @@ export default async function LokasiPaketPage({
           )}
         </CardBody>
       </Card>
+
+      {/*
+        LINGKUP LOKASI — pindah ke tab ini atas permintaan user 2026-09-06:
+        *"peletakan menunya juga tidak perlu ada di ringkasan, di tab lokasi
+        saja. supaya ringkasan tidak banyak pilihan aksi!"* Ringkasan tinggal
+        membaca akibatnya (kartu "Jumlah lokasi" menyebut yang dicabut);
+        tombolnya ada di sini, tempat lokasi memang diurus.
+      */}
+      {canContract || perubahanLingkup.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Lingkup lokasi kontrak"
+            subtitle="Adendum bisa MENAMBAH atau MENCABUT lokasi. Yang dicabut tidak dihapus – laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku CCO."
+            action={
+              lokasiDicabut > 0 ? (
+                <StatusPill tone="warning" label={`${lokasiDicabut} lokasi dicabut`} />
+              ) : null
+            }
+          />
+          <CardBody>
+            <LingkupPanel
+              packageId={pkg.id}
+              bolehUbah={canContract}
+              bolehArsip={bolehArsip}
+              lokasi={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
+              adendum={(pkg.contract?.amendments ?? []).map((a) => ({
+                id: a.id,
+                label: `${a.ccoNumber} – berlaku ${formatTanggal(a.effectiveDate)}`,
+              }))}
+              perubahan={perubahanLingkup.map((p) => ({
+                id: p.id,
+                locationName: p.locationName,
+                kind: p.kind,
+                effectiveDate: formatTanggal(p.effectiveDate),
+                status: p.status,
+                reason: p.reason,
+                ccoNumber: p.ccoNumber,
+                setuju: { lengkap: p.setuju.lengkap, kurang: p.setuju.kurang },
+                suaraGugur: p.suaraGugur,
+                diarsipkanPada: p.diarsipkanPada ? formatTanggal(p.diarsipkanPada) : null,
+              }))}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+      </div>
 
       {praKontrak && canProspect ? (
         <Card className="self-start">
