@@ -239,7 +239,33 @@ export function PetaMap({
       if (pesan) setGalat(pesan);
     });
 
+    /*
+     * SATU BALON, DIPASANG SEKALI, LALU DISEMBUNYIKAN — bukan dipasang-copot.
+     *
+     * Teguran user 2026-09-07 (rekaman layar): *"saat aku arahkan ke titik
+     * lokasi, ada di pojok kanan ada balloon yang double walaupun cuma sekilas
+     * lalu hilang"*.
+     *
+     * Rekamannya jelas: sebelum balon muncul di sebelah titik, ia berkedip
+     * sekejap di POJOK KIRI-ATAS peta — menimpa tombol lapisan. Sebabnya
+     * `addTo(map)` dipanggil tiap kali kursor masuk: MapLibre menyisipkan
+     * elemen balon lebih dulu, lalu barulah `transform`-nya dihitung. Satu
+     * bingkai di antaranya, balon itu tergambar di titik asal (0,0) kanvas.
+     * Karena `remove()` dipanggil tiap kursor keluar, elemennya dibuat ulang
+     * terus, dan kedipan itu terjadi PADA SETIAP arahan — persis yang terekam.
+     *
+     * Sekarang balonnya dipasang sekali saat peta siap (dalam keadaan
+     * tersembunyi, jadi kedipan pertama pun tidak terlihat), lalu cuma
+     * dipindahkan. Menyembunyikan ≠ mencopot: elemennya tetap ada dengan
+     * `transform` terakhirnya, jadi tidak pernah ada bingkai di titik asal.
+     */
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+    const tampilkanPopup = (tampil: boolean) => {
+      const el = popup.getElement();
+      if (el) el.style.display = tampil ? "" : "none";
+    };
+    /** Lokasi yang balonnya sedang tampil — isinya hanya ditulis ulang saat berganti. */
+    let idPopup: string | null = null;
 
     map.on("load", () => {
       map.addSource(SUMBER_LOKASI, { type: "geojson", data, ...KELOMPOK_OPSI(kelompok) });
@@ -294,6 +320,11 @@ export function PetaMap({
         },
       });
       siap.current = true;
+      // Balon dipasang sekali di sini, tersembunyi: kedipan "muncul di 0,0"
+      // hanya terjadi pada penyisipan pertama, dan yang tersembunyi tidak
+      // terlihat berkedip.
+      popup.setLngLat(PUSAT_KOSONG).addTo(map);
+      tampilkanPopup(false);
       // Tidak ada perapatan di sini lagi: kotaknya sudah diberikan ke
       // konstruktor, jadi bingkai pertama sudah benar. Merapatkan ulang di
       // `load` hanya mengulang pekerjaan yang sama — dan dulu, karena ia satu-
@@ -317,16 +348,25 @@ export function PetaMap({
       map.getCanvas().style.cursor = "pointer";
       const f = e.features?.[0];
       if (!f) return;
-      popup
-        .setLngLat(titik(f))
-        .setHTML(
+      const id = typeof f.properties?.id === "string" ? f.properties.id : "";
+      // `mousemove` berdetak puluhan kali per detik. Menulis ulang isi balon
+      // tiap detak berarti melebar-menyempit terus, dan itu juga yang membuat
+      // MapLibre menghitung ulang sisi sandarannya — kedipan yang tidak perlu.
+      if (id !== idPopup) {
+        idPopup = id;
+        popup.setHTML(
           `<div style="font-size:12px;font-weight:600">${f.properties?.name ?? ""}</div><div style="font-size:11px">${f.properties?.wilayah ?? ""}</div>`,
-        )
-        .addTo(map);
+        );
+      }
+      popup.setLngLat(titik(f));
+      tampilkanPopup(true);
     });
     map.on("mouseleave", LAPIS_TITIK, () => {
       map.getCanvas().style.cursor = "";
-      popup.remove();
+      // Disembunyikan, BUKAN dicopot: mencopotnya berarti elemennya dibuat
+      // ulang pada arahan berikutnya, dan kedipan di pojok kembali.
+      idPopup = null;
+      tampilkanPopup(false);
     });
     map.on("mouseenter", LAPIS_KELOMPOK, () => {
       map.getCanvas().style.cursor = "pointer";

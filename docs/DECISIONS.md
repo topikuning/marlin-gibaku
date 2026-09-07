@@ -28191,3 +28191,50 @@ baca, menimpa di hari yang sama, nilai kosong ≠ "mati") dan
 sampai ke keadaan awal peta). Dibuktikan ujung-ke-ujung pada aplikasi hasil
 `pnpm build`: dengan setelan kosong peta terbuka berkelompok, dengan setelan
 `0` peta terbuka satu per satu.
+
+---
+
+## 539 · 2026-09-07 · Balon keterangan lokasi dipasang sekali, lalu dipindahkan
+
+**Konteks**: rekaman layar user — *"saat aku arahkan ke titik lokasi, ada di
+pojok kanan ada balloon yang double walaupun cuma sekilas lalu hilang,
+sepertinya ini sesuatu yang tidak nyaman untuk dilihat"*.
+
+Rekamannya dibedah bingkai per bingkai (12 bingkai/detik): pada satu bingkai
+balon tergambar di POJOK KIRI-ATAS peta, menimpa tombol lapisan, dengan isi yang
+sama seperti balon yang sepersekian detik kemudian muncul benar di sebelah titik
+yang ditunjuk. Jadi bukan dua balon berbeda, melainkan satu balon yang sempat
+tergambar sebelum posisinya dipakai.
+
+**Yang pasti**, dibaca dari sumber `maplibre-gl` 6.7.0:
+
+```js
+addTo(map) { if (this._map) this.remove(); … }
+```
+
+Kode lama memanggil `.addTo(map)` di SETIAP `mousemove` — artinya elemen balon
+dibongkar lalu dibangun ulang puluhan kali per detik selama kursor bergerak di
+atas titik, dan dicopot lagi tiap kursor keluar. Elemen yang baru disisipkan
+adalah satu-satunya keadaan di mana balon bisa terlihat sebelum posisinya
+dihitung.
+
+**Keputusan**: balon dipasang SEKALI saat peta siap, dalam keadaan tersembunyi,
+lalu hanya dipindahkan. Menyembunyikan ≠ mencopot: elemennya tetap ada dengan
+`transform` terakhirnya. Ia baru ditampilkan SESUDAH `setLngLat` — yang selalu
+menulis posisi — sehingga tidak pernah ada balon terlihat tanpa posisi. Isinya
+pun hanya ditulis ulang saat lokasi yang ditunjuk berganti, bukan tiap detak
+`mousemove`: menulis ulang isi membuat balon melebar-menyempit dan memaksa
+MapLibre menghitung ulang sisi sandarannya.
+
+**Jujur soal buktinya**: kedipan itu TIDAK berhasil direproduksi di peramban
+headless — 60 kali arah masuk–keluar pada kode LAMA menghasilkan nol balon di
+pojok dan hanya satu elemen. Jadi sebab-akibatnya tidak dibuktikan di sini; yang
+dibuktikan perilaku pustakanya (bongkar-pasang tiap `addTo`) dan bahwa celah
+"terlihat sebelum diposisikan" sekarang tertutup secara struktural. Kalau
+kedipannya masih terlihat sesudah rilis ini, sebabnya lain dan rekamannya
+ditunggu.
+
+**Konsekuensi**: satu elemen balon per peta, tidak ada lagi ±60 pembangunan DOM
+per detik saat kursor menyapu penanda. Dijaga `tests/unit/peta-balon.test.ts`,
+termasuk satu klausa yang menjaga ANGGAPAN-nya: kalau `Popup.addTo` maplibre
+suatu saat tidak lagi membongkar, uji itu yang memberi tahu lebih dulu.
