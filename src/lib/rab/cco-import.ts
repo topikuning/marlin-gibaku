@@ -238,7 +238,23 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   let blokHasil: BlokNilai | null = null;
   let volHasil = 0;
   let amountHasil = 0;
-  for (let i = sesudah.length - 1; i >= 0; i--) {
+  /*
+   * DARI KIRI, bukan dari kanan.
+   *
+   * Kegagalan 2026-09-07 (MC 1 FINAL GEMPOLSEWU): berkas itu punya ENAM blok
+   * sesudah "kurang" — CCO-01 · KET · KET · CCO-PRC · CCO-PERENCANA · BIAYA
+   * PELAKSANAAN. Aturan "paling kanan yang terbukti" memilih CCO-PERENCANA,
+   * sebuah skenario perencana, dan mengalikan volumenya dengan harga satuan
+   * blok dasar: Σ item 13,24 miliar untuk berkas yang menulis totalnya sendiri
+   * 3,67 miliar. Salah blok tidak terlihat salah — angkanya besar dan rapi.
+   *
+   * Hasil dari tambah/kurang adalah blok BERIKUTNYA; yang di kanannya skenario
+   * turunan (perencana, biaya pelaksanaan) yang bukan nilai kontrak. Blok
+   * kosong tetap terlewat dengan sendirinya karena harus TERBUKTI dulu —
+   * itu yang menjaga berkas DRAFT_MC0_KEMANTREN (CCO-01 masih kosong) tetap
+   * jatuh ke blok dasar seperti sebelumnya.
+   */
+  for (let i = 0; i < sesudah.length; i++) {
     const hit = buktikan(sesudah[i]);
     if (!hit) continue;
     blokHasil = sesudah[i];

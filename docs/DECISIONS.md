@@ -28306,3 +28306,51 @@ keputusan domain, bukan tebakan parser. Menunggu ketetapan user.
 "SUBTOTAL per kategori tidak diperlakukan sebagai total akhir" sempat memerah
 oleh percobaan pertama (memakai kandidat terbesar tanpa syarat) — itu yang
 memaksa aturannya jadi asimetris; uji itu benar dan tetap hijau.
+
+---
+
+## 541 · 2026-09-07 · Blok hasil CCO = blok BERIKUTNYA sesudah tambah/kurang, bukan yang paling kanan
+
+**Konteks**: lanjutan 540. Sesudah kolomnya benar, `MC 1 FINAL GEMPOLSEWU.xlsx`
+terbaca 13,24 miliar — sementara berkasnya menulis totalnya sendiri 3,67
+miliar. Pertanyaan user: *"kalau kamu yakin sudah tidak ada masalah dan ini bisa
+diimport untuk draft adendum, merge ke main"*. Belum yakin, jadi ditelusuri
+dulu.
+
+Berkas itu punya ENAM blok nilai sesudah "PEKERJAAN KURANG":
+
+```
+CCO-01 · KET · KET · CCO-PRC · CCO-PERENCANA · BIAYA PELAKSANAAN
+```
+
+Aturan lama — *"blok hasil = blok TERBUKTI paling kanan"* — memilih
+**CCO-PERENCANA**, sebuah skenario perencana, lalu mengalikan volumenya dengan
+harga satuan blok dasar. Hasilnya 13,24 miliar: besar, rapi, dan sepenuhnya
+keliru. Itu bentuk kesalahan paling berbahaya di berkas RAB, sebab ia tidak
+terlihat salah.
+
+**Keputusan**: blok hasil dicari dari KIRI — blok terbukti pertama sesudah
+"kurang". Hasil dari tambah/kurang adalah blok berikutnya; yang di kanannya
+skenario turunan (perencana, biaya pelaksanaan) yang bukan nilai kontrak. Blok
+kosong tetap terlewat dengan sendirinya karena harus TERBUKTI dulu
+(`volume × harga ≈ jumlah`) — itulah yang menjaga perilaku
+`DRAFT_MC0_KEMANTREN` (CCO-01 masih kosong → jatuh ke blok dasar) tetap seperti
+semula.
+
+**Hasilnya, diperiksa sampai ke rupiah**: Σ item 3.667.534.912 dari 218 item di
+13 kategori. Berkas menulis CCO-01 = 3.669.499.844. Selisih 1.964.932
+**terjelaskan seluruhnya** oleh 3 baris yang di-hide di Excel (r463, r478,
+r479) — yang memang sengaja diabaikan importer sejak awal, mengikuti resume
+kontrak, dan sudah disebut di peringatan. 3.667.534.912 + 1.964.932 =
+3.669.499.844, tepat.
+
+Dua kategori (III TAMBATAN PERAHU, IV DPT) bertotal 0, dan itu BENAR: di kolom
+CCO-01 seluruh volumenya memang 0 — pekerjaannya dicabut pada mutual check ini,
+bukan gagal terbaca.
+
+**Konsekuensi**: pertanyaan terbuka di 540 ("apa arti berkas MC bagi MARLIN")
+terjawab untuk kasus ini — berkas MC ber-blok tambah/kurang dibaca sebagai
+KEADAAN SESUDAH adendum, persis seperti berkas CCO KKP lain, dan cocok dipakai
+sebagai draft adendum. Dijaga `tests/unit/cco-blok-hasil.test.ts`, dibuktikan
+merah pada aturan lama ("paling kanan") dan hijau pada aturan baru, dengan satu
+klausa yang menjaga perilaku blok-kosong agar tidak ikut berubah.
