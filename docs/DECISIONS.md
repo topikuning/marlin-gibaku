@@ -28238,3 +28238,71 @@ ditunggu.
 per detik saat kursor menyapu penanda. Dijaga `tests/unit/peta-balon.test.ts`,
 termasuk satu klausa yang menjaga ANGGAPAN-nya: kalau `Popup.addTo` maplibre
 suatu saat tidak lagi membongkar, uji itu yang memberi tahu lebih dulu.
+
+---
+
+## 540 · 2026-09-07 · Label di sampul bukan header tabel; bacaan yang mustahil ditolak
+
+**Konteks**: user mengunggah `MC 1 FINAL GEMPOLSEWU.xlsx` (4,3 MB, 56 sheet) dan
+mendapat *"1 item pekerjaan · Rp 1"* dengan 12 peringatan parsing —
+*"kenapa jadi begini, apa yang salah denganmu atau file ini?"*
+
+Jawabannya: **kesalahan parser**, dan rantainya satu baris di blok identitas
+berkas itu:
+
+```
+B17: "JENIS PENGADAAN"    E17: "JASA KONSTRUKSI"
+```
+
+Kata "JENIS" ada di `URAIAN_RE`, jadi baris sampul itu dianggap baris header
+tabel dan kolom uraian ditetapkan **B** — delapan baris di atas header yang
+sebenarnya (baris 25). Batas kanan pencarian kolom kode ikut menyempit jadi
+"< 2", sehingga label "NO" di kolom B tidak pernah terlihat dan kolom kode
+jatuh ke kolom **A yang kosong**. Sesudah itu semuanya runtuh: kode kosong,
+NAMA pekerjaan terbaca sebagai nomor ("1", "2", "6.1."), nol item masuk pohon,
+dan yang tersisa cuma satu baris rekap — Rp 1.
+
+**Tiga perbaikan, tiga cacat berbeda**:
+
+1. **Header tabel harus berbentuk header tabel.** Baris yang mengandung
+   URAIAN/JENIS/NAMA baru diterima sebagai header bila baris itu — atau
+   tetangga langsungnya, sebab header dua baris lazim — juga memuat VOL/SAT.
+   Blok identitas tidak pernah punya keduanya.
+2. **Baris total yang labelnya di atas blok nilai ikut tercatat.** Berkas ini
+   menulis "JUMLAH" ter-merge di kolom F–I dengan angkanya di K, sementara
+   kolom kode/uraian kosong; baris itu dibuang sebagai "tanpa kode dan tanpa
+   nama", jadi satu-satunya pembanding luar yang dipunya parser tidak pernah
+   ada. Angkanya diambil dari kolom jumlah, atau — bila kolom itu kosong di
+   baris total, lazim pada berkas ber-blok — angka terbesar di baris itu.
+3. **Pembanding total jadi ASIMETRIS, dan bacaan mustahil DITOLAK.** Penyaring
+   "kandidat harus dalam ±20% dari Σ item" dipasang supaya subtotal kategori
+   tidak disangka total akhir. Itu benar untuk kandidat yang lebih KECIL dari
+   Σ item — subtotal, menurut bentuknya, selalu lebih kecil. Ke arah
+   sebaliknya penyaring itu justru membungkam pagar saat paling perlu: Σ item
+   Rp 1 vs total tertulis Rp 3,67 miliar berselisih 100%, jadi tidak ada
+   kandidat yang lolos dan pagarnya diam. Sekarang kandidat DI ATAS Σ item
+   dipakai apa adanya, dan bila Σ item < 1% dari total yang ditulis berkas,
+   impor **ditolak** — bukan diteruskan ke layar persetujuan dengan tanda seru
+   kecil di bawahnya.
+4. **Berkas tambah/kurang (CCO/MC) dibandingkan DUA ARAH.** Di sana parser
+   harus memilih blok mana yang jadi volume dan mana yang jadi harga, dan salah
+   blok menghasilkan angka yang besar, rapi, dan sepenuhnya keliru — bentuk
+   paling berbahaya, sebab tidak terlihat salah.
+5. **Peringatan berat pindah ke atas tabel, bertona bahaya.** "12 peringatan
+   parsing" terlipat di bawah angka Rp 1 adalah cara memberi tahu yang sama
+   saja dengan tidak memberi tahu; selisih yang membuat NILAI KONTRAK salah
+   tidak boleh sewarna dengan "3 baris tersembunyi diabaikan".
+
+**Yang MASIH belum selesai, dan bukan kesalahan parser**: berkas ini sebuah
+**Mutual Check (MC-1)**, bukan RAB/HPS. Sesudah perbaikan di atas ia terbaca
+lewat jalur CCO tambah/kurang dan menghasilkan Σ item 13,24 miliar, sementara
+berkasnya sendiri menulis 3,67 miliar (pra-PPN) / 4,07 miliar (ber-PPN) di
+baris 819–822. Sekarang selisih itu BERBUNYI keras, tapi menentukan apa arti
+sebuah berkas MC bagi MARLIN — revisi RAB? klaim progres? bukan keduanya? —
+keputusan domain, bukan tebakan parser. Menunggu ketetapan user.
+
+**Konsekuensi**: dijaga `tests/unit/hps-header-sampul.test.ts`, dibuktikan
+**merah 4/4 pada kode sebelum perbaikan** dan hijau 4/4 sesudahnya. Uji lama
+"SUBTOTAL per kategori tidak diperlakukan sebagai total akhir" sempat memerah
+oleh percobaan pertama (memakai kandidat terbesar tanpa syarat) — itu yang
+memaksa aturannya jadi asimetris; uji itu benar dan tetap hijau.

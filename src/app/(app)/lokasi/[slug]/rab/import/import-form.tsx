@@ -260,6 +260,30 @@ export function ImportForm({
             </p>
           </div>
 
+          {/*
+            PERINGATAN BERAT DI ATAS TABEL, bukan di bawahnya bersama yang ringan.
+            Laporan user 2026-09-07: berkas 3,67 miliar tampil sebagai "Rp 1"
+            dengan "12 peringatan parsing" terlipat di bawah angka itu. Selisih
+            yang membuat NILAI KONTRAK salah harus dibaca sebelum mata sampai ke
+            tabelnya, dan warnanya bahaya — bukan kuning yang sama dengan "3
+            baris tersembunyi diabaikan".
+          */}
+          {preview.warnings.some((w) => w.startsWith("PERHATIAN")) ? (
+            <Banner
+              tone="error"
+              title="Angka berkas ini tidak konsisten – periksa sebelum menyimpan"
+              description={
+                <ul className="list-disc pl-4">
+                  {preview.warnings
+                    .filter((w) => w.startsWith("PERHATIAN"))
+                    .map((w) => (
+                      <li key={w}>{w.replace(/^PERHATIAN – /, "")}</li>
+                    ))}
+                </ul>
+              }
+            />
+          ) : null}
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -291,15 +315,17 @@ export function ImportForm({
             </table>
           </div>
 
-          {preview.warnings.length > 0 ? (
+          {preview.warnings.some((w) => !w.startsWith("PERHATIAN")) ? (
             <Banner
               tone="warning"
-              title={`${preview.warnings.length} peringatan parsing`}
+              title={`${preview.warnings.filter((w) => !w.startsWith("PERHATIAN")).length} peringatan parsing`}
               description={
                 <ul className="list-disc pl-4">
-                  {preview.warnings.map((w) => (
-                    <li key={w}>{w}</li>
-                  ))}
+                  {preview.warnings
+                    .filter((w) => !w.startsWith("PERHATIAN"))
+                    .map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
                 </ul>
               }
             />
