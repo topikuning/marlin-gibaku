@@ -370,10 +370,36 @@ export function detectCodeColumn(ws: ExcelJS.Worksheet, batas: number): number {
   const maxRow = Math.min(60, ws.rowCount);
   const tepi = Math.min(batas, NC + 1);
 
+  /**
+   * Baris HEADER TABEL, bukan baris identitas di sampul.
+   *
+   * Kegagalan 2026-09-07 (MC 1 FINAL GEMPOLSEWU): blok identitas berisi
+   * `B17: "JENIS PENGADAAN" | E17: "JASA KONSTRUKSI"`. Kata "JENIS" ada di
+   * `URAIAN_RE`, jadi baris sampul itu dianggap header tabel dan kolom uraian
+   * ditetapkan B (2) — delapan baris di atas header yang sebenarnya. Batas
+   * kanan pencarian kolom kode ikut menyempit jadi "< 2", sehingga label "NO"
+   * di kolom B tidak pernah terlihat dan kolom kode jatuh ke A yang kosong.
+   * Akibat berantainya: kode kosong, NAMA pekerjaan terbaca sebagai nomor
+   * ("1", "2", "6.1."), nol item masuk, dan berkas 3,6 miliar rupiah tampil
+   * sebagai "1 item pekerjaan · Rp 1".
+   *
+   * Syaratnya sekarang: baris itu — atau tetangga langsungnya, sebab header
+   * dua baris lazim — harus juga memuat label VOL/SAT. Blok identitas tidak
+   * pernah punya keduanya.
+   */
+  const headerTabelDi = (rn: number): boolean => {
+    for (let r = Math.max(1, rn - 1); r <= Math.min(maxRow, rn + 1); r++) {
+      const L = labelsOf(ws.getRow(r));
+      if (L.some((l) => /^VOL|^SAT/.test(l ?? ""))) return true;
+    }
+    return false;
+  };
+
   let kolomUraian = 0;
   let barisHeader = 0;
   for (let rn = 1; rn <= maxRow && !kolomUraian; rn++) {
     const L = labelsOf(ws.getRow(rn));
+    if (!headerTabelDi(rn)) continue;
     for (let c = 2; c < tepi; c++)
       if (URAIAN_RE.test(L[c] ?? "")) {
         kolomUraian = c;
@@ -672,6 +698,30 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     totalKandidat.push(nilai);
   };
 
+  /**
+   * Angka total pada BARIS TOTAL — kolom jumlah dulu, angka terbesar sebagai
+   * cadangan.
+   *
+   * Kegagalan 2026-09-07 (MC 1 FINAL GEMPOLSEWU): berkas ber-blok tambah/kurang
+   * menulis grand totalnya di kolom K dan T, sementara blok yang dipakai parser
+   * (CCO) tidak punya baris total sama sekali — kolom jumlahnya KOSONG di baris
+   * itu. Akibatnya total yang ditulis berkas tidak pernah tercatat, dan bacaan
+   * yang meleset 261% lolos tanpa satu peringatan pun.
+   *
+   * Cadangan "angka terbesar di baris itu" hanya dipakai ketika kolom jumlah
+   * kosong — jadi ia tidak pernah menggeser bukti yang lebih baik.
+   */
+  const nilaiBarisTotal = (row: ExcelJS.Row): number | null => {
+    const utama = num(cellVal(row, col.amount));
+    if (utama != null) return utama;
+    let terbesar: number | null = null;
+    for (let k = 1; k <= NC; k++) {
+      const n = num(cellVal(row, k));
+      if (n != null && n >= 1000 && (terbesar == null || n > terbesar)) terbesar = n;
+    }
+    return terbesar;
+  };
+
   let crossMismatch = 0;
 
   const mkItem = (
@@ -848,14 +898,39 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     if (labelMeta === "LOKASI" && !locationRaw) locationRaw = str(metaOf(row));
     if (joined.includes("TAHUN ANGGARAN")) year = num(metaOf(row));
 
-    if (!code && !name) return;
+    /*
+     * BARIS TOTAL YANG LABELNYA DI ATAS BLOK NILAI, bukan di kolom uraian.
+     *
+     * Kegagalan 2026-09-07 (MC 1 FINAL GEMPOLSEWU): baris grand total menulis
+     * "JUMLAH" ter-merge di kolom F–I dengan angkanya di K, sementara kolom
+     * kode/uraian (B–E) kosong. Baris itu dibuang di sini sebagai "tanpa kode
+     * dan tanpa nama", jadi satu-satunya pembanding luar yang dipunya parser —
+     * total yang DITULIS berkas untuk dirinya sendiri — tidak pernah tercatat,
+     * dan bacaan yang salah 261% lewat tanpa satu peringatan pun.
+     */
+    if (!code && !name) {
+      for (let c = 1; c <= col.amount; c++) {
+        const label = str(cellVal(row, c));
+        if (!label || !TOTAL_POLOS.test(label.trim())) continue;
+        /*
+         * Angkanya diambil dari kolom jumlah bila ada; kalau kolom itu KOSONG
+         * di baris total (lazim pada berkas ber-blok: blok yang dipakai parser
+         * tidak selalu punya baris totalnya sendiri), dipakai angka TERBESAR di
+         * baris itu. Grand total sebuah RAB adalah angka terbesar di barisnya;
+         * dan ini hanya berlaku saat tidak ada bukti yang lebih baik.
+         */
+        catatTotalDitulis(label, nilaiBarisTotal(row));
+        break;
+      }
+      return;
+    }
 
     // Baris rekap/subtotal ("JUMLAH", "SUB TOTAL", "TOTAL", dll) — JANGAN masuk pohon.
     // Sebelum dilewati, angkanya DICATAT: itulah total yang ditulis berkas
     // untuk dirinya sendiri, dan satu-satunya pembanding luar yang kita punya
     // terhadap hasil bacaan parser (lihat `totalDitulis` di bawah).
     if (isSummaryRow(name, code)) {
-      catatTotalDitulis(name, num(cellVal(row, col.amount)));
+      catatTotalDitulis(name, nilaiBarisTotal(row));
       return;
     }
     // Baris penutup bernomor (JUMLAH HARGA / PPN / DIBULATKAN) — lihat
@@ -1044,8 +1119,59 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * hampir selalu jauh di bawah itu, sementara bacaan yang bolong beberapa
    * persen tetap tertangkap.
    */
-  const totalDitulis =
+  /*
+   * Kandidat yang LEBIH BESAR dari Σ item tidak mungkin subtotal kategori:
+   * subtotal, menurut bentuknya, selalu lebih kecil dari jumlah seluruh item.
+   * Jadi ke arah itu penyaring ±20% dibuang — dan justru di situlah kegagalan
+   * 2026-09-07 bersembunyi.
+   */
+  const kandidatDiAtas = totalKandidat.filter((v) => v > total * 1.2);
+  const dalamPita =
     totalKandidat.filter((v) => Math.abs(v - total) <= total * 0.2).sort((a, b) => b - a)[0] ?? null;
+  /*
+   * BERKAS TAMBAH/KURANG (CCO/MC) DIBANDINGKAN DUA ARAH.
+   *
+   * Di berkas biasa, kandidat yang jauh DI BAWAH Σ item hampir selalu subtotal
+   * kategori, jadi didiamkan. Di berkas ber-blok tidak begitu: parser harus
+   * MEMILIH blok mana yang jadi volume dan mana yang jadi harga, dan salah blok
+   * menghasilkan angka yang besar, rapi, dan sepenuhnya keliru — bentuk paling
+   * berbahaya, sebab ia tidak terlihat salah. Di sana total terbesar yang
+   * ditulis berkas dipakai apa adanya sebagai pembanding.
+   *
+   * MC 1 FINAL GEMPOLSEWU 2026-09-07: Σ item terbaca 13,24 miliar, sementara
+   * berkasnya menulis 4,07 miliar. Tanpa pembanding dua arah, selisih 225% itu
+   * lolos tanpa sepatah kata pun.
+   */
+  const totalDitulis = peta
+    ? (totalKandidat.length > 0 ? Math.max(...totalKandidat) : null)
+    : kandidatDiAtas.length > 0
+      ? Math.max(...kandidatDiAtas)
+      : dalamPita;
+
+  /*
+   * KENAPA ASIMETRIS.
+   *
+   * Penyaring ±20% dipasang supaya SUBTOTAL kategori tidak disangka total
+   * akhir — dan itu benar untuk kandidat yang lebih KECIL dari Σ item. Tapi ke
+   * arah sebaliknya ia membungkam pagar ini justru saat paling perlu.
+   *
+   * Kegagalan 2026-09-07 (MC 1 FINAL GEMPOLSEWU): parser membaca Rp 1 untuk
+   * berkas yang menulis totalnya sendiri Rp 3,67 miliar. Selisihnya nyaris
+   * 100%, jadi TIDAK ADA kandidat yang lolos "dalam ±20% dari Σ item", dan
+   * `totalDitulis` jadi null — pagar yang dipasang untuk menangkap bacaan
+   * bolong ikut diam saat bacaannya bukan cuma bolong, melainkan salah total.
+   *
+   * Bacaan yang MUSTAHIL ditolak, bukan diperingatkan. "1 item pekerjaan ·
+   * Rp 1" untuk berkas 3,67 miliar bukan sesuatu yang boleh diteruskan ke
+   * layar persetujuan dengan tanda seru kecil di bawahnya.
+   */
+  if (totalDitulis != null && totalDitulis > 0 && total < totalDitulis * 0.01)
+    throw new Error(
+      `Berkas ini tidak terbaca sebagai RAB. Σ item yang terbaca hanya ${Math.round(total).toLocaleString("id-ID")}, ` +
+        `padahal berkasnya menulis totalnya sendiri ${Math.round(totalDitulis).toLocaleString("id-ID")}. ` +
+        `Kolom nilainya kemungkinan besar tidak terdeteksi – periksa baris header berkas ini (VOLUME / SATUAN / ` +
+        `HARGA SATUAN / JUMLAH harus berada tepat di atas kolom angkanya), lalu unggah ulang.`,
+    );
 
   if (totalDitulis != null && total > 0) {
     const bedaPpn = [0.11, 0.12].some((p) => Math.abs(totalDitulis - total * (1 + p)) <= total * 0.005);
