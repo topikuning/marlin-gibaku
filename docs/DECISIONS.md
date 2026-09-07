@@ -28354,3 +28354,189 @@ KEADAAN SESUDAH adendum, persis seperti berkas CCO KKP lain, dan cocok dipakai
 sebagai draft adendum. Dijaga `tests/unit/cco-blok-hasil.test.ts`, dibuktikan
 merah pada aturan lama ("paling kanan") dan hijau pada aturan baru, dengan satu
 klausa yang menjaga perilaku blok-kosong agar tidak ikut berubah.
+
+## 542 · 2026-09-07 · Kategori yang DINOLKAN adendum tetap diimpor, bukan dibuang
+
+**Konteks**: laporan user pada pratinjau impor `MC 1 FINAL GEMPOLSEWU.xlsx` —
+*"146 item kontrak tidak ada di file ini"*, disusul *"padahal di file itu ada,
+apa sebenarnya yang salah"*. Item yang disebut memang ada di berkas: `III.1`,
+`III.2 · 1.1.a` … `1.1.e`, `III.3.1`, `IV.1 · 1.a`, lengkap dengan kode, nama,
+satuan, dan harga satuannya.
+
+Yang tidak ada adalah keluaran `flattenParsedRab`. Berkas itu adendum: di blok
+hasil (CCO-01) seluruh volume kategori **III PEKERJAAN TAMBATAN PERAHU** (116
+baris) dan **IV PEKERJAAN DINDING PENAHAN TANAH** (12 baris) dinolkan, sehingga
+nilai kedua kategori 0. Lalu `flatten` membuangnya, dengan alasan yang dulu
+benar:
+
+```
+// Kategori bernilai 0 (template kosong: mis. SENTRA KULINER, BALAI NELAYAN)
+// TIDAK dimasukkan ke DB — tak ada pekerjaan di dalamnya.
+```
+
+Pada HPS baru itu memang judul yang belum diisi. Pada ADENDUM artinya
+terbalik: pekerjaannya ADA di kontrak dan justru sedang dicabut. Karena
+barisnya tidak pernah keluar, `bandingkanTerhadapAktif` tidak menemukan
+pasangannya dan melaporkan seluruh kategori "hilang dari file" — termasuk
+`IV.1 · 1.a Pekerjaan Galian Tanah` yang realisasinya sudah 22,61.
+
+Bedanya bukan kosmetik. "Item hilang" berarti realisasi lepas dari induknya
+saat impor dijalankan; "volume kontrak jadi 0 padahal sudah dikerjakan" adalah
+panel merah `dibawahRealisasi` yang memang harus menyala.
+
+**Keputusan**: kategori bernilai 0 tetap dibuang HANYA bila tidak punya satu pun
+baris berharga di bawahnya. Ada harga satuan = ada pekerjaan yang dicabut, dan
+barisnya diimpor apa adanya dengan volume 0 (DECISIONS 203: angka yang diunggah
+dipakai apa adanya). Peringatan parser untuk keadaan itu juga diganti — "total 0
+(cek parsing)" menyuruh orang memeriksa berkas yang sebenarnya benar; sekarang
+berbunyi "seluruh volumenya dinolkan di berkas ini, barisnya tetap diimpor
+dengan volume 0, bukan dihapus".
+
+**Alternatif direject**: (a) membuang cek nilai-0 sama sekali — template HPS
+kosong (SENTRA KULINER, BALAI NELAYAN) akan ikut masuk sebagai kategori hampa;
+(b) menahan pembuangan hanya saat impor adendum — `flatten` murni dan tidak tahu
+konteks impor, dan aturan yang berubah menurut layar adalah aturan yang tidak
+bisa diuji.
+
+**Konsekuensi**: netral terhadap uang — Σ kategori berkas itu tetap
+3.632.531.504 sebelum dan sesudah perubahan (kategori yang masuk bernilai 0).
+Yang bertambah 128 baris item dengan volume 0, dan sisa selisih terhadap 146
+yang dilaporkan berasal dari 12 baris item yang di-hide di Excel (kat. III r199–
+r203, r261–r264; kat. VI r463, r478–r479) — memang sengaja diabaikan importer
+mengikuti resume kontrak, dan sudah disebut di peringatan. Kurva-S tidak
+terpengaruh: `import.ts` sudah menyaring `amount > 0n` pada item maupun
+kategori. Dijaga `tests/unit/kategori-dinolkan.test.ts`, merah 2/4 pada aturan
+lama (dua uji lain menjaga template kosong tetap dibuang).
+
+**Ditemukan sekalian**: `flattenParsedRab` juga membuang nilai baris induk yang
+punya nilai sendiri DAN rincian — Rp 35.003.407 pada berkas ini. Sesudah
+perubahan ini total berkasnya masih kurang segitu; diselesaikan di keputusan
+543, dan barulah ketigabelas kategori cocok.
+
+**Bisa di-revisit**: bila muncul berkas HPS yang kategori kosongnya JUSTRU
+berharga (judul + daftar harga satuan tanpa volume, belum dipilih) — di situ
+"ada harga satuan" tidak lagi cukup membedakan.
+
+## 543 · 2026-09-07 · Baris induk berharga: nilainya dihitung, anaknya naik jadi saudara
+
+**Konteks**: sesudah 542, user bertanya *"jika file itu kumasukkan, apakah
+totalnya sudah sama dengan file itu untuk semua kategorinya?!"* Belum. Dua belas
+kategori cocok sampai ke rupiah; **II PEKERJAAN REVETMENT** kurang
+Rp 35.003.407, dan total berkas ikut kurang segitu.
+
+Sebabnya dua calculation layer memberi dua angka untuk baris yang sama:
+
+| layer | induk berharga + beranak | kat. II |
+|---|---|---|
+| `sumLeaves` (hps-parser → `parsed.total`) | `own + Σanak` | 441.205.889 |
+| `flattenParsedRab` (→ `RabNode.amount`) | `Σanak` saja | 406.202.482 |
+
+Komentar di `flatten.ts` menyebut dirinya mengikuti "semantik sumLeaves lama",
+dan memang mengikuti versi LAMA-nya: `sumLeaves` punya empat cabang, `flatten`
+dua. Cabang yang hilang justru yang dulu sengaja ditambahkan ke `sumLeaves`
+("Bug lama: nilai induk hilang") — jadi perbaikan itu tidak pernah sampai ke
+angka yang benar-benar ditulis ke DB.
+
+Buktinya sheet RAB baris 138: *"7 Pekerjaan Bekesting Dinding 5 kali pakai"*,
+96 m² × 364.618,83 = 35.003.407,68, DENGAN anak 139–141 (pembesian D13,
+pembesian D10, beton semi mekanis, vibrator) senilai 58.152.146. Keduanya
+pekerjaan yang berbeda, keduanya nyata; yang masuk hanya yang anak.
+
+**Keputusan**: induk yang punya `volume × harga` sendiri dibaca sebagai ITEM,
+dan baris-baris di bawahnya NAIK sejajar dengannya (urutan dokumen tetap:
+induknya lebih dulu, lalu bekas anaknya). Ambangnya sama persis dengan
+`sumLeaves` — selisih ≤ max(2; 0,1% × Σanak) berarti baris subtotal, dan itu
+tetap ditangani seperti semula.
+
+Alasannya: kalau baris di bawahnya memang rincian induknya, jumlahnya akan sama
+dengan induknya. Kalau tidak sama, induknya bukan judul melainkan pekerjaan
+tersendiri — dan pekerjaan tidak boleh jadi wadah pekerjaan lain hanya karena
+penomoran berkasnya rancu. Di berkas ini "7" bahkan memang sejajar: ia bekesting
+di bawah judul *"g Pekerjaan Dinding Beton t = 20 cm"*, sementara a–d adalah
+pembesian/beton/vibrator untuk dinding yang sama.
+
+**Alternatif direject**: (a) menaruh nilai induk pada node `grup`-nya — laporan
+harian dan `hitungProgress` hanya mengenal `kind = 'item'`, jadi Rp 35 juta itu
+tidak akan pernah bisa dilaporkan, progres tidak akan pernah sampai 100%, dan
+Σ bobot item di blanko KKP jatuh di bawah 100% (dijaga
+`tests/integration/periodic-report.test.ts`); (b) menyisipkan daun sintetis di
+bawah grup yang menyalin nilai induknya — angkanya benar, tapi layar dan blanko
+menampilkan dua baris bernama sama, dan barisnya tidak ada di berkas siapa pun;
+(c) membiarkannya dan mengandalkan peringatan — selisihnya tidak pernah muncul
+di layar mana pun, sebab `parsed.total` (yang dicek-silang parser) memang sudah
+menghitungnya.
+
+**Konsekuensi**: ketigabelas kategori berkas GEMPOLSEWU kini cocok, total
+**3.667.534.912** persis sama dengan yang dibaca dari berkasnya, dan
+`Σ amount item == Σ amount kategori` tetap berlaku (603 item, 105 grup).
+`lineageKey` bekas anak berubah dari `II#7#a` menjadi `II#a` — berkas yang
+sudah pernah diimpor SEBELUM ini dan diimpor ulang akan memperlihatkan baris itu
+sebagai pasangan yang bergeser di pratinjau. Itu memang keadaannya: RAB yang
+terlanjur masuk dengan bentuk lama nilainya juga kurang, jadi impor ulang
+memang yang dibutuhkan, dan pratinjau menyebutnya alih-alih mendiamkannya.
+Dijaga `tests/unit/induk-berharga.test.ts`, merah 2/6 pada aturan lama (empat
+uji lain menjaga baris subtotal, judul grup tanpa nilai, dan grup ber-anak nihil
+tetap seperti semula).
+
+**Bisa di-revisit**: bila muncul berkas yang induknya BERHARGA dan anaknya
+benar-benar rincian tambahan di luar nilai induk (mis. "Pengiriman" di bawah
+"Pengadaan Pompa") dan nesting-nya perlu dipertahankan di layar. Angkanya sudah
+benar di kedua bacaan; yang berbeda hanya bentuk pohonnya.
+
+## 544 · 2026-09-07 · Impor ditolak bila yang akan disimpan ≠ yang dibaca dari berkas
+
+**Konteks**: teguran user sesudah 543 — *"ini bukan hanya untuk case file ini,
+bisa jadi ada file lain, aku tidak ingin berulang kali kita buang waktu di
+parsing data adendum"*.
+
+Betul, dan pola kerjanya memang boros: empat kegagalan beruntun (540, 541, 542,
+543) semuanya ketahuan dengan cara yang sama — user melihat angka janggal di
+layar, lalu satu sesi habis membedah berkasnya dengan skrip sekali pakai. Tiga
+dari empat itu punya SATU bentuk yang sebenarnya bisa dijaga mesin.
+
+Rantai impor punya dua ruas, dan hanya ruas pertama yang dijaga:
+
+```
+berkas ──(hps-parser)──> parsed.total ──(flatten)──> RabNode.amount
+         └── dijaga: Σ item vs total yang DITULIS berkas ┘
+                                     └── TIDAK dijaga ───┘
+```
+
+Ruas kedua itulah yang melewatkan Rp 35.003.407 pada `MC 1 FINAL GEMPOLSEWU`:
+`parsed.total` benar DAN sudah dicek-silang terhadap total yang ditulis
+berkasnya sendiri, lalu `flatten` menyimpan angka lain. Tidak ada satu layar pun
+yang menyebutkan bedanya; yang menemukannya user, dengan bertanya.
+
+**Keputusan**: `bedaAntarLayer(parsed, nodes)` membandingkan, per kategori dan
+untuk seluruh berkas, angka yang DIBACA parser dengan angka yang AKAN DISIMPAN.
+Dipanggil di jalur impor tepat sesudah `flattenParsedRab` — di situlah angka
+berhenti jadi bacaan dan mulai jadi nilai kontrak — dan selisih apa pun
+**MENOLAK** impor, bukan memperingatkan. Alasannya: kedua layer membaca berkas
+yang sama, jadi selisih di antaranya adalah cacat KODE MARLIN, bukan cacat
+berkas orang. Pesannya menyebut kategori mana yang meleset beserta kedua
+angkanya, supaya berkas berikutnya tidak menuntut pembedahan manual dari nol.
+
+Toleransi 1 rupiah per kategori (bukan untuk grand total): `flatten` membulatkan
+SEKALI di puncak lalu membagi turun (largest remainder), jadi kategori boleh
+meleset satu rupiah terhadap pembulatan per-kategori sementara jumlah seluruhnya
+tetap persis.
+
+**Alternatif direject**: (a) peringatan yang bisa dilewati — persis inilah yang
+sudah ada untuk ruas pertama, dan selisih 35 juta tetap lolos ke DB karena
+peringatan tidak pernah menghentikan siapa pun; (b) uji korpus atas berkas
+nyata — berkas RAB-nya 4 MB per buah, milik user, dan tidak ada di repo; uji
+yang menuntut berkas yang tidak dimiliki CI adalah uji yang mati; (c) memasang
+pagarnya di dalam `flattenParsedRab` — modul itu juga dipakai seed JSON yang
+`total_value`-nya memang korup (lihat OPEN_ISSUES "Kualitas data seed JSON"),
+jadi seed akan tertolak untuk sebab yang tidak berhubungan.
+
+**Konsekuensi**: berkas yang memicunya tidak bisa diimpor sampai kodenya
+diperbaiki. Itu memang yang dikehendaki — nilai kontrak yang salah lebih mahal
+daripada impor yang tertunda, dan pesannya sendiri yang memberi tahu apa yang
+harus diperbaiki. Jalur template adendum tidak lewat sini: ia menyusun node
+langsung tanpa `parsed`, jadi tidak ada layer kedua untuk dibandingkan. Dijaga
+`tests/unit/paritas-layer.test.ts`.
+
+**Bisa di-revisit**: bila suatu saat ada berkas sah yang memang membuat kedua
+layer berselisih secara sengaja. Sampai hari ini belum ada — selisih selalu
+berarti salah satunya salah.

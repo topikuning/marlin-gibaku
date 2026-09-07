@@ -447,6 +447,11 @@ export function romanToInt(s: string): number {
   return total;
 }
 
+/** Seluruh baris di bawah `items`, termasuk anak-anaknya. */
+function daftarLeaf(items: ParsedRabItem[]): ParsedRabItem[] {
+  return items.flatMap((it) => (it.children.length > 0 ? [it, ...daftarLeaf(it.children)] : [it]));
+}
+
 export function sumLeaves(items: ParsedRabItem[]): number {
   let t = 0;
   for (const it of items) {
@@ -1092,8 +1097,24 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     for (const s of c.subcategories) s.total_value = sumLeaves(s.items);
     c.total_value =
       sumLeaves(c.direct_items) + c.subcategories.reduce((t, s) => t + s.total_value, 0);
-    if (c.total_value === 0)
-      warnings.push(`Kategori "${c.roman} ${c.name}" total 0 (cek parsing).`);
+    if (c.total_value === 0) {
+      /*
+       * Total 0 punya dua sebab yang berlawanan, dan menyebut sebab yang salah
+       * membuat orang memeriksa berkas yang sebenarnya benar. Kalau baris-
+       * barisnya BERHARGA, yang terjadi bukan salah baca: volumenya memang
+       * dinolkan (lazim pada adendum). Barisnya tetap dibawa masuk beserta
+       * harga satuannya — lihat `flattenParsedRab`.
+       */
+      const berharga = daftarLeaf([...c.direct_items, ...c.subcategories.flatMap((s) => s.items)]).some(
+        (i) => (i.unit_price ?? 0) > 0,
+      );
+      warnings.push(
+        berharga
+          ? `Kategori "${c.roman} ${c.name}" bernilai 0 – seluruh volumenya dinolkan di berkas ini. ` +
+              `Barisnya tetap diimpor dengan volume 0, bukan dihapus.`
+          : `Kategori "${c.roman} ${c.name}" total 0 (cek parsing).`,
+      );
+    }
   }
   const total = categories.reduce((t, c) => t + c.total_value, 0);
 

@@ -88,9 +88,58 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   // total menyimpang beberapa/ratusan rupiah dari Excel).
   type Aux = { node: FlatNode; exact: number; children: Aux[] };
 
-  const walkItem = (it: ParsedRabItem, parentKey: string, sink: FlatNode[]): Aux => {
+  /**
+   * Nilai eksak sebuah baris, TANPA menyentuh penomoran kunci — dipakai
+   * memutuskan bentuk pohon sebelum satu kunci pun dialokasikan.
+   */
+  const nilaiEksak = (it: ParsedRabItem): number => {
+    if (it.children.length === 0) return leafRaw(it);
+    const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
+    if (anak === 0) return leafRaw(it);
+    return dinaikkan(it) ? leafRaw(it) : anak;
+  };
+
+  /*
+   * BARIS INDUK YANG PUNYA NILAI SENDIRI **DAN** RINCIAN.
+   *
+   * `sumLeaves` (hps-parser, yang mengisi `parsed.total`) menjumlahkan keduanya:
+   * "Item BERHARGA yang juga punya baris tambahan → jumlahkan keduanya, jangan
+   * membuang nilai item induknya." Modul ini dulu hanya mengenal dua dari empat
+   * cabang itu, sehingga nilai induknya lenyap — Rp 35.003.407 pada satu berkas
+   * (`MC 1 FINAL GEMPOLSEWU`, baris 138: bekesting 96 m² × 364.618,83, dengan
+   * empat baris pembesian/beton/vibrator di bawahnya). Dua calculation layer
+   * mengucapkan dua angka untuk berkas yang sama, dan yang dipakai menulis DB
+   * justru yang lebih kecil.
+   *
+   * Menaruh uang itu di node `grup` bukan jalan keluar: laporan harian dan
+   * `hitungProgress` hanya mengenal `kind = 'item'`, jadi rupiah di node grup
+   * tak akan pernah bisa dilaporkan dan Σ bobot item di blanko KKP jatuh di
+   * bawah 100%.
+   *
+   * Jadi bentuknya yang dibaca ulang: induk yang punya `volume × harga` sendiri
+   * adalah PEKERJAAN, bukan judul. Baris di bawahnya karena itu bukan
+   * rinciannya — kalau memang rincian, jumlahnya akan sama dengan induknya, dan
+   * itu ditangani cabang "subtotal" di bawah. Induknya dibaca sebagai item
+   * biasa, baris-baris di bawahnya naik sejajar dengannya (urutan dokumen
+   * tetap). Uangnya utuh, semuanya di daun, dan kedua layer akhirnya sepakat.
+   */
+  function dinaikkan(it: ParsedRabItem): boolean {
+    if (it.children.length === 0) return false;
+    const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
+    const sendiri = leafRaw(it);
+    if (anak === 0 || sendiri === 0) return false;
+    // Ambang SAMA dengan `sumLeaves`: selisih di dalamnya = baris subtotal.
+    return Math.abs(sendiri - anak) > Math.max(2, anak * 0.001);
+  }
+
+  /**
+   * Mengembalikan node itu sendiri, DIIKUTI baris-baris yang naik sejajar
+   * dengannya (lihat `dinaikkan`). Umumnya berisi satu elemen.
+   */
+  const walkItem = (it: ParsedRabItem, parentKey: string, sink: FlatNode[]): Aux[] => {
+    const naik = dinaikkan(it);
     const { code, key } = dedup(parentKey, it.code);
-    const isGrup = it.children.length > 0;
+    const isGrup = it.children.length > 0 && !naik;
     const node: FlatNode = {
       kind: isGrup ? "grup" : "item",
       code,
@@ -105,12 +154,14 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
     };
     sink.push(node);
     const aux: Aux = { node, exact: 0, children: [] };
+    const keluar: Aux[] = [aux];
     if (isGrup) {
       let childExact = 0;
       for (const ch of it.children) {
-        const ca = walkItem(ch, key, sink);
-        aux.children.push(ca);
-        childExact += ca.exact;
+        for (const ca of walkItem(ch, key, sink)) {
+          aux.children.push(ca);
+          childExact += ca.exact;
+        }
       }
       // Semantik sumLeaves lama: kalau semua anak nihil, pakai total_price sendiri
       // dan perlakukan grup ini sebagai leaf (tak ada anak untuk dibagi).
@@ -121,8 +172,11 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       }
     } else {
       aux.exact = leafRaw(it);
+      // Baris di bawah item berharga naik SEJAJAR dengannya, tepat sesudahnya
+      // (urutan dokumen), dengan induk yang sama.
+      if (naik) for (const ch of it.children) keluar.push(...walkItem(ch, parentKey, sink));
     }
-    return aux;
+    return keluar;
   };
 
   // Bagikan `target` ke anak-anak `a` sesuai nilai eksak, rekursif ke bawah.
@@ -160,9 +214,10 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
 
     // direct_items dulu (urutan dokumen: item langsung sebelum subkategori)
     for (const it of cat.direct_items) {
-      const a = walkItem(it, catKey, catBuf);
-      catAux.children.push(a);
-      catExact += a.exact;
+      for (const a of walkItem(it, catKey, catBuf)) {
+        catAux.children.push(a);
+        catExact += a.exact;
+      }
     }
 
     for (const s of cat.subcategories) {
@@ -183,9 +238,10 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       const subAux: Aux = { node: subNode, exact: 0, children: [] };
       let subExact = 0;
       for (const it of s.items) {
-        const a = walkItem(it, subKey, catBuf);
-        subAux.children.push(a);
-        subExact += a.exact;
+        for (const a of walkItem(it, subKey, catBuf)) {
+          subAux.children.push(a);
+          subExact += a.exact;
+        }
       }
       subAux.exact = subExact;
       catAux.children.push(subAux);
@@ -205,9 +261,34 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   );
   cats.forEach((c, i) => assign(c.aux, catTargets[i]));
 
-  // Kategori bernilai 0 (template kosong: mis. SENTRA KULINER, BALAI NELAYAN)
-  // TIDAK dimasukkan ke DB — tak ada pekerjaan di dalamnya.
-  for (const c of cats) if (c.aux.node.amount > 0n) out.push(...c.buf);
+  /*
+   * Kategori bernilai 0 — DUA KEADAAN YANG BERLAWANAN, dan pembedanya bukan
+   * nilainya.
+   *
+   * (a) TEMPLATE KOSONG (mis. SENTRA KULINER, BALAI NELAYAN pada HPS baru):
+   *     judul kategori tanpa satu pun baris berharga. Tak ada pekerjaan di
+   *     dalamnya, jadi tak ada yang perlu masuk DB.
+   * (b) KATEGORI YANG DINOLKAN ADENDUM: barisnya utuh — kode, nama, satuan,
+   *     harga satuan semua terbaca — hanya volumenya 0 di blok hasil.
+   *
+   * Sampai 2026-09-07 keduanya sama-sama dibuang, dan (b) itu mahal. Berkas
+   * `MC 1 FINAL GEMPOLSEWU` menolkan seluruh kategori "III PEKERJAAN TAMBATAN
+   * PERAHU" dan "IV PEKERJAAN DINDING PENAHAN TANAH"; karena barisnya tidak
+   * pernah keluar dari sini, pratinjau impor tidak menemukan pasangannya dan
+   * melaporkan *"146 item kontrak tidak ada di file ini"* — padahal semuanya
+   * ada di berkas itu. Satu di antaranya sudah punya realisasi 22,61.
+   *
+   * Selisihnya bukan kosmetik: "item hilang" berarti realisasi lepas dari
+   * induknya, sedangkan "volume kontrak jadi 0 padahal sudah dikerjakan"
+   * adalah peringatan merah yang memang harus menyala.
+   *
+   * Yang membedakan: ADA BARIS BERHARGA di bawahnya. Template kosong tidak
+   * punya satu pun harga satuan; kategori yang dinolkan punya semuanya.
+   */
+  for (const c of cats) {
+    const adaBarisBerharga = c.buf.some((n) => (n.unitPrice ?? 0) > 0);
+    if (c.aux.node.amount > 0n || adaBarisBerharga) out.push(...c.buf);
+  }
 
   return out;
 }
@@ -217,4 +298,67 @@ export function grandTotal(nodes: FlatNode[]): bigint {
   let t = 0n;
   for (const n of nodes) if (n.kind === "kategori") t += n.amount;
   return t;
+}
+
+/**
+ * Satu baris selisih antara apa yang DIBACA dari berkas dan apa yang AKAN
+ * DISIMPAN. `label` = nama kategorinya, atau "SELURUH BERKAS" untuk grand total.
+ */
+export type BedaLayer = { label: string; berkas: bigint; masuk: bigint };
+
+/**
+ * PAGAR ANTAR CALCULATION LAYER — berlaku untuk SEMUA berkas, bukan berkas
+ * tertentu.
+ *
+ * Rantai impor punya dua ruas, dan sampai 2026-09-07 hanya ruas pertama yang
+ * dijaga:
+ *
+ *     berkas ──(hps-parser)──> parsed.total ──(flatten)──> RabNode.amount
+ *              └── dijaga: Σ item vs total yang DITULIS berkas ┘
+ *                                          └── TIDAK dijaga ───┘
+ *
+ * Ruas kedua itulah yang melewatkan Rp 35.003.407 pada `MC 1 FINAL GEMPOLSEWU`
+ * (DECISIONS 543): `parsed.total` benar DAN sudah dicek-silang terhadap total
+ * yang ditulis berkasnya sendiri, lalu modul ini menyimpan angka yang lain, dan
+ * tak satu pun layar menyebutkan bedanya. Yang menemukannya bukan sistem —
+ * melainkan user yang bertanya *"apakah totalnya sudah sama dengan file itu
+ * untuk semua kategorinya?!"*
+ *
+ * Dua layer yang berselisih adalah cacat KODE, bukan cacat berkas: keduanya
+ * membaca berkas yang sama. Karena itu keluarannya bukan peringatan yang bisa
+ * dilewati — pemanggilnya wajib menolak menulis nilai kontrak sampai keduanya
+ * sepakat. Kategori disebut namanya supaya berkas berikutnya tidak menuntut
+ * pembedahan manual dari nol.
+ *
+ * `[]` = sepakat.
+ */
+export function bedaAntarLayer(parsed: ParsedRab, nodes: FlatNode[]): BedaLayer[] {
+  const out: BedaLayer[] = [];
+  const kat = nodes.filter((n) => n.kind === "kategori");
+
+  /*
+   * Pemasangan MENURUT URUTAN, bukan menurut kode: kode roman boleh kembar di
+   * satu berkas (`flatten` men-suffix-nya `#2`), dan kategori yang sengaja
+   * dibuang (template kosong, DECISIONS 542) membuat indeksnya bergeser.
+   * Kategori yang tak punya pasangan memang tidak ditulis — yang perlu dijaga
+   * di situ hanyalah nilainya nol.
+   */
+  let i = 0;
+  for (const c of parsed.categories) {
+    const berkas = BigInt(Math.round(c.total_value));
+    const cocok = i < kat.length && kat[i].name === c.name && kat[i].code.split("#")[0] === c.roman;
+    const masuk = cocok ? kat[i].amount : 0n;
+    if (cocok) i++;
+    // Pembulatan per kategori boleh meleset 1 rupiah: `flatten` membulatkan
+    // SEKALI di puncak lalu membagi turun (largest remainder), persis seperti
+    // Excel menjumlah nilai penuh baru membulatkan.
+    if (berkas - masuk > 1n || masuk - berkas > 1n)
+      out.push({ label: `${c.roman} ${c.name}`.trim(), berkas, masuk });
+  }
+
+  const grand = grandTotal(nodes);
+  const berkasGrand = BigInt(Math.round(parsed.total));
+  if (berkasGrand !== grand) out.push({ label: "SELURUH BERKAS", berkas: berkasGrand, masuk: grand });
+
+  return out;
 }

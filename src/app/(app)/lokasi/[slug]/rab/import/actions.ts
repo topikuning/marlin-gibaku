@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
-import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
+import { bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
   activateRevision,
@@ -273,6 +273,36 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
       }
       nodes = flattenParsedRab(parsed);
+      /*
+       * PAGAR ANTAR LAYER — dipasang di sini karena di sinilah angka berhenti
+       * jadi bacaan dan mulai jadi nilai kontrak.
+       *
+       * `parseHpsBuffer` sudah mencocokkan Σ item terhadap total yang DITULIS
+       * berkas. Yang tidak pernah dicek: apakah yang akan DISIMPAN sama dengan
+       * yang dibaca itu. Pada `MC 1 FINAL GEMPOLSEWU` bedanya Rp 35.003.407
+       * (DECISIONS 543), dan tidak ada satu layar pun yang menyebutkannya.
+       *
+       * Selisih di sini bukan cacat berkas — kedua layer membaca berkas yang
+       * sama — jadi ia DITOLAK, bukan diperingatkan, dan pesannya menyebut
+       * kategori mana yang meleset supaya berkas berikutnya tidak menuntut
+       * pembedahan manual dari nol.
+       */
+      const beda = bedaAntarLayer(parsed, nodes);
+      if (beda.length > 0) {
+        const rinci = beda
+          .map(
+            (b) =>
+              `${b.label}: berkas ${b.berkas.toLocaleString("id-ID")}, akan tersimpan ` +
+              `${b.masuk.toLocaleString("id-ID")} (selisih ${(b.berkas - b.masuk).toLocaleString("id-ID")})`,
+          )
+          .join("; ");
+        return {
+          error:
+            `Impor dihentikan: angka yang akan tersimpan tidak sama dengan angka yang dibaca dari berkas ini. ` +
+            `${rinci}. Ini cacat pembacaan MARLIN, bukan cacat berkas Anda – nilai kontrak tidak boleh ditulis ` +
+            `sebelum keduanya sama. Kirimkan berkas ini beserta pesan ini supaya bisa diperbaiki.`,
+        };
+      }
     }
     if (nodes.length === 0) return { error: "Tidak ada baris RAB terbaca. Cek sheet 'RAB'." };
     const total = grandTotal(nodes);
