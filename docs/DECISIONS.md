@@ -28408,13 +28408,77 @@ terpengaruh: `import.ts` sudah menyaring `amount > 0n` pada item maupun
 kategori. Dijaga `tests/unit/kategori-dinolkan.test.ts`, merah 2/4 pada aturan
 lama (dua uji lain menjaga template kosong tetap dibuang).
 
-**Ditemukan sekalian, TIDAK diperbaiki di sini**: `flattenParsedRab` membuang
-nilai baris induk yang punya nilai sendiri DAN rincian — Rp 35.003.407 pada
-berkas ini. Sebabnya, akibatnya, dan dua jalan keluar yang butuh keputusan user
-dicatat di `docs/OPEN_ISSUES.md` (DATA-04). Tidak dikerjakan diam-diam karena
-perbaikan yang paling dekat melanggar invarian `Σ amount kategori == Σ amount
-item` yang dijaga uji integrasi.
+**Ditemukan sekalian**: `flattenParsedRab` juga membuang nilai baris induk yang
+punya nilai sendiri DAN rincian — Rp 35.003.407 pada berkas ini. Sesudah
+perubahan ini total berkasnya masih kurang segitu; diselesaikan di keputusan
+543, dan barulah ketigabelas kategori cocok.
 
 **Bisa di-revisit**: bila muncul berkas HPS yang kategori kosongnya JUSTRU
 berharga (judul + daftar harga satuan tanpa volume, belum dipilih) — di situ
 "ada harga satuan" tidak lagi cukup membedakan.
+
+## 543 · 2026-09-07 · Baris induk berharga: nilainya dihitung, anaknya naik jadi saudara
+
+**Konteks**: sesudah 542, user bertanya *"jika file itu kumasukkan, apakah
+totalnya sudah sama dengan file itu untuk semua kategorinya?!"* Belum. Dua belas
+kategori cocok sampai ke rupiah; **II PEKERJAAN REVETMENT** kurang
+Rp 35.003.407, dan total berkas ikut kurang segitu.
+
+Sebabnya dua calculation layer memberi dua angka untuk baris yang sama:
+
+| layer | induk berharga + beranak | kat. II |
+|---|---|---|
+| `sumLeaves` (hps-parser → `parsed.total`) | `own + Σanak` | 441.205.889 |
+| `flattenParsedRab` (→ `RabNode.amount`) | `Σanak` saja | 406.202.482 |
+
+Komentar di `flatten.ts` menyebut dirinya mengikuti "semantik sumLeaves lama",
+dan memang mengikuti versi LAMA-nya: `sumLeaves` punya empat cabang, `flatten`
+dua. Cabang yang hilang justru yang dulu sengaja ditambahkan ke `sumLeaves`
+("Bug lama: nilai induk hilang") — jadi perbaikan itu tidak pernah sampai ke
+angka yang benar-benar ditulis ke DB.
+
+Buktinya sheet RAB baris 138: *"7 Pekerjaan Bekesting Dinding 5 kali pakai"*,
+96 m² × 364.618,83 = 35.003.407,68, DENGAN anak 139–141 (pembesian D13,
+pembesian D10, beton semi mekanis, vibrator) senilai 58.152.146. Keduanya
+pekerjaan yang berbeda, keduanya nyata; yang masuk hanya yang anak.
+
+**Keputusan**: induk yang punya `volume × harga` sendiri dibaca sebagai ITEM,
+dan baris-baris di bawahnya NAIK sejajar dengannya (urutan dokumen tetap:
+induknya lebih dulu, lalu bekas anaknya). Ambangnya sama persis dengan
+`sumLeaves` — selisih ≤ max(2; 0,1% × Σanak) berarti baris subtotal, dan itu
+tetap ditangani seperti semula.
+
+Alasannya: kalau baris di bawahnya memang rincian induknya, jumlahnya akan sama
+dengan induknya. Kalau tidak sama, induknya bukan judul melainkan pekerjaan
+tersendiri — dan pekerjaan tidak boleh jadi wadah pekerjaan lain hanya karena
+penomoran berkasnya rancu. Di berkas ini "7" bahkan memang sejajar: ia bekesting
+di bawah judul *"g Pekerjaan Dinding Beton t = 20 cm"*, sementara a–d adalah
+pembesian/beton/vibrator untuk dinding yang sama.
+
+**Alternatif direject**: (a) menaruh nilai induk pada node `grup`-nya — laporan
+harian dan `hitungProgress` hanya mengenal `kind = 'item'`, jadi Rp 35 juta itu
+tidak akan pernah bisa dilaporkan, progres tidak akan pernah sampai 100%, dan
+Σ bobot item di blanko KKP jatuh di bawah 100% (dijaga
+`tests/integration/periodic-report.test.ts`); (b) menyisipkan daun sintetis di
+bawah grup yang menyalin nilai induknya — angkanya benar, tapi layar dan blanko
+menampilkan dua baris bernama sama, dan barisnya tidak ada di berkas siapa pun;
+(c) membiarkannya dan mengandalkan peringatan — selisihnya tidak pernah muncul
+di layar mana pun, sebab `parsed.total` (yang dicek-silang parser) memang sudah
+menghitungnya.
+
+**Konsekuensi**: ketigabelas kategori berkas GEMPOLSEWU kini cocok, total
+**3.667.534.912** persis sama dengan yang dibaca dari berkasnya, dan
+`Σ amount item == Σ amount kategori` tetap berlaku (603 item, 105 grup).
+`lineageKey` bekas anak berubah dari `II#7#a` menjadi `II#a` — berkas yang
+sudah pernah diimpor SEBELUM ini dan diimpor ulang akan memperlihatkan baris itu
+sebagai pasangan yang bergeser di pratinjau. Itu memang keadaannya: RAB yang
+terlanjur masuk dengan bentuk lama nilainya juga kurang, jadi impor ulang
+memang yang dibutuhkan, dan pratinjau menyebutnya alih-alih mendiamkannya.
+Dijaga `tests/unit/induk-berharga.test.ts`, merah 2/6 pada aturan lama (empat
+uji lain menjaga baris subtotal, judul grup tanpa nilai, dan grup ber-anak nihil
+tetap seperti semula).
+
+**Bisa di-revisit**: bila muncul berkas yang induknya BERHARGA dan anaknya
+benar-benar rincian tambahan di luar nilai induk (mis. "Pengiriman" di bawah
+"Pengadaan Pompa") dan nesting-nya perlu dipertahankan di layar. Angkanya sudah
+benar di kedua bacaan; yang berbeda hanya bentuk pohonnya.

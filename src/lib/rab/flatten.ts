@@ -88,9 +88,58 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   // total menyimpang beberapa/ratusan rupiah dari Excel).
   type Aux = { node: FlatNode; exact: number; children: Aux[] };
 
-  const walkItem = (it: ParsedRabItem, parentKey: string, sink: FlatNode[]): Aux => {
+  /**
+   * Nilai eksak sebuah baris, TANPA menyentuh penomoran kunci — dipakai
+   * memutuskan bentuk pohon sebelum satu kunci pun dialokasikan.
+   */
+  const nilaiEksak = (it: ParsedRabItem): number => {
+    if (it.children.length === 0) return leafRaw(it);
+    const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
+    if (anak === 0) return leafRaw(it);
+    return dinaikkan(it) ? leafRaw(it) : anak;
+  };
+
+  /*
+   * BARIS INDUK YANG PUNYA NILAI SENDIRI **DAN** RINCIAN.
+   *
+   * `sumLeaves` (hps-parser, yang mengisi `parsed.total`) menjumlahkan keduanya:
+   * "Item BERHARGA yang juga punya baris tambahan → jumlahkan keduanya, jangan
+   * membuang nilai item induknya." Modul ini dulu hanya mengenal dua dari empat
+   * cabang itu, sehingga nilai induknya lenyap — Rp 35.003.407 pada satu berkas
+   * (`MC 1 FINAL GEMPOLSEWU`, baris 138: bekesting 96 m² × 364.618,83, dengan
+   * empat baris pembesian/beton/vibrator di bawahnya). Dua calculation layer
+   * mengucapkan dua angka untuk berkas yang sama, dan yang dipakai menulis DB
+   * justru yang lebih kecil.
+   *
+   * Menaruh uang itu di node `grup` bukan jalan keluar: laporan harian dan
+   * `hitungProgress` hanya mengenal `kind = 'item'`, jadi rupiah di node grup
+   * tak akan pernah bisa dilaporkan dan Σ bobot item di blanko KKP jatuh di
+   * bawah 100%.
+   *
+   * Jadi bentuknya yang dibaca ulang: induk yang punya `volume × harga` sendiri
+   * adalah PEKERJAAN, bukan judul. Baris di bawahnya karena itu bukan
+   * rinciannya — kalau memang rincian, jumlahnya akan sama dengan induknya, dan
+   * itu ditangani cabang "subtotal" di bawah. Induknya dibaca sebagai item
+   * biasa, baris-baris di bawahnya naik sejajar dengannya (urutan dokumen
+   * tetap). Uangnya utuh, semuanya di daun, dan kedua layer akhirnya sepakat.
+   */
+  function dinaikkan(it: ParsedRabItem): boolean {
+    if (it.children.length === 0) return false;
+    const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
+    const sendiri = leafRaw(it);
+    if (anak === 0 || sendiri === 0) return false;
+    // Ambang SAMA dengan `sumLeaves`: selisih di dalamnya = baris subtotal.
+    return Math.abs(sendiri - anak) > Math.max(2, anak * 0.001);
+  }
+
+  /**
+   * Mengembalikan node itu sendiri, DIIKUTI baris-baris yang naik sejajar
+   * dengannya (lihat `dinaikkan`). Umumnya berisi satu elemen.
+   */
+  const walkItem = (it: ParsedRabItem, parentKey: string, sink: FlatNode[]): Aux[] => {
+    const naik = dinaikkan(it);
     const { code, key } = dedup(parentKey, it.code);
-    const isGrup = it.children.length > 0;
+    const isGrup = it.children.length > 0 && !naik;
     const node: FlatNode = {
       kind: isGrup ? "grup" : "item",
       code,
@@ -105,12 +154,14 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
     };
     sink.push(node);
     const aux: Aux = { node, exact: 0, children: [] };
+    const keluar: Aux[] = [aux];
     if (isGrup) {
       let childExact = 0;
       for (const ch of it.children) {
-        const ca = walkItem(ch, key, sink);
-        aux.children.push(ca);
-        childExact += ca.exact;
+        for (const ca of walkItem(ch, key, sink)) {
+          aux.children.push(ca);
+          childExact += ca.exact;
+        }
       }
       // Semantik sumLeaves lama: kalau semua anak nihil, pakai total_price sendiri
       // dan perlakukan grup ini sebagai leaf (tak ada anak untuk dibagi).
@@ -121,8 +172,11 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       }
     } else {
       aux.exact = leafRaw(it);
+      // Baris di bawah item berharga naik SEJAJAR dengannya, tepat sesudahnya
+      // (urutan dokumen), dengan induk yang sama.
+      if (naik) for (const ch of it.children) keluar.push(...walkItem(ch, parentKey, sink));
     }
-    return aux;
+    return keluar;
   };
 
   // Bagikan `target` ke anak-anak `a` sesuai nilai eksak, rekursif ke bawah.
@@ -160,9 +214,10 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
 
     // direct_items dulu (urutan dokumen: item langsung sebelum subkategori)
     for (const it of cat.direct_items) {
-      const a = walkItem(it, catKey, catBuf);
-      catAux.children.push(a);
-      catExact += a.exact;
+      for (const a of walkItem(it, catKey, catBuf)) {
+        catAux.children.push(a);
+        catExact += a.exact;
+      }
     }
 
     for (const s of cat.subcategories) {
@@ -183,9 +238,10 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       const subAux: Aux = { node: subNode, exact: 0, children: [] };
       let subExact = 0;
       for (const it of s.items) {
-        const a = walkItem(it, subKey, catBuf);
-        subAux.children.push(a);
-        subExact += a.exact;
+        for (const a of walkItem(it, subKey, catBuf)) {
+          subAux.children.push(a);
+          subExact += a.exact;
+        }
       }
       subAux.exact = subExact;
       catAux.children.push(subAux);
