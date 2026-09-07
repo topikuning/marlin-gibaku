@@ -28354,3 +28354,67 @@ KEADAAN SESUDAH adendum, persis seperti berkas CCO KKP lain, dan cocok dipakai
 sebagai draft adendum. Dijaga `tests/unit/cco-blok-hasil.test.ts`, dibuktikan
 merah pada aturan lama ("paling kanan") dan hijau pada aturan baru, dengan satu
 klausa yang menjaga perilaku blok-kosong agar tidak ikut berubah.
+
+## 542 · 2026-09-07 · Kategori yang DINOLKAN adendum tetap diimpor, bukan dibuang
+
+**Konteks**: laporan user pada pratinjau impor `MC 1 FINAL GEMPOLSEWU.xlsx` —
+*"146 item kontrak tidak ada di file ini"*, disusul *"padahal di file itu ada,
+apa sebenarnya yang salah"*. Item yang disebut memang ada di berkas: `III.1`,
+`III.2 · 1.1.a` … `1.1.e`, `III.3.1`, `IV.1 · 1.a`, lengkap dengan kode, nama,
+satuan, dan harga satuannya.
+
+Yang tidak ada adalah keluaran `flattenParsedRab`. Berkas itu adendum: di blok
+hasil (CCO-01) seluruh volume kategori **III PEKERJAAN TAMBATAN PERAHU** (116
+baris) dan **IV PEKERJAAN DINDING PENAHAN TANAH** (12 baris) dinolkan, sehingga
+nilai kedua kategori 0. Lalu `flatten` membuangnya, dengan alasan yang dulu
+benar:
+
+```
+// Kategori bernilai 0 (template kosong: mis. SENTRA KULINER, BALAI NELAYAN)
+// TIDAK dimasukkan ke DB — tak ada pekerjaan di dalamnya.
+```
+
+Pada HPS baru itu memang judul yang belum diisi. Pada ADENDUM artinya
+terbalik: pekerjaannya ADA di kontrak dan justru sedang dicabut. Karena
+barisnya tidak pernah keluar, `bandingkanTerhadapAktif` tidak menemukan
+pasangannya dan melaporkan seluruh kategori "hilang dari file" — termasuk
+`IV.1 · 1.a Pekerjaan Galian Tanah` yang realisasinya sudah 22,61.
+
+Bedanya bukan kosmetik. "Item hilang" berarti realisasi lepas dari induknya
+saat impor dijalankan; "volume kontrak jadi 0 padahal sudah dikerjakan" adalah
+panel merah `dibawahRealisasi` yang memang harus menyala.
+
+**Keputusan**: kategori bernilai 0 tetap dibuang HANYA bila tidak punya satu pun
+baris berharga di bawahnya. Ada harga satuan = ada pekerjaan yang dicabut, dan
+barisnya diimpor apa adanya dengan volume 0 (DECISIONS 203: angka yang diunggah
+dipakai apa adanya). Peringatan parser untuk keadaan itu juga diganti — "total 0
+(cek parsing)" menyuruh orang memeriksa berkas yang sebenarnya benar; sekarang
+berbunyi "seluruh volumenya dinolkan di berkas ini, barisnya tetap diimpor
+dengan volume 0, bukan dihapus".
+
+**Alternatif direject**: (a) membuang cek nilai-0 sama sekali — template HPS
+kosong (SENTRA KULINER, BALAI NELAYAN) akan ikut masuk sebagai kategori hampa;
+(b) menahan pembuangan hanya saat impor adendum — `flatten` murni dan tidak tahu
+konteks impor, dan aturan yang berubah menurut layar adalah aturan yang tidak
+bisa diuji.
+
+**Konsekuensi**: netral terhadap uang — Σ kategori berkas itu tetap
+3.632.531.504 sebelum dan sesudah perubahan (kategori yang masuk bernilai 0).
+Yang bertambah 128 baris item dengan volume 0, dan sisa selisih terhadap 146
+yang dilaporkan berasal dari 12 baris item yang di-hide di Excel (kat. III r199–
+r203, r261–r264; kat. VI r463, r478–r479) — memang sengaja diabaikan importer
+mengikuti resume kontrak, dan sudah disebut di peringatan. Kurva-S tidak
+terpengaruh: `import.ts` sudah menyaring `amount > 0n` pada item maupun
+kategori. Dijaga `tests/unit/kategori-dinolkan.test.ts`, merah 2/4 pada aturan
+lama (dua uji lain menjaga template kosong tetap dibuang).
+
+**Ditemukan sekalian, TIDAK diperbaiki di sini**: `flattenParsedRab` membuang
+nilai baris induk yang punya nilai sendiri DAN rincian — Rp 35.003.407 pada
+berkas ini. Sebabnya, akibatnya, dan dua jalan keluar yang butuh keputusan user
+dicatat di `docs/OPEN_ISSUES.md` (DATA-04). Tidak dikerjakan diam-diam karena
+perbaikan yang paling dekat melanggar invarian `Σ amount kategori == Σ amount
+item` yang dijaga uji integrasi.
+
+**Bisa di-revisit**: bila muncul berkas HPS yang kategori kosongnya JUSTRU
+berharga (judul + daftar harga satuan tanpa volume, belum dipilih) — di situ
+"ada harga satuan" tidak lagi cukup membedakan.

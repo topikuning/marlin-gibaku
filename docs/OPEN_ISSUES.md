@@ -199,6 +199,49 @@ dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Sejak audit 2026-07-2
 kondisinya muncul di data nyata, keputusannya: tampilkan kategori kosong dengan
 bobot 0, atau keluarkan `amount`-nya dari `grandTotal`. Perlu keputusan user.
 
+## 🔴 DATA-04 · `flattenParsedRab` membuang nilai baris induk yang PUNYA nilai sendiri DAN rincian
+
+Dua calculation layer memberi dua angka untuk berkas yang sama, dan yang dipakai
+menulis DB adalah yang lebih kecil:
+
+| layer | aturan baris induk berharga + beranak | GEMPOLSEWU kat. II |
+|---|---|---|
+| `sumLeaves` (hps-parser, → `parsed.total`) | `own + Σanak` | 441.205.889 |
+| `flattenParsedRab` (→ `RabNode.amount`) | `Σanak` saja | 406.202.482 |
+
+Selisih **Rp 35.003.407** pada satu berkas. Komentar di `flatten.ts` menyebut
+dirinya mengikuti "semantik sumLeaves lama" — dan memang mengikuti versi
+LAMA-nya: `sumLeaves` punya empat cabang, `flatten` dua. Cabang yang hilang
+justru yang dulu sengaja ditambahkan ke `sumLeaves` ("Bug lama: nilai induk
+hilang").
+
+Buktinya di `MC 1 FINAL GEMPOLSEWU.xlsx`, sheet RAB baris 138: *"7 Pekerjaan
+Bekesting Dinding 5 kali pakai"*, volume 96 m² × 364.618,83 = 35.003.407,68
+**dengan** anak 139–141 (pembesian D13, pembesian D10, beton, vibrator) senilai
+58.152.146. Keduanya pekerjaan yang berbeda; keduanya nyata. Akibatnya nilai
+kontrak yang tersimpan 35 juta lebih kecil dari yang ditulis berkasnya sendiri —
+DECISIONS (blok hasil CCO) merekonsiliasi 3.667.534.912 sampai ke rupiah, tapi
+yang benar-benar masuk DB 3.632.531.504.
+
+**Kenapa belum diperbaiki di tempat**: menaruh 35 juta itu pada node `grup`
+melanggar invarian yang sudah dijaga uji integrasi sejak audit 2026-07-27 —
+`Σ amount kategori == Σ amount item` pada revisi aktif. Laporan harian dan
+`hitungProgress` hanya mengenal `rn.kind = 'item'`, jadi uang yang menempel di
+node `grup` tidak akan pernah bisa dilaporkan dan progres tidak akan pernah
+sampai 100%.
+
+Akar yang sebenarnya ada di NESTING-nya: di berkas itu baris 137
+*"g Pekerjaan Dinding Beton t = 20 cm"* adalah judul grup, dan bekesting (kode
+"7", angka di antara saudara berhuruf) seharusnya anak PERTAMA-nya, sejajar
+dengan a–d. Walker menaikkannya jadi item level-1 dan menjadikan a–d anaknya.
+Kalau nesting-nya benar, seluruh uang ada di daun dan tidak ada yang tak
+terjangkau.
+
+Perlu keputusan user sebelum dikerjakan: (a) perbaiki penentuan level saat kode
+angka bercampur kode huruf di satu kelompok saudara, atau (b) izinkan pelaporan
+pada baris `grup` yang punya volume sendiri. (a) menyentuh walker yang dipakai
+semua berkas; (b) menyentuh model laporan harian.
+
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
 ```text

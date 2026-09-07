@@ -205,9 +205,34 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   );
   cats.forEach((c, i) => assign(c.aux, catTargets[i]));
 
-  // Kategori bernilai 0 (template kosong: mis. SENTRA KULINER, BALAI NELAYAN)
-  // TIDAK dimasukkan ke DB — tak ada pekerjaan di dalamnya.
-  for (const c of cats) if (c.aux.node.amount > 0n) out.push(...c.buf);
+  /*
+   * Kategori bernilai 0 — DUA KEADAAN YANG BERLAWANAN, dan pembedanya bukan
+   * nilainya.
+   *
+   * (a) TEMPLATE KOSONG (mis. SENTRA KULINER, BALAI NELAYAN pada HPS baru):
+   *     judul kategori tanpa satu pun baris berharga. Tak ada pekerjaan di
+   *     dalamnya, jadi tak ada yang perlu masuk DB.
+   * (b) KATEGORI YANG DINOLKAN ADENDUM: barisnya utuh — kode, nama, satuan,
+   *     harga satuan semua terbaca — hanya volumenya 0 di blok hasil.
+   *
+   * Sampai 2026-09-07 keduanya sama-sama dibuang, dan (b) itu mahal. Berkas
+   * `MC 1 FINAL GEMPOLSEWU` menolkan seluruh kategori "III PEKERJAAN TAMBATAN
+   * PERAHU" dan "IV PEKERJAAN DINDING PENAHAN TANAH"; karena barisnya tidak
+   * pernah keluar dari sini, pratinjau impor tidak menemukan pasangannya dan
+   * melaporkan *"146 item kontrak tidak ada di file ini"* — padahal semuanya
+   * ada di berkas itu. Satu di antaranya sudah punya realisasi 22,61.
+   *
+   * Selisihnya bukan kosmetik: "item hilang" berarti realisasi lepas dari
+   * induknya, sedangkan "volume kontrak jadi 0 padahal sudah dikerjakan"
+   * adalah peringatan merah yang memang harus menyala.
+   *
+   * Yang membedakan: ADA BARIS BERHARGA di bawahnya. Template kosong tidak
+   * punya satu pun harga satuan; kategori yang dinolkan punya semuanya.
+   */
+  for (const c of cats) {
+    const adaBarisBerharga = c.buf.some((n) => (n.unitPrice ?? 0) > 0);
+    if (c.aux.node.amount > 0n || adaBarisBerharga) out.push(...c.buf);
+  }
 
   return out;
 }
