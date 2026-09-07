@@ -111,9 +111,21 @@ export interface PetaMapProps {
   /** Timpa warna pin per-id dengan tone (dashboard: status submit). */
   toneById?: Record<string, "success" | "warning" | "danger" | "neutral" | "idle">;
   sumber: SumberPeta;
+  /**
+   * Penanda digabung saat peta dibuka? Datang dari setelan Sistem
+   * (`lib/peta/setelan.ts`) — tombol di peta hanya mengubahnya sementara.
+   */
+  kelompokAwal?: boolean;
 }
 
-export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: PetaMapProps) {
+export function PetaMap({
+  markers,
+  selectedId,
+  onSelect,
+  toneById,
+  sumber,
+  kelompokAwal = true,
+}: PetaMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const siap = useRef(false);
@@ -149,7 +161,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
    * dimatikan (pertanyaan user 2026-09-06). Dimatikan = semua lokasi digambar
    * satu per satu, apa adanya.
    */
-  const [kelompok, setKelompok] = useState(true);
+  const [kelompok, setKelompok] = useState(kelompokAwal);
 
   const warna = useMemo(() => {
     if (typeof window === "undefined") return {} as Record<string, string>;
@@ -230,7 +242,7 @@ export function PetaMap({ markers, selectedId, onSelect, toneById, sumber }: Pet
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
 
     map.on("load", () => {
-      map.addSource(SUMBER_LOKASI, { type: "geojson", data, ...KELOMPOK_OPSI(true) });
+      map.addSource(SUMBER_LOKASI, { type: "geojson", data, ...KELOMPOK_OPSI(kelompok) });
       map.addLayer({
         id: LAPIS_KELOMPOK,
         type: "circle",

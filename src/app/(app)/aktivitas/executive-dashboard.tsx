@@ -26,6 +26,7 @@ import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
 import { sumberPeta } from "@/lib/peta/sumber";
+import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { DashboardMap } from "./dashboard-map";
 import { DashboardSearch } from "./dashboard-search";
 
@@ -38,10 +39,11 @@ import { DashboardSearch } from "./dashboard-search";
 export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
 
-  const [data, activity, sumber] = await Promise.all([
+  const [data, activity, sumber, kelompokPeta] = await Promise.all([
     getDashboardData(locIds, user.orgId),
     getActivityCentre(locIds, 4),
     sumberPeta(),
+    getKelompokBawaan(),
   ]);
   const { kpi } = data;
 
@@ -159,6 +161,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
             <div className="min-h-[300px] flex-1">
               <DashboardMap
                 sumber={sumber}
+                kelompokAwal={kelompokPeta}
                 markers={data.markers}
                 markerTone={data.markerTone}
                 markerSubmit={data.markerSubmit}
