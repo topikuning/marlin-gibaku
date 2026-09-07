@@ -28482,3 +28482,61 @@ tetap seperti semula).
 benar-benar rincian tambahan di luar nilai induk (mis. "Pengiriman" di bawah
 "Pengadaan Pompa") dan nesting-nya perlu dipertahankan di layar. Angkanya sudah
 benar di kedua bacaan; yang berbeda hanya bentuk pohonnya.
+
+## 544 · 2026-09-07 · Impor ditolak bila yang akan disimpan ≠ yang dibaca dari berkas
+
+**Konteks**: teguran user sesudah 543 — *"ini bukan hanya untuk case file ini,
+bisa jadi ada file lain, aku tidak ingin berulang kali kita buang waktu di
+parsing data adendum"*.
+
+Betul, dan pola kerjanya memang boros: empat kegagalan beruntun (540, 541, 542,
+543) semuanya ketahuan dengan cara yang sama — user melihat angka janggal di
+layar, lalu satu sesi habis membedah berkasnya dengan skrip sekali pakai. Tiga
+dari empat itu punya SATU bentuk yang sebenarnya bisa dijaga mesin.
+
+Rantai impor punya dua ruas, dan hanya ruas pertama yang dijaga:
+
+```
+berkas ──(hps-parser)──> parsed.total ──(flatten)──> RabNode.amount
+         └── dijaga: Σ item vs total yang DITULIS berkas ┘
+                                     └── TIDAK dijaga ───┘
+```
+
+Ruas kedua itulah yang melewatkan Rp 35.003.407 pada `MC 1 FINAL GEMPOLSEWU`:
+`parsed.total` benar DAN sudah dicek-silang terhadap total yang ditulis
+berkasnya sendiri, lalu `flatten` menyimpan angka lain. Tidak ada satu layar pun
+yang menyebutkan bedanya; yang menemukannya user, dengan bertanya.
+
+**Keputusan**: `bedaAntarLayer(parsed, nodes)` membandingkan, per kategori dan
+untuk seluruh berkas, angka yang DIBACA parser dengan angka yang AKAN DISIMPAN.
+Dipanggil di jalur impor tepat sesudah `flattenParsedRab` — di situlah angka
+berhenti jadi bacaan dan mulai jadi nilai kontrak — dan selisih apa pun
+**MENOLAK** impor, bukan memperingatkan. Alasannya: kedua layer membaca berkas
+yang sama, jadi selisih di antaranya adalah cacat KODE MARLIN, bukan cacat
+berkas orang. Pesannya menyebut kategori mana yang meleset beserta kedua
+angkanya, supaya berkas berikutnya tidak menuntut pembedahan manual dari nol.
+
+Toleransi 1 rupiah per kategori (bukan untuk grand total): `flatten` membulatkan
+SEKALI di puncak lalu membagi turun (largest remainder), jadi kategori boleh
+meleset satu rupiah terhadap pembulatan per-kategori sementara jumlah seluruhnya
+tetap persis.
+
+**Alternatif direject**: (a) peringatan yang bisa dilewati — persis inilah yang
+sudah ada untuk ruas pertama, dan selisih 35 juta tetap lolos ke DB karena
+peringatan tidak pernah menghentikan siapa pun; (b) uji korpus atas berkas
+nyata — berkas RAB-nya 4 MB per buah, milik user, dan tidak ada di repo; uji
+yang menuntut berkas yang tidak dimiliki CI adalah uji yang mati; (c) memasang
+pagarnya di dalam `flattenParsedRab` — modul itu juga dipakai seed JSON yang
+`total_value`-nya memang korup (lihat OPEN_ISSUES "Kualitas data seed JSON"),
+jadi seed akan tertolak untuk sebab yang tidak berhubungan.
+
+**Konsekuensi**: berkas yang memicunya tidak bisa diimpor sampai kodenya
+diperbaiki. Itu memang yang dikehendaki — nilai kontrak yang salah lebih mahal
+daripada impor yang tertunda, dan pesannya sendiri yang memberi tahu apa yang
+harus diperbaiki. Jalur template adendum tidak lewat sini: ia menyusun node
+langsung tanpa `parsed`, jadi tidak ada layer kedua untuk dibandingkan. Dijaga
+`tests/unit/paritas-layer.test.ts`.
+
+**Bisa di-revisit**: bila suatu saat ada berkas sah yang memang membuat kedua
+layer berselisih secara sengaja. Sampai hari ini belum ada — selisih selalu
+berarti salah satunya salah.

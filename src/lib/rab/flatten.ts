@@ -299,3 +299,66 @@ export function grandTotal(nodes: FlatNode[]): bigint {
   for (const n of nodes) if (n.kind === "kategori") t += n.amount;
   return t;
 }
+
+/**
+ * Satu baris selisih antara apa yang DIBACA dari berkas dan apa yang AKAN
+ * DISIMPAN. `label` = nama kategorinya, atau "SELURUH BERKAS" untuk grand total.
+ */
+export type BedaLayer = { label: string; berkas: bigint; masuk: bigint };
+
+/**
+ * PAGAR ANTAR CALCULATION LAYER — berlaku untuk SEMUA berkas, bukan berkas
+ * tertentu.
+ *
+ * Rantai impor punya dua ruas, dan sampai 2026-09-07 hanya ruas pertama yang
+ * dijaga:
+ *
+ *     berkas ──(hps-parser)──> parsed.total ──(flatten)──> RabNode.amount
+ *              └── dijaga: Σ item vs total yang DITULIS berkas ┘
+ *                                          └── TIDAK dijaga ───┘
+ *
+ * Ruas kedua itulah yang melewatkan Rp 35.003.407 pada `MC 1 FINAL GEMPOLSEWU`
+ * (DECISIONS 543): `parsed.total` benar DAN sudah dicek-silang terhadap total
+ * yang ditulis berkasnya sendiri, lalu modul ini menyimpan angka yang lain, dan
+ * tak satu pun layar menyebutkan bedanya. Yang menemukannya bukan sistem —
+ * melainkan user yang bertanya *"apakah totalnya sudah sama dengan file itu
+ * untuk semua kategorinya?!"*
+ *
+ * Dua layer yang berselisih adalah cacat KODE, bukan cacat berkas: keduanya
+ * membaca berkas yang sama. Karena itu keluarannya bukan peringatan yang bisa
+ * dilewati — pemanggilnya wajib menolak menulis nilai kontrak sampai keduanya
+ * sepakat. Kategori disebut namanya supaya berkas berikutnya tidak menuntut
+ * pembedahan manual dari nol.
+ *
+ * `[]` = sepakat.
+ */
+export function bedaAntarLayer(parsed: ParsedRab, nodes: FlatNode[]): BedaLayer[] {
+  const out: BedaLayer[] = [];
+  const kat = nodes.filter((n) => n.kind === "kategori");
+
+  /*
+   * Pemasangan MENURUT URUTAN, bukan menurut kode: kode roman boleh kembar di
+   * satu berkas (`flatten` men-suffix-nya `#2`), dan kategori yang sengaja
+   * dibuang (template kosong, DECISIONS 542) membuat indeksnya bergeser.
+   * Kategori yang tak punya pasangan memang tidak ditulis — yang perlu dijaga
+   * di situ hanyalah nilainya nol.
+   */
+  let i = 0;
+  for (const c of parsed.categories) {
+    const berkas = BigInt(Math.round(c.total_value));
+    const cocok = i < kat.length && kat[i].name === c.name && kat[i].code.split("#")[0] === c.roman;
+    const masuk = cocok ? kat[i].amount : 0n;
+    if (cocok) i++;
+    // Pembulatan per kategori boleh meleset 1 rupiah: `flatten` membulatkan
+    // SEKALI di puncak lalu membagi turun (largest remainder), persis seperti
+    // Excel menjumlah nilai penuh baru membulatkan.
+    if (berkas - masuk > 1n || masuk - berkas > 1n)
+      out.push({ label: `${c.roman} ${c.name}`.trim(), berkas, masuk });
+  }
+
+  const grand = grandTotal(nodes);
+  const berkasGrand = BigInt(Math.round(parsed.total));
+  if (berkasGrand !== grand) out.push({ label: "SELURUH BERKAS", berkas: berkasGrand, masuk: grand });
+
+  return out;
+}
