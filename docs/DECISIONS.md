@@ -28591,3 +28591,65 @@ apa yang kemarin menuntut pembedahan manual. Dijaga
 
 **Bisa di-revisit**: bila ada berkas dengan ratusan baris tersembunyi bernilai;
 di situ daftar per baris perlu jadi tabel tersendiri, bukan satu paragraf.
+
+## 546 · 2026-09-09 · Isi penyimpanan R2 diperiksa dan dibersihkan dari LAYAR, bukan terminal
+
+**Konteks**: user bertanya *"saat ini di cloudflare sudah mencapai 10GB,
+bagaimana mengecek itu memang file-file efektif, atau ada beberapa sampah?"*
+Jawaban pertama berupa skrip `pnpm audit:r2`, dan ditolak dengan benar: *"sejak
+kapan harus buka console lalu harus jalankan perintah itu! kalau kamu ngasih
+solusi yang praktis!"*
+
+Betul. Alat pemeliharaan yang menuntut orang membuka terminal produksi bukan
+alat — ia pekerjaan rumah yang dititipkan, dan pekerjaan rumah tidak pernah
+dikerjakan. Ia juga bertentangan dengan ketetapan yang sudah berlaku di repo
+ini: penyiapan peta dasar dipindah dari CI ke tombol di layar Sistem justru
+karena alasan yang sama (DECISIONS 532 dst.).
+
+**Keputusan**: audit + pembersihan penyimpanan jadi kartu di **Sistem →
+Integrasi → "Isi penyimpanan R2"**. Satu tombol *Periksa penyimpanan*
+menampilkan: total vs terpakai vs yatim (dengan persentasenya), rincian per
+kelompok kunci, 50 yatim terbesar beserta umur harinya, sisa `healthcheck/`,
+dan — kebalikannya — **rujukan menggantung**: baris DB yang menunjuk berkas
+yang TIDAK ADA di R2. Yang terakhir itu bukan sampah melainkan kehilangan, dan
+tidak pernah punya layar sebelum ini. Satu tombol *Bersihkan yang yatim*, dengan
+konfirmasi, menghapusnya.
+
+Logikanya satu tempat, `src/lib/r2-audit.ts`, dipakai layar maupun skrip.
+Skripnya tetap ada tapi turun pangkat jadi CADANGAN — untuk saat aplikasinya
+mati, atau bucket terlalu besar untuk dibaca dalam satu permintaan HTTP — dan
+tidak bisa menghapus apa pun.
+
+**Yatim = tidak dirujuk satu kolom pun di DB.** Daftar kolomnya TIDAK ditulis
+tangan: dipungut dari `information_schema` (setiap kolom teks bernama `%key%`,
+41 kolom di skema sekarang) plus nilai `app_settings`. Jaringnya sengaja lebar —
+salah baca "masih dipakai" cuma menyisakan sampah, salah baca "yatim" bisa
+menghapus satu-satunya salinan foto lapangan ber-GPS.
+
+**Cacat yang ketemu saat memindahkannya ke layar** (tidak ada pada skrip, dan
+inilah kenapa tombol tidak sama dengan skrip yang dibungkus): rancangan pertama
+mengirim daftar kunci dari peramban ke server. Dua kesalahan sekaligus — layar
+hanya memegang 50 yatim terbesar, jadi "hapus 5.000 obyek" diam-diam cuma
+menghapus 50; dan daftar dari klien bisa BASI, sehingga foto yang diunggah
+sesudah pemeriksaan bisa ikut terhapus. Perbaikannya:
+`bersihkanPenyimpananAction()` **tidak menerima parameter sama sekali** —
+yatimnya dihitung ulang pada detik penghapusan.
+
+**Alternatif direject**: (a) tombol "bersihkan" tanpa memperlihatkan daftarnya
+lebih dulu — penghapusan obyek storage tidak bisa dibatalkan; (b) pembersihan
+terjadwal otomatis — sampah di sini lahir dari kegagalan yang belum dipahami,
+dan menyapunya otomatis menghapus bukti sebabnya; (c) menyimpan hasil audit di
+DB supaya layarnya cepat — angka penyimpanan yang basi lebih berbahaya daripada
+menunggu beberapa puluh detik.
+
+**Konsekuensi**: `system.manage` bisa melihat isi bucket dan membersihkannya
+tanpa akses shell. Keduanya dicatat `audit()` (`system.r2_audit`,
+`system.r2_cleanup`). Pembacaan bucket dibatasi 200.000 obyek per jalan; kalau
+terpotong, layarnya mengatakannya, bukan diam. Dijaga
+`tests/unit/penyimpanan-r2.test.ts`. Dibuktikan di peramban sungguhan terhadap
+server S3 tiruan: kunci yang dirujuk `app_settings` berpindah dari kolom yatim
+ke terpakai begitu barisnya ada.
+
+**Bisa di-revisit**: kalau bucket tumbuh sampai satu permintaan HTTP tidak lagi
+cukup membacanya — di situ audit perlu jadi pekerjaan latar dengan hasil yang
+disimpan, dan cadangan skripnya yang jadi jalan utama lagi.
