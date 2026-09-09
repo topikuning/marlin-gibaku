@@ -102,8 +102,11 @@ export function PenyimpananPanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Membandingkan isi bucket dengan seluruh rujukan di basis data. Obyek yang tidak dirujuk satu
-        baris pun disebut <span className="font-medium text-ink">yatim</span> – itulah sampahnya.
+        Membandingkan isi bucket dengan seluruh rujukan di basis data – kolom teks maupun isi kolom JSON
+        (mis. snapshot laporan harian yang membekukan kunci foto). Obyek yang tidak dirujuk satu baris pun
+        DAN sudah lewat 7 hari disebut <span className="font-medium text-ink">yatim</span> – itulah
+        sampahnya. Yang lebih baru ditahan dulu: unggahan menulis berkasnya lebih dahulu, barisnya
+        belakangan.
       </p>
       <PerbaikanHeic jumlah={fotoHeic} />
       <div className="flex flex-wrap items-center gap-2">
@@ -122,6 +125,19 @@ export function PenyimpananPanel({
 
       {hasil ? (
         <div className="space-y-3">
+          {hasil.porsiJanggal ? (
+            <Banner
+              tone="error"
+              title="Porsi sampahnya tidak masuk akal – JANGAN dibersihkan dulu"
+              description={
+                "Lebih dari separuh isi bucket terbaca tidak dirujuk. Angka setinggi itu jauh lebih mungkin " +
+                "berarti bucket ini dipakai lingkungan lain (mis. dev dan produksi berbagi satu bucket) " +
+                "daripada berarti separuh berkas memang sampah. Pastikan R2_BUCKET-nya milik lingkungan ini " +
+                "sendiri sebelum menghapus apa pun."
+              }
+            />
+          ) : null}
+
           {hasil.terpotong ? (
             <Banner
               tone="warning"
@@ -143,6 +159,13 @@ export function PenyimpananPanel({
               nilai={ukuran(hasil.totalBytes - hasil.yatimBytes)}
               sub={`${hasil.kolomDipindai} kolom rujukan dipindai`}
             />
+            {hasil.terlaluBaru > 0 ? (
+              <Ringkas
+                label="Ditahan (masih baru)"
+                nilai={String(hasil.terlaluBaru)}
+                sub="belum 7 hari – tidak dinilai dulu"
+              />
+            ) : null}
           </div>
 
           <div className="overflow-x-auto">

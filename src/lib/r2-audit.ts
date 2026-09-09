@@ -63,7 +63,19 @@ export type HasilAuditR2 = {
   rujukanHilang: RujukanHilang[];
   /** Berapa kolom ber-"key" yang dipindai – supaya angkanya bisa dipercaya. */
   kolomDipindai: number;
+  /** Obyek yang belum cukup tua untuk dinilai (penjaga umur). */
+  terlaluBaru: number;
+  /**
+   * Porsi yatim setinggi ini jauh lebih mungkin berarti SALAH BUCKET daripada
+   * berarti sekian persen berkas memang sampah — mis. satu bucket dipakai dua
+   * lingkungan, sehingga masing-masing menganggap punya yang lain sebagai
+   * sampah. Ditandai supaya ketahuan SEBELUM ada yang dihapus.
+   */
+  porsiJanggal: boolean;
 };
+
+/** Ambang "ini tidak masuk akal": lebih dari separuh bucket terbaca sampah. */
+const PORSI_JANGGAL = 0.5;
 
 const prefixDari = (key: string) => key.split("/")[0] || "(akar)";
 const umurHari = (d: Date | null) =>
@@ -118,16 +130,91 @@ async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
   return out;
 }
 
+/*
+ * PENJAGA UMUR.
+ *
+ * Pertanyaan user 2026-09-09 — *"kamu yakin yang yatim itu memang benar-benar
+ * tidak digunakan?"* — dan jawabannya waktu itu belum. Salah satu lubangnya:
+ * tidak ada jeda sama sekali antara "obyek muncul di bucket" dan "obyek boleh
+ * dianggap sampah". Unggahan menulis obyek DULU, barisnya belakangan; sebuah
+ * kegagalan transaksi di antaranya juga meninggalkan obyek yang beberapa detik
+ * kemudian sah disebut yatim.
+ *
+ * Seminggu, bukan sejam: sampah yang menunggu tujuh hari tidak merugikan siapa
+ * pun, sementara foto lapangan yang terhapus karena selisih beberapa detik
+ * tidak bisa dikembalikan.
+ */
+const UMUR_AMAN_HARI = 7;
+
+function cukupTua(o: R2Obyek): boolean {
+  // Tanpa tanggal = tidak bisa dibuktikan tua. Yang tidak bisa dibuktikan tidak
+  // dihapus — arah kesalahannya memang harus timpang ke sisi ini.
+  if (!o.diubah) return false;
+  return (umurHari(o.diubah) ?? 0) >= UMUR_AMAN_HARI;
+}
+
+/**
+ * Buang kandidat yang kuncinya ternyata hidup DI DALAM kolom JSON.
+ *
+ * 23 kolom json/jsonb di skema tidak terlihat oleh pemindaian kolom teks, dan
+ * satu di antaranya TERBUKTI memuat kunci R2: `daily_reports.final_snapshot`
+ * membekukan `r2Key` tiap foto (lihat `daily-report/ringkas.ts`). Snapshot itu
+ * dokumen resmi yang dicetak — kalau baris fotonya sudah tidak ada sementara
+ * kuncinya masih dirujuk di sana, aturan lama menyebutnya sampah lalu
+ * menghapus gambar dari laporan yang sudah final.
+ *
+ * Yang diadu hanya KANDIDAT yatim (biasanya sedikit) terhadap isi JSON, bukan
+ * seluruh kunci bucket — mengadu semuanya membuat pemeriksaan 10 GB tidak
+ * pernah selesai dalam satu permintaan.
+ */
+async function saringDipakaiDiJson(kandidat: R2Obyek[]): Promise<R2Obyek[]> {
+  if (kandidat.length === 0) return kandidat;
+  const kolom = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND data_type IN ('json', 'jsonb')
+    ORDER BY table_name, column_name
+  `;
+  const dipakaiDiJson = new Set<string>();
+  for (const k of kolom) {
+    // Satu kueri per kolom, memakai indeks apa adanya: yang ditanyakan cuma
+    // "apakah teks ini muncul", jadi `position()` sudah cukup dan tidak menarik
+    // seluruh isi JSON ke memori aplikasi.
+    for (const o of kandidat) {
+      if (dipakaiDiJson.has(o.key)) continue;
+      const [{ ada }] = await db.$queryRawUnsafe<{ ada: boolean }[]>(
+        `SELECT EXISTS (SELECT 1 FROM "${k.table_name}" WHERE "${k.column_name}"::text LIKE $1) AS ada`,
+        `%${o.key}%`,
+      );
+      if (ada) dipakaiDiJson.add(o.key);
+    }
+  }
+  return kandidat.filter((o) => !dipakaiDiJson.has(o.key));
+}
+
 /** Kunci yatim SAAT INI — dihitung ulang, tidak pernah dipercaya dari klien. */
 export async function kunciYatim(): Promise<Set<string>> {
-  const [{ obyek }, { kunci }] = await Promise.all([r2List(), kunciDirujuk()]);
-  return new Set(obyek.filter((o) => !kunci.has(o.key)).map((o) => o.key));
+  const { obyek } = await r2List();
+  const { kunci } = await kunciDirujuk();
+  const kandidat = obyek.filter((o) => !kunci.has(o.key) && cukupTua(o));
+  return new Set((await saringDipakaiDiJson(kandidat)).map((o) => o.key));
 }
 
 export async function auditR2(): Promise<HasilAuditR2> {
-  const [{ obyek, terpotong }, { kunci, kolom }] = await Promise.all([r2List(), kunciDirujuk()]);
+  /*
+   * URUTANNYA MENENTUKAN KEBENARAN, bukan sekadar gaya. Daftar obyek dibaca
+   * DULU, rujukan DB SESUDAHNYA: apa pun yang diunggah selama pemeriksaan
+   * berjalan pasti tertangkap bacaan DB yang belakangan. `Promise.all`
+   * memberangkatkan keduanya bersamaan — di situ foto yang masuk tepat di
+   * tengah pemeriksaan bisa sudah ada di daftar obyek tapi belum ada di bacaan
+   * DB, lalu terbaca yatim. Itu bentuk lamanya.
+   */
+  const { obyek, terpotong } = await r2List();
+  const { kunci, kolom } = await kunciDirujuk();
 
-  const yatim: R2Obyek[] = obyek.filter((o) => !kunci.has(o.key));
+  const kandidat = obyek.filter((o) => !kunci.has(o.key) && cukupTua(o));
+  const yatim: R2Obyek[] = await saringDipakaiDiJson(kandidat);
+  const setYatim = new Set(yatim.map((o) => o.key));
   const perPrefixMap = new Map<string, BarisPrefix>();
   for (const o of obyek) {
     const p = prefixDari(o.key);
@@ -135,7 +222,7 @@ export async function auditR2(): Promise<HasilAuditR2> {
       perPrefixMap.get(p) ?? { prefix: p, obyek: 0, bytes: 0, yatim: 0, yatimBytes: 0 };
     b.obyek++;
     b.bytes += o.bytes;
-    if (!kunci.has(o.key)) {
+    if (setYatim.has(o.key)) {
       b.yatim++;
       b.yatimBytes += o.bytes;
     }
@@ -160,5 +247,9 @@ export async function auditR2(): Promise<HasilAuditR2> {
     healthcheck: { obyek: hc.length, bytes: hc.reduce((t, o) => t + o.bytes, 0) },
     rujukanHilang: await rujukanMenggantung(ada),
     kolomDipindai: kolom,
+    terlaluBaru: obyek.filter((o) => !kunci.has(o.key) && !cukupTua(o)).length,
+    porsiJanggal:
+      obyek.length > 0 && yatim.reduce((t, o) => t + o.bytes, 0) >
+        obyek.reduce((t, o) => t + o.bytes, 0) * PORSI_JANGGAL,
   };
 }

@@ -199,6 +199,45 @@ dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Sejak audit 2026-07-2
 kondisinya muncul di data nyata, keputusannya: tampilkan kategori kosong dengan
 bobot 0, atau keluarkan `amount`-nya dari `grandTotal`. Perlu keputusan user.
 
+## 🟡 FOTO-01 · Snapshot laporan yang sudah BEKU bisa menunjuk kunci foto yang sudah dihapus
+
+`restampPhotoAction`, `putarFotoAction`, dan perbaikan HEIC sama-sama
+menulis kunci R2 BARU lalu `r2Delete` kunci LAMA. Sementara itu
+`daily_reports.final_snapshot` membekukan `r2Key` tiap foto pada saat laporan
+difinalkan (`daily-report/ringkas.ts`: `r2Key: p.r2Key`) dan tidak pernah
+diperbarui sesudahnya.
+
+Akibatnya: laporan harian yang sudah FINAL — dokumen yang dicetak dan
+dipertanggungjawabkan — bisa menunjuk obyek yang sudah tidak ada, dan gambarnya
+gagal dimuat. Semakin sering cap diperbaiki atau foto diputar, semakin banyak.
+
+Cacat ini ADA sebelum alat audit R2 dibuat dan tidak berhubungan dengannya
+(audit sekarang justru MENGHITUNG kunci di dalam snapshot sebagai terpakai,
+DECISIONS 548 — jadi ia tidak akan menghapusnya; yang menghapus adalah jalur
+restamp/putar itu sendiri).
+
+Dua jalan keluar, keduanya butuh keputusan user:
+(a) saat kunci foto berubah, ikut memperbarui `r2Key` di dalam `final_snapshot`
+    setiap laporan final yang memuatnya — snapshot ikut bergerak, padahal
+    "beku" justru maksudnya tidak bergerak;
+(b) tidak menghapus kunci lama untuk foto yang pernah masuk laporan final —
+    lebih hemat pikiran, lebih boros penyimpanan, dan "yatim" jadi punya satu
+    pengecualian lagi.
+
+Belum terukur berapa banyak yang terdampak di produksi. Untuk mendaftarnya:
+
+```sql
+SELECT dr.id, dr.report_date, l.name AS lokasi,
+       count(*) FILTER (WHERE p.id IS NULL) AS foto_hilang
+FROM daily_reports dr
+JOIN locations l ON l.id = dr.location_id
+CROSS JOIN LATERAL jsonb_array_elements(dr.final_snapshot->'foto') AS f
+LEFT JOIN photos p ON p.r2_key = f->>'r2Key'
+WHERE dr.final_snapshot IS NOT NULL
+GROUP BY 1,2,3 HAVING count(*) FILTER (WHERE p.id IS NULL) > 0
+ORDER BY foto_hilang DESC;
+```
+
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
 ```text
