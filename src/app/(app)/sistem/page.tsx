@@ -25,6 +25,7 @@ import { getPolicy } from "@/lib/policy";
 import { statusPeta } from "@/lib/peta/sumber";
 import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { PetaPanel } from "./peta-panel";
+import { PenyimpananPanel } from "./penyimpanan-panel";
 import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
@@ -402,6 +403,23 @@ export default async function SistemPage() {
             status={r2On ? "Terkonfigurasi" : "Belum diatur"}
           />
           <R2TestPanel configured={r2On} />
+        </CardBody>
+      </Card>
+
+      {/*
+        ISI penyimpanan, bukan cuma apakah ia hidup. Kartu di atas menjawab "R2
+        jalan?"; yang ini menjawab "10 GB itu isinya apa?" — pertanyaan user
+        2026-09-09, yang jawabannya sempat berupa perintah terminal dan ditolak:
+        alat pemeliharaan yang menuntut orang membuka console produksi bukan
+        alat, ia pekerjaan rumah yang dititipkan.
+      */}
+      <Card>
+        <CardHeader
+          title="Isi penyimpanan R2"
+          subtitle="Berapa yang terpakai, berapa yang sampah – dan buang yang sampah"
+        />
+        <CardBody>
+          <PenyimpananPanel configured={r2On} />
         </CardBody>
       </Card>
 

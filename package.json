@@ -26,6 +26,7 @@
     "peta:basemap": "tsx scripts/peta-basemap.mts",
     "waha:grup-ganda": "tsx scripts/waha-grup-ganda.ts",
     "audit:ahsp": "tsx scripts/audit-ahsp.mts",
+    "audit:r2": "tsx scripts/audit-r2.mts",
     "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts",
     "rab:siapkan": "tsx scripts/siapkan-rab-lapangan.mts",
     "peta:worker": "node scripts/salin-worker-peta.mjs"

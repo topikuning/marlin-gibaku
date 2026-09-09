@@ -330,3 +330,88 @@ export async function savePolicyAction(_prev: PolicyState, formData: FormData): 
         : `Kebijakan tersimpan – ${berubah.length} setelan berubah.`,
   };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Penyimpanan R2: periksa isi bucket, bersihkan yang sampah
+// ─────────────────────────────────────────────────────────────
+
+export type AuditR2State =
+  | { error: string; hasil?: undefined }
+  | { error?: undefined; hasil: import("@/lib/r2-audit").HasilAuditR2 }
+  | undefined;
+
+/**
+ * Periksa isi bucket dari LAYAR, bukan dari terminal.
+ *
+ * Teguran user 2026-09-09 atas versi pertama yang berupa skrip: *"sejak kapan
+ * harus buka console lalu harus jalankan perintah itu! kalau kamu ngasih solusi
+ * yang praktis!"*. Alat pemeliharaan yang menuntut orang membuka terminal
+ * produksi bukan alat — ia pekerjaan rumah yang dititipkan.
+ */
+export async function auditPenyimpananAction(): Promise<AuditR2State> {
+  const actor = await requireCapability("system.manage");
+  const { isR2Configured } = await import("@/lib/r2");
+  if (!isR2Configured()) return { error: "R2 belum dikonfigurasi – tidak ada penyimpanan untuk diperiksa." };
+  const { auditR2 } = await import("@/lib/r2-audit");
+  try {
+    const hasil = await auditR2();
+    await audit(actor.id, "system.r2_audit", "system", null, {
+      totalObyek: hasil.totalObyek,
+      totalBytes: hasil.totalBytes,
+      yatimObyek: hasil.yatimObyek,
+      yatimBytes: hasil.yatimBytes,
+    });
+    return { hasil };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Gagal membaca isi penyimpanan." };
+  }
+}
+
+export type BersihkanR2State = { error?: string; success?: string } | undefined;
+
+/**
+ * Hapus obyek yatim — daftarnya DIHITUNG ULANG di sini, tidak diterima dari
+ * peramban.
+ *
+ * Versi pertama menerima daftar kunci dari layar. Dua cacat sekaligus: layar
+ * hanya memegang 50 yatim terbesar (jadi "hapus 5.000 obyek" diam-diam cuma
+ * menghapus 50), dan daftar dari klien bisa basi — foto yang diunggah SESUDAH
+ * pemeriksaan akan terbaca yatim oleh layar yang belum tahu. Yang menentukan
+ * boleh-tidaknya sebuah obyek dihapus harus keadaan pada DETIK penghapusan,
+ * bukan potret beberapa menit lalu.
+ *
+ * Penghapusan obyek storage tidak bisa dibatalkan dan satu-satunya salinan foto
+ * lapangan ber-GPS ada di sana — jadi tiap penghapusan dicatat `audit()`.
+ */
+export async function bersihkanPenyimpananAction(): Promise<BersihkanR2State> {
+  const actor = await requireCapability("system.manage");
+  const { isR2Configured, r2Delete } = await import("@/lib/r2");
+  if (!isR2Configured()) return { error: "R2 belum dikonfigurasi." };
+
+  const { kunciYatim } = await import("@/lib/r2-audit");
+  const yatim = [...(await kunciYatim())];
+  if (yatim.length === 0) return { success: "Tidak ada yang perlu dibersihkan." };
+
+  let terhapus = 0;
+  const gagal: string[] = [];
+  for (const k of yatim) {
+    try {
+      await r2Delete(k);
+      terhapus++;
+    } catch {
+      gagal.push(k);
+    }
+  }
+  await audit(actor.id, "system.r2_cleanup", "system", null, {
+    yatimSaatItu: yatim.length,
+    terhapus,
+    gagal: gagal.length,
+    contohGagal: gagal.slice(0, 20),
+  });
+  revalidatePath("/sistem");
+  return {
+    success:
+      `${terhapus} obyek yatim dihapus` +
+      (gagal.length > 0 ? ` \u00b7 ${gagal.length} gagal dihapus (coba lagi nanti).` : "."),
+  };
+}

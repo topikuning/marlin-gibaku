@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/lib/env";
@@ -49,6 +50,33 @@ export async function r2GetBuffer(key: string): Promise<Buffer> {
 
 export async function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
   return getSignedUrl(r2(), new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }), { expiresIn });
+}
+
+export type R2Obyek = { key: string; bytes: number; diubah: Date | null };
+
+/**
+ * Seluruh isi bucket. ListObjectsV2 memberi maksimal 1000 per panggilan dan
+ * tidak punya "ambil semua", jadi penghalamannya di sini — bukan di pemanggil,
+ * supaya tidak ada layar yang diam-diam cuma melihat 1000 obyek pertama lalu
+ * menyebut sisanya tidak ada. `batas` menjaga bucket raksasa tidak menahan satu
+ * permintaan sampai timeout; hasilnya menyebut sendiri kalau terpotong.
+ */
+export async function r2List(
+  prefix?: string,
+  batas = 200_000,
+): Promise<{ obyek: R2Obyek[]; terpotong: boolean }> {
+  const obyek: R2Obyek[] = [];
+  let token: string | undefined;
+  do {
+    const res = await r2().send(
+      new ListObjectsV2Command({ Bucket: env.r2!.bucket, Prefix: prefix, ContinuationToken: token }),
+    );
+    for (const o of res.Contents ?? [])
+      if (o.Key) obyek.push({ key: o.Key, bytes: o.Size ?? 0, diubah: o.LastModified ?? null });
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    if (obyek.length >= batas) return { obyek, terpotong: true };
+  } while (token);
+  return { obyek, terpotong: false };
 }
 
 export async function r2Delete(key: string): Promise<void> {
