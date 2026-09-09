@@ -28794,3 +28794,86 @@ dengannya; dicatat di `docs/OPEN_ISSUES.md`.
 **Bisa di-revisit**: bila jumlah kolom JSON tumbuh sampai pemindaiannya jadi
 mahal, atau bila muncul cara sah membuktikan kepemilikan bucket dari dalam
 aplikasi.
+
+## 549 · 2026-09-09 · Arsip dingin berkas asli: R2 tetap persinggahannya, tanpa Railway Volume
+
+**Konteks**: user menyerahkan rancangan susunan ChatGPT — Railway Volume sebagai
+persinggahan berkas asli, mesin sendiri sebagai arsip dingin, R2 sebagai jalur
+darurat — lalu meminta pendapat, lalu meminta rancangan yang lebih baik, lalu
+menegur bahwa variabelnya kebanyakan: *"terlalu banyak variable yang harus
+ditambahkan, coba cek ulang"*.
+
+Rancangan aslinya benar arahnya dan beberapa bagiannya diambil utuh: verifikasi
+sebelum menghapus (HEAD + checksum + jumlah byte), `originalKey` tetap kunci
+LOGIS bukan path, unggah user tidak boleh menunggu arsip, dan penahapan deploy.
+
+**Keputusan**: buang Railway Volume dari rancangannya. Persinggahannya sudah ada
+— R2, tempat berkas asli memang sudah ditulis sejak DECISIONS 197. Yang
+ditambahkan cuma pemindahan di belakang layar.
+
+Yang lenyap bersama Volume: disk penuh (dan seluruh jalur darurat yang lahir
+untuk menanganinya), izin berkas di entrypoint, urutan resolusi path yang harus
+sama antara aplikasi dan skrip shell — rancangan itu bahkan minta dibuatkan uji
+khusus untuk menjaganya, uji yang hanya perlu ada karena rancangannya sendiri
+menciptakan celahnya — dan satu jendela waktu ketika satu-satunya salinan berada
+di disk yang tidak dibackup.
+
+| | Rancangan awal | Yang dipakai |
+|---|---|---|
+| Keadaan | 5 (+2 khusus pembersihan) | 2 kolom tanggal, tanpa enum |
+| Tabel antrean | ya | tidak — barisnya sendiri yang jadi antrean |
+| Jalur unggah | diubah | **tidak disentuh sama sekali** |
+| Migrasi data lama | perlu backfill | tidak perlu; NULL memang berarti "masih di R2" |
+| Variabel lingkungan | 14 | **4** |
+| Endpoint & rahasia cron | baru, sendiri | `CRON_SECRET` yang sudah ada |
+| Anti-tabrakan | berkas kunci di disk | tiap langkah boleh diulang |
+| Image & service Railway baru | 1 + 1 | tidak ada |
+
+**Keadaannya dua tanggal, dan keduanya hanya maju**: `originalArchivedAt` (sudah
+terbukti ada di arsip) dan `originalR2PurgedAt` (salinan R2 sudah dibuang). Dua
+keadaan "pembersihan" di rancangan awal ada untuk menandai pekerjaan yang mati
+di tengah jalan; di sini tidak perlu, karena mengulang langkah yang sama
+memberi hasil yang sama — kirim lalu mati sebelum mencatat akan dilanjutkan
+putaran berikutnya lewat HEAD, tanpa kiriman kedua.
+
+**Masa tenggang, dan ini beda dari rancangan awal**: salinan R2 TIDAK dibuang
+begitu checksum cocok, melainkan setelah 7 hari (bisa diatur di layar, 0 =
+segera). Selama itu tiap berkas punya dua salinan sungguhan tanpa usaha
+tambahan, dan kalau arsip dinginnya rewel di minggu-minggu pertama kita masih
+bisa mundur. Harganya jujur: pemakaian R2 baru mulai turun seminggu setelah
+arsip berjalan, bukan seketika.
+
+**Empat variabel, dan cuma itu**: `ORIGINAL_ARCHIVE_URL`, `_TOKEN`,
+`_CF_CLIENT_ID`, `_CF_CLIENT_SECRET` — alamat dan rahasia, memang tempatnya di
+env. Sisanya: sakelar hidup/mati dan masa tenggang jadi setelan di layar (yang
+paling sering perlu diubah, dan mengubah env berarti deploy ulang); batas waktu,
+jumlah per putaran, dan ambang gagal jadi konstanta seperti antrean Drive; zona
+waktu karena seluruh aplikasi ini memang Asia/Jakarta; jendela jam karena yang
+menentukan KAPAN berjalan adalah jadwal cron.
+
+**Alternatif direject**: (a) Volume sebagai buffer — unggul di satu hal saja
+(berkas asli tidak pernah menyentuh kuota R2), bedanya hitungan jam, ongkosnya
+tiga keadaan tambahan plus satu filesystem; (b) endpoint dengan rahasia sendiri
+— dua konvensi otentikasi di satu aplikasi berarti dua tempat yang bisa salah,
+tanpa menambah keamanan; (c) berkas kunci di disk — hanya benar selama
+servicenya satu replika, asumsi yang tidak tertulis di mana pun.
+
+**Pagar yang tidak boleh dilepas**: TLS wajib kecuali ke mesin sendiri (tiap
+permintaan membawa token pembawa dan sepasang rahasia Cloudflare Access di
+header); kunci arsip yang tidak berbentuk sah DITOLAK, bukan dibersihkan;
+otentikasi dipasang di satu pintu keluar, bukan di tiap pemanggil — versi
+pertama menyerahkannya ke pemanggil dan `HEAD` langsung lupa membawanya.
+
+**Konsekuensi**: fitur ini MATI sampai dinyalakan di layar. Deteksi rujukan
+menggantung di kartu penyimpanan (DECISIONS 546/548) ikut diperbaiki — tanpa itu
+tiap berkas yang BERHASIL diarsipkan akan dilaporkan sebagai "hilang", merah,
+untuk pekerjaan yang justru berjalan benar. Dijaga
+`tests/unit/arsip-asli.test.ts` dan `tests/integration/arsip-asli-putaran.test.ts`
+(arsip tiruan berupa server HTTP sungguhan, bukan tiruan fungsi).
+
+**Yang belum teruji dan harus disebut**: mesin arsip dinginnya sendiri belum ada
+saat ini ditulis, jadi yang terbukti barulah bentuk protokolnya terhadap server
+tiruan — bukan terhadap mesin sungguhan di balik Cloudflare Access.
+
+**Bisa di-revisit**: kalau ternyata berkas asli bukan mayoritas isi R2. Angkanya
+belum diukur; kartu "Isi penyimpanan R2" menjawabnya dalam satu klik.

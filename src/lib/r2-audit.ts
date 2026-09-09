@@ -109,9 +109,17 @@ export async function kunciDirujuk(): Promise<{ kunci: Set<string>; kolom: numbe
 
 /** Berkas yang DIRUJUK DB tapi tidak ada di R2 — bahaya yang berlawanan. */
 async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
-  const cek = [
+  const cek: { tabel: string; kolom: string; label: string; syarat?: string }[] = [
     { tabel: "photos", kolom: "r2_key", label: "Foto" },
-    { tabel: "photos", kolom: "original_key", label: "Foto (berkas asli)" },
+    /*
+     * Berkas asli hanya dituntut ada di R2 selama salinannya belum dibuang.
+     * Sesudah pindah ke arsip dingin, `original_key` tetap tersimpan sebagai
+     * kunci LOGIS sementara obyek R2-nya memang sengaja tidak ada lagi —
+     * tanpa syarat ini, tiap berkas yang berhasil diarsipkan akan dilaporkan
+     * sebagai "hilang", dan layarnya berteriak merah untuk pekerjaan yang
+     * justru berjalan benar.
+     */
+    { tabel: "photos", kolom: "original_key", label: "Foto (berkas asli)", syarat: "original_r2_purged_at IS NULL" },
     { tabel: "photos", kolom: "thumbnail_key", label: "Foto (thumbnail)" },
     { tabel: "documents", kolom: "r2_key", label: "Dokumen" },
     { tabel: "field_activity_attachments", kolom: "r2_key", label: "Lampiran aktivitas" },
@@ -120,7 +128,8 @@ async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
   for (const c of cek) {
     const rows = await db
       .$queryRawUnsafe<{ v: string }[]>(
-        `SELECT "${c.kolom}" AS v FROM "${c.tabel}" WHERE "${c.kolom}" IS NOT NULL`,
+        `SELECT "${c.kolom}" AS v FROM "${c.tabel}" WHERE "${c.kolom}" IS NOT NULL` +
+          (c.syarat ? ` AND ${c.syarat}` : ""),
       )
       .catch(() => [] as { v: string }[]);
     const hilang = rows.filter((r) => !ada.has(r.v));

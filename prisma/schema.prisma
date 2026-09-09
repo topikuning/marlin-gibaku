@@ -1769,6 +1769,34 @@ model Photo {
   /// foto tsb tidak bisa diperbaiki lagi. DECISIONS 198.
   originalPurgedAt   DateTime?           @map("original_purged_at") @db.Timestamptz
   originalPurgedById String?             @map("original_purged_by_id") @db.Uuid
+  /// ARSIP DINGIN: kapan berkas asli TERBUKTI ada di penyimpanan sendiri
+  /// (checksum + ukuran cocok). null = masih hanya di R2.
+  ///
+  /// Sengaja TANPA enum dan TANPA tabel antrean. Dua tanggal di bawah ini sudah
+  /// menyatakan seluruh keadaan yang mungkin, dan keduanya hanya bergerak maju:
+  ///
+  ///   arsipAt null                        → berkas asli ada di R2
+  ///   arsipAt terisi, r2DibuangAt null    → ada di KEDUANYA (masa tenggang)
+  ///   keduanya terisi                     → hanya di arsip dingin
+  ///
+  /// Karena monoton, kegagalan di tengah jalan tidak butuh state "pembersihan":
+  /// putaran berikutnya mengulang langkah yang sama dan hasilnya sama.
+  originalArchivedAt DateTime?           @map("original_archived_at") @db.Timestamptz
+  /// Kapan salinan R2-nya dibuang setelah masa tenggang. null = masih ada,
+  /// dan selama itu ia jadi jaring pengaman kalau arsip dingin bermasalah.
+  originalR2PurgedAt DateTime?           @map("original_r2_purged_at") @db.Timestamptz
+  /// Berapa kali pengiriman ke arsip dingin gagal. Ada supaya SATU berkas
+  /// bermasalah tidak menyumbat antrean selamanya — yang melewati batas
+  /// dilewati sampai ada yang memeriksanya.
+  originalArchiveTries Int               @default(0) @map("original_archive_tries")
+  /// Sebab kegagalan terakhir, untuk ditampilkan di layar. Bukan untuk mesin.
+  originalArchiveError String?           @map("original_archive_error")
+  //
+  // CATATAN: dua indeks PARSIAL untuk antrean arsip dibuat langsung di SQL
+  // migrasi (`photos_menunggu_arsip_idx`, `photos_menunggu_buang_r2_idx`).
+  // Prisma belum bisa menyatakan `WHERE` pada indeks, dan indeks penuh atas
+  // kolom yang mayoritasnya NULL adalah pemborosan — yang perlu dicari cuma
+  // baris yang sedang menunggu.
   exifTakenAt        DateTime?           @map("exif_taken_at") @db.Timestamptz
   /// USANG (DECISIONS 250) — JANGAN DIPAKAI LAGI, dan jangan diisi.
   /// Kolom ini tidak pernah dinaikkan dari `pending` oleh kode mana pun: tidak

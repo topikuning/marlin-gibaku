@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { bacaBerkasAsli } from "@/lib/arsip-asli/antrean";
 import { audit, auditIn } from "@/lib/audit";
 import {
   ForbiddenError,
@@ -171,7 +172,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     }
 
     // ── Render ulang dari berkas ASLI ──
-    const original = await r2GetBuffer(k.originalKey);
+    const original = await bacaBerkasAsli(k);
     const processed = await processWithSharpOrOriginal(original, await stampDariNilai(baru), {
       name: k.originalKey,
       type: "",
@@ -424,7 +425,7 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
     const totalDerajat = (((k.rotationDeg + derajat) % 360) + 360) % 360;
     const sharpMod = await import("sharp");
     const sharp = sharpMod.default ?? (sharpMod as unknown as typeof import("sharp").default);
-    const asli = await r2GetBuffer(k.originalKey);
+    const asli = await bacaBerkasAsli(k);
     // `.rotate(n)` DI ATAS `.rotate()` tanpa argumen: yang pertama menegakkan
     // menurut EXIF (bila ada), yang kedua memutar atas permintaan orang.
     const pipa = sharp(asli, { failOn: "none" }).rotate();

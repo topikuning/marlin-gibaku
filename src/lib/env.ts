@@ -25,6 +25,23 @@ const baseSchema = z.object({
    * pemakaian: kalau sumbernya diganti tanpa menggantinya, kita memakai citra
    * orang tanpa menyebut siapa pemiliknya.
    */
+  /*
+   * ARSIP DINGIN BERKAS ASLI (2026-09-09). Empat variabel, dan itu SUDAH
+   * seluruhnya — rancangan awalnya minta empat belas.
+   *
+   * Yang tidak ada di sini, beserta alasannya: sakelar hidup/mati ada di layar
+   * Sistem supaya bisa diganti tanpa deploy ulang; batas waktu, ukuran satuan
+   * kirim, dan masa tenggang jadi konstanta seperti antrean Drive; zona waktu
+   * karena seluruh aplikasi ini memang Asia/Jakarta; jendela jam karena yang
+   * menentukan KAPAN berjalan adalah jadwal cron, bukan aplikasi; dan seluruh
+   * ambang disk karena tidak ada disk perantara sama sekali.
+   */
+  /** Alamat penyimpan arsip dingin. Kosong = fitur mati, tanpa galat. */
+  ORIGINAL_ARCHIVE_URL: z.string().optional(),
+  ORIGINAL_ARCHIVE_TOKEN: z.string().optional(),
+  /** Sepasang token layanan Cloudflare Access. Kosongkan bila tidak di baliknya. */
+  ORIGINAL_ARCHIVE_CF_CLIENT_ID: z.string().optional(),
+  ORIGINAL_ARCHIVE_CF_CLIENT_SECRET: z.string().optional(),
   /** Direktori peta dasar di VOLUME (sejajar LAMPIRAN_DIR). */
   PETA_DIR: z.string().optional(),
   /**

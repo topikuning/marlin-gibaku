@@ -26,6 +26,7 @@ import { statusPeta } from "@/lib/peta/sumber";
 import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { PetaPanel } from "./peta-panel";
 import { PenyimpananPanel } from "./penyimpanan-panel";
+import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
@@ -174,6 +175,16 @@ export default async function SistemPage() {
   const aiSecretStatus = aiSecretStorageStatus();
 
   const r2On = isR2Configured();
+  // Arsip dingin berkas asli — sakelar, masa tenggang, dan antreannya. Dibaca
+  // di server supaya kartunya sudah berisi angka saat halaman dibuka.
+  const { arsipAktif, tenggangHari } = await import("@/lib/arsip-asli/setelan");
+  const { ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
+  const arsipAsli = {
+    aktif: await arsipAktif(),
+    tenggang: await tenggangHari(),
+    terkonfigurasi: Boolean(env.ORIGINAL_ARCHIVE_URL && env.ORIGINAL_ARCHIVE_TOKEN),
+    ringkas: await ringkasArsipAsli(),
+  };
   /*
    * Foto yang kuncinya masih .heic/.heif = yang terlanjur masuk lewat jalur
    * simpan-mentah sebelum dekoder HEVC ada (DECISIONS 547). Dihitung di server
@@ -421,6 +432,16 @@ export default async function SistemPage() {
         alat pemeliharaan yang menuntut orang membuka console produksi bukan
         alat, ia pekerjaan rumah yang dititipkan.
       */}
+      <Card>
+        <CardHeader
+          title="Arsip dingin berkas asli"
+          subtitle="Pindahkan berkas asli foto ke penyimpanan sendiri – yang ber-cap tetap di R2"
+        />
+        <CardBody>
+          <ArsipAsliPanel {...arsipAsli} />
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader
           title="Isi penyimpanan R2"

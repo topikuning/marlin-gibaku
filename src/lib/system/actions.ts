@@ -415,3 +415,72 @@ export async function bersihkanPenyimpananAction(): Promise<BersihkanR2State> {
       (gagal.length > 0 ? ` \u00b7 ${gagal.length} gagal dihapus (coba lagi nanti).` : "."),
   };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Arsip dingin berkas asli foto
+// ─────────────────────────────────────────────────────────────
+
+export type ArsipAsliState = { error?: string; success?: string } | undefined;
+
+/**
+ * Nyalakan/matikan pemindahan berkas asli, dan atur masa tenggangnya.
+ *
+ * Ada di LAYAR, bukan di variabel lingkungan. Teguran user 2026-09-09 atas
+ * rancangan bervariabel 14: sakelar hidup/mati justru yang paling sering perlu
+ * diubah — saat mesin arsipnya mati, saat mencoba pertama kali — sementara
+ * mengubah variabel lingkungan berarti deploy ulang dan menunggu.
+ */
+export async function setArsipAsliAction(
+  _prev: ArsipAsliState,
+  formData: FormData,
+): Promise<ArsipAsliState> {
+  const actor = await requireCapability("system.manage");
+  const aktif = formData.get("aktif") === "on";
+  const tenggangRaw = Number(formData.get("tenggang") ?? "");
+  const { arsipAktif, tenggangHari, setArsipAktif, setTenggangHari } = await import(
+    "@/lib/arsip-asli/setelan"
+  );
+  const sebelum = { aktif: await arsipAktif(), tenggang: await tenggangHari() };
+
+  if (!Number.isFinite(tenggangRaw) || tenggangRaw < 0 || tenggangRaw > 365) {
+    return { error: "Masa tenggang harus 0–365 hari." };
+  }
+  await setArsipAktif(aktif);
+  await setTenggangHari(tenggangRaw);
+  await audit(actor.id, "system.arsip_asli", "system", null, {
+    sebelum,
+    sesudah: { aktif, tenggang: Math.floor(tenggangRaw) },
+  });
+  revalidatePath("/sistem");
+  return {
+    success: aktif
+      ? `Arsip dingin AKTIF – salinan R2 dibuang ${Math.floor(tenggangRaw)} hari setelah berkasnya terbukti aman di sana.`
+      : "Arsip dingin dimatikan. Berkas asli tetap di R2, tidak ada yang dipindahkan.",
+  };
+}
+
+/** Jalankan satu putaran dari layar, tanpa menunggu jadwal cron. */
+export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
+  const actor = await requireCapability("system.manage");
+  const { jalankanArsipAsli } = await import("@/lib/arsip-asli/antrean");
+  try {
+    const h = await jalankanArsipAsli();
+    await audit(actor.id, "system.arsip_asli_run", "system", null, h);
+    revalidatePath("/sistem");
+    if (!h.dijalankan) {
+      const sebab: Record<string, string> = {
+        mati: "Sakelarnya masih mati.",
+        "belum-dikonfigurasi": "ORIGINAL_ARCHIVE_URL / _TOKEN belum diisi di Railway.",
+        "r2-mati": "R2 belum dikonfigurasi.",
+      };
+      return { error: sebab[h.alasan] ?? "Tidak dijalankan." };
+    }
+    return {
+      success:
+        `${h.dikirim} berkas asli dipindahkan ke arsip dingin · ${h.dibuangDariR2} salinan R2 dibuang` +
+        (h.gagal > 0 ? ` · ${h.gagal} gagal (${h.galat.slice(0, 2).join("; ")})` : "."),
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Putaran arsip gagal." };
+  }
+}
