@@ -28653,3 +28653,71 @@ ke terpakai begitu barisnya ada.
 **Bisa di-revisit**: kalau bucket tumbuh sampai satu permintaan HTTP tidak lagi
 cukup membacanya — di situ audit perlu jadi pekerjaan latar dengan hasil yang
 disimpan, dan cadangan skripnya yang jadi jalan utama lagi.
+
+## 547 · 2026-09-09 · HEIC iPhone dibongkar dekoder sendiri, bukan disimpan mentah
+
+**Konteks**: laporan user dengan tangkapan Activity Centre — *"lihat pada besole
+ada 2 foto tidak bisa diakses"*, padahal berkasnya ada dan URL presign-nya
+jalan. Kuncinya yang membocorkan sebabnya:
+
+```
+photos/knmp-besole-tulungagung/2026-09-08/d38eb2d2-….heic
+```
+
+Jalur normal SELALU menghasilkan `.webp`; `.heic` hanya lahir dari jalur cadangan
+"simpan gambar asli" di `processWithSharpOrOriginal`.
+
+Sebabnya libvips bawaan sharp: ia membaca WADAH HEIF tapi tidak punya dekoder
+HEVC-nya (sengaja tidak dibundel, alasan paten — itu sebabnya `.avif` terbaca
+sementara `.heic` tidak). Yang menipu, dan yang membuat diagnosis pertama
+meleset: `sharp(buf).metadata()` BERHASIL menyebut "heif 1280x854", sebab ia
+cuma membaca header. Barulah saat pikselnya diminta:
+
+```
+heif: Error while loading plugin: Support for this compression format has not
+been built in
+```
+
+Akibatnya tiga, dan yang ketiga paling serius: petaknya kosong di peramban
+non-Safari, thumbnail tidak dibuat, dan fotonya **tidak ber-cap Timemark** — jadi
+ia gagal sebagai bukti lapangan, bukan sekadar jelek dipandang.
+
+**Keputusan**: HEIC dibongkar `heic-decode` (di baliknya `libheif-js`, yang
+membawa libde265 — dekoder yang justru hilang itu) lalu diserahkan ke sharp
+sebagai piksel mentah, sehingga sisa pipeline — resize, cap, thumbnail, webp —
+berjalan sama persis dengan foto lain. Dipanggil di jalur PALING SEMPIT: hanya
+sesudah sharp gagal, dan hanya bila bytenya memang HEIF (kotak `ftyp`, bukan
+nama berkas — nama bisa bohong, byte tidak).
+
+Yang lapangan kerjakan: **tidak ada**. Menyuruh mandor mengganti setelan kamera
+ke "Most Compatible" ditolak — ketetapan lama berlaku, *"sistemmu yang
+menyesuaikan"*.
+
+Foto yang TERLANJUR masuk diperbaiki lewat tombol di **Sistem → Integrasi → Isi
+penyimpanan R2**: baca ulang arsip aslinya, jalankan pipeline yang sama, tulis
+kunci baru, naikkan `stampRevision`. Nilai capnya tidak diubah satu pun
+(`manualFields: []`) — ini perbaikan teknis, bukan koreksi manusia. Aman diulang;
+20 foto per tekan supaya tidak melewati batas waktu satu permintaan.
+
+**Alternatif direject**: (a) memasang libde265 ke image lalu membangun sharp
+terhadap libvips sistem — build jadi panjang dan rapuh, dan menyeret persoalan
+lisensi HEVC ke dalam image; (b) menolak HEIC saat unggah — memindahkan
+pekerjaan ke orang lapangan, persis yang dilarang; (c) mengubah di peramban
+sebelum unggah — peramban selain Safari juga tidak bisa mendekode HEIC, jadi
+bukan jalan keluar.
+
+**Konsekuensi**: satu dependensi baru (8,4 MB WASM, dimuat LAZY — tidak
+menyentuh unggahan JPEG sama sekali). HEIC lebih lambat: terukur 1,1 MP ≈ 0,2
+detik, jadi 12 MP ≈ 2–3 detik; batas waktunya dilonggarkan jadi 45 detik khusus
+tahap itu. Dijaga `tests/unit/photos-heic.test.ts` dengan berkas HEVC SUNGGUHAN
+(`hvc1`) — bukan AVIF berekstensi .heic, yang akan hijau tanpa membuktikan apa
+pun. Merah 3/8 sebelum perbaikan.
+
+**Bug yang ketemu saat mengujinya, bukan saat menulisnya**: masukan raw yang
+di-`toBuffer()` tanpa format keluaran keluar RAW lagi — tahap cap menolaknya
+("Input buffer contains unsupported image format") sehingga foto HEIC berakhir
+tanpa cap meski pikselnya sudah terbongkar. Karena itu ada `.png()` eksplisit di
+perantaranya; PNG, bukan webp, supaya tidak memampatkan dua kali.
+
+**Bisa di-revisit**: bila suatu saat libvips bawaan sharp membawa dekoder HEVC —
+di situ tambalan ini boleh dicopot, dan ujinya yang pertama memberi tahu.

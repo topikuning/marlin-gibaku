@@ -45,6 +45,7 @@
     "date-fns": "4.4.0",
     "exceljs": "4.4.0",
     "exifreader": "4.41.0",
+    "heic-decode": "^2.1.0",
     "jszip": "3.10.1",
     "lucide-react": "1.24.0",
     "maplibre-gl": "6.7.0",
