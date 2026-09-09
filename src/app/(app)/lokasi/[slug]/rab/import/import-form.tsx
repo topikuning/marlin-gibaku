@@ -265,8 +265,13 @@ export function ImportForm({
             Laporan user 2026-09-07: berkas 3,67 miliar tampil sebagai "Rp 1"
             dengan "12 peringatan parsing" terlipat di bawah angka itu. Selisih
             yang membuat NILAI KONTRAK salah harus dibaca sebelum mata sampai ke
-            tabelnya, dan warnanya bahaya — bukan kuning yang sama dengan "3
-            baris tersembunyi diabaikan".
+            tabelnya, dan warnanya bahaya — bukan kuning yang sama dengan
+            "kategori XIII tidak punya baris judul".
+
+            Baris tersembunyi ikut ke sini KALAU BERNILAI (sejak 2026-09-09):
+            justru itu penjelasan paling sering dari resume berkas yang lebih
+            besar daripada Σ item. Yang bernilai 0 tetap kuning — ia tidak
+            menggeser satu rupiah pun.
           */}
           {preview.warnings.some((w) => w.startsWith("PERHATIAN")) ? (
             <Banner

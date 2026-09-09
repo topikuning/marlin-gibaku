@@ -28540,3 +28540,54 @@ langsung tanpa `parsed`, jadi tidak ada layer kedua untuk dibandingkan. Dijaga
 **Bisa di-revisit**: bila suatu saat ada berkas sah yang memang membuat kedua
 layer berselisih secara sengaja. Sampai hari ini belum ada — selisih selalu
 berarti salah satunya salah.
+
+## 545 · 2026-09-09 · Baris tersembunyi disebut satu per satu, bukan cuma dihitung
+
+**Konteks**: permintaan user — *"kalau baris hidden begitu, sistem harusnya
+sebut di layar mana barisnya"*.
+
+Latarnya nyata. Resume `MC 1 FINAL GEMPOLSEWU.xlsx` menulis 3.669.499.844
+sementara sistem membaca 3.667.534.912. Selisih Rp 1.964.932 itu seluruhnya tiga
+baris yang di-hide di Excel — r463, r478, r479 di kategori VI — dan menemukan
+yang mana menghabiskan satu sesi pembedahan manual dengan skrip sekali pakai.
+Padahal parser SUDAH memegang nomor barisnya pada detik ia melewatinya. Yang
+dikatakannya cuma:
+
+> 22 baris tersembunyi (hidden) di Excel diabaikan
+
+Angka 22 tidak bisa ditindaklanjuti siapa pun.
+
+**Keputusan**: peringatan baris tersembunyi menyebut, per baris, nomor baris
+Excel-nya, sel kolom jumlahnya (mis. `T463`), kode + nama pekerjaannya, dan
+rupiah yang ikut tidak masuk — beserta totalnya. Dua nada, sengaja dibedakan:
+
+- hidden **BERNILAI** → `PERHATIAN` (banner merah di ATAS tabel). Inilah
+  penjelasan paling sering dari "resume berkas lebih besar daripada Σ item",
+  sebab rumus `SUM` Excel tetap menjumlah baris tersembunyi sementara importer
+  mengikuti apa yang terlihat. Pesannya menyebut jalan keluarnya: un-hide di
+  Excel lalu unggah ulang.
+- hidden **bernilai 0** → catatan kuning biasa, barisnya tetap disebut, tanpa
+  mengaku ada rupiah yang lenyap.
+
+Daftarnya dipotong di 12 baris + "+N lainnya" supaya banner tidak jadi dinding
+teks.
+
+Perilakunya sendiri TIDAK berubah: baris tersembunyi tetap diabaikan, mengikuti
+resume kontrak, dan MARLIN tetap tidak menambahkannya sendiri (DECISIONS 203 —
+angka yang diunggah dipakai apa adanya).
+
+**Alternatif direject**: (a) ikut menghitung baris tersembunyi — itu mengubah
+nilai kontrak atas tebakan tentang maksud orang yang menyembunyikannya;
+(b) menolak berkas yang punya baris tersembunyi bernilai — menyembunyikan baris
+adalah cara sah mengecualikan pekerjaan dari resume, dan menolaknya memindahkan
+pekerjaan tanpa menambah kebenaran; (c) menaruh daftarnya di log saja — yang
+butuh justru orang di layar persetujuan, bukan pembaca log.
+
+**Konsekuensi**: pada berkas GEMPOLSEWU, banner merahnya kini berbunyi persis
+"3 di antaranya BERNILAI, total 1.964.932 … baris 463 (T463) a Pekerjaan Galian
+Tanah = 7.588; baris 478 (T478) … = 1.777.604; baris 479 (T479) … = 179.741" —
+apa yang kemarin menuntut pembedahan manual. Dijaga
+`tests/unit/baris-tersembunyi.test.ts`, merah 5/7 pada pesan lama.
+
+**Bisa di-revisit**: bila ada berkas dengan ratusan baris tersembunyi bernilai;
+di situ daftar per baris perlu jadi tabel tersendiri, bukan satu paragraf.

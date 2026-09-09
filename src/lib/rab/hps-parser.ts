@@ -876,7 +876,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   let adaItem = false;
   let selesai = false;
 
-  let hiddenSkipped = 0;
+  /*
+   * Baris yang dilewati karena di-hide, LENGKAP dengan identitasnya.
+   *
+   * Permintaan user 2026-09-09: *"kalau baris hidden begitu, sistem harusnya
+   * sebut di layar mana barisnya"*. Sebelumnya yang dikatakan cuma jumlahnya —
+   * "22 baris tersembunyi diabaikan" — dan angka itu tidak bisa ditindaklanjuti
+   * siapa pun. Pada `MC 1 FINAL GEMPOLSEWU` selisih Rp 1.964.932 antara resume
+   * berkas dan Σ item seluruhnya berasal dari tiga baris hidden, dan menemukan
+   * yang mana menghabiskan satu sesi pembedahan manual — padahal parser sudah
+   * memegang nomor barisnya saat melewatinya.
+   */
+  const hiddenRows: { baris: number; code: string; name: string; nilai: number }[] = [];
   ws.eachRow((row) => {
     if (selesai) return;
     if (adaItem && barisTandaTangan(row)) {
@@ -888,7 +899,14 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     // kontrak. Sinyal: atribut hidden Excel; height 0 sbg cadangan defensif.
     if (row.hidden === true || row.height === 0) {
       const { code: c, name: nm } = kodeNamaOf(row);
-      if ((c || nm) && !isSummaryRow(nm)) hiddenSkipped++;
+      if ((c || nm) && !isSummaryRow(nm)) {
+        // Nilai yang ikut hilang bersama baris ini: jumlah tertulis kalau ada,
+        // kalau tidak volume × harga satuan — sama seperti baris yang terbaca.
+        const vol = num(cellVal(row, col.vol));
+        const harga = num(cellVal(row, col.price));
+        const nilai = num(cellVal(row, col.amount)) ?? (vol != null && harga != null ? vol * harga : 0);
+        hiddenRows.push({ baris: row.number, code: c, name: nm, nilai: nilai || 0 });
+      }
       return;
     }
 
@@ -1078,10 +1096,51 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     }
   });
 
-  if (hiddenSkipped > 0)
-    warnings.push(
-      `${hiddenSkipped} baris tersembunyi (hidden) di Excel diabaikan – tidak masuk perhitungan (mengikuti resume kontrak).`,
-    );
+  if (hiddenRows.length > 0) {
+    const rp = (n: number) => Math.round(n).toLocaleString("id-ID");
+    const berisi = hiddenRows.filter((h) => h.nilai > 0);
+    const dasar =
+      `${hiddenRows.length} baris tersembunyi (hidden) di Excel diabaikan – tidak masuk ` +
+      `perhitungan (mengikuti resume kontrak).`;
+
+    if (berisi.length === 0) {
+      // Nol rupiah yang hilang: cukup catatan, dan jangan mengaku ada nilai
+      // yang lenyap. Barisnya tetap disebut supaya bisa diperiksa.
+      const daftar = hiddenRows
+        .slice(0, 12)
+        .map((h) => `baris ${h.baris} ${`${h.code} ${h.name}`.trim()}`.trim())
+        .join("; ");
+      warnings.push(
+        `${dasar} Tidak ada nilai yang ikut hilang (semuanya bernilai 0): ${daftar}` +
+          (hiddenRows.length > 12 ? `; +${hiddenRows.length - 12} lainnya` : "") +
+          `.`,
+      );
+    } else {
+      /*
+       * Baris hidden yang BERNILAI = penjelasan paling sering dari "kenapa
+       * resume berkas tidak sama dengan Σ item". Karena itu merah, dan karena
+       * itu nomor baris + sel jumlahnya disebut satu per satu: yang membacanya
+       * harus bisa langsung membukanya di Excel, bukan mencarinya sendiri.
+       */
+      const total = berisi.reduce((t, h) => t + h.nilai, 0);
+      const daftar = berisi
+        .slice(0, 12)
+        .map(
+          (h) =>
+            `baris ${h.baris} (${colLetter(col.amount)}${h.baris}) ` +
+            `${`${h.code} ${h.name}`.trim()} = ${rp(h.nilai)}`,
+        )
+        .join("; ");
+      warnings.push(
+        `PERHATIAN – ${dasar} ${berisi.length} di antaranya BERNILAI, total ${rp(total)} ` +
+          `yang TIDAK masuk nilai kontrak: ${daftar}` +
+          (berisi.length > 12 ? `; +${berisi.length - 12} lainnya` : "") +
+          `. Inilah yang membuat resume di berkas ini bisa lebih besar daripada Σ item ` +
+          `(rumus SUM Excel tetap menjumlah baris tersembunyi). Kalau baris itu memang harus ` +
+          `ikut, un-hide di Excel lalu unggah ulang – MARLIN tidak menambahkannya sendiri.`,
+      );
+    }
+  }
 
   // Jaring pengaman deteksi kolom: kalau >30% baris berharga gagal uji
   // volume × harga = jumlah, kemungkinan besar kolom nilai salah terbaca.
