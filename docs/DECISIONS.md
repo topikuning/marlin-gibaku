@@ -28653,3 +28653,144 @@ ke terpakai begitu barisnya ada.
 **Bisa di-revisit**: kalau bucket tumbuh sampai satu permintaan HTTP tidak lagi
 cukup membacanya — di situ audit perlu jadi pekerjaan latar dengan hasil yang
 disimpan, dan cadangan skripnya yang jadi jalan utama lagi.
+
+## 547 · 2026-09-09 · HEIC iPhone dibongkar dekoder sendiri, bukan disimpan mentah
+
+**Konteks**: laporan user dengan tangkapan Activity Centre — *"lihat pada besole
+ada 2 foto tidak bisa diakses"*, padahal berkasnya ada dan URL presign-nya
+jalan. Kuncinya yang membocorkan sebabnya:
+
+```
+photos/knmp-besole-tulungagung/2026-09-08/d38eb2d2-….heic
+```
+
+Jalur normal SELALU menghasilkan `.webp`; `.heic` hanya lahir dari jalur cadangan
+"simpan gambar asli" di `processWithSharpOrOriginal`.
+
+Sebabnya libvips bawaan sharp: ia membaca WADAH HEIF tapi tidak punya dekoder
+HEVC-nya (sengaja tidak dibundel, alasan paten — itu sebabnya `.avif` terbaca
+sementara `.heic` tidak). Yang menipu, dan yang membuat diagnosis pertama
+meleset: `sharp(buf).metadata()` BERHASIL menyebut "heif 1280x854", sebab ia
+cuma membaca header. Barulah saat pikselnya diminta:
+
+```
+heif: Error while loading plugin: Support for this compression format has not
+been built in
+```
+
+Akibatnya tiga, dan yang ketiga paling serius: petaknya kosong di peramban
+non-Safari, thumbnail tidak dibuat, dan fotonya **tidak ber-cap Timemark** — jadi
+ia gagal sebagai bukti lapangan, bukan sekadar jelek dipandang.
+
+**Keputusan**: HEIC dibongkar `heic-decode` (di baliknya `libheif-js`, yang
+membawa libde265 — dekoder yang justru hilang itu) lalu diserahkan ke sharp
+sebagai piksel mentah, sehingga sisa pipeline — resize, cap, thumbnail, webp —
+berjalan sama persis dengan foto lain. Dipanggil di jalur PALING SEMPIT: hanya
+sesudah sharp gagal, dan hanya bila bytenya memang HEIF (kotak `ftyp`, bukan
+nama berkas — nama bisa bohong, byte tidak).
+
+Yang lapangan kerjakan: **tidak ada**. Menyuruh mandor mengganti setelan kamera
+ke "Most Compatible" ditolak — ketetapan lama berlaku, *"sistemmu yang
+menyesuaikan"*.
+
+Foto yang TERLANJUR masuk diperbaiki lewat tombol di **Sistem → Integrasi → Isi
+penyimpanan R2**: baca ulang arsip aslinya, jalankan pipeline yang sama, tulis
+kunci baru, naikkan `stampRevision`. Nilai capnya tidak diubah satu pun
+(`manualFields: []`) — ini perbaikan teknis, bukan koreksi manusia. Aman diulang;
+20 foto per tekan supaya tidak melewati batas waktu satu permintaan.
+
+**Alternatif direject**: (a) memasang libde265 ke image lalu membangun sharp
+terhadap libvips sistem — build jadi panjang dan rapuh, dan menyeret persoalan
+lisensi HEVC ke dalam image; (b) menolak HEIC saat unggah — memindahkan
+pekerjaan ke orang lapangan, persis yang dilarang; (c) mengubah di peramban
+sebelum unggah — peramban selain Safari juga tidak bisa mendekode HEIC, jadi
+bukan jalan keluar.
+
+**Konsekuensi**: satu dependensi baru (8,4 MB WASM, dimuat LAZY — tidak
+menyentuh unggahan JPEG sama sekali). HEIC lebih lambat: terukur 1,1 MP ≈ 0,2
+detik, jadi 12 MP ≈ 2–3 detik; batas waktunya dilonggarkan jadi 45 detik khusus
+tahap itu. Dijaga `tests/unit/photos-heic.test.ts` dengan berkas HEVC SUNGGUHAN
+(`hvc1`) — bukan AVIF berekstensi .heic, yang akan hijau tanpa membuktikan apa
+pun. Merah 3/8 sebelum perbaikan.
+
+**Bug yang ketemu saat mengujinya, bukan saat menulisnya**: masukan raw yang
+di-`toBuffer()` tanpa format keluaran keluar RAW lagi — tahap cap menolaknya
+("Input buffer contains unsupported image format") sehingga foto HEIC berakhir
+tanpa cap meski pikselnya sudah terbongkar. Karena itu ada `.png()` eksplisit di
+perantaranya; PNG, bukan webp, supaya tidak memampatkan dua kali.
+
+**Bisa di-revisit**: bila suatu saat libvips bawaan sharp membawa dekoder HEVC —
+di situ tambalan ini boleh dicopot, dan ujinya yang pertama memberi tahu.
+
+## 548 · 2026-09-09 · "Yatim" harus berarti benar-benar tidak dipakai
+
+**Konteks**: pertanyaan user atas alat audit R2 yang baru dibuat — *"kamu yakin
+yang yatim itu memang benar-benar tidak digunakan?"*
+
+Jawaban jujurnya: BELUM. Aturan versi pertama — "kunci tidak muncul di kolom
+teks mana pun bernama `%key%`" — punya tiga lubang, dan satu di antaranya
+terbukti, bukan dugaan:
+
+1. **Kolom JSON tidak dipindai.** Ada 23 kolom json/jsonb di skema, dan
+   `daily_reports.final_snapshot` TERBUKTI membekukan `r2Key` tiap foto
+   (`daily-report/ringkas.ts`: `r2Key: p.r2Key`). Snapshot itu dokumen resmi
+   yang dicetak. Aturan lama akan menyebut kunci yang hanya hidup di sana
+   sebagai sampah, lalu menghapus gambar dari laporan yang sudah final.
+2. **Tidak ada penjeda umur, dan urutan bacanya lomba.**
+   `Promise.all([r2List(), kunciDirujuk()])` memberangkatkan keduanya bersamaan;
+   foto yang diunggah tepat di tengah pemeriksaan bisa sudah ada di daftar obyek
+   tapi belum ada di bacaan DB — lalu terbaca yatim.
+3. **Bucket yang dipakai lebih dari satu lingkungan** akan membuat tiap
+   lingkungan menganggap punya lingkungan lain sebagai sampah. Ini tidak bisa
+   dibuktikan dari kode.
+
+Arah kesalahannya tidak setara, dan itu yang menentukan seluruh rancangan: salah
+baca "masih dipakai" cuma menyisakan sampah; salah baca "yatim" menghapus
+satu-satunya salinan foto lapangan ber-GPS.
+
+**Keputusan**: sebuah obyek disebut yatim hanya bila LOLOS TIGA saringan.
+
+- Tidak dirujuk kolom teks mana pun (aturan lama), **dan**
+- tidak muncul di dalam kolom json/jsonb mana pun. Yang diadu ke isi JSON hanya
+  KANDIDAT yatim (biasanya sedikit), bukan seluruh kunci bucket — mengadu
+  semuanya membuat pemeriksaan 10 GB tidak pernah selesai dalam satu permintaan,
+  **dan**
+- berumur ≥ **7 hari**. Unggahan menulis obyeknya lebih dulu, barisnya
+  belakangan; transaksi yang gagal di antaranya meninggalkan obyek yang beberapa
+  detik kemudian "sah" disebut yatim. Obyek tanpa tanggal tidak pernah dihapus —
+  yang tidak bisa dibuktikan tua, tidak dibuktikan sampah.
+
+Urutan bacanya juga dibalik: daftar obyek DULU, rujukan DB SESUDAHNYA, sehingga
+apa pun yang ditulis selama pemeriksaan pasti tertangkap bacaan yang belakangan.
+
+Untuk lubang ketiga yang tak bisa dibuktikan kode: kalau porsi yatim melebihi
+**separuh** isi bucket, layar menampilkan banner merah "porsi sampahnya tidak
+masuk akal – JANGAN dibersihkan dulu". Angka setinggi itu jauh lebih mungkin
+berarti salah bucket daripada berarti separuh berkas memang sampah.
+
+**Alternatif direject**: (a) memindai JSON dengan mengekstrak seluruh nilai
+string lalu menyamakannya — jauh lebih mahal tanpa menambah kebenaran, sebab
+yang ditanyakan cuma "apakah kunci ini muncul"; (b) ambang umur sejam atau
+sehari — tidak cukup menutup unggahan yang tertahan antrean atau proses yang
+gagal separuh jalan; (c) menolak menghapus sepenuhnya sampai bucket terbukti
+milik satu lingkungan — tidak ada cara membuktikannya dari dalam aplikasi, dan
+menolak selamanya sama saja tidak punya alat.
+
+**Konsekuensi**: sebagian sampah nyata akan menunggu seminggu sebelum bisa
+dibuang, dan sebagian kecil sampah lama akan terus dianggap terpakai karena
+kuncinya tercantum di snapshot beku — keduanya diterima. Layar juga menyebut
+berapa obyek yang DITAHAN karena masih baru, supaya angkanya tidak terbaca
+sebagai "sudah bersih". Dijaga `tests/unit/r2-yatim-aman.test.ts` (merah 7/7 pada
+aturan lama) dan dibuktikan di peramban terhadap bucket tiruan berisi tiga
+obyek: yang dirujuk HANYA di `final_snapshot` tidak ditawarkan, yang berumur 3
+hari ditahan, dan hanya yang benar-benar sebatang kara yang ditawarkan.
+
+**Ditemukan sekalian, TIDAK diperbaiki di sini**: `restampPhotoAction`,
+`putarFotoAction`, dan perbaikan HEIC sama-sama menghapus `r2Key` LAMA sesudah
+menulis yang baru — padahal `final_snapshot` yang sudah beku bisa masih menunjuk
+kunci lama itu. Cacat ini ADA sebelum alat audit dibuat dan tidak berhubungan
+dengannya; dicatat di `docs/OPEN_ISSUES.md`.
+
+**Bisa di-revisit**: bila jumlah kolom JSON tumbuh sampai pemindaiannya jadi
+mahal, atau bila muncul cara sah membuktikan kepemilikan bucket dari dalam
+aplikasi.

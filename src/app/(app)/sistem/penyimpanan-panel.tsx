@@ -7,6 +7,7 @@ import {
   bersihkanPenyimpananAction,
   type AuditR2State,
 } from "@/lib/system/actions";
+import { perbaikiFotoHeicAction } from "@/lib/photo-restamp/actions";
 
 /**
  * PENYIMPANAN R2 DI LAYAR — bukan di terminal.
@@ -26,7 +27,55 @@ import {
  * lebih dulu. Penghapusan obyek storage tidak bisa dibatalkan, dan satu-satunya
  * salinan foto lapangan ber-GPS ada di sana.
  */
-export function PenyimpananPanel({ configured }: { configured: boolean }) {
+/**
+ * Foto HEIC yang TERLANJUR masuk sebelum dekoder HEVC ada.
+ *
+ * Laporan user 2026-09-09: dua foto Besole tampil sebagai petak kosong. Kunci
+ * R2-nya berakhir `.heic` — penanda pasti bahwa pipeline jatuh ke jalur
+ * "simpan gambar asli". Sekarang dekodernya ada, tapi foto yang sudah tersimpan
+ * tidak berubah sendiri: tetap tak terbaca peramban, dan tetap TANPA cap
+ * Timemark. Tombol ini yang mengubahnya, tanpa siapa pun perlu membuka terminal.
+ */
+function PerbaikanHeic({ jumlah }: { jumlah: number }) {
+  const [pesan, setPesan] = useState<string | null>(null);
+  const [jalan, mulai] = useTransition();
+  if (jumlah === 0 && !pesan) return null;
+  return (
+    <div className="space-y-2 rounded border border-warning/40 bg-warning-soft/40 px-2.5 py-2">
+      <p className="text-sm text-ink">
+        <span className="font-medium">{jumlah} foto tersimpan sebagai HEIC.</span> Peramban selain Safari
+        tidak bisa menampilkannya, dan foto-foto itu tidak ber-cap Timemark – jadi ia gagal sebagai bukti
+        lapangan, bukan cuma kosong di layar.
+      </p>
+      <p className="text-xs text-ink-muted">
+        Perbaikan membaca ulang arsip aslinya, mengubahnya jadi webp ber-cap, dan menaikkan revisi cap.
+        Nilai capnya tidak diubah satu pun. Aman diulang.
+      </p>
+      {pesan ? <Banner tone="success" title="Perbaikan foto HEIC" description={pesan} /> : null}
+      <Button
+        variant="secondary"
+        loading={jalan}
+        onClick={() =>
+          mulai(async () => {
+            const r = await perbaikiFotoHeicAction();
+            setPesan(r?.ok ?? r?.error ?? null);
+          })
+        }
+      >
+        Perbaiki foto HEIC
+      </Button>
+    </div>
+  );
+}
+
+export function PenyimpananPanel({
+  configured,
+  fotoHeic,
+}: {
+  configured: boolean;
+  /** Berapa foto yang kuncinya masih .heic/.heif – dihitung di server. */
+  fotoHeic: number;
+}) {
   const [state, setState] = useState<AuditR2State>(undefined);
   const [pesanBersih, setPesanBersih] = useState<string | null>(null);
   const [mintaKonfirmasi, setMintaKonfirmasi] = useState(false);
@@ -53,9 +102,13 @@ export function PenyimpananPanel({ configured }: { configured: boolean }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Membandingkan isi bucket dengan seluruh rujukan di basis data. Obyek yang tidak dirujuk satu
-        baris pun disebut <span className="font-medium text-ink">yatim</span> – itulah sampahnya.
+        Membandingkan isi bucket dengan seluruh rujukan di basis data – kolom teks maupun isi kolom JSON
+        (mis. snapshot laporan harian yang membekukan kunci foto). Obyek yang tidak dirujuk satu baris pun
+        DAN sudah lewat 7 hari disebut <span className="font-medium text-ink">yatim</span> – itulah
+        sampahnya. Yang lebih baru ditahan dulu: unggahan menulis berkasnya lebih dahulu, barisnya
+        belakangan.
       </p>
+      <PerbaikanHeic jumlah={fotoHeic} />
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={jalankan} loading={periksa} variant="secondary">
           Periksa penyimpanan
@@ -72,6 +125,19 @@ export function PenyimpananPanel({ configured }: { configured: boolean }) {
 
       {hasil ? (
         <div className="space-y-3">
+          {hasil.porsiJanggal ? (
+            <Banner
+              tone="error"
+              title="Porsi sampahnya tidak masuk akal – JANGAN dibersihkan dulu"
+              description={
+                "Lebih dari separuh isi bucket terbaca tidak dirujuk. Angka setinggi itu jauh lebih mungkin " +
+                "berarti bucket ini dipakai lingkungan lain (mis. dev dan produksi berbagi satu bucket) " +
+                "daripada berarti separuh berkas memang sampah. Pastikan R2_BUCKET-nya milik lingkungan ini " +
+                "sendiri sebelum menghapus apa pun."
+              }
+            />
+          ) : null}
+
           {hasil.terpotong ? (
             <Banner
               tone="warning"
@@ -93,6 +159,13 @@ export function PenyimpananPanel({ configured }: { configured: boolean }) {
               nilai={ukuran(hasil.totalBytes - hasil.yatimBytes)}
               sub={`${hasil.kolomDipindai} kolom rujukan dipindai`}
             />
+            {hasil.terlaluBaru > 0 ? (
+              <Ringkas
+                label="Ditahan (masih baru)"
+                nilai={String(hasil.terlaluBaru)}
+                sub="belum 7 hari – tidak dinilai dulu"
+              />
+            ) : null}
           </div>
 
           <div className="overflow-x-auto">

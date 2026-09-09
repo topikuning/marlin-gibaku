@@ -500,3 +500,170 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
     return { error: err instanceof Error ? err.message : "Memutar foto gagal." };
   }
 }
+
+/**
+ * PERBAIKI FOTO YANG TERLANJUR MASUK SEBAGAI HEIC.
+ *
+ * Laporan user 2026-09-09: dua foto Besole tampil sebagai petak kosong. Kuncinya
+ * berakhir `.heic` — penanda pasti bahwa `processWithSharpOrOriginal` jatuh ke
+ * jalur "simpan gambar asli", sebab libvips bawaan sharp membaca wadah HEIF tapi
+ * tidak punya dekoder HEVC-nya. Sekarang dekodernya ada, tapi foto yang
+ * TERLANJUR tersimpan tidak berubah sendiri: ia tetap HEIC, tetap tak terbaca
+ * peramban, dan — yang paling serius — tetap TANPA CAP Timemark.
+ *
+ * Yang dikerjakan: baca ulang arsip aslinya, jalankan pipeline yang sama persis
+ * dengan unggahan biasa, tulis kunci baru, naikkan `stampRevision`. Nilai capnya
+ * TIDAK diubah satu pun — diambil apa adanya dari yang tersimpan
+ * (`k.saatIni`) — karena ini perbaikan teknis, bukan koreksi manusia; karena itu
+ * `manualFields` kosong, sama seperti perbaikan orientasi.
+ *
+ * Aman diulang: yang sudah `.webp` tidak masuk daftar lagi.
+ */
+export type PerbaikiHeicState = { error?: string; ok?: string } | undefined;
+
+/** Sekali jalan memproses paling banyak sekian foto — batas waktu satu permintaan. */
+const HEIC_PER_JALAN = 20;
+
+export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
+  try {
+    const actor = await requireCapability("photo.restamp");
+    if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
+
+    /*
+     * Penanda foto bermasalah = kunci berakhiran .heic/.heif. Bukan `mimeType`:
+     * kolom itu merekam apa yang dikirim peramban, sementara yang menentukan
+     * bisa-tidaknya sebuah foto ditampilkan adalah apa yang BENAR-BENAR ada di
+     * bucket — dan itu yang tertulis di kuncinya.
+     */
+    const kandidat = await db.photo.findMany({
+      where: { r2Key: { endsWith: ".heic" } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: HEIC_PER_JALAN,
+    });
+    const kandidatHeif = await db.photo.findMany({
+      where: { r2Key: { endsWith: ".heif" } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: Math.max(0, HEIC_PER_JALAN - kandidat.length),
+    });
+    const daftar = [...kandidat, ...kandidatHeif];
+    if (daftar.length === 0) return { ok: "Tidak ada foto HEIC yang perlu diperbaiki." };
+
+    let berhasil = 0;
+    const gagal: string[] = [];
+    for (const { id } of daftar) {
+      try {
+        await perbaikiSatuHeic(id, actor.id);
+        berhasil++;
+      } catch (err) {
+        gagal.push(`${id.slice(0, 8)}: ${err instanceof Error ? err.message : "gagal"}`);
+      }
+    }
+
+    await audit(actor.id, "photo.heic_repair", "photo", null, {
+      diperiksa: daftar.length,
+      berhasil,
+      gagal: gagal.length,
+      contohGagal: gagal.slice(0, 5),
+    });
+    revalidatePath("/foto");
+    revalidatePath("/sistem");
+
+    const sisa = await db.photo.count({ where: { OR: [{ r2Key: { endsWith: ".heic" } }, { r2Key: { endsWith: ".heif" } }] } });
+    return {
+      ok:
+        `${berhasil} foto HEIC diperbaiki jadi webp ber-cap` +
+        (gagal.length > 0 ? ` · ${gagal.length} gagal (${gagal.slice(0, 2).join("; ")})` : "") +
+        (sisa > 0 ? ` · ${sisa} masih tersisa – tekan lagi untuk melanjutkan.` : "."),
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Perbaikan foto HEIC gagal." };
+  }
+}
+
+/** Satu foto: baca sumber → proses ulang → tukar kunci. Melempar bila gagal. */
+async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void> {
+  const k = await konteksFoto(photoId);
+  if (!k) throw new Error("foto tidak ditemukan");
+
+  /*
+   * Sumbernya arsip ASLI bila ada; kalau tidak, `r2Key` sendiri — pada jalur
+   * simpan-mentah keduanya byte yang sama, jadi foto yang arsipnya sudah
+   * di-purge pun masih bisa ditolong. Ini satu-satunya tempat `r2Key` boleh jadi
+   * sumber pemrosesan ulang, dan justru karena itulah ia benar di sini.
+   */
+  const sumber = k.originalKey ?? k.r2Key;
+  const asli = await r2GetBuffer(sumber);
+
+  const processed = await processWithSharpOrOriginal(asli, await stampDariNilai(k.saatIni), {
+    name: sumber,
+    type: "",
+  });
+  if (processed.ext !== "webp") throw new Error("masih tidak terbaca sesudah dekoder HEIC dijalankan");
+
+  const uuid = randomUUID();
+  const dasar = k.r2Key.replace(/[^/]+$/, "");
+  const revisi = k.stampRevision + 1;
+  const keyBaru = `${dasar}${uuid}.r${revisi}.webp`;
+  await r2Put(keyBaru, processed.main, processed.contentType);
+  let thumbBaru: string | null = null;
+  if (processed.thumb) {
+    thumbBaru = `${dasar}${uuid}.r${revisi}.thumb.webp`;
+    try {
+      await r2Put(thumbBaru, processed.thumb, "image/webp");
+    } catch {
+      thumbBaru = null;
+    }
+  }
+
+  const kunciLama = k.r2Key;
+  const thumbLama = k.thumbnailKey;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.photo.update({
+        where: { id: photoId },
+        data: {
+          r2Key: keyBaru,
+          thumbnailKey: thumbBaru,
+          bytes: processed.main.length,
+          widthPx: processed.width,
+          heightPx: processed.height,
+          stampRevision: revisi,
+        },
+      });
+      await tx.photoStampRevision.create({
+        data: {
+          photoId,
+          revision: revisi,
+          reason: "Konversi HEIC → webp + cap (dekoder HEVC baru tersedia)",
+          before: ringkasNilai(k.saatIni) as object,
+          after: ringkasNilai(k.saatIni) as object,
+          // Tidak ada nilai cap yang diketik manusia — yang berubah formatnya.
+          manualFields: [],
+          changedById: actorId,
+        },
+      });
+      await auditIn(tx, actorId, "photo.heic_convert", "photo", photoId, {
+        dari: kunciLama,
+        ke: keyBaru,
+        revisi,
+        locationId: k.locationId,
+      });
+    });
+  } catch (err) {
+    await r2Delete(keyBaru).catch(() => {});
+    if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+    throw err;
+  }
+
+  /*
+   * Kunci LAMA dihapus, arsip aslinya TIDAK. Kunci lama itu salinan mentah yang
+   * tak terbaca peramban; arsip asli tetap satu-satunya rujukan keaslian foto
+   * (DECISIONS 197). Bila keduanya kebetulan sama (arsip sudah di-purge), yang
+   * dihapus hanya bila memang bukan sumber yang barusan dipakai.
+   */
+  if (kunciLama !== k.originalKey) await r2Delete(kunciLama).catch(() => {});
+  if (thumbLama) await r2Delete(thumbLama).catch(() => {});
+}

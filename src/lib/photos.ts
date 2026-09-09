@@ -634,11 +634,82 @@ export async function processWithSharpOrOriginal(
     width = resized.info.width ?? null;
     height = resized.info.height ?? null;
   } catch (err) {
+    /*
+     * HEIC iPhone: libvips bawaan sharp membaca WADAHNYA tapi tidak punya
+     * dekoder HEVC-nya. Persis itu yang membuat foto Besole 2026-09-08 tersimpan
+     * sebagai `.heic` dan tampil sebagai petak kosong di layar.
+     *
+     * Yang menipu: `sharp(buf).metadata()` BERHASIL — ia cuma membaca header —
+     * sehingga sekilas tampak sharp sanggup. Barulah saat pikselnya diminta:
+     *
+     *     heif: Error while loading plugin: Support for this compression format
+     *     has not been built in
+     *
+     * Jadi bukan berkasnya yang rusak, dan bukan pula sharp yang mati. Yang
+     * hilang satu bagian: dekoder HEVC, yang memang sengaja tidak dibundel
+     * (alasan paten) — karena itu `.avif` terbaca sementara `.heic` tidak.
+     *
+     * `bongkarHeic` menambalnya di jalur yang PALING SEMPIT: hanya dicoba
+     * sesudah sharp gagal, dan hanya bila bytenya memang HEIF. Sesudah itu
+     * seluruh pipeline berjalan seperti biasa — resize, cap Timemark,
+     * thumbnail, webp — sehingga foto HEIC tidak lagi jadi warga kelas dua yang
+     * tersimpan mentah tanpa cap.
+     */
+    const rgba = await bongkarHeic(original, err);
+    if (rgba) {
+      try {
+        const resized = await withTimeout(
+          sharp(rgba.data, { raw: { width: rgba.width, height: rgba.height, channels: 4 } })
+            .resize(MAIN_MAX, MAIN_MAX, { fit: "inside", withoutEnlargement: true })
+            /*
+             * `.png()` WAJIB di sini, dan bukan sekadar rapi-rapi.
+             *
+             * Masukan raw yang di-`toBuffer()` tanpa format keluaran akan
+             * keluar RAW lagi — tanpa header, tanpa dimensi. Tahap cap
+             * berikutnya membukanya dengan `sharp(resizedData)` biasa dan
+             * langsung menolak: "Input buffer contains unsupported image
+             * format", sehingga foto HEIC berakhir TANPA CAP meski pikselnya
+             * sudah berhasil dibongkar. (Ketahuan saat menjalankan ujinya,
+             * bukan saat membacanya.)
+             *
+             * PNG, bukan webp: berkas ini cuma perantara yang sebentar lagi
+             * di-webp q80 di tahap cap. Memilih webp di sini berarti memampatkan
+             * dua kali dengan kehilangan dua kali.
+             */
+            .png({ compressionLevel: 3 })
+            .toBuffer({ resolveWithObject: true }),
+          SHARP_TIMEOUT_MS,
+          "resize-heic",
+        );
+        resizedData = resized.data;
+        width = resized.info.width ?? null;
+        height = resized.info.height ?? null;
+        return await lanjutkanProses(sharp, resizedData, width, height, stamp);
+      } catch (err2) {
+        console.error("[photos] HEIC terbongkar tapi resize gagal – simpan gambar asli:", err2);
+      }
+    }
     console.error("[photos] sharp gagal resize – simpan gambar asli:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
 
+  return await lanjutkanProses(sharp, resizedData, width, height, stamp);
+}
+
+/**
+ * TAHAP 2 & 3 dari pipeline: cap Timemark lalu thumbnail. Dipisah supaya jalur
+ * HEIC (yang pikselnya dibongkar dekoder lain) melewati tahap yang SAMA PERSIS
+ * dengan jalur biasa — kalau tidak, foto HEIC akan beda kualitas, beda ukuran,
+ * dan beda tata letak cap dari foto lain, dan bedanya baru ketahuan di lapangan.
+ */
+async function lanjutkanProses(
+  sharp: Awaited<ReturnType<typeof loadSharp>>,
+  resizedData: Buffer,
+  width: number | null,
+  height: number | null,
+  stamp: PhotoStamp,
+): Promise<ProcessedPhoto> {
   // TAHAP 2 — cap Timemark (BUTUH font: librsvg+fontconfig, titik paling rawan
   // menggantung). Best-effort: bila gagal/timeout, pakai gambar hasil resize
   // TANPA cap. Foto tetap terproses & kecil; cap boleh menyusul bila font sehat.
@@ -679,6 +750,57 @@ export async function processWithSharpOrOriginal(
 
 /** Batas waktu proses sharp per tahap; lewat batas → fallback simpan-asli. */
 const SHARP_TIMEOUT_MS = 15_000;
+
+/** Byte-nya berkas HEIF/HEIC? Kotak `ftyp` ada di offset 4, mereknya di 8. */
+export function bentukHeif(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf.toString("latin1", 4, 8) !== "ftyp") return false;
+  const merek = buf.toString("latin1", 8, 12).toLowerCase();
+  return ["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", "mif1", "msf1"].includes(merek);
+}
+
+/**
+ * Bongkar HEIC yang TIDAK SANGGUP dibaca libvips bawaan sharp.
+ *
+ * Dipanggil hanya sesudah sharp gagal, dan hanya bila bytenya memang HEIF —
+ * dekoder WASM ini puluhan kali lebih lambat daripada libvips, jadi ia bukan
+ * jalur utama melainkan tambalan untuk satu bentuk berkas yang tidak tertangani.
+ *
+ * `libheif-js` membawa libde265 (dekoder HEVC) yang justru tidak ada di libvips
+ * bawaan sharp — itulah seluruh sebab HEIC iPhone tersimpan mentah selama ini.
+ *
+ * `null` = tidak bisa ditolong; pemanggil kembali ke perilaku lama.
+ */
+async function bongkarHeic(
+  original: Buffer,
+  sebab: unknown,
+): Promise<{ width: number; height: number; data: Buffer } | null> {
+  if (!bentukHeif(original)) return null;
+  const pesan = sebab instanceof Error ? sebab.message : String(sebab);
+  console.warn(`[photos] sharp tidak bisa membongkar HEIC (${pesan.slice(0, 120)}) – pakai dekoder WASM`);
+  try {
+    const mod = await import("heic-decode");
+    const decode = (mod.default ?? mod) as (a: { buffer: Buffer }) => Promise<{
+      width: number;
+      height: number;
+      data: ArrayBufferLike;
+    }>;
+    const hasil = await withTimeout(decode({ buffer: original }), HEIC_TIMEOUT_MS, "bongkar-heic");
+    return { width: hasil.width, height: hasil.height, data: Buffer.from(hasil.data) };
+  } catch (err) {
+    console.error("[photos] dekoder HEIC WASM juga gagal:", err);
+    return null;
+  }
+}
+
+/**
+ * HEIC 12 MP butuh beberapa detik di WASM (terukur: 1,1 MP ≈ 0,2 detik, jadi
+ * 12 MP ≈ 2–3 detik) — jauh di atas kerja libvips, tapi masih jauh di bawah
+ * kesabaran orang yang menunggu unggahan. Batasnya dilonggarkan dari 15 detik
+ * supaya HP kelas bawah dengan foto besar tidak jatuh ke jalur simpan-mentah
+ * hanya karena selisih satu-dua detik.
+ */
+const HEIC_TIMEOUT_MS = 45_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([

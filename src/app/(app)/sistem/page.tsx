@@ -174,6 +174,14 @@ export default async function SistemPage() {
   const aiSecretStatus = aiSecretStorageStatus();
 
   const r2On = isR2Configured();
+  /*
+   * Foto yang kuncinya masih .heic/.heif = yang terlanjur masuk lewat jalur
+   * simpan-mentah sebelum dekoder HEVC ada (DECISIONS 547). Dihitung di server
+   * supaya tombol perbaikannya cuma muncul kalau memang ada yang perlu.
+   */
+  const fotoHeic = await db.photo.count({
+    where: { OR: [{ r2Key: { endsWith: ".heic" } }, { r2Key: { endsWith: ".heif" } }] },
+  });
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
   // Integrasi terhubung: R2, WAHA, Database (selalu terhubung — query barusan sukses).
   const activeIntegrations = (r2On ? 1 : 0) + (wahaConfigured ? 1 : 0) + 1;
@@ -419,7 +427,7 @@ export default async function SistemPage() {
           subtitle="Berapa yang terpakai, berapa yang sampah – dan buang yang sampah"
         />
         <CardBody>
-          <PenyimpananPanel configured={r2On} />
+          <PenyimpananPanel configured={r2On} fotoHeic={fotoHeic} />
         </CardBody>
       </Card>
 

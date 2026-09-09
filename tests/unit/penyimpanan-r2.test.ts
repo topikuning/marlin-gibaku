@@ -76,7 +76,10 @@ describe("panel di layar Sistem", () => {
     // Komponen yang tidak dirender sama saja dengan tidak ada – dan itu persis
     // keluhan yang memulai perubahan ini.
     expect(halaman).toContain('from "./penyimpanan-panel"');
-    expect(halaman).toContain("<PenyimpananPanel configured={r2On} />");
+    // Dicocokkan per-bagian, bukan sebagai satu baris utuh: menambah prop baru
+    // (mis. `fotoHeic`) bukan kerusakan, dan uji yang merah karenanya cuma
+    // menyuruh orang menyalin ulang string tanpa memeriksa apa pun.
+    expect(halaman).toMatch(/<PenyimpananPanel[^>]*configured=\{r2On\}/);
   });
 });
 
