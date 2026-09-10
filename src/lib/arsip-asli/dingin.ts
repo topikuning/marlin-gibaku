@@ -111,13 +111,23 @@ export function jalurDingin(kunci: string): string {
 /** Jalur pemeriksaan kesehatan gateway – tanpa token, dipakai mengenali lawan bicara. */
 export const JALUR_SEHAT = "health";
 
+/**
+ * Header Cloudflare Access — dibangun di SATU tempat, dipakai semua jalur keluar.
+ *
+ * Access menjaga SELURUH hostname, bukan hanya jalur objeknya. Uji sambungan
+ * 2026-09-10 membuktikannya dengan cara yang mahal: pemeriksaan `/health`
+ * dikirim polos karena jalur itu "tidak butuh token", dan yang kembali adalah
+ * halaman login Cloudflare — terbaca sebagai "yang menjawab bukan gateway
+ * arsip", padahal gateway-nya sehat dan setelannya sudah benar. Yang tidak
+ * butuh token adalah gateway-nya; Access tetap menuntut kartu di pintu gedung.
+ */
+function kepalaAccess(s: SetelanDingin): Record<string, string> {
+  if (!s.cfId || !s.cfSecret) return {};
+  return { "CF-Access-Client-Id": s.cfId, "CF-Access-Client-Secret": s.cfSecret };
+}
+
 function kepala(s: SetelanDingin, tambahan: Record<string, string> = {}): HeadersInit {
-  const h: Record<string, string> = { Authorization: `Bearer ${s.token}`, ...tambahan };
-  if (s.cfId && s.cfSecret) {
-    h["CF-Access-Client-Id"] = s.cfId;
-    h["CF-Access-Client-Secret"] = s.cfSecret;
-  }
-  return h;
+  return { Authorization: `Bearer ${s.token}`, ...kepalaAccess(s), ...tambahan };
 }
 
 /**
@@ -140,6 +150,23 @@ async function minta(
     ...sisa,
     headers: kepala(s, tambahanKepala),
     signal: AbortSignal.timeout(BATAS_WAKTU_MS),
+    cache: "no-store",
+  });
+}
+
+/**
+ * Ketuk pintu: gateway-nya hidup dan mengenali dirinya?
+ *
+ * SENGAJA tanpa `Authorization` — itulah yang diuji. Kalau jalur ini dijawab
+ * benar tanpa bearer, berarti yang di seberang memang gateway arsip dan
+ * lapisan Access sudah dilewati; tinggal token aplikasinya yang perlu dibuktikan
+ * di langkah-langkah berikutnya. Header Access tetap dibawa, karena tanpa itu
+ * yang menjawab bukan gateway melainkan halaman login.
+ */
+export async function sehatDingin(s: SetelanDingin): Promise<Response> {
+  return fetch(`${s.url}/${JALUR_SEHAT}`, {
+    headers: kepalaAccess(s),
+    signal: AbortSignal.timeout(20_000),
     cache: "no-store",
   });
 }

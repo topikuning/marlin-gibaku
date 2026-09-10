@@ -139,6 +139,27 @@ describe("tidak membangun yang kedua", () => {
     expect(rute).toContain("timingSafeEqual");
   });
 
+  it("SEMUA jalur keluar membawa header Cloudflare Access, termasuk /health", () => {
+    /*
+     * Uji sambungan 2026-09-10 gagal justru di sini. Pemeriksaan `/health`
+     * dikirim polos karena jalur itu "tidak butuh token" – dan yang kembali
+     * adalah halaman login Cloudflare, terbaca sebagai "yang menjawab bukan
+     * gateway arsip" padahal gateway-nya sehat dan setelannya sudah benar.
+     *
+     * Access menjaga SELURUH hostname; yang tidak butuh token adalah
+     * gateway-nya, bukan pintu gedungnya. Karena itu header Access dibangun di
+     * satu fungsi, dan tiap jalur keluar wajib memakainya.
+     */
+    expect(dingin).toContain("function kepalaAccess(");
+    // Dua pemakaian: di `kepala()` (jalur objek) dan di `sehatDingin()` (/health).
+    expect(dingin.match(/kepalaAccess\(s\)/g) ?? []).toHaveLength(2);
+    const sehat = dingin.slice(dingin.indexOf("export async function sehatDingin"));
+    expect(sehat).toContain("headers: kepalaAccess(s)");
+    // Tapi TANPA bearer – itu justru yang membuatnya bisa membedakan
+    // "Access menghadang" dari "token aplikasi salah".
+    expect(sehat.slice(0, sehat.indexOf("}"))).not.toContain("Authorization");
+  });
+
   it("otentikasi dipasang di SATU pintu keluar, bukan di tiap pemanggil", () => {
     // Versi pertama menyerahkannya ke pemanggil dan `HEAD` langsung lupa
     // membawanya – pemeriksaan "sudah ada belum" akan dijawab halaman login.
