@@ -49,6 +49,7 @@ import {
   bacaUrutan,
   mintaPekanDepan,
   frasaSisa,
+  lokasiDariNiatAtauTeks,
   mintaLupakanKonteks,
   mintaSebab,
   rencanaDeterministik,
@@ -574,7 +575,10 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       // Pertanyaan di luar sembilan intent lama tidak lagi otomatis ditolak.
       // Model kedua boleh menyusun jawaban dari snapshot MARLIN + kutipan,
       // tetapi validator kode membuang setiap bagian tanpa bukti yang sah.
-      const resolusiBebas = resolusiLokasi(d.lokasiDisebut, katalog);
+      // Nama yang tertulis di pesan tetap dipakai walau pembaca niat
+      // melewatkannya – tanpa ini lingkupnya melebar ke seluruh katalog
+      // (DECISIONS 556).
+      const resolusiBebas = lokasiDariNiatAtauTeks(d.lokasiDisebut, teks, katalog);
       if (resolusiBebas.ambigu.length > 0 || resolusiBebas.ambiguWilayah.length > 0) {
         await balasWa(pesan.chatId, balasAmbigu(resolusiBebas.ambigu, resolusiBebas.ambiguWilayah));
         return { dijawab: true, alasan: "pertanyaan bebas – lokasi ambigu" };
@@ -896,7 +900,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
 
   // (7) Cocokkan nama terhadap katalog yang SUDAH dipotong izin.
-  const resolusi = resolusiLokasi(niat.lokasiDisebut, katalog);
+  const resolusi = lokasiDariNiatAtauTeks(niat.lokasiDisebut, teks, katalog);
   if (resolusi.ambigu.length > 0 || resolusi.ambiguWilayah.length > 0) {
     await balasWa(m.chatId, balasAmbigu(resolusi.ambigu, resolusi.ambiguWilayah));
     return { dijawab: true, alasan: "nama lokasi ambigu – balik bertanya" };

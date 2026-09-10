@@ -29147,3 +29147,52 @@ untuk banyak berkas, nilainya terbawa ke berkas berikutnya —
 dihubungi, dengan pesan yang tidak menyinggung env sedikit pun. Gagalnya
 bergantung urutan, jadi hilang-timbul. Sekarang berkas itu merakit setelannya
 sendiri dan tidak menyentuh `process.env` sama sekali.
+
+---
+
+## 556 · 2026-09-10 · Nama lokasi yang tertulis tidak boleh lenyap jadi "seluruh katalog"
+
+**Konteks**: tangkapan layar WhatsApp user 2026-09-10. Tiga pertanyaan
+berturut-turut yang jelas menyebut satu lokasi — *"bagaimana muarareja?"*,
+*"Muarareja aja kamu gak paham"*, *"lokasi muarareja"* — dijawab kalimat yang
+sama persis: *"Scope 77 lokasi melebihi batas 75 lokasi per analisis. Persempit
+scope, atau naikkan batasnya di Sistem → AI."*
+
+**Dua hal salah, dan yang kedua lebih buruk**:
+
+1. Pembaca niat tidak memasukkan "muarareja" ke `lokasiDisebut`, jadi lingkupnya
+   jatuh ke SELURUH katalog — 77 lokasi.
+2. Balasannya lalu menyuruh penanya "persempit scope", padahal ia sudah menyebut
+   satu lokasi sejak kata pertama. Perintah yang tidak mungkin dituruti,
+   diulang tiga kali, tanpa satu pun tanda bahwa namanya tidak terbaca.
+
+**Keputusan**: sebelum melebar ke seluruh katalog, teks aslinya disapu sekali
+lagi dengan pencocok yang SAMA — deterministik, tanpa AI. Jalur narasi lapangan
+sudah melakukannya sejak DECISIONS 390 (*"randu putih"* → *"malah daerahnya
+kemana-mana"*); yang ini memberlakukannya di dua jalur lain yang belum: jawaban
+bebas dan jalur niat.
+
+**Sengaja BUKAN perbaikan prompt.** Pembaca niat boleh melewatkan apa pun —
+itu sifat model. Yang tidak boleh adalah sistem melebar diam-diam ke 77 lokasi
+padahal namanya tertulis di layar. Menambal ini dengan kalimat baru di prompt
+berarti memperbaiki gejala di tempat yang tidak bisa diuji.
+
+**Tiga pagar supaya sapuan tidak jadi tebakan baru**:
+- yang dibaca pembaca niat SELALU menang; sapuan hanya jalan saat ia kosong;
+- nama yang DISEBUT tapi tidak dikenal tetap dilaporkan apa adanya — penanya
+  yang salah ketik harus diberi tahu, bukan diam-diam dijawab untuk lokasi lain
+  yang kebetulan tersapu dari kalimat yang sama;
+- `tidakDikenal` hasil sapuan dibuang: `frasaSisa` mengembalikan potongan
+  kalimat, bukan nama yang diketik orang.
+
+**Yang TIDAK diubah dan harus disebut**: batas `maxLocationsPerRun` di
+pemasangan itu bernilai **75**, sementara lokasinya 77 — jadi setiap pertanyaan
+yang memang berlingkup seluruh portofolio tetap ditolak. Itu setelan milik user
+(`AppSetting`), bukan bawaan (bawaannya 200, DECISIONS 133), jadi tidak disentuh
+diam-diam. Disampaikan ke user supaya dinaikkan sendiri.
+
+**Alternatif direject**: (a) menaikkan sendiri batasnya — setelan yang sengaja
+diturunkan orang tidak boleh dinaikkan diam-diam oleh yang memperbaiki hal lain;
+(b) menyapu teks SELALU, bukan hanya saat pembaca niat kosong — sapuan tidak
+tahu tata bahasa, jadi ia akan menyempitkan pertanyaan portofolio yang kebetulan
+menyebut satu nama sebagai contoh.

@@ -1,4 +1,4 @@
-import { cocokkanLokasi, type LokasiKatalog, type Niat } from "./tanya-niat";
+import { cocokkanLokasi, resolusiLokasi, type HasilResolusi, type LokasiKatalog, type Niat } from "./tanya-niat";
 import type { PeriodeDiminta } from "./tanya-tanggal";
 
 /**
@@ -777,4 +777,53 @@ export function rencanaDeterministik(
     urutan: bisaDiurut ? urutan : null,
     batas: bisaDiurut ? batas : null,
   };
+}
+
+/**
+ * LOKASI YANG DIMAKSUD — dari pembaca niat, atau disapu ulang dari teksnya.
+ *
+ * Dilaporkan user 2026-09-10 dengan tangkapan layar. Tiga pertanyaan berturut-
+ * turut yang menyebut satu lokasi — *"bagaimana muarareja?"*, *"Muarareja aja
+ * kamu gak paham"*, *"lokasi muarareja"* — dijawab kalimat yang sama persis:
+ * *"Scope 77 lokasi melebihi batas 75 lokasi per analisis. Persempit scope."*
+ *
+ * Nama itu tidak pernah masuk `lokasiDisebut`, jadi lingkupnya melebar ke
+ * SELURUH katalog, lalu pagar AI menolaknya karena kebesaran — dan menyuruh
+ * penanya menyempitkan sesuatu yang sudah ia sempitkan sejak kata pertama.
+ * Yang paling merusak bukan gagalnya, melainkan perintah yang tidak mungkin
+ * dituruti, diulang tiga kali.
+ *
+ * Perbaikannya sengaja TIDAK menyentuh prompt. Pembaca niat boleh melewatkan
+ * apa pun; yang tidak boleh adalah sistem melebar diam-diam ke 77 lokasi
+ * padahal namanya tertulis di layar. Jadi sebelum melebar, teks aslinya disapu
+ * sekali lagi dengan pencocok yang SAMA — jalur narasi lapangan sudah
+ * melakukannya sejak DECISIONS 390; yang ini cuma memberlakukannya di dua jalur
+ * lain yang belum.
+ *
+ * Dua pagar supaya sapuan tidak jadi tebakan baru:
+ *
+ * - Yang dibaca pembaca niat SELALU menang. Sapuan hanya jalan saat ia kosong.
+ * - Nama yang DISEBUT tapi tidak dikenal tetap dilaporkan apa adanya. Kalau
+ *   penanya salah ketik, ia harus diberi tahu — bukan diam-diam dijawab untuk
+ *   lokasi lain yang kebetulan tersapu dari kalimat yang sama.
+ * - `tidakDikenal` hasil sapuan DIBUANG: `frasaSisa` mengembalikan potongan
+ *   kalimat, bukan nama yang diketik orang. Melaporkannya berarti mengeluh
+ *   tentang kata yang tidak pernah dimaksudkan sebagai lokasi.
+ */
+export function lokasiDariNiatAtauTeks(
+  dariNiat: string[],
+  teks: string,
+  katalog: LokasiKatalog[],
+): HasilResolusi {
+  const utama = resolusiLokasi(dariNiat, katalog);
+  // Sudah ada hasil, atau penanya harus ditanya balik: jangan disentuh.
+  if (utama.cocok.length > 0 || utama.ambigu.length > 0 || utama.ambiguWilayah.length > 0) {
+    return utama;
+  }
+  // Nama disebut tapi tak dikenal — itu jawabannya, dan harus dikatakan.
+  if (dariNiat.length > 0) return utama;
+
+  const sapuan = resolusiLokasi(frasaSisa(teks), katalog);
+  if (sapuan.cocok.length === 0) return utama;
+  return { ...sapuan, tidakDikenal: [] };
 }
