@@ -28930,3 +28930,48 @@ libvips-cpp.so justru berisiko tidak ikut.
 **Konsekuensi**: gerbang lokal (typecheck · lint · unit · integrasi) hijau,
 `pnpm build` hijau, dan `require('sharp')` dari pohon standalone terbukti
 memproses gambar. Pemeriksaan yang sama diulang tiap build Docker di CI.
+
+---
+
+## 551 · 2026-09-10 · Penerima arsip dingin ikut dikirim, bukan diserahkan sebagai spesifikasi
+
+**Konteks**: DECISIONS 549 memasang setengah jembatan — klien, endpoint cron,
+panel, sakelar — lalu menutup catatannya dengan "mesin arsip dinginnya sendiri
+belum ada saat ini ditulis". Pertanyaan user 2026-09-10 ("apa yang harus aku
+tambahkan untuk menambahkan server lenovo") menunjukkan akibatnya: jawaban
+jujurnya waktu itu adalah "tulis dulu program penerimanya", yang bukan pekerjaan
+user.
+
+**Keputusan**: penerimanya ikut di repo ini, `arsip-dingin/server.mjs` — satu
+berkas Node polos, **tanpa satu pun dependensi**, tanpa basis data, tanpa
+`npm install`. Alasan tanpa dependensi bukan kesederhanaan demi kesederhanaan:
+mesin itu akan berjalan bertahun-tahun di pojok ruangan tanpa ada yang menengok,
+dan tiap paket npm di dalamnya adalah sesuatu yang suatu hari harus di-update
+karena advisory keamanan, justru di mesin yang paling jarang disentuh.
+
+Ditambah: unit systemd (`arsip-dingin/marlin-arsip.service`), penjadwal
+`.github/workflows/cron-arsip-asli.yml` (tiap jam, meniru cron-gdrive — sampai
+sekarang endpoint cron-nya tidak pernah dipanggil siapa pun), dan
+`docs/ARSIP_DINGIN_SETUP.md` sejajar GDRIVE_SETUP/WAHA_SETUP.
+
+**Yang dijaga penerimanya** — tiga hal, dan ketiganya soal berkas yang tidak
+bisa dikembalikan: tulis ke berkas sementara lalu ganti nama (mati listrik
+meninggalkan berkas `.sedang-ditulis`, bukan berkas asli terpotong separuh yang
+akan terbaca "ada" lalu membuat MARLIN menghapus salinan R2-nya); sidik jari
+dicocokkan sesudah sampai, yang tidak cocok dibuang; kunci sama dengan isi
+berbeda DITOLAK 409, tidak pernah ditimpa.
+
+**Alternatif direject**: (a) menaruh spesifikasi protokol di dokumen dan
+membiarkan mesinnya ditulis belakangan — dua belahan yang ditulis terpisah tanpa
+uji bersama akan berbeda tafsir di salah satu dari empat kesepakatannya, dan
+bedanya baru ketahuan sesudah salinan R2 dibuang; (b) MinIO/S3 tiruan di Lenovo
+— satu servis besar dengan konsol, pengguna, dan kebijakan, untuk empat kata
+kerja; (c) rsync/SSH — MARLIN di Railway harus memegang kunci SSH ke mesin
+rumah, dan yang dipindahkan jadi tidak bisa diperiksa sidik jarinya per berkas.
+
+**Konsekuensi**: kesepakatan antar-belahan diuji langsung —
+`tests/integration/arsip-dingin-penerima.test.ts` menjalankan penerima sungguhan
+sebagai proses terpisah dan memanggilnya dengan klien sungguhan (9 uji, termasuk
+tolak-timpa, token salah, dan kunci di luar ruang foto). Yang tersisa untuk user
+hanyalah yang memang tidak bisa dikerjakan dari sini: menyalakan mesinnya,
+memasang Tunnel, mengisi dua variabel, dan menekan satu sakelar.
