@@ -53,7 +53,7 @@ export function ArsipAsliPanel({
         <Banner
           tone="info"
           title="Alamat arsip belum diisi"
-          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (plus sepasang CF Access bila mesinnya di balik Cloudflare Access). Langkah lengkap memasang mesinnya ada di docs/ARSIP_DINGIN_SETUP.md. Sakelar di bawah tetap bisa disimpan, tapi tidak ada yang dipindahkan sampai alamatnya ada."
+          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (plus sepasang CF Access bila mesinnya di balik Cloudflare Access). Langkah lengkapnya di docs/ARSIP_DINGIN_SETUP.md. Sakelar di bawah tetap bisa disimpan, tapi tidak ada yang dipindahkan sampai alamatnya ada."
         />
       ) : null}
 

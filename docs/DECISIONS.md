@@ -29052,3 +29052,59 @@ sudah tanpa token.
 karena itu dijaga uji sendiri di
 `tests/integration/arsip-dingin-penerima.test.ts` — kalau penandanya hilang,
 pengenalannya buta dan pesan gagalnya kembali jadi tebakan.
+
+---
+
+## 554 · 2026-09-10 · MARLIN bicara dialek gateway yang sudah berjalan, bukan sebaliknya
+
+**Konteks**: uji sambungan dijawab 404 di langkah PUT. Sebabnya bukan Cloudflare
+dan bukan pemasangan yang salah: di mesin itu SUDAH berjalan
+`marlin-original-storage` — gateway susunan ChatGPT yang dipasang user
+2026-09-09, lengkap dengan Docker Compose, batas ukuran objek, ambang sisa disk,
+Cloudflare Tunnel, dan Access Service Token, dan sudah lolos round-trip test di
+mesinnya sendiri. Yang berbeda cuma dialeknya.
+
+**Keputusan**: MARLIN yang menyesuaikan. Ketetapan user berlaku di sini tanpa
+pengecualian: *"kamu jangan mengubah apa pun di proses yang lama, sistemmu yang
+menyesuaikan"*. Yang sudah berjalan tidak dibongkar demi kerapian sistem.
+
+| | sebelum | sesudah |
+|---|---|---|
+| jalur objek | `/photos/<kunci>` apa adanya | `/v1/objects/<kunci base64url>` |
+| pemeriksaan hidup | `/sehat` → `{"siap":true}` | `/health` → `{"ok":true}` |
+| token salah | 403 | **401** (403 milik Cloudflare Access) |
+| hapus | tanpa syarat | wajib `X-Delete-SHA256` |
+
+**Kenapa 401 vs 403 penting**: keduanya menunjuk perbaikan yang berbeda — 401
+berarti `ORIGINAL_ARCHIVE_TOKEN` tidak sama dengan `STORAGE_TOKEN` di mesinnya,
+403 berarti permintaannya bahkan belum sampai ke mesin itu. Kalau dua lapis
+menjawab kode yang sama, yang memasang akan memperbaiki lapis yang salah.
+
+**`X-Delete-SHA256` diadopsi, bukan sekadar ditoleransi**: menghapus adalah
+satu-satunya operasi di sana yang tidak bisa dibatalkan, jadi menuntut penghapus
+menunjukkan ia tahu persis apa yang dihapusnya memang benar. `hapusDingin`
+karena itu menerima sidik jari sebagai argumen; kalau tidak diketahui,
+header-nya tidak dikirim — biar gateway yang menolak, bukan kita yang mengarang
+nilainya.
+
+**`arsip-dingin/server.mjs` ikut diubah ke dialek yang sama**, termasuk
+menegakkan `MAX_BYTES` dan `MIN_FREE_BYTES` yang sebelumnya cuma diumumkan.
+Angka yang diumumkan tapi tidak ditegakkan lebih buruk daripada tidak ada: ia
+membuat orang mengira disknya terjaga. Berkas itu tetap ada bukan sebagai
+pesaing gateway-nya, melainkan sebagai acuan protokol yang bisa dijalankan dan
+diuji — dan itulah yang membuat `tests/integration/arsip-dingin-penerima.test.ts`
+bisa menguji dialek ini sungguhan, bukan lewat tiruan.
+
+**Alternatif direject**: (a) meminta user mengganti gateway-nya dengan
+`server.mjs` — membuang Access, batas ukuran, ambang disk, dan round-trip test
+yang sudah lolos, untuk mendapatkan hal yang sama; (b) mendukung DUA dialek
+sekaligus dengan penyetelan otomatis — dua jalur yang salah satunya nyaris tidak
+pernah dijalankan, dan yang jarang dijalankan itu yang akan rusak diam-diam.
+
+**Konsekuensi**: kunci logisnya tidak berubah sedikit pun — `photos/<lokasi>/
+<tanggal>/<berkas>` tetap nama yang sama di R2 maupun di arsip, cuma ejaannya di
+URL yang tersandi. Pemeriksaan bentuk kunci tetap dipertahankan walau base64url
+sudah menutup jalur direktori: yang ditangkapnya sekarang bukan serangan,
+melainkan kunci kacau (kosong, salah kolom, sisa migrasi) yang tanpa itu akan
+tersimpan diam-diam di arsip permanen dengan nama yang tak seorang pun bisa
+telusuri.

@@ -70,15 +70,32 @@ export function setelanDingin(): SetelanDingin | null {
 }
 
 /**
- * Kunci logis → jalur URL yang aman.
+ * Kunci logis → jalur URL.
+ *
+ * ### Bentuknya mengikuti gateway yang SUDAH BERJALAN, bukan sebaliknya
+ *
+ * Uji sambungan pertama (2026-09-10) dijawab 404 di langkah PUT. Sebabnya bukan
+ * Cloudflare: di mesin itu sudah berjalan `marlin-original-storage`, gateway
+ * susunan ChatGPT yang dipasang user lebih dulu, dan dialeknya berbeda —
+ * `/v1/objects/<kunci ter-base64url>`, bukan `/photos/...` apa adanya.
+ *
+ * Yang menyesuaikan MARLIN, dan itu bukan kompromi melainkan aturan tetap
+ * (DECISIONS 203, ketetapan user 2026-08): yang sudah berjalan di lapangan tidak
+ * dibongkar demi kerapian sistem. Gateway itu sudah lolos round-trip test di
+ * mesinnya, sudah di balik Cloudflare Access, dan sudah punya batas ukuran objek
+ * serta ambang sisa disk. Menyuruhnya diganti berarti membuang semua itu untuk
+ * mendapatkan hal yang sama.
+ *
+ * ### Yang tetap dipertahankan: pemeriksaan bentuk kunci
  *
  * `originalKey` selalu dibuat sendiri oleh MARLIN
  * (`photos/{slug}/{tanggal}/{uuid}.asli.jpg`), jadi secara teori tidak mungkin
- * jahat. "Secara teori" bukan alasan yang cukup untuk merangkai string ke URL:
- * satu impor data lama atau satu kolom yang diedit tangan sudah cukup membuat
- * `../` menyelinap. Yang tidak cocok bentuknya DITOLAK, bukan dibersihkan —
- * membersihkan berarti menebak maksud, dan tebakan tidak boleh menentukan
- * berkas mana yang ditimpa.
+ * jahat. "Secara teori" bukan alasan yang cukup: satu impor data lama atau satu
+ * kolom yang diedit tangan sudah cukup membuat `../` menyelinap. Base64url
+ * memang sudah menutup jalur direktori dengan sendirinya — tapi pemeriksaan ini
+ * menangkap hal lain yang lebih sering terjadi: kunci yang KACAU (kosong, salah
+ * kolom, sisa migrasi) tertangkap di sini, bukan tersimpan diam-diam di arsip
+ * permanen dengan nama yang tak seorang pun bisa telusuri.
  */
 const BENTUK_KUNCI = /^photos\/[A-Za-z0-9._-]+\/[0-9-]+\/[A-Za-z0-9._-]+$/;
 
@@ -86,8 +103,13 @@ export function jalurDingin(kunci: string): string {
   if (!BENTUK_KUNCI.test(kunci) || kunci.includes("..")) {
     throw new Error(`Kunci arsip tidak berbentuk sah: ${kunci.slice(0, 80)}`);
   }
-  return kunci.split("/").map(encodeURIComponent).join("/");
+  // base64url TANPA padding – sama dengan `base64 -w0 | tr '+/' '-_' | tr -d '='`
+  // di panduan pemasangan gateway-nya.
+  return `v1/objects/${Buffer.from(kunci, "utf8").toString("base64url")}`;
 }
+
+/** Jalur pemeriksaan kesehatan gateway – tanpa token, dipakai mengenali lawan bicara. */
+export const JALUR_SEHAT = "health";
 
 function kepala(s: SetelanDingin, tambahan: Record<string, string> = {}): HeadersInit {
   const h: Record<string, string> = { Authorization: `Bearer ${s.token}`, ...tambahan };
@@ -159,8 +181,20 @@ export async function ambilDingin(s: SetelanDingin, kunci: string): Promise<Buff
   return Buffer.from(await res.arrayBuffer());
 }
 
-export async function hapusDingin(s: SetelanDingin, kunci: string): Promise<void> {
-  const res = await minta(s, kunci, { method: "DELETE" });
+/**
+ * @param sha256 sidik jari isi yang DIHARAPKAN ada di sana.
+ *
+ * Gateway-nya menuntutnya lewat `X-Delete-SHA256`, dan tuntutan itu masuk akal:
+ * penghapusan adalah satu-satunya operasi yang tidak bisa dibatalkan, jadi
+ * penghapus wajib menunjukkan ia tahu persis apa yang dihapusnya. Kalau tidak
+ * diketahui, header-nya tidak dikirim — biar gateway yang memutuskan, bukan kita
+ * yang mengarang nilainya.
+ */
+export async function hapusDingin(s: SetelanDingin, kunci: string, sha256?: string): Promise<void> {
+  const res = await minta(s, kunci, {
+    method: "DELETE",
+    tambahanKepala: sha256 ? { "X-Delete-SHA256": sha256 } : undefined,
+  });
   // 404 = memang sudah tidak ada; itu hasil yang diinginkan, bukan kegagalan.
   if (!res.ok && res.status !== 404) throw new Error(`DELETE arsip gagal (${res.status})`);
 }
