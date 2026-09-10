@@ -29196,3 +29196,50 @@ diturunkan orang tidak boleh dinaikkan diam-diam oleh yang memperbaiki hal lain;
 (b) menyapu teks SELALU, bukan hanya saat pembaca niat kosong — sapuan tidak
 tahu tata bahasa, jadi ia akan menyempitkan pertanyaan portofolio yang kebetulan
 menyebut satu nama sebagai contoh.
+
+---
+
+## 557 · 2026-09-10 · Batas jumlah lokasi memotong daftar, bukan menolak menjawab
+
+**Konteks**: sesudah nama lokasi akhirnya terbaca (DECISIONS 556), user
+bertanya hal yang tidak terjawab oleh perbaikan itu: *"ya kalau lokasinya
+memang lebih dari itu gimana?"*
+
+Jawaban sebelumnya — "naikkan sendiri batasnya di Sistem → AI" — bukan jawaban.
+Programnya menargetkan 200+ lokasi (PROJECT.md), jadi berapa pun angkanya
+dipasang, suatu hari ia terlampaui lagi; dan yang terjadi saat terlampaui bukan
+jawaban yang lebih hemat, melainkan tidak ada jawaban sama sekali. Ini
+pengulangan cacat yang sudah pernah diputus sekali (DECISIONS 133/240: *"batas
+yang menghalangi pemakaian normal bukan kehati-hatian, melainkan cacat"*) —
+kali ini bukan lewat angka bawaan, melainkan lewat sifat aturannya.
+
+**Yang ternyata sudah ada dan tidak pernah kebagian**: `buildPulsePayload`
+memotong daftar per lokasi di `maxRows` — angka yang SAMA dengan
+`maxLocationsPerRun`; urutannya `exceptionFirst` (skor risiko menurun), jadi
+yang terpotong justru yang paling tidak mendesak; dan `TOTAL:` dihitung dari
+SELURUH lokasi, bukan dari yang tercetak. Guard menolak lebih dulu, jadi
+kemampuan itu tidak pernah terpakai sekali pun.
+
+**Keputusan**:
+1. Aturan `scope_too_big` DIHAPUS. `maxLocationsPerRun` tetap ada dan tetap
+   berarti — sebagai batas panjang daftar, bukan tembok.
+2. Pemotongan barisnya DIKATAKAN di payload, sejajar dengan pemotongan risiko
+   yang sudah disebut sejak dulu: jumlah yang tidak tercetak, dasar urutannya,
+   dan penegasan bahwa angka TOTAL tetap mencakup seluruh lokasi. Tanpa ini,
+   75 baris dari 77 lokasi terbaca model (dan pembaca laporannya) sebagai
+   "segini lokasinya", dan TOTAL di atasnya jadi tampak tidak cocok dengan
+   daftarnya tanpa ada yang bisa menjelaskan kenapa.
+
+**Pagar ongkosnya tidak hilang, hanya pindah ke yang memang mengukurnya**:
+`maxInputChars` (ukuran payload sesungguhnya) plus batas run per jam dan per
+hari. Ketiganya tidak disentuh.
+
+**Alternatif direject**: (a) menaikkan angkanya saja — menunda masalah yang
+sama sampai lokasi ke-201; (b) menolak tapi dengan pesan lebih baik — pesan
+sebaik apa pun tidak mengubah kenyataan bahwa pertanyaan portofolio penuh tidak
+terjawab; (c) memotong tanpa mengatakannya — itu jawaban yang salah dengan
+percaya diri, jauh lebih buruk daripada penolakan.
+
+**Dua uji lama ikut diubah, dan itu disengaja**: `ai-hub.test.ts` menuntut
+lingkup besar DITOLAK. Tuntutan itu yang sekarang salah; keduanya ditulis ulang
+menyebut keputusan ini, bukan dihapus.
