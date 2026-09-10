@@ -146,6 +146,15 @@ describe("penerima arsip dingin menjawab klien MARLIN", () => {
     expect(r.status).toBe(400);
   });
 
+  it("/sehat menjawab tanpa token – itu yang dipakai mengenali penerima", () => {
+    // Tombol "Uji sambungan" mengenali lawan bicaranya dari sini SEBELUM
+    // mengirim apa pun, supaya 404 dari cloudflared tidak terbaca sebagai
+    // "protokolmu salah". Kalau penanda ini hilang, pengenalannya buta.
+    return fetch(`http://127.0.0.1:${PORT}/sehat`)
+      .then((r) => r.json())
+      .then((j) => expect(j).toEqual({ siap: true }));
+  });
+
   it("hapus, lalu hapus lagi – keduanya berhasil", async () => {
     await expect(hapusDingin(setelan(), KUNCI)).resolves.toBeUndefined();
     await expect(periksaDingin(setelan(), KUNCI)).resolves.toEqual({ ada: false });

@@ -29014,3 +29014,41 @@ dibaca dari baris siap yang dicetak penerimanya), bukan 8791. Nomor tetap itu
 sudah sempat membuat satu putaran integrasi gagal tiga kali karena proses uji
 sebelumnya belum mati — sebab yang tidak ada hubungannya dengan yang diuji, dan
 di CI (berkas uji berjalan berdampingan) tabrakan itu tinggal menunggu waktu.
+
+---
+
+## 553 · 2026-09-10 · Uji sambungan mengenali lawan bicaranya sebelum mengirim
+
+**Konteks**: uji pertama di produksi menjawab *"GAGAL di langkah kirim (PUT):
+404 = alamatnya sampai, tapi yang menjawab bukan penerima arsip"*. Benar, dan
+tetap tidak cukup: user masih harus menebak apakah yang menjawab itu Cloudflare,
+cloudflared yang tidak menemukan servisnya, atau program lain. Tebakan di
+langkah itu mahal — salah satu kemungkinannya membuat orang membongkar Tunnel
+yang sebenarnya sudah benar.
+
+**Keputusan**: sebelum mengirim apa pun, uji sambungan memanggil `GET /sehat`
+tanpa token — jalur yang memang sudah dibuat begitu di
+`arsip-dingin/server.mjs`. Badan `{"siap":true}` adalah satu-satunya penanda
+"ini penerima MARLIN". Selain itu dilaporkan apa adanya: status, header
+`server`, dan sepotong badannya, karena tiap penjawab punya sidik yang khas:
+
+| yang menjawab | sidik |
+|---|---|
+| cloudflared tanpa servis | 404, TANPA header `server` |
+| Cloudflare/Access | `server: cloudflare`, badan HTML |
+| program lain | apa saja, tapi bukan `{"siap":true}` |
+
+Jadi pesan gagalnya sekarang menyebut apa yang harus diperbaiki — dan kalau
+memang yang berjalan di sana bukan penerima ini, kalimatnya menyebut juga bahwa
+**Cloudflare-nya tidak perlu diubah**.
+
+**Alternatif direject**: (a) menerjemahkan 404-nya lebih panjang di `dugaan()` —
+menambah kata pada tebakan tetap tebakan, sedangkan satu permintaan murah bisa
+menggantinya dengan fakta; (b) menuntut penerima mencantumkan header khusus —
+memaksa satu kesepakatan lagi antara dua belahan, padahal `/sehat` sudah ada dan
+sudah tanpa token.
+
+**Konsekuensi**: `/sehat` naik status dari kemudahan jadi bagian protokol, dan
+karena itu dijaga uji sendiri di
+`tests/integration/arsip-dingin-penerima.test.ts` — kalau penandanya hilang,
+pengenalannya buta dan pesan gagalnya kembali jadi tebakan.
