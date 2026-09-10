@@ -55,8 +55,20 @@ const KUNCI = "photos/uji-arsip-dingin/2026-08-01/aaa.asli.jpg";
 const simpananArsip = new Map<string, Buffer>();
 const jejak: string[] = [];
 
+/**
+ * Jalur → kunci logis. Arsip tiruan ini menirukan dialek gateway sungguhan:
+ * `/v1/objects/<kunci base64url>` (DECISIONS 554). Jejaknya tetap dicatat dalam
+ * kunci LOGIS, bukan jalur tersandi — yang diuji berkas mana yang disentuh,
+ * bukan bagaimana ia dieja di URL.
+ */
+function kunciDari(url: string): string {
+  const awalan = "/v1/objects/";
+  if (!url.startsWith(awalan)) return url;
+  return Buffer.from(url.slice(awalan.length), "base64url").toString("utf8");
+}
+
 const server: Server = createServer(async (req, res) => {
-  const kunci = decodeURIComponent((req.url ?? "").slice(1));
+  const kunci = kunciDari(req.url ?? "");
   jejak.push(`${req.method} ${kunci}`);
   if (req.headers.authorization !== "Bearer rahasia-uji") {
     res.writeHead(403);

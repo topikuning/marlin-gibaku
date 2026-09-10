@@ -34,10 +34,16 @@ const rute = readFileSync(
 );
 
 describe("kunci arsip tidak bisa dipakai menembus direktori", () => {
-  it("kunci yang wajar diterima apa adanya", () => {
-    expect(jalurDingin("photos/knmp-besole/2026-09-08/abc-123.asli.jpg")).toBe(
-      "photos/knmp-besole/2026-09-08/abc-123.asli.jpg",
+  it("kunci yang wajar jadi jalur objek ber-base64url", () => {
+    // Dialeknya mengikuti gateway yang sudah berjalan di mesin user
+    // (`marlin-original-storage`), bukan sebaliknya – DECISIONS 554.
+    const kunci = "photos/knmp-besole/2026-09-08/abc-123.asli.jpg";
+    expect(jalurDingin(kunci)).toBe(
+      `v1/objects/${Buffer.from(kunci, "utf8").toString("base64url")}`,
     );
+    // Bagian yang tersandi wajib base64url: tanpa padding, tanpa "+" maupun "/"
+    // yang akan pecah jadi segmen jalur baru di URL.
+    expect(jalurDingin(kunci).replace("v1/objects/", "")).not.toMatch(/[+/=]/);
   });
 
   it("jalan ke atas DITOLAK, bukan dibersihkan", () => {
@@ -167,7 +173,7 @@ describe("uji sambungan menjawab pertanyaan yang benar", () => {
   });
 
   it("berkas uji dibersihkan walau ujinya gagal di tengah", () => {
-    expect(badan).toContain("hapusDingin(setelan, kunci).catch(() => {})");
+    expect(badan).toContain("hapusDingin(setelan, kunci, sha).catch(() => {})");
   });
 
   it("tidak menyentuh foto sungguhan", () => {

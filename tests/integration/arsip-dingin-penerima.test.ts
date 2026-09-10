@@ -85,7 +85,7 @@ beforeAll(async () => {
   dingin = await import("@/lib/arsip-asli/dingin");
 
   // Benar-benar menjawab, bukan sekadar sudah mencetak barisnya.
-  const r = await fetch(`http://127.0.0.1:${PORT}/sehat`);
+  const r = await fetch(`http://127.0.0.1:${PORT}/health`);
   expect(r.ok).toBe(true);
 }, 40_000);
 
@@ -130,34 +130,56 @@ describe("penerima arsip dingin menjawab klien MARLIN", () => {
     expect(disk.equals(ISI), "berkas arsip tertimpa").toBe(true);
   });
 
-  it("token salah ditolak, dan penolakannya terbaca sebagai galat oleh klien", async () => {
+  it("token salah ditolak 401 – 403 disediakan untuk Cloudflare Access", async () => {
+    // Dua lapis, dua kode. Kalau keduanya menjawab hal yang sama, pesan galat di
+    // layar tidak bisa memisahkan "token gateway salah" dari "Access menghadang",
+    // dan yang memasang akan memperbaiki lapis yang salah.
     const palsu = { ...setelan(), token: "token-salah-yang-panjangnya-beda" };
-    await expect(periksaDingin(palsu, KUNCI)).rejects.toThrow(/403/);
+    await expect(periksaDingin(palsu, KUNCI)).rejects.toThrow(/401/);
   });
 
   it("kunci di luar ruang foto tidak pernah sampai ke disk", async () => {
     // Klien menolaknya lebih dulu; penerima menolaknya lagi. Dua-duanya perlu:
     // yang menjaga disk mesin sendiri adalah pemeriksaan DI mesin itu.
     await expect(ambilDingin(setelan(), "../../etc/passwd")).rejects.toThrow(/tidak berbentuk sah/);
-    const r = await fetch(`http://127.0.0.1:${PORT}/documents/rahasia.pdf`, {
+    const luar = Buffer.from("documents/rahasia.pdf", "utf8").toString("base64url");
+    const r = await fetch(`http://127.0.0.1:${PORT}/v1/objects/${luar}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${TOKEN}` },
     });
     expect(r.status).toBe(400);
   });
 
-  it("/sehat menjawab tanpa token – itu yang dipakai mengenali penerima", () => {
+  it("/health menjawab tanpa token – itu yang dipakai mengenali gateway", () => {
     // Tombol "Uji sambungan" mengenali lawan bicaranya dari sini SEBELUM
     // mengirim apa pun, supaya 404 dari cloudflared tidak terbaca sebagai
     // "protokolmu salah". Kalau penanda ini hilang, pengenalannya buta.
-    return fetch(`http://127.0.0.1:${PORT}/sehat`)
+    return fetch(`http://127.0.0.1:${PORT}/health`)
       .then((r) => r.json())
-      .then((j) => expect(j).toEqual({ siap: true }));
+      .then((j) => expect(j).toEqual({ ok: true }));
   });
 
-  it("hapus, lalu hapus lagi – keduanya berhasil", async () => {
-    await expect(hapusDingin(setelan(), KUNCI)).resolves.toBeUndefined();
+  it("/v1/status menyebut sisa disk & batasnya", async () => {
+    const r = await fetch(`http://127.0.0.1:${PORT}/v1/status`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const j = await r.json();
+    for (const k of ["freeBytes", "totalBytes", "maxObjectBytes", "minFreeBytes"]) {
+      expect(typeof j[k], `${k} hilang dari /v1/status`).toBe("number");
+    }
+  });
+
+  it("hapus TANPA sidik jari ditolak – penghapus wajib tahu apa yang dihapusnya", async () => {
+    await expect(hapusDingin(setelan(), KUNCI)).rejects.toThrow(/400/);
+    // Berkasnya masih utuh sesudah penolakan itu.
+    const disk = await readFile(join(dir, KUNCI));
+    expect(disk.equals(ISI)).toBe(true);
+  });
+
+  it("hapus dengan sidik jari, lalu hapus lagi – keduanya berhasil", async () => {
+    await expect(hapusDingin(setelan(), KUNCI, SHA)).resolves.toBeUndefined();
     await expect(periksaDingin(setelan(), KUNCI)).resolves.toEqual({ ada: false });
-    await expect(hapusDingin(setelan(), KUNCI)).resolves.toBeUndefined();
+    // 404 = memang sudah tidak ada; itu hasil yang diinginkan, bukan kegagalan.
+    await expect(hapusDingin(setelan(), KUNCI, SHA)).resolves.toBeUndefined();
   });
 });

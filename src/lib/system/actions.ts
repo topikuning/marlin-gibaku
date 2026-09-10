@@ -481,9 +481,8 @@ export async function setArsipAsliAction(
 export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
   const actor = await requireCapability("system.manage");
   const { createHash, randomUUID } = await import("node:crypto");
-  const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin } = await import(
-    "@/lib/arsip-asli/dingin"
-  );
+  const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin, JALUR_SEHAT } =
+    await import("@/lib/arsip-asli/dingin");
 
   let setelan;
   try {
@@ -512,21 +511,20 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
      * program lain. Tebakan di langkah ini mahal — yang salah satunya berarti
      * membongkar Tunnel yang sebenarnya sudah benar.
      *
-     * `/sehat` dijawab penerima MARLIN TANPA token, justru supaya bisa dipakai
+     * `/health` dijawab gateway arsip TANPA token, justru supaya bisa dipakai
      * begini. Yang lain akan menjawab hal lain, dan hal lain itulah yang
      * dilaporkan apa adanya: status, header `server`, dan sepotong badannya.
      */
-    langkah = "mengenali yang menjawab (/sehat)";
-    const siapa = await kenaliPenerima(setelan.url);
-    if (!siapa.penerimaMarlin) {
+    langkah = "mengenali yang menjawab (/health)";
+    const siapa = await kenaliPenerima(`${setelan.url}/${JALUR_SEHAT}`);
+    if (!siapa.gatewayArsip) {
       return {
         error:
-          `Yang menjawab di ${setelan.url} BUKAN penerima arsip MARLIN – ${siapa.keterangan} ` +
-          "Salin arsip-dingin/server.mjs dari repo ini ke mesinnya dan jalankan " +
-          "(langkahnya di docs/ARSIP_DINGIN_SETUP.md). Cloudflare-nya tidak perlu diubah.",
+          `Yang menjawab di ${setelan.url} BUKAN gateway arsip – ${siapa.keterangan} ` +
+          "Langkah pemasangannya di docs/ARSIP_DINGIN_SETUP.md.",
       };
     }
-    jejak.push("penerima MARLIN ✓");
+    jejak.push("gateway arsip ✓");
 
     langkah = "kirim (PUT)";
     await kirimDingin(setelan, kunci, isi);
@@ -547,7 +545,7 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
     jejak.push("ambil kembali ✓");
 
     langkah = "hapus (DELETE)";
-    await hapusDingin(setelan, kunci);
+    await hapusDingin(setelan, kunci, sha);
     const sesudah = await periksaDingin(setelan, kunci);
     if (sesudah.ada) throw new Error("dihapus tapi masih ada di sana");
     jejak.push("hapus ✓");
@@ -559,7 +557,7 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
   } catch (err) {
     const pesan = err instanceof Error ? err.message : "gagal";
     // Sisa uji tidak boleh meninggalkan sampah di sana kalau PUT-nya sempat lolos.
-    if (jejak.length > 0) await hapusDingin(setelan, kunci).catch(() => {});
+    if (jejak.length > 0) await hapusDingin(setelan, kunci, sha).catch(() => {});
     await audit(actor.id, "system.arsip_asli_uji", "system", null, { hasil: "gagal", langkah, pesan });
     const sudah = jejak.length > 0 ? `${jejak.join(" · ")} · ` : "";
     return { error: `${sudah}GAGAL di langkah ${langkah}: ${pesan}. ${dugaan(pesan)}` };
@@ -580,11 +578,11 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
  *   program lain               → apa saja, tapi bukan {"siap":true}
  */
 async function kenaliPenerima(
-  url: string,
-): Promise<{ penerimaMarlin: boolean; keterangan: string }> {
+  urlSehat: string,
+): Promise<{ gatewayArsip: boolean; keterangan: string }> {
   let res: Response;
   try {
-    res = await fetch(`${url}/sehat`, {
+    res = await fetch(urlSehat, {
       cache: "no-store",
       // Lebih pendek daripada batas kirim: ini cuma satu permintaan kecil, dan
       // yang menunggu adalah orang yang sedang menatap layar.
@@ -592,11 +590,11 @@ async function kenaliPenerima(
     });
   } catch (err) {
     const p = err instanceof Error ? err.message : "gagal";
-    return { penerimaMarlin: false, keterangan: `tidak dijawab sama sekali (${p}).` };
+    return { gatewayArsip: false, keterangan: `tidak dijawab sama sekali (${p}).` };
   }
 
   const badan = (await res.text().catch(() => "")).slice(0, 160).replace(/\s+/g, " ").trim();
-  if (res.ok && badan.includes('"siap"')) return { penerimaMarlin: true, keterangan: "" };
+  if (res.ok && /"ok"\s*:\s*true/.test(badan)) return { gatewayArsip: true, keterangan: "" };
 
   const server = res.headers.get("server");
   const cf = server?.toLowerCase().includes("cloudflare");
@@ -604,10 +602,10 @@ async function kenaliPenerima(
     ? "tidak ada header `server`, ciri khas cloudflared yang tidak menemukan servis di port tujuannya: periksa `systemctl status marlin-arsip` dan bagian ingress di config.yml."
     : cf && /<html/i.test(badan)
       ? "Cloudflare yang menjawab, bukan mesinmu – kemungkinan Access menuntut login (pakai Service Token) atau Tunnel-nya sedang putus."
-      : "ada program lain di sana yang bukan penerima arsip.";
+      : "ada program lain di sana yang bukan gateway arsip.";
 
   return {
-    penerimaMarlin: false,
+    gatewayArsip: false,
     keterangan: `status ${res.status}${server ? `, server: ${server}` : ""}${badan ? `, jawabannya: "${badan}"` : ""}. ${petunjuk}`,
   };
 }
@@ -620,20 +618,27 @@ async function kenaliPenerima(
  * spesifikasi HTTP.
  */
 function dugaan(pesan: string): string {
+  // 401 dan 403 datang dari DUA lapis berbeda, dan bedanya yang menentukan mana
+  // yang harus diperbaiki: Access menjaga pintu gedung, bearer menjaga pintu kamar.
+  if (/\b401\b/.test(pesan)) {
+    return "401 = ditolak gateway-nya sendiri: ORIGINAL_ARCHIVE_TOKEN berbeda dengan STORAGE_TOKEN di /opt/marlin-original-storage/.env.";
+  }
   if (/\b403\b/.test(pesan)) {
-    return "403 = ditolak: ORIGINAL_ARCHIVE_TOKEN berbeda dengan ARSIP_TOKEN di mesinnya, atau Cloudflare Access menghadang (isi sepasang CF Client ID/Secret).";
+    return "403 = ditolak Cloudflare Access sebelum sampai ke mesinnya. Isi ORIGINAL_ARCHIVE_CF_CLIENT_ID + _SECRET dengan Service Token, dan pastikan policy-nya Service Auth.";
   }
-  if (/\b401\b/.test(pesan)) return "401 = Cloudflare Access menuntut login; pakai Service Token.";
   if (/\b404\b/.test(pesan)) {
-    return "404 = alamatnya sampai, tapi yang menjawab bukan penerima arsip. Periksa ingress Tunnel-nya menunjuk ke port penerima.";
+    return "404 = alamatnya sampai, tapi yang menjawab bukan gateway arsip. Periksa route Tunnel-nya menunjuk ke http://localhost:3100.";
   }
-  if (/\b400\b/.test(pesan)) {
-    return "400 = penerimanya menolak bentuk kuncinya. Pastikan yang berjalan di sana arsip-dingin/server.mjs dari repo ini, bukan rancangan lain.";
+  if (/\b(400|422)\b/.test(pesan)) {
+    return "Gateway menolak permintaannya – kemungkinan versinya lebih tua daripada yang diharapkan MARLIN.";
   }
+  if (/\b413\b/.test(pesan)) return "413 = berkasnya melewati MAX_BYTES di gateway.";
   if (/\b(502|503|530)\b/.test(pesan)) {
     return "Tunnel-nya hidup tapi tidak menemukan servisnya – `systemctl status marlin-arsip` di mesin itu.";
   }
-  if (/\b507\b/.test(pesan)) return "507 = disk arsipnya penuh.";
+  if (/\b(507|509)\b/.test(pesan)) {
+    return "Disk arsipnya penuh, atau sisanya sudah di bawah MIN_FREE_BYTES.";
+  }
   if (/\b409\b/.test(pesan)) return "409 = di sana sudah ada berkas lain dengan kunci sama.";
   if (/timed? ?out|abort|ETIMEDOUT/i.test(pesan)) {
     return "Tidak dijawab sampai batas waktu – mesinnya mati, Tunnel-nya mati, atau uplink-nya tersendat.";

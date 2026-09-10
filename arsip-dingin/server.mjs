@@ -13,12 +13,22 @@
 //
 //   ARSIP_DIR=/srv/marlin-arsip ARSIP_TOKEN=<rahasia> node server.mjs
 //
-// Yang dijawabnya persis empat, sama dengan yang dipakai `src/lib/arsip-asli/dingin.ts`:
+// ### Dialeknya mengikuti gateway yang sudah lebih dulu berjalan
 //
-//   HEAD /photos/<lokasi>/<tanggal>/<berkas>   sudah ada? berapa besar? sidik jarinya?
-//   PUT  /photos/...                           simpan (idempoten)
-//   GET  /photos/...                           ambil kembali
-//   DELETE /photos/...                         hapus (404 = sudah tidak ada = berhasil)
+// User memasang `marlin-original-storage` (susunan ChatGPT, Docker) di mesinnya
+// sebelum berkas ini ada. Berkas ini karena itu bicara dengan dialek YANG SAMA,
+// bukan dialek sendiri — supaya di dunia ini cuma ada satu protokol arsip
+// dingin, dan MARLIN tidak perlu tahu yang mana yang sedang berjalan:
+//
+//   GET    /health                       {"ok":true} – tanpa token, untuk pengenalan
+//   HEAD   /v1/objects/<kunci base64url> sudah ada? berapa besar? sidik jarinya?
+//   PUT    /v1/objects/<...>             simpan (idempoten)
+//   GET    /v1/objects/<...>             ambil kembali
+//   DELETE /v1/objects/<...>             hapus – wajib `X-Delete-SHA256`
+//
+// Token salah dijawab 401 (bukan 403): 403 disediakan untuk Cloudflare Access,
+// yang menghadang lebih dulu di depan. Dua lapis, dua kode – supaya yang membaca
+// galatnya tahu lapis mana yang menolaknya.
 //
 // ### Tiga hal yang dijaga, dan alasannya
 //
@@ -37,7 +47,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat, writeFile, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { pipeline } from "node:stream/promises";
 
 const DIR = process.env.ARSIP_DIR;
@@ -48,6 +58,10 @@ const PORT = Number(process.env.ARSIP_PORT ?? 8787);
 // 127.0.0.1 — jadi port ini tidak pernah perlu terbuka ke internet, dan tidak
 // ada aturan firewall maupun IP publik yang perlu diurus.
 const HOST = process.env.ARSIP_HOST ?? "127.0.0.1";
+/** 32 MiB – di atas batas MARLIN 25 MB per foto, jadi tidak pernah menolak yang sah. */
+const MAX_BYTES = Number(process.env.MAX_BYTES ?? 33_554_432);
+/** Berhenti menerima objek baru sebelum disknya benar-benar habis. */
+const MIN_FREE_BYTES = Number(process.env.MIN_FREE_BYTES ?? 21_474_836_480);
 
 if (!DIR || !TOKEN) {
   console.error("ARSIP_DIR dan ARSIP_TOKEN wajib diisi.");
@@ -65,6 +79,9 @@ if (TOKEN.length < 24) {
 /** Bentuk kunci yang sah — SAMA PERSIS dengan `BENTUK_KUNCI` di src/lib/arsip-asli/dingin.ts. */
 const BENTUK_KUNCI = /^photos\/[A-Za-z0-9._-]+\/[0-9-]+\/[A-Za-z0-9._-]+$/;
 
+/** Prefiks jalur objek; apa pun di luar ini bukan urusan berkas. */
+const AWALAN_OBJEK = "/v1/objects/";
+
 const AKAR = resolve(DIR);
 
 /**
@@ -76,9 +93,11 @@ const AKAR = resolve(DIR);
  * lolos regex lewat penyandian URL yang tidak terduga.
  */
 function jalurBerkas(urlPath) {
+  if (!urlPath.startsWith(AWALAN_OBJEK)) return null;
   let kunci;
   try {
-    kunci = decodeURIComponent(urlPath.replace(/^\/+/, ""));
+    // base64url tanpa padding; Buffer memaafkan padding yang ada maupun tidak.
+    kunci = Buffer.from(urlPath.slice(AWALAN_OBJEK.length), "base64url").toString("utf8");
   } catch {
     return null;
   }
@@ -156,13 +175,37 @@ async function tanganiPut(req, res, p) {
     return balas(res, 409, { error: "kunci sama, isi berbeda – tidak ditimpa" });
   }
 
+  /*
+   * Dua pagar SEBELUM menulis, bukan sesudah.
+   *
+   * Keduanya diumumkan di `/v1/status`, dan angka yang diumumkan tapi tidak
+   * ditegakkan lebih buruk daripada tidak ada: ia membuat orang mengira disknya
+   * terjaga. `content-length` dipercaya di sini hanya untuk menolak lebih awal —
+   * yang sebenarnya menjaga adalah hitungan byte saat mengalir di bawah.
+   */
+  const panjang = Number(req.headers["content-length"] ?? 0);
+  if (panjang > MAX_BYTES) {
+    return balas(res, 413, { error: `objek ${panjang} byte melewati MAX_BYTES ${MAX_BYTES}` });
+  }
+  const { statfs } = await import("node:fs/promises");
+  const sisa = await statfs(AKAR).then((st) => st.bavail * st.bsize);
+  if (sisa - panjang < MIN_FREE_BYTES) {
+    return balas(res, 507, { error: `sisa disk ${sisa} sudah di bawah MIN_FREE_BYTES` });
+  }
+
   await mkdir(dirname(p), { recursive: true });
   const sementara = `${p}.${process.pid}.sedang-ditulis`;
   const h = createHash("sha256");
   let bytes = 0;
+  let kebesaran = false;
   req.on("data", (c) => {
     h.update(c);
     bytes += c.length;
+    // Pengirim yang berbohong soal content-length tertangkap di sini.
+    if (bytes > MAX_BYTES && !kebesaran) {
+      kebesaran = true;
+      req.destroy(new Error("melewati MAX_BYTES"));
+    }
   });
 
   try {
@@ -172,8 +215,9 @@ async function tanganiPut(req, res, p) {
     // ENOSPC disebut apa adanya: "disk arsip penuh" bisa ditindaklanjuti,
     // "gagal menulis" tidak.
     const penuh = err?.code === "ENOSPC";
-    return balas(res, penuh ? 507 : 500, {
-      error: penuh ? "disk arsip penuh" : "gagal menulis",
+    const kode = kebesaran ? 413 : penuh ? 507 : 500;
+    return balas(res, kode, {
+      error: kebesaran ? `melewati MAX_BYTES ${MAX_BYTES}` : penuh ? "disk arsip penuh" : "gagal menulis",
     });
   }
 
@@ -205,10 +249,39 @@ async function tanganiGet(res, p) {
   await pipeline(createReadStream(p), res);
 }
 
-async function tanganiDelete(res, p) {
+/**
+ * Penghapus wajib menunjukkan ia tahu apa yang dihapusnya.
+ *
+ * `X-Delete-SHA256` bukan formalitas: menghapus adalah satu-satunya operasi di
+ * sini yang tidak bisa dibatalkan. Permintaan tanpa sidik jari, atau dengan
+ * sidik jari yang tidak cocok, ditolak — karena keduanya berarti pengirimnya
+ * sedang menghapus sesuatu yang bukan yang ia kira.
+ */
+async function tanganiDelete(req, res, p) {
+  const lama = await sidikTersimpan(p);
+  if (!lama) return balas(res, 404);
+
+  const diminta = req.headers["x-delete-sha256"]?.toString().toLowerCase() ?? null;
+  if (!diminta) return balas(res, 400, { error: "X-Delete-SHA256 wajib" });
+  if (diminta !== lama) return balas(res, 409, { error: "sidik jari tidak cocok – tidak dihapus" });
+
   await rm(p, { force: true });
   await rm(jalurSidik(p), { force: true });
+  console.log(`[arsip] hapus ${p.slice(AKAR.length + 1)}`);
   return balas(res, 204);
+}
+
+/** Sisa disk & batas — dipakai memastikan arsipnya menunjuk ke storage yang benar. */
+async function tanganiStatus(res) {
+  const { statfs } = await import("node:fs/promises");
+  const st = await statfs(AKAR);
+  return balas(res, 200, {
+    ok: true,
+    freeBytes: st.bavail * st.bsize,
+    totalBytes: st.blocks * st.bsize,
+    maxObjectBytes: MAX_BYTES,
+    minFreeBytes: MIN_FREE_BYTES,
+  });
 }
 
 const server = createServer(async (req, res) => {
@@ -216,10 +289,13 @@ const server = createServer(async (req, res) => {
     // Pemeriksaan kesehatan, tanpa token — supaya Cloudflare Tunnel dan siapa
     // pun yang memasang bisa tahu servisnya hidup tanpa memegang rahasianya.
     // Tidak membocorkan apa-apa: ia tidak menyentuh isi arsip.
-    if (req.url === "/sehat" && (req.method === "GET" || req.method === "HEAD")) {
-      return balas(res, 200, { siap: true });
+    if (req.url === "/health" && (req.method === "GET" || req.method === "HEAD")) {
+      return balas(res, 200, { ok: true });
     }
-    if (!tokenCocok(req.headers.authorization)) return balas(res, 403);
+    // 401, bukan 403: 403 milik Cloudflare Access yang menghadang di depan.
+    if (!tokenCocok(req.headers.authorization)) return balas(res, 401);
+
+    if (req.url === "/v1/status" && req.method === "GET") return await tanganiStatus(res);
 
     const p = jalurBerkas(req.url ?? "");
     if (!p) return balas(res, 400, { error: "kunci tidak berbentuk sah" });
@@ -227,7 +303,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "HEAD") return await tanganiHead(res, p);
     if (req.method === "PUT") return await tanganiPut(req, res, p);
     if (req.method === "GET") return await tanganiGet(res, p);
-    if (req.method === "DELETE") return await tanganiDelete(res, p);
+    if (req.method === "DELETE") return await tanganiDelete(req, res, p);
     return balas(res, 405, { error: "metode tidak dilayani" });
   } catch (err) {
     console.error("[arsip] galat:", err);
