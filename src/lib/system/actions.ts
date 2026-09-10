@@ -642,6 +642,56 @@ function dugaan(pesan: string): string {
   return "Cek `systemctl status marlin-arsip` dan log cloudflared di mesin itu.";
 }
 
+/**
+ * BUKTI ISI ARSIP — bertanya ke mesinnya, bukan membaca catatan sendiri.
+ *
+ * Pertanyaan user 2026-09-10: *"bagaimana aku mengecek ada file foto yang sudah
+ * masuk ke server lenovoku"*. Angka di kartu ini semuanya berasal dari kolom
+ * `photos`, jadi yang dilaporkannya adalah MARLIN merasa sudah mengirim — bukan
+ * bahwa berkasnya benar-benar ada di sana. Keduanya sama selama tidak ada yang
+ * salah, dan berbeda tepat ketika ada yang salah.
+ *
+ * Murni HEAD ke contoh yang paling baru diarsipkan: tidak ada berkas yang
+ * diunduh, ditulis, atau dihapus.
+ */
+export async function periksaIsiArsipAction(): Promise<ArsipAsliState> {
+  const actor = await requireCapability("system.manage");
+  const { periksaIsiArsip } = await import("@/lib/arsip-asli/antrean");
+  try {
+    const b = await periksaIsiArsip(10);
+    await audit(actor.id, "system.arsip_asli_periksa", "system", null, {
+      diperiksa: b.diperiksa,
+      terbukti: b.terbukti,
+      hilang: b.hilang.length,
+    });
+    if (b.diperiksa === 0) {
+      return { error: "Belum ada satu pun berkas yang tercatat terarsip – jalankan satu putaran dulu." };
+    }
+    const ruang =
+      b.sisaBytes != null
+        ? ` Sisa ruang di mesin arsip: ${(b.sisaBytes / 1024 ** 3).toFixed(1)} GB${
+            b.totalBytes ? ` dari ${(b.totalBytes / 1024 ** 3).toFixed(1)} GB` : ""
+          }.`
+        : "";
+    if (b.hilang.length > 0) {
+      // Ini keadaan yang paling perlu diteriakkan: baris yang tercatat terarsip
+      // akan kehilangan salinan R2-nya begitu masa tenggang lewat.
+      const contoh = b.hilang.slice(0, 3).map((h) => `${h.kunci.split("/").pop()} (${h.sebab})`);
+      return {
+        error:
+          `${b.terbukti} dari ${b.diperiksa} contoh terbukti ada, ${b.hilang.length} TIDAK: ${contoh.join(", ")}` +
+          `${b.hilang.length > 3 ? ` dan ${b.hilang.length - 3} lainnya` : ""}. ` +
+          `MATIKAN arsip dulu sebelum masa tenggang lewat – salinan R2-nya akan dibuang untuk berkas yang ternyata tidak ada di sana.${ruang}`,
+      };
+    }
+    return {
+      success: `${b.terbukti} dari ${b.diperiksa} contoh terbaru terbukti ada di mesin arsip, ukuran dan sidik jarinya cocok.${ruang}`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Pemeriksaan isi arsip gagal." };
+  }
+}
+
 /** Jalankan satu putaran dari layar, tanpa menunggu jadwal cron. */
 export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
   const actor = await requireCapability("system.manage");

@@ -202,6 +202,28 @@ export async function kirimDingin(s: SetelanDingin, kunci: string, isi: Buffer):
   if (!res.ok) throw new Error(`PUT arsip gagal (${res.status})`);
 }
 
+export type StatusDingin = { freeBytes: number | null; totalBytes: number | null };
+
+/**
+ * Sisa ruang di mesin arsip, dibaca dari mesin itu sendiri.
+ *
+ * Bukan hiasan: arsip yang disknya hampir penuh akan berhenti menerima, dan
+ * satu-satunya cara mengetahuinya sebelum kejadian adalah bertanya. Nilai yang
+ * tidak dilaporkan gateway dikembalikan `null` — jangan pernah ditebak jadi 0,
+ * karena 0 di layar terbaca "penuh".
+ */
+export async function statusDingin(s: SetelanDingin): Promise<StatusDingin> {
+  const res = await fetch(`${s.url}/v1/status`, {
+    headers: kepala(s),
+    signal: AbortSignal.timeout(30_000),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`status arsip gagal (${res.status})`);
+  const j = (await res.json()) as Record<string, unknown>;
+  const angka = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return { freeBytes: angka(j.freeBytes), totalBytes: angka(j.totalBytes) };
+}
+
 export async function ambilDingin(s: SetelanDingin, kunci: string): Promise<Buffer> {
   const res = await minta(s, kunci, { method: "GET" });
   if (!res.ok) throw new Error(`GET arsip gagal (${res.status})`);
