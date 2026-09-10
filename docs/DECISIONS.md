@@ -28930,3 +28930,87 @@ libvips-cpp.so justru berisiko tidak ikut.
 **Konsekuensi**: gerbang lokal (typecheck · lint · unit · integrasi) hijau,
 `pnpm build` hijau, dan `require('sharp')` dari pohon standalone terbukti
 memproses gambar. Pemeriksaan yang sama diulang tiap build Docker di CI.
+
+---
+
+## 551 · 2026-09-10 · Penerima arsip dingin ikut dikirim, bukan diserahkan sebagai spesifikasi
+
+**Konteks**: DECISIONS 549 memasang setengah jembatan — klien, endpoint cron,
+panel, sakelar — lalu menutup catatannya dengan "mesin arsip dinginnya sendiri
+belum ada saat ini ditulis". Pertanyaan user 2026-09-10 ("apa yang harus aku
+tambahkan untuk menambahkan server lenovo") menunjukkan akibatnya: jawaban
+jujurnya waktu itu adalah "tulis dulu program penerimanya", yang bukan pekerjaan
+user.
+
+**Keputusan**: penerimanya ikut di repo ini, `arsip-dingin/server.mjs` — satu
+berkas Node polos, **tanpa satu pun dependensi**, tanpa basis data, tanpa
+`npm install`. Alasan tanpa dependensi bukan kesederhanaan demi kesederhanaan:
+mesin itu akan berjalan bertahun-tahun di pojok ruangan tanpa ada yang menengok,
+dan tiap paket npm di dalamnya adalah sesuatu yang suatu hari harus di-update
+karena advisory keamanan, justru di mesin yang paling jarang disentuh.
+
+Ditambah: unit systemd (`arsip-dingin/marlin-arsip.service`), penjadwal
+`.github/workflows/cron-arsip-asli.yml` (tiap jam, meniru cron-gdrive — sampai
+sekarang endpoint cron-nya tidak pernah dipanggil siapa pun), dan
+`docs/ARSIP_DINGIN_SETUP.md` sejajar GDRIVE_SETUP/WAHA_SETUP.
+
+**Yang dijaga penerimanya** — tiga hal, dan ketiganya soal berkas yang tidak
+bisa dikembalikan: tulis ke berkas sementara lalu ganti nama (mati listrik
+meninggalkan berkas `.sedang-ditulis`, bukan berkas asli terpotong separuh yang
+akan terbaca "ada" lalu membuat MARLIN menghapus salinan R2-nya); sidik jari
+dicocokkan sesudah sampai, yang tidak cocok dibuang; kunci sama dengan isi
+berbeda DITOLAK 409, tidak pernah ditimpa.
+
+**Alternatif direject**: (a) menaruh spesifikasi protokol di dokumen dan
+membiarkan mesinnya ditulis belakangan — dua belahan yang ditulis terpisah tanpa
+uji bersama akan berbeda tafsir di salah satu dari empat kesepakatannya, dan
+bedanya baru ketahuan sesudah salinan R2 dibuang; (b) MinIO/S3 tiruan di Lenovo
+— satu servis besar dengan konsol, pengguna, dan kebijakan, untuk empat kata
+kerja; (c) rsync/SSH — MARLIN di Railway harus memegang kunci SSH ke mesin
+rumah, dan yang dipindahkan jadi tidak bisa diperiksa sidik jarinya per berkas.
+
+**Konsekuensi**: kesepakatan antar-belahan diuji langsung —
+`tests/integration/arsip-dingin-penerima.test.ts` menjalankan penerima sungguhan
+sebagai proses terpisah dan memanggilnya dengan klien sungguhan (9 uji, termasuk
+tolak-timpa, token salah, dan kunci di luar ruang foto). Yang tersisa untuk user
+hanyalah yang memang tidak bisa dikerjakan dari sini: menyalakan mesinnya,
+memasang Tunnel, mengisi dua variabel, dan menekan satu sakelar.
+
+---
+
+## 552 · 2026-09-10 · "Sudah tersambung belum?" dijawab tombol, bukan dugaan
+
+**Konteks**: user sudah memasang `disket.gibaku.com` di Cloudflare dan mengisi
+variabel di Railway, lalu bertanya apakah sambungannya jadi. Tidak ada satu pun
+cara menjawabnya dari layar — dan mencobanya dari tempat lain tidak menjawab
+pertanyaannya: yang perlu dibuktikan adalah **Railway** bisa menghubungi mesin
+itu, bukan laptop atau sandbox siapa pun.
+
+**Keputusan**: tombol **Uji sambungan** di kartu arsip dingin, melakukan
+perjalanan PENUH — kirim → baca ulang → ambil kembali → cocokkan byte → hapus —
+dengan berkas uji kecil di ruang `photos/uji-sambungan/` yang dihapus di langkah
+terakhir. Tidak menyentuh basis data, tidak menyentuh satu pun foto.
+
+**Kenapa bukan `GET /sehat` saja**: halaman login Cloudflare Access menjawab
+200, tunnel yang menyambung ke port kosong menjawab 502, dan penerima yang salah
+tafsir protokolnya bisa menjawab 200 untuk semuanya. Ping hanya membuktikan ada
+yang menjawab, bukan bahwa berkas asli aman dipindahkan ke sana — dan yang kedua
+itulah yang menentukan boleh-tidaknya salinan R2 dibuang.
+
+**Galatnya diterjemahkan**, bukan diteruskan mentah: 403 → token beda atau CF
+Access menghadang; 404 → alamat sampai tapi yang menjawab bukan penerima arsip;
+400 → penerimanya menolak bentuk kunci (kemungkinan besar yang berjalan di sana
+rancangan lain, bukan `arsip-dingin/server.mjs`); 502/503/530 → tunnel hidup
+tapi servisnya tidak; 507 → disk penuh; batas waktu → mesin/tunnel/uplink. Yang
+membaca layar ini sedang memasang mesin, bukan membaca spesifikasi HTTP.
+
+**Tombolnya berdiri sendiri dari sakelarnya** dan bisa ditekan walau pemindahan
+masih mati. Urutan memasangnya memang begitu: pasang, buktikan tersambung, BARU
+nyalakan. Tombol yang baru hidup sesudah sakelarnya menyala memaksa orang
+menyalakan dulu sesuatu yang belum ia percayai.
+
+**Ikut diperbaiki**: uji penerima memakai port pilihan sistem (`ARSIP_PORT=0`,
+dibaca dari baris siap yang dicetak penerimanya), bukan 8791. Nomor tetap itu
+sudah sempat membuat satu putaran integrasi gagal tiga kali karena proses uji
+sebelumnya belum mati — sebab yang tidak ada hubungannya dengan yang diuji, dan
+di CI (berkas uji berjalan berdampingan) tabrakan itu tinggal menunggu waktu.

@@ -149,3 +149,33 @@ describe("audit penyimpanan tidak berteriak untuk yang sudah pindah", () => {
     expect(audit).toContain('syarat: "original_r2_purged_at IS NULL"');
   });
 });
+
+describe("uji sambungan menjawab pertanyaan yang benar", () => {
+  const aksi = readFileSync(new URL("../../src/lib/system/actions.ts", import.meta.url), "utf8");
+  const badan = aksi.slice(
+    aksi.indexOf("export async function ujiArsipAsliAction"),
+    aksi.indexOf("function dugaan("),
+  );
+
+  it("bolak-balik penuh, bukan sekadar ping", () => {
+    // Halaman login Cloudflare Access menjawab 200, dan tunnel ke port kosong
+    // menjawab 502 – keduanya tidak terjawab oleh satu GET /sehat.
+    for (const langkah of ["kirimDingin(", "periksaDingin(", "ambilDingin(", "hapusDingin("]) {
+      expect(badan, `uji sambungan tidak memanggil ${langkah}`).toContain(langkah);
+    }
+    expect(badan, "byte yang kembali tidak dicocokkan").toContain("kembali.equals(isi)");
+  });
+
+  it("berkas uji dibersihkan walau ujinya gagal di tengah", () => {
+    expect(badan).toContain("hapusDingin(setelan, kunci).catch(() => {})");
+  });
+
+  it("tidak menyentuh foto sungguhan", () => {
+    expect(badan).toContain("photos/uji-sambungan/");
+    expect(badan).not.toContain("db.photo");
+  });
+
+  it("gagalnya menyebut langkah mana yang gagal", () => {
+    expect(badan).toContain("GAGAL di langkah ${langkah}");
+  });
+});

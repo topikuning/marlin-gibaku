@@ -6,6 +6,7 @@ import { useAksi } from "@/lib/aksi-klien";
 import {
   jalankanArsipAsliAction,
   setArsipAsliAction,
+  ujiArsipAsliAction,
   type ArsipAsliState,
 } from "@/lib/system/actions";
 import type { RingkasArsip } from "@/lib/arsip-asli/antrean";
@@ -38,6 +39,8 @@ export function ArsipAsliPanel({
   const [state, aksi, pending] = useAksi<ArsipAsliState>(setArsipAsliAction, undefined);
   const [pesanJalan, setPesanJalan] = useState<string | null>(null);
   const [jalan, mulai] = useTransition();
+  const [uji, setUji] = useState<ArsipAsliState>(undefined);
+  const [menguji, mulaiUji] = useTransition();
 
   return (
     <div className="space-y-3">
@@ -50,7 +53,7 @@ export function ArsipAsliPanel({
         <Banner
           tone="info"
           title="Alamat arsip belum diisi"
-          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (plus sepasang CF Access bila mesinnya di balik Cloudflare Access). Sakelar di bawah tetap bisa disimpan, tapi tidak ada yang dipindahkan sampai alamatnya ada."
+          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (plus sepasang CF Access bila mesinnya di balik Cloudflare Access). Langkah lengkap memasang mesinnya ada di docs/ARSIP_DINGIN_SETUP.md. Sakelar di bawah tetap bisa disimpan, tapi tidak ada yang dipindahkan sampai alamatnya ada."
         />
       ) : null}
 
@@ -78,6 +81,12 @@ export function ArsipAsliPanel({
       {state?.error ? <Banner tone="error" title="Gagal menyimpan" description={state.error} /> : null}
       {state?.success ? <Banner tone="success" title="Tersimpan" description={state.success} /> : null}
       {pesanJalan ? <Banner tone="info" title="Putaran arsip" description={pesanJalan} /> : null}
+      {uji?.success ? (
+        <Banner tone="success" title="Uji sambungan berhasil" description={uji.success} />
+      ) : null}
+      {uji?.error ? (
+        <Banner tone="error" title="Uji sambungan gagal" description={uji.error} />
+      ) : null}
 
       <form action={aksi} className="flex flex-wrap items-end gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -101,6 +110,20 @@ export function ArsipAsliPanel({
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/*
+          Uji sambungan sengaja BERDIRI SENDIRI dari sakelarnya, dan bisa ditekan
+          walau pemindahannya masih mati. Urutan memasangnya memang begitu:
+          pasang mesin, buktikan tersambung, BARU nyalakan. Tombol yang cuma
+          hidup sesudah sakelarnya menyala akan memaksa orang menyalakan dulu
+          sesuatu yang belum ia percayai.
+        */}
+        <Button
+          variant="secondary"
+          loading={menguji}
+          onClick={() => mulaiUji(async () => setUji(await ujiArsipAsliAction()))}
+        >
+          Uji sambungan
+        </Button>
         <Button
           variant="ghost"
           loading={jalan}

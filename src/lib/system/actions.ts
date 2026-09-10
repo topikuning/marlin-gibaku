@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { audit } from "@/lib/audit";
+import { jakartaDateKey } from "@/lib/format";
 import { requireCapability } from "@/lib/auth/session";
 import { r2SelfTest, type R2SelfTestStep } from "@/lib/r2";
 import { sharpSelfTest } from "@/lib/photos";
@@ -457,6 +458,117 @@ export async function setArsipAsliAction(
       ? `Arsip dingin AKTIF – salinan R2 dibuang ${Math.floor(tenggangRaw)} hari setelah berkasnya terbukti aman di sana.`
       : "Arsip dingin dimatikan. Berkas asli tetap di R2, tidak ada yang dipindahkan.",
   };
+}
+
+/**
+ * UJI SAMBUNGAN KE ARSIP DINGIN — bolak-balik sungguhan, bukan sekadar ping.
+ *
+ * Pertanyaan "sudah tersambung belum?" tidak bisa dijawab oleh satu permintaan
+ * `GET /sehat`: halaman login Cloudflare Access menjawab 200, tunnel yang
+ * menyambung ke port kosong menjawab 502, dan penerima yang salah tafsir
+ * protokolnya menjawab 200 untuk semuanya. Yang benar-benar menjawabnya cuma
+ * satu perjalanan penuh — kirim, baca ulang, ambil kembali, cocokkan byte,
+ * hapus — persis langkah yang nanti dipakai berkas asli sungguhan.
+ *
+ * Berkas ujinya kecil, bernama sendiri di ruang `photos/uji-sambungan/`, dan
+ * DIHAPUS di langkah terakhir. Tidak menyentuh basis data, tidak menyentuh satu
+ * pun foto.
+ *
+ * Dijalankan DARI APLIKASI, bukan dari laptop siapa pun: yang perlu dibuktikan
+ * adalah Railway bisa menghubungi mesin itu — jaringan lain tidak menjawab
+ * pertanyaan itu.
+ */
+export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
+  const actor = await requireCapability("system.manage");
+  const { createHash, randomUUID } = await import("node:crypto");
+  const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin } = await import(
+    "@/lib/arsip-asli/dingin"
+  );
+
+  let setelan;
+  try {
+    setelan = setelanDingin();
+  } catch (err) {
+    // Satu-satunya yang dilempar setelanDingin: URL bukan https.
+    return { error: err instanceof Error ? err.message : "Setelan arsip tidak sah." };
+  }
+  if (!setelan) {
+    return { error: "ORIGINAL_ARCHIVE_URL / ORIGINAL_ARCHIVE_TOKEN belum diisi di Railway." };
+  }
+
+  const kunci = `photos/uji-sambungan/${jakartaDateKey(new Date())}/${randomUUID()}.uji`;
+  const isi = Buffer.from(`MARLIN uji sambungan ${new Date().toISOString()}\n`);
+  const sha = createHash("sha256").update(isi).digest("hex");
+  const jejak: string[] = [];
+  let langkah = "menghubungi";
+
+  try {
+    langkah = "kirim (PUT)";
+    await kirimDingin(setelan, kunci, isi);
+    jejak.push("kirim ✓");
+
+    langkah = "baca ulang (HEAD)";
+    const cek = await periksaDingin(setelan, kunci);
+    if (!cek.ada) throw new Error("terkirim tapi tidak terbaca kembali");
+    if (cek.sha256 && cek.sha256 !== sha) throw new Error("sidik jari di sana berbeda");
+    if (cek.bytes != null && cek.bytes !== isi.length) {
+      throw new Error(`ukuran di sana ${cek.bytes}, seharusnya ${isi.length}`);
+    }
+    jejak.push(cek.sha256 ? "baca ulang ✓ (sidik jari cocok)" : "baca ulang ✓");
+
+    langkah = "ambil kembali (GET)";
+    const kembali = await ambilDingin(setelan, kunci);
+    if (!kembali.equals(isi)) throw new Error("byte yang kembali berbeda dengan yang dikirim");
+    jejak.push("ambil kembali ✓");
+
+    langkah = "hapus (DELETE)";
+    await hapusDingin(setelan, kunci);
+    const sesudah = await periksaDingin(setelan, kunci);
+    if (sesudah.ada) throw new Error("dihapus tapi masih ada di sana");
+    jejak.push("hapus ✓");
+
+    await audit(actor.id, "system.arsip_asli_uji", "system", null, { hasil: "berhasil" });
+    return {
+      success: `Tersambung. ${jejak.join(" · ")} – berkas asli aman dipindahkan ke sini.`,
+    };
+  } catch (err) {
+    const pesan = err instanceof Error ? err.message : "gagal";
+    // Sisa uji tidak boleh meninggalkan sampah di sana kalau PUT-nya sempat lolos.
+    if (jejak.length > 0) await hapusDingin(setelan, kunci).catch(() => {});
+    await audit(actor.id, "system.arsip_asli_uji", "system", null, { hasil: "gagal", langkah, pesan });
+    const sudah = jejak.length > 0 ? `${jejak.join(" · ")} · ` : "";
+    return { error: `${sudah}GAGAL di langkah ${langkah}: ${pesan}. ${dugaan(pesan)}` };
+  }
+}
+
+/**
+ * Terjemahan galat mentah ke kalimat yang bisa ditindaklanjuti.
+ *
+ * Angka status HTTP sendirian tidak memberi tahu siapa pun apa yang harus
+ * diperbaiki, dan yang membaca layar ini sedang memasang mesin — bukan membaca
+ * spesifikasi HTTP.
+ */
+function dugaan(pesan: string): string {
+  if (/\b403\b/.test(pesan)) {
+    return "403 = ditolak: ORIGINAL_ARCHIVE_TOKEN berbeda dengan ARSIP_TOKEN di mesinnya, atau Cloudflare Access menghadang (isi sepasang CF Client ID/Secret).";
+  }
+  if (/\b401\b/.test(pesan)) return "401 = Cloudflare Access menuntut login; pakai Service Token.";
+  if (/\b404\b/.test(pesan)) {
+    return "404 = alamatnya sampai, tapi yang menjawab bukan penerima arsip. Periksa ingress Tunnel-nya menunjuk ke port penerima.";
+  }
+  if (/\b400\b/.test(pesan)) {
+    return "400 = penerimanya menolak bentuk kuncinya. Pastikan yang berjalan di sana arsip-dingin/server.mjs dari repo ini, bukan rancangan lain.";
+  }
+  if (/\b(502|503|530)\b/.test(pesan)) {
+    return "Tunnel-nya hidup tapi tidak menemukan servisnya – `systemctl status marlin-arsip` di mesin itu.";
+  }
+  if (/\b507\b/.test(pesan)) return "507 = disk arsipnya penuh.";
+  if (/\b409\b/.test(pesan)) return "409 = di sana sudah ada berkas lain dengan kunci sama.";
+  if (/timed? ?out|abort|ETIMEDOUT/i.test(pesan)) {
+    return "Tidak dijawab sampai batas waktu – mesinnya mati, Tunnel-nya mati, atau uplink-nya tersendat.";
+  }
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(pesan)) return "Nama domainnya tidak terpetakan.";
+  return "Cek `systemctl status marlin-arsip` dan log cloudflared di mesin itu.";
 }
 
 /** Jalankan satu putaran dari layar, tanpa menunggu jadwal cron. */

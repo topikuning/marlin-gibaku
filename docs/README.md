@@ -22,6 +22,7 @@ Mulai dari mana tergantung yang Anda cari.
 | Deploy Railway langkah demi langkah | [`DEPLOY_RAILWAY.md`](./DEPLOY_RAILWAY.md) |
 | Sambungkan WhatsApp (WAHA) | [`WAHA_SETUP.md`](./WAHA_SETUP.md) |
 | Sambungkan Google Drive KKP | [`GDRIVE_SETUP.md`](./GDRIVE_SETUP.md) |
+| Pasang server arsip dingin (berkas asli foto) | [`ARSIP_DINGIN_SETUP.md`](./ARSIP_DINGIN_SETUP.md) |
 | Kebijakan dependency & lisensi | [`DEPENDENCY_POLICY.md`](./DEPENDENCY_POLICY.md) |
 
 ## Referensi yang HIDUP (diperbarui mengikuti kode)

@@ -1,0 +1,43 @@
+[Unit]
+# Penerima arsip dingin MARLIN. Pasang di /etc/systemd/system/marlin-arsip.service
+# Lihat docs/ARSIP_DINGIN_SETUP.md
+Description=Penerima arsip dingin MARLIN (berkas asli foto)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=marlin
+Group=marlin
+WorkingDirectory=/opt/marlin-arsip
+ExecStart=/usr/bin/node /opt/marlin-arsip/server.mjs
+
+# Rahasianya di berkas terpisah ber-izin 600, bukan di baris ini: `systemctl cat`
+# dan `systemctl show` bisa dibaca pengguna biasa, dan yang tercetak di sana
+# akan memuat tokennya.
+EnvironmentFile=/etc/marlin-arsip.env
+
+Restart=always
+RestartSec=5
+
+# Mati listrik dan reboot adalah keadaan normal untuk mesin di pojok ruangan,
+# bukan kejadian luar biasa. Servisnya harus kembali sendiri tanpa ada yang
+# mengetik apa pun.
+
+# Pengetatan: proses ini hanya perlu menulis ke satu direktori. Kalau suatu saat
+# ada celah di dalamnya, sisa mesin tidak ikut terbawa.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/marlin-arsip
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target
