@@ -23,46 +23,71 @@ process.env.DATABASE_URL ??= "postgresql://marlin:marlin@localhost:5432/marlin_t
 vi.mock("server-only", () => ({}));
 
 const TOKEN = "rahasia-uji-yang-cukup-panjang-untuk-lolos";
-const PORT = 8791;
 const ISI = Buffer.from(`FOTO-ASLI-${"x".repeat(5000)}`);
 const SHA = createHash("sha256").update(ISI).digest("hex");
 const KUNCI = "photos/knmp-besole-tulungagung/2026-09-08/d38eb2d2.asli.jpg";
 
 let anak: ChildProcess;
 let dir: string;
+let PORT = 0;
 
-process.env.ORIGINAL_ARCHIVE_URL = `http://127.0.0.1:${PORT}`;
-process.env.ORIGINAL_ARCHIVE_TOKEN = TOKEN;
+/*
+ * Port dipilih SISTEM (`ARSIP_PORT=0`), bukan ditulis di sini.
+ *
+ * Versi pertama memakai 8791 dan langsung terbukti rapuh: satu proses uji yang
+ * belum sempat mati membuat putaran berikutnya gagal tiga kali dengan sebab yang
+ * tidak ada hubungannya dengan yang diuji. Di CI, berkas uji berjalan
+ * berdampingan – nomor port tetap adalah tabrakan yang menunggu waktu.
+ *
+ * `ORIGINAL_ARCHIVE_URL` karena itu baru bisa disetel sesudah portnya diketahui,
+ * dan `dingin.ts` membacanya lewat `env` yang dimuat sekali – jadi modulnya
+ * diimpor DI DALAM `beforeAll`, sesudah portnya masuk ke `process.env`.
+ */
 
-const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin } = await import(
-  "@/lib/arsip-asli/dingin"
-);
+type Klien = typeof import("@/lib/arsip-asli/dingin");
+let dingin: Klien;
 
 const setelan = () => {
-  const s = setelanDingin();
+  const s = dingin.setelanDingin();
   if (!s) throw new Error("setelan arsip dingin kosong");
   return s;
 };
+const periksaDingin: Klien["periksaDingin"] = (...a) => dingin.periksaDingin(...a);
+const kirimDingin: Klien["kirimDingin"] = (...a) => dingin.kirimDingin(...a);
+const ambilDingin: Klien["ambilDingin"] = (...a) => dingin.ambilDingin(...a);
+const hapusDingin: Klien["hapusDingin"] = (...a) => dingin.hapusDingin(...a);
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "arsip-uji-"));
   anak = spawn(process.execPath, [new URL("../../arsip-dingin/server.mjs", import.meta.url).pathname], {
-    env: { ...process.env, ARSIP_DIR: dir, ARSIP_TOKEN: TOKEN, ARSIP_PORT: String(PORT) },
-    stdio: "ignore",
+    env: { ...process.env, ARSIP_DIR: dir, ARSIP_TOKEN: TOKEN, ARSIP_PORT: "0", ARSIP_HOST: "127.0.0.1" },
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  // Tunggu sampai benar-benar menjawab, jangan menebak lewat jeda tetap.
-  const batas = Date.now() + 15_000;
-  for (;;) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/sehat`);
-      if (r.ok) break;
-    } catch {
-      /* belum siap */
-    }
-    if (Date.now() > batas) throw new Error("penerima arsip tidak kunjung siap");
-    await new Promise((ok) => setTimeout(ok, 100));
-  }
-}, 30_000);
+
+  // Portnya dibaca dari baris siap yang dicetak penerimanya sendiri.
+  PORT = await new Promise<number>((selesai, gagal) => {
+    const jam = setTimeout(() => gagal(new Error("penerima arsip tidak kunjung siap")), 20_000);
+    anak.stdout!.on("data", (b: Buffer) => {
+      const cocok = /http:\/\/127\.0\.0\.1:(\d+)/.exec(b.toString());
+      if (cocok) {
+        clearTimeout(jam);
+        selesai(Number(cocok[1]));
+      }
+    });
+    anak.on("exit", (kode) => {
+      clearTimeout(jam);
+      gagal(new Error(`penerima arsip berhenti (exit ${kode})`));
+    });
+  });
+
+  process.env.ORIGINAL_ARCHIVE_URL = `http://127.0.0.1:${PORT}`;
+  process.env.ORIGINAL_ARCHIVE_TOKEN = TOKEN;
+  dingin = await import("@/lib/arsip-asli/dingin");
+
+  // Benar-benar menjawab, bukan sekadar sudah mencetak barisnya.
+  const r = await fetch(`http://127.0.0.1:${PORT}/sehat`);
+  expect(r.ok).toBe(true);
+}, 40_000);
 
 afterAll(async () => {
   anak?.kill();

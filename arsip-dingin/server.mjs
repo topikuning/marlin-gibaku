@@ -245,5 +245,9 @@ server.headersTimeout = 120_000;
 
 await mkdir(AKAR, { recursive: true });
 server.listen(PORT, HOST, () => {
-  console.log(`[arsip] siap di http://${HOST}:${PORT} → ${AKAR}`);
+  // Port yang SEBENARNYA dipakai, bukan yang diminta: dengan ARSIP_PORT=0
+  // sistem yang memilihkan, dan yang perlu dibaca orang (atau uji) adalah
+  // hasilnya.
+  const { port } = server.address();
+  console.log(`[arsip] siap di http://${HOST}:${port} → ${AKAR}`);
 });

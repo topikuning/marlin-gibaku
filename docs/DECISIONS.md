@@ -28975,3 +28975,42 @@ sebagai proses terpisah dan memanggilnya dengan klien sungguhan (9 uji, termasuk
 tolak-timpa, token salah, dan kunci di luar ruang foto). Yang tersisa untuk user
 hanyalah yang memang tidak bisa dikerjakan dari sini: menyalakan mesinnya,
 memasang Tunnel, mengisi dua variabel, dan menekan satu sakelar.
+
+---
+
+## 552 · 2026-09-10 · "Sudah tersambung belum?" dijawab tombol, bukan dugaan
+
+**Konteks**: user sudah memasang `disket.gibaku.com` di Cloudflare dan mengisi
+variabel di Railway, lalu bertanya apakah sambungannya jadi. Tidak ada satu pun
+cara menjawabnya dari layar — dan mencobanya dari tempat lain tidak menjawab
+pertanyaannya: yang perlu dibuktikan adalah **Railway** bisa menghubungi mesin
+itu, bukan laptop atau sandbox siapa pun.
+
+**Keputusan**: tombol **Uji sambungan** di kartu arsip dingin, melakukan
+perjalanan PENUH — kirim → baca ulang → ambil kembali → cocokkan byte → hapus —
+dengan berkas uji kecil di ruang `photos/uji-sambungan/` yang dihapus di langkah
+terakhir. Tidak menyentuh basis data, tidak menyentuh satu pun foto.
+
+**Kenapa bukan `GET /sehat` saja**: halaman login Cloudflare Access menjawab
+200, tunnel yang menyambung ke port kosong menjawab 502, dan penerima yang salah
+tafsir protokolnya bisa menjawab 200 untuk semuanya. Ping hanya membuktikan ada
+yang menjawab, bukan bahwa berkas asli aman dipindahkan ke sana — dan yang kedua
+itulah yang menentukan boleh-tidaknya salinan R2 dibuang.
+
+**Galatnya diterjemahkan**, bukan diteruskan mentah: 403 → token beda atau CF
+Access menghadang; 404 → alamat sampai tapi yang menjawab bukan penerima arsip;
+400 → penerimanya menolak bentuk kunci (kemungkinan besar yang berjalan di sana
+rancangan lain, bukan `arsip-dingin/server.mjs`); 502/503/530 → tunnel hidup
+tapi servisnya tidak; 507 → disk penuh; batas waktu → mesin/tunnel/uplink. Yang
+membaca layar ini sedang memasang mesin, bukan membaca spesifikasi HTTP.
+
+**Tombolnya berdiri sendiri dari sakelarnya** dan bisa ditekan walau pemindahan
+masih mati. Urutan memasangnya memang begitu: pasang, buktikan tersambung, BARU
+nyalakan. Tombol yang baru hidup sesudah sakelarnya menyala memaksa orang
+menyalakan dulu sesuatu yang belum ia percayai.
+
+**Ikut diperbaiki**: uji penerima memakai port pilihan sistem (`ARSIP_PORT=0`,
+dibaca dari baris siap yang dicetak penerimanya), bukan 8791. Nomor tetap itu
+sudah sempat membuat satu putaran integrasi gagal tiga kali karena proses uji
+sebelumnya belum mati — sebab yang tidak ada hubungannya dengan yang diuji, dan
+di CI (berkas uji berjalan berdampingan) tabrakan itu tinggal menunggu waktu.
