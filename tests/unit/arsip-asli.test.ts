@@ -164,9 +164,18 @@ describe("tidak membangun yang kedua", () => {
     // Versi pertama menyerahkannya ke pemanggil dan `HEAD` langsung lupa
     // membawanya – pemeriksaan "sudah ada belum" akan dijawab halaman login.
     expect(dingin).toContain("headers: kepala(s, tambahanKepala)");
-    // Tepat satu PEMANGGILAN (yang satunya lagi definisi fungsinya sendiri):
-    // begitu ada pemanggil kedua, otentikasi punya dua tempat untuk lupa.
-    expect(dingin.match(/[^n] kepala\(s/g) ?? []).toHaveLength(1);
+    /*
+     * Versi pertama uji ini menghitung PEMANGGILAN `kepala(s` dan menuntut
+     * tepat satu. Itu terlalu kaku: `statusDingin` lahir kemudian sebagai jalur
+     * keluar kedua yang sah, dan uji ini menolaknya walau otentikasinya
+     * terpasang benar. Yang sebenarnya ingin dijaga bukan jumlah pemanggilnya,
+     * melainkan bahwa TIDAK ADA `fetch` yang berangkat tanpa header.
+     */
+    const semuaFetch = dingin.match(/fetch\([\s\S]{0,400}?\n  \}\)/g) ?? [];
+    expect(semuaFetch.length, "tidak ada fetch terbaca – polanya perlu diperbarui").toBeGreaterThan(1);
+    for (const f of semuaFetch) {
+      expect(f, `fetch tanpa header otentikasi:\n${f}`).toMatch(/headers: kepala(Access)?\(s/);
+    }
   });
 });
 

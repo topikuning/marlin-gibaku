@@ -29243,3 +29243,49 @@ percaya diri, jauh lebih buruk daripada penolakan.
 **Dua uji lama ikut diubah, dan itu disengaja**: `ai-hub.test.ts` menuntut
 lingkup besar DITOLAK. Tuntutan itu yang sekarang salah; keduanya ditulis ulang
 menyebut keputusan ini, bukan dihapus.
+
+---
+
+## 558 · 2026-09-10 · "Sudah masuk belum?" dijawab dengan bertanya ke mesinnya, bukan membaca catatan sendiri
+
+**Konteks**: pertanyaan user 2026-09-10, *"bagaimana aku mengecek ada file foto
+yang sudah masuk ke server lenovoku"*. Kartu Arsip dingin sudah menampilkan
+empat angka — menunggu, masa tenggang, selesai pindah, berhenti dicoba — tapi
+keempatnya dibaca dari kolom `photos`. Yang dilaporkannya: **MARLIN merasa sudah
+mengirim**. Bukan bahwa berkasnya benar-benar ada di sana.
+
+Keduanya sama selama tidak ada yang salah, dan berbeda tepat ketika ada yang
+salah: berkas terhapus manual di mesin itu, disk diganti, direktori ter-mount
+ulang ke tempat lain, gateway dipasang ulang dengan `DATA_DIR` berbeda.
+
+**Kenapa bedanya berakibat**: baris yang tercatat terarsip akan KEHILANGAN
+salinan R2-nya begitu masa tenggang lewat. Kalau catatan itu ternyata bohong,
+yang hilang berkas aslinya — dan tidak ada yang tahu sampai ada yang mencoba
+memperbaiki cap, berbulan-bulan kemudian.
+
+**Keputusan**: tombol **"Periksa isi arsip"** mengambil 10 foto yang PALING BARU
+tercatat terarsip lalu meng-HEAD satu per satu ke mesinnya: ada tidak, ukurannya
+cocok tidak, sidik jarinya cocok tidak. Plus sisa ruang disk dari `/v1/status` —
+arsip yang disknya hampir penuh berhenti menerima, dan satu-satunya cara
+mengetahuinya sebelum kejadian adalah bertanya.
+
+Yang diperiksa yang terbaru karena di situlah masalah pengiriman muncul lebih
+dulu. Murni HEAD: tidak ada berkas yang diunduh, ditulis, atau dihapus.
+
+**Bila ada yang tidak ketemu**, pesannya tidak berhenti di angka: ia menyuruh
+MEMATIKAN arsip sebelum masa tenggang lewat, karena itulah tindakan yang
+menyelamatkan berkasnya.
+
+**Ada saja tidak dihitung cukup**: berkas yang isinya lain sama buruknya dengan
+berkas yang hilang, dan jauh lebih sulit disadari — jadi sidik jari dan ukuran
+ikut dicocokkan.
+
+**Uji penjaga otentikasi ikut diperbaiki**: versi lamanya menghitung pemanggilan
+`kepala(s` dan menuntut tepat satu, jadi ia menolak `statusDingin` — jalur
+keluar kedua yang otentikasinya justru terpasang benar. Yang ingin dijaga bukan
+jumlah pemanggilnya melainkan bahwa tidak ada `fetch` yang berangkat tanpa
+header; itu yang sekarang diperiksa, dan terbukti merah saat headernya dicabut.
+
+**Alternatif direject**: mengunduh berkasnya untuk dibandingkan byte demi byte —
+memakai uplink rumah untuk membuktikan hal yang sudah dibuktikan sidik jari, dan
+pada foto besar akan memakan menit hanya untuk satu pemeriksaan rutin.

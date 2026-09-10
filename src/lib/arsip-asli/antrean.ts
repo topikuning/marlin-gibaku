@@ -2,7 +2,14 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2GetBuffer } from "@/lib/r2";
-import { ambilDingin, kirimDingin, periksaDingin, setelanDingin, type SetelanDingin } from "./dingin";
+import {
+  ambilDingin,
+  kirimDingin,
+  periksaDingin,
+  setelanDingin,
+  statusDingin,
+  type SetelanDingin,
+} from "./dingin";
 import { arsipAktif, tenggangHari } from "./setelan";
 
 /**
@@ -273,4 +280,86 @@ export async function ringkasArsipAsli(): Promise<RingkasArsip> {
     galatTerakhir: galat?.originalArchiveError ?? null,
     terakhirBerhasil: terakhir?.originalArchivedAt ?? null,
   };
+}
+
+export type BuktiArsip = {
+  diperiksa: number;
+  terbukti: number;
+  hilang: { id: string; kunci: string; sebab: string }[];
+  sisaBytes: number | null;
+  totalBytes: number | null;
+};
+
+/**
+ * BUKTI, bukan catatan: benarkah berkasnya ADA di mesin arsip?
+ *
+ * Pertanyaan user 2026-09-10: *"bagaimana aku mengecek ada file foto yang sudah
+ * masuk ke server lenovoku"*. Angka di kartu Sistem tidak menjawabnya — semua
+ * berasal dari kolom `photos`, jadi yang dilaporkannya adalah *MARLIN merasa
+ * sudah mengirim*, bukan bahwa berkasnya benar-benar di sana. Keduanya sama
+ * selama tidak ada yang salah, dan justru berbeda tepat ketika ada yang salah:
+ * berkas terhapus manual di mesin itu, disk diganti, direktori ter-mount ulang
+ * ke tempat lain.
+ *
+ * Bedanya penting karena ada akibatnya: baris yang tercatat terarsip akan
+ * kehilangan salinan R2-nya begitu masa tenggang lewat. Kalau catatan itu
+ * ternyata bohong, yang hilang berkas aslinya — dan tidak ada yang tahu sampai
+ * ada yang mencoba memperbaiki cap.
+ *
+ * Yang diperiksa contoh yang PALING BARU diarsipkan, karena di situlah masalah
+ * pengiriman muncul lebih dulu. Murni HEAD: tidak ada berkas yang diunduh,
+ * tidak ada yang ditulis, tidak ada yang dihapus.
+ */
+export async function periksaIsiArsip(contoh = 10): Promise<BuktiArsip> {
+  const setelan = setelanDingin();
+  if (!setelan) throw new Error("Arsip dingin belum dikonfigurasi.");
+
+  const baris = await db.photo.findMany({
+    where: { originalArchivedAt: { not: null }, originalKey: { not: null } },
+    select: { id: true, originalKey: true, originalBytes: true, sha256: true },
+    orderBy: { originalArchivedAt: "desc" },
+    take: Math.max(1, Math.min(50, contoh)),
+  });
+
+  const hilang: BuktiArsip["hilang"] = [];
+  let terbukti = 0;
+  for (const f of baris) {
+    try {
+      const cek = await periksaDingin(setelan, f.originalKey!);
+      if (!cek.ada) {
+        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: "tidak ada di arsip" });
+        continue;
+      }
+      // Ada saja tidak cukup: berkas yang isinya lain sama buruknya dengan
+      // berkas yang hilang, dan lebih sulit disadari.
+      if (cek.sha256 && cek.sha256 !== f.sha256.toLowerCase()) {
+        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: "sidik jari berbeda" });
+        continue;
+      }
+      if (cek.bytes != null && f.originalBytes != null && cek.bytes !== f.originalBytes) {
+        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: `ukuran beda (${cek.bytes})` });
+        continue;
+      }
+      terbukti++;
+    } catch (err) {
+      hilang.push({
+        id: f.id,
+        kunci: f.originalKey!,
+        sebab: err instanceof Error ? err.message : "gagal diperiksa",
+      });
+    }
+  }
+
+  let sisaBytes: number | null = null;
+  let totalBytes: number | null = null;
+  try {
+    const st = await statusDingin(setelan);
+    sisaBytes = st.freeBytes;
+    totalBytes = st.totalBytes;
+  } catch {
+    // Sisa disk hanya pelengkap – kegagalannya tidak boleh membatalkan bukti
+    // yang sudah dikumpulkan di atas.
+  }
+
+  return { diperiksa: baris.length, terbukti, hilang, sisaBytes, totalBytes };
 }

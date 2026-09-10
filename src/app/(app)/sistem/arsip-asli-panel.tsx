@@ -5,6 +5,7 @@ import { Banner, Button, Input, Label, StatusPill } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
 import {
   jalankanArsipAsliAction,
+  periksaIsiArsipAction,
   setArsipAsliAction,
   ujiArsipAsliAction,
   type ArsipAsliState,
@@ -41,6 +42,8 @@ export function ArsipAsliPanel({
   const [jalan, mulai] = useTransition();
   const [uji, setUji] = useState<ArsipAsliState>(undefined);
   const [menguji, mulaiUji] = useTransition();
+  const [bukti, setBukti] = useState<ArsipAsliState>(undefined);
+  const [memeriksa, mulaiPeriksa] = useTransition();
 
   return (
     <div className="space-y-3">
@@ -87,6 +90,12 @@ export function ArsipAsliPanel({
       {uji?.error ? (
         <Banner tone="error" title="Uji sambungan gagal" description={uji.error} />
       ) : null}
+      {bukti?.success ? (
+        <Banner tone="success" title="Isi arsip terbukti" description={bukti.success} />
+      ) : null}
+      {bukti?.error ? (
+        <Banner tone="error" title="Isi arsip tidak sesuai catatan" description={bukti.error} />
+      ) : null}
 
       <form action={aksi} className="flex flex-wrap items-end gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -123,6 +132,18 @@ export function ArsipAsliPanel({
           onClick={() => mulaiUji(async () => setUji(await ujiArsipAsliAction()))}
         >
           Uji sambungan
+        </Button>
+        {/*
+          Angka di atas dibaca dari basis data – ia menyatakan MARLIN merasa
+          sudah mengirim. Tombol ini bertanya ke MESINNYA. Keduanya sama selama
+          tidak ada yang salah, dan berbeda tepat ketika ada yang salah.
+        */}
+        <Button
+          variant="ghost"
+          loading={memeriksa}
+          onClick={() => mulaiPeriksa(async () => setBukti(await periksaIsiArsipAction()))}
+        >
+          Periksa isi arsip
         </Button>
         <Button
           variant="ghost"
