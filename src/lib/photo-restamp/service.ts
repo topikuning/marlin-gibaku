@@ -119,6 +119,9 @@ export type KonteksFoto = {
   workDate: Date | null;
   originalKey: string | null;
   originalPurgedAt: Date | null;
+  /** Salinan R2 berkas asli sudah dibuang sesudah masa tenggang? Menentukan
+   *  dari mana berkas aslinya dibaca — lihat `arsip-asli/antrean.ts`. */
+  originalR2PurgedAt: Date | null;
   r2Key: string;
   thumbnailKey: string | null;
   stampRevision: number;
@@ -141,6 +144,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       thumbnailKey: true,
       originalKey: true,
       originalPurgedAt: true,
+      originalR2PurgedAt: true,
       exifTakenAt: true,
       exifGpsLat: true,
       exifGpsLng: true,
@@ -225,6 +229,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     workDate,
     originalKey: p.originalKey,
     originalPurgedAt: p.originalPurgedAt,
+    originalR2PurgedAt: p.originalR2PurgedAt,
     r2Key: p.r2Key,
     thumbnailKey: p.thumbnailKey,
     stampRevision: p.stampRevision,

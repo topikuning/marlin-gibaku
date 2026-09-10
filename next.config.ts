@@ -50,12 +50,27 @@ const nextConfig: NextConfig = {
   // eksplisit di sini. Tiap pemanggilnya diberi `/*turbopackIgnore: true*/`
   // supaya penelusur berhenti menganggapnya require dinamis dan menyeret
   // SELURUH proyek ke image (review 2026-08-29).
+  //
+  // POLANYA HARUS TURUN SAMPAI ISI PAKET, jangan berhenti di direktori .pnpm.
+  // Versi sebelumnya `sharp@*/**` dan `@img+*/**`, dan itu ikut mencocokkan
+  // ENTRI TAUTAN SIMBOLIK di dalamnya — pnpm menaruh
+  // `@img+sharp-linux-x64@*/node_modules/@img/sharp-libvips-linux-x64` sebagai
+  // tautan ke direktori paket lain. Next 16.2 membiarkannya; sejak 16.3 penelusur
+  // mencoba membaca entri itu sebagai BERKAS dan seluruh build berhenti dengan
+  // `Is a directory (os error 21)` — galat yang tidak menyebut satu pun berkas
+  // proyek ini, jadi tidak ada petunjuk ke arah sini.
+  //
+  // Dengan segmen tambahan di belakangnya, yang cocok adalah isi di DALAM
+  // tautan itu, bukan tautannya sendiri; hasil salinannya sama (di standalone
+  // ia menjadi direktori sungguhan lengkap dengan libvips-cpp.so). Dijaga
+  // `tests/unit/jejak-standalone.test.ts`, dan dibuktikan ulang tiap build
+  // Docker oleh pemeriksaan `require('sharp')` di Dockerfile.
   outputFileTracingIncludes: {
     "/**": [
       "./assets/**",
       "./seed-data/**",
-      "./node_modules/.pnpm/sharp@*/**",
-      "./node_modules/.pnpm/@img+*/**",
+      "./node_modules/.pnpm/sharp@*/node_modules/sharp/**",
+      "./node_modules/.pnpm/@img+*/node_modules/@img/*/**",
     ],
   },
 };

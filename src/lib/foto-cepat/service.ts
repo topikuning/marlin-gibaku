@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { bacaBerkasAsli } from "@/lib/arsip-asli/antrean";
 import { audit } from "@/lib/audit";
 import {
   konteksFoto,
@@ -69,7 +70,7 @@ export async function lengkapiCap(
     photoId: lama.photoId ?? k.saatIni.photoId,
   };
 
-  const original = await r2GetBuffer(k.originalKey);
+  const original = await bacaBerkasAsli(k);
   const processed = await processWithSharpOrOriginal(original, await stampDariNilai(baru), {
     name: k.originalKey,
     type: "",

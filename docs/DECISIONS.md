@@ -28794,3 +28794,139 @@ dengannya; dicatat di `docs/OPEN_ISSUES.md`.
 **Bisa di-revisit**: bila jumlah kolom JSON tumbuh sampai pemindaiannya jadi
 mahal, atau bila muncul cara sah membuktikan kepemilikan bucket dari dalam
 aplikasi.
+
+## 549 · 2026-09-09 · Arsip dingin berkas asli: R2 tetap persinggahannya, tanpa Railway Volume
+
+**Konteks**: user menyerahkan rancangan susunan ChatGPT — Railway Volume sebagai
+persinggahan berkas asli, mesin sendiri sebagai arsip dingin, R2 sebagai jalur
+darurat — lalu meminta pendapat, lalu meminta rancangan yang lebih baik, lalu
+menegur bahwa variabelnya kebanyakan: *"terlalu banyak variable yang harus
+ditambahkan, coba cek ulang"*.
+
+Rancangan aslinya benar arahnya dan beberapa bagiannya diambil utuh: verifikasi
+sebelum menghapus (HEAD + checksum + jumlah byte), `originalKey` tetap kunci
+LOGIS bukan path, unggah user tidak boleh menunggu arsip, dan penahapan deploy.
+
+**Keputusan**: buang Railway Volume dari rancangannya. Persinggahannya sudah ada
+— R2, tempat berkas asli memang sudah ditulis sejak DECISIONS 197. Yang
+ditambahkan cuma pemindahan di belakang layar.
+
+Yang lenyap bersama Volume: disk penuh (dan seluruh jalur darurat yang lahir
+untuk menanganinya), izin berkas di entrypoint, urutan resolusi path yang harus
+sama antara aplikasi dan skrip shell — rancangan itu bahkan minta dibuatkan uji
+khusus untuk menjaganya, uji yang hanya perlu ada karena rancangannya sendiri
+menciptakan celahnya — dan satu jendela waktu ketika satu-satunya salinan berada
+di disk yang tidak dibackup.
+
+| | Rancangan awal | Yang dipakai |
+|---|---|---|
+| Keadaan | 5 (+2 khusus pembersihan) | 2 kolom tanggal, tanpa enum |
+| Tabel antrean | ya | tidak — barisnya sendiri yang jadi antrean |
+| Jalur unggah | diubah | **tidak disentuh sama sekali** |
+| Migrasi data lama | perlu backfill | tidak perlu; NULL memang berarti "masih di R2" |
+| Variabel lingkungan | 14 | **4** |
+| Endpoint & rahasia cron | baru, sendiri | `CRON_SECRET` yang sudah ada |
+| Anti-tabrakan | berkas kunci di disk | tiap langkah boleh diulang |
+| Image & service Railway baru | 1 + 1 | tidak ada |
+
+**Keadaannya dua tanggal, dan keduanya hanya maju**: `originalArchivedAt` (sudah
+terbukti ada di arsip) dan `originalR2PurgedAt` (salinan R2 sudah dibuang). Dua
+keadaan "pembersihan" di rancangan awal ada untuk menandai pekerjaan yang mati
+di tengah jalan; di sini tidak perlu, karena mengulang langkah yang sama
+memberi hasil yang sama — kirim lalu mati sebelum mencatat akan dilanjutkan
+putaran berikutnya lewat HEAD, tanpa kiriman kedua.
+
+**Masa tenggang, dan ini beda dari rancangan awal**: salinan R2 TIDAK dibuang
+begitu checksum cocok, melainkan setelah 7 hari (bisa diatur di layar, 0 =
+segera). Selama itu tiap berkas punya dua salinan sungguhan tanpa usaha
+tambahan, dan kalau arsip dinginnya rewel di minggu-minggu pertama kita masih
+bisa mundur. Harganya jujur: pemakaian R2 baru mulai turun seminggu setelah
+arsip berjalan, bukan seketika.
+
+**Empat variabel, dan cuma itu**: `ORIGINAL_ARCHIVE_URL`, `_TOKEN`,
+`_CF_CLIENT_ID`, `_CF_CLIENT_SECRET` — alamat dan rahasia, memang tempatnya di
+env. Sisanya: sakelar hidup/mati dan masa tenggang jadi setelan di layar (yang
+paling sering perlu diubah, dan mengubah env berarti deploy ulang); batas waktu,
+jumlah per putaran, dan ambang gagal jadi konstanta seperti antrean Drive; zona
+waktu karena seluruh aplikasi ini memang Asia/Jakarta; jendela jam karena yang
+menentukan KAPAN berjalan adalah jadwal cron.
+
+**Alternatif direject**: (a) Volume sebagai buffer — unggul di satu hal saja
+(berkas asli tidak pernah menyentuh kuota R2), bedanya hitungan jam, ongkosnya
+tiga keadaan tambahan plus satu filesystem; (b) endpoint dengan rahasia sendiri
+— dua konvensi otentikasi di satu aplikasi berarti dua tempat yang bisa salah,
+tanpa menambah keamanan; (c) berkas kunci di disk — hanya benar selama
+servicenya satu replika, asumsi yang tidak tertulis di mana pun.
+
+**Pagar yang tidak boleh dilepas**: TLS wajib kecuali ke mesin sendiri (tiap
+permintaan membawa token pembawa dan sepasang rahasia Cloudflare Access di
+header); kunci arsip yang tidak berbentuk sah DITOLAK, bukan dibersihkan;
+otentikasi dipasang di satu pintu keluar, bukan di tiap pemanggil — versi
+pertama menyerahkannya ke pemanggil dan `HEAD` langsung lupa membawanya.
+
+**Konsekuensi**: fitur ini MATI sampai dinyalakan di layar. Deteksi rujukan
+menggantung di kartu penyimpanan (DECISIONS 546/548) ikut diperbaiki — tanpa itu
+tiap berkas yang BERHASIL diarsipkan akan dilaporkan sebagai "hilang", merah,
+untuk pekerjaan yang justru berjalan benar. Dijaga
+`tests/unit/arsip-asli.test.ts` dan `tests/integration/arsip-asli-putaran.test.ts`
+(arsip tiruan berupa server HTTP sungguhan, bukan tiruan fungsi).
+
+**Yang belum teruji dan harus disebut**: mesin arsip dinginnya sendiri belum ada
+saat ini ditulis, jadi yang terbukti barulah bentuk protokolnya terhadap server
+tiruan — bukan terhadap mesin sungguhan di balik Cloudflare Access.
+
+**Bisa di-revisit**: kalau ternyata berkas asli bukan mayoritas isi R2. Angkanya
+belum diukur; kartu "Isi penyimpanan R2" menjawabnya dalam satu klik.
+
+---
+
+## 550 · 2026-09-10 · Gerbang keamanan & lisensi merah di main, plus penelusur Next 16.3
+
+**Konteks**: dua rilis terakhir ke main (2026-09-09) MERAH di CI, dan tidak
+ketahuan karena keduanya masuk lewat push langsung, bukan PR. Job "Lint,
+typecheck, unit, build" berhenti di langkah pertamanya, jadi typecheck, lint,
+unit, dan build bahkan tidak pernah dijalankan — merah yang menyembunyikan
+sisanya.
+
+**Dua sebab berbeda**:
+
+- Rilis 545–546: `pnpm audit --prod --high` menemukan 14 temuan — 2 **kritis**
+  (`next` <16.3.3, RCE tanpa otentikasi), 11 tinggi di `@xmldom/xmldom`
+  (transitif `exifreader`), 1 tinggi di `sharp` <0.35.4 (libheif).
+- Rilis 547–548: `libheif-js@1.23.2` LGPL-3.0 di luar allowlist — dibawa masuk
+  `heic-decode`, yang justru penambahan rilis itu sendiri.
+
+**Keputusan**:
+
+1. `next` 16.2.11 → **16.3.4**, `sharp` 0.35.3 → **0.35.4** (juga override
+   transitifnya di `pnpm-workspace.yaml`), `exifreader` 4.41.0 → **4.44.1**,
+   `@xmldom/xmldom` dipaksa ke **0.9.12**, `eslint-config-next` mengikuti Next.
+   Sesudahnya: 0 temuan high/critical.
+2. `libheif-js` masuk daftar pengecualian lisensi, dengan alasan yang TIDAK
+   sama dengan `@img/sharp-libvips-*` di atasnya dan karena itu ditulis
+   terpisah: yang ini WASM, bukan tautan dinamis. Yang membuatnya diterima
+   adalah karyanya tidak pernah diserahkan ke pihak lain — berjalan di server,
+   tidak pernah dikirim ke peramban. Batasnya disebut eksplisit di
+   `docs/rebuild/OPEN_SOURCE_LICENSE_AUDIT.md`.
+
+**Yang tidak terduga**: Next 16.3 mengubah perilaku penelusur berkas
+standalone. Pola `outputFileTracingIncludes` yang berhenti di direktori .pnpm
+(`@img+*/**`) ikut mencocokkan ENTRI TAUTAN SIMBOLIK ke direktori — pnpm
+menaruh `@img+sharp-linux-x64@*/node_modules/@img/sharp-libvips-linux-x64`
+sebagai tautan ke paket lain. 16.2 membiarkannya; 16.3 mencoba membacanya
+sebagai berkas dan seluruh build berhenti dengan `Is a directory (os error 21)`
+— galat yang tidak menyebut satu pun berkas proyek ini. Polanya diturunkan
+sampai isi paket (`@img+*/node_modules/@img/*/**`), hasil salinannya sama, dan
+dijaga `tests/unit/jejak-standalone.test.ts` supaya tidak "dirapikan" kembali.
+
+**Alternatif direject**: (a) menambahkan `libheif-js` ke allowlist umum —
+allowlist adalah kebijakan, pengecualian adalah catatan beralasan; LGPL tidak
+boleh jadi lisensi yang diterima diam-diam untuk paket berikutnya; (b) menunda
+`next` 16.3 dan hanya menambal yang lain — dua advisory kritisnya RCE tanpa
+otentikasi, tidak ada versi tambalan di lini 16.2; (c) `outputFileTracingExcludes`
+untuk tautannya — pola pengecualiannya juga cocok dengan direktori aslinya, jadi
+libvips-cpp.so justru berisiko tidak ikut.
+
+**Konsekuensi**: gerbang lokal (typecheck · lint · unit · integrasi) hijau,
+`pnpm build` hijau, dan `require('sharp')` dari pohon standalone terbukti
+memproses gambar. Pemeriksaan yang sama diulang tiap build Docker di CI.

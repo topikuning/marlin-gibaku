@@ -36,6 +36,19 @@ Dev: tailwindcss (MIT), typescript (Apache-2.0), eslint (MIT), vitest (MIT), @pl
 2. **buffers@0.1.1 — metadata "Unknown".** Transitive exceljs → unzipper → chainsaw. Paket lama tanpa field `license` di package.json; source README menyatakan MIT-style. Risiko rendah, hanya dev-time parsing xlsx. Diterima dengan catatan; dievaluasi ulang bila exceljs diganti.
 3. **jszip — (MIT OR GPL-3.0-or-later).** Dual license, kita pilih MIT. Diterima.
 4. **pako — (MIT AND Zlib)**, **chainsaw/traverse — MIT/X11.** Zlib & notasi X11 masuk allowlist/alias. Diterima.
+5. **libheif-js@1.23.2 — LGPL-3.0.** Transitive `heic-decode`, dipakai membongkar
+   HEIC/HEVC iPhone yang tidak bisa dibaca libvips bawaan sharp (DECISIONS 547).
+   Bedanya dengan butir 1 harus disebut apa adanya, bukan disamakan: yang ini
+   **bukan** tautan dinamis — libheif dikompilasi jadi WASM di dalam paketnya.
+   Yang membuatnya tetap diterima adalah hal lain: LGPL menuntut sesuatu pada
+   saat karyanya DISERAHKAN ke pihak lain (*convey*), dan MARLIN tidak pernah
+   menyerahkannya — ia berjalan di server, WASM-nya tidak pernah dikirim ke
+   peramban siapa pun. Kalaupun suatu hari image-nya diserahkan ke pihak luar,
+   kewajibannya masih terpenuhi: paketnya dipakai apa adanya tanpa modifikasi,
+   sumber libheif publik, dan versinya bisa diganti dengan mengganti satu paket
+   npm. Yang TIDAK boleh dilakukan tanpa meninjau ulang butir ini: menyalin
+   potongan kode libheif ke dalam berkas kita, atau mengubah paketnya lalu ikut
+   mengedarkannya. Diterima.
 
 ## Ditolak oleh gate lisensi (bukti kebijakan bekerja)
 
