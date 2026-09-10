@@ -28877,3 +28877,56 @@ tiruan — bukan terhadap mesin sungguhan di balik Cloudflare Access.
 
 **Bisa di-revisit**: kalau ternyata berkas asli bukan mayoritas isi R2. Angkanya
 belum diukur; kartu "Isi penyimpanan R2" menjawabnya dalam satu klik.
+
+---
+
+## 550 · 2026-09-10 · Gerbang keamanan & lisensi merah di main, plus penelusur Next 16.3
+
+**Konteks**: dua rilis terakhir ke main (2026-09-09) MERAH di CI, dan tidak
+ketahuan karena keduanya masuk lewat push langsung, bukan PR. Job "Lint,
+typecheck, unit, build" berhenti di langkah pertamanya, jadi typecheck, lint,
+unit, dan build bahkan tidak pernah dijalankan — merah yang menyembunyikan
+sisanya.
+
+**Dua sebab berbeda**:
+
+- Rilis 545–546: `pnpm audit --prod --high` menemukan 14 temuan — 2 **kritis**
+  (`next` <16.3.3, RCE tanpa otentikasi), 11 tinggi di `@xmldom/xmldom`
+  (transitif `exifreader`), 1 tinggi di `sharp` <0.35.4 (libheif).
+- Rilis 547–548: `libheif-js@1.23.2` LGPL-3.0 di luar allowlist — dibawa masuk
+  `heic-decode`, yang justru penambahan rilis itu sendiri.
+
+**Keputusan**:
+
+1. `next` 16.2.11 → **16.3.4**, `sharp` 0.35.3 → **0.35.4** (juga override
+   transitifnya di `pnpm-workspace.yaml`), `exifreader` 4.41.0 → **4.44.1**,
+   `@xmldom/xmldom` dipaksa ke **0.9.12**, `eslint-config-next` mengikuti Next.
+   Sesudahnya: 0 temuan high/critical.
+2. `libheif-js` masuk daftar pengecualian lisensi, dengan alasan yang TIDAK
+   sama dengan `@img/sharp-libvips-*` di atasnya dan karena itu ditulis
+   terpisah: yang ini WASM, bukan tautan dinamis. Yang membuatnya diterima
+   adalah karyanya tidak pernah diserahkan ke pihak lain — berjalan di server,
+   tidak pernah dikirim ke peramban. Batasnya disebut eksplisit di
+   `docs/rebuild/OPEN_SOURCE_LICENSE_AUDIT.md`.
+
+**Yang tidak terduga**: Next 16.3 mengubah perilaku penelusur berkas
+standalone. Pola `outputFileTracingIncludes` yang berhenti di direktori .pnpm
+(`@img+*/**`) ikut mencocokkan ENTRI TAUTAN SIMBOLIK ke direktori — pnpm
+menaruh `@img+sharp-linux-x64@*/node_modules/@img/sharp-libvips-linux-x64`
+sebagai tautan ke paket lain. 16.2 membiarkannya; 16.3 mencoba membacanya
+sebagai berkas dan seluruh build berhenti dengan `Is a directory (os error 21)`
+— galat yang tidak menyebut satu pun berkas proyek ini. Polanya diturunkan
+sampai isi paket (`@img+*/node_modules/@img/*/**`), hasil salinannya sama, dan
+dijaga `tests/unit/jejak-standalone.test.ts` supaya tidak "dirapikan" kembali.
+
+**Alternatif direject**: (a) menambahkan `libheif-js` ke allowlist umum —
+allowlist adalah kebijakan, pengecualian adalah catatan beralasan; LGPL tidak
+boleh jadi lisensi yang diterima diam-diam untuk paket berikutnya; (b) menunda
+`next` 16.3 dan hanya menambal yang lain — dua advisory kritisnya RCE tanpa
+otentikasi, tidak ada versi tambalan di lini 16.2; (c) `outputFileTracingExcludes`
+untuk tautannya — pola pengecualiannya juga cocok dengan direktori aslinya, jadi
+libvips-cpp.so justru berisiko tidak ikut.
+
+**Konsekuensi**: gerbang lokal (typecheck · lint · unit · integrasi) hijau,
+`pnpm build` hijau, dan `require('sharp')` dari pohon standalone terbukti
+memproses gambar. Pemeriksaan yang sama diulang tiap build Docker di CI.

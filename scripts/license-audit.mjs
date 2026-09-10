@@ -27,8 +27,12 @@ const ALIAS = { "MIT/X11": "MIT", X11: "MIT" };
 
 // Pengecualian terdokumentasi (lihat docs/rebuild/OPEN_SOURCE_LICENSE_AUDIT.md):
 // - @img/sharp-libvips-*: prebuilt libvips LGPL-3.0 — dynamic linking, dipakai server-side; kewajiban LGPL terpenuhi (source libvips publik, lib dapat diganti).
+// - libheif-js: libheif LGPL-3.0 dikompilasi ke WASM, transitif heic-decode (DECISIONS 547).
+//   BUKAN tautan dinamis seperti di atas; yang membuatnya diterima adalah karyanya tidak pernah
+//   diserahkan ke pihak lain — berjalan di server, WASM-nya tidak dikirim ke peramban. Dipakai apa
+//   adanya tanpa modifikasi. Alasan lengkap + batasnya ada di berkas audit itu.
 // - buffers: transitive exceljs (via unzipper→chainsaw), kode MIT de facto tapi metadata paket lama tidak memuat field license.
-const PACKAGE_EXCEPTIONS = [/^@img\/sharp-libvips-/, /^buffers$/];
+const PACKAGE_EXCEPTIONS = [/^@img\/sharp-libvips-/, /^libheif-js$/, /^buffers$/];
 
 function singleAllowed(id) {
   const norm = ALIAS[id] ?? id;
