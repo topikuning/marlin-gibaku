@@ -36,26 +36,28 @@ let PORT = 0;
  *
  * Versi pertama memakai 8791 dan langsung terbukti rapuh: satu proses uji yang
  * belum sempat mati membuat putaran berikutnya gagal tiga kali dengan sebab yang
- * tidak ada hubungannya dengan yang diuji. Di CI, berkas uji berjalan
- * berdampingan – nomor port tetap adalah tabrakan yang menunggu waktu.
+ * tidak ada hubungannya dengan yang diuji.
  *
- * `ORIGINAL_ARCHIVE_URL` karena itu baru bisa disetel sesudah portnya diketahui,
- * dan `dingin.ts` membacanya lewat `env` yang dimuat sekali – jadi modulnya
- * diimpor DI DALAM `beforeAll`, sesudah portnya masuk ke `process.env`.
+ * BERKAS INI TIDAK MENYENTUH `process.env` SAMA SEKALI, dan itu bukan kerapian.
+ * `env.ts` membaca `process.env` SEKALI saat dimuat, sementara vitest memakai
+ * satu proses untuk banyak berkas uji. Versi sebelumnya menyetel
+ * `ORIGINAL_ARCHIVE_URL` di `beforeAll`, dan nilainya ikut terbawa ke berkas
+ * BERIKUTNYA — `arsip-asli-putaran.test.ts` lalu gagal tiga kali karena
+ * arsip tiruannya tidak pernah dihubungi, dengan pesan yang tidak menyinggung
+ * env sedikit pun. Gagalnya bergantung urutan, jadi ia hilang-timbul.
+ *
+ * Setelannya karena itu dirakit langsung di sini. Yang diuji berkas ini adalah
+ * protokolnya, bukan cara setelan itu dibaca dari lingkungan.
  */
+const { periksaDingin, kirimDingin, ambilDingin, hapusDingin } = await import(
+  "@/lib/arsip-asli/dingin"
+);
+type Setelan = Parameters<typeof periksaDingin>[0];
 
-type Klien = typeof import("@/lib/arsip-asli/dingin");
-let dingin: Klien;
-
-const setelan = () => {
-  const s = dingin.setelanDingin();
-  if (!s) throw new Error("setelan arsip dingin kosong");
-  return s;
+const setelan = (): Setelan => {
+  if (!PORT) throw new Error("penerima arsip belum siap");
+  return { url: `http://127.0.0.1:${PORT}`, token: TOKEN };
 };
-const periksaDingin: Klien["periksaDingin"] = (...a) => dingin.periksaDingin(...a);
-const kirimDingin: Klien["kirimDingin"] = (...a) => dingin.kirimDingin(...a);
-const ambilDingin: Klien["ambilDingin"] = (...a) => dingin.ambilDingin(...a);
-const hapusDingin: Klien["hapusDingin"] = (...a) => dingin.hapusDingin(...a);
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "arsip-uji-"));
@@ -79,10 +81,6 @@ beforeAll(async () => {
       gagal(new Error(`penerima arsip berhenti (exit ${kode})`));
     });
   });
-
-  process.env.ORIGINAL_ARCHIVE_URL = `http://127.0.0.1:${PORT}`;
-  process.env.ORIGINAL_ARCHIVE_TOKEN = TOKEN;
-  dingin = await import("@/lib/arsip-asli/dingin");
 
   // Benar-benar menjawab, bukan sekadar sudah mencetak barisnya.
   const r = await fetch(`http://127.0.0.1:${PORT}/health`);

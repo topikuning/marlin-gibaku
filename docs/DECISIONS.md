@@ -29108,3 +29108,42 @@ sudah menutup jalur direktori: yang ditangkapnya sekarang bukan serangan,
 melainkan kunci kacau (kosong, salah kolom, sisa migrasi) yang tanpa itu akan
 tersimpan diam-diam di arsip permanen dengan nama yang tak seorang pun bisa
 telusuri.
+
+---
+
+## 555 · 2026-09-10 · Header Cloudflare Access wajib di SEMUA jalur keluar, termasuk pemeriksaan kesehatan
+
+**Konteks**: uji sambungan menjawab *"Yang menjawab di https://… BUKAN gateway
+arsip – status 403, server: cloudflare"*, padahal keempat variabelnya sudah
+terisi benar dan gateway-nya sehat. Bug-nya milik MARLIN: pemeriksaan `/health`
+dikirim POLOS, tanpa sepasang header Access.
+
+**Sebabnya penalaran yang salah**, bukan kelalaian mengetik: `/health` memang
+tidak menuntut token — tapi yang tidak menuntutnya adalah GATEWAY-nya, sedangkan
+Cloudflare Access menjaga SELURUH hostname dan tetap menuntut kartu di pintu
+gedung. "Jalur ini tidak butuh otentikasi" ternyata dua pernyataan berbeda yang
+tertukar.
+
+**Akibatnya lebih buruk daripada gagal biasa**: pesan yang muncul menuduh pihak
+yang benar. Layar mengatakan "yang menjawab bukan gateway arsip" untuk gateway
+yang sehat, dan yang membacanya akan pergi membongkar Tunnel atau mengganti
+program di mesinnya — memperbaiki hal yang tidak rusak.
+
+**Keputusan**: `kepalaAccess()` jadi satu-satunya tempat header Access dibangun,
+dan `sehatDingin()` memakainya. Bearer tetap TIDAK dikirim di `/health` — justru
+itu yang membuat uji sambungan bisa membedakan "Access menghadang" (403, belum
+sampai ke mesinnya) dari "token aplikasi salah" (401, sampai tapi ditolak
+gateway). Dijaga `tests/unit/arsip-asli.test.ts` (merah dulu tanpa header itu).
+
+Pesan 403-nya juga diperbaiki: kalau sepasang CF sudah diisi tapi tetap 403,
+yang salah bukan variabelnya melainkan policy-nya — Service Token itu harus ada
+di daftar Include, dengan Action = Service Auth.
+
+**Ikut diperbaiki — flake yang sebabnya sama sekali tidak terlihat**:
+`arsip-dingin-penerima.test.ts` menyetel `ORIGINAL_ARCHIVE_URL` di `process.env`,
+dan karena `env.ts` membacanya sekali saja sementara vitest memakai satu proses
+untuk banyak berkas, nilainya terbawa ke berkas berikutnya —
+`arsip-asli-putaran.test.ts` gagal tiga kali karena arsip tiruannya tidak pernah
+dihubungi, dengan pesan yang tidak menyinggung env sedikit pun. Gagalnya
+bergantung urutan, jadi hilang-timbul. Sekarang berkas itu merakit setelannya
+sendiri dan tidak menyentuh `process.env` sama sekali.

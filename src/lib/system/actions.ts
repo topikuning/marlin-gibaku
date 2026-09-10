@@ -481,7 +481,7 @@ export async function setArsipAsliAction(
 export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
   const actor = await requireCapability("system.manage");
   const { createHash, randomUUID } = await import("node:crypto");
-  const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin, JALUR_SEHAT } =
+  const { setelanDingin, periksaDingin, kirimDingin, ambilDingin, hapusDingin, sehatDingin } =
     await import("@/lib/arsip-asli/dingin");
 
   let setelan;
@@ -516,7 +516,7 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
      * dilaporkan apa adanya: status, header `server`, dan sepotong badannya.
      */
     langkah = "mengenali yang menjawab (/health)";
-    const siapa = await kenaliPenerima(`${setelan.url}/${JALUR_SEHAT}`);
+    const siapa = await kenaliPenerima(() => sehatDingin(setelan));
     if (!siapa.gatewayArsip) {
       return {
         error:
@@ -578,16 +578,11 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
  *   program lain               → apa saja, tapi bukan {"siap":true}
  */
 async function kenaliPenerima(
-  urlSehat: string,
+  ketuk: () => Promise<Response>,
 ): Promise<{ gatewayArsip: boolean; keterangan: string }> {
   let res: Response;
   try {
-    res = await fetch(urlSehat, {
-      cache: "no-store",
-      // Lebih pendek daripada batas kirim: ini cuma satu permintaan kecil, dan
-      // yang menunggu adalah orang yang sedang menatap layar.
-      signal: AbortSignal.timeout(20_000),
-    });
+    res = await ketuk();
   } catch (err) {
     const p = err instanceof Error ? err.message : "gagal";
     return { gatewayArsip: false, keterangan: `tidak dijawab sama sekali (${p}).` };
@@ -601,7 +596,7 @@ async function kenaliPenerima(
   const petunjuk = !server
     ? "tidak ada header `server`, ciri khas cloudflared yang tidak menemukan servis di port tujuannya: periksa `systemctl status marlin-arsip` dan bagian ingress di config.yml."
     : cf && /<html/i.test(badan)
-      ? "Cloudflare yang menjawab, bukan mesinmu – kemungkinan Access menuntut login (pakai Service Token) atau Tunnel-nya sedang putus."
+      ? "Cloudflare yang menjawab, bukan mesinmu. Kalau ORIGINAL_ARCHIVE_CF_CLIENT_ID + _SECRET sudah diisi, berarti Service Token itu belum masuk policy aplikasinya: policy-nya harus Action = Service Auth dengan token itu di daftar Include."
       : "ada program lain di sana yang bukan gateway arsip.";
 
   return {
