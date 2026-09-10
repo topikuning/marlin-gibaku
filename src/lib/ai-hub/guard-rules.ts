@@ -134,17 +134,26 @@ export function decideAiGuard(cfg: AiGuardConfig, f: GuardFacts): GuardVerdict {
       reason: `Batas ${cfg.maxRunsPerOrgPerDay} analisis AI per hari (seluruh organisasi) tercapai.`,
     };
   }
-  if (f.locationCount > cfg.maxLocationsPerRun) {
-    return {
-      ok: false,
-      code: "scope_too_big",
-      // Pesan menyebut ANGKANYA, jumlah yang diminta, DAN tempat mengubahnya —
-      // penolakan tanpa jalan keluar membuat orang mengira ini batas mati.
-      reason:
-        `Scope ${f.locationCount} lokasi melebihi batas ${cfg.maxLocationsPerRun} lokasi per analisis. ` +
-        `Persempit scope, atau naikkan batasnya di Sistem → AI.`,
-    };
-  }
+  /*
+   * `maxLocationsPerRun` adalah batas PANJANG DAFTAR, bukan tembok.
+   *
+   * Sampai 2026-09-10 ia menolak permintaan yang lingkupnya lebih besar.
+   * Pertanyaan user setelah kejadian Muarareja: *"ya kalau lokasinya memang
+   * lebih dari itu gimana?"* — dan itu tidak terjawab oleh angka berapa pun,
+   * karena programnya menargetkan 200+ lokasi (PROJECT.md). Berapa pun batasnya
+   * dipasang, suatu hari ia terlampaui, dan yang terjadi bukan jawaban yang
+   * lebih hemat melainkan tidak ada jawaban sama sekali.
+   *
+   * Mesinnya sudah bisa menanganinya sejak dulu, cuma tidak pernah kebagian:
+   * `buildPulsePayload` memotong daftar per lokasi di `maxRows` (angka yang
+   * sama), urutannya `exceptionFirst` sehingga yang terpotong justru yang
+   * paling tidak mendesak, dan `TOTAL:` dihitung dari SELURUH lokasi — bukan
+   * dari yang tercetak. Sejak hari ini pemotongannya juga DIKATAKAN di payload,
+   * jadi ia bukan lagi pemangkasan diam-diam.
+   *
+   * Pagar ongkosnya tidak hilang, cuma pindah ke yang memang mengukurnya:
+   * `maxInputChars` di bawah, plus batas run per jam/hari di atas.
+   */
   if (f.inputChars > cfg.maxInputChars) {
     return {
       ok: false,

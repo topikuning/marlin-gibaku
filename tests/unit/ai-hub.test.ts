@@ -130,9 +130,17 @@ describe("ai-hub/guard-rules", () => {
     expect(decideAiGuard(cfg, { ...base, userRunsLastHour: cfg.maxRunsPerUserPerHour }).ok).toBe(false);
     expect(decideAiGuard(cfg, { ...base, orgRunsToday: cfg.maxRunsPerOrgPerDay }).ok).toBe(false);
   });
-  it("scope & input terlalu besar ditolak", () => {
-    expect(decideAiGuard(cfg, { ...base, locationCount: cfg.maxLocationsPerRun + 1 }).ok).toBe(false);
+  it("input terlalu besar ditolak – itu pagar ongkos yang sesungguhnya", () => {
     expect(decideAiGuard(cfg, { ...base, inputChars: cfg.maxInputChars + 1 }).ok).toBe(false);
+  });
+
+  it("lingkup lebih besar daripada batas TIDAK ditolak – ia dipotong & dikatakan", () => {
+    // Sampai 2026-09-10 baris ini menuntut `false`. Diubah setelah pertanyaan
+    // user *"ya kalau lokasinya memang lebih dari itu gimana?"* — batas
+    // panjang daftar bukan alasan menolak menjawab (DECISIONS 557).
+    // Pemotongannya dilakukan `buildPulsePayload` dan DISEBUT di payload;
+    // ongkosnya tetap dijaga `maxInputChars` + batas run per jam/hari.
+    expect(decideAiGuard(cfg, { ...base, locationCount: cfg.maxLocationsPerRun + 1 }).ok).toBe(true);
   });
 
   // Laporan portofolio PENUH adalah kegunaan utama AI Hub. Default yang
@@ -160,12 +168,6 @@ describe("ai-hub/guard-rules", () => {
 
   it("penolakan menyebut angkanya DAN tempat mengubahnya", () => {
     // Penolakan tanpa jalan keluar membuat orang mengira ini batas mati.
-    const scope = decideAiGuard(cfg, { ...base, locationCount: cfg.maxLocationsPerRun + 1 });
-    expect(scope.ok).toBe(false);
-    if (!scope.ok) {
-      expect(scope.reason).toContain(String(cfg.maxLocationsPerRun));
-      expect(scope.reason).toContain("Sistem → AI");
-    }
     const ukuran = decideAiGuard(cfg, { ...base, inputChars: cfg.maxInputChars + 1 });
     expect(ukuran.ok).toBe(false);
     if (!ukuran.ok) expect(ukuran.reason).toContain("Sistem → AI");

@@ -68,6 +68,16 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
     "",
     "DATA PER LOKASI (angka RESMI – kutip persis):",
     ...rows.map(rowLine),
+    // Pemotongan daftar lokasi DISEBUTKAN, sama seperti pemotongan risiko di
+    // bawah. Tanpa ini, 75 baris dari 77 lokasi terbaca model (dan pembaca
+    // laporannya) sebagai "segini lokasinya" — dan angka TOTAL di atas, yang
+    // dihitung dari SELURUH lokasi, jadi tampak tidak cocok dengan daftarnya
+    // tanpa ada yang bisa menjelaskan kenapa.
+    ...(pulse.rows.length > rows.length
+      ? [
+          `- (+${pulse.rows.length - rows.length} lokasi lain tidak ditampilkan; daftar dipotong ${rows.length} teratas menurut skor risiko – yang paling bermasalah ada di atas. Angka TOTAL tetap mencakup SELURUH ${pulse.totals.locations} lokasi.)`,
+        ]
+      : []),
     "",
     "RISIKO (skor rule deterministik – jangan diubah):",
     ...(pulse.risks.length ? pulse.risks.slice(0, MAKS_RISIKO).map(riskLine) : ["- (tidak ada risiko terdeteksi rule)"]),
