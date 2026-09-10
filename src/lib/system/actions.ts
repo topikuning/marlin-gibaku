@@ -503,6 +503,31 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
   let langkah = "menghubungi";
 
   try {
+    /*
+     * LANGKAH NOL — KENALI DULU SIAPA YANG MENJAWAB.
+     *
+     * Uji pertama (2026-09-10) langsung mulai dari PUT dan menjawab "404 =
+     * yang menjawab bukan penerima arsip". Betul, tapi tidak cukup: user tetap
+     * harus menebak apakah itu Cloudflare, cloudflared tanpa servis, atau
+     * program lain. Tebakan di langkah ini mahal — yang salah satunya berarti
+     * membongkar Tunnel yang sebenarnya sudah benar.
+     *
+     * `/sehat` dijawab penerima MARLIN TANPA token, justru supaya bisa dipakai
+     * begini. Yang lain akan menjawab hal lain, dan hal lain itulah yang
+     * dilaporkan apa adanya: status, header `server`, dan sepotong badannya.
+     */
+    langkah = "mengenali yang menjawab (/sehat)";
+    const siapa = await kenaliPenerima(setelan.url);
+    if (!siapa.penerimaMarlin) {
+      return {
+        error:
+          `Yang menjawab di ${setelan.url} BUKAN penerima arsip MARLIN – ${siapa.keterangan} ` +
+          "Salin arsip-dingin/server.mjs dari repo ini ke mesinnya dan jalankan " +
+          "(langkahnya di docs/ARSIP_DINGIN_SETUP.md). Cloudflare-nya tidak perlu diubah.",
+      };
+    }
+    jejak.push("penerima MARLIN ✓");
+
     langkah = "kirim (PUT)";
     await kirimDingin(setelan, kunci, isi);
     jejak.push("kirim ✓");
@@ -539,6 +564,52 @@ export async function ujiArsipAsliAction(): Promise<ArsipAsliState> {
     const sudah = jejak.length > 0 ? `${jejak.join(" · ")} · ` : "";
     return { error: `${sudah}GAGAL di langkah ${langkah}: ${pesan}. ${dugaan(pesan)}` };
   }
+}
+
+/**
+ * Siapa yang sebenarnya menjawab di alamat itu?
+ *
+ * Tanpa token: `/sehat` memang dibuat begitu. Yang dicari cuma satu penanda —
+ * badan `{"siap":true}` dari `arsip-dingin/server.mjs`. Selain itu dilaporkan
+ * apa adanya, karena tiap penjawab punya sidik yang khas dan itu yang
+ * membedakan "Tunnel salah tujuan" dari "program di sana bukan yang ini":
+ *
+ *   cloudflared tanpa servis   → 404, tanpa header `server`
+ *   Cloudflare menghadang      → 403/1033, `server: cloudflare`
+ *   Access menuntut login      → 302 ke halaman login (fetch mengikutinya → HTML)
+ *   program lain               → apa saja, tapi bukan {"siap":true}
+ */
+async function kenaliPenerima(
+  url: string,
+): Promise<{ penerimaMarlin: boolean; keterangan: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${url}/sehat`, {
+      cache: "no-store",
+      // Lebih pendek daripada batas kirim: ini cuma satu permintaan kecil, dan
+      // yang menunggu adalah orang yang sedang menatap layar.
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    const p = err instanceof Error ? err.message : "gagal";
+    return { penerimaMarlin: false, keterangan: `tidak dijawab sama sekali (${p}).` };
+  }
+
+  const badan = (await res.text().catch(() => "")).slice(0, 160).replace(/\s+/g, " ").trim();
+  if (res.ok && badan.includes('"siap"')) return { penerimaMarlin: true, keterangan: "" };
+
+  const server = res.headers.get("server");
+  const cf = server?.toLowerCase().includes("cloudflare");
+  const petunjuk = !server
+    ? "tidak ada header `server`, ciri khas cloudflared yang tidak menemukan servis di port tujuannya: periksa `systemctl status marlin-arsip` dan bagian ingress di config.yml."
+    : cf && /<html/i.test(badan)
+      ? "Cloudflare yang menjawab, bukan mesinmu – kemungkinan Access menuntut login (pakai Service Token) atau Tunnel-nya sedang putus."
+      : "ada program lain di sana yang bukan penerima arsip.";
+
+  return {
+    penerimaMarlin: false,
+    keterangan: `status ${res.status}${server ? `, server: ${server}` : ""}${badan ? `, jawabannya: "${badan}"` : ""}. ${petunjuk}`,
+  };
 }
 
 /**
