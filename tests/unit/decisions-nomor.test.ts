@@ -1,4 +1,5 @@
-// NOMOR DI DECISIONS.md: unik, menaik, dan tidak ada yang belum diberi nomor.
+// NOMOR KEPUTUSAN: unik, menaik, belum-bernomor tidak lolos merge — DAN
+// indeksnya tidak ketinggalan dari arsipnya.
 //
 // Kejadian 2026-08-29: dua agen bekerja bersamaan, keduanya menambah entri
 // baru, dan keduanya memakai 473 + 474. Git tidak mengeluh (append di tempat
@@ -10,17 +11,36 @@
 // nomor diberikan pemeriksa terakhir saat merge. Berkas uji ini yang menjaga
 // keduanya: tidak ada nomor kembar, dan tidak ada `(baru)` yang lolos merge.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const BERKAS = join(process.cwd(), "docs", "DECISIONS.md");
+/*
+ * ENTRINYA ADA DI ARSIP, BUKAN DI INDEKS (DECISIONS 560).
+ *
+ * `docs/DECISIONS.md` tadinya memuat semuanya dan tumbuh jadi 1,5 MB — dan
+ * `CLAUDE.md` menyuruh tiap agen membacanya lebih dulu. Sekarang ia indeks;
+ * isinya di `docs/decisions/NNN-NNN.md`. Penjaga ini karena itu membaca ARSIP,
+ * dan menambah satu tuntutan baru: tiap entri di arsip wajib punya barisnya di
+ * indeks. Indeks yang ketinggalan sama menyesatkannya dengan entri yang hilang
+ * — orang membaca indeks lalu menyimpulkan keputusannya tidak pernah ada.
+ */
+const DIR = join(process.cwd(), "docs", "decisions");
+const BERKAS_INDEKS = join(process.cwd(), "docs", "DECISIONS.md");
+
 /**
- * Blok berpagar dibuang lebih dulu: kepala berkas memuat CONTOH judul
+ * Blok berpagar dibuang lebih dulu: kepala indeks memuat CONTOH judul
  * (`## (baru) · …`, `## DDD · …`) di dalam ```-fence. Tanpa ini penjaga
  * menghitung contohnya sebagai entri sungguhan dan merah selamanya.
  */
-const isi = readFileSync(BERKAS, "utf8").replace(/^```[\s\S]*?^```/gm, "");
+const buang = (t: string) => t.replace(/^```[\s\S]*?^```/gm, "");
+
+const namaArsip = readdirSync(DIR)
+  .filter((n) => /^\d{3}-\d{3}\.md$/.test(n))
+  .sort();
+/** Seluruh entri, dirangkai menurut urutan arsipnya. */
+const isi = namaArsip.map((n) => buang(readFileSync(join(DIR, n), "utf8"))).join("\n");
+const indeks = buang(readFileSync(BERKAS_INDEKS, "utf8"));
 
 /**
  * Judul entri. Bentuknya berubah tiga kali sepanjang umur berkas ini, dan
@@ -45,6 +65,26 @@ function idEntri(): { nomor: number; id: string }[] {
 }
 
 describe("penomoran DECISIONS.md", () => {
+  it("arsipnya ketemu, dan indeksnya bukan lagi tempat entri", () => {
+    // Penjaga atas pemecahan itu sendiri: kalau arsipnya hilang atau entri
+    // kembali ditulis di indeks, uji di bawah akan memeriksa berkas yang salah.
+    expect(namaArsip.length).toBeGreaterThan(0);
+    expect(
+      [...indeks.matchAll(JUDUL)].length,
+      "entri ditulis di indeks – tempatnya di docs/decisions/",
+    ).toBe(0);
+  });
+
+  it("tiap entri arsip punya barisnya di indeks", () => {
+    const hilang = idEntri()
+      .map((e) => e.id)
+      .filter((id) => !new RegExp(`^\\| ${id} \\|`, "m").test(indeks));
+    expect(
+      hilang,
+      "keputusan yang tidak ada di indeks tidak akan pernah ditemukan orang",
+    ).toEqual([]);
+  });
+
   it("ada entrinya, dan pola judulnya terbaca", () => {
     // Penjaga atas penjaga: kalau pola judul tidak lagi cocok, uji di bawah
     // akan hijau untuk alasan yang salah – tidak ada yang diperiksa.
