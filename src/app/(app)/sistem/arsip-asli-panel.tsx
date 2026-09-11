@@ -7,6 +7,7 @@ import {
   jalankanArsipAsliAction,
   periksaIsiArsipAction,
   setArsipAsliAction,
+  setWaArsipAction,
   ujiArsipAsliAction,
   type ArsipAsliState,
 } from "@/lib/system/actions";
@@ -28,16 +29,22 @@ import type { RingkasArsip } from "@/lib/arsip-asli/antrean";
 export function ArsipAsliPanel({
   aktif,
   tenggang,
+  waAktif,
+  waTujuan,
   terkonfigurasi,
   ringkas,
 }: {
   aktif: boolean;
   tenggang: number;
+  /** Peringatan WhatsApp: sakelarnya sendiri, lihat `setWaArsipAction`. */
+  waAktif: boolean;
+  waTujuan: string;
   /** ORIGINAL_ARCHIVE_URL + _TOKEN sudah diisi di lingkungan ini? */
   terkonfigurasi: boolean;
   ringkas: RingkasArsip;
 }) {
   const [state, aksi, pending] = useAksi<ArsipAsliState>(setArsipAsliAction, undefined);
+  const [waState, waAksi, waPending] = useAksi<ArsipAsliState>(setWaArsipAction, undefined);
   const [pesanJalan, setPesanJalan] = useState<string | null>(null);
   const [jalan, mulai] = useTransition();
   const [uji, setUji] = useState<ArsipAsliState>(undefined);
@@ -111,6 +118,32 @@ export function ArsipAsliPanel({
         </Button>
         <StatusPill tone={aktif ? "success" : "neutral"} label={aktif ? "Aktif" : "Mati"} />
       </form>
+
+      {waState?.error ? <Banner tone="error" title="Gagal menyimpan" description={waState.error} /> : null}
+      {waState?.success ? (
+        <Banner tone="success" title="Peringatan tersimpan" description={waState.success} />
+      ) : null}
+
+      <form action={waAksi} className="flex flex-wrap items-end gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="waAktif" defaultChecked={waAktif} className="size-4" />
+          <span>Peringatan WhatsApp</span>
+        </label>
+        <div>
+          <Label htmlFor="waTujuan">Tujuan (chatId grup / nomor)</Label>
+          <Input id="waTujuan" name="waTujuan" defaultValue={waTujuan} className="w-72" />
+        </div>
+        <Button type="submit" loading={waPending} variant="secondary">
+          Simpan
+        </Button>
+      </form>
+
+      <p className="text-xs text-ink-muted">
+        Peringatan hanya dikirim untuk yang TIDAK bisa dibereskan sistem sendiri – berkas yang hilang
+        dari mesin arsip, pemindahan yang macet lebih dari sehari, atau sisa disk menipis. Kegagalan
+        biasa (arsip mati sesaat, jaringan putus) ditangani sendiri: tidak ada salinan R2 yang dibuang,
+        dan berkasnya dicoba lagi otomatis.
+      </p>
 
       <p className="text-xs text-ink-muted">
         Selama masa tenggang berkasnya ada di dua tempat sekaligus – itu jaring pengaman kalau arsipnya

@@ -1791,6 +1791,10 @@ model Photo {
   originalArchiveTries Int               @default(0) @map("original_archive_tries")
   /// Sebab kegagalan terakhir, untuk ditampilkan di layar. Bukan untuk mesin.
   originalArchiveError String?           @map("original_archive_error")
+  /// Kapan percobaan arsip TERAKHIR dijalankan. Dipakai memulihkan sendiri
+  /// baris yang sudah melewati batas gagal: sesudah masa pulih lewat ia dicoba
+  /// lagi, jadi gangguan sesaat tidak menghasilkan tumpukan permanen.
+  originalArchiveTriedAt DateTime?         @map("original_archive_tried_at") @db.Timestamptz
   //
   // CATATAN: dua indeks PARSIAL untuk antrean arsip dibuat langsung di SQL
   // migrasi (`photos_menunggu_arsip_idx`, `photos_menunggu_buang_r2_idx`).

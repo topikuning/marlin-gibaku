@@ -220,6 +220,97 @@ describe("putaran arsip dingin", () => {
     expect(baris.originalArchiveError).toMatch(/sidik jari/);
   });
 
+  it("berkas LENYAP dari arsip: salinan R2 TIDAK ikut dibuang", async () => {
+    /*
+     * Ini kegagalan yang paling tidak bisa diperbaiki, dan satu-satunya yang
+     * hasilnya permanen: baris tercatat terarsip berhari-hari lalu, lalu
+     * berkasnya lenyap dari mesin itu — terhapus tangan, disk diganti,
+     * direktori ter-mount ulang. Kalau penghapusan R2 hanya percaya pada
+     * CATATAN, yang hilang berkas aslinya, dan tidak ada yang tahu sampai ada
+     * yang mencoba memperbaiki cap berbulan-bulan kemudian.
+     *
+     * Karena itu catatannya tidak cukup: keberadaannya dipastikan ULANG tepat
+     * sebelum menghapus.
+     */
+    const foto = await fotoMenunggu();
+    await jalankanArsipAsli();
+    simpananArsip.delete(KUNCI); // lenyap di seberang, tanpa ada yang tahu
+
+    await setTenggangHari(0);
+    const h = await jalankanArsipAsli();
+
+    expect(h.dibuangDariR2, "R2 dibuang padahal arsipnya kosong").toBe(0);
+    expect(dihapusDariR2).toEqual([]);
+    expect(gudangR2.has(KUNCI), "berkas asli hilang dari KEDUA tempat").toBe(true);
+    const baris = await db.photo.findUniqueOrThrow({
+      where: { id: foto.id },
+      select: { originalR2PurgedAt: true, originalArchivedAt: true },
+    });
+    expect(baris.originalR2PurgedAt).toBeNull();
+    // Catatannya ikut dibatalkan: yang tidak ada di sana bukan "sudah terarsip".
+    expect(baris.originalArchivedAt, "masih tercatat terarsip padahal tidak ada").toBeNull();
+  });
+
+  it("putaran yang pengirimannya GAGAL tidak membuang satu salinan R2 pun", async () => {
+    // Arsip yang sedang bermasalah bukan tempat yang aman untuk mengurangi
+    // salinan — walau baris LAIN sudah lama terbukti terarsip.
+    const lama = await fotoMenunggu();
+    await jalankanArsipAsli();
+
+    // Satu baris baru yang isinya di R2 tidak cocok → pengirimannya gagal.
+    const isiSalah = Buffer.from("BUKAN-ISI-YANG-TERCATAT");
+    const kunciBaru = "photos/uji-arsip-dingin/2026-08-02/bbb.asli.jpg";
+    gudangR2.set(kunciBaru, isiSalah);
+    await db.photo.create({
+      data: {
+        r2Key: "photos/uji-arsip-dingin/2026-08-02/bbb.webp",
+        originalKey: kunciBaru,
+        originalBytes: ISI.length,
+        sha256: SHA,
+        bytes: 1234,
+      },
+    });
+
+    await setTenggangHari(0);
+    const h = await jalankanArsipAsli();
+
+    expect(h.gagal).toBeGreaterThan(0);
+    expect(h.dibuangDariR2, "membuang salinan R2 di putaran yang gagal").toBe(0);
+    expect(dihapusDariR2).toEqual([]);
+    const baris = await db.photo.findUniqueOrThrow({
+      where: { id: lama.id },
+      select: { originalR2PurgedAt: true },
+    });
+    expect(baris.originalR2PurgedAt).toBeNull();
+  });
+
+  it("yang berhenti dicoba DICOBA LAGI sesudah masa pulih lewat", async () => {
+    // Gangguan jaringan yang berlangsung beberapa jam tidak boleh membuat
+    // berkasnya berhenti dicoba SELAMANYA sampai ada orang yang menengok.
+    const foto = await fotoMenunggu({ isi: Buffer.from("ISI-SALAH") });
+    for (let i = 0; i < 6; i++) await jalankanArsipAsli();
+    let baris = await db.photo.findUniqueOrThrow({
+      where: { id: foto.id },
+      select: { originalArchiveTries: true },
+    });
+    expect(baris.originalArchiveTries, "tidak pernah berhenti mencoba").toBe(5);
+
+    // Isinya dibetulkan (mis. gangguannya berlalu), lalu waktunya dimundurkan.
+    gudangR2.set(KUNCI, ISI);
+    await db.photo.update({
+      where: { id: foto.id },
+      data: { originalArchiveTriedAt: new Date(Date.now() - 24 * 3600_000) },
+    });
+
+    const h = await jalankanArsipAsli();
+    expect(h.dikirim, "tidak pernah dicoba lagi walau masa pulih lewat").toBe(1);
+    baris = await db.photo.findUniqueOrThrow({
+      where: { id: foto.id },
+      select: { originalArchiveTries: true },
+    });
+    expect(baris.originalArchiveTries).toBe(0);
+  });
+
   it("sakelar mati: tidak ada yang disentuh sama sekali", async () => {
     await fotoMenunggu();
     await setArsipAktif(false);

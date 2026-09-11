@@ -177,11 +177,15 @@ export default async function SistemPage() {
   const r2On = isR2Configured();
   // Arsip dingin berkas asli — sakelar, masa tenggang, dan antreannya. Dibaca
   // di server supaya kartunya sudah berisi angka saat halaman dibuka.
-  const { arsipAktif, tenggangHari } = await import("@/lib/arsip-asli/setelan");
+  const { arsipAktif, tenggangHari, waArsipAktif, waArsipTujuan } = await import(
+    "@/lib/arsip-asli/setelan"
+  );
   const { ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
   const arsipAsli = {
     aktif: await arsipAktif(),
     tenggang: await tenggangHari(),
+    waAktif: await waArsipAktif(),
+    waTujuan: (await waArsipTujuan()) ?? "",
     terkonfigurasi: Boolean(env.ORIGINAL_ARCHIVE_URL && env.ORIGINAL_ARCHIVE_TOKEN),
     ringkas: await ringkasArsipAsli(),
   };

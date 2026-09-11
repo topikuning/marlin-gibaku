@@ -29289,3 +29289,65 @@ header; itu yang sekarang diperiksa, dan terbukti merah saat headernya dicabut.
 **Alternatif direject**: mengunduh berkasnya untuk dibandingkan byte demi byte —
 memakai uplink rumah untuk membuktikan hal yang sudah dibuktikan sidik jari, dan
 pada foto besar akan memakan menit hanya untuk satu pemeriksaan rutin.
+
+---
+
+## 559 · 2026-09-11 · Kerusakan arsip ditangani sendiri; peringatan hanya untuk yang butuh orang
+
+**Konteks**: permintaan user 2026-09-11 — peringatan WhatsApp ber-sakelar,
+*"dan yang lebih penting kamu harus handle jika ada masalah secara otomatis"*.
+Urutan itu yang dipakai: peringatan dikerjakan TERAKHIR, sesudah kerusakannya
+sendiri dibuat tidak berbahaya.
+
+**Tiga penanganan otomatis, urut dari yang paling menentukan**:
+
+1. **Keberadaan dipastikan ULANG tepat sebelum menghapus salinan R2.**
+   Sebelumnya penghapusan hanya percaya `originalArchivedAt`, yang bisa berumur
+   berhari-hari. Dalam rentang itu berkasnya bisa lenyap dari mesin seberang
+   tanpa ada yang tahu — terhapus tangan, disk diganti, direktori ter-mount
+   ulang. Menghapus atas dasar catatan lama = berkas asli hilang dari KEDUA
+   tempat, satu-satunya kegagalan di sistem ini yang hasilnya permanen. Kini
+   satu HEAD per berkas sebelum menghapus; yang tidak ada catatannya DIBATALKAN
+   (bukan sekadar dilewati) supaya ia dikirim ulang.
+
+2. **Pemutus arus**: putaran yang pengirimannya gagal tidak membuang satu
+   salinan R2 pun, walau baris LAIN sudah lama terbukti terarsip. Menambah dan
+   mengurangi salinan boleh berhenti bersamaan; yang tidak boleh adalah
+   mengurangi sementara menambah sedang gagal.
+
+3. **Pulih sendiri**: `BATAS_GAGAL` dulu berarti "berhenti selamanya sampai ada
+   orang menengok layar", padahal penyebab tersering justru yang sementara —
+   uplink putus semalam, mesin reboot, Tunnel mati. Sesudah 6 jam ia dicoba
+   lagi. Butuh kolom baru `original_archive_tried_at`: jumlah percobaan tahu
+   BERAPA kali gagal, tidak tahu KAPAN, dan tanpa "kapan" tidak ada cara
+   membedakan gagal lima menit lalu dari gagal minggu lalu.
+
+**Peringatan WhatsApp** punya sakelar SENDIRI, terpisah dari sakelar arsip:
+keduanya dimatikan karena alasan berbeda — arsip saat mesinnya diperbaiki,
+peringatan saat orangnya tidak ingin diganggu. Menggabungkannya berarti
+mematikan yang satu diam-diam mematikan yang lain.
+
+Yang dibunyikan hanya yang TIDAK bisa diselesaikan mesin: berkas hilang dari
+arsip, macet >24 jam padahal ada antrean, ada yang berhenti dicoba, sisa disk
+<20 GB. **Diam adalah jawaban yang benar** untuk arsip yang sengaja dimatikan
+dan alamat yang memang belum diisi — keduanya keadaan yang disengaja, bukan
+kerusakan. Peredam sidik-jari: satu pesan per hari untuk keadaan yang sama,
+keadaan berubah dikirim seketika.
+
+**Diperiksa dari DUA jadwal** (putaran arsip tiap jam DAN tugas harian), dan
+pengulangan itu disengaja: kalau ia hanya menumpang di putaran arsip, penjadwal
+arsip yang mati total — `APP_URL`/`CRON_SECRET` belum diisi, workflow
+dinonaktifkan GitHub karena repo 60 hari tanpa commit — menghasilkan kesunyian
+sempurna. Tidak ada yang berjalan, jadi tidak ada yang melapor bahwa tidak ada
+yang berjalan.
+
+**Alternatif direject**: (a) peringatan saja tanpa penanganan otomatis — memberi
+tahu bahwa berkas sudah hilang bukan penyelamatan; (b) berhenti total begitu ada
+satu kegagalan — satu berkas korup akan menghentikan seluruh pemindahan; (c)
+menumpang sakelar arsip untuk peringatan — mematikan arsip sementara justru saat
+paling perlu diawasi.
+
+**Yang belum, dan tetap harus dikatakan**: ini masih bukan cadangan. Sesudah
+masa tenggang, Lenovo jadi satu-satunya salinan. `rsync` ke disk kedua harus
+sudah jalan SEBELUM tenggang pertama lewat — tidak ada satu pun aturan di atas
+yang menggantikan salinan kedua.

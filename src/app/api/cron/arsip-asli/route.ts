@@ -44,7 +44,11 @@ export async function POST(req: Request) {
   }
   try {
     const hasil = await jalankanArsipAsli();
-    return NextResponse.json(hasil);
+    // Peringatan diperiksa SESUDAH putaran, memakai keadaan terbaru. Gagalnya
+    // tidak boleh menggagalkan putaran yang sudah berhasil.
+    const { periksaDanPeringatkan } = await import("@/lib/arsip-asli/peringatan");
+    const peringatan = await periksaDanPeringatkan().catch(() => null);
+    return NextResponse.json({ ...hasil, peringatan });
   } catch (err) {
     // Pesan galat boleh keluar; rahasia tidak pernah ikut karena `dingin.ts`
     // hanya melempar kode status HTTP, tidak pernah token maupun URL lengkap.

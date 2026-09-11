@@ -55,6 +55,20 @@ const PER_PUTARAN = 3;
  */
 const BATAS_GAGAL = 5;
 
+/**
+ * Sesudah sekian jam, yang berhenti dicoba DICOBA LAGI.
+ *
+ * Tanpa ini `BATAS_GAGAL` berarti "berhenti selamanya sampai ada orang yang
+ * menengok layar" — dan penyebab paling sering justru yang sementara: uplink
+ * rumah putus semalam, mesin arsip reboot, Tunnel sempat mati. Gangguan
+ * beberapa jam tidak boleh meninggalkan tumpukan permanen yang penyebabnya
+ * sudah lama hilang.
+ *
+ * Enam jam: cukup lama untuk tidak menghabiskan percobaan pada gangguan yang
+ * masih berlangsung, cukup pendek untuk pulih sendiri dalam sehari.
+ */
+const JEDA_PULIH_JAM = 6;
+
 export type HasilPutaran = {
   dijalankan: boolean;
   alasan: "mati" | "belum-dikonfigurasi" | "r2-mati" | "jalan";
@@ -75,12 +89,18 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
   let dikirim = 0;
   let gagal = 0;
 
+  const batasPulih = new Date(Date.now() - JEDA_PULIH_JAM * 3600_000);
   const menunggu = await db.photo.findMany({
     where: {
       originalKey: { not: null },
       originalArchivedAt: null,
       originalPurgedAt: null,
-      originalArchiveTries: { lt: BATAS_GAGAL },
+      // Yang belum habis percobaannya, ATAU yang sudah habis tapi masa
+      // pulihnya lewat — supaya gangguan sesaat sembuh sendiri.
+      OR: [
+        { originalArchiveTries: { lt: BATAS_GAGAL } },
+        { originalArchiveTriedAt: { lt: batasPulih } },
+      ],
     },
     select: { id: true, originalKey: true, originalBytes: true, sha256: true },
     orderBy: { createdAt: "asc" },
@@ -100,12 +120,22 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
         data: {
           originalArchiveTries: { increment: 1 },
           originalArchiveError: pesan.slice(0, 500),
+          originalArchiveTriedAt: new Date(),
         },
       });
     }
   }
 
-  const dibuangDariR2 = await buangSalinanR2Lewat(galat);
+  /*
+   * PEMUTUS ARUS: putaran yang pengirimannya gagal TIDAK membuang apa pun.
+   *
+   * Arsip yang sedang bermasalah bukan tempat yang aman untuk mengurangi
+   * salinan — walau baris LAIN sudah lama terbukti terarsip. Menambah salinan
+   * dan mengurangi salinan boleh berhenti bersamaan; yang tidak boleh adalah
+   * mengurangi sementara menambah sedang gagal.
+   */
+  const dibuangDariR2 = gagal > 0 ? 0 : await buangSalinanR2Lewat(setelan, galat);
+  if (gagal > 0) galat.push("pembuangan salinan R2 ditahan: ada pengiriman yang gagal di putaran ini");
   return { dijalankan: true, alasan: "jalan", dikirim, dibuangDariR2, gagal, galat };
 }
 
@@ -168,7 +198,12 @@ async function pindahkanSatu(
 async function tandaiTerarsip(id: string): Promise<void> {
   await db.photo.update({
     where: { id },
-    data: { originalArchivedAt: new Date(), originalArchiveError: null, originalArchiveTries: 0 },
+    data: {
+      originalArchivedAt: new Date(),
+      originalArchiveError: null,
+      originalArchiveTries: 0,
+      originalArchiveTriedAt: new Date(),
+    },
   });
 }
 
@@ -180,7 +215,7 @@ async function tandaiTerarsip(id: string): Promise<void> {
  * — kalau digabung, satu kesalahan di tengah bisa membuat berkas hilang dari
  * kedua tempat sekaligus.
  */
-async function buangSalinanR2Lewat(galat: string[]): Promise<number> {
+async function buangSalinanR2Lewat(setelan: SetelanDingin, galat: string[]): Promise<number> {
   const hari = await tenggangHari();
   const batas = new Date(Date.now() - hari * 86_400_000);
   const siap = await db.photo.findMany({
@@ -189,7 +224,7 @@ async function buangSalinanR2Lewat(galat: string[]): Promise<number> {
       originalR2PurgedAt: null,
       originalKey: { not: null },
     },
-    select: { id: true, originalKey: true },
+    select: { id: true, originalKey: true, sha256: true },
     orderBy: { originalArchivedAt: "asc" },
     take: PER_PUTARAN * 4, // menghapus jauh lebih murah daripada mengirim
   });
@@ -197,6 +232,39 @@ async function buangSalinanR2Lewat(galat: string[]): Promise<number> {
   let n = 0;
   for (const f of siap) {
     try {
+      /*
+       * CATATAN SAJA TIDAK CUKUP — keberadaannya dipastikan ULANG di detik ini.
+       *
+       * `originalArchivedAt` bisa berumur berhari-hari, dan dalam rentang itu
+       * berkasnya bisa lenyap dari mesin seberang tanpa ada yang tahu:
+       * terhapus tangan, disk diganti, direktori ter-mount ulang ke tempat
+       * lain. Menghapus salinan R2 atas dasar catatan lama berarti berkas
+       * aslinya hilang dari KEDUA tempat — satu-satunya kegagalan di sistem ini
+       * yang hasilnya permanen.
+       *
+       * Ongkosnya satu HEAD per berkas, dan itu murah dibandingkan yang
+       * dipertaruhkan.
+       */
+      const cek = await periksaDingin(setelan, f.originalKey!);
+      if (!cek.ada) {
+        // Yang tidak ada di sana bukan "sudah terarsip". Catatannya dibatalkan
+        // supaya putaran berikutnya mengirimkannya lagi — bukan supaya ia
+        // menunggu penghapusan berikutnya.
+        await db.photo.update({
+          where: { id: f.id },
+          data: {
+            originalArchivedAt: null,
+            originalArchiveError: "hilang dari arsip – dikirim ulang, salinan R2 ditahan",
+            originalArchiveTriedAt: new Date(),
+          },
+        });
+        galat.push(`buang-r2 ${f.id.slice(0, 8)}: berkas TIDAK ADA di arsip – tidak dibuang`);
+        continue;
+      }
+      if (cek.sha256 && cek.sha256 !== f.sha256.toLowerCase()) {
+        galat.push(`buang-r2 ${f.id.slice(0, 8)}: sidik jari di arsip berbeda – tidak dibuang`);
+        continue;
+      }
       await r2Delete(f.originalKey!);
       await db.photo.update({ where: { id: f.id }, data: { originalR2PurgedAt: new Date() } });
       n++;
