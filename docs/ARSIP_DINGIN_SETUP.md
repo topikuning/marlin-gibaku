@@ -136,6 +136,39 @@ tab **Actions** → *Arsip dingin berkas asli MARLIN* → **Run workflow**.
 
 ---
 
+## Kalau ada masalah — apa yang dikerjakan sistem sendiri
+
+Peringatan adalah lapis TERAKHIR. Sebagian besar kerusakan tidak pernah sampai
+ke orang karena sudah ditangani sendiri:
+
+| Kejadian | Yang dilakukan sistem |
+|---|---|
+| Arsip tidak bisa dihubungi | Tidak ada yang dihapus. Dicoba lagi putaran berikutnya. |
+| Ada pengiriman gagal di satu putaran | Pembuangan salinan R2 **ditahan seluruhnya** di putaran itu – arsip yang sedang bermasalah bukan tempat aman untuk mengurangi salinan. |
+| Berkas lenyap dari mesin arsip | Ketahuan saat pemeriksaan ulang tepat sebelum menghapus. Salinan R2 **tidak** dibuang, catatan "terarsip" dibatalkan, berkasnya dikirim ulang. |
+| Isi di arsip beda sidik jarinya | Sama: tidak dibuang, dilaporkan. |
+| Satu berkas gagal 5 kali | Berhenti dicoba supaya tidak menyumbat antrean – lalu **dicoba lagi sendiri** setelah 6 jam, jadi gangguan sesaat sembuh tanpa ada yang turun tangan. |
+| Disk arsip menipis | Gateway menolak kiriman baru; MARLIN mencatatnya dan memperingatkan. |
+
+Yang tersisa untuk peringatan hanya yang **butuh orang datang ke mesinnya**.
+Pemberitahuan untuk hal yang sudah beres sendiri bukan kewaspadaan — ia melatih
+orang mengabaikan pesan.
+
+## Peringatan WhatsApp
+
+Sistem → Arsip dingin → **Peringatan WhatsApp** (sakelar sendiri, terpisah dari
+sakelar arsip) + tujuan (chatId grup atau nomor). Dikirim untuk:
+
+- berkas yang tercatat terarsip tapi **tidak ada** di mesin arsip;
+- pemindahan **macet** lebih dari 24 jam padahal ada antrean;
+- ada yang **berhenti dicoba**;
+- **sisa disk** di bawah 20 GB.
+
+Satu pesan per hari untuk keadaan yang sama; keadaan yang berubah dikirim
+seketika. Pemeriksaannya berjalan di DUA jadwal — putaran arsip tiap jam dan
+tugas harian — supaya penjadwal arsip yang mati total tidak menghasilkan
+kesunyian sempurna.
+
 ## Kalau mesinnya mati
 
 Tidak ada yang rusak, dan tidak ada yang hilang:

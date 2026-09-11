@@ -480,6 +480,17 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
   const { kedaluwarsakanLampiran } = await import("@/lib/waha/lampiran-tangkap");
   const lampiran = await kedaluwarsakanLampiran(now);
 
+  /*
+   * Penjaga arsip foto asli ikut di sini, DI SAMPING putaran arsip tiap jam,
+   * dan pengulangan itu disengaja. Kalau ia hanya menumpang di putaran arsip,
+   * penjadwal arsip yang MATI TOTAL menghasilkan kesunyian sempurna: tidak ada
+   * yang berjalan, jadi tidak ada yang melapor bahwa tidak ada yang berjalan.
+   * Peredam sidik-jari di dalamnya yang mencegah dua jadwal ini mengirim pesan
+   * kembar.
+   */
+  const { periksaDanPeringatkan } = await import("@/lib/arsip-asli/peringatan");
+  await periksaDanPeringatkan(now).catch(() => null);
+
   const { getPengingatAktif } = await import("./setelan");
   if (!(await getPengingatAktif())) {
     return {

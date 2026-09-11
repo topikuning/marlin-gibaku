@@ -643,6 +643,35 @@ function dugaan(pesan: string): string {
 }
 
 /**
+ * Sakelar + tujuan peringatan WhatsApp arsip dingin.
+ *
+ * Terpisah dari sakelar arsipnya: keduanya dimatikan karena alasan berbeda —
+ * arsip saat mesinnya diperbaiki, peringatan saat orangnya tidak ingin
+ * diganggu. Menggabungkannya berarti mematikan yang satu diam-diam mematikan
+ * yang lain, dan yang ikut mati justru pemberitahuannya.
+ */
+export async function setWaArsipAction(
+  _prev: ArsipAsliState,
+  formData: FormData,
+): Promise<ArsipAsliState> {
+  const actor = await requireCapability("system.manage");
+  const aktif = formData.get("waAktif") === "on";
+  const tujuan = String(formData.get("waTujuan") ?? "").trim();
+  if (aktif && !tujuan) {
+    return { error: "Isi tujuan WhatsApp-nya dulu – peringatan tanpa tujuan tidak pernah sampai." };
+  }
+  const { setWaArsip } = await import("@/lib/arsip-asli/setelan");
+  await setWaArsip(aktif, tujuan);
+  await audit(actor.id, "system.arsip_asli_wa", "system", null, { aktif, adaTujuan: tujuan !== "" });
+  revalidatePath("/sistem");
+  return {
+    success: aktif
+      ? `Peringatan WhatsApp AKTIF – dikirim ke ${tujuan} bila ada yang perlu orang turun tangan.`
+      : "Peringatan WhatsApp dimatikan. Keadaan arsip tetap terlihat di layar ini.",
+  };
+}
+
+/**
  * BUKTI ISI ARSIP — bertanya ke mesinnya, bukan membaca catatan sendiri.
  *
  * Pertanyaan user 2026-09-10: *"bagaimana aku mengecek ada file foto yang sudah
