@@ -5,7 +5,10 @@ Instruksi untuk Claude Code saat bekerja di repo ini.
 **Baca file ini dulu**, lalu:
 1. [`PROJECT.md`](./PROJECT.md) — arsitektur, domain model, **formula angka kanonik** (single source of truth)
 2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO sebelum fitur baru
-3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only (051 = rebuild total)
+3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — **INDEKS** keputusan (judul +
+   tanggal, ±52 KB). Isinya di `docs/decisions/NNN-NNN.md`, dibuka hanya kalau
+   nomornya sudah diketahui. **Jangan membaca seluruh arsip** — 1,5 MB, ±425 ribu
+   token; itu persis alasan berkasnya dipecah (DECISIONS 560). 051 = rebuild total.
 4. [`docs/README.md`](./docs/README.md) — peta seluruh dokumentasi (mana yang hidup, mana yang arsip)
 5. [`docs/CARA_KERJA_AGEN.md`](./docs/CARA_KERJA_AGEN.md) — repo ini dikerjakan TIGA agen:
    siapa penulis, siapa pengoreksi, syarat merah-dulu, daftar blind spot yang sudah terbukti
@@ -43,15 +46,18 @@ lebih dulu — protokol itu wajib, bukan anjuran.
    Gerbang hijau, CI hijau, dan "ini penting" bukan pengganti perintahnya.
 1. **Bahasa Indonesia untuk UI text, English untuk identifier kode** (enum status domain = Indonesia).
 2. **PROJECT.md single source of truth** — konflik kode vs PROJECT.md ⇒ kode salah.
-   Ubah keputusan ⇒ tanya user ⇒ append `docs/DECISIONS.md`.
+   Ubah keputusan ⇒ tanya user ⇒ tulis di arsip nomor tertinggi
+   (`docs/decisions/`), lalu satu baris di indeks `docs/DECISIONS.md`.
 3. **Setiap mutasi server action**: `requireCapability()` (+ `requireLocationAccess`
    bila menyangkut lokasi) + `audit()`. Frontend hanya menyembunyikan menu.
 4. **Angka agregat selalu derived** — jangan pernah bikin kolom agregat yang diedit manual.
 5. **Status hanya berubah lewat mesin transisi** `src/lib/lifecycle.ts` + tulis histori.
 6. Bug baru → `docs/OPEN_ISSUES.md` (yang SELESAI dihapus dari sana, bukan
-   dicoret); keputusan baru → append `docs/DECISIONS.md` **tanpa memilih nomor**
-   (`## (baru) · Judul (tanggal)`) — nomornya diberikan saat merge, lihat kepala
-   berkas itu.
+   dicoret); keputusan baru → tulis di **arsip nomor tertinggi**
+   (`docs/decisions/NNN-NNN.md`) **tanpa memilih nomor**
+   (`## (baru) · Judul (tanggal)`), lalu pemeriksa terakhir memberi nomornya
+   saat merge DAN menambahkan satu baris ke indeks `docs/DECISIONS.md`. Cara
+   lengkapnya di kepala indeks itu; dijaga `tests/unit/decisions-nomor.test.ts`.
 7. **Formula angka hanya boleh ditulis di calculation layer kanonik — daftarnya
    ada di `PROJECT.md` §3 (LIMA berkas, DECISIONS 461).** Jangan menyalin
    daftarnya ke sini: sampai audit 2026-08-28, CLAUDE.md, PROJECT.md, dan

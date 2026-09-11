@@ -10,7 +10,7 @@ Mulai dari mana tergantung yang Anda cari.
 | Pembagian kerja tiga agen (penulis/pengoreksi, syarat merah-dulu) | [`CARA_KERJA_AGEN.md`](./CARA_KERJA_AGEN.md) |
 | Arsitektur, domain model, **formula angka kanonik** | [`../PROJECT.md`](../PROJECT.md) — *single source of truth* |
 | Apa yang masih rusak / belum selesai | [`OPEN_ISSUES.md`](./OPEN_ISSUES.md) |
-| Kenapa sesuatu diputuskan begitu | [`DECISIONS.md`](./DECISIONS.md) — append-only |
+| Kenapa sesuatu diputuskan begitu | [`DECISIONS.md`](./DECISIONS.md) — **indeks** (judul + tanggal); isinya di [`decisions/`](./decisions/) per seratus nomor |
 | Menyentuh progress / laporan / kurva-S / uang | [`rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./rebuild/CALCULATION_INTEGRITY_PROTOCOL.md) — **wajib** |
 | Temuan / inspeksi / verifikasi Wakil PPK / EWS / kesiapan | [`integrated-control/`](./integrated-control/CURRENT_STATE_AUDIT.md) — audit, arsitektur, UX IA (DECISIONS 426) |
 
@@ -73,7 +73,8 @@ kendala dan mana yang bisa ditagih (DECISIONS 392) ·
 
 1. **`PROJECT.md` menang.** Kalau kode dan `PROJECT.md` berbeda, kodenya yang
    salah — atau `PROJECT.md` yang lupa diperbarui. Jangan biarkan menggantung.
-2. **Keputusan baru → append `DECISIONS.md`.** Jangan pernah menyunting entri
+2. **Keputusan baru → tulis di arsip nomor tertinggi `decisions/NNN-NNN.md`,
+   lalu satu baris di indeks `DECISIONS.md`.** Jangan pernah menyunting entri
    lama; kalau berubah, tulis entri baru yang menyebut nomor lamanya.
 3. **Masalah baru → `OPEN_ISSUES.md`.** Yang sudah selesai DIHAPUS dari sana,
    bukan dicoret — riwayatnya sudah aman di `DECISIONS.md` dan git.
