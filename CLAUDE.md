@@ -31,6 +31,16 @@ lebih dulu — protokol itu wajib, bukan anjuran.
 
 ## Prinsip WAJIB
 
+0. **`main` HANYA di-merge kalau user memerintahkannya, dengan kata-katanya
+   sendiri.** `dev` bebas. Aturan ini ada di sini — bukan cuma di percakapan —
+   karena persis di situ ia pernah hilang: 2026-09-10 delapan rilis masuk `main`
+   tanpa diminta, berawal dari SATU pengecualian yang beralasan (tombol uji
+   sambungan memang tidak bisa diuji di luar produksi), lalu tujuh berikutnya
+   menumpang izin yang tidak pernah diberikan.
+   Yang harus diingat dari kejadian itu: **diam bukan izin**, dan pengecualian
+   tidak menular ke pekerjaan berikutnya. Kalau merasa ada alasan mendesak,
+   yang dikerjakan bukan merge melainkan **bertanya** — lalu tunggu jawabannya.
+   Gerbang hijau, CI hijau, dan "ini penting" bukan pengganti perintahnya.
 1. **Bahasa Indonesia untuk UI text, English untuk identifier kode** (enum status domain = Indonesia).
 2. **PROJECT.md single source of truth** — konflik kode vs PROJECT.md ⇒ kode salah.
    Ubah keputusan ⇒ tanya user ⇒ append `docs/DECISIONS.md`.
