@@ -323,11 +323,25 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     arr.push(n);
     anakDari.set(n.parentLineageKey, arr);
   }
+  /*
+   * ITEM BISA PUNYA ANAK, dan anaknya ikut dihitung.
+   *
+   * Versi sebelumnya berhenti begitu bertemu baris ber-harga — `if (kind ===
+   * "item") return n.amount` — dengan anggapan item selalu daun. Di RAB KKP
+   * anggapan itu tidak berlaku: ada item yang bersarang di bawah item lain
+   * (mis. `IX#IX.2#17#2` di bawah `IX#IX.2#17`). Anak-anak itu luput dari
+   * kategori mana pun, dan uangnya lenyap dari total tanpa satu pun peringatan
+   * — dilaporkan user 2026-09-12 sebagai selisih Rp 35 juta pada berkas yang
+   * jumlah kolomnya di Excel justru pas.
+   *
+   * Nilai item sendiri TIDAK ditimpa: pada sisi aktif nilai induk ber-harga
+   * memang tidak mencakup anaknya (keduanya dijumlahkan terpisah), jadi yang
+   * ditambahkan ke atas adalah nilai sendiri PLUS anak.
+   */
   const hitung = (n: FlatNode): bigint => {
-    if (n.kind === "item") return n.amount;
-    let t = 0n;
+    let t = n.kind === "item" ? n.amount : 0n;
     for (const c of anakDari.get(n.lineageKey) ?? []) t += hitung(c);
-    n.amount = t;
+    if (n.kind !== "item") n.amount = t;
     return t;
   };
   for (const n of nodes) if (!n.parentLineageKey) hitung(n);
