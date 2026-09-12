@@ -46,6 +46,7 @@ async function terbitkan(): Promise<ExcelJS.Workbook> {
     contractNumber: "B.17114",
     vendorName: "CV. Tosan",
     revisionNo: 1,
+    revisionId: "rev-uji",
     totalValue: 71_074_131n,
     nodes: NODES,
   });

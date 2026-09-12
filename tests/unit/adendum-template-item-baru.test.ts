@@ -61,6 +61,7 @@ const INPUT = {
   contractNumber: null,
   vendorName: null,
   revisionNo: 1,
+  revisionId: "rev-uji",
   totalValue: 5_000_000n,
   nodes: NODES,
 };

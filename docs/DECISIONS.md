@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 561 | 2026-09-12 | Identitas template adendum dipakai APA ADANYA, tidak ditebak ulang |
 | 560 | 2026-09-11 | DECISIONS dipecah: indeks yang dibaca, arsip yang dibuka seperlunya |
 | 559 | 2026-09-11 | Kerusakan arsip ditangani sendiri; peringatan hanya untuk yang butuh orang |
 | 558 | 2026-09-10 | "Sudah masuk belum?" dijawab dengan bertanya ke mesinnya, bukan membaca catatan sendiri |

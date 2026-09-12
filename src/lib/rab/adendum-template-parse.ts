@@ -3,6 +3,9 @@ import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import type { FlatNode } from "@/lib/rab/flatten";
 import {
   ADENDUM_HEADER_ROW,
+  ADENDUM_SUMBER_COL,
+  ADENDUM_SUMBER_PREFIX,
+  ADENDUM_SUMBER_ROW,
   ADENDUM_TEMPLATE_MARKER,
   ADENDUM_TEMPLATE_SHEET,
 } from "@/lib/export/adendum-template-xlsx";
@@ -49,6 +52,41 @@ export function isAdendumTemplate(wb: ExcelJS.Workbook): boolean {
   const ws = wb.getWorksheet(ADENDUM_TEMPLATE_SHEET);
   if (!ws) return false;
   return String(ws.getCell(ADENDUM_HEADER_ROW, C_LINEAGE).value ?? "").trim() === ADENDUM_TEMPLATE_MARKER;
+}
+
+/**
+ * Dari revisi MANA template ini dibuat?
+ *
+ * `null` = bukan template adendum sama sekali. Selain itu selalu mengembalikan
+ * nomornya; `revisionId` bisa `null` untuk berkas yang sudah beredar sebelum
+ * penanda mesinnya ada — dan berkas-berkas itulah yang ada di tangan orang
+ * sekarang, jadi barisan judulnya dibaca sebagai cadangan. Membiarkannya lolos
+ * berarti cacat yang dilaporkan 2026-09-12 tetap terjadi pada berkas lama.
+ */
+export function sumberRevisiTemplate(
+  wb: ExcelJS.Workbook,
+): { revisionNo: number; revisionId: string | null } | null {
+  if (!isAdendumTemplate(wb)) return null;
+  const ws = wb.getWorksheet(ADENDUM_TEMPLATE_SHEET)!;
+
+  const penanda = String(ws.getCell(ADENDUM_SUMBER_ROW, ADENDUM_SUMBER_COL).value ?? "").trim();
+  if (penanda.startsWith(ADENDUM_SUMBER_PREFIX)) {
+    const sisa = penanda.slice(ADENDUM_SUMBER_PREFIX.length);
+    const pisah = sisa.indexOf(":");
+    const no = Number.parseInt(pisah >= 0 ? sisa.slice(0, pisah) : sisa, 10);
+    if (Number.isFinite(no)) {
+      const id = pisah >= 0 ? sisa.slice(pisah + 1).trim() : "";
+      return { revisionNo: no, revisionId: id || null };
+    }
+  }
+
+  // Cadangan: kalimat di barisan judul ("… RAB revisi aktif #1").
+  for (let r = 1; r < ADENDUM_HEADER_ROW; r++) {
+    const teks = String(ws.getCell(r, 1).value ?? "");
+    const m = /revisi aktif #(\d+)/i.exec(teks);
+    if (m) return { revisionNo: Number.parseInt(m[1]!, 10), revisionId: null };
+  }
+  return null;
 }
 
 /**

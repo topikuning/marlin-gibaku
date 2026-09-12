@@ -222,7 +222,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         .safeParse(JSON.parse(mentah));
       return parsed.success ? parsed.data : [];
     })();
-    let templateAdendum: Awaited<ReturnType<typeof bacaTemplateAdendum>> | null = null;
+    let templateAdendum:
+      | (Awaited<ReturnType<typeof bacaTemplateAdendum>> & { wb: import("exceljs").Workbook })
+      | null = null;
     if (mode === "draft") {
       // Nama sheet DULU, isinya belakangan. Memuat seluruh workbook cuma untuk
       // mengintip satu sel penanda berharga 180 MB heap + 25 detik pada berkas
@@ -250,7 +252,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         // Sudah pasti template: galatnya BUKAN "coba jalur lain", melainkan
         // kesalahan pengisian yang harus disebut apa adanya ke user.
         try {
-          templateAdendum = await bacaTemplateAdendum(probe);
+          templateAdendum = { ...(await bacaTemplateAdendum(probe)), wb: probe };
         } catch (e) {
           if (e instanceof AdendumTemplateError) return { error: e.message };
           throw e;
@@ -309,8 +311,47 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
 
     const activeRevision = await db.rabRevision.findFirst({
       where: { locationId: location.id, status: "aktif" },
-      select: { id: true },
+      select: { id: true, revisionNo: true },
     });
+
+    /*
+     * TEMPLATE BASI DITOLAK — sebelum satu baris pun dibandingkan.
+     *
+     * Dilaporkan user 2026-09-12: template terbitan MARLIN sendiri, diimpor ke
+     * draft adendum, dijawab "676 item baru · 676 item hilang · 140 item yang
+     * SUDAH dikerjakan tidak ada di file ini". Angka 676 yang muncul dua kali
+     * bukan perubahan data melainkan satu himpunan item yang tidak saling
+     * kenal: berkasnya dibuat dari revisi #1, sementara yang aktif saat diimpor
+     * revisi lain dengan penomoran kategori berbeda (`VI.1` vs `VI`).
+     *
+     * Nomor revisinya SUDAH tercetak di berkas itu sejak dulu — sebagai kalimat
+     * untuk dibaca orang, dan tidak pernah diperiksa mesin. Pemeriksaan inilah
+     * yang hilang. Tanpanya, pratinjau yang benar secara teknis (memang tidak
+     * ada yang cocok) menjadi laporan yang menyesatkan secara praktis: ia
+     * terbaca sebagai "adendummu mengubah segalanya", padahal yang terjadi
+     * cuma dua berkas yang bicara tentang RAB yang berbeda.
+     *
+     * DITOLAK, bukan diperingatkan: melanjutkan berarti menulis draft yang
+     * membuang seluruh item kontrak berikut realisasinya.
+     */
+    if (templateAdendum && activeRevision) {
+      const { sumberRevisiTemplate } = await import("@/lib/rab/adendum-template-parse");
+      const sumber = sumberRevisiTemplate(templateAdendum.wb);
+      const beda =
+        sumber != null &&
+        (sumber.revisionId != null
+          ? sumber.revisionId !== activeRevision.id
+          : sumber.revisionNo !== activeRevision.revisionNo);
+      if (beda) {
+        return {
+          error:
+            `Template ini dibuat dari RAB revisi #${sumber!.revisionNo}, sedangkan yang aktif sekarang ` +
+            `revisi #${activeRevision.revisionNo}. Item di keduanya tidak saling kenal, jadi impor ini ` +
+            `akan terbaca seolah seluruh isi kontrak diganti. Unduh template adendum yang baru, ` +
+            `pindahkan isian volumenya ke sana, lalu impor lagi.`,
+        };
+      }
+    }
     // Adendum HANYA bila kontrak sudah SPMK/jalan (startDate terisi). Sebelum SPMK
     // (masih "menunggu SPMK"), impor RAB ulang = KOREKSI HPS awal, bukan adendum
     // resmi. DECISIONS 118.
@@ -362,7 +403,34 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       // Node berkas SEBELUM dicocokkan: kunci di sini yang dipakai
       // `PadananManual.lineageBaru`, dan volumenya yang perlu dilihat user.
       const nodesAsli = nodes;
-      const cocok = samakanLineage(
+      /*
+       * TEMPLATE TIDAK PERNAH DITEBAK-ULANG IDENTITASNYA (RAB-ADD-01).
+       *
+       * `samakanLineage` ada untuk berkas HPS/MC mentah, yang identitasnya
+       * memang harus disimpulkan dari pola kode: satu baris disisipkan di
+       * adendum menggeser seluruh nomor di bawahnya, dan tanpa penebakan itu
+       * "item 6" berkas baru akan dipasangkan dengan "item 6" kontrak yang
+       * berbeda pekerjaannya.
+       *
+       * Template adendum BUKAN berkas seperti itu. Ia terbitan MARLIN sendiri
+       * dan membawa `lineageKey` kontrak apa adanya di kolom identitas — tidak
+       * ada yang perlu ditebak, dan menebaknya justru merusak yang sudah benar.
+       *
+       * Dilaporkan user 2026-09-12 dan ditiru persis dari dua berkas terbitan
+       * MARLIN miliknya: template + ekspor RAB aktif → 674 "item baru", 52
+       * volume berubah, 177 tetap (di layarnya 676 · 52 · 175). Kunci
+       * `I#6#6.1#6.1.a` ditulis ulang jadi `I#6#2#6.1#6.1.a` — satu ruas
+       * disisipkan, dan sejak itu 674 dari 903 item kehilangan pasangannya.
+       * Keduanya, berkas dan basis data, sebenarnya SUDAH sepakat.
+       *
+       * Yang paling merusak bukan angkanya melainkan artinya di layar: "676
+       * item hilang · 140 item yang SUDAH dikerjakan tidak ada di file ini"
+       * terbaca sebagai adendum yang membuang separuh kontrak berikut
+       * realisasinya — padahal tidak ada satu pun yang berubah.
+       */
+      const cocok: ReturnType<typeof samakanLineage> = templateAdendum
+        ? { nodes, padananDipakai: [], padananDitolak: [], itemBaruAsli: [], namaBerbeda: [], digeser: [] }
+        : samakanLineage(
         nodes,
         aktifNodes.map((n) => ({
           lineageKey: n.lineageKey,

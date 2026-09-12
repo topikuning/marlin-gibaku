@@ -82,6 +82,23 @@ export const ADENDUM_TEMPLATE_MARKER = "MARLIN:TEMPLATE-ADENDUM:v1";
 export const ADENDUM_HEADER_ROW = 8;
 
 /**
+ * DASAR TEMPLATE, ditulis agar BISA DIBACA MESIN.
+ *
+ * Nomor revisi sudah tercetak di baris 3 sejak awal — tapi sebagai kalimat
+ * untuk manusia, dan impor tidak pernah memeriksanya. Akibatnya dilaporkan user
+ * 2026-09-12: template dari revisi #1 diimpor saat yang aktif revisi lain, dan
+ * pratinjaunya berbunyi "676 item baru · 676 item hilang" — dua angka sama yang
+ * sebenarnya satu himpunan item yang tidak saling kenal.
+ *
+ * Berkas bolak-balik yang mencatat dasarnya lalu mengabaikan catatannya sendiri
+ * lebih buruk daripada yang tidak mencatat: ia terlihat aman.
+ */
+export const ADENDUM_SUMBER_PREFIX = "MARLIN:SUMBER-REVISI:";
+/** Sel penanda dasar (baris 7, kolom L) — di luar tabel, tidak mengganggu isian. */
+export const ADENDUM_SUMBER_ROW = 7;
+export const ADENDUM_SUMBER_COL = 12;
+
+/**
  * Node RAB + `lineageKey`. Template WAJIB membawanya: itulah identitas yang
  * menautkan baris di Excel kembali ke item kontrak saat diimpor, dan yang
  * menjaga realisasi tidak pernah nyasar ke item lain.
@@ -94,6 +111,8 @@ export type AdendumTemplateInput = {
   contractNumber: string | null;
   vendorName: string | null;
   revisionNo: number;
+  /** Id revisi sumber – yang benar-benar menentukan, sebab nomor bisa berulang. */
+  revisionId: string;
   totalValue: bigint;
   nodes: AdendumTemplateNode[];
   /**
@@ -141,6 +160,15 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     3,
     `${input.contractNumber ? `Kontrak: ${input.contractNumber} · ` : ""}Disalin dari RAB revisi aktif #${input.revisionNo}`,
   );
+  /*
+   * Penanda dasar, di sel yang tidak dilihat orang dan tidak diisi orang.
+   * Sengaja BUKAN di baris 3: kalimat di sana boleh diubah kapan saja tanpa
+   * memikirkan parser, dan parser tidak boleh bergantung pada kalimat.
+   */
+  ws.getCell(ADENDUM_SUMBER_ROW, ADENDUM_SUMBER_COL).value =
+    `${ADENDUM_SUMBER_PREFIX}${input.revisionNo}:${input.revisionId}`;
+  ws.getColumn(ADENDUM_SUMBER_COL).hidden = true;
+
   // Petunjuk pengisian ditulis DI BERKASNYA, bukan hanya di layar: berkas ini
   // beredar lewat WhatsApp dan email, jauh dari aplikasi yang menerbitkannya.
   judul(4, "CARA MENGISI:", true);
