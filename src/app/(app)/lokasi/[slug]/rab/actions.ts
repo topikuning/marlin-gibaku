@@ -10,6 +10,7 @@ import {
   cabutPersetujuan,
   pastikanBolehAktivasi,
   PersetujuanError,
+  ringkasPersetujuan,
   setujuiRevisi,
 } from "@/lib/rab/persetujuan";
 import {
@@ -812,10 +813,28 @@ export async function approveRevisionAction(
       await setujuiRevisi(parsed.data, user);
     }
     revalidateRab(rev.location.slug);
+    /*
+     * KATAKAN APA YANG BERHASIL, bukan hanya apa yang kurang.
+     *
+     * Dilaporkan user 2026-09-12: Program Director menekan tombol dan yang
+     * muncul cuma spanduk merah "butuh persetujuan DUA orang". Tanda tangannya
+     * tercatat, tetapi layar tidak mengakuinya — jadi terbaca sebagai gagal.
+     * Empat mata adalah prosedur dua langkah; langkah pertama harus terasa
+     * selesai, dan yang ditunggu harus disebut namanya.
+     */
+    const sesudah = await ringkasPersetujuan(parsed.data);
+    const lanjutan = cabut
+      ? sesudah.kurang.length > 0
+        ? ` Aktivasi kembali terkunci – masih kurang: ${sesudah.kurang.join(" + ")}.`
+        : ""
+      : sesudah.lengkap
+        ? " Persetujuan lengkap – draft siap diaktifkan."
+        : ` Masih menunggu ${sesudah.kurang.join(" + ")}.`;
     return {
-      success: cabut
-        ? `Persetujuan Anda atas revisi #${rev.revisionNo} dicabut.`
-        : `Revisi #${rev.revisionNo} Anda setujui.`,
+      success:
+        (cabut
+          ? `Persetujuan Anda atas revisi #${rev.revisionNo} dicabut.`
+          : `Revisi #${rev.revisionNo} Anda setujui.`) + lanjutan,
     };
   } catch (err) {
     if (err instanceof PersetujuanError) return { error: err.message };

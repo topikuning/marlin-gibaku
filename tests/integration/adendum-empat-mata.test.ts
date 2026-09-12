@@ -36,7 +36,9 @@ vi.mock("@/lib/auth/session", async (importAsli) => {
 const { db } = await import("@/lib/db");
 const { pastikanBolehAktivasi, setujuiRevisi, cabutPersetujuan, ringkasPersetujuan, PersetujuanError } =
   await import("@/lib/rab/persetujuan");
-const { activateDraftAction } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
+const { activateDraftAction, approveRevisionAction } = await import(
+  "@/app/(app)/lokasi/[slug]/rab/actions",
+);
 
 const suffix = `em${Date.now().toString(36)}`;
 let locationId: string;
@@ -255,6 +257,45 @@ describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
     const sesudah = await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } });
     expect(sesudah.status).toBe("aktif");
     expect((await db.rabRevision.findUniqueOrThrow({ where: { id: lama.id } })).status).not.toBe("aktif");
+  });
+});
+
+describe("YANG MENANDATANGANI HARUS TAHU HASILNYA", () => {
+  /*
+   * Dilaporkan user 2026-09-12: Program Director menekan tombol, lalu yang
+   * muncul hanya spanduk MERAH "butuh persetujuan DUA orang". Tidak ada
+   * penanda bahwa tanda tangannya sendiri tercatat, dan tidak ada daftar siapa
+   * yang sudah menyetujui.
+   *
+   * Penolakan yang benar tapi bisu soal apa yang BERHASIL membuat orang
+   * menekan tombolnya berulang kali, lalu menyimpulkan sistemnya rusak. Empat
+   * mata itu prosedur dua langkah; langkah pertama harus terasa selesai.
+   */
+  const setujui = async (revisionId: string) => {
+    const fd = new FormData();
+    fd.set("revisionId", revisionId);
+    return approveRevisionAction(undefined, fd);
+  };
+
+  it("tanda tangan pertama berhasil DAN menyebut siapa yang masih ditunggu", async () => {
+    await buatRevisi(1, "aktif");
+    const draft = await buatRevisi(2, "draft");
+    sesi = "pd";
+    const hasil = await setujui(draft.id);
+    expect(hasil?.error).toBeUndefined();
+    expect(hasil?.success).toMatch(/Anda setujui/i);
+    expect(hasil?.success, "tidak menyebut siapa yang masih ditunggu").toMatch(
+      /Area Manager|Project Manager|Site Manager/i,
+    );
+  });
+
+  it("tanda tangan kedua mengatakan drafnya sudah siap diaktifkan", async () => {
+    await buatRevisi(1, "aktif");
+    const draft = await buatRevisi(2, "draft");
+    await setujuiRevisi(draft.id, orang.pd!);
+    sesi = "sm";
+    const hasil = await setujui(draft.id);
+    expect(hasil?.success).toMatch(/siap diaktifkan/i);
   });
 });
 

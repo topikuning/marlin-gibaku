@@ -195,6 +195,10 @@ export function susunBarisCco(
       if (n.kind === "item") {
         nomor += 1;
         rows.push(barisItem(n, b, depth, n.code || String(nomor)));
+        // Baris di bawah ITEM ikut ditelusuri. Tanpa ini pekerjaan yang
+        // tercantum di bawah baris berharga tidak pernah masuk dokumen CCO —
+        // dokumen resmi yang diam soal sebagian lingkupnya. DECISIONS 563.
+        jalanLama(n.id, depth + 1);
         continue;
       }
       rows.push(judul(n, depth));
