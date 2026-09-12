@@ -18,7 +18,23 @@ import JSZip from "jszip";
 /** Nama sheet + apakah disembunyikan di Excel. */
 export type SheetInfo = { nama: string; tersembunyi: boolean };
 
-const RAB_RE = /^rab$/i;
+/**
+ * Sheet isi dikenali SEBERAPA LONGGAR pembacanya mengenalinya, bukan lebih
+ * sempit.
+ *
+ * Dulu `^rab$` — nama persis saja. Padahal `parseHpsWorkbook` memakai `/rab/i`:
+ * sheet bernama "RAB MC 0", "Rekap RAB", atau "RAB Revisi" tetap dibaca. Selisih
+ * dua daftar itu tepat mengenai berkas yang paling butuh ditipiskan: berkas KKP
+ * 40+ sheet yang sheet isinya jarang bernama "RAB" telanjang. Yang terjadi pada
+ * berkas begitu bukan salah baca melainkan MATI — exceljs memuat seluruh
+ * workbook, memori habis, dan layar cuma berkata *"An unexpected response was
+ * received from the server"* (laporan user 2026-09-12; kelasnya sudah tercatat
+ * di DECISIONS 297).
+ *
+ * Pemangkasan tetap aman karena yang tersisa justru sheet yang akan dipilih
+ * pembaca: nama persis "RAB" didahulukan, baru yang mengandung "rab".
+ */
+const RAB_RE = /rab/i;
 /**
  * Sheet CCO KKP ("CCO-01", "CCO - 1") ikut dianggap sheet isi (DECISIONS 296).
  *
