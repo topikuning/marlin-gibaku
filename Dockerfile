@@ -76,6 +76,10 @@ COPY --from=builder --chown=marlin:marlin /app/prisma ./prisma
 COPY --from=builder --chown=marlin:marlin /app/prisma.config.js ./prisma.config.js
 # preDeploy: migrate deploy + pemulihan otomatis migrasi yang tercatat gagal.
 COPY --from=builder --chown=marlin:marlin /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
+# Hitungan batas heap V8, dipakai entrypoint SEBELUM Node aplikasi menyala.
+# Tanpa berkas ini entrypoint diam saja dan V8 memakai bawaannya — itu keadaan
+# yang sudah membuat proses mati saat impor RAB besar (DECISIONS 567).
+COPY --from=builder --chown=marlin:marlin /app/scripts/batas-heap.mjs ./scripts/batas-heap.mjs
 # Data demo untuk BOOTSTRAP_DEMO_DATA=true (deployment uji coba)
 COPY --from=builder --chown=marlin:marlin /app/seed-data ./seed-data
 

@@ -45,6 +45,33 @@ async function sheetRab(nama: string) {
   return wb.worksheets[0]!;
 }
 
+/** Tata letak yang sudah ditemui. Tambah baris saat ketemu yang baru. */
+const KORPUS = [
+  ["Tambakagung – NILAI KONTRAK → MC - 0, VOL & SAT bersama", TAMBAKAGUNG],
+  ["Pasar Banggi – MC 0 → CCO - 01", "mc0-pasar-banggi-blok-cco01.xlsx"],
+  ["Karangmangu – MC - 0 → CCO - 01, ada kolom TKDN", "mc0-karangmangu-blok-cco01-tkdn.xlsx"],
+] as const;
+
+describe("tata letak berkas tambah/kurang KKP", () => {
+  for (const [label, nama] of KORPUS) {
+    it(`${label} – dikenali, dan perannya dibuktikan angkanya`, async () => {
+      const peta = deteksiCco(await sheetRab(nama));
+      expect(peta, "berkas tambah/kurang tidak dikenali").not.toBeNull();
+      // Harga satuan dari blok DASAR, volume & jumlah dari blok HASIL. Itu yang
+      // membedakan "sesudah adendum" dari "keadaan awal"; tertukar berarti
+      // nilai kontrak diambil dari keadaan yang salah, dan itu tidak kelihatan
+      // salah karena angkanya tetap besar dan rapi.
+      expect(peta!.col.price).toBeGreaterThanOrEqual(peta!.blokDasar.mulai);
+      expect(peta!.col.price).toBeLessThanOrEqual(peta!.blokDasar.akhir);
+      expect(peta!.col.vol).toBeGreaterThanOrEqual(peta!.blokHasil.mulai);
+      expect(peta!.col.vol).toBeLessThanOrEqual(peta!.blokHasil.akhir);
+      expect(peta!.col.amount).toBeGreaterThanOrEqual(peta!.blokHasil.mulai);
+      expect(peta!.col.amount).toBeLessThanOrEqual(peta!.blokHasil.akhir);
+      expect(peta!.col.unit, "satuan tidak terbaca").toBeGreaterThan(0);
+    });
+  }
+});
+
 describe("CCO KKP: volume & satuan boleh berada di kolom bersama", () => {
   it("Tambakagung dikenali sebagai berkas tambah/kurang, bukan HPS biasa", async () => {
     const peta = deteksiCco(await sheetRab(TAMBAKAGUNG));
