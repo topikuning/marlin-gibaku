@@ -154,7 +154,7 @@ describe("impor MC 0 Tambakagung lewat aksi server", () => {
      */
     const lain = await db.location.findFirstOrThrow({ where: { id: locationId } });
     const { parsed } = await parseHpsBuffer(
-      readFileSync(new URL("../fixtures/de6fbd07-1.A_MC_0_PASAR_BANGGI_KEC._REMBANG_Plan_A__1.xlsx", import.meta.url).pathname),
+      readFileSync(new URL("../fixtures/mc0-pasar-banggi-blok-cco01.xlsx", import.meta.url).pathname),
     );
     const hasil = await createRevisionFromNodes(lain.id, flattenParsedRab(parsed), {
       source: "adendum",
