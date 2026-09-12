@@ -4,6 +4,7 @@ import type { FlatNode } from "@/lib/rab/flatten";
 import {
   ADENDUM_HEADER_ROW,
   ADENDUM_INDUK_COL,
+  ADENDUM_JENIS_COL,
   ADENDUM_SUMBER_COL,
   ADENDUM_SUMBER_PREFIX,
   ADENDUM_SUMBER_ROW,
@@ -147,6 +148,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
 
     const lineageKey = teks(ws.getCell(r, C_LINEAGE).value);
     const indukTertulis = teks(ws.getCell(r, ADENDUM_INDUK_COL).value);
+    const jenisTertulis = teks(ws.getCell(r, ADENDUM_JENIS_COL).value);
     /*
      * KEDALAMAN DARI INDENTASI, bukan dari jumlah "#" pada kunci.
      *
@@ -204,7 +206,14 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
         // Kategori/sub/grup: nilainya diturunkan dari anak, tidak dibaca.
         const parent = induk || null;
         nodes.push({
-          kind: parent == null ? "kategori" : "sub",
+          // Jenis baris judul DITULIS di berkas; tanpa penanda itu (berkas yang
+          // sudah beredar) jatuh ke dugaan lama — akar = kategori, sisanya sub.
+          kind:
+            jenisTertulis === "kategori" || jenisTertulis === "sub" || jenisTertulis === "grup"
+              ? jenisTertulis
+              : parent == null
+                ? "kategori"
+                : "sub",
           code: kode,
           name: nama,
           volume: null,

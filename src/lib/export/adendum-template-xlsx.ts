@@ -109,6 +109,19 @@ export const ADENDUM_HEADER_ROW = 8;
 export const ADENDUM_INDUK_COL = 13;
 export const ADENDUM_INDUK_HEADER = "MARLIN:INDUK:v1";
 
+/**
+ * KOLOM JENIS (N, disembunyikan) — `kategori` / `sub` / `grup`.
+ *
+ * Baris judul punya dua rupa yang tidak bisa dibedakan dari isinya: `sub`
+ * (judul tingkatan RAB) dan `grup` (baris yang punya rincian di bawahnya).
+ * Tanpa kolom ini, bolak-balik mengubah setiap `grup` menjadi `sub` — tidak
+ * menggeser satu rupiah pun, tapi tetap perubahan diam-diam pada data yang
+ * user tidak pernah minta ubah. Baris item tidak perlu ditulis jenisnya: ia
+ * dikenali dari kolom volume/harga kontrak.
+ */
+export const ADENDUM_JENIS_COL = 14;
+export const ADENDUM_JENIS_HEADER = "MARLIN:JENIS:v1";
+
 export const ADENDUM_SUMBER_PREFIX = "MARLIN:SUMBER-REVISI:";
 /** Sel penanda dasar (baris 7, kolom L) — di luar tabel, tidak mengganggu isian. */
 export const ADENDUM_SUMBER_ROW = 7;
@@ -163,9 +176,11 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     { width: 1 }, // K lineageKey (disembunyikan)
     { width: 16 }, // L realisasi tercatat (baca saja)
     { width: 1 }, // M induk (disembunyikan)
+    { width: 1 }, // N jenis baris (disembunyikan)
   ];
   ws.getColumn(11).hidden = true;
   ws.getColumn(ADENDUM_INDUK_COL).hidden = true;
+  ws.getColumn(ADENDUM_JENIS_COL).hidden = true;
 
   const judul = (row: number, text: string, bold = false, size = 10) => {
     const c = ws.getCell(row, 1);
@@ -219,6 +234,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     ADENDUM_TEMPLATE_MARKER,
     "Realisasi Tercatat",
     ADENDUM_INDUK_HEADER,
+    ADENDUM_JENIS_HEADER,
   ];
   header.forEach((text, i) => {
     const c = ws.getCell(ADENDUM_HEADER_ROW, i + 1);
@@ -249,6 +265,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     ws.getCell(r, 2).alignment = { indent: depth, wrapText: true, vertical: "top" };
     ws.getCell(r, 11).value = n.lineageKey;
     ws.getCell(r, ADENDUM_INDUK_COL).value = indukKey ?? "";
+    if (n.kind !== "item") ws.getCell(r, ADENDUM_JENIS_COL).value = n.kind;
 
     if (n.kind === "item") {
       ws.getCell(r, 3).value = n.volume ?? 0;
@@ -335,13 +352,14 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
      * impornya membacanya sebagai "item hilang".
      */
     for (const c of byParent.get(n.id) ?? []) tulis(c, depth + 1, n.lineageKey);
-    for (let c = 1; c <= ADENDUM_INDUK_COL; c++) {
+    for (let c = 1; c <= ADENDUM_JENIS_COL; c++) {
       // Kunci ditulis EKSPLISIT untuk kedua keadaan, bukan hanya yang dibuka.
       // Sel yang dibiarkan tanpa pernyataan mewarisi bawaan Excel (terkunci),
       // dan "terkunci karena lupa" tidak bisa dibedakan dari "terkunci karena
       // memang harus" saat berkas ini dibaca ulang setahun lagi.
       ws.getCell(r, c).protection = { locked: !KOLOM_TERBUKA.includes(c) };
-      if (c === 11 || c === ADENDUM_INDUK_COL) continue; // kolom penanda (disembunyikan)
+      // kolom penanda (disembunyikan)
+      if (c === 11 || c === ADENDUM_INDUK_COL || c === ADENDUM_JENIS_COL) continue;
       ws.getCell(r, c).border = border;
       if (!ws.getCell(r, c).font) ws.getCell(r, c).font = { size: 9 };
     }
