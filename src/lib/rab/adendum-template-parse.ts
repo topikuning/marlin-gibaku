@@ -3,6 +3,8 @@ import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import type { FlatNode } from "@/lib/rab/flatten";
 import {
   ADENDUM_HEADER_ROW,
+  ADENDUM_INDUK_COL,
+  ADENDUM_JENIS_COL,
   ADENDUM_SUMBER_COL,
   ADENDUM_SUMBER_PREFIX,
   ADENDUM_SUMBER_ROW,
@@ -122,6 +124,15 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   /** Tumpukan induk berjalan: lineageKey per kedalaman, untuk item baru. */
   let kategoriBerjalan: { lineageKey: string; name: string } | null = null;
   let indukBerjalan: string | null = null;
+  /**
+   * TUMPUKAN INDUK BERDASARKAN INDENTASI — cadangan untuk berkas yang sudah
+   * beredar sebelum kolom induk ada.
+   *
+   * Indentasi kolom Uraian ditulis eksportir sebagai kedalaman pohon sejak
+   * template pertama, jadi berkas lama pun membawanya. Ia dipakai HANYA bila
+   * kolom induk kosong, dan tidak pernah menimpanya.
+   */
+  const tumpukan: { key: string; depth: number }[] = [];
   /** Berapa item baru sudah disisipkan di bawah satu induk — untuk lineageKey. */
   const barisBaruPerInduk = new Map<string, number>();
   /** lineageKey → nomor baris pertama yang memakainya (deteksi baris disalin). */
@@ -136,6 +147,24 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     if (!kode && nama.toUpperCase().startsWith("NILAI KONTRAK")) continue;
 
     const lineageKey = teks(ws.getCell(r, C_LINEAGE).value);
+    const indukTertulis = teks(ws.getCell(r, ADENDUM_INDUK_COL).value);
+    const jenisTertulis = teks(ws.getCell(r, ADENDUM_JENIS_COL).value);
+    /*
+     * KEDALAMAN DARI INDENTASI, bukan dari jumlah "#" pada kunci.
+     *
+     * Menghitung "#" tampak masuk akal sampai satu kode kembar muncul: kunci
+     * kode kedua sudah mengandung "#" sebagai akhiran pembeda, bukan sebagai
+     * pemisah jalur, dan kedalamannya langsung terbaca satu tingkat terlalu
+     * dalam. Indentasi ditulis eksportir apa adanya dan tidak punya beban ganda.
+     */
+    // Excel tidak menyimpan `indent="0"` — sel tanpa indentasi memang berarti
+    // kedalaman 0 (kategori akar), bukan kedalaman yang tidak diketahui.
+    const indentSel = ws.getCell(r, C_URAIAN).alignment?.indent;
+    const kedalaman = typeof indentSel === "number" ? indentSel : 0;
+    while (tumpukan.length > 0 && tumpukan[tumpukan.length - 1]!.depth >= kedalaman) tumpukan.pop();
+    /** Induk baris ini: yang TERTULIS menang, indentasi jadi cadangannya. */
+    const indukBaris = (): string | null =>
+      indukTertulis || (tumpukan.length > 0 ? tumpukan[tumpukan.length - 1]!.key : null);
     const volKontrak = angka(ws.getCell(r, C_VOL_KONTRAK).value);
     const volAdendum = angka(ws.getCell(r, C_VOL_ADENDUM).value);
     const harga = angka(ws.getCell(r, C_HARGA).value);
@@ -166,7 +195,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
       barisPerLineage.set(lineageKey, r);
 
       // ── Baris kontrak yang sudah ada ──────────────────────────────────
-      const depth = lineageKey.split("#").length - 1;
+      const induk = indukBaris();
       // Item dikenali dari kolom KONTRAK (volume/harga), bukan dari kolom
       // isian: kalau dikenali dari kolom VOLUME ADENDUM, item yang isiannya
       // dikosongkan user akan berubah menjadi "kategori" dan seluruh anak
@@ -175,9 +204,16 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
 
       if (!isItem) {
         // Kategori/sub/grup: nilainya diturunkan dari anak, tidak dibaca.
-        const parent = depth === 0 ? null : lineageKey.slice(0, lineageKey.lastIndexOf("#"));
+        const parent = induk || null;
         nodes.push({
-          kind: depth === 0 ? "kategori" : "sub",
+          // Jenis baris judul DITULIS di berkas; tanpa penanda itu (berkas yang
+          // sudah beredar) jatuh ke dugaan lama — akar = kategori, sisanya sub.
+          kind:
+            jenisTertulis === "kategori" || jenisTertulis === "sub" || jenisTertulis === "grup"
+              ? jenisTertulis
+              : parent == null
+                ? "kategori"
+                : "sub",
           code: kode,
           name: nama,
           volume: null,
@@ -188,8 +224,9 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
           parentLineageKey: parent,
           sortOrder: sortOrder++,
         });
-        if (depth === 0) kategoriBerjalan = { lineageKey, name: nama };
+        if (parent == null) kategoriBerjalan = { lineageKey, name: nama };
         indukBerjalan = lineageKey;
+        tumpukan.push({ key: lineageKey, depth: kedalaman });
         continue;
       }
 
@@ -251,9 +288,13 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
         unitPrice: harga,
         amount,
         lineageKey,
-        parentLineageKey: lineageKey.slice(0, lineageKey.lastIndexOf("#")) || null,
+        parentLineageKey: induk || null,
         sortOrder: sortOrder++,
       });
+      // Item BISA punya anak (mis. baris rincian di bawah pekerjaan berharga).
+      // Tumpukan karena itu memuat item juga — kalau tidak, baris di bawahnya
+      // naik satu tingkat dan berpindah induk diam-diam.
+      tumpukan.push({ key: lineageKey, depth: kedalaman });
       continue;
     }
 
@@ -323,11 +364,25 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     arr.push(n);
     anakDari.set(n.parentLineageKey, arr);
   }
+  /*
+   * ITEM BISA PUNYA ANAK, dan anaknya ikut dihitung.
+   *
+   * Versi sebelumnya berhenti begitu bertemu baris ber-harga — `if (kind ===
+   * "item") return n.amount` — dengan anggapan item selalu daun. Di RAB KKP
+   * anggapan itu tidak berlaku: ada item yang bersarang di bawah item lain
+   * (mis. `IX#IX.2#17#2` di bawah `IX#IX.2#17`). Anak-anak itu luput dari
+   * kategori mana pun, dan uangnya lenyap dari total tanpa satu pun peringatan
+   * — dilaporkan user 2026-09-12 sebagai selisih Rp 35 juta pada berkas yang
+   * jumlah kolomnya di Excel justru pas.
+   *
+   * Nilai item sendiri TIDAK ditimpa: pada sisi aktif nilai induk ber-harga
+   * memang tidak mencakup anaknya (keduanya dijumlahkan terpisah), jadi yang
+   * ditambahkan ke atas adalah nilai sendiri PLUS anak.
+   */
   const hitung = (n: FlatNode): bigint => {
-    if (n.kind === "item") return n.amount;
-    let t = 0n;
+    let t = n.kind === "item" ? n.amount : 0n;
     for (const c of anakDari.get(n.lineageKey) ?? []) t += hitung(c);
-    n.amount = t;
+    if (n.kind !== "item") n.amount = t;
     return t;
   };
   for (const n of nodes) if (!n.parentLineageKey) hitung(n);

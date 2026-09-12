@@ -103,22 +103,31 @@ async function recomputeTotals(
     children.set(n.parentId, arr);
   }
   const computed = new Map<string, bigint>();
+  /*
+   * Kembaliannya = nilai baris ini + seluruh turunannya.
+   *
+   * Nilai yang DISIMPAN pada baris item tetap nilainya sendiri; yang naik ke
+   * induk sajalah yang mencakup anak. Versi sebelumnya berhenti pada baris
+   * item, dengan anggapan item selalu daun — dan begitu satu berkas salah-induk
+   * pernah masuk, basis data memang memuat item di bawah item, sehingga
+   * `totalValue` draft kehilangan uangnya diam-diam pada suntingan pertama
+   * (Rp 35 juta pada berkas user). DECISIONS 563.
+   */
   const compute = (n: (typeof nodes)[number]): bigint => {
-    if (n.kind === "item") {
-      // Tidak disentuh → pakai nilai tersimpan apa adanya.
-      if (!perluHitung.has(n.id)) {
-        computed.set(n.id, n.amount);
-        return n.amount;
-      }
+    const anak = (children.get(n.id) ?? []).reduce((s, c) => s + compute(c), 0n);
+    if (n.kind !== "item") {
+      computed.set(n.id, anak);
+      return anak;
+    }
+    // Tidak disentuh → pakai nilai tersimpan apa adanya.
+    let sendiri = n.amount;
+    if (perluHitung.has(n.id)) {
       const v = n.volume != null ? Number(n.volume) : 0;
       const p = n.unitPrice != null ? Number(n.unitPrice) : 0;
-      const a = valueDone(v, p);
-      computed.set(n.id, a);
-      return a;
+      sendiri = valueDone(v, p);
     }
-    const sum = (children.get(n.id) ?? []).reduce((s, c) => s + compute(c), 0n);
-    computed.set(n.id, sum);
-    return sum;
+    computed.set(n.id, sendiri);
+    return sendiri + anak;
   };
   const roots = children.get(null) ?? [];
   const total = roots.reduce((s, r) => s + compute(r), 0n);

@@ -89,6 +89,38 @@ describe("RAB-ADD-01 · template adendum bolak-balik", () => {
     expect(beda.volumeBerubah, "template yang tidak disentuh terbaca berubah volumenya").toHaveLength(0);
     expect(beda.hargaBerubah).toHaveLength(0);
     expect(beda.jumlahTetap).toBe(903);
+    // Nol perubahan berarti nol rupiah juga – angka inilah yang dibaca orang
+    // lebih dulu di pratinjau, sebelum daftar itemnya.
+    expect(beda.totalBaru, "nilai kontrak bergeser padahal tidak ada yang diubah").toBe(
+      beda.totalAktif,
+    );
+  });
+
+  it("NILAI KATEGORI = jumlah seluruh item, termasuk yang bersarang di bawah item lain", async () => {
+    /*
+     * Dilaporkan user 2026-09-12: pratinjau berbunyi *"Rp 3.723.269.226 →
+     * Rp 3.687.848.165 (−Rp 35.421.061)"* padahal menjumlah kolom Jumlah di
+     * Excel hasilnya pas — dan memang pas: editan user total nilainya netral
+     * (volume dipindah antar item, bukan dikurangi).
+     *
+     * Uangnya tidak hilang di berkas, melainkan di penjumlahan MARLIN. Nilai
+     * induk dihitung dari bawah ke atas, dan rekursinya BERHENTI begitu
+     * bertemu baris ber-harga. Pada RAB ini ada enam item yang bersarang di
+     * bawah item lain (mis. `IX#IX.2#17#2` di bawah `IX#IX.2#17`) — bentuk
+     * yang memang ada di RAB KKP dan dihitung benar oleh sisi aktif. Di
+     * template keenamnya luput dari kategori mana pun.
+     *
+     * Invariannya sederhana dan tidak bergantung pada berkas: TIDAK BOLEH ada
+     * satu rupiah pun yang ada di baris item tapi tidak sampai ke kategori.
+     */
+    for (const nama of ["template-adendum-situbondo-asli.xlsx", "template-adendum-situbondo.xlsx"]) {
+      const t = parseAdendumTemplate(await muat(nama));
+      const jumlah = (k: string) =>
+        t.nodes.filter((n) => n.kind === k).reduce((s, n) => s + n.amount, 0n);
+      expect(jumlah("kategori"), `${nama}: ada nilai item yang tidak sampai ke kategori`).toBe(
+        jumlah("item"),
+      );
+    }
   });
 
   it("kedua berkas terbitan MARLIN memang berbicara tentang RAB yang sama", async () => {

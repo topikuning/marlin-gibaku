@@ -88,6 +88,10 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 565 | 2026-09-12 | Bolak-balik adendum dijaga UTUH lewat basis data, bukan per potongan |
+| 564 | 2026-09-12 | Persetujuan empat mata menyebut yang berhasil, bukan hanya yang kurang |
+| 563 | 2026-09-12 | Induk baris DITULIS di template adendum, tidak ditebak dari lineageKey |
+| 562 | 2026-09-12 | Nilai kategori template adendum menjumlahkan item bersarang |
 | 561 | 2026-09-12 | Identitas template adendum dipakai APA ADANYA, tidak ditebak ulang |
 | 560 | 2026-09-11 | DECISIONS dipecah: indeks yang dibaca, arsip yang dibuka seperlunya |
 | 559 | 2026-09-11 | Kerusakan arsip ditangani sendiri; peringatan hanya untuk yang butuh orang |

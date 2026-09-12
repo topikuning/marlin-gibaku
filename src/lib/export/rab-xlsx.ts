@@ -149,10 +149,18 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   const detRowOf = new Map<string, number>();
   let r = detHeaderRow;
 
-  const writeNode = (n: RabExportNode, depth: number) => {
+  /**
+   * Menulis satu baris + turunannya, dan mengembalikan SEL-SEL yang bila
+   * dijumlahkan sama dengan nilai penuh cabang ini. Untuk baris judul cukup
+   * selnya sendiri (ia sudah berumus); untuk baris ITEM yang punya anak,
+   * selnya sendiri berisi angka mati sehingga anak-anaknya harus ikut disebut
+   * — kalau tidak, rumus kategori di atasnya menjumlah kurang. DECISIONS 563.
+   */
+  const writeNode = (n: RabExportNode, depth: number): string[] => {
     r += 1;
     const row = r;
     detRowOf.set(n.id, row);
+    const sumbangan = [`F${row}`];
     det.getCell(row, 1).value = n.kind === "kategori" ? romanOf.get(n.id)! : displayCode(n.code);
     det.getCell(row, 1).alignment = { horizontal: "center", vertical: "top" };
     // Hierarki lewat indent NATIF Excel, bukan spasi literal di teks.
@@ -179,6 +187,10 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
       // subtotal tersimpan memang PERSIS Σ anak tersimpan (diverifikasi atas
       // 218 baris agregat: nol selisih), jadi rumusnya tidak menggeser apa pun.
       det.getCell(row, 6).value = Number(n.amount);
+      // Baris di bawah ITEM tetap ditulis — penelusuran ini dulu hanya ada di
+      // cabang non-item, jadi item yang punya anak membuang anaknya dari
+      // berkas: bukan salah jumlah, melainkan pekerjaan yang tidak disebut.
+      for (const c of byParent.get(n.id) ?? []) sumbangan.push(...writeNode(c, depth + 1));
     } else {
       det.getRow(row).font = { bold: depth === 0, italic: depth > 0 };
       if (n.kind === "kategori") {
@@ -186,9 +198,8 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
           det.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
         }
       }
-      const children = byParent.get(n.id) ?? [];
-      for (const c of children) writeNode(c, depth + 1);
-      const parts = children.map((c) => `F${detRowOf.get(c.id)!}`);
+      const parts: string[] = [];
+      for (const c of byParent.get(n.id) ?? []) parts.push(...writeNode(c, depth + 1));
       det.getCell(row, 6).value = parts.length
         ? { formula: parts.join("+"), result: Number(n.amount) }
         : 0;
@@ -197,6 +208,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     if (n.kind !== "item") det.getCell(row, 6).font = { bold: true };
     for (let c = 1; c <= 6; c++) det.getCell(row, c).border = thin;
     det.getCell(row, 4).alignment = { horizontal: "center" };
+    return sumbangan;
   };
   for (const kat of kategoris) writeNode(kat, 0);
 

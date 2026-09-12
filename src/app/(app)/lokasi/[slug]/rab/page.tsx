@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Download, FilePen, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
-import { can } from "@/lib/authz";
+import { can, ROLE_LABEL } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { ppnAmount, withPpn } from "@/lib/money";
@@ -10,7 +10,9 @@ import { formatRupiah, formatTanggal } from "@/lib/format";
 import { bacaBagian, hrefBagian, type BagianRab } from "@/lib/rab/bagian";
 import { requireLocationPage } from "../get-location";
 import { RabTree, type RabNodeRow } from "./rab-tree";
-import { RevisionList, type RevisionRow } from "./revision-list";
+import { RevisionList, type PersetujuanRow, type RevisionRow } from "./revision-list";
+import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
+import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import {
   WeeklyPlanSection,
@@ -134,6 +136,31 @@ export default async function RabPage({
     createdAt: r.createdAt.toISOString(),
     note: r.note,
   }));
+
+  /*
+   * Keadaan empat mata dibawa ke daftar revisi — di sinilah tombol "Aktifkan"
+   * berada, jadi di sini pula keadaannya harus terbaca. `null` bila belum ada
+   * RAB aktif: itu HPS awal, bukan adendum, dan tidak menuntut dua tanda tangan
+   * (DECISIONS 234).
+   */
+  const persetujuanDraft: PersetujuanRow | null =
+    draft && active
+      ? await (async () => {
+          const r = await ringkasPersetujuan(draft.id);
+          return {
+            lengkap: r.lengkap,
+            kurang: r.kurang,
+            berlaku: r.berlaku.map((v) => ({
+              nama: v.nama,
+              peran: ROLE_LABEL[v.role],
+              waktu: formatTanggal(v.approvedAt, "d MMM yyyy HH.mm"),
+            })),
+            gugur: r.gugur.map((v) => ({ nama: v.nama, peran: ROLE_LABEL[v.role] })),
+            bolehTtd: bolehMenyetujui(user.role),
+            sudahTtd: r.berlaku.some((v) => v.userId === user.id),
+          };
+        })()
+      : null;
 
   // ── Rencana mingguan (minggu terpilih, default berjalan) ─────────────────
   const parsedWeek = Number.parseInt(sp.minggu ?? "", 10);
@@ -365,7 +392,11 @@ export default async function RabPage({
                 Aktifkan draft untuk menggantikan revisi aktif – realisasi tersambung otomatis via
                 lineage, dan revisi lama tetap disimpan sebagai histori.
               </p>
-              <RevisionList revisions={revisionRows} canManage={canManage} />
+              <RevisionList
+                revisions={revisionRows}
+                canManage={canManage}
+                persetujuan={persetujuanDraft}
+              />
             </div>
           ) : null}
         </CardBody>
