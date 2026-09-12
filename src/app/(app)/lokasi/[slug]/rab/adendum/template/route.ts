@@ -69,6 +69,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     contractNumber: contract?.contractNumber ?? null,
     vendorName: contract?.vendor.name ?? null,
     revisionNo: active.revisionNo,
+    revisionId: active.id,
     totalValue: active.totalValue,
     // Realisasi lapangan ikut ke berkas: itu dasar pengaman "volume tidak boleh
     // turun di bawah yang sudah dikerjakan" — lihat DECISIONS 242.
@@ -92,6 +93,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   await audit(user.id, "rab.export_template_adendum", "rab_revision", active.id, {
     locationId: location.id,
     revisionNo: active.revisionNo,
+    revisionId: active.id,
   });
 
   return new NextResponse(new Uint8Array(buffer), {

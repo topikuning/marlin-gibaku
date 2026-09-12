@@ -47,6 +47,7 @@ const INPUT = {
   contractNumber: null,
   vendorName: null,
   revisionNo: 1,
+  revisionId: "rev-uji",
   totalValue: 8_000_000n,
   nodes: NODES,
   // "Galian tanah" sudah dikerjakan 20 dari 50; "Urugan pasir" belum tersentuh.
