@@ -403,7 +403,34 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       // Node berkas SEBELUM dicocokkan: kunci di sini yang dipakai
       // `PadananManual.lineageBaru`, dan volumenya yang perlu dilihat user.
       const nodesAsli = nodes;
-      const cocok = samakanLineage(
+      /*
+       * TEMPLATE TIDAK PERNAH DITEBAK-ULANG IDENTITASNYA (RAB-ADD-01).
+       *
+       * `samakanLineage` ada untuk berkas HPS/MC mentah, yang identitasnya
+       * memang harus disimpulkan dari pola kode: satu baris disisipkan di
+       * adendum menggeser seluruh nomor di bawahnya, dan tanpa penebakan itu
+       * "item 6" berkas baru akan dipasangkan dengan "item 6" kontrak yang
+       * berbeda pekerjaannya.
+       *
+       * Template adendum BUKAN berkas seperti itu. Ia terbitan MARLIN sendiri
+       * dan membawa `lineageKey` kontrak apa adanya di kolom identitas — tidak
+       * ada yang perlu ditebak, dan menebaknya justru merusak yang sudah benar.
+       *
+       * Dilaporkan user 2026-09-12 dan ditiru persis dari dua berkas terbitan
+       * MARLIN miliknya: template + ekspor RAB aktif → 674 "item baru", 52
+       * volume berubah, 177 tetap (di layarnya 676 · 52 · 175). Kunci
+       * `I#6#6.1#6.1.a` ditulis ulang jadi `I#6#2#6.1#6.1.a` — satu ruas
+       * disisipkan, dan sejak itu 674 dari 903 item kehilangan pasangannya.
+       * Keduanya, berkas dan basis data, sebenarnya SUDAH sepakat.
+       *
+       * Yang paling merusak bukan angkanya melainkan artinya di layar: "676
+       * item hilang · 140 item yang SUDAH dikerjakan tidak ada di file ini"
+       * terbaca sebagai adendum yang membuang separuh kontrak berikut
+       * realisasinya — padahal tidak ada satu pun yang berubah.
+       */
+      const cocok: ReturnType<typeof samakanLineage> = templateAdendum
+        ? { nodes, padananDipakai: [], padananDitolak: [], itemBaruAsli: [], namaBerbeda: [], digeser: [] }
+        : samakanLineage(
         nodes,
         aktifNodes.map((n) => ({
           lineageKey: n.lineageKey,
