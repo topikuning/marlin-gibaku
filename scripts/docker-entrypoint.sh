@@ -20,6 +20,27 @@ set -e
 # Prinsipnya tetap sama: prosesnya TIDAK berjalan sebagai root. Root hanya
 # dipakai untuk satu `mkdir` + satu `chown`, lalu dilepas lewat `gosu`.
 
+# BATAS HEAP V8 — disebut, bukan dibiarkan ditebak.
+#
+# V8 memilih sendiri batas old-space dari ukuran kontainer dan berhenti di
+# ~256 MB pada kontainer 512 MB, menyisakan separuh RAM tidak terpakai.
+# Sementara satu kali pratinjau impor RAB KKP memakan +44…57 MB heap. Kadang
+# muat, kadang tidak; ketika tidak, PROSESNYA mati — dan yang terbaca user cuma
+# "An unexpected response was received from the server", karena server sudah
+# hidup lagi sebelum sempat dicek. DECISIONS 297 dan 567.
+#
+# Hitungannya di scripts/batas-heap.mjs (diuji tersendiri). Ia menolak memberi
+# angka untuk kontainer kecil atau yang ukurannya tak diketahui — di situ
+# bawaan V8 memang pilihan yang lebih aman. NODE_OPTIONS yang sudah diisi orang
+# TIDAK pernah ditimpa.
+if [ -z "$NODE_OPTIONS" ] && [ -f /app/scripts/batas-heap.mjs ]; then
+  HEAP_MB="$(node /app/scripts/batas-heap.mjs 2>/dev/null || true)"
+  if [ -n "$HEAP_MB" ]; then
+    export NODE_OPTIONS="--max-old-space-size=$HEAP_MB"
+    echo "[entrypoint] batas heap V8 disetel $HEAP_MB MB (mengikuti ukuran kontainer)."
+  fi
+fi
+
 DIR_LAMPIRAN="${LAMPIRAN_DIR:-/app/.data/lampiran}"
 
 # Peta dasar (.pmtiles) tinggal di volume yang sama, dengan alasan yang sama:

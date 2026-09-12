@@ -126,9 +126,32 @@ function triplet(
   ws: ExcelJS.Worksheet,
   blok: BlokNilai,
   baris: number[],
+  /**
+   * Kolom VOLUME tambahan di luar blok — kolom BERSAMA di kiri tabel.
+   *
+   * Sebagian berkas KKP menulis VOL dan SAT sekali saja di kiri, dipakai
+   * bersama oleh semua blok; blok dasarnya cuma memuat HARGA SATUAN · JUMLAH ·
+   * BOBOT. Mencari volume hanya di dalam blok membuat berkas begitu tidak
+   * pernah terbukti, lalu jatuh ke jalur HPS biasa dan terbaca dari kolom yang
+   * salah — kategori kembar, Σ item meleset 5,5% (Tambakagung, DECISIONS 566).
+   */
+  volLuar: readonly number[] = [],
 ): { vol: number; price: number; amount: number; skor: number } | null {
   let terbaik: { vol: number; price: number; amount: number; skor: number } | null = null;
-  for (let v = blok.mulai; v <= blok.akhir; v++)
+  const kolomVol = [...volLuar];
+  for (let v = blok.mulai; v <= blok.akhir; v++) kolomVol.push(v);
+  /**
+   * Bukti dari kolom LUAR harus berangka RUPIAH, bukan angka kecil apa pun.
+   *
+   * `cocok` bertoleransi ±1 supaya pembulatan harga satuan Excel tidak
+   * menggagalkan pembuktian. Pada angka rupiah itu tidak berarti apa-apa; pada
+   * angka satu digit ia meloloskan hampir semua pasangan kolom. Selama volume
+   * dicari di dalam blok saja hal itu tidak pernah jadi masalah — kolomnya
+   * sedikit. Begitu kolom bersama ikut dicoba, kandidatnya melonjak dan
+   * toleransi itu berubah jadi pintu tebakan. Ambang ini yang menutupnya.
+   */
+  const AMBANG_LUAR = 1000;
+  for (const v of kolomVol)
     for (let p = blok.mulai; p <= blok.akhir; p++) {
       if (p === v) continue;
       for (let a = blok.mulai; a <= blok.akhir; a++) {
@@ -143,6 +166,8 @@ function triplet(
           // Baris nol tidak membuktikan apa pun (0×apa saja = 0) — dilewati
           // supaya kolom BOBOT yang kebetulan nol tidak ikut menang.
           if (nv === 0 || np === 0 || na === 0) continue;
+          const dariLuar = v < blok.mulai || v > blok.akhir;
+          if (dariLuar && Math.abs(na) < AMBANG_LUAR) continue;
           if (cocok(nv * np, na)) skor++;
         }
         if (skor > 0 && (!terbaik || skor > terbaik.skor)) terbaik = { vol: v, price: p, amount: a, skor };
@@ -152,19 +177,33 @@ function triplet(
 }
 
 /** Kolom SATUAN = kolom yang isinya teks pendek bukan-angka paling sering. */
-function kolomSatuan(ws: ExcelJS.Worksheet, blok: BlokNilai, baris: number[]): number | null {
-  let terbaik: { c: number; skor: number } | null = null;
-  for (let c = blok.mulai; c <= blok.akhir; c++) {
-    let skor = 0;
-    for (const r of baris) {
-      const sel = ws.getRow(r).getCell(c).value;
-      if (angka(sel) != null) continue;
-      const t = teks(sel);
-      if (t && t.length <= 6) skor++;
+function kolomSatuan(
+  ws: ExcelJS.Worksheet,
+  blok: BlokNilai,
+  baris: number[],
+  /** Kolom di luar blok yang boleh ikut dipertimbangkan (kolom bersama kiri). */
+  luar: readonly number[] = [],
+): number | null {
+  const pilih = (kolom: readonly number[]): number | null => {
+    let terbaik: { c: number; skor: number } | null = null;
+    for (const c of kolom) {
+      let skor = 0;
+      for (const r of baris) {
+        const sel = ws.getRow(r).getCell(c).value;
+        if (angka(sel) != null) continue;
+        const t = teks(sel);
+        if (t && t.length <= 6) skor++;
+      }
+      if (skor > 0 && (!terbaik || skor > terbaik.skor)) terbaik = { c, skor };
     }
-    if (skor > 0 && (!terbaik || skor > terbaik.skor)) terbaik = { c, skor };
-  }
-  return terbaik?.c ?? null;
+    return terbaik?.c ?? null;
+  };
+  const dalam: number[] = [];
+  for (let c = blok.mulai; c <= blok.akhir; c++) dalam.push(c);
+  // DI DALAM blok lebih dulu; kolom bersama hanya dipakai bila blok ini memang
+  // tidak punya kolom satuan sendiri. Urutan itu yang menjaga berkas yang sudah
+  // terbaca benar tidak berpindah kolom karena ada kandidat lain di kiri.
+  return pilih(dalam) ?? pilih(luar);
 }
 
 /**
@@ -197,9 +236,20 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   const contoh = barisContoh(ws, barisGrup + 1, blokDasar);
   if (contoh.length < 3) return null;
 
-  const dasar = triplet(ws, blokDasar, contoh);
+  /*
+   * KOLOM BERSAMA = kolom di KIRI blok dasar (NO · uraian · VOL · SAT).
+   *
+   * Dipakai HANYA sebagai cadangan, sesudah pembuktian di dalam blok gagal.
+   * Berkas yang sudah terbaca benar karena itu tidak berubah sama sekali;
+   * yang berubah hanya berkas yang tadinya menyerah — dan menyerahnya mahal,
+   * karena ia lalu dibaca sebagai HPS biasa dari kolom yang salah.
+   */
+  const bersama: number[] = [];
+  for (let c = 1; c < blokDasar.mulai; c++) bersama.push(c);
+
+  const dasar = triplet(ws, blokDasar, contoh) ?? triplet(ws, blokDasar, contoh, bersama);
   if (!dasar || dasar.skor < 3) return null; // tidak terbukti → jangan diterka
-  const unit = kolomSatuan(ws, blokDasar, contoh);
+  const unit = kolomSatuan(ws, blokDasar, contoh, bersama);
   if (unit == null) return null;
 
   /**

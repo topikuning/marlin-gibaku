@@ -88,6 +88,9 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 568 | 2026-09-12 | Berkas KKP diuji sebagai KORPUS, bukan satu berkas |
+| 567 | 2026-09-12 | Batas heap V8 dihitung dari ukuran kontainer, bukan dibiarkan ditebak |
+| 566 | 2026-09-12 | Blok CCO KKP boleh memakai kolom VOLUME & SATUAN bersama |
 | 565 | 2026-09-12 | Bolak-balik adendum dijaga UTUH lewat basis data, bukan per potongan |
 | 564 | 2026-09-12 | Persetujuan empat mata menyebut yang berhasil, bukan hanya yang kurang |
 | 563 | 2026-09-12 | Induk baris DITULIS di template adendum, tidak ditebak dari lineageKey |

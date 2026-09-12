@@ -50,3 +50,7 @@ AUDIT_AHSP_JANGGAL.xlsx
 
 # Worker MapLibre disalin dari node_modules tiap build (scripts/salin-worker-peta.mjs).
 public/maplibre/
+
+# Berkas unggahan mentah yang mampir ke fixtures: fixture yang dipakai uji
+# ditambahkan dengan sengaja dan bernama jelas, bukan lewat awalan acak.
+tests/fixtures/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*
