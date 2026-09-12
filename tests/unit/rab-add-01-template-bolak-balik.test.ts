@@ -73,6 +73,24 @@ async function sisiAktif() {
 }
 
 describe("RAB-ADD-01 · template adendum bolak-balik", () => {
+  it("UNDUH LALU IMPOR BALIK TANPA MENYENTUH APA PUN = tidak ada perubahan", async () => {
+    /*
+     * Invarian paling keras, dan yang paling telak membantah tuduhan bahwa
+     * user salah mengedit: template yang BELUM disentuh sama sekali, diimpor
+     * balik, harus menghasilkan NOL perubahan. Sebelum perbaikan, berkas yang
+     * sama persis dengan isi basis data ini pun melaporkan 674 "item baru".
+     *
+     * Kalau uji ini merah, artinya jalan bolak-baliknya patah lagi — dan tidak
+     * ada satu pun alasan yang bisa menimpakannya kepada yang memakai.
+     */
+    const t = parseAdendumTemplate(await muat("template-adendum-situbondo-asli.xlsx"));
+    const beda = bandingkanTerhadapAktif(await sisiAktif(), t.nodes, new Map());
+    expect(beda.itemBaru, "template yang tidak disentuh terbaca sebagai item baru").toHaveLength(0);
+    expect(beda.volumeBerubah, "template yang tidak disentuh terbaca berubah volumenya").toHaveLength(0);
+    expect(beda.hargaBerubah).toHaveLength(0);
+    expect(beda.jumlahTetap).toBe(903);
+  });
+
   it("kedua berkas terbitan MARLIN memang berbicara tentang RAB yang sama", async () => {
     // Penjaga atas penjaga: kalau fixture-nya suatu hari tertukar, uji di bawah
     // akan hijau/merah untuk alasan yang tidak ada hubungannya dengan cacatnya.
