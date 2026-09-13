@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { bacaKeadaan, konfirmasiKode, mulaiVerifikasi } from "@/lib/waha/verifikasi";
 import type { KeadaanVerifikasi } from "@/lib/waha/verifikasi-aturan";
+import { COOKIE_LEWATI } from "./konstanta";
 
 /**
  * Aksi layar verifikasi nomor WhatsApp (DECISIONS 570).
@@ -19,17 +20,6 @@ import type { KeadaanVerifikasi } from "@/lib/waha/verifikasi-aturan";
 export type VerifikasiState =
   | { error?: string; success?: string; keadaan?: KeadaanVerifikasi }
   | undefined;
-
-/**
- * Penanda "sudah dilewati untuk sesi ini".
- *
- * Cookie sesi (tanpa `maxAge`): hilang saat perambannya ditutup, jadi login
- * berikutnya menanyakannya lagi — persis permintaan user, *"bisa diskip, tapi
- * sebelum dilakukan setiap kali login akan dimintai"*. Disimpan di peramban dan
- * bukan di database karena yang dicatat memang bukan fakta tentang orangnya,
- * melainkan keputusan sesaat di satu perangkat.
- */
-export const COOKIE_LEWATI = "marlin_wa_lewati";
 
 export async function mulaiVerifikasiAction(): Promise<VerifikasiState> {
   const user = await requireUser();

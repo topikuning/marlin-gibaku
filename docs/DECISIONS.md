@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 572 | 2026-09-13 | `pnpm build` masuk gerbang sebelum merge ke main |
 | 571 | 2026-09-13 | Akses pengguna terlihat DI halaman lokasinya |
 | 570 | 2026-09-13 | Verifikasi nomor WhatsApp DUA ARAH, sekali seumur akun |
 | 569 | 2026-09-13 | Layar arsip menyebut "berapa yang sudah di mesin arsip" |

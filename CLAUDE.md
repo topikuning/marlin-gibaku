@@ -108,8 +108,14 @@ CI.
 dan kegagalannya perlu direproduksi untuk diperbaiki. Di situ ia bukan
 pengulangan, melainkan satu-satunya cara beriterasi.
 
-Berlaku juga untuk `pnpm build`: ia bagian dari CI. Bangun lokal hanya bila
-memang butuh servernya jalan (mis. reproduksi E2E merah di atas).
+**KECUALI SEBELUM MERGE KE `main`: `pnpm build` WAJIB dijalankan lokal.**
+Rilis 2026-09-13 lolos ke `main` lalu gagal dibangun di Railway karena satu
+`export const` di berkas `"use server"` — typecheck, lint, 3.116 unit, dan
+1.113 integrasi semuanya hijau; hanya `next build` yang melihatnya
+(DECISIONS 572). Di `dev` build tetap urusan CI: `dev` boleh gagal, `main`
+tidak. Dan menunggu CI/build selesai adalah bagian dari merge itu sendiri —
+perintah user "merge ke main" izin MENGGABUNGKAN, bukan izin melewatkan
+pembuktian.
 
 Saat iterasi, jalankan BERKAS uji yang bersangkutan saja; suite penuh cukup
 sekali, tepat sebelum commit.
