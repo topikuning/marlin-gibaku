@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 569 | 2026-09-13 | Layar arsip menyebut "berapa yang sudah di mesin arsip" |
 | 568 | 2026-09-12 | Berkas KKP diuji sebagai KORPUS, bukan satu berkas |
 | 567 | 2026-09-12 | Batas heap V8 dihitung dari ukuran kontainer, bukan dibiarkan ditebak |
 | 566 | 2026-09-12 | Blok CCO KKP boleh memakai kolom VOLUME & SATUAN bersama |
