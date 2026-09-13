@@ -68,11 +68,26 @@ export function ArsipAsliPanel({
       ) : null}
 
       <div className="flex flex-wrap gap-4 text-sm">
+        {/*
+         * PERTANYAAN PERTAMA ORANG, DIJAWAB DULUAN.
+         *
+         * Pertanyaan user 2026-09-13: "berapa yang sudah di server lenovo?"
+         * Sebelumnya layar ini tidak menyebutnya di mana pun — ia menampilkan
+         * tiga keadaan SALINAN R2, dan angka yang dicari harus dijumlahkan
+         * sendiri dari dua kartu. Dua kartu itu tetap ada, tapi sesudahnya:
+         * mereka menjelaskan RINCIANNYA, bukan menggantikan jawabannya.
+         */}
+        <Angka
+          label="Sudah di mesin arsip"
+          nilai={String(ringkas.sudahDiArsip)}
+          sub={`${ukuran(ringkas.bytesSudahDiArsip)} · dari ${ringkas.sudahDiArsip + ringkas.menunggu} berkas asli`}
+          tone={ringkas.sudahDiArsip > 0 ? "success" : undefined}
+        />
         <Angka label="Menunggu dipindahkan" nilai={String(ringkas.menunggu)} sub={ukuran(ringkas.bytesMenunggu)} />
         <Angka
           label="Masa tenggang"
           nilai={String(ringkas.masaTenggang)}
-          sub="ada di arsip DAN di R2"
+          sub="sudah di arsip, salinan R2 masih ada"
         />
         <Angka label="Selesai pindah" nilai={String(ringkas.terarsip)} sub="salinan R2 sudah dibuang" />
         {ringkas.gagalTerus > 0 ? (
@@ -209,12 +224,16 @@ function Angka({
   label: string;
   nilai: string;
   sub: string;
-  tone?: "danger";
+  tone?: "danger" | "success";
 }) {
   return (
     <div className="rounded border border-border px-3 py-2">
       <p className="text-xs uppercase text-ink-muted">{label}</p>
-      <p className={`text-lg font-semibold tabular-nums ${tone === "danger" ? "text-danger" : "text-ink"}`}>
+      <p
+        className={`text-lg font-semibold tabular-nums ${
+          tone === "danger" ? "text-danger" : tone === "success" ? "text-success" : "text-ink"
+        }`}
+      >
         {nilai}
       </p>
       <p className="text-xs text-ink-muted">{sub}</p>
