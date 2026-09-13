@@ -29,6 +29,8 @@ import {
 import { requireLocationPage } from "./get-location";
 import { LocationStatusForm } from "./status-form";
 import { LocationMasterForm } from "./master-form";
+import { AksesPanel } from "./akses-panel";
+import { aksesLokasi, calonDitugaskan } from "@/lib/users/akses-lokasi";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, ISSUE_STATUS_LABEL, ISSUE_STATUS_TONE } from "./issue-labels";
 
 export const metadata: Metadata = { title: "Ringkasan Lokasi" };
@@ -51,6 +53,17 @@ export default async function LokasiRingkasanPage({
   const urlsPelaksana =
     kunciPelaksana.length > 0 ? await presignKeys(kunciPelaksana) : new Map<string, string>();
   const urlTtdPelaksana = (k: string | null) => (k ? (urlsPelaksana.get(k) ?? null) : null);
+
+  /*
+   * Siapa yang bisa membuka lokasi ini (DECISIONS 571). Daftar calonnya hanya
+   * ditarik untuk yang memang boleh mengelola — kueri yang hasilnya tidak akan
+   * pernah ditampilkan tetap membebani setiap kali halaman dibuka.
+   */
+  const bolehKelolaAkses = can(user.role, "user.manage");
+  const [aksesRows, calonAkses] = await Promise.all([
+    aksesLokasi(location.id, user.orgId),
+    bolehKelolaAkses ? calonDitugaskan(location.id, user.orgId) : Promise.resolve([]),
+  ]);
 
   const [progress, series, packageLocationCount] = await Promise.all([
     getLocationProgress(location.id),
@@ -229,6 +242,34 @@ export default async function LokasiRingkasanPage({
                   ))}
                 </ul>
               )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Akses pengguna"
+              action={
+                bolehKelolaAkses ? (
+                  <ButtonLink href="/master/pengguna" variant="ghost" size="sm">
+                    Semua pengguna
+                  </ButtonLink>
+                ) : undefined
+              }
+            />
+            <CardBody>
+              {/*
+               * Siapa yang bisa membuka lokasi ini, dan sebagai apa
+               * (DECISIONS 571). Ditaruh di halaman lokasinya sendiri karena
+               * di situlah pertanyaannya muncul — bukan di layar Master yang
+               * mengurus pengguna satu per satu.
+               */}
+              <AksesPanel
+                locationId={location.id}
+                slug={slug}
+                baris={aksesRows}
+                calon={calonAkses}
+                bolehKelola={bolehKelolaAkses}
+              />
             </CardBody>
           </Card>
 

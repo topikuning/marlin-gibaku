@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 571 | 2026-09-13 | Akses pengguna terlihat DI halaman lokasinya |
+| 570 | 2026-09-13 | Verifikasi nomor WhatsApp DUA ARAH, sekali seumur akun |
 | 569 | 2026-09-13 | Layar arsip menyebut "berapa yang sudah di mesin arsip" |
 | 568 | 2026-09-12 | Berkas KKP diuji sebagai KORPUS, bukan satu berkas |
 | 567 | 2026-09-12 | Batas heap V8 dihitung dari ukuran kontainer, bukan dibiarkan ditebak |

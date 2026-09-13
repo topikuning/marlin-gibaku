@@ -58,7 +58,16 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   await audit(user.id, "user.login", "user", user.id);
 
-  redirect(user.mustChangePassword ? "/ganti-password" : "/");
+  /*
+   * VERIFIKASI NOMOR WA — DITANYAKAN TIAP LOGIN sampai selesai (DECISIONS 570).
+   *
+   * Sengaja di jalur login, bukan sebagai penjaga global: permintaannya
+   * "bisa diskip", jadi mengunci halaman lain akan salah. Penanda lewati hidup
+   * di cookie SESI, sehingga login berikutnya menanyakannya lagi — itu bedanya
+   * "boleh ditunda" dengan "boleh diabaikan selamanya".
+   */
+  if (user.mustChangePassword) redirect("/ganti-password");
+  redirect(user.waVerifiedAt ? "/" : "/verifikasi-wa");
 }
 
 export async function logout() {
@@ -110,5 +119,7 @@ export async function changePassword(
 
   const h = await headers();
   await createSession(user.id, dbUser.role, await requestIp(), h.get("user-agent") ?? undefined);
-  redirect("/");
+  // Ganti password itu langkah PERTAMA sesudah login; verifikasi nomor
+  // menyusul di langkah yang sama, bukan ditunda sampai login berikutnya.
+  redirect(dbUser.waVerifiedAt ? "/" : "/verifikasi-wa");
 }
