@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Send } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
-import type { KeadaanVerifikasi } from "@/lib/waha/verifikasi-aturan";
+import { tautanKirimWa, type KeadaanVerifikasi } from "@/lib/waha/verifikasi-aturan";
 import {
   bacaKeadaanAction,
   konfirmasiKodeAction,
@@ -44,6 +45,7 @@ export function VerifikasiWaForm({
   const [kodeState, kirimKode, kodePending] = useAksi<VerifikasiState>(konfirmasiKodeAction, undefined);
 
   const keadaan: KeadaanVerifikasi = kodeState?.keadaan ?? lokal ?? awal;
+  const tautan = keadaan.tahap === "menunggu-pesan" ? tautanKirimWa(nomorTujuan, keadaan.frasa) : null;
 
   /*
    * Menunggu pesannya masuk: layar yang MENENGOK sendiri.
@@ -132,21 +134,51 @@ export function VerifikasiWaForm({
 
       {keadaan.tahap === "menunggu-pesan" ? (
         <>
-          <p className="text-sm">Kirim pesan ini lewat WhatsApp:</p>
-          <p className="rounded border border-border bg-surface-muted px-3 py-2 text-center text-lg font-semibold tracking-widest">
-            {keadaan.frasa}
-          </p>
-          {nomorTujuan ? (
-            <p className="text-sm text-ink-muted">
-              Tujuan: <span className="font-medium text-ink">{nomorTujuan}</span> – nomor WhatsApp MARLIN.
-            </p>
+          {/*
+            * SATU KETUKAN, bukan empat langkah.
+            *
+            * Tombol ini membuka WhatsApp dengan tujuan DAN isi pesannya sudah
+            * terisi – orangnya tinggal menekan kirim. Frasanya tetap
+            * ditampilkan di bawah sebagai jalan cadangan, bukan sebagai cara
+            * utama: menyalin, membuka WhatsApp, mencari nomor MARLIN, lalu
+            * mengetik ulang adalah empat kesempatan gagal untuk satu langkah.
+            */}
+          {tautan ? (
+            <>
+              <a
+                href={tautan}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                <Send className="size-4" aria-hidden />
+                Buka WhatsApp & kirim
+              </a>
+              <p className="text-center text-xs text-ink-muted">
+                Pesannya sudah terisi – Anda tinggal menekan kirim di WhatsApp.
+              </p>
+            </>
           ) : (
             <Banner
               tone="warning"
               title="Nomor tujuan belum bisa dibaca"
-              description="Sesi WhatsApp MARLIN sedang tidak tersambung. Kirim frasa ini ke nomor MARLIN yang biasa Anda pakai, atau tanyakan ke admin."
+              description="Sesi WhatsApp MARLIN sedang tidak tersambung, jadi tombol kirimnya belum bisa disiapkan. Kirim frasa di bawah ke nomor MARLIN yang biasa Anda pakai, atau tanyakan ke admin."
             />
           )}
+
+          <details className="text-sm text-ink-muted">
+            <summary className="cursor-pointer">Tombolnya tidak jalan? Kirim manual</summary>
+            <p className="mt-2">Kirim pesan berikut lewat WhatsApp:</p>
+            <p className="mt-1 rounded border border-border bg-surface-muted px-3 py-2 text-center text-lg font-semibold tracking-widest text-ink">
+              {keadaan.frasa}
+            </p>
+            {nomorTujuan ? (
+              <p className="mt-1">
+                Tujuan: <span className="font-medium text-ink">{nomorTujuan}</span> – nomor WhatsApp MARLIN.
+              </p>
+            ) : null}
+          </details>
+
           <p className="text-sm text-ink-muted">
             Menunggu pesan Anda masuk… halaman ini berpindah sendiri begitu diterima. Tidak perlu
             mengirim dua kali.
