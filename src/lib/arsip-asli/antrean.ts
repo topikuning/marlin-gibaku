@@ -79,11 +79,19 @@ export type HasilPutaran = {
 };
 
 export async function jalankanArsipAsli(): Promise<HasilPutaran> {
-  const kosong = { dikirim: 0, dibuangDariR2: 0, gagal: 0, galat: [] as string[] };
-  if (!(await arsipAktif())) return { dijalankan: false, alasan: "mati", ...kosong };
+  const kosong = {
+    dikirim: 0,
+    dibuangDariR2: 0,
+    gagal: 0,
+    galat: [] as string[],
+  };
+  if (!(await arsipAktif()))
+    return { dijalankan: false, alasan: "mati", ...kosong };
   const setelan = setelanDingin();
-  if (!setelan) return { dijalankan: false, alasan: "belum-dikonfigurasi", ...kosong };
-  if (!isR2Configured()) return { dijalankan: false, alasan: "r2-mati", ...kosong };
+  if (!setelan)
+    return { dijalankan: false, alasan: "belum-dikonfigurasi", ...kosong };
+  if (!isR2Configured())
+    return { dijalankan: false, alasan: "r2-mati", ...kosong };
 
   const galat: string[] = [];
   let dikirim = 0;
@@ -134,9 +142,20 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
    * dan mengurangi salinan boleh berhenti bersamaan; yang tidak boleh adalah
    * mengurangi sementara menambah sedang gagal.
    */
-  const dibuangDariR2 = gagal > 0 ? 0 : await buangSalinanR2Lewat(setelan, galat);
-  if (gagal > 0) galat.push("pembuangan salinan R2 ditahan: ada pengiriman yang gagal di putaran ini");
-  return { dijalankan: true, alasan: "jalan", dikirim, dibuangDariR2, gagal, galat };
+  const dibuangDariR2 =
+    gagal > 0 ? 0 : await buangSalinanR2Lewat(setelan, galat);
+  if (gagal > 0)
+    galat.push(
+      "pembuangan salinan R2 ditahan: ada pengiriman yang gagal di putaran ini",
+    );
+  return {
+    dijalankan: true,
+    alasan: "jalan",
+    dikirim,
+    dibuangDariR2,
+    gagal,
+    galat,
+  };
 }
 
 /**
@@ -148,7 +167,12 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
  */
 async function pindahkanSatu(
   setelan: SetelanDingin,
-  foto: { id: string; originalKey: string | null; originalBytes: number | null; sha256: string },
+  foto: {
+    id: string;
+    originalKey: string | null;
+    originalBytes: number | null;
+    sha256: string;
+  },
 ): Promise<void> {
   const kunci = foto.originalKey;
   if (!kunci) throw new Error("tidak punya kunci berkas asli");
@@ -162,10 +186,18 @@ async function pindahkanSatu(
      * wajar, berhenti). Yang membedakan cuma sidik jarinya.
      */
     if (sudah.sha256 && sudah.sha256 !== foto.sha256.toLowerCase()) {
-      throw new Error("berkas di arsip berbeda isinya – JANGAN ditimpa, periksa manual");
+      throw new Error(
+        "berkas di arsip berbeda isinya – JANGAN ditimpa, periksa manual",
+      );
     }
-    if (sudah.bytes != null && foto.originalBytes != null && sudah.bytes !== foto.originalBytes) {
-      throw new Error(`ukuran di arsip beda (${sudah.bytes} vs ${foto.originalBytes})`);
+    if (
+      sudah.bytes != null &&
+      foto.originalBytes != null &&
+      sudah.bytes !== foto.originalBytes
+    ) {
+      throw new Error(
+        `ukuran di arsip beda (${sudah.bytes} vs ${foto.originalBytes})`,
+      );
     }
     await tandaiTerarsip(foto.id);
     return;
@@ -188,9 +220,12 @@ async function pindahkanSatu(
   // Percaya pada balasan PUT saja tidak cukup: yang menentukan aman-tidaknya
   // adalah apa yang BISA DIBACA KEMBALI, bukan apa yang katanya sudah ditulis.
   const cek = await periksaDingin(setelan, kunci);
-  if (!cek.ada) throw new Error("sudah dikirim tapi tidak terbaca kembali di arsip");
-  if (cek.sha256 && cek.sha256 !== sha) throw new Error("sidik jari di arsip tidak cocok setelah dikirim");
-  if (cek.bytes != null && cek.bytes !== isi.length) throw new Error("ukuran di arsip tidak cocok setelah dikirim");
+  if (!cek.ada)
+    throw new Error("sudah dikirim tapi tidak terbaca kembali di arsip");
+  if (cek.sha256 && cek.sha256 !== sha)
+    throw new Error("sidik jari di arsip tidak cocok setelah dikirim");
+  if (cek.bytes != null && cek.bytes !== isi.length)
+    throw new Error("ukuran di arsip tidak cocok setelah dikirim");
 
   await tandaiTerarsip(foto.id);
 }
@@ -215,7 +250,10 @@ async function tandaiTerarsip(id: string): Promise<void> {
  * — kalau digabung, satu kesalahan di tengah bisa membuat berkas hilang dari
  * kedua tempat sekaligus.
  */
-async function buangSalinanR2Lewat(setelan: SetelanDingin, galat: string[]): Promise<number> {
+async function buangSalinanR2Lewat(
+  setelan: SetelanDingin,
+  galat: string[],
+): Promise<number> {
   const hari = await tenggangHari();
   const batas = new Date(Date.now() - hari * 86_400_000);
   const siap = await db.photo.findMany({
@@ -254,22 +292,32 @@ async function buangSalinanR2Lewat(setelan: SetelanDingin, galat: string[]): Pro
           where: { id: f.id },
           data: {
             originalArchivedAt: null,
-            originalArchiveError: "hilang dari arsip – dikirim ulang, salinan R2 ditahan",
+            originalArchiveError:
+              "hilang dari arsip – dikirim ulang, salinan R2 ditahan",
             originalArchiveTriedAt: new Date(),
           },
         });
-        galat.push(`buang-r2 ${f.id.slice(0, 8)}: berkas TIDAK ADA di arsip – tidak dibuang`);
+        galat.push(
+          `buang-r2 ${f.id.slice(0, 8)}: berkas TIDAK ADA di arsip – tidak dibuang`,
+        );
         continue;
       }
       if (cek.sha256 && cek.sha256 !== f.sha256.toLowerCase()) {
-        galat.push(`buang-r2 ${f.id.slice(0, 8)}: sidik jari di arsip berbeda – tidak dibuang`);
+        galat.push(
+          `buang-r2 ${f.id.slice(0, 8)}: sidik jari di arsip berbeda – tidak dibuang`,
+        );
         continue;
       }
       await r2Delete(f.originalKey!);
-      await db.photo.update({ where: { id: f.id }, data: { originalR2PurgedAt: new Date() } });
+      await db.photo.update({
+        where: { id: f.id },
+        data: { originalR2PurgedAt: new Date() },
+      });
       n++;
     } catch (err) {
-      galat.push(`buang-r2 ${f.id.slice(0, 8)}: ${err instanceof Error ? err.message : "gagal"}`);
+      galat.push(
+        `buang-r2 ${f.id.slice(0, 8)}: ${err instanceof Error ? err.message : "gagal"}`,
+      );
     }
   }
   return n;
@@ -287,7 +335,8 @@ export async function bacaBerkasAsli(foto: {
   originalKey: string | null;
   originalR2PurgedAt: Date | null;
 }): Promise<Buffer> {
-  if (!foto.originalKey) throw new Error("Foto ini tidak punya arsip berkas asli.");
+  if (!foto.originalKey)
+    throw new Error("Foto ini tidak punya arsip berkas asli.");
   const setelan = setelanDingin();
   const masihDiR2 = foto.originalR2PurgedAt == null;
 
@@ -303,7 +352,10 @@ export async function bacaBerkasAsli(foto: {
       // Masih ada salinan R2 — pakai itu, jangan menggagalkan pekerjaan orang.
     }
   }
-  if (!masihDiR2) throw new Error("Arsip berkas asli tidak dikonfigurasi, sedangkan salinan R2 sudah dibuang.");
+  if (!masihDiR2)
+    throw new Error(
+      "Arsip berkas asli tidak dikonfigurasi, sedangkan salinan R2 sudah dibuang.",
+    );
   return await r2GetBuffer(foto.originalKey);
 }
 
@@ -313,20 +365,66 @@ export type RingkasArsip = {
   masaTenggang: number;
   gagalTerus: number;
   bytesMenunggu: number;
+  /**
+   * SUDAH ADA DI MESIN ARSIP = masa tenggang + selesai pindah.
+   *
+   * Pertanyaan user 2026-09-13: *"bagian mana yang menjawab bahwa yang sudah
+   * berhasil dipindah berapa dan berapa yang sudah di server lenovo?"* Jawaban
+   * jujurnya waktu itu: tidak ada. Ketiga angka yang ditampilkan menceritakan
+   * keadaan SALINAN R2 — menunggu, masih dua salinan, salinan R2 sudah dibuang
+   * — dan yang ditanyakan orang harus dijumlahkan sendiri di kepala.
+   *
+   * Angka turunan memang bisa dihitung di layar, tapi yang ditanya orang
+   * pertama kali tidak boleh jadi pekerjaan rumah pembacanya. DECISIONS 569.
+   */
+  sudahDiArsip: number;
+  bytesSudahDiArsip: number;
   galatTerakhir: string | null;
   terakhirBerhasil: Date | null;
 };
 
 /** Angka untuk layar Sistem. Murni hitungan; tidak menyentuh arsip dingin. */
 export async function ringkasArsipAsli(): Promise<RingkasArsip> {
-  const [menunggu, terarsip, masaTenggang, gagalTerus, agregat, terakhir, galat] = await Promise.all([
-    db.photo.count({ where: { originalKey: { not: null }, originalArchivedAt: null, originalPurgedAt: null } }),
+  const [
+    menunggu,
+    terarsip,
+    masaTenggang,
+    gagalTerus,
+    agregat,
+    agregatArsip,
+    terakhir,
+    galat,
+  ] = await Promise.all([
+    db.photo.count({
+      where: {
+        originalKey: { not: null },
+        originalArchivedAt: null,
+        originalPurgedAt: null,
+      },
+    }),
     db.photo.count({ where: { originalR2PurgedAt: { not: null } } }),
-    db.photo.count({ where: { originalArchivedAt: { not: null }, originalR2PurgedAt: null } }),
-    db.photo.count({ where: { originalArchiveTries: { gte: BATAS_GAGAL }, originalArchivedAt: null } }),
+    db.photo.count({
+      where: { originalArchivedAt: { not: null }, originalR2PurgedAt: null },
+    }),
+    db.photo.count({
+      where: {
+        originalArchiveTries: { gte: BATAS_GAGAL },
+        originalArchivedAt: null,
+      },
+    }),
     db.photo.aggregate({
       _sum: { originalBytes: true },
-      where: { originalKey: { not: null }, originalArchivedAt: null, originalPurgedAt: null },
+      where: {
+        originalKey: { not: null },
+        originalArchivedAt: null,
+        originalPurgedAt: null,
+      },
+    }),
+    // Semua yang PERNAH sampai ke mesin arsip, baik salinan R2-nya sudah
+    // dibuang maupun belum. Satu kueri, bukan menjumlah dua kartu di layar.
+    db.photo.aggregate({
+      _sum: { originalBytes: true },
+      where: { originalArchivedAt: { not: null } },
     }),
     db.photo.findFirst({
       where: { originalArchivedAt: { not: null } },
@@ -345,6 +443,8 @@ export async function ringkasArsipAsli(): Promise<RingkasArsip> {
     masaTenggang,
     gagalTerus,
     bytesMenunggu: agregat._sum.originalBytes ?? 0,
+    sudahDiArsip: masaTenggang + terarsip,
+    bytesSudahDiArsip: agregatArsip._sum.originalBytes ?? 0,
     galatTerakhir: galat?.originalArchiveError ?? null,
     terakhirBerhasil: terakhir?.originalArchivedAt ?? null,
   };
@@ -395,17 +495,33 @@ export async function periksaIsiArsip(contoh = 10): Promise<BuktiArsip> {
     try {
       const cek = await periksaDingin(setelan, f.originalKey!);
       if (!cek.ada) {
-        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: "tidak ada di arsip" });
+        hilang.push({
+          id: f.id,
+          kunci: f.originalKey!,
+          sebab: "tidak ada di arsip",
+        });
         continue;
       }
       // Ada saja tidak cukup: berkas yang isinya lain sama buruknya dengan
       // berkas yang hilang, dan lebih sulit disadari.
       if (cek.sha256 && cek.sha256 !== f.sha256.toLowerCase()) {
-        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: "sidik jari berbeda" });
+        hilang.push({
+          id: f.id,
+          kunci: f.originalKey!,
+          sebab: "sidik jari berbeda",
+        });
         continue;
       }
-      if (cek.bytes != null && f.originalBytes != null && cek.bytes !== f.originalBytes) {
-        hilang.push({ id: f.id, kunci: f.originalKey!, sebab: `ukuran beda (${cek.bytes})` });
+      if (
+        cek.bytes != null &&
+        f.originalBytes != null &&
+        cek.bytes !== f.originalBytes
+      ) {
+        hilang.push({
+          id: f.id,
+          kunci: f.originalKey!,
+          sebab: `ukuran beda (${cek.bytes})`,
+        });
         continue;
       }
       terbukti++;

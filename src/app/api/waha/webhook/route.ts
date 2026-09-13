@@ -114,8 +114,36 @@ export async function POST(req: Request) {
        *
        * Kegagalan di sini TIDAK boleh menggagalkan ingest yang sudah berhasil.
        */
+      /*
+       * VERIFIKASI NOMOR — didahulukan, dan yang tertangani BERHENTI di sini.
+       *
+       * Frasa verifikasi bukan pertanyaan. Membiarkannya lewat ke jalur
+       * tanya-jawab berarti membayar satu panggilan model untuk membalas "maaf
+       * saya tidak paham" atas satu-satunya pesan yang justru paling kita
+       * mengerti — dan balasan itu akan menimpa kode yang baru saja dikirim.
+       * DECISIONS 570.
+       */
+      let sudahDiverifikasi = false;
       try {
-        const antre = await antreJawaban(body);
+        const { parseWaEvent } = await import("@/lib/waha/ingest-parse");
+        const p = parseWaEvent(body);
+        if (p) {
+          const { tanganiPesanVerifikasi } = await import("@/lib/waha/verifikasi");
+          const v = await tanganiPesanVerifikasi(p);
+          if (v.ditangani) {
+            sudahDiverifikasi = true;
+            outcome += ` · verifikasi WA: ${v.hasil}`;
+          }
+        }
+      } catch (err) {
+        console.error("[waha/webhook] verifikasi nomor gagal:", err);
+        outcome += " · verifikasi WA: gagal (lihat log)";
+      }
+
+      try {
+        const antre = sudahDiverifikasi
+          ? ({ antre: false, baru: false, alasan: "pesan verifikasi nomor" } as const)
+          : await antreJawaban(body);
         /*
          * SELALU dicatat, termasuk saat TIDAK diantrekan (DECISIONS 345).
          *

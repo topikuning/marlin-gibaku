@@ -163,3 +163,67 @@ export async function updateLocationMaster(
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
   }
 }
+
+// ── AKSES PENGGUNA ATAS LOKASI (DECISIONS 571) ──────────────────────────────
+
+export type AksesActionState = { error?: string; success?: string } | undefined;
+
+const aksesSchema = z.object({ locationId: z.uuid(), userId: z.uuid(), slug: z.string().min(1) });
+
+/**
+ * Beri / cabut akses seseorang atas SATU lokasi, dari halaman lokasinya.
+ *
+ * Gerbangnya `user.manage` — sama dengan layar Master › Pengguna, karena yang
+ * dikerjakan memang hal yang sama: menentukan siapa boleh membuka apa. Yang
+ * berbeda cuma tempatnya, dan itu memang permintaannya: mengurus akses satu
+ * lokasi seharusnya bisa dari lokasinya, bukan dengan berpindah layar lalu
+ * mencari lokasi itu di daftar panjang.
+ *
+ * `requireLocationAccess` TIDAK dipakai di sini dengan sengaja: peran pengelola
+ * pengguna tidak selalu ditugaskan ke lokasi yang aksesnya ia atur. Yang
+ * menjaga lintas-organisasi ada di `beriAkses`/`cabutAkses`, atas pengguna DAN
+ * lokasinya sekaligus (AUTH-03).
+ */
+export async function beriAksesLokasiAction(
+  _prev: AksesActionState,
+  formData: FormData,
+): Promise<AksesActionState> {
+  const parsed = aksesSchema.safeParse({
+    locationId: formData.get("locationId"),
+    userId: formData.get("userId"),
+    slug: formData.get("slug"),
+  });
+  if (!parsed.success) return { error: "Pilih pengguna yang akan diberi akses." };
+  try {
+    const actor = await requireCapability("user.manage");
+    const { beriAkses } = await import("@/lib/users/akses-lokasi");
+    const { nama } = await beriAkses(parsed.data.locationId, parsed.data.userId, actor);
+    revalidatePath(`/lokasi/${parsed.data.slug}`);
+    return { success: `${nama} kini punya akses ke lokasi ini.` };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+  }
+}
+
+export async function cabutAksesLokasiAction(
+  _prev: AksesActionState,
+  formData: FormData,
+): Promise<AksesActionState> {
+  const parsed = aksesSchema.safeParse({
+    locationId: formData.get("locationId"),
+    userId: formData.get("userId"),
+    slug: formData.get("slug"),
+  });
+  if (!parsed.success) return { error: "Penugasan tidak dikenali." };
+  try {
+    const actor = await requireCapability("user.manage");
+    const { cabutAkses } = await import("@/lib/users/akses-lokasi");
+    const { nama } = await cabutAkses(parsed.data.locationId, parsed.data.userId, actor);
+    revalidatePath(`/lokasi/${parsed.data.slug}`);
+    return { success: `Akses ${nama} atas lokasi ini dicabut.` };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+  }
+}

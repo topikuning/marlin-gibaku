@@ -430,6 +430,13 @@ model User {
   /// pasangannya, hanya pemetaan inilah yang bisa mengenali penanya. Diisi
   /// admin dengan menyalin dari log hit di Sistem → WhatsApp.
   waLid              String?   @map("wa_lid")
+  /// Kapan nomor WhatsApp-nya TERBUKTI miliknya sendiri (DECISIONS 570).
+  ///
+  /// Bukti dua arah: orangnya mengirim frasa dari nomor itu (membuktikan ia
+  /// memegang nomornya), lalu mengetikkan kode yang dibalaskan ke sana
+  /// (membuktikan ia membaca balasannya). `waNumber` yang diketik admin TIDAK
+  /// pernah menghasilkan cap ini — yang diketik orang lain bukan bukti.
+  waVerifiedAt       DateTime? @map("wa_verified_at") @db.Timestamptz
   createdById        String?   @map("created_by_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
@@ -449,11 +456,48 @@ model User {
   hsdDiubah         HargaSatuanDasar[]      @relation("HsdUpdater")
   hsdUsulanDiminta  HsdUsulanRun[]          @relation("HsdUsulanPeminta")
   raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
+  waVerification    WaVerification?
 
   @@index([orgId])
   @@index([role])
   @@index([createdById])
   @@map("users")
+}
+
+/// VERIFIKASI NOMOR WHATSAPP — satu percobaan berjalan per pengguna.
+///
+/// Permintaan user 2026-09-13: sesudah login, pengguna diminta mengirim WA dari
+/// nomornya sendiri, dibalas kode, lalu kodenya diketikkan. Boleh dilewati, tapi
+/// ditanyakan lagi tiap kali login sampai selesai.
+///
+/// Kenapa DUA arah, bukan sekadar kirim kode ke nomor yang diketik: yang
+/// diketik di layar cuma klaim, dan nomor yang salah ketik akan membuat MARLIN
+/// mengirim laporan orang ke nomor orang lain. Pesan MASUK membuktikan
+/// nomornya benar-benar dipegang, dan kode balasannya membuktikan orang itu
+/// juga membaca balasan di nomor tersebut. Sekalian itulah cara paling andal
+/// mendapatkan `waLid` — identitas privasi WhatsApp yang tidak pernah bisa
+/// diketik orang karena ia tidak memuat nomor telepon (DECISIONS 347).
+model WaVerification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  /// Frasa sekali-pakai yang harus DIKIRIM pengguna dari nomornya sendiri.
+  phrase    String   @unique
+  /// Kode balasan, dibuat SESUDAH pesannya masuk. null = pesannya belum datang.
+  code      String?
+  /// Identitas pengirim yang tertangkap dari pesan masuk — apa adanya.
+  senderKey String?  @map("sender_key")
+  waNumber  String?  @map("wa_number")
+  waLid     String?  @map("wa_lid")
+  /// Salah ketik kode. Dibatasi supaya kode 6 angka tidak bisa ditebak brutal.
+  attempts  Int      @default(0)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("wa_verifications")
 }
 
 /// Session DB-backed: revocable. id = SHA-256 hash token (token asli hanya di cookie).
