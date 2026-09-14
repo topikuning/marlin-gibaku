@@ -140,9 +140,16 @@ export function cocokkanKode(
  */
 export function tautanKirimWa(nomor: string | null | undefined, frasa: string): string | null {
   if (!nomor) return null;
-  // wa.me hanya menerima angka: "+62 812-3456-789" dan "0812…" harus dirapikan
-  // dulu, dan itu aturan yang sama dengan pencocokan nomor di tempat lain.
+  // Tautannya hanya menerima angka: "+62 812-3456-789", "0812…", dan JID
+  // "628…@c.us" harus dirapikan dulu — aturan yang sama dengan pencocokan
+  // nomor di tempat lain.
   const bersih = normalizePhone(nomor);
   if (!bersih) return null;
-  return `https://wa.me/${bersih}?text=${encodeURIComponent(frasa)}`;
+  // Bentuk `api.whatsapp.com/send/` dengan `type=phone_number&app_absent=0`,
+  // bukan `wa.me`: di peramban desktop wa.me berhenti di halaman antara yang
+  // menyuruh orang menekan "Continue to Chat" sekali lagi, dan di ponsel tanpa
+  // WhatsApp terpasang ia diam saja. Bentuk ini yang dipakai user.
+  return `https://api.whatsapp.com/send/?phone=${bersih}&text=${encodeURIComponent(
+    frasa,
+  )}&type=phone_number&app_absent=0`;
 }

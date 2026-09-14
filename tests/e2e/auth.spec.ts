@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { lewatiVerifikasiWa } from "./masuk";
 
 /**
  * E2E auth + otorisasi dasar. Prasyarat: DB dev ter-seed (pnpm db:seed),
@@ -16,6 +17,7 @@ async function login(page: Page, username: string, password = "marlin123") {
   // Tunggu redirect action selesai (cookie sesi terpasang) sebelum navigasi berikutnya —
   // kecuali skenario gagal login yang tetap di /masuk.
   await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 10_000 }).catch(() => {});
+  await lewatiVerifikasiWa(page);
 }
 
 test.describe("autentikasi", () => {
