@@ -126,8 +126,8 @@ export async function lengkapiCap(
     throw err;
   }
 
-  await r2Delete(k.r2Key).catch(() => {});
-  if (k.thumbnailKey) await r2Delete(k.thumbnailKey).catch(() => {});
+  // Pertahankan versi lama: snapshot laporan/paparan bisa sedang dibuat.
+  // Pembersihan lewat audit R2 (jeda umur + pemeriksaan semua rujukan JSON).
   return { ok: true, revisi };
 }
 

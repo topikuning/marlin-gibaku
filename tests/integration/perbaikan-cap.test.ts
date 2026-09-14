@@ -65,7 +65,7 @@ vi.mock("@/lib/auth/session", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { restampPhotoAction, purgeOneOriginalAction, purgeOriginalsAction } = await import(
+const { restampPhotoAction, purgeOneOriginalAction, purgeOriginalsAction, putarFotoAction, perbaikiFotoHeicAction } = await import(
   "@/lib/photo-restamp/actions"
 );
 
@@ -238,11 +238,11 @@ describe("KASUS INTI: cap salah bisa diperbaiki", () => {
       select: { r2Key: true, stampRevision: true, originalKey: true, stampPhotoId: true },
     });
     expect(p.stampRevision).toBe(1);
-    // Berkas ber-cap LAMA dibuang; arsip ASLI tetap utuh — itu sumber revisi
-    // berikutnya, jadi tidak boleh ikut hilang.
+    // Versi lama tetap tersedia untuk snapshot yang mungkin sedang dibuat.
+    // Audit R2 menentukan kapan berkas tanpa rujukan aman dibersihkan.
     expect(p.r2Key).not.toBe(sebelum.r2Key);
-    expect(dihapus).toContain(sebelum.r2Key);
-    expect(dihapus).toContain(sebelum.thumbnailKey);
+    expect(dihapus).not.toContain(sebelum.r2Key);
+    expect(dihapus).not.toContain(sebelum.thumbnailKey);
     expect(dihapus).not.toContain(sebelum.originalKey);
     expect(p.originalKey).toBe(sebelum.originalKey);
     expect(bucket.has(p.originalKey!)).toBe(true);
@@ -442,4 +442,69 @@ describe("hapus arsip foto asli", () => {
     const res = await purgeOriginalsAction(undefined, f);
     expect(res?.error).toMatch(/izin/i);
   });
+});
+
+
+describe("audit: snapshot foto dan isolasi operasi massal", () => {
+  for (const operation of ["restamp", "putar", "heic"] as const) {
+    it(`${operation}: berkas yang dirujuk snapshot final tetap tersedia`, async () => {
+      if (operation === "heic") {
+        const p = await db.photo.findUniqueOrThrow({where:{id:fotoId}});
+        const key = p.r2Key.replace(/webp$/, "heic");
+        bucket.set(key, JPEG_1X1);
+        await db.photo.update({where:{id:fotoId},data:{r2Key:key}});
+      }
+      const before = await db.photo.findUniqueOrThrow({where:{id:fotoId}});
+      const snapshot = {foto:[{r2Key:before.r2Key, thumbnailKey:before.thumbnailKey}]};
+      const report = await db.dailyReport.create({data:{locationId:locId,reportDate:new Date("2026-07-31"),status:"final",createdById:sessionUserId,finalSnapshot:snapshot}});
+      await db.photo.update({where:{id:fotoId},data:{activityId:null,reportId:report.id}});
+      const result = operation === "restamp" ? await restampPhotoAction(undefined,fdRestamp({reporterName:"Perbaikan"}))
+        : operation === "putar" ? await putarFotoAction(undefined,fdRestamp({arah:"kanan"}))
+        : await perbaikiFotoHeicAction();
+      expect(result?.error).toBeUndefined();
+      expect((await db.photo.findUniqueOrThrow({where:{id:fotoId}})).r2Key).not.toBe(before.r2Key);
+      expect(bucket.has(before.r2Key)).toBe(true);
+      expect(bucket.has(before.thumbnailKey!)).toBe(true);
+      expect((await db.dailyReport.findUniqueOrThrow({where:{id:report.id}})).finalSnapshot).toEqual(snapshot);
+    });
+  }
+
+  async function fotoOrganisasiLain(heic = false) {
+    const tag = Math.random().toString(36).slice(2);
+    const o = await db.organization.create({data:{name:tag,slug:tag}});
+    const p = await db.package.create({data:{orgId:o.id,name:tag}});
+    const l = await db.location.create({data:{packageId:p.id,name:tag,slug:tag,village:"D",regency:"K",province:"P"}});
+    const a = await db.fieldActivity.create({data:{locationId:l.id,activityDate:new Date("2026-07-31"),type:"lainnya",title:tag,createdById:sessionUserId}});
+    const key = `photos/${tag}/old.${heic ? "heic" : "webp"}`;
+    bucket.set(key,JPEG_1X1); bucket.set(key+".asli.jpg",JPEG_1X1);
+    return db.photo.create({data:{locationId:l.id,activityId:a.id,r2Key:key,originalKey:key+".asli.jpg",originalBytes:JPEG_1X1.length,sha256:tag,bytes:100,uploadedById:sessionUserId}});
+  }
+  it("hapus arsip borongan tidak menghapus organisasi lain", async () => {
+    const foreign = await fotoOrganisasiLain();
+    const f = new FormData(); f.set("konfirmasi","HAPUS");
+    const result = await purgeOriginalsAction(undefined,f);
+    expect(result?.error).toBeUndefined();
+    expect((await db.photo.findUniqueOrThrow({where:{id:foreign.id}})).originalKey).toBe(foreign.originalKey);
+    expect(bucket.has(foreign.originalKey!)).toBe(true);
+  });
+  it("perbaikan HEIC tidak membaca atau mengubah foto organisasi lain", async () => {
+    const foreign = await fotoOrganisasiLain(true);
+    const result = await perbaikiFotoHeicAction();
+    expect(result?.error).toBeUndefined();
+    expect((await db.photo.findUniqueOrThrow({where:{id:foreign.id}})).r2Key).toBe(foreign.r2Key);
+    expect(bucket.has(foreign.r2Key)).toBe(true);
+  });
+});
+
+it("audit: restamp menjaga foto kegiatan yang dirujuk paparan beku", async () => {
+  const before = await db.photo.findUniqueOrThrow({where:{id:fotoId}});
+  const snapshot = {fotoKandidat:[{id:fotoId,r2Key:before.r2Key,thumbnailKey:before.thumbnailKey}]};
+  const artifact = await db.aiArtifact.create({data:{kind:"paparan",status:"beku",title:"Paparan audit",createdById:sessionUserId,packageId,structuredContent:{snapshot},frozenAt:new Date()}});
+  try {
+    const result = await restampPhotoAction(undefined,fdRestamp({reporterName:"Nama Benar"}));
+    expect(result?.error).toBeUndefined();
+    expect(bucket.has(before.r2Key)).toBe(true);
+    expect(bucket.has(before.thumbnailKey!)).toBe(true);
+    expect((await db.aiArtifact.findUniqueOrThrow({where:{id:artifact.id}})).structuredContent).toEqual({snapshot});
+  } finally { await db.aiArtifact.delete({where:{id:artifact.id}}); }
 });

@@ -81,7 +81,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
     },
   });
   if (!doc) notFound();
-  if (!(await canViewDocument(user, { orgId: doc.orgId, locationId: doc.location?.id ?? null, status: doc.status })))
+  if (!(await canViewDocument(user, { orgId: doc.orgId, packageId: doc.packageId, locationId: doc.location?.id ?? null, status: doc.status })))
     notFound();
 
   const people = await db.user.findMany({

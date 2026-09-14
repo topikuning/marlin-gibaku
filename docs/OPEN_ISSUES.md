@@ -105,12 +105,9 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   dirujuk `attachments:[{file_id}]`, alur dua langkah yang perlu penyimpanan
   file_id + pembersihannya. Sampai itu dibangun, teks layar berbunyi "MARLIN
   belum bisa", BUKAN "Grok tidak bisa".
-- 🟢 **Ringkasan lokasi: dua keluhan konsol React (bukan penghalang).** Terlihat
-  saat memverifikasi DECISIONS 436 di peramban, TIDAK berkaitan dengan surat:
-  (a) `PelaksanaForm` hidrasi tidak cocok – `encType` server `null` vs klien
-  `multipart/form-data`; (b) `scurve-chart` mengirim `cy=NaN` saat seri
-  realisasi kosong. Keduanya kosmetik hari ini, tapi (b) berarti ada titik yang
-  digambar dari nilai yang tidak ada.
+- 🟢 **Ringkasan lokasi: hidrasi `PelaksanaForm` belum cocok.** Terlihat
+  saat memverifikasi DECISIONS 436: `encType` server `null` vs klien
+  `multipart/form-data`. Perlu reproduksi peramban untuk memastikan kondisi terkini.
 - 🟡 **Laporan AI eksekutif: uji penerimaan manusia E-01…E-08 belum dijalankan.**
   Naskahnya di `docs/rebuild/SKENARIO_UJI_LAPORAN_AI_EKSEKUTIF.md` (DECISIONS
   453/454). Yang sudah tertutup uji otomatis: urutan bagian di keempat kanal,
@@ -122,7 +119,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 - 🟡 **ESLint ditahan 9.39.5** — eslint-config-next 16 (eslint-plugin-react) belum
   kompatibel ESLint 10. Re-evaluasi tiap rilis Next.
 - 🟡 **TypeScript ditahan 5.9.3** — TS 7 (native) belum diverifikasi dengan plugin Next.
-- 🟡 `pnpm audit`: 3 moderate di transitive dev deps (tidak high/critical; CI gate high).
 - 🟢 `exceljs` maintenance lambat; buffers@0.1.1 transitive tanpa metadata lisensi
   (pengecualian terdokumentasi di OPEN_SOURCE_LICENSE_AUDIT.md).
 - 🟢 Foto stamp memakai font DejaVu bundel; verifikasi otomatis foto (flag GPS/waktu)
@@ -199,44 +195,18 @@ dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Sejak audit 2026-07-2
 kondisinya muncul di data nyata, keputusannya: tampilkan kategori kosong dengan
 bobot 0, atau keluarkan `amount`-nya dari `grandTotal`. Perlu keputusan user.
 
-## 🟡 FOTO-01 · Snapshot laporan yang sudah BEKU bisa menunjuk kunci foto yang sudah dihapus
+## 🟡 FOTO-01 · Pemulihan berkas snapshot historis yang sudah terhapus
 
-`restampPhotoAction`, `putarFotoAction`, dan perbaikan HEIC sama-sama
-menulis kunci R2 BARU lalu `r2Delete` kunci LAMA. Sementara itu
-`daily_reports.final_snapshot` membekukan `r2Key` tiap foto pada saat laporan
-difinalkan (`daily-report/ringkas.ts`: `r2Key: p.r2Key`) dan tidak pernah
-diperbarui sesudahnya.
+Jalur penggantian foto sudah mempertahankan versi lama (audit 2026-09-14,
+`docs/audits/2026-09-14-keamanan-integritas.md`). Restamp, rotasi, konversi
+HEIC, dan pelengkapan cap tidak lagi menghapus versi yang mungkin dipakai
+snapshot laporan/paparan. Pembersihan hanya melalui audit R2 yang sudah ada.
 
-Akibatnya: laporan harian yang sudah FINAL — dokumen yang dicetak dan
-dipertanggungjawabkan — bisa menunjuk obyek yang sudah tidak ada, dan gambarnya
-gagal dimuat. Semakin sering cap diperbaiki atau foto diputar, semakin banyak.
-
-Cacat ini ADA sebelum alat audit R2 dibuat dan tidak berhubungan dengannya
-(audit sekarang justru MENGHITUNG kunci di dalam snapshot sebagai terpakai,
-DECISIONS 548 — jadi ia tidak akan menghapusnya; yang menghapus adalah jalur
-restamp/putar itu sendiri).
-
-Dua jalan keluar, keduanya butuh keputusan user:
-(a) saat kunci foto berubah, ikut memperbarui `r2Key` di dalam `final_snapshot`
-    setiap laporan final yang memuatnya — snapshot ikut bergerak, padahal
-    "beku" justru maksudnya tidak bergerak;
-(b) tidak menghapus kunci lama untuk foto yang pernah masuk laporan final —
-    lebih hemat pikiran, lebih boros penyimpanan, dan "yatim" jadi punya satu
-    pengecualian lagi.
-
-Belum terukur berapa banyak yang terdampak di produksi. Untuk mendaftarnya:
-
-```sql
-SELECT dr.id, dr.report_date, l.name AS lokasi,
-       count(*) FILTER (WHERE p.id IS NULL) AS foto_hilang
-FROM daily_reports dr
-JOIN locations l ON l.id = dr.location_id
-CROSS JOIN LATERAL jsonb_array_elements(dr.final_snapshot->'foto') AS f
-LEFT JOIN photos p ON p.r2_key = f->>'r2Key'
-WHERE dr.final_snapshot IS NOT NULL
-GROUP BY 1,2,3 HAVING count(*) FILTER (WHERE p.id IS NULL) > 0
-ORDER BY foto_hilang DESC;
-```
+Yang masih terbuka: inventarisasi snapshot produksi yang terlanjur menunjuk
+obyek hilang dan pemulihan dari cadangan jika tersedia. Perbaikan kode tidak
+mengembalikan obyek terhapus. Jangan mengganti isi snapshot final dengan versi
+foto baru secara diam-diam. Ketidakcocokan kunci snapshot dengan kolom `photos`
+saja bukan bukti kehilangan; keberadaan obyek perlu diperiksa di bucket.
 
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 

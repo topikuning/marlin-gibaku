@@ -152,7 +152,8 @@ describe("perbaikan foto HEIC yang sudah tersimpan", () => {
   });
 
   it("arsip berkas asli TIDAK ikut dihapus", () => {
-    // DECISIONS 197: arsip asli satu-satunya rujukan keaslian foto.
-    expect(badan).toContain("kunciLama !== k.originalKey");
+    // Arsip asli dan versi lama tidak dihapus saat konversi berhasil.
+    // Bukti objek tetap tersedia ada di perbaikan-cap.test.ts (R2 in-memory).
+    expect(badan).not.toMatch(/r2Delete\((?:kunciLama|thumbLama|k\.originalKey)\)/);
   });
 });

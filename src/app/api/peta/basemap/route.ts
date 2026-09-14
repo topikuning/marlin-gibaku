@@ -21,6 +21,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
 
   const berkas = await periksaBasemap();

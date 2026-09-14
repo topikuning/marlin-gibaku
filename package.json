@@ -45,7 +45,7 @@
     "date-fns": "4.4.0",
     "exceljs": "4.4.0",
     "exifreader": "4.44.1",
-    "heic-decode": "^2.1.0",
+    "heic-decode": "2.1.0",
     "jszip": "3.10.1",
     "lucide-react": "1.24.0",
     "maplibre-gl": "6.7.0",
@@ -76,6 +76,6 @@
     "tailwindcss": "4.3.2",
     "tsx": "4.23.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }
