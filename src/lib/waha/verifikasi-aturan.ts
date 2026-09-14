@@ -70,11 +70,20 @@ export type KeadaanVerifikasi =
   | { tahap: "belum" }
   | { tahap: "menunggu-pesan"; frasa: string; kedaluwarsa: Date }
   | { tahap: "menunggu-kode"; nomor: string | null; kedaluwarsa: Date; sisaPercobaan: number }
+  /**
+   * Pesannya MASUK, tapi kodenya tidak berhasil dikirim balik.
+   *
+   * Keadaan ini punya namanya sendiri karena tanpa itu ia menyamar jadi
+   * "menunggu-pesan" — layar menyuruh mengirim ulang pesan yang sebenarnya
+   * sudah sampai, dan orangnya mengirim lagi, dan lagi. DECISIONS 576.
+   */
+  | { tahap: "gagal-kirim"; nomor: string | null }
   | { tahap: "selesai"; nomor: string | null; kapan: Date };
 
 export type BarisVerifikasi = {
   phrase: string;
   code: string | null;
+  senderKey: string | null;
   waNumber: string | null;
   attempts: number;
   expiresAt: Date;
@@ -95,7 +104,12 @@ export function keadaanVerifikasi(
 ): KeadaanVerifikasi {
   if (terverifikasiPada) return { tahap: "selesai", nomor, kapan: terverifikasiPada };
   if (!baris || baris.expiresAt.getTime() <= sekarang.getTime()) return { tahap: "belum" };
-  if (!baris.code) return { tahap: "menunggu-pesan", frasa: baris.phrase, kedaluwarsa: baris.expiresAt };
+  if (!baris.code) {
+    // Identitas pengirim sudah tercap = pesannya SAMPAI. Kalau kodenya tetap
+    // kosong, yang gagal kirimannya — bukan pesan orangnya.
+    if (baris.senderKey || baris.waNumber) return { tahap: "gagal-kirim", nomor: baris.waNumber };
+    return { tahap: "menunggu-pesan", frasa: baris.phrase, kedaluwarsa: baris.expiresAt };
+  }
   return {
     tahap: "menunggu-kode",
     nomor: baris.waNumber,
