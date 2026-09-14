@@ -24,8 +24,11 @@ vi.mock("next/headers", () => ({
 
 /** Balasan WhatsApp DICATAT, bukan dikirim — tidak ada WAHA di uji. */
 const terkirim: { chatId: string; teks: string }[] = [];
+/** Dinyalakan untuk meniru pagar gateway yang menolak kiriman. */
+let gagalKirim = false;
 vi.mock("@/lib/waha/kirim", () => ({
   balasWa: async (chatId: string, teks: string) => {
+    if (gagalKirim) throw new Error("Kiriman ke nomor pribadi sedang dimatikan (uji)");
     terkirim.push({ chatId, teks });
     return "wamid.uji";
   },
@@ -202,6 +205,30 @@ describe("verifikasi nomor WhatsApp", () => {
     terkirim.length = 0;
     const r = await tanganiPesanVerifikasi(pesan(a.frasa, nomorBaru()));
     expect(r).toEqual({ ditangani: true, hasil: "kode-dikirim" });
+  });
+
+  it("kode yang GAGAL dikirim tidak pernah mengaku terkirim", async () => {
+    /*
+     * Layar membaca `code` yang terisi sebagai "kode sudah sampai di
+     * WhatsApp". Mengisinya sebelum kirimannya berhasil membuat layar
+     * mengumumkan sesuatu yang tidak terjadi — persis yang dilaporkan user
+     * 2026-09-14: *"kamu tidak merespon kode"* sementara layarnya bilang
+     * "Kode sudah dibalas ke WhatsApp yang sama".
+     */
+    gagalKirim = true;
+    try {
+      const { frasa } = await mulaiVerifikasi(userId);
+      const r = await tanganiPesanVerifikasi(pesan(frasa, nomorBaru()));
+      expect(r).toEqual({ ditangani: true, hasil: "kode-gagal-dikirim" });
+
+      const b = await db.waVerification.findUniqueOrThrow({ where: { userId } });
+      expect(b.code).toBeNull();
+      // Tapi identitas pengirimnya TETAP tercap: pesannya memang sampai.
+      expect(b.senderKey).not.toBeNull();
+      expect(await bacaKeadaan(userId)).toMatchObject({ tahap: "gagal-kirim" });
+    } finally {
+      gagalKirim = false;
+    }
   });
 
   it("pesan biasa TIDAK ditangani jalur verifikasi", async () => {

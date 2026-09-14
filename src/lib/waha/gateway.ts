@@ -11,6 +11,7 @@ import {
   type FilePayload,
 } from "./client";
 import { kanonikGrupId, tujuanGrup } from "./grup-id";
+import { normalizePhone } from "./sender-identity";
 import { izinKirimPersonal } from "./config";
 import { statusBerikutnya, statusDariAck } from "./status-kirim";
 
@@ -162,7 +163,35 @@ async function balasanSah(input: KirimWaInput, chatId: string): Promise<boolean>
     where: { chatId, createdAt: { gte: sejak } },
     select: { id: true },
   });
-  return pekerjaan !== null;
+  if (pekerjaan) return true;
+
+  /*
+   * Bukti KETIGA: percobaan verifikasi nomor yang identitas pengirimnya sudah
+   * tercap (DECISIONS 570).
+   *
+   * Frasa verifikasi ditangani SEBELUM antrean jawaban dan sengaja berhenti di
+   * situ — jadi ia tidak pernah melahirkan `wa_reply_jobs`, dan dua bukti di
+   * atas keduanya kosong. Akibatnya persis yang dilaporkan user 2026-09-14:
+   * *"sistem verifikasimu gagal total, kamu tidak merespon kode"* — layarnya
+   * bilang "kode sudah dibalas", sementara gerbang menolak kiriman itu sebagai
+   * chat pribadi yang menyapa duluan.
+   *
+   * `senderKey`/`waNumber` di baris ini hanya bisa terisi dari event webhook
+   * WAHA yang `fromMe:false` — sama tidak-bisa-dipalsukannya dengan dua bukti
+   * sebelumnya, dan menyatakan hal yang sama: chat ini yang menyapa duluan.
+   */
+  const nomor = normalizePhone(chatId);
+  const verifikasi = await db.waVerification.findFirst({
+    where: {
+      updatedAt: { gte: sejak },
+      OR: [
+        { senderKey: chatId.toLowerCase() },
+        ...(nomor ? [{ senderKey: nomor }, { waNumber: nomor }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+  return verifikasi !== null;
 }
 
 export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> {

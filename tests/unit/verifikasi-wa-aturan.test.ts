@@ -25,6 +25,7 @@ const {
 const baris = (p: Partial<Parameters<typeof cocokkanKode>[0] & object> = {}) => ({
   phrase: "MARLIN-ACDEFG",
   code: "123456",
+  senderKey: "628123456789",
   waNumber: "628123456789",
   attempts: 0,
   expiresAt: new Date("2026-09-13T10:00:00Z"),
@@ -81,9 +82,24 @@ describe("tahap yang sedang berjalan", () => {
   });
 
   it("sudah minta frasa, pesannya belum datang", () => {
-    const k = keadaanVerifikasi(baris({ code: null, waNumber: null }), null, null, SEBELUM);
+    const k = keadaanVerifikasi(
+      baris({ code: null, waNumber: null, senderKey: null }),
+      null,
+      null,
+      SEBELUM,
+    );
     expect(k.tahap).toBe("menunggu-pesan");
     expect(k).toMatchObject({ frasa: "MARLIN-ACDEFG" });
+  });
+
+  it("pesan MASUK tapi kode gagal dikirim punya tahapnya sendiri", () => {
+    // Tanpa tahap ini ia menyamar jadi "menunggu-pesan": layar menyuruh
+    // mengirim ulang pesan yang sebenarnya sudah sampai, dan orangnya mengirim
+    // lagi, dan lagi — sementara yang rusak justru arah sebaliknya.
+    expect(keadaanVerifikasi(baris({ code: null }), null, null, SEBELUM)).toEqual({
+      tahap: "gagal-kirim",
+      nomor: "628123456789",
+    });
   });
 
   it("pesannya sudah masuk, tinggal mengetik kode", () => {

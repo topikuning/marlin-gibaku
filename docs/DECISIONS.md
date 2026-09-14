@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 576 | 2026-09-14 | Kode verifikasi WA ditahan pagar nomor pribadi – dan layar mengaku sudah mengirimnya |
 | 575 | 2026-09-14 | Frasa verifikasi WA tidak pernah dilempar ke AI, dan tidak diganti selagi masih berlaku |
 | 574 | 2026-09-14 | Tautan verifikasi WA pakai api.whatsapp.com, dan JID tidak ditampilkan mentah |
 | 573 | 2026-09-13 | Verifikasi WA dikirim SEKALI KETUK, bukan disalin manual |
