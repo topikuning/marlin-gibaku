@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { getWahaWebhookSecret, recordWahaHit } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 import { antreJawaban, prosesAntrean } from "@/lib/waha/antrean";
-import { isWaAckEvent, parseWaAck } from "@/lib/waha/ingest-parse";
+import { isWaAckEvent, parseWaAck, parseWaEvent } from "@/lib/waha/ingest-parse";
 import { terapkanAck } from "@/lib/waha/gateway";
 
 export const dynamic = "force-dynamic";
@@ -93,10 +93,41 @@ export async function POST(req: Request) {
       outcome = "ack: gagal diproses (lihat log)";
     }
   } else {
+    /*
+     * VERIFIKASI NOMOR — sebelum ingest, dan yang tertangani BERHENTI di sini.
+     *
+     * Dulu pemeriksaan ini berada SESUDAH ingest dan hanya menahan jalur
+     * tanya-jawab. Akibatnya frasa verifikasi tetap diarsipkan sebagai pesan
+     * lapangan lebih dulu — dan ketika barisnya tak ketemu, ia diteruskan ke AI
+     * yang menjawabnya sebagai "catatan lapangan" (dilihat user 2026-09-14).
+     *
+     * Frasa berawalan MARLIN- bukan laporan dan bukan pertanyaan. Ia tidak
+     * perlu diarsipkan, tidak perlu ditebak, dan tidak boleh menyentuh satu pun
+     * jalur di bawah. DECISIONS 570.
+     */
+    let sudahDiverifikasi = false;
     try {
-      const result = await ingestWaEvent(body);
-      chatId = result.chatId ?? null;
-      outcome = result.stored ? "tersimpan ✓" : `diabaikan – ${result.reason}`;
+      const p = parseWaEvent(body);
+      if (p) {
+        const { tanganiPesanVerifikasi } = await import("@/lib/waha/verifikasi");
+        const v = await tanganiPesanVerifikasi(p);
+        if (v.ditangani) {
+          sudahDiverifikasi = true;
+          chatId = p.chatId;
+          outcome = `verifikasi WA: ${v.hasil}`;
+        }
+      }
+    } catch (err) {
+      console.error("[waha/webhook] verifikasi nomor gagal:", err);
+      outcome = "verifikasi WA: gagal (lihat log)";
+    }
+
+    try {
+      if (!sudahDiverifikasi) {
+        const result = await ingestWaEvent(body);
+        chatId = result.chatId ?? null;
+        outcome += result.stored ? "tersimpan ✓" : `diabaikan – ${result.reason}`;
+      }
 
       /**
        * Tanya-jawab bebas (DECISIONS 339) — DIANTREKAN, tidak dijalankan di
@@ -114,32 +145,6 @@ export async function POST(req: Request) {
        *
        * Kegagalan di sini TIDAK boleh menggagalkan ingest yang sudah berhasil.
        */
-      /*
-       * VERIFIKASI NOMOR — didahulukan, dan yang tertangani BERHENTI di sini.
-       *
-       * Frasa verifikasi bukan pertanyaan. Membiarkannya lewat ke jalur
-       * tanya-jawab berarti membayar satu panggilan model untuk membalas "maaf
-       * saya tidak paham" atas satu-satunya pesan yang justru paling kita
-       * mengerti — dan balasan itu akan menimpa kode yang baru saja dikirim.
-       * DECISIONS 570.
-       */
-      let sudahDiverifikasi = false;
-      try {
-        const { parseWaEvent } = await import("@/lib/waha/ingest-parse");
-        const p = parseWaEvent(body);
-        if (p) {
-          const { tanganiPesanVerifikasi } = await import("@/lib/waha/verifikasi");
-          const v = await tanganiPesanVerifikasi(p);
-          if (v.ditangani) {
-            sudahDiverifikasi = true;
-            outcome += ` · verifikasi WA: ${v.hasil}`;
-          }
-        }
-      } catch (err) {
-        console.error("[waha/webhook] verifikasi nomor gagal:", err);
-        outcome += " · verifikasi WA: gagal (lihat log)";
-      }
-
       try {
         const antre = sudahDiverifikasi
           ? ({ antre: false, baru: false, alasan: "pesan verifikasi nomor" } as const)

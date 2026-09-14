@@ -34,8 +34,24 @@ import { normalizePhone, senderKeyOf } from "./sender-identity";
 
 export class VerifikasiError extends Error {}
 
-/** Satu percobaan berjalan per orang; yang lama ditimpa, bukan ditumpuk. */
+/**
+ * Satu percobaan berjalan per orang; yang lama ditimpa, bukan ditumpuk.
+ *
+ * TAPI percobaan yang MASIH BERLAKU dan belum dijawab dipakai ulang, bukan
+ * diganti. Versi pertama membuat frasa baru tiap kali tombolnya ditekan — dan
+ * setiap layar yang masih memajang frasa sebelumnya (ketukan ganda, tab kedua,
+ * tombol kembali, halaman yang dipulihkan PWA) berubah jadi jebakan: yang
+ * dikirim orangnya frasa yang sudah tidak ada di basis data lagi.
+ *
+ * Itu bukan kemungkinan teoretis. 2026-09-14 user mengirim "MARLIN-KVNH9K" dan
+ * dijawab AI sebagai catatan lapangan, karena frasa itu sudah tidak dikenali.
+ */
 export async function mulaiVerifikasi(userId: string): Promise<{ frasa: string; kedaluwarsa: Date }> {
+  const lama = await db.waVerification.findUnique({ where: { userId } });
+  if (lama && !lama.code && lama.expiresAt.getTime() > Date.now()) {
+    return { frasa: lama.phrase, kedaluwarsa: lama.expiresAt };
+  }
+
   const frasa = buatFrasa();
   const kedaluwarsa = new Date(Date.now() + MENIT_BERLAKU * 60_000);
   await db.waVerification.upsert({
@@ -70,7 +86,10 @@ export async function bacaKeadaan(userId: string): Promise<KeadaanVerifikasi> {
 
 export type HasilPesanMasuk =
   | { ditangani: false }
-  | { ditangani: true; hasil: "kode-dikirim" | "kedaluwarsa" | "nomor-dipakai-orang-lain" };
+  | {
+      ditangani: true;
+      hasil: "kode-dikirim" | "kedaluwarsa" | "tidak-dikenal" | "nomor-dipakai-orang-lain";
+    };
 
 /**
  * Pesan WhatsApp masuk yang memuat frasa verifikasi.
@@ -93,9 +112,33 @@ export async function tanganiPesanVerifikasi(pesan: {
   if (!frasa) return { ditangani: false };
 
   const baris = await db.waVerification.findUnique({ where: { phrase: frasa } });
-  if (!baris) return { ditangani: false };
-
   const { balasWa } = await import("./kirim");
+
+  /*
+   * Frasa yang TIDAK ketemu tetap ditangani di sini — tidak pernah diteruskan
+   * ke jalur tanya-jawab.
+   *
+   * Versi pertama mengembalikan `ditangani: false` di titik ini, dan akibatnya
+   * dilihat user 2026-09-14: "MARLIN-KVNH9K" dijawab AI sebagai *catatan
+   * lapangan*, lengkap dengan kutipan kendala Asemdoyong yang tidak ada
+   * hubungannya, ditutup "Tidak saya kenali: kvnh9k". Orang yang sedang
+   * memverifikasi nomornya membaca itu sebagai sistem yang rusak — dan ia
+   * benar.
+   *
+   * Frasa berawalan MARLIN- hanya punya satu arti. Kalau barisnya tidak ada
+   * (kedaluwarsa lalu terhapus, salah ketik yang kebetulan sah bentuknya, atau
+   * frasa dari percobaan yang sudah diganti), yang benar adalah mengatakannya
+   * — bukan menyerahkannya ke model bahasa yang akan menebak.
+   */
+  if (!baris) {
+    await balasWa(
+      pesan.chatId,
+      "Frasa ini tidak dikenali – mungkin sudah kedaluwarsa atau sudah diganti. " +
+        "Buka lagi halaman Verifikasi WhatsApp di MARLIN, lalu tekan tombol kirimnya untuk mendapatkan frasa baru.",
+    );
+    return { ditangani: true, hasil: "tidak-dikenal" };
+  }
+
   if (baris.expiresAt.getTime() <= Date.now()) {
     await balasWa(
       pesan.chatId,
