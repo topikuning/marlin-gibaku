@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { lewatiVerifikasiWa } from "./masuk";
 
 /**
  * TOMBOL PASANG PWA DI DALAM MARLIN (DECISIONS 405).
@@ -30,6 +31,7 @@ async function login(page: Page) {
   await page.getByRole("textbox", { name: "Password", exact: true }).fill("marlin123");
   await page.getByRole("button", { name: "Masuk" }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/masuk"), { timeout: 15_000 });
+  await lewatiVerifikasiWa(page);
 }
 
 /** Tiru `beforeinstallprompt` seperti yang dikirim Chrome Android. */

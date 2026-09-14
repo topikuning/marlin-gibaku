@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { bacaKeadaan } from "@/lib/waha/verifikasi";
 import { getIdentitasMarlin } from "@/lib/waha/client";
+import { normalizePhone } from "@/lib/waha/sender-identity";
 import { VerifikasiWaForm } from "./verifikasi-form";
 
 export const metadata: Metadata = { title: "Verifikasi WhatsApp" };
@@ -41,8 +42,10 @@ export default async function VerifikasiWaPage() {
         </div>
         <VerifikasiWaForm
           awal={keadaan}
-          nomorTujuan={identitas.nomor}
-          nomorTercatat={akun.waNumber}
+          nomorTujuan={normalizePhone(identitas.nomor) ?? identitas.nomor}
+          // Yang tersimpan bisa berupa JID mentah "628…@c.us". Menampilkannya
+          // apa adanya membuat orang mengira nomornya salah tercatat.
+          nomorTercatat={normalizePhone(akun.waNumber) ?? akun.waNumber}
         />
       </div>
     </main>

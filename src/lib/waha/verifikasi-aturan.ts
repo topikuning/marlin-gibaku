@@ -1,3 +1,5 @@
+import { normalizePhone } from "./sender-identity";
+
 /**
  * ATURAN VERIFIKASI NOMOR WHATSAPP — MODUL MURNI, tanpa DB dan tanpa jaringan.
  *
@@ -120,4 +122,34 @@ export function cocokkanKode(
   if (baris.attempts >= MAKS_PERCOBAAN) return { ok: false, sebab: "habis-percobaan" };
   const bersih = diketik.replace(/[^0-9]/g, "");
   return bersih === baris.code ? { ok: true } : { ok: false, sebab: "kode-salah" };
+}
+
+/**
+ * Tautan yang MEMBUKA WhatsApp dengan frasanya sudah terketik ke nomor MARLIN.
+ *
+ * Teguran user 2026-09-13: *"seharusnya kirim kode ini kamu sediakan klik, dia
+ * langsung buka whatsapp pesannya siap kirim ke nomor marlin."* Versi pertama
+ * layar ini menampilkan frasa lalu menyuruh orang menyalinnya, membuka
+ * WhatsApp, mencari nomor MARLIN, dan mengetik ulang. Empat kesempatan gagal
+ * untuk satu langkah yang bisa jadi satu ketukan — dan tiga di antaranya
+ * berakhir sama: pesannya tidak pernah sampai, tanpa satu pun tanda di layar.
+ *
+ * `null` bila nomornya tidak diketahui (sesi WhatsApp MARLIN sedang putus).
+ * Tombol yang membuka WhatsApp ke nomor kosong lebih buruk daripada tidak ada
+ * tombol: orang mengira sudah mengirim.
+ */
+export function tautanKirimWa(nomor: string | null | undefined, frasa: string): string | null {
+  if (!nomor) return null;
+  // Tautannya hanya menerima angka: "+62 812-3456-789", "0812…", dan JID
+  // "628…@c.us" harus dirapikan dulu — aturan yang sama dengan pencocokan
+  // nomor di tempat lain.
+  const bersih = normalizePhone(nomor);
+  if (!bersih) return null;
+  // Bentuk `api.whatsapp.com/send/` dengan `type=phone_number&app_absent=0`,
+  // bukan `wa.me`: di peramban desktop wa.me berhenti di halaman antara yang
+  // menyuruh orang menekan "Continue to Chat" sekali lagi, dan di ponsel tanpa
+  // WhatsApp terpasang ia diam saja. Bentuk ini yang dipakai user.
+  return `https://api.whatsapp.com/send/?phone=${bersih}&text=${encodeURIComponent(
+    frasa,
+  )}&type=phone_number&app_absent=0`;
 }

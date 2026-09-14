@@ -19,6 +19,7 @@ const {
   cocokkanKode,
   frasaDariPesan,
   keadaanVerifikasi,
+  tautanKirimWa,
 } = await import("@/lib/waha/verifikasi-aturan");
 
 const baris = (p: Partial<Parameters<typeof cocokkanKode>[0] & object> = {}) => ({
@@ -140,5 +141,45 @@ describe("mencocokkan kode", () => {
 
   it("tanpa percobaan sama sekali ditolak, bukan diloloskan", () => {
     expect(cocokkanKode(null, "123456", SEBELUM)).toEqual({ ok: false, sebab: "kedaluwarsa" });
+  });
+});
+
+const TAUTAN =
+  "https://api.whatsapp.com/send/?phone=628123456789&text=MARLIN-ACDEFG&type=phone_number&app_absent=0";
+
+describe("tautan kirim WhatsApp sekali klik", () => {
+  it("membuka WhatsApp ke nomor MARLIN dengan frasanya sudah terketik", () => {
+    // Teguran user 2026-09-13: *"seharusnya kirim kode ini kamu sediakan klik,
+    // dia langsung buka whatsapp pesannya siap kirim ke nomor marlin."* Menyuruh
+    // orang lapangan menyalin frasa, membuka WhatsApp, mencari nomor MARLIN,
+    // lalu mengetik ulang — itu empat kesempatan gagal untuk satu langkah yang
+    // bisa jadi satu ketukan.
+    expect(tautanKirimWa("628123456789", "MARLIN-ACDEFG")).toBe(TAUTAN);
+  });
+
+  it("memakai bentuk api.whatsapp.com/send, bukan wa.me", () => {
+    // wa.me berhenti di halaman antara "Continue to Chat" di peramban desktop —
+    // satu ketukan tambahan tepat di langkah yang seharusnya jadi satu ketukan.
+    const t = tautanKirimWa("628123456789", "MARLIN-ACDEFG")!;
+    expect(t).toContain("type=phone_number");
+    expect(t).toContain("app_absent=0");
+    expect(t).not.toContain("wa.me");
+  });
+
+  it("nomor dirapikan dulu – 0812…, +62…, spasi, dan JID @c.us sama-sama sah", () => {
+    // Nomor datang dari sesi WAHA apa adanya, kadang sebagai JID "628…@c.us";
+    // tautannya hanya menerima angka.
+    expect(tautanKirimWa("+62 812-3456-789", "MARLIN-ACDEFG")).toBe(TAUTAN);
+    expect(tautanKirimWa("08123456789", "MARLIN-ACDEFG")).toBe(TAUTAN);
+    expect(tautanKirimWa("628123456789@c.us", "MARLIN-ACDEFG")).toBe(TAUTAN);
+  });
+
+  it("tanpa nomor tujuan → null, bukan tautan yang menuju entah ke mana", () => {
+    // Sesi WhatsApp MARLIN bisa sedang putus. Tombol yang membuka WhatsApp ke
+    // nomor kosong lebih buruk daripada tidak ada tombol: orang mengira sudah
+    // mengirim.
+    expect(tautanKirimWa(null, "MARLIN-ACDEFG")).toBeNull();
+    expect(tautanKirimWa("", "MARLIN-ACDEFG")).toBeNull();
+    expect(tautanKirimWa("62", "MARLIN-ACDEFG")).toBeNull();
   });
 });

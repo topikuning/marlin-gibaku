@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 573 | 2026-09-13 | Verifikasi WA dikirim SEKALI KETUK, bukan disalin manual |
 | 572 | 2026-09-13 | `pnpm build` masuk gerbang sebelum merge ke main |
 | 571 | 2026-09-13 | Akses pengguna terlihat DI halaman lokasinya |
 | 570 | 2026-09-13 | Verifikasi nomor WhatsApp DUA ARAH, sekali seumur akun |

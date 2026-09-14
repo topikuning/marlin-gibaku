@@ -1,4 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { lewatiVerifikasiWa } from "./masuk";
 
 /**
  * APLIKASINYA SENDIRI HARUS BISA DIBUKA TANPA SINYAL (DECISIONS 398).
@@ -27,6 +28,7 @@ async function masuk(page: Page) {
   await page.getByRole("textbox", { name: "Password", exact: true }).fill("marlin123");
   await page.getByRole("button", { name: /masuk/i }).click();
   await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
+  await lewatiVerifikasiWa(page);
 }
 
 /**
