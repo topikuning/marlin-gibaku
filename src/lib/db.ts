@@ -5,7 +5,12 @@ import { env } from "@/lib/env";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient() {
-  const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
+  // adapter-pg menormalisasi timestamp seolah sesi PostgreSQL selalu UTC.
+  // Pin zona pada setiap koneksi; pilihan URL lain tetap dipertahankan.
+  const url = new URL(env.DATABASE_URL);
+  const options = url.searchParams.get("options") ?? "";
+  url.searchParams.set("options", `${options} -c timezone=UTC`.trim());
+  const adapter = new PrismaPg({ connectionString: url.toString() });
   return new PrismaClient({ adapter });
 }
 

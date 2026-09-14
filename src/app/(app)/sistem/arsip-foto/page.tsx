@@ -28,15 +28,13 @@ export default async function ArsipFotoPage() {
   requireCapabilityPage(user.role, "photo.archive_purge");
   const scope = await accessibleLocationIds(user);
 
-  const whereSemua = whereArsip({}, scope);
+  const photoScope = { location: { package: { orgId: user.orgId } }, ...(scope === null ? {} : { locationId: { in: scope } }) };
+  const whereSemua = whereArsip({}, scope, user.orgId);
   const [agg, jumlahFoto, terhapus, perPaket, packages, locations] = await Promise.all([
     db.photo.aggregate({ where: whereSemua, _count: { _all: true }, _sum: { originalBytes: true } }),
-    db.photo.count({ where: scope === null ? {} : { locationId: { in: scope } } }),
+    db.photo.count({ where: photoScope }),
     db.photo.count({
-      where:
-        scope === null
-          ? { originalPurgedAt: { not: null } }
-          : { AND: [{ locationId: { in: scope } }, { originalPurgedAt: { not: null } }] },
+      where: { ...photoScope, originalPurgedAt: { not: null } },
     }),
     db.photo.groupBy({
       by: ["locationId"],

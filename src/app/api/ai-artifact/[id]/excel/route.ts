@@ -1,3 +1,4 @@
+import { aiArtifactOrgWhere } from "@/lib/ai-hub/org-scope";
 import { NextResponse, type NextRequest } from "next/server";
 import { accessibleLocationIds, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
@@ -16,11 +17,14 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
   if (!can(user.role, "ai.view")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
 
-  const artifact = await db.aiArtifact.findUnique({
-    where: { id },
+  const artifact = await db.aiArtifact.findFirst({
+    where: { id, ...await aiArtifactOrgWhere(user) },
     select: { id: true, kind: true, title: true, version: true, structuredContent: true, run: { select: { scopeIds: true } } },
   });
   if (!artifact || artifact.kind !== "laporan") {

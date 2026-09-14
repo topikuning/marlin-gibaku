@@ -19,13 +19,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user) {
     return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   }
 
   const doc = await db.document.findUnique({
     where: { id },
-    select: { id: true, orgId: true, locationId: true, r2Key: true, title: true, status: true },
+    select: { id: true, orgId: true, packageId: true, locationId: true, r2Key: true, title: true, status: true },
   });
   if (!doc || doc.orgId !== user.orgId) {
     return NextResponse.json({ error: "Dokumen tidak ditemukan" }, { status: 404 });

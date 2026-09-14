@@ -1,3 +1,4 @@
+import { aiArtifactOrgWhere } from "@/lib/ai-hub/org-scope";
 import { notFound } from "next/navigation";
 import { PrintToolbar } from "@/components/print/print-toolbar";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
@@ -18,8 +19,8 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
-  const artifact = await db.aiArtifact.findUnique({
-    where: { id: artifactId },
+  const artifact = await db.aiArtifact.findFirst({
+    where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
     select: { kind: true, status: true, structuredContent: true, runId: true, run: { select: { scopeIds: true } } },
   });
   if (!artifact || artifact.kind !== "laporan") notFound();

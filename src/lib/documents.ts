@@ -1,9 +1,9 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { hasDocumentScope, requireDocumentScope } from "@/lib/documents-scope";
 import { audit } from "@/lib/audit";
 import {
-  hasLocationAccess,
   requireCapability,
   requireLocationAccess,
   type SessionUser,
@@ -119,6 +119,13 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
 
   // Validasi & derivasi relasi (semua wajib satu organisasi).
   let packageId = input.packageId ?? null;
+  let contractId = input.contractId ?? null;
+  const bindPackage = (relatedPackageId: string) => {
+    if (packageId && packageId !== relatedPackageId) {
+      throw new DocumentError("Relasi dokumen tidak sesuai dengan paket yang dipilih");
+    }
+    packageId = relatedPackageId;
+  };
   if (input.locationId) {
     const location = await db.location.findUnique({
       where: { id: input.locationId },
@@ -137,22 +144,27 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
   if (input.contractId) {
     const contract = await db.contract.findUnique({
       where: { id: input.contractId },
-      select: { package: { select: { orgId: true } } },
+      select: { packageId: true, package: { select: { orgId: true } } },
     });
     if (!contract || contract.package.orgId !== user.orgId) throw new DocumentError("Kontrak tidak ditemukan");
+    bindPackage(contract.packageId);
   }
   if (input.amendmentId) {
     const amendment = await db.contractAmendment.findUnique({
       where: { id: input.amendmentId },
-      select: { contract: { select: { package: { select: { orgId: true } } } } },
+      select: { contractId: true, contract: { select: { packageId: true, package: { select: { orgId: true } } } } },
     });
     if (!amendment || amendment.contract.package.orgId !== user.orgId) {
       throw new DocumentError("Adendum tidak ditemukan");
     }
+    bindPackage(amendment.contract.packageId);
+    if (contractId && contractId !== amendment.contractId) throw new DocumentError("Adendum tidak sesuai dengan kontrak");
+    contractId = amendment.contractId;
   }
   if (input.supersedesId) {
-    const old = await db.document.findUnique({ where: { id: input.supersedesId }, select: { orgId: true } });
+    const old = await db.document.findUnique({ where: { id: input.supersedesId }, select: { orgId: true, packageId: true, locationId: true } });
     if (!old || old.orgId !== user.orgId) throw new DocumentError("Dokumen lama tidak ditemukan");
+    await requireDocumentScope(user, old);
   }
 
   // Milestone: eksplisit dari form, atau otomatis dari docTypes template.
@@ -172,10 +184,17 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
         requiresVerification: true,
         note: true,
         name: true,
+        packageId: true,
+        locationId: true,
         package: { select: { orgId: true } },
       },
     });
     if (!ms || ms.package.orgId !== user.orgId) throw new DocumentError("Milestone tidak ditemukan");
+    bindPackage(ms.packageId);
+    if (ms.locationId && ms.locationId !== input.locationId) {
+      throw new DocumentError("Milestone tidak sesuai dengan lokasi dokumen");
+    }
+    await requireDocumentScope(user, ms);
     milestone = ms;
   } else if (packageId) {
     // Sync otomatis berbasis scope: dokumen tipe X → milestone yang docTypes-nya
@@ -197,6 +216,8 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
       });
     }
   }
+
+  await requireDocumentScope(user, { packageId, locationId: input.locationId });
 
   // Dedup per organisasi (sha256 isi file).
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -225,7 +246,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
     data: {
       orgId: user.orgId,
       packageId,
-      contractId: input.contractId ?? null,
+      contractId,
       locationId: input.locationId ?? null,
       amendmentId: input.amendmentId ?? null,
       milestoneId: milestone?.id ?? null,
@@ -316,7 +337,7 @@ export async function supersedeDocument(
     },
   });
   if (!old || old.orgId !== user.orgId) throw new DocumentError("Dokumen lama tidak ditemukan");
-  if (old.locationId) await requireLocationAccess(user, old.locationId);
+  await requireDocumentScope(user, old);
   return uploadDocument(
     {
       ...input,
@@ -485,12 +506,12 @@ export async function listDocuments(params: DocumentListParams): Promise<Documen
 /** Dokumen boleh dilihat user ini? Dipakai route unduh. */
 export async function canViewDocument(
   user: SessionUser,
-  doc: { orgId: string; locationId: string | null; status?: DocumentStatus },
+  doc: { orgId: string; locationId: string | null; packageId: string | null; status?: DocumentStatus },
 ): Promise<boolean> {
   if (doc.orgId !== user.orgId) return false;
   // Dokumen dibatalkan: bukan berkas resmi lagi. Masih terbuka untuk yang
   // berwenang memulihkan/menghapusnya supaya bisa diperiksa sebelum diputuskan.
   if (doc.status === "dibatalkan" && !can(user.role, "document.void")) return false;
-  if (doc.locationId) return hasLocationAccess(user, doc.locationId);
+  if (!await hasDocumentScope(user, doc)) return false;
   return can(user.role, "document.view");
 }
