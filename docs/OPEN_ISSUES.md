@@ -686,6 +686,53 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 
 ---
 
+
+## AUDIT-DEV-2026-09-15 · 74 temuan terkonfirmasi, BELUM diperbaiki
+
+Audit menyeluruh branch `dev` atas permintaan user (laporan harian + aliran
+datanya, RAB, adendum). Laporan lengkap — skenario, bukti `file:baris`, usul
+perbaikan, dan hasil reproduksi merah-dulu tiap temuan — ada di
+[`docs/rebuild/AUDIT_DEV_2026-09-15.md`](rebuild/AUDIT_DEV_2026-09-15.md).
+
+74 terkonfirmasi (3 kritis · 23 tinggi · 37 sedang · 11 rendah), 9 terbantah,
+7 belum sempat diverifikasi. Yang kritis dan tinggi didaftar di sini; sisanya
+di laporan. **Jangan menutup satu pun tanpa uji MERAH-DULU** — sebagian besar
+sudah punya reproduksinya di laporan, tinggal dijadikan tes tetap.
+
+### 🔴 Kritis
+
+- **C-1** · `src/lib/daily-report/recap-parse.ts:166` — Impor rekap: kode item ganda antar kategori → last-wins, uraian diabaikan, volume mendarat di item lain (nondeterministik)
+- **G-1** · `src/lib/baseline.ts:309` — Jadwal impor 'apa adanya' dengan satu kategori tanpa jadwal (yang DECISIONS 203 izinkan) dianggap tidak usable → editor, KKP, dan rincian jadwal jatuh ke jadwal otomatis, sementara kurva resmi tetap dari impor
+- **G-2** · `src/lib/package/actions.ts:1104` — Dua semantik tanggal akhir kontrak: penulis endDate = SPMK + durasi (DECISIONS 054) vs pembaca/tes = SPMK + durasi − 1 (DECISIONS 092) – grid minggu baseline dapat kolom hantu & konversi mode membuang jadwal impor
+
+### 🟠 Tinggi
+
+- **A-1** · `src/lib/daily-report/queries.ts:850` — Laporan hari nihil yang FINAL kehilangan pernyataan "TIDAK ADA KEGIATAN" di semua keluaran resmi (layar cetak, PDF, Excel, WA, Drive)
+- **A-2** · `src/lib/daily-report/service.ts:1050` — setHariNihilAction mengubah pernyataan nihil pada laporan yang sudah `dikirim`/`disetujui` (counted) hanya dengan daily_report.create, tanpa histori status
+- **A-3** · `src/lib/daily-report/service.ts:111` — Pagar "nihil vs isi" hanya satu arah: laporan yang SUDAH dinyatakan nihil masih bisa menerima item (impor rekap/aksi) dan material/alat (form pelengkap tetap tampil), lalu terkirim dengan dua pernyataan yang saling menyangkal
+- **A-4** · `src/lib/daily-report/service.ts:939` — Buka kunci final → koreksi → final ulang TIDAK membangun ulang snapshot laporan final bertanggal sesudahnya – kebalikan dari aturan yang dipakai pindah tanggal
+- **B-1** · `src/lib/daily-report/queries.ts:499` — /hari-ini 'Target minggu ini' membandingkan target MINGGUAN dengan realisasi KUMULATIF sepanjang proyek (definisi berbeda dari halaman RAB/rencana mingguan)
+- **B-2** · `src/lib/daily-report/service.ts:461` — Guard volume saat kirim & 'Volume Kontrak' di workspace/blanko/snapshot memakai node RAB yang menempel saat item disimpan (bisa revisi 'digantikan'), bukan revisi aktif → volume melebihi kontrak lolos dan blanko harian menyebut volume kontrak yang berbeda dari laporan mingguan
+- **B-3** · `src/lib/periodic-report.ts:682` — Kurva-S laporan periodik menghitung minggu berjalan TANPA weekMode → pada kontrak senin_minggu realisasi kurva berhenti satu minggu lebih awal dari tabel di dokumen yang sama
+- **B-4** · `src/lib/rab/import.ts:330` — Aktivasi adendum menurunkan volumeDone/valueDone laporan FINAL tetapi finalSnapshot tidak dibangun ulang → blanko harian final tetap mencetak volume lama, berbeda dari laporan mingguan/progres
+- **C-2** · `src/lib/daily-report/recap-import.ts:108` — Impor rekap: dua baris tanggal sama + item sama → pratinjau menjumlahkan, commit menimpa (volume hilang diam-diam, itemsSaved dihitung dua)
+- **C-3** · `src/lib/daily-report/service.ts:111` — Laporan yang sudah dinyatakan NIHIL tetap bisa menerima item/material lalu dikirim → blanko mencetak "TIDAK ADA KEGIATAN" bersama volume, hari dihitung nihil beruntun
+- **D-1** · `src/lib/export/rab-xlsx.ts:164` — Ekspor → impor ulang menghilangkan item yatim berkode '~n' (dan '-.a' / '~1.a') tanpa peringatan; total tertulis 'JUMLAH (pra-PPN)' juga tidak pernah dicek karena regex TOTAL_BER_PPN cocok 'ppn'
+- **D-2** · `src/lib/periodic-report.ts:525` — Beberapa modul masih memotong lineageKey dengan split('#')[0]; item di bawah kategori roman ganda ('VI#3#1') dianggap milik kategori 'VI' pertama
+- **D-3** · `src/lib/rab/flatten.ts:78` — Sub kode ganda mendapat suffix GANDA ('II.1#2#2'); ekspor membocorkan 'II.1#2' dan impor ulang menghilangkan sub itu beserta lineage item-nya
+- **E-1** · `src/app/(app)/lokasi/[slug]/rab/import/actions.ts:730` — Impor 'Jadikan RAB AKTIF' saat draft sudah ada melahirkan DRAFT KEDUA secara deterministik; halaman adendum lalu memilih draft sembarang dan laporan basis draft lama tidak pernah naik
+- **E-2** · `src/lib/rab/import.ts:319` — Aktivasi menulis ulang laporan harian (termasuk final) menjadi 0 untuk item yang dinolkan di draft, tanpa satu pun kalimat di halaman adendum/konfirmasi yang mengatakannya
+- **F-1** · `src/app/(app)/lokasi/[slug]/rab/import/actions.ts:228` — Template adendum terbitan MARLIN hanya dikenali pada mode 'draft'; pada mode 'Jadikan RAB AKTIF' ia dibaca sebagai HPS biasa dan nilainya terbaca DUA KALI LIPAT tanpa satu peringatan pun
+- **F-2** · `src/lib/rab/adendum-template-parse.ts:242` — Baris induk yang dibuang (HAPUS / volume negatif / baris judul dihapus user) meninggalkan anak yatim: uangnya lenyap dari total kategori tanpa peringatan, lalu commit meledak SESUDAH draft lama dihapus
+- **F-3** · `src/lib/rab/adendum-template-parse.ts:335` — Dua item baru berkode sama di bawah induk yang sama menghasilkan lineageKey kembar: pratinjau diam, commit gagal di constraint unik SESUDAH draft lama dihapus dan meninggalkan revisi setengah jadi
+- **G-3** · `src/app/(app)/lokasi/[slug]/rab/actions.ts:621` — Rencana mingguan menghitung rentang minggu dengan aritmetika 7 hari, mengabaikan Contract.weekMode (default senin_minggu)
+- **G-4** · `src/lib/periodic-report.ts:682` — Kurva-S blanko KKP: minggu berjalan dihitung tanpa weekMode → pada Senin–Rabu minggu kalender berjalan, realisasi & deviasi kolom minggu itu kosong
+- **G-5** · `src/lib/periodic-report.ts:525` — Identitas kategori di blanko KKP dipotong dari lineageKey dengan split('#')[0] – kategori romawi ganda ('VI#2') dilebur ke 'VI'
+- **H-1** · `src/lib/package/lingkup-lokasi.ts:216` — Perubahan lingkup lokasi (cabut/tambah) bisa diajukan DAN disetujui oleh PM/AM untuk lokasi yang bukan penugasannya, bahkan lintas organisasi – tanpa requireLocationAccess dan tanpa filter orgId
+- **J-1** · `src/lib/finance/actions.ts:87` — Parser jumlah rupiah membuang koma desimal diam-diam: '1.500.000,00' menjadi Rp150.000.000
+
+---
+
 ## ADENDUM — temuan audit 2026-09-01 yang BELUM ditutup
 
 Audit menyeluruh jalur adendum (perbandingan · persetujuan · parser/ekspor)
