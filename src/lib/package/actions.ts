@@ -2161,3 +2161,91 @@ export async function bukaArsipLingkupLokasiAction(
         : `${jumlah} pencabutan lokasi dikembalikan ke pandangan umum.`,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Pindahkan lokasi ke paket lain — super admin saja                    */
+/* ------------------------------------------------------------------ */
+
+const pindahLokasiSchema = z.object({
+  locationId: z.uuid(),
+  tujuanPackageId: z.uuid("Pilih paket tujuan dari daftar."),
+  mode: z.enum(["paksa", "cco"]),
+  ccoNumber: z.string().trim().max(60).optional(),
+  alasan: z
+    .string()
+    .trim()
+    .min(10, "Alasan pemindahan wajib diisi (minimal 10 karakter) – tercatat di audit & histori kedua paket.")
+    .max(500, "Alasan maksimal 500 karakter"),
+});
+
+/**
+ * Pindahkan satu lokasi ke paket lain (`location.correct`, super_admin saja).
+ *
+ * Seluruh aturannya — dua jalur, pagar organisasi/tahap, dan penyesuaian
+ * kalender — ada di `lib/package/pindah-lokasi.ts`. Di sini hanya gerbang
+ * kapabilitas, penguraian formulir, dan kalimat yang dibaca orang.
+ */
+export async function pindahkanLokasiAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("location.correct");
+  const parsed = pindahLokasiSchema.safeParse({
+    locationId: formData.get("locationId"),
+    tujuanPackageId: formData.get("tujuanPackageId"),
+    mode: String(formData.get("mode") ?? "paksa"),
+    ccoNumber: String(formData.get("ccoNumber") ?? "").trim() || undefined,
+    alasan: formData.get("alasan") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const { pindahkanLokasi, PindahLokasiError } = await import("@/lib/package/pindah-lokasi");
+  const ip = (await requestIp()) ?? null;
+  let hasil;
+  try {
+    hasil = await pindahkanLokasi(
+      {
+        locationId: d.locationId,
+        tujuanPackageId: d.tujuanPackageId,
+        mode: d.mode,
+        alasan: d.alasan,
+        ccoNumber: d.ccoNumber ?? null,
+      },
+      { id: actor.id, orgId: actor.orgId },
+      ip,
+    );
+  } catch (err) {
+    if (err instanceof PindahLokasiError) return { error: err.message };
+    throw err;
+  }
+
+  revalidatePath("/paket", "layout");
+  revalidatePath(`/lokasi/${hasil.locationSlug}`, "layout");
+
+  /*
+   * Apa saja yang ikut BERGESER disebutkan, bukan disimpan di audit saja
+   * (DECISIONS 203). Yang memindahkan lokasi perlu tahu bahwa kurva-S dan
+   * rentang rencananya baru saja dihitung ulang ke kalender paket tujuan.
+   */
+  const bergeser = [
+    hasil.rencanaDihitungUlang > 0 ? `${hasil.rencanaDihitungUlang} rencana mingguan dihitung ulang` : null,
+    hasil.baseline === "dikonversi" ? "kurva-S rencana dikonversi ke grid minggu paket tujuan" : null,
+    hasil.baseline === "dilewati" ? "kurva-S rencana TIDAK bisa dikonversi – periksa jadwalnya" : null,
+    hasil.snapshotDibangunUlang > 0 ? `${hasil.snapshotDibangunUlang} blanko harian final dibangun ulang` : null,
+    hasil.barisIkut > 0 ? `${hasil.barisIkut} dokumen/agenda ikut pindah` : null,
+  ].filter(Boolean);
+
+  const catatanDokumen =
+    hasil.dokumenMenunjukKontrakLama > 0
+      ? ` PERHATIAN: ${hasil.dokumenMenunjukKontrakLama} dokumen masih menunjuk kontrak/adendum paket lama – ` +
+        "berkasnya memang milik kontrak itu, periksa apakah masih relevan."
+      : "";
+
+  return {
+    success:
+      `Lokasi "${hasil.locationName}" dipindah dari "${hasil.dariPaket}" ke "${hasil.kePaket}".` +
+      (bergeser.length > 0 ? ` Yang ikut menyesuaikan: ${bergeser.join(", ")}.` : "") +
+      catatanDokumen,
+  };
+}

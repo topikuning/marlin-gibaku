@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 579 | 2026-09-15 | Pindahkan lokasi ke paket lain – super admin, dua jalur (paksa & CCO); lingkupLokasi sadar-paket |
 | 578 | 2026-09-15 | Akhir kontrak = SPMK + durasi; SPMK titik nol – pembaca & kolom minggu baseline disamakan |
 | 577 | 2026-09-15 | Audit `dev`: 26 temuan kritis & tinggi diperbaiki; semantik tanggal akhir kontrak ditahan untuk user |
 | 576 | 2026-09-14 | Kode verifikasi WA ditahan pagar nomor pribadi – dan layar mengaku sudah mengirimnya |

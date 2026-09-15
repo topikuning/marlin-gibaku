@@ -21,8 +21,13 @@ export const CAPABILITIES = [
   "amendment.manage",
   "location.view",
   "location.manage",
-  // Koreksi susunan lokasi paket BERKONTRAK (lokasi ketinggalan saat input) —
-  // super_admin SAJA, bukan adendum. DECISIONS 187.
+  // Koreksi susunan lokasi paket — super_admin SAJA, bukan adendum.
+  //
+  // Dua tindakan, satu wewenang yang sama: MENAMBAH lokasi yang ketinggalan
+  // saat input (DECISIONS 187) dan MEMINDAHKAN lokasi ke paket lain (kebutuhan
+  // user 2026-09-15). Keduanya membetulkan di mana data diletakkan, bukan
+  // mengubah apa yang disepakati dalam kontrak — dan keduanya sama-sama
+  // menuntut alasan tertulis yang tercatat di audit + histori paket.
   "location.correct",
   // Arsipkan riwayat PENCABUTAN lokasi (adendum yang mengeluarkan lokasi) dari
   // pandangan umum — dan lihat yang sudah diarsipkan. super_admin SAJA

@@ -178,10 +178,26 @@ export async function lingkupLokasi(locationIds: string[], pada = new Date()): P
   if (locationIds.length === 0) return { dicabut, masuk };
   const rows = await db.locationScopeChange.findMany({
     where: { locationId: { in: locationIds }, status: "aktif" },
-    select: { locationId: true, kind: true, effectiveDate: true, amendment: { select: { ccoNumber: true } } },
+    select: {
+      locationId: true,
+      kind: true,
+      effectiveDate: true,
+      amendment: { select: { ccoNumber: true, contract: { select: { packageId: true } } } },
+      /*
+       * Paket lokasi SEKARANG. Sebuah perubahan lingkup lahir dari adendum SATU
+       * kontrak, jadi ia hanya berbicara tentang lingkup PAKET ITU. Begitu
+       * lokasinya dipindah ke paket lain (super admin, `location.correct`),
+       * barisnya tetap ada sebagai riwayat paket lama — tetapi menerapkannya di
+       * paket baru akan menandai lokasi yang baru datang itu "dicabut adendum"
+       * atas CCO yang bukan miliknya, dan mengeluarkannya dari agregat paket
+       * baru sejak tanggal berlaku CCO lama. Kebutuhan user 2026-09-15.
+       */
+      location: { select: { packageId: true } },
+    },
     orderBy: { effectiveDate: "asc" },
   });
   for (const r of rows) {
+    if (r.amendment.contract.packageId !== r.location.packageId) continue;
     const isi = { ccoNumber: r.amendment.ccoNumber, effectiveDate: r.effectiveDate };
     if (r.kind === "cabut") {
       if (r.effectiveDate.getTime() <= pada.getTime()) dicabut.set(r.locationId, isi);

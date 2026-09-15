@@ -317,3 +317,42 @@ export async function getPackageAuditLogs(packageId: string) {
     },
   });
 }
+
+/**
+ * Paket yang boleh MENERIMA lokasi pindahan (super admin, `location.correct`).
+ *
+ * Disaring di server, bukan di layar: daftar ini menentukan ke mana sebuah
+ * lokasi boleh berpindah, jadi ia ikut menjadi pagar — bukan sekadar isi
+ * dropdown. Yang masuk hanya paket organisasi yang sama, tahapnya masih boleh
+ * menerima lokasi, dan bukan paket asalnya sendiri.
+ */
+export async function paketTujuanPindah(
+  orgId: string,
+  kecualiPackageId: string,
+): Promise<{ id: string; name: string; label: string }[]> {
+  const rows = await db.package.findMany({
+    where: {
+      orgId,
+      id: { not: kecualiPackageId },
+      stage: { in: ["prospek", "tender", "penetapan", "kontrak", "pelaksanaan"] },
+    },
+    select: {
+      id: true,
+      name: true,
+      stage: true,
+      packageNumber: true,
+      contract: { select: { startDate: true } },
+      _count: { select: { locations: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    // Nomor paket & tahap ikut di label: nama paket KNMP mirip satu sama lain,
+    // dan memindahkan lokasi ke paket yang keliru adalah kesalahan yang mahal.
+    label:
+      `${p.name}${p.packageNumber ? ` · ${p.packageNumber}` : ""} · ${p.stage}` +
+      ` · ${p._count.locations} lokasi${p.contract?.startDate ? "" : " · belum SPMK"}`,
+  }));
+}

@@ -9,6 +9,7 @@ import {
   addTargetLocation,
   addTargetLocationsFromCatalog,
   correctAddLocationAction,
+  pindahkanLokasiAction,
   removeTargetLocation,
   type PackageActionState,
 } from "@/lib/package/actions";
@@ -352,6 +353,119 @@ export function CorrectAddLocationForm({
       <Button type="submit" size="sm" variant="danger" loading={pending}>
         Tambahkan sebagai koreksi data
       </Button>
+    </form>
+  );
+}
+
+/**
+ * PINDAHKAN LOKASI KE PAKET LAIN — super admin saja (`location.correct`).
+ *
+ * Dua jalur, dan perbedaannya bukan kosmetik (ketetapan user 2026-09-15):
+ * `paksa` untuk lokasi yang sejak awal salah paket, `cco` untuk perpindahan
+ * yang memang kontraktual dan punya nomor adendumnya. Server menolak jalur
+ * `paksa` bila lokasinya ternyata punya riwayat lingkup kontraktual.
+ */
+export function PindahLokasiForm({
+  locationId,
+  name,
+  paketTujuan,
+}: {
+  locationId: string;
+  name: string;
+  paketTujuan: { id: string; label: string }[];
+}) {
+  const [state, action, pending] = useAksi<PackageActionState>(pindahkanLokasiAction, undefined);
+  const [buka, setBuka] = useState(false);
+  const [mode, setMode] = useState<"paksa" | "cco">("paksa");
+
+  if (!buka) {
+    return (
+      <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(true)}>
+        Pindahkan…
+      </Button>
+    );
+  }
+
+  return (
+    <form action={action} className="w-full space-y-3 rounded-md border border-border bg-surface-muted/40 p-3">
+      <input type="hidden" name="locationId" value={locationId} />
+      <input type="hidden" name="mode" value={mode} />
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+
+      <Banner
+        tone="warning"
+        title={`Pindahkan "${name}" ke paket lain`}
+        description="Seluruh RAB, kurva-S, rencana mingguan, laporan, dan fotonya ikut pindah. Kalender proyek (SPMK, durasi, mode minggu) milik PAKET, jadi rentang rencana dan grid kurva-S dihitung ulang ke kalender paket tujuan. Tercatat di audit & histori KEDUA paket."
+      />
+
+      {/* Tombol, BUKAN radio – React mereset form sesudah action selesai dan
+          reset itu memisahkan tampilan dari state (sama dengan CorrectAdd). */}
+      <div className="flex flex-wrap gap-1.5 text-[13px]">
+        {[
+          { v: "paksa" as const, label: "Koreksi salah input" },
+          { v: "cco" as const, label: "Lewat adendum (CCO)" },
+        ].map((o) => (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => setMode(o.v)}
+            aria-pressed={mode === o.v}
+            className={`rounded-md border px-2.5 py-1 ${
+              mode === o.v
+                ? "border-primary bg-info-soft font-medium text-ink"
+                : "border-border text-ink-muted hover:border-border-strong"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <Label htmlFor={`pindah-tujuan-${locationId}`} required>
+          Paket tujuan
+        </Label>
+        <Combobox
+          id={`pindah-tujuan-${locationId}`}
+          name="tujuanPackageId"
+          required
+          placeholder="ketik nama atau nomor paket…"
+          options={paketTujuan.map((p) => ({ value: p.id, label: p.label }))}
+        />
+      </div>
+
+      {mode === "cco" ? (
+        <div>
+          <Label htmlFor={`pindah-cco-${locationId}`} required>
+            Nomor CCO / adendum
+          </Label>
+          <Input id={`pindah-cco-${locationId}`} name="ccoNumber" required placeholder="mis. CCO-02/2026" />
+        </div>
+      ) : null}
+
+      <div>
+        <Label htmlFor={`pindah-alasan-${locationId}`} required>
+          Alasan pemindahan
+        </Label>
+        <Input
+          id={`pindah-alasan-${locationId}`}
+          name="alasan"
+          required
+          minLength={10}
+          maxLength={500}
+          placeholder="mis. lokasi ini terinput di paket yang salah saat pendataan awal"
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" loading={pending}>
+          Pindahkan
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(false)}>
+          Batal
+        </Button>
+      </div>
     </form>
   );
 }
