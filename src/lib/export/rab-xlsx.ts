@@ -71,7 +71,18 @@ const VOL_FMT = "#,##0.000";
  *
  * Sejalan dengan DECISIONS 203: angka dan kode dari user dipakai apa adanya.
  */
-const displayCode = (code: string) => code.replace(/#\d+$/, "").trim();
+/*
+ * Sufiks pembeda kode kembar TIDAK ikut ke dokumen resmi — dan SEMUANYA, bukan
+ * satu.
+ *
+ * Sufiks itu bisa bertumpuk: `hps-parser` memberi sub kedua kode "II.1#2", lalu
+ * `flattenParsedRab` menambah "#2" lagi ketika key-nya bertabrakan dengan item
+ * "2" milik sub pertama → "II.1#2#2". Versi lama membuang satu saja, jadi kolom
+ * Kode berisi "II.1#2" — bentuk yang tidak dikenali parser saat berkasnya
+ * diimpor ulang: barisnya dibuang tanpa peringatan dan item-itemnya pindah ke
+ * sub pertama. Audit 2026-09-15 (D-3).
+ */
+const displayCode = (code: string) => code.replace(/(?:#\d+)+$/, "").trim();
 const displayName = (name: string) => name.replace(/\s+/g, " ").trim();
 
 const thin: Partial<ExcelJS.Borders> = {

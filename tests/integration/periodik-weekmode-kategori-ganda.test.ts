@@ -132,6 +132,7 @@ describe("kontrak senin_minggu dengan SPMK bukan-Senin", () => {
     vi.setSystemTime(new Date("2026-09-14T09:00:00+07:00"));
     try {
       const rep = await getPeriodReport(locationId, "mingguan", 2);
+      if (!rep) throw new Error("laporan periodik tidak terbentuk");
       expect(rep.scurve.currentWeek).toBe(2);
       // Realisasi minggu ke-2 TERISI – bukan null seperti sebelumnya.
       expect(rep.scurve.actualPct[1]).not.toBeNull();
@@ -149,6 +150,7 @@ describe("dua kategori berkode romawi sama", () => {
     vi.setSystemTime(new Date("2026-09-14T09:00:00+07:00"));
     try {
       const rep = await getPeriodReport(locationId, "mingguan", 2);
+      if (!rep) throw new Error("laporan periodik tidak terbentuk");
       const kunci = rep.categories.map((c) => c.lineageKey);
       expect(kunci).toContain("VI");
       expect(kunci).toContain("VI#2");

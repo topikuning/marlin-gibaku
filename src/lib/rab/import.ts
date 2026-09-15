@@ -207,8 +207,14 @@ export async function activateRevision(revisionId: string, userId: string) {
         data: { status: "aktif" },
       });
 
-      const disesuaikan = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
-      return { revisi, laporanDinaikkan: naik.count, disesuaikan };
+      const penyesuaian = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
+      return {
+        revisi,
+        laporanDinaikkan: naik.count,
+        disesuaikan: penyesuaian.jumlahItem,
+        tanggalTerawal: penyesuaian.tanggalTerawal,
+        rincianPenyesuaian: penyesuaian.rincian,
+      };
     },
     /*
      * BATAS WAKTU TRANSAKSI DINAIKKAN — bukan penyetelan buta.
@@ -235,6 +241,49 @@ export async function activateRevision(revisionId: string, userId: string) {
      */
     { timeout: 60_000, maxWait: 15_000 },
   );
+  /*
+   * SNAPSHOT LAPORAN FINAL DIBANGUN ULANG — di luar transaksi, sesudah aktivasi
+   * benar-benar jadi.
+   *
+   * Penyesuaian di atas menulis ulang `volumeDone`/`valueDone` termasuk pada
+   * laporan FINAL, tetapi blanko harian final dibaca dari `finalSnapshot` yang
+   * beku. Tanpa pembangunan ulang, dokumen yang justru jadi alasan fitur ini
+   * ("blanko harian menuliskan 45,7 m³ terpasang atas baris kontrak 32,15 m³")
+   * TETAP salah — sementara laporan mingguan dan progres sudah memakai angka
+   * baru. Satu sistem, dua angka. Audit 2026-09-15 (B-4).
+   *
+   * Cakupannya sejak tanggal terawal yang berubah: angka "s/d" laporan
+   * sesudahnya ikut bergeser. Polanya sama dengan pindah tanggal laporan
+   * (DECISIONS 415). Kegagalan satu snapshot TIDAK membatalkan aktivasi yang
+   * sudah sah — ia dicatat, dan tombol "Bangun ulang snapshot" di Sistem tetap
+   * jadi jaring terakhir.
+   */
+  let snapshotDibangunUlang = 0;
+  if (activated.tanggalTerawal) {
+    const { buildFinalSnapshot } = await import("@/lib/daily-report/service");
+    const terdampak = await db.dailyReport.findMany({
+      where: {
+        locationId: activated.revisi.locationId,
+        status: "final",
+        reportDate: { gte: activated.tanggalTerawal },
+      },
+      orderBy: { reportDate: "asc" },
+      select: { id: true },
+    });
+    for (const r of terdampak) {
+      try {
+        const snapshot = await buildFinalSnapshot(r.id);
+        await db.dailyReport.update({
+          where: { id: r.id },
+          data: { finalSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+        });
+        snapshotDibangunUlang++;
+      } catch (e) {
+        console.error("[rab/activate] snapshot final gagal dibangun ulang:", r.id, e);
+      }
+    }
+  }
+
   await audit(userId, "rab.revision_activate", "rab_revision", activated.revisi.id, {
     locationId: activated.revisi.locationId,
     revisionNo: activated.revisi.revisionNo,
@@ -243,8 +292,26 @@ export async function activateRevision(revisionId: string, userId: string) {
     laporanDinaikkan: activated.laporanDinaikkan,
     // Berapa ITEM yang realisasinya diturunkan mengikuti volume barunya.
     itemDisesuaikan: activated.disesuaikan,
+    // Berapa blanko harian FINAL yang angkanya ikut dibangun ulang.
+    snapshotDibangunUlang,
   });
-  return activated.revisi;
+  /*
+   * Yang DIUBAH ikut pulang, bukan cuma masuk audit.
+   *
+   * CLAUDE.md dan DECISIONS 203: penyesuaian angka pengguna "wajib seragam DAN
+   * dikatakan di UI". Sebelumnya jumlah item yang realisasinya diturunkan hanya
+   * tercatat di audit log — layar cuma bilang "realisasi tersambung otomatis
+   * via lineage", padahal ada laporan harian (termasuk yang FINAL) yang
+   * angkanya turun. Audit 2026-09-15 (E-2).
+   */
+  return {
+    ...activated.revisi,
+    penyesuaian: {
+      item: activated.disesuaikan,
+      rincian: activated.rincianPenyesuaian,
+      snapshotDibangunUlang,
+    },
+  };
 }
 
 /**
@@ -283,12 +350,17 @@ async function sesuaikanRealisasiKeVolumeBaru(
   revisionId: string,
   locationId: string,
   userId: string,
-): Promise<number> {
+): Promise<{
+  jumlahItem: number;
+  tanggalTerawal: Date | null;
+  /** Yang DIUBAH, siap dikatakan di layar – DECISIONS 203. */
+  rincian: { item: string; dari: number; ke: number; baris: number; adaFinal: boolean }[];
+}> {
   const items = await tx.rabNode.findMany({
     where: { revisionId, kind: "item" },
     select: { lineageKey: true, code: true, name: true, volume: true, unitPrice: true },
   });
-  if (items.length === 0) return 0;
+  if (items.length === 0) return { jumlahItem: 0, tanggalTerawal: null, rincian: [] };
 
   const baris = await tx.dailyReportItem.findMany({
     where: {
@@ -305,7 +377,7 @@ async function sesuaikanRealisasiKeVolumeBaru(
     // aktivasi yang sama menghasilkan angka yang sama.
     orderBy: [{ report: { reportDate: "asc" } }, { id: "asc" }],
   });
-  if (baris.length === 0) return 0;
+  if (baris.length === 0) return { jumlahItem: 0, tanggalTerawal: null, rincian: [] };
 
   type Baris = (typeof baris)[number];
   const perLineage = new Map<string, Baris[]>();
@@ -316,6 +388,13 @@ async function sesuaikanRealisasiKeVolumeBaru(
   }
 
   let jumlahItem = 0;
+  /*
+   * Tanggal laporan TERAWAL yang barisnya berubah — pangkal pembangunan ulang
+   * snapshot final. Angka "s/d" laporan sesudahnya ikut bergeser, jadi yang
+   * perlu dibangun ulang bukan cuma laporan yang barisnya disentuh.
+   */
+  let tanggalTerawal: Date | null = null;
+  const rincian: { item: string; dari: number; ke: number; baris: number; adaFinal: boolean }[] = [];
   for (const n of items) {
     const rows = perLineage.get(n.lineageKey);
     if (!rows || n.volume == null) continue;
@@ -327,6 +406,9 @@ async function sesuaikanRealisasiKeVolumeBaru(
     const harga = Number(n.unitPrice ?? 0);
     for (const [i, r] of rows.entries()) {
       if (sesudah[i] === sebelum[i]) continue;
+      if (tanggalTerawal === null || r.report.reportDate < tanggalTerawal) {
+        tanggalTerawal = r.report.reportDate;
+      }
       await tx.dailyReportItem.update({
         where: { id: r.id },
         // `valueDone` ikut dihitung ulang: ia dipakai layar harian dan snapshot
@@ -336,6 +418,13 @@ async function sesuaikanRealisasiKeVolumeBaru(
       });
     }
     jumlahItem++;
+    rincian.push({
+      item: `${n.code} ${n.name}`,
+      dari: sebelum.reduce((t, v) => t + v, 0),
+      ke: sesudah.reduce((t, v) => t + v, 0),
+      baris: rows.filter((_, i) => sesudah[i] !== sebelum[i]).length,
+      adaFinal: rows.some((r) => r.report.status === "final"),
+    });
     await auditIn(tx, userId, "rab.adendum_sesuaikan_realisasi", "rab_revision", revisionId, {
       locationId,
       lineageKey: n.lineageKey,
@@ -351,7 +440,7 @@ async function sesuaikanRealisasiKeVolumeBaru(
       })),
     });
   }
-  return jumlahItem;
+  return { jumlahItem, tanggalTerawal, rincian };
 }
 
 /** Hapus draft + seluruh node-nya (cascade FK). Hanya draft yang boleh dibuang. */

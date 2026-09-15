@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { formatNumber } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
 import { totalWeeksFor, activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
@@ -105,7 +106,7 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.
     await pastikanBolehAktivasi(rev.id);
-    await activateRevision(rev.id, user.id);
+    const aktif = await activateRevision(rev.id, user.id);
     // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
     // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
     try {
@@ -126,7 +127,31 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
       };
     }
     revalidateRab(rev.location.slug);
-    return { success: `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.` };
+    /*
+     * PENYESUAIAN REALISASI DIKATAKAN, bukan cuma masuk audit log.
+     *
+     * Aktivasi bisa MENURUNKAN volume laporan harian yang sudah dikirim orang —
+     * termasuk yang sudah FINAL — ketika volume kontraknya turun di bawah
+     * realisasi. DECISIONS 203: penyesuaian angka pengguna wajib dikatakan di
+     * UI. Sebelumnya layar hanya bilang "realisasi tersambung otomatis via
+     * lineage". Audit 2026-09-15 (E-2).
+     */
+    const p = aktif.penyesuaian;
+    let kabar = `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.`;
+    if (p.item > 0) {
+      const contoh = p.rincian
+        .slice(0, 3)
+        .map((x) => `${x.item} ${formatNumber(x.dari)} → ${formatNumber(x.ke)}`)
+        .join("; ");
+      const adaFinal = p.rincian.some((x) => x.adaFinal);
+      kabar +=
+        ` PERHATIAN: realisasi ${p.item} item DITURUNKAN mengikuti volume kontrak barunya` +
+        ` (${contoh}${p.rincian.length > 3 ? `; +${p.rincian.length - 3} lainnya` : ""})` +
+        (adaFinal ? `, termasuk laporan yang sudah FINAL` : "") +
+        `. ${p.snapshotDibangunUlang} blanko harian final ikut dibangun ulang.` +
+        ` Rinciannya ada di audit log.`;
+    }
+    return { success: kabar };
   } catch (err) {
     return fail(err);
   }
