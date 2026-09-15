@@ -258,31 +258,10 @@ export async function activateRevision(revisionId: string, userId: string) {
    * sudah sah — ia dicatat, dan tombol "Bangun ulang snapshot" di Sistem tetap
    * jadi jaring terakhir.
    */
-  let snapshotDibangunUlang = 0;
-  if (activated.tanggalTerawal) {
-    const { buildFinalSnapshot } = await import("@/lib/daily-report/service");
-    const terdampak = await db.dailyReport.findMany({
-      where: {
-        locationId: activated.revisi.locationId,
-        status: "final",
-        reportDate: { gte: activated.tanggalTerawal },
-      },
-      orderBy: { reportDate: "asc" },
-      select: { id: true },
-    });
-    for (const r of terdampak) {
-      try {
-        const snapshot = await buildFinalSnapshot(r.id);
-        await db.dailyReport.update({
-          where: { id: r.id },
-          data: { finalSnapshot: snapshot as unknown as Prisma.InputJsonValue },
-        });
-        snapshotDibangunUlang++;
-      } catch (e) {
-        console.error("[rab/activate] snapshot final gagal dibangun ulang:", r.id, e);
-      }
-    }
-  }
+  const { bangunUlangSnapshotFinal } = await import("@/lib/daily-report/snapshot-rebuild");
+  const snapshotDibangunUlang = activated.tanggalTerawal
+    ? await bangunUlangSnapshotFinal(activated.revisi.locationId, { sejak: activated.tanggalTerawal })
+    : 0;
 
   await audit(userId, "rab.revision_activate", "rab_revision", activated.revisi.id, {
     locationId: activated.revisi.locationId,

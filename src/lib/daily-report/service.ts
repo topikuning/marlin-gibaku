@@ -1,6 +1,7 @@
 import type { NoActivityReason } from "@/generated/prisma/enums";
 import { alasanTidakBisaNihil } from "./nihil";
 import { db } from "@/lib/db";
+import { nodeAktifByLineage } from "@/lib/rab/node-aktif";
 import { audit, auditIn } from "@/lib/audit";
 import { requestIp } from "@/lib/auth/session";
 import { canTransitionReport } from "@/lib/lifecycle";
@@ -37,6 +38,10 @@ import { VOLUME_EPSILON } from "./constants";
 export class DailyReportError extends Error {}
 
 export const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
+/** Satu kalimat untuk seluruh pagar nihil, supaya orangnya tahu harus apa. */
+export const PESAN_NIHIL_AKTIF =
+  "Hari ini sudah dinyatakan tidak ada kegiatan – batalkan pernyataannya dulu " +
+  "sebelum mengisi pekerjaan, material, atau alat.";
 const ENRICHABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi", "dikirim"];
 /**
  * Status yang boleh di-enrich oleh PEMBUAT (daily_report.create saja).
@@ -116,6 +121,18 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
   if (!Number.isFinite(input.volumeDone) || input.volumeDone <= 0) {
     throw new DailyReportError("Volume harus lebih dari 0");
   }
+  /*
+   * Invarian nihil BERLAKU DUA ARAH. `setHariNihil` sudah menolak pernyataan
+   * nihil pada laporan yang sudah berisi; arah sebaliknya dulu terbuka, jadi
+   * impor rekap Excel (atau tab kedua yang dimuat sebelum nihil dinyatakan)
+   * bisa menyisipkan item ke laporan yang sudah dinyatakan nihil. Hasilnya
+   * satu laporan dengan dua pernyataan yang saling menyangkal: blanko KKP
+   * mencetak "TIDAK ADA KEGIATAN" sambil menyembunyikan baris volumenya,
+   * sementara progres & kurva-S tetap menghitung volume itu, dan penjadwal
+   * nihil menghitung harinya sebagai hari berhenti.
+   * Audit 2026-09-15 (A-3/C-3).
+   */
+  if (report.noActivity) throw new DailyReportError(PESAN_NIHIL_AKTIF);
   const volumeDone = Math.round(input.volumeDone * 1000) / 1000; // presisi kolom Decimal(15,3)
 
   const node = await db.rabNode.findUnique({
@@ -283,6 +300,16 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
   const equipment = input.equipment
     .map((e, i) => ({ ...e, asli: i }))
     .filter((e) => e.name.trim().length > 0 && e.count > 0);
+  /*
+   * Arah kedua invarian nihil (A-3/C-3). Cuaca, jam kerja, dan tenaga TETAP
+   * boleh disimpan pada hari nihil — justru cuacalah yang menjelaskan sebabnya.
+   * Yang ditolak hanya material masuk & alat: keduanya pekerjaan, dan
+   * `alasanTidakBisaNihil` memang memakai keduanya untuk menolak arah
+   * sebaliknya.
+   */
+  if (report.noActivity && (materials.length > 0 || equipment.length > 0)) {
+    throw new DailyReportError(PESAN_NIHIL_AKTIF);
+  }
   /** id hasil simpan, sejajar dengan larik MASUKAN (null = baris dibuang). */
   const idMaterial: (string | null)[] = input.materials.map(() => null);
   const idAlat: (string | null)[] = input.equipment.map(() => null);
@@ -429,6 +456,29 @@ async function assertVolumeWithinRab(
   });
   if (items.length === 0) return;
 
+  /*
+   * VOLUME KONTRAK PEMBANDING DIAMBIL DARI REVISI AKTIF lewat lineageKey,
+   * bukan dari node yang menempel saat item disimpan.
+   *
+   * `rabNodeId` ditulis sekali waktu baris dibuat dan tidak pernah dipetakan
+   * ulang. Kalau adendum diaktifkan sementara draft hari ini sudah berisi,
+   * `it.rabNode` masih menunjuk node revisi yang kini `digantikan` — jadi
+   * pagarnya mengadu realisasi dengan volume kontrak LAMA, dan volume yang
+   * melampaui kontrak yang berlaku lolos tanpa sepatah kata. Baris basis
+   * `draft_adendum` tetap diadu dengan node draftnya sendiri: volume draft
+   * memang pembanding yang benar untuk pekerjaan yang adendumnya menyusul.
+   * Audit 2026-09-15 (B-2).
+   */
+  const aktifNodes = await tx.rabNode.findMany({
+    where: {
+      lineageKey: { in: items.map((it) => it.lineageKey) },
+      kind: "item",
+      revision: { locationId: report.locationId, status: "aktif" },
+    },
+    select: { lineageKey: true, code: true, name: true, unit: true, volume: true },
+  });
+  const aktifByLineage = new Map(aktifNodes.map((n) => [n.lineageKey, n]));
+
   // Dikelompokkan PER BASIS, bukan hanya per lineage — pembandingnya berbeda
   // (DECISIONS 210): baris basis aktif diadu dengan volume RAB aktif sehingga
   // hanya realisasi basis aktif yang boleh ikut dijumlahkan; baris basis draft
@@ -458,14 +508,18 @@ async function assertVolumeWithinRab(
 
   const offending: string[] = [];
   for (const it of items) {
-    const volK = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
+    // Lineage yang TIDAK ada lagi di revisi aktif jatuh kembali ke node yang
+    // menempel — itu keadaan yang ditangani penyesuaian aktivasi adendum
+    // (DECISIONS 507), bukan urusan pagar ini.
+    const ref = (it.basis === "aktif" ? aktifByLineage.get(it.lineageKey) : null) ?? it.rabNode;
+    const volK = ref.volume != null ? Number(ref.volume) : null;
     if (volK == null) continue;
     const others = othersFor(it.lineageKey, it.basis);
     const total = others + Number(it.volumeDone);
     if (total > volK + VOLUME_EPSILON) {
       const sisa = Math.max(0, Math.round((volK - others) * 1000) / 1000);
       offending.push(
-        `${it.rabNode.code} ${it.rabNode.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${it.rabNode.unit ?? ""} (sisa ${formatNumber(sisa)})`.trim(),
+        `${ref.code} ${ref.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${ref.unit ?? ""} (sisa ${formatNumber(sisa)})`.trim(),
       );
     }
   }
@@ -583,6 +637,23 @@ export async function submitReport(reportId: string, userId: string) {
        */
       throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
     }
+  } else if (laporan?.noActivity) {
+    /*
+     * Pagar terakhir arah kedua (A-3/C-3): laporan yang dinyatakan nihil TAPI
+     * berisi tidak boleh terkirim. Dua pagar di hulu (upsertItem &
+     * setEnrichment) sudah menutup jalur barunya; yang ini menahan baris yang
+     * TERLANJUR tersimpan sebelum pagar itu ada — tanpa dia, laporan lama yang
+     * sudah telanjur bercabang dua masih bisa berjalan ke dikirim/disetujui.
+     */
+    throw new DailyReportError(
+      `Laporan ini dinyatakan tidak ada kegiatan, tetapi berisi ${[
+        itemCount > 0 ? `${itemCount} item pekerjaan` : null,
+        materialCount > 0 ? `${materialCount} material` : null,
+        equipmentCount > 0 ? `${equipmentCount} alat` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}. Batalkan pernyataan "Tidak ada kegiatan" atau hapus isinya.`,
+    );
   }
   const { updated } = await transition(
     reportId,
@@ -815,17 +886,31 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
   const itemsAktif = report.items.filter((it) => it.basis === "aktif");
   const itemsDraftAdendum = report.items.length - itemsAktif.length;
 
+  /*
+   * "Volume Kontrak" yang DIBEKUKAN ke snapshot dibaca dari revisi AKTIF lewat
+   * lineageKey. `it.rabNode` bisa milik revisi yang sudah `digantikan` (adendum
+   * aktif sesudah barisnya disimpan), dan membekukan volume revisi lama membuat
+   * blanko harian menyebut volume kontrak yang berbeda dari laporan mingguan
+   * untuk item yang sama — dua dokumen resmi, dua kontrak.
+   * Audit 2026-09-15 (B-2).
+   */
+  const aktifByLineage = await nodeAktifByLineage(
+    report.locationId,
+    itemsAktif.map((it) => it.lineageKey),
+  );
+
   let totalValueToday = 0n;
   const items = itemsAktif.map((it) => {
     const volumeToday = Number(it.volumeDone);
     const volumeCumulative = cumulative.get(it.lineageKey) ?? volumeToday;
-    const volumeContract = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
+    const ref = aktifByLineage.get(it.lineageKey);
+    const volumeContract = ref ? ref.volume : it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
     totalValueToday += it.valueDone;
     return {
       lineageKey: it.lineageKey,
-      code: it.rabNode.code,
-      name: it.rabNode.name,
-      unit: it.rabNode.unit,
+      code: ref?.code ?? it.rabNode.code,
+      name: ref?.name ?? it.rabNode.name,
+      unit: ref?.unit ?? it.rabNode.unit,
       volumeContract,
       volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),
       volumeToday,
@@ -915,6 +1000,34 @@ export async function finalizeReport(reportId: string, userId: string) {
       payload: { items: snapshot.items.length, totalValueToday: snapshot.totalValueToday },
     },
   );
+
+  /*
+   * Laporan final BERTANGGAL SESUDAHNYA ikut dibangun ulang.
+   *
+   * Jalur yang membuatnya perlu: buka kunci final → kembalikan → koreksi
+   * volume → setujui → final LAGI. Snapshot laporan ini memang segar, tetapi
+   * laporan final hari-hari berikutnya masih membekukan `volumeBefore` dan
+   * kumulatif dari angka yang barusan dikoreksi — cetak/PDF/Drive hari itu
+   * menampilkan kumulatif yang MARLIN sendiri tahu sudah salah, sementara
+   * laporan mingguan & progres sudah memakai angka baru. Satu sistem, dua
+   * angka. Pemindahan tanggal sudah melakukan ini dengan alasan yang sama
+   * (DECISIONS 415); jalur buka-kunci terlewat. Audit 2026-09-15 (A-4).
+   *
+   * Pada finalisasi normal (urut tanggal) tidak ada laporan final sesudahnya,
+   * jadi ini tidak menambah kerja apa pun.
+   */
+  const { bangunUlangSnapshotFinal } = await import("./snapshot-rebuild");
+  const snapshotDibangunUlang = await bangunUlangSnapshotFinal(current.locationId, {
+    sejak: new Date(current.reportDate.getTime() + 86_400_000),
+    kecualiId: reportId,
+  });
+  if (snapshotDibangunUlang > 0) {
+    await audit(userId, "daily_report.snapshot_rebuild", "daily_report", reportId, {
+      locationId: current.locationId,
+      sesudahTanggal: jakartaDateKey(current.reportDate),
+      jumlah: snapshotDibangunUlang,
+    });
+  }
 
   // Laporan final = dokumen yang memang harus ada di Drive KKP, jadi niat itu
   // dicatat di sini — di SATU tempat yang dilewati semua jalur finalisasi.
@@ -1047,8 +1160,23 @@ export async function setHariNihil(
   userId: string,
 ) {
   const report = await getReportOrThrow(reportId);
-  if (report.status === "final") {
-    throw new DailyReportError("Laporan sudah final – tidak bisa diubah.");
+  /*
+   * Pernyataan nihil hanya boleh diubah saat laporan MASIH MILIK PELAKSANA
+   * (draft / perlu_koreksi) — pagar yang sama dengan item pekerjaan.
+   *
+   * Dulu yang ditolak hanya `final`, jadi pemegang `daily_report.create` bisa
+   * mengubah sebab pada laporan yang SUDAH DISETUJUI (hujan → libur, dasar
+   * klaim perpanjangan waktu) atau membatalkan pernyataannya sehingga laporan
+   * yang sudah diverifikasi menjadi kosong dan non-nihil — persis "laporan
+   * hampa" yang `submitReport` tolak, kini lolos SESUDAH persetujuan. Tanpa
+   * satu baris histori status, dan penyetujunya tidak tahu.
+   * Audit 2026-09-15 (A-2).
+   */
+  if (!EDITABLE_STATUSES.includes(report.status)) {
+    throw new DailyReportError(
+      "Pernyataan tidak ada kegiatan hanya bisa diubah saat laporan berstatus Draft atau Perlu Koreksi. " +
+        "Kembalikan laporan untuk dikoreksi lebih dulu.",
+    );
   }
 
   if (input.nihil) {
