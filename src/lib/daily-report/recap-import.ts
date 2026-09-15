@@ -47,6 +47,10 @@ export async function getRecapLeaves(locationId: string): Promise<RecapLeaf[]> {
     db.rabNode.findMany({
       where: { revisionId: revision.id, kind: "item" },
       select: { id: true, code: true, name: true, unit: true, volume: true, unitPrice: true, lineageKey: true },
+      // Urutan yang DIJAMIN: pratinjau dan commit adalah dua permintaan terpisah,
+      // dan pencocokan yang bergantung pada urutan baca membuat keduanya bisa
+      // memilih item yang berbeda untuk baris yang sama. Audit 2026-09-15 (C-1).
+      orderBy: [{ sortOrder: "asc" }, { lineageKey: "asc" }],
     }),
     cumulativeVolumeByLineage(locationId),
   ]);
@@ -68,10 +72,16 @@ export async function buildRecapPreview(locationId: string, buf: Buffer): Promis
   const okRows = matches.filter((m) => m.status === "ok");
   const dateCount = new Map<string, number>();
   for (const m of okRows) dateCount.set(m.dateKey!, (dateCount.get(m.dateKey!) ?? 0) + 1);
+  /*
+   * Baris `digabung` BUKAN masalah: volumenya sudah dijumlahkan ke baris pertama
+   * hari itu dan ikut tersimpan. Menghitungnya sebagai "bermasalah (dilewati)"
+   * akan membuat orang mengira volumenya hilang.
+   */
+  const digabung = matches.filter((m) => m.status === "digabung").length;
   return {
     rows: matches,
     okCount: okRows.length,
-    problemCount: matches.length - okRows.length,
+    problemCount: matches.length - okRows.length - digabung,
     dates: [...dateCount.entries()].map(([dateKey, count]) => ({ dateKey, count })).sort((a, b) => a.dateKey.localeCompare(b.dateKey)),
     totalValue: okRows.reduce((s, m) => s + (m.valueDone ?? 0), 0),
   };

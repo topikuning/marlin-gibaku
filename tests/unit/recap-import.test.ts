@@ -68,6 +68,71 @@ describe("matchRows", () => {
     expect(out[1].status).toBe("over_volume");
   });
 
+  it("KODE GANDA antar kategori tidak dicocokkan asal-asalan – ditandai ambigu", () => {
+    /*
+     * RAB KNMP lazim memakai kode item yang berulang antar kategori: item "1" di
+     * kategori I dan item "1" di kategori II. Yang membedakan keduanya lineageKey,
+     * bukan kodenya. Versi pertama membangun `byCode` dengan `set()` polos, jadi
+     * leaf TERAKHIR menang — dan urutannya datang dari `findMany` tanpa `orderBy`,
+     * sehingga pratinjau dan commit bisa memilih item yang berbeda.
+     *
+     * Volume mendarat di pekerjaan yang salah, diam-diam, lalu ikut masuk
+     * progress resmi. Audit 2026-09-15 (C-1).
+     */
+    const kembar: RecapLeaf[] = [
+      { id: "n-galian", code: "1", name: "Galian Tanah", unit: "m3", volume: 100, unitPrice: 50_000, lineageKey: "I#1", doneCumulative: 0 },
+      { id: "n-beton", code: "1", name: "Beton K-225", unit: "m3", volume: 80, unitPrice: 900_000, lineageKey: "II#1", doneCumulative: 0 },
+    ];
+    const out = matchRows(
+      [{ rowNum: 3, rawDate: "2026-07-12", dateKey: "2026-07-12", code: "1", name: "Galian", volume: 5 }],
+      kembar,
+      today,
+    );
+    // Uraiannya menyebut "Galian" → masih bisa dipastikan, dan HARUS ke Galian.
+    expect(out[0]).toMatchObject({ status: "ok", matchedNodeId: "n-galian" });
+
+    // Tanpa uraian yang memihak, jangan menebak: ambigu, sebutkan kandidatnya.
+    const buta = matchRows(
+      [{ rowNum: 3, rawDate: "2026-07-12", dateKey: "2026-07-12", code: "1", name: "", volume: 5 }],
+      kembar,
+      today,
+    );
+    expect(buta[0].status).toBe("ambigu");
+    expect(buta[0].matchedNodeId).toBeNull();
+    expect(buta[0].message).toContain("Galian Tanah");
+    expect(buta[0].message).toContain("Beton K-225");
+  });
+
+  it("dua baris TANGGAL & PEKERJAAN sama digabung, bukan saling menimpa", () => {
+    /*
+     * Pagi 3 m3, sore 4 m3, tanggal & pekerjaan sama. Versi pertama menandai
+     * keduanya `ok` (pratinjau menjanjikan 7), lalu `commitRecap` memanggil
+     * `upsertItem` dua kali pada kunci unik (reportId, lineageKey) — baris kedua
+     * MENIMPA yang pertama, jadi yang tersimpan 4. Angka pengguna berubah
+     * diam-diam, dan `itemsSaved` tetap menghitung dua. Audit 2026-09-15 (C-2).
+     */
+    const rows = [
+      { rowNum: 3, rawDate: "2026-07-12", dateKey: "2026-07-12", code: "1.1", name: "Galian Tanah", volume: 3 },
+      { rowNum: 4, rawDate: "2026-07-12", dateKey: "2026-07-12", code: "1.1", name: "Galian Tanah", volume: 4 },
+    ];
+    const out = matchRows(rows, leaves, today);
+    expect(out[0].status).toBe("ok");
+    expect(out[1].status).toBe("digabung");
+    // Yang dikatakan di layar: ke baris mana ia digabung, dan totalnya berapa.
+    expect(out[1].message).toContain("baris 3");
+    expect(out[1].message).toContain("7");
+    // Nilainya tetap dihitung sekali saja — totalValue pratinjau tidak boleh dobel.
+    expect(out[0].valueDone).toBe(350_000); // (3+4) × 50.000
+    expect(out[1].valueDone).toBeNull();
+    // Tanggal BERBEDA tetap dua baris berdiri sendiri.
+    const beda = matchRows(
+      [rows[0], { ...rows[1], rowNum: 5, rawDate: "2026-07-13", dateKey: "2026-07-13" }],
+      leaves,
+      today,
+    );
+    expect(beda.map((m) => m.status)).toEqual(["ok", "ok"]);
+  });
+
   it("menandai unmatched, bad_date, future_date, zero_volume", () => {
     const rows = [
       { rowNum: 3, rawDate: "2026-07-15", dateKey: "2026-07-15", code: "", name: "Pekerjaan Tidak Ada", volume: 3 },

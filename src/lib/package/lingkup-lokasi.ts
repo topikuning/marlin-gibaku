@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { requireCapability } from "@/lib/auth/session";
+import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { bolehMenyetujui, nilaiPersetujuan, suaraMasihBerlaku } from "@/lib/rab/persetujuan-aturan";
 import type { LocationScopeKind } from "@/generated/prisma/enums";
 
@@ -214,6 +214,16 @@ export async function ajukanPerubahanLingkup(input: {
   reason: string;
 }): Promise<{ id: string }> {
   const user = await requireCapability("contract.manage");
+  /*
+   * CAPABILITY SAJA TIDAK CUKUP.
+   *
+   * `contract.manage` dipegang Area Manager dan Project Manager — dua peran yang
+   * BUKAN lintas-lokasi. Versi pertama memuat lokasi hanya dengan id-nya, jadi
+   * satu UUID yang terbaca dari dokumen mana pun sudah cukup untuk mengusulkan
+   * pencabutan lokasi paket lain, bahkan organisasi lain. Begitu empat mata
+   * terpenuhi, lokasi itu keluar dari SELURUH agregat paket. Audit 2026-09-15.
+   */
+  await requireLocationAccess(user, input.locationId);
   const [lokasi, adendum] = await Promise.all([
     db.location.findUnique({
       where: { id: input.locationId },
@@ -285,6 +295,9 @@ export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berla
     },
   });
   if (!row) throw new LingkupError("Usulan tidak ditemukan.");
+  // Pagar akses BERDIRI SEBELUM suara dicatat: menyetujui lokasi yang bukan
+  // penugasannya berarti mengisi salah satu dari dua kursi empat mata.
+  await requireLocationAccess(user, row.locationId);
   if (row.status !== "draft") throw new LingkupError("Usulan ini sudah tidak berstatus draft.");
 
   await db.locationScopeApproval.upsert({
@@ -325,6 +338,7 @@ export async function batalkanPerubahanLingkup(changeId: string): Promise<void> 
     select: { id: true, locationId: true, status: true },
   });
   if (!row) throw new LingkupError("Usulan tidak ditemukan.");
+  await requireLocationAccess(user, row.locationId);
   if (row.status === "aktif")
     throw new LingkupError(
       "Perubahan yang SUDAH berlaku tidak dibatalkan diam-diam – terbitkan adendum berikutnya yang mengembalikannya.",
@@ -365,7 +379,8 @@ export async function batalkanPerubahanLingkup(changeId: string): Promise<void> 
 export async function arsipkanLokasiDicabut(packageId: string): Promise<{ jumlah: number }> {
   const user = await requireCapability("location_scope.archive");
   const lokasi = await db.location.findMany({
-    where: { packageId },
+    // Filter organisasi: `packageId` telanjang menerima paket organisasi lain.
+    where: { packageId, package: { orgId: user.orgId } },
     select: { id: true, name: true },
   });
   if (lokasi.length === 0) return { jumlah: 0 };
@@ -408,7 +423,10 @@ export async function arsipkanLokasiDicabut(packageId: string): Promise<{ jumlah
  */
 export async function bukaArsipLokasiDicabut(packageId: string): Promise<{ jumlah: number }> {
   const user = await requireCapability("location_scope.archive");
-  const lokasi = await db.location.findMany({ where: { packageId }, select: { id: true } });
+  const lokasi = await db.location.findMany({
+    where: { packageId, package: { orgId: user.orgId } },
+    select: { id: true },
+  });
   if (lokasi.length === 0) return { jumlah: 0 };
 
   const sasaran = await db.locationScopeChange.findMany({

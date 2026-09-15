@@ -3,6 +3,7 @@ import { pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/pena
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
+import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import {
   bobotPct,
@@ -518,11 +519,22 @@ export async function getPeriodReport(
     else if (k <= eKey) ini.set(r.lineageKey, (ini.get(r.lineageKey) ?? 0) + v);
   }
 
-  // Susun kategori → item. Kategori item = segmen pertama lineageKey ("I#6.1#a" → "I").
+  /*
+   * Susun kategori → item.
+   *
+   * Kategorinya dicari lewat `kategoriDariLineage` (prefiks terpanjang + batas
+   * "#"), BUKAN `split("#")[0]`. Tanda "#" memikul dua arti — pemisah jenjang
+   * dan sufiks kode kembar — jadi memotong di yang pertama melebur kategori
+   * romawi ganda: "VI#2#1" terbaca milik "VI". Realisasi kategori kedua lalu
+   * masuk ke subtotal kategori pertama, sementara kolom rencananya (yang memakai
+   * pencocokan benar di rab/import.ts) tetap di kategori kedua — satu halaman,
+   * dua baris berbeda untuk hal yang sama. Audit 2026-09-15.
+   */
   const catByRoot = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd]));
+  const catKeys = kategoriNodes.map((nd) => nd.lineageKey);
   const catMap = new Map<string, PeriodCategory>();
   const catOf = (lineageKey: string): PeriodCategory => {
-    const root = lineageKey.split("#")[0];
+    const root = kategoriDariLineageAtau(lineageKey, catKeys);
     let cat = catMap.get(root);
     if (!cat) {
       const catNode = catByRoot.get(root);
@@ -655,7 +667,7 @@ export async function getPeriodReport(
     const schedItems = itemNodes
       .filter((nd) => nd.amount > 0n)
       .map((nd) => {
-        const root = nd.lineageKey.split("#")[0];
+        const root = kategoriDariLineageAtau(nd.lineageKey, catKeys);
         return { name: nd.name, categoryKey: root, categoryName: catNameByRoot.get(root) ?? "", amount: nd.amount };
       });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
@@ -679,7 +691,15 @@ export async function getPeriodReport(
   );
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
-  const currentWeek = currentWeekNumber(startDate, seriesLen, today);
+  /*
+   * weekMode DITERUSKAN. Tanpa itu ia jatuh ke default `tujuh_hari`, sehingga
+   * pada kontrak `senin_minggu` dengan SPMK bukan-Senin minggu berjalan
+   * terhitung satu lebih kecil — tiga hari dari tujuh, sepanjang kontrak.
+   * Akibatnya `cutoffWeek` memotong satu minggu terlalu awal: garis realisasi
+   * dan kolom deviasi minggu itu KOSONG, sementara tabel item di halaman yang
+   * sama sudah terisi. Audit 2026-09-15 (B-3/G-4).
+   */
+  const currentWeek = currentWeekNumber(startDate, seriesLen, today, weekMode);
 
   // Realisasi kurva-S dihitung dari VOLUME + bobot revisi aktif — basis yang
   // SAMA persis dengan tabel di atas, bukan dari `valueDone` yang dibekukan
