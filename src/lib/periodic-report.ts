@@ -645,8 +645,16 @@ export async function getPeriodReport(
       ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
       : [],
   }));
+  // Baris NOL tidak membatalkan matriks tersimpan: impor "apa adanya"
+  // (DECISIONS 203) memang menyimpan kategori tanpa baris di Excel sebagai
+  // baris nol. Syarat lama menuntut tiap kategori punya minggu > 0, jadi satu
+  // baris kosong yang sah membuat tabel kategori di halaman ini dihitung ulang
+  // dari jendela otomatis — padahal baris "Kumulatif Rencana" di halaman yang
+  // sama memakai titik impor. Audit 2026-09-15 (G-1).
   const usableStored =
-    storedSched.length > 0 && storedSched.every((s) => s.weekly.length === totalWeeks && s.weekly.some((v) => v > 0));
+    storedSched.length > 0 &&
+    storedSched.every((s) => s.weekly.length === totalWeeks) &&
+    storedSched.some((s) => s.weekly.some((v) => v > 0));
 
   let kurvaSchedule: { lineageKey: string; code: string; name: string; weekly: number[] }[];
   if (usableStored) {

@@ -22,7 +22,6 @@ vi.mock("next/headers", () => ({
 const { db } = await import("@/lib/db");
 const { activateRevision } = await import("@/lib/rab/import");
 const { buildFinalSnapshot } = await import("@/lib/daily-report/service");
-const { Prisma } = await import("@/generated/prisma/client");
 
 const suffix = `sf${Date.now().toString(36)}`;
 /*
@@ -106,7 +105,7 @@ beforeAll(async () => {
       const snap = await buildFinalSnapshot(rep.id);
       await db.dailyReport.update({
         where: { id: rep.id },
-        data: { finalSnapshot: snap as unknown as InstanceType<typeof Prisma.JsonValue> as never },
+        data: { finalSnapshot: snap as never },
       });
     }
   }

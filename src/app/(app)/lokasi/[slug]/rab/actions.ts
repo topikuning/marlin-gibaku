@@ -26,6 +26,7 @@ import {
 import { parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
 import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
+import { weekDateRange } from "@/lib/progress-calc";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
 
@@ -590,8 +591,6 @@ export async function restoreBaselineAction(
 
 // ── Rencana mingguan ────────────────────────────────────────────────────────
 
-const DAY_MS = 24 * 3600 * 1000;
-
 const addPlanItemSchema = z.object({
   locationId: z.uuid(),
   weekNumber: z.coerce.number().int().min(1).max(520),
@@ -624,10 +623,13 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
       where: { id: d.locationId },
       select: {
         slug: true,
-        package: { select: { contract: { select: { startDate: true } } } },
+        package: {
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+        },
       },
     });
-    const startDate = location.package.contract?.startDate;
+    const kontrak = location.package.contract;
+    const startDate = kontrak?.startDate;
     if (!startDate) {
       return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
     }
@@ -643,8 +645,20 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
     });
     if (!node) return { error: "Item RAB tidak ditemukan di revisi aktif lokasi ini." };
 
-    const weekStart = new Date(startDate.getTime() + (d.weekNumber - 1) * 7 * DAY_MS);
-    const weekEnd = new Date(weekStart.getTime() + 6 * DAY_MS);
+    /*
+     * Rentang minggu mengikuti GRID KONTRAK (`weekMode`), bukan aritmetika
+     * tujuh-hari dari SPMK. Pada mode `senin_minggu` — default skema — keduanya
+     * hanya sama bila SPMK jatuh Senin. Kalau tidak, rentang yang tersimpan
+     * bergeser dari nomor minggunya sendiri: blanko harian mencari rencana
+     * lewat weekStart<=tanggal<=weekEnd, jadi hari Senin awal minggu ke-2
+     * menemukan rencana MINGGU 1. Audit 2026-09-15 (G-3).
+     */
+    const { start: weekStart, end: weekEnd } = weekDateRange(
+      startDate,
+      d.weekNumber,
+      kontrak.weekMode,
+      kontrak.endDate,
+    );
 
     const plan = await db.weeklyPlan.upsert({
       where: { locationId_weekNumber: { locationId: d.locationId, weekNumber: d.weekNumber } },
@@ -733,9 +747,15 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
 
     const location = await db.location.findUniqueOrThrow({
       where: { id: locationId },
-      select: { slug: true, package: { select: { contract: { select: { startDate: true } } } } },
+      select: {
+        slug: true,
+        package: {
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+        },
+      },
     });
-    const startDate = location.package.contract?.startDate;
+    const kontrak = location.package.contract;
+    const startDate = kontrak?.startDate;
     if (!startDate) return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
 
     const result = await suggestWeeklyPlan(locationId, weekNumber);
@@ -743,8 +763,13 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
       return { error: "Tidak ada saran untuk diterapkan." };
     }
 
-    const weekStart = new Date(startDate.getTime() + (weekNumber - 1) * 7 * DAY_MS);
-    const weekEnd = new Date(weekStart.getTime() + 6 * DAY_MS);
+    // Grid kontrak, sama dengan addWeeklyPlanItem di atas (G-3).
+    const { start: weekStart, end: weekEnd } = weekDateRange(
+      startDate,
+      weekNumber,
+      kontrak.weekMode,
+      kontrak.endDate,
+    );
     const plan = await db.weeklyPlan.upsert({
       where: { locationId_weekNumber: { locationId, weekNumber } },
       update: {},
