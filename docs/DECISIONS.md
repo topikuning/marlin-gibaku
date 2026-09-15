@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 578 | 2026-09-15 | Akhir kontrak = SPMK + durasi; SPMK titik nol – pembaca & kolom minggu baseline disamakan |
 | 577 | 2026-09-15 | Audit `dev`: 26 temuan kritis & tinggi diperbaiki; semantik tanggal akhir kontrak ditahan untuk user |
 | 576 | 2026-09-14 | Kode verifikasi WA ditahan pagar nomor pribadi – dan layar mengaku sudah mengirimnya |
 | 575 | 2026-09-14 | Frasa verifikasi WA tidak pernah dilempar ke AI, dan tidak diganti selagi masih berlaku |

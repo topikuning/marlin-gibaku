@@ -485,6 +485,31 @@ export async function totalWeeksFor(locationId: string): Promise<{
     const weekEndFracs = weekEndFractions(c.startDate, c.endDate, "senin_minggu");
     return { contractDays, totalWeeks: weekEndFracs.length, weekEndFracs };
   }
+  /*
+   * Mode `tujuh_hari` dengan SPMK sudah terbit: jumlah kolom DITURUNKAN DARI
+   * PASANGAN (SPMK, akhir kontrak) yang tersimpan, memakai penghitung yang sama
+   * dengan laporan periodik — bukan dari `ceil(durasi/7)`.
+   *
+   * Keduanya hanya sama bila durasi TIDAK habis dibagi 7. Pada durasi kelipatan
+   * 7 (119/140/210 hari) `ceil` memberi 17 sementara `totalWeeksBetween` — yang
+   * dipakai `getPeriodBounds`, `weekEndFractions`, dan konversi grid minggu —
+   * memberi 18, karena akhir kontrak = SPMK + durasi (DECISIONS 054, ditegaskan
+   * user 2026-09-15). Akibatnya baseline dibuat satu kolom lebih pendek daripada
+   * grid laporan: kolom minggu TERAKHIR blanko KKP tidak punya titik rencana.
+   *
+   * `weekEndFracs` tetap null — mode `tujuh_hari` sengaja memakai grid seragam
+   * (DECISIONS 427b) supaya bentuk kurva yang sudah beredar tidak bergeser.
+   * Yang dibetulkan JUMLAH kolomnya, bukan pembagi harinya.
+   * Audit 2026-09-15 (G-2).
+   */
+  if (c?.startDate && c.endDate) {
+    return {
+      contractDays,
+      totalWeeks: totalWeeksBetween(c.startDate, c.endDate, "tujuh_hari"),
+      weekEndFracs: null,
+    };
+  }
+  // SPMK belum terbit → belum ada kalender untuk disandari; pakai durasinya.
   return { contractDays, totalWeeks: Math.max(1, Math.ceil(contractDays / 7)), weekEndFracs: null };
 }
 

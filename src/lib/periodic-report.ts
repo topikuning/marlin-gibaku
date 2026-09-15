@@ -392,9 +392,18 @@ export async function getPeriodBounds(
     startDate = contract.startDate;
     endDate = contract.endDate;
   } else if (opts?.assume && contract.durationDays > 0) {
-    // SPMK belum terbit → asumsikan mulai hari ini, akhir = mulai + durasi − 1.
+    /*
+     * SPMK belum terbit → asumsikan mulai HARI INI, akhir = mulai + durasi.
+     *
+     * Rumusnya SAMA PERSIS dengan yang dipakai aksi SPMK & koreksi kontrak saat
+     * menulis `Contract.endDate` (DECISIONS 054, ditegaskan user 2026-09-15:
+     * SPMK adalah titik nol). Dulu di sini tertulis `durasi − 1`, jadi jadwal
+     * yang dicetak SEBELUM SPMK punya satu kolom minggu lebih sedikit daripada
+     * jadwal yang sama sesudah SPMK terbit — tanpa satu pun angka berubah.
+     * Audit 2026-09-15 (G-2).
+     */
     startDate = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
-    endDate = new Date(startDate.getTime() + (contract.durationDays - 1) * DAY);
+    endDate = new Date(startDate.getTime() + contract.durationDays * DAY);
     assumed = true;
   } else {
     return null;

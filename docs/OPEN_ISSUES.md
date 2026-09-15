@@ -687,7 +687,7 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 ---
 
 
-## AUDIT-DEV-2026-09-15 · sisa temuan (kritis & tinggi SUDAH diperbaiki)
+## AUDIT-DEV-2026-09-15 · sisa temuan (SELURUH kritis & tinggi sudah ditutup)
 
 Audit menyeluruh branch `dev` atas permintaan user (laporan harian + aliran
 datanya, RAB, adendum). Laporan lengkap — skenario, bukti `file:baris`, usul
@@ -697,32 +697,14 @@ perbaikan, dan hasil reproduksi merah-dulu tiap temuan — ada di
 74 terkonfirmasi (3 kritis · 23 tinggi · 37 sedang · 11 rendah), 9 terbantah,
 7 belum sempat diverifikasi.
 
-**Seluruh 26 temuan kritis & tinggi sudah diperbaiki**, masing-masing dengan
-uji MERAH-DULU yang diverifikasi gagal tanpa perbaikannya. Yang tersisa: 37
-sedang + 11 rendah (di laporan, belum didaftar di sini) dan SATU butir kritis
-yang sengaja tidak disentuh karena menunggu keputusan user.
+**Seluruh 26 temuan kritis & tinggi sudah diperbaiki**, masing-masing dengan uji
+MERAH-DULU yang diverifikasi gagal tanpa perbaikannya (DECISIONS 577 & 578).
+Yang tersisa untuk dikerjakan: **37 sedang + 11 rendah**, semuanya di laporan
+audit — belum didaftar ulang di sini supaya berkas ini tidak menjadi salinan
+kedua yang bisa menyimpang.
 
-### 🔴 Menunggu keputusan user — JANGAN dibetulkan sepihak
-
-- **G-2 (separuh)** · `src/lib/package/actions.ts:1104` & `:1473` — **dua
-  semantik tanggal akhir kontrak hidup berdampingan.** Penulis `endDate`
-  memakai `SPMK + durationDays` (DECISIONS 054); pembaca (`getPeriodBounds`
-  mode assume), `weekEndFractions`, dan tes memakai `SPMK + durationDays − 1`
-  (DECISIONS 092). Akibat terverifikasi: grid minggu bisa mendapat satu kolom
-  hantu sehari SESUDAH kontrak berakhir, dan pada durasi kelipatan 7 dua
-  penghitung minggu berselisih satu.
-
-  Membetulkan salah satu sisi menggeser tanggal akhir SETIAP kontrak yang
-  sudah tersimpan sehari — angka yang tercetak di dokumen resmi. Itu keputusan
-  user, bukan kode (CLAUDE.md prinsip 2). Pertanyaannya satu kalimat: *hari
-  ke-1 masa pelaksanaan adalah tanggal SPMK itu sendiri (⇒ akhir = SPMK +
-  durasi − 1), atau SPMK adalah titik nol (⇒ akhir = SPMK + durasi)?*
-
-  **Sudah diperbaiki lebih dulu, karena tidak bergantung jawabannya:** separuh
-  lain G-2 — konversi grid minggu yang dulu menyerah begitu dua penghitung
-  berselisih, lalu menyerahkannya ke `regenerateBaseline` yang MEMBUANG jadwal
-  impor Excel & editan manual (dilarang DECISIONS 427d). Panjang grid lama kini
-  dibaca dari baseline yang tersimpan.
+**Jangan menutup satu pun tanpa uji MERAH-DULU** — sebagian besar sudah punya
+reproduksinya di laporan, tinggal dijadikan tes tetap.
 
 ---
 
