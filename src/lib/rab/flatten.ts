@@ -72,14 +72,22 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   // juga separator path, cek terus ke set global (mis. sub "X.1#2" vs anak
   // "X.1" → "2" yang kebetulan membentuk key sama) sampai bebas tabrakan.
   const dedup = (parentKey: string | null, code: string): { code: string; key: string } => {
-    let eff = code;
-    let key = parentKey ? `${parentKey}#${eff}` : eff;
+    /*
+     * Sufiksnya masuk ke KUNCI saja, tidak ke KODE.
+     *
+     * Versi lama menulisnya ke keduanya, sehingga kode yang sudah bersufiks dari
+     * `hps-parser` ("II.1#2") bertambah lagi jadi "II.1#2#2" dan tersimpan
+     * begitu di kolom `code` — kode yang tidak pernah ditulis siapa pun di
+     * berkas HPS, lalu ikut tercetak di dokumen resmi. Kode adalah milik user
+     * (DECISIONS 203); yang perlu unik hanyalah `lineageKey`.
+     * Audit 2026-09-15 (D-3).
+     */
+    let key = parentKey ? `${parentKey}#${code}` : code;
     for (let n = 2; usedKeys.has(key); n++) {
-      eff = `${code}#${n}`;
-      key = parentKey ? `${parentKey}#${eff}` : eff;
+      key = parentKey ? `${parentKey}#${code}#${n}` : `${code}#${n}`;
     }
     usedKeys.add(key);
-    return { code: eff, key };
+    return { code, key };
   };
 
   // Pohon bantu: tiap node menyimpan nilai EKSAK (float) + anak-anaknya, supaya

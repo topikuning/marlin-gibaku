@@ -15,7 +15,7 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
-import { getPackageWorkspace } from "@/lib/package/queries";
+import { getPackageWorkspace, paketTujuanPindah } from "@/lib/package/queries";
 import {
   daftarPerubahanLingkup,
   idLokasiDiarsipkan,
@@ -30,6 +30,7 @@ import {
   AddLocationForm,
   CatalogLocationPicker,
   CorrectAddLocationForm,
+  PindahLokasiForm,
   RemoveLocationButton,
 } from "./lokasi-forms";
 
@@ -60,9 +61,16 @@ export default async function LokasiPaketPage({
     !praKontrak &&
     !!pkg.contract &&
     ["kontrak", "pelaksanaan"].includes(pkg.stage);
+  /*
+   * Pindahkan lokasi ke paket lain — super admin saja, kapabilitas yang sama
+   * dengan koreksi susunan lokasi (keduanya "membetulkan data paket, bukan
+   * mengarang adendum"). Sengaja TIDAK terikat `bolehKoreksi`: lokasi yang
+   * salah paket bisa saja ada di paket yang belum berkontrak.
+   */
+  const bolehPindah = can(user.role, "location.correct");
   const perluKatalog = (praKontrak && canProspect) || bolehKoreksi;
   const idLokasi = pkg.locations.map((l) => l.id);
-  const [{ available: catalog, hiddenExistingCount }, progressMap, lingkup, perubahanLingkup, arsip] =
+  const [{ available: catalog, hiddenExistingCount }, progressMap, lingkup, perubahanLingkup, arsip, paketTujuan] =
     await Promise.all([
       perluKatalog
         ? getAvailableCatalog(user.orgId)
@@ -73,6 +81,7 @@ export default async function LokasiPaketPage({
       // admin — itu seluruh isi ketetapan user 2026-09-06.
       daftarPerubahanLingkup(idLokasi, { termasukArsip: bolehArsip }),
       bolehArsip ? Promise.resolve(new Set<string>()) : idLokasiDiarsipkan(idLokasi),
+      bolehPindah ? paketTujuanPindah(user.orgId, pkg.id) : Promise.resolve([]),
     ]);
 
   /*
@@ -155,6 +164,18 @@ export default async function LokasiPaketPage({
                       </span>
                       {removable ? <RemoveLocationButton locationId={l.id} name={l.name} /> : null}
                     </div>
+                    {/* Formulir pindah mengambil BARIS SENDIRI saat dibuka —
+                        paket tujuan, alasan, dan nomor CCO tidak muat di sisa
+                        baris daftar, apalagi di layar ponsel. */}
+                    {bolehPindah && paketTujuan.length > 0 ? (
+                      <div className="w-full">
+                        <PindahLokasiForm
+                          locationId={l.id}
+                          name={l.name}
+                          paketTujuan={paketTujuan.map((p) => ({ id: p.id, label: p.label }))}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

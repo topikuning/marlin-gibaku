@@ -219,3 +219,60 @@ describe("KASUS INTI: hasil ekspor bisa diimpor ulang", () => {
     expect(semua.some((nm) => /^JUMLAH/i.test(nm))).toBe(false);
   });
 });
+
+describe("KODE YANG DIKARANG MARLIN SENDIRI harus bisa dibaca ulang", () => {
+  /*
+   * Dua kode di bawah ini BUKAN dari berkas user — parser MARLIN yang membuatnya:
+   *
+   *  - `~1`   : baris kode-kosong bernilai sesudah item berharga (hps-parser
+   *             baris 1074, kasus "Pengiriman").
+   *  - `II.1#2`: sufiks pembeda sub berkode kembar.
+   *
+   * Keduanya masuk DB, ditulis apa adanya oleh ekspor, lalu DIBUANG saat berkas
+   * itu diimpor ulang — tanpa satu peringatan pun. Audit 2026-09-15 (D-1/D-3).
+   */
+  it("item yatim '~n' tidak hilang saat ekspor diimpor ulang", async () => {
+    const nodes: RabExportNode[] = [
+      n({ id: "k1", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", amount: 3_000_000n }),
+      n({ id: "i1", parentId: "k1", kind: "item", code: "1", name: "Buat Bedeng Pekerja", unit: "m²", volume: 2, unitPrice: 1_000_000, amount: 2_000_000n }),
+      n({ id: "i2", parentId: "k1", kind: "item", code: "~1", name: "Pengiriman", unit: "ls", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n }),
+    ];
+    const { parsed } = parseHpsWorkbook(await ekspor({ ...INPUT, nodes, totalValue: 3_000_000n }));
+    const nama = parsed.categories[0].direct_items.map((i) => i.name);
+    expect(nama).toContain("Pengiriman");
+    expect(parsed.total).toBe(3_000_000);
+  });
+
+  it("sub berkode kembar tetap DUA sub, dan itemnya tidak pindah induk", async () => {
+    const nodes: RabExportNode[] = [
+      n({ id: "k2", kind: "kategori", code: "II", name: "PEKERJAAN STRUKTUR", amount: 3_000_000n }),
+      n({ id: "s1", parentId: "k2", kind: "sub", code: "II.1", name: "Pekerjaan Tanah", amount: 2_000_000n }),
+      n({ id: "a1", parentId: "s1", kind: "item", code: "1", name: "Galian", unit: "m³", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n }),
+      n({ id: "a2", parentId: "s1", kind: "item", code: "2", name: "Urugan", unit: "m³", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n }),
+      // Sub KEDUA berkode sama – sufiks "#2" dikarang MARLIN, bukan dari berkas.
+      // Sufiks GANDA: hps-parser memberi "II.1#2", lalu flatten menambah "#2"
+      // lagi karena key "II#II.1#2" sudah dipakai item "2" milik sub pertama.
+      n({ id: "s2", parentId: "k2", kind: "sub", code: "II.1#2#2", name: "Pekerjaan Beton", amount: 1_000_000n }),
+      n({ id: "b1", parentId: "s2", kind: "item", code: "1", name: "Beton K-250", unit: "m³", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n }),
+    ];
+    const { parsed } = parseHpsWorkbook(await ekspor({ ...INPUT, nodes, totalValue: 3_000_000n }));
+    const kat = parsed.categories.find((c) => c.name === "PEKERJAAN STRUKTUR")!;
+    expect(kat.subcategories).toHaveLength(2);
+    expect(kat.subcategories.map((s) => s.items.map((i) => i.name))).toEqual([
+      ["Galian", "Urugan"],
+      ["Beton K-250"],
+    ]);
+    expect(parsed.total).toBe(3_000_000);
+  });
+
+  it("total 'JUMLAH (pra-PPN)' terbitan MARLIN ikut DICEK, bukan diabaikan", async () => {
+    /*
+     * Pagar "Σ item vs total yang ditulis berkas" mati untuk berkas terbitan
+     * MARLIN sendiri: regex ber-PPN cocok pada kata "pra-PPN", jadi barisnya
+     * dibuang dan `parsed.total` jatuh ke Σ item — yang tidak pernah berbeda
+     * dari dirinya sendiri. Satu juta bisa hilang tanpa peringatan.
+     */
+    const { parsed } = parseHpsWorkbook(await ekspor());
+    expect(parsed.total).toBe(10_000_000);
+  });
+});

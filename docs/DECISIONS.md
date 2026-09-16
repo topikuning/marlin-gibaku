@@ -88,6 +88,10 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 580 | 2026-09-16 | Kolom progres agregat di daftar paket – satu angka, satu nama dengan KPI ringkasan paket |
+| 579 | 2026-09-15 | Pindahkan lokasi ke paket lain – super admin, dua jalur (paksa & CCO); lingkupLokasi sadar-paket |
+| 578 | 2026-09-15 | Akhir kontrak = SPMK + durasi; SPMK titik nol – pembaca & kolom minggu baseline disamakan |
+| 577 | 2026-09-15 | Audit `dev`: 26 temuan kritis & tinggi diperbaiki; semantik tanggal akhir kontrak ditahan untuk user |
 | 576 | 2026-09-14 | Kode verifikasi WA ditahan pagar nomor pribadi – dan layar mengaku sudah mengirimnya |
 | 575 | 2026-09-14 | Frasa verifikasi WA tidak pernah dilempar ke AI, dan tidak diganti selagi masih berlaku |
 | 574 | 2026-09-14 | Tautan verifikasi WA pakai api.whatsapp.com, dan JID tidak ditampilkan mentah |

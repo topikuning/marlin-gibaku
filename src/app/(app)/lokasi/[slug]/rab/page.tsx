@@ -14,6 +14,7 @@ import { RevisionList, type PersetujuanRow, type RevisionRow } from "./revision-
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { weekDateRange } from "@/lib/progress-calc";
 import {
   WeeklyPlanSection,
   type LeafOption,
@@ -23,8 +24,6 @@ import {
 
 export const metadata: Metadata = { title: "Rencana & RAB" };
 export const dynamic = "force-dynamic";
-
-const DAY_MS = 24 * 3600 * 1000;
 
 /**
  * RENCANA & RAB — tiga bagian setara, dipisah SUB-TAB (DECISIONS 362).
@@ -169,9 +168,15 @@ export default async function RabPage({
       ? parsedWeek
       : progress.weekNumber;
 
+  // Rentang minggu dari GRID KONTRAK (`weekMode`) — sama dengan yang disimpan
+  // WeeklyPlan dan dengan nomor minggu di tab ini. Aritmetika tujuh-hari dari
+  // SPMK hanya kebetulan sama saat SPMK jatuh Senin. Audit 2026-09-15 (G-3).
   const startDate = contract?.startDate ?? null;
-  const weekStart = startDate ? new Date(startDate.getTime() + (weekNumber - 1) * 7 * DAY_MS) : null;
-  const weekEnd = weekStart ? new Date(weekStart.getTime() + 6 * DAY_MS) : null;
+  const rentang = startDate
+    ? weekDateRange(startDate, weekNumber, contract!.weekMode, contract!.endDate)
+    : null;
+  const weekStart = rentang?.start ?? null;
+  const weekEnd = rentang?.end ?? null;
 
   // Kueri rencana ikut hanya saat tabnya dibuka — tiga kueri + rekap kurva-S
   // yang tidak murah, dan tidak ada yang membacanya dari tab lain.

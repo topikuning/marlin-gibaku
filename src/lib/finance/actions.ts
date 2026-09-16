@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { bacaRupiah } from "./rupiah";
 import { db } from "@/lib/db";
 import { applyDisbursementTx, applyPaymentTx, FinanceGuardError } from "./apply";
 import { auditIn } from "@/lib/audit";
@@ -79,23 +80,41 @@ async function run(fn: () => Promise<FinanceActionState>): Promise<FinanceAction
 const COST_CATEGORIES = ["material", "upah", "alat", "subkon", "overhead", "transport", "lain"] as const;
 const COMMITMENT_TYPES = ["po", "kontrak_vendor", "kasbon"] as const;
 
-/** Rupiah bulat > 0. Menerima pemisah ribuan titik/koma/spasi. */
+/**
+ * Rupiah bulat > 0.
+ *
+ * Aturannya di `./rupiah` (murni, diuji terpisah): pemisah ribuan Indonesia
+ * dibaca, pecahan nol dimaafkan, dan yang AMBIGU ditolak dengan menyebut
+ * sebabnya. Versi lama membuang semua titik/koma, jadi "1.500.000,00" tersimpan
+ * sebagai Rp 150.000.000 — seratus kali lipat, tanpa suara (audit 2026-09-15).
+ */
 const amountSchema = z
   .string("Jumlah wajib diisi")
   .trim()
   .min(1, "Jumlah wajib diisi")
-  .transform((s) => s.replace(/[.,\s]/g, ""))
-  .pipe(z.string().regex(/^\d+$/, "Jumlah harus angka rupiah bulat"))
-  .transform((s) => BigInt(s))
+  .transform((s, ctx) => {
+    const r = bacaRupiah(s);
+    if (!r.ok) {
+      ctx.addIssue({ code: "custom", message: r.pesan });
+      return z.NEVER;
+    }
+    return r.nilai;
+  })
   .refine((v) => v > 0n, "Jumlah harus lebih dari 0");
 
 /** Rupiah bulat ≥ 0 (retensi boleh 0). */
 const amountZeroSchema = z
   .string()
   .trim()
-  .transform((s) => (s === "" ? "0" : s.replace(/[.,\s]/g, "")))
-  .pipe(z.string().regex(/^\d+$/, "Jumlah harus angka rupiah bulat"))
-  .transform((s) => BigInt(s));
+  .transform((s, ctx) => {
+    if (s === "") return 0n;
+    const r = bacaRupiah(s);
+    if (!r.ok) {
+      ctx.addIssue({ code: "custom", message: r.pesan });
+      return z.NEVER;
+    }
+    return r.nilai;
+  });
 
 const dateSchema = z
   .string("Tanggal wajib diisi")

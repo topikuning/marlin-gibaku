@@ -686,6 +686,56 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
 
 ---
 
+
+## PROGRES AGREGAT PAKET DIHITUNG ATAS TIGA POPULASI BERBEDA (2026-09-16)
+
+Ditemukan saat menambahkan kolom progres agregat di daftar paket. Rumusnya
+sama di mana-mana (`weightedRealizedPct`), tetapi POPULASINYA tidak:
+
+| Tempat | Scope penugasan | Lokasi dicabut adendum |
+|---|---|---|
+| `/paket/[id]` KPI "Progress agregat" | ikut disaring | DIKELUARKAN |
+| `/paket` kolom "Progress agregat" (baru) | ikut disaring | DIKELUARKAN |
+| `/kesiapan` "Progress dilaporkan" (`lib/kesiapan/builder.ts`) | **tidak** | **ikut terhitung** |
+| Gerbang serah terima (`aggregateProgressPct`, `lib/package/actions.ts`) | **tidak** | **ikut terhitung** |
+
+Akibatnya untuk paket yang mencabut lokasi lewat CCO, `/kesiapan` dan peringatan
+serah terima menyebut angka yang berbeda dari halaman paket. Yang paling tajam:
+banner di layar memakai angka yang SUDAH tersaring sementara gerbang yang
+menolak transisinya memakai yang BELUM – satu kalimat, dua angka.
+
+Temuan sejalan dari tinjauan yang sama: untuk paket yang BELUM punya RAB aktif,
+daftar paket menulis "belum ada RAB aktif" sementara KPI di halaman ringkasan
+menulis "0,0%" untuk paket dan detik yang sama. Kata yang benar ada di daftar;
+KPI-nya yang layak menyusul, tetapi itu perubahan pada layar lain.
+
+Belum diperbaiki karena menyentuh gerbang siklus paket: menyaring lokasi dicabut
+di gerbang serah terima akan MEMPERMUDAH paket tuntas, dan itu keputusan user,
+bukan koreksi kode. Ditanyakan terpisah.
+
+---
+
+## AUDIT-DEV-2026-09-15 · sisa temuan (SELURUH kritis & tinggi sudah ditutup)
+
+Audit menyeluruh branch `dev` atas permintaan user (laporan harian + aliran
+datanya, RAB, adendum). Laporan lengkap — skenario, bukti `file:baris`, usul
+perbaikan, dan hasil reproduksi merah-dulu tiap temuan — ada di
+[`docs/rebuild/AUDIT_DEV_2026-09-15.md`](rebuild/AUDIT_DEV_2026-09-15.md).
+
+74 terkonfirmasi (3 kritis · 23 tinggi · 37 sedang · 11 rendah), 9 terbantah,
+7 belum sempat diverifikasi.
+
+**Seluruh 26 temuan kritis & tinggi sudah diperbaiki**, masing-masing dengan uji
+MERAH-DULU yang diverifikasi gagal tanpa perbaikannya (DECISIONS 577 & 578).
+Yang tersisa untuk dikerjakan: **37 sedang + 11 rendah**, semuanya di laporan
+audit — belum didaftar ulang di sini supaya berkas ini tidak menjadi salinan
+kedua yang bisa menyimpang.
+
+**Jangan menutup satu pun tanpa uji MERAH-DULU** — sebagian besar sudah punya
+reproduksinya di laporan, tinggal dijadikan tes tetap.
+
+---
+
 ## ADENDUM — temuan audit 2026-09-01 yang BELUM ditutup
 
 Audit menyeluruh jalur adendum (perbandingan · persetujuan · parser/ekspor)
