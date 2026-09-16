@@ -107,3 +107,60 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
   }
   return { totalWeeks, categories };
 }
+
+/* ------------------------------------------------------------------ */
+/* Pencocokan baris Excel → kategori RAB                                */
+/* ------------------------------------------------------------------ */
+
+const normKat = (s: string): string => s.normalize("NFKC").toUpperCase().replace(/\s+/g, " ").trim();
+
+export type KategoriPencocokan = { code: string | null; name: string; lineageKey: string };
+
+/**
+ * Jodohkan baris jadwal Excel dengan kategori RAB aktif.
+ *
+ * KODE KATEGORI TIDAK UNIK. File HPS nyata memakai nomor romawi yang berulang
+ * (di data KNMP: IX, X, dan XIV masing-masing muncul dua kali), dan importir RAB
+ * memang membedakannya lewat `lineageKey` ber-suffix `#N`, bukan lewat kode.
+ *
+ * Versi lama membangun `norm(code) → lineageKey` tanpa memeriksa keunikan, jadi
+ * kode kembar ditimpa yang terakhir: baris Excel "IX" mendarat di `IX#2`, dan
+ * baris "IX" berikutnya dibuang karena kuncinya sudah terpakai. Tiga kategori
+ * kehilangan jadwalnya sekaligus — 27,38% bobot — sehingga template hasil ekspor
+ * MARLIN sendiri ditolak saat diimpor balik ("Total bobot di Excel 72,62%").
+ * E2E `perbarui-kurva-s` merah di CI 2026-09-16.
+ *
+ * Aturannya sekarang: kode dipakai HANYA bila ia menunjuk satu kategori. Kode
+ * kembar tidak dipakai sama sekali — nama yang memutuskan, dan nama kategori
+ * dalam satu RAB memang berbeda. Menebak lewat urutan baris akan "benar" pada
+ * berkas terbitan MARLIN dan salah diam-diam pada berkas susunan orang.
+ */
+export function cocokkanKategoriJadwal(
+  baris: readonly { code: string; name: string; weekly: number[] }[],
+  kategori: readonly KategoriPencocokan[],
+): { lineageKey: string; weekly: number[] }[] {
+  const jumlahKode = new Map<string, number>();
+  for (const c of kategori) {
+    if (!c.code) continue;
+    const k = normKat(c.code);
+    jumlahKode.set(k, (jumlahKode.get(k) ?? 0) + 1);
+  }
+  const byCode = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const c of kategori) {
+    if (c.code && jumlahKode.get(normKat(c.code)) === 1) byCode.set(normKat(c.code), c.lineageKey);
+    byName.set(normKat(c.name), c.lineageKey);
+  }
+
+  const hasil: { lineageKey: string; weekly: number[] }[] = [];
+  const terpakai = new Set<string>();
+  for (const b of baris) {
+    // Nama lebih dulu bila kodenya kembar; kode lebih dulu bila ia unik, karena
+    // nama di Excel bisa disunting orang sementara kodenya jarang disentuh.
+    const key = (b.code ? byCode.get(normKat(b.code)) : undefined) ?? byName.get(normKat(b.name));
+    if (!key || terpakai.has(key)) continue;
+    terpakai.add(key);
+    hasil.push({ lineageKey: key, weekly: b.weekly });
+  }
+  return hasil;
+}

@@ -17,7 +17,8 @@ import { getLocationsProgress } from "@/lib/progress";
 import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
-import { existingLocationIndex } from "@/lib/master-location/queries";
+import { cariDuplikat, existingLocationIndex } from "@/lib/master-location/queries";
+import { namaKembarDi } from "@/lib/package/nama-kembar";
 import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
 
@@ -386,6 +387,63 @@ export async function addTargetLocation(
     if (pkg.contract || !PRA_KONTRAK.includes(pkg.stage)) {
       return { error: "Lokasi target hanya bisa ditambah sebelum paket berkontrak." };
     }
+
+    /*
+     * DUA PENJAGAAN LOKASI GANDA — sengaja berbeda lingkup.
+     *
+     * Sampai 2026-09-16 jalur ini tidak punya satu pun: slug memang dibuat unik
+     * (lihat bawah), tapi slug bukan yang dibaca orang maupun mesin. Dari
+     * seluruh jalur pembuatan lokasi, hanya tiga yang memanggil
+     * `existingLocationIndex`; yang manual ini tidak. Akibatnya dua lokasi
+     * untuk satu desa yang sama bisa lahir tanpa satu pun penolakan —
+     * pertanyaan user 2026-09-16 tentang "nama lokasi yang double".
+     *
+     * 1. NAMA kembar DI SATU PAKET → ditolak. Alasannya bukan kerapian:
+     *    `matchLocation` memilah berkas Google Drive lewat nama dari daftar
+     *    lokasi satu paket dan memakai yang pertama cocok (lihat
+     *    src/lib/package/nama-kembar.ts). Lintas paket tetap boleh — desa
+     *    senama di kabupaten berbeda itu nyata.
+     * 2. KUNCI ALAMI yang sudah jadi Location riil → ditolak se-organisasi.
+     *    Itu desa yang sama dimasukkan dua kali; angkanya akan terpecah dua
+     *    tanpa ada yang sadar. Yang cuma `mirip` (ejaan beda tipis, kecamatan
+     *    kosong sebelah) TIDAK ditolak — disebut sebagai peringatan, karena
+     *    menolaknya berarti melarang data yang benar demi mencegah yang salah.
+     */
+    const sePaket = await tx.location.findMany({
+      where: { packageId: d.packageId },
+      select: { id: true, name: true },
+    });
+    const kembar = namaKembarDi(d.name, sePaket);
+    if (kembar.length > 0) {
+      return {
+        error:
+          `Paket ini sudah ada lokasi bernama "${kembar[0].name}". Dua nama kembar di satu paket ` +
+          "membuat berkas Google Drive tidak bisa dipilah ke lokasi yang benar – beri nama pembeda, " +
+          "mis. sebut kecamatannya.",
+      };
+    }
+
+    const identitas = {
+      province: d.province,
+      regency: d.regency,
+      district: d.district ?? null,
+      village: d.village,
+    };
+    const lokasiRiil = await tx.location.findMany({
+      where: { package: { orgId: actor.orgId } },
+      select: { id: true, name: true, province: true, regency: true, district: true, village: true },
+    });
+    const kandidat = cariDuplikat(identitas, [], lokasiRiil);
+    const persis = kandidat.find((k) => k.kemiripan === "persis");
+    if (persis) {
+      return {
+        error:
+          `Desa ini sudah terdaftar sebagai lokasi "${persis.nama}". Menambahkannya lagi memecah ` +
+          "angka satu desa jadi dua – pindahkan lokasi yang sudah ada, atau perbaiki datanya di sana.",
+      };
+    }
+    const miripNama = kandidat.map((k) => k.nama).join(", ");
+
     // Slug unik: nama+desa, suffix angka bila tabrakan.
     const base = slugify(`${d.name}-${d.village}`);
     const taken = new Set(
@@ -415,7 +473,7 @@ export async function addTargetLocation(
       },
       select: { id: true, slug: true },
     });
-    return { loc };
+    return { loc, miripNama };
   });
   if ("error" in result) return { error: result.error };
 
@@ -425,7 +483,16 @@ export async function addTargetLocation(
     name: d.name,
   });
   revalidatePath(`/paket/${d.packageId}`, "layout");
-  return { success: `Lokasi target "${d.name}" ditambahkan.` };
+  return {
+    success: `Lokasi target "${d.name}" ditambahkan.`,
+    ...(result.miripNama
+      ? {
+          warning:
+            `Mirip dengan lokasi yang sudah ada: ${result.miripNama}. Kalau ternyata desa yang sama, ` +
+            "hapus salah satunya selagi paket ini belum berkontrak.",
+        }
+      : {}),
+  };
 }
 
 /**

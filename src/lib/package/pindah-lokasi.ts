@@ -4,6 +4,7 @@ import { auditIn } from "@/lib/audit";
 import { weekDateRange, weekEndFractions } from "@/lib/progress-calc";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { bangunUlangSnapshotFinal } from "@/lib/daily-report/snapshot-rebuild";
+import { namaKembarDi } from "@/lib/package/nama-kembar";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -132,6 +133,35 @@ export async function pindahkanLokasi(
   });
   if (!tujuan) throw new PindahLokasiError("Paket tujuan tidak ditemukan.");
   const durasiTujuan = tujuan.contract?.durationDays ?? 0;
+
+  /*
+   * NAMA KEMBAR DI PAKET TUJUAN — ditolak, tidak dipaksakan.
+   *
+   * Perpindahan tidak pernah bisa menabrak slug (`slug` global unik dan tidak
+   * ikut berubah), jadi sampai 2026-09-16 tidak ada apa pun yang menghalangi
+   * dua lokasi bernama sama berkumpul di satu paket. Angkanya memang tetap
+   * benar — semuanya dijumlahkan lewat `location.id` — tetapi `matchLocation`
+   * memilah berkas Google Drive LEWAT NAMA dari daftar lokasi satu paket dan
+   * memakai yang pertama cocok. Selama keduanya di paket berbeda, pemilahan itu
+   * tidak pernah ambigu; perpindahan inilah yang mempertemukan mereka dan
+   * menyalakan ambiguitasnya.
+   *
+   * Tidak ada jalur "paksa" untuk ini: memaksakannya berarti menyerahkan
+   * pengarsipan berkas lapangan pada urutan daftar. Yang diminta cuma satu
+   * langkah — beri nama pembeda lebih dulu (Lokasi › ubah nama).
+   */
+  const diTujuan = await db.location.findMany({
+    where: { packageId: tujuan.id },
+    select: { id: true, name: true },
+  });
+  const kembar = namaKembarDi(lokasi.name, diTujuan, lokasi.id);
+  if (kembar.length > 0) {
+    throw new PindahLokasiError(
+      `Paket "${tujuan.name}" sudah punya lokasi bernama "${kembar[0].name}". Dua nama kembar di satu ` +
+        "paket membuat berkas Google Drive tidak bisa dipilah ke lokasi yang benar. Beri nama pembeda " +
+        "pada salah satunya dulu – mis. sebut kecamatannya – baru pindahkan.",
+    );
+  }
 
   for (const p of [lokasi.package, tujuan]) {
     if (!TAHAP_BOLEH.includes(p.stage)) {

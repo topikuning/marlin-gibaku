@@ -23,7 +23,7 @@ import {
   validateBaselinePoints,
   type ModeJadwal,
 } from "@/lib/baseline";
-import { parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
+import { cocokkanKategoriJadwal, parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
 import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 import { weekDateRange } from "@/lib/progress-calc";
@@ -403,20 +403,10 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     select: { code: true, name: true, lineageKey: true },
   });
 
-  const byCode = new Map<string, string>(); // norm(code) → lineageKey
-  const byName = new Map<string, string>(); // norm(name) → lineageKey
-  for (const c of catNodes) {
-    if (c.code) byCode.set(norm(c.code), c.lineageKey);
-    byName.set(norm(c.name), c.lineageKey);
-  }
-  const input: { lineageKey: string; weekly: number[] }[] = [];
-  const usedKeys = new Set<string>();
-  for (const pc of parsed.categories) {
-    const key = (pc.code ? byCode.get(norm(pc.code)) : undefined) ?? byName.get(norm(pc.name));
-    if (!key || usedKeys.has(key)) continue;
-    usedKeys.add(key);
-    input.push({ lineageKey: key, weekly: pc.weekly });
-  }
+  // Pencocokannya di `scurve/jadwal-import` supaya bisa diuji sendiri: kode
+  // kategori TIDAK unik di berkas HPS nyata, dan versi lama di sini menelan
+  // tiga kategori sekaligus karena menganggapnya unik.
+  const input = cocokkanKategoriJadwal(parsed.categories, catNodes);
   if (input.length === 0) {
     return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
   }
