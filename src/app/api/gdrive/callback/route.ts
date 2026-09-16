@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
     NextResponse.redirect(appUrl(`/sistem?gdrive=${q}`, request.headers, request.nextUrl.origin));
 
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user || !can(user.role, "system.manage")) return done("tanpa-izin");
 
   const sp = request.nextUrl.searchParams;

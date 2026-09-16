@@ -112,7 +112,7 @@ export function ScurveChart({
           <polyline points={actualPts} fill="none" stroke="var(--color-primary)" strokeWidth={2.5} />
         )}
         {actualIdx.map((i) => (
-          <circle key={i} cx={xFor(i)} cy={yFor(actualPct[i] as number)} r={2.5} fill="var(--color-primary)" />
+          <circle key={i} cx={xFor(i)} cy={yFor(actual[i] as number)} r={2.5} fill="var(--color-primary)" />
         ))}
 
         {/* garis prognosa (dari titik aktual terakhir → proyeksi) */}

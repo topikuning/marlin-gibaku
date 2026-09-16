@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { updateMutableArtifact } from "@/lib/ai-hub/mutate-artifact";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import {
@@ -60,6 +61,7 @@ async function muatArtefakPaparan(user: SessionUser, artifactId: string) {
       packageId: true,
       structuredContent: true,
       frozenAt: true,
+      updatedAt: true,
       runId: true,
       run: { select: { scopeIds: true } },
       package: { select: { orgId: true } },
@@ -172,15 +174,11 @@ export async function suntingNarasiPaparanAction(
       edits[bagian] = baris;
     }
     content.humanEdits = edits;
-    await db.aiArtifact.update({
-      where: { id: artifact.id },
-      data: {
-        title: parsed.data.title,
-        structuredContent: JSON.parse(JSON.stringify(content)),
-        humanEditNote: "narasi diedit manual",
-      },
-    });
-    await audit(user.id, "ai.artifact.edit", "ai_artifact", artifact.id, { kind: "paparan" });
+    await updateMutableArtifact(artifact, {
+      title: parsed.data.title,
+      structuredContent: JSON.parse(JSON.stringify(content)),
+      humanEditNote: "narasi diedit manual",
+    }, user.id, "ai.artifact.edit", { kind: "paparan" });
     revalidatePath(`/ai/paparan/${artifact.id}`);
     return { ok: "Narasi tersimpan. Angka tidak berubah – selalu dari snapshot." };
   } catch (err) {
@@ -233,14 +231,9 @@ export async function pilihFotoPaparanAction(
     }
     edits.captionFoto = captions;
     content.humanEdits = edits;
-    await db.aiArtifact.update({
-      where: { id: artifact.id },
-      data: { structuredContent: JSON.parse(JSON.stringify(content)) },
-    });
-    await audit(user.id, "ai.artifact.edit", "ai_artifact", artifact.id, {
-      kind: "paparan",
-      foto: parsed.data.photoIds.length,
-    });
+    await updateMutableArtifact(artifact, {
+      structuredContent: JSON.parse(JSON.stringify(content)),
+    }, user.id, "ai.artifact.edit", { kind: "paparan", foto: parsed.data.photoIds.length });
     revalidatePath(`/ai/paparan/${artifact.id}`);
     return { ok: `${parsed.data.photoIds.length} foto dipilih untuk slide dokumentasi.` };
   } catch (err) {
@@ -299,10 +292,8 @@ export async function transisiPaparanAction(_prev: PaparanState, formData: FormD
         .update(JSON.stringify(artifact.structuredContent))
         .digest("hex");
     }
-    await db.aiArtifact.update({ where: { id: artifact.id }, data: data as never });
-    await audit(user.id, `ai.artifact.${to}`, "ai_artifact", artifact.id, {
-      kind: "paparan",
-      from: artifact.status,
+    await updateMutableArtifact(artifact, data as never, user.id, `ai.artifact.${to}`, {
+      kind: "paparan", from: artifact.status,
     });
     revalidatePath(`/ai/paparan/${artifact.id}`);
     revalidatePath("/ai/paparan");

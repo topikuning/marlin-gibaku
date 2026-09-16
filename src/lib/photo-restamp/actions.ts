@@ -239,11 +239,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       throw err;
     }
 
-    // Versi ber-cap LAMA dibuang: isinya salah dan tidak boleh beredar lagi.
-    // Buktinya tetap utuh — berkas aslinya diarsipkan, dan nilai cap lama
-    // tercatat di riwayat revisi (append-only).
-    await r2Delete(k.r2Key).catch(() => {});
-    if (k.thumbnailKey) await r2Delete(k.thumbnailKey).catch(() => {});
+    // Pertahankan versi lama: snapshot laporan/paparan bisa sedang dibuat.
+    // Pembersihan lewat audit R2 (jeda umur + pemeriksaan semua rujukan JSON).
 
     revalidatePath("/foto");
     if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
@@ -282,7 +279,7 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
     if (!f.success) return { error: f.error.issues[0].message };
 
     const scope = await accessibleLocationIds(actor);
-    const where = whereArsip(f.data, scope);
+    const where = whereArsip(f.data, scope, actor.orgId);
     const rows = await db.photo.findMany({
       where: where as never,
       select: { id: true, originalKey: true, originalBytes: true },
@@ -490,8 +487,8 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
       throw err;
     }
 
-    await r2Delete(k.r2Key).catch(() => {});
-    if (k.thumbnailKey) await r2Delete(k.thumbnailKey).catch(() => {});
+    // Pertahankan versi lama: snapshot laporan/paparan bisa sedang dibuat.
+    // Pembersihan lewat audit R2 (jeda umur + pemeriksaan semua rujukan JSON).
 
     revalidatePath("/foto");
     if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
@@ -536,14 +533,16 @@ export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
      * bisa-tidaknya sebuah foto ditampilkan adalah apa yang BENAR-BENAR ada di
      * bucket — dan itu yang tertulis di kuncinya.
      */
+    const scope = await accessibleLocationIds(actor);
+    const photoScope = { location: { package: { orgId: actor.orgId } }, ...(scope === null ? {} : { locationId: { in: scope } }) };
     const kandidat = await db.photo.findMany({
-      where: { r2Key: { endsWith: ".heic" } },
+      where: { ...photoScope, r2Key: { endsWith: ".heic" } },
       select: { id: true },
       orderBy: { createdAt: "asc" },
       take: HEIC_PER_JALAN,
     });
     const kandidatHeif = await db.photo.findMany({
-      where: { r2Key: { endsWith: ".heif" } },
+      where: { ...photoScope, r2Key: { endsWith: ".heif" } },
       select: { id: true },
       orderBy: { createdAt: "asc" },
       take: Math.max(0, HEIC_PER_JALAN - kandidat.length),
@@ -555,6 +554,9 @@ export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
     const gagal: string[] = [];
     for (const { id } of daftar) {
       try {
+        const target = await db.photo.findUniqueOrThrow({ where: { id }, select: { locationId: true } });
+        if (!target.locationId) throw new ForbiddenError();
+        await requireLocationAccess(actor, target.locationId);
         await perbaikiSatuHeic(id, actor.id);
         berhasil++;
       } catch (err) {
@@ -571,7 +573,7 @@ export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
     revalidatePath("/foto");
     revalidatePath("/sistem");
 
-    const sisa = await db.photo.count({ where: { OR: [{ r2Key: { endsWith: ".heic" } }, { r2Key: { endsWith: ".heif" } }] } });
+    const sisa = await db.photo.count({ where: { ...photoScope, OR: [{ r2Key: { endsWith: ".heic" } }, { r2Key: { endsWith: ".heif" } }] } });
     return {
       ok:
         `${berhasil} foto HEIC diperbaiki jadi webp ber-cap` +
@@ -620,7 +622,6 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
   }
 
   const kunciLama = k.r2Key;
-  const thumbLama = k.thumbnailKey;
   try {
     await db.$transaction(async (tx) => {
       await tx.photo.update({
@@ -659,12 +660,6 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
     throw err;
   }
 
-  /*
-   * Kunci LAMA dihapus, arsip aslinya TIDAK. Kunci lama itu salinan mentah yang
-   * tak terbaca peramban; arsip asli tetap satu-satunya rujukan keaslian foto
-   * (DECISIONS 197). Bila keduanya kebetulan sama (arsip sudah di-purge), yang
-   * dihapus hanya bila memang bukan sumber yang barusan dipakai.
-   */
-  if (kunciLama !== k.originalKey) await r2Delete(kunciLama).catch(() => {});
-  if (thumbLama) await r2Delete(thumbLama).catch(() => {});
+  // Pertahankan versi lama: snapshot laporan/paparan bisa sedang dibuat.
+  // Pembersihan lewat audit R2 (jeda umur + pemeriksaan semua rujukan JSON).
 }

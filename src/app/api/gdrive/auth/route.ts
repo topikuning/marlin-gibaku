@@ -14,6 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user || !can(user.role, "system.manage")) {
     return NextResponse.redirect(appUrl("/sistem", request.headers, request.nextUrl.origin));
   }

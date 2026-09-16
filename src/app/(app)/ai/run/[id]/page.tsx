@@ -1,3 +1,4 @@
+import { aiRunOrgWhere } from "@/lib/ai-hub/org-scope";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -102,8 +103,8 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
   requireCapabilityPage(user.role, "ai.view");
   const { id } = await params;
 
-  const run = await db.aiRun.findUnique({
-    where: { id },
+  const run = await db.aiRun.findFirst({
+    where: { id, ...await aiRunOrgWhere(user) },
     select: {
       id: true,
       runKind: true,
