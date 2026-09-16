@@ -28,6 +28,8 @@ import { PetaPanel } from "./peta-panel";
 import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PolicyCard } from "./policy-card";
+import { LokasiKembarPanel } from "./lokasi-kembar-panel";
+import { laporanLokasiKembar } from "@/lib/package/lokasi-kembar";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
 import { aiSecretStorageStatus, getAiConfigDisplay } from "@/lib/ai/config";
@@ -139,6 +141,7 @@ export default async function SistemPage() {
   requireCapabilityPage(user.role, "system.manage");
 
   const todayStart = jakartaToday();
+  const lokasiKembar = await laporanLokasiKembar(user.orgId);
   const [auditLogs, sessionCount, branding, wahaDisplay, photoStamp, activeUsers, auditToday, roleCounts] =
     await Promise.all([
       db.auditLog.findMany({
@@ -407,6 +410,22 @@ export default async function SistemPage() {
               </span>
             </div>
           ))}
+        </CardBody>
+      </Card>
+
+      {/*
+        Lokasi ganda: `Location` tidak punya kunci alami yang unik (indeks itu
+        hanya ada di `MasterLocation`), jadi yang terlanjur kembar tidak akan
+        muncul sendiri di mana pun. Guard di addTargetLocation/pindahkanLokasi
+        cuma menutup pintu ke depan – sisanya butuh tempat untuk dilihat.
+      */}
+      <Card className="lg:col-span-2">
+        <CardHeader
+          title="Lokasi kembar"
+          subtitle="Nama kembar di satu paket & satu desa yang terdaftar dua kali"
+        />
+        <CardBody>
+          <LokasiKembarPanel laporan={lokasiKembar} />
         </CardBody>
       </Card>
     </div>

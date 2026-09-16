@@ -114,6 +114,9 @@ export function AddLocationForm({
     <form action={action} className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {/* Lokasi MIRIP tidak menghalangi, tapi harus terbaca – lihat guard di
+          addTargetLocation. Yang kembar persis sudah ditolak sebagai error. */}
+      {state?.warning ? <Banner tone="warning" title={state.warning} /> : null}
       <input type="hidden" name="packageId" value={packageId} />
 
       <div>

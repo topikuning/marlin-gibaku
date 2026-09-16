@@ -660,8 +660,25 @@ export async function getPeriodReport(
   // baris kosong yang sah membuat tabel kategori di halaman ini dihitung ulang
   // dari jendela otomatis — padahal baris "Kumulatif Rencana" di halaman yang
   // sama memakai titik impor. Audit 2026-09-15 (G-1).
+  //
+  // Tapi "baris nol boleh" bukan berarti "baris boleh TIDAK ADA". Baseline
+  // membekukan satu baris per kategori saat ia dibuat; RAB bisa bertambah
+  // kategori sesudahnya tanpa baseline ikut dibuat ulang. Matriks yang tidak
+  // memuat seluruh kategori RAB aktif bukan jadwal yang tinggal dipakai —
+  // bobotnya berhenti di bawah 100%, dan template Time Schedule hasil ekspor
+  // ditolak MARLIN sendiri saat diimpor balik. `deriveCategorySchedule` sudah
+  // menuntut liputan penuh; di sini dulu tidak, jadi dua pembaca kanonik yang
+  // sama memberi daftar kategori yang berbeda. Ditemukan 2026-09-16 saat
+  // menyelidiki E2E `perbarui-kurva-s` (sebab kemerahan itu lain — kode
+  // kategori kembar, DECISIONS 582). Lihat
+  // tests/integration/jadwal-tersimpan-kategori-hilang.ts.
+  const adaBarisUntuk = new Set(storedSched.map((s) => s.lineageKey));
+  const liputanPenuh = kategoriNodes.every(
+    (nd) => nd.amount <= 0n || adaBarisUntuk.has(nd.lineageKey),
+  );
   const usableStored =
     storedSched.length > 0 &&
+    liputanPenuh &&
     storedSched.every((s) => s.weekly.length === totalWeeks) &&
     storedSched.some((s) => s.weekly.some((v) => v > 0));
 

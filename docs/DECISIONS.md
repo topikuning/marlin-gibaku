@@ -88,6 +88,9 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 583 | 2026-09-16 | Jadwal tersimpan harus meliput SELURUH kategori RAB aktif – dua pembaca kanonik berhenti berselisih |
+| 582 | 2026-09-16 | Kode kategori RAB tidak unik – pencocokan jadwal Excel memakai nama bila kodenya kembar (E2E kurva-S merah) |
+| 581 | 2026-09-16 | Lokasi kembar: guard nama di addTargetLocation & pindahkanLokasi, pendeteksi yang terlanjur ada di /sistem |
 | 580 | 2026-09-16 | Kolom progres agregat di daftar paket – satu angka, satu nama dengan KPI ringkasan paket |
 | 579 | 2026-09-15 | Pindahkan lokasi ke paket lain – super admin, dua jalur (paksa & CCO); lingkupLokasi sadar-paket |
 | 578 | 2026-09-15 | Akhir kontrak = SPMK + durasi; SPMK titik nol – pembaca & kolom minggu baseline disamakan |
