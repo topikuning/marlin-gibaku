@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 585 | 2026-09-16 | Cabut lokasi dari paket berkontrak – pasangan koreksi DECISIONS 187; riwayat status ikut lokasinya, append-only tetap |
 | 583 | 2026-09-16 | Jadwal tersimpan harus meliput SELURUH kategori RAB aktif – dua pembaca kanonik berhenti berselisih |
 | 582 | 2026-09-16 | Kode kategori RAB tidak unik – pencocokan jadwal Excel memakai nama bila kodenya kembar (E2E kurva-S merah) |
 | 581 | 2026-09-16 | Lokasi kembar: guard nama di addTargetLocation & pindahkanLokasi, pendeteksi yang terlanjur ada di /sistem |

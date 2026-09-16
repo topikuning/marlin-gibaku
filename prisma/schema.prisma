@@ -1283,7 +1283,10 @@ model LocationStatusHistory {
   changedAt   DateTime        @default(now()) @map("changed_at") @db.Timestamptz
   note        String?
 
-  location Location @relation(fields: [locationId], references: [id])
+  // Cascade, DAN triggernya mengizinkan DELETE hanya sebagai ikutan terhapusnya
+  // lokasi — bukan pelonggaran append-only. Lihat migrasi
+  // 20260916120000_riwayat_status_lokasi_ikut_lokasinya.
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@index([locationId, changedAt])
   @@map("location_status_history")

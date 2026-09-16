@@ -31,6 +31,7 @@ import {
   CatalogLocationPicker,
   CorrectAddLocationForm,
   PindahLokasiForm,
+  CabutLokasiForm,
   RemoveLocationButton,
 } from "./lokasi-forms";
 
@@ -163,6 +164,13 @@ export default async function LokasiPaketPage({
                         {progressMap.get(l.id) ? formatPct(progressMap.get(l.id)!.realizedPct) : "–"}
                       </span>
                       {removable ? <RemoveLocationButton locationId={l.id} name={l.name} /> : null}
+                      {/* Paket yang SUDAH berkontrak: penghapusan biasa tidak
+                          berlaku lagi (lokasinya aktif & ber-riwayat), jadi
+                          jalannya lewat koreksi yang wajib beralasan. Server
+                          menolak yang masih berisi. */}
+                      {!removable && bolehKoreksi ? (
+                        <CabutLokasiForm locationId={l.id} name={l.name} />
+                      ) : null}
                     </div>
                     {/* Formulir pindah mengambil BARIS SENDIRI saat dibuka —
                         paket tujuan, alasan, dan nomor CCO tidak muat di sisa
