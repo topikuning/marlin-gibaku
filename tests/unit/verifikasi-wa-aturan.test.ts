@@ -25,6 +25,7 @@ const {
 const baris = (p: Partial<Parameters<typeof cocokkanKode>[0] & object> = {}) => ({
   phrase: "MARLIN-ACDEFG",
   code: "123456",
+  senderKey: "628123456789",
   waNumber: "628123456789",
   attempts: 0,
   expiresAt: new Date("2026-09-13T10:00:00Z"),
@@ -81,9 +82,24 @@ describe("tahap yang sedang berjalan", () => {
   });
 
   it("sudah minta frasa, pesannya belum datang", () => {
-    const k = keadaanVerifikasi(baris({ code: null, waNumber: null }), null, null, SEBELUM);
+    const k = keadaanVerifikasi(
+      baris({ code: null, waNumber: null, senderKey: null }),
+      null,
+      null,
+      SEBELUM,
+    );
     expect(k.tahap).toBe("menunggu-pesan");
     expect(k).toMatchObject({ frasa: "MARLIN-ACDEFG" });
+  });
+
+  it("pesan MASUK tapi kode gagal dikirim punya tahapnya sendiri", () => {
+    // Tanpa tahap ini ia menyamar jadi "menunggu-pesan": layar menyuruh
+    // mengirim ulang pesan yang sebenarnya sudah sampai, dan orangnya mengirim
+    // lagi, dan lagi — sementara yang rusak justru arah sebaliknya.
+    expect(keadaanVerifikasi(baris({ code: null }), null, null, SEBELUM)).toEqual({
+      tahap: "gagal-kirim",
+      nomor: "628123456789",
+    });
   });
 
   it("pesannya sudah masuk, tinggal mengetik kode", () => {
@@ -144,6 +160,9 @@ describe("mencocokkan kode", () => {
   });
 });
 
+const TAUTAN =
+  "https://api.whatsapp.com/send/?phone=628123456789&text=MARLIN-ACDEFG&type=phone_number&app_absent=0";
+
 describe("tautan kirim WhatsApp sekali klik", () => {
   it("membuka WhatsApp ke nomor MARLIN dengan frasanya sudah terketik", () => {
     // Teguran user 2026-09-13: *"seharusnya kirim kode ini kamu sediakan klik,
@@ -151,19 +170,24 @@ describe("tautan kirim WhatsApp sekali klik", () => {
     // orang lapangan menyalin frasa, membuka WhatsApp, mencari nomor MARLIN,
     // lalu mengetik ulang — itu empat kesempatan gagal untuk satu langkah yang
     // bisa jadi satu ketukan.
-    expect(tautanKirimWa("628123456789", "MARLIN-ACDEFG")).toBe(
-      "https://wa.me/628123456789?text=MARLIN-ACDEFG",
-    );
+    expect(tautanKirimWa("628123456789", "MARLIN-ACDEFG")).toBe(TAUTAN);
   });
 
-  it("nomor dirapikan dulu – 0812…, +62…, dan spasi sama-sama sah", () => {
-    // Nomor datang dari sesi WAHA apa adanya; wa.me hanya menerima angka.
-    expect(tautanKirimWa("+62 812-3456-789", "MARLIN-ACDEFG")).toBe(
-      "https://wa.me/628123456789?text=MARLIN-ACDEFG",
-    );
-    expect(tautanKirimWa("08123456789", "MARLIN-ACDEFG")).toBe(
-      "https://wa.me/628123456789?text=MARLIN-ACDEFG",
-    );
+  it("memakai bentuk api.whatsapp.com/send, bukan wa.me", () => {
+    // wa.me berhenti di halaman antara "Continue to Chat" di peramban desktop —
+    // satu ketukan tambahan tepat di langkah yang seharusnya jadi satu ketukan.
+    const t = tautanKirimWa("628123456789", "MARLIN-ACDEFG")!;
+    expect(t).toContain("type=phone_number");
+    expect(t).toContain("app_absent=0");
+    expect(t).not.toContain("wa.me");
+  });
+
+  it("nomor dirapikan dulu – 0812…, +62…, spasi, dan JID @c.us sama-sama sah", () => {
+    // Nomor datang dari sesi WAHA apa adanya, kadang sebagai JID "628…@c.us";
+    // tautannya hanya menerima angka.
+    expect(tautanKirimWa("+62 812-3456-789", "MARLIN-ACDEFG")).toBe(TAUTAN);
+    expect(tautanKirimWa("08123456789", "MARLIN-ACDEFG")).toBe(TAUTAN);
+    expect(tautanKirimWa("628123456789@c.us", "MARLIN-ACDEFG")).toBe(TAUTAN);
   });
 
   it("tanpa nomor tujuan → null, bukan tautan yang menuju entah ke mana", () => {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { formatNumber } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
 import { totalWeeksFor, activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
@@ -22,9 +23,10 @@ import {
   validateBaselinePoints,
   type ModeJadwal,
 } from "@/lib/baseline";
-import { parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
+import { cocokkanKategoriJadwal, parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
 import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
+import { weekDateRange } from "@/lib/progress-calc";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
 
@@ -105,7 +107,7 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.
     await pastikanBolehAktivasi(rev.id);
-    await activateRevision(rev.id, user.id);
+    const aktif = await activateRevision(rev.id, user.id);
     // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
     // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
     try {
@@ -126,7 +128,31 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
       };
     }
     revalidateRab(rev.location.slug);
-    return { success: `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.` };
+    /*
+     * PENYESUAIAN REALISASI DIKATAKAN, bukan cuma masuk audit log.
+     *
+     * Aktivasi bisa MENURUNKAN volume laporan harian yang sudah dikirim orang —
+     * termasuk yang sudah FINAL — ketika volume kontraknya turun di bawah
+     * realisasi. DECISIONS 203: penyesuaian angka pengguna wajib dikatakan di
+     * UI. Sebelumnya layar hanya bilang "realisasi tersambung otomatis via
+     * lineage". Audit 2026-09-15 (E-2).
+     */
+    const p = aktif.penyesuaian;
+    let kabar = `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.`;
+    if (p.item > 0) {
+      const contoh = p.rincian
+        .slice(0, 3)
+        .map((x) => `${x.item} ${formatNumber(x.dari)} → ${formatNumber(x.ke)}`)
+        .join("; ");
+      const adaFinal = p.rincian.some((x) => x.adaFinal);
+      kabar +=
+        ` PERHATIAN: realisasi ${p.item} item DITURUNKAN mengikuti volume kontrak barunya` +
+        ` (${contoh}${p.rincian.length > 3 ? `; +${p.rincian.length - 3} lainnya` : ""})` +
+        (adaFinal ? `, termasuk laporan yang sudah FINAL` : "") +
+        `. ${p.snapshotDibangunUlang} blanko harian final ikut dibangun ulang.` +
+        ` Rinciannya ada di audit log.`;
+    }
+    return { success: kabar };
   } catch (err) {
     return fail(err);
   }
@@ -377,20 +403,10 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     select: { code: true, name: true, lineageKey: true },
   });
 
-  const byCode = new Map<string, string>(); // norm(code) → lineageKey
-  const byName = new Map<string, string>(); // norm(name) → lineageKey
-  for (const c of catNodes) {
-    if (c.code) byCode.set(norm(c.code), c.lineageKey);
-    byName.set(norm(c.name), c.lineageKey);
-  }
-  const input: { lineageKey: string; weekly: number[] }[] = [];
-  const usedKeys = new Set<string>();
-  for (const pc of parsed.categories) {
-    const key = (pc.code ? byCode.get(norm(pc.code)) : undefined) ?? byName.get(norm(pc.name));
-    if (!key || usedKeys.has(key)) continue;
-    usedKeys.add(key);
-    input.push({ lineageKey: key, weekly: pc.weekly });
-  }
+  // Pencocokannya di `scurve/jadwal-import` supaya bisa diuji sendiri: kode
+  // kategori TIDAK unik di berkas HPS nyata, dan versi lama di sini menelan
+  // tiga kategori sekaligus karena menganggapnya unik.
+  const input = cocokkanKategoriJadwal(parsed.categories, catNodes);
   if (input.length === 0) {
     return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
   }
@@ -565,8 +581,6 @@ export async function restoreBaselineAction(
 
 // ── Rencana mingguan ────────────────────────────────────────────────────────
 
-const DAY_MS = 24 * 3600 * 1000;
-
 const addPlanItemSchema = z.object({
   locationId: z.uuid(),
   weekNumber: z.coerce.number().int().min(1).max(520),
@@ -599,10 +613,13 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
       where: { id: d.locationId },
       select: {
         slug: true,
-        package: { select: { contract: { select: { startDate: true } } } },
+        package: {
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+        },
       },
     });
-    const startDate = location.package.contract?.startDate;
+    const kontrak = location.package.contract;
+    const startDate = kontrak?.startDate;
     if (!startDate) {
       return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
     }
@@ -618,8 +635,20 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
     });
     if (!node) return { error: "Item RAB tidak ditemukan di revisi aktif lokasi ini." };
 
-    const weekStart = new Date(startDate.getTime() + (d.weekNumber - 1) * 7 * DAY_MS);
-    const weekEnd = new Date(weekStart.getTime() + 6 * DAY_MS);
+    /*
+     * Rentang minggu mengikuti GRID KONTRAK (`weekMode`), bukan aritmetika
+     * tujuh-hari dari SPMK. Pada mode `senin_minggu` — default skema — keduanya
+     * hanya sama bila SPMK jatuh Senin. Kalau tidak, rentang yang tersimpan
+     * bergeser dari nomor minggunya sendiri: blanko harian mencari rencana
+     * lewat weekStart<=tanggal<=weekEnd, jadi hari Senin awal minggu ke-2
+     * menemukan rencana MINGGU 1. Audit 2026-09-15 (G-3).
+     */
+    const { start: weekStart, end: weekEnd } = weekDateRange(
+      startDate,
+      d.weekNumber,
+      kontrak.weekMode,
+      kontrak.endDate,
+    );
 
     const plan = await db.weeklyPlan.upsert({
       where: { locationId_weekNumber: { locationId: d.locationId, weekNumber: d.weekNumber } },
@@ -708,9 +737,15 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
 
     const location = await db.location.findUniqueOrThrow({
       where: { id: locationId },
-      select: { slug: true, package: { select: { contract: { select: { startDate: true } } } } },
+      select: {
+        slug: true,
+        package: {
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+        },
+      },
     });
-    const startDate = location.package.contract?.startDate;
+    const kontrak = location.package.contract;
+    const startDate = kontrak?.startDate;
     if (!startDate) return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
 
     const result = await suggestWeeklyPlan(locationId, weekNumber);
@@ -718,8 +753,13 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
       return { error: "Tidak ada saran untuk diterapkan." };
     }
 
-    const weekStart = new Date(startDate.getTime() + (weekNumber - 1) * 7 * DAY_MS);
-    const weekEnd = new Date(weekStart.getTime() + 6 * DAY_MS);
+    // Grid kontrak, sama dengan addWeeklyPlanItem di atas (G-3).
+    const { start: weekStart, end: weekEnd } = weekDateRange(
+      startDate,
+      weekNumber,
+      kontrak.weekMode,
+      kontrak.endDate,
+    );
     const plan = await db.weeklyPlan.upsert({
       where: { locationId_weekNumber: { locationId, weekNumber } },
       update: {},

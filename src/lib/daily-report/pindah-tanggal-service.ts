@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { bangunUlangSnapshotFinal } from "./snapshot-rebuild";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { Prisma } from "@/generated/prisma/client";
@@ -175,31 +176,13 @@ export async function pindahTanggalLaporan(input: {
    * (DECISIONS 148) — bukan jalur baru. Dibiarkan basi berarti MARLIN sengaja
    * mencetak angka kumulatif yang ia tahu salah.
    */
-  let snapshotDibangunUlang = 0;
-  if (basi) {
-    const terdampak = await db.dailyReport.findMany({
-      where: {
-        locationId: report.locationId,
-        status: "final",
-        id: { not: report.id },
-        reportDate: { gte: parseDateKey(basi.dari)!, lt: parseDateKey(basi.sampaiSebelum)! },
-      },
-      orderBy: { reportDate: "asc" },
-      select: { id: true },
-    });
-    for (const r of terdampak) {
-      try {
-        const snapshot = await buildFinalSnapshot(r.id);
-        await db.dailyReport.update({
-          where: { id: r.id },
-          data: { finalSnapshot: snapshot as unknown as Prisma.InputJsonValue },
-        });
-        snapshotDibangunUlang++;
-      } catch {
-        /* satu snapshot gagal tidak boleh membatalkan pemindahan yang sudah jadi */
-      }
-    }
-  }
+  const snapshotDibangunUlang = basi
+    ? await bangunUlangSnapshotFinal(report.locationId, {
+        sejak: parseDateKey(basi.dari)!,
+        sebelum: parseDateKey(basi.sampaiSebelum)!,
+        kecualiId: report.id,
+      })
+    : 0;
 
   await audit(input.userId, "daily_report.move_date", "daily_report", report.id, {
     dari: lama,

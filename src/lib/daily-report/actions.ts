@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import {
   ForbiddenError,
   requireCapability,
@@ -420,11 +421,20 @@ async function unggahFotoItem(p: {
   const workName = node?.name ?? null;
   let buildingName: string | null = null;
   if (node) {
+    // Kategori = prefiks TERPANJANG berbatas "#" di antara kategori revisi itu.
+    // "VI#2" adalah kategori romawi VI yang KEDUA; memotong di "#" pertama
+    // membuat cap foto menyebut bangunan yang salah. Audit 2026-09-15 (D-2).
+    const kategoriKeys = (
+      await db.rabNode.findMany({
+        where: { revisionId: node.revisionId, kind: "kategori" },
+        select: { lineageKey: true },
+      })
+    ).map((k) => k.lineageKey);
     const kat = await db.rabNode.findFirst({
       where: {
         revisionId: node.revisionId,
         kind: "kategori",
-        lineageKey: node.lineageKey.split("#")[0],
+        lineageKey: kategoriDariLineageAtau(node.lineageKey, kategoriKeys),
       },
       select: { code: true, name: true },
     });

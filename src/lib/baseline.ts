@@ -160,13 +160,28 @@ export async function konversiBaselineModeMinggu(
   });
   if (!lama || lama.points.length === 0) return "dilewati";
 
-  // Sumber konversi: matriks per kategori bila lengkap & cocok panjangnya;
+  // Sumber konversi: matriks per kategori bila lengkap & seragam panjangnya;
   // kalau tidak, increment kurva itu sendiri (baseline lama tanpa matriks).
-  const matriks = lama.scheduleItems
-    .map((s) => ({ ...s, weekly: asWeekly(s.weekly) }))
-    .filter((s) => s.weekly.length === o.oldTotalWeeks);
-  const pakaiMatriks = matriks.length > 0 && matriks.length === lama.scheduleItems.length;
-  if (!pakaiMatriks && lama.points.length !== o.oldTotalWeeks) return "dilewati";
+  //
+  // PANJANG GRID LAMA DIBACA DARI YANG TERSIMPAN, bukan dihitung ulang dari
+  // tanggal kontrak. Dua penghitung minggu di sistem ini bisa berselisih satu
+  // kolom (mis. `totalWeeksFor` = ceil(durasi/7) vs `weekEndFractions` yang
+  // memakai endDate); dulu selisih itu membuat konversi menyerah — dan yang
+  // menampung penyerahannya adalah `regenerateBaseline`, yang MEMBUANG jadwal
+  // impor Excel & editan manual. DECISIONS 427d melarang persis itu: jadwal
+  // yang sudah ada tidak dibuang, sistem yang menyesuaikan.
+  // Audit 2026-09-15 (G-2).
+  const matriks = lama.scheduleItems.map((s) => ({ ...s, weekly: asWeekly(s.weekly) }));
+  const panjang = new Set(matriks.map((s) => s.weekly.length));
+  const pakaiMatriks = matriks.length > 0 && panjang.size === 1 && !panjang.has(0);
+  const oldWeeks = pakaiMatriks ? [...panjang][0] : lama.points.length;
+  if (oldWeeks === 0) return "dilewati";
+  /*
+   * Fraksi hari grid lama hanya sahih bila panjangnya memang sepanjang grid
+   * itu; kalau berselisih, grid lama diperlakukan sebagai minggu SERAGAM —
+   * bentuk kurvanya tetap, hanya pembagi harinya yang tidak bisa dipastikan.
+   */
+  const oldFracs = oldWeeks === o.oldTotalWeeks ? o.oldEndFracs : null;
 
   let rows: { lineageKey: string; name: string; weightPct: number; weekly: number[] }[];
   let weekly: number[];
@@ -175,7 +190,7 @@ export async function konversiBaselineModeMinggu(
       lineageKey: s.lineageKey,
       name: s.name,
       weightPct: s.weightPct != null ? Number(s.weightPct) : 0,
-      weekly: rebucketWeeklyToGrid(s.weekly, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks).map(
+      weekly: rebucketWeeklyToGrid(s.weekly, oldFracs, o.newEndFracs, o.newTotalWeeks).map(
         (v) => Math.round(v * 1e6) / 1e6,
       ),
     }));
@@ -188,7 +203,7 @@ export async function konversiBaselineModeMinggu(
     const inc = pts.map((v, i) => Math.max(0, v - (i > 0 ? pts[i - 1] : 0)));
     rows = [];
     weekly = cumulativeFromWeeklyRows(
-      [rebucketWeeklyToGrid(inc, o.oldEndFracs, o.newEndFracs, o.newTotalWeeks)],
+      [rebucketWeeklyToGrid(inc, oldFracs, o.newEndFracs, o.newTotalWeeks)],
       o.newTotalWeeks,
     );
   }
@@ -303,11 +318,19 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
     const byKey = new Map(active.scheduleItems.map((s) => [s.lineageKey, asWeekly(s.weekly)]));
     // Pakai jadwal tersimpan hanya bila SEMUA kategori punya matriks minggu
     // sepanjang totalWeeks (bukan backfill '[]' / durasi berubah).
+    //
+    // Baris NOL bukan alasan membuang matriksnya. Impor "apa adanya"
+    // (DECISIONS 203) sengaja menyimpan kategori yang tidak punya baris di
+    // Excel user sebagai baris nol, dan mengatakannya di banner impor. Dulu
+    // syaratnya `w.some(v > 0)` PER KATEGORI, jadi satu baris kosong yang sah
+    // itu membuang seluruh jadwal impor: editor & tabel KKP jatuh ke jadwal
+    // otomatis sementara kurva resmi tetap dari impor — satu dokumen, dua
+    // rencana. Yang benar-benar menandai "belum ada jadwal" adalah matriks
+    // yang SELURUHNYA nol. Audit 2026-09-15 (G-1).
+    const rows = base.categories.map((c) => byKey.get(c.lineageKey));
     const usable =
-      base.categories.every((c) => {
-        const w = byKey.get(c.lineageKey);
-        return w && w.length === totalWeeks && w.some((v) => v > 0);
-      });
+      rows.every((w) => w && w.length === totalWeeks) &&
+      rows.some((w) => w!.some((v) => v > 0));
     if (usable) {
       return {
         totalWeeks,

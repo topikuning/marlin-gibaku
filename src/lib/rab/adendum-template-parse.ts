@@ -135,6 +135,8 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   const tumpukan: { key: string; depth: number }[] = [];
   /** Berapa item baru sudah disisipkan di bawah satu induk — untuk lineageKey. */
   const barisBaruPerInduk = new Map<string, number>();
+  /** Semua lineageKey yang sudah dipakai – penjaga kunci kembar (F-3). */
+  const kunciTerpakai = new Set<string>();
   /** lineageKey → nomor baris pertama yang memakainya (deteksi baris disalin). */
   const barisPerLineage = new Map<string, number>();
   let sortOrder = 0;
@@ -330,9 +332,19 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     }
     const urut = (barisBaruPerInduk.get(induk) ?? 0) + 1;
     barisBaruPerInduk.set(induk, urut);
-    // lineageKey item baru dibuat dari kodenya; ditandai "+" supaya tidak
-    // pernah bentrok dengan lineage kontrak lama yang sudah punya realisasi.
-    const key = `${induk}#+${kode || `baru${urut}`}`;
+    /*
+     * lineageKey item baru dibuat dari kodenya; ditandai "+" supaya tidak pernah
+     * bentrok dengan lineage kontrak lama yang sudah punya realisasi.
+     *
+     * Kodenya BOLEH kembar — "-" sebagai bullet, atau dua baris sama-sama "1" —
+     * jadi kuncinya disufiks sampai bebas tabrakan, seperti `dedup` di
+     * `flatten.ts`. Tanpa itu keduanya berkunci sama: pratinjau diam, lalu
+     * penyimpanan ditolak `@@unique([revisionId, lineageKey])` di tengah jalan
+     * dan yang sampai ke user pesan mentah Prisma. Audit 2026-09-15 (F-3).
+     */
+    let key = `${induk}#+${kode || `baru${urut}`}`;
+    for (let n = 2; kunciTerpakai.has(key); n++) key = `${induk}#+${kode || `baru${urut}`}#${n}`;
+    kunciTerpakai.add(key);
     const vol = volAdendum ?? 0;
     nodes.push({
       kind: "item",
@@ -385,6 +397,51 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     if (n.kind !== "item") n.amount = t;
     return t;
   };
+  /*
+   * INVARIAN SEBELUM PULANG: tidak ada anak yatim.
+   *
+   * Baris induk bisa dibuang di tengah jalan — HAPUS di kolom Keterangan,
+   * volume negatif, atau baris judul yang dihapus user karena dikira hiasan —
+   * sementara anak-anaknya tetap terbaca dengan `parentLineageKey` menunjuk
+   * kunci yang sudah tidak ada. `hitung()` hanya berjalan dari akar, jadi
+   * rupiah anak itu tidak pernah sampai ke kategori: totalnya menyusut tanpa
+   * satu kalimat pun di pratinjau.
+   *
+   * Yang lebih buruk datang belakangan: `createRevisionFromNodes` menolak
+   * "orphan node" — dan penolakan itu terjadi SESUDAH draft adendum lama
+   * dihapus. Jadi kegagalannya harus muncul DI SINI, saat berkasnya dibaca,
+   * selagi belum ada yang hilang. Audit 2026-09-15 (F-2).
+   */
+  const kunciNode = new Set(nodes.map((n) => n.lineageKey));
+  const yatim = nodes.filter((n) => n.parentLineageKey && !kunciNode.has(n.parentLineageKey));
+  if (yatim.length > 0) {
+    const contoh = yatim
+      .slice(0, 3)
+      .map((n) => `"${n.name || n.code}" (induknya "${n.parentLineageKey}")`)
+      .join(", ");
+    throw new AdendumTemplateError(
+      `${yatim.length} baris kehilangan induknya: ${contoh}${yatim.length > 3 ? ", …" : ""}. ` +
+        `Baris induknya dihapus, di-HAPUS, atau bervolume negatif sementara rinciannya dibiarkan. ` +
+        `Hapus rinciannya sekalian, atau kembalikan baris induknya.`,
+    );
+  }
+
+  /*
+   * Dan tidak ada kunci kembar. Pagar ini berdiri walau `dedup` di atas sudah
+   * menjaga item baru: baris LAMA yang tersalin dua kali membawa lineageKey yang
+   * sama, dan penolakannya dulu baru datang dari constraint DB — sesudah draft
+   * lama hilang, dengan pesan mentah Prisma. Audit 2026-09-15 (F-3).
+   */
+  if (kunciNode.size !== nodes.length) {
+    const hitungKunci = new Map<string, number>();
+    for (const n of nodes) hitungKunci.set(n.lineageKey, (hitungKunci.get(n.lineageKey) ?? 0) + 1);
+    const kembar = [...hitungKunci.entries()].filter(([, c]) => c > 1).map(([k]) => k);
+    throw new AdendumTemplateError(
+      `Ada baris dengan identitas kembar: ${kembar.slice(0, 3).join(", ")}${kembar.length > 3 ? ", …" : ""}. ` +
+        `Kemungkinan satu baris tersalin dua kali – hapus salinannya.`,
+    );
+  }
+
   for (const n of nodes) if (!n.parentLineageKey) hitung(n);
 
   return { nodes, dihapus, volumeNol, volumeNegatif, itemBaru };

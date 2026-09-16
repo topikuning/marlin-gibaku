@@ -16,6 +16,8 @@ import type { RecapRowStatus } from "@/lib/daily-report/recap-import";
 const STATUS_META: Record<RecapRowStatus, { label: string; tone: BadgeTone }> = {
   ok: { label: "Siap", tone: "success" },
   unmatched: { label: "Tak dikenali", tone: "danger" },
+  ambigu: { label: "Kode ganda", tone: "danger" },
+  digabung: { label: "Digabung", tone: "info" },
   bad_date: { label: "Tanggal salah", tone: "danger" },
   future_date: { label: "Tanggal depan", tone: "warning" },
   zero_volume: { label: "Volume 0", tone: "warning" },

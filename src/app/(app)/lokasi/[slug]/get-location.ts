@@ -63,6 +63,7 @@ function findLocation(slug: string) {
               durationDays: true,
               startDate: true,
               endDate: true,
+              weekMode: true,
               supervisorName: true,
               wakilSahName: true,
               wakilSahNip: true,

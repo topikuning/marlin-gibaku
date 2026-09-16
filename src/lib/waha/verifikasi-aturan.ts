@@ -70,11 +70,20 @@ export type KeadaanVerifikasi =
   | { tahap: "belum" }
   | { tahap: "menunggu-pesan"; frasa: string; kedaluwarsa: Date }
   | { tahap: "menunggu-kode"; nomor: string | null; kedaluwarsa: Date; sisaPercobaan: number }
+  /**
+   * Pesannya MASUK, tapi kodenya tidak berhasil dikirim balik.
+   *
+   * Keadaan ini punya namanya sendiri karena tanpa itu ia menyamar jadi
+   * "menunggu-pesan" — layar menyuruh mengirim ulang pesan yang sebenarnya
+   * sudah sampai, dan orangnya mengirim lagi, dan lagi. DECISIONS 576.
+   */
+  | { tahap: "gagal-kirim"; nomor: string | null }
   | { tahap: "selesai"; nomor: string | null; kapan: Date };
 
 export type BarisVerifikasi = {
   phrase: string;
   code: string | null;
+  senderKey: string | null;
   waNumber: string | null;
   attempts: number;
   expiresAt: Date;
@@ -95,7 +104,12 @@ export function keadaanVerifikasi(
 ): KeadaanVerifikasi {
   if (terverifikasiPada) return { tahap: "selesai", nomor, kapan: terverifikasiPada };
   if (!baris || baris.expiresAt.getTime() <= sekarang.getTime()) return { tahap: "belum" };
-  if (!baris.code) return { tahap: "menunggu-pesan", frasa: baris.phrase, kedaluwarsa: baris.expiresAt };
+  if (!baris.code) {
+    // Identitas pengirim sudah tercap = pesannya SAMPAI. Kalau kodenya tetap
+    // kosong, yang gagal kirimannya — bukan pesan orangnya.
+    if (baris.senderKey || baris.waNumber) return { tahap: "gagal-kirim", nomor: baris.waNumber };
+    return { tahap: "menunggu-pesan", frasa: baris.phrase, kedaluwarsa: baris.expiresAt };
+  }
   return {
     tahap: "menunggu-kode",
     nomor: baris.waNumber,
@@ -140,9 +154,16 @@ export function cocokkanKode(
  */
 export function tautanKirimWa(nomor: string | null | undefined, frasa: string): string | null {
   if (!nomor) return null;
-  // wa.me hanya menerima angka: "+62 812-3456-789" dan "0812…" harus dirapikan
-  // dulu, dan itu aturan yang sama dengan pencocokan nomor di tempat lain.
+  // Tautannya hanya menerima angka: "+62 812-3456-789", "0812…", dan JID
+  // "628…@c.us" harus dirapikan dulu — aturan yang sama dengan pencocokan
+  // nomor di tempat lain.
   const bersih = normalizePhone(nomor);
   if (!bersih) return null;
-  return `https://wa.me/${bersih}?text=${encodeURIComponent(frasa)}`;
+  // Bentuk `api.whatsapp.com/send/` dengan `type=phone_number&app_absent=0`,
+  // bukan `wa.me`: di peramban desktop wa.me berhenti di halaman antara yang
+  // menyuruh orang menekan "Continue to Chat" sekali lagi, dan di ponsel tanpa
+  // WhatsApp terpasang ia diam saja. Bentuk ini yang dipakai user.
+  return `https://api.whatsapp.com/send/?phone=${bersih}&text=${encodeURIComponent(
+    frasa,
+  )}&type=phone_number&app_absent=0`;
 }

@@ -245,3 +245,63 @@ describe("chat pribadi: buktinya dari antrean jawaban, bukan arsip pesan", () =>
     expect(r.status).toBe("ditolak");
   });
 });
+
+describe("bukti KETIGA: percobaan verifikasi nomor (DECISIONS 576)", () => {
+  /*
+   * Frasa verifikasi ditangani SEBELUM antrean jawaban dan berhenti di situ,
+   * jadi ia tidak pernah melahirkan `wa_reply_jobs` — dua bukti lama sama-sama
+   * kosong. Akibatnya dilaporkan user 2026-09-14: *"sistem verifikasimu gagal
+   * total, kamu tidak merespon kode"*. Layarnya bilang kode sudah dibalas;
+   * gerbang menolaknya sebagai chat pribadi yang menyapa duluan.
+   */
+  it("balasan kode LOLOS ketika identitas pengirimnya sudah tercap", async () => {
+    const nomor = `62899${String(Date.now()).slice(-8)}`;
+    const org = await db.organization.create({
+      data: { name: `Org Pagar ${suffix}`, slug: `org-pagar-${suffix}` },
+    });
+    const u = await db.user.create({
+      data: {
+        orgId: org.id,
+        username: `pagar-${suffix}`,
+        fullName: "Uji Pagar",
+        passwordHash: "x",
+        role: "site_manager",
+      },
+    });
+    await db.waVerification.create({
+      data: {
+        userId: u.id,
+        phrase: `MARLIN-PGR${suffix.slice(-3).toUpperCase()}`,
+        senderKey: nomor,
+        waNumber: nomor,
+        expiresAt: new Date(Date.now() + 900_000),
+      },
+    });
+
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: `${nomor}@c.us`,
+      payload: { teks: "Kode verifikasi MARLIN: *123456*" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-verif-lolos-${suffix}`,
+    });
+    // Yang diuji: TIDAK ditolak pagar. Gagal karena sesi WAHA tidak ada di uji
+    // itu urusan lain – yang penting ia sampai ke tahap berangkat.
+    expect(r.status).not.toBe("ditolak");
+    expect(r.error ?? "").not.toContain("nomor pribadi");
+  });
+
+  it("nomor LAIN tetap ditahan – capnya bukan pintu untuk semua orang", async () => {
+    const r = await sendWaMessage({
+      kind: "teks",
+      destination: "6287700000001@c.us",
+      payload: { teks: "halo" },
+      sourceType: "balasan_wa",
+      balasanMasuk: true,
+      idempotencyKey: `uji-verif-tahan-${suffix}`,
+    });
+    expect(r.status).toBe("ditolak");
+    expect(r.error).toContain("nomor pribadi");
+  });
+});

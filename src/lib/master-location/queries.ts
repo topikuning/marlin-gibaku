@@ -57,6 +57,15 @@ export type ExistingLocationIndex = {
 /** Normalisasi longgar: huruf kecil, tanpa spasi sama sekali. */
 const normLoose = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
 
+/**
+ * Kunci LONGGAR = provinsi|kabupaten|desa, abai spasi & huruf besar-kecil.
+ * Kecamatan sengaja di luar kunci — ia dicocokkan terpisah (`kecamatanCocok`)
+ * karena sering kosong di satu sisi. Diekspor untuk pendeteksi lokasi ganda.
+ */
+export function kunciDesaLonggar(p: LocationIdentity): string {
+  return baseKey(p);
+}
+
 function baseKey(p: LocationIdentity): string {
   return [normLoose(p.province), normLoose(p.regency), normLoose(p.village)].join("|");
 }

@@ -384,8 +384,20 @@ function BadanForm({
         </div>
       </fieldset>
 
+      {/* Material & alat TIDAK ditawarkan pada hari yang dinyatakan nihil —
+          server memang menolaknya (invarian dua arah, audit 2026-09-15 A-3/C-3),
+          jadi menampilkannya hanya mengundang orang mengetik lalu ditolak.
+          Cuaca, jam kerja, dan tenaga TETAP ada: justru cuacalah yang
+          menjelaskan sebab nihilnya. */}
+      {report.noActivity ? (
+        <p className="rounded-md border border-border/70 bg-surface-muted/40 p-2 text-[13px] text-ink-muted">
+          Hari ini dinyatakan tidak ada kegiatan, jadi pemasukan bahan dan peralatan tidak diisi.
+          Batalkan pernyataannya lebih dulu kalau ternyata ada.
+        </p>
+      ) : null}
+
       {/* Material masuk */}
-      <fieldset>
+      <fieldset hidden={report.noActivity} disabled={report.noActivity}>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Pemasukan bahan / material</legend>
         <div className="space-y-2">
           {materials.map((row, idx) => (
@@ -462,7 +474,7 @@ function BadanForm({
       </fieldset>
 
       {/* Peralatan */}
-      <fieldset>
+      <fieldset hidden={report.noActivity} disabled={report.noActivity}>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Peralatan</legend>
         <div className="space-y-2">
           {equipment.map((row, idx) => (

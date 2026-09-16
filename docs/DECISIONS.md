@@ -88,6 +88,17 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 584 | 2026-09-14 | Audit batas akses, mutasi serentak, dan retensi snapshot – 19 API ikut pagar ganti-password, Prisma dipaksa UTC |
+| 583 | 2026-09-16 | Jadwal tersimpan harus meliput SELURUH kategori RAB aktif – dua pembaca kanonik berhenti berselisih |
+| 582 | 2026-09-16 | Kode kategori RAB tidak unik – pencocokan jadwal Excel memakai nama bila kodenya kembar (E2E kurva-S merah) |
+| 581 | 2026-09-16 | Lokasi kembar: guard nama di addTargetLocation & pindahkanLokasi, pendeteksi yang terlanjur ada di /sistem |
+| 580 | 2026-09-16 | Kolom progres agregat di daftar paket – satu angka, satu nama dengan KPI ringkasan paket |
+| 579 | 2026-09-15 | Pindahkan lokasi ke paket lain – super admin, dua jalur (paksa & CCO); lingkupLokasi sadar-paket |
+| 578 | 2026-09-15 | Akhir kontrak = SPMK + durasi; SPMK titik nol – pembaca & kolom minggu baseline disamakan |
+| 577 | 2026-09-15 | Audit `dev`: 26 temuan kritis & tinggi diperbaiki; semantik tanggal akhir kontrak ditahan untuk user |
+| 576 | 2026-09-14 | Kode verifikasi WA ditahan pagar nomor pribadi – dan layar mengaku sudah mengirimnya |
+| 575 | 2026-09-14 | Frasa verifikasi WA tidak pernah dilempar ke AI, dan tidak diganti selagi masih berlaku |
+| 574 | 2026-09-14 | Tautan verifikasi WA pakai api.whatsapp.com, dan JID tidak ditampilkan mentah |
 | 573 | 2026-09-13 | Verifikasi WA dikirim SEKALI KETUK, bukan disalin manual |
 | 572 | 2026-09-13 | `pnpm build` masuk gerbang sebelum merge ke main |
 | 571 | 2026-09-13 | Akses pengguna terlihat DI halaman lokasinya |

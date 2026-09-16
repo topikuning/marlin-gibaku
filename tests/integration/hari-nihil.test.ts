@@ -167,6 +167,82 @@ describe("mengirim laporan hari nihil", () => {
     ).rejects.toThrow(/item pekerjaan/i);
   });
 
+  it("nihil aktif MENOLAK item yang masuk belakangan (impor rekap / tab kedua)", async () => {
+    /*
+     * Arah kedua invariannya. Dulu hanya `setHariNihil` yang berjaga, jadi
+     * impor rekap Excel untuk tanggal yang sudah ditandai nihil menyisipkan
+     * itemnya tanpa hambatan: blanko KKP mencetak "TIDAK ADA KEGIATAN" sambil
+     * menyembunyikan baris volumenya, progres tetap menghitung volume itu, dan
+     * penjadwal nihil menghitung harinya sebagai hari berhenti.
+     * Audit 2026-09-15 (A-3/C-3).
+     */
+    const { upsertItem } = await import("@/lib/daily-report/service");
+    const r = await getOrCreateDraft(locationId, "2026-08-16", userId);
+    await setHariNihil(r.id, { nihil: true, alasan: "hujan" }, userId);
+    await expect(
+      upsertItem(r.id, { rabNodeId: nodeId, volumeDone: 1, notes: null }, userId),
+    ).rejects.toThrow(/tidak ada kegiatan/i);
+  });
+
+  it("nihil aktif MENOLAK material & alat, tetapi cuaca tetap boleh disimpan", async () => {
+    const { setEnrichment } = await import("@/lib/daily-report/service");
+    const r = await getOrCreateDraft(locationId, "2026-08-17", userId);
+    await setHariNihil(r.id, { nihil: true, alasan: "hujan" }, userId);
+    await expect(
+      setEnrichment(
+        r.id,
+        {
+          workStart: null, workEnd: null, notes: null,
+          workers: [], materials: [{ name: "Semen 50kg", unit: "zak", qty: 20 }], equipment: [],
+        },
+        userId,
+      ),
+    ).rejects.toThrow(/tidak ada kegiatan/i);
+    // Cuaca justru yang MENJELASKAN sebab nihilnya – ia tidak ikut dilarang.
+    await setEnrichment(
+      r.id,
+      { workStart: null, workEnd: null, notes: null, workers: [], materials: [], equipment: [], weather: "hujan_deras" },
+      userId,
+    );
+    const t = await db.dailyReport.findUniqueOrThrow({ where: { id: r.id } });
+    expect(t.weather).toBe("hujan_deras");
+  });
+
+  it("laporan yang TERLANJUR nihil + berisi tidak bisa dikirim", async () => {
+    // Memodelkan baris yang tersimpan sebelum pagar di hulu ada: item dulu,
+    // pernyataan nihil ditulis langsung ke DB.
+    const { upsertItem } = await import("@/lib/daily-report/service");
+    const r = await getOrCreateDraft(locationId, "2026-08-18", userId);
+    await upsertItem(r.id, { rabNodeId: nodeId, volumeDone: 2, notes: null }, userId);
+    await db.dailyReport.update({
+      where: { id: r.id },
+      data: { noActivity: true, noActivityReason: "hujan" },
+    });
+    await expect(submitReport(r.id, userId)).rejects.toThrow(/tidak ada kegiatan/i);
+  });
+
+  it("pernyataan nihil pada laporan yang SUDAH DISETUJUI ditolak", async () => {
+    /*
+     * Pemegang `daily_report.create` dulu bisa mengubah sebab pada laporan yang
+     * sudah diverifikasi (hujan → libur, dasar klaim perpanjangan waktu) atau
+     * membatalkan pernyataannya sehingga laporan yang disetujui jadi kosong dan
+     * non-nihil — tanpa satu baris histori status. Audit 2026-09-15 (A-2).
+     */
+    const r = await getOrCreateDraft(locationId, "2026-08-19", userId);
+    await setHariNihil(r.id, { nihil: true, alasan: "hujan" }, userId);
+    await submitReport(r.id, userId);
+    await db.dailyReport.update({ where: { id: r.id }, data: { status: "disetujui" } });
+
+    await expect(
+      setHariNihil(r.id, { nihil: true, alasan: "libur" }, userId),
+    ).rejects.toThrow(/Draft atau Perlu Koreksi/i);
+    await expect(setHariNihil(r.id, { nihil: false }, userId)).rejects.toThrow(/Draft atau Perlu Koreksi/i);
+
+    const t = await db.dailyReport.findUniqueOrThrow({ where: { id: r.id } });
+    expect(t.noActivity).toBe(true);
+    expect(t.noActivityReason).toBe("hujan");
+  });
+
   it("membatalkan nihil ikut mengosongkan sebabnya", async () => {
     /*
      * Sebab yang tertinggal dari pernyataan yang sudah dicabut akan terbaca

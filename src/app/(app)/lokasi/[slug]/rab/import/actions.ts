@@ -225,7 +225,19 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     let templateAdendum:
       | (Awaited<ReturnType<typeof bacaTemplateAdendum>> & { wb: import("exceljs").Workbook })
       | null = null;
-    if (mode === "draft") {
+    /*
+     * Deteksi template berjalan di KEDUA mode.
+     *
+     * Dulu dipagari `mode === "draft"` demi biaya, padahal gerbang murahnya
+     * (`namaSheetXlsx`) sudah ada di bawah ini. Akibatnya: template terbitan
+     * MARLIN yang diunggah lewat "Jadikan RAB AKTIF" — jalur yang memang
+     * ditawarkan untuk adendum yang SUDAH resmi — jatuh ke parser HPS dan
+     * membaca kolom HPS, bukan kolom adendum. Pada berkas Situbondo nilainya
+     * terbaca Rp 7,45 M dari Rp 3,72 M yang sebenarnya, dengan `warnings`
+     * kosong: pratinjau menjanjikan nilai DUA KALI LIPAT tanpa satu peringatan
+     * pun. Audit 2026-09-15 (F-1).
+     */
+    {
       // Nama sheet DULU, isinya belakangan. Memuat seluruh workbook cuma untuk
       // mengintip satu sel penanda berharga 180 MB heap + 25 detik pada berkas
       // KKP 45-sheet — dan itulah yang mematikan proses di kontainer 512 MB
@@ -699,13 +711,21 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
       const amendmentId = draft?.amendmentId ?? null;
       const noteDraft = note ?? draft?.note ?? null;
-      if (draft) await discardDraft(draft.id, user.id);
+      /*
+       * DRAFT LAMA DIBUANG SESUDAH yang baru berhasil dibuat, bukan sebelum.
+       *
+       * Urutan lama membuang dulu, dan setiap kegagalan `createRevisionFromNodes`
+       * — struktur yatim, lineageKey kembar, constraint DB — meninggalkan lokasi
+       * TANPA draft sama sekali. Yang hilang bukan berkas unggahan, melainkan
+       * pekerjaan adendum yang sedang disusun orang. Audit 2026-09-15 (F-2).
+       */
       const resDraft = await createRevisionFromNodes(location.id, nodes, {
         source,
         note: noteDraft,
         userId: user.id,
         amendmentId,
       });
+      if (draft) await discardDraft(draft.id, user.id);
       await arsipkanSumber({
         buffer,
         file,
@@ -725,6 +745,29 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `draft ini baru berlaku setelah diaktifkan.` +
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : ""),
       };
+    }
+
+    /*
+     * SATU DRAFT PER LOKASI — juga di jalur "Jadikan RAB AKTIF".
+     *
+     * Mode draft sudah menjaganya (draft lama diganti), tapi mode aktifkan dulu
+     * langsung membuat revisi baru. Ketika gerbang empat mata menahan
+     * aktivasinya — yang justru bentuk NORMAL-nya — revisi itu tertinggal
+     * sebagai DRAFT KEDUA. Sejak itu halaman adendum, pemilih item laporan, dan
+     * tombol aktifkan memilih draft "yang mana saja" menurut urutan baca
+     * Postgres; laporan harian berbasis draft yang kalah undian tidak pernah
+     * naik jadi resmi, dan draft itu tidak bisa dibuang karena FK-nya RESTRICT.
+     * Audit 2026-09-15 (E-1).
+     */
+    if (draft) {
+      return {
+        preview,
+        notice:
+          `Lokasi ini sudah punya draft adendum revisi #${draft.revisionNo}. Satu lokasi hanya boleh ` +
+          `punya satu draft – dua draft membuat halaman adendum, laporan harian, dan tombol Aktifkan ` +
+          `menunjuk revisi yang berbeda-beda. Impor ini sebagai DRAFT (isi draft #${draft.revisionNo} ` +
+          `akan diganti), atau aktifkan/buang draft itu dulu.`,
+      } as ImportState;
     }
 
     const res = await createRevisionFromNodes(location.id, nodes, {

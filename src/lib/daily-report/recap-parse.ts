@@ -30,7 +30,21 @@ export type RecapLeaf = {
   doneCumulative: number;
 };
 
-export type RecapRowStatus = "ok" | "unmatched" | "bad_date" | "future_date" | "zero_volume" | "over_volume";
+export type RecapRowStatus =
+  | "ok"
+  | "unmatched"
+  /**
+   * Kodenya dipakai lebih dari satu pekerjaan dan uraiannya tidak memihak
+   * siapa pun. Menebak salah satu berarti volume mendarat di pekerjaan lain
+   * tanpa ada yang tahu — lebih baik berhenti dan menyebut kandidatnya.
+   */
+  | "ambigu"
+  /** Tanggal & pekerjaan sama dengan baris sebelumnya: volumenya dijumlahkan ke sana. */
+  | "digabung"
+  | "bad_date"
+  | "future_date"
+  | "zero_volume"
+  | "over_volume";
 
 export type RecapMatch = ParsedRecapRow & {
   status: RecapRowStatus;
@@ -159,31 +173,76 @@ function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+type HasilCocok =
+  | { leaf: RecapLeaf }
+  | { leaf: null; kandidat: RecapLeaf[] };
+
 /** Cocokkan baris rekap ke leaf RAB + tandai masalah. Fungsi MURNI. */
 export function matchRows(rows: ParsedRecapRow[], leaves: RecapLeaf[], todayKey: string): RecapMatch[] {
-  const byCode = new Map<string, RecapLeaf>();
+  /*
+   * KODE BUKAN KUNCI UNIK.
+   *
+   * RAB KNMP lazim memakai kode item yang berulang antar kategori — item "1" di
+   * kategori I dan item "1" di kategori II. Yang membedakan keduanya lineageKey.
+   * Versi pertama menyimpan SATU leaf per kode (`set()` polos), jadi yang menang
+   * leaf terakhir yang kebetulan dibaca `findMany` — dan urutan itu tidak dijamin
+   * sama antara permintaan pratinjau dan permintaan commit.
+   *
+   * Sekarang tiap kode menyimpan SEMUA kandidatnya; yang memutuskan uraiannya.
+   * Kalau uraian tidak memihak, jangan menebak. DECISIONS 203 melarang angka
+   * pengguna "dibetulkan" diam-diam — dan memindahkannya ke pekerjaan lain jauh
+   * lebih buruk daripada membetulkannya. Audit 2026-09-15 (C-1).
+   */
+  const byCode = new Map<string, RecapLeaf[]>();
   const byName = new Map<string, RecapLeaf>();
   for (const l of leaves) {
     const codeKey = normalize(l.code);
-    if (codeKey) byCode.set(codeKey, l);
+    if (codeKey) (byCode.get(codeKey) ?? byCode.set(codeKey, []).get(codeKey)!).push(l);
     const nameKey = normalize(l.name);
     if (nameKey && !byName.has(nameKey)) byName.set(nameKey, l);
   }
 
-  const findLeaf = (row: ParsedRecapRow): RecapLeaf | null => {
+  /** Persempit kandidat dengan uraian: sama persis dulu, baru saling-memuat. */
+  const saringDenganNama = (kandidat: RecapLeaf[], nameKey: string): RecapLeaf[] => {
+    if (!nameKey) return kandidat;
+    const persis = kandidat.filter((l) => normalize(l.name) === nameKey);
+    if (persis.length === 1) return persis;
+    const memuat = kandidat.filter((l) => {
+      const n = normalize(l.name);
+      return n.includes(nameKey) || nameKey.includes(n);
+    });
+    return memuat.length === 1 ? memuat : persis.length > 0 ? persis : kandidat;
+  };
+
+  const findLeaf = (row: ParsedRecapRow): HasilCocok => {
     const codeKey = normalize(row.code);
-    if (codeKey && byCode.has(codeKey)) return byCode.get(codeKey)!;
     const nameKey = normalize(row.name);
-    if (!nameKey) return null;
-    if (byName.has(nameKey)) return byName.get(nameKey)!;
+    const sekode = codeKey ? (byCode.get(codeKey) ?? []) : [];
+    if (sekode.length === 1) return { leaf: sekode[0] };
+    if (sekode.length > 1) {
+      const sisa = saringDenganNama(sekode, nameKey);
+      return sisa.length === 1 ? { leaf: sisa[0] } : { leaf: null, kandidat: sisa };
+    }
+    if (!nameKey) return { leaf: null, kandidat: [] };
+    if (byName.has(nameKey)) return { leaf: byName.get(nameKey)! };
     const hits = leaves.filter((l) => {
       const n = normalize(l.name);
       return n.includes(nameKey) || nameKey.includes(n);
     });
-    return hits.length === 1 ? hits[0] : null;
+    return hits.length === 1 ? { leaf: hits[0] } : { leaf: null, kandidat: [] };
   };
 
   const runningByLineage = new Map<string, number>();
+  /*
+   * BARIS KEMBAR (tanggal + pekerjaan sama) DIGABUNG, bukan saling menimpa.
+   *
+   * `commitRecap` menyimpan lewat `upsertItem` pada kunci unik
+   * (reportId, lineageKey): dua baris untuk hari & pekerjaan yang sama membuat
+   * yang kedua MENIMPA yang pertama — pratinjau menjanjikan 3+4, yang tersimpan
+   * 4. Volumenya dijumlahkan di sini supaya yang dijanjikan layar sama dengan
+   * yang masuk basis data, dan penggabungannya DIKATAKAN. Audit 2026-09-15 (C-2).
+   */
+  const pertamaPerHariItem = new Map<string, RecapMatch>();
 
   return rows.map((row): RecapMatch => {
     const base: Omit<RecapMatch, "status"> = {
@@ -199,8 +258,19 @@ export function matchRows(rows: ParsedRecapRow[], leaves: RecapLeaf[], todayKey:
     if (!row.dateKey) return { ...base, status: "bad_date", message: `Tanggal tidak terbaca: "${row.rawDate}"` };
     if (row.dateKey > todayKey) return { ...base, status: "future_date", message: "Tanggal belum terjadi" };
 
-    const leaf = findLeaf(row);
-    if (!leaf) return { ...base, status: "unmatched", message: `Pekerjaan tak dikenali: "${row.name || row.code}"` };
+    const cocok = findLeaf(row);
+    if (!cocok.leaf) {
+      if (cocok.kandidat.length > 1) {
+        const daftar = cocok.kandidat.map((l) => `${l.code || "?"} ${l.name}`).join(" · ");
+        return {
+          ...base,
+          status: "ambigu",
+          message: `Kode "${row.code}" dipakai ${cocok.kandidat.length} pekerjaan – sebutkan uraian yang tepat: ${daftar}`,
+        };
+      }
+      return { ...base, status: "unmatched", message: `Pekerjaan tak dikenali: "${row.name || row.code}"` };
+    }
+    const leaf = cocok.leaf;
 
     const matched = { ...base, matchedNodeId: leaf.id, matchedName: leaf.name, matchedCode: leaf.code, unit: leaf.unit };
 
@@ -209,13 +279,33 @@ export function matchRows(rows: ParsedRecapRow[], leaves: RecapLeaf[], todayKey:
     }
 
     const running = runningByLineage.get(leaf.lineageKey) ?? 0;
-    const valueDone = Number(calcValueDone(row.volume, leaf.unitPrice));
     if (leaf.volume != null && leaf.doneCumulative + running + row.volume > leaf.volume + VOLUME_EPSILON) {
       const sisa = Math.max(0, Math.round((leaf.volume - leaf.doneCumulative - running) * 1000) / 1000);
+      const valueDone = Number(calcValueDone(row.volume, leaf.unitPrice));
       return { ...matched, status: "over_volume", valueDone, message: `Melebihi sisa RAB (sisa ${sisa} ${leaf.unit ?? ""})`.trim() };
     }
-
     runningByLineage.set(leaf.lineageKey, running + row.volume);
-    return { ...matched, status: "ok", valueDone, message: null };
+
+    // Baris kembar: volumenya masuk ke baris PERTAMA hari itu, bukan berdiri sendiri.
+    const kunciHariItem = `${row.dateKey} ${leaf.lineageKey}`;
+    const pertama = pertamaPerHariItem.get(kunciHariItem);
+    if (pertama) {
+      pertama.volume = Math.round((pertama.volume + row.volume) * 1000) / 1000;
+      pertama.valueDone = Number(calcValueDone(pertama.volume, leaf.unitPrice));
+      return {
+        ...matched,
+        status: "digabung",
+        message: `Digabung ke baris ${pertama.rowNum} (tanggal & pekerjaan sama) – total ${pertama.volume} ${leaf.unit ?? ""}`.trim(),
+      };
+    }
+
+    const hasil: RecapMatch = {
+      ...matched,
+      status: "ok",
+      valueDone: Number(calcValueDone(row.volume, leaf.unitPrice)),
+      message: null,
+    };
+    pertamaPerHariItem.set(kunciHariItem, hasil);
+    return hasil;
   });
 }

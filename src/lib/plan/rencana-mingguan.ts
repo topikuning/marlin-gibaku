@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { bobotPct } from "@/lib/progress-calc";
+import { bobotPct, weekDateRange } from "@/lib/progress-calc";
 import { cumulativeVolumeByLineage, getLocationProgress, planPctAtWeek } from "@/lib/progress";
 import {
   HEADER_LOCATION_SELECT,
@@ -108,12 +108,16 @@ export async function getRencanaMingguan(
 ): Promise<RencanaMingguan | null> {
   const bounds = await getPeriodBounds(locationId);
   if (!bounds) return null;
-  const { startDate, totalWeeks, currentWeek } = bounds;
+  const { startDate, endDate, totalWeeks, currentWeek, weekMode } = bounds;
 
   const minggu = weekNumber ?? currentWeek;
   if (!Number.isInteger(minggu) || minggu < 1 || minggu > totalWeeks) return null;
-  const periodeStart = new Date(startDate.getTime() + (minggu - 1) * 7 * DAY);
-  const periodeEnd = new Date(periodeStart.getTime() + 6 * DAY);
+  /*
+   * Rentang periode dari GRID KONTRAK. `currentWeek` di atas sudah mode-aware;
+   * menghitung rentangnya dengan aritmetika tujuh-hari membuat kepala formulir
+   * menyebut tanggal yang bukan tanggal minggu itu. Audit 2026-09-15 (G-3).
+   */
+  const { start: periodeStart, end: periodeEnd } = weekDateRange(startDate, minggu, weekMode, endDate);
 
   // Angka pokok dari calculation layer — BUKAN dihitung ulang di sini.
   const progress = await getLocationProgress(locationId);

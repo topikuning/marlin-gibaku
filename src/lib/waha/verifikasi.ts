@@ -34,8 +34,26 @@ import { normalizePhone, senderKeyOf } from "./sender-identity";
 
 export class VerifikasiError extends Error {}
 
-/** Satu percobaan berjalan per orang; yang lama ditimpa, bukan ditumpuk. */
+/**
+ * Satu percobaan berjalan per orang; yang lama ditimpa, bukan ditumpuk.
+ *
+ * TAPI percobaan yang MASIH BERLAKU dan belum dijawab dipakai ulang, bukan
+ * diganti. Versi pertama membuat frasa baru tiap kali tombolnya ditekan — dan
+ * setiap layar yang masih memajang frasa sebelumnya (ketukan ganda, tab kedua,
+ * tombol kembali, halaman yang dipulihkan PWA) berubah jadi jebakan: yang
+ * dikirim orangnya frasa yang sudah tidak ada di basis data lagi.
+ *
+ * Itu bukan kemungkinan teoretis. 2026-09-14 user mengirim "MARLIN-KVNH9K" dan
+ * dijawab AI sebagai catatan lapangan, karena frasa itu sudah tidak dikenali.
+ */
 export async function mulaiVerifikasi(userId: string): Promise<{ frasa: string; kedaluwarsa: Date }> {
+  const lama = await db.waVerification.findUnique({ where: { userId } });
+  // `senderKey` sudah tercap = pesannya sudah masuk (dan kodenya gagal
+  // dikirim). Itu percobaan yang perlu DIULANG dari nol, bukan dipakai ulang.
+  if (lama && !lama.code && !lama.senderKey && lama.expiresAt.getTime() > Date.now()) {
+    return { frasa: lama.phrase, kedaluwarsa: lama.expiresAt };
+  }
+
   const frasa = buatFrasa();
   const kedaluwarsa = new Date(Date.now() + MENIT_BERLAKU * 60_000);
   await db.waVerification.upsert({
@@ -70,7 +88,15 @@ export async function bacaKeadaan(userId: string): Promise<KeadaanVerifikasi> {
 
 export type HasilPesanMasuk =
   | { ditangani: false }
-  | { ditangani: true; hasil: "kode-dikirim" | "kedaluwarsa" | "nomor-dipakai-orang-lain" };
+  | {
+      ditangani: true;
+      hasil:
+        | "kode-dikirim"
+        | "kode-gagal-dikirim"
+        | "kedaluwarsa"
+        | "tidak-dikenal"
+        | "nomor-dipakai-orang-lain";
+    };
 
 /**
  * Pesan WhatsApp masuk yang memuat frasa verifikasi.
@@ -93,12 +119,51 @@ export async function tanganiPesanVerifikasi(pesan: {
   if (!frasa) return { ditangani: false };
 
   const baris = await db.waVerification.findUnique({ where: { phrase: frasa } });
-  if (!baris) return { ditangani: false };
-
   const { balasWa } = await import("./kirim");
+
+  /*
+   * Balasan penjelasan TIDAK boleh menjatuhkan penanganannya.
+   *
+   * Tiga balasan di bawah ini bisa ditolak pagar nomor pribadi (DECISIONS 433)
+   * karena chat-nya belum punya bukti "menyapa duluan" — dan kalau `balasWa`
+   * melempar, seluruh pesan jatuh lagi ke jalur tanya-jawab yang lalu menebak.
+   * Gagal menjelaskan itu buruk; gagal menjelaskan LALU menjawab ngawur jauh
+   * lebih buruk.
+   */
+  const jelaskan = async (teks: string): Promise<void> => {
+    try {
+      await balasWa(pesan.chatId, teks);
+    } catch (err) {
+      console.error("[verifikasi-wa] balasan penjelasan gagal dikirim:", err);
+    }
+  };
+
+  /*
+   * Frasa yang TIDAK ketemu tetap ditangani di sini — tidak pernah diteruskan
+   * ke jalur tanya-jawab.
+   *
+   * Versi pertama mengembalikan `ditangani: false` di titik ini, dan akibatnya
+   * dilihat user 2026-09-14: "MARLIN-KVNH9K" dijawab AI sebagai *catatan
+   * lapangan*, lengkap dengan kutipan kendala Asemdoyong yang tidak ada
+   * hubungannya, ditutup "Tidak saya kenali: kvnh9k". Orang yang sedang
+   * memverifikasi nomornya membaca itu sebagai sistem yang rusak — dan ia
+   * benar.
+   *
+   * Frasa berawalan MARLIN- hanya punya satu arti. Kalau barisnya tidak ada
+   * (kedaluwarsa lalu terhapus, salah ketik yang kebetulan sah bentuknya, atau
+   * frasa dari percobaan yang sudah diganti), yang benar adalah mengatakannya
+   * — bukan menyerahkannya ke model bahasa yang akan menebak.
+   */
+  if (!baris) {
+    await jelaskan(
+      "Frasa ini tidak dikenali – mungkin sudah kedaluwarsa atau sudah diganti. " +
+        "Buka lagi halaman Verifikasi WhatsApp di MARLIN, lalu tekan tombol kirimnya untuk mendapatkan frasa baru.",
+    );
+    return { ditangani: true, hasil: "tidak-dikenal" };
+  }
+
   if (baris.expiresAt.getTime() <= Date.now()) {
-    await balasWa(
-      pesan.chatId,
+    await jelaskan(
       "Frasa ini sudah kedaluwarsa. Buka lagi halaman verifikasi di MARLIN untuk mendapatkan frasa baru.",
     );
     return { ditangani: true, hasil: "kedaluwarsa" };
@@ -122,8 +187,7 @@ export async function tanganiPesanVerifikasi(pesan: {
       select: { fullName: true },
     });
     if (lain) {
-      await balasWa(
-        pesan.chatId,
+      await jelaskan(
         "Nomor ini sudah terdaftar atas nama pengguna MARLIN yang lain. " +
           "Hubungi admin kalau nomornya memang berpindah tangan – satu nomor hanya boleh dipakai satu akun.",
       );
@@ -132,17 +196,38 @@ export async function tanganiPesanVerifikasi(pesan: {
     }
   }
 
-  const kode = buatKode();
+  /*
+   * Identitas pengirim dicap DULU, kodenya belakangan. Urutan ini penting dua
+   * kali:
+   *
+   * 1. Cap inilah bukti "chat ini yang menyapa duluan" yang dibaca pagar nomor
+   *    pribadi di gateway (DECISIONS 433). Tanpa dicap lebih dulu, kiriman
+   *    kodenya sendiri yang ditolak pagar itu.
+   * 2. `code` yang terisi berarti "kode SUDAH sampai di WhatsApp" — layar
+   *    membacanya begitu. Mengisinya sebelum kirimannya berhasil membuat layar
+   *    mengumumkan sesuatu yang tidak terjadi, dan itu persis yang dilaporkan
+   *    user 2026-09-14: *"kamu tidak merespon kode"* sementara layarnya bilang
+   *    "Kode sudah dibalas ke WhatsApp yang sama".
+   */
   await db.waVerification.update({
     where: { id: baris.id },
-    data: { code: kode, senderKey: kunci, waNumber: nomor, waLid: pesan.senderLid, attempts: 0 },
+    data: { code: null, senderKey: kunci, waNumber: nomor, waLid: pesan.senderLid, attempts: 0 },
   });
-  await balasWa(
-    pesan.chatId,
-    `Kode verifikasi MARLIN: *${kode}*\n\n` +
-      `Ketikkan kode ini di layar verifikasi. Berlaku ${MENIT_BERLAKU} menit. ` +
-      "Kalau Anda tidak sedang membuka MARLIN, abaikan pesan ini dan jangan berikan kodenya kepada siapa pun.",
-  );
+
+  const kode = buatKode();
+  try {
+    await balasWa(
+      pesan.chatId,
+      `Kode verifikasi MARLIN: *${kode}*\n\n` +
+        `Ketikkan kode ini di layar verifikasi. Berlaku ${MENIT_BERLAKU} menit. ` +
+        "Kalau Anda tidak sedang membuka MARLIN, abaikan pesan ini dan jangan berikan kodenya kepada siapa pun.",
+    );
+  } catch (err) {
+    console.error("[verifikasi-wa] kode gagal dikirim:", err);
+    return { ditangani: true, hasil: "kode-gagal-dikirim" };
+  }
+
+  await db.waVerification.update({ where: { id: baris.id }, data: { code: kode } });
   return { ditangani: true, hasil: "kode-dikirim" };
 }
 

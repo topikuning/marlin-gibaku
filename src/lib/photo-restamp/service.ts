@@ -2,6 +2,7 @@ import "server-only";
 import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import { DEFAULT_STAMP_ACCENT, getPhotoStampConfig, type StampSize } from "@/lib/photo-stamp/config";
 import { DEFAULT_STAMP_TZ, generatePhotoId, locationCodeFromName } from "@/lib/photo-stamp/format";
 import { overlayAlphaFor } from "@/lib/photo-stamp/renderer";
@@ -205,8 +206,19 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       select: { id: true },
     });
     if (revAktif) {
+      // Prefiks TERPANJANG berbatas "#" (D-2) — "VI#2" adalah kategori kedua.
+      const kategoriKeys = (
+        await db.rabNode.findMany({
+          where: { revisionId: revAktif.id, kind: "kategori" },
+          select: { lineageKey: true },
+        })
+      ).map((k) => k.lineageKey);
       const kat = await db.rabNode.findFirst({
-        where: { revisionId: revAktif.id, kind: "kategori", lineageKey: lkCap.split("#")[0] },
+        where: {
+          revisionId: revAktif.id,
+          kind: "kategori",
+          lineageKey: kategoriDariLineageAtau(lkCap, kategoriKeys),
+        },
         select: { code: true, name: true },
       });
       if (kat) bangunanCap = kat.code ? `${kat.code}. ${kat.name}` : kat.name;

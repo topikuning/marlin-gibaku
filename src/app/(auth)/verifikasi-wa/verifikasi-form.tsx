@@ -187,6 +187,38 @@ export function VerifikasiWaForm({
         </>
       ) : null}
 
+      {keadaan.tahap === "gagal-kirim" ? (
+        <>
+          {/*
+            * Pesannya SAMPAI, kodenya yang tidak berangkat.
+            *
+            * Menampilkan ini sebagai "menunggu pesan" akan menyuruh orangnya
+            * mengirim ulang sesuatu yang sudah diterima — berkali-kali, tanpa
+            * satu pun yang mengubah keadaan. DECISIONS 576.
+            */}
+          <Banner
+            tone="error"
+            title="Pesan Anda diterima, tapi kodenya gagal dikirim"
+            description={`Dari ${keadaan.nomor ?? "nomor Anda"}. Ini masalah di sisi MARLIN, bukan di pesan Anda – mengirim ulang tidak akan mengubahnya. Coba lagi sebentar, atau hubungi admin kalau tetap gagal.`}
+          />
+          <Button
+            type="button"
+            className="w-full"
+            loading={mulaiPending}
+            onClick={() =>
+              mulai(() =>
+                void mulaiVerifikasiAction().then((r) => {
+                  if (r?.keadaan) setLokal(r.keadaan);
+                }),
+              )
+            }
+          >
+            Coba lagi
+          </Button>
+          {tombolLewati}
+        </>
+      ) : null}
+
       {keadaan.tahap === "menunggu-kode" ? (
         <form action={kirimKode} className="space-y-3">
           <Banner

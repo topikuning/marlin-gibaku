@@ -8,7 +8,14 @@ import {
   prestasiPct,
   type WeekPeriodMode,
 } from "@/lib/progress-calc";
-import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
+import {
+  COUNTED_REPORT_STATUSES,
+  cumulativeVolumeByLineage,
+  getLocationProgress,
+  volumeDalamRentangByLineage,
+} from "@/lib/progress";
+import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
+import { nodeAktifByLineage } from "@/lib/rab/node-aktif";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
@@ -320,12 +327,29 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   const counted = new Set<DailyReportStatus>(COUNTED_REPORT_STATUSES);
   const includesSelf = counted.has(report.status);
 
+  /*
+   * "Volume Kontrak" dibaca dari revisi AKTIF lewat lineageKey. `it.rabNode`
+   * bisa milik revisi yang sudah `digantikan` — adendum yang aktif SESUDAH
+   * barisnya disimpan tidak pernah memetakan ulang `rabNodeId`, jadi seluruh
+   * laporan yang dibuat sebelum adendum terus menampilkan volume kontrak lama.
+   * Audit 2026-09-15 (B-2).
+   */
+  const aktifByLineage = await nodeAktifByLineage(
+    location.id,
+    report.items.map((it) => it.lineageKey),
+  );
+
   let totalValueToday = 0n;
   const items: WorkspaceItem[] = report.items.map((it) => {
     const volumeDone = Number(it.volumeDone);
     const base = cumulative.get(it.lineageKey) ?? 0;
     const volumeCumulative = Math.round((includesSelf ? base : base + volumeDone) * 1000) / 1000;
-    const volumeContract = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
+    const refAktif = it.basis === "aktif" ? aktifByLineage.get(it.lineageKey) : undefined;
+    const volumeContract = refAktif
+      ? refAktif.volume
+      : it.rabNode.volume != null
+        ? Number(it.rabNode.volume)
+        : null;
     totalValueToday += it.valueDone;
     return {
       id: it.id,
@@ -446,7 +470,7 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
   });
   if (!location) return null;
 
-  const [todayReport, correctionReports, weeklyPlan, last7Days, cumulative] = await Promise.all([
+  const [todayReport, correctionReports, weeklyPlan, last7Days] = await Promise.all([
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId, reportDate: today } },
       select: { status: true, _count: { select: { items: true } } },
@@ -469,6 +493,8 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
       where: { locationId, weekStart: { lte: today }, weekEnd: { gte: today } },
       select: {
         weekNumber: true,
+        weekStart: true,
+        weekEnd: true,
         items: {
           orderBy: { priority: "asc" },
           select: {
@@ -480,8 +506,24 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
       },
     }),
     getRecentDays(locationId, 7),
-    cumulativeVolumeByLineage(locationId),
   ]);
+
+  /*
+   * Realisasi target mingguan diukur DI DALAM minggu rencana itu, bukan
+   * kumulatif sepanjang proyek. Dulu `cumulativeVolumeByLineage(locationId)`
+   * tanpa rentang: item yang sudah dikerjakan 25 m³ pada minggu 2–4 membuat
+   * layar pelaksana menulis "25/20 m³" untuk target minggu ke-6 yang belum
+   * disentuh sama sekali. Halaman lokasi › RAB untuk rencana minggu yang SAMA
+   * menghitungnya di dalam [weekStart, weekEnd] dan menulis "0/20": dua layar,
+   * satu target, dua "realisasi". Audit 2026-09-15 (B-1).
+   */
+  const realisasiMinggu = weeklyPlan
+    ? (
+        await volumeDalamRentangByLineage([
+          { locationId, sejak: weeklyPlan.weekStart, sampai: weeklyPlan.weekEnd },
+        ])
+      ).get(locationId) ?? new Map<string, number>()
+    : new Map<string, number>();
 
   return {
     ...location,
@@ -496,7 +538,7 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
       name: it.rabNode.name,
       unit: it.rabNode.unit,
       targetVolume: Number(it.targetVolume),
-      realizedVolume: cumulative.get(it.rabNode.lineageKey) ?? 0,
+      realizedVolume: realisasiMinggu.get(it.rabNode.lineageKey) ?? 0,
       priority: it.priority,
     })),
     weekNumber: weeklyPlan?.weekNumber ?? null,
@@ -573,8 +615,11 @@ async function kategoriLookup(
     select: { lineageKey: true, code: true, name: true },
   });
   const byKey = new Map(kategori.map((k) => [k.lineageKey, k]));
+  // Prefiks TERPANJANG berbatas "#", bukan potongan pertama: "VI#2" adalah
+  // kategori romawi VI yang KEDUA, dan memotong di "#" pertama melebur
+  // realisasinya ke kategori pertama. Audit 2026-09-15 (D-2).
   return (lineageKey) => {
-    const k = lineageKey ? byKey.get(lineageKey.split("#")[0]) : undefined;
+    const k = lineageKey ? byKey.get(kategoriDariLineageAtau(lineageKey, byKey.keys())) : undefined;
     return { categoryCode: k?.code ?? null, categoryName: k?.name ?? null };
   };
 }
@@ -894,10 +939,32 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
        */
       weekNo,
       ...periode(weekNo),
+      /*
+       * PERNYATAAN NIHIL diambil dari baris laporan yang HIDUP — juga di
+       * cabang final. `FinalSnapshot` tidak pernah membekukan ketiganya, jadi
+       * dulu cabang ini mengembalikannya undefined dan blanko resmi (layar
+       * cetak, PDF, Excel, berkas mingguan, unggahan Drive) kehilangan baris
+       * "TIDAK ADA KEGIATAN" — persis pada versi FINAL, satu-satunya yang
+       * dikirim ke KKP, sementara pratinjaunya benar. Yang tersisa cuma kolom
+       * realisasi kosong: "blanko yang dibiarkan kosong terbaca seperti ada
+       * yang lupa mengisi" (DECISIONS 396).
+       *
+       * Ini PERNYATAAN, bukan angka ukur — sekelas kategori RAB dan foto yang
+       * memang sudah diambil dari data hidup di berkas ini; kolomnya pun tidak
+       * bisa lagi berubah sesudah final (setHariNihil menolak di luar
+       * draft/perlu_koreksi). Audit 2026-09-15 (A-1).
+       */
+      noActivity: report.noActivity,
+      noActivityReason: report.noActivityReason,
+      noActivityNote: report.noActivityNote,
     };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
+  const aktifKkp = await nodeAktifByLineage(
+    location.id,
+    (report?.items ?? []).filter((it) => it.basis === "aktif").map((it) => it.lineageKey),
+  );
   const counted = report
     ? (COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)
     : false;
@@ -938,11 +1005,13 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       const volumeToday = Number(it.volumeDone);
       const base = cumulative.get(it.lineageKey) ?? 0;
       const volumeCumulative = Math.round((counted ? base : base + volumeToday) * 1000) / 1000;
-      const volumeContract = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
+      // Volume kontrak dari revisi AKTIF, bukan node yang menempel (B-2).
+      const ref = aktifKkp.get(it.lineageKey);
+      const volumeContract = ref ? ref.volume : it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
       return {
-        code: it.rabNode.code,
-        name: it.rabNode.name,
-        unit: it.rabNode.unit,
+        code: ref?.code ?? it.rabNode.code,
+        name: ref?.name ?? it.rabNode.name,
+        unit: ref?.unit ?? it.rabNode.unit,
         ...kategoriByRoot(it.lineageKey),
         volumeContract,
         volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),

@@ -34,6 +34,16 @@ const SUBCODE = /^[IVX]+\.\d+(?:\.\d+)*\.?$/; // II.1., III.2.1.
 const NUM = /^\d+$/; // 1, 2, 6
 const DOTNUM = /^\d+\.\d+\.?$/; // 6.1, 6.1.
 const LETTER = /^[a-z]$/i; // a, b, c
+/*
+ * Kode yang DIKARANG PARSER INI SENDIRI untuk baris tanpa kode:
+ *   `~1`     – baris kode-kosong bernilai sesudah item berharga ("Pengiriman");
+ *   `-.a`/`-.1` – anak dari induk yang belum punya kode numerik.
+ * Keduanya tersimpan ke DB dan ikut tertulis di ekspor. Tanpa pola ini, berkas
+ * terbitan MARLIN sendiri tidak bisa diimpor ulang: barisnya jatuh ke "other"
+ * dan DIBUANG tanpa peringatan. Audit 2026-09-15 (D-1).
+ */
+const ORPHAN = /^~\d+$/;
+const ORPHAN_CHILD = /^(?:~\d+|-)\.(?:[a-z]|\d+)$/i;
 /**
  * Kode LENGKAP berjenjang: "6.1.a", "6.7.1", "6.1.1.b" (DECISIONS 208).
  *
@@ -92,7 +102,9 @@ export function classifyRow(code: string, name: string): RowKind {
   if (isRoman(code) && /^PEKERJAAN/i.test(name)) return "kategori";
   if (SUBCODE.test(code) && /^Pekerjaan/i.test(name)) return "sub";
   if (NUM.test(code)) return "item";
+  if (ORPHAN.test(code)) return "item";
   if (DOTNUM.test(code)) return "dotitem";
+  if (ORPHAN_CHILD.test(code)) return "dotitem";
   if (LETTER.test(code)) return "letter";
   if (code === "") return "blank";
   return "other";
@@ -694,7 +706,15 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * memuat PPN dan bukan pembanding yang sepadan dengan RAB pra-PPN.
    */
   const TOTAL_POLOS = /^(jumlah|jumlah\s*harga|total|grand\s*total)\b/i;
-  const TOTAL_BER_PPN = /ppn|pajak|termasuk|setelah|dibulatkan/i;
+  /*
+   * "pra-PPN" / "sebelum PPN" BUKAN total ber-PPN.
+   *
+   * Ekspor MARLIN menulis barisnya "JUMLAH (pra-PPN)", dan pola lama cocok pada
+   * kata "PPN" di dalamnya — jadi baris totalnya dibuang dan pagar "Σ item vs
+   * total yang ditulis berkas" MATI justru untuk berkas terbitan sendiri.
+   * Audit 2026-09-15 (D-1).
+   */
+  const TOTAL_BER_PPN = /(?<!pra[\s-]?|sebelum\s)ppn|pajak|termasuk|setelah|dibulatkan/i;
   const totalKandidat: number[] = [];
   const catatTotalDitulis = (nama: string, nilai: number | null) => {
     const t = nama.trim();
@@ -1033,6 +1053,32 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       byCode.set(it.code, it);
       itemL1 = it;
       itemL2 = null;
+      return;
+    }
+
+    /*
+     * Kode yatim yang DIKARANG PARSER INI SENDIRI ("~1") — ditulis kembali oleh
+     * ekspor RAB, jadi ia harus bisa dibaca ulang. Tanpa cabang ini barisnya
+     * jatuh ke akhir fungsi dan DIBUANG tanpa peringatan: berkas terbitan MARLIN
+     * kehilangan item setiap kali diimpor ulang. Audit 2026-09-15 (D-1).
+     */
+    if (ORPHAN.test(code)) {
+      const it = mkItem(code, name, row, null);
+      (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(it.code, it);
+      itemL1 = it;
+      itemL2 = null;
+      return;
+    }
+
+    // Anak dari induk tanpa kode numerik ("-.a", "~1.b") — bentuk karangan
+    // parser yang sama, satu jenjang di bawah.
+    if (ORPHAN_CHILD.test(code)) {
+      const it = mkItem(code, name, row, itemL1?.code ?? null);
+      if (itemL1) itemL1.children.push(it);
+      else (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(it.code, it);
+      itemL2 = it;
       return;
     }
 

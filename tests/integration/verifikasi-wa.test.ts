@@ -24,8 +24,11 @@ vi.mock("next/headers", () => ({
 
 /** Balasan WhatsApp DICATAT, bukan dikirim — tidak ada WAHA di uji. */
 const terkirim: { chatId: string; teks: string }[] = [];
+/** Dinyalakan untuk meniru pagar gateway yang menolak kiriman. */
+let gagalKirim = false;
 vi.mock("@/lib/waha/kirim", () => ({
   balasWa: async (chatId: string, teks: string) => {
+    if (gagalKirim) throw new Error("Kiriman ke nomor pribadi sedang dimatikan (uji)");
     terkirim.push({ chatId, teks });
     return "wamid.uji";
   },
@@ -187,6 +190,47 @@ describe("verifikasi nomor WhatsApp", () => {
     expect(b.attempts).toBe(0);
   });
 
+  it("menekan Mulai dua kali TIDAK mengganti frasa yang masih berlaku", async () => {
+    /*
+     * Tiap layar yang masih memajang frasa sebelumnya — ketukan ganda, tab
+     * kedua, tombol kembali, halaman yang dipulihkan PWA — berubah jadi jebakan
+     * kalau frasanya diganti tiap kali tombolnya ditekan: yang dikirim orangnya
+     * frasa yang sudah tidak ada lagi di basis data.
+     */
+    const a = await mulaiVerifikasi(userId);
+    const b = await mulaiVerifikasi(userId);
+    expect(b.frasa).toBe(a.frasa);
+
+    // Dan frasa dari layar LAMA itu tetap sah dipakai.
+    terkirim.length = 0;
+    const r = await tanganiPesanVerifikasi(pesan(a.frasa, nomorBaru()));
+    expect(r).toEqual({ ditangani: true, hasil: "kode-dikirim" });
+  });
+
+  it("kode yang GAGAL dikirim tidak pernah mengaku terkirim", async () => {
+    /*
+     * Layar membaca `code` yang terisi sebagai "kode sudah sampai di
+     * WhatsApp". Mengisinya sebelum kirimannya berhasil membuat layar
+     * mengumumkan sesuatu yang tidak terjadi — persis yang dilaporkan user
+     * 2026-09-14: *"kamu tidak merespon kode"* sementara layarnya bilang
+     * "Kode sudah dibalas ke WhatsApp yang sama".
+     */
+    gagalKirim = true;
+    try {
+      const { frasa } = await mulaiVerifikasi(userId);
+      const r = await tanganiPesanVerifikasi(pesan(frasa, nomorBaru()));
+      expect(r).toEqual({ ditangani: true, hasil: "kode-gagal-dikirim" });
+
+      const b = await db.waVerification.findUniqueOrThrow({ where: { userId } });
+      expect(b.code).toBeNull();
+      // Tapi identitas pengirimnya TETAP tercap: pesannya memang sampai.
+      expect(b.senderKey).not.toBeNull();
+      expect(await bacaKeadaan(userId)).toMatchObject({ tahap: "gagal-kirim" });
+    } finally {
+      gagalKirim = false;
+    }
+  });
+
   it("pesan biasa TIDAK ditangani jalur verifikasi", async () => {
     // Kalau ini salah, tiap pertanyaan lapangan berhenti di sini dan tidak
     // pernah sampai ke jalur tanya-jawab.
@@ -196,10 +240,27 @@ describe("verifikasi nomor WhatsApp", () => {
     expect(terkirim).toHaveLength(0);
   });
 
-  it("frasa milik orang lain yang tidak dikenal dilewatkan, bukan dijawab", async () => {
+  it("frasa yang TIDAK dikenal tetap dijawab di sini, tidak dilempar ke AI", async () => {
+    /*
+     * Versi pertama mengembalikan `ditangani: false` di sini, dan itu yang
+     * dilihat user 2026-09-14: "MARLIN-KVNH9K" dijawab AI sebagai *catatan
+     * lapangan*, lengkap dengan kutipan kendala Asemdoyong yang tidak ada
+     * hubungannya, ditutup "Tidak saya kenali: kvnh9k". Orang yang sedang
+     * memverifikasi nomornya membaca itu sebagai sistem yang rusak.
+     *
+     * Frasa berawalan MARLIN- hanya punya satu arti. Tidak ketemu berarti
+     * dikatakan, bukan ditebak.
+     */
+    terkirim.length = 0;
     expect(await tanganiPesanVerifikasi(pesan("MARLIN-ACDEFG", nomorBaru()))).toEqual({
-      ditangani: false,
+      ditangani: true,
+      hasil: "tidak-dikenal",
     });
+    expect(terkirim).toHaveLength(1);
+    expect(terkirim[0]!.teks).toContain("tidak dikenali");
+    // Yang penting BUKAN kalimatnya, melainkan jalan keluarnya: orangnya harus
+    // tahu apa yang mesti dilakukan berikutnya.
+    expect(terkirim[0]!.teks).toContain("Verifikasi WhatsApp");
   });
 
   it("pesan dari MARLIN sendiri diabaikan", async () => {
