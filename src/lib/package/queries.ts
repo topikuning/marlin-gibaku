@@ -78,6 +78,27 @@ export async function listPackages(
           vendor: { select: { name: true } },
         },
       },
+      /*
+       * ID lokasi YANG TER-SCOPE — bahan kolom progres agregat.
+       *
+       * `where`-nya WAJIB dan menyalin `getPackageWorkspace` di bawah: halaman
+       * ringkasan menghitung progres dari lokasi yang ditugaskan kepada user,
+       * jadi daftar yang menghitung dari SELURUH lokasi akan menampilkan angka
+       * yang berbeda untuk paket yang sama. Sebuah paket masuk daftar begitu
+       * SATU lokasinya dalam penugasan (`packageScopeWhere`), jadi selisih ini
+       * nyata untuk tiap peran di luar `CROSS_LOCATION_ROLES` — dan ujinya
+       * membuktikannya: tanpa
+       * `where` ini, daftar menulis 40% sementara ringkasan menulis 10% untuk
+       * paket dan user yang sama.
+       *
+       * `_count.locations` di bawah tetap MENGHITUNG SEMUA — selisihnya itulah
+       * "lokasi di luar penugasan Anda", dan itu yang membuat angka sebagian
+       * bisa mengaku sebagian.
+       */
+      locations: {
+        where: scopedLocationIds === null ? undefined : { id: { in: scopedLocationIds } },
+        select: { id: true },
+      },
       _count: { select: { locations: true } },
     },
   });

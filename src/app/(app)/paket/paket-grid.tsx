@@ -23,6 +23,15 @@ export type PaketRow = {
   contractValue: string | null;
   vendorName: string;
   locationCount: number;
+  /**
+   * Progres agregat paket (realisasi kumulatif tertimbang RAB aktif).
+   * null = tidak ada angka yang sah – sebabnya ada di `progresTeks`.
+   */
+  progresPct: number | null;
+  /** Kalimat sel & CSV, sudah disusun di server (`progres-paket-teks.ts`). */
+  progresTeks: string;
+  /** Keterangan tooltip: dasar angkanya, lokasi yang ikut dan yang tidak. */
+  progresCatatan: string;
   /** Nama (atau ID) grup WhatsApp paket; null = belum diatur. */
   waGroupName: string | null;
   /** Folder Google Drive KKP sudah ditautkan? */
@@ -120,6 +129,43 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
           const kurang = p.data?.kurang ?? [];
           return kurang.length ? `${k} – ${kurang.join(", ")}` : k;
         },
+      },
+      {
+        /*
+         * PROGRES AGREGAT — kebutuhan user 2026-09-16 ("kolom progress
+         * kumulatif"). Letaknya tepat sesudah Status Data dengan alasan yang
+         * sama dengan kolom itu (DECISIONS 368): dua pertanyaan pertama tentang
+         * sebuah paket adalah "datanya bisa dipakai?" dan "sudah sejauh mana?",
+         * dan kolom yang harus digulir dulu untuk dilihat sama saja dengan
+         * tidak ada.
+         *
+         * JUDULNYA "Progress agregat", kata yang SUDAH dipakai KPI halaman
+         * ringkasan paket untuk angka yang sama persis. Nama kedua untuk satu
+         * angka membuat pembacanya memeriksa dua kali apakah itu besaran yang
+         * sama – dan Calculation Integrity Protocol melarangnya.
+         *
+         * TANPA `cellRenderer`, sengaja. Di AG Grid 36, kolom ber-cellRenderer
+         * gagal inferensi tipe sel sehingga filternya turun diam-diam jadi
+         * filter TEKS ("Mengandung") – padahal pertanyaan yang dipakai orang di
+         * kolom ini justru "mana yang di bawah 50%". `cellDataType` diisi
+         * eksplisit karena inferensi hanya membaca BARIS PERTAMA dan menyerah
+         * bila nilainya null: daftar ini terurut `updatedAt desc`, jadi tanpa
+         * ini sifat filternya bergantung pada paket mana yang terakhir disunting.
+         *
+         * Teksnya lewat `valueFormatter`, bukan cellRenderer, supaya LAYAR dan
+         * CSV memakai jalur yang sama – keterangan "sebagian lokasi" yang cuma
+         * hidup di tooltip akan hilang justru di berkas yang dikirim keluar.
+         */
+        field: "progresPct",
+        headerName: "Progress agregat",
+        headerTooltip: "Realisasi kumulatif s/d hari ini, ditimbang nilai RAB aktif",
+        width: 170,
+        cellDataType: "number",
+        cellClass: (p: { data?: GridRow }) =>
+          p.data?.progresPct == null ? "tabular text-right text-ink-muted" : "tabular text-right",
+        headerClass: "ag-right-aligned-header",
+        valueFormatter: (p) => (p.data ? p.data.progresTeks : ""),
+        tooltipValueGetter: (p) => p.data?.progresCatatan ?? "",
       },
       { field: "province", headerName: "Provinsi", width: 160 },
       rupiahCol<GridRow>("hpsValue", "HPS", { width: 170 }),

@@ -12,6 +12,8 @@ import {
   listPackages,
   type PackageListFilter,
 } from "@/lib/package/queries";
+import { progresPaketDaftar } from "@/lib/package/progres-paket";
+import { catatanProgresPaket, teksProgresPaket } from "@/lib/package/progres-paket-teks";
 import type { PackageStage } from "@/generated/prisma/enums";
 import { kesiapanPaket } from "@/lib/package/kesiapan";
 import { nomorPaket } from "./nomor";
@@ -48,6 +50,24 @@ export default async function PaketPage({
     listPackages(user, scoped, filter),
   ]);
 
+  /*
+   * PROGRES AGREGAT tiap paket — SATU putaran untuk seluruh daftar, bukan satu
+   * per baris. Angkanya keluar dari lapisan kanonik yang sama dengan KPI
+   * "Progress agregat" di halaman ringkasan paket, dengan populasi yang ditiru
+   * persis; halaman ini tidak menghitung apa pun sendiri.
+   */
+  const progres = await progresPaketDaftar(
+    packages.map((p) => ({
+      id: p.id,
+      locationIds: p.locations.map((l) => l.id),
+      lokasiTotal: p._count.locations,
+    })),
+    // Pencabutan lokasi yang sudah diarsipkan hanya boleh DISEBUT kepada yang
+    // berwenang melihat arsipnya – aturan yang sama dengan halaman ringkasan
+    // paket. Angkanya sendiri tidak bergeser karenanya.
+    { bolehLihatArsip: can(user.role, "location_scope.archive") },
+  );
+
   // BigInt → string di boundary server→client (JSON tidak dukung BigInt).
   const rows = bigintToString(
     packages.map((p) => {
@@ -60,6 +80,13 @@ export default async function PaketPage({
         locationCount: p._count.locations,
         adaVendor: vendorName != null,
       });
+      /*
+       * Kalimat selnya disusun di SERVER, sama seperti lencana kesiapan di
+       * atas: komponen grid hanya menampilkan. `progresPct` tetap dibawa
+       * mentah supaya urutan & saringan kolomnya numerik, bukan leksikografis
+       * atas teks "12,3%".
+       */
+      const ringkas = progres.get(p.id);
       return {
         id: p.id,
         packageNumber: nomorPaket(p.packageNumber, p.contract?.contractNumber),
@@ -70,6 +97,9 @@ export default async function PaketPage({
         contractValue: p.contract?.contractValue ?? null,
         vendorName: vendorName ?? "–",
         locationCount: p._count.locations,
+        progresPct: ringkas?.pct ?? null,
+        progresTeks: ringkas ? teksProgresPaket(ringkas) : "–",
+        progresCatatan: ringkas ? catatanProgresPaket(ringkas) : "",
         waGroupName,
         hasDrive,
         kesiapan: kesiapan.status,
