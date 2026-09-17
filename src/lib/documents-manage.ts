@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
-import { requestIp, requireCapability, requireLocationAccess } from "@/lib/auth/session";
+import { requestIp, requireCapability } from "@/lib/auth/session";
 import { r2Delete } from "@/lib/r2";
+import { requireDocumentScope } from "@/lib/documents-scope";
 import { DocumentError } from "@/lib/documents";
 import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
 
@@ -80,7 +81,7 @@ export async function updateDocumentMeta(
 ): Promise<{ changed: string[] }> {
   const user = await requireCapability("document.edit");
   const doc = await loadDocument(documentId, user.orgId);
-  if (doc.locationId) await requireLocationAccess(user, doc.locationId);
+  await requireDocumentScope(user, doc);
   if (doc.status === "dibatalkan") {
     throw new DocumentError("Dokumen sudah dibatalkan – pulihkan dulu sebelum dikoreksi.");
   }
@@ -187,7 +188,7 @@ async function syncMilestoneAfterVoid(
 export async function voidDocument(documentId: string, reason: string): Promise<{ title: string }> {
   const user = await requireCapability("document.void");
   const doc = await loadDocument(documentId, user.orgId);
-  if (doc.locationId) await requireLocationAccess(user, doc.locationId);
+  await requireDocumentScope(user, doc);
   if (doc.status === "dibatalkan") throw new DocumentError("Dokumen ini sudah dibatalkan.");
 
   const alasan = reason.trim();
@@ -246,7 +247,7 @@ export async function voidDocument(documentId: string, reason: string): Promise<
 export async function restoreDocument(documentId: string): Promise<{ title: string }> {
   const user = await requireCapability("document.void");
   const doc = await loadDocument(documentId, user.orgId);
-  if (doc.locationId) await requireLocationAccess(user, doc.locationId);
+  await requireDocumentScope(user, doc);
   if (doc.status !== "dibatalkan") throw new DocumentError("Dokumen ini tidak dalam status dibatalkan.");
 
   const ip = (await requestIp()) ?? null;

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
-import { bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
+import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
   activateRevision,
@@ -301,6 +301,30 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
        * kategori mana yang meleset supaya berkas berikutnya tidak menuntut
        * pembedahan manual dari nol.
        */
+      /*
+       * Baris yang punya volume & harga satuan tapi kolom JUMLAH-nya kosong di
+       * berkas. `flatten` mengikuti subtotal berkasnya sendiri (lihat
+       * `cadanganDipakaiBerkas`), dan itu WAJIB dikatakan: kalau kosongnya tidak
+       * disengaja, orang yang menguploadlah yang tahu — bukan MARLIN.
+       */
+      const tanpaJumlah = barisTanpaJumlah(parsed);
+      if (tanpaJumlah.length > 0) {
+        const sebut = tanpaJumlah
+          .slice(0, 3)
+          .map(
+            (b) =>
+              `"${b.name}" (volume ${b.volume.toLocaleString("id-ID")} × ` +
+              `${b.unitPrice.toLocaleString("id-ID")} = ${b.seandainya.toLocaleString("id-ID")})`,
+          )
+          .join("; ");
+        warnings.push(
+          `${tanpaJumlah.length} baris punya volume & harga satuan tetapi kolom JUMLAH-nya kosong di berkas: ` +
+            `${sebut}${tanpaJumlah.length > 3 ? `, dan ${tanpaJumlah.length - 3} baris lain` : ""}. ` +
+            "MARLIN mengikuti subtotal yang ditulis berkas – tidak mengarang angkanya sendiri. " +
+            "Kalau kosongnya tidak disengaja, isi kolom jumlahnya di Excel lalu impor ulang.",
+        );
+      }
+
       const beda = bedaAntarLayer(parsed, nodes);
       if (beda.length > 0) {
         const rinci = beda

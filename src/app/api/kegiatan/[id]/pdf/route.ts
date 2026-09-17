@@ -17,6 +17,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const user = await getCurrentUser();
+  if (user?.mustChangePassword) {
+    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
+  }
   if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   // Mengunduh PDF = EKSPOR dokumen, bukan sekadar melihat layar: capability
   // `report.export` ditegakkan di route, bukan hanya menyembunyikan tombol

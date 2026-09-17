@@ -32,9 +32,64 @@ export type FlatNode = {
   sortOrder: number;
 };
 
-/** Nilai eksak (float) sebuah leaf: total_price ?? volume×unit_price ?? 0. */
-function leafRaw(it: ParsedRabItem): number {
-  return it.total_price ?? (it.volume != null && it.unit_price != null ? it.volume * it.unit_price : 0);
+/**
+ * Nilai eksak (float) sebuah leaf.
+ *
+ * `cadangan` = boleh memakai `volume × unit_price` ketika kolom JUMLAH berkas
+ * kosong. Bukan sakelar selera: yang memutuskannya `cadanganDipakaiBerkas`,
+ * dari subtotal yang ditulis berkas itu sendiri.
+ */
+function leafRaw(it: ParsedRabItem, cadangan: boolean): number {
+  if (it.total_price != null) return it.total_price;
+  if (!cadangan) return 0;
+  return it.volume != null && it.unit_price != null ? it.volume * it.unit_price : 0;
+}
+
+/** Nilai yang cadangan itu tambahkan pada satu baris (0 bila tidak berlaku). */
+function nilaiCadangan(it: ParsedRabItem): number {
+  return leafRaw(it, true) - leafRaw(it, false);
+}
+
+export type BarisTanpaJumlah = {
+  code: string;
+  name: string;
+  volume: number;
+  unitPrice: number;
+  /** Nilai yang akan terbentuk SEANDAINYA dikarang – yang justru tidak dipakai. */
+  seandainya: number;
+};
+
+/**
+ * Baris yang punya volume DAN harga satuan tetapi kolom jumlahnya kosong di
+ * berkas. Baris tanpa keduanya bukan temuan — itu baris judul atau keterangan.
+ */
+export function barisTanpaJumlah(parsed: ParsedRab): BarisTanpaJumlah[] {
+  const out: BarisTanpaJumlah[] = [];
+  const telusuri = (items: ParsedRabItem[]): void => {
+    for (const it of items) {
+      if (
+        it.total_price == null &&
+        it.volume != null &&
+        it.volume !== 0 &&
+        it.unit_price != null &&
+        it.unit_price !== 0
+      ) {
+        out.push({
+          code: it.code,
+          name: it.name,
+          volume: it.volume,
+          unitPrice: it.unit_price,
+          seandainya: it.volume * it.unit_price,
+        });
+      }
+      telusuri(it.children);
+    }
+  };
+  for (const c of parsed.categories) {
+    telusuri(c.direct_items);
+    for (const s of c.subcategories) telusuri(s.items);
+  }
+  return out;
 }
 
 /**
@@ -96,15 +151,75 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   // total menyimpang beberapa/ratusan rupiah dari Excel).
   type Aux = { node: FlatNode; exact: number; children: Aux[] };
 
+  /*
+   * BARIS YANG KOLOM JUMLAHNYA KOSONG — BERKAS YANG MEMUTUSKAN, BUKAN KITA.
+   *
+   * Cadangan `volume × harga satuan` itu TEBAKAN. Sering benar: banyak berkas
+   * mengisi volume dan harga satuan lalu menjumlahkannya di tempat lain. Tapi
+   * kadang berkasnya menyatakan sebaliknya, dan waktu itu terjadi, menebak
+   * berarti mengarang uang.
+   *
+   * Kasus nyata (user 2026-09-17, `6 NEGO PENAWARAN KNMP DESA PANTAI HARAPAN
+   * PENYANGGA DARAT.xlsx`): baris RAB!177 "Pekerjaan Pancang Cerucuk Dolken"
+   * punya volume 288 dan harga satuan 38.237, tetapi sel JUMLAH-nya dihapus
+   * saat negosiasi. Subtotal berkasnya sendiri `SUM(I166:I214)` karena itu
+   * melewatinya, sementara cadangan mengarang 288 × 38.237 = 11.012.256 dan
+   * memasukkannya. Pagar antar-layer menolak impornya — benar, tapi buntu:
+   * berkasnya tidak bisa masuk sama sekali.
+   *
+   * Karena itu keputusannya PER KATEGORI dan berdasar bukti, bukan aturan
+   * seragam: subtotal yang DITULIS berkas dibandingkan dengan kedua cara baca.
+   * Yang cocok itulah yang dipakai. Kalau berkas tidak menulis subtotalnya,
+   * tidak ada bukti apa pun untuk membantah tebakan, jadi cadangan tetap
+   * dipakai seperti sebelumnya. Kalau dua-duanya meleset, biarkan cadangan —
+   * pagar antar-layer yang akan menolak, dan pesannya menyebut kategori mana.
+   *
+   * Berapa pun keputusannya, barisnya disebutkan lewat `barisTanpaJumlah`:
+   * volume dan harga satuan yang menganggur patut diperiksa orang, dan
+   * DECISIONS 203 menuntut setiap perlakuan atas angka user dikatakan.
+   */
+  const cadanganDipakaiBerkas = (cat: ParsedRab["categories"][number]): boolean => {
+    const ditulis = cat.total_value;
+    if (!Number.isFinite(ditulis) || ditulis <= 0) return true;
+    let tambahan = 0;
+    const telusuri = (items: ParsedRabItem[]): void => {
+      for (const it of items) {
+        tambahan += nilaiCadangan(it);
+        telusuri(it.children);
+      }
+    };
+    telusuri(cat.direct_items);
+    for (const s of cat.subcategories) telusuri(s.items);
+    if (tambahan === 0) return true;
+
+    const simpan = cadangan;
+    let dengan = 0;
+    cadangan = true;
+    for (const it of cat.direct_items) dengan += nilaiEksak(it);
+    for (const s of cat.subcategories) for (const it of s.items) dengan += nilaiEksak(it);
+    let tanpa = 0;
+    cadangan = false;
+    for (const it of cat.direct_items) tanpa += nilaiEksak(it);
+    for (const s of cat.subcategories) for (const it of s.items) tanpa += nilaiEksak(it);
+    cadangan = simpan;
+
+    // Toleransi 1 rupiah: pembulatan dilakukan sekali di puncak, sama seperti
+    // Excel menjumlah nilai penuh lalu membulatkan.
+    return !(Math.abs(tanpa - ditulis) <= 1 && Math.abs(dengan - ditulis) > 1);
+  };
+
+  /** Diset per kategori oleh `cadanganDipakaiBerkas` sebelum kategori ditelusuri. */
+  let cadangan = true;
+
   /**
    * Nilai eksak sebuah baris, TANPA menyentuh penomoran kunci — dipakai
    * memutuskan bentuk pohon sebelum satu kunci pun dialokasikan.
    */
   const nilaiEksak = (it: ParsedRabItem): number => {
-    if (it.children.length === 0) return leafRaw(it);
+    if (it.children.length === 0) return leafRaw(it, cadangan);
     const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
-    if (anak === 0) return leafRaw(it);
-    return dinaikkan(it) ? leafRaw(it) : anak;
+    if (anak === 0) return leafRaw(it, cadangan);
+    return dinaikkan(it) ? leafRaw(it, cadangan) : anak;
   };
 
   /*
@@ -134,7 +249,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   function dinaikkan(it: ParsedRabItem): boolean {
     if (it.children.length === 0) return false;
     const anak = it.children.reduce((t, c) => t + nilaiEksak(c), 0);
-    const sendiri = leafRaw(it);
+    const sendiri = leafRaw(it, cadangan);
     if (anak === 0 || sendiri === 0) return false;
     // Ambang SAMA dengan `sumLeaves`: selisih di dalamnya = baris subtotal.
     return Math.abs(sendiri - anak) > Math.max(2, anak * 0.001);
@@ -175,11 +290,11 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       // dan perlakukan grup ini sebagai leaf (tak ada anak untuk dibagi).
       if (childExact > 0) aux.exact = childExact;
       else {
-        aux.exact = leafRaw(it);
+        aux.exact = leafRaw(it, cadangan);
         aux.children = [];
       }
     } else {
-      aux.exact = leafRaw(it);
+      aux.exact = leafRaw(it, cadangan);
       // Baris di bawah item berharga naik SEJAJAR dengannya, tepat sesudahnya
       // (urutan dokumen), dengan induk yang sama.
       if (naik) for (const ch of it.children) keluar.push(...walkItem(ch, parentKey, sink));
@@ -202,6 +317,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   // Pass 1: bangun struktur + nilai eksak per kategori (buffer ditahan dulu).
   const cats: { aux: Aux; buf: FlatNode[] }[] = [];
   for (const cat of parsed.categories) {
+    cadangan = cadanganDipakaiBerkas(cat);
     const { code: catCode, key: catKey } = dedup(null, cat.roman);
     const catBuf: FlatNode[] = [];
     const catNode: FlatNode = {

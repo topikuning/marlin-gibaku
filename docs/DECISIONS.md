@@ -88,6 +88,9 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 586 | 2026-09-17 | Kolom JUMLAH kosong: subtotal berkas yang memutuskan dipakai-tidaknya cadangan volume × harga, barisnya disebutkan |
+| 585 | 2026-09-16 | Cabut lokasi dari paket berkontrak – pasangan koreksi DECISIONS 187; riwayat status ikut lokasinya, append-only tetap |
+| 584 | 2026-09-14 | Audit batas akses, mutasi serentak, dan retensi snapshot – 19 API ikut pagar ganti-password, Prisma dipaksa UTC |
 | 583 | 2026-09-16 | Jadwal tersimpan harus meliput SELURUH kategori RAB aktif – dua pembaca kanonik berhenti berselisih |
 | 582 | 2026-09-16 | Kode kategori RAB tidak unik – pencocokan jadwal Excel memakai nama bila kodenya kembar (E2E kurva-S merah) |
 | 581 | 2026-09-16 | Lokasi kembar: guard nama di addTargetLocation & pindahkanLokasi, pendeteksi yang terlanjur ada di /sistem |

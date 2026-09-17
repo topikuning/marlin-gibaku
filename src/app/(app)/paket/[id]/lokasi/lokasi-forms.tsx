@@ -10,6 +10,7 @@ import {
   addTargetLocationsFromCatalog,
   correctAddLocationAction,
   pindahkanLokasiAction,
+  correctRemoveLocationAction,
   removeTargetLocation,
   type PackageActionState,
 } from "@/lib/package/actions";
@@ -464,6 +465,69 @@ export function PindahLokasiForm({
       <div className="flex gap-2">
         <Button type="submit" size="sm" loading={pending}>
           Pindahkan
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(false)}>
+          Batal
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * CABUT LOKASI DARI PAKET BERKONTRAK — super admin saja (`location.correct`).
+ *
+ * Pasangan `CorrectAddLocationForm`, dan sengaja serupa rupanya: judul
+ * peringatan, alasan wajib, tidak menyamar sebagai tombol "Hapus" biasa. Yang
+ * dibedakan cuma arahnya.
+ *
+ * Server menolak lokasi yang masih punya RAB, laporan, foto, atau data lain –
+ * jadi tombol ini tidak pernah bisa jadi jalan pintas menghindari adendum.
+ */
+export function CabutLokasiForm({ locationId, name }: { locationId: string; name: string }) {
+  const [state, action, pending] = useAksi<PackageActionState>(
+    correctRemoveLocationAction,
+    undefined,
+  );
+  const [buka, setBuka] = useState(false);
+
+  if (!buka) {
+    return (
+      <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(true)}>
+        Cabut…
+      </Button>
+    );
+  }
+
+  return (
+    <form action={action} className="w-full space-y-3 rounded-md border border-border bg-surface-muted/40 p-3">
+      <input type="hidden" name="locationId" value={locationId} />
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+
+      <Banner
+        tone="warning"
+        title={`Cabut "${name}" dari paket ini`}
+        description="Koreksi data, BUKAN adendum – nilai kontrak tidak disentuh. Hanya untuk lokasi yang salah masuk dan masih benar-benar kosong; yang sudah punya RAB, laporan, atau foto ditolak dan memang harus dipindahkan atau dikeluarkan lewat adendum. Tercatat di audit & histori paket."
+      />
+
+      <div>
+        <Label htmlFor={`cabut-alasan-${locationId}`} required>
+          Alasan pencabutan
+        </Label>
+        <Input
+          id={`cabut-alasan-${locationId}`}
+          name="reason"
+          required
+          minLength={10}
+          maxLength={500}
+          placeholder="mis. desa ini sudah berjalan di paket lain – salah pilih saat paket dibuat"
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" loading={pending}>
+          Cabut lokasi
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(false)}>
           Batal

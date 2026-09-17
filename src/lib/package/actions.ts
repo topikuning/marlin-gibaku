@@ -1917,6 +1917,171 @@ export async function correctAddLocationAction(
   };
 }
 
+const cabutLokasiSchema = z.object({
+  locationId: z.uuid(),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) – tercatat di audit.")
+    .max(500, "Alasan maksimal 500 karakter"),
+});
+
+/**
+ * Relasi yang membuat sebuah lokasi TIDAK boleh dicabut, beserta sebutannya di
+ * layar. Urutannya sengaja dari yang paling berat: kalau lokasi punya RAB dan
+ * foto sekaligus, yang disebut RAB-nya.
+ *
+ * Yang TIDAK ada di daftar ini ikut terhapus bersama lokasinya, dan itu
+ * disengaja: `statusHistory` (baris "persiapan" yang ditulis konversi kontrak),
+ * `assignments` (penugasan orang), dan `alerts` (turunan, bukan masukan) tidak
+ * menyimpan satu pun keterangan yang bertahan tanpa lokasinya.
+ */
+const CABUT_PENGHALANG = [
+  ["rabRevisions", "RAB"],
+  ["baselines", "kurva-S baseline"],
+  ["dailyReports", "laporan harian"],
+  ["weeklyPlans", "rencana mingguan"],
+  ["photos", "foto"],
+  ["fieldActivities", "kegiatan lapangan"],
+  ["weatherObservations", "catatan cuaca"],
+  ["documents", "dokumen"],
+  ["letters", "surat"],
+  ["milestones", "milestone administrasi"],
+  ["findings", "temuan"],
+  ["inspections", "inspeksi"],
+  ["issues", "kendala"],
+  ["scopeChanges", "riwayat lingkup adendum"],
+  ["budgetLines", "baris anggaran"],
+  ["commitments", "komitmen"],
+  ["expenses", "pengeluaran"],
+  ["invoices", "tagihan"],
+  ["raplRincian", "rincian RAPL"],
+  ["hargaSatuanDasar", "harga satuan dasar"],
+  ["gdriveJobs", "antrean Google Drive"],
+] as const;
+
+/**
+ * CABUT LOKASI DARI PAKET BERKONTRAK — pasangan `correctAddLocationAction`.
+ *
+ * Kebutuhan user 2026-09-16: desa Kemadang berjalan di Paket A, lalu ikut
+ * terpilih sebagai lokasi awal Paket B, dan Paket B keburu dikonversi ke
+ * kontrak. Yang di Paket B kosong — tapi konversi kontrak menyalakan `isActive`
+ * untuk SELURUH lokasi paket sekaligus menulis `LocationStatusHistory`, dan
+ * `removeTargetLocation` menolak dua-duanya. Jadi lokasi yang salah masuk tidak
+ * bisa dikeluarkan lewat layar mana pun; satu-satunya jalan adalah basis data
+ * produksi, dan menyuruh orang ke sana bukan alat, melainkan pekerjaan rumah
+ * yang dititipkan.
+ *
+ * Ini KOREKSI DATA, bukan adendum — sama persis dengan pasangannya
+ * (DECISIONS 187): nilai kontrak tidak disentuh, karena yang salah bukan
+ * nilainya melainkan jumlah lokasi yang terinput.
+ *
+ * Pengamannya berlapis, dan tidak satu pun boleh dilewati:
+ * - `location.correct` (super_admin saja) + akses lokasi;
+ * - alasan tertulis, tercatat di audit DAN di lini masa paket — supaya
+ *   penghapusan tidak pernah senyap;
+ * - lokasi harus BENAR-BENAR kosong. Bukan "boleh dipaksa": begitu ada RAB,
+ *   laporan, atau foto, yang dibutuhkan adalah adendum atau pemindahan, bukan
+ *   penghapusan. Pelanggaran kunci asing yang lolos daftar penghalang di atas
+ *   pun ditolak dengan menyebut keadaannya, bukan dilempar sebagai galat mentah.
+ */
+export async function correctRemoveLocationAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("location.correct");
+  const parsed = cabutLokasiSchema.safeParse({
+    locationId: formData.get("locationId"),
+    reason: formData.get("reason") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, reason } = parsed.data;
+
+  const loc = await db.location.findFirst({
+    where: { id: locationId, package: { orgId: actor.orgId } },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      packageId: true,
+      package: { select: { id: true, name: true, stage: true, contract: { select: { id: true } } } },
+      _count: { select: Object.fromEntries(CABUT_PENGHALANG.map(([k]) => [k, true])) as never },
+    },
+  });
+  if (!loc) return { error: "Lokasi tidak ditemukan." };
+  await requireLocationAccess(actor, loc.id);
+
+  const pkg = loc.package;
+  if (!pkg.contract || PRA_KONTRAK.includes(pkg.stage)) {
+    return {
+      error:
+        "Paket ini belum berkontrak – pakai tombol “Hapus” pada daftar lokasi target, koreksi ini khusus paket yang sudah berkontrak.",
+    };
+  }
+  if (!KOREKSI_LOKASI_STAGES.includes(pkg.stage)) {
+    return {
+      error: `Paket sudah tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} – susunan lokasinya mengikuti dokumen serah terima dan tidak bisa dikoreksi lewat jalur ini.`,
+    };
+  }
+
+  const hitung = loc._count as unknown as Record<string, number>;
+  const terisi = CABUT_PENGHALANG.filter(([k]) => (hitung[k] ?? 0) > 0);
+  if (terisi.length > 0) {
+    const sebut = terisi.slice(0, 3).map(([k, label]) => `${hitung[k]} ${label}`).join(", ");
+    return {
+      error:
+        `Lokasi "${loc.name}" masih punya ${sebut}${terisi.length > 3 ? `, dan ${terisi.length - 3} jenis data lain` : ""} – ` +
+        "tidak bisa dicabut. Yang berisi dipindahkan ke paket yang benar atau dikeluarkan lewat adendum, bukan dihapus.",
+    };
+  }
+
+  const ip = (await requestIp()) ?? null;
+  try {
+    await db.$transaction(async (tx) => {
+      // Ditulis SEBELUM lokasinya hilang: sesudah itu namanya tidak bisa dibaca
+      // lagi dari mana pun, dan catatan yang cuma memuat UUID tidak menjelaskan
+      // apa-apa kepada orang yang membuka lini masa paket setahun kemudian.
+      await tx.packageStageHistory.create({
+        data: {
+          packageId: pkg.id,
+          fromStage: pkg.stage,
+          toStage: pkg.stage,
+          changedById: actor.id,
+          note: `Koreksi data (bukan adendum): lokasi "${loc.name}" DICABUT dari paket – ${reason}`,
+        },
+      });
+      await auditIn(
+        tx,
+        actor.id,
+        "package.location_correct_remove",
+        "package",
+        pkg.id,
+        { locationId: loc.id, slug: loc.slug, name: loc.name, stage: pkg.stage, alasan: reason },
+        ip,
+      );
+      // `alerts` tidak ber-cascade dan bukan append-only – dibuang lebih dulu.
+      // `statusHistory` & `assignments` ikut lewat cascade: menghapusnya sendiri
+      // di sini justru DITOLAK triggernya, karena selama lokasinya masih ada,
+      // riwayat statusnya memang tidak boleh disentuh.
+      await tx.alert.deleteMany({ where: { locationId: loc.id } });
+      await tx.location.delete({ where: { id: loc.id } });
+    });
+  } catch (e) {
+    console.error("[paket] cabut lokasi gagal:", e);
+    return {
+      error:
+        `Lokasi "${loc.name}" masih ditautkan data lain yang tidak terdaftar sebagai penghalang – ` +
+        "pencabutannya dibatalkan seutuhnya. Laporkan ini, jangan dipaksa lewat basis data.",
+    };
+  }
+
+  revalidatePath(`/paket/${pkg.id}`, "layout");
+  revalidatePath("/lokasi");
+  return {
+    success: `Lokasi "${loc.name}" dicabut dari paket sebagai koreksi data. Nilai kontrak TIDAK diubah.`,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Gambar tanda tangan & stempel kontrak (DECISIONS 328)               */
 /* ------------------------------------------------------------------ */

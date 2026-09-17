@@ -298,8 +298,8 @@ export type FilterArsip = z.infer<typeof filterArsipSchema>;
  * Sengaja BUKAN di modul "use server": setiap export di sana menjadi endpoint
  * yang bisa dipanggil siapa saja.
  */
-export function whereArsip(f: FilterArsip, scope: string[] | null): Prisma.PhotoWhereInput {
-  const and: Prisma.PhotoWhereInput[] = [{ originalKey: { not: null } }];
+export function whereArsip(f: FilterArsip, scope: string[] | null, orgId: string): Prisma.PhotoWhereInput {
+  const and: Prisma.PhotoWhereInput[] = [{ originalKey: { not: null } }, { location: { package: { orgId } } }];
   if (scope !== null) and.push({ locationId: { in: scope } });
   if (f.locationId) and.push({ locationId: f.locationId });
   if (f.packageId) and.push({ location: { packageId: f.packageId } });

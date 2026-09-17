@@ -1,5 +1,8 @@
 "use server";
 
+import { updateMutableArtifact } from "@/lib/ai-hub/mutate-artifact";
+import { aiArtifactOrgWhere } from "@/lib/ai-hub/org-scope";
+
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -290,9 +293,10 @@ export async function saveSuggestionAction(_prev: AiHubState, formData: FormData
  */
 export async function terapkanSaranAction(_prev: AiHubState, formData: FormData): Promise<AiHubState> {
   try {
+    const user = await requireCapability("issue.manage");
     const artifactId = String(formData.get("artifactId") ?? "");
-    const artifact = await db.aiArtifact.findUnique({
-      where: { id: artifactId },
+    const artifact = await db.aiArtifact.findFirst({
+      where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
       select: { id: true, kind: true, status: true, title: true, structuredContent: true },
     });
     if (!artifact || artifact.kind !== "saran") return { error: "Draft saran tidak ditemukan." };
@@ -311,7 +315,6 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
     }
 
     // Menulis data domain = capability domain, BUKAN ai.generate.
-    const user = await requireCapability("issue.manage");
     await requireLocationAccess(user, locationId);
     const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
     if (!loc) return { error: "Lokasi tidak ditemukan." };
@@ -327,6 +330,11 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
     const buatRecovery = isi.suggestKind === "recovery";
 
     const { issueId } = await db.$transaction(async (tx) => {
+      const claimed = await tx.aiArtifact.updateMany({
+        where: { id: artifact.id, status: "draft" },
+        data: { status: "terkirim" },
+      });
+      if (claimed.count !== 1) throw new AiRunError("Draft ini sudah ditindaklanjuti.");
       const issue = await tx.issue.create({
         data: {
           locationId,
@@ -401,10 +409,11 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     const artifactId = String(formData.get("artifactId") ?? "");
     const to = String(formData.get("to") ?? "") as AiArtifactStatus;
     if (!artifactId || !(to in TRANSITION_CAPABILITY)) return { error: "Transisi tidak valid." };
+    if (to === "terkirim") return { error: "Gunakan aksi distribusi untuk mengirim artefak beku." };
     const user = await requireCapability(TRANSITION_CAPABILITY[to]);
-    const artifact = await db.aiArtifact.findUnique({
-      where: { id: artifactId },
-      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true, run: { select: { scopeIds: true } } },
+    const artifact = await db.aiArtifact.findFirst({
+      where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
+      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, updatedAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
     // Lifecycle mengikuti scope baca — RM/PM scoped tidak boleh menyentuh
@@ -415,7 +424,7 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     if (!canTransitionAiArtifact(artifact.status, to)) {
       return { error: `Transisi ${artifact.status} → ${to} tidak diizinkan.` };
     }
-    if (artifact.frozenAt && to !== "terkirim") return { error: "Artefak beku bersifat immutable." };
+    if (artifact.frozenAt) return { error: "Artefak beku bersifat immutable." };
 
     const now = new Date();
     const data: Record<string, unknown> = { status: to };
@@ -435,8 +444,7 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
       data.renderedText = renderAiReportWhatsApp(content, true);
       data.contentHash = createHash("sha256").update(JSON.stringify(artifact.structuredContent)).digest("hex");
     }
-    await db.aiArtifact.update({ where: { id: artifact.id }, data: data as never });
-    await audit(user.id, `ai.artifact.${to}`, "ai_artifact", artifact.id, { from: artifact.status });
+    await updateMutableArtifact(artifact, data as never, user.id, `ai.artifact.${to}`, { from: artifact.status });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
     revalidatePath("/ai/reports");
     return { ok: `Status artefak → ${to}.` };
@@ -464,9 +472,9 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       note: String(formData.get("note") ?? "") || undefined,
     });
     if (!parsed.success) return { error: "Isian laporan tidak valid atau jumlah bagiannya melampaui batas." };
-    const artifact = await db.aiArtifact.findUnique({
-      where: { id: parsed.data.artifactId },
-      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true, run: { select: { scopeIds: true } } },
+    const artifact = await db.aiArtifact.findFirst({
+      where: { id: parsed.data.artifactId, ...await aiArtifactOrgWhere(user) },
+      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, updatedAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
     if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
@@ -525,15 +533,11 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
     // (rujukan AI tidak lagi berlaku) tetapi terbaca sebagai laporan yang
     // tidak bisa dipercaya. DECISIONS 454.
     content.humanEdited = true;
-    await db.aiArtifact.update({
-      where: { id: artifact.id },
-      data: {
-        title: nextReport.data.title,
-        structuredContent: JSON.parse(JSON.stringify(content)),
-        humanEditNote: parsed.data.note ?? "diedit manual",
-      },
-    });
-    await audit(user.id, "ai.artifact.edit", "ai_artifact", artifact.id, { note: parsed.data.note });
+    await updateMutableArtifact(artifact, {
+      title: nextReport.data.title,
+      structuredContent: JSON.parse(JSON.stringify(content)),
+      humanEditNote: parsed.data.note ?? "diedit manual",
+    }, user.id, "ai.artifact.edit", { note: parsed.data.note });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
     return { ok: "Perubahan tersimpan." };
   } catch (err) {
@@ -546,8 +550,8 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
     const user = await requireCapability("ai.report_send");
     const artifactId = String(formData.get("artifactId") ?? "");
     const contactId = String(formData.get("contactId") ?? "");
-    const artifact = await db.aiArtifact.findUnique({
-      where: { id: artifactId },
+    const artifact = await db.aiArtifact.findFirst({
+      where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
       select: { id: true, status: true, kind: true, renderedText: true, structuredContent: true, distributions: true, contentHash: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
