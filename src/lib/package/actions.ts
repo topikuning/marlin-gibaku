@@ -1931,10 +1931,24 @@ const cabutLokasiSchema = z.object({
  * layar. Urutannya sengaja dari yang paling berat: kalau lokasi punya RAB dan
  * foto sekaligus, yang disebut RAB-nya.
  *
- * Yang TIDAK ada di daftar ini ikut terhapus bersama lokasinya, dan itu
- * disengaja: `statusHistory` (baris "persiapan" yang ditulis konversi kontrak),
- * `assignments` (penugasan orang), dan `alerts` (turunan, bukan masukan) tidak
- * menyimpan satu pun keterangan yang bertahan tanpa lokasinya.
+ * YANG DIHITUNG HANYA ISI, BUKAN PERANCAH. Laporan user 2026-09-17: lokasi yang
+ * benar-benar kosong ditolak karena "9 milestone administrasi, 2 antrean Google
+ * Drive". Keduanya lahir tanpa satu pun tindakan orang —
+ * `ensureMilestones` memateralisasi template 45 item KKP begitu tab milestone
+ * dibuka, dan antrean Drive itu baris kerja yang kunci asingnya memang sudah
+ * `onDelete: Cascade` di skema; repo ini sejak awal memperlakukannya sebagai
+ * ikutan lokasi. Pagar yang menghitung perancah sebagai isi bukan pagar, ia
+ * pintu yang macet: lokasinya jadi tidak bisa dikeluarkan lewat jalur mana pun,
+ * persis keadaan yang jalur ini dibuat untuk mengakhiri.
+ *
+ * Karena itu `milestones` DIPERIKSA TERPISAH (`milestoneTerisi`) — yang menahan
+ * hanya milestone yang sudah disentuh orang.
+ *
+ * Yang ikut terhapus bersama lokasinya, dan itu disengaja: `statusHistory`
+ * (baris "persiapan" yang ditulis konversi kontrak), `assignments` (penugasan
+ * orang), `alerts` (turunan, bukan masukan), `gdriveJobs` (antrean kerja), dan
+ * milestone yang masih perancah. Tidak satu pun menyimpan keterangan yang
+ * bertahan tanpa lokasinya.
  */
 const CABUT_PENGHALANG = [
   ["rabRevisions", "RAB"],
@@ -1946,7 +1960,6 @@ const CABUT_PENGHALANG = [
   ["weatherObservations", "catatan cuaca"],
   ["documents", "dokumen"],
   ["letters", "surat"],
-  ["milestones", "milestone administrasi"],
   ["findings", "temuan"],
   ["inspections", "inspeksi"],
   ["issues", "kendala"],
@@ -1957,8 +1970,31 @@ const CABUT_PENGHALANG = [
   ["invoices", "tagihan"],
   ["raplRincian", "rincian RAPL"],
   ["hargaSatuanDasar", "harga satuan dasar"],
-  ["gdriveJobs", "antrean Google Drive"],
 ] as const;
+
+/**
+ * Milestone yang SUDAH DISENTUH orang — bukan baris template yang masih polos.
+ *
+ * Perancah = `status` masih `belum_dimulai` DAN tak satu pun kolom isian
+ * terpakai. Begitu ada PIC, tenggat, catatan, tanggal selesai, verifikator,
+ * atau dokumen yang menempel, barisnya membawa keterangan yang tidak bisa
+ * dibaca lagi sesudah lokasinya hilang — dan di situ pencabutan memang harus
+ * ditahan.
+ */
+function milestoneTerisi(locationId: string) {
+  return {
+    locationId,
+    OR: [
+      { status: { not: "belum_dimulai" as const } },
+      { picUserId: { not: null } },
+      { dueDate: { not: null } },
+      { completedAt: { not: null } },
+      { verifiedById: { not: null } },
+      { note: { not: null } },
+      { documents: { some: {} } },
+    ],
+  };
+}
 
 /**
  * CABUT LOKASI DARI PAKET BERKONTRAK — pasangan `correctAddLocationAction`.
@@ -2025,7 +2061,14 @@ export async function correctRemoveLocationAction(
   }
 
   const hitung = loc._count as unknown as Record<string, number>;
-  const terisi = CABUT_PENGHALANG.filter(([k]) => (hitung[k] ?? 0) > 0);
+  const milestoneDiisi = await db.adminMilestone.count({ where: milestoneTerisi(loc.id) });
+  const terisi: [string, string][] = CABUT_PENGHALANG.filter(
+    ([k]) => (hitung[k] ?? 0) > 0,
+  ).map(([k, label]) => [k, label]);
+  if (milestoneDiisi > 0) {
+    hitung.milestonesDiisi = milestoneDiisi;
+    terisi.push(["milestonesDiisi", "milestone administrasi yang sudah diisi"]);
+  }
   if (terisi.length > 0) {
     const sebut = terisi.slice(0, 3).map(([k, label]) => `${hitung[k]} ${label}`).join(", ");
     return {
@@ -2064,6 +2107,11 @@ export async function correctRemoveLocationAction(
       // di sini justru DITOLAK triggernya, karena selama lokasinya masih ada,
       // riwayat statusnya memang tidak boleh disentuh.
       await tx.alert.deleteMany({ where: { locationId: loc.id } });
+      // Milestone yang masih perancah + antrean Drive: ikutan, bukan isi.
+      // `gdriveJobs` sudah ber-cascade di skema; dibuang lebih dulu supaya
+      // urutannya eksplisit dan tidak bergantung pada setelan kunci asing.
+      await tx.gDriveJob.deleteMany({ where: { locationId: loc.id } });
+      await tx.adminMilestone.deleteMany({ where: { locationId: loc.id } });
       await tx.location.delete({ where: { id: loc.id } });
     });
   } catch (e) {

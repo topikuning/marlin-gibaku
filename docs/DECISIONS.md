@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 587 | 2026-09-17 | Pagar "lokasi kosong" menghitung ISI, bukan perancah sistem – milestone template & antrean Drive bukan penghalang |
 | 586 | 2026-09-17 | Kolom JUMLAH kosong: subtotal berkas yang memutuskan dipakai-tidaknya cadangan volume × harga, barisnya disebutkan |
 | 585 | 2026-09-16 | Cabut lokasi dari paket berkontrak – pasangan koreksi DECISIONS 187; riwayat status ikut lokasinya, append-only tetap |
 | 584 | 2026-09-14 | Audit batas akses, mutasi serentak, dan retensi snapshot – 19 API ikut pagar ganti-password, Prisma dipaksa UTC |
