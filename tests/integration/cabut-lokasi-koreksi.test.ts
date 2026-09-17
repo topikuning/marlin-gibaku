@@ -111,6 +111,36 @@ beforeAll(async () => {
   await db.rabRevision.create({
     data: { locationId: berisiId, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 1_000n },
   });
+
+  /*
+   * PERANCAH YANG DIBUAT SISTEM SENDIRI — bukan isi.
+   *
+   * Laporan user 2026-09-17: lokasi yang benar-benar kosong ditolak karena
+   * "9 milestone administrasi, 2 antrean Google Drive". Keduanya lahir tanpa
+   * satu pun tindakan orang: `ensureMilestones` memateralisasi template 45 item
+   * KKP begitu tab milestone dibuka, dan antrean Drive itu baris kerja yang
+   * kunci asingnya memang sudah `onDelete: Cascade` di skema — repo ini sejak
+   * awal memperlakukannya sebagai ikutan lokasi, bukan isi lokasi.
+   */
+  await db.adminMilestone.createMany({
+    data: Array.from({ length: 9 }, (_, i) => ({
+      packageId,
+      locationId: kosongId,
+      templateKey: `uji-${i}`,
+      name: `Milestone ${i}`,
+      phase: "mulai_kerja" as const,
+      sortOrder: i,
+    })),
+  });
+  await db.gDriveJob.createMany({
+    data: [1, 2].map((n) => ({
+      kind: "harian",
+      refKey: `uji-${suffix}-${n}`,
+      periode: "2026-09",
+      packageId,
+      locationId: kosongId,
+    })),
+  });
 });
 
 beforeEach(() => {
@@ -173,8 +203,60 @@ describe("cabut lokasi dari paket berkontrak (koreksi data)", () => {
     });
     expect(jejak).not.toBeNull();
 
+    // Perancah sistem ikut lenyap – tidak ada baris yatim yang tertinggal.
+    expect(await db.adminMilestone.count({ where: { locationId: kosongId } })).toBe(0);
+    expect(await db.gDriveJob.count({ where: { locationId: kosongId } })).toBe(0);
+
     // Lokasi lain di paket yang sama tidak tersentuh.
     expect(await db.location.count({ where: { id: berisiId } })).toBe(1);
+  });
+});
+
+/*
+ * MILESTONE YANG SUDAH DISENTUH ORANG tetap menahan pencabutan. Bedanya dengan
+ * perancah kosong di atas cuma satu: ada yang mengisinya. Tanpa uji ini,
+ * "milestone bukan isi" gampang melebar jadi "milestone tidak pernah dihitung",
+ * dan tanggal/catatan/dokumen yang sudah ditulis orang ikut lenyap diam-diam.
+ */
+describe("milestone yang sudah diisi bukan perancah", () => {
+  let dipakaiId = "";
+
+  beforeAll(async () => {
+    dipakaiId = await buatLokasiAktif("Girikarto");
+    await db.adminMilestone.createMany({
+      data: Array.from({ length: 5 }, (_, i) => ({
+        packageId,
+        locationId: dipakaiId,
+        templateKey: `dipakai-${i}`,
+        name: `Milestone ${i}`,
+        phase: "mulai_kerja" as const,
+        sortOrder: i,
+      })),
+    });
+  });
+
+  it("status yang sudah bergerak menahan pencabutan", async () => {
+    const satu = await db.adminMilestone.findFirstOrThrow({
+      where: { locationId: dipakaiId },
+      select: { id: true },
+    });
+    await db.adminMilestone.update({ where: { id: satu.id }, data: { status: "berjalan" } });
+
+    const r = await correctRemoveLocationAction(
+      undefined,
+      fd({ locationId: dipakaiId, reason: ALASAN }),
+    );
+    expect(r?.error ?? "").toMatch(/milestone/i);
+    expect(await db.location.count({ where: { id: dipakaiId } })).toBe(1);
+
+    // Dikembalikan ke keadaan perancah → boleh dicabut lagi.
+    await db.adminMilestone.update({ where: { id: satu.id }, data: { status: "belum_dimulai" } });
+    const lagi = await correctRemoveLocationAction(
+      undefined,
+      fd({ locationId: dipakaiId, reason: ALASAN }),
+    );
+    expect(lagi?.error).toBeUndefined();
+    expect(await db.location.count({ where: { id: dipakaiId } })).toBe(0);
   });
 });
 
