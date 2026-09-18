@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 588 | 2026-09-18 | Pindah lokasi menolak draft RAB yang terikat adendum paket asal – revisi aktif = riwayat, draft = salah atribusi |
 | 587 | 2026-09-17 | Pagar "lokasi kosong" menghitung ISI, bukan perancah sistem – milestone template & antrean Drive bukan penghalang |
 | 586 | 2026-09-17 | Kolom JUMLAH kosong: subtotal berkas yang memutuskan dipakai-tidaknya cadangan volume × harga, barisnya disebutkan |
 | 585 | 2026-09-16 | Cabut lokasi dari paket berkontrak – pasangan koreksi DECISIONS 187; riwayat status ikut lokasinya, append-only tetap |
