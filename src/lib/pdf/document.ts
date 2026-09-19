@@ -326,6 +326,43 @@ export function ensureSpace(doc: PdfDoc, need: number): void {
 }
 
 /**
+ * Judul bagian yang TIDAK PERNAH berpisah dari isinya.
+ *
+ * `sectionHeading` hanya memesan ruang untuk dirinya sendiri. Bagian yang
+ * isinya digambar bebas (grafik, deretan bar) memanggil `ensureSpace` SESUDAH
+ * judulnya tercetak, jadi ketika isinya tidak muat, halaman berganti dan
+ * judulnya tertinggal di atas ruang kosong — pembaca melihat judul tanpa isi
+ * dan menyimpulkan gambarnya gagal dibuat (laporan produksi 2026-09-19).
+ *
+ * Di sini ruang untuk judul DAN isinya dipesan sekaligus, sebelum satu goresan
+ * pun dibuat. `tinggiIsi` adalah taksiran tinggi isi dalam pt; untuk isi yang
+ * panjangnya tak tentu, pakai tinggi potongan pertamanya saja.
+ */
+export function sectionHeadingKeepWith(doc: PdfDoc, title: string, tinggiIsi: number): void {
+  ensureSpace(doc, 34 + Math.max(0, tinggiIsi));
+  sectionHeading(doc, title);
+}
+
+/**
+ * Potong teks ke lebar maksimum dengan elipsis — DIUKUR dengan font yang sedang
+ * aktif pada `doc`, bukan ditebak dari jumlah karakter.
+ *
+ * `{ lineBreak: false, ellipsis: true }` milik pdfkit tidak menahan pembungkusan
+ * pada jalur yang dipakai laporan ini: teks panjang tetap pecah dua baris dan
+ * baris keduanya menimpa baris berikutnya. Pemanggil WAJIB sudah menyetel font
+ * dan ukurannya sebelum memanggil ini.
+ */
+export function truncateToWidth(doc: PdfDoc, teks: string, maxW: number): string {
+  const t = sanitizeText(teks);
+  if (doc.widthOfString(t) <= maxW) return t;
+  let potong = t;
+  while (potong.length > 1 && doc.widthOfString(`${potong}…`) > maxW) {
+    potong = potong.slice(0, -1);
+  }
+  return `${potong.trimEnd()}…`;
+}
+
+/**
  * Kaki halaman pada SEMUA halaman: sumber + waktu (kiri) & "Hal. i/n" (kanan).
  * Menulis DI PITA MARGIN bawah: pdfkit menambah halaman baru bila teks melewati
  * batas bawah margin, jadi margin bawah di-nol-kan sementara saat menulis kaki

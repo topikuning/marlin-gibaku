@@ -18,6 +18,7 @@ const routes = [
   { path: "kegiatan/[id]/pdf", load: () => import("../../src/app/api/kegiatan/[id]/pdf/route") },
   { path: "kegiatan/lampiran/[id]", load: () => import("../../src/app/api/kegiatan/lampiran/[id]/route") },
   { path: "kesiapan/pdf", load: () => import("../../src/app/api/kesiapan/pdf/route") },
+  { path: "lokasi/[slug]/laporan-lengkap", load: () => import("../../src/app/api/lokasi/[slug]/laporan-lengkap/route") },
   { path: "laporan/harian/[slug]/[date]/pdf", load: () => import("../../src/app/api/laporan/harian/[slug]/[date]/pdf/route") },
   { path: "laporan/harian/[slug]/[date]/ringkas", load: () => import("../../src/app/api/laporan/harian/[slug]/[date]/ringkas/route") },
   { path: "laporan/mingguan/[slug]/[minggu]/pdf", load: () => import("../../src/app/api/laporan/mingguan/[slug]/[minggu]/pdf/route") },

@@ -32,6 +32,7 @@ function lokasi(grandTotal: bigint, realizedValue: bigint, planPct: number): P {
     planPct,
     deviationPct: 0,
     weekNumber: 3,
+    weekNumberElapsed: 3,
     totalWeeks: 20,
     activeRevisionId: null,
     activeBaselineId: null,

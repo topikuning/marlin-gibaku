@@ -55,7 +55,9 @@ Organization → Package (spine) → Contract (0..1, uniq per paket; ppnPercent 
                               → Location (1..N; multi-lokasi per kontrak didukung)
 Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
            lineageKey path stabil utk carry-over realisasi lintas revisi)
-         → Baseline (+BaselinePoint) versioned (auto smoothstep per-trade / manual / adendum)
+         → Baseline (+BaselinePoint) versioned (auto smoothstep per-trade / manual / adendum;
+           kolom `profil` = lambat|optimal — bentuk kurva berikutnya, bawaan kolom
+           `optimal` utk baris lama, bawaan pembuatan BARU `lambat`)
          → WeeklyPlan advisory
          → DailyReport (uniq lokasi+tanggal) → Item (uniq report+lineage) +
            Worker/Material/Equipment + StatusHistory (append-only) + Photo (sha256 dedup)
@@ -137,7 +139,12 @@ disetujui + final — rumus & penyebut SAMA, hanya saringan status) sebagai angk
 PENDAMPING berlabel "Progress Terverifikasi" (dipakai mesin kesiapan
 termin/PHO). Memindahkan BASIS resmi ke level terverifikasi tetap keputusan
 terbuka — lihat docs/OPEN_ISSUES.md. Kurva-S: smoothstep per fase kategori + penjadwalan
-per-trade. PPN: RAB pre-PPN vs kontrak incl-PPN, warning selisih >0.1%.
+per-trade (= profil `optimal`); sejak 2026-09-19 bawaannya profil `lambat` —
+jadwal yang sama DIWARP agar agregatnya mengikuti rasio awal-lambat
+(`src/lib/scurve/profil.ts`), bobot kategori & urutan tahap tidak berubah.
+**Impor RAB awal TIDAK lagi membuat kurva-S sendiri**: bentuknya dipilih user
+(lambat / optimal / susun sendiri). Adendum tetap regenerate otomatis memakai
+profil lokasi itu. PPN: RAB pre-PPN vs kontrak incl-PPN, warning selisih >0.1%.
 
 Invarian yang dijaga uji (`tests/integration/periodic-report.test.ts`): kolom
 laporan berjumlah, "s/d" tidak pernah mundur antar periode, Σ bobot = 100,

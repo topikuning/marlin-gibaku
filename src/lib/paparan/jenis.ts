@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SourceRef } from "@/lib/ai-hub/types";
+import type { TemaDeckKey } from "./tema";
 
 /**
  * PAPARAN MINGGUAN KONTRAK KKP (DECISIONS 416) — tipe & skema MURNI.
@@ -294,4 +295,10 @@ export type PaparanContent = {
   narasiSumber: "ai" | "deterministik";
   selectedPhotoIds: string[];
   humanEdits: PaparanHumanEdits | null;
+  /**
+   * Tema deck (`lib/paparan/tema.ts`). Opsional: artefak lama tanpa ruas ini
+   * dirender dengan tema bawaan "mataram" – persis rupanya sebelum tema ada.
+   * Hanya RUPA: susunan slide dan angkanya tidak bergantung pada tema.
+   */
+  tema?: TemaDeckKey;
 };

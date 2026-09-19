@@ -163,6 +163,76 @@ export function bacaPeriodeTeks(teksMentah: string): PeriodeDiminta | null {
  * kuncinya saling memuat ("belum lapor" memuat "lapor", "laporan mingguan"
  * memuat "laporan"). Lihat `buangYangTermuat`.
  */
+/**
+ * KRONOLOGI = LAPORAN LENGKAP SATU LOKASI (permintaan user 2026-09-19).
+ *
+ * Kuncinya tetap `kronologi` — registri `CAKUPAN_AI` dan uji cakupan
+ * memakainya — tetapi maknanya melebar: "kesimpulan X", "laporan lengkap X",
+ * "profil/ringkasan/kondisi lokasi X" semuanya meminta hal yang sama, yaitu
+ * SELURUH data lokasi itu dirangkum, dan dikirim sebagai PDF.
+ *
+ * Kata KERJA di depannya ikut ditelan ("buatkan laporan lengkap", "kirim
+ * deck"). Ini bukan kemewahan: kata kerja produksi selama ini MENANG atas kata
+ * benda (audit 2026-08-28), jadi tanpa penjagaan "buatkan laporan lengkap X"
+ * jatuh ke `produksi` — niat yang justru MENOLAK membuat apa pun. Pola KUAT
+ * diperiksa SEBELUM `POLA_PRODUKSI` di `parseNiatDeterministik`, dan dibuang
+ * SEBELUM `POLA_PRODUKSI` di `frasaSisa`; kalau urutannya dibalik, "buatkan
+ * laporan" dimakan produksi lebih dulu dan "lengkap" tertinggal sebagai kata
+ * asing.
+ *
+ * ### Dua kekuatan: KUAT dan LEMAH
+ *
+ * "laporan lengkap", "kronologi", "profil lokasi" hanya punya satu arti —
+ * mereka duduk di tabel `KUNCI` seperti niat lain. "kesimpulan" dan "deck"
+ * TIDAK: keduanya kata pembungkus yang sering mendahului niat lain
+ * ("kesimpulan progress kemadang", "kesimpulan deviasi minggu ini", "kesimpulan
+ * kendala kemadang"). Kalau keduanya ikut tabel `KUNCI`, tiap kalimat seperti
+ * itu menjadi dua temuan di dua rentang terpisah → `tidak_tahu` → dilempar ke
+ * AI; padahal sebelum perubahan ini ketiganya terbaca deterministik sebagai
+ * progress/deviasi/kendala (pemeriksa adversarial 2026-09-19).
+ *
+ * Karena itu kata LEMAH hanya dibaca bila TIDAK ADA niat lain yang cocok:
+ * "kesimpulan kemadang" → kronologi, "kesimpulan progress kemadang" → progress.
+ *
+ * "deck" masuk di sini, "paparan/presentasi/slide" TIDAK: "bikinkan paparan
+ * untuk rapat" adalah perintah produksi yang sah dan tetap ditolak jujur.
+ * Ketiganya hanya dibaca sebagai penanda BENTUK oleh `mintaDeck`, di atas niat
+ * kronologi yang sudah terbaca dari kata lain.
+ */
+const AWALAN_PERINTAH = "(?:(?:buat|bikin|susun|siapkan|kirim|minta)(?:kan)?\\s+(?:(?:saya|aku|kami|dong)\\s+)?)?";
+const POLA_KRONOLOGI_KUAT = new RegExp(
+  `\\b${AWALAN_PERINTAH}(?:kronologi\\w*(?: kendala\\w*| kegiatan\\w*)*|kondisi terkini|kondisi lokasi|profil lokasi|ringkasan lokasi|laporan lengkap\\w*|riwayat (?:lokasi|kendala|kegiatan)\\w*)\\b`,
+);
+const POLA_KRONOLOGI_LEMAH = new RegExp(`\\b${AWALAN_PERINTAH}(?:kesimpulan\\w*|deck\\w*)\\b`);
+
+/**
+ * Penanda bahwa yang diminta ARTEFAK Report Studio, bukan laporan lokasi —
+ * dibaca HANYA bersama kata lemah di atas.
+ *
+ * "buatkan deck untuk direksi" tanpa lokasi tidak bisa menghasilkan laporan
+ * lokasi (tidak ada lokasinya), dan "kesimpulan untuk direksi"/"kirim excel
+ * kesimpulan X" menyebut bentuk/pembaca yang memang urusan Report Studio.
+ * Keduanya jatuh ke `produksi`, yang mengaku tidak bisa dan menunjukkan
+ * jalannya — bukan ke kronologi yang akan menanyakan lokasi mana.
+ *
+ * Sengaja sempit: "untuk rapat", "pak ppk" TIDAK masuk, karena "kirim deck
+ * kemadang untuk rapat besok" adalah permintaan laporan lokasi yang sah.
+ */
+const POLA_PENANDA_PRODUKSI = /\b(excel|xls\w*|word|docx|eksekutif|direksi)\b/;
+
+/**
+ * Versi PRESENTASI diminta — deck 16:9, bukan laporan A4.
+ *
+ * Penanda bentuk, bukan niat: ia dibaca di atas niat `kronologi` yang sudah
+ * terbaca. "kirim deck X" cukup sendirian (deck ada di `POLA_KRONOLOGI_LEMAH`);
+ * "laporan lengkap X versi paparan" memakai kata lain untuk hal yang sama.
+ */
+const POLA_DECK = /\b(deck\w*|paparan\w*|presentasi\w*|slide\w*)\b/;
+
+export function mintaDeck(teksMentah: string): boolean {
+  return POLA_DECK.test(bersih(teksMentah));
+}
+
 const KUNCI: { niat: Niat; pola: RegExp }[] = [
   { niat: "bantuan", pola: /\b(bantuan\w*|bisa apa|apa saja yang bisa|kamu bisa|help|menu)\b/ },
   /*
@@ -190,10 +260,7 @@ const KUNCI: { niat: Niat; pola: RegExp }[] = [
    * menghasilkan dua temuan di dua rentang terpisah — dan pertanyaan yang
    * gamblang berubah jadi ambigu.
    */
-  {
-    niat: "kronologi",
-    pola: /\b(kronologi\w*(?: kendala\w*| kegiatan\w*)*|kondisi terkini|riwayat (?:lokasi|kendala|kegiatan)\w*)\b/,
-  },
+  { niat: "kronologi", pola: POLA_KRONOLOGI_KUAT },
   { niat: "kendala", pola: /\b(kendala\w*|masalah\w*|hambatan\w*|problem\w*)\b/ },
   { niat: "deviasi", pola: /\b(deviasi\w*|terlambat\w*|tertinggal\w*|keterlambatan\w*|telat\w*)\b/ },
   // "siapa yang belum" IKUT menelan kata "lapor"/"kirim" di belakangnya. Kalau
@@ -370,7 +437,14 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
    * Perintah membuat/mengirim artefak adalah maksud tersendiri, bukan varian
    * dari melihat data. Yang menentukan kata KERJANYA.
    */
-  if (POLA_PRODUKSI.test(t)) {
+  /*
+   * KECUALI laporan lengkap satu lokasi: "buatkan laporan lengkap X" adalah
+   * perintah yang MEMANG dijalankan MARLIN (kronologi → PDF), bukan artefak
+   * Report Studio. Diperiksa sebelum produksi supaya kata kerjanya tidak
+   * berubah jadi penolakan. Hanya pola KUAT yang mengecualikan: "buatkan
+   * laporan eksekutif dan kesimpulan untuk direksi" tetap produksi.
+   */
+  if (POLA_PRODUKSI.test(t) && !POLA_KRONOLOGI_KUAT.test(t)) {
     return { jenis: "yakin", kandidat: kandidat("produksi", periode) };
   }
   const temuan: Temuan[] = [];
@@ -388,6 +462,20 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
    * cuma tiga dan ketiganya bisa disebut memakai kata yang ia tulis sendiri.
    */
   if (cocok.length === 0) {
+    /*
+     * Kata LEMAH ("kesimpulan", "deck") baru berarti di sini — sesudah
+     * dipastikan tidak ada niat lain yang disebut. "kesimpulan kemadang" →
+     * kronologi; "kirim deck kemadang" → kronologi (deck dibaca `mintaDeck`).
+     * Bersama penanda artefak Report Studio ("buatkan deck untuk direksi",
+     * "kesimpulan untuk direksi") ia produksi: tanpa lokasi tidak ada laporan
+     * lokasi yang bisa dibuat, dan yang diminta memang bukan itu.
+     */
+    if (POLA_KRONOLOGI_LEMAH.test(t)) {
+      if (POLA_PENANDA_PRODUKSI.test(t)) {
+        return { jenis: "yakin", kandidat: kandidat("produksi", periode) };
+      }
+      return { jenis: "yakin", kandidat: kandidat("kronologi", periode) };
+    }
     if (!periode) return { jenis: "tidak_tahu" };
     return {
       jenis: "ambigu",
@@ -623,6 +711,9 @@ const KATA_ABAIKAN = new Set(
     // dilempar ke AI, justru pada jalur yang dibuat untuk menghindarinya.
     "kalau kalo klo terus trus lalu nah oke ok juga sama gimana bagaimana yg " +
     "hari harinya dengan dgn sampai saat waktu jam total ringkasan rekap detail rinci " +
+    // "bagaimana KABAR X" / "bagaimana KEADAAN X" – kata pengantar pertanyaan
+    // kondisi lokasi (jalur "bagaimana <lokasi>" di `rencanaDeterministik`).
+    "kabar keadaan dalam " +
     // BENTUK BERKAS, bukan nama tempat. Tanpa baris ini "laporan harian versi
     // kkp danasari" menyisakan "versi" dan "kkp" sebagai kandidat nama lokasi —
     // dan satu kandidat asing sudah cukup membuat pencocokan lokasi jadi
@@ -679,7 +770,16 @@ export function frasaSisa(teksMentah: string): string[] {
    * sendirian membuktikan niatnya terbaca, BUKAN bahwa jalurnya sampai. Yang
    * memutuskan adalah pembungkusnya.
    */
+  // Kronologi DULU: "buatkan laporan lengkap" harus ditelan utuh oleh polanya
+  // sendiri; kalau produksi lebih dulu memakan "buatkan laporan", "lengkap"
+  // tertinggal sebagai kata asing dan permintaannya diserahkan ke AI.
+  sisa = sisa.replace(new RegExp(POLA_KRONOLOGI_KUAT.source, "g"), " ");
+  // Kata lemah ("kesimpulan progress kemadang") bukan nama tempat, apa pun
+  // niat yang akhirnya menang.
+  sisa = sisa.replace(new RegExp(POLA_KRONOLOGI_LEMAH.source, "g"), " ");
   sisa = sisa.replace(new RegExp(POLA_PRODUKSI.source, "g"), " ");
+  // Penanda bentuk presentasi bukan nama tempat.
+  sisa = sisa.replace(new RegExp(POLA_DECK.source, "g"), " ");
   for (const k of KUNCI) sisa = sisa.replace(new RegExp(k.pola.source, "g"), " ");
 
   const frasa: string[] = [];
@@ -736,7 +836,35 @@ export function rencanaDeterministik(
   katalog: LokasiKatalog[],
 ): RencanaDeterministik {
   const parse = parseNiatDeterministik(teksMentah);
-  if (parse.jenis === "tidak_tahu") return { jenis: "serahkan_ai", alasan: "niat tidak terbaca" };
+  if (parse.jenis === "tidak_tahu") {
+    /*
+     * "bagaimana <lokasi>?" = laporan lengkap lokasi itu (permintaan user
+     * 2026-09-19; cacat 2026-09-10 "bagaimana muarareja?" dijawab "scope 77
+     * lokasi melebihi batas" tiga kali berturut-turut).
+     *
+     * Hanya di sini, bukan di `parseNiatDeterministik`: parser itu tidak
+     * memegang katalog, sedangkan syaratnya justru katalog — sisa kalimat
+     * harus PERSIS SATU nama yang cocok tepat. "bagaimana yang kemarin?" tetap
+     * ambigu, "bagaimana sumberjaya?" tetap diserahkan ke AI, dan kalimat yang
+     * menyebut niat lain tidak pernah sampai ke sini.
+     */
+    const bagaimana = /^(?:bagaimana|gimana|gmn)\b/.test(bersih(teksMentah));
+    const sisaBagaimana = bagaimana ? frasaSisa(teksMentah) : [];
+    if (
+      sisaBagaimana.length === 1 &&
+      cocokkanLokasi(sisaBagaimana[0], katalog).jenis === "tepat"
+    ) {
+      return {
+        jenis: "jalan",
+        niat: "kronologi",
+        periode: { jenis: "hari_ini" },
+        lokasiDisebut: sisaBagaimana,
+        urutan: null,
+        batas: null,
+      };
+    }
+    return { jenis: "serahkan_ai", alasan: "niat tidak terbaca" };
+  }
   const urutan = bacaUrutan(teksMentah);
   // Angka hanya berarti cacahan baris bila ada kata urutannya; tanpa itu ia
   // tetap kata asing dan kalimatnya diserahkan ke AI seperti dulu.

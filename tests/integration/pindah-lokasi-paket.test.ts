@@ -352,3 +352,47 @@ describe("pagar", () => {
     ).rejects.toThrow(/sudah ada di paket itu/i);
   });
 });
+
+/*
+ * DRAFT REVISI RAB YANG TERIKAT ADENDUM PAKET ASAL.
+ *
+ * Recheck user 2026-09-18 ("recheck terkait rab, proses pindah cabut lokasi").
+ * `RabRevision.amendmentId` menunjuk `ContractAmendment` milik KONTRAK paket
+ * asal. Revisi yang sudah AKTIF adalah riwayat – ia tetap benar dibaca lewat
+ * relasinya. Yang tidak boleh ikut adalah DRAFT: di paket tujuan tidak ada
+ * adendum yang menaunginya, `createAdendumDraft` menolak draft baru selama ia
+ * ada, dan mengaktifkannya di sana berarti mencatat perubahan kontrak paket
+ * lain sebagai RAB paket ini.
+ */
+describe("draft RAB terikat adendum paket asal", () => {
+  it("DITOLAK – draft itu harus diaktifkan atau dibuang dulu", async () => {
+    await db.rabRevision.create({
+      data: {
+        locationId, revisionNo: 2, source: "adendum", status: "draft",
+        amendmentId, totalValue: 110_000_000n,
+      },
+    });
+    await expect(
+      pindahkanLokasi(
+        { locationId, tujuanPackageId: pkgTujuan, mode: "paksa", alasan: "salah paket saat pendataan awal" },
+        aktor(),
+        null,
+      ),
+    ).rejects.toThrow(/draft revisi RAB/i);
+    const tetap = await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } });
+    expect(tetap.packageId).toBe(pkgAsal);
+  });
+
+  it("draft TANPA adendum boleh ikut – tidak ada yang salah atribusi", async () => {
+    await db.rabRevision.create({
+      data: { locationId, revisionNo: 2, source: "hps_awal", status: "draft", totalValue: 100_000_000n },
+    });
+    const hasil = await pindahkanLokasi(
+      { locationId, tujuanPackageId: pkgTujuan, mode: "paksa", alasan: "salah paket saat pendataan awal" },
+      aktor(),
+      null,
+    );
+    expect(hasil.kePaket).toContain("Tujuan");
+    expect(await db.rabRevision.count({ where: { locationId, status: "draft" } })).toBe(1);
+  });
+});

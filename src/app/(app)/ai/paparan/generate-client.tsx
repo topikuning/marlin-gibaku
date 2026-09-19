@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import { buatPaparanAction, type PaparanState } from "@/lib/paparan/actions";
+import { PILIHAN_TEMA_DECK, TEMA_DECK_DEFAULT } from "@/lib/paparan/tema";
 
 type PaketOpsi = {
   id: string;
@@ -85,6 +86,8 @@ export function PaparanGenerateClient({
   // Konfirmasi hanya diminta bila memang sudah ada – bukan pintu tambahan untuk
   // semua orang setiap kali.
   const [konfirmasi, setKonfirmasi] = useState(false);
+  const [tema, setTema] = useState<string>(TEMA_DECK_DEFAULT);
+  const deskripsiTema = PILIHAN_TEMA_DECK.find((t) => t.value === tema)?.deskripsi ?? "";
 
   if (paket.length === 0) {
     return (
@@ -166,6 +169,22 @@ export function PaparanGenerateClient({
             </Combobox>
           </div>
           {/*
+            Tema = RUPA deck saja; isinya sama apa pun pilihannya. Masih bisa
+            diganti setelah deck jadi, dari panel review.
+          */}
+          <div className="w-56">
+            <label htmlFor="pp-tema" className="mb-1 block text-sm font-medium text-ink">
+              Tema deck
+            </label>
+            <Combobox id="pp-tema" name="tema" value={tema} onChange={setTema}>
+              {PILIHAN_TEMA_DECK.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </Combobox>
+          </div>
+          {/*
             Tombol konfirmasi SENGAJA tidak menggantikan tombol pemicu di titik
             yang sama. Menukar dua tombol di posisi identik membuat satu klik
             beruntun mengenai keduanya — ketahuan dari uji e2e yang menggantung
@@ -228,6 +247,7 @@ export function PaparanGenerateClient({
           </div>
         ) : null}
         <p className="mt-2 text-xs text-ink-muted">
+          {deskripsiTema ? `Tema: ${deskripsiTema} ` : ""}
           Hasilnya selalu DRAF ber-watermark – melewati review dan persetujuan dulu sebelum jadi PDF final.
           {dipilih && !dipilih.bolehPaket
             ? " Paket ini hanya bisa dipaparkan per lokasi: sebagian lokasi aktifnya di luar penugasan Anda."

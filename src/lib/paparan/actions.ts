@@ -21,6 +21,7 @@ import { PaparanAksesError } from "./akses";
 import { PaparanSnapshotError } from "./snapshot";
 import { PaparanGenerateError, generatePaparan } from "./generate";
 import { parsePaparanContent, PaparanContentError } from "./susun";
+import { TEMA, TEMA_DECK, TEMA_DECK_DEFAULT } from "./tema";
 import type { PaparanHumanEdits } from "./jenis";
 
 /**
@@ -92,6 +93,7 @@ const generateSchema = z.object({
     .refine((v) => v === null || /^[0-9a-f-]{36}$/i.test(v), "Lokasi tidak valid"),
   weekNumber: z.coerce.number().int().min(1).max(520),
   focus: z.enum(["lengkap", "progres", "kendala"]).default("lengkap"),
+  tema: z.enum(TEMA_DECK).default(TEMA_DECK_DEFAULT),
 });
 
 export async function buatPaparanAction(_prev: PaparanState, formData: FormData): Promise<PaparanState> {
@@ -103,6 +105,7 @@ export async function buatPaparanAction(_prev: PaparanState, formData: FormData)
       locationId: String(formData.get("locationId") ?? ""),
       weekNumber: formData.get("weekNumber"),
       focus: String(formData.get("focus") ?? "lengkap"),
+      tema: String(formData.get("tema") ?? TEMA_DECK_DEFAULT),
     });
     if (!parsed.success) return { error: "Pilihan paket/lokasi/minggu tidak valid." };
     const hasil = await generatePaparan(user, parsed.data);
@@ -236,6 +239,51 @@ export async function pilihFotoPaparanAction(
     }, user.id, "ai.artifact.edit", { kind: "paparan", foto: parsed.data.photoIds.length });
     revalidatePath(`/ai/paparan/${artifact.id}`);
     return { ok: `${parsed.data.photoIds.length} foto dipilih untuk slide dokumentasi.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ── Ganti tema deck (RUPA saja) ────────────────────────────────────────── */
+
+const temaSchema = z.object({
+  artifactId: z.uuid(),
+  tema: z.enum(TEMA_DECK),
+});
+
+/**
+ * Ganti TEMA deck artefak yang masih bisa diedit.
+ *
+ * Tema adalah bagian konten yang DIBEKUKAN — bukan parameter URL unduhan —
+ * supaya PDF final sama persis dengan yang direview. Yang berubah hanya rupa:
+ * susunan slide dan setiap angkanya tidak menyentuh tema sama sekali.
+ */
+export async function gantiTemaPaparanAction(
+  _prev: PaparanState,
+  formData: FormData,
+): Promise<PaparanState> {
+  try {
+    const user = await requireCapability("ai.report_review");
+    const parsed = temaSchema.safeParse({
+      artifactId: formData.get("artifactId"),
+      tema: String(formData.get("tema") ?? ""),
+    });
+    if (!parsed.success) return { error: "Tema deck tidak dikenal." };
+    const artifact = await muatArtefakPaparan(user, parsed.data.artifactId);
+    if (artifact.frozenAt || !EDITABLE_STATUS.includes(artifact.status)) {
+      return { error: "Paparan beku/terkirim tidak dapat diedit – buat versi baru." };
+    }
+    const content = parsePaparanContent(artifact.structuredContent);
+    content.tema = parsed.data.tema;
+    await updateMutableArtifact(
+      artifact,
+      { structuredContent: JSON.parse(JSON.stringify(content)) },
+      user.id,
+      "ai.artifact.edit",
+      { kind: "paparan", tema: parsed.data.tema },
+    );
+    revalidatePath(`/ai/paparan/${artifact.id}`);
+    return { ok: `Tema deck diganti ke ${TEMA[parsed.data.tema].label}. Angka dan susunan slide tidak berubah.` };
   } catch (err) {
     return fail(err);
   }

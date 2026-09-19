@@ -21,6 +21,8 @@ import { itemPlanFracDariJadwal, laggingItems } from "@/lib/progress-calc";
 import { bacaBagianProgress, hrefBagianProgress, type BagianProgress } from "@/lib/progress-bagian";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
+import { PROFIL_BASELINE_BAWAAN } from "@/lib/rab/import";
+import { PROFIL_KURVA_KETERANGAN, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort, formatTanggal } from "@/lib/format";
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "../get-location";
@@ -461,6 +463,7 @@ async function BagianBaseline({
       id: true,
       baselineNo: true,
       source: true,
+      profil: true,
       status: true,
       contractDays: true,
       note: true,
@@ -498,13 +501,25 @@ async function BagianBaseline({
             {formatTanggal(activeBaseline.createdAt)}. Seluruh progress dan deviasi saat ini
             dibandingkan dengan baseline ini.
           </p>
+          {/* BENTUK kurvanya disebut, bukan ditebak dari grafiknya. Deviasi minggu
+              awal berarti lain sekali pada "awal lambat" dibanding "optimalisasi
+              pekerjaan", dan pembacanya harus tahu yang mana tanpa menghitung. */}
+          <p className="mt-0.5 text-[11px] text-ink-muted">
+            Bentuk kurva: <span className="font-medium text-ink">{PROFIL_KURVA_LABEL[activeBaseline.profil]}</span> –{" "}
+            {PROFIL_KURVA_KETERANGAN[activeBaseline.profil]}
+            {activeBaseline.source === "manual"
+              ? " Kurva ini sendiri disusun tangan; profil di atas yang akan dipakai bila kelak dihitung ulang."
+              : ""}
+          </p>
         </section>
       ) : (
         <section className="rounded-lg border border-warning-border bg-warning-soft p-3">
           <p className="text-[13px] font-semibold text-ink">Belum ada baseline aktif</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
             Tanpa baseline, tidak ada rencana untuk dibandingkan – deviasi dan prognosa tidak bisa
-            dihitung. Baseline terbentuk otomatis saat RAB diimpor, atau bisa dihitung ulang di sini.
+            dihitung. Sejak 2026-09-19 kurva-S TIDAK lagi dibuat sendiri saat RAB diimpor: bentuknya
+            dipilih di layar impor, atau di sini lewat &quot;Hitung ulang&quot;, editor jadwal per
+            pekerjaan, maupun impor jadwal dari Excel.
           </p>
         </section>
       )}
@@ -524,7 +539,10 @@ async function BagianBaseline({
             Tanpa Excel – sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
             (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
-          <RecalcBaselineButton locationId={locationId} />
+          <RecalcBaselineButton
+            locationId={locationId}
+            profilAktif={activeBaseline?.profil ?? PROFIL_BASELINE_BAWAAN}
+          />
         </section>
       ) : null}
 

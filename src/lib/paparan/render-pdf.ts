@@ -9,7 +9,32 @@ import {
   sanitizeText,
   type PdfDoc,
 } from "@/lib/pdf/document";
+import {
+  bingkaiGelap,
+  butirList,
+  chip,
+  footerSlide,
+  gambarKurva,
+  judulSlide,
+  kartuAngka,
+  latarSlide,
+  potongTeks,
+  renderPenutupDeck,
+  renderSampulDeck,
+  tabel,
+  warnaBand,
+  warnaGaris,
+  warnaRedup,
+  warnaSamar,
+  warnaSorot,
+  warnaTeks,
+  warnaTrekBar,
+  watermarkDraf,
+  buatDeckCtx,
+  type DeckCtx,
+} from "@/lib/pdf/deck-primitives";
 import { formatRupiah } from "@/lib/format";
+import { temaDeck } from "./tema";
 import type { PaparanContent } from "./jenis";
 import {
   bandStatus,
@@ -27,6 +52,13 @@ import {
  * durasi pelaksanaan, bar status per pekerjaan, foto per pekerjaan dengan
  * kepala nama + persen, Action Plan bernomor, penutup "Terima Kasih".
  *
+ * RUPA-nya kini bertema (`lib/paparan/tema.ts`, permintaan user 2026-09-19:
+ * *"desain layout masih monoton (cuma satu desain) aku butuh beberapa
+ * variasi"*): seluruh palet dan bentuk dasar datang dari primitif bertema
+ * `lib/pdf/deck-primitives.ts`. Tema "mataram" = desain asli, tanpa perubahan
+ * rupa. Yang TIDAK bertema: susunan slide dan setiap angkanya — `susunSlides`
+ * tidak pernah melihat tema, dijaga uji.
+ *
  * Membaca structured content kanonik yang SAMA dengan preview web; tidak ada
  * angka dihitung ulang. Draft ber-watermark di setiap slide.
  */
@@ -36,114 +68,8 @@ const H = DECK_169.height;
 const MX = 52;
 const CW = W - MX * 2;
 
-/** Palet gaya contoh Mataram — gelap navy + aksen cyan. */
-const C = {
-  gelap: "#0e1726",
-  gelapKartu: "#162032",
-  cyan: "#0ec1ce",
-  cyanTua: "#0a9aa5",
-  putih: "#ffffff",
-  terang: "#f4f6f9",
-  ink: "#1f2937",
-  inkMuted: "#5b6472",
-  inkFaint: "#9aa3af",
-  garis: "#e3e7ee",
-  hijau: "#16a34a",
-  hijauSoft: "#e7f6ec",
-  biru: "#3b82f6",
-  oranye: "#f59e0b",
-  merah: "#e11d48",
-  merahSoft: "#fde7ec",
-  kartuTerang: "#ffffff",
-} as const;
-
-const WARNA_BAND: Record<ReturnType<typeof bandStatus>, string> = {
-  tuntas: C.cyanTua,
-  maju: C.biru,
-  sedang: C.oranye,
-  kritis: C.merah,
-};
-
 function s(t: string): string {
   return sanitizeText(t);
-}
-
-/**
- * Potong teks agar muat SATU baris selebar `maxW` pada font/ukuran aktif.
- * `ellipsis` pdfkit tidak bisa diandalkan tanpa batas tinggi (nama kategori
- * panjang tetap turun baris dan tertindih bar — ketahuan dari PNG hasil
- * render); pemotongan manual berbasis `widthOfString` deterministik.
- */
-function potong(doc: PdfDoc, teks: string, maxW: number): string {
-  const t = s(teks);
-  if (doc.widthOfString(t) <= maxW) return t;
-  let n = t.length;
-  while (n > 1 && doc.widthOfString(`${t.slice(0, n)}…`) > maxW) n -= 1;
-  return `${t.slice(0, n).trimEnd()}…`;
-}
-
-/* ── Kerangka ───────────────────────────────────────────────────────────── */
-
-function latarGelap(doc: PdfDoc): void {
-  doc.rect(0, 0, W, H).fillColor(C.gelap).fill();
-  // Aksen: bilah cyan tipis di tepi kiri + lingkaran dekoratif samar kanan.
-  doc.rect(0, 0, 5, H).fillColor(C.cyan).fill();
-  doc.save();
-  doc.lineWidth(1).strokeColor("#233049");
-  doc.circle(W - 90, 170, 150).stroke();
-  doc.circle(W - 90, 170, 95).stroke();
-  doc.restore();
-}
-
-function latarTerang(doc: PdfDoc): void {
-  doc.rect(0, 0, W, H).fillColor(C.terang).fill();
-}
-
-/** Judul slide terang: teks tebal gelap + garis cyan (pola contoh). */
-function judulTerang(doc: PdfDoc, teks: string): number {
-  doc.font(PDF_FONT.bold).fontSize(21).fillColor(C.ink).text(s(teks), MX, 42, { width: CW });
-  const y = doc.y + 8;
-  doc.moveTo(MX, y).lineTo(MX + CW, y).lineWidth(1.6).strokeColor(C.cyan).stroke();
-  return y + 18;
-}
-
-/** Judul slide gelap. */
-function judulGelap(doc: PdfDoc, teks: string): number {
-  doc.font(PDF_FONT.bold).fontSize(21).fillColor(C.putih).text(s(teks), MX, 60, { width: CW });
-  const y = doc.y + 8;
-  doc.moveTo(MX, y).lineTo(MX + CW, y).lineWidth(1.6).strokeColor(C.cyan).stroke();
-  return y + 20;
-}
-
-function footer(doc: PdfDoc, kiri: string, nomor: number, total: number, gelap: boolean): void {
-  const y = H - 22;
-  doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(gelap ? "#41506b" : C.inkFaint);
-  doc.text(s(kiri), MX, y, { width: CW - 80, lineBreak: false });
-  doc.text(`${nomor}/${total}`, MX, y, { width: CW, align: "right", lineBreak: false });
-}
-
-function watermarkDraf(doc: PdfDoc, gelap: boolean): void {
-  doc.save();
-  doc.font(PDF_FONT.bold).fontSize(44).fillColor(gelap ? "#f87171" : "#dc2626").opacity(gelap ? 0.18 : 0.12);
-  doc.rotate(-18, { origin: [W / 2, H / 2] });
-  doc.text("DRAF – BELUM DISETUJUI", 0, H / 2 - 28, { width: W, align: "center" });
-  doc.restore();
-  doc.opacity(1);
-}
-
-function chip(
-  doc: PdfDoc,
-  teks: string,
-  x: number,
-  y: number,
-  warnaTeks: string,
-  warnaLatar: string,
-): number {
-  doc.font(PDF_FONT.bold).fontSize(10);
-  const w = doc.widthOfString(teks) + 16;
-  doc.roundedRect(x, y - 4, w, 20, 10).fillColor(warnaLatar).fill();
-  doc.fillColor(warnaTeks).text(teks, x + 8, y, { lineBreak: false });
-  return w;
 }
 
 /* ── Foto ───────────────────────────────────────────────────────────────── */
@@ -177,62 +103,33 @@ async function ambilFoto(r2Key: string): Promise<string | null> {
 
 /* ── Slide: sampul ──────────────────────────────────────────────────────── */
 
-function renderSampul(doc: PdfDoc, sl: Extract<Slide, { jenis: "sampul" }>): void {
-  latarGelap(doc);
-  const kiri = MX + 8;
-  doc.font(PDF_FONT.bold).fontSize(11).fillColor(C.cyan).text(
-    s(`PAPARAN MINGGUAN  ·  MINGGU KE-${sl.mingguKe}${sl.berjalan ? "  ·  BELUM GENAP" : ""}`),
-    kiri,
-    186,
-    { characterSpacing: 2, width: CW - 8 },
-  );
-  doc.font(PDF_FONT.bold).fontSize(34).fillColor(C.putih).text(s(sl.judulKerja), kiri, doc.y + 14, {
-    width: CW - 120,
-    lineGap: 4,
-  });
-  if (sl.subJudul) {
-    doc.font(PDF_FONT.regular).fontSize(13).fillColor("#8fa0bb").text(s(sl.subJudul), kiri, doc.y + 6, {
-      width: CW - 120,
-    });
-  }
-
-  // Meta strip: Periode | Realisasi | Rencana | chip Deviasi (pola contoh).
-  const yMeta = Math.max(doc.y + 26, 380);
-  let x = kiri;
-  const tulisMeta = (label: string, nilai: string) => {
-    doc.font(PDF_FONT.regular).fontSize(10.5).fillColor("#8fa0bb").text(`${label}: `, x, yMeta, { lineBreak: false });
-    x += doc.widthOfString(`${label}: `);
-    doc.font(PDF_FONT.bold).fontSize(10.5).fillColor(C.putih).text(nilai, x, yMeta, { lineBreak: false });
-    x += doc.widthOfString(nilai);
-    doc.font(PDF_FONT.regular).fillColor("#3d4c66").text("   |   ", x, yMeta, { lineBreak: false });
-    x += doc.widthOfString("   |   ");
-  };
-  tulisMeta("Periode", sl.periodeLabel);
-  tulisMeta("Realisasi", pctID(sl.meta.realisasiPct));
-  tulisMeta("Rencana", pctID(sl.meta.rencanaPct));
+function renderSampul(ctx: DeckCtx, sl: Extract<Slide, { jenis: "sampul" }>, draf: boolean): void {
   const dev = sl.meta.deviasiPp;
-  chip(
-    doc,
-    s(`Deviasi: ${ppID(dev)}`),
-    x,
-    yMeta,
-    dev != null && dev < 0 ? "#ff8aa5" : "#6ee7b7",
-    dev != null && dev < 0 ? "#3a1b2b" : "#12352b",
-  );
-
-  doc.font(PDF_FONT.regular).fontSize(9.5).fillColor("#61708c").text(
-    s(`${sl.instansi}  ·  ${sl.nomorKontrak}  ·  ${sl.pelaksana}`),
-    kiri,
-    yMeta + 40,
-    { width: CW - 8 },
-  );
+  renderSampulDeck(ctx, {
+    eyebrow: `PAPARAN MINGGUAN  ·  MINGGU KE-${sl.mingguKe}${sl.berjalan ? "  ·  BELUM GENAP" : ""}`,
+    judul: sl.judulKerja,
+    subJudul: sl.subJudul,
+    meta: [
+      { label: "Periode", nilai: sl.periodeLabel },
+      { label: "Realisasi", nilai: pctID(sl.meta.realisasiPct) },
+      { label: "Rencana", nilai: pctID(sl.meta.rencanaPct) },
+      {
+        label: "Deviasi",
+        nilai: ppID(dev),
+        warna: dev != null && dev < 0 ? ctx.tema.palet.merah : ctx.tema.palet.hijau,
+      },
+    ],
+    barisBawah: [sl.instansi, sl.nomorKontrak, sl.pelaksana],
+    draf,
+  });
 }
 
 /* ── Slide: kurva-S ─────────────────────────────────────────────────────── */
 
-function renderKurva(doc: PdfDoc, sl: Extract<Slide, { jenis: "kurva" }>): void {
-  latarTerang(doc);
-  const y0 = judulTerang(doc, "Diagram Progres S-Curve");
+function renderKurva(ctx: DeckCtx, sl: Extract<Slide, { jenis: "kurva" }>, gelap: boolean): void {
+  const { doc, tema } = ctx;
+  latarSlide(ctx, gelap);
+  const y0 = judulSlide(ctx, "Diagram Progres S-Curve", gelap);
   const k = sl.kurva;
 
   // Bidang grafik.
@@ -240,119 +137,76 @@ function renderKurva(doc: PdfDoc, sl: Extract<Slide, { jenis: "kurva" }>): void 
   const gy = y0 + 8;
   const gw = CW - 44;
   const gh = H - gy - 118;
-  const xDari = (minggu: number) =>
-    gx + ((minggu - 1) / Math.max(1, k.totalMinggu - 1)) * gw;
+
+  /*
+   * Realisasi dioper sebagai deret sepanjang kontrak dengan null di luar
+   * jendela: primitif kurva menggambar hanya yang terisi, jadi rupanya sama
+   * dengan garis pendek pada desain asli tanpa cabang khusus.
+   */
+  const actual: (number | null)[] = Array.from({ length: k.totalMinggu }, () => null);
+  for (const t of k.jendela) {
+    if (t.minggu >= 1 && t.minggu <= k.totalMinggu) actual[t.minggu - 1] = t.realisasiPct;
+  }
+  const last = k.jendela[k.jendela.length - 1] ?? null;
+  gambarKurva(
+    ctx,
+    {
+      x: gx,
+      y: gy,
+      w: gw,
+      h: gh,
+      planPct: k.planPct,
+      actualPct: actual,
+      mingguSekarang: last ? last.minggu : sl.mingguKe,
+    },
+    gelap,
+  );
+
+  const xDari = (minggu: number) => gx + ((minggu - 1) / Math.max(1, k.totalMinggu - 1)) * gw;
   const yDari = (pct: number) => gy + gh - (Math.min(pct, 100) / 100) * gh;
 
-  // Kisi + label sumbu Y.
-  doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(C.inkFaint);
-  for (let p = 0; p <= 100; p += 20) {
-    const yy = yDari(p);
-    doc.moveTo(gx, yy).lineTo(gx + gw, yy).lineWidth(0.5).strokeColor(C.garis).stroke();
-    doc.fillColor(C.inkFaint).text(`${p}%`, gx - 30, yy - 4, { width: 26, align: "right", lineBreak: false });
-  }
-  // Label sumbu X (maks ~12 label supaya tidak bertumpuk).
-  const langkah = Math.max(1, Math.ceil(k.totalMinggu / 12));
-  for (let m = 1; m <= k.totalMinggu; m += langkah) {
-    doc.fillColor(C.inkFaint).text(`Mgg ${m}`, xDari(m) - 16, gy + gh + 6, { width: 34, align: "center", lineBreak: false });
-  }
-
-  // Garis RENCANA putus-putus abu sepanjang kontrak (pola contoh).
-  doc.save();
-  doc.dash(4, { space: 3 });
-  doc.lineWidth(1.4).strokeColor("#b9c1cc");
-  k.planPct.forEach((p, i) => {
-    const x = xDari(i + 1);
-    const y = yDari(p);
-    if (i === 0) doc.moveTo(x, y);
-    else doc.lineTo(x, y);
-  });
-  doc.stroke();
-  doc.undash();
-  doc.restore();
-
-  // Jendela REALISASI cyan + isian lembut di bawahnya.
-  if (k.jendela.length > 0) {
-    const first = k.jendela[0];
-    const last = k.jendela[k.jendela.length - 1];
-    doc.save();
-    doc
-      .moveTo(xDari(first.minggu), yDari(first.realisasiPct));
-    for (const t of k.jendela.slice(1)) doc.lineTo(xDari(t.minggu), yDari(t.realisasiPct));
-    doc.lineTo(xDari(last.minggu), gy + gh).lineTo(xDari(first.minggu), gy + gh).closePath();
-    doc.fillColor("#0ec1ce").opacity(0.08).fill();
-    doc.opacity(1);
-    doc.restore();
-
-    doc.lineWidth(2).strokeColor(C.cyan);
-    k.jendela.forEach((t, i) => {
-      const x = xDari(t.minggu);
-      const y = yDari(t.realisasiPct);
-      if (i === 0) doc.moveTo(x, y);
-      else doc.lineTo(x, y);
+  // Chip deviasi di samping titik realisasi terakhir.
+  if (last && sl.deviasiPp != null) {
+    chip(ctx, xDari(last.minggu) + 10, yDari(last.realisasiPct) - 6, s(ppID(sl.deviasiPp).replace(" pp", "%")), {
+      warna: sl.deviasiPp < 0 ? tema.palet.merah : tema.palet.hijau,
+      gelap,
     });
-    doc.stroke();
-    for (const t of k.jendela) {
-      doc.circle(xDari(t.minggu), yDari(t.realisasiPct), 3).fillColor(C.cyan).fill();
-    }
-
-    // Penanda "Minggu Ini" + label nilai + chip deviasi.
-    const xIni = xDari(last.minggu);
-    doc.moveTo(xIni, gy).lineTo(xIni, gy + gh).lineWidth(0.8).strokeColor("#bfeef1").stroke();
-    doc.font(PDF_FONT.bold).fontSize(8.5).fillColor(C.cyan).text("Minggu Ini", xIni - 24, gy - 12, {
-      width: 60,
-      lineBreak: false,
-    });
-    const yLast = yDari(last.realisasiPct);
-    doc.font(PDF_FONT.bold).fontSize(11).fillColor(C.ink).text(pctID(last.realisasiPct), xIni - 60, yLast - 18, {
-      width: 56,
-      align: "right",
-      lineBreak: false,
-    });
-    if (sl.deviasiPp != null) {
-      chip(
-        doc,
-        s(ppID(sl.deviasiPp).replace(" pp", "%")),
-        xIni + 10,
-        yLast - 6,
-        sl.deviasiPp < 0 ? C.merah : C.hijau,
-        sl.deviasiPp < 0 ? C.merahSoft : C.hijauSoft,
-      );
-    }
   }
 
   // Baris statistik 3 minggu terakhir (pola contoh: nilai + chip kenaikan).
   const ys = gy + gh + 26;
   const selW = CW / Math.max(1, k.jendela.length);
-  doc.moveTo(MX, ys - 6).lineTo(MX + CW, ys - 6).lineWidth(0.6).strokeColor(C.garis).stroke();
+  doc.moveTo(MX, ys - 6).lineTo(MX + CW, ys - 6).lineWidth(0.6).strokeColor(warnaGaris(ctx, gelap)).stroke();
   k.jendela.forEach((t, i) => {
     const x = MX + i * selW + 10;
     const terakhir = i === k.jendela.length - 1;
     if (terakhir) {
-      doc.roundedRect(MX + i * selW, ys - 12, selW - 4, 34, 6).fillColor("#eafafb").fill();
+      doc.roundedRect(MX + i * selW, ys - 12, selW - 4, 34, Math.min(6, tema.sudutKartu)).fillColor(warnaSorot(ctx, gelap)).fill();
     }
-    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(C.inkMuted).text(`Minggu ${t.minggu}`, x, ys, { lineBreak: false });
+    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(warnaRedup(ctx, gelap)).text(`Minggu ${t.minggu}`, x, ys, {
+      lineBreak: false,
+    });
     let xv = x + doc.widthOfString(`Minggu ${t.minggu}`) + 10;
-    doc.font(PDF_FONT.bold).fontSize(12).fillColor(C.ink).text(pctID(t.realisasiPct), xv, ys - 2, { lineBreak: false });
+    doc.font(PDF_FONT.bold).fontSize(12).fillColor(warnaTeks(ctx, gelap)).text(pctID(t.realisasiPct), xv, ys - 2, {
+      lineBreak: false,
+    });
     xv += doc.widthOfString(pctID(t.realisasiPct)) + 8;
     if (t.kenaikanPp != null) {
-      chip(
-        doc,
-        s(`${t.kenaikanPp >= 0 ? "+" : ""}${t.kenaikanPp.toFixed(2).replace(".", ",")}%`),
-        xv,
-        ys,
-        t.kenaikanPp >= 0 ? C.hijau : C.merah,
-        t.kenaikanPp >= 0 ? C.hijauSoft : C.merahSoft,
-      );
+      chip(ctx, xv, ys, s(`${t.kenaikanPp >= 0 ? "+" : ""}${t.kenaikanPp.toFixed(2).replace(".", ",")}%`), {
+        warna: t.kenaikanPp >= 0 ? tema.palet.hijau : tema.palet.merah,
+        gelap,
+      });
     }
   });
 }
 
-/* ── Slide: durasi (gelap, tiga kartu) ──────────────────────────────────── */
+/* ── Slide: durasi (tiga kartu) ─────────────────────────────────────────── */
 
-function renderDurasi(doc: PdfDoc, sl: Extract<Slide, { jenis: "durasi" }>): void {
-  latarGelap(doc);
-  const y0 = judulGelap(doc, "Durasi Pelaksanaan");
+function renderDurasi(ctx: DeckCtx, sl: Extract<Slide, { jenis: "durasi" }>, gelap: boolean): void {
+  const { doc, tema } = ctx;
+  const p = tema.palet;
+  latarSlide(ctx, gelap);
+  const y0 = judulSlide(ctx, "Durasi Pelaksanaan", gelap);
   const d = sl.d;
   const kartu: { nilai: number; label: string; sorot: boolean }[] = [
     { nilai: d.totalHari, label: "TOTAL HARI", sorot: false },
@@ -364,107 +218,123 @@ function renderDurasi(doc: PdfDoc, sl: Extract<Slide, { jenis: "durasi" }>): voi
   const gap = 24;
   const x0 = (W - (kw * 3 + gap * 2)) / 2;
   const yk = y0 + 36;
+  const kartuBiasa = gelap ? p.gelapKartu : p.kartuTerang;
   kartu.forEach((krt, i) => {
     const x = x0 + i * (kw + gap);
-    doc.roundedRect(x, yk, kw, kh, 10).fillColor(krt.sorot ? C.cyan : C.gelapKartu).fill();
-    doc.font(PDF_FONT.bold).fontSize(44).fillColor(C.putih).text(String(krt.nilai), x, yk + 24, {
+    doc.roundedRect(x, yk, kw, kh, Math.min(10, tema.sudutKartu)).fillColor(krt.sorot ? p.aksen : kartuBiasa).fill();
+    if (!gelap && !krt.sorot) {
+      doc.roundedRect(x, yk, kw, kh, Math.min(10, tema.sudutKartu)).lineWidth(0.8).strokeColor(p.garis).stroke();
+    }
+    const tintaKartu = krt.sorot ? (gelap ? p.putih : p.putih) : warnaTeks(ctx, gelap);
+    doc.font(PDF_FONT.bold).fontSize(44).fillColor(tintaKartu).text(String(krt.nilai), x, yk + 24, {
       width: kw,
       align: "center",
     });
-    doc.font(PDF_FONT.bold).fontSize(10).fillColor(krt.sorot ? "#e6fbfc" : "#8fa0bb").text(krt.label, x, yk + 86, {
-      width: kw,
-      align: "center",
-      characterSpacing: 2,
-    });
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(10)
+      .fillColor(krt.sorot ? p.putih : warnaRedup(ctx, gelap))
+      .text(krt.label, x, yk + 86, { width: kw, align: "center", characterSpacing: 2 });
   });
 
   // Bar % waktu berjalan.
   const bw = kw * 3 + gap * 2;
   const yb = yk + kh + 36;
-  doc.roundedRect(x0, yb, bw, 8, 4).fillColor(C.gelapKartu).fill();
-  doc.roundedRect(x0, yb, Math.max(8, (Math.min(d.pctWaktu, 100) / 100) * bw), 8, 4).fillColor(C.cyan).fill();
-  doc.font(PDF_FONT.regular).fontSize(9.5).fillColor("#8fa0bb");
+  doc.roundedRect(x0, yb, bw, 8, 4).fillColor(warnaTrekBar(ctx, gelap)).fill();
+  doc.roundedRect(x0, yb, Math.max(8, (Math.min(d.pctWaktu, 100) / 100) * bw), 8, 4).fillColor(p.aksen).fill();
+  doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(warnaRedup(ctx, gelap));
   doc.text("Mulai", x0, yb + 16, { lineBreak: false });
   doc.text("Selesai", x0, yb + 16, { width: bw, align: "right", lineBreak: false });
-  doc.font(PDF_FONT.bold).fillColor(C.cyan).text(
-    s(`${d.pctWaktu.toFixed(2).replace(".", ",")}% waktu telah berjalan`),
-    x0,
-    yb + 16,
-    { width: bw, align: "center", lineBreak: false },
-  );
+  doc
+    .font(PDF_FONT.bold)
+    .fillColor(gelap ? p.aksen : p.aksenTua)
+    .text(s(`${d.pctWaktu.toFixed(2).replace(".", ",")}% waktu telah berjalan`), x0, yb + 16, {
+      width: bw,
+      align: "center",
+      lineBreak: false,
+    });
 }
 
 /* ── Slide: status pekerjaan per kategori (bar dua kolom) ───────────────── */
 
-function renderStatusKategori(doc: PdfDoc, sl: Extract<Slide, { jenis: "status_kategori" }>): void {
-  latarTerang(doc);
+function renderStatusKategori(
+  ctx: DeckCtx,
+  sl: Extract<Slide, { jenis: "status_kategori" }>,
+  gelap: boolean,
+): void {
+  const { doc, tema } = ctx;
+  latarSlide(ctx, gelap);
   const judul = sl.lokasiNama ? `Status Pekerjaan – ${sl.lokasiNama}` : "Status Pekerjaan";
-  const y0 = judulTerang(doc, sl.totalBagian > 1 ? `${judul} (${sl.bagian}/${sl.totalBagian})` : judul);
+  const y0 = judulSlide(ctx, sl.totalBagian > 1 ? `${judul} (${sl.bagian}/${sl.totalBagian})` : judul, gelap);
   const kolW = (CW - 48) / 2;
   const tiapKol = Math.ceil(sl.baris.length / 2);
   sl.baris.forEach((b, i) => {
     const kol = Math.floor(i / tiapKol);
     const x = MX + kol * (kolW + 48);
     const y = y0 + (i % tiapKol) * 46;
-    const warna = WARNA_BAND[bandStatus(b.realisasiPct)];
-    doc.font(PDF_FONT.regular).fontSize(11).fillColor(C.ink);
-    doc.text(potong(doc, b.nama, kolW - 74), x, y, { width: kolW - 70, lineBreak: false });
+    const warna = warnaBand(ctx, bandStatus(b.realisasiPct));
+    doc.font(PDF_FONT.regular).fontSize(11).fillColor(warnaTeks(ctx, gelap));
+    doc.text(potongTeks(ctx, b.nama, kolW - 74), x, y, { width: kolW - 70, lineBreak: false });
     doc.font(PDF_FONT.bold).fontSize(11).fillColor(warna).text(pctID(b.realisasiPct), x, y, {
       width: kolW,
       align: "right",
       lineBreak: false,
     });
     const yb = y + 17;
-    doc.roundedRect(x, yb, kolW, 5, 2.5).fillColor("#dde2ea").fill();
+    doc.roundedRect(x, yb, kolW, 5, 2.5).fillColor(warnaTrekBar(ctx, gelap)).fill();
     if (b.realisasiPct > 0) {
       doc.roundedRect(x, yb, Math.max(4, (Math.min(b.realisasiPct, 100) / 100) * kolW), 5, 2.5).fillColor(warna).fill();
     }
   });
 }
 
-/* ── Slide: foto per pekerjaan (kepala gelap + dua foto) ────────────────── */
+/* ── Slide: foto per pekerjaan (kepala + dua foto di pita terang) ───────── */
 
 async function renderFotoPekerjaan(
-  doc: PdfDoc,
+  ctx: DeckCtx,
   sl: Extract<Slide, { jenis: "foto_pekerjaan" }>,
   gambar: Map<string, string | null>,
+  gelap: boolean,
 ): Promise<void> {
-  latarGelap(doc);
-  // Kepala: nama pekerjaan kiri, persen cyan besar kanan (pola contoh).
-  doc.font(PDF_FONT.bold).fontSize(18).fillColor(C.putih);
-  doc.text(potong(doc, sl.judul, CW - 146), MX, 30, { width: CW - 140, lineBreak: false });
+  const { doc, tema } = ctx;
+  const p = tema.palet;
+  latarSlide(ctx, gelap);
+  // Kepala: nama pekerjaan kiri, persen aksen besar kanan (pola contoh).
+  doc.font(PDF_FONT.bold).fontSize(18).fillColor(warnaTeks(ctx, gelap));
+  doc.text(potongTeks(ctx, sl.judul, CW - 146), MX, 30, { width: CW - 140, lineBreak: false });
   if (sl.pct != null) {
-    doc.font(PDF_FONT.bold).fontSize(20).fillColor(C.cyan).text(pctID(sl.pct), MX, 28, {
-      width: CW,
-      align: "right",
-      lineBreak: false,
-    });
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(20)
+      .fillColor(gelap ? p.aksen : p.aksenTua)
+      .text(pctID(sl.pct), MX, 28, { width: CW, align: "right", lineBreak: false });
   }
-  doc.moveTo(0, 66).lineTo(W, 66).lineWidth(0.8).strokeColor("#233049").stroke();
+  doc.moveTo(0, 66).lineTo(W, 66).lineWidth(0.8).strokeColor(warnaGaris(ctx, gelap)).stroke();
 
-  // Pita tengah putih tempat foto duduk (pola contoh: band terang di tengah).
+  // Pita tengah terang tempat foto duduk (pola contoh: band terang di tengah).
   const py = 96;
   const ph = H - py - 78;
-  doc.rect(0, py, W, ph).fillColor(C.putih).fill();
+  doc.rect(0, py, W, ph).fillColor(gelap ? p.putih : p.kartuTerang).fill();
 
   const n = sl.foto.length;
   const gap = 22;
   const fw = n === 1 ? Math.min(CW, 620) : (CW - gap) / 2;
   const fh = ph - 58;
   const x0 = n === 1 ? (W - fw) / 2 : MX;
+  const sudutFoto = Math.min(8, tema.sudutKartu);
   sl.foto.forEach((f, i) => {
     const x = x0 + i * (fw + gap);
     const y = py + 18;
     const buf = gambar.get(f.id) ?? null;
     if (buf) {
       doc.save();
-      doc.roundedRect(x, y, fw, fh, 8).clip();
+      doc.roundedRect(x, y, fw, fh, sudutFoto).clip();
       doc.image(buf, x, y, { cover: [fw, fh], align: "center", valign: "center" } as never);
       doc.restore();
-      doc.roundedRect(x, y, fw, fh, 8).lineWidth(1).strokeColor("#e3e7ee").stroke();
+      doc.roundedRect(x, y, fw, fh, sudutFoto).lineWidth(1).strokeColor(p.garis).stroke();
     } else {
-      doc.roundedRect(x, y, fw, fh, 8).fillColor("#eef1f5").fill();
-      doc.font(PDF_FONT.regular).fontSize(10).fillColor(C.inkMuted).text("Foto tidak dapat dimuat", x, y + fh / 2 - 6, {
+      doc.roundedRect(x, y, fw, fh, sudutFoto).fillColor(p.terang).fill();
+      doc.font(PDF_FONT.regular).fontSize(10).fillColor(p.inkMuted).text("Foto tidak dapat dimuat", x, y + fh / 2 - 6, {
         width: fw,
         align: "center",
       });
@@ -472,11 +342,11 @@ async function renderFotoPekerjaan(
     /*
      * Keterangan foto dibaca dari layar proyektor, bukan dari layar laptop:
      * abu-abu tipis 8.5pt hilang di ruangan terang. Tebal + tinta gelap, plus
-     * garis aksen cyan pendek supaya matanya tahu di mana mulai membaca.
+     * garis aksen pendek supaya matanya tahu di mana mulai membaca.
      */
     const cy = y + fh + 8;
-    doc.rect(x, cy + 2, 3, 11).fillColor(C.cyan).fill();
-    doc.font(PDF_FONT.bold).fontSize(9).fillColor(C.ink);
+    doc.rect(x, cy + 2, 3, 11).fillColor(p.aksen).fill();
+    doc.font(PDF_FONT.bold).fontSize(9).fillColor(p.ink);
     // DUA baris, bukan satu: keterangan lengkap sering lebih panjang dari
     // separuh slide ("Pekerjaan Sondir termasuk Pelaporan termasuk mobilisasi
     // Alat dan Personil"), dan dipotong satu baris ia kehilangan justru bagian
@@ -485,104 +355,47 @@ async function renderFotoPekerjaan(
   });
 }
 
-/* ── Slide-slide terang berbasis daftar/tabel ───────────────────────────── */
+/* ── Slide-slide berbasis daftar/tabel ──────────────────────────────────── */
 
-function butirList(
-  doc: PdfDoc,
-  butir: string[],
-  y0: number,
-  opts?: { fontSize?: number; warna?: string },
-): number {
-  const fs = opts?.fontSize ?? 12.5;
-  let y = y0;
-  for (const b of butir) {
-    doc.circle(MX + 4, y + fs / 2, 2.2).fillColor(C.cyan).fill();
-    doc.font(PDF_FONT.regular).fontSize(fs).fillColor(opts?.warna ?? C.ink);
-    doc.text(s(b), MX + 16, y, { width: CW - 16, lineGap: 2 });
-    y = doc.y + 8;
-  }
-  return y;
-}
-
-type Kolom = { label: string; w: number; align?: "left" | "right" };
-
-function tabel(doc: PdfDoc, kolom: Kolom[], baris: string[][], y0: number): number {
-  const rowH = 24;
-  let y = y0;
-  let x = MX;
-  doc.roundedRect(MX, y, CW, rowH, 4).fillColor("#e8f7f8").fill();
-  doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(C.cyanTua);
-  for (const kk of kolom) {
-    doc.text(s(kk.label), x + 6, y + 7, { width: kk.w - 12, align: kk.align ?? "left", lineBreak: false });
-    x += kk.w;
-  }
-  y += rowH;
-  doc.font(PDF_FONT.regular).fontSize(9.5);
-  for (const row of baris) {
-    x = MX;
-    doc.moveTo(MX, y + rowH).lineTo(MX + CW, y + rowH).lineWidth(0.5).strokeColor(C.garis).stroke();
-    row.forEach((sel, i) => {
-      const kk = kolom[i];
-      doc.fillColor(C.ink);
-      doc.text(potong(doc, sel, kk.w - 14), x + 6, y + 7, {
-        width: kk.w - 12,
-        align: kk.align ?? "left",
-        lineBreak: false,
-      });
-      x += kk.w;
-    });
-    y += rowH;
-  }
-  return y + 10;
-}
-
-function kartuAngka(doc: PdfDoc, items: { label: string; nilai: string; warna?: string }[], y: number): number {
-  const gap = 14;
-  const cw = (CW - gap * (items.length - 1)) / items.length;
-  const ch = 72;
-  items.forEach((it, i) => {
-    const x = MX + i * (cw + gap);
-    doc.roundedRect(x, y, cw, ch, 8).fillColor(C.kartuTerang).fill();
-    doc.roundedRect(x, y, cw, ch, 8).lineWidth(0.8).strokeColor(C.garis).stroke();
-    doc.font(PDF_FONT.regular).fontSize(8.5).fillColor(C.inkMuted).text(s(it.label).toUpperCase(), x + 12, y + 12, {
-      width: cw - 24,
-      characterSpacing: 0.6,
-    });
-    doc.font(PDF_FONT.bold).fontSize(22).fillColor(it.warna ?? C.cyanTua).text(s(it.nilai), x + 12, y + 30, {
-      width: cw - 24,
-    });
-  });
-  return y + ch + 16;
-}
-
-function renderRingkasan(doc: PdfDoc, sl: Extract<Slide, { jenis: "ringkasan" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Ringkasan Eksekutif");
+function renderRingkasan(ctx: DeckCtx, sl: Extract<Slide, { jenis: "ringkasan" }>, gelap: boolean): void {
+  const p = ctx.tema.palet;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Ringkasan Eksekutif", gelap);
   y = kartuAngka(
-    doc,
+    ctx,
     [
-      { label: "Rencana", nilai: pctID(sl.angka.rencana), warna: C.ink },
+      { label: "Rencana", nilai: pctID(sl.angka.rencana), warna: warnaTeks(ctx, gelap) },
       { label: "Realisasi", nilai: pctID(sl.angka.realisasi) },
       {
         label: "Deviasi",
         nilai: ppID(sl.angka.deviasi),
-        warna: sl.angka.deviasi != null && sl.angka.deviasi < 0 ? C.merah : C.hijau,
+        warna: sl.angka.deviasi != null && sl.angka.deviasi < 0 ? p.merah : p.hijau,
       },
-      { label: "Laporan final", nilai: `${sl.angka.laporanFinal}/${sl.angka.laporanDiharapkan}`, warna: C.ink },
+      {
+        label: "Laporan final",
+        nilai: `${sl.angka.laporanFinal}/${sl.angka.laporanDiharapkan}`,
+        warna: warnaTeks(ctx, gelap),
+      },
     ],
     y,
+    gelap,
   );
-  butirList(doc, sl.butir, y + 4);
+  butirList(ctx, sl.butir, MX, y + 4, CW, gelap);
 }
 
-function renderProgresLokasi(doc: PdfDoc, sl: Extract<Slide, { jenis: "progres_lokasi" }>): void {
-  latarTerang(doc);
-  const y = judulTerang(
-    doc,
+function renderProgresLokasi(
+  ctx: DeckCtx,
+  sl: Extract<Slide, { jenis: "progres_lokasi" }>,
+  gelap: boolean,
+): void {
+  latarSlide(ctx, gelap);
+  const y = judulSlide(
+    ctx,
     sl.totalBagian > 1 ? `Progres per Lokasi (${sl.bagian}/${sl.totalBagian})` : "Progres per Lokasi",
+    gelap,
   );
   tabel(
-    doc,
+    ctx,
     [
       { label: "Lokasi", w: CW - 120 * 4 },
       { label: "Rencana", w: 120, align: "right" },
@@ -598,16 +411,18 @@ function renderProgresLokasi(doc: PdfDoc, sl: Extract<Slide, { jenis: "progres_l
       b.targetPct == null ? "belum ada kurva-S" : "lengkap",
     ]),
     y,
+    gelap,
   );
 }
 
-function renderCapaian(doc: PdfDoc, sl: Extract<Slide, { jenis: "capaian" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Capaian Pekerjaan Minggu Ini");
-  if (sl.butir.length > 0) y = butirList(doc, sl.butir.slice(0, 4), y, { fontSize: 11.5 });
+function renderCapaian(ctx: DeckCtx, sl: Extract<Slide, { jenis: "capaian" }>, gelap: boolean): void {
+  const { doc } = ctx;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Capaian Pekerjaan Minggu Ini", gelap);
+  if (sl.butir.length > 0) y = butirList(ctx, sl.butir.slice(0, 4), MX, y, CW, gelap, { fontSize: 11.5 });
   if (sl.rincian.length > 0) {
     tabel(
-      doc,
+      ctx,
       [
         { label: "Lokasi", w: 210 },
         { label: "Pekerjaan", w: CW - 210 - 160 },
@@ -619,9 +434,10 @@ function renderCapaian(doc: PdfDoc, sl: Extract<Slide, { jenis: "capaian" }>): v
         `${String(c.volume).replace(".", ",")}${c.unit ? ` ${c.unit}` : ""}`,
       ]),
       y + 4,
+      gelap,
     );
   } else if (sl.butir.length === 0) {
-    doc.font(PDF_FONT.regular).fontSize(12).fillColor(C.inkMuted).text(
+    doc.font(PDF_FONT.regular).fontSize(12).fillColor(warnaRedup(ctx, gelap)).text(
       "Tidak ada capaian pekerjaan terhitung pada minggu ini.",
       MX,
       y,
@@ -630,13 +446,14 @@ function renderCapaian(doc: PdfDoc, sl: Extract<Slide, { jenis: "capaian" }>): v
   }
 }
 
-function renderKegiatan(doc: PdfDoc, sl: Extract<Slide, { jenis: "kegiatan" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Kegiatan Lapangan");
-  if (sl.butir.length > 0) y = butirList(doc, sl.butir.slice(0, 4), y, { fontSize: 11.5 });
+function renderKegiatan(ctx: DeckCtx, sl: Extract<Slide, { jenis: "kegiatan" }>, gelap: boolean): void {
+  const { doc } = ctx;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Kegiatan Lapangan", gelap);
+  if (sl.butir.length > 0) y = butirList(ctx, sl.butir.slice(0, 4), MX, y, CW, gelap, { fontSize: 11.5 });
   if (sl.rincian.length > 0) {
     tabel(
-      doc,
+      ctx,
       [
         { label: "Tanggal", w: 96 },
         { label: "Jenis", w: 140 },
@@ -645,9 +462,10 @@ function renderKegiatan(doc: PdfDoc, sl: Extract<Slide, { jenis: "kegiatan" }>):
       ],
       sl.rincian.map((g) => [g.tanggalKey, g.jenis, g.judul, g.lokasiNama]),
       y + 4,
+      gelap,
     );
   } else if (sl.butir.length === 0) {
-    doc.font(PDF_FONT.regular).fontSize(12).fillColor(C.inkMuted).text(
+    doc.font(PDF_FONT.regular).fontSize(12).fillColor(warnaRedup(ctx, gelap)).text(
       "Tidak ada kegiatan lapangan final pada minggu ini.",
       MX,
       y,
@@ -656,20 +474,25 @@ function renderKegiatan(doc: PdfDoc, sl: Extract<Slide, { jenis: "kegiatan" }>):
   }
 }
 
-function renderKendala(doc: PdfDoc, sl: Extract<Slide, { jenis: "kendala" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Kendala Kontrak");
-  if (sl.butir.length > 0) y = butirList(doc, sl.butir.slice(0, 3), y, { fontSize: 11 });
+function renderKendala(ctx: DeckCtx, sl: Extract<Slide, { jenis: "kendala" }>, gelap: boolean): void {
+  const { doc, tema } = ctx;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Kendala Kontrak", gelap);
+  if (sl.butir.length > 0) y = butirList(ctx, sl.butir.slice(0, 3), MX, y, CW, gelap, { fontSize: 11 });
   const blok = (judul: string, rows: typeof sl.baru) => {
-    doc.font(PDF_FONT.bold).fontSize(11).fillColor(C.cyanTua).text(s(judul), MX, y, { width: CW });
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(11)
+      .fillColor(gelap ? tema.palet.aksen : tema.palet.aksenTua)
+      .text(s(judul), MX, y, { width: CW });
     y = doc.y + 4;
     if (rows.length === 0) {
-      doc.font(PDF_FONT.regular).fontSize(10).fillColor(C.inkMuted).text("Tidak ada.", MX, y, { width: CW });
+      doc.font(PDF_FONT.regular).fontSize(10).fillColor(warnaRedup(ctx, gelap)).text("Tidak ada.", MX, y, { width: CW });
       y = doc.y + 8;
       return;
     }
     y = tabel(
-      doc,
+      ctx,
       [
         { label: "Kendala", w: CW - 180 - 100 - 120 },
         { label: "Lokasi", w: 180 },
@@ -678,20 +501,22 @@ function renderKendala(doc: PdfDoc, sl: Extract<Slide, { jenis: "kendala" }>): v
       ],
       rows.map((k) => [k.judul, k.lokasiNama, k.severity, k.punyaRecovery ? "ada" : "belum ada"]),
       y,
+      gelap,
     );
   };
   blok("Kendala baru minggu ini", sl.baru);
   blok(sl.statusTerkini ? "Kendala aktif SAAT PAPARAN DIBUAT (status terkini)" : "Kendala aktif", sl.aktif);
 }
 
-function renderPemulihan(doc: PdfDoc, sl: Extract<Slide, { jenis: "pemulihan" }>): void {
-  latarTerang(doc);
-  const y = judulTerang(
-    doc,
+function renderPemulihan(ctx: DeckCtx, sl: Extract<Slide, { jenis: "pemulihan" }>, gelap: boolean): void {
+  latarSlide(ctx, gelap);
+  const y = judulSlide(
+    ctx,
     sl.totalBagian > 1 ? `Recovery & Tindak Lanjut (${sl.bagian}/${sl.totalBagian})` : "Recovery & Tindak Lanjut",
+    gelap,
   );
   tabel(
-    doc,
+    ctx,
     [
       { label: "Kendala", w: 220 },
       { label: "Tindakan", w: CW - 220 - 130 - 96 - 104 },
@@ -707,47 +532,56 @@ function renderPemulihan(doc: PdfDoc, sl: Extract<Slide, { jenis: "pemulihan" }>
       r.overdue ? `${r.status} (LEWAT)` : r.status,
     ]),
     y,
+    gelap,
   );
 }
 
-/** Action Plan — kartu bernomor bergaris kiri cyan (pola contoh Mataram). */
-function renderActionPlan(doc: PdfDoc, sl: Extract<Slide, { jenis: "action_plan" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Action Plan");
+/** Action Plan — kartu bernomor bergaris kiri aksen (pola contoh Mataram). */
+function renderActionPlan(ctx: DeckCtx, sl: Extract<Slide, { jenis: "action_plan" }>, gelap: boolean): void {
+  const { doc, tema } = ctx;
+  const p = tema.palet;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Action Plan", gelap);
+  const sudut = Math.min(8, tema.sudutKartu);
   sl.butir.forEach((b, i) => {
     const teksW = CW - 84;
     doc.font(PDF_FONT.regular).fontSize(12.5);
     const th = doc.heightOfString(s(b), { width: teksW, lineGap: 2 });
     const kh = Math.max(44, th + 22);
-    doc.roundedRect(MX + 6, y, CW - 6, kh, 8).fillColor(C.putih).fill();
-    doc.roundedRect(MX + 6, y, CW - 6, kh, 8).lineWidth(0.6).strokeColor(C.garis).stroke();
-    doc.rect(MX, y + 2, 4, kh - 4).fillColor(C.cyan).fill();
-    doc.font(PDF_FONT.bold).fontSize(16).fillColor(C.cyan).text(
-      `0${i + 1}`,
-      MX + 22,
-      y + kh / 2 - 10,
-      { lineBreak: false },
-    );
-    doc.font(PDF_FONT.regular).fontSize(12.5).fillColor(C.ink).text(s(b), MX + 66, y + (kh - th) / 2, {
+    doc.roundedRect(MX + 6, y, CW - 6, kh, sudut).fillColor(gelap ? p.gelapKartu : p.putih).fill();
+    if (!gelap) {
+      doc.roundedRect(MX + 6, y, CW - 6, kh, sudut).lineWidth(0.6).strokeColor(p.garis).stroke();
+    }
+    doc.rect(MX, y + 2, 4, kh - 4).fillColor(p.aksen).fill();
+    // Nomor memakai aksen PENUH (bukan aksen tua) di kedua latar: pada desain
+    // asli Mataram angka "01" cyan terang inilah penanda kartunya.
+    doc.font(PDF_FONT.bold).fontSize(16).fillColor(p.aksen).text(`0${i + 1}`, MX + 22, y + kh / 2 - 10, {
+      lineBreak: false,
+    });
+    doc.font(PDF_FONT.regular).fontSize(12.5).fillColor(warnaTeks(ctx, gelap)).text(s(b), MX + 66, y + (kh - th) / 2, {
       width: teksW,
       lineGap: 2,
     });
     y += kh + 12;
   });
   if (sl.dukungan.length > 0) {
-    doc.font(PDF_FONT.bold).fontSize(11.5).fillColor(C.cyanTua).text("Dukungan / keputusan yang dibutuhkan dari KKP", MX, y + 4, {
-      width: CW,
-    });
-    butirList(doc, sl.dukungan, doc.y + 6, { fontSize: 11 });
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(11.5)
+      .fillColor(gelap ? p.aksen : p.aksenTua)
+      .text("Dukungan / keputusan yang dibutuhkan dari KKP", MX, y + 4, { width: CW });
+    butirList(ctx, sl.dukungan, MX, doc.y + 6, CW, gelap, { fontSize: 11 });
   }
 }
 
-function renderLampiran(doc: PdfDoc, sl: Extract<Slide, { jenis: "lampiran" }>): void {
-  latarTerang(doc);
-  let y = judulTerang(doc, "Lampiran – Kelengkapan Data & Sumber");
+function renderLampiran(ctx: DeckCtx, sl: Extract<Slide, { jenis: "lampiran" }>, gelap: boolean): void {
+  const { doc, tema } = ctx;
+  const p = tema.palet;
+  latarSlide(ctx, gelap);
+  let y = judulSlide(ctx, "Lampiran – Kelengkapan Data & Sumber", gelap);
   const k = sl.kelengkapan;
   y = tabel(
-    doc,
+    ctx,
     [
       { label: "Laporan diharapkan", w: CW / 6, align: "right" },
       { label: "Final", w: CW / 6, align: "right" },
@@ -758,9 +592,10 @@ function renderLampiran(doc: PdfDoc, sl: Extract<Slide, { jenis: "lampiran" }>):
     ],
     [[`${k.diharapkan}`, `${k.final}`, `${k.diproses}`, `${k.draft}`, `${k.perluKoreksi}`, `${k.hariNihil}`]],
     y,
+    gelap,
   );
   if (k.lokasiTanpaLaporan.length > 0) {
-    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(C.oranye).text(
+    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(p.oranye).text(
       s(`Lokasi tanpa laporan minggu ini: ${k.lokasiTanpaLaporan.join(", ")}`),
       MX,
       y,
@@ -769,7 +604,7 @@ function renderLampiran(doc: PdfDoc, sl: Extract<Slide, { jenis: "lampiran" }>):
     y = doc.y + 6;
   }
   if (sl.lokasiTanpaKurva > 0) {
-    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(C.oranye).text(
+    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(p.oranye).text(
       s(`${sl.lokasiTanpaKurva} lokasi belum punya kurva-S.`),
       MX,
       y,
@@ -777,7 +612,7 @@ function renderLampiran(doc: PdfDoc, sl: Extract<Slide, { jenis: "lampiran" }>):
     );
     y = doc.y + 6;
   }
-  doc.font(PDF_FONT.regular).fontSize(9).fillColor(C.inkMuted).text(
+  doc.font(PDF_FONT.regular).fontSize(9).fillColor(warnaRedup(ctx, gelap)).text(
     s(
       `Data per: ${sl.dataAsOf ? sl.dataAsOf.slice(0, 16).replace("T", " ") : "tidak tersedia"} · Seluruh angka dihitung MARLIN dari laporan harian, kurva-S, kegiatan, dan kendala yang tercatat.`,
     ),
@@ -787,22 +622,23 @@ function renderLampiran(doc: PdfDoc, sl: Extract<Slide, { jenis: "lampiran" }>):
   );
   y = doc.y + 8;
   if (sl.limitations.length > 0) {
-    doc.font(PDF_FONT.bold).fontSize(10).fillColor(C.cyanTua).text("Keterbatasan data", MX, y, { width: CW });
-    butirList(doc, sl.limitations, doc.y + 4, { fontSize: 8.5, warna: C.inkMuted });
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(10)
+      .fillColor(gelap ? p.aksen : p.aksenTua)
+      .text("Keterbatasan data", MX, y, { width: CW });
+    butirList(ctx, sl.limitations, MX, doc.y + 4, CW, gelap, {
+      fontSize: 8.5,
+      warna: warnaRedup(ctx, gelap),
+    });
   }
 }
 
-function renderPenutup(doc: PdfDoc, sl: Extract<Slide, { jenis: "penutup" }>): void {
-  latarGelap(doc);
-  doc.font(PDF_FONT.bold).fontSize(42).fillColor(C.putih).text("Terima Kasih", 0, H / 2 - 66, {
-    width: W,
-    align: "center",
-  });
-  doc.font(PDF_FONT.bold).fontSize(20).fillColor(C.cyan).text("Tetap Semangat", 0, doc.y + 10, {
-    width: W,
-    align: "center",
-  });
-  doc.font(PDF_FONT.regular).fontSize(10).fillColor("#61708c").text(
+function renderPenutup(ctx: DeckCtx, sl: Extract<Slide, { jenis: "penutup" }>): void {
+  const { doc, tema } = ctx;
+  const gelap = bingkaiGelap(tema);
+  renderPenutupDeck(ctx, { judul: "Terima Kasih", sub: "Tetap Semangat" });
+  doc.font(PDF_FONT.regular).fontSize(10).fillColor(warnaSamar(ctx, gelap)).text(
     s(`${sl.paket}  ·  Minggu Ke-${sl.mingguKe}  ·  ${sl.periodeLabel}`),
     0,
     doc.y + 26,
@@ -812,68 +648,82 @@ function renderPenutup(doc: PdfDoc, sl: Extract<Slide, { jenis: "penutup" }>): v
 
 /* ── Entry ──────────────────────────────────────────────────────────────── */
 
+/**
+ * Jenis slide yang GELAP pada tema berselang — pemetaan per JENIS, bukan
+ * posisi. Sengaja: pada desain asli Mataram, sampul/durasi/foto/penutup yang
+ * gelap, dan posisinya bergeser begitu jumlah slide tabel berubah. Tema tanpa
+ * `berselang` membuat seluruh slide terang.
+ */
 const SLIDE_GELAP = new Set<Slide["jenis"]>(["sampul", "durasi", "foto_pekerjaan", "penutup"]);
 
 export async function renderPaparanPdf(content: PaparanContent, opts: { draf: boolean }): Promise<Buffer> {
   const slides = susunSlides(content, { draf: opts.draf });
   const judul = judulPaparan(content);
+  const tema = temaDeck(content.tema);
 
   const fotoIds = slides.flatMap((sl) => (sl.jenis === "foto_pekerjaan" ? sl.foto : []));
   const gambar = new Map<string, string | null>();
   for (const f of fotoIds) gambar.set(f.id, await ambilFoto(f.r2Key));
 
   const doc = createDeck169Doc({ title: judul });
+  const ctx = buatDeckCtx(doc, tema);
   const footKiri = `${content.snapshot.paket.name} · Minggu ke-${content.weekNumber} (${content.snapshot.periode.mulaiKey} s.d. ${content.snapshot.periode.akhirKey}) · ${opts.draf ? "DRAF" : "FINAL"}`;
 
   for (let i = 0; i < slides.length; i++) {
     if (i > 0) doc.addPage();
     const sl = slides[i];
+    const gelap = tema.berselang && SLIDE_GELAP.has(sl.jenis);
     switch (sl.jenis) {
       case "sampul":
-        renderSampul(doc, sl);
+        renderSampul(ctx, sl, opts.draf);
         break;
       case "kurva":
-        renderKurva(doc, sl);
+        renderKurva(ctx, sl, gelap);
         break;
       case "durasi":
-        renderDurasi(doc, sl);
+        renderDurasi(ctx, sl, gelap);
         break;
       case "ringkasan":
-        renderRingkasan(doc, sl);
+        renderRingkasan(ctx, sl, gelap);
         break;
       case "progres_lokasi":
-        renderProgresLokasi(doc, sl);
+        renderProgresLokasi(ctx, sl, gelap);
         break;
       case "status_kategori":
-        renderStatusKategori(doc, sl);
+        renderStatusKategori(ctx, sl, gelap);
         break;
       case "capaian":
-        renderCapaian(doc, sl);
+        renderCapaian(ctx, sl, gelap);
         break;
       case "kegiatan":
-        renderKegiatan(doc, sl);
+        renderKegiatan(ctx, sl, gelap);
         break;
       case "foto_pekerjaan":
-        await renderFotoPekerjaan(doc, sl, gambar);
+        await renderFotoPekerjaan(ctx, sl, gambar, gelap);
         break;
       case "kendala":
-        renderKendala(doc, sl);
+        renderKendala(ctx, sl, gelap);
         break;
       case "pemulihan":
-        renderPemulihan(doc, sl);
+        renderPemulihan(ctx, sl, gelap);
         break;
       case "action_plan":
-        renderActionPlan(doc, sl);
+        renderActionPlan(ctx, sl, gelap);
         break;
       case "lampiran":
-        renderLampiran(doc, sl);
+        renderLampiran(ctx, sl, gelap);
         break;
       case "penutup":
-        renderPenutup(doc, sl);
+        renderPenutup(ctx, sl);
         break;
     }
-    if (opts.draf) watermarkDraf(doc, SLIDE_GELAP.has(sl.jenis));
-    footer(doc, footKiri, i + 1, slides.length, SLIDE_GELAP.has(sl.jenis));
+    /*
+     * Sampul membubuhkan watermarknya sendiri di `renderSampulDeck` (bentuk
+     * sampulnya yang tahu latarnya gelap atau terang) — menumpuknya lagi di
+     * sini akan mencetak dua watermark di slide yang sama.
+     */
+    if (opts.draf && sl.jenis !== "sampul") watermarkDraf(ctx, gelap);
+    footerSlide(ctx, footKiri, i + 1, slides.length, sl.jenis === "penutup" ? bingkaiGelap(tema) : gelap);
   }
   return docToBuffer(doc);
 }

@@ -5,7 +5,7 @@ import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { gabungKurvaS, weekOfDate, type KurvaPaket } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
-import { contractDaysFor, totalWeeksFor } from "@/lib/rab/import";
+import { PROFIL_BASELINE_BAWAAN, contractDaysFor, profilBaselineAktif, totalWeeksFor } from "@/lib/rab/import";
 import { rebucketWeeklyToGrid,
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
@@ -55,7 +55,7 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
 
   const ref = await db.baseline.findUniqueOrThrow({
     where: { id: baselineId },
-    select: { locationId: true, contractDays: true, rabRevisionId: true, baselineNo: true },
+    select: { locationId: true, contractDays: true, rabRevisionId: true, baselineNo: true, profil: true },
   });
   // Jumlah minggu boleh berubah saat edit manual — contractDays ikut deret baru
   // bila tidak lagi cocok dengan acuan.
@@ -76,6 +76,17 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
         locationId: ref.locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: "manual",
+        /*
+         * PROFIL DIWARISI, tidak jatuh ke bawaan kolom.
+         *
+         * Kurva ini disusun tangan, jadi bentuknya bukan lagi `lambat` maupun
+         * `optimal` — tapi kolom `profil` tidak menggambarkan bentuk yang
+         * tersimpan, melainkan bentuk yang akan dipakai REGENERATE BERIKUTNYA.
+         * Membiarkannya jatuh ke bawaan kolom (`optimal`) berarti satu sunting
+         * tangan diam-diam membatalkan pilihan "awal lambat" yang sudah dibuat
+         * orang di lokasi ini.
+         */
+        profil: ref.profil,
         status: "aktif",
         rabRevisionId: ref.rabRevisionId,
         contractDays,
@@ -152,6 +163,7 @@ export async function konversiBaselineModeMinggu(
       id: true,
       baselineNo: true,
       source: true,
+      profil: true,
       contractDays: true,
       rabRevisionId: true,
       points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
@@ -223,6 +235,9 @@ export async function konversiBaselineModeMinggu(
         // Provenance DIPERTAHANKAN: hasil konversi impor verbatim tetap
         // tercatat berasal dari sumber yang sama, bukan menyamar "auto".
         source: lama.source,
+        // …dan begitu pula profilnya: konversi grid minggu memindahkan kolom,
+        // ia tidak memilih bentuk kurva apa pun.
+        profil: lama.profil,
         status: "aktif",
         rabRevisionId: lama.rabRevisionId,
         contractDays: lama.contractDays,
@@ -474,6 +489,8 @@ export async function saveCategorySchedule(
         locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: "manual",
+        // Diwarisi dari baseline aktif – lihat alasannya di `updateBaselinePoints`.
+        profil: active?.profil ?? PROFIL_BASELINE_BAWAAN,
         status: "aktif",
         rabRevisionId: base.revisionId,
         contractDays,
@@ -649,6 +666,11 @@ export async function saveCategoryWeekly(
     return { baselineNo: h.aktif.baselineNo, unchanged: true as const, matched, mode, verbatim };
   }
 
+  // Diwarisi dari baseline aktif – lihat alasannya di `updateBaselinePoints`.
+  // Jadwal impor Excel dipakai APA ADANYA (DECISIONS 203); ia tidak memilih
+  // bentuk kurva, jadi ia juga tidak boleh membatalkan pilihan yang sudah ada.
+  const profil = await profilBaselineAktif(locationId);
+
   const baseline = await db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
       where: { locationId, status: "aktif" },
@@ -660,6 +682,7 @@ export async function saveCategoryWeekly(
         locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: "manual",
+        profil,
         status: "aktif",
         rabRevisionId: revisionId,
         contractDays,
@@ -732,6 +755,10 @@ export async function restoreBaseline(baselineId: string, userId: string) {
         locationId: src.locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: "manual",
+        // Profil ikut DARI YANG DIPULIHKAN, bukan dari yang sedang aktif:
+        // memulihkan baseline lama berarti memulihkan rencananya berikut bentuk
+        // yang akan dipakai kalau kelak dihitung ulang.
+        profil: src.profil,
         status: "aktif",
         rabRevisionId: src.rabRevisionId,
         contractDays: src.contractDays,

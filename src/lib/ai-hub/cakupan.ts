@@ -115,15 +115,20 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   },
   {
     /*
-     * Bukan wilayah data baru — ia BENTUK BACA atas dua wilayah di atasnya
-     * (kendala dan kegiatan lapangan). Didaftar tersendiri karena yang
-     * ditanyakan berbeda: bukan "apa yang terbuka" melainkan "apa yang terjadi,
-     * berurutan, dan lokasi ini sekarang berdiri di mana". Permintaan user
-     * 2026-08-31.
+     * Bukan wilayah data baru — ia BENTUK BACA atas wilayah-wilayah lain.
+     * Semula kronologi kendala + kegiatan lapangan (permintaan user
+     * 2026-08-31); sejak 2026-09-19 niat `kronologi` di WhatsApp menjawab
+     * LAPORAN LENGKAP satu lokasi (kesimpulan, progres, kendala, temuan,
+     * administrasi) sebagai PDF, dari `lib/lokasi-lengkap`. Halaman
+     * /ai/kronologi tetap garis waktunya; laporan lengkapnya punya halaman
+     * sendiri di bawah lokasi (`lokasi/[slug]/laporan-lengkap`) — ditambahkan
+     * ke `rute` begitu halamannya ada, karena uji cakupan menolak pola yang
+     * tidak mengenai halaman mana pun.
      */
-    nama: "Kronologi lokasi (kendala + kegiatan lapangan, berurutan)",
-    halaman: "/ai/kronologi",
-    rute: ["ai/kronologi"],
+    nama: "Laporan lengkap satu lokasi (kronologi, kesimpulan, progres, kendala, temuan, administrasi)",
+    halaman:
+      "/lokasi/[slug]/laporan-lengkap (halaman penuh + PDF/deck), /ai/kronologi (garis waktu), WhatsApp “laporan lengkap <lokasi>” (PDF)",
+    rute: ["ai/kronologi", "lokasi/[slug]/laporan-lengkap"],
     jalur: [{ jenis: "niat", niat: ["kronologi"] }],
   },
   {

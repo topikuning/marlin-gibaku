@@ -188,6 +188,30 @@ export async function pindahkanLokasi(
     );
   }
 
+  /*
+   * DRAFT REVISI RAB YANG TERIKAT ADENDUM PAKET ASAL — ditolak.
+   *
+   * `RabRevision.amendmentId` menunjuk `ContractAmendment` milik KONTRAK paket
+   * asal. Revisi yang sudah AKTIF adalah riwayat: dibaca lewat relasinya, ia
+   * tetap benar di mana pun lokasinya berada. Draft tidak: di paket tujuan
+   * tidak ada adendum yang menaunginya, `createAdendumDraft` menolak draft
+   * baru selama ia ada, dan mengaktifkannya di sana berarti mencatat perubahan
+   * kontrak paket lain sebagai RAB paket ini. Draft tanpa adendum (impor HPS
+   * yang belum diaktifkan) tidak membawa apa pun yang khas-paket, jadi boleh
+   * ikut. Recheck user 2026-09-18.
+   */
+  const draftAdendum = await db.rabRevision.findFirst({
+    where: { locationId: lokasi.id, status: "draft", amendmentId: { not: null } },
+    select: { revisionNo: true, amendment: { select: { ccoNumber: true } } },
+  });
+  if (draftAdendum) {
+    throw new PindahLokasiError(
+      `Lokasi ini punya draft revisi RAB #${draftAdendum.revisionNo} yang terikat adendum ` +
+        `${draftAdendum.amendment?.ccoNumber ?? "(tanpa nomor)"} paket "${lokasi.package.name}". ` +
+        "Aktifkan atau buang draft itu dulu – di paket tujuan tidak ada adendum yang menaunginya.",
+    );
+  }
+
   const [punyaBaseline, laporanTerhitung] = await Promise.all([
     db.baseline.count({ where: { locationId: lokasi.id, status: "aktif" } }),
     db.dailyReport.count({

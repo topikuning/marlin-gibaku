@@ -5,6 +5,7 @@ import { ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatRupiah, formatTanggal } from "@/lib/format";
+import { totalWeeksFor } from "@/lib/rab/import";
 import { requireLocationPage } from "../../get-location";
 import { ImportForm } from "./import-form";
 
@@ -20,6 +21,13 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
     where: { locationId: location.id, status: "aktif" },
     select: { revisionNo: true, totalValue: true, createdAt: true, source: true },
   });
+  /*
+   * Jumlah kolom minggu kontrak — dipakai HANYA untuk mencetak angka minggu
+   * pertama profil "awal lambat" di panel pilihan. Penghitungnya yang SAMA
+   * dengan yang dipakai generator baseline, supaya pratinjaunya bukan angka
+   * lain yang kebetulan mirip.
+   */
+  const { totalWeeks } = await totalWeeksFor(location.id);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -29,7 +37,7 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           subtitle={
             active
               ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File baru akan jadi revisi berikutnya.`
-              : "Belum ada revisi RAB – file akan jadi revisi #1 dan baseline kurva-S dibuat otomatis."
+              : "Belum ada revisi RAB – file akan jadi revisi #1. Bentuk kurva-S dipilih sesudah impor berhasil, tidak dibuat sendiri."
           }
           action={
             <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
@@ -39,7 +47,12 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           }
         />
         <CardBody>
-          <ImportForm locationId={location.id} adaAktif={active != null} />
+          <ImportForm
+            locationId={location.id}
+            slug={slug}
+            adaAktif={active != null}
+            totalWeeks={totalWeeks}
+          />
         </CardBody>
       </Card>
     </div>

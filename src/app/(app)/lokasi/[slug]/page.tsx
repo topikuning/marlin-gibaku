@@ -189,7 +189,7 @@ export default async function LokasiRingkasanPage({
           label="Deviasi"
           value={formatPct(progress.deviationPct)}
           tone={deviationTone(progress.deviationPct)}
-          sub={`rencana ${formatPct(progress.planPct)} · minggu ${progress.weekNumber}/${progress.totalWeeks}`}
+          sub={`rencana ${formatPct(progress.planPct)} · minggu ${progress.weekNumberElapsed}/${progress.totalWeeks}`}
         />
       </section>
 
