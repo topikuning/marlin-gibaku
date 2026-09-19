@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 590 | 2026-09-19 | "Kronologi" WhatsApp jadi LAPORAN LENGKAP satu lokasi – satu snapshot kanonik untuk layar, PDF, deck, dan WA; tanpa AI |
+| 589 | 2026-09-19 | Tema deck paparan: empat variasi rupa (sampul, palet, judul), susunan slide dan angkanya tak tersentuh |
 | 588 | 2026-09-18 | Pindah lokasi menolak draft RAB yang terikat adendum paket asal – revisi aktif = riwayat, draft = salah atribusi |
 | 587 | 2026-09-17 | Pagar "lokasi kosong" menghitung ISI, bukan perancah sistem – milestone template & antrean Drive bukan penghalang |
 | 586 | 2026-09-17 | Kolom JUMLAH kosong: subtotal berkas yang memutuskan dipakai-tidaknya cadangan volume × harga, barisnya disebutkan |

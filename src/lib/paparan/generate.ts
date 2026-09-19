@@ -17,6 +17,7 @@ import {
   type PaparanSnapshot,
 } from "./jenis";
 import { narasiDeterministik, pilihFotoAwal, rencanaMingguBerikut, saringNarasiPaparan } from "./susun";
+import { TEMA_DECK_DEFAULT, temaDeck, type TemaDeckKey } from "./tema";
 
 /**
  * GENERATE PAPARAN MINGGUAN KKP (DECISIONS 416).
@@ -35,14 +36,28 @@ export type GeneratePaparanInput = {
   locationId?: string | null;
   weekNumber: number;
   focus?: "lengkap" | "progres" | "kendala";
+  /** RUPA deck (`lib/paparan/tema.ts`); kosong = bawaan "mataram". */
+  tema?: TemaDeckKey;
 };
 
 function hashInput(userId: string, i: GeneratePaparanInput): string {
   return createHash("sha256")
     // locationId ikut di-hash: tanpa itu deck paket dan deck lokasi yang dibuat
     // berdekatan akan saling dikira klik ganda dan yang kedua tidak jadi.
+    //
+    // Tema juga ikut: deck yang sama dengan tema berbeda adalah NIAT berbeda,
+    // bukan klik ganda — orang yang ingin melihat rupa lain tidak boleh
+    // dikembalikan ke deck bertema lama.
     .update(
-      ["paparan", userId, i.packageId, i.locationId ?? "-", i.weekNumber, i.focus ?? "lengkap"].join("|"),
+      [
+        "paparan",
+        userId,
+        i.packageId,
+        i.locationId ?? "-",
+        i.weekNumber,
+        i.focus ?? "lengkap",
+        i.tema ?? TEMA_DECK_DEFAULT,
+      ].join("|"),
     )
     .digest("hex");
 }
@@ -281,6 +296,9 @@ export async function generatePaparan(
     narasiSumber,
     selectedPhotoIds: pilihFotoAwal(snapshot.fotoKandidat),
     humanEdits: null,
+    // Tema dibekukan ke dalam konten, bukan dipilih saat mengunduh: PDF final
+    // harus sama persis dengan yang direview.
+    tema: temaDeck(input.tema).key,
   };
   const artifact = await db.aiArtifact.create({
     data: {

@@ -89,6 +89,11 @@ export default async function AiKronologiPage({
               description="Kronologi disusun per lokasi, jadi tidak ada yang bisa ditampilkan."
             />
           ) : null}
+          <Banner
+            tone="info"
+            title="Laporan lengkap lokasi (progres, kendala, temuan, administrasi, PDF & deck) ada di halaman lokasi → Laporan Lengkap"
+            description="Halaman ini menampilkan garis waktunya saja. Laporan menyeluruh satu lokasi, berikut kesimpulan dan berkas yang bisa dikirim, disusun di tab Laporan Lengkap pada lokasi yang bersangkutan."
+          />
         </CardBody>
       </Card>
 

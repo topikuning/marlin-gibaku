@@ -858,3 +858,13 @@ untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
   adalah editor draft; `approveRevisionAction` dan `activateDraftAction`
   menyelesaikan lokasi dari `revisionId` sehingga kebal, tapi itu belum dikunci
   uji.
+
+### Laporan lengkap lokasi
+
+- 🟡 **Deck 16:9 laporan lengkap lokasi belum dibangun** (DECISIONS 590).
+  `src/lib/lokasi-lengkap/render-deck.ts` masih melempar `DeckBelumTersediaError`;
+  route `/api/lokasi/[slug]/laporan-lengkap?bentuk=deck` menjawab 503 dengan
+  pesan itu, dan balasan WhatsApp mengatakannya apa adanya. Fondasinya sudah
+  ada: primitif deck bertema `src/lib/pdf/deck-primitives.ts` (DECISIONS 589)
+  dan snapshot `LaporanLokasiLengkap` yang sudah memuat seluruh bahannya.
+  Yang tersisa: merakit slide-slidenya + uji keempat tema.

@@ -6,6 +6,7 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit } from "@/lib/audit";
 import { parsePaparanContent } from "@/lib/paparan/susun";
 import { namaBerkasPaparan, renderPaparanPdf } from "@/lib/paparan/render-pdf";
+import { temaDeck } from "@/lib/paparan/tema";
 
 export const dynamic = "force-dynamic";
 
@@ -55,11 +56,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const draf = !(artifact.frozenAt && (artifact.status === "beku" || artifact.status === "terkirim"));
   try {
+    /*
+     * TEMA tidak diterima dari URL: ia bagian konten yang dibekukan bersama
+     * artefaknya (`content.tema`), jadi PDF yang diunduh siapa pun sama persis
+     * dengan yang direview. Pergantian tema lewat panel review + server action.
+     */
     const buffer = await renderPaparanPdf(content, { draf });
     await audit(user.id, "ai.artifact.unduh_pdf", "ai_artifact", artifact.id, {
       kind: "paparan",
       version: artifact.version,
       draf,
+      tema: temaDeck(content.tema).key,
     });
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

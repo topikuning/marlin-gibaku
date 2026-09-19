@@ -39,6 +39,10 @@ function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
     ...(bolehKeuangan ? [{ label: "Keuangan", href: `${base}/keuangan` }] : []),
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
     { label: "Laporan", href: `${base}/laporan-lokasi` },
+    // Laporan menyeluruh satu lokasi (DECISIONS 426 + permintaan user
+    // 2026-09-19): kesimpulan, progres, kendala, temuan, administrasi dalam
+    // satu halaman, plus PDF/deck dan kiriman WhatsApp.
+    { label: "Laporan Lengkap", href: `${base}/laporan-lengkap` },
   ];
 }
 
