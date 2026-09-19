@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 593 | 2026-09-19 | Popover dijangkar ke pemicunya (pembungkus menyusut), dan minggu yang DIBACA orang tidak di-clamp – "22/22" vs "ke-23" di satu layar |
 | 592 | 2026-09-19 | Tata letak baris aksi dimiliki barisnya; judul bagian PDF tak berpisah dari isinya; teks panjang dipotong dengan diukur; "ke-23 / 22" diganti kalimat |
 | 591 | 2026-09-19 | Kurva-S bawaan berprofil "awal lambat" (rasio 15 titik dibaca sebagai bentuk); impor RAB menawarkan pilihan, tidak memaksakan |
 | 590 | 2026-09-19 | "Kronologi" WhatsApp jadi LAPORAN LENGKAP satu lokasi – satu snapshot kanonik untuk layar, PDF, deck, dan WA; tanpa AI |

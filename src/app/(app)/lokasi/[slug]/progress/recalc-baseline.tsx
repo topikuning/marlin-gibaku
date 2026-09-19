@@ -13,11 +13,16 @@ import { recalcBaselineAction, type RabActionState } from "../rab/actions";
  * Dua langkah (klik → konfirmasi) supaya tidak jalan karena salah klik.
  * Server idempotent: hasil identik → tidak dibuat versi baru.
  *
- * Tata letak "anti tumpang tindih": tombol selalu tetap di slot header; panel
- * konfirmasi + banner hasil (sukses/gagal) muncul sebagai popover `absolute`
- * (mengambang, z-30) di bawah-kanan tombol — TIDAK menambah tinggi/lebar header
- * sehingga tak pernah menekan judul kartu atau meluber ke kartu tetangga
- * ("Rencana vs realisasi").
+ * Tata letak "anti tumpang tindih": tombol tetap di tempatnya; panel konfirmasi
+ * + banner hasil (sukses/gagal) muncul sebagai popover `absolute` (mengambang,
+ * z-30) TEPAT DI BAWAH tombol — tidak menambah tinggi/lebar barisnya, jadi tak
+ * pernah menekan judul kartu atau meluber ke kartu tetangga.
+ *
+ * Pembungkusnya WAJIB `inline-flex`, bukan `div` biasa. `absolute left-0`
+ * menjangkar ke pembungkus `relative` terdekat, dan pembungkus blok melar
+ * selebar induknya — dulu itu membuat panelnya melompat ke tepi kanan kartu
+ * sambil menimpa tabel sementara tombolnya tinggal di kiri ("tombol dimana,
+ * munculnya dimana", 2026-09-19). Dijaga `tests/unit/popover-jangkar.test.ts`.
  */
 export function RecalcBaselineButton({
   locationId,
@@ -41,14 +46,14 @@ export function RecalcBaselineButton({
   const [profil, setProfil] = useState<"lambat" | "optimal">(profilAktif);
 
   return (
-    <div className="relative">
+    <div className="relative inline-flex">
       <Button type="button" size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>
         <RefreshCw aria-hidden className="size-3.5" />
         Hitung ulang
       </Button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface p-3 text-left shadow-lg">
+        <div className="absolute left-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface p-3 text-left shadow-lg">
           {state?.error ? <Banner tone="error" title={state.error} className="mb-2" /> : null}
           {state?.success ? <Banner tone="success" title={state.success} className="mb-2" /> : null}
           <p className="mb-2 text-[13px] text-ink">

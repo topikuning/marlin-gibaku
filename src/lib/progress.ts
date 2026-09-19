@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { pct } from "@/lib/money";
 import { weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
+import { mingguKontrak } from "@/lib/mingguan/kirim";
 
 /**
  * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
@@ -39,7 +40,10 @@ export type LocationProgress = {
   realizedPct: number;
   planPct: number;
   deviationPct: number;
+  /** Minggu untuk MENCARI rencana% — clamp ke `totalWeeks`. Jangan ditampilkan. */
   weekNumber: number;
+  /** Minggu untuk DITAMPILKAN — boleh melewati `totalWeeks`. */
+  weekNumberElapsed: number;
   totalWeeks: number;
   activeRevisionId: string | null;
   activeBaselineId: string | null;
@@ -69,6 +73,30 @@ export function currentWeekNumber(
   const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;
   if (wk < 1) return 0;
   return Math.min(wk, Math.max(totalWeeks, 1));
+}
+
+/**
+ * Minggu keberapa sejak SPMK — TANPA clamp, untuk ANGKA YANG DIBACA ORANG.
+ *
+ * `currentWeekNumber` di atas sengaja di-clamp ke `totalWeeks` karena ia dipakai
+ * mencari rencana% pada deret baseline, dan indeks tidak boleh melewati titik
+ * terakhir kurva. Yang keliru adalah memakai angka pencari itu sebagai angka
+ * yang ditampilkan: header lokasi menulis "22/22" — terbaca seperti minggu
+ * terakhir yang masih terkejar — padahal kontraknya sudah lewat seminggu dan
+ * realisasinya 0%. Justru keadaan itulah yang paling perlu terbaca
+ * (DECISIONS 592/593).
+ *
+ * Ia sengaja MENDELEGASIKAN ke `mingguKontrak`, bukan menyalin rumusnya:
+ * laporan lengkap sudah memakai fungsi itu, dan dua salinan rumus minggu adalah
+ * cara paling pasti untuk kembali punya dua angka di satu layar. Dijaga
+ * `tests/unit/minggu-berjalan-satu-angka.test.ts`.
+ */
+export function elapsedWeekNumber(
+  startDate: Date,
+  now = new Date(),
+  mode: WeekPeriodMode = "tujuh_hari",
+): number {
+  return Math.max(0, mingguKontrak(startDate, now, mode));
 }
 
 /** Plan % kumulatif pada minggu tertentu dari deret baseline (clamp minggu terakhir). */
@@ -249,6 +277,9 @@ export async function getLocationsProgress(
     const weekNumber = start
       ? currentWeekNumber(start, totalWeeks, asOf ?? new Date(), kontrak?.weekMode ?? "tujuh_hari")
       : 1;
+    const weekNumberElapsed = start
+      ? elapsedWeekNumber(start, asOf ?? new Date(), kontrak?.weekMode ?? "tujuh_hari")
+      : 1;
     const planPct = planPctAtWeek(points, weekNumber);
     const realizedPct = pct(realizedValue, grandTotal);
     result.set(locId, {
@@ -259,6 +290,7 @@ export async function getLocationsProgress(
       planPct,
       deviationPct: realizedPct - planPct,
       weekNumber,
+      weekNumberElapsed,
       totalWeeks,
       activeRevisionId: revId,
       activeBaselineId: baseline?.id ?? null,
@@ -281,6 +313,7 @@ export async function getLocationProgress(
       planPct: 0,
       deviationPct: 0,
       weekNumber: 1,
+      weekNumberElapsed: 1,
       totalWeeks: 0,
       activeRevisionId: null,
       activeBaselineId: null,
