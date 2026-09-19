@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, FileText } from "lucide-react";
+import { Download } from "lucide-react";
 import {
   Badge,
   Banner,
@@ -23,6 +23,7 @@ import { buatLaporanLokasiLengkap } from "@/lib/lokasi-lengkap/snapshot";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { requireLocationPage } from "../get-location";
 import { KirimWaLaporanLengkap } from "./kirim-wa";
+import { UnduhDeckLaporanLengkap } from "./unduh-deck";
 
 export const metadata: Metadata = { title: "Laporan Lengkap Lokasi" };
 export const dynamic = "force-dynamic";
@@ -100,7 +101,7 @@ export default async function LaporanLengkapLokasiPage({
           </div>
 
           {bolehEkspor ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-end gap-2">
               <TautanUnduh
                 href={`/api/lokasi/${slug}/laporan-lengkap?bentuk=laporan`}
                 labelSibuk="Menyiapkan PDF…"
@@ -109,14 +110,7 @@ export default async function LaporanLengkapLokasiPage({
                 <Download aria-hidden className="size-4" />
                 Unduh PDF laporan
               </TautanUnduh>
-              <TautanUnduh
-                href={`/api/lokasi/${slug}/laporan-lengkap?bentuk=deck`}
-                labelSibuk="Menyiapkan deck…"
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
-              >
-                <FileText aria-hidden className="size-4" />
-                Unduh deck 16:9
-              </TautanUnduh>
+              <UnduhDeckLaporanLengkap slug={slug} />
             </div>
           ) : (
             <Banner

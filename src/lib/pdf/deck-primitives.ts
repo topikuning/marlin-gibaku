@@ -606,6 +606,126 @@ export function renderPenutupDeck(ctx: DeckCtx, pn: { judul: string; sub: string
   });
 }
 
+/* ── Bar status berband ─────────────────────────────────────────────────── */
+
+/**
+ * Band warna bar status pekerjaan. AMBANGNYA bukan urusan primitif ini —
+ * pemanggil yang memutuskan (`bandStatus` di `lib/paparan/susun.ts`); di sini
+ * hanya pemetaan band → warna tema, supaya "kritis" berwarna sama di deck
+ * paparan dan di deck laporan lengkap lokasi.
+ */
+export type BandBar = "tuntas" | "maju" | "sedang" | "kritis";
+
+export function warnaBand(ctx: DeckCtx, band: BandBar): string {
+  const p = ctx.tema.palet;
+  switch (band) {
+    case "tuntas":
+      return p.aksenTua;
+    case "maju":
+      return p.biru;
+    case "sedang":
+      return p.oranye;
+    case "kritis":
+      return p.merah;
+  }
+}
+
+/**
+ * Satu baris bar status: label kiri (dipotong satu baris), nilai kanan
+ * berwarna band, trek + isian di bawahnya, catatan kecil opsional.
+ * Mengembalikan y baris berikutnya.
+ */
+export function barBand(
+  ctx: DeckCtx,
+  b: {
+    x: number;
+    y: number;
+    w: number;
+    label: string;
+    nilai: string;
+    /** Panjang isian bar (0..100) — angka jadi, bukan dihitung di sini. */
+    pct: number;
+    band: BandBar;
+    catatan?: string | null;
+  },
+  gelap: boolean,
+): number {
+  const { doc, tema } = ctx;
+  const warna = warnaBand(ctx, b.band);
+  const sudut = Math.min(2.5, tema.sudutKartu);
+  doc.font(PDF_FONT.regular).fontSize(11).fillColor(warnaTeks(ctx, gelap));
+  doc.text(potongTeks(ctx, b.label, b.w - 78), b.x, b.y, { width: b.w - 74, lineBreak: false });
+  doc.font(PDF_FONT.bold).fontSize(11).fillColor(warna).text(s(b.nilai), b.x, b.y, {
+    width: b.w,
+    align: "right",
+    lineBreak: false,
+  });
+  const yb = b.y + 17;
+  doc.roundedRect(b.x, yb, b.w, 5, sudut).fillColor(warnaTrekBar(ctx, gelap)).fill();
+  if (b.pct > 0) {
+    doc.roundedRect(b.x, yb, Math.max(4, (Math.min(b.pct, 100) / 100) * b.w), 5, sudut).fillColor(warna).fill();
+  }
+  if (b.catatan) {
+    doc.font(PDF_FONT.regular).fontSize(8).fillColor(warnaSamar(ctx, gelap));
+    doc.text(potongTeks(ctx, b.catatan, b.w), b.x, yb + 8, { width: b.w, lineBreak: false });
+    return yb + 20;
+  }
+  return yb + 17;
+}
+
+/* ── Kartu bernomor ─────────────────────────────────────────────────────── */
+
+/**
+ * Daftar kartu bernomor bergaris kiri berwarna — bentuk yang sudah dipakai
+ * Action Plan paparan, di sini sebagai primitif supaya deck lain memakai rupa
+ * yang sama (mis. peringatan dini, warna per tingkat). Tinggi tiap kartu
+ * mengikuti teksnya; mengembalikan y setelah kartu terakhir.
+ */
+export function kartuBernomor(
+  ctx: DeckCtx,
+  items: { judul?: string | null; teks: string; warna?: string }[],
+  y0: number,
+  gelap: boolean,
+  opts: { x?: number; w?: number; fontSize?: number } = {},
+): number {
+  const { doc, tema } = ctx;
+  const p = tema.palet;
+  const x = opts.x ?? MX;
+  const w = opts.w ?? CW;
+  const fs = opts.fontSize ?? 11.5;
+  const sudut = Math.min(8, tema.sudutKartu);
+  let y = y0;
+  items.forEach((it, i) => {
+    const teksX = x + 62;
+    const teksW = w - 76;
+    doc.font(PDF_FONT.regular).fontSize(fs);
+    const th = doc.heightOfString(s(it.teks), { width: teksW, lineGap: 2 });
+    const jh = it.judul ? 14 : 0;
+    const kh = Math.max(44, th + jh + 22);
+    doc.roundedRect(x + 6, y, w - 6, kh, sudut).fillColor(gelap ? p.gelapKartu : p.putih).fill();
+    if (!gelap) {
+      doc.roundedRect(x + 6, y, w - 6, kh, sudut).lineWidth(0.6).strokeColor(p.garis).stroke();
+    }
+    const aksen = it.warna ?? p.aksen;
+    doc.rect(x, y + 2, 4, kh - 4).fillColor(aksen).fill();
+    doc.font(PDF_FONT.bold).fontSize(16).fillColor(aksen).text(`${i + 1 < 10 ? "0" : ""}${i + 1}`, x + 22, y + kh / 2 - 10, {
+      lineBreak: false,
+    });
+    let ty = y + (kh - th - jh) / 2;
+    if (it.judul) {
+      doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(aksen);
+      doc.text(potongTeks(ctx, it.judul, teksW), teksX, ty, { width: teksW, lineBreak: false });
+      ty += jh;
+    }
+    doc.font(PDF_FONT.regular).fontSize(fs).fillColor(warnaTeks(ctx, gelap)).text(s(it.teks), teksX, ty, {
+      width: teksW,
+      lineGap: 2,
+    });
+    y += kh + 12;
+  });
+  return y;
+}
+
 /* ── Kurva-S ────────────────────────────────────────────────────────────── */
 
 export type KurvaDeck = {

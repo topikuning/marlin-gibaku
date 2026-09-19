@@ -22,6 +22,7 @@ import {
   renderPenutupDeck,
   renderSampulDeck,
   tabel,
+  warnaBand,
   warnaGaris,
   warnaRedup,
   warnaSamar,
@@ -69,21 +70,6 @@ const CW = W - MX * 2;
 
 function s(t: string): string {
   return sanitizeText(t);
-}
-
-/** Warna bar status per band — dari palet tema, bukan hex tetap. */
-function warnaBand(ctx: DeckCtx, band: ReturnType<typeof bandStatus>): string {
-  const p = ctx.tema.palet;
-  switch (band) {
-    case "tuntas":
-      return p.aksenTua;
-    case "maju":
-      return p.biru;
-    case "sedang":
-      return p.oranye;
-    case "kritis":
-      return p.merah;
-  }
 }
 
 /* ── Foto ───────────────────────────────────────────────────────────────── */

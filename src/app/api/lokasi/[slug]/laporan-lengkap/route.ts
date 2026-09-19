@@ -17,9 +17,8 @@ export const dynamic = "force-dynamic";
  * tahu alamatnya (audit AUTH-05). Lokasi di luar akses dijawab 404 yang sama
  * dengan lokasi yang tidak ada, supaya keberadaannya pun tidak bocor.
  *
- * Cabang deck masih dibangun (tahap 2): `renderLaporanLokasiDeck` melempar
- * `DeckBelumTersediaError`, dan itu dijawab 503 dengan pesannya — bukan PDF
- * kosong yang mengaku deck.
+ * `?tema=` hanya mengubah RUPA deck (`lib/paparan/tema.ts`); kunci yang tak
+ * dikenal jatuh ke tema bawaan, bukan galat. Angkanya sama apa pun temanya.
  */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
@@ -47,13 +46,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   let buffer: Buffer;
   if (bentuk === "deck") {
-    const { DeckBelumTersediaError, renderLaporanLokasiDeck } = await import("@/lib/lokasi-lengkap/render-deck");
+    const { renderLaporanLokasiDeck } = await import("@/lib/lokasi-lengkap/render-deck");
     try {
       buffer = await renderLaporanLokasiDeck(laporan, { tema: temaDeck(sp.get("tema")).key });
     } catch (err) {
-      if (err instanceof DeckBelumTersediaError) {
-        return NextResponse.json({ error: err.message }, { status: 503 });
-      }
       return NextResponse.json(
         { error: err instanceof Error ? err.message : "Gagal merender deck" },
         { status: 500 },
