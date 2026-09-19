@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download } from "lucide-react";
 import {
   Badge,
   Banner,
@@ -19,11 +18,11 @@ import { db } from "@/lib/db";
 import { formatPct, formatRupiah, formatTanggal, parseDateKey } from "@/lib/format";
 import { EWS_KATEGORI_LABEL, EWS_SEVERITY_LABEL } from "@/lib/ews/rules";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
+import { kartuMinggu } from "@/lib/lokasi-lengkap/kesimpulan";
 import { buatLaporanLokasiLengkap } from "@/lib/lokasi-lengkap/snapshot";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { requireLocationPage } from "../get-location";
-import { KirimWaLaporanLengkap } from "./kirim-wa";
-import { UnduhDeckLaporanLengkap } from "./unduh-deck";
+import { AksiLaporanLengkap } from "./aksi";
 
 export const metadata: Metadata = { title: "Laporan Lengkap Lokasi" };
 export const dynamic = "force-dynamic";
@@ -79,6 +78,7 @@ export default async function LaporanLengkapLokasiPage({
     v == null ? "–" : `${v > 0 ? "+" : ""}${v.toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`;
 
   const p = l.progres;
+  const mg = kartuMinggu(p.mingguKe, p.totalMinggu, !!l.identitas.kontrak);
 
   return (
     <div className="space-y-4">
@@ -101,17 +101,13 @@ export default async function LaporanLengkapLokasiPage({
           </div>
 
           {bolehEkspor ? (
-            <div className="flex flex-wrap items-end gap-2">
-              <TautanUnduh
-                href={`/api/lokasi/${slug}/laporan-lengkap?bentuk=laporan`}
-                labelSibuk="Menyiapkan PDF…"
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary-800"
-              >
-                <Download aria-hidden className="size-4" />
-                Unduh PDF laporan
-              </TautanUnduh>
-              <UnduhDeckLaporanLengkap slug={slug} />
-            </div>
+            <AksiLaporanLengkap
+              slug={slug}
+              locationId={l.identitas.locationId}
+              wahaOn={wahaOn}
+              hasGroup={!!grup?.package?.waGroupId}
+              groupName={grup?.package?.waGroupName ?? null}
+            />
           ) : (
             <Banner
               tone="info"
@@ -119,14 +115,6 @@ export default async function LaporanLengkapLokasiPage({
               description="Mengunduh dan mengirim dokumen butuh kapabilitas ekspor laporan (report.export)."
             />
           )}
-
-          {wahaOn ? (
-            <KirimWaLaporanLengkap
-              locationId={l.identitas.locationId}
-              hasGroup={!!grup?.package?.waGroupId}
-              groupName={grup?.package?.waGroupName ?? null}
-            />
-          ) : null}
         </CardBody>
       </Card>
 
@@ -183,10 +171,7 @@ export default async function LaporanLengkapLokasiPage({
           value={p.punyaRab ? formatPct(p.terverifikasiPct) : "–"}
           sub="disetujui + final"
         />
-        <KpiCard
-          label="Minggu kontrak"
-          value={l.identitas.kontrak ? `ke-${p.mingguKe}${p.totalMinggu > 0 ? ` / ${p.totalMinggu}` : ""}` : "–"}
-        />
+        <KpiCard label="Minggu kontrak" value={mg.nilai} sub={mg.sub} />
         <KpiCard
           label="Durasi"
           value={l.durasi ? `${l.durasi.hariBerjalan} / ${l.durasi.totalHari} hari` : "–"}

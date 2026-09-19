@@ -8,7 +8,13 @@
  */
 import { describe, expect, it } from "vitest";
 import { laporanLokasiFixture } from "../fixtures/laporan-lokasi-lengkap";
-import { babakBulanan, kesimpulanLokasi, labelBulan } from "@/lib/lokasi-lengkap/kesimpulan";
+import {
+  babakBulanan,
+  kartuMinggu,
+  kesimpulanLokasi,
+  labelBulan,
+  posisiMinggu,
+} from "@/lib/lokasi-lengkap/kesimpulan";
 import type { Peristiwa } from "@/lib/kronologi/susun";
 
 const id = (n: number, d = 1) =>
@@ -174,5 +180,40 @@ describe("babakBulanan", () => {
   it("labelBulan", () => {
     expect(labelBulan("2026-01")).toBe("Januari 2026");
     expect(labelBulan("2025-12")).toBe("Desember 2025");
+  });
+});
+
+/*
+ * MASA KONTRAK YANG SUDAH LEWAT.
+ *
+ * Minggu berjalan dihitung dari SPMK dan tidak berhenti di akhir kontrak, jadi
+ * kontrak yang telah lewat menghasilkan "minggu ke-23 dari 22" — kalimat yang
+ * membuat pembaca berhenti dan bertanya-tanya alih-alih menangkap keadaannya
+ * (laporan produksi 2026-09-19). Angkanya benar; cara mengatakannya yang salah,
+ * dan keterlambatannya justru layak disebut.
+ */
+describe("posisi minggu ketika kontrak sudah lewat", () => {
+  it("kesimpulan tidak lagi berbunyi 'ke-23 dari 22', melainkan menyebut lewatnya", () => {
+    const dasar = laporanLokasiFixture();
+    const l = laporanLokasiFixture({
+      progres: { ...dasar.progres, mingguKe: 23, totalMinggu: 22, rencanaPct: 100, realisasiPct: 0, deviasiPp: -100 },
+    });
+    const k = kesimpulanLokasi(l);
+    expect(k[0]).not.toContain("minggu ke-23 dari 22");
+    expect(k[0]).toContain("melewati akhir masa kontrak");
+    expect(k[0]).toContain("lewat 1 minggu");
+  });
+
+  it("posisiMinggu: dalam masa kontrak, lewat, dan tanpa panjang kurva", () => {
+    expect(posisiMinggu(7, 18)).toBe("berada pada minggu ke-7 dari 18");
+    expect(posisiMinggu(23, 22)).toContain("lewat 1 minggu");
+    expect(posisiMinggu(4, 0)).toBe("berada pada minggu ke-4 kontrak");
+  });
+
+  it("kartuMinggu: nilai tetap pendek, keterlambatan pindah ke keterangan", () => {
+    expect(kartuMinggu(7, 18, true)).toEqual({ nilai: "ke-7 / 18", sub: "dari panjang kurva-S" });
+    expect(kartuMinggu(23, 22, true)).toEqual({ nilai: "ke-23", sub: "lewat 1 minggu dari 22" });
+    expect(kartuMinggu(4, 0, true)).toEqual({ nilai: "ke-4", sub: "kurva-S belum ada" });
+    expect(kartuMinggu(4, 0, false)).toEqual({ nilai: "–", sub: "belum berkontrak" });
   });
 });

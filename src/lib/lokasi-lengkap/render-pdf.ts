@@ -15,7 +15,9 @@ import {
   reportHeader,
   sanitizeText,
   sectionHeading,
+  sectionHeadingKeepWith,
   stampFooters,
+  truncateToWidth,
   type PdfDoc,
 } from "@/lib/pdf/document";
 import { colWidths, gridRow, gridRowHeight, type GridCell } from "@/lib/pdf/grid";
@@ -23,6 +25,7 @@ import { titikKurvaGaris } from "@/lib/pdf/kurva-garis";
 import { formatPct, formatRupiah, formatTanggal, parseDateKey } from "@/lib/format";
 import { EWS_KATEGORI_LABEL, EWS_SEVERITY_LABEL, type EwsSeverity } from "@/lib/ews/rules";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
+import { kartuMinggu } from "./kesimpulan";
 import type { LaporanLokasiLengkap } from "./jenis";
 
 /**
@@ -300,11 +303,7 @@ export async function renderLaporanLokasiPdf(
     { label: "Terverifikasi", nilai: p.punyaRab ? formatPct(p.terverifikasiPct) : "–", sub: "disetujui + final" },
   ]);
   barisKartu(doc, [
-    {
-      label: "Minggu kontrak",
-      nilai: id.kontrak ? `ke-${p.mingguKe}${p.totalMinggu > 0 ? ` / ${p.totalMinggu}` : ""}` : "–",
-      sub: id.kontrak ? (p.totalMinggu > 0 ? "dari panjang kurva-S" : "kurva-S belum ada") : "belum berkontrak",
-    },
+    { label: "Minggu kontrak", ...kartuMinggu(p.mingguKe, p.totalMinggu, !!id.kontrak) },
     {
       label: "Durasi",
       nilai: l.durasi ? `${l.durasi.hariBerjalan}/${l.durasi.totalHari} hr` : "–",
@@ -316,10 +315,10 @@ export async function renderLaporanLokasiPdf(
 
   /* ── Kurva-S ─────────────────────────────────────────────────────────── */
 
-  sectionHeading(doc, "Kurva-S rencana vs realisasi");
+  const tinggiKurva = 190;
+  sectionHeadingKeepWith(doc, "Kurva-S rencana vs realisasi", l.kurva && l.kurva.totalMinggu > 0 ? tinggiKurva + 30 : 24);
   if (l.kurva && l.kurva.totalMinggu > 0) {
-    const tinggi = 190;
-    ensureSpace(doc, tinggi + 30);
+    const tinggi = tinggiKurva;
     const kotak = { x: PAGE_MARGIN + 30, y: doc.y + 8, w: CONTENT_WIDTH - 40, h: tinggi - 40 };
     const g = titikKurvaGaris(l.kurva, kotak);
     // Grid horizontal + label %
@@ -391,40 +390,58 @@ export async function renderLaporanLokasiPdf(
 
   /* ── Status per kategori RAB ─────────────────────────────────────────── */
 
-  sectionHeading(doc, "Status pekerjaan per kategori RAB");
+  /*
+   * Tinggi baris TETAP 14pt dan nama kategori DIPOTONG terukur.
+   *
+   * Sebelumnya nama panjang diserahkan ke `{ lineBreak: false, ellipsis: true }`
+   * milik pdfkit — dan itu tidak menahannya: di laporan produksi 2026-09-19
+   * "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN" tetap pecah dua baris dan baris
+   * keduanya menabrak kategori di bawahnya. Nama yang saling menimpa bukan
+   * masalah rupa; pembaca jadi tidak tahu bar itu milik pekerjaan yang mana.
+   */
+  const ROW_KAT = 14;
+  const labelW = 215;
+  sectionHeadingKeepWith(doc, "Status pekerjaan per kategori RAB", l.kategori.length === 0 ? 24 : Math.min(6, l.kategori.length) * ROW_KAT + 18);
   if (l.kategori.length === 0) {
     paragraph(doc, "Belum ada RAB aktif untuk lokasi ini.");
     doc.moveDown(0.5);
   } else {
-    const labelW = 170;
-    const barX = PAGE_MARGIN + labelW + 6;
-    const barW = CONTENT_WIDTH - labelW - 6 - 110;
+    const barX = PAGE_MARGIN + labelW + 8;
+    const barW = CONTENT_WIDTH - labelW - 8 - 104;
     for (const k of l.kategori) {
-      ensureSpace(doc, 16);
+      ensureSpace(doc, ROW_KAT);
       const y = doc.y;
-      doc
-        .font(PDF_FONT.regular)
-        .fontSize(7.5)
-        .fillColor(PDF_COLORS.ink)
-        .text(s(`${k.lineageKey} ${k.nama}`), PAGE_MARGIN, y + 2, { width: labelW, lineBreak: false, ellipsis: true });
-      doc.rect(barX, y + 2, barW, 8).fill(PDF_COLORS.border);
+      doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.ink);
+      doc.text(truncateToWidth(doc, `${k.lineageKey} ${k.nama}`, labelW), PAGE_MARGIN, y + 2, {
+        width: labelW,
+        lineBreak: false,
+      });
+      doc.rect(barX, y + 2.5, barW, 7).fill(PDF_COLORS.border);
       const isi = Math.max(0, Math.min(100, k.realisasiPct)) / 100;
-      if (isi > 0) doc.rect(barX, y + 2, barW * isi, 8).fill(PDF_COLORS.primary600);
+      if (isi > 0) doc.rect(barX, y + 2.5, barW * isi, 7).fill(PDF_COLORS.primary600);
       doc
         .font(PDF_FONT.bold)
         .fontSize(7.5)
         .fillColor(PDF_COLORS.ink)
-        .text(formatPct(k.realisasiPct), barX + barW + 4, y + 2, { width: 40, align: "right", lineBreak: false });
+        .text(formatPct(k.realisasiPct), barX + barW + 4, y + 2, { width: 38, align: "right", lineBreak: false });
       doc
         .font(PDF_FONT.regular)
         .fontSize(6.5)
         .fillColor(PDF_COLORS.inkMuted)
-        .text(`bobot ${formatPct(k.bobotPct)}`, barX + barW + 48, y + 3, { width: 60, align: "right", lineBreak: false });
-      doc.y = y + 15;
+        .text(`bobot ${formatPct(k.bobotPct)}`, barX + barW + 46, y + 2.8, { width: 58, align: "right", lineBreak: false });
+      doc.y = y + ROW_KAT;
     }
     doc.x = PAGE_MARGIN;
     doc.y += 4;
-    catatanKecil(doc, "Bar = realisasi kategori terhadap nilai kategorinya; bobot = nilai kategori terhadap total RAB lokasi.");
+    // Delapan belas bar kosong berjajar mudah terbaca "grafiknya rusak".
+    // Katakan sebabnya, sekali, di bawah deretnya.
+    const adaRealisasi = l.kategori.some((k) => k.realisasiPct > 0);
+    catatanKecil(
+      doc,
+      adaRealisasi
+        ? "Bar = realisasi kategori terhadap nilai kategorinya; bobot = nilai kategori terhadap total RAB lokasi."
+        : "Semua bar kosong karena belum ada realisasi tercatat pada satu pun kategori – bukan grafik yang gagal dibuat. Bar = realisasi kategori terhadap nilai kategorinya; bobot = nilai kategori terhadap total RAB lokasi.",
+    );
   }
 
   /* ── Kelengkapan laporan harian ──────────────────────────────────────── */

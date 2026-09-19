@@ -96,7 +96,39 @@ function kalimatPosisi(l: Omit<LaporanLokasiLengkap, "kesimpulan">): string {
   if (!p.punyaKurva || p.rencanaPct == null || p.deviasiPp == null) {
     return `${nama} berada pada minggu ke-${p.mingguKe} kontrak dengan realisasi ${persen(p.realisasiPct)}, tetapi belum punya kurva-S sehingga deviasinya belum bisa diukur.`;
   }
-  return `${nama} berada pada minggu ke-${p.mingguKe} dari ${p.totalMinggu} dengan realisasi ${persen(p.realisasiPct)} terhadap rencana ${persen(p.rencanaPct)} (deviasi ${pp(p.deviasiPp)}).`;
+  return `${nama} ${posisiMinggu(p.mingguKe, p.totalMinggu)} dengan realisasi ${persen(p.realisasiPct)} terhadap rencana ${persen(p.rencanaPct)} (deviasi ${pp(p.deviasiPp)}).`;
+}
+
+/**
+ * Posisi minggu yang MASUK AKAL DIBACA ORANG.
+ *
+ * Minggu berjalan dihitung dari SPMK dan tidak berhenti di akhir kontrak, jadi
+ * kontrak yang sudah lewat menghasilkan "minggu ke-23 dari 22" — kalimat yang
+ * membuat pembaca berhenti dan bertanya-tanya alih-alih menangkap keadaannya
+ * (laporan produksi 2026-09-19). Angkanya tidak diubah; yang diperbaiki cara
+ * mengatakannya, dan keterlambatannya justru disebut.
+ */
+export function posisiMinggu(mingguKe: number, totalMinggu: number): string {
+  if (totalMinggu <= 0) return `berada pada minggu ke-${mingguKe} kontrak`;
+  if (mingguKe > totalMinggu) {
+    const lewat = mingguKe - totalMinggu;
+    return `sudah melewati akhir masa kontrak ${totalMinggu} minggu (kini minggu ke-${mingguKe}, lewat ${lewat} minggu)`;
+  }
+  return `berada pada minggu ke-${mingguKe} dari ${totalMinggu}`;
+}
+
+/** Nilai + keterangan kartu "Minggu kontrak" — dipakai PDF dan layar. */
+export function kartuMinggu(
+  mingguKe: number,
+  totalMinggu: number,
+  punyaKontrak: boolean,
+): { nilai: string; sub: string } {
+  if (!punyaKontrak) return { nilai: "–", sub: "belum berkontrak" };
+  if (totalMinggu <= 0) return { nilai: `ke-${mingguKe}`, sub: "kurva-S belum ada" };
+  if (mingguKe > totalMinggu) {
+    return { nilai: `ke-${mingguKe}`, sub: `lewat ${mingguKe - totalMinggu} minggu dari ${totalMinggu}` };
+  }
+  return { nilai: `ke-${mingguKe} / ${totalMinggu}`, sub: "dari panjang kurva-S" };
 }
 
 /* ── Kalimat 2: penahan ────────────────────────────────────────────────── */
