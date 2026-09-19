@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 591 | 2026-09-19 | Kurva-S bawaan berprofil "awal lambat" (rasio 15 titik dibaca sebagai bentuk); impor RAB menawarkan pilihan, tidak memaksakan |
 | 590 | 2026-09-19 | "Kronologi" WhatsApp jadi LAPORAN LENGKAP satu lokasi – satu snapshot kanonik untuk layar, PDF, deck, dan WA; tanpa AI |
 | 589 | 2026-09-19 | Tema deck paparan: empat variasi rupa (sampul, palet, judul), susunan slide dan angkanya tak tersentuh |
 | 588 | 2026-09-18 | Pindah lokasi menolak draft RAB yang terikat adendum paket asal – revisi aktif = riwayat, draft = salah atribusi |

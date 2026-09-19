@@ -372,7 +372,10 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               bisa menebak itu: bawaannya false, dan itu MENGUNCI pilihan "Isi
               DRAFT adendum" sambil memasang alasan "Belum ada RAB aktif" yang
               justru terbalik di halaman ini. */}
-          <ImportForm locationId={location.id} adaAktif modeAwal="draft" />
+          {/* Panel pilihan profil kurva-S tidak pernah muncul di sini: ia hanya
+              lahir dari impor HPS AWAL, dan halaman ini selalu punya RAB aktif.
+              `totalWeeks` karena itu tidak perlu dibawa. */}
+          <ImportForm locationId={location.id} slug={location.slug} adaAktif modeAwal="draft" />
         </CardBody>
       </Card>
 
