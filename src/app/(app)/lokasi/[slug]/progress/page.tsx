@@ -539,7 +539,13 @@ async function BagianBaseline({
             Tanpa Excel – sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
             (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
+          {/* key = identitas baseline aktif. Komponen-komponen di bawah ini
+              menyemai `useState` dari props server, dan penyemai hanya dibaca
+              sekali; tanpa key, versi baseline yang baru datang lewat RSC kalah
+              oleh state lama dan angkanya baru berubah kalau seluruh halaman
+              dimuat ulang (DECISIONS 594). */}
           <RecalcBaselineButton
+            key={activeBaseline?.id ?? "tanpa-baseline"}
             locationId={locationId}
             profilAktif={activeBaseline?.profil ?? PROFIL_BASELINE_BAWAAN}
           />
@@ -557,6 +563,7 @@ async function BagianBaseline({
           </header>
           <div className="p-3">
             <BaselineEditor
+              key={activeBaseline.id}
               locationId={locationId}
               baselineId={activeBaseline.id}
               initial={activeBaseline.points.map((p) => Number(p.plannedPct))}
@@ -575,7 +582,11 @@ async function BagianBaseline({
           </p>
         </header>
         <div className="p-3">
-          <BaselineHistory baselines={historyRows} canManage={canManage} />
+          <BaselineHistory
+            key={activeBaseline?.id ?? "tanpa-baseline"}
+            baselines={historyRows}
+            canManage={canManage}
+          />
         </div>
       </section>
     </div>
@@ -622,6 +633,7 @@ async function BagianJadwal({
         di sana berkasnya diperiksa dulu sebelum diterapkan.
       </p>
       <ScheduleEditor
+        key={schedule.baselineKey}
         locationId={locationId}
         totalWeeks={schedule.totalWeeks}
         origin={schedule.origin}

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { SlidersHorizontal, TrendingUp, RotateCcw } from "lucide-react";
 import { Banner, Button, Input } from "@/components/ui";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
+import { parseTempelanDeret } from "@/lib/scurve/tempel";
 import { saveManualBaselineAction, type RabActionState } from "../rab/actions";
 
 /** Validasi bentuk kurva di klien (server tetap validasi ulang saat simpan). */
@@ -40,6 +41,9 @@ export function BaselineEditor({
   initial: number[];
 }) {
   const [pts, setPts] = useState<number[]>(() => initial.map(r1));
+  /** Kabar hasil tempel – jumlah nilai & minggu yang kena, atau sebab ditolak. */
+  const [kabarTempel, setKabarTempel] = useState<string | null>(null);
+  const [tempelGagal, setTempelGagal] = useState(false);
   const [state, action, pending] = useAksi<RabActionState>(
     saveManualBaselineAction,
     undefined,
@@ -54,6 +58,30 @@ export function BaselineEditor({
 
   const setAt = (i: number, v: number) =>
     setPts((prev) => prev.map((p, j) => (j === i ? v : p)));
+
+  /**
+   * TEMPEL DARI EXCEL (permintaan user 2026-09-20, DECISIONS 595).
+   *
+   * Menempel di baris mana pun mengisi ke BAWAH dari baris itu, bukan hanya sel
+   * yang sedang disorot – itu yang orang harapkan ketika menyalin satu kolom
+   * dari spreadsheet. Nilai yang melewati minggu terakhir dibuang dan jumlahnya
+   * DISEBUT, karena tempelan yang diam-diam terpotong terbaca "sudah masuk
+   * semua".
+   */
+  const tempelDari = (i: number, teks: string): boolean => {
+    const nilai = parseTempelanDeret(teks);
+    if (!nilai) return false;
+    const muat = Math.max(0, pts.length - i);
+    const dipakai = nilai.slice(0, muat);
+    if (dipakai.length === 0) return false;
+    setPts((prev) => prev.map((p, j) => (j >= i && j < i + dipakai.length ? r1(dipakai[j - i]!) : p)));
+    const dibuang = nilai.length - dipakai.length;
+    setKabarTempel(
+      `${dipakai.length} nilai ditempel ke minggu ${i + 1}–${i + dipakai.length}` +
+        (dibuang > 0 ? ` · ${dibuang} nilai terakhir dibuang karena melewati minggu ${pts.length}.` : "."),
+    );
+    return true;
+  };
 
   /** Paksa monoton naik (tiap minggu ≥ minggu sebelumnya), clamp 0..100. */
   const forceMonotonic = () =>
@@ -73,7 +101,11 @@ export function BaselineEditor({
       return prev.map((p) => r1(Math.min(100, (p / last) * 100)));
     });
 
-  const reset = () => setPts(initial.map(r1));
+  const reset = () => {
+    setPts(initial.map(r1));
+    setKabarTempel(null);
+    setTempelGagal(false);
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -124,7 +156,19 @@ export function BaselineEditor({
       </div>
 
       {/* Tabel edit per minggu */}
-      <div className="max-h-96 overflow-y-auto rounded-md border border-border">
+      <div>
+        <p className="mb-1.5 text-[11px] text-ink-muted">
+          Punya deret di Excel? Salin kolomnya lalu tempel (Ctrl+V) di baris mana pun –
+          nilainya mengisi ke bawah dari baris itu. Koma desimal dan tanda % ikut terbaca.
+        </p>
+        {kabarTempel ? (
+          <Banner
+            tone={tempelGagal ? "warning" : "info"}
+            title={kabarTempel}
+            className="mb-2"
+          />
+        ) : null}
+        <div className="max-h-96 overflow-y-auto rounded-md border border-border">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-surface">
             <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
@@ -148,6 +192,20 @@ export function BaselineEditor({
                       value={Number.isFinite(p) ? p : ""}
                       invalid={below || p < 0 || p > 100}
                       onChange={(e) => setAt(i, e.target.value === "" ? NaN : Number(e.target.value))}
+                      onPaste={(e) => {
+                        const teks = e.clipboardData.getData("text/plain");
+                        // Tempelan satu sel biasa dibiarkan ke perilaku bawaan
+                        // input; yang diambil alih hanya tempelan BANYAK sel.
+                        if (!/[\n\t\r]/.test(teks.trim())) return;
+                        e.preventDefault();
+                        setTempelGagal(false);
+                        if (!tempelDari(i, teks)) {
+                          setTempelGagal(true);
+                          setKabarTempel(
+                            "Tempelan tidak dipakai: ada sel yang bukan angka. Salin kolom yang berisi angka saja – judul kolom dan sel kosong di tengah ikut membatalkannya.",
+                          );
+                        }
+                      }}
                       className="h-8 w-24 text-right"
                     />
                   </td>
@@ -155,7 +213,8 @@ export function BaselineEditor({
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   );
