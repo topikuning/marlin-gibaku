@@ -143,6 +143,17 @@ export const RUTE_DINAMIS: {
           ]
         : null,
   },
+  {
+    pola: "/lokasi/[slug]/laporan-lengkap",
+    nama: "Laporan lengkap lokasi",
+    /*
+     * Halaman terpanjang di bawah lokasi: KPI, kurva-S, dan EMPAT tabel
+     * (mingguan, kendala, kegiatan, temuan). Tabel lebar justru bentuk yang
+     * paling mudah mendorong halaman melewati lebar layar — tiap tabelnya
+     * dibungkus `overflow-x-auto`, dan sapuan ini yang membuktikannya.
+     */
+    isi: (k) => (k.slug ? [`/lokasi/${k.slug}/laporan-lengkap`] : null),
+  },
   { pola: "/lokasi/[slug]/dokumen", nama: "Dokumen lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/dokumen`] : null) },
   { pola: "/lokasi/[slug]/kegiatan", nama: "Kegiatan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/kegiatan`] : null) },
   { pola: "/lokasi/[slug]/progress", nama: "Progress lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/progress`] : null) },

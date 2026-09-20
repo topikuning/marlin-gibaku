@@ -1,6 +1,6 @@
 import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tanya-niat";
 import type { BentukDokumen } from "./parser-niat";
-import type { JenisPeristiwa, KondisiTerkini, Peristiwa } from "@/lib/kronologi/susun";
+import type { LaporanLokasiLengkap } from "@/lib/lokasi-lengkap/jenis";
 import { catatanGabung, ringkasKendalaPerLokasi } from "./kendala-ringkas";
 
 /**
@@ -440,6 +440,9 @@ export function balasBantuan(): string {
     "• *Kendala* – “ada kendala apa”, “kendala di Tengket”",
     "• *Deviasi* – “mana yang deviasinya negatif”, “siapa yang tertinggal”",
     "• *Kelengkapan* – “siapa yang belum lapor hari ini”",
+    "• *Laporan lengkap satu lokasi* – kesimpulan, progres, kendala, temuan,",
+    "  administrasi, dikirim sebagai PDF: “kesimpulan Kemadang”,",
+    "  “laporan lengkap Kemadang”, “deck Kemadang” untuk versi presentasi",
     "",
     "*Periode yang saya mengerti*",
     "hari ini · kemarin · kemarin lusa · N hari lalu · tanggal tertentu",
@@ -570,167 +573,265 @@ export function balasProduksi(): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Kronologi lokasi                                                    */
+/* Laporan lengkap satu lokasi (niat `kronologi`)                      */
 /* ------------------------------------------------------------------ */
 
-const LABEL_PERISTIWA: Record<JenisPeristiwa, string> = {
-  kendala_dibuka: "Kendala muncul",
-  kendala_ditutup: "Kendala selesai",
-  kegiatan: "Kegiatan",
-};
+/**
+ * Angka bulat Indonesia – "1.234". Dipakai untuk cacahan hari/berkas.
+ */
+const bulat = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
 
 /**
- * KRONOLOGI satu lokasi, bentuk CADANGAN — dipakai saat AI mati, kuotanya
- * habis, atau keluarannya tidak tergrounding.
+ * PANDANGAN datar atas `LaporanLokasiLengkap` — SATU-SATUNYA tempat perakit
+ * ini menyentuh bentuk snapshot (`lib/lokasi-lengkap/jenis.ts`).
  *
- * Bentuk utamanya `balasKronologiRapi` di atas. Yang ini memang daftar apa
- * adanya, dan itu keputusan: jawaban yang kurang enak dibaca jauh lebih
- * berguna daripada tidak ada jawaban, dan orang yang bertanya lewat WhatsApp
- * biasanya sedang tidak di depan komputer. Bahwa perapiannya tidak jalan
- * DIKATAKAN lewat `opts.catatanBatas`, tidak didiamkan.
- *
- * Susunannya: kondisi terkini DULU, urutan kejadian menyusul. Terbalik dari
- * bentuk kronologi yang lazim, dan sengaja: yang membaca di HP sering berhenti
- * di layar pertama.
- *
- * Tidak ada satu angka pun yang dihitung di sini; semuanya datang dari
- * `susunKronologi`.
+ * Kontrak yang dibaca: `identitas` (nama, kabupaten, provinsi, kontrak yang
+ * boleh null bila paket belum berkontrak), `asOfKey`, `kesimpulan` (kalimat
+ * templat deterministik), `progres` (selalu ada; `punyaRab`/`punyaKurva`
+ * menyatakan apa yang belum ada, `rencanaPct`/`deviasiPp` null bila belum ada
+ * kurva), `kelengkapan` (null bila SPMK belum berjalan), `kendala.ringkas`,
+ * `temuan.ringkas`, `administrasi.milestone[]` (dijumlahkan di sini – itu
+ * penjumlahan cacahan, bukan formula) dan `administrasi.surat.perluBalas`,
+ * serta `perhatian` (EwsWarning: objek + alasan). Tidak ada satu angka pun
+ * yang dihitung di sini maupun di perakitnya — semuanya sudah jadi dari
+ * snapshot (calculation layer kanonik).
  */
-export type KronologiWa = {
-  lokasi: string;
+type PandanganLaporan = {
+  nama: string;
+  /** "Kabupaten, Provinsi" – null bila keduanya kosong. */
   wilayah: string | null;
-  sampai: string;
-  hari: number;
-  peristiwa: Peristiwa[];
-  kondisi: KondisiTerkini;
-  dipotong: number;
+  asOfKey: string;
+  berkontrak: boolean;
+  /** Kalimat kesimpulan apa adanya, satu per baris. */
+  kesimpulan: string[];
+  progres: {
+    punyaRab: boolean;
+    punyaKurva: boolean;
+    rencanaPct: number | null;
+    realisasiPct: number;
+    deviasiPp: number | null;
+    mingguKe: number;
+    totalMinggu: number;
+  };
+  /** null = belum ada hari kerja yang diharapkan (SPMK belum berjalan). */
+  harian: {
+    final: number;
+    diharapkan: number;
+    hariTanpaLaporan: number;
+    terakhirKey: string | null;
+    hariSejakTerakhir: number | null;
+  } | null;
+  kendala: { terbuka: number; kritis: number; lewatTenggat: number; tertuaHari: number | null };
+  temuan: { terbuka: number; kritis: number; lewatTenggat: number };
+  administrasi: { milestoneSelesai: number; milestoneTotal: number; suratPerluBalas: number };
+  perhatian: { objek: string; alasan: string }[];
 };
 
-/**
- * Kronologi diminta tanpa menyebut SATU lokasi.
- *
- * Menyebutkan pilihannya, bukan menolak. Orang yang mengetik "kronologi" tanpa
- * nama biasanya sedang di grup yang memang cuma punya beberapa lokasi — dan
- * menampilkan namanya membuat pertanyaan susulannya cukup satu kata.
- */
-/**
- * Kronologi yang SUDAH DIRAPIKAN AI — bentuk yang diminta user 2026-08-31:
- * *"jangan apa adanya semua dikirim, tapi kamu minta AI rapikan"*.
- *
- * Yang dikirim: kesimpulan 2–3 kalimat, lalu babak ceritanya, lalu dua baris
- * angka kondisi terkini. Daftar peristiwa mentahnya TIDAK ikut — itulah
- * bedanya dengan bentuk cadangan di bawah. Yang ingin melihat satu per satu
- * diberi tahu di mana melihatnya.
- *
- * Angka di bagian kondisi tetap datang dari `susunKronologi`, bukan dari
- * kalimat model: yang dirapikan bahasanya, bukan hitungannya.
- */
-export function balasKronologiRapi(
-  k: KronologiWa,
-  rapi: { kesimpulan: string; babak: { judul: string; periode: string; reason: string }[] },
-  opts: OpsiKaki = {},
-): string {
-  const c = k.kondisi;
-  const b: string[] = [`*Kronologi ${k.lokasi}* – s.d. ${k.sampai}`];
-  if (k.wilayah) b.push(`_${k.wilayah}_`);
-  b.push("", rapi.kesimpulan);
+function pandangan(l: LaporanLokasiLengkap): PandanganLaporan {
+  const wilayah = [l.identitas.kabupaten, l.identitas.provinsi].filter(Boolean).join(", ");
+  const k = l.kelengkapan;
+  return {
+    nama: l.identitas.nama,
+    wilayah: wilayah || null,
+    asOfKey: l.asOfKey,
+    berkontrak: l.identitas.kontrak !== null,
+    kesimpulan: l.kesimpulan,
+    progres: {
+      punyaRab: l.progres.punyaRab,
+      punyaKurva: l.progres.punyaKurva,
+      rencanaPct: l.progres.rencanaPct,
+      realisasiPct: l.progres.realisasiPct,
+      deviasiPp: l.progres.deviasiPp,
+      mingguKe: l.progres.mingguKe,
+      totalMinggu: l.progres.totalMinggu,
+    },
+    harian:
+      k && k.hariDiharapkan > 0
+        ? {
+            final: k.final,
+            diharapkan: k.hariDiharapkan,
+            hariTanpaLaporan: k.hariTanpaLaporan,
+            terakhirKey: k.laporanTerakhirKey,
+            hariSejakTerakhir: k.hariSejakLaporanTerakhir,
+          }
+        : null,
+    kendala: {
+      terbuka: l.kendala.ringkas.terbuka,
+      kritis: l.kendala.ringkas.kritis,
+      lewatTenggat: l.kendala.ringkas.lewatTenggat,
+      tertuaHari: l.kendala.ringkas.tertuaHari,
+    },
+    temuan: {
+      terbuka: l.temuan.ringkas.terbuka,
+      kritis: l.temuan.ringkas.kritis,
+      lewatTenggat: l.temuan.ringkas.lewatTenggat,
+    },
+    administrasi: {
+      milestoneSelesai: l.administrasi.milestone.reduce((n, m) => n + m.selesai, 0),
+      milestoneTotal: l.administrasi.milestone.reduce((n, m) => n + m.total, 0),
+      suratPerluBalas: l.administrasi.surat.perluBalas,
+    },
+    perhatian: l.perhatian.map((p) => ({ objek: p.objek, alasan: p.alasan })),
+  };
+}
 
-  if (rapi.babak.length > 0) {
-    b.push("", "*Yang terjadi*");
-    for (const x of rapi.babak) {
-      b.push(`• *${x.judul}* – ${x.periode}`);
-      b.push(`   ${x.reason}`);
-    }
-  }
+/**
+ * LAPORAN LENGKAP satu lokasi di WhatsApp (permintaan user 2026-09-19).
+ *
+ * Menggantikan dua bentuk kronologi lama (dirapikan AI + cadangan daftar,
+ * DECISIONS 486): yang diminta user kini bukan cerita kendala saja, melainkan
+ * SELURUH keadaan lokasi — kesimpulan, progres, laporan harian, kendala,
+ * temuan, administrasi — dan berkas PDF-nya menyusul. Teks ini ringkasan yang
+ * terbaca di layar pertama ponsel; rinciannya di berkas.
+ *
+ * Susunannya: kesimpulan DULU, angka kemudian, perhatian paling akhir. Yang
+ * membaca di HP sering berhenti di layar pertama, dan kesimpulanlah yang
+ * dimintanya sejak awal (*"lokasi A saat ini ada kendala abcd, karena itu
+ * belum bisa dikerjakan"*).
+ *
+ * Kejujuran yang dijaga:
+ * - Kesimpulan dikutip APA ADANYA dari snapshot – tidak dipersingkat, tidak
+ *   ditulis ulang.
+ * - Yang belum bisa dihitung DIKATAKAN "belum" dengan sebab yang MEMANG
+ *   diketahui snapshot (`punyaRab`, `punyaKurva`, `kelengkapan === null`),
+ *   bukan diisi nol yang terbaca sebagai angka, dan bukan sebab yang ditebak.
+ * - Deck yang diminta tapi belum tersedia disebut; yang terkirim laporan A4.
+ *
+ * Ajakan “deck X” ditampilkan SELALU kecuali deck baru saja diminta: kalau
+ * diminta dan terkirim, ajakannya mubazir; kalau diminta dan belum tersedia,
+ * kalimat pengakuannya yang tampil. Pilihan ini sengaja sederhana — perakit
+ * tidak tahu apakah renderer deck sudah ada sampai ia dicoba, dan mencobanya
+ * untuk setiap balasan hanya demi satu baris ajakan tidak sepadan.
+ *
+ * Tidak ada angka yang dihitung di sini; semuanya dari `l`.
+ */
+export function balasLaporanLokasi(
+  l: LaporanLokasiLengkap,
+  opts: OpsiKaki & { deckDiminta?: boolean; deckTersedia?: boolean } = {},
+): string {
+  const v = pandangan(l);
+  const b: string[] = [`*Laporan lengkap ${v.nama}* – s.d. ${v.asOfKey}`];
+  if (v.wilayah) b.push(`_${v.wilayah}_`);
+  if (!v.berkontrak) b.push("_Paket belum berkontrak – laporan disusun dari data yang sudah ada._");
+
+  b.push("", "*Kesimpulan*");
+  if (v.kesimpulan.length === 0) b.push("Belum ada kesimpulan dari sistem untuk tanggal ini.");
+  else for (const k of v.kesimpulan) b.push(k);
 
   b.push("", "*Angka kondisi terkini*");
+
+  // Progres — atau apa yang belum ada, persis seperti dinyatakan snapshot.
+  const p = v.progres;
+  if (!p.punyaRab) {
+    b.push("• Progres: belum ada RAB aktif.");
+  } else if (!p.punyaKurva) {
+    b.push(`• Progres: realisasi ${pct(p.realisasiPct)} · belum ada kurva-S aktif, rencana & deviasi belum bisa dibandingkan.`);
+  } else if (p.rencanaPct == null || p.deviasiPp == null) {
+    // Kurva ada tetapi tidak menghasilkan angka untuk tanggal ini – snapshot
+    // tidak menyebut sebabnya, jadi di sini pun tidak disebut.
+    b.push(`• Progres: realisasi ${pct(p.realisasiPct)} · rencana & deviasi tidak tersedia untuk tanggal ini.`);
+  } else {
+    const minggu = p.totalMinggu > 0 ? ` – minggu ke-${p.mingguKe}/${p.totalMinggu}` : "";
+    b.push(
+      `• Progres: rencana ${pct(p.rencanaPct)} · realisasi ${pct(p.realisasiPct)} · deviasi ${bertanda(p.deviasiPp)}${minggu}`,
+    );
+  }
+
+  // Laporan harian.
+  const h = v.harian;
+  if (!h) {
+    b.push("• Laporan harian: belum ada hari kerja yang diharapkan (SPMK belum berjalan).");
+  } else {
+    const terakhir = h.terakhirKey
+      ? ` · terakhir ${h.terakhirKey}` +
+        (h.hariSejakTerakhir == null
+          ? ""
+          : h.hariSejakTerakhir === 0
+            ? " (hari ini)"
+            : ` (${bulat.format(h.hariSejakTerakhir)} hari lalu)`)
+      : " · belum pernah ada laporan";
+    b.push(
+      `• Laporan harian: ${bulat.format(h.final)} final dari ${bulat.format(h.diharapkan)} hari yang diharapkan` +
+        (h.hariTanpaLaporan > 0 ? ` · ${bulat.format(h.hariTanpaLaporan)} hari tanpa laporan` : "") +
+        terakhir,
+    );
+  }
+
+  // Kendala.
+  const k = v.kendala;
+  if (k.terbuka === 0) {
+    b.push("• Kendala: tidak ada yang masih terbuka.");
+  } else {
+    const rinci = [
+      k.kritis > 0 ? `${k.kritis} kritis` : null,
+      k.lewatTenggat > 0 ? `${k.lewatTenggat} lewat tenggat` : null,
+    ].filter(Boolean);
+    b.push(
+      `• Kendala: ${k.terbuka} terbuka${rinci.length ? ` (${rinci.join(", ")})` : ""}` +
+        (k.tertuaHari != null ? `; tertua ${bulat.format(k.tertuaHari)} hari` : ""),
+    );
+  }
+
+  // Temuan pemeriksa.
+  const t = v.temuan;
+  if (t.terbuka === 0) {
+    b.push("• Temuan pemeriksa: tidak ada yang masih terbuka.");
+  } else {
+    const rinci = [
+      t.kritis > 0 ? `${t.kritis} kritis` : null,
+      t.lewatTenggat > 0 ? `${t.lewatTenggat} lewat tenggat` : null,
+    ].filter(Boolean);
+    b.push(`• Temuan pemeriksa: ${t.terbuka} terbuka${rinci.length ? ` (${rinci.join(", ")})` : ""}`);
+  }
+
+  // Administrasi.
+  const a = v.administrasi;
+  const milestone =
+    a.milestoneTotal > 0
+      ? `milestone ${a.milestoneSelesai}/${a.milestoneTotal} selesai`
+      : "milestone belum ditetapkan";
   b.push(
-    c.kendalaTerbuka === 0
-      ? "• Tidak ada kendala yang masih terbuka."
-      : `• ${c.kendalaTerbuka} kendala terbuka` +
-        (c.kendalaKritis > 0 ? `, ${c.kendalaKritis} kritis` : "") +
-        (c.kendalaLewatTenggat > 0 ? `, ${c.kendalaLewatTenggat} lewat tenggat` : "") +
-        (c.kendalaTertuaHari !== null ? `; tertua ${c.kendalaTertuaHari} hari` : ""),
-  );
-  b.push(
-    c.kegiatanTerakhir === null
-      ? "• Belum ada kegiatan lapangan tercatat."
-      : `• Kegiatan lapangan terakhir ${c.kegiatanTerakhir}` +
-        (c.hariTanpaKegiatan !== null ? ` – ${c.hariTanpaKegiatan} hari lalu` : ""),
+    `• Administrasi: ${milestone}` +
+      (a.suratPerluBalas > 0 ? ` · ${a.suratPerluBalas} surat perlu dibalas` : " · tidak ada surat menunggu balasan"),
   );
 
-  b.push(
-    "",
-    `_Daftar kejadian satu per satu ada di MARLIN → AI → Kronologi (${k.peristiwa.length + k.dipotong} kejadian)._`,
-  );
+  // Perhatian — maksimal tiga; sisanya ada di PDF.
+  if (v.perhatian.length > 0) {
+    b.push("", "*Perhatian*");
+    for (const x of v.perhatian.slice(0, 3)) b.push(`• *${x.objek}* – ${x.alasan}`);
+    if (v.perhatian.length > 3) b.push(`_…dan ${v.perhatian.length - 3} lainnya di PDF._`);
+  }
+
+  b.push("", "📎 PDF laporan lengkap menyusul sebagai berkas.");
+  if (opts.deckDiminta && !opts.deckTersedia) {
+    b.push("Deck 16:9 belum tersedia – yang terkirim laporan A4.");
+  }
+  if (!opts.deckDiminta) b.push(`Ketik “deck ${v.nama}” untuk versi presentasi.`);
+
   return `${b.join("\n")}${kaki(opts)}`;
 }
 
+/**
+ * Laporan lengkap diminta tanpa menyebut SATU lokasi.
+ *
+ * Menyebutkan pilihannya, bukan menolak. Orang yang mengetik "kesimpulan"
+ * tanpa nama biasanya sedang di grup yang memang cuma punya beberapa lokasi —
+ * dan menampilkan namanya membuat pertanyaan susulannya cukup satu kata.
+ */
 export function balasKronologiTanpaLokasi(nama: string[], total: number): string {
   const b = [
-    "*Kronologi perlu satu lokasi*",
+    "*Laporan lengkap perlu satu lokasi*",
     "",
-    "Kronologi menceritakan URUTAN kejadian di satu tempat – kendala dan",
-    "kegiatan lapangannya – lalu menutupnya dengan kondisi terkini. Digabung",
-    "lintas lokasi ia berhenti jadi cerita.",
+    "Laporan lengkap merangkum SELURUH keadaan satu tempat – kesimpulan,",
+    "progres, kendala, temuan, administrasi – lalu mengirim PDF-nya. Digabung",
+    "lintas lokasi ia berhenti jadi laporan.",
   ];
   if (nama.length > 0) {
     b.push("", "*Sebut salah satu*", ...nama.map((n) => `• ${n}`));
     if (total > nama.length) b.push(`_…dan ${total - nama.length} lokasi lain._`);
-    b.push("", `Contoh: “kronologi ${nama[0]}”`);
+    b.push("", `Contoh: “kesimpulan ${nama[0]}” atau “kronologi ${nama[0]}”`);
   }
   return b.join("\n");
-}
-
-export function balasKronologi(k: KronologiWa, opts: OpsiKaki = {}): string {
-  const b: string[] = [`*Kronologi ${k.lokasi}* – s.d. ${k.sampai}`];
-  if (k.wilayah) b.push(`_${k.wilayah}_`);
-  b.push("");
-
-  b.push("*Kondisi terkini*");
-  const c = k.kondisi;
-  if (c.kendalaTerbuka === 0) {
-    b.push("• Tidak ada kendala yang masih terbuka.");
-  } else {
-    const rinci = [
-      c.kendalaKritis > 0 ? `${c.kendalaKritis} kritis` : null,
-      c.kendalaLewatTenggat > 0 ? `${c.kendalaLewatTenggat} lewat tenggat` : null,
-    ].filter(Boolean);
-    b.push(
-      `• ${c.kendalaTerbuka} kendala masih terbuka${rinci.length ? ` (${rinci.join(", ")})` : ""}` +
-        (c.kendalaTertuaHari !== null ? `; yang tertua sudah ${c.kendalaTertuaHari} hari` : ""),
-    );
-  }
-  b.push(
-    c.kegiatanTerakhir === null
-      ? "• Belum ada kegiatan lapangan yang tercatat."
-      : `• Kegiatan lapangan terakhir ${c.kegiatanTerakhir}` +
-        (c.hariTanpaKegiatan !== null ? ` – ${c.hariTanpaKegiatan} hari lalu` : ""),
-  );
-  b.push(
-    `• Dalam ${k.hari} hari terakhir: ${c.kegiatanDalamJendela} kegiatan` +
-      (c.drafKegiatan > 0 ? ` (${c.drafKegiatan} masih draf)` : "") +
-      `, ${c.kendalaSelesaiDalamJendela} kendala selesai.`,
-  );
-
-  b.push("", "*Urutan kejadian* – terbaru dulu");
-  if (k.peristiwa.length === 0) {
-    b.push("Belum ada kendala maupun kegiatan lapangan yang tercatat di rentang ini.");
-  } else {
-    for (const p of k.peristiwa) {
-      const tanda = p.jenis === "kendala_dibuka" && p.lewatTenggat ? " ❗" : "";
-      b.push(`• ${p.tanggal} · ${LABEL_PERISTIWA[p.jenis]}: ${p.judul}${tanda}`);
-      for (const r of p.rincian) b.push(`   ${r}`);
-    }
-  }
-
-  if (k.dipotong > 0) {
-    b.push(
-      "",
-      `_${k.dipotong} kejadian lebih lama tidak ditampilkan. Selengkapnya di MARLIN → AI → Kronologi._`,
-    );
-  }
-  return `${b.join("\n")}${kaki(opts)}`;
 }
 
 /* ------------------------------------------------------------------ */

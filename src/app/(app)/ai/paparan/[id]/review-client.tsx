@@ -3,14 +3,16 @@
 import { useAksi } from "@/lib/aksi-klien";
 
 import { useState } from "react";
-import { Banner, Button, Card, CardBody, CardHeader, Label, Textarea } from "@/components/ui";
+import { Banner, Button, Card, CardBody, CardHeader, Combobox, Label, Textarea } from "@/components/ui";
 import {
+  gantiTemaPaparanAction,
   pilihFotoPaparanAction,
   suntingNarasiPaparanAction,
   transisiPaparanAction,
   type PaparanState,
 } from "@/lib/paparan/actions";
 import type { PaparanContent } from "@/lib/paparan/jenis";
+import { PILIHAN_TEMA_DECK, temaDeck, type TemaDeckKey } from "@/lib/paparan/tema";
 
 /**
  * Panel review paparan (DECISIONS 416): sunting NARASI (bukan angka) dan pilih
@@ -73,6 +75,8 @@ export function PaparanReviewClient({
 
   return (
     <>
+      <TemaDeckPanel artifactId={artifactId} temaTersimpan={temaDeck(content.tema).key} />
+
       <Card>
         <CardHeader
           title="Sunting narasi"
@@ -181,6 +185,51 @@ export function PaparanReviewClient({
         </CardBody>
       </Card>
     </>
+  );
+}
+
+/**
+ * Ganti TEMA deck (rupa saja).
+ *
+ * Bukan parameter URL unduhan: tema ikut dibekukan bersama konten, jadi PDF
+ * final sama persis dengan yang direview. Tombolnya mati selama pilihan masih
+ * sama dengan yang tersimpan — supaya tidak ada simpanan yang tak mengubah
+ * apa pun tapi memakan satu versi audit.
+ */
+function TemaDeckPanel({ artifactId, temaTersimpan }: { artifactId: string; temaTersimpan: TemaDeckKey }) {
+  const [state, formAction, pending] = useAksi<PaparanState>(gantiTemaPaparanAction, undefined);
+  const [pilihan, setPilihan] = useState<string>(temaTersimpan);
+  const sama = pilihan === temaTersimpan;
+  const deskripsi = PILIHAN_TEMA_DECK.find((t) => t.value === pilihan)?.deskripsi ?? "";
+
+  return (
+    <Card>
+      <CardHeader
+        title="Tema deck"
+        subtitle="Mengubah RUPA saja – susunan slide dan seluruh angkanya tetap sama."
+      />
+      <CardBody>
+        <form action={formAction} className="space-y-3">
+          <input type="hidden" name="artifactId" value={artifactId} />
+          <div>
+            <Label htmlFor="pp-tema-ganti">Tema</Label>
+            <Combobox id="pp-tema-ganti" name="tema" value={pilihan} onChange={setPilihan}>
+              {PILIHAN_TEMA_DECK.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </Combobox>
+            {deskripsi ? <p className="mt-1 text-xs text-ink-muted">{deskripsi}</p> : null}
+          </div>
+          {state?.error ? <Banner tone="error" title={state.error} /> : null}
+          {state?.ok ? <Banner tone="success" title={state.ok} /> : null}
+          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={sama}>
+            Ganti tema
+          </Button>
+        </form>
+      </CardBody>
+    </Card>
   );
 }
 

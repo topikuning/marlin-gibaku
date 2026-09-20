@@ -11,6 +11,7 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { isR2Configured, r2PresignGet } from "@/lib/r2";
 import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecycle";
 import { parsePaparanContent, susunSlides } from "@/lib/paparan/susun";
+import { temaDeck } from "@/lib/paparan/tema";
 import { SlidePreview } from "./slide-preview";
 import { PaparanReviewClient, TombolTransisi } from "./review-client";
 
@@ -53,6 +54,8 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
 
   const draf = !(artifact.frozenAt && (artifact.status === "beku" || artifact.status === "terkirim"));
   const slides = susunSlides(content, { draf });
+  // Tema = RUPA saja; `susunSlides` di atas tidak pernah melihatnya.
+  const tema = temaDeck(content.tema);
   const bolehReview = can(user.role, "ai.report_review");
   const bolehApprove = can(user.role, "ai.report_approve");
   const bisaDiedit = draf && !artifact.frozenAt && artifact.status !== "beku" && artifact.status !== "terkirim";
@@ -114,7 +117,14 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           {slides.map((sl, i) => (
-            <SlidePreview key={i} slide={sl} nomor={i + 1} total={slides.length} thumbUrl={Object.fromEntries(fotoUrl)} />
+            <SlidePreview
+              key={i}
+              slide={sl}
+              nomor={i + 1}
+              total={slides.length}
+              thumbUrl={Object.fromEntries(fotoUrl)}
+              tema={tema}
+            />
           ))}
         </div>
         <div className="space-y-4 self-start">

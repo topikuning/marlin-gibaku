@@ -88,6 +88,12 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 593 | 2026-09-19 | Popover dijangkar ke pemicunya (pembungkus menyusut), dan minggu yang DIBACA orang tidak di-clamp – "22/22" vs "ke-23" di satu layar |
+| 592 | 2026-09-19 | Tata letak baris aksi dimiliki barisnya; judul bagian PDF tak berpisah dari isinya; teks panjang dipotong dengan diukur; "ke-23 / 22" diganti kalimat |
+| 591 | 2026-09-19 | Kurva-S bawaan berprofil "awal lambat" (rasio 15 titik dibaca sebagai bentuk); impor RAB menawarkan pilihan, tidak memaksakan |
+| 590 | 2026-09-19 | "Kronologi" WhatsApp jadi LAPORAN LENGKAP satu lokasi – satu snapshot kanonik untuk layar, PDF, deck, dan WA; tanpa AI |
+| 589 | 2026-09-19 | Tema deck paparan: empat variasi rupa (sampul, palet, judul), susunan slide dan angkanya tak tersentuh |
+| 588 | 2026-09-18 | Pindah lokasi menolak draft RAB yang terikat adendum paket asal – revisi aktif = riwayat, draft = salah atribusi |
 | 587 | 2026-09-17 | Pagar "lokasi kosong" menghitung ISI, bukan perancah sistem – milestone template & antrean Drive bukan penghalang |
 | 586 | 2026-09-17 | Kolom JUMLAH kosong: subtotal berkas yang memutuskan dipakai-tidaknya cadangan volume × harga, barisnya disebutkan |
 | 585 | 2026-09-16 | Cabut lokasi dari paket berkontrak – pasangan koreksi DECISIONS 187; riwayat status ikut lokasinya, append-only tetap |

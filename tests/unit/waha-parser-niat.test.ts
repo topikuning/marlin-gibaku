@@ -159,6 +159,184 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
   });
 });
 
+/* ── "kesimpulan X" / "laporan lengkap X" = laporan lengkap satu lokasi ──
+ *
+ * Permintaan user 2026-09-19: saat ia meminta "kronologi X" atau
+ * "kesimpulan X" lewat WhatsApp, MARLIN menarik SEMUA data lokasi itu dan
+ * mengirim laporan lengkapnya sebagai PDF. Kuncinya tetap `kronologi` (registri
+ * cakupan dan ujinya memakainya); yang diperluas POLA-nya.
+ *
+ * Yang paling mudah salah: kalimat IMPERATIF. "buatkan laporan lengkap X"
+ * memuat "buatkan laporan", dan kata kerja produksi selama ini menang atas
+ * kata benda (audit 2026-08-28) – jadi tanpa penjagaan ia jatuh ke `produksi`,
+ * yang justru MENOLAK membuat apa pun.
+ */
+describe("laporan lengkap satu lokasi → niat kronologi", () => {
+  const niatDari = (t: string) => {
+    const h = parseNiatDeterministik(t);
+    return h.jenis === "yakin" ? h.kandidat.niat : `(${h.jenis})`;
+  };
+
+  it("kata-kata baru terbaca sebagai kronologi", () => {
+    expect(niatDari("kesimpulan kemadang")).toBe("kronologi");
+    expect(niatDari("kesimpulannya kemadang gimana")).toBe("kronologi");
+    expect(niatDari("laporan lengkap kemadang")).toBe("kronologi");
+    expect(niatDari("profil lokasi kemadang")).toBe("kronologi");
+    expect(niatDari("ringkasan lokasi kemadang")).toBe("kronologi");
+    expect(niatDari("kondisi lokasi kemadang")).toBe("kronologi");
+  });
+
+  it("pola lama tidak bergeser", () => {
+    expect(niatDari("kronologi kemadang")).toBe("kronologi");
+    expect(niatDari("kondisi terkini kemadang")).toBe("kronologi");
+    expect(niatDari("kronologi kendala danasari")).toBe("kronologi");
+    expect(niatDari("kronologi kegiatan danasari")).toBe("kronologi");
+    expect(niatDari("kendala kemadang")).toBe("kendala");
+    expect(niatDari("laporan kemadang")).toBe("laporan");
+  });
+
+  it("kalimat IMPERATIF tetap kronologi, BUKAN produksi yang menolak", () => {
+    expect(niatDari("buatkan laporan lengkap kemadang")).toBe("kronologi");
+    expect(niatDari("kirim laporan lengkap kemadang")).toBe("kronologi");
+    expect(niatDari("kirimkan laporan lengkap kemadang")).toBe("kronologi");
+    expect(niatDari("buatkan kesimpulan kemadang")).toBe("kronologi");
+    expect(niatDari("kirim deck kemadang")).toBe("kronologi");
+    expect(niatDari("buatkan deck kemadang")).toBe("kronologi");
+  });
+
+  it("perintah produksi yang lain TIDAK ikut tergeser", () => {
+    expect(niatDari("buatkan laporan eksekutif untuk direksi")).toBe("produksi");
+    expect(niatDari("bikinkan paparan untuk rapat")).toBe("produksi");
+  });
+
+  /*
+   * "kesimpulan" dan "deck" adalah kata LEMAH: mereka MENGALAH pada niat lain
+   * yang disebut di kalimat yang sama (pemeriksa adversarial 2026-09-19).
+   *
+   * Sebelum perluasan pola, ketiga kalimat di bawah terbaca deterministik
+   * sebagai progress/deviasi/kendala (diverifikasi dari `git show HEAD`).
+   * Versi pertama perluasan menaruh "kesimpulan" di tabel KUNCI, sehingga
+   * "kesimpulan progress kemadang" menjadi DUA temuan di dua rentang → dilempar
+   * ke AI. Itu regresi: kalimat yang dulu dijawab tanpa AI berubah jadi
+   * menunggu provider, hanya karena penanya menambah satu kata pengantar.
+   */
+  it('"kesimpulan <niat lain>" → niat lain itu yang menang', () => {
+    expect(niatDari("kesimpulan progress kemadang")).toBe("progress");
+    expect(niatDari("kesimpulan kendala kemadang")).toBe("kendala");
+    const deviasi = parseNiatDeterministik("kesimpulan deviasi minggu ini");
+    expect(deviasi.jenis).toBe("yakin");
+    if (deviasi.jenis === "yakin") {
+      expect(deviasi.kandidat.niat).toBe("deviasi");
+      expect(deviasi.kandidat.periode).toEqual({ jenis: "rentang", satuan: "minggu", mundur: 0 });
+    }
+    // Kata lemah tidak tertinggal sebagai "nama lokasi" di jalur cepat.
+    const r = rencanaDeterministik("kesimpulan progress kedung mutih", KATALOG);
+    expect(r).toMatchObject({ jenis: "jalan", niat: "progress", lokasiDisebut: ["kedung mutih"] });
+  });
+
+  it('hanya "kesimpulan <lokasi>" tanpa niat lain yang jatuh ke kronologi', () => {
+    expect(niatDari("kesimpulan kemadang")).toBe("kronologi");
+    expect(niatDari("kesimpulan lokasi kemadang")).toBe("kronologi");
+    expect(niatDari("deck kemadang")).toBe("kronologi");
+  });
+
+  it("penanda artefak Report Studio bersama kata lemah → tetap produksi", () => {
+    expect(niatDari("buatkan laporan eksekutif dan kesimpulan untuk direksi")).toBe("produksi");
+    expect(niatDari("kirim excel kesimpulan kedung mutih")).toBe("produksi");
+    expect(niatDari("kesimpulan untuk direksi")).toBe("produksi");
+  });
+
+  it('"buatkan deck untuk direksi" tanpa lokasi → produksi (tidak ada laporan lokasi yang bisa dibuat)', () => {
+    /*
+     * Keputusan yang dikunci di sini: deck TANPA lokasi bukan permintaan
+     * laporan lokasi. Menjawabnya "lokasi mana?" menyesatkan — yang diminta
+     * memang deck untuk direksi, dan itu urusan Report Studio. Balasan
+     * produksi mengaku tidak bisa dan menunjukkan jalannya.
+     */
+    expect(niatDari("buatkan deck untuk direksi")).toBe("produksi");
+    // Sebaliknya deck yang menyebut lokasi tetap laporan lokasi.
+    expect(rencanaDeterministik("buatkan deck kedung mutih", KATALOG)).toMatchObject({
+      jenis: "jalan",
+      niat: "kronologi",
+      lokasiDisebut: ["kedung mutih"],
+    });
+  });
+
+  const KATALOG = [
+    { id: "a", nama: "Kedung Mutih", desa: "Kedung Mutih", kecamatan: "Wedung", kabupaten: "Demak", provinsi: "Jawa Tengah" },
+    { id: "b", nama: "Tambakbulusan", desa: "Tambakbulusan", kecamatan: "Karangtengah", kabupaten: "Demak", provinsi: "Jawa Tengah" },
+  ];
+
+  it("kata kerjanya TERJELASKAN – jalur cepat benar-benar sampai, tidak diserahkan ke AI", () => {
+    // Pelajaran DECISIONS 469: menguji `parseNiat…` sendirian membuktikan
+    // niatnya terbaca, BUKAN bahwa jalurnya sampai. Yang memutuskan
+    // pembungkusnya, dan pembungkus menuntut tidak ada kata yang tersisa.
+    for (const t of [
+      "buatkan laporan lengkap kedung mutih",
+      "kirim deck kedung mutih",
+      "tolong buatkan kesimpulan kedung mutih",
+      "laporan lengkap kedung mutih dalam bentuk paparan",
+    ]) {
+      const r = rencanaDeterministik(t, KATALOG);
+      expect(r.jenis, t).toBe("jalan");
+      if (r.jenis === "jalan") {
+        expect(r.niat, t).toBe("kronologi");
+        expect(r.lokasiDisebut, t).toEqual(["kedung mutih"]);
+      }
+    }
+  });
+
+  it('"bagaimana <lokasi>?" → kronologi, bila sisanya persis satu lokasi di katalog', () => {
+    /*
+     * Cacat produksi 2026-09-10: "bagaimana muarareja?" tiga kali dijawab
+     * "Scope 77 lokasi melebihi batas". Sekarang pertanyaan sependek itu
+     * berarti laporan lengkap lokasinya – tetapi HANYA bila sisa kalimatnya
+     * memang satu nama di katalog; selebihnya tetap diserahkan ke AI.
+     */
+    const r = rencanaDeterministik("bagaimana kedung mutih?", KATALOG);
+    expect(r.jenis).toBe("jalan");
+    if (r.jenis === "jalan") {
+      expect(r.niat).toBe("kronologi");
+      expect(r.lokasiDisebut).toEqual(["kedung mutih"]);
+    }
+    expect(rencanaDeterministik("bagaimana kabar kedung mutih", KATALOG).jenis).toBe("jalan");
+    // Nama di luar katalog / dua lokasi / tanpa nama → bukan urusan jalur ini.
+    expect(rencanaDeterministik("bagaimana sumberjaya?", KATALOG).jenis).toBe("serahkan_ai");
+    expect(rencanaDeterministik("bagaimana kedung mutih dan tambakbulusan", KATALOG).jenis).toBe("serahkan_ai");
+    expect(rencanaDeterministik("bagaimana yang kemarin?", KATALOG).jenis).toBe("ambigu");
+    // Menyebut niat lain tetap niat itu.
+    expect(rencanaDeterministik("bagaimana progress kedung mutih", KATALOG)).toMatchObject({ jenis: "jalan", niat: "progress" });
+  });
+
+  it('"bagaimana <lokasi> kemarin" TETAP ambigu – didokumentasikan, bukan ditebak', () => {
+    /*
+     * Jalur "bagaimana <lokasi>" hanya menyala pada `tidak_tahu`. Begitu ada
+     * keterangan waktu tanpa niat, parser sudah lebih dulu menawarkan tiga
+     * tafsir (progress/laporan/kendala_dibuka) — dan menambahkan laporan
+     * lengkap sebagai tafsir keempat melanggar batas tiga pilihan. Perilaku
+     * ini disengaja: penanya yang menulis "kemarin" biasanya menanyakan satu
+     * angka hari itu, bukan laporan lengkap s.d. kemarin.
+     */
+    const r = rencanaDeterministik("bagaimana kedung mutih kemarin", KATALOG);
+    expect(r.jenis).toBe("ambigu");
+    if (r.jenis === "ambigu") {
+      expect(r.sebab).toBe("tanpa_niat");
+      expect(r.kandidat.map((k) => k.niat)).toEqual(["progress", "laporan", "kendala_dibuka"]);
+      expect(r.kandidat[0]!.lokasiDisebut).toEqual(["kedung mutih"]);
+    }
+  });
+
+  it("mintaDeck: penanda versi presentasi, dibaca dari kata yang ditulis", async () => {
+    const { mintaDeck } = await import("@/lib/waha/parser-niat");
+    expect(mintaDeck("kirim deck kemadang")).toBe(true);
+    expect(mintaDeck("laporan lengkap kemadang versi paparan")).toBe(true);
+    expect(mintaDeck("presentasi kemadang")).toBe(true);
+    expect(mintaDeck("slide kemadang")).toBe(true);
+    expect(mintaDeck("laporan lengkap kemadang")).toBe(false);
+    expect(mintaDeck("kesimpulan kemadang")).toBe(false);
+  });
+});
+
 describe("yang memang harus diserahkan ke AI", () => {
   it("kalimat tanpa petunjuk apa pun", () => {
     expect(parseNiatDeterministik("halo pak").jenis).toBe("tidak_tahu");

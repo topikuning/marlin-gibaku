@@ -6,7 +6,16 @@ import { db } from "@/lib/db";
 import { formatNumber } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
-import { totalWeeksFor, activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import {
+  totalWeeksFor,
+  activateRevision,
+  contractDaysFor,
+  discardDraft,
+  profilBaselineAktif,
+  regenerateBaseline,
+} from "@/lib/rab/import";
+import { PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
+import type { BaselineProfil } from "@/generated/prisma/enums";
 import {
   cabutPersetujuan,
   pastikanBolehAktivasi,
@@ -185,6 +194,17 @@ export async function discardDraftAction(_prev: RabActionState, formData: FormDa
 export async function recalcBaselineAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
   const parsed = z.uuid().safeParse(formData.get("locationId"));
   if (!parsed.success) return { error: "Lokasi tidak valid." };
+  /*
+   * PROFIL BOLEH DIGANTI DI SINI — inilah jalan pulang dari "awal lambat" ke
+   * "optimalisasi pekerjaan" dan sebaliknya (permintaan user 2026-09-19).
+   *
+   * Kosong = pakai profil baseline AKTIF, bukan bawaan sistem. Tanpa itu,
+   * tombol ini akan mengembalikan tiap lokasi yang sudah memilih `optimal` ke
+   * `lambat` tiap kali ditekan — pemaksaan yang sama, cuma ganti arah.
+   */
+  const profilMinta = formData.get("profil");
+  const profil =
+    profilMinta === "lambat" || profilMinta === "optimal" ? (profilMinta as BaselineProfil) : undefined;
   try {
     const user = await requireCapability("baseline.manage");
     await requireLocationAccess(user, parsed.data);
@@ -197,21 +217,27 @@ export async function recalcBaselineAction(_prev: RabActionState, formData: Form
       select: { id: true },
     });
     if (!active) return { error: "Belum ada revisi RAB aktif – import RAB dulu." };
+    const dipakai = profil ?? (await profilBaselineAktif(parsed.data));
+    if (profil) {
+      await audit(user.id, "baseline.profil_pilih", "location", parsed.data, { profil });
+    }
     const baseline = await regenerateBaseline(parsed.data, {
       source: "auto",
       rabRevisionId: active.id,
-      note: "Hitung ulang kurva-S manual",
+      profil: dipakai,
+      note: `Hitung ulang kurva-S manual – profil ${PROFIL_KURVA_LABEL[dipakai].toLowerCase()}`,
       userId: user.id,
     });
     revalidateRab(loc.slug);
     revalidatePath(`/lokasi/${loc.slug}/progress`);
+    const sebutProfil = `Profil: ${PROFIL_KURVA_LABEL[dipakai].toLowerCase()}.`;
     if (baseline.unchanged) {
       return {
-        success: `Tidak ada perubahan – hasil hitung identik dengan baseline #${baseline.baselineNo} yang aktif, versi baru tidak dibuat.`,
+        success: `Tidak ada perubahan – hasil hitung identik dengan baseline #${baseline.baselineNo} yang aktif, versi baru tidak dibuat. ${sebutProfil}`,
       };
     }
     return {
-      success: `Kurva-S dihitung ulang – baseline #${baseline.baselineNo} aktif. Versi sebelumnya tersimpan di kartu "Riwayat baseline" di bawah.`,
+      success: `Kurva-S dihitung ulang – baseline #${baseline.baselineNo} aktif. ${sebutProfil} Versi sebelumnya tersimpan di kartu "Riwayat baseline" di bawah.`,
     };
   } catch (err) {
     return fail(err);

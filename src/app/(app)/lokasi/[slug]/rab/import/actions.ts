@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
@@ -13,8 +14,11 @@ import {
   createRevisionFromNodes,
   createRevisionFromParsed,
   discardDraft,
+  profilBaselineAktif,
   regenerateBaseline,
 } from "@/lib/rab/import";
+import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
+import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
@@ -113,7 +117,23 @@ export type ImportMode = "aktifkan" | "draft";
 /** Ringkasan perubahan terhadap RAB aktif, siap-tampil. */
 export type BedaPratinjau = NonNullable<ImportPreview["beda"]>;
 
-export type ImportState = { error?: string; success?: string; preview?: ImportPreview } | undefined;
+export type ImportState =
+  | {
+      error?: string;
+      success?: string;
+      preview?: ImportPreview;
+      /**
+       * HPS AWAL sudah aktif, tetapi kurva-S SENGAJA BELUM dibuat — user yang
+       * memilih bentuknya (permintaan 2026-09-19: *"jadi tidak langsung
+       * pemaksaan gayamu sekarang"*).
+       *
+       * Diisi hanya pada impor HPS awal yang berhasil. Selama ruas ini ada,
+       * layar menahan panel pilihan profil dan lokasi itu memang belum punya
+       * baseline sama sekali.
+       */
+      pilihProfil?: { revisionNo: number; itemCount: number };
+    }
+  | undefined;
 
 function safeName(n: string): string {
   return n.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
@@ -823,22 +843,44 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       };
     }
     await activateRevision(res.revisionId, user.id);
-    // Revisi sudah AKTIF di titik ini. Bila regenerate baseline gagal, JANGAN
-    // jatuh ke catch generik ("Terjadi kesalahan saat impor") — user akan
-    // mengira impor batal padahal revisi sudah berganti dan kurva-S masih
-    // memakai baseline lama. Laporkan keadaan campuran itu apa adanya.
-    // Audit 2026-07-27, B17.
+    /*
+     * KURVA-S TIDAK LAGI DIPAKSAKAN PADA HPS AWAL (permintaan user 2026-09-19).
+     *
+     * *"saat impor RAB awal langsung aktifkan kurva S, akan lebih baik jika
+     * kemudian kamu kasih opsi … jadi tidak langsung pemaksaan gayamu
+     * sekarang."*
+     *
+     * Impor HPS awal adalah satu-satunya titik di mana sistem tahu PASTI belum
+     * ada rencana apa pun yang bisa dirusak — jadi di situlah pertanyaannya
+     * murah dan tidak ada ruginya: layar menawarkan tiga jalan (awal lambat,
+     * optimalisasi pekerjaan, atau susun sendiri) lewat `pilihProfilKurvaAction`.
+     *
+     * ADENDUM tetap regenerate OTOMATIS, tanpa bertanya, memakai profil yang
+     * sudah dipilih lokasi ini. Lokasi itu sudah punya kurva dan sudah punya
+     * pilihan; menanyakannya lagi di tiap adendum cuma gangguan, dan
+     * membiarkannya kosong justru menghapus rencana yang sedang dipakai
+     * menghitung deviasi.
+     */
+    // Bila regenerate baseline gagal, JANGAN jatuh ke catch generik ("Terjadi
+    // kesalahan saat impor") — user akan mengira impor batal padahal revisi
+    // sudah berganti dan kurva-S masih memakai baseline lama. Laporkan keadaan
+    // campuran itu apa adanya. Audit 2026-07-27, B17.
     let baselineError: string | null = null;
-    try {
-      await regenerateBaseline(location.id, {
-        source: isAdendum ? "adendum" : "auto",
-        rabRevisionId: res.revisionId,
-        note: `Regenerate otomatis (impor revisi #${res.revisionNo})`,
-        userId: user.id,
-      });
-    } catch (e) {
-      console.error("[rab-import] regenerate baseline gagal (revisi sudah aktif):", e);
-      baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
+    let profilDipakai: BaselineProfil | null = null;
+    if (isAdendum) {
+      try {
+        profilDipakai = await profilBaselineAktif(location.id);
+        await regenerateBaseline(location.id, {
+          source: "adendum",
+          rabRevisionId: res.revisionId,
+          profil: profilDipakai,
+          note: `Regenerate otomatis (impor revisi #${res.revisionNo}, profil ${profilDipakai})`,
+          userId: user.id,
+        });
+      } catch (e) {
+        console.error("[rab-import] regenerate baseline gagal (revisi sudah aktif):", e);
+        baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
+      }
     }
 
     await arsipkanSumber({
@@ -866,12 +908,118 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `Grafik & deviasi masih memakai baseline lama – buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
       };
     }
+    if (!isAdendum) {
+      return {
+        success:
+          `Revisi RAB #${res.revisionNo} (HPS awal) aktif – ${res.itemCount} item.${carryInfo} ` +
+          `Kurva-S BELUM dibuat: pilih bentuknya di bawah.`,
+        pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
+      };
+    }
     return {
-      success: `Revisi RAB #${res.revisionNo} (${source === "adendum" ? "adendum" : "HPS awal"}) aktif – ${res.itemCount} item. Baseline kurva-S di-regenerate.${carryInfo}`,
+      success:
+        `Revisi RAB #${res.revisionNo} (adendum) aktif – ${res.itemCount} item. ` +
+        `Baseline kurva-S di-regenerate dengan profil ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()} ` +
+        `– profil yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah diam-diam.${carryInfo}`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan saat impor." };
+  }
+}
+
+export type ProfilKurvaState = { error?: string; success?: string; selesai?: boolean } | undefined;
+
+/**
+ * PILIH BENTUK KURVA-S sesudah impor HPS awal — atau kapan pun user ingin
+ * berpindah (permintaan user 2026-09-19).
+ *
+ * Tiga jawaban yang sah, dan ketiganya benar-benar berbeda nasibnya:
+ *
+ * - `lambat`   → baseline dibuat dengan profil "awal lambat" (bawaan).
+ * - `optimal`  → baseline dibuat dengan penjadwal urutan pekerjaan yang lama.
+ * - `manual`   → TIDAK ADA baseline yang dibuat. Ini bukan penundaan diam-diam:
+ *                jalannya disebutkan (tab Kurva-S – susun jadwal per pekerjaan,
+ *                atau impor jadwal dari Excel yang dipakai apa adanya), karena
+ *                "tidak terjadi apa-apa" tanpa keterangan sama saja dengan
+ *                gagal.
+ *
+ * Izinnya SAMA dengan "Hitung ulang kurva-S" (`recalcBaselineAction`):
+ * `baseline.manage` + akses lokasi. Yang dilakukan memang hal yang sama —
+ * membuat baseline baru dari RAB aktif.
+ */
+export async function pilihProfilKurvaAction(
+  _prev: ProfilKurvaState,
+  formData: FormData,
+): Promise<ProfilKurvaState> {
+  const parsed = z
+    .object({
+      slug: z.string().min(1).max(200),
+      profil: z.enum(PROFIL_KURVA),
+    })
+    .safeParse({ slug: formData.get("slug"), profil: formData.get("profil") });
+  if (!parsed.success) return { error: "Pilihan profil kurva-S tidak dikenali." };
+  const { slug, profil } = parsed.data;
+
+  try {
+    const user = await requireCapability("baseline.manage");
+    const location = await db.location.findUniqueOrThrow({
+      where: { slug },
+      select: { id: true, slug: true },
+    });
+    await requireLocationAccess(user, location.id);
+    await audit(user.id, "baseline.profil_pilih", "location", location.id, { profil });
+
+    if (profil === "manual") {
+      /*
+       * Tidak ada baseline yang dibuat — DAN TIDAK ADA pula yang disentuh.
+       * Kolom `profil` tidak bisa menampung "manual" (lihat skema): ia bukan
+       * bentuk kurva, melainkan keputusan untuk tidak membuatnya sekarang.
+       */
+      revalidatePath(`/lokasi/${location.slug}`, "layout");
+      return {
+        selesai: true,
+        success:
+          "Kurva-S tidak dibuat. Susun sendiri di tab Kurva-S – \"Jadwal per pekerjaan\" untuk " +
+          "menentukan minggu tiap kategori, atau \"Impor jadwal dari Excel\" bila jadwalnya sudah " +
+          "ada dan ingin dipakai apa adanya. Sampai salah satunya dikerjakan, lokasi ini belum " +
+          "punya rencana – deviasi dan prognosa memang belum bisa dihitung.",
+      };
+    }
+
+    const aktif = await db.rabRevision.findFirst({
+      where: { locationId: location.id, status: "aktif" },
+      select: { id: true },
+    });
+    if (!aktif) return { error: "Belum ada revisi RAB aktif – impor RAB dulu." };
+
+    const bentuk: BaselineProfil = profil;
+    const baseline = await regenerateBaseline(location.id, {
+      source: "auto",
+      rabRevisionId: aktif.id,
+      profil: bentuk,
+      note: `Kurva-S dibuat – profil ${PROFIL_KURVA_LABEL[profil].toLowerCase()}`,
+      userId: user.id,
+    });
+    revalidatePath(`/lokasi/${location.slug}`, "layout");
+    revalidatePath(`/lokasi/${location.slug}/progress`);
+    revalidatePath("/progress");
+    if (baseline.unchanged) {
+      return {
+        selesai: true,
+        success: `Tidak ada perubahan – baseline #${baseline.baselineNo} yang aktif sudah berprofil ${PROFIL_KURVA_LABEL[profil].toLowerCase()}.`,
+      };
+    }
+    return {
+      selesai: true,
+      success:
+        `Kurva-S dibuat – baseline #${baseline.baselineNo} aktif, profil ` +
+        `${PROFIL_KURVA_LABEL[profil].toLowerCase()}. Bisa diganti kapan saja lewat ` +
+        `"Hitung ulang kurva-S" di tab Kurva-S.`,
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
   }
 }
 

@@ -50,6 +50,7 @@ import {
   mintaPekanDepan,
   frasaSisa,
   lokasiDariNiatAtauTeks,
+  mintaDeck,
   mintaLupakanKonteks,
   mintaSebab,
   rencanaDeterministik,
@@ -71,10 +72,8 @@ import {
   balasProduksi,
   balasProduksiBerkas,
   balasDeviasi,
-  balasKronologi,
-  balasKronologiRapi,
   balasKronologiTanpaLokasi,
-  type KronologiWa,
+  balasLaporanLokasi,
   balasDitolak,
   balasKelengkapan,
   balasKendala,
@@ -104,6 +103,7 @@ import {
 } from "./tanya-data";
 import { bacaPeriode, bulanDari, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
 import type { AiRunKind } from "@/generated/prisma/enums";
+import type { LaporanLokasiLengkap } from "@/lib/lokasi-lengkap/jenis";
 import { jawabPertanyaanBebasTergrounding } from "./tanya-bebas";
 
 /**
@@ -979,6 +979,19 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     /** Blanko KKP atau ringkasan bacaan — dibaca dari kalimatnya, bukan ditebak. */
     bentuk: BentukDokumen;
   } | null = null;
+  /**
+   * LAPORAN LENGKAP satu lokasi yang harus IKUT terkirim sebagai PDF (dan deck
+   * bila diminta dan tersedia) — permintaan user 2026-09-19. Pola yang sama
+   * dengan `berkasHarian`: teks dulu, berkas menyusul, kegagalan berkas tidak
+   * menelan balasannya.
+   */
+  type DeckLaporanLokasi = { buffer: Buffer } | { belumTersedia: true } | { gagal: string } | null;
+  let berkasLaporanLokasi: {
+    lokasi: LokasiKatalog;
+    laporan: LaporanLokasiLengkap;
+    /** Deck sudah dirender SEBELUM teks disusun, supaya teksnya jujur. */
+    deck: DeckLaporanLokasi;
+  } | null = null;
   const peta = petaLokasi(katalog);
   const optTabel = (o: OpsiTabel = {}): OpsiTabel => ({
     catatanPemotongan: keputusan.catatanPemotongan,
@@ -1214,88 +1227,58 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         sasaran.length,
       );
     } else {
-      const { ambilKronologi } = await import("@/lib/kronologi/queries");
       /*
-       * Batas 25 peristiwa: itu BAHAN untuk AI, bukan yang dikirim. Pemotong
-       * pesan WhatsApp memuat 8 x 1.400 aksara, dan kronologi yang menghabiskan
-       * kuota itu sendirian menutup jawaban lain yang menyusul di belakangnya.
+       * LAPORAN LENGKAP satu lokasi (permintaan user 2026-09-19).
+       *
+       * "kronologi X" / "kesimpulan X" / "laporan lengkap X" menarik SEMUA data
+       * lokasi itu — progres, laporan harian, kendala, temuan, administrasi —
+       * lewat `lib/lokasi-lengkap`, yang menyusun kesimpulannya secara
+       * deterministik. Balasan teksnya ringkasan; PDF-nya menyusul sebagai
+       * berkas, deck 16:9 bila diminta (dan bila sudah tersedia).
+       *
+       * Jalur AI kronologi WA (checkAiGuard + rangkumKronologi, DECISIONS 486)
+       * TIDAK dipakai lagi di sini: tidak ada provider yang dipanggil, tidak
+       * ada kuota yang terpakai, dan jawabannya tetap hidup saat AI mati.
+       * `lib/kronologi/rangkum.ts` tetap ada untuk run kronologi di AI Hub.
+       *
+       * Impor dinamis, mengikuti pola `ambilKronologi` sebelumnya: modul
+       * laporannya berat (PDF) dan hanya dibutuhkan cabang ini.
        */
-      const k = await ambilKronologi(satu.id, { sampai: dateKey, hari: 90, batas: 25 });
-      if (!k) {
-        balasan = `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun kronologinya.`;
+      const { buatLaporanLokasiLengkap } = await import("@/lib/lokasi-lengkap/snapshot");
+      // `asOf` = tanggal yang dipakai cabang lain (ujung akhir periode, Asia/Jakarta).
+      const l = await buatLaporanLokasiLengkap(satu.id, { asOf: tglAkhir });
+      if (!l) {
+        balasan = `Lokasi ${satu.nama} tidak saya temukan lagi saat menyusun laporan lengkapnya.`;
       } else {
-        const tampilan: KronologiWa = {
-          lokasi: k.lokasi.nama,
-          wilayah: k.lokasi.wilayah,
-          sampai: k.sampai,
-          hari: 90,
-          peristiwa: k.peristiwa,
-          kondisi: k.kondisi,
-          dipotong: k.dipotong,
-        };
+        const deckDiminta = mintaDeck(teks);
         /*
-         * BENTUK UTAMANYA yang dirapikan AI (permintaan user 2026-08-31:
-         * "jangan apa adanya semua dikirim, tapi kamu minta AI rapikan").
-         *
-         * Kalau perapiannya tidak bisa dijalankan - AI mati, kuota habis,
-         * keluarannya tidak tergrounding - daftar apa adanya tetap dikirim,
-         * berikut kalimat yang mengatakan kenapa bentuknya begitu. Jawaban yang
-         * kurang enak dibaca jauh lebih berguna daripada tidak ada jawaban, dan
-         * yang bertanya lewat WhatsApp biasanya sedang tidak di depan komputer.
+         * Deck dirender SEBELUM teks disusun, bukan sesudah — supaya kalimat
+         * "deck belum tersedia" di teks benar-benar mencerminkan yang terjadi,
+         * bukan tebakan tentang tahap pengembangan. Hanya bila diminta:
+         * penanya yang tidak minta deck tidak membayar waktunya.
          */
-        let rapi: {
-          kesimpulan: string;
-          babak: { judul: string; periode: string; reason: string }[];
-        } | null = null;
-        let sebabMentah: string | null = null;
-        try {
-          await checkAiGuard(pemakaiAi, {
-            kind: "waha.kronologi",
-            locationCount: 1,
-            inputChars: teks.length,
-          });
-          const { rangkumKronologi } = await import("@/lib/kronologi/rangkum");
-          const mulai = Date.now();
-          const hasil = await rangkumKronologi(k);
-          await catatRun(pemakaiAi, [satu], hasil.providerResult, Date.now() - mulai, {
-            promptVersion: "waha-kronologi-1",
-            startKey: k.sejak,
-            endKey: k.sampai,
-            runKind: "kronologi",
-            outputJson: hasil.output ? { kronologi: hasil.output } : undefined,
-            sourcesJson: hasil.sourceRefs,
-          });
-          if (hasil.output) rapi = hasil.output;
-          else sebabMentah = "layanan AI sedang tidak merespons";
-        } catch (err) {
-          sebabMentah =
-            err instanceof AiGuardError ? err.message : "perapian AI sedang tidak bisa dijalankan";
-          if (!(err instanceof AiGuardError)) {
-            console.error("[waha/tanya] kronologi gagal dirapikan:", err);
+        let deck: DeckLaporanLokasi = null;
+        if (deckDiminta) {
+          const { DeckBelumTersediaError, renderLaporanLokasiDeck } = await import(
+            "@/lib/lokasi-lengkap/render-deck"
+          );
+          try {
+            deck = { buffer: await renderLaporanLokasiDeck(l, {}) };
+          } catch (err) {
+            if (err instanceof DeckBelumTersediaError) {
+              deck = { belumTersedia: true };
+            } else {
+              console.error("[waha/tanya] deck laporan lengkap gagal dibuat:", err);
+              deck = { gagal: err instanceof Error ? err.message : String(err) };
+            }
           }
         }
-
-        if (rapi) {
-          balasan = balasKronologiRapi(tampilan, rapi, opts);
-        } else {
-          /*
-           * Cadangan sengaja LEBIH PENDEK dari bahan AI-nya: sepuluh kejadian
-           * terbaru, sisanya disebut jumlahnya. Mengirim dua puluh lima kejadian
-           * mentah persis yang dikeluhkan.
-           */
-          const MAKS = 10;
-          balasan = balasKronologi(
-            {
-              ...tampilan,
-              peristiwa: k.peristiwa.slice(0, MAKS),
-              dipotong: k.dipotong + Math.max(0, k.peristiwa.length - MAKS),
-            },
-            {
-              ...opts,
-              catatanBatas: `Daftar ini belum dirapikan jadi cerita - ${sebabMentah}.`,
-            },
-          );
-        }
+        balasan = balasLaporanLokasi(l, {
+          ...opts,
+          deckDiminta,
+          deckTersedia: deck !== null && "buffer" in deck,
+        });
+        berkasLaporanLokasi = { lokasi: satu, laporan: l, deck };
       }
     }
   } else {
@@ -1476,6 +1459,105 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   }
 
   /*
+   * LAPORAN LENGKAP dikirim sebagai berkas SESUDAH teksnya (permintaan user
+   * 2026-09-19). Teksnya sudah menjanjikan "PDF menyusul", jadi kegagalan di
+   * sini harus DIKATAKAN — "tidak ada berkas" tanpa sepatah kata terbaca
+   * seperti "laporannya tidak ada". Dan kegagalan apa pun di blok ini tidak
+   * boleh menelan balasan teks yang sudah berangkat.
+   *
+   * Yang dikirim ke chat kalimat TETAP, bukan `err.message`: pesan galat
+   * renderer (path berkas, nama modul, stack ringkas) bukan untuk grup PPK,
+   * dan bisa membocorkan susunan server. Rinciannya ke `console.error` dan
+   * payload audit — di sanalah orang yang memperbaikinya membaca.
+   */
+  const GAGAL_PDF =
+    "PDF laporan lengkap gagal saya bentuk – ringkasannya tetap yang di atas, atau buka MARLIN → Lokasi → Laporan Lengkap.";
+  const GAGAL_DECK = "Deck laporan lengkap gagal saya bentuk – yang terkirim laporan A4.";
+  const ringkasGalat = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 300);
+  let jejakLaporanLengkap:
+    | {
+        pdf: boolean;
+        deck: "terkirim" | "belum_tersedia" | "gagal" | null;
+        galatPdf?: string;
+        galatDeck?: string;
+      }
+    | undefined;
+  if (berkasLaporanLokasi) {
+    const { lokasi, laporan, deck } = berkasLaporanLokasi;
+    jejakLaporanLengkap = { pdf: false, deck: null };
+    try {
+      const { renderLaporanLokasiPdf } = await import("@/lib/lokasi-lengkap/render-pdf");
+      const { namaBerkasLaporanLokasi } = await import("@/lib/lokasi-lengkap/jenis");
+      const pdf = await renderLaporanLokasiPdf(laporan);
+      await balasFileWa(
+        m.chatId,
+        // Bentuknya sama dengan `toFilePayload` di `client.ts`, ditulis inline
+        // seperti dua pengirim berkas di atas: uji integrasi memalsukan
+        // `@/lib/waha/client` tanpa fungsi itu, dan berkas yang gagal di uji
+        // karena pemalsuan bukan bukti apa-apa.
+        {
+          mimetype: "application/pdf",
+          filename: namaBerkasLaporanLokasi(laporan, "laporan"),
+          data: pdf.toString("base64"),
+        },
+        `Laporan lengkap ${lokasi.nama} – s.d. ${dateKey}`,
+      );
+      jejakLaporanLengkap.pdf = true;
+    } catch (err) {
+      console.error("[waha/tanya] PDF laporan lengkap gagal dibuat:", err);
+      jejakLaporanLengkap.galatPdf = ringkasGalat(err);
+      try {
+        await balasWa(m.chatId, GAGAL_PDF);
+      } catch (err2) {
+        console.error("[waha/tanya] pemberitahuan kegagalan PDF ikut gagal:", err2);
+      }
+    }
+    if (deck && "buffer" in deck) {
+      try {
+        const { namaBerkasLaporanLokasi } = await import("@/lib/lokasi-lengkap/jenis");
+        await balasFileWa(
+          m.chatId,
+          {
+            mimetype: "application/pdf",
+            filename: namaBerkasLaporanLokasi(laporan, "deck"),
+            data: deck.buffer.toString("base64"),
+          },
+          `Deck ${lokasi.nama} – s.d. ${dateKey}`,
+        );
+        jejakLaporanLengkap.deck = "terkirim";
+      } catch (err) {
+        console.error("[waha/tanya] deck laporan lengkap gagal dikirim:", err);
+        jejakLaporanLengkap.deck = "gagal";
+        jejakLaporanLengkap.galatDeck = ringkasGalat(err);
+        try {
+          await balasWa(m.chatId, GAGAL_DECK);
+        } catch (err2) {
+          console.error("[waha/tanya] pemberitahuan kegagalan deck ikut gagal:", err2);
+        }
+      }
+    } else if (deck && "belumTersedia" in deck) {
+      // Sudah dikatakan di teks balasan; tidak ada yang perlu dikirim lagi.
+      jejakLaporanLengkap.deck = "belum_tersedia";
+    } else if (deck && "gagal" in deck) {
+      // Galat render sudah ke console.error di cabang niat; di sini cuma
+      // pengakuan tetap ke chat dan jejaknya ke audit.
+      jejakLaporanLengkap.deck = "gagal";
+      jejakLaporanLengkap.galatDeck = deck.gagal.slice(0, 300);
+      try {
+        await balasWa(m.chatId, GAGAL_DECK);
+      } catch (err2) {
+        console.error("[waha/tanya] pemberitahuan kegagalan deck ikut gagal:", err2);
+      }
+    }
+    await audit(user?.id ?? null, "waha.tanya.laporan_lengkap", "wa_message", m.waMessageId, {
+      chatId: m.chatId,
+      lokasi: lokasi.nama,
+      sampai: dateKey,
+      ...jejakLaporanLengkap,
+    });
+  }
+
+  /*
    * Pertanyaan "KENAPA" mendapat SEBABNYA, bukan cuma angkanya (DECISIONS 390).
    *
    * Keberatan user 2026-08-20: *"kenapa randuputih tertinggal, malah cuma
@@ -1544,6 +1626,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     // Jalur mana yang membaca pertanyaannya — inilah yang membuktikan
     // penghematan AI benar-benar terjadi, bukan sekadar diklaim.
     jalur,
+    // Penanda jalur LAPORAN LENGKAP (permintaan user 2026-09-19): apa yang
+    // benar-benar terkirim di samping teksnya. `undefined` = bukan jalur itu.
+    laporanLengkap: jejakLaporanLengkap,
     lokasiDisebut: niat.lokasiDisebut,
     lokasiDijawab: sasaran.length,
     dipotongKeGrup: keputusan.catatanPemotongan !== null,

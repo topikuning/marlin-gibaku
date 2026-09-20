@@ -59,14 +59,14 @@ export const NIAT = [
    */
   "rencana",
   /**
-   * KRONOLOGI satu lokasi — garis waktu kendala + kegiatan lapangan, ditutup
-   * dengan kondisi terkininya (permintaan user 2026-08-31).
+   * LAPORAN LENGKAP satu lokasi (permintaan user 2026-09-19; semula kronologi
+   * kendala + kegiatan, DECISIONS 484/486).
    *
-   * Bukan varian `kendala`: yang ditanyakan bukan daftar yang masih terbuka,
-   * melainkan URUTAN kejadiannya — kapan sesuatu muncul, apa yang dikerjakan
-   * sesudahnya, dan di mana lokasinya sekarang berdiri. Satu-satunya niat yang
-   * menuntut TEPAT SATU lokasi: kronologi lintas lokasi bukan cerita, ia
-   * tumpukan.
+   * Kuncinya tetap `kronologi` — registri cakupan dan ujinya memakainya — tapi
+   * jawabannya kini SELURUH data lokasi itu: kesimpulan, progres, laporan
+   * harian, kendala, temuan, administrasi, dikirim sebagai PDF (deck bila
+   * diminta). Satu-satunya niat yang menuntut TEPAT SATU lokasi: laporan
+   * lengkap lintas lokasi bukan laporan, ia tumpukan.
    */
   "kronologi",
   /**
@@ -102,7 +102,8 @@ export const NIAT_LABEL: Record<Niat, string> = {
   laporan_mingguan: "rekap mingguan (realisasi vs rencana per pekan)",
   laporan_bulanan: "rekap bulanan (realisasi vs rencana satu bulan)",
   rencana: "rencana kerja pekan ini atau pekan depan",
-  kronologi: "kronologi satu lokasi – kendala & kegiatan lapangan, lalu kondisi terkininya",
+  kronologi:
+    "laporan lengkap satu lokasi – kesimpulan, progres, kendala, temuan, administrasi, dikirim sebagai PDF",
   produksi: "permintaan MEMBUAT atau MENGIRIM laporan/paparan/Excel/PDF",
   bantuan: "daftar hal yang bisa saya jawab",
 };
@@ -205,12 +206,14 @@ export const SISTEM_PROMPT = [
   "                progress', 'target minggu ini'. Satu-satunya niat yang menghadap",
   "                KE DEPAN – kalau pertanyaannya tentang yang akan datang, ini",
   "                jawabannya, JANGAN dipetakan ke progress atau laporan_mingguan.",
-  "- kronologi   : URUTAN KEJADIAN satu lokasi – kendala dan kegiatan lapangan",
-  "                dari waktu ke waktu, ditutup dengan kondisi terkininya. Dipakai",
-  "                untuk 'kronologi Danasari', 'ceritakan kondisi terkini X',",
-  "                'riwayat kendala dan kegiatan di X'. Yang ditanyakan URUTANNYA,",
-  "                bukan daftar yang masih terbuka – kalau penanya cuma mau daftar",
-  "                kendala, itu niat 'kendala'. WAJIB menyebut satu lokasi.",
+  "- kronologi   : LAPORAN LENGKAP satu lokasi – kesimpulan, progres, kendala,",
+  "                temuan, administrasi, dikirim sebagai PDF. Dipakai untuk",
+  "                'kronologi Danasari', 'kesimpulan X', 'laporan lengkap X',",
+  "                'bagaimana kondisi X', 'profil lokasi X', 'kirim deck X'.",
+  "                Yang ditanyakan GAMBARAN UTUH satu lokasi – kalau penanya cuma",
+  "                mau daftar kendala, itu niat 'kendala'; cuma angka progres, itu",
+  "                'progress'. WAJIB menyebut satu lokasi. Perintah 'buatkan",
+  "                laporan lengkap X' / 'kirim deck X' masuk ke sini, BUKAN produksi.",
   "- bantuan     : penanya bertanya APA SAJA yang bisa kamu jawab / kamu bisa apa",
   "",
   "PERIODE – kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",

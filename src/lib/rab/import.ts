@@ -10,7 +10,8 @@ import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, rebucketWeeklyToGrid, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
-import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
+import { PROFIL_KURVA_DEFAULT, kurvaProfilLambat, warpKeProfil } from "@/lib/scurve/profil";
+import type { BaselineProfil, BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
 /**
  * Import RAB → revisi baru (draft) → aktivasi → regenerate baseline.
@@ -585,7 +586,45 @@ export type RegenerateBaselineOpts = {
   rabRevisionId?: string | null;
   note?: string | null;
   userId: string;
+  /**
+   * BENTUK kurva yang diminta. Tipenya `BaselineProfil` — hanya `lambat` dan
+   * `optimal`, bukan `ProfilKurva` yang bertiga.
+   *
+   * `manual` sengaja TIDAK bisa masuk ke sini, dan itu penyempitan tipe, bukan
+   * penolakan di jalan. `manual` artinya "jangan buat kurva sekarang": fungsi
+   * ini SELALU membuat baseline, jadi memanggilnya dengan `manual` tidak punya
+   * arti yang jujur sama sekali — yang benar adalah tidak memanggilnya.
+   * Pemanggilnya (`pilihProfilKurvaAction`) yang bercabang lebih dulu.
+   *
+   * Kosong → profil baseline AKTIF lokasi ini → `PROFIL_KURVA_DEFAULT`.
+   */
+  profil?: BaselineProfil;
 };
+
+/**
+ * `PROFIL_KURVA_DEFAULT` dipersempit ke yang bisa DISIMPAN.
+ *
+ * Ditulis sebagai perbandingan, bukan `as`, supaya kalau suatu saat bawaannya
+ * diubah jadi "manual" berkas ini tetap memberi bentuk yang bisa digambar —
+ * bukan nilai enum yang tidak ada kolomnya.
+ */
+export const PROFIL_BASELINE_BAWAAN: BaselineProfil =
+  PROFIL_KURVA_DEFAULT === "optimal" ? "optimal" : "lambat";
+
+/**
+ * Bentuk kurva yang berlaku untuk lokasi ini bila tidak ada yang meminta
+ * bentuk tertentu = apa yang DIPILIH terakhir kali, baru bawaan sistem.
+ *
+ * Inilah yang membuat "Hitung ulang kurva-S" pada lokasi yang sudah sengaja
+ * memilih `optimal` tidak diam-diam mengembalikannya ke `lambat`.
+ */
+export async function profilBaselineAktif(locationId: string): Promise<BaselineProfil> {
+  const aktif = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    select: { profil: true },
+  });
+  return aktif?.profil ?? PROFIL_BASELINE_BAWAAN;
+}
 
 /**
  * Supersede baseline aktif → buat Baseline baru + BaselinePoints dari
@@ -602,6 +641,8 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
       })
     )?.id;
   if (!revisionId) throw new Error("Tidak ada revisi RAB aktif untuk membuat baseline.");
+
+  const profil = opts.profil ?? (await profilBaselineAktif(locationId));
 
   const nodes = await db.rabNode.findMany({
     where: { revisionId, kind: { in: ["kategori", "item"] } },
@@ -671,6 +712,49 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     });
 
   /*
+   * PROFIL "AWAL LAMBAT" (permintaan user 2026-09-19) — jadwalnya yang diwarp,
+   * bukan agregatnya yang ditimpa.
+   *
+   * Yang berubah cuma KAPAN tiap kategori dibaca: `warpKeProfil` mencari titik
+   * waktu tempat agregat asli bernilai target, lalu membaca SEMUA kategori pada
+   * titik yang sama. Bobot tiap kategori utuh, urutan lapangan utuh, dan
+   * Σ kategori tetap = kurva. Menimpa deret agregat saja akan memecah jaminan
+   * "grafik == tabel KKP == deviasi" (DECISIONS 103) — satu dokumen dengan dua
+   * rencana di dalamnya.
+   *
+   * DIKERJAKAN SEBELUM penggeseran adendum, di grid PENUH. Kalau dibalik,
+   * targetnya (yang bergerak sejak minggu 1) akan menarik pekerjaan mundur ke
+   * minggu-minggu ketika lokasi adendum belum ada dalam kontrak — persis yang
+   * dilarang DECISIONS 2026-09-05. Dengan urutan ini, `geserKeMinggu`
+   * memampatkan kurva yang sudah berbentuk lambat ke jendela minggu sisa, jadi
+   * lokasi adendum pun mendapat awal-lambatnya SENDIRI, terhitung sejak ia
+   * benar-benar mulai. Dikunci di tests/integration/kurva-profil-baseline.
+   */
+  if (profil === "lambat") {
+    const target = kurvaProfilLambat(totalWeeks, weekEndFracs);
+    if (schedule.length > 0) {
+      const warped = warpKeProfil(
+        schedule.map((s) => s.weekly),
+        target,
+      );
+      schedule.forEach((s, i) => {
+        s.weekly = warped[i] ?? s.weekly;
+      });
+      // Kurva = Σ matriks kategori, persis seperti bentuk kanoniknya — bukan
+      // `target` yang disalin masuk. Keduanya sama menurut konstruksi warp; yang
+      // ditulis adalah yang bisa dipertanggungjawabkan barisnya.
+      weekly = keKumulatif(
+        target.map((_, k) => warped.reduce((t, r) => t + (r[k] ?? 0), 0)),
+      );
+    } else {
+      // RAB tanpa kategori bernilai: tidak ada matriks untuk diwarp, jadi deret
+      // agregatnya sendiri yang diperlakukan sebagai satu "kategori".
+      const inc = weekly.map((v, i) => v - (weekly[i - 1] ?? 0));
+      weekly = keKumulatif(warpKeProfil([inc], target)[0] ?? inc);
+    }
+  }
+
+  /*
    * LOKASI YANG MASUK LEWAT ADENDUM: kurvanya mulai di minggu berlakunya.
    *
    * Dihitung dulu di grid penuh (supaya urutan tahap & bobot kategori tetap
@@ -698,6 +782,11 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   if (
     active &&
     active.rabRevisionId === revisionId &&
+    // Profil IKUT dibandingkan: berpindah lambat ⇄ optimal harus melahirkan
+    // versi baru walau titik-titiknya kebetulan berdekatan, karena yang berubah
+    // adalah bentuk yang akan dipakai regenerate berikutnya — dan itu tidak
+    // terbaca dari deret angkanya.
+    active.profil === profil &&
     active.contractDays === contractDays &&
     active._count.scheduleItems === schedule.length &&
     active.points.length === weekly.length &&
@@ -721,6 +810,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
         locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: opts.source,
+        profil,
         status: "aktif",
         rabRevisionId: revisionId,
         contractDays,
@@ -752,6 +842,9 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     locationId,
     baselineNo: baseline.baselineNo,
     source: opts.source,
+    profil,
+    // Dari mana profilnya: diminta pemanggil, atau diwarisi dari baseline aktif.
+    profilDiminta: opts.profil ?? null,
     rabRevisionId: revisionId,
     contractDays,
     weeks: weekly.length,

@@ -5,7 +5,22 @@ import { KeyRound } from "lucide-react";
 import { Banner, Button, Combobox, FileInput, HelpText, Label, Textarea } from "@/components/ui";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { formatNumber, formatRupiah } from "@/lib/format";
-import { importHps, type ImportMode, type ImportPreview, type ImportState } from "./actions";
+import {
+  PROFIL_KURVA,
+  PROFIL_KURVA_KETERANGAN,
+  PROFIL_KURVA_LABEL,
+  PROFIL_KURVA_DEFAULT,
+  kurvaProfilLambat,
+  type ProfilKurva,
+} from "@/lib/scurve/profil";
+import {
+  importHps,
+  pilihProfilKurvaAction,
+  type ImportMode,
+  type ImportPreview,
+  type ImportState,
+  type ProfilKurvaState,
+} from "./actions";
 import { PanelBeda } from "./panel-beda";
 
 /**
@@ -15,10 +30,20 @@ import { PanelBeda } from "./panel-beda";
  */
 export function ImportForm({
   locationId,
+  slug,
   adaAktif,
   modeAwal,
+  totalWeeks,
 }: {
   locationId: string;
+  /** Dipakai `pilihProfilKurvaAction` sesudah impor HPS awal berhasil. */
+  slug: string;
+  /**
+   * Jumlah kolom minggu kontrak — hanya untuk PRATINJAU angka profil "awal
+   * lambat" di panel pilihan. null bila belum bisa dipastikan (SPMK belum
+   * terbit); panelnya lalu menyebut bentuknya tanpa mengarang angka.
+   */
+  totalWeeks?: number | null;
   /**
    * Lokasi sudah punya revisi RAB aktif — menentukan tujuan bawaan & kuncinya.
    *
@@ -122,6 +147,14 @@ export function ImportForm({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {preview?.notice ? <Banner tone="warning" title={preview.notice} /> : null}
 
+      {state?.pilihProfil ? (
+        <PanelPilihProfil
+          slug={slug}
+          totalWeeks={totalWeeks ?? null}
+          itemCount={state.pilihProfil.itemCount}
+        />
+      ) : null}
+
       <div>
         <Label htmlFor="hps-file" required>File HPS / RAB (.xlsx)</Label>
         <FileInput
@@ -221,8 +254,8 @@ export function ImportForm({
               preview.mode === "draft"
                 ? "RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh. Draft ini baru berlaku setelah diaktifkan lewat halaman Adendum."
                 : preview.isAdendum
-                  ? "Revisi baru akan menggantikan revisi aktif; realisasi item dgn lineage sama tersambung otomatis, dan baseline kurva-S di-regenerate."
-                  : "Revisi #1 akan dibuat dan baseline kurva-S dibuat otomatis."
+                  ? "Revisi baru akan menggantikan revisi aktif; realisasi item dgn lineage sama tersambung otomatis, dan baseline kurva-S di-regenerate memakai profil yang sudah dipakai lokasi ini."
+                  : "Revisi #1 akan dibuat. Kurva-S TIDAK langsung dibuat – bentuknya Anda pilih sesudah impor berhasil."
             }
           />
 
@@ -366,6 +399,99 @@ export function ImportForm({
             Pratinjau
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PILIHAN BENTUK KURVA-S sesudah impor HPS awal — permintaan user 2026-09-19:
+ * *"lalu kamu juga saat impor RAB awal langsung aktifkan kurva S, akan lebih
+ * baik jika kemudian kamu kasih opsi … jadi tidak langsung pemaksaan gayamu
+ * sekarang."*
+ *
+ * PANEL, bukan modal. Modal menuntut jawaban sekarang dan menyandera layar;
+ * panel ini tetap terlihat sampai dipilih, dan sementara itu RAB-nya sudah
+ * aktif dan bisa dibuka. Yang ditunda cuma kurvanya.
+ *
+ * Ketiga pilihan tampil bersama keterangannya, dan untuk "awal lambat" angka
+ * minggu-minggu pertamanya ikut dicetak — nama profil tidak cukup untuk
+ * memutuskan, angkanya yang menentukan apakah rencana ini bisa ditepati.
+ */
+function PanelPilihProfil({
+  slug,
+  totalWeeks,
+  itemCount,
+}: {
+  slug: string;
+  totalWeeks: number | null;
+  itemCount: number;
+}) {
+  const [profil, setProfil] = useState<ProfilKurva>(PROFIL_KURVA_DEFAULT);
+  const [hasil, setHasil] = useState<ProfilKurvaState>(undefined);
+  const [pending, startTransition] = useTransition();
+
+  // Pratinjau hanya bila jumlah minggunya benar-benar diketahui.
+  const awal =
+    totalWeeks && totalWeeks > 0 ? kurvaProfilLambat(totalWeeks).slice(0, Math.min(6, totalWeeks)) : null;
+
+  function kirim() {
+    const fd = new FormData();
+    fd.set("slug", slug);
+    fd.set("profil", profil);
+    startTransition(async () => {
+      setHasil(await tahanGagalKirim(pilihProfilKurvaAction)(undefined, fd));
+    });
+  }
+
+  if (hasil?.selesai) return <Banner tone="success" title={hasil.success ?? "Pilihan tersimpan."} />;
+
+  return (
+    <div className="space-y-3 rounded-md border border-info-border bg-info-soft p-3">
+      <div>
+        <p className="text-[13px] font-semibold text-ink">Pilih bentuk kurva-S</p>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          RAB {itemCount} item sudah aktif, tetapi rencananya belum. Kurva-S tidak dibuat sendiri –
+          pilih bentuk yang sesuai keadaan lapangan lokasi ini.
+        </p>
+      </div>
+
+      {hasil?.error ? <Banner tone="error" title={hasil.error} /> : null}
+
+      <div className="space-y-2">
+        {PROFIL_KURVA.map((p) => (
+          <label
+            key={p}
+            className={`flex items-start gap-2 text-[13px] ${pending ? "opacity-60" : "cursor-pointer"}`}
+          >
+            <input
+              type="radio"
+              name="profil-kurva"
+              className="mt-0.5"
+              checked={profil === p}
+              disabled={pending}
+              onChange={() => setProfil(p)}
+            />
+            <span>
+              <span className="font-medium text-ink">{PROFIL_KURVA_LABEL[p]}</span>
+              <span className="block text-ink-muted">{PROFIL_KURVA_KETERANGAN[p]}</span>
+              {p === "lambat" && awal ? (
+                <span className="tabular mt-0.5 block text-ink-muted">
+                  Minggu 1–{awal.length} dari {totalWeeks}: {awal.map((v) => formatNumber(v)).join("% → ")}%
+                </span>
+              ) : null}
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" loading={pending} onClick={kirim}>
+          {profil === "manual" ? "Lewati – saya susun sendiri" : "Buat kurva-S"}
+        </Button>
+        <span className="text-[13px] text-ink-muted">
+          Bisa diganti kapan saja lewat &quot;Hitung ulang kurva-S&quot; di tab Kurva-S.
+        </span>
       </div>
     </div>
   );

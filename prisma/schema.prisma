@@ -91,6 +91,20 @@ enum BaselineSource {
   manual
 }
 
+/// BENTUK kurva-S yang dipakai saat baseline dibuat ulang dari RAB
+/// (permintaan user 2026-09-19). Hanya DUA nilai yang bisa disimpan:
+/// `lambat` = profil "awal lambat" (rasio 1-3-6-11-18-28-40-54-68-80-89-94-97-99-100
+/// dibaca sebagai bentuk, `lib/scurve/profil.ts`), `optimal` = penjadwal urutan
+/// pekerjaan yang lama.
+///
+/// `manual` SENGAJA TIDAK ADA di sini. Ia pilihan LAYAR yang artinya "jangan
+/// buat kurva sekarang" – tidak ada baseline yang lahir dari pilihan itu, jadi
+/// tidak ada baris yang bisa menyandangnya.
+enum BaselineProfil {
+  lambat
+  optimal
+}
+
 /// Workflow laporan harian terpadu
 enum DailyReportStatus {
   draft
@@ -1453,6 +1467,19 @@ model Baseline {
   baselineNo    Int            @map("baseline_no")
   source        BaselineSource
   status        RevisionStatus @default(aktif)
+  /// BENTUK kurva yang dipakai saat baris ini dibuat – dan bentuk yang akan
+  /// dipakai regenerate BERIKUTNYA di lokasi ini (DECISIONS 2026-09-19).
+  ///
+  /// Bawaan KOLOM = `optimal`, sengaja: seluruh baris yang sudah ada memang
+  /// dihasilkan penjadwal urutan-pekerjaan, dan menandainya `lambat` akan
+  /// berbohong tentang sejarah. Bawaan untuk pembuatan BARU = `lambat`, dan itu
+  /// ada di KODE (`PROFIL_KURVA_DEFAULT`), bukan di sini.
+  ///
+  /// Baseline hasil sunting tangan (`source = manual`: editor jadwal, editor
+  /// titik, impor jadwal Excel, pemulihan versi lama) MEWARISI profil baseline
+  /// aktif sebelumnya. Kolom ini tidak menggambarkan bentuk kurva yang disunting
+  /// orang – ia hanya menentukan bentuk regenerate berikutnya.
+  profil        BaselineProfil @default(optimal) @map("profil")
   rabRevisionId String?        @map("rab_revision_id") @db.Uuid
   contractDays  Int            @map("contract_days")
   note          String?

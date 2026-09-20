@@ -39,6 +39,10 @@ function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
     ...(bolehKeuangan ? [{ label: "Keuangan", href: `${base}/keuangan` }] : []),
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
     { label: "Laporan", href: `${base}/laporan-lokasi` },
+    // Laporan menyeluruh satu lokasi (DECISIONS 426 + permintaan user
+    // 2026-09-19): kesimpulan, progres, kendala, temuan, administrasi dalam
+    // satu halaman, plus PDF/deck dan kiriman WhatsApp.
+    { label: "Laporan Lengkap", href: `${base}/laporan-lengkap` },
   ];
 }
 
@@ -171,10 +175,20 @@ export default async function LokasiLayout({
           <StatCell label="Deviasi">
             <DeltaBadge value={progress.deviationPct} />
           </StatCell>
+          {/* Angka yang DIBACA, jadi `weekNumberElapsed` — bukan `weekNumber`
+              yang di-clamp untuk mencari rencana%. Sel ini pernah menulis
+              "22/22" untuk lokasi yang kontraknya sudah lewat seminggu dengan
+              realisasi 0%, sementara laporan lengkap di layar yang sama menulis
+              "ke-23". DECISIONS 593. */}
           <StatCell label="Minggu berjalan">
             <span className="tabular">
-              {progress.weekNumber}
+              {progress.weekNumberElapsed}
               <span className="text-ink-faint">/{progress.totalWeeks}</span>
+              {progress.totalWeeks > 0 && progress.weekNumberElapsed > progress.totalWeeks ? (
+                <span className="ml-1 text-[11px] font-medium text-danger">
+                  lewat {progress.weekNumberElapsed - progress.totalWeeks}
+                </span>
+              ) : null}
             </span>
           </StatCell>
         </dl>
