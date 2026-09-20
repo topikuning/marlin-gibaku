@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 import { sendText } from "@/lib/waha/kirim";
 import { AMBANG_NIHIL_BERUNTUN, LABEL_ALASAN_NIHIL, nihilBeruntun } from "./nihil";
 import type { NoActivityReason } from "@/generated/prisma/enums";
@@ -59,7 +60,14 @@ export async function kirimPengingatNihilTerjadwal(
   const lokasi = await db.location.findMany({
     where: {
       status: "berjalan",
-      package: { stage: "pelaksanaan", waGroupId: { not: null } },
+      /*
+       * Lokasi ikut selama ia PUNYA TUJUAN – lewat grup kabupatennya sendiri
+       * ATAU lewat grup paket. Menyaring hanya `package.waGroupId != null`
+       * akan membuang lokasi yang justru paling niat: yang grup kabupatennya
+       * sudah dipasang, tetapi paketnya belum punya grup (DECISIONS 596).
+       */
+      package: { stage: "pelaksanaan" },
+      OR: [{ waGroupRefId: { not: null } }, { package: { waGroupId: { not: null } } }],
     },
     select: {
       id: true,
@@ -122,7 +130,12 @@ export async function kirimPengingatNihilTerjadwal(
     ].join("\n");
 
     try {
-      const waMessageId = await sendText(l.package.waGroupId!, teks);
+      const grup = await grupUntukLokasi(l.id);
+      if (!grup) {
+        hasil.rincian.push({ lokasi: l.name, hasil: "dilewati (tanpa grup)" });
+        continue;
+      }
+      const waMessageId = await sendText(grup.chatId, teks);
       hasil.terkirim += 1;
       hasil.rincian.push({ lokasi: l.name, hasil: `terkirim (${beruntun} hari)` });
       await audit(null, AKSI, "location", l.id, { sidik, beruntun, sebab, waMessageId });

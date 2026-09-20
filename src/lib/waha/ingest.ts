@@ -40,10 +40,23 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
    * diperlukan — dan pencocokan longgar itulah yang membuat paket mana yang
    * terpilih bergantung pada urutan baris.
    */
+  /*
+   * Grup KABUPATEN dicari lebih dulu, baru grup paket (DECISIONS 596). Satu
+   * grup nyata paling banyak satu baris di masing-masing tabel, jadi urutan ini
+   * bukan tebakan melainkan prioritas: tautan yang lebih sempit menang.
+   *
+   * Pesannya tetap diarsipkan dengan `packageId` — grup kabupaten SELALU milik
+   * satu paket (FK komposit), jadi paketnya tidak pernah ambigu.
+   */
   const kanonik = kanonikGrupId(m.chatId);
-  const pkg = kanonik
-    ? await db.package.findUnique({ where: { waGroupId: kanonik }, select: { id: true } })
+  const grupKab = kanonik
+    ? await db.waGroup.findUnique({ where: { waGroupId: kanonik }, select: { packageId: true } })
     : null;
+  const pkg = grupKab
+    ? { id: grupKab.packageId }
+    : kanonik
+      ? await db.package.findUnique({ where: { waGroupId: kanonik }, select: { id: true } })
+      : null;
   if (!pkg) {
     // Chat PRIBADI memang tidak pernah disimpan — itu bukan kesalahan
     // penautan, dan sejak tanya-jawab bebas (DECISIONS 339) chat pribadi
@@ -53,10 +66,11 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
       return { stored: false, reason: "chat pribadi (tidak diarsipkan)", chatId: m.chatId };
     }
     console.warn(
-      `[waha] pesan DIBUANG – grup "${m.chatId}" belum tertaut paket. ` +
-        `Tautkan chatId ini di Paket → Grup WhatsApp. from=${m.fromNumber ?? "?"} body="${m.body.slice(0, 40)}"`,
+      `[waha] pesan DIBUANG – grup "${m.chatId}" belum tertaut ke mana pun. ` +
+        `Tautkan chatId ini di Paket → Grup WhatsApp, atau sebagai grup kabupaten di halaman Lokasi. ` +
+        `from=${m.fromNumber ?? "?"} body="${m.body.slice(0, 40)}"`,
     );
-    return { stored: false, reason: "grup tidak tertaut paket", chatId: m.chatId };
+    return { stored: false, reason: "grup tidak tertaut paket/kabupaten", chatId: m.chatId };
   }
 
   let messageRowId: string | null = null;

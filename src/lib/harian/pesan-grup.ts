@@ -25,6 +25,15 @@ export type LokasiBelumLapor = {
  */
 export function pesanPengingatGrup(input: {
   namaPaket: string;
+  /**
+   * Kabupaten grup ini, atau `null` untuk grup PAKET (DECISIONS 596).
+   *
+   * Disebut di judul karena grup kabupaten hanya memuat SEBAGIAN lokasi
+   * paketnya: tanpa keterangan itu, "3 dari 4 lokasi belum lengkap" terbaca
+   * seperti keadaan seluruh paket, dan paket yang tertib jadi terlihat
+   * bermasalah di grup yang isinya cuma satu kabupaten.
+   */
+  kabupaten?: string | null;
   tanggalTampil: string;
   belum: LokasiBelumLapor[];
   /** Lokasi yang laporannya SUDAH masuk hari itu — disebut jumlahnya saja. */
@@ -38,9 +47,13 @@ export function pesanPengingatGrup(input: {
   const total = input.belum.length + input.sudah;
 
   return [
-    `*Laporan Harian ${input.tanggalTampil} – ${input.namaPaket}*`,
+    input.kabupaten
+      ? `*Laporan Harian ${input.tanggalTampil} – ${input.namaPaket} · Kab. ${input.kabupaten}*`
+      : `*Laporan Harian ${input.tanggalTampil} – ${input.namaPaket}*`,
     "",
-    `${input.belum.length} dari ${total} lokasi belum lengkap hari ini:`,
+    input.kabupaten
+      ? `${input.belum.length} dari ${total} lokasi di kabupaten ini belum lengkap hari ini:`
+      : `${input.belum.length} dari ${total} lokasi belum lengkap hari ini:`,
     ...baris,
     "",
     // Tenggat KKP disebut karena itulah alasan pengingat ini ada: dokumentasi

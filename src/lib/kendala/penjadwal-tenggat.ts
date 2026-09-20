@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { grupPaketPelaksanaan } from "@/lib/waha/grup";
 import { sendText } from "@/lib/waha/kirim";
 import { MAKS_BARIS, pesanKendalaTenggat, sidikTenggat, type BarisTenggat } from "./pesan-tenggat";
 
@@ -42,9 +43,23 @@ export type HasilPengingatTenggat = {
 
 type Riwayat = { sidik: string; createdAt: Date } | null;
 
-async function riwayatTerakhir(packageId: string): Promise<Riwayat> {
+/**
+ * Riwayat peredam dicari per GRUP, bukan per paket (DECISIONS 596).
+ *
+ * Kalau tetap per paket, kiriman grup Demak akan diredam oleh sidik kiriman
+ * grup Jepara yang isinya lain sama sekali — dan grup kedua diam untuk daftar
+ * yang belum pernah ia lihat. Baris lama tanpa `chatId` tidak cocok, jadi
+ * sesudah rilis ini tiap grup mengirim sekali lagi: satu pesan berlebih jauh
+ * lebih murah daripada satu pesan yang hilang.
+ */
+async function riwayatTerakhir(packageId: string, chatId: string): Promise<Riwayat> {
   const row = await db.auditLog.findFirst({
-    where: { action: AKSI, resourceType: "package", resourceId: packageId },
+    where: {
+      action: AKSI,
+      resourceType: "package",
+      resourceId: packageId,
+      payload: { path: ["chatId"], equals: chatId },
+    },
     orderBy: { createdAt: "desc" },
     select: { payload: true, createdAt: true },
   });
@@ -81,13 +96,15 @@ export async function kirimPengingatKendalaTerjadwal(
    * memang belum disiapkan. Mencatatnya sebagai "gagal" setiap 24 jam hanya
    * membuat log ini tidak terbaca lagi saat yang gagal betulan muncul.
    */
-  const kandidat = await db.package.findMany({
-    where: { stage: "pelaksanaan", waGroupId: { not: null } },
-    select: { id: true, name: true, waGroupId: true, locations: { select: { id: true } } },
-  });
+  /*
+   * Berputar per GRUP, bukan per paket (DECISIONS 596). Paket dengan dua
+   * kabupaten punya dua tujuan, dan tiap tujuan hanya berhak atas lokasinya
+   * sendiri — grup Jepara tidak boleh menerima daftar Demak.
+   */
+  const kandidat = await grupPaketPelaksanaan();
 
   for (const p of kandidat) {
-    const lokasiIds = p.locations.map((l) => l.id);
+    const lokasiIds = p.lokasiIds;
     if (lokasiIds.length === 0) continue;
 
     const saring: Prisma.IssueWhereInput = {
@@ -141,31 +158,32 @@ export async function kirimPengingatKendalaTerjadwal(
     }));
 
     const sidik = sidikTenggat(baris, total);
-    const riwayat = await riwayatTerakhir(p.id);
+    const riwayat = await riwayatTerakhir(p.packageId, p.chatId);
     if (!bolehKirim(riwayat, sidik, now)) {
       hasil.diredam += 1;
-      hasil.rincian.push({ paket: p.name, hasil: "diredam – daftarnya belum berubah" });
+      hasil.rincian.push({ paket: p.kabupaten ? `${p.namaPaket} · Kab. ${p.kabupaten}` : p.namaPaket, hasil: "diredam – daftarnya belum berubah" });
       continue;
     }
 
-    const teks = pesanKendalaTenggat(p.name, baris, total);
+    const teks = pesanKendalaTenggat(p.kabupaten ? `${p.namaPaket} · Kab. ${p.kabupaten}` : p.namaPaket, baris, total);
     if (!teks) continue;
 
     try {
-      const waMessageId = await sendText(p.waGroupId!, teks);
+      const waMessageId = await sendText(p.chatId, teks);
       hasil.terkirim += 1;
-      hasil.rincian.push({ paket: p.name, hasil: `terkirim (${total} kendala)` });
+      hasil.rincian.push({ paket: p.kabupaten ? `${p.namaPaket} · Kab. ${p.kabupaten}` : p.namaPaket, hasil: `terkirim (${total} kendala)` });
       // Dicatat SESUDAH berhasil kirim: mencatat lebih dulu akan meredam
       // kiriman berikutnya untuk pesan yang tidak pernah sampai.
-      await audit(null, AKSI, "package", p.id, {
+      await audit(null, AKSI, "package", p.packageId, {
         sidik,
+        chatId: p.chatId,
         jumlah: total,
         waMessageId,
       });
     } catch (err) {
       hasil.gagal += 1;
       hasil.rincian.push({
-        paket: p.name,
+        paket: p.kabupaten ? `${p.namaPaket} · Kab. ${p.kabupaten}` : p.namaPaket,
         hasil: err instanceof Error ? err.message : "gagal kirim",
       });
     }

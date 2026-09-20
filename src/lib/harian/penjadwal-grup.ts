@@ -4,7 +4,7 @@ import { audit } from "@/lib/audit";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { sendText } from "@/lib/waha/kirim";
-import { tagihanPerPaket } from "./belum-lapor";
+import { tagihanPerGrup } from "./belum-lapor";
 import { pesanPengingatGrup } from "./pesan-grup";
 import { getPengingatGrupAktif } from "./setelan-grup";
 
@@ -53,27 +53,33 @@ export type HasilAntreGrup = {
 /**
  * Buat giliran hari ini untuk semua paket berjalan yang punya grup.
  *
- * Barisnya dibuat untuk SEMUA paket, termasuk yang saat ini sudah lengkap:
+ * Barisnya dibuat untuk SEMUA grup, termasuk yang saat ini sudah lengkap:
  * isi pesan ditentukan saat kirim, bukan saat antre (lihat catatan di model
- * `GroupReminderJob`). Paket yang keburu beres akan ditandai `dilewati` tanpa
+ * `GroupReminderJob`). Grup yang keburu beres akan ditandai `dilewati` tanpa
  * pesan.
  *
- * Aman dipicu berkali-kali: UNIQUE `(package_id, date_key)` + `skipDuplicates`.
+ * Satu giliran per GRUP, bukan per paket (DECISIONS 596): paket dengan dua
+ * kabupaten berhak atas dua giliran, dan jedanya dihitung antar GRUP karena
+ * yang perlu dilindungi dari beruntun adalah WhatsApp-nya, bukan paketnya.
+ *
+ * Aman dipicu berkali-kali: UNIQUE `(date_key, target_chat_id)` +
+ * `skipDuplicates`.
  */
 export async function antrekanPengingatGrup(now = new Date()): Promise<HasilAntreGrup> {
   if (!(await getPengingatGrupAktif())) return { aktif: false, diperiksa: 0, dibuat: 0 };
 
   const dateKey = jakartaDateKey(now);
-  const paket = await tagihanPerPaket(now);
-  if (paket.length === 0) return { aktif: true, diperiksa: 0, dibuat: 0 };
+  const grup = await tagihanPerGrup(now);
+  if (grup.length === 0) return { aktif: true, diperiksa: 0, dibuat: 0 };
 
-  const baris = paket.map((p, i) => ({
-    packageId: p.packageId,
+  const baris = grup.map((g, i) => ({
+    packageId: g.packageId,
+    targetChatId: g.chatId,
     dateKey,
     sendAfter: new Date(now.getTime() + i * JEDA_ANTAR_GRUP_MS),
   }));
   const { count } = await db.groupReminderJob.createMany({ data: baris, skipDuplicates: true });
-  return { aktif: true, diperiksa: paket.length, dibuat: count };
+  return { aktif: true, diperiksa: grup.length, dibuat: count };
 }
 
 export type HasilKurasGrup = {
@@ -120,7 +126,7 @@ export async function kurasPengingatGrup(
     where: { status: "menunggu", sendAfter: { lte: now } },
     orderBy: { sendAfter: "asc" },
     take: maks,
-    select: { id: true, packageId: true, dateKey: true, attempts: true },
+    select: { id: true, packageId: true, targetChatId: true, dateKey: true, attempts: true },
   });
   if (antre.length === 0) return hasil;
 
@@ -148,10 +154,17 @@ export async function kurasPengingatGrup(
     hasil.dikerjakan += 1;
 
     const tanggal = parseDateKey(job.dateKey);
-    const [tagihan] = await tagihanPerPaket(tanggal ?? now, { packageId: job.packageId });
+    /*
+     * Tagihan dicari menurut GRUP TUJUAN giliran ini, bukan menurut paketnya:
+     * satu paket bisa menghasilkan beberapa tagihan, dan mengambil yang pertama
+     * akan mengirimi grup Jepara daftar lokasi Demak (DECISIONS 596).
+     */
+    const semua = await tagihanPerGrup(tanggal ?? now, { packageId: job.packageId });
+    const tagihan = semua.find((t) => t.chatId === job.targetChatId);
     const teks = tagihan
       ? pesanPengingatGrup({
           namaPaket: tagihan.namaPaket,
+          kabupaten: tagihan.kabupaten,
           tanggalTampil: formatTanggal(tanggal ?? now),
           belum: tagihan.belum,
           sudah: tagihan.sudah,
@@ -169,14 +182,14 @@ export async function kurasPengingatGrup(
     }
 
     try {
-      const waMessageId = await sendText(tagihan.waGroupId, teks);
+      const waMessageId = await sendText(tagihan.chatId, teks);
       await db.groupReminderJob.update({
         where: { id: job.id },
         data: {
           status: "terkirim",
           locations: tagihan.belum.length,
           waMessageId,
-          chatId: tagihan.waGroupId,
+          chatId: tagihan.chatId,
           lastError: null,
           sentAt: new Date(),
         },

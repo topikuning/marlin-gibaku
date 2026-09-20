@@ -55,10 +55,12 @@ import { DriveFolderForm } from "./drive-folder-form";
 import { mingguKontrak, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { LaporanMingguanWa } from "./laporan-mingguan-wa";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { db } from "@/lib/db";
 import { getDriveCoverage } from "@/lib/gdrive/coverage";
 import { milestoneBoard } from "@/lib/milestones/queries";
 import { SiklusPanel } from "./siklus-panel";
 import { BarisIntegrasi } from "./komunikasi-panel";
+import { WaKabupatenForm, type BarisKabupaten } from "./wa-kabupaten-form";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
 export const dynamic = "force-dynamic";
@@ -131,6 +133,50 @@ export default async function RingkasanPaketPage({
   const canProspect = can(user.role, "prospect.manage");
   const canContract = can(user.role, "contract.manage");
   const canWaConfigure = can(user.role, "wa.configure");
+
+  /*
+   * Kabupaten yang BENAR-BENAR ada di paket ini, beserta grupnya (DECISIONS
+   * 596). Sengaja diturunkan dari lokasi aktif, bukan dari daftar kabupaten
+   * mana pun: yang tidak muncul harus punya sebab yang bisa dibaca.
+   */
+  const barisKabupaten: BarisKabupaten[] = canWaConfigure
+    ? await (async () => {
+        const lok = await db.location.findMany({
+          where: { packageId: id, isActive: true },
+          orderBy: { regency: "asc" },
+          select: {
+            regency: true,
+            waGroupRefId: true,
+            waGroup: { select: { waGroupId: true, waGroupName: true, regency: true } },
+          },
+        });
+        const per = new Map<string, BarisKabupaten>();
+        for (const l of lok) {
+          let b = per.get(l.regency);
+          if (!b) {
+            b = {
+              regency: l.regency,
+              jumlahLokasi: 0,
+              chatId: null,
+              namaGrup: null,
+              belumIkut: 0,
+            };
+            per.set(l.regency, b);
+          }
+          b.jumlahLokasi += 1;
+          if (l.waGroup) {
+            b.chatId = l.waGroup.waGroupId;
+            b.namaGrup = l.waGroup.waGroupName;
+          } else {
+            b.belumIkut += 1;
+          }
+        }
+        // `belumIkut` hanya berarti bila kabupatennya MEMANG punya grup; kalau
+        // belum, seluruh lokasinya wajar mengikuti grup paket.
+        for (const b of per.values()) if (!b.chatId) b.belumIkut = 0;
+        return [...per.values()];
+      })()
+    : [];
   const canKirimLaporan = can(user.role, "ai.report_send");
   const canDocument = can(user.role, "document.view");
 
@@ -810,6 +856,32 @@ export default async function RingkasanPaketPage({
                           currentGroupName={pkg.waGroupName}
                           wahaConfigured={await isWahaConfigured()}
                         />
+                      </Drawer>
+                    }
+                  />
+                ) : null}
+
+                {/* Grup per KABUPATEN — DECISIONS 596. Ditaruh tepat di bawah
+                    grup paket karena keduanya menjawab pertanyaan yang sama
+                    ("kiriman lokasi ini ke mana"), dan yang lebih sempit
+                    menang. */}
+                {canWaConfigure ? (
+                  <BarisIntegrasi
+                    nama="Grup WhatsApp per kabupaten"
+                    keterangan={
+                      barisKabupaten.some((b) => b.chatId)
+                        ? `${barisKabupaten.filter((b) => b.chatId).length} dari ${barisKabupaten.length} kabupaten punya grup sendiri · sisanya mengikuti grup paket`
+                        : "Belum ada. Lokasi paket ini seluruhnya mengikuti grup paket."
+                    }
+                    status={barisKabupaten.some((b) => b.chatId) ? "Terpasang" : "Belum"}
+                    statusTone={barisKabupaten.some((b) => b.chatId) ? "success" : "neutral"}
+                    aksi={
+                      <Drawer
+                        trigger="Atur per kabupaten"
+                        title="Grup WhatsApp per kabupaten"
+                        subtitle="Satu kabupaten satu grup – berlaku untuk lokasi paket ini saja."
+                      >
+                        <WaKabupatenForm packageId={pkg.id} baris={barisKabupaten} />
                       </Drawer>
                     }
                   />

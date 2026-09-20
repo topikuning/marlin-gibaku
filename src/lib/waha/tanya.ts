@@ -256,6 +256,36 @@ async function paketGrup(chatId: string): Promise<PaketGrup> {
    */
   const kanonik = kanonikGrupId(chatId);
   if (!kanonik) return null;
+
+  /*
+   * GRUP KABUPATEN dicari lebih dulu (DECISIONS 596), dan jangkauannya hanya
+   * lokasi ANGGOTANYA — bukan seluruh lokasi paket.
+   *
+   * Ini MEMPERSEMPIT, tidak pernah melebarkan: grup kabupaten selalu milik satu
+   * paket, dan anggotanya bagian dari lokasi paket itu. Keputusan user
+   * 2026-09-20: "group itu tetap hanya kabupaten di dalam paket itu."
+   */
+  const kab = await db.waGroup.findUnique({
+    where: { waGroupId: kanonik },
+    select: {
+      packageId: true,
+      waGroupName: true,
+      regency: true,
+      package: { select: { name: true, orgId: true } },
+      locations: { where: { isActive: true }, select: { id: true } },
+    },
+  });
+  if (kab) {
+    return {
+      id: kab.packageId,
+      nama: kab.regency
+        ? `${kab.package.name} · Kab. ${kab.regency}`
+        : (kab.waGroupName ?? kab.package.name),
+      orgId: kab.package.orgId,
+      lokasiIds: kab.locations.map((l) => l.id),
+    };
+  }
+
   const p = await db.package.findUnique({
     where: { waGroupId: kanonik },
     select: {

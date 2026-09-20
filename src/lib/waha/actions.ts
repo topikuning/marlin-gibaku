@@ -18,6 +18,7 @@ import { WahaError, getGroupInfo, getSessionStatus, listGroups, normalizeGroupCh
 import { sendFile, sendImage, sendText } from "@/lib/waha/kirim";
 import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -382,14 +383,9 @@ export async function sendActivityToWaAction(
     if (!activity) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, activity.locationId);
 
-    const groupId = activity.location.package?.waGroupId;
-    if (!groupId) {
-      return {
-        error:
-          "Paket ini belum punya grup WhatsApp. Atur dulu di halaman Paket → Grup WhatsApp, baru kirim.",
-      };
-    }
-    const chatId = normalizeGroupChatId(groupId);
+    const grup = await grupUntukLokasi(activity.locationId);
+    if (!grup) return { error: TANPA_TUJUAN };
+    const chatId = grup.chatId;
 
     // 1) Teks ringkas.
     const message = buildActivityMessage({
@@ -496,20 +492,21 @@ export async function sendActivityPdfToWaAction(
     if (!activity) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, activity.locationId);
 
-    // Tujuan: input bebas bila diisi, selain itu grup WA paket.
+    // Tujuan: input bebas bila diisi, selain itu grup WA efektif lokasi ini
+    // (kabupaten kalau ada, selain itu paket — DECISIONS 596).
+    const grupKegiatan = await grupUntukLokasi(activity.locationId);
     const rawDest = String(formData.get("destChatId") ?? "").trim();
     let chatId: string;
     let destLabel: string;
     if (rawDest) {
       chatId = normalizeWaDest(rawDest);
       destLabel = chatId.endsWith("@g.us") ? "grup WhatsApp" : "WhatsApp";
-    } else if (activity.location.package?.waGroupId) {
-      chatId = normalizeGroupChatId(activity.location.package.waGroupId);
-      destLabel = "grup WhatsApp paket";
+    } else if (grupKegiatan) {
+      chatId = grupKegiatan.chatId;
+      destLabel = grupKegiatan.label;
     } else {
       return {
-        error:
-          "Belum ada tujuan: paket ini tanpa grup WhatsApp. Isi nomor/ID tujuan, atau atur grup di halaman Paket.",
+        error: TANPA_TUJUAN,
       };
     }
 
@@ -547,15 +544,32 @@ export async function sendActivityPdfToWaAction(
 /* Kirim laporan (harian / mingguan) sebagai Excel ke grup WA          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Satu kalimat untuk "lokasi ini tidak punya tujuan WhatsApp", dipakai semua
+ * jalur kirim. Ia menyebut KEDUA tempat pemasangan, karena sejak DECISIONS 596
+ * grupnya bisa dipasang per kabupaten di halaman Lokasi ATAU untuk seluruh
+ * paket di halaman Paket — menyebut satu saja akan mengirim orang ke layar yang
+ * salah.
+ */
+const TANPA_TUJUAN =
+  "Belum ada tujuan: lokasi ini tidak terhubung ke grup WhatsApp mana pun. " +
+  "Isi nomor/ID tujuan, atau pasang grupnya – per kabupaten di halaman Lokasi, " +
+  "atau untuk seluruh paket di halaman Paket.";
+
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** Grup WA + nama paket dari sebuah lokasi. */
-async function groupForLocation(locationId: string) {
-  const loc = await db.location.findUnique({
+/**
+ * Identitas lokasi untuk keterangan kiriman — nama, slug, nama paket.
+ *
+ * TIDAK lagi membawa `waGroupId`: tujuan kiriman dijawab `grupUntukLokasi`
+ * (DECISIONS 596), karena lokasi bisa punya grup kabupaten sendiri dan menebak
+ * tujuannya dari paket akan mengirim ke grup yang salah.
+ */
+async function identitasLokasi(locationId: string) {
+  return db.location.findUnique({
     where: { id: locationId },
-    select: { name: true, slug: true, package: { select: { name: true, waGroupId: true } } },
+    select: { name: true, slug: true, package: { select: { name: true } } },
   });
-  return loc;
 }
 
 /** Kirim laporan periodik (mingguan/bulanan) sebagai Excel ke grup WA paket. */
@@ -579,12 +593,11 @@ export async function sendPeriodReportToWaAction(
   try {
     const user = await requireCapability("report.export");
     await requireLocationAccess(user, locationId);
-    const loc = await groupForLocation(locationId);
+    const loc = await identitasLokasi(locationId);
     if (!loc) return { error: "Lokasi tidak ditemukan." };
-    if (!loc.package?.waGroupId) {
-      return { error: "Paket ini belum punya grup WhatsApp. Minta admin mengaturnya di halaman Paket." };
-    }
-    const chatId = normalizeGroupChatId(loc.package.waGroupId);
+    const grup = await grupUntukLokasi(locationId);
+    if (!grup) return { error: TANPA_TUJUAN };
+    const chatId = grup.chatId;
 
     const report = await getPeriodReport(locationId, kind as PeriodKind, n);
     if (!report) return { error: "Laporan untuk periode ini tidak tersedia." };
@@ -630,11 +643,10 @@ export async function sendDailyReportToWaAction(
     const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
     if (!locBasic) return { error: "Lokasi tidak ditemukan." };
     await requireLocationAccess(user, locBasic.id);
-    const loc = await groupForLocation(locBasic.id);
-    if (!loc?.package?.waGroupId) {
-      return { error: "Paket ini belum punya grup WhatsApp. Minta admin mengaturnya di halaman Paket." };
-    }
-    const chatId = normalizeGroupChatId(loc.package.waGroupId);
+    const loc = await identitasLokasi(locBasic.id);
+    const grup = await grupUntukLokasi(locBasic.id);
+    if (!grup) return { error: TANPA_TUJUAN };
+    const chatId = grup.chatId;
 
     const data = await getKkpDailyData(slug, dateKey);
     if (!data) return { error: "Laporan harian tidak ditemukan." };
@@ -679,11 +691,9 @@ async function resolveWaChat(
     const chatId = normalizeWaDest(rawDest);
     return { chatId, label: chatId.endsWith("@g.us") ? "grup WhatsApp" : "WhatsApp" };
   }
-  const loc = await groupForLocation(locationId);
-  if (!loc?.package?.waGroupId) {
-    return { error: "Belum ada tujuan: paket tanpa grup WhatsApp. Isi nomor/ID tujuan, atau atur grup di halaman Paket." };
-  }
-  return { chatId: normalizeGroupChatId(loc.package.waGroupId), label: "grup WhatsApp paket" };
+  const grup = await grupUntukLokasi(locationId);
+  if (!grup) return { error: TANPA_TUJUAN };
+  return { chatId: grup.chatId, label: grup.label };
 }
 
 /** Kirim Laporan Harian sebagai PDF ringkas ke WA (grup paket atau tujuan bebas). */
@@ -762,7 +772,7 @@ export async function sendWeeklyBundleToWaAction(
     const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
     if ("error" in target) return { error: target.error };
 
-    const loc = await groupForLocation(locationId);
+    const loc = await identitasLokasi(locationId);
     if (!loc?.slug) return { error: "Lokasi tidak ditemukan." };
 
     const { renderMingguanKkpPdf } = await import("@/lib/pdf/mingguan-kkp");
@@ -824,7 +834,7 @@ export async function sendPeriodReportPdfToWaAction(
     const result = await renderPeriodikKkpPdf(locationId, kind as PeriodKind, n);
     if (!result) return { error: "Laporan untuk periode ini tidak tersedia." };
 
-    const loc = await groupForLocation(locationId);
+    const loc = await identitasLokasi(locationId);
     const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
     const caption = [
       `📄 *Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} – ${periodeLabel}*`,
@@ -920,7 +930,7 @@ export async function sendRencanaMingguanToWaAction(
     const branding = await getBranding();
     const pdf = await buildRencanaKkpPdf(rencana, branding.appName);
 
-    const loc = await groupForLocation(locationId);
+    const loc = await identitasLokasi(locationId);
     await sendText(target.chatId, teks);
     const fileName = `rencana-mingguan-${loc?.slug ?? locationId}-minggu-${weekNumber}.pdf`;
     await sendFile(target.chatId, toFilePayload(pdf, PDF_MIME, fileName), fileName);

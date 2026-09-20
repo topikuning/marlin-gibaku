@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { isWahaConfigured, normalizeGroupChatId, toFilePayload, WahaError } from "@/lib/waha/client";
 import { sendFile } from "@/lib/waha/kirim";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 import { namaBerkasLaporanLokasi } from "./jenis";
 
 /**
@@ -55,10 +56,17 @@ export async function kirimLaporanLokasiWaAction(
     });
     if (!lokasi) return { error: "Lokasi tidak ditemukan." };
     if (!(await isWahaConfigured())) return { error: "WhatsApp (WAHA) belum dikonfigurasi." };
-    if (!lokasi.package.waGroupId) {
-      return { error: "Paket ini belum ditautkan ke grup WhatsApp – atur grupnya di halaman Paket." };
+    // Tujuan dijawab resolver, bukan dibaca dari paket: lokasi bisa punya grup
+    // kabupaten sendiri (DECISIONS 596).
+    const grup = await grupUntukLokasi(locationId);
+    if (!grup) {
+      return {
+        error:
+          "Lokasi ini belum terhubung ke grup WhatsApp mana pun – pasang grup kabupatennya " +
+          "di halaman Lokasi, atau grup paket di halaman Paket.",
+      };
     }
-    const chatId = normalizeGroupChatId(lokasi.package.waGroupId);
+    const chatId = grup.chatId;
 
     /*
      * Impor dinamis: modul snapshot + renderer PDF berat (pdfkit, sharp) dan

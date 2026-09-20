@@ -614,9 +614,53 @@ model Package {
   weeklyWaLogs    WeeklyWaLog[]
   groupReminders  GroupReminderJob[]
   aiArtifacts     AiArtifact[]
+  waGroups        WaGroup[]
 
   @@index([orgId, stage])
   @@map("packages")
+}
+
+/// GRUP WHATSAPP KABUPATEN — satu grup WA nyata, satu baris (DECISIONS 596).
+///
+/// Lahir dari kebutuhan PPK 2026-09-20: grup WA dibuat per KABUPATEN, padahal
+/// satu paket bisa mencakup beberapa kabupaten dan satu kabupaten bisa berisi
+/// beberapa lokasi. `Package.waGroupId` tidak bisa menyatakan itu — ia satu
+/// grup untuk seluruh paket.
+///
+/// **Grup tidak pernah melintasi paket.** Keputusan user, dengan kata-katanya:
+/// *"meskipun ada group kabupaten, group itu tetap hanya kabupaten di dalam
+/// paket itu."* Karena itu `packageId` di sini WAJIB, dan `Location` menunjuk
+/// ke sini lewat FK KOMPOSIT `(waGroupRefId, packageId)` — basis datanya
+/// sendiri yang menolak lokasi paket A memakai grup paket B. Konsekuensinya
+/// disengaja: kabupaten yang lokasinya terbelah dua paket butuh DUA grup.
+///
+/// `regency`/`province` di sini LABEL, bukan kunci. Keanggotaan ditentukan
+/// `Location.waGroupRefId`, bukan kecocokan nama kabupaten: `Location.regency`
+/// teks bebas, dan satu salah ketik tidak boleh mengeluarkan lokasi dari
+/// grupnya diam-diam.
+model WaGroup {
+  id        String @id @default(uuid()) @db.Uuid
+  orgId     String @map("org_id") @db.Uuid
+  packageId String @map("package_id") @db.Uuid
+
+  /// chatId kanonik (`kanonikGrupId`). Unik global: satu grup WhatsApp nyata
+  /// tidak boleh punya dua baris, dan pesan masuk memetakannya dengan kesamaan
+  /// persis — bukan `findFirst` atas varian (DECISIONS 370).
+  waGroupId   String  @unique @map("wa_group_id")
+  waGroupName String? @map("wa_group_name")
+  regency     String?
+  province    String?
+
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  package   Package    @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  locations Location[]
+
+  @@unique([id, packageId])
+  @@index([packageId])
+  @@map("wa_groups")
 }
 
 /// Log upload laporan ke folder Google Drive paket (append-only). Baris terbaru
@@ -1217,6 +1261,15 @@ model Location {
   gpsLng    Decimal?       @map("gps_lng") @db.Decimal(10, 7)
   status    LocationStatus @default(persiapan)
   isActive  Boolean        @default(false) @map("is_active")
+
+  /// GRUP WA KABUPATEN untuk lokasi ini (DECISIONS 596). Kosong = ikut grup
+  /// paket. Relasinya SENGAJA komposit `(waGroupRefId, packageId)` supaya
+  /// basis data sendiri yang menolak lokasi menunjuk grup milik paket lain:
+  /// keputusan user 2026-09-20 — *"meskipun ada group kabupaten, group itu
+  /// tetap hanya kabupaten di dalam paket itu."* Aturan sepenting ini tidak
+  /// boleh bergantung pada kode yang ingat memeriksanya.
+  waGroupRefId String?  @map("wa_group_ref_id") @db.Uuid
+  waGroup      WaGroup? @relation(fields: [waGroupRefId, packageId], references: [id, packageId], onDelete: Restrict, onUpdate: Cascade)
 
   /// Penimpaan Pelaksana Lapangan untuk lokasi ini (DECISIONS 402).
   /// Kosong = pakai milik paket. Diambil sebagai SATU BLOK: nama, jabatan, dan
@@ -2899,12 +2952,20 @@ model GroupReminderJob {
   waMessageId String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju (…@g.us).
   chatId      String?   @map("chat_id")
+  /// Grup TUJUAN giliran ini, ditetapkan saat diantre (DECISIONS 596).
+  ///
+  /// Berbeda dari `chatId` di atas, yang baru terisi SESUDAH terkirim. Kunci
+  /// anti-duplikatnya memakai kolom ini, bukan `package_id`: satu paket bisa
+  /// punya beberapa grup kabupaten, dan kunci berbasis paket akan meloloskan
+  /// grup pertama lalu MEMBLOKIR sisanya — grup kedua tidak pernah menerima
+  /// apa pun, tanpa galat dan tanpa baris gagal.
+  targetChatId String   @map("target_chat_id")
   lastError   String?   @map("last_error")
   sentAt      DateTime? @map("sent_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  @@unique([packageId, dateKey])
+  @@unique([dateKey, targetChatId])
   @@index([status, sendAfter])
   @@map("wa_group_reminders")
 }
@@ -2935,6 +2996,11 @@ model WeeklyWaLog {
   waMessageId String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju saat mengirim (…@g.us).
   chatId      String?   @map("chat_id")
+  /// Grup TUJUAN baris ini (DECISIONS 596). Kunci anti-duplikatnya memakai
+  /// kolom ini, bukan `package_id`: paket dengan dua grup kabupaten berhak
+  /// atas dua kiriman per minggu, dan kunci berbasis paket akan menganggap
+  /// kiriman kedua sebagai pengulangan lalu MENOLAKNYA diam-diam.
+  targetChatId String   @map("target_chat_id")
   /// true = ditekan orang lewat tombol, false = dikirim penjadwal.
   manual      Boolean   @default(false)
   /// Teks yang dikirim, apa adanya. Laporan resmi ke pemberi kerja harus bisa
@@ -2946,7 +3012,8 @@ model WeeklyWaLog {
   lastSentAt  DateTime? @map("last_sent_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  @@unique([packageId, weekNumber])
+  @@unique([weekNumber, targetChatId])
+  @@index([packageId, weekNumber])
   @@index([createdAt])
   @@map("weekly_wa_logs")
 }

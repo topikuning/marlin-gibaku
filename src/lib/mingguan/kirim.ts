@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
 import { weekDateRange, weekOfDate, weightedPct, weightedRealizedPct, type WeekPeriodMode } from "@/lib/progress-calc";
 import { isWahaConfigured } from "@/lib/waha/client";
+import { kanonikGrupId } from "@/lib/waha/grup-id";
 import { sendText } from "@/lib/waha/kirim";
 import { formatTanggal } from "@/lib/format";
 import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
@@ -151,7 +152,13 @@ async function muatPaket(packageId: string) {
       locations: {
         where: { isActive: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, regency: true, province: true },
+        select: {
+          id: true,
+          name: true,
+          regency: true,
+          province: true,
+          waGroup: { select: { waGroupId: true, regency: true } },
+        },
       },
     },
   });
@@ -174,13 +181,26 @@ export async function pratinjauMingguan(
    * biasanya minggu yang sudah tuntas (DECISIONS 357).
    */
   mingguDiminta?: number,
+  /**
+   * Batasi ke sebagian lokasi paket — dipakai saat paket punya beberapa grup
+   * kabupaten (DECISIONS 596). Kosong = seluruh lokasi aktif, perilaku lama.
+   *
+   * Angkanya tetap datang dari calculation layer per lokasi; yang berubah hanya
+   * lokasi mana yang IKUT. Rekapnya ikut menyempit, dan itu memang benar: grup
+   * kabupaten tidak boleh menerima rekap paket yang sebagian isinya bukan
+   * urusannya.
+   */
+  hanyaLokasiIds?: string[],
 ): Promise<{ body: string; mingguKe: number; lokasi: number; berjalan: boolean } | { alasan: string }> {
   const pkg = await muatPaket(packageId);
   if (!pkg) return { alasan: "Paket tidak ditemukan." };
   if (!pkg.contract?.startDate) {
     return { alasan: "Paket ini belum punya tanggal SPMK, jadi minggu kontraknya belum ada." };
   }
-  if (pkg.locations.length === 0) return { alasan: "Paket ini belum punya lokasi aktif." };
+  const lokasiDipakai = hanyaLokasiIds
+    ? pkg.locations.filter((l) => hanyaLokasiIds.includes(l.id))
+    : pkg.locations;
+  if (lokasiDipakai.length === 0) return { alasan: "Paket ini belum punya lokasi aktif." };
 
   const mingguBerjalan = mingguKontrak(pkg.contract.startDate, now, pkg.contract.weekMode);
   const mingguKe = mingguDiminta ?? mingguBerjalan;
@@ -203,7 +223,7 @@ export async function pratinjauMingguan(
   const berkurva: LocationProgress[] = [];
   let tanpaKurva = 0;
 
-  for (const l of pkg.locations) {
+  for (const l of lokasiDipakai) {
     // Angkanya DITERIMA dari calculation layer, tidak dihitung ulang di sini
     // (CLAUDE.md). `totalWeeks === 0` = lokasi belum punya baseline sama sekali.
     const p = await getLocationProgress(l.id, { asOf });
@@ -255,32 +275,90 @@ export async function kirimLaporanMingguan(
   const now = opts.now ?? new Date();
   const pkg = await muatPaket(packageId);
   if (!pkg) return { ok: false, alasan: "Paket tidak ditemukan." };
-  if (!pkg.waGroupId) {
-    return { ok: false, alasan: "Paket ini belum ditautkan ke grup WhatsApp." };
-  }
   if (!(await isWahaConfigured())) {
     return { ok: false, alasan: "WhatsApp (WAHA) belum dikonfigurasi." };
   }
 
-  const siap = await pratinjauMingguan(packageId, now, opts.mingguKe);
+  /*
+   * SATU KIRIMAN PER GRUP (DECISIONS 596).
+   *
+   * Paket bisa punya beberapa grup kabupaten, dan tiap grup hanya berhak atas
+   * lokasinya sendiri — termasuk rekapnya. Mengirim satu pesan paket ke semua
+   * grup akan memberi grup Jepara angka Demak; mengirim hanya sekali akan
+   * membuat grup kedua tidak pernah menerima laporan mingguan sama sekali.
+   */
+  const tujuan = kelompokLokasiPerGrup(pkg);
+  if (tujuan.length === 0) {
+    return { ok: false, alasan: "Lokasi paket ini belum terhubung ke grup WhatsApp mana pun." };
+  }
+
+  const hasilPerGrup: HasilKirimMingguan[] = [];
+  for (const t of tujuan) {
+    hasilPerGrup.push(await kirimSatuGrup(pkg.id, t, now, opts));
+  }
+
+  // Satu tujuan → jawabannya apa adanya, supaya tombol manual tetap bicara
+  // tentang kirimannya sendiri. Beberapa tujuan → yang gagal yang dilaporkan;
+  // "sebagian terkirim" yang dibaca sebagai "beres" adalah kegagalan senyap.
+  const gagal = hasilPerGrup.filter((h) => !h.ok);
+  if (hasilPerGrup.length === 1) return hasilPerGrup[0];
+  if (gagal.length === 0) {
+    const pertama = hasilPerGrup[0];
+    return pertama.ok
+      ? { ...pertama, lokasi: hasilPerGrup.reduce((n, h) => n + (h.ok ? h.lokasi : 0), 0) }
+      : pertama;
+  }
+  return {
+    ok: false,
+    alasan:
+      `${gagal.length} dari ${hasilPerGrup.length} grup gagal dikirimi: ` +
+      gagal.map((g) => (g.ok ? "" : g.alasan)).join(" · "),
+  };
+}
+
+type TujuanMingguan = { chatId: string; lokasiIds: string[] };
+
+/** Lokasi aktif paket, dikelompokkan menurut grup efektifnya. */
+function kelompokLokasiPerGrup(pkg: {
+  waGroupId: string | null;
+  locations: { id: string; waGroup: { waGroupId: string } | null }[];
+}): TujuanMingguan[] {
+  const per = new Map<string, TujuanMingguan>();
+  for (const l of pkg.locations) {
+    const chatId = kanonikGrupId(l.waGroup?.waGroupId) ?? kanonikGrupId(pkg.waGroupId);
+    if (!chatId) continue;
+    const ada = per.get(chatId);
+    if (ada) ada.lokasiIds.push(l.id);
+    else per.set(chatId, { chatId, lokasiIds: [l.id] });
+  }
+  return [...per.values()];
+}
+
+async function kirimSatuGrup(
+  packageId: string,
+  tujuan: TujuanMingguan,
+  now: Date,
+  opts: { manual?: boolean; paksa?: boolean; sentById?: string; mingguKe?: number },
+): Promise<HasilKirimMingguan> {
+  const siap = await pratinjauMingguan(packageId, now, opts.mingguKe, tujuan.lokasiIds);
   if ("alasan" in siap) return { ok: false, alasan: siap.alasan };
 
   const sudah = await db.weeklyWaLog.findUnique({
-    where: { packageId_weekNumber: { packageId, weekNumber: siap.mingguKe } },
+    where: { weekNumber_targetChatId: { weekNumber: siap.mingguKe, targetChatId: tujuan.chatId } },
     select: { id: true, status: true, attempts: true },
   });
-  // Sudah PERNAH BERHASIL untuk minggu ini → penjadwal berhenti di sini.
+  // Sudah PERNAH BERHASIL untuk minggu ini di GRUP ini → penjadwal berhenti.
   // Baris `gagal` tidak menghalangi: yang tidak boleh berulang adalah pesan
   // yang benar-benar sampai, bukan percobaan yang kandas karena WAHA mati.
   if (sudah?.status === "sukses" && !opts.paksa) {
-    return { ok: false, alasan: `Minggu ke-${siap.mingguKe} sudah pernah dikirim.` };
+    return { ok: false, alasan: `Minggu ke-${siap.mingguKe} sudah pernah dikirim ke grup ini.` };
   }
 
   let waMessageId: string | null = null;
   let status = "sukses";
   let error: string | null = null;
   try {
-    waMessageId = await sendText(pkg.waGroupId, siap.body);
+    waMessageId = await sendText(tujuan.chatId, siap.body);
   } catch (err) {
     status = "gagal";
     error = err instanceof Error ? err.message : "Gagal mengirim";
@@ -291,15 +369,21 @@ export async function kirimLaporanMingguan(
     status,
     error,
     waMessageId,
-    chatId: pkg.waGroupId,
+    chatId: tujuan.chatId,
     manual: opts.manual ?? false,
     body: siap.body,
     sentById: opts.sentById ?? null,
     lastSentAt: now,
   };
   await db.weeklyWaLog.upsert({
-    where: { packageId_weekNumber: { packageId, weekNumber: siap.mingguKe } },
-    create: { packageId, weekNumber: siap.mingguKe, attempts: 1, ...isi },
+    where: { weekNumber_targetChatId: { weekNumber: siap.mingguKe, targetChatId: tujuan.chatId } },
+    create: {
+      packageId,
+      weekNumber: siap.mingguKe,
+      targetChatId: tujuan.chatId,
+      attempts: 1,
+      ...isi,
+    },
     update: { attempts: (sudah?.attempts ?? 0) + 1, ...isi },
   });
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { kanonikGrupId } from "@/lib/waha/grup-id";
 
 /**
  * SATU aturan "lokasi ini sudah melapor hari ini atau belum", dipakai bersama
@@ -28,73 +29,85 @@ export type LokasiTertagihPaket = {
   adaDraft: boolean;
 };
 
-export type TagihanPaket = {
+export type TagihanGrup = {
   packageId: string;
   namaPaket: string;
-  waGroupId: string;
+  /** chatId kanonik grup tujuan. */
+  chatId: string;
+  /** Kabupaten grup ini, atau `null` bila ini grup PAKET (DECISIONS 596). */
+  kabupaten: string | null;
   belum: LokasiTertagihPaket[];
-  /** Lokasi paket ini yang laporannya SUDAH masuk hari itu. */
+  /** Lokasi grup ini yang laporannya SUDAH masuk hari itu. */
   sudah: number;
 };
 
 /**
- * Tagihan laporan harian per PAKET yang punya grup WhatsApp.
+ * Tagihan laporan harian per GRUP WhatsApp — bukan per paket (DECISIONS 596).
  *
- * Lingkupnya sama persis dengan pengingat perorangan: lokasi berjalan, di paket
- * `pelaksanaan`, yang SPMK-nya sudah lewat. Paket tanpa `waGroupId` tidak ikut —
- * bukan kegagalan, ia memang belum disiapkan.
+ * Dulu ia mengumpulkan per paket, dan itu benar selama satu paket hanya punya
+ * satu tujuan. Dengan grup kabupaten, satu paket bisa punya beberapa; mengirim
+ * satu pesan per paket berarti grup kabupaten kedua tidak pernah menerima
+ * apa pun — dan pesan yang tidak datang tidak meninggalkan jejak.
+ *
+ * Karena itu pertanyaannya dibalik: mulai dari LOKASI, lalu dikelompokkan
+ * menurut grup efektifnya (kabupaten kalau ada, selain itu paket). Lokasi tanpa
+ * tujuan apa pun dilewati — bukan kegagalan, ia memang belum disiapkan.
+ *
+ * Lingkupnya tetap sama persis dengan pengingat perorangan: lokasi berjalan, di
+ * paket `pelaksanaan`, yang SPMK-nya sudah lewat. Dua penagih yang menghitung
+ * sendiri-sendiri pasti menyimpang, dan saat itu terjadi satu orang ditagih
+ * untuk lokasi yang menurut grup sudah beres.
  */
-export async function tagihanPerPaket(
+export async function tagihanPerGrup(
   now = new Date(),
   opts: { packageId?: string; orgId?: string } = {},
-): Promise<TagihanPaket[]> {
+): Promise<TagihanGrup[]> {
   const tanggal = parseDateKey(jakartaDateKey(now))!;
 
-  const paket = await db.package.findMany({
+  const lokasi = await db.location.findMany({
     where: {
-      stage: "pelaksanaan",
-      waGroupId: { not: null },
-      contract: { startDate: { not: null, lte: tanggal } },
-      ...(opts.packageId ? { id: opts.packageId } : {}),
-      ...(opts.orgId ? { orgId: opts.orgId } : {}),
+      status: "berjalan",
+      isActive: true,
+      package: {
+        stage: "pelaksanaan",
+        contract: { startDate: { not: null, lte: tanggal } },
+        ...(opts.packageId ? { id: opts.packageId } : {}),
+        ...(opts.orgId ? { orgId: opts.orgId } : {}),
+      },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ package: { name: "asc" } }, { name: "asc" }],
     select: {
       id: true,
       name: true,
-      waGroupId: true,
-      locations: {
-        where: { status: "berjalan", isActive: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          dailyReports: { where: { reportDate: tanggal }, select: { status: true } },
-        },
-      },
+      packageId: true,
+      package: { select: { name: true, waGroupId: true } },
+      waGroup: { select: { waGroupId: true, regency: true } },
+      dailyReports: { where: { reportDate: tanggal }, select: { status: true } },
     },
   });
 
-  const hasil: TagihanPaket[] = [];
-  for (const p of paket) {
-    if (!p.waGroupId) continue;
-    const belum: LokasiTertagihPaket[] = [];
-    let sudah = 0;
-    for (const l of p.locations) {
-      const laporan = l.dailyReports[0];
-      if (sudahLapor(laporan?.status)) {
-        sudah += 1;
-        continue;
-      }
-      belum.push({ locationId: l.id, nama: l.name, adaDraft: !!laporan });
+  const per = new Map<string, TagihanGrup>();
+  for (const l of lokasi) {
+    const kab = kanonikGrupId(l.waGroup?.waGroupId);
+    const chatId = kab ?? kanonikGrupId(l.package.waGroupId);
+    if (!chatId) continue;
+
+    let t = per.get(chatId);
+    if (!t) {
+      t = {
+        packageId: l.packageId,
+        namaPaket: l.package.name,
+        chatId,
+        kabupaten: kab ? (l.waGroup?.regency ?? null) : null,
+        belum: [],
+        sudah: 0,
+      };
+      per.set(chatId, t);
     }
-    hasil.push({
-      packageId: p.id,
-      namaPaket: p.name,
-      waGroupId: p.waGroupId,
-      belum,
-      sudah,
-    });
+
+    const laporan = l.dailyReports[0];
+    if (sudahLapor(laporan?.status)) t.sudah += 1;
+    else t.belum.push({ locationId: l.id, nama: l.name, adaDraft: !!laporan });
   }
-  return hasil;
+  return [...per.values()];
 }
