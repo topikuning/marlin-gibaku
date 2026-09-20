@@ -73,6 +73,12 @@ export type HasilPindahLokasi = {
   /** Baris ber-paket yang ikut dipindah (dokumen, milestone, surat, Drive). */
   barisIkut: number;
   /**
+   * Lokasi ini tadinya terpasang ke grup WA kabupaten paket ASAL, dan
+   * tautannya dilepas (DECISIONS 596). Disebut supaya yang memindahkan tahu
+   * lokasi itu kini mengikuti grup paket barunya.
+   */
+  grupKabupatenDilepas: boolean;
+  /**
    * Dokumen yang ikut pindah TAPI masih menunjuk kontrak/adendum paket LAMA.
    * Disebut, bukan dibetulkan diam-diam: berkasnya memang milik kontrak itu.
    */
@@ -110,6 +116,7 @@ export async function pindahkanLokasi(
       name: true,
       slug: true,
       packageId: true,
+      waGroupRefId: true,
       package: { select: { id: true, name: true, orgId: true, stage: true, contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
     },
   });
@@ -240,6 +247,7 @@ export async function pindahkanLokasi(
     },
   });
 
+  let grupKabupatenDilepas = false;
   const hasil = await db.$transaction(async (tx) => {
     let barisIkut = 0;
     for (const pindah of [
@@ -252,7 +260,24 @@ export async function pindahkanLokasi(
       barisIkut += (await pindah()).count;
     }
 
-    await tx.location.update({ where: { id: lokasi.id }, data: { packageId: tujuan.id } });
+    /*
+     * GRUP KABUPATEN PAKET ASAL DILEPAS (DECISIONS 596).
+     *
+     * Grup kabupaten milik satu paket, ditegakkan FK komposit
+     * (wa_group_ref_id, package_id). Tanpa pelepasan ini, pembaruan di bawah
+     * GAGAL dengan galat Postgres mentah di tengah transaksi, dan yang membaca
+     * layar cuma melihat "terjadi kesalahan".
+     *
+     * Dilepas, bukan dipindahkan: lokasi yang berpindah paket tidak lagi punya
+     * hak atas grup paket asal. Ia kembali mengikuti grup paket barunya, dan
+     * itu DISEBUT di hasil supaya yang memindahkan tidak menemukannya sendiri
+     * lewat pengingat yang tiba-tiba berhenti datang.
+     */
+    grupKabupatenDilepas = lokasi.waGroupRefId !== null;
+    await tx.location.update({
+      where: { id: lokasi.id },
+      data: { packageId: tujuan.id, waGroupRefId: null },
+    });
 
     /*
      * Rentang tanggal rencana mingguan dihitung ulang ke GRID PAKET BARU.
@@ -363,6 +388,7 @@ export async function pindahkanLokasi(
     baseline,
     snapshotDibangunUlang,
     barisIkut: hasil.barisIkut,
+    grupKabupatenDilepas,
     dokumenMenunjukKontrakLama,
   };
 }

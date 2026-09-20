@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 596 | 2026-09-20 | Grup WA per kabupaten, terkurung DI DALAM paket (FK komposit); grup paket tetap jadi bawaan |
 | 595 | 2026-09-20 | Tempel deret dari Excel di editor %-mingguan (paste handler, bukan grid – tempel-rentang AG Grid itu Enterprise) |
 | 594 | 2026-09-20 | State editor klien mati bersama versi baseline-nya (key), supaya angka & kurva ikut berubah tanpa reload browser |
 | 593 | 2026-09-19 | Popover dijangkar ke pemicunya (pembungkus menyusut), dan minggu yang DIBACA orang tidak di-clamp – "22/22" vs "ke-23" di satu layar |

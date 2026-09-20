@@ -2514,6 +2514,12 @@ export async function pindahkanLokasiAction(
     hasil.baseline === "dilewati" ? "kurva-S rencana TIDAK bisa dikonversi – periksa jadwalnya" : null,
     hasil.snapshotDibangunUlang > 0 ? `${hasil.snapshotDibangunUlang} blanko harian final dibangun ulang` : null,
     hasil.barisIkut > 0 ? `${hasil.barisIkut} dokumen/agenda ikut pindah` : null,
+    // Grup kabupaten milik paket ASAL, jadi tautannya dilepas. Kalau ini tidak
+    // disebut, hilangnya pengingat WA baru ketahuan berhari-hari kemudian –
+    // dan tidak seorang pun menghubungkannya dengan pemindahan ini.
+    hasil.grupKabupatenDilepas
+      ? "tautan grup WhatsApp kabupaten dilepas – lokasi ini kini mengikuti grup paket tujuan"
+      : null,
   ].filter(Boolean);
 
   const catatanDokumen =
