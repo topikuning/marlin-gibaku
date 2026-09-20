@@ -283,6 +283,13 @@ export type CategoryScheduleView = {
 };
 
 export type CategoryScheduleData = {
+  /**
+   * Identitas jadwal yang sedang ditampilkan — dipakai halaman progress sebagai
+   * `key` editor klien. Tanpanya, editor yang state-nya disemai dari `rows`
+   * bertahan dengan angka lama ketika baseline aktif diganti versi baru
+   * (DECISIONS 594).
+   */
+  baselineKey: string;
   totalWeeks: number;
   /** "tersimpan" = dari jadwal baseline aktif; "otomatis" = derivasi trade windows. */
   origin: "tersimpan" | "otomatis";
@@ -325,6 +332,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
   const active = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
     select: {
+      id: true,
       rabRevisionId: true,
       scheduleItems: { select: { lineageKey: true, weekly: true } },
     },
@@ -348,6 +356,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
       rows.some((w) => w!.some((v) => v > 0));
     if (usable) {
       return {
+        baselineKey: active.id,
         totalWeeks,
         origin: "tersimpan",
         rows: base.categories.map((c) => {
@@ -374,6 +383,9 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
   const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
 
   return {
+    // Jalur otomatis tidak bersandar pada baseline tersimpan, jadi identitasnya
+    // revisi RAB + panjang minggu: keduanya yang menentukan bentuk jadwalnya.
+    baselineKey: `auto:${base.revisionId}:${totalWeeks}`,
     totalWeeks,
     origin: "otomatis",
     rows: base.categories.map((c) => {
