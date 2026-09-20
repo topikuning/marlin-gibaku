@@ -298,8 +298,8 @@ describe("kegagalan kirim", () => {
     gagalKirim = true;
     const rusak = await kirimLaporanMingguan(packageId, { now: saat });
     expect(rusak.ok).toBe(false);
-    const log = await db.weeklyWaLog.findUnique({
-      where: { packageId_weekNumber: { packageId, weekNumber: minggu } },
+    const log = await db.weeklyWaLog.findFirst({
+      where: { packageId, weekNumber: minggu },
       select: { status: true },
     });
     expect(log?.status).toBe("gagal");
@@ -326,8 +326,8 @@ describe("jejak kirim", () => {
     // Laporan resmi ke pemberi kerja harus bisa dibuktikan isinya bulan depan.
     // Menyusunnya ulang dari angka hari ini akan menghasilkan teks yang
     // berbeda — angka hari ini sudah bergerak.
-    const log = await db.weeklyWaLog.findUnique({
-      where: { packageId_weekNumber: { packageId, weekNumber: 1 } },
+    const log = await db.weeklyWaLog.findFirst({
+      where: { packageId, weekNumber: 1 },
       select: { body: true, chatId: true, waMessageId: true, locations: true },
     });
     expect(log?.body).toContain("Minggu Ke : 1");
@@ -409,8 +409,8 @@ describe("memilih minggu yang dilaporkan (DECISIONS 357)", () => {
     expect(hasil.ok, hasil.ok ? "" : hasil.alasan).toBe(true);
     if (!hasil.ok) return;
     expect(hasil.mingguKe).toBe(4);
-    const baris = await db.weeklyWaLog.findUnique({
-      where: { packageId_weekNumber: { packageId, weekNumber: 4 } },
+    const baris = await db.weeklyWaLog.findFirst({
+      where: { packageId, weekNumber: 4 },
       select: { weekNumber: true, body: true },
     });
     expect(baris?.weekNumber).toBe(4);

@@ -176,3 +176,60 @@ export async function kelompokkanPerGrup(
   }
   return [...per.values()];
 }
+
+/**
+ * Semua GRUP yang perlu dikirimi penjadwal berkala, untuk paket `pelaksanaan`.
+ *
+ * Dipakai penagih tenggat (kendala & temuan) yang dulu berputar per PAKET.
+ * Dengan grup kabupaten, satu paket bisa punya beberapa tujuan dan masing-
+ * masing hanya berhak atas lokasinya sendiri — grup Jepara tidak boleh
+ * menerima daftar kendala Demak.
+ *
+ * Paket tanpa grup apa pun tidak muncul di sini; itu bukan kegagalan yang
+ * perlu dicatat tiap hari, ia memang belum disiapkan.
+ */
+export async function grupPaketPelaksanaan(): Promise<
+  {
+    packageId: string;
+    namaPaket: string;
+    chatId: string;
+    kabupaten: string | null;
+    lokasiIds: string[];
+  }[]
+> {
+  const paket = await db.package.findMany({
+    where: { stage: "pelaksanaan" },
+    select: {
+      id: true,
+      name: true,
+      waGroupId: true,
+      locations: {
+        select: { id: true, waGroup: { select: { waGroupId: true, regency: true } } },
+      },
+    },
+  });
+
+  const hasil: {
+    packageId: string;
+    namaPaket: string;
+    chatId: string;
+    kabupaten: string | null;
+    lokasiIds: string[];
+  }[] = [];
+
+  for (const p of paket) {
+    const per = new Map<string, { kabupaten: string | null; lokasiIds: string[] }>();
+    for (const l of p.locations) {
+      const kab = kanonikGrupId(l.waGroup?.waGroupId);
+      const chatId = kab ?? kanonikGrupId(p.waGroupId);
+      if (!chatId) continue;
+      const ada = per.get(chatId);
+      if (ada) ada.lokasiIds.push(l.id);
+      else per.set(chatId, { kabupaten: kab ? (l.waGroup?.regency ?? null) : null, lokasiIds: [l.id] });
+    }
+    for (const [chatId, v] of per) {
+      hasil.push({ packageId: p.id, namaPaket: p.name, chatId, ...v });
+    }
+  }
+  return hasil;
+}

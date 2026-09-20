@@ -2952,12 +2952,20 @@ model GroupReminderJob {
   waMessageId String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju (…@g.us).
   chatId      String?   @map("chat_id")
+  /// Grup TUJUAN giliran ini, ditetapkan saat diantre (DECISIONS 596).
+  ///
+  /// Berbeda dari `chatId` di atas, yang baru terisi SESUDAH terkirim. Kunci
+  /// anti-duplikatnya memakai kolom ini, bukan `package_id`: satu paket bisa
+  /// punya beberapa grup kabupaten, dan kunci berbasis paket akan meloloskan
+  /// grup pertama lalu MEMBLOKIR sisanya — grup kedua tidak pernah menerima
+  /// apa pun, tanpa galat dan tanpa baris gagal.
+  targetChatId String   @map("target_chat_id")
   lastError   String?   @map("last_error")
   sentAt      DateTime? @map("sent_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  @@unique([packageId, dateKey])
+  @@unique([dateKey, targetChatId])
   @@index([status, sendAfter])
   @@map("wa_group_reminders")
 }
@@ -2988,6 +2996,11 @@ model WeeklyWaLog {
   waMessageId String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju saat mengirim (…@g.us).
   chatId      String?   @map("chat_id")
+  /// Grup TUJUAN baris ini (DECISIONS 596). Kunci anti-duplikatnya memakai
+  /// kolom ini, bukan `package_id`: paket dengan dua grup kabupaten berhak
+  /// atas dua kiriman per minggu, dan kunci berbasis paket akan menganggap
+  /// kiriman kedua sebagai pengulangan lalu MENOLAKNYA diam-diam.
+  targetChatId String   @map("target_chat_id")
   /// true = ditekan orang lewat tombol, false = dikirim penjadwal.
   manual      Boolean   @default(false)
   /// Teks yang dikirim, apa adanya. Laporan resmi ke pemberi kerja harus bisa
@@ -2999,7 +3012,8 @@ model WeeklyWaLog {
   lastSentAt  DateTime? @map("last_sent_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  @@unique([packageId, weekNumber])
+  @@unique([weekNumber, targetChatId])
+  @@index([packageId, weekNumber])
   @@index([createdAt])
   @@map("weekly_wa_logs")
 }
