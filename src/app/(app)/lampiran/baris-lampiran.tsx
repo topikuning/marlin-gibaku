@@ -5,6 +5,7 @@ import { useAksi } from "@/lib/aksi-klien";
 import { useState } from "react";
 import { Badge, Button, Combobox, Input, Label, type BadgeTone } from "@/components/ui";
 import { FileText, Paperclip, Sparkles } from "lucide-react";
+import { ID_BORANG_PEMBERSIH } from "./pembersih-massal";
 import {
   lampiranJadiSuratAction,
   tetapkanLampiranAction,
@@ -59,19 +60,42 @@ export function BarisLampiran(p: BarisLampiranProps) {
     lampiranJadiSuratAction,
     undefined,
   );
+  /**
+   * Aksi mana yang TERAKHIR dijalankan di baris ini.
+   *
+   * Bentuk lama `tetapkanState ?? aiState ?? suratState` selalu memenangkan
+   * "tetapkan" begitu ia pernah menghasilkan sesuatu — sesudah itu hasil "minta
+   * usul AI" tidak pernah terlihat lagi meski aksinya berjalan. Cacatnya
+   * sebentuk dengan yang dilaporkan user (aksi jalan, layar diam), hanya lebih
+   * jarang terpicu (DECISIONS 598).
+   */
+  const [terakhir, setTerakhir] = useState<"tetapkan" | "ai" | "surat" | null>(null);
   const [formSurat, setFormSurat] = useState(false);
   const [butuhJawaban, setButuhJawaban] = useState(false);
 
-  const pesan = tetapkanState ?? aiState ?? suratState;
+  /*
+   * Pesan yang DITAMPILKAN harus milik aksi yang TERAKHIR dijalankan.
+   *
+   * Bentuk lama `tetapkanState ?? aiState ?? suratState` selalu memenangkan
+   * "tetapkan" begitu ia pernah menghasilkan sesuatu — sesudah itu, hasil
+   * "minta usul AI" tidak pernah terlihat lagi meski aksinya berjalan. Itu
+   * cacat yang sama bentuknya dengan yang dilaporkan user (aksi jalan, layar
+   * diam), hanya lebih jarang terpicu.
+   */
+  const pesan = terakhir === "ai" ? aiState : terakhir === "surat" ? suratState : terakhir === "tetapkan" ? tetapkanState : undefined;
 
   return (
     <li className="rounded-md border border-border bg-surface p-3">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
         {p.bisaDipilih ? (
-          // Kotaknya milik borang pembersih massal di sekeliling daftar; baris
-          // ini tidak perlu tahu apa pun soal aksinya.
+          // Kotaknya milik borang pembersih massal, yang kini BERSEBELAHAN
+          // dengan daftar — bukan membungkusnya (DECISIONS 598). `form="id"`
+          // adalah cara HTML mengikat input ke borang tanpa menyarangkan apa
+          // pun; tanpa itu, borang aksi tiap baris berada di dalam borang lain
+          // dan hidrasinya gagal diam-diam.
           <input
             type="checkbox"
+            form={ID_BORANG_PEMBERSIH}
             name="attachmentId"
             value={p.id}
             aria-label={`Pilih ${p.fileName ?? "berkas tanpa nama"}`}
@@ -140,7 +164,7 @@ export function BarisLampiran(p: BarisLampiranProps) {
       {/* Aksi hanya untuk berkas yang benar-benar tertangkap. */}
       {!p.gagal ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <form action={aiAction}>
+          <form action={aiAction} onSubmit={() => setTerakhir("ai")}>
             <input type="hidden" name="attachmentId" value={p.id} />
             <Button type="submit" size="sm" variant="ghost" disabled={aiPending} loading={aiPending}>
               <Sparkles aria-hidden className="size-3.5" />
@@ -150,7 +174,11 @@ export function BarisLampiran(p: BarisLampiranProps) {
           <Button size="sm" variant="secondary" onClick={() => setFormSurat((v) => !v)}>
             {formSurat ? "Batal catat surat" : "Catat sebagai surat"}
           </Button>
-          <form action={tetapkanAction} className="flex gap-1.5">
+          <form
+            action={tetapkanAction}
+            onSubmit={() => setTerakhir("tetapkan")}
+            className="flex gap-1.5"
+          >
             <input type="hidden" name="attachmentId" value={p.id} />
             <Button
               type="submit"
@@ -177,7 +205,11 @@ export function BarisLampiran(p: BarisLampiranProps) {
       ) : null}
 
       {formSurat ? (
-        <form action={suratAction} className="mt-3 space-y-2 rounded-md border border-border bg-surface-muted p-3">
+        <form
+          action={suratAction}
+          onSubmit={() => setTerakhir("surat")}
+          className="mt-3 space-y-2 rounded-md border border-border bg-surface-muted p-3"
+        >
           <input type="hidden" name="attachmentId" value={p.id} />
           <div className="grid gap-2 sm:grid-cols-2">
             <div>

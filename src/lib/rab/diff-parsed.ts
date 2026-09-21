@@ -376,3 +376,94 @@ export function bandingkanTerhadapAktif(
     jumlahTetap,
   };
 }
+
+/* ── Perbandingan KANAN-KIRI per item (DECISIONS 599) ───────────────────── */
+
+export type StatusBanding = "tetap" | "berubah" | "baru" | "hilang";
+
+export type BandingItem = {
+  lineageKey: string;
+  code: string;
+  /** Rantai induk, mis. "I · I.1" — supaya item dikenali tanpa membuka berkas. */
+  jalur: string;
+  name: string;
+  /** Nilai pada RAB aktif (kontrak). `null` = item ini belum ada di kontrak. */
+  kontrak: bigint | null;
+  /** Nilai pada berkas yang dipratinjau. `null` = item ini hilang dari berkas. */
+  adendum: bigint | null;
+  /** adendum − kontrak, dengan sisi yang kosong dihitung 0. */
+  selisih: bigint;
+  status: StatusBanding;
+};
+
+/**
+ * Satu tabel yang bisa dibaca BERDAMPINGAN: item · jumlah kontrak · jumlah
+ * draft adendum.
+ *
+ * **Permintaan user 2026-09-21**: *"saat impor adendum harusnya kamu memunculkan
+ * perbandingan kanan kiri -> Item | jumlah kontrak | jumlah draft adendum. ini
+ * akan mudah untuk mengecek perubahannya."*
+ *
+ * Berbeda dari `bandingkanTerhadapAktif`, yang memilah perubahan menurut
+ * JENISNYA (volume, harga, item baru, item hilang). Pemilahan itu menjawab
+ * "apa yang berubah"; yang ini menjawab "berapa di kiri, berapa di kanan" —
+ * cara orang benar-benar memeriksa adendum, dengan mata turun satu kolom.
+ *
+ * Item yang TIDAK berubah ikut keluar. Ini tabel banding, bukan daftar beda:
+ * daftar yang hanya memuat yang berubah tidak bisa dipakai memastikan bahwa
+ * yang lain memang tidak tersentuh.
+ *
+ * **`null` bukan `0n`.** Nol berarti "ada, bernilai nol"; kosong berarti "tidak
+ * ada di sisi itu". Menyamakan keduanya membuat item baru terbaca sebagai item
+ * yang nilainya dinolkan — dua keadaan yang tindak lanjutnya berbeda sama
+ * sekali (DECISIONS 216).
+ */
+export function bandingkanPerItem(aktif: NodeAktif[], baru: FlatNode[]): BandingItem[] {
+  const itemAktif = new Map(aktif.filter((n) => n.kind === "item").map((n) => [n.lineageKey, n]));
+  const itemBaru = baru.filter((n) => n.kind === "item");
+  const kunciBaru = new Set(itemBaru.map((n) => n.lineageKey));
+
+  // Jalur dihitung dari POHON UTUH kedua sisi — kategori dan sub bukan item,
+  // jadi menyaring item lebih dulu akan memutus rantai induknya.
+  const jalurBaru = petaJalur(baru);
+  const jalurAktif = petaJalur(aktif);
+  const jalurDari = (key: string, kode: string) => jalurBaru.get(key) ?? jalurAktif.get(key) ?? kode;
+
+  const hasil: BandingItem[] = [];
+
+  // Urutan BERKAS lebih dulu: RAB dibaca sebagai dokumen, bukan sebagai indeks.
+  for (const n of itemBaru) {
+    const lama = itemAktif.get(n.lineageKey);
+    const kontrak = lama ? lama.amount : null;
+    const selisih = n.amount - (kontrak ?? 0n);
+    hasil.push({
+      lineageKey: n.lineageKey,
+      code: n.code,
+      jalur: jalurDari(n.lineageKey, n.code),
+      name: n.name,
+      kontrak,
+      adendum: n.amount,
+      selisih,
+      status: !lama ? "baru" : selisih === 0n ? "tetap" : "berubah",
+    });
+  }
+
+  // Yang HILANG menyusul di ujung, bukan dibuang: item yang lenyap dari berkas
+  // adalah temuan paling berat pada adendum, dan sering berarti user lupa —
+  // bukan keputusan (DECISIONS 216).
+  for (const l of aktif) {
+    if (l.kind !== "item" || kunciBaru.has(l.lineageKey)) continue;
+    hasil.push({
+      lineageKey: l.lineageKey,
+      code: l.code,
+      jalur: jalurDari(l.lineageKey, l.code),
+      name: l.name,
+      kontrak: l.amount,
+      adendum: null,
+      selisih: -l.amount,
+      status: "hilang",
+    });
+  }
+
+  return hasil;
+}

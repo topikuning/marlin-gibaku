@@ -22,6 +22,7 @@ import {
   type ProfilKurvaState,
 } from "./actions";
 import { PanelBeda } from "./panel-beda";
+import { TabelBanding } from "./tabel-banding";
 
 /**
  * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
@@ -260,6 +261,7 @@ export function ImportForm({
           />
 
           {preview.beda ? <PanelBeda beda={preview.beda} /> : null}
+          {preview.banding ? <TabelBanding baris={preview.banding} /> : null}
           <PanelPadanan
             padanan={preview.padanan}
             pilihan={padanan}
@@ -327,22 +329,31 @@ export function ImportForm({
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                   <th className="py-1.5 pr-3">Kode</th>
-                  <th className="py-1.5 pr-3">Kategori</th>
+                  <th className="py-1.5 pr-3">Kategori &amp; sub-kategori</th>
+                  <th className="py-1.5 pr-3 text-right">Item</th>
                   <th className="py-1.5 text-right">Total</th>
                 </tr>
               </thead>
+              {/* Sub-kategori ikut tampil dan DITAKIK (DECISIONS 599). Satu
+                  baris kategori bernilai miliaran cukup untuk memastikan grand
+                  total cocok, tidak cukup untuk melihat pekerjaan mana yang
+                  bergeser. Kategori dicetak tebal supaya jenjangnya terbaca
+                  tanpa garis bantu. */}
               <tbody className="divide-y divide-border">
                 {preview.categories.map((c) => (
-                  <tr key={c.code}>
-                    <td className="py-1.5 pr-3 text-ink-muted">{c.code}</td>
+                  <tr key={`${c.level}-${c.code}`} className={c.level === 0 ? "font-medium" : ""}>
+                    <td className="py-1.5 pr-3 text-ink-muted">
+                      <span style={{ paddingLeft: c.level * 14 }}>{c.code}</span>
+                    </td>
                     <td className="py-1.5 pr-3">{c.name}</td>
+                    <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{c.jumlahItem}</td>
                     <td className="tabular py-1.5 text-right">{formatRupiah(Number(c.total))}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t border-border">
-                  <td colSpan={2} className="py-1.5 pr-3 text-right font-semibold">
+                  <td colSpan={3} className="py-1.5 pr-3 text-right font-semibold">
                     Grand total (pra-PPN)
                   </td>
                   <td className="tabular py-1.5 text-right font-semibold">

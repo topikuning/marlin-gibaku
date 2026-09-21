@@ -20,7 +20,8 @@ import {
 import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
-import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
+import { bandingkanPerItem, bandingkanTerhadapAktif, type BandingItem, type RingkasBeda } from "@/lib/rab/diff-parsed";
+import { pohonRingkas } from "@/lib/rab/pohon-ringkas";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
@@ -55,10 +56,42 @@ export type ImportPreview = {
   priceColumnLabel: string;
   priceSource: "nego" | "penawaran" | "hps";
   warnings: string[];
-  categories: { code: string; name: string; total: string }[];
+  /**
+   * Kategori DAN sub-kategorinya, urut berkas (DECISIONS 599).
+   *
+   * Permintaan user 2026-09-21: *"bukan hanya kategori harusnya munculkan juga
+   * sub kategorinya, berapa jumlahnya."* Satu baris kategori bernilai miliaran
+   * cukup untuk memastikan grand total cocok, tidak cukup untuk melihat
+   * pekerjaan mana yang bergeser.
+   */
+  categories: {
+    kind: "kategori" | "sub";
+    code: string;
+    name: string;
+    total: string;
+    jumlahItem: number;
+    level: number;
+  }[];
   mode: ImportMode;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
+  /**
+   * ITEM | JUMLAH KONTRAK | JUMLAH DRAFT ADENDUM, berdampingan (DECISIONS 599).
+   *
+   * Permintaan user 2026-09-21. Berbeda dari `beda` di bawah, yang memilah
+   * perubahan menurut JENISNYA: yang ini satu tabel yang dibaca dengan mata
+   * turun satu kolom — cara orang benar-benar memeriksa adendum. `null` hanya
+   * saat lokasi belum punya revisi aktif (tidak ada sisi kiri untuk diadu).
+   */
+  banding: {
+    code: string;
+    jalur: string;
+    name: string;
+    kontrak: string | null;
+    adendum: string | null;
+    selisih: string;
+    status: "tetap" | "berubah" | "baru" | "hilang";
+  }[] | null;
   /** Perbandingan terhadap RAB aktif — apa yang akan berubah, sebelum disimpan. */
   beda: {
     totalAktif: string;
@@ -584,6 +617,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     // Perbandingan terhadap RAB aktif — supaya "apa yang berubah" terlihat
     // SEBELUM ada yang ditulis, bukan sesudah (DECISIONS 209).
     let beda: RingkasBeda | null = null;
+    let banding: BandingItem[] | null = null;
     if (activeRevision) {
       // Rantai induk ikut dikirim: tanpanya pratinjau hanya bisa menyebut
       // "2.d" – nomor yang berulang di banyak kategori (keluhan user
@@ -602,6 +636,22 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         })),
         nodes,
         await cumulativeVolumeByLineage(location.id),
+      );
+
+      // Tabel banding memakai simpul aktif yang SAMA — dua daftar yang disusun
+      // terpisah akan menyimpang, dan yang dibandingkan orang justru angkanya.
+      banding = bandingkanPerItem(
+        aktifNodes.map((n) => ({
+          lineageKey: n.lineageKey,
+          parentLineageKey: n.parentId ? (kunciById.get(n.parentId) ?? null) : null,
+          kind: n.kind,
+          code: n.code,
+          name: n.name,
+          volume: n.volume == null ? null : Number(n.volume),
+          unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
+          amount: n.amount,
+        })),
+        nodes,
       );
 
       // Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum
@@ -681,10 +731,26 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       priceColumnLabel: priceColumn.label,
       priceSource: priceColumn.source,
       warnings,
-      categories: nodes
-        .filter((n) => n.kind === "kategori")
-        .map((n) => ({ code: n.code, name: n.name, total: n.amount.toString() })),
+      categories: pohonRingkas(nodes).map((b) => ({
+        kind: b.kind,
+        code: b.code,
+        name: b.name,
+        total: b.total.toString(),
+        jumlahItem: b.jumlahItem,
+        level: b.level,
+      })),
       mode,
+      banding: banding
+        ? banding.map((b) => ({
+            code: b.code,
+            jalur: b.jalur,
+            name: b.name,
+            kontrak: b.kontrak == null ? null : b.kontrak.toString(),
+            adendum: b.adendum == null ? null : b.adendum.toString(),
+            selisih: b.selisih.toString(),
+            status: b.status,
+          }))
+        : null,
       draftAda: draft ? { revisionNo: draft.revisionNo, totalValue: draft.totalValue.toString() } : null,
       beda: beda
         ? {

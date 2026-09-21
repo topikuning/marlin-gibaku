@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 599 | 2026-09-21 | Pratinjau RAB menampilkan sub-kategori (rupiah + cacah item); impor adendum diadu kanan-kiri per item |
+| 598 | 2026-09-21 | `<form>` bersarang mematikan tombol tanpa galat – borang massal jadi bersebelahan + `form="id"`; dijaga pemindai |
 | 597 | 2026-09-20 | Grup WA kabupaten tuntas: kunci penjadwal pindah ke grup, jalur masuk menyempit, layar pemasangan per kabupaten |
 | 596 | 2026-09-20 | Grup WA per kabupaten, terkurung DI DALAM paket (FK komposit); grup paket tetap jadi bawaan |
 | 595 | 2026-09-20 | Tempel deret dari Excel di editor %-mingguan (paste handler, bukan grid – tempel-rentang AG Grid itu Enterprise) |
