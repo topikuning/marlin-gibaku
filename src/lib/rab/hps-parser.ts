@@ -190,6 +190,33 @@ function labelsOf(row: ExcelJS.Row): string[] {
 const BLOCK_RE = /HPS|PENAWAR|NEGO/;
 
 /**
+ * Kolom yang DISEMBUNYIKAN di Excel — tidak boleh dipakai untuk apa pun.
+ *
+ * **Teguran user 2026-09-21**: *"import rab/adendum, kenapa kamu baca dari
+ * kolom yang di hide. TOLOL!"* … *"aku bilang kalau di-hide jangan digunakan."*
+ *
+ * Aturannya memang sudah ada, hanya belum berlaku untuk KOLOM: sheet
+ * tersembunyi disaring `namaSheetXlsx`, baris tersembunyi diabaikan sejak
+ * permintaan user 2026-09-09. Blok harga yang disembunyikan penyusunnya adalah
+ * blok yang SENGAJA tidak dipakai — sisa tawar-menawar, draft, hitungan lama.
+ * Membacanya berarti NILAI KONTRAK diambil dari angka yang justru dibuang
+ * orangnya.
+ *
+ * `width === 0` ikut dihitung: sebagian berkas menyembunyikan kolom dengan
+ * menyeret lebarnya ke nol, bukan lewat menu Hide. Bagi yang melihat layar
+ * keduanya sama saja — cadangan defensif yang sama dipakai untuk baris
+ * (`row.hidden === true || row.height === 0`).
+ */
+export function kolomTersembunyi(ws: ExcelJS.Worksheet): Set<number> {
+  const keluar = new Set<number>();
+  for (let c = 1; c <= NC; c++) {
+    const kol = ws.getColumn(c);
+    if (kol?.hidden === true || kol?.width === 0) keluar.add(c);
+  }
+  return keluar;
+}
+
+/**
  * Deteksi kolom nilai. RAB/HPS/Lampiran-Negosiasi KKP TIDAK seragam — sedikitnya
  * empat bentuk header nyata ditemukan di korpus:
  *
@@ -221,8 +248,15 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   col: ColMap;
   usedNego: boolean;
   priceSource: PriceSource;
+  /** Nama blok harga yang DILEWATI karena kolomnya disembunyikan. */
+  blokTersembunyi: string[];
 } {
   const classic: ColMap = { vol: 5, unit: 6, price: 7, amount: 8, tkdn: 9 };
+  /* Kolom tersembunyi DICORET dari seluruh pemilihan peran, bukan cuma dari
+     kolom harga: blok yang disembunyikan juga membawa VOL dan SAT-nya sendiri,
+     dan mengambil volume dari blok yang dibuang sama salahnya. */
+  const sembunyi = kolomTersembunyi(ws);
+  const terlihat = (c: number) => !sembunyi.has(c);
 
   // Baris header UTAMA = punya VOL & SAT (satuan) sebagai sel terpisah. Ini menghindari
   // salah-deteksi baris rekap "JUMLAH" (kolom B) sbg header.
@@ -236,7 +270,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
       break;
     }
   }
-  if (!mainRow) return { col: classic, usedNego: false, priceSource: "hps" };
+  if (!mainRow) return { col: classic, usedNego: false, priceSource: "hps", blokTersembunyi: [] };
 
   const head = labelsOf(mainRow);
   const below = labelsOf(ws.getRow(mainRow.number + 1));
@@ -246,7 +280,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   const sub = hasSub ? below : [];
 
   const findFirst = (pred: (c: number) => boolean): number | null => {
-    for (let c = 1; c <= NC; c++) if (pred(c)) return c;
+    for (let c = 1; c <= NC; c++) if (terlihat(c) && pred(c)) return c;
     return null;
   };
   /** Label peran kolom = header utama + sub-header (blok tak ikut, itu urusan blockAt). */
@@ -298,8 +332,20 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   if (blockRow) {
     // Label blok utk kolom c = label blok non-kosong terdekat di KIRI (sel merge
     // hanya mengisi sel pertama). Kolom sebelum blok pertama → "".
+    /*
+     * Label blok utk kolom c = label blok non-kosong terdekat di KIRI (sel
+     * merge hanya mengisi sel pertama), DENGAN kolom tersembunyi sebagai batas.
+     *
+     * Batas itu wajib: pada berkas Kedungrejo blok "PENAWARAN" (K–N)
+     * disembunyikan dan blok berikutnya "MC-0" (O–P) terlihat. Tanpa batas,
+     * kolom O menelusur ke kiri, melewati seluruh blok tersembunyi, dan
+     * memungut label "PENAWARAN" — jadi kolom yang terlihat dilaporkan sebagai
+     * blok yang justru disembunyikan. Blok tersembunyi memisahkan, bukan
+     * mewariskan namanya.
+     */
     const blockAt = (c: number): string => {
       for (let k = c; k >= 1; k--) {
+        if (sembunyi.has(k)) return "";
         const l = blockRow![k];
         if (l && BLOCK_RE.test(l)) return l;
       }
@@ -307,7 +353,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
     };
     const pick = (re: RegExp): { price: number; amount: number } | null => {
       const cols: number[] = [];
-      for (let c = 1; c <= NC; c++) if (re.test(blockAt(c))) cols.push(c);
+      for (let c = 1; c <= NC; c++) if (terlihat(c) && re.test(blockAt(c))) cols.push(c);
       if (cols.length === 0) return null;
       const p = cols.find((c) => c !== unit && isPriceCol(c)) ?? cols[0];
       const a = cols.find((c) => c > p && isTotalCol(c)) ?? p + 1;
@@ -339,10 +385,26 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
     priceSource = "hps";
   }
 
+  /*
+   * Blok harga bernama yang DILEWATI karena kolomnya disembunyikan — dikumpulkan
+   * supaya pratinjau bisa MENGATAKANNYA. Melewati blok diam-diam berarti user
+   * melihat angka dari kolom lain tanpa tahu ada blok lain yang dibuang.
+   */
+  const blokTersembunyi: string[] = [];
+  if (blockRow) {
+    for (let c = 1; c <= NC; c++) {
+      const l = blockRow[c];
+      if (l && BLOCK_RE.test(l) && sembunyi.has(c) && !blokTersembunyi.includes(l)) {
+        blokTersembunyi.push(l);
+      }
+    }
+  }
+
   return {
     col: { vol, unit, price, amount: amount ?? price + 1, tkdn },
     usedNego: priceSource !== "hps",
     priceSource,
+    blokTersembunyi,
   };
 }
 
@@ -644,9 +706,25 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * HASIL di satu berkas dan KEADAAN AWAL di berkas lain.
    */
   const peta = deteksiCco(ws);
-  const { col, priceSource } = peta
-    ? { col: peta.col, priceSource: "hps" as const }
+  const { col, priceSource, blokTersembunyi } = peta
+    ? { col: peta.col, priceSource: "hps" as const, blokTersembunyi: [] as string[] }
     : detectColumns(ws);
+
+  /*
+   * BLOK HARGA TERSEMBUNYI DIKATAKAN, tidak didiamkan (teguran user
+   * 2026-09-21). Kalau blok yang namanya paling "berhak" jadi nilai kontrak
+   * justru disembunyikan, user harus tahu bahwa angkanya datang dari kolom
+   * lain — kalau tidak, ia membaca angka yang benar dengan alasan yang keliru.
+   */
+  if (blokTersembunyi.length > 0) {
+    warnings.push(
+      `${blokTersembunyi.length} blok harga DISEMBUNYIKAN di Excel dan tidak dipakai: ` +
+        `${blokTersembunyi.join(", ")}. Kolom yang disembunyikan penyusunnya diperlakukan sama dengan ` +
+        `baris yang disembunyikan – tidak ikut dibaca. Nilai diambil dari kolom ` +
+        `${colLetter(col.price)}/${colLetter(col.amount)} yang TERLIHAT. ` +
+        `Kalau blok tersembunyi itu memang yang seharusnya dipakai, tampilkan dulu kolomnya di Excel lalu impor ulang.`,
+    );
+  }
   const priceColumn = peta
     ? {
         source: "hps" as const,
