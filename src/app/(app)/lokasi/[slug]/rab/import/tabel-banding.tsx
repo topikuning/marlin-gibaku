@@ -71,7 +71,7 @@ export function TabelBanding({ baris }: { baris: Baris[] }) {
             </thead>
             <tbody className="divide-y divide-border">
               {tampil.map((b) => (
-                <tr key={`${b.jalur}-${b.code}-${b.name}`}>
+                <tr key={b.lineageKey}>
                   <td className="px-2 py-1.5">
                     <span className="text-ink">{b.name}</span>
                     <span className="block text-[11px] text-ink-faint">{b.jalur}</span>

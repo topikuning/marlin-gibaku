@@ -21,7 +21,7 @@ import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanPerItem, bandingkanTerhadapAktif, type BandingItem, type RingkasBeda } from "@/lib/rab/diff-parsed";
-import { pohonRingkas } from "@/lib/rab/pohon-ringkas";
+import { pohonRingkas, pohonRingkasBanding, type SimpulBanding } from "@/lib/rab/pohon-ringkas";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
@@ -66,12 +66,30 @@ export type ImportPreview = {
    */
   categories: {
     kind: "kategori" | "sub";
+    /** Identitas unik baris — kode kategori/sub berulang antar cabang. */
+    lineageKey: string;
     code: string;
     name: string;
-    total: string;
+    /** Nilai di berkas yang diimpor. `null` = kategori ini HILANG dari berkas. */
+    total: string | null;
     jumlahItem: number;
     level: number;
+    /**
+     * Nilai KONTRAK untuk kategori/sub yang sama, dan selisihnya.
+     *
+     * Permintaan user 2026-09-21: *"yang kuminta ada perbandingan itu di bagian
+     * ini, kenapa ini malah tidak ada!"* Pembandingnya dibawa di baris yang sama
+     * supaya mata turun satu kolom, bukan pindah blok. `null` di `kontrak`
+     * berarti kategori ini belum ada di kontrak; `null` di `total` berarti ia
+     * hilang dari berkas yang diimpor. Seluruh kolom ini kosong kalau lokasinya
+     * memang belum punya RAB aktif — tidak ada sisi kiri untuk diadu.
+     */
+    kontrak: string | null;
+    selisih: string | null;
+    status: "tetap" | "berubah" | "baru" | "hilang" | null;
   }[];
+  /** Tab Excel yang benar-benar dibaca — pemilihannya tebakan berperingkat. */
+  sheetName: string;
   mode: ImportMode;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
@@ -84,6 +102,8 @@ export type ImportPreview = {
    * saat lokasi belum punya revisi aktif (tidak ada sisi kiri untuk diadu).
    */
   banding: {
+    /** Identitas unik baris — kode item hanya unik di dalam induknya. */
+    lineageKey: string;
     code: string;
     jalur: string;
     name: string;
@@ -97,9 +117,14 @@ export type ImportPreview = {
     totalAktif: string;
     totalBaru: string;
     jumlahTetap: number;
-    itemBaru: { code: string; jalur: string; name: string }[];
-    itemHilang: { code: string; jalur: string; name: string; realisasi: number }[];
-    volumeBerubah: { code: string; jalur: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
+    /* `lineageKey` ikut dibawa BUKAN untuk ditampilkan, melainkan sebagai kunci
+       React: kunci lama disusun dari `code + name`, dan kode item hanya unik di
+       dalam induknya ("1" ada di setiap sub-kategori). Kunci kembar membuat
+       React boleh menghilangkan baris – daftar periksa yang diam-diam kehilangan
+       isi. */
+    itemBaru: { lineageKey: string; code: string; jalur: string; name: string }[];
+    itemHilang: { lineageKey: string; code: string; jalur: string; name: string; realisasi: number }[];
+    volumeBerubah: { lineageKey: string; code: string; jalur: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
     /** Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). */
     hargaBerubah: {
       lineageKey: string;
@@ -276,7 +301,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return parsed.success ? parsed.data : [];
     })();
     let templateAdendum:
-      | (Awaited<ReturnType<typeof bacaTemplateAdendum>> & { wb: import("exceljs").Workbook })
+      | (Awaited<ReturnType<typeof bacaTemplateAdendum>> & { wb: import("exceljs").Workbook; sheet: string })
       | null = null;
     /*
      * Deteksi template berjalan di KEDUA mode.
@@ -317,7 +342,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         // Sudah pasti template: galatnya BUKAN "coba jalur lain", melainkan
         // kesalahan pengisian yang harus disebut apa adanya ke user.
         try {
-          templateAdendum = { ...(await bacaTemplateAdendum(probe)), wb: probe };
+          templateAdendum = { ...(await bacaTemplateAdendum(probe)), wb: probe, sheet: ADENDUM_TEMPLATE_SHEET };
         } catch (e) {
           if (e instanceof AdendumTemplateError) return { error: e.message };
           throw e;
@@ -329,13 +354,16 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     let warnings: string[];
     let priceColumn;
     let nodes: import("@/lib/rab/flatten").FlatNode[];
+    /* Tab yang BENAR-BENAR dibaca — permintaan user 2026-09-21. */
+    let sheetName: string;
     if (templateAdendum) {
       warnings = [...templateAdendum.warnings];
       priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
       nodes = templateAdendum.nodes;
+      sheetName = templateAdendum.sheet;
     } else {
       try {
-        ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
+        ({ parsed, warnings, priceColumn, sheetName } = await parseHpsBuffer(buffer));
       } catch (e) {
         return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
       }
@@ -468,6 +496,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       volume: unknown;
       unitPrice: unknown;
       amount: bigint;
+      sortOrder: number;
     }[] = [];
     let padananDipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[] = [];
     let padananDitolak: { lineageBaru: string; lineageLama: string; sebab: string }[] = [];
@@ -486,6 +515,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           volume: true,
           unitPrice: true,
           amount: true,
+          sortOrder: true,
         },
       });
       const keyById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
@@ -715,6 +745,33 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         ]
       : [];
 
+    /*
+     * Ringkasan berjenjang untuk layar — DIADU dengan kontrak kalau ada
+     * pembandingnya (permintaan user 2026-09-21). Tanpa RAB aktif, kolom
+     * pembanding sengaja `null` di tiap baris, BUKAN nol: belum ada kontrak
+     * untuk dibandingkan, dan layar harus bisa mengatakannya.
+     */
+    const kunciAktifById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
+    const ringkasKategori: (SimpulBanding | (ReturnType<typeof pohonRingkas>[number] & {
+      kontrak: null;
+      adendum: bigint;
+      selisih: bigint;
+      status: null;
+    }))[] = activeRevision
+      ? pohonRingkasBanding(
+          aktifNodes.map((n) => ({
+            kind: n.kind,
+            code: n.code,
+            name: n.name,
+            amount: n.amount,
+            lineageKey: n.lineageKey,
+            parentLineageKey: n.parentId ? (kunciAktifById.get(n.parentId) ?? null) : null,
+            sortOrder: n.sortOrder,
+          })),
+          nodes,
+        )
+      : pohonRingkas(nodes).map((b) => ({ ...b, kontrak: null, adendum: b.total, selisih: 0n, status: null }));
+
     const preview: ImportPreview = {
       padanan: {
         lama: padananLama,
@@ -731,17 +788,31 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       priceColumnLabel: priceColumn.label,
       priceSource: priceColumn.source,
       warnings,
-      categories: pohonRingkas(nodes).map((b) => ({
+      /*
+       * Ringkasan berjenjang, DIADU dengan kontrak kalau ada pembandingnya.
+       *
+       * Permintaan user 2026-09-21: *"yang kuminta ada perbandingan itu di
+       * bagian ini, kenapa ini malah tidak ada!"* Tabel banding per ITEM sudah
+       * ada sejak DECISIONS 599, tetapi ia blok lain; yang dibaca lebih dulu
+       * saat memeriksa adendum adalah ringkasan kategori ini.
+       */
+      categories: ringkasKategori.map((b) => ({
         kind: b.kind,
+        lineageKey: b.lineageKey,
         code: b.code,
         name: b.name,
-        total: b.total.toString(),
+        total: b.adendum == null ? null : b.adendum.toString(),
         jumlahItem: b.jumlahItem,
         level: b.level,
+        kontrak: b.kontrak == null ? null : b.kontrak.toString(),
+        selisih: b.status == null ? null : b.selisih.toString(),
+        status: b.status,
       })),
+      sheetName,
       mode,
       banding: banding
         ? banding.map((b) => ({
+            lineageKey: b.lineageKey,
             code: b.code,
             jalur: b.jalur,
             name: b.name,
@@ -757,9 +828,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             totalAktif: beda.totalAktif.toString(),
             totalBaru: beda.totalBaru.toString(),
             jumlahTetap: beda.jumlahTetap,
-            itemBaru: beda.itemBaru.map((b) => ({ code: b.code, jalur: b.jalur, name: b.name })),
-            itemHilang: beda.itemHilang.map((b) => ({ code: b.code, jalur: b.jalur, name: b.name, realisasi: b.realisasi })),
+            itemBaru: beda.itemBaru.map((b) => ({ lineageKey: b.lineageKey, code: b.code, jalur: b.jalur, name: b.name })),
+            itemHilang: beda.itemHilang.map((b) => ({ lineageKey: b.lineageKey, code: b.code, jalur: b.jalur, name: b.name, realisasi: b.realisasi })),
             volumeBerubah: beda.volumeBerubah.map((b) => ({
+              lineageKey: b.lineageKey,
               code: b.code,
               jalur: b.jalur,
               name: b.name,

@@ -23,6 +23,7 @@ import {
 } from "./actions";
 import { PanelBeda } from "./panel-beda";
 import { TabelBanding } from "./tabel-banding";
+import { TabelKategori } from "./tabel-kategori";
 
 /**
  * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
@@ -166,7 +167,7 @@ export function ImportForm({
           required
           maxBytes={15 * 1024 * 1024}
           onPilih={onPilih}
-          petunjuk={'Sheet "RAB" dibaca otomatis. Maksimal 15 MB.'}
+          petunjuk={'Sheet RAB dicari otomatis – BQ/BOQ/MC-0/Lampiran ikut dicoba, dan sheet yang benar-benar dipakai disebut di pratinjau. Maksimal 15 MB.'}
         />
       </div>
 
@@ -286,9 +287,14 @@ export function ImportForm({
             {/* Sumber harga WAJIB terlihat sebelum commit — lampiran negosiasi memuat
                 tiga blok harga (HPS/penawaran/negosiasi) dan salah blok = nilai
                 kontrak salah puluhan sampai ratusan juta. */}
+            {/* SHEET disebut bersama kolomnya (permintaan user 2026-09-21).
+                Pemilihan sheet adalah tebakan berperingkat atas maksimal delapan
+                kandidat ("RAB", "BQ", "MC-0", "Lampiran", …): berkas dengan dua
+                tab berisi bisa terbaca dari tab yang salah, dan tanpa kalimat
+                ini tidak ada satu pun cara di layar untuk menyadarinya. */}
             <p className="mt-1 text-ink-muted">
-              Harga dibaca dari kolom{" "}
-              <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>
+              Dibaca dari sheet <span className="font-semibold text-ink">{preview.sheetName}</span>,
+              kolom harga <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>
               {preview.priceSource === "hps"
                 ? " – file tidak punya kolom penawaran/negosiasi."
                 : " – bukan pagu HPS."}
@@ -324,45 +330,11 @@ export function ImportForm({
             />
           ) : null}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                  <th className="py-1.5 pr-3">Kode</th>
-                  <th className="py-1.5 pr-3">Kategori &amp; sub-kategori</th>
-                  <th className="py-1.5 pr-3 text-right">Item</th>
-                  <th className="py-1.5 text-right">Total</th>
-                </tr>
-              </thead>
-              {/* Sub-kategori ikut tampil dan DITAKIK (DECISIONS 599). Satu
-                  baris kategori bernilai miliaran cukup untuk memastikan grand
-                  total cocok, tidak cukup untuk melihat pekerjaan mana yang
-                  bergeser. Kategori dicetak tebal supaya jenjangnya terbaca
-                  tanpa garis bantu. */}
-              <tbody className="divide-y divide-border">
-                {preview.categories.map((c) => (
-                  <tr key={`${c.level}-${c.code}`} className={c.level === 0 ? "font-medium" : ""}>
-                    <td className="py-1.5 pr-3 text-ink-muted">
-                      <span style={{ paddingLeft: c.level * 14 }}>{c.code}</span>
-                    </td>
-                    <td className="py-1.5 pr-3">{c.name}</td>
-                    <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{c.jumlahItem}</td>
-                    <td className="tabular py-1.5 text-right">{formatRupiah(Number(c.total))}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-border">
-                  <td colSpan={3} className="py-1.5 pr-3 text-right font-semibold">
-                    Grand total (pra-PPN)
-                  </td>
-                  <td className="tabular py-1.5 text-right font-semibold">
-                    {formatRupiah(Number(preview.grandTotal))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <TabelKategori
+            baris={preview.categories}
+            grandTotal={preview.grandTotal}
+            totalKontrak={preview.beda?.totalAktif ?? null}
+          />
 
           {preview.warnings.some((w) => !w.startsWith("PERHATIAN")) ? (
             <Banner

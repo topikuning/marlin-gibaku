@@ -501,6 +501,17 @@ export type ParseHpsResult = {
   parsed: ParsedRab;
   warnings: string[];
   priceColumn: PriceColumnInfo;
+  /**
+   * Nama tab yang BENAR-BENAR dibaca.
+   *
+   * **Permintaan user 2026-09-21**: *"informasi ambil dari sheet mana dan kolom
+   * mana harga diambil juga penting disampaikan"*. Kolomnya sudah disebut sejak
+   * lama; sheetnya tidak pernah — padahal pemilihannya tebakan berperingkat atas
+   * maksimal delapan kandidat ("RAB", "BQ", "MC-0", "Lampiran", …). Berkas yang
+   * punya dua tab berisi karena itu bisa terbaca dari tab yang salah tanpa satu
+   * pun kalimat di layar yang memungkinkan orang menyadarinya.
+   */
+  sheetName: string;
 };
 
 /**
@@ -1335,5 +1346,5 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     categories,
   };
 
-  return { parsed, warnings, priceColumn };
+  return { parsed, warnings, priceColumn, sheetName: ws.name };
 }

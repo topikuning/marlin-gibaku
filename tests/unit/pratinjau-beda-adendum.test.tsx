@@ -68,10 +68,11 @@ describe("pratinjau beda impor RAB", () => {
   it("item baru, volume berubah, dan item hilang punya rinciannya sendiri – bukan cuma angka", () => {
     const html = render(
       beda({
-        itemBaru: [{ code: "9", jalur: "IV · 9", name: "Pekerjaan Tambahan" }],
-        itemHilang: [{ code: "4", jalur: "III · 4", name: "Pekerjaan Dihapus", realisasi: 0 }],
+        itemBaru: [{ lineageKey: "IV.9", code: "9", jalur: "IV · 9", name: "Pekerjaan Tambahan" }],
+        itemHilang: [{ lineageKey: "III.4", code: "4", jalur: "III · 4", name: "Pekerjaan Dihapus", realisasi: 0 }],
         volumeBerubah: [
           {
+            lineageKey: "II.2",
             code: "2",
             jalur: "II · 2",
             name: "Galian Tanah",
@@ -98,7 +99,7 @@ describe("pratinjau beda impor RAB", () => {
     const html = render(
       beda({
         volumeBerubah: [
-          { code: "2.d", jalur: "II · 2.d", name: "Pekerjaan beton", dari: 7.84, ke: 9.8, realisasi: 0, dibawahRealisasi: false },
+          { lineageKey: "II.2.d", code: "2.d", jalur: "II · 2.d", name: "Pekerjaan beton", dari: 7.84, ke: 9.8, realisasi: 0, dibawahRealisasi: false },
         ],
       }),
     );
@@ -109,7 +110,7 @@ describe("pratinjau beda impor RAB", () => {
     const html = render(
       beda({
         volumeBerubah: [
-          { code: "2", jalur: "II · 2", name: "Galian Tanah", dari: 100, ke: 10, realisasi: 40, dibawahRealisasi: true },
+          { lineageKey: "II.2", code: "2", jalur: "II · 2", name: "Galian Tanah", dari: 100, ke: 10, realisasi: 40, dibawahRealisasi: true },
         ],
       }),
     );
