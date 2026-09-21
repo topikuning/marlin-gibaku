@@ -328,9 +328,14 @@ export default async function RabPage({
                   </ButtonLink>
                   {/* Riwayat input item – permintaan user 2026-09-21
                       (DECISIONS 602). Ditaruh di sini karena yang dicari orang
-                      adalah ITEM, dan item tinggalnya di layar RAB. */}
-                  <ButtonLink href={`/lokasi/${slug}/rab/riwayat`} variant="ghost" size="sm">
-                    <History aria-hidden className="size-3.5" />
+                      adalah ITEM, dan item tinggalnya di layar RAB.
+
+                      `secondary` + ikon `size-4` MENGIKUTI tetangganya, bukan
+                      pilihan sendiri: `ghost` tidak berbingkai dan berwarna
+                      `text-ink-muted`, jadi di antara tombol berbingkai ia
+                      terbaca MATI. DECISIONS 603. */}
+                  <ButtonLink href={`/lokasi/${slug}/rab/riwayat`} variant="secondary" size="sm">
+                    <History aria-hidden className="size-4" />
                     Riwayat input item
                   </ButtonLink>
                   <ButtonLink href={`/lokasi/${slug}/rab/import`} variant="primary" size="sm">

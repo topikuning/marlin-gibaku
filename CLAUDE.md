@@ -182,6 +182,10 @@ src/
   sebagai bukti GPS); jam yang tak diketahui → tulis tanggal saja. Ingat kolom
   tanggal kerja `@db.Date` = tengah malam UTC = **07:00 WIB** kalau diformat
   lengkap — itu bukan data. DECISIONS 197.
+- **Apa pun yang DI-HIDE di Excel tidak pernah dibaca** — sheet, baris, DAN
+  kolom (DECISIONS 604). Yang disembunyikan penyusunnya adalah yang sengaja
+  tidak dipakai. Lebar/tinggi 0 dihitung sama dengan hidden. Yang dilewati
+  WAJIB disebut di pratinjau, bukan didiamkan.
 - **Angka yang DIUNGGAH user dipakai apa adanya**, tidak diskalakan/dibetulkan
   diam-diam ke versi sistem. Kalau invarian memaksa penyesuaian (kurva-S wajib
   tuntas 100%), penyesuaiannya harus seragam DAN dikatakan di UI; selisih yang
@@ -194,6 +198,13 @@ src/
 - **Tanda pisah di teks UI = en-dash `–`, BUKAN em-dash `—`** (DECISIONS 385).
   Berlaku untuk semua teks yang dilihat orang: layar, balasan WhatsApp, PDF,
   Excel. Komentar kode bebas. Dijaga `tests/unit/tanda-pisah-ui.test.ts`.
+- **Tombol dalam SATU baris aksi harus seragam — variant DAN ukuran ikon
+  disalin dari tetangganya, bukan dipilih sendiri** (DECISIONS 592/603). Satu
+  aksi utama boleh `primary`; sisanya `secondary`. `ghost` HANYA untuk aksi
+  bawahan di tepi baris (Batal, ← Kembali), tidak pernah untuk aksi setara:
+  ia tanpa bingkai dan ber-`text-ink-muted`, jadi di antara tombol berbingkai
+  ia terbaca MATI. Baris aksi WAJIB dilihat hasil render-nya, bukan dibaca
+  kodenya.
 - **SEMUA dropdown form → `Combobox`** (bisa diketik-cari), TIDAK PERNAH
   `<select>` native — DECISIONS 094/115/174, dijaga lint. Satu-satunya
   pengecualian: primitive `ui/field.tsx` & halaman `app/cetak/`.

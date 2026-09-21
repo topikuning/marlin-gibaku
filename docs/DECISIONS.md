@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 604 | 2026-09-21 | Kolom Excel yang di-hide tidak pernah dipakai (aturan baris berlaku juga untuk kolom); blok tersembunyi jadi batas + disebut di pratinjau |
+| 603 | 2026-09-21 | Tombol dalam satu baris aksi seragam: variant & ukuran ikon disalin dari tetangganya; `ghost` hanya untuk aksi bawahan |
 | 602 | 2026-09-21 | Riwayat input per item pekerjaan (tanggal kerja vs kapan diketik); angka realisasi di pratinjau adendum jadi tautan |
 | 601 | 2026-09-21 | Kolom Jumlah unduhan RAB jadi rumus `ROUND(vol×harga,0)` (membalik 212); selisih rekalkulasi disebut + dipilah sebabnya |
 
