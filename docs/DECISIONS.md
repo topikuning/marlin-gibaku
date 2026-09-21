@@ -68,11 +68,11 @@ urutannya dibuktikan sama.
 
 ### Menambah keputusan baru
 
-1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/501-600.md`),
+1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/601-700.md`),
    judulnya `## (baru) · Judul (YYYY-MM-DD)` — tetap **tanpa memilih nomor**.
 2. Pemeriksa terakhir memberi nomornya saat merge, lalu menambahkan **satu
    baris** ke tabel di bawah.
-3. Nomor melewati kelipatan seratus ⇒ arsip baru (`601-700.md`), dan bagian
+3. Nomor melewati kelipatan seratus ⇒ arsip baru (`701-800.md`), dan bagian
    barunya ditambahkan di indeks ini.
 
 Dijaga `tests/unit/decisions-nomor.test.ts`: nomor unik, urutannya tidak mundur,
@@ -83,6 +83,13 @@ hilang.
 ---
 
 ## Indeks keputusan (terbaru di atas)
+
+### [601-700](./decisions/601-700.md)
+
+| # | Tanggal | Keputusan |
+|---|---|---|
+| 602 | 2026-09-21 | Riwayat input per item pekerjaan (tanggal kerja vs kapan diketik); angka realisasi di pratinjau adendum jadi tautan |
+| 601 | 2026-09-21 | Kolom Jumlah unduhan RAB jadi rumus `ROUND(vol×harga,0)` (membalik 212); selisih rekalkulasi disebut + dipilah sebabnya |
 
 ### [501-600](./decisions/501-600.md)
 

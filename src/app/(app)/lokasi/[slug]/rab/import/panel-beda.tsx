@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { formatRupiah, formatRupiahSatuan } from "@/lib/format";
 import type { BedaPratinjau } from "./actions";
@@ -84,7 +85,7 @@ function Jalur({ x }: { x: { jalur?: string; code: string } }) {
   return <span className="font-medium text-ink">{x.jalur || x.code}</span>;
 }
 
-export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
+export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string }) {
   const selisih = Number(beda.totalBaru) - Number(beda.totalAktif);
   const berisiko = beda.itemHilang.filter((i) => i.realisasi > 0);
   const dibawah = beda.volumeBerubah.filter((v) => v.dibawahRealisasi);
@@ -272,13 +273,27 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <p className="font-medium text-danger">
             {dibawah.length} item volumenya turun DI BAWAH yang sudah dikerjakan
           </p>
+          {/*
+            "sudah dikerjakan 51,6" DARI MANA — permintaan user 2026-09-21:
+            *"bagaimana user tau kapan pekerjaan itu diinput? akan konyol kalau
+            harus cek hari per hari."* Angkanya sekarang jadi tautan ke riwayat
+            input item itu, jadi pemeriksaannya satu ketukan, bukan membuka
+            laporan hari per hari (DECISIONS 602).
+          */}
           <DaftarBeda
             items={dibawah}
             kelas="list-disc pl-4"
             kunci={(v) => v.lineageKey}
             baris={(v) => (
               <>
-                <Jalur x={v} /> {v.name} – {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
+                <Jalur x={v} /> {v.name} – {v.dari} → {v.ke}, sudah dikerjakan{" "}
+                <Link
+                  href={`/lokasi/${slug}/rab/riwayat?item=${encodeURIComponent(v.lineageKey)}`}
+                  className="font-medium text-primary underline decoration-dotted underline-offset-2"
+                  title="Lihat kapan saja pekerjaan ini diinput"
+                >
+                  {v.realisasi}
+                </Link>
               </>
             )}
           />

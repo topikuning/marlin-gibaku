@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Download, FilePen, Upload } from "lucide-react";
+import { Download, FilePen, History, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
 import { can, ROLE_LABEL } from "@/lib/authz";
@@ -325,6 +325,13 @@ export default async function RabPage({
                   <ButtonLink href={`/lokasi/${slug}/rab/adendum`} variant="secondary" size="sm">
                     <FilePen aria-hidden className="size-4" />
                     Adendum
+                  </ButtonLink>
+                  {/* Riwayat input item – permintaan user 2026-09-21
+                      (DECISIONS 602). Ditaruh di sini karena yang dicari orang
+                      adalah ITEM, dan item tinggalnya di layar RAB. */}
+                  <ButtonLink href={`/lokasi/${slug}/rab/riwayat`} variant="ghost" size="sm">
+                    <History aria-hidden className="size-3.5" />
+                    Riwayat input item
                   </ButtonLink>
                   <ButtonLink href={`/lokasi/${slug}/rab/import`} variant="primary" size="sm">
                     <Upload aria-hidden className="size-4" />

@@ -64,16 +64,16 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Resume", "Sub Resume", "Detail RAB"]);
   });
 
-  it("Detail: Jumlah item = angka tersimpan (bukan rumus), induk = penjumlahan sel anak", async () => {
+  it("Detail: Jumlah item = rumus vol×harga, induk = penjumlahan sel anak", async () => {
     const wb = await bangun();
     const det = wb.getWorksheet("Detail RAB")!;
     const rGalian = barisDengan(det, 2, "Galian tanah");
-    // DECISIONS 212: daun WAJIB angka mati. Rumus ROUND(vol×harga) akan
-    // menghitung ulang dari harga satuan yang sudah dibulatkan di dokumen
-    // sumber, jadi berkas unduhan bergeser dari kontrak begitu Excel
-    // merekalkulasi.
-    expect(rumus(det.getCell(rGalian, 6)).formula).toBeUndefined();
-    expect(det.getCell(rGalian, 6).value).toBe(25_000_000);
+    // Perintah user 2026-09-21 MEMBALIK DECISIONS 212: daun pun WAJIB berumus,
+    // karena berkas ini dipakai untuk memeriksa apakah Jumlah memang volume ×
+    // harga satuan. Selisih rekalkulasi tidak hilang – ia dikatakan di Resume
+    // (lihat tests/unit/rab-unduhan-jumlah-berumus.test.ts).
+    expect(rumus(det.getCell(rGalian, 6)).formula).toBe(`ROUND(C${rGalian}*E${rGalian},0)`);
+    expect(rumus(det.getCell(rGalian, 6)).result).toBe(25_000_000);
 
     const rKategori = barisDengan(det, 2, "PEKERJAAN GEDUNG");
     const kat = rumus(det.getCell(rKategori, 6));
@@ -124,7 +124,7 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(rumus(res.getCell(rBulat, 3)).formula).toBe(`ROUNDDOWN(C${rTotal},-3)`);
   });
 
-  it("harga satuan yang dibulatkan dokumen TIDAK menggeser angka saat Excel rekalkulasi", async () => {
+  it("harga satuan yang dibulatkan dokumen: rumus tetap dipasang, selisihnya DISEBUT", async () => {
     // Kasus nyata (RAB Wonorejo, unduhan 2 Agustus 2026): harga satuan di
     // dokumen sumber sudah dibulatkan 2 desimal dari analisa harga satuan, jadi
     // ROUND(vol×harga) ≠ Jumlah yang tertulis. Dulu 152 dari 1.227 baris meleset
@@ -143,12 +143,14 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     const det = wb.getWorksheet("Detail RAB")!;
 
     const rItem = barisDengan(det, 2, "Land clearing");
-    // Yang ditulis adalah angka dokumen, BUKAN hasil kali yang meleset Rp4.
-    expect(det.getCell(rItem, 6).value).toBe(41_074_131);
+    // Selnya berumus; cache-nya angka dokumen, jadi sebelum dibuka berkas dan
+    // layar menyebut angka yang sama. Selisih Rp4 saat rekalkulasi tidak
+    // disembunyikan — sheet Resume menyebutnya.
+    expect(rumus(det.getCell(rItem, 6)).formula).toBe(`ROUND(C${rItem}*E${rItem},0)`);
+    expect(rumus(det.getCell(rItem, 6)).result).toBe(41_074_131);
     expect(Math.round(4852.122 * 8465.19)).toBe(41_074_135); // pembuktian selisihnya nyata
 
-    // Induk tetap rumus, tapi rumusnya hanya menjumlah sel daun yang sudah
-    // angka mati — jadi rekalkulasi Excel mendarat di angka dokumen juga.
+    // Induk menjumlah sel daun.
     const rKat = barisDengan(det, 2, "PEKERJAAN PERSIAPAN");
     const kat = rumus(det.getCell(rKat, 6));
     expect(kat.formula).toBe(`F${rItem}`);

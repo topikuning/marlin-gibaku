@@ -27,6 +27,23 @@ const { ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
 const suffix = `ar${Date.now().toString(36)}`;
 let locationId: string;
 let reportId: string;
+/**
+ * Cacah arsip SEBELUM fixture ini menambah apa pun.
+ *
+ * `ringkasArsipAsli()` menghitung SELURUH tabel foto — memang begitu maunya,
+ * layar Sistem melaporkan keadaan seluruh sistem, bukan satu lokasi. Tapi itu
+ * membuat uji ini bergantung pada sisa berkas uji lain: `afterAll` di sini
+ * hanya menghapus foto lokasinya sendiri, sementara berkas lain (atau run
+ * sebelumnya yang mati di tengah) bisa meninggalkan foto yang ikut terhitung.
+ * Gejalanya `menunggu` terbaca 3 padahal fixture menaruh 2 — hijau kalau
+ * dijalankan sendirian, merah sesekali di suite penuh.
+ *
+ * Yang diuji tetap sama: bahwa fixture ini MENAMBAH 2 yang menunggu dan 2 yang
+ * sudah di arsip. Selisih itulah klaimnya, dan selisih tidak bisa dikotori sisa
+ * siapa pun. (Berkas dijalankan serial — `fileParallelism: false` — jadi tidak
+ * ada yang menyelip di antara dasar dan pengukurannya.)
+ */
+let awal: Awaited<ReturnType<typeof ringkasArsipAsli>>;
 
 /** Satu foto dengan keadaan arsip yang ditentukan. */
 async function foto(keadaan: {
@@ -73,6 +90,8 @@ beforeAll(async () => {
   });
   reportId = lap.id;
 
+  awal = await ringkasArsipAsli();
+
   // Tiga keadaan yang nyata, plus satu yang TIDAK boleh ikut terhitung.
   await foto({ bytes: 1_000_000 }); // menunggu
   await foto({ bytes: 2_000_000 }); // menunggu
@@ -81,7 +100,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.photo.deleteMany({ where: { locationId } });
+  // TRUNCATE, bukan hanya foto lokasi ini: sisa organisasi/paket/lokasi milik
+  // berkas ini tidak boleh menumpuk untuk berkas berikutnya, dan pola inilah
+  // yang dipakai berkas integrasi lain.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });
 
@@ -89,18 +111,18 @@ describe("ringkasan arsip menjawab 'berapa yang sudah di mesin arsip'", () => {
   it("menyebut angkanya sendiri, bukan menyuruh menjumlah dua kartu", async () => {
     const r = await ringkasArsipAsli();
     expect(r.sudahDiArsip, "angka 'sudah di mesin arsip' tidak ada").toBe(r.masaTenggang + r.terarsip);
-    expect(r.sudahDiArsip).toBe(2);
+    expect(r.sudahDiArsip - awal.sudahDiArsip).toBe(2);
   });
 
   it("byte yang sudah pindah ikut disebut – 'berapa' bukan cuma soal jumlah berkas", async () => {
     const r = await ringkasArsipAsli();
-    expect(r.bytesSudahDiArsip).toBe(12_000_000);
+    expect(r.bytesSudahDiArsip - awal.bytesSudahDiArsip).toBe(12_000_000);
   });
 
   it("yang masih mengantre TIDAK ikut terhitung sudah pindah", async () => {
     const r = await ringkasArsipAsli();
-    expect(r.menunggu).toBe(2);
-    expect(r.bytesMenunggu).toBe(3_000_000);
+    expect(r.menunggu - awal.menunggu).toBe(2);
+    expect(r.bytesMenunggu - awal.bytesMenunggu).toBe(3_000_000);
     expect(r.sudahDiArsip).not.toBe(r.menunggu + r.masaTenggang + r.terarsip);
   });
 });

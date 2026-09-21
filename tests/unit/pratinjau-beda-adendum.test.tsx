@@ -48,7 +48,7 @@ function beda(over: Partial<BedaPratinjau> = {}): BedaPratinjau {
   };
 }
 
-const render = (b: BedaPratinjau) => renderToStaticMarkup(<PanelBeda beda={b} />);
+const render = (b: BedaPratinjau) => renderToStaticMarkup(<PanelBeda beda={b} slug="lokasi-uji" />);
 
 describe("pratinjau beda impor RAB", () => {
   it("39 harga berubah: menyediakan jalan ke SELURUH daftar, bukan buntu '+31 lainnya'", () => {
@@ -104,6 +104,28 @@ describe("pratinjau beda impor RAB", () => {
       }),
     );
     expect(html).toContain("II · 2.d");
+  });
+
+  /*
+   * "sudah dikerjakan 51,6" DARI MANA — permintaan user 2026-09-21:
+   *
+   *   *"bagaimana user tau kapan pekerjaan itu diinput? akan konyol kalau harus
+   *   cek hari per hari. kamu seharusnya ada fitur cari item pekerjaan diinputnya
+   *   kapan saja"*
+   *
+   * Angka realisasinya harus MENAUTKAN ke riwayat input item itu. Menyediakan
+   * halaman riwayat tanpa menautkannya dari tempat pertanyaannya muncul berarti
+   * fiturnya ada tapi tidak ditemukan orang – sama saja dengan tidak ada.
+   */
+  it("angka 'sudah dikerjakan' menautkan ke riwayat input item itu", () => {
+    const html = render(
+      beda({
+        volumeBerubah: [
+          { lineageKey: "II#2.b", code: "2.b", jalur: "II · 2.b", name: "Pembesian", dari: 634.51, ke: 0, realisasi: 51.6, dibawahRealisasi: true },
+        ],
+      }),
+    );
+    expect(html).toContain("/lokasi/lokasi-uji/rab/riwayat?item=II%232.b");
   });
 
   it("volume yang turun di bawah realisasi tetap ditandai bahaya di daftar lengkapnya", () => {

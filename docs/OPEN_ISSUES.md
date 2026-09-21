@@ -15,6 +15,16 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Data
 
+- 🟡 **DATA-JUMLAH-NOL — item ber-`amount` 0 padahal volume dan harga satuannya
+  terisi.** Terukur pada RAB aktif 16 lokasi: 3–19 baris per lokasi, dan di
+  `purworejo` nilainya **Rp 22,95 juta** (19 baris). Sebabnya kolom JUMLAH di berkas
+  sumber kosong sementara kolom itu dipakai apa adanya (DECISIONS 212), jadi
+  pekerjaannya tercatat tanpa nilai: bobot item, kurva-S, dan seluruh persentase
+  progress menghitungnya nol. Sejak DECISIONS 601 unduhan RAB MENYEBUTKAN baris ini
+  di catatan sheet Resume, jadi tidak lagi tak terlihat — tetapi datanya sendiri
+  belum dibetulkan. FIX: putuskan (tanya user) apakah baris begini diisi
+  `volume × harga satuan` saat impor, atau ditolak dengan menyebut barisnya.
+
 - 🔴 **Kualitas data seed JSON (parser python lama)**: `total_value` kategori korup di
   seed-data/*.json — roman ganda berbagi nilai (IX/IX#2), kategori XI–XIII hilang
   (item tergabung ke kategori sebelumnya), beberapa kategori 0. Rebuild memakai basis

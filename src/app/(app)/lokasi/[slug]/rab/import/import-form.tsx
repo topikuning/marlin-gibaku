@@ -261,7 +261,7 @@ export function ImportForm({
             }
           />
 
-          {preview.beda ? <PanelBeda beda={preview.beda} /> : null}
+          {preview.beda ? <PanelBeda beda={preview.beda} slug={slug} /> : null}
           {preview.banding ? <TabelBanding baris={preview.banding} /> : null}
           <PanelPadanan
             padanan={preview.padanan}
