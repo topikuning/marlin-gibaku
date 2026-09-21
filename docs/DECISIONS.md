@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 602 | 2026-09-21 | Riwayat input per item pekerjaan (tanggal kerja vs kapan diketik); angka realisasi di pratinjau adendum jadi tautan |
 | 601 | 2026-09-21 | Kolom Jumlah unduhan RAB jadi rumus `ROUND(vol×harga,0)` (membalik 212); selisih rekalkulasi disebut + dipilah sebabnya |
 
 ### [501-600](./decisions/501-600.md)
