@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { ppnAmount, withPpn } from "@/lib/money";
+import { formatRupiah } from "@/lib/format";
 
 /**
  * EKSPOR RAB AKTIF → .xlsx 3 sheet SALING TERTAUT FORMULA (permintaan user
@@ -11,14 +12,20 @@ import { ppnAmount, withPpn } from "@/lib/money";
  *                     (semuanya rumus, bukan angka mati).
  *   2. "Sub Resume" — per kategori: rincian anak langsungnya, nilai =rumus ke
  *                     baris Detail RAB; subtotal = SUM blok.
- *   3. "Detail RAB" — pohon lengkap; Jumlah item = ANGKA TERSIMPAN (angka mati),
- *                     Jumlah induk = penjumlahan sel anak-anaknya.
+ *   3. "Detail RAB" — pohon lengkap; Jumlah item = RUMUS ROUND(Volume × Harga
+ *                     Satuan; 0), Jumlah induk = penjumlahan sel anak-anaknya.
  *
- * Rumus di sini hanya MENJUMLAHKAN sel yang sudah ada, tidak pernah menurunkan
- * angka baru dari volume × harga satuan (DECISIONS 212 — lihat alasannya di
- * baris item). Setiap sel rumus membawa `result` = angka tersimpan DB, dan
- * karena semua daunnya angka mati, hasil rekalkulasi Excel identik dengan
- * angka aplikasi — bukan hanya sebelum rekalkulasi.
+ * SELURUH kolom Jumlah berupa rumus, sampai ke daunnya — perintah user
+ * 2026-09-21: *"konyol kalau misal sedang cek2 lalu jumlahnya ternyata
+ * hardcode"*. Berkas ini dipakai untuk MEMERIKSA, dan yang pertama diperiksa
+ * adalah apakah Jumlah memang volume × harga satuan; kolom berisi angka mati
+ * tidak bisa diperiksa sama sekali.
+ *
+ * Setiap sel rumus tetap membawa `result` = angka tersimpan DB, jadi sebelum
+ * Excel merekalkulasi berkas dan layar menyebut angka yang sama. Bila
+ * rekalkulasinya mendarat berbeda (harga satuan dicatat 2 desimal, AHSP
+ * sumbernya lebih panjang), selisihnya DIKATAKAN di sheet Resume — bukan
+ * dihindari dengan menulis angka mati.
  */
 
 export type RabExportNode = {
@@ -159,6 +166,29 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   /** Baris Detail per node id — dipakai rumus antar-sheet. */
   const detRowOf = new Map<string, number>();
   let r = detHeaderRow;
+  /*
+   * Selisih rekalkulasi, DIPILAH MENURUT SEBABNYA.
+   *
+   * Nol pada hampir semua berkas. Bila tidak nol, itulah yang akan terlihat
+   * berbeda begitu Excel merekalkulasi — dan justru karena itu harus DIKATAKAN
+   * di berkasnya, bukan dihindari dengan menulis angka mati.
+   *
+   * Dipilah karena kedua sebabnya menuntut tindakan yang BERBEDA, dan catatan
+   * yang menyebut sebab yang salah lebih buruk daripada tidak ada catatan:
+   *
+   * - `nol`     — Jumlah tersimpan 0 padahal volume dan harga satuannya terisi.
+   *               Ini lubang di berkas SUMBER (kolom JUMLAH kosong, dipakai apa
+   *               adanya per DECISIONS 212); rupiahnya besar dan harus
+   *               diperiksa orang. Diukur di data nyata: 3–19 baris per lokasi,
+   *               sampai Rp 22,9 juta di satu lokasi.
+   * - `bulat`   — sisanya: harga satuan dicatat `Decimal(15,2)` sedangkan AHSP
+   *               sumbernya lebih panjang. Receh (Rp 2–10 ribu per lokasi) dan
+   *               memang tidak bisa dihilangkan dari sisi MARLIN.
+   */
+  let nolBaris = 0;
+  let nolRupiah = 0;
+  let bulatBaris = 0;
+  let bulatRupiah = 0;
 
   /**
    * Menulis satu baris + turunannya, dan mengembalikan SEL-SEL yang bila
@@ -183,21 +213,52 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
       det.getCell(row, 4).value = n.unit ?? "";
       det.getCell(row, 5).value = n.unitPrice ?? 0;
       det.getCell(row, 5).numFmt = RUPIAH_FMT;
-      // ANGKA MATI, bukan ROUND(volume×harga) — DECISIONS 212.
-      //
-      // Harga satuan di dokumen sumber sudah dibulatkan (2 desimal) dari analisa
-      // harga satuan yang presisinya lebih panjang, jadi ROUND(vol×harga) TIDAK
-      // sama dengan Jumlah yang tertulis di dokumen. Pada RAB Wonorejo: 152 dari
-      // 1.227 baris meleset Rp1–4, dan begitu Excel merekalkulasi seluruh pohon
-      // ikut bergeser sampai Rp3.697 di nilai pra-PPN — lalu PPN dan TOTAL
-      // dihitung di atas angka yang sudah melenceng.
-      //
-      // Nilai yang diunggah user dipakai apa adanya (DECISIONS 203): berkas
-      // unduhan harus SAMA PERSIS dengan layar dan dengan dokumen kontrak, juga
-      // sesudah Excel menghitung ulang. Baris induk tetap berumus karena
-      // subtotal tersimpan memang PERSIS Σ anak tersimpan (diverifikasi atas
-      // 218 baris agregat: nol selisih), jadi rumusnya tidak menggeser apa pun.
-      det.getCell(row, 6).value = Number(n.amount);
+      /*
+       * RUMUS `ROUND(volume × harga satuan, 0)` — perintah user 2026-09-21,
+       * MEMBALIK DECISIONS 212.
+       *
+       *   *"kenapa kolom jumlah kamu hardcode? padahal kan jelas kolom jumlah
+       *   harusnya perkalian harga satuan dan volume"* … *"yang pasti kan konyol
+       *   kalau misal sedang cek2 lalu jumlahnya ternyata hardcode"*
+       *
+       * Berkas ini dipakai orang untuk MEMERIKSA, dan yang pertama diperiksa
+       * justru apakah Jumlah memang volume × harga. Kolom berisi angka mati
+       * tidak bisa diperiksa sama sekali — ia hanya menyuruh percaya.
+       *
+       * Keberatan lama tetap benar dan tidak dibuang, cuma tidak lagi
+       * menentukan: harga satuan disimpan `Decimal(15,2)` sedangkan AHSP
+       * sumbernya lebih panjang, jadi sebagian baris meleset. Diukur pada RAB
+       * aktif 16 lokasi: di luar baris ber-Jumlah 0, selisihnya Rp 2–10 ribu
+       * per lokasi pada kontrak miliaran. Yang WAJIB adalah selisih itu
+       * dikatakan, bukan disembunyikan di balik angka mati — catatannya
+       * ditulis di sheet Resume (`catatanSelisih`) begitu ada.
+       *
+       * `result` tetap angka tersimpan: sebelum Excel merekalkulasi, berkas dan
+       * layar menyebut angka yang sama.
+       *
+       * Item TANPA volume/harga satuan tetap angka mati — tidak ada yang bisa
+       * dikalikan, dan `ROUND(0*0,0)` cuma mengarang perkalian yang tidak punya
+       * dasar di dokumen. Pada data nyata semuanya memang bernilai 0.
+       */
+      if (n.volume != null && n.unitPrice != null) {
+        det.getCell(row, 6).value = {
+          formula: `ROUND(C${row}*E${row},0)`,
+          result: Number(n.amount),
+        };
+        const hitung = Math.round(n.volume * n.unitPrice);
+        const beda = hitung - Number(n.amount);
+        if (beda !== 0) {
+          if (n.amount === 0n) {
+            nolBaris += 1;
+            nolRupiah += beda;
+          } else {
+            bulatBaris += 1;
+            bulatRupiah += beda;
+          }
+        }
+      } else {
+        det.getCell(row, 6).value = Number(n.amount);
+      }
       // Baris di bawah ITEM tetap ditulis — penelusuran ini dulu hanya ada di
       // cabang non-item, jadi item yang punya anak membuang anaknya dari
       // berkas: bukan salah jumlah, melainkan pekerjaan yang tidak disebut.
@@ -346,6 +407,47 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     formula: `ROUNDDOWN(C${rowTotal},-3)`,
     result: bulat,
   });
+
+  /*
+   * SELISIH REKALKULASI DIKATAKAN, TIDAK DISEMBUNYIKAN.
+   *
+   * Sejak kolom Jumlah berupa rumus (perintah user 2026-09-21), angka yang
+   * muncul begitu Excel menghitung ulang bisa berbeda dari nilai tersimpan:
+   * harga satuan disimpan 2 desimal, AHSP sumbernya lebih panjang. Selisihnya
+   * kecil (diukur: Rp 2–10 ribu per lokasi pada kontrak miliaran), tetapi
+   * selisih kecil yang tidak disebut adalah persis cara angka kontrak bergeser
+   * tanpa ada yang tahu.
+   *
+   * Hanya ditulis bila memang ada. Catatan yang selalu muncul akan berhenti
+   * dibaca, dan menakuti orang pada berkas yang sebenarnya bulat.
+   */
+  const selisihRekalkulasi = nolRupiah + bulatRupiah;
+  if (selisihRekalkulasi !== 0) {
+    q += 2;
+    const arah = selisihRekalkulasi > 0 ? "lebih tinggi" : "lebih rendah";
+    const sebab: string[] = [];
+    if (nolBaris > 0) {
+      sebab.push(
+        `${nolBaris} baris yang Jumlah-nya tercatat 0 di berkas sumber padahal volume dan harga satuannya terisi ` +
+          `(${formatRupiah(Math.abs(nolRupiah))}) – ini yang perlu diperiksa`,
+      );
+    }
+    if (bulatBaris > 0) {
+      sebab.push(
+        `${bulatBaris} baris selisih pembulatan (${formatRupiah(Math.abs(bulatRupiah))}), karena harga satuan dicatat ` +
+          `2 desimal sedangkan analisa harga satuan sumbernya lebih panjang`,
+      );
+    }
+    res.getCell(q, 1).value =
+      `Catatan: Jumlah tiap item di sheet "Detail RAB" berupa rumus Volume × Harga Satuan, dibulatkan ke rupiah. ` +
+      `Saat Excel menghitung ulang, JUMLAH pra-PPN menjadi ${formatRupiah(Math.abs(selisihRekalkulasi))} ${arah} ` +
+      `daripada nilai tersimpan ${formatRupiah(input.totalValue)}. Penyebabnya: ${sebab.join("; ")}. ` +
+      `Bukan perubahan lingkup pekerjaan.`;
+    res.getCell(q, 1).alignment = { wrapText: true, vertical: "top" };
+    res.getCell(q, 1).font = { size: 9, italic: true };
+    res.mergeCells(q, 1, q, 3);
+    res.getRow(q).height = 56;
+  }
 
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
