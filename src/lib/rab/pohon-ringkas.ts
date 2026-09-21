@@ -15,6 +15,17 @@
 
 export type SimpulRingkas = {
   kind: "kategori" | "sub";
+  /**
+   * Identitas baris yang benar-benar unik.
+   *
+   * Kode kategori/sub berulang antar cabang ("1" ada di setiap sub-kategori),
+   * jadi layar yang menyusun kunci React dari `code + name` akan memasang kunci
+   * kembar – dan React boleh MENGHILANGKAN atau MENGGANDAKAN baris yang
+   * kuncinya kembar. Pada tabel pemeriksaan adendum, baris yang hilang diam-diam
+   * adalah cacat yang paling mahal. `lineageKey` unik sejak `flatten`; ia cuma
+   * belum pernah dibawa sampai ke sini.
+   */
+  lineageKey: string;
   code: string;
   name: string;
   /** Nilai rupiah simpul ini, apa adanya dari pohon. */
@@ -72,10 +83,72 @@ export function pohonRingkas(nodes: Simpul[]): SimpulRingkas[] {
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((n) => ({
       kind: n.kind,
+      lineageKey: n.lineageKey,
       code: n.code,
       name: n.name,
       total: n.amount,
       jumlahItem: cacahItem(n.lineageKey),
       level: n.kind === "kategori" ? 0 : 1,
     }));
+}
+
+export type SimpulBanding = SimpulRingkas & {
+  /** Nilai di RAB AKTIF. `null` = kategori/sub ini belum ada di kontrak. */
+  kontrak: bigint | null;
+  /** Nilai di berkas yang diimpor. `null` = hilang dari berkas itu. */
+  adendum: bigint | null;
+  selisih: bigint;
+  status: "tetap" | "berubah" | "baru" | "hilang";
+};
+
+/**
+ * Ringkasan berjenjang yang DIADU: nilai kontrak di kiri, nilai berkas baru di
+ * kanan, per kategori dan sub-kategori.
+ *
+ * **Permintaan user 2026-09-21**: *"yang kuminta ada perbandingan itu di bagian
+ * ini, kenapa ini malah tidak ada!"* – sambil menunjuk tabel kategori di
+ * pratinjau impor. Tabel banding per ITEM sudah ada, tetapi ia blok lain; yang
+ * dibaca orang lebih dulu saat memeriksa adendum adalah ringkasan kategori ini,
+ * dan di situ hanya ada angka berkas baru. Ringkasan tanpa pembanding cuma bisa
+ * menjawab "berapa totalnya", bukan "apa yang bergeser".
+ *
+ * Kosong ≠ nol: kategori yang belum ada di kontrak bernilai `null` di sisi
+ * kiri, bukan `0n`. Menyamakan keduanya membuat pekerjaan tambah terbaca sebagai
+ * pekerjaan yang dinolkan – dua keadaan yang tindak lanjutnya berbeda.
+ *
+ * Urutan mengikuti BERKAS BARU (begitulah dokumennya dibaca); kategori yang ada
+ * di kontrak tapi hilang dari berkas menyusul di akhir, supaya tidak satu pun
+ * kehilangan lewat tanpa baris.
+ */
+export function pohonRingkasBanding(aktif: Simpul[], baru: Simpul[]): SimpulBanding[] {
+  const kiri = new Map(pohonRingkas(aktif).map((b) => [b.lineageKey, b]));
+  const kanan = pohonRingkas(baru);
+  const terpakai = new Set<string>();
+
+  const hasil: SimpulBanding[] = kanan.map((b) => {
+    const lama = kiri.get(b.lineageKey);
+    if (lama) terpakai.add(b.lineageKey);
+    const kontrak = lama ? lama.total : null;
+    const selisih = b.total - (kontrak ?? 0n);
+    return {
+      ...b,
+      kontrak,
+      adendum: b.total,
+      selisih,
+      status: kontrak === null ? "baru" : selisih === 0n ? "tetap" : "berubah",
+    };
+  });
+
+  for (const [key, lama] of kiri) {
+    if (terpakai.has(key)) continue;
+    hasil.push({
+      ...lama,
+      kontrak: lama.total,
+      adendum: null,
+      selisih: -lama.total,
+      status: "hilang",
+    });
+  }
+
+  return hasil;
 }

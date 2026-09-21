@@ -114,7 +114,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <p className="font-medium text-ink">{beda.volumeBerubah.length} item volumenya berubah</p>
           <DaftarBeda
             items={beda.volumeBerubah}
-            kunci={(v) => v.code + v.name}
+            kunci={(v) => v.lineageKey}
             baris={(v) => (
               <>
                 <Jalur x={v} /> {v.name} – <span className="tabular">{v.dari ?? "–"}</span> →{" "}
@@ -134,7 +134,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <p className="font-medium text-ink">{beda.itemBaru.length} item baru</p>
           <DaftarBeda
             items={beda.itemBaru}
-            kunci={(i) => i.code + i.name}
+            kunci={(i) => i.lineageKey}
             baris={(i) => (
               <>
                 <Jalur x={i} /> {i.name}
@@ -149,7 +149,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <p className="font-medium text-ink">{beda.itemHilang.length} item kontrak tidak ada di file ini</p>
           <DaftarBeda
             items={beda.itemHilang}
-            kunci={(i) => i.code + i.name}
+            kunci={(i) => i.lineageKey}
             baris={(i) => (
               <>
                 <Jalur x={i} /> {i.name}
@@ -257,7 +257,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <DaftarBeda
             items={berisiko}
             kelas="list-disc pl-4"
-            kunci={(i) => i.code + i.name}
+            kunci={(i) => i.lineageKey}
             baris={(i) => (
               <>
                 <Jalur x={i} /> {i.name} – realisasi {i.realisasi}
@@ -275,7 +275,7 @@ export function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <DaftarBeda
             items={dibawah}
             kelas="list-disc pl-4"
-            kunci={(v) => v.code + v.name}
+            kunci={(v) => v.lineageKey}
             baris={(v) => (
               <>
                 <Jalur x={v} /> {v.name} – {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}

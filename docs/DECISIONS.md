@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 600 | 2026-09-21 | Pembanding kontrak pindah ke tabel kategori pratinjau impor; sheet sumber disebut; kunci baris jadi `lineageKey` |
 | 599 | 2026-09-21 | Pratinjau RAB menampilkan sub-kategori (rupiah + cacah item); impor adendum diadu kanan-kiri per item |
 | 598 | 2026-09-21 | `<form>` bersarang mematikan tombol tanpa galat – borang massal jadi bersebelahan + `form="id"`; dijaga pemindai |
 | 597 | 2026-09-20 | Grup WA kabupaten tuntas: kunci penjadwal pindah ke grup, jalur masuk menyempit, layar pemasangan per kabupaten |
