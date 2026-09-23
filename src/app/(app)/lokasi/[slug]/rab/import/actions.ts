@@ -424,6 +424,51 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
     if (nodes.length === 0) return { error: "Tidak ada baris RAB terbaca. Cek sheet 'RAB'." };
+
+    /*
+     * VOLUME / JUMLAH NEGATIF DITOLAK DI SINI — BUKAN OLEH POSTGRES.
+     *
+     * Dilaporkan user 2026-09-23 untuk berkas `MC 1 BETAH WALANG`: impor
+     * adendum dijawab layar *"Gagal mengirim – server menolak permintaan ini"*
+     * dan, di konsol, *"An unexpected response was received from the server"*.
+     * Tidak ada satu pun kalimat yang menyebut apa yang salah dengan berkasnya.
+     *
+     * Penyebabnya SATU baris: item `1.4 "Pekerjaan Bekesting Pasangan Batako"`
+     * bervolume −42 (jumlah −7.511.351), karena berkas itu menulis
+     * pekerjaan-kurang sebagai blok KURANG ber-angka minus. Saat ditulis, ia
+     * melanggar `rab_nodes_amounts_nonneg_ck`; galat mentah Postgres itu lolos
+     * dari server action, dan yang sampai ke user adalah kalimat kerangka Next,
+     * bukan kalimat MARLIN.
+     *
+     * Aturannya sendiri sudah ada dan sudah dipakai di jalur template adendum
+     * (lihat `bacaTemplateAdendum` di atas): volume tidak bisa negatif,
+     * pekerjaan-kurang dinyatakan dengan MENURUNKAN volume. Yang hilang cuma
+     * penerapannya di jalur parser HPS. DITOLAK, bukan dijadikan 0 atau
+     * di-mutlak-kan sendiri: angka yang diunggah user dipakai apa adanya, dan
+     * membetulkan tanda diam-diam persis yang dilarang DECISIONS 203.
+     */
+    const negatif = nodes.filter((n) => (n.volume != null && n.volume < 0) || n.amount < 0n);
+    if (negatif.length > 0) {
+      const sebut = negatif
+        .slice(0, 8)
+        .map(
+          (n) =>
+            `${n.code} "${n.name}" (volume ${(n.volume ?? 0).toLocaleString("id-ID")}, ` +
+            `jumlah ${n.amount.toLocaleString("id-ID")})`,
+        )
+        .join("; ");
+      return {
+        error:
+          `Impor dihentikan: ${negatif.length} baris ber-volume/jumlah NEGATIF. ` +
+          `${sebut}${negatif.length > 8 ? `; +${negatif.length - 8} baris lain` : ""}. ` +
+          `Volume tidak bisa negatif – MARLIN menyimpan RAB sebagai volume HASIL, ` +
+          `jadi pekerjaan-kurang dinyatakan dengan MENURUNKAN volume item itu pada satu baris, ` +
+          `bukan sebagai baris minus tersendiri. Kalau berkas ini berformat tambah-kurang ` +
+          `(blok TAMBAH / KURANG / TETAP), yang perlu diimpor adalah blok HASIL-nya. ` +
+          `Betulkan angkanya di berkas, lalu unggah ulang.`,
+      };
+    }
+
     const total = grandTotal(nodes);
 
     const activeRevision = await db.rabRevision.findFirst({
