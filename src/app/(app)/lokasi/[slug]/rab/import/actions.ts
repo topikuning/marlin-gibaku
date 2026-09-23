@@ -394,7 +394,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           .slice(0, 3)
           .map(
             (b) =>
-              `"${b.name}" (volume ${b.volume.toLocaleString("id-ID")} × ` +
+              // Barisnya ikut disebut: peringatan ini menyuruh orang membuka
+              // Excel dan mengisi kolomnya (DECISIONS 608).
+              `${b.excelRow != null ? `baris ${b.excelRow} ` : ""}"${b.name}" ` +
+              `(volume ${b.volume.toLocaleString("id-ID")} × ` +
               `${b.unitPrice.toLocaleString("id-ID")} = ${b.seandainya.toLocaleString("id-ID")})`,
           )
           .join("; ");
@@ -453,13 +456,21 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         .slice(0, 8)
         .map(
           (n) =>
+            /*
+             * BARIS Excel didahulukan — permintaan user 2026-09-23 (*"penunjuk
+             * item juga perlu informasi rows berapa agar spesifik masalah di
+             * filenya yang mana"*). Di berkas yang memicunya, nama item itu
+             * muncul SEMBILAN kali; nomor baris satu-satunya penunjuk yang bisa
+             * langsung diketik ke kotak "Go To" Excel.
+             */
+            `${n.excelRow != null ? `baris ${n.excelRow}` : "baris tak diketahui"} – ` +
             `${n.code} "${n.name}" (volume ${(n.volume ?? 0).toLocaleString("id-ID")}, ` +
             `jumlah ${n.amount.toLocaleString("id-ID")})`,
         )
         .join("; ");
       return {
         error:
-          `Impor dihentikan: ${negatif.length} baris ber-volume/jumlah NEGATIF. ` +
+          `Impor dihentikan: ${negatif.length} baris ber-volume/jumlah NEGATIF, yaitu ` +
           `${sebut}${negatif.length > 8 ? `; +${negatif.length - 8} baris lain` : ""}. ` +
           `Volume tidak bisa negatif – MARLIN menyimpan RAB sebagai volume HASIL, ` +
           `jadi pekerjaan-kurang dinyatakan dengan MENURUNKAN volume item itu pada satu baris, ` +

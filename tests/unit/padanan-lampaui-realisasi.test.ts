@@ -37,7 +37,7 @@ const nb = (
 ): FlatNode => ({
   kind, code, name, volume, unit: "m3", unitPrice: 88_734.87,
   amount: BigInt(Math.round((volume ?? 0) * 88_734.87)),
-  lineageKey, parentLineageKey: parent, sortOrder: 0,
+  lineageKey, parentLineageKey: parent, sortOrder: 0, excelRow: null,
 });
 
 const berkas: FlatNode[] = [

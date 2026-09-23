@@ -36,6 +36,7 @@ function fileBaru(items: Spek[]): FlatNode[] {
       lineageKey: "V",
       parentLineageKey: null,
       sortOrder: 0,
+      excelRow: null,
     },
   ];
   items.forEach((it, i) => {
@@ -50,6 +51,7 @@ function fileBaru(items: Spek[]): FlatNode[] {
       lineageKey: `V#${it.kode}`,
       parentLineageKey: "V",
       sortOrder: i + 1,
+      excelRow: null,
     });
   });
   return out;

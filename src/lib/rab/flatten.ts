@@ -30,6 +30,15 @@ export type FlatNode = {
   lineageKey: string;
   parentLineageKey: string | null;
   sortOrder: number;
+  /**
+   * Baris di sheet Excel asalnya, `null` untuk kategori/sub (DECISIONS 608).
+   *
+   * Dibawa supaya pesan penolakan bisa menunjuk BARIS, bukan cuma nama: satu
+   * nama item bisa muncul belasan kali dalam satu berkas, dan kode item hanya
+   * unik di dalam induknya. Nomor baris satu-satunya penunjuk yang bisa
+   * langsung diketik ke kotak "Go To" Excel.
+   */
+  excelRow: number | null;
 };
 
 /**
@@ -57,6 +66,8 @@ export type BarisTanpaJumlah = {
   unitPrice: number;
   /** Nilai yang akan terbentuk SEANDAINYA dikarang – yang justru tidak dipakai. */
   seandainya: number;
+  /** Baris di sheet asalnya – peringatan ini menyuruh membetulkan Excel. */
+  excelRow: number | null;
 };
 
 /**
@@ -80,6 +91,7 @@ export function barisTanpaJumlah(parsed: ParsedRab): BarisTanpaJumlah[] {
           volume: it.volume,
           unitPrice: it.unit_price,
           seandainya: it.volume * it.unit_price,
+          excelRow: it.excel_row ?? null,
         });
       }
       telusuri(it.children);
@@ -274,6 +286,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       lineageKey: key,
       parentLineageKey: parentKey,
       sortOrder: sort++,
+      excelRow: it.excel_row ?? null,
     };
     sink.push(node);
     const aux: Aux = { node, exact: 0, children: [] };
@@ -331,6 +344,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       lineageKey: catKey,
       parentLineageKey: null,
       sortOrder: sort++,
+      excelRow: null,
     };
     catBuf.push(catNode);
     const catAux: Aux = { node: catNode, exact: 0, children: [] };
@@ -357,6 +371,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
         lineageKey: subKey,
         parentLineageKey: catKey,
         sortOrder: sort++,
+        excelRow: null,
       };
       catBuf.push(subNode);
       const subAux: Aux = { node: subNode, exact: 0, children: [] };

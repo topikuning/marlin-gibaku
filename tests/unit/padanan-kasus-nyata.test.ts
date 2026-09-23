@@ -48,7 +48,7 @@ const nodeBaru = (
 ): FlatNode => ({
   kind, code, name, volume, unit: "m3", unitPrice: 81_138.73,
   amount: BigInt(Math.round((volume ?? 0) * 81_138.73)),
-  lineageKey, parentLineageKey: parent, sortOrder: 0,
+  lineageKey, parentLineageKey: parent, sortOrder: 0, excelRow: null,
 });
 
 /** Berkas: grup 1 & 2 DINOLKAN, grup 3 baru berisi penggantinya. */

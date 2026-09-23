@@ -14,6 +14,17 @@ export type ParsedRabItem = {
   tkdn_ratio: number | null;
   /** Kode induk (null untuk item level-1). Ada di seed JSON; opsional saat parse. */
   parent_code?: string | null;
+  /**
+   * Nomor BARIS di sheet Excel asalnya — penunjuk yang bisa diketik ke kotak
+   * "Go To" (DECISIONS 608).
+   *
+   * Permintaan user 2026-09-23: *"penunjuk item juga perlu informasi rows
+   * berapa agar spesifik masalah di filenya yang mana"*. Di berkas yang
+   * memicunya, satu nama item muncul SEMBILAN kali dan hanya satu barisnya
+   * bermasalah; kode item pun tidak menolong karena ia cuma unik di dalam
+   * induknya. Opsional karena data seed JSON tidak berasal dari sheet.
+   */
+  excel_row?: number | null;
   children: ParsedRabItem[];
 };
 

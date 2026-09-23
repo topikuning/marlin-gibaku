@@ -202,6 +202,13 @@ describe("impor berkas tambah/kurang KKP lewat aksi server", () => {
     // Barisnya DISEBUT: "ada yang negatif" tanpa menyebut yang mana menyuruh
     // orang menyisir 650 baris sendiri.
     expect(res!.error).toMatch(/Bekesting Pasangan Batako/i);
+    /*
+     * BARISNYA, bukan cuma namanya – permintaan user 2026-09-23 (*"penunjuk
+     * item juga perlu informasi rows berapa agar spesifik masalah di filenya
+     * yang mana"*). Di berkas ini nama itu muncul SEMBILAN kali; yang
+     * bermasalah baris 191, blok KURANG.
+     */
+    expect(res!.error, "nomor baris Excel tidak disebut").toMatch(/baris\s*191\b/i);
     expect(res!.error).not.toMatch(/constraint|rab_nodes|violates/i);
     // Ditolak SEBELUM menulis: tidak ada pratinjau yang bisa ditekan "Simpan".
     expect(res!.preview).toBeUndefined();

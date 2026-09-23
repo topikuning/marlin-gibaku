@@ -225,6 +225,9 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
           lineageKey,
           parentLineageKey: parent,
           sortOrder: sortOrder++,
+          // Baris judul tidak membawa nomor baris: yang ditunjuk orang saat
+          // membetulkan angka selalu ITEMnya (DECISIONS 608).
+          excelRow: null,
         });
         if (parent == null) kategoriBerjalan = { lineageKey, name: nama };
         indukBerjalan = lineageKey;
@@ -292,6 +295,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
         lineageKey,
         parentLineageKey: induk || null,
         sortOrder: sortOrder++,
+        excelRow: r,
       });
       // Item BISA punya anak (mis. baris rincian di bawah pekerjaan berharga).
       // Tumpukan karena itu memuat item juga — kalau tidak, baris di bawahnya
@@ -357,6 +361,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
       lineageKey: key,
       parentLineageKey: induk,
       sortOrder: sortOrder++,
+      excelRow: r,
     });
     itemBaru.push({ code: kode || `B${urut}`, name: nama, kategori: kategoriBerjalan?.name ?? induk });
   }

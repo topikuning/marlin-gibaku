@@ -27,6 +27,7 @@ const item = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "nam
   amount: 0n,
   parentLineageKey: "I",
   sortOrder: 0,
+  excelRow: null,
   ...o,
 });
 
@@ -41,6 +42,7 @@ const kategori = (amount: bigint): FlatNode => ({
   lineageKey: "I",
   parentLineageKey: null,
   sortOrder: 0,
+  excelRow: null,
 });
 
 describe("KASUS INTI: yang sudah dikerjakan tapi hilang di file baru", () => {
@@ -225,7 +227,7 @@ describe("jalur kode: kategori ikut disebut", () => {
 
   const fileNode = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
     kind: "item", volume: null, unit: null, unitPrice: null, amount: 0n,
-    parentLineageKey: null, sortOrder: 0, ...o,
+    parentLineageKey: null, sortOrder: 0, excelRow: null, ...o,
   });
 
   const berkas = (volume: number): FlatNode[] => [
