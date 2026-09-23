@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 607 | 2026-09-23 | Tab basi sesudah deploy dikenali dari UMUR server (uptimeMs vs performance.now), bukan dari kalimat galat yang cuma ada di log |
 | 606 | 2026-09-23 | Volume/jumlah negatif DITOLAK MARLIN sejak pratinjau dengan menyebut barisnya – bukan dilempar sebagai constraint Postgres yang tak terbaca |
 | 605 | 2026-09-23 | Item laporan harian menyebut jalur kategori & sub-kategorinya (kode + nama); ditelusur per node id, bukan lineageKey |
 | 604 | 2026-09-21 | Kolom Excel yang di-hide tidak pernah dipakai (aturan baris berlaku juga untuk kolom); blok tersembunyi jadi batas + disebut di pratinjau |

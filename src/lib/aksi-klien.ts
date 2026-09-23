@@ -45,13 +45,44 @@ export type AksiState = { error?: string; success?: string; warning?: string } |
  * "server hidup, tapi permintaan INI yang ditolak — mengulang tidak menolong".
  * Tanpa pembeda ini, laporan berikutnya tetap tidak bisa ditindaklanjuti.
  */
-async function serverMenjawab(): Promise<boolean> {
+async function serverMenjawab(): Promise<{ hidup: boolean; uptimeMs: number | null }> {
   try {
     const r = await fetch("/api/health", { method: "GET", cache: "no-store" });
-    return r.ok;
+    if (!r.ok) return { hidup: false, uptimeMs: null };
+    /*
+     * Umurnya boleh tidak ada, dan itu bukan kegagalan: selama deploy berjalan,
+     * versi LAMA masih melayani sebagian permintaan dan balasannya belum memuat
+     * `uptimeMs`. Tanpa angka itu, perilakunya kembali persis seperti sebelum
+     * pagar ini ada — menebak lebih buruk daripada diam.
+     */
+    let uptimeMs: number | null = null;
+    try {
+      const body = (await r.json()) as { uptimeMs?: unknown };
+      if (typeof body?.uptimeMs === "number" && Number.isFinite(body.uptimeMs)) uptimeMs = body.uptimeMs;
+    } catch {
+      // Balasan bukan JSON (halaman galat proxy, misalnya). Hidup, umur tak diketahui.
+    }
+    return { hidup: true, uptimeMs };
   } catch {
-    return false;
+    return { hidup: false, uptimeMs: null };
   }
+}
+
+/**
+ * Server ini lebih MUDA daripada halaman yang sedang dipakai — artinya ada
+ * build lain di antara keduanya, dan ID server action halaman ini sudah hilang.
+ *
+ * Dua durasi yang masing-masing diukur di mesinnya sendiri: `performance.now()`
+ * menghitung sejak halaman ini dibuat, `process.uptime()` sejak proses server
+ * dimulai. Tidak ada satu pun JAM yang dibandingkan, jadi jam browser yang
+ * meleset — hal biasa di ponsel lapangan — tidak bisa membuat pagar ini salah
+ * tuduh. Dibaca KETAT (`<`, bukan `<=`): hanya server yang benar-benar lebih
+ * muda yang membuktikan ada deploy di antaranya.
+ */
+function serverLebihMudaDariHalaman(uptimeMs: number | null): boolean {
+  if (uptimeMs === null) return false;
+  const umurHalamanMs = typeof performance !== "undefined" ? performance.now() : 0;
+  return uptimeMs < umurHalamanMs;
 }
 
 /**
@@ -104,15 +135,32 @@ export function tahanGagalKirim<S>(
        * satunya jalan keluar adalah memuat ulang. Menekan tombolnya lagi tidak
        * akan pernah berhasil, jadi jangan menyuruh mencoba lagi.
        */
-      if (basiKarenaDeploy(err)) {
-        return galat(
+      const basi = () =>
+        galat(
           "MARLIN sudah diperbarui sejak halaman ini dibuka, jadi kiriman dari halaman lama ini ditolak. " +
             "Muat ulang halaman lalu ulangi – mencoba lagi tanpa memuat ulang tidak akan berhasil. " +
             "Catat dulu isian yang belum tersimpan; foto perlu dilampirkan ulang.",
         );
-      }
+      if (basiKarenaDeploy(err)) return basi();
 
-      const hidup = await serverMenjawab();
+      const { hidup, uptimeMs } = await serverMenjawab();
+      /*
+       * KALIMATNYA TIDAK CUKUP — laporan user 2026-09-23 (DECISIONS 607).
+       *
+       * Sesudah rilis masuk `main`, log server memuat berkali-kali *"Failed to
+       * find Server Action … This request might be from an older or newer
+       * deployment"*, sementara yang sampai ke browser cuma kalimat generik Next
+       * (*"An unexpected response was received from the server"*). Jadi
+       * `basiKarenaDeploy` di atas — yang membaca KALIMAT — tidak pernah kena
+       * untuk kasus yang justru paling sering terjadi, dan user disuruh "coba
+       * tekan lagi" untuk sesuatu yang tidak akan pernah berhasil.
+       *
+       * Yang tersedia di browser bukan kalimatnya melainkan UMUR: server yang
+       * sudah jalan lebih sebentar daripada halaman ini bukan server yang
+       * mengirim halaman ini.
+       */
+      if (hidup && serverLebihMudaDariHalaman(uptimeMs)) return basi();
+
       return galat(
         hidup
           ? `Gagal mengirim – server menolak permintaan ini. Isian di layar TIDAK hilang; coba tekan lagi, dan kalau tetap gagal laporkan pesan ini: ${nama}`
