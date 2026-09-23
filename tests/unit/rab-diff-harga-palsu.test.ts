@@ -25,12 +25,12 @@ const aktifItem = (o: Partial<NodeAktif> & Pick<NodeAktif, "lineageKey" | "code"
 
 const fileKategori = (amount: bigint): FlatNode => ({
   kind: "kategori", code: "I", name: "PEKERJAAN STRUKTUR", volume: null, unit: null,
-  unitPrice: null, amount, lineageKey: "I", parentLineageKey: null, sortOrder: 0,
+  unitPrice: null, amount, lineageKey: "I", parentLineageKey: null, sortOrder: 0, excelRow: null,
 });
 
 const fileItem = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
   kind: "item", volume: null, unit: null, unitPrice: null, amount: 0n,
-  parentLineageKey: "I", sortOrder: 1, ...o,
+  parentLineageKey: "I", sortOrder: 1, excelRow: null, ...o,
 });
 
 describe("nol dan kosong adalah keadaan yang sama, bukan perubahan harga", () => {

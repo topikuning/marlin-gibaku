@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 608 | 2026-09-23 | Pesan penolakan impor menyebut BARIS Excel-nya (excel_row dibawa parser → FlatNode); nama item saja tidak menunjuk apa pun |
 | 607 | 2026-09-23 | Tab basi sesudah deploy dikenali dari UMUR server (uptimeMs vs performance.now), bukan dari kalimat galat yang cuma ada di log |
 | 606 | 2026-09-23 | Volume/jumlah negatif DITOLAK MARLIN sejak pratinjau dengan menyebut barisnya – bukan dilempar sebagai constraint Postgres yang tak terbaca |
 | 605 | 2026-09-23 | Item laporan harian menyebut jalur kategori & sub-kategorinya (kode + nama); ditelusur per node id, bukan lineageKey |

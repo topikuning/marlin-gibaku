@@ -862,6 +862,9 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       total_price: totalPrice,
       tkdn_ratio: num(cellVal(row, col.tkdn)),
       parent_code: parentCode,
+      // Baris aslinya dicatat DI SINI, satu-satunya tempat yang masih
+      // memegangnya: sesudah `flatten` tidak ada lagi jejak sheet-nya.
+      excel_row: row.number,
       children: [],
     };
   };

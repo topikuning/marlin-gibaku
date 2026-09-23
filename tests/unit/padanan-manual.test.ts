@@ -22,7 +22,7 @@ const lama = (o: Partial<NodeLamaCocok> & Pick<NodeLamaCocok, "lineageKey" | "co
 });
 const baru = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
   kind: "item", volume: 0, unit: "m3", unitPrice: 0, amount: 0n,
-  parentLineageKey: "I", sortOrder: 0, ...o,
+  parentLineageKey: "I", sortOrder: 0, excelRow: null, ...o,
 });
 
 const KONTRAK: NodeLamaCocok[] = [
@@ -33,7 +33,7 @@ const KONTRAK: NodeLamaCocok[] = [
 
 /** Berkas: 1.a DINOLKAN, dan muncul item baru 1.c yang maksudnya sama. */
 const BERKAS: FlatNode[] = [
-  { kind: "kategori", code: "I", name: "PEKERJAAN TANAH", volume: null, unit: null, unitPrice: null, amount: 0n, lineageKey: "I", parentLineageKey: null, sortOrder: 0 },
+  { kind: "kategori", code: "I", name: "PEKERJAAN TANAH", volume: null, unit: null, unitPrice: null, amount: 0n, lineageKey: "I", parentLineageKey: null, sortOrder: 0, excelRow: null },
   baru({ lineageKey: "I#1.a", code: "1.a", name: "Pekerjaan Galian Tanah sampai dengan 1 m", volume: 0 }),
   baru({ lineageKey: "I#1.b", code: "1.b", name: "Pekerjaan Urugan Kembali", volume: 5 }),
   baru({ lineageKey: "I#1.c", code: "1.c", name: "Galian Tanah Biasa kedalaman 0-1 m", volume: 103.3 }),

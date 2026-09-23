@@ -33,6 +33,7 @@ type Flat = {
   volume: number | null;
   unit: string | null;
   unitPrice: number | null;
+  excelRow: number | null;
 };
 
 const n = (
@@ -54,6 +55,7 @@ const n = (
   volume: null,
   unit: null,
   unitPrice: null,
+  excelRow: null,
 });
 
 /** I ── I.1 (a, b) ── I.2 (c) · II ── (d langsung di kategori). */
