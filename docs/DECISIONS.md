@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 606 | 2026-09-23 | Volume/jumlah negatif DITOLAK MARLIN sejak pratinjau dengan menyebut barisnya – bukan dilempar sebagai constraint Postgres yang tak terbaca |
+| 605 | 2026-09-23 | Item laporan harian menyebut jalur kategori & sub-kategorinya (kode + nama); ditelusur per node id, bukan lineageKey |
 | 604 | 2026-09-21 | Kolom Excel yang di-hide tidak pernah dipakai (aturan baris berlaku juga untuk kolom); blok tersembunyi jadi batas + disebut di pratinjau |
 | 603 | 2026-09-21 | Tombol dalam satu baris aksi seragam: variant & ukuran ikon disalin dari tetangganya; `ghost` hanya untuk aksi bawahan |
 | 602 | 2026-09-21 | Riwayat input per item pekerjaan (tanggal kerja vs kapan diketik); angka realisasi di pratinjau adendum jadi tautan |

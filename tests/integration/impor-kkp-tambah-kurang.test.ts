@@ -169,6 +169,48 @@ describe("impor berkas tambah/kurang KKP lewat aksi server", () => {
     }, 600_000);
   }
 
+  /*
+   * BETAH WALANG — laporan user 2026-09-23: impor untuk ADENDUM dijawab
+   *
+   *   *"Gagal mengirim – server menolak permintaan ini … Error: An unexpected
+   *   response was received from the server."*
+   *
+   * Parsernya sehat (1,4 detik; sheet "RAB", blok CCO - 01 → MC - 0). Yang
+   * tumbang penulisannya: berkas ini memuat baris blok KURANG yang volumenya
+   * NEGATIF (`1.4 Pekerjaan Bekesting Pasangan Batako`, −42 m³, −Rp 7.511.351),
+   * dan node ber-amount negatif ditolak constraint `rab_nodes_amounts_nonneg_ck`.
+   * Galat Postgres mentah itu keluar dari aksi server, jadi yang sampai ke layar
+   * bukan kalimat MARLIN melainkan jawaban bukan-aksi dari Next.
+   *
+   * Yang dijaga: MARLIN menjawab dengan KALIMATNYA SENDIRI yang menyebut
+   * barisnya, dan menjawabnya SEJAK PRATINJAU — bukan setelah user menekan
+   * "Simpan" dan menunggu berkas 4 MB diproses dua kali. Berkas yang tidak bisa
+   * disimpan adalah keadaan yang sah; galat yang tidak bisa dibaca tidak.
+   */
+  it("volume negatif dijawab kalimat MARLIN yang menyebut barisnya, bukan galat mentah", async () => {
+    const locationId = await lokasiDenganRabAktif("Betah Walang", "mc0-pasar-banggi-blok-cco01.xlsx");
+
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("mode", "draft");
+    fd.set("file", berkasForm("mc1-betah-walang-cco01.xlsx"));
+
+    const res = await importHps(undefined, fd);
+
+    expect(res?.error, "tidak ada pesan galat – berarti masih melempar").toBeTruthy();
+    expect(res!.error).toMatch(/negatif/i);
+    // Barisnya DISEBUT: "ada yang negatif" tanpa menyebut yang mana menyuruh
+    // orang menyisir 650 baris sendiri.
+    expect(res!.error).toMatch(/Bekesting Pasangan Batako/i);
+    expect(res!.error).not.toMatch(/constraint|rab_nodes|violates/i);
+    // Ditolak SEBELUM menulis: tidak ada pratinjau yang bisa ditekan "Simpan".
+    expect(res!.preview).toBeUndefined();
+    expect(
+      await db.rabRevision.count({ where: { locationId, status: "draft" } }),
+      "draft terlanjur dibuat – penolakan datang terlalu lambat",
+    ).toBe(0);
+  }, 600_000);
+
   it("RAB aktif dari berkas LAIN pun tetap dijawab, tidak menggantung", async () => {
     /*
      * Keadaan terberat, dan yang paling mungkin terjadi di lapangan: RAB aktif

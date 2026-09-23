@@ -147,7 +147,15 @@ export default async function HarianWorkspacePage({
                     <tr key={it.id}>
                       <td className="py-2 pr-3 pl-4">
                         <div className="font-medium text-ink">{it.name}</div>
-                        <div className="text-xs text-ink-muted">{it.code}</div>
+                        {/* Laporan user 2026-09-23: *"masuk kategori atau sub
+                            kategori apa tidak diketahui"*. `code` sendiri tidak
+                            menunjuk apa pun — nomor item hanya unik di dalam
+                            induknya, jadi "1" ada di setiap kategori.
+                            DECISIONS 605. */}
+                        <div className="text-xs text-ink-muted">{it.jalurKode}</div>
+                        {it.jalurNama ? (
+                          <div className="text-[11px] text-ink-faint">{it.jalurNama}</div>
+                        ) : null}
                         {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
                         {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
                         {it.photos.length > 0 ? (
