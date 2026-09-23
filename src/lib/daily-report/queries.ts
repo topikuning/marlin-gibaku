@@ -16,6 +16,7 @@ import {
 } from "@/lib/progress";
 import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import { nodeAktifByLineage } from "@/lib/rab/node-aktif";
+import { jalurNodeById } from "@/lib/rab/jalur";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
@@ -151,6 +152,14 @@ export type WorkspaceItem = {
   lineageKey: string;
   code: string;
   name: string;
+  /**
+   * Jalur induk — laporan user 2026-09-23: *"masuk kategori atau sub kategori
+   * apa tidak diketahui"*. `code` sendiri tidak cukup: nomor item hanya unik di
+   * dalam induknya, jadi "1" ada di setiap kategori. `jalurKode` untuk
+   * dicocokkan dengan dokumen kontrak, `jalurNama` untuk dibaca orang.
+   */
+  jalurKode: string;
+  jalurNama: string;
   unit: string | null;
   volumeDone: number;
   valueDone: string; // BigInt string
@@ -338,6 +347,8 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
     location.id,
     report.items.map((it) => it.lineageKey),
   );
+  /* Jalur induk tiap item, satu query untuk seluruh tabel. */
+  const jalurByNode = await jalurNodeById(report.items.map((it) => it.rabNodeId));
 
   let totalValueToday = 0n;
   const items: WorkspaceItem[] = report.items.map((it) => {
@@ -357,6 +368,8 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       lineageKey: it.lineageKey,
       code: it.rabNode.code,
       name: it.rabNode.name,
+      jalurKode: jalurByNode.get(it.rabNodeId)?.kode ?? it.rabNode.code,
+      jalurNama: jalurByNode.get(it.rabNodeId)?.nama ?? "",
       unit: it.rabNode.unit,
       volumeDone,
       valueDone: it.valueDone.toString(),
