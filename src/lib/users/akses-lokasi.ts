@@ -37,7 +37,35 @@ export type BarisAkses = {
   waTerverifikasi: boolean;
 };
 
-export async function aksesLokasi(locationId: string, orgId: string): Promise<BarisAkses[]> {
+/**
+ * Pilihan penyaringan daftar akses.
+ *
+ * **Ketetapan user 2026-09-24**: *"hanya super admin dan PD yang boleh tahu
+ * siapa saja yang ditugaskan di paket itu untuk login eksekutif."*
+ *
+ * Panel ini dilihat SIAPA PUN yang bisa membuka lokasinya — Site Manager,
+ * Pelaksana, Wakil PPK — dan `user.manage` hanya membatasi tombol kelolanya,
+ * bukan daftarnya. Sementara akun Executive View PASTI muncul di daftar bila ia
+ * memantau lokasi itu: `exec_viewer` sengaja bukan peran lintas-lokasi
+ * (DECISIONS 190), jadi satu-satunya cara ia melihat lokasi adalah DITUGASKAN.
+ *
+ * Disaring di sini, bukan di komponen: baris yang tidak boleh dilihat tidak
+ * boleh ikut terkirim ke klien (CLAUDE.md — *"frontend hanya menyembunyikan
+ * menu"*).
+ *
+ * Bawaannya TIDAK menyembunyikan. Pemanggil wajib menyatakan niatnya, supaya
+ * layar Super Admin tidak pernah diam-diam memotong daftarnya sendiri.
+ */
+export type OpsiAkses = {
+  /** Sembunyikan akun berperan `exec_viewer`. Untuk yang tidak `user.manage`. */
+  sembunyikanEksekutif?: boolean;
+};
+
+export async function aksesLokasi(
+  locationId: string,
+  orgId: string,
+  opsi: OpsiAkses = {},
+): Promise<BarisAkses[]> {
   const [ditugaskan, lintas] = await Promise.all([
     db.locationAssignment.findMany({
       where: { locationId, unassignedAt: null, user: { orgId } },
@@ -91,8 +119,10 @@ export async function aksesLokasi(locationId: string, orgId: string): Promise<Ba
     });
   }
 
+  const terlihat = opsi.sembunyikanEksekutif ? baris.filter((b) => b.role !== "exec_viewer") : baris;
+
   // Yang ditugaskan lebih dulu — merekalah yang mengerjakan lokasi ini.
-  return baris.sort(
+  return terlihat.sort(
     (a, b) =>
       Number(b.jalan === "penugasan") - Number(a.jalan === "penugasan") ||
       a.nama.localeCompare(b.nama, "id"),

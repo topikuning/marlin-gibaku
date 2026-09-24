@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 610 | 2026-09-24 | Akun Executive View disembunyikan dari panel Akses lokasi (disaring di server); catatannya TETAP, tidak menyebut jumlah |
 | 609 | 2026-09-24 | Layar lokasi bertanya ke grupUntukLokasi, bukan ke package.waGroupId – tombol kirim WA mati padahal grup KABUPATEN sudah dipasang |
 | 608 | 2026-09-23 | Pesan penolakan impor menyebut BARIS Excel-nya (excel_row dibawa parser → FlatNode); nama item saja tidak menunjuk apa pun |
 | 607 | 2026-09-23 | Tab basi sesudah deploy dikenali dari UMUR server (uptimeMs vs performance.now), bukan dari kalimat galat yang cuma ada di log |
