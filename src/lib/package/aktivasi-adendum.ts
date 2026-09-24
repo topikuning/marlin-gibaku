@@ -27,16 +27,25 @@ import type { LocationScopeKind } from "@/generated/prisma/enums";
  *   selisih cuma ratusan sampai ribuan rupiah gara-gara selisih koma"* — angka
  *   turunan disimpan di `valueDeltaRab`, angka resmi di `valueDelta`;
  * - lokasi yang dicabut mengurangi *"seluruh nilai RAB-nya"*.
+ *
+ * Koreksi user di hari yang sama (DECISIONS 614): dua persetujuan sudah
+ * MEMBERLAKUKAN perubahan — revisi RAB diaktifkan dari lokasinya, perubahan
+ * lingkup berlaku otomatis. Yang tersisa di sini administrasinya: mencatat
+ * nomor CCO atas perubahan yang "sudah berlaku, nomor CCO menyusul", tanpa
+ * mengaktifkan ulang apa pun. Draft yang lengkap tetap bisa ikut sekaligus.
  */
 
 export class AktivasiAdendumError extends Error {}
 
 export type DraftRevisiTertunda = {
   revisionId: string;
+  /** Sudah AKTIF dari lokasinya, tinggal dicatat dalam CCO (DECISIONS 614). */
+  sudahBerlaku: boolean;
   revisionNo: number;
   locationId: string;
   locationName: string;
   locationSlug: string;
+  /** RAB yang sudah tercakup CCO sebelumnya (pre-PPN) – dasar selisih. */
   totalAktif: bigint | null;
   totalDraft: bigint;
   lengkap: boolean;
@@ -45,6 +54,9 @@ export type DraftRevisiTertunda = {
 
 export type DraftLingkupTertunda = {
   changeId: string;
+  /** Sudah berlaku sejak persetujuan kedua, tinggal dicatat dalam CCO. */
+  sudahBerlaku: boolean;
+  effectiveDate: Date | null;
   locationId: string;
   locationName: string;
   locationSlug: string;
@@ -57,14 +69,22 @@ export type DraftLingkupTertunda = {
 
 export type AdendumTertunda = { revisi: DraftRevisiTertunda[]; lingkup: DraftLingkupTertunda[] };
 
-/** Total RAB aktif per lokasi (pre-PPN). Lokasi tanpa RAB aktif tidak ada di peta. */
-async function totalAktifPerLokasi(locationIds: string[]): Promise<Map<string, bigint>> {
+/**
+ * RAB yang sudah TERCAKUP CCO per lokasi (pre-PPN): revisi terakhir yang
+ * pernah aktif dan tidak sedang menunggu CCO. Revisi yang diaktifkan dari
+ * lokasi sebelum CCO-nya tercatat belum menjadi dasar kontrak, jadi selisihnya
+ * masih harus masuk CCO berikutnya. Lokasi tanpa RAB tidak ada di peta.
+ */
+async function totalTercakupPerLokasi(locationIds: string[]): Promise<Map<string, bigint>> {
   if (locationIds.length === 0) return new Map();
   const rows = await db.rabRevision.findMany({
-    where: { locationId: { in: locationIds }, status: "aktif" },
+    where: { locationId: { in: locationIds }, status: { in: ["aktif", "digantikan"] }, awaitingCco: false },
+    orderBy: { revisionNo: "desc" },
     select: { locationId: true, totalValue: true },
   });
-  return new Map(rows.map((r) => [r.locationId, r.totalValue]));
+  const peta = new Map<string, bigint>();
+  for (const r of rows) if (!peta.has(r.locationId)) peta.set(r.locationId, r.totalValue);
+  return peta;
 }
 
 /**
@@ -77,23 +97,32 @@ async function totalAktifPerLokasi(locationIds: string[]): Promise<Map<string, b
 export async function adendumTertunda(packageId: string): Promise<AdendumTertunda> {
   const [revisiRows, lingkupRows] = await Promise.all([
     db.rabRevision.findMany({
-      where: { status: "draft", location: { packageId } },
+      where: {
+        location: { packageId },
+        OR: [{ status: "draft" }, { status: "aktif", awaitingCco: true }],
+      },
       orderBy: [{ location: { name: "asc" } }, { revisionNo: "asc" }],
       select: {
         id: true,
         revisionNo: true,
+        status: true,
         totalValue: true,
         locationId: true,
         location: { select: { name: true, slug: true } },
       },
     }),
     db.locationScopeChange.findMany({
-      where: { status: "draft", location: { packageId } },
+      where: {
+        location: { packageId },
+        OR: [{ status: "draft" }, { status: "aktif", amendmentId: null }],
+      },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
         locationId: true,
         kind: true,
+        status: true,
+        effectiveDate: true,
         reason: true,
         updatedAt: true,
         location: { select: { name: true, slug: true } },
@@ -101,39 +130,45 @@ export async function adendumTertunda(packageId: string): Promise<AdendumTertund
       },
     }),
   ]);
-  const aktif = await totalAktifPerLokasi([
+  const tercakup = await totalTercakupPerLokasi([
     ...new Set([...revisiRows.map((r) => r.locationId), ...lingkupRows.map((r) => r.locationId)]),
   ]);
-  const ditambah = new Set(lingkupRows.filter((r) => r.kind === "tambah").map((r) => r.locationId));
 
   const revisi: DraftRevisiTertunda[] = [];
   for (const r of revisiRows) {
-    if (!aktif.has(r.locationId) && !ditambah.has(r.locationId)) continue;
-    // RAB pertama lokasi tambahan belum menggantikan apa pun — empat matanya
-    // ada di usulan lingkupnya, bukan di revisinya.
-    const status = aktif.has(r.locationId) ? await ringkasPersetujuan(r.id) : { lengkap: true, kurang: [] };
+    const sudahBerlaku = r.status === "aktif";
+    // Draft tanpa RAB tercakup = RAB AWAL lokasi, bukan adendum – ia
+    // diaktifkan dari halaman lokasinya dan tidak masuk CCO.
+    if (!sudahBerlaku && !tercakup.has(r.locationId)) continue;
+    const status = sudahBerlaku ? { lengkap: true, kurang: [] } : await ringkasPersetujuan(r.id);
     revisi.push({
       revisionId: r.id,
+      sudahBerlaku,
       revisionNo: r.revisionNo,
       locationId: r.locationId,
       locationName: r.location.name,
       locationSlug: r.location.slug,
-      totalAktif: aktif.get(r.locationId) ?? null,
+      totalAktif: tercakup.get(r.locationId) ?? null,
       totalDraft: r.totalValue,
       lengkap: status.lengkap,
       kurang: status.kurang,
     });
   }
   const lingkup: DraftLingkupTertunda[] = lingkupRows.map((r) => {
-    const s = nilaiPersetujuan(suaraMasihBerlaku(r.approvals, r.updatedAt));
+    const sudahBerlaku = r.status === "aktif";
+    const s = sudahBerlaku
+      ? { lengkap: true, kurang: [] }
+      : nilaiPersetujuan(suaraMasihBerlaku(r.approvals, r.updatedAt));
     return {
       changeId: r.id,
+      sudahBerlaku,
+      effectiveDate: r.effectiveDate,
       locationId: r.locationId,
       locationName: r.location.name,
       locationSlug: r.location.slug,
       kind: r.kind,
       reason: r.reason,
-      totalAktif: aktif.get(r.locationId) ?? null,
+      totalAktif: tercakup.get(r.locationId) ?? null,
       lengkap: s.lengkap,
       kurang: s.kurang,
     };
@@ -163,7 +198,10 @@ export type HasilAktivasiAdendum = {
     locationName: string;
     penyesuaian: Awaited<ReturnType<typeof activateRevision>>["penyesuaian"];
   }[];
+  /** Usulan lingkup yang baru berlaku lewat CCO ini (masih draft sebelumnya). */
   lingkup: number;
+  /** Perubahan yang SUDAH berlaku sejak dua persetujuan, kini bernomor CCO. */
+  dicatat: number;
   /** Lokasi yang revisinya SUDAH aktif tetapi kurva-S-nya gagal dibuat ulang. */
   baselineGagal: string[];
 };
@@ -228,18 +266,15 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
   for (const locationId of new Set([...revisi, ...lingkup].map((x) => x.locationId)))
     await requireLocationAccess(user, locationId);
 
-  const perLokasi = new Map<string, number>();
-  for (const r of revisi) perLokasi.set(r.locationId, (perLokasi.get(r.locationId) ?? 0) + 1);
-  for (const r of revisi) {
-    if ((perLokasi.get(r.locationId) ?? 0) > 1)
+  const draftRevisi = revisi.filter((r) => !r.sudahBerlaku);
+  const draftPerLokasi = new Map<string, number>();
+  for (const r of draftRevisi) draftPerLokasi.set(r.locationId, (draftPerLokasi.get(r.locationId) ?? 0) + 1);
+  for (const r of draftRevisi) {
+    if ((draftPerLokasi.get(r.locationId) ?? 0) > 1)
       throw new AktivasiAdendumError(`${r.locationName} punya lebih dari satu draft terpilih – pilih satu saja.`);
     if (lingkup.some((l) => l.locationId === r.locationId && l.kind === "cabut"))
       throw new AktivasiAdendumError(
-        `${r.locationName} dicabut dalam adendum ini – revisi RAB-nya tidak perlu ikut diberlakukan.`,
-      );
-    if (r.totalAktif === null && !lingkup.some((l) => l.locationId === r.locationId && l.kind === "tambah"))
-      throw new AktivasiAdendumError(
-        `RAB ${r.locationName} hanya bisa ikut bersama usulan penambahan lokasinya – centang keduanya.`,
+        `${r.locationName} dicabut dalam adendum ini – draft revisi RAB-nya tidak perlu ikut diberlakukan.`,
       );
     if (!r.lengkap)
       throw new AktivasiAdendumError(
@@ -252,8 +287,8 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
         `Usulan ${l.kind === "cabut" ? "pencabutan" : "penambahan"} ${l.locationName} belum lengkap persetujuannya: ${l.kurang.join(" + ")}.`,
       );
   // Gerbang empat mata dipanggil ulang langsung — pagar yang sama dengan
-  // jalur lama, bukan salinan aturannya.
-  for (const r of revisi) if (r.totalAktif !== null) await pastikanBolehAktivasi(r.revisionId);
+  // jalur lokasi, bukan salinan aturannya.
+  for (const r of draftRevisi) await pastikanBolehAktivasi(r.revisionId);
 
   const ppn = Number(contract.ppnPercent);
   const turunan = selisihPilihan(tertunda, input.revisionIds, input.changeIds, ppn).denganPpn;
@@ -273,17 +308,38 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
       },
       select: { id: true },
     });
-    if (lingkup.length > 0)
+    const ids = lingkup.map((l) => l.changeId);
+    if (ids.length > 0) {
       await tx.locationScopeChange.updateMany({
-        where: { id: { in: lingkup.map((l) => l.changeId) }, status: "draft" },
+        where: { id: { in: ids }, status: "draft" },
         data: { status: "aktif", appliedAt: new Date(), amendmentId: a.id, effectiveDate: input.effectiveDate },
+      });
+      // Yang sudah berlaku sejak persetujuan kedua hanya dicatat nomornya —
+      // tanggal berlakunya tidak digeser ke tanggal CCO (DECISIONS 614).
+      await tx.locationScopeChange.updateMany({
+        where: { id: { in: ids }, status: "aktif", amendmentId: null },
+        data: { amendmentId: a.id },
+      });
+    }
+    /*
+     * Semua revisi yang MENUNGGU CCO di lokasi yang disentuh ikut dicatat,
+     * termasuk yang sudah digantikan revisi berikutnya: selisih nilainya
+     * dihitung dari RAB tercakup terakhir, jadi seluruh rantainya sudah masuk
+     * angka CCO ini. Membiarkan salah satunya menunggu akan menghitungnya dua
+     * kali di CCO berikutnya.
+     */
+    const lokasiDisentuh = [...new Set([...revisi, ...lingkup].map((x) => x.locationId))];
+    if (lokasiDisentuh.length > 0)
+      await tx.rabRevision.updateMany({
+        where: { locationId: { in: lokasiDisentuh }, awaitingCco: true },
+        data: { amendmentId: a.id, awaitingCco: false },
       });
     return a;
   });
 
   const hasilRevisi: HasilAktivasiAdendum["revisi"] = [];
   const baselineGagal: string[] = [];
-  for (const r of revisi) {
+  for (const r of draftRevisi) {
     const aktif = await activateRevision(r.revisionId, user.id);
     // Ditautkan SESUDAH aktif: menyentuh draft sebelum aktivasi menggeser
     // updatedAt-nya dan menggugurkan suara persetujuan yang baru diperiksa.
@@ -301,10 +357,12 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
       baselineGagal.push(r.locationName);
     }
   }
-  // Lokasi tambahan yang RAB-nya sudah aktif sebelum masuk kontrak: kurva-S-nya
-  // dibuat ulang supaya mulai dari tanggal berlaku CCO, bukan minggu-1 kontrak.
+  // Lokasi tambahan yang baru berlaku LEWAT CCO ini (draft) dan RAB-nya sudah
+  // aktif: kurva-S-nya dibuat ulang supaya mulai dari tanggal berlakunya. Yang
+  // sudah berlaku sejak persetujuan kedua sudah dibuat ulang saat itu.
   for (const l of lingkup) {
-    if (l.kind !== "tambah" || l.totalAktif === null || revisi.some((r) => r.locationId === l.locationId)) continue;
+    if (l.sudahBerlaku || l.kind !== "tambah" || l.totalAktif === null) continue;
+    if (draftRevisi.some((r) => r.locationId === l.locationId)) continue;
     try {
       await regenerateBaseline(l.locationId, {
         source: "adendum",
@@ -324,8 +382,18 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
     valueDeltaRab: turunan.toString(),
     endDateDelta: input.endDateDelta,
     effectiveDate: input.effectiveDate.toISOString().slice(0, 10),
-    revisi: revisi.map((r) => ({ revisionId: r.revisionId, locationId: r.locationId, revisionNo: r.revisionNo })),
-    lingkup: lingkup.map((l) => ({ changeId: l.changeId, locationId: l.locationId, kind: l.kind })),
+    revisi: revisi.map((r) => ({
+      revisionId: r.revisionId,
+      locationId: r.locationId,
+      revisionNo: r.revisionNo,
+      sudahBerlaku: r.sudahBerlaku,
+    })),
+    lingkup: lingkup.map((l) => ({
+      changeId: l.changeId,
+      locationId: l.locationId,
+      kind: l.kind,
+      sudahBerlaku: l.sudahBerlaku,
+    })),
     baselineGagal,
   });
   return {
@@ -334,7 +402,8 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
     valueDelta,
     valueDeltaRab: turunan,
     revisi: hasilRevisi,
-    lingkup: lingkup.length,
+    lingkup: lingkup.filter((l) => !l.sudahBerlaku).length,
+    dicatat: revisi.filter((r) => r.sudahBerlaku).length + lingkup.filter((l) => l.sudahBerlaku).length,
     baselineGagal,
   };
 }

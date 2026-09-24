@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Banner, Button, ButtonLink } from "@/components/ui";
+import { Banner, Button } from "@/components/ui";
 import { activateDraftAction, approveRevisionAction, discardDraftAction, type RabActionState } from "../actions";
 
 /**
@@ -16,11 +16,8 @@ export function DraftControls({
   ringkasan,
   adaPeringatan,
   persetujuan,
-  kontrakHref,
 }: {
   revisionId: string;
-  /** Halaman Kontrak & Adendum paket – tempat adendum diberlakukan (DECISIONS 613). */
-  kontrakHref: string;
   revisionNo: number;
   /** Satu kalimat: "+2 item, 1 dihapus, 3 diubah · Δ +Rp 13.000.000". */
   ringkasan: string;
@@ -122,31 +119,22 @@ export function DraftControls({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-      {persetujuan ? (
-        <ButtonLink
-          href={kontrakHref}
-          size="md"
-          variant="primary"
-          title={terkunci ? `Masih menunggu ${persetujuan.kurang.join(" + ")}` : undefined}
-        >
-          Berlakukan di Kontrak & Adendum
-        </ButtonLink>
-      ) : (
-        <Button
-          type="button"
-          loading={pending}
-          onClick={() =>
-            run(
-              activateDraftAction,
-              `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
-                (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman – pastikan sudah dibaca.\n\n" : "") +
-                "Kurva-S dibuat dari RAB ini.",
-            )
-          }
-        >
-          Aktifkan draft #{revisionNo}
-        </Button>
-      )}
+      <Button
+        type="button"
+        loading={pending}
+        disabled={terkunci}
+        title={terkunci ? `Terkunci – masih kurang: ${persetujuan?.kurang.join(" + ")}` : undefined}
+        onClick={() =>
+          run(
+            activateDraftAction,
+            `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
+              (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman – pastikan sudah dibaca.\n\n" : "") +
+              "Revisi aktif lama menjadi arsip (jejak tetap ada), kurva-S di-regenerate, dan realisasi tersambung otomatis via lineage.",
+          )
+        }
+      >
+        Aktifkan draft #{revisionNo}
+      </Button>
       <Button
         type="button"
         variant="danger"

@@ -109,34 +109,20 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     const user = await requireCapability("rab.manage");
     const rev = await db.rabRevision.findUniqueOrThrow({
       where: { id: parsed.data },
-      select: {
-        id: true,
-        locationId: true,
-        revisionNo: true,
-        source: true,
-        location: { select: { slug: true, packageId: true } },
-      },
+      select: { id: true, locationId: true, revisionNo: true, source: true, location: { select: { slug: true } } },
     });
     await requireLocationAccess(user, rev.locationId);
-    /*
-     * ADENDUM DIBERLAKUKAN DI TINGKAT PAKET (DECISIONS 613). Draft yang
-     * menggantikan RAB aktif adalah adendum: nomor CCO dan nilainya lahir
-     * bersama di Paket › Kontrak & Adendum. Mengaktifkannya dari sini akan
-     * menghasilkan RAB kontrak baru tanpa CCO — persis alur terpisah yang
-     * dikeluhkan user 2026-09-24. RAB AWAL (belum ada yang aktif) tetap di sini.
-     */
-    const adaAktif = await db.rabRevision.count({ where: { locationId: rev.locationId, status: "aktif" } });
-    if (adaAktif > 0)
-      return {
-        error:
-          `Revisi #${rev.revisionNo} adalah adendum – diberlakukan bersama nomor CCO-nya di ` +
-          `Paket › Kontrak & Adendum, bukan dari halaman lokasi.`,
-      };
+    // Ada RAB aktif = ini adendum. Dua persetujuan = BERLAKU sekarang; nomor
+    // CCO-nya administrasi yang menyusul di Kontrak & Adendum (DECISIONS 614).
+    const adendum = (await db.rabRevision.count({ where: { locationId: rev.locationId, status: "aktif" } })) > 0;
     // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.
     await pastikanBolehAktivasi(rev.id);
     const aktif = await activateRevision(rev.id, user.id);
+    // Ditandai SESUDAH aktif: menyentuh draft sebelumnya menggeser updatedAt
+    // dan menggugurkan suara persetujuan yang baru diperiksa.
+    if (adendum) await db.rabRevision.update({ where: { id: rev.id }, data: { awaitingCco: true } });
     // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
     // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
     try {
@@ -168,6 +154,7 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
      */
     const p = aktif.penyesuaian;
     let kabar = `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.`;
+    if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
     if (p.item > 0) {
       const contoh = p.rincian
         .slice(0, 3)
@@ -914,7 +901,7 @@ export async function approveRevisionAction(
         ? ` Aktivasi kembali terkunci – masih kurang: ${sesudah.kurang.join(" + ")}.`
         : ""
       : sesudah.lengkap
-        ? " Persetujuan lengkap – draft siap diaktifkan bersama nomor CCO-nya di Paket › Kontrak & Adendum."
+        ? " Persetujuan lengkap – draft siap diaktifkan."
         : ` Masih menunggu ${sesudah.kurang.join(" + ")}.`;
     return {
       success:

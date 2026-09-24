@@ -8,10 +8,8 @@ import { test, expect, type Cookie, type Page } from "@playwright/test";
  * admin pun tidak boleh mengaktifkan sendiri."
  *
  * Aturan & gerbangnya sudah diuji unit + integrasi. Yang HANYA bisa dibuktikan
- * di sini: orang yang tidak berhak tidak melihat tombol setuju, draft
- * benar-benar TIDAK BISA DICENTANG di pintu "Berlakukan adendum" (Kontrak &
- * Adendum paket, DECISIONS 613) sampai dua tanda tangan masuk, dan alasannya
- * terbaca.
+ * di sini: orang yang tidak berhak tidak melihat tombol setuju, tombol aktivasi
+ * benar-benar mati sampai dua tanda tangan masuk, dan alasannya terbaca.
  *
  * Prasyarat: DB dev ter-seed, server jalan di baseURL.
  */
@@ -47,17 +45,7 @@ async function login(page: Page, username: string) {
   sesiTersimpan.set(username, await page.context().cookies());
 }
 
-/** Sejak DECISIONS 613 halaman adendum lokasi hanya menunjuk ke pintu paket. */
-const tautanBerlakukan = (page: Page) => page.getByRole("link", { name: /Berlakukan di Kontrak/ }).first();
-
-/** Buka pintu "Berlakukan adendum" di paket, kembalikan kotak centang draft ini. */
-async function centangDraft(page: Page) {
-  await page.goto(URL);
-  await tautanBerlakukan(page).click();
-  await page.waitForURL(/\/paket\/[^/]+\/kontrak/, { timeout: 15_000 });
-  await page.getByRole("button", { name: "Berlakukan adendum" }).first().click();
-  return page.getByRole("checkbox", { name: /Revisi RAB #\d+/ }).first();
-}
+const tombolAktifkan = (page: Page) => page.getByRole("button", { name: /^Aktifkan draft/ }).first();
 const tombolSetuju = (page: Page) => page.getByRole("button", { name: /Setujui aktivasi/i });
 const tombolCabut = (page: Page) => page.getByRole("button", { name: /Cabut persetujuan saya/i });
 
@@ -68,7 +56,7 @@ async function bukaAdendum(page: Page, user: string) {
   const buat = page.getByRole("button", { name: /Buat draft/i }).first();
   if (await buat.isVisible().catch(() => false)) {
     await buat.click();
-    await expect(tautanBerlakukan(page)).toBeVisible({ timeout: 15_000 });
+    await expect(tombolAktifkan(page)).toBeVisible({ timeout: 15_000 });
   }
 }
 
@@ -96,9 +84,9 @@ test.describe("aktivasi adendum: empat mata", () => {
     // Super admin punya capability rab.manage — kalau gerbangnya cuma di
     // capability, tombol ini akan hidup. Yang benar: mati, dan sebabnya ditulis.
     await expect(tombolSetuju(page)).toHaveCount(0);
-    await expect(tautanBerlakukan(page)).toHaveAttribute("title", /Program Director/i);
+    await expect(tombolAktifkan(page)).toBeDisabled();
+    await expect(tombolAktifkan(page)).toHaveAttribute("title", /Program Director/i);
     await expect(page.getByText(/Masih kurang:/)).toContainText("Program Director");
-    await expect(await centangDraft(page)).toBeDisabled();
   });
 
   test("PD saja belum cukup – masih menunggu AM/PM/SM", async ({ page }) => {
@@ -107,10 +95,10 @@ test.describe("aktivasi adendum: empat mata", () => {
     await tombolSetuju(page).click();
     await expect(tombolCabut(page)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/Masih kurang:/)).toContainText("Site Manager");
-    await expect(await centangDraft(page)).toBeDisabled();
+    await expect(tombolAktifkan(page)).toBeDisabled();
   });
 
-  test("PD + Project Manager membuka kunci pemberlakuan", async ({ page }) => {
+  test("PD + Project Manager membuka kunci aktivasi", async ({ page }) => {
     await login(page, "hery");
     await page.goto(URL);
     await tombolSetuju(page).click();
@@ -120,13 +108,13 @@ test.describe("aktivasi adendum: empat mata", () => {
     await page.goto(URL);
     await tombolSetuju(page).click();
     await expect(tombolCabut(page)).toBeVisible({ timeout: 15_000 });
+    await expect(tombolAktifkan(page)).toBeEnabled();
 
     // Termasuk bagi super admin: ia tidak boleh menandatangani, tapi setelah
-    // dua orang berwenang setuju ia boleh memberlakukannya bersama nomor CCO.
+    // dua orang berwenang setuju ia boleh menjalankan aktivasinya.
     await login(page, "admin");
-    const centang = await centangDraft(page);
-    await expect(centang).toBeEnabled();
-    await expect(centang).toBeChecked();
+    await page.goto(URL);
+    await expect(tombolAktifkan(page)).toBeEnabled();
   });
 
   test("mencabut satu tanda tangan mengunci ulang", async ({ page }) => {
@@ -138,11 +126,11 @@ test.describe("aktivasi adendum: empat mata", () => {
     await login(page, "pm-01");
     await page.goto(URL);
     await tombolSetuju(page).click();
-    await expect(tombolCabut(page)).toBeVisible({ timeout: 15_000 });
+    await expect(tombolAktifkan(page)).toBeEnabled();
 
     await tombolCabut(page).click();
     await expect(tombolSetuju(page)).toBeVisible({ timeout: 15_000 });
-    await expect(await centangDraft(page)).toBeDisabled();
+    await expect(tombolAktifkan(page)).toBeDisabled();
   });
 });
 

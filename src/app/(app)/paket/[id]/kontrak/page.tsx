@@ -144,7 +144,7 @@ export default async function KontrakPage({
       id: r.revisionId,
       lokasi: r.locationName,
       href: `/lokasi/${r.locationSlug}/rab/adendum`,
-      judul: `Revisi RAB #${r.revisionNo}`,
+      judul: r.sudahBerlaku ? `Revisi RAB #${r.revisionNo} – sudah aktif` : `Draft revisi RAB #${r.revisionNo}`,
       nilai: `RAB ${rp(r.totalAktif)} → ${formatRupiah(r.totalDraft)} (pra-PPN)`,
       lengkap: r.lengkap,
       kurang: r.kurang,
@@ -154,7 +154,9 @@ export default async function KontrakPage({
       id: l.changeId,
       lokasi: l.locationName,
       href: `/paket/${pkg.id}/lokasi`,
-      judul: l.kind === "cabut" ? "Cabut lokasi dari kontrak" : "Tambah lokasi ke kontrak",
+      judul:
+        (l.kind === "cabut" ? "Cabut lokasi dari kontrak" : "Tambah lokasi ke kontrak") +
+        (l.sudahBerlaku && l.effectiveDate ? ` – berlaku sejak ${formatTanggal(l.effectiveDate)}` : ""),
       nilai:
         l.kind === "cabut"
           ? `Seluruh RAB keluar: ${rp(l.totalAktif)} (pra-PPN)`
@@ -266,17 +268,17 @@ export default async function KontrakPage({
             judul="Adendum kontrak (CCO)"
             penjelasan={
               itemAdendum.length === 0
-                ? "Tidak ada draft adendum. Draft revisi RAB dan cabut/tambah lokasi muncul di sini untuk diberlakukan bersama nomor CCO-nya."
-                : `${siap} draft siap diberlakukan` +
+                ? "Tidak ada perubahan yang menunggu nomor CCO. Revisi RAB dan cabut/tambah lokasi yang sudah disetujui muncul di sini untuk dicatat nomor CCO-nya."
+                : `${siap} perubahan siap dicatat dalam CCO` +
                   (itemAdendum.length > siap ? `, ${itemAdendum.length - siap} masih menunggu persetujuan` : "") +
-                  ". Nomor CCO dan nilainya lahir saat diberlakukan."
+                  ". Perubahan berlaku sejak dua persetujuan; di sini nomor CCO dan nilainya dicatat."
             }
             aksi={
               <Drawer
-                trigger="Berlakukan adendum"
+                trigger="Catat CCO"
                 triggerVariant="primary"
-                title="Berlakukan adendum kontrak (CCO)"
-                subtitle="Centang draft yang sudah final – nilai CCO diambil dari RAB-nya."
+                title="Catat adendum kontrak (CCO)"
+                subtitle="Centang perubahan yang masuk CCO ini – nilainya diambil dari RAB."
               >
                 <AktivasiAdendumForm
                   packageId={pkg.id}

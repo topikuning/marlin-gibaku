@@ -1662,8 +1662,9 @@ export async function addAmendment(
   revalidatePath("/lokasi", "layout");
 
   const bagian: string[] = [`Adendum ${hasil.ccoNumber} berlaku.`];
+  if (hasil.dicatat > 0) bagian.push(`${hasil.dicatat} perubahan yang sudah berlaku kini bernomor CCO ini.`);
   if (hasil.revisi.length > 0)
-    bagian.push(`${hasil.revisi.length} revisi RAB aktif, kurva-S dibuat ulang.`);
+    bagian.push(`${hasil.revisi.length} draft revisi RAB diaktifkan, kurva-S dibuat ulang.`);
   if (hasil.lingkup > 0) bagian.push(`${hasil.lingkup} perubahan lokasi diberlakukan.`);
   if (hasil.valueDelta !== hasil.valueDeltaRab)
     bagian.push(
@@ -2398,8 +2399,8 @@ export async function ajukanLingkupLokasiAction(
   if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
   return {
     success:
-      "Usulan perubahan lingkup dicatat sebagai DRAFT. Setelah disetujui Program Director dan satu Area/Project/Site Manager, " +
-      "berlakukan lewat Kontrak & Adendum – nomor CCO dan tanggal berlakunya diisi di sana.",
+      "Usulan perubahan lingkup dicatat sebagai DRAFT. Begitu disetujui Program Director dan satu Area/Project/Site Manager, " +
+      "perubahannya langsung berlaku; nomor CCO dicatat menyusul di Kontrak & Adendum.",
   };
 }
 
@@ -2409,7 +2410,7 @@ export async function setujuiLingkupLokasiAction(
 ): Promise<PackageActionState> {
   const { setujuiPerubahanLingkup, LingkupError } = await import("@/lib/package/lingkup-lokasi");
   const packageId = String(formData.get("packageId") ?? "");
-  let hasil: { lengkap: boolean; kurang: string[] };
+  let hasil: { berlaku: boolean; kurang: string[] };
   try {
     hasil = await setujuiPerubahanLingkup(String(formData.get("changeId") ?? ""));
   } catch (e) {
@@ -2418,8 +2419,9 @@ export async function setujuiLingkupLokasiAction(
   }
   if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
   return {
-    success: hasil.lengkap
-      ? "Persetujuan lengkap – usulan siap diberlakukan lewat Kontrak & Adendum (nomor CCO diisi di sana)."
+    success: hasil.berlaku
+      ? "Persetujuan lengkap – perubahan lokasi BERLAKU sejak hari ini dan angka paket sudah menyesuaikan. " +
+        "Nomor CCO-nya dicatat nanti di Kontrak & Adendum."
       : `Persetujuan Anda dicatat. Masih menunggu ${hasil.kurang.join(" + ")}.`,
   };
 }
