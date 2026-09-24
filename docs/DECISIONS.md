@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 612 | 2026-09-24 | Folder laporan harian/mingguan/bulanan dilewati impor Drive – MARLIN menerbitkannya sendiri; folder lain tetap ditawarkan |
 | 611 | 2026-09-24 | Satu draft adendum per lokasi: impor baru menggantikan + baris laporan ikut pindah lewat lineageKey, satu transaksi; yang tak berpadanan ditolak dengan daftarnya |
 | 610 | 2026-09-24 | Akun Executive View disembunyikan dari panel Akses lokasi (disaring di server); catatannya TETAP, tidak menyebut jumlah |
 | 609 | 2026-09-24 | Layar lokasi bertanya ke grupUntukLokasi, bukan ke package.waGroupId – tombol kirim WA mati padahal grup KABUPATEN sudah dipasang |

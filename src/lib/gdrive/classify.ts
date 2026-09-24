@@ -242,6 +242,24 @@ export function alasanDilewati(input: {
   if (folder === "6. DOKUMENTASI") {
     return "folder dokumentasi foto – foto lapangan dikelola di modul Kegiatan/Foto, bukan arsip dokumen";
   }
+  /*
+   * FOLDER LAPORAN TIDAK DITARIK BALIK (ketetapan user 2026-09-24):
+   *
+   *   *"untuk apa laporan mingguan di menu impor dari drive diunduh ke server…
+   *   seharusnya kan kamu abaikan saja."*
+   *
+   * Laporan harian/mingguan/bulanan DITERBITKAN MARLIN SENDIRI, dan MARLIN pula
+   * yang mengunggahnya ke folder-folder ini (DECISIONS 313). Menariknya balik
+   * berarti mengarsipkan keluaran sendiri seolah berkas pihak lain — dan karena
+   * pratinjau mencentang semua yang siap secara otomatis, satu tekan tombol
+   * sudah cukup untuk melakukannya berkali-kali.
+   *
+   * Alasannya sama dengan folder 6 di atas: bukan karena berkasnya tak
+   * berharga, melainkan karena sudah ada modul lain yang memilikinya.
+   */
+  if (folder === "3. LAPORAN HARIAN" || folder === "4. LAPORAN MINGGUAN" || folder === "5. LAPORAN BULANAN") {
+    return `folder ${folder.toLowerCase()} – laporan berkala diterbitkan MARLIN sendiri dan sudah ada di menu Laporan, jadi tidak ditarik balik ke arsip dokumen`;
+  }
   if (input.mimeType.startsWith("image/") && (input.fileName.match(/^(img|dsc|photo|foto)[-_ ]?\d+/i))) {
     return "berkas foto kamera – bukan dokumen administrasi";
   }
