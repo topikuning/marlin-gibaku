@@ -61,7 +61,12 @@ export default async function LokasiRingkasanPage({
    */
   const bolehKelolaAkses = can(user.role, "user.manage");
   const [aksesRows, calonAkses] = await Promise.all([
-    aksesLokasi(location.id, user.orgId),
+    /*
+     * Akun Executive View hanya boleh diketahui Super Admin + Program Director
+     * (ketetapan user 2026-09-24) — dan itu persis `user.manage`. Disaring di
+     * server: barisnya tidak ikut terkirim ke klien.
+     */
+    aksesLokasi(location.id, user.orgId, { sembunyikanEksekutif: !bolehKelolaAkses }),
     bolehKelolaAkses ? calonDitugaskan(location.id, user.orgId) : Promise.resolve([]),
   ]);
 
@@ -269,6 +274,7 @@ export default async function LokasiRingkasanPage({
                 baris={aksesRows}
                 calon={calonAkses}
                 bolehKelola={bolehKelolaAkses}
+                eksekutifDisembunyikan={!bolehKelolaAkses}
               />
             </CardBody>
           </Card>

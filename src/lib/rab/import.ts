@@ -7,6 +7,7 @@ import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { valueDone as hitungNilai } from "@/lib/money";
 import { sesuaikanProporsional } from "@/lib/rab/sesuaikan-realisasi";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
+import { formatTanggal } from "@/lib/format";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { DEFAULT_CONTRACT_DAYS, gridEndFrac, gridStartFrac, rebucketWeeklyToGrid, weekOfFracEnd, weekOfFracStart, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
@@ -424,6 +425,58 @@ async function sesuaikanRealisasiKeVolumeBaru(
 }
 
 /** Hapus draft + seluruh node-nya (cascade FK). Hanya draft yang boleh dibuang. */
+/**
+ * Baris laporan harian yang menunjuk node sebuah DRAFT — yaitu laporan yang
+ * diinput terhadap adendum yang belum sah (`basis = "draft_adendum"`,
+ * DECISIONS 210).
+ *
+ * Ada karena `DailyReportItem.rabNodeId` memakai FK **RESTRICT**: selama baris
+ * ini ada, draftnya tidak bisa dihapus. Sebelum DECISIONS 611 penolakan itu
+ * datang dari Postgres dan kalimat mentahnya lolos ke layar user —
+ * *"update or delete on table \"rab_nodes\" violates RESTRICT setting of
+ * foreign key constraint \"daily_report_items_rab_node_id_fkey\""*.
+ */
+export type LaporanDariDraft = {
+  itemId: string;
+  lineageKey: string;
+  nama: string;
+  tanggal: Date;
+};
+
+async function laporanDariDraft(
+  tx: Prisma.TransactionClient | typeof db,
+  revisionId: string,
+): Promise<LaporanDariDraft[]> {
+  const rows = await tx.dailyReportItem.findMany({
+    where: { rabNode: { revisionId } },
+    select: {
+      id: true,
+      lineageKey: true,
+      rabNode: { select: { name: true } },
+      report: { select: { reportDate: true } },
+    },
+    orderBy: [{ report: { reportDate: "asc" } }, { id: "asc" }],
+  });
+  return rows.map((r) => ({
+    itemId: r.id,
+    lineageKey: r.lineageKey,
+    nama: r.rabNode.name,
+    tanggal: r.report.reportDate,
+  }));
+}
+
+/** Sebutan siap-baca untuk sekumpulan baris laporan: tanggal + nama itemnya. */
+function sebutLaporan(rows: LaporanDariDraft[], maks = 8): string {
+  const inti = rows
+    .slice(0, maks)
+    .map((r) => `${formatTanggal(r.tanggal)} – ${r.nama}`)
+    .join("; ");
+  return inti + (rows.length > maks ? `; +${rows.length - maks} baris lain` : "");
+}
+
+/** Draft yang masih dipakai laporan harian tidak bisa dibuang begitu saja. */
+export class DraftTerpakaiError extends Error {}
+
 export async function discardDraft(revisionId: string, userId: string) {
   const rev = await db.rabRevision.findUniqueOrThrow({
     where: { id: revisionId },
@@ -432,12 +485,115 @@ export async function discardDraft(revisionId: string, userId: string) {
   if (rev.status !== "draft") {
     throw new Error(`Revisi #${rev.revisionNo} bukan draft – tidak boleh dihapus.`);
   }
+  /*
+   * DITOLAK DENGAN KALIMAT MARLIN, bukan oleh Postgres (DECISIONS 611).
+   *
+   * Laporan harian yang sudah diinput terhadap draft ini adalah pekerjaan
+   * lapangan yang sungguh terjadi. Menghapusnya bersama draftnya membuang data
+   * orang tanpa ditanya; membiarkan Postgres yang menolak membuat user membaca
+   * kalimat yang tidak bisa ditindaklanjuti siapa pun.
+   */
+  const terpakai = await laporanDariDraft(db, rev.id);
+  if (terpakai.length > 0) {
+    throw new DraftTerpakaiError(
+      `Draft #${rev.revisionNo} tidak bisa dibuang: ${terpakai.length} baris laporan harian sudah ` +
+        `diinput terhadap draft ini – ${sebutLaporan(terpakai)}. ` +
+        `Unggah berkas adendum penggantinya (baris laporan akan ikut pindah ke draft baru), ` +
+        `atau hapus dulu baris laporan itu di layar Pelaksanaan Harian.`,
+    );
+  }
   await db.rabRevision.delete({ where: { id: rev.id } });
   await audit(userId, "rab.revision_discard", "rab_revision", rev.id, {
     locationId: rev.locationId,
     revisionNo: rev.revisionNo,
   });
   return rev;
+}
+
+/**
+ * DRAFT LAMA DIGANTI DRAFT BARU — laporan harian ikut pindah.
+ *
+ * **Ketetapan user 2026-09-24**:
+ *
+ *   *"seharusnya jika ada import baru, itu yang digunakan sebagai draft
+ *   terbaru dan 'draft aktif', jadi item yang sudah diinput dicari padanannya
+ *   pada draft paling akhir. jika beresiko rancu, ada list laporan harian mana
+ *   saja yang telah diinput dari draft."*
+ *
+ * Padanan dicari lewat `lineageKey` — identitas yang memang dirancang stabil
+ * antar revisi, dan yang sudah dipakai seluruh mesin carry-over realisasi.
+ *
+ * ### Kenapa satu transaksi
+ *
+ * Urutan impor draft sengaja membuat dulu baru membuang (audit 2026-09-15 F-2:
+ * urutan sebaliknya meninggalkan lokasi TANPA draft bila pembuatan gagal). Yang
+ * tidak diantisipasi: langkah MEMBUANG-nya sendiri bisa gagal — FK RESTRICT
+ * dari `daily_report_items` — dan karena keduanya bukan satu transaksi,
+ * hasilnya DUA draft pada satu lokasi. Itu keadaan yang dilaporkan user
+ * 2026-09-24, dan pemindahan di sini menutupnya dari dua sisi: baris laporannya
+ * dipindah lebih dulu sehingga tidak ada lagi yang menahan, dan seluruhnya
+ * dibungkus satu transaksi sehingga kegagalan apa pun tidak meninggalkan
+ * setengah jalan.
+ *
+ * ### Yang TIDAK berpadanan
+ *
+ * Dilempar sebagai `DraftTerpakaiError` yang menyebut tanggal dan nama itemnya.
+ * Menghapusnya berarti membuang laporan lapangan tanpa ditanya; membiarkannya
+ * menggantung mustahil — kolomnya wajib menunjuk sebuah node. Yang memutuskan
+ * harus orang, dan untuk memutuskan ia perlu daftarnya.
+ */
+export async function gantiDraftLama(
+  draftLamaId: string,
+  draftBaruId: string,
+  userId: string,
+): Promise<{ dipindah: number }> {
+  return db.$transaction(async (tx) => {
+    const terpakai = await laporanDariDraft(tx, draftLamaId);
+    if (terpakai.length === 0) {
+      await tx.rabRevision.delete({ where: { id: draftLamaId } });
+      return { dipindah: 0 };
+    }
+
+    const kunci = [...new Set(terpakai.map((r) => r.lineageKey))];
+    const padanan = new Map(
+      (
+        await tx.rabNode.findMany({
+          where: { revisionId: draftBaruId, kind: "item", lineageKey: { in: kunci } },
+          select: { id: true, lineageKey: true },
+        })
+      ).map((n) => [n.lineageKey, n.id]),
+    );
+
+    const yatim = terpakai.filter((r) => !padanan.has(r.lineageKey));
+    if (yatim.length > 0) {
+      const lamaNo = (
+        await tx.rabRevision.findUniqueOrThrow({
+          where: { id: draftLamaId },
+          select: { revisionNo: true },
+        })
+      ).revisionNo;
+      throw new DraftTerpakaiError(
+        `Impor dihentikan: ${yatim.length} baris laporan harian sudah diinput terhadap draft ` +
+          `#${lamaNo}, tetapi itemnya TIDAK ADA di berkas ini – ${sebutLaporan(yatim)}. ` +
+          `Laporan lapangan tidak dibuang diam-diam. Pakai berkas yang masih memuat item itu, ` +
+          `atau hapus dulu baris laporannya di layar Pelaksanaan Harian.`,
+      );
+    }
+
+    for (const r of terpakai) {
+      await tx.dailyReportItem.update({
+        where: { id: r.itemId },
+        data: { rabNodeId: padanan.get(r.lineageKey)! },
+      });
+    }
+    await tx.rabRevision.delete({ where: { id: draftLamaId } });
+    await auditIn(tx, userId, "rab.draft_diganti", "rab_revision", draftBaruId, {
+      draftLamaId,
+      baris: terpakai.length,
+      tanggal: terpakai.map((r) => r.tanggal.toISOString().slice(0, 10)),
+    });
+    return { dipindah: terpakai.length };
+  });
 }
 
 /** Masa pelaksanaan (hari) dari kontrak paket lokasi; fallback 150. */

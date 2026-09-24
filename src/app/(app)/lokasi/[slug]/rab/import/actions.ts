@@ -14,6 +14,8 @@ import {
   createRevisionFromNodes,
   createRevisionFromParsed,
   discardDraft,
+  DraftTerpakaiError,
+  gantiDraftLama,
   profilBaselineAktif,
   regenerateBaseline,
 } from "@/lib/rab/import";
@@ -963,7 +965,25 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         userId: user.id,
         amendmentId,
       });
-      if (draft) await discardDraft(draft.id, user.id);
+      /*
+       * Draft lama DIGANTI, dan baris laporan harian yang sudah diinput
+       * terhadapnya ikut pindah ke draft baru lewat `lineageKey`
+       * (ketetapan user 2026-09-24, DECISIONS 611). Seluruhnya satu transaksi.
+       *
+       * Kalau ada baris yang tidak berpadanan, pemindahannya menolak — dan
+       * draft yang baru saja dibuat DIBATALKAN di sini, supaya impor yang
+       * ditolak tidak meninggalkan lokasi dengan DUA draft. Itu persis keadaan
+       * yang dilaporkan user: create berhasil, discard gagal, drafnya dua.
+       */
+      if (draft) {
+        try {
+          await gantiDraftLama(draft.id, resDraft.revisionId, user.id);
+        } catch (e) {
+          await discardDraft(resDraft.revisionId, user.id).catch(() => {});
+          if (e instanceof DraftTerpakaiError) return { error: e.message };
+          throw e;
+        }
+      }
       await arsipkanSumber({
         buffer,
         file,

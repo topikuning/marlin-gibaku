@@ -230,3 +230,57 @@ describe("extractDocDate", () => {
     }
   });
 });
+
+/*
+ * FOLDER LAPORAN TIDAK DITARIK BALIK DARI DRIVE.
+ *
+ * **Ketetapan user 2026-09-24**, memotret pratinjau impor Drive yang menawarkan
+ * belasan "Laporan Mingguan ke-N Desa Banjar":
+ *
+ *   *"untuk apa laporan mingguan di menu impor dari drive diunduh ke server,
+ *   apakah ini file yang berbeda atau bagaimana, seharusnya kan kamu abaikan
+ *   saja."*
+ *
+ * Laporan harian, mingguan, dan bulanan DITERBITKAN MARLIN SENDIRI dan diunggah
+ * MARLIN ke folder-folder itu (DECISIONS 313). Menariknya balik ke Document
+ * Center berarti mengarsipkan keluaran sendiri sebagai kalau-kalau itu berkas
+ * pihak lain — dan karena pratinjau MENCENTANG SEMUA yang siap secara otomatis,
+ * satu tekan tombol sudah cukup untuk melakukannya berkali-kali.
+ *
+ * Polanya sama dengan folder 6 (DOKUMENTASI) yang sudah lama dilewati: bukan
+ * karena berkasnya tidak berharga, melainkan karena ada modul lain yang sudah
+ * memilikinya.
+ */
+describe("folder laporan dilewati – MARLIN menerbitkannya sendiri", () => {
+  const didukung = () => true;
+
+  for (const [folder, sebutan] of [
+    ["3. LAPORAN HARIAN", "harian"],
+    ["4. LAPORAN MINGGUAN", "mingguan"],
+    ["5. LAPORAN BULANAN", "bulanan"],
+  ] as const) {
+    it(`melewati folder ${sebutan}`, () => {
+      const r = alasanDilewati({
+        fileName: "Laporan Mingguan ke 1 Desa Banjar Pdf.pdf",
+        mimeType: "application/pdf",
+        path: ["KNMP 2026", folder, "Banjar"],
+        didukung,
+      });
+      expect(r, `folder ${folder} masih ditawarkan`).toBeTruthy();
+      // Alasannya harus menjelaskan KENAPA, bukan sekadar "dilewati": yang
+      // membaca layar itu orang yang baru saja melihat berkasnya di Drive.
+      expect(r).toMatch(/MARLIN/);
+    });
+  }
+
+  it("folder kontrak TETAP ditawarkan – pagarnya tidak melebar", () => {
+    expect(
+      alasanDilewati({
+        fileName: "SPMK.pdf",
+        mimeType: "application/pdf",
+        path: ["KNMP 2026", "1. SPPBJ, SPK, SPMK, RAB, DED"],
+        didukung,
+      }),
+    ).toBeNull();
+  });
+});

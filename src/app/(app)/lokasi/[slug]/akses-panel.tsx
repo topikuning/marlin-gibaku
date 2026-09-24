@@ -37,12 +37,15 @@ export function AksesPanel({
   baris,
   calon,
   bolehKelola,
+  eksekutifDisembunyikan,
 }: {
   locationId: string;
   slug: string;
   baris: BarisAksesUi[];
   calon: { id: string; nama: string; peran: string }[];
   bolehKelola: boolean;
+  /** Baris berperan Executive View disaring di server untuk peran ini. */
+  eksekutifDisembunyikan: boolean;
 }) {
   const [beriState, beri, beriPending] = useAksi<AksesActionState>(beriAksesLokasiAction, undefined);
   const [cabutState, cabut, cabutPending] = useAksi<AksesActionState>(cabutAksesLokasiAction, undefined);
@@ -52,6 +55,21 @@ export function AksesPanel({
     <div className="space-y-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+
+      {/*
+        CATATAN TETAP, TIDAK MENGHITUNG (ketetapan user 2026-09-24).
+
+        Daftar yang memotong sesuatu tanpa berkata apa-apa akan terbaca
+        LENGKAP — bahaya yang disebut doc `akses-lokasi.ts` sendiri. Tapi
+        menyebut JUMLAH yang disembunyikan membocorkan justru yang
+        disembunyikan: ada atau tidak ada akun eksekutif di lokasi ini. Karena
+        itu kalimatnya tetap, ditulis baik ada maupun tidak ada akunnya.
+      */}
+      {eksekutifDisembunyikan ? (
+        <p className="text-xs text-ink-muted">
+          Akun Executive View tidak ditampilkan di daftar ini.
+        </p>
+      ) : null}
 
       {baris.length === 0 ? (
         <p className="text-sm text-ink-muted">Belum ada yang bisa membuka lokasi ini.</p>
