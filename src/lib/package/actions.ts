@@ -12,7 +12,7 @@ import {
   revertTargetFor,
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
-import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { formatRupiah, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
@@ -1610,7 +1610,7 @@ export async function startPelaksanaan(
 /* ------------------------------------------------------------------ */
 
 const amendmentSchema = z.object({
-  contractId: z.uuid("ID kontrak tidak valid"),
+  packageId: z.uuid("ID paket tidak valid"),
   ccoNumber: z.string().trim().min(1, "Nomor CCO/adendum wajib diisi").max(150),
   endDateDelta: z.preprocess(
     (v) => (v === "" || v == null ? 0 : Number(v)),
@@ -1618,68 +1618,108 @@ const amendmentSchema = z.object({
   ),
   effectiveDate: z.string().min(1, "Tanggal berlaku wajib diisi"),
   reason: z.string().trim().min(5, "Alasan adendum wajib diisi (min 5 karakter)").max(2000),
+  revisionIds: z.array(z.uuid()),
+  changeIds: z.array(z.uuid()),
 });
 
+/**
+ * Aktivasi adendum paket — SATU pintu yang menggantikan "Catat adendum"
+ * (DECISIONS 613). CCO lahir di sini bersama draft RAB & perubahan lingkup
+ * yang dicentang; tanpa centangan = CCO waktu saja.
+ */
 export async function addAmendment(
   _prev: PackageActionState,
   formData: FormData,
 ): Promise<PackageActionState> {
-  const actor = await requireCapability("amendment.manage");
+  await requireCapability("amendment.manage");
   const parsed = amendmentSchema.safeParse({
-    contractId: formData.get("contractId"),
+    packageId: formData.get("packageId"),
     ccoNumber: formData.get("ccoNumber"),
     endDateDelta: formData.get("endDateDelta"),
     effectiveDate: formData.get("effectiveDate"),
     reason: formData.get("reason"),
+    revisionIds: formData.getAll("revisionIds"),
+    changeIds: formData.getAll("changeIds"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
-
-  const valueDelta = parseRupiahSigned(formData.get("valueDelta"));
-  if (valueDelta === null) {
-    return { error: "Perubahan nilai wajib diisi (boleh 0, gunakan tanda minus untuk pengurangan)." };
-  }
   const effectiveDate = parseDateKey(d.effectiveDate);
   if (!effectiveDate) return { error: "Format tanggal berlaku tidak valid." };
+  // Kosong = pakai angka turunan RAB; diketik = angka resmi dokumen CCO.
+  const valueDelta = parseRupiahSigned(formData.get("valueDelta"));
 
-  const result = await db.$transaction(async (tx) => {
-    const contract = await tx.contract.findFirst({
-      where: { id: d.contractId, package: { orgId: actor.orgId } },
-      select: { id: true, packageId: true },
-    });
-    if (!contract) return { error: "Kontrak tidak ditemukan." as string };
-    const dupe = await tx.contractAmendment.findUnique({
-      where: { contractId_ccoNumber: { contractId: d.contractId, ccoNumber: d.ccoNumber } },
-      select: { id: true },
-    });
-    if (dupe) return { error: `Adendum "${d.ccoNumber}" sudah tercatat untuk kontrak ini.` };
-    const amendment = await tx.contractAmendment.create({
-      data: {
-        contractId: d.contractId,
-        ccoNumber: d.ccoNumber,
-        valueDelta,
-        endDateDelta: d.endDateDelta,
-        effectiveDate,
-        reason: d.reason,
-        createdById: actor.id,
-      },
-      select: { id: true },
-    });
-    return { amendmentId: amendment.id, packageId: contract.packageId };
-  });
-  if ("error" in result) return { error: result.error };
-
-  await audit(actor.id, "amendment.add", "package", result.packageId, {
-    amendmentId: result.amendmentId,
-    contractId: d.contractId,
-    ccoNumber: d.ccoNumber,
-    valueDelta,
-    endDateDelta: d.endDateDelta,
-  });
+  const { aktifkanAdendumPaket, AktivasiAdendumError } = await import("@/lib/package/aktivasi-adendum");
+  const { PersetujuanError } = await import("@/lib/rab/persetujuan");
+  let hasil;
+  try {
+    hasil = await aktifkanAdendumPaket({ ...d, effectiveDate, valueDelta });
+  } catch (e) {
+    if (e instanceof AktivasiAdendumError || e instanceof PersetujuanError) return { error: e.message };
+    throw e;
+  }
   revalidatePath("/paket");
-  revalidatePath(`/paket/${result.packageId}`, "layout");
+  revalidatePath(`/paket/${d.packageId}`, "layout");
+  revalidatePath("/lokasi", "layout");
+
+  const bagian: string[] = [`Adendum ${hasil.ccoNumber} berlaku.`];
+  if (hasil.revisi.length > 0)
+    bagian.push(`${hasil.revisi.length} revisi RAB aktif, kurva-S dibuat ulang.`);
+  if (hasil.lingkup > 0) bagian.push(`${hasil.lingkup} perubahan lokasi diberlakukan.`);
+  if (hasil.valueDelta !== hasil.valueDeltaRab)
+    bagian.push(
+      `Nilai CCO diketik ${formatRupiah(hasil.valueDelta)}, turunan RAB ${formatRupiah(hasil.valueDeltaRab)} – ` +
+        `selisih ${formatRupiah(hasil.valueDelta - hasil.valueDeltaRab)} tercatat.`,
+    );
+  const turun = hasil.revisi.filter((r) => r.penyesuaian.item > 0);
+  if (turun.length > 0)
+    bagian.push(
+      `PERHATIAN: realisasi diturunkan mengikuti volume kontrak barunya di ` +
+        turun.map((r) => `${r.locationName} (${r.penyesuaian.item} item)`).join(", ") +
+        (turun.some((r) => r.penyesuaian.rincian.some((x) => x.adaFinal)) ? `, termasuk laporan FINAL` : "") +
+        `. Rinciannya ada di audit log.`,
+    );
+  if (hasil.baselineGagal.length > 0)
+    return {
+      error:
+        bagian.join(" ") +
+        ` Tetapi kurva-S GAGAL dibuat ulang di ${hasil.baselineGagal.join(", ")} – buka tab Kurva-S lokasinya ` +
+        `lalu tekan "Hitung ulang kurva-S".`,
+    };
+  return { success: bagian.join(" ") };
+}
+
+export type PratinjauSelisihAdendum =
+  | { turunan: string; turunanTeks: string; selisih: string | null; selisihTeks: string | null }
+  | { error: string };
+
+/**
+ * Angka turunan RAB untuk centangan yang sedang dipilih — dihitung di SERVER
+ * dengan fungsi yang sama dengan aktivasinya, supaya layar tidak pernah
+ * menghitung ulang (CLAUDE.md prinsip 7). `valueDelta` diketik → selisihnya
+ * ikut dikembalikan.
+ */
+export async function pratinjauSelisihAdendum(input: {
+  packageId: string;
+  revisionIds: string[];
+  changeIds: string[];
+  valueDelta: string;
+}): Promise<PratinjauSelisihAdendum> {
+  const actor = await requireCapability("amendment.manage");
+  const contract = await db.contract.findFirst({
+    where: { packageId: input.packageId, package: { orgId: actor.orgId } },
+    select: { ppnPercent: true },
+  });
+  if (!contract) return { error: "Kontrak tidak ditemukan." };
+  const { adendumTertunda, selisihPilihan } = await import("@/lib/package/aktivasi-adendum");
+  const tertunda = await adendumTertunda(input.packageId);
+  const turunan = selisihPilihan(tertunda, input.revisionIds, input.changeIds, Number(contract.ppnPercent)).denganPpn;
+  const resmi = parseRupiahSigned(input.valueDelta);
+  const selisih = resmi === null ? null : resmi - turunan;
   return {
-    success: `Adendum ${d.ccoNumber} tercatat. Revisi RAB lokasi (bila nilai berubah) dilakukan di modul RAB.`,
+    turunan: turunan.toString(),
+    turunanTeks: formatRupiah(turunan),
+    selisih: selisih === null ? null : selisih.toString(),
+    selisihTeks: selisih === null ? null : `${selisih > 0n ? "+" : ""}${formatRupiah(selisih)}`,
   };
 }
 
@@ -2348,7 +2388,6 @@ export async function ajukanLingkupLokasiAction(
   try {
     await ajukanPerubahanLingkup({
       locationId: String(formData.get("locationId") ?? ""),
-      amendmentId: String(formData.get("amendmentId") ?? ""),
       kind,
       reason: String(formData.get("reason") ?? ""),
     });
@@ -2359,7 +2398,8 @@ export async function ajukanLingkupLokasiAction(
   if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
   return {
     success:
-      "Usulan perubahan lingkup dicatat. Belum berlaku – perlu persetujuan Program Director dan satu Area/Project/Site Manager.",
+      "Usulan perubahan lingkup dicatat sebagai DRAFT. Setelah disetujui Program Director dan satu Area/Project/Site Manager, " +
+      "berlakukan lewat Kontrak & Adendum – nomor CCO dan tanggal berlakunya diisi di sana.",
   };
 }
 
@@ -2369,18 +2409,18 @@ export async function setujuiLingkupLokasiAction(
 ): Promise<PackageActionState> {
   const { setujuiPerubahanLingkup, LingkupError } = await import("@/lib/package/lingkup-lokasi");
   const packageId = String(formData.get("packageId") ?? "");
-  let berlaku = false;
+  let hasil: { lengkap: boolean; kurang: string[] };
   try {
-    ({ berlaku } = await setujuiPerubahanLingkup(String(formData.get("changeId") ?? "")));
+    hasil = await setujuiPerubahanLingkup(String(formData.get("changeId") ?? ""));
   } catch (e) {
     if (e instanceof LingkupError) return { error: e.message };
     throw e;
   }
   if (packageId) revalidatePath(`/paket/${packageId}`, "layout");
   return {
-    success: berlaku
-      ? "Persetujuan lengkap – perubahan lingkup BERLAKU sejak tanggal adendumnya."
-      : "Persetujuan Anda dicatat. Masih menunggu kursi kedua sebelum berlaku.",
+    success: hasil.lengkap
+      ? "Persetujuan lengkap – usulan siap diberlakukan lewat Kontrak & Adendum (nomor CCO diisi di sana)."
+      : `Persetujuan Anda dicatat. Masih menunggu ${hasil.kurang.join(" + ")}.`,
   };
 }
 

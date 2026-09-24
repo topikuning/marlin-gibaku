@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 613 | 2026-09-24 | Adendum satu pintu: draft RAB & cabut/tambah lokasi lahir tanpa CCO, diberlakukan bersama di Kontrak & Adendum; nilai CCO diturunkan dari RAB, boleh diketik ulang (selisih tercatat) |
 | 612 | 2026-09-24 | Folder laporan harian/mingguan/bulanan dilewati impor Drive – MARLIN menerbitkannya sendiri; folder lain tetap ditawarkan |
 | 611 | 2026-09-24 | Satu draft adendum per lokasi: impor baru menggantikan + baris laporan ikut pindah lewat lineageKey, satu transaksi; yang tak berpadanan ditolak dengan daftarnya |
 | 610 | 2026-09-24 | Akun Executive View disembunyikan dari panel Akses lokasi (disaring di server); catatannya TETAP, tidak menyebut jumlah |

@@ -14,7 +14,8 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
-import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
+import { formatPct, formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
+import { adendumTertunda } from "@/lib/package/aktivasi-adendum";
 import {
   getPackageWorkspace,
   listVendors,
@@ -23,7 +24,8 @@ import {
 } from "@/lib/package/queries";
 import { StartPelaksanaanButton } from "../stage-actions";
 import {
-  AmendmentForm,
+  AktivasiAdendumForm,
+  type ItemAdendumForm,
   ConvertContractForm,
   EditContractForm,
   WeekModeForm,
@@ -132,6 +134,37 @@ export default async function KontrakPage({
   const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
 
+  // Draft adendum yang menunggu diberlakukan (DECISIONS 613). Nilainya hanya
+  // DIFORMAT di sini; selisih CCO dihitung server lewat calc layer.
+  const tertunda = canAmend ? await adendumTertunda(pkg.id) : { revisi: [], lingkup: [] };
+  const rp = (v: bigint | null) => (v === null ? "belum ada RAB" : formatRupiah(v));
+  const itemAdendum: ItemAdendumForm[] = [
+    ...tertunda.revisi.map((r) => ({
+      jenis: "revisi" as const,
+      id: r.revisionId,
+      lokasi: r.locationName,
+      href: `/lokasi/${r.locationSlug}/rab/adendum`,
+      judul: `Revisi RAB #${r.revisionNo}`,
+      nilai: `RAB ${rp(r.totalAktif)} → ${formatRupiah(r.totalDraft)} (pra-PPN)`,
+      lengkap: r.lengkap,
+      kurang: r.kurang,
+    })),
+    ...tertunda.lingkup.map((l) => ({
+      jenis: "lingkup" as const,
+      id: l.changeId,
+      lokasi: l.locationName,
+      href: `/paket/${pkg.id}/lokasi`,
+      judul: l.kind === "cabut" ? "Cabut lokasi dari kontrak" : "Tambah lokasi ke kontrak",
+      nilai:
+        l.kind === "cabut"
+          ? `Seluruh RAB keluar: ${rp(l.totalAktif)} (pra-PPN)`
+          : `RAB masuk: ${rp(l.totalAktif)} (pra-PPN)`,
+      lengkap: l.lengkap,
+      kurang: l.kurang,
+    })),
+  ];
+  const siap = itemAdendum.filter((i) => i.lengkap).length;
+
 
   return (
     <div className="space-y-4">
@@ -231,15 +264,25 @@ export default async function KontrakPage({
         {canAmend ? (
           <AksiTile
             judul="Adendum kontrak (CCO)"
-            penjelasan="Perubahan RESMI nilai dan/atau waktu. Riwayatnya append-only; revisi RAB lokasi tetap dilakukan di modul RAB."
+            penjelasan={
+              itemAdendum.length === 0
+                ? "Tidak ada draft adendum. Draft revisi RAB dan cabut/tambah lokasi muncul di sini untuk diberlakukan bersama nomor CCO-nya."
+                : `${siap} draft siap diberlakukan` +
+                  (itemAdendum.length > siap ? `, ${itemAdendum.length - siap} masih menunggu persetujuan` : "") +
+                  ". Nomor CCO dan nilainya lahir saat diberlakukan."
+            }
             aksi={
               <Drawer
-                trigger="Catat adendum"
+                trigger="Berlakukan adendum"
                 triggerVariant="primary"
-                title="Catat adendum kontrak (CCO)"
-                subtitle="Append-only – revisi RAB lokasi terkait dilakukan di modul RAB."
+                title="Berlakukan adendum kontrak (CCO)"
+                subtitle="Centang draft yang sudah final – nilai CCO diambil dari RAB-nya."
               >
-                <AmendmentForm contractId={contract.id} />
+                <AktivasiAdendumForm
+                  packageId={pkg.id}
+                  items={itemAdendum}
+                  hariIni={jakartaDateKey(new Date())}
+                />
               </Drawer>
             }
           />
@@ -433,6 +476,11 @@ export default async function KontrakPage({
                       >
                         {a.valueDelta > 0n ? "+" : ""}
                         {formatRupiah(a.valueDelta)}
+                        {a.valueDeltaRab !== null && a.valueDeltaRab !== a.valueDelta ? (
+                          <span className="block text-[12px] text-ink-muted">
+                            dari RAB {formatRupiah(a.valueDeltaRab)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="tabular py-2 pr-3 text-right">
                         {a.endDateDelta > 0 ? "+" : ""}

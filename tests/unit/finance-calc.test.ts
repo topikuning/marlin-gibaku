@@ -207,3 +207,62 @@ describe("totalPortofolio", () => {
     expect(total.installed).toBe(0n);
   });
 });
+
+/**
+ * SELISIH NILAI ADENDUM DARI RAB (DECISIONS 613).
+ *
+ * Ketetapan user 2026-09-24: nilai CCO *"ambil dari RAB tapi tetap bisa diubah
+ * ketikan"*, dan lokasi yang dicabut mengurangi *"seluruh nilai RAB-nya"*.
+ * Satu lokasi dihitung sebagai (nilai sesudah − nilai sebelum) di dalam
+ * kontrak; PPN dikenakan SEKALI pada totalnya supaya pembulatan tidak
+ * berlipat per lokasi.
+ */
+describe("selisihNilaiAdendum", () => {
+  it("revisi RAB: draft − aktif, lalu PPN atas totalnya", async () => {
+    const { selisihNilaiAdendum } = await import("../../src/lib/finance/calc");
+    const h = selisihNilaiAdendum(
+      [
+        { locationId: "L1", aktif: rupiah(1_000), draft: rupiah(1_300), lingkup: null },
+        { locationId: "L2", aktif: rupiah(2_000), draft: rupiah(1_900), lingkup: null },
+      ],
+      11,
+    );
+    expect(h.sebelumPpn).toBe(rupiah(200));
+    expect(h.denganPpn).toBe(rupiah(222));
+  });
+
+  it("cabut: seluruh RAB aktif keluar, draft revisinya (kalau ada) tidak dihitung", async () => {
+    const { selisihNilaiAdendum } = await import("../../src/lib/finance/calc");
+    const h = selisihNilaiAdendum(
+      [{ locationId: "L1", aktif: rupiah(5_000), draft: rupiah(6_000), lingkup: "cabut" }],
+      0,
+    );
+    expect(h.sebelumPpn).toBe(rupiah(-5_000));
+  });
+
+  it("tambah: lokasi masuk dengan RAB yang akan berlaku (draft bila ada, jika tidak aktif)", async () => {
+    const { selisihNilaiAdendum } = await import("../../src/lib/finance/calc");
+    expect(
+      selisihNilaiAdendum([{ locationId: "L1", aktif: rupiah(700), draft: null, lingkup: "tambah" }], 0).sebelumPpn,
+    ).toBe(rupiah(700));
+    expect(
+      selisihNilaiAdendum([{ locationId: "L1", aktif: null, draft: rupiah(900), lingkup: "tambah" }], 0).sebelumPpn,
+    ).toBe(rupiah(900));
+    // Belum ada RAB sama sekali: masuk dengan nilai 0, bukan galat.
+    expect(
+      selisihNilaiAdendum([{ locationId: "L1", aktif: null, draft: null, lingkup: "tambah" }], 0).sebelumPpn,
+    ).toBe(0n);
+  });
+
+  it("tanpa item (CCO waktu saja) → nol", async () => {
+    const { selisihNilaiAdendum } = await import("../../src/lib/finance/calc");
+    expect(selisihNilaiAdendum([], 11)).toEqual({ sebelumPpn: 0n, denganPpn: 0n });
+  });
+
+  it("pengurangan dibulatkan simetris dengan penambahan", async () => {
+    const { selisihNilaiAdendum } = await import("../../src/lib/finance/calc");
+    const naik = selisihNilaiAdendum([{ locationId: "L", aktif: 0n, draft: rupiah(105), lingkup: null }], 11);
+    const turun = selisihNilaiAdendum([{ locationId: "L", aktif: rupiah(105), draft: 0n, lingkup: null }], 11);
+    expect(turun.denganPpn).toBe(-naik.denganPpn);
+  });
+});

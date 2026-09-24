@@ -28,10 +28,11 @@ export type BarisLingkup = {
   id: string;
   locationName: string;
   kind: "tambah" | "cabut";
-  effectiveDate: string;
+  /** Kosong selama draft — lahir bersama CCO saat diberlakukan (DECISIONS 613). */
+  effectiveDate: string | null;
   status: "draft" | "aktif" | "dibatalkan";
   reason: string;
-  ccoNumber: string;
+  ccoNumber: string | null;
   setuju: { lengkap: boolean; kurang: string[] };
   suaraGugur: number;
   /** Terisi = diarsipkan super admin; hanya super admin yang melihat baris ini. */
@@ -41,14 +42,12 @@ export type BarisLingkup = {
 export function LingkupPanel({
   packageId,
   lokasi,
-  adendum,
   perubahan,
   bolehUbah,
   bolehArsip = false,
 }: {
   packageId: string;
   lokasi: { id: string; name: string }[];
-  adendum: { id: string; label: string }[];
   perubahan: BarisLingkup[];
   bolehUbah: boolean;
   /** Super admin (`location_scope.archive`) – lihat blok arsip di bawah. */
@@ -94,25 +93,32 @@ export function LingkupPanel({
 
       {draft.length > 0 ? (
         <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-ink">Menunggu persetujuan</p>
+          <p className="text-[13px] font-medium text-ink">Draft – belum berlaku</p>
           <ul className="space-y-2">
             {draft.map((p) => (
               <li key={p.id} className="rounded-md border border-border bg-surface-muted px-2.5 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[13px]">
                     <span className="font-medium text-ink">{p.locationName}</span>{" "}
-                    {p.kind === "cabut" ? "akan DICABUT" : "akan MASUK"} per {p.ccoNumber} · berlaku{" "}
-                    {p.effectiveDate}
+                    {p.kind === "cabut" ? "akan DICABUT" : "akan MASUK"}
                   </span>
                   <StatusPill
                     tone={p.setuju.lengkap ? "success" : "info"}
-                    label={p.setuju.lengkap ? "Siap berlaku" : "Menunggu persetujuan"}
+                    label={p.setuju.lengkap ? "Siap diberlakukan" : "Menunggu persetujuan"}
                   />
                 </div>
                 <p className="mt-0.5 text-xs text-ink-faint">{p.reason}</p>
                 {!p.setuju.lengkap ? (
                   <p className="text-xs text-ink-faint">Kurang: {p.setuju.kurang.join(" · ")}</p>
-                ) : null}
+                ) : (
+                  <p className="text-xs text-ink-muted">
+                    Berlakukan lewat{" "}
+                    <a href={`/paket/${packageId}/kontrak`} className="font-medium text-primary underline">
+                      Kontrak &amp; Adendum
+                    </a>{" "}
+                    – nomor CCO dan tanggal berlakunya diisi di sana.
+                  </p>
+                )}
                 {p.suaraGugur > 0 ? (
                   <p className="text-xs text-warning-700">
                     {p.suaraGugur} persetujuan gugur karena usulannya diubah lagi
@@ -145,7 +151,7 @@ export function LingkupPanel({
         buka ? (
           <form action={ajukanAction} className="space-y-2 rounded-md border border-border p-3">
             <input type="hidden" name="packageId" value={packageId} />
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               <div>
                 <Label htmlFor="lingkup-lokasi" required>
                   Lokasi
@@ -167,18 +173,6 @@ export function LingkupPanel({
                   <option value="tambah">Masuk lewat adendum</option>
                 </Combobox>
               </div>
-              <div>
-                <Label htmlFor="lingkup-cco" required>
-                  Adendum (CCO)
-                </Label>
-                <Combobox id="lingkup-cco" name="amendmentId" required>
-                  {adendum.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
-                    </option>
-                  ))}
-                </Combobox>
-              </div>
             </div>
             <div>
               <Label htmlFor="lingkup-alasan" required>
@@ -187,9 +181,10 @@ export function LingkupPanel({
               <Input id="lingkup-alasan" name="reason" required maxLength={300} />
             </div>
             <p className="text-xs text-ink-muted">
-              Tanggal berlaku mengikuti adendum yang dipilih. Lokasi yang dicabut TIDAK dihapus –
+              Dicatat sebagai DRAFT, tanpa nomor CCO. Nomor dan tanggal berlakunya diisi saat
+              adendum diberlakukan di Kontrak &amp; Adendum. Lokasi yang dicabut TIDAK dihapus –
               laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam
-              angka paket sejak tanggal itu.
+              angka paket sejak tanggal berlaku itu.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" loading={mengajukan}>
@@ -205,13 +200,6 @@ export function LingkupPanel({
             Ajukan perubahan lingkup lokasi
           </Button>
         )
-      ) : null}
-
-      {adendum.length === 0 && bolehUbah ? (
-        <p className="text-[13px] text-ink-muted">
-          Belum ada adendum (CCO) tercatat di kontrak paket ini – catat CCO-nya dulu di tab Kontrak,
-          karena perubahan lingkup wajib bernomor.
-        </p>
       ) : null}
 
       {/*

@@ -3,7 +3,7 @@
 import { useAksi } from "@/lib/aksi-klien";
 
 
-import { Banner, Button, StatusPill, type BadgeTone } from "@/components/ui";
+import { Banner, Button, ButtonLink, StatusPill, type BadgeTone } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
   activateDraftAction,
@@ -64,9 +64,11 @@ const STATUS_TONE: Record<RevisionStatus, BadgeTone> = {
 function DraftActions({
   revisionId,
   persetujuan,
+  kontrakHref,
 }: {
   revisionId: string;
   persetujuan: PersetujuanRow | null;
+  kontrakHref: string;
 }) {
   const [activateState, activate, activating] = useAksi<RabActionState>(
     activateDraftAction,
@@ -101,7 +103,7 @@ function DraftActions({
           {persetujuan.kurang.length > 0 ? (
             <p className="mt-1 text-warning">Masih menunggu: {persetujuan.kurang.join(" + ")}.</p>
           ) : (
-            <p className="mt-1 text-success">Lengkap – draft siap diaktifkan.</p>
+            <p className="mt-1 text-success">Lengkap – siap diberlakukan di Kontrak & Adendum paket.</p>
           )}
           {persetujuan.gugur.length > 0 ? (
             <p className="mt-1 text-warning">
@@ -131,22 +133,25 @@ function DraftActions({
         </div>
       ) : null}
       <div className="flex justify-end gap-1.5">
-        <form action={activate}>
-          <input type="hidden" name="revisionId" value={revisionId} />
-          <Button
+        {persetujuan ? (
+          // Adendum diberlakukan bersama nomor CCO-nya di tingkat paket
+          // (DECISIONS 613) – dari sini hanya jalan ke sana.
+          <ButtonLink
+            href={kontrakHref}
             size="sm"
-            type="submit"
-            loading={activating}
-            disabled={discarding || approving || terkunci}
-            title={
-              terkunci
-                ? `Terkunci – masih menunggu ${persetujuan!.kurang.join(" + ")}`
-                : undefined
-            }
+            variant="primary"
+            title={terkunci ? `Masih menunggu ${persetujuan.kurang.join(" + ")}` : undefined}
           >
-            Aktifkan
-          </Button>
-        </form>
+            Berlakukan di Kontrak
+          </ButtonLink>
+        ) : (
+          <form action={activate}>
+            <input type="hidden" name="revisionId" value={revisionId} />
+            <Button size="sm" type="submit" loading={activating} disabled={discarding || approving}>
+              Aktifkan
+            </Button>
+          </form>
+        )}
         <form action={discard}>
           <input type="hidden" name="revisionId" value={revisionId} />
           <Button size="sm" variant="danger" type="submit" loading={discarding} disabled={activating}>
@@ -164,9 +169,12 @@ export function RevisionList({
   revisions,
   canManage,
   persetujuan = null,
+  kontrakHref,
 }: {
   revisions: RevisionRow[];
   canManage: boolean;
+  /** Halaman Kontrak & Adendum paket – tempat adendum diberlakukan. */
+  kontrakHref: string;
   /** Keadaan empat mata draft yang ada; `null` bila belum ada RAB aktif (HPS awal). */
   persetujuan?: PersetujuanRow | null;
 }) {
@@ -200,7 +208,7 @@ export function RevisionList({
               {canManage ? (
                 <td className="py-2 text-right align-top">
                   {r.status === "draft" ? (
-                    <DraftActions revisionId={r.id} persetujuan={persetujuan} />
+                    <DraftActions revisionId={r.id} persetujuan={persetujuan} kontrakHref={kontrakHref} />
                   ) : null}
                 </td>
               ) : null}

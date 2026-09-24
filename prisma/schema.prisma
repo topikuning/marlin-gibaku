@@ -1232,7 +1232,13 @@ model ContractAmendment {
   id            String   @id @default(uuid()) @db.Uuid
   contractId    String   @map("contract_id") @db.Uuid
   ccoNumber     String   @map("cco_number")
+  /// Perubahan nilai RESMI (inkl. PPN) sebagaimana tertulis di dokumen CCO.
+  /// Bawaannya = `valueDeltaRab`; boleh diketik bila dokumen berbeda karena
+  /// pembulatan (ketetapan user 2026-09-24, DECISIONS 613).
   valueDelta    BigInt   @map("value_delta")
+  /// Perubahan nilai MENURUT RAB (inkl. PPN) — turunan, dibekukan saat
+  /// aktivasi. NULL untuk CCO yang dicatat sebelum DECISIONS 613.
+  valueDeltaRab BigInt?  @map("value_delta_rab")
   endDateDelta  Int      @map("end_date_delta")
   effectiveDate DateTime @map("effective_date") @db.Date
   reason        String
@@ -1374,17 +1380,20 @@ model LocationStatusHistory {
 /// dicabut per CCO, angka lampau tetap"). Karena itu status keikutsertaan
 /// DITURUNKAN dari baris ini, bukan disalin ke kolom di `locations`.
 ///
-/// Wajib bernomor CCO dan wajib EMPAT MATA, sama seperti aktivasi adendum RAB
-/// (DECISIONS 234): mengubah lingkup kontrak menggeser nilai kontrak, progres,
-/// kurva-S, dan laporan KKP sekaligus.
+/// Wajib EMPAT MATA, sama seperti aktivasi adendum RAB (DECISIONS 234):
+/// mengubah lingkup kontrak menggeser nilai kontrak, progres, kurva-S, dan
+/// laporan KKP sekaligus. Nomor CCO-nya lahir saat diberlakukan lewat
+/// Kontrak & Adendum paket (DECISIONS 613), bukan saat diajukan.
 model LocationScopeChange {
   id            String              @id @default(uuid()) @db.Uuid
   locationId    String              @map("location_id") @db.Uuid
-  amendmentId   String              @map("amendment_id") @db.Uuid
+  /// CCO yang MEMBERLAKUKAN perubahan ini. Kosong selama masih draft: nomor
+  /// CCO lahir saat adendum diaktifkan di tingkat paket (DECISIONS 613).
+  amendmentId   String?             @map("amendment_id") @db.Uuid
   kind          LocationScopeKind
-  /// Tanggal berlaku — disalin dari adendumnya saat diajukan supaya jejaknya
-  /// tetap walau adendum diperbaiki kemudian.
-  effectiveDate DateTime            @map("effective_date") @db.Date
+  /// Tanggal berlaku — disalin dari CCO saat diaktifkan supaya jejaknya tetap
+  /// walau adendum diperbaiki kemudian. Kosong selama draft (DECISIONS 613).
+  effectiveDate DateTime?           @map("effective_date") @db.Date
   status        LocationScopeStatus @default(draft)
   reason        String
   createdById   String?             @map("created_by_id") @db.Uuid
@@ -1403,7 +1412,7 @@ model LocationScopeChange {
   archivedById  String?             @map("archived_by_id") @db.Uuid
 
   location  Location                @relation(fields: [locationId], references: [id])
-  amendment ContractAmendment       @relation(fields: [amendmentId], references: [id])
+  amendment ContractAmendment?      @relation(fields: [amendmentId], references: [id])
   approvals LocationScopeApproval[]
 
   @@index([locationId, status])

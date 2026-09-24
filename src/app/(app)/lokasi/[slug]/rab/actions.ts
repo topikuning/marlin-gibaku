@@ -109,9 +109,29 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     const user = await requireCapability("rab.manage");
     const rev = await db.rabRevision.findUniqueOrThrow({
       where: { id: parsed.data },
-      select: { id: true, locationId: true, revisionNo: true, source: true, location: { select: { slug: true } } },
+      select: {
+        id: true,
+        locationId: true,
+        revisionNo: true,
+        source: true,
+        location: { select: { slug: true, packageId: true } },
+      },
     });
     await requireLocationAccess(user, rev.locationId);
+    /*
+     * ADENDUM DIBERLAKUKAN DI TINGKAT PAKET (DECISIONS 613). Draft yang
+     * menggantikan RAB aktif adalah adendum: nomor CCO dan nilainya lahir
+     * bersama di Paket › Kontrak & Adendum. Mengaktifkannya dari sini akan
+     * menghasilkan RAB kontrak baru tanpa CCO — persis alur terpisah yang
+     * dikeluhkan user 2026-09-24. RAB AWAL (belum ada yang aktif) tetap di sini.
+     */
+    const adaAktif = await db.rabRevision.count({ where: { locationId: rev.locationId, status: "aktif" } });
+    if (adaAktif > 0)
+      return {
+        error:
+          `Revisi #${rev.revisionNo} adalah adendum – diberlakukan bersama nomor CCO-nya di ` +
+          `Paket › Kontrak & Adendum, bukan dari halaman lokasi.`,
+      };
     // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.
@@ -894,7 +914,7 @@ export async function approveRevisionAction(
         ? ` Aktivasi kembali terkunci – masih kurang: ${sesudah.kurang.join(" + ")}.`
         : ""
       : sesudah.lengkap
-        ? " Persetujuan lengkap – draft siap diaktifkan."
+        ? " Persetujuan lengkap – draft siap diaktifkan bersama nomor CCO-nya di Paket › Kontrak & Adendum."
         : ` Masih menunggu ${sesudah.kurang.join(" + ")}.`;
     return {
       success:

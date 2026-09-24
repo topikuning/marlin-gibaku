@@ -5,6 +5,8 @@
 //      ikut agregat paket sejak tanggal berlaku CCO;
 //   2. lokasi baru mulai dari tanggal berlaku adendum;
 //   3. keduanya EMPAT MATA (Program Director + AM/PM/SM) dan wajib bernomor CCO.
+//      Sejak DECISIONS 613 nomor CCO lahir saat DIBERLAKUKAN di tingkat paket
+//      (`aktifkanAdendumPaket`), bukan saat diajukan.
 //
 // Aturan empat matanya sendiri diuji murni di tests/unit/adendum-persetujuan;
 // yang diuji DI SINI: gerbangnya benar-benar terpasang di jalur database, dan
@@ -44,14 +46,26 @@ const {
   setujuiPerubahanLingkup,
   LingkupError,
 } = await import("@/lib/package/lingkup-lokasi");
+const { aktifkanAdendumPaket } = await import("@/lib/package/aktivasi-adendum");
+
+/** Berlakukan usulan lewat satu pintu paket – di sinilah CCO lahir. */
+const berlakukan = (changeIds: string[], ccoNumber: string, tanggal: string) =>
+  aktifkanAdendumPaket({
+    packageId,
+    revisionIds: [],
+    changeIds,
+    ccoNumber,
+    effectiveDate: new Date(`${tanggal}T00:00:00.000Z`),
+    endDateDelta: 0,
+    reason: "Uji lingkup lokasi",
+    valueDelta: null,
+  });
 
 const suffix = `lk${Date.now().toString(36)}`;
 let orgId: string;
 let packageId: string;
 let lokasiA: string;
 let lokasiB: string;
-let amendmentId: string;
-let amendmentLain: string;
 const orang: Record<string, string> = {};
 
 async function pengguna() {
@@ -108,35 +122,8 @@ beforeAll(async () => {
       },
       select: { id: true },
     });
-  const kontrak = await buatKontrak(packageId, `K-${suffix}`);
-  const kontrakLain = await buatKontrak(lain.id, `KL-${suffix}`);
-
-  amendmentId = (
-    await db.contractAmendment.create({
-      data: {
-        contractId: kontrak.id,
-        ccoNumber: "CCO-01",
-        valueDelta: 0n,
-        endDateDelta: 0,
-        effectiveDate: new Date("2026-08-01T00:00:00.000Z"),
-        reason: "Uji lingkup",
-      },
-      select: { id: true },
-    })
-  ).id;
-  amendmentLain = (
-    await db.contractAmendment.create({
-      data: {
-        contractId: kontrakLain.id,
-        ccoNumber: "CCO-01",
-        valueDelta: 0n,
-        endDateDelta: 0,
-        effectiveDate: new Date("2026-08-01T00:00:00.000Z"),
-        reason: "Paket lain",
-      },
-      select: { id: true },
-    })
-  ).id;
+  await buatKontrak(packageId, `K-${suffix}`);
+  await buatKontrak(lain.id, `KL-${suffix}`);
 });
 
 afterAll(async () => {
@@ -157,21 +144,18 @@ afterAll(async () => {
 });
 
 describe("gerbang pengajuan", () => {
-  it("adendum milik paket LAIN ditolak – bukan pintu belakang ke kontrak orang", async () => {
+  it("draft TIDAK menuntut CCO – nomornya lahir saat diberlakukan", async () => {
     sesi = "pd";
-    await expect(
-      ajukanPerubahanLingkup({
-        locationId: lokasiA,
-        amendmentId: amendmentLain,
-        kind: "cabut",
-        reason: "salah paket",
-      }),
-    ).rejects.toBeInstanceOf(LingkupError);
+    const { id } = await ajukanPerubahanLingkup({ locationId: lokasiB, kind: "cabut", reason: "tanpa CCO" });
+    const row = await db.locationScopeChange.findUniqueOrThrow({ where: { id } });
+    expect(row.amendmentId).toBeNull();
+    expect(row.effectiveDate).toBeNull();
+    await batalkanPerubahanLingkup(id);
   });
 
   it("alasan kosong ditolak – ini dokumen perubahan kontrak", async () => {
     await expect(
-      ajukanPerubahanLingkup({ locationId: lokasiA, amendmentId, kind: "cabut", reason: "   " }),
+      ajukanPerubahanLingkup({ locationId: lokasiA, kind: "cabut", reason: "   " }),
     ).rejects.toBeInstanceOf(LingkupError);
   });
 });
@@ -184,7 +168,6 @@ describe("empat mata sebelum berlaku", () => {
     changeId = (
       await ajukanPerubahanLingkup({
         locationId: lokasiA,
-        amendmentId,
         kind: "cabut",
         reason: "Lokasi dipindah ke paket lain",
       })
@@ -194,20 +177,23 @@ describe("empat mata sebelum berlaku", () => {
     const daftar = await daftarPerubahanLingkup([lokasiA]);
     expect(daftar).toHaveLength(1);
     expect(daftar[0]!.status).toBe("draft");
-    expect(daftar[0]!.ccoNumber).toBe("CCO-01");
+    expect(daftar[0]!.ccoNumber).toBeNull();
   });
 
   it("lokasi yang sama tidak boleh punya dua usulan sekaligus", async () => {
     await expect(
-      ajukanPerubahanLingkup({ locationId: lokasiA, amendmentId, kind: "cabut", reason: "dobel" }),
+      ajukanPerubahanLingkup({ locationId: lokasiA, kind: "cabut", reason: "dobel" }),
     ).rejects.toBeInstanceOf(LingkupError);
   });
 
-  it("satu peran saja TIDAK membuatnya berlaku", async () => {
+  it("satu peran saja belum lengkap, dan aktivasi paket MENOLAKNYA", async () => {
     sesi = "pd";
     const h = await setujuiPerubahanLingkup(changeId);
-    expect(h.berlaku).toBe(false);
+    expect(h.lengkap).toBe(false);
+    await expect(berlakukan([changeId], "CCO-00", "2026-08-01")).rejects.toThrow(/belum lengkap/i);
     expect((await lingkupLokasi([lokasiA])).dicabut.size).toBe(0);
+    // Penolakan di depan: tidak ada CCO setengah jadi yang tertinggal.
+    expect(await db.contractAmendment.count({ where: { ccoNumber: "CCO-00", contract: { packageId } } })).toBe(0);
   });
 
   it("peran yang tidak berhak ditolak", async () => {
@@ -215,10 +201,16 @@ describe("empat mata sebelum berlaku", () => {
     await expect(setujuiPerubahanLingkup(changeId)).rejects.toBeInstanceOf(LingkupError);
   });
 
-  it("kursi kedua melengkapi → BERLAKU sejak tanggal adendumnya", async () => {
+  it("kursi kedua melengkapi → SIAP, tetapi BELUM berlaku tanpa CCO", async () => {
     sesi = "sm";
     const h = await setujuiPerubahanLingkup(changeId);
-    expect(h.berlaku).toBe(true);
+    expect(h.lengkap).toBe(true);
+    expect((await lingkupLokasi([lokasiA])).dicabut.size).toBe(0);
+  });
+
+  it("diberlakukan lewat aktivasi paket → berlaku sejak tanggal CCO-nya", async () => {
+    sesi = "pd";
+    await berlakukan([changeId], "CCO-01", "2026-08-01");
     const lg = await lingkupLokasi([lokasiA, lokasiB]);
     expect(lg.dicabut.get(lokasiA)?.ccoNumber).toBe("CCO-01");
     // Lokasi lain tidak ikut tercabut.
@@ -234,26 +226,16 @@ describe("empat mata sebelum berlaku", () => {
 describe("tanggal berlaku menentukan, bukan tanggal persetujuan", () => {
   it("pencabutan yang berlaku di MASA DEPAN belum mengeluarkan lokasi dari agregat", async () => {
     sesi = "pd";
-    const depan = await db.contractAmendment.create({
-      data: {
-        contractId: (await db.contract.findFirstOrThrow({ where: { packageId }, select: { id: true } })).id,
-        ccoNumber: "CCO-02",
-        valueDelta: 0n,
-        endDateDelta: 0,
-        effectiveDate: new Date("2099-01-01T00:00:00.000Z"),
-        reason: "berlaku nanti",
-      },
-      select: { id: true },
-    });
     const { id } = await ajukanPerubahanLingkup({
       locationId: lokasiB,
-      amendmentId: depan.id,
       kind: "cabut",
       reason: "Dicabut tahun depan",
     });
     await setujuiPerubahanLingkup(id);
     sesi = "sm";
     await setujuiPerubahanLingkup(id);
+    sesi = "pd";
+    await berlakukan([id], "CCO-02", "2099-01-01");
     const lg = await lingkupLokasi([lokasiB]);
     expect(lg.dicabut.has(lokasiB)).toBe(false);
     // Pada tanggal berlakunya, barulah ia keluar.
@@ -336,15 +318,25 @@ describe("lokasi yang MASUK lewat adendum: kurvanya mulai di tanggal berlaku", (
 
     const { id: changeId } = await ajukanPerubahanLingkup({
       locationId: lok.id,
-      amendmentId,
       kind: "tambah",
-      reason: "Lokasi tambahan lewat CCO-01",
+      reason: "Lokasi tambahan lewat CCO-03",
     });
     await setujuiPerubahanLingkup(changeId);
     sesi = "sm";
     await setujuiPerubahanLingkup(changeId);
+    sesi = "pd";
+    const hasil = await berlakukan([changeId], "CCO-03", "2026-08-01");
+    // Lokasi masuk membawa seluruh RAB-nya: 100 jt pra-PPN → 111 jt (PPN 11%).
+    expect(hasil.valueDeltaRab).toBe(111_000_000n);
+    expect(hasil.valueDelta).toBe(111_000_000n);
 
-    const baru = await regenerateBaseline(lok.id, { source: "auto", userId: orang.pd! });
+    // Aktivasi sendiri yang membuat ulang kurva-S lokasi tambahan – tidak ada
+    // langkah manual "hitung ulang" yang bisa terlupa.
+    const baru = await db.baseline.findFirstOrThrow({
+      where: { locationId: lok.id, status: "aktif" },
+      select: { id: true },
+    });
+    expect(baru.id).not.toBe(tanpaAdendum.id);
     const titik = await db.baselinePoint.findMany({
       where: { baselineId: baru.id },
       orderBy: { weekNumber: "asc" },
