@@ -84,7 +84,7 @@ export function SendPdfToWaButton({
             onClick={() => setCustomDest((v) => !v)}
             className="text-[12px] font-medium text-primary hover:underline"
           >
-            {customDest ? "Kirim ke grup paket" : "Kirim ke tujuan lain…"}
+            {customDest ? "Kirim ke grup lokasi ini" : "Kirim ke tujuan lain…"}
           </button>
           {!customDest ? (
             hasGroup ? (
@@ -92,7 +92,7 @@ export function SendPdfToWaButton({
                 <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
               ) : null
             ) : (
-              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA – pakai “tujuan lain”.</span>
+              <span className="text-[12px] text-ink-muted">Lokasi ini belum punya grup WA – pakai “tujuan lain”.</span>
             )
           ) : null}
         </div>

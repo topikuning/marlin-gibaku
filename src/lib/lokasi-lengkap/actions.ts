@@ -51,7 +51,6 @@ export async function kirimLaporanLokasiWaAction(
       select: {
         slug: true,
         name: true,
-        package: { select: { waGroupId: true, waGroupName: true } },
       },
     });
     if (!lokasi) return { error: "Lokasi tidak ditemukan." };
@@ -97,7 +96,13 @@ export async function kirimLaporanLokasiWaAction(
     });
     revalidatePath(`/lokasi/${lokasi.slug}/laporan-lengkap`);
     return {
-      success: `Laporan lengkap ${lokasi.name} terkirim ke grup WhatsApp${lokasi.package.waGroupName ? ` ${lokasi.package.waGroupName}` : " paket"}.`,
+      /*
+       * Grup yang DISEBUT adalah grup yang benar-benar dikirimi (DECISIONS 609).
+       * Kalimat lama selalu menyebut grup PAKET karena namanya dibaca dari
+       * paket — pada lokasi ber-grup kabupaten ia mengabarkan tujuan yang salah
+       * untuk kiriman yang benar, dan tidak ada cara pembacanya tahu.
+       */
+      success: `Laporan lengkap ${lokasi.name} terkirim ke ${grup.label}${grup.nama ? ` (${grup.nama})` : ""}.`,
     };
   } catch (err) {
     return gagal(err);

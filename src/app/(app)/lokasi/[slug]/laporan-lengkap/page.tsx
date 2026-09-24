@@ -21,6 +21,7 @@ import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
 import { kartuMinggu } from "@/lib/lokasi-lengkap/kesimpulan";
 import { buatLaporanLokasiLengkap } from "@/lib/lokasi-lengkap/snapshot";
 import { isWahaConfigured } from "@/lib/waha/client";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 import { requireLocationPage } from "../get-location";
 import { AksiLaporanLengkap } from "./aksi";
 
@@ -62,12 +63,9 @@ export default async function LaporanLengkapLokasiPage({
 
   const bolehEkspor = can(user.role, "report.export");
   const wahaOn = bolehEkspor && (await isWahaConfigured());
-  const grup = wahaOn
-    ? await db.location.findUnique({
-        where: { id: location.id },
-        select: { package: { select: { waGroupId: true, waGroupName: true } } },
-      })
-    : null;
+  // Tujuan ditanyakan ke resolver: lokasi bisa punya grup KABUPATEN sendiri,
+  // dan paketnya belum tentu punya grup (DECISIONS 609).
+  const grup = wahaOn ? await grupUntukLokasi(location.id) : null;
 
   const tgl = (key: string | null | undefined) => {
     if (!key) return "–";
@@ -105,8 +103,8 @@ export default async function LaporanLengkapLokasiPage({
               slug={slug}
               locationId={l.identitas.locationId}
               wahaOn={wahaOn}
-              hasGroup={!!grup?.package?.waGroupId}
-              groupName={grup?.package?.waGroupName ?? null}
+              hasGroup={!!grup}
+              groupName={grup?.nama ?? grup?.label ?? null}
             />
           ) : (
             <Banner
