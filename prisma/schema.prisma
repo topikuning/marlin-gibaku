@@ -1382,19 +1382,23 @@ model LocationStatusHistory {
 ///
 /// Wajib EMPAT MATA, sama seperti aktivasi adendum RAB (DECISIONS 234):
 /// mengubah lingkup kontrak menggeser nilai kontrak, progres, kurva-S, dan
-/// laporan KKP sekaligus. Nomor CCO-nya lahir saat diberlakukan lewat
-/// Kontrak & Adendum paket (DECISIONS 613), bukan saat diajukan.
+/// laporan KKP sekaligus. Dua persetujuan = BERLAKU sejak hari itu; nomor
+/// CCO-nya administrasi yang menyusul di Kontrak & Adendum (DECISIONS 614).
 model LocationScopeChange {
   id            String              @id @default(uuid()) @db.Uuid
   locationId    String              @map("location_id") @db.Uuid
-  /// CCO yang MEMBERLAKUKAN perubahan ini. Kosong selama masih draft: nomor
-  /// CCO lahir saat adendum diaktifkan di tingkat paket (DECISIONS 613).
+  /// CCO yang meresmikan perubahan ini. Kosong sampai nomornya dicatat di
+  /// Kontrak & Adendum — perubahannya sendiri sudah berlaku sejak dua
+  /// persetujuan (DECISIONS 614).
   amendmentId   String?             @map("amendment_id") @db.Uuid
   kind          LocationScopeKind
-  /// Tanggal berlaku — disalin dari CCO saat diaktifkan supaya jejaknya tetap
-  /// walau adendum diperbaiki kemudian. Kosong selama draft (DECISIONS 613).
+  /// Tanggal berlaku = tanggal persetujuan kedua (DECISIONS 614). Kosong
+  /// selama draft; tidak ditimpa saat CCO-nya dicatat kemudian.
   effectiveDate DateTime?           @map("effective_date") @db.Date
   status        LocationScopeStatus @default(draft)
+  /// Paket tempat usulan diajukan — penentu lingkup paket mana yang diubah,
+  /// juga saat barisnya berlaku tanpa CCO (DECISIONS 614).
+  packageId     String?             @map("package_id") @db.Uuid
   reason        String
   createdById   String?             @map("created_by_id") @db.Uuid
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
@@ -1447,6 +1451,10 @@ model RabRevision {
   amendmentId      String?           @map("amendment_id") @db.Uuid
   status           RevisionStatus    @default(draft)
   totalValue       BigInt            @map("total_value")
+  /// Adendum yang sudah AKTIF (dua persetujuan) tetapi belum dicatat dalam
+  /// CCO — diisi saat aktivasi per lokasi, dibersihkan saat CCO-nya dicatat
+  /// di Kontrak & Adendum (DECISIONS 614).
+  awaitingCco      Boolean           @default(false) @map("awaiting_cco")
   note             String?
   sourceDocumentId String?           @map("source_document_id") @db.Uuid
   createdById      String?           @map("created_by_id") @db.Uuid

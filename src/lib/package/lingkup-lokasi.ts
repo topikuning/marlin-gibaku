@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
+import { jakartaDateKey, jakartaToday } from "@/lib/format";
 import { bolehMenyetujui, nilaiPersetujuan, suaraMasihBerlaku } from "@/lib/rab/persetujuan-aturan";
 import type { LocationScopeKind } from "@/generated/prisma/enums";
 
@@ -23,8 +24,8 @@ import type { LocationScopeKind } from "@/generated/prisma/enums";
  *    `regenerateBaseline`). Menyamakannya dengan lokasi lain akan membuatnya
  *    terlihat telat sejak minggu pertama padahal belum ada dalam kontrak.
  * 3. **Empat mata**, sama seperti aktivasi adendum RAB (DECISIONS 234):
- *    Program Director + satu peran penugasan; nomor CCO lahir saat diberlakukan
- *    di Kontrak & Adendum paket (DECISIONS 613). Mengubah
+ *    Program Director + satu peran penugasan; berlaku begitu lengkap, nomor
+ *    CCO dicatat menyusul di Kontrak & Adendum paket (DECISIONS 614). Mengubah
  *    lingkup kontrak menggeser nilai kontrak, progres, kurva-S, dan laporan
  *    KKP sekaligus — itu bukan kelas keputusan satu orang.
  */
@@ -41,7 +42,7 @@ export type PerubahanLingkup = {
   effectiveDate: Date | null;
   status: "draft" | "aktif" | "dibatalkan";
   reason: string;
-  /** Kosong selama draft — nomor CCO lahir saat diaktifkan (DECISIONS 613). */
+  /** Kosong sampai nomor CCO-nya dicatat di Kontrak & Adendum (DECISIONS 614). */
   ccoNumber: string | null;
   appliedAt: Date | null;
   diubahPada: Date;
@@ -163,9 +164,9 @@ export async function idLokasiDiarsipkan(locationIds: string[]): Promise<Set<str
 
 export type LingkupLokasi = {
   /** Lokasi yang SUDAH dicabut dan tanggal berlakunya sudah lewat. */
-  dicabut: Map<string, { ccoNumber: string; effectiveDate: Date }>;
+  dicabut: Map<string, { ccoNumber: string | null; effectiveDate: Date }>;
   /** Lokasi yang masuk lewat adendum (aktif), dengan tanggal mulainya. */
-  masuk: Map<string, { ccoNumber: string; effectiveDate: Date }>;
+  masuk: Map<string, { ccoNumber: string | null; effectiveDate: Date }>;
 };
 
 /**
@@ -176,8 +177,8 @@ export type LingkupLokasi = {
  * ketetapan "angka lampau tetap".
  */
 export async function lingkupLokasi(locationIds: string[], pada = new Date()): Promise<LingkupLokasi> {
-  const dicabut = new Map<string, { ccoNumber: string; effectiveDate: Date }>();
-  const masuk = new Map<string, { ccoNumber: string; effectiveDate: Date }>();
+  const dicabut = new Map<string, { ccoNumber: string | null; effectiveDate: Date }>();
+  const masuk = new Map<string, { ccoNumber: string | null; effectiveDate: Date }>();
   if (locationIds.length === 0) return { dicabut, masuk };
   const rows = await db.locationScopeChange.findMany({
     where: { locationId: { in: locationIds }, status: "aktif" },
@@ -185,6 +186,7 @@ export async function lingkupLokasi(locationIds: string[], pada = new Date()): P
       locationId: true,
       kind: true,
       effectiveDate: true,
+      packageId: true,
       amendment: { select: { ccoNumber: true, contract: { select: { packageId: true } } } },
       /*
        * Paket lokasi SEKARANG. Sebuah perubahan lingkup lahir dari adendum SATU
@@ -199,15 +201,22 @@ export async function lingkupLokasi(locationIds: string[], pada = new Date()): P
     },
     orderBy: { effectiveDate: "asc" },
   });
+  /*
+   * `effectiveDate` kolom TANGGAL (tengah malam UTC). Dibandingkan dengan
+   * tanggal Jakarta dari `pada`, bukan jamnya: antara 00:00–07:00 WIB tanggal
+   * hari ini masih "masa depan" bila dibandingkan dengan jam UTC, sehingga
+   * lokasi yang dicabut hari itu tetap terhitung sampai jam 07:00.
+   */
+  const hariIni = new Date(`${jakartaDateKey(pada)}T00:00:00.000Z`);
   for (const r of rows) {
-    // Baris aktif SELALU ber-CCO dan bertanggal (DECISIONS 613 mengisinya saat
-    // aktivasi); penjaga ini untuk baris yang rusak, bukan jalur normal.
-    if (!r.amendment || !r.effectiveDate) continue;
-    if (r.amendment.contract.packageId !== r.location.packageId) continue;
-    const isi = { ccoNumber: r.amendment.ccoNumber, effectiveDate: r.effectiveDate as Date };
+    // Baris aktif SELALU bertanggal; nomor CCO boleh menyusul (DECISIONS 614).
+    if (!r.effectiveDate) continue;
+    const paketUsulan = r.packageId ?? r.amendment?.contract.packageId;
+    if (paketUsulan !== r.location.packageId) continue;
+    const isi = { ccoNumber: r.amendment?.ccoNumber ?? null, effectiveDate: r.effectiveDate };
     const berlaku = r.effectiveDate;
     if (r.kind === "cabut") {
-      if (berlaku.getTime() <= pada.getTime()) dicabut.set(r.locationId, isi);
+      if (berlaku.getTime() <= hariIni.getTime()) dicabut.set(r.locationId, isi);
     } else {
       masuk.set(r.locationId, isi);
       // Lokasi yang dicabut lalu dimasukkan lagi lewat adendum berikutnya ikut
@@ -239,9 +248,9 @@ export async function tanggalMasukAdendum(locationId: string): Promise<Date | nu
  * peristiwa hukum yang sama, dan urutannya terbalik dari kenyataan: nomor CCO
  * baru terbit SETELAH isi perubahannya disepakati.
  *
- * Sekarang keduanya sama: usulan hidup sebagai draft, disetujui empat mata,
- * lalu DIBERLAKUKAN bersama draft RAB lain lewat aktivasi adendum paket — di
- * situlah nomor CCO dan tanggal berlakunya lahir.
+ * Sekarang keduanya sama: usulan hidup sebagai draft dan BERLAKU begitu empat
+ * matanya lengkap; nomor CCO dicatat menyusul di Kontrak & Adendum paket
+ * (DECISIONS 614).
  */
 export async function ajukanPerubahanLingkup(input: {
   locationId: string;
@@ -277,6 +286,7 @@ export async function ajukanPerubahanLingkup(input: {
   const row = await db.locationScopeChange.create({
     data: {
       locationId: input.locationId,
+      packageId: lokasi.packageId,
       kind: input.kind,
       reason: input.reason.trim(),
       createdById: user.id,
@@ -291,15 +301,17 @@ export async function ajukanPerubahanLingkup(input: {
 }
 
 /**
- * Setujui usulan. Empat mata yang lengkap membuat usulan SIAP DIBERLAKUKAN —
- * tidak langsung berlaku.
+ * Setujui usulan. Persetujuan kedua yang melengkapi empat mata LANGSUNG
+ * MEMBERLAKUKANNYA sejak hari itu — lokasi keluar (atau masuk) angka paket.
  *
- * Dulu persetujuan kedua langsung memberlakukannya, karena CCO-nya sudah
- * dipilih sejak diajukan. Sejak DECISIONS 613 nomor CCO dan tanggal berlaku
- * lahir saat aktivasi adendum paket; memberlakukan di sini berarti lokasi
- * keluar dari kontrak tanpa tanggal dan tanpa dasar hukum.
+ * Koreksi user 2026-09-24 atas DECISIONS 613: *"jika sudah disetujui 2 orang,
+ * maka atas lokasi itu sudah aktif, tinggal administrasi resminya perlu
+ * pengaktifan, supaya kelihatan dan jelas bahwa lokasi itu sudah tidak
+ * diikutkan laporan begitu sudah disetujui 2 orang"*. Menunggu CCO berarti
+ * lokasi yang sudah disepakati keluar tetap tampil di laporan berminggu-minggu
+ * sampai seluruh adendum tuntas. Nomor CCO dicatat menyusul (DECISIONS 614).
  */
-export async function setujuiPerubahanLingkup(changeId: string): Promise<{ lengkap: boolean; kurang: string[] }> {
+export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berlaku: boolean; kurang: string[] }> {
   const user = await requireCapability("contract.manage");
   if (!bolehMenyetujui(user.role))
     throw new LingkupError(
@@ -328,7 +340,37 @@ export async function setujuiPerubahanLingkup(changeId: string): Promise<{ lengk
     select: { userId: true, role: true, approvedAt: true },
   });
   const status = nilaiPersetujuan(suaraMasihBerlaku(semua, row.updatedAt));
-  return { lengkap: status.lengkap, kurang: status.kurang };
+  if (!status.lengkap) return { berlaku: false, kurang: status.kurang };
+
+  const effectiveDate = jakartaToday();
+  await db.locationScopeChange.update({
+    where: { id: changeId },
+    data: { status: "aktif", appliedAt: new Date(), effectiveDate },
+  });
+  await audit(user.id, "location_scope.berlaku", "location", row.locationId, {
+    changeId,
+    kind: row.kind,
+    effectiveDate: effectiveDate.toISOString().slice(0, 10),
+  });
+  // Lokasi yang MASUK dengan RAB yang sudah aktif: kurva-S-nya dibuat ulang
+  // supaya mulai dari tanggal berlaku, bukan minggu-1 kontrak. Gagalnya tidak
+  // membatalkan persetujuan yang sudah sah — tercatat, bisa diulang dari lokasi.
+  if (row.kind === "tambah") {
+    const adaRab = await db.rabRevision.count({ where: { locationId: row.locationId, status: "aktif" } });
+    if (adaRab > 0) {
+      const { regenerateBaseline } = await import("@/lib/rab/import");
+      try {
+        await regenerateBaseline(row.locationId, {
+          source: "adendum",
+          note: "Regenerate otomatis (lokasi masuk lewat adendum)",
+          userId: user.id,
+        });
+      } catch (e) {
+        console.error("[lingkup] regenerate baseline lokasi tambahan gagal:", e);
+      }
+    }
+  }
+  return { berlaku: true, kurang: [] };
 }
 
 /** Batalkan usulan yang belum berlaku. */

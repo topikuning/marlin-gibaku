@@ -491,7 +491,7 @@ export type ItemAdendumForm = {
 };
 
 /**
- * Berlakukan adendum — SATU pintu (DECISIONS 613). Draft RAB adendum dan draft
+ * Catat CCO — SATU pintu (DECISIONS 613/614). Perubahan yang sudah berlaku, dan draft
  * cabut/tambah lokasi yang persetujuannya lengkap dicentang, nomor CCO diisi
  * di sini. Nilai CCO diturunkan dari RAB di server, tetap bisa diketik ulang
  * untuk selisih pembulatan dokumen resmi.
@@ -551,7 +551,7 @@ export function AktivasiAdendumForm({
         <p className="text-[13px] font-medium text-ink">Perubahan yang ikut CCO ini</p>
         {items.length === 0 ? (
           <p className="text-[13px] text-ink-muted">
-            Tidak ada draft adendum. CCO tanpa perubahan RAB/lokasi (mis. perpanjangan waktu saja) tetap bisa dicatat.
+            Tidak ada perubahan yang menunggu nomor CCO. CCO tanpa perubahan RAB/lokasi (mis. perpanjangan waktu saja) tetap bisa dicatat.
           </p>
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
@@ -655,7 +655,7 @@ export function AktivasiAdendumForm({
       </div>
 
       <Button type="submit" loading={pending}>
-        Berlakukan adendum
+        Catat CCO
       </Button>
     </form>
   );

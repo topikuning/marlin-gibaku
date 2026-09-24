@@ -229,9 +229,9 @@ describe("cabut persetujuan", () => {
 
 describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
   // Aturan yang benar tapi tidak dipanggil sama saja dengan tidak ada. Blok ini
-  // menembak `addAmendment` — pintu "Berlakukan adendum" yang betul-betul
-  // dipakai tombol UI sejak DECISIONS 613 — supaya menghapus satu baris
-  // gerbang empat mata membuat uji ini merah.
+  // menembak `addAmendment` (pintu "Catat CCO", DECISIONS 613/614) dan
+  // `activateDraftAction` (tombol Aktifkan lokasi) — supaya menghapus satu
+  // baris gerbang empat mata di jalur mana pun membuat uji ini merah.
   const aktifkan = async (revisionId: string) => {
     const fd = new FormData();
     fd.set("packageId", packageId);
@@ -312,7 +312,20 @@ describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
     expect(a.endDateDelta).toBe(14);
   });
 
-  it("tombol Aktifkan per lokasi TIDAK lagi memberlakukan adendum – diarahkan ke Kontrak", async () => {
+  it("tombol Aktifkan per lokasi tetap tergembok empat mata", async () => {
+    await buatRevisi(1, "aktif");
+    const draft = await buatRevisi(2, "draft");
+    sesi = "sa";
+    const fd = new FormData();
+    fd.set("revisionId", draft.id);
+    const hasil = await activateDraftAction(undefined, fd);
+    expect(hasil?.error).toMatch(/butuh persetujuan DUA orang/i);
+    expect((await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("draft");
+  });
+
+  it("dua persetujuan → Aktifkan per lokasi BERLAKU sekarang; CCO dicatat menyusul tanpa aktivasi ulang", async () => {
+    // Koreksi user 2026-09-24 (DECISIONS 614): dua persetujuan = berlaku;
+    // nomor CCO administrasi yang menyusul.
     await buatRevisi(1, "aktif");
     const draft = await buatRevisi(2, "draft");
     await setujuiRevisi(draft.id, orang.pd!);
@@ -321,8 +334,24 @@ describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
     const fd = new FormData();
     fd.set("revisionId", draft.id);
     const hasil = await activateDraftAction(undefined, fd);
-    expect(hasil?.error).toMatch(/Kontrak & Adendum/);
-    expect((await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("draft");
+    expect(hasil?.error ?? "").not.toMatch(/butuh persetujuan/i);
+    const aktif = await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(aktif.status).toBe("aktif");
+    expect(aktif.awaitingCco).toBe(true);
+    expect(aktif.amendmentId).toBeNull();
+
+    const cco = await aktifkan(draft.id);
+    expect(cco?.success ?? cco?.error).toMatch(/sudah berlaku kini bernomor CCO/);
+    const sesudah = await db.rabRevision.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: { status: true, awaitingCco: true, amendment: { select: { ccoNumber: true, valueDeltaRab: true } } },
+    });
+    expect(sesudah.status).toBe("aktif");
+    expect(sesudah.awaitingCco).toBe(false);
+    expect(sesudah.amendment?.ccoNumber).toBe(`CCO-EM-${nomorCco}`);
+    // Dasar selisih = RAB tercakup CCO sebelumnya (#1, 1 jt), bukan revisi
+    // yang sedang aktif: +1 jt pra-PPN → +1,11 jt.
+    expect(sesudah.amendment?.valueDeltaRab).toBe(1_110_000n);
   });
 
   it("CCO tanpa draft apa pun (waktu saja) tetap bisa dicatat", async () => {
@@ -379,7 +408,6 @@ describe("YANG MENANDATANGANI HARUS TAHU HASILNYA", () => {
     sesi = "sm";
     const hasil = await setujui(draft.id);
     expect(hasil?.success).toMatch(/siap diaktifkan/i);
-    expect(hasil?.success).toMatch(/Kontrak & Adendum/);
   });
 });
 

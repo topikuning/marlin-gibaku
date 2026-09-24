@@ -440,7 +440,6 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             ringkasan={ringkasan}
             adaPeringatan={peringatan.length > 0}
             persetujuan={persetujuan}
-            kontrakHref={`/paket/${location.package.id}/kontrak`}
           />
         </CardBody>
       </Card>

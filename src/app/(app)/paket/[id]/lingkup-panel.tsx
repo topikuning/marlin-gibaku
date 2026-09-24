@@ -28,7 +28,7 @@ export type BarisLingkup = {
   id: string;
   locationName: string;
   kind: "tambah" | "cabut";
-  /** Kosong selama draft — lahir bersama CCO saat diberlakukan (DECISIONS 613). */
+  /** Kosong selama draft — tanggal persetujuan kedua (DECISIONS 614). */
   effectiveDate: string | null;
   status: "draft" | "aktif" | "dibatalkan";
   reason: string;
@@ -76,8 +76,14 @@ export function LingkupPanel({
             {berlaku.map((p) => (
               <li key={p.id}>
                 <span className="font-medium text-ink">{p.locationName}</span>{" "}
-                {p.kind === "cabut" ? "dicabut" : "masuk"} per {p.ccoNumber} · berlaku{" "}
-                {p.effectiveDate}
+                {p.kind === "cabut" ? "dicabut" : "masuk"}
+                {p.ccoNumber ? ` per ${p.ccoNumber}` : ""} · berlaku {p.effectiveDate}
+                {!p.ccoNumber ? (
+                  <>
+                    {" "}
+                    <StatusPill tone="warning" label="Nomor CCO menyusul" />
+                  </>
+                ) : null}
                 {p.diarsipkanPada ? (
                   <>
                     {" "}
@@ -88,6 +94,15 @@ export function LingkupPanel({
               </li>
             ))}
           </ul>
+          {berlaku.some((p) => !p.ccoNumber) ? (
+            <p className="text-xs text-ink-muted">
+              Yang bertanda &quot;Nomor CCO menyusul&quot; sudah berlaku; nomornya dicatat di{" "}
+              <a href={`/paket/${packageId}/kontrak`} className="font-medium text-primary underline">
+                Kontrak &amp; Adendum
+              </a>
+              .
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -102,23 +117,12 @@ export function LingkupPanel({
                     <span className="font-medium text-ink">{p.locationName}</span>{" "}
                     {p.kind === "cabut" ? "akan DICABUT" : "akan MASUK"}
                   </span>
-                  <StatusPill
-                    tone={p.setuju.lengkap ? "success" : "info"}
-                    label={p.setuju.lengkap ? "Siap diberlakukan" : "Menunggu persetujuan"}
-                  />
+                  <StatusPill tone="info" label="Menunggu persetujuan" />
                 </div>
                 <p className="mt-0.5 text-xs text-ink-faint">{p.reason}</p>
-                {!p.setuju.lengkap ? (
-                  <p className="text-xs text-ink-faint">Kurang: {p.setuju.kurang.join(" · ")}</p>
-                ) : (
-                  <p className="text-xs text-ink-muted">
-                    Berlakukan lewat{" "}
-                    <a href={`/paket/${packageId}/kontrak`} className="font-medium text-primary underline">
-                      Kontrak &amp; Adendum
-                    </a>{" "}
-                    – nomor CCO dan tanggal berlakunya diisi di sana.
-                  </p>
-                )}
+                <p className="text-xs text-ink-faint">
+                  Kurang: {p.setuju.kurang.join(" · ")} – berlaku begitu lengkap.
+                </p>
                 {p.suaraGugur > 0 ? (
                   <p className="text-xs text-warning-700">
                     {p.suaraGugur} persetujuan gugur karena usulannya diubah lagi
@@ -181,10 +185,10 @@ export function LingkupPanel({
               <Input id="lingkup-alasan" name="reason" required maxLength={300} />
             </div>
             <p className="text-xs text-ink-muted">
-              Dicatat sebagai DRAFT, tanpa nomor CCO. Nomor dan tanggal berlakunya diisi saat
-              adendum diberlakukan di Kontrak &amp; Adendum. Lokasi yang dicabut TIDAK dihapus –
-              laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam
-              angka paket sejak tanggal berlaku itu.
+              Dicatat sebagai DRAFT. Begitu disetujui Program Director dan satu Area/Project/Site
+              Manager, perubahannya BERLAKU sejak hari itu; nomor CCO dicatat menyusul di Kontrak
+              &amp; Adendum. Lokasi yang dicabut TIDAK dihapus – laporan, foto, dan realisasinya
+              tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku itu.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" loading={mengajukan}>

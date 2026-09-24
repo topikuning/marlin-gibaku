@@ -1053,7 +1053,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         success:
           `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) – belum aktif. ` +
           `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
-          `Minta persetujuan di tab Adendum, lalu berlakukan bersama nomor CCO-nya di Paket › Kontrak & Adendum.`,
+          `Buka tab Adendum untuk meminta persetujuan lalu mengaktifkannya.`,
       };
     }
     await activateRevision(res.revisionId, user.id);

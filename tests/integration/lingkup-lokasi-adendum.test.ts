@@ -5,8 +5,8 @@
 //      ikut agregat paket sejak tanggal berlaku CCO;
 //   2. lokasi baru mulai dari tanggal berlaku adendum;
 //   3. keduanya EMPAT MATA (Program Director + AM/PM/SM) dan wajib bernomor CCO.
-//      Sejak DECISIONS 613 nomor CCO lahir saat DIBERLAKUKAN di tingkat paket
-//      (`aktifkanAdendumPaket`), bukan saat diajukan.
+//      Sejak DECISIONS 614 dua persetujuan LANGSUNG memberlakukan perubahan;
+//      nomor CCO dicatat menyusul di tingkat paket (`aktifkanAdendumPaket`).
 //
 // Aturan empat matanya sendiri diuji murni di tests/unit/adendum-persetujuan;
 // yang diuji DI SINI: gerbangnya benar-benar terpasang di jalur database, dan
@@ -186,10 +186,10 @@ describe("empat mata sebelum berlaku", () => {
     ).rejects.toBeInstanceOf(LingkupError);
   });
 
-  it("satu peran saja belum lengkap, dan aktivasi paket MENOLAKNYA", async () => {
+  it("satu peran saja belum lengkap, dan pencatatan CCO MENOLAKNYA", async () => {
     sesi = "pd";
     const h = await setujuiPerubahanLingkup(changeId);
-    expect(h.lengkap).toBe(false);
+    expect(h.berlaku).toBe(false);
     await expect(berlakukan([changeId], "CCO-00", "2026-08-01")).rejects.toThrow(/belum lengkap/i);
     expect((await lingkupLokasi([lokasiA])).dicabut.size).toBe(0);
     // Penolakan di depan: tidak ada CCO setengah jadi yang tertinggal.
@@ -201,20 +201,26 @@ describe("empat mata sebelum berlaku", () => {
     await expect(setujuiPerubahanLingkup(changeId)).rejects.toBeInstanceOf(LingkupError);
   });
 
-  it("kursi kedua melengkapi → SIAP, tetapi BELUM berlaku tanpa CCO", async () => {
+  it("kursi kedua melengkapi → LANGSUNG BERLAKU hari ini, tanpa menunggu CCO", async () => {
+    // Koreksi user 2026-09-24: "jika sudah disetujui 2 orang, maka atas lokasi
+    // itu sudah aktif, tinggal administrasi resminya perlu pengaktifan".
     sesi = "sm";
     const h = await setujuiPerubahanLingkup(changeId);
-    expect(h.lengkap).toBe(true);
-    expect((await lingkupLokasi([lokasiA])).dicabut.size).toBe(0);
-  });
-
-  it("diberlakukan lewat aktivasi paket → berlaku sejak tanggal CCO-nya", async () => {
-    sesi = "pd";
-    await berlakukan([changeId], "CCO-01", "2026-08-01");
+    expect(h.berlaku).toBe(true);
     const lg = await lingkupLokasi([lokasiA, lokasiB]);
-    expect(lg.dicabut.get(lokasiA)?.ccoNumber).toBe("CCO-01");
+    expect(lg.dicabut.has(lokasiA)).toBe(true);
+    expect(lg.dicabut.get(lokasiA)?.ccoNumber).toBeNull();
     // Lokasi lain tidak ikut tercabut.
     expect(lg.dicabut.has(lokasiB)).toBe(false);
+  });
+
+  it("CCO dicatat kemudian: nomornya menempel, tanggal berlakunya TIDAK digeser", async () => {
+    sesi = "pd";
+    const sebelum = (await lingkupLokasi([lokasiA])).dicabut.get(lokasiA)!.effectiveDate.toISOString();
+    await berlakukan([changeId], "CCO-01", "2026-08-01");
+    const lg = await lingkupLokasi([lokasiA]);
+    expect(lg.dicabut.get(lokasiA)?.ccoNumber).toBe("CCO-01");
+    expect(lg.dicabut.get(lokasiA)?.effectiveDate.toISOString()).toBe(sebelum);
   });
 
   it("yang SUDAH berlaku tidak bisa dibatalkan diam-diam", async () => {
@@ -235,12 +241,22 @@ describe("tanggal berlaku menentukan, bukan tanggal persetujuan", () => {
     sesi = "sm";
     await setujuiPerubahanLingkup(id);
     sesi = "pd";
-    await berlakukan([id], "CCO-02", "2099-01-01");
+    // Tanggal berlaku ditentukan barisnya, bukan saat membaca. Digeser ke masa
+    // depan di sini supaya aturan "baru keluar sejak tanggal berlaku" teruji.
+    await db.locationScopeChange.update({
+      where: { id },
+      data: { effectiveDate: new Date("2099-01-01T00:00:00.000Z") },
+    });
     const lg = await lingkupLokasi([lokasiB]);
     expect(lg.dicabut.has(lokasiB)).toBe(false);
     // Pada tanggal berlakunya, barulah ia keluar.
     const nanti = await lingkupLokasi([lokasiB], new Date("2099-06-01T00:00:00.000Z"));
-    expect(nanti.dicabut.get(lokasiB)?.ccoNumber).toBe("CCO-02");
+    expect(nanti.dicabut.has(lokasiB)).toBe(true);
+    // 1 Jan 2099 pukul 01:00 WIB (= 31 Des 18:00 UTC) SUDAH tanggal berlakunya.
+    // Membandingkan kolom tanggal dengan jam UTC membuatnya baru berlaku jam
+    // 07:00 WIB – lokasi yang disetujui keluar dini hari tetap terhitung.
+    const dini = await lingkupLokasi([lokasiB], new Date("2098-12-31T18:00:00.000Z"));
+    expect(dini.dicabut.has(lokasiB)).toBe(true);
   });
 });
 
@@ -325,18 +341,31 @@ describe("lokasi yang MASUK lewat adendum: kurvanya mulai di tanggal berlaku", (
     sesi = "sm";
     await setujuiPerubahanLingkup(changeId);
     sesi = "pd";
-    const hasil = await berlakukan([changeId], "CCO-03", "2026-08-01");
-    // Lokasi masuk membawa seluruh RAB-nya: 100 jt pra-PPN → 111 jt (PPN 11%).
-    expect(hasil.valueDeltaRab).toBe(111_000_000n);
-    expect(hasil.valueDelta).toBe(111_000_000n);
 
-    // Aktivasi sendiri yang membuat ulang kurva-S lokasi tambahan – tidak ada
-    // langkah manual "hitung ulang" yang bisa terlupa.
-    const baru = await db.baseline.findFirstOrThrow({
+    // Persetujuan kedua sendiri yang membuat ulang kurva-S lokasi tambahan –
+    // tidak ada langkah manual "hitung ulang" yang bisa terlupa.
+    const otomatis = await db.baseline.findFirstOrThrow({
       where: { locationId: lok.id, status: "aktif" },
       select: { id: true },
     });
-    expect(baru.id).not.toBe(tanpaAdendum.id);
+    expect(otomatis.id).not.toBe(tanpaAdendum.id);
+
+    // Tanggal berlaku = tanggal persetujuan (hari ini, jam dinding). Supaya
+    // bentuk kurvanya teruji tanpa bergantung pada kapan uji dijalankan,
+    // tanggalnya dipatok ke 1 Agustus lalu kurva dibuat ulang.
+    await db.locationScopeChange.update({
+      where: { id: changeId },
+      data: { effectiveDate: new Date("2026-08-01T00:00:00.000Z") },
+    });
+    const baru = await regenerateBaseline(lok.id, { source: "auto", userId: orang.pd! });
+
+    // CCO dicatat kemudian: lokasi masuk membawa seluruh RAB-nya,
+    // 100 jt pra-PPN → 111 jt (PPN 11%).
+    const hasil = await berlakukan([changeId], "CCO-03", "2026-08-01");
+    expect(hasil.valueDeltaRab).toBe(111_000_000n);
+    expect(hasil.valueDelta).toBe(111_000_000n);
+    expect(hasil.dicatat).toBe(1);
+
     const titik = await db.baselinePoint.findMany({
       where: { baselineId: baru.id },
       orderBy: { weekNumber: "asc" },
