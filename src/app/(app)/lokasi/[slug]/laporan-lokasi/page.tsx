@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { isWahaConfigured } from "@/lib/waha/client";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { ambilRiwayatHarian } from "@/lib/laporan/riwayat-queries";
 import { withBackTo } from "@/lib/print-back";
@@ -44,7 +45,6 @@ export default async function LaporanLokasiPage({
       package: {
         select: {
           id: true,
-          waGroupId: true,
           driveFolderId: true,
           pelaksanaName: true,
           pelaksanaTitle: true,
@@ -57,7 +57,17 @@ export default async function LaporanLokasiPage({
   await requireLocationAccess(user, location.id);
 
   const wahaOn = await isWahaConfigured();
-  const hasGroup = !!location.package?.waGroupId;
+  /*
+   * Tujuan WA DITANYAKAN ke resolver, tidak dibaca dari paket (DECISIONS 609).
+   *
+   * Laporan user 2026-09-24: tombol kirim WA mati di lokasi yang grup
+   * KABUPATEN-nya sudah dipasang, hanya karena grup paketnya kosong. Aksi
+   * kirimnya sendiri sudah memakai `grupUntukLokasi` dan akan berhasil — yang
+   * tertinggal cuma pagar tombolnya, satu salinan lama dari zaman ketika grup
+   * paket adalah satu-satunya jawaban.
+   */
+  const grupWa = wahaOn ? await grupUntukLokasi(location.id) : null;
+  const hasGroup = !!grupWa;
   const hasDrive = !!location.package?.driveFolderId;
   const driveOn = (await getGDriveConfigDisplay()).connected;
 
@@ -249,7 +259,7 @@ export default async function LaporanLokasiPage({
                   label="Sudah ke WhatsApp"
                   value={`${ringkas.wa}/${ringkas.total}`}
                   tone={ringkas.wa === ringkas.total ? "success" : "default"}
-                  sub="Kabar ke grup paket"
+                  sub={`Kabar ke ${grupWa?.label ?? "grup WhatsApp"}`}
                 />
                 <KpiCard
                   label="Belum dikirim"

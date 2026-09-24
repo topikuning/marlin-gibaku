@@ -224,7 +224,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
                 const ulang = d.waTerkirim ? "\n\nRingkasan tanggal ini SUDAH pernah dikirim." : "";
                 if (
                   !window.confirm(
-                    `Kirim ringkasan ${d.lokasi} ke grup WhatsApp?\n\nPesan dan PDF langsung masuk ke grup paket (PPK, dinas, pejabat) dan tidak bisa ditarik kembali.${peringatan}${ulang}`,
+                    `Kirim ringkasan ${d.lokasi} ke grup WhatsApp?\n\nPesan dan PDF langsung masuk ke grup WhatsApp lokasi itu (PPK, dinas, pejabat) dan tidak bisa ditarik kembali.${peringatan}${ulang}`,
                   )
                 )
                   return;

@@ -13,6 +13,7 @@ import {
 import { getActivityKinds, getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { removeActivityPhotoAction } from "@/lib/field-activity/actions";
 import { isWahaConfigured } from "@/lib/waha/client";
+import { grupUntukLokasi } from "@/lib/waha/grup";
 import { db } from "@/lib/db";
 import { requireLocationPage } from "../get-location";
 import {
@@ -72,17 +73,13 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const kindOptions = kinds.map((k) => ({ key: k.key, label: k.label }));
   const todayKey = jakartaDateKey(jakartaToday());
 
-  // Grup WA paket (tujuan kiriman kegiatan). Sama untuk semua kegiatan lokasi ini.
+  // Grup WA tujuan kiriman kegiatan. Sama untuk semua kegiatan lokasi ini —
+  // dan DITANYAKAN ke resolver, karena lokasi bisa punya grup kabupaten sendiri
+  // sementara paketnya tidak punya grup sama sekali (DECISIONS 609).
   const wahaConfigured = await isWahaConfigured();
-  const pkgGroup =
-    canManage && wahaConfigured
-      ? await db.location.findUnique({
-          where: { id: location.id },
-          select: { package: { select: { waGroupId: true, waGroupName: true } } },
-        })
-      : null;
-  const hasGroup = !!pkgGroup?.package?.waGroupId;
-  const groupName = pkgGroup?.package?.waGroupName ?? null;
+  const grup = canManage && wahaConfigured ? await grupUntukLokasi(location.id) : null;
+  const hasGroup = !!grup;
+  const groupName = grup?.nama ?? grup?.label ?? null;
 
   // Kesiapan Drive KKP (folder "6. DOKUMENTASI") + jejak upload per kegiatan.
   const driveOn = canManage && (await getGDriveConfigDisplay()).connected;
