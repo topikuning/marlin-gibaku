@@ -23,7 +23,8 @@ import type { LocationScopeKind } from "@/generated/prisma/enums";
  *    `regenerateBaseline`). Menyamakannya dengan lokasi lain akan membuatnya
  *    terlihat telat sejak minggu pertama padahal belum ada dalam kontrak.
  * 3. **Empat mata**, sama seperti aktivasi adendum RAB (DECISIONS 234):
- *    Program Director + satu peran penugasan, dan nomor CCO wajib. Mengubah
+ *    Program Director + satu peran penugasan; nomor CCO lahir saat diberlakukan
+ *    di Kontrak & Adendum paket (DECISIONS 613). Mengubah
  *    lingkup kontrak menggeser nilai kontrak, progres, kurva-S, dan laporan
  *    KKP sekaligus — itu bukan kelas keputusan satu orang.
  */
@@ -36,10 +37,12 @@ export type PerubahanLingkup = {
   locationName: string;
   locationSlug: string;
   kind: LocationScopeKind;
-  effectiveDate: Date;
+  /** Kosong selama draft — lahir bersama CCO saat diaktifkan (DECISIONS 613). */
+  effectiveDate: Date | null;
   status: "draft" | "aktif" | "dibatalkan";
   reason: string;
-  ccoNumber: string;
+  /** Kosong selama draft — nomor CCO lahir saat diaktifkan (DECISIONS 613). */
+  ccoNumber: string | null;
   appliedAt: Date | null;
   diubahPada: Date;
   setuju: { direktur: boolean; penugasan: boolean; lengkap: boolean; kurang: string[] };
@@ -67,13 +70,13 @@ function keBentuk(r: {
   id: string;
   locationId: string;
   kind: LocationScopeKind;
-  effectiveDate: Date;
+  effectiveDate: Date | null;
   status: "draft" | "aktif" | "dibatalkan";
   reason: string;
   appliedAt: Date | null;
   updatedAt: Date;
   archivedAt: Date | null;
-  amendment: { ccoNumber: string };
+  amendment: { ccoNumber: string } | null;
   location: { name: string; slug: string };
   approvals: { userId: string; role: Parameters<typeof nilaiPersetujuan>[0][number]["role"]; approvedAt: Date }[];
 }): PerubahanLingkup {
@@ -88,7 +91,7 @@ function keBentuk(r: {
     effectiveDate: r.effectiveDate,
     status: r.status,
     reason: r.reason,
-    ccoNumber: r.amendment.ccoNumber,
+    ccoNumber: r.amendment?.ccoNumber ?? null,
     appliedAt: r.appliedAt,
     diubahPada: r.updatedAt,
     setuju: {
@@ -197,15 +200,19 @@ export async function lingkupLokasi(locationIds: string[], pada = new Date()): P
     orderBy: { effectiveDate: "asc" },
   });
   for (const r of rows) {
+    // Baris aktif SELALU ber-CCO dan bertanggal (DECISIONS 613 mengisinya saat
+    // aktivasi); penjaga ini untuk baris yang rusak, bukan jalur normal.
+    if (!r.amendment || !r.effectiveDate) continue;
     if (r.amendment.contract.packageId !== r.location.packageId) continue;
-    const isi = { ccoNumber: r.amendment.ccoNumber, effectiveDate: r.effectiveDate };
+    const isi = { ccoNumber: r.amendment.ccoNumber, effectiveDate: r.effectiveDate as Date };
+    const berlaku = r.effectiveDate;
     if (r.kind === "cabut") {
-      if (r.effectiveDate.getTime() <= pada.getTime()) dicabut.set(r.locationId, isi);
+      if (berlaku.getTime() <= pada.getTime()) dicabut.set(r.locationId, isi);
     } else {
       masuk.set(r.locationId, isi);
       // Lokasi yang dicabut lalu dimasukkan lagi lewat adendum berikutnya ikut
       // kembali — urutan tanggal yang menentukan, bukan jenisnya.
-      if ((dicabut.get(r.locationId)?.effectiveDate.getTime() ?? -Infinity) <= r.effectiveDate.getTime())
+      if ((dicabut.get(r.locationId)?.effectiveDate.getTime() ?? -Infinity) <= berlaku.getTime())
         dicabut.delete(r.locationId);
     }
   }
@@ -222,10 +229,22 @@ export async function tanggalMasukAdendum(locationId: string): Promise<Date | nu
   return r?.effectiveDate ?? null;
 }
 
-/** Ajukan perubahan lingkup — DRAFT, belum berlaku sampai empat mata terpenuhi. */
+/**
+ * Ajukan perubahan lingkup — DRAFT, TANPA nomor CCO (DECISIONS 613).
+ *
+ * Keluhan user 2026-09-24: *"kenapa cabut lokasi, harus ada pilihan adendum
+ * cco? … jika ada draft rab adendum bisa langsung import, kenapa cabut lokasi
+ * juga tidak ada draftnya dulu"*. Dulu usulan ini menuntut CCO yang SUDAH
+ * tercatat, padahal draft RAB adendum tidak — dua aturan berbeda untuk satu
+ * peristiwa hukum yang sama, dan urutannya terbalik dari kenyataan: nomor CCO
+ * baru terbit SETELAH isi perubahannya disepakati.
+ *
+ * Sekarang keduanya sama: usulan hidup sebagai draft, disetujui empat mata,
+ * lalu DIBERLAKUKAN bersama draft RAB lain lewat aktivasi adendum paket — di
+ * situlah nomor CCO dan tanggal berlakunya lahir.
+ */
 export async function ajukanPerubahanLingkup(input: {
   locationId: string;
-  amendmentId: string;
   kind: LocationScopeKind;
   reason: string;
 }): Promise<{ id: string }> {
@@ -236,26 +255,14 @@ export async function ajukanPerubahanLingkup(input: {
    * `contract.manage` dipegang Area Manager dan Project Manager — dua peran yang
    * BUKAN lintas-lokasi. Versi pertama memuat lokasi hanya dengan id-nya, jadi
    * satu UUID yang terbaca dari dokumen mana pun sudah cukup untuk mengusulkan
-   * pencabutan lokasi paket lain, bahkan organisasi lain. Begitu empat mata
-   * terpenuhi, lokasi itu keluar dari SELURUH agregat paket. Audit 2026-09-15.
+   * pencabutan lokasi paket lain, bahkan organisasi lain. Audit 2026-09-15.
    */
   await requireLocationAccess(user, input.locationId);
-  const [lokasi, adendum] = await Promise.all([
-    db.location.findUnique({
-      where: { id: input.locationId },
-      select: { id: true, packageId: true, name: true },
-    }),
-    db.contractAmendment.findUnique({
-      where: { id: input.amendmentId },
-      select: { id: true, ccoNumber: true, effectiveDate: true, contract: { select: { packageId: true } } },
-    }),
-  ]);
+  const lokasi = await db.location.findUnique({
+    where: { id: input.locationId },
+    select: { id: true, packageId: true, name: true },
+  });
   if (!lokasi) throw new LingkupError("Lokasi tidak ditemukan.");
-  if (!adendum) throw new LingkupError("Adendum (CCO) tidak ditemukan.");
-  // Adendum milik paket LAIN tidak boleh mengubah lingkup paket ini — itu
-  // mengubah kontrak orang lain lewat pintu belakang.
-  if (adendum.contract.packageId !== lokasi.packageId)
-    throw new LingkupError("Adendum itu milik paket lain – pilih CCO pada kontrak paket ini.");
   if (!input.reason.trim()) throw new LingkupError("Alasan wajib diisi – ini dokumen perubahan kontrak.");
 
   const sudahAda = await db.locationScopeChange.findFirst({
@@ -264,15 +271,13 @@ export async function ajukanPerubahanLingkup(input: {
   });
   if (sudahAda)
     throw new LingkupError(
-      "Lokasi ini sudah punya usulan perubahan lingkup yang menunggu persetujuan – selesaikan dulu yang itu.",
+      "Lokasi ini sudah punya usulan perubahan lingkup yang belum diberlakukan – selesaikan dulu yang itu.",
     );
 
   const row = await db.locationScopeChange.create({
     data: {
       locationId: input.locationId,
-      amendmentId: adendum.id,
       kind: input.kind,
-      effectiveDate: adendum.effectiveDate,
       reason: input.reason.trim(),
       createdById: user.id,
     },
@@ -281,17 +286,20 @@ export async function ajukanPerubahanLingkup(input: {
   await audit(user.id, "location_scope.ajukan", "location", input.locationId, {
     changeId: row.id,
     kind: input.kind,
-    ccoNumber: adendum.ccoNumber,
-    effectiveDate: adendum.effectiveDate.toISOString().slice(0, 10),
   });
   return row;
 }
 
 /**
- * Setujui usulan. Begitu empat mata terpenuhi, perubahan LANGSUNG berlaku —
- * tidak ada tombol ketiga yang bisa ditekan satu orang sesudahnya.
+ * Setujui usulan. Empat mata yang lengkap membuat usulan SIAP DIBERLAKUKAN —
+ * tidak langsung berlaku.
+ *
+ * Dulu persetujuan kedua langsung memberlakukannya, karena CCO-nya sudah
+ * dipilih sejak diajukan. Sejak DECISIONS 613 nomor CCO dan tanggal berlaku
+ * lahir saat aktivasi adendum paket; memberlakukan di sini berarti lokasi
+ * keluar dari kontrak tanpa tanggal dan tanpa dasar hukum.
  */
-export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berlaku: boolean }> {
+export async function setujuiPerubahanLingkup(changeId: string): Promise<{ lengkap: boolean; kurang: string[] }> {
   const user = await requireCapability("contract.manage");
   if (!bolehMenyetujui(user.role))
     throw new LingkupError(
@@ -300,15 +308,7 @@ export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berla
 
   const row = await db.locationScopeChange.findUnique({
     where: { id: changeId },
-    select: {
-      id: true,
-      locationId: true,
-      kind: true,
-      status: true,
-      updatedAt: true,
-      amendment: { select: { ccoNumber: true } },
-      approvals: { select: { userId: true, role: true, approvedAt: true } },
-    },
+    select: { id: true, locationId: true, kind: true, status: true, updatedAt: true },
   });
   if (!row) throw new LingkupError("Usulan tidak ditemukan.");
   // Pagar akses BERDIRI SEBELUM suara dicatat: menyetujui lokasi yang bukan
@@ -321,29 +321,14 @@ export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berla
     create: { changeId, userId: user.id, role: user.role },
     update: { role: user.role, approvedAt: new Date() },
   });
-  await audit(user.id, "location_scope.setujui", "location", row.locationId, {
-    changeId,
-    kind: row.kind,
-    ccoNumber: row.amendment.ccoNumber,
-  });
+  await audit(user.id, "location_scope.setujui", "location", row.locationId, { changeId, kind: row.kind });
 
   const semua = await db.locationScopeApproval.findMany({
     where: { changeId },
     select: { userId: true, role: true, approvedAt: true },
   });
   const status = nilaiPersetujuan(suaraMasihBerlaku(semua, row.updatedAt));
-  if (!status.lengkap) return { berlaku: false };
-
-  await db.locationScopeChange.update({
-    where: { id: changeId },
-    data: { status: "aktif", appliedAt: new Date() },
-  });
-  await audit(user.id, "location_scope.berlaku", "location", row.locationId, {
-    changeId,
-    kind: row.kind,
-    ccoNumber: row.amendment.ccoNumber,
-  });
-  return { berlaku: true };
+  return { lengkap: status.lengkap, kurang: status.kurang };
 }
 
 /** Batalkan usulan yang belum berlaku. */
@@ -424,7 +409,7 @@ export async function arsipkanLokasiDicabut(packageId: string): Promise<{ jumlah
     lokasi: sasaran.map((s) => ({
       locationId: s.locationId,
       name: nama.get(s.locationId) ?? null,
-      ccoNumber: s.amendment.ccoNumber,
+      ccoNumber: s.amendment?.ccoNumber ?? null,
     })),
   });
   return { jumlah: sasaran.length };

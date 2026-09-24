@@ -695,7 +695,7 @@ async function mingguMulaiAdendum(locationId: string, totalWeeks: number): Promi
     }),
   ]);
   const c = loc?.package.contract;
-  if (!perubahan || !c?.startDate) return 1;
+  if (!perubahan?.effectiveDate || !c?.startDate) return 1;
   const w = weekOfDate(c.startDate, perubahan.effectiveDate, c.weekMode ?? "tujuh_hari");
   return Math.min(Math.max(1, w), totalWeeks);
 }

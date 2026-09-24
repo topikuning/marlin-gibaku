@@ -33,6 +33,9 @@ const suffix = `sr${Date.now().toString(36)}`;
 let locationId = "";
 let userId = "";
 let draftRevId = "";
+// Kunci lineage "I#1" dipakai banyak berkas uji lain yang berjalan paralel —
+// setiap bacaan WAJIB dibatasi ke lokasi uji ini, kalau tidak laporan berkas
+// lain (mis. 20 m³ di kkp-harian-final) ikut terjumlah.
 const LK = "I#1";
 
 /** 45,7 terkumpul dari tiga hari - bentuk yang sebenarnya di lapangan. */
@@ -122,7 +125,7 @@ afterAll(async () => {
 
 describe("KASUS INTI: realisasi turun mengikuti volume adendum", () => {
   it("sebelum aktivasi, laporan masih memakai angka lamanya", async () => {
-    const rows = await db.dailyReportItem.findMany({ where: { lineageKey: LK }, select: { volumeDone: true } });
+    const rows = await db.dailyReportItem.findMany({ where: { lineageKey: LK, report: { locationId } }, select: { volumeDone: true } });
     const total = rows.reduce((t, r) => t + Number(r.volumeDone), 0);
     expect(Math.round(total * 1000) / 1000).toBe(45.7);
   });
@@ -130,7 +133,7 @@ describe("KASUS INTI: realisasi turun mengikuti volume adendum", () => {
   it("aktivasi membagi rata turun ke 32,149 dan menjumlah PERSIS", async () => {
     await activateRevision(draftRevId, userId);
     const rows = await db.dailyReportItem.findMany({
-      where: { lineageKey: LK },
+      where: { lineageKey: LK, report: { locationId } },
       select: { volumeDone: true, valueDone: true, report: { select: { reportDate: true, status: true } } },
       orderBy: { report: { reportDate: "asc" } },
     });
@@ -146,7 +149,7 @@ describe("KASUS INTI: realisasi turun mengikuti volume adendum", () => {
 
   it("laporan FINAL ikut disesuaikan, tidak dilewati", async () => {
     const fin = await db.dailyReportItem.findFirstOrThrow({
-      where: { lineageKey: LK, report: { status: "final" } },
+      where: { lineageKey: LK, report: { locationId, status: "final" } },
       select: { volumeDone: true },
     });
     expect(Number(fin.volumeDone)).toBeLessThan(10);
@@ -154,7 +157,7 @@ describe("KASUS INTI: realisasi turun mengikuti volume adendum", () => {
 
   it("valueDone ikut dihitung ulang, tidak tertinggal di angka lama", async () => {
     const rows = await db.dailyReportItem.findMany({
-      where: { lineageKey: LK },
+      where: { lineageKey: LK, report: { locationId } },
       select: { volumeDone: true, valueDone: true },
     });
     for (const r of rows) {

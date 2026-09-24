@@ -2,7 +2,7 @@
 
 import { useAksi } from "@/lib/aksi-klien";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   Banner,
   Button,
@@ -16,6 +16,8 @@ import {
 import {
   ubahModeMingguAction,
   addAmendment,
+  pratinjauSelisihAdendum,
+  type PratinjauSelisihAdendum,
   convertToContract,
   editContractAction,
   updateContractSignatories,
@@ -474,18 +476,124 @@ export function SignatoriesForm({
   );
 }
 
-/** Form tambah adendum/CCO (append-only). */
-export function AmendmentForm({ contractId }: { contractId: string }) {
-  const [state, action, pending] = useAksi<PackageActionState>(
-    addAmendment,
-    undefined,
+/** Satu draft yang bisa ikut diberlakukan dalam CCO (DECISIONS 613). */
+export type ItemAdendumForm = {
+  jenis: "revisi" | "lingkup";
+  id: string;
+  lokasi: string;
+  /** Tempat draft itu disetujui/diperiksa. */
+  href: string;
+  judul: string;
+  /** Teks nilai yang sudah diformat server (sebelum → sesudah). */
+  nilai: string;
+  lengkap: boolean;
+  kurang: string[];
+};
+
+/**
+ * Berlakukan adendum — SATU pintu (DECISIONS 613). Draft RAB adendum dan draft
+ * cabut/tambah lokasi yang persetujuannya lengkap dicentang, nomor CCO diisi
+ * di sini. Nilai CCO diturunkan dari RAB di server, tetap bisa diketik ulang
+ * untuk selisih pembulatan dokumen resmi.
+ */
+export function AktivasiAdendumForm({
+  packageId,
+  items,
+  hariIni,
+}: {
+  packageId: string;
+  items: ItemAdendumForm[];
+  hariIni: string;
+}) {
+  const [state, action, pending] = useAksi<PackageActionState>(addAmendment, undefined);
+  const [pilih, setPilih] = useState<Set<string>>(
+    () => new Set(items.filter((i) => i.lengkap).map((i) => `${i.jenis}:${i.id}`)),
   );
+  const [nilaiKetik, setNilaiKetik] = useState("");
+  const [pratinjau, setPratinjau] = useState<PratinjauSelisihAdendum | null>(null);
+  const [menghitung, startHitung] = useTransition();
+
+  const ids = (jenis: ItemAdendumForm["jenis"]) =>
+    items.filter((i) => i.jenis === jenis && pilih.has(`${jenis}:${i.id}`)).map((i) => i.id);
+  const kunciPilihan = [...pilih].sort().join(",");
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      startHitung(async () => {
+        setPratinjau(
+          await pratinjauSelisihAdendum({
+            packageId,
+            revisionIds: ids("revisi"),
+            changeIds: ids("lingkup"),
+            valueDelta: nilaiKetik,
+          }),
+        );
+      });
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kunciPilihan, nilaiKetik, packageId]);
+
+  const turunan = pratinjau && "turunan" in pratinjau ? pratinjau : null;
 
   return (
     <form action={action} className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
-      <input type="hidden" name="contractId" value={contractId} />
+      <input type="hidden" name="packageId" value={packageId} />
+      {items
+        .filter((i) => pilih.has(`${i.jenis}:${i.id}`))
+        .map((i) => (
+          <input key={`${i.jenis}:${i.id}`} type="hidden" name={i.jenis === "revisi" ? "revisionIds" : "changeIds"} value={i.id} />
+        ))}
+
+      <div className="space-y-1.5">
+        <p className="text-[13px] font-medium text-ink">Perubahan yang ikut CCO ini</p>
+        {items.length === 0 ? (
+          <p className="text-[13px] text-ink-muted">
+            Tidak ada draft adendum. CCO tanpa perubahan RAB/lokasi (mis. perpanjangan waktu saja) tetap bisa dicatat.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {items.map((i) => {
+              const k = `${i.jenis}:${i.id}`;
+              return (
+                <li key={k} className="flex items-start gap-2.5 px-3 py-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 accent-primary"
+                    aria-label={`${i.judul} ${i.lokasi}`}
+                    disabled={!i.lengkap}
+                    checked={pilih.has(k)}
+                    onChange={(e) =>
+                      setPilih((lama) => {
+                        const baru = new Set(lama);
+                        if (e.target.checked) baru.add(k);
+                        else baru.delete(k);
+                        return baru;
+                      })
+                    }
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-ink">
+                      <span className="font-medium">{i.lokasi}</span> · {i.judul}
+                    </p>
+                    <p className="tabular text-ink-muted">{i.nilai}</p>
+                    {!i.lengkap ? (
+                      <p className="text-warning">
+                        Belum bisa ikut – masih menunggu {i.kurang.join(" + ")}.{" "}
+                        <a href={i.href} className="font-medium text-primary hover:underline">
+                          Buka draft
+                        </a>
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -498,17 +606,38 @@ export function AmendmentForm({ contractId }: { contractId: string }) {
           <Label htmlFor="am-effective" required>
             Tanggal berlaku
           </Label>
-          <Input id="am-effective" name="effectiveDate" type="date" required />
+          <Input id="am-effective" name="effectiveDate" type="date" required defaultValue={hariIni} />
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="am-value" required>
-            Perubahan nilai (Rp)
-          </Label>
-          <Input id="am-value" name="valueDelta" required placeholder="mis. -150.000.000" />
-          <HelpText>Gunakan tanda minus untuk pengurangan nilai. Isi 0 bila hanya waktu.</HelpText>
+          <Label htmlFor="am-value">Perubahan nilai (Rp, inkl. PPN)</Label>
+          <Input
+            id="am-value"
+            name="valueDelta"
+            value={nilaiKetik}
+            onChange={(e) => setNilaiKetik(e.target.value)}
+            placeholder={turunan ? turunan.turunanTeks : "menghitung…"}
+          />
+          <HelpText>
+            {turunan ? (
+              <>
+                Dari RAB: <span className="tabular font-medium text-ink">{turunan.turunanTeks}</span>
+                {menghitung ? " (menghitung…)" : ""}. Kosongkan untuk memakai angka ini; ketik angka dokumen
+                CCO bila berbeda karena pembulatan.
+                {turunan.selisih !== null && turunan.selisih !== "0" ? (
+                  <span className="block text-warning">
+                    Selisih dengan RAB: {turunan.selisihTeks} – ikut tercatat.
+                  </span>
+                ) : null}
+              </>
+            ) : pratinjau && "error" in pratinjau ? (
+              <span className="text-danger">{pratinjau.error}</span>
+            ) : (
+              "Menghitung dari RAB…"
+            )}
+          </HelpText>
         </div>
         <div>
           <Label htmlFor="am-days" required>
@@ -526,7 +655,7 @@ export function AmendmentForm({ contractId }: { contractId: string }) {
       </div>
 
       <Button type="submit" loading={pending}>
-        Catat Adendum
+        Berlakukan adendum
       </Button>
     </form>
   );

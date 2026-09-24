@@ -208,7 +208,7 @@ describe("mengarsipkan tidak menggeser satu angka pun", () => {
     });
     expect(row.status).toBe("aktif");
     expect(row.appliedAt).not.toBeNull();
-    expect(row.effectiveDate.toISOString().slice(0, 10)).toBe("2026-08-01");
+    expect(row.effectiveDate!.toISOString().slice(0, 10)).toBe("2026-08-01");
     expect(row.archivedAt).not.toBeNull();
     expect(row.archivedById).toBe(sessionUserId);
   });

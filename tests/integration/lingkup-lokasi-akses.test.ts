@@ -53,7 +53,6 @@ const suffix = `lk${Date.now().toString(36)}`;
 let pmId = "";
 let lokasiSendiriId = "";
 let lokasiAsingId = "";
-let adendumAsingId = "";
 let usulanAsingId = "";
 
 beforeAll(async () => {
@@ -96,7 +95,6 @@ beforeAll(async () => {
       effectiveDate: new Date("2026-03-01"), reason: "uji",
     },
   });
-  adendumAsingId = cco.id;
   // Usulan yang SUDAH ada di paket asing – untuk menguji jalur setujui & batal.
   const usulan = await db.locationScopeChange.create({
     data: {
@@ -120,7 +118,6 @@ describe("lokasi di luar penugasan (dan di luar organisasi)", () => {
     await expect(
       ajukanPerubahanLingkup({
         locationId: lokasiAsingId,
-        amendmentId: adendumAsingId,
         kind: "cabut",
         reason: "mencoba mencabut lokasi orang lain",
       }),
@@ -143,15 +140,14 @@ describe("lokasi di luar penugasan (dan di luar organisasi)", () => {
 
 describe("lokasi YANG DITUGASKAN tetap bisa dikerjakan", () => {
   it("pagar ini menutup akses, bukan mematikan fiturnya", async () => {
-    // Lokasi A tidak punya kontrak/CCO, jadi yang diharapkan LingkupError soal
-    // adendum – bukan ForbiddenError. Itu membuktikan pagar aksesnya lolos.
-    await expect(
-      ajukanPerubahanLingkup({
-        locationId: lokasiSendiriId,
-        amendmentId: adendumAsingId,
-        kind: "cabut",
-        reason: "uji",
-      }),
-    ).rejects.not.toBeInstanceOf(ForbiddenError);
+    // Sejak DECISIONS 613 usulan tidak menuntut CCO, jadi lokasi yang
+    // ditugaskan benar-benar bisa diusulkan – lolos pagar aksesnya.
+    const { id } = await ajukanPerubahanLingkup({
+      locationId: lokasiSendiriId,
+      kind: "cabut",
+      reason: "uji",
+    });
+    const row = await db.locationScopeChange.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("draft");
   });
 });

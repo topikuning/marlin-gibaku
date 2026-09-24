@@ -230,6 +230,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
               id: true,
               ccoNumber: true,
               valueDelta: true,
+              valueDeltaRab: true,
               endDateDelta: true,
               effectiveDate: true,
               reason: true,

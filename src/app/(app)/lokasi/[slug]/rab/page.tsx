@@ -406,13 +406,14 @@ export default async function RabPage({
           {bagian === "revisi" ? (
             <div className="space-y-3">
               <p className="text-[13px] text-ink-muted">
-                Aktifkan draft untuk menggantikan revisi aktif – realisasi tersambung otomatis via
-                lineage, dan revisi lama tetap disimpan sebagai histori.
+                Draft adendum diberlakukan bersama nomor CCO-nya di Paket › Kontrak & Adendum –
+                realisasi tersambung otomatis via lineage, dan revisi lama tetap disimpan sebagai histori.
               </p>
               <RevisionList
                 revisions={revisionRows}
                 canManage={canManage}
                 persetujuan={persetujuanDraft}
+                kontrakHref={`/paket/${location.package.id}/kontrak`}
               />
             </div>
           ) : null}

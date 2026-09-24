@@ -266,3 +266,39 @@ export function cashRequirement(params: {
     params.commitmentsDue + params.forecastCost - params.cashAvailable - params.scheduledDisbursement;
   return need > 0n ? need : 0n;
 }
+
+/**
+ * Satu lokasi yang disentuh sebuah adendum. `lingkup` null = hanya revisi RAB;
+ * "tambah"/"cabut" = lokasi masuk/keluar kontrak (DECISIONS 613).
+ */
+export type ItemSelisihAdendum = {
+  locationId: string;
+  /** Total RAB aktif sekarang (pre-PPN); null bila belum ada. */
+  aktif: bigint | null;
+  /** Total draft yang ikut diberlakukan (pre-PPN); null bila tidak ada. */
+  draft: bigint | null;
+  lingkup: "tambah" | "cabut" | null;
+};
+
+/**
+ * Selisih nilai kontrak yang ditimbulkan adendum, DITURUNKAN dari RAB.
+ *
+ * Tiap lokasi = nilai sesudah − nilai sebelum di dalam kontrak:
+ *   sebelum = lokasi yang ditambahkan belum di kontrak → 0; selain itu RAB aktif
+ *   sesudah = lokasi yang dicabut keluar → 0 ("seluruh nilai RAB-nya", ketetapan
+ *             user 2026-09-24); selain itu draft yang diberlakukan, atau aktif
+ * PPN dikenakan SEKALI atas totalnya: RAB pre-PPN, kontrak inklusif PPN.
+ */
+export function selisihNilaiAdendum(
+  items: ItemSelisihAdendum[],
+  ppnPercent: number,
+): { sebelumPpn: bigint; denganPpn: bigint } {
+  let sebelumPpn = 0n;
+  for (const it of items) {
+    const berlaku = it.draft ?? it.aktif ?? 0n;
+    const sebelum = it.lingkup === "tambah" ? 0n : (it.aktif ?? 0n);
+    const sesudah = it.lingkup === "cabut" ? 0n : berlaku;
+    sebelumPpn += sesudah - sebelum;
+  }
+  return { sebelumPpn, denganPpn: withPpn(sebelumPpn, ppnPercent) };
+}

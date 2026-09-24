@@ -39,10 +39,13 @@ const { pastikanBolehAktivasi, setujuiRevisi, cabutPersetujuan, ringkasPersetuju
 const { activateDraftAction, approveRevisionAction } = await import(
   "@/app/(app)/lokasi/[slug]/rab/actions",
 );
+const { addAmendment } = await import("@/lib/package/actions");
 
 const suffix = `em${Date.now().toString(36)}`;
 let locationId: string;
 let orgId: string;
+let packageId: string;
+let nomorCco = 0;
 const orang: Record<string, { id: string; role: never }> = {};
 
 /** Pengguna sesi saat ini, dibaca dari DB supaya bentuknya persis SessionUser. */
@@ -80,6 +83,18 @@ beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org EM ${suffix}`, slug: `org-${suffix}` } });
   orgId = org.id;
   const pkg = await db.package.create({ data: { orgId, name: `Paket EM ${suffix}` } });
+  packageId = pkg.id;
+  const vendor = await db.vendor.create({ data: { orgId, name: `Vendor ${suffix}` } });
+  await db.contract.create({
+    data: {
+      packageId,
+      vendorId: vendor.id,
+      contractNumber: `K-${suffix}`,
+      contractValue: 1_000_000_000n,
+      durationDays: 180,
+      signedDate: new Date("2026-06-01T00:00:00.000Z"),
+    },
+  });
   const loc = await db.location.create({
     data: { packageId: pkg.id, name: "Lokasi EM", slug: `lokasi-${suffix}`, village: "D", regency: "K", province: "P" },
   });
@@ -214,23 +229,31 @@ describe("cabut persetujuan", () => {
 
 describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
   // Aturan yang benar tapi tidak dipanggil sama saja dengan tidak ada. Blok ini
-  // menembak activateDraftAction — jalur yang betul-betul dipakai tombol UI —
-  // supaya menghapus satu baris `pastikanBolehAktivasi` membuat uji ini merah.
+  // menembak `addAmendment` — pintu "Berlakukan adendum" yang betul-betul
+  // dipakai tombol UI sejak DECISIONS 613 — supaya menghapus satu baris
+  // gerbang empat mata membuat uji ini merah.
   const aktifkan = async (revisionId: string) => {
     const fd = new FormData();
-    fd.set("revisionId", revisionId);
-    return activateDraftAction(undefined, fd);
+    fd.set("packageId", packageId);
+    fd.set("ccoNumber", `CCO-EM-${++nomorCco}`);
+    fd.set("effectiveDate", "2026-08-01");
+    fd.set("endDateDelta", "0");
+    fd.set("reason", "Uji gerbang empat mata");
+    fd.append("revisionIds", revisionId);
+    return addAmendment(undefined, fd);
   };
 
-  it("super_admin menekan Aktifkan tanpa persetujuan → ditolak, draft tetap draft", async () => {
+  it("super_admin memberlakukan tanpa persetujuan → ditolak, draft tetap draft, tanpa CCO", async () => {
     await buatRevisi(1, "aktif");
     const draft = await buatRevisi(2, "draft");
     sesi = "sa";
+    const sebelum = await db.contractAmendment.count({ where: { contract: { packageId } } });
     const hasil = await aktifkan(draft.id);
-    expect(hasil?.error).toMatch(/butuh persetujuan DUA orang/i);
+    expect(hasil?.error).toMatch(/belum lengkap persetujuannya/i);
     expect(hasil?.success).toBeUndefined();
     const sesudah = await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } });
     expect(sesudah.status).toBe("draft");
+    expect(await db.contractAmendment.count({ where: { contract: { packageId } } })).toBe(sebelum);
   });
 
   it("pesan penolakan menyebut peran yang kurang, bukan 'Terjadi kesalahan'", async () => {
@@ -243,20 +266,80 @@ describe("GERBANGNYA TERPASANG di server action, bukan cuma ada", () => {
     expect(hasil?.error).not.toMatch(/^Terjadi kesalahan/);
   });
 
-  it("dengan PD + SM → aktivasi lolos gerbang dan revisi benar-benar aktif", async () => {
+  it("dengan PD + SM → revisi aktif DAN tertaut ke CCO yang lahir bersamanya", async () => {
     const lama = await buatRevisi(1, "aktif");
     const draft = await buatRevisi(2, "draft");
     await setujuiRevisi(draft.id, orang.pd!);
     await setujuiRevisi(draft.id, orang.sm!);
     sesi = "sa";
     const hasil = await aktifkan(draft.id);
-    // Regenerate baseline boleh gagal di lingkungan uji (tak ada kontrak/jadwal);
-    // yang diuji di sini adalah GERBANGNYA, jadi cukup pastikan penolakan empat
-    // mata tidak muncul dan status revisi benar-benar berpindah.
-    expect(hasil?.error ?? "").not.toMatch(/butuh persetujuan/i);
-    const sesudah = await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } });
+    // Regenerate baseline boleh gagal di lingkungan uji (revisi tanpa node);
+    // yang diuji di sini adalah GERBANGNYA dan tautannya.
+    expect(hasil?.error ?? "").not.toMatch(/belum lengkap/i);
+    const sesudah = await db.rabRevision.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: { status: true, amendment: { select: { ccoNumber: true, valueDelta: true, valueDeltaRab: true } } },
+    });
     expect(sesudah.status).toBe("aktif");
+    expect(sesudah.amendment?.ccoNumber).toBe(`CCO-EM-${nomorCco}`);
+    // 1 jt → 2 jt pra-PPN = +1 jt; PPN bawaan 11% → +1,11 jt.
+    expect(sesudah.amendment?.valueDeltaRab).toBe(1_110_000n);
+    expect(sesudah.amendment?.valueDelta).toBe(1_110_000n);
     expect((await db.rabRevision.findUniqueOrThrow({ where: { id: lama.id } })).status).not.toBe("aktif");
+  });
+
+  it("nilai CCO yang DIKETIK dipakai apa adanya, turunan RAB tetap tersimpan", async () => {
+    await buatRevisi(1, "aktif");
+    const draft = await buatRevisi(2, "draft");
+    await setujuiRevisi(draft.id, orang.pd!);
+    await setujuiRevisi(draft.id, orang.sm!);
+    sesi = "sa";
+    const fd = new FormData();
+    fd.set("packageId", packageId);
+    fd.set("ccoNumber", `CCO-EM-${++nomorCco}`);
+    fd.set("effectiveDate", "2026-08-01");
+    fd.set("endDateDelta", "14");
+    fd.set("reason", "Selisih pembulatan dokumen");
+    fd.set("valueDelta", "1.109.500");
+    fd.append("revisionIds", draft.id);
+    const hasil = await addAmendment(undefined, fd);
+    expect(hasil?.error ?? hasil?.success).toMatch(/selisih/i);
+    const a = await db.contractAmendment.findFirstOrThrow({
+      where: { contract: { packageId }, ccoNumber: `CCO-EM-${nomorCco}` },
+    });
+    expect(a.valueDelta).toBe(1_109_500n);
+    expect(a.valueDeltaRab).toBe(1_110_000n);
+    expect(a.endDateDelta).toBe(14);
+  });
+
+  it("tombol Aktifkan per lokasi TIDAK lagi memberlakukan adendum – diarahkan ke Kontrak", async () => {
+    await buatRevisi(1, "aktif");
+    const draft = await buatRevisi(2, "draft");
+    await setujuiRevisi(draft.id, orang.pd!);
+    await setujuiRevisi(draft.id, orang.sm!);
+    sesi = "sa";
+    const fd = new FormData();
+    fd.set("revisionId", draft.id);
+    const hasil = await activateDraftAction(undefined, fd);
+    expect(hasil?.error).toMatch(/Kontrak & Adendum/);
+    expect((await db.rabRevision.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("draft");
+  });
+
+  it("CCO tanpa draft apa pun (waktu saja) tetap bisa dicatat", async () => {
+    sesi = "sa";
+    const fd = new FormData();
+    fd.set("packageId", packageId);
+    fd.set("ccoNumber", `CCO-EM-${++nomorCco}`);
+    fd.set("effectiveDate", "2026-08-01");
+    fd.set("endDateDelta", "30");
+    fd.set("reason", "Perpanjangan waktu saja");
+    const hasil = await addAmendment(undefined, fd);
+    expect(hasil?.success).toMatch(/berlaku/i);
+    const a = await db.contractAmendment.findFirstOrThrow({
+      where: { contract: { packageId }, ccoNumber: `CCO-EM-${nomorCco}` },
+    });
+    expect(a.valueDelta).toBe(0n);
+    expect(a.endDateDelta).toBe(30);
   });
 });
 
@@ -296,6 +379,7 @@ describe("YANG MENANDATANGANI HARUS TAHU HASILNYA", () => {
     sesi = "sm";
     const hasil = await setujui(draft.id);
     expect(hasil?.success).toMatch(/siap diaktifkan/i);
+    expect(hasil?.success).toMatch(/Kontrak & Adendum/);
   });
 });
 

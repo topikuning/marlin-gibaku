@@ -188,7 +188,7 @@ export async function pindahkanLokasi(
     select: { kind: true, amendment: { select: { ccoNumber: true } } },
   });
   if (input.mode === "paksa" && lingkupAktif.length > 0) {
-    const nomor = [...new Set(lingkupAktif.map((r) => r.amendment.ccoNumber))].join(", ");
+    const nomor = [...new Set(lingkupAktif.map((r) => r.amendment?.ccoNumber ?? "tanpa nomor"))].join(", ");
     throw new PindahLokasiError(
       `Lokasi ini punya riwayat lingkup kontraktual (${nomor}) – itu bukan salah input. ` +
         "Pakai jalur CCO dan sebutkan nomor adendumnya.",

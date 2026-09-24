@@ -216,15 +216,11 @@ export default async function LokasiPaketPage({
               bolehUbah={canContract}
               bolehArsip={bolehArsip}
               lokasi={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
-              adendum={(pkg.contract?.amendments ?? []).map((a) => ({
-                id: a.id,
-                label: `${a.ccoNumber} – berlaku ${formatTanggal(a.effectiveDate)}`,
-              }))}
               perubahan={perubahanLingkup.map((p) => ({
                 id: p.id,
                 locationName: p.locationName,
                 kind: p.kind,
-                effectiveDate: formatTanggal(p.effectiveDate),
+                effectiveDate: p.effectiveDate ? formatTanggal(p.effectiveDate) : null,
                 status: p.status,
                 reason: p.reason,
                 ccoNumber: p.ccoNumber,
