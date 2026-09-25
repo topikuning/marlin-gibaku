@@ -189,6 +189,10 @@ export async function createActivityAction(
   try {
     const user = await requireCapability("field_activity.manage");
     await requireLocationAccess(user, d.locationId);
+    // Kegiatan baru di lokasi yang sudah dicabut dari kontrak ditolak (DECISIONS 616).
+    const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
+    const tertutup = await alasanLokasiTertutup(d.locationId, d.activityDate);
+    if (tertutup) return { error: tertutup };
     const location = await locationForStamp(d.locationId);
     if (!location) return { error: "Lokasi tidak ditemukan." };
     const kind = (await getActivityKinds({ activeOnly: true })).find((k) => k.key === d.type);

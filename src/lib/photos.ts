@@ -306,6 +306,12 @@ export type SavePhotoInput = {
  */
 export async function savePhotoForItem(input: SavePhotoInput) {
   if (!isR2Configured()) throw new PhotoError("Penyimpanan foto belum dikonfigurasi");
+  // Foto baru di lokasi yang sudah dicabut dari kontrak ditolak (DECISIONS 616).
+  if (input.locationId) {
+    const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
+    const tertutup = await alasanLokasiTertutup(input.locationId, input.dateKey);
+    if (tertutup) throw new PhotoError(tertutup);
+  }
   const { file } = input;
   if (file.size === 0) throw new PhotoError("File foto kosong");
   // Angka di pesan DIAMBIL dari konstanta — teks mati "8 MB" pernah

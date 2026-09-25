@@ -10,7 +10,7 @@ import {
 } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
-import { idLokasiDiarsipkan } from "@/lib/package/lingkup-lokasi";
+import { idLokasiDiarsipkan, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
 import { getLocationsProgress } from "@/lib/progress";
 import type { SiblingLocation } from "./location-switcher";
 
@@ -134,15 +134,22 @@ export const getSiblingLocations = cache(
     const boleh = scoped === null ? all : all.filter((l) => scoped.includes(l.id));
     if (boleh.length === 0) return { siblings: [], hiddenCount: all.length };
 
-    const progress = await getLocationsProgress(boleh.map((l) => l.id));
+    const [progress, lingkup] = await Promise.all([
+      getLocationsProgress(boleh.map((l) => l.id)),
+      lingkupLokasi(boleh.map((l) => l.id)),
+    ]);
     return {
       siblings: boleh.map((l) => {
         const p = progress.get(l.id);
+        const cabut = lingkup.dicabut.get(l.id);
         return {
           slug: l.slug,
           name: l.name,
           regency: l.regency,
           status: l.status,
+          // Dicabut dari kontrak (DECISIONS 616): ditandai di pemilih, bukan
+          // disembunyikan – laporannya yang lampau tetap perlu dibuka.
+          dicabutSejak: cabut ? cabut.effectiveDate.toISOString().slice(0, 10) : null,
           // Tanpa baseline aktif, deviasi = realisasi − 0 = angka yang tidak
           // berarti apa-apa. Null di sini dibaca UI sebagai "belum ada rencana".
           deviationPct: p?.activeBaselineId ? p.deviationPct : null,

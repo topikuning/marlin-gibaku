@@ -487,3 +487,40 @@ export async function bukaArsipLokasiDicabut(packageId: string): Promise<{ jumla
   });
   return { jumlah: sasaran.length };
 }
+
+/**
+ * LOKASI YANG DICABUT TIDAK MENERIMA INPUT BARU (DECISIONS 616).
+ *
+ * Keluhan user 2026-09-25: *"lokasi sudah dicabut, kenapa masih bisa aktif
+ * dipilih, kalaupun karena belum adendum resmi total … harusnya inputan baru
+ * laporan harian atau apa pun itu, tidak bisa dilakukan. harus ada penandanya
+ * juga"*. Pencabutan sampai sini hanya mengeluarkan lokasi dari ANGKA paket;
+ * Mandor tetap bisa melapor, memotret, dan mencatat kendala di lokasi yang
+ * sudah bukan bagian kontrak.
+ *
+ * Mengembalikan kalimat penolakan, atau null bila boleh. Yang ditolak input
+ * bertanggal SEJAK tanggal berlaku pencabutan; yang tanpa tanggal (kendala)
+ * dinilai dengan hari ini. Laporan untuk hari-hari SEBELUM pencabutan tetap
+ * boleh dilengkapi — "angka lampau tetap", dan hari itu lokasinya memang
+ * masih di dalam kontrak.
+ *
+ * Satu kalimat, dikembalikan (bukan dilempar), supaya tiap modul melemparnya
+ * dengan kelas galatnya sendiri — kelas yang sudah diterjemahkan layar
+ * masing-masing menjadi pesan, bukan "Terjadi kesalahan".
+ */
+export async function alasanLokasiTertutup(locationId: string, dateKey?: string): Promise<string | null> {
+  // Tanggal jauh di depan: pencabutan yang tanggalnya belum tiba pun terbaca,
+  // lalu dibandingkan dengan tanggal inputnya sendiri di bawah.
+  const { dicabut } = await lingkupLokasi([locationId], new Date("9999-12-31T00:00:00.000Z"));
+  const cabut = dicabut.get(locationId);
+  if (!cabut) return null;
+  const sejak = jakartaDateKey(cabut.effectiveDate);
+  const tanggal = dateKey ?? jakartaDateKey(new Date());
+  if (tanggal < sejak) return null;
+  const lokasi = await db.location.findUnique({ where: { id: locationId }, select: { name: true } });
+  const [y, m, d] = sejak.split("-");
+  return (
+    `${lokasi?.name ?? "Lokasi ini"} sudah DICABUT dari kontrak sejak ${d}/${m}/${y} – ` +
+    `tidak menerima laporan atau input baru. Laporan sebelum tanggal itu tetap bisa dibuka.`
+  );
+}

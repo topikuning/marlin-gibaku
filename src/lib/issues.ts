@@ -79,6 +79,10 @@ export async function createIssue(_prev: IssueActionState, formData: FormData): 
   const d = parsed.data;
   try {
     const { user, slug } = await guard(d.locationId);
+    // Kendala baru di lokasi yang sudah dicabut dari kontrak ditolak (DECISIONS 616).
+    const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
+    const tertutup = await alasanLokasiTertutup(d.locationId);
+    if (tertutup) return { error: tertutup };
 
     if (!d.paksa) {
       const mirip = await kendalaSerupaTerbuka(d.locationId, d.title);

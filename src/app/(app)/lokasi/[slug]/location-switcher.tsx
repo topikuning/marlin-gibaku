@@ -35,6 +35,8 @@ export type SiblingLocation = {
   status: LocationStatus;
   /** null = belum ada baseline aktif, jadi deviasi belum punya arti. */
   deviationPct: number | null;
+  /** "YYYY-MM-DD" bila lokasi sudah dicabut dari kontrak (DECISIONS 616). */
+  dicabutSejak?: string | null;
 };
 
 /** Ambang kotak cari — sama dengan `Combobox` (searchThreshold default 7). */
@@ -236,13 +238,24 @@ export function LocationSwitcher({
                         <span className="block truncate text-[13.5px] font-medium text-ink">{l.name}</span>
                         <span className="block truncate text-[11px] text-ink-muted">{l.regency}</span>
                       </span>
-                      <StatusPill
-                        tone={LOCATION_STATUS_TONE[l.status]}
-                        label={LOCATION_STATUS_LABEL[l.status]}
-                      />
+                      {/* Dicabut dari kontrak menggantikan status lapangannya:
+                          "Berjalan" untuk lokasi yang sudah bukan bagian
+                          kontrak menyesatkan (DECISIONS 616). */}
+                      {l.dicabutSejak ? (
+                        <StatusPill tone="warning" label="Dicabut" />
+                      ) : (
+                        <StatusPill
+                          tone={LOCATION_STATUS_TONE[l.status]}
+                          label={LOCATION_STATUS_LABEL[l.status]}
+                        />
+                      )}
                       {/* Lokasi tanpa baseline TIDAK ditulis 0% — 0% terbaca
                           "tidak ada progres", padahal rencananya yang belum ada. */}
-                      {l.deviationPct === null ? (
+                      {l.dicabutSejak ? (
+                        <span className="text-[11px] whitespace-nowrap text-ink-faint">
+                          sejak {l.dicabutSejak.split("-").reverse().join("/")}
+                        </span>
+                      ) : l.deviationPct === null ? (
                         <span className="text-[11px] whitespace-nowrap text-ink-faint">belum ada rencana</span>
                       ) : (
                         <DeltaBadge value={l.deviationPct} />

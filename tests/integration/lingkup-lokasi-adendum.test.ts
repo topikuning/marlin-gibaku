@@ -47,6 +47,9 @@ const {
   LingkupError,
 } = await import("@/lib/package/lingkup-lokasi");
 const { aktifkanAdendumPaket } = await import("@/lib/package/aktivasi-adendum");
+const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
+const { getOrCreateDraft } = await import("@/lib/daily-report/service");
+const { jakartaDateKey } = await import("@/lib/format");
 
 /** Berlakukan usulan lewat satu pintu paket – di sinilah CCO lahir. */
 const berlakukan = (changeIds: string[], ccoNumber: string, tanggal: string) =>
@@ -127,21 +130,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.locationScopeApproval.deleteMany({ where: { change: { location: { packageId } } } });
-  await db.locationScopeChange.deleteMany({ where: { location: { packageId } } });
-  // audit_logs append-only (trigger DB) – jejaknya memang tidak dihapus.
-  // Lokasi uji punya revisi RAB + baseline; dibersihkan dari daun ke akar.
-  await db.baselinePoint.deleteMany({ where: { baseline: { location: { package: { orgId } } } } });
-  await db.baselineScheduleItem.deleteMany({ where: { baseline: { location: { package: { orgId } } } } });
-  await db.baseline.deleteMany({ where: { location: { package: { orgId } } } });
-  await db.rabNode.deleteMany({ where: { revision: { location: { package: { orgId } } } } });
-  await db.rabRevision.deleteMany({ where: { location: { package: { orgId } } } });
-  await db.location.deleteMany({ where: { package: { orgId } } });
-  // contract_amendments & audit_logs append-only (trigger DB) – sisanya
-  // ditinggal bersama org uji ini, bukan dipaksa hilang.
-  // Pengguna & organisasi ditinggal: jejak audit menunjuk ke sana, dan jejak itu
-  // tidak boleh dihapus.
+  // Laporan harian + riwayat statusnya append-only (trigger DB) dan kini ada
+  // di sini (uji pagar lokasi dicabut) – dibersihkan seperti berkas uji lain.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
+  await db.$disconnect();
 });
+
 
 describe("gerbang pengajuan", () => {
   it("draft TIDAK menuntut CCO – nomornya lahir saat diberlakukan", async () => {
@@ -221,6 +215,20 @@ describe("empat mata sebelum berlaku", () => {
     const lg = await lingkupLokasi([lokasiA]);
     expect(lg.dicabut.get(lokasiA)?.ccoNumber).toBe("CCO-01");
     expect(lg.dicabut.get(lokasiA)?.effectiveDate.toISOString()).toBe(sebelum);
+  });
+
+  it("lokasi yang dicabut TIDAK menerima laporan baru – yang sebelum tanggal cabut tetap boleh", async () => {
+    // Keluhan user 2026-09-25: "lokasi sudah dicabut, kenapa masih bisa aktif
+    // dipilih … harusnya inputan baru laporan harian atau apa pun itu, tidak
+    // bisa dilakukan" (DECISIONS 616).
+    const hariIni = jakartaDateKey(new Date());
+    await expect(getOrCreateDraft(lokasiA, hariIni, orang.pd!)).rejects.toThrow(/DICABUT dari kontrak/);
+    expect(await alasanLokasiTertutup(lokasiA)).toMatch(/tidak menerima laporan atau input baru/);
+    // Kemarin lokasinya masih di dalam kontrak: laporannya sah dilengkapi.
+    const kemarin = jakartaDateKey(new Date(Date.now() - 86_400_000));
+    await expect(getOrCreateDraft(lokasiA, kemarin, orang.pd!)).resolves.toBeTruthy();
+    // Lokasi yang tidak dicabut tidak tersentuh.
+    expect(await alasanLokasiTertutup(lokasiB)).toBeNull();
   });
 
   it("yang SUDAH berlaku tidak bisa dibatalkan diam-diam", async () => {

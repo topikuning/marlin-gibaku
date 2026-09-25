@@ -103,6 +103,17 @@ export async function getStatusHarian(
     },
     orderBy: [{ package: { name: "asc" } }, { name: "asc" }],
   });
+  /*
+   * Lokasi yang SUDAH dicabut dari kontrak pada tanggal ini tidak ditagih
+   * laporannya lagi — ia tidak menerima laporan baru (DECISIONS 616), jadi
+   * menghitungnya "belum lapor" cuma menagih yang mustahil dipenuhi.
+   */
+  const { lingkupLokasi } = await import("@/lib/package/lingkup-lokasi");
+  const { dicabut } = await lingkupLokasi(
+    locations.map((l) => l.id),
+    new Date(`${dateKey}T12:00:00+07:00`),
+  );
+  if (dicabut.size > 0) locations.splice(0, locations.length, ...locations.filter((l) => !dicabut.has(l.id)));
 
   // Jejak Drive: SATU query untuk semua lokasi (bukan N+1). refKey mengikuti
   // konvensi `uploadDailyReportToDriveAction`: "<slug>:<dateKey>".
