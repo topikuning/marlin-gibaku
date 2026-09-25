@@ -25,7 +25,10 @@ const nextConfig: NextConfig = {
   // sharp = binari native + pdfkit = require dinamis file data: JANGAN dibundel
   // webpack (rusak). Biarkan resolve sebagai require runtime dari node_modules
   // (lihat setup sharp di Dockerfile; pdfkit pakai bundle standalone, lihat bawah).
-  serverExternalPackages: ["sharp", "pdfkit"],
+  // tesseract.js (OCR tag bawaan foto, DECISIONS 617) menjalankan worker_threads
+  // dari berkas di paketnya sendiri + memuat .wasm & data bahasa lewat path —
+  // dibundel, path-nya patah.
+  serverExternalPackages: ["sharp", "pdfkit", "tesseract.js", "@tesseract.js-data/eng"],
   experimental: {
     serverActions: {
       bodySizeLimit: "30mb", // upload dokumen/foto lewat server action (file maks 25MB + overhead multipart)
@@ -71,6 +74,12 @@ const nextConfig: NextConfig = {
       "./seed-data/**",
       "./node_modules/.pnpm/sharp@*/node_modules/sharp/**",
       "./node_modules/.pnpm/@img+*/node_modules/@img/*/**",
+      // OCR (DECISIONS 617): skrip worker, mesin WASM, dan data bahasa dimuat
+      // lewat path di runtime — penelusur statis tidak melihatnya.
+      "./node_modules/.pnpm/tesseract.js@*/node_modules/*/**",
+      "./node_modules/.pnpm/tesseract.js-core@*/node_modules/tesseract.js-core/**",
+      "./node_modules/.pnpm/@tesseract.js-data+eng@*/node_modules/@tesseract.js-data/eng/package.json",
+      "./node_modules/.pnpm/@tesseract.js-data+eng@*/node_modules/@tesseract.js-data/eng/4.0.0/**",
     ],
   },
 };

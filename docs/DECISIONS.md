@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 617 | 2026-09-25 | Tag bawaan foto dibaca dari TULISAN di foto (OCR lokal Tesseract, tanpa layanan AI): tag lokasi yang sudah ada → cap MARLIN tanpa lokasi/koordinat; tanggal yang sudah ada → tanpa tanggal-jam; kegiatan, pelapor, Photo ID selalu dicetak |
 | 616 | 2026-09-25 | Lokasi yang dicabut dari kontrak tidak menerima input baru (laporan harian, foto, kegiatan, kendala) sejak tanggal berlakunya; ditandai "Dicabut" di pemilih lokasi, kepala lokasi, dan spanduk tiap tab |
 | 615 | 2026-09-25 | Arsip dingin berkas asli: putaran dibatasi WAKTU (paralel 3, sampai antrean habis), dijalankan di latar oleh tombol/cron – bukan lagi 3 berkas per jam |
 | 614 | 2026-09-24 | Dua persetujuan = BERLAKU (lokasi keluar/masuk angka paket hari itu, RAB adendum diaktifkan dari lokasi); nomor CCO administrasi yang menyusul di Kontrak & Adendum – mengoreksi 613 |

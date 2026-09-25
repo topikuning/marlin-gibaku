@@ -30,7 +30,11 @@ export type StampRenderData = {
    * Data URI, bukan URL: librsvg hanya membaca gambar yang dibenamkan.
    */
   companyLogo?: string | null;
-  locationName: string;
+  /**
+   * null = baris nama lokasi DISEMBUNYIKAN — foto sudah membawa tag lokasi
+   * dari aplikasi kamera (DECISIONS 617).
+   */
+  locationName: string | null;
   /**
    * Badge besar = BANGUNAN/KATEGORI RAB (mis. "V. PEKERJAAN SHELTER"). Untuk
    * kegiatan lapangan diisi label jenis kegiatan.
@@ -303,7 +307,8 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const fsDate = fs(0.028, 18);
   const fsMeta = fs(0.021, 15);
 
-  const loc = fitLocation(d.locationName.trim() || "–", maxW, fsLoc0);
+  const loc =
+    d.locationName === null ? { lines: [] as string[], fs: fsLoc0 } : fitLocation(d.locationName.trim() || "–", maxW, fsLoc0);
   const metaLH = Math.round(fsMeta * 1.6);
   const iconSize = Math.round(fsMeta * 1.15);
   const metaRows: Array<{
@@ -341,7 +346,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     (hasBadge ? badgeH + gapBadgeLoc : 0) +
     (workText ? workLineH + gapWork : 0) +
     loc.lines.length * locLineH +
-    gapLocDate +
+    (loc.lines.length > 0 ? gapLocDate : 0) +
     (hasDate ? dateH : 0) +
     gapDateDiv +
     2 +
@@ -394,7 +399,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
     cy += locLineH - Math.round(loc.fs * 0.82);
   }
-  cy += gapLocDate;
+  if (loc.lines.length > 0) cy += gapLocDate;
 
   // Tanggal & waktu – dilewati bila cap "apa adanya" (tanpa tag waktu).
   if (hasDate) {

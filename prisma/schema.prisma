@@ -1895,6 +1895,14 @@ model Photo {
   /// EXIF ada. Disimpan supaya perbaikan cap (restamp) tidak menambahkannya
   /// kembali. Selaras DECISIONS 197: cap tidak menyatakan yang tidak dijamin.
   stampPlain         Boolean             @default(false) @map("stamp_plain")
+  /// Foto SUDAH membawa tag lokasi / tanggal dari aplikasi kamera (terbaca
+  /// OCR saat diunggah) → cap MARLIN tidak mencetak ulang unsur itu
+  /// (DECISIONS 617). Disimpan supaya perbaikan cap memakai keputusan yang
+  /// sama, dan supaya keputusannya bisa ditelusuri.
+  existingTagLocation Boolean            @default(false) @map("existing_tag_location")
+  existingTagTime     Boolean            @default(false) @map("existing_tag_time")
+  /// Potongan tulisan yang menjadi dasar keputusan di atas.
+  existingTagEvidence String?            @map("existing_tag_evidence")
   /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
   /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
   /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).

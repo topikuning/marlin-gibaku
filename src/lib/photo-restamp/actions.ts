@@ -165,6 +165,10 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       // mengisi koordinat/waktu secara sadar, tag-nya memang diminta tampil.
       stampPlain:
         lama.stampPlain && !manualFields.includes("koordinat") && !manualFields.includes("waktu"),
+      // Tag bawaan aplikasi kamera (DECISIONS 617) bertahan, kecuali unsurnya
+      // sengaja diisi manusia – yang diisi tangan memang diminta tampil.
+      tagBawaanLokasi: (lama.tagBawaanLokasi ?? false) && !manualFields.includes("koordinat"),
+      tagBawaanWaktu: (lama.tagBawaanWaktu ?? false) && !manualFields.includes("waktu"),
     };
 
     if (manualFields.length === 0) {
@@ -212,6 +216,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
             metadataSource: timeSource,
             stampPhotoId: baru.photoId,
             stampPlain: baru.stampPlain,
+            existingTagLocation: baru.tagBawaanLokasi ?? false,
+            existingTagTime: baru.tagBawaanWaktu ?? false,
             stampRevision: revisi,
           },
         });

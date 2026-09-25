@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import ExifReader from "exifreader";
+import { bacaTulisanFoto } from "@/lib/photo-stamp/ocr";
+import { nilaiTagBawaan, type TagBawaan } from "@/lib/photo-stamp/tag-bawaan";
 import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
@@ -186,6 +188,13 @@ export type PhotoStamp = {
    * koordinat & tanggal-jam — meski EXIF ada. Lokasi/pekerjaan/logo tetap.
    */
   tanpaTag?: boolean;
+  /**
+   * Foto SUDAH membawa tag lokasi / tanggal dari aplikasi kamera (DECISIONS
+   * 617): unsur yang sudah ada tidak dicetak ulang. Kegiatan/pekerjaan,
+   * pelapor, dan Photo ID tetap dicetak — aplikasi kamera tidak tahu itu.
+   */
+  sembunyikanLokasi?: boolean;
+  sembunyikanWaktu?: boolean;
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -194,15 +203,16 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const data: StampRenderData = {
     companyName: s.companyName?.trim() || null,
     companyLogo: s.companyLogo ?? null,
-    locationName: s.locationLabel?.trim() || "–",
+    locationName: s.sembunyikanLokasi ? null : s.locationLabel?.trim() || "–",
     categoryName: s.categoryName?.trim() || null,
     workName: s.workName?.trim() || null,
-    dateTimeText: s.tanpaTag
+    dateTimeText: s.tanpaTag || s.sembunyikanWaktu
       ? null
       : s.dateOnly
         ? formatStampDate(s.takenAt, tz)
         : formatStampDateTime(s.takenAt, tz),
-    coordinateText: s.tanpaTag || s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
+    coordinateText:
+      s.tanpaTag || s.sembunyikanLokasi || s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
     photoId: s.showPhotoId === false ? null : s.photoId?.trim() || null,
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
@@ -481,12 +491,18 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     DEFAULT_STAMP_TZ,
   );
 
+  // Tag bawaan aplikasi kamera: dibaca dari TULISAN di foto, bukan metadata
+  // (DECISIONS 617). null = tidak terbaca → cap lengkap seperti biasa.
+  const tag = await tagBawaanFoto(original, input.locationId);
+
   const processed = await processWithSharpOrOriginal(
     original,
     {
       takenAt,
       lat,
       lng,
+      sembunyikanLokasi: tag?.lokasi ?? false,
+      sembunyikanWaktu: tag?.waktu ?? false,
       locationLabel: input.stamp?.locationLabel ?? null,
       companyName: input.stamp?.companyName ?? null,
       companyLogo: await logoPerusahaanDataUri(input.stamp?.companyLogoKey),
@@ -562,6 +578,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifGpsLng: desimalKoordinat(lng),
       gpsSource,
       stampPlain: tanpaTag,
+      existingTagLocation: tag?.lokasi ?? false,
+      existingTagTime: tag?.waktu ?? false,
+      existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
       metadataSource: timeSource,
       uploadedById: input.userId,
     },
@@ -575,6 +594,31 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     }
     throw e;
   }
+}
+
+/**
+ * Baca tulisan di foto lalu nilai apakah ia sudah membawa tag lokasi/tanggal.
+ * Nama wilayah lokasinya ikut jadi petunjuk: cap aplikasi kamera sering hanya
+ * menulis "Kranji, Paciran, Lamongan" tanpa kata "Kec."/"Kab.".
+ */
+async function tagBawaanFoto(gambar: Buffer, locationId: string | null): Promise<TagBawaan | null> {
+  const teks = await bacaTulisanFoto(gambar);
+  if (!teks) return null;
+  const lok = locationId
+    ? await db.location.findUnique({
+        where: { id: locationId },
+        select: { name: true, village: true, district: true, regency: true, province: true },
+      })
+    : null;
+  const namaWilayah = lok ? [lok.village, lok.district, lok.regency, lok.province, lok.name].filter((n): n is string => !!n) : [];
+  return nilaiTagBawaan(teks, { namaWilayah });
+}
+
+function ringkasBukti(t: TagBawaan): string {
+  const bagian: string[] = [];
+  if (t.waktu && t.bukti.waktu) bagian.push(`tanggal: ${t.bukti.waktu}`);
+  if (t.lokasi && t.bukti.lokasi) bagian.push(`lokasi: ${t.bukti.lokasi}`);
+  return bagian.join(" · ").slice(0, 300);
 }
 
 type ProcessedPhoto = {
