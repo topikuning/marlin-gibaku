@@ -183,7 +183,8 @@ export default async function SistemPage() {
   const { arsipAktif, tenggangHari, waArsipAktif, waArsipTujuan } = await import(
     "@/lib/arsip-asli/setelan"
   );
-  const { ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
+  const { keadaanArsipLatar, ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
+  const latarArsip = keadaanArsipLatar();
   const arsipAsli = {
     aktif: await arsipAktif(),
     tenggang: await tenggangHari(),
@@ -191,6 +192,18 @@ export default async function SistemPage() {
     waTujuan: (await waArsipTujuan()) ?? "",
     terkonfigurasi: Boolean(env.ORIGINAL_ARCHIVE_URL && env.ORIGINAL_ARCHIVE_TOKEN),
     ringkas: await ringkasArsipAsli(),
+    latar: {
+      berjalanSejak: latarArsip.berjalanSejak?.toISOString() ?? null,
+      terakhir: latarArsip.terakhir
+        ? {
+            selesai: latarArsip.terakhir.selesai.toISOString(),
+            dikirim: latarArsip.terakhir.dikirim,
+            dibuangDariR2: latarArsip.terakhir.dibuangDariR2,
+            gagal: latarArsip.terakhir.gagal,
+            galat: latarArsip.terakhir.galat.slice(0, 2),
+          }
+        : null,
+    },
   };
   /*
    * Foto yang kuncinya masih .heic/.heif = yang terlanjur masuk lewat jalur

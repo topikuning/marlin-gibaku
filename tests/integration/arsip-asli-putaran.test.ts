@@ -101,7 +101,7 @@ process.env.ORIGINAL_ARCHIVE_URL = `http://127.0.0.1:${(server.address() as Addr
 process.env.ORIGINAL_ARCHIVE_TOKEN = "rahasia-uji";
 
 const { db } = await import("@/lib/db");
-const { jalankanArsipAsli } = await import("@/lib/arsip-asli/antrean");
+const { jalankanArsipAsli, mulaiArsipLatar, keadaanArsipLatar } = await import("@/lib/arsip-asli/antrean");
 const { setArsipAktif, setTenggangHari, ARSIP_AKTIF_KEY, ARSIP_TENGGANG_KEY } = await import(
   "@/lib/arsip-asli/setelan"
 );
@@ -319,5 +319,64 @@ describe("putaran arsip dingin", () => {
     expect(h.alasan).toBe("mati");
     expect(jejak).toEqual([]);
     expect(dihapusDariR2).toEqual([]);
+  });
+});
+
+describe("laju pemindahan (DECISIONS 615)", () => {
+  /*
+   * Keluhan user 2026-09-25: 11.303 berkas asli masih menunggu, dan menekan
+   * "Jalankan satu putaran" berkali-kali cuma memindahkan tiga. Dengan tiga
+   * per putaran dan satu putaran per jam, antreannya habis dalam ±157 hari.
+   */
+  async function banyakFoto(n: number) {
+    gudangR2.clear();
+    dihapusDariR2.length = 0;
+    simpananArsip.clear();
+    jejak.length = 0;
+    for (let i = 0; i < n; i++) {
+      const isi = Buffer.from(`BYTE-ASLI-${i}-${"y".repeat(500)}`);
+      const kunci = `photos/uji-arsip-dingin/2026-08-03/${i}.asli.jpg`;
+      gudangR2.set(kunci, isi);
+      await db.photo.create({
+        data: {
+          r2Key: `photos/uji-arsip-dingin/2026-08-03/${i}.webp`,
+          originalKey: kunci,
+          originalBytes: isi.length,
+          sha256: createHash("sha256").update(isi).digest("hex"),
+          bytes: 100,
+        },
+      });
+    }
+  }
+
+  it("satu putaran menghabiskan antrean, bukan berhenti di tiga berkas", async () => {
+    await banyakFoto(40);
+    const h = await jalankanArsipAsli();
+    expect(h.gagal).toBe(0);
+    expect(h.dikirim, "putaran berhenti sebelum antrean habis").toBe(40);
+    expect(simpananArsip.size).toBe(40);
+  });
+
+  it("pembuangan salinan R2 yang lewat tenggang juga tidak berhenti di belasan", async () => {
+    await banyakFoto(40);
+    await jalankanArsipAsli();
+    await setTenggangHari(0);
+    const h = await jalankanArsipAsli();
+    expect(h.dibuangDariR2).toBe(40);
+    expect(gudangR2.size).toBe(0);
+  });
+
+  it("tombol/cron MEMULAI putaran latar; menekan lagi tidak membuat putaran kedua", async () => {
+    await banyakFoto(10);
+    const pertama = await mulaiArsipLatar();
+    expect(pertama).toMatchObject({ dimulai: true });
+    const kedua = await mulaiArsipLatar();
+    expect(kedua).toMatchObject({ dimulai: false });
+    expect("berjalanSejak" in kedua && kedua.berjalanSejak).toBeTruthy();
+    // Tunggu putaran latarnya selesai sendiri.
+    for (let i = 0; i < 100 && keadaanArsipLatar().berjalanSejak; i++) await new Promise((r) => setTimeout(r, 50));
+    expect(keadaanArsipLatar().berjalanSejak).toBeNull();
+    expect(keadaanArsipLatar().terakhir?.dikirim).toBe(10);
+    expect(simpananArsip.size).toBe(10);
   });
 });

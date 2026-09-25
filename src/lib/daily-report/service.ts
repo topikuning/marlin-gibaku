@@ -71,6 +71,12 @@ export async function getOrCreateDraft(locationId: string, dateKey: string, user
   if (dateKey > jakartaDateKey(new Date())) {
     throw new DailyReportError("Tidak bisa membuat laporan untuk tanggal yang belum terjadi");
   }
+  // Lokasi yang sudah dicabut dari kontrak tidak menerima laporan untuk hari
+  // sejak pencabutannya — termasuk menambah isi draft yang terlanjur ada
+  // (DECISIONS 616).
+  const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
+  const tertutup = await alasanLokasiTertutup(locationId, dateKey);
+  if (tertutup) throw new DailyReportError(tertutup);
 
   const existing = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId, reportDate } },

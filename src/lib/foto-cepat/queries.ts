@@ -53,8 +53,12 @@ export async function getPilihanLokasi(
     select: { id: true, name: true, slug: true, gpsLat: true, gpsLng: true },
     orderBy: { name: "asc" },
   });
+  // Lokasi yang dicabut dari kontrak tidak menerima foto baru (DECISIONS 616),
+  // jadi tidak ditawarkan sebagai tujuan.
+  const { lingkupLokasi } = await import("@/lib/package/lingkup-lokasi");
+  const { dicabut } = await lingkupLokasi(rows.map((r) => r.id));
   const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
-  return rows.map((r) => ({
+  return rows.filter((r) => !dicabut.has(r.id)).map((r) => ({
     id: r.id,
     name: r.name,
     slug: r.slug,

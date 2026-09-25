@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
+import { Banner, ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 import { getLocationProgress } from "@/lib/progress";
 import { can } from "@/lib/authz";
+import { alasanLokasiTertutup } from "@/lib/package/lingkup-lokasi";
 import { getSiblingLocations, requireLocationPage } from "./get-location";
 import { EditableLocationName } from "./edit-name";
 import { LocationSwitcher } from "./location-switcher";
@@ -56,9 +57,12 @@ export default async function LokasiLayout({
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
   const canRename = can(user.role, "location.manage");
-  const [progress, { siblings, hiddenCount }] = await Promise.all([
+  const [progress, { siblings, hiddenCount }, tertutup] = await Promise.all([
     getLocationProgress(location.id),
     getSiblingLocations(user, location.package.id),
+    // Dicabut dari kontrak: dikatakan di SETIAP tab, sebelum orang mengisi
+    // apa pun lalu ditolak (DECISIONS 616).
+    alasanLokasiTertutup(location.id),
   ]);
   const contract = location.package.contract;
   const current = siblings.find((l) => l.slug === location.slug) ?? {
@@ -110,6 +114,7 @@ export default async function LokasiLayout({
                 tone={LOCATION_STATUS_TONE[location.status]}
                 label={LOCATION_STATUS_LABEL[location.status]}
               />
+              {tertutup ? <StatusPill tone="warning" label="Dicabut dari kontrak" /> : null}
             </div>
             <p className="mt-1 text-[13px] text-ink-muted">
               {location.village}, {location.regency} – {location.province}
@@ -209,10 +214,14 @@ export default async function LokasiLayout({
           hiddenCount={hiddenCount}
           packageName={location.package.name}
         />
-        <StatusPill
-          tone={LOCATION_STATUS_TONE[location.status]}
-          label={LOCATION_STATUS_LABEL[location.status]}
-        />
+        {tertutup ? (
+          <StatusPill tone="warning" label="Dicabut" />
+        ) : (
+          <StatusPill
+            tone={LOCATION_STATUS_TONE[location.status]}
+            label={LOCATION_STATUS_LABEL[location.status]}
+          />
+        )}
         <span className="ms-auto shrink-0">
           <DeltaBadge value={progress.deviationPct} />
         </span>
@@ -220,6 +229,7 @@ export default async function LokasiLayout({
 
       <LinkTabs items={tabItems(location.slug, can(user.role, "finance.view"))} />
 
+      {tertutup ? <Banner tone="warning" title={tertutup} /> : null}
       {children}
     </div>
   );
