@@ -721,15 +721,22 @@ export async function periksaIsiArsipAction(): Promise<ArsipAsliState> {
   }
 }
 
-/** Jalankan satu putaran dari layar, tanpa menunggu jadwal cron. */
+/**
+ * Mulai pemindahan dari layar, tanpa menunggu jadwal cron.
+ *
+ * Dulu menjalankan SATU putaran tiga berkas dan menunggunya; menekannya
+ * berkali-kali tetap hanya memindahkan segelintir (keluhan user 2026-09-25).
+ * Sekarang memulai putaran latar yang terus berjalan sampai antrean habis
+ * (DECISIONS 615) dan langsung pulang.
+ */
 export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
   const actor = await requireCapability("system.manage");
-  const { jalankanArsipAsli } = await import("@/lib/arsip-asli/antrean");
+  const { mulaiArsipLatar, ringkasArsipAsli } = await import("@/lib/arsip-asli/antrean");
   try {
-    const h = await jalankanArsipAsli();
+    const h = await mulaiArsipLatar();
     await audit(actor.id, "system.arsip_asli_run", "system", null, h);
     revalidatePath("/sistem");
-    if (!h.dijalankan) {
+    if ("alasan" in h) {
       const sebab: Record<string, string> = {
         mati: "Sakelarnya masih mati.",
         "belum-dikonfigurasi": "ORIGINAL_ARCHIVE_URL / _TOKEN belum diisi di Railway.",
@@ -737,12 +744,14 @@ export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
       };
       return { error: sebab[h.alasan] ?? "Tidak dijalankan." };
     }
+    const r = await ringkasArsipAsli();
+    const jam = h.berjalanSejak.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" });
     return {
-      success:
-        `${h.dikirim} berkas asli dipindahkan ke arsip dingin · ${h.dibuangDariR2} salinan R2 dibuang` +
-        (h.gagal > 0 ? ` · ${h.gagal} gagal (${h.galat.slice(0, 2).join("; ")})` : "."),
+      success: h.dimulai
+        ? `Pemindahan berjalan di latar – ${r.menunggu} berkas menunggu. Ia terus bekerja sampai antrean habis; muat ulang halaman untuk melihat angkanya turun.`
+        : `Pemindahan sudah berjalan sejak ${jam} – ${r.menunggu} berkas masih menunggu. Tidak perlu ditekan lagi.`,
     };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Putaran arsip gagal." };
+    return { error: err instanceof Error ? err.message : "Pemindahan arsip gagal dimulai." };
   }
 }

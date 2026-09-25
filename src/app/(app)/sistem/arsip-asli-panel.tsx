@@ -33,6 +33,7 @@ export function ArsipAsliPanel({
   waTujuan,
   terkonfigurasi,
   ringkas,
+  latar,
 }: {
   aktif: boolean;
   tenggang: number;
@@ -42,6 +43,11 @@ export function ArsipAsliPanel({
   /** ORIGINAL_ARCHIVE_URL + _TOKEN sudah diisi di lingkungan ini? */
   terkonfigurasi: boolean;
   ringkas: RingkasArsip;
+  /** Putaran latar di proses aplikasi ini (DECISIONS 615). */
+  latar: {
+    berjalanSejak: string | null;
+    terakhir: { selesai: string; dikirim: number; dibuangDariR2: number; gagal: number; galat: string[] } | null;
+  };
 }) {
   const [state, aksi, pending] = useAksi<ArsipAsliState>(setArsipAsliAction, undefined);
   const [waState, waAksi, waPending] = useAksi<ArsipAsliState>(setWaArsipAction, undefined);
@@ -187,14 +193,14 @@ export function ArsipAsliPanel({
           tidak ada yang salah, dan berbeda tepat ketika ada yang salah.
         */}
         <Button
-          variant="ghost"
+          variant="secondary"
           loading={memeriksa}
           onClick={() => mulaiPeriksa(async () => setBukti(await periksaIsiArsipAction()))}
         >
           Periksa isi arsip
         </Button>
         <Button
-          variant="ghost"
+          variant="secondary"
           loading={jalan}
           onClick={() =>
             mulai(async () => {
@@ -203,8 +209,20 @@ export function ArsipAsliPanel({
             })
           }
         >
-          Jalankan satu putaran sekarang
+          {latar.berjalanSejak ? "Sedang berjalan" : "Jalankan pemindahan sekarang"}
         </Button>
+        {latar.berjalanSejak ? (
+          <StatusPill
+            tone="info"
+            label={`Berjalan sejak ${new Date(latar.berjalanSejak).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" })}`}
+          />
+        ) : latar.terakhir ? (
+          <span className="text-xs text-ink-muted">
+            Putaran terakhir: {latar.terakhir.dikirim} dipindahkan · {latar.terakhir.dibuangDariR2} salinan R2
+            dibuang
+            {latar.terakhir.gagal > 0 ? ` · ${latar.terakhir.gagal} gagal (${latar.terakhir.galat.join("; ")})` : ""}
+          </span>
+        ) : null}
         {ringkas.terakhirBerhasil ? (
           <span className="text-xs text-ink-muted">
             Terakhir berhasil: {new Date(ringkas.terakhirBerhasil).toLocaleString("id-ID")}

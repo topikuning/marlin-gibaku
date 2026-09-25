@@ -3,12 +3,11 @@ name: Arsip dingin berkas asli MARLIN
 # Satu putaran pemindahan BERKAS ASLI foto dari R2 ke mesin sendiri
 # (DECISIONS 549).
 #
-# TIAP JAM, dan sengaja sedikit per putaran: yang menerima adalah mesin di
-# rumah/kantor dengan uplink rumahan, bukan pusat data. Menaikkan jumlah per
-# putaran akan membuat satu pemanggilan berjalan lama dan gagal di tengah;
-# menaikkan FREKUENSI-nya jauh lebih aman. Kalau uplink-nya cuma lega tengah
-# malam, ubah jadwal di bawah — KAPAN ia berjalan memang ditentukan di sini,
-# bukan di aplikasi.
+# TIAP JAM, dan pemanggilan ini hanya MEMULAI putaran latar di aplikasi lalu
+# pulang (DECISIONS 615). Putarannya sendiri berjalan terus di proses aplikasi
+# sampai antrean habis atau ±55 menit lewat; jam berikutnya menyambung. Dulu
+# tiga berkas per jam — 11 ribu berkas butuh berbulan-bulan. Kalau uplink mesin
+# arsip cuma lega tengah malam, ubah jadwal di bawah.
 #
 # Sakelar MATI (bawaannya) atau alamat arsip belum diisi = putaran ini tidak
 # melakukan apa-apa dan menjawabnya apa adanya. Jadi workflow ini aman

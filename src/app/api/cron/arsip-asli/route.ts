@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { jalankanArsipAsli } from "@/lib/arsip-asli/antrean";
+import { keadaanArsipLatar, mulaiArsipLatar, ringkasArsipAsli } from "@/lib/arsip-asli/antrean";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Satu putaran pemindahan BERKAS ASLI foto ke arsip dingin.
+ * Memulai putaran pemindahan BERKAS ASLI foto ke arsip dingin di latar.
  *
  *   curl -X POST https://<host>/api/cron/arsip-asli -H "x-cron-secret: $CRON_SECRET"
  *
@@ -43,12 +43,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   }
   try {
-    const hasil = await jalankanArsipAsli();
-    // Peringatan diperiksa SESUDAH putaran, memakai keadaan terbaru. Gagalnya
-    // tidak boleh menggagalkan putaran yang sudah berhasil.
-    const { periksaDanPeringatkan } = await import("@/lib/arsip-asli/peringatan");
-    const peringatan = await periksaDanPeringatkan().catch(() => null);
-    return NextResponse.json({ ...hasil, peringatan });
+    /*
+     * MEMULAI putaran latar, tidak menunggunya (DECISIONS 615). Putarannya
+     * berjalan terus di proses aplikasi sampai antrean habis atau ±55 menit
+     * lewat; cron jam berikutnya menyambungnya. Peringatan diperiksa di ujung
+     * putaran latar itu sendiri, memakai keadaan terbaru.
+     */
+    const mulai = await mulaiArsipLatar();
+    const { terakhir } = keadaanArsipLatar();
+    const ringkas = await ringkasArsipAsli();
+    return NextResponse.json({
+      ...mulai,
+      menunggu: ringkas.menunggu,
+      masaTenggang: ringkas.masaTenggang,
+      putaranTerakhir: terakhir,
+    });
   } catch (err) {
     // Pesan galat boleh keluar; rahasia tidak pernah ikut karena `dingin.ts`
     // hanya melempar kode status HTTP, tidak pernah token maupun URL lengkap.

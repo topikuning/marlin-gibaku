@@ -43,8 +43,32 @@ import { arsipAktif, tenggangHari } from "./setelan";
  * diulang, hasilnya tetap benar.
  */
 
-/** Sedikit per putaran: uplink rumah, bukan pusat data. Cron yang mengatur seringnya. */
-const PER_PUTARAN = 3;
+/**
+ * PUTARAN DIBATASI WAKTU, BUKAN JUMLAH (DECISIONS 615).
+ *
+ * Dulu tiga berkas per putaran, satu putaran per jam — 72 berkas sehari. Keluhan
+ * user 2026-09-25: 11.303 berkas asli (10 GB) masih menunggu *"padahal sudah
+ * sangat lama fitur ini ada"*, dan menekan "Jalankan satu putaran" berkali-kali
+ * cuma memindahkan tiga. Dengan laju itu antreannya habis dalam ±157 hari.
+ *
+ * Sekarang satu putaran terus mengambil berkas berikutnya sampai antrean habis
+ * atau anggaran waktunya lewat, `PARALEL` berkas sekaligus. Pengamannya tidak
+ * berubah: tiap berkas tetap dibuktikan sidik jarinya dan dibaca ulang, dan
+ * pemutus arus di bawah menghentikan putaran begitu arsipnya kelihatan sakit.
+ */
+const PARALEL = 3;
+/** Berkas yang diambil dari basis data sekali tarik. */
+const PER_TARIKAN = 30;
+/** Anggaran bawaan satu putaran yang ditunggu (cron lama, uji). */
+const ANGGARAN_BAWAAN_MS = 4 * 60_000;
+/**
+ * Satu tarikan yang SELURUH berkasnya gagal = arsipnya (atau jaringannya) yang
+ * sakit, bukan berkasnya. Berhenti, jangan menghabiskan jatah percobaan ribuan
+ * berkas pada gangguan yang sama. Batas total menangkap sakit yang berselang.
+ */
+const BATAS_GAGAL_PUTARAN = 20;
+/** Salinan R2 yang dibuang sekali tarik — murah: satu HEAD + satu DELETE. */
+const BUANG_PER_TARIKAN = 100;
 
 /**
  * Batas percobaan sebelum sebuah berkas dilewati.
@@ -78,7 +102,9 @@ export type HasilPutaran = {
   galat: string[];
 };
 
-export async function jalankanArsipAsli(): Promise<HasilPutaran> {
+export async function jalankanArsipAsli(
+  opsi: { anggaranMs?: number } = {},
+): Promise<HasilPutaran> {
   const kosong = {
     dikirim: 0,
     dibuangDariR2: 0,
@@ -93,46 +119,73 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
   if (!isR2Configured())
     return { dijalankan: false, alasan: "r2-mati", ...kosong };
 
+  const tenggat = Date.now() + (opsi.anggaranMs ?? ANGGARAN_BAWAAN_MS);
   const galat: string[] = [];
   let dikirim = 0;
   let gagal = 0;
+  // Yang gagal di putaran ini tidak diambil lagi di putaran yang sama: satu
+  // percobaan per berkas per putaran, seperti sebelumnya.
+  const gagalDiSini: string[] = [];
 
   const batasPulih = new Date(Date.now() - JEDA_PULIH_JAM * 3600_000);
-  const menunggu = await db.photo.findMany({
-    where: {
-      originalKey: { not: null },
-      originalArchivedAt: null,
-      originalPurgedAt: null,
-      // Yang belum habis percobaannya, ATAU yang sudah habis tapi masa
-      // pulihnya lewat — supaya gangguan sesaat sembuh sendiri.
-      OR: [
-        { originalArchiveTries: { lt: BATAS_GAGAL } },
-        { originalArchiveTriedAt: { lt: batasPulih } },
-      ],
-    },
-    select: { id: true, originalKey: true, originalBytes: true, sha256: true },
-    orderBy: { createdAt: "asc" },
-    take: PER_PUTARAN,
-  });
+  while (Date.now() < tenggat && gagal < BATAS_GAGAL_PUTARAN) {
+    const menunggu = await db.photo.findMany({
+      where: {
+        originalKey: { not: null },
+        originalArchivedAt: null,
+        originalPurgedAt: null,
+        ...(gagalDiSini.length > 0 ? { id: { notIn: gagalDiSini } } : {}),
+        // Yang belum habis percobaannya, ATAU yang sudah habis tapi masa
+        // pulihnya lewat — supaya gangguan sesaat sembuh sendiri.
+        OR: [
+          { originalArchiveTries: { lt: BATAS_GAGAL } },
+          { originalArchiveTriedAt: { lt: batasPulih } },
+        ],
+      },
+      select: { id: true, originalKey: true, originalBytes: true, sha256: true },
+      orderBy: { createdAt: "asc" },
+      take: PER_TARIKAN,
+    });
+    if (menunggu.length === 0) break;
 
-  for (const foto of menunggu) {
-    try {
-      await pindahkanSatu(setelan, foto);
-      dikirim++;
-    } catch (err) {
-      gagal++;
-      const pesan = err instanceof Error ? err.message : "gagal";
-      galat.push(`${foto.id.slice(0, 8)}: ${pesan}`);
-      await db.photo.update({
-        where: { id: foto.id },
-        data: {
-          originalArchiveTries: { increment: 1 },
-          originalArchiveError: pesan.slice(0, 500),
-          originalArchiveTriedAt: new Date(),
-        },
-      });
+    let gagalTarikan = 0;
+    for (let i = 0; i < menunggu.length && Date.now() < tenggat; i += PARALEL) {
+      const hasil = await Promise.all(
+        menunggu.slice(i, i + PARALEL).map(async (foto) => {
+          try {
+            await pindahkanSatu(setelan, foto);
+            return true;
+          } catch (err) {
+            const pesan = err instanceof Error ? err.message : "gagal";
+            galat.push(`${foto.id.slice(0, 8)}: ${pesan}`);
+            gagalDiSini.push(foto.id);
+            await db.photo.update({
+              where: { id: foto.id },
+              data: {
+                originalArchiveTries: { increment: 1 },
+                originalArchiveError: pesan.slice(0, 500),
+                originalArchiveTriedAt: new Date(),
+              },
+            });
+            return false;
+          }
+        }),
+      );
+      for (const ok of hasil) {
+        if (ok) dikirim++;
+        else {
+          gagal++;
+          gagalTarikan++;
+        }
+      }
+    }
+    if (gagalTarikan === menunggu.length) {
+      galat.push("putaran dihentikan: seluruh berkas satu tarikan gagal – arsip atau jaringannya bermasalah");
+      break;
     }
   }
+  if (gagal >= BATAS_GAGAL_PUTARAN)
+    galat.push(`putaran dihentikan: ${gagal} kegagalan – dicoba lagi di putaran berikutnya`);
 
   /*
    * PEMUTUS ARUS: putaran yang pengirimannya gagal TIDAK membuang apa pun.
@@ -142,12 +195,21 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
    * dan mengurangi salinan boleh berhenti bersamaan; yang tidak boleh adalah
    * mengurangi sementara menambah sedang gagal.
    */
-  const dibuangDariR2 =
-    gagal > 0 ? 0 : await buangSalinanR2Lewat(setelan, galat);
+  let dibuangDariR2 = 0;
   if (gagal > 0)
     galat.push(
       "pembuangan salinan R2 ditahan: ada pengiriman yang gagal di putaran ini",
     );
+  else {
+    // Pembuangan tidak dibatasi anggaran pengiriman: ia murah, dan tanpa ini
+    // ribuan berkas yang tenggangnya lewat bersamaan butuh berminggu-minggu.
+    const tenggatBuang = Math.max(tenggat, Date.now() + 60_000);
+    while (Date.now() < tenggatBuang) {
+      const r = await buangSalinanR2Lewat(setelan, galat);
+      dibuangDariR2 += r.dibuang;
+      if (r.diambil < BUANG_PER_TARIKAN || r.dibuang === 0) break;
+    }
+  }
   return {
     dijalankan: true,
     alasan: "jalan",
@@ -156,6 +218,67 @@ export async function jalankanArsipAsli(): Promise<HasilPutaran> {
     gagal,
     galat,
   };
+}
+
+/**
+ * PUTARAN LATAR — satu putaran panjang yang tidak ditunggu pemanggilnya.
+ *
+ * Tombol "Jalankan" dan cron tiap jam hanya MEMULAINYA lalu langsung pulang;
+ * putarannya sendiri jalan terus di proses aplikasi sampai antrean habis atau
+ * anggarannya (±55 menit) lewat, dan cron jam berikutnya menyambungnya. Jadi
+ * pemindahan berjalan hampir tanpa henti tanpa menahan runner GitHub, dan
+ * tanpa permintaan HTTP yang harus bertahan berjam-jam.
+ *
+ * Penandanya di memori proses: memulai dua kali dari replika yang sama tidak
+ * membuat dua putaran. Dua replika (atau proses yang baru hidup ulang) paling
+ * buruk mengerjakan berkas yang sama dua kali — tiap langkahnya boleh diulang
+ * dengan hasil yang sama, lihat kepala berkas ini.
+ */
+const ANGGARAN_LATAR_MS = 55 * 60_000;
+let latar: { mulai: Date } | null = null;
+let hasilLatarTerakhir: (HasilPutaran & { selesai: Date }) | null = null;
+
+export function keadaanArsipLatar(): {
+  berjalanSejak: Date | null;
+  terakhir: (HasilPutaran & { selesai: Date }) | null;
+} {
+  return { berjalanSejak: latar?.mulai ?? null, terakhir: hasilLatarTerakhir };
+}
+
+export async function mulaiArsipLatar(): Promise<
+  { dimulai: boolean; berjalanSejak: Date } | { dimulai: false; alasan: HasilPutaran["alasan"] }
+> {
+  if (latar) return { dimulai: false, berjalanSejak: latar.mulai };
+  // Alasan tidak jalan (sakelar mati, belum dikonfigurasi) dijawab SEKARANG,
+  // bukan ditelan di latar tempat tidak ada yang melihatnya.
+  if (!(await arsipAktif())) return { dimulai: false, alasan: "mati" };
+  if (!setelanDingin()) return { dimulai: false, alasan: "belum-dikonfigurasi" };
+  if (!isR2Configured()) return { dimulai: false, alasan: "r2-mati" };
+
+  const mulai = new Date();
+  latar = { mulai };
+  void (async () => {
+    try {
+      const h = await jalankanArsipAsli({ anggaranMs: ANGGARAN_LATAR_MS });
+      hasilLatarTerakhir = { ...h, selesai: new Date() };
+      const { periksaDanPeringatkan } = await import("./peringatan");
+      await periksaDanPeringatkan().catch(() => null);
+    } catch (err) {
+      console.error("[arsip-asli] putaran latar gagal:", err);
+      hasilLatarTerakhir = {
+        dijalankan: true,
+        alasan: "jalan",
+        dikirim: 0,
+        dibuangDariR2: 0,
+        gagal: 1,
+        galat: [err instanceof Error ? err.message : "putaran latar gagal"],
+        selesai: new Date(),
+      };
+    } finally {
+      latar = null;
+    }
+  })();
+  return { dimulai: true, berjalanSejak: mulai };
 }
 
 /**
@@ -253,7 +376,7 @@ async function tandaiTerarsip(id: string): Promise<void> {
 async function buangSalinanR2Lewat(
   setelan: SetelanDingin,
   galat: string[],
-): Promise<number> {
+): Promise<{ diambil: number; dibuang: number }> {
   const hari = await tenggangHari();
   const batas = new Date(Date.now() - hari * 86_400_000);
   const siap = await db.photo.findMany({
@@ -264,7 +387,7 @@ async function buangSalinanR2Lewat(
     },
     select: { id: true, originalKey: true, sha256: true },
     orderBy: { originalArchivedAt: "asc" },
-    take: PER_PUTARAN * 4, // menghapus jauh lebih murah daripada mengirim
+    take: BUANG_PER_TARIKAN,
   });
 
   let n = 0;
@@ -320,7 +443,7 @@ async function buangSalinanR2Lewat(
       );
     }
   }
-  return n;
+  return { diambil: siap.length, dibuang: n };
 }
 
 /**
