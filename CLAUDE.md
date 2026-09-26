@@ -120,6 +120,21 @@ pembuktian.
 Saat iterasi, jalankan BERKAS uji yang bersangkutan saja; suite penuh cukup
 sekali, tepat sebelum commit.
 
+## Membaca kode – Graphify DULU (ketetapan user 2026-09-26)
+
+MCP Graphify (repo `topikuning/marlin-gibaku`) memegang peta panggilan,
+dependensi, dan uji seluruh repo. **Setiap pembacaan kode dimulai dari sana**,
+bukan grep/Read: letak definisi → `graphify_find`; siapa memanggil / dipanggil →
+`graphify_callers` / `graphify_callees`; dampak perubahan → `graphify_impact`
+atau `impact_and_risk`; uji yang harus dijalankan → `graphify_tests_for`;
+"bagaimana X bekerja" → `query_graph`. Grep/Read hanya untuk teks literal,
+komentar, berkas non-kode, dan berkas yang sudah ditemukan.
+
+Batasnya: yang diindeks **`main`** (diperbarui ±5 menit setiap push ke `main`;
+`freshness.commit` di tiap jawaban menyebut commit-nya). Kode yang baru ada di
+`dev` belum tampak – untuk itu, dan untuk baris yang benar-benar akan diubah,
+berkasnya tetap dibaca langsung.
+
 ## Stack (pinned exact — lihat docs/rebuild/TECHNOLOGY_AUDIT.md)
 
 Node 24 LTS · pnpm 11 (corepack) · Next 16 App Router · React 19 · TS 5.9 ·
