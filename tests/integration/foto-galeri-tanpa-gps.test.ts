@@ -119,6 +119,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Cap dikerjakan di latar (DECISIONS 618) – tunggu sebelum datanya dihapus.
+  const { antreanCapSelesai } = await import("@/lib/photo-stamp/cap-latar");
+  await antreanCapSelesai();
   await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import type { KotakTulisan } from "@/lib/photo-stamp/tata-letak";
 import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -133,6 +134,8 @@ export type KonteksFoto = {
   stampRevision: number;
   /** Putaran kumulatif terhadap berkas asli, derajat (DECISIONS 424c). */
   rotationDeg: number;
+  /** Letak tulisan lama di foto (DECISIONS 619); null = belum pernah dibaca. */
+  kotakTulisan: KotakTulisan[] | null;
   saatIni: NilaiCap;
 };
 
@@ -162,6 +165,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       existingTagTime: true,
       stampRevision: true,
       rotationDeg: true,
+      textBoxes: true,
       locationId: true,
       uploadedById: true,
       // lineageKey ikut dibaca: badge cap = BANGUNAN/kategori RAB, dan
@@ -253,6 +257,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     thumbnailKey: p.thumbnailKey,
     stampRevision: p.stampRevision,
     rotationDeg: p.rotationDeg,
+    kotakTulisan: Array.isArray(p.textBoxes) ? (p.textBoxes as KotakTulisan[]) : null,
     saatIni: {
       takenAt: p.exifTakenAt ?? workDate ?? new Date(),
       jamDiketahui,
@@ -308,7 +313,12 @@ export type FilterArsip = z.infer<typeof filterArsipSchema>;
  * yang bisa dipanggil siapa saja.
  */
 export function whereArsip(f: FilterArsip, scope: string[] | null, orgId: string): Prisma.PhotoWhereInput {
-  const and: Prisma.PhotoWhereInput[] = [{ originalKey: { not: null } }, { location: { package: { orgId } } }];
+  const and: Prisma.PhotoWhereInput[] = [
+    { originalKey: { not: null } },
+    // Berkas asli foto yang capnya masih dibuat di latar = berkas tampilannya.
+    { stampPending: false },
+    { location: { package: { orgId } } },
+  ];
   if (scope !== null) and.push({ locationId: { in: scope } });
   if (f.locationId) and.push({ locationId: f.locationId });
   if (f.packageId) and.push({ location: { packageId: f.packageId } });

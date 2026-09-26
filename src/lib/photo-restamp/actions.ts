@@ -13,7 +13,8 @@ import {
   accessibleLocationIds,
 } from "@/lib/auth/session";
 import { isR2Configured, r2Delete, r2GetBuffer, r2Put } from "@/lib/r2";
-import { processWithSharpOrOriginal } from "@/lib/photos";
+import { kotakTulisanFoto, kotakTulisanUntuk, processWithSharpOrOriginal } from "@/lib/photos";
+import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { parseCoordinatePair } from "@/lib/geo";
 import {
   filterArsipSchema,
@@ -75,7 +76,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     const actor = await requireCapability("photo.restamp");
     if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
 
-    const k = await konteksFoto(photoId);
+    await pastikanFotoBercap([photoId]);
+  const k = await konteksFoto(photoId);
     if (!k) return { error: "Foto tidak ditemukan." };
     if (!k.locationId) return { error: "Foto ini tidak terhubung ke lokasi mana pun." };
     await requireLocationAccess(actor, k.locationId);
@@ -177,10 +179,11 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
 
     // ── Render ulang dari berkas ASLI ──
     const original = await bacaBerkasAsli(k);
-    const processed = await processWithSharpOrOriginal(original, await stampDariNilai(baru), {
-      name: k.originalKey,
-      type: "",
-    });
+    const processed = await processWithSharpOrOriginal(
+      original,
+      { ...(await stampDariNilai(baru)), hindari: await kotakTulisanUntuk(photoId, original, k.kotakTulisan) },
+      { name: k.originalKey, type: "" },
+    );
 
     // Objek BARU ditulis dulu; yang lama baru dihapus setelah DB berhasil —
     // supaya kegagalan di tengah tidak meninggalkan foto tanpa berkas.
@@ -219,6 +222,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
             existingTagLocation: baru.tagBawaanLokasi ?? false,
             existingTagTime: baru.tagBawaanWaktu ?? false,
             stampRevision: revisi,
+            stampPending: false,
           },
         });
         await tx.photoStampRevision.create({
@@ -340,9 +344,10 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     const actor = await requireCapability("photo.archive_purge");
     const p = await db.photo.findUnique({
       where: { id: parsed.data.photoId },
-      select: { id: true, originalKey: true, originalBytes: true, locationId: true },
+      select: { id: true, originalKey: true, originalBytes: true, locationId: true, stampPending: true },
     });
     if (!p) return { error: "Foto tidak ditemukan." };
+    if (p.stampPending) return { error: "Cap foto ini masih dibuat – coba lagi sebentar lagi." };
     if (!p.locationId) return { error: "Foto ini tidak terhubung ke lokasi mana pun." };
     await requireLocationAccess(actor, p.locationId);
     if (!p.originalKey) return { error: "Foto ini memang tidak punya arsip berkas asli." };
@@ -402,7 +407,8 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
     const actor = await requireCapability("daily_report.create");
     if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
 
-    const k = await konteksFoto(photoId);
+    await pastikanFotoBercap([photoId]);
+  const k = await konteksFoto(photoId);
     if (!k) return { error: "Foto tidak ditemukan." };
     if (!k.locationId) return { error: "Foto ini tidak terhubung ke lokasi mana pun." };
     await requireLocationAccess(actor, k.locationId);
@@ -434,10 +440,13 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
     const pipa = sharp(asli, { failOn: "none" }).rotate();
     const diputar = await (totalDerajat === 0 ? pipa : pipa.rotate(totalDerajat)).toBuffer();
 
-    const processed = await processWithSharpOrOriginal(diputar, await stampDariNilai(k.saatIni), {
-      name: k.originalKey,
-      type: "",
-    });
+    // Letak tulisan ikut berputar – dibaca ulang dari hasil putaran (DECISIONS 619).
+    const kotakDiputar = await kotakTulisanFoto(diputar);
+    const processed = await processWithSharpOrOriginal(
+      diputar,
+      { ...(await stampDariNilai(k.saatIni)), hindari: kotakDiputar },
+      { name: k.originalKey, type: "" },
+    );
 
     const uuid = randomUUID();
     const dasar = k.r2Key.replace(/[^/]+$/, "");
@@ -464,7 +473,9 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
             bytes: processed.main.length,
             widthPx: processed.width,
             heightPx: processed.height,
+            textBoxes: kotakDiputar,
             stampRevision: revisi,
+            stampPending: false,
             rotationDeg: totalDerajat,
           },
         });
@@ -594,6 +605,7 @@ export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
 
 /** Satu foto: baca sumber → proses ulang → tukar kunci. Melempar bila gagal. */
 async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void> {
+  await pastikanFotoBercap([photoId]);
   const k = await konteksFoto(photoId);
   if (!k) throw new Error("foto tidak ditemukan");
 
@@ -639,6 +651,7 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
           widthPx: processed.width,
           heightPx: processed.height,
           stampRevision: revisi,
+            stampPending: false,
         },
       });
       await tx.photoStampRevision.create({

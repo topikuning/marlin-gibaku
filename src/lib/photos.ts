@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import ExifReader from "exifreader";
 import { bacaTulisanFoto } from "@/lib/photo-stamp/ocr";
 import { nilaiTagBawaan, type TagBawaan } from "@/lib/photo-stamp/tag-bawaan";
+import type { KotakTulisan } from "@/lib/photo-stamp/tata-letak";
 import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
@@ -195,6 +196,8 @@ export type PhotoStamp = {
    */
   sembunyikanLokasi?: boolean;
   sembunyikanWaktu?: boolean;
+  /** Letak tulisan lama di foto – cap disusun menghindarinya (DECISIONS 619). */
+  hindari?: KotakTulisan[];
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -220,6 +223,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     sizeScale: s.sizeScale ?? 1,
     timeTanda: s.timeTanda ?? "asli",
     coordTanda: s.coordTanda ?? "asli",
+    hindari: s.hindari ?? [],
   };
   return buildStampSvg(w, h, data, { fontFamily: STAMP_FAMILY, fontFaceCss: FONT_FACE_CSS });
 }
@@ -491,108 +495,157 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     DEFAULT_STAMP_TZ,
   );
 
-  // Tag bawaan aplikasi kamera: dibaca dari TULISAN di foto, bukan metadata
-  // (DECISIONS 617). null = tidak terbaca → cap lengkap seperti biasa.
-  const tag = await tagBawaanFoto(original, input.locationId);
+  const stamp: PhotoStamp = {
+    takenAt,
+    lat,
+    lng,
+    locationLabel: input.stamp?.locationLabel ?? null,
+    companyName: input.stamp?.companyName ?? null,
+    companyLogo: await logoPerusahaanDataUri(input.stamp?.companyLogoKey),
+    reporterName: input.stamp?.reporterName ?? null,
+    categoryName: input.stamp?.categoryName ?? null,
+    workName: input.stamp?.workName ?? null,
+    photoId,
+    accentColor: cfg?.accentColor ?? DEFAULT_STAMP_ACCENT,
+    overlayAlpha: overlayAlphaFor(cfg?.overlayStrength ?? "auto"),
+    sizeScale: SIZE_SCALE[size],
+    timezone: DEFAULT_STAMP_TZ,
+    showCoordinate: cfg?.showCoordinates ?? true,
+    showReporter: cfg?.showReporter ?? true,
+    showPhotoId: cfg?.showPhotoId ?? true,
+    timeTanda: tanpaTag ? "asli" : timeTanda,
+    coordTanda: tanpaTag ? "asli" : coordTanda,
+    dateOnly: jamTidakDiketahui,
+    tanpaTag,
+  };
 
+  const uuid = randomUUID();
+  const dasarKunci = `photos/${input.locationSlug}/${input.dateKey}/${uuid}`;
+  const originalKey = `${dasarKunci}.asli${originalExt(file.name, file.type)}`;
+  const baris = {
+    locationId: input.locationId,
+    reportId: input.reportId ?? null,
+    reportItemId: input.reportItemId ?? null,
+    reportMaterialId: input.reportMaterialId ?? null,
+    reportEquipmentId: input.reportEquipmentId ?? null,
+    activityId: input.activityId ?? null,
+    sha256,
+    exifTakenAt: takenAt,
+    stampPhotoId: photoId,
+    // Lapis kedua, sengaja rangkap dengan penyaringan di `readExif`: kolom
+    // Decimal tidak boleh menerima "NaN"/"Infinity" dari jalur mana pun —
+    // termasuk koordinat perangkat yang dikirim klien. Nilai yang bukan
+    // angka berhingga ditulis null, bukan dipaksa masuk.
+    exifGpsLat: desimalKoordinat(lat),
+    exifGpsLng: desimalKoordinat(lng),
+    gpsSource,
+    stampPlain: tanpaTag,
+    metadataSource: timeSource,
+    uploadedById: input.userId,
+  };
+  const duplikat = (e: unknown) =>
+    e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002"
+      ? new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)")
+      : e;
+
+  /*
+   * JALUR CEPAT (DECISIONS 618): simpan berkas ASLI + barisnya, lalu cap dan
+   * thumbnail dikerjakan di latar. Orang di lapangan tidak lagi menunggu
+   * pembacaan tag bawaan (±1,5 dtk) dan pembuatan cap (±0,5 dtk) per foto.
+   * Selama menunggu, `r2Key` = berkas asli supaya foto tetap tampil.
+   *
+   * HEIC tetap jalur langsung: peramban tidak bisa menampilkan HEIC mentah,
+   * jadi menunda capnya berarti foto tampil rusak sampai latar selesai.
+   */
+  const heic = mimeExt(file.type, file.name).ext === "heic";
+  if (!heic) {
+    let asliTersimpan = true;
+    try {
+      await r2Put(originalKey, original, file.type || "application/octet-stream");
+    } catch {
+      asliTersimpan = false;
+    }
+    if (asliTersimpan) {
+      try {
+        const row = await db.photo.create({
+          data: {
+            ...baris,
+            r2Key: originalKey,
+            thumbnailKey: null,
+            originalKey,
+            originalBytes: original.length,
+            bytes: original.length,
+            stampPending: true,
+          },
+        });
+        const { jadwalkanCap } = await import("@/lib/photo-stamp/cap-latar");
+        jadwalkanCap({ photoId: row.id, gambar: original, stamp, locationId: input.locationId, dasarKunci });
+        return row;
+      } catch (e) {
+        await r2Delete(originalKey).catch(() => {});
+        throw duplikat(e);
+      }
+    }
+    // Berkas asli gagal tersimpan → jatuh ke jalur langsung di bawah: foto
+    // ber-cap tetap masuk walau arsip aslinya tidak (DECISIONS 197).
+  }
+
+  // ── JALUR LANGSUNG (HEIC, atau berkas asli gagal disimpan) ──
+  // Tag bawaan aplikasi kamera: dibaca dari TULISAN di foto (DECISIONS 617).
+  const tag = heic ? null : await tagBawaanFoto(original, input.locationId);
   const processed = await processWithSharpOrOriginal(
     original,
     {
-      takenAt,
-      lat,
-      lng,
+      ...stamp,
       sembunyikanLokasi: tag?.lokasi ?? false,
       sembunyikanWaktu: tag?.waktu ?? false,
-      locationLabel: input.stamp?.locationLabel ?? null,
-      companyName: input.stamp?.companyName ?? null,
-      companyLogo: await logoPerusahaanDataUri(input.stamp?.companyLogoKey),
-      reporterName: input.stamp?.reporterName ?? null,
-      categoryName: input.stamp?.categoryName ?? null,
-      workName: input.stamp?.workName ?? null,
-      photoId,
-      accentColor: cfg?.accentColor ?? DEFAULT_STAMP_ACCENT,
-      overlayAlpha: overlayAlphaFor(cfg?.overlayStrength ?? "auto"),
-      sizeScale: SIZE_SCALE[size],
-      timezone: DEFAULT_STAMP_TZ,
-      showCoordinate: cfg?.showCoordinates ?? true,
-      showReporter: cfg?.showReporter ?? true,
-      showPhotoId: cfg?.showPhotoId ?? true,
-      timeTanda: tanpaTag ? "asli" : timeTanda,
-      coordTanda: tanpaTag ? "asli" : coordTanda,
-      dateOnly: jamTidakDiketahui,
-      tanpaTag,
+      hindari: tag?.kotak ?? [],
     },
     file,
   );
-
-  const uuid = randomUUID();
-  const key = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.${processed.ext}`;
-  await r2Put(key, processed.main, processed.contentType);
-  let thumbnailKey: string | null = null;
-  if (processed.thumb) {
-    thumbnailKey = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.thumb.webp`;
-    try {
-      await r2Put(thumbnailKey, processed.thumb, "image/webp");
-    } catch {
-      thumbnailKey = null;
-    }
-  }
-  // Arsip berkas ASLI — byte apa adanya, sebelum kompresi & cap. Ini yang
-  // dipakai bila keaslian foto dipersoalkan (EXIF utuh, resolusi penuh).
-  // Best-effort: gagal mengarsip TIDAK boleh menggagalkan unggahan, karena
-  // versi ber-cap sudah aman di bucket (DECISIONS 197).
-  let originalKey: string | null = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.asli${originalExt(file.name, file.type)}`;
-  try {
-    await r2Put(originalKey, original, file.type || "application/octet-stream");
-  } catch {
-    originalKey = null;
-  }
+  const key = `${dasarKunci}.${processed.ext}`;
+  const thumbKey = processed.thumb ? `${dasarKunci}.thumb.webp` : null;
+  const [, thumbOk, asliOk] = await Promise.all([
+    r2Put(key, processed.main, processed.contentType),
+    thumbKey
+      ? r2Put(thumbKey, processed.thumb!, "image/webp").then(
+          () => true,
+          () => false,
+        )
+      : Promise.resolve(false),
+    // Arsip berkas ASLI — best-effort: versi ber-cap sudah aman (DECISIONS 197).
+    r2Put(originalKey, original, file.type || "application/octet-stream").then(
+      () => true,
+      () => false,
+    ),
+  ]);
+  const thumbnailKey = thumbOk ? thumbKey : null;
 
   // Objek sudah di R2 tapi barisnya belum ada. Bila create gagal (mis. dua
   // unggahan bersamaan menabrak unique (lokasi, sha256)), objeknya DIHAPUS
   // supaya tidak menyisakan berkas yatim di bucket (STORE-01).
   try {
     return await db.photo.create({
-    data: {
-      locationId: input.locationId,
-      reportId: input.reportId ?? null,
-      reportItemId: input.reportItemId ?? null,
-      reportMaterialId: input.reportMaterialId ?? null,
-      reportEquipmentId: input.reportEquipmentId ?? null,
-      activityId: input.activityId ?? null,
-      r2Key: key,
-      thumbnailKey,
-      originalKey,
-      originalBytes: originalKey ? original.length : null,
-      sha256,
-      bytes: processed.main.length,
-      widthPx: processed.width,
-      heightPx: processed.height,
-      exifTakenAt: takenAt,
-      stampPhotoId: photoId,
-      // Lapis kedua, sengaja rangkap dengan penyaringan di `readExif`: kolom
-      // Decimal tidak boleh menerima "NaN"/"Infinity" dari jalur mana pun —
-      // termasuk koordinat perangkat yang dikirim klien. Nilai yang bukan
-      // angka berhingga ditulis null, bukan dipaksa masuk.
-      exifGpsLat: desimalKoordinat(lat),
-      exifGpsLng: desimalKoordinat(lng),
-      gpsSource,
-      stampPlain: tanpaTag,
-      existingTagLocation: tag?.lokasi ?? false,
-      existingTagTime: tag?.waktu ?? false,
-      existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
-      metadataSource: timeSource,
-      uploadedById: input.userId,
-    },
+      data: {
+        ...baris,
+        r2Key: key,
+        thumbnailKey,
+        originalKey: asliOk ? originalKey : null,
+        originalBytes: asliOk ? original.length : null,
+        bytes: processed.main.length,
+        widthPx: processed.width,
+        heightPx: processed.height,
+        existingTagLocation: tag?.lokasi ?? false,
+        existingTagTime: tag?.waktu ?? false,
+        existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
+        textBoxes: tag ? tag.kotak : undefined,
+      },
     });
   } catch (e) {
     await r2Delete(key).catch(() => {});
     if (thumbnailKey) await r2Delete(thumbnailKey).catch(() => {});
-    if (originalKey) await r2Delete(originalKey).catch(() => {});
-    if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002") {
-      throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
-    }
-    throw e;
+    if (asliOk) await r2Delete(originalKey).catch(() => {});
+    throw duplikat(e);
   }
 }
 
@@ -601,9 +654,12 @@ export async function savePhotoForItem(input: SavePhotoInput) {
  * Nama wilayah lokasinya ikut jadi petunjuk: cap aplikasi kamera sering hanya
  * menulis "Kranji, Paciran, Lamongan" tanpa kata "Kec."/"Kab.".
  */
-async function tagBawaanFoto(gambar: Buffer, locationId: string | null): Promise<TagBawaan | null> {
-  const teks = await bacaTulisanFoto(gambar);
-  if (!teks) return null;
+export async function tagBawaanFoto(
+  gambar: Buffer,
+  locationId: string | null,
+): Promise<(TagBawaan & { kotak: KotakTulisan[] }) | null> {
+  const tulisan = await bacaTulisanFoto(gambar);
+  if (!tulisan) return null;
   const lok = locationId
     ? await db.location.findUnique({
         where: { id: locationId },
@@ -611,10 +667,35 @@ async function tagBawaanFoto(gambar: Buffer, locationId: string | null): Promise
       })
     : null;
   const namaWilayah = lok ? [lok.village, lok.district, lok.regency, lok.province, lok.name].filter((n): n is string => !!n) : [];
-  return nilaiTagBawaan(teks, { namaWilayah });
+  return { ...nilaiTagBawaan(tulisan.teks, { namaWilayah }), kotak: tulisan.kotak };
 }
 
-function ringkasBukti(t: TagBawaan): string {
+/**
+ * Letak tulisan yang sudah ada di foto – untuk render ULANG cap dari berkas
+ * asli (perbaikan cap, putar, Foto Cepat), supaya susunannya sama dengan saat
+ * unggah (DECISIONS 619). Gagal baca = tata letak baku.
+ */
+export async function kotakTulisanFoto(gambar: Buffer): Promise<KotakTulisan[]> {
+  return (await bacaTulisanFoto(gambar))?.kotak ?? [];
+}
+
+/**
+ * Letak tulisan untuk render ULANG dari berkas asli: yang tersimpan dipakai;
+ * foto lama (sebelum 619) dibaca sekali lalu disimpan.
+ */
+export async function kotakTulisanUntuk(
+  photoId: string,
+  gambar: Buffer,
+  simpanan: KotakTulisan[] | null,
+): Promise<KotakTulisan[]> {
+  if (simpanan) return simpanan;
+  const tulisan = await bacaTulisanFoto(gambar);
+  if (!tulisan) return [];
+  await db.photo.update({ where: { id: photoId }, data: { textBoxes: tulisan.kotak } }).catch(() => {});
+  return tulisan.kotak;
+}
+
+export function ringkasBukti(t: TagBawaan): string {
   const bagian: string[] = [];
   if (t.waktu && t.bukti.waktu) bagian.push(`tanggal: ${t.bukti.waktu}`);
   if (t.lokasi && t.bukti.lokasi) bagian.push(`lokasi: ${t.bukti.lokasi}`);

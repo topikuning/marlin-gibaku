@@ -1,4 +1,5 @@
 import "server-only";
+import { barisFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { db } from "@/lib/db";
 import { jakartaDateKey, jakartaToday } from "@/lib/format";
 import {
@@ -669,7 +670,7 @@ export async function buatLaporanLokasiLengkap(
       },
     }),
   ]);
-  const semuaFoto: FotoLaporanLokasi[] = fotoRaw.map((f) => {
+  const semuaFoto: FotoLaporanLokasi[] = (await barisFotoBercap(fotoRaw)).map((f) => {
     const tanggal = f.report?.reportDate ?? f.activity?.activityDate ?? null;
     return {
       id: f.id,

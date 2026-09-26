@@ -134,6 +134,9 @@ export async function jalankanArsipAsli(
         originalKey: { not: null },
         originalArchivedAt: null,
         originalPurgedAt: null,
+        // Foto yang capnya masih dibuat di latar (DECISIONS 618) menampilkan
+        // berkas aslinya sendiri – ditunggu sampai r2Key-nya pindah.
+        stampPending: false,
         ...(gagalDiSini.length > 0 ? { id: { notIn: gagalDiSini } } : {}),
         // Yang belum habis percobaannya, ATAU yang sudah habis tapi masa
         // pulihnya lewat — supaya gangguan sesaat sembuh sendiri.
@@ -384,6 +387,7 @@ async function buangSalinanR2Lewat(
       originalArchivedAt: { not: null, lte: batas },
       originalR2PurgedAt: null,
       originalKey: { not: null },
+      stampPending: false,
     },
     select: { id: true, originalKey: true, sha256: true },
     orderBy: { originalArchivedAt: "asc" },

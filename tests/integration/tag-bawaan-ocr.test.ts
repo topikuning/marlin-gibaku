@@ -12,6 +12,7 @@ vi.mock("server-only", () => ({}));
 
 const { bacaTulisanFoto } = await import("@/lib/photo-stamp/ocr");
 const { nilaiTagBawaan } = await import("@/lib/photo-stamp/tag-bawaan");
+const { pilihTataLetak } = await import("@/lib/photo-stamp/tata-letak");
 
 const FOTO = readFileSync(new URL("../fixtures/IMG20260801WA0035.jpg", import.meta.url));
 const WILAYAH = ["Kranji", "Paciran", "Lamongan", "Jawa Timur"];
@@ -32,9 +33,9 @@ async function denganCap(opts: { x: number; y: number; baris: string[]; kotak: b
 }
 
 async function nilai(gambar: Buffer) {
-  const teks = await bacaTulisanFoto(gambar);
-  expect(teks, "OCR tidak menghasilkan apa pun").not.toBeNull();
-  return nilaiTagBawaan(teks!, { namaWilayah: WILAYAH });
+  const tulisan = await bacaTulisanFoto(gambar);
+  expect(tulisan, "OCR tidak menghasilkan apa pun").not.toBeNull();
+  return nilaiTagBawaan(tulisan!.teks, { namaWilayah: WILAYAH });
 }
 
 describe("OCR tag bawaan pada foto lapangan sungguhan", { timeout: 60_000 }, () => {
@@ -74,5 +75,30 @@ describe("OCR tag bawaan pada foto lapangan sungguhan", { timeout: 60_000 }, () 
       await denganCap({ x: 30, y: 780, kotak: true, fs: 26, baris: ["Jl. Raya Paciran, Kec. Paciran, Kab. Lamongan"] }),
     );
     expect(h).toMatchObject({ lokasi: false, waktu: false });
+  });
+
+  // DECISIONS 619: letak tulisan ikut terbaca, dan cap MARLIN menyingkir.
+  it("cap lama di kiri-bawah → letaknya terbaca, blok info MARLIN pindah ke kanan", async () => {
+    const tulisan = await bacaTulisanFoto(
+      await denganCap({ x: 30, y: 640, kotak: true, fs: 30, baris: ["Jumat, 25 Sep 2026 09:15", "Kranji, Paciran, Lamongan"] }),
+    );
+    // Foto uji 1600×901: cap tiruan menempati x 30–±450, y 640–±740.
+    const diCap = tulisan!.kotak.filter((k) => k.x + k.w / 2 < 0.35 && k.y + k.h / 2 > 0.65);
+    expect(diCap.length).toBeGreaterThan(0);
+    const t = pilihTataLetak(
+      {
+        W: 1600,
+        H: 901,
+        safeX: 50,
+        safeY: 27,
+        kepalaH: 60,
+        jarak: 27,
+        info: { w: 700, h: 290 },
+        logo: { w: 220, h: 57 },
+        panel: { w: 420, h: 60 },
+      },
+      tulisan!.kotak,
+    );
+    expect(t).toMatchObject({ tegak: "bawah", infoKanan: true });
   });
 });

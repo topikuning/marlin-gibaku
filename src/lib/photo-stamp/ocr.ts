@@ -1,5 +1,6 @@
 import "server-only";
 import dataBahasa from "@tesseract.js-data/eng";
+import type { KotakTulisan } from "@/lib/photo-stamp/tata-letak";
 
 /**
  * PEMBACA TULISAN DI FOTO — OCR lokal (Tesseract, WASM), tanpa layanan AI
@@ -68,35 +69,63 @@ async function ambilMesin(): Promise<Worker> {
   return mesin;
 }
 
-async function bacaSekali(gambar: Buffer): Promise<string> {
+export type TulisanFoto = {
+  /** Tulisan, digabung per baris – bahan `nilaiTagBawaan`. */
+  teks: string;
+  /**
+   * Letak baris-baris tulisan itu (pecahan lebar/tinggi foto, sudah diputar
+   * sesuai EXIF) – supaya cap MARLIN tidak menutupinya (DECISIONS 619).
+   * Diperluas setengah tinggi baris: cap aplikasi kamera punya ikon, logo, dan
+   * latar di sekitar hurufnya.
+   */
+  kotak: KotakTulisan[];
+};
+
+async function bacaSekali(gambar: Buffer): Promise<TulisanFoto> {
   const sharp = (await import("sharp")).default;
   const w = await ambilMesin();
   const baris: string[] = [];
+  const kotak: KotakTulisan[] = [];
   for (const l of LINTASAN) {
-    const png = await sharp(gambar)
+    const { data: png, info } = await sharp(gambar)
       .rotate()
       .resize({ width: l.lebar, height: l.lebar, fit: "inside", withoutEnlargement: true })
       .grayscale()
       .threshold(l.ambang)
       .negate()
       .png()
-      .toBuffer();
+      .toBuffer({ resolveWithObject: true });
     const { data } = await w.recognize(png, {}, { blocks: true });
     for (const b of data.blocks ?? [])
       for (const p of b.paragraphs)
         for (const ln of p.lines) {
-          const kata = ln.words.filter((k) => k.confidence >= KEYAKINAN_MIN).map((k) => k.text);
-          if (kata.length) baris.push(kata.join(" "));
+          const kata = ln.words.filter((k) => k.confidence >= KEYAKINAN_MIN);
+          if (!kata.length) continue;
+          baris.push(kata.map((k) => k.text).join(" "));
+          // Letak: hanya kata yang cukup yakin DAN berisi ≥2 huruf/angka –
+          // satu-dua "kata" dari tekstur tidak boleh memindahkan cap.
+          const nyata = kata.filter((k) => (k.text.match(/[\p{L}\p{N}]/gu) ?? []).length >= 2);
+          if (!nyata.length) continue;
+          const x0 = Math.min(...nyata.map((k) => k.bbox.x0));
+          const y0 = Math.min(...nyata.map((k) => k.bbox.y0));
+          const x1 = Math.max(...nyata.map((k) => k.bbox.x1));
+          const y1 = Math.max(...nyata.map((k) => k.bbox.y1));
+          const d = (y1 - y0) * 0.5;
+          const r4 = (v: number) => Math.round(v * 10_000) / 10_000;
+          kotak.push({
+            x: r4(Math.max(0, (x0 - d) / info.width)),
+            y: r4(Math.max(0, (y0 - d) / info.height)),
+            w: r4(Math.min(1, (x1 - x0 + 2 * d) / info.width)),
+            h: r4(Math.min(1, (y1 - y0 + 2 * d) / info.height)),
+          });
         }
   }
-  return baris.join(" | ");
+  // Dibatasi: disimpan di baris foto, dan ratusan kotak tidak menambah arti.
+  return { teks: baris.join(" | "), kotak: kotak.slice(0, 120) };
 }
 
-/**
- * Tulisan yang terbaca di foto, digabung per baris; null bila OCR gagal atau
- * lewat batas waktu.
- */
-export async function bacaTulisanFoto(gambar: Buffer): Promise<string | null> {
+/** Tulisan yang terbaca di foto + letaknya; null bila OCR gagal atau lewat batas waktu. */
+export async function bacaTulisanFoto(gambar: Buffer): Promise<TulisanFoto | null> {
   const masuk = Date.now();
   const giliran = antrean.then(() => {
     if (Date.now() - masuk > BATAS_ANTRE_MS) throw new Error("antrean OCR terlalu panjang – dilewati");

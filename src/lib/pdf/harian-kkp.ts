@@ -23,6 +23,7 @@ import {
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
 import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -692,7 +693,7 @@ export async function muatLampiranFoto(
           continue;
         }
         try {
-          const kecil = await sharp(await r2GetBuffer(p.r2Key))
+          const kecil = await sharp(await r2GetFotoBercap(p.r2Key))
             .rotate()
             .resize(900, 900, { fit: "inside", withoutEnlargement: true })
             .jpeg({ quality: 72 })
@@ -721,7 +722,7 @@ export async function muatLampiranFoto(
             continue;
           }
           try {
-            const kecil = await sharp(await r2GetBuffer(p.r2Key))
+            const kecil = await sharp(await r2GetFotoBercap(p.r2Key))
               .rotate()
               .resize(900, 900, { fit: "inside", withoutEnlargement: true })
               .jpeg({ quality: 72 })

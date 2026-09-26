@@ -1903,6 +1903,16 @@ model Photo {
   existingTagTime     Boolean            @default(false) @map("existing_tag_time")
   /// Potongan tulisan yang menjadi dasar keputusan di atas.
   existingTagEvidence String?            @map("existing_tag_evidence")
+  /// Cap & thumbnail masih DIKERJAKAN DI LATAR (DECISIONS 618). Selama true,
+  /// `r2Key` menunjuk berkas ASLI (JPEG/PNG/WebP) supaya foto tetap tampil;
+  /// keluaran (PDF, WA, Drive, deck) wajib lewat `kunciFotoBercap`.
+  stampPending        Boolean            @default(false) @map("stamp_pending")
+  /// Percobaan cap latar yang gagal — berhenti dicoba sesudah beberapa kali.
+  stampTries          Int                @default(0) @map("stamp_tries")
+  /// Letak tulisan yang sudah ada di foto (OCR, pecahan 0..1) – cap MARLIN
+  /// disusun menghindarinya, juga saat cap dirender ulang. null = belum dibaca.
+  /// DECISIONS 619.
+  textBoxes           Json?              @map("text_boxes")
   /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
   /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
   /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).

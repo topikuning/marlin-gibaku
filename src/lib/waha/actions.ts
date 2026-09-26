@@ -19,6 +19,7 @@ import { sendFile, sendImage, sendText } from "@/lib/waha/kirim";
 import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 import { grupUntukLokasi } from "@/lib/waha/grup";
+import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -406,7 +407,7 @@ export async function sendActivityToWaAction(
     for (const p of activity.photos) {
       photoI++;
       try {
-        const buf = await r2GetBuffer(p.r2Key);
+        const buf = await r2GetFotoBercap(p.r2Key);
         await sendImage(chatId, toFilePayload(buf, "image/jpeg", `foto-${photoI}.jpg`));
       } catch (err) {
         errors.push(`foto-${photoI}: ${err instanceof Error ? err.message : "gagal"}`);
