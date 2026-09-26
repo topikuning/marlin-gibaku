@@ -1,4 +1,5 @@
 import "server-only";
+import { barisFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import {
@@ -545,7 +546,7 @@ export async function buatSnapshotPaparan(
   if (countedIds.length) sumberFoto.push({ reportId: { in: countedIds } });
   if (activities.length) sumberFoto.push({ activityId: { in: activities.map((a) => a.id) } });
   const photos = sumberFoto.length
-    ? await db.photo.findMany({
+    ? await barisFotoBercap(await db.photo.findMany({
     where: {
       locationId: { in: ids },
       OR: sumberFoto,
@@ -562,7 +563,7 @@ export async function buatSnapshotPaparan(
       activity: { select: { title: true, activityDate: true } },
       reportItem: { select: { lineageKey: true, rabNode: { select: { name: true } } } },
     },
-  })
+  }))
     : [];
   const fotoKandidat: FotoKandidatPaparan[] = photos.map((p) => {
     const tanggal = p.report?.reportDate ?? p.activity?.activityDate ?? null;

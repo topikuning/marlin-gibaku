@@ -2,6 +2,13 @@ import { getContrastText } from "@/lib/photo-stamp/format";
 import { WARNA_CAP, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
 import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
 import { wordmarkSvgInner, WORDMARK_DEFS, WORDMARK_W, WORDMARK_H } from "@/lib/brand-mark";
+import {
+  adaTulisanDi,
+  letakUnsur,
+  pilihTataLetak,
+  type KotakTulisan,
+  type UkuranCap,
+} from "@/lib/photo-stamp/tata-letak";
 
 /** @font-face Montserrat khusus wordmark logo (family "ML"). Selalu dibenamkan. */
 const LOGO_FONT_FACE =
@@ -30,7 +37,11 @@ export type StampRenderData = {
    * Data URI, bukan URL: librsvg hanya membaca gambar yang dibenamkan.
    */
   companyLogo?: string | null;
-  locationName: string;
+  /**
+   * null = baris nama lokasi DISEMBUNYIKAN — foto sudah membawa tag lokasi
+   * dari aplikasi kamera (DECISIONS 617).
+   */
+  locationName: string | null;
   /**
    * Badge besar = BANGUNAN/KATEGORI RAB (mis. "V. PEKERJAAN SHELTER"). Untuk
    * kegiatan lapangan diisi label jenis kegiatan.
@@ -68,6 +79,12 @@ export type StampRenderData = {
    */
   timeTanda?: TandaNilai;
   coordTanda?: TandaNilai;
+  /**
+   * Letak tulisan yang SUDAH ada di foto (cap aplikasi kamera, hasil OCR) –
+   * cap MARLIN disusun supaya tidak menutupinya (DECISIONS 619). Kosong =
+   * tata letak baku.
+   */
+  hindari?: KotakTulisan[];
 };
 
 type RenderOpts = { fontFamily: string; fontFaceCss: string };
@@ -206,104 +223,52 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const safeY = clamp(26, h * 0.03, 56);
   const accent = d.accentColor;
   const onAccent = getContrastText(accent);
+  const hindari = d.hindari ?? [];
 
   const parts: string[] = [];
 
-  // ── Gradient keterbacaan (bawah) ──
-  const a = Math.max(0, Math.min(1, d.overlayAlpha));
-  const band = Math.round(h * (portrait ? 0.3 : 0.34));
-  parts.push(
-    `<rect x="0" y="${h - band}" width="${w}" height="${band}" fill="url(#pg)"/>`,
-  );
+  /* ══ UKURAN dulu, LETAK kemudian (DECISIONS 619) ══
+   *
+   * Letak tiap unsur dipilih `pilihTataLetak` dari ukurannya dan dari letak
+   * tulisan lama di foto (cap aplikasi kamera). Tanpa tulisan lama hasilnya
+   * persis tata letak sebelum 619.
+   */
 
-  // ── Baris kepala: panel perusahaan (kiri) ⟷ wordmark MARLIN (kanan) ──
+  // ── Kepala: panel perusahaan ⟷ logo ──
   //
-  // KEDUANYA MASUK KE DALAM MARJIN AMAN dan berbagi SATU garis tengah –
-  // tata letak yang diminta user 2026-08-02 lewat contoh gambar. Sebelumnya
-  // panel menempel mati di sudut (0,0) sementara wordmark inset, jadi keduanya
-  // tidak pernah sejajar dan jarak ke tepi foto berbeda kiri-kanan.
-  //
-  // Tinggi wordmark diikat ke tinggi panel, bukan ke lebar foto: yang harus
-  // terlihat sepadan adalah logo dengan nama perusahaan di seberangnya, dan
-  // ukuran yang mengikuti lebar foto membuat hubungan itu berubah-ubah antara
-  // potret dan lanskap.
+  // KEDUANYA MASUK KE DALAM MARJIN AMAN dan berbagi SATU garis tengah – tata
+  // letak yang diminta user 2026-08-02 lewat contoh gambar. Tinggi wordmark
+  // diikat ke tinggi panel, bukan ke lebar foto: yang harus terlihat sepadan
+  // adalah logo dengan nama perusahaan di seberangnya.
   const fsCoDasar = fs(0.023, 16);
   const tinggiPanel = Math.round(fsCoDasar + 2 * Math.round(fsCoDasar * 0.72));
   const wordmarkH = Math.round(tinggiPanel * 0.95);
   const wordmarkW = Math.round((wordmarkH * WORDMARK_W) / WORDMARK_H);
-  const logoKiri = w - safeX - wordmarkW;
-  const kepalaTengah = safeY + tinggiPanel / 2;
-
-  if (d.companyName?.trim()) {
-    // Panel BERHENTI sebelum wordmark. Tanpa batas ini nama perusahaan panjang
-    // menyelinap di bawah logo lalu keluar tepi kanan foto – dan cap sudah
-    // terbakar ke gambar, jadi tidak ada kesempatan kedua memperbaikinya.
-    const maxPanelW = Math.max(w * 0.3, logoKiri - safeX - Math.round(safeX * 0.6));
-    const co = fitPanel(d.companyName.trim(), maxPanelW, fsCoDasar);
-    const company = co.text;
-    const fsCo = co.fs;
-    const padH = Math.round(fsCo * 0.95);
-    const barW = Math.max(4, Math.round(fsCo * 0.26));
-    const gap = Math.round(fsCo * 0.55);
-    const panelW = Math.round(panelTextW(company, fsCo) + panelChromeW(fsCo));
-    const panelH = Math.round(fsCo + 2 * Math.round(fsCo * 0.72));
-    const panelY = Math.round(kepalaTengah - panelH / 2);
-    const r = Math.round(panelH * 0.28);
-    parts.push(
-      `<rect x="${safeX}" y="${panelY}" width="${panelW}" height="${panelH}" rx="${r}" fill="${PANEL_FILL}"/>`,
-    );
-    const barH = Math.round(fsCo * 1.05);
-    parts.push(
-      `<rect x="${safeX + padH}" y="${Math.round(panelY + (panelH - barH) / 2)}" width="${barW}" height="${barH}" rx="1" fill="${accent}"/>`,
-    );
-    parts.push(
-      `<text x="${safeX + padH + barW + gap}" y="${Math.round(panelY + panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" ${halo(fsCo)} fill="${TEXT_WHITE}">${esc(company)}</text>`,
-    );
-  }
-
   /*
-   * ── Logo kanan: milik PERUSAHAAN bila ada, kalau tidak wordmark MARLIN ──
-   *
-   * Rasio logo vendor tidak diketahui (bisa bujur sangkar, bisa memanjang).
-   * Kotak muatnya dipatok pada TINGGI wordmark dan lebar maksimum 2,2× tinggi
-   * itu, lalu `preserveAspectRatio` menempatkannya rata kanan. Tanpa batas
-   * lebar, logo memanjang akan menabrak panel nama perusahaan – dan cap sudah
-   * terbakar ke gambar, jadi tidak ada kesempatan kedua. DECISIONS 424.
+   * Logo perusahaan: kotaknya SELEBAR wordmark MARLIN (DECISIONS 424a) dan
+   * tingginya dilonggarkan 1,25× supaya logo BUJUR SANGKAR juga terbaca. Rasio
+   * logo vendor tidak diketahui; `preserveAspectRatio` menempatkannya rata ke
+   * sisi luar kotak.
    */
-  const logoY = Math.round(kepalaTengah - wordmarkH / 2);
-  if (d.companyLogo) {
-    /*
-     * Kotaknya SELEBAR wordmark MARLIN, bukan lebih sempit (DECISIONS 424a).
-     *
-     * Versi pertama memakai 2,2× tinggi wordmark. Wordmark MARLIN sendiri
-     * hampir 4:1, jadi logo perusahaan yang juga memanjang dipaskan pada lebar
-     * yang jauh lebih sempit dan menyusut tinggal seperempatnya – persis yang
-     * dikeluhkan user. Memakai lebar yang sama tidak menambah risiko tabrakan:
-     * `logoKiri` (yang membatasi panel nama perusahaan) memang dihitung dari
-     * lebar itu.
-     *
-     * Tingginya dilonggarkan 1,25× supaya logo BUJUR SANGKAR juga terbaca, dan
-     * sisi atasnya dijepit ke marjin aman supaya kelonggaran itu tumbuh ke
-     * bawah, tidak keluar dari tepi foto.
-     */
-    const kotakH = Math.round(wordmarkH * 1.25);
-    const kotakY = Math.max(safeY, Math.round(kepalaTengah - kotakH / 2));
-    parts.push(
-      `<image x="${logoKiri}" y="${kotakY}" width="${wordmarkW}" height="${kotakH}" ` +
-        `preserveAspectRatio="xMaxYMid meet" href="${d.companyLogo}"/>`,
-    );
-  } else {
-    parts.push(marlinLogo(logoKiri, logoY, wordmarkW));
-  }
+  const logoH = d.companyLogo ? Math.round(wordmarkH * 1.25) : wordmarkH;
 
-  // ── Blok info (kiri-bawah) ──
+  // Panel BERHENTI sebelum logo. Tanpa batas ini nama perusahaan panjang
+  // menyelinap di bawah logo lalu keluar tepi foto – dan cap sudah terbakar
+  // ke gambar, jadi tidak ada kesempatan kedua memperbaikinya.
+  const maxPanelW = Math.max(w * 0.3, w - 2 * safeX - wordmarkW - Math.round(safeX * 0.6));
+  const co = d.companyName?.trim() ? fitPanel(d.companyName.trim(), maxPanelW, fsCoDasar) : null;
+  const panelW = co ? Math.round(panelTextW(co.text, co.fs) + panelChromeW(co.fs)) : 0;
+  const panelH = co ? Math.round(co.fs + 2 * Math.round(co.fs * 0.72)) : 0;
+
+  // ── Blok info ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
   const fsBadge = fs(0.017, 12);
   const fsLoc0 = fs(0.06, 26);
   const fsDate = fs(0.028, 18);
   const fsMeta = fs(0.021, 15);
 
-  const loc = fitLocation(d.locationName.trim() || "–", maxW, fsLoc0);
+  const loc =
+    d.locationName === null ? { lines: [] as string[], fs: fsLoc0 } : fitLocation(d.locationName.trim() || "–", maxW, fsLoc0);
   const metaLH = Math.round(fsMeta * 1.6);
   const iconSize = Math.round(fsMeta * 1.15);
   const metaRows: Array<{
@@ -331,57 +296,171 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const gapDateDiv = Math.round(base * 0.016);
   const gapDivMeta = Math.round(base * 0.014);
   const hasBadge = !!d.categoryName?.trim();
-  const workText = d.workName?.trim() || null;
   const fsWork = Math.round(fsBadge * 0.92);
   const workLineH = Math.round(fsWork * 1.28);
   const gapWork = Math.round(base * 0.006);
+
+  // Badge kategori. Lebarnya DIBATASI lebar aman foto; teksnya dikecilkan lalu
+  // dipotong bila perlu supaya pill tidak pernah melewati tepi (lihat fitBadge).
+  const maxBadgeW = w - 2 * safeX;
+  const badge = hasBadge ? fitBadge(d.categoryName!.trim().toUpperCase(), maxBadgeW, fsBadge) : null;
+  const badgePadH = badge ? Math.round(badge.fs * 0.95) : 0;
+  const badgeW = badge ? Math.min(maxBadgeW, Math.round(badgeTextW(badge.text, badge.fs) + 2 * badgePadH)) : 0;
+
+  // Item pekerjaan – dipotong dengan elipsis, TIDAK dipaksa selebar apa pun.
+  const workAsli = d.workName?.trim() || null;
+  let workText = workAsli;
+  if (workText) {
+    while (workText.length > 4 && badgeTextW(workText, fsWork) > maxBadgeW) workText = workText.slice(0, -2);
+    if (workText !== workAsli) workText = `${workText.trimEnd()}…`;
+  }
 
   const hasDate = d.dateTimeText != null && d.dateTimeText.trim() !== "";
   const total =
     (hasBadge ? badgeH + gapBadgeLoc : 0) +
     (workText ? workLineH + gapWork : 0) +
     loc.lines.length * locLineH +
-    gapLocDate +
+    (loc.lines.length > 0 ? gapLocDate : 0) +
     (hasDate ? dateH : 0) +
     gapDateDiv +
     2 +
     gapDivMeta +
     metaRows.length * metaLH;
 
-  let cy = h - safeY - total;
-  const x = safeX;
+  // Lebar isi blok (perkiraan) – hanya untuk memilih letak dan lebar bayangan
+  // setempat. Teks yang rata kanan di-anchor di tepi kanan, jadi perkiraan
+  // yang meleset tidak pernah membuatnya keluar foto.
+  const infoW = Math.min(
+    w - 2 * safeX,
+    Math.round(
+      Math.max(
+        badgeW,
+        workText ? badgeTextW(workText, fsWork) * 0.85 : 0,
+        ...loc.lines.map((l) => estWidth(l, loc.fs, true)),
+        hasDate ? estWidth(d.dateTimeText!, fsDate, false) : 0,
+        ...metaRows.map((r) => iconSize + fsMeta * 0.55 + estWidth(r.text + (r.boldTail ?? ""), fsMeta, !!r.boldTail)),
+      ),
+    ),
+  );
 
-  // Badge kategori. Lebarnya DIBATASI lebar aman foto; teksnya dikecilkan lalu
-  // dipotong bila perlu supaya pill tidak pernah melewati tepi (lihat fitBadge).
-  if (hasBadge) {
-    const cat = d.categoryName!.trim().toUpperCase();
-    const maxBadgeW = w - 2 * safeX;
-    const fit = fitBadge(cat, maxBadgeW, fsBadge);
-    const badgePadH = Math.round(fit.fs * 0.95);
-    const badgeW = Math.min(maxBadgeW, Math.round(badgeTextW(fit.text, fit.fs) + 2 * badgePadH));
-    parts.push(`<rect x="${x}" y="${cy}" width="${badgeW}" height="${badgeH}" rx="${Math.round(badgeH / 2)}" fill="${accent}"/>`);
+  // ── Pilih letak ──
+  const ukuran: UkuranCap = {
+    W: w,
+    H: h,
+    safeX,
+    safeY,
+    kepalaH: Math.max(tinggiPanel, logoH),
+    jarak: Math.round(base * 0.03),
+    info: { w: infoW, h: total },
+    logo: { w: wordmarkW, h: logoH },
+    panel: co ? { w: panelW, h: panelH } : null,
+  };
+  const tata = pilihTataLetak(ukuran, hindari);
+  const letak = letakUnsur(ukuran, tata);
+  const infoAtas = tata.tegak !== "bawah";
+  const kanan = tata.infoKanan;
+  const xKiri = safeX;
+  const xKanan = w - safeX;
+
+  // ── Bayangan keterbacaan di belakang blok info ──
+  //
+  // Selebar foto seperti semula – KECUALI ada tulisan lama di pita itu: di situ
+  // bayangan dipersempit ke belakang blok MARLIN saja dan memudar ke dalam,
+  // supaya cap aplikasi kamera di sebelahnya tidak ikut digelapkan.
+  const a = Math.max(0, Math.min(1, d.overlayAlpha));
+  const band = Math.round(h * (portrait ? 0.3 : 0.34));
+  // Di atas: bayangan dari tepi atas foto sampai sedikit melewati bawah blok,
+  // dan tetap PEKAT sepanjang blok – baris metadata (paling redup) ada di
+  // ujung bawahnya, persis di tempat bayangan mulai memudar.
+  const bawahInfo = letak.info.y + total;
+  const tinggiAtas = Math.min(h, Math.round(bawahInfo + Math.max(safeY * 2, total * 0.45)));
+  const pita = infoAtas ? { x: 0, y: 0, w, h: tinggiAtas } : { x: 0, y: h - band, w, h: band };
+  const setempat = adaTulisanDi(hindari, pita, w, h);
+  const idGrad = infoAtas ? "pga" : "pg";
+  let masker = "";
+  if (!setempat) {
+    parts.push(`<rect x="0" y="${pita.y}" width="${w}" height="${pita.h}" fill="url(#${idGrad})"/>`);
+  } else {
+    // Selebar blok + ruang pudar ke arah dalam foto; tepi luarnya menempel
+    // tepi foto supaya tidak ada garis tegas di sisi itu.
+    const pudar = Math.round(Math.max(safeX * 3, infoW * 0.4));
+    const lebar = Math.min(w, safeX + infoW + pudar);
+    const x0 = kanan ? w - lebar : 0;
+    const y0 = infoAtas ? 0 : Math.max(0, h - Math.round(total + safeY + total * 0.35));
+    const tinggi = infoAtas ? pita.h : h - y0;
+    const mulaiPudar = (1 - Math.min(0.9, pudar / lebar)).toFixed(3);
+    masker =
+      `<linearGradient id="pm" x1="${kanan ? 1 : 0}" y1="0" x2="${kanan ? 0 : 1}" y2="0">` +
+      `<stop offset="0" stop-color="#fff"/><stop offset="${mulaiPudar}" stop-color="#fff"/>` +
+      `<stop offset="1" stop-color="#000"/></linearGradient>` +
+      `<mask id="pmk" maskUnits="userSpaceOnUse" x="${x0}" y="${y0}" width="${lebar}" height="${tinggi}">` +
+      `<rect x="${x0}" y="${y0}" width="${lebar}" height="${tinggi}" fill="url(#pm)"/></mask>`;
+    parts.push(
+      `<rect x="${x0}" y="${y0}" width="${lebar}" height="${tinggi}" fill="url(#${idGrad})" mask="url(#pmk)"/>`,
+    );
+  }
+
+  // ── Kepala ──
+  // Garis tengah kepala; di bawah bila blok info pindah ke atas (`tukar`).
+  const kepalaDiBawah = tata.tegak === "tukar";
+  const kepalaTengah = kepalaDiBawah ? h - safeY - tinggiPanel / 2 : safeY + tinggiPanel / 2;
+  if (co) {
+    const fsCo = co.fs;
+    const padH = Math.round(fsCo * 0.95);
+    const barW = Math.max(4, Math.round(fsCo * 0.26));
+    const gap = Math.round(fsCo * 0.55);
+    const px = Math.round(letak.panel!.x);
+    const panelY = Math.round(kepalaTengah - panelH / 2);
+    const r = Math.round(panelH * 0.28);
+    parts.push(`<rect x="${px}" y="${panelY}" width="${panelW}" height="${panelH}" rx="${r}" fill="${PANEL_FILL}"/>`);
+    const barH = Math.round(fsCo * 1.05);
+    parts.push(
+      `<rect x="${px + padH}" y="${Math.round(panelY + (panelH - barH) / 2)}" width="${barW}" height="${barH}" rx="1" fill="${accent}"/>`,
+    );
+    parts.push(
+      `<text x="${px + padH + barW + gap}" y="${Math.round(panelY + panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" ${halo(fsCo)} fill="${TEXT_WHITE}">${esc(co.text)}</text>`,
+    );
+  }
+
+  const logoX = Math.round(letak.logo.x);
+  if (d.companyLogo) {
+    // Sisi luar kotak dijepit ke marjin aman supaya kelonggaran tinggi tumbuh
+    // ke dalam foto, tidak keluar dari tepinya.
+    const kotakY = kepalaDiBawah
+      ? Math.min(h - safeY - logoH, Math.round(kepalaTengah - logoH / 2))
+      : Math.max(safeY, Math.round(kepalaTengah - logoH / 2));
+    parts.push(
+      `<image x="${logoX}" y="${kotakY}" width="${wordmarkW}" height="${logoH}" ` +
+        `preserveAspectRatio="${tata.logoKiri ? "xMinYMid" : "xMaxYMid"} meet" href="${d.companyLogo}"/>`,
+    );
+  } else {
+    parts.push(marlinLogo(logoX, Math.round(kepalaTengah - wordmarkH / 2), wordmarkW));
+  }
+
+  // ── Blok info ──
+  // Rata kanan = cermin: teks di-anchor di tepi kanan, ikon di kanan teks.
+  let cy = Math.round(letak.info.y);
+  const anchor = kanan ? ` text-anchor="end"` : "";
+  const tx0 = kanan ? xKanan : xKiri;
+
+  if (badge) {
+    const bx = kanan ? xKanan - badgeW : xKiri;
+    parts.push(`<rect x="${bx}" y="${cy}" width="${badgeW}" height="${badgeH}" rx="${Math.round(badgeH / 2)}" fill="${accent}"/>`);
     // `textLength` = JAMINAN KERAS lebar teks: apa pun fontnya saat runtime,
     // teks dipaksa persis selebar bagian dalam pill, jadi tidak mungkin
     // meluber. Estimasi di atas hanya menentukan ukuran pill-nya.
     const innerW = Math.max(1, badgeW - 2 * badgePadH);
     parts.push(
-      `<text x="${x + badgePadH}" y="${cy + Math.round(badgeH / 2 + fit.fs * 0.35)}" textLength="${innerW}" lengthAdjust="spacingAndGlyphs" font-family="${ff}" font-weight="700" font-size="${fit.fs}" fill="${onAccent}">${esc(fit.text)}</text>`,
+      `<text x="${bx + badgePadH}" y="${cy + Math.round(badgeH / 2 + badge.fs * 0.35)}" textLength="${innerW}" lengthAdjust="spacingAndGlyphs" font-family="${ff}" font-weight="700" font-size="${badge.fs}" fill="${onAccent}">${esc(badge.text)}</text>`,
     );
     cy += badgeH + gapBadgeLoc;
   }
 
-  // Item pekerjaan – di bawah badge bangunan, sebelum nama lokasi. Dipotong
-  // dengan elipsis, TIDAK dipaksa selebar apa pun: ini kalimat, bukan pill.
+  // Item pekerjaan – di bawah badge bangunan, sebelum nama lokasi.
   if (workText) {
-    const maxW = w - 2 * safeX;
-    let teks = workText;
-    while (teks.length > 4 && badgeTextW(teks, fsWork) > maxW) {
-      teks = teks.slice(0, -2);
-    }
-    if (teks !== workText) teks = `${teks.trimEnd()}…`;
     cy += Math.round(fsWork * 0.9);
     parts.push(
-      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="600" font-size="${fsWork}" ${halo(fsWork)} fill="${TEXT_WHITE}">${esc(teks)}</text>`,
+      `<text x="${tx0}" y="${cy}"${anchor} font-family="${ff}" font-weight="600" font-size="${fsWork}" ${halo(fsWork)} fill="${TEXT_WHITE}">${esc(workText)}</text>`,
     );
     cy += workLineH - Math.round(fsWork * 0.9) + gapWork;
   }
@@ -390,54 +469,63 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   for (const line of loc.lines) {
     cy += Math.round(loc.fs * 0.82);
     parts.push(
-      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="700" font-size="${loc.fs}" letter-spacing="${(loc.fs * -0.02).toFixed(1)}" ${halo(loc.fs)} fill="${TEXT_WHITE}">${esc(line)}</text>`,
+      `<text x="${tx0}" y="${cy}"${anchor} font-family="${ff}" font-weight="700" font-size="${loc.fs}" letter-spacing="${(loc.fs * -0.02).toFixed(1)}" ${halo(loc.fs)} fill="${TEXT_WHITE}">${esc(line)}</text>`,
     );
     cy += locLineH - Math.round(loc.fs * 0.82);
   }
-  cy += gapLocDate;
+  if (loc.lines.length > 0) cy += gapLocDate;
 
   // Tanggal & waktu – dilewati bila cap "apa adanya" (tanpa tag waktu).
   if (hasDate) {
     cy += Math.round(fsDate * 0.85);
     const warnaTanggal = WARNA_CAP[d.timeTanda ?? "asli"];
     parts.push(
-      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${warnaTanggal}">${esc(d.dateTimeText!)}</text>`,
+      `<text x="${tx0}" y="${cy}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${warnaTanggal}">${esc(d.dateTimeText!)}</text>`,
     );
     cy += dateH - Math.round(fsDate * 0.85);
   }
   cy += gapDateDiv;
 
-  // Garis pemisah.
-  const divW = portrait ? maxW : Math.round(maxW * 0.9);
-  parts.push(`<rect x="${x}" y="${cy}" width="${divW}" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.22"/>`);
+  // Garis pemisah. Rata kanan: selebar isi blok, tidak sampai ke tengah foto.
+  const divW = kanan ? infoW : portrait ? maxW : Math.round(maxW * 0.9);
+  parts.push(
+    `<rect x="${kanan ? xKanan - divW : xKiri}" y="${cy}" width="${divW}" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.22"/>`,
+  );
   cy += 2 + gapDivMeta;
 
   // Metadata (ikon aksen + teks).
   for (const row of metaRows) {
-    parts.push(icon(row.ic, x, cy, iconSize, accent));
-    const tx = x + iconSize + Math.round(fsMeta * 0.55);
+    const ix = kanan ? xKanan - iconSize : xKiri;
+    parts.push(icon(row.ic, ix, cy, iconSize, accent));
+    const tx = kanan ? ix - Math.round(fsMeta * 0.55) : ix + iconSize + Math.round(fsMeta * 0.55);
     const ty = cy + Math.round(iconSize * 0.78);
     const warnaBaris = row.warna ?? TEXT_WHITE;
     if (row.boldTail) {
       parts.push(
-        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,
+        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,
       );
     } else {
       parts.push(
-        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${warnaBaris}">${esc(row.text)}</text>`,
+        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${warnaBaris}">${esc(row.text)}</text>`,
       );
     }
     cy += metaLH;
   }
 
-  const grad =
-    `<linearGradient id="pg" x1="0" y1="1" x2="0" y2="0">` +
+  const stops =
     `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${a.toFixed(3)}"/>` +
     `<stop offset="0.32" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
-    `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
-    `</linearGradient>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}${WORDMARK_DEFS}</defs>${parts.join("")}</svg>`;
+    `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>`;
+  // Atas: pekat sampai bawah blok info, lalu memudar di sisa pita.
+  const akhirBlok = Math.min(0.95, bawahInfo / Math.max(1, pita.h)).toFixed(3);
+  const grad = infoAtas
+    ? `<linearGradient id="pga" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
+      `<stop offset="${akhirBlok}" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
+      `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/></linearGradient>`
+    : `<linearGradient id="pg" x1="0" y1="1" x2="0" y2="0">${stops}</linearGradient>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}${masker}${WORDMARK_DEFS}</defs>${parts.join("")}</svg>`;
 }
 
 /**

@@ -4,6 +4,7 @@ import { r2GetBuffer } from "@/lib/r2";
 import { ensureFolderPath, GDriveError, uploadToDrive } from "./client";
 import { photoFileName, photoMimeFromKey, safeFileName } from "./folders";
 import { type GDriveUploadKind, type UploadOutcome } from "./parse";
+import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 export { summarize, type UploadOutcome } from "./parse";
 
@@ -188,7 +189,7 @@ export async function photoItems(
     i++;
     const { ext, mime } = photoMimeFromKey(p.r2Key);
     try {
-      const data = await r2GetBuffer(p.r2Key);
+      const data = await r2GetFotoBercap(p.r2Key);
       items.push({
         fileName: photoFileName({ ...naming, index: i, ext }),
         mime,

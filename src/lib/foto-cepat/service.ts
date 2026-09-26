@@ -9,7 +9,8 @@ import {
   stampDariNilai,
   type KonteksFoto,
 } from "@/lib/photo-restamp/service";
-import { processWithSharpOrOriginal } from "@/lib/photos";
+import { kotakTulisanUntuk, processWithSharpOrOriginal } from "@/lib/photos";
+import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { r2Delete, r2GetBuffer, r2Put } from "@/lib/r2";
 
 /**
@@ -45,6 +46,7 @@ export async function lengkapiCap(
   sebelum: KonteksFoto,
   actorId: string,
 ): Promise<HasilLengkapiCap> {
+  await pastikanFotoBercap([photoId]);
   const k = await konteksFoto(photoId);
   if (!k) return { ok: false, alasan: "Foto tidak ditemukan." };
   if (!k.originalKey) {
@@ -71,10 +73,11 @@ export async function lengkapiCap(
   };
 
   const original = await bacaBerkasAsli(k);
-  const processed = await processWithSharpOrOriginal(original, await stampDariNilai(baru), {
-    name: k.originalKey,
-    type: "",
-  });
+  const processed = await processWithSharpOrOriginal(
+    original,
+    { ...(await stampDariNilai(baru)), hindari: await kotakTulisanUntuk(photoId, original, k.kotakTulisan) },
+    { name: k.originalKey, type: "" },
+  );
 
   // Objek BARU ditulis dulu; yang lama dihapus hanya setelah DB berhasil —
   // kegagalan di tengah tidak boleh meninggalkan foto tanpa berkas.
@@ -104,6 +107,7 @@ export async function lengkapiCap(
           widthPx: processed.width,
           heightPx: processed.height,
           stampRevision: revisi,
+          stampPending: false,
         },
       });
       await tx.photoStampRevision.create({

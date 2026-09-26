@@ -61,6 +61,8 @@ allowBuilds:
   prisma: true
   sharp: true
   unrs-resolver: true
+  # hanya opencollective-postinstall (iklan donasi) — tidak dibutuhkan
+  tesseract.js: false
 minimumReleaseAgeExclude:
   - brace-expansion@1.1.18
   - brace-expansion@2.1.4

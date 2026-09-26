@@ -23,6 +23,7 @@ import {
   stampFooters,
   type PdfDoc,
 } from "./document";
+import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 /**
  * LAPORAN HARIAN — RINGKASAN. Dokumen bacaan untuk dikirim ke grup WhatsApp
@@ -223,7 +224,7 @@ export async function renderHarianRingkasPdf(
 }
 
 async function normalisasiFoto(r2Key: string): Promise<Buffer> {
-  const raw = await r2GetBuffer(r2Key);
+  const raw = await r2GetFotoBercap(r2Key);
   return sharp(raw)
     .rotate() // hormati orientasi EXIF
     .resize({ width: 1000, height: 1000, fit: "inside", withoutEnlargement: true })

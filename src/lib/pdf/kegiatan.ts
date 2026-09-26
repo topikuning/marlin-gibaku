@@ -2,7 +2,7 @@ import "server-only";
 import { tandaKoordinat, tandaWaktu, WARNA_PDF } from "@/lib/photo-stamp/tanda-nilai";
 import sharp from "sharp";
 import { db } from "@/lib/db";
-import { r2GetBuffer, isR2Configured } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { getBranding } from "@/lib/branding";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { FIELD_ACTIVITY_STATUS_LABEL } from "@/lib/field-activity/labels";
@@ -24,6 +24,7 @@ import {
   stampFooters,
   type PdfDoc,
 } from "@/lib/pdf/document";
+import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 /** Hasil render: PDF + metadata ringkas (untuk nama file & caption tanpa query ulang). DECISIONS 124. */
 export type KegiatanPdfResult = {
@@ -70,7 +71,7 @@ export type KegiatanPdfData = {
 
 /** Normalisasi 1 foto R2 → JPEG (rotasi EXIF, batasi dimensi) untuk ditanam ke PDF. */
 async function normalizePhoto(r2Key: string): Promise<Buffer> {
-  const raw = await r2GetBuffer(r2Key);
+  const raw = await r2GetFotoBercap(r2Key);
   return sharp(raw)
     .rotate() // hormati orientasi EXIF
     .resize({ width: 1100, height: 1100, fit: "inside", withoutEnlargement: true })
