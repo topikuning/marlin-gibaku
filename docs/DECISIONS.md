@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 622 | 2026-09-26 | Perbaikan cap membaca ulang berkas asli: tag bawaan & tata letak dinilai dengan aturan terbaru; menyimpan tanpa ketikan boleh bila aturan terbaru mengubah sesuatu; nilai yang diketik tetap menang |
 | 621 | 2026-09-26 | Cap: logo + panel perusahaan boleh berdampingan di satu sisi; baris tulisan di pita atas/bawah dianggap menempel ke tepi (logo tak terbaca OCR); lintasan OCR tulisan gelap hanya untuk letak; gradasi blok atas lebih tipis. Cap baku tidak berubah |
 | 620 | 2026-09-26 | Periksa penyimpanan R2 selesai pada bucket sungguhan: kunci di dalam JSON dipungut SATU kueri per kolom (bukan per kandidat × kolom), termasuk URL ber-encode dan JSON-dalam-teks; pembersihan hapus borongan 1.000 per permintaan |
 | 619 | 2026-09-26 | Cap MARLIN menyingkir dari cap aplikasi kamera: letak tulisan lama (OCR) disimpan per foto; dari 12 susunan dipilih yang paling sedikit menutupnya; bayangan setempat bila pitanya berisi tulisan lama; foto tanpa tulisan = tata letak lama persis |

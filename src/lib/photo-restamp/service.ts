@@ -107,6 +107,8 @@ export function ringkasNilai(v: NilaiCap): Record<string, unknown> {
     pelapor: v.reporterName,
     kategori: v.categoryName,
     photoId: v.photoId,
+    tagBawaanLokasi: v.tagBawaanLokasi ?? false,
+    tagBawaanWaktu: v.tagBawaanWaktu ?? false,
   };
 }
 

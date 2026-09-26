@@ -13,7 +13,7 @@ import {
   accessibleLocationIds,
 } from "@/lib/auth/session";
 import { isR2Configured, r2Delete, r2GetBuffer, r2Put } from "@/lib/r2";
-import { kotakTulisanFoto, kotakTulisanUntuk, processWithSharpOrOriginal } from "@/lib/photos";
+import { kotakTulisanFoto, processWithSharpOrOriginal, ringkasBukti, tagBawaanFoto } from "@/lib/photos";
 import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { parseCoordinatePair } from "@/lib/geo";
 import {
@@ -149,6 +149,24 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       if (val !== lama[key as keyof typeof teks]) manualFields.push(key);
     }
 
+    /*
+     * ── Aturan TERBARU (DECISIONS 622) ──
+     * Permintaan user 2026-09-26: *"perbaikan cap, seharusnya kamu memberikan
+     * sekalian auto layout ulang tag berdasarkan aturan baru kita"*. Tag bawaan
+     * dan letak tulisan dibaca ulang dari berkas asli setiap kali cap
+     * diperbaiki – bukan disalin dari keputusan lama, yang untuk foto sebelum
+     * 617/619 memang belum pernah dibuat. Gagal baca = keputusan lama dipakai.
+     */
+    const original = await bacaBerkasAsli(k);
+    const segar = await tagBawaanFoto(original, k.locationId);
+    const tagLokasi = segar ? segar.lokasi : (lama.tagBawaanLokasi ?? false);
+    const tagWaktu = segar ? segar.waktu : (lama.tagBawaanWaktu ?? false);
+    const kotak = segar ? segar.kotak : (k.kotakTulisan ?? []);
+    const aturanBerubah =
+      tagLokasi !== (lama.tagBawaanLokasi ?? false) ||
+      tagWaktu !== (lama.tagBawaanWaktu ?? false) ||
+      (kotak.length > 0 && JSON.stringify(kotak) !== JSON.stringify(k.kotakTulisan ?? []));
+
     const baru: NilaiCap = {
       // Item pekerjaan tidak bisa diketik ulang di dialog cap: ia identitas
       // baris laporan, bukan teks bebas.
@@ -167,21 +185,22 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       // mengisi koordinat/waktu secara sadar, tag-nya memang diminta tampil.
       stampPlain:
         lama.stampPlain && !manualFields.includes("koordinat") && !manualFields.includes("waktu"),
-      // Tag bawaan aplikasi kamera (DECISIONS 617) bertahan, kecuali unsurnya
-      // sengaja diisi manusia – yang diisi tangan memang diminta tampil.
-      tagBawaanLokasi: (lama.tagBawaanLokasi ?? false) && !manualFields.includes("koordinat"),
-      tagBawaanWaktu: (lama.tagBawaanWaktu ?? false) && !manualFields.includes("waktu"),
+      // Tag bawaan aplikasi kamera (DECISIONS 617, dinilai ulang 622), kecuali
+      // unsurnya sengaja diisi manusia – yang diisi tangan memang diminta tampil.
+      tagBawaanLokasi: tagLokasi && !manualFields.includes("koordinat"),
+      tagBawaanWaktu: tagWaktu && !manualFields.includes("waktu"),
     };
 
-    if (manualFields.length === 0) {
+    // Tanpa ketikan DAN aturan terbaru tidak mengubah apa pun = perbaikan kosong,
+    // yang cuma meninggalkan berkas lama di bucket.
+    if (manualFields.length === 0 && !aturanBerubah) {
       return { error: "Tidak ada yang berubah – ubah minimal satu nilai sebelum menyimpan." };
     }
 
     // ── Render ulang dari berkas ASLI ──
-    const original = await bacaBerkasAsli(k);
     const processed = await processWithSharpOrOriginal(
       original,
-      { ...(await stampDariNilai(baru)), hindari: await kotakTulisanUntuk(photoId, original, k.kotakTulisan) },
+      { ...(await stampDariNilai(baru)), hindari: kotak },
       { name: k.originalKey, type: "" },
     );
 
@@ -221,6 +240,12 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
             stampPlain: baru.stampPlain,
             existingTagLocation: baru.tagBawaanLokasi ?? false,
             existingTagTime: baru.tagBawaanWaktu ?? false,
+            ...(segar
+              ? {
+                  existingTagEvidence: segar.lokasi || segar.waktu ? ringkasBukti(segar) : null,
+                  textBoxes: segar.kotak,
+                }
+              : {}),
             stampRevision: revisi,
             stampPending: false,
           },
@@ -254,7 +279,11 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
 
     revalidatePath("/foto");
     if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
-    return { ok: `Cap diperbaiki (revisi ${revisi}). Nilai yang diketik manual ditandai di foto.` };
+    return {
+      ok:
+        `Cap diperbaiki (revisi ${revisi}), disusun dengan aturan terbaru.` +
+        (manualFields.length > 0 ? " Nilai yang diketik manual ditandai di foto." : ""),
+    };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Perbaikan cap gagal." };
