@@ -146,7 +146,7 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
         <Card>
           <CardHeader
             title="Nilai baru"
-            subtitle="Sudah diisi hasil ambil-ulang dari data terkini. Ubah seperlunya."
+            subtitle="Sudah diisi hasil ambil-ulang dari data terkini. Ubah seperlunya. Saat disimpan, tag bawaan dan tata letak cap ikut disusun ulang dengan aturan terbaru."
           />
           <CardBody>
             {bisaDiperbaiki ? (

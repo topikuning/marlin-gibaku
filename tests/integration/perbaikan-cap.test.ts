@@ -508,3 +508,50 @@ it("audit: restamp menjaga foto kegiatan yang dirujuk paparan beku", async () =>
     expect((await db.aiArtifact.findUniqueOrThrow({where:{id:artifact.id}})).structuredContent).toEqual({snapshot});
   } finally { await db.aiArtifact.delete({where:{id:artifact.id}}); }
 });
+
+// DECISIONS 622 – permintaan user 2026-09-26: *"perbaikan cap, seharusnya kamu
+// memberikan sekalian auto layout ulang tag berdasarkan aturan baru kita"*.
+// Foto yang diunggah sebelum 617/619 belum pernah dinilai: tag bawaannya
+// tercatat "tidak ada" dan letak tulisannya kosong. Perbaikan cap membaca
+// ulang berkas asli dengan aturan TERBARU, walau tidak ada nilai yang diketik.
+describe("perbaikan cap memakai aturan terbaru", () => {
+  it("foto lama ber-cap kamera: tag & letak dinilai ulang tanpa perlu mengetik apa pun", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sharp = (await import("sharp")).default;
+    const dasar = readFileSync(new URL("../fixtures/IMG20260801WA0035.jpg", import.meta.url));
+    const cap = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="901">` +
+        `<rect x="30" y="700" width="560" height="150" fill="black" fill-opacity="0.45"/>` +
+        `<g font-family="DejaVu Sans" font-size="30" fill="white">` +
+        `<text x="45" y="745">25/09/2026 09:02</text>` +
+        `<text x="45" y="785">Lat -6.8116 Long 108.8037</text>` +
+        `<text x="45" y="825">Kec. Losari, Kab. Brebes</text></g></svg>`,
+    );
+    const asli = await sharp(dasar).composite([{ input: cap }]).jpeg({ quality: 88 }).toBuffer();
+    const id = await buatFoto();
+    const p0 = await db.photo.findUniqueOrThrow({ where: { id }, select: { originalKey: true } });
+    bucket.set(p0.originalKey!, asli);
+    fotoId = id;
+
+    const lok = await db.location.findUniqueOrThrow({ where: { id: locId }, select: { name: true } });
+    // Form dikirim apa adanya – nilai yang SEDANG berlaku, tanpa diketik ulang.
+    const res = await restampPhotoAction(
+      undefined,
+      fdRestamp({
+        lat: "-6.847202",
+        lng: "108.8789",
+        locationLabel: lok.name,
+        companyName: `Org PC ${suffix}`,
+        reporterName: "Aktor",
+        categoryName: "Peninjauan Lapangan Bersama",
+      }),
+    );
+    expect(res?.error).toBeUndefined();
+    const p = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { existingTagLocation: true, existingTagTime: true, textBoxes: true, stampRevision: true },
+    });
+    expect(p).toMatchObject({ existingTagLocation: true, existingTagTime: true, stampRevision: 1 });
+    expect(Array.isArray(p.textBoxes) && p.textBoxes.length).toBeGreaterThan(0);
+  }, 60_000);
+});
