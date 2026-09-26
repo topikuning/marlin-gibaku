@@ -386,23 +386,15 @@ export type BersihkanR2State = { error?: string; success?: string } | undefined;
  */
 export async function bersihkanPenyimpananAction(): Promise<BersihkanR2State> {
   const actor = await requireCapability("system.manage");
-  const { isR2Configured, r2Delete } = await import("@/lib/r2");
+  const { isR2Configured, r2HapusBanyak } = await import("@/lib/r2");
   if (!isR2Configured()) return { error: "R2 belum dikonfigurasi." };
 
   const { kunciYatim } = await import("@/lib/r2-audit");
   const yatim = [...(await kunciYatim())];
   if (yatim.length === 0) return { success: "Tidak ada yang perlu dibersihkan." };
 
-  let terhapus = 0;
-  const gagal: string[] = [];
-  for (const k of yatim) {
-    try {
-      await r2Delete(k);
-      terhapus++;
-    } catch {
-      gagal.push(k);
-    }
-  }
+  // Borongan 1000 per permintaan – satu per satu melewati batas waktu (DECISIONS 620).
+  const { terhapus, gagal } = await r2HapusBanyak(yatim);
   await audit(actor.id, "system.r2_cleanup", "system", null, {
     yatimSaatItu: yatim.length,
     terhapus,

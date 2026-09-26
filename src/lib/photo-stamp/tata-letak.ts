@@ -33,11 +33,31 @@ export type PetaTulisan = { sel: Uint8Array; kosong: boolean };
  */
 const BARIS_PITA = 0.4;
 
+/**
+ * Tulisan di pita atas/bawah foto hampir selalu bagian dari cap yang MENEMPEL
+ * ke tepi: deretan logo di atas nama BUMN, latar gelap di bawah alamat. Logo
+ * tidak terbaca OCR, jadi daerah antara tulisan itu dan tepi terdekat ikut
+ * dianggap terisi, sedikit melebar ke samping (DECISIONS 619a – foto
+ * 2026-09-26: panel nama perusahaan menutupi deretan logo di atas "VIRAMA").
+ */
+const PITA_TEPI = 0.25;
+const LEBAR_TEPI = 0.06;
+/** Hanya BARIS tulisan (≥8% lebar foto) – satu kata nyasar tidak ditempelkan. */
+const LEBAR_BARIS_MIN = 0.08;
+
+function tempelKeTepi(k: KotakTulisan): KotakTulisan {
+  const tengah = k.y + k.h / 2;
+  if (k.w < LEBAR_BARIS_MIN || (tengah > PITA_TEPI && tengah < 1 - PITA_TEPI)) return k;
+  const x = Math.max(0, k.x - LEBAR_TEPI);
+  const w = Math.min(1, k.x + k.w + LEBAR_TEPI) - x;
+  return tengah <= PITA_TEPI ? { x, y: 0, w, h: k.y + k.h } : { x, y: k.y, w, h: 1 - k.y };
+}
+
 export function petaTulisan(kotak: KotakTulisan[]): PetaTulisan {
   const sel = new Uint8Array(N * N);
   let kosong = true;
   for (const asli of kotak) {
-    const k = asli.w >= BARIS_PITA ? { ...asli, x: 0, w: 1 } : asli;
+    const k = tempelKeTepi(asli.w >= BARIS_PITA ? { ...asli, x: 0, w: 1 } : asli);
     const x0 = Math.max(0, Math.floor(k.x * N));
     const y0 = Math.max(0, Math.floor(k.y * N));
     const x1 = Math.min(N, Math.ceil((k.x + k.w) * N));
@@ -81,6 +101,11 @@ export type TataLetak = {
   infoKanan: boolean;
   /** Logo di kiri, panel nama perusahaan di kanan (kebalikan tata letak lama). */
   logoKiri: boolean;
+  /**
+   * Logo dan panel perusahaan BERDAMPINGAN di sisi logo – sisi seberangnya
+   * dibiarkan kosong untuk cap/logo lama (DECISIONS 619a).
+   */
+  kepalaRapat?: boolean;
 };
 
 export type UkuranCap = {
@@ -111,7 +136,16 @@ export function letakUnsur(u: UkuranCap, t: TataLetak) {
         : u.safeY;
   const infoX = t.infoKanan ? u.W - u.safeX - u.info.w : u.safeX;
   const logoX = t.logoKiri ? u.safeX : u.W - u.safeX - u.logo.w;
-  const panelX = u.panel ? (t.logoKiri ? u.W - u.safeX - u.panel.w : u.safeX) : 0;
+  const celah = Math.round(u.safeX * 0.6);
+  const panelX = !u.panel
+    ? 0
+    : t.kepalaRapat
+      ? t.logoKiri
+        ? u.safeX + u.logo.w + celah
+        : u.W - u.safeX - u.logo.w - celah - u.panel.w
+      : t.logoKiri
+        ? u.W - u.safeX - u.panel.w
+        : u.safeX;
   return {
     kepalaY,
     info: { x: infoX, y: infoY, w: u.info.w, h: u.info.h },
@@ -125,7 +159,7 @@ export function letakUnsur(u: UkuranCap, t: TataLetak) {
  * satu-dua kata nyasar hasil OCR (tekstur rumput, papan kecil) tidak
  * memindahkan cap: yang layak dihindari adalah blok tulisan sungguhan.
  */
-const HARGA = { atas: 0.05, tukar: 0.04, infoKanan: 0.03, logoKiri: 0.02 };
+const HARGA = { atas: 0.05, tukar: 0.04, infoKanan: 0.03, logoKiri: 0.02, kepalaRapat: 0.03 };
 
 const perluas = (r: Persegi, d: number): Persegi => ({ x: r.x - d, y: r.y - d, w: r.w + 2 * d, h: r.h + 2 * d });
 
@@ -139,21 +173,25 @@ export function pilihTataLetak(u: UkuranCap, kotak: KotakTulisan[]): TataLetak {
     // `atas` hanya kalau kepala + blok info muat di tinggi foto.
     if (tegak === "atas" && u.safeY + u.kepalaH + u.jarak + u.info.h > u.H - u.safeY) continue;
     for (const infoKanan of [false, true])
-      for (const logoKiri of [false, true]) {
-        const t: TataLetak = { tegak, infoKanan, logoKiri };
-        const l = letakUnsur(u, t);
-        const skor =
-          tutupan(peta, perluas(l.info, tepi), u.W, u.H) +
-          tutupan(peta, perluas(l.logo, tepi), u.W, u.H) +
-          (l.panel ? 0.8 * tutupan(peta, perluas(l.panel, tepi), u.W, u.H) : 0) +
-          (tegak === "atas" ? HARGA.atas : tegak === "tukar" ? HARGA.tukar : 0) +
-          (infoKanan ? HARGA.infoKanan : 0) +
-          (logoKiri ? HARGA.logoKiri : 0);
-        if (skor < skorTerbaik - 1e-9) {
-          skorTerbaik = skor;
-          terbaik = t;
+      for (const logoKiri of [false, true])
+        for (const kepalaRapat of [false, true]) {
+          // Berdampingan hanya kalau keduanya muat di lebar aman foto.
+          if (kepalaRapat && (!u.panel || u.logo.w + u.panel.w + u.safeX * 0.6 > u.W - 2 * u.safeX)) continue;
+          const t: TataLetak = kepalaRapat ? { tegak, infoKanan, logoKiri, kepalaRapat } : { tegak, infoKanan, logoKiri };
+          const l = letakUnsur(u, t);
+          const skor =
+            tutupan(peta, perluas(l.info, tepi), u.W, u.H) +
+            tutupan(peta, perluas(l.logo, tepi), u.W, u.H) +
+            (l.panel ? 0.8 * tutupan(peta, perluas(l.panel, tepi), u.W, u.H) : 0) +
+            (tegak === "atas" ? HARGA.atas : tegak === "tukar" ? HARGA.tukar : 0) +
+            (infoKanan ? HARGA.infoKanan : 0) +
+            (logoKiri ? HARGA.logoKiri : 0) +
+            (kepalaRapat ? HARGA.kepalaRapat : 0);
+          if (skor < skorTerbaik - 1e-9) {
+            skorTerbaik = skor;
+            terbaik = t;
+          }
         }
-      }
   }
   return terbaik;
 }

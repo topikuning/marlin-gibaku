@@ -40,8 +40,11 @@ describe("pembersihan penyimpanan R2", () => {
     const badan = aksi.slice(aksi.indexOf("bersihkanPenyimpananAction"));
     expect(badan).toContain("kunciYatim");
     // Urutannya penting: hitung dulu, baru hapus. Yang dibandingkan PEMANGGILAN
-    // `r2Delete(k)`, bukan barisnya di-import (import selalu lebih dulu).
-    expect(badan.indexOf("await kunciYatim()")).toBeLessThan(badan.indexOf("await r2Delete(k)"));
+    // penghapusnya, bukan barisnya di-import (import selalu lebih dulu).
+    // Sejak DECISIONS 620 penghapusnya borongan: `r2HapusBanyak(yatim)`.
+    const hapus = badan.indexOf("await r2HapusBanyak(yatim)");
+    expect(hapus).toBeGreaterThan(-1);
+    expect(badan.indexOf("await kunciYatim()")).toBeLessThan(hapus);
   });
 
   it("penghapusan dijaga capability + dicatat audit", () => {
