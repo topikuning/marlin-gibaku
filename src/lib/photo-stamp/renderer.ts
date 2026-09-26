@@ -500,13 +500,16 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     const tx = kanan ? ix - Math.round(fsMeta * 0.55) : ix + iconSize + Math.round(fsMeta * 0.55);
     const ty = cy + Math.round(iconSize * 0.78);
     const warnaBaris = row.warna ?? TEXT_WHITE;
+    // Bayangan teks hanya saat tata letaknya menyesuaikan cap lama: di situ
+    // latarnya lebih tipis. Cap baku tetap persis seperti semula.
+    const haloMeta = infoAtas || setempat ? ` ${halo(fsMeta)}` : "";
     if (row.boldTail) {
       parts.push(
-        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,
+        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}"${haloMeta} fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,
       );
     } else {
       parts.push(
-        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${warnaBaris}">${esc(row.text)}</text>`,
+        `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}"${haloMeta} fill="${warnaBaris}">${esc(row.text)}</text>`,
       );
     }
     cy += metaLH;
@@ -517,12 +520,14 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="0.32" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>`;
-  // Atas: pekat sampai bawah blok info, lalu memudar di sisa pita.
+  // Atas: memudar dari tepi atas sampai sedikit melewati blok info. Lebih
+  // tipis dari bayangan bawah (user 2026-09-26: *"gradient hitamnya terlalu
+  // pekat pada informasi pekerjaan"*) – keterbacaannya dibantu bayangan teks.
   const akhirBlok = Math.min(0.95, bawahInfo / Math.max(1, pita.h)).toFixed(3);
   const grad = infoAtas
     ? `<linearGradient id="pga" x1="0" y1="0" x2="0" y2="1">` +
-      `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
-      `<stop offset="${akhirBlok}" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
+      `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.62).toFixed(3)}"/>` +
+      `<stop offset="${akhirBlok}" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.38).toFixed(3)}"/>` +
       `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/></linearGradient>`
     : `<linearGradient id="pg" x1="0" y1="1" x2="0" y2="0">${stops}</linearGradient>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}${masker}${WORDMARK_DEFS}</defs>${parts.join("")}</svg>`;

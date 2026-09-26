@@ -30,10 +30,17 @@ import type { KotakTulisan } from "@/lib/photo-stamp/tata-letak";
 type Worker = Awaited<ReturnType<(typeof import("tesseract.js"))["createWorker"]>>;
 
 /** Ambang terang (0..255) × lebar baca — hasil uji 2026-09-25, lihat atas. */
-const LINTASAN: { ambang: number; lebar: number }[] = [
+const LINTASAN: { ambang: number; lebar: number; gelap?: true }[] = [
   { ambang: 200, lebar: 1400 },
   { ambang: 185, lebar: 2200 },
   { ambang: 215, lebar: 1400 },
+  /*
+   * Tulisan GELAP/berwarna (nama BUMN biru di bawah deretan logo, mis. foto
+   * 2026-09-26 "PT AGRINAS JALADRI NUSANTARA") – DECISIONS 619a. Hanya dipakai
+   * untuk LETAK, tidak pernah untuk menilai tag bawaan: papan proyek bertulisan
+   * gelap sering memuat tanggal kontrak + alamat, dan itu bukan cap.
+   */
+  { ambang: 90, lebar: 1400, gelap: true },
 ];
 /** Kata dengan keyakinan di bawah ini dibuang — sisa tekstur foto. */
 const KEYAKINAN_MIN = 60;
@@ -87,21 +94,20 @@ async function bacaSekali(gambar: Buffer): Promise<TulisanFoto> {
   const baris: string[] = [];
   const kotak: KotakTulisan[] = [];
   for (const l of LINTASAN) {
-    const { data: png, info } = await sharp(gambar)
+    const pipa = sharp(gambar)
       .rotate()
       .resize({ width: l.lebar, height: l.lebar, fit: "inside", withoutEnlargement: true })
       .grayscale()
-      .threshold(l.ambang)
-      .negate()
-      .png()
-      .toBuffer({ resolveWithObject: true });
+      .threshold(l.ambang);
+    // Terang → dibalik jadi tulisan hitam di atas putih; lintasan gelap sudah begitu.
+    const { data: png, info } = await (l.gelap ? pipa : pipa.negate()).png().toBuffer({ resolveWithObject: true });
     const { data } = await w.recognize(png, {}, { blocks: true });
     for (const b of data.blocks ?? [])
       for (const p of b.paragraphs)
         for (const ln of p.lines) {
           const kata = ln.words.filter((k) => k.confidence >= KEYAKINAN_MIN);
           if (!kata.length) continue;
-          baris.push(kata.map((k) => k.text).join(" "));
+          if (!l.gelap) baris.push(kata.map((k) => k.text).join(" "));
           // Letak: hanya kata yang cukup yakin DAN berisi ≥2 huruf/angka –
           // satu-dua "kata" dari tekstur tidak boleh memindahkan cap.
           const nyata = kata.filter((k) => (k.text.match(/[\p{L}\p{N}]/gu) ?? []).length >= 2);

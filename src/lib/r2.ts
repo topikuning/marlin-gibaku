@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -81,6 +82,33 @@ export async function r2List(
 
 export async function r2Delete(key: string): Promise<void> {
   await r2().send(new DeleteObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
+}
+
+/**
+ * Hapus banyak obyek – 1000 per permintaan (batas DeleteObjects). Menghapus
+ * satu per satu membuat pembersihan ribuan obyek yatim melewati batas waktu
+ * satu permintaan (DECISIONS 620). Yang gagal dikembalikan, tidak dilempar.
+ */
+export async function r2HapusBanyak(keys: string[]): Promise<{ terhapus: number; gagal: string[] }> {
+  let terhapus = 0;
+  const gagal: string[] = [];
+  for (let i = 0; i < keys.length; i += 1000) {
+    const potong = keys.slice(i, i + 1000);
+    try {
+      const res = await r2().send(
+        new DeleteObjectsCommand({
+          Bucket: env.r2!.bucket,
+          Delete: { Objects: potong.map((Key) => ({ Key })), Quiet: true },
+        }),
+      );
+      const galat = new Set((res.Errors ?? []).map((e) => e.Key).filter((k): k is string => !!k));
+      terhapus += potong.length - galat.size;
+      gagal.push(...galat);
+    } catch {
+      gagal.push(...potong);
+    }
+  }
+  return { terhapus, gagal };
 }
 
 export type R2SelfTestStep = { step: string; ok: boolean; detail?: string };

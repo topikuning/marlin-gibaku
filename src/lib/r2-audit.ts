@@ -163,18 +163,46 @@ function cukupTua(o: R2Obyek): boolean {
 }
 
 /**
+ * Semua kemungkinan kunci dari satu teks di dalam JSON: dipotong di setiap "/"
+ * (kunci di dalam URL), tanpa query string, per potongan spasi/garis miring
+ * terbalik/kutip (JSON yang disimpan sebagai teks), dan versi ter-decode-nya
+ * (URL ber-presign).
+ * Jaringnya sengaja lebar – yang terlalu banyak cuma menyisakan sampah.
+ */
+export function calonKunciDariTeks(teks: string, ke: Set<string>): void {
+  const tambah = (t: string) => {
+    for (let i = 0; i < t.length; i++) if (i === 0 || t[i - 1] === "/") ke.add(t.slice(i));
+  };
+  const tanpaQuery = teks.split(/[?#]/)[0] ?? "";
+  const varian = [tanpaQuery];
+  try {
+    const d = decodeURIComponent(tanpaQuery);
+    if (d !== tanpaQuery) varian.push(d);
+  } catch {
+    // Bukan teks ter-encode – cukup versi aslinya.
+  }
+  for (const v of varian) {
+    tambah(v);
+    for (const potong of v.split(/[\s\\"'(),<>]+/)) if (potong && potong !== v) tambah(potong);
+  }
+}
+
+/**
  * Buang kandidat yang kuncinya ternyata hidup DI DALAM kolom JSON.
  *
  * 23 kolom json/jsonb di skema tidak terlihat oleh pemindaian kolom teks, dan
  * satu di antaranya TERBUKTI memuat kunci R2: `daily_reports.final_snapshot`
  * membekukan `r2Key` tiap foto (lihat `daily-report/ringkas.ts`). Snapshot itu
- * dokumen resmi yang dicetak — kalau baris fotonya sudah tidak ada sementara
+ * dokumen resmi yang dicetak – kalau baris fotonya sudah tidak ada sementara
  * kuncinya masih dirujuk di sana, aturan lama menyebutnya sampah lalu
  * menghapus gambar dari laporan yang sudah final.
  *
- * Yang diadu hanya KANDIDAT yatim (biasanya sedikit) terhadap isi JSON, bukan
- * seluruh kunci bucket — mengadu semuanya membuat pemeriksaan 10 GB tidak
- * pernah selesai dalam satu permintaan.
+ * SATU kueri per kolom JSON (DECISIONS 620): Postgres memungut setiap nilai teks
+ * JSON yang mengandung "/", lalu pencocokannya di memori. Versi sebelumnya menjalankan
+ * satu kueri per KANDIDAT per kolom – ribuan kandidat × dua puluhan kolom =
+ * puluhan ribu pemindaian tabel, dan tombol "Periksa penyimpanan" berhenti
+ * dengan "unexpected response" karena melewati batas waktu. Versi itu juga
+ * tidak mengenali kunci yang tertulis sebagai URL ber-encode.
  */
 async function saringDipakaiDiJson(kandidat: R2Obyek[]): Promise<R2Obyek[]> {
   if (kandidat.length === 0) return kandidat;
@@ -186,22 +214,21 @@ async function saringDipakaiDiJson(kandidat: R2Obyek[]): Promise<R2Obyek[]> {
   `;
   const dipakaiDiJson = new Set<string>();
   for (const k of kolom) {
-    // Satu kueri per kolom, memakai indeks apa adanya: yang ditanyakan cuma
-    // "apakah teks ini muncul", jadi `position()` sudah cukup dan tidak menarik
-    // seluruh isi JSON ke memori aplikasi.
-    for (const o of kandidat) {
-      if (dipakaiDiJson.has(o.key)) continue;
-      const [{ ada }] = await db.$queryRawUnsafe<{ ada: boolean }[]>(
-        `SELECT EXISTS (SELECT 1 FROM "${k.table_name}" WHERE "${k.column_name}"::text LIKE $1) AS ada`,
-        `%${o.key}%`,
-      );
-      if (ada) dipakaiDiJson.add(o.key);
-    }
+    // Nama tabel & kolom datang dari information_schema, bukan dari input orang.
+    // Setiap nilai TEKS di mana pun di dalam dokumen (bertingkat sedalam apa
+    // pun) yang mengandung "/" – dibaca sebagai nilai JSON, bukan dipotong dari
+    // teksnya, supaya tanda kutip ber-escape tidak menggeser apa pun.
+    const rows = await db.$queryRawUnsafe<{ v: string }[]>(
+      `SELECT DISTINCT n #>> '{}' AS v FROM "${k.table_name}", ` +
+        `LATERAL jsonb_path_query("${k.column_name}"::jsonb, 'strict $.** ? (@.type() == "string" && @ like_regex "/")') AS n ` +
+        `WHERE "${k.column_name}" IS NOT NULL`,
+    );
+    for (const r of rows) if (r.v) calonKunciDariTeks(r.v, dipakaiDiJson);
   }
   return kandidat.filter((o) => !dipakaiDiJson.has(o.key));
 }
 
-/** Kunci yatim SAAT INI — dihitung ulang, tidak pernah dipercaya dari klien. */
+/** Kunci yatim SAAT INI – dihitung ulang, tidak pernah dipercaya dari klien. */
 export async function kunciYatim(): Promise<Set<string>> {
   const { obyek } = await r2List();
   const { kunci } = await kunciDirujuk();
@@ -214,7 +241,7 @@ export async function auditR2(): Promise<HasilAuditR2> {
    * URUTANNYA MENENTUKAN KEBENARAN, bukan sekadar gaya. Daftar obyek dibaca
    * DULU, rujukan DB SESUDAHNYA: apa pun yang diunggah selama pemeriksaan
    * berjalan pasti tertangkap bacaan DB yang belakangan. `Promise.all`
-   * memberangkatkan keduanya bersamaan — di situ foto yang masuk tepat di
+   * memberangkatkan keduanya bersamaan – di situ foto yang masuk tepat di
    * tengah pemeriksaan bisa sudah ada di daftar obyek tapi belum ada di bacaan
    * DB, lalu terbaca yatim. Itu bentuk lamanya.
    */

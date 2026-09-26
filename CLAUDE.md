@@ -130,10 +130,12 @@ atau `impact_and_risk`; uji yang harus dijalankan → `graphify_tests_for`;
 "bagaimana X bekerja" → `query_graph`. Grep/Read hanya untuk teks literal,
 komentar, berkas non-kode, dan berkas yang sudah ditemukan.
 
-Batasnya: yang diindeks **`main`** (diperbarui ±5 menit setiap push ke `main`;
-`freshness.commit` di tiap jawaban menyebut commit-nya). Kode yang baru ada di
-`dev` belum tampak – untuk itu, dan untuk baris yang benar-benar akan diubah,
-berkasnya tetap dibaca langsung.
+Yang diindeks cabang **`dev`**, diperbarui beberapa menit setelah tiap push
+(`freshness.commit` di tiap jawaban menyebut commit-nya). Perubahan yang belum
+di-push belum tampak; baris yang benar-benar akan diubah tetap dibaca langsung.
+Peta ujinya bisa bolong: `graphify_tests_for` tidak menemukan uji yang hanya
+membaca berkas sebagai teks (mis. `tests/unit/penyimpanan-r2.test.ts`) – sebelum
+mengubah perilaku, cari juga nama berkasnya di `tests/`.
 
 ## Stack (pinned exact — lihat docs/rebuild/TECHNOLOGY_AUDIT.md)
 
