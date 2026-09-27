@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
-import { berbentukCco, deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
+import { berbentukCco, deteksiCco, hitungPerubahan, KOLOM_HARGA_TURUNAN } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -250,6 +250,11 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   priceSource: PriceSource;
   /** Nama blok harga yang DILEWATI karena kolomnya disembunyikan. */
   blokTersembunyi: string[];
+  /**
+   * Tidak ada judul VOL/SAT sama sekali – kolom = posisi bawaan (E/F/G/H).
+   * Itu TEBAKAN; kalau tidak terbukti, layar bertanya (DECISIONS 624).
+   */
+  tebakan?: boolean;
 } {
   const classic: ColMap = { vol: 5, unit: 6, price: 7, amount: 8, tkdn: 9 };
   /* Kolom tersembunyi DICORET dari seluruh pemilihan peran, bukan cuma dari
@@ -270,7 +275,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
       break;
     }
   }
-  if (!mainRow) return { col: classic, usedNego: false, priceSource: "hps", blokTersembunyi: [] };
+  if (!mainRow) return { col: classic, usedNego: false, priceSource: "hps", blokTersembunyi: [], tebakan: true };
 
   const head = labelsOf(mainRow);
   const below = labelsOf(ws.getRow(mainRow.number + 1));
@@ -574,6 +579,11 @@ export type ParseHpsResult = {
    * pun kalimat di layar yang memungkinkan orang menyadarinya.
    */
   sheetName: string;
+  /**
+   * Sheet yang bisa dipilih + kolom terlihat + kolom yang dipakai – supaya
+   * layar bisa MENANYAKAN/mengganti keduanya (DECISIONS 624).
+   */
+  pilihan?: PilihanBaca;
 };
 
 /**
@@ -629,8 +639,210 @@ function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
   return pesanSheetTakAdaDariNama(wb.worksheets.map((w) => w.name));
 }
 
-export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHpsResult> {
+/**
+ * KOLOM YANG DIPILIH USER (DECISIONS 624).
+ *
+ * Teguran user 2026-09-27: *"kenapa kamu tidak lempar pertanyaan ke user? sheet
+ * mana yang dipakai ambil dari kolom mana, begitu kan lebih jelas. daripada
+ * error gak jelas!"*. Nomor kolom 1-based. `price` null = harga satuan dihitung
+ * dari jumlah ÷ volume per baris.
+ */
+export type KolomManual = { vol: number; unit: number; price: number | null; amount: number };
+
+export type OpsiBaca = { sheet?: string; kolom?: KolomManual };
+
+/** Satu kolom TERLIHAT di sheet: huruf, judul (gabungan baris header), contoh isi. */
+export type KolomBerkas = { kolom: number; huruf: string; label: string; contoh: string[] };
+
+/** Bahan pertanyaan ke user saat MARLIN tidak yakin membaca berkasnya. */
+export type PilihanBaca = {
+  /** Sheet yang terlihat, urut sesuai berkas. */
+  sheets: string[];
+  sheet: string;
+  kolom: KolomBerkas[];
+  /** Kolom yang dipakai / diusulkan MARLIN; null = tidak ada usulan. */
+  usulan: KolomManual | null;
+};
+
+/** Pembacaan tidak bisa dipastikan → layar BERTANYA, bukan menampilkan galat. */
+export class ImporPerluJawaban extends Error {
+  constructor(
+    public readonly sebab: string,
+    public readonly pilihan: PilihanBaca,
+  ) {
+    super(sebab);
+    this.name = "ImporPerluJawaban";
+  }
+}
+
+function tampilSel(v: unknown): string {
+  const n = typeof v === "number" ? v : typeof v === "object" && v && "result" in v ? (v as { result: unknown }).result : v;
+  if (typeof n === "number") return n.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+  return str(n).slice(0, 24);
+}
+
+/**
+ * Ringkasan kolom TERLIHAT untuk dipilih user: judul dari baris-baris header
+ * (grup + sub-header) dan tiga contoh isi. Kolom tersembunyi tidak ditawarkan
+ * (DECISIONS 604).
+ */
+export function ringkasKolom(ws: ExcelJS.Worksheet): KolomBerkas[] {
+  const sembunyi = kolomTersembunyi(ws);
+  let h = 0;
+  for (let rn = 1; rn <= Math.min(60, ws.rowCount) && !h; rn++) {
+    const L = labelsOf(ws.getRow(rn));
+    if (L.some((l) => /^VOL/.test(l)) && L.some((l) => /^SAT/.test(l))) h = rn;
+  }
+  if (!h) {
+    for (let rn = 1; rn <= Math.min(60, ws.rowCount) && !h; rn++) {
+      const L = labelsOf(ws.getRow(rn));
+      if (L.filter((l) => l && !/^[\d.,\s-]+$/.test(l)).length >= 3) h = rn;
+    }
+  }
+  if (!h) h = 1;
+  // Sub-header 1–2 baris di bawah judul utama (VOLUME · JUMLAH HARGA · BOBOT …)
+  // masih judul; baris sesudahnya data.
+  let akhirJudul = h;
+  for (let r = h + 1; r <= h + 2; r++)
+    if (labelsOf(ws.getRow(r)).some((l) => /^(VOL|SAT|HARGA|JUMLAH|JUMALH|TOTAL|BOBOT|NILAI|KET)/.test(l ?? "")))
+      akhirJudul = r;
+  const barisJudul: number[] = [];
+  for (let r = Math.max(1, h - 2); r <= akhirJudul; r++) if (!ws.getRow(r).hidden) barisJudul.push(r);
+  const out: KolomBerkas[] = [];
+  for (let c = 1; c <= NC; c++) {
+    if (sembunyi.has(c)) continue;
+    const label: string[] = [];
+    for (const r of barisJudul) {
+      const t = str(cellVal(ws.getRow(r), c)).replace(/\s+/g, " ").trim();
+      if (t && !/^-?[\d.,]+$/.test(t) && !label.includes(t)) label.push(t);
+    }
+    const contoh: string[] = [];
+    for (let r = akhirJudul + 1; r <= ws.rowCount && contoh.length < 3 && r < h + 400; r++) {
+      const row = ws.getRow(r);
+      if (row.hidden) continue;
+      const v = cellVal(row, c);
+      if (v == null || str(v) === "") continue;
+      contoh.push(tampilSel(v));
+    }
+    if (label.length === 0 && contoh.length === 0) continue;
+    out.push({ kolom: c, huruf: colLetter(c), label: label.join(" · ").slice(0, 80), contoh });
+  }
+  return out;
+}
+
+/**
+ * Pasang kolom pilihan user. Kolom tersembunyi DITOLAK (DECISIONS 604 berlaku
+ * juga untuk pilihan tangan), satu kolom tidak boleh memegang dua peran, dan
+ * harga satuan yang dikosongkan dihitung dari jumlah ÷ volume per baris.
+ */
+function siapkanKolomManual(
+  ws: ExcelJS.Worksheet,
+  k: KolomManual,
+): { col: ColMap; label: string; catatan: string } {
+  const sembunyi = kolomTersembunyi(ws);
+  const peran: [number | null, string][] = [
+    [k.vol, "Volume"],
+    [k.unit, "Satuan"],
+    [k.amount, "Jumlah harga"],
+    [k.price, "Harga satuan"],
+  ];
+  for (const [c, judul] of peran) {
+    if (c == null) continue;
+    if (!Number.isInteger(c) || c < 1 || c > NC) throw new Error(`Kolom ${judul} tidak valid – pilih ulang.`);
+    if (sembunyi.has(c))
+      throw new Error(
+        `Kolom ${judul} (${colLetter(c)}) disembunyikan di Excel – kolom tersembunyi tidak dibaca. ` +
+          "Tampilkan dulu kolomnya di Excel, atau pilih kolom lain.",
+      );
+  }
+  const dipakai = peran.map(([c]) => c).filter((c): c is number => c != null);
+  if (new Set(dipakai).size !== dipakai.length)
+    throw new Error("Satu kolom dipilih untuk dua peran – volume, satuan, harga satuan, dan jumlah harus kolom yang berbeda.");
+
+  let price = k.price;
+  if (price == null) {
+    price = KOLOM_HARGA_TURUNAN;
+    for (let r = 1; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      const nv = num(cellVal(row, k.vol));
+      const na = num(cellVal(row, k.amount));
+      if (nv == null || na == null || nv === 0 || na === 0) continue;
+      row.getCell(KOLOM_HARGA_TURUNAN).value = Math.round(Math.abs(na / nv) * 100) / 100;
+    }
+  }
+  const hargaTeks = k.price == null ? "dihitung dari jumlah ÷ volume" : `kolom ${colLetter(k.price)}`;
+  return {
+    col: { vol: k.vol, unit: k.unit, price, amount: k.amount, tkdn: 999 },
+    label: `pilihan Anda – volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, harga satuan ${k.price == null ? "= jumlah ÷ volume" : colLetter(k.price)}, jumlah ${colLetter(k.amount)}`,
+    catatan:
+      `Kolom dipilih sendiri: volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, ` +
+      `harga satuan ${hargaTeks}, jumlah ${colLetter(k.amount)}. Deteksi otomatis tidak dipakai.`,
+  };
+}
+
+/** Kolom yang akan dipakai deteksi otomatis — usulan awal di layar pertanyaan. */
+function usulanKolom(ws: ExcelJS.Worksheet): KolomManual | null {
+  try {
+    const peta = deteksiCco(ws);
+    const col = peta ? peta.col : detectColumns(ws).col;
+    const sembunyi = kolomTersembunyi(ws);
+    const ok = (c: number) => c >= 1 && c <= NC && !sembunyi.has(c);
+    if (!ok(col.vol) || !ok(col.unit) || !ok(col.amount)) return null;
+    return { vol: col.vol, unit: col.unit, price: ok(col.price) ? col.price : null, amount: col.amount };
+  } catch {
+    return null;
+  }
+}
+
+async function muatSheet(buf: Buffer | ArrayBuffer, nama: string): Promise<ExcelJS.Workbook> {
+  const slim = await slimRabWorkbook(buf, nama);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(slim as unknown as ArrayBuffer);
+  return wb;
+}
+
+/**
+ * Baca berkas. Tanpa opsi = deteksi otomatis (sheet & kolom); dengan `sheet`
+ * dan/atau `kolom` = pilihan user dipakai apa adanya. Hasil yang tidak bisa
+ * dipastikan dilempar sebagai `ImporPerluJawaban` – bahan pertanyaannya
+ * disusun dari sheet yang sudah dimuat, tanpa memuat ulang berkas.
+ */
+export async function parseHpsBuffer(buf: Buffer | ArrayBuffer, opsi: OpsiBaca = {}): Promise<ParseHpsResult> {
   const sheets = (await namaSheetXlsx(buf)).filter((s) => !s.tersembunyi);
+  const semuaNama = sheets.map((s) => s.nama);
+
+  if (opsi.sheet != null || opsi.kolom != null) {
+    const nama = opsi.sheet ?? semuaNama[0];
+    if (!nama || !semuaNama.includes(nama)) {
+      throw new Error(`Sheet "${opsi.sheet}" tidak ada atau disembunyikan di berkas ini – pilih sheet lain.`);
+    }
+    const wb = await muatSheet(buf, nama);
+    try {
+      const hasil = parseHpsWorkbook(wb, opsi.kolom);
+      if (!hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0)) {
+        throw new Error(`Sheet "${nama}" terbaca, tapi tidak ada satu pun baris pekerjaan yang dikenali dengan kolom ini.`);
+      }
+      return { ...hasil, pilihan: pilihanDari(wb, semuaNama, opsi.kolom ?? null) };
+    } catch (e) {
+      throw new ImporPerluJawaban(
+        e instanceof Error ? e.message : "Sheet ini tidak terbaca.",
+        pilihanDari(wb, semuaNama, opsi.kolom ?? null),
+      );
+    }
+  }
+  return parseHpsOtomatis(buf, sheets);
+}
+
+function pilihanDari(wb: ExcelJS.Workbook, sheets: string[], kolom: KolomManual | null): PilihanBaca {
+  const ws = wb.worksheets[0]!;
+  return { sheets, sheet: ws.name, kolom: ringkasKolom(ws), usulan: kolom ?? usulanKolom(ws) };
+}
+
+async function parseHpsOtomatis(
+  buf: Buffer | ArrayBuffer,
+  sheets: { nama: string; tersembunyi: boolean }[],
+): Promise<ParseHpsResult> {
+  const semuaNama = sheets.map((s) => s.nama);
   // Urutan kandidat: nama pasti dulu, lalu bentuk CCO, lalu sisanya. Dibatasi
   // supaya berkas dengan puluhan sheet tidak berubah jadi puluhan pemuatan.
   // Nama tab pun tidak seragam antar penyusun: "RAB", "BQ", "BOQ", "Daftar
@@ -653,22 +865,30 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
   let terakhir: unknown = null;
   /** Sheet yang BERHASIL dibaca tapi nol baris — dipakai menyusun pesan jujur. */
   const kosong: string[] = [];
+  /**
+   * Sheet kandidat pertama yang termuat — bahan pertanyaan ke user bila tidak
+   * ada yang terbaca. Yang pertama = yang paling mirip RAB menurut namanya.
+   */
+  let wbTanya: ExcelJS.Workbook | null = null;
+  const tanya = (sebab: string): never => {
+    if (!wbTanya) throw new Error(sebab);
+    throw new ImporPerluJawaban(sebab, pilihanDari(wbTanya, semuaNama, null));
+  };
   for (const nama of kandidat) {
     let wb: ExcelJS.Workbook;
     try {
-      const slim = await slimRabWorkbook(buf, nama);
-      wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(slim as unknown as ArrayBuffer);
+      wb = await muatSheet(buf, nama);
     } catch (e) {
       terakhir = e;
       continue;
     }
+    wbTanya ??= wb;
     try {
       const hasil = parseHpsWorkbook(wb);
       // Sheet yang bukan RAB (Resume, Analisa, …) terbaca tanpa satu pun baris.
       // Itu bukan galat — cukup lanjut ke kandidat berikutnya.
       if (hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0))
-        return hasil;
+        return { ...hasil, pilihan: pilihanDari(wb, semuaNama, null) };
       // Sheet bernama RAB yang kosong itu KEJANGGALAN, bukan sekadar kandidat
       // lewat: ia harus disebut di pesan galat, bukan hilang.
       if (/rab/i.test(nama)) kosong.push(nama);
@@ -680,16 +900,19 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
        * mati di tengah jalan dan layar hanya menulis "An unexpected response
        * was received from the server" (CCO1 Tegalsari, 2026-09-27).
        */
-      if (skor(nama) <= 1) throw e;
+      if (skor(nama) <= 1) {
+        wbTanya = wb;
+        tanya(e instanceof Error ? e.message : "Sheet ini tidak terbaca.");
+      }
       terakhir = e;
     }
   }
-  // Tidak ada kandidat yang berisi: laporkan dengan menyebut isi berkasnya.
-  if (terakhir instanceof Error) throw terakhir;
-  throw new Error(pesanSheetTakAdaDariNama(sheets.map((s) => s.nama), kosong));
+  // Tidak ada kandidat yang berisi: TANYA user, dengan menyebut sebabnya.
+  if (terakhir instanceof Error) tanya(terakhir.message);
+  return tanya(pesanSheetTakAdaDariNama(semuaNama, kosong));
 }
 
-export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
+export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): ParseHpsResult {
   const warnings: string[] = [];
   // Sheet RAB dulu; kalau tidak ada, sheet mana pun yang berbentuk
   // tambah/kurang KKP (berkas CCO/MC-0 yang dikerjakan tim di luar MARLIN).
@@ -713,8 +936,10 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * `volume × harga ≈ jumlah`, tidak pernah dari namanya: label "MC-0" berarti
    * HASIL di satu berkas dan KEADAAN AWAL di berkas lain.
    */
-  const peta = deteksiCco(ws);
-  if (!peta && berbentukCco(ws)) {
+  const manual = kolom ? siapkanKolomManual(ws, kolom) : null;
+  if (manual) warnings.push(manual.catatan);
+  const peta = manual ? null : deteksiCco(ws);
+  if (!manual && !peta && berbentukCco(ws)) {
     // Berkas CCO yang kolomnya tidak terbukti TIDAK jatuh ke pembaca HPS:
     // itulah yang dulu membuat CCO terbaca dari blok HPS/penawaran (user
     // 2026-09-27, CCO1 Tegalsari). Lebih baik ditolak dengan sebab yang jelas.
@@ -726,9 +951,21 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
         "dari halaman ini.",
     );
   }
-  const { col, priceSource, blokTersembunyi } = peta
-    ? { col: peta.col, priceSource: "hps" as const, blokTersembunyi: [] as string[] }
-    : detectColumns(ws);
+  const { col, priceSource, blokTersembunyi, tebakan } = manual
+    ? { col: manual.col, priceSource: "hps" as const, blokTersembunyi: [] as string[], tebakan: false }
+    : peta
+      ? { col: peta.col, priceSource: "hps" as const, blokTersembunyi: [] as string[], tebakan: false }
+      : detectColumns(ws);
+  if (tebakan) {
+    // Posisi bawaan yang jatuh di kolom TERSEMBUNYI tidak dibaca – ditanyakan.
+    const semb = kolomTersembunyi(ws);
+    const kena = [col.vol, col.unit, col.price, col.amount].filter((c) => semb.has(c));
+    if (kena.length > 0)
+      throw new Error(
+        `Judul kolom VOLUME/SATUAN tidak ditemukan di sheet "${ws.name}", dan posisi bawaan ` +
+          `(kolom ${kena.map(colLetter).join(", ")}) disembunyikan di Excel. MARLIN tidak menebak – pilih kolomnya.`,
+      );
+  }
 
   /*
    * BLOK HARGA TERSEMBUNYI DIKATAKAN, tidak didiamkan (teguran user
@@ -745,7 +982,9 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
         `Kalau blok tersembunyi itu memang yang seharusnya dipakai, tampilkan dulu kolomnya di Excel lalu impor ulang.`,
     );
   }
-  const priceColumn = peta
+  const priceColumn = manual
+    ? { source: "hps" as const, label: manual.label }
+    : peta
     ? {
         source: "hps" as const,
         label: peta.hargaTurunan
@@ -1310,6 +1549,16 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       );
     }
   }
+
+  // Kolom TEBAKAN (tanpa judul VOL/SAT) harus terbukti: kalau mayoritas baris
+  // berharga gagal `volume × harga = jumlah`, layar bertanya (DECISIONS 624) –
+  // bukan menyimpan tebakan dengan peringatan kuning.
+  if (tebakan && crossChecked >= 3 && crossMismatch / crossChecked > 0.3)
+    throw new Error(
+      `Judul kolom VOLUME/SATUAN tidak ditemukan di sheet "${ws.name}", dan pada posisi bawaan ` +
+        `${crossMismatch} dari ${crossChecked} baris tidak memenuhi "volume × harga satuan = jumlah". ` +
+        "Pilih kolomnya.",
+    );
 
   // Jaring pengaman deteksi kolom: kalau >30% baris berharga gagal uji
   // volume × harga = jumlah, kemungkinan besar kolom nilai salah terbaca.
