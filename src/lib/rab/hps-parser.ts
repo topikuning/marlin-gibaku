@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
-import { deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
+import { berbentukCco, deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -673,6 +673,14 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
       // lewat: ia harus disebut di pesan galat, bukan hilang.
       if (/rab/i.test(nama)) kosong.push(nama);
     } catch (e) {
+      /*
+       * Sheet bernama RAB yang TERBACA tapi isinya ditolak = sebab yang harus
+       * didengar user, bukan alasan mencoba lima sheet lain. Mencoba sisanya
+       * pada berkas KKP 5,5 MB memakan ±40 dtk dan ±350 MB, lalu server kecil
+       * mati di tengah jalan dan layar hanya menulis "An unexpected response
+       * was received from the server" (CCO1 Tegalsari, 2026-09-27).
+       */
+      if (skor(nama) <= 1) throw e;
       terakhir = e;
     }
   }
@@ -706,6 +714,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
    * HASIL di satu berkas dan KEADAAN AWAL di berkas lain.
    */
   const peta = deteksiCco(ws);
+  if (!peta && berbentukCco(ws)) {
+    // Berkas CCO yang kolomnya tidak terbukti TIDAK jatuh ke pembaca HPS:
+    // itulah yang dulu membuat CCO terbaca dari blok HPS/penawaran (user
+    // 2026-09-27, CCO1 Tegalsari). Lebih baik ditolak dengan sebab yang jelas.
+    throw new Error(
+      `Sheet "${ws.name}" berbentuk dokumen CCO (ada blok PEKERJAAN TAMBAH dan KURANG), tapi kolom ` +
+        "volume/harga/jumlah-nya tidak bisa dipastikan – pada baris contoh, volume × harga satuan tidak " +
+        "sama dengan jumlah harga. MARLIN tidak membaca blok HPS/penawaran sebagai gantinya. Periksa " +
+        "apakah kolom volume atau jumlah blok CCO ikut tersembunyi; kalau ragu, pakai Template Adendum " +
+        "dari halaman ini.",
+    );
+  }
   const { col, priceSource, blokTersembunyi } = peta
     ? { col: peta.col, priceSource: "hps" as const, blokTersembunyi: [] as string[] }
     : detectColumns(ws);
@@ -728,9 +748,20 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const priceColumn = peta
     ? {
         source: "hps" as const,
-        label: `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
+        label: peta.hargaTurunan
+          ? `CCO KKP – volume & jumlah dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}/${colLetter(peta.col.amount)}), harga satuan = jumlah ÷ volume`
+          : `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
       }
     : priceColumnInfo(priceSource, col);
+  if (peta?.hargaTurunan) {
+    // Dikatakan, bukan didiamkan: harga satuannya HASIL HITUNG, bukan sel berkas.
+    warnings.push(
+      `Kolom harga satuan blok "${peta.blokDasar.label}" disembunyikan di Excel dan tidak dibaca. ` +
+        `Harga satuan tiap item dihitung dari JUMLAH HARGA ÷ VOLUME blok ` +
+        `${peta.hargaTurunan.dari.map((d) => `"${d}"`).join(" / ")} – untuk item yang volumenya jadi nol, ` +
+        `dari blok pekerjaan kurang/tambah. Jumlah harga dipakai apa adanya dari berkas.`,
+    );
+  }
   const kolomKode = detectCodeColumn(ws, col.vol);
   if (peta?.hasilDariDasar) {
     // Berkas DRAFT: kolom adendumnya ada tapi belum diisi. Dikatakan, bukan
