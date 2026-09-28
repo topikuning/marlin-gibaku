@@ -39,9 +39,7 @@ export function PilihBaca({
   const [buka, setBuka] = useState(Boolean(sebab));
   const [vol, setVol] = useState(String(pilihan.usulan?.vol ?? ""));
   const [unit, setUnit] = useState(String(pilihan.usulan?.unit ?? ""));
-  const [price, setPrice] = useState(
-    pilihan.usulan ? (pilihan.usulan.price == null ? "hitung" : String(pilihan.usulan.price)) : "",
-  );
+  const [price, setPrice] = useState(String(pilihan.usulan?.price ?? ""));
   const [amount, setAmount] = useState(String(pilihan.usulan?.amount ?? ""));
 
   const huruf = new Map(pilihan.kolom.map((k) => [String(k.kolom), k]));
@@ -58,7 +56,7 @@ export function PilihBaca({
 
   const ringkas = pilihan.usulan
     ? `volume ${sebut(String(pilihan.usulan.vol))} · satuan ${sebut(String(pilihan.usulan.unit))} · ` +
-      `harga satuan ${pilihan.usulan.price == null ? "= jumlah ÷ volume" : sebut(String(pilihan.usulan.price))} · ` +
+      `harga satuan ${sebut(String(pilihan.usulan.price))} · ` +
       `jumlah ${sebut(String(pilihan.usulan.amount))}`
     : null;
 
@@ -121,7 +119,7 @@ export function PilihBaca({
                 id="baca-harga"
                 value={price}
                 onChange={setPrice}
-                options={[{ value: "hitung", label: "Hitung dari jumlah ÷ volume" }, ...opsiKolom]}
+                options={opsiKolom}
                 disabled={pending}
                 placeholder="Pilih kolom…"
               />
@@ -132,7 +130,8 @@ export function PilihBaca({
             </div>
           </div>
           <p className="text-ink-muted">
-            Kolom yang disembunyikan di Excel tidak ditawarkan. Contoh isi tiap kolom ada di dalam kurung.
+            Kolom yang disembunyikan di Excel tidak ditawarkan – kalau kolom yang benar tersembunyi,
+            tampilkan dulu di Excel lalu pilih ulang berkasnya. Contoh isi tiap kolom ada di dalam kurung.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -144,7 +143,7 @@ export function PilihBaca({
                 onBaca(pilihan.sheet, {
                   vol: Number(vol),
                   unit: Number(unit),
-                  price: price === "hitung" ? null : Number(price),
+                  price: Number(price),
                   amount: Number(amount),
                 })
               }

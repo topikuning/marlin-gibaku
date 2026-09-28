@@ -74,14 +74,6 @@ describe("berkas yang tidak bisa dipastikan → pertanyaan", () => {
     expect(h.pilihan?.usulan).toEqual({ vol: 3, unit: 4, price: 6, amount: 7 });
   });
 
-  it("harga satuan boleh dihitung dari jumlah ÷ volume", async () => {
-    const h = await parseHpsBuffer(await xlsx(berkasAneh), {
-      sheet: "RAB",
-      kolom: { vol: 3, unit: 4, price: null, amount: 7 },
-    });
-    expect(h.parsed.categories[0]!.direct_items[1]).toMatchObject({ unit_price: 25_000_000 });
-  });
-
   it("kolom tersembunyi yang dipilih → ditanyakan ulang dengan sebabnya, tidak dibaca", async () => {
     const t = await tanyaDari(await xlsx(berkasAneh), {
       sheet: "RAB",

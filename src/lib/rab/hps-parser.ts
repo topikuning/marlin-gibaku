@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
 import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
-import { berbentukCco, deteksiCco, hitungPerubahan, KOLOM_HARGA_TURUNAN } from "@/lib/rab/cco-import";
+import { berbentukCco, deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -141,7 +141,17 @@ const SUMMARY_PREFIX = /^(jumlah|sub\s*total|subtotal|total|grand\s*total|rekapi
  * menerbitkan peringatan supaya keputusannya terlihat, bukan ditebak.
  */
 export function isSummaryRow(name: string, code = ""): boolean {
-  return SUMMARY_PREFIX.test(name.trim()) && code.trim() === "";
+  return SUMMARY_PREFIX.test(tanpaNomorDepan(name)) && code.trim() === "";
+}
+
+/**
+ * Nomor urut di DEPAN teks baris penutup dibuang sebelum dikenali (DECISIONS
+ * 625). Berkas CCO1 Suradadi menutup tabelnya dengan "II. PPN 11 % :",
+ * "III. TOTAL I + II :", "IV. DIBULATKAN :" di kolom uraian; tanpa ini ketiganya
+ * masuk sebagai item kategori terakhir dan nilai kontrak membengkak 8,87 M.
+ */
+function tanpaNomorDepan(t: string): string {
+  return t.trim().replace(/^(?:[IVXLC]+|\d+|[A-Za-z])\s*[.)]\s+/, "");
 }
 
 /** Kosakata baris penutup RAB — termasuk yang bukan "jumlah": PPN, dibulatkan. */
@@ -163,7 +173,7 @@ const REKAP_PENUTUP = /^(jumlah|sub\s*total|subtotal|total|grand\s*total|rekapit
  * satuan: ia cuma memindahkan angka dari baris-baris di atasnya.
  */
 function adalahRekapPenutup(name: string, volume: number | null, unitPrice: number | null): boolean {
-  return REKAP_PENUTUP.test(name.trim()) && volume == null && unitPrice == null;
+  return REKAP_PENUTUP.test(tanpaNomorDepan(name)) && volume == null && unitPrice == null;
 }
 
 /** Peta kolom nilai (1-indexed) hasil deteksi header. */
@@ -214,6 +224,25 @@ export function kolomTersembunyi(ws: ExcelJS.Worksheet): Set<number> {
     if (kol?.hidden === true || kol?.width === 0) keluar.add(c);
   }
   return keluar;
+}
+
+/**
+ * Kolom TERSEMBUNYI yang judulnya HARGA (di 20 baris teratas) – untuk
+ * menyebut di pertanyaan kolom mana yang perlu ditampilkan dulu di Excel
+ * (DECISIONS 625: harga satuan tidak pernah diturunkan dari jumlah ÷ volume).
+ */
+function kolomHargaTersembunyi(ws: ExcelJS.Worksheet): string[] {
+  const semb = kolomTersembunyi(ws);
+  const kena: string[] = [];
+  for (const c of semb) {
+    for (let r = 1; r <= Math.min(20, ws.rowCount); r++) {
+      if (/HARGA/i.test(str(cellVal(ws.getRow(r), c)))) {
+        kena.push(colLetter(c));
+        break;
+      }
+    }
+  }
+  return kena;
 }
 
 /**
@@ -405,8 +434,46 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
     }
   }
 
+  /*
+   * LEBIH DARI SATU KOLOM VOLUME (DECISIONS 625). Berkas CCO-1 Pasir menulis
+   * "VOL KONTRAK" (E) dan "VOL CCO - 1" (F) berdampingan, dengan SATU pasang
+   * harga/jumlah. Aturan "VOL pertama" memasangkan volume kontrak dengan jumlah
+   * CCO: 205 dari 296 baris tidak konsisten, dan kategori yang di berkas bernilai
+   * 0 tampil bervolume. Yang dipakai: kolom VOL yang TERBUKTI
+   * `volume × harga = jumlah` paling sering – angkanya yang memutuskan, bukan
+   * urutan kolomnya.
+   */
+  const amountFinal = amount ?? price + 1;
+  let volFinal = vol;
+  const kandidatVol: number[] = [];
+  for (let c = 1; c <= NC; c++) if (terlihat(c) && /^VOL/.test(head[c] ?? "")) kandidatVol.push(c);
+  if (kandidatVol.length > 1) {
+    const skorVol = (v: number): number => {
+      let skor = 0;
+      const mulai = mainRow!.number + (hasSub ? 2 : 1);
+      for (let r = mulai; r <= Math.min(ws.rowCount, mulai + 600); r++) {
+        const row = ws.getRow(r);
+        if (row.hidden === true || row.height === 0) continue;
+        const nv = num(cellVal(row, v));
+        const np = num(cellVal(row, price));
+        const na = num(cellVal(row, amountFinal));
+        if (nv == null || np == null || na == null || nv === 0 || np === 0 || na === 0) continue;
+        if (Math.abs(nv * np - na) <= Math.max(1, Math.abs(na) * 0.01)) skor++;
+      }
+      return skor;
+    };
+    let terbaik = skorVol(vol);
+    for (const c of kandidatVol) {
+      const sk = skorVol(c);
+      if (sk > terbaik) {
+        terbaik = sk;
+        volFinal = c;
+      }
+    }
+  }
+
   return {
-    col: { vol, unit, price, amount: amount ?? price + 1, tkdn },
+    col: { vol: volFinal, unit, price, amount: amountFinal, tkdn },
     usedNego: priceSource !== "hps",
     priceSource,
     blokTersembunyi,
@@ -644,10 +711,10 @@ function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
  *
  * Teguran user 2026-09-27: *"kenapa kamu tidak lempar pertanyaan ke user? sheet
  * mana yang dipakai ambil dari kolom mana, begitu kan lebih jelas. daripada
- * error gak jelas!"*. Nomor kolom 1-based. `price` null = harga satuan dihitung
- * dari jumlah ÷ volume per baris.
+ * error gak jelas!"*. Nomor kolom 1-based. Keempatnya WAJIB kolom berkas –
+ * harga satuan tidak pernah dihitung dari jumlah ÷ volume (DECISIONS 625).
  */
-export type KolomManual = { vol: number; unit: number; price: number | null; amount: number };
+export type KolomManual = { vol: number; unit: number; price: number; amount: number };
 
 export type OpsiBaca = { sheet?: string; kolom?: KolomManual };
 
@@ -740,14 +807,13 @@ function siapkanKolomManual(
   k: KolomManual,
 ): { col: ColMap; label: string; catatan: string } {
   const sembunyi = kolomTersembunyi(ws);
-  const peran: [number | null, string][] = [
+  const peran: [number, string][] = [
     [k.vol, "Volume"],
     [k.unit, "Satuan"],
-    [k.amount, "Jumlah harga"],
     [k.price, "Harga satuan"],
+    [k.amount, "Jumlah harga"],
   ];
   for (const [c, judul] of peran) {
-    if (c == null) continue;
     if (!Number.isInteger(c) || c < 1 || c > NC) throw new Error(`Kolom ${judul} tidak valid – pilih ulang.`);
     if (sembunyi.has(c))
       throw new Error(
@@ -755,28 +821,14 @@ function siapkanKolomManual(
           "Tampilkan dulu kolomnya di Excel, atau pilih kolom lain.",
       );
   }
-  const dipakai = peran.map(([c]) => c).filter((c): c is number => c != null);
-  if (new Set(dipakai).size !== dipakai.length)
+  if (new Set(peran.map(([c]) => c)).size !== peran.length)
     throw new Error("Satu kolom dipilih untuk dua peran – volume, satuan, harga satuan, dan jumlah harus kolom yang berbeda.");
-
-  let price = k.price;
-  if (price == null) {
-    price = KOLOM_HARGA_TURUNAN;
-    for (let r = 1; r <= ws.rowCount; r++) {
-      const row = ws.getRow(r);
-      const nv = num(cellVal(row, k.vol));
-      const na = num(cellVal(row, k.amount));
-      if (nv == null || na == null || nv === 0 || na === 0) continue;
-      row.getCell(KOLOM_HARGA_TURUNAN).value = Math.round(Math.abs(na / nv) * 100) / 100;
-    }
-  }
-  const hargaTeks = k.price == null ? "dihitung dari jumlah ÷ volume" : `kolom ${colLetter(k.price)}`;
   return {
-    col: { vol: k.vol, unit: k.unit, price, amount: k.amount, tkdn: 999 },
-    label: `pilihan Anda – volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, harga satuan ${k.price == null ? "= jumlah ÷ volume" : colLetter(k.price)}, jumlah ${colLetter(k.amount)}`,
+    col: { vol: k.vol, unit: k.unit, price: k.price, amount: k.amount, tkdn: 999 },
+    label: `pilihan Anda – volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, harga satuan ${colLetter(k.price)}, jumlah ${colLetter(k.amount)}`,
     catatan:
       `Kolom dipilih sendiri: volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, ` +
-      `harga satuan ${hargaTeks}, jumlah ${colLetter(k.amount)}. Deteksi otomatis tidak dipakai.`,
+      `harga satuan ${colLetter(k.price)}, jumlah ${colLetter(k.amount)}. Deteksi otomatis tidak dipakai.`,
   };
 }
 
@@ -784,11 +836,13 @@ function siapkanKolomManual(
 function usulanKolom(ws: ExcelJS.Worksheet): KolomManual | null {
   try {
     const peta = deteksiCco(ws);
+    // CCO yang kolomnya tidak terbukti: jangan usulkan kolom HPS/penawaran.
+    if (!peta && berbentukCco(ws)) return null;
     const col = peta ? peta.col : detectColumns(ws).col;
     const sembunyi = kolomTersembunyi(ws);
     const ok = (c: number) => c >= 1 && c <= NC && !sembunyi.has(c);
-    if (!ok(col.vol) || !ok(col.unit) || !ok(col.amount)) return null;
-    return { vol: col.vol, unit: col.unit, price: ok(col.price) ? col.price : null, amount: col.amount };
+    if (!ok(col.vol) || !ok(col.unit) || !ok(col.price) || !ok(col.amount)) return null;
+    return { vol: col.vol, unit: col.unit, price: col.price, amount: col.amount };
   } catch {
     return null;
   }
@@ -943,12 +997,17 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     // Berkas CCO yang kolomnya tidak terbukti TIDAK jatuh ke pembaca HPS:
     // itulah yang dulu membuat CCO terbaca dari blok HPS/penawaran (user
     // 2026-09-27, CCO1 Tegalsari). Lebih baik ditolak dengan sebab yang jelas.
+    const harga = kolomHargaTersembunyi(ws);
     throw new Error(
-      `Sheet "${ws.name}" berbentuk dokumen CCO (ada blok PEKERJAAN TAMBAH dan KURANG), tapi kolom ` +
-        "volume/harga/jumlah-nya tidak bisa dipastikan – pada baris contoh, volume × harga satuan tidak " +
-        "sama dengan jumlah harga. MARLIN tidak membaca blok HPS/penawaran sebagai gantinya. Periksa " +
-        "apakah kolom volume atau jumlah blok CCO ikut tersembunyi; kalau ragu, pakai Template Adendum " +
-        "dari halaman ini.",
+      harga.length > 0
+        ? `Sheet "${ws.name}" berbentuk dokumen CCO, tapi kolom harga satuannya disembunyikan ` +
+            `(kolom ${harga.join(", ")}). MARLIN tidak membaca kolom tersembunyi dan tidak menghitung harga ` +
+            "satuan dari jumlah ÷ volume. Tampilkan (unhide) kolom harga satuan blok yang dipakai di Excel, " +
+            "lalu pilih ulang berkasnya – atau pilih sendiri keempat kolomnya di bawah."
+        : `Sheet "${ws.name}" berbentuk dokumen CCO (ada blok PEKERJAAN TAMBAH dan KURANG), tapi kolom ` +
+            "volume/harga/jumlah-nya tidak bisa dipastikan – pada baris contoh, volume × harga satuan tidak " +
+            "sama dengan jumlah harga. MARLIN tidak membaca blok HPS/penawaran sebagai gantinya. Pilih " +
+            "sendiri keempat kolomnya di bawah, atau pakai Template Adendum dari halaman ini.",
     );
   }
   const { col, priceSource, blokTersembunyi, tebakan } = manual
@@ -987,20 +1046,11 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     : peta
     ? {
         source: "hps" as const,
-        label: peta.hargaTurunan
-          ? `CCO KKP – volume & jumlah dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}/${colLetter(peta.col.amount)}), harga satuan = jumlah ÷ volume`
+        label: peta.hargaDariHasil
+          ? `CCO KKP – volume, harga satuan, dan jumlah dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}/${colLetter(peta.col.price)}/${colLetter(peta.col.amount)})`
           : `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
       }
     : priceColumnInfo(priceSource, col);
-  if (peta?.hargaTurunan) {
-    // Dikatakan, bukan didiamkan: harga satuannya HASIL HITUNG, bukan sel berkas.
-    warnings.push(
-      `Kolom harga satuan blok "${peta.blokDasar.label}" disembunyikan di Excel dan tidak dibaca. ` +
-        `Harga satuan tiap item dihitung dari JUMLAH HARGA ÷ VOLUME blok ` +
-        `${peta.hargaTurunan.dari.map((d) => `"${d}"`).join(" / ")} – untuk item yang volumenya jadi nol, ` +
-        `dari blok pekerjaan kurang/tambah. Jumlah harga dipakai apa adanya dari berkas.`,
-    );
-  }
   const kolomKode = detectCodeColumn(ws, col.vol);
   if (peta?.hasilDariDasar) {
     // Berkas DRAFT: kolom adendumnya ada tapi belum diisi. Dikatakan, bukan
@@ -1013,9 +1063,13 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
   } else if (peta) {
     const { berubah, total } = hitungPerubahan(ws, peta);
     warnings.push(
-      `Berkas berformat tambah/kurang KKP. Volume diambil dari blok "${peta.blokHasil.label}" ` +
-        `(kolom ${colLetter(peta.col.vol)}) – keadaan SESUDAH adendum; satuan & harga satuan dari blok ` +
-        `"${peta.blokDasar.label}". ${berubah} dari ${total} item volumenya berbeda dari blok "${peta.blokDasar.label}".`,
+      `Berkas berformat tambah/kurang KKP. ` +
+        (peta.hargaDariHasil
+          ? `Volume, harga satuan, dan jumlah diambil dari blok "${peta.blokHasil.label}" (kolom ` +
+            `${colLetter(peta.col.vol)}/${colLetter(peta.col.price)}/${colLetter(peta.col.amount)}) – keadaan SESUDAH adendum. `
+          : `Volume diambil dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}) – keadaan SESUDAH ` +
+            `adendum; satuan & harga satuan dari blok "${peta.blokDasar.label}". `) +
+        `${berubah} dari ${total} item volumenya berbeda dari volume kontrak (kolom ${colLetter(peta.volDasar)}).`,
     );
     // Nilai total kedua blok bisa SAMA PERSIS sementara ratusan item berbeda
     // (adendum yang netral nilai). Tanpa kalimat di atas, salah-baca blok tidak

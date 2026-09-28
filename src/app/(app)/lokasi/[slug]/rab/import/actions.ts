@@ -322,7 +322,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       const kol = z.number().int().min(1).max(200);
       const k = mentah
         ? z
-            .object({ vol: kol, unit: kol, price: kol.nullable(), amount: kol })
+            .object({ vol: kol, unit: kol, price: kol, amount: kol })
             .safeParse((() => { try { return JSON.parse(mentah); } catch { return null; } })())
         : null;
       return { ...(sheet ? { sheet } : {}), ...(k?.success ? { kolom: k.data } : {}) };

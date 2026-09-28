@@ -41,7 +41,13 @@ import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
  */
 
 /** Sekelompok kolom di bawah satu label grup (mis. "PEKERJAAN TAMBAH"). */
-export type BlokNilai = { label: string; mulai: number; akhir: number };
+export type BlokNilai = {
+  label: string;
+  mulai: number;
+  akhir: number;
+  /** Kolom TERLIHAT di mulai..akhir – satu-satunya yang boleh dibaca. */
+  kolom: number[];
+};
 
 export type PetaCco = {
   /** Baris berisi label grup — header rincian ada di bawahnya. */
@@ -59,19 +65,13 @@ export type PetaCco = {
   /** Kolom volume blok DASAR — dipakai melaporkan berapa item yang berubah. */
   volDasar: number;
   /**
-   * Harga satuan TIDAK terlihat di blok dasar (kolomnya disembunyikan), jadi
-   * dihitung per baris dari JUMLAH ÷ VOLUME blok hasil – atau blok kurang/
-   * tambah untuk item yang volumenya nol – dan ditulis ke kolom bantu
-   * `col.price`. DECISIONS 623.
+   * Harga satuan, volume, dan jumlah SEMUANYA dari blok hasil sendiri – blok
+   * dasar tidak punya harga satuan yang terlihat (DECISIONS 625). Tidak ada
+   * angka yang dihitung: ketiganya sel berkas.
    */
-  hargaTurunan?: { dari: string[] };
+  hargaDariHasil?: true;
 };
 
-/**
- * Kolom bantu tempat harga satuan turunan ditulis — jauh di luar area data
- * berkas mana pun, jadi tidak pernah menimpa isi asli.
- */
-export const KOLOM_HARGA_TURUNAN = 200;
 
 /**
  * Kolom yang DISEMBUNYIKAN di Excel tidak pernah dibaca (DECISIONS 604) – juga
@@ -112,20 +112,28 @@ const punyaKurang = (s: string) => /PEKERJAAN\s*KURANG|KURANG/i.test(s);
 
 /**
  * Blok label kontinu di baris grup (sel ter-merge terbaca berulang — itu dipakai).
- * Kolom tersembunyi MEMOTONG blok dan tidak pernah masuk ke dalamnya.
+ *
+ * Kolom tersembunyi DILEWATI – tidak pernah masuk `kolom` – tapi TIDAK
+ * memotong blok. 623 memotongnya, dan berkas Betah Walang (MC-0 = F..L,
+ * H dan J kosong-tersembunyi) terbelah jadi F–G · I · K–L: harga satuan I
+ * yang terlihat terlepas dari blok dasarnya, lalu harga "dihitung" dari
+ * jumlah ÷ volume – turunan yang dicabut 625.
  */
 function blokDi(ws: ExcelJS.Worksheet, baris: number, sembunyi: Set<number> = new Set()): BlokNilai[] {
   const blok: BlokNilai[] = [];
   let kini: BlokNilai | null = null;
   for (let c = 1; c <= NC; c++) {
-    const label = sembunyi.has(c) ? "" : teks(ws.getRow(baris).getCell(c).value).replace(/\s+/g, " ").trim();
+    if (sembunyi.has(c)) continue;
+    const label = teks(ws.getRow(baris).getCell(c).value).replace(/\s+/g, " ").trim();
     if (!label) {
       kini = null;
       continue;
     }
-    if (kini && kini.label === label) kini.akhir = c;
-    else {
-      kini = { label, mulai: c, akhir: c };
+    if (kini && kini.label === label) {
+      kini.akhir = c;
+      kini.kolom.push(c);
+    } else {
+      kini = { label, mulai: c, akhir: c, kolom: [c] };
       blok.push(kini);
     }
   }
@@ -138,7 +146,7 @@ function barisContoh(ws: ExcelJS.Worksheet, mulai: number, blok: BlokNilai): num
   for (let r = mulai; r <= ws.rowCount && out.length < 60; r++) {
     const row = ws.getRow(r);
     let adaAngka = false;
-    for (let c = blok.mulai; c <= blok.akhir; c++) if (angka(row.getCell(c).value) != null) adaAngka = true;
+    for (const c of blok.kolom) if (angka(row.getCell(c).value) != null) adaAngka = true;
     if (adaAngka) out.push(r);
   }
   return out;
@@ -169,7 +177,7 @@ function triplet(
 ): { vol: number; price: number; amount: number; skor: number } | null {
   let terbaik: { vol: number; price: number; amount: number; skor: number } | null = null;
   const kolomVol = [...volLuar];
-  for (let v = blok.mulai; v <= blok.akhir; v++) kolomVol.push(v);
+  for (const v of blok.kolom) kolomVol.push(v);
   /**
    * Bukti dari kolom LUAR harus berangka RUPIAH, bukan angka kecil apa pun.
    *
@@ -182,9 +190,9 @@ function triplet(
    */
   const AMBANG_LUAR = 1000;
   for (const v of kolomVol)
-    for (let p = blok.mulai; p <= blok.akhir; p++) {
+    for (const p of blok.kolom) {
       if (p === v) continue;
-      for (let a = blok.mulai; a <= blok.akhir; a++) {
+      for (const a of blok.kolom) {
         if (a === v || a === p) continue;
         let skor = 0;
         for (const r of baris) {
@@ -196,7 +204,7 @@ function triplet(
           // Baris nol tidak membuktikan apa pun (0×apa saja = 0) — dilewati
           // supaya kolom BOBOT yang kebetulan nol tidak ikut menang.
           if (nv === 0 || np === 0 || na === 0) continue;
-          const dariLuar = v < blok.mulai || v > blok.akhir;
+          const dariLuar = !blok.kolom.includes(v);
           if (dariLuar && Math.abs(na) < AMBANG_LUAR) continue;
           if (cocok(nv * np, na)) skor++;
         }
@@ -229,7 +237,7 @@ function kolomSatuan(
     return terbaik?.c ?? null;
   };
   const dalam: number[] = [];
-  for (let c = blok.mulai; c <= blok.akhir; c++) dalam.push(c);
+  for (const c of blok.kolom) dalam.push(c);
   // DI DALAM blok lebih dulu; kolom bersama hanya dipakai bila blok ini memang
   // tidak punya kolom satuan sendiri. Urutan itu yang menjaga berkas yang sudah
   // terbaca benar tidak berpindah kolom karena ada kandidat lain di kiri.
@@ -291,19 +299,14 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   const unit = kolomSatuan(ws, blokDasar, contoh, bersama);
   if (unit == null) return null;
   if (!dasarTerbukti || dasarTerbukti.skor < 3) {
-    // Harga satuan dasar tidak terlihat (mis. kolomnya disembunyikan) – coba
-    // turunkan dari blok hasil. Tidak terbukti juga → jangan diterka.
-    return hargaDariBlokHasil(ws, {
-      barisGrup,
-      blok,
-      iTambah,
-      iKurang,
-      blokDasar,
-      sesudah,
-      contoh,
-      bersama,
-      unit,
-    });
+    /*
+     * Blok dasar tanpa harga satuan yang terlihat. Satu-satunya jalan yang sah:
+     * blok HASIL yang membawa VOLUME · HARGA SATUAN · JUMLAH-nya sendiri
+     * (CCO1 Suradadi). Harga TIDAK PERNAH dihitung dari jumlah ÷ volume –
+     * teguran user 2026-09-27: *"siapa yang mengijinkan ini?"*. Tidak
+     * terbukti → null, dan layar bertanya (DECISIONS 624/625).
+     */
+    return hasilBerhargaSendiri(ws, { barisGrup, blokDasar, sesudah, bersama, unit });
   }
   const dasar = dasarTerbukti;
 
@@ -313,8 +316,8 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
    */
   const buktikan = (b: BlokNilai): { vol: number; amount: number; skor: number } | null => {
     let terbaik: { vol: number; amount: number; skor: number } | null = null;
-    for (let v = b.mulai; v <= b.akhir; v++)
-      for (let a = b.mulai; a <= b.akhir; a++) {
+    for (const v of b.kolom)
+      for (const a of b.kolom) {
         if (a === v) continue;
         let skor = 0;
         for (const r of contoh) {
@@ -374,7 +377,7 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
     // "kolom volume/harga/jumlah tidak bisa dipastikan" yang bicara.
     const adaIsi = sesudah.some((b) =>
       contoh.some((r) => {
-        for (let c = b.mulai; c <= b.akhir; c++)
+        for (const c of b.kolom)
           if (angka(ws.getRow(r).getCell(c).value) != null) return true;
         return false;
       }),
@@ -408,121 +411,46 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
 }
 
 /**
- * HARGA SATUAN TURUNAN (DECISIONS 623).
+ * BLOK HASIL YANG MEMBAWA HARGANYA SENDIRI (DECISIONS 625).
  *
- * Berkas CCO1 Tegalsari (user 2026-09-27): blok KONTRAK hanya menyisakan VOL
- * dan SAT yang terlihat – kolom HPS, penawaran, dan harga kontraknya
- * DISEMBUNYIKAN penyusunnya. Blok hasil ("CCO 1") memuat VOLUME · JUMLAH
- * HARGA · BOBOT, tanpa harga satuan. Harga satuan tetap bisa diketahui tanpa
- * membaca satu pun kolom tersembunyi: JUMLAH ÷ VOLUME di blok hasil, atau di
- * blok PEKERJAAN KURANG/TAMBAH untuk item yang volumenya jadi nol.
- *
- * Pembuktiannya: pasangan (volume, jumlah) di blok hasil harus menghasilkan
- * harga berskala rupiah (≥100) DAN volumenya sama dengan volume dasar pada
- * sedikitnya tiga baris (item yang tidak berubah). Tanpa bukti itu → null.
+ * Berkas CCO1 Suradadi: baris grup menulis VOLUME · SAT · HARGA SATUAN ·
+ * JUMLAH HARGA sebagai label terpisah (tidak ada label blok "KONTRAK"), jadi
+ * "blok dasar" tinggal satu kolom – dan blok CCO-01 punya VOLUME · HARGA
+ * SATUAN · JUMLAH HARGA · BOBOT sendiri. Ketiganya dibuktikan dengan
+ * `volume × harga ≈ jumlah` di dalam blok hasil itu; satuan dari kolom
+ * bersama kiri.
  */
-function hargaDariBlokHasil(
+function hasilBerhargaSendiri(
   ws: ExcelJS.Worksheet,
-  k: {
-    barisGrup: number;
-    blok: BlokNilai[];
-    iTambah: number;
-    iKurang: number;
-    blokDasar: BlokNilai;
-    sesudah: BlokNilai[];
-    contoh: number[];
-    bersama: number[];
-    unit: number;
-  },
+  k: { barisGrup: number; blokDasar: BlokNilai; sesudah: BlokNilai[]; bersama: number[]; unit: number },
 ): PetaCco | null {
-  // Kolom VOLUME dasar: berlabel VOL di baris sub-header, di blok dasar atau
-  // kolom bersama kiri.
-  const kandidatVol = [...k.bersama];
-  for (let c = k.blokDasar.mulai; c <= k.blokDasar.akhir; c++) kandidatVol.push(c);
-  let volDasar: number | null = null;
-  for (let r = k.barisGrup; r <= k.barisGrup + 3 && volDasar == null; r++)
-    for (const c of kandidatVol)
-      if (/^VOL/i.test(teks(ws.getRow(r).getCell(c).value))) {
-        volDasar = c;
-        break;
-      }
-  if (volDasar == null) return null;
-
-  const HARGA_MIN = 100;
-  /** Pasangan (vol, jumlah) dalam satu blok yang menghasilkan harga rupiah. */
-  const pasangan = (
-    b: BlokNilai,
-    bukti: (row: ExcelJS.Row, nv: number) => boolean,
-  ): { vol: number; amount: number; skor: number } | null => {
-    let terbaik: { vol: number; amount: number; skor: number } | null = null;
-    for (let v = b.mulai; v <= b.akhir; v++)
-      for (let a = b.mulai; a <= b.akhir; a++) {
-        if (a === v) continue;
-        let skor = 0;
-        for (let r = k.barisGrup + 1; r <= ws.rowCount; r++) {
-          const row = ws.getRow(r);
-          if (row.hidden) continue;
-          const nv = angka(row.getCell(v).value);
-          const na = angka(row.getCell(a).value);
-          if (nv == null || na == null || nv <= 0 || na <= 0) continue;
-          if (na / nv < HARGA_MIN) continue;
-          if (bukti(row, nv)) skor++;
-          if (skor >= 60) break;
-        }
-        if (skor >= 3 && (!terbaik || skor > terbaik.skor)) terbaik = { vol: v, amount: a, skor };
-      }
-    return terbaik;
-  };
-
-  let blokHasil: BlokNilai | null = null;
-  let hasil: { vol: number; amount: number } | null = null;
   for (const b of k.sesudah) {
-    const hit = pasangan(b, (row, nv) => {
-      const d = angka(row.getCell(volDasar!).value);
-      return d != null && d > 0 && cocok(nv, d);
-    });
-    if (hit) {
-      blokHasil = b;
-      hasil = hit;
-      break;
-    }
+    const contohB = barisContoh(ws, k.barisGrup + 1, b);
+    if (contohB.length < 3) continue;
+    const t = triplet(ws, b, contohB);
+    if (!t || t.skor < 3) continue;
+    // Volume dasar (untuk melaporkan item yang berubah): kolom berlabel VOL di
+    // kiri blok tambah; tidak ada → volume hasil itu sendiri (nol perubahan).
+    let volDasar = t.vol;
+    const kiri = [...k.bersama];
+    for (const c of k.blokDasar.kolom) kiri.push(c);
+    cari: for (let r = k.barisGrup; r <= k.barisGrup + 3; r++)
+      for (const c of kiri)
+        if (/^VOL/i.test(teks(ws.getRow(r).getCell(c).value))) {
+          volDasar = c;
+          break cari;
+        }
+    return {
+      barisGrup: k.barisGrup,
+      blokDasar: k.blokDasar,
+      blokHasil: b,
+      hasilDariDasar: false,
+      volDasar,
+      hargaDariHasil: true,
+      col: { vol: t.vol, unit: k.unit, price: t.price, amount: t.amount, tkdn: 999 },
+    };
   }
-  if (!blokHasil || !hasil) return null;
-
-  // Blok kurang/tambah: cukup menghasilkan harga rupiah – dipakai hanya untuk
-  // item yang volume hasilnya nol (dihapus), yang tidak punya harga di blok hasil.
-  const cadangan: { label: string; vol: number; amount: number }[] = [];
-  for (const i of [k.iKurang, k.iTambah]) {
-    const b = k.blok[i];
-    const hit = pasangan(b, () => true);
-    if (hit) cadangan.push({ label: b.label, vol: hit.vol, amount: hit.amount });
-  }
-
-  const sumber = [{ label: blokHasil.label, vol: hasil.vol, amount: hasil.amount }, ...cadangan];
-  const dipakai = new Set<string>();
-  for (let r = k.barisGrup + 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
-    for (const s of sumber) {
-      const nv = angka(row.getCell(s.vol).value);
-      const na = angka(row.getCell(s.amount).value);
-      if (nv == null || na == null || nv === 0 || na === 0) continue;
-      const harga = Math.abs(na / nv);
-      if (harga < HARGA_MIN) continue;
-      row.getCell(KOLOM_HARGA_TURUNAN).value = Math.round(harga * 100) / 100;
-      dipakai.add(s.label);
-      break;
-    }
-  }
-
-  return {
-    barisGrup: k.barisGrup,
-    blokDasar: k.blokDasar,
-    blokHasil,
-    hasilDariDasar: false,
-    volDasar,
-    hargaTurunan: { dari: sumber.map((s) => s.label).filter((l) => dipakai.has(l)) },
-    col: { vol: hasil.vol, unit: k.unit, price: KOLOM_HARGA_TURUNAN, amount: hasil.amount, tkdn: 999 },
-  };
+  return null;
 }
 
 /**

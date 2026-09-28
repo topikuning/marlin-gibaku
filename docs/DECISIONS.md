@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 625 | 2026-09-28 | Harga satuan TIDAK PERNAH diturunkan dari jumlah ÷ volume (mencabut bagian 623/624 – tak pernah diizinkan); CCO berharga tersembunyi → bertanya dgn menyebut kolomnya; kolom tersembunyi dilewati, tak memotong blok; Suradadi: harga dari blok CCO-01 + baris "II. PPN…" bukan item; Pasir: kolom VOL dipilih lewat pembuktian |
 | 624 | 2026-09-27 | Impor RAB BERTANYA sheet & kolom (volume · satuan · harga satuan/jumlah÷volume · jumlah) bila pembacaan tak bisa dipastikan, alih-alih galat; pratinjau selalu menyebut sheet & kolomnya dan bisa diganti; kolom tersembunyi tak ditawarkan; posisi bawaan tanpa judul tak lagi ditebak diam-diam |
 | 623 | 2026-09-27 | Impor CCO: kolom tersembunyi memotong blok & tidak dibaca; blok dasar melewati kolom BOBOT; harga satuan tak terlihat → jumlah ÷ volume blok hasil; sheet berbentuk CCO yang tak terbukti ditolak, tidak dibaca dari HPS/penawaran; sheet RAB yang gagal dilaporkan langsung (server tidak kehabisan memori) |
 | 622 | 2026-09-26 | Perbaikan cap membaca ulang berkas asli: tag bawaan & tata letak dinilai dengan aturan terbaru; menyimpan tanpa ketikan boleh bila aturan terbaru mengubah sesuatu; nilai yang diketik tetap menang |
