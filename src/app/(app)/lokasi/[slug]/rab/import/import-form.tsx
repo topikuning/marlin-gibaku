@@ -21,7 +21,9 @@ import {
   type ImportState,
   type ProfilKurvaState,
 } from "./actions";
+import type { KolomManual } from "@/lib/rab/hps-parser";
 import { PanelBeda } from "./panel-beda";
+import { PilihBaca } from "./pilih-baca";
 import { TabelBanding } from "./tabel-banding";
 import { TabelKategori } from "./tabel-kategori";
 
@@ -92,11 +94,21 @@ export function ImportForm({
    * tidak lagi lepas) harus terlihat SEBELUM ada yang ditulis.
    */
   const [padanan, setPadanan] = useState<Record<string, string>>({});
+  /**
+   * SHEET & KOLOM pilihan user (DECISIONS 624) – dikirim ulang pada tiap
+   * pratinjau dan saat menyimpan, sama seperti berkasnya. Kosong = deteksi
+   * otomatis.
+   */
+  const [baca, setBaca] = useState<{ sheet?: string; kolom?: KolomManual }>({});
   const [state, setState] = useState<ImportState>(undefined);
   const [pending, startTransition] = useTransition();
   const preview = state?.preview;
 
-  function run(confirm: boolean, padananPakai: Record<string, string> = padanan) {
+  function run(
+    confirm: boolean,
+    padananPakai: Record<string, string> = padanan,
+    bacaPakai: { sheet?: string; kolom?: KolomManual } = baca,
+  ) {
     if (!file) {
       setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
       return;
@@ -110,6 +122,8 @@ export function ImportForm({
     fd.set("file", file);
     fd.set("note", note);
     fd.set("mode", mode);
+    if (bacaPakai.sheet) fd.set("sheet", bacaPakai.sheet);
+    if (bacaPakai.kolom) fd.set("kolom", JSON.stringify(bacaPakai.kolom));
     if (confirm && preview) {
       fd.set("confirm", "1");
       fd.set("previewSha", preview.sha256);
@@ -141,6 +155,14 @@ export function ImportForm({
     // …dan buang pemetaannya: kunci baris di berkas lain belum tentu sama, dan
     // pemetaan yang menunjuk baris yang tidak ada hanya jadi penolakan.
     setPadanan({});
+    // …dan pilihan sheet/kolomnya: berkas lain, susunan lain.
+    setBaca({});
+  }
+
+  function gantiBaca(sheet: string, kolom: KolomManual | null) {
+    const berikut = kolom ? { sheet, kolom } : { sheet };
+    setBaca(berikut);
+    run(false, padanan, berikut);
   }
 
   return (
@@ -239,6 +261,17 @@ export function ImportForm({
         </div>
       </fieldset>
 
+      {state?.tanya ? (
+        <PilihBaca
+          key={`tanya-${state.tanya.sheet}-${JSON.stringify(baca.kolom ?? null)}`}
+          pilihan={state.tanya}
+          sebab={state.tanya.sebab}
+          manual={Boolean(baca.kolom)}
+          pending={pending}
+          onBaca={gantiBaca}
+        />
+      ) : null}
+
       {preview ? (
         <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
           <Banner
@@ -261,6 +294,15 @@ export function ImportForm({
             }
           />
 
+          {preview.baca ? (
+            <PilihBaca
+              key={`baca-${preview.baca.sheet}-${JSON.stringify(baca.kolom ?? null)}`}
+              pilihan={preview.baca}
+              manual={Boolean(baca.kolom)}
+              pending={pending}
+              onBaca={gantiBaca}
+            />
+          ) : null}
           {preview.beda ? <PanelBeda beda={preview.beda} slug={slug} /> : null}
           {preview.banding ? <TabelBanding baris={preview.banding} /> : null}
           <PanelPadanan
@@ -292,13 +334,12 @@ export function ImportForm({
                 kandidat ("RAB", "BQ", "MC-0", "Lampiran", …): berkas dengan dua
                 tab berisi bisa terbaca dari tab yang salah, dan tanpa kalimat
                 ini tidak ada satu pun cara di layar untuk menyadarinya. */}
-            <p className="mt-1 text-ink-muted">
-              Dibaca dari sheet <span className="font-semibold text-ink">{preview.sheetName}</span>,
-              kolom harga <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>
-              {preview.priceSource === "hps"
-                ? " – file tidak punya kolom penawaran/negosiasi."
-                : " – bukan pagu HPS."}
-            </p>
+            {preview.baca ? null : (
+              <p className="mt-1 text-ink-muted">
+                Dibaca dari sheet <span className="font-semibold text-ink">{preview.sheetName}</span>,
+                kolom harga <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>.
+              </p>
+            )}
           </div>
 
           {/*
@@ -377,7 +418,9 @@ export function ImportForm({
               Pratinjau ulang
             </Button>
           </>
-        ) : (
+        ) : state?.tanya ? null : (
+          // Saat MARLIN bertanya, tombol utamanya ada di panel pertanyaan –
+          // dua tombol utama berdampingan membuat orang menebak yang mana.
           <Button type="button" loading={pending} disabled={!file} onClick={() => run(false)}>
             Pratinjau
           </Button>

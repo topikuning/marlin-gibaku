@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
-import { parseHpsBuffer } from "@/lib/rab/hps-parser";
+import { ImporPerluJawaban, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
@@ -92,6 +92,11 @@ export type ImportPreview = {
   }[];
   /** Tab Excel yang benar-benar dibaca — pemilihannya tebakan berperingkat. */
   sheetName: string;
+  /**
+   * Sheet & kolom yang bisa diganti user dari pratinjau (DECISIONS 624). null
+   * untuk Template Adendum MARLIN – bentuknya pasti, tidak ada yang dipilih.
+   */
+  baca: import("@/lib/rab/hps-parser").PilihanBaca | null;
   mode: ImportMode;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
@@ -192,6 +197,11 @@ export type ImportState =
        * baseline sama sekali.
        */
       pilihProfil?: { revisionNo: number; itemCount: number };
+      /**
+       * MARLIN tidak yakin membaca berkas ini → layar BERTANYA sheet & kolom
+       * mana yang dipakai, bukan menampilkan galat (DECISIONS 624).
+       */
+      tanya?: { sebab: string } & import("@/lib/rab/hps-parser").PilihanBaca;
     }
   | undefined;
 
@@ -302,6 +312,21 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         .safeParse(JSON.parse(mentah));
       return parsed.success ? parsed.data : [];
     })();
+    /*
+     * Sheet & kolom yang DIPILIH user (DECISIONS 624) – dikirim ulang pada tiap
+     * pratinjau dan saat menyimpan, sama seperti berkasnya.
+     */
+    const opsiBaca = ((): import("@/lib/rab/hps-parser").OpsiBaca => {
+      const sheet = String(formData.get("sheet") ?? "").trim();
+      const mentah = String(formData.get("kolom") ?? "").trim();
+      const kol = z.number().int().min(1).max(200);
+      const k = mentah
+        ? z
+            .object({ vol: kol, unit: kol, price: kol, amount: kol })
+            .safeParse((() => { try { return JSON.parse(mentah); } catch { return null; } })())
+        : null;
+      return { ...(sheet ? { sheet } : {}), ...(k?.success ? { kolom: k.data } : {}) };
+    })();
     let templateAdendum:
       | (Awaited<ReturnType<typeof bacaTemplateAdendum>> & { wb: import("exceljs").Workbook; sheet: string })
       | null = null;
@@ -358,6 +383,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     let nodes: import("@/lib/rab/flatten").FlatNode[];
     /* Tab yang BENAR-BENAR dibaca — permintaan user 2026-09-21. */
     let sheetName: string;
+    let baca: import("@/lib/rab/hps-parser").PilihanBaca | null = null;
     if (templateAdendum) {
       warnings = [...templateAdendum.warnings];
       priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
@@ -365,8 +391,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       sheetName = templateAdendum.sheet;
     } else {
       try {
-        ({ parsed, warnings, priceColumn, sheetName } = await parseHpsBuffer(buffer));
+        let pilihan: import("@/lib/rab/hps-parser").PilihanBaca | undefined;
+        ({ parsed, warnings, priceColumn, sheetName, pilihan } = await parseHpsBuffer(buffer, opsiBaca));
+        baca = pilihan ?? null;
       } catch (e) {
+        if (e instanceof ImporPerluJawaban) return { tanya: { sebab: e.sebab, ...e.pilihan } };
         return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
       }
       nodes = flattenParsedRab(parsed);
@@ -867,6 +896,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         status: b.status,
       })),
       sheetName,
+      baca,
       mode,
       banding: banding
         ? banding.map((b) => ({
