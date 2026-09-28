@@ -906,7 +906,8 @@ async function parseHpsOtomatis(
     const t = n.trim();
     if (t === "RAB") return 0;
     if (/^rab\b/i.test(t)) return 1;
-    if (/^(cco|mc)\s*-?\s*\d*$/i.test(t)) return 2;
+    // "CC 0" = CCO yang huruf O-nya diketik angka nol (RAB_CCO-1 Bulupayung).
+    if (/^(cc\s*[o0]|mc)\s*-?\s*\d*$/i.test(t)) return 2;
     if (/\brab\b|^b\.?o?\.?q\b|daftar kuantitas|kuantitas dan harga|rincian biaya|lampiran/i.test(t))
       return 3;
     return 4;

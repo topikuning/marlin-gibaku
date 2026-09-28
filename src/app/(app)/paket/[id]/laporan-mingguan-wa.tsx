@@ -47,7 +47,7 @@ export function LaporanMingguanWa({
   pilihanMinggu = [],
 }: {
   packageId: string;
-  /** false = paket belum ditautkan ke grup WA; tombol kirim tidak ada gunanya. */
+  /** false = tidak ada grup paket maupun grup kabupaten; tombol kirim tidak ada gunanya. */
   punyaGrup: boolean;
   /**
    * Minggu yang boleh dipilih, terbaru dulu. Kosong (kontrak belum ber-SPMK)
@@ -74,8 +74,8 @@ export function LaporanMingguanWa({
       {!punyaGrup ? (
         <Banner
           tone="warning"
-          title="Paket ini belum ditautkan ke grup WhatsApp"
-          description="Tetapkan grupnya di panel “Grup WhatsApp paket” dulu – tanpa itu tidak ada tujuan kirim."
+          title="Paket ini belum punya grup WhatsApp"
+          description="Tetapkan grup paket, atau grup per kabupaten untuk lokasinya, dulu – tanpa itu tidak ada tujuan kirim."
         />
       ) : null}
 

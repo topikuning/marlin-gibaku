@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { akhirMingguKontrak, kirimLaporanMingguan } from "./kirim";
+import { PUNYA_TUJUAN_MINGGUAN, akhirMingguKontrak, kirimLaporanMingguan } from "./kirim";
 import { getMingguanAktif } from "./setelan";
 
 /**
@@ -45,16 +45,17 @@ export async function kirimLaporanMingguanTerjadwal(now = new Date()): Promise<H
   }
 
   /*
-   * Hanya paket yang BENAR-BENAR sedang berjalan dan punya grup.
+   * Hanya paket yang BENAR-BENAR sedang berjalan dan punya grup – grup paket
+   * ATAU grup kabupaten lokasinya (`PUNYA_TUJUAN_MINGGUAN`).
    *
-   * Paket tanpa `waGroupId` bukan kegagalan yang perlu dicatat setiap hari —
+   * Paket tanpa tujuan bukan kegagalan yang perlu dicatat setiap hari —
    * ia memang belum disiapkan, dan mencatatnya sebagai "gagal" tiap 24 jam
    * hanya membuat log ini tidak terbaca lagi saat yang gagal betulan muncul.
    */
   const kandidat = await db.package.findMany({
     where: {
       stage: "pelaksanaan",
-      waGroupId: { not: null },
+      ...PUNYA_TUJUAN_MINGGUAN,
       contract: { startDate: { not: null } },
     },
     select: { id: true, name: true, contract: { select: { startDate: true, weekMode: true } } },

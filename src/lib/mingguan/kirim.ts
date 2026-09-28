@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
 import { weekDateRange, weekOfDate, weightedPct, weightedRealizedPct, type WeekPeriodMode } from "@/lib/progress-calc";
@@ -139,6 +140,24 @@ export function rekapPaket(berkurva: LocationProgress[], tanpaKurva: number): Re
 export type HasilKirimMingguan =
   | { ok: true; mingguKe: number; lokasi: number; body: string; waMessageId: string | null }
   | { ok: false; alasan: string; body?: string };
+
+/**
+ * Paket yang PUNYA TUJUAN kiriman mingguan: grup paket, ATAU sedikitnya satu
+ * lokasi aktif yang dipasang ke grup kabupaten – persis sumber yang dipakai
+ * `kelompokLokasiPerGrup`.
+ *
+ * Satu syarat untuk penjadwal dan tombol manual. Sebelumnya keduanya membaca
+ * `Package.waGroupId` sendiri, sehingga paket yang hanya punya grup kabupaten
+ * tidak pernah dikirimi otomatis dan tombolnya mati ("Butuh grup") – pola
+ * yang sama dengan DECISIONS 609 di layar lokasi.
+ */
+export const PUNYA_TUJUAN_MINGGUAN = {
+  OR: [{ waGroupId: { not: null } }, { locations: { some: { isActive: true, waGroupRefId: { not: null } } } }],
+} satisfies Prisma.PackageWhereInput;
+
+export async function adaTujuanMingguan(packageId: string): Promise<boolean> {
+  return (await db.package.count({ where: { id: packageId, ...PUNYA_TUJUAN_MINGGUAN } })) > 0;
+}
 
 /** Paket + kontrak + lokasi aktif, secukupnya untuk menyusun pesan. */
 async function muatPaket(packageId: string) {
