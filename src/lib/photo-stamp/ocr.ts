@@ -133,19 +133,37 @@ async function bacaSekali(gambar: Buffer): Promise<TulisanFoto> {
 /** Tulisan yang terbaca di foto + letaknya; null bila OCR gagal atau lewat batas waktu. */
 export async function bacaTulisanFoto(gambar: Buffer): Promise<TulisanFoto | null> {
   const masuk = Date.now();
+  /*
+   * Pekerjaan yang SUNGGUH berjalan di worker. Batas waktu hanya menyerah
+   * menunggu – worker tetap mengerjakan foto itu sampai selesai. Antrean
+   * menunggu pekerjaan ini, bukan balapannya: kalau tidak, foto berikutnya
+   * ditumpuk ke worker yang masih sibuk dan batas waktunya ikut termakan sisa
+   * foto sebelumnya (log produksi 2026-09-28, DECISIONS 628).
+   */
+  let kerja: Promise<unknown> = Promise.resolve();
+  let jam: ReturnType<typeof setTimeout> | undefined;
   const giliran = antrean.then(() => {
     if (Date.now() - masuk > BATAS_ANTRE_MS) throw new Error("antrean OCR terlalu panjang – dilewati");
+    const baca = bacaSekali(gambar);
+    kerja = baca;
     return Promise.race([
-      bacaSekali(gambar),
-      new Promise<never>((_, tolak) => setTimeout(() => tolak(new Error("OCR lewat batas waktu")), BATAS_WAKTU_MS)),
+      baca,
+      new Promise<never>((_, tolak) => {
+        jam = setTimeout(() => tolak(new Error("OCR lewat batas waktu")), BATAS_WAKTU_MS);
+      }),
     ]);
   });
-  // Antrean tidak boleh macet oleh satu kegagalan.
-  antrean = giliran.catch(() => undefined);
+  // Antrean tidak boleh macet oleh satu kegagalan – tapi menunggu worker bebas.
+  antrean = giliran.then(
+    () => undefined,
+    () => kerja.catch(() => undefined),
+  );
   try {
     return await giliran;
   } catch (e) {
     console.error("[ocr] membaca tulisan foto gagal – cap lengkap dipakai:", e instanceof Error ? e.message : e);
     return null;
+  } finally {
+    clearTimeout(jam);
   }
 }

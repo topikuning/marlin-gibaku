@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 628 | 2026-09-28 | Antrean OCR foto menunggu worker bebas sesudah batas waktu – foto berikutnya tidak lagi ditumpuk ke worker yang masih mengerjakan sisa foto sebelumnya |
 | 627 | 2026-09-28 | Impor CCO: sheet "CC 0" dikenali sebagai CCO (tak lagi kalah oleh "Detail RAB"); blok hasil boleh berada di depan tambah/kurang (Kontrak · CC 0 - 1 · TAMBAH · KURANG), peran tetap harus terbukti |
 | 626 | 2026-09-28 | Laporan mingguan WA: penjadwal & tombol manual paket memakai syarat tujuan yang sama dengan pengirim (grup paket ATAU grup kabupaten lokasi) – paket ber-grup kabupaten saja kini terkirim |
 | 625 | 2026-09-28 | Harga satuan TIDAK PERNAH diturunkan dari jumlah ÷ volume (mencabut bagian 623/624 – tak pernah diizinkan); CCO berharga tersembunyi → bertanya dgn menyebut kolomnya; kolom tersembunyi dilewati, tak memotong blok; Suradadi: harga dari blok CCO-01 + baris "II. PPN…" bukan item; Pasir: kolom VOL dipilih lewat pembuktian |
