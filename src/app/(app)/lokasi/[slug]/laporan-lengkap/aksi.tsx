@@ -53,7 +53,7 @@ export function AksiLaporanLengkap({
     wahaOn
       ? hasGroup
         ? `Kirim WhatsApp menuju ${groupName ? `grup ${groupName}` : "grup WhatsApp paket"}.`
-        : "Paket ini belum ditautkan ke grup WhatsApp, jadi tombol kirim nonaktif."
+        : "Lokasi ini belum punya grup WhatsApp (grup kabupaten maupun grup paket), jadi tombol kirim nonaktif."
       : null,
   ].filter(Boolean);
 

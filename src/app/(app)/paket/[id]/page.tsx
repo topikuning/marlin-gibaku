@@ -54,6 +54,7 @@ import { WaGroupForm } from "./wa-group-form";
 import { DriveFolderForm } from "./drive-folder-form";
 import { mingguKontrak, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { LaporanMingguanWa } from "./laporan-mingguan-wa";
+import { adaTujuanMingguan } from "@/lib/mingguan/kirim";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { db } from "@/lib/db";
 import { getDriveCoverage } from "@/lib/gdrive/coverage";
@@ -178,6 +179,10 @@ export default async function RingkasanPaketPage({
       })()
     : [];
   const canKirimLaporan = can(user.role, "ai.report_send");
+  // Tujuan kiriman mingguan ditanyakan ke syarat yang sama dengan pengirimnya:
+  // grup paket ATAU grup kabupaten lokasi (bukan `pkg.waGroupId` saja).
+  const punyaTujuanMingguan =
+    canKirimLaporan && pkg.stage === "pelaksanaan" ? await adaTujuanMingguan(pkg.id) : false;
   const canDocument = can(user.role, "document.view");
 
   const idLokasi = pkg.locations.map((l) => l.id);
@@ -890,8 +895,8 @@ export default async function RingkasanPaketPage({
                 {canKirimLaporan && pkg.stage === "pelaksanaan" ? (
                   <BarisIntegrasi
                     nama="Laporan progres mingguan"
-                    keterangan="Semua lokasi paket ini dalam satu pesan. Otomatis pada hari terakhir tiap minggu kontrak bila sakelarnya menyala di Sistem."
-                    status={pkg.waGroupId ? undefined : "Butuh grup"}
+                    keterangan="Satu pesan per grup – grup kabupaten untuk lokasinya, grup paket untuk sisanya. Otomatis pada hari terakhir tiap minggu kontrak bila sakelarnya menyala di Sistem."
+                    status={punyaTujuanMingguan ? undefined : "Butuh grup"}
                     statusTone="warning"
                     aksi={
                       <Drawer
@@ -902,7 +907,7 @@ export default async function RingkasanPaketPage({
                       >
                         <LaporanMingguanWa
                           packageId={pkg.id}
-                          punyaGrup={Boolean(pkg.waGroupId)}
+                          punyaGrup={punyaTujuanMingguan}
                           pilihanMinggu={pilihanMingguPaket(contract?.startDate ?? null, contract?.weekMode)}
                         />
                       </Drawer>
