@@ -273,12 +273,25 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
    * memilih kolom bobot itu, pembuktian gagal, dan seluruh berkas jatuh ke
    * pembaca HPS biasa – yang lalu membaca blok HPS/penawaran.
    */
+  const bukanNilai = (b: BlokNilai) => /^(BOBOT|KET|KETERANGAN|%)/i.test(b.label);
   let iDasar = iTambah - 1;
-  while (iDasar > 0 && /^(BOBOT|KET|KETERANGAN|%)/i.test(blok[iDasar].label)) iDasar--;
-  const blokDasar = blok[iDasar];
+  while (iDasar > 0 && bukanNilai(blok[iDasar])) iDasar--;
+  let blokDasar = blok[iDasar];
   // Kandidat blok HASIL = semua blok sesudah "kurang", tanpa kolom keterangan.
-  const sesudah = blok.slice(iKurang + 1).filter((b) => !/^KET|KETERANGAN/i.test(b.label));
-  if (sesudah.length === 0) return null;
+  let sesudah = blok.slice(iKurang + 1).filter((b) => !/^KET|KETERANGAN/i.test(b.label));
+  if (sesudah.length === 0) {
+    /*
+     * Hasil DI DEPAN tambah/kurang: Kontrak · CC 0 - 1 · VOLUME TAMBAH ·
+     * VOLUME KURANG · KET (RAB_CCO-1 Bulupayung, 2026-09-28). Tidak ada blok
+     * sesudah "kurang", jadi blok tepat sebelum "tambah" adalah HASIL dan blok
+     * di kirinya DASAR. Peran tetap harus TERBUKTI seperti bentuk lainnya.
+     */
+    let iDepan = iDasar - 1;
+    while (iDepan > 0 && bukanNilai(blok[iDepan])) iDepan--;
+    if (iDepan < 0 || bukanNilai(blok[iDepan])) return null;
+    sesudah = [blokDasar];
+    blokDasar = blok[iDepan];
+  }
 
   // Data mulai beberapa baris di bawah grup (ada 1–3 baris sub-header).
   const contoh = barisContoh(ws, barisGrup + 1, blokDasar);
