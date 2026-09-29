@@ -46,6 +46,12 @@ const LINTASAN: { ambang: number; lebar: number; gelap?: true }[] = [
 const KEYAKINAN_MIN = 60;
 const BATAS_WAKTU_MS = 8_000;
 /**
+ * Pembacaan di LATAR (cap latar, pembacaan susulan) – tidak ada orang yang
+ * menunggu, jadi tidak ada alasan menyerah cepat. Batas ini hanya penjaga
+ * mesin yang macet (DECISIONS 628).
+ */
+const BATAS_WAKTU_LATAR_MS = 60_000;
+/**
  * Menunggu giliran lebih lama dari ini = server sedang dibanjiri unggahan;
  * foto ini tidak dibaca dan diberi cap lengkap. Tanpa batas ini unggahan ke-30
  * dalam satu gelombang menunggu 29 pembacaan sebelumnya.
@@ -130,8 +136,15 @@ async function bacaSekali(gambar: Buffer): Promise<TulisanFoto> {
   return { teks: baris.join(" | "), kotak: kotak.slice(0, 120) };
 }
 
-/** Tulisan yang terbaca di foto + letaknya; null bila OCR gagal atau lewat batas waktu. */
-export async function bacaTulisanFoto(gambar: Buffer): Promise<TulisanFoto | null> {
+/**
+ * Tulisan yang terbaca di foto + letaknya; null bila OCR gagal atau lewat batas waktu.
+ *
+ * `latar`: dipanggil pekerja latar – antrean ditunggu berapa pun lamanya dan
+ * batas waktunya panjang. Foto tidak pernah DILEWATI hanya karena foto lain
+ * sedang dibaca (teguran user 2026-09-29: *"jadi misal foto A prosesnya lama,
+ * maka foto B tidak dianalisa sama sekali?"*).
+ */
+export async function bacaTulisanFoto(gambar: Buffer, opsi: { latar?: boolean } = {}): Promise<TulisanFoto | null> {
   const masuk = Date.now();
   /*
    * Pekerjaan yang SUNGGUH berjalan di worker. Batas waktu hanya menyerah
@@ -143,13 +156,16 @@ export async function bacaTulisanFoto(gambar: Buffer): Promise<TulisanFoto | nul
   let kerja: Promise<unknown> = Promise.resolve();
   let jam: ReturnType<typeof setTimeout> | undefined;
   const giliran = antrean.then(() => {
-    if (Date.now() - masuk > BATAS_ANTRE_MS) throw new Error("antrean OCR terlalu panjang – dilewati");
+    if (!opsi.latar && Date.now() - masuk > BATAS_ANTRE_MS) throw new Error("antrean OCR terlalu panjang – dilewati");
     const baca = bacaSekali(gambar);
     kerja = baca;
     return Promise.race([
       baca,
       new Promise<never>((_, tolak) => {
-        jam = setTimeout(() => tolak(new Error("OCR lewat batas waktu")), BATAS_WAKTU_MS);
+        jam = setTimeout(
+          () => tolak(new Error("OCR lewat batas waktu")),
+          opsi.latar ? BATAS_WAKTU_LATAR_MS : BATAS_WAKTU_MS,
+        );
       }),
     ]);
   });

@@ -63,4 +63,19 @@ describe("antrean OCR sesudah batas waktu", () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(await b).toEqual({ teks: "", kotak: [] });
   });
+
+  it("mode LATAR: foto berikutnya DITUNGGU berapa pun lamanya, tidak dilewati", async () => {
+    tahan = true;
+    const a = bacaTulisanFoto(Buffer.alloc(1), { latar: true });
+    await vi.advanceTimersByTimeAsync(10);
+    tahan = false;
+    const b = bacaTulisanFoto(Buffer.alloc(1), { latar: true });
+    // Foto A dibaca 20 dtk – lewat batas antrean biasa (5 dtk), di bawah batas latar.
+    await vi.advanceTimersByTimeAsync(20_000);
+    for (const f of lepas) f();
+    lepas = [];
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await a).toEqual({ teks: "", kotak: [] });
+    expect(await b, "foto B dilewati karena foto A lama").toEqual({ teks: "", kotak: [] });
+  });
 });

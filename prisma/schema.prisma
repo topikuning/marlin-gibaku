@@ -1909,6 +1909,10 @@ model Photo {
   stampPending        Boolean            @default(false) @map("stamp_pending")
   /// Percobaan cap latar yang gagal — berhenti dicoba sesudah beberapa kali.
   stampTries          Int                @default(0) @map("stamp_tries")
+  /// Tulisan di foto (tag bawaan aplikasi kamera) BELUM terbaca OCR – cap
+  /// sementara lengkap. Dibaca susulan dari berkas asli lalu cap diperbaiki
+  /// otomatis oleh pemulih cap latar (DECISIONS 628).
+  ocrPending          Boolean            @default(false) @map("ocr_pending")
   /// Letak tulisan yang sudah ada di foto (OCR, pecahan 0..1) – cap MARLIN
   /// disusun menghindarinya, juga saat cap dirender ulang. null = belum dibaca.
   /// DECISIONS 619.

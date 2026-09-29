@@ -639,6 +639,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
         existingTagTime: tag?.waktu ?? false,
         existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
         textBoxes: tag ? tag.kotak : undefined,
+        // OCR tidak terbaca → dibaca susulan dari berkas asli (DECISIONS 628).
+        ocrPending: !heic && !tag && asliOk,
       },
     });
   } catch (e) {
@@ -657,8 +659,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
 export async function tagBawaanFoto(
   gambar: Buffer,
   locationId: string | null,
+  opsi: { latar?: boolean } = {},
 ): Promise<(TagBawaan & { kotak: KotakTulisan[] }) | null> {
-  const tulisan = await bacaTulisanFoto(gambar);
+  const tulisan = await bacaTulisanFoto(gambar, opsi);
   if (!tulisan) return null;
   const lok = locationId
     ? await db.location.findUnique({

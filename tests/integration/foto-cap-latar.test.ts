@@ -44,6 +44,7 @@ vi.mock("@/lib/r2", () => ({
 }));
 
 const { db } = await import("@/lib/db");
+const { Prisma } = await import("@/generated/prisma/client");
 const { savePhotoForItem } = await import("@/lib/photos");
 const { pastikanFotoBercap, kunciFotoBercap, barisFotoBercap, pulihkanYangTertinggal, antreanCapSelesai } =
   await import("@/lib/photo-stamp/cap-latar");
@@ -232,6 +233,40 @@ describe("cap foto di latar", () => {
     const akhir = await baca(hasil.id);
     expect(akhir.stampPending).toBe(false);
     expect(akhir.r2Key).not.toMatch(/\.asli\./);
+  }, 60_000);
+
+  it("tag bawaan yang belum terbaca OCR dibaca SUSULAN dan capnya diperbaiki (DECISIONS 628)", async () => {
+    const hasil = await simpan();
+    await antreanCapSelesai();
+    const terbaca = await db.photo.findUniqueOrThrow({ where: { id: hasil.id }, select: { ocrPending: true } });
+    expect(terbaca.ocrPending, "OCR latar berhasil – tidak perlu susulan").toBe(false);
+    // Tiru OCR yang gagal saat unggah: cap lengkap, tulisan belum terbaca, umur 5 menit.
+    await db.photo.update({
+      where: { id: hasil.id },
+      data: { ocrPending: true, textBoxes: Prisma.DbNull, createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    expect(await pulihkanYangTertinggal()).toBeGreaterThanOrEqual(1);
+    await antreanCapSelesai();
+    const akhir = await db.photo.findUniqueOrThrow({
+      where: { id: hasil.id },
+      select: { ocrPending: true, stampPending: true, textBoxes: true, r2Key: true },
+    });
+    expect(akhir).toMatchObject({ ocrPending: false, stampPending: false });
+    expect(akhir.textBoxes).not.toBeNull();
+    expect(akhir.r2Key).not.toMatch(/\.asli\./);
+  }, 60_000);
+
+  it("foto yang capnya sudah diperbaiki tangan tidak dibaca susulan", async () => {
+    const hasil = await simpan();
+    await antreanCapSelesai();
+    await db.photo.update({
+      where: { id: hasil.id },
+      data: { ocrPending: true, stampRevision: 1, createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    await pulihkanYangTertinggal();
+    await antreanCapSelesai();
+    const akhir = await db.photo.findUniqueOrThrow({ where: { id: hasil.id }, select: { stampPending: true, stampTries: true } });
+    expect(akhir).toMatchObject({ stampPending: false, stampTries: 0 });
   }, 60_000);
 
   it("berkas asli foto yang masih menunggu tidak termasuk arsip yang boleh dihapus", async () => {

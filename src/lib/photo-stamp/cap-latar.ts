@@ -58,7 +58,8 @@ async function kerjakan(t: TugasCap): Promise<void> {
   const db = await muatDb();
   const { processWithSharpOrOriginal, tagBawaanFoto, ringkasBukti } = await import("@/lib/photos");
   const { r2Put, r2Delete } = await import("@/lib/r2");
-  const tag = await tagBawaanFoto(t.gambar, t.locationId);
+  // Di latar tidak ada yang menunggu: OCR tidak dilewati karena antrean.
+  const tag = await tagBawaanFoto(t.gambar, t.locationId, { latar: true });
   const hasil = await processWithSharpOrOriginal(
     t.gambar,
     {
@@ -89,6 +90,8 @@ async function kerjakan(t: TugasCap): Promise<void> {
       existingTagTime: tag?.waktu ?? false,
       existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
       textBoxes: tag ? tag.kotak : undefined,
+      // Tetap gagal dibaca → cap lengkap sementara, dicoba lagi oleh pemulih.
+      ocrPending: !tag,
       stampPending: false,
     },
   });
@@ -168,6 +171,33 @@ export async function pulihkanYangTertinggal(): Promise<number> {
       orderBy: { createdAt: "asc" },
       take: 20,
     });
+    /*
+     * Tag bawaan yang belum terbaca (DECISIONS 628): foto sudah bercap
+     * lengkap, dibaca SUSULAN dari berkas asli lewat jalur yang sama –
+     * ditandai menunggu lagi, lalu cap dirender ulang dengan hasil OCR.
+     * Hanya foto yang capnya belum pernah diperbaiki tangan (revisi 0);
+     * perbaikan tangan sudah membaca ulang tulisannya sendiri (622).
+     */
+    const susulan = await db.photo.findMany({
+      where: {
+        ocrPending: true,
+        stampPending: false,
+        stampRevision: 0,
+        originalKey: { not: null },
+        stampTries: { lt: BATAS_COBA },
+        createdAt: { lt: new Date(Date.now() - UMUR_PULIH_MS) },
+      },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: 20,
+    });
+    for (const { id } of susulan) {
+      const tandai = await db.photo.updateMany({
+        where: { id, ocrPending: true, stampPending: false, stampRevision: 0 },
+        data: { stampPending: true, stampTries: { increment: 1 } },
+      });
+      if (tandai.count > 0) tua.push({ id });
+    }
     let n = 0;
     for (const { id } of tua) {
       if (berjalan.has(id)) continue;
