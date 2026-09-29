@@ -64,36 +64,6 @@ function koordinatDesimal(teks: string): string | null {
 /** 7°03'21"S · 112°44'10"E · 6°52'16"S (OCR sering salah membaca ° jadi o/º). */
 const POLA_DMS = /\b\d{1,3}\s*[°ºo˚]\s*\d{1,2}\s*['’′]\s*\d{1,2}(?:[.,]\d+)?\s*["”″']{0,2}\s*[NSEWUTBL]\b|\b\d{1,2}["”″']\s*\d{1,2}(?:[.,]\d+)?["”″']?\s*[NSEW]\b/i;
 
-/** Penanda alamat yang dipakai cap aplikasi kamera. */
-const POLA_ALAMAT =
-  /\b(jl|jln|jalan|kec|kecamatan|kab|kabupaten|kel|kelurahan|desa|kota|provinsi|prov|indonesia|jawa timur|jawa tengah|jawa barat|sulawesi|sumatera|sumatra|kalimantan|nusa tenggara|maluku|papua|bali|banten|aceh|riau|jambi|bengkulu|lampung|gorontalo|yogyakarta)\b\.?/i;
-
-/** Jarak ubah (Levenshtein) – OCR sering salah SATU huruf: "Lamengan", "Pacirg". */
-function jarak(a: string, b: string): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0]![j] = j;
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
-      d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length]![b.length]!;
-}
-
-/**
- * Nama wilayah lokasi yang tertulis di foto, toleran satu salah huruf (dua
- * untuk nama ≥8 huruf). Nama pendek (<5 huruf) harus persis: "Desa"/"Kota"
- * yang kebetulan mirip nama tempat tidak boleh lolos.
- */
-function wilayahTertulis(t: string, nama: string[]): string | null {
-  const kata = t.toLowerCase().match(/[a-z]{4,}/g) ?? [];
-  for (const n of nama) {
-    for (const bagian of n.toLowerCase().split(/\s+/).filter((b) => b.length >= 4)) {
-      const toleransi = bagian.length >= 8 ? 2 : bagian.length >= 5 ? 1 : 0;
-      if (kata.some((k) => Math.abs(k.length - bagian.length) <= toleransi && jarak(k, bagian) <= toleransi)) return n;
-    }
-  }
-  return null;
-}
-
 function potong(teks: string, idx: number, panjang: number): string {
   return teks.slice(Math.max(0, idx - 10), Math.min(teks.length, idx + panjang + 25)).trim();
 }
@@ -103,12 +73,15 @@ function potong(teks: string, idx: number, panjang: number): string {
  *
  * - **waktu**: ada tanggal lengkap (hari+bulan+tahun) dalam format apa pun. Jam
  *   saja tidak cukup – jam dinding atau layar alat bisa tertangkap kamera.
- * - **lokasi**: ada koordinat (desimal di wilayah Indonesia, atau derajat-menit-
- *   detik), ATAU ada alamat/nama wilayah lokasi itu BERSAMA tanggal. Syarat
- *   "bersama tanggal" ada karena papan nama proyek, spanduk, dan kop surat di
- *   foto lapangan juga menulis kecamatan/kabupaten – dan itu bukan cap.
+ * - **lokasi**: HANYA koordinat (desimal di wilayah Indonesia, atau derajat-
+ *   menit-detik). Nama wilayah/alamat – walau bersama tanggal – BUKAN tag
+ *   lokasi (DECISIONS 629). Teguran user 2026-09-29 pada dua foto yang capnya
+ *   hanya "Kecamatan Taman, Indonesia" dan "PROYEK KNMP DESA KLIDANG LOR":
+ *   *"foto asli tidak ada tag lokasi, kenapa kamu nggak ngasih tag lokasi?!"*.
+ *   Tag lokasi MARLIN adalah bukti TITIK (koordinat); nama tempat tidak
+ *   menggantikannya.
  */
-export function nilaiTagBawaan(teks: string, opsi: { namaWilayah?: string[] } = {}): TagBawaan {
+export function nilaiTagBawaan(teks: string): TagBawaan {
   const t = teks.replace(/\s+/g, " ");
   const bukti: TagBawaan["bukti"] = {};
 
@@ -131,16 +104,6 @@ export function nilaiTagBawaan(teks: string, opsi: { namaWilayah?: string[] } = 
   } else if (dms) {
     lokasi = true;
     bukti.lokasi = potong(t, dms.index, dms[0].length);
-  } else if (waktu) {
-    const alamat = POLA_ALAMAT.exec(t);
-    const wilayah = wilayahTertulis(t, (opsi.namaWilayah ?? []).map((n) => n.trim()).filter(Boolean));
-    if (alamat) {
-      lokasi = true;
-      bukti.lokasi = potong(t, alamat.index, alamat[0].length);
-    } else if (wilayah) {
-      lokasi = true;
-      bukti.lokasi = wilayah;
-    }
   }
 
   return { lokasi, waktu, bukti };

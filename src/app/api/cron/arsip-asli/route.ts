@@ -50,10 +50,18 @@ export async function POST(req: Request) {
      * putaran latar itu sendiri, memakai keadaan terbaru.
      */
     const mulai = await mulaiArsipLatar();
+    /*
+     * Cap latar yang tertinggal + tag bawaan yang belum terbaca OCR dibaca
+     * susulan (DECISIONS 628). Pemulih ini juga dipicu tiap unggahan; cron
+     * per jam memastikan foto terakhir hari itu tidak menunggu unggahan besok.
+     */
+    const { pulihkanYangTertinggal } = await import("@/lib/photo-stamp/cap-latar");
+    const capSusulan = await pulihkanYangTertinggal().catch(() => 0);
     const { terakhir } = keadaanArsipLatar();
     const ringkas = await ringkasArsipAsli();
     return NextResponse.json({
       ...mulai,
+      capSusulan,
       menunggu: ringkas.menunggu,
       masaTenggang: ringkas.masaTenggang,
       putaranTerakhir: terakhir,

@@ -44,35 +44,30 @@ describe("nilaiTagBawaan – lokasi", () => {
     expect(nilaiTagBawaan(teks).lokasi).toBe(true);
   });
 
-  it("alamat + tanggal = cap lokasi (aplikasi yang tidak menulis koordinat)", () => {
-    const h = nilaiTagBawaan("25/09/2026 14:32 | Jl. Raya Klampis, Kec. Klampis | Kab. Bangkalan, Jawa Timur");
-    expect(h.lokasi).toBe(true);
-    expect(h.waktu).toBe(true);
+  /*
+   * DECISIONS 629 – tag lokasi = KOORDINAT. Teguran user 2026-09-29 pada dua
+   * foto nyata: *"foto asli tidak ada tag lokasi, kenapa kamu nggak ngasih tag
+   * lokasi?!"* – capnya hanya "2026/09/28 14:17 · Kecamatan Taman, Indonesia"
+   * dan "PROYEK KNMP DESA KLIDANG LOR · 28 September 2026 10.38 AM". Nama
+   * wilayah/alamat tanpa koordinat bukan tag lokasi, walau ada tanggalnya.
+   */
+  it.each([
+    "2026/09/28 14:17 | Kecamatan Taman, Indonesia",
+    "PROYEK KNMP DESA KLIDANG LOR | 28 September 2026 10.38 AM",
+    "25/09/2026 14:32 | Jl. Raya Klampis, Kec. Klampis | Kab. Bangkalan, Jawa Timur",
+  ])("tanggal + nama wilayah/alamat TANPA koordinat: tanggal saja – %s", (teks) => {
+    expect(nilaiTagBawaan(teks)).toMatchObject({ lokasi: false, waktu: true });
   });
 
-  it("nama wilayah lokasi itu sendiri + tanggal = cap lokasi", () => {
-    const h = nilaiTagBawaan("Jumat, 25 Sep 2026 09:15 | Kranji, Paciran, Lamongan", {
-      namaWilayah: ["Kranji", "Paciran", "Lamongan", "Jawa Timur"],
-    });
-    expect(h.lokasi).toBe(true);
-  });
-
-  it("nama wilayah yang salah SATU huruf oleh OCR tetap dikenali", () => {
-    const h = nilaiTagBawaan("25 Sep 2026 09:15 | Kra | Lamengan", { namaWilayah: ["Kranji", "Lamongan"] });
-    expect(h.lokasi).toBe(true);
-  });
-
-  it("kata pendek yang kebetulan mirip nama wilayah tidak lolos", () => {
-    const h = nilaiTagBawaan("25 Sep 2026 | Sore hari", { namaWilayah: ["Sora"] });
-    expect(h.lokasi).toBe(false);
+  it("nama wilayah lokasi itu sendiri + tanggal juga BUKAN tag lokasi", () => {
+    const h = nilaiTagBawaan("Jumat, 25 Sep 2026 09:15 | Kranji, Paciran, Lamongan");
+    expect(h).toMatchObject({ lokasi: false, waktu: true });
   });
 
   it("papan nama berisi kecamatan/kabupaten TANPA tanggal BUKAN cap lokasi", () => {
     // Foto lapangan sungguhan (tests/fixtures/IMG20260801WA0035.jpg): papan
     // "TITIK DUGA GEOLISTRIK – KECAMATAN PACIRAN – KAB/KOTA LAMONGAN".
-    const h = nilaiTagBawaan("TITIK DUGA GEOLISTRIK 2 | LOKASI KNMP | KECAMATAN PACIRAN | KAB / KOTA LAMONGAN", {
-      namaWilayah: ["Kranji", "Paciran", "Lamongan"],
-    });
+    const h = nilaiTagBawaan("TITIK DUGA GEOLISTRIK 2 | LOKASI KNMP | KECAMATAN PACIRAN | KAB / KOTA LAMONGAN");
     expect(h.lokasi).toBe(false);
     expect(h.waktu).toBe(false);
   });
