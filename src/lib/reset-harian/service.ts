@@ -83,6 +83,8 @@ export async function ringkasResetHarian(locationId: string): Promise<RingkasRes
     db.photo.count({ where: cepat }),
     db.finding.count({ where: { reportId: { in: ids } } }),
     db.reportVerification.count({ where: { reportId: { in: ids } } }),
+    // KEMBAR-OK: kendala yang sudah digabungkan SENGAJA ikut dihitung – reset
+    // menghapus semua kendala yang menempel ke laporan, termasuk yang digabung.
     db.issue.count({ where: { reportId: { in: ids } } }),
   ]);
   return {
