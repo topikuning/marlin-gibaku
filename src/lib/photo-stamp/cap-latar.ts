@@ -142,7 +142,16 @@ async function tugasDariBasisData(photoId: string): Promise<TugasCap | null> {
   if (!k) return null;
   const baris = await db.photo.findUnique({ where: { id: photoId }, select: { stampPending: true, locationId: true } });
   if (!baris?.stampPending) return null;
-  const gambar = await bacaBerkasAsli(k);
+  const asli = await bacaBerkasAsli(k);
+  /*
+   * Putaran yang pernah diberikan tangan (putarFotoAction) disimpan sebagai
+   * `rotationDeg`, bukan di berkas asli – harus diterapkan lagi, persis
+   * seperti di sana, supaya cap ulang tidak menegakkan foto kembali.
+   */
+  const gambar =
+    k.rotationDeg === 0
+      ? asli
+      : await (await import("sharp")).default(asli, { failOn: "none" }).rotate().rotate(k.rotationDeg).toBuffer();
   const { tagBawaanLokasi: _l, tagBawaanWaktu: _w, ...nilai } = k.saatIni;
   const stamp = await stampDariNilai(nilai);
   return {
@@ -175,14 +184,14 @@ export async function pulihkanYangTertinggal(): Promise<number> {
      * Tag bawaan yang belum terbaca (DECISIONS 628): foto sudah bercap
      * lengkap, dibaca SUSULAN dari berkas asli lewat jalur yang sama –
      * ditandai menunggu lagi, lalu cap dirender ulang dengan hasil OCR.
-     * Hanya foto yang capnya belum pernah diperbaiki tangan (revisi 0);
-     * perbaikan tangan sudah membaca ulang tulisannya sendiri (622).
+     * Foto yang capnya pernah diperbaiki tangan ikut (629: perbaikan tangan
+     * sebelum rilis itu memakai aturan tag lokasi yang salah); perbaikan
+     * tangan SESUDAHNYA menutup tanda ini sendiri, jadi tidak pernah ditimpa.
      */
     const susulan = await db.photo.findMany({
       where: {
         ocrPending: true,
         stampPending: false,
-        stampRevision: 0,
         originalKey: { not: null },
         stampTries: { lt: BATAS_COBA },
         createdAt: { lt: new Date(Date.now() - UMUR_PULIH_MS) },
@@ -193,7 +202,7 @@ export async function pulihkanYangTertinggal(): Promise<number> {
     });
     for (const { id } of susulan) {
       const tandai = await db.photo.updateMany({
-        where: { id, ocrPending: true, stampPending: false, stampRevision: 0 },
+        where: { id, ocrPending: true, stampPending: false },
         data: { stampPending: true, stampTries: { increment: 1 } },
       });
       if (tandai.count > 0) tua.push({ id });

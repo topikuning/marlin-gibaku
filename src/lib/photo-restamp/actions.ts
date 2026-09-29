@@ -247,6 +247,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
                 }
               : {}),
             stampRevision: revisi,
+            // Dirender tangan dari berkas asli – tidak lagi menunggu baca susulan (628).
+            ocrPending: false,
             stampPending: false,
           },
         });
@@ -504,6 +506,8 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
             heightPx: processed.height,
             textBoxes: kotakDiputar,
             stampRevision: revisi,
+            // Dirender tangan dari berkas asli – tidak lagi menunggu baca susulan (628).
+            ocrPending: false,
             stampPending: false,
             rotationDeg: totalDerajat,
           },
@@ -680,6 +684,8 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
           widthPx: processed.width,
           heightPx: processed.height,
           stampRevision: revisi,
+          // Dirender tangan dari berkas asli – tidak lagi menunggu baca susulan (628).
+          ocrPending: false,
             stampPending: false,
         },
       });

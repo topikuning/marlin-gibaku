@@ -256,17 +256,23 @@ describe("cap foto di latar", () => {
     expect(akhir.r2Key).not.toMatch(/\.asli\./);
   }, 60_000);
 
-  it("foto yang capnya sudah diperbaiki tangan tidak dibaca susulan", async () => {
+  it("foto yang pernah diperbaiki tangan & DIPUTAR ikut dibaca susulan, putarannya tetap (DECISIONS 629)", async () => {
     const hasil = await simpan();
     await antreanCapSelesai();
+    const tegak = await db.photo.findUniqueOrThrow({ where: { id: hasil.id }, select: { widthPx: true, heightPx: true } });
     await db.photo.update({
       where: { id: hasil.id },
-      data: { ocrPending: true, stampRevision: 1, createdAt: new Date(Date.now() - 5 * 60_000) },
+      data: { ocrPending: true, stampRevision: 1, rotationDeg: 90, createdAt: new Date(Date.now() - 5 * 60_000) },
     });
     await pulihkanYangTertinggal();
     await antreanCapSelesai();
-    const akhir = await db.photo.findUniqueOrThrow({ where: { id: hasil.id }, select: { stampPending: true, stampTries: true } });
-    expect(akhir).toMatchObject({ stampPending: false, stampTries: 0 });
+    const akhir = await db.photo.findUniqueOrThrow({
+      where: { id: hasil.id },
+      select: { stampPending: true, ocrPending: true, widthPx: true, heightPx: true },
+    });
+    expect(akhir).toMatchObject({ stampPending: false, ocrPending: false });
+    // Diputar 90°: lebar dan tinggi bertukar – cap ulang tidak menegakkan fotonya kembali.
+    expect([akhir.widthPx, akhir.heightPx]).toEqual([tegak.heightPx, tegak.widthPx]);
   }, 60_000);
 
   it("berkas asli foto yang masih menunggu tidak termasuk arsip yang boleh dihapus", async () => {
