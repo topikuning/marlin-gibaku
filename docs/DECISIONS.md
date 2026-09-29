@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 630 | 2026-09-29 | Reset seluruh laporan harian satu lokasi (laporan, foto laporan + Foto Cepat, temuan/verifikasi/kendala yang menempel; berkas R2 + arsip dingin dihapus total) – super admin UTAMA saja, konfirmasi ketik nama lokasi; riwayat append-only terhapus hanya sebagai ikutan induknya |
 | 629 | 2026-09-29 | Tag lokasi bawaan kamera = KOORDINAT saja; alamat/nama wilayah + tanggal tidak lagi menyembunyikan lokasi MARLIN (mengoreksi 617); foto yang terlanjur dicap ulang otomatis lewat pembaca susulan |
 | 628 | 2026-09-28 | OCR foto: antrean menunggu worker bebas sesudah batas waktu; di latar tidak ada foto yang dilewati (batas 60 dtk), yang tetap gagal ditandai `ocrPending` dan dibaca susulan dari berkas asli lalu capnya dirender ulang otomatis |
 | 627 | 2026-09-28 | Impor CCO: sheet "CC 0" dikenali sebagai CCO (tak lagi kalah oleh "Detail RAB"); blok hasil boleh berada di depan tambah/kurang (Kontrak · CC 0 - 1 · TAMBAH · KURANG), peran tetap harus terbukti |

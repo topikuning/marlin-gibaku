@@ -57,6 +57,9 @@ describe("authz capability matrix", () => {
       // sudah diarsipkan (user 2026-09-06: "hanya bisa dilakukan super admin").
       // Sengaja bukan `package.bypass`, yang juga dipegang Program Director.
       "location_scope.archive",
+      // Reset seluruh laporan harian satu lokasi (DECISIONS 630) – aksinya
+      // menambah syarat SUPER ADMIN UTAMA di atas kapabilitas ini.
+      "daily_report.reset_location",
       // Tautan KELUAR ke folder Drive vendor ("Lihat di Drive", DECISIONS 406).
       // Di seberang tautan itu tidak ada lagi pembatasan lokasi milik MARLIN.
       "gdrive.open_folder",

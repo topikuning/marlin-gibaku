@@ -1728,7 +1728,7 @@ model DailyReportStatusHistory {
   changedAt   DateTime           @default(now()) @map("changed_at") @db.Timestamptz
   reason      String?
 
-  report DailyReport @relation(fields: [reportId], references: [id])
+  report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId, changedAt])
   @@map("daily_report_status_history")
@@ -3263,7 +3263,7 @@ model FindingStatusHistory {
   changedAt   DateTime       @default(now()) @map("changed_at") @db.Timestamptz
   note        String?
 
-  finding Finding @relation(fields: [findingId], references: [id])
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
 
   @@index([findingId, changedAt])
   @@map("finding_status_history")
@@ -3381,7 +3381,7 @@ model ReportVerification {
   verifiedById String            @map("verified_by_id") @db.Uuid
   createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
-  report DailyReport @relation(fields: [reportId], references: [id])
+  report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId, createdAt])
   @@map("report_verifications")
