@@ -592,7 +592,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
 
   // ── JALUR LANGSUNG (HEIC, atau berkas asli gagal disimpan) ──
   // Tag bawaan aplikasi kamera: dibaca dari TULISAN di foto (DECISIONS 617).
-  const tag = heic ? null : await tagBawaanFoto(original, input.locationId);
+  const tag = heic ? null : await tagBawaanFoto(original);
   const processed = await processWithSharpOrOriginal(
     original,
     {
@@ -658,19 +658,11 @@ export async function savePhotoForItem(input: SavePhotoInput) {
  */
 export async function tagBawaanFoto(
   gambar: Buffer,
-  locationId: string | null,
   opsi: { latar?: boolean } = {},
 ): Promise<(TagBawaan & { kotak: KotakTulisan[] }) | null> {
   const tulisan = await bacaTulisanFoto(gambar, opsi);
   if (!tulisan) return null;
-  const lok = locationId
-    ? await db.location.findUnique({
-        where: { id: locationId },
-        select: { name: true, village: true, district: true, regency: true, province: true },
-      })
-    : null;
-  const namaWilayah = lok ? [lok.village, lok.district, lok.regency, lok.province, lok.name].filter((n): n is string => !!n) : [];
-  return { ...nilaiTagBawaan(tulisan.teks, { namaWilayah }), kotak: tulisan.kotak };
+  return { ...nilaiTagBawaan(tulisan.teks), kotak: tulisan.kotak };
 }
 
 /**

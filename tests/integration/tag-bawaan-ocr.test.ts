@@ -15,7 +15,6 @@ const { nilaiTagBawaan } = await import("@/lib/photo-stamp/tag-bawaan");
 const { pilihTataLetak } = await import("@/lib/photo-stamp/tata-letak");
 
 const FOTO = readFileSync(new URL("../fixtures/IMG20260801WA0035.jpg", import.meta.url));
-const WILAYAH = ["Kranji", "Paciran", "Lamongan", "Jawa Timur"];
 
 async function denganCap(opts: { x: number; y: number; baris: string[]; kotak: boolean; fs: number }) {
   const { width: w = 0, height: h = 0 } = await sharp(FOTO).metadata();
@@ -35,7 +34,7 @@ async function denganCap(opts: { x: number; y: number; baris: string[]; kotak: b
 async function nilai(gambar: Buffer) {
   const tulisan = await bacaTulisanFoto(gambar);
   expect(tulisan, "OCR tidak menghasilkan apa pun").not.toBeNull();
-  return nilaiTagBawaan(tulisan!.teks, { namaWilayah: WILAYAH });
+  return nilaiTagBawaan(tulisan!.teks);
 }
 
 describe("OCR tag bawaan pada foto lapangan sungguhan", { timeout: 60_000 }, () => {
@@ -57,12 +56,12 @@ describe("OCR tag bawaan pada foto lapangan sungguhan", { timeout: 60_000 }, () 
     expect(h).toMatchObject({ lokasi: true, waktu: true });
   });
 
-  it("cap tanpa kotak kiri-bawah: tanggal + nama wilayah → keduanya", async () => {
+  it("cap tanpa kotak kiri-bawah: tanggal + nama wilayah TANPA koordinat → tanggal saja (DECISIONS 629)", async () => {
     const h = await nilai(
       await denganCap({ x: 30, y: 640, kotak: false, fs: 30, baris: ["Jumat, 25 Sep 2026 09:15", "Kranji, Paciran, Lamongan"] }),
     );
     expect(h.waktu).toBe(true);
-    expect(h.lokasi).toBe(true);
+    expect(h.lokasi).toBe(false);
   });
 
   it("hanya tanggal → hanya tanggal yang disembunyikan", async () => {

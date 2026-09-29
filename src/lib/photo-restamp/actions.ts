@@ -158,7 +158,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
      * 617/619 memang belum pernah dibuat. Gagal baca = keputusan lama dipakai.
      */
     const original = await bacaBerkasAsli(k);
-    const segar = await tagBawaanFoto(original, k.locationId);
+    const segar = await tagBawaanFoto(original);
     const tagLokasi = segar ? segar.lokasi : (lama.tagBawaanLokasi ?? false);
     const tagWaktu = segar ? segar.waktu : (lama.tagBawaanWaktu ?? false);
     const kotak = segar ? segar.kotak : (k.kotakTulisan ?? []);

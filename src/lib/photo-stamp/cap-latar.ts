@@ -59,7 +59,7 @@ async function kerjakan(t: TugasCap): Promise<void> {
   const { processWithSharpOrOriginal, tagBawaanFoto, ringkasBukti } = await import("@/lib/photos");
   const { r2Put, r2Delete } = await import("@/lib/r2");
   // Di latar tidak ada yang menunggu: OCR tidak dilewati karena antrean.
-  const tag = await tagBawaanFoto(t.gambar, t.locationId, { latar: true });
+  const tag = await tagBawaanFoto(t.gambar, { latar: true });
   const hasil = await processWithSharpOrOriginal(
     t.gambar,
     {

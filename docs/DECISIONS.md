@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 629 | 2026-09-29 | Tag lokasi bawaan kamera = KOORDINAT saja; alamat/nama wilayah + tanggal tidak lagi menyembunyikan lokasi MARLIN (mengoreksi 617); foto yang terlanjur dicap ulang otomatis lewat pembaca susulan |
 | 628 | 2026-09-28 | OCR foto: antrean menunggu worker bebas sesudah batas waktu; di latar tidak ada foto yang dilewati (batas 60 dtk), yang tetap gagal ditandai `ocrPending` dan dibaca susulan dari berkas asli lalu capnya dirender ulang otomatis |
 | 627 | 2026-09-28 | Impor CCO: sheet "CC 0" dikenali sebagai CCO (tak lagi kalah oleh "Detail RAB"); blok hasil boleh berada di depan tambah/kurang (Kontrak · CC 0 - 1 · TAMBAH · KURANG), peran tetap harus terbukti |
 | 626 | 2026-09-28 | Laporan mingguan WA: penjadwal & tombol manual paket memakai syarat tujuan yang sama dengan pengirim (grup paket ATAU grup kabupaten lokasi) – paket ber-grup kabupaten saja kini terkirim |
