@@ -11,6 +11,9 @@
 //  4. Perbaikan cap tangan yang terjadi lebih dulu TIDAK ditimpa hasil latar.
 //  5. Foto yang ditinggal proses mati dipulihkan dari basis data.
 //  6. Berkas asli foto yang masih menunggu tidak ikut arsip dingin/hapus arsip.
+//  7. Dua pekerja yang mengerjakan foto yang sama tidak pernah menghapus berkas
+//     yang HIDUP (insiden produksi 2026-09-30, DECISIONS 631), dan berkas yang
+//     terlanjur hilang bisa dibuat ulang dari berkas asli DI KUNCI YANG SAMA.
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -40,6 +43,10 @@ vi.mock("@/lib/r2", () => ({
   r2Delete: async (key: string) => {
     rak.delete(key);
   },
+  r2List: async () => ({
+    obyek: [...rak.entries()].map(([key, b]) => ({ key, bytes: b.length, diubah: new Date() })),
+    terpotong: false,
+  }),
   classifyR2Error: (e: unknown) => String(e),
 }));
 
@@ -288,5 +295,50 @@ describe("cap foto di latar", () => {
       select: { id: true },
     });
     expect(sesudah.map((s) => s.id)).toEqual([hasil.id]);
+  }, 60_000);
+
+  it("dua pekerja mengerjakan susulan foto yang sama – berkas hidup TIDAK terhapus (insiden 2026-09-30)", async () => {
+    const hasil = await simpan();
+    await antreanCapSelesai();
+    await db.photo.update({
+      where: { id: hasil.id },
+      data: { ocrPending: true, createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    /*
+     * Modul yang sama dimuat DUA kali – seperti lapisan server action dan rute
+     * API Next.js, atau dua replika. Masing-masing punya antrean sendiri, jadi
+     * keduanya mengerjakan foto yang sama; yang kalah tidak boleh membuang
+     * berkas yang sedang dirujuk barisnya.
+     */
+    const jalur = "../../src/lib/photo-stamp/cap-latar.ts?pekerja=kedua";
+    const kedua = (await import(/* @vite-ignore */ jalur)) as typeof import("@/lib/photo-stamp/cap-latar");
+    await pulihkanYangTertinggal();
+    await kedua.pulihkanYangTertinggal();
+    await Promise.all([antreanCapSelesai(), kedua.antreanCapSelesai()]);
+    const akhir = await baca(hasil.id);
+    expect(akhir.stampPending).toBe(false);
+    expect(rak.has(akhir.r2Key), `berkas hidup ${akhir.r2Key} hilang`).toBe(true);
+    expect(akhir.thumbnailKey && rak.has(akhir.thumbnailKey), "thumbnail hidup hilang").toBe(true);
+  }, 60_000);
+
+  it("berkas foto yang terlanjur hilang dibuat ulang dari berkas asli, di kunci yang SAMA", async () => {
+    const hasil = await simpan();
+    await antreanCapSelesai();
+    const awal = await baca(hasil.id);
+    rak.delete(awal.r2Key);
+    rak.delete(awal.thumbnailKey!);
+    const { fotoBerkasHilang } = await import("@/lib/r2-audit");
+    const { buatUlangBerkasHilang } = await import("@/lib/photo-stamp/cap-latar");
+    const hilang = (await fotoBerkasHilang()).filter((f) => f.id === hasil.id);
+    expect(hilang).toHaveLength(1);
+    const r = await buatUlangBerkasHilang(hilang);
+    expect(r).toMatchObject({ pulih: 1, gagal: [] });
+    // Kuncinya tidak berubah – snapshot laporan final yang membekukan kunci itu ikut pulih.
+    const akhir = await baca(hasil.id);
+    expect(akhir.r2Key).toBe(awal.r2Key);
+    expect(akhir.thumbnailKey).toBe(awal.thumbnailKey);
+    expect(rak.has(awal.r2Key)).toBe(true);
+    expect(rak.has(awal.thumbnailKey!)).toBe(true);
+    expect((await fotoBerkasHilang()).some((f) => f.id === hasil.id)).toBe(false);
   }, 60_000);
 });

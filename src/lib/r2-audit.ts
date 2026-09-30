@@ -139,6 +139,35 @@ async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
   return out;
 }
 
+export type FotoBerkasHilang = {
+  id: string;
+  r2Key: string;
+  thumbnailKey: string | null;
+  hilang: ("utama" | "thumbnail")[];
+};
+
+/**
+ * Foto ber-cap yang berkas utama/thumbnail-nya TIDAK ADA di R2 – bahan
+ * `buatUlangBerkasHilang` (DECISIONS 631). Foto yang masih menunggu cap tidak
+ * dihitung: kuncinya sedang menunjuk berkas asli dan sebentar lagi ditukar.
+ */
+export async function fotoBerkasHilang(): Promise<FotoBerkasHilang[]> {
+  const { obyek } = await r2List();
+  const ada = new Set(obyek.map((o) => o.key));
+  const rows = await db.photo.findMany({
+    where: { stampPending: false },
+    select: { id: true, r2Key: true, thumbnailKey: true },
+  });
+  const out: FotoBerkasHilang[] = [];
+  for (const r of rows) {
+    const hilang: FotoBerkasHilang["hilang"] = [];
+    if (!ada.has(r.r2Key)) hilang.push("utama");
+    if (r.thumbnailKey && !ada.has(r.thumbnailKey)) hilang.push("thumbnail");
+    if (hilang.length > 0) out.push({ ...r, hilang });
+  }
+  return out;
+}
+
 /*
  * PENJAGA UMUR.
  *

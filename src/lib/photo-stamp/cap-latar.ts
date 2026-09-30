@@ -35,6 +35,18 @@ const muatDb = async () => (await import("@/lib/db")).db;
  * sama dengan perbaikan cap) — dipicu setiap ada unggahan baru dan setiap ada
  * keluaran yang membutuhkannya. Tiap langkah boleh diulang: yang ditulis ke R2
  * berkas BARU, barisnya ditukar hanya kalau masih menunggu.
+ *
+ * ### Satu foto bisa dikerjakan DUA pekerja (insiden produksi 2026-09-30)
+ *
+ * Antrean di memori hanya mencegah kerja ganda di dalam SATU salinan modul.
+ * Next.js memuat modul yang sama terpisah untuk server action dan rute API
+ * (cron), dan dua replika/pergantian rilis juga dua proses. Keduanya bisa
+ * mengerjakan foto yang sama. Dulu kunci keluarannya tetap (`<dasar>.webp`) —
+ * untuk baca SUSULAN itu kunci berkas yang SEDANG hidup — dan pekerja yang
+ * kalah membuang "hasilnya yang basi", yang ternyata berkas hidup milik
+ * pemenang: 17 foto produksi kehilangan berkas ber-cap + thumbnail-nya.
+ * Sekarang tiap pengerjaan menulis kunci UNIK, dan yang kalah hanya membuang
+ * kunci yang tidak dirujuk baris mana pun (DECISIONS 631).
  */
 
 export type TugasCap = {
@@ -54,10 +66,9 @@ const UMUR_PULIH_MS = 2 * 60_000;
 const berjalan = new Map<string, Promise<void>>();
 let antrean: Promise<unknown> = Promise.resolve();
 
-async function kerjakan(t: TugasCap): Promise<void> {
-  const db = await muatDb();
-  const { processWithSharpOrOriginal, tagBawaanFoto, ringkasBukti } = await import("@/lib/photos");
-  const { r2Put, r2Delete } = await import("@/lib/r2");
+/** Baca tag bawaan + render cap & thumbnail dari berkas asli — tanpa menulis apa pun. */
+async function render(t: Pick<TugasCap, "gambar" | "stamp">) {
+  const { processWithSharpOrOriginal, tagBawaanFoto } = await import("@/lib/photos");
   // Di latar tidak ada yang menunggu: OCR tidak dilewati karena antrean.
   const tag = await tagBawaanFoto(t.gambar, { latar: true });
   const hasil = await processWithSharpOrOriginal(
@@ -70,8 +81,43 @@ async function kerjakan(t: TugasCap): Promise<void> {
     },
     { name: "foto", type: "" },
   );
-  const kunci = `${t.dasarKunci}.${hasil.ext}`;
-  const kunciThumb = hasil.thumb ? `${t.dasarKunci}.thumb.webp` : null;
+  return { tag, hasil };
+}
+
+type Tag = Awaited<ReturnType<typeof render>>["tag"];
+
+async function dataTag(tag: Tag) {
+  const { ringkasBukti } = await import("@/lib/photos");
+  return {
+    existingTagLocation: tag?.lokasi ?? false,
+    existingTagTime: tag?.waktu ?? false,
+    existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
+    textBoxes: tag ? tag.kotak : undefined,
+    // Tetap gagal dibaca → cap lengkap sementara, dicoba lagi oleh pemulih.
+    ocrPending: !tag,
+  };
+}
+
+/** Kunci yang masih dirujuk baris foto mana pun — TIDAK PERNAH boleh dihapus. */
+async function masihDirujuk(kunci: string[]): Promise<Set<string>> {
+  const db = await muatDb();
+  const rows = await db.photo.findMany({
+    where: { OR: [{ r2Key: { in: kunci } }, { thumbnailKey: { in: kunci } }, { originalKey: { in: kunci } }] },
+    select: { r2Key: true, thumbnailKey: true, originalKey: true },
+  });
+  return new Set(rows.flatMap((r) => [r.r2Key, r.thumbnailKey, r.originalKey]).filter((k): k is string => !!k));
+}
+
+async function kerjakan(t: TugasCap): Promise<void> {
+  const db = await muatDb();
+  const { r2Put, r2Delete } = await import("@/lib/r2");
+  const { randomUUID } = await import("node:crypto");
+  const { tag, hasil } = await render(t);
+  // Kunci UNIK per pengerjaan – pekerja lain yang mengerjakan foto yang sama
+  // tidak pernah menulis ke, apalagi menghapus, kunci yang sama.
+  const unik = randomUUID().slice(0, 8);
+  const kunci = `${t.dasarKunci}.c${unik}.${hasil.ext}`;
+  const kunciThumb = hasil.thumb ? `${t.dasarKunci}.c${unik}.thumb.webp` : null;
   await Promise.all([
     r2Put(kunci, hasil.main, hasil.contentType),
     kunciThumb ? r2Put(kunciThumb, hasil.thumb!, "image/webp") : Promise.resolve(),
@@ -86,18 +132,14 @@ async function kerjakan(t: TugasCap): Promise<void> {
       bytes: hasil.main.length,
       widthPx: hasil.width,
       heightPx: hasil.height,
-      existingTagLocation: tag?.lokasi ?? false,
-      existingTagTime: tag?.waktu ?? false,
-      existingTagEvidence: tag && (tag.lokasi || tag.waktu) ? ringkasBukti(tag) : null,
-      textBoxes: tag ? tag.kotak : undefined,
-      // Tetap gagal dibaca → cap lengkap sementara, dicoba lagi oleh pemulih.
-      ocrPending: !tag,
+      ...(await dataTag(tag)),
       stampPending: false,
     },
   });
   if (tukar.count === 0) {
-    await r2Delete(kunci).catch(() => {});
-    if (kunciThumb) await r2Delete(kunciThumb).catch(() => {});
+    const buang = [kunci, kunciThumb].filter((k): k is string => !!k);
+    const hidup = await masihDirujuk(buang);
+    for (const k of buang) if (!hidup.has(k)) await r2Delete(k).catch(() => {});
   }
 }
 
@@ -132,7 +174,7 @@ export function jadwalkanCap(t: TugasCap): void {
  * Susun ulang tugas dari basis data — untuk foto yang ditinggal proses yang
  * mati. Memakai jalur perbaikan cap (DECISIONS 198) supaya isi capnya sama.
  */
-async function tugasDariBasisData(photoId: string): Promise<TugasCap | null> {
+async function tugasDariBasisData(photoId: string, wajibMenunggu = true): Promise<TugasCap | null> {
   const db = await muatDb();
   const [{ konteksFoto, stampDariNilai }, { bacaBerkasAsli }] = await Promise.all([
     import("@/lib/photo-restamp/service"),
@@ -141,7 +183,7 @@ async function tugasDariBasisData(photoId: string): Promise<TugasCap | null> {
   const k = await konteksFoto(photoId);
   if (!k) return null;
   const baris = await db.photo.findUnique({ where: { id: photoId }, select: { stampPending: true, locationId: true } });
-  if (!baris?.stampPending) return null;
+  if (!baris || (wajibMenunggu && !baris.stampPending)) return null;
   const asli = await bacaBerkasAsli(k);
   /*
    * Putaran yang pernah diberikan tangan (putarFotoAction) disimpan sebagai
@@ -286,4 +328,42 @@ export function antreanCapSelesai(): Promise<void> {
     () => {},
     () => {},
   );
+}
+
+/**
+ * Berkas ber-cap/thumbnail yang HILANG dari R2 dibuat ulang dari berkas asli
+ * (R2 atau arsip dingin), DI KUNCI YANG SAMA — snapshot laporan final dan
+ * kiriman yang membekukan kunci itu ikut pulih. Isi capnya dirender dari nilai
+ * foto saat ini, jalur yang sama dengan baca susulan. Satu per satu: tiap foto
+ * ±2 dtk, dan pekerjaan ini jarang.
+ */
+export async function buatUlangBerkasHilang(
+  foto: { id: string; r2Key: string; thumbnailKey: string | null; hilang: ("utama" | "thumbnail")[] }[],
+): Promise<{ pulih: number; gagal: { id: string; sebab: string }[] }> {
+  const db = await muatDb();
+  const { r2Put } = await import("@/lib/r2");
+  let pulih = 0;
+  const gagal: { id: string; sebab: string }[] = [];
+  for (const f of foto) {
+    try {
+      const t = await tugasDariBasisData(f.id, false);
+      if (!t) throw new Error("Foto ini tidak punya berkas asli – tidak bisa dibuat ulang.");
+      const { tag, hasil } = await render(t);
+      if (f.hilang.includes("utama")) await r2Put(f.r2Key, hasil.main, hasil.contentType);
+      if (f.hilang.includes("thumbnail") && f.thumbnailKey) {
+        if (!hasil.thumb) throw new Error("Thumbnail tidak bisa dibuat dari berkas asli.");
+        await r2Put(f.thumbnailKey, hasil.thumb, "image/webp");
+      }
+      // Metadata hanya ikut berkas utama yang benar-benar ditulis ulang.
+      if (f.hilang.includes("utama"))
+        await db.photo.updateMany({
+          where: { id: f.id, r2Key: f.r2Key },
+          data: { bytes: hasil.main.length, widthPx: hasil.width, heightPx: hasil.height, ...(await dataTag(tag)) },
+        });
+      pulih++;
+    } catch (e) {
+      gagal.push({ id: f.id, sebab: e instanceof Error ? e.message : "gagal" });
+    }
+  }
+  return { pulih, gagal };
 }

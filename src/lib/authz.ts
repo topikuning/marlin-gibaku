@@ -38,6 +38,12 @@ export const CAPABILITIES = [
   // sisi sekaligus — yang boleh menyembunyikan dan yang boleh melihat yang
   // tersembunyi — karena keduanya wewenang yang sama.
   "location_scope.archive",
+  // RESET seluruh laporan harian satu lokasi – laporan, foto laporan + Foto
+  // Cepat, temuan/verifikasi/kendala yang menempel, dihapus TOTAL (DECISIONS
+  // 630). super_admin di sini, dan aksinya menambah syarat SUPER ADMIN UTAMA
+  // (env SUPER_ADMIN_UTAMA): permintaan user 2026-09-29 *"hanya ada di
+  // superadmin utama"*.
+  "daily_report.reset_location",
   // Isi nama & unggah coretan tanda tangan PENANDA TANGAN LOKASI (pelaksana +
   // pengawas lokasi itu) — Site Manager ke atas. SENGAJA dipisah dari
   // `location.manage`, yang ikut membawa ganti nama lokasi & ubah koordinat
@@ -408,7 +414,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "gdrive.open_folder" &&
         c !== "location.correct" &&
         // Arsip pencabutan lokasi: super_admin SAJA (user 2026-09-06).
-        c !== "location_scope.archive",
+        c !== "location_scope.archive" &&
+        c !== "daily_report.reset_location",
     ),
   ),
   regional_manager: new Set<Capability>(AREA_MANAGER),
