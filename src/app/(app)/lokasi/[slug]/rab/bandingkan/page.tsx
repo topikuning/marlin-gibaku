@@ -130,7 +130,10 @@ export default async function BandingkanRevisiPage({
             <KpiCard
               label="Item berubah"
               value={String(diff.diubah.length + diff.ditambah.length + diff.dihapus.length)}
-              sub={`${diff.diubah.length} diubah · ${diff.ditambah.length} baru · ${diff.dihapus.length} dihapus`}
+              sub={
+                `${diff.diubah.length} diubah · ${diff.ditambah.length} baru · ${diff.dihapus.length} dihapus` +
+                (diff.pembulatan.length > 0 ? ` · ${diff.pembulatan.length} selisih pembulatan tidak dihitung` : "")
+              }
             />
           </div>
           <DiffCard

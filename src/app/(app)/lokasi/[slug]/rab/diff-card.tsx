@@ -21,7 +21,8 @@ export function DiffCard({
   subjudul?: string;
   kosong?: string;
 }) {
-  const kosong = diff.ditambah.length === 0 && diff.dihapus.length === 0 && diff.diubah.length === 0;
+  const kosong =
+    diff.ditambah.length === 0 && diff.dihapus.length === 0 && diff.diubah.length === 0 && diff.pembulatan.length === 0;
   return (
     <Card>
       <CardHeader
@@ -36,6 +37,22 @@ export function DiffCard({
             <DiffSection judul="Diubah (volume / harga)" tone="warning" rows={diff.diubah} mode="ubah" />
             <DiffSection judul="Ditambah" tone="success" rows={diff.ditambah} mode="tambah" />
             <DiffSection judul="Dihapus" tone="danger" rows={diff.dihapus} mode="hapus" />
+            {/* Selisih pembulatan: volume & harga satuan sama, nilai beda Rp 1.
+                Bukan perubahan lingkup, jadi tidak dihitung "diubah" – tapi
+                disebut, bukan disembunyikan. Tertutup bawaan: ratusan baris ±1
+                mengubur perubahan yang sebenarnya. */}
+            {diff.pembulatan.length > 0 ? (
+              <details className="rounded-lg border border-border px-3 py-2">
+                <summary className="cursor-pointer text-[12px] font-semibold text-ink-muted uppercase">
+                  Selisih pembulatan · {diff.pembulatan.length} item · volume &amp; harga sama, nilai beda Rp 1
+                </summary>
+                <p className="mt-1 mb-2 text-xs text-ink-muted">
+                  Nilai tersimpan dibulatkan berbeda oleh kedua berkas RAB (mis. 50 × 7.055,97 = 352.798,5 →
+                  352.799 atau 352.798). Tetap ikut dalam total tambah/kurang.
+                </p>
+                <DiffSection tone="muted" rows={diff.pembulatan} mode="ubah" />
+              </details>
+            ) : null}
           </div>
         )}
       </CardBody>
@@ -49,19 +66,28 @@ function DiffSection({
   rows,
   mode,
 }: {
-  judul: string;
-  tone: "success" | "warning" | "danger";
+  /** Kosong = tanpa kepala (bagian yang sudah berjudul di pembungkusnya). */
+  judul?: string;
+  tone: "success" | "warning" | "danger" | "muted";
   rows: RevisionDiff["diubah"];
   mode: "tambah" | "hapus" | "ubah";
 }) {
   if (rows.length === 0) return null;
   const toneCls =
-    tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-danger";
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "muted"
+          ? "text-ink-muted"
+          : "text-danger";
   return (
     <div>
-      <div className={`mb-1 text-[12px] font-semibold uppercase ${toneCls}`}>
-        {judul} · {rows.length} item
-      </div>
+      {judul ? (
+        <div className={`mb-1 text-[12px] font-semibold uppercase ${toneCls}`}>
+          {judul} · {rows.length} item
+        </div>
+      ) : null}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-175 text-[13px]">
           <thead>

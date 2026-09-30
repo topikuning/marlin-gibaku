@@ -259,7 +259,9 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
       >
         {dibuka ? (
           <div className="space-y-4">
-            <VendorEditForm vendor={dibuka} onDone={() => setIdBuka(null)} />
+            {/* `key`: satu formulir per perusahaan – tanpa ini pesan hasil &
+                berkas terpilih milik perusahaan sebelumnya ikut terbawa. */}
+            <VendorEditForm key={dibuka.id} vendor={dibuka} onDone={() => setIdBuka(null)} />
             {/* Gabung & Hapus TIDAK di baris daftar. Keduanya jarang dipakai dan
                 tak bisa dibatalkan; menaruh satu Combobox "Gabung ke…" di setiap
                 baris berarti belasan kendali berat untuk aksi yang mungkin
@@ -386,8 +388,6 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="id" value={vendor.id} />
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {!k.lengkap ? (
         <Banner
           tone="warning"
@@ -426,7 +426,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
       <div className="space-y-2 border-t border-border pt-3">
         <p className="text-[13px] font-semibold text-ink">Aset dokumen</p>
         <div>
-          <Label htmlFor={`v-logo-${vendor.id}`}>Logo (PNG/JPG/WebP ≤ 2 MB)</Label>
+          <Label htmlFor={`v-logo-${vendor.id}`}>Logo (PNG/JPG/WebP ≤ 8 MB)</Label>
           {/* Logo yang tersimpan DITAMPILKAN – dulu hanya stempel & kop yang punya
               pratinjau, sehingga logo yang sudah masuk terbaca "hilang" setiap
               laci dibuka lagi (keluhan user 2026-09-30, DECISIONS 634). */}
@@ -442,11 +442,11 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             id={`v-logo-${vendor.id}`}
             name="logo"
             accept="image/png,image/jpeg,image/webp"
-            maxBytes={2 * 1024 * 1024}
+            maxBytes={8 * 1024 * 1024}
           />
         </div>
         <div>
-          <Label htmlFor={`v-stempel-${vendor.id}`}>Stempel perusahaan (PNG/JPG/WebP ≤ 2 MB)</Label>
+          <Label htmlFor={`v-stempel-${vendor.id}`}>Stempel perusahaan (PNG/JPG/WebP ≤ 8 MB)</Label>
           {vendor.stempelUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
             <img
@@ -459,7 +459,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             id={`v-stempel-${vendor.id}`}
             name="stempel"
             accept="image/png,image/jpeg,image/webp"
-            maxBytes={2 * 1024 * 1024}
+            maxBytes={8 * 1024 * 1024}
           />
           <p className="mt-0.5 text-xs text-ink-faint">
             Dipakai di blok tanda tangan laporan harian, mingguan &amp; periodik yang dicetak. Pindai
@@ -467,7 +467,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
           </p>
         </div>
         <div>
-          <Label htmlFor={`v-kop-${vendor.id}`}>Kop surat (gambar desain jadi ≤ 2 MB, lebar penuh)</Label>
+          <Label htmlFor={`v-kop-${vendor.id}`}>Kop surat (gambar desain jadi ≤ 8 MB, lebar penuh)</Label>
           {vendor.kopUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
             <img src={vendor.kopUrl} alt="Kop surat saat ini" className="mb-1.5 max-h-28 w-full rounded border border-border bg-white object-contain object-left" />
@@ -480,12 +480,26 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             id={`v-kop-${vendor.id}`}
             name="kop"
             accept="image/png,image/jpeg,image/webp"
-            maxBytes={2 * 1024 * 1024}
+            maxBytes={8 * 1024 * 1024}
           />
           <p className="mt-0.5 text-xs text-ink-faint">Unggah desain kop yang sudah jadi; penempatan otomatis di header laporan cetak menyusul.</p>
         </div>
       </div>
 
+      {/* Hasil simpan DI SEBELAH tombolnya, bukan di kepala laci: formulirnya
+          panjang, dan pesan di atas tidak terlihat dari tombol Simpan – kop
+          yang gagal tersimpan terbaca "tidak ada peringatan" (DECISIONS 638). */}
+      {/* React mengosongkan formulir sesudah aksi selesai – gagal sekalipun –
+          jadi berkas yang tadi dipilih TIDAK ikut terkirim bila Simpan ditekan
+          lagi. Katakan, jangan biarkan terbaca masih terpilih. */}
+      {state?.error ? (
+        <Banner
+          tone="error"
+          title={state.error}
+          description="Belum ada yang tersimpan. Pilih ulang berkas logo/stempel/kop bila tadi ikut diunggah."
+        />
+      ) : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
         <Button type="submit" size="sm" loading={saving}>
           Simpan master data

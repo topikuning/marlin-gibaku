@@ -87,15 +87,26 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
 
 const updateSchema = z.object({
   id: z.uuid("Vendor tidak valid"),
-  name: z.string().min(2, "Nama minimal 2 karakter").max(160),
-  npwp: z.string().max(40).optional(),
-  contact: z.string().max(120).optional(),
-  address: z.string().max(400).optional(),
-  phone: z.string().max(40).optional(),
+  // Pesan per kolom WAJIB berbahasa Indonesia dan menyebut kolomnya: pesan
+  // bawaan zod ("Too big: expected string to have <=40 characters") menggagalkan
+  // simpan tanpa memberi tahu kolom mana – dan kop/logo yang diunggah bersamaan
+  // ikut tidak tersimpan.
+  name: z.string().min(2, "Nama minimal 2 karakter").max(160, "Nama perusahaan terlalu panjang (maks 160 karakter)."),
+  npwp: z.string().max(40, "NPWP terlalu panjang (maks 40 karakter).").optional(),
+  contact: z.string().max(120, "Narahubung terlalu panjang (maks 120 karakter).").optional(),
+  address: z.string().max(400, "Alamat terlalu panjang (maks 400 karakter).").optional(),
+  phone: z.string().max(40, "Telepon terlalu panjang (maks 40 karakter) – tulis satu nomor saja.").optional(),
   email: z.union([z.literal(""), z.email("Format email tidak valid")]).optional(),
 });
 
-const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+/**
+ * Batas berkas gambar identitas. 8 MB, bukan 2 MB: gambarnya selalu diperkecil
+ * & dikompres ulang ke WebP di server, jadi berkas asli yang besar (pindaian,
+ * ekspor desain PNG) tidak perlu ditolak – menolaknya hanya memindahkan kerja
+ * kompres ke user (DECISIONS 638). Tiga berkas × 8 MB tetap di bawah batas
+ * badan server action 30 MB.
+ */
+const GAMBAR_MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * Perbarui master data perusahaan (profil kop surat) + logo opsional.
@@ -141,11 +152,25 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       key: string,
       label: string,
     ): Promise<{ key: string } | { error: string }> => {
-      if (file.size > LOGO_MAX_BYTES) return { error: `${label} terlalu besar (maks 2 MB).` };
-      if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: `Format ${label} harus PNG/JPG/WebP.` };
+      if (file.size > GAMBAR_MAX_BYTES) return { error: `Berkas ${label} terlalu besar (maks 8 MB).` };
       if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
+      // Format dibaca dari ISI berkas, bukan `file.type`: berkas dari WhatsApp,
+      // seret-lepas, atau ekstensi .jfif kerap datang tanpa MIME (atau MIME
+      // salah) padahal gambarnya sah.
       const sharp = (await import("sharp")).default;
-      const buf = await sharp(Buffer.from(await file.arrayBuffer()), { failOn: "none" })
+      const asli = Buffer.from(await file.arrayBuffer());
+      let format: string | undefined;
+      try {
+        format = (await sharp(asli, { failOn: "none" }).metadata()).format;
+      } catch {
+        format = undefined;
+      }
+      if (!format || !["png", "jpeg", "webp"].includes(format)) {
+        return {
+          error: `Berkas ${label} "${file.name}" bukan gambar PNG/JPG/WebP${format ? ` (terbaca: ${format.toUpperCase()})` : ""}. Simpan ulang sebagai PNG atau JPG lalu unggah lagi.`,
+        };
+      }
+      const buf = await sharp(asli, { failOn: "none" })
         .resize(maxW, maxH, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: 90 })
         .toBuffer();
@@ -209,7 +234,18 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       stempelChanged: stempelKey !== vendor.stempelKey,
     });
     revalidatePath("/master/perusahaan");
-    return { success: `Master data "${d.name}" tersimpan.` };
+    // Sebut aset yang BERUBAH: "tersimpan" saja tidak membedakan kop yang
+    // masuk dari kop yang tidak ikut terkirim.
+    const aset = [
+      [logoKey, vendor.logoKey, "logo"],
+      [stempelKey, vendor.stempelKey, "stempel"],
+      [kopKey, vendor.kopKey, "kop surat"],
+    ]
+      .filter(([baru, lama]) => baru !== lama)
+      .map(([baru, , nama]) => `${nama} ${baru ? "diperbarui" : "dihapus"}`);
+    return {
+      success: `Master data "${d.name}" tersimpan${aset.length ? ` – ${aset.join(", ")}` : " – logo, stempel & kop tidak berubah"}.`,
+    };
   } catch (err) {
     return fail(err);
   }
