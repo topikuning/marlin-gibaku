@@ -32,7 +32,9 @@ import { LokasiKembarPanel } from "./lokasi-kembar-panel";
 import { laporanLokasiKembar } from "@/lib/package/lokasi-kembar";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
-import { aiSecretStorageStatus, getAiConfigDisplay } from "@/lib/ai/config";
+import { aiSecretStorageStatus, getAiConfigDisplay, getAiPengaman } from "@/lib/ai/config";
+import { AlarmAiBanner } from "@/components/knmp/alarm-ai-banner";
+import { AiPengamanPanel } from "./ai-pengaman";
 import { getAiGuardConfig, getAiPricing } from "@/lib/ai-hub/guard";
 import { AiGuardPanel } from "./ai-guard-panel";
 import { listPrompts } from "@/lib/ai/prompts";
@@ -173,6 +175,7 @@ export default async function SistemPage() {
   });
   const gdriveDisplay = await getGDriveConfigDisplay();
   const aiConfig = await getAiConfigDisplay();
+  const aiPengaman = await getAiPengaman();
   const aiGuard = await getAiGuardConfig();
   const aiPricing = await getAiPricing();
   const aiSecretStatus = aiSecretStorageStatus();
@@ -700,6 +703,7 @@ export default async function SistemPage() {
   /* ── PANEL: AI ────────────────────────────────────────────────────────── */
   const aiPanel: ReactNode = (
     <div className="space-y-4">
+      <AlarmAiBanner orgId={user.orgId} />
       <Card>
         <CardHeader
           title="Provider AI"
@@ -707,6 +711,20 @@ export default async function SistemPage() {
         />
         <CardBody>
           <AiProvidersPanel activeProvider={aiConfig.activeProvider} providers={aiConfig.providers} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Pengaman AI"
+          subtitle="Provider cadangan saat provider aktif gagal, dan penerima alarm bila AI gagal beruntun (DECISIONS 635)"
+        />
+        <CardBody>
+          <AiPengamanPanel
+            providers={aiConfig.providers.map((p) => ({ id: p.id, label: p.label, hasApiKey: p.hasApiKey }))}
+            activeProvider={aiConfig.activeProvider}
+            fallbackProvider={aiPengaman.fallbackProvider}
+            alertChatId={aiPengaman.alertChatId}
+          />
         </CardBody>
       </Card>
       <Card>

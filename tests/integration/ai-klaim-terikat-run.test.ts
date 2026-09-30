@@ -24,9 +24,28 @@ let promptTerakhir = "";
 /** Keluaran yang dipalsukan; disetel per uji dari fakta yang ada di prompt. */
 let buatKeluaran: (prompt: string) => Record<string, unknown> = () => ({});
 
+/** Provider menolak – meniru gangguan Mistral 4–27 Sep (DECISIONS 635). */
+let providerMenolak = false;
+
 vi.mock("@/lib/ai/structured", () => ({
   aiStructured: async (_schema: unknown, opts: { prompt: string }) => {
     promptTerakhir = opts.prompt;
+    if (providerMenolak) {
+      return {
+        ok: false,
+        errorCode: "billing",
+        error: "HTTP 402 – saldo habis",
+        meta: {
+          ok: false,
+          provider: "mistral",
+          model: "mistral-medium",
+          errorCode: "billing",
+          error: "HTTP 402 – saldo habis",
+          latencyMs: 2_150,
+        },
+        attempts: 1,
+      };
+    }
     return {
       ok: true,
       data: buatKeluaran(opts.prompt),
@@ -530,5 +549,32 @@ describe("PAGAR KAPABILITAS: uang tidak bocor lewat pintu AI", () => {
     await jalankan();
     const metrik = faktaDariPrompt(promptTerakhir).map((f) => f.metric);
     expect(metrik).toContain("anggaran_total");
+  });
+});
+
+describe("run web yang GAGAL tercatat lengkap (DECISIONS 635)", () => {
+  it("provider, model, latensi, dan pesan galat tersimpan – Riwayat tidak lagi '–'", async () => {
+    providerMenolak = true;
+    try {
+      const r = await executeAiRun(user, {
+        kind: "tanya",
+        locationIds: [locId],
+        startKey: MULAI,
+        endKey: AKHIR,
+        question: "Bagaimana progressnya?",
+      });
+      expect(r.status).toBe("gagal");
+      const run = await db.aiRun.findUniqueOrThrow({ where: { id: r.runId } });
+      expect(run).toMatchObject({
+        status: "gagal",
+        errorCode: "billing",
+        provider: "mistral",
+        model: "mistral-medium",
+        latencyMs: 2_150,
+      });
+      expect(run.errorMessage).toMatch(/^HTTP 402/);
+    } finally {
+      providerMenolak = false;
+    }
   });
 });

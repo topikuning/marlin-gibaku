@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 635 | 2026-09-30 | AI MARLIN Fase 0 (spesifikasi + koreksi validasi): kode galat dari status DAN isi, retry hanya galat sementara, tenggat total per jawaban, provider cadangan opsional (`AiRun.fallbackFrom`), kegagalan web tercatat lengkap, alarm dinilai saat run gagal dicatat (bukan cron yang nyatanya jalan tiap 3–6,5 jam), batas jawaban bebas WA 3.000 token/60 dtk/tenggat 90 dtk, deteksi jawaban terpotong, tes koneksi jalur JSON, job WA macet diambil ulang |
 | 634 | 2026-09-30 | Logo & gambar identitas: tiap unggahan logo/kop/stempel perusahaan dan tanda tangan/stempel/logo kontrak & lokasi menulis berkas BARU (tidak menimpa laporan final, tidak basi di cache); logo tersimpan tampil di laci & daftar master perusahaan; logo cap yang gagal dimuat tidak terkunci kosong; audit penyimpanan memeriksa gambar identitas yang hilang |
 | 633 | 2026-09-30 | Perbaiki cap dari galeri foto: saringan + halaman galeri ikut lewat `?dari=` dan tombol "← Galeri Foto" kembali ke sana, tepat di foto yang diedit (digulir + dibingkai) |
 | 632 | 2026-09-30 | Galat WAHA "must include an id property" (bug WhatsApp Web engine WEBJS, semua kiriman berkas/gambar) diterjemahkan jadi instruksi "perbarui image WAHA"; galat lain dari dalam WhatsApp Web disebut sumbernya tanpa stack; pesan galat di baris laporan harian tidak lagi mendesak kolom keterangan |

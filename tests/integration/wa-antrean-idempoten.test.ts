@@ -274,3 +274,39 @@ describe("kegagalan: backoff lalu dead-letter", () => {
     expect(sehat.status).toBe("selesai");
   });
 });
+
+/*
+ * Pekerjaan yang MACET di `berjalan` (DECISIONS 635). Proses yang mati di
+ * tengah jawaban – deploy ulang, restart kontainer – meninggalkan baris
+ * `berjalan` yang tidak pernah diklaim lagi: pertanyaannya tidak pernah
+ * dijawab. Dengan tenggat jawaban AI 90 detik, 10 menit sudah pasti mati.
+ */
+describe("pekerjaan macet diambil ulang", () => {
+  it("berjalan lebih dari 10 menit → dikerjakan ulang", async () => {
+    await antreJawaban(event());
+    await db.$executeRaw`UPDATE wa_reply_jobs SET status = 'berjalan', attempts = 1, started_at = now() - interval '11 minutes'`;
+    const h = await prosesAntrean();
+    expect(h.diproses).toBe(1);
+    expect(dijalankan).toBe(1);
+    expect((await db.waReplyJob.findFirstOrThrow()).status).toBe("selesai");
+  });
+
+  it("yang baru berjalan 1 menit TIDAK diganggu – bisa jadi masih dikerjakan", async () => {
+    await antreJawaban(event());
+    await db.$executeRaw`UPDATE wa_reply_jobs SET status = 'berjalan', attempts = 1, started_at = now() - interval '1 minute'`;
+    const h = await prosesAntrean();
+    expect(h.diproses).toBe(0);
+    expect((await db.waReplyJob.findFirstOrThrow()).status).toBe("berjalan");
+  });
+
+  it("macet dan percobaannya sudah habis → GAGAL permanen, tidak diulang selamanya", async () => {
+    await antreJawaban(event());
+    await db.$executeRaw`UPDATE wa_reply_jobs SET status = 'berjalan', attempts = ${BATAS_PERCOBAAN}, started_at = now() - interval '11 minutes'`;
+    await prosesAntrean();
+    expect(dijalankan).toBe(0);
+    const job = await db.waReplyJob.findFirstOrThrow();
+    expect(job.status).toBe("gagal");
+    expect(job.lastError).toMatch(/macet/);
+  });
+});
+

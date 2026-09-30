@@ -84,6 +84,24 @@ export async function POST(req: Request) {
       console.error("[cron/waha] kuras pengingat grup gagal:", err);
     }
     /*
+     * Alarm kegagalan AI – jaring CADANGAN (DECISIONS 635). Jalur utamanya
+     * dinilai saat run gagal dicatat; di sini hanya untuk organisasi yang punya
+     * run 60 menit terakhir, bila pemeriksaan latar sempat terlewat.
+     */
+    let alarmAi: unknown = null;
+    try {
+      const { periksaAlarmAi } = await import("@/lib/ai-hub/alarm");
+      const { db } = await import("@/lib/db");
+      const org = await db.aiRun.findMany({
+        where: { finishedAt: { gte: new Date(Date.now() - 60 * 60_000) }, orgId: { not: null } },
+        select: { orgId: true },
+        distinct: ["orgId"],
+      });
+      alarmAi = await Promise.all(org.map((o) => periksaAlarmAi({ orgId: o.orgId! })));
+    } catch (err) {
+      console.error("[cron/waha] periksa alarm AI gagal:", err);
+    }
+    /*
      * Lampiran yang belum sempat naik ke R2 disapu di sini.
      *
      * Sampai 2026-08-29 penyapu ini TIDAK PERNAH dipanggil dari mana pun —
@@ -106,6 +124,7 @@ export async function POST(req: Request) {
       konteksDibuang,
       tanyaTertunda,
       pengingatGrup,
+      alarmAi,
       lampiranDiarsipkan,
     });
   } catch (err) {

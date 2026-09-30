@@ -21,6 +21,14 @@ import {
  */
 
 const ACTIVE_KEY = "ai.active_provider";
+/**
+ * Provider CADANGAN (DECISIONS 635). Kosong = mati. Mengisinya berarti data
+ * proyek (termasuk teks grup WA) boleh terkirim ke vendor kedua saat provider
+ * utama gagal – keputusan admin, jadi bawaannya kosong.
+ */
+export const FALLBACK_KEY = "ai.fallback_provider";
+/** Penerima alarm kegagalan AI (grup WA disarankan). Kosong = hanya spanduk + audit. */
+export const ALERT_CHAT_KEY = "ai.alert.chat_id";
 const keyApiKey = (id: string) => `ai.${id}.api_key`;
 const keyModel = (id: string) => `ai.${id}.model`;
 
@@ -156,4 +164,19 @@ export async function getActiveAiConfig(): Promise<ResolvedAiConfig | null> {
   const active = s.get(ACTIVE_KEY)?.trim();
   if (!active || !isAiProviderId(active)) return null;
   return getAiProviderConfig(active);
+}
+
+/** Config provider CADANGAN – null bila tidak diatur, sama dengan aktif, atau API key-nya belum ada. */
+export async function getFallbackAiConfig(): Promise<ResolvedAiConfig | null> {
+  const s = await latestSettings([FALLBACK_KEY, ACTIVE_KEY]);
+  const id = s.get(FALLBACK_KEY)?.trim();
+  if (!id || !isAiProviderId(id) || id === s.get(ACTIVE_KEY)?.trim()) return null;
+  return getAiProviderConfig(id);
+}
+
+/** Setelan pengaman AI untuk layar Sistem → AI. */
+export async function getAiPengaman(): Promise<{ fallbackProvider: AiProviderId | null; alertChatId: string }> {
+  const s = await latestSettings([FALLBACK_KEY, ALERT_CHAT_KEY]);
+  const f = s.get(FALLBACK_KEY)?.trim();
+  return { fallbackProvider: f && isAiProviderId(f) ? f : null, alertChatId: s.get(ALERT_CHAT_KEY)?.trim() ?? "" };
 }

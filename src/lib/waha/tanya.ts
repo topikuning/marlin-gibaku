@@ -1713,6 +1713,7 @@ async function catatRun(
         periodEnd: detail?.endKey ? new Date(`${detail.endKey}T00:00:00.000Z`) : hariIni,
         provider: hasil.meta?.provider ?? null,
         model: hasil.meta?.model ?? null,
+        fallbackFrom: hasil.meta?.ok ? (hasil.meta.fallbackFrom ?? null) : null,
         promptVersion: detail?.promptVersion ?? "waha-tanya-2",
         outputJson: detail?.outputJson ? JSON.parse(JSON.stringify(detail.outputJson)) : undefined,
         sourcesJson: detail?.sourcesJson ? JSON.parse(JSON.stringify(detail.sourcesJson)) : undefined,
@@ -1727,6 +1728,8 @@ async function catatRun(
         finishedAt: new Date(),
       },
     });
+    // Alarm dinilai SAAT kegagalan dicatat, bukan menunggu cron (DECISIONS 635).
+    if (!hasil.ok) (await import("@/lib/ai-hub/alarm")).periksaAlarmAiLatar(pemakai.orgId);
   } catch (err) {
     // Pencatatan yang gagal tidak boleh menelan jawabannya.
     console.error("[waha/tanya] gagal catat ai_run:", err);

@@ -218,6 +218,17 @@ sourceRef + klaim angka, bagian gagal dibuang jadi limitation. In-process (tanpa
 service/Redis/MCP/agent framework); guard AppSetting: kill switch + rate limit +
 batas ukuran; API key provider terenkripsi AES-256-GCM (`AI_SECRET_ENCRYPTION_KEY`).
 
+**Ketahanan panggilan (DECISIONS 635)**: kode galat dibaca dari status DAN isi
+respons (`billing`, `model_not_found`, `bad_request`, `input_too_big`,
+`truncated`, …); retry sekali hanya untuk galat sementara, menghormati
+retry-after; SATU tenggat total per jawaban mencakup retry, perbaikan skema,
+dan cadangan. **Provider cadangan** (`ai.fallback_provider`, bawaan kosong)
+dipanggil sekali untuk galat akun/sementara – mengisinya berarti data proyek
+boleh terkirim ke vendor kedua; `AiRun.fallbackFrom` mencatat asal. Alarm
+kegagalan dinilai SAAT run gagal dicatat (5 beruntun atau > 20% dari ≥ 5 run
+dalam 60 menit) → WA ke `ai.alert.chat_id` + audit + spanduk, maks sekali per
+6 jam per kode galat; cron hanya cadangan.
+
 **Prompt semua aksi AI** diatur di Sistem → Prompt AI (registri
 `src/lib/ai/prompt-registry.ts`, override AppSetting `ai.prompt.*`). Frasa
 pengaman anti-mengarang per slot tidak bisa dihapus lewat halaman itu
