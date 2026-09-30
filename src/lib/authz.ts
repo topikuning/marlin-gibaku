@@ -44,6 +44,10 @@ export const CAPABILITIES = [
   // (env SUPER_ADMIN_UTAMA): permintaan user 2026-09-29 *"hanya ada di
   // superadmin utama"*.
   "daily_report.reset_location",
+  // HAPUS revisi RAB adendum yang keliru (sudah digantikan) dari riwayat lokasi
+  // (DECISIONS 636). super_admin di sini + syarat SUPER ADMIN UTAMA di aksinya:
+  // permintaan user 2026-09-30 *"yang boleh melakukan ini cuma super admin master"*.
+  "rab.revision_purge",
   // Isi nama & unggah coretan tanda tangan PENANDA TANGAN LOKASI (pelaksana +
   // pengawas lokasi itu) — Site Manager ke atas. SENGAJA dipisah dari
   // `location.manage`, yang ikut membawa ganti nama lokasi & ubah koordinat
@@ -415,7 +419,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "location.correct" &&
         // Arsip pencabutan lokasi: super_admin SAJA (user 2026-09-06).
         c !== "location_scope.archive" &&
-        c !== "daily_report.reset_location",
+        c !== "daily_report.reset_location" &&
+        c !== "rab.revision_purge",
     ),
   ),
   regional_manager: new Set<Capability>(AREA_MANAGER),

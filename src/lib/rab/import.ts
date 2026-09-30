@@ -326,7 +326,7 @@ export async function activateRevision(revisionId: string, userId: string) {
  * melewatinya hanya memindahkan ketidakcocokan, bukan menghilangkannya. Setiap
  * penyesuaian masuk audit log dengan angka sebelum dan sesudahnya.
  */
-async function sesuaikanRealisasiKeVolumeBaru(
+export async function sesuaikanRealisasiKeVolumeBaru(
   tx: Prisma.TransactionClient,
   revisionId: string,
   locationId: string,

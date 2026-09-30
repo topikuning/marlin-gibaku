@@ -1,9 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useAksi } from "@/lib/aksi-klien";
-
-
-import { Banner, Button, StatusPill, type BadgeTone } from "@/components/ui";
+import { Banner, Button, Input, StatusPill, type BadgeTone } from "@/components/ui";
+import { hapusRevisiKeliruAction, type HapusRevisiState } from "@/lib/rab/hapus-revisi-actions";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
   activateDraftAction,
@@ -160,17 +160,137 @@ function DraftActions({
   );
 }
 
+/** Dampak penghapusan satu revisi keliru – dihitung server, hanya untuk super admin utama (DECISIONS 636). */
+export type HapusRevisiView = {
+  pengganti: number | null;
+  laporanDipindah: number;
+  rencanaDipindah: number;
+  kurvaS: number;
+  pemulihan: { tanggal: string; item: string; sekarang: number; kembaliKe: number }[];
+  pemulihanDilewati: number;
+  alasanTolak: string[];
+};
+
+function HapusRevisi({
+  revisionId,
+  revisionNo,
+  v,
+  onBerhasil,
+}: {
+  revisionId: string;
+  revisionNo: number;
+  v: HapusRevisiView;
+  /** Pesan berhasil dinaikkan ke daftar: baris ini sendiri hilang begitu revisinya terhapus. */
+  onBerhasil: (pesan: string) => void;
+}) {
+  const [buka, setBuka] = useState(false);
+  const [ketik, setKetik] = useState("");
+  const [state, action, pending] = useAksi<HapusRevisiState>(async (prev: HapusRevisiState, fd: FormData) => {
+    const r = await hapusRevisiKeliruAction(prev, fd);
+    if (r?.success) onBerhasil(r.success);
+    return r;
+  }, undefined);
+  const wajib = `HAPUS #${revisionNo}`;
+  if (!buka) {
+    return (
+      <Button size="sm" variant="secondary" type="button" onClick={() => setBuka(true)}>
+        Hapus (keliru)…
+      </Button>
+    );
+  }
+  return (
+    <div className="ml-auto max-w-md space-y-2 rounded-md border border-danger-border bg-danger-soft p-3 text-left text-[13px]">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {v.alasanTolak.length > 0 ? (
+        <>
+          <p className="font-semibold text-ink">Revisi #{revisionNo} belum bisa dihapus:</p>
+          <ul className="list-disc space-y-0.5 pl-5 text-ink">
+            {v.alasanTolak.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setBuka(false)}>
+            Tutup
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="font-semibold text-ink">Hapus permanen revisi #{revisionNo}:</p>
+          <ul className="list-disc space-y-0.5 pl-5 text-ink">
+            <li>
+              {v.laporanDipindah} baris laporan harian
+              {v.rencanaDipindah > 0 ? ` + ${v.rencanaDipindah} baris rencana mingguan` : ""} dipindah ke item berkode sama
+              di revisi #{v.pengganti} – volumenya tidak berubah
+            </li>
+            <li>
+              {v.pemulihan.length} volume yang dulu dipangkas revisi ini dikembalikan, lalu dicek ulang terhadap RAB aktif
+              {v.pemulihanDilewati > 0 ? ` (${v.pemulihanDilewati} dilewati: sudah diubah orang sesudahnya)` : ""}
+            </li>
+            <li>{v.kurvaS} kurva-S yang lahir dari revisi ini ikut dihapus</li>
+          </ul>
+          {v.pemulihan.length > 0 ? (
+            <details className="text-ink-muted">
+              <summary className="cursor-pointer">Volume yang dikembalikan</summary>
+              <ul className="mt-1 space-y-0.5">
+                {v.pemulihan.map((p) => (
+                  <li key={`${p.tanggal}-${p.item}`} className="tabular">
+                    {formatTanggal(new Date(`${p.tanggal}T00:00:00Z`))} · {p.item}: {p.sekarang} → {p.kembaliKe}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          <form action={action} className="space-y-2">
+            <input type="hidden" name="revisionId" value={revisionId} />
+            <label className="block text-ink" htmlFor={`hapus-${revisionId}`}>
+              Ketik <span className="font-semibold">{wajib}</span> untuk konfirmasi
+            </label>
+            <Input
+              id={`hapus-${revisionId}`}
+              name="konfirmasi"
+              autoComplete="off"
+              value={ketik}
+              onChange={(e) => setKetik(e.target.value)}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="submit"
+                size="sm"
+                variant="danger"
+                loading={pending}
+                disabled={ketik.trim().toUpperCase() !== wajib}
+              >
+                Hapus revisi #{revisionNo}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setBuka(false)}>
+                Batal
+              </Button>
+            </div>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function RevisionList({
   revisions,
   canManage,
   persetujuan = null,
+  hapus = {},
 }: {
   revisions: RevisionRow[];
   canManage: boolean;
   /** Keadaan empat mata draft yang ada; `null` bila belum ada RAB aktif (HPS awal). */
   persetujuan?: PersetujuanRow | null;
+  /** Revisi keliru yang boleh dinilai untuk dihapus – hanya terisi untuk super admin utama. */
+  hapus?: Record<string, HapusRevisiView>;
 }) {
+  const adaAksi = canManage || Object.keys(hapus).length > 0;
+  const [pesanHapus, setPesanHapus] = useState<string | null>(null);
   return (
+    <div className="space-y-2">
+    {pesanHapus ? <Banner tone="success" title={pesanHapus} /> : null}
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -181,7 +301,7 @@ export function RevisionList({
             <th className="py-2 pr-3 text-right">Total (pra-PPN)</th>
             <th className="py-2 pr-3">Tanggal</th>
             <th className="py-2 pr-3">Catatan</th>
-            {canManage ? <th className="py-2 text-right">Aksi</th> : null}
+            {adaAksi ? <th className="py-2 text-right">Aksi</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -197,10 +317,13 @@ export function RevisionList({
               <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={r.note ?? undefined}>
                 {r.note ?? "–"}
               </td>
-              {canManage ? (
+              {adaAksi ? (
                 <td className="py-2 text-right align-top">
-                  {r.status === "draft" ? (
+                  {canManage && r.status === "draft" ? (
                     <DraftActions revisionId={r.id} persetujuan={persetujuan} />
+                  ) : null}
+                  {hapus[r.id] ? (
+                    <HapusRevisi revisionId={r.id} revisionNo={r.revisionNo} v={hapus[r.id]} onBerhasil={setPesanHapus} />
                   ) : null}
                 </td>
               ) : null}
@@ -208,6 +331,7 @@ export function RevisionList({
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
