@@ -11,8 +11,10 @@ import { db } from "@/lib/db";
  * direset (data dihapus dan foto yang bertagging dihapus total)"*. Cakupan
  * yang dipilih user:
  *
- * - **Foto**: semua foto laporan harian (item, material, alat) + Foto Cepat
- *   lokasi itu yang belum dipasang ke laporan. Foto Kegiatan Lapangan TIDAK.
+ * - **Foto**: semua foto laporan harian (item, material, alat). Foto Cepat
+ *   yang belum dipasang ke laporan DIBIARKAN – user 2026-09-29: *"untuk foto
+ *   cepat karena belum digunakan, sebaiknya dibiarkan saja"*. Foto Kegiatan
+ *   Lapangan juga tidak.
  * - **Temuan, verifikasi Wakil PPK, dan kendala** yang menempel ke
  *   laporan-laporan itu IKUT dihapus.
  *
@@ -30,8 +32,6 @@ export type RingkasResetHarian = {
   laporan: number;
   /** Foto yang menempel ke laporan harian. */
   fotoLaporan: number;
-  /** Foto Cepat lokasi itu yang belum dipasang ke laporan. */
-  fotoCepat: number;
   temuan: number;
   verifikasi: number;
   kendala: number;
@@ -64,23 +64,13 @@ async function sasaran(locationId: string) {
       { reportEquipment: { reportId: { in: ids } } },
     ],
   };
-  // Foto Cepat: foto lokasi itu tanpa induk apa pun (bukan laporan, bukan kegiatan).
-  const cepat: Prisma.PhotoWhereInput = {
-    locationId,
-    reportId: null,
-    reportItemId: null,
-    reportMaterialId: null,
-    reportEquipmentId: null,
-    activityId: null,
-  };
-  return { laporan, ids, menempel, cepat };
+  return { laporan, ids, menempel };
 }
 
 export async function ringkasResetHarian(locationId: string): Promise<RingkasResetHarian> {
-  const { laporan, ids, menempel, cepat } = await sasaran(locationId);
-  const [fotoLaporan, fotoCepat, temuan, verifikasi, kendala] = await Promise.all([
+  const { laporan, ids, menempel } = await sasaran(locationId);
+  const [fotoLaporan, temuan, verifikasi, kendala] = await Promise.all([
     db.photo.count({ where: menempel }),
-    db.photo.count({ where: cepat }),
     db.finding.count({ where: { reportId: { in: ids } } }),
     db.reportVerification.count({ where: { reportId: { in: ids } } }),
     // KEMBAR-OK: kendala yang sudah digabungkan SENGAJA ikut dihitung – reset
@@ -90,7 +80,6 @@ export async function ringkasResetHarian(locationId: string): Promise<RingkasRes
   return {
     laporan: laporan.length,
     fotoLaporan,
-    fotoCepat,
     temuan,
     verifikasi,
     kendala,
@@ -102,9 +91,9 @@ export async function ringkasResetHarian(locationId: string): Promise<RingkasRes
 /** Hapus seluruh laporan harian lokasi ini beserta semua yang menempel. */
 export async function resetHarianLokasi(locationId: string): Promise<HasilResetHarian> {
   const ringkas = await ringkasResetHarian(locationId);
-  const { ids, menempel, cepat } = await sasaran(locationId);
+  const { ids, menempel } = await sasaran(locationId);
   const foto = await db.photo.findMany({
-    where: { OR: [menempel, cepat] },
+    where: menempel,
     select: { id: true, r2Key: true, thumbnailKey: true, originalKey: true, originalArchivedAt: true, sha256: true },
   });
   const idFoto = foto.map((f) => f.id);

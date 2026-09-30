@@ -3,11 +3,13 @@
  *
  * Permintaan user 2026-09-29: hapus semua laporan harian satu lokasi – data
  * dan foto bertagging dihapus TOTAL – dan hanya super admin UTAMA yang boleh.
- * Cakupan pilihan user: foto laporan + Foto Cepat; temuan, verifikasi, dan
- * kendala yang menempel ke laporan ikut dihapus.
+ * Cakupan pilihan user: foto laporan; temuan, verifikasi, dan kendala yang
+ * menempel ke laporan ikut dihapus. Foto Cepat DIBIARKAN (user 2026-09-29:
+ * "untuk foto cepat karena belum digunakan, sebaiknya dibiarkan saja").
  *
  * Yang dijaga di sini:
  * - semua itu benar-benar hilang, termasuk berkasnya di R2;
+ * - Foto Cepat lokasi itu tetap ada, berkasnya tidak disentuh;
  * - lokasi LAIN tidak tersentuh sama sekali;
  * - temuan yang TIDAK menempel ke laporan tetap ada (hanya bukti fotonya dilepas);
  * - super admin biasa ditolak, dan nama lokasi wajib diketik persis.
@@ -155,7 +157,6 @@ describe("reset laporan harian lokasi", () => {
     expect(await ringkasResetHarian(lokA.id)).toMatchObject({
       laporan: 1,
       fotoLaporan: 1,
-      fotoCepat: 1,
       temuan: 1,
       verifikasi: 1,
       kendala: 1,
@@ -181,11 +182,14 @@ describe("reset laporan harian lokasi", () => {
   it("super admin utama: semuanya hilang total, lokasi lain utuh", async () => {
     sebagai = akar;
     const r = await resetHarianLokasiAction(undefined, fd({ locationId: lokA.id, konfirmasi: lokA.name }));
-    expect(r?.success, r?.error).toMatch(/1 laporan harian Klidang Lor dihapus, bersama 2 foto/);
+    expect(r?.success, r?.error).toMatch(/1 laporan harian Klidang Lor dihapus, bersama 1 foto,/);
 
     const idLapA = (await db.dailyReport.findMany({ where: { locationId: lokA.id } })).map((l) => l.id);
     expect(idLapA).toEqual([]);
-    expect(await db.photo.count({ where: { locationId: lokA.id } })).toBe(0);
+    // Hanya Foto Cepat yang tersisa – foto tanpa induk laporan tidak disentuh.
+    expect(
+      (await db.photo.findMany({ where: { locationId: lokA.id }, select: { r2Key: true } })).map((f) => f.r2Key),
+    ).toEqual([`photos/a-${suffix}/cepat.webp`]);
     expect(await db.issue.count({ where: { locationId: lokA.id } })).toBe(0);
     expect(await db.finding.count({ where: { locationId: lokA.id, reportId: { not: null } } })).toBe(0);
     // Berkas ber-cap, thumbnail, dan berkas asli ikut dihapus dari R2.
@@ -194,9 +198,9 @@ describe("reset laporan harian lokasi", () => {
         `photos/a-${suffix}/lap.webp`,
         `photos/a-${suffix}/lap.thumb.webp`,
         `photos/a-${suffix}/lap.asli.jpg`,
-        `photos/a-${suffix}/cepat.webp`,
       ]),
     );
+    expect(terhapus).not.toContain(`photos/a-${suffix}/cepat.webp`);
     expect(terhapus.some((k) => k.includes(`b-${suffix}`))).toBe(false);
 
     // Temuan tingkat lokasi tetap ada; hanya bukti fotonya yang dilepas.
@@ -207,7 +211,6 @@ describe("reset laporan harian lokasi", () => {
     expect(await ringkasResetHarian(lokB.id)).toMatchObject({
       laporan: 1,
       fotoLaporan: 1,
-      fotoCepat: 1,
       temuan: 1,
       verifikasi: 1,
       kendala: 1,

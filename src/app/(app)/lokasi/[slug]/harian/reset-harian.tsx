@@ -24,7 +24,7 @@ export function ResetHarian({
   const [buka, setBuka] = useState(false);
   const [ketik, setKetik] = useState("");
   const [state, action, pending] = useAksi<ResetHarianState>(resetHarianLokasiAction, undefined);
-  const kosong = ringkas.laporan === 0 && ringkas.fotoCepat === 0;
+  const kosong = ringkas.laporan === 0;
   const tgl = (k: string) => formatTanggal(new Date(`${k}T00:00:00Z`), "d MMMM yyyy");
 
   return (
@@ -38,7 +38,7 @@ export function ResetHarian({
         {state?.error ? <Banner tone="error" title={state.error} /> : null}
 
         {kosong ? (
-          <p className="text-ink-muted">Lokasi ini tidak punya laporan harian maupun Foto Cepat – tidak ada yang direset.</p>
+          <p className="text-ink-muted">Lokasi ini tidak punya laporan harian – tidak ada yang direset.</p>
         ) : !buka ? (
           <Button type="button" variant="danger" size="sm" onClick={() => setBuka(true)}>
             Reset laporan harian…
@@ -54,8 +54,7 @@ export function ResetHarian({
                   volume, tenaga, material, alat, cuaca, catatan, riwayat status
                 </li>
                 <li>
-                  {ringkas.fotoLaporan} foto laporan + {ringkas.fotoCepat} Foto Cepat – berkas ber-cap, berkas asli, dan
-                  salinan di arsip
+                  {ringkas.fotoLaporan} foto laporan – berkas ber-cap, berkas asli, dan salinan di arsip
                 </li>
                 <li>
                   {ringkas.temuan} temuan, {ringkas.verifikasi} verifikasi Wakil PPK, dan {ringkas.kendala} kendala yang
@@ -64,7 +63,7 @@ export function ResetHarian({
               </ul>
               <p className="mt-2 text-ink-muted">
                 Progres lokasi kembali ke 0% karena dihitung dari laporan harian. RAB, kurva-S rencana, keuangan,
-                Kegiatan Lapangan, dan laporan yang sudah terkirim ke WhatsApp/Drive tidak berubah.
+                Kegiatan Lapangan, Foto Cepat yang belum dipasang ke laporan, dan laporan yang sudah terkirim ke WhatsApp/Drive tidak berubah.
               </p>
             </div>
             <input type="hidden" name="locationId" value={locationId} />

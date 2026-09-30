@@ -52,7 +52,7 @@ export async function resetHarianLokasiAction(_prev: ResetHarianState, formData:
       : "";
   return {
     success:
-      `${hasil.laporan} laporan harian ${lokasi.name} dihapus, bersama ${hasil.fotoLaporan + hasil.fotoCepat} foto, ` +
+      `${hasil.laporan} laporan harian ${lokasi.name} dihapus, bersama ${hasil.fotoLaporan} foto, ` +
       `${hasil.temuan} temuan, ${hasil.verifikasi} verifikasi, dan ${hasil.kendala} kendala.` +
       sisa,
   };
