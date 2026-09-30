@@ -228,8 +228,14 @@ export function AksiHarian({
         />
       </div>
 
-      {pesan?.error ? <span className="text-[12px] text-danger">{pesan.error}</span> : null}
-      {pesan?.success ? <span className="text-[12px] text-success">{pesan.success}</span> : null}
+      {/* `w-0 min-w-full`: pesan ikut LEBAR baris tombol, tidak melebarkannya – galat
+          panjang dulu mendesak kolom keterangan laporan jadi satu kata per baris. */}
+      {pesan?.error ? (
+        <span className="w-0 min-w-full break-words text-[12px] text-danger xl:text-right">{pesan.error}</span>
+      ) : null}
+      {pesan?.success ? (
+        <span className="w-0 min-w-full break-words text-[12px] text-success xl:text-right">{pesan.success}</span>
+      ) : null}
     </div>
   );
 }

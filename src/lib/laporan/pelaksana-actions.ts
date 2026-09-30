@@ -131,7 +131,9 @@ export async function simpanPelaksana(
       .resize(800, 800, { fit: "inside", withoutEnlargement: true })
       .webp({ quality: 92 })
       .toBuffer();
-    const key = `penandatangan/lokasi/${lokasi.id}/${medan}.webp`;
+    // Berkas BARU tiap unggahan – laporan final yang membekukan kunci lama tetap
+    // memperlihatkan tanda tangan saat itu (DECISIONS 634).
+    const key = `penandatangan/lokasi/${lokasi.id}/${medan}-${Date.now().toString(36)}.webp`;
     await r2Put(key, buf, "image/webp");
     data[medan] = key;
     berubah.push(`${LABEL[medan]} diperbarui`);

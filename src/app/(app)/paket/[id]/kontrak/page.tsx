@@ -131,7 +131,9 @@ export default async function KontrakPage({
     contract.vendor.stempelKey,
     pkg.pelaksanaTtdKey,
   ].filter((k): k is string => !!k);
-  const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
+  // Satu jam: formulir ini dibuka lama; tautan 5 menit membuat gambar yang
+  // tersimpan tampil rusak (DECISIONS 634).
+  const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd, 3600) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
 
   // Draft adendum yang menunggu diberlakukan (DECISIONS 613). Nilainya hanya

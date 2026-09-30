@@ -1,7 +1,7 @@
 import "server-only";
 import type { z } from "zod";
 import { aiCall, type AiCallResult, type AiRequest } from "./client";
-import { extractJsonBlock } from "./parse";
+import { extractJsonBlock, terpotong } from "./parse";
 
 /**
  * Panggilan AI TERSTRUKTUR: instruksi JSON-only → ekstrak blok JSON → validasi
@@ -39,24 +39,45 @@ function tryParse<T>(schema: z.ZodType<T>, text: string): { data?: T; issue?: st
 
 export async function aiStructured<T>(
   schema: z.ZodType<T>,
-  req: AiRequest & { schemaHint: string },
+  req: AiRequest & {
+    schemaHint: string;
+    /**
+     * Tenggat TOTAL satu jawaban (ms) – mencakup retry, perbaikan skema, dan
+     * provider cadangan (DECISIONS 635). Tanpa ini hanya ada batas per panggilan.
+     */
+    tenggatTotalMs?: number;
+  },
 ): Promise<AiStructuredResult<T>> {
-  const system = `${req.system ?? ""}\n\n${JSON_RULES}\n\nSkema JSON yang WAJIB diikuti:\n${req.schemaHint}`.trim();
-  const first = await aiCall({ ...req, system });
+  const { tenggatTotalMs, schemaHint, ...dasar } = req;
+  const tenggatAt = req.tenggatAt ?? (tenggatTotalMs != null ? Date.now() + tenggatTotalMs : undefined);
+  const system = `${req.system ?? ""}\n\n${JSON_RULES}\n\nSkema JSON yang WAJIB diikuti:\n${schemaHint}`.trim();
+  const first = await aiCall({ ...dasar, system, tenggatAt });
   if (!first.ok) {
     return { ok: false, errorCode: first.errorCode, error: first.error, meta: first, attempts: 1 };
   }
   const p1 = tryParse(schema, first.text);
   if (p1.data !== undefined) return { ok: true, data: p1.data, meta: first, attempts: 1 };
 
-  // Satu percobaan perbaikan: beri tahu kesalahannya, minta JSON ulang.
+  /*
+   * Satu percobaan perbaikan (DECISIONS 635). Membawa jawaban yang salah
+   * (supaya model tahu apa yang dibetulkan) DAN lampiran aslinya (dulu hilang,
+   * jadi model "memperbaiki" tanpa melihat surat yang dibacanya). Jawaban yang
+   * TERPOTONG batas token tidak diulang apa adanya – yang diminta versi lebih
+   * pendek, karena permintaan yang sama akan terpotong di tempat yang sama.
+   */
+  const potong = terpotong(first.finishReason);
+  const instruksi = potong
+    ? "Respons sebelumnya TERPOTONG karena melewati batas panjang. Kirim ulang objek JSON yang LEBIH PENDEK: " +
+      "ringkas tiap bagian, paling banyak 5 bagian, tetap sesuai skema."
+    : `Respons sebelumnya GAGAL divalidasi (${p1.issue}). Kirim ulang HANYA objek JSON yang valid dan sesuai skema.`;
   const second = await aiCall({
     system,
     prompt:
-      `${req.prompt}\n\n---\nRespons sebelumnya GAGAL divalidasi (${p1.issue}).` +
-      ` Kirim ulang HANYA objek JSON yang valid dan sesuai skema.`,
+      `${req.prompt}\n\n---\n${instruksi}\n\nRespons sebelumnya (potongan):\n` + first.text.slice(0, 2_000),
     maxTokens: req.maxTokens,
     timeoutMs: req.timeoutMs,
+    attachments: req.attachments,
+    tenggatAt,
   });
   if (!second.ok) {
     return { ok: false, errorCode: second.errorCode, error: second.error, meta: second, attempts: 2 };
@@ -80,10 +101,13 @@ export async function aiStructured<T>(
     };
     return { ok: true, data: p2.data, meta, attempts: 2 };
   }
+  const tetapTerpotong = terpotong(second.finishReason);
   return {
     ok: false,
-    errorCode: "invalid_response",
-    error: `Output AI tidak valid setelah perbaikan: ${p2.issue}`,
+    errorCode: tetapTerpotong ? "truncated" : "invalid_response",
+    error: tetapTerpotong
+      ? "Jawaban AI terpotong batas panjang, juga sesudah diminta lebih pendek."
+      : `Output AI tidak valid setelah perbaikan: ${p2.issue}`,
     meta: second,
     attempts: 2,
   };

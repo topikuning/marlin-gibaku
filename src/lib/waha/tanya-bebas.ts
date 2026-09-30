@@ -104,12 +104,21 @@ export async function jawabPertanyaanBebasTergrounding(input: {
     input.question,
   ].join("\n");
 
+  /*
+   * Batas yang realistis (DECISIONS 635). 1.200 token memotong JSON jawaban
+   * 73 lokasi di tengah jalan, dan 25 detik terlalu pendek untuk datanya.
+   * Tenggat TOTAL 90 detik mencakup retry, perbaikan skema, dan provider
+   * cadangan – tanpa itu, batas per panggilan 60 detik bisa berlipat jadi
+   * empat menit. Aman karena jawaban WA lewat antrean WaReplyJob, bukan
+   * permintaan yang ditunggu peramban.
+   */
   const providerResult = await aiStructured(askOutputSchema, {
-    system: SYSTEM_BASE,
+    system: `${SYSTEM_BASE}\nJawaban WhatsApp: paling banyak 5 bagian di answerParts, tiap bagian ringkas.`,
     prompt,
     schemaHint: SCHEMA_HINTS.ask,
-    maxTokens: 1_200,
-    timeoutMs: 25_000,
+    maxTokens: 3_000,
+    timeoutMs: 60_000,
+    tenggatTotalMs: 90_000,
   });
   if (!providerResult.ok) return { providerResult, text: null, output: null, sourceRefs };
 

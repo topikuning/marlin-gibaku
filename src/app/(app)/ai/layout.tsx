@@ -1,6 +1,7 @@
 import { PageHeader, LinkTabs } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { AlarmAiBanner } from "@/components/knmp/alarm-ai-banner";
 
 /**
  * AI Intelligence Hub — menu GLOBAL mandiri (bukan duplikat per lokasi).
@@ -17,6 +18,8 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
         title="Asisten Pengendalian"
         description="Tanyakan kondisi proyek, cari prioritas, lalu ubah hasilnya menjadi laporan yang dapat direview dan dikirim. Semua angka tetap dihitung MARLIN."
       />
+      {/* Alarm kegagalan AI di SEMUA tab – gangguan 3 minggu dulu tidak terlihat di mana pun (DECISIONS 635). */}
+      <AlarmAiBanner orgId={user.orgId} />
       <LinkTabs
         items={[
           { label: "Ringkasan", href: "/ai", exact: true },

@@ -293,18 +293,39 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     }),
   );
 
-  const fail = async (errorCode: string, error: string): Promise<ExecuteRunResult> => {
+  /**
+   * Run gagal – dicatat LENGKAP (DECISIONS 635): provider, model, latensi, dan
+   * token dari panggilan terakhir. Dulu hanya kode & pesan, sehingga Riwayat
+   * menampilkan "–" dan penyebab gangguan harus ditebak dari pola waktu.
+   */
+  const fail = async (
+    errorCode: string,
+    error: string,
+    meta?: import("@/lib/ai/client").AiCallResult | null,
+  ): Promise<ExecuteRunResult> => {
     await db.aiRun.update({
       where: { id: run.id },
       data: {
         status: "gagal",
         errorCode,
         errorMessage: error.slice(0, 500),
+        ...(meta
+          ? {
+              provider: meta.provider,
+              model: meta.model,
+              latencyMs: meta.latencyMs,
+              inputTokens: meta.ok ? meta.usage.inputTokens : null,
+              outputTokens: meta.ok ? meta.usage.outputTokens : null,
+              fallbackFrom: meta.ok ? (meta.fallbackFrom ?? null) : null,
+            }
+          : {}),
         finishedAt: new Date(),
         outputJson: { official: officialSnapshot },
       },
     });
     await audit(user.id, "ai.run.gagal", "ai_run", run.id, { errorCode });
+    // Alarm dinilai SAAT kegagalan dicatat, bukan menunggu cron (DECISIONS 635).
+    (await import("@/lib/ai-hub/alarm")).periksaAlarmAiLatar(user.orgId);
     return { runId: run.id, status: "gagal", error };
   };
 
@@ -383,9 +404,12 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     schemaHint,
     maxTokens: guardCfg.maxOutputTokens,
     timeoutMs: guardCfg.timeoutMs,
+    // Anggaran total yang sama dengan `batasJawabanMs` (tanpa kelonggarannya):
+    // provider cadangan tidak boleh membuat run melewati batas "menggantung".
+    tenggatTotalMs: guardCfg.timeoutMs * 4,
   });
 
-  if (!result.ok) return fail(result.errorCode, result.error);
+  if (!result.ok) return fail(result.errorCode, result.error, result.meta);
 
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
   const ctx = groundingContext(pulse, [...narrativeRefs, ...tambahan.refs, ...narasiRefs]);
@@ -650,6 +674,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       status: "siap",
       provider: result.meta.provider,
       model: result.meta.model,
+      fallbackFrom: result.meta.fallbackFrom ?? null,
       confidence,
       outputJson: JSON.parse(JSON.stringify({ [input.kind]: output, official: officialSnapshot })),
       limitations,

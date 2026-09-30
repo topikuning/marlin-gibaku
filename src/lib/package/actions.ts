@@ -2269,6 +2269,9 @@ export async function updateContractSignatureImages(
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
   const { isR2Configured, r2Put } = await import("@/lib/r2");
+  // Berkas BARU tiap unggahan – laporan final yang membekukan kunci lama tidak
+  // boleh ikut berganti tanda tangan/stempel/logo (DECISIONS 634).
+  const versi = Date.now().toString(36);
   const data: Partial<Record<MedanTtd, string | null>> = {};
   const dataPaket: Partial<Record<MedanTtdPaket, string | null>> = {};
   const berubah: string[] = [];
@@ -2319,7 +2322,7 @@ export async function updateContractSignatureImages(
       .resize(800, 800, { fit: "inside", withoutEnlargement: true })
       .webp({ quality: 92 })
       .toBuffer();
-    const key = `kontrak/${contract.id}/${medan}.webp`;
+    const key = `kontrak/${contract.id}/${medan}-${versi}.webp`;
     await r2Put(key, buf, "image/webp");
     data[medan] = key;
     berubah.push(`${LABEL_TTD[medan]} diperbarui`);
@@ -2343,7 +2346,7 @@ export async function updateContractSignatureImages(
     const hasil = await olah(
       berkas,
       LABEL_TTD_PAKET[medan],
-      `paket/${contract.package.id}/${medan}.webp`,
+      `paket/${contract.package.id}/${medan}-${versi}.webp`,
     );
     if (typeof hasil !== "string") return hasil;
     dataPaket[medan] = hasil;

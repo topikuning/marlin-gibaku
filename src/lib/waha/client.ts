@@ -99,6 +99,27 @@ export function terjemahkanWahaError(status: number, body: string): string | nul
       '(bawaan WAHA biasanya "default", huruf kecil semua, harus persis sama).'
     );
   }
+  /*
+   * Bug WhatsApp Web (engine WEBJS) sejak 2026-09-18: setiap kiriman gambar/
+   * berkas/suara ditolak dengan galat memoize ini, teks tetap jalan. Dibetulkan
+   * WAHA lewat pembaruan image – bukan oleh apa pun di MARLIN (DECISIONS 632).
+   */
+  if (b.includes("must include an id property")) {
+    return (
+      "WhatsApp Web di server WAHA (engine WEBJS) menolak kiriman berkas/gambar – bug WhatsApp Web yang " +
+      "sudah dikenal, bukan kesalahan data laporan. Perbarui image WAHA ke versi terbaru lalu restart, " +
+      "kemudian kirim ulang. Pesan teks tidak terpengaruh."
+    );
+  }
+  // Galat lain yang dilempar dari DALAM WhatsApp Web: sebut sumbernya, potong stack-nya.
+  if (b.includes("static.whatsapp.net")) {
+    const m = /"message"\s*:\s*"([^"]*?)(?:\\n|\s*\(https:\/\/static\.whatsapp\.net)/.exec(body);
+    const inti = (m?.[1] ?? body).slice(0, 160);
+    return (
+      `Galat dari dalam WhatsApp Web di server WAHA (${status}): ${inti}. Coba kirim ulang; ` +
+      "bila berulang, perbarui image WAHA lalu restart."
+    );
+  }
   if (status === 422) {
     return `WAHA menolak permintaan (422): ${body.slice(0, 200)}. Biasanya sesi belum login – cek status sesi di halaman Sistem.`;
   }

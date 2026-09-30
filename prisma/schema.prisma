@@ -2743,6 +2743,8 @@ model AiRun {
   periodEnd        DateTime    @map("period_end") @db.Date
   provider         String?
   model            String?
+  /// Provider UTAMA yang gagal sehingga jawaban datang dari cadangan (DECISIONS 635).
+  fallbackFrom     String?     @map("fallback_from")
   promptVersion    String?     @map("prompt_version")
   inputHash        String?     @map("input_hash")
   sourceSnapshotAt DateTime?   @map("source_snapshot_at") @db.Timestamptz

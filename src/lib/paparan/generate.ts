@@ -214,8 +214,15 @@ export async function generatePaparan(
   let narasiSumber: "ai" | "deterministik" = "deterministik";
   let dibuang: string[] = [];
   let aiError: string | null = null;
-  let aiMeta: { provider: string; model: string; inputTokens?: number; outputTokens?: number; latencyMs?: number } | null =
-    null;
+  let aiMeta: {
+    provider: string | null;
+    model: string | null;
+    inputTokens?: number;
+    outputTokens?: number;
+    latencyMs?: number;
+    fallbackFrom?: string | null;
+  } | null = null;
+  let aiErrorMessage: string | null = null;
   const aiCfg = guardCfg.enabled ? await getActiveAiConfig() : null;
   if (aiCfg) {
     const prompt = `${INSTRUKSI_DASAR}${FOKUS[input.focus ?? "lengkap"] ?? ""}\n\n=== DATA ===\n${payloadSnapshot(snapshot)}`;
@@ -231,6 +238,7 @@ export async function generatePaparan(
           "Objek: title, ringkasanEksekutif[{text,sourceRefIds}] maks 4, capaianNaratif/kegiatanNaratif/sintesisKendala/rencanaNaratif[{text,locationId,sourceRefIds}], dukunganDibutuhkan[{text,sourceRefIds}], actionPlan[{text,sourceRefIds}] maks 6, limitations[string].",
         maxTokens: guardCfg.maxOutputTokens,
         timeoutMs: guardCfg.timeoutMs,
+        tenggatTotalMs: guardCfg.timeoutMs * 4,
       });
       if (result.ok) {
         const hasil = saringNarasiPaparan(result.data, snapshot);
@@ -243,9 +251,16 @@ export async function generatePaparan(
           inputTokens: result.meta.usage.inputTokens ?? undefined,
           outputTokens: result.meta.usage.outputTokens ?? undefined,
           latencyMs: result.meta.latencyMs,
+          fallbackFrom: result.meta.fallbackFrom ?? null,
         };
       } else {
         aiError = result.errorCode;
+        aiErrorMessage = result.error.slice(0, 500);
+        // Yang gagal pun dicatat provider, model, dan latensinya (DECISIONS 635) –
+        // tanpanya penyebab harus ditebak dari pola waktu.
+        if (result.meta) {
+          aiMeta = { provider: result.meta.provider, model: result.meta.model, latencyMs: result.meta.latencyMs };
+        }
         narasi = narasiDeterministik(snapshot);
       }
     }
@@ -327,12 +342,16 @@ export async function generatePaparan(
       inputTokens: aiMeta?.inputTokens,
       outputTokens: aiMeta?.outputTokens,
       latencyMs: aiMeta?.latencyMs,
+      fallbackFrom: aiMeta?.fallbackFrom ?? null,
       errorCode: aiError,
+      errorMessage: aiErrorMessage,
       limitations: JSON.parse(JSON.stringify([...dibuang, ...narasi.limitations].slice(0, 15))),
       outputJson: JSON.parse(JSON.stringify({ paparan: { artifactId: artifact.id, narasiSumber } })),
       finishedAt: new Date(),
     },
   });
+  // Narasi AI gagal (deck tetap jadi) – tetap dihitung alarm (DECISIONS 635).
+  if (aiErrorMessage) (await import("@/lib/ai-hub/alarm")).periksaAlarmAiLatar(user.orgId);
   await audit(user.id, "ai.artifact.buat", "ai_artifact", artifact.id, {
     kind: "paparan",
     packageId: pkg.id,

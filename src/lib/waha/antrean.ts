@@ -145,6 +145,27 @@ async function klaimSatu(): Promise<{
     : null;
 }
 
+/**
+ * Pekerjaan MACET di `berjalan` (DECISIONS 635): proses yang mati di tengah
+ * jawaban – deploy ulang, restart kontainer – meninggalkan baris yang tidak
+ * pernah diklaim lagi, jadi pertanyaannya tidak pernah dijawab. Jawaban AI
+ * punya tenggat total 90 detik, jadi yang berjalan > 10 menit pasti sudah
+ * mati. Ia kembali `antre`; yang percobaannya habis berhenti di `gagal`.
+ */
+const BATAS_MACET_MENIT = 10;
+async function pulihkanYangMacet(): Promise<void> {
+  await db.$executeRaw`
+    UPDATE wa_reply_jobs
+       SET status = (CASE WHEN attempts >= ${BATAS_PERCOBAAN} THEN 'gagal' ELSE 'antre' END)::"WaJobStatus",
+           next_attempt_at = now(),
+           finished_at = CASE WHEN attempts >= ${BATAS_PERCOBAAN} THEN now() ELSE NULL END,
+           last_error = 'macet di tengah jalan (proses mati?) – ' ||
+             CASE WHEN attempts >= ${BATAS_PERCOBAAN} THEN 'percobaan habis' ELSE 'dicoba ulang' END
+     WHERE status = 'berjalan'
+       AND started_at < now() - make_interval(mins => ${BATAS_MACET_MENIT})
+  `;
+}
+
 export type HasilProses = {
   diproses: number;
   selesai: number;
@@ -162,6 +183,7 @@ export type HasilProses = {
  */
 export async function prosesAntrean(batas = 10): Promise<HasilProses> {
   const hasil: HasilProses = { diproses: 0, selesai: 0, gagal: 0, diulang: 0 };
+  await pulihkanYangMacet();
 
   for (let i = 0; i < batas; i++) {
     const job = await klaimSatu();

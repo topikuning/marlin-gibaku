@@ -53,3 +53,20 @@ describe("withBackTo", () => {
     expect(safeBackPath(url.searchParams.get(PRINT_BACK_PARAM), FALLBACK)).toBe(asal);
   });
 });
+
+describe("perbaiki cap – kembali ke galeri dengan saringan utuh (keluhan user 2026-09-30)", () => {
+  it("saringan + halaman galeri ikut ke halaman perbaikan cap dan kembali utuh, ke foto yang diedit", async () => {
+    const { tautanPerbaikiCap } = await import("@/lib/print-back");
+    const asal = "/foto?lokasi=abc&status=final&sumber=laporan&q=galian&page=3";
+    const href = tautanPerbaikiCap("f1", asal);
+    expect(href.startsWith("/foto/f1/cap?")).toBe(true);
+    const dari = new URL(href, "https://contoh").searchParams.get(PRINT_BACK_PARAM);
+    expect(safeBackPath(dari, "/foto")).toBe(`${asal}#foto-f1`);
+  });
+
+  it("tanpa asal → galeri polos, tetap menunjuk foto yang diedit", async () => {
+    const { tautanPerbaikiCap } = await import("@/lib/print-back");
+    const dari = new URL(tautanPerbaikiCap("f2", ""), "https://contoh").searchParams.get(PRINT_BACK_PARAM);
+    expect(safeBackPath(dari, "/foto")).toBe("/foto#foto-f2");
+  });
+});

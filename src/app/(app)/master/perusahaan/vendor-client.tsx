@@ -202,6 +202,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
                       <td className="px-3 py-2">
                         <SelNama
                           nama={r.v.name}
+                          gambarUrl={r.v.logoUrl}
                           keterangan={ringkasKurang(r.kelengkapan.kurang)}
                           lencana={<Lencana r={r} />}
                         />
@@ -226,6 +227,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
                 >
                   <SelNama
                     nama={r.v.name}
+                          gambarUrl={r.v.logoUrl}
                     keterangan={ringkasKurang(r.kelengkapan.kurang)}
                     lencana={<Lencana r={r} />}
                   />
@@ -425,6 +427,17 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
         <p className="text-[13px] font-semibold text-ink">Aset dokumen</p>
         <div>
           <Label htmlFor={`v-logo-${vendor.id}`}>Logo (PNG/JPG/WebP ≤ 2 MB)</Label>
+          {/* Logo yang tersimpan DITAMPILKAN – dulu hanya stempel & kop yang punya
+              pratinjau, sehingga logo yang sudah masuk terbaca "hilang" setiap
+              laci dibuka lagi (keluhan user 2026-09-30, DECISIONS 634). */}
+          {vendor.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+            <img
+              src={vendor.logoUrl}
+              alt="Logo perusahaan saat ini"
+              className="mb-1.5 size-16 rounded border border-border bg-white object-contain"
+            />
+          ) : null}
           <FileInput
             id={`v-logo-${vendor.id}`}
             name="logo"

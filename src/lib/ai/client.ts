@@ -1,5 +1,5 @@
 import "server-only";
-import { getActiveAiConfig, getAiProviderConfig, type ResolvedAiConfig } from "./config";
+import { getActiveAiConfig, getAiProviderConfig, getFallbackAiConfig, type ResolvedAiConfig } from "./config";
 import type { AiProviderId } from "./providers";
 export {
   dukunganLampiran,
@@ -11,8 +11,12 @@ export {
 } from "./lampiran";
 import { kontenAnthropic, kontenOpenAi, type AiRequest } from "./lampiran";
 import {
-  errorCodeFromStatus,
+  bolehDialihkan,
+  bolehDiulang,
+  extractJsonBlock,
+  kodeGalatAi,
   parseAnthropicBody,
+  retryAfterMs,
   parseOpenAiBody,
   type AiErrorCode,
   type AiUsage,
@@ -39,6 +43,8 @@ export type AiCallResult =
       usage: AiUsage;
       latencyMs: number;
       finishReason: string | null;
+      /** Provider UTAMA yang gagal sehingga jawaban ini datang dari cadangan. */
+      fallbackFrom?: AiProviderId | null;
     }
   | {
       ok: false;
@@ -47,9 +53,18 @@ export type AiCallResult =
       errorCode: AiErrorCode;
       error: string;
       latencyMs: number;
+      /** Cadangan yang ikut dicoba lalu gagal juga (utama tetap di `provider`). */
+      cadanganGagal?: AiProviderId | null;
+      /** Jeda yang diminta provider (header retry-after), milidetik. */
+      retryAfterMs?: number | null;
     };
 
 const DEFAULT_TIMEOUT_MS = 60_000;
+/** Sisa tenggat di bawah ini tidak dipakai untuk memanggil provider lagi. */
+const SISA_MINIMUM_MS = 2_000;
+const JEDA_RETRY_MS = 1_500;
+
+const sisaTenggat = (req: AiRequest) => (req.tenggatAt == null ? Infinity : req.tenggatAt - Date.now());
 
 async function readError(res: Response): Promise<string> {
   const body = (await res.text().catch(() => "")).slice(0, 300);
@@ -95,21 +110,35 @@ function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; ini
 
 async function callOnce(cfg: ResolvedAiConfig, req: AiRequest): Promise<AiCallResult> {
   const started = Date.now();
+  const sisa = sisaTenggat(req);
+  if (sisa < SISA_MINIMUM_MS) {
+    return {
+      ok: false,
+      provider: cfg.id,
+      model: cfg.model,
+      errorCode: "timeout",
+      error: "Tenggat jawaban habis sebelum provider AI sempat dipanggil.",
+      latencyMs: 0,
+    };
+  }
   const { url, init } = buildRequest(cfg, req);
   try {
     const res = await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(req.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(Math.min(req.timeoutMs ?? DEFAULT_TIMEOUT_MS, sisa)),
     });
     const latencyMs = Date.now() - started;
     if (!res.ok) {
+      // Isi dibaca SEKALI: dipakai untuk kode galat (kuota vs rate limit) dan pesannya.
+      const body = (await res.text().catch(() => "")).slice(0, 2_000);
       return {
         ok: false,
         provider: cfg.id,
         model: cfg.model,
-        errorCode: errorCodeFromStatus(res.status),
-        error: await readError(res),
+        errorCode: kodeGalatAi(res.status, body),
+        error: `HTTP ${res.status}${body ? ` – ${body.slice(0, 300)}` : ""}`,
         latencyMs,
+        retryAfterMs: retryAfterMs(res.headers.get("retry-after")),
       };
     }
     const json: unknown = await res.json().catch(() => null);
@@ -152,21 +181,29 @@ async function callOnce(cfg: ResolvedAiConfig, req: AiRequest): Promise<AiCallRe
   }
 }
 
-/** Panggil provider dgn config eksplisit: timeout + maksimal SATU retry (429/5xx/timeout). */
+/**
+ * Panggil provider dgn config eksplisit: timeout + maksimal SATU retry, HANYA
+ * untuk galat sementara (timeout/rate limit/5xx) dan hanya bila tenggat total
+ * masih cukup. Jeda mengikuti retry-after provider (maks 10 dtk). DECISIONS 635.
+ */
 export async function aiCallWithConfig(cfg: ResolvedAiConfig, req: AiRequest): Promise<AiCallResult> {
   const first = await callOnce(cfg, req);
-  if (first.ok) return first;
-  const retryable =
-    first.errorCode === "timeout" ||
-    first.errorCode === "rate_limited" ||
-    first.errorCode === "provider_error";
-  if (!retryable) return first;
-  await new Promise((r) => setTimeout(r, 1500));
+  if (first.ok || !bolehDiulang(first.errorCode)) return first;
+  const jeda = first.retryAfterMs ?? JEDA_RETRY_MS;
+  if (sisaTenggat(req) - jeda < SISA_MINIMUM_MS) return first;
+  await new Promise((r) => setTimeout(r, jeda));
   const second = await callOnce(cfg, req);
   return second.ok ? second : { ...second, latencyMs: first.latencyMs + second.latencyMs };
 }
 
-/** Panggil provider AKTIF — hasil lengkap (usage/latency/error code). Dipakai AI Hub. */
+/**
+ * Panggil provider AKTIF — hasil lengkap (usage/latency/error code). Dipakai AI Hub.
+ *
+ * Bila provider utama gagal karena akun/galat sementara dan provider CADANGAN
+ * diatur, cadangan dipanggil sekali (DECISIONS 635). Permintaan yang salah
+ * tidak dialihkan – ia akan gagal juga di sana. Jawaban dari cadangan membawa
+ * `fallbackFrom` supaya Riwayat memperlihatkan keduanya.
+ */
 export async function aiCall(req: AiRequest): Promise<AiCallResult> {
   const cfg = await getActiveAiConfig();
   if (!cfg) {
@@ -179,15 +216,57 @@ export async function aiCall(req: AiRequest): Promise<AiCallResult> {
       latencyMs: 0,
     };
   }
-  return aiCallWithConfig(cfg, req);
+  const utama = await aiCallWithConfig(cfg, req);
+  if (utama.ok || !bolehDialihkan(utama.errorCode)) return utama;
+  if (sisaTenggat(req) < SISA_MINIMUM_MS) return utama;
+  const cadangan = await getFallbackAiConfig();
+  if (!cadangan || cadangan.id === cfg.id) return utama;
+  const hasil = await aiCallWithConfig(cadangan, req);
+  const latencyMs = utama.latencyMs + hasil.latencyMs;
+  if (hasil.ok) return { ...hasil, latencyMs, fallbackFrom: cfg.id };
+  return {
+    ...utama,
+    latencyMs,
+    cadanganGagal: cadangan.id,
+    error: `${utama.error} · cadangan ${cadangan.id} juga gagal: ${hasil.error}`.slice(0, 1_000),
+  };
 }
 
-/** Tes koneksi satu provider (minimal request) untuk verifikasi API key/model. */
-export async function testAiProvider(id: AiProviderId): Promise<AiResult> {
+export type HasilTesKoneksi =
+  | { ok: true; text: string; model: string; latencyMs: number }
+  | { ok: false; error: string; errorCode?: AiErrorCode; latencyMs?: number };
+
+/**
+ * Tes koneksi yang menguji JALUR SUNGGUHAN (DECISIONS 635): minta JSON kecil
+ * dengan batas token sebesar pemakaian nyata, lewat model yang tersimpan.
+ * Tes lama cuma meminta "OK" dalam 16 token – bisa hijau padahal jalur JSON
+ * yang dipakai fitur gagal.
+ */
+export async function testAiProvider(id: AiProviderId): Promise<HasilTesKoneksi> {
   const cfg = await getAiProviderConfig(id);
   if (!cfg) return { ok: false, error: "API key provider ini belum diisi." };
-  const r = await aiCallWithConfig(cfg, { prompt: "Balas satu kata: OK", maxTokens: 16, timeoutMs: 20_000 });
-  return r.ok ? { ok: true, text: r.text, model: r.model } : { ok: false, error: r.error };
+  const r = await aiCallWithConfig(cfg, {
+    system: "Balas HANYA dengan objek JSON yang valid, tanpa teks lain.",
+    prompt: 'Kirim tepat objek JSON ini: {"ok": true}',
+    maxTokens: 3_000,
+    timeoutMs: 30_000,
+  });
+  if (!r.ok) return { ok: false, error: r.error, errorCode: r.errorCode, latencyMs: r.latencyMs };
+  let okJson = false;
+  try {
+    okJson = (JSON.parse(extractJsonBlock(r.text) ?? "null") as { ok?: unknown } | null)?.ok === true;
+  } catch {
+    okJson = false;
+  }
+  if (!okJson) {
+    return {
+      ok: false,
+      errorCode: "invalid_response",
+      latencyMs: r.latencyMs,
+      error: `Model ${r.model} membalas, tetapi bukan JSON yang diminta ("${r.text.slice(0, 80)}") – fitur AI akan gagal. Ganti model.`,
+    };
+  }
+  return { ok: true, text: r.text, model: r.model, latencyMs: r.latencyMs };
 }
 
 export type AiModelsResult = { ok: true; models: string[] } | { ok: false; error: string };

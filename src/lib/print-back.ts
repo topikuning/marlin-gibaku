@@ -34,3 +34,15 @@ export function safeBackPath(raw: string | undefined | null, fallback: string): 
 export function withBackTo(printHref: string, from: string): string {
   return `${printHref}?${PRINT_BACK_PARAM}=${encodeURIComponent(from)}`;
 }
+
+/**
+ * Tautan "Perbaiki cap" dari galeri foto. Keluhan user 2026-09-30: *"filter
+ * foto, edit foto yang dipilih, begitu kembali ke gambar, user kehilangan semua
+ * filternya"* – tombol kembali di halaman cap dipaku ke `/foto` polos. Sekarang
+ * alamat galeri LENGKAP (saringan + halaman) ikut lewat `?dari=`, ditambah
+ * jangkar ke foto yang diedit supaya kembalinya tepat di foto itu.
+ */
+export function tautanPerbaikiCap(photoId: string, asalGaleri: string): string {
+  const asal = safeBackPath(asalGaleri, "/foto").split("#")[0];
+  return withBackTo(`/foto/${photoId}/cap`, `${asal}#foto-${photoId}`);
+}

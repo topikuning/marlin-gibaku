@@ -28,6 +28,12 @@ export type AiRequest = {
    * mengirim ini", bukan galat HTTP mentah yang membingungkan admin.
    */
   attachments?: AiAttachment[];
+  /**
+   * TENGGAT TOTAL (epoch ms) – mencakup retry, perbaikan skema, dan provider
+   * cadangan (DECISIONS 635). Batas per panggilan saja membuat satu pertanyaan
+   * bisa berjalan empat kali lipat batasnya; dengan cadangan, delapan kali.
+   */
+  tenggatAt?: number;
 };
 
 /**

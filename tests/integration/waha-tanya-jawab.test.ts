@@ -128,9 +128,12 @@ function klaimDariPrompt(prompt: string, metric?: string | null): Record<string,
   };
 }
 
+/** Permintaan jawaban BEBAS yang sampai ke AI – untuk memeriksa batasnya. */
+const permintaanBebas: Record<string, unknown>[] = [];
 vi.mock("@/lib/ai/structured", () => ({
   aiStructured: async (_skema: unknown, req?: { schemaHint?: string; prompt?: string }) =>
-    aiSehat
+    (req?.schemaHint?.includes("answerParts") ? permintaanBebas.push(req as Record<string, unknown>) : 0,
+    aiSehat)
       ? {
           ok: true,
           // Hanya SCHEMA_HINTS.ask yang memuat "answerParts" — pembeda yang
@@ -997,6 +1000,19 @@ describe("mengaku saat tidak bisa", () => {
       event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
     );
     expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum + 1);
+  });
+
+  it("jawaban bebas WA memakai batas yang realistis – token, tenggat TOTAL, maks 5 bagian (DECISIONS 635)", async () => {
+    permintaanBebas.length = 0;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" }; // jalur jawaban bebas
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }));
+    const req = permintaanBebas.at(-1);
+    expect(req, "jawaban bebas tidak sampai ke AI").toBeTruthy();
+    expect(req!.maxTokens).toBeGreaterThanOrEqual(3_000);
+    expect(req!.timeoutMs).toBe(60_000);
+    // Tenggat TOTAL, bukan per panggilan: retry + perbaikan + cadangan tidak bisa melewatinya.
+    expect(req!.tenggatTotalMs).toBe(90_000);
+    expect(String(req!.system)).toMatch(/paling banyak 5 bagian/);
   });
 
   it("pola JELAS dijawab tanpa menyentuh AI sama sekali (DECISIONS 375)", async () => {

@@ -144,7 +144,11 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
           <EmptyState icon={ImageOff} title="Tidak ada foto" description="Belum ada foto yang cocok dengan filter ini." />
         </Card>
       ) : (
-        <GalleryGrid groups={data.groups} canRestamp={can(user.role, "photo.restamp")} />
+        <GalleryGrid
+          groups={data.groups}
+          canRestamp={can(user.role, "photo.restamp")}
+          asal={qs({ page: data.page > 1 ? data.page : undefined })}
+        />
       )}
 
       {/* Paginasi */}
