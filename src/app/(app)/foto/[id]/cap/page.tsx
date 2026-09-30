@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 import { notFound } from "next/navigation";
 import { Badge, Banner, Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
@@ -32,8 +33,17 @@ function localInputValue(d: Date): string {
  * pengguna perlu melihat foto ber-cap yang SEKARANG berdampingan dengan nilai
  * usulan sebelum menimpanya, dan riwayat revisinya perlu muat.
  */
-export default async function PerbaikiCapPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PerbaikiCapPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  // Kembali ke galeri dengan saringan yang sama, tepat di foto ini (keluhan user 2026-09-30).
+  const dari = (await searchParams)[PRINT_BACK_PARAM];
+  const kembali = safeBackPath(Array.isArray(dari) ? dari[0] : dari, "/foto");
   const user = await requireUser();
   requireCapabilityPage(user.role, "photo.restamp");
 
@@ -90,7 +100,7 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
         title="Perbaiki cap foto"
         description="Cap dirender ULANG dari berkas asli yang diarsipkan – bukan dicap ulang di atas gambar ber-cap."
         actions={
-          <Link href="/foto" className="text-sm text-primary hover:underline">
+          <Link href={kembali} className="text-sm text-primary hover:underline">
             ← Galeri Foto
           </Link>
         }

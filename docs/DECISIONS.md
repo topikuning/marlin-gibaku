@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 633 | 2026-09-30 | Perbaiki cap dari galeri foto: saringan + halaman galeri ikut lewat `?dari=` dan tombol "← Galeri Foto" kembali ke sana, tepat di foto yang diedit (digulir + dibingkai) |
+| 632 | 2026-09-30 | Galat WAHA "must include an id property" (bug WhatsApp Web engine WEBJS, semua kiriman berkas/gambar) diterjemahkan jadi instruksi "perbarui image WAHA"; galat lain dari dalam WhatsApp Web disebut sumbernya tanpa stack; pesan galat di baris laporan harian tidak lagi mendesak kolom keterangan |
 | 631 | 2026-09-30 | Insiden produksi: 17 foto kehilangan berkas ber-cap + thumbnail – dua pekerja cap latar mengerjakan foto yang sama, yang kalah membuang kunci yang ternyata HIDUP (kunci keluaran tetap `<dasar>.webp`). Kunci keluaran kini unik per pengerjaan, yang kalah hanya membuang kunci tak dirujuk; tombol "Buat ulang foto yang hilang" merender ulang dari berkas asli di kunci yang SAMA |
 | 630 | 2026-09-29 | Reset seluruh laporan harian satu lokasi (laporan, foto laporan – Foto Cepat dibiarkan –, temuan/verifikasi/kendala yang menempel; berkas R2 + arsip dingin dihapus total) – super admin UTAMA saja, konfirmasi ketik nama lokasi; riwayat append-only terhapus hanya sebagai ikutan induknya |
 | 629 | 2026-09-29 | Tag lokasi bawaan kamera = KOORDINAT saja; alamat/nama wilayah + tanggal tidak lagi menyembunyikan lokasi MARLIN (mengoreksi 617); foto yang terlanjur dicap ulang otomatis lewat pembaca susulan |

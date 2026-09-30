@@ -7,6 +7,7 @@ import { Lapisan, StatusPill } from "@/components/ui";
 import { PHOTO_STATUS_LABEL, PHOTO_STATUS_TONE } from "@/lib/photo-status";
 import type { GalleryGroup, GalleryPhoto } from "@/lib/photos-gallery";
 import { KELAS_LAYAR } from "@/lib/photo-stamp/tanda-nilai";
+import { tautanPerbaikiCap } from "@/lib/print-back";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
@@ -30,9 +31,30 @@ function TitikGps({ p }: { p: GalleryPhoto }) {
  * Galeri foto: kartu dikelompokkan per tanggal + lightbox in-page. Thumbnail
  * pakai URL presigned (ringan); full dibuka saat diklik. Klik lokasi → workspace.
  */
-export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGroup[]; canRestamp?: boolean }) {
+export function GalleryGrid({
+  groups,
+  canRestamp = false,
+  asal = "/foto",
+}: {
+  groups: GalleryGroup[];
+  canRestamp?: boolean;
+  /** Alamat galeri LENGKAP (saringan + halaman) – dibawa ke perbaikan cap supaya kembalinya utuh. */
+  asal?: string;
+}) {
   const flat = useMemo(() => groups.flatMap((g) => g.photos), [groups]);
   const [open, setOpen] = useState<number | null>(null);
+  /*
+   * Foto yang baru diedit capnya (jangkar `#foto-<id>` dari halaman perbaikan
+   * cap): digulir ke tengah dan diberi bingkai. `:target` tidak menyala pada
+   * navigasi sisi klien, jadi jangkarnya dibaca sendiri.
+   */
+  useEffect(() => {
+    const id = window.location.hash.match(/^#foto-(.+)$/)?.[1];
+    const el = id ? document.getElementById(`foto-${id}`) : null;
+    if (!el) return;
+    el.dataset.sorot = "1";
+    el.scrollIntoView({ block: "center" });
+  }, []);
   const close = useCallback(() => setOpen(null), []);
   const go = useCallback((d: number) => setOpen((i) => (i == null ? i : (i + d + flat.length) % flat.length)), [flat.length]);
 
@@ -63,7 +85,8 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
             {g.photos.map((p) => (
               <article
                 key={p.id}
-                className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                id={`foto-${p.id}`}
+                className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md data-[sorot]:ring-2 data-[sorot]:ring-primary data-[sorot]:ring-offset-2"
               >
                 <button type="button" onClick={() => setOpen(indexOf(p))} className="relative block h-36 w-full overflow-hidden bg-surface-inset">
                   {p.thumbUrl ? (
@@ -125,7 +148,7 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
                 <span className="text-slate-400">Foto asli tidak diarsipkan</span>
               )}
               {canRestamp && active.hasOriginal ? (
-                <Link href={`/foto/${active.id}/cap`} className="text-primary hover:underline">
+                <Link href={tautanPerbaikiCap(active.id, asal)} className="text-primary hover:underline">
                   Perbaiki cap →
                 </Link>
               ) : null}

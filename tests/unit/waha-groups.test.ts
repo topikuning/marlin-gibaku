@@ -68,6 +68,22 @@ describe("terjemahkanWahaError – error engine jadi instruksi", () => {
     expect(terjemahkanWahaError(403, "denied")).toMatch(/API key/);
   });
 
+  it("bug WhatsApp Web engine WEBJS saat kirim berkas → perbarui WAHA, bukan tumpahan stack (2026-09-30)", () => {
+    const body =
+      '{"statusCode":500,"timestamp":"2026-09-30T03:29:23.983Z","exception":{"message":"Data passed to getter must ' +
+      "include an id property (it's how we memoize) but got undefined\\ns (https://static.whatsapp.net/rsrc.php/v4/yf/r/tgvTKmr-JVm.js:85:180)\"}}";
+    const msg = terjemahkanWahaError(500, body);
+    expect(msg).toMatch(/perbarui image WAHA/i);
+    expect(msg).toMatch(/teks tidak terpengaruh/i);
+    expect(msg).not.toMatch(/static\.whatsapp\.net/);
+  });
+
+  it("galat lain dari dalam WhatsApp Web → disebut sumbernya, detail singkat tetap ada", () => {
+    const msg = terjemahkanWahaError(500, '{"exception":{"message":"Evaluation failed: t (https://static.whatsapp.net/x.js:1:2)"}}');
+    expect(msg).toMatch(/WhatsApp Web di server WAHA/);
+    expect(msg).toMatch(/Evaluation failed/);
+  });
+
   it("yang tidak dikenal → null (biar pesan mentah tampil apa adanya)", () => {
     expect(terjemahkanWahaError(500, "boom")).toBeNull();
   });
