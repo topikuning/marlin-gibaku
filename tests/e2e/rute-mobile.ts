@@ -159,6 +159,7 @@ export const RUTE_DINAMIS: {
   { pola: "/lokasi/[slug]/progress", nama: "Progress lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/progress`] : null) },
   { pola: "/lokasi/[slug]/rab", nama: "RAB lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab`] : null) },
   { pola: "/lokasi/[slug]/rab/adendum", nama: "Adendum RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/adendum`] : null) },
+  { pola: "/lokasi/[slug]/rab/bandingkan", nama: "Bandingkan revisi RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/bandingkan`] : null) },
   { pola: "/lokasi/[slug]/rab/import", nama: "Impor RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/import`] : null) },
   { pola: "/lokasi/[slug]/rab/riwayat", nama: "Riwayat input item", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/riwayat`] : null) },
   { pola: "/lokasi/[slug]/rapl", nama: "RAPL lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rapl`] : null) },

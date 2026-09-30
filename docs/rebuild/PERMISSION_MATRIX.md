@@ -13,7 +13,7 @@ Scope lokasi: `super_admin`, `program_director` = lintas lokasi
 `exec_viewer` sejak DECISIONS 190 — dibatasi `LocationAssignment` (dan paket yang
 memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
-Jumlah capability: **67**.
+Jumlah capability: **68**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer | wakil_ppk |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -32,6 +32,7 @@ Jumlah capability: **67**.
 | `location.correct` | ✓ | – | – | – | – | – | – | – |
 | `location_scope.archive` | ✓ | – | – | – | – | – | – | – |
 | `daily_report.reset_location` | ✓ | – | – | – | – | – | – | – |
+| `rab.revision_purge` | ✓ | – | – | – | – | – | – | – |
 | `location.signer` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `rab.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `rab.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
@@ -91,6 +92,7 @@ Jumlah capability: **67**.
 - `location.correct`
 - `location_scope.archive`
 - `daily_report.reset_location`
+- `rab.revision_purge`
 - `daily_report.unfinalize`
 - `daily_report.move_date`
 - `wa.configure`

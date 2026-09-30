@@ -10,7 +10,9 @@ import { formatRupiah, formatTanggal } from "@/lib/format";
 import { bacaBagian, hrefBagian, type BagianRab } from "@/lib/rab/bagian";
 import { requireLocationPage } from "../get-location";
 import { RabTree, type RabNodeRow } from "./rab-tree";
-import { RevisionList, type PersetujuanRow, type RevisionRow } from "./revision-list";
+import { RevisionList, type HapusRevisiView, type PersetujuanRow, type RevisionRow } from "./revision-list";
+import { adalahAkar, parseAkar } from "@/lib/akar";
+import { env } from "@/lib/env";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
@@ -125,6 +127,32 @@ export default async function RabPage({
   const grand = active?.totalValue ?? 0n;
   const ppnValue = ppnAmount(grand, ppnPercent);
   const totalWithPpn = withPpn(grand, ppnPercent);
+
+  /*
+   * Hapus revisi keliru (DECISIONS 636) – dampaknya dihitung di SINI supaya
+   * layar menyebut apa yang akan terjadi sebelum tombolnya bisa ditekan. Hanya
+   * untuk super admin utama, dan hanya di bagian Riwayat revisi.
+   */
+  const hapusRevisi: Record<string, HapusRevisiView> = {};
+  if (
+    bagian === "revisi" &&
+    can(user.role, "rab.revision_purge") &&
+    adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))
+  ) {
+    const { ringkasHapusRevisi } = await import("@/lib/rab/hapus-revisi");
+    for (const r of revisions.filter((x) => x.status === "digantikan" && x.source === "adendum")) {
+      const h = await ringkasHapusRevisi(r.id);
+      hapusRevisi[r.id] = {
+        pengganti: h.pengganti?.revisionNo ?? null,
+        laporanDipindah: h.laporanDipindah,
+        rencanaDipindah: h.rencanaDipindah,
+        kurvaS: h.kurvaS,
+        pemulihan: h.pemulihan.map(({ tanggal, item, sekarang, kembaliKe }) => ({ tanggal, item, sekarang, kembaliKe })),
+        pemulihanDilewati: h.pemulihanDilewati,
+        alasanTolak: h.alasanTolak,
+      };
+    }
+  }
 
   const revisionRows: RevisionRow[] = revisions.map((r) => ({
     id: r.id,
@@ -405,14 +433,23 @@ export default async function RabPage({
 
           {bagian === "revisi" ? (
             <div className="space-y-3">
-              <p className="text-[13px] text-ink-muted">
-                Aktifkan draft untuk menggantikan revisi aktif – realisasi tersambung otomatis via
-                lineage, dan revisi lama tetap disimpan sebagai histori.
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-[13px] text-ink-muted">
+                  Aktifkan draft untuk menggantikan revisi aktif – realisasi tersambung otomatis via
+                  lineage, dan revisi lama tetap disimpan sebagai histori.
+                </p>
+                {revisions.filter((r) => r.status !== "draft").length >= 2 ? (
+                  <ButtonLink href={`/lokasi/${slug}/rab/bandingkan`} size="sm" variant="secondary">
+                    <History aria-hidden className="size-3.5" />
+                    Bandingkan RAB aktif dengan sebelumnya
+                  </ButtonLink>
+                ) : null}
+              </div>
               <RevisionList
                 revisions={revisionRows}
                 canManage={canManage}
                 persetujuan={persetujuanDraft}
+                hapus={hapusRevisi}
               />
             </div>
           ) : null}
