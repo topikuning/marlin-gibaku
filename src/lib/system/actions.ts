@@ -368,6 +368,39 @@ export async function auditPenyimpananAction(): Promise<AuditR2State> {
   }
 }
 
+/** Sekali klik paling banyak sekian foto (±2 dtk/foto) – sisanya klik berikutnya. */
+const BATAS_BUAT_ULANG = 60;
+
+/**
+ * Buat ulang berkas foto ber-cap/thumbnail yang HILANG dari R2, dari berkas
+ * aslinya, di kunci yang sama (DECISIONS 631). Daftarnya dihitung ulang di
+ * server pada saat itu, tidak diambil dari layar.
+ */
+export async function buatUlangFotoHilangAction(): Promise<BersihkanR2State> {
+  const actor = await requireCapability("system.manage");
+  const { isR2Configured } = await import("@/lib/r2");
+  if (!isR2Configured()) return { error: "R2 belum dikonfigurasi." };
+  const { fotoBerkasHilang } = await import("@/lib/r2-audit");
+  const { buatUlangBerkasHilang } = await import("@/lib/photo-stamp/cap-latar");
+  const semua = await fotoBerkasHilang();
+  if (semua.length === 0) return { success: "Tidak ada foto yang berkasnya hilang." };
+  const { pulih, gagal } = await buatUlangBerkasHilang(semua.slice(0, BATAS_BUAT_ULANG));
+  await audit(actor.id, "system.r2_rebuild_photos", "system", null, {
+    hilang: semua.length,
+    pulih,
+    gagal: gagal.length,
+    contohGagal: gagal.slice(0, 20),
+  });
+  revalidatePath("/sistem");
+  const sisa = semua.length - Math.min(semua.length, BATAS_BUAT_ULANG);
+  return {
+    success:
+      `${pulih} foto dibuat ulang dari berkas aslinya.` +
+      (gagal.length > 0 ? ` ${gagal.length} gagal – ${gagal[0].sebab}` : "") +
+      (sisa > 0 ? ` ${sisa} foto lagi menunggu – tekan tombolnya sekali lagi.` : ""),
+  };
+}
+
 export type BersihkanR2State = { error?: string; success?: string } | undefined;
 
 /**

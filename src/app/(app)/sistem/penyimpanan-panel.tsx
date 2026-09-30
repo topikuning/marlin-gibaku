@@ -5,6 +5,7 @@ import { Banner, Button, StatusPill } from "@/components/ui";
 import {
   auditPenyimpananAction,
   bersihkanPenyimpananAction,
+  buatUlangFotoHilangAction,
   type AuditR2State,
 } from "@/lib/system/actions";
 import { perbaikiFotoHeicAction } from "@/lib/photo-restamp/actions";
@@ -81,6 +82,7 @@ export function PenyimpananPanel({
   const [mintaKonfirmasi, setMintaKonfirmasi] = useState(false);
   const [periksa, mulaiPeriksa] = useTransition();
   const [bersih, mulaiBersih] = useTransition();
+  const [buatUlang, mulaiBuatUlang] = useTransition();
 
   const hasil = state?.hasil;
   const jalankan = () =>
@@ -121,7 +123,7 @@ export function PenyimpananPanel({
       </div>
 
       {state?.error ? <Banner tone="error" title="Gagal memeriksa" description={state.error} /> : null}
-      {pesanBersih ? <Banner tone="success" title="Pembersihan selesai" description={pesanBersih} /> : null}
+      {pesanBersih ? <Banner tone="success" title="Selesai" description={pesanBersih} /> : null}
 
       {hasil ? (
         <div className="space-y-3">
@@ -216,6 +218,33 @@ export function PenyimpananPanel({
               Setiap baris di basis data menunjuk berkas yang benar ada – tidak ada yang hilang.
             </p>
           )}
+
+          {hasil.rujukanHilang.some((r) => r.label === "Foto" || r.label === "Foto (thumbnail)") ? (
+            <div className="space-y-2 rounded border border-border px-2.5 py-2">
+              <p className="text-sm text-ink">
+                Foto ber-cap dan thumbnail yang hilang bisa <span className="font-medium">dibuat ulang</span> dari
+                berkas aslinya (di R2 atau di arsip dingin), di alamat yang sama – laporan yang sudah final ikut
+                tampil lagi.
+              </p>
+              <p className="text-xs text-ink-muted">
+                Capnya dirender ulang dari data foto saat ini. Foto yang berkas aslinya sudah dihapus tidak bisa
+                dipulihkan dan disebut jumlahnya.
+              </p>
+              <Button
+                variant="secondary"
+                loading={buatUlang}
+                onClick={() =>
+                  mulaiBuatUlang(async () => {
+                    const r = await buatUlangFotoHilangAction();
+                    setPesanBersih(r?.success ?? r?.error ?? null);
+                    setState(await auditPenyimpananAction());
+                  })
+                }
+              >
+                Buat ulang foto yang hilang
+              </Button>
+            </div>
+          ) : null}
 
           {hasil.healthcheck.obyek > 0 ? (
             <p className="text-xs text-ink-muted">
