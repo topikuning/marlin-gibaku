@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 634 | 2026-09-30 | Logo & gambar identitas: tiap unggahan logo/kop/stempel perusahaan dan tanda tangan/stempel/logo kontrak & lokasi menulis berkas BARU (tidak menimpa laporan final, tidak basi di cache); logo tersimpan tampil di laci & daftar master perusahaan; logo cap yang gagal dimuat tidak terkunci kosong; audit penyimpanan memeriksa gambar identitas yang hilang |
 | 633 | 2026-09-30 | Perbaiki cap dari galeri foto: saringan + halaman galeri ikut lewat `?dari=` dan tombol "← Galeri Foto" kembali ke sana, tepat di foto yang diedit (digulir + dibingkai) |
 | 632 | 2026-09-30 | Galat WAHA "must include an id property" (bug WhatsApp Web engine WEBJS, semua kiriman berkas/gambar) diterjemahkan jadi instruksi "perbarui image WAHA"; galat lain dari dalam WhatsApp Web disebut sumbernya tanpa stack; pesan galat di baris laporan harian tidak lagi mendesak kolom keterangan |
 | 631 | 2026-09-30 | Insiden produksi: 17 foto kehilangan berkas ber-cap + thumbnail – dua pekerja cap latar mengerjakan foto yang sama, yang kalah membuang kunci yang ternyata HIDUP (kunci keluaran tetap `<dasar>.webp`). Kunci keluaran kini unik per pengerjaan, yang kalah hanya membuang kunci tak dirujuk; tombol "Buat ulang foto yang hilang" merender ulang dari berkas asli di kunci yang SAMA |

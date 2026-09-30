@@ -82,6 +82,9 @@ export async function logoPerusahaanDataUri(logoKey: string | null | undefined):
     hasil = null;
   }
 
+  // Yang GAGAL tidak disimpan: R2 yang tersendat sesaat dulu mengunci cap
+  // tanpa logo sampai server dinyalakan ulang (DECISIONS 634).
+  if (hasil === null) return null;
   if (cache.size >= CACHE_MAX) cache.clear();
   cache.set(logoKey, hasil);
   return hasil;

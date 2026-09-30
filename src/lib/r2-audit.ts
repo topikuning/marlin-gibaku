@@ -123,20 +123,56 @@ async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
     { tabel: "photos", kolom: "thumbnail_key", label: "Foto (thumbnail)" },
     { tabel: "documents", kolom: "r2_key", label: "Dokumen" },
     { tabel: "field_activity_attachments", kolom: "r2_key", label: "Lampiran aktivitas" },
+    /*
+     * Gambar identitas di kop, cap foto, dan blok tanda tangan (DECISIONS 634).
+     * Dulu tidak diperiksa sama sekali: logo yang hilang hanya terlihat sebagai
+     * kop tanpa logo atau cap bertuliskan MARLIN, tanpa penjelasan apa pun.
+     */
+    { tabel: "vendors", kolom: "logo_key", label: "Logo perusahaan" },
+    { tabel: "vendors", kolom: "kop_key", label: "Kop surat perusahaan" },
+    { tabel: "vendors", kolom: "stempel_key", label: "Stempel perusahaan" },
+    { tabel: "contracts", kolom: "supervisor_logo_key", label: "Logo pengawas" },
+    ...(
+      [
+        "ppk_ttd_key",
+        "ppk_stempel_key",
+        "wakil_sah_ttd_key",
+        "supervisor_ttd_key",
+        "supervisor_stempel_key",
+        "contractor_ttd_key",
+        "contractor_stempel_key",
+      ] as const
+    ).map((kolom) => ({ tabel: "contracts", kolom, label: "Tanda tangan/stempel kontrak" })),
+    { tabel: "packages", kolom: "pelaksana_ttd_key", label: "Tanda tangan pelaksana" },
+    ...(["pelaksana_ttd_key", "supervisor_ttd_key", "wakil_sah_ttd_key"] as const).map((kolom) => ({
+      tabel: "locations",
+      kolom,
+      label: "Tanda tangan penandatangan lokasi",
+    })),
   ];
-  const out: RujukanHilang[] = [];
+  // Satu baris per LABEL: beberapa kolom kontrak berbagi label, dan label itu
+  // juga kunci baris di layar.
+  const perLabel = new Map<string, string[]>();
+  const catat = (label: string, kunci: string[]) => {
+    const hilang = kunci.filter((k) => k && !ada.has(k));
+    if (hilang.length > 0) perLabel.set(label, [...(perLabel.get(label) ?? []), ...hilang]);
+  };
   for (const c of cek) {
     const rows = await db
       .$queryRawUnsafe<{ v: string }[]>(
-        `SELECT "${c.kolom}" AS v FROM "${c.tabel}" WHERE "${c.kolom}" IS NOT NULL` +
+        `SELECT "${c.kolom}" AS v FROM "${c.tabel}" WHERE "${c.kolom}" <> ''` +
           (c.syarat ? ` AND ${c.syarat}` : ""),
       )
       .catch(() => [] as { v: string }[]);
-    const hilang = rows.filter((r) => !ada.has(r.v));
-    if (hilang.length > 0)
-      out.push({ label: c.label, hilang: hilang.length, contoh: hilang.slice(0, 5).map((h) => h.v) });
+    catat(c.label, rows.map((r) => r.v));
   }
-  return out;
+  // Logo pemilik pekerjaan hidup di setelan (effective-dated): hanya nilai TERBARU yang dipakai.
+  const logoPemilik = await db.$queryRaw<{ value: string }[]>`
+    SELECT value FROM app_settings WHERE key = 'brand.owner_logo_key'
+    ORDER BY effective_from DESC, created_at DESC LIMIT 1
+  `.catch(() => [] as { value: string }[]);
+  catat("Logo pemilik pekerjaan", logoPemilik.map((r) => r.value.trim()));
+  return [...perLabel.entries()].map(([label, kunci]) => ({ label, hilang: kunci.length, contoh: kunci.slice(0, 5) }));
 }
 
 export type FotoBerkasHilang = {

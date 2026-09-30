@@ -15,6 +15,9 @@ export default async function VendorPage() {
   const vendors = await listVendorsWithUsage(user.orgId);
   const imageUrls = await presignKeys(
     vendors.flatMap((v) => [v.logoKey, v.kopKey, v.stempelKey]).filter((k): k is string => !!k),
+    // Satu jam, bukan 5 menit: laci dibuka lama sesudah halaman dimuat, dan
+    // tautan yang kedaluwarsa menampilkan gambar yang tersimpan sebagai rusak.
+    3600,
   );
   const groups = duplicateGroups(vendors);
 

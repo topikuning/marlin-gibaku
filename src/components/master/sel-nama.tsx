@@ -20,6 +20,7 @@ export function SelNama({
   keterangan,
   lencana,
   inisialDari,
+  gambarUrl,
 }: {
   nama: string;
   keterangan?: string | null;
@@ -29,15 +30,30 @@ export function SelNama({
    * sebaiknya berinisial "CV", bukan "CA".
    */
   inisialDari?: string;
+  /**
+   * Gambar pengganti inisial (mis. logo perusahaan). Tanpa ini, perusahaan yang
+   * logonya sudah tersimpan tetap tampil berinisial – terbaca "logo belum ada"
+   * (DECISIONS 634).
+   */
+  gambarUrl?: string | null;
 }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span
-        aria-hidden
-        className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-inset text-[11px] font-bold text-ink-muted"
-      >
-        {inisial(inisialDari ?? nama)}
-      </span>
+      {gambarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+        <img
+          src={gambarUrl}
+          alt=""
+          className="size-8 shrink-0 rounded-md border border-border bg-white object-contain"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-inset text-[11px] font-bold text-ink-muted"
+        >
+          {inisial(inisialDari ?? nama)}
+        </span>
+      )}
       <div className="min-w-0">
         <p className="truncate text-[13px] font-semibold text-ink">{nama}</p>
         {keterangan ? (

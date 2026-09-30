@@ -99,7 +99,10 @@ const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * Perbarui master data perusahaan (profil kop surat) + logo opsional.
- * Logo: PNG/JPG/WebP ≤ 2 MB → resize 512px webp → R2 `vendors/{id}/logo.webp`.
+ * Logo: PNG/JPG/WebP ≤ 2 MB → resize 512px webp → R2 `vendors/{id}/logo-<versi>.webp`.
+ * Setiap unggahan berkas BARU (DECISIONS 634): menimpa kunci yang sama membuat
+ * laporan final yang membekukan kuncinya ikut berganti gambar, dan cache logo
+ * cap foto tetap menyajikan gambar lama.
  */
 export async function updateVendorAction(_prev: VendorActionState, formData: FormData): Promise<VendorActionState> {
   const parsed = updateSchema.safeParse({
@@ -130,6 +133,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain – gunakan fitur gabung bila memang sama.` };
 
     const { isR2Configured, r2Put } = await import("@/lib/r2");
+    const versi = Date.now().toString(36);
     const processImage = async (
       file: File,
       maxW: number,
@@ -152,7 +156,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     let logoKey = vendor.logoKey;
     const logoFile = formData.get("logo");
     if (logoFile instanceof File && logoFile.size > 0) {
-      const r = await processImage(logoFile, 512, 512, `vendors/${vendor.id}/logo.webp`, "logo");
+      const r = await processImage(logoFile, 512, 512, `vendors/${vendor.id}/logo-${versi}.webp`, "logo");
       if ("error" in r) return { error: r.error };
       logoKey = r.key;
     }
@@ -163,7 +167,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     let kopKey = vendor.kopKey;
     const kopFile = formData.get("kop");
     if (kopFile instanceof File && kopFile.size > 0) {
-      const r = await processImage(kopFile, 2000, 700, `vendors/${vendor.id}/kop.webp`, "kop surat");
+      const r = await processImage(kopFile, 2000, 700, `vendors/${vendor.id}/kop-${versi}.webp`, "kop surat");
       if ("error" in r) return { error: r.error };
       kopKey = r.key;
     }
@@ -178,7 +182,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     let stempelKey = vendor.stempelKey;
     const stempelFile = formData.get("stempel");
     if (stempelFile instanceof File && stempelFile.size > 0) {
-      const r = await processImage(stempelFile, 600, 600, `vendors/${vendor.id}/stempel.webp`, "stempel");
+      const r = await processImage(stempelFile, 600, 600, `vendors/${vendor.id}/stempel-${versi}.webp`, "stempel");
       if ("error" in r) return { error: r.error };
       stempelKey = r.key;
     }
