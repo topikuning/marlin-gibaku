@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ArrowLeft, GitCompare } from "lucide-react";
-import { ButtonLink, Card, CardBody, CardHeader, Combobox, EmptyState, FormSaring, KpiCard, Label, TombolSaring } from "@/components/ui";
+import { Banner, ButtonLink, Card, CardBody, CardHeader, Combobox, EmptyState, FormSaring, KpiCard, Label, TombolSaring } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { diffRevisions } from "@/lib/rab/adendum";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Bandingkan revisi RAB" };
 export const dynamic = "force-dynamic";
 
 const rupiah = new Intl.NumberFormat("id-ID");
-const fmtDelta = (d: bigint) => `${d >= 0n ? "+" : "−"}Rp ${rupiah.format(d < 0n ? -d : d)}`;
+const fmtDelta = (d: bigint) => `${d > 0n ? "+" : d < 0n ? "−" : ""}Rp ${rupiah.format(d < 0n ? -d : d)}`;
 const STATUS = { aktif: "aktif", digantikan: "digantikan", draft: "draft" } as const;
 
 /**
@@ -74,7 +74,10 @@ export default async function BandingkanRevisiPage({
               description="Lokasi ini baru punya satu RAB yang pernah berlaku. Perbandingan muncul begitu ada adendum yang diaktifkan."
             />
           ) : (
-            <FormSaring className="flex flex-wrap items-end gap-3">
+            // Combobox tak-terkontrol menyimpan pilihannya sendiri: tanpa remount
+            // tiap kali URL berubah ia terus menulis pilihan yang ditolak walau
+            // hasilnya pasangan bawaan. `key` memuat pilihan DAN hasilnya.
+            <FormSaring key={`${sp.dari}:${sp.ke}:${pasangan?.dari}:${pasangan?.ke}`} className="flex flex-wrap items-end gap-3">
               <div className="w-72">
                 <Label htmlFor="banding-dari">Sebelumnya</Label>
                 <Combobox id="banding-dari" name="dari" defaultValue={pasangan?.dari ?? ""}>
@@ -101,6 +104,18 @@ export default async function BandingkanRevisiPage({
         </CardBody>
       </Card>
 
+      {pasangan?.pilihanDitolak && dari && ke ? (
+        <Banner
+          tone="warning"
+          title={
+            sp.dari && sp.dari === sp.ke
+              ? "Revisi yang sama tidak bisa dibandingkan dengan dirinya sendiri"
+              : "Pilihan revisi tidak dikenal"
+          }
+          description={`Yang ditampilkan: RAB #${dari.revisionNo} → RAB #${ke.revisionNo} (bawaan). Pilih dua revisi yang berbeda.`}
+        />
+      ) : null}
+
       {diff && dari && ke ? (
         <>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -110,7 +125,7 @@ export default async function BandingkanRevisiPage({
               label="Selisih"
               value={fmtDelta(ke.totalValue - dari.totalValue)}
               sub={`tambah ${fmtDelta(diff.totalTambah)} · kurang ${fmtDelta(diff.totalKurang)}`}
-              tone={ke.totalValue >= dari.totalValue ? "success" : "danger"}
+              tone={ke.totalValue > dari.totalValue ? "success" : ke.totalValue < dari.totalValue ? "danger" : undefined}
             />
             <KpiCard
               label="Item berubah"
