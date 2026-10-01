@@ -71,12 +71,12 @@ jobs:
           DEPLOY_URL: ${{ vars.MARLIN_DEPLOY_URL }}
         run: |
           if [ -z "${DEPLOY_TOKEN}" ]; then
-            echo "::error::MARLIN_DEPLOY_TOKEN belum dikonfigurasi di environment lenovo-dev"
+            echo "::error::MARLIN_DEPLOY_TOKEN belum dikonfigurasi di environment lenovo-dev!"
             exit 1
           fi
 
           if [ -z "${DEPLOY_URL}" ]; then
-            echo "::error::MARLIN_DEPLOY_URL belum dikonfigurasi di environment lenovo-dev"
+            echo "::error::MARLIN_DEPLOY_URL belum dikonfigurasi di environment lenovo-dev!"
             exit 1
           fi
 
