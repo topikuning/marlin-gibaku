@@ -512,7 +512,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pindahkan berkas ke Lenovo"
-          subtitle="Jaga R2 di bawah batasnya – foto ber-cap, dokumen, surat, dan lampiran lama dipindah, link tetap sama"
+          subtitle="Berkas lama disimpan di server Lenovo supaya R2 tidak penuh – link tetap sama"
         />
         <CardBody>
           <PindahBerkasPanel {...pindahBerkas} />

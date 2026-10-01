@@ -54,12 +54,12 @@ const GB = 1_000_000_000;
 export type KategoriBerkas = "foto" | "dokumen" | "surat" | "lampiran-wa" | "lampiran-kegiatan";
 
 export const LABEL_KATEGORI: Record<string, string> = {
-  foto: "Foto ber-cap",
+  foto: "Foto",
   dokumen: "Dokumen",
   surat: "Surat",
   "lampiran-wa": "Lampiran WA",
   "lampiran-kegiatan": "Lampiran kegiatan",
-  [KATEGORI_DIHAPUS]: "Sudah dihapus – menunggu dibuang dari Lenovo",
+  [KATEGORI_DIHAPUS]: "Sudah dihapus, menunggu dibersihkan dari Lenovo",
 };
 
 export type HasilPindah = {
