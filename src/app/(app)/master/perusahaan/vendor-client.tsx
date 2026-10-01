@@ -443,6 +443,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             name="logo"
             accept="image/png,image/jpeg,image/webp"
             maxBytes={8 * 1024 * 1024}
+            perkecilKe={1024}
           />
         </div>
         <div>
@@ -460,6 +461,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             name="stempel"
             accept="image/png,image/jpeg,image/webp"
             maxBytes={8 * 1024 * 1024}
+            perkecilKe={1200}
           />
           <p className="mt-0.5 text-xs text-ink-faint">
             Dipakai di blok tanda tangan laporan harian, mingguan &amp; periodik yang dicetak. Pindai
@@ -481,6 +483,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             name="kop"
             accept="image/png,image/jpeg,image/webp"
             maxBytes={8 * 1024 * 1024}
+            perkecilKe={2000}
           />
           <p className="mt-0.5 text-xs text-ink-faint">Unggah desain kop yang sudah jadi; penempatan otomatis di header laporan cetak menyusul.</p>
         </div>

@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 642 | 2026-10-01 | Kop/logo/stempel diperkecil di peramban sebelum dikirim (`FileInput perkecilKe`); kiriman berberkas yang ditolak server perantara diberi pesan Indonesia yang menyebut ukuran & penyebab, bukan "coba tekan lagi" |
 | 641 | 2026-10-01 | `next` 16.3.4 → 16.3.6 (advisory kritis GHSA-vcvr-r3jv-pc5j, RCE next/og) |
 | 640 | 2026-10-01 | Penanda server uji: kepala aplikasi kuning bergaris + lencana "SERVER UJI · DEV", pita di halaman masuk, awalan `[DEV]` di judul tab; `PENANDA_LINGKUNGAN` atau `APP_ENV` non-produksi; produksi tanpa penanda |
 | 639 | 2026-10-01 | Data demo seed dev/test mengikuti hari seed: tanggal seed-data digeser dari acuan 2026-06-15, realisasi tiap lokasi = rencana + deviasi sasaran beragam (10 aman, 4 terlambat ringan, 2 kritis) lewat laporan final mingguan |

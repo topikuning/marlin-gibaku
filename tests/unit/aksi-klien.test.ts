@@ -111,3 +111,41 @@ describe("tab basi karena deploy", () => {
     expect(pesan).toContain("TIDAK hilang");
   });
 });
+
+/*
+ * KIRIMAN BERBERKAS DITOLAK SERVER PERANTARA (DECISIONS 642).
+ *
+ * Laporan user 2026-10-01: unggah kop PNG → "Gagal mengirim – server menolak
+ * permintaan ini … coba tekan lagi … Error: An unexpected response was received
+ * from the server." Kalimat Next itu berarti balasannya BUKAN dari MARLIN –
+ * lazimnya halaman galat proxy yang menolak kiriman di atas batas ukurannya.
+ * Menyuruh "coba tekan lagi" untuk itu tidak akan pernah berhasil, dan "isian
+ * TIDAK hilang" keliru untuk berkas yang harus dipilih ulang.
+ */
+describe("tahanGagalKirim – kiriman berberkas", () => {
+  const meledak = async (): Promise<AksiState> => {
+    throw new Error("An unexpected response was received from the server.");
+  };
+  const denganBerkas = (bytes: number) => {
+    const fd = new FormData();
+    fd.set("kop", new File([new Uint8Array(bytes)], "kop bba.png", { type: "image/png" }));
+    return fd;
+  };
+
+  it("menyebut ukuran kiriman dan batas server perantara, bukan 'coba tekan lagi'", async () => {
+    pasangFetch(true);
+    const pesan = (await tahanGagalKirim(meledak)(undefined, denganBerkas(2_400_000)))?.error ?? "";
+    expect(pesan).toContain("2,3 MB");
+    expect(pesan).toContain("server perantara");
+    expect(pesan).not.toContain("coba tekan lagi");
+    expect(pesan).toContain("pilih ulang");
+    // Fakta teknisnya tetap terbawa untuk laporan.
+    expect(pesan).toContain("An unexpected response was received from the server.");
+  });
+
+  it("kiriman tanpa berkas tetap memakai pesan lama", async () => {
+    pasangFetch(true);
+    const pesan = (await tahanGagalKirim(meledak)(undefined, new FormData()))?.error ?? "";
+    expect(pesan).toContain("menolak permintaan ini");
+  });
+});
