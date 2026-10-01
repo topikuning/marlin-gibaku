@@ -12,7 +12,7 @@ import {
   requireLocationAccess,
   accessibleLocationIds,
 } from "@/lib/auth/session";
-import { isR2Configured, r2Delete, r2GetBuffer, r2Put } from "@/lib/r2";
+import { isR2Configured, r2Put } from "@/lib/r2";
 import { kotakTulisanFoto, processWithSharpOrOriginal, ringkasBukti, tagBawaanFoto } from "@/lib/photos";
 import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { parseCoordinatePair } from "@/lib/geo";
@@ -26,6 +26,7 @@ import {
   type NilaiCap,
 } from "./service";
 import type { PhotoGpsSource, PhotoMetadataSource } from "@/generated/prisma/enums";
+import { ambilBerkas, hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 export type RestampState = { error?: string; ok?: string } | undefined;
 
@@ -271,8 +272,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
         });
       });
     } catch (err) {
-      await r2Delete(keyBaru).catch(() => {});
-      if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+      await hapusBerkas(keyBaru).catch(() => {});
+      if (thumbBaru) await hapusBerkas(thumbBaru).catch(() => {});
       throw err;
     }
 
@@ -336,7 +337,7 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
       // hilang — supaya tidak ada baris yang mengaku "sudah dihapus" padahal
       // berkasnya masih memakan penyimpanan.
       try {
-        await r2Delete(r.originalKey);
+        await hapusBerkas(r.originalKey);
       } catch {
         continue;
       }
@@ -383,7 +384,7 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     await requireLocationAccess(actor, p.locationId);
     if (!p.originalKey) return { error: "Foto ini memang tidak punya arsip berkas asli." };
 
-    await r2Delete(p.originalKey);
+    await hapusBerkas(p.originalKey);
     await db.photo.update({
       where: { id: p.id },
       data: { originalKey: null, originalPurgedAt: new Date(), originalPurgedById: actor.id },
@@ -532,8 +533,8 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
         });
       });
     } catch (err) {
-      await r2Delete(keyBaru).catch(() => {});
-      if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+      await hapusBerkas(keyBaru).catch(() => {});
+      if (thumbBaru) await hapusBerkas(thumbBaru).catch(() => {});
       throw err;
     }
 
@@ -649,7 +650,7 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
    * sumber pemrosesan ulang, dan justru karena itulah ia benar di sini.
    */
   const sumber = k.originalKey ?? k.r2Key;
-  const asli = await r2GetBuffer(sumber);
+  const asli = await ambilBerkas(sumber);
 
   const processed = await processWithSharpOrOriginal(asli, await stampDariNilai(k.saatIni), {
     name: sumber,
@@ -709,8 +710,8 @@ async function perbaikiSatuHeic(photoId: string, actorId: string): Promise<void>
       });
     });
   } catch (err) {
-    await r2Delete(keyBaru).catch(() => {});
-    if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+    await hapusBerkas(keyBaru).catch(() => {});
+    if (thumbBaru) await hapusBerkas(thumbBaru).catch(() => {});
     throw err;
   }
 

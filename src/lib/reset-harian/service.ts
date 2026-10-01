@@ -133,9 +133,10 @@ export async function resetHarianLokasi(locationId: string): Promise<HasilResetH
   // berkas yatim (dibersihkan audit R2), tidak pernah baris tanpa berkas.
   let berkasGagal = 0;
   const kunci = foto.flatMap((f) => [f.r2Key, f.thumbnailKey, f.originalKey]).filter((k): k is string => !!k);
-  const { isR2Configured, r2HapusBanyak } = await import("@/lib/r2");
+  const { isR2Configured } = await import("@/lib/r2");
+  const { hapusBerkasBanyak } = await import("@/lib/penyimpanan/berkas");
   if (kunci.length > 0 && isR2Configured()) {
-    berkasGagal = (await r2HapusBanyak([...new Set(kunci)])).gagal.length;
+    berkasGagal = (await hapusBerkasBanyak([...new Set(kunci)])).gagal.length;
   }
 
   // Salinan berkas asli di arsip dingin.

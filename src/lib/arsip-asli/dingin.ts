@@ -99,8 +99,13 @@ export function setelanDingin(): SetelanDingin | null {
  */
 const BENTUK_KUNCI = /^photos\/[A-Za-z0-9._-]+\/[0-9-]+\/[A-Za-z0-9._-]+$/;
 
+/** Kunci ini boleh dipakai apa adanya di gateway arsip? */
+export function bentukKunciSah(kunci: string): boolean {
+  return BENTUK_KUNCI.test(kunci) && !kunci.includes("..");
+}
+
 export function jalurDingin(kunci: string): string {
-  if (!BENTUK_KUNCI.test(kunci) || kunci.includes("..")) {
+  if (!bentukKunciSah(kunci)) {
     throw new Error(`Kunci arsip tidak berbentuk sah: ${kunci.slice(0, 80)}`);
   }
   // base64url TANPA padding – sama dengan `base64 -w0 | tr '+/' '-_' | tr -d '='`

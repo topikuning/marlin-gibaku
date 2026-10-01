@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 645 | 2026-10-01 | Berkas lama (foto ber-cap, dokumen, surat, lampiran) dipindah R2 → arsip Lenovo, tertua dulu: umur > 14 hari + jaga R2 < 90% batas 10 GB; satu pintu `penyimpanan/berkas.ts`, link tetap (`/api/berkas/<token>` untuk yang sudah pindah); sakelar di Sistem |
 | 644 | 2026-10-01 | Lebar teks cap foto diukur dari metrik glyph DejaVu (bukan faktor huruf kapital, kelebihan ±24%); nama pekerjaan dibungkus dua baris – "CV. Putera…" tidak lagi terpotong bila muat |
 | 643 | 2026-10-01 | Foto laporan harian membawa logo pelaksana ke cap (tiga jalur lupa meneruskan `companyLogoKey`); parameternya wajib supaya typecheck menangkap jalur yang lupa |
 | 642 | 2026-10-01 | Kop/logo/stempel diperkecil di peramban sebelum dikirim (`FileInput perkecilKe`); kiriman berberkas yang ditolak server perantara diberi pesan Indonesia yang menyebut ukuran & penyebab, bukan "coba tekan lagi" |

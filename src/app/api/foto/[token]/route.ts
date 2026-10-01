@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { verifyPhotoToken } from "@/lib/pdf/photo-token";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Foto publik lewat MARLIN — link permanen yang bisa dibuka SIAPA SAJA (tanpa
@@ -9,7 +10,7 @@ import { verifyPhotoToken } from "@/lib/pdf/photo-token";
  * Keamanan = token HMAC (bukan tebak id). Route ini PUBLIK (lihat middleware).
  * Setiap akses regen presigned R2 pendek. DECISIONS 125.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
   const photoId = verifyPhotoToken(token);
   if (!photoId) return NextResponse.json({ error: "Link tidak valid atau kedaluwarsa." }, { status: 404 });
@@ -20,6 +21,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   if (!isR2Configured()) {
     return NextResponse.json({ error: "Penyimpanan file belum dikonfigurasi." }, { status: 503 });
   }
-  const url = await r2PresignGet(photo.r2Key, 300);
-  return NextResponse.redirect(url, 302);
+  const url = await alamatBerkas(photo.r2Key, 300);
+  // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
+  return NextResponse.redirect(new URL(url, req.url), 302);
 }

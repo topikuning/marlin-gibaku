@@ -715,8 +715,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   let ownerLogoUrl: string | null = null;
   if (brand.ownerLogoKey) {
     try {
-      const { r2PresignGet } = await import("@/lib/r2");
-      ownerLogoUrl = await r2PresignGet(brand.ownerLogoKey, 600);
+      const { alamatBerkas } = await import("@/lib/penyimpanan/berkas");
+      ownerLogoUrl = await alamatBerkas(brand.ownerLogoKey, 600);
     } catch {
       ownerLogoUrl = null;
     }
@@ -725,8 +725,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   let supervisorLogoUrl: string | null = null;
   if (location.package.contract?.supervisorLogoKey) {
     try {
-      const { r2PresignGet } = await import("@/lib/r2");
-      supervisorLogoUrl = await r2PresignGet(location.package.contract.supervisorLogoKey, 600);
+      const { alamatBerkas } = await import("@/lib/penyimpanan/berkas");
+      supervisorLogoUrl = await alamatBerkas(location.package.contract.supervisorLogoKey, 600);
     } catch {
       supervisorLogoUrl = null;
     }
@@ -740,8 +740,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   let vendorLogoUrl: string | null = null;
   if (contract?.vendor?.logoKey) {
     try {
-      const { r2PresignGet } = await import("@/lib/r2");
-      vendorLogoUrl = await r2PresignGet(contract.vendor.logoKey, 600);
+      const { alamatBerkas } = await import("@/lib/penyimpanan/berkas");
+      vendorLogoUrl = await alamatBerkas(contract.vendor.logoKey, 600);
     } catch {
       vendorLogoUrl = null;
     }

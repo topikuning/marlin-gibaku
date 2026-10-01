@@ -421,8 +421,8 @@ export async function kedaluwarsakanLampiran(
     }
     if (a.r2Key && isR2Configured()) {
       try {
-        const { r2Delete } = await import("@/lib/r2");
-        await r2Delete(a.r2Key);
+        const { hapusBerkas } = await import("@/lib/penyimpanan/berkas");
+        await hapusBerkas(a.r2Key);
         r2Dihapus += 1;
       } catch (err) {
         console.error("[lampiran] gagal menghapus objek R2 kedaluwarsa:", err);

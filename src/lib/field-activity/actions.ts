@@ -7,17 +7,18 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { MAX_PHOTOS_PER_ACTIVITY, PhotoError, savePhotoForItem } from "@/lib/photos";
-import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
+import { isR2Configured, r2Put } from "@/lib/r2";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
 import { jakartaDateKey } from "@/lib/format";
 import { getActivityKinds, getActivityKindLabelMap, activeActivityKindKeys } from "@/lib/field-activity/kinds";
 import { naikkanKendalaKegiatan, pesanNaikkan } from "@/lib/kendala/naikkan";
+import { hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
   if (!isR2Configured()) return;
   await Promise.all(
-    keys.filter((k): k is string => !!k).map((k) => r2Delete(k).catch(() => {})),
+    keys.filter((k): k is string => !!k).map((k) => hapusBerkas(k).catch(() => {})),
   );
 }
 

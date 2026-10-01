@@ -52,10 +52,11 @@ export const TANPA_TTD_PDF: TtdPdf = {
  */
 export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promise<TtdPdf> {
   try {
-    const [{ db }, { pilihKunciTtd }, { isR2Configured, r2GetBuffer }] = await Promise.all([
+    const [{ db }, { pilihKunciTtd }, { isR2Configured }, { ambilBerkas }] = await Promise.all([
       import("@/lib/db"),
       import("@/lib/export/ttd-laporan"),
       import("@/lib/r2"),
+      import("@/lib/penyimpanan/berkas"),
     ]);
     if (!isR2Configured()) return TANPA_TTD_PDF;
 
@@ -125,7 +126,7 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
         // ±70 pt, sementara pindaian stempel bisa ribuan piksel. Tanpa batas
         // ini, memindai pikselnya di bawah membebani kontainer 512 MB tanpa
         // menambah ketajaman apa pun.
-        const { data, info } = await sharp(await r2GetBuffer(key))
+        const { data, info } = await sharp(await ambilBerkas(key))
           .resize(600, 600, { fit: "inside", withoutEnlargement: true })
           .ensureAlpha()
           .raw()

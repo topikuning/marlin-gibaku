@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { DECK_169, PDF_FONT, createDeck169Doc, docToBuffer, sanitizeText } from "@/lib/pdf/document";
 import {
   barBand,
@@ -32,6 +32,7 @@ import { EWS_KATEGORI_LABEL, EWS_SEVERITY_LABEL, type EwsSeverity } from "@/lib/
 import { ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal, parseDateKey } from "@/lib/format";
 import type { LaporanLokasiLengkap } from "./jenis";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * DECK 16:9 LAPORAN LENGKAP LOKASI — dibangun di atas primitif deck bertema
@@ -110,7 +111,7 @@ function judulBagian(judul: string, bagian: number, total: number): string {
 async function ambilFoto(r2Key: string): Promise<string | null> {
   if (!isR2Configured()) return null;
   try {
-    const raw = await r2GetBuffer(r2Key);
+    const raw = await ambilBerkas(r2Key);
     const jpeg = await sharp(raw)
       .rotate()
       .resize(1400, 900, { fit: "cover", withoutEnlargement: true })

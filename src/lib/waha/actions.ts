@@ -6,7 +6,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
-import { r2GetBuffer } from "@/lib/r2";
 import { formatTanggal } from "@/lib/format";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
@@ -20,6 +19,7 @@ import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 import { grupUntukLokasi } from "@/lib/waha/grup";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -417,7 +417,7 @@ export async function sendActivityToWaAction(
     // 3) Dokumen (sebagai file).
     for (const att of activity.attachments) {
       try {
-        const buf = await r2GetBuffer(att.r2Key);
+        const buf = await ambilBerkas(att.r2Key);
         await sendFile(chatId, toFilePayload(buf, att.mimeType || "application/octet-stream", att.fileName));
       } catch (err) {
         errors.push(`${att.fileName}: ${err instanceof Error ? err.message : "gagal"}`);

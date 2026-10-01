@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import {
   DECK_169,
   PDF_FONT,
@@ -45,6 +45,7 @@ import {
   susunSlides,
   type Slide,
 } from "./susun";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * RENDERER PDF PAPARAN 16:9 (DECISIONS 416/417) — mengikuti contoh paparan
@@ -89,7 +90,7 @@ function s(t: string): string {
 async function ambilFoto(r2Key: string): Promise<string | null> {
   if (!isR2Configured()) return null;
   try {
-    const raw = await r2GetBuffer(r2Key);
+    const raw = await ambilBerkas(r2Key);
     const jpeg = await sharp(raw)
       .rotate()
       .resize(1400, 900, { fit: "cover", withoutEnlargement: true })

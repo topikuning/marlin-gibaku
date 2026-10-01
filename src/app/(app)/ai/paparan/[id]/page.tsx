@@ -8,12 +8,13 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecycle";
 import { parsePaparanContent, susunSlides } from "@/lib/paparan/susun";
 import { temaDeck } from "@/lib/paparan/tema";
 import { SlidePreview } from "./slide-preview";
 import { PaparanReviewClient, TombolTransisi } from "./review-client";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 export const metadata: Metadata = { title: "AI Intelligence – Detail Paparan" };
 export const dynamic = "force-dynamic";
@@ -72,8 +73,8 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
   if (isR2Configured()) {
     for (const f of content.snapshot.fotoKandidat) {
       try {
-        fotoUrl.set(f.id, await r2PresignGet(f.r2Key, 300));
-        thumbUrl.set(f.id, await r2PresignGet(f.thumbnailKey ?? f.r2Key, 300));
+        fotoUrl.set(f.id, await alamatBerkas(f.r2Key, 300));
+        thumbUrl.set(f.id, await alamatBerkas(f.thumbnailKey ?? f.r2Key, 300));
       } catch {
         /* presign gagal → kartu tanpa gambar; PDF tetap jalan sendiri */
       }

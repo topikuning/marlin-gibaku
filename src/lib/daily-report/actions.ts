@@ -15,7 +15,7 @@ import {
 import { can } from "@/lib/authz";
 import { jakartaDateKey } from "@/lib/format";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
-import { isR2Configured, r2Delete } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
@@ -38,6 +38,7 @@ import {
   submitReport,
   upsertItem,
 } from "./service";
+import { hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Server actions laporan harian — boundary FormData + zod v4.
@@ -782,7 +783,7 @@ export async function removeReportPhotoAction(
       await Promise.all(
         [photo.r2Key, photo.thumbnailKey]
           .filter((k): k is string => !!k)
-          .map((k) => r2Delete(k).catch(() => {})),
+          .map((k) => hapusBerkas(k).catch(() => {})),
       );
     }
     await audit(user.id, "daily_report.photo_remove", "photo", photo.id, {

@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { r2List, type R2Obyek } from "@/lib/r2";
+import { semuaKunciPindahan } from "@/lib/penyimpanan/berkas";
 
 /**
  * AUDIT PENYIMPANAN R2: mana berkas hidup, mana sampah.
@@ -189,7 +190,9 @@ export type FotoBerkasHilang = {
  */
 export async function fotoBerkasHilang(): Promise<FotoBerkasHilang[]> {
   const { obyek } = await r2List();
-  const ada = new Set(obyek.map((o) => o.key));
+  // Yang sudah dipindah ke Lenovo memang sengaja tidak di R2 lagi – bukan
+  // hilang, dan TIDAK boleh dibuat ulang (DECISIONS 645).
+  const ada = new Set([...obyek.map((o) => o.key), ...(await semuaKunciPindahan())]);
   const rows = await db.photo.findMany({
     where: { stampPending: false },
     select: { id: true, r2Key: true, thumbnailKey: true },
@@ -331,7 +334,8 @@ export async function auditR2(): Promise<HasilAuditR2> {
   }
 
   const hc = obyek.filter((o) => o.key.startsWith("healthcheck/"));
-  const ada = new Set(obyek.map((o) => o.key));
+  // Berkas yang dipindah ke Lenovo dirujuk DB tapi memang tidak di R2 – bukan "hilang" (DECISIONS 645).
+  const ada = new Set([...obyek.map((o) => o.key), ...(await semuaKunciPindahan())]);
 
   return {
     dijalankanPada: new Date().toISOString(),

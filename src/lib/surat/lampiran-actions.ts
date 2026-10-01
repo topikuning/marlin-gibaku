@@ -61,8 +61,9 @@ async function buangArsipTakTerpakai(attachmentId: string): Promise<void> {
   });
   if (dipakai > 0) return;
   try {
-    const { isR2Configured, r2Delete } = await import("@/lib/r2");
-    if (isR2Configured()) await r2Delete(a.r2Key);
+    const { isR2Configured } = await import("@/lib/r2");
+    const { hapusBerkas } = await import("@/lib/penyimpanan/berkas");
+    if (isR2Configured()) await hapusBerkas(a.r2Key);
   } catch (err) {
     // Gagal menghapus arsip bukan alasan menggagalkan ketetapan orang.
     console.error("[lampiran] gagal membuang arsip tak terpakai:", err);

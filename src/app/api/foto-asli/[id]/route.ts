@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Unduh BERKAS ASLI sebuah foto — byte apa adanya dari perangkat, sebelum
@@ -16,7 +17,7 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
  * Foto lama (sebelum arsip ini ada) tidak punya berkas asli — dijawab 404 dgn
  * pesan yang menjelaskan, bukan pesan "tidak ditemukan" yang menyesatkan.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!z.uuid().safeParse(id).success) {
     return NextResponse.json({ error: "ID foto tidak valid" }, { status: 404 });
@@ -54,6 +55,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "Penyimpanan file belum dikonfigurasi." }, { status: 503 });
   }
 
-  const url = await r2PresignGet(photo.originalKey, 120);
-  return NextResponse.redirect(url, 302);
+  const url = await alamatBerkas(photo.originalKey, 120);
+  // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
+  return NextResponse.redirect(new URL(url, req.url), 302);
 }

@@ -519,7 +519,6 @@ export function tulisBadanHarian(
 
 }
 
-
 /**
  * Catatan kaki tiap halaman: nama aplikasi + status, dan "Halaman i dari n"
  * yang MENERUS untuk seluruh berkas.
@@ -625,9 +624,9 @@ export const BATAS_FOTO_MINGGUAN = 120;
 export async function muatLogoPemilik(key: string | null | undefined): Promise<Buffer | null> {
   if (!key) return null;
   try {
-    const { r2GetBuffer } = await import("@/lib/r2");
+    const { ambilBerkas } = await import("@/lib/penyimpanan/berkas");
     const sharp = (await import("sharp")).default;
-    return await sharp(await r2GetBuffer(key)).png().toBuffer();
+    return await sharp(await ambilBerkas(key)).png().toBuffer();
   } catch (err) {
     console.error("[laporan-kkp] logo pemilik gagal disiapkan untuk PDF:", err);
     return null;
@@ -670,19 +669,20 @@ export async function muatLampiranFoto(
   const fotoMaterial: FotoPelengkapDok[] = [];
   const fotoAlat: FotoPelengkapDok[] = [];
   try {
-    const { isR2Configured, r2GetBuffer } = await import("@/lib/r2");
+    const { isR2Configured } = await import("@/lib/r2");
+    const { ambilBerkas } = await import("@/lib/penyimpanan/berkas");
     if (isR2Configured()) {
       const sharp = (await import("sharp")).default;
       if (data.vendorLogoKey) {
         try {
-          logoVendor = await sharp(await r2GetBuffer(data.vendorLogoKey)).png().toBuffer();
+          logoVendor = await sharp(await ambilBerkas(data.vendorLogoKey)).png().toBuffer();
         } catch {
           logoVendor = null;
         }
       }
       if (data.supervisorLogoKey) {
         try {
-          logoPengawas = await sharp(await r2GetBuffer(data.supervisorLogoKey)).png().toBuffer();
+          logoPengawas = await sharp(await ambilBerkas(data.supervisorLogoKey)).png().toBuffer();
         } catch {
           logoPengawas = null;
         }

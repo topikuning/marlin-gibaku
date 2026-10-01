@@ -1,10 +1,10 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { r2GetBuffer } from "@/lib/r2";
 import { ensureFolderPath, GDriveError, uploadToDrive } from "./client";
 import { photoFileName, photoMimeFromKey, safeFileName } from "./folders";
 import { type GDriveUploadKind, type UploadOutcome } from "./parse";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 export { summarize, type UploadOutcome } from "./parse";
 
@@ -25,7 +25,6 @@ export type UploadTarget = {
 };
 
 export type UploadItem = { fileName: string; mime: string; data: Buffer };
-
 
 /**
  * Catat satu berkas ke `GDriveUpload`.
@@ -211,6 +210,6 @@ export async function documentItem(doc: {
   return {
     fileName: safeFileName(doc.fileName, "dokumen"),
     mime: doc.mimeType || "application/octet-stream",
-    data: await r2GetBuffer(doc.r2Key),
+    data: await ambilBerkas(doc.r2Key),
   };
 }

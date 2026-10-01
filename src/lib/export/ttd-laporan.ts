@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import {
   pihakPenyedia,
   pilihPelaksana,
@@ -11,6 +11,7 @@ import {
   pilihWakilSah,
   type SumberPelaksana,
 } from "@/lib/laporan/penandatangan";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * TANDA TANGAN & STEMPEL untuk laporan yang DICETAK (DECISIONS 328).
@@ -147,7 +148,7 @@ export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
 async function gambar(key: string | null | undefined): Promise<GambarTtd | null> {
   if (!key || !isR2Configured()) return null;
   try {
-    return { url: await r2PresignGet(key, UMUR_TAUTAN) };
+    return { url: await alamatBerkas(key, UMUR_TAUTAN) };
   } catch (err) {
     // Kegagalan apa pun menghasilkan null, tidak pernah melempar: laporan tanpa
     // tanda tangan masih bisa dicetak lalu ditandatangani manual — laporan yang

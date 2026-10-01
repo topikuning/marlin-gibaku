@@ -1,5 +1,6 @@
 import "server-only";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * LOGO PERUSAHAAN UNTUK CAP FOTO (DECISIONS 424).
@@ -51,7 +52,7 @@ export async function logoPerusahaanDataUri(logoKey: string | null | undefined):
   let hasil: string | null = null;
   try {
     const sharp = await muatSharp();
-    const raw = await r2GetBuffer(logoKey);
+    const raw = await ambilBerkas(logoKey);
     /*
      * TRIM dulu, baru resize (DECISIONS 424a).
      *

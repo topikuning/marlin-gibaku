@@ -3,7 +3,7 @@ import { WARNA_PDF } from "@/lib/photo-stamp/tanda-nilai";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { getRingkasHarian, type RingkasFoto, type RingkasHarian } from "@/lib/daily-report/ringkas";
 import { formatRupiah, formatTanggal, formatTanggalWaktu, lokasiDenganWilayah } from "@/lib/format";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
@@ -24,6 +24,7 @@ import {
   type PdfDoc,
 } from "./document";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * LAPORAN HARIAN — RINGKASAN. Dokumen bacaan untuk dikirim ke grup WhatsApp
@@ -206,7 +207,7 @@ export async function renderHarianRingkasPdf(
   let logoPerusahaan: Buffer | null = null;
   if (isR2Configured() && d.vendorLogoKey) {
     try {
-      logoPerusahaan = await sharp(await r2GetBuffer(d.vendorLogoKey))
+      logoPerusahaan = await sharp(await ambilBerkas(d.vendorLogoKey))
         .resize({ width: 400, height: 160, fit: "inside", withoutEnlargement: true })
         .png()
         .toBuffer();
