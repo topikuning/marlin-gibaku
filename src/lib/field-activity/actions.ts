@@ -61,7 +61,7 @@ async function uploadPhotos(opts: {
   reporterName: string;
   location: { id: string; slug: string; name: string; gpsLat: unknown; gpsLng: unknown };
   companyName: string | null;
-  companyLogoKey?: string | null;
+  companyLogoKey: string | null;
   dateKey: string;
   source: "camera" | "gallery";
   fallbackMode: "project" | "none" | "apa_adanya";

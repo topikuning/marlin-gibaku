@@ -288,7 +288,12 @@ async function unggahFotoPelengkap(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
-  companyLogoKey?: string | null;
+  /**
+   * WAJIB, bukan opsional (DECISIONS 643): dulu opsional, dan ketiga pemanggil
+   * diam-diam tidak meneruskannya – cap foto laporan harian jatuh ke wordmark
+   * MARLIN walau pelaksana sudah berlogo, tanpa satu pun galat tipe.
+   */
+  companyLogoKey: string | null;
   reportId: string;
   jenis: "material" | "alat";
   barisId: string;
@@ -343,7 +348,7 @@ async function unggahFotoPelengkap(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
-          companyLogoKey: p.companyLogoKey ?? null,
+          companyLogoKey: p.companyLogoKey,
           reporterName: user.fullName,
           categoryName: badge,
           workName: p.namaBaris,
@@ -374,7 +379,12 @@ async function unggahFotoItem(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
-  companyLogoKey?: string | null;
+  /**
+   * WAJIB, bukan opsional (DECISIONS 643): dulu opsional, dan ketiga pemanggil
+   * diam-diam tidak meneruskannya – cap foto laporan harian jatuh ke wordmark
+   * MARLIN walau pelaksana sudah berlogo, tanpa satu pun galat tipe.
+   */
+  companyLogoKey: string | null;
   reportId: string;
   itemId: string;
   rabNodeId: string;
@@ -465,7 +475,7 @@ async function unggahFotoItem(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
-          companyLogoKey: p.companyLogoKey ?? null,
+          companyLogoKey: p.companyLogoKey,
           reporterName: user.fullName,
           categoryName: buildingName ?? workName,
           workName: buildingName ? workName : null,
@@ -535,7 +545,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     const d = parsed.data;
     await requireLocationAccess(user, d.locationId);
 
-    const { location, companyName } = await muatLokasiCap(d.locationId);
+    const { location, companyName, companyLogoKey } = await muatLokasiCap(d.locationId);
 
     const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
     const item = await upsertItem(
@@ -550,6 +560,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       user,
       location,
       companyName,
+      companyLogoKey,
       reportId: report.id,
       itemId: item.id,
       rabNodeId: d.rabNodeId,
@@ -650,11 +661,12 @@ export async function addItemPhotosAction(
     const { files, dibuang } = fotoDariForm(formData);
     if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
 
-    const { location, companyName } = await muatLokasiCap(ctx.locationId);
+    const { location, companyName, companyLogoKey } = await muatLokasiCap(ctx.locationId);
     const photoErrors = await unggahFotoItem({
       user,
       location,
       companyName,
+      companyLogoKey,
       reportId: ctx.id,
       itemId: item.id,
       rabNodeId: item.rabNodeId,
@@ -1032,7 +1044,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
     const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
     const adaFoto = [...formData.keys()].some((k) => /^[ma]\d+_(photos|kantongPhotoIds)$/.test(k));
     if (adaFoto) {
-      const { location, companyName } = await muatLokasiCap(ctx.locationId);
+      const { location, companyName, companyLogoKey } = await muatLokasiCap(ctx.locationId);
       const jalur: { jenis: "material" | "alat"; awalan: string; ids: (string | null)[] }[] = [
         { jenis: "material", awalan: "m", ids: idMaterial },
         { jenis: "alat", awalan: "a", ids: idAlat },
@@ -1059,6 +1071,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
               user,
               location,
               companyName,
+              companyLogoKey,
               reportId: ctx.id,
               jenis: j.jenis,
               barisId,

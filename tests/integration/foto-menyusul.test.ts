@@ -53,7 +53,7 @@ vi.mock("@/lib/auth/session", async (importAsli) => {
 });
 
 const { db } = await import("@/lib/db");
-const { addItemPhotosAction } = await import("@/lib/daily-report/actions");
+const { addItemPhotosAction, saveItemAction } = await import("@/lib/daily-report/actions");
 
 const suffix = `fm${Date.now().toString(36)}`;
 let locationId: string;
@@ -274,5 +274,44 @@ describe("gerbang & penolakan", () => {
     const hasil = await tambah([berkas()]);
     expect(hasil?.success).toBeUndefined();
     expect(hasil?.error).toMatch(/Format tidak didukung/);
+  });
+});
+
+/*
+ * LOGO PERUSAHAAN DI CAP FOTO LAPORAN HARIAN (DECISIONS 643).
+ *
+ * Laporan user 2026-10-01: logo sudah diunggah di Master Perusahaan, tapi cap
+ * foto tetap wordmark MARLIN – bahkan untuk perusahaan yang dulu bisa.
+ * Penyebab: `muatLokasiCap` membaca logo pelaksana kontrak, tapi ketiga
+ * pemanggilnya hanya meneruskan NAMA perusahaan; logonya terbuang di jalan,
+ * dan parameternya opsional sehingga tidak ada yang protes.
+ */
+describe("logo pelaksana kontrak ikut ke cap foto laporan harian", () => {
+  const LOGO = `vendors/uji-${suffix}/logo-abc.webp`;
+
+  beforeAll(async () => {
+    const lok = await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true, package: { select: { orgId: true } } } });
+    const vendor = await db.vendor.create({ data: { orgId: lok.package.orgId, name: `CV Logo ${suffix}`, logoKey: LOGO } });
+    await db.contract.create({
+      data: { packageId: lok.packageId, vendorId: vendor.id, contractNumber: `K-${suffix}`, contractValue: 1_000_000n, signedDate: new Date("2026-06-01") },
+    });
+  });
+
+  it("foto menyusul membawa logo pelaksana", async () => {
+    await tambah([berkas()]);
+    expect(panggilan[0]?.stamp?.companyName).toBe(`CV Logo ${suffix}`);
+    expect(panggilan[0]?.stamp?.companyLogoKey).toBe(LOGO);
+  });
+
+  it("simpan item + foto membawa logo pelaksana", async () => {
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("dateKey", "2026-07-01");
+    fd.set("rabNodeId", nodeId);
+    fd.set("volumeDone", "1");
+    fd.append("photos", berkas());
+    const hasil = await saveItemAction(undefined, fd);
+    expect(hasil?.error).toBeUndefined();
+    expect(panggilan.at(-1)?.stamp?.companyLogoKey).toBe(LOGO);
   });
 });

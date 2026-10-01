@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 644 | 2026-10-01 | Lebar teks cap foto diukur dari metrik glyph DejaVu (bukan faktor huruf kapital, kelebihan ±24%); nama pekerjaan dibungkus dua baris – "CV. Putera…" tidak lagi terpotong bila muat |
+| 643 | 2026-10-01 | Foto laporan harian membawa logo pelaksana ke cap (tiga jalur lupa meneruskan `companyLogoKey`); parameternya wajib supaya typecheck menangkap jalur yang lupa |
 | 642 | 2026-10-01 | Kop/logo/stempel diperkecil di peramban sebelum dikirim (`FileInput perkecilKe`); kiriman berberkas yang ditolak server perantara diberi pesan Indonesia yang menyebut ukuran & penyebab, bukan "coba tekan lagi" |
 | 641 | 2026-10-01 | `next` 16.3.4 → 16.3.6 (advisory kritis GHSA-vcvr-r3jv-pc5j, RCE next/og) |
 | 640 | 2026-10-01 | Penanda server uji: kepala aplikasi kuning bergaris + lencana "SERVER UJI · DEV", pita di halaman masuk, awalan `[DEV]` di judul tab; `PENANDA_LINGKUNGAN` atau `APP_ENV` non-produksi; produksi tanpa penanda |
