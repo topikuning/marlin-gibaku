@@ -59,7 +59,7 @@ describe("realisasi data demo", () => {
       { id: "b", volume: 4, amount: 2_000n },
       { id: "c", volume: 5, amount: 5_000n },
     ];
-    expect(volumeUntukSasaran(items, 2_000n, 1)).toEqual([
+    expect(volumeUntukSasaran(items, 2_000n, [1])).toEqual([
       { id: "a", volume: 10 },
       { id: "b", volume: 2 },
     ]);
@@ -76,6 +76,18 @@ describe("realisasi data demo", () => {
       const it = items.find((i) => i.id === r.id)!;
       expect(r.volume).toBeLessThan(it.volume);
     }
-    expect(isi[0]).toEqual({ id: "a", volume: 23.49 });
+    expect(isi[0]).toEqual({ id: "a", volume: 37.192 });
+  });
+
+  it("sasaran di atas 60% tetap tercapai (tahap kedua sampai 95%)", () => {
+    const items = [
+      { id: "a", volume: 10, amount: 1_000n },
+      { id: "b", volume: 10, amount: 1_000n },
+    ];
+    // 80% dari 2.000 = 1.600: tahap 1 → 1.200, tahap 2 menambah 400 ke item a.
+    expect(volumeUntukSasaran(items, 1_600n)).toEqual([
+      { id: "a", volume: 9.5 },
+      { id: "b", volume: 6.5 },
+    ]);
   });
 });

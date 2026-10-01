@@ -59,41 +59,47 @@ export function realisasiSasaranPct(rencanaPct: number, urutan: number): number 
 export type ItemDemo = { id: string; volume: number; amount: bigint };
 
 /**
- * Porsi maksimum tiap item yang diisi seed. Di bawah 100% supaya setiap item
- * masih punya sisa volume: laporan baru (oleh user maupun uji E2E) tetap bisa
- * menambah progres di item mana pun, dan gambaran lapangannya wajar –
- * banyak pekerjaan sedang berjalan, bukan sebagian selesai sebagian nol.
+ * Porsi tiap item yang diisi seed, bertahap: semua item lebih dulu sampai 60%,
+ * lalu – bila sasaran belum tercapai – sampai 95%. Tidak pernah 100%, supaya
+ * setiap item masih punya sisa volume: laporan baru (oleh user maupun uji E2E)
+ * tetap bisa menambah progres di item mana pun. Dua tahap, bukan satu batas:
+ * batas 60% saja membuat realisasi lokasi tidak pernah melewati 60%, dan lokasi
+ * yang rencananya 80% jatuh ke kritis (terlihat 2026-10-01 di Kedung Mutih).
  */
-export const PORSI_MAKS_ITEM = 0.6;
+export const TAHAP_PORSI_ITEM = [0.6, 0.95] as const;
 
 /**
- * Volume per item sehingga Σ nilai terpasang ≈ `sasaran` (rupiah): item diisi
- * sampai `porsiMaks` volumenya berurutan, item terakhir sebagian. Urutan item
- * = urutan RAB, jadi pekerjaan awal (persiapan, tanah) berjalan lebih dulu –
- * sama seperti lapangan.
+ * Volume per item sehingga Σ nilai terpasang ≈ `sasaran` (rupiah), mengikuti
+ * `tahap` (porsi kumulatif per item). Urutan item = urutan RAB, jadi pekerjaan
+ * awal (persiapan, tanah) berjalan lebih dulu – sama seperti lapangan.
  */
 export function volumeUntukSasaran(
   items: ItemDemo[],
   sasaran: bigint,
-  porsiMaks = PORSI_MAKS_ITEM,
+  tahap: readonly number[] = TAHAP_PORSI_ITEM,
 ): { id: string; volume: number }[] {
-  const hasil: { id: string; volume: number }[] = [];
+  // Volume Decimal(15,3): dibulatkan ke bawah supaya tidak melampaui sasaran.
+  const bulat = (v: number) => Math.floor(v * 1000) / 1000;
+  const porsi = new Map<string, number>();
   let sisa = sasaran;
-  for (const it of items) {
-    if (sisa <= 0n) break;
-    if (it.volume <= 0 || it.amount <= 0n) continue;
-    // Volume Decimal(15,3): dibulatkan ke bawah supaya tidak melampaui sasaran.
-    const bulat = (v: number) => Math.floor(v * 1000) / 1000;
-    const nilaiPenuh = BigInt(Math.floor(Number(it.amount) * porsiMaks));
-    if (nilaiPenuh <= sisa) {
-      const volume = bulat(it.volume * porsiMaks);
-      if (volume > 0) hasil.push({ id: it.id, volume });
-      sisa -= nilaiPenuh;
-    } else {
-      const volume = bulat((it.volume * Number(sisa)) / Number(it.amount));
-      if (volume > 0) hasil.push({ id: it.id, volume });
-      sisa = 0n;
+  for (const batas of tahap) {
+    for (const it of items) {
+      if (sisa <= 0n) break;
+      if (it.volume <= 0 || it.amount <= 0n) continue;
+      const sudah = porsi.get(it.id) ?? 0;
+      if (sudah >= batas) continue;
+      const tambahNilai = BigInt(Math.floor(Number(it.amount) * (batas - sudah)));
+      if (tambahNilai <= sisa) {
+        porsi.set(it.id, batas);
+        sisa -= tambahNilai;
+      } else {
+        porsi.set(it.id, sudah + Number(sisa) / Number(it.amount));
+        sisa = 0n;
+      }
     }
   }
-  return hasil;
+  return items
+    .filter((it) => porsi.has(it.id))
+    .map((it) => ({ id: it.id, volume: bulat(it.volume * porsi.get(it.id)!) }))
+    .filter((r) => r.volume > 0);
 }
