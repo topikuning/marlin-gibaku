@@ -38,6 +38,16 @@ vi.mock("@/lib/r2", () => ({
   },
   r2PresignGet: async () => "https://contoh.invalid/foto",
 }));
+// Pembacaan berkas lewat satu pintu (DECISIONS 645) – yang diuji di sini
+// penanaman foto ke PDF, bukan letak berkasnya, jadi pintunya ditiru juga
+// (aslinya bertanya ke DB dulu, dan uji unit tidak punya DB).
+vi.mock("@/lib/penyimpanan/berkas", () => ({
+  ambilBerkas: async (key: string) => {
+    const b = fotoAsli.get(key);
+    if (!b) throw new Error(`kunci tak dikenal: ${key}`);
+    return b;
+  },
+}));
 
 const { renderPaparanPdf } = await import("@/lib/paparan/render-pdf");
 const { narasiDeterministik } = await import("@/lib/paparan/susun");
