@@ -17,6 +17,12 @@ const baseSchema = z.object({
    * super admin tidak bisa saling menyentuh). Lihat `lib/akar.ts`.
    */
   SUPER_ADMIN_UTAMA: z.string().optional(),
+  /**
+   * Label server non-produksi ("DEV", "TEST", …) – memunculkan bilah kuning
+   * "SERVER UJI" di semua layar dan awalan judul tab (DECISIONS 640). Kosong
+   * di produksi. Lihat `lib/lingkungan.ts`.
+   */
+  PENANDA_LINGKUNGAN: z.string().optional(),
   /*
    * PETA (user 2026-09-06). Peta dasar vektor disimpan sendiri di R2 sebagai
    * satu berkas `.pmtiles`; kuncinya bisa diganti bila nanti ada beberapa

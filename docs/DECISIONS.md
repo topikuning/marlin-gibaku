@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 641 | 2026-10-01 | `next` 16.3.4 → 16.3.6 (advisory kritis GHSA-vcvr-r3jv-pc5j, RCE next/og) |
+| 640 | 2026-10-01 | Penanda server uji: kepala aplikasi kuning bergaris + lencana "SERVER UJI · DEV", pita di halaman masuk, awalan `[DEV]` di judul tab; `PENANDA_LINGKUNGAN` atau `APP_ENV` non-produksi; produksi tanpa penanda |
 | 639 | 2026-10-01 | Data demo seed dev/test mengikuti hari seed: tanggal seed-data digeser dari acuan 2026-06-15, realisasi tiap lokasi = rencana + deviasi sasaran beragam (10 aman, 4 terlambat ringan, 2 kritis) lewat laporan final mingguan |
 | 638 | 2026-09-30 | Kop/logo/stempel perusahaan tidak lagi gagal tersimpan diam-diam: pesan di sebelah Simpan, `FileInput` ikut kosong saat formulir di-reset (React me-reset sesudah aksi GAGAL sekalipun), pesan sukses menyebut aset yang berubah, format dibaca dari isi berkas, batas 8 MB, pesan validasi Indonesia per kolom; Bandingkan RAB memisah selisih pembulatan Rp 1 |
 | 637 | 2026-09-30 | Bandingkan RAB aktif dengan RAB sebelumnya: `/lokasi/[slug]/rab/bandingkan`, bawaan aktif vs revisi tepat sebelumnya, pilihan bebas antar revisi non-draft, `diffRevisions` + `totalValue` (tanpa formula baru) |

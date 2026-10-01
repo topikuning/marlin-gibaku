@@ -14,6 +14,7 @@ import {
   keSimpanan,
 } from "@/lib/shell/sidebar-ringkas";
 import { NavIcon } from "./nav-progress";
+import { LATAR_PENANDA } from "./penanda-lingkungan";
 import { type NavItem } from "./nav-config";
 
 function isActive(pathname: string, href: string): boolean {
@@ -42,7 +43,7 @@ function isActive(pathname: string, href: string): boolean {
  * data yang harus bisa dibaca ulang oleh server. Tanpa diingat, tombolnya jadi
  * mainan — setiap muat ulang sidebarnya mengembang lagi.
  */
-export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
+export function Sidebar({ nav, brand, penanda }: { nav: NavItem[]; brand: Branding; penanda?: string | null }) {
   const pathname = usePathname();
   /*
    * Nilai awal `false` DAN TIDAK dibaca dari `localStorage` saat render: server
@@ -87,6 +88,19 @@ export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
 
   return (
     <aside className="marlin-sidebar no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-surface lg:flex">
+      {/* Server uji: pita kuning di puncak sidebar, sejajar kepala aplikasi
+          (DECISIONS 640). Saat diringkas tinggal labelnya. */}
+      {penanda ? (
+        <div
+          className={cn(
+            LATAR_PENANDA,
+            "flex h-7 shrink-0 items-center justify-center border-b-2 border-warning text-[11px] font-bold tracking-wide text-ink uppercase",
+          )}
+        >
+          <span className="marlin-nav-teks">Server uji · {penanda}</span>
+          <span className="hidden [[data-nav='ringkas']_&]:inline">{penanda}</span>
+        </div>
+      ) : null}
       <div className="border-b border-border px-4 py-3.5">
         {/* Wordmark resmi menggantikan rakitan "ikon + teks" (DECISIONS 227):
             hurufnya vektor, jadi bentuknya tidak lagi bergantung font UI.

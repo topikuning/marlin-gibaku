@@ -18,6 +18,8 @@ export interface AppShellProps {
   logoutAction: (formData: FormData) => Promise<void>;
   /** Slot topbar kiri: breadcrumb/judul ringkas. */
   topbarContent?: ReactNode;
+  /** Label server non-produksi (DECISIONS 640). `null` = produksi. */
+  penanda?: string | null;
   children: ReactNode;
 }
 
@@ -32,6 +34,7 @@ export function AppShell({
   mobileNav,
   logoutAction,
   topbarContent,
+  penanda,
   children,
 }: AppShellProps) {
   return (
@@ -43,12 +46,12 @@ export function AppShell({
       {/* Peringatan tab-lebih-tua-dari-server (DECISIONS 292). Di atas segalanya:
           kalau muncul, semua pengiriman dari halaman ini akan ditolak. */}
       <PengawasVersi />
-      <Sidebar brand={brand} nav={nav} />
+      <Sidebar brand={brand} nav={nav} penanda={penanda} />
       {/* `marlin-konten`: bantalan kirinya ikut menyempit saat sidebar
           diringkas (DECISIONS 413). Kelasnya, bukan prop — sumber keadaannya
           atribut `data-nav` di <html>, dibaca CSS. */}
       <div className="marlin-konten lg:pl-60">
-        <Topbar brand={brand} user={user} logoutAction={logoutAction}>
+        <Topbar brand={brand} user={user} logoutAction={logoutAction} penanda={penanda}>
           {topbarContent}
         </Topbar>
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 pb-20 lg:px-6 lg:pb-8">

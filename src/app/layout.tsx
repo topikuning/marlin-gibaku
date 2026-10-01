@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SKRIP_PRA_LUKIS } from "@/lib/shell/sidebar-ringkas";
+import { env } from "@/lib/env";
+import { labelLingkungan } from "@/lib/lingkungan";
 
 const inter = localFont({
   src: "./fonts/inter-var-latin.woff2",
@@ -10,13 +12,23 @@ const inter = localFont({
   weight: "100 900",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "MARLIN – Pengendalian Proyek KNMP",
-    template: "%s · MARLIN",
-  },
-  description: "Sistem pengendalian proyek Kampung Nelayan Merah Putih",
-};
+/**
+ * Judul tab berawalan "[DEV]" di server uji (DECISIONS 640): tab tetap
+ * terlihat walau halamannya tidak sedang dibuka, dan riwayat/markah peramban
+ * ikut membawa tanda itu. Dibaca saat render, bukan saat build – image yang
+ * sama dipakai produksi dan server uji.
+ */
+export function generateMetadata(): Metadata {
+  const penanda = labelLingkungan(env);
+  const awalan = penanda ? `[${penanda}] ` : "";
+  return {
+    title: {
+      default: `${awalan}MARLIN – Pengendalian Proyek KNMP`,
+      template: `${awalan}%s · MARLIN`,
+    },
+    description: "Sistem pengendalian proyek Kampung Nelayan Merah Putih",
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#1E3A8A",
