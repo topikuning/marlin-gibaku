@@ -217,6 +217,15 @@ src/
   (FormData + zod + `useActionState` + `Banner`).
 - Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`
   dgn label/tone dari `lifecycle.ts`.
+- **Bahasa: tulis seperti orang, bukan mesin** (keluhan user 2026-10-01:
+  *"terlalu kaku dan tidak manusiawi"*). Berlaku untuk teks layar, pesan WA,
+  PDF, DAN catatan/jawaban ke user. Kalimat pendek dan aktif; sapaan "Anda";
+  yang penting bagi pembaca dulu, sebab teknis belakangan; jangan merangkai
+  kalimat dengan tanda pisah beruntun. Jangan terjemahan harfiah dari Inggris
+  ("uji bergigi", "galat jujur", "dalam scope") dan jangan istilah mesin di
+  layar lapangan (obyek, kunci, token, webhook, putaran, sakelar, snapshot).
+  Istilah proyek yang memang dipakai orang lapangan (RAB, KKP, termin,
+  deviasi, kurva-S, adendum, draft, final) tetap.
 - **Tanda pisah di teks UI = en-dash `–`, BUKAN em-dash `—`** (DECISIONS 385).
   Berlaku untuk semua teks yang dilihat orang: layar, balasan WhatsApp, PDF,
   Excel. Komentar kode bebas. Dijaga `tests/unit/tanda-pisah-ui.test.ts`.
