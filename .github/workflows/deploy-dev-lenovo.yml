@@ -9,7 +9,7 @@ on:
       - "**/*.md"
 
 concurrency:
-  group: marlin-dev-image
+  group: marlin-dev
   cancel-in-progress: true
 
 permissions:
@@ -21,8 +21,8 @@ env:
   IMAGE_NAME: topikuning/marlin-gibaku
 
 jobs:
-  build-and-deploy:
-    name: Build image and deploy to Lenovo
+  build:
+    name: Build MARLIN DEV image
     runs-on: ubuntu-latest
 
     steps:
@@ -55,10 +55,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  deploy:
+    name: Deploy to Lenovo DEV
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: lenovo-dev
+      url: https://marlin.cacak.xyz
+
+    steps:
       - name: Trigger Lenovo MARLIN DEV deployment
         env:
           DEPLOY_TOKEN: ${{ secrets.MARLIN_DEPLOY_TOKEN }}
+          DEPLOY_URL: ${{ vars.MARLIN_DEPLOY_URL }}
         run: |
+          if [ -z "${DEPLOY_TOKEN}" ]; then
+            echo "::error::MARLIN_DEPLOY_TOKEN belum dikonfigurasi di environment lenovo-dev"
+            exit 1
+          fi
+
+          if [ -z "${DEPLOY_URL}" ]; then
+            echo "::error::MARLIN_DEPLOY_URL belum dikonfigurasi di environment lenovo-dev"
+            exit 1
+          fi
+
           curl \
             --fail-with-body \
             --silent \
@@ -69,4 +90,4 @@ jobs:
             --max-time 30 \
             --request POST \
             --header "X-Marlin-Deploy-Token: ${DEPLOY_TOKEN}" \
-            https://deploy-marlin.cacak.xyz/hooks/marlin-dev
+            "${DEPLOY_URL}"
