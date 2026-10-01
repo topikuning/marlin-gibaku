@@ -54,12 +54,12 @@ const GB = 1_000_000_000;
 export type KategoriBerkas = "foto" | "dokumen" | "surat" | "lampiran-wa" | "lampiran-kegiatan";
 
 export const LABEL_KATEGORI: Record<string, string> = {
-  foto: "Foto ber-cap",
+  foto: "Foto",
   dokumen: "Dokumen",
   surat: "Surat",
   "lampiran-wa": "Lampiran WA",
   "lampiran-kegiatan": "Lampiran kegiatan",
-  [KATEGORI_DIHAPUS]: "Sudah dihapus – menunggu dibuang dari Lenovo",
+  [KATEGORI_DIHAPUS]: "Sudah dihapus, menunggu dibersihkan dari Lenovo",
 };
 
 export type HasilPindah = {
@@ -295,7 +295,7 @@ export async function jalankanPindahBerkas(opsi: { anggaranMs?: number } = {}): 
       }
     }
     if (gagalTarikan === tarikan.length) {
-      galat.push("putaran dihentikan: seluruh berkas satu tarikan gagal – Lenovo atau jaringannya bermasalah");
+      galat.push("pemindahan dihentikan: semua berkas dalam satu kelompok gagal dikirim. Server Lenovo atau jaringannya bermasalah.");
       break;
     }
   }
@@ -335,7 +335,7 @@ export async function mulaiPindahLatar(): Promise<
         dipindah: 0,
         bytesDipindah: 0,
         gagal: 1,
-        galat: [err instanceof Error ? err.message : "putaran latar gagal"],
+        galat: [err instanceof Error ? err.message : "pemindahan gagal berjalan"],
         selesai: new Date(),
       };
     } finally {

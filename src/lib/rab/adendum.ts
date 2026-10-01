@@ -53,7 +53,7 @@ async function requireDraft(tx: Tx, revisionId: string, locationId: string) {
   // sudah membocorkan bahwa id-nya benar dan drafnya ada.
   if (rev.locationId !== locationId) throw new AdendumError("Revisi tidak ditemukan.");
   if (rev.status !== "draft") {
-    throw new AdendumError(`Revisi #${rev.revisionNo} bukan draft – editan hanya untuk draft.`);
+    throw new AdendumError(`Revisi #${rev.revisionNo} bukan draft. Hanya draft yang bisa diubah.`);
   }
   return rev;
 }
@@ -156,7 +156,7 @@ export async function createAdendumDraft(
     });
     if (existingDraft) {
       throw new AdendumError(
-        `Masih ada draft revisi #${existingDraft.revisionNo} – aktifkan atau buang dulu sebelum membuat draft baru.`,
+        `Masih ada draft revisi #${existingDraft.revisionNo}. Aktifkan atau buang dulu sebelum membuat draft baru.`,
       );
     }
     const active = await tx.rabRevision.findFirst({
@@ -175,7 +175,7 @@ export async function createAdendumDraft(
         select: { contract: { select: { packageId: true } } },
       });
       if (!amendment || amendment.contract.packageId !== loc.packageId) {
-        throw new AdendumError("Adendum kontrak (CCO) itu bukan milik paket lokasi ini.");
+        throw new AdendumError("Adendum kontrak (CCO) itu bukan untuk paket lokasi ini.");
       }
     }
 
@@ -203,7 +203,7 @@ export async function createAdendumDraft(
     const pending = [...nodes];
     while (pending.length > 0) {
       const batch = pending.filter((n) => n.parentId === null || newIdByOldId.has(n.parentId));
-      if (batch.length === 0) throw new AdendumError("Struktur RAB aktif tidak konsisten (orphan node).");
+      if (batch.length === 0) throw new AdendumError("Struktur RAB aktif tidak konsisten: ada baris yang induknya hilang.");
       const created = await tx.rabNode.createManyAndReturn({
         data: batch.map((n) => ({
           revisionId: draft.id,
@@ -250,7 +250,7 @@ export async function updateDraftItemVolume(
   volume: number,
   userId: string,
 ): Promise<{ totalValue: bigint }> {
-  if (!Number.isFinite(volume) || volume < 0) throw new AdendumError("Volume tidak valid.");
+  if (!Number.isFinite(volume) || volume < 0) throw new AdendumError("Volume harus berupa angka dan tidak boleh negatif.");
   const v = Math.round(volume * 1000) / 1000; // presisi Decimal(15,3)
 
   return db.$transaction(async (tx) => {
@@ -271,7 +271,7 @@ export async function updateDraftItemVolume(
     if (v + EPS < realized) {
       throw new AdendumError(
         `Volume ${node.name} tidak boleh di bawah realisasi tercatat (${realized}). ` +
-          `Pekerjaan-kurang atas item berjalan maksimal sampai volume terealisasi.`,
+          `Pekerjaan-kurang untuk item yang sudah berjalan hanya boleh sampai sebesar volume yang sudah terealisasi.`,
       );
     }
 
@@ -319,7 +319,7 @@ export async function addDraftItem(
   const name = input.name.trim();
   if (!code || !name) throw new AdendumError("Kode dan nama item wajib diisi.");
   if (!Number.isFinite(input.volume) || input.volume <= 0) throw new AdendumError("Volume harus lebih dari 0.");
-  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) throw new AdendumError("Harga satuan tidak valid.");
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) throw new AdendumError("Harga satuan harus berupa angka dan tidak boleh negatif.");
   const volume = Math.round(input.volume * 1000) / 1000;
   const unitPrice = Math.round(input.unitPrice * 100) / 100;
 
@@ -394,7 +394,7 @@ export async function updateDraftNewItemFields(
       });
       if (lama) {
         throw new AdendumError(
-          `"${node.name}" adalah item kontrak lama – harga satuan dan identitasnya terkunci. Hanya volume yang boleh diubah.`,
+          `"${node.name}" adalah item kontrak lama, jadi harga satuan, kode, nama, dan satuannya terkunci. Hanya volume yang boleh diubah.`,
         );
       }
     }
@@ -413,7 +413,7 @@ export async function updateDraftNewItemFields(
     if (patch.unit !== undefined) data.unit = patch.unit?.trim() || null;
     if (patch.unitPrice !== undefined) {
       if (!Number.isFinite(patch.unitPrice) || patch.unitPrice < 0) {
-        throw new AdendumError("Harga satuan tidak valid.");
+        throw new AdendumError("Harga satuan harus berupa angka dan tidak boleh negatif.");
       }
       data.unitPrice = Math.round(patch.unitPrice * 100) / 100;
     }
@@ -496,7 +496,7 @@ export async function removeDraftNode(
     });
     const byId = new Map(all.map((n) => [n.id, n]));
     const target = byId.get(nodeId);
-    if (!target) throw new AdendumError("Node tidak ditemukan di draft ini.");
+    if (!target) throw new AdendumError("Baris itu tidak ditemukan di draft ini.");
 
     // Kumpulkan subtree.
     const childrenOf = new Map<string, string[]>();
@@ -524,7 +524,7 @@ export async function removeDraftNode(
     const blocked = items.find((n) => (realized.get(n.lineageKey) ?? 0) > EPS);
     if (blocked) {
       throw new AdendumError(
-        `"${blocked.name}" punya realisasi tercatat – tidak bisa dihapus. ` +
+        `"${blocked.name}" punya realisasi tercatat, jadi tidak bisa dihapus. ` +
           `Kecilkan volumenya sampai sama dengan realisasi (pekerjaan-kurang).`,
       );
     }

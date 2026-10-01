@@ -98,7 +98,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
 
   if (!isR2Configured()) {
     throw new DocumentError(
-      "Penyimpanan file (R2) belum dikonfigurasi – upload dinonaktifkan. Hubungi admin (menu Sistem → Diagnostik R2).",
+      "Penyimpanan file (R2) belum diatur, jadi unggahan belum bisa dipakai. Hubungi admin (menu Sistem → Diagnostik R2).",
     );
   }
 
@@ -230,7 +230,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
   });
   if (duplicate) {
     throw new DocumentError(
-      `File identik sudah pernah diunggah sebagai "${duplicate.title}" – tidak perlu diunggah ulang.`,
+      `File identik sudah pernah diunggah sebagai "${duplicate.title}", jadi tidak perlu diunggah ulang.`,
     );
   }
 

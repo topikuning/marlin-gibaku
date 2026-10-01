@@ -312,8 +312,8 @@ export default async function RabPage({
             <span className="flex flex-wrap items-center gap-2">
               <span>
                 {active
-                  ? `Progress, laporan, dan seluruh perhitungan resmi masih memakai revisi aktif #${active.revisionNo}. Draft baru menjadi sumber resmi hanya setelah diaktifkan.`
-                  : "Belum ada revisi aktif – aktifkan draft ini agar RAB bisa dipakai."}
+                  ? `Progress, laporan, dan seluruh perhitungan resmi masih memakai revisi aktif #${active.revisionNo}. Draft baru menjadi resmi setelah diaktifkan.`
+                  : "Belum ada revisi aktif. Aktifkan draft ini supaya RAB bisa dipakai."}
               </span>
               <ButtonLink href={href("revisi")} variant="secondary" size="sm">
                 Lihat revisi
@@ -329,7 +329,7 @@ export default async function RabPage({
           subtitle={
             active
               ? `Revisi aktif #${active.revisionNo} · ${itemCount} item · ${formatRupiah(Number(grand))} pra-PPN`
-              : "Belum ada revisi aktif – impor HPS terlebih dahulu."
+              : "Belum ada revisi aktif. Impor HPS dulu."
           }
           action={
             // Aksi = TOMBOL, bukan teks biru bergaris bawah di sebelah judul.
@@ -426,7 +426,7 @@ export default async function RabPage({
               />
             ) : (
               <p className="text-sm text-ink-muted">
-                Rencana mingguan butuh revisi RAB aktif. Impor HPS terlebih dahulu.
+                Rencana mingguan baru bisa dibuat setelah ada revisi RAB aktif. Impor HPS dulu.
               </p>
             )
           ) : null}
@@ -435,8 +435,8 @@ export default async function RabPage({
             <div className="space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-[13px] text-ink-muted">
-                  Aktifkan draft untuk menggantikan revisi aktif – realisasi tersambung otomatis via
-                  lineage, dan revisi lama tetap disimpan sebagai histori.
+                  Aktifkan draft untuk menggantikan revisi aktif. Realisasi otomatis tersambung ke revisi
+                  baru, dan revisi lama tetap disimpan sebagai riwayat.
                 </p>
                 {revisions.filter((r) => r.status !== "draft").length >= 2 ? (
                   <ButtonLink href={`/lokasi/${slug}/rab/bandingkan`} size="sm" variant="secondary">

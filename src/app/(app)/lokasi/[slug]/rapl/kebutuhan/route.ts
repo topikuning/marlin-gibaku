@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   /*
    * Berkasnya memuat harga satuan, biaya per kategori, dan margin — angka uang
    * yang sama dengan layar. `report.export` saja tidak cukup: ia dimiliki juga
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   ]);
   if (!basis) {
     return NextResponse.json(
-      { error: "Basis analisa AHSP belum dimuat – muat dulu di halaman Sistem." },
+      { error: "Basis analisa AHSP belum dimuat. Muat dulu di halaman Sistem." },
       { status: 409 },
     );
   }

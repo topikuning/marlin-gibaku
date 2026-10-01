@@ -159,7 +159,7 @@ export async function hasLocationAccess(user: SessionUser, locationId: string): 
 }
 
 export async function requireLocationAccess(user: SessionUser, locationId: string): Promise<void> {
-  if (!(await hasLocationAccess(user, locationId))) throw new ForbiddenError("Tidak punya akses ke lokasi ini");
+  if (!(await hasLocationAccess(user, locationId))) throw new ForbiddenError("Anda tidak punya akses ke lokasi ini.");
 }
 
 /**

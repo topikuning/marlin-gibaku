@@ -989,7 +989,7 @@ describe("mengaku saat tidak bisa", () => {
       event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
     );
     const teks = terkirim[0]?.teks ?? "";
-    expect(teks.toLowerCase()).toContain("tidak bisa membaca");
+    expect(teks.toLowerCase()).toContain("belum bisa menjawab pertanyaan bebas");
     // Tidak ada satu pun nama lokasi di balasan gagal.
     expect(teks).not.toContain("Kedung");
   });

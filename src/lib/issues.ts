@@ -147,7 +147,7 @@ export async function updateIssueStatus(_prev: IssueActionState, formData: FormD
      * DECISIONS 393.
      */
     if (issue.mergedIntoId) {
-      return { error: "Kendala ini sudah digabungkan – ubah statusnya di kendala induknya." };
+      return { error: "Kendala ini sudah digabungkan ke kendala lain. Ubah statusnya di kendala utamanya." };
     }
     await db.issue.update({
       where: { id: issue.id },
@@ -334,7 +334,7 @@ export async function setPemilikKendala(
      * diam-diam oleh mesin.
      */
     if (d.picUserId && d.picName) {
-      return { error: "Pilih SATU: pengguna MARLIN atau nama PIC luar – bukan keduanya." };
+      return { error: "Pilih salah satu: pengguna MARLIN atau nama PIC dari luar, bukan keduanya." };
     }
     await db.issue.update({
       where: { id: issue.id },
@@ -483,7 +483,7 @@ export async function gabungkanKendala(
     revalidateLocation(slug);
     return {
       success: dipindah
-        ? `Kendala digabungkan – ${dipindah} aksi pemulihan ikut dipindahkan.`
+        ? `Kendala digabungkan. ${dipindah} aksi pemulihan ikut dipindahkan.`
         : "Kendala digabungkan.",
     };
   } catch (err) {
@@ -582,7 +582,7 @@ export async function hapusKendala(
     revalidateLocation(slug);
     return {
       success: issue.fieldActivityId
-        ? "Kendala dihapus. Catatan kendala di kegiatan lapangannya belum berubah – perbaiki di sana bila perlu."
+        ? "Kendala dihapus. Catatan kendala di kegiatan lapangannya tidak ikut berubah, jadi perbaiki di sana bila perlu."
         : "Kendala dihapus.",
     };
   } catch (err) {

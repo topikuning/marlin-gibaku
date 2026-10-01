@@ -624,6 +624,6 @@ describe("menghapus kendala salah catat (DECISIONS 394)", () => {
     });
     const i = await db.issue.findFirstOrThrow({ where: { fieldActivityId: faId } });
     const r = await hapusKendala(undefined, fd({ issueId: i.id, alasan: "salah lokasi" }));
-    expect(r?.success).toMatch(/kegiatan lapangannya belum berubah/i);
+    expect(r?.success).toMatch(/kegiatan lapangannya tidak ikut berubah/i);
   });
 });

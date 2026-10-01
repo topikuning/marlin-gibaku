@@ -65,7 +65,7 @@ export default async function HariIniPage() {
         <EmptyState
           icon={CalendarDays}
           title="Belum ada penugasan lokasi"
-          description="Hubungi Site Manager untuk mendapat penugasan lokasi."
+          description="Anda belum ditugaskan ke lokasi mana pun. Hubungi Site Manager untuk meminta penugasan."
         />
       ) : null}
 
@@ -143,7 +143,7 @@ export default async function HariIniPage() {
               </h3>
               <Strip7Hari slug={s.slug} hari={s.last7Days} todayKey={todayKey} />
               <p className="mt-1.5 text-[12px] text-ink-muted">
-                Butuh tanggal lebih lama atau ringkasan kepatuhan?{" "}
+                Mau lapor tanggal yang lebih lama, atau lihat rekap kepatuhan lapor?{" "}
                 <Link href={`/lokasi/${s.slug}/harian`} className="font-medium text-primary hover:underline">
                   Buka Pelaksanaan Harian
                 </Link>

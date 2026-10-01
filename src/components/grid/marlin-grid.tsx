@@ -422,7 +422,7 @@ export function MarlinGrid<T>({
               <button
                 type="button"
                 onClick={aturUlangKolom}
-                title="Kembalikan lebar, urutan, dan kolom yang disembunyikan ke bawaan"
+                title="Kembalikan lebar, urutan, dan kolom yang disembunyikan ke pengaturan awal"
                 className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink-muted hover:bg-surface-muted hover:text-ink"
               >
                 <RotateCcw aria-hidden className="size-4" />

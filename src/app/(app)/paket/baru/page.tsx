@@ -19,7 +19,7 @@ export default async function PaketBaruPage() {
       <PageHeader
         breadcrumb={[{ label: "Paket", href: "/paket" }, { label: "Paket Baru" }]}
         title="Paket Baru"
-        description="Paket dimulai sebagai prospek. Lokasi target dan konversi kontrak dilakukan dari workspace paket."
+        description="Paket dimulai sebagai prospek. Lokasi target dan data kontrak diisi nanti di halaman paket."
       />
       <Card>
         <CardHeader title="Data prospek" />

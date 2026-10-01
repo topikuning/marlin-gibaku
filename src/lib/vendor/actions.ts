@@ -72,7 +72,7 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
     });
     if (!vendor) return { error: "Vendor tidak ditemukan." };
     if (vendor._count.contracts > 0 || vendor._count.commitments > 0) {
-      return { error: "Vendor masih dipakai kontrak/komitmen – gabungkan ke vendor lain, jangan hapus." };
+      return { error: "Vendor ini masih dipakai di kontrak atau komitmen, jadi tidak bisa dihapus. Gabungkan saja ke vendor lain." };
     }
     await db.vendor.delete({ where: { id: vendor.id } });
     await audit(actor.id, "vendor.delete", "vendor", vendor.id, { name: vendor.name });
@@ -141,7 +141,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       where: { orgId: actor.orgId, name: d.name, id: { not: d.id } },
       select: { id: true },
     });
-    if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain – gunakan fitur gabung bila memang sama.` };
+    if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain. Kalau memang vendor yang sama, gabungkan keduanya.` };
 
     const { isR2Configured, r2Put } = await import("@/lib/r2");
     const versi = Date.now().toString(36);
@@ -153,7 +153,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       label: string,
     ): Promise<{ key: string } | { error: string }> => {
       if (file.size > GAMBAR_MAX_BYTES) return { error: `Berkas ${label} terlalu besar (maks 8 MB).` };
-      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
+      if (!isR2Configured()) return { error: "Penyimpanan berkas (R2) belum diatur, jadi gambar belum bisa diunggah." };
       // Format dibaca dari ISI berkas, bukan `file.type`: berkas dari WhatsApp,
       // seret-lepas, atau ekstensi .jfif kerap datang tanpa MIME (atau MIME
       // salah) padahal gambarnya sah.

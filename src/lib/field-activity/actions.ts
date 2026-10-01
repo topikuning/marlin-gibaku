@@ -257,7 +257,7 @@ export async function createActivityAction(
       else if (hasil.gagalCap.length > 0)
         kantongGagal =
           `${hasil.gagalCap.length} foto kantong memakai cap dasar ` +
-          `(${[...new Set(hasil.gagalCap)].join(", ")}) – foto & datanya tetap utuh.`;
+          `(${[...new Set(hasil.gagalCap)].join(", ")}). Foto & datanya tetap utuh.`;
     }
 
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
@@ -266,7 +266,7 @@ export async function createActivityAction(
     });
     revalidate(location.slug);
     const warnings = [...new Set(photoErrors)];
-    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan – maksimal ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
+    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan karena maksimal ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
     if (kantongGagal) warnings.push(kantongGagal);
     return {
       success: "Kegiatan tersimpan (draft).",
@@ -316,7 +316,7 @@ export async function updateActivityAction(
     if (!ctx) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, ctx.locationId);
     if (ctx.status !== "draft") {
-      return { error: "Kegiatan sudah final – buka kembali dulu untuk mengoreksi." };
+      return { error: "Kegiatan sudah final. Buka kembali dulu untuk mengoreksi." };
     }
     const activeKeys = await activeActivityKindKeys();
     // Izinkan mempertahankan jenis lama walau kini nonaktif (jangan paksa ganti).
@@ -390,7 +390,7 @@ export async function addActivityPhotosAction(
     const ctx = await activityCtx(idParse.data);
     if (!ctx) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, ctx.locationId);
-    if (ctx.status !== "draft") return { error: "Kegiatan sudah final – tidak bisa ditambah foto." };
+    if (ctx.status !== "draft") return { error: "Kegiatan sudah final, jadi tidak bisa ditambah foto." };
 
     const files = filesFrom(formData);
     if (!files.length) return { error: "Tidak ada foto untuk diunggah." };
@@ -426,7 +426,7 @@ export async function addActivityPhotosAction(
     });
     revalidate(ctx.location.slug);
     const warnings = [...new Set(photoErrors)];
-    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan – batas ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
+    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan karena batasnya ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
     if (warnings.length) return { warning: warnings.join("; ") };
     return { success: "Foto ditambahkan." };
   } catch (err) {
@@ -479,7 +479,7 @@ export async function deleteActivityAction(
     const ctx = await activityCtx(idParse.data);
     if (!ctx) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, ctx.locationId);
-    if (ctx.status === "final") return { error: "Kegiatan final tidak bisa dihapus – buka kembali dulu bila perlu koreksi." };
+    if (ctx.status === "final") return { error: "Kegiatan yang sudah final tidak bisa dihapus. Buka kembali dulu bila perlu koreksi." };
 
     const [photos, attachments] = await Promise.all([
       db.photo.findMany({
@@ -529,7 +529,7 @@ export async function removeActivityPhotoAction(
     });
     if (!photo?.activity) return { error: "Foto kegiatan tidak ditemukan." };
     await requireLocationAccess(user, photo.activity.locationId);
-    if (photo.activity.status === "final") return { error: "Kegiatan sudah final – buka kembali dulu untuk menghapus foto." };
+    if (photo.activity.status === "final") return { error: "Kegiatan sudah final. Buka kembali dulu untuk menghapus foto." };
 
     await db.photo.delete({ where: { id: photo.id } });
     // `originalKey` ikut dihapus (audit 2026-08-28, I-5) — tanpa barisnya,
@@ -576,9 +576,9 @@ export async function addActivityAttachmentsAction(
     const ctx = await activityCtx(idParse.data);
     if (!ctx) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, ctx.locationId);
-    if (ctx.status !== "draft") return { error: "Kegiatan sudah final – tidak bisa ditambah lampiran." };
+    if (ctx.status !== "draft") return { error: "Kegiatan sudah final, jadi tidak bisa ditambah lampiran." };
     if (!isR2Configured()) {
-      return { error: "Penyimpanan file (R2) belum dikonfigurasi – unggah lampiran dinonaktifkan." };
+      return { error: "Penyimpanan file (R2) belum diatur, jadi lampiran belum bisa diunggah." };
     }
 
     const files = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
@@ -657,7 +657,7 @@ export async function removeActivityAttachmentAction(
     });
     if (!att?.activity) return { error: "Lampiran tidak ditemukan." };
     await requireLocationAccess(user, att.activity.locationId);
-    if (att.activity.status === "final") return { error: "Kegiatan sudah final – buka kembali dulu untuk menghapus lampiran." };
+    if (att.activity.status === "final") return { error: "Kegiatan sudah final. Buka kembali dulu untuk menghapus lampiran." };
 
     await db.fieldActivityAttachment.delete({ where: { id: att.id } });
     await deleteR2Keys([att.r2Key]);
@@ -693,7 +693,7 @@ export async function reopenActivityAction(
     });
     await audit(user.id, "field_activity.reopen", "field_activity", ctx.id, { locationId: ctx.locationId });
     revalidate(ctx.location.slug);
-    return { success: "Kegiatan dibuka kembali (draft) – bisa dikoreksi lalu difinalkan lagi." };
+    return { success: "Kegiatan dibuka kembali (draft). Silakan dikoreksi, lalu finalkan lagi." };
   } catch (err) {
     return fail(err);
   }

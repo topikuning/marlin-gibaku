@@ -301,7 +301,7 @@ async function pindahkanSatu(
   },
 ): Promise<void> {
   const kunci = foto.originalKey;
-  if (!kunci) throw new Error("tidak punya kunci berkas asli");
+  if (!kunci) throw new Error("tidak punya alamat berkas asli");
 
   const sudah = await periksaDingin(setelan, kunci);
   if (sudah.ada) {
@@ -481,7 +481,7 @@ export async function bacaBerkasAsli(foto: {
   }
   if (!masihDiR2)
     throw new Error(
-      "Arsip berkas asli tidak dikonfigurasi, sedangkan salinan R2 sudah dibuang.",
+      "Arsip berkas asli belum diatur, padahal salinan di R2 sudah dihapus.",
     );
   return await r2GetBuffer(foto.originalKey);
 }
@@ -607,7 +607,7 @@ export type BuktiArsip = {
  */
 export async function periksaIsiArsip(contoh = 10): Promise<BuktiArsip> {
   const setelan = setelanDingin();
-  if (!setelan) throw new Error("Arsip dingin belum dikonfigurasi.");
+  if (!setelan) throw new Error("Arsip berkas asli belum diatur.");
 
   const baris = await db.photo.findMany({
     where: { originalArchivedAt: { not: null }, originalKey: { not: null } },

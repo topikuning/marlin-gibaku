@@ -42,12 +42,12 @@ const LAPORAN_TEMPLATE_FOR_KIND: Partial<Record<string, string>> = {
 
 const KIND_LABEL: Record<string, string> = {
   kronologi: "Kronologi Lokasi",
-  pulse: "Portfolio Pulse",
-  deviasi: "Explain Variance",
-  risiko: "Risk Intelligence",
+  pulse: "Ringkasan Portofolio",
+  deviasi: "Penjelasan Deviasi",
+  risiko: "Prioritas Risiko",
   kualitas_data: "Audit Kualitas Data",
-  laporan: "Report Studio",
-  tanya: "Ask MARLIN",
+  laporan: "Buat Laporan",
+  tanya: "Tanya MARLIN",
   paparan: "Paparan KKP",
 };
 
@@ -192,7 +192,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <KpiCard label="Readiness rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "–"} />
+        <KpiCard label="Kesiapan data rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "–"} />
         <KpiCard label="Cakupan bukti" value={run.confidence != null ? `${run.confidence}%` : "–"} />
         <KpiCard label="Provider" value={run.provider ? `${run.provider}` : "–"} sub={run.model ?? undefined} />
         <KpiCard
@@ -203,7 +203,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         <KpiCard
           label="± Biaya"
           value={run.estimatedCostUsd != null ? `$${Number(run.estimatedCostUsd).toFixed(4)}` : "–"}
-          sub="estimasi (pricing admin)"
+          sub="perkiraan (tarif dari admin)"
         />
       </div>
 
@@ -211,7 +211,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         <Banner
           tone="error"
           title={`Analisis AI gagal (${run.errorCode})`}
-          description={`${run.errorMessage ?? ""} – data deterministik di bawah tetap berlaku.`}
+          description={`${run.errorMessage ?? ""} – data di bawah tetap berlaku karena dihitung sistem, bukan AI.`}
         />
       ) : null}
       {limitations.length > 0 ? (
@@ -272,7 +272,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
       {/* ── Snapshot angka resmi ── */}
       {official ? (
         <Card>
-          <CardHeader title="Angka resmi MARLIN (snapshot run)" subtitle={`Data per ${official.dataAsOf.slice(0, 16).replace("T", " ")} UTC – sumber kebenaran KPI, bukan narasi AI.`} />
+          <CardHeader title="Angka resmi MARLIN (saat analisis dibuat)" subtitle={`Data per ${official.dataAsOf.slice(0, 16).replace("T", " ")} UTC. Angka inilah yang berlaku, bukan narasi AI.`} />
           <CardBody>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
@@ -283,7 +283,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
                     <th className="px-3 py-2 text-right">Realisasi</th>
                     <th className="px-3 py-2 text-right">Deviasi</th>
                     <th className="px-3 py-2 text-right">Lap. final</th>
-                    <th className="px-3 py-2">Readiness</th>
+                    <th className="px-3 py-2">Kesiapan data</th>
                     <th className="px-3 py-2 text-right">Kendala</th>
                   </tr>
                 </thead>
@@ -320,8 +320,8 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
       {official?.narrative && official.narrative.locations.some((l) => l.reports.length || l.activities.length) ? (
         <Card>
           <CardHeader
-            title="Narasi lapangan (sumber mentah)"
-            subtitle="Catatan laporan harian & kegiatan lapangan apa adanya – dasar kutipan AI. Foto TIDAK dianalisis AI (hanya jumlah + tautan); isinya tetap perlu dilihat manusia."
+            title="Catatan lapangan (apa adanya)"
+            subtitle="Catatan laporan harian dan kegiatan lapangan seperti yang ditulis. Inilah yang dikutip AI. Foto TIDAK dianalisis AI (hanya jumlah dan tautannya), jadi isinya tetap perlu dilihat sendiri."
           />
           <CardBody className="space-y-4 text-sm">
             {official.narrative.locations
@@ -376,7 +376,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
 
       {/* ── Sumber data ── */}
       <Card>
-        <CardHeader title="Sumber data" subtitle="Setiap klaim AI merujuk id sumber di bawah. Buka untuk drill-down ke modul aslinya." />
+        <CardHeader title="Sumber data" subtitle="Setiap pernyataan AI merujuk ke salah satu sumber di bawah. Buka untuk melihat data aslinya." />
         <CardBody>
           <ul className="grid gap-2 md:grid-cols-2">
             {sources.map((s) => (
@@ -396,7 +396,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
 
       {/* ── Jejak audit ── */}
       <Card>
-        <CardHeader title="Jejak audit" subtitle="Semua aksi run & artefak tercatat append-only." />
+        <CardHeader title="Jejak audit" subtitle="Semua kegiatan pada analisis dan laporan ini tercatat dan tidak bisa diubah atau dihapus." />
         <CardBody>
           <ul className="space-y-1 text-sm">
             {auditTrail.map((a) => (
@@ -424,7 +424,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     return (
       <Card>
         <CardHeader
-          title="Analisis AI – Portfolio Pulse"
+          title="Analisis AI – Ringkasan Portofolio"
           subtitle={
             <span>
               Status keseluruhan: <Badge tone={STATUS_TONE[p.overallStatus]} label={p.overallStatus} /> · cakupan bukti {p.confidence}%
@@ -450,7 +450,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           ) : null}
           {p.actionsToConsider.length > 0 ? (
             <div>
-              <h4 className="mb-1 font-medium text-ink">Tindakan untuk dipertimbangkan (draft – bukan eksekusi)</h4>
+              <h4 className="mb-1 font-medium text-ink">Tindakan untuk dipertimbangkan (usulan, belum dijalankan)</h4>
               <ul className="space-y-1.5">
                 {p.actionsToConsider.map((x, i) => (
                   <li key={i} className="rounded-md border border-border px-3 py-2">
@@ -471,7 +471,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const v = out.deviasi as VarianceOutput;
     return (
       <Card>
-        <CardHeader title="Penjelasan deviasi" subtitle={`Cakupan bukti ${v.confidence}% · deviasi resmi tidak diubah AI`} />
+        <CardHeader title="Penjelasan deviasi" subtitle={`Cakupan bukti ${v.confidence}% · deviasi resmi tidak diubah oleh AI`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{v.summary}</p>
           {v.locations.map((l) => (
@@ -529,7 +529,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           <Card>
             <CardHeader
               title="Kesimpulan"
-              subtitle={`Cakupan bukti ${k.confidence}% · urutan peristiwa & hitungan kondisi disusun sistem, AI merangkai dan merapikan bahasanya`}
+              subtitle={`Cakupan bukti ${k.confidence}% · urutan peristiwa dan hitungannya disusun sistem; AI hanya merangkai dan merapikan bahasanya`}
             />
             <CardBody className="space-y-3 text-sm">
               <p className="text-base leading-relaxed text-ink">{k.kesimpulan}</p>
@@ -559,7 +559,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const r = out.risiko as RiskOutput;
     return (
       <Card>
-        <CardHeader title="Prioritas risiko" subtitle={`Cakupan bukti ${r.confidence}% · skor risiko dari aturan MARLIN, AI hanya memberi alasan`} />
+        <CardHeader title="Prioritas risiko" subtitle={`Cakupan bukti ${r.confidence}% · skor risiko dari aturan MARLIN; AI hanya menjelaskan alasannya`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{r.summary}</p>
           <ul className="space-y-1.5">
@@ -581,7 +581,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const flagged = findings.filter((f) => f.status === "gagal" || f.status === "periksa");
     return (
       <Card>
-        <CardHeader title="Audit Kualitas Data" subtitle="Status temuan ditentukan rule deterministik – AI hanya menjelaskan." />
+        <CardHeader title="Audit Kualitas Data" subtitle="Status tiap temuan ditentukan aturan MARLIN. AI hanya menjelaskan." />
         <CardBody className="space-y-3 text-sm">
           {q ? <p className="whitespace-pre-wrap text-ink">{q.summary}</p> : null}
           <ul className="space-y-1.5">
@@ -612,7 +612,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     return (
       <Card>
         <CardHeader
-          title="Jawaban Ask MARLIN"
+          title="Jawaban Tanya MARLIN"
           /*
            * Keyakinan 0 disebut apa adanya. Sejak DECISIONS 378 angka ini
            * DIHITUNG dari klaim yang lolos validasi, bukan diakui sendiri oleh
@@ -621,8 +621,8 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
            */
           subtitle={
             a.confidence === 0
-              ? "Tanpa sumber terverifikasi – tidak ada klaim angka yang cocok data resmi"
-              : `Cakupan bukti ${a.confidence}% (dihitung dari bagian yang lolos validasi)`
+              ? "Tanpa sumber terverifikasi – tidak ada angka di jawaban ini yang cocok dengan data resmi"
+              : `Cakupan bukti ${a.confidence}% (dihitung dari bagian yang lolos pemeriksaan)`
           }
         />
         <CardBody className="space-y-2 text-sm">

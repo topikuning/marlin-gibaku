@@ -59,7 +59,7 @@ export default async function PerluTindakanPage({
     <div className="space-y-4">
       <PageHeader
         title="Perlu Tindakan"
-        description="Peringatan dini berbasis aturan – progress, kontrak, laporan, temuan, kendala, dokumen. Semua angka dari calculation layer; tidak ada AI di halaman ini."
+        description="Peringatan dini soal progress, kontrak, laporan, temuan, kendala, dan dokumen. Semua dihitung dari aturan yang pasti dan angka resmi sistem, tanpa AI."
       />
 
       <section className="grid grid-cols-3 gap-2">
@@ -74,7 +74,7 @@ export default async function PerluTindakanPage({
             <EmptyState
               icon={Siren}
               title="Tidak ada peringatan"
-              description="Tidak ada aturan yang terpicu di lingkup Anda – atau belum ada penugasan lokasi."
+              description="Belum ada yang perlu ditindaklanjuti di lokasi Anda. Bisa juga karena Anda belum ditugaskan ke lokasi mana pun."
             />
           </CardBody>
         </Card>

@@ -99,7 +99,7 @@ async function bacaManifest(): Promise<ManifestAhsp> {
   const path = join(/*turbopackIgnore: true*/ folderSeed(), FOLDER_SIAP, NAMA_MANIFEST);
   if (!existsSync(path)) {
     throw new Error(
-      `Basis AHSP siap-alir belum dibangkitkan (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\` lalu commit hasilnya.`,
+      `Basis AHSP siap-alir belum dibuat (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\` lalu commit hasilnya.`,
     );
   }
   return JSON.parse(await readFile(path, "utf8")) as ManifestAhsp;
@@ -215,7 +215,7 @@ async function alirkanEntri(sourceId: string): Promise<{ entri: number }> {
   const path = join(/*turbopackIgnore: true*/ folderSeed(), FOLDER_SIAP, NAMA_NDJSON);
   if (!existsSync(path)) {
     throw new Error(
-      `Basis AHSP siap-alir belum dibangkitkan (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\`.`,
+      `Basis AHSP siap-alir belum dibuat (${path} tidak ada). Jalankan \`pnpm ahsp:siapkan\`.`,
     );
   }
 

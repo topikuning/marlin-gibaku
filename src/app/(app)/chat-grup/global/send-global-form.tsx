@@ -41,7 +41,7 @@ export function SendGlobalForm({
           {pending ? "Mengirim…" : "Kirim ke WhatsApp"}
         </Button>
         {contacts.length === 0 ? (
-          <span className="text-xs text-ink-muted">Tambah kontak di Master Data → Kontak WA.</span>
+          <span className="text-xs text-ink-muted">Belum ada kontak tujuan. Tambahkan dulu di Master Data → Kontak WA.</span>
         ) : null}
       </div>
     </form>

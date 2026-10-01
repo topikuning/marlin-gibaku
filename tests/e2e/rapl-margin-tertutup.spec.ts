@@ -20,7 +20,7 @@ import { test, expect, type Page } from "@playwright/test";
  * CI. Bukan karena penjaganya bocor — justru sebaliknya. `getByText` dengan
  * string mencocokkan SUBSTRING dan MENGABAIKAN besar-kecil huruf, sehingga ia
  * menjaring kalimat penjelas halaman itu sendiri: banner "…Harga satuan, biaya
- * pelaksanaan, dan potensi margin hanya untuk pengguna berhak akses keuangan",
+ * pelaksanaan, dan potensi margin hanya bisa dilihat oleh yang berwenang di bagian keuangan",
  * yang justru hanya muncul ketika kedua kapabilitas RAPL TIDAK ada.
  *
  * Jadi uji ini sekarang: `exact: true` untuk label KPI (cocok utuh dan peka
@@ -35,7 +35,7 @@ import { test, expect, type Page } from "@playwright/test";
 const SLUG = "kedungmutih";
 
 /** Kalimat yang HANYA dirender saat angka uang ditahan. Bukti positifnya. */
-const BANNER_DITAHAN = "Biaya dan margin tidak ditampilkan untuk peranmu";
+const BANNER_DITAHAN = "Biaya dan margin tidak ditampilkan untuk peran Anda";
 
 async function login(page: Page, username: string, password = "marlin123") {
   await page.goto("/masuk");

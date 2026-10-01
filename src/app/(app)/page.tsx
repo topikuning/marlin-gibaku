@@ -226,7 +226,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
             <EmptyState
               icon={ClipboardCheck}
               title="Tidak ada tindakan tertunda"
-              description="Laporan, verifikasi, dan kendala semua sudah ditangani."
+              description="Semua laporan, verifikasi, dan kendala sudah ditangani."
             />
           </div>
         )}
@@ -310,7 +310,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
       </section>
       {critical.length === 0 && openIssues.length === 0 ? null : (
         <p className="flex items-center gap-1 text-xs text-ink-muted">
-          <FileWarning className="h-3.5 w-3.5" aria-hidden /> Deviasi dihitung dari baseline aktif; klik item untuk data pembentuknya.
+          <FileWarning className="h-3.5 w-3.5" aria-hidden /> Deviasi dihitung dari baseline aktif. Klik salah satu untuk melihat rincian angkanya.
         </p>
       )}
     </div>

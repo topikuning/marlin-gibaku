@@ -32,7 +32,7 @@ export async function imporAhspAction(): Promise<AhspActionState> {
 
     if (h.takBerubah) {
       return {
-        success: `Basis AHSP sudah mutakhir – berkasnya identik (${h.total.toLocaleString("id-ID")} analisa). Tidak ada yang ditulis ulang.`,
+        success: `Basis AHSP sudah yang terbaru. Berkasnya sama persis (${h.total.toLocaleString("id-ID")} analisa), jadi tidak ada yang perlu diperbarui.`,
       };
     }
     const komponen = h.komponen.upah + h.komponen.bahan + h.komponen.alat;

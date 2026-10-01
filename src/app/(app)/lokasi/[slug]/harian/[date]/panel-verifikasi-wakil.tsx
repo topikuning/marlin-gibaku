@@ -38,7 +38,7 @@ export function PanelVerifikasiWakil({
     <Card>
       <CardHeader
         title="Verifikasi Wakil PPK"
-        subtitle="Jejak pemeriksaan pemberi kerja – tidak mengubah status laporan"
+        subtitle="Catatan pemeriksaan dari pemberi kerja. Tidak mengubah status laporan."
         action={
           terkini ? (
             <StatusPill tone={REPORT_VERIF_STATUS_TONE[terkini.status]} label={REPORT_VERIF_STATUS_LABEL[terkini.status]} />

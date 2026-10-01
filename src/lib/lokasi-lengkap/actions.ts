@@ -54,14 +54,14 @@ export async function kirimLaporanLokasiWaAction(
       },
     });
     if (!lokasi) return { error: "Lokasi tidak ditemukan." };
-    if (!(await isWahaConfigured())) return { error: "WhatsApp (WAHA) belum dikonfigurasi." };
+    if (!(await isWahaConfigured())) return { error: "WhatsApp (WAHA) belum disiapkan. Hubungi admin." };
     // Tujuan dijawab resolver, bukan dibaca dari paket: lokasi bisa punya grup
     // kabupaten sendiri (DECISIONS 596).
     const grup = await grupUntukLokasi(locationId);
     if (!grup) {
       return {
         error:
-          "Lokasi ini belum terhubung ke grup WhatsApp mana pun – pasang grup kabupatennya " +
+          "Lokasi ini belum terhubung ke grup WhatsApp mana pun. Pasang grup kabupatennya " +
           "di halaman Lokasi, atau grup paket di halaman Paket.",
       };
     }
@@ -73,7 +73,7 @@ export async function kirimLaporanLokasiWaAction(
      */
     const { buatLaporanLokasiLengkap } = await import("./snapshot");
     const laporan = await buatLaporanLokasiLengkap(locationId);
-    if (!laporan) return { error: "Lokasi tidak ditemukan saat menyusun laporannya." };
+    if (!laporan) return { error: "Lokasinya tidak ditemukan waktu laporan disusun. Muat ulang halaman, lalu coba lagi." };
 
     const { renderLaporanLokasiPdf } = await import("./render-pdf");
     const pdf = await renderLaporanLokasiPdf(laporan);

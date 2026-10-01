@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Banner
           tone="warning"
           title="Akun Anda belum ditugaskan ke lokasi mana pun"
-          description="Karena itu daftar paket, lokasi, progres, dan laporan tampil kosong – bukan karena datanya tidak ada. Minta admin menugaskan lokasi ke akun Anda."
+          description="Karena itu daftar paket, lokasi, progres, dan laporan tampil kosong, padahal belum tentu datanya tidak ada. Minta admin menugaskan lokasi ke akun Anda."
           className="mb-4"
         />
       ) : null}

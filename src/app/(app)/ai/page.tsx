@@ -67,35 +67,35 @@ export default async function AiPulsePage({
           </Link>
           <span className="rounded-md border border-border p-3">
             <span className="block font-medium text-ink">2. Periksa sumber</span>
-            <span className="text-ink-muted">Buka bukti di jawaban; bagian tanpa sumber dibuang otomatis.</span>
+            <span className="text-ink-muted">Buka bukti di setiap jawaban. Bagian yang tidak bersumber dibuang otomatis.</span>
           </span>
           <Link href="/ai/reports" className="rounded-md border border-border p-3 hover:border-primary">
-            <span className="block font-medium text-ink">3. Jadikan keluaran kerja</span>
-            <span className="text-ink-muted">Susun draf, edit seluruh isi, review, bekukan, lalu kirim.</span>
+            <span className="block font-medium text-ink">3. Jadikan laporan</span>
+            <span className="text-ink-muted">Susun draf, sunting isinya, periksa, bekukan, lalu kirim.</span>
           </Link>
         </CardBody>
       </Card>
       {!guard.enabled ? (
         <Banner
           tone="warning"
-          title="Fitur AI sedang dinonaktifkan admin (kill switch)"
-          description="Data deterministik di bawah tetap berlaku."
+          title="Fitur AI sedang dimatikan oleh admin"
+          description="Data di bawah tetap berlaku karena dihitung sistem, bukan AI."
         />
       ) : !aiCfg ? (
         <Banner
           tone="info"
-          title="Provider AI belum dikonfigurasi (Sistem → AI)"
-          description="Pulse deterministik tetap berfungsi; narasi AI nonaktif."
+          title="AI belum diatur (Sistem → AI)"
+          description="Ringkasan dan tabel di bawah tetap bisa dipakai. Hanya penjelasan dari AI yang belum tersedia."
         />
       ) : null}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Lokasi dalam scope" value={String(t.locations)} sub={`periode ${pulse.periodStart} – ${pulse.periodEnd}`} />
+        <KpiCard label="Lokasi Anda" value={String(t.locations)} sub={`periode ${pulse.periodStart} – ${pulse.periodEnd}`} />
         <KpiCard
           label="Laporan final"
           value={`${t.reportsFinal}/${t.reportsExpected}`}
           tone={t.reportsExpected > 0 && t.reportsFinal / t.reportsExpected < 0.5 ? "warning" : "default"}
-          sub="vs diharapkan"
+          sub="dari yang seharusnya masuk"
         />
         <KpiCard
           label="Deviasi negatif"
@@ -103,18 +103,18 @@ export default async function AiPulsePage({
           tone={t.negativeDeviationLocations > 0 ? "danger" : "success"}
           sub="lokasi tertinggal"
         />
-        <KpiCard label="Kendala terbuka" value={String(t.openIssues)} tone={t.openIssues > 0 ? "warning" : "success"} sub="lintas scope" />
+        <KpiCard label="Kendala terbuka" value={String(t.openIssues)} tone={t.openIssues > 0 ? "warning" : "success"} sub="semua lokasi Anda" />
         <KpiCard
-          label="Recovery overdue"
+          label="Pemulihan terlambat"
           value={String(t.overdueRecoveries)}
           tone={t.overdueRecoveries > 0 ? "danger" : "success"}
           sub="melewati target"
         />
         <KpiCard
-          label="Readiness rendah"
+          label="Data belum siap"
           value={String(t.lowReadinessLocations)}
           tone={t.lowReadinessLocations > 0 ? "warning" : "success"}
-          sub="data belum layak analisis"
+          sub="belum cukup untuk dianalisis"
         />
       </div>
 

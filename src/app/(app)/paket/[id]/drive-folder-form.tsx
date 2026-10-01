@@ -32,7 +32,7 @@ export function DriveFolderForm({
         <Banner
           tone="warning"
           title="Akun Google belum terhubung"
-          description="Hubungkan dulu di Sistem → Integrasi → Google Drive; folder tetap bisa disimpan sekarang."
+          description="Hubungkan dulu di Sistem → Integrasi → Google Drive. Folder tetap bisa disimpan sekarang."
         />
       ) : null}
       <input type="hidden" name="packageId" value={packageId} />
@@ -46,7 +46,7 @@ export function DriveFolderForm({
         />
         <HelpText>
           Folder dari KKP untuk paket ini. Akun Google MARLIN harus terdaftar sebagai editor di folder
-          tersebut. Kosongkan lalu simpan untuk melepas.
+          tersebut. Untuk melepas folder, kosongkan isian ini lalu simpan.
         </HelpText>
       </div>
       <div className="flex flex-wrap items-center gap-2">

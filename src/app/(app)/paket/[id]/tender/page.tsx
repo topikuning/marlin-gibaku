@@ -171,7 +171,7 @@ export default async function TenderPage({
       <Card className="self-start">
         <CardHeader
           title="Administrasi pemilihan & penunjukan"
-          subtitle="Milestone administrasi PBJ (read-only – kelola di modul Administrasi)"
+          subtitle="Milestone administrasi PBJ. Di sini hanya untuk dilihat; ubah di modul Administrasi."
         />
         <CardBody>
           {milestones.length === 0 ? (

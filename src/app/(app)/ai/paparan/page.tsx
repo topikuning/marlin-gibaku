@@ -167,22 +167,22 @@ export default async function PaparanPage({
       {!aiCfg ? (
         <Banner
           tone="info"
-          title="Provider AI belum aktif – paparan tetap bisa dibuat"
-          description="Narasinya disusun deterministik dari data terstruktur MARLIN, dan itu disebut di slide lampiran."
+          title="AI belum aktif – paparan tetap bisa dibuat"
+          description="Narasinya disusun sistem langsung dari data MARLIN, dan hal itu disebutkan di slide lampiran."
         />
       ) : null}
       {tersembunyi > 0 ? (
         <Banner
           tone="info"
           title={`${tersembunyi} paket disembunyikan`}
-          description="Paket yang tidak satu pun lokasinya ada dalam penugasan Anda tidak ditawarkan."
+          description="Paket yang tidak memuat lokasi tugas Anda tidak ditampilkan."
         />
       ) : null}
       {sebagian > 0 ? (
         <Banner
           tone="info"
           title={`${sebagian} paket hanya bisa dipaparkan per lokasi`}
-          description="Paparan seluruh paket menuntut akses ke SEMUA lokasi aktifnya – paparan kontrak parsial tidak boleh menyamar sebagai paparan lengkap. Lokasi penugasan Anda tetap bisa dipaparkan sendiri-sendiri."
+          description="Paparan seluruh paket hanya bisa dibuat kalau Anda punya akses ke SEMUA lokasi aktifnya, supaya paparan sebagian tidak terbaca sebagai paparan lengkap. Lokasi tugas Anda tetap bisa dipaparkan satu per satu."
         />
       ) : null}
 
@@ -194,17 +194,17 @@ export default async function PaparanPage({
           sudahAda={sudahAda}
         />
       ) : (
-        <Banner tone="info" title="Anda bisa melihat paparan, tetapi tidak membuat baru (butuh ai.generate)." />
+        <Banner tone="info" title="Anda bisa melihat paparan, tetapi belum punya izin membuat paparan baru." />
       )}
 
       <Card>
         <CardHeader
           title="Paparan terbaru"
-          subtitle="Satu paparan = satu lingkup (paket atau lokasi) + satu minggu kontrak + satu versi. Regenerate selalu membuat versi baru."
+          subtitle="Setiap paparan mencakup satu lingkup (paket atau lokasi), satu minggu kontrak, dan satu versi. Membuat ulang selalu menghasilkan versi baru."
         />
         <CardBody className="px-0 py-0">
           {artefak.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-ink-muted">Belum ada paparan. Buat dari formulir di atas.</p>
+            <p className="px-5 py-6 text-sm text-ink-muted">Belum ada paparan. Buat lewat formulir di atas.</p>
           ) : (
             <ul className="divide-y divide-border">
               {artefak.map((a) => {

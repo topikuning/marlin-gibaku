@@ -82,7 +82,7 @@ export function SaringKendala({
             { value: "manual", label: "Dicatat langsung" },
             { value: "laporan_harian", label: "Laporan harian" },
             { value: "kegiatan_lapangan", label: "Kegiatan lapangan" },
-            { value: "ai", label: "Ask MARLIN" },
+            { value: "ai", label: "Tanya MARLIN" },
           ]}
         />
       </div>

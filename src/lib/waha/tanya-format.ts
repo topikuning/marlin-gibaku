@@ -515,11 +515,11 @@ export function balasProduksiBerkas(
       "alat, cuaca, lampiran foto, dan kendala yang tercatat hari itu.",
       "",
       "Ini blanko setoran lapangan, BUKAN laporan eksekutif yang ditandatangani.",
-      "Yang ditandatangani disusun di MARLIN → *AI* → *Report Studio* lewat",
-      "review → disetujui → dibekukan, supaya angkanya tidak berubah setelah",
-      "dikirim.",
+      "Laporan yang ditandatangani disusun di MARLIN → *AI* → *Buat Laporan*:",
+      "diperiksa, disetujui, lalu dibekukan, supaya angkanya tidak berubah",
+      "setelah dikirim.",
       "",
-      "Kalau yang kamu butuhkan versi ringkasan untuk dibaca di grup, sebut",
+      "Kalau yang Anda butuhkan versi ringkasan untuk dibaca di grup, sebut",
       "“ringkasan harian”.",
     ].join("\n");
   }
@@ -531,8 +531,8 @@ export function balasProduksiBerkas(
     "",
     "Ini dokumen BACAAN untuk grup – bukan blanko setoran KKP, dan bukan laporan",
     "eksekutif yang ditandatangani. Blanko KKP-nya tinggal diminta dengan",
-    "menyebut “versi kkp”; yang ditandatangani disusun di MARLIN → *AI* →",
-    "*Report Studio* lewat review → disetujui → dibekukan.",
+    "menyebut “versi kkp”. Laporan yang ditandatangani disusun di MARLIN → *AI* →",
+    "*Buat Laporan*: diperiksa, disetujui, lalu dibekukan.",
   ].join("\n");
 }
 
@@ -553,12 +553,12 @@ export function balasProduksi(): string {
   return [
     "*Membuat & mengirim laporan belum bisa lewat chat*",
     "",
-    "Laporan resmi harus melewati review → disetujui → dibekukan dulu supaya",
-    "angkanya tidak berubah setelah dikirim. Pagar itu ada di aplikasi, bukan di",
-    "chat – jadi saya tidak bisa membuatnya dari sini.",
+    "Laporan resmi harus diperiksa, disetujui, lalu dibekukan dulu supaya",
+    "angkanya tidak berubah setelah dikirim. Langkah itu hanya ada di aplikasi,",
+    "jadi saya tidak bisa membuatnya dari chat.",
     "",
     "*Jalannya*",
-    "Buka MARLIN → menu *AI* → *Report Studio*. Di sana laporan disusun, diperiksa,",
+    "Buka MARLIN → menu *AI* → *Buat Laporan*. Di sana laporan disusun, diperiksa,",
     "disetujui, lalu dikirim sebagai PDF/Excel/WhatsApp dengan angka yang sama persis.",
     "",
     "*Yang bisa saya berikan sekarang juga*",

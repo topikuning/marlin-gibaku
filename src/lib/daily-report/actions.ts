@@ -113,7 +113,7 @@ function errState(err: unknown): DailyActionState {
 
   console.error("[laporan-harian] galat tak terduga", err);
   const nama = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  return { error: `Gagal diproses – ${nama}. Salin pesan ini saat melapor.` };
+  return { error: `Gagal diproses (${nama}). Salin pesan ini saat melapor.` };
 }
 
 /** Ambil report + slug/dateKey untuk otorisasi & revalidate. */
@@ -316,8 +316,8 @@ async function unggahFotoPelengkap(p: {
     files.length > 0 ? (await (await import("@/lib/policy")).getPolicy()).requirePhotoGps : false;
   if (wajibGps && source === "camera" && (foto.photoLat == null || foto.photoLng == null)) {
     throw new DailyReportError(
-      "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
-        "Izinkan akses lokasi di browser, lalu foto ulang.",
+      "Foto dari kamera wajib memuat titik GPS, tetapi HP tidak mengirimkannya. " +
+        "Izinkan akses lokasi di peramban, lalu foto ulang.",
     );
   }
   const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
@@ -413,8 +413,8 @@ async function unggahFotoItem(p: {
   const wajibGps = files.length > 0 ? (await (await import("@/lib/policy")).getPolicy()).requirePhotoGps : false;
   if (wajibGps && source === "camera" && (foto.photoLat == null || foto.photoLng == null)) {
     throw new DailyReportError(
-      "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
-        "Izinkan akses lokasi di browser (tombol di atas tombol Kamera), lalu foto ulang.",
+      "Foto dari kamera wajib memuat titik GPS, tetapi HP tidak mengirimkannya. " +
+        "Izinkan akses lokasi di peramban (tombol di atas tombol Kamera), lalu foto ulang.",
     );
   }
   const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
@@ -650,7 +650,7 @@ export async function addItemPhotosAction(
     // Batas yang sama dengan hapus foto: begitu laporan dikirim, fotonya sudah
     // jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
     if (!EDITABLE_STATUSES.includes(ctx.status)) {
-      return { error: "Laporan sudah dikirim – foto tidak bisa ditambah lagi." };
+      return { error: "Laporan sudah dikirim, jadi foto tidak bisa ditambah lagi." };
     }
 
     const item = await db.dailyReportItem.findFirst({
@@ -859,7 +859,7 @@ export async function returnPhotoToKantongAction(
       };
     }
     if (!EDITABLE_STATUSES.includes(photo.report.status)) {
-      return { error: "Hanya bisa saat laporan berstatus Draft atau Perlu Koreksi." };
+      return { error: "Foto hanya bisa dipindah saat laporan berstatus Draft atau Perlu Koreksi." };
     }
     const miliknyaSendiri = photo.uploadedById !== null && photo.uploadedById === user.id;
     if (!miliknyaSendiri && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role)) {
@@ -928,7 +928,7 @@ export async function fetchWeatherAction(_prev: DailyActionState, formData: Form
       !can(user.role, "daily_report.review") &&
       !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
     ) {
-      return { error: "Laporan sudah dikirim – data KKP dilengkapi oleh Site Manager saat verifikasi." };
+      return { error: "Laporan sudah dikirim. Data KKP dilengkapi Site Manager saat verifikasi." };
     }
 
     let result;
@@ -978,7 +978,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
       !can(user.role, "daily_report.review") &&
       !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
     ) {
-      return { error: "Laporan sudah dikirim – data KKP dilengkapi oleh Site Manager saat verifikasi." };
+      return { error: "Laporan sudah dikirim. Data KKP dilengkapi Site Manager saat verifikasi." };
     }
 
     const workers = WORKER_ROLE_ORDER.map((role: WorkerRole) => ({
@@ -1166,10 +1166,10 @@ export async function submitReportAction(_prev: DailyActionState, formData: Form
     return {
       success:
         hasil?.jadi === "dibuat"
-          ? "Laporan terkirim beserta 1 kendala – menunggu verifikasi."
+          ? "Laporan terkirim beserta 1 kendala. Sekarang menunggu verifikasi."
           : hasil?.jadi === "duplikat"
-            ? `Laporan terkirim – menunggu verifikasi. Kendala serupa sudah terbuka ("${hasil.title}"), jadi tidak dicatat dua kali.`
-            : "Laporan terkirim – menunggu verifikasi.",
+            ? `Laporan terkirim dan menunggu verifikasi. Kendala serupa sudah terbuka ("${hasil.title}"), jadi tidak dicatat dua kali.`
+            : "Laporan terkirim dan menunggu verifikasi.",
     };
   } catch (err) {
     return errState(err);
@@ -1243,7 +1243,7 @@ export async function finalizeReportAction(_prev: DailyActionState, formData: Fo
     await finalizeReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     dorongAntreanDrive();
-    return { success: "Laporan difinalisasi – siap dicetak." };
+    return { success: "Laporan sudah final dan siap dicetak." };
   } catch (err) {
     return errState(err);
   }

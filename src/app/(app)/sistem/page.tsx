@@ -350,7 +350,7 @@ export default async function SistemPage() {
           {bootstrapTertinggal && (
             <HealthRow
               label="BOOTSTRAP_ADMIN_PASSWORD"
-              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah basi begitu password diganti saat login pertama – jadi ia tidak membeli apa pun, tapi tetap terlihat siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
+              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah tidak berlaku sejak password diganti saat login pertama, jadi tidak ada gunanya. Tapi ia tetap terlihat oleh siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
               tone="warning"
               status="Masih terpasang"
             />
@@ -436,7 +436,7 @@ export default async function SistemPage() {
       <PolicyCard nilai={policy} />
 
       <Card className="lg:col-span-2">
-        <CardHeader title="Perubahan Terbaru" subtitle="6 mutasi terakhir" />
+        <CardHeader title="Perubahan Terbaru" subtitle="6 perubahan terakhir" />
         <CardBody>
           {auditLogs.slice(0, 6).map((l) => (
             <div
@@ -466,7 +466,7 @@ export default async function SistemPage() {
       <Card className="lg:col-span-2">
         <CardHeader
           title="Lokasi kembar"
-          subtitle="Nama kembar di satu paket & satu desa yang terdaftar dua kali"
+          subtitle="Lokasi yang terdaftar dua kali dengan nama sama di paket dan desa yang sama"
         />
         <CardBody>
           <LokasiKembarPanel laporan={lokasiKembar} />
@@ -502,7 +502,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Arsip dingin berkas asli"
-          subtitle="Pindahkan berkas asli foto ke penyimpanan sendiri – yang ber-cap tetap di R2"
+          subtitle="Berkas asli foto dipindah ke penyimpanan sendiri. Foto ber-cap tetap di R2."
         />
         <CardBody>
           <ArsipAsliPanel {...arsipAsli} />
@@ -512,7 +512,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pindahkan berkas ke Lenovo"
-          subtitle="Jaga R2 di bawah batasnya – foto ber-cap, dokumen, surat, dan lampiran lama dipindah, link tetap sama"
+          subtitle="Berkas lama disimpan di server Lenovo supaya R2 tidak penuh. Link-nya tetap sama."
         />
         <CardBody>
           <PindahBerkasPanel {...pindahBerkas} />
@@ -522,7 +522,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Isi penyimpanan R2"
-          subtitle="Berapa yang terpakai, berapa yang sampah – dan buang yang sampah"
+          subtitle="Lihat berapa yang terpakai dan berapa yang sampah, lalu buang sampahnya"
         />
         <CardBody>
           <PenyimpananPanel configured={r2On} fotoHeic={fotoHeic} />
@@ -545,8 +545,8 @@ export default async function SistemPage() {
 
       <Card>
         <CardHeader
-          title="Tangkap Percakapan WhatsApp (webhook)"
-          subtitle="Arsipkan pesan grup tertaut paket – fondasi ringkasan/telusur berbasis AI"
+          title="Arsip Percakapan WhatsApp (webhook)"
+          subtitle="Simpan pesan grup yang ditautkan ke paket, sebagai bahan ringkasan dan pencarian oleh AI"
         />
         <CardBody>
           <WahaWebhookPanel
@@ -570,7 +570,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Google Drive"
-          subtitle="Upload PDF/Excel laporan harian & mingguan ke folder Drive per paket (pemberian KKP)"
+          subtitle="Unggah PDF/Excel laporan harian & mingguan ke folder Drive tiap paket (pemberian KKP)"
         />
         <CardBody className="space-y-4">
           <IntegrationHeader
@@ -587,7 +587,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Basis data AHSP"
-          subtitle="Analisa Harga Satuan Pekerjaan SE DJBK 47/2026 – dasar penurunan kebutuhan bahan, upah, dan alat dari RAB"
+          subtitle="Analisa Harga Satuan Pekerjaan SE DJBK 47/2026 – dasar menghitung kebutuhan bahan, upah, dan alat dari RAB"
         />
         <CardBody>
           <AhspPanel ringkas={await ringkasAhsp()} />
@@ -597,7 +597,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Unggah otomatis ke Drive KKP"
-          subtitle="Laporan harian final & laporan mingguan tiap lokasi naik sendiri – dicicil berlaju supaya tidak diblok Google"
+          subtitle="Laporan harian final & laporan mingguan tiap lokasi terunggah otomatis, sedikit demi sedikit supaya tidak diblokir Google"
         />
         <CardBody>
           <GDriveOtomatisPanel
@@ -637,7 +637,7 @@ export default async function SistemPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Aktivitas Keamanan" subtitle="Mutasi terkait akun, sesi & sistem" />
+          <CardHeader title="Aktivitas Keamanan" subtitle="Perubahan terkait akun, sesi & sistem" />
           <CardBody>
             {securityLogs.length === 0 ? (
               <p className="text-sm text-ink-muted">Belum ada aktivitas keamanan tercatat.</p>
@@ -664,7 +664,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Hak Akses per Peran"
-          subtitle="Matriks kapabilitas (read-only) – sumber: src/lib/authz.ts"
+          subtitle="Daftar hak akses tiap peran (hanya bisa dilihat). Sumber: src/lib/authz.ts"
         />
         <CardBody>
           <div className="overflow-x-auto">
@@ -717,7 +717,7 @@ export default async function SistemPage() {
             </table>
           </div>
           <p className="mt-3 text-[13px] text-ink-muted">
-            Matriks ini didefinisikan di kode (single source of truth) dan belum dapat diedit dari UI.
+            Hak akses ini ditetapkan di kode program dan belum bisa diubah dari layar ini.
           </p>
         </CardBody>
       </Card>
@@ -754,7 +754,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pengaman AI"
-          subtitle="Provider cadangan saat provider aktif gagal, dan penerima alarm bila AI gagal beruntun (DECISIONS 635)"
+          subtitle="Provider cadangan bila provider aktif gagal, dan siapa yang diberi tahu bila AI gagal berkali-kali (DECISIONS 635)"
         />
         <CardBody>
           <AiPengamanPanel
@@ -768,7 +768,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Kontrol AI Hub"
-          subtitle="Kill switch, rate limit, batas ukuran, dan pricing token – mengatur seluruh fitur AI Intelligence (DECISIONS 133)"
+          subtitle="Tombol mati, batas pemakaian, batas ukuran, dan harga token untuk seluruh fitur AI (DECISIONS 133)"
         />
         <CardBody>
           <AiGuardPanel
@@ -810,7 +810,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Cap Foto – Warna Aksen & Tata Letak"
-          subtitle="Warna aksen photo stamp, kekuatan overlay, ukuran, dan elemen yang ditampilkan"
+          subtitle="Warna aksen cap foto, kepekatan latar teks, ukuran, dan elemen yang ditampilkan"
         />
         <CardBody>
           <PhotoStampPanel initial={photoStamp} />
@@ -820,7 +820,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Jenis Kegiatan Lapangan"
-          subtitle="Master data pilihan dropdown saat mencatat kegiatan lapangan (survei awal, PCM, dst.)"
+          subtitle="Daftar pilihan jenis kegiatan saat mencatat kegiatan lapangan (survei awal, PCM, dst.)"
         />
         <CardBody>
           <ActivityKindsPanel kinds={activityKinds} />
@@ -835,7 +835,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pengingat laporan harian"
-          subtitle="Kirim sekarang, di luar jadwal – memakai perhitungan yang sama dengan penjadwal"
+          subtitle="Kirim sekarang tanpa menunggu jadwal. Penerimanya dihitung sama seperti kiriman terjadwal."
         />
         <CardBody>
           <PengingatPanel pratinjau={pratinjau} />
@@ -844,7 +844,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pengingat harian → grup WA paket"
-          subtitle="Menagih di grup tiap paket yang laporannya belum lengkap – berjeda satu menit antar grup"
+          subtitle="Mengingatkan di grup tiap paket yang laporannya belum lengkap, berjeda satu menit antar grup"
         />
         <CardBody>
           <PengingatGrupPanel aktif={await getPengingatGrupAktif()} />
@@ -853,18 +853,18 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Laporan progres mingguan → grup WA"
-          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket – mengikuti mode periode minggu di kontraknya (Senin–Minggu atau 7 hari sejak SPMK)"
+          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket, mengikuti cara hitung minggu di kontraknya (Senin–Minggu atau 7 hari sejak SPMK)"
         />
         <CardBody>
           <MingguanPanel aktif={await getMingguanAktif()} />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar – harian, plus antrean Drive tiap jam" />
+        <CardHeader title="Penjadwal otomatis" subtitle="Dijalankan dari luar: sekali sehari, ditambah antrean Drive tiap jam" />
         <CardBody className="space-y-3 text-[13px] text-ink-muted">
           <p>
-            Pekerjaan harian (aktivasi SPMK yang jatuh tempo + pengingat WA) dijalankan penjadwal
-            LUAR yang memanggil <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/harian</code>{" "}
+            Pekerjaan harian (aktivasi SPMK yang jatuh tempo + pengingat WA) dijalankan oleh penjadwal
+            di LUAR aplikasi yang memanggil <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/harian</code>{" "}
             dengan header <code className="rounded bg-surface-inset px-1 py-0.5">x-cron-secret</code>.
             Repo ini menyertakan workflow GitHub Actions{" "}
             <code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-harian.yml</code>{" "}
@@ -874,10 +874,10 @@ export default async function SistemPage() {
             Antrean unggah Drive punya rute sendiri –{" "}
             <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/gdrive</code>{" "}
             (<code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-gdrive.yml</code>,
-            tiap jam). Bukan pemborosan: tiap putaran sengaja menahan diri supaya akun Google tidak
-            diblok, jadi tunggakan besar habis lewat putaran yang lebih SERING, bukan yang lebih
-            rakus. Tanpa jadwal itu antrean tetap jalan – hanya sekali sehari, menumpang putaran
-            harian.
+            tiap jam). Ini bukan pemborosan. Tiap kali jalan, jumlah unggahannya sengaja dibatasi
+            supaya akun Google tidak diblokir. Jadi tumpukan besar dihabiskan dengan jalan lebih
+            SERING, bukan dengan mengunggah lebih banyak sekaligus. Tanpa jadwal itu antrean tetap
+            jalan, tapi hanya sekali sehari bersama pekerjaan harian.
           </p>
           <HealthRow
             label="CRON_SECRET"
@@ -890,7 +890,7 @@ export default async function SistemPage() {
             status={cronSecretSiap ? "Terisi" : "Belum diisi"}
           />
           <p>
-            Tanpa penjadwal, tombol di atas tetap bisa dipakai – bedanya harus ditekan manusia tiap
+            Tanpa penjadwal, tombol di atas tetap bisa dipakai, hanya saja harus ditekan sendiri tiap
             hari.
           </p>
         </CardBody>
@@ -901,7 +901,7 @@ export default async function SistemPage() {
   const auditPanel: ReactNode = (
     <div className="space-y-5">
       <Card>
-        <CardHeader title="Log Aktivitas" subtitle="100 mutasi terakhir (append-only)" />
+        <CardHeader title="Log Aktivitas" subtitle="100 perubahan terakhir (tidak bisa diubah atau dihapus)" />
         <CardBody>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
@@ -934,7 +934,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Pemeliharaan data"
-          subtitle="Koreksi angka cetakan laporan final tanpa mengubah status atau data input"
+          subtitle="Betulkan angka di cetakan laporan final tanpa mengubah status atau data yang diisi"
         />
         <CardBody>
           <RebuildSnapshotPanel locations={maintenanceLocations} />
@@ -972,9 +972,9 @@ export default async function SistemPage() {
       {/* KPI */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Layanan Aktif" value={`${activeIntegrations}/3`} sub="Integrasi terhubung" />
-        <KpiCard label="Pengguna Aktif" value={activeUsers} sub="Akun bisa login" />
+        <KpiCard label="Pengguna Aktif" value={activeUsers} sub="Akun yang bisa login" />
         <KpiCard label="Sesi Aktif" value={sessionCount} sub="Login berjalan" />
-        <KpiCard label="Audit Hari Ini" value={auditToday} sub="Mutasi tercatat" />
+        <KpiCard label="Audit Hari Ini" value={auditToday} sub="Perubahan tercatat" />
       </div>
 
       <SettingsTabs

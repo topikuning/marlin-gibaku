@@ -93,7 +93,7 @@ test.describe("konfirmasi lokasi galeri = dialog, bukan catatan kaki", () => {
     await galeri.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Kamu sedang di lokasi proyek?")).toBeVisible();
+    await expect(dialog.getByText("Anda sedang di lokasi proyek?")).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Ya, saya di lokasi/ })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Tidak", exact: true })).toBeVisible();
     // Penjelasan panjang yang dulu ada di situ sengaja dibuang.

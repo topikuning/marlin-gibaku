@@ -72,27 +72,27 @@ export default async function AiKronologiPage({
           {!guard.enabled ? (
             <Banner
               tone="warning"
-              title="Fitur AI sedang dinonaktifkan admin (kill switch)"
-              description="Garis waktu di bawah tetap berlaku – ia tidak memakai AI."
+              title="Fitur AI sedang dimatikan oleh admin"
+              description="Garis waktu di bawah tetap bisa dipakai karena tidak memakai AI."
             />
           ) : !aiCfg ? (
             <Banner
               tone="info"
-              title="Provider AI belum dikonfigurasi (Sistem → AI)"
-              description="Garis waktu tetap berfungsi; narasinya saja yang nonaktif."
+              title="AI belum diatur (Sistem → AI)"
+              description="Garis waktu tetap bisa dipakai. Hanya ringkasan ceritanya yang belum tersedia."
             />
           ) : null}
           {lokasi.length === 0 ? (
             <Banner
               tone="info"
-              title="Belum ada lokasi dalam hak akses Anda"
-              description="Kronologi disusun per lokasi, jadi tidak ada yang bisa ditampilkan."
+              title="Anda belum punya akses ke lokasi mana pun"
+              description="Kronologi disusun per lokasi, jadi belum ada yang bisa ditampilkan."
             />
           ) : null}
           <Banner
             tone="info"
-            title="Laporan lengkap lokasi (progres, kendala, temuan, administrasi, PDF & deck) ada di halaman lokasi → Laporan Lengkap"
-            description="Halaman ini menampilkan garis waktunya saja. Laporan menyeluruh satu lokasi, berikut kesimpulan dan berkas yang bisa dikirim, disusun di tab Laporan Lengkap pada lokasi yang bersangkutan."
+            title="Laporan lengkap lokasi (progres, kendala, temuan, administrasi, PDF, dan deck) ada di halaman lokasi → Laporan Lengkap"
+            description="Halaman ini hanya menampilkan garis waktunya. Laporan menyeluruh satu lokasi, lengkap dengan kesimpulan dan berkas yang bisa dikirim, ada di tab Laporan Lengkap pada lokasi itu."
           />
         </CardBody>
       </Card>
@@ -102,8 +102,8 @@ export default async function AiKronologiPage({
       ) : lokasi.length > 0 ? (
         <Card>
           <CardBody className="py-6 text-sm text-ink-muted">
-            Pilih satu lokasi untuk melihat kronologinya. Kronologi lintas lokasi tidak disusun –
-            digabung begitu saja ia berhenti jadi cerita dan berubah jadi tumpukan.
+            Pilih satu lokasi untuk melihat kronologinya. Kronologi tidak disusun untuk beberapa lokasi
+            sekaligus, karena kalau digabung, ceritanya jadi campur aduk dan sulit diikuti.
           </CardBody>
         </Card>
       ) : null}

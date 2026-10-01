@@ -15,5 +15,5 @@ export async function hasDocumentScope(user: SessionUser, doc: { locationId?: st
 }
 
 export async function requireDocumentScope(user: SessionUser, doc: { locationId?: string | null; packageId?: string | null }): Promise<void> {
-  if (!await hasDocumentScope(user, doc)) throw new ForbiddenError("Tidak punya akses ke dokumen paket/lokasi ini");
+  if (!await hasDocumentScope(user, doc)) throw new ForbiddenError("Anda tidak punya akses ke dokumen paket/lokasi ini.");
 }

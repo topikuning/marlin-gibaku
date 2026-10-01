@@ -93,7 +93,7 @@ export function WaGroupForm({
         <Banner
           tone="info"
           title="Server WhatsApp (WAHA) belum diatur"
-          description="Kamu tetap bisa menyimpan ID grup manual di bawah, tapi pesan baru bisa terkirim setelah admin mengatur WAHA di halaman Sistem & login sesi WhatsApp."
+          description="Anda tetap bisa menyimpan ID grup secara manual di bawah. Pesan baru bisa terkirim setelah admin mengatur WAHA di halaman Sistem dan WhatsApp-nya sudah login."
         />
       ) : null}
 
@@ -116,7 +116,7 @@ export function WaGroupForm({
           <Banner
             tone="warning"
             title="Belum bisa memuat daftar grup"
-            description={`${loadErr} – sementara itu, pakai Cara 2 (isi ID grup manual) di bawah.`}
+            description={`${loadErr} – sementara itu, pakai Cara 3 (isi ID grup manual) di bawah.`}
             className="mt-2"
           />
         ) : null}
@@ -154,7 +154,7 @@ export function WaGroupForm({
         <p className="mb-1 text-[13px] font-medium text-ink">Cara 2 – pakai link undangan grup (disarankan)</p>
         <p className="mb-2 text-xs text-ink-muted">
           Di WhatsApp: buka grup → <b>Info grup</b> → <b>Tautan undangan grup</b> → Salin. Tempel di sini,
-          sistem ambil ID grup otomatis. Pastikan nomor pengirim jadi anggota grup.
+          lalu MARLIN mengambil ID grupnya otomatis. Pastikan nomor pengirim sudah menjadi anggota grup.
         </p>
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1">
@@ -210,7 +210,7 @@ export function WaGroupForm({
             Bagaimana cara mendapat ID grup?
           </summary>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-ink-muted">
-            <li>Cara termudah: klik <b>Muat daftar grup</b> di atas (butuh sesi WhatsApp sudah login/WORKING).</li>
+            <li>Cara termudah: klik <b>Muat daftar grup</b> di atas (WhatsApp MARLIN harus sudah login, status WORKING).</li>
             <li>Atau buka dashboard WAHA → endpoint <code>GET /api/&#123;session&#125;/groups</code> → salin nilai <code>id</code> yang berakhiran <code>@g.us</code>.</li>
             <li>ID grup berbentuk angka panjang diakhiri <code>@g.us</code> (bukan nomor HP). Boleh tempel angkanya saja – sistem menambah <code>@g.us</code> otomatis.</li>
           </ul>

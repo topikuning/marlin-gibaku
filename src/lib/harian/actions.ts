@@ -40,7 +40,7 @@ export async function kirimPengingatSekarangAction(
     if (!(await isWahaConfigured())) {
       return {
         error:
-          "WhatsApp (WAHA) belum dikonfigurasi – tidak ada yang bisa dikirim. Isi dulu di tab Integrasi.",
+          "WhatsApp (WAHA) belum disiapkan, jadi belum ada yang bisa dikirim. Isi dulu pengaturannya di tab Integrasi.",
       };
     }
 
@@ -74,7 +74,7 @@ export async function kirimPengingatSekarangAction(
       return {
         success:
           d && d.lokasiSudahLapor > 0
-            ? `Tidak ada yang perlu ditagih – ${d.lokasiSudahLapor} dari ${d.lokasiDalamLingkup} lokasi sudah melapor hari ini.`
+            ? `Tidak ada yang perlu ditagih. ${d.lokasiSudahLapor} dari ${d.lokasiDalamLingkup} lokasi sudah melapor hari ini.`
             : "Tidak ada penanggung jawab yang perlu ditagih saat ini.",
       };
     }
@@ -106,8 +106,8 @@ export async function kirimPengingatSekarangAction(
     if (hasil.terkirim > 0 && berbukti === 0) {
       return {
         error:
-          `${bagian.join(", ")} – tetapi TIDAK SATU PUN mengembalikan ID pesan. ` +
-          `WAHA menerima permintaannya tanpa memberi bukti pengiriman (status sesi: ${sesi}). ` +
+          `${bagian.join(", ")}, tetapi TIDAK SATU PUN mengembalikan ID pesan. ` +
+          `WAHA menerima permintaannya, tetapi tidak memberi bukti pengiriman (status sesi: ${sesi}). ` +
           "Periksa rincian di bawah dan cek sesi di tab Integrasi.",
         rincian: hasil.rincian,
       };
@@ -118,7 +118,7 @@ export async function kirimPengingatSekarangAction(
     return {
       success:
         `${bagian.join(", ")}. Sesi WhatsApp: ${sesi}. ` +
-        "Angka ini berarti WAHA MENERIMA permintaannya – bukan jaminan pesannya sampai. " +
+        "Angka ini berarti WAHA MENERIMA permintaannya, belum tentu pesannya sampai. " +
         "Kalau penerima melapor tidak menerima apa pun, periksa log server WAHA: " +
         "penolakan seperti error 463 (nomor pengirim dibatasi WhatsApp untuk menghubungi nomor baru) " +
         "terjadi SESUDAH ID pesan terbit dan tidak terlihat dari sini.",
@@ -145,7 +145,7 @@ export async function setPengingatAktifAction(
   const parsed = z
     .object({ aktif: z.enum(["1", "0"]) })
     .safeParse({ aktif: formData.get("aktif") });
-  if (!parsed.success) return { error: "Nilai sakelar tidak dikenal." };
+  if (!parsed.success) return { error: "Pilihan tidak dikenali. Muat ulang halaman, lalu coba lagi." };
   const aktif = parsed.data.aktif === "1";
 
   try {
@@ -155,12 +155,12 @@ export async function setPengingatAktifAction(
     revalidatePath("/sistem");
     return {
       success: aktif
-        ? "Pengingat harian otomatis DINYALAKAN. Penjadwal akan menagih lagi pada putaran berikutnya."
-        : "Pengingat harian otomatis DIMATIKAN. Penjadwal tidak akan mengirim apa pun – tombol kirim manual di halaman ini tetap bisa dipakai.",
+        ? "Pengingat harian otomatis DINYALAKAN. Sistem akan menagih lagi pada jadwal berikutnya."
+        : "Pengingat harian otomatis DIMATIKAN. Tidak ada pengingat yang dikirim otomatis, tapi tombol kirim manual di halaman ini tetap bisa dipakai.",
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
-    return { error: err instanceof Error ? err.message : "Gagal menyimpan sakelar." };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan pengaturan." };
   }
 }
 
@@ -179,7 +179,7 @@ export async function setPengingatGrupAktifAction(
   const parsed = z
     .object({ aktif: z.enum(["1", "0"]) })
     .safeParse({ aktif: formData.get("aktif") });
-  if (!parsed.success) return { error: "Nilai sakelar tidak dikenal." };
+  if (!parsed.success) return { error: "Pilihan tidak dikenali. Muat ulang halaman, lalu coba lagi." };
   const aktif = parsed.data.aktif === "1";
 
   try {
@@ -190,12 +190,12 @@ export async function setPengingatGrupAktifAction(
     revalidatePath("/sistem");
     return {
       success: aktif
-        ? "Pengingat harian ke grup DINYALAKAN. Mulai putaran sore berikutnya, tiap paket yang laporannya belum lengkap ditagih di grupnya – berjeda satu menit antar grup."
+        ? "Pengingat harian ke grup DINYALAKAN. Mulai jadwal sore berikutnya, tiap paket yang laporannya belum lengkap ditagih di grupnya, dengan jeda satu menit antar grup."
         : "Pengingat harian ke grup DIMATIKAN. Tidak ada pesan yang dikirim ke grup mana pun.",
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
-    return { error: err instanceof Error ? err.message : "Gagal menyimpan sakelar." };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan pengaturan." };
   }
 }
 
@@ -228,7 +228,7 @@ export async function kirimPengingatSatuOrangAction(
     if (!(await isWahaConfigured())) {
       return {
         error:
-          "WhatsApp (WAHA) belum dikonfigurasi – tidak ada yang bisa dikirim. Isi dulu di tab Integrasi.",
+          "WhatsApp (WAHA) belum disiapkan, jadi belum ada yang bisa dikirim. Isi dulu pengaturannya di tab Integrasi.",
       };
     }
 
@@ -256,7 +256,7 @@ export async function kirimPengingatSatuOrangAction(
       // Tidak menebak yang mana — tapi juga tidak menyatakan "terkirim".
       return {
         error:
-          "Tidak ada yang dikirim – orang ini sedang tidak masuk daftar tagihan hari ini. " +
+          "Tidak ada yang dikirim. Orang ini tidak masuk daftar tagihan hari ini. " +
           "Muat ulang halaman untuk melihat daftar terbaru.",
       };
     }
@@ -267,15 +267,15 @@ export async function kirimPengingatSatuOrangAction(
       // Sama seperti versi massal: 2xx tanpa ID pesan BUKAN bukti sampai.
       return {
         error:
-          `Permintaan ke ${r.nama} (${r.tujuan}) diterima WAHA tetapi TANPA ID pesan – ` +
-          `tidak bisa dipastikan sampai. Sesi WhatsApp: ${hasil.sesi.replace(/\.+$/, "")}.`,
+          `Permintaan ke ${r.nama} (${r.tujuan}) diterima WAHA, tetapi TANPA ID pesan, ` +
+          `jadi belum bisa dipastikan sampai. Sesi WhatsApp: ${hasil.sesi.replace(/\.+$/, "")}.`,
         rincian: hasil.rincian,
       };
     }
     return {
       success:
         `Pengingat terkirim ke ${r.nama} (${r.tujuan}) dengan ID pesan. ` +
-        "Ini berarti WAHA menerima permintaannya – bukan jaminan pesannya sampai.",
+        "Artinya WAHA sudah menerima permintaannya, tapi belum tentu pesannya sampai.",
       rincian: hasil.rincian,
     };
   } catch (err) {

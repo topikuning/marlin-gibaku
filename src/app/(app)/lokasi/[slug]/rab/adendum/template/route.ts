@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   if (!can(user.role, "rab.manage")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
 
   const location = await db.location.findUnique({

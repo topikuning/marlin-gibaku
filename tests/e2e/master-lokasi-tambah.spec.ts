@@ -59,7 +59,7 @@ test.describe("Katalog Lokasi – tambah manual", () => {
     });
     await page.getByRole("button", { name: "Simpan Lokasi" }).click();
 
-    await expect(page.getByText(/sudah ada – tidak dibuat ganda/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/sudah ada, jadi tidak dibuat lagi/i)).toBeVisible({ timeout: 20_000 });
     /*
      * Kandidatnya DISEBUT, bukan cuma ditolak: penolakan tanpa menunjukkan
      * yang mana memaksa orang mencari sendiri di daftar 73 baris.
@@ -140,7 +140,7 @@ test.describe("Katalog Lokasi – tambah manual", () => {
      * muncul; ia baru ketahuan ketika banner-nya benar-benar terbit dan
      * Playwright mengeluh dua elemen cocok.
      */
-    await expect(page.getByText(/Isi lintang DAN bujur/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Isi lintang dan bujur sekaligus/)).toBeVisible({ timeout: 20_000 });
   });
 
   test("koordinat di luar Indonesia ditolak dengan sebabnya", async ({ page }) => {

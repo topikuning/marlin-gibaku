@@ -90,7 +90,7 @@ export async function unduhPetaDasarAction(
    */
   const diketik = String(formData.get("sumber") ?? "").trim();
   if (diketik && !/^https:\/\//i.test(diketik))
-    return { error: "Alamat sumber harus https:// – berkas peta tidak diambil lewat sambungan terbuka." };
+    return { error: "Alamat sumber harus diawali https://. Berkas peta tidak diunduh lewat sambungan yang tidak aman." };
   const sumber = diketik || env.PETA_SUMBER_URL?.trim() || SUMBER_BAWAAN;
   try {
     const { ukuran } = await unduhBasemap(sumber);

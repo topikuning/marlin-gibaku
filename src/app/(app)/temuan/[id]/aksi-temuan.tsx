@@ -137,7 +137,7 @@ function FormTutup({ findingId, tolak }: { findingId: string; tolak: boolean }) 
         <ConfirmSubmit
           label="Tutup temuan"
           title="Tutup temuan ini?"
-          description="Temuan dinyatakan selesai atas nama Anda sebagai verifikator dan hilang dari daftar terbuka. Membatalkannya hanya bisa lewat buka kembali, yang tercatat sebagai riwayat."
+          description="Temuan dinyatakan selesai atas nama Anda sebagai verifikator dan tidak lagi muncul di daftar temuan terbuka. Untuk membatalkannya, gunakan Buka kembali. Langkah itu tercatat di riwayat."
           loading={pendingTutup}
         />
         <HasilAksi state={stateTutup} />
@@ -171,7 +171,7 @@ function FormBukaKembali({ findingId }: { findingId: string }) {
       <ConfirmSubmit
         label="Buka kembali temuan"
         title="Buka kembali temuan yang sudah ditutup?"
-        description="Status kembali ke tindak lanjut, hitungan dibuka-ulang bertambah, dan penutupan sebelumnya tetap tercatat di linimasa."
+        description="Status kembali ke tindak lanjut, jumlah buka kembali bertambah satu, dan penutupan sebelumnya tetap tercatat di linimasa."
         variant="danger"
         loading={pending}
       />

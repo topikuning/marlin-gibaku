@@ -189,7 +189,7 @@ export function ImportForm({
           required
           maxBytes={15 * 1024 * 1024}
           onPilih={onPilih}
-          petunjuk={'Sheet RAB dicari otomatis – BQ/BOQ/MC-0/Lampiran ikut dicoba, dan sheet yang benar-benar dipakai disebut di pratinjau. Maksimal 15 MB.'}
+          petunjuk={'Sheet RAB dicari otomatis, termasuk sheet bernama BQ/BOQ/MC-0/Lampiran. Sheet yang dipakai disebut di pratinjau. Maksimal 15 MB.'}
         />
       </div>
 
@@ -201,7 +201,7 @@ export function ImportForm({
           {(
             [
               ["draft", "Isi DRAFT adendum", "RAB aktif, progres, kurva-S, dan keuangan TIDAK berubah. Draft baru berlaku setelah diaktifkan."],
-              ["aktifkan", "Jadikan RAB AKTIF sekarang", "Menggantikan RAB aktif dan me-regenerate kurva-S. Untuk HPS awal atau adendum yang SUDAH resmi."],
+              ["aktifkan", "Jadikan RAB AKTIF sekarang", "Menggantikan RAB aktif dan membuat ulang kurva-S. Untuk HPS awal atau adendum yang SUDAH resmi."],
             ] as const
           ).map(([nilai, judul, jelas]) => {
             // Kunci mengikuti keadaan, dan alasannya SELALU disebut — pilihan
@@ -212,7 +212,7 @@ export function ImportForm({
                 : adaAktif && !bukaKunci; // mengganti RAB kontrak yang berlaku
             const sebab =
               nilai === "draft"
-                ? "Belum ada RAB aktif – draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
+                ? "Belum ada RAB aktif. Draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
                 : "Terkunci karena lokasi ini sudah punya RAB aktif.";
             return (
               <label
@@ -254,8 +254,8 @@ export function ImportForm({
           ) : null}
           {adaAktif && bukaKunci ? (
             <p className="text-[13px] text-warning">
-              Kunci dibuka. Menyimpan dengan tujuan ini akan MENGGANTI RAB aktif dan me-regenerate
-              kurva-S. Pakai hanya bila adendumnya memang sudah resmi.
+              Kunci dibuka. Kalau disimpan dengan tujuan ini, RAB aktif akan DIGANTI dan kurva-S dibuat
+              ulang. Pakai hanya bila adendumnya memang sudah resmi.
             </p>
           ) : null}
         </div>
@@ -282,15 +282,15 @@ export function ImportForm({
                   ? `Isi draft adendum revisi #${preview.draftAda.revisionNo} akan DIGANTI`
                   : "Draft adendum baru akan dibuat"
                 : preview.isAdendum
-                  ? "Terdeteksi ADENDUM – lokasi sudah punya revisi RAB aktif"
-                  : "Impor HPS awal – belum ada revisi RAB aktif"
+                  ? "Ini ADENDUM: lokasi ini sudah punya revisi RAB aktif"
+                  : "Impor HPS awal: lokasi ini belum punya revisi RAB aktif"
             }
             description={
               preview.mode === "draft"
-                ? "RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh. Draft ini baru berlaku setelah diaktifkan lewat halaman Adendum."
+                ? "RAB aktif, progres, kurva-S, dan keuangan tidak ikut berubah. Draft ini baru berlaku setelah diaktifkan lewat halaman Adendum."
                 : preview.isAdendum
-                  ? "Revisi baru akan menggantikan revisi aktif; realisasi item dgn lineage sama tersambung otomatis, dan baseline kurva-S di-regenerate memakai profil yang sudah dipakai lokasi ini."
-                  : "Revisi #1 akan dibuat. Kurva-S TIDAK langsung dibuat – bentuknya Anda pilih sesudah impor berhasil."
+                  ? "Revisi baru akan menggantikan revisi aktif. Realisasi item yang sama otomatis tersambung, dan kurva-S dibuat ulang dengan bentuk yang sudah dipakai lokasi ini."
+                  : "Revisi #1 akan dibuat. Kurva-S TIDAK langsung dibuat. Bentuknya Anda pilih setelah impor berhasil."
             }
           />
 
@@ -358,7 +358,7 @@ export function ImportForm({
           {preview.warnings.some((w) => w.startsWith("PERHATIAN")) ? (
             <Banner
               tone="error"
-              title="Angka berkas ini tidak konsisten – periksa sebelum menyimpan"
+              title="Ada angka yang tidak konsisten di berkas ini. Periksa sebelum menyimpan."
               description={
                 <ul className="list-disc pl-4">
                   {preview.warnings
@@ -380,7 +380,7 @@ export function ImportForm({
           {preview.warnings.some((w) => !w.startsWith("PERHATIAN")) ? (
             <Banner
               tone="warning"
-              title={`${preview.warnings.filter((w) => !w.startsWith("PERHATIAN")).length} peringatan parsing`}
+              title={`${preview.warnings.filter((w) => !w.startsWith("PERHATIAN")).length} catatan saat membaca berkas`}
               description={
                 <ul className="list-disc pl-4">
                   {preview.warnings
@@ -477,8 +477,8 @@ function PanelPilihProfil({
       <div>
         <p className="text-[13px] font-semibold text-ink">Pilih bentuk kurva-S</p>
         <p className="mt-0.5 text-[13px] text-ink-muted">
-          RAB {itemCount} item sudah aktif, tetapi rencananya belum. Kurva-S tidak dibuat sendiri –
-          pilih bentuk yang sesuai keadaan lapangan lokasi ini.
+          RAB {itemCount} item sudah aktif, tetapi rencananya belum ada. Kurva-S tidak dibuat otomatis.
+          Pilih bentuk yang sesuai keadaan lapangan lokasi ini.
         </p>
       </div>
 
@@ -516,7 +516,7 @@ function PanelPilihProfil({
           {profil === "manual" ? "Lewati – saya susun sendiri" : "Buat kurva-S"}
         </Button>
         <span className="text-[13px] text-ink-muted">
-          Bisa diganti kapan saja lewat &quot;Hitung ulang kurva-S&quot; di tab Kurva-S.
+          Bisa diganti kapan saja lewat &quot;Hitung ulang&quot; di Progress › Kurva-S &amp; Baseline.
         </span>
       </div>
     </div>
@@ -565,9 +565,9 @@ function PanelPadanan({
         {padanan.lama.length} item yang SUDAH dikerjakan tidak lagi punya volume di file ini
       </p>
       <p className="text-ink-muted">
-        Kalau pekerjaannya sebenarnya pindah ke baris lain – berganti nama atau dipecah – pasangkan di
-        sini. Realisasi hariannya ikut ke baris barunya, dan tidak ada satu pun baris laporan yang
-        diubah: yang berpindah hanya identitas itemnya.
+        Kalau pekerjaannya sebenarnya pindah ke baris lain (ganti nama atau dipecah), pasangkan di
+        sini. Realisasi hariannya ikut pindah ke baris baru. Tidak ada baris laporan yang diubah;
+        yang pindah hanya identitas itemnya.
       </p>
       <ul className="space-y-2">
         {padanan.lama.map((l) => (
@@ -601,10 +601,10 @@ function PanelPadanan({
                */
               return (
                 <span className="block text-danger">
-                  Baris penggantinya cuma {formatNumber(vol)}, sedangkan yang sudah dikerjakan{" "}
-                  {formatNumber(l.realisasi)} – selisih {formatNumber(l.realisasi - vol)} jadi pekerjaan
-                  tanpa dasar kontrak. Laporan hariannya tidak berubah; yang berpindah cuma dasarnya.
-                  Naikkan volume baris penggantinya di file, atau pasangkan ke baris lain.
+                  Baris penggantinya hanya {formatNumber(vol)}, padahal yang sudah dikerjakan{" "}
+                  {formatNumber(l.realisasi)}. Selisih {formatNumber(l.realisasi - vol)} jadi pekerjaan
+                  tanpa dasar kontrak. Laporan hariannya tidak berubah, hanya dasar kontraknya yang
+                  pindah. Naikkan volume baris penggantinya di file, atau pasangkan ke baris lain.
                 </span>
               );
             })()}

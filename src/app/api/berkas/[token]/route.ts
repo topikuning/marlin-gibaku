@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
   const kunci = bacaTokenBerkas(token);
-  if (!kunci) return NextResponse.json({ error: "Link tidak valid atau kedaluwarsa." }, { status: 404 });
+  if (!kunci) return NextResponse.json({ error: "Link tidak berlaku atau sudah kedaluwarsa." }, { status: 404 });
   try {
     const { isi, jenis } = await ambilBerkasDenganJenis(kunci);
     const nama = new URL(req.url).searchParams.get("nama");

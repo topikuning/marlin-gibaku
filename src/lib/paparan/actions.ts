@@ -163,7 +163,7 @@ export async function suntingNarasiPaparanAction(
     if (!parsed.success) return { error: "Isian narasi tidak valid." };
     const artifact = await muatArtefakPaparan(user, parsed.data.artifactId);
     if (artifact.frozenAt || !EDITABLE_STATUS.includes(artifact.status)) {
-      return { error: "Paparan beku/terkirim tidak dapat diedit – buat versi baru." };
+      return { error: "Paparan yang sudah dibekukan atau terkirim tidak bisa diubah. Buat versi baru." };
     }
     const content = parsePaparanContent(artifact.structuredContent);
     const edits: PaparanHumanEdits = { ...(content.humanEdits ?? {}) };
@@ -183,7 +183,7 @@ export async function suntingNarasiPaparanAction(
       humanEditNote: "narasi diedit manual",
     }, user.id, "ai.artifact.edit", { kind: "paparan" });
     revalidatePath(`/ai/paparan/${artifact.id}`);
-    return { ok: "Narasi tersimpan. Angka tidak berubah – selalu dari snapshot." };
+    return { ok: "Narasi tersimpan. Angkanya tetap, karena selalu diambil dari data saat paparan disusun." };
   } catch (err) {
     return fail(err);
   }
@@ -209,7 +209,7 @@ export async function pilihFotoPaparanAction(
     if (!parsed.success) return { error: "Pilihan foto tidak valid." };
     const artifact = await muatArtefakPaparan(user, parsed.data.artifactId);
     if (artifact.frozenAt || !EDITABLE_STATUS.includes(artifact.status)) {
-      return { error: "Paparan beku/terkirim tidak dapat diedit – buat versi baru." };
+      return { error: "Paparan yang sudah dibekukan atau terkirim tidak bisa diubah. Buat versi baru." };
     }
     const content = parsePaparanContent(artifact.structuredContent);
     /*
@@ -271,7 +271,7 @@ export async function gantiTemaPaparanAction(
     if (!parsed.success) return { error: "Tema deck tidak dikenal." };
     const artifact = await muatArtefakPaparan(user, parsed.data.artifactId);
     if (artifact.frozenAt || !EDITABLE_STATUS.includes(artifact.status)) {
-      return { error: "Paparan beku/terkirim tidak dapat diedit – buat versi baru." };
+      return { error: "Paparan yang sudah dibekukan atau terkirim tidak bisa diubah. Buat versi baru." };
     }
     const content = parsePaparanContent(artifact.structuredContent);
     content.tema = parsed.data.tema;
@@ -303,16 +303,16 @@ export async function transisiPaparanAction(_prev: PaparanState, formData: FormD
   try {
     const artifactId = String(formData.get("artifactId") ?? "");
     const to = String(formData.get("to") ?? "") as AiArtifactStatus;
-    if (!artifactId || !(to in TRANSITION_CAPABILITY)) return { error: "Transisi tidak valid." };
+    if (!artifactId || !(to in TRANSITION_CAPABILITY)) return { error: "Perubahan status tidak valid." };
     const user = await requireCapability(TRANSITION_CAPABILITY[to]);
     const artifact = await muatArtefakPaparan(user, artifactId);
     if (!canTransitionAiArtifact(artifact.status, to)) {
-      return { error: `Transisi ${artifact.status} → ${to} tidak diizinkan.` };
+      return { error: `Status paparan tidak bisa diubah dari ${artifact.status} ke ${to}.` };
     }
-    if (artifact.frozenAt && to !== "terkirim") return { error: "Paparan beku bersifat immutable." };
+    if (artifact.frozenAt && to !== "terkirim") return { error: "Paparan yang sudah dibekukan tidak bisa diubah lagi." };
     // Distribusi (beku → terkirim) untuk paparan belum dibuka dari sini —
     // pengiriman berkas resmi ke luar butuh jalurnya sendiri.
-    if (to === "terkirim") return { error: "Distribusi paparan belum tersedia – unduh PDF final untuk dibagikan." };
+    if (to === "terkirim") return { error: "Paparan belum bisa dikirim dari sini. Unduh PDF finalnya untuk dibagikan." };
 
     const now = new Date();
     const data: Record<string, unknown> = { status: to };
@@ -333,7 +333,7 @@ export async function transisiPaparanAction(_prev: PaparanState, formData: FormD
       const content = parsePaparanContent(artifact.structuredContent);
       const kandidat = new Set(content.snapshot.fotoKandidat.map((f) => f.id));
       if (!content.selectedPhotoIds.every((id) => kandidat.has(id))) {
-        return { error: "Ada foto terpilih yang bukan bagian snapshot – perbaiki dulu sebelum dibekukan." };
+        return { error: "Ada foto terpilih yang tidak termasuk data paparan ini. Perbaiki dulu sebelum dibekukan." };
       }
       data.frozenAt = now;
       data.contentHash = createHash("sha256")

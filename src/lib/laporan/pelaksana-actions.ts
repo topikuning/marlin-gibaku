@@ -117,12 +117,12 @@ export async function simpanPelaksana(
     }
     const berkas = formData.get(medan);
     if (!(berkas instanceof File) || berkas.size === 0) continue;
-    if (berkas.size > BERKAS_MAKS) return { error: `Berkas ${LABEL[medan]} terlalu besar (maks 2 MB).` };
+    if (berkas.size > BERKAS_MAKS) return { error: `Berkas ${LABEL[medan]} terlalu besar. Ukuran maksimal 2 MB.` };
     if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
-      return { error: `Format ${LABEL[medan]} harus PNG/JPG/WebP.` };
+      return { error: `Berkas ${LABEL[medan]} harus berupa gambar PNG, JPG, atau WebP.` };
     }
     if (!isR2Configured()) {
-      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
+      return { error: "Penyimpanan berkas (R2) belum disiapkan, jadi gambar belum bisa diunggah. Hubungi admin." };
     }
     const sharp = (await import("sharp")).default;
     // 800px sisi terpanjang — angka yang sama dengan tanda tangan kontrak,

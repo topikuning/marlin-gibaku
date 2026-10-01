@@ -57,9 +57,9 @@ export function RecalcBaselineButton({
           {state?.error ? <Banner tone="error" title={state.error} className="mb-2" /> : null}
           {state?.success ? <Banner tone="success" title={state.success} className="mb-2" /> : null}
           <p className="mb-2 text-[13px] text-ink">
-            Hitung ulang kurva-S dari RAB &amp; durasi kontrak saat ini? Bila hasilnya
-            berbeda, baseline aktif digantikan versi baru (versi lama tetap tersimpan
-            di Riwayat baseline). Edit manual pada baseline aktif akan ditimpa.
+            Hitung ulang kurva-S dari RAB dan durasi kontrak saat ini? Kalau hasilnya
+            berbeda, baseline aktif diganti versi baru. Versi lama tetap tersimpan di
+            Riwayat baseline. Perubahan manual pada baseline aktif akan tertimpa.
           </p>
           {/* Di sinilah user berpindah lambat ⇄ optimal kapan pun, bukan cuma
               sekali sesudah impor. "Saya susun sendiri" tidak ditawarkan: tombol

@@ -81,7 +81,7 @@ export default async function ProgressPage() {
     <div className="space-y-6">
       <PageHeader
         title="Progress Portfolio"
-        description="Rencana vs realisasi berbasis volume – angka dihitung dari RAB aktif, baseline aktif, dan laporan harian terkirim."
+        description="Rencana dibandingkan realisasi, berdasarkan volume. Angkanya dihitung dari RAB aktif, baseline aktif, dan laporan harian yang sudah dikirim."
         actions={
           can(user.role, "ai.view") ? (
             <Link
@@ -107,7 +107,7 @@ export default async function ProgressPage() {
       <Card>
         <CardHeader
           title="Per lokasi"
-          subtitle="Diurutkan dari deviasi terburuk · kolom terakhir lapor memisahkan yang tertinggal dari yang bahkan tidak melapor"
+          subtitle="Diurutkan dari deviasi terburuk. Kolom “Terakhir lapor” menunjukkan mana yang tertinggal dan mana yang sama sekali tidak melapor."
         />
         <CardBody>
           <ProgressGrid rows={rows} />

@@ -32,7 +32,7 @@ export default async function FotoCepatPage() {
     <div className="space-y-4">
       <PageHeader
         title="Foto Cepat"
-        description="Jepret sekarang, pilih itemnya belakangan. Koordinat & jam direkam saat foto diambil – bukan saat diunggah."
+        description="Jepret sekarang, pilih itemnya nanti. Koordinat dan jam dicatat saat foto diambil, bukan saat diunggah."
       />
 
       {lokasi.length === 0 ? (
@@ -40,7 +40,7 @@ export default async function FotoCepatPage() {
           <EmptyState
             icon={Camera}
             title="Belum ada lokasi yang bisa dipakai"
-            description="Foto Cepat butuh minimal satu lokasi aktif yang jadi penugasanmu. Hubungi Site Manager atau admin."
+            description="Foto Cepat butuh minimal satu lokasi aktif yang ditugaskan kepada Anda. Hubungi Site Manager atau admin."
           />
         </Card>
       ) : (

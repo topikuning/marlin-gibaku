@@ -500,12 +500,12 @@ export function PhotoSourceInput({
           Dulu ini diam saja dan fotonya diam-diam dicap titik proyek. */}
       {sunyiIzin ? null : izin === "granted" ? (
         <p className="flex items-center gap-1.5 text-xs text-success">
-          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif – foto kamera akan membawa
-          koordinat asli.
+          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif. Foto dari kamera akan
+          memuat koordinat asli.
         </p>
       ) : izin === "unsupported" ? (
         <p className="flex items-start gap-1.5 text-xs text-warning">
-          <MapPinOff aria-hidden className="mt-0.5 size-3.5 shrink-0" /> Perangkat/browser ini tidak
+          <MapPinOff aria-hidden className="mt-0.5 size-3.5 shrink-0" /> HP/peramban ini tidak
           mendukung GPS. Foto akan dicap memakai titik lokasi proyek, bukan posisi sebenarnya.
         </p>
       ) : izin === "unknown" ? null : (
@@ -514,14 +514,14 @@ export function PhotoSourceInput({
         >
           <p className={`text-xs font-medium ${izin === "denied" ? "text-danger" : "text-warning"}`}>
             {izin === "denied"
-              ? "Izin lokasi DITOLAK di browser ini"
+              ? "Izin lokasi DITOLAK di peramban ini"
               : "Izin lokasi belum diberikan"}
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong> – bukan posisi
-            sebenarnya saat memotret.
+            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong>, bukan posisi Anda
+            yang sebenarnya saat memotret.
             {izin === "denied"
-              ? " Buka setelan situs di browser (ikon di kiri address bar) → izinkan Lokasi, lalu muat ulang halaman."
+              ? " Buka setelan situs di peramban (ikon di kiri kolom alamat) → izinkan Lokasi, lalu muat ulang halaman."
               : ""}
           </p>
           {izin !== "denied" ? (
@@ -624,7 +624,7 @@ export function PhotoSourceInput({
           />
           <div className="relative w-full max-w-sm rounded-xl border border-border bg-surface p-4 shadow-lg">
             <p id="tanya-lokasi-judul" className="text-center text-base font-semibold text-ink">
-              Kamu sedang di lokasi proyek?
+              Anda sedang di lokasi proyek?
             </p>
             <div className="mt-4 space-y-2">
               <button
@@ -656,7 +656,7 @@ export function PhotoSourceInput({
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-muted"
               >
-                Gunakan apa adanya – tanpa tag koordinat & waktu
+                Pakai apa adanya, tanpa koordinat & waktu
               </button>
             </div>
           </div>
@@ -668,12 +668,12 @@ export function PhotoSourceInput({
           yang akan menempel di fotonya. */}
       {source === "gallery" && apaAdanya ? (
         <p className="text-xs text-ink-muted">
-          Foto galeri: dipakai apa adanya – cap tanpa tag koordinat & waktu.
+          Foto galeri dipakai apa adanya. Capnya tanpa koordinat & waktu.
         </p>
       ) : source === "gallery" && diLokasi !== null ? (
         <p className="text-xs text-ink-muted">
           {diLokasi
-            ? "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, posisimu sekarang."
+            ? "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, posisi Anda sekarang."
             : "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, dicap titik lokasi proyek dan ditandai bukan bukti GPS."}
         </p>
       ) : null}
@@ -698,8 +698,8 @@ export function PhotoSourceInput({
               : `${tawaran.length} foto lebih besar dari batas ${MAX_PHOTO_MB} MB.`}
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Bisa dikecilkan dulu di HP ini supaya tetap bisa dikirim. Isinya tidak berubah – hanya
-            ukuran gambarnya yang diturunkan.
+            Bisa dikecilkan dulu di HP ini supaya tetap bisa dikirim. Isi fotonya tidak berubah,
+            hanya ukurannya yang diperkecil.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
@@ -740,8 +740,8 @@ export function PhotoSourceInput({
             Perangkat ini tidak bisa menggabungkan beberapa kali pemilihan foto
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Pilih SEMUA foto sekaligus dalam satu ketukan – yang terkirim hanya pemilihan terakhir.
-            Unggahnya tetap jalan.
+            Pilih SEMUA foto sekaligus dalam satu kali pilih, karena yang terkirim hanya pilihan
+            terakhir. Unggahan tetap bisa jalan.
           </p>
           <p className="mt-1 text-[11px] break-words text-ink-muted">{rakitGagal}</p>
         </div>
@@ -771,7 +771,7 @@ export function PhotoSourceInput({
           <p className="text-xs text-ink-muted">
             {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}).{" "}
             {rakitGagal
-              ? "Ketuk lagi = mengganti pilihan, bukan menambah."
+              ? "Mengetuk lagi akan mengganti pilihan, bukan menambah."
               : `Ketuk ${hanyaKamera ? "Kamera" : "Kamera/Galeri"} lagi untuk menambah.`}
           </p>
           <div className="flex flex-wrap gap-2">

@@ -71,7 +71,7 @@ export function PelaksanaForm({
         <Banner
           tone="warning"
           title="Pelaksana Lapangan belum diisi di paket maupun lokasi ini"
-          description="Isi di Paket › Kontrak › Penanda tangan dokumen KKP. Sampai itu diisi, blok tanda tangan laporan harian dan mingguan tercetak tanpa nama untuk ditandatangani tangan – nama Direktur TIDAK dipakai sebagai pengganti."
+          description="Isi di Paket › Kontrak › Penanda tangan dokumen KKP. Selama belum diisi, bagian tanda tangan laporan harian dan mingguan tercetak tanpa nama, untuk ditandatangani dengan tangan. Nama Direktur TIDAK dipakai sebagai pengganti."
         />
       ) : null}
 
@@ -129,9 +129,9 @@ export function PelaksanaForm({
       */}
       {nama && !ttdUrl ? (
         <HelpText>
-          Lokasi ini memakai pelaksananya sendiri tetapi belum mengunggah tanda tangan, jadi
-          blok TTD-nya tercetak kosong. Tanda tangan milik pelaksana paket sengaja tidak
-          dipinjam – coretan seseorang tidak boleh muncul di bawah nama orang lain.
+          Lokasi ini memakai pelaksananya sendiri, tetapi tanda tangannya belum diunggah, jadi
+          blok TTD-nya tercetak kosong. Tanda tangan pelaksana paket sengaja tidak dipakai, karena
+          tanda tangan seseorang tidak boleh muncul di bawah nama orang lain.
         </HelpText>
       ) : null}
 
@@ -193,17 +193,17 @@ export function PelaksanaForm({
         {pengawasNama && pengawasFirma && warisanPengawas?.firma &&
         pengawasFirma.trim() !== warisanPengawas.firma.trim() ? (
           <HelpText>
-            Firma pengawas lokasi ini berbeda dari paketnya, jadi stempel firma pada laporan
-            cetak DIKOSONGKAN – stempel yang tersimpan milik firma yang lain. Bubuhkan stempel
-            basah pada berkas yang tercetak.
+            Firma pengawas lokasi ini berbeda dari paketnya, jadi stempel firma di laporan cetak
+            DIKOSONGKAN, karena stempel yang tersimpan milik firma lain. Bubuhkan stempel basah
+            pada laporan yang sudah dicetak.
           </HelpText>
         ) : null}
 
         {pengawasNama && !pengawasTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai pengawasnya sendiri tetapi belum mengunggah tanda tangan, jadi
-            blok TTD pengawas tercetak kosong. Coretan pengawas paket sengaja tidak dipinjam –
-            pengawas adalah pihak yang memeriksa pekerjaan ini.
+            Lokasi ini memakai pengawasnya sendiri, tetapi tanda tangannya belum diunggah, jadi
+            blok TTD pengawas tercetak kosong. Tanda tangan pengawas paket sengaja tidak dipakai,
+            karena tanda tangan pengawas menyatakan siapa yang memeriksa pekerjaan ini.
           </HelpText>
         ) : null}
       </div>
@@ -211,7 +211,7 @@ export function PelaksanaForm({
       <div className="border-t border-border pt-4">
         <p className="text-sm font-medium text-ink">Wakil Sah</p>
         <p className="mt-0.5 text-[13px] text-ink-muted">
-          Meneken laporan mingguan &amp; bulanan mewakili KKP. Isi HANYA bila Wakil Sah
+          Menandatangani laporan mingguan &amp; bulanan atas nama KKP. Isi HANYA bila Wakil Sah
           lokasi ini berbeda dari paketnya.
         </p>
 
@@ -259,8 +259,8 @@ export function PelaksanaForm({
 
         {wakilSahNama && !wakilSahTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai Wakil Sah-nya sendiri tetapi belum mengunggah tanda tangan, jadi
-            blok TTD-nya tercetak kosong. Coretan Wakil Sah paket sengaja tidak dipinjam.
+            Lokasi ini memakai Wakil Sah-nya sendiri, tetapi tanda tangannya belum diunggah, jadi
+            blok TTD-nya tercetak kosong. Tanda tangan Wakil Sah paket sengaja tidak dipakai.
           </HelpText>
         ) : null}
       </div>

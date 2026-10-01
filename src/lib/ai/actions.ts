@@ -137,7 +137,7 @@ export async function simpanPengamanAiAction(
       const { kanonikGrupId } = await import("@/lib/waha/grup-id");
       const k = kanonikGrupId(rawAlarm);
       if (!k || !k.endsWith("@g.us")) {
-        return { error: "Penerima alarm harus ID grup WhatsApp (…@g.us) – nomor pribadi ditolak pagar pengiriman." };
+        return { error: "Penerima alarm harus ID grup WhatsApp (…@g.us). Nomor pribadi tidak diizinkan oleh aturan pengiriman." };
       }
       alarm = k;
     }

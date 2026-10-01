@@ -41,7 +41,7 @@ export default async function ChatGrupGlobalPage({
     <div className="space-y-4">
       <PageHeader
         title="Ringkasan Global Chat Grup"
-        description="Gabungan ringkasan seluruh grup WhatsApp pada satu tanggal – kirim sekali jalan ke pimpinan."
+        description="Gabungan ringkasan semua grup WhatsApp pada satu tanggal, untuk dikirim sekaligus ke pimpinan."
         actions={
           <Link
             href="/chat-grup"
@@ -54,7 +54,7 @@ export default async function ChatGrupGlobalPage({
 
       <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <Card className="self-start">
-          <CardHeader title="Tanggal" subtitle="Hari yang sudah punya ringkasan." />
+          <CardHeader title="Tanggal" subtitle="Tanggal yang sudah ada ringkasannya." />
           <CardBody className="space-y-1">
             {dates.length === 0 ? (
               <p className="text-sm text-ink-muted">Belum ada ringkasan tersimpan.</p>
@@ -89,7 +89,7 @@ export default async function ChatGrupGlobalPage({
             <CardBody className="space-y-2">
               {rows.length === 0 ? (
                 <p className="text-sm text-ink-muted">
-                  Belum ada ringkasan pada tanggal ini – buat dulu di halaman per grup.
+                  Belum ada ringkasan pada tanggal ini. Buat dulu di halaman per grup.
                 </p>
               ) : (
                 <>
@@ -97,7 +97,7 @@ export default async function ChatGrupGlobalPage({
                     <Banner
                       tone="warning"
                       title={`${rows.length - sendable.length} ringkasan belum final`}
-                      description="Hanya ringkasan berstatus final/terkirim yang ikut dikirim ke pimpinan. Finalkan dulu di halaman per grup."
+                      description="Hanya ringkasan yang sudah final atau terkirim yang ikut dikirim ke pimpinan. Finalkan dulu di halaman per grup."
                     />
                   ) : null}
                   <SendGlobalForm dateKey={dateKey} contacts={contacts} />

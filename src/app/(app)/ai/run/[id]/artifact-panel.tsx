@@ -119,7 +119,7 @@ function ArtifactCard({
           subtitle={
             a.status === "terkirim"
               ? "Sudah diterapkan menjadi Kendala di lokasi."
-              : "Belum menjadi apa pun sampai diterapkan di antrean Perlu Tindakan."
+              : "Belum berlaku apa-apa sampai diterapkan di halaman Perlu Tindakan."
           }
           action={<Badge tone={AI_ARTIFACT_STATUS_TONE[a.status]} label={AI_ARTIFACT_STATUS_LABEL[a.status]} />}
         />
@@ -127,7 +127,7 @@ function ArtifactCard({
           {a.executiveSummary ? <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p> : null}
           {a.status !== "terkirim" ? (
             <Link href="/ai/actions" className="text-xs text-primary hover:underline">
-              Terapkan jadi Kendala di Perlu Tindakan →
+              Terapkan sebagai kendala di halaman Perlu Tindakan →
             </Link>
           ) : null}
         </CardBody>
@@ -153,8 +153,8 @@ function ArtifactCard({
   return (
     <Card>
       <CardHeader
-        title={`Artefak laporan v${a.version} – ${a.title}`}
-        subtitle={`Template ${a.templateKey ?? "–"} · lifecycle: draft → direview → disetujui → beku → terkirim`}
+        title={`Laporan v${a.version} – ${a.title}`}
+        subtitle={`Template ${a.templateKey ?? "–"} · tahapan: draft → direview → disetujui → beku → terkirim`}
         action={<Badge tone={AI_ARTIFACT_STATUS_TONE[a.status]} label={AI_ARTIFACT_STATUS_LABEL[a.status]} />}
       />
       <CardBody className="space-y-3 text-sm">
@@ -176,7 +176,7 @@ function ArtifactCard({
               className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm"
             />
             <label className="block text-xs font-medium text-ink-muted" htmlFor={`sum-${a.id}`}>
-              Ringkasan eksekutif (editan manusia tercatat)
+              Ringkasan eksekutif (setiap suntingan tercatat)
             </label>
             <textarea
               id={`sum-${a.id}`}
@@ -375,7 +375,7 @@ function ArtifactCard({
                             tidak boleh terbaca "tidak ada". */}
                         {brief.decisionsHidden > 0 ? (
                           <p className="mt-2 text-xs text-ink-faint">
-                            {brief.decisionsHidden} usulan lain di luar tiga teratas tidak ditampilkan – buka “Edit seluruh
+                            {brief.decisionsHidden} usulan lain di luar tiga teratas tidak ditampilkan. Buka “Edit seluruh
                             laporan” untuk melihat atau menghapusnya.
                           </p>
                         ) : null}
@@ -426,7 +426,7 @@ function ArtifactCard({
             </Button>
           ) : null}
           {a.status === "draft" && canReview ? (
-            <TransitionButton artifactId={a.id} to="direview" label="Kirim untuk review" variant="primary" />
+            <TransitionButton artifactId={a.id} to="direview" label="Kirim untuk diperiksa" variant="primary" />
           ) : null}
           {a.status === "direview" && canApprove ? (
             <>
@@ -442,7 +442,7 @@ function ArtifactCard({
         {(a.status === "beku" || a.status === "terkirim") && canSend ? (
           <form action={distFormAction} className="space-y-2 border-t border-border-muted pt-3">
             <input type="hidden" name="artifactId" value={a.id} />
-            <p className="text-xs font-medium text-ink">Distribusi WhatsApp</p>
+            <p className="text-xs font-medium text-ink">Kirim lewat WhatsApp</p>
             {/* Kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
                 bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194).
                 Isi salah satu; kontak menang bila dua-duanya terisi. */}
@@ -483,7 +483,7 @@ function ArtifactCard({
 
         {a.distributions.length > 0 ? (
           <p className="text-xs text-ink-faint">
-            Riwayat distribusi: {a.distributions.map((d) => `${d.target} (${d.at.slice(0, 16).replace("T", " ")})`).join("; ")}
+            Riwayat pengiriman: {a.distributions.map((d) => `${d.target} (${d.at.slice(0, 16).replace("T", " ")})`).join("; ")}
           </p>
         ) : null}
       </CardBody>

@@ -41,7 +41,7 @@ export default async function TemuanPage({
     <div className="space-y-4">
       <PageHeader
         title="Temuan"
-        description="Ketidaksesuaian yang dicatat pihak pemeriksa – hanya selesai setelah verifikator menutupnya."
+        description="Ketidaksesuaian yang dicatat pihak pemeriksa. Temuan baru selesai setelah verifikator menutupnya."
         actions={
           bolehCatat || bolehEkspor ? (
             <span className="flex flex-wrap gap-2">
@@ -82,7 +82,7 @@ export default async function TemuanPage({
       <Card>
         <CardHeader
           title={`${baris.length} temuan`}
-          subtitle="Urutan: lewat tenggat – keparahan – terbaru"
+          subtitle="Urutan: lewat tenggat, lalu tingkat keparahan, lalu yang terbaru"
           action={<SaringTemuan nilai={{ status: sp.status, tingkat: sp.tingkat, kategori: sp.kategori, cari: sp.cari }} />}
         />
         <CardBody>

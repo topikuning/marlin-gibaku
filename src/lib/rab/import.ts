@@ -73,7 +73,7 @@ export async function createRevisionFromNodes(
   nodes: FlatNode[],
   opts: CreateRevisionOpts,
 ): Promise<CreateRevisionResult> {
-  if (nodes.length === 0) throw new Error("Tidak ada node RAB terbaca dari file.");
+  if (nodes.length === 0) throw new Error("Tidak ada baris RAB yang terbaca dari berkas.");
   const totalValue = grandTotal(nodes);
 
   // Hitung carry-over vs revisi aktif (informasional — lihat doc di atas).
@@ -122,7 +122,7 @@ export async function createRevisionFromNodes(
     if (batch.length === 0) {
       // Tidak boleh terjadi (flatten selalu emit parent sebelum anak) — bersihkan draft.
       await db.rabRevision.delete({ where: { id: revision.id } });
-      throw new Error("Struktur RAB tidak konsisten (orphan node).");
+      throw new Error("Struktur RAB tidak konsisten: ada baris yang induknya hilang.");
     }
     const created = await db.rabNode.createManyAndReturn({
       data: batch.map((n) => ({
@@ -483,7 +483,7 @@ export async function discardDraft(revisionId: string, userId: string) {
     select: { id: true, status: true, revisionNo: true, locationId: true },
   });
   if (rev.status !== "draft") {
-    throw new Error(`Revisi #${rev.revisionNo} bukan draft – tidak boleh dihapus.`);
+    throw new Error(`Revisi #${rev.revisionNo} bukan draft, jadi tidak boleh dihapus.`);
   }
   /*
    * DITOLAK DENGAN KALIMAT MARLIN, bukan oleh Postgres (DECISIONS 611).
@@ -796,7 +796,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
         select: { id: true },
       })
     )?.id;
-  if (!revisionId) throw new Error("Tidak ada revisi RAB aktif untuk membuat baseline.");
+  if (!revisionId) throw new Error("Belum ada revisi RAB aktif, jadi baseline belum bisa dibuat.");
 
   const profil = opts.profil ?? (await profilBaselineAktif(locationId));
 

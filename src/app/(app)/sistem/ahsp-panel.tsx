@@ -35,7 +35,7 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
         <Banner
           tone="error"
           title="Impor basis AHSP TERPUTUS – isinya belum lengkap"
-          description="Percobaan sebelumnya berhenti di tengah, jadi angka di bawah belum utuh dan BELUM boleh dipakai menghitung kebutuhan bahan. Tekan tombol di bawah untuk mengulang; basis yang belum selesai tidak akan pernah dianggap mutakhir."
+          description="Impor sebelumnya berhenti di tengah jalan. Angka di bawah belum utuh dan BELUM boleh dipakai untuk menghitung kebutuhan bahan. Tekan tombol di bawah untuk mengulang. Selama impornya belum selesai, data ini tidak akan dianggap terbaru."
         />
       ) : null}
 
@@ -87,7 +87,7 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
         <Banner
           tone="warning"
           title="Basis AHSP belum dimuat"
-          description="Analisa harga satuan belum ada di database, jadi penurunan kebutuhan bahan/upah dari RAB belum bisa dipakai. Tekan tombol di bawah untuk memuatnya dari berkas yang ikut di repo."
+          description="Analisa harga satuan belum ada di database, jadi kebutuhan bahan/upah belum bisa dihitung dari RAB. Tekan tombol di bawah untuk memuatnya dari berkas bawaan aplikasi."
         />
       )}
 
@@ -102,8 +102,8 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
 
       <p className="text-[12px] text-ink-muted">
         Sumber: Surat Edaran Dirjen Bina Konstruksi No. 47/SE/Dk/2026, Lampiran II–VI. Aman ditekan
-        berulang – berkas yang isinya sama tidak ditulis ulang, dan impor yang terputus di tengah
-        selalu diulang dari awal alih-alih mengaku selesai.
+        berulang kali. Berkas yang isinya sama tidak ditulis ulang, dan impor yang terputus selalu
+        diulang dari awal, bukan dianggap selesai.
       </p>
     </div>
   );

@@ -24,14 +24,14 @@ export async function GET(req: Request) {
   if (user?.mustChangePassword) {
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
 
   const berkas = await periksaBasemap();
   if (!berkas.ada) {
     return NextResponse.json(
       {
         error:
-          "Peta dasar belum ada di server ini. Buka /sistem – kartu Kesehatan Layanan menyebut keadaannya dan tombol untuk mengunduhnya.",
+          "Peta dasar belum ada di server ini. Buka halaman /sistem: kartu Kesehatan Layanan menunjukkan keadaannya, beserta tombol untuk mengunduhnya.",
       },
       { status: 404 },
     );

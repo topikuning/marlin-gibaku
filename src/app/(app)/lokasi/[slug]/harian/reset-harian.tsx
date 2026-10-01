@@ -31,14 +31,14 @@ export function ResetHarian({
     <Card className="border-danger-border">
       <CardHeader
         title="Reset laporan harian lokasi ini"
-        subtitle="Super admin utama saja. Menghapus TOTAL seluruh laporan harian lokasi ini – tidak bisa dibatalkan."
+        subtitle="Hanya untuk super admin utama. Seluruh laporan harian lokasi ini akan dihapus TOTAL dan tidak bisa dibatalkan."
       />
       <CardBody className="space-y-3 text-sm">
         {state?.success ? <Banner tone="success" title={state.success} /> : null}
         {state?.error ? <Banner tone="error" title={state.error} /> : null}
 
         {kosong ? (
-          <p className="text-ink-muted">Lokasi ini tidak punya laporan harian – tidak ada yang direset.</p>
+          <p className="text-ink-muted">Lokasi ini belum punya laporan harian, jadi tidak ada yang perlu direset.</p>
         ) : !buka ? (
           <Button type="button" variant="danger" size="sm" onClick={() => setBuka(true)}>
             Reset laporan harian…
@@ -54,11 +54,11 @@ export function ResetHarian({
                   volume, tenaga, material, alat, cuaca, catatan, riwayat status
                 </li>
                 <li>
-                  {ringkas.fotoLaporan} foto laporan – berkas ber-cap, berkas asli, dan salinan di arsip
+                  {ringkas.fotoLaporan} foto laporan, termasuk versi ber-cap, berkas asli, dan salinannya di arsip
                 </li>
                 <li>
                   {ringkas.temuan} temuan, {ringkas.verifikasi} verifikasi Wakil PPK, dan {ringkas.kendala} kendala yang
-                  menempel ke laporan-laporan itu
+                  terkait dengan laporan-laporan itu
                 </li>
               </ul>
               <p className="mt-2 text-ink-muted">

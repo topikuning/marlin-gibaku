@@ -129,18 +129,18 @@ export default async function KeuanganPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Keuangan Portfolio"
-        description="Semua angka derived dari transaksi (budget, komitmen, realisasi, invoice, penagihan) – tidak ada input agregat manual."
+        title="Keuangan Portofolio"
+        description="Semua angka dihitung otomatis dari transaksi (anggaran, komitmen, realisasi, invoice, penagihan). Tidak ada angka total yang diisi manual."
       />
 
-      <section id="antrean" aria-label="Antrean approval">
+      <section id="antrean" aria-label="Antrean persetujuan">
         <Card>
           <CardHeader
-            title={`Antrean approval (${queue.length})`}
+            title={`Antrean persetujuan (${queue.length})`}
             subtitle={
               canApprove
-                ? "Transaksi diajukan lintas jenis – putuskan di sini."
-                : "Transaksi diajukan menunggu keputusan approver."
+                ? "Semua jenis transaksi yang diajukan. Putuskan di sini."
+                : "Transaksi yang diajukan dan menunggu persetujuan."
             }
           />
           <CardBody>
@@ -150,25 +150,25 @@ export default async function KeuanganPage() {
       </section>
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Ringkasan keuangan">
-        <KpiCard label="Budget" value={formatRupiahShort(total.budget)} href="#per-lokasi" />
+        <KpiCard label="Anggaran" value={formatRupiahShort(total.budget)} href="#per-lokasi" />
         <KpiCard label="Realisasi" value={formatRupiahShort(total.expense)} href="#per-lokasi" />
         <KpiCard label="Komitmen terbuka" value={formatRupiahShort(total.commitment)} href="#per-lokasi" />
         <KpiCard
-          label="Available budget"
+          label="Sisa anggaran"
           value={formatRupiahShort(total.available)}
           tone={total.available < 0n ? "danger" : "default"}
           sub={total.available < 0n ? formatRupiah(total.available) : undefined}
           href="#per-lokasi"
         />
-        <KpiCard label="Outstanding payable" value={formatRupiahShort(total.outstanding)} href="#per-lokasi" />
-        <KpiCard label="Terpasang" value={formatRupiahShort(total.installed)} sub="dilaporkan (dikirim+disetujui+final) – belum tentu terverifikasi" href="#per-lokasi" />
-        <KpiCard label="Tertagih" value={formatRupiahShort(totalBilled)} sub="owner billing diajukan+" href="#per-lokasi" />
+        <KpiCard label="Utang belum dibayar" value={formatRupiahShort(total.outstanding)} href="#per-lokasi" />
+        <KpiCard label="Terpasang" value={formatRupiahShort(total.installed)} sub="sudah dilaporkan (dikirim, disetujui, final), belum tentu terverifikasi" href="#per-lokasi" />
+        <KpiCard label="Tertagih" value={formatRupiahShort(totalBilled)} sub="penagihan owner yang sudah diajukan" href="#per-lokasi" />
         <KpiCard label="Cair" value={formatRupiahShort(totalDisbursed)} sub="pencairan diterima" href="#per-lokasi" />
       </section>
 
       <section id="per-lokasi" aria-label="Keuangan per lokasi">
         <Card>
-          <CardHeader title="Per lokasi" subtitle="Klik lokasi untuk detail transaksi & form input." />
+          <CardHeader title="Per lokasi" subtitle="Klik lokasi untuk melihat rincian transaksi dan mengisi data." />
           <CardBody>
             <PortfolioGrid rows={gridRows} />
           </CardBody>

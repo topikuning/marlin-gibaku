@@ -175,12 +175,12 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
             Harga satuan {beda.hargaBerubah.length} item KONTRAK LAMA berubah
           </p>
           <p className="mt-0.5 text-ink-muted">
-            Adendum mengubah volume – harga item yang sudah ada di kontrak seharusnya tetap. Dampak
-            neto{" "}
+            Adendum seharusnya hanya mengubah volume. Harga item yang sudah ada di kontrak tetap.
+            Dampak bersihnya{" "}
             <span className="tabular font-medium">
               {formatRupiah(Number(beda.hargaBerubah.reduce((t, h) => t + BigInt(h.dampakRupiah), 0n)))}
-            </span>{" "}
-            tanpa ada pekerjaan yang bertambah.
+            </span>
+            , padahal tidak ada pekerjaan yang bertambah.
           </p>
           {/* Nama KONTRAK di samping nama FILE. Panel lama hanya mencetak nama
               dari file baru bersama harga dari item lama, jadi pasangan yang
@@ -222,7 +222,7 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
       {beda.nilaiBergeser.length > 0 ? (
         <div className="rounded border border-danger-border bg-danger-soft px-2.5 py-2">
           <p className="font-medium text-danger">
-            Nilai {beda.nilaiBergeser.length} item KONTRAK LAMA bergeser tanpa volume atau harga berubah
+            Nilai {beda.nilaiBergeser.length} item KONTRAK LAMA bergeser, padahal volume dan harganya tidak berubah
           </p>
           <p className="mt-0.5 text-ink-muted">
             Kolom JUMLAH di file berbeda dari kontrak padahal volume dan harga satuannya sama. Selisih neto{" "}
@@ -290,7 +290,7 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
                 <Link
                   href={`/lokasi/${slug}/rab/riwayat?item=${encodeURIComponent(v.lineageKey)}`}
                   className="font-medium text-primary underline decoration-dotted underline-offset-2"
-                  title="Lihat kapan saja pekerjaan ini diinput"
+                  title="Lihat tanggal-tanggal pekerjaan ini dilaporkan"
                 >
                   {v.realisasi}
                 </Link>

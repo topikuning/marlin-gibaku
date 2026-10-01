@@ -41,7 +41,7 @@ export async function previewRecapAction(_prev: RecapImportState, formData: Form
   try {
     const { locationId, buf } = await readFileForLocation(formData);
     const preview = await buildRecapPreview(locationId, buf);
-    if (preview.rows.length === 0) return { ok: false, error: "Tidak ada baris data terbaca di file." };
+    if (preview.rows.length === 0) return { ok: false, error: "Tidak ada baris data yang terbaca di file ini. Periksa lagi isinya." };
     return { ok: true, phase: "preview", preview };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Gagal membaca file rekap." };
@@ -54,7 +54,7 @@ export async function commitRecapAction(_prev: RecapImportState, formData: FormD
     const user = await requireCapability("daily_report.create");
     const result = await commitRecap(locationId, buf, user.id);
     if (result.itemsSaved === 0) {
-      return { ok: false, error: "Tidak ada baris valid untuk disimpan. Periksa pratinjau." };
+      return { ok: false, error: "Tidak ada baris yang bisa disimpan. Periksa catatan di pratinjau." };
     }
     revalidatePath(`/lokasi/${slug}/harian`);
     revalidatePath(`/lokasi/${slug}/progress`);

@@ -43,7 +43,7 @@ export default async function CetakJadwalPage({
           {bounds.assumed ? (
             <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 print:border-black print:bg-white print:text-black">
               Catatan: SPMK belum diterbitkan. Jadwal ini dihitung dari <b>asumsi mulai {formatTanggal(bounds.startDate)}</b>{" "}
-              (durasi kontrak {report.header.masaPelaksanaanHari} hari). Tanggal akan menyesuaikan otomatis setelah SPMK diinput.
+              (durasi kontrak {report.header.masaPelaksanaanHari} hari). Tanggalnya akan menyesuaikan sendiri setelah tanggal SPMK diisi.
             </p>
           ) : null}
           <ScurveKkpSheet

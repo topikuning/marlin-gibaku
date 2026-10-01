@@ -35,13 +35,13 @@ export async function applyPaymentTx(
     select: { id: true, amount: true, status: true, number: true },
   });
   if (inv.status !== "disetujui" && inv.status !== "dibayar_sebagian") {
-    throw new FinanceGuardError("Pembayaran hanya untuk invoice disetujui / dibayar sebagian.");
+    throw new FinanceGuardError("Pembayaran hanya bisa dicatat untuk invoice yang sudah disetujui atau baru dibayar sebagian.");
   }
   const agg = await tx.paymentOut.aggregate({ where: { invoiceId: inv.id }, _sum: { amount: true } });
   const paid = agg._sum.amount ?? 0n;
   const remaining = inv.amount - paid;
   if (input.amount > remaining) {
-    throw new FinanceGuardError(`Melebihi sisa tagihan invoice ${inv.number}: sisa ${formatRupiah(remaining)}.`);
+    throw new FinanceGuardError(`Jumlahnya melebihi sisa tagihan invoice ${inv.number}. Sisanya tinggal ${formatRupiah(remaining)}.`);
   }
   const payment = await tx.paymentOut.create({
     data: {
@@ -74,7 +74,7 @@ export async function applyDisbursementTx(
     select: { id: true, amount: true, retentionHeld: true, status: true, terminNo: true },
   });
   if (billing.status !== "disetujui" && billing.status !== "cair_sebagian") {
-    throw new FinanceGuardError("Pencairan hanya untuk termin disetujui / cair sebagian.");
+    throw new FinanceGuardError("Pencairan hanya bisa dicatat untuk termin yang sudah disetujui atau baru cair sebagian.");
   }
   const agg = await tx.disbursement.aggregate({
     where: { ownerBillingId: billing.id },
@@ -88,7 +88,7 @@ export async function applyDisbursementTx(
   const remaining = payable - received;
   if (input.amount > remaining) {
     throw new FinanceGuardError(
-      `Melebihi sisa termin ${billing.terminNo} (setelah retensi ${formatRupiah(billing.retentionHeld)}): sisa ${formatRupiah(remaining > 0n ? remaining : 0n)}.`,
+      `Jumlahnya melebihi sisa termin ${billing.terminNo}. Setelah dipotong retensi ${formatRupiah(billing.retentionHeld)}, sisanya tinggal ${formatRupiah(remaining > 0n ? remaining : 0n)}.`,
     );
   }
   const disbursement = await tx.disbursement.create({

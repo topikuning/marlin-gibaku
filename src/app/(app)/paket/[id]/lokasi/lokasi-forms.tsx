@@ -233,8 +233,8 @@ export function CorrectAddLocationForm({
 
       <Banner
         tone="warning"
-        title="Ini jalur koreksi kesalahan input – bukan adendum"
-        description="Pakai hanya bila lokasi memang ketinggalan saat data paket diinput, sementara nilai kontraknya sudah benar. Bila lingkup kontrak benar-benar bertambah, yang sah adalah adendum, bukan koreksi ini. Setiap koreksi tercatat di audit & histori paket."
+        title="Ini untuk membetulkan salah input, bukan adendum"
+        description="Pakai hanya kalau lokasi ketinggalan saat data paket diisi, padahal nilai kontraknya sudah benar. Kalau lingkup kontrak memang bertambah, jalurnya adendum, bukan koreksi ini. Setiap koreksi tercatat di audit & histori paket."
       />
 
       {/*
@@ -285,10 +285,10 @@ export function CorrectAddLocationForm({
           <p className="mt-1 text-xs text-ink-muted">
             Hanya lokasi yang BELUM terpakai yang tampil
             {hiddenExistingCount > 0
-              ? ` – ${hiddenExistingCount} baris katalog disembunyikan karena lokasinya sudah ada di sistem`
+              ? ` (${hiddenExistingCount} baris katalog disembunyikan karena lokasinya sudah ada di sistem)`
               : ""}
-            . Tidak ketemu? Berarti lokasi itu sudah dipakai; pakai isian manual bila memang beda
-            lokasi.
+            . Tidak ketemu? Berarti lokasi itu sudah dipakai. Kalau lokasinya memang beda, pakai
+            isian manual.
           </p>
         </div>
       ) : (
@@ -400,7 +400,7 @@ export function PindahLokasiForm({
       <Banner
         tone="warning"
         title={`Pindahkan "${name}" ke paket lain`}
-        description="Seluruh RAB, kurva-S, rencana mingguan, laporan, dan fotonya ikut pindah. Kalender proyek (SPMK, durasi, mode minggu) milik PAKET, jadi rentang rencana dan grid kurva-S dihitung ulang ke kalender paket tujuan. Tercatat di audit & histori KEDUA paket."
+        description="Seluruh RAB, kurva-S, rencana mingguan, laporan, dan fotonya ikut pindah. Kalender proyek (SPMK, durasi, periode minggu) mengikuti PAKET, jadi rentang rencana dan kurva-S dihitung ulang mengikuti kalender paket tujuan. Pemindahan ini tercatat di audit & histori KEDUA paket."
       />
 
       {/* Tombol, BUKAN radio – React mereset form sesudah action selesai dan
@@ -508,7 +508,7 @@ export function CabutLokasiForm({ locationId, name }: { locationId: string; name
       <Banner
         tone="warning"
         title={`Cabut "${name}" dari paket ini`}
-        description="Koreksi data, BUKAN adendum – nilai kontrak tidak disentuh. Hanya untuk lokasi yang salah masuk dan masih benar-benar kosong; yang sudah punya RAB, laporan, atau foto ditolak dan memang harus dipindahkan atau dikeluarkan lewat adendum. Tercatat di audit & histori paket."
+        description="Ini koreksi data, BUKAN adendum, jadi nilai kontrak tidak berubah. Hanya untuk lokasi yang salah masuk dan masih benar-benar kosong. Lokasi yang sudah punya RAB, laporan, atau foto akan ditolak; lokasi seperti itu harus dipindahkan, atau dikeluarkan lewat adendum. Tercatat di audit & histori paket."
       />
 
       <div>

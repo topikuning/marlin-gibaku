@@ -16,7 +16,7 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
     <div className="space-y-4">
       <PageHeader
         title="Asisten Pengendalian"
-        description="Tanyakan kondisi proyek, cari prioritas, lalu ubah hasilnya menjadi laporan yang dapat direview dan dikirim. Semua angka tetap dihitung MARLIN."
+        description="Tanyakan kondisi proyek, cari prioritas, lalu jadikan hasilnya laporan yang bisa diperiksa dan dikirim. Semua angka tetap dihitung MARLIN."
       />
       {/* Alarm kegagalan AI di SEMUA tab – gangguan 3 minggu dulu tidak terlihat di mana pun (DECISIONS 635). */}
       <AlarmAiBanner orgId={user.orgId} />

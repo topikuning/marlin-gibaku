@@ -353,7 +353,7 @@ describe("sunting katalog di tempat", () => {
       }),
     );
 
-    expect(hasil?.error).toContain("Sudah ada baris katalog");
+    expect(hasil?.error).toContain("sudah ada di katalog");
     expect(hasil?.error).not.toMatch(/unique|constraint|P2002/i);
     // Tidak ada yang berubah, dan tidak ada baris kembar yang terlanjur dibuat.
     const sesudah = await db.masterLocation.findUnique({ where: { id: b.master.id } });

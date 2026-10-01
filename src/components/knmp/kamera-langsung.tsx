@@ -320,8 +320,8 @@ export function KameraLangsung({
             </p>
             <p className="mt-1 text-[13px] text-ink-muted">
               {keadaan === "ditolak"
-                ? "Buka setelan situs di peramban (ikon di kiri address bar) → izinkan Kamera, lalu muat ulang halaman."
-                : "Tutup layar ini, lalu pakai jalur cadangan “Kamera dalam aplikasi tidak jalan?” – hasilnya sama, hanya ada satu layar konfirmasi dari aplikasi kamera HP."}
+                ? "Buka setelan situs di peramban (ikon di kiri kolom alamat) → izinkan Kamera, lalu muat ulang halaman."
+                : "Tutup layar ini, lalu pakai pilihan cadangan “Kamera dalam aplikasi tidak jalan?”. Hasilnya sama, hanya ada satu layar konfirmasi tambahan dari aplikasi kamera HP."}
             </p>
             <button
               type="button"
@@ -360,7 +360,7 @@ export function KameraLangsung({
             </>
           ) : (
             <>
-              <MapPinOff aria-hidden className="size-3" /> GPS belum dapat
+              <MapPinOff aria-hidden className="size-3" /> Belum dapat GPS
             </>
           )}
         </p>
@@ -382,10 +382,10 @@ export function KameraLangsung({
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-ink/85 to-transparent px-4 pt-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p aria-live="polite" className="text-center text-[11px] text-white/80">
           {keadaan !== "hidup"
-            ? "Menyiapkan kamera… rana aktif begitu gambar muncul."
+            ? "Menyiapkan kamera… Tombol jepret aktif begitu gambar muncul."
             : menunggu > 0
-              ? `${menunggu} foto menunggu kirim – aman tersimpan di HP.`
-              : "Ketuk untuk memotret. Foto langsung tersimpan – tanpa konfirmasi."}
+              ? `${menunggu} foto menunggu dikirim, aman tersimpan di HP.`
+              : "Ketuk untuk memotret. Foto langsung tersimpan tanpa perlu konfirmasi."}
         </p>
         {/*
           Rana SENGAJA tetap aktif selagi unggahan berjalan: menonaktifkannya

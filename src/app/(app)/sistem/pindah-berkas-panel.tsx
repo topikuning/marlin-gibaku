@@ -46,16 +46,16 @@ export function PindahBerkasPanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Foto ber-cap, dokumen, surat, dan lampiran yang sudah tidak baru dipindah ke arsip Lenovo, tertua
-        lebih dulu. Link-nya tidak berubah: berkas yang sudah di Lenovo dibuka lewat MARLIN seperti biasa,
-        hanya sedikit lebih lambat. Thumbnail, logo, kop, stempel, dan tanda tangan tetap di R2.
+        Foto, dokumen, surat, dan lampiran yang sudah lebih dari {umurHari} hari dipindah ke server Lenovo,
+        mulai dari yang paling lama. Semua link tetap sama dan tetap bisa dibuka seperti biasa, hanya
+        sedikit lebih lambat. Logo, kop, stempel, tanda tangan, dan gambar kecil pratinjau tetap di R2.
       </p>
 
       {!terkonfigurasi ? (
         <Banner
           tone="info"
-          title="Alamat arsip belum diisi"
-          description="Pemindahan memakai mesin arsip yang sama dengan berkas asli foto (ORIGINAL_ARCHIVE_URL / _TOKEN). Tidak ada yang dipindah sampai alamatnya ada."
+          title="Server Lenovo belum disambungkan"
+          description="Pemindahan memakai sambungan yang sama dengan arsip berkas asli foto (ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway). Selama belum diisi, tidak ada berkas yang dipindah."
         />
       ) : null}
 
@@ -77,7 +77,7 @@ export function PindahBerkasPanel({
           tone={berkasLenovo > 0 ? "success" : undefined}
         />
         {gagalTerus > 0 ? (
-          <Angka label="Berhenti dicoba" nilai={String(gagalTerus)} sub="gagal berulang – tetap di R2" tone="danger" />
+          <Angka label="Gagal dipindah" nilai={String(gagalTerus)} sub="tetap aman di R2" tone="danger" />
         ) : null}
       </div>
 
@@ -95,15 +95,15 @@ export function PindahBerkasPanel({
       {diAtas && ukuranR2 ? (
         <Banner
           tone="warning"
-          title={`R2 di atas batas ${batasGb} GB`}
-          description="Kalau pemindahan sudah aktif, berkas berumur 3 hari ke atas ikut dipindah sampai R2 turun di bawah 90% batas. Kalau tetap di atas, isinya memang berkas yang terlalu baru atau terlalu besar untuk dipindah."
+          title={`R2 sudah melewati ${batasGb} GB`}
+          description={`Selama pemindahan aktif, berkas yang umurnya 3 hari ke atas ikut dipindah sampai R2 turun di bawah ${(batasGb * 0.9).toLocaleString("id-ID")} GB. Kalau masih di atas, sisanya berkas yang masih terlalu baru atau lebih besar dari 30 MB.`}
         />
       ) : null}
       {gagalTerus > 0 && galatTerakhir ? (
         <Banner
           tone="warning"
-          title={`${gagalTerus} berkas berhenti dicoba`}
-          description={`Sebab terakhir: ${galatTerakhir}. Berkasnya tetap aman di R2 dan dicoba lagi otomatis 6 jam kemudian.`}
+          title={`${gagalTerus} berkas gagal dipindah`}
+          description={`Penyebab terakhir: ${galatTerakhir}. Berkasnya tetap aman di R2 dan akan dicoba lagi otomatis 6 jam kemudian.`}
         />
       ) : null}
 
@@ -121,7 +121,7 @@ export function PindahBerkasPanel({
           <Input id="batasGb" name="batasGb" type="number" min={1} max={1000} step="0.5" defaultValue={batasGb} className="w-28" />
         </div>
         <div>
-          <Label htmlFor="umurHari">Pindahkan bila lebih tua dari (hari)</Label>
+          <Label htmlFor="umurHari">Pindahkan setelah (hari)</Label>
           <Input id="umurHari" name="umurHari" type="number" min={3} max={3650} defaultValue={umurHari} className="w-28" />
         </div>
         <Button type="submit" loading={pending} variant="secondary">
@@ -151,16 +151,16 @@ export function PindahBerkasPanel({
         ) : latar.terakhir ? (
           <span className="text-xs text-ink-muted">
             {latar.terakhir.alasan === "lenovo-hampir-penuh"
-              ? "Putaran terakhir berhenti: sisa disk Lenovo di bawah 20 GB."
-              : `Putaran terakhir: ${latar.terakhir.dipindah} berkas (${ukuran(latar.terakhir.bytesDipindah)}) dipindah`}
+              ? "Pemindahan terakhir berhenti: sisa disk Lenovo di bawah 20 GB."
+              : `Pemindahan terakhir: ${latar.terakhir.dipindah} berkas (${ukuran(latar.terakhir.bytesDipindah)}) dipindah`}
             {latar.terakhir.gagal > 0 ? ` · ${latar.terakhir.gagal} gagal (${latar.terakhir.galat.join("; ")})` : ""}
           </span>
         ) : null}
       </div>
 
       <p className="text-xs text-ink-muted">
-        Berjalan sendiri tiap jam bersama arsip berkas asli. Kalau Lenovo mati atau internet rumah putus,
-        berkas yang sudah di sana tidak bisa dibuka sampai tersambung lagi – berkas baru tidak terdampak.
+        Berjalan otomatis tiap jam. Kalau server Lenovo mati atau internet rumah putus, berkas yang sudah
+        dipindah tidak bisa dibuka sampai tersambung lagi. Berkas baru tidak terpengaruh.
       </p>
     </div>
   );

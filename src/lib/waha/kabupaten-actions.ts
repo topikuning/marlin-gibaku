@@ -26,7 +26,7 @@ import { kanonikGrupId } from "@/lib/waha/grup-id";
 export type WaKabupatenState = { error?: string; success?: string; warning?: string } | undefined;
 
 function fail(err: unknown): WaKabupatenState {
-  if (err instanceof ForbiddenError) return { error: "Tidak punya izin." };
+  if (err instanceof ForbiddenError) return { error: "Anda tidak punya izin untuk ini." };
   if (err instanceof WahaError) return { error: err.message };
   return { error: err instanceof Error ? err.message : "Gagal menyimpan." };
 }
@@ -122,7 +122,7 @@ export async function setWaGrupKabupatenAction(
       return {
         error:
           `Grup itu sudah dipakai sebagai grup PAKET "${dipakaiPaket.name}". Satu grup WhatsApp ` +
-          `hanya boleh punya satu peran – lepaskan dulu dari paket itu.`,
+          `hanya boleh dipakai untuk satu keperluan. Lepaskan dulu dari paket itu.`,
       };
     }
     const dipakaiKab = await db.waGroup.findUnique({
@@ -136,7 +136,7 @@ export async function setWaGrupKabupatenAction(
           `"${dipakaiKab.package.name}". ` +
           (dipakaiKab.packageId === pkg.id
             ? "Lepaskan dulu dari kabupaten itu."
-            : "Grup kabupaten tidak boleh dipakai dua paket – buat grup terpisah."),
+            : "Satu grup kabupaten tidak boleh dipakai dua paket. Buat grup terpisah."),
       };
     }
 
@@ -151,7 +151,7 @@ export async function setWaGrupKabupatenAction(
       const info = await getGroupInfo(kanonik);
       if (info === null) {
         peringatan =
-          "ID grup TIDAK ditemukan pada akun WhatsApp pengirim – periksa lagi ID-nya, dan pastikan nomor pengirim sudah menjadi anggota grup. Nama grup belum terverifikasi.";
+          "ID grup TIDAK ditemukan pada akun WhatsApp pengirim. Periksa lagi ID-nya, dan pastikan nomor pengirim sudah menjadi anggota grup. Nama grup belum terverifikasi.";
       } else if (info.name && info.name !== info.id) {
         nama = info.name;
       }

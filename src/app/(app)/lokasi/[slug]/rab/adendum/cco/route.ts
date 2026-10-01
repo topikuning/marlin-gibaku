@@ -62,7 +62,7 @@ const keCcoNode = (n: BarisDb): CcoNode => ({
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   if (!can(user.role, "rab.manage")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
 
   const location = await db.location.findUnique({
@@ -117,8 +117,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       select: { id: true, revisionNo: true, totalValue: true },
     }),
   ]);
-  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif – tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
-  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum – buat draftnya dulu di tab Adendum" }, { status: 404 });
+  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif, jadi belum ada MC-0 untuk dibandingkan." }, { status: 404 });
+  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum. Buat draftnya dulu di tab Adendum." }, { status: 404 });
 
   const [nodeLama, nodeBaru] = await Promise.all([
     db.rabNode.findMany({ where: { revisionId: aktif.id }, orderBy: { sortOrder: "asc" }, select: pilih }),

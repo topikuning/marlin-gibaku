@@ -134,9 +134,9 @@ export function ReportEditor({
               ditempelinya. Pertanyaan user 2026-08-07: *"kalau mau dipakai lagi
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
           <p className="mt-0.5 text-xs text-muted">
-            Foto ini ikut terlepas saat pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
-            kantong Foto Cepat – dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
-            memang tidak terpakai.
+            Foto ini terlepas karena pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
+            kantong Foto Cepat. Dari sana, foto bisa dipakai untuk pekerjaan mana pun. Hapus hanya
+            kalau memang tidak dipakai.
           </p>
           <div className="mt-2">
             <PhotoGallery
@@ -468,8 +468,8 @@ function ItemForm({
         <Label>3 · Foto bukti (opsional)</Label>
         {!photoEnabled ? (
           <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-ink">
-            Penyimpanan foto (Cloudflare R2) belum diaktifkan – unggah foto sementara tidak tersedia.
-            Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
+            Foto belum bisa diunggah karena penyimpanan foto (Cloudflare R2) belum diaktifkan.
+            Volume tetap bisa disimpan. Minta admin mengaktifkannya (menu Sistem → tes R2).
           </p>
         ) : (
           <div className="space-y-2">
@@ -558,7 +558,7 @@ function ItemForm({
         Simpan Progres
       </Button>
       <p className="text-center text-[11px] text-ink-muted">
-        Pekerjaan yang sama disimpan ulang = volume diperbarui (tidak dobel).
+        Kalau pekerjaan yang sama disimpan lagi, volumenya diperbarui, bukan dobel.
       </p>
     </form>
   );
@@ -865,7 +865,7 @@ function ItemList({
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-ink-muted">
-        Belum ada item pekerjaan hari ini – mulai dari form di atas.
+        Belum ada item pekerjaan hari ini. Mulai isi dari formulir di atas.
       </p>
     );
   }
@@ -1047,8 +1047,8 @@ function SubmitPanel({
                 <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
                   {usulKendala ? (
                     <p className="text-[12px] text-ink-muted">
-                      Diisikan dari sebab hari nihil. Boleh diubah – yang tersimpan yang tertulis di
-                      sini. Kalau kendala serupa masih terbuka di papan, tidak dicatat dua kali.
+                      Sudah diisi dari alasan tidak ada kegiatan. Boleh diubah; yang disimpan adalah
+                      yang tertulis di sini. Kalau kendala serupa masih terbuka, tidak akan dicatat dua kali.
                     </p>
                   ) : null}
                   <div>
@@ -1109,10 +1109,10 @@ function SubmitPanel({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <Button type="button" onClick={() => setBuka(true)} className="h-13 w-full text-base">
         <Send aria-hidden className="size-4" />
-        Review &amp; Kirim
+        Periksa &amp; Kirim
       </Button>
       <p className="text-center text-[11px] text-ink-muted">
-        Sebelum terkirim, Anda ditanya soal kendala hari ini.
+        Sebelum laporan terkirim, Anda akan ditanya soal kendala hari ini.
       </p>
       {lembar}
     </div>

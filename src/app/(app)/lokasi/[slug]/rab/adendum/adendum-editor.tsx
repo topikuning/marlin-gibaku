@@ -111,7 +111,7 @@ export function AdendumEditor({
 
   const onDelete = useCallback(
     (n: EditorNode) => {
-      if (!window.confirm(`Hapus "${n.name}" dari draft? Jejaknya tetap ada di riwayat & diff.`)) return;
+      if (!window.confirm(`Hapus "${n.name}" dari draft? Catatannya tetap ada di riwayat dan perbandingan.`)) return;
       startTransition(() => {
         void removeNodeAction(undefined, fd({ slug, revisionId, nodeId: n.id })).then((res) => {
           if (res?.error) setError(res.error);
@@ -213,7 +213,7 @@ export function AdendumEditor({
         cellClass: (p) =>
           `text-right tabular-nums ${isItem(p) ? "font-medium" : ""} ${p.data?.isChanged ? "bg-warning/10" : ""}`,
         valueFormatter: (p) => (p.value == null ? "" : volFmt.format(p.value)),
-        headerTooltip: "Klik sel untuk mengetik. Batas bawah = volume terealisasi.",
+        headerTooltip: "Klik sel untuk mengetik. Volume tidak boleh di bawah volume yang sudah dikerjakan.",
       },
       {
         field: "unitPrice",
@@ -228,7 +228,7 @@ export function AdendumEditor({
         cellClass: (p) =>
           `text-right tabular-nums ${p.data?.kind === "item" && !p.data.isNew ? "text-ink-muted" : ""}`,
         valueFormatter: (p) => (p.value == null ? "" : rupiah.format(p.value)),
-        headerTooltip: "Item lama terkunci (harga kontrak tetap). Item BARU bebas – harga negosiasi.",
+        headerTooltip: "Harga item lama terkunci (harga kontrak tetap). Harga item baru diisi sesuai hasil negosiasi.",
       },
       {
         field: "amountLama",
@@ -281,7 +281,7 @@ export function AdendumEditor({
           if (!n) return null;
           if (!n.canDelete) {
             return (
-              <span title="Punya realisasi – pekerjaan-kurang lewat volume, bukan hapus.">
+              <span title="Sudah ada realisasi. Untuk pekerjaan kurang, turunkan volumenya, jangan dihapus.">
                 <Trash2 aria-hidden className="inline size-4 text-ink-faint" />
               </span>
             );
@@ -291,7 +291,7 @@ export function AdendumEditor({
               type="button"
               onClick={() => onDelete(n)}
               aria-label={`Hapus ${n.name}`}
-              title="Hapus dari draft (berjejak di riwayat & diff)"
+              title="Hapus dari draft (tetap tercatat di riwayat dan perbandingan)"
             >
               <Trash2 aria-hidden className="inline size-4 text-danger" />
             </button>
@@ -376,7 +376,7 @@ function TambahItem({
   }
   const submit = (formData: FormData) => {
     if (!formData.get("parentId")) {
-      setState({ error: "Pilih dulu induk (kategori/sub) tempat item baru masuk." });
+      setState({ error: "Pilih dulu kategori atau subkategori tempat item baru dimasukkan." });
       return;
     }
     startTransition(() => {
@@ -404,7 +404,7 @@ function TambahItem({
             value={parentId}
             onChange={setParentId}
             options={parentOptions}
-            placeholder="Ketik untuk mencari kategori/sub…"
+            placeholder="Ketik untuk mencari kategori atau subkategori…"
           />
         </div>
         <div className="w-20">

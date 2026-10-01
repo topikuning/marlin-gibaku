@@ -88,7 +88,7 @@ export function PulseClient({
       <Card>
         <CardHeader
           title="Daftar lokasi dan indikator resmi"
-          subtitle={`Urutan exception-first (risiko → readiness → deviasi). Data terakhir berubah: ${dataAsOf ? new Date(dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }) + " WIB" : "belum ada data"}.`}
+          subtitle={`Yang paling bermasalah ditaruh paling atas (risiko → kesiapan data → deviasi). Data terakhir berubah: ${dataAsOf ? new Date(dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }) + " WIB" : "belum ada data"}.`}
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <input
@@ -98,8 +98,8 @@ export function PulseClient({
             aria-label="Cari lokasi"
             className="h-9 w-56 rounded-md border border-border bg-surface px-2 text-sm"
           />
-          <Combobox value={gradeFilter} onChange={setGradeFilter} className="w-44" placeholder="Semua readiness">
-            <option value="">Semua readiness</option>
+          <Combobox value={gradeFilter} onChange={setGradeFilter} className="w-44" placeholder="Semua kesiapan data">
+            <option value="">Semua kesiapan data</option>
             <option value="poor">Buruk</option>
             <option value="limited">Terbatas</option>
             <option value="adequate">Memadai</option>
@@ -126,7 +126,7 @@ export function PulseClient({
                 <th className="px-3 py-2">
                   <input
                     type="checkbox"
-                    aria-label="Pilih semua lokasi tampil"
+                    aria-label="Pilih semua lokasi yang tampil"
                     checked={filtered.length > 0 && filtered.every((r) => selected.has(r.locationId))}
                     onChange={(e) =>
                       setSelected(e.target.checked ? new Set(filtered.map((r) => r.locationId)) : new Set())
@@ -138,7 +138,7 @@ export function PulseClient({
                 <th className="px-3 py-2 text-right">Realisasi</th>
                 <th className="px-3 py-2 text-right">Deviasi</th>
                 <th className="px-3 py-2">Risiko</th>
-                <th className="px-3 py-2">Readiness</th>
+                <th className="px-3 py-2">Kesiapan data</th>
                 <th className="px-3 py-2 text-right">Lap. final</th>
                 <th className="px-3 py-2 text-right">Kendala</th>
                 <th className="px-3 py-2" aria-label="aksi baris" />
@@ -191,7 +191,7 @@ export function PulseClient({
                   </td>
                   <td className="tabular px-3 py-2 text-right">
                     {r.openIssues}
-                    {r.overdueRecoveries > 0 ? <span className="text-danger"> · {r.overdueRecoveries} ovd</span> : null}
+                    {r.overdueRecoveries > 0 ? <span className="text-danger"> · {r.overdueRecoveries} telat</span> : null}
                   </td>
                   <td className="px-3 py-2">
                     <Link href={`/lokasi/${r.slug}`} className="text-xs text-primary hover:underline">
@@ -203,7 +203,7 @@ export function PulseClient({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-3 py-8 text-center text-sm text-ink-muted">
-                    Tidak ada lokasi cocok filter.
+                    Tidak ada lokasi yang cocok dengan filter.
                   </td>
                 </tr>
               ) : null}
@@ -218,7 +218,7 @@ export function PulseClient({
           {state?.error ? <Banner tone="error" title={state.error} /> : null}
           {selectedRows.length === 0 ? (
             <p className="text-sm text-ink-muted">
-              Centang lokasi di tabel (atau &ldquo;Pilih kritis&rdquo;), lalu jalankan aksi AI terhadap scope tsb.
+              Centang lokasi di tabel (atau tekan &ldquo;Pilih kritis&rdquo;), lalu pilih salah satu analisis AI di bawah.
             </p>
           ) : (
             <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
@@ -238,7 +238,7 @@ export function PulseClient({
             </ul>
           )}
           {!aiReady ? (
-            <p className="text-xs text-ink-muted">Provider AI nonaktif – aksi analisis dimatikan; data tabel tetap berlaku.</p>
+            <p className="text-xs text-ink-muted">AI belum aktif, jadi tombol analisis dimatikan. Data di tabel tetap berlaku.</p>
           ) : null}
           <div className="space-y-2">
             {ACTIONS.map((a) => (
@@ -262,7 +262,7 @@ export function PulseClient({
             ))}
           </div>
           <p className="rounded-md border border-warning-border bg-warning-soft px-2 py-1.5 text-[11px] leading-snug text-warning">
-            AI tidak pernah mengubah data. Semua usulan tersimpan sebagai draft dan butuh persetujuan manusia.
+            AI tidak pernah mengubah data. Semua usulannya disimpan sebagai draft dan baru berlaku setelah disetujui orang.
           </p>
         </CardBody>
       </Card>
@@ -289,7 +289,7 @@ export function PulseClient({
             </div>
             <div className="space-y-3 text-sm">
               <div>
-                <h4 className="mb-1 font-medium text-ink">Readiness {drawer.readiness.score}% ({READINESS_GRADE_LABEL[drawer.readiness.grade]})</h4>
+                <h4 className="mb-1 font-medium text-ink">Kesiapan data {drawer.readiness.score}% ({READINESS_GRADE_LABEL[drawer.readiness.grade]})</h4>
                 {drawer.readiness.blockers.length + drawer.readiness.warnings.length === 0 ? (
                   <p className="text-ink-muted">Semua pemeriksaan lulus.</p>
                 ) : (

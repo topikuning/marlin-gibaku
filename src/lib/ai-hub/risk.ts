@@ -64,7 +64,7 @@ export function computeRisks(f: LocationFacts, readiness: ReadinessResult): Risk
       locationName: f.name,
       category: "data_quality",
       severity: sevOf(score),
-      title: `Readiness data ${readiness.score}%`,
+      title: `Kesiapan data ${readiness.score}%`,
       evidence:
         readiness.blockers
           .concat(readiness.warnings)

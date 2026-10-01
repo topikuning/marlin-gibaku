@@ -26,7 +26,7 @@ export async function verifyReportExternal(
   if (!report) throw new VerifikasiError("Laporan tidak ditemukan.");
   if (!(COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)) {
     // Draft / perlu koreksi masih bisa berubah — belum ada yang bisa diperiksa.
-    throw new VerifikasiError("Laporan masih draft/perlu koreksi – belum bisa diverifikasi.");
+    throw new VerifikasiError("Laporan ini masih draft atau perlu koreksi, jadi belum bisa diverifikasi.");
   }
   if ((status === "perlu_klarifikasi" || status === "ditolak") && !note) {
     throw new VerifikasiError("Catatan wajib diisi untuk hasil selain Diverifikasi.");

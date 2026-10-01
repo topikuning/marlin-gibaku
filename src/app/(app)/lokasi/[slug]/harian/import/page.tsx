@@ -31,7 +31,7 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
     <div className="space-y-5">
       <PageHeader
         title="Impor Rekap Laporan Harian"
-        description={`${location.name} – unggah rekap Excel untuk merekonstruksi laporan harian yang terlewat.`}
+        description={`${location.name} – unggah rekap Excel untuk mengisi laporan harian yang terlewat.`}
       />
 
       <ButtonLink href={`/lokasi/${slug}/harian`} variant="ghost" size="sm" className="self-start">
@@ -54,8 +54,8 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
             <li>Unggah kembali di sini, cek pratinjau, lalu simpan.</li>
           </ol>
           <p className="rounded-md bg-surface-muted px-3 py-2 text-xs">
-            Laporan hasil impor masuk berstatus <span className="font-medium">Dikirim (menunggu verifikasi)</span> –
-            baru dihitung ke progres setelah disetujui manajemen. Volume yang melebihi sisa RAB otomatis ditandai &amp; dilewati.
+            Laporan hasil impor masuk berstatus <span className="font-medium">Dikirim (menunggu verifikasi)</span>.
+            Volumenya baru dihitung ke progres setelah disetujui manajemen. Volume yang melebihi sisa RAB otomatis ditandai dan dilewati.
           </p>
         </CardBody>
       </Card>

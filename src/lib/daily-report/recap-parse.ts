@@ -150,7 +150,7 @@ export async function parseRecapWorkbook(buf: Buffer): Promise<ParsedRecapRow[]>
   }
   if (headerRow < 0) {
     throw new Error(
-      "Header tidak ditemukan. Pastikan ada kolom Tanggal, Volume, dan Kode/Uraian pekerjaan – gunakan template unduhan.",
+      "Baris judul kolom tidak ditemukan. Pastikan ada kolom Tanggal, Volume, dan Kode/Uraian pekerjaan. Paling mudah, pakai template unduhan.",
     );
   }
 
@@ -256,7 +256,7 @@ export function matchRows(rows: ParsedRecapRow[], leaves: RecapLeaf[], todayKey:
     };
 
     if (!row.dateKey) return { ...base, status: "bad_date", message: `Tanggal tidak terbaca: "${row.rawDate}"` };
-    if (row.dateKey > todayKey) return { ...base, status: "future_date", message: "Tanggal belum terjadi" };
+    if (row.dateKey > todayKey) return { ...base, status: "future_date", message: "Tanggalnya masih di masa depan" };
 
     const cocok = findLeaf(row);
     if (!cocok.leaf) {
@@ -265,7 +265,7 @@ export function matchRows(rows: ParsedRecapRow[], leaves: RecapLeaf[], todayKey:
         return {
           ...base,
           status: "ambigu",
-          message: `Kode "${row.code}" dipakai ${cocok.kandidat.length} pekerjaan – sebutkan uraian yang tepat: ${daftar}`,
+          message: `Kode "${row.code}" dipakai ${cocok.kandidat.length} pekerjaan. Tulis uraian yang tepat: ${daftar}`,
         };
       }
       return { ...base, status: "unmatched", message: `Pekerjaan tak dikenali: "${row.name || row.code}"` };

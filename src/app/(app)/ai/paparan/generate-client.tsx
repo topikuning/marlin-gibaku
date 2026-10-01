@@ -64,7 +64,7 @@ export function PaparanGenerateClient({
         nilai: n,
         label:
           n >= dipilih.mingguBerjalan
-            ? `Minggu ke-${n} (berjalan – belum genap)`
+            ? `Minggu ke-${n} (sedang berjalan)`
             : `Minggu ke-${n}`,
       });
     }
@@ -94,7 +94,7 @@ export function PaparanGenerateClient({
       <Banner
         tone="info"
         title="Belum ada paket yang siap dipaparkan"
-        description="Paparan butuh paket berkontrak dengan SPMK dan lokasi aktif, dan seluruh lokasinya dalam akses Anda."
+        description="Paparan hanya bisa dibuat untuk paket yang sudah berkontrak, punya SPMK dan lokasi aktif, dan lokasinya bisa Anda akses."
       />
     );
   }
@@ -103,7 +103,7 @@ export function PaparanGenerateClient({
     <Card>
       <CardHeader
         title="Buat Paparan Mingguan KKP"
-        subtitle="Deck PDF lanskap 16:9 – angka dihitung MARLIN pada akhir minggu terpilih; AI hanya merapikan narasi dan selalu direview sebelum final."
+        subtitle="Deck PDF lanskap 16:9. Angkanya dihitung MARLIN per akhir minggu yang dipilih. AI hanya merapikan narasi, dan hasilnya selalu diperiksa dulu sebelum final."
       />
       <CardBody>
         {state?.error ? <Banner tone="error" title={state.error} className="mb-3" /> : null}
@@ -219,10 +219,10 @@ export function PaparanGenerateClient({
               }
               description={
                 konfirmasi
-                  ? "Versi baru dihitung ulang dari data terkini dan dimulai sebagai draf kosong suntingan – catatan yang Anda tulis di v" +
+                  ? "Versi baru dihitung ulang dari data terbaru dan dimulai tanpa suntingan. Catatan yang Anda tulis di v" +
                     lama.versi +
                     " tidak ikut pindah."
-                  : "Buka yang sudah ada bila hanya ingin melihat atau melanjutkan review. Versi baru dibuat hanya bila datanya memang sudah berubah."
+                  : "Buka yang sudah ada kalau hanya ingin melihat atau melanjutkan pemeriksaan. Buat versi baru hanya kalau datanya memang sudah berubah."
               }
             />
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
@@ -248,9 +248,9 @@ export function PaparanGenerateClient({
         ) : null}
         <p className="mt-2 text-xs text-ink-muted">
           {deskripsiTema ? `Tema: ${deskripsiTema} ` : ""}
-          Hasilnya selalu DRAF ber-watermark – melewati review dan persetujuan dulu sebelum jadi PDF final.
+          Hasilnya selalu berupa DRAF bertanda air, dan harus diperiksa serta disetujui dulu sebelum menjadi PDF final.
           {dipilih && !dipilih.bolehPaket
-            ? " Paket ini hanya bisa dipaparkan per lokasi: sebagian lokasi aktifnya di luar penugasan Anda."
+            ? " Paket ini hanya bisa dipaparkan per lokasi karena sebagian lokasi aktifnya bukan tugas Anda."
             : ""}
         </p>
       </CardBody>

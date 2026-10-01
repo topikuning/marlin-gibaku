@@ -54,7 +54,7 @@ const createSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   category: z.enum(CATEGORIES),
   severity: z.enum(SEVERITIES),
-  findingDateKey: z.string().regex(DATE_KEY, "Tanggal temuan tidak sah"),
+  findingDateKey: z.string().regex(DATE_KEY, "Tanggal temuan belum diisi dengan benar"),
   dueDateKey: z.string().regex(DATE_KEY).optional(),
   assignedToId: z.uuid().optional(),
   assignedName: z.string().trim().max(120).optional(),
@@ -220,7 +220,7 @@ export async function rejectVerificationAction(_prev: FindingActionState, formDa
     const user = await guardTemuan("finding.verify", await findingLocationId(parsed.data.findingId));
     await rejectVerification(parsed.data.findingId, parsed.data.reason, user.id);
     revalidateTemuan(parsed.data.findingId);
-    return { success: "Pengajuan ditolak – dikembalikan untuk ditindaklanjuti." };
+    return { success: "Pengajuan ditolak dan dikembalikan untuk ditindaklanjuti." };
   } catch (err) {
     return fail(err);
   }
@@ -251,10 +251,10 @@ const linkSchema = z
     caption: z.string().trim().max(300).optional(),
   })
   .refine((d) => [d.photoId, d.documentId].filter(Boolean).length === 1, {
-    message: "Pilih tepat satu bukti: foto ATAU dokumen.",
+    message: "Pilih satu bukti: foto atau dokumen, tidak boleh keduanya.",
   })
   .refine((d) => d.findingId || d.inspectionId || d.clarificationId, {
-    message: "Bukti harus menempel ke temuan, inspeksi, atau klarifikasi.",
+    message: "Bukti harus dikaitkan ke temuan, inspeksi, atau klarifikasi.",
   });
 
 export async function linkEvidenceAction(_prev: FindingActionState, formData: FormData): Promise<FindingActionState> {
@@ -325,7 +325,7 @@ export async function verifyEvidenceAction(_prev: FindingActionState, formData: 
     if (!link) return { error: "Tautan bukti tidak ditemukan." };
     const locationId =
       link.finding?.locationId ?? link.inspection?.locationId ?? link.clarification?.finding.locationId;
-    if (!locationId) return { error: "Tautan bukti tidak punya induk." };
+    if (!locationId) return { error: "Bukti ini tidak terkait ke temuan, inspeksi, atau klarifikasi mana pun." };
     const user = await guardTemuan("finding.verify", locationId);
     await verifyEvidence(parsed.data.linkId, parsed.data.status, parsed.data.note ?? null, user.id);
     revalidateTemuan(link.findingId ?? undefined);

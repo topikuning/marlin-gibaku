@@ -137,14 +137,14 @@ export default async function SuratPage({
     <div className="space-y-4">
       <PageHeader
         title="Surat Masuk & Keluar"
-        description="Register korespondensi dengan penyedia, Wakil PPK, dan pihak lain – lengkap dengan tenggat jawabannya."
+        description="Catatan surat-menyurat dengan penyedia, Wakil PPK, dan pihak lain, lengkap dengan tenggat jawabannya."
       />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <KpiCard
           label="Menunggu jawaban"
           value={perluJawaban}
-          sub="surat yang menuntut balasan"
+          sub="surat yang perlu dibalas"
           tone={perluJawaban > 0 ? "warning" : "default"}
         />
         <KpiCard
@@ -164,7 +164,7 @@ export default async function SuratPage({
           title="Register surat"
           subtitle={
             status === "dibatalkan"
-              ? `${daftar.length} surat dibatalkan – sebab & pembatalnya tercatat, dan bisa dipulihkan.`
+              ? `${daftar.length} surat dibatalkan. Alasan dan siapa yang membatalkan tercatat, dan surat bisa dipulihkan.`
               : `${daftar.length} surat ditampilkan (terbaru dulu). Yang dibatalkan disembunyikan.`
           }
           action={
@@ -203,7 +203,7 @@ export default async function SuratPage({
             <EmptyState
               icon={Mail}
               title="Belum ada surat tercatat"
-              description="Catat surat lewat tombol di atas, atau tetapkan berkas dari antrean Lampiran Masuk."
+              description="Catat surat lewat tombol di atas, atau pilih berkas dari antrean Lampiran Masuk."
               className="py-8"
             />
           ) : (
@@ -245,8 +245,8 @@ export default async function SuratPage({
       </Card>
 
       <p className="text-xs text-ink-faint">
-        Surat yang lewat tenggat jawaban ikut muncul di Perlu Tindakan – supaya tidak hanya rapi di
-        arsip, tapi benar-benar ditagih.
+        Surat yang lewat tenggat jawaban juga muncul di Perlu Tindakan, supaya benar-benar ditagih,
+        bukan sekadar tersimpan rapi di arsip.
       </p>
     </div>
   );

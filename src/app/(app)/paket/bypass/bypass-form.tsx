@@ -70,7 +70,7 @@ export function BypassForm({
           description={
             hiddenExistingCount > 0
               ? `${hiddenExistingCount} lokasi katalog sudah ada sebagai lokasi di sistem, sisanya sudah terpakai. Tidak ada yang bisa dibuat lewat jalur cepat.`
-              : "Belum ada lokasi master (semua sudah terpakai atau belum di-seed)."
+              : "Belum ada lokasi di katalog master (semua sudah terpakai, atau katalognya belum diisi)."
           }
         />
       ) : null}
@@ -147,7 +147,7 @@ export function BypassForm({
             <Input id="bp-dur" name="durationDays" type="number" min={1} max={3650} required placeholder="mis. 150" />
           </div>
         </div>
-        <HelpText>Tanggal mulai (SPMK) belum diisi di sini – tetap lewat langkah “Mulai Pelaksanaan”.</HelpText>
+        <HelpText>Tanggal mulai (SPMK) tidak diisi di sini, tetapi nanti di langkah “Mulai Pelaksanaan”.</HelpText>
       </fieldset>
 
       {/* 3 · Lokasi dari katalog */}
@@ -158,8 +158,8 @@ export function BypassForm({
         </legend>
         {hiddenExistingCount > 0 ? (
           <HelpText>
-            {hiddenExistingCount} lokasi katalog disembunyikan karena sudah ada sebagai lokasi di sistem
-            (mitigasi lokasi ganda).
+            {hiddenExistingCount} lokasi katalog disembunyikan karena sudah ada sebagai lokasi di sistem,
+            supaya tidak ada lokasi ganda.
           </HelpText>
         ) : null}
         {masters.length > 0 ? (

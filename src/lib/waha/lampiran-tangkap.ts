@@ -115,7 +115,7 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
         ...dasar,
         status: "gagal",
         failReason:
-          "Payload webhook tidak memuat URL berkas – tidak bisa diunduh. " +
+          "Pesan dari WAHA tidak memuat alamat berkas, jadi berkasnya tidak bisa diunduh. " +
           "Di WAHA, unduh media MENYALA secara bawaan, jadi sebab tersering adalah " +
           "WHATSAPP_FILES_MIMETYPES yang diisi (kalau diisi, HANYA jenis itu yang diunduh – " +
           "contoh bawaannya image/jpeg,image/png, yang membuang PDF). Kosongkan variabel itu, " +
@@ -226,11 +226,11 @@ async function unduhBerkas(url: string): Promise<Buffer> {
   });
   if (!res.ok) {
     throw new Error(
-      `Server berkas menolak (${res.status}). URL media WAHA berumur pendek – berkas mungkin sudah kedaluwarsa.`,
+      `Server berkas menolak (${res.status}). Alamat berkas dari WAHA hanya berlaku sebentar, jadi mungkin sudah kedaluwarsa.`,
     );
   }
   const ab = await res.arrayBuffer();
-  if (ab.byteLength > BATAS_UNDUH_BYTE) throw new Error("Berkas melebihi batas unduh.");
+  if (ab.byteLength > BATAS_UNDUH_BYTE) throw new Error("Berkas terlalu besar untuk diunduh.");
   return Buffer.from(ab);
 }
 
@@ -256,7 +256,7 @@ export async function arsipkanLampiran(
   if (!a) return { ok: false, alasan: "Lampiran tidak ditemukan." };
   if (a.r2Key) return { ok: true, r2Key: a.r2Key };
   if (a.status !== "tertangkap" || !a.localPath) {
-    return { ok: false, alasan: "Berkasnya tidak tertangkap – tidak ada yang bisa diarsipkan." };
+    return { ok: false, alasan: "Berkasnya tidak ikut terkirim, jadi tidak ada yang bisa diarsipkan." };
   }
   if (!isR2Configured()) {
     // Bukan kegagalan: berkas tetap ada di lokal. Tapi harus DIKATAKAN, karena
@@ -264,7 +264,7 @@ export async function arsipkanLampiran(
     return {
       ok: true,
       r2Key: null,
-      catatan: "R2 belum dikonfigurasi – berkas masih di simpanan lokal dan bisa hilang saat deploy ulang.",
+      catatan: "R2 belum diatur. Berkas masih tersimpan di server lokal dan bisa hilang saat aplikasi di-deploy ulang.",
     };
   }
   const { readFile } = await import("node:fs/promises");
@@ -288,7 +288,7 @@ export async function arsipkanLampiran(
      */
     if ((err as { code?: string } | null)?.code === "ENOENT") {
       const alasan =
-        "Berkas hilang dari simpanan sementara sebelum sempat diarsipkan – biasanya karena aplikasi di-deploy ulang. Berkas aslinya masih ada di pesan WhatsApp-nya.";
+        "Berkas hilang dari simpanan sementara sebelum sempat diarsipkan. Biasanya ini terjadi karena aplikasi di-deploy ulang. Berkas aslinya masih ada di pesan WhatsApp-nya.";
       await db.waAttachment.update({
         where: { id: a.id },
         data: { status: "gagal", failReason: alasan, localPath: null },
@@ -437,7 +437,7 @@ export async function kedaluwarsakanLampiran(
         localPath: null,
         r2Key: null,
         failReason:
-          `Umur simpan ${hari} hari habis – berkasnya dihapus. ` +
+          `Masa simpan ${hari} hari sudah habis, jadi berkasnya dihapus. ` +
           "Berkas aslinya masih ada di pesan WhatsApp-nya.",
       },
     });

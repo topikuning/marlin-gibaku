@@ -99,7 +99,7 @@ async function transition(
     where: { id: findingId, status: finding.status },
     data: { status: to, ...(extraData as Prisma.FindingUpdateManyMutationInput) },
   });
-  if (updated.count !== 1) throw new FindingError("Status temuan berubah di tengah jalan – muat ulang lalu coba lagi.");
+  if (updated.count !== 1) throw new FindingError("Status temuan ini baru saja diubah orang lain. Muat ulang halaman, lalu coba lagi.");
   await tx.findingStatusHistory.create({
     data: { findingId, fromStatus: finding.status, toStatus: to, changedById: userId, note },
   });
@@ -219,9 +219,9 @@ export type LinkEvidenceInput = {
  */
 export async function linkEvidence(input: LinkEvidenceInput, userId: string): Promise<{ id: string }> {
   const sumber = [input.photoId, input.documentId].filter(Boolean);
-  if (sumber.length !== 1) throw new FindingError("Bukti harus tepat satu: foto ATAU dokumen.");
+  if (sumber.length !== 1) throw new FindingError("Pilih satu bukti: foto atau dokumen, tidak boleh keduanya.");
   const induk = [input.findingId, input.inspectionId, input.clarificationId].filter(Boolean);
-  if (induk.length === 0) throw new FindingError("Bukti harus menempel ke temuan, inspeksi, atau klarifikasi.");
+  if (induk.length === 0) throw new FindingError("Bukti harus dikaitkan ke temuan, inspeksi, atau klarifikasi.");
 
   // Lokasi induk (untuk cek lingkup).
   let locationId: string | null = null;
@@ -241,7 +241,7 @@ export async function linkEvidence(input: LinkEvidenceInput, userId: string): Pr
     if (!c) throw new FindingError("Klarifikasi tidak ditemukan.");
     locationId = c.finding.locationId;
   }
-  if (!locationId) throw new FindingError("Induk bukti tidak punya lokasi.");
+  if (!locationId) throw new FindingError("Temuan, inspeksi, atau klarifikasi asal bukti ini tidak punya lokasi.");
 
   if (input.photoId) {
     const photo = await db.photo.findUnique({ where: { id: input.photoId }, select: { locationId: true } });

@@ -117,7 +117,7 @@ export default async function LokasiPaketPage({
                 pkg.locationsHidden > 0
                   ? `Paket ini punya ${pkg.locationsHidden} lokasi, tetapi tidak ada satu pun yang ditugaskan kepada Anda.`
                   : praKontrak
-                    ? "Tambahkan lokasi target – wajib minimal satu sebelum konversi kontrak."
+                    ? "Tambahkan lokasi target. Paling tidak satu lokasi wajib ada sebelum konversi kontrak."
                     : "Paket ini belum memiliki lokasi."
               }
             />
@@ -203,7 +203,7 @@ export default async function LokasiPaketPage({
         <Card>
           <CardHeader
             title="Lingkup lokasi kontrak"
-            subtitle="Adendum bisa MENAMBAH atau MENCABUT lokasi. Yang dicabut tidak dihapus – laporan, foto, dan realisasinya tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku CCO."
+            subtitle="Adendum bisa MENAMBAH atau MENCABUT lokasi. Lokasi yang dicabut tidak dihapus. Laporan, foto, dan realisasinya tetap ada, hanya saja sejak tanggal berlaku CCO lokasinya tidak lagi dihitung dalam angka paket."
             action={
               lokasiDicabut > 0 ? (
                 <StatusPill tone="warning" label={`${lokasiDicabut} lokasi dicabut`} />
@@ -261,7 +261,7 @@ export default async function LokasiPaketPage({
         <Card className="self-start">
           <CardHeader
             title="Susunan lokasi sudah terkunci"
-            subtitle="Paket sudah berkontrak. Perubahan lingkup yang sesungguhnya dilakukan lewat proses adendum."
+            subtitle="Paket sudah berkontrak. Kalau lingkupnya memang berubah, lakukan lewat adendum."
           />
           <CardBody className="space-y-3">
             {/*
@@ -274,7 +274,7 @@ export default async function LokasiPaketPage({
             <Banner
               tone="warning"
               title="Bukan pengganti adendum"
-              description="Panel ini hanya untuk lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar. Tindakannya tercatat di audit log."
+              description="Panel ini hanya untuk lokasi yang KETINGGALAN saat input, padahal nilai kontraknya sudah benar. Setiap tindakan di sini tercatat di audit log."
             />
             <Drawer
               trigger="Koreksi lokasi (super admin)"

@@ -92,7 +92,7 @@ export async function resolveAiScope(
   const allowedSet = new Set(orgLocations.map((l) => l.id));
   const requested = requestedIds.filter((id) => allowedSet.has(id));
   if (requestedIds.length > 0 && requested.length === 0) {
-    throw new ForbiddenError("Tidak ada lokasi dalam scope yang boleh Anda akses.");
+    throw new ForbiddenError("Tidak ada lokasi yang bisa Anda akses.");
   }
   const ids = requested.length > 0 ? requested : [...allowedSet];
   return { ids, all: requested.length === 0 };

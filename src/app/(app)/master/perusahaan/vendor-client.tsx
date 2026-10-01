@@ -100,7 +100,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
     temuan.push({
       judul: `${duplikat} perusahaan terindikasi duplikat`,
       keterangan:
-        "Nama serupa setelah CV./PT dan tanda baca diabaikan. Kontrak bisa terpecah ke dua entri yang sebetulnya satu.",
+        "Namanya sama kalau CV./PT dan tanda baca diabaikan. Kontraknya bisa terbagi ke dua data, padahal perusahaannya satu.",
       nada: "peringatan",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaring("duplikat")}>
@@ -112,7 +112,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
   if (diperkaya.length - lengkap > 0) {
     temuan.push({
       judul: `${diperkaya.length - lengkap} dari ${diperkaya.length} profil belum lengkap`,
-      keterangan: "Logo, stempel, kop surat, atau PIC belum ada – dokumen cetak jadi tidak seragam.",
+      keterangan: "Logo, stempel, kop surat, atau PIC belum ada, jadi dokumen cetaknya tidak seragam.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaring("perlu_lengkap")}>
           Lihat yang belum lengkap
@@ -123,7 +123,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
   if (tanpaPakai > 0) {
     temuan.push({
       judul: `${tanpaPakai} perusahaan tanpa pemakaian`,
-      keterangan: "Belum dipakai kontrak maupun komitmen – aman untuk ditinjau atau dibersihkan.",
+      keterangan: "Belum dipakai di kontrak maupun komitmen, jadi aman untuk diperiksa atau dihapus.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaring("tanpa_pemakaian")}>
           Lihat yang tanpa pemakaian
@@ -244,8 +244,8 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
             di daftar — bukan hanya di dialog konfirmasi yang keburu diklik. */}
         <p className="border-t border-border px-3 py-2 text-[11px] text-ink-muted">
           <strong className="font-semibold text-ink">Gabung</strong>{" "}
-          mengalihkan seluruh kontrak &amp; komitmen ke perusahaan tujuan lalu menghapus entri
-          asalnya. <strong className="font-semibold text-ink">Hapus</strong>{" "}
+          memindahkan semua kontrak &amp; komitmen ke perusahaan tujuan, lalu menghapus
+          perusahaan asalnya. <strong className="font-semibold text-ink">Hapus</strong>{" "}
           hanya untuk perusahaan tanpa pemakaian. Keduanya ada di dalam{" "}
           <strong className="font-semibold text-ink">Detail</strong>.
         </p>
@@ -255,7 +255,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
         buka={dibuka !== null}
         onTutup={() => setIdBuka(null)}
         judul={dibuka ? dibuka.name : "Perusahaan"}
-        keterangan="Identitas, aset dokumen, dan kelengkapan profil"
+        keterangan="Identitas, logo, stempel, kop, dan kelengkapan profil"
       >
         {dibuka ? (
           <div className="space-y-4">
@@ -365,8 +365,8 @@ function AksiBerbahaya({ vendor, all, dipakai }: { vendor: V; all: V[]; dipakai:
         // Alasannya DITULIS. Tombol yang sekadar hilang membuat orang mencari
         // di tempat lain, lalu menyimpulkan menunya rusak.
         <p className="text-[11px] text-ink-muted">
-          Hapus tidak tersedia: perusahaan ini masih dipakai kontrak/komitmen. Gabungkan ke
-          perusahaan lain kalau ini entri kembar.
+          Perusahaan ini belum bisa dihapus karena masih dipakai di kontrak atau komitmen.
+          Kalau ini data kembar, gabungkan ke perusahaan lain.
         </p>
       ) : (
         <form action={delAction}>
@@ -464,8 +464,8 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             perkecilKe={1200}
           />
           <p className="mt-0.5 text-xs text-ink-faint">
-            Dipakai di blok tanda tangan laporan harian, mingguan &amp; periodik yang dicetak. Pindai
-            stempel di kertas putih polos; latar putihnya tidak akan menutupi tanda tangan.
+            Dipakai di bagian tanda tangan laporan harian, mingguan &amp; periodik yang dicetak. Pindai
+            stempel di kertas putih polos. Bagian putihnya tidak akan menutupi tanda tangan.
           </p>
         </div>
         <div>
@@ -485,7 +485,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             maxBytes={8 * 1024 * 1024}
             perkecilKe={2000}
           />
-          <p className="mt-0.5 text-xs text-ink-faint">Unggah desain kop yang sudah jadi; penempatan otomatis di header laporan cetak menyusul.</p>
+          <p className="mt-0.5 text-xs text-ink-faint">Unggah desain kop yang sudah jadi. Pemasangan kop otomatis di laporan cetak menyusul.</p>
         </div>
       </div>
 
@@ -499,7 +499,7 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
         <Banner
           tone="error"
           title={state.error}
-          description="Belum ada yang tersimpan. Pilih ulang berkas logo/stempel/kop bila tadi ikut diunggah."
+          description="Belum ada yang tersimpan. Kalau tadi Anda memilih berkas logo, stempel, atau kop, pilih lagi berkasnya."
         />
       ) : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}

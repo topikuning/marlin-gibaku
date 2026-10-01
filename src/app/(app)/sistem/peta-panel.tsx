@@ -60,8 +60,8 @@ export function PetaPanel({
             className="font-mono text-[12px]"
           />
           <p className="mt-1 text-[11px] text-ink-muted">
-            Kosongkan untuk memakai bawaan. Boleh diisi cermin internal atau berkas hasil unduhan
-            sendiri – yang penting bisa diambil server ini lewat https.
+            Kosongkan untuk memakai bawaan. Boleh diisi alamat salinan di server internal atau berkas
+            hasil unduhan sendiri, asalkan bisa diambil server ini lewat https.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

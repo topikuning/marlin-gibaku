@@ -50,18 +50,18 @@ describe("audit: organisasi diperiksa di pintu artefak AI", () => {
   it("transisi artefak organisasi lain tidak mengubah status atau audit", async () => {
     const x = await artifact();
     const res = await transitionArtifactAction(undefined,fd({artifactId:x.id,to:"direview"}));
-    expect(res?.error).toBe("Artefak tidak ditemukan.");
+    expect(res?.error).toBe("Laporan AI tidak ditemukan.");
     expect((await db.aiArtifact.findUniqueOrThrow({where:{id:x.id}})).status).toBe("draft");
   });
   it("edit organisasi lain ditolak sebelum memproses konten", async () => {
     const x = await artifact();
     const res = await editArtifactAction(undefined,fd({artifactId:x.id,title:"Judul diganti",sectionCount:"1",recommendationCount:"0"}));
-    expect(res?.error).toBe("Artefak tidak ditemukan.");
+    expect(res?.error).toBe("Laporan AI tidak ditemukan.");
   });
   it("distribusi organisasi lain ditolak sebelum memilih tujuan", async () => {
     const x = await artifact(b,"beku");
     const res = await distributeArtifactAction(undefined,fd({artifactId:x.id}));
-    expect(res?.error).toBe("Artefak tidak ditemukan.");
+    expect(res?.error).toBe("Laporan AI tidak ditemukan.");
   });
   it("artefak organisasi sendiri tetap bisa direview", async () => {
     const x = await artifact(a);
@@ -171,7 +171,7 @@ it("milestone eksplisit tidak menjadi pintu melewati penugasan paket", async () 
 it("status terkirim tidak bisa direkayasa tanpa aksi distribusi", async () => {
   const x = await artifact(a,"beku");
   const result = await transitionArtifactAction(undefined,fd({artifactId:x.id,to:"terkirim"}));
-  expect(result?.error).toMatch(/distribusi/);
+  expect(result?.error).toMatch(/Distribusi WhatsApp/);
   expect((await db.aiArtifact.findUniqueOrThrow({where:{id:x.id}})).status).toBe("beku");
 });
 

@@ -595,7 +595,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       if (narasi) return narasi;
       await balasWa(
         pesan.chatId,
-        "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
+        "Maaf, saat ini saya belum bisa menjawab pertanyaan bebas karena layanan AI tidak merespons. Coba lagi sebentar lagi, atau buka MARLIN langsung.",
       );
       return { dijawab: true, alasan: `AI gagal (${hasil.errorCode})` };
     }
@@ -1174,7 +1174,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       saring === "dibuka_periode"
         ? "Kendala yang dibuka"
         : saring === "dibuka_periode_masih_terbuka"
-          ? "Kendala yang dibuka & masih terbuka"
+          ? "Kendala yang dibuka dan masih terbuka"
           : "Kendala belum selesai";
     /*
      * Catatan lama ("ini keadaan sekarang, bukan pada periode itu") hanya
@@ -1452,7 +1452,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       console.error("[waha/tanya] gagal mengirim blanko harian:", err);
       await balasWa(
         m.chatId,
-        "Berkasnya gagal saya bentuk. Angkanya tetap bisa ditanyakan di chat ini, atau buka MARLIN langsung.",
+        "Maaf, berkasnya gagal saya buat. Angkanya tetap bisa ditanyakan di chat ini, atau buka MARLIN langsung.",
       );
     }
   }
@@ -1501,8 +1501,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * payload audit — di sanalah orang yang memperbaikinya membaca.
    */
   const GAGAL_PDF =
-    "PDF laporan lengkap gagal saya bentuk – ringkasannya tetap yang di atas, atau buka MARLIN → Lokasi → Laporan Lengkap.";
-  const GAGAL_DECK = "Deck laporan lengkap gagal saya bentuk – yang terkirim laporan A4.";
+    "Maaf, PDF laporan lengkap gagal saya buat. Ringkasannya tetap yang di atas, atau buka MARLIN → Lokasi → Laporan Lengkap.";
+  const GAGAL_DECK = "Maaf, deck laporan lengkap gagal saya buat. Yang terkirim hanya laporan A4.";
   const ringkasGalat = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 300);
   let jejakLaporanLengkap:
     | {

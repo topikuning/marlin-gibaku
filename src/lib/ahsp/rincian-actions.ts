@@ -90,13 +90,13 @@ export async function setFaktorKonversiAction(args: {
   const kosong = d.faktor.trim() === "";
   const angka = kosong ? null : Number(d.faktor.replace(",", "."));
   if (!kosong && (!Number.isFinite(angka) || (angka as number) <= 0)) {
-    return { ok: false, error: `"${d.faktor}" bukan faktor konversi yang sah – harus lebih besar dari nol.` };
+    return { ok: false, error: `"${d.faktor}" bukan faktor konversi yang sah. Isi angka yang lebih besar dari nol.` };
   }
   if (!kosong && d.catatan.trim().length < 3) {
     return {
       ok: false,
       error:
-        "Faktor konversi wajib disertai alasannya (mis. “tebal dinding 15 cm”). Angka konversi tanpa alasan tidak bisa dipertahankan saat diperiksa.",
+        "Faktor konversi wajib disertai alasannya (mis. “tebal dinding 15 cm”). Angka konversi tanpa alasan sulit dipertanggungjawabkan saat diperiksa.",
     };
   }
 
@@ -220,7 +220,7 @@ export async function tambahKomponenAction(args: {
 
   const koef = Number(d.koefisien.replace(",", "."));
   if (!Number.isFinite(koef) || koef <= 0) {
-    return { ok: false, error: `"${d.koefisien}" bukan koefisien yang sah – harus lebih besar dari nol.` };
+    return { ok: false, error: `"${d.koefisien}" bukan koefisien yang sah. Isi angka yang lebih besar dari nol.` };
   }
 
   try {

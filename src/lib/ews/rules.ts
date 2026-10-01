@@ -138,7 +138,7 @@ export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
         kategori: "progress",
         severity: "kritis",
         objek: lok,
-        alasan: `Deviasi ${f.deviationPct.toFixed(1)} pp terhadap rencana minggu ke-${f.weekNumber}.`,
+        alasan: `Deviasi ${f.deviationPct.toFixed(1)} poin persen terhadap rencana minggu ke-${f.weekNumber}.`,
         tindakan: "Susun rencana kejar (recovery) dan verifikasi hambatan lapangan.",
         href: `${hrefLokasi}/progress`,
       });
@@ -148,7 +148,7 @@ export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
         kategori: "progress",
         severity: "tinggi",
         objek: lok,
-        alasan: `Deviasi ${f.deviationPct.toFixed(1)} pp terhadap rencana minggu ke-${f.weekNumber}.`,
+        alasan: `Deviasi ${f.deviationPct.toFixed(1)} poin persen terhadap rencana minggu ke-${f.weekNumber}.`,
         tindakan: "Tinjau item pekerjaan yang tertinggal di rencana mingguan.",
         href: `${hrefLokasi}/progress`,
       });
@@ -239,7 +239,7 @@ export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
       kategori: "laporan",
       severity: "sedang",
       objek: lok,
-      alasan: `${f.laporanPerluKoreksi} laporan dikembalikan (perlu koreksi) belum diperbaiki.`,
+      alasan: `${f.laporanPerluKoreksi} laporan yang dikembalikan (perlu koreksi) belum diperbaiki.`,
       tindakan: "Minta pelapor menyelesaikan koreksi supaya angkanya ikut terhitung.",
       href: `${hrefLokasi}/harian?saring=perlu_tindakan`,
     });
@@ -377,7 +377,7 @@ export function evaluasiEwsSurat(f: EwsSuratFacts): EwsWarning[] {
       kategori: "surat",
       severity: kritis ? "kritis" : "tinggi",
       objek: `Agenda ${f.agenda} – ${f.subject}`,
-      alasan: `Surat dari ${f.pihak} menunggu jawaban, lewat tenggat ${f.telatHari} hari.`,
+      alasan: `Surat dari ${f.pihak} belum dijawab, sudah lewat tenggat ${f.telatHari} hari.`,
       tindakan: "Balas suratnya, lalu tandai sudah dijawab di register surat.",
       href: `/surat?sorot=${f.letterId}`,
       letterId: f.letterId,

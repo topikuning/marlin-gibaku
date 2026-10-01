@@ -59,8 +59,8 @@ export function MasterImportForm() {
         </a>
         <p className="mt-1">
           Berisi kolom yang dibaca MARLIN beserta petunjuknya. Berkas MASTER DATA KNMP bisa langsung
-          diunggah apa adanya – sheet yang dibaca <b>MASTER DATA</b>, dan hanya lokasi berstatus
-          aktif yang diimpor. Data perusahaan tidak diambil.
+          diunggah apa adanya. Yang dibaca adalah sheet <b>MASTER DATA</b>, dan hanya lokasi
+          berstatus aktif yang diimpor. Data perusahaan tidak diambil.
         </p>
       </div>
 
@@ -81,7 +81,7 @@ export function MasterImportForm() {
             <li>Unik: <b>{preview.unique}</b></li>
             <li>Lokasi baru: <b className="text-success">{preview.newCatalog}</b></li>
             <li>Diperbarui: <b>{preview.updateCatalog}</b></li>
-            <li>Sudah ada sbg lokasi: <b className="text-warning">{preview.alreadyReal}</b></li>
+            <li>Sudah jadi lokasi proyek: <b className="text-warning">{preview.alreadyReal}</b></li>
             <li>Berkoordinat: <b>{preview.berkoordinat}</b>/{preview.unique}</li>
             {preview.tidakAktif > 0 ? (
               <li className="col-span-2 sm:col-span-3">
@@ -93,7 +93,7 @@ export function MasterImportForm() {
             {preview.koordinatJanggal > 0 ? (
               <li className="col-span-2 sm:col-span-3">
                 Koordinat tidak mungkin: <b className="text-warning">{preview.koordinatJanggal}</b>{" "}
-                <span className="text-ink-muted">– lokasinya masuk tanpa koordinat</span>
+                <span className="text-ink-muted">(lokasinya tetap masuk, tanpa koordinat)</span>
               </li>
             ) : null}
           </ul>

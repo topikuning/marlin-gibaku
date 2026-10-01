@@ -47,8 +47,8 @@ export function CreateDraftForm({
         </label>
       ) : (
         <p className="text-[13px] text-ink-muted">
-          Belum ada adendum kontrak (CCO) tercatat di paket – draft tetap bisa dibuat, catat CCO-nya
-          di halaman Kontrak paket bila sudah resmi.
+          Paket ini belum punya adendum kontrak (CCO) yang tercatat. Draft tetap bisa dibuat. Catat
+          CCO-nya di halaman Kontrak paket setelah resmi.
         </p>
       )}
       <label className="block text-sm">

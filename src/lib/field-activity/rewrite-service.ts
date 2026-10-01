@@ -66,7 +66,7 @@ export async function suggestActivityRewrite(
   }
 
   if (!(await getActiveAiConfig())) {
-    return { ok: false, error: "AI belum dikonfigurasi – atur penyedia & API key di halaman Sistem." };
+    return { ok: false, error: "AI belum disiapkan. Atur penyedia dan API key-nya di halaman Sistem." };
   }
 
   const inputChars = fields.reduce((n, f) => n + f.text.length, 0);
@@ -95,7 +95,7 @@ export async function suggestActivityRewrite(
   const parsed = parseBatchRewrite(res.text);
   const out: FieldSuggestion[] = fields.map(({ field, text }) => {
     const usul = parsed[field];
-    if (!usul) return { field, original: text, suggestion: null, rejected: "model tidak mengembalikan bagian ini" };
+    if (!usul) return { field, original: text, suggestion: null, rejected: "AI tidak memberi usulan untuk bagian ini" };
     if (usul === text) return { field, original: text, suggestion: null, rejected: "sudah rapi" };
     // Pemeriksa MENANDAI, bukan memblokir — usulan tetap ditawarkan bersama
     // catatannya, pengguna yang memutuskan (DECISIONS 181).
@@ -117,7 +117,7 @@ export async function suggestActivityRewrite(
       .join(" · ");
     return {
       ok: false,
-      error: `Tidak ada usulan yang bisa dipakai – ${rincian}. Teks asli dibiarkan apa adanya.`,
+      error: `Belum ada usulan yang bisa dipakai (${rincian}). Teks asli dibiarkan apa adanya.`,
     };
   }
 

@@ -188,7 +188,7 @@ export async function setujuiPadananAction(
     revalidatePath(`/lokasi/${parsed.data.slug}/rapl`);
 
     if (h.disetujui === 0) {
-      return { error: "Tidak ada yang disetujui – pilihannya sudah diputuskan orang lain lebih dulu." };
+      return { error: "Tidak ada yang disetujui, karena pilihannya sudah diputuskan orang lain lebih dulu." };
     }
     const selisih =
       h.disetujui < tanda.length
@@ -196,7 +196,7 @@ export async function setujuiPadananAction(
         : "";
     return {
       success:
-        `${h.disetujui} uraian disetujui dan sekarang dipakai simulasi RAPL – berlaku juga di lokasi lain yang uraiannya sama.${selisih}`,
+        `${h.disetujui} uraian disetujui dan sekarang dipakai di simulasi RAPL. Ini berlaku juga di lokasi lain yang uraiannya sama.${selisih}`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

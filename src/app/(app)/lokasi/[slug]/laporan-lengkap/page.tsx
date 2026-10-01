@@ -84,7 +84,7 @@ export default async function LaporanLengkapLokasiPage({
       <Card>
         <CardHeader
           title="Laporan lengkap lokasi"
-          subtitle={`Seluruh keadaan ${l.identitas.nama} pada posisi ${tgl(l.asOfKey)} – kesimpulan, progres, kendala, temuan, dan administrasi dari satu sumber angka.`}
+          subtitle={`Keadaan lengkap ${l.identitas.nama} per ${tgl(l.asOfKey)}: kesimpulan, progres, kendala, temuan, dan administrasi. Semua angkanya dari sumber yang sama.`}
         />
         <CardBody className="space-y-4">
           <div className="rounded-lg border-l-4 border-primary bg-primary-50 p-3">
@@ -109,8 +109,8 @@ export default async function LaporanLengkapLokasiPage({
           ) : (
             <Banner
               tone="info"
-              title="Anda dapat melihat laporan ini, tetapi tidak mengunduh atau mengirimnya"
-              description="Mengunduh dan mengirim dokumen butuh kapabilitas ekspor laporan (report.export)."
+              title="Anda bisa melihat laporan ini, tetapi tidak bisa mengunduh atau mengirimnya"
+              description="Untuk mengunduh dan mengirim, akun Anda perlu izin ekspor laporan (report.export). Minta ke admin."
             />
           )}
         </CardBody>
@@ -258,7 +258,7 @@ export default async function LaporanLengkapLokasiPage({
       <Card>
         <CardHeader
           title="Status pekerjaan per kategori RAB"
-          subtitle="Realisasi tiap kategori terhadap nilai kategorinya; bobot terhadap total RAB lokasi."
+          subtitle="Realisasi tiap kategori dibanding nilai kategorinya. Bobot dihitung terhadap total RAB lokasi."
         />
         <CardBody className="space-y-2">
           {l.kategori.length === 0 ? (
@@ -289,7 +289,7 @@ export default async function LaporanLengkapLokasiPage({
 
       {/* Kelengkapan harian */}
       <Card>
-        <CardHeader title="Kelengkapan laporan harian" subtitle="Sejak SPMK sampai posisi laporan." />
+        <CardHeader title="Kelengkapan laporan harian" subtitle="Sejak SPMK sampai tanggal laporan ini." />
         <CardBody>
           {l.kelengkapan ? (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -324,7 +324,7 @@ export default async function LaporanLengkapLokasiPage({
             </div>
           ) : (
             <p className="text-sm text-ink-muted">
-              Kelengkapan belum bisa dihitung: kontrak belum berjalan (SPMK belum terbit).
+              Kelengkapan belum bisa dihitung karena kontrak belum berjalan (SPMK belum terbit).
             </p>
           )}
         </CardBody>
@@ -540,7 +540,7 @@ export default async function LaporanLengkapLokasiPage({
         <CardHeader title="Perhatian" subtitle="Peringatan dini dari aturan yang sama dengan halaman Perlu Tindakan." />
         <CardBody className="space-y-2">
           {l.perhatian.length === 0 ? (
-            <p className="text-sm text-ink-muted">Tidak ada peringatan dini yang terpicu.</p>
+            <p className="text-sm text-ink-muted">Tidak ada peringatan dini saat ini.</p>
           ) : (
             l.perhatian.map((w, i) => (
               <div key={`${w.ruleId}-${i}`} className="rounded-lg border border-border p-2.5">

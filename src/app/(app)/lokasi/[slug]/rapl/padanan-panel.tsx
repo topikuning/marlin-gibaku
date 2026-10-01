@@ -282,7 +282,7 @@ export function PadananPanel({
           p.data?.ahspTanpaKomponen ? "text-warning" : "",
         tooltipValueGetter: (p) =>
           p.data?.ahspTanpaKomponen
-            ? "Analisa ini belum punya koefisien – tidak bisa dipakai menghitung kebutuhan."
+            ? "Analisa ini belum punya koefisien, jadi belum bisa dipakai menghitung kebutuhan."
             : (p.value as string),
       },
       {
@@ -391,7 +391,7 @@ export function PadananPanel({
       {canManage && usulanTampil > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-inset px-3 py-2">
           <p className="text-[13px] text-ink-muted">
-            Centang baris di grid – {usulanTampil} usulan menunggu keputusan pada saringan ini.
+            Centang baris di tabel. Ada {usulanTampil} usulan yang menunggu keputusan pada saringan ini.
           </p>
           <Button
             type="button"
@@ -440,8 +440,8 @@ export function PadananPanel({
       />
 
       <p className="text-[12px] text-ink-muted">
-        {tampil.length} dari {rows.length} uraian. Ketuk satu baris – atau tekan Enter pada barisnya
-        – untuk mengganti padanan AHSP-nya.
+        {tampil.length} dari {rows.length} uraian. Ketuk satu baris (atau tekan Enter pada barisnya)
+        untuk mengganti padanan AHSP-nya.
       </p>
 
       <PanelGeser
@@ -472,8 +472,8 @@ export function PadananPanel({
             />
           ) : (
             <p className="text-[13px] text-ink-muted">
-              {terbuka.catatan ?? "Belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola
-              RAB.
+              {terbuka.catatan ?? "Belum ada catatan pemetaan."} Padanan hanya bisa diubah oleh yang
+              berwenang mengelola RAB.
             </p>
           )
         ) : null}
@@ -541,7 +541,7 @@ function PemilihPadanan({
       {b.ahspTanpaKomponen ? (
         <p className="mb-2 flex items-center gap-1 text-[12px] text-warning">
           <AlertTriangle aria-hidden className="size-3.5" />
-          Analisa yang terpasang belum punya koefisien – tidak bisa dipakai menghitung kebutuhan.
+          Analisa yang terpasang belum punya koefisien, jadi belum bisa dipakai menghitung kebutuhan.
         </p>
       ) : null}
 

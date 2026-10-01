@@ -208,7 +208,7 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
  */
 export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
   if (typeof raw !== "object" || raw === null) {
-    throw new AhspParseError("Berkas AHSP bukan objek JSON.");
+    throw new AhspParseError("Isi berkas AHSP bukan JSON yang benar.");
   }
   const o = raw as Record<string, unknown>;
   const meta = (typeof o.metadata === "object" && o.metadata !== null ? o.metadata : {}) as Record<
@@ -222,7 +222,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
   const recs = Array.isArray(o.records) ? o.records : [];
   const supp = Array.isArray(o.supplemental_records) ? o.supplemental_records : [];
   if (recs.length === 0) {
-    throw new AhspParseError("Berkas AHSP tidak memuat `records` – tidak ada yang bisa diimpor.");
+    throw new AhspParseError("Berkas AHSP tidak memuat `records`, jadi tidak ada yang bisa diimpor.");
   }
 
   const entries = [

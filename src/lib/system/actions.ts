@@ -133,7 +133,7 @@ export async function resetOperationalData(_prev: ResetState, formData: FormData
   ]);
   await audit(actor.id, "system.reset_operational", "system", null);
   revalidatePath("/");
-  return { success: "Data operasional (laporan, foto, kendala) dikosongkan. Master & RAB tetap." };
+  return { success: "Data operasional (laporan, foto, kendala) sudah dikosongkan. Data master dan RAB tidak disentuh." };
 }
 
 // ── Cap foto (Photo Stamp) ────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export async function savePhotoStampConfigAction(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await setPhotoStampConfig(parsed.data);
   await audit(actor.id, "system.photo_stamp_update", "system", null, parsed.data);
-  return { success: "Pengaturan cap foto tersimpan – berlaku pada foto berikutnya.", values: await getPhotoStampConfig() };
+  return { success: "Pengaturan cap foto tersimpan. Berlaku untuk foto berikutnya.", values: await getPhotoStampConfig() };
 }
 
 // ─── Master data jenis kegiatan lapangan ──────────────────────────────
@@ -289,7 +289,7 @@ export async function rebuildFinalSnapshots(
     return {
       success:
         `${ok} laporan final dibangun ulang${gagal > 0 ? `, ${gagal} gagal` : ""}. ` +
-        "Status & data input tidak berubah – hanya angka pada cetakan yang dihitung ulang.",
+        "Status dan data isian tidak berubah. Hanya angka pada cetakan yang dihitung ulang.",
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
@@ -683,7 +683,7 @@ export async function setWaArsipAction(
   const aktif = formData.get("waAktif") === "on";
   const tujuan = String(formData.get("waTujuan") ?? "").trim();
   if (aktif && !tujuan) {
-    return { error: "Isi tujuan WhatsApp-nya dulu – peringatan tanpa tujuan tidak pernah sampai." };
+    return { error: "Isi dulu tujuan WhatsApp-nya. Tanpa tujuan, peringatan tidak akan pernah sampai." };
   }
   const { setWaArsip } = await import("@/lib/arsip-asli/setelan");
   await setWaArsip(aktif, tujuan);
@@ -719,11 +719,11 @@ export async function periksaIsiArsipAction(): Promise<ArsipAsliState> {
       hilang: b.hilang.length,
     });
     if (b.diperiksa === 0) {
-      return { error: "Belum ada satu pun berkas yang tercatat terarsip – jalankan satu putaran dulu." };
+      return { error: "Belum ada satu pun berkas yang tercatat sudah diarsipkan. Jalankan pemindahan sekali dulu." };
     }
     const ruang =
       b.sisaBytes != null
-        ? ` Sisa ruang di mesin arsip: ${(b.sisaBytes / 1024 ** 3).toFixed(1)} GB${
+        ? ` Sisa ruang di server arsip: ${(b.sisaBytes / 1024 ** 3).toFixed(1)} GB${
             b.totalBytes ? ` dari ${(b.totalBytes / 1024 ** 3).toFixed(1)} GB` : ""
           }.`
         : "";
@@ -735,11 +735,11 @@ export async function periksaIsiArsipAction(): Promise<ArsipAsliState> {
         error:
           `${b.terbukti} dari ${b.diperiksa} contoh terbukti ada, ${b.hilang.length} TIDAK: ${contoh.join(", ")}` +
           `${b.hilang.length > 3 ? ` dan ${b.hilang.length - 3} lainnya` : ""}. ` +
-          `MATIKAN arsip dulu sebelum masa tenggang lewat – salinan R2-nya akan dibuang untuk berkas yang ternyata tidak ada di sana.${ruang}`,
+          `MATIKAN arsip dulu sebelum masa tenggang lewat. Kalau tidak, salinan R2-nya akan dibuang padahal berkasnya tidak ada di sana.${ruang}`,
       };
     }
     return {
-      success: `${b.terbukti} dari ${b.diperiksa} contoh terbaru terbukti ada di mesin arsip, ukuran dan sidik jarinya cocok.${ruang}`,
+      success: `${b.terbukti} dari ${b.diperiksa} contoh terbaru terbukti ada di server arsip, ukuran dan sidik jarinya cocok.${ruang}`,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Pemeriksaan isi arsip gagal." };
@@ -763,7 +763,7 @@ export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
     revalidatePath("/sistem");
     if ("alasan" in h) {
       const sebab: Record<string, string> = {
-        mati: "Sakelarnya masih mati.",
+        mati: "Pemindahan masih dimatikan. Aktifkan dulu.",
         "belum-dikonfigurasi": "ORIGINAL_ARCHIVE_URL / _TOKEN belum diisi di Railway.",
         "r2-mati": "R2 belum dikonfigurasi.",
       };
@@ -773,7 +773,7 @@ export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
     const jam = h.berjalanSejak.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" });
     return {
       success: h.dimulai
-        ? `Pemindahan berjalan di latar – ${r.menunggu} berkas menunggu. Ia terus bekerja sampai antrean habis; muat ulang halaman untuk melihat angkanya turun.`
+        ? `Pemindahan sudah dimulai – ${r.menunggu} berkas menunggu. Prosesnya terus berjalan sampai antrean habis. Muat ulang halaman untuk melihat angkanya turun.`
         : `Pemindahan sudah berjalan sejak ${jam} – ${r.menunggu} berkas masih menunggu. Tidak perlu ditekan lagi.`,
     };
   } catch (err) {
@@ -793,11 +793,11 @@ export async function setPindahBerkasAction(
   const skema = z.object({
     aktif: z.boolean(),
     batasGb: z.coerce
-      .number({ error: "Batas R2 harus angka." })
+      .number({ error: "Batas R2 harus diisi angka." })
       .min(1, "Batas R2 paling kecil 1 GB.")
       .max(1000, "Batas R2 paling besar 1000 GB."),
     umurHari: z.coerce
-      .number({ error: "Umur harus angka." })
+      .number({ error: "Umur harus diisi angka." })
       .int("Umur harus bilangan bulat.")
       .min(3, "Umur paling kecil 3 hari.")
       .max(3650, "Umur paling besar 3650 hari."),
@@ -815,7 +815,7 @@ export async function setPindahBerkasAction(
   revalidatePath("/sistem");
   return {
     success: p.data.aktif
-      ? `Pemindahan AKTIF – berkas lebih tua dari ${p.data.umurHari} hari dipindah ke Lenovo, dan R2 dijaga di bawah ${p.data.batasGb} GB.`
+      ? `Pemindahan AKTIF. Berkas yang lebih dari ${p.data.umurHari} hari dipindah ke Lenovo, dan pemakaian R2 dijaga di bawah ${p.data.batasGb} GB.`
       : "Pemindahan dimatikan. Berkas yang sudah di Lenovo tetap bisa dibuka; tidak ada yang dipindah lagi.",
   };
 }
@@ -829,7 +829,7 @@ export async function jalankanPindahBerkasAction(): Promise<PindahBerkasState> {
     revalidatePath("/sistem");
     if ("alasan" in h) {
       const sebab: Record<string, string> = {
-        mati: "Sakelarnya masih mati.",
+        mati: "Pemindahan masih dimatikan. Aktifkan dulu.",
         "belum-dikonfigurasi": "ORIGINAL_ARCHIVE_URL / _TOKEN belum diisi di Railway.",
         "r2-mati": "R2 belum dikonfigurasi.",
       };
@@ -838,7 +838,7 @@ export async function jalankanPindahBerkasAction(): Promise<PindahBerkasState> {
     const jam = h.berjalanSejak.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" });
     return {
       success: h.dimulai
-        ? "Pemindahan berjalan di latar, tertua lebih dulu. Muat ulang halaman untuk melihat angkanya bergerak."
+        ? "Pemindahan sudah dimulai dan terus berjalan, mulai dari berkas yang paling lama. Muat ulang halaman untuk melihat angkanya bergerak."
         : `Pemindahan sudah berjalan sejak ${jam}. Tidak perlu ditekan lagi.`,
     };
   } catch (err) {

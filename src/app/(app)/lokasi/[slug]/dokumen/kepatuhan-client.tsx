@@ -257,7 +257,7 @@ export function QuickUploadForm({
         </Combobox>
       </div>
       <div>
-        <Label htmlFor="up-milestone">Milestone (bukti utk)</Label>
+        <Label htmlFor="up-milestone">Bukti untuk milestone</Label>
         <Combobox id="up-milestone" name="milestoneId" defaultValue="">
           <option value="">– tidak terkait milestone –</option>
           {milestones.map((m) => (

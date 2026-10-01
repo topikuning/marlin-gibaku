@@ -211,7 +211,7 @@ async function loadScopedMilestone(id: string, user: { orgId: string }) {
 
 export async function updateMilestone(id: string, input: MilestoneUpdateInput, userId: string): Promise<void> {
   const user = await requireCapability("compliance.manage");
-  if (user.id !== userId) throw new ForbiddenError("Sesi tidak cocok");
+  if (user.id !== userId) throw new ForbiddenError("Sesi Anda tidak cocok. Muat ulang halaman, lalu coba lagi.");
   const ms = await loadScopedMilestone(id, user);
   if (ms.locationId) await requireLocationAccess(user, ms.locationId);
 
@@ -220,7 +220,7 @@ export async function updateMilestone(id: string, input: MilestoneUpdateInput, u
     if (input.status === "selesai" && ms.requiresVerification) {
       if (!can(user.role, "document.verify")) {
         throw new ForbiddenError(
-          "Milestone ini butuh verifikasi dokumen – hanya pemegang izin verifikasi yang boleh menandai selesai",
+          "Milestone ini butuh verifikasi dokumen. Hanya yang punya izin verifikasi yang boleh menandainya selesai.",
         );
       }
       data.verifiedById = user.id;
@@ -246,7 +246,7 @@ export async function updateMilestone(id: string, input: MilestoneUpdateInput, u
 /** Verifikasi manusia untuk milestone kritis → selesai + verifiedById. */
 export async function verifyMilestone(id: string, userId: string): Promise<void> {
   const user = await requireCapability("document.verify");
-  if (user.id !== userId) throw new ForbiddenError("Sesi tidak cocok");
+  if (user.id !== userId) throw new ForbiddenError("Sesi Anda tidak cocok. Muat ulang halaman, lalu coba lagi.");
   const ms = await loadScopedMilestone(id, user);
   if (ms.locationId) await requireLocationAccess(user, ms.locationId);
   if (ms.status === "selesai") return;
@@ -301,7 +301,7 @@ export async function updateMilestoneAction(
     // template milestone, judul = nama item, tertaut ke milestone ini.
     let status: MilestoneStatus = d.status;
     if (hasFile) {
-      if (!can(user.role, "document.upload")) return { error: "Tidak punya izin mengunggah dokumen" };
+      if (!can(user.role, "document.upload")) return { error: "Anda tidak punya izin mengunggah dokumen." };
       const type = (milestoneTemplate(ms.templateKey)?.docTypes[0] ?? "lainnya") as DocumentType;
       await uploadDocument(
         {
@@ -446,11 +446,11 @@ export async function syncComplianceAction(
   try {
     const { linked, advanced } = await syncComplianceFromDocuments(packageId);
     revalidatePath(`/paket/${packageId}/dokumen`);
-    if (linked === 0) return { success: "Semua dokumen sudah tersambung – tidak ada perubahan." };
+    if (linked === 0) return { success: "Semua dokumen sudah tersambung. Tidak ada yang berubah." };
     return {
       success:
         `${linked} dokumen tersambung ke checklist` +
-        (advanced > 0 ? `, ${advanced} item kepatuhan maju.` : "."),
+        (advanced > 0 ? `, ${advanced} item kepatuhan naik statusnya.` : "."),
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Gagal menyinkronkan kepatuhan" };

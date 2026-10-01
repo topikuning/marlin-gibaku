@@ -89,8 +89,8 @@ function TawaranDuplikat({
         ))}
       </ul>
       <p className="text-sm text-ink-muted">
-        Kalau ini masalah yang sama, tambahkan perkembangannya di kendala yang sudah ada – jangan
-        dicatat dua kali. Kalau memang masalah lain, lanjutkan.
+        Kalau masalahnya sama, tambahkan perkembangannya di kendala yang sudah ada supaya tidak
+        tercatat dua kali. Kalau memang masalah lain, lanjutkan.
       </p>
       {paksaState?.error ? <Banner tone="error" title={paksaState.error} /> : null}
       <form action={paksaAction}>
@@ -276,8 +276,8 @@ function GabungForm({
         />
       </div>
       <p className="text-xs text-ink-muted">
-        Kendala ini ditutup dan ditandai kembar – tidak dihapus. Aksi pemulihannya ikut pindah ke
-        kendala tujuan.
+        Kendala ini akan ditutup dan ditandai sebagai kembaran, bukan dihapus. Aksi pemulihannya ikut
+        pindah ke kendala tujuan.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" loading={pending}>

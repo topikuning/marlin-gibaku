@@ -36,7 +36,7 @@ test.describe("autentikasi", () => {
     // bukan Command Center. Peran lapangan tetap Command Center (lihat uji mandor).
     await login(page, "admin");
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: "Dashboard Eksekutif" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dasbor Eksekutif" })).toBeVisible();
   });
 
   test("user mustChangePassword dipaksa ganti password", async ({ page }) => {

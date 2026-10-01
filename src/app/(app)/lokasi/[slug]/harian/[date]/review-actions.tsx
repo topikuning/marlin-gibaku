@@ -53,8 +53,8 @@ export function ReviewActions({
       {mode === "koreksi" ? (
         <p className="text-[13px] text-ink-muted">
           Laporan berstatus Disetujui tidak bisa diedit. Kembalikan ke Perlu Koreksi supaya isinya
-          bisa diperbaiki – <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
-          sampai laporan dikirim &amp; disetujui ulang.
+          bisa diperbaiki. Selama itu, <strong>volumenya tidak dihitung di progres &amp; kurva-S</strong>{" "}
+          sampai laporan dikirim &amp; disetujui lagi.
         </p>
       ) : null}
       {approveState?.error ? <Banner tone="error" title={approveState.error} /> : null}
@@ -88,7 +88,7 @@ export function ReviewActions({
           <input type="hidden" name="reportId" value={reportId} />
           <div>
             <Label htmlFor="rv-reason" required>
-              Alasan pengembalian (dibaca SM di lapangan)
+              Alasan pengembalian (akan dibaca Site Manager)
             </Label>
             <Textarea
               id="rv-reason"
@@ -132,7 +132,7 @@ export function FinalizePanel({
     return (
       <div className="space-y-2">
         <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium text-ink">Laporan final – angka dibekukan untuk cetak KKP.</p>
+          <p className="text-sm font-medium text-ink">Laporan sudah final. Angkanya dikunci untuk cetak KKP.</p>
           <Link
             href={withBackTo(`/cetak/harian/${slug}/${dateKey}`, `/lokasi/${slug}/harian/${dateKey}`)}
             target="_blank"
@@ -157,7 +157,7 @@ export function FinalizePanel({
         Finalisasi Laporan
       </Button>
       <p className="text-[11px] text-ink-muted">
-        Finalisasi membekukan snapshot angka (immutable) untuk cetak laporan KKP. Tidak bisa dibatalkan.
+        Finalisasi mengunci angka laporan untuk cetak KKP. Langkah ini tidak bisa dibatalkan.
       </p>
     </form>
   );
@@ -191,9 +191,9 @@ function UnfinalizeForm({ reportId }: { reportId: string }) {
     <form action={formAction} className="space-y-2 rounded-lg border border-warning-border bg-warning-soft p-4">
       <h3 className="text-sm font-semibold text-ink">Buka kembali laporan final</h3>
       <p className="text-[12px] text-ink-muted">
-        Status kembali ke <span className="font-medium">Disetujui</span> supaya angka bisa dikoreksi. Snapshot
-        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini –
-        yang mengubah angka adalah editan setelahnya.
+        Status kembali ke <span className="font-medium">Disetujui</span> supaya angka bisa dikoreksi. Versi
+        cetaknya dihapus dan disusun ulang saat difinalkan lagi. Langkah ini tidak mengubah progres &amp; kurva-S.
+        Angka baru berubah kalau isinya diedit setelah ini.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       <input type="hidden" name="reportId" value={reportId} />
@@ -269,7 +269,7 @@ export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai
         <Banner
           tone="info"
           title={`Sudah ada kendala serupa yang masih terbuka: "${state.kendalaDuplikat.title}"`}
-          description="Belum dicatat. Kalau ini masalah yang sama, tutup formulir ini – yang lama sudah menagihnya."
+          description="Kendala ini belum dicatat. Kalau masalahnya sama, tutup saja formulir ini. Kendala yang lama sudah terus ditagih."
         />
       ) : null}
       <input type="hidden" name="reportId" value={reportId} />

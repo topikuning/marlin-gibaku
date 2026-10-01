@@ -276,7 +276,7 @@ export function BudgetSection({
         </tbody>
       </table>
       {canApprove ? (
-        <HelpText>Perubahan membuat baris budget baru – riwayat nilai lama tersimpan (append-only).</HelpText>
+        <HelpText>Setiap perubahan dicatat sebagai baris budget baru. Nilai lama tetap tersimpan sebagai riwayat.</HelpText>
       ) : null}
     </div>
   );
@@ -376,7 +376,7 @@ export function CommitmentSection({
             <Button type="submit" loading={pending}>
               Ajukan komitmen
             </Button>
-            <HelpText>Komitmen langsung berstatus diajukan – menunggu persetujuan approver.</HelpText>
+            <HelpText>Komitmen langsung berstatus diajukan dan menunggu persetujuan.</HelpText>
           </form>
         </ToggleFormCard>
       ) : null}
@@ -523,7 +523,7 @@ export function ExpenseSection({
             <Button type="submit" loading={pending}>
               Ajukan realisasi
             </Button>
-            <HelpText>Bila menempel komitmen, total realisasi tidak boleh melebihi nilai komitmen (guard settlement).</HelpText>
+            <HelpText>Kalau dikaitkan ke komitmen, total realisasinya tidak boleh melebihi nilai komitmen itu.</HelpText>
           </form>
         </ToggleFormCard>
       ) : null}
@@ -821,7 +821,7 @@ export function BillingSection({
             <Button type="submit" loading={pending}>
               Simpan draft termin
             </Button>
-            <HelpText>Termin dibuat sebagai draft – ajukan setelah dokumen tagihan siap.</HelpText>
+            <HelpText>Termin dibuat sebagai draft. Ajukan setelah dokumen tagihannya siap.</HelpText>
           </form>
         </ToggleFormCard>
       ) : null}

@@ -84,7 +84,7 @@ export function GDrivePanel({
           <Banner
             tone="warning"
             title="Domain publik tidak terdeteksi"
-            description="Set environment variable APP_PUBLIC_URL (mis. https://marlin.up.railway.app) lalu redeploy. Tanpa itu MARLIN tidak tahu alamat publiknya sendiri dan OAuth Google akan ditolak."
+            description="Isi variabel lingkungan APP_PUBLIC_URL (mis. https://marlin.up.railway.app) lalu deploy ulang. Tanpa itu MARLIN tidak tahu alamat publiknya sendiri, dan sambungan OAuth Google akan ditolak."
           />
         )}
         <HelpText>
@@ -119,7 +119,7 @@ export function GDrivePanel({
       </div>
       <HelpText>
         Gunakan akun Gmail yang terdaftar sebagai <span className="font-medium">editor</span> di folder Drive
-        pemberian KKP. Setelah terhubung, isi folder Drive di masing-masing halaman paket.
+        dari KKP. Setelah terhubung, isi folder Drive di masing-masing halaman paket.
       </HelpText>
     </div>
   );

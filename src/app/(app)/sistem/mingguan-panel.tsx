@@ -48,8 +48,8 @@ export function MingguanPanel({ aktif }: { aktif: boolean }) {
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Tiap paket berjalan dikirimi pada HARI TERAKHIR minggu kontraknya sendiri, mengikuti MODE PERIODE MINGGU di kontraknya: mode Senin–Minggu (bawaan) berarti tiap hari Minggu, mode 7-hari berarti tujuh hari sejak SPMK sehingga harinya berbeda antar paket. Satu minggu hanya diumumkan sekali."
-                : "Penjadwal tidak mengirim apa pun. Tombol “Kirim ke grup sekarang” di halaman paket TETAP bekerja."}
+                ? "Tiap paket yang berjalan dikirimi laporan pada HARI TERAKHIR minggu kontraknya, sesuai PERIODE MINGGU di kontraknya. Periode Senin–Minggu (bawaan) berarti tiap hari Minggu. Periode 7 hari dihitung sejak SPMK, jadi harinya bisa berbeda antar paket. Satu minggu hanya dikirim sekali."
+                : "Tidak ada yang dikirim otomatis. Tombol “Kirim ke grup sekarang” di halaman paket TETAP bisa dipakai."}
             </p>
           </div>
         </div>
@@ -73,7 +73,7 @@ function TombolSakelar({ aktif }: { aktif: boolean }) {
       <ConfirmSubmit
         label="Nyalakan"
         title="Nyalakan laporan mingguan otomatis?"
-        description="Mulai putaran cron berikutnya, MARLIN mengirim sendiri Laporan Progres Mingguan ke grup WhatsApp tiap paket berjalan, pada hari terakhir minggu kontraknya. Pesan WhatsApp tidak bisa ditarik kembali."
+        description="Mulai jadwal pengiriman berikutnya, MARLIN mengirim sendiri Laporan Progres Mingguan ke grup WhatsApp tiap paket berjalan, pada hari terakhir minggu kontraknya. Pesan WhatsApp tidak bisa ditarik kembali."
         confirmLabel="Ya, nyalakan"
         loading={pending}
       />

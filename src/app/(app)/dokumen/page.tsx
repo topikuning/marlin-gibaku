@@ -138,7 +138,7 @@ export default async function DokumenPage({
     <div className="space-y-6">
       <PageHeader
         title="Dokumen"
-        description="Arsip terhubung ke paket, kontrak, lokasi, adendum, dan milestone. Nama dokumen dibentuk otomatis dari datanya; duplikat dicegah via checksum."
+        description="Arsip dokumen yang terhubung ke paket, kontrak, lokasi, adendum, dan milestone. Nama dokumen dibuat otomatis dari datanya, dan berkas yang sama tidak bisa diunggah dua kali."
         actions={
           can(user.role, "document.upload") ? (
             <div className="flex flex-wrap gap-2">

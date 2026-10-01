@@ -147,7 +147,7 @@ export function KatalogLokasiManager({
     temuan.push({
       judul: `${hitung.perluVerifikasi} dari ${hitung.total} lokasi belum berkoordinat`,
       keterangan:
-        "Tersimpan dan boleh dipakai, tapi tidak muncul di peta dan tidak bisa jadi cadangan titik cap foto.",
+        "Lokasinya tersimpan dan bisa dipakai, tapi tidak muncul di peta dan tidak bisa jadi titik cadangan untuk cap foto.",
       nada: "peringatan",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => { setSaring("perlu_verifikasi"); setProv(""); setCari(""); }}>
@@ -160,7 +160,7 @@ export function KatalogLokasiManager({
     temuan.push({
       judul: `${hitung.sudahAda} dari ${hitung.total} sudah ada sebagai lokasi proyek`,
       keterangan:
-        "Baris katalognya tidak lagi bisa dipakai membuat proyek baru – lokasinya sudah berjalan.",
+        "Lokasi ini sudah berjalan sebagai proyek, jadi tidak bisa dipakai lagi untuk proyek baru.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => { setSaring("sudah_ada"); setProv(""); setCari(""); }}>
           Lihat daftarnya
@@ -327,7 +327,7 @@ export function KatalogLokasiManager({
         buka={sunting != null}
         onTutup={() => setSunting(null)}
         judul={sunting ? `Ubah ${sunting.name || sunting.village}` : "Ubah lokasi"}
-        keterangan="Perbaiki nama, wilayah, dan koordinatnya. Petanya bisa diklik – titiknya ikut pindah."
+        keterangan="Perbaiki nama, wilayah, dan koordinatnya. Klik peta untuk memindahkan titiknya."
       >
         {sunting ? (
           <FormUbahLokasi
@@ -343,7 +343,7 @@ export function KatalogLokasiManager({
         buka={laci === "impor"}
         onTutup={() => setLaci(null)}
         judul="Impor Excel"
-        keterangan="Untuk banyak lokasi sekaligus. Selalu dipratinjau dulu – tidak ada baris yang masuk sebelum Anda melihat ringkasannya."
+        keterangan="Untuk banyak lokasi sekaligus. Hasilnya selalu ditampilkan dulu, dan tidak ada baris yang masuk sebelum Anda melihat ringkasannya."
       >
         <MasterImportForm />
       </Laci>
@@ -383,7 +383,7 @@ function FormTambahLokasi({ onSelesai }: { onSelesai: () => void }) {
           tone={adaPersis ? "error" : "warning"}
           title={
             adaPersis
-              ? "Lokasi ini sudah ada – tidak dibuat ganda."
+              ? "Lokasi ini sudah ada, jadi tidak dibuat lagi."
               : `${kandidat.length} lokasi mirip sudah terdaftar. Periksa dulu sebelum menyimpan.`
           }
           description={
@@ -408,8 +408,8 @@ function FormTambahLokasi({ onSelesai }: { onSelesai: () => void }) {
                 </p>
               ) : (
                 <p className="text-[12px]">
-                  Kalau ini memang desa yang berbeda – nama desa yang sama di kecamatan lain itu
-                  lazim – tekan <strong className="font-semibold">Tetap simpan sebagai baru</strong>.
+                  Kalau ini memang desa yang berbeda (nama desa yang sama di kecamatan lain itu
+                  biasa), tekan <strong className="font-semibold">Tetap simpan sebagai baru</strong>.
                 </p>
               )}
             </div>
@@ -438,7 +438,7 @@ function FormTambahLokasi({ onSelesai }: { onSelesai: () => void }) {
           </div>
         </div>
         <p className="text-[11px] text-ink-muted">
-          Kombinasi provinsi + kabupaten + kecamatan + desa dipakai memeriksa lokasi ganda sebelum
+          Provinsi, kabupaten, kecamatan, dan desa dipakai untuk memeriksa lokasi ganda sebelum
           disimpan.
         </p>
       </fieldset>
@@ -456,7 +456,7 @@ function FormTambahLokasi({ onSelesai }: { onSelesai: () => void }) {
           </div>
         </div>
         <p className="text-[11px] text-ink-muted">
-          Boleh dikosongkan – lokasinya tetap tersimpan, tapi diberi status{" "}
+          Boleh dikosongkan. Lokasinya tetap tersimpan, tapi diberi status{" "}
           <strong className="font-semibold text-ink">Perlu verifikasi</strong> sampai koordinatnya
           diisi. Isi keduanya atau kosongkan keduanya.
         </p>

@@ -143,23 +143,23 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Ketuk rana – foto langsung tersimpan di HP, lalu dikirim sendiri begitu ada sinyal.
-            Koordinat & jamnya terekam saat rana ditekan.
+            Ketuk tombol jepret. Foto langsung tersimpan di HP dan terkirim sendiri begitu ada sinyal.
+            Koordinat dan jamnya dicatat saat Anda menjepret.
           </HelpText>
         </div>
 
         <p className="text-[13px] text-ink-muted">
           {adaPosisi
             ? terdekat?.jarakMeter != null
-              ? `Kamu ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dikenali ke lokasi itu.`
+              ? `Anda ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dicocokkan ke lokasi itu.`
               : "Posisi terbaca, tapi belum ada lokasi yang punya titik proyek untuk dibandingkan."
-            : "Posisi belum terbaca. Izinkan akses lokasi – tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
+            : "Posisi belum terbaca. Izinkan akses lokasi. Tanpa koordinat, lokasi fotonya harus Anda pilih sendiri nanti."}
         </p>
 
         {wajibGps ? (
           <Banner
             tone="info"
-            title="Setelan wajib-GPS menyala"
+            title="GPS wajib aktif"
             description="Foto tanpa koordinat akan ditolak. Pastikan izin lokasi aktif sebelum memotret."
           />
         ) : null}
@@ -211,8 +211,8 @@ function JepretCard({
             {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
             {state.ok ? <Banner tone="success" title={state.ok} /> : null}
             <HelpText>
-              Pakai aplikasi kamera HP. Hasilnya sama; bedanya ada satu layar konfirmasi bawaan
-              HP, dan fotonya dikirim saat itu juga (tidak lewat antrean).
+              Pakai aplikasi kamera bawaan HP. Hasilnya sama. Bedanya, ada satu layar konfirmasi dari
+              HP, dan fotonya langsung dikirim saat itu juga (tidak masuk antrean).
             </HelpText>
             <form action={action} className="space-y-3">
               <PhotoSourceInput hanyaKamera />
@@ -276,9 +276,9 @@ function PanelAntrean({
       </div>
 
       <HelpText>
-        Foto tersimpan di HP dan dikirim sendiri begitu ada sinyal – termasuk kalau halaman ini
-        ditutup dan dibuka lagi nanti. Tapi ia masih di HP ini: jangan hapus data aplikasi sebelum
-        antreannya habis.
+        Foto tersimpan di HP dan terkirim sendiri begitu ada sinyal, termasuk kalau halaman ini
+        ditutup lalu dibuka lagi. Selama belum terkirim, fotonya hanya ada di HP ini. Jangan hapus
+        data aplikasi sebelum antreannya habis.
       </HelpText>
 
       <ul className="flex gap-2 overflow-x-auto pb-1">
@@ -349,7 +349,7 @@ function PanelAntrean({
           title={`${rusak.length} foto rusak di simpanan HP`}
           description={
             rusak[0].pesan ??
-            "Isi fotonya hilang dari simpanan HP – tidak bisa dikirim. Buang saja lalu potret ulang."
+            "Isi fotonya hilang dari simpanan HP, jadi tidak bisa dikirim. Buang saja, lalu potret ulang."
           }
         />
       ) : null}
@@ -524,7 +524,7 @@ function KantongCard({
         <EmptyState
           icon={Images}
           title="Kantong masih kosong"
-          description="Foto yang kamu simpan lewat tombol di atas muncul di sini, menunggu dipakai di laporan harian atau kegiatan lapangan."
+          description="Foto yang Anda simpan lewat tombol di atas akan muncul di sini, menunggu dipakai di laporan harian atau kegiatan lapangan."
         />
       </Card>
     );
@@ -551,8 +551,8 @@ function KantongCard({
         {/* Tanpa kalimat ini, "bisa dipilih" harus ditebak: petaknya tidak
             bertombol, dan satu-satunya ikon yang menonjol justru tong sampah. */}
         <HelpText>
-          Ketuk foto untuk memilihnya – pilihannya boleh berapa pun dan boleh dari kelompok mana
-          pun. Tindakan yang bisa dilakukan muncul di bawah, mengikuti apa yang kamu pilih.
+          Ketuk foto untuk memilihnya. Anda boleh memilih berapa pun, dari kelompok mana pun.
+          Pilihan tindakannya muncul di bawah, sesuai foto yang Anda pilih.
         </HelpText>
 
         {hasil?.error ? <Banner tone="error" title={hasil.error} /> : null}
@@ -582,9 +582,10 @@ function KantongCard({
               </div>
               {g.tanpaLokasi ? (
                 <HelpText>
-                  Koordinatnya tidak ada, terlalu jauh dari semua titik proyek, atau berada di
-                  antara dua lokasi yang berdekatan – sistem sengaja tidak menebak. Pilih foto yang
-                  lokasinya sama, tetapkan lokasinya, lalu ulangi untuk kelompok berikutnya.
+                  Foto-foto ini tidak punya koordinat, terlalu jauh dari semua titik proyek, atau
+                  berada di antara dua lokasi yang berdekatan, jadi sistem tidak menebak lokasinya.
+                  Pilih foto yang lokasinya sama, tetapkan lokasinya, lalu ulangi untuk kelompok
+                  berikutnya.
                 </HelpText>
               ) : null}
               <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
@@ -606,7 +607,7 @@ function KantongCard({
           <Banner
             tone="warning"
             title="Foto dari lebih dari satu lokasi terpilih"
-            description="Foto hanya bisa dipakai di lokasi tempat ia dipotret. Pilih foto dari satu lokasi saja."
+            description="Foto hanya bisa dipakai di lokasi tempat foto itu diambil. Pilih foto dari satu lokasi saja."
           />
         ) : (
           <PanelPakai
@@ -735,8 +736,8 @@ function PanelTetapkanLokasi({
         Tetapkan lokasi untuk {fotos.length} foto terpilih
       </p>
       <HelpText>
-        Hanya foto yang kamu pilih yang ditetapkan. Foto lain di kelompok ini tidak tersentuh, jadi
-        satu perjalanan yang melewati beberapa desa bisa dikerjakan sekelompok demi sekelompok.
+        Lokasi hanya ditetapkan untuk foto yang Anda pilih. Foto lain di kelompok ini tidak berubah,
+        jadi foto dari satu perjalanan yang melewati beberapa desa bisa diatur sedikit demi sedikit.
         {diabaikan > 0
           ? ` ${diabaikan} foto terpilih lainnya sudah punya lokasi dan dilewati di langkah ini.`
           : ""}
@@ -898,7 +899,7 @@ function PanelPakai({
                   />
                   {laporanTerpilih.items.length === 0 ? (
                     <HelpText>
-                      Laporan ini belum punya item pekerjaan. Isi itemnya dulu di Hari Ini, baru
+                      Laporan ini belum punya item pekerjaan. Isi dulu itemnya di Hari Ini, setelah itu
                       fotonya bisa ditempelkan.
                     </HelpText>
                   ) : null}
@@ -908,8 +909,8 @@ function PanelPakai({
           ) : (
             <HelpText>
               Tidak ada laporan harian yang masih bisa disunting di lokasi ini. Laporan yang sudah
-              dikirim atau disetujui sengaja tidak ditawarkan – menambah lampiran ke sana berarti
-              mengubah berkas yang sudah disahkan orang lain.
+              dikirim atau disetujui sengaja tidak ditampilkan, karena menambah foto ke sana berarti
+              mengubah laporan yang sudah disahkan orang lain.
             </HelpText>
           )
         ) : data && data.kegiatan.length > 0 ? (
@@ -926,8 +927,8 @@ function PanelPakai({
           </div>
         ) : (
           <HelpText>
-            Tidak ada kegiatan lapangan berstatus draft di lokasi ini. Buat kegiatannya dulu di
-            workspace lokasi.
+            Tidak ada kegiatan lapangan berstatus draft di lokasi ini. Buat dulu kegiatannya di
+            halaman lokasi.
           </HelpText>
         )}
 
@@ -938,8 +939,8 @@ function PanelPakai({
           {pending ? "Memproses…" : "Pakai foto"}
         </Button>
         <HelpText>
-          Waktu & koordinat foto TIDAK berubah – yang ditambahkan hanya nama lokasi, perusahaan,
-          bangunan, dan item pekerjaannya ke capnya.
+          Waktu dan koordinat foto TIDAK berubah. Yang ditambahkan ke cap foto hanya nama lokasi,
+          perusahaan, bangunan, dan item pekerjaannya.
         </HelpText>
       </form>
     </div>

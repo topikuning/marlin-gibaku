@@ -95,8 +95,8 @@ export function VerifikasiWaForm({
     <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
       {nomorTercatat ? (
         <p className="text-sm text-ink-muted">
-          Nomor yang tercatat sekarang: <span className="font-medium text-ink">{nomorTercatat}</span> –
-          belum terverifikasi. Kalau nomor Anda sudah berganti, verifikasi ini sekaligus memperbaruinya.
+          Nomor yang tercatat sekarang: <span className="font-medium text-ink">{nomorTercatat}</span>,
+          tapi belum terverifikasi. Kalau nomor Anda sudah berganti, verifikasi ini sekaligus memperbaruinya.
         </p>
       ) : (
         <p className="text-sm text-ink-muted">
@@ -112,7 +112,7 @@ export function VerifikasiWaForm({
           <ol className="list-decimal space-y-1 pl-5 text-sm text-ink-muted">
             <li>MARLIN memberi satu frasa singkat.</li>
             <li>Kirim frasa itu lewat WhatsApp dari nomor Anda sendiri.</li>
-            <li>MARLIN membalas kode; ketikkan kodenya di sini.</li>
+            <li>MARLIN membalas dengan kode. Ketik kode itu di sini.</li>
           </ol>
           <Button
             type="button"
@@ -155,7 +155,7 @@ export function VerifikasiWaForm({
                 Buka WhatsApp & kirim
               </a>
               <p className="text-center text-xs text-ink-muted">
-                Pesannya sudah terisi – Anda tinggal menekan kirim di WhatsApp.
+                Pesannya sudah terisi. Anda tinggal menekan kirim di WhatsApp.
               </p>
             </>
           ) : (
@@ -174,14 +174,14 @@ export function VerifikasiWaForm({
             </p>
             {nomorTujuan ? (
               <p className="mt-1">
-                Tujuan: <span className="font-medium text-ink">{nomorTujuan}</span> – nomor WhatsApp MARLIN.
+                Tujuan: <span className="font-medium text-ink">{nomorTujuan}</span> (nomor WhatsApp MARLIN).
               </p>
             ) : null}
           </details>
 
           <p className="text-sm text-ink-muted">
-            Menunggu pesan Anda masuk… halaman ini berpindah sendiri begitu diterima. Tidak perlu
-            mengirim dua kali.
+            Menunggu pesan Anda masuk… Halaman ini akan lanjut sendiri begitu pesannya diterima. Tidak
+            perlu mengirim dua kali.
           </p>
           {tombolLewati}
         </>
@@ -199,7 +199,7 @@ export function VerifikasiWaForm({
           <Banner
             tone="error"
             title="Pesan Anda diterima, tapi kodenya gagal dikirim"
-            description={`Dari ${keadaan.nomor ?? "nomor Anda"}. Ini masalah di sisi MARLIN, bukan di pesan Anda – mengirim ulang tidak akan mengubahnya. Coba lagi sebentar, atau hubungi admin kalau tetap gagal.`}
+            description={`Dari ${keadaan.nomor ?? "nomor Anda"}. Ini masalah di sisi MARLIN, bukan di pesan Anda, jadi mengirim ulang pesan tidak akan membantu. Tunggu sebentar lalu tekan Coba lagi, atau hubungi admin kalau tetap gagal.`}
           />
           <Button
             type="button"

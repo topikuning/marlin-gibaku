@@ -125,7 +125,7 @@ export function klasifikasiLampiran(input: LampiranInput): LampiranKelas {
     if (kataSurat) {
       return {
         kind: "surat_kandidat",
-        alasan: `Berkas dokumen dan menyebut "${kataSurat}"`,
+        alasan: `Berkas dokumen yang menyebut "${kataSurat}"`,
         perluDitetapkan: true,
         layakDibacaAi: true,
       };
@@ -160,7 +160,7 @@ export function klasifikasiLampiran(input: LampiranInput): LampiranKelas {
     if (kataKerja) {
       return {
         kind: "dokumen",
-        alasan: `Gambar bernama berkas kerja (menyebut "${kataKerja}")`,
+        alasan: `Gambar dengan nama berkas kerja (menyebut "${kataKerja}")`,
         perluDitetapkan: true,
         layakDibacaAi: true,
       };

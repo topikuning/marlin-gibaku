@@ -36,8 +36,8 @@ export default async function KontakPage() {
       {!wahaOn ? (
         <Banner
           tone="warning"
-          title="WAHA (gateway WhatsApp) belum dikonfigurasi"
-          description="Kontak tetap bisa dikelola, tetapi pengiriman baru berfungsi setelah admin mengatur WAHA di Sistem."
+          title="Layanan pengirim WhatsApp (WAHA) belum diatur"
+          description="Kontak tetap bisa dikelola, tetapi laporan baru bisa terkirim setelah admin mengatur WAHA di halaman Sistem."
         />
       ) : null}
 
@@ -56,7 +56,7 @@ export default async function KontakPage() {
       />
 
       <Card>
-        <CardHeader title="Pengiriman terakhir Anda" subtitle="Jejak kiriman WhatsApp (laporan eksekutif) terbaru." />
+        <CardHeader title="Pengiriman terakhir Anda" subtitle="Kiriman WhatsApp (laporan eksekutif) yang terakhir." />
         <CardBody>
           {dispatches.length === 0 ? (
             <p className="text-sm text-ink-muted">Belum ada pengiriman.</p>

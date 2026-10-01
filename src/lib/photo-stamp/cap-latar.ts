@@ -348,7 +348,7 @@ export async function buatUlangBerkasHilang(
   for (const f of foto) {
     try {
       const t = await tugasDariBasisData(f.id, false);
-      if (!t) throw new Error("Foto ini tidak punya berkas asli – tidak bisa dibuat ulang.");
+      if (!t) throw new Error("Foto ini tidak punya berkas asli, jadi tidak bisa dibuat ulang.");
       const { tag, hasil } = await render(t);
       if (f.hilang.includes("utama")) await r2Put(f.r2Key, hasil.main, hasil.contentType);
       if (f.hilang.includes("thumbnail") && f.thumbnailKey) {

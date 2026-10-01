@@ -262,9 +262,9 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-ink">Kegiatan &amp; Dokumentasi Lapangan</h1>
             <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-ink-muted">
-              Catat kegiatan NON-progres seperti PCM, pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, dan dokumentasi
-              kondisi 0%. Foto, dokumen pendukung, finalisasi, serta distribusi WhatsApp dalam satu alur. Terpisah dari
-              laporan progres harian.
+              Catat kegiatan yang bukan progres fisik, seperti PCM, pengukuran/uitzet, MC-0, sosialisasi, mobilisasi,
+              dan dokumentasi kondisi 0%. Foto, dokumen pendukung, finalisasi, dan pengiriman ke WhatsApp diurus di sini
+              sekaligus. Halaman ini terpisah dari laporan progres harian.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -288,7 +288,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
             <div className="border-b border-border p-4">
               <h2 className="text-sm font-semibold text-ink">Catat kegiatan lapangan</h2>
               <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                Informasi wajib di atas. Detail opsional bisa dibuka bila diperlukan.
+                Isian wajib ada di atas. Isian tambahan bisa dibuka kalau perlu.
               </p>
             </div>
             <div className="p-4">
@@ -301,7 +301,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
           <div className="border-b border-border p-4">
             <h2 className="text-sm font-semibold text-ink">Riwayat kegiatan</h2>
             <p className="mt-1 text-[11px] text-ink-muted">
-              Konten, bukti, tindakan, dan distribusi dipisahkan agar mudah dipindai.
+              Isi, bukti, tindakan, dan pengiriman dipisah supaya mudah dibaca sekilas.
             </p>
           </div>
           <KegiatanList items={items} typeOptions={typeOptions} statusOptions={statusOptions} />

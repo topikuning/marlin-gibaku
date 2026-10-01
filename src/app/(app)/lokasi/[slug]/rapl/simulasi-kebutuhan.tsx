@@ -154,7 +154,7 @@ export function SimulasiKebutuhan({
       <Banner
         tone="info"
         title="Belum ada padanan yang disetujui"
-        description={`Simulasi kebutuhan hanya memakai padanan yang sudah disetujui orang – usulan mesin tidak dihitung. Setujui usulan di tahap 2 lebih dulu (${barisRab} baris RAB menunggu).`}
+        description={`Simulasi kebutuhan hanya memakai padanan yang sudah disetujui. Usulan otomatis belum ikut dihitung. Setujui dulu usulan di tahap 2 (${barisRab} baris RAB menunggu).`}
       />
     );
   }
@@ -163,15 +163,15 @@ export function SimulasiKebutuhan({
     <div className="space-y-3">
       <Banner
         tone={pct >= 80 ? "success" : pct >= 40 ? "warning" : "info"}
-        title={`Menutup ${formatPct(pct, 1)} nilai RAB – ${formatRupiah(dipakai)} dari ${formatRupiah(total)}`}
-        description={`Dihitung dari ${barisDipakai} dari ${barisRab} baris kerja. Angka di tabel ini VOLUME kebutuhan, belum biaya – harga diisi di tahap 4.`}
+        title={`Mencakup ${formatPct(pct, 1)} nilai RAB (${formatRupiah(dipakai)} dari ${formatRupiah(total)})`}
+        description={`Dihitung dari ${barisDipakai} dari ${barisRab} baris kerja. Angka di tabel ini VOLUME kebutuhan, belum biaya. Harga diisi di tahap 4.`}
       />
 
       {janggal > 0 ? (
         <p className="text-[12px] text-warning">
           {janggal} baris ditandai <strong>kategori janggal</strong>: berkas AHSP resminya
           mendaftarkannya sebagai upah padahal satuannya satuan bahan. MARLIN tidak memindahkannya
-          sendiri – periksa halaman PDF analisanya.
+          sendiri. Periksa halaman PDF analisanya.
         </p>
       ) : null}
 
@@ -232,9 +232,9 @@ export function SimulasiKebutuhan({
       )}
 
       <p className="text-[12px] text-ink-muted">
-        Nama sumber daya TIDAK disatukan antar ejaan yang berbeda (&ldquo;Semen PC&rdquo; dan
-        &ldquo;Semen Portland&rdquo; tetap dua baris) – menggabungkannya keputusan yang tidak boleh
-        diambil diam-diam.
+        Nama sumber daya dengan ejaan berbeda TIDAK digabung (&ldquo;Semen PC&rdquo; dan
+        &ldquo;Semen Portland&rdquo; tetap dua baris). Menggabungkannya adalah keputusan yang tidak
+        boleh diambil sistem diam-diam.
       </p>
     </div>
   );

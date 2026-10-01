@@ -54,7 +54,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
     <div className="space-y-6">
       <CollapsibleCard
         title="Administrasi induk (paket)"
-        subtitle={`${indukBoard.done}/${indukBoard.total} selesai – SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Dikelola di paket; status ikut induk.`}
+        subtitle={`${indukBoard.done}/${indukBoard.total} selesai: SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Diatur di halaman paket, dan statusnya mengikuti paket.`}
         defaultOpen={false}
       >
         <div className="space-y-4">

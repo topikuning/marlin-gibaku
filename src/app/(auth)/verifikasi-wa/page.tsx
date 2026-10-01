@@ -36,8 +36,8 @@ export default async function VerifikasiWaPage() {
         <div className="mb-6 text-center">
           <div className="text-xl font-bold tracking-tight text-primary">Verifikasi Nomor WhatsApp</div>
           <p className="mt-1 text-sm text-ink-muted">
-            Sekali saja. Supaya MARLIN yakin nomor WhatsApp yang tercatat benar-benar milik Anda –
-            ke sanalah pengingat laporan dan jawaban pertanyaan dikirim.
+            Cukup sekali. Langkah ini memastikan nomor WhatsApp yang tercatat memang milik Anda,
+            karena pengingat laporan dan jawaban pertanyaan dikirim ke nomor itu.
           </p>
         </div>
         <VerifikasiWaForm

@@ -64,7 +64,7 @@ export async function buatSnapshotPaparan(
   if (weekNumber < 1) throw new PaparanSnapshotError("Nomor minggu tidak valid.");
   if (weekNumber > berjalanKe) {
     throw new PaparanSnapshotError(
-      `Minggu ke-${weekNumber} belum terjadi – minggu kontrak yang berjalan baru ke-${berjalanKe}.`,
+      `Minggu ke-${weekNumber} belum terjadi. Minggu kontrak yang sedang berjalan baru ke-${berjalanKe}.`,
     );
   }
   const berjalan = weekNumber >= berjalanKe;

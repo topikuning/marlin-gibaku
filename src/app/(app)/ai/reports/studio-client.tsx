@@ -63,7 +63,7 @@ export function ReportStudioClient({
       </Card>
 
       <Card className="self-start">
-        <CardHeader title="Pilih lokasi dan periode" subtitle="Kosong berarti seluruh lokasi yang Anda pegang, tetap dibatasi pagar sistem." />
+        <CardHeader title="Pilih lokasi dan periode" subtitle="Kalau tidak ada yang dipilih, semua lokasi yang Anda pegang ikut dipakai, dalam batas yang diatur sistem." />
         <CardBody>
           <form action={formAction} className="space-y-3">
             <input type="hidden" name="templateKey" value={template} />
@@ -99,13 +99,13 @@ export function ReportStudioClient({
             {originRunId || originConversationId ? (
               <Banner
                 tone="info"
-                title="Konteks asal akan dibawa ke laporan"
-                description="Temuan dan maksud sebelumnya dipertahankan; angka tetap dihitung ulang dari data resmi terbaru."
+                title="Isi analisis sebelumnya ikut dibawa ke laporan"
+                description="Temuan dan maksud dari analisis sebelumnya tetap dipakai, tetapi angkanya dihitung ulang dari data resmi terbaru."
               />
             ) : null}
             <p className="text-xs text-ink-faint">
-              Draf disusun AI dari angka resmi MARLIN dan selalu berstatus <strong>Draft</strong> – wajib review →
-              approve → bekukan sebelum distribusi.
+              Draf disusun AI dari angka resmi MARLIN dan selalu berstatus <strong>Draft</strong>. Sebelum dikirim, draf
+              harus diperiksa, disetujui, lalu dibekukan.
             </p>
           </form>
         </CardBody>

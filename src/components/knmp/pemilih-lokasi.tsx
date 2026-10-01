@@ -155,8 +155,8 @@ export function PemilihLokasi({
         {kelompok.length === 0 ? (
           <p className="px-1 py-2 text-sm text-ink-muted">
             {locations.length === 0
-              ? "Tidak ada lokasi dalam izin Anda."
-              : `Tidak ada lokasi cocok "${cari}".`}
+              ? "Tidak ada lokasi yang bisa Anda akses."
+              : `Tidak ada lokasi yang cocok dengan "${cari}".`}
           </p>
         ) : (
           kelompok.map(([nama, isi]) => {
@@ -217,7 +217,7 @@ export function PemilihLokasi({
       {/* Yang disembunyikan filter DISEBUT jumlahnya. */}
       {disembunyikan > 0 ? (
         <p className="text-xs text-ink-faint">
-          {cocok.length} dari {locations.length} lokasi tampil · {disembunyikan} disembunyikan pencarian.
+          {cocok.length} dari {locations.length} lokasi tampil · {disembunyikan} tidak cocok dengan pencarian.
         </p>
       ) : null}
     </div>

@@ -98,7 +98,7 @@ async function loadSharp(): Promise<typeof import("sharp")["default"]> {
     return mod.default;
   } catch (err) {
     console.error("[photos] sharp tidak tersedia:", err);
-    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini – hubungi admin");
+    throw new PhotoError("Server belum bisa mengolah gambar. Hubungi admin.");
   }
 }
 
@@ -318,7 +318,7 @@ export type SavePhotoInput = {
  * Duplikat byte-identik ditolak dengan error (anti dobel bukti).
  */
 export async function savePhotoForItem(input: SavePhotoInput) {
-  if (!isR2Configured()) throw new PhotoError("Penyimpanan foto belum dikonfigurasi");
+  if (!isR2Configured()) throw new PhotoError("Penyimpanan foto belum diatur. Hubungi admin.");
   // Foto baru di lokasi yang sudah dicabut dari kontrak ditolak (DECISIONS 616).
   if (input.locationId) {
     const { alasanLokasiTertutup } = await import("@/lib/package/lingkup-lokasi");
@@ -326,7 +326,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     if (tertutup) throw new PhotoError(tertutup);
   }
   const { file } = input;
-  if (file.size === 0) throw new PhotoError("File foto kosong");
+  if (file.size === 0) throw new PhotoError("Berkas foto kosong. Pilih atau ambil fotonya lagi.");
   // Angka di pesan DIAMBIL dari konstanta — teks mati "8 MB" pernah
   // bertahan setelah batasnya berubah, dan pesan yang bohong soal batas
   // membuat orang mengecilkan foto sampai ukuran yang sebenarnya tidak perlu.
@@ -343,7 +343,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
         select: { id: true },
       })
     : null;
-  if (existing) throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
+  if (existing) throw new PhotoError("Foto ini sudah pernah diunggah di lokasi ini.");
 
   const exif = readExif(original);
   const s = input.stamp;
@@ -372,7 +372,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // tetap menang — mandat admin tidak bisa dilewati lewat pilihan unggah.
     if (s?.fallbackMode === "apa_adanya" && s?.requireGps) {
       throw new PhotoError(
-        "Setelan wajib-GPS sedang menyala – opsi \"gunakan apa adanya\" tidak bisa dipakai. " +
+        "Setelan wajib-GPS sedang aktif, jadi opsi \"gunakan apa adanya\" tidak bisa dipakai. " +
           "Pilih foto yang punya GPS di EXIF-nya atau ambil lewat tombol Kamera.",
       );
     }
@@ -544,7 +544,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   };
   const duplikat = (e: unknown) =>
     e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002"
-      ? new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)")
+      ? new PhotoError("Foto ini sudah pernah diunggah di lokasi ini.")
       : e;
 
   /*

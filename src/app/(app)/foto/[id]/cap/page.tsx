@@ -98,7 +98,7 @@ export default async function PerbaikiCapPage({
     <div className="space-y-4">
       <PageHeader
         title="Perbaiki cap foto"
-        description="Cap dirender ULANG dari berkas asli yang diarsipkan – bukan dicap ulang di atas gambar ber-cap."
+        description="Cap dibuat ULANG dari berkas foto asli yang diarsipkan, bukan ditimpakan di atas foto yang sudah ber-cap."
         actions={
           <Link href={kembali} className="text-sm text-primary hover:underline">
             ← Galeri Foto
@@ -114,7 +114,7 @@ export default async function PerbaikiCapPage({
               ? "Arsip berkas asli foto ini sudah dihapus – capnya tidak bisa diperbaiki lagi."
               : "Foto ini diunggah sebelum arsip berkas asli aktif, jadi capnya tidak bisa diperbaiki."
           }
-          description="Perbaikan cap selalu dimulai dari berkas asli. Tanpa arsipnya, cap lama sudah menyatu dengan pikselnya."
+          description="Perbaikan cap selalu dimulai dari berkas asli. Tanpa berkas asli, cap lama sudah menyatu dengan gambarnya."
         />
       ) : null}
 
@@ -156,20 +156,20 @@ export default async function PerbaikiCapPage({
         <Card>
           <CardHeader
             title="Nilai baru"
-            subtitle="Sudah diisi hasil ambil-ulang dari data terkini. Ubah seperlunya. Saat disimpan, tag bawaan dan tata letak cap ikut disusun ulang dengan aturan terbaru."
+            subtitle="Sudah diisi dari data terbaru. Ubah seperlunya. Saat disimpan, tag bawaan dan tata letak cap ikut disusun ulang dengan aturan terbaru."
           />
           <CardBody>
             {bisaDiperbaiki ? (
               <RestampForm photoId={k.photoId} awal={awal} usulan={usulan} />
             ) : (
-              <p className="text-sm text-ink-muted">Form dinonaktifkan – arsip aslinya tidak ada.</p>
+              <p className="text-sm text-ink-muted">Formulir tidak bisa dipakai karena berkas aslinya tidak ada.</p>
             )}
           </CardBody>
         </Card>
       </div>
 
       <Card>
-        <CardHeader title="Riwayat perbaikan" subtitle="Append-only – tidak bisa diubah atau dihapus." />
+        <CardHeader title="Riwayat perbaikan" subtitle="Riwayat ini tidak bisa diubah atau dihapus." />
         <CardBody>
           {revisi.length === 0 ? (
             <p className="text-sm text-ink-muted">Cap foto ini belum pernah diperbaiki.</p>

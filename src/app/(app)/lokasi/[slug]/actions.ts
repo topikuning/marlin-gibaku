@@ -41,7 +41,7 @@ export async function changeLocationStatus(
     });
     if (!canTransitionLocation(location.status, d.toStatus)) {
       return {
-        error: `Transisi ${LOCATION_STATUS_LABEL[location.status]} → ${LOCATION_STATUS_LABEL[d.toStatus]} tidak diizinkan.`,
+        error: `Status lokasi tidak bisa diubah dari ${LOCATION_STATUS_LABEL[location.status]} ke ${LOCATION_STATUS_LABEL[d.toStatus]}.`,
       };
     }
 
@@ -75,7 +75,7 @@ export async function changeLocationStatus(
     revalidatePath(`/lokasi/${location.slug}`, "layout");
     revalidatePath("/lokasi");
     revalidatePath("/");
-    return { success: `Status lokasi → ${LOCATION_STATUS_LABEL[d.toStatus]}.` };
+    return { success: `Status lokasi diubah menjadi ${LOCATION_STATUS_LABEL[d.toStatus]}.` };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
@@ -215,13 +215,13 @@ export async function cabutAksesLokasiAction(
     userId: formData.get("userId"),
     slug: formData.get("slug"),
   });
-  if (!parsed.success) return { error: "Penugasan tidak dikenali." };
+  if (!parsed.success) return { error: "Penugasan ini tidak ditemukan. Muat ulang halaman, lalu coba lagi." };
   try {
     const actor = await requireCapability("user.manage");
     const { cabutAkses } = await import("@/lib/users/akses-lokasi");
     const { nama } = await cabutAkses(parsed.data.locationId, parsed.data.userId, actor);
     revalidatePath(`/lokasi/${parsed.data.slug}`);
-    return { success: `Akses ${nama} atas lokasi ini dicabut.` };
+    return { success: `Akses ${nama} ke lokasi ini sudah dicabut.` };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };

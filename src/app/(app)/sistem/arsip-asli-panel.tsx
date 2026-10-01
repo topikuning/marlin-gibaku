@@ -61,15 +61,15 @@ export function ArsipAsliPanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Memindahkan <span className="font-medium text-ink">berkas asli</span> foto ke penyimpanan sendiri.
-        Foto ber-cap dan thumbnail tetap di R2 – yang dilihat orang sehari-hari tidak berubah sama sekali.
+        Memindahkan <span className="font-medium text-ink">berkas asli</span> foto ke server penyimpanan sendiri.
+        Foto ber-cap dan thumbnail tetap di R2, jadi foto yang dilihat orang sehari-hari tidak berubah sama sekali.
       </p>
 
       {!terkonfigurasi ? (
         <Banner
           tone="info"
           title="Alamat arsip belum diisi"
-          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (plus sepasang CF Access bila mesinnya di balik Cloudflare Access). Langkah lengkapnya di docs/ARSIP_DINGIN_SETUP.md. Sakelar di bawah tetap bisa disimpan, tapi tidak ada yang dipindahkan sampai alamatnya ada."
+          description="Isi ORIGINAL_ARCHIVE_URL dan ORIGINAL_ARCHIVE_TOKEN di Railway (ditambah pasangan ID & secret CF Access bila servernya di balik Cloudflare Access). Langkah lengkapnya ada di docs/ARSIP_DINGIN_SETUP.md. Pengaturan di bawah tetap bisa disimpan, tapi belum ada berkas yang dipindahkan sampai alamatnya diisi."
         />
       ) : null}
 
@@ -84,7 +84,7 @@ export function ArsipAsliPanel({
          * mereka menjelaskan RINCIANNYA, bukan menggantikan jawabannya.
          */}
         <Angka
-          label="Sudah di mesin arsip"
+          label="Sudah di server arsip"
           nilai={String(ringkas.sudahDiArsip)}
           sub={`${ukuran(ringkas.bytesSudahDiArsip)} · dari ${ringkas.sudahDiArsip + ringkas.menunggu} berkas asli`}
           tone={ringkas.sudahDiArsip > 0 ? "success" : undefined}
@@ -105,13 +105,13 @@ export function ArsipAsliPanel({
         <Banner
           tone="warning"
           title={`${ringkas.gagalTerus} berkas berhenti dicoba`}
-          description={`Sebab terakhir: ${ringkas.galatTerakhir}. Berkasnya tetap aman di R2 – yang berhenti hanya pemindahannya, supaya satu berkas bermasalah tidak menyumbat antrean.`}
+          description={`Sebab terakhir: ${ringkas.galatTerakhir}. Berkasnya tetap aman di R2. Yang dihentikan hanya pemindahannya, supaya satu berkas bermasalah tidak menahan antrean berkas lain.`}
         />
       ) : null}
 
       {state?.error ? <Banner tone="error" title="Gagal menyimpan" description={state.error} /> : null}
       {state?.success ? <Banner tone="success" title="Tersimpan" description={state.success} /> : null}
-      {pesanJalan ? <Banner tone="info" title="Putaran arsip" description={pesanJalan} /> : null}
+      {pesanJalan ? <Banner tone="info" title="Pemindahan arsip" description={pesanJalan} /> : null}
       {uji?.success ? (
         <Banner tone="success" title="Uji sambungan berhasil" description={uji.success} />
       ) : null}
@@ -160,16 +160,16 @@ export function ArsipAsliPanel({
       </form>
 
       <p className="text-xs text-ink-muted">
-        Peringatan hanya dikirim untuk yang TIDAK bisa dibereskan sistem sendiri – berkas yang hilang
-        dari mesin arsip, pemindahan yang macet lebih dari sehari, atau sisa disk menipis. Kegagalan
-        biasa (arsip mati sesaat, jaringan putus) ditangani sendiri: tidak ada salinan R2 yang dibuang,
-        dan berkasnya dicoba lagi otomatis.
+        Peringatan hanya dikirim untuk masalah yang TIDAK bisa dibereskan sistem sendiri: berkas yang
+        hilang dari server arsip, pemindahan yang macet lebih dari sehari, atau sisa disk menipis.
+        Gangguan biasa (server arsip mati sebentar, jaringan putus) dibereskan otomatis. Salinan R2
+        tidak dibuang, dan berkasnya dicoba lagi.
       </p>
 
       <p className="text-xs text-ink-muted">
-        Selama masa tenggang berkasnya ada di dua tempat sekaligus – itu jaring pengaman kalau arsipnya
-        ternyata bermasalah. Karena itu pemakaian R2 baru mulai turun setelah tenggangnya lewat, bukan
-        seketika. Isi 0 kalau ingin salinan R2 dibuang segera.
+        Selama masa tenggang, berkasnya ada di dua tempat sekaligus sebagai cadangan kalau arsipnya
+        ternyata bermasalah. Karena itu pemakaian R2 baru turun setelah masa tenggang lewat, tidak
+        langsung. Isi 0 kalau ingin salinan R2 langsung dibuang.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -218,7 +218,7 @@ export function ArsipAsliPanel({
           />
         ) : latar.terakhir ? (
           <span className="text-xs text-ink-muted">
-            Putaran terakhir: {latar.terakhir.dikirim} dipindahkan · {latar.terakhir.dibuangDariR2} salinan R2
+            Pemindahan terakhir: {latar.terakhir.dikirim} dipindahkan · {latar.terakhir.dibuangDariR2} salinan R2
             dibuang
             {latar.terakhir.gagal > 0 ? ` · ${latar.terakhir.gagal} gagal (${latar.terakhir.galat.join("; ")})` : ""}
           </span>

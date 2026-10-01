@@ -55,7 +55,7 @@ export default async function ImporDokumenDrivePage({
     <div className="space-y-6">
       <PageHeader
         title="Impor dokumen dari Google Drive"
-        description="Menarik berkas yang sudah ada di folder KKP ke arsip MARLIN. Isi berkas disalin ke penyimpanan MARLIN, jadi dokumen tetap ada walau file di Drive dipindah atau dihapus."
+        description="Menyalin berkas yang sudah ada di folder KKP ke arsip MARLIN. Karena isinya disalin, dokumen tetap ada walaupun berkas di Drive dipindah atau dihapus."
         actions={
           <Link
             href="/dokumen"
@@ -77,7 +77,7 @@ export default async function ImporDokumenDrivePage({
       <Card>
         <CardHeader
           title="Pilih paket"
-          subtitle="Impor membaca folder Drive milik paket. Paket tanpa ID folder Drive belum bisa diimpor – isi ID folder KKP di halaman paket dulu."
+          subtitle="Impor membaca folder Drive milik paket. Paket yang belum punya ID folder Drive belum bisa diimpor. Isi dulu ID folder KKP-nya di halaman paket."
         />
         <CardBody className="space-y-3">
           <form method="GET" className="grid gap-2 text-sm sm:grid-cols-[minmax(0,24rem)_auto]">
@@ -114,7 +114,7 @@ export default async function ImporDokumenDrivePage({
             <Banner
               tone="warning"
               title={`Paket "${selected.name}" belum punya folder Drive`}
-              description="Isi ID folder KKP paket ini di halaman paket dulu – impor membaca folder itu."
+              description="Isi dulu ID folder KKP paket ini di halaman paket, karena impor membaca folder itu."
             />
           ) : null}
         </CardBody>

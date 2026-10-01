@@ -185,11 +185,11 @@ export default async function ChatGrupPage({
 
   const nothingToSummarize = relevant.length === 0 && dispatches.length === 0 && marlinMessages.length === 0;
   const blockedReason = !aiCfg
-    ? "Provider AI belum dikonfigurasi (Sistem → AI)."
+    ? "AI belum diatur (Sistem → AI)."
     : nothingToSummarize
       ? messages.length === 0
         ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
-        : `Tidak ada pesan relevan pada tanggal ini – tandai manual di tab Arsip lengkap bila perlu.`
+        : `Tidak ada pesan relevan pada tanggal ini. Kalau perlu, tandai sendiri pesannya di tab Arsip lengkap.`
       : null;
 
   const grupItems: GrupItem[] = packages.map((p) => {
@@ -219,7 +219,7 @@ export default async function ChatGrupPage({
     <div className="space-y-4">
       <PageHeader
         title="Chat Grup – Ringkasan Harian"
-        description="Baca bukti percakapan, kurasi pesan relevan, susun draf AI, review, lalu finalkan dan teruskan ke pimpinan."
+        description="Baca percakapan grup, pilih pesan yang penting, minta AI menyusun draf, periksa, lalu finalkan dan teruskan ke pimpinan."
         actions={
           <Link
             href="/chat-grup/global"
@@ -234,21 +234,21 @@ export default async function ChatGrupPage({
       {packages.length === 0 ? (
         <Banner
           tone="info"
-          title="Belum ada paket tertaut grup WhatsApp"
-          description="Tautkan grup WA ke paket (halaman paket → grup WA) supaya pesannya terarsip dan bisa diringkas di sini."
+          title="Belum ada paket yang terhubung ke grup WhatsApp"
+          description="Hubungkan grup WA ke paket (halaman paket → grup WA) supaya pesannya tersimpan dan bisa diringkas di sini."
         />
       ) : (
         <>
           {!aiCfg ? (
             <Banner
               tone="warning"
-              title="Provider AI belum dikonfigurasi (Sistem → AI)"
-              description="Bukti percakapan tetap bisa dibaca; penyusunan draf aktif setelah provider siap."
+              title="AI belum diatur (Sistem → AI)"
+              description="Percakapan tetap bisa dibaca. Draf ringkasan baru bisa disusun setelah AI diatur."
             />
           ) : null}
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-            <KpiCard label="Grup dalam scope" value={packages.length} sub="paket tertaut grup WA" />
+            <KpiCard label="Grup Anda" value={packages.length} sub="paket yang terhubung ke grup WA" />
             <KpiCard
               label="Pesan relevan"
               value={stats.pesanRelevan}
@@ -259,7 +259,7 @@ export default async function ChatGrupPage({
               }
               tone={stats.pesanRelevan === 0 ? "warning" : "default"}
             />
-            <KpiCard label="Kiriman MARLIN" value={stats.kirimanMarlin} sub="terekam di grup, semua grup" />
+            <KpiCard label="Kiriman MARLIN" value={stats.kirimanMarlin} sub="tercatat di semua grup" />
             <KpiCard
               label="Status ringkasan"
               value={<span className="text-lg">{SUMMARY_STATUS_LABEL[status]}</span>}
@@ -322,7 +322,7 @@ export default async function ChatGrupPage({
           </div>
 
           <p className="text-center text-xs text-ink-faint">
-            Hanya pesan yang ditandai relevan yang digunakan untuk membuat Ringkasan AI.
+            Ringkasan AI hanya disusun dari pesan yang ditandai relevan.
           </p>
         </>
       )}

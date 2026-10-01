@@ -36,7 +36,7 @@ export async function previewImportAction(
   formData: FormData,
 ): Promise<PreviewState> {
   const parsed = z.uuid().safeParse(formData.get("packageId"));
-  if (!parsed.success) return { error: "ID paket tidak valid" };
+  if (!parsed.success) return { error: "Paket tidak dikenali. Pilih paketnya lagi." };
   try {
     await requireCapability("document.upload");
     return { preview: await previewDriveImport(parsed.data) };
@@ -57,7 +57,7 @@ export async function commitImportAction(
   formData: FormData,
 ): Promise<PreviewState> {
   const packageId = z.uuid().safeParse(formData.get("packageId"));
-  if (!packageId.success) return { error: "ID paket tidak valid" };
+  if (!packageId.success) return { error: "Paket tidak dikenali. Pilih paketnya lagi." };
 
   // Baris terpilih dikirim sebagai satu JSON: tabel pratinjau bisa panjang dan
   // tiap baris punya jenis + lokasi yang bisa diubah manusia.
@@ -69,7 +69,7 @@ export async function commitImportAction(
   try {
     selections = z.array(selectionSchema).min(1).max(200).parse(JSON.parse(raw));
   } catch {
-    return { error: "Pilihan berkas tidak terbaca – muat ulang pratinjau lalu coba lagi." };
+    return { error: "Pilihan berkas gagal dibaca. Muat ulang pratinjau, lalu coba lagi." };
   }
 
   try {

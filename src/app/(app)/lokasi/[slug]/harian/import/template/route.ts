@@ -15,13 +15,13 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
-  if (!can(user.role, "daily_report.create")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
+  if (!can(user.role, "daily_report.create")) return NextResponse.json({ error: "Anda tidak punya izin untuk ini." }, { status: 403 });
 
   const location = await db.location.findUnique({ where: { slug }, select: { id: true, name: true } });
   if (!location) return NextResponse.json({ error: "Lokasi tidak ditemukan" }, { status: 404 });
   if (!(await hasLocationAccess(user, location.id))) {
-    return NextResponse.json({ error: "Tidak punya akses lokasi" }, { status: 403 });
+    return NextResponse.json({ error: "Anda tidak punya akses ke lokasi ini." }, { status: 403 });
   }
 
   const leaves = await getRecapLeaves(location.id);

@@ -156,7 +156,7 @@ export function putuskanLayanan(m: MasukanKeputusan): KeputusanLayanan {
     return {
       jenis: "tolak",
       pesan:
-        "Grup ini belum tertaut paket mana pun, jadi saya tidak tahu data apa yang pantas dibagikan di sini. Minta admin menautkannya di Paket → Grup WhatsApp.",
+        "Grup ini belum tertaut paket mana pun, jadi saya belum tahu data apa yang boleh dibagikan di sini. Minta admin menautkannya di Paket → Grup WhatsApp.",
       alasan: "grup tidak tertaut paket",
     };
   }

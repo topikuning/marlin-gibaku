@@ -113,7 +113,7 @@ export function RevertStageButton({
       <StateBanners state={state} />
       <p className="text-sm text-ink">
         Mundurkan tahap dari <span className="font-medium">{fromLabel}</span> ke{" "}
-        <span className="font-medium">{toLabel}</span> (koreksi). Tercatat di histori.
+        <span className="font-medium">{toLabel}</span> untuk koreksi. Tindakan ini tercatat di histori.
       </p>
       <div>
         <Label htmlFor={`revert-${packageId}`} required>
@@ -158,7 +158,7 @@ export function StartPelaksanaanButton({ packageId }: { packageId: string }) {
           </Label>
           <Input id="sp-spmk" name="spmkDate" type="date" required className="max-w-xs" />
           <p className="mt-1 text-xs text-ink-muted">
-            Tanggal selesai kontrak akan dihitung otomatis = SPMK + masa pelaksanaan.
+            Tanggal selesai kontrak dihitung otomatis: SPMK + masa pelaksanaan.
           </p>
         </div>
         <Button type="submit" loading={pending}>

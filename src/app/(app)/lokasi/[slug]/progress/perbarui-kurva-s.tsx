@@ -111,8 +111,8 @@ export function PerbaruiKurvaS({
           <Badge tone="warning" label="Mengubah data resmi" />
         </div>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          Satu alur terpandu: unduh template → sunting → unggah → periksa → terapkan. Selama belum
-          diterapkan, tidak ada satu pun angka resmi yang berubah.
+          Ikuti langkahnya berurutan: unduh template → sunting → unggah → periksa → terapkan.
+          Selama belum diterapkan, tidak ada angka resmi yang berubah.
         </p>
       </header>
 
@@ -165,7 +165,7 @@ export function PerbaruiKurvaS({
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
             Berkas ini sudah berisi seluruh pekerjaan dan jadwal baseline
             {baselineAktif != null ? ` #${baselineAktif}` : ""} yang aktif. Sunting rentang/bobot
-            mingguannya di Excel, lalu kirim balik di langkah 3.
+            mingguannya di Excel, lalu unggah kembali di langkah 3.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <ButtonLink
@@ -180,7 +180,7 @@ export function PerbaruiKurvaS({
             </ButtonLink>
             <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
               <PencilLine aria-hidden className="size-3.5" />
-              2. Sunting di Excel – kolom minggu boleh dikosongkan (= jeda)
+              2. Sunting di Excel. Kolom minggu yang dikosongkan berarti jeda.
             </span>
           </div>
           {/* Yang SALAH diunggah adalah sumber kebingungan paling sering, jadi
@@ -201,7 +201,7 @@ export function PerbaruiKurvaS({
           <input type="hidden" name="locationId" value={locationId} />
           <p className="text-[12px] font-semibold text-ink">3. Unggah berkas yang sudah disunting</p>
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
-            Belum ada yang berubah setelah ini – berkasnya hanya dibaca dan dihitung.
+            Langkah ini belum mengubah apa pun. Berkasnya hanya dibaca dan dihitung.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -240,10 +240,11 @@ export function PerbaruiKurvaS({
               className="mt-0.5 size-4 shrink-0 accent-(--color-primary)"
             />
             <span>
-              Sesuaikan bobot ke RAB – bentuk &amp; jeda dari Excel dipertahankan, tetapi bobot tiap
-              pekerjaan diskalakan ke bobot RAB, dan pekerjaan yang belum dijadwalkan diisi otomatis.{" "}
+              Sesuaikan bobot ke RAB. Bentuk dan jeda dari Excel tetap, tetapi bobot tiap pekerjaan
+              disamakan secara proporsional dengan bobot RAB, dan pekerjaan yang belum dijadwalkan
+              diisi otomatis.{" "}
               <span className="text-ink-muted/80">
-                Kosongkan bila jadwal Anda sudah final – angka Excel dipakai apa adanya.
+                Jangan dicentang bila jadwal Anda sudah final. Angka Excel dipakai apa adanya.
               </span>
             </span>
           </label>
@@ -335,12 +336,12 @@ export function PerbaruiKurvaS({
               <p className="text-[12px] font-semibold text-ink">5. Terapkan sebagai baseline baru</p>
               <ul className="mt-1 mb-2 space-y-0.5 text-[11px] text-ink-muted">
                 <li>
-                  • Baseline{data.baselineAktif != null ? ` #${data.baselineAktif}` : ""} TIDAK dihapus
-                  – ia jadi histori dan bisa dipulihkan lewat Riwayat baseline.
+                  • Baseline{data.baselineAktif != null ? ` #${data.baselineAktif}` : ""} tidak dihapus.
+                  Versi itu disimpan dan bisa dipulihkan lewat Riwayat baseline.
                 </li>
                 <li>• Realisasi lapangan yang sudah tercatat tidak berubah sama sekali.</li>
                 <li>• Deviasi &amp; prognosa selanjutnya dihitung terhadap baseline baru.</li>
-                <li>• Siapa dan kapan tercatat di jejak audit.</li>
+                <li>• Siapa yang menerapkan dan kapan tercatat di jejak audit.</li>
               </ul>
 
               {data.samaSaja ? (

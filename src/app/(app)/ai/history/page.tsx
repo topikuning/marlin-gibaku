@@ -13,12 +13,12 @@ export const metadata: Metadata = { title: "AI Intelligence – Riwayat & Audit"
 export const dynamic = "force-dynamic";
 
 const KIND_LABEL: Record<string, string> = {
-  pulse: "Portfolio Pulse",
-  deviasi: "Explain Variance",
-  risiko: "Risk Intelligence",
+  pulse: "Ringkasan Portofolio",
+  deviasi: "Penjelasan Deviasi",
+  risiko: "Prioritas Risiko",
   kualitas_data: "Audit Kualitas Data",
-  laporan: "Report Studio",
-  tanya: "Ask MARLIN",
+  laporan: "Buat Laporan",
+  tanya: "Tanya MARLIN",
   paparan: "Paparan KKP",
 };
 
@@ -67,12 +67,12 @@ export default async function AiHistoryPage() {
   return (
     <Card>
       <CardHeader
-        title="Riwayat run & audit"
-        subtitle="Setiap generate/pertanyaan tercatat: pembuat, scope, usage token, latency, dan estimasi biaya (bila pricing diatur). Jejak lengkap ada di audit log sistem."
+        title="Riwayat permintaan AI"
+        subtitle="Setiap laporan yang dibuat dan pertanyaan yang diajukan ke AI tercatat di sini: siapa pembuatnya, lokasi yang dicakup, jumlah token, lama proses, dan perkiraan biaya (kalau tarifnya sudah diatur). Catatan lengkapnya ada di log audit sistem."
       />
       <CardBody>
         {runs.length === 0 ? (
-          <p className="text-sm text-ink-muted">Belum ada run AI.</p>
+          <p className="text-sm text-ink-muted">Belum pernah ada permintaan ke AI.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
@@ -80,12 +80,12 @@ export default async function AiHistoryPage() {
                 <tr className="border-b border-border text-left text-xs text-ink-muted uppercase">
                   <th className="px-3 py-2">Waktu</th>
                   <th className="px-3 py-2">Jenis</th>
-                  <th className="px-3 py-2">Scope</th>
+                  <th className="px-3 py-2">Cakupan</th>
                   <th className="px-3 py-2">Pembuat</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Provider/model</th>
                   <th className="px-3 py-2 text-right">Token in/out</th>
-                  <th className="px-3 py-2 text-right">Latency</th>
+                  <th className="px-3 py-2 text-right">Durasi</th>
                   <th className="px-3 py-2 text-right">± Biaya</th>
                   <th className="px-3 py-2" />
                 </tr>

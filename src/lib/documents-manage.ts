@@ -83,7 +83,7 @@ export async function updateDocumentMeta(
   const doc = await loadDocument(documentId, user.orgId);
   await requireDocumentScope(user, doc);
   if (doc.status === "dibatalkan") {
-    throw new DocumentError("Dokumen sudah dibatalkan – pulihkan dulu sebelum dikoreksi.");
+    throw new DocumentError("Dokumen sudah dibatalkan. Pulihkan dulu sebelum dikoreksi.");
   }
 
   // Kombinasi fase × jenis TIDAK dibatasi di sini: jalur upload pun tidak
@@ -203,12 +203,12 @@ export async function voidDocument(documentId: string, reason: string): Promise<
   ]);
   if (rabRefs > 0) {
     throw new DocumentError(
-      "Dokumen ini sumber RAB yang sudah diimpor – batalkan/ganti revisi RAB-nya dulu, jangan buang buktinya.",
+      "Dokumen ini sumber RAB yang sudah diimpor. Batalkan atau ganti revisi RAB-nya dulu, supaya buktinya tidak hilang.",
     );
   }
   if (expenseRefs > 0) {
     throw new DocumentError(
-      `Dokumen ini bukti ${expenseRefs} transaksi pengeluaran – lepaskan bukti dari transaksinya dulu.`,
+      `Dokumen ini jadi bukti ${expenseRefs} transaksi pengeluaran. Lepaskan dulu dari transaksinya.`,
     );
   }
 
@@ -276,7 +276,7 @@ export async function deleteDocumentPermanently(
   const user = await requireCapability("document.delete");
   const doc = await loadDocument(documentId, user.orgId);
   if (doc.status !== "dibatalkan") {
-    throw new DocumentError("Batalkan dokumen dulu – hapus permanen hanya untuk dokumen yang sudah dibatalkan.");
+    throw new DocumentError("Batalkan dokumen dulu. Hapus permanen hanya untuk dokumen yang sudah dibatalkan.");
   }
 
   const [rabRefs, expenseRefs, versionRefs] = await Promise.all([
@@ -291,7 +291,7 @@ export async function deleteDocumentPermanently(
       versionRefs > 0 ? `${versionRefs} dokumen versi penerus` : null,
     ].filter(Boolean);
     throw new DocumentError(
-      `Tidak bisa dihapus permanen – masih diacu oleh ${sebab.join(" dan ")}. Dokumen tetap dibatalkan (tidak muncul di daftar).`,
+      `Tidak bisa dihapus permanen karena masih dipakai oleh ${sebab.join(" dan ")}. Dokumen tetap berstatus dibatalkan (tidak muncul di daftar).`,
     );
   }
 

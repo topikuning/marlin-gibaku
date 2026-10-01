@@ -89,7 +89,7 @@ function AddItemForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Label htmlFor="wp-search">Cari item pekerjaan (leaf RAB)</Label>
+          <Label htmlFor="wp-search">Cari item pekerjaan RAB</Label>
           <Input
             id="wp-search"
             type="search"
@@ -111,7 +111,7 @@ function AddItemForm({
             ))}
           </Combobox>
           {filtered.length === MAX_OPTIONS ? (
-            <HelpText>Menampilkan {MAX_OPTIONS} pertama – persempit lewat pencarian.</HelpText>
+            <HelpText>Hanya {MAX_OPTIONS} item pertama yang ditampilkan. Persempit lewat pencarian.</HelpText>
           ) : null}
         </div>
         <div>
@@ -157,7 +157,7 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
         <div>
           <p className="text-sm font-semibold text-ink">Saran otomatis minggu {weekNumber}</p>
           <p className="text-xs text-ink-muted">
-            Berdasar urutan pekerjaan lapangan + realisasi. Bila tertinggal, saran mengejar deviasi.
+            Disusun dari urutan pekerjaan lapangan dan realisasi. Kalau tertinggal, sarannya ikut mengejar deviasi.
           </p>
         </div>
         <form action={suggest}>
@@ -193,7 +193,7 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                   <th className="py-1.5 pr-3 pl-2">Uraian</th>
-                  <th className="py-1.5 pr-3">Trade</th>
+                  <th className="py-1.5 pr-3">Tahap</th>
                   <th className="py-1.5 pr-3 text-right">Sisa</th>
                   <th className="py-1.5 pr-3 text-right">Target mgg ini</th>
                   <th className="py-1.5 pr-3 text-right">Nilai</th>
@@ -241,7 +241,7 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
             <Button type="submit" loading={applying}>
               Terapkan {result.suggestions.length} saran ke rencana minggu {weekNumber}
             </Button>
-            <HelpText>Item dimasukkan ke rencana; kamu tetap bisa mengubah target, PIC, atau menghapusnya.</HelpText>
+            <HelpText>Item dimasukkan ke rencana. Anda tetap bisa mengubah target, PIC, atau menghapusnya.</HelpText>
           </form>
         </>
       ) : null}
@@ -345,7 +345,7 @@ function RingkasanRencana({
         <div>
           <p className="text-sm font-semibold text-ink">Ringkasan rencana minggu {weekNumber}</p>
           <p className="text-xs text-ink-muted">
-            Angka yang sama dengan formulir cetak – layar dan berkas tidak boleh berbeda.
+            Angkanya sama persis dengan formulir cetak dan berkas Excel.
           </p>
         </div>
         <span className="flex flex-wrap items-center gap-2">
@@ -381,30 +381,30 @@ function RingkasanRencana({
       <p className="rounded-md border border-border bg-surface p-2 text-[13px] leading-relaxed text-ink">
         <b>Kalau rencana ini dikerjakan penuh</b>, realisasi akhir minggu {weekNumber} menjadi{" "}
         <b className="tabular">{formatPct(r.proyeksiPct, 2)}</b>, sedangkan kurva-S menuntut{" "}
-        <b className="tabular">{formatPct(r.targetPct, 2)}</b> –{" "}
+        <b className="tabular">{formatPct(r.targetPct, 2)}</b>.{" "}
         {r.masihTertinggal ? (
           <span className="font-semibold text-danger">
-            masih tertinggal {formatPct(Math.abs(r.selisihPct), 2)}. Rencana ini belum cukup untuk
+            Masih tertinggal {formatPct(Math.abs(r.selisihPct), 2)}. Rencana ini belum cukup untuk
             kembali ke jadwal.
           </span>
         ) : (
           <span className="font-semibold text-success">
-            menutup ketertinggalan dengan selisih {signed(r.selisihPct)}.
+            Ketertinggalan tertutup, dengan selisih {signed(r.selisihPct)}.
           </span>
         )}
       </p>
 
       {r.ppc.pct != null ? (
         <p className="text-xs text-ink-muted">
-          <b className="text-ink">PPC minggu {weekNumber - 1}: {formatPct(r.ppc.pct, 0)}</b> –{" "}
-          {r.ppc.tuntas} dari {r.ppc.jumlah} komitmen tuntas. Dihitung per komitmen dan biner:
-          pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung belum tuntas. Ambang
-          sehat lapangan ≥ 70%.
+          <b className="text-ink">PPC minggu {weekNumber - 1}: {formatPct(r.ppc.pct, 0)}</b>.{" "}
+          {r.ppc.tuntas} dari {r.ppc.jumlah} komitmen tuntas. Tiap komitmen hanya dihitung tuntas
+          atau belum: pekerjaan yang baru 80% selesai belum bisa disusul pekerjaan berikutnya, jadi
+          dihitung belum tuntas. Angka sehat di lapangan ≥ 70%.
         </p>
       ) : weekNumber > 1 ? (
         <p className="text-xs text-ink-muted">
-          Tidak ada rencana tercatat untuk minggu {weekNumber - 1} – tidak ada komitmen yang bisa
-          dievaluasi. Ini bukan nilai 0%.
+          Tidak ada rencana tercatat untuk minggu {weekNumber - 1}, jadi tidak ada komitmen yang
+          bisa dinilai. Ini bukan berarti 0%.
         </p>
       ) : null}
     </div>

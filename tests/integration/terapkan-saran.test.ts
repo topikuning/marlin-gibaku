@@ -202,7 +202,7 @@ describe("pagar", () => {
   it("draft tanpa lokasi ditolak dengan pesan yang mengarahkan", async () => {
     const id = await buatDraft({ locationId: null });
     const res = await terapkanSaranAction(undefined, fd({ artifactId: id }));
-    expect(res?.error).toMatch(/tidak menunjuk lokasi/i);
+    expect(res?.error).toMatch(/tidak terkait lokasi/i);
   });
 
   it("artefak laporan (bukan saran) tidak bisa dipakai lewat aksi ini", async () => {

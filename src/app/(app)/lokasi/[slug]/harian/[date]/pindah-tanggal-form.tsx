@@ -95,11 +95,11 @@ export function PindahTanggalForm({
         Pindahkan laporan ke tanggal lain
       </h3>
       <p className="text-[12px] text-ink-muted">
-        Seluruh isinya ikut pindah – item, foto, tenaga kerja, material, alat, dan kendala. Tidak ada
-        yang perlu diunggah atau diketik ulang. Yang <strong>tidak</strong> ikut benar sendiri:{" "}
-        <strong>cuaca otomatis dibuang</strong> (cuaca hari lain bukan fakta hari ini – ambil ulang
-        setelah pindah), dan <strong>penanda &quot;sudah dikirim WA&quot; dilepas</strong> karena yang
-        terlanjur terkirim bertanggal lama.
+        Seluruh isinya ikut pindah: item, foto, tenaga kerja, material, alat, dan kendala. Tidak ada
+        yang perlu diunggah atau diketik ulang. Ada dua hal yang <strong>tidak</strong> otomatis beres:{" "}
+        <strong>cuaca otomatis dihapus</strong> (cuaca tanggal lama tidak berlaku untuk tanggal baru, jadi
+        ambil ulang setelah pindah), dan <strong>penanda &quot;sudah dikirim WA&quot; dilepas</strong> karena
+        yang sudah terkirim masih bertanggal lama.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -177,23 +177,23 @@ function HasilPindah({
   const catatan: string[] = [];
   if (pindah.lewatFinal) {
     catatan.push(
-      "Laporan dibuka dari final, dipindah, lalu difinalkan ulang – snapshot cetaknya dibangun ulang di tanggal baru.",
+      "Laporan dibuka dari status final, dipindah, lalu difinalkan ulang. Versi cetaknya disusun ulang di tanggal baru.",
     );
   }
-  if (pindah.cuacaDibuang) catatan.push("Cuaca otomatis dibuang – ambil ulang untuk tanggal yang baru.");
+  if (pindah.cuacaDibuang) catatan.push("Cuaca otomatis dihapus. Ambil ulang cuaca untuk tanggal yang baru.");
   if (pindah.waDilepas) {
     catatan.push(
-      "Penanda “sudah dikirim WA” dilepas – yang terlanjur terkirim bertanggal lama, jadi kirim ulang.",
+      "Penanda “sudah dikirim WA” dilepas karena yang sudah terkirim masih bertanggal lama. Kirim ulang laporannya.",
     );
   }
   if (pindah.snapshotDibangunUlang > 0) {
     catatan.push(
-      `${pindah.snapshotDibangunUlang} laporan final lain ikut dihitung ulang angka kumulatifnya.`,
+      `Angka kumulatif di ${pindah.snapshotDibangunUlang} laporan final lain ikut dihitung ulang.`,
     );
   }
   if (pindah.fotoPerluCapUlang > 0) {
     catatan.push(
-      `${pindah.fotoPerluCapUlang} foto capnya masih menulis tanggal lama (foto tanpa waktu jepret sendiri) – perbaiki lewat halaman foto.` +
+      `Cap di ${pindah.fotoPerluCapUlang} foto masih bertuliskan tanggal lama (foto itu tidak menyimpan waktu jepretnya sendiri). Perbaiki lewat halaman foto.` +
         (pindah.fotoTakBisaDiperbaiki > 0
           ? ` ${pindah.fotoTakBisaDiperbaiki} di antaranya tidak bisa diperbaiki lagi karena arsip aslinya sudah dihapus.`
           : ""),

@@ -38,7 +38,7 @@ export default async function LaporanPage() {
     <div className="space-y-6">
       <PageHeader
         title="Laporan"
-        description="Semua laporan diturunkan dari data operasional yang sama: harian (KKP), mingguan, bulanan, dan export Excel."
+        description="Semua laporan disusun dari data yang sama: harian (KKP), mingguan, bulanan, dan ekspor Excel."
       />
       {/* Antrean lebih dulu dari arsip: yang menunggu tindakan lebih mendesak
           daripada yang sudah selesai (DECISIONS 204). */}
@@ -70,8 +70,8 @@ export default async function LaporanPage() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">Status laporan harian</p>
           <p className="text-[13px] text-ink-muted">
-            Per tanggal: lokasi mana yang sudah melapor, sampai tahap apa, dan apakah berkasnya
-            sudah naik ke Google Drive.
+            Lihat per tanggal: lokasi mana yang sudah melapor, sampai tahap apa, dan apakah berkasnya
+            sudah masuk ke Google Drive.
           </p>
         </div>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-faint" />
@@ -79,7 +79,7 @@ export default async function LaporanPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Per lokasi" subtitle="Harian / mingguan / bulanan / export" />
+          <CardHeader title="Per lokasi" subtitle="Harian, mingguan, bulanan, ekspor" />
           <CardBody>
             {locations.length === 0 ? (
               <EmptyState icon={FileText} title="Belum ada lokasi aktif" />
@@ -101,7 +101,7 @@ export default async function LaporanPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Laporan harian final terbaru" subtitle="Snapshot beku, siap cetak" />
+          <CardHeader title="Laporan harian final terbaru" subtitle="Angkanya sudah dikunci, siap cetak" />
           <CardBody>
             {recentFinal.length === 0 ? (
               <EmptyState

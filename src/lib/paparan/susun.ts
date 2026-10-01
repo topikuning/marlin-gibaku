@@ -718,7 +718,7 @@ export function parsePaparanContent(raw: unknown): PaparanContent {
     !c.narasi ||
     !Array.isArray(c.selectedPhotoIds)
   ) {
-    throw new PaparanContentError("Konten artefak paparan tidak valid.");
+    throw new PaparanContentError("Isi paparan ini rusak atau tidak lengkap.");
   }
   return c;
 }

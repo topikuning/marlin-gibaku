@@ -239,13 +239,13 @@ export default async function RaplPage({
         <Banner
           tone="warning"
           title="Basis analisa AHSP belum dimuat"
-          description="Tanpa basis AHSP, RAB tidak bisa diturunkan jadi kebutuhan bahan/upah. Muat dulu di halaman Sistem."
+          description="Tanpa basis AHSP, RAB belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
         />
       ) : basis.belumSelesai ? (
         <Banner
           tone="error"
-          title="Basis AHSP belum lengkap – impornya terputus"
-          description="Angka di halaman ini belum bisa dipercaya. Buka halaman Sistem dan ulangi impor basis AHSP lebih dulu."
+          title="Basis AHSP belum lengkap karena impornya terputus"
+          description="Angka di halaman ini belum bisa dipercaya. Buka halaman Sistem, lalu ulangi impor basis AHSP."
         />
       ) : null}
 
@@ -253,7 +253,7 @@ export default async function RaplPage({
         <Banner
           tone="info"
           title="Belum ada revisi RAB aktif"
-          description="RAPL bekerja dari RAB yang berlaku. Aktifkan revisi RAB lokasi ini lebih dulu."
+          description="RAPL dihitung dari RAB yang berlaku. Aktifkan dulu revisi RAB lokasi ini."
         />
       ) : null}
 
@@ -261,7 +261,7 @@ export default async function RaplPage({
         <Banner
           tone="warning"
           title={`${cakupan.putus} baris kehilangan padanannya saat basis AHSP diganti`}
-          description="Ini bukan keputusan siapa pun – analisa yang dulu dipilih tidak ada lagi di terbitan sekarang."
+          description="Ini bukan keputusan siapa pun. Analisa yang dulu dipilih sudah tidak ada di basis AHSP yang baru."
           /* Peringatan ini muncul di SETIAP kunjungan sampai seseorang
              menyambungnya, dan tombol penyambungnya ada di subtab lain. Menyuruh
              orang mencarinya sendiri membuat spanduknya jadi perabot: dibaca
@@ -304,7 +304,7 @@ export default async function RaplPage({
             <KpiCard
               label={p.keandalan.utuh ? "Potensi margin" : "Selisih sementara"}
               value={formatRupiah(p.margin)}
-              sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum boleh dibaca sebagai profit"}
+              sub={p.keandalan.utuh ? `${formatPct(p.marginPersen, 1)} dari nilai RAB` : "belum bisa dianggap keuntungan"}
               tone={p.keandalan.utuh ? (p.margin >= 0n ? "success" : "danger") : "warning"}
             />
             ) : null}
@@ -344,7 +344,7 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Estimasi biaya pelaksanaan proyek"
-              subtitle="RAB aktif diurai menjadi material, tenaga, alat, dan fasilitas; harga melahirkan biaya serta potensi margin."
+              subtitle="RAB aktif diurai menjadi material, tenaga, alat, dan fasilitas. Dari harganya dihitung biaya dan potensi margin."
               action={
                 <div className="flex flex-wrap items-center gap-2">
                   {canSeeMargin ? (
@@ -367,8 +367,8 @@ export default async function RaplPage({
               {ringkasanBiaya ?? (
                 <Banner
                   tone="info"
-                  title="Biaya dan margin tidak ditampilkan untuk peranmu"
-                  description="Halaman ini memperlihatkan breakdown kebutuhan RAB. Harga satuan, biaya pelaksanaan, dan potensi margin hanya untuk pengguna berhak akses keuangan."
+                  title="Biaya dan margin tidak ditampilkan untuk peran Anda"
+                  description="Halaman ini menampilkan rincian kebutuhan dari RAB. Harga satuan, biaya pelaksanaan, dan potensi margin hanya bisa dilihat oleh yang berwenang di bagian keuangan."
                 />
               )}
               <div className="flex flex-wrap gap-2">
@@ -399,8 +399,8 @@ export default async function RaplPage({
                 boleh masuk hitungan. Bila satuannya tidak sepadan, nyatakan faktor konversinya
                 beserta alasannya. Bila pekerjaannya tidak punya analisa, rinci sendiri
                 komponennya. Bila memang disubkan, nyatakan harga borongannya. Koefisien yang
-                berasal dari AHSP sendiri terkunci – ia angka resmi yang harus bisa dipertahankan
-                saat diperiksa.
+                berasal dari AHSP terkunci, karena itu angka resmi yang harus bisa
+                dipertanggungjawabkan saat diperiksa.
               </Kenapa>
               <RincianPanel
                 locationId={location.id}
@@ -423,7 +423,7 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Kebutuhan proyek & harga satuan"
-              subtitle={`${harga.baris.length} komponen dari RAB aktif · input manual atau minta draf estimasi AI untuk harga yang masih kosong.`}
+              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, atau minta draf perkiraan AI untuk harga yang masih kosong.`}
               action={
                 // Unduhannya memuat kolom margin – ikut `rapl.view`, bukan hanya export.
                 canExport && canSeeMargin ? (
@@ -437,10 +437,10 @@ export default async function RaplPage({
             <CardBody className="space-y-4">
               {ringkasanBiaya}
               <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
-                Harga manual langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
-                komponen yang kosong; drafnya tersimpan di server – tidak hilang saat kamu
-                berpindah tab – dan tidak masuk kalkulasi sebelum kamu mencentangnya lalu menekan
-                Pakai. Harga lokasi lain juga hanya referensi. Semua sumber harga terlihat di grid.
+                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
+                komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda pindah
+                tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai. Harga dari
+                lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}
@@ -471,14 +471,14 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Validasi breakdown RAB ke AHSP"
-              subtitle={`${rows.length} uraian RAB · ruang teknis untuk memastikan breakdown kebutuhan dapat dipertanggungjawabkan.`}
+              subtitle={`${rows.length} uraian RAB · tempat memeriksa bahwa rincian kebutuhan bisa dipertanggungjawabkan.`}
             />
             <CardBody className="space-y-4">
               {cakupan.item > 0 ? <Stepper tahapan={tahapView} /> : null}
               <Kenapa judul="Kenapa ada pekerjaan yang belum masuk breakdown?">
                 Kebutuhan hanya diturunkan dari padanan AHSP yang sudah disetujui, punya koefisien,
-                satuannya sepadan, dan volumenya tersedia. Lubang data tetap ditampilkan agar estimasi
-                biaya tidak terlihat lengkap padahal belum.
+                satuannya sepadan, dan volumenya tersedia. Data yang masih kosong tetap ditampilkan
+                supaya perkiraan biaya tidak terlihat lengkap padahal belum.
               </Kenapa>
               <PadananPanel
                 locationId={location.id}

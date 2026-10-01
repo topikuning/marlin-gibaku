@@ -80,7 +80,7 @@ export function PaparanReviewClient({
       <Card>
         <CardHeader
           title="Sunting narasi"
-          subtitle="Satu butir per baris. Hanya narasi & judul – angka tidak bisa diedit dari sini."
+          subtitle="Tulis satu butir per baris. Di sini hanya judul dan narasi yang bisa disunting – angkanya tidak."
         />
         <CardBody>
           <form action={narasiAction} className="space-y-3">
@@ -117,7 +117,7 @@ export function PaparanReviewClient({
       <Card>
         <CardHeader
           title={`Foto dokumentasi (${terpilih.size} dipilih)`}
-          subtitle="Hanya foto dari laporan/kegiatan paket pada minggu ini. Maksimal 16; 4–8 per slide."
+          subtitle="Hanya foto dari laporan dan kegiatan paket minggu ini. Pilih paling banyak 16 foto; satu slide memuat 4–8 foto."
         />
         <CardBody>
           <form action={fotoAction} className="space-y-3">
@@ -126,7 +126,7 @@ export function PaparanReviewClient({
               <input key={id} type="hidden" name="photoId" value={id} />
             ))}
             {content.snapshot.fotoKandidat.length === 0 ? (
-              <p className="text-sm text-ink-muted">Tidak ada foto kandidat pada minggu ini.</p>
+              <p className="text-sm text-ink-muted">Belum ada foto yang bisa dipilih untuk minggu ini.</p>
             ) : (
               <div className="grid max-h-96 grid-cols-2 gap-2 overflow-y-auto">
                 {content.snapshot.fotoKandidat.map((f) => {
@@ -166,7 +166,7 @@ export function PaparanReviewClient({
                         <input
                           name={`caption-${f.id}`}
                           maxLength={160}
-                          placeholder="Caption (opsional)"
+                          placeholder="Keterangan (opsional)"
                           defaultValue={content.humanEdits?.captionFoto?.[f.id] ?? ""}
                           className="mt-1 h-7 w-full rounded border border-border bg-surface px-2 text-[11px] text-ink"
                         />
@@ -206,7 +206,7 @@ function TemaDeckPanel({ artifactId, temaTersimpan }: { artifactId: string; tema
     <Card>
       <CardHeader
         title="Tema deck"
-        subtitle="Mengubah RUPA saja – susunan slide dan seluruh angkanya tetap sama."
+        subtitle="Hanya mengubah tampilan. Susunan slide dan semua angkanya tetap sama."
       />
       <CardBody>
         <form action={formAction} className="space-y-3">

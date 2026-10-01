@@ -117,7 +117,7 @@ export function ProgressGrid({ rows }: { rows: ProgressRow[] }) {
       persistKey="progress-portfolio"
       getRowId={(r) => r.id}
       rowLink
-      emptyText="Belum ada lokasi aktif dalam lingkup aksesmu."
+      emptyText="Belum ada lokasi aktif yang bisa Anda lihat."
     />
   );
 }

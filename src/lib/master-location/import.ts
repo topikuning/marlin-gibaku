@@ -300,6 +300,6 @@ export const HEADER_TEMPLAT: { judul: string; contoh: string; catatan: string }[
   { judul: "Kampung Nelayan", contoh: "Pasar Banggi", catatan: "Nama kampung; kosong = pakai nama desa." },
   { judul: "Latitude", contoh: "-6.6893", catatan: "Desimal, titik sebagai pemisah." },
   { judul: "Longitude", contoh: "111.4123", catatan: "Desimal." },
-  { judul: "Kode Status Lokasi", contoh: "SL-AKT", catatan: "HANYA SL-AKT yang diimpor. Tidak disimpan." },
-  { judul: "Status Lokasi", contoh: "Aktif", catatan: "Dipakai bila kolom kode kosong. Tidak disimpan." },
+  { judul: "Kode Status Lokasi", contoh: "SL-AKT", catatan: "Hanya baris SL-AKT yang diimpor. Kolom ini sendiri tidak disimpan." },
+  { judul: "Status Lokasi", contoh: "Aktif", catatan: "Dipakai bila kolom kode kosong. Kolom ini sendiri tidak disimpan." },
 ];

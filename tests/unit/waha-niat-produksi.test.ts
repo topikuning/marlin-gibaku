@@ -122,12 +122,12 @@ describe("balasan produksi: mengaku, menunjukkan jalan, menawarkan yang bisa", (
   });
 
   it("menyebut ALASANNYA – angka beku, bukan sekadar aturan", () => {
-    expect(t).toMatch(/review/i);
+    expect(t).toMatch(/diperiksa/i);
     expect(t).toMatch(/dibekukan/i);
   });
 
   it("menunjukkan JALAN yang benar, bukan berhenti pada penolakan", () => {
-    expect(t).toContain("Report Studio");
+    expect(t).toContain("Buat Laporan");
   });
 
   it("menawarkan hal terdekat yang BISA dilakukan sekarang", () => {

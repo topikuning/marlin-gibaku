@@ -140,7 +140,7 @@ export function SummaryPanel(props: SummaryPanelProps) {
         {blockedReason ? <p className="mt-1 text-xs text-ink-muted">{blockedReason}</p> : null}
         {exists && !blockedReason ? (
           <p className="mt-1 text-xs text-ink-muted">
-            Menyusun ulang menimpa teks saat ini dan mengembalikan status ke draf AI.
+            Menyusun ulang akan mengganti teks yang ada sekarang dan mengembalikan statusnya ke draf AI.
           </p>
         ) : null}
         {genState?.error ? <p className="mt-1 text-xs text-danger">{genState.error}</p> : null}
@@ -174,7 +174,7 @@ export function SummaryPanel(props: SummaryPanelProps) {
             className="text-sm"
           />
           <p className="text-xs text-ink-faint">
-            {text.trim().length} karakter · sunting bebas; yang tersimpan inilah yang dikirim.
+            {text.trim().length} karakter · boleh disunting; teks yang tersimpan inilah yang dikirim.
           </p>
           {showAi && aiText ? (
             <div className="rounded-md border border-dashed border-border bg-surface-inset p-2">
@@ -246,7 +246,7 @@ export function SummaryPanel(props: SummaryPanelProps) {
             <p className="text-xs text-ink-muted">Finalkan dulu sebelum mengirim ke pimpinan.</p>
           ) : null}
           {contacts.length === 0 ? (
-            <p className="text-xs text-ink-muted">Tambah kontak di Master Data → Kontak WA.</p>
+            <p className="text-xs text-ink-muted">Belum ada kontak tujuan. Tambahkan dulu di Master Data → Kontak WA.</p>
           ) : null}
           {sendState?.error ? <p className="text-xs text-danger">{sendState.error}</p> : null}
           {sendState?.success ? <p className="text-xs text-success">{sendState.success}</p> : null}

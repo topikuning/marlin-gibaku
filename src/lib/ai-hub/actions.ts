@@ -61,7 +61,7 @@ function resolvePeriod(preset: string, customStart: string, customEnd: string): 
   if (preset === "custom") {
     const s = parseDateKey(customStart);
     const e = parseDateKey(customEnd);
-    if (!s || !e) throw new AiRunError("Rentang tanggal khusus tidak valid.");
+    if (!s || !e) throw new AiRunError("Rentang tanggal yang dipilih tidak valid. Periksa tanggal awal dan akhirnya.");
     let a = customStart;
     let b = customEnd;
     if (a > b) [a, b] = [b, a];
@@ -311,7 +311,7 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
     };
     const locationId = isi.locationId ?? null;
     if (!locationId) {
-      return { error: "Draft ini tidak menunjuk lokasi tertentu – catat manual di workspace lokasi." };
+      return { error: "Draft ini tidak terkait lokasi tertentu. Catat sendiri di halaman lokasinya." };
     }
 
     // Menulis data domain = capability domain, BUKAN ai.generate.
@@ -408,23 +408,23 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
   try {
     const artifactId = String(formData.get("artifactId") ?? "");
     const to = String(formData.get("to") ?? "") as AiArtifactStatus;
-    if (!artifactId || !(to in TRANSITION_CAPABILITY)) return { error: "Transisi tidak valid." };
-    if (to === "terkirim") return { error: "Gunakan aksi distribusi untuk mengirim artefak beku." };
+    if (!artifactId || !(to in TRANSITION_CAPABILITY)) return { error: "Perubahan status tidak valid." };
+    if (to === "terkirim") return { error: "Untuk mengirim laporan yang sudah dibekukan, pakai bagian Distribusi WhatsApp." };
     const user = await requireCapability(TRANSITION_CAPABILITY[to]);
     const artifact = await db.aiArtifact.findFirst({
       where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
       select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, updatedAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
-    if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    if (!artifact || artifact.kind !== "laporan") return { error: "Laporan AI tidak ditemukan." };
     // Lifecycle mengikuti scope baca — RM/PM scoped tidak boleh menyentuh
     // artefak lokasi lain (audit 2026-07-27, B9).
     if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
-      return { error: "Artefak tidak ditemukan." };
+      return { error: "Laporan AI tidak ditemukan." };
     }
     if (!canTransitionAiArtifact(artifact.status, to)) {
-      return { error: `Transisi ${artifact.status} → ${to} tidak diizinkan.` };
+      return { error: `Status ${artifact.status} tidak bisa diubah ke ${to}.` };
     }
-    if (artifact.frozenAt) return { error: "Artefak beku bersifat immutable." };
+    if (artifact.frozenAt) return { error: "Laporan yang sudah dibekukan tidak bisa diubah lagi." };
 
     const now = new Date();
     const data: Record<string, unknown> = { status: to };
@@ -476,12 +476,12 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       where: { id: parsed.data.artifactId, ...await aiArtifactOrgWhere(user) },
       select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, updatedAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
-    if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    if (!artifact || artifact.kind !== "laporan") return { error: "Laporan AI tidak ditemukan." };
     if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
-      return { error: "Artefak tidak ditemukan." };
+      return { error: "Laporan AI tidak ditemukan." };
     }
     if (artifact.frozenAt || (artifact.status !== "draft" && artifact.status !== "direview" && artifact.status !== "disetujui")) {
-      return { error: "Artefak tidak dapat diedit pada status ini." };
+      return { error: "Laporan ini tidak bisa diubah pada status sekarang." };
     }
     const content = parseAiReportContent(artifact.structuredContent);
     const originalIndex = (key: string, index: number, max: number): number => {
@@ -554,12 +554,12 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       where: { id: artifactId, ...await aiArtifactOrgWhere(user) },
       select: { id: true, status: true, kind: true, renderedText: true, structuredContent: true, distributions: true, contentHash: true, runId: true, run: { select: { scopeIds: true } } },
     });
-    if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    if (!artifact || artifact.kind !== "laporan") return { error: "Laporan AI tidak ditemukan." };
     if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
-      return { error: "Artefak tidak ditemukan." };
+      return { error: "Laporan AI tidak ditemukan." };
     }
     if (artifact.status !== "beku" && artifact.status !== "terkirim") {
-      return { error: "Hanya artefak BEKU yang boleh didistribusikan – bekukan dulu setelah approve." };
+      return { error: "Hanya laporan yang sudah DIBEKUKAN yang bisa dikirim. Bekukan dulu setelah disetujui." };
     }
     // Tujuan: kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
     // bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194). Distribusi
@@ -680,13 +680,13 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       });
       if (!convo) return { error: "Percakapan tidak ditemukan." };
       if (convo._count.messages >= guardCfg.maxAskPerConversation * 2) {
-        return { error: "Percakapan sudah mencapai batas – mulai percakapan baru." };
+        return { error: "Percakapan ini sudah mencapai batas. Mulai percakapan baru." };
       }
       // Satu percakapan menjawab satu pertanyaan pada satu waktu. Penanda yang
       // sudah lewat batas dianggap putus (proses mati di tengah) dan boleh
       // ditimpa – lihat batasJawabanMs().
       if (convo.pendingSince && Date.now() - convo.pendingSince.getTime() < batasJawabanMs(guardCfg)) {
-        return { error: "Pertanyaan sebelumnya masih dijawab – tunggu jawabannya muncul dulu." };
+        return { error: "Pertanyaan sebelumnya masih dijawab. Tunggu jawabannya muncul dulu." };
       }
       existing = { id: convo.id, pendingSince: convo.pendingSince };
       locationIds = (convo.scopeIds as string[]) ?? [];
@@ -718,7 +718,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
      * (lihat checkAiGuard) sehingga tidak ada kuota yang terhitung dua kali.
      */
     const scopeResmi = await resolveAiScope(user, locationIds);
-    if (scopeResmi.ids.length === 0) return { error: "Tidak ada lokasi dalam scope." };
+    if (scopeResmi.ids.length === 0) return { error: "Tidak ada lokasi yang bisa Anda lihat." };
     await checkAiGuard(user, { kind: "tanya", locationCount: scopeResmi.ids.length });
 
     if (existing) {

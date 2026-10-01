@@ -107,12 +107,12 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
       {content.narasiSumber === "deterministik" ? (
         <Banner
           tone="info"
-          title="Narasi disusun deterministik (AI tidak tersedia / gugur grounding)"
+          title="Narasi disusun sistem, bukan AI (AI tidak tersedia, atau jawabannya tidak bersumber)"
           description={artifact.run?.errorCode ? `Kode: ${artifact.run.errorCode}. Angka tidak terpengaruh – semuanya dari MARLIN.` : "Angka tidak terpengaruh – semuanya dari MARLIN."}
         />
       ) : null}
       {content.snapshot.periode.berjalan ? (
-        <Banner tone="warning" title="Minggu berjalan – belum genap" description="Angka masih akan bergerak sampai minggunya tuntas." />
+        <Banner tone="warning" title="Minggu ini belum selesai" description="Angkanya masih bisa berubah sampai minggu ini berakhir." />
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -144,7 +144,7 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
             bolehApprove={bolehApprove}
           />
           <Card>
-            <CardHeader title="Sumber data" subtitle="Setiap angka & butir bisa ditelusuri kembali." />
+            <CardHeader title="Sumber data" subtitle="Setiap angka dan butir bisa ditelusuri ke sumbernya." />
             <CardBody className="max-h-80 space-y-1.5 overflow-y-auto">
               {content.snapshot.sourceRefs.slice(0, 60).map((r) => (
                 <p key={r.id} className="text-xs text-ink-muted">
@@ -182,12 +182,12 @@ function PanelLifecycle({
   return (
     <Card>
       <CardHeader
-        title="Lifecycle"
-        subtitle="draft → direview → disetujui → beku. PDF final hanya dari artefak beku; koreksi setelah beku = versi baru."
+        title="Tahapan"
+        subtitle="draft → direview → disetujui → beku. PDF final hanya dibuat dari paparan yang sudah beku. Koreksi sesudahnya dibuat sebagai versi baru."
       />
       <CardBody className="flex flex-wrap gap-2">
         {status === "draft" && bolehReview ? (
-          <TombolTransisi artifactId={artifactId} ke="direview" label="Kirim untuk review" />
+          <TombolTransisi artifactId={artifactId} ke="direview" label="Kirim untuk diperiksa" />
         ) : null}
         {status === "direview" && bolehReview ? (
           <TombolTransisi artifactId={artifactId} ke="draft" label="Kembalikan ke draft" varian="secondary" />
@@ -199,10 +199,10 @@ function PanelLifecycle({
           <TombolTransisi artifactId={artifactId} ke="beku" label="Bekukan (final)" varian="danger" />
         ) : null}
         {frozen ? (
-          <p className="text-sm text-ink-muted">Paparan sudah dibekukan – immutable. Perubahan berikutnya lewat versi baru.</p>
+          <p className="text-sm text-ink-muted">Paparan sudah dibekukan dan tidak bisa diubah lagi. Perubahan berikutnya dibuat sebagai versi baru.</p>
         ) : null}
         {!bolehReview && !bolehApprove ? (
-          <p className="text-sm text-ink-muted">Anda dapat melihat dan mengunduh; review/persetujuan butuh kapabilitasnya.</p>
+          <p className="text-sm text-ink-muted">Anda bisa melihat dan mengunduh paparan ini. Untuk memeriksa atau menyetujuinya, Anda perlu izin tambahan.</p>
         ) : null}
       </CardBody>
     </Card>

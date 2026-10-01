@@ -201,8 +201,8 @@ export function BarisSurat(p: BarisSuratProps) {
             Batalkan surat ini
           </Button>
           <p className="text-[11px] text-ink-faint">
-            Surat tidak dihapus: ia hilang dari daftar &amp; hitungan, tapi tetap bisa dibuka lewat saringan
-            &quot;Dibatalkan&quot; dan dipulihkan. Nomor agendanya tidak dipakai ulang.
+            Surat tidak dihapus. Surat ini tidak lagi muncul di daftar &amp; hitungan, tapi tetap bisa dibuka
+            lewat saringan &quot;Dibatalkan&quot; dan dipulihkan. Nomor agendanya tidak dipakai ulang.
           </p>
         </form>
       ) : null}

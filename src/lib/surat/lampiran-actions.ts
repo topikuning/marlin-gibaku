@@ -99,7 +99,7 @@ export async function tetapkanLampiranAction(
       where: { id: attachmentId, package: scope },
       select: { id: true, packageId: true, fileName: true, status: true },
     });
-    if (!att) return { error: "Lampiran tidak ditemukan dalam scope Anda." };
+    if (!att) return { error: "Lampiran tidak ditemukan atau tidak bisa Anda akses." };
 
     let catatan = "";
     if (keputusan !== "bukan_apa_apa") {
@@ -161,7 +161,7 @@ export async function usulkanIsiLampiranAction(
         package: { select: { name: true, contract: { select: { workTitle: true } } } },
       },
     });
-    if (!att) return { error: "Lampiran tidak ditemukan dalam scope Anda." };
+    if (!att) return { error: "Lampiran tidak ditemukan atau tidak bisa Anda akses." };
 
     /*
      * Berkasnya IKUT DIBACA bila tertangkap dan providernya mampu (DECISIONS
@@ -275,7 +275,7 @@ export async function lampiranJadiSuratAction(
       where: { id: d.attachmentId, package: scope },
       select: { id: true, packageId: true, message: { select: { timestamp: true } } },
     });
-    if (!att) return { error: "Lampiran tidak ditemukan dalam scope Anda." };
+    if (!att) return { error: "Lampiran tidak ditemukan atau tidak bisa Anda akses." };
 
     const arsip = await arsipkanLampiran(att.id);
     if (!arsip.ok) return { error: arsip.alasan };
@@ -351,7 +351,7 @@ export async function tandaiMassalBukanBahanKerjaAction(
       where: { id: { in: parsed.data.attachmentIds }, package: scope },
       select: { id: true },
     });
-    if (boleh.length === 0) return { error: "Tidak ada lampiran yang bisa Anda tetapkan." };
+    if (boleh.length === 0) return { error: "Tidak ada lampiran terpilih yang bisa Anda tandai." };
 
     for (const a of boleh) await buangArsipTakTerpakai(a.id);
     await db.waAttachment.updateMany({

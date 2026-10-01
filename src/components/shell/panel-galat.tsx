@@ -115,7 +115,7 @@ export function PanelGalat({
       </div>
 
       <div className="mt-4 rounded-lg border border-danger-border bg-danger-soft p-3">
-        <p className="text-xs font-medium text-danger">Rincian galat – kirim ini saat melapor</p>
+        <p className="text-xs font-medium text-danger">Rincian kesalahan – kirimkan ini saat melapor</p>
         <pre className="mt-1.5 max-h-60 overflow-auto text-[11px] leading-relaxed break-words whitespace-pre-wrap text-ink">
           {rincian}
         </pre>

@@ -47,8 +47,8 @@ function dedupe(rows: ParsedMasterRow[]): Map<string, ParsedMasterRow> {
 async function readFile(formData: FormData): Promise<{ buffer: Buffer } | { error: string }> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Pilih file xlsx dulu." };
-  if (file.size > 5 * 1024 * 1024) return { error: "File terlalu besar (maks 5 MB)." };
-  if (!/\.xlsx$/i.test(file.name)) return { error: "Format harus .xlsx" };
+  if (file.size > 5 * 1024 * 1024) return { error: "File terlalu besar. Ukuran maksimal 5 MB." };
+  if (!/\.xlsx$/i.test(file.name)) return { error: "File harus berformat .xlsx (Excel)." };
   return { buffer: Buffer.from(await file.arrayBuffer()) };
 }
 
@@ -230,7 +230,7 @@ function bacaKoordinat(fd: FormData): { lat: number | null; lng: number | null }
    * kembali memperbaikinya. Kosong seluruhnya jujur; separuh terisi menipu.
    */
   if (!mentahLat || !mentahLng) {
-    return { error: "Isi lintang DAN bujur, atau kosongkan keduanya. Separuh koordinat tidak menunjuk tempat mana pun." };
+    return { error: "Isi lintang dan bujur sekaligus, atau kosongkan keduanya. Koordinat yang hanya terisi separuh tidak menunjuk tempat mana pun." };
   }
   const lat = Number(mentahLat);
   const lng = Number(mentahLng);
@@ -337,7 +337,7 @@ export async function tambahLokasiMasterAction(
     return {
       success:
         koordinat.lat == null
-          ? `${village} tersimpan tanpa koordinat – statusnya "Perlu verifikasi" sampai koordinatnya diisi.`
+          ? `${village} tersimpan tanpa koordinat. Statusnya "Perlu verifikasi" sampai koordinatnya diisi.`
           : `${village} tersimpan di katalog.`,
     };
   } catch (err) {
@@ -420,7 +420,7 @@ export async function ubahLokasiMasterAction(
       });
       if (bentrok && bentrok.id !== id)
         return {
-          error: `Sudah ada baris katalog untuk ${village}, ${district || "-"}, ${regency}. Gabungkan dulu, jangan dibuat kembar.`,
+          error: `Lokasi ${village}, ${district || "-"}, ${regency} sudah ada di katalog. Gabungkan dulu, jangan dibuat dobel.`,
         };
     }
 
@@ -463,7 +463,7 @@ export async function ubahLokasiMasterAction(
     revalidatePath("/paket/bypass");
     return {
       success: sebelum.assignedLocationId
-        ? `${village} diperbarui di katalog. Lokasi proyek yang memakainya TIDAK ikut berubah – ubah di halaman lokasinya bila perlu.`
+        ? `${village} diperbarui di katalog. Lokasi proyek yang memakainya TIDAK ikut berubah. Ubah di halaman lokasinya bila perlu.`
         : `${village} diperbarui.`,
     };
   } catch (err) {

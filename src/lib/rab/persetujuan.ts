@@ -77,7 +77,7 @@ export async function setujuiRevisi(revisionId: string, user: { id: string; role
     select: { id: true, status: true, revisionNo: true, locationId: true, totalValue: true },
   });
   if (rev.status !== "draft") {
-    throw new PersetujuanError(`Revisi #${rev.revisionNo} bukan draft – tidak ada yang perlu disetujui.`);
+    throw new PersetujuanError(`Revisi #${rev.revisionNo} bukan draft, jadi tidak ada yang perlu disetujui.`);
   }
   await db.rabRevisionApproval.upsert({
     where: { revisionId_userId: { revisionId, userId: user.id } },

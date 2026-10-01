@@ -42,14 +42,14 @@ export function RestampForm({
   const berubah = (k: keyof NilaiForm) => v[k] !== awal[k];
 
   const tanda = (k: keyof NilaiForm) =>
-    berubah(k) ? <span className="ml-1 text-[11px] text-warning">· akan tercatat manual</span> : null;
+    berubah(k) ? <span className="ml-1 text-[11px] text-warning">· tercatat sebagai isian manual</span> : null;
 
   if (state?.ok) {
     return (
       <div className="space-y-3">
         <Banner tone="success" title={state.ok} />
         <p className="text-sm text-ink-muted">
-          Muat ulang halaman galeri untuk melihat versi barunya (URL gambar lama sudah tidak berlaku).
+          Muat ulang halaman galeri untuk melihat versi barunya. Tautan gambar yang lama sudah tidak berlaku.
         </p>
       </div>
     );
@@ -83,8 +83,8 @@ export function RestampForm({
           </label>
           {!v.jamDiketahui ? (
             <p className="mt-1 text-[11px] text-ink-faint">
-              Tidak dicentang → cap menulis TANGGAL saja, dan tanggalnya diberi warna penanda
-              (asal nilai ditandai warna, tidak ditulis).
+              Kalau tidak dicentang, cap hanya menulis TANGGAL, dan tanggalnya diberi warna penanda
+              (asal datanya ditunjukkan lewat warna, bukan tulisan).
             </p>
           ) : null}
         </div>
@@ -99,9 +99,9 @@ export function RestampForm({
             <Input id="rs-lng" name="lng" value={v.lng} onChange={(e) => set("lng", e.target.value)} />
           </div>
           <p className="col-span-2 text-[11px] text-ink-faint">
-            Kosongkan keduanya untuk membuang koordinat dari cap. Nilai yang diketik ditandai lewat
-            WARNA koordinat di cap – kecuali persis sama dengan titik proyek, yang punya warnanya
-            sendiri.
+            Kosongkan keduanya untuk menghapus koordinat dari cap. Koordinat yang diketik sendiri
+            ditandai dengan WARNA di cap. Kalau persis sama dengan titik proyek, warnanya berbeda
+            lagi.
           </p>
         </div>
 
@@ -158,7 +158,7 @@ export function RestampForm({
       <Banner
         tone="warning"
         title="Cap lama akan diganti dan tidak bisa dikembalikan"
-        description="Foto ber-cap yang sekarang dibuang; berkas ASLI tetap tersimpan, dan nilai cap lama tercatat di riwayat revisi."
+        description="Foto ber-cap yang sekarang dibuang. Berkas ASLI tetap tersimpan, dan isi cap lama tercatat di riwayat revisi."
       />
 
       <Button type="submit" loading={pending}>

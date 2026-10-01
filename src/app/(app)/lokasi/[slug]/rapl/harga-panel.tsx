@@ -232,8 +232,8 @@ export function HargaPanel({
         tone: "success",
         teks:
           "tersimpan" in hasil
-            ? `${hasil.tersimpan.length} usulan diterima dan masuk kalkulasi RAPL${hasil.dilewat > 0 ? ` – ${hasil.dilewat} dilewati karena sudah berharga` : ""}.`
-            : `${hasil.ditolak} usulan ditolak dan tidak akan ditawarkan lagi.`,
+            ? `${hasil.tersimpan.length} usulan diterima dan masuk kalkulasi RAPL${hasil.dilewat > 0 ? `. ${hasil.dilewat} dilewati karena sudah ada harganya` : ""}.`
+            : `${hasil.ditolak} usulan ditolak dan tidak akan diusulkan lagi.`,
       });
       router.refresh();
     });
@@ -247,7 +247,7 @@ export function HargaPanel({
         <Banner
           tone="info"
           title={`Draf harga sedang disusun – ${detik} detik`}
-          description="Permintaannya sudah tercatat, jadi halaman ini boleh ditinggal. Hasilnya muncul di sini sendiri saat siap, dan tetap ada saat kamu kembali."
+          description="Permintaannya sudah tercatat, jadi Anda boleh meninggalkan halaman ini. Hasilnya muncul di sini begitu siap, dan tetap ada saat Anda kembali."
         />
       ) : null}
 
@@ -255,7 +255,7 @@ export function HargaPanel({
         <Banner
           tone="warning"
           title="Permintaan draf harga sebelumnya tidak selesai"
-          description="Prosesnya berhenti sebelum menjawab – bisa karena aplikasi di-deploy ulang. Silakan minta lagi."
+          description="Prosesnya berhenti sebelum selesai, mungkin karena aplikasi sedang diperbarui. Silakan minta lagi."
         />
       ) : null}
 
@@ -266,9 +266,9 @@ export function HargaPanel({
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-inset px-3 py-2">
         <p className="min-w-[240px] flex-1 text-[13px] text-ink-muted">
           {canInput ? (
-            <>Klik sel <strong>Harga satuan</strong> untuk input manual. Enter berpindah ke baris berikutnya.</>
+            <>Klik sel <strong>Harga satuan</strong> untuk mengisi harga. Tekan Enter untuk pindah ke baris berikutnya.</>
           ) : (
-            <>Harga hanya dapat diubah oleh pengguna dengan hak input keuangan.</>
+            <>Harga hanya bisa diubah oleh yang berwenang mengisi data keuangan.</>
           )}
         </p>
 
@@ -358,12 +358,12 @@ export function HargaPanel({
       {adaDraf ? (
         <Banner
           tone="warning"
-          title={`${usulan.draf.length} draf ${usulan.model ?? "AI"} menunggu keputusanmu – belum tersimpan`}
+          title={`${usulan.draf.length} draf ${usulan.model ?? "AI"} menunggu keputusan Anda. Belum tersimpan.`}
           description={
-            `Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan, lalu centang yang kamu setujui. ` +
+            `Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan, lalu centang yang Anda setujui. ` +
             `Angka ini bukan survei pasar atau penawaran pemasok. ` +
             (usulan.totalKosong > usulan.diminta
-              ? `Permintaan lalu mencakup ${usulan.diminta} dari ${usulan.totalKosong} sumber daya yang belum berharga – yang menahan nilai RAB terbesar didahulukan.`
+              ? `Permintaan lalu mencakup ${usulan.diminta} dari ${usulan.totalKosong} sumber daya yang belum ada harganya. Yang nilai RAB-nya terbesar didahulukan.`
               : "")
           }
         />
@@ -395,7 +395,7 @@ export function HargaPanel({
         onSelectionChanged={canInput ? setDicentang : undefined}
         isRowSelectable={(d: Baris) => (adaDraf ? d.usulanId !== null : d.harga === null)}
         getRowId={(d: Baris) => `${d.kategori}|${d.nama}|${d.satuan}`}
-        emptyText="Belum ada kebutuhan – setujui padanan AHSP lebih dulu."
+        emptyText="Belum ada kebutuhan. Setujui padanan AHSP dulu."
         onCellValueChanged={(e: CellValueChangedEvent<Baris>) => {
           if (e.colDef.field !== "hargaNum") return;
           const d = e.data;
@@ -447,8 +447,8 @@ export function HargaPanel({
       />
 
       <p className="text-[12px] text-ink-muted">
-        {belum} dari {rows.length} sumber daya belum berharga. Kolom &ldquo;Harga di lokasi
-        lain&rdquo; hanya bahan pertimbangan – sekabupaten disebut lebih dulu.
+        {belum} dari {rows.length} sumber daya belum ada harganya. Kolom &ldquo;Harga di lokasi
+        lain&rdquo; hanya bahan pertimbangan. Lokasi di kabupaten yang sama ditampilkan lebih dulu.
       </p>
     </div>
   );
@@ -510,7 +510,7 @@ export function RingkasBiaya({
                 {formatRupiahShort(BigInt(k.biaya))}
               </span>{" "}
               <span className="text-[12px]">
-                ({k.berharga}/{k.total} berharga)
+                ({k.berharga}/{k.total} ada harga)
               </span>
             </li>
           ))}
@@ -520,23 +520,23 @@ export function RingkasBiaya({
       {!tampilkanMargin ? (
         <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
           {belumBerharga > 0
-            ? `${belumBerharga} sumber daya masih kosong harganya – biaya di atas akan bertambah setelah diisi.`
-            : `Seluruh ${berharga} sumber daya sudah berharga.`}{" "}
-          Perbandingan terhadap nilai RAB tidak ditampilkan untuk peranmu.
+            ? `${belumBerharga} sumber daya masih kosong harganya. Biaya di atas akan bertambah setelah diisi.`
+            : `Seluruh ${berharga} sumber daya sudah ada harganya.`}{" "}
+          Perbandingan terhadap nilai RAB tidak ditampilkan untuk peran Anda.
         </p>
       ) : !perbandingan.utuh ? (
         <p className="border-t border-warning-border px-3 py-2 text-[13px] text-ink">
-          <strong>Selisih terhadap nilai RAB BELUM bisa dibaca sebagai keuntungan.</strong> Ia
-          dihitung dari {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan
-          kebutuhan, dan baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang berharga
-          {belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk akan
-          MENGECILKAN selisihnya, bukan membesarkan.
+          <strong>Selisih terhadap nilai RAB BELUM bisa dianggap keuntungan.</strong> Selisih ini
+          baru mencakup {formatPct(perbandingan.cakupanNilai, 1)} nilai RAB yang masuk hitungan
+          kebutuhan, dan baru {formatPct(perbandingan.cakupanHarga, 1)} sumber daya yang sudah ada
+          harganya{belumBerharga > 0 ? ` (${belumBerharga} masih kosong)` : ""}. Biaya yang belum masuk
+          akan MENGECILKAN selisihnya, bukan membesarkannya.
         </p>
       ) : (
         <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
-          Seluruh nilai RAB masuk hitungan dan seluruh {berharga} sumber daya sudah berharga. Angka
-          ini adalah potensi margin pelaksanaan, bukan profit neto setelah pajak dan biaya lain di
-          luar breakdown RAPL.
+          Seluruh nilai RAB sudah masuk hitungan dan seluruh {berharga} sumber daya sudah ada
+          harganya. Angka ini potensi margin pelaksanaan, bukan laba bersih setelah pajak dan biaya
+          lain di luar rincian RAPL.
         </p>
       )}
     </div>

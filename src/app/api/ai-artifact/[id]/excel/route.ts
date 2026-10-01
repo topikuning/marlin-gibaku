@@ -20,26 +20,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (user?.mustChangePassword) {
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
-  if (!can(user.role, "ai.view")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
+  if (!can(user.role, "ai.view")) return NextResponse.json({ error: "Anda tidak punya izin untuk membuka ini." }, { status: 403 });
 
   const artifact = await db.aiArtifact.findFirst({
     where: { id, ...await aiArtifactOrgWhere(user) },
     select: { id: true, kind: true, title: true, version: true, structuredContent: true, run: { select: { scopeIds: true } } },
   });
   if (!artifact || artifact.kind !== "laporan") {
-    return NextResponse.json({ error: "Artefak tidak ditemukan" }, { status: 404 });
+    return NextResponse.json({ error: "Laporan AI tidak ditemukan" }, { status: 404 });
   }
   // Scope baca (audit 2026-07-27, B9): 404, bukan 403 — jangan konfirmasi keberadaan.
   if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
-    return NextResponse.json({ error: "Artefak tidak ditemukan" }, { status: 404 });
+    return NextResponse.json({ error: "Laporan AI tidak ditemukan" }, { status: 404 });
   }
 
   let content;
   try {
     content = parseAiReportContent(artifact.structuredContent);
   } catch {
-    return NextResponse.json({ error: "Konten artefak tidak valid" }, { status: 422 });
+    return NextResponse.json({ error: "Isi laporan AI tidak sesuai format, jadi tidak bisa diunduh." }, { status: 422 });
   }
 
   const wb = buildAiReportWorkbook(content);

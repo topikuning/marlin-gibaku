@@ -318,7 +318,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
      */
     if (!adaAngkaItem) {
       throw new AdendumTemplateError(
-        `Baris ${r} ("${nama || kode}") ada tulisannya tapi tanpa angka sama sekali – ` +
+        `Baris ${r} ("${nama || kode}") ada tulisannya tapi tanpa angka sama sekali. ` +
           `Volume Adendum dan Harga Satuan dua-duanya kosong. Kalau ini item baru, lengkapi ` +
           `Harga Satuan dan VOLUME ADENDUM; kalau bukan, kosongkan barisnya.`,
       );
@@ -331,7 +331,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     }
     if (harga == null || harga <= 0) {
       throw new AdendumTemplateError(
-        `Item baru "${nama || kode}" (baris ${r}) belum ada Harga Satuan. Item baru wajib berharga – hanya item kontrak lama yang harganya sudah tetap.`,
+        `Item baru "${nama || kode}" (baris ${r}) belum diisi Harga Satuan. Item baru wajib punya harga. Hanya item kontrak lama yang harganya sudah tetap.`,
       );
     }
     const urut = (barisBaruPerInduk.get(induk) ?? 0) + 1;
@@ -367,7 +367,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   }
 
   if (nodes.filter((n) => n.kind === "item").length === 0) {
-    throw new AdendumTemplateError("Tidak ada baris pekerjaan terbaca di template.");
+    throw new AdendumTemplateError("Tidak ada baris pekerjaan yang terbaca di template.");
   }
 
   // Nilai induk = Σ anak, dihitung dari bawah ke atas. Sengaja TIDAK memakai
@@ -443,7 +443,7 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     const kembar = [...hitungKunci.entries()].filter(([, c]) => c > 1).map(([k]) => k);
     throw new AdendumTemplateError(
       `Ada baris dengan identitas kembar: ${kembar.slice(0, 3).join(", ")}${kembar.length > 3 ? ", …" : ""}. ` +
-        `Kemungkinan satu baris tersalin dua kali – hapus salinannya.`,
+        `Kemungkinan ada baris yang tersalin dua kali. Hapus salinannya.`,
     );
   }
 

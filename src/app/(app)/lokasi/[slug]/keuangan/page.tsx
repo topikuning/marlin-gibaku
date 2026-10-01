@@ -160,17 +160,17 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       />
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6" aria-label="Ringkasan keuangan lokasi">
-        <KpiCard label="Budget" value={formatRupiahShort(budgetTotal)} />
+        <KpiCard label="Anggaran" value={formatRupiahShort(budgetTotal)} />
         <KpiCard label="Serapan Biaya" value={formatRupiahShort(expenseApproved)} sub={formatPct(serapanBiayaPct)} />
         <KpiCard label="Komitmen terbuka" value={formatRupiahShort(s?.commitmentOpen ?? 0n)} />
         <KpiCard
-          label="Available budget"
+          label="Sisa anggaran"
           value={formatRupiahShort(s?.availableBudget ?? 0n)}
           tone={(s?.availableBudget ?? 0n) < 0n ? "danger" : "default"}
           sub={(s?.availableBudget ?? 0n) < 0n ? "melebihi budget" : undefined}
         />
-        <KpiCard label="Outstanding payable" value={formatRupiahShort(s?.outstandingPayable ?? 0n)} />
-        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="dilaporkan – belum tentu terverifikasi" />
+        <KpiCard label="Utang belum dibayar" value={formatRupiahShort(s?.outstandingPayable ?? 0n)} />
+        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="sudah dilaporkan, belum tentu terverifikasi" />
       </section>
 
       <Card>
@@ -192,7 +192,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Budget per kategori"
-          subtitle="Nilai berlaku = baris disetujui terbaru per kategori. Perubahan hanya oleh approver."
+          subtitle="Nilai yang berlaku adalah baris terbaru yang sudah disetujui di tiap kategori. Hanya pemberi persetujuan yang bisa mengubahnya."
         />
         <CardBody>
           <BudgetSection locationId={location.id} rows={budgetRows} canApprove={canApprove} />
@@ -202,7 +202,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Komitmen"
-          subtitle="PO, kontrak vendor, kasbon – diajukan saat dibuat, mengikat available budget setelah disetujui."
+          subtitle="PO, kontrak vendor, dan kasbon. Langsung diajukan saat dibuat, dan memotong sisa budget setelah disetujui."
         />
         <CardBody>
           <CommitmentSection
@@ -218,7 +218,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Realisasi Biaya"
-          subtitle="Pengeluaran aktual – termasuk settlement kasbon (pilih komitmen terbuka)."
+          subtitle="Pengeluaran yang benar-benar terjadi, termasuk pelunasan kasbon (pilih komitmen terbuka)."
         />
         <CardBody>
           <ExpenseSection
@@ -261,8 +261,8 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
               {multiLocation ? (
                 <Banner
                   tone="info"
-                  title="Termin level kontrak"
-                  description={`Kontrak paket ini mencakup ${location.package.locations.length} lokasi – termin di bawah berlaku untuk seluruh paket, bukan hanya lokasi ini.`}
+                  title="Termin berlaku untuk seluruh kontrak"
+                  description={`Kontrak paket ini mencakup ${location.package.locations.length} lokasi. Termin di bawah berlaku untuk seluruh paket, bukan hanya lokasi ini.`}
                   className="mb-3"
                 />
               ) : null}
@@ -275,7 +275,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
               />
             </>
           ) : (
-            <p className="text-sm text-ink-muted">Paket lokasi ini belum punya kontrak – penagihan owner belum bisa dibuat.</p>
+            <p className="text-sm text-ink-muted">Paket lokasi ini belum punya kontrak, jadi penagihan owner belum bisa dibuat.</p>
           )}
         </CardBody>
       </Card>

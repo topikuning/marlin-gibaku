@@ -272,7 +272,7 @@ export async function ajukanPerubahanLingkup(input: {
     select: { id: true, packageId: true, name: true },
   });
   if (!lokasi) throw new LingkupError("Lokasi tidak ditemukan.");
-  if (!input.reason.trim()) throw new LingkupError("Alasan wajib diisi – ini dokumen perubahan kontrak.");
+  if (!input.reason.trim()) throw new LingkupError("Alasan wajib diisi, karena ini dokumen perubahan kontrak.");
 
   const sudahAda = await db.locationScopeChange.findFirst({
     where: { locationId: input.locationId, status: "draft" },
@@ -280,7 +280,7 @@ export async function ajukanPerubahanLingkup(input: {
   });
   if (sudahAda)
     throw new LingkupError(
-      "Lokasi ini sudah punya usulan perubahan lingkup yang belum diberlakukan – selesaikan dulu yang itu.",
+      "Lokasi ini masih punya usulan perubahan lingkup yang belum diberlakukan. Selesaikan dulu usulan itu.",
     );
 
   const row = await db.locationScopeChange.create({
@@ -315,7 +315,7 @@ export async function setujuiPerubahanLingkup(changeId: string): Promise<{ berla
   const user = await requireCapability("contract.manage");
   if (!bolehMenyetujui(user.role))
     throw new LingkupError(
-      "Peran Anda tidak berhak menyetujui perubahan lingkup – syaratnya Program Director + Area/Project/Site Manager.",
+      "Peran Anda tidak berhak menyetujui perubahan lingkup. Yang berhak adalah Program Director dan Area/Project/Site Manager.",
     );
 
   const row = await db.locationScopeChange.findUnique({
@@ -384,7 +384,7 @@ export async function batalkanPerubahanLingkup(changeId: string): Promise<void> 
   await requireLocationAccess(user, row.locationId);
   if (row.status === "aktif")
     throw new LingkupError(
-      "Perubahan yang SUDAH berlaku tidak dibatalkan diam-diam – terbitkan adendum berikutnya yang mengembalikannya.",
+      "Perubahan yang SUDAH berlaku tidak bisa dibatalkan begitu saja. Terbitkan adendum berikutnya untuk mengembalikannya.",
     );
   await db.locationScopeChange.update({ where: { id: changeId }, data: { status: "dibatalkan" } });
   await audit(user.id, "location_scope.batal", "location", row.locationId, { changeId });

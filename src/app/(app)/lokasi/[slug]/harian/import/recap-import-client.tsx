@@ -62,7 +62,7 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
   const previewData = preview?.ok && preview.phase === "preview" && !done ? preview.preview : null;
 
   if (!hasRab) {
-    return <Banner tone="warning" title="Lokasi ini belum punya RAB revisi aktif – impor rekap butuh item RAB untuk dicocokkan." />;
+    return <Banner tone="warning" title="Lokasi ini belum punya RAB yang aktif. Impor rekap butuh daftar item RAB untuk dicocokkan." />;
   }
 
   if (done) {
@@ -173,7 +173,7 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
                 Simpan {previewData.okCount} item ke {previewData.dates.length} laporan (kirim untuk verifikasi)
               </Button>
             ) : (
-              <Banner tone="warning" title="Tidak ada baris yang siap disimpan – perbaiki file lalu pratinjau ulang." />
+              <Banner tone="warning" title="Tidak ada baris yang siap disimpan. Perbaiki file-nya, lalu pratinjau lagi." />
             )}
           </div>
         )}

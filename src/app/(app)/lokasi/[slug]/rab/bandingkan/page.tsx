@@ -58,7 +58,7 @@ export default async function BandingkanRevisiPage({
       <Card>
         <CardHeader
           title="Bandingkan revisi RAB"
-          subtitle="Bawaan: RAB aktif dibandingkan dengan RAB yang berlaku tepat sebelumnya. Nilai pra-PPN."
+          subtitle="Awalnya RAB aktif dibandingkan dengan RAB yang berlaku tepat sebelumnya. Semua nilai sebelum PPN."
           action={
             <ButtonLink href={`/lokasi/${slug}/rab?bagian=revisi`} size="sm" variant="secondary">
               <ArrowLeft aria-hidden className="size-3.5" />
@@ -112,7 +112,7 @@ export default async function BandingkanRevisiPage({
               ? "Revisi yang sama tidak bisa dibandingkan dengan dirinya sendiri"
               : "Pilihan revisi tidak dikenal"
           }
-          description={`Yang ditampilkan: RAB #${dari.revisionNo} → RAB #${ke.revisionNo} (bawaan). Pilih dua revisi yang berbeda.`}
+          description={`Yang ditampilkan sekarang pasangan bawaan: RAB #${dari.revisionNo} → RAB #${ke.revisionNo}. Pilih dua revisi yang berbeda.`}
         />
       ) : null}
 
@@ -140,7 +140,7 @@ export default async function BandingkanRevisiPage({
             diff={diff}
             judul={`RAB #${dari.revisionNo} → RAB #${ke.revisionNo}`}
             subjudul="Per item, dicocokkan lewat kode item yang sama di kedua revisi. Item yang tidak berubah tidak ditampilkan."
-            kosong="Kedua revisi identik – tidak ada item yang berubah."
+            kosong="Kedua revisi sama persis. Tidak ada item yang berubah."
           />
         </>
       ) : null}

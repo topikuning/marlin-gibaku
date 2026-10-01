@@ -227,7 +227,7 @@ export async function pratinjauMingguan(
     return { alasan: "Kontrak ini belum melewati satu minggu penuh, jadi belum ada minggu selesai yang bisa dilaporkan." };
   }
   if (mingguKe > mingguBerjalan) {
-    return { alasan: `Minggu ke-${mingguKe} belum terjadi – minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
+    return { alasan: `Minggu ke-${mingguKe} belum terjadi. Minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
   }
   const berjalan = mingguKe >= mingguBerjalan;
   /*
@@ -295,7 +295,7 @@ export async function kirimLaporanMingguan(
   const pkg = await muatPaket(packageId);
   if (!pkg) return { ok: false, alasan: "Paket tidak ditemukan." };
   if (!(await isWahaConfigured())) {
-    return { ok: false, alasan: "WhatsApp (WAHA) belum dikonfigurasi." };
+    return { ok: false, alasan: "WhatsApp (WAHA) belum disiapkan. Hubungi admin." };
   }
 
   /*

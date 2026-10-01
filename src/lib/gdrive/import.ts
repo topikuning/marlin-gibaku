@@ -107,7 +107,7 @@ async function paketDenganAkses(packageId: string, orgId: string) {
   if (!pkg || pkg.orgId !== orgId) throw new DocumentError("Paket tidak ditemukan");
   if (!pkg.driveFolderId) {
     throw new DocumentError(
-      "Paket ini belum punya folder Google Drive – isi ID folder KKP di halaman paket dulu.",
+      "Paket ini belum punya folder Google Drive. Isi dulu ID folder KKP di halaman paket.",
     );
   }
   return pkg;
@@ -254,7 +254,7 @@ export async function commitDriveImport(
   if (selections.length === 0) throw new DocumentError("Tidak ada berkas yang dipilih.");
   if (selections.length > MAX_IMPORT_PER_BATCH) {
     throw new DocumentError(
-      `Maksimum ${MAX_IMPORT_PER_BATCH} berkas per impor – pilih sebagian dulu, sisanya menyusul.`,
+      `Paling banyak ${MAX_IMPORT_PER_BATCH} berkas sekali impor. Pilih sebagian dulu, sisanya menyusul.`,
     );
   }
 
@@ -271,7 +271,7 @@ export async function commitDriveImport(
           throw new DocumentError("Lokasi yang dipilih bukan lokasi paket ini");
         }
         if (scoped !== null && !scoped.includes(sel.locationId)) {
-          throw new DocumentError("Tidak punya akses ke lokasi tersebut");
+          throw new DocumentError("Anda tidak punya akses ke lokasi tersebut");
         }
       }
 
@@ -283,7 +283,7 @@ export async function commitDriveImport(
       // lagi walau lolos ke daftar pilihan (pratinjau basi / permintaan dijahili).
       if (meta.terbitanMarlin) {
         throw new DocumentError(
-          "Berkas ini terbitan MARLIN sendiri (laporan yang diunggah dari sini) – datanya sudah ada, tidak perlu diimpor",
+          "Berkas ini terbitan MARLIN sendiri (laporan yang diunggah dari sini). Datanya sudah ada, jadi tidak perlu diimpor",
         );
       }
       if (!mimeDidukung(meta.mimeType)) {

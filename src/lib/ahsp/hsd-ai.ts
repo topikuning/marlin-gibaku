@@ -140,7 +140,7 @@ export async function usulkanHargaDenganAi(
   }));
   const usulan = cocokkanUsulanHarga(targetServer, result.data.suggestions);
   if (usulan.length === 0) {
-    return { ok: false, error: "AI tidak mengembalikan usulan yang dapat dijodohkan." };
+    return { ok: false, error: "Tidak ada usulan AI yang cocok dengan sumber daya di lokasi ini." };
   }
   return { ok: true, model: result.meta.model, usulan };
 }
