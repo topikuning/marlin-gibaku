@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { buttonClass } from "./button";
 import { FieldError } from "./field";
 import { MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
+import { perkecilGambar } from "@/lib/gambar-klien";
 
 /**
  * Pemilih berkas — TAMPILAN SENDIRI, bukan kontrol bawaan peramban.
@@ -37,6 +38,7 @@ export function FileInput({
   className,
   petunjuk,
   onPilih,
+  perkecilKe,
 }: {
   id?: string;
   name: string;
@@ -54,17 +56,42 @@ export function FileInput({
    * pratinjau sebelum benar-benar menyimpan.
    */
   onPilih?: (files: File[]) => void;
+  /**
+   * Gambar diperkecil di peramban (sisi terpanjang ≤ nilai ini, WebP) sebelum
+   * dikirim – untuk gambar yang toh diperkecil lagi di server (kop, logo,
+   * stempel). Kiriman kecil lolos batas ukuran server perantara (DECISIONS 642).
+   */
+  perkecilKe?: number;
 }) {
   const auto = useId();
   const inputId = id ?? auto;
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [terpilih, setTerpilih] = useState<{ nama: string; ukuran: number }[]>([]);
+  const [terpilih, setTerpilih] = useState<{ nama: string; ukuran: number; asli?: number }[]>([]);
   const [seret, setSeret] = useState(false);
   const maxMb = Math.round(maxBytes / 1024 / 1024);
 
-  const periksa = (files: FileList | null) => {
-    const daftar = Array.from(files ?? []);
+  const [menyiapkan, setMenyiapkan] = useState(false);
+
+  const periksa = async (files: FileList | null) => {
+    const asliDaftar = Array.from(files ?? []);
+    let daftar = asliDaftar;
+    if (perkecilKe && daftar.length > 0 && inputRef.current) {
+      setMenyiapkan(true);
+      try {
+        const kecil = await Promise.all(daftar.map((f) => perkecilGambar(f, perkecilKe)));
+        if (kecil.some((f, i) => f !== daftar[i])) {
+          // Yang terkirim adalah isi input aslinya, jadi versi kecil harus
+          // mendarat DI SANA – bukan sekadar di state tampilan.
+          const dt = new DataTransfer();
+          for (const f of kecil) dt.items.add(f);
+          inputRef.current.files = dt.files;
+          daftar = kecil;
+        }
+      } finally {
+        setMenyiapkan(false);
+      }
+    }
     const kegedean = daftar.find((f) => f.size > maxBytes);
     if (kegedean) {
       setError(
@@ -77,7 +104,13 @@ export function FileInput({
       return;
     }
     setError(null);
-    setTerpilih(daftar.map((f) => ({ nama: f.name, ukuran: f.size })));
+    setTerpilih(
+      daftar.map((f, i) => ({
+        nama: f.name,
+        ukuran: f.size,
+        asli: f !== asliDaftar[i] ? asliDaftar[i].size : undefined,
+      })),
+    );
     onPilih?.(daftar);
   };
 
@@ -116,7 +149,7 @@ export function FileInput({
         required={required}
         multiple={multiple}
         aria-describedby={error ? `${inputId}-err` : petunjuk ? `${inputId}-hint` : undefined}
-        onChange={(e) => periksa(e.currentTarget.files)}
+        onChange={(e) => void periksa(e.currentTarget.files)}
         className="sr-only"
       />
       <div
@@ -132,7 +165,7 @@ export function FileInput({
           // Menyalin ke input aslinya, bukan menyimpan di state: FormData
           // membaca dari input, jadi berkas yang diseret harus mendarat di sana.
           inputRef.current.files = e.dataTransfer.files;
-          periksa(e.dataTransfer.files);
+          void periksa(e.dataTransfer.files);
         }}
         className={cn(
           "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed px-3 py-2.5 transition-colors",
@@ -145,13 +178,20 @@ export function FileInput({
           {ada ? "Ganti berkas" : "Pilih berkas"}
         </label>
 
-        {ada ? (
+        {menyiapkan ? (
+          <span className="min-w-0 flex-1 text-[13px] text-ink-muted" role="status">
+            Memperkecil gambar sebelum dikirim…
+          </span>
+        ) : ada ? (
           <ul className="flex min-w-0 flex-1 flex-col gap-0.5">
             {terpilih.map((f) => (
               <li key={f.nama} className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink">
                 <Paperclip aria-hidden className="size-3 shrink-0 text-ink-muted" />
                 <span className="truncate font-medium">{f.nama}</span>
-                <span className="shrink-0 text-ink-muted">{ukuranTeks(f.ukuran)}</span>
+                <span className="shrink-0 text-ink-muted">
+                  {ukuranTeks(f.ukuran)}
+                  {f.asli ? ` (diperkecil dari ${ukuranTeks(f.asli)})` : ""}
+                </span>
               </li>
             ))}
           </ul>

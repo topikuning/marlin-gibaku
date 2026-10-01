@@ -15,7 +15,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { requireLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { formatPct, formatRupiah, formatTanggal, parseDateKey } from "@/lib/format";
+import { formatPct, formatRupiah, formatRupiahShort, formatTanggal, parseDateKey } from "@/lib/format";
 import { EWS_KATEGORI_LABEL, EWS_SEVERITY_LABEL } from "@/lib/ews/rules";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE } from "@/lib/lifecycle";
 import { kartuMinggu } from "@/lib/lokasi-lengkap/kesimpulan";
@@ -175,8 +175,19 @@ export default async function LaporanLengkapLokasiPage({
           value={l.durasi ? `${l.durasi.hariBerjalan} / ${l.durasi.totalHari} hari` : "–"}
           sub={l.durasi ? `sisa ${l.durasi.sisaHari} hari` : undefined}
         />
-        <KpiCard label="Nilai RAB" value={p.punyaRab ? formatRupiah(BigInt(p.nilaiRab)) : "–"} />
-        <KpiCard label="Nilai terpasang" value={p.punyaRab ? formatRupiah(BigInt(p.nilaiTerpasang)) : "–"} />
+        {/* Rupiah penuh ("Rp 7.817.745.327") tidak muat di kartu setengah layar
+            HP – halaman melebar 8 px (sapuan 375 px, 2026-10-01). Angka besar
+            ringkas, angka persisnya tetap di bawahnya: ini laporan lengkap. */}
+        <KpiCard
+          label="Nilai RAB"
+          value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiRab)) : "–"}
+          sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiRab)) : undefined}
+        />
+        <KpiCard
+          label="Nilai terpasang"
+          value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiTerpasang)) : "–"}
+          sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiTerpasang)) : undefined}
+        />
       </div>
 
       {/* Kurva-S */}

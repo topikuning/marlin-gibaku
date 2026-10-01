@@ -5,6 +5,8 @@ import type { UserRole } from "@/generated/prisma/enums";
 import type { Branding } from "@/lib/branding";
 import { BrandWordmark } from "@/components/ui/brand-mark";
 import { ROLE_LABEL } from "@/lib/authz";
+import { cn } from "@/lib/cn";
+import { LATAR_PENANDA, LencanaLingkungan } from "./penanda-lingkungan";
 
 export interface TopbarUser {
   fullName: string;
@@ -18,17 +20,27 @@ export interface TopbarProps {
   logoutAction: (formData: FormData) => Promise<void>;
   /** Slot kiri: breadcrumb / judul halaman. */
   children?: ReactNode;
+  /** Label server non-produksi (DECISIONS 640). `null` = produksi. */
+  penanda?: string | null;
 }
 
 /** Topbar ringkas (server component). */
-export function Topbar({ brand, user, logoutAction, children }: TopbarProps) {
+export function Topbar({ brand, user, logoutAction, children, penanda }: TopbarProps) {
   return (
-    <header className="no-print sticky top-0 z-20 flex h-13 items-center justify-between gap-3 border-b border-border bg-surface px-4 lg:px-6">
+    <header
+      className={cn(
+        "no-print sticky top-0 z-20 flex h-13 items-center justify-between gap-3 border-b px-4 lg:px-6",
+        // Server uji: kepala bergaris kuning – lengket, jadi tetap terlihat di
+        // halaman mana pun dan sejauh apa pun digulir (DECISIONS 640).
+        penanda ? cn(LATAR_PENANDA, "border-b-2 border-warning") : "border-border bg-surface",
+      )}
+    >
       <div className="flex min-w-0 items-center gap-2">
         {/* Brand mini utk mobile (sidebar tersembunyi) */}
         <span className="flex shrink-0 items-center lg:hidden">
           <BrandWordmark tinggi={18} />
         </span>
+        {penanda ? <LencanaLingkungan label={penanda} /> : null}
         <div className="min-w-0 truncate text-sm text-ink-muted">{children}</div>
       </div>
       <div className="flex shrink-0 items-center gap-3">

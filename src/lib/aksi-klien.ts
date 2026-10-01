@@ -101,6 +101,16 @@ function basiKarenaDeploy(err: unknown): boolean {
   );
 }
 
+/** Jumlah byte berkas di dalam kiriman (0 = tanpa berkas). */
+function ukuranBerkas(data: FormData | undefined): number {
+  if (!data || typeof data.forEach !== "function") return 0;
+  let total = 0;
+  data.forEach((v) => {
+    if (typeof File !== "undefined" && v instanceof File) total += v.size;
+  });
+  return total;
+}
+
 export function tahanGagalKirim<S extends AksiState>(
   aksi: (prev: S, data: FormData) => Promise<S>,
 ): (prev: S, data: FormData) => Promise<S>;
@@ -160,6 +170,24 @@ export function tahanGagalKirim<S>(
        * mengirim halaman ini.
        */
       if (hidup && serverLebihMudaDariHalaman(uptimeMs)) return basi();
+
+      /*
+       * Kiriman BERBERKAS yang dibalas di luar format MARLIN (DECISIONS 642).
+       * Kalimat Next "An unexpected response…" berarti yang membalas bukan
+       * aplikasi ini – pada kiriman berberkas lazimnya server perantara (proxy)
+       * yang menolak ukurannya. Menekan lagi tidak akan berhasil, dan berkasnya
+       * harus dipilih ulang (formulir dikosongkan sesudah aksi).
+       */
+      const bytesBerkas = ukuranBerkas(data);
+      if (hidup && bytesBerkas > 0 && /unexpected response/i.test(nama)) {
+        const mb = (bytesBerkas / 1024 / 1024).toLocaleString("id-ID", { maximumFractionDigits: 1 });
+        return galat(
+          `Gagal mengirim – kiriman ${mb} MB ditolak di server perantara sebelum sampai ke MARLIN ` +
+            "(biasanya karena melebihi batas ukuran unggah di server itu). Belum ada yang tersimpan. " +
+            "Perkecil berkasnya lalu pilih ulang; kalau berkas kecil pun tetap gagal, minta admin server " +
+            `menaikkan batas unggah (MARLIN menerima sampai 30 MB). (${nama})`,
+        );
+      }
 
       return galat(
         hidup

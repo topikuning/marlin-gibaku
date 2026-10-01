@@ -5,11 +5,12 @@ import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { weeklyFromSegments } from "@/lib/scurve/generate";
-import { weekEndFractions } from "@/lib/progress-calc";
+import { weekEndFractions, weekOfDate } from "@/lib/progress-calc";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
 import { seedMasterLocations } from "@/lib/seed/master-location";
+import { geserTanggalIso, hariGeserSeed, realisasiSasaranPct, volumeUntukSasaran } from "@/lib/seed/tanggal-demo";
 
 /** Folder seed-data: repo root (dev) atau /app (container standalone). */
 function seedDataDir(): string {
@@ -207,12 +208,21 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   console.log(`  users: ${users.length}`);
 
   // ── Paket ber-kontrak + lokasi + RAB + baseline ─────────────
+  // Tanggal SPMK/selesai di seed-data terpatok; digeser relatif ke HARI SEED
+  // supaya server yang baru di-seed melihat proyek yang sedang berjalan, bukan
+  // yang sudah lewat masa kontrak (DECISIONS 639). Semua tanggal turunan
+  // (kontrak, riwayat status, milestone) dibaca dari meta ini.
+  const geser = hariGeserSeed(new Date());
   const files = new Map<string, SeedFile>();
   for (const p of PACKAGES) {
     for (const slug of p.slugs) {
-      files.set(slug, JSON.parse(readFileSync(join(seedDataDir(), `${slug}.json`), "utf8")) as SeedFile);
+      const data = JSON.parse(readFileSync(join(seedDataDir(), `${slug}.json`), "utf8")) as SeedFile;
+      data.meta.start_date = geserTanggalIso(data.meta.start_date, geser);
+      data.meta.end_date = geserTanggalIso(data.meta.end_date, geser);
+      files.set(slug, data);
     }
   }
+  console.log(`  tanggal demo digeser ${geser} hari (acuan seed-data → hari ini)`);
 
   // Catatan kualitas data: total_value kategori di JSON lama korup (bug parser python —
   // roman ganda, kategori hilang). Basis angka yang konsisten = Σ amount leaf (grandTotal
@@ -662,6 +672,114 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await mkReport(2, "perlu_koreksi", 2);
   await mkReport(1, "dikirim", 3);
   await mkReport(0, "draft", 1);
+
+  /*
+   * Realisasi demo di SEMUA lokasi lain (DECISIONS 639).
+   *
+   * Tanpa ini realisasi hampir nol di mana-mana, jadi setiap lokasi yang
+   * rencananya sudah berjalan berdeviasi negatif – dasbor server dev baru
+   * menampilkan semua proyek terlambat. Tiap lokasi diberi realisasi = rencana
+   * hari ini + deviasi sasaran yang beragam (`DEVIASI_SASARAN_PP`): sebagian
+   * besar aman, sebagian terlambat ringan, dua kritis. Rencana dibaca dari
+   * baseline yang baru dibuat dan minggu kontrak dari `weekOfDate` – fungsi
+   * yang sama dengan layar. Laporannya FINAL, mingguan mundur dari 1 hari
+   * lalu, jadi tidak bertabrakan dengan laporan "sudah lapor hari ini" di
+   * bawah. Kedung Mutih ikut, tapi laporannya mulai 5 hari lalu dan item
+   * kerja laporan beragam-statusnya (0–4 hari lalu) TIDAK disentuh – sisa
+   * volume item itulah yang dipakai `mkReport` di atas.
+   */
+  const lokasiDemo = await db.location.findMany({
+    where: { isActive: true, package: { orgId: org.id } },
+    orderBy: { slug: "asc" },
+    select: { id: true, slug: true },
+  });
+  const itemLaporanKdm = new Set(workNodes.map((n) => n.id));
+  for (const [urutan, lok] of lokasiDemo.entries()) {
+    const laporanTerakhir = lok.id === kdm.id ? 5 : 1;
+    if ((await db.dailyReport.count({ where: { locationId: lok.id, reportDate: { lte: daysAgo(laporanTerakhir) } } })) > 0) continue;
+    const kontrak = await db.contract.findFirst({
+      where: { package: { locations: { some: { id: lok.id } } } },
+      select: { startDate: true, weekMode: true },
+    });
+    const baseline = await db.baseline.findFirst({
+      where: { locationId: lok.id, status: "aktif" },
+      select: { points: { select: { plannedPct: true }, orderBy: { weekNumber: "asc" } } },
+    });
+    const rev = await db.rabRevision.findFirst({ where: { locationId: lok.id, status: "aktif" }, select: { id: true } });
+    if (!kontrak?.startDate || !baseline || !rev) continue;
+    const hari = daysAgo(0);
+    const minggu = weekOfDate(kontrak.startDate, hari, kontrak.weekMode);
+    const titik = baseline.points.map((p) => Number(p.plannedPct));
+    const rencana = minggu <= 0 || titik.length === 0 ? 0 : titik[Math.min(minggu, titik.length) - 1];
+    const items = await db.rabNode.findMany({
+      where: { revisionId: rev.id, kind: "item", amount: { gt: 0 }, volume: { gt: 0 } },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, lineageKey: true, volume: true, unitPrice: true, amount: true },
+    });
+    const total = totalBySlug.get(lok.slug) ?? items.reduce((a, n) => a + n.amount, 0n);
+    const sasaranPct = realisasiSasaranPct(rencana, urutan);
+    const sasaran = BigInt(Math.round((Number(total) * sasaranPct) / 100));
+    // Item laporan Kedung Mutih 0–4 hari lalu dikeluarkan: nilainya sudah
+    // terhitung, dan mengisinya penuh membuat laporan itu kehabisan sisa volume.
+    const sudahTerpasang = await db.dailyReportItem.findMany({
+      where: { report: { locationId: lok.id }, rabNodeId: { in: [...itemLaporanKdm] } },
+      select: { valueDone: true },
+    });
+    const terpasang = sudahTerpasang.reduce((a, r) => a + r.valueDone, 0n);
+    const isi = volumeUntukSasaran(
+      items
+        .filter((n) => !itemLaporanKdm.has(n.id))
+        .map((n) => ({ id: n.id, volume: Number(n.volume), amount: n.amount })),
+      sasaran - terpasang,
+    );
+    if (isi.length === 0) continue;
+    // Satu laporan per minggu yang sudah lewat (maks 8), item dibagi rata.
+    const hariBerjalan = Math.floor((hari.getTime() - kontrak.startDate.getTime()) / DAY);
+    const jumlahLaporan = Math.max(1, Math.min(8, Math.floor((hariBerjalan - laporanTerakhir) / 7) + 1));
+    const byId = new Map(items.map((n) => [n.id, n]));
+    for (let k = 0; k < jumlahLaporan; k++) {
+      const bagian = isi.filter((_, i) => i % jumlahLaporan === k);
+      if (bagian.length === 0) continue;
+      const reportDate = daysAgo(laporanTerakhir + 7 * (jumlahLaporan - 1 - k));
+      const r = await db.dailyReport.create({
+        data: {
+          locationId: lok.id,
+          reportDate,
+          status: "final",
+          weather: "cerah",
+          weatherSource: "manual",
+          workStart: "07:30",
+          workEnd: "16:30",
+          createdById: mandorId,
+          submittedById: mandorId,
+          submittedAt: new Date(reportDate.getTime() + 10 * 3600 * 1000),
+          verifiedById: smId,
+          verifiedAt: new Date(reportDate.getTime() + 12 * 3600 * 1000),
+          finalizedById: smId,
+          finalizedAt: new Date(reportDate.getTime() + 13 * 3600 * 1000),
+        },
+      });
+      await db.dailyReportItem.createMany({
+        data: bagian.map((b) => {
+          const n = byId.get(b.id)!;
+          return {
+            reportId: r.id,
+            rabNodeId: n.id,
+            lineageKey: n.lineageKey,
+            volumeDone: b.volume,
+            valueDone: calcValueDone(b.volume, Number(n.unitPrice ?? 0)),
+            reportedById: mandorId,
+          };
+        }),
+      });
+      for (const [from, to] of [[null, "dikirim"], ["dikirim", "disetujui"], ["disetujui", "final"]] as const) {
+        await db.dailyReportStatusHistory.create({
+          data: { reportId: r.id, fromStatus: from ?? undefined, toStatus: to, changedById: to === "dikirim" ? mandorId : smId },
+        });
+      }
+    }
+  }
+  console.log(`  realisasi demo: ${lokasiDemo.length} lokasi`);
 
   /*
    * Satu lokasi LAIN yang laporannya sudah DIKIRIM hari ini.
