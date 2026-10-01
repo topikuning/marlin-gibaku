@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 639 | 2026-10-01 | Data demo seed dev/test mengikuti hari seed: tanggal seed-data digeser dari acuan 2026-06-15, realisasi tiap lokasi = rencana + deviasi sasaran beragam (10 aman, 4 terlambat ringan, 2 kritis) lewat laporan final mingguan |
 | 638 | 2026-09-30 | Kop/logo/stempel perusahaan tidak lagi gagal tersimpan diam-diam: pesan di sebelah Simpan, `FileInput` ikut kosong saat formulir di-reset (React me-reset sesudah aksi GAGAL sekalipun), pesan sukses menyebut aset yang berubah, format dibaca dari isi berkas, batas 8 MB, pesan validasi Indonesia per kolom; Bandingkan RAB memisah selisih pembulatan Rp 1 |
 | 637 | 2026-09-30 | Bandingkan RAB aktif dengan RAB sebelumnya: `/lokasi/[slug]/rab/bandingkan`, bawaan aktif vs revisi tepat sebelumnya, pilihan bebas antar revisi non-draft, `diffRevisions` + `totalValue` (tanpa formula baru) |
 | 636 | 2026-09-30 | Hapus revisi RAB adendum yang keliru (super admin utama, `rab.revision_purge`, ketik `HAPUS #N`): laporan dipindah ke revisi pengganti, pemangkasan dikembalikan lalu dicek ulang ke RAB aktif, kurva-S revisi ikut dihapus; tolak aktif/draft/HPS awal/CCO/kurva-S aktif/item tanpa padanan |
