@@ -59,23 +59,38 @@ export function realisasiSasaranPct(rencanaPct: number, urutan: number): number 
 export type ItemDemo = { id: string; volume: number; amount: bigint };
 
 /**
- * Volume per item sehingga Σ nilai terpasang ≈ `sasaran` (rupiah): item diisi
- * PENUH berurutan, item terakhir sebagian. Urutan item = urutan RAB, jadi
- * pekerjaan awal (persiapan, tanah) selesai lebih dulu – sama seperti
- * lapangan.
+ * Porsi maksimum tiap item yang diisi seed. Di bawah 100% supaya setiap item
+ * masih punya sisa volume: laporan baru (oleh user maupun uji E2E) tetap bisa
+ * menambah progres di item mana pun, dan gambaran lapangannya wajar –
+ * banyak pekerjaan sedang berjalan, bukan sebagian selesai sebagian nol.
  */
-export function volumeUntukSasaran(items: ItemDemo[], sasaran: bigint): { id: string; volume: number }[] {
+export const PORSI_MAKS_ITEM = 0.6;
+
+/**
+ * Volume per item sehingga Σ nilai terpasang ≈ `sasaran` (rupiah): item diisi
+ * sampai `porsiMaks` volumenya berurutan, item terakhir sebagian. Urutan item
+ * = urutan RAB, jadi pekerjaan awal (persiapan, tanah) berjalan lebih dulu –
+ * sama seperti lapangan.
+ */
+export function volumeUntukSasaran(
+  items: ItemDemo[],
+  sasaran: bigint,
+  porsiMaks = PORSI_MAKS_ITEM,
+): { id: string; volume: number }[] {
   const hasil: { id: string; volume: number }[] = [];
   let sisa = sasaran;
   for (const it of items) {
     if (sisa <= 0n) break;
     if (it.volume <= 0 || it.amount <= 0n) continue;
-    if (it.amount <= sisa) {
-      hasil.push({ id: it.id, volume: it.volume });
-      sisa -= it.amount;
+    // Volume Decimal(15,3): dibulatkan ke bawah supaya tidak melampaui sasaran.
+    const bulat = (v: number) => Math.floor(v * 1000) / 1000;
+    const nilaiPenuh = BigInt(Math.floor(Number(it.amount) * porsiMaks));
+    if (nilaiPenuh <= sisa) {
+      const volume = bulat(it.volume * porsiMaks);
+      if (volume > 0) hasil.push({ id: it.id, volume });
+      sisa -= nilaiPenuh;
     } else {
-      // Volume Decimal(15,3): dibulatkan ke bawah supaya tidak melampaui sasaran.
-      const volume = Math.floor(((it.volume * Number(sisa)) / Number(it.amount)) * 1000) / 1000;
+      const volume = bulat((it.volume * Number(sisa)) / Number(it.amount));
       if (volume > 0) hasil.push({ id: it.id, volume });
       sisa = 0n;
     }

@@ -53,16 +53,29 @@ describe("realisasi data demo", () => {
     expect(realisasiSasaranPct(40, 0)).toBe(41.5);
   });
 
-  it("volume diisi penuh berurutan, item terakhir sebagian, tanpa melampaui sasaran", () => {
+  it("volume diisi berurutan sampai porsi maks, item terakhir sebagian, tanpa melampaui sasaran", () => {
     const items = [
       { id: "a", volume: 10, amount: 1_000n },
       { id: "b", volume: 4, amount: 2_000n },
       { id: "c", volume: 5, amount: 5_000n },
     ];
-    expect(volumeUntukSasaran(items, 2_000n)).toEqual([
+    expect(volumeUntukSasaran(items, 2_000n, 1)).toEqual([
       { id: "a", volume: 10 },
       { id: "b", volume: 2 },
     ]);
     expect(volumeUntukSasaran(items, 0n)).toEqual([]);
+  });
+
+  it("bawaan: tidak ada item yang terisi penuh – selalu ada sisa untuk laporan baru", () => {
+    const items = [
+      { id: "a", volume: 39.15, amount: 3_915_000n },
+      { id: "b", volume: 4, amount: 2_000n },
+    ];
+    const isi = volumeUntukSasaran(items, 10_000_000n);
+    for (const r of isi) {
+      const it = items.find((i) => i.id === r.id)!;
+      expect(r.volume).toBeLessThan(it.volume);
+    }
+    expect(isi[0]).toEqual({ id: "a", volume: 23.49 });
   });
 });
