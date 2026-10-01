@@ -1,3 +1,4 @@
+import { LEBAR_BIASA, LEBAR_TEBAL } from "./lebar-glyph";
 import { getContrastText } from "@/lib/photo-stamp/format";
 import { WARNA_CAP, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
 import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
@@ -99,8 +100,25 @@ function esc(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!);
 }
 const clamp = (min: number, v: number, max: number) => Math.round(Math.max(min, Math.min(max, v)));
-/** Estimasi lebar teks (tanpa mesin font) – cukup untuk fit & wrap. */
-const estWidth = (text: string, fs: number, bold: boolean) => text.length * fs * (bold ? 0.6 : 0.52);
+/**
+ * Lebar teks DIUKUR dari metrik font cap (DejaVu Sans / Bold, tabel
+ * `lebar-glyph.ts` dibangkitkan dari berkas fontnya) – DECISIONS 644.
+ *
+ * Dulu semuanya taksiran "jumlah huruf × faktor", dan faktornya dikalibrasi
+ * pada HURUF KAPITAL (0,72–0,75 per huruf). Nama perusahaan & nama pekerjaan
+ * bercampur huruf kecil (0,58–0,61 per huruf), jadi taksirannya kelebihan
+ * ±24% dan teks dipotong "CV. Putera…" padahal ruangnya masih ada (keluhan
+ * user 2026-10-01). Marjin 4% menutup halo, kerning, dan font cadangan.
+ * Huruf di luar tabel dihitung selebar huruf terlebar – lebih baik sedikit
+ * longgar daripada menyembul keluar cap yang sudah terbakar ke foto.
+ */
+function lebarTeks(text: string, fs: number, tebal: boolean): number {
+  const tabel = tebal ? LEBAR_TEBAL : LEBAR_BIASA;
+  let em = 0;
+  for (const ch of text) em += tabel[ch] ?? (tebal ? 1.0 : 0.95);
+  return em * fs * 1.04;
+}
+const estWidth = (text: string, fs: number, bold: boolean) => lebarTeks(text, fs, bold);
 /** Halo gelap tipis di sekeliling teks → terbaca di atas foto terang/ramai. */
 const halo = (fs: number) =>
   `paint-order="stroke" stroke="rgb(${OVERLAY_RGB})" stroke-opacity="0.55" stroke-width="${Math.max(1, fs * 0.09).toFixed(1)}" stroke-linejoin="round"`;
@@ -154,7 +172,7 @@ function fitLocation(name: string, maxW: number, fs0: number): { lines: string[]
  * Dipakai 0,75 sebagai marjin aman; jaminan KERAS-nya tetap `textLength`
  * di bawah, supaya tidak bergantung pada font yang dipakai runtime.
  */
-const badgeTextW = (text: string, fs: number) => text.length * fs * 0.75;
+const badgeTextW = (text: string, fs: number) => lebarTeks(text, fs, true);
 
 /**
  * Pastikan teks badge MUAT di dalam pill yang tidak melebihi lebar aman foto.
@@ -179,17 +197,11 @@ function fitBadge(text: string, maxW: number, fs0: number): { text: string; fs: 
 }
 
 /**
- * Lebar teks panel perusahaan (tebal, umumnya KAPITAL).
- *
- * Faktornya DIUKUR seperti `badgeTextW`, bukan ditebak: merender lima nama
- * perusahaan nyata lalu memangkas tepi tintanya memberi 0,566 (campuran) sampai
- * 0,695 (kapital penuh) per huruf. `estWidth` memakai 0,60 untuk tebal – itu
- * MELESET KE BAWAH untuk nama kapital, dan nama perusahaan hampir selalu
- * kapital, jadi teksnya menyembul keluar panel. Dipakai 0,72 sebagai marjin
- * aman; kelebihan lebar hanya menyisakan ruang kosong di panel, sedangkan
- * kekurangan lebar merusak cap yang sudah terbakar ke foto.
+ * Lebar teks panel perusahaan (tebal). Dulu faktor tetap 0,72 per huruf –
+ * aman untuk nama KAPITAL tapi kelebihan ±24% untuk "CV. Putera Fahlevi",
+ * sehingga nama dipotong padahal muat (DECISIONS 644). Kini dari metrik glyph.
  */
-const panelTextW = (text: string, fs: number) => text.length * fs * 0.72;
+const panelTextW = (text: string, fs: number) => lebarTeks(text, fs, true);
 
 /** Padding + aksen + jarak di sekeliling teks panel perusahaan. */
 const panelChromeW = (fs: number) =>
@@ -307,18 +319,39 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const badgePadH = badge ? Math.round(badge.fs * 0.95) : 0;
   const badgeW = badge ? Math.min(maxBadgeW, Math.round(badgeTextW(badge.text, badge.fs) + 2 * badgePadH)) : 0;
 
-  // Item pekerjaan – dipotong dengan elipsis, TIDAK dipaksa selebar apa pun.
+  // Item pekerjaan – dibungkus ke baris KEDUA dulu; elipsis hanya bila dua
+  // baris pun tidak cukup (DECISIONS 644). Nama pekerjaan RAB sering panjang
+  // ("Pekerjaan beton semi mekanis setara K-250 …") dan justru bagian ekornya
+  // yang membedakan item satu dari lainnya.
   const workAsli = d.workName?.trim() || null;
-  let workText = workAsli;
-  if (workText) {
-    while (workText.length > 4 && badgeTextW(workText, fsWork) > maxBadgeW) workText = workText.slice(0, -2);
-    if (workText !== workAsli) workText = `${workText.trimEnd()}…`;
+  const workLines: string[] = [];
+  if (workAsli) {
+    const muat = (t: string) => badgeTextW(t, fsWork) <= maxBadgeW;
+    if (muat(workAsli)) workLines.push(workAsli);
+    else {
+      const kata = workAsli.split(/\s+/);
+      let l1 = "";
+      let i = 0;
+      for (; i < kata.length; i++) {
+        const t = l1 ? `${l1} ${kata[i]}` : kata[i];
+        if (!muat(t) && l1) break;
+        l1 = t;
+      }
+      let l2 = kata.slice(i).join(" ");
+      while (l1.length > 4 && !muat(l1)) l1 = l1.slice(0, -1);
+      if (l2 && !muat(l2)) {
+        while (l2.length > 4 && !muat(`${l2.trimEnd()}…`)) l2 = l2.slice(0, -1);
+        l2 = `${l2.trimEnd()}…`;
+      }
+      workLines.push(l1);
+      if (l2) workLines.push(l2);
+    }
   }
 
   const hasDate = d.dateTimeText != null && d.dateTimeText.trim() !== "";
   const total =
     (hasBadge ? badgeH + gapBadgeLoc : 0) +
-    (workText ? workLineH + gapWork : 0) +
+    (workLines.length > 0 ? workLines.length * workLineH + gapWork : 0) +
     loc.lines.length * locLineH +
     (loc.lines.length > 0 ? gapLocDate : 0) +
     (hasDate ? dateH : 0) +
@@ -335,7 +368,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     Math.round(
       Math.max(
         badgeW,
-        workText ? badgeTextW(workText, fsWork) * 0.85 : 0,
+        ...workLines.map((l) => badgeTextW(l, fsWork)),
         ...loc.lines.map((l) => estWidth(l, loc.fs, true)),
         hasDate ? estWidth(d.dateTimeText!, fsDate, false) : 0,
         ...metaRows.map((r) => iconSize + fsMeta * 0.55 + estWidth(r.text + (r.boldTail ?? ""), fsMeta, !!r.boldTail)),
@@ -457,12 +490,15 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   }
 
   // Item pekerjaan – di bawah badge bangunan, sebelum nama lokasi.
-  if (workText) {
-    cy += Math.round(fsWork * 0.9);
-    parts.push(
-      `<text x="${tx0}" y="${cy}"${anchor} font-family="${ff}" font-weight="600" font-size="${fsWork}" ${halo(fsWork)} fill="${TEXT_WHITE}">${esc(workText)}</text>`,
-    );
-    cy += workLineH - Math.round(fsWork * 0.9) + gapWork;
+  if (workLines.length > 0) {
+    for (const baris of workLines) {
+      cy += Math.round(fsWork * 0.9);
+      parts.push(
+        `<text x="${tx0}" y="${cy}"${anchor} font-family="${ff}" font-weight="600" font-size="${fsWork}" ${halo(fsWork)} fill="${TEXT_WHITE}">${esc(baris)}</text>`,
+      );
+      cy += workLineH - Math.round(fsWork * 0.9);
+    }
+    cy += gapWork;
   }
 
   // Nama lokasi (dominan).
