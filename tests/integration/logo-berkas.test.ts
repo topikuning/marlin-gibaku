@@ -141,3 +141,58 @@ describe("logo & gambar identitas", () => {
     expect(baris?.contoh).toContain(logoKey);
   });
 });
+
+/*
+ * KOP SURAT "TIDAK MUNCUL" TANPA PERINGATAN (DECISIONS 638).
+ *
+ * Laporan user 2026-09-30: kop ditambahkan di beberapa perusahaan, sebagian
+ * muncul saat dibuka lagi, sebagian tidak – tanpa peringatan. Jalur yang
+ * membuat kop tidak ikut tersimpan: MIME kosong/salah pada berkas yang sah,
+ * berkas > 2 MB, dan kolom lain yang gagal validasi dengan pesan Inggris
+ * zod. Pesan sukses pun hanya "tersimpan", tidak membedakan kop yang masuk.
+ */
+describe("kop surat: tersimpan, atau alasannya dikatakan", () => {
+  async function simpan(ubah: (fd: FormData) => void) {
+    const fd = new FormData();
+    fd.set("id", vendorId);
+    fd.set("name", `CV Uji ${suffix}`);
+    ubah(fd);
+    return updateVendorAction(undefined, fd);
+  }
+  const kopKey = async () =>
+    (await db.vendor.findUniqueOrThrow({ where: { id: vendorId }, select: { kopKey: true } })).kopKey;
+
+  it("gambar sah tanpa MIME (berkas WhatsApp/.jfif) tetap tersimpan", async () => {
+    const buf = await sharp({ create: { width: 2000, height: 346, channels: 3, background: "#ffffff" } }).jpeg().toBuffer();
+    const r = await simpan((fd) => fd.set("kop", new File([buf], "kop.jfif", { type: "" })));
+    expect(r?.error).toBeUndefined();
+    expect(r?.success).toContain("kop surat diperbarui");
+    expect(await kopKey()).toMatch(/\/kop-.+\.webp$/);
+  });
+
+  it("berkas 3 MB diterima lalu dikompres (bukan ditolak batas 2 MB)", async () => {
+    const acak = Buffer.alloc(1000 * 1000 * 3);
+    for (let i = 0; i < acak.length; i++) acak[i] = (i * 2654435761) >>> 24;
+    const buf = await sharp(acak, { raw: { width: 1000, height: 1000, channels: 3 } }).png({ compressionLevel: 0 }).toBuffer();
+    expect(buf.length).toBeGreaterThan(2 * 1024 * 1024);
+    const sebelum = await kopKey();
+    const r = await simpan((fd) => fd.set("kop", new File([buf], "kop.png", { type: "image/png" })));
+    expect(r?.error).toBeUndefined();
+    expect(await kopKey()).not.toBe(sebelum);
+  });
+
+  it("berkas yang bukan gambar ditolak dengan menyebut namanya", async () => {
+    const r = await simpan((fd) => fd.set("kop", new File([Buffer.from("bukan gambar")], "kop.pdf", { type: "image/png" })));
+    expect(r?.error).toContain('"kop.pdf"');
+  });
+
+  it("kolom lain yang gagal validasi disebut dalam bahasa Indonesia", async () => {
+    const r = await simpan((fd) => fd.set("phone", "0821-3100-7093 / 0812-3456-7890 / 0813-9999-0000"));
+    expect(r?.error).toContain("Telepon terlalu panjang");
+  });
+
+  it("simpan tanpa berkas mengatakan kop tidak berubah", async () => {
+    const r = await simpan(() => {});
+    expect(r?.success).toContain("kop tidak berubah");
+  });
+});

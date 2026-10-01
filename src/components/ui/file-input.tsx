@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { FileUp, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { buttonClass } from "./button";
@@ -87,6 +87,21 @@ export function FileInput({
     setError(null);
     onPilih?.([]);
   };
+
+  // Formulir yang di-reset (React me-reset `<form action>` sesudah aksinya
+  // berhasil) mengosongkan input aslinya, tapi daftar nama berkas di sini
+  // adalah state sendiri – tanpa ini ia terus menampilkan berkas yang sudah
+  // tidak akan terkirim lagi.
+  useEffect(() => {
+    const form = inputRef.current?.form;
+    if (!form) return;
+    const saatReset = () => {
+      setTerpilih([]);
+      setError(null);
+    };
+    form.addEventListener("reset", saatReset);
+    return () => form.removeEventListener("reset", saatReset);
+  }, []);
 
   const ada = terpilih.length > 0;
 

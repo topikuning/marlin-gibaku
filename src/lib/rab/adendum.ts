@@ -578,6 +578,14 @@ export type RevisionDiff = {
   ditambah: DiffItem[];
   dihapus: DiffItem[];
   diubah: DiffItem[];
+  /**
+   * Volume & harga satuan SAMA, nilai tersimpan beda tepat Rp 1: pembulatan
+   * yang berbeda antar berkas impor (50 × 7.055,97 = 352.798,5 → 352.799 atau
+   * 352.798), bukan perubahan lingkup. Dipisah dari `diubah` supaya jumlah
+   * "diubah" tidak menggelembung, tapi tetap ditampilkan dan tetap ikut
+   * `totalTambah`/`totalKurang` – angkanya nyata, hanya golongannya lain.
+   */
+  pembulatan: DiffItem[];
   totalLama: bigint;
   totalBaru: bigint;
   delta: bigint;
@@ -593,6 +601,28 @@ export type RevisionDiff = {
   /** Σ penurunan nilai per item (pekerjaan kurang), ≤ 0. */
   totalKurang: bigint;
 };
+
+type NilaiItem = { volume: unknown; unitPrice: unknown; amount: bigint };
+
+/**
+ * Golongan perubahan satu item antara dua revisi. `pembulatan` = volume dan
+ * harga satuan sama, nilai beda tepat Rp 1 (lihat `RevisionDiff.pembulatan`).
+ * Toleransi harga 0,005 = setengah sen; di bawah itu beda tulis, bukan harga.
+ */
+export function jenisPerubahanItem(lama: NilaiItem, baru: NilaiItem): "tetap" | "pembulatan" | "diubah" {
+  const angka = (v: unknown) => (v != null ? Number(v) : null);
+  const volumeLama = angka(lama.volume);
+  const volumeBaru = angka(baru.volume);
+  const hargaLama = angka(lama.unitPrice);
+  const harga = angka(baru.unitPrice);
+  const hargaBergeser =
+    hargaLama == null && harga == null ? false : hargaLama == null || harga == null || Math.abs(hargaLama - harga) >= 0.005;
+  const volumeBergeser = Math.abs((volumeLama ?? 0) - (volumeBaru ?? 0)) > EPS;
+  if (volumeBergeser || hargaBergeser) return "diubah";
+  const selisih = baru.amount - lama.amount;
+  if (selisih === 0n) return "tetap";
+  return selisih === 1n || selisih === -1n ? "pembulatan" : "diubah";
+}
 
 /**
  * Bandingkan dua revisi PER ITEM lewat lineageKey. Item yang dihapus tetap
@@ -649,6 +679,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
   const ditambah: DiffItem[] = [];
   const dihapus: DiffItem[] = [];
   const diubah: DiffItem[] = [];
+  const pembulatan: DiffItem[] = [];
 
   for (const n of newItems) {
     const o = oldByKey.get(n.lineageKey);
@@ -672,18 +703,9 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
     } else {
       const volumeLama = o.volume != null ? Number(o.volume) : null;
       const hargaLama = o.unitPrice != null ? Number(o.unitPrice) : null;
-      // Toleransi 0,005 = setengah rupiah-sen; di bawah itu beda pembulatan
-      // tulis, bukan perubahan harga.
-      const hargaBergeser =
-        hargaLama == null && harga == null
-          ? false
-          : hargaLama == null || harga == null || Math.abs(hargaLama - harga) >= 0.005;
-      if (
-        Math.abs((volumeLama ?? 0) - (volumeBaru ?? 0)) > EPS ||
-        o.amount !== n.amount ||
-        hargaBergeser
-      ) {
-        diubah.push({
+      const jenis = jenisPerubahanItem(o, n);
+      if (jenis !== "tetap") {
+        (jenis === "pembulatan" ? pembulatan : diubah).push({
           lineageKey: n.lineageKey,
           code: n.code,
           name: n.name,
@@ -693,7 +715,10 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
           volumeBaru,
           hargaSatuan: harga,
           hargaSatuanLama: hargaLama,
-          hargaBergeser,
+          hargaBergeser:
+            hargaLama == null && harga == null
+              ? false
+              : hargaLama == null || harga == null || Math.abs(hargaLama - harga) >= 0.005,
           amountLama: o.amount,
           amountBaru: n.amount,
         });
@@ -721,7 +746,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
 
   let totalTambah = 0n;
   let totalKurang = 0n;
-  for (const it of [...ditambah, ...dihapus, ...diubah]) {
+  for (const it of [...ditambah, ...dihapus, ...diubah, ...pembulatan]) {
     const d = it.amountBaru - it.amountLama;
     if (d > 0n) totalTambah += d;
     else totalKurang += d;
@@ -731,6 +756,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
     ditambah,
     dihapus,
     diubah,
+    pembulatan,
     totalLama: oldRev.totalValue,
     totalBaru: newRev.totalValue,
     delta: newRev.totalValue - oldRev.totalValue,

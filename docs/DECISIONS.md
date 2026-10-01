@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 638 | 2026-09-30 | Kop/logo/stempel perusahaan tidak lagi gagal tersimpan diam-diam: pesan di sebelah Simpan, `FileInput` ikut kosong saat formulir di-reset (React me-reset sesudah aksi GAGAL sekalipun), pesan sukses menyebut aset yang berubah, format dibaca dari isi berkas, batas 8 MB, pesan validasi Indonesia per kolom; Bandingkan RAB memisah selisih pembulatan Rp 1 |
 | 637 | 2026-09-30 | Bandingkan RAB aktif dengan RAB sebelumnya: `/lokasi/[slug]/rab/bandingkan`, bawaan aktif vs revisi tepat sebelumnya, pilihan bebas antar revisi non-draft, `diffRevisions` + `totalValue` (tanpa formula baru) |
 | 636 | 2026-09-30 | Hapus revisi RAB adendum yang keliru (super admin utama, `rab.revision_purge`, ketik `HAPUS #N`): laporan dipindah ke revisi pengganti, pemangkasan dikembalikan lalu dicek ulang ke RAB aktif, kurva-S revisi ikut dihapus; tolak aktif/draft/HPS awal/CCO/kurva-S aktif/item tanpa padanan |
 | 635 | 2026-09-30 | AI MARLIN Fase 0 (spesifikasi + koreksi validasi): kode galat dari status DAN isi, retry hanya galat sementara, tenggat total per jawaban, provider cadangan opsional (`AiRun.fallbackFrom`), kegagalan web tercatat lengkap, alarm dinilai saat run gagal dicatat (bukan cron yang nyatanya jalan tiap 3–6,5 jam), batas jawaban bebas WA 3.000 token/60 dtk/tenggat 90 dtk, deteksi jawaban terpotong, tes koneksi jalur JSON, job WA macet diambil ulang |
