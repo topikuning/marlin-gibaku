@@ -50,6 +50,12 @@ export async function POST(req: Request) {
      * putaran latar itu sendiri, memakai keadaan terbaru.
      */
     const mulai = await mulaiArsipLatar();
+    // Pemindahan berkas R2 → Lenovo menumpang jadwal yang sama (DECISIONS 645).
+    const { mulaiPindahLatar } = await import("@/lib/penyimpanan/pindah");
+    const pindahBerkas = await mulaiPindahLatar().catch((err: unknown) => ({
+      dimulai: false,
+      galat: err instanceof Error ? err.message : "gagal dimulai",
+    }));
     /*
      * Cap latar yang tertinggal + tag bawaan yang belum terbaca OCR dibaca
      * susulan (DECISIONS 628). Pemulih ini juga dipicu tiap unggahan; cron
@@ -62,6 +68,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ...mulai,
       capSusulan,
+      pindahBerkas,
       menunggu: ringkas.menunggu,
       masaTenggang: ringkas.masaTenggang,
       putaranTerakhir: terakhir,

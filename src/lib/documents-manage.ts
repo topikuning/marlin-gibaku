@@ -2,10 +2,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
 import { requestIp, requireCapability } from "@/lib/auth/session";
-import { r2Delete } from "@/lib/r2";
 import { requireDocumentScope } from "@/lib/documents-scope";
 import { DocumentError } from "@/lib/documents";
 import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
+import { hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Siklus hidup dokumen: KOREKSI metadata, BATALKAN, PULIHKAN, HAPUS PERMANEN.
@@ -320,7 +320,7 @@ export async function deleteDocumentPermanently(
 
   let storageWarning: string | null = null;
   try {
-    await r2Delete(doc.r2Key);
+    await hapusBerkas(doc.r2Key);
   } catch (err) {
     storageWarning = `Baris dokumen terhapus, tetapi file di penyimpanan gagal dihapus (${
       err instanceof Error ? err.message : "sebab tidak diketahui"

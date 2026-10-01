@@ -11,7 +11,8 @@ import {
 } from "@/lib/photo-restamp/service";
 import { kotakTulisanUntuk, processWithSharpOrOriginal } from "@/lib/photos";
 import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
-import { r2Delete, r2GetBuffer, r2Put } from "@/lib/r2";
+import { r2Put } from "@/lib/r2";
+import { hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * MELENGKAPI CAP FOTO CEPAT setelah fotonya dipakai (DECISIONS 253).
@@ -125,8 +126,8 @@ export async function lengkapiCap(
       });
     });
   } catch (err) {
-    await r2Delete(keyBaru).catch(() => {});
-    if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+    await hapusBerkas(keyBaru).catch(() => {});
+    if (thumbBaru) await hapusBerkas(thumbBaru).catch(() => {});
     throw err;
   }
 
@@ -160,7 +161,7 @@ export async function hapusFotoKantong(photoId: string, actorId: string): Promis
     await tx.photo.delete({ where: { id: photoId } });
   });
   await audit(actorId, "photo.quick_discard", "photo", photoId, { locationId: p.locationId });
-  await r2Delete(p.r2Key).catch(() => {});
-  if (p.thumbnailKey) await r2Delete(p.thumbnailKey).catch(() => {});
-  if (p.originalKey) await r2Delete(p.originalKey).catch(() => {});
+  await hapusBerkas(p.r2Key).catch(() => {});
+  if (p.thumbnailKey) await hapusBerkas(p.thumbnailKey).catch(() => {});
+  if (p.originalKey) await hapusBerkas(p.originalKey).catch(() => {});
 }

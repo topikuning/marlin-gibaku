@@ -18,8 +18,9 @@ import {
   ISSUE_SEVERITY_LABEL,
   ISSUE_SEVERITY_TONE,
 } from "@/lib/lifecycle";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { AksiInspeksi, FormBuktiInspeksi } from "./aksi-inspeksi";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 export const metadata: Metadata = { title: "Detail Inspeksi" };
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export default async function DetailInspeksiPage({ params }: { params: Promise<{
         .filter((e) => e.photo)
         .map(async (e) => {
           try {
-            thumbs.set(e.id, await r2PresignGet(e.photo!.thumbnailKey ?? e.photo!.r2Key));
+            thumbs.set(e.id, await alamatBerkas(e.photo!.thumbnailKey ?? e.photo!.r2Key));
           } catch {
             // Tanpa pratinjau — baris tetap tampil.
           }

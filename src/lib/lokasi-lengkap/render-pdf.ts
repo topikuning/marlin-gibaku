@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import {
   CONTENT_BOTTOM,
   CONTENT_WIDTH,
@@ -27,6 +27,7 @@ import { EWS_KATEGORI_LABEL, EWS_SEVERITY_LABEL, type EwsSeverity } from "@/lib/
 import { ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 import { kartuMinggu } from "./kesimpulan";
 import type { LaporanLokasiLengkap } from "./jenis";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * LAPORAN LENGKAP LOKASI → PDF A4 POTRET multi-halaman.
@@ -185,7 +186,7 @@ function catatanKecil(doc: PdfDoc, teks: string): void {
 async function ambilFoto(r2Key: string): Promise<string | null> {
   if (!isR2Configured()) return null;
   try {
-    const raw = await r2GetBuffer(r2Key);
+    const raw = await ambilBerkas(r2Key);
     const jpeg = await sharp(raw)
       .rotate()
       .resize(900, 650, { fit: "cover", withoutEnlargement: true })

@@ -780,3 +780,68 @@ export async function jalankanArsipAsliAction(): Promise<ArsipAsliState> {
     return { error: err instanceof Error ? err.message : "Pemindahan arsip gagal dimulai." };
   }
 }
+
+/* ── Pemindahan berkas R2 → Lenovo (DECISIONS 645) ─────────────────────────── */
+
+export type PindahBerkasState = { error?: string; success?: string } | undefined;
+
+export async function setPindahBerkasAction(
+  _prev: PindahBerkasState,
+  formData: FormData,
+): Promise<PindahBerkasState> {
+  const actor = await requireCapability("system.manage");
+  const skema = z.object({
+    aktif: z.boolean(),
+    batasGb: z.coerce
+      .number({ error: "Batas R2 harus angka." })
+      .min(1, "Batas R2 paling kecil 1 GB.")
+      .max(1000, "Batas R2 paling besar 1000 GB."),
+    umurHari: z.coerce
+      .number({ error: "Umur harus angka." })
+      .int("Umur harus bilangan bulat.")
+      .min(3, "Umur paling kecil 3 hari.")
+      .max(3650, "Umur paling besar 3650 hari."),
+  });
+  const p = skema.safeParse({
+    aktif: formData.get("aktif") === "on",
+    batasGb: formData.get("batasGb"),
+    umurHari: formData.get("umurHari"),
+  });
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Isian tidak sah." };
+  const { setelanPindah, simpanSetelanPindah } = await import("@/lib/penyimpanan/setelan");
+  const sebelum = await setelanPindah();
+  await simpanSetelanPindah(p.data);
+  await audit(actor.id, "system.pindah_berkas", "system", null, { sebelum, sesudah: p.data });
+  revalidatePath("/sistem");
+  return {
+    success: p.data.aktif
+      ? `Pemindahan AKTIF – berkas lebih tua dari ${p.data.umurHari} hari dipindah ke Lenovo, dan R2 dijaga di bawah ${p.data.batasGb} GB.`
+      : "Pemindahan dimatikan. Berkas yang sudah di Lenovo tetap bisa dibuka; tidak ada yang dipindah lagi.",
+  };
+}
+
+export async function jalankanPindahBerkasAction(): Promise<PindahBerkasState> {
+  const actor = await requireCapability("system.manage");
+  const { mulaiPindahLatar } = await import("@/lib/penyimpanan/pindah");
+  try {
+    const h = await mulaiPindahLatar();
+    await audit(actor.id, "system.pindah_berkas_run", "system", null, h);
+    revalidatePath("/sistem");
+    if ("alasan" in h) {
+      const sebab: Record<string, string> = {
+        mati: "Sakelarnya masih mati.",
+        "belum-dikonfigurasi": "ORIGINAL_ARCHIVE_URL / _TOKEN belum diisi di Railway.",
+        "r2-mati": "R2 belum dikonfigurasi.",
+      };
+      return { error: sebab[h.alasan] ?? "Tidak dijalankan." };
+    }
+    const jam = h.berjalanSejak.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" });
+    return {
+      success: h.dimulai
+        ? "Pemindahan berjalan di latar, tertua lebih dulu. Muat ulang halaman untuk melihat angkanya bergerak."
+        : `Pemindahan sudah berjalan sejak ${jam}. Tidak perlu ditekan lagi.`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Pemindahan gagal dimulai." };
+  }
+}

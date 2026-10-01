@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
-import { isR2Configured, r2GetBuffer } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * LOGO KOP LAPORAN — pemilik pekerjaan (KKP) & kontraktor pelaksana.
@@ -47,7 +48,7 @@ async function muatSatu(key: string | null | undefined, untuk: string): Promise<
   if (!key || !isR2Configured()) return null;
   try {
     const sharp = (await import("sharp")).default;
-    const { data, info } = await sharp(await r2GetBuffer(key))
+    const { data, info } = await sharp(await ambilBerkas(key))
       .resize({ width: SISI_MAKS, height: SISI_MAKS, fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer({ resolveWithObject: true });

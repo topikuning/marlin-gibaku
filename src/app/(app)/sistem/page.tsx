@@ -27,6 +27,7 @@ import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { PetaPanel } from "./peta-panel";
 import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
+import { PindahBerkasPanel } from "./pindah-berkas-panel";
 import { PolicyCard } from "./policy-card";
 import { LokasiKembarPanel } from "./lokasi-kembar-panel";
 import { laporanLokasiKembar } from "@/lib/package/lokasi-kembar";
@@ -204,6 +205,33 @@ export default async function SistemPage() {
             dibuangDariR2: latarArsip.terakhir.dibuangDariR2,
             gagal: latarArsip.terakhir.gagal,
             galat: latarArsip.terakhir.galat.slice(0, 2),
+          }
+        : null,
+    },
+  };
+  // Pemindahan berkas R2 → Lenovo (DECISIONS 645): setelan, ukuran R2
+  // terakhir, dan apa saja yang sudah di Lenovo.
+  const { setelanPindah, ukuranR2Terakhir } = await import("@/lib/penyimpanan/setelan");
+  const { keadaanPindahLatar, ringkasPindah, LABEL_KATEGORI } = await import("@/lib/penyimpanan/pindah");
+  const [setelanP, ukuranR2, ringkasP] = await Promise.all([setelanPindah(), ukuranR2Terakhir(), ringkasPindah()]);
+  const latarPindah = keadaanPindahLatar();
+  const pindahBerkas = {
+    ...setelanP,
+    terkonfigurasi: Boolean(env.ORIGINAL_ARCHIVE_URL && env.ORIGINAL_ARCHIVE_TOKEN),
+    ukuranR2: ukuranR2 ? { bytes: ukuranR2.bytes, pada: ukuranR2.pada } : null,
+    perKategori: ringkasP.perKategori.map((k) => ({ ...k, label: LABEL_KATEGORI[k.kategori] ?? k.kategori })),
+    gagalTerus: ringkasP.gagalTerus,
+    galatTerakhir: ringkasP.galatTerakhir,
+    latar: {
+      berjalanSejak: latarPindah.berjalanSejak?.toISOString() ?? null,
+      terakhir: latarPindah.terakhir
+        ? {
+            selesai: latarPindah.terakhir.selesai.toISOString(),
+            dipindah: latarPindah.terakhir.dipindah,
+            bytesDipindah: latarPindah.terakhir.bytesDipindah,
+            gagal: latarPindah.terakhir.gagal,
+            galat: latarPindah.terakhir.galat.slice(0, 2),
+            alasan: latarPindah.terakhir.alasan,
           }
         : null,
     },
@@ -483,6 +511,16 @@ export default async function SistemPage() {
 
       <Card>
         <CardHeader
+          title="Pindahkan berkas ke Lenovo"
+          subtitle="Jaga R2 di bawah batasnya – foto ber-cap, dokumen, surat, dan lampiran lama dipindah, link tetap sama"
+        />
+        <CardBody>
+          <PindahBerkasPanel {...pindahBerkas} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="Isi penyimpanan R2"
           subtitle="Berapa yang terpakai, berapa yang sampah – dan buang yang sampah"
         />
@@ -752,8 +790,8 @@ export default async function SistemPage() {
   let ownerLogoUrl: string | null = null;
   if (branding.ownerLogoKey) {
     try {
-      const { r2PresignGet } = await import("@/lib/r2");
-      ownerLogoUrl = await r2PresignGet(branding.ownerLogoKey, 600);
+      const { alamatBerkas } = await import("@/lib/penyimpanan/berkas");
+      ownerLogoUrl = await alamatBerkas(branding.ownerLogoKey, 600);
     } catch {
       ownerLogoUrl = null; // R2 belum siap — form tetap tampil tanpa pratinjau
     }

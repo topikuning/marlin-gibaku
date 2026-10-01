@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewDocument } from "@/lib/documents";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Unduh dokumen: auth → scope → redirect ke presigned URL R2 (120 detik).
@@ -12,7 +13,7 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
  * yang berwenang membatalkan/memulihkan (audit & peninjauan) — bukan hilang,
  * tetapi juga tidak lagi beredar sebagai berkas resmi.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!z.uuid().safeParse(id).success) {
     return NextResponse.json({ error: "ID dokumen tidak valid" }, { status: 404 });
@@ -44,6 +45,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  const url = await r2PresignGet(doc.r2Key, 120);
-  return NextResponse.redirect(url, 302);
+  const url = await alamatBerkas(doc.r2Key, 120);
+  // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
+  return NextResponse.redirect(new URL(url, req.url), 302);
 }

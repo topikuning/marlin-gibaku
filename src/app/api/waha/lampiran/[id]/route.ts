@@ -3,7 +3,8 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Buka berkas lampiran WhatsApp yang menunggu ketetapan.
@@ -26,7 +27,7 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
  * memeriksa lingkupnya, dan menebak di sini berarti membuka berkas satu
  * organisasi kepada organisasi lain.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!z.uuid().safeParse(id).success) {
     return NextResponse.json({ error: "ID lampiran tidak valid" }, { status: 404 });
@@ -70,7 +71,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   if (a.r2Key && isR2Configured()) {
-    return NextResponse.redirect(await r2PresignGet(a.r2Key, 120), 302);
+    // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
+    return NextResponse.redirect(new URL(await alamatBerkas(a.r2Key, 120), req.url), 302);
   }
 
   if (a.localPath) {

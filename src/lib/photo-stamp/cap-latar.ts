@@ -110,7 +110,8 @@ async function masihDirujuk(kunci: string[]): Promise<Set<string>> {
 
 async function kerjakan(t: TugasCap): Promise<void> {
   const db = await muatDb();
-  const { r2Put, r2Delete } = await import("@/lib/r2");
+  const { r2Put } = await import("@/lib/r2");
+  const { hapusBerkas } = await import("@/lib/penyimpanan/berkas");
   const { randomUUID } = await import("node:crypto");
   const { tag, hasil } = await render(t);
   // Kunci UNIK per pengerjaan – pekerja lain yang mengerjakan foto yang sama
@@ -139,7 +140,7 @@ async function kerjakan(t: TugasCap): Promise<void> {
   if (tukar.count === 0) {
     const buang = [kunci, kunciThumb].filter((k): k is string => !!k);
     const hidup = await masihDirujuk(buang);
-    for (const k of buang) if (!hidup.has(k)) await r2Delete(k).catch(() => {});
+    for (const k of buang) if (!hidup.has(k)) await hapusBerkas(k).catch(() => {});
   }
 }
 
@@ -287,10 +288,10 @@ export async function kunciFotoBercap(r2Key: string): Promise<string> {
   return baru?.r2Key ?? r2Key;
 }
 
-/** `r2GetBuffer` untuk foto keluaran — tidak pernah mengembalikan foto tanpa cap bila capnya bisa dibuat. */
+/** `ambilBerkas` untuk foto keluaran — tidak pernah mengembalikan foto tanpa cap bila capnya bisa dibuat. */
 export async function r2GetFotoBercap(r2Key: string): Promise<Buffer> {
-  const { r2GetBuffer } = await import("@/lib/r2");
-  return r2GetBuffer(await kunciFotoBercap(r2Key));
+  const { ambilBerkas } = await import("@/lib/penyimpanan/berkas");
+  return ambilBerkas(await kunciFotoBercap(r2Key));
 }
 
 /**

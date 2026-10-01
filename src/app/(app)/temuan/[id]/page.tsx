@@ -18,8 +18,9 @@ import {
   ISSUE_SEVERITY_LABEL,
   ISSUE_SEVERITY_TONE,
 } from "@/lib/lifecycle";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
 import { AksiTemuan, FormBukti, FormVerifikasiBukti } from "./aksi-temuan";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 export const metadata: Metadata = { title: "Detail Temuan" };
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export default async function DetailTemuanPage({ params }: { params: Promise<{ i
         .map(async (e) => {
           const key = e.photo!.thumbnailKey ?? e.photo!.r2Key;
           try {
-            thumbs.set(e.id, await r2PresignGet(key));
+            thumbs.set(e.id, await alamatBerkas(key));
           } catch {
             // Foto tidak bisa dipratinjau — barisnya tetap tampil tanpa gambar.
           }

@@ -49,6 +49,13 @@ export async function r2GetBuffer(key: string): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
+/** Isi + jenis berkas – dipakai saat memindah ke arsip Lenovo, supaya jenisnya ikut tercatat. */
+export async function r2GetDenganJenis(key: string): Promise<{ isi: Buffer; jenis: string | null }> {
+  const res = await r2().send(new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
+  const bytes = await res.Body!.transformToByteArray();
+  return { isi: Buffer.from(bytes), jenis: res.ContentType ?? null };
+}
+
 export async function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
   return getSignedUrl(r2(), new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }), { expiresIn });
 }

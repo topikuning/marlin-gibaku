@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 // Catatan: /api/waha/webhook WAJIB publik — WAHA mem-POST tanpa cookie sesi;
 // endpoint itu mengautentikasi dirinya sendiri via token (?token=/header).
 // /api/foto = link foto publik untuk PDF yang dikirim ke WA (auth via token HMAC).
+// /api/berkas = isi berkas yang dipindah ke arsip Lenovo – pengganti alamat
+// presign R2, sama-sama dijaga token HMAC berumur pendek (DECISIONS 645).
 // /api/cron = pekerjaan terjadwal, otentikasi lewat header CRON_SECRET (bukan
 // sesi — penjadwal tidak punya cookie). Lihat api/cron/harian/route.ts.
 // /offline = halaman "tidak ada jaringan" milik service worker (DECISIONS 398).
@@ -22,6 +24,7 @@ const PUBLIC_PATHS = [
   "/api/ready",
   "/api/waha/webhook",
   "/api/foto",
+  "/api/berkas",
   "/api/cron",
 ];
 const SESSION_COOKIE = "marlin_session";

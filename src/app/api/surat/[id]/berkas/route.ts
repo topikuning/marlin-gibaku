@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
-import { isR2Configured, r2PresignGet } from "@/lib/r2";
+import { isR2Configured } from "@/lib/r2";
+import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Unduh berkas surat (DECISIONS 436): auth → capability → scope → redirect ke
@@ -16,7 +17,7 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
  * penugasan; surat yang belum menempel ke paket mana pun tetap terbuka bagi
  * yang boleh melihat register, karena itu memang belum menunjuk lokasi.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!z.uuid().safeParse(id).success) {
     return NextResponse.json({ error: "ID surat tidak valid" }, { status: 404 });
@@ -68,6 +69,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  const url = await r2PresignGet(surat.fileR2Key, 120);
-  return NextResponse.redirect(url, 302);
+  const url = await alamatBerkas(surat.fileR2Key, 120);
+  // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
+  return NextResponse.redirect(new URL(url, req.url), 302);
 }

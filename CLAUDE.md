@@ -191,6 +191,11 @@ src/
   `Contract.ppnPercent` (RAB pre-PPN, kontrak incl-PPN) — jangan hardcode.
 - Volume: `Decimal(15,3)`. Datetime: `Timestamptz`; logika harian pakai
   `jakartaDateKey/jakartaToday` (Asia/Jakarta); kolom tanggal kerja = `@db.Date`.
+- **Baca, alamat, dan hapus berkas HANYA lewat `src/lib/penyimpanan/berkas.ts`**
+  (`ambilBerkas` / `alamatBerkas` / `hapusBerkas`), bukan `r2GetBuffer` /
+  `r2PresignGet` / `r2Delete` langsung. Berkas lama dipindah dari R2 ke arsip
+  Lenovo (DECISIONS 645); pemanggil yang membaca R2 langsung gagal persis pada
+  berkas lama. Dijaga `tests/unit/penyimpanan-satu-pintu.test.ts`.
 - **Foto: berkas ASLI wajib diarsipkan** (`Photo.originalKey`) di samping versi
   ber-cap — cap dibakar ke gambar dan tidak bisa dibatalkan, jadi tanpa aslinya
   perbaikan cap mustahil. DILARANG menghapus jalur arsip ini. DECISIONS 197.

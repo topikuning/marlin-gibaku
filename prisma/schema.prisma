@@ -3563,3 +3563,35 @@ model RaplKomponenTambahan {
   @@index([rincianId])
   @@map("rapl_komponen_tambahan")
 }
+
+/// BERKAS YANG DIPINDAH DARI R2 KE ARSIP LENOVO (DECISIONS 645).
+///
+/// R2 dijaga di bawah batasnya (bawaan 10 GB): foto ber-cap, dokumen, surat,
+/// lampiran WA, dan lampiran kegiatan yang sudah tidak baru dipindah ke mesin
+/// arsip yang sama dengan berkas asli foto. Kuncinya TETAP kunci logis yang
+/// dirujuk tabel asalnya – baris di sini hanya mencatat bahwa isinya sekarang
+/// diambil dari tempat lain, jadi tidak ada link yang berubah.
+///
+///   dipindahAt null                 → masih di R2 (percobaan gagal tercatat)
+///   dipindahAt terisi, r2 null      → terbukti di Lenovo; dibaca dari sana
+///   keduanya terisi                 → salinan R2 sudah dibuang
+model BerkasPindah {
+  kunci       String    @id
+  /// Nama berkas di mesin arsip. Sama dengan `kunci` untuk foto; bentuk
+  /// `photos/pindahan/<tanggal>/<sha256 kunci>` untuk yang lain, karena gateway
+  /// arsip hanya menerima kunci berbentuk foto.
+  kunciDingin String    @map("kunci_dingin")
+  kategori    String
+  bytes       Int       @default(0)
+  sha256      String?
+  contentType String?   @map("content_type")
+  dipindahAt  DateTime? @map("dipindah_at") @db.Timestamptz
+  r2DibuangAt DateTime? @map("r2_dibuang_at") @db.Timestamptz
+  percobaan   Int       @default(0)
+  galat       String?
+  dicobaAt    DateTime? @map("dicoba_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([dipindahAt])
+  @@map("berkas_pindah")
+}

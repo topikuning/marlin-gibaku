@@ -5,7 +5,7 @@ import { nilaiTagBawaan, type TagBawaan } from "@/lib/photo-stamp/tag-bawaan";
 import type { KotakTulisan } from "@/lib/photo-stamp/tata-letak";
 import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { db } from "@/lib/db";
-import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
+import { isR2Configured, r2Put } from "@/lib/r2";
 import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
 import { buildStampSvg, overlayAlphaFor, type StampRenderData } from "@/lib/photo-stamp/renderer";
 import { tandaKoordinat, tandaWaktu, type TandaNilai } from "@/lib/photo-stamp/tanda-nilai";
@@ -50,6 +50,7 @@ export { MAX_PHOTO_BYTES, MAX_PHOTO_MB, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_AC
 import { MAX_PHOTO_BYTES, MAX_PHOTO_MB } from "@/lib/photo-limits";
 import { desimalKoordinat, pasanganKoordinat } from "@/lib/photo-koordinat";
 import { originalExt } from "@/lib/photo-file";
+import { alamatBerkasBanyak, hapusBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * Ambil waktu dari nama file WhatsApp bila polanya mengandung jam. WhatsApp
@@ -83,7 +84,6 @@ const EXT_RE = /\.(jpe?g|png|webp|heic|heif)$/i;
 export function isAllowedImage(mime: string, name: string): boolean {
   return ALLOWED_MIME.includes(mime.toLowerCase()) || EXT_RE.test(name);
 }
-
 
 export class PhotoError extends Error {}
 
@@ -127,7 +127,6 @@ function readExif(buffer: Buffer): { takenAt: Date | null; lat: number | null; l
     return { takenAt: null, lat: null, lng: null };
   }
 }
-
 
 /**
  * Font DIBENAMKAN langsung ke SVG (base64 @font-face) — librsvg TIDAK perlu
@@ -582,7 +581,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
         jadwalkanCap({ photoId: row.id, gambar: original, stamp, locationId: input.locationId, dasarKunci });
         return row;
       } catch (e) {
-        await r2Delete(originalKey).catch(() => {});
+        await hapusBerkas(originalKey).catch(() => {});
         throw duplikat(e);
       }
     }
@@ -644,9 +643,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       },
     });
   } catch (e) {
-    await r2Delete(key).catch(() => {});
-    if (thumbnailKey) await r2Delete(thumbnailKey).catch(() => {});
-    if (asliOk) await r2Delete(originalKey).catch(() => {});
+    await hapusBerkas(key).catch(() => {});
+    if (thumbnailKey) await hapusBerkas(thumbnailKey).catch(() => {});
+    if (asliOk) await hapusBerkas(originalKey).catch(() => {});
     throw duplikat(e);
   }
 }
@@ -1022,21 +1021,20 @@ type PhotoRow = {
   exifGpsLng?: { toString(): string } | null;
 };
 
-/** Presign sekumpulan r2Key jadi URL sementara (untuk <img src>). */
+/**
+ * Alamat sementara sekumpulan kunci (untuk <img src>): presign R2, atau
+ * `/api/berkas/…` untuk yang sudah dipindah ke Lenovo (DECISIONS 645). Lokasi
+ * semua kunci dicari dalam SATU kueri – galeri ratusan foto tidak boleh jadi
+ * ratusan kueri.
+ */
 export async function presignKeys(keys: string[], expiresIn = 300): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (!isR2Configured()) return map;
-  const unique = [...new Set(keys)];
-  await Promise.all(
-    unique.map(async (k) => {
-      try {
-        map.set(k, await r2PresignGet(k, expiresIn));
-      } catch {
-        /* biarkan kosong; UI tampilkan placeholder */
-      }
-    }),
-  );
-  return map;
+  if (!isR2Configured()) return new Map();
+  try {
+    return await alamatBerkasBanyak(keys, expiresIn);
+  } catch {
+    /* biarkan kosong; UI tampilkan placeholder */
+    return new Map();
+  }
 }
 
 /**
