@@ -140,7 +140,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
           title="Dokumen ini DIBATALKAN"
           description={`${doc.voidReason ?? "Tanpa alasan tercatat"} – dibatalkan ${
             doc.voidedAt ? formatTanggalWaktu(doc.voidedAt) : "–"
-          } oleh ${doc.voidedById ? (nameById.get(doc.voidedById) ?? "–") : "–"}. Tidak muncul di daftar dokumen dan tidak dihitung sebagai bukti milestone.`}
+          } oleh ${doc.voidedById ? (nameById.get(doc.voidedById) ?? "–") : "–"}. Dokumen ini tidak muncul di daftar dan tidak dihitung sebagai bukti milestone.`}
         />
       ) : null}
 
@@ -229,7 +229,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
         <Card>
           <CardHeader
             title="Koreksi metadata"
-            subtitle="Isi berkas tidak ditukar di sini. Berkas yang keliru: batalkan, lalu unggah yang benar."
+            subtitle="Di sini hanya data dokumennya yang dikoreksi, bukan berkasnya. Kalau berkasnya keliru, batalkan dokumen ini lalu unggah berkas yang benar."
           />
           <CardBody>
             <DocumentEditForm
@@ -254,8 +254,8 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
             title="Zona bahaya"
             subtitle={
               dibatalkan
-                ? "Dokumen sudah dibatalkan – bisa dipulihkan, atau dihapus permanen oleh super admin."
-                : "Membatalkan dokumen tidak menghapus file: ia hilang dari daftar, bisa dipulihkan."
+                ? "Dokumen sudah dibatalkan. Dokumen ini bisa dipulihkan, atau dihapus permanen oleh super admin."
+                : "Membatalkan dokumen tidak menghapus berkasnya. Dokumen hanya hilang dari daftar dan masih bisa dipulihkan."
             }
           />
           <CardBody className="space-y-6">

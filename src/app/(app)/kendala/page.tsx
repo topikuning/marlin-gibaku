@@ -57,7 +57,7 @@ const SUMBER_LABEL: Record<IssueSource, string> = {
   manual: "Dicatat langsung",
   laporan_harian: "Laporan harian",
   kegiatan_lapangan: "Kegiatan lapangan",
-  ai: "Ask MARLIN",
+  ai: "Tanya MARLIN",
   surat: "Surat",
 };
 
@@ -112,7 +112,7 @@ function BarisKendalaKartu({
             {k.picName && !k.picUserId ? (
               // Nama bebas tidak bisa dikirimi pengingat, dan itu dikatakan —
               // bukan dibiarkan terlihat sama dengan PIC yang bisa ditagih.
-              <span className="block text-[11px] text-warning">di luar MARLIN – tanpa pengingat</span>
+              <span className="block text-[11px] text-warning">bukan pengguna MARLIN, tidak dapat pengingat</span>
             ) : null}
           </p>
           <p className="mt-0.5">
@@ -178,7 +178,7 @@ export default async function KendalaPage({
     <div className="space-y-4">
       <PageHeader
         title="Kendala"
-        description="Seluruh kendala lapangan dalam satu tempat – lintas lokasi dan paket, diurut dari yang paling perlu ditagih."
+        description="Semua kendala lapangan dari semua lokasi dan paket di satu tempat. Yang paling perlu ditindaklanjuti ada di paling atas."
       />
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-5">
@@ -194,7 +194,7 @@ export default async function KendalaPage({
           label="Belum ada pemilik"
           value={ringkas.terbengkalai}
           tone={ringkas.terbengkalai > 0 ? "warning" : "default"}
-          sub="dicatat, tapi tidak ada yang ditagih"
+          sub="sudah dicatat, tapi belum ada yang bertanggung jawab"
           href="/kendala?status=terbengkalai"
         />
         <KpiCard
@@ -207,7 +207,7 @@ export default async function KendalaPage({
       <Card>
         <CardHeader
           title={`${baris.length} kendala`}
-          subtitle="Urutan: lewat tenggat → belum ada pemilik → tingkat → tenggat terdekat."
+          subtitle="Diurutkan: lewat tenggat → belum ada pemilik → tingkat → tenggat terdekat."
           action={<SaringKendala nilai={{ status: sp.status, tingkat: sp.tingkat, sumber: sp.sumber, cari: sp.cari }} />}
         />
         <CardBody>
@@ -256,8 +256,8 @@ export default async function KendalaPage({
       </Card>
 
       <p className="text-[12px] text-ink-muted">
-        Kendala dicatat dari tab Progress lokasi, laporan harian, atau kegiatan lapangan – semuanya
-        bermuara ke sini.{" "}
+        Kendala bisa dicatat dari tab Progress lokasi, laporan harian, atau kegiatan lapangan. Semuanya
+        terkumpul di sini.{" "}
         <ButtonLink href="/lokasi" size="sm">
           Buka daftar lokasi
         </ButtonLink>

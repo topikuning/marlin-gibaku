@@ -37,8 +37,8 @@ export function AiPengamanPanel({
             ))}
           </Combobox>
           <HelpText>
-            Dipanggil sekali bila provider aktif menolak karena kuota, saldo, kunci API, nama model, atau gangguan
-            sementara. Data proyek – termasuk teks grup WhatsApp – ikut terkirim ke vendor ini saat itu.
+            Dipakai sekali kalau provider utama menolak karena kuota, saldo, API key, nama model, atau gangguan
+            sementara. Saat itu data proyek, termasuk teks grup WhatsApp, ikut terkirim ke vendor ini.
             {providers.length - pilihan.length > 1
               ? ` Hanya provider yang API key-nya sudah disimpan dan bukan provider aktif yang bisa dipilih.`
               : ""}
@@ -48,8 +48,8 @@ export function AiPengamanPanel({
           <Label htmlFor="ai-alarm">Grup WhatsApp penerima alarm</Label>
           <Input id="ai-alarm" name="alertChatId" defaultValue={alertChatId} placeholder="1203630…@g.us" />
           <HelpText>
-            Menerima pesan bila 5 permintaan AI beruntun gagal atau lebih dari 20% gagal dalam 60 menit. Kosong =
-            hanya spanduk merah di layar dan catatan audit.
+            Menerima pesan bila 5 permintaan AI beruntun gagal atau lebih dari 20% gagal dalam 60 menit. Kalau
+            dikosongkan, peringatannya hanya berupa spanduk merah di layar dan catatan audit.
           </HelpText>
         </div>
       </div>

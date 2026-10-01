@@ -70,9 +70,9 @@ export async function uploadDocumentAction(
   const d = parsed.data;
 
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "File wajib dipilih" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Pilih berkasnya dulu." };
   if (!d.packageId && !d.locationId) {
-    return { error: "Pilih paket atau lokasi – dokumen harus tertaut minimal ke salah satunya" };
+    return { error: "Pilih paket atau lokasi. Dokumen harus terhubung ke salah satunya." };
   }
 
   try {
@@ -213,7 +213,7 @@ export async function voidDocumentAction(
     const { title } = await voidDocument(parsed.data.documentId, parsed.data.reason);
     revalidateDocument(parsed.data);
     return {
-      success: `Dokumen "${title}" dibatalkan – hilang dari daftar & tidak lagi dihitung sebagai bukti milestone. Masih bisa dipulihkan.`,
+      success: `Dokumen "${title}" dibatalkan. Dokumen ini hilang dari daftar dan tidak lagi dihitung sebagai bukti milestone, tetapi masih bisa dipulihkan.`,
     };
   } catch (err) {
     if (err instanceof DocumentError) return { error: err.message };
@@ -236,7 +236,7 @@ export async function restoreDocumentAction(
     const { title } = await restoreDocument(parsed.data.documentId);
     revalidateDocument(parsed.data);
     return {
-      success: `Dokumen "${title}" dipulihkan. Status milestone TIDAK ikut dihidupkan otomatis – periksa halaman Administrasi bila dokumen ini buktinya.`,
+      success: `Dokumen "${title}" dipulihkan. Status milestone TIDAK ikut kembali otomatis. Kalau dokumen ini menjadi bukti milestone, periksa halaman Administrasi.`,
     };
   } catch (err) {
     if (err instanceof DocumentError) return { error: err.message };
@@ -270,7 +270,7 @@ export async function deleteDocumentAction(
     return {
       success: storageWarning
         ? `Dokumen "${title}" dihapus permanen. ${storageWarning}`
-        : `Dokumen "${title}" dihapus permanen – baris & file tidak bisa dipulihkan.`,
+        : `Dokumen "${title}" dihapus permanen. Data dan berkasnya tidak bisa dipulihkan.`,
     };
   } catch (err) {
     if (err instanceof DocumentError) return { error: err.message };

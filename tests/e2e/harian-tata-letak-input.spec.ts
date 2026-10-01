@@ -266,7 +266,7 @@ test.describe("tata letak input harian", () => {
 
   test("kirim terkunci sampai pertanyaan kendala dijawab", async ({ page }) => {
     await bukaDraft(page);
-    const buka = page.getByRole("button", { name: /Review & Kirim/i });
+    const buka = page.getByRole("button", { name: /Periksa & Kirim/i });
     await expect(buka, "tombol kirim tidak muncul pada laporan draft").toBeVisible();
     await buka.click();
 

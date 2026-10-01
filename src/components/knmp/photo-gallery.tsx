@@ -218,7 +218,7 @@ export function PhotoGallery({
                   Putar kanan
                 </button>
                 <span className="text-[11px] text-white/70">
-                  Cap dibakar ulang dari berkas asli – angkanya tidak berubah.
+                  Cap dibuat ulang dari foto asli. Waktu dan koordinatnya tetap sama.
                 </span>
               </div>
             ) : null}

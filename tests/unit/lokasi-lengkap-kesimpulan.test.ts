@@ -211,7 +211,7 @@ describe("posisi minggu ketika kontrak sudah lewat", () => {
   });
 
   it("kartuMinggu: nilai tetap pendek, keterlambatan pindah ke keterangan", () => {
-    expect(kartuMinggu(7, 18, true)).toEqual({ nilai: "ke-7 / 18", sub: "dari panjang kurva-S" });
+    expect(kartuMinggu(7, 18, true)).toEqual({ nilai: "ke-7 / 18", sub: "dari total minggu kurva-S" });
     expect(kartuMinggu(23, 22, true)).toEqual({ nilai: "ke-23", sub: "lewat 1 minggu dari 22" });
     expect(kartuMinggu(4, 0, true)).toEqual({ nilai: "ke-4", sub: "kurva-S belum ada" });
     expect(kartuMinggu(4, 0, false)).toEqual({ nilai: "–", sub: "belum berkontrak" });

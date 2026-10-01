@@ -321,7 +321,7 @@ export default async function HarianIndexPage({
                   ? ` ${daftar.disembunyikan} hari tidak didaftar karena belum tiba atau di luar masa kontrak.`
                   : ""}
                 {saring !== "semua"
-                  ? ` Saringan aktif – ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
+                  ? ` Saringan aktif, jadi ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
                   : ""}
               </p>
             </section>
@@ -372,9 +372,9 @@ export default async function HarianIndexPage({
                 </div>
 
                 <p className="text-[12px] text-ink-muted">
-                  Penyebut = {ringkas.wajib} hari yang dihitung di{" "}
-                  {judulBulan(bulan)} – dalam masa kontrak dan sudah lewat, atau
-                  sudah punya laporan.
+                  Angka di atas dihitung dari {ringkas.wajib} hari di{" "}
+                  {judulBulan(bulan)}: hari dalam masa kontrak yang sudah lewat,
+                  atau yang sudah punya laporan.
                   {ringkas.luarKontrak > 0
                     ? ` ${ringkas.luarKontrak} hari di luar masa kontrak (tidak dihitung).`
                     : ""}
@@ -382,7 +382,7 @@ export default async function HarianIndexPage({
                     ? ` ${ringkas.belumTiba} hari belum tiba.`
                     : ""}
                   {saring !== "semua" && diredupkan > 0
-                    ? ` Saringan aktif – ${diredupkan} hari diredupkan, tidak dihapus.`
+                    ? ` Saringan aktif, jadi ${diredupkan} hari dibuat samar (tidak dihapus).`
                     : ""}
                 </p>
               </section>

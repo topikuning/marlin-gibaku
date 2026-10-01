@@ -83,8 +83,8 @@ export default async function AiReportsPage({
           tone="warning"
           title={
             guard.enabled
-              ? "Provider AI belum dikonfigurasi (Sistem → AI) – generate draf dinonaktifkan."
-              : "Fitur AI dinonaktifkan admin (kill switch)."
+              ? "AI belum diatur (Sistem → AI), jadi draf laporan belum bisa dibuat."
+              : "Fitur AI sedang dimatikan oleh admin."
           }
         />
       ) : null}
@@ -99,10 +99,10 @@ export default async function AiReportsPage({
       />
 
       <Card>
-        <CardHeader title="Artefak laporan terbaru" subtitle="Regenerate selalu membuat versi baru; artefak beku bersifat immutable." />
+        <CardHeader title="Laporan terbaru" subtitle="Membuat ulang selalu menghasilkan versi baru. Laporan yang sudah beku tidak bisa diubah lagi." />
         <CardBody>
           {artifacts.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada artefak – generate draf pertama di atas.</p>
+            <p className="text-sm text-ink-muted">Belum ada laporan. Buat draf pertama lewat formulir di atas.</p>
           ) : (
             <ul className="divide-y divide-border-muted">
               {artifacts.map((a) => (

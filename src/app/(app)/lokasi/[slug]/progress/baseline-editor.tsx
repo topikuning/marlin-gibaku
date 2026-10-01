@@ -137,9 +137,9 @@ export function BaselineEditor({
           <Banner tone="warning" title={invalid} className="mt-3" />
         ) : (
           <p className="mt-3 text-xs text-ink-muted">
-            Kurva valid: monoton naik, mulai 0%, berakhir 100%. Simpan membuat
-            baseline manual baru (baseline lama tetap tersimpan sebagai histori).
-            Jadwal per pekerjaan ikut disetel mengikuti kurva ini – bobot tiap
+            Kurva sudah benar: terus naik, mulai 0%, berakhir 100%. Menyimpan akan
+            membuat baseline manual baru; baseline lama tetap tersimpan sebagai riwayat.
+            Jadwal per pekerjaan ikut disesuaikan dengan kurva ini. Bobot tiap
             pekerjaan tetap sesuai RAB, hanya waktunya yang bergeser.
           </p>
         )}
@@ -158,8 +158,8 @@ export function BaselineEditor({
       {/* Tabel edit per minggu */}
       <div>
         <p className="mb-1.5 text-[11px] text-ink-muted">
-          Punya deret di Excel? Salin kolomnya lalu tempel (Ctrl+V) di baris mana pun –
-          nilainya mengisi ke bawah dari baris itu. Koma desimal dan tanda % ikut terbaca.
+          Punya deret angka di Excel? Salin kolomnya, lalu tempel (Ctrl+V) di baris mana pun.
+          Nilainya terisi ke bawah mulai dari baris itu. Koma desimal dan tanda % ikut terbaca.
         </p>
         {kabarTempel ? (
           <Banner

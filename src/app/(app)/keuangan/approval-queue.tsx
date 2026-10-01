@@ -130,7 +130,7 @@ function QueueRow({ item, canApprove }: { item: QueueItem; canApprove: boolean }
 
 export function ApprovalQueue({ items, canApprove }: { items: QueueItem[]; canApprove: boolean }) {
   if (items.length === 0) {
-    return <p className="py-2 text-sm text-ink-muted">Tidak ada transaksi menunggu persetujuan.</p>;
+    return <p className="py-2 text-sm text-ink-muted">Tidak ada transaksi yang menunggu persetujuan.</p>;
   }
   return (
     <div className="divide-y divide-border">

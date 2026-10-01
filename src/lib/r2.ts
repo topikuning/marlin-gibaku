@@ -148,7 +148,7 @@ export async function r2SelfTest(): Promise<{ ok: boolean; steps: R2SelfTestStep
   if (!putOk) return { ok: false, steps };
   await run("GET", async () => {
     const buf = await r2GetBuffer(key);
-    if (!buf.equals(payload)) throw new Error("Isi tidak sama (checksum mismatch)");
+    if (!buf.equals(payload)) throw new Error("Isi yang terbaca tidak sama dengan yang dikirim (checksum berbeda)");
     return `${buf.length} bytes, checksum cocok`;
   });
   await run("PRESIGN", async () => {
@@ -157,7 +157,7 @@ export async function r2SelfTest(): Promise<{ ok: boolean; steps: R2SelfTestStep
   });
   await run("DELETE", async () => {
     await r2Delete(key);
-    return "objek uji terhapus";
+    return "berkas uji terhapus";
   });
   return { ok: steps.every((s) => s.ok), steps };
 }

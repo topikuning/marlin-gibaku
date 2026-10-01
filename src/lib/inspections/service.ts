@@ -54,7 +54,7 @@ export async function updateInspection(
   if (row.inspectorId !== userId) {
     // Catatan inspeksi adalah kesaksian pemeriksanya — orang lain tidak
     // menulis ulang kesaksian orang.
-    throw new InspectionError("Hanya pemeriksanya sendiri yang bisa mengubah draft inspeksi ini.");
+    throw new InspectionError("Draft inspeksi ini hanya bisa diubah oleh pemeriksanya sendiri.");
   }
   const ip = await requestIp();
   await db.$transaction(async (tx) => {
@@ -75,14 +75,14 @@ export async function finalizeInspection(id: string, userId: string): Promise<vo
   const row = await db.inspection.findUnique({ where: { id }, select: { status: true, inspectorId: true } });
   if (!row) throw new InspectionError("Inspeksi tidak ditemukan.");
   if (!canTransitionInspection(row.status, "final")) throw new InspectionError("Inspeksi ini sudah final.");
-  if (row.inspectorId !== userId) throw new InspectionError("Hanya pemeriksanya sendiri yang bisa memfinalkan.");
+  if (row.inspectorId !== userId) throw new InspectionError("Inspeksi ini hanya bisa difinalkan oleh pemeriksanya sendiri.");
   const ip = await requestIp();
   await db.$transaction(async (tx) => {
     const updated = await tx.inspection.updateMany({
       where: { id, status: "draft" },
       data: { status: "final", finalizedAt: new Date() },
     });
-    if (updated.count !== 1) throw new InspectionError("Inspeksi berubah di tengah jalan – muat ulang.");
+    if (updated.count !== 1) throw new InspectionError("Inspeksi ini baru saja diubah orang lain. Muat ulang halaman, lalu coba lagi.");
     await auditIn(tx, userId, "inspection.finalize", "inspection", id, {}, ip);
   });
 }

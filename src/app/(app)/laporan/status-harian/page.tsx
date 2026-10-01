@@ -66,7 +66,7 @@ export default async function StatusHarianPage({
       <PageHeader
         breadcrumb={[{ label: "Laporan", href: "/laporan" }, { label: "Status Harian" }]}
         title="Status Laporan Harian"
-        description="Saring di atas, sortir dengan mengetuk kepala kolom. Tombol Unggah & Kirim ada di kolomnya masing-masing."
+        description="Pakai saringan di atas. Ketuk judul kolom untuk mengurutkan. Tombol Unggah dan Kirim ada di kolomnya masing-masing."
       />
 
       <BilahSaring

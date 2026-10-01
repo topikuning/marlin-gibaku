@@ -92,7 +92,7 @@ export default async function AktivitasPage({
     <Card>
       <CardHeader
         title="Aktivitas paket"
-        subtitle="Gabungan histori stage (append-only) dan audit log mutasi"
+        subtitle="Riwayat perpindahan tahap dan catatan semua perubahan data paket"
       />
       <CardBody>
         {entries.length === 0 ? (

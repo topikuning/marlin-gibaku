@@ -38,7 +38,7 @@ export function PortfolioGrid({ rows }: { rows: PortfolioRow[] }) {
           ) : null,
       },
       { field: "province", headerName: "Provinsi", width: 140 },
-      rupiahCol<PortfolioRow>("budget", "Budget", { width: 150 }),
+      rupiahCol<PortfolioRow>("budget", "Anggaran", { width: 150 }),
       rupiahCol<PortfolioRow>("realisasi", "Realisasi", { width: 150 }),
       rupiahCol<PortfolioRow>("komitmen", "Komitmen terbuka", { width: 160 }),
       rupiahCol<PortfolioRow>("available", "Available", {

@@ -212,7 +212,7 @@ export async function aiCall(req: AiRequest): Promise<AiCallResult> {
       provider: null,
       model: null,
       errorCode: "provider_disabled",
-      error: "Provider AI aktif belum siap – pilih provider & isi API key di Sistem → AI.",
+      error: "Provider AI belum siap. Pilih provider dan isi API key di Sistem → AI.",
       latencyMs: 0,
     };
   }
@@ -263,7 +263,7 @@ export async function testAiProvider(id: AiProviderId): Promise<HasilTesKoneksi>
       ok: false,
       errorCode: "invalid_response",
       latencyMs: r.latencyMs,
-      error: `Model ${r.model} membalas, tetapi bukan JSON yang diminta ("${r.text.slice(0, 80)}") – fitur AI akan gagal. Ganti model.`,
+      error: `Model ${r.model} membalas, tetapi tidak dalam format JSON yang diminta ("${r.text.slice(0, 80)}"). Fitur AI akan gagal, jadi ganti modelnya.`,
     };
   }
   return { ok: true, text: r.text, model: r.model, latencyMs: r.latencyMs };

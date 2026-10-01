@@ -134,7 +134,7 @@ export async function kesiapanPortofolio(user: SessionUser): Promise<KesiapanPak
           detail: pctMencukupi(pctVerif, berikut.ambangPct)
             ? `Progress terverifikasi ${formatPct(pctVerif)} mencapai ambang ${berikut.ambangPct}%.`
             : pctMencukupi(pctDilaporkan, berikut.ambangPct)
-              ? `Progress dilaporkan ${formatPct(pctDilaporkan)} sudah mencapai ambang, tetapi yang terverifikasi baru ${formatPct(pctVerif)} – ada laporan terkirim yang belum disetujui.`
+              ? `Progress dilaporkan ${formatPct(pctDilaporkan)} sudah mencapai ambang, tetapi yang terverifikasi baru ${formatPct(pctVerif)}. Masih ada laporan terkirim yang belum disetujui.`
               : `Progress terverifikasi ${formatPct(pctVerif)} (dilaporkan ${formatPct(pctDilaporkan)}) belum mencapai ambang ${berikut.ambangPct}%.`,
           href: "/progress",
         });
@@ -175,7 +175,7 @@ export async function kesiapanPortofolio(user: SessionUser): Promise<KesiapanPak
       if (dokLewat.length > 0) {
         syarat.push({
           key: "dok_kadaluarsa",
-          label: "Dokumen kadaluarsa",
+          label: "Dokumen kedaluwarsa",
           status: "peringatan",
           detail: `${dokLewat.length} dokumen aktif sudah lewat masa berlaku (mis. ${dokLewat[0].title}).`,
           href: "/dokumen",
@@ -242,7 +242,7 @@ export async function kesiapanPortofolio(user: SessionUser): Promise<KesiapanPak
         status: belumPho.length === 0 ? "lolos" : "gagal",
         detail:
           belumPho.length === 0
-            ? "Semua lokasi sudah PHO / pemeliharaan."
+            ? "Semua lokasi sudah PHO atau masuk masa pemeliharaan."
             : `${belumPho.length} lokasi belum PHO.`,
       });
       syarat.push({
@@ -290,7 +290,7 @@ export async function kesiapanPortofolio(user: SessionUser): Promise<KesiapanPak
         status: cair >= 4 ? "lolos" : "peringatan",
         detail: `${cair} dari ${billings.filter((b) => b.contractId === pkg.contract?.id).length || 0} termin berstatus cair.`,
       });
-      kartu.push({ jenis: "close_out", judul: "Kesiapan Close-out", verdict: verdictDariSyarat(syarat), syarat });
+      kartu.push({ jenis: "close_out", judul: "Kesiapan Penutupan", verdict: verdictDariSyarat(syarat), syarat });
     }
 
     hasil.push({

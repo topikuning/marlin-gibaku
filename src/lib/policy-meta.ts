@@ -34,15 +34,15 @@ export const POLICY_META: Record<
       "Kalau di satu lokasi hanya ada satu orang yang aktif, laporannya akan tertahan sampai ada orang kedua yang menyetujui.",
   },
   finalizerMustDiffer: {
-    label: "Pemfinal laporan harian harus orang lain",
+    label: "Yang memfinalkan laporan harian harus orang lain",
     deskripsi:
-      "Laporan tidak bisa difinalkan oleh orang yang menyetujuinya. Finalisasi membekukan angka untuk dicetak, jadi ia langkah pengesahan terakhir.",
-    dampak: "Butuh minimal tiga orang berbeda dalam satu rantai: pengirim, penyetuju, pemfinal.",
+      "Laporan tidak bisa difinalkan oleh orang yang menyetujuinya. Finalisasi mengunci angka untuk dicetak, jadi ini langkah pengesahan terakhir.",
+    dampak: "Butuh minimal tiga orang berbeda dalam satu rantai: pengirim, penyetuju, dan yang memfinalkan.",
   },
   requirePhotoGps: {
     label: "Foto laporan wajib ber-GPS perangkat",
     deskripsi:
-      "Unggahan foto ditolak bila perangkat tidak mengirim koordinat. Tanpa ini, foto tanpa GPS tetap diterima dan dicap memakai titik proyek sebagai cadangan.",
+      "Unggahan foto ditolak bila perangkat tidak mengirim koordinat. Kalau aturan ini mati, foto tanpa GPS tetap diterima dan dicap memakai titik proyek sebagai cadangan.",
     dampak:
       "Pelapor yang menolak izin lokasi di browser tidak akan bisa mengunggah foto sampai izinnya diberikan.",
   },

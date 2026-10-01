@@ -308,7 +308,7 @@ export default async function RingkasanPaketPage({
       case "penetapan":
         return {
           judul: "Input data kontrak",
-          hint: "Pemenang sudah ditetapkan. Data kontrak yang mengonversi paket ini ke tahap Kontrak.",
+          hint: "Pemenang sudah ditetapkan. Isi data kontrak untuk memindahkan paket ini ke tahap Kontrak.",
           action: canContract ? (
             <ButtonLink href={`/paket/${pkg.id}/kontrak`} variant="primary" size="md">
               Input Kontrak
@@ -318,13 +318,13 @@ export default async function RingkasanPaketPage({
       case "kontrak":
         return {
           judul: "Mulai pelaksanaan",
-          hint: "Kontrak tercatat. Memulai pelaksanaan mengaktifkan status Berjalan di semua lokasi.",
+          hint: "Kontrak sudah tercatat. Begitu pelaksanaan dimulai, semua lokasi berstatus Berjalan.",
           action: canContract ? <StartPelaksanaanButton packageId={pkg.id} /> : null,
         };
       case "pelaksanaan":
         return {
           judul: "Pantau pelaksanaan sampai pekerjaan fisik 100%",
-          hint: "Serah Terima baru dapat ditandai ketika progress agregat mencapai 100%.",
+          hint: "Serah Terima baru bisa ditandai kalau progress seluruh paket sudah 100%.",
           action: canProspect ? (
             <AdvanceStageButton
               packageId={pkg.id}
@@ -333,7 +333,7 @@ export default async function RingkasanPaketPage({
               variant="secondary"
               warn={
                 aggregatePct < 99.95
-                  ? `Progress agregat baru ${formatPct(aggregatePct)}. Serah terima hanya diizinkan saat 100% – tindakan ini akan ditolak sampai pekerjaan tuntas.`
+                  ? `Progress paket baru ${formatPct(aggregatePct)}. Serah terima hanya bisa dilakukan saat 100%, jadi tindakan ini akan ditolak sampai pekerjaan tuntas.`
                   : undefined
               }
             />
@@ -433,7 +433,7 @@ export default async function RingkasanPaketPage({
           <Card>
             <CardHeader
               title="Status paket & langkah berikutnya"
-              subtitle="Ringkasan untuk keputusan. Pengaturan yang jarang disentuh ada di kolom kanan."
+              subtitle="Ringkasan untuk mengambil keputusan. Pengaturan yang jarang dipakai ada di kolom kanan."
             />
             <CardBody className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 px-3 py-2.5">
@@ -519,14 +519,14 @@ export default async function RingkasanPaketPage({
               {kurvaPaket.dihitung < kurvaPaket.totalLokasi ? (
                 <p className="text-[13px] text-warning-700">
                   {kurvaPaket.totalLokasi - kurvaPaket.dihitung} lokasi belum punya baseline
-                  kurva-S atau RAB aktif dan TIDAK ikut dihitung – kurva ini belum mewakili
+                  kurva-S atau RAB aktif, jadi TIDAK ikut dihitung. Kurva ini belum mewakili
                   seluruh paket.
                 </p>
               ) : null}
               <p className="text-[13px] text-ink-muted">
-                Rencana dari baseline aktif tiap lokasi; realisasi dari laporan harian yang
-                dihitung. Lokasi yang jadwalnya lebih pendek diteruskan 100% sesudah minggu
-                terakhirnya – itu yang dikatakan jadwalnya.
+                Rencana diambil dari baseline aktif tiap lokasi, realisasi dari laporan harian
+                yang dihitung. Lokasi yang jadwalnya lebih pendek tetap dianggap 100% sesudah
+                minggu terakhirnya, sesuai jadwalnya.
               </p>
             </>
           ) : (
@@ -547,7 +547,7 @@ export default async function RingkasanPaketPage({
         <Card>
           <CardHeader
             title={`${adendum.draft.length} draft adendum sedang berjalan`}
-            subtitle="Belum masuk nilai kontrak, belum menggeser progres maupun kurva-S – baru berlaku setelah diaktifkan (empat mata: Program Director + AM/PM/SM)."
+            subtitle="Belum masuk nilai kontrak dan belum mengubah progres maupun kurva-S. Baru berlaku setelah diaktifkan dengan persetujuan dua orang: Program Director dan AM/PM/SM."
             action={
               <StatusPill
                 tone={adendum.siapAktif > 0 ? "warning" : "info"}
@@ -624,7 +624,7 @@ export default async function RingkasanPaketPage({
                         />
                         {!d.setuju.lengkap ? (
                           <span className="block text-xs text-ink-faint">
-                            Kurang: {d.setuju.kurang.join(" · ")}
+                            Masih menunggu: {d.setuju.kurang.join(" · ")}
                           </span>
                         ) : null}
                         {d.suaraGugur > 0 ? (
@@ -639,7 +639,7 @@ export default async function RingkasanPaketPage({
               </table>
             </div>
             <p className="text-[13px] text-ink-muted">
-              Angka di atas nilai RAB pra-PPN. Nilai kontrak berjalan di kartu atas baru berubah
+              Angka di atas adalah nilai RAB pra-PPN. Nilai kontrak berjalan di kartu atas baru berubah
               setelah adendum diaktifkan DAN nomor CCO-nya dicatat di tab Kontrak.
             </p>
           </CardBody>
@@ -650,7 +650,7 @@ export default async function RingkasanPaketPage({
             <Banner
               tone="info"
               title="Rekonsiliasi kontrak vs RAB tidak ditampilkan"
-              description={`Perbandingan itu memerlukan RAB SELURUH lokasi paket, sementara ${pkg.locationsHidden} lokasi berada di luar penugasan Anda – angkanya tidak akan benar bila dihitung sebagian.`}
+              description={`Perbandingan ini butuh RAB SELURUH lokasi paket, sedangkan ${pkg.locationsHidden} lokasi berada di luar penugasan Anda. Kalau dihitung sebagian, angkanya tidak akan benar.`}
             />
           ) : null}
 
@@ -658,8 +658,8 @@ export default async function RingkasanPaketPage({
             /* id: sasaran tombol “Periksa masalah” pada banner selisih di layout. */
             <Card id="rekonsiliasi" className="scroll-mt-4">
               <CardHeader
-                title="Rekonsiliasi: nilai kontrak (input) vs RAB semua lokasi"
-                subtitle="“Nilai kontrak berjalan” adalah INPUT kamu (nilai kontrak + adendum), termasuk PPN – bukan jumlah lokasi. Di sini dibandingkan dengan jumlah RAB semua lokasi (pra-PPN) untuk verifikasi alokasi."
+                title="Rekonsiliasi: nilai kontrak yang diisi vs RAB semua lokasi"
+                subtitle="“Nilai kontrak berjalan” adalah angka yang Anda ISI (nilai kontrak + adendum), sudah termasuk PPN, bukan jumlah dari lokasi. Di sini angka itu dibandingkan dengan jumlah RAB semua lokasi (pra-PPN) untuk memeriksa pembagiannya."
                 action={
                   <StatusPill
                     tone={recon.cocok ? "success" : recon.semuaBerRab ? "warning" : "info"}
@@ -695,10 +695,10 @@ export default async function RingkasanPaketPage({
 
                 <p className="text-[13px] text-ink-muted">
                   {recon.withRab}/{recon.rows.length} lokasi ber-RAB · alokasi{" "}
-                  {formatPct(recon.alokasiPct)} dari nilai dasar. Selisih ini bukan otomatis
-                  “kerugian” atau “sisa”; ia penanda data yang perlu direkonsiliasi. Sebabnya
-                  biasanya belum semua lokasi impor RAB, atau nilai kontrak input belum sesuai
-                  total RAB.
+                  {formatPct(recon.alokasiPct)} dari nilai dasar. Selisih ini belum tentu
+                  “kerugian” atau “sisa”. Ini tanda ada data yang perlu dicocokkan. Biasanya
+                  karena belum semua lokasi mengimpor RAB, atau nilai kontrak yang diisi belum
+                  sesuai total RAB.
                 </p>
 
                 <div className="flex flex-wrap gap-2">
@@ -798,7 +798,7 @@ export default async function RingkasanPaketPage({
           <Card>
             <CardHeader
               title="Aktivitas terakhir"
-              subtitle="Transisi stage paket"
+              subtitle="Perpindahan tahap paket"
               action={<ButtonLink href={`/paket/${pkg.id}/aktivitas`}>Lihat semua</ButtonLink>}
             />
             <CardBody>
@@ -817,7 +817,7 @@ export default async function RingkasanPaketPage({
                           ? "koreksi data"
                           : h.fromStage
                             ? `dari ${PACKAGE_STAGE_LABEL[h.fromStage]}`
-                            : "stage awal"}
+                            : "tahap awal"}
                       </span>
                       {h.note ? <span className="text-ink-muted">– {h.note}</span> : null}
                       <span className="ml-auto text-xs text-ink-muted">
@@ -836,7 +836,7 @@ export default async function RingkasanPaketPage({
             <Card>
               <CardHeader
                 title="Komunikasi paket"
-                subtitle="Keadaannya terbaca di sini; formnya dibuka hanya saat perlu diubah."
+                subtitle="Keadaan tiap sambungan terlihat di sini. Buka formnya hanya kalau perlu diubah."
               />
               <CardBody className="space-y-2">
                 {canWaConfigure ? (
@@ -895,7 +895,7 @@ export default async function RingkasanPaketPage({
                 {canKirimLaporan && pkg.stage === "pelaksanaan" ? (
                   <BarisIntegrasi
                     nama="Laporan progres mingguan"
-                    keterangan="Satu pesan per grup – grup kabupaten untuk lokasinya, grup paket untuk sisanya. Otomatis pada hari terakhir tiap minggu kontrak bila sakelarnya menyala di Sistem."
+                    keterangan="Satu pesan per grup: grup kabupaten untuk lokasinya, grup paket untuk sisanya. Terkirim otomatis pada hari terakhir tiap minggu kontrak, kalau fitur ini dinyalakan di Sistem."
                     status={punyaTujuanMingguan ? undefined : "Butuh grup"}
                     statusTone="warning"
                     aksi={
@@ -929,7 +929,7 @@ export default async function RingkasanPaketPage({
                       <Drawer
                         trigger={pkg.driveFolderId ? "Kelola folder" : "Hubungkan folder"}
                         title="Folder Google Drive paket"
-                        subtitle="Folder pemberian KKP – tujuan upload PDF/Excel laporan lokasi paket ini."
+                        subtitle="Folder dari KKP, tempat mengunggah PDF/Excel laporan lokasi paket ini."
                       >
                         <div className="space-y-4">
                           <DriveFolderForm
@@ -943,15 +943,15 @@ export default async function RingkasanPaketPage({
                                 Kelengkapan folder KKP
                               </h3>
                               <p className="mt-0.5 mb-2 text-[13px] text-ink-muted">
-                                Sembilan folder standar KKP – apa yang MARLIN punya vs apa yang
-                                sudah disetor.
+                                Sembilan folder standar KKP: berapa yang ada di MARLIN dan berapa
+                                yang sudah disetor.
                               </p>
                               <div className="overflow-x-auto">
                                 <table className="w-full min-w-[26rem] text-sm">
                                   <thead>
                                     <tr className="border-b border-border text-left text-[12px] text-ink-muted">
                                       <th className="py-2 font-medium">Folder</th>
-                                      <th className="py-2 text-right font-medium">Terupload</th>
+                                      <th className="py-2 text-right font-medium">Terunggah</th>
                                       <th className="py-2 text-right font-medium">Terakhir</th>
                                     </tr>
                                   </thead>
@@ -995,10 +995,10 @@ export default async function RingkasanPaketPage({
                                 </table>
                               </div>
                               <p className="mt-2 text-[12px] text-ink-muted">
-                                Upload dilakukan per laporan/dokumen dari halamannya
-                                masing-masing. Kolom “/ n” = jumlah yang layak disetor menurut data
-                                MARLIN; laporan mingguan/bulanan tidak dihitung karena jumlah
-                                periodenya mengikuti masa kontrak.
+                                Pengunggahan dilakukan per laporan atau dokumen, dari halamannya
+                                masing-masing. Angka “/ n” adalah jumlah yang seharusnya disetor
+                                menurut data MARLIN. Laporan mingguan/bulanan tidak dihitung karena
+                                jumlahnya mengikuti masa kontrak.
                               </p>
                             </div>
                           ) : null}
@@ -1015,7 +1015,7 @@ export default async function RingkasanPaketPage({
             <Card>
               <CardHeader
                 title="Dokumen & kepatuhan"
-                subtitle="Ringkasan saja; pekerjaan detailnya di tab Dokumen."
+                subtitle="Ringkasan saja. Rinciannya dikerjakan di tab Dokumen."
               />
               <CardBody className="space-y-2">
                 <div className="flex items-baseline justify-between gap-2 text-sm">

@@ -74,18 +74,18 @@ export function ScheduleEditor({
 
   const invalid = useMemo(() => {
     for (const r of rows) {
-      if (r.segments.length === 0) return `"${r.name}": minimal satu rentang minggu.`;
+      if (r.segments.length === 0) return `"${r.name}": isi minimal satu rentang minggu.`;
       const sorted = [...r.segments].sort((a, b) => a.startWeek - b.startWeek);
       let prevEnd = 0;
       for (const s of sorted) {
         if (!Number.isInteger(s.startWeek) || !Number.isInteger(s.endWeek)) {
-          return `"${r.name}": minggu harus bilangan bulat.`;
+          return `"${r.name}": minggu harus diisi angka bulat.`;
         }
         if (s.startWeek < 1 || s.endWeek > totalWeeks) {
           return `"${r.name}": minggu harus dalam rentang 1–${totalWeeks}.`;
         }
         if (s.startWeek > s.endWeek) {
-          return `"${r.name}": rentang ${s.startWeek}–${s.endWeek} terbalik.`;
+          return `"${r.name}": rentang ${s.startWeek}–${s.endWeek} terbalik. Minggu mulai tidak boleh sesudah minggu selesai.`;
         }
         if (s.startWeek <= prevEnd) {
           return `"${r.name}": rentang minggu bertumpang tindih (mgg ${s.startWeek}).`;
@@ -114,13 +114,13 @@ export function ScheduleEditor({
     <div className="space-y-4">
       {origin === "otomatis" ? (
         <p className="text-xs text-ink-muted">
-          Jadwal awal di bawah adalah usulan otomatis (urutan lapangan + bobot biaya).
-          Sesuaikan rentang minggu tiap pekerjaan – boleh lebih dari satu rentang bila
-          pekerjaan terputus – lalu simpan.
+          Jadwal awal di bawah adalah usulan otomatis (urutan lapangan dan bobot biaya).
+          Sesuaikan rentang minggu tiap pekerjaan, lalu simpan. Boleh lebih dari satu rentang
+          kalau pekerjaannya terputus.
         </p>
       ) : (
         <p className="text-xs text-ink-muted">
-          Menampilkan jadwal tersimpan dari baseline aktif – sesuaikan lalu simpan sebagai versi baru.
+          Ini jadwal yang tersimpan di baseline aktif. Sesuaikan, lalu simpan sebagai versi baru.
         </p>
       )}
 
@@ -234,7 +234,7 @@ export function ScheduleEditor({
                 {totalWeight.toLocaleString("id-ID", { maximumFractionDigits: 2 })}%
               </td>
               <td colSpan={2} className="px-3 py-1.5">
-                Bobot mengikuti nilai RAB (tidak bisa diubah di sini – ubah lewat revisi RAB/adendum).
+                Bobot mengikuti nilai RAB dan tidak bisa diubah di sini. Ubah lewat revisi RAB atau adendum.
               </td>
             </tr>
           </tfoot>
@@ -257,8 +257,8 @@ export function ScheduleEditor({
             <Banner tone="warning" title={invalid} className="mt-3" />
           ) : (
             <p className="mt-3 text-xs text-ink-muted">
-              Pratinjau kurva dari jadwal di atas – bobot tiap pekerjaan disebar lonceng
-              per rentang (0 di minggu jeda), lalu diakumulasi.
+              Pratinjau kurva dari jadwal di atas. Bobot tiap pekerjaan disebar berbentuk lonceng
+              di setiap rentang (0 pada minggu jeda), lalu dijumlahkan dari minggu ke minggu.
             </p>
           )}
         </div>

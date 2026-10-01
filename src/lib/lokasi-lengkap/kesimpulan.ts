@@ -128,7 +128,7 @@ export function kartuMinggu(
   if (mingguKe > totalMinggu) {
     return { nilai: `ke-${mingguKe}`, sub: `lewat ${mingguKe - totalMinggu} minggu dari ${totalMinggu}` };
   }
-  return { nilai: `ke-${mingguKe} / ${totalMinggu}`, sub: "dari panjang kurva-S" };
+  return { nilai: `ke-${mingguKe} / ${totalMinggu}`, sub: "dari total minggu kurva-S" };
 }
 
 /* ── Kalimat 2: penahan ────────────────────────────────────────────────── */

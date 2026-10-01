@@ -174,7 +174,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
                 if (
                   d.diDrive === "Sudah" &&
                   !window.confirm(
-                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah – ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya ditarik ulang dari penyimpanan lalu dinaikkan lagi. Kalau tidak ada yang berubah, tidak perlu diulang.`,
+                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah – ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya diambil lagi dari penyimpanan lalu diunggah ulang. Kalau tidak ada yang berubah, tidak perlu diulang.`,
                   )
                 )
                   return;

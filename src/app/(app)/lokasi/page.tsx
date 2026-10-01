@@ -61,7 +61,7 @@ export default async function LokasiListPage() {
     <div className="space-y-4">
       <PageHeader
         title="Lokasi"
-        description={`${rows.length} lokasi dalam lingkup akses Anda.`}
+        description={`${rows.length} lokasi yang bisa Anda lihat.`}
       />
       <LokasiGrid rows={rows} />
     </div>

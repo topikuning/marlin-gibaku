@@ -96,7 +96,7 @@ export function LingkupPanel({
           </ul>
           {berlaku.some((p) => !p.ccoNumber) ? (
             <p className="text-xs text-ink-muted">
-              Yang bertanda &quot;Nomor CCO menyusul&quot; sudah berlaku; nomornya dicatat di{" "}
+              Yang bertanda &quot;Nomor CCO menyusul&quot; sudah berlaku. Nomor CCO-nya nanti dicatat di{" "}
               <a href={`/paket/${packageId}/kontrak`} className="font-medium text-primary underline">
                 Kontrak &amp; Adendum
               </a>
@@ -121,7 +121,7 @@ export function LingkupPanel({
                 </div>
                 <p className="mt-0.5 text-xs text-ink-faint">{p.reason}</p>
                 <p className="text-xs text-ink-faint">
-                  Kurang: {p.setuju.kurang.join(" · ")} – berlaku begitu lengkap.
+                  Masih menunggu: {p.setuju.kurang.join(" · ")}. Langsung berlaku begitu lengkap.
                 </p>
                 {p.suaraGugur > 0 ? (
                   <p className="text-xs text-warning-700">
@@ -185,10 +185,11 @@ export function LingkupPanel({
               <Input id="lingkup-alasan" name="reason" required maxLength={300} />
             </div>
             <p className="text-xs text-ink-muted">
-              Dicatat sebagai DRAFT. Begitu disetujui Program Director dan satu Area/Project/Site
-              Manager, perubahannya BERLAKU sejak hari itu; nomor CCO dicatat menyusul di Kontrak
-              &amp; Adendum. Lokasi yang dicabut TIDAK dihapus – laporan, foto, dan realisasinya
-              tetap; yang berhenti hanya keikutsertaannya dalam angka paket sejak tanggal berlaku itu.
+              Usulan ini dicatat sebagai DRAFT. Begitu disetujui Program Director dan satu
+              Area/Project/Site Manager, perubahannya BERLAKU sejak hari itu. Nomor CCO-nya dicatat
+              belakangan di Kontrak &amp; Adendum. Lokasi yang dicabut TIDAK dihapus. Laporan, foto,
+              dan realisasinya tetap ada, hanya saja sejak tanggal berlaku itu lokasinya tidak lagi
+              dihitung dalam angka paket.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" loading={mengajukan}>
@@ -221,10 +222,10 @@ export function LingkupPanel({
         <div className="space-y-2 rounded-md border border-border bg-surface-muted px-3 py-2.5">
           <p className="text-[13px] font-medium text-ink">Arsip pencabutan (super admin)</p>
           <p className="text-xs text-ink-muted">
-            Menyembunyikan riwayat pencabutan lokasi dari pandangan umum – super admin tetap
+            Riwayat pencabutan lokasi disembunyikan dari pengguna lain. Super admin tetap bisa
             melihatnya di sini. Nilai kontrak, progres, kurva-S, dan laporan tidak berubah sedikit
-            pun: lokasi yang dicabut memang sudah keluar dari angka sejak tanggal berlaku CCO-nya.
-            Tindakannya tercatat di audit log.
+            pun, karena lokasi yang dicabut memang sudah tidak dihitung sejak tanggal berlaku
+            CCO-nya. Tindakan ini tercatat di audit log.
           </p>
           <div className="flex flex-wrap items-start gap-2">
             {dicabutBerlaku.length > 0 ? (

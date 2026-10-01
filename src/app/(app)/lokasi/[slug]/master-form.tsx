@@ -63,7 +63,7 @@ export function LocationMasterForm({
           <Banner
             tone="warning"
             title="Lokasi ini belum punya koordinat"
-            description="Selama kosong: tidak muncul di Peta, cuaca otomatis tidak jalan, dan cap foto memakai titik perangkat tanpa pembanding proyek."
+            description="Selama koordinat kosong, lokasi ini tidak muncul di Peta, cuaca otomatis tidak berjalan, dan cap foto hanya memakai titik dari HP tanpa dibandingkan dengan titik proyek."
           />
         ) : null}
       </div>

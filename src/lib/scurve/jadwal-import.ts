@@ -52,7 +52,7 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf as unknown as ArrayBuffer);
   const ws = pickSheet(wb);
-  if (!ws) throw new Error("File Excel tidak berisi sheet apa pun.");
+  if (!ws) throw new Error("Berkas Excel ini tidak berisi sheet apa pun.");
 
   // 1) Temukan baris header minggu: sel berturut "M1","M2",… Tentukan kolom awal & N.
   let weekRow = -1;
@@ -79,7 +79,7 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
     }
   }
   if (weekRow < 0) {
-    throw new Error("Header minggu (M1, M2, …) tidak ditemukan – pastikan file dari Unduh Excel Jadwal.");
+    throw new Error("Header minggu (M1, M2, …) tidak ditemukan. Pastikan berkasnya hasil tombol Unduh Excel Jadwal.");
   }
 
   // 2) Baris kategori setelah header minggu: kolom B = nama, kolom A = kode,

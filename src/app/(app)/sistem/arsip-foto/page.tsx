@@ -70,7 +70,7 @@ export default async function ArsipFotoPage() {
     <div className="space-y-4">
       <PageHeader
         title="Arsip Foto Asli"
-        description="Berkas asli tanpa cap – dipakai bila cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
+        description="Berkas asli foto sebelum diberi cap. Dipakai kalau cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
       />
 
       <div className="grid gap-2 sm:grid-cols-3">
@@ -98,7 +98,7 @@ export default async function ArsipFotoPage() {
         <CardBody>
           {baris.length === 0 ? (
             <p className="text-sm text-ink-muted">
-              Belum ada arsip berkas asli. Foto yang diunggah sebelum fitur ini aktif memang tidak punya.
+              Belum ada arsip berkas asli. Foto yang diunggah sebelum fitur ini aktif memang tidak punya berkas asli.
             </p>
           ) : (
             <div className="overflow-x-auto">

@@ -25,7 +25,7 @@ export function PolicyCard({ nilai }: { nilai: Policy }) {
     <Card className="lg:col-span-2">
       <CardHeader
         title="Kebijakan pengendalian"
-        subtitle="Pagar yang bisa dinyalakan saat organisasi sudah siap. Perubahannya tercatat di audit."
+        subtitle="Aturan tambahan yang bisa dinyalakan saat organisasi sudah siap. Setiap perubahannya tercatat di audit."
       />
       <CardBody>
         <form action={action} className="space-y-3">

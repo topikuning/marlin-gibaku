@@ -45,7 +45,7 @@ export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) 
           inputMode="numeric"
           placeholder="mis. 12.500.000.000"
         />
-        <HelpText>Angka rupiah – pemisah titik boleh, akan dibaca sebagai angka.</HelpText>
+        <HelpText>Angka rupiah. Boleh pakai titik pemisah ribuan.</HelpText>
       </div>
 
       <div>
@@ -64,7 +64,7 @@ export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) 
             ))}
           </datalist>
         ) : null}
-        <HelpText>Perusahaan yang sudah diimpor akan muncul sebagai saran; boleh juga ketik nama baru.</HelpText>
+        <HelpText>Perusahaan yang sudah terdaftar muncul sebagai saran. Boleh juga ketik nama baru.</HelpText>
       </div>
 
       <div>

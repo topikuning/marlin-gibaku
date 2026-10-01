@@ -227,7 +227,7 @@ async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
   if (h.dihapus.length > 0) {
     warnings.push(
       `${h.dihapus.length} item DINYATAKAN DICABUT lewat kolom Keterangan: ${daftar(h.dihapus)}. ` +
-        `Item yang sudah punya realisasi akan disebut terpisah di bawah – periksa dulu sebelum melanjutkan.`,
+        `Item yang sudah punya realisasi disebut terpisah di bawah. Periksa dulu sebelum melanjutkan.`,
     );
   }
   if (h.volumeNegatif.length > 0) {
@@ -238,15 +238,15 @@ async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
       `PERHATIAN – ${h.volumeNegatif.length} item ber-volume NEGATIF dan TIDAK diikutkan: ` +
         h.volumeNegatif.slice(0, 8).map((x) => `${x.code} ${x.name} (${x.volume})`).join("; ") +
         (h.volumeNegatif.length > 8 ? `; +${h.volumeNegatif.length - 8} lainnya` : "") +
-        `. Volume tidak bisa negatif – pekerjaan-kurang dinyatakan dengan MENURUNKAN volume. ` +
+        `. Volume tidak boleh negatif. Untuk pekerjaan kurang, TURUNKAN volumenya. ` +
         `Betulkan angkanya di berkas, lalu unggah ulang.`,
     );
   }
   if (h.volumeNol.length > 0) {
     warnings.push(
       `${h.volumeNol.length} item volumenya dijadikan 0: ${daftar(h.volumeNol)}. ` +
-        `Item ini TETAP tercantum di RAB dengan nilai nol – nol bukan penghapusan. ` +
-        `Kalau maksudnya mencabut item, tulis HAPUS di kolom Keterangan.`,
+        `Item ini TETAP tercantum di RAB dengan nilai nol, bukan dihapus. ` +
+        `Kalau maksudnya menghapus item, tulis HAPUS di kolom Keterangan.`,
     );
   }
   if (h.itemBaru.length > 0) {
@@ -452,12 +452,12 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         return {
           error:
             `Impor dihentikan: angka yang akan tersimpan tidak sama dengan angka yang dibaca dari berkas ini. ` +
-            `${rinci}. Ini cacat pembacaan MARLIN, bukan cacat berkas Anda – nilai kontrak tidak boleh ditulis ` +
-            `sebelum keduanya sama. Kirimkan berkas ini beserta pesan ini supaya bisa diperbaiki.`,
+            `${rinci}. Ini kesalahan MARLIN saat membaca, bukan kesalahan berkas Anda. Nilai kontrak tidak boleh ` +
+            `disimpan sebelum keduanya sama. Kirimkan berkas ini beserta pesan ini supaya bisa diperbaiki.`,
         };
       }
     }
-    if (nodes.length === 0) return { error: "Tidak ada baris RAB terbaca. Cek sheet 'RAB'." };
+    if (nodes.length === 0) return { error: "Tidak ada baris RAB yang terbaca. Periksa sheet 'RAB' di berkas Anda." };
 
     /*
      * VOLUME / JUMLAH NEGATIF DITOLAK DI SINI — BUKAN OLEH POSTGRES.
@@ -501,11 +501,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         .join("; ");
       return {
         error:
-          `Impor dihentikan: ${negatif.length} baris ber-volume/jumlah NEGATIF, yaitu ` +
+          `Impor dihentikan: ${negatif.length} baris volume/jumlahnya NEGATIF, yaitu ` +
           `${sebut}${negatif.length > 8 ? `; +${negatif.length - 8} baris lain` : ""}. ` +
-          `Volume tidak bisa negatif – MARLIN menyimpan RAB sebagai volume HASIL, ` +
-          `jadi pekerjaan-kurang dinyatakan dengan MENURUNKAN volume item itu pada satu baris, ` +
-          `bukan sebagai baris minus tersendiri. Kalau berkas ini berformat tambah-kurang ` +
+          `Volume tidak boleh negatif. MARLIN menyimpan RAB sebagai volume HASIL, ` +
+          `jadi pekerjaan kurang ditulis dengan MENURUNKAN volume item itu di barisnya sendiri, ` +
+          `bukan sebagai baris minus terpisah. Kalau berkas ini berformat tambah-kurang ` +
           `(blok TAMBAH / KURANG / TETAP), yang perlu diimpor adalah blok HASIL-nya. ` +
           `Betulkan angkanya di berkas, lalu unggah ulang.`,
       };
@@ -550,7 +550,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         return {
           error:
             `Template ini dibuat dari RAB revisi #${sumber!.revisionNo}, sedangkan yang aktif sekarang ` +
-            `revisi #${activeRevision.revisionNo}. Item di keduanya tidak saling kenal, jadi impor ini ` +
+            `revisi #${activeRevision.revisionNo}. Item di kedua revisi itu tidak bisa dicocokkan, jadi impor ini ` +
             `akan terbaca seolah seluruh isi kontrak diganti. Unduh template adendum yang baru, ` +
             `pindahkan isian volumenya ke sana, lalu impor lagi.`,
         };
@@ -663,8 +663,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               .map((p) => `"${p.namaLama}" → ${p.code} "${p.name}"`)
               .join("; ") +
             (cocok.padananDipakai.length > 8 ? `; +${cocok.padananDipakai.length - 8} lainnya` : "") +
-            `. Realisasi harian item kontrak itu ikut berpindah ke item barunya – tidak ada baris laporan yang diubah, ` +
-            `yang berpindah hanya identitas item (lineage).`,
+            `. Realisasi harian item kontrak itu ikut pindah ke item barunya. Tidak ada baris laporan yang diubah; ` +
+            `yang pindah hanya identitas itemnya.`,
         );
       }
       if (cocok.padananDitolak.length > 0) {
@@ -681,7 +681,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         warnings.push(
           `${cocok.digeser.length} item dikenali lewat NAMA karena nomornya bergeser terhadap kontrak: ` +
             `${contoh.join("; ")}${cocok.digeser.length > contoh.length ? `; +${cocok.digeser.length - contoh.length} lainnya` : ""}. ` +
-            `Realisasi harian item tersebut tetap tersambung – tanpa ini ia akan berpindah ke pekerjaan lain yang kebetulan bernomor sama.`,
+            `Realisasi hariannya tetap tersambung ke item yang benar, tidak pindah ke pekerjaan lain yang kebetulan bernomor sama.`,
         );
       }
       if (cocok.namaBerbeda.length > 0) {
@@ -692,7 +692,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `PERHATIAN – ${cocok.namaBerbeda.length} item bernomor sama dengan kontrak tapi NAMANYA berbeda, ` +
             `dan tidak ada pasangan nama yang tunggal untuk dicocokkan: ${contoh.join("; ")}` +
             `${cocok.namaBerbeda.length > contoh.length ? `; +${cocok.namaBerbeda.length - contoh.length} lainnya` : ""}. ` +
-            `Ia diperlakukan sebagai item yang sama (mengikuti nomornya) – periksa apakah ini memang penggantian nama, ` +
+            `Item ini dianggap sama karena nomornya sama. Periksa apakah ini memang ganti nama, ` +
             `bukan dua pekerjaan berbeda yang kebetulan bernomor sama.`,
         );
       }
@@ -790,8 +790,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `PERHATIAN – harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
             `(${naik} naik, ${beda.hargaBerubah.length - naik} turun; dampak neto ${formatRupiah(dampak)}): ` +
             `${contoh.join("; ")}${beda.hargaBerubah.length > contoh.length ? `; +${beda.hargaBerubah.length - contoh.length} lainnya` : ""}. ` +
-            `Adendum mengubah VOLUME – harga satuan item yang sudah ada di kontrak seharusnya tetap. ` +
-            `Angka file TIDAK diubah sendiri; pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
+            `Adendum seharusnya hanya mengubah VOLUME. Harga satuan item yang sudah ada di kontrak tetap. ` +
+            `MARLIN TIDAK mengubah angka berkas sendiri. Pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
         );
       }
 
@@ -1029,8 +1029,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return {
         success:
           `Draft adendum revisi #${resDraft.revisionNo} terisi dari ${file.name} ` +
-          `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah – ` +
-          `draft ini baru berlaku setelah diaktifkan.` +
+          `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah. ` +
+          `Draft ini baru berlaku setelah diaktifkan.` +
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : ""),
       };
     }
@@ -1052,8 +1052,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         preview,
         notice:
           `Lokasi ini sudah punya draft adendum revisi #${draft.revisionNo}. Satu lokasi hanya boleh ` +
-          `punya satu draft – dua draft membuat halaman adendum, laporan harian, dan tombol Aktifkan ` +
-          `menunjuk revisi yang berbeda-beda. Impor ini sebagai DRAFT (isi draft #${draft.revisionNo} ` +
+          `punya satu draft. Kalau ada dua, halaman adendum, laporan harian, dan tombol Aktifkan bisa ` +
+          `menunjuk revisi yang berbeda-beda. Impor berkas ini sebagai DRAFT (isi draft #${draft.revisionNo} ` +
           `akan diganti), atau aktifkan/buang draft itu dulu.`,
       } as ImportState;
     }
@@ -1081,9 +1081,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       revalidatePath(`/lokasi/${location.slug}`, "layout");
       return {
         success:
-          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) – belum aktif. ` +
+          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) dan belum aktif. ` +
           `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
-          `Buka tab Adendum untuk meminta persetujuan lalu mengaktifkannya.`,
+          `Buka tab Adendum untuk meminta persetujuan, lalu aktifkan.`,
       };
     }
     await activateRevision(res.revisionId, user.id);
@@ -1143,28 +1143,28 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     revalidatePath("/progress");
     const carryInfo =
       isAdendum && res.carriedItemLineages > 0
-        ? ` ${res.carriedItemLineages} item tersambung ke realisasi lama (lineage sama).`
+        ? ` ${res.carriedItemLineages} item tersambung ke realisasi lama.`
         : "";
     if (baselineError) {
       return {
         error:
-          `Revisi RAB #${res.revisionNo} SUDAH AKTIF, tetapi kurva-S GAGAL di-regenerate (${baselineError}). ` +
-          `Grafik & deviasi masih memakai baseline lama – buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
+          `Revisi RAB #${res.revisionNo} sudah aktif, tetapi kurva-S gagal dibuat ulang (${baselineError}). ` +
+          `Grafik dan deviasi masih memakai baseline lama. Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.`,
       };
     }
     if (!isAdendum) {
       return {
         success:
-          `Revisi RAB #${res.revisionNo} (HPS awal) aktif – ${res.itemCount} item.${carryInfo} ` +
-          `Kurva-S BELUM dibuat: pilih bentuknya di bawah.`,
+          `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item.${carryInfo} ` +
+          `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.`,
         pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
       };
     }
     return {
       success:
-        `Revisi RAB #${res.revisionNo} (adendum) aktif – ${res.itemCount} item. ` +
-        `Baseline kurva-S di-regenerate dengan profil ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()} ` +
-        `– profil yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah diam-diam.${carryInfo}`,
+        `Revisi RAB #${res.revisionNo} (adendum) aktif, berisi ${res.itemCount} item. ` +
+        `Baseline kurva-S dibuat ulang dengan bentuk ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()}, ` +
+        `sama dengan yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah.${carryInfo}`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -1202,7 +1202,7 @@ export async function pilihProfilKurvaAction(
       profil: z.enum(PROFIL_KURVA),
     })
     .safeParse({ slug: formData.get("slug"), profil: formData.get("profil") });
-  if (!parsed.success) return { error: "Pilihan profil kurva-S tidak dikenali." };
+  if (!parsed.success) return { error: "Pilihan bentuk kurva-S tidak dikenali. Pilih lagi dari daftar." };
   const { slug, profil } = parsed.data;
 
   try {
@@ -1224,10 +1224,10 @@ export async function pilihProfilKurvaAction(
       return {
         selesai: true,
         success:
-          "Kurva-S tidak dibuat. Susun sendiri di tab Kurva-S – \"Jadwal per pekerjaan\" untuk " +
-          "menentukan minggu tiap kategori, atau \"Impor jadwal dari Excel\" bila jadwalnya sudah " +
-          "ada dan ingin dipakai apa adanya. Sampai salah satunya dikerjakan, lokasi ini belum " +
-          "punya rencana – deviasi dan prognosa memang belum bisa dihitung.",
+          "Kurva-S tidak dibuat. Susun sendiri di halaman Progress: \"Jadwal Pekerjaan\" untuk " +
+          "menentukan minggu tiap kategori, atau \"Perbarui Kurva-S\" bila jadwalnya sudah ada di " +
+          "Excel dan ingin dipakai apa adanya. Sebelum salah satunya dikerjakan, lokasi ini belum " +
+          "punya rencana, jadi deviasi dan prognosa belum bisa dihitung.",
       };
     }
 
@@ -1235,7 +1235,7 @@ export async function pilihProfilKurvaAction(
       where: { locationId: location.id, status: "aktif" },
       select: { id: true },
     });
-    if (!aktif) return { error: "Belum ada revisi RAB aktif – impor RAB dulu." };
+    if (!aktif) return { error: "Belum ada revisi RAB aktif. Impor RAB dulu." };
 
     const bentuk: BaselineProfil = profil;
     const baseline = await regenerateBaseline(location.id, {
@@ -1251,15 +1251,15 @@ export async function pilihProfilKurvaAction(
     if (baseline.unchanged) {
       return {
         selesai: true,
-        success: `Tidak ada perubahan – baseline #${baseline.baselineNo} yang aktif sudah berprofil ${PROFIL_KURVA_LABEL[profil].toLowerCase()}.`,
+        success: `Tidak ada perubahan. Baseline #${baseline.baselineNo} yang aktif sudah berbentuk ${PROFIL_KURVA_LABEL[profil].toLowerCase()}.`,
       };
     }
     return {
       selesai: true,
       success:
-        `Kurva-S dibuat – baseline #${baseline.baselineNo} aktif, profil ` +
-        `${PROFIL_KURVA_LABEL[profil].toLowerCase()}. Bisa diganti kapan saja lewat ` +
-        `"Hitung ulang kurva-S" di tab Kurva-S.`,
+        `Kurva-S dibuat. Baseline #${baseline.baselineNo} sekarang aktif, bentuknya ` +
+        `${PROFIL_KURVA_LABEL[profil].toLowerCase()}. Bentuknya bisa diganti kapan saja lewat ` +
+        `"Hitung ulang" di Progress › Kurva-S & Baseline.`,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

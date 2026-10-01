@@ -11,7 +11,7 @@ import { askMarlinAction, type AiHubState } from "@/lib/ai-hub/actions";
 
 const QUICK_QUESTIONS = [
   "Lokasi mana yang paling perlu tindakan?",
-  "Mana yang readiness datanya terburuk, dan kenapa?",
+  "Lokasi mana yang datanya paling belum siap, dan kenapa?",
   "Apa data yang belum dapat dipercaya?",
   "Buat narasi WhatsApp singkat untuk pimpinan.",
 ];
@@ -93,11 +93,11 @@ export function AskClient({
   return (
     <Card>
       <CardHeader
-        title="Ask MARLIN"
+        title="Tanya MARLIN"
         subtitle={
           conversation
-            ? `Scope ${conversation.scopeCount} lokasi · periode ${conversation.periodStart} – ${conversation.periodEnd} · grounded (hanya data yang Anda boleh akses)`
-            : "Percakapan baru – pilih scope (kosong = semua lokasi Anda), lalu bertanya. Jawaban selalu menyertakan sumber."
+            ? `${conversation.scopeCount} lokasi · periode ${conversation.periodStart} – ${conversation.periodEnd} · hanya dari data yang boleh Anda lihat`
+            : "Percakapan baru. Pilih lokasi (kosongkan untuk semua lokasi Anda), lalu ajukan pertanyaan. Setiap jawaban menyertakan sumbernya."
         }
         action={
           conversation ? (
@@ -107,7 +107,7 @@ export function AskClient({
               href={`/ai/reports?template=wa_update&scopeIds=${conversation.scopeIds.join(",")}&originConversationId=${conversation.id}`}
               className="text-[13px] font-medium text-primary hover:underline"
             >
-              Buat laporan dari scope ini →
+              Jadikan laporan →
             </Link>
           ) : undefined
         }
@@ -140,7 +140,7 @@ export function AskClient({
                         <>
                           {m.confidence != null ? " · " : ""}
                           <Link href={`/ai/run/${m.runId}`} className="text-primary hover:underline">
-                            detail run
+                            rincian
                           </Link>
                         </>
                       ) : null}
@@ -191,7 +191,7 @@ export function AskClient({
           <Banner
             tone="info"
             title={`Sedang menyusun jawaban… ${detik} detik`}
-            description={`Pertanyaan Anda sudah tercatat. Halaman ini memperbarui sendiri begitu jawabannya siap – boleh ditinggal, jawabannya tetap masuk ke percakapan ini. Batas tunggu ${batasJawabanDetik} detik.`}
+            description={`Pertanyaan Anda sudah tercatat. Jawabannya muncul sendiri di sini begitu siap. Halaman ini boleh ditinggal – jawabannya tetap masuk ke percakapan ini. Batas tunggu ${batasJawabanDetik} detik.`}
           />
         ) : null}
         {terputus ? (
@@ -207,7 +207,7 @@ export function AskClient({
              * dan menaruh kirim-ulang sebagai pilihan terakhir — bukan langkah
              * pertama.
              */
-            description="Prosesnya berhenti sebelum jawaban tertulis – biasanya karena aplikasi dimuat ulang saat itu. Pertanyaannya sudah masuk antrean dan dijemput sendiri; halaman ini memperbarui begitu jawabannya siap. Kirim ulang hanya bila sesudah beberapa menit masih belum ada."
+            description="Prosesnya terhenti sebelum jawaban selesai ditulis, biasanya karena aplikasi sedang dimuat ulang. Pertanyaan Anda tetap dalam antrean dan akan diproses otomatis. Jawabannya muncul di sini begitu siap. Kirim ulang hanya kalau setelah beberapa menit jawabannya belum juga muncul."
           />
         ) : null}
 
@@ -251,7 +251,7 @@ export function AskClient({
           </div>
         </form>
         <p className="text-[11px] text-ink-faint">
-          Ask MARLIN bersifat read-only: tidak pernah mengubah data. Jawaban di luar data yang diizinkan akan ditolak.
+          Tanya MARLIN hanya membaca dan tidak pernah mengubah data. Jawaban yang memakai data di luar hak akses Anda akan ditolak.
         </p>
       </CardBody>
     </Card>

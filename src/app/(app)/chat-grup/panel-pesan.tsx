@@ -16,7 +16,7 @@ const PER_PAGE = 20;
 
 /** Label relevansi di layar baru: "perlu interpretasi" dibaca "Perlu review". */
 function relevanceBadge(r: Relevance): { label: string; tone: "danger" | "success" | "warning" | "neutral" } {
-  if (r === "perlu_interpretasi") return { label: "Perlu review", tone: "warning" };
+  if (r === "perlu_interpretasi") return { label: "Perlu diperiksa", tone: "warning" };
   return { label: RELEVANCE_LABEL[r], tone: RELEVANCE_TONE[r] };
 }
 
@@ -223,7 +223,7 @@ export function PanelPesan({
               </p>
               {dispatches.length === 0 ? (
                 <p className="text-sm text-ink-muted">
-                  Tidak ada laporan/kegiatan yang dikirim MARLIN ke grup pada tanggal ini.
+                  Tidak ada laporan atau kegiatan yang dikirim MARLIN ke grup pada tanggal ini.
                 </p>
               ) : (
                 <ul className="space-y-1 text-sm">
@@ -238,13 +238,13 @@ export function PanelPesan({
             </div>
             <div>
               <p className="mb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase">
-                Terekam di grup ({marlinMsgs.length})
+                Tercatat di grup ({marlinMsgs.length})
               </p>
               {marlinMsgs.length === 0 ? (
                 <p className="text-sm text-ink-muted">
-                  Belum ada pesan keluar yang tertangkap webhook. Pastikan event WAHA
+                  Belum ada pesan keluar yang tercatat. Pastikan event WAHA
                   <code className="mx-1 rounded bg-surface-inset px-1">message.any</code>
-                  aktif agar kiriman MARLIN ikut terarsip.
+                  aktif supaya kiriman MARLIN ikut tersimpan.
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -261,7 +261,7 @@ export function PanelPesan({
             title={tab === "relevan" ? "Tidak ada pesan relevan" : "Tidak ada pesan"}
             description={
               tab === "relevan"
-                ? "Tidak ada obrolan anggota yang dipakai ringkasan pada tanggal ini – cek tab Arsip lengkap untuk menandai manual."
+                ? "Tidak ada obrolan anggota yang dipakai untuk ringkasan pada tanggal ini. Buka tab Arsip lengkap untuk menandainya sendiri."
                 : "Belum ada pesan terarsip pada tanggal ini."
             }
             className="py-8"
@@ -386,8 +386,8 @@ function BarisPesan({
         <p className="mt-1 text-[11px] text-ink-faint">
           {m.override
             ? m.override === "relevan"
-              ? "Ditandai relevan oleh reviewer"
-              : "Diabaikan oleh reviewer"
+              ? "Ditandai relevan oleh pemeriksa"
+              : "Diabaikan oleh pemeriksa"
             : m.class.reason}
         </p>
         {m.sender.needsAlias && m.sender.senderKey ? (

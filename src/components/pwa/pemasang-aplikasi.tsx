@@ -180,8 +180,8 @@ export function PemasangAplikasi({ varian = "banner" }: { varian?: "banner" | "r
           {tawaran === "tombol" ? (
             <>
               <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
-                Ikonnya masuk ke layar depan, terbuka layar penuh tanpa alamat peramban, dan
-                Foto Cepat bisa dibuka lewat tekan-lama ikonnya – termasuk saat tidak ada sinyal.
+                Ikon MARLIN muncul di layar depan dan terbuka layar penuh, tanpa kolom alamat. Foto
+                Cepat juga bisa dibuka dengan menekan lama ikonnya, bahkan saat tidak ada sinyal.
               </p>
               <Button className="mt-3 w-full sm:w-auto" onClick={pasang} loading={sibuk}>
                 {sibuk ? "Membuka pemasang…" : "Pasang sekarang"}

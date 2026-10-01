@@ -136,7 +136,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
       <SectionTitle>B. Evaluasi Komitmen Minggu Ke-{r.weekNumber - 1} (PPC)</SectionTitle>
       {r.ppc.pct == null ? (
         <p className="text-[10px] text-slate-500">
-          Tidak ada rencana tercatat untuk minggu sebelumnya – tidak ada komitmen yang bisa
+          Tidak ada rencana tercatat untuk minggu sebelumnya, jadi tidak ada komitmen yang bisa
           dievaluasi. Ini <i>bukan</i> nilai 0%.
         </p>
       ) : (
@@ -154,8 +154,9 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
               note="pelengkap, bukan pengganti PPC"
             />
             <div className="col-span-2 border border-slate-300 p-1.5 text-[9.5px] leading-relaxed text-slate-600">
-              PPC dihitung <b>per komitmen dan biner</b> – tuntas atau tidak. Pekerjaan yang baru 80%
-              selesai tidak melepaskan pekerjaan penerusnya, jadi ia dihitung <b>tidak tuntas</b>.
+              PPC dihitung <b>per komitmen</b>, dan tiap komitmen hanya tuntas atau tidak. Pekerjaan
+              yang baru 80% selesai belum bisa dilanjutkan pekerjaan sesudahnya, jadi tetap dihitung{" "}
+              <b>tidak tuntas</b>.
               Ambang sehat lapangan: <b>≥ 70%</b>.
             </div>
           </div>
@@ -240,7 +241,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
       )}
       <p className="mt-1 text-[9px] text-slate-500">
         Kolom <b>Bobot</b> = nilai target dibagi nilai fisik lokasi ({rupiahFmt.format(Number(h.locationValue))}),
-        dinyatakan dalam poin persen – dasar yang sama dengan kurva-S dan laporan mingguan KKP.
+        dinyatakan dalam poin persen. Dasarnya sama dengan kurva-S dan laporan mingguan KKP.
         Kolom <b>Realisasi</b> adalah volume kumulatif s/d saat formulir ini disusun.
       </p>
 

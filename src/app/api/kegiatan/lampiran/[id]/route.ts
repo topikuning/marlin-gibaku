@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
   if (!user) {
-    return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
+    return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   }
 
   const att = await db.fieldActivityAttachment.findUnique({
@@ -36,7 +36,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   if (!isR2Configured()) {
     return NextResponse.json(
-      { error: "Penyimpanan file (R2) belum dikonfigurasi – unduhan tidak tersedia. Hubungi admin." },
+      { error: "Penyimpanan berkas (R2) belum diatur, jadi berkas belum bisa diunduh. Hubungi admin." },
       { status: 503 },
     );
   }

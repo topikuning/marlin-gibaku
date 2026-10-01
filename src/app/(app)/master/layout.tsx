@@ -25,7 +25,7 @@ export default async function MasterLayout({ children }: { children: React.React
     <div className="space-y-4">
       <PageHeader
         title="Master Data"
-        description="Data referensi lintas modul: profil perusahaan (logo & kop surat), katalog lokasi, kontak WhatsApp (tujuan kirim + nama pengirim grup), dan akun pengguna."
+        description="Data dasar yang dipakai di banyak halaman: profil perusahaan (logo dan kop surat), katalog lokasi, kontak WhatsApp (tujuan kirim dan nama pengirim grup), dan akun pengguna."
       />
       <LinkTabs items={tabs} />
       {children}

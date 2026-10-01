@@ -76,14 +76,14 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
     if (d.packageId) {
       const scope = packageScopeWhere(user, izin);
       const pkg = await db.package.findFirst({ where: { AND: [{ id: d.packageId }, scope] }, select: { id: true } });
-      if (!pkg) return { error: "Paket tidak ditemukan dalam scope Anda." };
+      if (!pkg) return { error: "Paket tidak ditemukan atau tidak bisa Anda akses." };
     }
     if (d.locationId) {
       const lok = await db.location.findFirst({
         where: { id: d.locationId, ...(izin ? { id: { in: izin } } : {}) },
         select: { id: true },
       });
-      if (!lok) return { error: "Lokasi tidak ditemukan dalam scope Anda." };
+      if (!lok) return { error: "Lokasi tidak ditemukan atau tidak bisa Anda akses." };
     }
 
     /*
@@ -100,7 +100,7 @@ export async function catatSuratAction(_prev: SuratState, formData: FormData): P
     if (berkas instanceof File && berkas.size > 0) {
       const { isR2Configured, r2Put } = await import("@/lib/r2");
       if (!isR2Configured()) {
-        catatanBerkas = " Berkas tidak diarsipkan – R2 belum dikonfigurasi (Sistem).";
+        catatanBerkas = " Berkas tidak diarsipkan karena R2 belum diatur (lihat Sistem).";
       } else {
         try {
           const { createHash } = await import("node:crypto");
@@ -195,7 +195,7 @@ export async function ubahStatusSuratAction(_prev: SuratState, formData: FormDat
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
     if (suratDibatalkan(surat.status as LetterStatus)) {
-      return { error: "Surat ini dibatalkan – pulihkan dulu bila memang masih berlaku." };
+      return { error: "Surat ini sudah dibatalkan. Pulihkan dulu kalau memang masih berlaku." };
     }
 
     const gate = transisiSurat(surat.status as LetterStatus, parsed.data.status);
@@ -303,7 +303,7 @@ export async function batalkanSuratAction(_prev: SuratState, formData: FormData)
       success:
         `Surat agenda ${surat.agendaNo}/${surat.agendaYear} dibatalkan.` +
         (sisa > 0
-          ? ` ${surat._count.issues} kendala & ${surat._count.findings} temuan yang lahir dari surat ini TETAP berdiri – tutup sendiri bila ikut batal.`
+          ? ` ${surat._count.issues} kendala & ${surat._count.findings} temuan yang lahir dari surat ini TIDAK ikut dibatalkan. Tutup sendiri kalau memang ikut batal.`
           : ""),
     };
   } catch (err) {
@@ -324,7 +324,7 @@ export async function pulihkanSuratAction(_prev: SuratState, formData: FormData)
     });
     if (!surat) return { error: "Surat tidak ditemukan." };
     if (!suratDibatalkan(surat.status as LetterStatus)) {
-      return { error: "Surat ini tidak sedang dibatalkan." };
+      return { error: "Surat ini tidak berstatus dibatalkan, jadi tidak perlu dipulihkan." };
     }
 
     const tujuan = statusPulih(surat.needsReply);
@@ -395,7 +395,7 @@ export async function petakanSuratAction(_prev: SuratState, formData: FormData):
       where: { id: d.locationId, ...(izin ? { id: { in: izin } } : {}) },
       select: { id: true },
     });
-    if (!lokasi) return { error: "Lokasi tidak ditemukan dalam scope Anda." };
+    if (!lokasi) return { error: "Lokasi tidak ditemukan atau tidak bisa Anda akses." };
 
     const keterangan = [surat.summary?.trim(), `Sumber: surat "${surat.subject}"`]
       .filter(Boolean)
@@ -530,7 +530,7 @@ export async function bacaBerkasSuratAction(
 
     const { getActiveAiConfig } = await import("@/lib/ai/config");
     const cfg = await getActiveAiConfig();
-    if (!cfg) return { error: "Provider AI belum siap – atur di Sistem → AI, atau isi formulirnya sendiri." };
+    if (!cfg) return { error: "AI belum disiapkan. Atur dulu di Sistem → AI, atau isi formulirnya sendiri." };
 
     const mime = file.type || "application/octet-stream";
     const { dukunganLampiran } = await import("@/lib/ai/client");

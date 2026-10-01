@@ -176,7 +176,7 @@ export function classifyDriveFile(input: {
       type: dariFolder,
       phase: phaseForType(dariFolder),
       keyakinan: "rendah",
-      alasan: `nama berkas tidak menyebut jenis – ditebak dari folder "${folder}"`,
+      alasan: `nama berkas tidak menyebut jenis, jadi ditebak dari folder "${folder}"`,
     };
   }
 
@@ -187,7 +187,7 @@ export function classifyDriveFile(input: {
       type: dariJalur,
       phase: phaseForType(dariJalur),
       keyakinan: "rendah",
-      alasan: "ditebak dari nama folder induk",
+      alasan: "ditebak dari nama folder di atasnya",
     };
   }
 
@@ -195,7 +195,7 @@ export function classifyDriveFile(input: {
     type: "lainnya",
     phase: "lainnya",
     keyakinan: "rendah",
-    alasan: "jenis tidak terbaca dari nama berkas maupun folder – pilih manual",
+    alasan: "jenisnya tidak terbaca dari nama berkas maupun folder, jadi pilih manual",
   };
 }
 

@@ -37,7 +37,7 @@ export const ANTREAN_META: Record<
   },
   "menunggu-verifikasi": {
     title: "Laporan menunggu verifikasi",
-    description: "Sudah dikirim lapangan, menunggu diperiksa. Yang paling lama menunggu di atas.",
+    description: "Sudah dikirim dari lapangan dan menunggu diperiksa. Yang paling lama menunggu ada di atas.",
     kosong: "Tidak ada laporan yang menunggu verifikasi",
     kosongDetail: "Semua laporan yang masuk sudah diperiksa.",
   },

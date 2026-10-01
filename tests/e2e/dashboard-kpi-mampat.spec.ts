@@ -51,7 +51,7 @@ test.describe("Dashboard Eksekutif – blok KPI tetap mampat", () => {
 
     const kartuPertama = (await page.getByText("Total Lokasi", { exact: true }).boundingBox())!;
     const panelPertama = (await page
-      .getByRole("heading", { name: "Peta Monitoring Lokasi" })
+      .getByRole("heading", { name: "Peta Pemantauan Lokasi" })
       .boundingBox())!;
 
     const terdorong = panelPertama.y - kartuPertama.y;
@@ -72,8 +72,8 @@ test.describe("Dashboard Eksekutif – blok KPI tetap mampat", () => {
      */
     const label = [
       "Total Lokasi",
-      "Sudah Submit Hari Ini",
-      "Belum Submit Hari Ini",
+      "Sudah Lapor Hari Ini",
+      "Belum Lapor Hari Ini",
       "Total Laporan Hari Ini",
       "Deviasi Negatif Kritis",
       "Nilai Kontrak",

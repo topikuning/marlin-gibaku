@@ -120,7 +120,7 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
           <input type="hidden" name="dateKey" value={dateKey} />
           <div className="flex items-center justify-between">
             <label htmlFor="ringkasan-editor" className="text-sm font-medium text-ink">
-              Preview draft
+              Pratinjau draft
             </label>
             {edited ? (
               <button
@@ -141,7 +141,7 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
             className="text-sm"
           />
           <p className="text-xs text-ink-faint">
-            {text.trim().length} karakter · sunting bebas; yang tersimpan inilah yang dikirim.
+            {text.trim().length} karakter · boleh disunting; teks yang tersimpan inilah yang dikirim.
           </p>
           {confidence != null ? (
             <div>
@@ -213,7 +213,7 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
         <div className="rounded-md border border-dashed border-border bg-surface-inset/60 p-4 text-center">
           <p className="text-sm text-ink-muted">Belum ada draft untuk tanggal ini.</p>
           <p className="mt-1 text-xs text-ink-faint">
-            Hanya pesan yang ditandai relevan yang dipakai menyusun draft.
+            Draft hanya disusun dari pesan yang ditandai relevan.
           </p>
         </div>
       )}
@@ -241,7 +241,7 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
         {blockedReason ? <p className="mt-1 text-xs text-ink-muted">{blockedReason}</p> : null}
         {exists && !blockedReason ? (
           <p className="mt-1 text-xs text-ink-muted">
-            Menyusun ulang menimpa teks saat ini dan mengembalikan status ke draf AI.
+            Menyusun ulang akan mengganti teks yang ada sekarang dan mengembalikan statusnya ke draf AI.
           </p>
         ) : null}
         {genState?.error ? <p className="mt-1 text-xs text-danger">{genState.error}</p> : null}
@@ -284,7 +284,7 @@ export function PanelRingkasan(props: PanelRingkasanProps) {
             <p className="text-xs text-ink-muted">Finalkan dulu sebelum meneruskan ke pimpinan.</p>
           ) : null}
           {contacts.length === 0 ? (
-            <p className="text-xs text-ink-muted">Tambah kontak di Master Data → Kontak WA.</p>
+            <p className="text-xs text-ink-muted">Belum ada kontak tujuan. Tambahkan dulu di Master Data → Kontak WA.</p>
           ) : null}
           {sendState?.error ? <p className="text-xs text-danger">{sendState.error}</p> : null}
           {sendState?.success ? <p className="text-xs text-success">{sendState.success}</p> : null}

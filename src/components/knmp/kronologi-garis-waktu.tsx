@@ -102,8 +102,8 @@ export function KronologiGarisWaktu({ k, judul }: { k: KronologiView; judul?: st
 
         {k.dipotong > 0 ? (
           <p className="text-[13px] text-ink-muted">
-            {k.dipotong} kejadian lebih lama tidak ditampilkan – rentangnya dibatasi supaya terbaca.
-            Yang masih berjalan tidak pernah ikut dipotong.
+            {k.dipotong} kejadian yang lebih lama tidak ditampilkan supaya daftarnya tetap mudah
+            dibaca. Kejadian yang masih berjalan selalu ditampilkan.
           </p>
         ) : null}
       </CardBody>

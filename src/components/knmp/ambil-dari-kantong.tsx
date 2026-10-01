@@ -208,8 +208,8 @@ export function PemilihKantong({
   if ((fotos?.length ?? 0) === 0)
     return (
       <HelpText>
-        Belum ada foto kantong untuk lokasi ini. Foto yang lokasinya belum ketahuan tidak ditawarkan
-        di sini – tetapkan lokasinya dulu di menu Foto Cepat.
+        Belum ada foto di kantong lokasi ini. Foto yang lokasinya belum ditetapkan tidak ditampilkan
+        di sini. Tetapkan lokasinya dulu di menu Foto Cepat.
       </HelpText>
     );
 
@@ -352,8 +352,8 @@ export function AmbilDariKantong({
           {ids.length === 0 ? "Pilih foto dulu" : `Pakai ${ids.length} foto`}
         </Button>
         <HelpText>
-          Waktu & koordinat foto TIDAK berubah – yang ditambahkan hanya nama lokasi, perusahaan,
-          bangunan, dan item pekerjaannya ke capnya.
+          Waktu & koordinat foto TIDAK berubah. Yang ditambahkan ke cap hanya nama lokasi,
+          perusahaan, bangunan, dan item pekerjaannya.
         </HelpText>
       </form>
     </div>

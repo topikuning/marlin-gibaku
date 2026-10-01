@@ -61,7 +61,7 @@ export async function getAccessToken(): Promise<string> {
   const auth = await getGDriveAuth();
   if (!auth) throw new GDriveError("Client ID/secret Google belum diisi (Sistem → Integrasi → Google Drive).");
   if (!auth.refreshToken)
-    throw new GDriveError("Akun Google belum terhubung – klik “Hubungkan akun Google” di Sistem.");
+    throw new GDriveError("Akun Google belum terhubung. Klik “Hubungkan akun Google” di halaman Sistem.");
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -78,8 +78,8 @@ export async function getAccessToken(): Promise<string> {
     // invalid_grant = token dicabut/kedaluwarsa (mis. app masih status Testing).
     throw new GDriveError(
       msg.includes("invalid_grant")
-        ? "Token Google kedaluwarsa/dicabut – hubungkan ulang akun di Sistem. (Pastikan OAuth app berstatus In production, bukan Testing.)"
-        : `Gagal menyegarkan token Google: ${msg}`,
+        ? "Izin akun Google sudah kedaluwarsa atau dicabut. Hubungkan ulang akunnya di halaman Sistem. (Pastikan OAuth app berstatus In production, bukan Testing.)"
+        : `Gagal memperbarui izin akun Google: ${msg}`,
     );
   }
   const j = (await res.json()) as { access_token: string; expires_in?: number };
@@ -217,8 +217,8 @@ export async function uploadToDrive(input: {
     const msg = await readError(res);
     throw new GDriveError(
       res.status === 404
-        ? "Folder Drive tidak ditemukan / akun tidak punya akses. Cek ID folder di paket & hak editor akun."
-        : `${existingId ? "Memperbarui" : "Upload"} file di Drive gagal: ${msg}`,
+        ? "Folder Drive tidak ditemukan, atau akun Google tidak punya akses. Periksa ID folder di paket, dan pastikan akun itu punya hak editor."
+        : `${existingId ? "Memperbarui" : "Mengunggah"} file di Drive gagal: ${msg}`,
       { status: res.status, retryAfter: res.headers.get("retry-after") },
     );
   }
@@ -368,7 +368,7 @@ export async function driveFileMeta(fileId: string): Promise<DriveEntry> {
   if (!res.ok) {
     throw new GDriveError(
       res.status === 404
-        ? "File tidak ditemukan di Drive (mungkin dipindah/dihapus setelah pratinjau dibuat)."
+        ? "File tidak ditemukan di Drive. Mungkin sudah dipindah atau dihapus setelah pratinjau dibuat."
         : `Gagal membaca file Drive: ${await readError(res)}`,
     );
   }

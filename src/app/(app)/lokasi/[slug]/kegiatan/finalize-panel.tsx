@@ -42,8 +42,8 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
   return (
     <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
       <p className="text-[13px] text-ink">
-        Finalkan kegiatan ini? Setelah final isinya tidak bisa diubah lagi – rapikan teksnya lewat
-        tombol Edit dulu bila masih perlu.
+        Finalkan kegiatan ini? Setelah final, isinya tidak bisa diubah lagi. Kalau teksnya masih
+        perlu dirapikan, ubah dulu lewat tombol Edit.
       </p>
       {state?.error ? <p className="text-xs text-danger-700">{state.error}</p> : null}
       <div className="flex flex-wrap gap-2">

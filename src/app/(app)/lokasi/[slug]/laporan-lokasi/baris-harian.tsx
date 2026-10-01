@@ -98,7 +98,7 @@ export function BarisLaporanHarian({
           )}
           {r.driveGagal ? (
             <Keping tone="danger" icon={<CircleAlert aria-hidden className="size-3.5" />}>
-              Upload terakhir gagal {formatTanggalWaktu(r.driveGagal.pada)}
+              Unggahan terakhir gagal {formatTanggalWaktu(r.driveGagal.pada)}
             </Keping>
           ) : null}
           {r.wa ? (

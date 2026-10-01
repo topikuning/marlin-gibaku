@@ -67,7 +67,7 @@ export function DraftControls({
           }`}
         >
           <p className="font-medium text-ink">
-            Persetujuan aktivasi – butuh DUA orang berbeda: Program Director + Area/Project/Site Manager
+            Persetujuan aktivasi butuh dua orang berbeda: Program Director dan Area/Project/Site Manager
           </p>
           {persetujuan.berlaku.length > 0 ? (
             <ul className="mt-1 space-y-0.5 text-ink-muted">
@@ -85,8 +85,8 @@ export function DraftControls({
           ) : null}
           {persetujuan.gugur.length > 0 ? (
             <p className="mt-1 text-warning">
-              Gugur karena draft berubah setelah disetujui:{" "}
-              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")} – perlu menyetujui ulang.
+              Persetujuan batal karena draft berubah setelah disetujui:{" "}
+              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")}. Perlu disetujui ulang.
             </p>
           ) : null}
           {persetujuan.bolehTtd ? (
@@ -112,7 +112,7 @@ export function DraftControls({
             </Button>
           ) : (
             <p className="mt-1 text-ink-faint">
-              Peran Anda tidak berhak menandatangani aktivasi adendum.
+              Peran Anda tidak termasuk yang boleh menyetujui aktivasi adendum.
             </p>
           )}
         </div>
@@ -123,13 +123,13 @@ export function DraftControls({
         type="button"
         loading={pending}
         disabled={terkunci}
-        title={terkunci ? `Terkunci – masih kurang: ${persetujuan?.kurang.join(" + ")}` : undefined}
+        title={terkunci ? `Belum bisa diaktifkan. Masih kurang: ${persetujuan?.kurang.join(" + ")}` : undefined}
         onClick={() =>
           run(
             activateDraftAction,
             `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
-              (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman – pastikan sudah dibaca.\n\n" : "") +
-              "Revisi aktif lama menjadi arsip (jejak tetap ada), kurva-S di-regenerate, dan realisasi tersambung otomatis via lineage.",
+              (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman. Pastikan sudah Anda baca.\n\n" : "") +
+              "Revisi aktif lama disimpan sebagai arsip (catatannya tetap ada), kurva-S dibuat ulang, dan realisasi otomatis tersambung ke revisi baru.",
           )
         }
       >
@@ -142,7 +142,7 @@ export function DraftControls({
         onClick={() =>
           run(
             discardDraftAction,
-            `Buang draft revisi #${revisionNo}? Seluruh editan draft ini hilang; revisi aktif tidak berubah.`,
+            `Buang draft revisi #${revisionNo}? Semua perubahan di draft ini hilang. Revisi aktif tidak berubah.`,
           )
         }
       >

@@ -51,7 +51,7 @@ test.describe("paparan mingguan KKP", () => {
       timeout: 30_000,
     });
     // AI mati di lingkungan uji → banner fallback harus MENGATAKANNYA di muka.
-    await expect(page.getByText("Provider AI belum aktif – paparan tetap bisa dibuat")).toBeVisible();
+    await expect(page.getByText("AI belum aktif – paparan tetap bisa dibuat")).toBeVisible();
 
     await klikBuat(page);
     await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
@@ -65,7 +65,7 @@ test.describe("paparan mingguan KKP", () => {
     const versiAwal = Number(teksVersi.match(/v(\d+)$/)?.[1] ?? "0");
     expect(versiAwal).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("heading", { name: "Ringkasan Eksekutif" })).toBeVisible();
-    await expect(page.getByText("Narasi disusun deterministik", { exact: false })).toBeVisible();
+    await expect(page.getByText("Narasi disusun sistem, bukan AI", { exact: false })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: /Lampiran – Kelengkapan Data & Sumber/ }),
     ).toBeVisible();
@@ -86,12 +86,12 @@ test.describe("paparan mingguan KKP", () => {
     await expect(page.getByText(kalimat).first()).toBeVisible();
 
     // Lifecycle dari layar: draft → direview → disetujui → beku.
-    await page.getByRole("button", { name: "Kirim untuk review" }).click();
+    await page.getByRole("button", { name: "Kirim untuk diperiksa" }).click();
     await expect(page.getByText("Sedang direview")).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "Setujui" }).click();
     await expect(page.getByText("Disetujui", { exact: true })).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "Bekukan (final)" }).click();
-    await expect(page.getByText(/sudah dibekukan – immutable/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/sudah dibekukan dan tidak bisa diubah lagi/)).toBeVisible({ timeout: 20_000 });
 
     // Sesudah beku: unduhan berlabel FINAL, dan wujudnya tetap PDF sah.
     await expect(page.getByRole("link", { name: "Unduh PDF final" })).toBeVisible();

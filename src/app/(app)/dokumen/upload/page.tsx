@@ -30,7 +30,7 @@ export default async function UploadDokumenPage() {
       <PageHeader
         title="Unggah Dokumen"
         breadcrumb={[{ label: "Dokumen", href: "/dokumen" }, { label: "Unggah" }]}
-        description="Dokumen terhubung ke paket/lokasi dan bisa menjadi bukti milestone administrasi."
+        description="Dokumen dihubungkan ke paket atau lokasi, dan bisa menjadi bukti milestone administrasi."
       />
       <Card>
         <CardHeader title="Formulir" />

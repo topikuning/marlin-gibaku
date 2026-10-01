@@ -78,7 +78,7 @@ const LABEL_CARA: Record<string, string> = {
 
 const LABEL_ALASAN: Record<string, string> = {
   belum_disetujui: "Padanan AHSP belum disetujui",
-  satuan_tidak_sepadan: "Satuan item ≠ satuan analisa",
+  satuan_tidak_sepadan: "Satuan item beda dengan satuan analisa",
   tanpa_koefisien: "Analisa belum punya koefisien",
   volume_kosong: "Item RAB tidak punya volume",
 };
@@ -154,7 +154,7 @@ export function RincianPanel({
             ? (LABEL_ALASAN[i.alasanLewat] ?? i.alasanLewat)
             : i.lengkap
               ? ""
-              : `${i.komponenBelumBerharga} komponen belum berharga`,
+              : `${i.komponenBelumBerharga} komponen belum ada harganya`,
       })),
     [items],
   );
@@ -263,11 +263,11 @@ export function RincianPanel({
         )}
       >
         <span>
-          Item berrincian lengkap{" "}
+          Item yang rinciannya lengkap{" "}
           <strong className="tabular text-ink">
             {ringkas.jumlahLengkap} dari {items.length}
           </strong>
-          {tampilkanMargin ? " – hanya ini yang marginnya berarti" : ""}
+          {tampilkanMargin ? ". Hanya margin item-item ini yang bisa dipercaya" : ""}
         </span>
         <span>
           Biaya item lengkap{" "}
@@ -276,8 +276,8 @@ export function RincianPanel({
         </span>
         {tampilkanMargin ? (
           <span className={ringkas.jumlahRugi > 0 ? "text-danger" : undefined}>
-            Item yang rugi <strong className="tabular">{ringkas.jumlahRugi}</strong> – biayanya
-            melampaui nilai RAB-nya
+            Item yang rugi <strong className="tabular">{ringkas.jumlahRugi}</strong> (biayanya
+            melebihi nilai RAB-nya)
           </span>
         ) : null}
       </div>
@@ -323,7 +323,7 @@ export function RincianPanel({
               {dibuka.komponen.length === 0 ? (
                 <p className="mt-1 text-[13px] text-ink-muted">
                   {dibuka.cara === "borongan"
-                    ? "Item ini diborongkan – kebutuhan bahan/upah/alatnya memang tidak diketahui, dan tidak dikarang."
+                    ? "Item ini diborongkan, jadi kebutuhan bahan, upah, dan alatnya memang tidak diketahui dan tidak dikira-kira."
                     : "Belum ada komponen. Tambahkan di bawah, atau nyatakan item ini diborongkan."}
                 </p>
               ) : (
@@ -375,9 +375,9 @@ export function RincianPanel({
               )}
               {dibuka.komponen.some((k) => k.dariAhsp) ? (
                 <p className="mt-1 text-[12px] text-ink-muted">
-                  Koefisien bertanda AHSP tidak bisa diubah – ia angka resmi yang harus bisa
-                  dipertahankan saat diperiksa. Yang bisa kamu lakukan: menambah komponen yang
-                  belum ada.
+                  Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa
+                  dipertanggungjawabkan saat diperiksa. Yang bisa Anda lakukan: menambah komponen
+                  yang belum ada.
                 </p>
               ) : null}
             </section>
@@ -464,7 +464,7 @@ function FormTambahKomponen({
     <section className="rounded-lg border border-line p-3">
       <h3 className="text-[13px] font-semibold text-ink">Tambah komponen</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
-        Koefisiennya per SATU {""}satuan item ini – bukan per satuan analisa AHSP.
+        Koefisiennya untuk SATU {""}satuan item ini, bukan per satuan analisa AHSP.
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <div>
@@ -545,8 +545,8 @@ function FormKonversi({
       <h3 className="text-[13px] font-semibold text-ink">Faktor konversi satuan</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
         Dipakai bila satuan item berbeda dari satuan analisa (mis. item m² dinding vs analisa m³
-        pasangan → 0,15 untuk tebal 15 cm). Alasannya WAJIB: angka konversi tanpa alasan tidak bisa
-        dipertahankan saat diperiksa.
+        pasangan → 0,15 untuk tebal 15 cm). Alasannya WAJIB diisi, karena angka konversi tanpa alasan
+        tidak bisa dipertanggungjawabkan saat diperiksa.
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <div>
@@ -599,8 +599,9 @@ function FormBorongan({
     <section className="rounded-lg border border-line p-3">
       <h3 className="text-[13px] font-semibold text-ink">Borongan</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
-        Satu harga per satuan item, tanpa rincian komponen – bentuk yang jujur untuk pekerjaan yang
-        memang disubkan. Bila diisi, ia mengalahkan rincian komponen: satu item satu cara hitung.
+        Satu harga per satuan item, tanpa rincian komponen. Cocok untuk pekerjaan yang memang
+        disubkan. Kalau diisi, harga borongan ini yang dipakai, bukan rincian komponen, karena satu
+        item hanya punya satu cara hitung.
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <div>

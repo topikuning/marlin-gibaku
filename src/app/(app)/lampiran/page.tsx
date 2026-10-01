@@ -98,19 +98,19 @@ export default async function LampiranPage({
     <div className="space-y-4">
       <PageHeader
         title="Lampiran Masuk"
-        description="Berkas yang dikirim ke grup WhatsApp. Sistem menduga jenisnya; Anda yang menetapkan."
+        description="Berkas yang dikirim ke grup WhatsApp. Sistem menebak jenisnya, lalu Anda yang menetapkan."
       />
 
       {simpanan.masalah ? (
         <Banner
           tone="warning"
-          title="Berkas lampiran akan hilang saat aplikasi di-deploy ulang"
+          title="Berkas lampiran akan hilang saat aplikasi diperbarui"
           description={
             <>
               {simpanan.masalah}{" "}
               {isR2Configured()
-                ? "Berkas yang sudah ditetapkan sebagai surat/dokumen tetap aman – arsipnya permanen. Yang terancam hanya yang masih menunggu keputusan di daftar ini, jadi tetapkan lebih dulu yang penting."
-                : "Arsip permanen (R2) juga belum dikonfigurasi, jadi tidak ada satu pun berkas di sini yang aman – termasuk yang sudah ditetapkan."}
+                ? "Berkas yang sudah ditetapkan sebagai surat atau dokumen tetap aman karena arsipnya permanen. Yang terancam hanya yang masih menunggu keputusan di daftar ini, jadi tetapkan dulu yang penting."
+                : "Arsip permanen (R2) juga belum diatur, jadi tidak ada satu pun berkas di sini yang aman, termasuk yang sudah ditetapkan."}
             </>
           }
         />
@@ -122,7 +122,7 @@ export default async function LampiranPage({
           subtitle={
             tampilSemua
               ? "Termasuk yang sudah ditetapkan dan foto lapangan."
-              : "Berkas dokumen & kemungkinan surat yang belum diputuskan."
+              : "Dokumen dan calon surat yang belum diputuskan."
           }
           action={
             <Link
@@ -140,7 +140,7 @@ export default async function LampiranPage({
           {antre.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="Tidak ada lampiran menunggu"
+              title="Tidak ada lampiran yang menunggu"
               description="Berkas baru akan muncul di sini begitu dikirim ke grup WhatsApp yang tertaut paket."
               className="py-8"
             />

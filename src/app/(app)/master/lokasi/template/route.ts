@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   if (!can(user.role, "package.bypass"))
     return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
 

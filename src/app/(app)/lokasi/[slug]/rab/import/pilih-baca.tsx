@@ -69,7 +69,7 @@ export function PilihBaca({
       {sebab ? (
         <Banner
           tone="warning"
-          title="MARLIN belum yakin membaca berkas ini – pilih sheet dan kolom yang dipakai"
+          title="MARLIN belum yakin cara membaca berkas ini. Pilih sheet dan kolom yang dipakai."
           description={sebab}
         />
       ) : (
@@ -100,7 +100,7 @@ export function PilihBaca({
               }}
             />
             <p className="mt-1 text-ink-muted">
-              Hanya sheet yang terlihat. Sheet yang disembunyikan di Excel tidak dibaca.
+              Hanya sheet yang terlihat yang ditampilkan. Sheet yang disembunyikan di Excel tidak dibaca.
             </p>
           </div>
 
@@ -130,8 +130,8 @@ export function PilihBaca({
             </div>
           </div>
           <p className="text-ink-muted">
-            Kolom yang disembunyikan di Excel tidak ditawarkan – kalau kolom yang benar tersembunyi,
-            tampilkan dulu di Excel lalu pilih ulang berkasnya. Contoh isi tiap kolom ada di dalam kurung.
+            Kolom yang disembunyikan di Excel tidak ditampilkan. Kalau kolom yang benar tersembunyi,
+            munculkan dulu di Excel, lalu pilih ulang berkasnya. Contoh isi tiap kolom ada di dalam kurung.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">

@@ -45,12 +45,12 @@ function PerbaikanHeic({ jumlah }: { jumlah: number }) {
     <div className="space-y-2 rounded border border-warning/40 bg-warning-soft/40 px-2.5 py-2">
       <p className="text-sm text-ink">
         <span className="font-medium">{jumlah} foto tersimpan sebagai HEIC.</span> Peramban selain Safari
-        tidak bisa menampilkannya, dan foto-foto itu tidak ber-cap Timemark – jadi ia gagal sebagai bukti
-        lapangan, bukan cuma kosong di layar.
+        tidak bisa menampilkannya, dan foto-foto itu belum ber-cap Timemark. Jadi foto itu tidak bisa
+        dipakai sebagai bukti lapangan, bukan sekadar kosong di layar.
       </p>
       <p className="text-xs text-ink-muted">
-        Perbaikan membaca ulang arsip aslinya, mengubahnya jadi webp ber-cap, dan menaikkan revisi cap.
-        Nilai capnya tidak diubah satu pun. Aman diulang.
+        Perbaikan ini membaca ulang berkas aslinya dari arsip, mengubahnya jadi webp ber-cap, dan menaikkan
+        nomor revisi cap. Isi capnya tidak diubah sama sekali. Aman diulang.
       </p>
       {pesan ? <Banner tone="success" title="Perbaikan foto HEIC" description={pesan} /> : null}
       <Button
@@ -104,11 +104,11 @@ export function PenyimpananPanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Membandingkan isi bucket dengan seluruh rujukan di basis data – kolom teks maupun isi kolom JSON
-        (mis. snapshot laporan harian yang membekukan kunci foto). Obyek yang tidak dirujuk satu baris pun
-        DAN sudah lewat 7 hari disebut <span className="font-medium text-ink">yatim</span> – itulah
-        sampahnya. Yang lebih baru ditahan dulu: unggahan menulis berkasnya lebih dahulu, barisnya
-        belakangan.
+        Pemeriksaan ini mencocokkan isi bucket dengan semua rujukan di basis data, termasuk isi kolom
+        JSON (mis. salinan laporan harian yang menyimpan alamat foto). Berkas yang tidak dirujuk sama
+        sekali DAN sudah lebih dari 7 hari disebut <span className="font-medium text-ink">yatim</span>.
+        Itulah sampahnya. Berkas yang lebih baru belum dinilai, karena saat mengunggah, berkasnya disimpan
+        lebih dulu dan datanya menyusul.
       </p>
       <PerbaikanHeic jumlah={fotoHeic} />
       <div className="flex flex-wrap items-center gap-2">
@@ -117,7 +117,7 @@ export function PenyimpananPanel({
         </Button>
         {periksa ? (
           <span className="text-xs text-ink-muted">
-            Membaca seluruh isi bucket – bucket besar bisa memakan beberapa puluh detik.
+            Membaca seluruh isi bucket. Kalau isinya banyak, bisa makan waktu beberapa puluh detik.
           </span>
         ) : null}
       </div>
@@ -130,7 +130,7 @@ export function PenyimpananPanel({
           {hasil.porsiJanggal ? (
             <Banner
               tone="error"
-              title="Porsi sampahnya tidak masuk akal – JANGAN dibersihkan dulu"
+              title="Jumlah sampahnya janggal. JANGAN dibersihkan dulu"
               description={
                 "Lebih dari separuh isi bucket terbaca tidak dirujuk. Angka setinggi itu jauh lebih mungkin " +
                 "berarti bucket ini dipakai lingkungan lain (mis. dev dan produksi berbagi satu bucket) " +
@@ -143,17 +143,17 @@ export function PenyimpananPanel({
           {hasil.terpotong ? (
             <Banner
               tone="warning"
-              title="Bucket terlalu besar untuk dibaca sekali jalan"
+              title="Bucket terlalu besar untuk dibaca sekaligus"
               description="Angka di bawah baru sebagian isi bucket. Bersihkan yang terlihat dulu, lalu periksa lagi."
             />
           ) : null}
 
           <div className="flex flex-wrap gap-4 text-sm">
-            <Ringkas label="Total" nilai={ukuran(hasil.totalBytes)} sub={`${hasil.totalObyek} obyek`} />
+            <Ringkas label="Total" nilai={ukuran(hasil.totalBytes)} sub={`${hasil.totalObyek} berkas`} />
             <Ringkas
               label="Yatim (sampah)"
               nilai={ukuran(hasil.yatimBytes)}
-              sub={`${hasil.yatimObyek} obyek · ${persen(hasil.yatimBytes, hasil.totalBytes)} dari bucket`}
+              sub={`${hasil.yatimObyek} berkas · ${persen(hasil.yatimBytes, hasil.totalBytes)} dari bucket`}
               tone={hasil.yatimBytes > 0 ? "danger" : "success"}
             />
             <Ringkas
@@ -165,7 +165,7 @@ export function PenyimpananPanel({
               <Ringkas
                 label="Ditahan (masih baru)"
                 nilai={String(hasil.terlaluBaru)}
-                sub="belum 7 hari – tidak dinilai dulu"
+                sub="belum 7 hari, belum dinilai"
               />
             ) : null}
           </div>
@@ -175,7 +175,7 @@ export function PenyimpananPanel({
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                   <th className="py-1.5 pr-3">Kelompok</th>
-                  <th className="py-1.5 pr-3 text-right">Obyek</th>
+                  <th className="py-1.5 pr-3 text-right">Berkas</th>
                   <th className="py-1.5 pr-3 text-right">Ukuran</th>
                   <th className="py-1.5 pr-3 text-right">Yatim</th>
                   <th className="py-1.5 text-right">Ukuran yatim</th>
@@ -205,17 +205,17 @@ export function PenyimpananPanel({
                 <ul className="list-disc pl-4">
                   {hasil.rujukanHilang.map((r) => (
                     <li key={r.label}>
-                      {r.label}: {r.hilang} baris menunjuk berkas yang tidak ada di R2 – contoh{" "}
+                      {r.label}: {r.hilang} data merujuk ke berkas yang tidak ada di R2. Contoh:{" "}
                       {r.contoh.join(", ")}
                     </li>
                   ))}
-                  <li>Ini bukan sampah, ini kehilangan: layarnya akan menampilkan berkas yang gagal dimuat.</li>
+                  <li>Ini bukan sampah, melainkan berkas yang hilang. Di layar, berkas ini akan tampil gagal dimuat.</li>
                 </ul>
               }
             />
           ) : (
             <p className="text-xs text-ink-muted">
-              Setiap baris di basis data menunjuk berkas yang benar ada – tidak ada yang hilang.
+              Semua data di basis data merujuk ke berkas yang memang ada. Tidak ada yang hilang.
             </p>
           )}
 
@@ -223,11 +223,11 @@ export function PenyimpananPanel({
             <div className="space-y-2 rounded border border-border px-2.5 py-2">
               <p className="text-sm text-ink">
                 Foto ber-cap dan thumbnail yang hilang bisa <span className="font-medium">dibuat ulang</span> dari
-                berkas aslinya (di R2 atau di arsip dingin), di alamat yang sama – laporan yang sudah final ikut
-                tampil lagi.
+                berkas aslinya (di R2 atau di arsip dingin), di alamat yang sama. Laporan yang sudah final ikut
+                tampil lengkap lagi.
               </p>
               <p className="text-xs text-ink-muted">
-                Capnya dirender ulang dari data foto saat ini. Foto yang berkas aslinya sudah dihapus tidak bisa
+                Capnya dibuat ulang dari data foto saat ini. Foto yang berkas aslinya sudah dihapus tidak bisa
                 dipulihkan dan disebut jumlahnya.
               </p>
               <Button
@@ -248,8 +248,8 @@ export function PenyimpananPanel({
 
           {hasil.healthcheck.obyek > 0 ? (
             <p className="text-xs text-ink-muted">
-              {hasil.healthcheck.obyek} sisa <code>healthcheck/</code> ({ukuran(hasil.healthcheck.bytes)}) –
-              jejak tes R2 yang gagal membersihkan dirinya. Selalu aman dibuang.
+              {hasil.healthcheck.obyek} sisa <code>healthcheck/</code> ({ukuran(hasil.healthcheck.bytes)}),
+              yaitu berkas tes R2 yang tidak terhapus otomatis. Selalu aman dibuang.
             </p>
           ) : null}
 
@@ -275,9 +275,9 @@ export function PenyimpananPanel({
           {hasil.yatimObyek > 0 ? (
             <div className="space-y-2 rounded border border-danger/40 bg-danger-soft/40 px-2.5 py-2">
               <p className="text-sm text-ink">
-                Hapus {hasil.yatimObyek} obyek yatim ({ukuran(hasil.yatimBytes)})? Yang dihapus hanya yang
-                <span className="font-medium"> pada detik penghapusan </span>
-                masih terbukti tidak dirujuk – daftarnya dihitung ulang di server, bukan diambil dari layar
+                Hapus {hasil.yatimObyek} berkas yatim ({ukuran(hasil.yatimBytes)})? Yang dihapus hanya berkas yang
+                <span className="font-medium"> saat penghapusan </span>
+                masih terbukti tidak dirujuk. Daftarnya dihitung ulang di server, bukan diambil dari layar
                 ini.
               </p>
               <p className="text-xs text-ink-muted">
@@ -313,7 +313,7 @@ export function PenyimpananPanel({
             <div className="flex items-center gap-2">
               <StatusPill tone="success" label="Bersih" />
               <span className="text-sm text-ink-muted">
-                Tidak ada obyek yatim – seluruh isi bucket masih dipakai.
+                Tidak ada berkas yatim. Seluruh isi bucket masih dipakai.
               </span>
             </div>
           )}

@@ -166,7 +166,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
         ? "draft_adendum"
         : (() => {
             throw new DailyReportError(
-              "Item RAB berasal dari revisi lama yang sudah digantikan – muat ulang halaman",
+              "Item RAB ini dari revisi lama yang sudah digantikan. Muat ulang halaman, lalu coba lagi.",
             );
           })();
 
@@ -531,7 +531,7 @@ async function assertVolumeWithinRab(
   }
   if (offending.length > 0) {
     throw new DailyReportError(
-      `Volume kumulatif melebihi RAB – laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
+      `Volume kumulatif melebihi RAB karena laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
     );
   }
 }
@@ -554,7 +554,7 @@ async function transition(
 ) {
   const report = await getReportOrThrow(reportId);
   if (!canTransitionReport(report.status, to)) {
-    throw new DailyReportError(`Transisi status ${report.status} → ${to} tidak diizinkan`);
+    throw new DailyReportError(`Status laporan tidak bisa diubah dari ${report.status} ke ${to}.`);
   }
   const ip = (await requestIp()) ?? null;
   const updated = await db.$transaction(async (tx) => {
@@ -641,7 +641,7 @@ export async function submitReport(reportId: string, userId: string) {
        * "menunggu" adalah kendala yang harus ditagih. Di kurva-S ketiganya 0%;
        * di manajemen ketiganya berbeda.
        */
-      throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+      throw new DailyReportError("Pilih dulu sebab tidak ada kegiatan.");
     }
   } else if (laporan?.noActivity) {
     /*
@@ -986,7 +986,7 @@ export async function finalizeReport(reportId: string, userId: string) {
   // jadi kumulatif di snapshot sudah termasuk volume laporan ini.
   const current = await getReportOrThrow(reportId);
   if (!canTransitionReport(current.status, "final")) {
-    throw new DailyReportError(`Transisi status ${current.status} → final tidak diizinkan`);
+    throw new DailyReportError(`Status laporan tidak bisa diubah dari ${current.status} ke final.`);
   }
   // Diperiksa SEBELUM snapshot dibangun: membangun snapshot itu mahal, dan
   // menolak sesudahnya berarti kerja itu terbuang percuma.
@@ -1112,7 +1112,7 @@ export async function addIssueFromReport(
   // Laporan final beku — kendala baru dicatat lewat menu Kendala lokasi, bukan
   // menempel diam-diam ke dokumen yang sudah final (audit 2026-07-27, B16c).
   if (report.status === "final") {
-    throw new DailyReportError("Laporan sudah final – catat kendala lewat menu Kendala lokasi");
+    throw new DailyReportError("Laporan sudah final. Catat kendalanya lewat menu Kendala lokasi.");
   }
   if (!input.title || input.title.trim().length === 0) {
     throw new DailyReportError("Judul kendala wajib diisi");
@@ -1186,7 +1186,7 @@ export async function setHariNihil(
   }
 
   if (input.nihil) {
-    if (!input.alasan) throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+    if (!input.alasan) throw new DailyReportError("Pilih dulu sebab tidak ada kegiatan.");
     const [jumlahItem, jumlahMaterial, jumlahAlat] = await Promise.all([
       db.dailyReportItem.count({ where: { reportId } }),
       db.dailyReportMaterial.count({ where: { reportId } }),

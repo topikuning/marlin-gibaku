@@ -125,7 +125,7 @@ export type ExecuteRunResult = { runId: string; status: "siap" | "gagal"; error?
 export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): Promise<ExecuteRunResult> {
   // 1-2. Scope resmi (intersect izin) — SEBELUM guard supaya locationCount benar.
   const scope = await resolveAiScope(user, input.locationIds);
-  if (scope.ids.length === 0) throw new AiRunError("Tidak ada lokasi dalam scope.");
+  if (scope.ids.length === 0) throw new AiRunError("Tidak ada lokasi yang bisa Anda lihat.");
 
   // 3. Guard: kill switch + rate + ukuran (lempar bila ditolak; sudah diaudit).
   const guardCfg = await checkAiGuard(user, { kind: input.kind, locationCount: scope.ids.length });
@@ -167,7 +167,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   let kronologi: KronologiLokasi | null = null;
   if (input.kind === "kronologi") {
     if (scope.ids.length !== 1) {
-      throw new AiRunError("Kronologi disusun untuk SATU lokasi – pilih satu lokasi lebih dulu.");
+      throw new AiRunError("Kronologi hanya bisa disusun untuk SATU lokasi. Pilih satu lokasi dulu.");
     }
     kronologi = await ambilKronologi(scope.ids[0]!, { sampai: input.endKey, hari: 90, batas: 60 });
     if (!kronologi) throw new AiRunError("Lokasi tidak ditemukan.");
@@ -380,7 +380,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   const questionBlock = input.question ? `\n\nPERTANYAAN USER:\n${input.question}` : "";
   const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${narrativeBlock}${conversationBlock}${originBlock}${questionBlock}`;
   if (prompt.length > guardCfg.maxInputChars) {
-    return fail("input_too_big", "Data sumber melebihi batas – persempit scope/periode.");
+    return fail("input_too_big", "Datanya terlalu banyak. Persempit pilihan lokasi atau periodenya.");
   }
 
   // 8. SATU panggilan provider terstruktur (+maks 1 repair internal).

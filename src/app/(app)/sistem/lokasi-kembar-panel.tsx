@@ -61,7 +61,7 @@ export function LokasiKembarPanel({ laporan }: { laporan: LaporanLokasiKembar })
     return (
       <p className="text-[13px] text-ink-muted">
         Tidak ada lokasi kembar. Nama desa yang sama di paket berbeda tidak dihitung sebagai
-        kembar – itu lumrah dan tidak mengganggu apa pun.
+        kembar. Itu wajar dan tidak mengganggu apa pun.
       </p>
     );
   }
@@ -74,10 +74,10 @@ export function LokasiKembarPanel({ laporan }: { laporan: LaporanLokasiKembar })
             Nama kembar di satu paket ({laporan.sePaket.length})
           </h3>
           <p className="text-[13px] text-ink-muted">
-            Berkas Google Drive dipilah ke lokasi lewat NAMA, dari daftar lokasi satu paket. Dua
-            nama kembar membuatnya memilih salah satu tanpa dasar – berkas lapangan bisa terarsip
-            di lokasi yang salah. Perbaikannya murah: buka lokasinya, ubah namanya jadi berbeda.
-            Tidak ada angka yang bergerak.
+            Berkas Google Drive dimasukkan ke lokasi berdasarkan NAMA lokasi di paket itu. Kalau
+            ada dua nama yang sama, sistem terpaksa menebak salah satunya, sehingga berkas lapangan
+            bisa tersimpan di lokasi yang salah. Cara membetulkannya mudah: buka lokasinya, lalu
+            ganti namanya supaya berbeda. Tidak ada angka yang berubah.
           </p>
           <ul className="space-y-2">
             {laporan.sePaket.map((g) => (
@@ -93,11 +93,11 @@ export function LokasiKembarPanel({ laporan }: { laporan: LaporanLokasiKembar })
             Satu desa terdaftar dua kali ({laporan.desaGanda.length})
           </h3>
           <p className="text-[13px] text-ink-muted">
-            Desa yang sama dijalankan sebagai dua lokasi, jadi angkanya terpecah dan tidak ada satu
-            layar pun yang menjumlahkannya. Sistem tidak menggabungkannya sendiri – RAB, laporan
-            final, dan foto ber-cap masing-masing punya riwayat. Yang kosong aman dilepas; kalau
-            keduanya berisi, putuskan mana yang dipertahankan lalu pindahkan sisanya lewat jalur
-            yang sudah ada.
+            Desa yang sama tercatat sebagai dua lokasi, jadi angkanya terpecah dan tidak ada layar
+            yang menjumlahkannya. Sistem tidak menggabungkannya sendiri, karena RAB, laporan final,
+            dan foto ber-cap di masing-masing lokasi punya riwayat sendiri. Lokasi yang kosong aman
+            dilepas. Kalau keduanya berisi, putuskan mana yang dipertahankan, lalu pindahkan sisanya
+            dengan fitur yang sudah ada.
           </p>
           <ul className="space-y-2">
             {laporan.desaGanda.map((g) => (

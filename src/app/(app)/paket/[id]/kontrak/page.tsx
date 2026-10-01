@@ -69,7 +69,7 @@ export default async function KontrakPage({
             <Banner
               tone="info"
               title={`Paket masih di tahap ${PACKAGE_STAGE_LABEL[pkg.stage]}.`}
-              description="Konversi kontrak baru bisa dilakukan setelah paket mencapai tahap Penetapan (tab Tender & Administrasi)."
+              description="Data kontrak baru bisa diisi setelah paket sampai di tahap Penetapan. Naikkan tahapnya di tab Tender & Administrasi."
             />
           ) : null}
           <EmptyState
@@ -78,7 +78,7 @@ export default async function KontrakPage({
             description={
               canContract
                 ? "Naikkan paket ke tahap Penetapan lalu isi form konversi kontrak di sini."
-                : "Konversi kontrak dilakukan oleh pemegang akses kontrak."
+                : "Data kontrak diisi oleh orang yang punya akses kontrak."
             }
           />
         </div>
@@ -273,14 +273,14 @@ export default async function KontrakPage({
                 ? "Tidak ada perubahan yang menunggu nomor CCO. Revisi RAB dan cabut/tambah lokasi yang sudah disetujui muncul di sini untuk dicatat nomor CCO-nya."
                 : `${siap} perubahan siap dicatat dalam CCO` +
                   (itemAdendum.length > siap ? `, ${itemAdendum.length - siap} masih menunggu persetujuan` : "") +
-                  ". Perubahan berlaku sejak dua persetujuan; di sini nomor CCO dan nilainya dicatat."
+                  ". Perubahan sudah berlaku begitu dua persetujuan lengkap. Di sini tinggal mencatat nomor CCO dan nilainya."
             }
             aksi={
               <Drawer
                 trigger="Catat CCO"
                 triggerVariant="primary"
                 title="Catat adendum kontrak (CCO)"
-                subtitle="Centang perubahan yang masuk CCO ini – nilainya diambil dari RAB."
+                subtitle="Centang perubahan yang masuk CCO ini. Nilainya diambil dari RAB."
               >
                 <AktivasiAdendumForm
                   packageId={pkg.id}
@@ -295,7 +295,7 @@ export default async function KontrakPage({
         {canWeekMode ? (
           <AksiTile
             judul="Periode minggu laporan"
-            penjelasan="Batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian. Menggantinya MENGKONVERSI jadwal & kurva-S semua lokasi paket ini ke grid tanggal baru."
+            penjelasan="Batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian. Kalau diganti, jadwal & kurva-S SEMUA lokasi paket ini ikut disesuaikan ke pembagian minggu yang baru."
             aksi={
               <Drawer
                 trigger="Ubah periode minggu"
@@ -311,12 +311,12 @@ export default async function KontrakPage({
         {canEditContract ? (
           <AksiTile
             judul="Koreksi data kontrak"
-            penjelasan="Khusus membetulkan SALAH INPUT – bukan pengganti adendum. Bila masa pelaksanaan / SPMK ikut berubah, kurva-S semua lokasi dihitung ulang otomatis."
+            penjelasan="Khusus untuk membetulkan SALAH INPUT, bukan pengganti adendum. Kalau masa pelaksanaan atau SPMK ikut berubah, kurva-S semua lokasi dihitung ulang otomatis."
             aksi={
               <Drawer
                 trigger="Koreksi data"
                 title="Koreksi kontrak (Super Admin)"
-                subtitle="Betulkan data kontrak termasuk WAKTU. Berbeda dari adendum, yang mencatat perubahan resmi."
+                subtitle="Betulkan data kontrak, termasuk WAKTU. Ini bukan adendum. Perubahan resmi tetap dicatat lewat adendum."
               >
                 <EditContractForm
                   packageId={pkg.id}
@@ -343,14 +343,14 @@ export default async function KontrakPage({
           judul="Penanda tangan dokumen KKP"
           penjelasan={
             canContract
-              ? "Nama PPK, Konsultan Pengawas, Penyedia (Direktur), dan Pelaksana Lapangan yang tercetak pada blok tanda tangan laporan."
-              : "Nama yang tercetak pada blok tanda tangan laporan. Hanya pengelola kontrak yang boleh mengubahnya."
+              ? "Nama PPK, Konsultan Pengawas, Penyedia (Direktur), dan Pelaksana Lapangan yang tercetak pada bagian tanda tangan laporan."
+              : "Nama yang tercetak pada bagian tanda tangan laporan. Hanya pengelola kontrak yang boleh mengubahnya."
           }
           aksi={
             <Drawer
               trigger={canContract ? "Kelola nama" : "Lihat nama"}
               title="Penanda tangan dokumen KKP"
-              subtitle="Nama tercetak di blok tanda tangan laporan – bisa diganti bila ada pergantian personel. Direktur meneken bulanan/MC/CCO, Pelaksana Lapangan meneken harian/mingguan."
+              subtitle="Nama yang tercetak di bagian tanda tangan laporan. Bisa diganti kalau ada pergantian personel. Direktur menandatangani laporan bulanan, MC, dan CCO; Pelaksana Lapangan menandatangani laporan harian dan mingguan."
             >
               {canContract ? (
                 <SignatoriesForm
@@ -420,7 +420,7 @@ export default async function KontrakPage({
         {canContract ? (
           <AksiTile
             judul="Tanda tangan & stempel"
-            penjelasan="Gambar OPSIONAL empat pihak – PPK, pengawas, Direktur, dan Pelaksana Lapangan – yang ditempel pada laporan cetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
+            penjelasan="Gambar tanda tangan dan stempel PPK, pengawas, Direktur, dan Pelaksana Lapangan untuk ditempel pada laporan cetak. Boleh dikosongkan kalau laporan tetap ditandatangani dengan pena."
             aksi={
               <Drawer
                 trigger="Kelola gambar"

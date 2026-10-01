@@ -116,7 +116,7 @@ export const TEMA: Record<TemaDeckKey, TemaDeck> = {
   terang: {
     key: "terang",
     label: "Terang Bersih",
-    deskripsi: "Seluruh slide terang, judul berpita biru – nyaman dicetak dan di proyektor redup.",
+    deskripsi: "Semua slide berlatar terang dengan pita biru di judul. Nyaman dicetak dan dipakai di proyektor yang redup.",
     palet: {
       ...BERSAMA,
       gelap: "#1e3a5f",
@@ -164,7 +164,7 @@ export const TEMA: Record<TemaDeckKey, TemaDeck> = {
   merah_putih: {
     key: "merah_putih",
     label: "Merah Putih Instansi",
-    deskripsi: "Putih dengan blok merah dan navy bergaya instansi, judul di pusat sampul.",
+    deskripsi: "Latar putih dengan blok merah dan biru tua bergaya instansi. Judul di tengah sampul.",
     palet: {
       ...BERSAMA,
       gelap: "#1b2a4a",

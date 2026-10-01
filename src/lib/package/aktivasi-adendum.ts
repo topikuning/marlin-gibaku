@@ -255,12 +255,12 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
   const tertunda = await adendumTertunda(input.packageId);
   const revisi = input.revisionIds.map((id) => {
     const r = tertunda.revisi.find((x) => x.revisionId === id);
-    if (!r) throw new AktivasiAdendumError("Ada draft revisi yang bukan draft adendum paket ini – muat ulang halaman.");
+    if (!r) throw new AktivasiAdendumError("Ada draft revisi yang bukan bagian dari adendum paket ini. Muat ulang halaman, lalu coba lagi.");
     return r;
   });
   const lingkup = input.changeIds.map((id) => {
     const l = tertunda.lingkup.find((x) => x.changeId === id);
-    if (!l) throw new AktivasiAdendumError("Ada usulan lingkup yang bukan draft paket ini – muat ulang halaman.");
+    if (!l) throw new AktivasiAdendumError("Ada usulan lingkup yang bukan milik paket ini. Muat ulang halaman, lalu coba lagi.");
     return l;
   });
   for (const locationId of new Set([...revisi, ...lingkup].map((x) => x.locationId)))
@@ -271,10 +271,10 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
   for (const r of draftRevisi) draftPerLokasi.set(r.locationId, (draftPerLokasi.get(r.locationId) ?? 0) + 1);
   for (const r of draftRevisi) {
     if ((draftPerLokasi.get(r.locationId) ?? 0) > 1)
-      throw new AktivasiAdendumError(`${r.locationName} punya lebih dari satu draft terpilih – pilih satu saja.`);
+      throw new AktivasiAdendumError(`${r.locationName} punya lebih dari satu draft yang dipilih. Pilih satu saja.`);
     if (lingkup.some((l) => l.locationId === r.locationId && l.kind === "cabut"))
       throw new AktivasiAdendumError(
-        `${r.locationName} dicabut dalam adendum ini – draft revisi RAB-nya tidak perlu ikut diberlakukan.`,
+        `${r.locationName} dicabut dalam adendum ini, jadi draft revisi RAB-nya tidak perlu ikut diberlakukan.`,
       );
     if (!r.lengkap)
       throw new AktivasiAdendumError(

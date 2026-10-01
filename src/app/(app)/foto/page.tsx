@@ -74,7 +74,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
     <div className="space-y-4">
       <PageHeader
         title="Foto & Galeri Lapangan"
-        description="Semua bukti visual proyek dalam satu tempat – terhubung ke lokasi, laporan/item pekerjaan atau kegiatan, pelapor, GPS, dan status verifikasi."
+        description="Semua foto proyek di satu tempat. Setiap foto terhubung ke lokasi, laporan dan item pekerjaan atau kegiatan, pelapor, GPS, dan status verifikasinya."
         actions={
           can(user.role, "photo.archive_purge") ? (
             <Link href="/sistem/arsip-foto" className="text-sm text-primary hover:underline">
@@ -118,7 +118,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
             <option value="kegiatan">Kegiatan Lapangan</option>
           </Combobox>
         </div>
-        <input name="q" defaultValue={filters.q ?? ""} placeholder="Cari caption / lokasi / pelapor…" className={`${SELECT} min-w-52 flex-1`} />
+        <input name="q" defaultValue={filters.q ?? ""} placeholder="Cari keterangan / lokasi / pelapor…" className={`${SELECT} min-w-52 flex-1`} />
         <TombolSaring>Terapkan</TombolSaring>
       </FormSaring>
 
@@ -169,7 +169,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
       ) : null}
 
       <p className="flex items-center gap-1 text-xs text-ink-faint">
-        <Camera aria-hidden className="size-3.5" /> Foto diunggah lewat Laporan Harian & Kegiatan Lapangan; klik foto untuk memperbesar.
+        <Camera aria-hidden className="size-3.5" /> Foto diunggah lewat Laporan Harian dan Kegiatan Lapangan. Ketuk foto untuk memperbesar.
       </p>
     </div>
   );

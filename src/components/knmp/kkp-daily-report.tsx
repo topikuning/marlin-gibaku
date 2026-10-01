@@ -182,7 +182,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
     <div className="mx-auto max-w-225 bg-white text-[11px] leading-tight text-slate-900">
       {!d.isFinal ? (
         <div className="no-print mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-          PRATINJAU – laporan belum difinalisasi; angka masih bisa berubah.
+          PRATINJAU – laporan ini belum final, jadi angkanya masih bisa berubah.
         </div>
       ) : null}
 
@@ -444,9 +444,9 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
           data. DECISIONS 215. */}
       {(d.draftItemCount ?? 0) > 0 ? (
         <div className="border-x border-b border-slate-500 px-1.5 py-1 text-[8px] leading-tight text-slate-600 italic">
-          {d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui
-          sehingga tidak dicetak di blanko ini – belum ada dasar kontraknya. Rinciannya ada di
-          pantauan internal MARLIN.
+          {d.draftItemCount} pekerjaan hari ini dilaporkan berdasarkan usulan adendum yang belum
+          disetujui. Pekerjaan itu belum punya dasar kontrak, jadi tidak dicetak di blanko ini.
+          Rinciannya bisa dilihat di MARLIN.
         </div>
       ) : null}
 

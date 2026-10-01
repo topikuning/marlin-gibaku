@@ -95,7 +95,7 @@ export async function saveSummaryDraftAction(
       where: { packageId_summaryDate: { packageId, summaryDate } },
       select: { id: true, status: true, summaryText: true, package: { select: { orgId: true } } },
     });
-    if (!current) return { error: "Belum ada draf untuk tanggal ini – hasilkan draf AI dulu." };
+    if (!current) return { error: "Belum ada draf untuk tanggal ini. Buat draf AI dulu." };
     if (current.package.orgId !== user.orgId) return { error: "Paket tidak ditemukan." };
 
     const from = current.status as SummaryViewStatus;
@@ -162,11 +162,11 @@ export async function sendChatSummaryAction(
       db.waContact.findFirst({ where: { id: contactId, ownerId: user.id }, select: { name: true, chatId: true } }),
     ]);
     if (!ctx) return { error: "Paket tidak ditemukan." };
-    if (!summary) return { error: "Belum ada ringkasan untuk tanggal ini – buat ringkasan dulu." };
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak WA)." };
+    if (!summary) return { error: "Belum ada ringkasan untuk tanggal ini. Buat ringkasannya dulu." };
+    if (!contact) return { error: "Kontak tujuan tidak ditemukan. Atur kontaknya di Master Data → Kontak WA." };
     // Draf AI mentah tidak boleh sampai ke pimpinan tanpa review manusia.
     if (!canSend(summary.status as SummaryViewStatus)) {
-      return { error: "Ringkasan belum difinalkan. Review dulu, lalu klik “Finalkan”." };
+      return { error: "Ringkasan belum difinalkan. Periksa dulu, lalu klik “Finalkan”." };
     }
 
     const text = formatSummaryForWa(
@@ -228,10 +228,10 @@ export async function sendGlobalSummaryAction(
     const rows = all.filter((r) => canSend(r.status));
     if (rows.length === 0) {
       return {
-        error: `Belum ada ringkasan berstatus final pada tanggal ini (${all.length} masih draf). Finalkan dulu di halaman per-grup.`,
+        error: `Belum ada ringkasan berstatus final pada tanggal ini (${all.length} masih draf). Finalkan dulu di halaman tiap grup.`,
       };
     }
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak WA)." };
+    if (!contact) return { error: "Kontak tujuan tidak ditemukan. Atur kontaknya di Master Data → Kontak WA." };
 
     // Pengantar AI opsional — bila provider gagal, tetap kirim ringkasan per paket.
     let overview: string | null = null;

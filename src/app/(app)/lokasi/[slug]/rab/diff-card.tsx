@@ -13,7 +13,7 @@ const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 export function DiffCard({
   diff,
   judul,
-  subjudul = "Jejak permanen – revisi lama tidak pernah diubah, jadi item yang dihapus tetap tercatat.",
+  subjudul = "Revisi lama tidak pernah diubah, jadi item yang dihapus pun tetap tercatat.",
   kosong: teksKosong = "Belum ada perubahan terhadap revisi aktif.",
 }: {
   diff: RevisionDiff;
@@ -47,8 +47,8 @@ export function DiffCard({
                   Selisih pembulatan · {diff.pembulatan.length} item · volume &amp; harga sama, nilai beda Rp 1
                 </summary>
                 <p className="mt-1 mb-2 text-xs text-ink-muted">
-                  Nilai tersimpan dibulatkan berbeda oleh kedua berkas RAB (mis. 50 × 7.055,97 = 352.798,5 →
-                  352.799 atau 352.798). Tetap ikut dalam total tambah/kurang.
+                  Kedua berkas RAB membulatkan nilainya dengan cara berbeda (mis. 50 × 7.055,97 = 352.798,5 →
+                  352.799 atau 352.798). Selisihnya tetap ikut dihitung dalam total tambah/kurang.
                 </p>
                 <DiffSection tone="muted" rows={diff.pembulatan} mode="ubah" />
               </details>

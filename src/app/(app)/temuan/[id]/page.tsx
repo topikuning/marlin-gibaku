@@ -156,7 +156,7 @@ export default async function DetailTemuanPage({ params }: { params: Promise<{ i
       </div>
 
       <Card>
-        <CardHeader title={`Bukti (${t.evidences.length})`} subtitle="Tautan ke foto / dokumen yang sudah ada – tidak ada berkas ganda" />
+        <CardHeader title={`Bukti (${t.evidences.length})`} subtitle="Tautan ke foto atau dokumen yang sudah ada, jadi berkasnya tidak tersimpan dua kali" />
         <CardBody className="space-y-3">
           {t.evidences.length === 0 ? (
             <p className="text-sm text-ink-muted">Belum ada bukti yang ditautkan.</p>

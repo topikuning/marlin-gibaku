@@ -52,7 +52,7 @@ export function AksiLaporanLengkap({
     temaAktif ? `Tema deck: ${temaAktif.deskripsi}` : null,
     wahaOn
       ? hasGroup
-        ? `Kirim WhatsApp menuju ${groupName ? `grup ${groupName}` : "grup WhatsApp paket"}.`
+        ? `Laporan akan dikirim ke ${groupName ? `grup ${groupName}` : "grup WhatsApp paket"}.`
         : "Lokasi ini belum punya grup WhatsApp (grup kabupaten maupun grup paket), jadi tombol kirim nonaktif."
       : null,
   ].filter(Boolean);

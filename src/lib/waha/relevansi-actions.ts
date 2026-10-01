@@ -48,7 +48,7 @@ export async function setMessageRelevanceAction(
       where: { id: { in: ids }, packageId, package: scope },
       select: { id: true },
     });
-    if (owned.length === 0) return { error: "Pesan tidak ditemukan dalam scope Anda." };
+    if (owned.length === 0) return { error: "Pesan tidak ditemukan atau tidak bisa Anda akses." };
 
     await db.waMessage.updateMany({
       where: { id: { in: owned.map((m) => m.id) } },

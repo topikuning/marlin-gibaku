@@ -103,7 +103,7 @@ export function ImporDriveClient({
       <Card>
         <CardHeader
           title="Langkah 1 – baca folder Drive"
-          subtitle="MARLIN menelusuri folder KKP paket ini (sampai 4 lapis, 500 berkas) lalu menebak jenis & desa tiap berkas. Tidak ada yang masuk arsip sebelum Anda menyetujuinya."
+          subtitle="MARLIN membaca folder KKP paket ini (sampai 4 tingkat subfolder, paling banyak 500 berkas), lalu menebak jenis dan desa tiap berkas. Tidak ada yang masuk arsip sebelum Anda setujui."
         />
         <CardBody className="space-y-3">
           <form action={runPreview}>
@@ -126,15 +126,15 @@ export function ImporDriveClient({
               {previewState.preview.jumlah.terbitanSendiri > 0 ? (
                 <p className="text-[13px] text-ink-muted">
                   {previewState.preview.jumlah.terbitanSendiri} berkas tidak ditampilkan karena
-                  terbitan MARLIN sendiri (laporan yang diunggah dari sini) – datanya sudah ada,
-                  tidak perlu diimpor balik.
+                  dibuat oleh MARLIN sendiri (laporan yang diunggah dari sini). Datanya sudah ada, jadi
+                  tidak perlu diimpor lagi.
                 </p>
               ) : null}
               {previewState.preview.terpotong ? (
                 <Banner
                   tone="warning"
                   title="Belum semua berkas terbaca"
-                  description="Batas kedalaman/jumlah tercapai – impor yang tampil dulu, lalu baca ulang folder untuk sisanya."
+                  description="Batas jumlah berkas atau tingkat subfolder sudah tercapai. Impor yang tampil dulu, lalu baca ulang folder untuk sisanya."
                 />
               ) : null}
             </div>
@@ -146,7 +146,7 @@ export function ImporDriveClient({
         <Card>
           <CardHeader
             title="Langkah 2 – periksa & impor"
-            subtitle="Perbaiki jenis dokumen atau desa yang salah tebak. Kolom “nama di MARLIN” memperlihatkan hasilnya sebelum disimpan."
+            subtitle="Perbaiki jenis dokumen atau desa yang tebakannya salah. Kolom “Nama di MARLIN” menunjukkan hasilnya sebelum disimpan."
           />
           <CardBody className="space-y-4">
             {commitState?.error ? <Banner tone="error" title={commitState.error} /> : null}
@@ -159,7 +159,7 @@ export function ImporDriveClient({
                       ? `, ${commitState.result.gagal.length} gagal`
                       : ""
                   }`}
-                  description="Berkas yang berhasil sudah tersalin ke arsip MARLIN (R2) – tidak lagi bergantung pada file di Drive. Baca ulang folder untuk melihat status terbaru."
+                  description="Berkas yang berhasil sudah disalin ke arsip MARLIN (R2), jadi tidak lagi bergantung pada berkas di Drive. Baca ulang folder untuk melihat status terbaru."
                 />
                 {commitState.result.gagal.length > 0 ? (
                   <ul className="list-inside list-disc space-y-1 text-xs text-ink-muted">
@@ -195,8 +195,8 @@ export function ImporDriveClient({
             {kelebihan ? (
               <Banner
                 tone="warning"
-                title={`Sekali impor maksimum ${maxPerBatch} berkas`}
-                description={`${maxPerBatch} berkas teratas yang akan diimpor; sisanya bisa diimpor setelah ini.`}
+                title={`Sekali impor paling banyak ${maxPerBatch} berkas`}
+                description={`Yang diimpor sekarang ${maxPerBatch} berkas teratas. Sisanya bisa diimpor sesudahnya.`}
               />
             ) : null}
 

@@ -58,7 +58,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       {/* Header */}
       <header className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Dashboard Eksekutif</h1>
+          <h1 className="text-xl font-semibold text-ink">Dasbor Eksekutif</h1>
           <p className="text-sm text-ink-muted">
             Pantau laporan harian, deviasi progres, kendala, solusi, dan foto lapangan seluruh proyek.
           </p>
@@ -80,7 +80,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         <StatCard
           icon={<CheckCircle2 aria-hidden />}
           tone="success"
-          label="Sudah Submit Hari Ini"
+          label="Sudah Lapor Hari Ini"
           value={kpi.submittedToday}
           sub={
             <>
@@ -92,7 +92,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         <StatCard
           icon={<Clock aria-hidden />}
           tone="warning"
-          label="Belum Submit Hari Ini"
+          label="Belum Lapor Hari Ini"
           value={kpi.notSubmittedToday}
           sub={
             <>
@@ -153,7 +153,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="flex flex-col lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
+            <h2 className="text-sm font-semibold text-ink">Peta Pemantauan Lokasi</h2>
           </div>
           <div className="flex flex-1 flex-col p-4">
             {/* `flex-1`: peta mengisi sisa tinggi kartu, jadi kartu ini
@@ -181,7 +181,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
         <Card>
           <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold text-ink">Status Submit Lokasi Hari Ini</h2>
+            <h2 className="text-sm font-semibold text-ink">Laporan Lokasi Hari Ini</h2>
           </div>
           <div className="space-y-5 p-4">
             <div>
@@ -209,7 +209,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                 "Sudah" di bar atas, jadi keduanya saling memeriksa. */}
             <MiniList
               dot="bg-success"
-              title="Lokasi Sudah Submit"
+              title="Lokasi Sudah Lapor"
               right="Jam kirim"
               lebih={
                 data.sudahSubmit.length > 6
@@ -228,8 +228,8 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
             />
             <MiniList
               dot="bg-ink-faint"
-              title="Lokasi Belum Submit"
-              right="Update terakhir"
+              title="Lokasi Belum Lapor"
+              right="Laporan terakhir"
               lebih={
                 data.belumSubmit.length > 6
                   ? { jumlah: data.belumSubmit.length - 6, href: "/laporan" }
@@ -272,7 +272,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       <div className="grid items-start gap-4 lg:grid-cols-3">
         {/* Activity Centre */}
         <Card>
-          <PanelHeader title="Activity Centre" href="/hari-ini" hrefLabel="Lihat semua aktivitas" />
+          <PanelHeader title="Kegiatan Terbaru" href="/hari-ini" hrefLabel="Lihat semua aktivitas" />
           <div className="divide-y divide-border">
             {activity.length === 0 ? (
               <Empty icon={<Activity aria-hidden />} text="Belum ada kegiatan lapangan." />
@@ -323,7 +323,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
         {/* Ringkasan Deviasi */}
         <Card>
-          <PanelHeader title="Ringkasan Deviasi Proyek" href="/progress" hrefLabel="Lihat ranking lengkap" />
+          <PanelHeader title="Ringkasan Deviasi Proyek" href="/progress" hrefLabel="Lihat peringkat lengkap" />
           <div className="px-4 pb-3 pt-1">
             <table className="w-full table-fixed text-sm">
               <thead>
@@ -346,7 +346,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                   </tr>
                 ))}
                 {data.deviasiRanking.length === 0 ? (
-                  <tr><td colSpan={4} className="py-6 text-center text-xs text-ink-muted">Belum ada baseline/realisasi.</td></tr>
+                  <tr><td colSpan={4} className="py-6 text-center text-xs text-ink-muted">Belum ada kurva-S atau realisasi.</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -403,7 +403,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         <NavCard icon={<MapPin aria-hidden />} tone="success" title="Monitoring Lokasi" sub="daftar & detail proyek" href="/lokasi" />
         <NavCard icon={<TrendingUp aria-hidden />} tone="info" title="Analitik Progres" sub="kurva-S & deviasi" href="/progress" />
         <NavCard icon={<LayoutDashboard aria-hidden />} tone="primary" title="Peta Sebaran" sub="monitoring geografis" href="/peta" />
-        <NavCard icon={<FileText aria-hidden />} tone="warning" title="Laporan & Export" sub="rekap & unduhan" href="/laporan" />
+        <NavCard icon={<FileText aria-hidden />} tone="warning" title="Laporan & Unduhan" sub="rekap laporan" href="/laporan" />
       </div>
     </div>
   );

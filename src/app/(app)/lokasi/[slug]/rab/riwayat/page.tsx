@@ -46,7 +46,7 @@ export default async function RiwayatItemPage({
       <Card>
         <CardHeader
           title="Riwayat input item pekerjaan"
-          subtitle="Cari satu item, lihat semua tanggal pekerjaan itu dilaporkan – tanpa membuka laporan hari per hari."
+          subtitle="Cari satu item untuk melihat semua tanggal pekerjaan itu dilaporkan, tanpa perlu membuka laporan satu per satu."
           action={
             <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
               <ArrowLeft aria-hidden className="size-3.5" />
@@ -203,7 +203,7 @@ function RiwayatSatuItem({
                         {formatTanggal(b.tanggal)}
                       </Link>
                       {b.basis !== "aktif" ? (
-                        <span className="block text-[11px] text-warning">draft adendum – di luar angka resmi</span>
+                        <span className="block text-[11px] text-warning">draft adendum, belum masuk angka resmi</span>
                       ) : null}
                     </td>
                     <td className="tabular px-2 py-1.5 text-right">{formatNumber(b.volume)}</td>

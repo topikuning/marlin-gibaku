@@ -62,7 +62,7 @@ export function PurgeForm({
       <Banner
         tone="warning"
         title="Setelah dihapus, cap foto-foto itu TIDAK bisa diperbaiki lagi"
-        description="Foto ber-capnya tetap ada dan tetap tampil seperti biasa – yang hilang adalah kemampuan mengulang capnya bila ternyata salah."
+        description="Foto ber-capnya tetap ada dan tampil seperti biasa. Yang hilang adalah kesempatan memasang ulang capnya kalau ternyata salah."
       />
 
       <div className="flex flex-wrap items-end gap-2">

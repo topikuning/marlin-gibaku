@@ -65,7 +65,7 @@ export function TenderForm({
           inputMode="numeric"
           defaultValue={defaults.hpsValue}
         />
-        <HelpText>Angka rupiah tanpa desimal – pemisah titik boleh.</HelpText>
+        <HelpText>Angka rupiah tanpa desimal. Boleh pakai titik pemisah ribuan.</HelpText>
       </div>
 
       <div>
@@ -85,7 +85,7 @@ export function TenderForm({
             ))}
           </datalist>
         ) : null}
-        <HelpText>Perusahaan terimpor muncul sebagai saran; boleh juga ketik baru.</HelpText>
+        <HelpText>Perusahaan yang sudah terdaftar muncul sebagai saran. Boleh juga ketik nama baru.</HelpText>
       </div>
 
       <div>

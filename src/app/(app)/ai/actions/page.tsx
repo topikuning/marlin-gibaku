@@ -81,14 +81,14 @@ export default async function AiActionsPage() {
       <Card>
         <CardHeader
           title="Perlu Tindakan"
-          subtitle={`Antrean deterministik dari rule risiko (periode data ${startKey} – ${today}), diurutkan dampak. Menyimpan = membuat DRAFT saran, bukan mengubah data.`}
+          subtitle={`Daftar risiko dari aturan yang pasti (data ${startKey} – ${today}), diurutkan dari dampak terbesar. Tombol simpan hanya membuat DRAFT saran, tidak mengubah data.`}
         />
         <CardBody className="space-y-2">
           {queue.length === 0 ? (
             <EmptyState
               icon={CheckCircle2}
-              title="Tidak ada item perlu tindakan"
-              description="Rule risiko tidak menemukan masalah pada scope Anda."
+              title="Tidak ada yang perlu ditindaklanjuti"
+              description="Aturan risiko tidak menemukan masalah di lokasi yang bisa Anda lihat."
             />
           ) : (
             queue.map((item, i) => (
@@ -100,7 +100,7 @@ export default async function AiActionsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={SEV_TONE[item.severity]} label={`${item.severity} · ${item.ruleScore}`} />
                     <Badge tone="neutral" label={RISK_CATEGORY_LABEL[item.category]} />
-                    {item.overdue ? <Badge tone="danger" label="overdue" /> : null}
+                    {item.overdue ? <Badge tone="danger" label="lewat tenggat" /> : null}
                   </div>
                   <p className="mt-1 text-sm font-medium text-ink">
                     {item.locationName} – {item.title}
@@ -127,24 +127,24 @@ export default async function AiActionsPage() {
       <div className="space-y-3 self-start">
         <div className="grid grid-cols-2 gap-2">
           <KpiCard label="Kritis" value={String(kritis)} tone={kritis > 0 ? "danger" : "success"} />
-          <KpiCard label="Overdue" value={String(overdue)} tone={overdue > 0 ? "warning" : "success"} />
+          <KpiCard label="Lewat tenggat" value={String(overdue)} tone={overdue > 0 ? "warning" : "success"} />
           <KpiCard label="Total item" value={String(queue.length)} />
           <KpiCard label="Draft saran" value={String(antreanDraft.length)} sub="belum ditindaklanjuti" />
         </div>
         <p className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-xs leading-snug text-warning">
-          AI tidak pernah membuat Kendala/Recovery sendiri. Draft di bawah baru menjadi data nyata setelah Anda
-          menerapkannya – dan hanya pemegang izin Kendala yang bisa.
+          AI tidak pernah membuat kendala atau aksi pemulihan sendiri. Draft di bawah baru menjadi data setelah
+          diterapkan. Yang bisa menerapkannya hanya pemegang izin Kendala.
         </p>
 
         <Card>
           <CardHeader
             title="Draft saran tersimpan"
-            subtitle="Terapkan → dibuat sebagai Kendala di lokasi (aksi pemulihan ikut dibuat untuk draft recovery)."
+            subtitle="Tombol Terapkan mencatatnya sebagai kendala di lokasi. Untuk draft pemulihan, aksi pemulihannya ikut dibuat."
           />
           <CardBody className="space-y-2">
             {antreanDraft.length === 0 ? (
               <p className="text-xs text-ink-muted">
-                Belum ada draft tersimpan. Tekan “Simpan Draft” pada item antrean di kiri.
+                Belum ada draft tersimpan. Tekan “Simpan Draft” pada salah satu item di sebelah kiri.
               </p>
             ) : (
               draftTampil.map((d) => (
@@ -158,7 +158,7 @@ export default async function AiActionsPage() {
                     />
                   ) : (
                     <p className="mt-1 text-xs text-ink-faint">
-                      Perlu izin Kendala untuk menerapkan.
+                      Menerapkan draft ini butuh izin Kendala.
                     </p>
                   )}
                 </div>
@@ -166,7 +166,7 @@ export default async function AiActionsPage() {
             )}
             {antreanDraft.length > draftTampil.length ? (
               <p className="text-xs text-ink-muted">
-                +{antreanDraft.length - draftTampil.length} draft lain belum ditampilkan.
+                +{antreanDraft.length - draftTampil.length} draft lain tidak ditampilkan.
               </p>
             ) : null}
           </CardBody>

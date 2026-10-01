@@ -215,7 +215,7 @@ export async function unduhBasemap(sumber: string): Promise<{ ukuran: number }> 
       // antara salah alamat, berkas hilang, dan hak akses.
       if (res.status === 404) {
         throw new Error(
-          "berkas peta dasar belum pernah dibangun. Buka tab Actions di GitHub, jalankan workflow \"Peta dasar MARLIN\" sekali (±30–60 menit), lalu tekan tombol ini lagi. Kalau memakai cermin sendiri, isi PETA_SUMBER_URL.",
+          "berkas peta dasar belum pernah dibangun. Buka tab Actions di GitHub, jalankan workflow \"Peta dasar MARLIN\" sekali (±30–60 menit), lalu tekan tombol ini lagi. Kalau memakai salinan di server sendiri, isi PETA_SUMBER_URL.",
         );
       }
       throw new Error(`sumber peta menjawab ${res.status} ${res.statusText || ""}`.trim());
@@ -245,7 +245,7 @@ export async function unduhBasemap(sumber: string): Promise<{ ukuran: number }> 
     if (isi.kepala.jenisUbin !== "vektor") {
       await unlink(sementara).catch(() => {});
       throw new Error(
-        `arsipnya berisi ubin ${isi.kepala.jenisUbin}, bukan vektor. Peta dasar MARLIN digambar dari ubin vektor (skema Protomaps); arsip gambar tidak bisa dipakai gaya ini.`,
+        `arsipnya berisi ubin ${isi.kepala.jenisUbin}, bukan vektor. Peta dasar MARLIN digambar dari ubin vektor (skema Protomaps), jadi arsip berisi gambar tidak cocok dengan gaya peta ini.`,
       );
     }
     await rename(sementara, jalurBasemap);

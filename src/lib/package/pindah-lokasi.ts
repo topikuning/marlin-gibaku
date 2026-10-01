@@ -166,14 +166,14 @@ export async function pindahkanLokasi(
     throw new PindahLokasiError(
       `Paket "${tujuan.name}" sudah punya lokasi bernama "${kembar[0].name}". Dua nama kembar di satu ` +
         "paket membuat berkas Google Drive tidak bisa dipilah ke lokasi yang benar. Beri nama pembeda " +
-        "pada salah satunya dulu – mis. sebut kecamatannya – baru pindahkan.",
+        "pada salah satunya dulu (misalnya sebut kecamatannya), baru pindahkan.",
     );
   }
 
   for (const p of [lokasi.package, tujuan]) {
     if (!TAHAP_BOLEH.includes(p.stage)) {
       throw new PindahLokasiError(
-        `Paket "${p.name}" sudah tahap ${p.stage} – susunan lokasinya mengikuti laporan yang sudah final dan tidak bisa dipindah lewat jalur ini.`,
+        `Paket "${p.name}" sudah di tahap ${p.stage}. Susunan lokasinya mengikuti laporan yang sudah final, jadi tidak bisa dipindah lewat jalur ini.`,
       );
     }
   }

@@ -25,7 +25,7 @@ export default async function InspeksiBaruPage() {
       <PageHeader
         breadcrumb={[{ label: "Verifikasi", href: "/verifikasi" }, { label: "Catat inspeksi" }]}
         title="Catat Inspeksi"
-        description="Tersimpan sebagai draft dulu – finalkan setelah temuannya diangkat dan buktinya ditautkan."
+        description="Inspeksi disimpan sebagai draft dulu. Finalkan setelah temuannya dicatat dan buktinya ditautkan."
       />
       <Card>
         <CardHeader title="Inspeksi baru" />

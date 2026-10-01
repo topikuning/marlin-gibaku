@@ -105,7 +105,7 @@ export async function generateWahaWebhookSecretAction(): Promise<WaActionState> 
     await setWahaConfig({ webhookSecret: secret });
     await audit(user.id, "system.waha_webhook_secret", "app_setting", null, {});
     revalidatePath("/sistem");
-    return { success: "Secret webhook baru dibuat – salin URL webhook ke WAHA." };
+    return { success: "Secret webhook baru sudah dibuat. Salin URL webhook ke WAHA." };
   } catch (err) {
     return fail(err);
   }
@@ -127,7 +127,7 @@ export async function testWahaCaptureAction(): Promise<WaActionState> {
     if (!pkg?.waGroupId) {
       return {
         warning:
-          "Belum ada paket dengan grup WhatsApp tertaut. Tautkan grup dulu di Paket → Grup WhatsApp, lalu tes lagi.",
+          "Belum ada paket dengan grup WhatsApp tertaut. Tautkan grup dulu di Paket → Grup WhatsApp, lalu coba lagi.",
       };
     }
     const ts = Math.floor(Date.now() / 1000);
@@ -149,10 +149,10 @@ export async function testWahaCaptureAction(): Promise<WaActionState> {
     await audit(user.id, "system.waha_selftest", "app_setting", null, { stored: result.stored });
     if (result.stored) {
       return {
-        success: `Jalur terima→simpan SEHAT – event uji tersimpan ke paket "${pkg.name}" (grup ${pkg.waGroupId}). Kalau pesan asli tetap tak masuk, masalahnya di pengiriman WAHA, bukan MARLIN.`,
+        success: `Penerimaan pesan berjalan baik: pesan uji tersimpan ke paket "${pkg.name}" (grup ${pkg.waGroupId}). Kalau pesan asli tetap tidak masuk, masalahnya ada di pengiriman WAHA, bukan di MARLIN.`,
       };
     }
-    return { warning: `Event uji tidak tersimpan: ${result.reason}. (grup ${pkg.waGroupId})` };
+    return { warning: `Pesan uji tidak tersimpan: ${result.reason}. (grup ${pkg.waGroupId})` };
   } catch (err) {
     return fail(err);
   }
@@ -214,7 +214,7 @@ export async function setPackageWaGroupAction(
         return {
           error:
             `Grup itu sudah dipakai paket "${pemilik.name}". Satu grup WhatsApp hanya boleh ` +
-            `milik satu paket – lepaskan dulu dari paket itu, baru tautkan ke sini.`,
+            `dipakai satu paket. Lepaskan dulu dari paket itu, baru tautkan ke sini.`,
         };
       }
     }
@@ -229,7 +229,7 @@ export async function setPackageWaGroupAction(
         const info = await getGroupInfo(groupId);
         if (info === null) {
           verifikasi =
-            "ID grup TIDAK ditemukan pada akun WhatsApp pengirim – periksa lagi ID-nya, dan pastikan nomor pengirim sudah menjadi anggota grup. Nama grup belum terverifikasi.";
+            "ID grup TIDAK ditemukan pada akun WhatsApp pengirim. Periksa lagi ID-nya, dan pastikan nomor pengirim sudah menjadi anggota grup. Nama grup belum terverifikasi.";
         } else if (info.name && info.name !== info.id) {
           groupName = info.name; // nama asli dari WA menang atas ketikan manual
           verifikasi = null;
@@ -273,7 +273,7 @@ export async function listWaGroupsAction(): Promise<
       if (status.status !== "WORKING") {
         return {
           ok: false,
-          error: `Sesi WhatsApp belum siap (status: ${status.status}). Scan QR di server WAHA dulu, lalu coba lagi.`,
+          error: `Sesi WhatsApp belum siap (status: ${status.status}). Pindai QR di server WAHA dulu, lalu coba lagi.`,
         };
       }
     } catch {
@@ -460,7 +460,7 @@ function normalizeWaDest(raw: string): string {
   if (t.endsWith("@g.us") || t.endsWith("@c.us") || t.endsWith("@s.whatsapp.net")) return t;
   const digits = t.replace(/[^0-9]/g, "");
   if (digits.length >= 8) return `${digits}@c.us`;
-  throw new WahaError(`Format tujuan WA tidak dikenal: ${raw} (pakai nomor WA, atau id grup …@g.us).`);
+  throw new WahaError(`Tujuan WA tidak dikenali: ${raw}. Isi dengan nomor WA atau ID grup (…@g.us).`);
 }
 
 /**
@@ -514,7 +514,7 @@ export async function sendActivityPdfToWaAction(
     const { renderKegiatanPdf } = await import("@/lib/pdf/kegiatan");
     const { getRequestOrigin } = await import("@/lib/http");
     const result = await renderKegiatanPdf(activity.id, { baseUrl: await getRequestOrigin() });
-    if (!result) return { error: "Gagal menyusun PDF – kegiatan tidak ditemukan." };
+    if (!result) return { error: "PDF gagal dibuat karena kegiatannya tidak ditemukan." };
 
     const kindLabel = (await getActivityKindLabelMap()).get(activity.type) ?? activity.type;
     const caption = [
@@ -554,7 +554,7 @@ export async function sendActivityPdfToWaAction(
  */
 const TANPA_TUJUAN =
   "Belum ada tujuan: lokasi ini tidak terhubung ke grup WhatsApp mana pun. " +
-  "Isi nomor/ID tujuan, atau pasang grupnya – per kabupaten di halaman Lokasi, " +
+  "Isi nomor atau ID tujuan, atau pasang grupnya: per kabupaten di halaman Lokasi, " +
   "atau untuk seluruh paket di halaman Paket.";
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -779,7 +779,7 @@ export async function sendWeeklyBundleToWaAction(
     const { renderMingguanKkpPdf } = await import("@/lib/pdf/mingguan-kkp");
     const hasil = await renderMingguanKkpPdf(loc.slug, minggu);
     if (!hasil) {
-      return { error: `Berkas mingguan ke-${minggu} belum bisa disusun – lokasi ini belum punya tanggal SPMK.` };
+      return { error: `Berkas minggu ke-${minggu} belum bisa dibuat karena lokasi ini belum punya tanggal SPMK.` };
     }
 
     // Kekurangan berkas DISEBUT di keterangan kirimannya, bukan hanya tercetak
@@ -945,7 +945,7 @@ export async function sendRencanaMingguanToWaAction(
     // Kalimatnya sengaja TIDAK mengaku bukti sampai — WAHA menerbitkan id pesan
     // bahkan ketika WhatsApp menolaknya belakangan (OPEN_ISSUES WA-01).
     return {
-      success: `Rencana minggu ke-${weekNumber} diserahkan ke ${target.label}. Status sampai/terbaca tidak diketahui MARLIN – periksa grupnya bila perlu kepastian.`,
+      success: `Rencana minggu ke-${weekNumber} diserahkan ke ${target.label}. MARLIN tidak bisa tahu apakah pesannya sudah sampai atau dibaca. Cek grupnya kalau perlu kepastian.`,
     };
   } catch (err) {
     return fail(err);
@@ -1071,7 +1071,7 @@ export async function sendDailyRingkasToWaAction(
         ? ""
         : ` Dokumen ini berstatus ${d.status ? `"${d.status}"` : "tanpa laporan harian"} dan itu tercetak di halaman pertamanya.`;
     return {
-      success: `Laporan harian ringkas ${dateKey} diserahkan ke ${target.label}.${catatanStatus} Status sampai/terbaca tidak diketahui MARLIN – periksa grupnya bila perlu kepastian.`,
+      success: `Laporan harian ringkas ${dateKey} diserahkan ke ${target.label}.${catatanStatus} MARLIN tidak bisa tahu apakah pesannya sudah sampai atau dibaca. Cek grupnya kalau perlu kepastian.`,
     };
   } catch (err) {
     return fail(err);

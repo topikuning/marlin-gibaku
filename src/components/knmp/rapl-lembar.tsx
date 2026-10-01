@@ -84,7 +84,7 @@ export function RaplLembar({
               </td>
             </tr>
             <tr>
-              <td className="py-0.5">Sumber daya yang sudah berharga</td>
+              <td className="py-0.5">Sumber daya yang sudah ada harganya</td>
               <td className="py-0.5 text-right font-semibold">
                 {harga.berharga} dari {harga.baris.length} ({formatPct(pctHarga, 1)})
               </td>
@@ -94,7 +94,7 @@ export function RaplLembar({
         {pctNilai < 99.95 || pctHarga < 99.95 ? (
           <p className="mt-1.5 border-t border-black pt-1 leading-snug">
             <strong>Angka di lembar ini BELUM mencakup seluruh proyek.</strong> Biaya yang belum
-            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai RAB aktif – jadi selisih
+            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai RAB aktif. Jadi, selisih
             di bawah belum boleh dibaca sebagai keuntungan.
           </p>
         ) : null}
@@ -131,7 +131,7 @@ export function RaplLembar({
             <p className="mb-1 text-[12px] font-bold uppercase">
               {LABEL[kat.kategori] ?? kat.kategori} – {formatRupiah(kat.biaya)}
               <span className="ms-2 text-[10px] font-normal">
-                ({kat.berharga} dari {kat.total} berharga)
+                ({kat.berharga} dari {kat.total} sudah ada harganya)
               </span>
             </p>
             <table className="w-full border-collapse">
@@ -156,7 +156,7 @@ export function RaplLembar({
                       {b.harga === null ? "–" : formatRupiah(b.harga)}
                     </td>
                     <td className="border border-black px-1 py-0.5 text-right">
-                      {b.biaya === null ? "belum berharga" : formatRupiah(b.biaya)}
+                      {b.biaya === null ? "belum ada harga" : formatRupiah(b.biaya)}
                     </td>
                   </tr>
                 ))}
@@ -164,7 +164,7 @@ export function RaplLembar({
             </table>
             {baris.length > tampil.length ? (
               <p className="mt-0.5 text-[10px] italic">
-                {baris.length - tampil.length} baris lain tidak dicetak (lembar A4 tidak memuat).
+                {baris.length - tampil.length} baris lain tidak dicetak (tidak muat di lembar A4).
                 Daftar lengkapnya ada di unduhan Excel.
               </p>
             ) : null}

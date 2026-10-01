@@ -151,8 +151,8 @@ export function PindahBerkasPanel({
         ) : latar.terakhir ? (
           <span className="text-xs text-ink-muted">
             {latar.terakhir.alasan === "lenovo-hampir-penuh"
-              ? "Putaran terakhir berhenti: sisa disk Lenovo di bawah 20 GB."
-              : `Putaran terakhir: ${latar.terakhir.dipindah} berkas (${ukuran(latar.terakhir.bytesDipindah)}) dipindah`}
+              ? "Pemindahan terakhir berhenti: sisa disk Lenovo di bawah 20 GB."
+              : `Pemindahan terakhir: ${latar.terakhir.dipindah} berkas (${ukuran(latar.terakhir.bytesDipindah)}) dipindah`}
             {latar.terakhir.gagal > 0 ? ` · ${latar.terakhir.gagal} gagal (${latar.terakhir.galat.join("; ")})` : ""}
           </span>
         ) : null}

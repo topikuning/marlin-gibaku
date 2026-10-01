@@ -39,7 +39,7 @@ describe("parseRecapWorkbook", () => {
     const ws = wb.addWorksheet("X");
     ws.addRow(["foo", "bar", "baz"]);
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
-    await expect(parseRecapWorkbook(buf)).rejects.toThrow(/Header/i);
+    await expect(parseRecapWorkbook(buf)).rejects.toThrow(/judul kolom tidak ditemukan/i);
   });
 });
 

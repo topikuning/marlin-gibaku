@@ -101,12 +101,12 @@ function DraftActions({
           {persetujuan.kurang.length > 0 ? (
             <p className="mt-1 text-warning">Masih menunggu: {persetujuan.kurang.join(" + ")}.</p>
           ) : (
-            <p className="mt-1 text-success">Lengkap – draft siap diaktifkan.</p>
+            <p className="mt-1 text-success">Persetujuan lengkap. Draft siap diaktifkan.</p>
           )}
           {persetujuan.gugur.length > 0 ? (
             <p className="mt-1 text-warning">
-              Gugur karena draft berubah setelah disetujui:{" "}
-              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")} – perlu menyetujui ulang.
+              Persetujuan batal karena draft berubah setelah disetujui:{" "}
+              {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")}. Perlu disetujui ulang.
             </p>
           ) : null}
           {persetujuan.bolehTtd ? (
@@ -125,7 +125,7 @@ function DraftActions({
             </form>
           ) : (
             <p className="mt-1 text-ink-faint">
-              Peran Anda tidak berhak menandatangani aktivasi adendum.
+              Peran Anda tidak termasuk yang boleh menyetujui aktivasi adendum.
             </p>
           )}
         </div>
@@ -140,7 +140,7 @@ function DraftActions({
             disabled={discarding || approving || terkunci}
             title={
               terkunci
-                ? `Terkunci – masih menunggu ${persetujuan!.kurang.join(" + ")}`
+                ? `Belum bisa diaktifkan. Masih menunggu ${persetujuan!.kurang.join(" + ")}`
                 : undefined
             }
           >
@@ -226,7 +226,7 @@ function HapusRevisi({
               {v.pemulihan.length} volume yang dulu dipangkas revisi ini dikembalikan, lalu dicek ulang terhadap RAB aktif
               {v.pemulihanDilewati > 0 ? ` (${v.pemulihanDilewati} dilewati: sudah diubah orang sesudahnya)` : ""}
             </li>
-            <li>{v.kurvaS} kurva-S yang lahir dari revisi ini ikut dihapus</li>
+            <li>{v.kurvaS} kurva-S yang dibuat dari revisi ini ikut dihapus</li>
           </ul>
           {v.pemulihan.length > 0 ? (
             <details className="text-ink-muted">

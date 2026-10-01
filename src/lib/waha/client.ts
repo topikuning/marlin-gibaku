@@ -46,7 +46,7 @@ async function cfg() {
   const c = await getWahaConfig();
   if (!c) {
     throw new WahaError(
-      "Integrasi WhatsApp (WAHA) belum dikonfigurasi – atur URL & API key di halaman Sistem.",
+      "Integrasi WhatsApp (WAHA) belum diatur. Isi URL dan API key di halaman Sistem.",
     );
   }
   return c;
@@ -153,7 +153,7 @@ async function wahaFetch(
     const timeout = err instanceof Error && err.name === "TimeoutError";
     throw new WahaError(
       timeout
-        ? `Server WAHA tidak merespons dalam ${Math.round(timeoutMs / 1000)} detik (${c.baseUrl}) – cek apakah servernya hidup & tidak kelebihan beban.`
+        ? `Server WAHA tidak merespons dalam ${Math.round(timeoutMs / 1000)} detik (${c.baseUrl}). Cek apakah servernya hidup dan tidak kelebihan beban.`
         : `Tidak bisa menghubungi server WAHA (${c.baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}. ` +
           "Bila WAHA di Railway yang sama, pakai URL private networking dengan http:// (bukan https://), mis. http://waha.railway.internal:3000.",
     );
@@ -421,7 +421,7 @@ export async function resolveGroupByInvite(rawLink: string): Promise<WahaGroup> 
   const rec = (typeof data === "object" && data ? data : {}) as Record<string, unknown>;
   const id = extractGroupId(rec.id ?? data);
   if (!id.endsWith("@g.us")) {
-    throw new WahaError("Tidak bisa mengambil ID grup dari link ini. Pastikan link undangan benar & masih aktif.");
+    throw new WahaError("Tidak bisa mengambil ID grup dari link ini. Pastikan link undangannya benar dan masih aktif.");
   }
   return { id, name: extractGroupName(rec, id) };
 }

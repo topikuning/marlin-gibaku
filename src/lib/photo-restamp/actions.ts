@@ -75,7 +75,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
 
   try {
     const actor = await requireCapability("photo.restamp");
-    if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
+    if (!isR2Configured()) return { error: "Penyimpanan foto belum diatur. Hubungi admin." };
 
     await pastikanFotoBercap([photoId]);
   const k = await konteksFoto(photoId);
@@ -195,7 +195,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     // Tanpa ketikan DAN aturan terbaru tidak mengubah apa pun = perbaikan kosong,
     // yang cuma meninggalkan berkas lama di bucket.
     if (manualFields.length === 0 && !aturanBerubah) {
-      return { error: "Tidak ada yang berubah – ubah minimal satu nilai sebelum menyimpan." };
+      return { error: "Tidak ada yang berubah. Ubah minimal satu isian sebelum menyimpan." };
     }
 
     // ── Render ulang dari berkas ASLI ──
@@ -379,7 +379,7 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
       select: { id: true, originalKey: true, originalBytes: true, locationId: true, stampPending: true },
     });
     if (!p) return { error: "Foto tidak ditemukan." };
-    if (p.stampPending) return { error: "Cap foto ini masih dibuat – coba lagi sebentar lagi." };
+    if (p.stampPending) return { error: "Cap foto ini masih diproses. Coba lagi sebentar lagi." };
     if (!p.locationId) return { error: "Foto ini tidak terhubung ke lokasi mana pun." };
     await requireLocationAccess(actor, p.locationId);
     if (!p.originalKey) return { error: "Foto ini memang tidak punya arsip berkas asli." };
@@ -437,7 +437,7 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
 
   try {
     const actor = await requireCapability("daily_report.create");
-    if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
+    if (!isR2Configured()) return { error: "Penyimpanan foto belum diatur. Hubungi admin." };
 
     await pastikanFotoBercap([photoId]);
   const k = await konteksFoto(photoId);
@@ -447,7 +447,7 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
     if (!k.originalKey) {
       return {
         error: k.originalPurgedAt
-          ? "Arsip berkas asli foto ini sudah dihapus – orientasinya tidak bisa diperbaiki lagi."
+          ? "Arsip berkas asli foto ini sudah dihapus, jadi orientasinya tidak bisa diperbaiki lagi."
           : "Foto ini diunggah sebelum arsip berkas asli aktif, jadi orientasinya tidak bisa diperbaiki.",
       };
     }
@@ -576,7 +576,7 @@ const HEIC_PER_JALAN = 20;
 export async function perbaikiFotoHeicAction(): Promise<PerbaikiHeicState> {
   try {
     const actor = await requireCapability("photo.restamp");
-    if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
+    if (!isR2Configured()) return { error: "Penyimpanan foto belum diatur. Hubungi admin." };
 
     /*
      * Penanda foto bermasalah = kunci berakhiran .heic/.heif. Bukan `mimeType`:

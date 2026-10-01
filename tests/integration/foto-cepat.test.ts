@@ -392,7 +392,7 @@ describe("memakai foto dari kantong", () => {
       {},
       fd({ photoIds: [f.id], tujuan: "kegiatan", kegiatanId: kegiatanFinalId }),
     );
-    expect(hasil.error).toMatch(/difinalkan/i);
+    expect(hasil.error).toMatch(/sudah final/i);
   });
 
   it("foto tanpa arsip asli TETAP dipakai, capnya tetap dasar – dan itu disebut", async () => {

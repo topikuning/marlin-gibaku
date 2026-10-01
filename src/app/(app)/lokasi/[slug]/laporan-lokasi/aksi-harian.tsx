@@ -90,7 +90,7 @@ export function AksiHarian({
   // Sudah pernah terkirim → tombolnya berkata "ulang". Label yang sama untuk
   // kiriman pertama dan kiriman kedua membuat orang mengirim dobel tanpa sadar.
   const labelWa = sudahWa ? "Kirim ulang WA" : "Kirim WA";
-  const labelDrive = sudahDrive ? "Upload ulang ke Drive" : "Upload ke Drive";
+  const labelDrive = sudahDrive ? "Unggah ulang ke Drive" : "Unggah ke Drive";
   /*
    * Label pendek untuk lebar 1280–1535 – DIUKUR, bukan ditebak.
    *
@@ -117,7 +117,7 @@ export function AksiHarian({
     href: `${hrefPdf}?sampul=0`,
     jenis: "berkas",
     labelSibuk: "Menyiapkan PDF…",
-    hint: "Untuk yang sudah memegang berkas mingguannya",
+    hint: "Untuk yang sudah punya berkas mingguannya",
   };
   const kirimWaPilihan: PilihanBerkas = {
     label: labelWa,

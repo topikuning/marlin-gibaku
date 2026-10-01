@@ -248,8 +248,8 @@ describe("bukti (EvidenceLink)", () => {
   });
 
   it("dua sumber sekaligus / tanpa sumber ditolak", async () => {
-    await expect(linkEvidence({ findingId, photoId, documentId }, smId)).rejects.toThrow(/tepat satu/i);
-    await expect(linkEvidence({ findingId }, smId)).rejects.toThrow(/tepat satu/i);
+    await expect(linkEvidence({ findingId, photoId, documentId }, smId)).rejects.toThrow(/pilih satu bukti/i);
+    await expect(linkEvidence({ findingId }, smId)).rejects.toThrow(/pilih satu bukti/i);
   });
 
   it("CHECK constraint DB ikut menjaga (bukan cuma validasi aplikasi)", async () => {

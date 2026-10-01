@@ -22,7 +22,7 @@ function revalidateInspeksi(id?: string): void {
 
 const createSchema = z.object({
   locationId: z.uuid(),
-  inspectionDateKey: z.string().regex(DATE_KEY, "Tanggal inspeksi tidak sah"),
+  inspectionDateKey: z.string().regex(DATE_KEY, "Tanggal inspeksi belum diisi dengan benar"),
   title: z.string().trim().min(3, "Judul inspeksi minimal 3 karakter").max(200),
   notes: z.string().trim().max(8000).optional(),
   recommendation: z.string().trim().max(4000).optional(),

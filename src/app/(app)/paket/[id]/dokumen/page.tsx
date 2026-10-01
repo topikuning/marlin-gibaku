@@ -130,7 +130,7 @@ export default async function DokumenPaketPage({
       <Card>
         <CardHeader
           title="Kepatuhan administrasi induk (paket)"
-          subtitle="Berlaku untuk seluruh lokasi. Status diturunkan otomatis dari dokumen yang diunggah."
+          subtitle="Berlaku untuk seluruh lokasi. Statusnya terisi otomatis dari dokumen yang diunggah."
           action={
             <div className="flex flex-wrap gap-2">
               {/*
@@ -295,7 +295,7 @@ export default async function DokumenPaketPage({
         <Card className="self-start">
           <CardHeader
             title="Impor dari folder Drive KKP"
-            subtitle="Berkas yang sudah ada di folder KKP ditarik masuk: MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui."
+            subtitle="MARLIN membaca berkas di folder KKP, menebak jenis dan desanya, lalu menyalin yang Anda setujui ke sini."
             /* Keadaannya disebut di kepala kartu, bukan disembunyikan sebagai
                catatan kecil di bawah tombol yang ternyata belum bisa dipakai. */
             action={
@@ -319,8 +319,8 @@ export default async function DokumenPaketPage({
             ) : (
               <>
                 <p className="text-[13px] text-ink-muted">
-                  Paket ini belum punya folder Google Drive, jadi impor belum punya tempat untuk
-                  membaca. Tautkan dulu di Ringkasan → Komunikasi paket.
+                  Paket ini belum punya folder Google Drive, jadi belum ada yang bisa diimpor.
+                  Tautkan dulu foldernya di Ringkasan → Komunikasi paket.
                 </p>
                 <ButtonLink href={`/paket/${pkg.id}`} className="w-full">
                   Tautkan folder dulu

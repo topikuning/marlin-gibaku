@@ -80,8 +80,8 @@ export function DocumentEditForm({
         </Label>
         <Input id="e-title" name="title" defaultValue={current.title} required />
         <p className="mt-1 text-xs text-ink-muted">
-          Nama yang tampil di daftar dibentuk otomatis dari jenis + lokasi + tanggal + nomor. Judul di
-          sini hanya jadi keterangan tambahan bila menambah informasi.
+          Nama di daftar dibuat otomatis dari jenis, lokasi, tanggal, dan nomor dokumen. Judul ini hanya
+          menjadi keterangan tambahan, jadi isi kalau memang menambah informasi.
         </p>
       </div>
       <div>
@@ -151,13 +151,13 @@ export function VoidDocumentForm({ target, displayName }: { target: ManageTarget
           name="reason"
           rows={2}
           required
-          placeholder="Mis. salah lokasi – berkas ini milik Desa Pesisir, bukan Kedungrejo"
+          placeholder="Mis. salah lokasi, berkas ini milik Desa Pesisir, bukan Kedungrejo"
         />
       </div>
       <ConfirmSubmit
         label="Batalkan dokumen"
         title="Batalkan dokumen ini?"
-        description={`"${displayName}" akan hilang dari daftar dokumen dan tidak lagi dihitung sebagai bukti milestone administrasi. File & jejak audit tetap tersimpan – dokumen bisa dipulihkan kembali.`}
+        description={`"${displayName}" akan hilang dari daftar dokumen dan tidak lagi dihitung sebagai bukti milestone administrasi. Berkas dan catatan auditnya tetap tersimpan, jadi dokumen ini masih bisa dipulihkan.`}
         confirmLabel="Ya, batalkan"
         variant="danger"
         confirmVariant="danger"
@@ -207,7 +207,7 @@ export function DeleteDocumentForm({
       <ConfirmSubmit
         label="Hapus permanen"
         title="Hapus dokumen ini permanen?"
-        description={`"${displayName}" dan filenya dihapus dari penyimpanan. TIDAK BISA dipulihkan – yang tersisa hanya catatan audit bahwa dokumen ini pernah ada dan siapa yang menghapusnya.`}
+        description={`"${displayName}" dan berkasnya akan dihapus dari penyimpanan dan TIDAK BISA dipulihkan. Yang tersisa hanya catatan audit bahwa dokumen ini pernah ada dan siapa yang menghapusnya.`}
         confirmLabel="Ya, hapus permanen"
         variant="danger"
         confirmVariant="danger"

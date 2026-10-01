@@ -97,7 +97,7 @@ export function PemilikForm({
 
       {luar ? (
         <p className="w-full text-[11px] text-warning">
-          PIC di luar MARLIN tidak menerima pengingat otomatis – penagihannya manual.
+          PIC yang bukan pengguna MARLIN tidak menerima pengingat otomatis. Tindak lanjutnya perlu ditanyakan sendiri.
         </p>
       ) : null}
 

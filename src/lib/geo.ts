@@ -41,10 +41,10 @@ export function parseCoordinatePair(rawLat: unknown, rawLng: unknown): CoordPars
 
   if (lat === null && lng === null) return { ok: true, lat: null, lng: null };
   if (lat === null || lng === null) {
-    return { ok: false, error: "Isi latitude DAN longitude bersamaan (atau kosongkan keduanya)." };
+    return { ok: false, error: "Isi latitude dan longitude bersamaan, atau kosongkan keduanya." };
   }
   if (Number.isNaN(lat) || Number.isNaN(lng)) {
-    return { ok: false, error: "Koordinat harus berupa angka, mis. -6.8710100 dan 109.2531230." };
+    return { ok: false, error: "Koordinat harus diisi angka, misalnya -6.8710100 dan 109.2531230." };
   }
   // Petunjuk khusus untuk kekeliruan paling sering: lat & lng tertukar.
   if (
@@ -54,19 +54,19 @@ export function parseCoordinatePair(rawLat: unknown, rawLng: unknown): CoordPars
   ) {
     return {
       ok: false,
-      error: `Latitude dan longitude tampaknya tertukar – coba latitude ${lng} dan longitude ${lat}.`,
+      error: `Latitude dan longitude sepertinya tertukar. Coba latitude ${lng} dan longitude ${lat}.`,
     };
   }
   if (lat < LAT_MIN || lat > LAT_MAX) {
     return {
       ok: false,
-      error: `Latitude ${lat} di luar wilayah Indonesia (${LAT_MIN} s/d ${LAT_MAX}). Latitude Indonesia umumnya negatif (selatan khatulistiwa).`,
+      error: `Latitude ${lat} di luar wilayah Indonesia (antara ${LAT_MIN} dan ${LAT_MAX}). Latitude Indonesia umumnya negatif karena berada di selatan khatulistiwa.`,
     };
   }
   if (lng < LNG_MIN || lng > LNG_MAX) {
     return {
       ok: false,
-      error: `Longitude ${lng} di luar wilayah Indonesia (${LNG_MIN} s/d ${LNG_MAX}).`,
+      error: `Longitude ${lng} di luar wilayah Indonesia (antara ${LNG_MIN} dan ${LNG_MAX}).`,
     };
   }
   return { ok: true, lat, lng };

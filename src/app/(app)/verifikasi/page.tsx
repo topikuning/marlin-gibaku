@@ -46,7 +46,7 @@ export default async function VerifikasiPage({
     <div className="space-y-4">
       <PageHeader
         title="Verifikasi"
-        description="Workspace pemeriksaan – laporan harian, inspeksi lapangan, dan temuan di lokasi penugasan Anda."
+        description="Tempat memeriksa laporan harian, inspeksi lapangan, dan temuan di lokasi tugas Anda."
         actions={<ButtonLink href="/verifikasi/inspeksi/baru">Catat inspeksi</ButtonLink>}
       />
 
@@ -80,13 +80,13 @@ export default async function VerifikasiPage({
       {bagian === "antrean" ? (
         <>
           <Card>
-            <CardHeader title={`${belumDiperiksa.length} laporan belum diperiksa`} subtitle="Terlama menunggu di atas – klik untuk membuka laporan aslinya" />
+            <CardHeader title={`${belumDiperiksa.length} laporan belum diperiksa`} subtitle="Yang paling lama menunggu ada di atas. Klik untuk membuka laporannya." />
             <CardBody>
               {belumDiperiksa.length === 0 ? (
                 <EmptyState
                   icon={ShieldCheck}
                   title="Tidak ada laporan yang menunggu"
-                  description="Semua laporan terkirim di lokasi penugasan Anda sudah diperiksa – atau belum ada penugasan lokasi."
+                  description="Semua laporan yang masuk dari lokasi tugas Anda sudah diperiksa, atau Anda belum ditugaskan ke lokasi mana pun."
                 />
               ) : (
                 <ul className="divide-y divide-border">
@@ -174,7 +174,7 @@ export default async function VerifikasiPage({
           <CardHeader title={`${temuanMenunggu.length} temuan menunggu verifikasi Anda`} />
           <CardBody>
             {temuanMenunggu.length === 0 ? (
-              <EmptyState icon={ShieldCheck} title="Tidak ada yang menunggu" description="Tidak ada temuan berstatus menunggu verifikasi di lokasi penugasan Anda." />
+              <EmptyState icon={ShieldCheck} title="Tidak ada yang menunggu" description="Tidak ada temuan yang menunggu verifikasi di lokasi tugas Anda." />
             ) : (
               <ul className="divide-y divide-border">
                 {temuanMenunggu.map((t) => (

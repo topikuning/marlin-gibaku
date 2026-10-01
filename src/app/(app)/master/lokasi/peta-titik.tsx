@@ -156,8 +156,8 @@ export function PetaTitik({
       <div ref={wadah} style={{ height: tinggi }} className="w-full overflow-hidden rounded-md border border-border" />
       {galat ? (
         <p className="rounded-md border border-danger px-2 py-1 text-[11px] text-danger">
-          Sebagian peta gagal dimuat – {galat}. Koordinat tetap bisa diisi manual; keadaan peta dasar
-          ada di layar Sistem.
+          Sebagian peta gagal dimuat ({galat}). Koordinat tetap bisa diisi manual. Keadaan peta dasar
+          bisa dilihat di halaman Sistem.
         </p>
       ) : null}
       {pilihan.length > 1 ? (
@@ -178,7 +178,7 @@ export function PetaTitik({
             </button>
           ))}
           <span className="self-center pl-1 text-[11px] text-ink-faint">
-            Satelit memperlihatkan apakah titiknya benar-benar di kampung itu.
+            Tampilan satelit membantu memastikan titiknya benar-benar di kampung itu.
           </span>
         </div>
       ) : null}

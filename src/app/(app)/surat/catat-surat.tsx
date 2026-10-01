@@ -242,7 +242,7 @@ export function CatatSurat({
               </Button>
               <span className="text-[13px] text-ink-muted">
                 {berkas
-                  ? "Satu permintaan – semua isian di bawah terisi sekaligus."
+                  ? "Sekali baca, semua isian di bawah langsung terisi."
                   : "Pilih berkasnya dulu."}
               </span>
             </div>
@@ -257,14 +257,14 @@ export function CatatSurat({
           <Banner
             tone="info"
             title="Isian di bawah diusulkan AI – periksa dulu"
-            description="Terutama nomor, tanggal, dan pihaknya. Medan yang tidak tertulis di surat sengaja dibiarkan kosong, bukan ditebak."
+            description="Terutama nomor, tanggal, dan pihaknya. Isian yang tidak tertulis di surat sengaja dibiarkan kosong, bukan ditebak."
           />
         ) : null}
 
         {potensi ? (
           <Banner
             tone="warning"
-            title={`AI menduga surat ini berpotensi jadi ${potensi.jenis}`}
+            title={`AI menduga surat ini bisa menjadi ${potensi.jenis}`}
             description={`${potensi.alasan ?? ""} Setelah surat tersimpan, gunakan tombol "Jadikan kendala/temuan" pada barisnya bila memang perlu.`}
           />
         ) : null}
@@ -352,7 +352,7 @@ export function CatatSurat({
             </div>
             <div>
               <Label htmlFor="cs-kategori" required>
-                Perihal soal
+                Kategori
               </Label>
               <Combobox
                 id="cs-kategori"
@@ -379,7 +379,7 @@ export function CatatSurat({
                 value={isi.packageId}
                 onChange={(v) => setIsi({ ...isi, packageId: v })}
                 options={[
-                  { value: "", label: "– tidak menunjuk paket –" },
+                  { value: "", label: "– tidak terkait paket –" },
                   ...paket.map((p) => ({ value: p.id, label: p.name })),
                 ]}
               />
@@ -392,7 +392,7 @@ export function CatatSurat({
                 value={isi.locationId}
                 onChange={(v) => setIsi({ ...isi, locationId: v })}
                 options={[
-                  { value: "", label: "– tidak menunjuk lokasi –" },
+                  { value: "", label: "– tidak terkait lokasi –" },
                   ...lokasi.map((l) => ({ value: l.id, label: l.name })),
                 ]}
               />

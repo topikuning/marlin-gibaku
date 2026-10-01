@@ -113,7 +113,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   const daftar = daftarAkar();
   if (adalahAkar({ username: d.username, role: targetRole }, daftar) && !adalahAkar(actor, daftar)) {
     return {
-      error: "Username itu terdaftar sebagai super admin utama – hanya super admin utama yang boleh membuat akunnya.",
+      error: "Username itu terdaftar sebagai super admin utama. Hanya super admin utama yang boleh membuat akunnya.",
     };
   }
 
@@ -131,7 +131,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   const exists = await db.user.findFirst({
     where: { OR: [{ username: d.username }, ...(d.email ? [{ email: d.email.toLowerCase() }] : [])] },
   });
-  if (exists) return { error: "Username/email sudah dipakai." };
+  if (exists) return { error: "Username atau email itu sudah dipakai akun lain." };
 
   const user = await db.user.create({
     data: {
@@ -268,7 +268,7 @@ function requireOutranks(
   const daftar = daftarAkar();
   if (adalahAkar(target, daftar)) {
     throw new ForbiddenError(
-      `Tidak bisa ${aksi} akun super admin utama – keluarkan namanya dari SUPER_ADMIN_UTAMA lebih dulu.`,
+      `Tidak bisa ${aksi} akun super admin utama. Keluarkan dulu namanya dari SUPER_ADMIN_UTAMA.`,
     );
   }
   if (adalahAkar(actor, daftar)) return;
@@ -289,7 +289,7 @@ async function assertBukanAdminTerakhir(actor: SessionUser, targetId: string): P
   });
   if (adminAktif === 0) {
     throw new ForbiddenError(
-      "Ini admin aktif terakhir di organisasi – angkat admin lain dulu sebelum menonaktifkannya.",
+      "Ini admin aktif terakhir di organisasi. Angkat admin lain dulu sebelum menonaktifkannya.",
     );
   }
 }
@@ -432,7 +432,7 @@ export async function setUserRole(_prev: UserActionState, formData: FormData): P
     const daftar = daftarAkar();
     if (adalahAkar({ username: target.username, role }, daftar) && !adalahAkar(actor, daftar)) {
       return {
-        error: "Akun itu terdaftar sebagai super admin utama – hanya super admin utama yang boleh mengangkatnya.",
+        error: "Akun itu terdaftar sebagai super admin utama. Hanya super admin utama yang boleh mengangkatnya.",
       };
     }
     // Turun dari admin → pastikan masih ada admin lain yang aktif.
@@ -459,6 +459,6 @@ export async function setUserRole(_prev: UserActionState, formData: FormData): P
   // (super_admin/program_director), penugasan lamanya cuma tidak terpakai —
   // dan kembali berlaku bila suatu saat diturunkan lagi.
   return {
-    success: `Peran diganti menjadi ${ROLE_LABEL[role]}. Sesi lamanya dicabut – pengguna harus masuk ulang.`,
+    success: `Peran diganti menjadi ${ROLE_LABEL[role]}. Ia harus masuk ulang karena sesi lamanya sudah diakhiri.`,
   };
 }

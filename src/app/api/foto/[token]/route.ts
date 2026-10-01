@@ -13,13 +13,13 @@ import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
   const photoId = verifyPhotoToken(token);
-  if (!photoId) return NextResponse.json({ error: "Link tidak valid atau kedaluwarsa." }, { status: 404 });
+  if (!photoId) return NextResponse.json({ error: "Link tidak berlaku atau sudah kedaluwarsa." }, { status: 404 });
 
   const photo = await db.photo.findUnique({ where: { id: photoId }, select: { r2Key: true } });
   if (!photo) return NextResponse.json({ error: "Foto tidak ditemukan." }, { status: 404 });
 
   if (!isR2Configured()) {
-    return NextResponse.json({ error: "Penyimpanan file belum dikonfigurasi." }, { status: 503 });
+    return NextResponse.json({ error: "Penyimpanan berkas belum diatur. Hubungi admin." }, { status: 503 });
   }
   const url = await alamatBerkas(photo.r2Key, 300);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.

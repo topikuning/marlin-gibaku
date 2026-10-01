@@ -177,8 +177,8 @@ export async function buildRencanaKkpPdf(
         { text: r.ppc.volumePct == null ? "–" : `${p2(r.ppc.volumePct)} (pelengkap)`, align: "center" },
         {
           text:
-            "PPC dihitung per komitmen dan biner – tuntas atau tidak. Pekerjaan yang baru 80% selesai " +
-            "tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: 70%.",
+            "PPC dihitung per komitmen: tiap komitmen hanya tuntas atau belum. Pekerjaan yang baru 80% " +
+            "selesai belum bisa disusul pekerjaan berikutnya, jadi dihitung belum tuntas. Angka sehat di lapangan: 70%.",
         },
       ],
       ppcOpt,

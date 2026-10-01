@@ -103,8 +103,8 @@ export function HariNihilPanel({
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-semibold text-ink">Hari ini tidak ada kegiatan?</p>
             <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
-              Hujan, libur, atau menunggu material/lahan – tetap harus dilaporkan. Sebabnya dicatat
-              supaya hari hujan bisa dihitung untuk klaim perpanjangan waktu.
+              Hujan, libur, atau menunggu material/lahan juga tetap harus dilaporkan. Sebabnya
+              dicatat supaya hari hujan bisa dihitung untuk klaim perpanjangan waktu.
             </p>
             <Button className="mt-3 w-full sm:w-auto" onClick={() => setBuka(true)}>
               Nyatakan tidak ada kegiatan
@@ -151,8 +151,8 @@ export function HariNihilPanel({
         ditanya.
       */}
       <p className="text-[12px] text-ink-muted">
-        Sebabnya dicatat supaya bisa dihitung – hari hujan menjadi dasar klaim perpanjangan waktu,
-        dan hari &quot;menunggu&quot; bisa ditagih lewat papan kendala.
+        Sebabnya perlu dicatat. Hari hujan menjadi dasar klaim perpanjangan waktu, dan hari
+        &quot;menunggu&quot; bisa ditagih lewat papan kendala.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" loading={pending}>

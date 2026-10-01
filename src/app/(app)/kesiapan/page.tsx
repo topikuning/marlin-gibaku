@@ -29,7 +29,7 @@ export default async function KesiapanPage() {
     <div className="space-y-4">
       <PageHeader
         title="Kesiapan"
-        description="Kesiapan termin, PHO, FHO, dan close-out per paket – dari mesin aturan, bukan perkiraan. Progress terverifikasi = laporan disetujui + final."
+        description="Kesiapan termin, PHO, FHO, dan penutupan tiap paket, dihitung dari aturan yang pasti – bukan perkiraan. Progress terverifikasi berasal dari laporan yang sudah disetujui atau final."
         actions={
           can(user.role, "report.export") ? (
             <ButtonLink href="/api/kesiapan/pdf" variant="secondary" unduhan labelSibuk="Menyiapkan…">
@@ -45,7 +45,7 @@ export default async function KesiapanPage() {
             <EmptyState
               icon={Gauge}
               title="Belum ada paket dalam pelaksanaan"
-              description="Kesiapan dihitung untuk paket berstatus pelaksanaan, serah terima, atau selesai di lingkup Anda."
+              description="Kesiapan dihitung untuk paket berstatus pelaksanaan, serah terima, atau selesai yang bisa Anda lihat."
             />
           </CardBody>
         </Card>

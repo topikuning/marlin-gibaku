@@ -138,7 +138,7 @@ export function TabelKategori({
       </div>
       {adaBanding ? null : (
         <p className="text-[11px] text-ink-faint">
-          Belum ada RAB aktif di lokasi ini, jadi tidak ada angka kontrak untuk diadu – kolom
+          Belum ada RAB aktif di lokasi ini, jadi belum ada angka kontrak untuk dibandingkan. Kolom
           pembanding baru muncul saat mengimpor adendum.
         </p>
       )}

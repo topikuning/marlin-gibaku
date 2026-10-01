@@ -145,7 +145,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
       num("Pencapaian volume (%)", r.ppc.volumePct, PCT_FMT, "pelengkap, bukan pengganti PPC");
     }
     const catatan = ws.addRow([
-      "PPC dihitung per komitmen dan biner – tuntas atau tidak. Pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: >= 70%.",
+      "PPC dihitung per komitmen: tiap komitmen hanya tuntas atau belum. Pekerjaan yang baru 80% selesai belum bisa disusul pekerjaan berikutnya, jadi dihitung belum tuntas. Angka sehat di lapangan: >= 70%.",
     ]);
     catatan.getCell(1).font = { size: 8, italic: true };
     catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };

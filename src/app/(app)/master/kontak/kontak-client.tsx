@@ -101,7 +101,7 @@ export function KontakClient({
     temuan.push({
       judul: `${kenaGanda} kontak menunjuk tujuan yang sama`,
       keterangan:
-        "Nama boleh berbeda, tapi alamat WhatsApp-nya sama – laporan terkirim dua kali ke penerima yang sama.",
+        "Namanya berbeda, tapi nomor WhatsApp-nya sama, jadi laporan terkirim dua kali ke penerima yang sama.",
       nada: "peringatan",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaringTujuan("ganda")}>
@@ -189,8 +189,8 @@ function ContactSection({
       <div className="border-b border-border px-3 pt-3">
         <p className="text-[13px] font-semibold text-ink">Kontak tujuan kirim</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          Ke mana laporan dikirim lewat WhatsApp. Daftar ini milik akun Anda sendiri – akun lain
-          tidak melihatnya.
+          Ke mana laporan dikirim lewat WhatsApp. Daftar ini hanya milik akun Anda. Akun lain tidak
+          bisa melihatnya.
         </p>
       </div>
 
@@ -261,7 +261,7 @@ function ContactSection({
         buka={dibuka !== null}
         onTutup={() => setIdBuka(null)}
         judul={dibuka?.name ?? "Kontak"}
-        keterangan={dibuka && !dibuka.mine ? `Milik ${dibuka.ownerName} – perubahan tercatat di jejak audit.` : "Tujuan kirim laporan WhatsApp"}
+        keterangan={dibuka && !dibuka.mine ? `Milik ${dibuka.ownerName}. Setiap perubahan tercatat di jejak audit.` : "Tujuan kirim laporan WhatsApp"}
       >
         {dibuka ? <FormKontak c={dibuka} action={edit} pending={editing} /> : null}
       </Laci>
@@ -393,8 +393,8 @@ function AliasSection({ aliases }: { aliases: AliasItem[] }) {
       <div className="border-b border-border px-3 pt-3">
         <p className="text-[13px] font-semibold text-ink">Nama pengirim grup</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          Siapa pemilik nomor yang muncul di grup WhatsApp. Dipakai bersama satu perusahaan – sekali
-          dinamai, semua ringkasan menyebut nama itu.
+          Siapa pemilik nomor yang muncul di grup WhatsApp. Daftar ini dipakai bersama oleh satu
+          perusahaan. Sekali dinamai, semua ringkasan memakai nama itu.
         </p>
       </div>
 

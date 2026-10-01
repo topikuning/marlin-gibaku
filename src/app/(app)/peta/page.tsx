@@ -51,7 +51,7 @@ export default async function PetaPage() {
     <div className="space-y-4">
       <PageHeader
         title="Peta Lokasi"
-        description={`${markers.length} lokasi ber-koordinat GPS dalam lingkup akses Anda.`}
+        description={`${markers.length} lokasi dengan koordinat GPS yang bisa Anda lihat.`}
       />
       {daftarBelum}
       {markers.length === 0 ? (

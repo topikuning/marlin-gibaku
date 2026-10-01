@@ -83,7 +83,7 @@ export function FormUbahLokasi({
           description={
             <>
               Perubahan di sini hanya mengubah KATALOG. Nama, wilayah, dan koordinat lokasi
-              proyeknya tidak ikut berubah – ubah di{" "}
+              proyeknya tidak ikut berubah. Ubah di{" "}
               <a href={`/lokasi/${baris.dipakaiOleh.slug}`} className="font-medium text-primary hover:underline">
                 halaman lokasi itu
               </a>{" "}
@@ -99,7 +99,7 @@ export function FormUbahLokasi({
           <Label htmlFor="ub-nama">Nama kampung nelayan</Label>
           <Input id="ub-nama" name="name" defaultValue={baris.name ?? ""} maxLength={120} placeholder={baris.village} />
           <p className="mt-1 text-[11px] text-ink-muted">
-            Kosongkan bila sama dengan nama desa – daftar akan memakai nama desanya.
+            Kosongkan bila sama dengan nama desa. Daftar akan memakai nama desanya.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -159,7 +159,7 @@ export function FormUbahLokasi({
         />
         <p className="text-[11px] text-ink-muted">
           {titikLat != null && titikLng != null
-            ? "Klik peta atau seret penandanya untuk memperbaiki titiknya – kotak di atas ikut terisi."
+            ? "Klik peta atau geser penandanya untuk memperbaiki titiknya. Kotak di atas ikut terisi."
             : "Belum berkoordinat. Klik di peta untuk menaruh titiknya, atau ketik angkanya."}
         </p>
         {titikLat != null && titikLng != null ? (

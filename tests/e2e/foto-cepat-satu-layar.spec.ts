@@ -96,7 +96,7 @@ test.describe("Foto Cepat – satu layar, tanpa gulir", () => {
     /*
      * OFFLINE dulu, baru memotret — bukan gaya-gayaan.
      *
-     * Ujinya menunggu "N foto menunggu kirim" sebagai bukti antrean benar-benar
+     * Ujinya menunggu "N foto menunggu dikirim" sebagai bukti antrean benar-benar
      * tumbuh. Padahal keadaan itu memang DIRANCANG untuk lenyap: pengiriman yang
      * berhasil MENGHAPUS barisnya dari IndexedDB (`buang`, use-antrean.ts), dan
      * baris yang DITOLAK server tidak ikut dihitung `menunggu` sama sekali
@@ -115,7 +115,7 @@ test.describe("Foto Cepat – satu layar, tanpa gulir", () => {
      */
     await context.setOffline(true);
     await rana.click();
-    await expect(page.getByText(/foto menunggu kirim/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/foto menunggu dikirim/i)).toBeVisible({ timeout: 20_000 });
     await context.setOffline(false);
 
     const sesudah = (await rana.boundingBox())!;

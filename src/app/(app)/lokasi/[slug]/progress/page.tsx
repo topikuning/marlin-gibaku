@@ -159,7 +159,7 @@ export default async function ProgressLokasiPage({
                   unduhan
                   labelSibuk="Menyiapkan rincian…"
                   size="md"
-                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item."
+                  title="Rincian sampai tiap item: volume, harga satuan, jumlah, dan bobot. Jadwal yang tercantum adalah jadwal kategori induknya, karena sistem tidak menyimpan jadwal per item."
                   className="gap-1.5"
                 >
                   <ListTree aria-hidden className="size-4" /> Rincian Item
@@ -248,8 +248,8 @@ async function BagianRingkasan({
                 Pantauan internal – progres atas usulan adendum (draft revisi #{draftProg.revisionNo})
               </p>
               <p className="mt-0.5 text-[11px] text-ink-muted">
-                Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S,
-                laporan periodik, dan blanko KKP tetap memakai RAB kontrak yang berlaku.
+                Hanya untuk kebutuhan internal, bukan angka resmi. Termin, kurva-S, laporan
+                periodik, dan blanko KKP tetap memakai RAB kontrak yang berlaku.
               </p>
             </div>
             <ButtonLink href={`/lokasi/${slug}/rab/adendum`} variant="secondary" size="sm">
@@ -309,7 +309,7 @@ async function BagianRingkasan({
           <header className="border-b border-border px-3 py-2">
             <p className="text-[13px] font-semibold text-ink">Rencana vs realisasi per minggu</p>
             <p className="mt-0.5 text-[11px] text-ink-muted">
-              Untuk membaca deviasi. Mengubah rencananya ada di bagian Baseline.
+              Untuk membaca deviasi. Rencananya bisa diubah di bagian Baseline.
             </p>
           </header>
           {series.totalWeeks === 0 ? (
@@ -362,8 +362,8 @@ async function BagianRingkasan({
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-ink">Prognosa penyelesaian</p>
               <p className="mt-0.5 text-[11px] text-ink-muted">
-                Proyeksi ke depan dari laju realisasi terkini + kinerja kumulatif (SPI). Estimasi
-                berbasis tren, bukan kepastian.
+                Perkiraan ke depan dari laju realisasi terakhir dan kinerja kumulatif (SPI). Ini
+                perkiraan berdasarkan tren, bukan kepastian.
               </p>
             </div>
             {bisaAi ? (
@@ -376,7 +376,7 @@ async function BagianRingkasan({
           <div className="p-3">
             {!forecast.enoughData ? (
               <p className="text-sm text-ink-muted">
-                {fcStatus.label} – prognosa tampil setelah ada realisasi minimal 2 minggu.
+                {fcStatus.label}. Prognosa muncul setelah ada realisasi paling sedikit 2 minggu.
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -403,7 +403,7 @@ async function BagianRingkasan({
                     rencana:{" "}
                     {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
                     {forecast.beyondHorizon
-                      ? " · laju realisasi terlalu rendah – proyeksi jatuh >1 tahun melewati rencana"
+                      ? " · laju realisasi terlalu rendah, perkiraan selesainya lebih dari 1 tahun setelah rencana"
                       : forecast.slipWeeks != null
                         ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
                         : ""}
@@ -508,7 +508,7 @@ async function BagianBaseline({
             Bentuk kurva: <span className="font-medium text-ink">{PROFIL_KURVA_LABEL[activeBaseline.profil]}</span> –{" "}
             {PROFIL_KURVA_KETERANGAN[activeBaseline.profil]}
             {activeBaseline.source === "manual"
-              ? " Kurva ini sendiri disusun tangan; profil di atas yang akan dipakai bila kelak dihitung ulang."
+              ? " Kurva ini disusun manual. Bentuk di atas baru dipakai kalau kurvanya dihitung ulang."
               : ""}
           </p>
         </section>
@@ -516,10 +516,10 @@ async function BagianBaseline({
         <section className="rounded-lg border border-warning-border bg-warning-soft p-3">
           <p className="text-[13px] font-semibold text-ink">Belum ada baseline aktif</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Tanpa baseline, tidak ada rencana untuk dibandingkan – deviasi dan prognosa tidak bisa
-            dihitung. Sejak 2026-09-19 kurva-S TIDAK lagi dibuat sendiri saat RAB diimpor: bentuknya
-            dipilih di layar impor, atau di sini lewat &quot;Hitung ulang&quot;, editor jadwal per
-            pekerjaan, maupun impor jadwal dari Excel.
+            Tanpa baseline, tidak ada rencana pembanding, jadi deviasi dan prognosa belum bisa
+            dihitung. Sejak 2026-09-19 kurva-S tidak lagi dibuat otomatis saat RAB diimpor. Pilih
+            bentuknya di layar impor RAB, atau buat di sini lewat &quot;Hitung ulang&quot;, editor
+            jadwal per pekerjaan, atau impor jadwal dari Excel.
           </p>
         </section>
       )}
@@ -536,7 +536,7 @@ async function BagianBaseline({
         <section className="rounded-lg border border-border p-3">
           <p className="text-[13px] font-semibold text-ink">Cara lain: hitung ulang dari RAB</p>
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
-            Tanpa Excel – sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
+            Tanpa Excel: sistem menyusun ulang jadwal dari RAB aktif. Pakai ini saat RAB berubah
             (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
           {/* key = identitas baseline aktif. Komponen-komponen di bawah ini
@@ -557,7 +557,7 @@ async function BagianBaseline({
           <header className="border-b border-border px-3 py-2">
             <p className="text-[13px] font-semibold text-ink">Penyesuaian halus %-mingguan</p>
             <p className="mt-0.5 text-[11px] text-ink-muted">
-              Koreksi kecil deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas).
+              Koreksi kecil angka %-kumulatif tiap minggu (mis. untuk menyamakan dengan angka pengawas).
               Jadwal per pekerjaan ikut menyesuaikan.
             </p>
           </header>
@@ -576,9 +576,9 @@ async function BagianBaseline({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Riwayat baseline</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Baseline tidak pernah diedit in place – setiap perubahan membuat versi baru. Centang
-            beberapa versi untuk membandingkan kurvanya; versi lama bisa dipulihkan (dibuat sebagai
-            salinan baru).
+            Baseline tidak pernah ditimpa. Setiap perubahan disimpan sebagai versi baru. Centang
+            beberapa versi untuk membandingkan kurvanya. Versi lama bisa dipulihkan sebagai salinan
+            baru.
           </p>
         </header>
         <div className="p-3">
@@ -606,8 +606,8 @@ async function BagianJadwal({
     return (
       <div className="p-4">
         <p className="text-sm text-ink-muted">
-          Mengatur jadwal pekerjaan butuh wewenang kelola baseline. Jadwal yang berlaku bisa dilihat
-          lewat “Cetak Jadwal” dan “Unduh Excel” di atas.
+          Jadwal pekerjaan hanya bisa diatur oleh yang berwenang mengelola baseline. Jadwal yang
+          berlaku bisa dilihat lewat “Cetak Jadwal” dan “Unduh Excel” di atas.
         </p>
       </div>
     );
@@ -618,7 +618,7 @@ async function BagianJadwal({
     return (
       <div className="p-4">
         <p className="text-sm text-ink-muted">
-          Jadwal per pekerjaan butuh RAB aktif dan baseline. Impor RAB terlebih dahulu.
+          Jadwal per pekerjaan baru bisa diatur setelah ada RAB aktif dan baseline. Impor RAB dulu.
         </p>
       </div>
     );
@@ -627,10 +627,11 @@ async function BagianJadwal({
   return (
     <div className="space-y-3 p-3">
       <p className="rounded-md border border-info-border bg-info-soft p-2.5 text-[11px] text-ink-muted">
-        Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan – boleh lebih
-        dari satu rentang bila terputus (jeda); bobot mengikuti RAB. Punya jadwal dari Excel? Pakai
-        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline –
-        di sana berkasnya diperiksa dulu sebelum diterapkan.
+        Bagian ini untuk menyusun jadwal, bukan untuk memantau. Atur rentang minggu tiap pekerjaan.
+        Boleh lebih dari satu rentang kalau pekerjaannya terputus (ada jeda). Bobot mengikuti RAB.
+        Punya jadwal dari Excel? Pakai{" "}
+        <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline. Di
+        sana berkasnya diperiksa dulu sebelum diterapkan.
       </p>
       <ScheduleEditor
         key={schedule.baselineKey}
@@ -817,15 +818,16 @@ async function BagianKendala({
           <p className="mt-0.5 text-[11px] text-ink-muted">
             {pakaiJadwalItem ? (
               <>
-                Realisasi kumulatif di bawah target <b>jadwal item itu sendiri</b> pada minggu{" "}
-                {currentWeek} – 10 terbesar berdasar nilai kekurangan. Item yang menurut jadwalnya
-                belum dimulai TIDAK dihitung tertinggal.
+                Item yang realisasi kumulatifnya di bawah target <b>jadwal item itu sendiri</b> pada
+                minggu {currentWeek}. Ditampilkan 10 dengan nilai kekurangan terbesar. Item yang
+                menurut jadwalnya belum dimulai tidak dihitung tertinggal.
               </>
             ) : (
               <>
                 Baseline lokasi ini belum menyimpan jadwal per item, jadi pembandingnya target
-                proporsional kurva-S ({formatPct(planNow)} pada minggu {currentWeek}) – semua item
-                dianggap berjalan serentak. Perbarui kurva-S untuk perbandingan per item.
+                kurva-S secara proporsional ({formatPct(planNow)} pada minggu {currentWeek}). Artinya
+                semua item dianggap berjalan bersamaan. Perbarui kurva-S supaya tiap item dibandingkan
+                dengan jadwalnya sendiri.
               </>
             )}
           </p>
@@ -878,7 +880,8 @@ async function BagianKendala({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Kendala &amp; pemulihan</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Catat kendala lapangan, susun aksi pemulihan (PIC + target), dan log perkembangannya.
+            Catat kendala lapangan, susun aksi pemulihan (PIC dan target), lalu catat
+            perkembangannya.
           </p>
         </header>
         <div className="p-3">

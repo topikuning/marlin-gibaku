@@ -42,12 +42,12 @@ export function AiGuardPanel({
 
       <label className="flex items-center gap-2 text-sm font-medium text-ink">
         <input type="checkbox" name="enabled" defaultChecked={enabled} />
-        Fitur AI aktif (matikan = kill switch global, semua run ditolak & diaudit)
+        Fitur AI aktif (kalau dimatikan, semua permintaan AI ditolak dan dicatat di audit)
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className="block text-xs text-ink-muted">
-          Maks run / user / jam
+          Maks permintaan / pengguna / jam
           <input
             type="number"
             name="maxRunsPerUserPerHour"
@@ -57,7 +57,7 @@ export function AiGuardPanel({
           />
         </label>
         <label className="block text-xs text-ink-muted">
-          Maks run / hari (org)
+          Maks permintaan / hari (organisasi)
           <input
             type="number"
             name="maxRunsPerOrgPerDay"
@@ -67,7 +67,7 @@ export function AiGuardPanel({
           />
         </label>
         <label className="block text-xs text-ink-muted">
-          Maks lokasi / run
+          Maks lokasi / permintaan
           <input
             type="number"
             name="maxLocationsPerRun"
@@ -101,7 +101,7 @@ export function AiGuardPanel({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-xs text-ink-muted">
-          Harga input USD / 1 jt token (opsional – utk estimasi biaya, bukan kill switch)
+          Harga input USD / 1 jt token (opsional, untuk perkiraan biaya – tidak membatasi pemakaian)
           <input
             type="number"
             step="0.01"

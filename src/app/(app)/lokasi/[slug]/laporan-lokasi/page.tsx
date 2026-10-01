@@ -126,7 +126,7 @@ export default async function LaporanLokasiPage({
       <Card>
         <CardHeader
           title="Laporan Periodik KKP"
-          subtitle="Mingguan / bulanan – dihitung dari laporan harian terkirim (satu calculation layer)."
+          subtitle="Mingguan atau bulanan. Dihitung dari laporan harian yang sudah terkirim, dengan rumus yang sama di semua laporan."
           action={
             scheduleBounds ? (
               // Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
@@ -159,7 +159,7 @@ export default async function LaporanLokasiPage({
                     href: `/lokasi/${slug}/jadwal/rincian`,
                     jenis: "berkas",
                     labelSibuk: "Menyiapkan Excel rincian…",
-                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item.",
+                    hint: "Rinci sampai tiap item: volume, harga satuan, bobot. Kolom jadwalnya tetap mengikuti jadwal KATEGORI induk, karena sistem tidak menyimpan jadwal per item.",
                   },
                 ]}
               />
@@ -168,7 +168,7 @@ export default async function LaporanLokasiPage({
         />
         <CardBody className="space-y-4">
           {!bounds ? (
-            <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik butuh periode kontrak." />
+            <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik baru bisa dibuat setelah masa kontrak diisi." />
           ) : (
             <>
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -228,7 +228,7 @@ export default async function LaporanLokasiPage({
                   </div>
                 </div>
               ) : (
-                <EmptyState icon={FileText} title="Periode tidak valid" description="Periode di luar rentang kontrak." />
+                <EmptyState icon={FileText} title="Periode tidak valid" description="Periode yang dipilih berada di luar masa kontrak." />
               )}
             </>
           )}
@@ -238,11 +238,11 @@ export default async function LaporanLokasiPage({
       <Card>
         <CardHeader
           title="Laporan harian final"
-          subtitle="Snapshot beku – siap cetak KKP. Yang diutamakan di sini: sudah sampai ke Drive dan grup WhatsApp atau belum."
+          subtitle="Angkanya sudah dikunci, siap cetak KKP. Di sini terlihat mana yang sudah sampai ke Drive dan grup WhatsApp, mana yang belum."
         />
         <CardBody className="space-y-4">
           {ringkas.total === 0 ? (
-            <EmptyState icon={FileText} title="Belum ada laporan final" description="Finalisasi dilakukan dari workspace harian setelah disetujui." />
+            <EmptyState icon={FileText} title="Belum ada laporan final" description="Laporan difinalkan dari halaman laporan harian setelah disetujui." />
           ) : (
             <>
               {/* Dihitung dari SELURUH laporan final lokasi ini, bukan dari yang
@@ -272,7 +272,7 @@ export default async function LaporanLokasiPage({
               {alasanMati.length > 0 ? (
                 <Banner
                   tone="info"
-                  title="Sebagian tombol kiriman dimatikan"
+                  title="Sebagian tombol kirim tidak aktif"
                   description={`${alasanMati.join(". ")}. Unduh dan cetak tetap bisa dipakai.`}
                 />
               ) : null}
@@ -297,7 +297,7 @@ export default async function LaporanLokasiPage({
                 <span className="justify-self-end">Aksi</span>
               </div>
               <p className="text-[12px] text-ink-muted xl:hidden">
-                Tombolnya diringkas jadi satu menu karena lebar layar tidak cukup – isinya sama.
+                Karena layar tidak cukup lebar, tombolnya diringkas jadi satu menu. Isinya tetap sama.
               </p>
 
               <ul className="divide-y divide-border">

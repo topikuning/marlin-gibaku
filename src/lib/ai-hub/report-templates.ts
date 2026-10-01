@@ -55,7 +55,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "exec_lokasi",
     label: "Ringkasan Eksekutif per Lokasi",
-    desc: "Brief mendalam satu/beberapa lokasi terpilih.",
+    desc: "Ringkasan mendalam untuk satu atau beberapa lokasi pilihan.",
     instruction:
       "Satu bagian per lokasi: kondisi jadwal, kepatuhan lapor, kendala, langkah minggu depan. Pisahkan masalah data vs masalah fisik.",
     version: 2,
@@ -79,7 +79,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "owner_brief",
     label: "Ringkasan untuk PPK",
-    desc: "Brief formal berbasis bukti untuk pemberi kerja.",
+    desc: "Ringkasan resmi berbasis bukti untuk pemberi kerja.",
     instruction:
       "Formal & berbasis bukti: setiap klaim merujuk data (laporan final, foto, milestone). Hindari spekulasi; tandai jelas hal yang perlu validasi.",
     version: 2,
@@ -105,7 +105,7 @@ const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "wa_update",
     label: "Pembaruan WhatsApp",
-    desc: "Narasi ringkas untuk pimpinan via WA – angka sama dgn laporan.",
+    desc: "Narasi singkat untuk pimpinan lewat WA, angkanya sama dengan laporan.",
     instruction:
       "Sangat ringkas (maks ~1200 karakter di waSummary): kondisi umum 1-2 kalimat, maksimal 3 lokasi prioritas, penutup tindakan. Tanpa markdown.",
     version: 2,

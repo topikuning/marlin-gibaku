@@ -99,7 +99,7 @@ export async function konteksUnggah(
   });
   if (!loc) return { error: "Lokasi tidak ditemukan." };
   if (!loc.package.driveFolderId)
-    return { error: "Paket ini belum punya folder Google Drive – atur di halaman paket." };
+    return { error: "Paket ini belum punya folder Google Drive. Atur dulu di halaman paket." };
   return {
     locationName: loc.name,
     slug: loc.slug,
@@ -165,7 +165,7 @@ export async function unggahLaporanHarian(input: {
 
   const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
   const pdf = await renderHarianKkpPdf(slug, dateKey, { baseUrl: input.baseUrl });
-  if (!pdf) return { batal: "Laporan harian tidak bisa dirender." };
+  if (!pdf) return { batal: "PDF laporan harian gagal dibuat." };
 
   const jedaMs = input.jedaMs;
   const outcomes = [
@@ -247,7 +247,7 @@ export async function unggahBerkasMingguan(input: {
 
   const hasil = await renderMingguanKkpPdf(loc.slug, minggu);
   if (!hasil) {
-    return { batal: `Berkas mingguan ke-${minggu} belum bisa disusun – lokasi ini belum punya tanggal SPMK.` };
+    return { batal: `Berkas mingguan ke-${minggu} belum bisa disusun karena lokasi ini belum punya tanggal SPMK.` };
   }
 
   const nama = safeFileName(`Laporan Harian Minggu ke-${minggu} - ${c.locationName}.pdf`);

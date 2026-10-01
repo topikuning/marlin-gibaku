@@ -66,7 +66,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
         <CardHeader title="Adendum RAB" />
         <CardBody>
           <p className="text-sm text-ink-muted">
-            Belum ada revisi RAB aktif – adendum butuh RAB untuk disalin. Impor HPS dulu di{" "}
+            Belum ada revisi RAB aktif. Adendum disusun dari salinan RAB aktif, jadi impor HPS dulu lewat{" "}
             <Link href={`/lokasi/${slug}/rab/import`} className="font-medium text-primary hover:underline">
               Impor HPS
             </Link>
@@ -88,7 +88,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       <Card>
         <CardHeader
           title="Adendum RAB"
-          subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)} – draft adendum menyalinnya penuh; angka live tidak tersentuh sampai draft diaktifkan.`}
+          subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)}. Draft adendum menyalin seluruh isinya. Angka yang berlaku tidak berubah sampai draft diaktifkan.`}
         />
         <CardBody>
           <CreateDraftForm slug={slug} amendments={amendmentOptions} />
@@ -315,7 +315,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
     peringatan.push(
       `Harga satuan ${hargaBergeser.length} item KONTRAK LAMA bergeser di draft ini: ` +
         `${contoh.join("; ")}${hargaBergeser.length > contoh.length ? `; +${hargaBergeser.length - contoh.length} lainnya` : ""}. ` +
-        `Adendum mengubah volume – harga item yang sudah ada di kontrak seharusnya tetap. ` +
+        `Adendum seharusnya hanya mengubah volume. Harga item yang sudah ada di kontrak tetap. ` +
         `Pastikan pergeseran ini memang ada dasarnya sebelum aktivasi.`,
     );
   }
@@ -342,7 +342,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       <Card>
         <CardHeader
           title="Isi draft dari file Excel"
-          subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
+          subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak ikut berubah."
           action={
             <ButtonLink
               href={`/lokasi/${slug}/rab/adendum/template`}
@@ -361,11 +361,11 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               (DECISIONS 216). Diunggah balik lewat form yang sama — sistem
               mengenalinya dari penanda di berkasnya. */}
           <p className="mb-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-[13px] text-ink-muted">
-            Belum punya file adendum? <strong className="text-ink">Unduh template</strong> di atas –
-            isinya RAB aktif dengan kolom <strong className="text-ink">VOLUME ADENDUM</strong> siap
-            diisi, lalu unggah balik di sini. Harga satuan item kontrak lama tetap; item baru
-            disisipkan di dalam kategorinya. Volume 0 berarti volumenya nol,{" "}
-            <strong className="text-ink">bukan</strong> item dihapus – untuk mencabut item, tulis{" "}
+            Belum punya file adendum? <strong className="text-ink">Unduh template</strong> di atas.
+            Isinya RAB aktif dengan kolom <strong className="text-ink">VOLUME ADENDUM</strong> yang
+            tinggal diisi, lalu unggah kembali di sini. Harga satuan item kontrak lama tetap, dan item
+            baru disisipkan di dalam kategorinya. Volume 0 berarti volumenya nol,{" "}
+            <strong className="text-ink">bukan</strong> item dihapus. Untuk menghapus item, tulis{" "}
             <code className="rounded bg-surface-inset px-1">HAPUS</code> di kolom Keterangan.
           </p>
           {/* adaAktif WAJIB diisi. Halaman ini hanya dirender ketika lokasi punya
@@ -386,7 +386,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           subtitle={
             (draft.amendment ? `Terkait CCO ${draft.amendment.ccoNumber} · ` : "") +
             (draft.note ??
-              "Harga satuan item lama terkunci; volume minimal = realisasi; item ber-realisasi tidak bisa dihapus.")
+              "Harga satuan item lama terkunci. Volume tidak boleh di bawah realisasi. Item yang sudah ada realisasinya tidak bisa dihapus.")
           }
           action={
             <div className="flex flex-wrap items-center gap-2">

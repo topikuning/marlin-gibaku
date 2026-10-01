@@ -167,7 +167,7 @@ export default async function LokasiRingkasanPage({
         <Banner
           tone="warning"
           title="Nilai kontrak tidak cocok dengan RAB + PPN"
-          description={`Kontrak ${formatRupiah(contract.contractValue)} vs RAB ${formatRupiah(progress.grandTotal)} + PPN ${formatPct(ppnPercent, 0)} = ${formatRupiah(rabWithPpn)}. Cek adendum / revisi RAB.`}
+          description={`Kontrak ${formatRupiah(contract.contractValue)} vs RAB ${formatRupiah(progress.grandTotal)} + PPN ${formatPct(ppnPercent, 0)} = ${formatRupiah(rabWithPpn)}. Periksa adendum atau revisi RAB.`}
         />
       ) : null}
 
@@ -341,7 +341,7 @@ export default async function LokasiRingkasanPage({
         <Card>
           <CardHeader
             title="Surat terkait"
-            subtitle="Surat yang menunjuk lokasi ini atau paketnya – terbaru dulu."
+            subtitle="Surat untuk lokasi ini atau paketnya, yang terbaru di atas."
             action={
               <ButtonLink href="/surat" variant="ghost" size="sm">
                 Buka register
@@ -393,7 +393,7 @@ export default async function LokasiRingkasanPage({
           <Card>
             <CardHeader
               title="Alamat & koordinat"
-              subtitle="Titik GPS proyek – dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
+              subtitle="Titik GPS proyek. Dipakai untuk Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
             />
             <CardBody>
               <LocationMasterForm
@@ -447,7 +447,7 @@ export default async function LokasiRingkasanPage({
         <Card>
           <CardHeader
             title="Status lokasi"
-            subtitle={canManageLocation ? "Ubah status mengikuti lifecycle proyek" : "Riwayat perubahan status"}
+            subtitle={canManageLocation ? "Ubah status sesuai tahapan proyek" : "Riwayat perubahan status"}
           />
           <CardBody className="space-y-4">
             {canManageLocation ? (

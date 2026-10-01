@@ -423,13 +423,13 @@ export async function saveCategorySchedule(
   userId: string,
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
+  if (!base) throw new Error("Belum ada revisi RAB aktif. Impor RAB dulu.");
   const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r]));
   const rows = base.categories.map((c) => {
     const r = byKey.get(c.lineageKey);
-    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap – muat ulang halaman.`);
+    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap. Muat ulang halaman, lalu coba lagi.`);
     const segments = (r.segments ?? []).map((s) => ({
       startWeek: Math.floor(s.startWeek),
       endWeek: Math.floor(s.endWeek),
@@ -441,7 +441,7 @@ export async function saveCategorySchedule(
       }
       if (s.startWeek < 1 || s.endWeek > totalWeeks || s.startWeek > s.endWeek) {
         throw new Error(
-          `Kategori "${c.name}": rentang ${s.startWeek}–${s.endWeek} di luar 1–${totalWeeks} atau terbalik.`,
+          `Kategori "${c.name}": minggu ${s.startWeek}–${s.endWeek} tidak valid. Minggunya harus di antara 1–${totalWeeks}, dan minggu mulai tidak boleh sesudah minggu selesai.`,
         );
       }
     }
@@ -565,7 +565,7 @@ export async function hitungJadwalBaru(
   mode: ModeJadwal = "apaadanya",
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
+  if (!base) throw new Error("Belum ada revisi RAB aktif. Impor RAB dulu.");
   const { contractDays, totalWeeks, weekEndFracs } = await totalWeeksFor(locationId);
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));

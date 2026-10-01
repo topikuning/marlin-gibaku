@@ -38,7 +38,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
   if (!user) {
-    return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
+    return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   }
   if (!can(user.role, "letter.manage")) {
     return NextResponse.json({ error: "Tidak punya akses ke lampiran masuk" }, { status: 403 });
@@ -118,7 +118,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   return NextResponse.json(
-    { error: "Berkas belum tersimpan di mana pun – tidak ada yang bisa dibuka." },
+    { error: "Berkasnya belum tersimpan, jadi belum ada yang bisa dibuka." },
     { status: 404 },
   );
 }

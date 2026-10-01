@@ -56,8 +56,8 @@ export function WaKabupatenForm({
 
       <p className="text-[12px] text-ink-muted">
         Grup kabupaten hanya berlaku untuk lokasi paket INI. Kabupaten yang lokasinya juga ada di
-        paket lain butuh grup tersendiri di paket itu – satu grup WhatsApp tidak boleh dipakai dua
-        paket.
+        paket lain butuh grup tersendiri di paket itu. Satu grup WhatsApp tidak boleh dipakai untuk
+        dua paket.
       </p>
 
       <ul className="divide-y divide-border rounded-md border border-border">
@@ -84,7 +84,7 @@ export function WaKabupatenForm({
                         ) : null}
                       </>
                     ) : (
-                      "Belum punya grup sendiri – seluruh lokasinya mengikuti grup paket."
+                      "Belum punya grup sendiri, jadi semua lokasinya mengikuti grup paket."
                     )}
                   </p>
                 </div>
@@ -112,8 +112,8 @@ export function WaKabupatenForm({
                       className="h-9"
                     />
                     <p className="mt-1 text-[11px] text-ink-muted">
-                      Kosongkan lalu simpan untuk MELEPAS grup kabupaten ini – lokasinya kembali
-                      mengikuti grup paket.
+                      Untuk MELEPAS grup kabupaten ini, kosongkan isian lalu simpan. Lokasinya akan
+                      kembali mengikuti grup paket.
                     </p>
                   </div>
                   <Button type="submit" size="sm" loading={pending}>

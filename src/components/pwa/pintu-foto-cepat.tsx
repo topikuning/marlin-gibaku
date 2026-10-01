@@ -52,10 +52,10 @@ export function PintuFotoCepat() {
       <p className="mt-2 text-[11px] text-ink-muted">
         {keadaan === "memeriksa" ? "Memeriksa simpanan di HP ini…" : null}
         {keadaan === "siap"
-          ? `Tersimpan di HP ini – siap dipakai memotret tanpa sinyal${capWaktu ? ` (rekaman ${capWaktu})` : ""}.`
+          ? `Tersimpan di HP ini, siap dipakai memotret tanpa sinyal${capWaktu ? ` (disimpan ${capWaktu})` : ""}.`
           : null}
         {keadaan === "belum"
-          ? "Belum tersimpan di HP ini – Foto Cepat perlu sekali terbuka saat ada sinyal sebelum bisa dipakai tanpa jaringan."
+          ? "Belum tersimpan di HP ini. Buka Foto Cepat sekali saat ada sinyal, setelah itu baru bisa dipakai tanpa jaringan."
           : null}
       </p>
     </>

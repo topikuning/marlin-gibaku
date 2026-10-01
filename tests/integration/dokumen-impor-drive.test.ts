@@ -416,7 +416,7 @@ describe("commit", () => {
       locationId: null,
       path: "",
     }));
-    await expect(commitDriveImport(packageId, banyak)).rejects.toThrow(/Maksimum 40/);
+    await expect(commitDriveImport(packageId, banyak)).rejects.toThrow(/Paling banyak 40/);
   });
 
   it("mencatat ringkasan impor ke audit log", async () => {

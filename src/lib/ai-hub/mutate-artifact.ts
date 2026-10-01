@@ -18,7 +18,7 @@ export async function updateMutableArtifact(
       data,
     });
     if (result.count !== 1) {
-      throw new Error("Artefak sudah berubah atau dibekukan. Muat ulang sebelum melanjutkan.");
+      throw new Error("Laporan ini baru saja berubah atau sudah dibekukan. Muat ulang halaman, lalu coba lagi.");
     }
     await auditIn(tx, actorId, action, "ai_artifact", before.id, payload);
   });

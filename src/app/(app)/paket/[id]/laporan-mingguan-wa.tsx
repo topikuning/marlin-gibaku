@@ -75,7 +75,7 @@ export function LaporanMingguanWa({
         <Banner
           tone="warning"
           title="Paket ini belum punya grup WhatsApp"
-          description="Tetapkan grup paket, atau grup per kabupaten untuk lokasinya, dulu – tanpa itu tidak ada tujuan kirim."
+          description="Tetapkan dulu grup paket, atau grup kabupaten untuk lokasinya. Tanpa grup, laporan tidak punya tujuan kirim."
         />
       ) : null}
 

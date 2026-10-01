@@ -77,7 +77,7 @@ export function GabungForm({
         />
       </div>
       <p className="text-[12px] text-ink-muted">
-        Kendala ini ditutup dan ditandai kembar – tidak dihapus. Aksi pemulihannya ikut pindah.
+        Kendala ini akan ditutup dan ditandai sebagai kembaran, bukan dihapus. Aksi pemulihannya ikut dipindahkan.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" loading={pending}>

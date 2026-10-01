@@ -120,9 +120,9 @@ export function PendaftarServiceWorker({ pemilik, siapkanFotoCepat }: PendaftarS
       title="Ditampilkan dari simpanan HP ini"
       description={
         <>
-          Halaman ini dimuat tanpa jaringan, jadi isinya rekaman terakhir kali HP ini
+          Halaman ini dimuat tanpa jaringan, jadi isinya salinan dari saat terakhir HP ini
           punya sinyal{capWaktu ? ` (${capWaktu})` : ""}. Daftar lokasi dan pilihan lain
-          bisa sudah berubah di server. Foto yang Anda jepret sekarang tetap masuk antrean
+          mungkin sudah berubah di server. Foto yang Anda jepret sekarang tetap masuk antrean
           dan terkirim sendiri begitu sinyal kembali.
         </>
       }

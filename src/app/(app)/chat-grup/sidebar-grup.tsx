@@ -213,10 +213,10 @@ export function SidebarGrup({
       </Card>
 
       <Card>
-        <CardHeader title="Tanggal" subtitle="Hari yang punya pesan." />
+        <CardHeader title="Tanggal" subtitle="Tanggal yang ada pesannya." />
         <CardBody className="space-y-1">
           {days.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada pesan terarsip.</p>
+            <p className="text-sm text-ink-muted">Belum ada pesan tersimpan.</p>
           ) : (
             days.map((d) => (
               <Link
@@ -239,7 +239,7 @@ export function SidebarGrup({
             <input
               type="date"
               defaultValue={dateKey}
-              aria-label="Loncat ke tanggal"
+              aria-label="Pilih tanggal"
               onChange={(e) => {
                 if (e.target.value && activeId) router.push(`/chat-grup?p=${activeId}&d=${e.target.value}`);
               }}

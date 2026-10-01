@@ -184,7 +184,7 @@ export function buildExecutiveBrief(c: AiReportContent): ExecutiveBrief {
       ? "narasi sudah diedit dan diverifikasi manusia"
       : `cakupan bukti ${c.report.confidence}%`,
     kpis: [
-      { label: "Lokasi dipantau", value: String(totals.locations), note: "Dalam scope laporan" },
+      { label: "Lokasi dipantau", value: String(totals.locations), note: "Yang dicakup laporan ini" },
       {
         label: "Kelengkapan laporan",
         value: reportingRate == null ? "–" : `${reportingRate}%`,

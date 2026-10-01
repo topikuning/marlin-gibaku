@@ -73,8 +73,8 @@ export function GDriveOtomatisPanel({
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Laporan harian yang difinalisasi naik sendiri (PDF blanko KKP + fotonya), begitu juga laporan mingguan tiap lokasi setelah minggu kontraknya tuntas. Dicicil dengan jeda – bukan diguyur – supaya akun Google tidak diblok."
-                : "Penjadwal tidak menaikkan apa pun. Tombol unggah manual di papan status harian & halaman laporan lokasi TETAP bekerja."}
+                ? "Laporan harian yang sudah final terunggah otomatis (PDF blanko KKP + fotonya), begitu juga laporan mingguan tiap lokasi setelah minggu kontraknya selesai. Pengunggahan dicicil dengan jeda, tidak sekaligus, supaya akun Google tidak diblokir."
+                : "Tidak ada yang diunggah otomatis. Tombol unggah manual di papan status harian & halaman laporan lokasi TETAP bisa dipakai."}
             </p>
           </div>
         </div>
@@ -88,13 +88,13 @@ export function GDriveOtomatisPanel({
         <Banner
           tone="warning"
           title="Akun Google belum terhubung"
-          description="Sakelarnya nyala tapi tidak ada yang bisa naik. Hubungkan akun di kartu Google Drive di atas – antrean tidak dihanguskan, ia menunggu."
+          description="Unggah otomatis sudah dinyalakan, tapi belum ada yang bisa diunggah. Hubungkan akun di kartu Google Drive di atas. Antreannya tidak hilang, hanya menunggu."
         />
       ) : null}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Angka label="Menunggu" nilai={antrean.menunggu} />
-        <Angka label="Sudah naik" nilai={antrean.sukses} />
+        <Angka label="Sudah terunggah" nilai={antrean.sukses} />
         <Angka label="Macet" nilai={antrean.menyerah} tone={antrean.menyerah > 0 ? "danger" : undefined} />
         <Angka label="Batal" nilai={antrean.batal} />
       </dl>
@@ -107,7 +107,7 @@ export function GDriveOtomatisPanel({
           loading={busy}
           onClick={() => runOp(jalankanAntreanDriveAction)}
         >
-          Jalankan satu putaran sekarang
+          Jalankan sekarang
         </Button>
         {antrean.menyerah > 0 ? (
           <Button
@@ -172,7 +172,7 @@ function TombolSakelar({ aktif }: { aktif: boolean }) {
       <ConfirmSubmit
         label="Nyalakan"
         title="Nyalakan unggah otomatis ke Drive KKP?"
-        description="MARLIN akan menaikkan sendiri laporan harian yang final (PDF + foto) dan laporan mingguan tiap lokasi ke folder Drive milik KKP – termasuk yang sudah terlanjur menumpuk, dicicil sedikit demi sedikit tiap putaran. Berkas bernama sama akan diperbarui sebagai versi baru, bukan digandakan."
+        description="MARLIN akan mengunggah sendiri laporan harian yang final (PDF + foto) dan laporan mingguan tiap lokasi ke folder Drive milik KKP. Laporan lama yang sudah menumpuk juga ikut, dicicil sedikit demi sedikit. Berkas bernama sama akan diperbarui sebagai versi baru, bukan digandakan."
         confirmLabel="Ya, nyalakan"
         loading={pending}
       />

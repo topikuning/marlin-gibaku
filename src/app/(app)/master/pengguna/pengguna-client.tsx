@@ -269,7 +269,7 @@ export function PenggunaManager({
     temuan.push({
       judul: `${tanpaPenugasan} dari ${aktif} akun aktif tanpa penugasan`,
       keterangan:
-        "Perannya terikat lokasi, jadi tanpa penugasan akun ini masuk ke MARLIN dan tidak melihat apa pun.",
+        "Perannya hanya bisa melihat lokasi yang ditugaskan. Tanpa penugasan, akun ini bisa masuk ke MARLIN tapi tidak melihat apa pun.",
       nada: "bahaya",
       aksi: <TombolSaring onKlik={() => setSaring("tanpa_penugasan")} label="Lihat yang tanpa penugasan" />,
     });
@@ -277,7 +277,7 @@ export function PenggunaManager({
   if (belumDipakai > 0) {
     temuan.push({
       judul: `${belumDipakai} akun belum pernah dipakai`,
-      keterangan: "Password awalnya masih yang diketik pembuatnya dan belum pernah diganti.",
+      keterangan: "Masih memakai password awal dari pembuat akun dan belum pernah diganti.",
       nada: "peringatan",
       aksi: <TombolSaring onKlik={() => setSaring("belum_dipakai")} label="Lihat yang belum dipakai" />,
     });
@@ -305,7 +305,7 @@ export function PenggunaManager({
         <KpiCard
           label="Belum pernah masuk"
           value={String(belumDipakai)}
-          sub={belumDipakai > 0 ? "Password awal masih beredar" : "Tidak ada"}
+          sub={belumDipakai > 0 ? "Masih pakai password awal" : "Tidak ada"}
           tone={belumDipakai > 0 ? "warning" : "default"}
         />
         <KpiCard label="Tanpa nomor WA" value={String(tanpaWa)} sub="Tidak dapat pengingat" />
@@ -472,7 +472,7 @@ function Lencana({ u, masalah }: { u: UserRow; masalah: MasalahAkun[] }) {
   return (
     <>
       {u.akar ? (
-        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun – ubah variabel lingkungannya lebih dulu.">
+        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun. Untuk mengubahnya, ganti dulu variabel lingkungan itu.">
           <Badge tone="success" label="Super admin utama" />
         </span>
       ) : null}
@@ -525,7 +525,7 @@ function PanelKelola({
       {allowedRoles.length > 0 ? (
         <Bagian
           judul="Peran"
-          keterangan="Peran menentukan APA yang boleh dilakukan; penugasan menentukan DI MANA. Sesi lama akun ini dicabut, jadi ia harus masuk ulang."
+          keterangan="Peran menentukan apa yang boleh dilakukan, penugasan menentukan di lokasi mana. Begitu peran diganti, akun ini otomatis keluar dan harus masuk lagi."
         >
           <RoleEditor user={user} allowedRoles={allowedRoles} />
         </Bagian>
@@ -574,7 +574,7 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
             terus terang supaya "kok saya tidak dapat WA" tidak jadi misteri
             (DECISIONS 202). */}
         <p className="mt-1 text-[11px] text-ink-faint">
-          Dipakai pengingat laporan harian. Dikosongkan = tidak menerima pengingat.
+          Untuk pengingat laporan harian. Kalau dikosongkan, orang ini tidak menerima pengingat.
         </p>
       </div>
 

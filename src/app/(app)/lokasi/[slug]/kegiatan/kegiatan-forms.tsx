@@ -92,7 +92,7 @@ export function SendPdfToWaButton({
                 <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
               ) : null
             ) : (
-              <span className="text-[12px] text-ink-muted">Lokasi ini belum punya grup WA – pakai “tujuan lain”.</span>
+              <span className="text-[12px] text-ink-muted">Lokasi ini belum punya grup WA. Pakai “tujuan lain”.</span>
             )
           ) : null}
         </div>
@@ -141,7 +141,7 @@ export function SendToWaButton({
         ) : null}
         {disabled ? (
           <span className="text-[12px] text-ink-muted">
-            Paket belum punya grup WA – atur di halaman Paket.
+            Paket belum punya grup WA. Atur dulu di halaman Paket.
           </span>
         ) : groupName ? (
           <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>

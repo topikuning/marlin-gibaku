@@ -97,7 +97,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title="WhatsApp (WAHA) belum dikonfigurasi"
-          description="Tanpa itu tidak ada pesan yang bisa dikirim – baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
+          description="Tanpa itu, tidak ada pesan yang bisa dikirim, baik otomatis oleh penjadwal maupun lewat tombol di halaman ini. Atur di tab Integrasi."
         />
       ) : pratinjau.sesiStatus !== "WORKING" ? (
         /* Keterangan, BUKAN pagar. Status sesi berguna untuk membaca hasil,
@@ -106,7 +106,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title={`Status sesi WhatsApp: ${pratinjau.sesiStatus}`}
-          description="Di luar WORKING, pesan bisa saja tidak sampai walau WAHA menjawab 2xx. Tombol kirim tetap bisa dipakai – hasil per orang ditampilkan setelahnya, lengkap dengan ada/tidaknya ID pesan."
+          description="Selama statusnya bukan WORKING, pesan bisa saja tidak sampai walau WAHA menjawab berhasil (2xx). Tombol kirim tetap bisa dipakai. Hasil tiap orang ditampilkan setelahnya, termasuk ada atau tidaknya ID pesan."
         />
       ) : null}
 
@@ -194,7 +194,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
       {pratinjau.sudahDikirim.length > 0 ? (
         <details className="rounded-lg border border-border px-4 py-2.5">
           <summary className="cursor-pointer text-[13px] font-medium text-ink">
-            Jejak pengiriman hari ini ({pratinjau.sudahDikirim.length})
+            Riwayat pengiriman hari ini ({pratinjau.sudahDikirim.length})
           </summary>
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-muted">
             {pratinjau.sudahDikirim.map((s, i) => (
@@ -260,7 +260,7 @@ function SakelarOtomatis({
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja – tombol kirim di halaman ini tetap bisa dipakai."
+                ? "Penjadwal menagih penanggung jawab sekali sehari. Kalau dimatikan, hanya kiriman terjadwal yang berhenti. Tombol kirim di halaman ini tetap bisa dipakai."
                 : "Penjadwal tidak mengirim apa pun. Tombol kirim di halaman ini TETAP bekerja, dan aktivasi SPMK jatuh tempo juga tetap berjalan."}
             </p>
           </div>
@@ -367,8 +367,8 @@ function HasilKirim({
             {r.error ? <p className="mt-1 text-danger">{r.error}</p> : null}
             {r.ok && !r.waMessageId ? (
               <p className="mt-1 text-ink-muted">
-                WAHA menerima permintaannya tetapi tidak memberi ID pesan – tidak bisa dipastikan
-                sampai.
+                WAHA menerima permintaannya, tetapi tidak memberi ID pesan. Belum bisa dipastikan
+                pesannya sampai.
               </p>
             ) : null}
           </li>

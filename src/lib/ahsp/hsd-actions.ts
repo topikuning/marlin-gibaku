@@ -305,7 +305,7 @@ export async function terapkanUsulanHargaAiAction(args: {
       select: { id: true, kategori: true, nama: true, satuan: true, harga: true },
     });
     if (draf.length === 0) {
-      return { ok: false, error: "Tidak ada draf yang bisa diterapkan – mungkin sudah diputuskan sebelumnya." };
+      return { ok: false, error: "Tidak ada draf yang bisa diterapkan. Mungkin sudah diputuskan sebelumnya." };
     }
 
     const { keadaanHarga } = await import("./hsd");
@@ -317,7 +317,7 @@ export async function terapkanUsulanHargaAiAction(args: {
     );
     const diterima = draf.filter((u) => belum.has(kunciSumberDaya(u.kategori, u.nama, u.satuan)));
     if (diterima.length === 0) {
-      return { ok: false, error: "Usulan tidak diterapkan karena itemnya sudah berharga atau tidak lagi ada." };
+      return { ok: false, error: "Usulan tidak diterapkan karena itemnya sudah punya harga atau sudah tidak ada." };
     }
 
     const ip = await requestIp();
@@ -451,9 +451,9 @@ export async function statusUsulanHargaAiAction(args: {
     await requireLocationAccess(user, args.locationId);
     return { ok: true, status: await statusUsulanAi(args.locationId) };
   } catch (e) {
-    if (e instanceof ForbiddenError) return { ok: false, error: "Tidak berhak." };
+    if (e instanceof ForbiddenError) return { ok: false, error: "Anda tidak punya akses untuk ini." };
     // Penengokan yang gagal TIDAK menghentikan layar: pemanggil mengabaikannya
     // dan mencoba lagi pada denyut berikutnya.
-    return { ok: false, error: e instanceof Error ? e.message : "Gagal menengok status." };
+    return { ok: false, error: e instanceof Error ? e.message : "Gagal memeriksa status." };
   }
 }

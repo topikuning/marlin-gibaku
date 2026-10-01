@@ -43,7 +43,7 @@ function assertFourEyes(actor: SessionUser, createdById: string | null): { selfA
   if (createdById !== null && createdById === actor.id) {
     if (actor.role !== "super_admin") {
       throw new GuardError(
-        "Empat mata: transaksi yang Anda ajukan sendiri harus disetujui orang lain.",
+        "Transaksi yang Anda ajukan sendiri tidak bisa Anda setujui. Mintalah orang lain menyetujuinya.",
       );
     }
     return { selfApprove: true };
@@ -213,7 +213,7 @@ async function requireContractAccess(actor: SessionUser, contractId: string) {
   for (const loc of contract.package.locations) {
     if (await hasLocationAccess(actor, loc.id)) return contract;
   }
-  throw new ForbiddenError("Tidak punya akses ke lokasi kontrak ini");
+  throw new ForbiddenError("Anda tidak punya akses ke lokasi kontrak ini.");
 }
 
 // ── Budget per kategori ──────────────────────────────────────
@@ -431,7 +431,7 @@ export async function closeCommitment(_prev: FinanceActionState, formData: FormD
           where: { id: c.id, status: "disetujui", closedAt: null },
           data: { closedAt: new Date() },
         });
-        if (res.count === 0) throw new GuardError("Hanya komitmen disetujui yang belum ditutup yang bisa ditutup.");
+        if (res.count === 0) throw new GuardError("Hanya komitmen yang sudah disetujui dan belum ditutup yang bisa ditutup.");
       },
       () => ({
         action: "finance.commitment.close",
@@ -490,7 +490,7 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
           throw new GuardError("Komitmen tidak ditemukan di lokasi ini.");
         }
         if (commitment.status !== "disetujui" || commitment.closedAt !== null) {
-          throw new GuardError("Realisasi hanya bisa menempel ke komitmen disetujui yang masih terbuka.");
+          throw new GuardError("Realisasi hanya bisa dikaitkan ke komitmen yang sudah disetujui dan masih terbuka.");
         }
         const agg = await tx.expense.aggregate({
           where: { commitmentId: commitment.id, status: { not: "ditolak" } },
@@ -500,7 +500,7 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
         const remaining = commitment.amount - settled;
         if (d.amount > remaining) {
           throw new GuardError(
-            `Melebihi sisa komitmen ${commitment.number}: sisa ${formatRupiah(remaining > 0n ? remaining : 0n)}.`,
+            `Jumlahnya melebihi sisa komitmen ${commitment.number}. Sisanya tinggal ${formatRupiah(remaining > 0n ? remaining : 0n)}.`,
           );
         }
       }
@@ -782,7 +782,7 @@ export async function addPayment(_prev: FinanceActionState, formData: FormData):
 
 const billingSchema = z.object({
   contractId: z.uuid(),
-  terminNo: z.coerce.number("Nomor termin wajib angka").int("Nomor termin harus bulat").min(1, "Nomor termin minimal 1"),
+  terminNo: z.coerce.number("Nomor termin harus diisi angka").int("Nomor termin harus bilangan bulat").min(1, "Nomor termin minimal 1"),
   description: z.string().trim().max(500).optional(),
   amount: amountSchema,
   retentionHeld: amountZeroSchema,
@@ -811,7 +811,7 @@ export async function createOwnerBilling(_prev: FinanceActionState, formData: Fo
       const maxRetention = (d.amount * BigInt(Math.round(pct * 100)) + 9999n) / 10000n; // ceil(amount × pct%)
       if (pct >= 0 && d.retentionHeld > maxRetention) {
         return {
-          error: `Retensi melebihi ketentuan kontrak (${pct}% dari nilai termin = maks ${formatRupiah(maxRetention)}).`,
+          error: `Retensi melebihi batas kontrak. Paling banyak ${pct}% dari nilai termin, yaitu ${formatRupiah(maxRetention)}.`,
         };
       }
     }

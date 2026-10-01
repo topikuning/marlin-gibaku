@@ -15,8 +15,8 @@ const PetaMap = dynamic(() => import("../peta/peta-map").then((m) => m.PetaMap),
 
 const FILTERS: { key: FilterPeta; label: string }[] = [
   { key: "semua", label: "Semua" },
-  { key: "submit", label: "Sudah Submit" },
-  { key: "belum", label: "Belum Submit" },
+  { key: "submit", label: "Sudah lapor" },
+  { key: "belum", label: "Belum lapor" },
   { key: "kritis", label: "Kritis" },
 ];
 
@@ -24,7 +24,7 @@ const FILTERS: { key: FilterPeta; label: string }[] = [
 // labelnya harus mengaku: pin merah tidak berkata apa pun soal sudah/belum
 // lapor. Legenda yang menyiratkan sebaliknya membuat orang menghitung pin.
 const LEGEND: { tone: MarkerTone; label: string; dot: string }[] = [
-  { tone: "success", label: "Sudah lapor & on track", dot: "bg-success" },
+  { tone: "success", label: "Sudah lapor, sesuai jadwal", dot: "bg-success" },
   { tone: "warning", label: "Sudah lapor, deviasi negatif", dot: "bg-warning" },
   { tone: "danger", label: "Deviasi kritis (lapor atau belum)", dot: "bg-danger" },
   { tone: "neutral", label: "Belum lapor hari ini", dot: "bg-ink-faint" },

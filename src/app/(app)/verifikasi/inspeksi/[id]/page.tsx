@@ -138,7 +138,7 @@ export default async function DetailInspeksiPage({ params }: { params: Promise<{
         <CardHeader title={`Temuan dari inspeksi ini (${insp.findings.length})`} />
         <CardBody>
           {insp.findings.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada temuan yang diangkat dari inspeksi ini.</p>
+            <p className="text-sm text-ink-muted">Belum ada temuan yang dicatat dari inspeksi ini.</p>
           ) : (
             <ul className="divide-y divide-border">
               {insp.findings.map((f) => (

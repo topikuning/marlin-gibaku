@@ -154,7 +154,7 @@ export async function hapusFotoKantong(photoId: string, actorId: string): Promis
   // Pagar terakhir: yang boleh dibuang lewat jalur ini HANYA foto tanpa induk.
   // Foto yang sudah jadi lampiran laporan adalah bukti — menghapusnya lewat
   // tombol kantong akan melewati seluruh aturan pembatalan laporan.
-  if (p.reportId || p.activityId) throw new Error("Foto ini sudah dipakai – hapus lewat laporannya.");
+  if (p.reportId || p.activityId) throw new Error("Foto ini sudah dipakai. Hapus lewat laporan atau kegiatan yang memakainya.");
 
   await db.$transaction(async (tx) => {
     await tx.photoStampRevision.deleteMany({ where: { photoId } });

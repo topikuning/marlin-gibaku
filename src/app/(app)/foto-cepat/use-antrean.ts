@@ -197,7 +197,7 @@ export function useAntreanFoto() {
         await perbarui(r.id, {
           status: "rusak",
           pesan:
-            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) – tidak bisa dikirim. Buang saja lalu potret ulang.",
+            "Isi fotonya hilang dari simpanan HP (dihapus oleh peramban), jadi tidak bisa dikirim. Buang saja, lalu potret ulang.",
         });
         await muat();
         return;

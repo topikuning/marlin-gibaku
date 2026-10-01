@@ -14,7 +14,7 @@ export async function GET() {
   if (user?.mustChangePassword) {
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
-  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   if (!can(user.role, "report.export") || !can(user.role, "package.view")) {
     return NextResponse.json({ error: "Tidak punya izin mengekspor laporan kesiapan" }, { status: 403 });
   }

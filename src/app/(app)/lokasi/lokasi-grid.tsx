@@ -185,7 +185,7 @@ export function LokasiGrid({ rows }: { rows: LokasiRow[] }) {
       // situ tidak melakukan APA PUN, dan itulah yang di lapangan terbaca
       // "aplikasi tidak merespon" lalu diketuk berulang kali (DECISIONS 247).
       rowLink
-      emptyText="Belum ada lokasi yang bisa diakses."
+      emptyText="Belum ada lokasi yang bisa Anda buka."
     />
   );
 }

@@ -129,7 +129,7 @@ export function EditContractForm({
         <div>
           <Label htmlFor="ec-start">Tanggal mulai (SPMK)</Label>
           <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
-          <HelpText>Kosongkan bila SPMK belum terbit. Selesai dihitung otomatis = SPMK + masa pelaksanaan.</HelpText>
+          <HelpText>Kosongkan bila SPMK belum terbit. Tanggal selesai dihitung otomatis: SPMK + masa pelaksanaan.</HelpText>
         </div>
       </div>
 
@@ -211,10 +211,10 @@ function SignatoryFields({ v }: { v?: Signatories }) {
         <Input id="sg-pl-title" name="pelaksanaTitle" defaultValue={v?.pelaksanaTitle ?? ""} placeholder="Pelaksana Lapangan" />
       </div>
       <p className="text-xs text-ink-muted sm:col-span-2">
-        Penyedia (Direktur) meneken laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
-        meneken laporan <b>harian</b> dan <b>mingguan</b>. Dari pihak KKP, laporan
-        <b> mingguan</b> dan <b>bulanan</b> diteken <b>Wakil Sah</b> – dokumen lain tetap PPK.
-        Lokasi boleh memakai pelaksana atau Wakil Sah sendiri – diatur di halaman lokasinya.
+        Penyedia (Direktur) menandatangani laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
+        menandatangani laporan <b>harian</b> dan <b>mingguan</b>. Dari pihak KKP, laporan
+        <b> mingguan</b> dan <b>bulanan</b> ditandatangani <b>Wakil Sah</b>, dokumen lain tetap oleh PPK.
+        Tiap lokasi boleh punya pelaksana atau Wakil Sah sendiri. Aturnya di halaman lokasi itu.
       </p>
     </div>
   );
@@ -359,7 +359,7 @@ export function ConvertContractForm({
         </div>
       </div>
       <HelpText>
-        Kontrak belum menetapkan tanggal mulai – pekerjaan baru berjalan saat <b>SPMK</b> terbit.
+        Tanggal mulai belum diisi di sini, karena pekerjaan baru berjalan saat <b>SPMK</b> terbit.
         Tanggal mulai &amp; selesai diisi nanti di langkah <b>Mulai Pelaksanaan</b> (selesai = SPMK +
         masa pelaksanaan).
       </HelpText>
@@ -367,15 +367,15 @@ export function ConvertContractForm({
       <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-sm font-medium text-ink">Penanda tangan dokumen KKP (opsional)</legend>
         <p className="mb-3 text-xs text-ink-muted">
-          Nama yang tercetak di blok tanda tangan laporan (kurva-S, mingguan, bulanan, harian). Bisa
+          Nama yang tercetak di bagian tanda tangan laporan (kurva-S, mingguan, bulanan, harian). Bisa
           diubah kapan saja bila ada pergantian personel.
         </p>
         <SignatoryFields />
       </fieldset>
 
       <HelpText>
-        Konversi menaikkan stage Penetapan → Kontrak dan mengaktifkan semua lokasi target. Aksi
-        aman diulang – kontrak tidak akan terduplikasi.
+        Konversi memindahkan paket dari tahap Penetapan ke Kontrak dan mengaktifkan semua lokasi
+        target. Aman ditekan lebih dari sekali, kontraknya tidak akan dobel.
       </HelpText>
 
       <Button type="submit" loading={pending}>
@@ -429,8 +429,8 @@ export function WeekModeForm({
         />
         <HelpText>
           Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
-          Jadwal &amp; kurva-S semua lokasi DIKONVERSI otomatis ke grid minggu baru – bentuk
-          rencananya dipertahankan, tidak perlu impor ulang.
+          Jadwal &amp; kurva-S semua lokasi otomatis disesuaikan ke pembagian minggu yang baru.
+          Bentuk rencananya tetap, tidak perlu impor ulang.
         </HelpText>
       </div>
       <Button
@@ -438,7 +438,7 @@ export function WeekModeForm({
         loading={pending}
         onClick={(e) => {
           const msg =
-            "Ganti mode periode minggu? Jadwal & kurva-S SEMUA lokasi paket ini dikonversi ke grid tanggal baru.";
+            "Ganti periode minggu? Jadwal & kurva-S SEMUA lokasi paket ini akan disesuaikan ke pembagian minggu yang baru.";
           if (typeof window !== "undefined" && !window.confirm(msg)) e.preventDefault();
         }}
       >
@@ -467,7 +467,7 @@ export function SignatoriesForm({
       <input type="hidden" name="contractId" value={contractId} />
       <SignatoryFields v={value} />
       <p className="text-xs text-ink-muted">
-        Kosongkan field untuk menghapus nama dari blok tanda tangan.
+        Kosongkan isian untuk menghapus nama dari bagian tanda tangan.
       </p>
       <Button type="submit" loading={pending}>
         Simpan penanda tangan
@@ -624,11 +624,11 @@ export function AktivasiAdendumForm({
             {turunan ? (
               <>
                 Dari RAB: <span className="tabular font-medium text-ink">{turunan.turunanTeks}</span>
-                {menghitung ? " (menghitung…)" : ""}. Kosongkan untuk memakai angka ini; ketik angka dokumen
-                CCO bila berbeda karena pembulatan.
+                {menghitung ? " (menghitung…)" : ""}. Kosongkan untuk memakai angka ini. Kalau angka di
+                dokumen CCO berbeda karena pembulatan, ketik angka dokumen itu.
                 {turunan.selisih !== null && turunan.selisih !== "0" ? (
                   <span className="block text-warning">
-                    Selisih dengan RAB: {turunan.selisihTeks} – ikut tercatat.
+                    Selisih dengan RAB: {turunan.selisihTeks}. Selisih ini ikut dicatat.
                   </span>
                 ) : null}
               </>
@@ -727,7 +727,7 @@ export function TtdStempelForm({
           judul="Wakil Sah"
           medanTtd="wakilSahTtdKey"
           ttdUrl={gambar.wakilSahTtdUrl}
-          catatanStempel="Meneken laporan mingguan dan bulanan mewakili KKP – stempelnya stempel instansi di kolom PPK."
+          catatanStempel="Meneken laporan mingguan dan bulanan atas nama KKP. Stempelnya memakai stempel instansi di kolom PPK."
         />
         <PihakTtdFields
           judul="Konsultan Pengawas"
@@ -761,9 +761,9 @@ export function TtdStempelForm({
       </div>
 
       <HelpText>
-        Pindai di kertas PUTIH POLOS, tanpa garis. Latar putihnya tidak akan menutupi apa pun saat
-        ditempel, tapi kertas bergaris atau berbayang akan ikut tercetak. PNG/JPG/WebP maks 2 MB;
-        gambar dikecilkan otomatis ke 800px.
+        Pindai di kertas PUTIH POLOS, tanpa garis. Bagian putihnya tidak akan menutupi apa pun saat
+        ditempel, tapi garis atau bayangan kertas akan ikut tercetak. PNG/JPG/WebP maks 2 MB.
+        Gambar otomatis dikecilkan ke 800px.
       </HelpText>
       <Button type="submit" loading={pending}>
         Simpan tanda tangan &amp; stempel

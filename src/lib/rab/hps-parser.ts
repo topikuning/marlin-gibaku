@@ -822,7 +822,7 @@ function siapkanKolomManual(
       );
   }
   if (new Set(peran.map(([c]) => c)).size !== peran.length)
-    throw new Error("Satu kolom dipilih untuk dua peran – volume, satuan, harga satuan, dan jumlah harus kolom yang berbeda.");
+    throw new Error("Ada satu kolom yang dipilih untuk dua isian. Volume, satuan, harga satuan, dan jumlah harus dari kolom yang berbeda.");
   return {
     col: { vol: k.vol, unit: k.unit, price: k.price, amount: k.amount, tkdn: 999 },
     label: `pilihan Anda – volume ${colLetter(k.vol)}, satuan ${colLetter(k.unit)}, harga satuan ${colLetter(k.price)}, jumlah ${colLetter(k.amount)}`,
@@ -1644,7 +1644,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
         berharga
           ? `Kategori "${c.roman} ${c.name}" bernilai 0 – seluruh volumenya dinolkan di berkas ini. ` +
               `Barisnya tetap diimpor dengan volume 0, bukan dihapus.`
-          : `Kategori "${c.roman} ${c.name}" total 0 (cek parsing).`,
+          : `Kategori "${c.roman} ${c.name}" bernilai 0. Periksa apakah kolom nilainya terbaca dengan benar.`,
       );
     }
   }

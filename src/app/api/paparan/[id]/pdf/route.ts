@@ -23,8 +23,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (user?.mustChangePassword) {
     return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
   }
-  if (!user) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
-  if (!can(user.role, "ai.view")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
+  if (!can(user.role, "ai.view")) return NextResponse.json({ error: "Anda tidak punya izin untuk membuka ini." }, { status: 403 });
 
   const artifact = await db.aiArtifact.findUnique({
     where: { id },
@@ -51,7 +51,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   try {
     content = parsePaparanContent(artifact.structuredContent);
   } catch {
-    return NextResponse.json({ error: "Konten paparan tidak valid" }, { status: 422 });
+    return NextResponse.json({ error: "Isi paparan tidak sesuai format, jadi tidak bisa dicetak." }, { status: 422 });
   }
 
   const draf = !(artifact.frozenAt && (artifact.status === "beku" || artifact.status === "terkirim"));

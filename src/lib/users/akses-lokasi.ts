@@ -178,7 +178,7 @@ export async function beriAkses(
   if (!user.isActive) throw new AksesLokasiError(`${user.fullName} sudah nonaktif.`);
   if (isCrossLocation(user.role)) {
     throw new AksesLokasiError(
-      `${user.fullName} berperan ${ROLE_LABEL[user.role]} – sudah bisa membuka semua lokasi tanpa ditugaskan.`,
+      `${user.fullName} berperan ${ROLE_LABEL[user.role]}, jadi sudah bisa membuka semua lokasi tanpa perlu ditugaskan.`,
     );
   }
 

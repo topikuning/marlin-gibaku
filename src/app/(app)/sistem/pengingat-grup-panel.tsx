@@ -46,8 +46,8 @@ export function PengingatGrupPanel({ aktif }: { aktif: boolean }) {
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Tiap sore, paket yang laporan harian lokasinya belum lengkap ditagih di grupnya sendiri – berjeda satu menit antar grup supaya nomornya tidak ditandai spam. Grup yang keburu lengkap saat gilirannya tiba dilewati tanpa pesan."
-                : "Penjadwal tidak mengirim apa pun ke grup. Pengingat perorangan ke HP penanggung jawab TETAP berjalan lewat sakelar di atas."}
+                ? "Tiap sore, MARLIN menagih di grup tiap paket yang laporan harian lokasinya belum lengkap. Antar grup diberi jeda satu menit supaya nomornya tidak ditandai spam. Grup yang sudah lengkap saat gilirannya tiba tidak dikirimi pesan."
+                : "Penjadwal tidak mengirim apa pun ke grup. Pengingat perorangan ke HP penanggung jawab TETAP berjalan lewat tombol di atas."}
             </p>
           </div>
         </div>
@@ -70,7 +70,7 @@ function TombolSakelar({ aktif }: { aktif: boolean }) {
       <ConfirmSubmit
         label="Nyalakan"
         title="Nyalakan pengingat harian ke grup?"
-        description="Mulai putaran sore berikutnya, MARLIN menagih sendiri di grup WhatsApp tiap paket yang laporan harian lokasinya belum lengkap. Pesan WhatsApp tidak bisa ditarik kembali."
+        description="Mulai sore berikutnya, MARLIN otomatis menagih di grup WhatsApp tiap paket yang laporan harian lokasinya belum lengkap. Pesan WhatsApp tidak bisa ditarik kembali."
         confirmLabel="Ya, nyalakan"
         loading={pending}
       />

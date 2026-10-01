@@ -41,10 +41,10 @@ export function bacaRupiah(mentah: string): HasilRupiah {
 
   const tolak = (sebab: string): HasilRupiah => ({
     ok: false,
-    pesan: `Jumlah "${mentah.trim()}" tidak terbaca: ${sebab}`,
+    pesan: `Jumlah "${mentah.trim()}" tidak bisa dibaca: ${sebab}.`,
   });
 
-  if (!/^[\d.,]+$/.test(teks)) return { ok: false, pesan: "Jumlah harus angka rupiah bulat" };
+  if (!/^[\d.,]+$/.test(teks)) return { ok: false, pesan: "Jumlah harus diisi angka rupiah" };
 
   const koma = (teks.match(/,/g) ?? []).length;
   if (koma > 1) return tolak("ada lebih dari satu koma");
@@ -55,7 +55,7 @@ export function bacaRupiah(mentah: string): HasilRupiah {
     if (!/^\d*$/.test(pecahan)) return tolak("pecahannya bukan angka");
     // Pecahan nol boleh — "1.500.000,00" jelas maksudnya 1.500.000.
     if (pecahan.length > 0 && Number(pecahan) !== 0) {
-      return tolak("rupiah di MARLIN bilangan bulat, tidak menerima pecahan");
+      return tolak("rupiah harus bilangan bulat, tanpa sen");
     }
     bulat = depan;
   }
@@ -65,11 +65,11 @@ export function bacaRupiah(mentah: string): HasilRupiah {
   if (bulat.includes(".")) {
     // Pengelompokan ribuan Indonesia yang UTUH; selain itu ambigu.
     if (!/^\d{1,3}(?:\.\d{3})+$/.test(bulat)) {
-      return tolak("titiknya tidak membentuk pemisah ribuan (contoh yang benar: 1.500.000)");
+      return tolak("letak titiknya bukan pemisah ribuan yang benar (contoh: 1.500.000)");
     }
     bulat = bulat.replace(/\./g, "");
   }
 
-  if (!/^\d+$/.test(bulat)) return { ok: false, pesan: "Jumlah harus angka rupiah bulat" };
+  if (!/^\d+$/.test(bulat)) return { ok: false, pesan: "Jumlah harus diisi angka rupiah bulat" };
   return { ok: true, nilai: BigInt(bulat) };
 }

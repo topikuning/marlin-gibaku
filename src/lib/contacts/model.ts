@@ -88,7 +88,7 @@ export function normalizeWaTarget(raw: string): string {
   if (t.endsWith("@g.us") || t.endsWith("@c.us") || t.endsWith("@s.whatsapp.net")) return t;
   const digits = t.replace(/[^0-9]/g, "");
   if (digits.length >= 8) return `${toInternationalId(digits)}@c.us`;
-  throw new Error(`Format tujuan WA tidak dikenal: ${raw} (pakai nomor WA, atau id grup …@g.us).`);
+  throw new Error(`Format tujuan WA tidak dikenal: ${raw}. Pakai nomor WA atau ID grup (…@g.us).`);
 }
 
 /**

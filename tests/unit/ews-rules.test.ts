@@ -40,7 +40,7 @@ describe("EWS rule lokasi", () => {
     expect(kritis.map((w) => w.ruleId)).toContain("deviasi_kritis");
     expect(kritis.find((w) => w.ruleId === "deviasi_kritis")?.severity).toBe("kritis");
     // Alasan menyebut angka, bukan sekadar "deviasi".
-    expect(kritis.find((w) => w.ruleId === "deviasi_kritis")?.alasan).toContain("-10.0 pp");
+    expect(kritis.find((w) => w.ruleId === "deviasi_kritis")?.alasan).toContain("-10.0 poin persen");
   });
 
   it("PAGAR MINGGU-0: SPMK belum tiba → rule progres/laporan TIDAK menyala", () => {

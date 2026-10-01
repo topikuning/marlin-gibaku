@@ -40,8 +40,8 @@ export function HapusKendalaForm({ issueId }: { issueId: string }) {
       <input type="hidden" name="issueId" value={issueId} />
       <p className="text-sm font-medium text-ink">Hapus kendala ini permanen?</p>
       <p className="text-[12px] text-ink-muted">
-        Hanya untuk kendala yang SALAH CATAT – salah lokasi, salah ketik, atau coba-coba. Kendala
-        yang benar-benar terjadi harus ditutup dengan catatan, bukan dihapus, supaya riwayatnya
+        Hanya untuk kendala yang SALAH CATAT, misalnya salah lokasi, salah ketik, atau coba-coba.
+        Kendala yang benar-benar terjadi harus ditutup dengan catatan, bukan dihapus, supaya riwayatnya
         tetap bisa dipertanggungjawabkan. Judul dan isinya tetap tersimpan di log audit.
       </p>
       <div>
