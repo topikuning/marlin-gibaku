@@ -36,7 +36,28 @@ const BBOX = "94.9,-11.2,141.1,6.3";
 /** Di atas ini MARLIN memakai citra satelit — lihat catatan di kepala berkas. */
 const ZOOM_MAKS = 12;
 
-const sumber = process.env.PETA_BUILD_URL?.trim() || "https://build.protomaps.com/20260901.pmtiles";
+/**
+ * Build Protomaps terbaru yang masih tersedia. Dulu tanggalnya dipatok
+ * (20260901): Protomaps hanya menyimpan build beberapa minggu terakhir, jadi
+ * jalan terjadwal bulan berikutnya gagal karena berkasnya sudah dihapus.
+ * Sekarang dicari mundur dari hari ini sampai ketemu yang ada.
+ */
+async function buildTerbaru(): Promise<string> {
+  for (let mundur = 0; mundur <= 45; mundur++) {
+    const tanggal = new Date(Date.now() - mundur * 86_400_000).toISOString().slice(0, 10).replaceAll("-", "");
+    const url = `https://build.protomaps.com/${tanggal}.pmtiles`;
+    try {
+      const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(20_000) });
+      if (res.ok) return url;
+    } catch {
+      /* coba tanggal sebelumnya */
+    }
+  }
+  console.error("✗ Tidak ada build Protomaps dalam 45 hari terakhir. Isi PETA_BUILD_URL secara manual.");
+  process.exit(1);
+}
+
+const sumber = process.env.PETA_BUILD_URL?.trim() || (await buildTerbaru());
 const keluaran = process.env.PETA_KELUARAN?.trim() || "basemap-indonesia.pmtiles";
 
 console.log(`▸ Mengekstrak Indonesia (bbox ${BBOX}, zoom ≤ ${ZOOM_MAKS}) dari ${sumber}`);
