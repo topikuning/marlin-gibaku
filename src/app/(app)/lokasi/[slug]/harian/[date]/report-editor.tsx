@@ -266,7 +266,7 @@ function ItemForm({
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return nodes
-      .filter((n) => `${n.code} ${n.name} ${n.category}`.toLowerCase().includes(q))
+      .filter((n) => `${n.code} ${n.name} ${n.category} ${n.subPath}`.toLowerCase().includes(q))
       .slice(0, 25);
   }, [query, nodes]);
 
@@ -362,6 +362,9 @@ function ItemForm({
               {picked.category ? (
                 <div className="truncate text-[11px] font-medium text-primary">{picked.category}</div>
               ) : null}
+              {picked.subPath ? (
+                <div className="text-xs font-medium text-ink-muted">{picked.subPath}</div>
+              ) : null}
               <div className="truncate text-sm font-semibold text-ink">{picked.name}</div>
               <div className="mt-0.5 text-xs text-ink-muted">
                 {picked.code}
@@ -409,6 +412,11 @@ function ItemForm({
                     >
                       {n.category ? (
                         <div className="truncate text-[11px] font-medium text-primary">{n.category}</div>
+                      ) : null}
+                      {/* Sub-kategori – pembeda item bernama sama (7.a / 8.a /
+                          10.2.a "Bekesting Kolom"), keluhan user 2026-10-03. */}
+                      {n.subPath ? (
+                        <div className="text-xs font-medium text-ink-muted">{n.subPath}</div>
                       ) : null}
                       <div className="text-sm font-medium text-ink">{n.name}</div>
                       {/* Item dari draft adendum ditandai — pelapor harus tahu
