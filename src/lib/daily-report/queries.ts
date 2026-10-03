@@ -48,6 +48,13 @@ export type LeafNodeOption = {
   lineageKey: string;
   /** Nama kategori teratas — konteks pencarian. */
   category: string;
+  /**
+   * Sub-kategori di antara kategori dan item ("7. Pekerjaan Kolom › …"),
+   * kosong bila item langsung di bawah kategori. Tanpa ini item bernama sama
+   * di sub berbeda (7.a, 8.a, 10.2.a "Bekesting Kolom") tampak kembar di kotak
+   * pilih – keluhan user 2026-10-03.
+   */
+  subPath: string;
   /** Sisa volume yang masih bisa dilaporkan (volume − kumulatif counted). */
   remaining: number | null;
   /**
@@ -99,6 +106,18 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
   ]);
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  /** Rantai sub-kategori (tanpa kategori teratas), dari atas ke bawah. */
+  const subPathOf = (nodeId: string): string => {
+    const bagian: string[] = [];
+    let cur = byId.get(nodeId)?.parentId ? byId.get(byId.get(nodeId)!.parentId!) : undefined;
+    let pagar = 0;
+    while (cur && cur.kind !== "kategori" && pagar++ < 20) {
+      const kode = cur.code.trim().replace(/\.$/, "");
+      bagian.unshift(kode ? `${kode}. ${cur.name.trim()}` : cur.name.trim());
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+    return bagian.join(" › ");
+  };
   const categoryOf = (nodeId: string): string => {
     let cur = byId.get(nodeId);
     let label = "";
@@ -136,6 +155,7 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         volume,
         lineageKey: n.lineageKey,
         category: categoryOf(n.id),
+        subPath: subPathOf(n.id),
         remaining: volume != null ? Math.max(0, Math.round((volume - done) * 1000) / 1000) : null,
         basis: n.revisionId === revision?.id ? ("aktif" as const) : ("draft_adendum" as const),
       };
