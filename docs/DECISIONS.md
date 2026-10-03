@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 648 | 2026-10-03 | Pencarian pekerjaan harian menyebut "Menampilkan 25 dari N" + tombol "Tampilkan semua" (dulu hasil ke-26 dst. hilang diam-diam); pencarian per kata, urutan bebas |
 | 647 | 2026-10-03 | Kotak pilih pekerjaan di input harian menyebut sub-kategori ("7. Pekerjaan Kolom") di bawah kategori – item bernama sama (7.a/8.a/10.2.a) tidak lagi tampak kembar; pencarian ikut mencocokkan sub-kategori |
 | 646 | 2026-10-01 | Teks sistem (layar, WA, PDF) ditulis ulang supaya wajar dibaca: kalimat pendek, sapaan "Anda", tanpa campur Inggris & istilah mesin; nama fitur seragam "Tanya MARLIN"/"Buat Laporan"; aturan bahasa di CLAUDE.md |
 | 645 | 2026-10-01 | Berkas lama (foto ber-cap, dokumen, surat, lampiran) dipindah R2 → arsip Lenovo, tertua dulu: umur > 14 hari + jaga R2 < 90% batas 10 GB; satu pintu `penyimpanan/berkas.ts`, link tetap (`/api/berkas/<token>` untuk yang sudah pindah); sakelar di Sistem |

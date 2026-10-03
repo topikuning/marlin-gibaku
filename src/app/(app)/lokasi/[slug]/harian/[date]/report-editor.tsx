@@ -17,6 +17,7 @@ import type { NoActivityReason } from "@/generated/prisma/enums";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
+import { cariPekerjaan } from "@/lib/daily-report/cari-pekerjaan";
 import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
@@ -262,13 +263,15 @@ function ItemForm({
     };
   }, [state, slug, dateKey]);
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return nodes
-      .filter((n) => `${n.code} ${n.name} ${n.category} ${n.subPath}`.toLowerCase().includes(q))
-      .slice(0, 25);
-  }, [query, nodes]);
+  // Daftar dibatasi 25 supaya ringan di HP, TAPI tidak memotong diam-diam:
+  // jumlah totalnya disebut dan pelapor bisa membuka semuanya (DECISIONS 648).
+  // "Tampilkan semua" melekat pada kata yang sedang dicari – begitu ketikannya
+  // berubah, batasnya kembali tanpa perlu effect.
+  const [semuaUntuk, setSemuaUntuk] = useState<string | null>(null);
+  const { tampil: matches, total: totalCocok } = useMemo(
+    () => cariPekerjaan(nodes, query, semuaUntuk === query ? null : 25),
+    [query, nodes, semuaUntuk],
+  );
 
   function pick(node: LeafNodeOption) {
     setPicked(node);
@@ -435,6 +438,17 @@ function ItemForm({
                     </button>
                   ))
                 )}
+                {totalCocok > matches.length ? (
+                  <div className="space-y-2 border-t border-border bg-surface-muted px-4 py-3">
+                    <p className="text-xs text-ink-muted">
+                      Menampilkan {matches.length} dari {totalCocok} pekerjaan yang cocok. Tambahkan kata
+                      lain supaya lebih sempit, misalnya nama sub-kategori atau kodenya.
+                    </p>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setSemuaUntuk(query)}>
+                      Tampilkan semua ({totalCocok})
+                    </Button>
+                  </div>
+                ) : null}
           </div>
         ) : null}
       </div>
