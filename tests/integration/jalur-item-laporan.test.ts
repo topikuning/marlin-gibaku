@@ -33,7 +33,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const { db } = await import("@/lib/db");
 const { jalurNodeById } = await import("@/lib/rab/jalur");
-const { getWorkspaceData } = await import("@/lib/daily-report/queries");
+const { getWorkspaceData, getLeafNodeOptions } = await import("@/lib/daily-report/queries");
 const { getOrCreateDraft, upsertItem, submitReport } = await import("@/lib/daily-report/service");
 
 const suffix = `jl${Date.now().toString(36)}`;
@@ -169,5 +169,27 @@ describe("workspace harian – tiap item menyebut kategorinya", () => {
     expect(kode).toEqual(["1", "1"]);
     const jalur = ws.report!.items.map((x) => x.jalurKode).sort();
     expect(new Set(jalur).size).toBe(2);
+  });
+});
+
+/*
+ * KOTAK PILIH PEKERJAAN JUGA MENYEBUT SUB-KATEGORI.
+ *
+ * Laporan user 2026-10-03, memotret kotak pilih pekerjaan di input harian: tiga
+ * baris "Pekerjaan Kayu Bekesting Kolom" (7.a, 8.a, 10.2.a) tampak kembar,
+ * karena yang ditampilkan hanya kategori teratas. 605 memperbaiki daftar yang
+ * SUDAH tercatat; kotak pilihnya terlewat.
+ */
+describe("pilihan pekerjaan di input harian", () => {
+  it("menyebut sub-kategori di antara kategori dan nama item", async () => {
+    const opsi = await getLeafNodeOptions(locationId);
+    const dalamSub = opsi.find((o) => o.id === itemDalamSubId);
+    expect(dalamSub?.category).toBe("PEKERJAAN REVETMENT");
+    expect(dalamSub?.subPath).toBe("1. Pekerjaan Tanah");
+  });
+
+  it("item yang langsung di bawah kategori tidak punya sub-kategori", async () => {
+    const opsi = await getLeafNodeOptions(locationId);
+    expect(opsi.find((o) => o.id === itemLangsungId)?.subPath).toBe("");
   });
 });
