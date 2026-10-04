@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Download, FilePen, History, Upload } from "lucide-react";
+import { Download, FilePen, History, Unlink, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
 import { can, ROLE_LABEL } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
-import { getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
+import { getLocationProgress, COUNTED_REPORT_STATUSES, volumeTidakTerbobotByLineage } from "@/lib/progress";
 import { ppnAmount, withPpn } from "@/lib/money";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import { bacaBagian, hrefBagian, type BagianRab } from "@/lib/rab/bagian";
@@ -74,6 +74,10 @@ export default async function RabPage({
   ]);
   const active = revisions.find((r) => r.status === "aktif") ?? null;
   const draft = revisions.find((r) => r.status === "draft") ?? null;
+  // Item ber-realisasi yang tidak ada di RAB aktif – laporannya tetap ada tapi
+  // tidak dibobot (permintaan user 2026-10-04). Disebut di semua bagian karena
+  // progres lokasi ini lebih rendah dari yang sudah dikerjakan.
+  const jumlahTidakTerbobot = active ? (await volumeTidakTerbobotByLineage(location.id)).size : 0;
 
   /*
    * Pohon RAB HANYA diambil saat memang dipakai.
@@ -304,6 +308,23 @@ export default async function RabPage({
           Selama ia ada, angka resmi di seluruh sistem masih memakai revisi
           aktif — dan orang yang sedang membaca pohon RAB berhak tahu bahwa ada
           versi lain yang sedang disiapkan. */}
+      {jumlahTidakTerbobot > 0 ? (
+        <Banner
+          tone="warning"
+          title={`${jumlahTidakTerbobot} item yang sudah dilaporkan tidak ikut dihitung di progres`}
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              <span>
+                Itemnya sudah tidak ada di RAB aktif, biasanya karena dihapus lewat adendum. Laporan hariannya
+                tetap ada, tapi volumenya tidak dibobot.
+              </span>
+              <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
+                Lihat itemnya
+              </ButtonLink>
+            </span>
+          }
+        />
+      ) : null}
       {draft ? (
         <Banner
           tone="warning"
@@ -346,6 +367,12 @@ export default async function RabPage({
                 >
                   <Download aria-hidden className="size-4" />
                   Unduh Excel
+                </ButtonLink>
+              ) : null}
+              {active ? (
+                <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
+                  <Unlink aria-hidden className="size-4" />
+                  {jumlahTidakTerbobot > 0 ? `Tidak terbobot (${jumlahTidakTerbobot})` : "Tidak terbobot"}
                 </ButtonLink>
               ) : null}
               {canManage ? (

@@ -156,6 +156,11 @@ export default async function HarianWorkspacePage({
                         {it.jalurNama ? (
                           <div className="text-[11px] text-ink-faint">{it.jalurNama}</div>
                         ) : null}
+                        {it.diLuarRabAktif ? (
+                          <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+                            Tidak ada di RAB aktif – tidak dihitung di progres
+                          </div>
+                        ) : null}
                         {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
                         {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
                         {it.photos.length > 0 ? (

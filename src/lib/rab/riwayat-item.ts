@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import type { DailyReportStatus } from "@/generated/prisma/enums";
+import { jalurNodeById } from "./jalur";
 
 /**
  * RIWAYAT INPUT PER ITEM PEKERJAAN — "pekerjaan ini diinput kapan saja?"
@@ -64,6 +65,8 @@ export type RiwayatItem = {
   volumeKontrak: number | null;
   /** Σ volume basis `aktif` — angka yang sama dengan yang dipakai pratinjau. */
   total: number;
+  /** false = item ini sudah tidak ada di RAB aktif; realisasinya tidak dibobot. */
+  diRabAktif: boolean;
   input: BarisInput[];
 };
 
@@ -78,6 +81,11 @@ export type RingkasItemBerealisasi = {
   jumlahInput: number;
   /** Tanggal KERJA terakhir yang tercatat untuk item ini. */
   terakhir: Date | null;
+  /**
+   * false = item ini sudah tidak ada di RAB aktif, jadi realisasinya tidak
+   * ikut dibobot di progres (lihat `/rab/tidak-terbobot`).
+   */
+  terbobot: boolean;
 };
 
 /** Rantai kode induk → `"II · 2.b"`. Tanpa ini "2.b" tidak menunjuk apa pun. */
@@ -189,6 +197,7 @@ export async function riwayatInputItem(locationId: string, lineageKey: string): 
     unit: node?.unit ?? dariLaporan?.unit ?? null,
     volumeKontrak: node?.volume == null ? null : Number(node.volume),
     total,
+    diRabAktif: node !== null,
     input,
   };
 }
@@ -226,7 +235,7 @@ export async function cariItemBerealisasi(
   const simpul = revisi
     ? await db.rabNode.findMany({
         where: { revisionId: revisi.id },
-        select: { id: true, parentId: true, lineageKey: true, code: true, name: true, unit: true },
+        select: { id: true, parentId: true, lineageKey: true, code: true, name: true, unit: true, kind: true },
       })
     : [];
   const byId = new Map(simpul.map((s) => [s.id, s]));
@@ -265,19 +274,39 @@ export async function cariItemBerealisasi(
     if (!ada || b.report.reportDate > ada) tanggalKerja.set(b.lineageKey, b.report.reportDate);
   }
 
+  /*
+   * Identitas item yang sudah TIDAK ADA di RAB aktif diambil dari baris
+   * laporannya sendiri (node revisi lama). Dulu yang tampil kode internal
+   * lineage ("VIII#1#a") – tidak terbaca, dan tidak bisa dicari menurut nama.
+   */
+  const hilang = agregat.map((a) => a.lineageKey).filter((k) => !byKey.has(k));
+  const dariLaporan = new Map<string, { code: string; name: string; unit: string | null; nodeId: string }>();
+  if (hilang.length > 0) {
+    for (const b of await db.dailyReportItem.findMany({
+      where: { lineageKey: { in: hilang }, report: { locationId } },
+      select: { lineageKey: true, rabNodeId: true, rabNode: { select: { code: true, name: true, unit: true } } },
+      orderBy: { createdAt: "desc" },
+    })) {
+      if (!dariLaporan.has(b.lineageKey)) dariLaporan.set(b.lineageKey, { ...b.rabNode, nodeId: b.rabNodeId });
+    }
+  }
+  const jalurLama = await jalurNodeById([...dariLaporan.values()].map((d) => d.nodeId));
+
   const cocok = kata.toLowerCase();
   const hasil: RingkasItemBerealisasi[] = [];
   for (const a of agregat) {
     const s = byKey.get(a.lineageKey);
-    const code = bersih(s?.code ?? a.lineageKey);
-    const name = s?.name ?? a.lineageKey;
+    const lama = s ? undefined : dariLaporan.get(a.lineageKey);
+    const code = bersih(s?.code ?? lama?.code ?? a.lineageKey);
+    const name = s?.name ?? lama?.name ?? a.lineageKey;
     if (cocok && !`${code} ${name}`.toLowerCase().includes(cocok)) continue;
     hasil.push({
       lineageKey: a.lineageKey,
       code,
       name,
-      jalur: s ? jalurDari(s) : code,
-      unit: s?.unit ?? null,
+      jalur: s ? jalurDari(s) : ((lama ? jalurLama.get(lama.nodeId)?.kode : undefined) ?? code),
+      unit: s?.unit ?? lama?.unit ?? null,
+      terbobot: !!s && s.kind === "item",
       total: Number(a._sum.volumeDone ?? 0),
       jumlahInput: a._count._all,
       terakhir: tanggalKerja.get(a.lineageKey) ?? null,
