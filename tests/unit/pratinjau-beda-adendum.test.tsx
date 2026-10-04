@@ -139,4 +139,21 @@ describe("pratinjau beda impor RAB", () => {
     expect(html).toContain("di bawah realisasi");
     expect(html).toContain("sudah dikerjakan 40");
   });
+
+  it("volume dicetak rapi dan volume yang hilang dari file disebut, bukan kosong", () => {
+    const html = render(
+      beda({
+        volumeBerubah: [
+          { lineageKey: "A", code: "1", jalur: "VII.2 · 1", name: "Pasangan Bata", dari: 53.41, ke: 48.65360000000001, realisasi: 53.41, dibawahRealisasi: true },
+          { lineageKey: "B", code: "1", jalur: "VI.2 · 1", name: "Bouwplank", dari: 12, ke: null, realisasi: 12, dibawahRealisasi: true },
+        ],
+      }),
+    );
+    // Sisa hitungan desimal Excel tidak boleh sampai ke layar.
+    expect(html).not.toContain("48.6536000");
+    expect(html).toContain("48,654");
+    // "12 → ," membuat orang mengira volumenya nol atau layarnya rusak.
+    expect(html).not.toMatch(/→\s*,/);
+    expect(html).toContain("tidak ada volume di file");
+  });
 });

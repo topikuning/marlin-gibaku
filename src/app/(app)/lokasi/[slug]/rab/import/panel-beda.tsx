@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { formatRupiah, formatRupiahSatuan } from "@/lib/format";
+import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
 import type { BedaPratinjau } from "./actions";
 
 /**
@@ -81,6 +81,16 @@ function DaftarBeda<T>({
  * kalau gak gitu kan konyol"*. Nomor item hanya unik di dalam kategorinya;
  * berkas berdelapan-belas kategori membuat "2.d" jadi teka-teki, bukan alamat.
  */
+/**
+ * Volume dicetak seperti angka biasa (koma desimal, paling banyak 3 angka di
+ * belakang koma – presisi kolom volume). Dulu dicetak mentah, jadi sisa
+ * hitungan rumus Excel ikut tampil ("48.65360000000001"), dan volume yang tidak
+ * ada di file tercetak kosong ("12 → ,") – terbaca nol atau layar rusak
+ * (tangkapan layar user 2026-10-04).
+ */
+const volDari = (v: number | null) => (v == null ? "–" : formatNumber(v));
+const volKe = (v: number | null) => (v == null ? "tidak ada volume di file" : formatNumber(v));
+
 function Jalur({ x }: { x: { jalur?: string; code: string } }) {
   return <span className="font-medium text-ink">{x.jalur || x.code}</span>;
 }
@@ -118,9 +128,9 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
             kunci={(v) => v.lineageKey}
             baris={(v) => (
               <>
-                <Jalur x={v} /> {v.name} – <span className="tabular">{v.dari ?? "–"}</span> →{" "}
-                <span className="tabular font-medium text-ink">{v.ke ?? "–"}</span>
-                {v.realisasi > 0 ? `, sudah dikerjakan ${v.realisasi}` : null}
+                <Jalur x={v} /> {v.name} – <span className="tabular">{volDari(v.dari)}</span> →{" "}
+                <span className="tabular font-medium text-ink">{volKe(v.ke)}</span>
+                {v.realisasi > 0 ? `, sudah dikerjakan ${formatNumber(v.realisasi)}` : null}
                 {v.dibawahRealisasi ? (
                   <span className="ml-1 rounded bg-danger-soft px-1 text-danger">di bawah realisasi</span>
                 ) : null}
@@ -156,7 +166,7 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
                 <Jalur x={i} /> {i.name}
                 {i.realisasi > 0 ? (
                   <span className="ml-1 rounded bg-danger-soft px-1 text-danger">
-                    realisasi {i.realisasi}
+                    realisasi {formatNumber(i.realisasi)}
                   </span>
                 ) : null}
               </>
@@ -261,7 +271,7 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
             kunci={(i) => i.lineageKey}
             baris={(i) => (
               <>
-                <Jalur x={i} /> {i.name} – realisasi {i.realisasi}
+                <Jalur x={i} /> {i.name} – realisasi {formatNumber(i.realisasi)}
               </>
             )}
           />
@@ -286,13 +296,14 @@ export function PanelBeda({ beda, slug }: { beda: BedaPratinjau; slug: string })
             kunci={(v) => v.lineageKey}
             baris={(v) => (
               <>
-                <Jalur x={v} /> {v.name} – {v.dari} → {v.ke}, sudah dikerjakan{" "}
+                <Jalur x={v} /> {v.name} – <span className="tabular">{volDari(v.dari)}</span> →{" "}
+                <span className="tabular">{volKe(v.ke)}</span>, sudah dikerjakan{" "}
                 <Link
                   href={`/lokasi/${slug}/rab/riwayat?item=${encodeURIComponent(v.lineageKey)}`}
                   className="font-medium text-primary underline decoration-dotted underline-offset-2"
                   title="Lihat tanggal-tanggal pekerjaan ini dilaporkan"
                 >
-                  {v.realisasi}
+                  {formatNumber(v.realisasi)}
                 </Link>
               </>
             )}
