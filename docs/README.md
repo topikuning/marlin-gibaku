@@ -23,6 +23,7 @@ Mulai dari mana tergantung yang Anda cari.
 | Sambungkan WhatsApp (WAHA) | [`WAHA_SETUP.md`](./WAHA_SETUP.md) |
 | Sambungkan Google Drive KKP | [`GDRIVE_SETUP.md`](./GDRIVE_SETUP.md) |
 | Pasang server arsip dingin (berkas asli foto) | [`ARSIP_DINGIN_SETUP.md`](./ARSIP_DINGIN_SETUP.md) |
+| Cadangan database & berkas ke Google Drive | [`CADANGAN_SETUP.md`](./CADANGAN_SETUP.md) |
 | Kebijakan dependency & lisensi | [`DEPENDENCY_POLICY.md`](./DEPENDENCY_POLICY.md) |
 
 ## Referensi yang HIDUP (diperbarui mengikuti kode)

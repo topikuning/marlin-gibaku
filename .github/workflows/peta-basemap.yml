@@ -22,6 +22,15 @@ on:
   schedule:
     # Hari ke-3 tiap bulan, 20:00 UTC = 03:00 WIB — jauh dari jam kerja lapangan.
     - cron: "0 20 3 * *"
+  # Ikut berjalan tiap kali skrip atau workflow ini berubah di `dev`. Tanpa ini
+  # perubahan skrip baru teruji sebulan kemudian, saat jadwal berikutnya – dan
+  # tombol "Run workflow" tidak bisa dipakai oleh agen (2026-10-04: jalan
+  # terjadwal 3 Oktober gagal, perbaikannya baru bisa dibuktikan lewat ini).
+  push:
+    branches: [dev]
+    paths:
+      - scripts/peta-basemap.mts
+      - .github/workflows/peta-basemap.yml
   workflow_dispatch:
     inputs:
       build_url:

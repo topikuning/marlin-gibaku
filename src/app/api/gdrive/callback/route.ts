@@ -4,6 +4,7 @@ import { can } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { getGDriveAuth, storeGDriveToken } from "@/lib/gdrive/config";
 import { appUrl, driveRedirectUriFrom } from "@/lib/gdrive/origin";
+import { simpanTokenCadangan } from "@/lib/cadangan/akun";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +63,22 @@ export async function GET(request: NextRequest) {
   const j = (await res.json()) as { refresh_token?: string; id_token?: string };
   if (!j.refresh_token) return done("tanpa-refresh-token");
 
+  // Sambungan untuk akun CADANGAN disimpan terpisah dari akun KKP (DECISIONS 650).
+  if (request.cookies.get("gdrive_oauth_tujuan")?.value === "cadangan") {
+    await simpanTokenCadangan(j.refresh_token, emailFromIdToken(j.id_token));
+    await audit(user.id, "cadangan.connect", "app_setting", null, { email: emailFromIdToken(j.id_token) });
+    const out = NextResponse.redirect(appUrl("/sistem?cadangan=terhubung", request.headers, request.nextUrl.origin));
+    out.cookies.delete("gdrive_oauth_state");
+    out.cookies.delete("gdrive_oauth_tujuan");
+    return out;
+  }
+
   await storeGDriveToken(j.refresh_token, emailFromIdToken(j.id_token));
   await audit(user.id, "gdrive.connect", "app_setting", null, {
     email: emailFromIdToken(j.id_token),
   });
   const out = done("terhubung");
   out.cookies.delete("gdrive_oauth_state");
+  out.cookies.delete("gdrive_oauth_tujuan");
   return out;
 }

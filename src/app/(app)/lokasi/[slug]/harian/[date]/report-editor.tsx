@@ -796,6 +796,11 @@ function ItemRow({
             {item.pctCumulative != null ? ` (${item.pctCumulative.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%)` : ""}
           </div>
           {item.notes ? <div className="mt-0.5 text-xs text-ink-faint">“{item.notes}”</div> : null}
+          {item.diLuarRabAktif ? (
+            <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+              Tidak ada di RAB aktif – tidak dihitung di progres
+            </div>
+          ) : null}
         </div>
         {reportId ? (
           <form action={formAction}>

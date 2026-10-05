@@ -435,6 +435,29 @@ export async function cumulativeVolumeByLineage(
 }
 
 /**
+ * Realisasi yang TIDAK TERBOBOT: volume terhitung (basis aktif) milik lineage
+ * yang bukan item di revisi AKTIF – mis. kategori yang dihilangkan adendum
+ * padahal sudah dilaporkan (permintaan user 2026-10-04).
+ *
+ * Aturannya sengaja sama dengan query `realizedPerLoc` di atas (JOIN ke
+ * `rab_nodes` revisi aktif, `kind = 'item'`): yang tidak lolos JOIN itu persis
+ * yang tidak dibobot. Volumenya diambil dari `cumulativeVolumeByLineage`, jadi
+ * tidak ada penjumlahan kedua. Terbobot + tidak terbobot = seluruh realisasi
+ * (diuji di `tests/integration/realisasi-tidak-terbobot.test.ts`).
+ */
+export async function volumeTidakTerbobotByLineage(locationId: string): Promise<Map<string, number>> {
+  const [semua, aktif] = await Promise.all([
+    cumulativeVolumeByLineage(locationId),
+    db.rabNode.findMany({
+      where: { kind: "item", revision: { locationId, status: "aktif" } },
+      select: { lineageKey: true },
+    }),
+  ]);
+  const terbobot = new Set(aktif.map((n) => n.lineageKey));
+  return new Map([...semua].filter(([key, vol]) => vol !== 0 && !terbobot.has(key)));
+}
+
+/**
  * Volume yang dikerjakan DI DALAM sebuah rentang tanggal, per lokasi per item.
  *
  * ### Kenapa ini berbeda dari kumulatif, dan kenapa bedanya penting

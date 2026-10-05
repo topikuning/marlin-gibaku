@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 650 | 2026-10-05 | Cadangan ke Google Drive akun 2TB: database harian tersandi (pg_dump → AES-256-GCM, retensi 30 hari + 12 bulanan) dan berkas (foto asli/ber-cap, dokumen, surat, lampiran; yang tinggal satu salinan di Lenovo lebih dulu); sambungan Google kedua `drive.file`; cron tiap jam; peringatan WA; `docs/CADANGAN_SETUP.md` |
+| 649 | 2026-10-04 | Halaman "Realisasi tidak terbobot" (RAB → Tidak terbobot): pekerjaan yang sudah dilaporkan tapi itemnya hilang dari RAB aktif; penanda di laporan harian dan riwayat input; fungsi kanonik `volumeTidakTerbobotByLineage` |
 | 648 | 2026-10-03 | Pencarian pekerjaan harian menyebut "Menampilkan 25 dari N" + tombol "Tampilkan semua" (dulu hasil ke-26 dst. hilang diam-diam); pencarian per kata, urutan bebas; susulan: cari lokasi di Dasbor Eksekutif tidak lagi meluber keluar layar HP dan tidak memotong di 8 |
 | 647 | 2026-10-03 | Kotak pilih pekerjaan di input harian menyebut sub-kategori ("7. Pekerjaan Kolom") di bawah kategori – item bernama sama (7.a/8.a/10.2.a) tidak lagi tampak kembar; pencarian ikut mencocokkan sub-kategori |
 | 646 | 2026-10-01 | Teks sistem (layar, WA, PDF) ditulis ulang supaya wajar dibaca: kalimat pendek, sapaan "Anda", tanpa campur Inggris & istilah mesin; nama fitur seragam "Tanya MARLIN"/"Buat Laporan"; aturan bahasa di CLAUDE.md |

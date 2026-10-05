@@ -119,6 +119,9 @@ function DaftarHasil({
                     {h.name}
                   </Link>
                   <span className="block text-[11px] text-ink-faint">{h.jalur}</span>
+                  {!h.terbobot ? (
+                    <span className="block text-[11px] text-warning">Tidak ada di RAB aktif, tidak dihitung di progres</span>
+                  ) : null}
                 </td>
                 <td className="tabular px-2 py-1.5 text-right">
                   {formatNumber(h.total)} {h.unit ?? ""}
@@ -159,6 +162,21 @@ function RiwayatSatuItem({
           · {data.input.length} kali input
         </p>
       </div>
+
+      {!data.diRabAktif && data.input.length > 0 ? (
+        <Banner
+          tone="warning"
+          title="Item ini sudah tidak ada di RAB aktif"
+          description={
+            <>
+              Laporan-laporan di bawah tetap tersimpan, tapi volumenya tidak ikut dihitung di progres.{" "}
+              <Link href={`/lokasi/${slug}/rab/tidak-terbobot`} className="font-medium text-primary underline">
+                Lihat semua item yang tidak terbobot
+              </Link>
+            </>
+          }
+        />
+      ) : null}
 
       {data.input.length === 0 ? (
         <Banner

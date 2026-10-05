@@ -162,6 +162,7 @@ export const RUTE_DINAMIS: {
   { pola: "/lokasi/[slug]/rab/bandingkan", nama: "Bandingkan revisi RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/bandingkan`] : null) },
   { pola: "/lokasi/[slug]/rab/import", nama: "Impor RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/import`] : null) },
   { pola: "/lokasi/[slug]/rab/riwayat", nama: "Riwayat input item", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/riwayat`] : null) },
+  { pola: "/lokasi/[slug]/rab/tidak-terbobot", nama: "Realisasi tidak terbobot", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/tidak-terbobot`] : null) },
   { pola: "/lokasi/[slug]/rapl", nama: "RAPL lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rapl`] : null) },
   { pola: "/paket/[id]", nama: "Workspace paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}`] : null) },
   { pola: "/paket/[id]/aktivitas", nama: "Aktivitas paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/aktivitas`] : null) },

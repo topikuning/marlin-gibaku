@@ -188,6 +188,12 @@ export type WorkspaceItem = {
   pctCumulative: number | null;
   notes: string | null;
   photos: PhotoView[];
+  /**
+   * Item ini sudah tidak ada di RAB aktif (mis. dihapus adendum): barisnya tetap
+   * tersimpan tapi volumenya tidak dibobot di progres. Permintaan user
+   * 2026-10-04 – dulu tampil persis seperti item biasa.
+   */
+  diLuarRabAktif: boolean;
 };
 
 export type WorkspaceHistoryRow = {
@@ -402,6 +408,9 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       notes: it.notes,
       photos: photoByItem.get(it.id) ?? [],
+      // Basis draft adendum punya penandanya sendiri; yang dicek di sini hanya
+      // baris resmi yang lineage-nya tidak lolos ke RAB aktif.
+      diLuarRabAktif: it.basis === "aktif" && !aktifByLineage.has(it.lineageKey),
     };
   });
 
