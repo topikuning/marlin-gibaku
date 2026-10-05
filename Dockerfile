@@ -49,6 +49,22 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends tini gosu ca-certificates openssl fontconfig fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
+# pg_dump untuk cadangan database harian ke Google Drive (DECISIONS 650).
+# Dari repositori resmi PostgreSQL (PGDG), BUKAN paket bawaan Debian (versi 15):
+# pg_dump menolak server yang lebih baru dari dirinya. Klien 18 membaca server
+# 16, 17, dan 18 – Railway memakai 16/17 dan bisa naik kapan saja.
+# Gagal dipasang = BUILD gagal, bukan cadangan yang diam-diam tidak pernah jalan.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    install -d /usr/share/postgresql-common/pgdg && \
+    curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc && \
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-18 && \
+    apt-get purge -y curl && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/* && \
+    pg_dump --version
+
 # Prisma CLI global (pinned) untuk preDeploy `prisma migrate deploy` di Railway.
 # Telemetri/update-check dimatikan: pre-deploy tidak boleh bergantung network keluar.
 RUN npm install -g prisma@7.8.0 && npm cache clean --force

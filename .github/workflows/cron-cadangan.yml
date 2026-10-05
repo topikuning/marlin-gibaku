@@ -1,0 +1,76 @@
+name: Cadangan MARLIN ke Google Drive
+
+# Satu putaran cadangan ke akun Google cadangan (DECISIONS 650): database
+# sekali sehari (dicek tiap jam, dibuat bila cadangan terakhir sudah 20 jam
+# lebih), lalu berkas – foto asli, foto ber-cap, dokumen, surat, lampiran –
+# sampai ±50 menit. Jam berikutnya menyambung.
+#
+# Pemanggilan ini hanya MEMULAI putaran di aplikasi lalu pulang. Akun Google
+# cadangan belum tersambung atau cadangan dijeda = putaran tidak melakukan
+# apa-apa dan menjawabnya apa adanya, jadi workflow ini aman berjalan lebih
+# dulu daripada sambungannya.
+#
+# Memakai APP_URL dan CRON_SECRET yang SAMA dengan cron lain – tidak ada
+# rahasia baru di GitHub.
+#
+# Perilaku GitHub yang perlu diketahui: jadwal sering telat 5–20 menit dan
+# DIMATIKAN diam-diam bila repo tidak menerima commit 60 hari. Tugas harian
+# MARLIN ikut memeriksa umur cadangan terakhir dan mengirim peringatan WA bila
+# lebih dari 36 jam, supaya penjadwal yang mati tidak berakhir sunyi.
+
+on:
+  schedule:
+    # :10 supaya tidak berebut runner dengan cron-gdrive (:20) dan arsip (:40).
+    - cron: "10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-cadangan
+  cancel-in-progress: false
+
+jobs:
+  jalankan:
+    name: Panggil /api/cron/cadangan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Periksa konfigurasi
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::Variable APP_URL belum diisi. Settings → Secrets and variables → Actions → Variables, isi APP_URL = https://<host-produksi> (TANPA garis miring di akhir)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET belum diisi. Nilainya harus SAMA PERSIS dengan CRON_SECRET di environment aplikasi."
+            exit 1
+          fi
+
+      - name: Jalankan satu putaran cadangan
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          status=0
+          body=$(curl --fail-with-body -sS -X POST \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 300 \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/cadangan") || status=$?
+
+          echo "Respons: ${body}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Pemanggilan gagal (curl exit ${status}). Status 404 berarti CRON_SECRET di sini BERBEDA dengan yang ada di aplikasi, atau versi aplikasi di produksi belum memuat fitur cadangan (belum di-merge ke main)."
+            exit "$status"
+          fi
+
+          {
+            echo "### Cadangan ke Google Drive"
+            echo ""
+            echo '```json'
+            echo "${body}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

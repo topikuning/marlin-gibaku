@@ -490,6 +490,10 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
    */
   const { periksaDanPeringatkan } = await import("@/lib/arsip-asli/peringatan");
   await periksaDanPeringatkan(now).catch(() => null);
+  // Alasan yang sama untuk cadangan ke Google Drive (DECISIONS 650): penjadwal
+  // cadangan yang mati total tidak akan melaporkan dirinya sendiri.
+  const { periksaCadanganDanPeringatkan } = await import("@/lib/cadangan/jalankan");
+  await periksaCadanganDanPeringatkan(now).catch(() => null);
 
   const { getPengingatAktif } = await import("./setelan");
   if (!(await getPengingatAktif())) {

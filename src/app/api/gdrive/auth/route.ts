@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { SCOPE_CADANGAN } from "@/lib/cadangan/akun";
 import { appUrl, driveRedirectUriFrom } from "@/lib/gdrive/origin";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(appUrl("/sistem?gdrive=belum-konfigurasi", request.headers, request.nextUrl.origin));
   }
 
+  // `?tujuan=cadangan` = sambungan KEDUA untuk akun Google cadangan (DECISIONS
+  // 650). Redirect URI-nya SAMA, jadi tidak ada pengaturan baru di Google
+  // Cloud; tujuannya dibawa lewat cookie, bukan lewat URL callback.
+  const cadangan = request.nextUrl.searchParams.get("tujuan") === "cadangan";
   const state = randomBytes(16).toString("hex");
   // Bukan request.nextUrl.origin: di belakang proxy Railway skemanya http dan
   // Google menolak redirect URI http untuk domain publik (error 400).
@@ -38,7 +43,8 @@ export async function GET(request: NextRequest) {
     response_type: "code",
     // Scope penuh drive: harus bisa menulis ke folder KKP yang BUKAN dibuat app
     // ini (drive.file tidak cukup — hanya file buatan app sendiri).
-    scope: "https://www.googleapis.com/auth/drive openid email",
+    // Akun cadangan cukup `drive.file`: MARLIN hanya melihat berkas buatannya sendiri.
+    scope: cadangan ? SCOPE_CADANGAN : "https://www.googleapis.com/auth/drive openid email",
     access_type: "offline",
     prompt: "consent",
     state,
@@ -49,6 +55,13 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     sameSite: "lax",
     // Ikut origin PUBLIK — protokol request internal selalu http di container.
+    secure: redirectUri.startsWith("https:"),
+    maxAge: 600,
+    path: "/api/gdrive",
+  });
+  res.cookies.set("gdrive_oauth_tujuan", cadangan ? "cadangan" : "kkp", {
+    httpOnly: true,
+    sameSite: "lax",
     secure: redirectUri.startsWith("https:"),
     maxAge: 600,
     path: "/api/gdrive",

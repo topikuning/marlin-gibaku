@@ -410,7 +410,7 @@ model MasterLocation {
   /// kapal, nilai EE, ID lokasi) TIDAK diambil: MARLIN tidak memakainya, dan
   /// katalog yang menyimpan data tak terpakai hanya jadi salinan kedua yang
   /// segera basi terhadap berkas aslinya di KKP.
-  name             String?
+  name String?
 
   organization     Organization @relation(fields: [orgId], references: [id])
   assignedLocation Location?    @relation(fields: [assignedLocationId], references: [id])
@@ -1412,8 +1412,8 @@ model LocationScopeChange {
   /// TIDAK dihapus dan angkanya tidak bergeser sedikit pun — pengarsipan murni
   /// soal siapa yang melihat, bukan soal apa yang benar. Super admin tetap
   /// melihat seluruh riwayatnya.
-  archivedAt    DateTime?           @map("archived_at") @db.Timestamptz
-  archivedById  String?             @map("archived_by_id") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz
+  archivedById String?   @map("archived_by_id") @db.Uuid
 
   location  Location                @relation(fields: [locationId], references: [id])
   amendment ContractAmendment?      @relation(fields: [amendmentId], references: [id])
@@ -1859,70 +1859,70 @@ model DailyReportEquipment {
 }
 
 model Photo {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                     String              @id @default(uuid()) @db.Uuid
   /// Lokasi pemilik foto — SCOPE dedup (STORE-01). Foto byte-identik yang sah
   /// dipakai di dua lokasi (papan nama tipikal, dokumen yang sama) tidak boleh
   /// saling menolak; yang dicegah hanya kirim ulang di lokasi yang SAMA.
-  locationId         String?             @map("location_id") @db.Uuid
-  reportId           String?             @map("report_id") @db.Uuid
-  reportItemId       String?             @map("report_item_id") @db.Uuid
+  locationId             String?             @map("location_id") @db.Uuid
+  reportId               String?             @map("report_id") @db.Uuid
+  reportItemId           String?             @map("report_item_id") @db.Uuid
   /// Bukti untuk satu baris MATERIAL / ALAT di laporan harian (DECISIONS 304).
   /// Terpisah dari `reportItemId` karena bukan pekerjaan RAB: tidak menggerakkan
   /// progres, dan di blanko KKP dicetak di halaman sendiri.
   /// onDelete = SetNull (default relasi opsional), sama seperti `reportItemId`:
   /// baris yang dihapus TIDAK ikut menghapus fotonya — fotonya jadi yatim yang
   /// masih bisa dilihat & dibersihkan, bukan lenyap diam-diam.
-  reportMaterialId   String?             @map("report_material_id") @db.Uuid
-  reportEquipmentId  String?             @map("report_equipment_id") @db.Uuid
-  activityId         String?             @map("activity_id") @db.Uuid
-  r2Key              String              @unique @map("r2_key")
-  thumbnailKey       String?             @map("thumbnail_key")
+  reportMaterialId       String?             @map("report_material_id") @db.Uuid
+  reportEquipmentId      String?             @map("report_equipment_id") @db.Uuid
+  activityId             String?             @map("activity_id") @db.Uuid
+  r2Key                  String              @unique @map("r2_key")
+  thumbnailKey           String?             @map("thumbnail_key")
   /// Berkas ASLI apa adanya (sebelum kompresi & cap) — arsip bukti mentah.
   /// null = foto lama, diunggah sebelum arsip asli ada (DECISIONS 197).
-  originalKey        String?             @map("original_key")
-  originalBytes      Int?                @map("original_bytes")
-  sha256             String
-  bytes              Int
-  widthPx            Int?                @map("width_px")
-  heightPx           Int?                @map("height_px")
+  originalKey            String?             @map("original_key")
+  originalBytes          Int?                @map("original_bytes")
+  sha256                 String
+  bytes                  Int
+  widthPx                Int?                @map("width_px")
+  heightPx               Int?                @map("height_px")
   /// Koordinat yang TERCAP di foto — belum tentu dari EXIF (lihat `gpsSource`).
   /// Nama kolom dipertahankan demi kompatibilitas data lama.
-  exifGpsLat         Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
-  exifGpsLng         Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
-  gpsSource          PhotoGpsSource      @default(none) @map("gps_source")
+  exifGpsLat             Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
+  exifGpsLng             Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
+  gpsSource              PhotoGpsSource      @default(none) @map("gps_source")
   /// Foto galeri "gunakan apa adanya" (user 2026-08-24): cap TETAP dibubuhkan
   /// (lokasi/pekerjaan/logo) tapi TANPA baris koordinat & tanggal-jam — meski
   /// EXIF ada. Disimpan supaya perbaikan cap (restamp) tidak menambahkannya
   /// kembali. Selaras DECISIONS 197: cap tidak menyatakan yang tidak dijamin.
-  stampPlain         Boolean             @default(false) @map("stamp_plain")
+  stampPlain             Boolean             @default(false) @map("stamp_plain")
   /// Foto SUDAH membawa tag lokasi / tanggal dari aplikasi kamera (terbaca
   /// OCR saat diunggah) → cap MARLIN tidak mencetak ulang unsur itu
   /// (DECISIONS 617). Disimpan supaya perbaikan cap memakai keputusan yang
   /// sama, dan supaya keputusannya bisa ditelusuri.
-  existingTagLocation Boolean            @default(false) @map("existing_tag_location")
-  existingTagTime     Boolean            @default(false) @map("existing_tag_time")
+  existingTagLocation    Boolean             @default(false) @map("existing_tag_location")
+  existingTagTime        Boolean             @default(false) @map("existing_tag_time")
   /// Potongan tulisan yang menjadi dasar keputusan di atas.
-  existingTagEvidence String?            @map("existing_tag_evidence")
+  existingTagEvidence    String?             @map("existing_tag_evidence")
   /// Cap & thumbnail masih DIKERJAKAN DI LATAR (DECISIONS 618). Selama true,
   /// `r2Key` menunjuk berkas ASLI (JPEG/PNG/WebP) supaya foto tetap tampil;
   /// keluaran (PDF, WA, Drive, deck) wajib lewat `kunciFotoBercap`.
-  stampPending        Boolean            @default(false) @map("stamp_pending")
+  stampPending           Boolean             @default(false) @map("stamp_pending")
   /// Percobaan cap latar yang gagal — berhenti dicoba sesudah beberapa kali.
-  stampTries          Int                @default(0) @map("stamp_tries")
+  stampTries             Int                 @default(0) @map("stamp_tries")
   /// Tulisan di foto (tag bawaan aplikasi kamera) BELUM terbaca OCR – cap
   /// sementara lengkap. Dibaca susulan dari berkas asli lalu cap diperbaiki
   /// otomatis oleh pemulih cap latar (DECISIONS 628).
-  ocrPending          Boolean            @default(false) @map("ocr_pending")
+  ocrPending             Boolean             @default(false) @map("ocr_pending")
   /// Letak tulisan yang sudah ada di foto (OCR, pecahan 0..1) – cap MARLIN
   /// disusun menghindarinya, juga saat cap dirender ulang. null = belum dibaca.
   /// DECISIONS 619.
-  textBoxes           Json?              @map("text_boxes")
+  textBoxes              Json?               @map("text_boxes")
   /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
   /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
   /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).
-  stampPhotoId       String?             @map("stamp_photo_id")
+  stampPhotoId           String?             @map("stamp_photo_id")
   /// Berapa kali cap foto ini diperbaiki. 0 = cap asli dari unggahan.
-  stampRevision      Int                 @default(0) @map("stamp_revision")
+  stampRevision          Int                 @default(0) @map("stamp_revision")
   /// Putaran KUMULATIF terhadap berkas ASLI, dalam derajat (0/90/180/270).
   ///
   /// Harus disimpan, bukan disimpulkan: setiap penekanan tombol Putar merender
@@ -1930,11 +1930,11 @@ model Photo {
   /// akan memiringkan capnya juga). Tanpa angka ini, putaran kedua mulai dari
   /// nol lagi — tekan "kanan" dua kali tetap 90°, dan "kiri" sesudah "kanan"
   /// jadi 270° alih-alih kembali. DECISIONS 424c.
-  rotationDeg        Int                 @default(0) @map("rotation_deg")
+  rotationDeg            Int                 @default(0) @map("rotation_deg")
   /// Arsip asli DIHAPUS sengaja (bukan "tidak pernah ada"). Setelah ini cap
   /// foto tsb tidak bisa diperbaiki lagi. DECISIONS 198.
-  originalPurgedAt   DateTime?           @map("original_purged_at") @db.Timestamptz
-  originalPurgedById String?             @map("original_purged_by_id") @db.Uuid
+  originalPurgedAt       DateTime?           @map("original_purged_at") @db.Timestamptz
+  originalPurgedById     String?             @map("original_purged_by_id") @db.Uuid
   /// ARSIP DINGIN: kapan berkas asli TERBUKTI ada di penyimpanan sendiri
   /// (checksum + ukuran cocok). null = masih hanya di R2.
   ///
@@ -1947,27 +1947,27 @@ model Photo {
   ///
   /// Karena monoton, kegagalan di tengah jalan tidak butuh state "pembersihan":
   /// putaran berikutnya mengulang langkah yang sama dan hasilnya sama.
-  originalArchivedAt DateTime?           @map("original_archived_at") @db.Timestamptz
+  originalArchivedAt     DateTime?           @map("original_archived_at") @db.Timestamptz
   /// Kapan salinan R2-nya dibuang setelah masa tenggang. null = masih ada,
   /// dan selama itu ia jadi jaring pengaman kalau arsip dingin bermasalah.
-  originalR2PurgedAt DateTime?           @map("original_r2_purged_at") @db.Timestamptz
+  originalR2PurgedAt     DateTime?           @map("original_r2_purged_at") @db.Timestamptz
   /// Berapa kali pengiriman ke arsip dingin gagal. Ada supaya SATU berkas
   /// bermasalah tidak menyumbat antrean selamanya — yang melewati batas
   /// dilewati sampai ada yang memeriksanya.
-  originalArchiveTries Int               @default(0) @map("original_archive_tries")
+  originalArchiveTries   Int                 @default(0) @map("original_archive_tries")
   /// Sebab kegagalan terakhir, untuk ditampilkan di layar. Bukan untuk mesin.
-  originalArchiveError String?           @map("original_archive_error")
+  originalArchiveError   String?             @map("original_archive_error")
   /// Kapan percobaan arsip TERAKHIR dijalankan. Dipakai memulihkan sendiri
   /// baris yang sudah melewati batas gagal: sesudah masa pulih lewat ia dicoba
   /// lagi, jadi gangguan sesaat tidak menghasilkan tumpukan permanen.
-  originalArchiveTriedAt DateTime?         @map("original_archive_tried_at") @db.Timestamptz
+  originalArchiveTriedAt DateTime?           @map("original_archive_tried_at") @db.Timestamptz
   //
   // CATATAN: dua indeks PARSIAL untuk antrean arsip dibuat langsung di SQL
   // migrasi (`photos_menunggu_arsip_idx`, `photos_menunggu_buang_r2_idx`).
   // Prisma belum bisa menyatakan `WHERE` pada indeks, dan indeks penuh atas
   // kolom yang mayoritasnya NULL adalah pemborosan — yang perlu dicari cuma
   // baris yang sedang menunggu.
-  exifTakenAt        DateTime?           @map("exif_taken_at") @db.Timestamptz
+  exifTakenAt            DateTime?           @map("exif_taken_at") @db.Timestamptz
   /// USANG (DECISIONS 250) — JANGAN DIPAKAI LAGI, dan jangan diisi.
   /// Kolom ini tidak pernah dinaikkan dari `pending` oleh kode mana pun: tidak
   /// ada aksi, UI, maupun capability yang menulisnya, sehingga "Terverifikasi"
@@ -1975,10 +1975,10 @@ model Photo {
   /// selalu nol hasil. Status foto kini DITURUNKAN dari laporan/kegiatan
   /// induknya — lihat `src/lib/photo-status.ts`. Kolomnya belum di-drop karena
   /// isinya di produksi belum diperiksa; lihat OPEN_ISSUES.
-  verification       PhotoVerification   @default(pending)
-  metadataSource     PhotoMetadataSource @default(server) @map("metadata_source")
-  uploadedById       String?             @map("uploaded_by_id") @db.Uuid
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  verification           PhotoVerification   @default(pending)
+  metadataSource         PhotoMetadataSource @default(server) @map("metadata_source")
+  uploadedById           String?             @map("uploaded_by_id") @db.Uuid
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
   location        Location?             @relation(fields: [locationId], references: [id])
   report          DailyReport?          @relation(fields: [reportId], references: [id])
@@ -2974,25 +2974,25 @@ model DailyReminderLog {
 /// tanpa pesan. Pengingat yang menagih orang yang sudah mengerjakan adalah cara
 /// tercepat membuat pengingat berhenti dibaca.
 model GroupReminderJob {
-  id          String    @id @default(uuid()) @db.Uuid
-  packageId   String    @map("package_id") @db.Uuid
-  package     Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid()) @db.Uuid
+  packageId    String    @map("package_id") @db.Uuid
+  package      Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
   /// Tanggal kerja Asia/Jakarta (YYYY-MM-DD) yang ditagih.
-  dateKey     String    @map("date_key")
+  dateKey      String    @map("date_key")
   /// Giliran grup ini: paling cepat boleh dikirim kapan. Inilah yang menegakkan
   /// jeda antar grup, bukan `sleep` di dalam satu proses.
-  sendAfter   DateTime  @map("send_after") @db.Timestamptz
+  sendAfter    DateTime  @map("send_after") @db.Timestamptz
   /// menunggu | terkirim | dilewati | gagal
   /// `dilewati` = saat gilirannya tiba tidak ada lagi yang perlu ditagih.
-  status      String    @default("menunggu")
-  attempts    Int       @default(0)
+  status       String    @default("menunggu")
+  attempts     Int       @default(0)
   /// Jumlah lokasi yang disebut di pesan — 0 pada baris `dilewati`.
-  locations   Int       @default(0)
+  locations    Int       @default(0)
   /// ID pesan dari WAHA: satu-satunya bukti pesannya masuk antrean WhatsApp
   /// (DECISIONS 206).
-  waMessageId String?   @map("wa_message_id")
+  waMessageId  String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju (…@g.us).
-  chatId      String?   @map("chat_id")
+  chatId       String?   @map("chat_id")
   /// Grup TUJUAN giliran ini, ditetapkan saat diantre (DECISIONS 596).
   ///
   /// Berbeda dari `chatId` di atas, yang baru terisi SESUDAH terkirim. Kunci
@@ -3000,11 +3000,11 @@ model GroupReminderJob {
   /// punya beberapa grup kabupaten, dan kunci berbasis paket akan meloloskan
   /// grup pertama lalu MEMBLOKIR sisanya — grup kedua tidak pernah menerima
   /// apa pun, tanpa galat dan tanpa baris gagal.
-  targetChatId String   @map("target_chat_id")
-  lastError   String?   @map("last_error")
-  sentAt      DateTime? @map("sent_at") @db.Timestamptz
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  targetChatId String    @map("target_chat_id")
+  lastError    String?   @map("last_error")
+  sentAt       DateTime? @map("sent_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@unique([dateKey, targetChatId])
   @@index([status, sendAfter])
@@ -3022,36 +3022,36 @@ model GroupReminderJob {
 /// yang tidak boleh berulang adalah pesan yang BENAR-BENAR sampai, bukan
 /// percobaan yang kandas karena WAHA sedang mati.
 model WeeklyWaLog {
-  id          String    @id @default(uuid()) @db.Uuid
-  packageId   String    @map("package_id") @db.Uuid
-  package     Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid()) @db.Uuid
+  packageId    String    @map("package_id") @db.Uuid
+  package      Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
   /// Minggu kontrak ke berapa sejak SPMK — sifat kontrak, sama untuk semua lokasinya.
-  weekNumber  Int       @map("week_number")
+  weekNumber   Int       @map("week_number")
   /// Jumlah desa/KNMP yang ikut di pesan itu.
-  locations   Int
+  locations    Int
   /// sukses | gagal
-  status      String
-  error       String?
+  status       String
+  error        String?
   /// ID pesan dari WAHA — satu-satunya bukti pesannya masuk antrean WhatsApp
   /// (alasan lengkap: DECISIONS 206).
-  waMessageId String?   @map("wa_message_id")
+  waMessageId  String?   @map("wa_message_id")
   /// Grup yang BENAR-BENAR dituju saat mengirim (…@g.us).
-  chatId      String?   @map("chat_id")
+  chatId       String?   @map("chat_id")
   /// Grup TUJUAN baris ini (DECISIONS 596). Kunci anti-duplikatnya memakai
   /// kolom ini, bukan `package_id`: paket dengan dua grup kabupaten berhak
   /// atas dua kiriman per minggu, dan kunci berbasis paket akan menganggap
   /// kiriman kedua sebagai pengulangan lalu MENOLAKNYA diam-diam.
-  targetChatId String   @map("target_chat_id")
+  targetChatId String    @map("target_chat_id")
   /// true = ditekan orang lewat tombol, false = dikirim penjadwal.
-  manual      Boolean   @default(false)
+  manual       Boolean   @default(false)
   /// Teks yang dikirim, apa adanya. Laporan resmi ke pemberi kerja harus bisa
   /// dibuktikan isinya belakangan, bukan disusun ulang dari angka hari ini —
   /// angka hari ini sudah berubah.
-  body        String
-  sentById    String?   @map("sent_by_id") @db.Uuid
-  attempts    Int       @default(1)
-  lastSentAt  DateTime? @map("last_sent_at") @db.Timestamptz
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  body         String
+  sentById     String?   @map("sent_by_id") @db.Uuid
+  attempts     Int       @default(1)
+  lastSentAt   DateTime? @map("last_sent_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([weekNumber, targetChatId])
   @@index([packageId, weekNumber])
@@ -3594,4 +3594,26 @@ model BerkasPindah {
 
   @@index([dipindahAt])
   @@map("berkas_pindah")
+}
+
+/// CADANGAN BERKAS KE GOOGLE DRIVE (DECISIONS 650). Satu baris per kunci
+/// berkas yang sudah (atau sedang dicoba) disalin ke akun Google cadangan.
+/// Salinan di Drive TIDAK pernah dihapus otomatis – berkas yang dihapus di
+/// MARLIN tetap ada di cadangan.
+model CadanganBerkas {
+  kunci         String    @id
+  /// foto-asli | foto | dokumen | surat | lampiran-wa | lampiran-kegiatan
+  kategori      String
+  bytes         Int       @default(0)
+  /// md5 isi – dicocokkan dengan md5Checksum yang dilaporkan Drive.
+  md5           String?
+  driveFileId   String?   @map("drive_file_id")
+  dicadangkanAt DateTime? @map("dicadangkan_at") @db.Timestamptz
+  percobaan     Int       @default(0)
+  galat         String?
+  dicobaAt      DateTime? @map("dicoba_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([dicadangkanAt])
+  @@map("cadangan_berkas")
 }

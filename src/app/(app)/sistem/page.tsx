@@ -28,6 +28,7 @@ import { PetaPanel } from "./peta-panel";
 import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PindahBerkasPanel } from "./pindah-berkas-panel";
+import { CadanganPanel, type CadanganPanelProps } from "./cadangan-panel";
 import { PolicyCard } from "./policy-card";
 import { LokasiKembarPanel } from "./lokasi-kembar-panel";
 import { laporanLokasiKembar } from "@/lib/package/lokasi-kembar";
@@ -236,6 +237,48 @@ export default async function SistemPage() {
         : null,
     },
   };
+  // Cadangan ke Google Drive (DECISIONS 650). Ruang Drive dibaca langsung dari
+  // Google – gagal membacanya tidak boleh merobohkan halaman Sistem.
+  const cadangan = await (async (): Promise<CadanganPanelProps> => {
+    const { tampilanAkunCadangan } = await import("@/lib/cadangan/akun");
+    const { keadaanDb } = await import("@/lib/cadangan/database");
+    const { ringkasBerkas } = await import("@/lib/cadangan/berkas");
+    const { keadaanCadanganLatar } = await import("@/lib/cadangan/jalankan");
+    const { alamatFolder, ruangDrive } = await import("@/lib/cadangan/drive");
+    const { randomBytes } = await import("node:crypto");
+    const akun = await tampilanAkunCadangan();
+    const [dbKeadaan, berkas, ruang] = await Promise.all([
+      keadaanDb(),
+      ringkasBerkas().catch(() => null),
+      akun.terhubung ? ruangDrive().catch(() => null) : Promise.resolve(null),
+    ]);
+    const latarC = keadaanCadanganLatar();
+    const t = latarC.terakhir;
+    return {
+      akun,
+      folderUrl: akun.folderId ? await alamatFolder(akun.folderId) : null,
+      contohKunci: randomBytes(32).toString("base64"),
+      db: { terakhir: dbKeadaan.terakhir, galat: dbKeadaan.galat },
+      dbTerlambat: dbKeadaan.terlambat,
+      berkas: berkas
+        ? { ...berkas, terakhirBerhasil: berkas.terakhirBerhasil?.toISOString() ?? null }
+        : null,
+      ruang,
+      latar: {
+        berjalanSejak: latarC.berjalanSejak?.toISOString() ?? null,
+        selesai: t?.selesai.toISOString() ?? null,
+        ringkas: t
+          ? [
+              t.db.dibuat ? "database tercadangkan" : t.db.galat ? `database gagal (${t.db.galat})` : null,
+              t.berkas ? `${t.berkas.disalin} berkas disalin${t.berkas.gagal ? `, ${t.berkas.gagal} gagal` : ""}` : null,
+              t.berkas?.berhenti ?? null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : null,
+      },
+    };
+  })();
   /*
    * Foto yang kuncinya masih .heic/.heif = yang terlanjur masuk lewat jalur
    * simpan-mentah sebelum dekoder HEVC ada (DECISIONS 547). Dihitung di server
@@ -516,6 +559,16 @@ export default async function SistemPage() {
         />
         <CardBody>
           <PindahBerkasPanel {...pindahBerkas} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Cadangan ke Google Drive"
+          subtitle="Salinan database dan berkas di akun Google cadangan, supaya data tidak hanya ada di R2 dan server Lenovo"
+        />
+        <CardBody>
+          <CadanganPanel {...cadangan} />
         </CardBody>
       </Card>
 
