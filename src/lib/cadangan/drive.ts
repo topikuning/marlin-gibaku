@@ -50,17 +50,110 @@ async function minta(url: string, init: RequestInit = {}, apa = "Permintaan ke G
 const kutip = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
 const cacheFolder = new Map<string, string>();
+/**
+ * Pencarian/pembuatan folder yang SEDANG berjalan. Berkas disalin tiga
+ * sekaligus; tanpa antrean ini ketiganya mencari folder yang belum ada pada
+ * saat yang sama dan masing-masing membuatnya – tiga folder "berkas" kembar
+ * (tangkapan layar user 2026-10-05).
+ */
+const sedangDicari = new Map<string, Promise<string>>();
+
+type Anak = { id: string; name: string; mimeType: string };
+
+async function anakFolder(induk: string, hanyaFolder: boolean, nama?: string): Promise<Anak[]> {
+  const out: Anak[] = [];
+  let halaman: string | undefined;
+  do {
+    const q =
+      `'${induk}' in parents and trashed = false` +
+      (hanyaFolder ? ` and mimeType = '${FOLDER_MIME}'` : "") +
+      (nama ? ` and name = '${kutip(nama)}'` : "");
+    const res = await minta(
+      `${API}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000&orderBy=createdTime` +
+        (halaman ? `&pageToken=${encodeURIComponent(halaman)}` : ""),
+      {},
+      "Membaca isi folder cadangan",
+    );
+    const j = (await res.json()) as { nextPageToken?: string; files?: Anak[] };
+    out.push(...(j.files ?? []));
+    halaman = j.nextPageToken;
+  } while (halaman);
+  return out;
+}
+
+/**
+ * Gabungkan folder kembar ke `utama`: isinya dipindah (subfolder senama ikut
+ * digabung), lalu folder kembar yang sudah kosong dihapus. Memindah tidak
+ * mengubah id berkas, jadi catatan `cadangan_berkas` tetap benar.
+ */
+async function gabungkanKe(utama: string, kembar: string): Promise<number> {
+  let n = 1;
+  const subUtama = new Map((await anakFolder(utama, true)).map((f) => [f.name, f.id]));
+  for (const a of await anakFolder(kembar, false)) {
+    const sama = a.mimeType === FOLDER_MIME ? subUtama.get(a.name) : undefined;
+    if (sama) {
+      n += await gabungkanKe(sama, a.id);
+      continue;
+    }
+    await minta(
+      `${API}/files/${encodeURIComponent(a.id)}?addParents=${encodeURIComponent(utama)}&removeParents=${encodeURIComponent(kembar)}&fields=id`,
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "{}" },
+      `Memindah "${a.name}" dari folder kembar`,
+    );
+    if (a.mimeType === FOLDER_MIME) subUtama.set(a.name, a.id);
+  }
+  if ((await anakFolder(kembar, false)).length === 0) await hapusDiDrive(kembar);
+  return n;
+}
+
+/**
+ * Sapu seluruh pohon di bawah `induk`: folder senama di induk yang sama
+ * digabung ke yang tertua, di semua tingkat. Dijalankan di awal tiap putaran
+ * berkas – folder kembar lama yang tidak lagi dilewati salinan baru (bulan
+ * yang sudah selesai) ikut rapi. Mengembalikan jumlah folder kembar yang
+ * digabung.
+ */
+export async function rapikanFolderKembar(induk: string): Promise<number> {
+  let n = 0;
+  const perNama = new Map<string, string[]>();
+  for (const f of await anakFolder(induk, true)) {
+    const daftar = perNama.get(f.name) ?? [];
+    daftar.push(f.id);
+    perNama.set(f.name, daftar);
+  }
+  for (const [nama, ids] of perNama) {
+    const [utama, ...kembar] = ids;
+    for (const k of kembar) n += await gabungkanKe(utama!, k);
+    cacheFolder.set(`${induk}/${nama}`, utama!);
+    n += await rapikanFolderKembar(utama!);
+  }
+  return n;
+}
 
 export async function pastikanFolder(indukId: string, nama: string): Promise<string> {
   const k = `${indukId}/${nama}`;
   const ada = cacheFolder.get(k);
   if (ada) return ada;
-  const q = `name = '${kutip(nama)}' and mimeType = '${FOLDER_MIME}' and '${indukId}' in parents and trashed = false`;
-  const cari = await minta(`${API}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`, {}, `Mencari folder "${nama}"`);
-  const id = ((await cari.json()) as { files?: { id: string }[] }).files?.[0]?.id;
-  if (id) {
+  const jalan = sedangDicari.get(k);
+  if (jalan) return jalan;
+  const janji = cariAtauBuatFolder(indukId, nama);
+  sedangDicari.set(k, janji);
+  try {
+    const id = await janji;
     cacheFolder.set(k, id);
     return id;
+  } finally {
+    sedangDicari.delete(k);
+  }
+}
+
+async function cariAtauBuatFolder(indukId: string, nama: string): Promise<string> {
+  const ditemukan = await anakFolder(indukId, true, nama);
+  if (ditemukan.length > 0) {
+    // Yang tertua dipakai; kembarannya (sisa putaran lama) digabung ke situ.
+    const [utama, ...kembar] = ditemukan;
+    for (const f of kembar) await gabungkanKe(utama!.id, f.id);
+    return utama!.id;
   }
   const buat = await minta(
     `${API}/files?fields=id`,
@@ -71,9 +164,7 @@ export async function pastikanFolder(indukId: string, nama: string): Promise<str
     },
     `Membuat folder "${nama}"`,
   );
-  const baru = ((await buat.json()) as { id: string }).id;
-  cacheFolder.set(k, baru);
-  return baru;
+  return ((await buat.json()) as { id: string }).id;
 }
 
 /** Folder akar "MARLIN Cadangan" di My Drive akun cadangan; dibuat sekali, diingat. */

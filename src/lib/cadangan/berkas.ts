@@ -5,7 +5,7 @@ import { bacaBerkasAsli } from "@/lib/arsip-asli/antrean";
 import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 import { CadanganError } from "./akun";
 import { namaDiDrive } from "./aturan";
-import { batasLaju, cariDiFolder, folderAkar, hapusDiDrive, pastikanFolder, unggahResumable } from "./drive";
+import { batasLaju, cariDiFolder, folderAkar, hapusDiDrive, pastikanFolder, rapikanFolderKembar, unggahResumable } from "./drive";
 
 /**
  * CADANGAN BERKAS KE GOOGLE DRIVE (DECISIONS 650).
@@ -170,6 +170,10 @@ export type HasilBerkas = { disalin: number; bytes: number; gagal: number; sisa:
 
 export async function cadangkanBerkas(anggaranMs: number): Promise<HasilBerkas> {
   const tenggat = Date.now() + anggaranMs;
+  // Folder kembar sisa versi pertama (tiga salinan bersamaan membuat folder
+  // yang sama tiga kali) digabung dulu, di semua tingkat. Gagal merapikan
+  // tidak menghentikan cadangan – berkasnya tetap aman di folder mana pun.
+  await rapikanFolderKembar(await folderAkar()).catch(() => 0);
   const { calon } = await antrean(Date.now());
   const galat: string[] = [];
   let disalin = 0;

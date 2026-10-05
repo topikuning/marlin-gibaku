@@ -45,6 +45,7 @@ vi.mock("@/lib/cadangan/drive", () => ({
   NAMA_FOLDER_AKAR: "MARLIN Cadangan",
   batasLaju: () => false,
   folderAkar: async () => "akar",
+  rapikanFolderKembar: async () => 0,
   alamatFolder: async (id: string) => `https://drive.tiruan/${id}`,
   pastikanFolder: async (induk: string, nama: string) => `${induk}/${nama}`,
   unggahResumable: async (
