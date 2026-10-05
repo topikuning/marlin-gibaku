@@ -2,7 +2,7 @@ import "server-only";
 import { encryptionKeyFromEnv, readStoredSecret, secretUntukSimpan } from "@/lib/ai/crypto";
 import { latestSettings, putAiSetting } from "@/lib/ai/config";
 import { getGDriveAuth } from "@/lib/gdrive/config";
-import { kunciCadanganDari } from "./sandi";
+import { kunciCadanganDari, type KunciCadangan } from "./sandi";
 
 /**
  * AKUN GOOGLE CADANGAN (DECISIONS 650) – sambungan KEDUA, terpisah dari akun
@@ -53,7 +53,7 @@ export async function tampilanAkunCadangan(): Promise<TampilanAkunCadangan> {
   };
 }
 
-export function kunciCadangan(): Buffer | null {
+export function kunciCadangan(): KunciCadangan | null {
   return kunciCadanganDari(process.env.BACKUP_ENCRYPTION_KEY);
 }
 
