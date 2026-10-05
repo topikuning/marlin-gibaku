@@ -26,12 +26,14 @@ Fitur ini ikut rilis `main`. Sebelum di-merge, tombolnya belum ada di MARLIN
 produksi, dan workflow cadangan di GitHub menjawab 404.
 
 ### 2. Isi kunci sandi di Railway
-1. Buka MARLIN → **Sistem** → tab **Integrasi** → kartu **Cadangan ke Google
-   Drive**. Selama kuncinya belum ada, kartu itu menampilkan satu kunci baru
-   yang siap disalin.
+1. Pilih kuncinya. Ada dua pilihan:
+   - **kalimat sandi buatan sendiri**, minimal 12 karakter. Makin panjang
+     makin aman, misalnya satu kalimat yang mudah Anda ingat;
+   - atau **kunci acak** yang ditampilkan kartu **Cadangan ke Google Drive**
+     (MARLIN → Sistem → tab Integrasi) selama kuncinya belum diisi.
 2. Railway → service MARLIN → **Variables** → **New Variable**:
    - Nama: `BACKUP_ENCRYPTION_KEY`
-   - Isi: kunci tadi (atau hasil `openssl rand -base64 32`)
+   - Isi: kalimat sandi atau kunci acak tadi
 3. **Simpan juga kunci itu di luar Railway**, misalnya di pengelola sandi atau
    dicetak lalu disimpan. Kalau Railway hilang, cadangan database hanya bisa
    dibuka dengan kunci ini. Tanpa kunci, cadangannya tidak berguna.

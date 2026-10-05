@@ -5,7 +5,7 @@
  * AES-256-GCM. Skrip ini membukanya kembali menjadi berkas pg_dump biasa, yang
  * lalu dipulihkan dengan pg_restore.
  *
- *   BACKUP_ENCRYPTION_KEY="<kunci yang sama dengan di Railway>" \
+ *   BACKUP_ENCRYPTION_KEY="<kalimat sandi / kunci yang sama dengan di Railway>" \
  *     pnpm tsx scripts/buka-cadangan.mts marlin-db-2026-10-05-0200.dump.enc marlin.dump
  *
  *   pg_restore --no-owner --no-privileges --dbname="<DATABASE_URL tujuan>" marlin.dump
@@ -23,7 +23,7 @@ if (!masuk || !keluar) {
 }
 const kunci = kunciCadanganDari(process.env.BACKUP_ENCRYPTION_KEY);
 if (!kunci) {
-  console.error("BACKUP_ENCRYPTION_KEY kosong atau bukan 32 byte (base64 / 64 hex). Pakai kunci yang sama dengan di Railway.");
+  console.error("BACKUP_ENCRYPTION_KEY kosong atau kurang dari 12 karakter. Pakai kalimat sandi / kunci yang sama dengan di Railway.");
   process.exit(1);
 }
 try {

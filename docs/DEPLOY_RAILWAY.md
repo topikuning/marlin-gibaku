@@ -40,7 +40,7 @@ Arsitektur: lihat `docs/rebuild/DEPLOYMENT_ARCHITECTURE.md`. Build memakai
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | dari R2 API Token (permission Object Read & Write, scope bucket tsb) | |
 | `LAMPIRAN_DIR` | `/data/lampiran` | **production saja** – titik pasang Volume (lihat §3a). Tanpa ini lampiran WA disimpan di disk kontainer yang hilang tiap deploy |
 | `AI_SECRET_ENCRYPTION_KEY` | hasil `openssl rand -hex 32` | wajib begitu AI / WhatsApp / Google Drive dipakai — mengenkripsi SELURUH rahasia di AppSetting. Tanpa ini penyimpanan rahasia ditolak, dan boot mencetak galat berisi jumlah rahasia yang masih telanjang |
-| `BACKUP_ENCRYPTION_KEY` | hasil `openssl rand -base64 32` | wajib untuk cadangan database ke Google Drive (DECISIONS 650, `docs/CADANGAN_SETUP.md`). SIMPAN JUGA di luar Railway – tanpa kunci ini cadangan database tidak bisa dibuka |
+| `BACKUP_ENCRYPTION_KEY` | kalimat sandi sendiri (min. 12 karakter) atau `openssl rand -base64 32` | wajib untuk cadangan database ke Google Drive (DECISIONS 650, `docs/CADANGAN_SETUP.md`). SIMPAN JUGA di luar Railway – tanpa kunci ini cadangan database tidak bisa dibuka |
 
 R2 opsional: tanpa R2 aplikasi tetap jalan, fitur unggah foto/dokumen menampilkan
 pesan "belum dikonfigurasi". Validasi env dilakukan zod saat startup — kalau salah

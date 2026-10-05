@@ -31,17 +31,44 @@ async function kumpulkan(r: Readable): Promise<Buffer> {
 }
 
 describe("kunci enkripsi cadangan", () => {
-  it("menerima 32 byte base64 atau 64 karakter hex", () => {
+  it("menerima 32 byte base64 atau 64 karakter hex apa adanya", () => {
     const k = randomBytes(32);
-    expect(kunciCadanganDari(k.toString("base64"))?.equals(k)).toBe(true);
-    expect(kunciCadanganDari(k.toString("hex"))?.equals(k)).toBe(true);
+    const a = kunciCadanganDari(k.toString("base64"));
+    expect(a?.jenis === "kunci" && a.kunci.equals(k)).toBe(true);
+    const b = kunciCadanganDari(k.toString("hex"));
+    expect(b?.jenis === "kunci" && b.kunci.equals(k)).toBe(true);
   });
 
-  it("menolak kunci yang terlalu pendek atau kosong – lebih baik tidak mencadangkan daripada cadangan berkunci lemah", () => {
+  it("boleh kalimat sandi buatan sendiri, minimal 12 karakter", () => {
+    expect(kunciCadanganDari("Proyek KNMP 2026 aman!")).toEqual({ jenis: "frasa", frasa: "Proyek KNMP 2026 aman!" });
+  });
+
+  it("menolak yang kosong atau terlalu pendek – lebih baik tidak mencadangkan daripada sandi lemah", () => {
     expect(kunciCadanganDari("")).toBeNull();
     expect(kunciCadanganDari(undefined)).toBeNull();
     expect(kunciCadanganDari("rahasia")).toBeNull();
-    expect(kunciCadanganDari(randomBytes(16).toString("base64"))).toBeNull();
+    expect(kunciCadanganDari("12345678901")).toBeNull();
+  });
+});
+
+describe("sandi cadangan dengan kalimat sandi sendiri", () => {
+  const frasa = kunciCadanganDari("Proyek KNMP 2026 aman!")!;
+
+  it("bisa dibuka kembali dengan kalimat sandi yang sama", async () => {
+    const asli = randomBytes(100_000);
+    const tersandi = await kumpulkan(Readable.from([asli]).pipe(sandiStream(frasa)));
+    expect(bukaSandi(tersandi, frasa).equals(asli)).toBe(true);
+  });
+
+  it("kalimat sandi lain = gagal dibuka", async () => {
+    const tersandi = await kumpulkan(Readable.from([Buffer.from("isi")]).pipe(sandiStream(frasa)));
+    expect(() => bukaSandi(tersandi, kunciCadanganDari("Proyek KNMP 2026 aman?")!)).toThrow();
+  });
+
+  it("dua cadangan dengan kalimat sandi sama tetap berbeda isinya (garam acak tiap berkas)", async () => {
+    const a = await kumpulkan(Readable.from([Buffer.from("isi sama")]).pipe(sandiStream(frasa)));
+    const b = await kumpulkan(Readable.from([Buffer.from("isi sama")]).pipe(sandiStream(frasa)));
+    expect(a.equals(b)).toBe(false);
   });
 });
 

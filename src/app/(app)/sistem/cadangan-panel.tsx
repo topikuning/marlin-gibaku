@@ -69,9 +69,10 @@ export function CadanganPanel(p: CadanganPanelProps) {
           description={
             <span className="space-y-1">
               <span className="block">
-                Tanpa kunci ini database tidak dicadangkan. Berkas tetap disalin. Salin kunci di bawah ke variabel{" "}
-                <code>BACKUP_ENCRYPTION_KEY</code> di Railway, lalu SIMPAN JUGA di tempat lain di luar Railway (misalnya
-                pengelola sandi). Tanpa kunci ini cadangan database tidak bisa dibuka.
+                Tanpa kunci ini database tidak dicadangkan. Berkas tetap disalin. Isi variabel{" "}
+                <code>BACKUP_ENCRYPTION_KEY</code> di Railway dengan kalimat sandi buatan Anda sendiri (minimal 12
+                karakter), atau salin kunci acak di bawah. Simpan juga di luar Railway: tanpa kunci ini cadangan
+                database tidak bisa dibuka.
               </span>
               <code className="block break-all rounded bg-surface-inset px-2 py-1 text-xs">{p.contohKunci}</code>
             </span>

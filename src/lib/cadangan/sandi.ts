@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { Transform } from "node:stream";
 
 /**
@@ -8,7 +8,15 @@ import { Transform } from "node:stream";
  * meninggalkan server, jadi yang tersimpan di Google Drive tidak bisa dibaca
  * siapa pun yang hanya memegang akun Google-nya.
  *
- * Bentuk berkas: `MARLINCAD1\n` · IV 12 byte · isi AES-256-GCM · tag 16 byte.
+ * `BACKUP_ENCRYPTION_KEY` boleh dua bentuk (permintaan user 2026-10-05: *"apakah
+ * kunci enkripsinya bisa kuset sendiri?"*):
+ *   - kunci acak 32 byte (base64 / 64 hex) → dipakai langsung
+ *       berkas: `MARLINCAD1\n` · IV 12 · isi AES-256-GCM · tag 16
+ *   - kalimat sandi buatan sendiri, minimal 12 karakter → kunci diturunkan
+ *     dengan scrypt dan GARAM ACAK per berkas (disimpan di kepala berkas)
+ *       berkas: `MARLINCAD2\n` · garam 16 · IV 12 · isi · tag 16
+ * Pembuka mengenali bentuknya dari kepala berkas.
+ *
  * Tag di UJUNG supaya penyandian bisa mengalir (pg_dump → sandi → Drive) tanpa
  * menampung seluruh isi di memori.
  *
@@ -17,36 +25,50 @@ import { Transform } from "node:stream";
  */
 
 export const KEPALA_SANDI = "MARLINCAD1\n";
+const KEPALA_FRASA = "MARLINCAD2\n";
 const PANJANG_IV = 12;
 const PANJANG_TAG = 16;
+const PANJANG_GARAM = 16;
+export const FRASA_MINIMUM = 12;
+/** scrypt N=2^15: ±0,1 detik per berkas, cukup mahal untuk menebak kalimat sandi. */
+const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
-/** `BACKUP_ENCRYPTION_KEY`: 32 byte, ditulis base64 atau 64 karakter hex. Selain itu null. */
-export function kunciCadanganDari(raw: string | undefined | null): Buffer | null {
+export type KunciCadangan = { jenis: "kunci"; kunci: Buffer } | { jenis: "frasa"; frasa: string };
+
+/** Isi `BACKUP_ENCRYPTION_KEY` → kunci, atau null bila kosong / kurang dari 12 karakter. */
+export function kunciCadanganDari(raw: string | undefined | null): KunciCadangan | null {
   const s = (raw ?? "").trim();
   if (!s) return null;
-  if (/^[0-9a-fA-F]{64}$/.test(s)) return Buffer.from(s, "hex");
-  try {
+  if (/^[0-9a-fA-F]{64}$/.test(s)) return { jenis: "kunci", kunci: Buffer.from(s, "hex") };
+  if (/^[A-Za-z0-9+/]{43}=$/.test(s)) {
     const b = Buffer.from(s, "base64");
-    return b.length === 32 ? b : null;
-  } catch {
-    return null;
+    if (b.length === 32) return { jenis: "kunci", kunci: b };
   }
+  return s.length >= FRASA_MINIMUM ? { jenis: "frasa", frasa: s } : null;
 }
 
+const sebagaiKunci = (k: KunciCadangan | Buffer): KunciCadangan =>
+  Buffer.isBuffer(k) ? { jenis: "kunci", kunci: k } : k;
+
+const turunkan = (frasa: string, garam: Buffer) => scryptSync(frasa.normalize("NFC"), garam, 32, SCRYPT);
+
 /** Aliran penyandi: masukkan isi apa adanya, keluar berkas cadangan utuh. */
-export function sandiStream(kunci: Buffer): Transform {
+export function sandiStream(k: KunciCadangan | Buffer): Transform {
+  const kc = sebagaiKunci(k);
   const iv = randomBytes(PANJANG_IV);
+  const garam = kc.jenis === "frasa" ? randomBytes(PANJANG_GARAM) : null;
+  const kunci = kc.jenis === "frasa" ? turunkan(kc.frasa, garam!) : kc.kunci;
   const cipher = createCipheriv("aes-256-gcm", kunci, iv);
   let kepalaTerkirim = false;
   const kepala = () => {
     if (kepalaTerkirim) return [];
     kepalaTerkirim = true;
-    return [Buffer.from(KEPALA_SANDI), iv];
+    return garam ? [Buffer.from(KEPALA_FRASA), garam, iv] : [Buffer.from(KEPALA_SANDI), iv];
   };
   return new Transform({
     transform(chunk: Buffer, _enc, cb) {
       try {
-        for (const k of kepala()) this.push(k);
+        for (const b of kepala()) this.push(b);
         cb(null, cipher.update(chunk));
       } catch (err) {
         cb(err as Error);
@@ -54,7 +76,7 @@ export function sandiStream(kunci: Buffer): Transform {
     },
     flush(cb) {
       try {
-        for (const k of kepala()) this.push(k);
+        for (const b of kepala()) this.push(b);
         this.push(cipher.final());
         cb(null, cipher.getAuthTag());
       } catch (err) {
@@ -65,14 +87,28 @@ export function sandiStream(kunci: Buffer): Transform {
 }
 
 /** Buka berkas cadangan. Melempar bila kunci salah atau satu byte pun berubah. */
-export function bukaSandi(berkas: Buffer, kunci: Buffer): Buffer {
-  const kepala = Buffer.from(KEPALA_SANDI);
-  if (berkas.length < kepala.length + PANJANG_IV + PANJANG_TAG || !berkas.subarray(0, kepala.length).equals(kepala)) {
+export function bukaSandi(berkas: Buffer, k: KunciCadangan | Buffer): Buffer {
+  const kc = sebagaiKunci(k);
+  const v1 = Buffer.from(KEPALA_SANDI);
+  const v2 = Buffer.from(KEPALA_FRASA);
+  let awal: number;
+  let kunci: Buffer;
+  if (berkas.subarray(0, v2.length).equals(v2)) {
+    if (kc.jenis !== "frasa") throw new Error("Cadangan ini dibuat dengan kalimat sandi, bukan kunci acak.");
+    const garam = berkas.subarray(v2.length, v2.length + PANJANG_GARAM);
+    kunci = turunkan(kc.frasa, garam);
+    awal = v2.length + PANJANG_GARAM;
+  } else if (berkas.subarray(0, v1.length).equals(v1)) {
+    if (kc.jenis !== "kunci") throw new Error("Cadangan ini dibuat dengan kunci acak, bukan kalimat sandi.");
+    kunci = kc.kunci;
+    awal = v1.length;
+  } else {
     throw new Error("Ini bukan berkas cadangan MARLIN.");
   }
-  const iv = berkas.subarray(kepala.length, kepala.length + PANJANG_IV);
+  if (berkas.length < awal + PANJANG_IV + PANJANG_TAG) throw new Error("Berkas cadangan terpotong.");
+  const iv = berkas.subarray(awal, awal + PANJANG_IV);
   const tag = berkas.subarray(berkas.length - PANJANG_TAG);
-  const isi = berkas.subarray(kepala.length + PANJANG_IV, berkas.length - PANJANG_TAG);
+  const isi = berkas.subarray(awal + PANJANG_IV, berkas.length - PANJANG_TAG);
   const d = createDecipheriv("aes-256-gcm", kunci, iv);
   d.setAuthTag(tag);
   try {
