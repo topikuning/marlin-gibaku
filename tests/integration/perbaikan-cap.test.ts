@@ -37,6 +37,15 @@ vi.mock("@/lib/r2", () => ({
   classifyR2Error: (e: unknown) => String(e),
 }));
 
+/** Kunci logo yang diminta saat cap dirender — null = cap jatuh ke wordmark MARLIN. */
+const logoDiminta: (string | null | undefined)[] = [];
+vi.mock("@/lib/photo-stamp/logo-perusahaan", () => ({
+  logoPerusahaanDataUri: async (key: string | null | undefined) => {
+    logoDiminta.push(key);
+    return null;
+  },
+}));
+
 let role = "super_admin";
 let sessionUserId = "";
 let sessionOrgId = "";
@@ -248,6 +257,48 @@ describe("KASUS INTI: cap salah bisa diperbaiki", () => {
     expect(bucket.has(p.originalKey!)).toBe(true);
     // Photo ID TIDAK berubah — identitas itu sudah beredar di berkas KKP.
     expect(p.stampPhotoId).toBe("PEN-260731-0700-006");
+  });
+
+  it("logo perusahaan pelaksana tetap dipakai – bukan jatuh ke logo MARLIN", async () => {
+    // Laporan user 2026-10-06: "di perusahaan sudah ada logo, kenapa ketika
+    // diperbaiki masih menggunakan logo default marlin?"
+    const tag = Math.random().toString(36).slice(2, 9);
+    const vendor = await db.vendor.create({
+      data: { orgId, name: `CV Logo ${tag}`, logoKey: `logos/vendor-${tag}.png` },
+      select: { id: true },
+    });
+    const pkg = await db.package.create({ data: { orgId, name: `Paket Logo ${tag}` }, select: { id: true } });
+    await db.contract.create({
+      data: {
+        packageId: pkg.id,
+        vendorId: vendor.id,
+        contractNumber: `KTR-LOGO-${tag}`,
+        contractValue: 1_000_000n,
+        signedDate: new Date("2026-07-01T00:00:00.000Z"),
+      },
+    });
+    const l = await db.location.create({
+      data: { packageId: pkg.id, name: `Logo ${tag}`, slug: `logo-${suffix}-${tag}`, village: "V", regency: "R", province: "P" },
+      select: { id: true },
+    });
+    const a = await db.fieldActivity.create({
+      data: {
+        locationId: l.id,
+        activityDate: new Date("2026-07-31T00:00:00.000Z"),
+        type: "lainnya",
+        title: "Kegiatan",
+        createdById: sessionUserId,
+      },
+      select: { id: true },
+    });
+    locId = l.id;
+    kegiatanId = a.id;
+    fotoId = await buatFoto();
+
+    logoDiminta.length = 0;
+    const res = await restampPhotoAction(undefined, fdRestamp({ reporterName: "Nama Benar" }));
+    expect(res?.error).toBeUndefined();
+    expect(logoDiminta).toEqual([`logos/vendor-${tag}.png`]);
   });
 
   it("mencatat riwayat sebelum→sesudah + field yang diketik manual", async () => {
