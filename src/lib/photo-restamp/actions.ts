@@ -179,6 +179,10 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       gpsSource,
       timeSource,
       ...teks,
+      // Logo pelaksana bukan isian form, jadi ikut dari kontrak. Tanpa baris
+      // ini cap hasil perbaikan jatuh ke wordmark MARLIN (laporan user
+      // 2026-10-06).
+      companyLogoKey: lama.companyLogoKey,
       // Photo ID SENGAJA tidak ikut berubah — identitas foto sudah beredar di
       // berkas yang diserahkan. Foto lama yang belum punya dibuatkan sekali.
       photoId: lama.photoId ?? photoIdCadangan(k, takenAt),
