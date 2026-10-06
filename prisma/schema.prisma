@@ -1471,6 +1471,12 @@ model RabRevision {
   nodes          RabNode[]
   baselines      Baseline[]
   approvals      RabRevisionApproval[]
+  rincian        RabRincianRevisi?
+  rincianPeriksa RabRincianPeriksa?
+  backupVolume   RabBackupVolume[]
+  analisa        RabAnalisa[]
+  itemAnalisa    RabItemAnalisa[]
+  hargaDasar     RabHargaDasar[]
 
   @@unique([locationId, revisionNo])
   @@index([locationId, status])
@@ -1518,11 +1524,13 @@ model RabNode {
   lineageKey String      @map("lineage_key")
   sortOrder  Int         @map("sort_order")
 
-  revision    RabRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  parent      RabNode?          @relation("rabTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children    RabNode[]         @relation("rabTree")
-  reportItems DailyReportItem[]
-  planItems   WeeklyPlanItem[]
+  revision     RabRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  parent       RabNode?          @relation("rabTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     RabNode[]         @relation("rabTree")
+  reportItems  DailyReportItem[]
+  planItems    WeeklyPlanItem[]
+  backupVolume RabBackupVolume?
+  itemAnalisa  RabItemAnalisa?
 
   @@unique([revisionId, lineageKey])
   @@index([revisionId, parentId, sortOrder])
@@ -3616,4 +3624,162 @@ model CadanganBerkas {
 
   @@index([dicadangkanAt])
   @@map("cadangan_berkas")
+}
+
+/// RINCIAN BERKAS RAB per revisi: backup volume, analisa, bahan & upah
+/// (DECISIONS baru 2026-10-06).
+///
+/// Dibaca dari berkas sumber yang sama dengan revisinya, lewat RUMUS yang
+/// ditulis penyusun berkas (kolom volume RAB → sheet backup volume; baris item
+/// → Resume Analisa → ANALISA → Bahan & Upah). TIDAK PERNAH dipakai menghitung
+/// ulang angka resmi: volume, harga, nilai, progres tetap dari `rab_nodes`.
+/// Satu baris per revisi; isi ulang = hapus lalu tulis seluruh rincian revisi
+/// itu dalam satu transaksi.
+model RabRincianRevisi {
+  revisionId        String   @id @map("revision_id") @db.Uuid
+  documentId        String?  @map("document_id") @db.Uuid
+  /// impor (saat revisi dibuat) | arsip (dilengkapi dari berkas yang diarsipkan)
+  asal              String
+  sheetRab          String   @map("sheet_rab")
+  kolomVolume       Int      @map("kolom_volume")
+  kolomHarga        Int      @map("kolom_harga")
+  /// Angka ringkas: item, tertaut, angka langsung, analisa, selisih, …
+  ringkasan         Json
+  /// Judul kolom per sheet backup ({ "2. Vol Revetment": { "3": "PANJANG" } }).
+  kepala            Json
+  /// Sheet TERSEMBUNYI yang dibaca karena dirujuk rumus RAB – disebut di layar.
+  tersembunyiDibaca String[] @map("tersembunyi_dibaca")
+  dibuatOlehId      String?  @map("dibuat_oleh_id") @db.Uuid
+  dibuatAt          DateTime @default(now()) @map("dibuat_at") @db.Timestamptz
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@map("rab_rincian_revisi")
+}
+
+/// Backup volume satu item: dari mana volume RAB-nya berasal.
+model RabBackupVolume {
+  id         String   @id @default(uuid()) @db.Uuid
+  revisionId String   @map("revision_id") @db.Uuid
+  lineageKey String   @map("lineage_key")
+  /// tertaut | angka_langsung | kosong | tidak_terbaca
+  status     String
+  nilaiRab   Decimal? @map("nilai_rab") @db.Decimal(24, 6)
+  rumusRab   String?  @map("rumus_rab")
+  /// Sel ujung [{ sheet, sel, tersembunyi, nilai }].
+  sumber     Json
+  perantara  Json
+  /// Baris perhitungan [{ sheet, baris, sel: [{ kolom, huruf, nilai, rumus }] }].
+  baris      Json
+  terpotong  Boolean  @default(false)
+  catatan    String?
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  node     RabNode     @relation(fields: [revisionId, lineageKey], references: [revisionId, lineageKey], onDelete: Cascade)
+
+  @@unique([revisionId, lineageKey])
+  @@map("rab_backup_volume")
+}
+
+/// Satu blok analisa harga satuan seperti tertulis di berkas.
+model RabAnalisa {
+  id          String   @id @default(uuid()) @db.Uuid
+  revisionId  String   @map("revision_id") @db.Uuid
+  /// "ANALISA!854" – sheet + baris awal blok.
+  kunciBlok   String   @map("kunci_blok")
+  sheet       String
+  barisAwal   Int      @map("baris_awal")
+  barisAkhir  Int      @map("baris_akhir")
+  tersembunyi Boolean  @default(false)
+  kode        String?
+  uraian      String?
+  hargaSatuan Decimal? @map("harga_satuan") @db.Decimal(24, 6)
+  overhead    Decimal? @db.Decimal(12, 6)
+  perantara   Json
+  baris       Json
+  catatan     String?
+
+  revision RabRevision          @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  komponen RabAnalisaKomponen[]
+  items    RabItemAnalisa[]
+
+  @@unique([revisionId, kunciBlok])
+  @@map("rab_analisa")
+}
+
+model RabAnalisaKomponen {
+  id          String   @id @default(uuid()) @db.Uuid
+  analisaId   String   @map("analisa_id") @db.Uuid
+  urutan      Int
+  baris       Int
+  /// upah | bahan | alat | lain
+  kategori    String
+  nama        String
+  satuan      String?
+  koefisien   Decimal? @db.Decimal(24, 8)
+  harga       Decimal? @db.Decimal(24, 6)
+  jumlah      Decimal? @db.Decimal(24, 6)
+  /// Rujukan harga ke Bahan & Upah, mis. sheet "Bahan & Upah" sel "C336".
+  sumberSheet String?  @map("sumber_sheet")
+  sumberSel   String?  @map("sumber_sel")
+
+  analisa RabAnalisa @relation(fields: [analisaId], references: [id], onDelete: Cascade)
+
+  @@index([analisaId, urutan])
+  @@map("rab_analisa_komponen")
+}
+
+/// Item RAB → blok analisanya.
+model RabItemAnalisa {
+  revisionId String @map("revision_id") @db.Uuid
+  lineageKey String @map("lineage_key")
+  analisaId  String @map("analisa_id") @db.Uuid
+  /// rumus (ditulis penyusun) | cocok_harga (harga sama persis dgn SATU baris Resume Analisa)
+  cara       String
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  node     RabNode     @relation(fields: [revisionId, lineageKey], references: [revisionId, lineageKey], onDelete: Cascade)
+  analisa  RabAnalisa  @relation(fields: [analisaId], references: [id], onDelete: Cascade)
+
+  @@id([revisionId, lineageKey])
+  @@index([analisaId])
+  @@map("rab_item_analisa")
+}
+
+/// Bahan & upah yang DIPAKAI analisa berkas (harga dasar per revisi).
+model RabHargaDasar {
+  id          String   @id @default(uuid()) @db.Uuid
+  revisionId  String   @map("revision_id") @db.Uuid
+  sheet       String
+  sel         String
+  baris       Int
+  tersembunyi Boolean  @default(false)
+  nama        String?
+  satuan      String?
+  harga       Decimal? @db.Decimal(24, 6)
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, sheet, sel])
+  @@map("rab_harga_dasar")
+}
+
+/// Hasil PERIKSA berkas arsip sebuah revisi sebelum rinciannya dilengkapi
+/// (DECISIONS baru 2026-10-06). Hanya laporan – tidak ada rincian yang
+/// tersimpan sebelum orang menekan Simpan sesudah membacanya.
+model RabRincianPeriksa {
+  revisionId        String   @id @map("revision_id") @db.Uuid
+  /// siap | sebagian | tanpa_berkas | berkas_hilang | template_adendum | perlu_pilihan | tidak_cocok | gagal
+  status            String
+  pesan             String?
+  itemRevisi        Int      @default(0) @map("item_revisi")
+  itemCocok         Int      @default(0) @map("item_cocok")
+  ringkasan         Json?
+  tersembunyiDibaca String[] @map("tersembunyi_dibaca")
+  diperiksaOlehId   String?  @map("diperiksa_oleh_id") @db.Uuid
+  diperiksaAt       DateTime @default(now()) @map("diperiksa_at") @db.Timestamptz
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@map("rab_rincian_periksa")
 }

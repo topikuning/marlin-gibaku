@@ -43,6 +43,8 @@ export type KomponenItemRow = {
   satuan: string;
   jumlah: number;
   dariAhsp: boolean;
+  /** Harga dari analisa kontrak karena harga lokasi belum diisi. */
+  hargaDariKontrak?: boolean;
   harga: string | null;
   biaya: string | null;
 };
@@ -58,6 +60,8 @@ export type ItemRaplRow = {
   komponen: KomponenItemRow[];
   biaya: string;
   komponenBelumBerharga: number;
+  /** Asal analisa: berkas kontrak (dasar utama) atau padanan AHSP PUPR. */
+  sumberAnalisa: "kontrak" | "ahsp" | null;
   lengkap: boolean;
   margin: string | null;
   marginPersen: number | null;
@@ -148,7 +152,14 @@ export function RincianPanel({
         nilaiRabNum: Number(i.nilaiRab),
         biayaNum: i.cara === "belum" ? null : Number(i.biaya),
         marginNum: i.margin === null ? null : Number(i.margin),
-        caraLabel: LABEL_CARA[i.cara] ?? i.cara,
+        // Analisa dari berkas kontrak disebut sebagai itu, bukan "AHSP" –
+        // keduanya sumber yang berbeda (keputusan user 2026-10-06).
+        caraLabel:
+          i.sumberAnalisa === "kontrak" && (i.cara === "ahsp" || i.cara === "campuran")
+            ? i.cara === "ahsp"
+              ? "Dari analisa kontrak"
+              : "Analisa kontrak + tambahan"
+            : (LABEL_CARA[i.cara] ?? i.cara),
         keteranganl:
           i.alasanLewat !== null
             ? (LABEL_ALASAN[i.alasanLewat] ?? i.alasanLewat)
@@ -334,14 +345,14 @@ export function RincianPanel({
                         <p className="truncate text-[13px] text-ink">
                           {k.nama}{" "}
                           <Badge tone={k.dariAhsp ? "neutral" : "info"}>
-                            {k.dariAhsp ? "AHSP" : "tambahan"}
+                            {k.dariAhsp ? (dibuka.sumberAnalisa === "kontrak" ? "analisa kontrak" : "AHSP") : "tambahan"}
                           </Badge>
                         </p>
                         <p className="tabular text-[12px] text-ink-muted">
                           {formatNumber(k.jumlah)} {k.satuan} ·{" "}
                           {k.harga === null
                             ? "harga belum diisi"
-                            : `${formatRupiah(BigInt(k.harga))} → ${formatRupiah(BigInt(k.biaya ?? "0"))}`}
+                            : `${formatRupiah(BigInt(k.harga))}${k.hargaDariKontrak ? " (harga analisa kontrak)" : ""} → ${formatRupiah(BigInt(k.biaya ?? "0"))}`}
                         </p>
                       </div>
                       {canInput && !k.dariAhsp ? (
@@ -375,9 +386,10 @@ export function RincianPanel({
               )}
               {dibuka.komponen.some((k) => k.dariAhsp) ? (
                 <p className="mt-1 text-[12px] text-ink-muted">
-                  Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa
-                  dipertanggungjawabkan saat diperiksa. Yang bisa Anda lakukan: menambah komponen
-                  yang belum ada.
+                  {dibuka.sumberAnalisa === "kontrak"
+                    ? "Koefisien analisa kontrak diambil dari berkas RAB dan tidak bisa diubah di sini. "
+                    : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
+                  Yang bisa Anda lakukan: menambah komponen yang belum ada.
                 </p>
               ) : null}
             </section>

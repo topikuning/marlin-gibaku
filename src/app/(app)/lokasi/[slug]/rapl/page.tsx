@@ -10,6 +10,7 @@ import {
   SubTabs,
 } from "@/components/ui";
 import { can } from "@/lib/authz";
+import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatPct, formatRupiah } from "@/lib/format";
 import { ringkasAhsp } from "@/lib/ahsp/import";
@@ -113,6 +114,7 @@ export default async function RaplPage({
       volume: i.volume,
       nilaiRab: i.nilaiRab.toString(),
       cara: i.cara,
+      sumberAnalisa: i.sumberAnalisa,
       komponen: i.komponen.map((k) => ({
         kategori: k.kategori,
         nama: k.nama,
@@ -120,6 +122,7 @@ export default async function RaplPage({
         jumlah: k.jumlah,
         dariAhsp: k.dariAhsp,
         harga: k.harga === null ? null : k.harga.toString(),
+        hargaDariKontrak: k.hargaDariKontrak,
         biaya: k.biaya === null ? null : k.biaya.toString(),
       })),
       biaya: i.biaya.toString(),
@@ -134,6 +137,16 @@ export default async function RaplPage({
       hargaBorongan: i.hargaBorongan === null ? null : i.hargaBorongan.toString(),
     };
   });
+
+  // Item yang memakai analisa dari berkas kontrak (keputusan user 2026-10-06)
+  // – tidak ikut daftar padanan AHSP, tapi tetap dihitung di RAPL.
+  const itemKontrak = await db.rabItemAnalisa.count({
+    where: {
+      revision: { locationId: location.id, status: "aktif" },
+      analisa: { komponen: { some: { koefisien: { not: null } } } },
+    },
+  });
+  const adaRab = cakupan.item > 0 || rapl.barisRab > 0;
 
   const uraian = kelompokkanPerUraian(baris);
   const tahapan = hitungTahap(uraian);
@@ -235,13 +248,25 @@ export default async function RaplPage({
 
   return (
     <div className="space-y-4">
-      {!basis ? (
+      {itemKontrak > 0 ? (
+        <Banner
+          tone="info"
+          title={`${itemKontrak} item memakai analisa dari berkas kontrak`}
+          description={
+            cakupan.item > 0
+              ? `Koefisiennya diambil dari sheet ANALISA berkas RAB. Padanan AHSP hanya dipakai untuk ${cakupan.item} item lain yang tidak punya analisa di berkas.`
+              : "Koefisiennya diambil dari sheet ANALISA berkas RAB. Semua item sudah punya analisa, jadi tidak ada yang perlu dicarikan padanan AHSP."
+          }
+        />
+      ) : null}
+
+      {!basis && cakupan.item > 0 ? (
         <Banner
           tone="warning"
           title="Basis analisa AHSP belum dimuat"
-          description="Tanpa basis AHSP, RAB belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
+          description="Tanpa basis AHSP, item yang tidak punya analisa di berkas kontrak belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
         />
-      ) : basis.belumSelesai ? (
+      ) : basis?.belumSelesai ? (
         <Banner
           tone="error"
           title="Basis AHSP belum lengkap karena impornya terputus"
@@ -249,7 +274,7 @@ export default async function RaplPage({
         />
       ) : null}
 
-      {cakupan.item === 0 ? (
+      {!adaRab ? (
         <Banner
           tone="info"
           title="Belum ada revisi RAB aktif"

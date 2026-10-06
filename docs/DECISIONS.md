@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 651 | 2026-10-06 | Backup volume, analisa, dan bahan & upah dibaca LEWAT RUMUS dari berkas RAB (sheet tersembunyi yang dirujuk ikut, disebut) dan disimpan per revisi terpisah dari angka resmi; tampil per item; analisa kontrak jadi dasar RAPL (AHSP PUPR hanya cadangan); data lama dilengkapi dari berkas arsip lewat Periksa → Simpan di Sistem |
 | 650 | 2026-10-05 | Cadangan ke Google Drive akun 2TB: database harian tersandi (pg_dump → AES-256-GCM, retensi 30 hari + 12 bulanan) dan berkas (foto asli/ber-cap, dokumen, surat, lampiran; yang tinggal satu salinan di Lenovo lebih dulu); sambungan Google kedua `drive.file`; cron tiap jam; peringatan WA; `docs/CADANGAN_SETUP.md` |
 | 649 | 2026-10-04 | Halaman "Realisasi tidak terbobot" (RAB → Tidak terbobot): pekerjaan yang sudah dilaporkan tapi itemnya hilang dari RAB aktif; penanda di laporan harian dan riwayat input; fungsi kanonik `volumeTidakTerbobotByLineage` |
 | 648 | 2026-10-03 | Pencarian pekerjaan harian menyebut "Menampilkan 25 dari N" + tombol "Tampilkan semua" (dulu hasil ke-26 dst. hilang diam-diam); pencarian per kata, urutan bebas; susulan: cari lokasi di Dasbor Eksekutif tidak lagi meluber keluar layar HP dan tidak memotong di 8 |

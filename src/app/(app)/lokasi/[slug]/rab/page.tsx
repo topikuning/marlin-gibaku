@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Download, FilePen, History, Unlink, Upload } from "lucide-react";
+import { Calculator, Download, FilePen, History, Unlink, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
 import { can, ROLE_LABEL } from "@/lib/authz";
@@ -107,10 +107,27 @@ export default async function RabPage({
             unitPrice: true,
             amount: true,
             sortOrder: true,
+            lineageKey: true,
           },
         })
       : Promise.resolve([]),
   ]);
+  /*
+   * Backup volume & analisa (DECISIONS baru 2026-10-06): hanya daftar lineage
+   * yang PUNYA rincian – isinya dibuka di halaman rincian, tidak dikirim ke
+   * pohon RAB.
+   */
+  const [backupAda, analisaAda, rincianAda] =
+    active && bagian === "rab"
+      ? await Promise.all([
+          db.rabBackupVolume.findMany({
+            where: { revisionId: active.id, status: "tertaut" },
+            select: { lineageKey: true },
+          }),
+          db.rabItemAnalisa.findMany({ where: { revisionId: active.id }, select: { lineageKey: true } }),
+          db.rabRincianRevisi.count({ where: { revisionId: active.id } }),
+        ])
+      : [[], [], 0];
 
   // Serialisasi SEKALI untuk boundary client (BigInt → string, Decimal → number).
   const nodeRows: RabNodeRow[] = nodes.map((n) => ({
@@ -124,6 +141,7 @@ export default async function RabPage({
     unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
     amount: n.amount.toString(),
     sortOrder: n.sortOrder,
+    lineageKey: n.lineageKey,
   }));
 
   const contract = location.package.contract;
@@ -370,6 +388,12 @@ export default async function RabPage({
                 </ButtonLink>
               ) : null}
               {active ? (
+                <ButtonLink href={`/lokasi/${slug}/rab/backup-analisa`} variant="secondary" size="sm">
+                  <Calculator aria-hidden className="size-4" />
+                  Backup & analisa
+                </ButtonLink>
+              ) : null}
+              {active ? (
                 <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
                   <Unlink aria-hidden className="size-4" />
                   {jumlahTidakTerbobot > 0 ? `Tidak terbobot (${jumlahTidakTerbobot})` : "Tidak terbobot"}
@@ -430,6 +454,15 @@ export default async function RabPage({
                 ppnValue={ppnValue.toString()}
                 totalWithPpn={totalWithPpn.toString()}
                 canEdit={canManage}
+                rincian={
+                  rincianAda > 0
+                    ? {
+                        slug,
+                        backup: backupAda.map((b) => b.lineageKey),
+                        analisa: analisaAda.map((a) => a.lineageKey),
+                      }
+                    : null
+                }
               />
             ) : (
               <p className="text-sm text-ink-muted">

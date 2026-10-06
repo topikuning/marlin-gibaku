@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Fragment, type ReactNode } from "react";
 import { headers } from "next/headers";
-import { Card, CardHeader, CardBody, KpiCard, StatusPill } from "@/components/ui";
+import { ButtonLink, Card, CardHeader, CardBody, KpiCard, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
@@ -989,8 +989,18 @@ export default async function SistemPage() {
           title="Pemeliharaan data"
           subtitle="Betulkan angka di cetakan laporan final tanpa mengubah status atau data yang diisi"
         />
-        <CardBody>
+        <CardBody className="space-y-4">
           <RebuildSnapshotPanel locations={maintenanceLocations} />
+          <div className="border-t border-border pt-3">
+            <p className="text-sm font-medium text-ink">Backup volume & analisa RAB</p>
+            <p className="mt-0.5 text-sm text-ink-muted">
+              Lengkapi revisi RAB yang sudah ada dengan backup volume, analisa, dan bahan & upah dari berkas aslinya.
+              Periksa dulu, simpan sesudah laporannya dibaca. Angka RAB tidak berubah.
+            </p>
+            <ButtonLink href="/sistem/rincian-rab" variant="secondary" size="sm" className="mt-2">
+              Buka
+            </ButtonLink>
+          </div>
         </CardBody>
       </Card>
 

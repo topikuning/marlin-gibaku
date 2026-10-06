@@ -164,6 +164,14 @@ export type ImportPreview = {
     dipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[];
     ditolak: { lineageBaru: string; lineageLama: string; sebab: string }[];
   };
+  /**
+   * Backup volume, analisa, bahan & upah yang terbaca dari berkas ini
+   * (DECISIONS baru 2026-10-06). null = berkas Template Adendum MARLIN, yang
+   * memang tidak membawa rincian. `rincianGagal` = pembacaannya gagal; impor
+   * tetap jalan karena angka resmi tidak bergantung padanya.
+   */
+  rincian: { ringkasan: import("@/lib/rab/rincian/baca").RingkasanRincian; tersembunyiDibaca: string[] } | null;
+  rincianGagal?: string;
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
 };
@@ -384,6 +392,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     /* Tab yang BENAR-BENAR dibaca — permintaan user 2026-09-21. */
     let sheetName: string;
     let baca: import("@/lib/rab/hps-parser").PilihanBaca | null = null;
+    /** Kolom volume & harga yang dibaca parser – dipakai pelacak rincian. */
+    let kolomBaca: { vol: number; price: number } | null = null;
     if (templateAdendum) {
       warnings = [...templateAdendum.warnings];
       priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
@@ -392,7 +402,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     } else {
       try {
         let pilihan: import("@/lib/rab/hps-parser").PilihanBaca | undefined;
-        ({ parsed, warnings, priceColumn, sheetName, pilihan } = await parseHpsBuffer(buffer, opsiBaca));
+        ({ parsed, warnings, priceColumn, sheetName, pilihan, kolom: kolomBaca } = await parseHpsBuffer(
+          buffer,
+          opsiBaca,
+        ));
         baca = pilihan ?? null;
       } catch (e) {
         if (e instanceof ImporPerluJawaban) return { tanya: { sebab: e.sebab, ...e.pilihan } };
@@ -859,7 +872,35 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         )
       : pohonRingkas(nodes).map((b) => ({ ...b, kontrak: null, adendum: b.total, selisih: 0n, status: null }));
 
+    /*
+     * BACKUP VOLUME, ANALISA, BAHAN & UPAH (DECISIONS baru 2026-10-06).
+     *
+     * Dibaca dari berkas yang SAMA, lewat rumus yang ditulis penyusunnya.
+     * Kuncinya nomor baris Excel – lineage item baru pasti sesudah revisi
+     * tersimpan. Gagal membaca rincian tidak menggagalkan impor: angka resmi
+     * tidak bergantung padanya, dan kegagalannya disebut di pratinjau.
+     */
+    let rincian: import("@/lib/rab/rincian/baca").RincianBerkas | null = null;
+    let rincianGagal: string | undefined;
+    if (kolomBaca) {
+      try {
+        const { bacaRincian } = await import("@/lib/rab/rincian/baca");
+        rincian = await bacaRincian(buffer, {
+          sheetRab: sheetName,
+          kolom: kolomBaca,
+          items: nodes
+            .filter((n) => n.kind === "item" && n.excelRow != null)
+            .map((n) => ({ kunci: String(n.excelRow), excelRow: n.excelRow!, unitPrice: n.unitPrice })),
+        });
+      } catch (e) {
+        console.error("[rab-import] baca rincian gagal:", e);
+        rincianGagal = e instanceof Error ? e.message : "kesalahan tak dikenal";
+      }
+    }
+
     const preview: ImportPreview = {
+      rincian: rincian ? { ringkasan: rincian.ringkasan, tersembunyiDibaca: rincian.tersembunyiDibaca } : null,
+      ...(rincianGagal ? { rincianGagal } : {}),
       padanan: {
         lama: padananLama,
         baru: padananBaruTersedia,
@@ -1014,7 +1055,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           throw e;
         }
       }
-      await arsipkanSumber({
+      const docDraft = await arsipkanSumber({
         buffer,
         file,
         sha256,
@@ -1024,6 +1065,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         revisionNo: resDraft.revisionNo,
         adendum: true,
       });
+      const kalimatRincianDraft = await simpanRincianImpor(resDraft.revisionId, rincian, nodes, docDraft, user.id);
       revalidatePath(`/lokasi/${location.slug}/rab`);
       revalidatePath(`/lokasi/${location.slug}/rab/adendum`);
       return {
@@ -1031,7 +1073,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `Draft adendum revisi #${resDraft.revisionNo} terisi dari ${file.name} ` +
           `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah. ` +
           `Draft ini baru berlaku setelah diaktifkan.` +
-          (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : ""),
+          (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : "") +
+          kalimatRincianDraft,
       };
     }
 
@@ -1064,6 +1107,22 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       userId: user.id,
     });
     /*
+     * Arsip berkas + rincian disimpan SEKARANG, sebelum gerbang empat mata:
+     * revisi yang tertahan sebagai draft pun berasal dari berkas ini, dan
+     * dulu justru jalur tertahan itu yang tidak pernah mengarsipkan apa pun.
+     */
+    const docAktif = await arsipkanSumber({
+      buffer,
+      file,
+      sha256,
+      location,
+      userId: user.id,
+      revisionId: res.revisionId,
+      revisionNo: res.revisionNo,
+      adendum: isAdendum,
+    });
+    const kalimatRincian = await simpanRincianImpor(res.revisionId, rincian, nodes, docAktif, user.id);
+    /*
      * GERBANG EMPAT MATA (DECISIONS 234) — hanya berlaku bila lokasi SUDAH
      * punya RAB aktif (= ini adendum). HPS awal tidak menggantikan kontrak apa
      * pun, jadi tidak menuntut dua tanda tangan.
@@ -1083,7 +1142,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         success:
           `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) dan belum aktif. ` +
           `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
-          `Buka tab Adendum untuk meminta persetujuan, lalu aktifkan.`,
+          `Buka tab Adendum untuk meminta persetujuan, lalu aktifkan.` +
+          kalimatRincian,
       };
     }
     await activateRevision(res.revisionId, user.id);
@@ -1127,17 +1187,6 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
-    await arsipkanSumber({
-      buffer,
-      file,
-      sha256,
-      location,
-      userId: user.id,
-      revisionId: res.revisionId,
-      revisionNo: res.revisionNo,
-      adendum: isAdendum,
-    });
-
     revalidatePath(`/lokasi/${location.slug}`, "layout");
     revalidatePath("/lokasi");
     revalidatePath("/progress");
@@ -1149,14 +1198,16 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       return {
         error:
           `Revisi RAB #${res.revisionNo} sudah aktif, tetapi kurva-S gagal dibuat ulang (${baselineError}). ` +
-          `Grafik dan deviasi masih memakai baseline lama. Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.`,
+          `Grafik dan deviasi masih memakai baseline lama. Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.` +
+          kalimatRincian,
       };
     }
     if (!isAdendum) {
       return {
         success:
           `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item.${carryInfo} ` +
-          `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.`,
+          `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.` +
+          kalimatRincian,
         pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
       };
     }
@@ -1164,7 +1215,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       success:
         `Revisi RAB #${res.revisionNo} (adendum) aktif, berisi ${res.itemCount} item. ` +
         `Baseline kurva-S dibuat ulang dengan bentuk ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()}, ` +
-        `sama dengan yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah.${carryInfo}`,
+        `sama dengan yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah.${carryInfo}` +
+        kalimatRincian,
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -1281,8 +1333,8 @@ async function arsipkanSumber(a: {
   revisionId: string;
   revisionNo: number;
   adendum: boolean;
-}): Promise<void> {
-  if (!isR2Configured()) return;
+}): Promise<string | null> {
+  if (!isR2Configured()) return null;
   try {
     const key = `rab-import/${a.location.id}/${randomUUID()}-${safeName(a.file.name)}`;
     await r2Put(key, a.buffer, a.file.type || XLSX_MIME[0]);
@@ -1303,7 +1355,44 @@ async function arsipkanSumber(a: {
       },
     });
     await db.rabRevision.update({ where: { id: a.revisionId }, data: { sourceDocumentId: doc.id } });
+    return doc.id;
   } catch (e) {
     console.error("[rab-import] arsip R2 gagal (revisi tetap tersimpan):", e);
+    return null;
+  }
+}
+
+/**
+ * Simpan rincian berkas ke revisi yang baru dibuat. Kunci rincian = nomor
+ * baris Excel; di sini diganti dengan lineage FINAL tiap node (sesudah
+ * pencocokan lineage & padanan manual). Mengembalikan satu kalimat untuk
+ * pesan sukses – kegagalan dikatakan, tidak membatalkan impor.
+ */
+async function simpanRincianImpor(
+  revisionId: string,
+  rincian: import("@/lib/rab/rincian/baca").RincianBerkas | null,
+  nodes: import("@/lib/rab/flatten").FlatNode[],
+  documentId: string | null,
+  userId: string,
+): Promise<string> {
+  if (!rincian) return "";
+  try {
+    const { gantiKunci } = await import("@/lib/rab/rincian/baca");
+    const { simpanRincian } = await import("@/lib/rab/rincian/simpan");
+    const peta = new Map(
+      nodes.filter((n) => n.kind === "item" && n.excelRow != null).map((n) => [String(n.excelRow), n.lineageKey]),
+    );
+    const h = await simpanRincian(revisionId, gantiKunci(rincian, peta), { asal: "impor", documentId, userId });
+    return (
+      ` Backup volume tersimpan untuk ${rincian.ringkasan.volumeTertaut} item, ` +
+      `analisa untuk ${h.itemAnalisa} item (${h.analisa} analisa, ${h.hargaDasar} bahan & upah).`
+    );
+  } catch (e) {
+    console.error("[rab-import] simpan rincian gagal (revisi tetap tersimpan):", e);
+    return (
+      " Backup volume dan analisa GAGAL disimpan" +
+      (e instanceof Error ? ` (${e.message})` : "") +
+      ". RAB-nya sendiri tetap tersimpan; rinciannya bisa dilengkapi lagi dari berkas arsip."
+    );
   }
 }

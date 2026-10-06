@@ -5,6 +5,7 @@ import { itemRabAktif, metodeDisetujui } from "./padanan";
 import {
   agregasiKebutuhan,
   hitungItemRapl,
+  kunciSumberDaya,
   type BiayaItem,
   type HasilRapl,
   type HargaSatuan,
@@ -36,7 +37,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   if (items.length === 0) return [];
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
-  const [padanan, rincian] = await Promise.all([
+  const [padanan, rincian, kontrak] = await Promise.all([
     tanda.length
       ? db.ahspPadanan.findMany({
           where: { tanda: { in: tanda }, entryId: { not: null } },
@@ -69,7 +70,29 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
         },
       },
     }),
+    /*
+     * ANALISA KONTRAK (keputusan user 2026-10-06): analisa yang tertulis di
+     * berkas RAB revisi aktif – dasar UTAMA. Padanan AHSP PUPR hanya untuk
+     * item yang tidak punya analisa di berkasnya.
+     */
+    db.rabItemAnalisa.findMany({
+      where: { revision: { locationId, status: "aktif" } },
+      select: {
+        lineageKey: true,
+        analisa: {
+          select: {
+            kode: true,
+            uraian: true,
+            komponen: {
+              orderBy: { urutan: "asc" },
+              select: { kategori: true, nama: true, satuan: true, koefisien: true, harga: true },
+            },
+          },
+        },
+      },
+    }),
   ]);
+  const petaKontrak = new Map(kontrak.map((k) => [k.lineageKey, k.analisa]));
 
   // Hanya padanan yang sudah ada yang menyetujui yang boleh menjadi angka.
   // Usulan mesin sengaja diperlakukan seperti tidak ada padanan — bukan
@@ -86,6 +109,8 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   return items.map((it) => {
     const e = peta.get(it.tanda);
     const r = petaRincian.get(it.lineageKey);
+    const k = petaKontrak.get(it.lineageKey);
+    const komponenKontrak = (k?.komponen ?? []).filter((c) => c.koefisien != null);
     return {
       lineageKey: it.lineageKey,
       code: it.code,
@@ -107,8 +132,26 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
             })),
           }
         : undefined,
-      analisa: e
+      // Analisa kontrak per SATUAN ITEM itu sendiri – harga satuan RAB memang
+      // diturunkan darinya – jadi satuannya sepadan dengan item. Analisa
+      // kontrak yang komponennya tidak terurai tidak menutup jalan ke AHSP.
+      analisa: k && komponenKontrak.length > 0
         ? {
+            kode: k.kode ?? "analisa kontrak",
+            uraian: k.uraian ?? it.name,
+            satuanNorm: normalisasiSatuan(it.unit),
+            sumber: "kontrak" as const,
+            komponen: komponenKontrak.map((c) => ({
+              kategori: c.kategori,
+              nama: c.nama,
+              satuan: c.satuan,
+              koefisien: Number(c.koefisien),
+              hargaKontrak: c.harga == null ? null : Number(c.harga),
+            })),
+          }
+        : e
+        ? {
+            sumber: "ahsp" as const,
             kode: e.kode,
             uraian: e.uraian,
             satuanNorm: normalisasiSatuan(e.satuan),
@@ -161,6 +204,7 @@ export async function keadaanItemRapl(locationId: string): Promise<KeadaanItemRa
     }),
   ]);
 
+  // Harga kontrak ikut per komponen (lihat `hargaKontrak`), HSD lokasi menang.
   const item = hitungItemRapl(untukHitung, hsd as HargaSatuan[]);
   const lengkap = item.filter((i) => i.lengkap);
   return {
@@ -170,4 +214,37 @@ export async function keadaanItemRapl(locationId: string): Promise<KeadaanItemRa
     jumlahLengkap: lengkap.length,
     jumlahRugi: lengkap.filter((i) => i.margin !== null && i.margin < 0n).length,
   };
+}
+
+/**
+ * HARGA SATUAN DASAR DARI ANALISA KONTRAK (keputusan user 2026-10-06).
+ *
+ * Harga tiap komponen seperti tertulis di sheet ANALISA berkas RAB aktif
+ * (yang menunjuk Bahan & Upah). Dipakai sebagai harga BAWAAN: harga yang
+ * diisi orang untuk lokasi ini (survei, penawaran suplier) selalu menang.
+ *
+ * Satu sumber daya yang harganya BERBEDA-BEDA antar analisa tidak diberi
+ * harga bawaan – memilih salah satunya adalah tebakan.
+ */
+export async function hargaDariKontrak(locationId: string): Promise<HargaSatuan[]> {
+  const komponen = await db.rabAnalisaKomponen.findMany({
+    where: { harga: { not: null }, analisa: { revision: { locationId, status: "aktif" } } },
+    select: { kategori: true, nama: true, satuan: true, harga: true },
+  });
+  const per = new Map<string, { contoh: HargaSatuan; nilai: Set<string> }>();
+  for (const k of komponen) {
+    const satuan = (k.satuan ?? "").trim();
+    const harga = BigInt(Math.round(Number(k.harga)));
+    const kunci = kunciSumberDaya(k.kategori, k.nama, satuan);
+    const x = per.get(kunci) ?? { contoh: { kategori: k.kategori, nama: k.nama, satuan, harga }, nilai: new Set() };
+    x.nilai.add(harga.toString());
+    per.set(kunci, x);
+  }
+  return [...per.values()].filter((x) => x.nilai.size === 1 && x.contoh.harga > 0n).map((x) => x.contoh);
+}
+
+/** Harga lokasi yang terisi menang; harga kontrak mengisi yang kosong. */
+export function gabungHarga(lokasi: HargaSatuan[], kontrak: HargaSatuan[]): HargaSatuan[] {
+  const ada = new Set(lokasi.filter((h) => h.harga > 0n).map((h) => kunciSumberDaya(h.kategori, h.nama, h.satuan)));
+  return [...lokasi, ...kontrak.filter((h) => !ada.has(kunciSumberDaya(h.kategori, h.nama, h.satuan)))];
 }
