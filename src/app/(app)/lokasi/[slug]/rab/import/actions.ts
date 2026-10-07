@@ -157,10 +157,15 @@ export type ImportPreview = {
    * bahwa dua baris itu pekerjaan yang sama hanya orangnya.
    */
   padanan: {
-    lama: { lineageKey: string; code: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" }[];
+    /**
+     * `jalur` = induk-induknya ("I. PEKERJAAN … › 7. Pek. Umpak …"). Keluhan
+     * user 2026-10-07: "1 Pekerjaan Bouwplank" saja tidak menunjuk pekerjaan
+     * mana – nama dan nomor item berulang di banyak induk (DECISIONS 656).
+     */
+    lama: { lineageKey: string; code: string; jalur: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" }[];
     /** `volume` ikut dibawa: pemakainya harus bisa melihat, SEBELUM memilih,
      *  apakah baris pengganti itu cukup menampung realisasi yang sudah ada. */
-    baru: { lineageAsli: string; code: string; name: string; volume: number | null }[];
+    baru: { lineageAsli: string; code: string; jalur: string; name: string; volume: number | null }[];
     dipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[];
     ditolak: { lineageBaru: string; lineageLama: string; sebab: string }[];
   };
@@ -604,7 +609,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     }[] = [];
     let padananDipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[] = [];
     let padananDitolak: { lineageBaru: string; lineageLama: string; sebab: string }[] = [];
-    let padananBaruTersedia: { lineageAsli: string; code: string; name: string; volume: number | null }[] = [];
+    let padananBaruTersedia: { lineageAsli: string; code: string; jalur: string; name: string; volume: number | null }[] = [];
     if (activeRevision) {
       aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
@@ -670,7 +675,19 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       padananDitolak = cocok.padananDitolak;
       {
         const volAsli = new Map(nodesAsli.map((n) => [n.lineageKey, n.volume]));
-        padananBaruTersedia = cocok.itemBaruAsli.map((x) => ({ ...x, volume: volAsli.get(x.lineageAsli) ?? null }));
+        const nodeAsli = new Map(nodesAsli.map((n) => [n.lineageKey, n]));
+        const jalurAsli = (key: string | null): string => {
+          const n = key ? nodeAsli.get(key) : undefined;
+          if (!n) return "";
+          const atas = jalurAsli(n.parentLineageKey);
+          const nama = [n.code, n.name].filter(Boolean).join(". ");
+          return atas ? `${atas} › ${nama}` : nama;
+        };
+        padananBaruTersedia = cocok.itemBaruAsli.map((x) => ({
+          ...x,
+          jalur: jalurAsli(nodeAsli.get(x.lineageAsli)?.parentLineageKey ?? null),
+          volume: volAsli.get(x.lineageAsli) ?? null,
+        }));
       }
       if (cocok.padananDipakai.length > 0) {
         warnings.push(
@@ -727,12 +744,17 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         .filter(([key, vol]) => vol > 0 && !newItemKeys.has(key))
         .map(([key]) => key);
       if (lostKeys.length > 0) {
-        const named = await db.rabNode.findMany({
-          where: { revisionId: activeRevision.id, lineageKey: { in: lostKeys } },
-          select: { code: true, name: true, lineageKey: true },
-        });
-        const nameByKey = new Map(named.map((n) => [n.lineageKey, `${n.code} ${n.name}`]));
-        const labels = lostKeys.map((k) => nameByKey.get(k) ?? k);
+        // Lengkap dengan induknya: "1 Pekerjaan Bouwplank" saja tidak menunjuk
+        // pekerjaan mana – nomor dan nama item berulang di banyak induk.
+        const aktifById = new Map(aktifNodes.map((n) => [n.id, n]));
+        const label = (n: (typeof aktifNodes)[number] | undefined): string => {
+          if (!n) return "";
+          const atas = label(n.parentId ? aktifById.get(n.parentId) : undefined);
+          const nama = [n.code, n.name].filter(Boolean).join(" ");
+          return atas ? `${atas} › ${nama}` : nama;
+        };
+        const nodeByKey = new Map(aktifNodes.map((n) => [n.lineageKey, n]));
+        const labels = lostKeys.map((k) => label(nodeByKey.get(k)) || k);
         const shown = labels.slice(0, 8);
         warnings.push(
           `PERHATIAN – ${lostKeys.length} item yang SUDAH punya realisasi tidak ditemukan di file baru: ` +
@@ -842,10 +864,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       ? [
           ...beda.volumeBerubah
             .filter((v) => v.realisasi > 0 && (v.ke ?? 0) === 0)
-            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, name: v.name, realisasi: v.realisasi, sebab: "dinolkan" as const })),
+            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, jalur: v.jalur, name: v.name, realisasi: v.realisasi, sebab: "dinolkan" as const })),
           ...beda.itemHilang
             .filter((v) => v.realisasi > 0)
-            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, name: v.name, realisasi: v.realisasi, sebab: "hilang" as const })),
+            .map((v) => ({ lineageKey: v.lineageKey, code: v.code, jalur: v.jalur, name: v.name, realisasi: v.realisasi, sebab: "hilang" as const })),
         ]
       : [];
 
