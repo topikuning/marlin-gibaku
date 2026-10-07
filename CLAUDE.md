@@ -212,7 +212,12 @@ src/
   volume, analisa) ikut dibaca dan disebut namanya (DECISIONS 651).
 - **Backup volume, analisa, bahan & upah ditelusuri lewat RUMUS berkas,
   tidak pernah lewat nama** (DECISIONS 651). Rinciannya rujukan, bukan angka
-  resmi: volume/harga/progres tetap dari `rab_nodes`.
+  resmi: volume/harga/progres tetap dari `rab_nodes`. Backup revisi lama
+  hanya berlaku untuk item yang VOLUMENYA SAMA; yang berubah/baru wajib
+  disebut "belum" dengan sebabnya, tidak diberi backup lama (DECISIONS 652).
+- **Draf analisa AI (RAPL) bukan angka resmi** (DECISIONS 652): hanya untuk
+  item tanpa analisa dari mana pun, dipakai setelah DITERIMA orang, dan asal
+  `ai` selalu disebut terpisah dari analisa kontrak & AHSP di layar dan Excel.
 - **Angka yang DIUNGGAH user dipakai apa adanya**, tidak diskalakan/dibetulkan
   diam-diam ke versi sistem. Kalau invarian memaksa penyesuaian (kurva-S wajib
   tuntas 100%), penyesuaiannya harus seragam DAN dikatakan di UI; selisih yang

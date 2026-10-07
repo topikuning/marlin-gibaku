@@ -35,6 +35,13 @@ const C_VOL_ADENDUM = 7;
 const C_KETERANGAN = 10;
 const C_LINEAGE = 11;
 
+/**
+ * Kolom yang dibaca pelacak backup volume & analisa (DECISIONS baru
+ * 2026-10-07): Volume Adendum dan Harga Satuan. Template yang kolom volumenya
+ * diberi rumus ke sheet backup tambahan ditelusuri seperti berkas KKP.
+ */
+export const KOLOM_RINCIAN_TEMPLATE = { vol: C_VOL_ADENDUM, price: C_HARGA } as const;
+
 export class AdendumTemplateError extends Error {}
 
 export type HasilTemplateAdendum = {

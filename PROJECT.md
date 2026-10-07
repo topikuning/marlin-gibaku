@@ -57,7 +57,10 @@ Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
            lineageKey path stabil utk carry-over realisasi lintas revisi)
            + rincian berkas per revisi (DECISIONS 651, RUJUKAN – bukan angka
            resmi): RabBackupVolume / RabItemAnalisa → RabAnalisa(+Komponen) /
-           RabHargaDasar, ditelusuri lewat rumus berkas RAB
+           RabHargaDasar, ditelusuri lewat rumus berkas RAB; + RabBackupIsian
+           (isian MARLIN). Sumber backup per item lintas revisi: isian → berkas
+           tertaut → diwarisi bila volume sama → belum (DECISIONS 652); analisa
+           diwarisi bila harga satuan sama
          → Baseline (+BaselinePoint) versioned (auto smoothstep per-trade / manual / adendum;
            kolom `profil` = lambat|optimal — bentuk kurva berikutnya, bawaan kolom
            `optimal` utk baris lama, bawaan pembuatan BARU `lambat`)

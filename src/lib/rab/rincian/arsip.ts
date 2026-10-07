@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { flattenParsedRab } from "@/lib/rab/flatten";
+import { flattenParsedRab, type FlatNode } from "@/lib/rab/flatten";
 import { cocokkanItem, jalurInduk, type NodeRevisi } from "./cocok";
 import { ImporPerluJawaban, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { namaSheetXlsx } from "@/lib/rab/xlsx-slim";
@@ -107,42 +107,64 @@ async function bacaUntukRevisi(revisionId: string): Promise<{
     };
   }
 
+  /*
+   * TEMPLATE ADENDUM MARLIN (DECISIONS baru 2026-10-07): dulu dilewati karena
+   * kolomnya diisi tangan. Sekarang ditelusuri juga – template yang kolom
+   * Volume Adendum-nya diberi rumus ke sheet backup tambahan punya backup;
+   * yang diketik dilaporkan "angka langsung", dan item yang volumenya tidak
+   * berubah mewarisi backup revisi sebelumnya.
+   */
   const { ADENDUM_TEMPLATE_SHEET } = await import("@/lib/export/adendum-template-xlsx");
+  let flat: FlatNode[];
+  let sheetRab: string;
+  let kolom: { vol: number; price: number };
   if ((await namaSheetXlsx(buf)).some((s) => s.nama === ADENDUM_TEMPLATE_SHEET)) {
-    return {
-      hasil: {
-        ...dasar,
-        status: "template_adendum",
-        pesan: "Berkasnya Template Adendum MARLIN – memang tidak membawa backup volume maupun analisa.",
-      },
-      rincian: null,
-      documentId: doc.id,
-    };
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf as unknown as ArrayBuffer);
+      const { parseAdendumTemplate, KOLOM_RINCIAN_TEMPLATE } = await import("@/lib/rab/adendum-template-parse");
+      flat = parseAdendumTemplate(wb).nodes;
+      sheetRab = ADENDUM_TEMPLATE_SHEET;
+      kolom = { ...KOLOM_RINCIAN_TEMPLATE };
+    } catch (e) {
+      return {
+        hasil: {
+          ...dasar,
+          status: "gagal",
+          pesan: `Template adendum "${doc.fileName}" tidak terbaca: ${e instanceof Error ? e.message : e}`,
+        },
+        rincian: null,
+        documentId: doc.id,
+      };
+    }
+  } else {
+    let parse;
+    try {
+      parse = await parseHpsBuffer(buf);
+    } catch (e) {
+      return {
+        hasil: {
+          ...dasar,
+          status: e instanceof ImporPerluJawaban ? "perlu_pilihan" : "gagal",
+          pesan:
+            e instanceof ImporPerluJawaban
+              ? `Berkas "${doc.fileName}" dulu dibaca dengan sheet/kolom yang dipilih tangan, dan pilihan itu tidak tersimpan: ${e.sebab}`
+              : `Berkas "${doc.fileName}" tidak terbaca: ${e instanceof Error ? e.message : e}`,
+        },
+        rincian: null,
+        documentId: doc.id,
+      };
+    }
+    flat = flattenParsedRab(parse.parsed);
+    sheetRab = parse.sheetName;
+    kolom = parse.kolom;
   }
 
-  let parse;
-  try {
-    parse = await parseHpsBuffer(buf);
-  } catch (e) {
-    return {
-      hasil: {
-        ...dasar,
-        status: e instanceof ImporPerluJawaban ? "perlu_pilihan" : "gagal",
-        pesan:
-          e instanceof ImporPerluJawaban
-            ? `Berkas "${doc.fileName}" dulu dibaca dengan sheet/kolom yang dipilih tangan, dan pilihan itu tidak tersimpan: ${e.sebab}`
-            : `Berkas "${doc.fileName}" tidak terbaca: ${e instanceof Error ? e.message : e}`,
-      },
-      rincian: null,
-      documentId: doc.id,
-    };
-  }
-
-  const flat = flattenParsedRab(parse.parsed);
   const peta = cocokkanItem(flat, revisi);
   const r = await bacaRincian(buf, {
-    sheetRab: parse.sheetName,
-    kolom: parse.kolom,
+    sheetRab,
+    kolom,
     items: flat
       .filter((n) => n.kind === "item" && n.excelRow != null && peta.has(String(n.excelRow)))
       .map((n) => ({ kunci: String(n.excelRow), excelRow: n.excelRow!, unitPrice: n.unitPrice })),

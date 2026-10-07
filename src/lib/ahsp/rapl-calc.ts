@@ -106,7 +106,7 @@ export type ItemUntukRapl = {
      * AHSP PUPR yang disetujui, hanya untuk item tanpa analisa di berkas.
      * Kosong = `ahsp` (data lama).
      */
-    sumber?: "kontrak" | "ahsp";
+    sumber?: "kontrak" | "ahsp" | "ai";
   } | null;
 };
 
@@ -591,7 +591,7 @@ export type BiayaItem = {
   nilaiRab: bigint;
   cara: CaraItem;
   /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
-  sumberAnalisa: "kontrak" | "ahsp" | null;
+  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;
@@ -724,4 +724,43 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       rinciLewat: null,
     };
   });
+}
+
+/* ── Backup volume isian MARLIN (DECISIONS baru 2026-10-07) ─────────────── */
+
+export type BarisBackupIsian = {
+  jumlah: number | null;
+  panjang: number | null;
+  lebar: number | null;
+  tinggi: number | null;
+  /** Pengurang (bukaan pintu/jendela, dll.). */
+  kurang: boolean;
+};
+
+/**
+ * Hasil satu baris backup volume:
+ *
+ *     hasil = ± (jumlah × panjang × lebar × tinggi), faktor yang kosong dilewati
+ *
+ * Baris tanpa satu angka pun tidak punya hasil (null), bukan nol – nol akan
+ * terbaca "sudah dihitung, hasilnya nol".
+ */
+export function hasilBarisBackup(b: BarisBackupIsian): number | null {
+  const faktor = [b.jumlah, b.panjang, b.lebar, b.tinggi].filter((x): x is number => x != null);
+  if (faktor.length === 0) return null;
+  const hasil = faktor.reduce((a, x) => a * x, 1);
+  return b.kurang ? -hasil : hasil;
+}
+
+/**
+ * Σ hasil baris, dan selisihnya terhadap volume RAB. Angka resmi tetap volume
+ * RAB; selisih hanya DISEBUT (3 desimal, presisi kolom volume).
+ */
+export function totalBackupIsian(
+  baris: BarisBackupIsian[],
+  volumeRab: number | null,
+): { total: number; selisih: number | null; cocok: boolean } {
+  const total = baris.reduce((a, b) => a + (hasilBarisBackup(b) ?? 0), 0);
+  const selisih = volumeRab == null ? null : Math.round((total - volumeRab) * 1000) / 1000;
+  return { total: Math.round(total * 1000) / 1000, selisih, cocok: selisih !== null && selisih === 0 };
 }

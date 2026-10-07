@@ -175,12 +175,20 @@ export class Pelacak {
       }
     }
     if (awal.length === 0) {
+      // `[1]RAB!I78` = rujukan ke BERKAS EXCEL LAIN (tautan eksternal). Nilai
+      // terakhirnya tersimpan, tetapi rinciannya ada di berkas yang tidak
+      // diunggah – disebut begitu, bukan dikira nama terdefinisi.
+      const luar = /\[\d+\]/.test(rumusRab);
       return {
         ...kosong,
-        status: rumusNama ? "tidak_terbaca" : "angka_langsung",
+        status: rumusNama || luar ? "tidak_terbaca" : "angka_langsung",
         nilaiRab,
         rumusRab,
-        catatan: rumusNama ? "Rumusnya memakai nama terdefinisi, bukan alamat sel – tidak diikuti." : null,
+        catatan: luar
+          ? "Rumusnya menunjuk berkas Excel lain yang tidak ikut diunggah – rinciannya tidak bisa dibaca."
+          : rumusNama
+            ? "Rumusnya memakai nama terdefinisi, bukan alamat sel – tidak diikuti."
+            : null,
       };
     }
 

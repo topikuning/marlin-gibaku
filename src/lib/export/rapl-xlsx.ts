@@ -443,6 +443,12 @@ function tulisDilewat(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
 
 /* ---------------------------------------------------------- rincian per item */
 
+const SUMBER_JUDUL: Record<"kontrak" | "ahsp" | "ai", string> = {
+  kontrak: "Analisa kontrak",
+  ahsp: "AHSP PUPR",
+  ai: "Usulan AI – diterima",
+};
+
 const CARA_JUDUL: Record<string, string> = {
   ahsp: "Dari AHSP",
   manual: "Dirinci tangan",
@@ -469,6 +475,7 @@ function tulisPerItem(wb: ExcelJS.Workbook, item: BiayaItem[]): void {
     { width: 14 },
     { width: 20 },
     { width: 18 },
+    { width: 24 },
     { width: 20 },
     { width: 20 },
     { width: 12 },
@@ -482,6 +489,7 @@ function tulisPerItem(wb: ExcelJS.Workbook, item: BiayaItem[]): void {
     "VOLUME",
     "NILAI RAB (Rp)",
     "CARA HITUNG",
+    "SUMBER ANALISA",
     "BIAYA (Rp)",
     "MARGIN (Rp)",
     "MARGIN %",
@@ -490,7 +498,7 @@ function tulisPerItem(wb: ExcelJS.Workbook, item: BiayaItem[]): void {
   ws.getRow(1).eachCell((c) => gayaKepala(c, { size: 10 }));
   ws.getRow(1).height = 22;
   ws.views = [{ state: "frozen", ySplit: 1 }];
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 11 } };
 
   // Yang rugi paling dalam lebih dulu; sisanya dari nilai RAB terbesar. Daftar
   // yang berguna dibuka oleh baris yang paling menentukan keputusan.
@@ -515,43 +523,48 @@ function tulisPerItem(wb: ExcelJS.Workbook, item: BiayaItem[]): void {
     ws.getCell(r, 5).value = Number(i.nilaiRab);
     ws.getCell(r, 5).numFmt = FMT_RUPIAH;
     ws.getCell(r, 6).value = CARA_JUDUL[i.cara] ?? i.cara;
+    // Asal angka DIPISAH (DECISIONS 326 → baru 2026-10-07): analisa kontrak,
+    // AHSP resmi, dan usulan AI tidak boleh terbaca sama di berkas yang keluar.
+    ws.getCell(r, 7).value = i.sumberAnalisa ? SUMBER_JUDUL[i.sumberAnalisa] : "";
     if (i.cara !== "belum") {
-      ws.getCell(r, 7).value = Number(i.biaya);
-      ws.getCell(r, 7).numFmt = FMT_RUPIAH;
+      ws.getCell(r, 8).value = Number(i.biaya);
+      ws.getCell(r, 8).numFmt = FMT_RUPIAH;
     }
     if (i.margin !== null) {
-      const m = ws.getCell(r, 8);
+      const m = ws.getCell(r, 9);
       m.value = Number(i.margin);
       m.numFmt = FMT_RUPIAH;
       if (i.margin < 0n) m.font = { size: 10, bold: true, color: { argb: "FFB42318" } };
     }
     if (i.marginPersen !== null) {
-      ws.getCell(r, 9).value = i.marginPersen;
-      ws.getCell(r, 9).numFmt = FMT_PERSEN;
+      ws.getCell(r, 10).value = i.marginPersen;
+      ws.getCell(r, 10).numFmt = FMT_PERSEN;
     }
-    ws.getCell(r, 10).value =
+    ws.getCell(r, 11).value =
       i.alasanLewat !== null
         ? (ALASAN_JUDUL[i.alasanLewat] ?? i.alasanLewat)
         : i.lengkap
           ? ""
           : `${i.komponenBelumBerharga} komponen belum berharga – margin belum bisa dihitung`;
 
-    for (let c = 1; c <= 10; c += 1) {
+    for (let c = 1; c <= 11; c += 1) {
       ws.getCell(r, c).border = KOTAK;
       if (!ws.getCell(r, c).font?.bold) ws.getCell(r, c).font = { size: 10 };
-      ws.getCell(r, c).alignment = { wrapText: c === 2 || c === 10, vertical: "top" };
+      ws.getCell(r, c).alignment = { wrapText: c === 2 || c === 11, vertical: "top" };
     }
     r += 1;
   }
 
   r += 1;
-  ws.mergeCells(r, 1, r, 10);
+  ws.mergeCells(r, 1, r, 11);
   const catatan = ws.getCell(r, 1);
   catatan.value =
     "Kolom MARGIN sengaja dikosongkan untuk item yang masih punya komponen tanpa harga. " +
     "Biaya yang baru sebagian diketahui selalu membuat margin terlihat lebih besar daripada " +
     "yang sebenarnya, dan angka itulah yang dipakai orang memutuskan menawar. " +
-    "Koefisien dari AHSP tidak dapat diubah; yang ditambahkan orang ditandai di layar MARLIN.";
+    "Koefisien dari AHSP tidak dapat diubah; yang ditambahkan orang ditandai di layar MARLIN. " +
+    "Kolom SUMBER ANALISA memisahkan analisa kontrak, AHSP PUPR, dan usulan AI. Usulan AI dipakai " +
+    "hanya setelah diterima orang, dan tetap perkiraan, bukan angka resmi.";
   catatan.alignment = { wrapText: true, vertical: "top" };
   catatan.font = { italic: true, size: 10 };
   ws.getRow(r).height = 46;

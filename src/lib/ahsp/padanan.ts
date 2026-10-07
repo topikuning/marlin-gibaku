@@ -57,8 +57,9 @@ export function adalahJudul(n: { unit: string | null; volume: number | null; amo
  * Item (daun) RAB revisi aktif satu lokasi — TANPA baris judul.
  *
  * `tanpaAnalisaKontrak`: buang item yang SUDAH punya analisa terurai di berkas
- * RAB-nya sendiri (keputusan user 2026-10-06 – analisa kontrak jadi dasar
- * utama). Item itu tidak perlu dicarikan padanan AHSP; menyodorkannya ke
+ * RAB-nya sendiri – atau diwarisi dari revisi sebelumnya – dan item yang
+ * analisa usulan AI-nya sudah diterima (keputusan user 2026-10-06/07 – analisa
+ * kontrak jadi dasar utama). Item itu tidak perlu dicarikan padanan AHSP; menyodorkannya ke
  * daftar Petakan/Setujui berarti menyuruh orang mengerjakan yang sudah ada.
  */
 export async function itemRabAktif(
@@ -71,14 +72,11 @@ export async function itemRabAktif(
   });
   if (!revisi) return [];
   const sudahBeranalisa = opsi.tanpaAnalisaKontrak
-    ? new Set(
-        (
-          await db.rabItemAnalisa.findMany({
-            where: { revisionId: revisi.id, analisa: { komponen: { some: { koefisien: { not: null } } } } },
-            select: { lineageKey: true },
-          })
-        ).map((r) => r.lineageKey),
-      )
+    ? await (async () => {
+        const { analisaAiDiterima, analisaKontrakLokasi } = await import("./analisa-kontrak");
+        const [kontrak, ai] = await Promise.all([analisaKontrakLokasi(locationId), analisaAiDiterima(locationId)]);
+        return new Set([...kontrak.keys(), ...ai.keys()]);
+      })()
     : null;
 
   const nodes = await db.rabNode.findMany({

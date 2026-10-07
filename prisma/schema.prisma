@@ -470,6 +470,9 @@ model User {
   hsdDiubah         HargaSatuanDasar[]      @relation("HsdUpdater")
   hsdUsulanDiminta  HsdUsulanRun[]          @relation("HsdUsulanPeminta")
   raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
+  backupIsian       RabBackupIsian[]        @relation("BackupIsianPenulis")
+  analisaAiDiminta  RaplAnalisaAiRun[]      @relation("AnalisaAiPeminta")
+  analisaAiDiputus  RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
   waVerification    WaVerification?
 
   @@index([orgId])
@@ -1315,6 +1318,8 @@ model Location {
   hargaSatuanDasar    HargaSatuanDasar[]
   hsdUsulanRun        HsdUsulanRun[]
   raplRincian         RaplRincian[]
+  analisaAiRun        RaplAnalisaAiRun[]
+  analisaAi           RaplAnalisaAi[]
   statusHistory       LocationStatusHistory[]
   assignments         LocationAssignment[]
   rabRevisions        RabRevision[]
@@ -1477,6 +1482,7 @@ model RabRevision {
   analisa        RabAnalisa[]
   itemAnalisa    RabItemAnalisa[]
   hargaDasar     RabHargaDasar[]
+  backupIsian    RabBackupIsian[]
 
   @@unique([locationId, revisionNo])
   @@index([locationId, status])
@@ -1531,6 +1537,7 @@ model RabNode {
   planItems    WeeklyPlanItem[]
   backupVolume RabBackupVolume?
   itemAnalisa  RabItemAnalisa?
+  backupIsian  RabBackupIsian[]
 
   @@unique([revisionId, lineageKey])
   @@index([revisionId, parentId, sortOrder])
@@ -3782,4 +3789,110 @@ model RabRincianPeriksa {
   revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
 
   @@map("rab_rincian_periksa")
+}
+
+/// BACKUP VOLUME YANG DIISI DI MARLIN (DECISIONS baru 2026-10-07).
+///
+/// Untuk item yang tidak punya backup di berkasnya – item baru adendum, item
+/// yang volumenya berubah lewat editor/template adendum. Hasil tiap baris
+/// TIDAK disimpan: diturunkan dari angkanya (`hasilBarisBackup` di
+/// `ahsp/rapl-calc.ts`). Angka resmi tetap volume di RAB; selisihnya disebut.
+model RabBackupIsian {
+  id           String   @id @default(uuid()) @db.Uuid
+  revisionId   String   @map("revision_id") @db.Uuid
+  lineageKey   String   @map("lineage_key")
+  urutan       Int
+  uraian       String
+  /// Banyaknya (buah, sisi, lantai…). Kosong = 1.
+  jumlah       Decimal? @db.Decimal(18, 4)
+  panjang      Decimal? @db.Decimal(18, 4)
+  lebar        Decimal? @db.Decimal(18, 4)
+  tinggi       Decimal? @db.Decimal(18, 4)
+  /// Kurangi (bukaan pintu/jendela, dll.).
+  kurang       Boolean  @default(false)
+  keterangan   String?
+  dibuatOlehId String   @map("dibuat_oleh_id") @db.Uuid
+  dibuatAt     DateTime @default(now()) @map("dibuat_at") @db.Timestamptz
+
+  revision   RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  node       RabNode     @relation(fields: [revisionId, lineageKey], references: [revisionId, lineageKey], onDelete: Cascade)
+  dibuatOleh User        @relation("BackupIsianPenulis", fields: [dibuatOlehId], references: [id])
+
+  @@index([revisionId, lineageKey, urutan])
+  @@map("rab_backup_isian")
+}
+
+/// Permintaan draf ANALISA kepada AI untuk item RAB yang tidak punya analisa
+/// kontrak maupun padanan AHSP yang disetujui (DECISIONS baru 2026-10-07,
+/// mencabut "belum" di DECISIONS 326 atas permintaan user).
+model RaplAnalisaAiRun {
+  id            String    @id @default(uuid()) @db.Uuid
+  locationId    String    @map("location_id") @db.Uuid
+  /// menunggu | selesai | gagal
+  status        String    @default("menunggu")
+  pendingSince  DateTime? @map("pending_since") @db.Timestamptz
+  model         String?
+  errorMessage  String?   @map("error_message")
+  /// Berapa item yang dikirim ke AI pada panggilan ini.
+  diminta       Int       @default(0)
+  /// Berapa item yang belum punya analisa sama sekali saat itu.
+  totalTanpa    Int       @default(0) @map("total_tanpa")
+  requestedById String    @map("requested_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  selesaiAt     DateTime? @map("selesai_at") @db.Timestamptz
+
+  location    Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  requestedBy User            @relation("AnalisaAiPeminta", fields: [requestedById], references: [id])
+  usulan      RaplAnalisaAi[]
+
+  @@index([locationId, createdAt])
+  @@index([pendingSince])
+  @@map("rapl_analisa_ai_run")
+}
+
+/// Draf analisa dari AI untuk SATU item. Baru dipakai RAPL setelah DITERIMA
+/// orang; tampil terpisah dari analisa kontrak dan AHSP di layar dan Excel.
+model RaplAnalisaAi {
+  id               String    @id @default(uuid()) @db.Uuid
+  runId            String    @map("run_id") @db.Uuid
+  locationId       String    @map("location_id") @db.Uuid
+  lineageKey       String    @map("lineage_key")
+  /// Potret item saat diminta – supaya draf tetap terbaca bila RAB berganti.
+  code             String
+  uraian           String
+  satuan           String
+  /// rendah | sedang | tinggi
+  keyakinan        String
+  alasan           String
+  /// draf | diterima | ditolak | dicabut
+  status           String    @default("draf")
+  diputuskanOlehId String?   @map("diputuskan_oleh_id") @db.Uuid
+  diputuskanAt     DateTime? @map("diputuskan_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  run            RaplAnalisaAiRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  location       Location                @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  diputuskanOleh User?                   @relation("AnalisaAiPemutus", fields: [diputuskanOlehId], references: [id])
+  komponen       RaplAnalisaAiKomponen[]
+
+  @@unique([runId, lineageKey])
+  @@index([locationId, lineageKey, status])
+  @@map("rapl_analisa_ai")
+}
+
+model RaplAnalisaAiKomponen {
+  id        String  @id @default(uuid()) @db.Uuid
+  usulanId  String  @map("usulan_id") @db.Uuid
+  urutan    Int
+  /// bahan | upah | alat
+  kategori  String
+  nama      String
+  satuan    String
+  /// Per SATU satuan item.
+  koefisien Decimal @db.Decimal(24, 8)
+
+  usulan RaplAnalisaAi @relation(fields: [usulanId], references: [id], onDelete: Cascade)
+
+  @@index([usulanId, urutan])
+  @@map("rapl_analisa_ai_komponen")
 }

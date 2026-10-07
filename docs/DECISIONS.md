@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 652 | 2026-10-07 | Backup volume tiap item menyebut sumbernya di revisi mana pun (berkas tertaut / diwarisi bila volume sama / isian MARLIN jumlah×P×L×T / belum + sebab); analisa kontrak diwarisi bila harga satuan sama; Template Adendum ditelusuri; draf analisa AI untuk item tanpa analisa (mencabut "belum" 326 dgn syaratnya: draf, diterima orang, sumber "ai" terpisah di layar & Excel) |
 | 651 | 2026-10-06 | Backup volume, analisa, dan bahan & upah dibaca LEWAT RUMUS dari berkas RAB (sheet tersembunyi yang dirujuk ikut, disebut) dan disimpan per revisi terpisah dari angka resmi; tampil per item; analisa kontrak jadi dasar RAPL (AHSP PUPR hanya cadangan); data lama dilengkapi dari berkas arsip lewat Periksa → Simpan di Sistem |
 | 650 | 2026-10-05 | Cadangan ke Google Drive akun 2TB: database harian tersandi (pg_dump → AES-256-GCM, retensi 30 hari + 12 bulanan) dan berkas (foto asli/ber-cap, dokumen, surat, lampiran; yang tinggal satu salinan di Lenovo lebih dulu); sambungan Google kedua `drive.file`; cron tiap jam; peringatan WA; `docs/CADANGAN_SETUP.md` |
 | 649 | 2026-10-04 | Halaman "Realisasi tidak terbobot" (RAB → Tidak terbobot): pekerjaan yang sudah dilaporkan tapi itemnya hilang dari RAB aktif; penanda di laporan harian dan riwayat input; fungsi kanonik `volumeTidakTerbobotByLineage` |

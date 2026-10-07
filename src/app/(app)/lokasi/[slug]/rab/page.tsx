@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Calculator, Download, FilePen, History, Unlink, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
+import { analisaRevisi, sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
 import { can, ROLE_LABEL } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getLocationProgress, COUNTED_REPORT_STATUSES, volumeTidakTerbobotByLineage } from "@/lib/progress";
@@ -113,21 +114,17 @@ export default async function RabPage({
       : Promise.resolve([]),
   ]);
   /*
-   * Backup volume & analisa (DECISIONS baru 2026-10-06): hanya daftar lineage
-   * yang PUNYA rincian – isinya dibuka di halaman rincian, tidak dikirim ke
-   * pohon RAB.
+   * Backup volume & analisa (DECISIONS 651, pewarisan baru 2026-10-07): hanya
+   * daftar lineage yang PUNYA backup (berkas, warisan, atau isian) dan yang
+   * punya analisa – isinya dibuka di halaman backup-analisa, tidak dikirim ke
+   * pohon RAB. Item tanpa backup tetap bertaut, ditandai, supaya bisa diisi.
    */
-  const [backupAda, analisaAda, rincianAda] =
+  const [sumberBv, sumberAnalisa] =
     active && bagian === "rab"
-      ? await Promise.all([
-          db.rabBackupVolume.findMany({
-            where: { revisionId: active.id, status: "tertaut" },
-            select: { lineageKey: true },
-          }),
-          db.rabItemAnalisa.findMany({ where: { revisionId: active.id }, select: { lineageKey: true } }),
-          db.rabRincianRevisi.count({ where: { revisionId: active.id } }),
-        ])
-      : [[], [], 0];
+      ? await Promise.all([sumberBackupRevisi(active.id), analisaRevisi(active.id)])
+      : [null, null];
+  const backupAda = sumberBv ? [...sumberBv.peta].filter(([, v]) => v.jenis !== "belum").map(([k]) => k) : [];
+  const analisaAda = sumberAnalisa ? [...sumberAnalisa.keys()] : [];
 
   // Serialisasi SEKALI untuk boundary client (BigInt → string, Decimal → number).
   const nodeRows: RabNodeRow[] = nodes.map((n) => ({
@@ -454,15 +451,7 @@ export default async function RabPage({
                 ppnValue={ppnValue.toString()}
                 totalWithPpn={totalWithPpn.toString()}
                 canEdit={canManage}
-                rincian={
-                  rincianAda > 0
-                    ? {
-                        slug,
-                        backup: backupAda.map((b) => b.lineageKey),
-                        analisa: analisaAda.map((a) => a.lineageKey),
-                      }
-                    : null
-                }
+                rincian={sumberBv ? { slug, backup: backupAda, analisa: analisaAda } : null}
               />
             ) : (
               <p className="text-sm text-ink-muted">
@@ -506,6 +495,7 @@ export default async function RabPage({
                 ) : null}
               </div>
               <RevisionList
+                slug={slug}
                 revisions={revisionRows}
                 canManage={canManage}
                 persetujuan={persetujuanDraft}

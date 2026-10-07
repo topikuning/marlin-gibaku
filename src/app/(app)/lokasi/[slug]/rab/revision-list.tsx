@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAksi } from "@/lib/aksi-klien";
 import { Banner, Button, Input, StatusPill, type BadgeTone } from "@/components/ui";
 import { hapusRevisiKeliruAction, type HapusRevisiState } from "@/lib/rab/hapus-revisi-actions";
@@ -278,8 +279,11 @@ export function RevisionList({
   canManage,
   persetujuan = null,
   hapus = {},
+  slug,
 }: {
   revisions: RevisionRow[];
+  /** Untuk tautan backup volume & analisa per revisi (DECISIONS baru 2026-10-07). */
+  slug?: string;
   canManage: boolean;
   /** Keadaan empat mata draft yang ada; `null` bila belum ada RAB aktif (HPS awal). */
   persetujuan?: PersetujuanRow | null;
@@ -301,6 +305,7 @@ export function RevisionList({
             <th className="py-2 pr-3 text-right">Total (pra-PPN)</th>
             <th className="py-2 pr-3">Tanggal</th>
             <th className="py-2 pr-3">Catatan</th>
+            {slug ? <th className="py-2 pr-3">Backup &amp; analisa</th> : null}
             {adaAksi ? <th className="py-2 text-right">Aksi</th> : null}
           </tr>
         </thead>
@@ -317,6 +322,16 @@ export function RevisionList({
               <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={r.note ?? undefined}>
                 {r.note ?? "–"}
               </td>
+              {slug ? (
+                <td className="py-2 pr-3">
+                  <Link
+                    href={`/lokasi/${slug}/rab/backup-analisa${r.status === "aktif" ? "" : `?rev=${r.id}`}`}
+                    className="text-primary hover:underline"
+                  >
+                    Lihat
+                  </Link>
+                </td>
+              ) : null}
               {adaAksi ? (
                 <td className="py-2 text-right align-top">
                   {canManage && r.status === "draft" ? (

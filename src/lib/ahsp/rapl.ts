@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { normalisasiSatuan } from "./cocok";
 import { itemRabAktif, metodeDisetujui } from "./padanan";
+import { analisaAiDiterima, analisaKontrakLokasi } from "./analisa-kontrak";
 import {
   agregasiKebutuhan,
   hitungItemRapl,
@@ -37,7 +38,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   if (items.length === 0) return [];
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
-  const [padanan, rincian, kontrak] = await Promise.all([
+  const [padanan, rincian, petaKontrak, petaAi] = await Promise.all([
     tanda.length
       ? db.ahspPadanan.findMany({
           where: { tanda: { in: tanda }, entryId: { not: null } },
@@ -72,27 +73,15 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
     }),
     /*
      * ANALISA KONTRAK (keputusan user 2026-10-06): analisa yang tertulis di
-     * berkas RAB revisi aktif – dasar UTAMA. Padanan AHSP PUPR hanya untuk
-     * item yang tidak punya analisa di berkasnya.
+     * berkas RAB revisi aktif – atau diwarisi dari revisi sebelumnya bila
+     * harga satuannya sama – jadi dasar UTAMA. Padanan AHSP PUPR untuk item
+     * yang tidak punya analisa di berkasnya; analisa usulan AI yang DITERIMA
+     * orang hanya untuk item yang tidak punya keduanya (DECISIONS baru
+     * 2026-10-07).
      */
-    db.rabItemAnalisa.findMany({
-      where: { revision: { locationId, status: "aktif" } },
-      select: {
-        lineageKey: true,
-        analisa: {
-          select: {
-            kode: true,
-            uraian: true,
-            komponen: {
-              orderBy: { urutan: "asc" },
-              select: { kategori: true, nama: true, satuan: true, koefisien: true, harga: true },
-            },
-          },
-        },
-      },
-    }),
+    analisaKontrakLokasi(locationId),
+    analisaAiDiterima(locationId),
   ]);
-  const petaKontrak = new Map(kontrak.map((k) => [k.lineageKey, k.analisa]));
 
   // Hanya padanan yang sudah ada yang menyetujui yang boleh menjadi angka.
   // Usulan mesin sengaja diperlakukan seperti tidak ada padanan — bukan
@@ -110,7 +99,8 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
     const e = peta.get(it.tanda);
     const r = petaRincian.get(it.lineageKey);
     const k = petaKontrak.get(it.lineageKey);
-    const komponenKontrak = (k?.komponen ?? []).filter((c) => c.koefisien != null);
+    const komponenKontrak = k?.komponen ?? [];
+    const ai = petaAi.get(it.lineageKey);
     return {
       lineageKey: it.lineageKey,
       code: it.code,
@@ -145,8 +135,8 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
               kategori: c.kategori,
               nama: c.nama,
               satuan: c.satuan,
-              koefisien: Number(c.koefisien),
-              hargaKontrak: c.harga == null ? null : Number(c.harga),
+              koefisien: c.koefisien,
+              hargaKontrak: c.harga,
             })),
           }
         : e
@@ -161,6 +151,16 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
               satuan: c.satuan,
               koefisien: Number(c.koefisien),
             })),
+          }
+        : ai
+        ? {
+            // Usulan AI yang DITERIMA orang – per satuan item sendiri, jadi
+            // satuannya sepadan. Selalu disebut "usulan AI" di layar & Excel.
+            sumber: "ai" as const,
+            kode: "Usulan AI",
+            uraian: it.name,
+            satuanNorm: normalisasiSatuan(it.unit),
+            komponen: ai.komponen,
           }
         : null,
     };
@@ -227,10 +227,9 @@ export async function keadaanItemRapl(locationId: string): Promise<KeadaanItemRa
  * harga bawaan – memilih salah satunya adalah tebakan.
  */
 export async function hargaDariKontrak(locationId: string): Promise<HargaSatuan[]> {
-  const komponen = await db.rabAnalisaKomponen.findMany({
-    where: { harga: { not: null }, analisa: { revision: { locationId, status: "aktif" } } },
-    select: { kategori: true, nama: true, satuan: true, harga: true },
-  });
+  const komponen = [...(await analisaKontrakLokasi(locationId)).values()].flatMap((a) =>
+    a.komponen.filter((k) => k.harga != null),
+  );
   const per = new Map<string, { contoh: HargaSatuan; nilai: Set<string> }>();
   for (const k of komponen) {
     const satuan = (k.satuan ?? "").trim();

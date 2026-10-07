@@ -399,6 +399,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
       nodes = templateAdendum.nodes;
       sheetName = templateAdendum.sheet;
+      // Volume Adendum yang diberi rumus ke sheet backup ikut ditelusuri
+      // (DECISIONS baru 2026-10-07); yang diketik tetap diketik.
+      const { KOLOM_RINCIAN_TEMPLATE } = await import("@/lib/rab/adendum-template-parse");
+      kolomBaca = { ...KOLOM_RINCIAN_TEMPLATE };
     } else {
       try {
         let pilihan: import("@/lib/rab/hps-parser").PilihanBaca | undefined;

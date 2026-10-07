@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CellClassParams, ColDef, ValueFormatterParams } from "ag-grid-community";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import {
   Badge,
   Banner,
@@ -22,6 +22,7 @@ import {
   setFaktorKonversiAction,
   tambahKomponenAction,
 } from "@/lib/ahsp/rincian-actions";
+import { mintaAnalisaAiAction } from "@/lib/ahsp/analisa-ai-actions";
 
 /**
  * RINCIAN PER ITEM RAB (RAPL-08, DECISIONS 475).
@@ -60,8 +61,8 @@ export type ItemRaplRow = {
   komponen: KomponenItemRow[];
   biaya: string;
   komponenBelumBerharga: number;
-  /** Asal analisa: berkas kontrak (dasar utama) atau padanan AHSP PUPR. */
-  sumberAnalisa: "kontrak" | "ahsp" | null;
+  /** Asal analisa: berkas kontrak (dasar utama), padanan AHSP PUPR, atau usulan AI yang diterima. */
+  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
   lengkap: boolean;
   margin: string | null;
   marginPersen: number | null;
@@ -78,6 +79,12 @@ const LABEL_CARA: Record<string, string> = {
   campuran: "AHSP + tambahan",
   borongan: "Borongan",
   belum: "Belum bisa dihitung",
+};
+
+/** Asal analisa selain AHSP – disebut apa adanya, tidak disamakan dengan AHSP. */
+const LABEL_SUMBER: Record<"kontrak" | "ai", string> = {
+  kontrak: "Dari analisa kontrak",
+  ai: "Usulan AI (diterima)",
 };
 
 const LABEL_ALASAN: Record<string, string> = {
@@ -107,6 +114,7 @@ export function RincianPanel({
   slug,
   items,
   canInput,
+  canUseAi = false,
   tampilkanMargin,
   ringkas,
 }: {
@@ -114,6 +122,8 @@ export function RincianPanel({
   slug: string;
   items: ItemRaplRow[];
   canInput: boolean;
+  /** `ai.generate` – boleh meminta draf analisa AI untuk item tanpa analisa. */
+  canUseAi?: boolean;
   /**
    * `rapl.view`. Kolom Margin/Margin % dan kartu "item yang rugi" adalah angka
    * menawar; pemegang `rapl.manage` saja (Site Manager) mengisi rinciannya
@@ -155,10 +165,8 @@ export function RincianPanel({
         // Analisa dari berkas kontrak disebut sebagai itu, bukan "AHSP" –
         // keduanya sumber yang berbeda (keputusan user 2026-10-06).
         caraLabel:
-          i.sumberAnalisa === "kontrak" && (i.cara === "ahsp" || i.cara === "campuran")
-            ? i.cara === "ahsp"
-              ? "Dari analisa kontrak"
-              : "Analisa kontrak + tambahan"
+          i.sumberAnalisa !== null && i.sumberAnalisa !== "ahsp" && (i.cara === "ahsp" || i.cara === "campuran")
+            ? `${LABEL_SUMBER[i.sumberAnalisa]}${i.cara === "campuran" ? " + tambahan" : ""}`
             : (LABEL_CARA[i.cara] ?? i.cara),
         keteranganl:
           i.alasanLewat !== null
@@ -345,7 +353,13 @@ export function RincianPanel({
                         <p className="truncate text-[13px] text-ink">
                           {k.nama}{" "}
                           <Badge tone={k.dariAhsp ? "neutral" : "info"}>
-                            {k.dariAhsp ? (dibuka.sumberAnalisa === "kontrak" ? "analisa kontrak" : "AHSP") : "tambahan"}
+                            {k.dariAhsp
+                              ? dibuka.sumberAnalisa === "kontrak"
+                                ? "analisa kontrak"
+                                : dibuka.sumberAnalisa === "ai"
+                                  ? "usulan AI"
+                                  : "AHSP"
+                              : "tambahan"}
                           </Badge>
                         </p>
                         <p className="tabular text-[12px] text-ink-muted">
@@ -388,11 +402,40 @@ export function RincianPanel({
                 <p className="mt-1 text-[12px] text-ink-muted">
                   {dibuka.sumberAnalisa === "kontrak"
                     ? "Koefisien analisa kontrak diambil dari berkas RAB dan tidak bisa diubah di sini. "
-                    : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
+                    : dibuka.sumberAnalisa === "ai"
+                      ? "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
+                      : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
                   Yang bisa Anda lakukan: menambah komponen yang belum ada.
                 </p>
               ) : null}
             </section>
+
+            {canInput && canUseAi && dibuka.cara === "belum" && dibuka.komponen.length === 0 && dibuka.alasanLewat !== "volume_kosong" ? (
+              <section className="rounded-lg border border-line p-3">
+                <h3 className="text-[13px] font-semibold text-ink">Draf analisa AI</h3>
+                <p className="mt-0.5 text-[12px] text-ink-muted">
+                  AI menyusun koefisien bahan, upah, dan alat untuk satu satuan item ini. Drafnya muncul di atas
+                  tabel, dan baru dipakai setelah Anda terima.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="mt-2"
+                  loading={aksiSibuk === "ai"}
+                  onClick={() =>
+                    jalankan(
+                      "ai",
+                      () => mintaAnalisaAiAction({ locationId, slug, dipilih: [dibuka.lineageKey] }),
+                      "Draf analisa sedang disusun. Hasilnya muncul di bagian Draf analisa AI.",
+                    )
+                  }
+                >
+                  <Sparkles aria-hidden className="size-3.5" />
+                  Minta draf analisa AI
+                </Button>
+              </section>
+            ) : null}
 
             {canInput ? (
               <>

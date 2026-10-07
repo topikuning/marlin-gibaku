@@ -133,8 +133,9 @@ export function RabTree({
   /** Pemilik rab.manage → boleh ganti judul kategori. */
   canEdit?: boolean;
   /**
-   * Item yang punya backup volume / analisa tersimpan (DECISIONS baru
-   * 2026-10-06). Angkanya jadi tautan ke rinciannya. null = belum ada rincian.
+   * Item yang punya backup volume (berkas, warisan, isian) / analisa
+   * (DECISIONS 651, baru 2026-10-07). Volume SEMUA item bertaut; yang belum
+   * punya backup diberi warna peringatan. null = tanpa revisi aktif.
    */
   rincian?: { slug: string; backup: string[]; analisa: string[] } | null;
 }) {
@@ -143,12 +144,16 @@ export function RabTree({
   // Halaman biasa, bukan pembangkit berkas – alamatnya disusun di sini.
   const alamatItem = (n: RabNodeRow) =>
     `/lokasi/${rincian?.slug ?? ""}/rab/backup-analisa?item=${encodeURIComponent(n.lineageKey)}`;
-  const tautan = (n: RabNodeRow, isi: string, judul: string) =>
+  const tautan = (n: RabNodeRow, isi: string, judul: string, kurang = false) =>
     rincian ? (
       <Link
         href={alamatItem(n)}
         title={judul}
-        className="underline decoration-dotted underline-offset-2 hover:text-primary"
+        className={
+          kurang
+            ? "text-warning underline decoration-dotted underline-offset-2 hover:text-primary"
+            : "underline decoration-dotted underline-offset-2 hover:text-primary"
+        }
       >
         {isi}
       </Link>
@@ -295,8 +300,10 @@ export function RabTree({
                     <td className="tabular px-2 py-1.5 text-right align-top">
                       {node.volume == null
                         ? ""
-                        : node.kind === "item" && adaBackup.has(node.lineageKey)
-                          ? tautan(node, formatNumber(node.volume), "Lihat backup volume")
+                        : node.kind === "item" && rincian
+                          ? adaBackup.has(node.lineageKey)
+                            ? tautan(node, formatNumber(node.volume), "Lihat backup volume")
+                            : tautan(node, formatNumber(node.volume), "Backup volume belum ada – ketuk untuk melihat sebabnya", true)
                           : formatNumber(node.volume)}
                     </td>
                     <td className="px-2 py-1.5 align-top text-ink-muted">{node.unit ?? ""}</td>
