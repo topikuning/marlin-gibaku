@@ -575,7 +575,7 @@ function PanelPadanan({
     { value: "", label: "– tidak dipetakan –" },
     ...padanan.baru.map((b) => ({
       value: b.lineageAsli,
-      label: `${b.code} ${b.name}${b.volume == null ? "" : ` – ${formatNumber(b.volume)}`}`,
+      label: `${b.jalur ? `${b.jalur} › ` : ""}${b.code} ${b.name}${b.volume == null ? "" : ` – ${formatNumber(b.volume)}`}`,
     })),
   ];
   const volumeBaru = new Map(padanan.baru.map((b) => [b.lineageAsli, b.volume]));
@@ -592,6 +592,7 @@ function PanelPadanan({
       <ul className="space-y-2">
         {padanan.lama.map((l) => (
           <li key={l.lineageKey} className="space-y-1">
+            {l.jalur ? <span className="block text-ink-muted">{l.jalur} ›</span> : null}
             <span className="block text-ink">
               {l.code} {l.name}{" "}
               <span className="text-ink-muted">

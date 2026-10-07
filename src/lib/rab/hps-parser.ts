@@ -54,6 +54,19 @@ const ORPHAN_CHILD = /^(?:~\d+|-)\.(?:[a-z]|\d+)$/i;
  * volume dan harga satuannya saat berkas ekspor diimpor ulang.
  */
 const DEEPCODE = /^\d+(?:\.\d+)*\.(?:[a-z]|\d+)$/i;
+/**
+ * VARIAN HURUF: "d.1", "e.2" – baris KEDUA untuk pekerjaan yang sama dengan
+ * "d", sejajar dengannya (DECISIONS 656).
+ *
+ * Muncul di adendum saat harga satuan kontrak TIMPANG: volume sampai batas
+ * kontrak memakai harga kontrak (baris "d"), kelebihannya memakai harga HPS
+ * (baris "d.1"). Namanya biasanya kembar dengan "d". Sebelumnya bentuk kode ini
+ * tidak dikenali dan barisnya DIBUANG TANPA PERINGATAN – nilainya tidak ikut
+ * terjumlah ke impor.
+ */
+const LETTER_VARIAN = /^[a-z]\.\d+$/i;
+/** Bentuk lengkap varian huruf yang ditulis ulang ekspor RAB: "7.d.1", "6.1.d.1". */
+const DEEPCODE_VARIAN = /^\d+(?:\.\d+)*\.[a-z]\.\d+$/i;
 
 function cellVal(row: ExcelJS.Row, c: number): unknown {
   const v = row.getCell(c).value;
@@ -106,6 +119,7 @@ export function classifyRow(code: string, name: string): RowKind {
   if (DOTNUM.test(code)) return "dotitem";
   if (ORPHAN_CHILD.test(code)) return "dotitem";
   if (LETTER.test(code)) return "letter";
+  if (LETTER_VARIAN.test(code) || DEEPCODE_VARIAN.test(code)) return "letter";
   if (code === "") return "blank";
   return "other";
 }
@@ -483,7 +497,14 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
 /** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
 export function berbentukKode(t: string): boolean {
   return (
-    isRoman(t) || SUBCODE.test(t) || NUM.test(t) || DOTNUM.test(t) || DEEPCODE.test(t) || LETTER.test(t)
+    isRoman(t) ||
+    SUBCODE.test(t) ||
+    NUM.test(t) ||
+    DOTNUM.test(t) ||
+    DEEPCODE.test(t) ||
+    LETTER.test(t) ||
+    LETTER_VARIAN.test(t) ||
+    DEEPCODE_VARIAN.test(t)
   );
 }
 
@@ -1528,6 +1549,27 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
       return;
     }
 
+    // Varian huruf berkode lengkap ("7.d.1") – tulisan ulang ekspor RAB. Induknya
+    // = kode tanpa ".d.1"; ia SEJAJAR dengan "7.d", bukan anaknya.
+    if (DEEPCODE_VARIAN.test(code)) {
+      const parentCode = code.replace(/\.[a-z]\.\d+$/i, "");
+      const parent = byCode.get(parentCode) ?? itemL2 ?? itemL1;
+      const it = mkItem(code, name, row, parent?.code ?? null);
+      if (parent) parent.children.push(it);
+      else (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(code, it);
+      return;
+    }
+
+    // Varian huruf pendek ("d.1") – sejajar dengan "d": induknya sama.
+    if (LETTER_VARIAN.test(code)) {
+      const parent = itemL2 ?? itemL1;
+      const it = mkItem(`${parent?.code ?? "-"}.${code}`, name, row, parent?.code ?? null);
+      if (parent) parent.children.push(it);
+      else (sub ? sub.items : cat.direct_items).push(it);
+      return;
+    }
+
     // Huruf (a,b,c) atau kode kosong (lanjutan) → anak grup terdalam saat ini
     if (LETTER.test(code) || code === "") {
       const parent = itemL2 ?? itemL1;
@@ -1562,6 +1604,30 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
       const rp = romanPrefixOf(code);
       if (rp && cat && rp !== cat.roman) openInferredCategory(rp);
       pushSub(code, name);
+      return;
+    }
+
+    /*
+     * Kode yang bentuknya TIDAK dikenali tapi barisnya BERNILAI: tidak dihitung
+     * (menebak strukturnya bisa salah tempat), tapi TIDAK BOLEH hilang diam-diam.
+     * Baris "d.1" di adendum harga timpang dulu lenyap persis begini
+     * (DECISIONS 656).
+     */
+    const volLain = num(cellVal(row, col.vol));
+    const jmlLain = num(cellVal(row, col.amount));
+    const miripKode = /^[0-9a-z]{1,4}(?:[.\-][0-9a-z]{1,4}){0,4}\.?$/i.test(code);
+    if (
+      miripKode &&
+      !SUMMARY_PREFIX.test(code) &&
+      !SUMMARY_PREFIX.test(name.trim()) &&
+      ((volLain != null && volLain !== 0) || (jmlLain != null && jmlLain !== 0))
+    ) {
+      warnings.push(
+        `PERHATIAN – baris ${row.number} berkode "${code}" (${name || "tanpa uraian"}) bernilai ` +
+          `${jmlLain != null ? Math.round(jmlLain).toLocaleString("id-ID") : `volume ${volLain}`} ` +
+          `tapi bentuk kodenya tidak dikenali, jadi TIDAK ikut dihitung. Ganti kodenya ke bentuk ` +
+          `yang dipakai baris lain (mis. "a", "6.1", "d.1"), lalu unggah ulang.`,
+      );
     }
   });
 
