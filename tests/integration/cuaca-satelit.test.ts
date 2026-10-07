@@ -44,11 +44,15 @@ let gsmapSampai = 14;
 let akunGsmap = true;
 let panggilAwan = 0;
 
+/** Berkas satelit yang dibuka, per jam: "awan|tanggal|jamUtc" / "hujan|…". */
+const dibuka: string[] = [];
+
 vi.mock("@/lib/weather/himawari", () => ({
   HIMAWARI_PROVIDER: "himawari-mock",
-  awanHimawari: async (_t: string, jam: number) => {
+  awanHimawariBanyak: async (t: string, jam: number, titik: { id: string }[]) => {
     panggilAwan++;
-    return { awanPersen: AWAN[jam] ?? null, waktuScan: `${jam}:30 UTC` };
+    dibuka.push(`awan|${t}|${jam}`);
+    return new Map(titik.map((x) => [x.id, AWAN[jam] ?? null]));
   },
 }));
 vi.mock("@/lib/weather/gsmap", () => {
@@ -60,7 +64,13 @@ vi.mock("@/lib/weather/gsmap", () => {
     bukaGsmap: async () => {
       if (!akunGsmap) throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Sumber cuaca otomatis).");
       return {
-        hujan: async (_t: string, jam: number) => (jam > gsmapSampai ? undefined : (HUJAN[jam] ?? 0)),
+        unduh: async (daftar: { tanggalUtc: string; jamUtc: number }[]) =>
+          new Set(daftar.filter((j) => j.jamUtc <= gsmapSampai).map((j) => `${j.tanggalUtc}|${j.jamUtc}`)),
+        hujanBanyak: async (t: string, jam: number, titik: { id: string }[]) => {
+          if (jam > gsmapSampai) return undefined;
+          dibuka.push(`hujan|${t}|${jam}`);
+          return new Map(titik.map((x) => [x.id, HUJAN[jam] ?? 0]));
+        },
         tutup: async () => undefined,
       };
     },
@@ -71,7 +81,7 @@ const { db } = await import("@/lib/db");
 const { applyWeatherToReport } = await import("@/lib/weather/service");
 const { getOrCreateDraft } = await import("@/lib/daily-report/service");
 const { setSumberCuaca, SUMBER_CUACA_KEY } = await import("@/lib/weather/setelan");
-const { SATELIT_PROVIDER } = await import("@/lib/weather/satelit");
+const { SATELIT_PROVIDER, mulaiCuacaSatelitLatar, tungguCuacaSatelitLatar } = await import("@/lib/weather/satelit");
 
 const suffix = `cs${Date.now().toString(36)}`;
 let locationId = "";
@@ -184,5 +194,53 @@ describe("pilihan sumber cuaca", () => {
     const hasil = await applyWeatherToReport(r.id);
     expect(hasil.sumber).toBe("open-meteo");
     expect(panggilOm).toBe(sebelum + 1);
+  });
+
+  it("bacaan yang sudah tersimpan tidak diambil ulang – hanya jam yang belum ada", async () => {
+    await setSumberCuaca("satelit");
+    // Simpanan kategori dihapus: yang tersisa hanya bacaan mentah per jam.
+    await db.weatherObservation.deleteMany({ where: { locationId } });
+    const r = await getOrCreateDraft(locationId, "2026-09-01", userId);
+    const sebelum = dibuka.length;
+    const hasil = await applyWeatherToReport(r.id);
+    expect(hasil.cached).toBe(false);
+    expect(dibuka.length).toBe(sebelum);
+    expect(kategori(hasil.hours)).toMatchObject({ 13: "Hujan", 14: "Hujan", 15: "Mendung" });
+  });
+
+  it("pengisian latar: satu berkas per jam melayani SEMUA lokasi, untuk kemarin dan hari ini", async () => {
+    await setSumberCuaca("satelit");
+    const pkg = await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } });
+    const lain = await db.location.create({
+      data: {
+        packageId: pkg.packageId, name: "Lokasi Satelit 2", slug: `lok2-${suffix}`, village: "Desa", regency: "Batang",
+        province: "Jawa Tengah", gpsLat: -6.95, gpsLng: 109.8, status: "berjalan", isActive: true,
+      },
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-11T12:30:00+07:00"));
+    dibuka.length = 0;
+    expect(await mulaiCuacaSatelitLatar()).toEqual({ dimulai: true });
+    await tungguCuacaSatelitLatar();
+    const awanKemarin = dibuka.filter((x) => x.startsWith("awan|2026-09-10|"));
+    expect(awanKemarin).toHaveLength(15);
+    expect(new Set(awanKemarin).size).toBe(15);
+    // Hari ini 12.30 WIB: jam 07–11 sudah lewat.
+    expect(dibuka.filter((x) => x.startsWith("awan|2026-09-11|"))).toHaveLength(5);
+    for (const id of [locationId, lain.id]) {
+      expect(
+        await db.cuacaSatelitJam.count({ where: { locationId: id, tanggal: new Date("2026-09-10T00:00:00Z"), awanDiambil: { not: null } } }),
+      ).toBe(15);
+    }
+    // Putaran berikutnya tanpa jam baru: tidak membuka berkas apa pun.
+    dibuka.length = 0;
+    await mulaiCuacaSatelitLatar();
+    await tungguCuacaSatelitLatar();
+    expect(dibuka).toEqual([]);
+  });
+
+  it("sumber Open-Meteo: pengisian latar tidak berjalan", async () => {
+    await setSumberCuaca("open-meteo");
+    expect(await mulaiCuacaSatelitLatar()).toMatchObject({ dimulai: false });
   });
 });

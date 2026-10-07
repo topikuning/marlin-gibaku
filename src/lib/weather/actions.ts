@@ -137,7 +137,7 @@ export async function bandingkanCuacaAction(_prev: BandingState, formData: FormD
 
     const [om, sat] = await Promise.allSettled([
       fetchHourlyWeather({ lat, lng, dateKey, todayKey: jakartaDateKey(sekarang) }),
-      fetchHourlySatelit({ lat, lng, dateKey, sekarang }),
+      fetchHourlySatelit({ locationId: p.data.locationId, lat, lng, dateKey, sekarang }),
     ]);
     const pesan = (r: PromiseSettledResult<unknown>) =>
       r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : undefined;

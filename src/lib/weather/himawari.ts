@@ -3,7 +3,7 @@ import { bukaHdf5, type BacaBita } from "@/lib/weather/hdf5-jarak";
 import { HIMAWARI_UKURAN, jarakKm, persenAwan, pikselHimawari } from "@/lib/weather/satelit-murni";
 
 /**
- * AWAN DARI SATELIT HIMAWARI-9 (DECISIONS baru 2026-10-07).
+ * AWAN DARI SATELIT HIMAWARI-9 (DECISIONS 655).
  *
  * Sumber: produk penanda awan (cloud mask) NOAA dari citra Himawari-9 milik
  * JMA, terbuka di arsip NOAA Open Data (Amazon S3), tanpa akun. Satu berkas =
@@ -11,31 +11,45 @@ import { HIMAWARI_UKURAN, jarakKm, persenAwan, pikselHimawari } from "@/lib/weat
  *
  * Tiap jam dipakai pemotretan pertengahan jam (:30); bila tidak ada (jadwal
  * perawatan satelit), pemotretan terdekat di jam yang sama.
+ *
+ * SATU berkas dibuka sekali untuk BANYAK lokasi: kepala berkasnya dibaca
+ * sekali, lalu tiap lokasi hanya butuh satu potongan kecil.
  */
 
 export const HIMAWARI_PROVIDER = "himawari-9 (NOAA)";
 const PREFIX = "AHI-L2-FLDK-Clouds";
-const MENIT = [30, 20, 40, 10, 50, 0];
+const MENIT = ["30", "20", "40", "10", "50", "00"];
 /** Jendela 5×5 piksel ≈ 10×10 km di sekitar lokasi. */
 const SETENGAH_JENDELA = 2;
 const TIMEOUT_MS = 20_000;
+/** Lokasi dibaca bersamaan dalam satu berkas. */
+const PARALEL_LOKASI = 8;
+
+/**
+ * Piksel yang koordinatnya sudah dicocokkan dengan berkas. Geometri piringan
+ * Himawari tetap, jadi cukup sekali per proses – bukan dua dataset tambahan
+ * di setiap jam.
+ */
+const pikselTerbukti = new Set<string>();
 
 function baseUrl(): string {
   return (process.env.HIMAWARI_BASE_URL?.trim() || "https://noaa-himawari9.s3.amazonaws.com").replace(/\/$/, "");
 }
 
-export type AwanJam = { awanPersen: number | null; waktuScan: string };
+export type TitikAwan = { id: string; lat: number; lng: number };
 
-async function cariBerkas(tanggalUtc: string, jamUtc: number): Promise<{ kunci: string; waktu: string } | null> {
+/** Satu permintaan daftar untuk SATU jam (keenam pemotretannya sekaligus). */
+async function cariBerkas(tanggalUtc: string, jamUtc: number): Promise<string | null> {
   const [y, m, d] = tanggalUtc.split("-");
-  for (const menit of MENIT) {
-    const hhmm = `${String(jamUtc).padStart(2, "0")}${String(menit).padStart(2, "0")}`;
-    const url = `${baseUrl()}/?list-type=2&prefix=${encodeURIComponent(`${PREFIX}/${y}/${m}/${d}/${hhmm}/`)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
-    if (!res.ok) throw new Error(`Arsip Himawari menolak permintaan (HTTP ${res.status}).`);
-    const xml = await res.text();
-    const kunci = /<Key>([^<]*\/AHI-CMSK_[^<]*\.nc)<\/Key>/.exec(xml)?.[1];
-    if (kunci) return { kunci, waktu: `${hhmm.slice(0, 2)}:${hhmm.slice(2)} UTC` };
+  const hh = String(jamUtc).padStart(2, "0");
+  const url = `${baseUrl()}/?list-type=2&prefix=${encodeURIComponent(`${PREFIX}/${y}/${m}/${d}/${hh}`)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+  if (!res.ok) throw new Error(`Arsip Himawari menolak permintaan (HTTP ${res.status}).`);
+  const xml = await res.text();
+  const kunci = [...xml.matchAll(/<Key>([^<]*\/AHI-CMSK_[^<]*\.nc)<\/Key>/g)].map((x) => x[1]);
+  for (const mm of MENIT) {
+    const ada = kunci.find((k) => k.includes(`/${hh}${mm}/`));
+    if (ada) return ada;
   }
   return null;
 }
@@ -55,34 +69,47 @@ function pembacaJarak(url: string): BacaBita {
 }
 
 /**
- * Persentase awan di sekitar titik pada jam UTC itu. `undefined` = belum ada
- * pemotretan untuk jam tersebut (belum terbit atau jadwal perawatan).
+ * Persentase awan di sekitar tiap titik pada jam UTC itu. `undefined` = belum
+ * ada pemotretan untuk jam tersebut (belum terbit atau jadwal perawatan);
+ * nilai null untuk satu titik = pikselnya tidak cukup sah untuk disimpulkan.
  */
-export async function awanHimawari(
+export async function awanHimawariBanyak(
   tanggalUtc: string,
   jamUtc: number,
-  lat: number,
-  lng: number,
-): Promise<AwanJam | undefined> {
-  const piksel = pikselHimawari(lat, lng);
-  if (!piksel) throw new Error("Lokasi ini di luar jangkauan satelit Himawari.");
-  const berkas = await cariBerkas(tanggalUtc, jamUtc);
-  if (!berkas) return undefined;
-  const h = await bukaHdf5(pembacaJarak(`${baseUrl()}/${berkas.kunci}`));
+  titik: TitikAwan[],
+): Promise<Map<string, number | null> | undefined> {
+  const kunci = await cariBerkas(tanggalUtc, jamUtc);
+  if (!kunci) return undefined;
+  const h = await bukaHdf5(pembacaJarak(`${baseUrl()}/${kunci}`));
+  const hasil = new Map<string, number | null>();
 
-  // Pastikan piksel hitungan memang di lokasi: koordinat dari berkas itu sendiri.
-  // Bila satelit/geometrinya berganti, lebih baik gagal daripada membaca tempat lain.
-  const [[latPiksel]] = await h.jendela("Latitude", piksel.baris, piksel.kolom, 1, 1);
-  const [[lngPiksel]] = await h.jendela("Longitude", piksel.baris, piksel.kolom, 1, 1);
-  const jarak = jarakKm(lat, lng, latPiksel, lngPiksel);
-  if (!(jarak < 5)) {
-    throw new Error(`Piksel Himawari meleset ${Number.isFinite(jarak) ? jarak.toFixed(1) : "?"} km dari lokasi; susunan berkasnya mungkin berubah.`);
-  }
-
-  const b0 = Math.max(0, piksel.baris - SETENGAH_JENDELA);
-  const k0 = Math.max(0, piksel.kolom - SETENGAH_JENDELA);
-  const b1 = Math.min(HIMAWARI_UKURAN, piksel.baris + SETENGAH_JENDELA + 1);
-  const k1 = Math.min(HIMAWARI_UKURAN, piksel.kolom + SETENGAH_JENDELA + 1);
-  const jendela = await h.jendela("CloudMask", b0, k0, b1 - b0, k1 - k0);
-  return { awanPersen: persenAwan(jendela), waktuScan: berkas.waktu };
+  let i = 0;
+  const kerja = async () => {
+    while (i < titik.length) {
+      const t = titik[i++];
+      const piksel = pikselHimawari(t.lat, t.lng);
+      if (!piksel) throw new Error("Lokasi ini di luar jangkauan satelit Himawari.");
+      const kunciPiksel = `${piksel.baris},${piksel.kolom}`;
+      if (!pikselTerbukti.has(kunciPiksel)) {
+        // Koordinat piksel hitungan dicocokkan dengan berkas itu sendiri. Bila
+        // satelit/geometrinya berganti, lebih baik gagal daripada membaca tempat lain.
+        const [[latP]] = await h.jendela("Latitude", piksel.baris, piksel.kolom, 1, 1);
+        const [[lngP]] = await h.jendela("Longitude", piksel.baris, piksel.kolom, 1, 1);
+        const jarak = jarakKm(t.lat, t.lng, latP, lngP);
+        if (!(jarak < 5)) {
+          throw new Error(
+            `Piksel Himawari meleset ${Number.isFinite(jarak) ? jarak.toFixed(1) : "?"} km dari lokasi; susunan berkasnya mungkin berubah.`,
+          );
+        }
+        pikselTerbukti.add(kunciPiksel);
+      }
+      const b0 = Math.max(0, piksel.baris - SETENGAH_JENDELA);
+      const k0 = Math.max(0, piksel.kolom - SETENGAH_JENDELA);
+      const b1 = Math.min(HIMAWARI_UKURAN, piksel.baris + SETENGAH_JENDELA + 1);
+      const k1 = Math.min(HIMAWARI_UKURAN, piksel.kolom + SETENGAH_JENDELA + 1);
+      hasil.set(t.id, persenAwan(await h.jendela("CloudMask", b0, k0, b1 - b0, k1 - k0)));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PARALEL_LOKASI, titik.length) }, kerja));
+  return hasil;
 }

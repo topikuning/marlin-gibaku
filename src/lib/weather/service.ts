@@ -97,7 +97,7 @@ export async function getObservation(
   if (sumber === "satelit") {
     let hasil;
     try {
-      hasil = await fetchHourlySatelit({ lat, lng, dateKey, sekarang: new Date() });
+      hasil = await fetchHourlySatelit({ locationId, lat, lng, dateKey, sekarang: new Date() });
     } catch (e) {
       if (e instanceof SatelitError) throw new WeatherFetchError(e.message);
       throw new WeatherFetchError(`Data satelit gagal diambil: ${e instanceof Error ? e.message : String(e)}`);
