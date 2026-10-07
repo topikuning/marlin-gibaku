@@ -10,7 +10,15 @@ import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly
 import { fetchHourlyWeather } from "@/lib/weather/open-meteo";
 import { fetchHourlySatelit } from "@/lib/weather/satelit";
 import { jamSudahLewat } from "@/lib/weather/satelit-murni";
-import { getSumberCuaca, LABEL_SUMBER_CUACA, setSumberCuaca, SUMBER_CUACA } from "@/lib/weather/setelan";
+import {
+  getAkunGsmap,
+  getSumberCuaca,
+  LABEL_SUMBER_CUACA,
+  setAkunGsmap,
+  setSumberCuaca,
+  SUMBER_CUACA,
+} from "@/lib/weather/setelan";
+import { ujiAkunGsmap } from "@/lib/weather/gsmap";
 
 /**
  * Aksi layar Sistem untuk sumber cuaca (DECISIONS baru 2026-10-07): memilih
@@ -36,6 +44,56 @@ export async function setSumberCuacaAction(_prev: SumberCuacaState, formData: Fo
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan pengaturan." };
+  }
+}
+
+export type AkunGsmapState = { error?: string; success?: string } | undefined;
+
+/**
+ * Simpan atau uji akun FTP GSMaP (tombol `aksi` = "simpan" | "uji" | "hapus").
+ * Sandi kosong saat menyimpan = sandi lama dipertahankan. Sandi tidak pernah
+ * masuk catatan audit.
+ */
+export async function akunGsmapAction(_prev: AkunGsmapState, formData: FormData): Promise<AkunGsmapState> {
+  const p = z
+    .object({
+      aksi: z.enum(["simpan", "uji", "hapus"]),
+      user: z.string().trim().max(100),
+      pass: z.string().max(200),
+    })
+    .safeParse({ aksi: formData.get("aksi"), user: formData.get("user") ?? "", pass: formData.get("pass") ?? "" });
+  if (!p.success) return { error: "Isian akun tidak dikenali. Muat ulang halaman, lalu coba lagi." };
+  try {
+    const user = await requireCapability("system.manage");
+    const { aksi } = p.data;
+    if (aksi === "hapus") {
+      await setAkunGsmap({ user: "", pass: "" });
+      await audit(user.id, "system.gsmap_akun", "system", null, { aksi });
+      revalidatePath("/sistem");
+      return { success: "Akun GSMaP dihapus. Sumber satelit kini hanya memakai data awan Himawari." };
+    }
+    const tersimpan = await getAkunGsmap();
+    const akun = { user: p.data.user || tersimpan?.user || "", pass: p.data.pass || tersimpan?.pass || "" };
+    if (!akun.user || !akun.pass) return { error: "Isi nama akun dan sandi GSMaP dulu." };
+    if (aksi === "uji") {
+      try {
+        const versi = await ujiAkunGsmap(akun);
+        return {
+          success: versi.length
+            ? `Tersambung ke server JAXA. Versi data yang tersedia: ${versi.join(", ")}.`
+            : "Tersambung ke server JAXA, tapi folder versi data (realtime_ver/vN) tidak ditemukan.",
+        };
+      } catch (e) {
+        return { error: `Tidak bisa masuk ke server JAXA: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    }
+    await setAkunGsmap({ user: akun.user, pass: p.data.pass ? p.data.pass : undefined });
+    await audit(user.id, "system.gsmap_akun", "system", null, { aksi, akun: akun.user, sandiDiganti: !!p.data.pass });
+    revalidatePath("/sistem");
+    return { success: "Akun GSMaP tersimpan. Sandinya disimpan tersandi." };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan akun GSMaP." };
   }
 }
 

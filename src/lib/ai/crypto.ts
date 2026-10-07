@@ -111,5 +111,5 @@ export function secretUntukSimpan(plain: string): string {
  * akan tertinggal.
  */
 export function kunciRahasia(key: string): boolean {
-  return /(^|\.)(api_key|client_secret|refresh_token|webhook_secret)$/.test(key);
+  return /(^|\.)(api_key|client_secret|refresh_token|webhook_secret|password)$/.test(key);
 }

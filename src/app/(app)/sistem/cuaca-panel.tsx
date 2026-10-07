@@ -1,9 +1,11 @@
 "use client";
 
 import { useAksi } from "@/lib/aksi-klien";
-import { Banner, Button, Combobox, Input, Label, StatusPill } from "@/components/ui";
+import { Banner, Button, Combobox, Input, Label, PasswordInput, StatusPill } from "@/components/ui";
 import {
+  akunGsmapAction,
   bandingkanCuacaAction,
+  type AkunGsmapState,
   setSumberCuacaAction,
   type BandingState,
   type BarisBanding,
@@ -32,26 +34,29 @@ const PILIHAN: { nilai: Sumber; judul: string; isi: string }[] = [
 export function CuacaPanel({
   sumber,
   gsmapSiap,
+  akunGsmap,
   lokasi,
   tanggalAwal,
   tanggalMaks,
 }: {
   sumber: Sumber;
   gsmapSiap: boolean;
+  akunGsmap: { user: string; adaSandi: boolean };
   lokasi: { value: string; label: string }[];
   tanggalAwal: string;
   tanggalMaks: string;
 }) {
   const [state, aksi, menyimpan] = useAksi<SumberCuacaState>(setSumberCuacaAction, undefined);
   const [banding, aksiBanding, membandingkan] = useAksi<BandingState>(bandingkanCuacaAction, undefined);
+  const [akun, aksiAkun, mengurusAkun] = useAksi<AkunGsmapState>(akunGsmapAction, undefined);
 
   return (
     <div className="space-y-4">
       {sumber === "satelit" && !gsmapSiap ? (
         <Banner
           tone="warning"
-          title="Akun GSMaP belum dipasang di server"
-          description="Tanpa akun itu data hujan tidak bisa diambil, jadi hanya jam yang langitnya nyaris bersih yang terisi. Pasang GSMAP_FTP_USER dan GSMAP_FTP_PASS di variabel lingkungan server."
+          title="Akun GSMaP belum diisi"
+          description="Tanpa akun itu data hujan tidak bisa diambil, jadi hanya jam yang langitnya nyaris bersih yang terisi. Isi akunnya di bawah."
         />
       ) : null}
       {state?.error ? <Banner tone="error" title="Gagal menyimpan" description={state.error} /> : null}
@@ -87,10 +92,47 @@ export function CuacaPanel({
           );
         })}
       </div>
-      <p className="text-[13px] text-ink-muted">
-        Isian cuaca manual dari lapangan selalu menang atas sumber otomatis. Status akun GSMaP:{" "}
-        <span className="font-medium text-ink">{gsmapSiap ? "terpasang" : "belum dipasang"}</span>.
-      </p>
+      <p className="text-[13px] text-ink-muted">Isian cuaca manual dari lapangan selalu menang atas sumber otomatis.</p>
+
+      <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-ink">Akun data hujan JAXA GSMaP</p>
+          <StatusPill tone={gsmapSiap ? "success" : "neutral"} label={gsmapSiap ? "Terisi" : "Belum diisi"} />
+        </div>
+        <p className="text-[13px] text-ink-muted">
+          Akun dari pendaftaran GSMaP di situs JAXA. Sandinya disimpan tersandi di basis data dan tidak pernah
+          ditampilkan lagi. Kosongkan kolom sandi bila tidak ingin menggantinya.
+        </p>
+        {akun?.error ? <Banner tone="error" title={akun.error} /> : null}
+        {akun?.success ? <Banner tone="success" title={akun.success} /> : null}
+        <form action={aksiAkun} className="flex flex-wrap items-end gap-3">
+          <div>
+            <Label htmlFor="gsmap-user">Nama akun</Label>
+            <Input id="gsmap-user" name="user" defaultValue={akunGsmap.user} autoComplete="off" className="w-48" />
+          </div>
+          <div>
+            <Label htmlFor="gsmap-pass">Sandi</Label>
+            <PasswordInput
+              id="gsmap-pass"
+              name="pass"
+              autoComplete="new-password"
+              placeholder={akunGsmap.adaSandi ? "•••••• tersimpan" : ""}
+              className="w-64"
+            />
+          </div>
+          <Button type="submit" name="aksi" value="simpan" variant="primary" loading={mengurusAkun}>
+            Simpan
+          </Button>
+          <Button type="submit" name="aksi" value="uji" variant="secondary" loading={mengurusAkun}>
+            Uji sambungan
+          </Button>
+          {akunGsmap.user || akunGsmap.adaSandi ? (
+            <Button type="submit" name="aksi" value="hapus" variant="secondary" loading={mengurusAkun}>
+              Hapus akun
+            </Button>
+          ) : null}
+        </form>
+      </div>
 
       <div className="space-y-3 border-t border-border pt-4">
         <div>

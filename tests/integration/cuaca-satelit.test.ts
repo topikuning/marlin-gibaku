@@ -56,9 +56,9 @@ vi.mock("@/lib/weather/gsmap", () => {
   return {
     GSMAP_PROVIDER: "gsmap-mock",
     GsmapBelumSiapError,
-    gsmapSiap: () => akunGsmap,
+    gsmapSiap: async () => akunGsmap,
     bukaGsmap: async () => {
-      if (!akunGsmap) throw new GsmapBelumSiapError("Akun GSMaP belum dipasang di server (GSMAP_FTP_USER dan GSMAP_FTP_PASS).");
+      if (!akunGsmap) throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Sumber cuaca otomatis).");
       return {
         hujan: async (_t: string, jam: number) => (jam > gsmapSampai ? undefined : (HUJAN[jam] ?? 0)),
         tutup: async () => undefined,
@@ -174,7 +174,7 @@ describe("pilihan sumber cuaca", () => {
     const hasil = await applyWeatherToReport(r.id);
     expect(Object.keys(kategori(hasil.hours)).map(Number).sort((x, y) => x - y)).toEqual([7, 8, 17, 18]);
     expect(hasil.hours.every((h) => h.category === "Cerah")).toBe(true);
-    expect(hasil.catatan.join(" ")).toMatch(/Akun GSMaP belum dipasang/);
+    expect(hasil.catatan.join(" ")).toMatch(/Akun GSMaP belum diisi/);
   });
 
   it("kembali ke Open-Meteo: simpanan satelit tidak dipakai", async () => {

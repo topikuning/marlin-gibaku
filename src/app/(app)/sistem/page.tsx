@@ -29,7 +29,7 @@ import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PindahBerkasPanel } from "./pindah-berkas-panel";
 import { CuacaPanel } from "./cuaca-panel";
-import { getSumberCuaca } from "@/lib/weather/setelan";
+import { getAkunGsmapTampil, getSumberCuaca } from "@/lib/weather/setelan";
 import { gsmapSiap } from "@/lib/weather/gsmap";
 import { CadanganPanel, type CadanganPanelProps } from "./cadangan-panel";
 import { PolicyCard } from "./policy-card";
@@ -923,7 +923,8 @@ export default async function SistemPage() {
         <CardBody>
           <CuacaPanel
             sumber={await getSumberCuaca()}
-            gsmapSiap={gsmapSiap()}
+            gsmapSiap={await gsmapSiap()}
+            akunGsmap={await getAkunGsmapTampil()}
             lokasi={(
               await db.location.findMany({
                 where: { package: { orgId: user.orgId }, gpsLat: { not: null }, gpsLng: { not: null } },
