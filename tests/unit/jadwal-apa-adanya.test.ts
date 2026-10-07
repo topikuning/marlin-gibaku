@@ -10,7 +10,7 @@ import {
   susunJadwalApaAdanya,
   type KategoriRab,
 } from "@/lib/scurve/jadwal-verbatim";
-import { cumulativeFromWeeklyRows, validateBaselinePoints } from "@/lib/scurve/generate";
+import { cumulativeFromWeeklyRows, validasiKurvaJadwal, validateBaselinePoints } from "@/lib/scurve/generate";
 
 const KAT: KategoriRab[] = [
   { lineageKey: "A", name: "Persiapan", weightRabPct: 5 },
@@ -116,15 +116,28 @@ describe("penyelarasan ke 100% – seragam, dan dikatakan", () => {
 });
 
 describe("yang tidak bisa diikuti ditolak dengan sebutan barisnya", () => {
-  it("nilai negatif ditolak – kurva kumulatif tidak boleh turun", () => {
+  it("bobot pekerjaan yang hasil akhirnya negatif ditolak", () => {
     const negatif = new Map<string, number[]>([
       ["A", [10, 0, 0, 0]],
-      ["B", [0, 40, -5, 25]],
-      ["C", [0, 0, 10, 20]],
+      ["B", [0, 40, -45, 0]],
+      ["C", [0, 0, 60, 35]],
     ]);
-    expect(() => susunJadwalApaAdanya(KAT, negatif, 4)).toThrow(/"Struktur" minggu 3/);
+    expect(() => susunJadwalApaAdanya(KAT, negatif, 4)).toThrow(/"Struktur".*negatif/);
   });
 
+  it("kumulatif yang lewat 100% di tengah jalan ditolak dengan minggunya", () => {
+    const lewat = new Map<string, number[]>([
+      ["A", [10, 0, 0, 0]],
+      ["B", [0, 90, 10, -10]],
+      ["C", [0, 0, 0, 0]],
+    ]);
+    expect(() => susunJadwalApaAdanya(KAT, lewat, 4)).toThrow(/minggu 3.*110/);
+  });
+
+  it("sel yang bukan angka ditolak", () => {
+    const rusak = new Map<string, number[]>([["A", [100, Number.NaN, 0, 0]]]);
+    expect(() => susunJadwalApaAdanya([KAT[0]], rusak, 4)).toThrow(/"Persiapan" minggu 2/);
+  });
   it("file kosong ditolak dengan alasan yang bisa ditindaklanjuti", () => {
     const kosong = new Map<string, number[]>([["A", [0, 0, 0, 0]]]);
     expect(() => susunJadwalApaAdanya(KAT, kosong, 4)).toThrow(/kosong atau 0/);
@@ -155,5 +168,91 @@ describe("pekerjaan yang tidak dijadwalkan di Excel", () => {
     const h = susunJadwalApaAdanya(kat, pendek, 4);
     expect(h.tanpaJadwal).toEqual(["Lain-lain"]);
     expect(h.rows[3].weekly).toEqual([0, 0, 0, 0]);
+  });
+});
+
+/*
+ * NILAI MINUS SESUDAH CCO (DECISIONS baru 2026-10-07).
+ *
+ * Keputusan user: *"supaya lebih flexibel mungkin ijinkan saja minus importnya
+ * yg penting jumlah totalnya 100%"*. Laporan minggu yang sudah terlapor tidak
+ * diubah; perubahan bobot karena CCO diserap minggu-minggu sesudahnya, sehingga
+ * satu pekerjaan bisa bernilai minus di minggu tertentu. Angka diambil dari
+ * Time Schedule KNMP Sidorejo–Batang minggu ke-10 (Levelling Lahan M12 −0,839,
+ * Revetment M10–M11 −0,714).
+ */
+describe("nilai minus dari penyesuaian CCO", () => {
+  const SIDOREJO: KategoriRab[] = [
+    { lineageKey: "I", name: "Persiapan", weightRabPct: 15.35 },
+    { lineageKey: "II", name: "Revetment", weightRabPct: 9.76 },
+    { lineageKey: "XII", name: "Levelling Lahan", weightRabPct: 2.52 },
+    { lineageKey: "Z", name: "Sisa pekerjaan", weightRabPct: 72.37 },
+  ];
+  const w = (pairs: Record<number, number>) => Array.from({ length: 20 }, (_, i) => pairs[i + 1] ?? 0);
+  const persiapan = Array.from({ length: 20 }, (_, i) => (i < 9 ? 0.668 : i < 19 ? 0.8499095538309427 : 0.8399095538309465));
+  const revetment = w({ 6: 1.299, 7: 3.706, 8: 4.19, 9: 0.38767441664132596, 10: -0.7143255833586739, 11: -0.7143255833586739, 12: 0.560674416641326, 13: 0.21767441664132603, 14: 0.21767441664132603, 15: 0.21767441664132603, 16: 0.21767441664132603, 17: 0.178 });
+  const levelling = w({ 6: 1.12, 7: 1.12, 8: 1.12, 12: -0.8390487099370345 });
+  const sumOf = (a: number[]) => a.reduce((s, v) => s + v, 0);
+  const sisaTotal = 100 - sumOf(persiapan) - sumOf(revetment) - sumOf(levelling);
+  // Sisa pekerjaan disebar merata di minggu 9–20 (bentuknya tidak penting di sini).
+  const sisa = Array.from({ length: 20 }, (_, i) => (i >= 8 ? sisaTotal / 12 : 0));
+  const excel = new Map<string, number[]>([
+    ["I", persiapan],
+    ["II", revetment],
+    ["XII", levelling],
+    ["Z", sisa],
+  ]);
+
+  it("diterima apa adanya bila totalnya 100%; sel minus tidak diubah", () => {
+    const h = susunJadwalApaAdanya(SIDOREJO, excel, 20);
+    expect(h.faktorSkala).toBe(1);
+    const lev = h.rows.find((r) => r.lineageKey === "XII")!;
+    expect(lev.weekly[11]).toBeCloseTo(-0.839049, 6);
+    expect(lev.weightPct).toBeCloseTo(2.521, 3);
+    expect(h.rows.find((r) => r.lineageKey === "II")!.weekly[9]).toBeCloseTo(-0.714326, 6);
+    expect(h.selMinus).toEqual([
+      { name: "Revetment", minggu: [10, 11] },
+      { name: "Levelling Lahan", minggu: [12] },
+    ]);
+    const kurva = cumulativeFromWeeklyRows(h.rows.map((r) => r.weekly), 20);
+    expect(kurva[19]).toBe(100);
+    expect(ringkasApaAdanya(h)).toContain("nilai minus");
+  });
+
+  it("pekerjaan yang DICABUT CCO (bobot akhir 0) tetap membawa minggu terlapornya", () => {
+    const kat: KategoriRab[] = [
+      { lineageKey: "A", name: "Persiapan", weightRabPct: 100 },
+      { lineageKey: "D", name: "Dermaga (dicabut)", weightRabPct: 0 },
+    ];
+    const h = susunJadwalApaAdanya(
+      kat,
+      new Map([
+        ["A", [20, 30, 30, 20]],
+        ["D", [5, -5, 0, 0]],
+      ]),
+      4,
+    );
+    const d = h.rows.find((r) => r.lineageKey === "D")!;
+    expect(d.weekly).toEqual([5, -5, 0, 0]);
+    expect(d.weightPct).toBe(0);
+    expect(h.tanpaJadwal).not.toContain("Dermaga (dicabut)");
+  });
+
+  it("kurva total yang turun di satu minggu diterima dan DISEBUT minggunya", () => {
+    const h = susunJadwalApaAdanya(
+      KAT,
+      new Map([
+        ["A", [10, 0, 0, 0]],
+        ["B", [0, 50, -8, 28]],
+        ["C", [0, 0, 5, 15]],
+      ]),
+      4,
+    );
+    expect(h.mingguTurun).toEqual([3]);
+    const kurva = cumulativeFromWeeklyRows(h.rows.map((r) => r.weekly), 4);
+    expect(kurva).toEqual([10, 60, 57, 100]);
+    expect(validasiKurvaJadwal(kurva)).toBeNull();
+    expect(validateBaselinePoints(kurva)).toMatch(/turun/); // kurva otomatis/manual tetap wajib naik
+    expect(ringkasApaAdanya(h)).toContain("turun di minggu 3");
   });
 });

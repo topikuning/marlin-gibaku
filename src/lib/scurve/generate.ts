@@ -33,6 +33,30 @@ export function validateBaselinePoints(points: number[]): string | null {
   return null;
 }
 
+/**
+ * Validasi kurva dari JADWAL EXCEL yang dipakai apa adanya (DECISIONS baru
+ * 2026-10-07): 0..100 dan berakhir 100 ± 0,5, tetapi BOLEH turun.
+ *
+ * Sesudah CCO, minggu yang sudah terlapor tidak diubah; perubahan bobot diserap
+ * minggu sesudahnya, jadi satu pekerjaan – kadang total satu minggu – bisa
+ * minus. Keputusan user: *"ijinkan saja minus importnya yg penting jumlah
+ * totalnya 100%"*. Kurva otomatis dan editor manual tetap memakai
+ * `validateBaselinePoints` (wajib naik).
+ */
+export function validasiKurvaJadwal(points: number[]): string | null {
+  if (points.length === 0) return "Deret rencana kosong.";
+  for (const [i, p] of points.entries()) {
+    if (!Number.isFinite(p) || p < 0 || p > 100) {
+      return `Minggu ${i + 1}: rencana kumulatif ${p}% di luar rentang 0–100.`;
+    }
+  }
+  const last = points[points.length - 1];
+  if (Math.abs(last - 100) > 0.5) {
+    return `Minggu terakhir harus 100% (±0.5), sekarang ${last}%.`;
+  }
+  return null;
+}
+
 // Category name keyword → [start_pct, end_pct] jendela presedensi (fraksi durasi).
 // First match wins → keyword SPESIFIK sebelum yang umum.
 //
