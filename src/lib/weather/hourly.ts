@@ -24,6 +24,11 @@ export type HourlyWeather = {
   precipMm: number;
   /** Kode cuaca WMO asli — disimpan demi jejak asal-usul. */
   code: number;
+  /**
+   * Tutupan awan (%) di sekitar lokasi dari satelit Himawari – hanya ada bila
+   * sumbernya satelit (DECISIONS baru 2026-10-07).
+   */
+  cloudPct?: number;
 };
 
 /** Kolom jam pada blanko KKP (07.00–21.00). */
@@ -122,6 +127,7 @@ export function parseHourlyWeather(value: unknown): HourlyWeather[] | null {
       category: category as KkpWeatherCategory,
       precipMm: typeof r.precipMm === "number" ? r.precipMm : 0,
       code: typeof r.code === "number" ? r.code : 0,
+      ...(typeof r.cloudPct === "number" ? { cloudPct: r.cloudPct } : {}),
     });
   }
   return out.length > 0 ? out.sort((a, b) => a.hour - b.hour) : null;

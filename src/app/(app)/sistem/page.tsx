@@ -28,6 +28,9 @@ import { PetaPanel } from "./peta-panel";
 import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PindahBerkasPanel } from "./pindah-berkas-panel";
+import { CuacaPanel } from "./cuaca-panel";
+import { getSumberCuaca } from "@/lib/weather/setelan";
+import { gsmapSiap } from "@/lib/weather/gsmap";
 import { CadanganPanel, type CadanganPanelProps } from "./cadangan-panel";
 import { PolicyCard } from "./policy-card";
 import { LokasiKembarPanel } from "./lokasi-kembar-panel";
@@ -910,6 +913,27 @@ export default async function SistemPage() {
         />
         <CardBody>
           <MingguanPanel aktif={await getMingguanAktif()} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Sumber cuaca otomatis"
+          subtitle="Dipakai tombol ambil cuaca di laporan harian. Isian manual dari lapangan tetap menang."
+        />
+        <CardBody>
+          <CuacaPanel
+            sumber={await getSumberCuaca()}
+            gsmapSiap={gsmapSiap()}
+            lokasi={(
+              await db.location.findMany({
+                where: { package: { orgId: user.orgId }, gpsLat: { not: null }, gpsLng: { not: null } },
+                select: { id: true, name: true },
+                orderBy: { name: "asc" },
+              })
+            ).map((l) => ({ value: l.id, label: l.name }))}
+            tanggalAwal={new Date(jakartaToday().getTime() - 86_400_000).toISOString().slice(0, 10)}
+            tanggalMaks={jakartaToday().toISOString().slice(0, 10)}
+          />
         </CardBody>
       </Card>
       <Card>
