@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { WahaError } from "@/lib/waha/client";
 import { sendText } from "@/lib/waha/kirim";
+import { catatanPeminta, denganCatatan, pemintaPengguna } from "@/lib/waha/asal-pesan";
 import { formatTanggal } from "@/lib/format";
 import {
   generateChatSummary,
@@ -175,7 +176,11 @@ export async function sendChatSummaryAction(
       summary.summaryText,
       summary.messageCount,
     );
-    await sendText(contact.chatId, text);
+    {
+      // Siapa yang meminta disebut di pesannya (DECISIONS baru 2026-10-07).
+      const peminta = pemintaPengguna(user);
+      await sendText(contact.chatId, denganCatatan(text, catatanPeminta(peminta)), { peminta });
+    }
     const now = new Date();
     await db.waChatSummary.update({
       where: { id: summary.id },
@@ -253,7 +258,11 @@ export async function sendGlobalSummaryAction(
       rows.map((r) => ({ title: r.title, summaryText: r.summaryText, messageCount: r.messageCount })),
       overview,
     );
-    await sendText(contact.chatId, text);
+    {
+      // Siapa yang meminta disebut di pesannya (DECISIONS baru 2026-10-07).
+      const peminta = pemintaPengguna(user);
+      await sendText(contact.chatId, denganCatatan(text, catatanPeminta(peminta)), { peminta });
+    }
     const now = new Date();
     await db.waChatSummary.updateMany({
       where: {

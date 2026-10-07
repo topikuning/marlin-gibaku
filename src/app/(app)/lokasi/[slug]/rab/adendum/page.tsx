@@ -16,6 +16,7 @@ import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
 import { CreateDraftForm, type AmendmentOption } from "./create-draft-form";
 import { DraftControls } from "./draft-controls";
+import { sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
 import { DiffCard } from "../diff-card";
 import { ImportForm } from "../import/import-form";
 
@@ -330,6 +331,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  /*
+   * BACKUP VOLUME DRAFT (DECISIONS baru 2026-10-07). Item yang volumenya
+   * berubah atau baru tidak bisa memakai backup revisi lama. Disebut di sini,
+   * sebelum aktivasi, supaya backup-nya diisi selagi draft – tidak menghalangi.
+   */
+  const backupDraft = (await sumberBackupRevisi(draft.id)).ringkas;
+
   const ringkasan = diff
     ? `${diff.ditambah.length} item baru · ${diff.dihapus.length} dihapus · ${diff.diubah.length} diubah · Δ ${fmtDelta(diff.delta)} (pra-PPN)`
     : `Total Rp ${rupiah.format(draft.totalValue)}`;
@@ -434,6 +442,26 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           {peringatan.map((p) => (
             <Banner key={p} tone="warning" title={p} />
           ))}
+          {backupDraft.belum > 0 ? (
+            <Banner
+              tone="warning"
+              title={`${backupDraft.belum} item di draft ini belum punya backup volume`}
+              description={
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {backupDraft.volumeBerubah > 0 ? `${backupDraft.volumeBerubah} volumenya berubah, ` : ""}
+                    {backupDraft.baru > 0 ? `${backupDraft.baru} item baru, ` : ""}
+                    sisanya memang belum punya backup sejak revisi sebelumnya. Backup lama tidak berlaku untuk volume
+                    yang berubah. Isi backup-nya di sini, atau impor berkas adendum yang volumenya berumus ke sheet
+                    backup.
+                  </span>
+                  <ButtonLink href={`/lokasi/${slug}/rab/backup-analisa?rev=${draft.id}`} variant="secondary" size="sm">
+                    Lihat dan isi backup
+                  </ButtonLink>
+                </span>
+              }
+            />
+          ) : null}
           <AdendumEditor slug={slug} revisionId={draft.id} nodes={nodes} />
           <DraftControls
             revisionId={draft.id}

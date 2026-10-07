@@ -257,19 +257,21 @@ describe("yang tidak bisa diikuti ditolak, bukan diam-diam diperbaiki", () => {
     expect(await db.baseline.count({ where: { locationId: locId } })).toBe(0);
   });
 
-  it("nilai negatif ditolak dengan menyebut baris & minggunya", async () => {
+  // Sel minus sendiri BOLEH sejak DECISIONS 653 (penyesuaian sesudah CCO);
+  // yang ditolak pekerjaan yang JUMLAH akhirnya negatif.
+  it("pekerjaan yang jumlah akhirnya negatif ditolak dengan menyebut namanya", async () => {
     const res = await importJadwalAction(
       undefined,
       fd(
         await workbook([
           { code: "I", name: "Pekerjaan Persiapan", weekly: [10, 0, 0, 0] },
-          { code: "II", name: "Pekerjaan Struktur", weekly: [0, 40, -5, 25] },
-          { code: "III", name: "Pekerjaan Finishing", weekly: [0, 0, 10, 20] },
+          { code: "II", name: "Pekerjaan Struktur", weekly: [0, 40, -45, 0] },
+          { code: "III", name: "Pekerjaan Finishing", weekly: [0, 0, 60, 35] },
         ]),
       ),
     );
     expect(res?.error).toContain("Pekerjaan Struktur");
-    expect(res?.error).toContain("minggu 3");
+    expect(res?.error).toContain("negatif");
     expect(await db.baseline.count({ where: { locationId: locId } })).toBe(0);
   });
 

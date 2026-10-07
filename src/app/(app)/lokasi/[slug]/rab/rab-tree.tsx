@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { formatRupiahSatuan, formatNumber, formatPct, formatRupiah } from "@/lib/format";
@@ -19,6 +20,7 @@ export type RabNodeRow = {
   /** Rupiah integer sebagai string (BigInt → string). */
   amount: string;
   sortOrder: number;
+  lineageKey: string;
 };
 
 const KIND_ROW_CLASS: Record<RabNodeRow["kind"], string> = {
@@ -120,6 +122,7 @@ export function RabTree({
   ppnValue,
   totalWithPpn,
   canEdit = false,
+  rincian = null,
 }: {
   nodes: RabNodeRow[];
   /** Σ kategori (pra-PPN), rupiah string. */
@@ -129,7 +132,34 @@ export function RabTree({
   totalWithPpn: string;
   /** Pemilik rab.manage → boleh ganti judul kategori. */
   canEdit?: boolean;
+  /**
+   * Item yang punya backup volume (berkas, warisan, isian) / analisa
+   * (DECISIONS 651, baru 2026-10-07). Volume SEMUA item bertaut; yang belum
+   * punya backup diberi warna peringatan. null = tanpa revisi aktif.
+   */
+  rincian?: { slug: string; backup: string[]; analisa: string[] } | null;
 }) {
+  const adaBackup = useMemo(() => new Set(rincian?.backup ?? []), [rincian]);
+  const adaAnalisa = useMemo(() => new Set(rincian?.analisa ?? []), [rincian]);
+  // Halaman biasa, bukan pembangkit berkas – alamatnya disusun di sini.
+  const alamatItem = (n: RabNodeRow) =>
+    `/lokasi/${rincian?.slug ?? ""}/rab/backup-analisa?item=${encodeURIComponent(n.lineageKey)}`;
+  const tautan = (n: RabNodeRow, isi: string, judul: string, kurang = false) =>
+    rincian ? (
+      <Link
+        href={alamatItem(n)}
+        title={judul}
+        className={
+          kurang
+            ? "text-warning underline decoration-dotted underline-offset-2 hover:text-primary"
+            : "underline decoration-dotted underline-offset-2 hover:text-primary"
+        }
+      >
+        {isi}
+      </Link>
+    ) : (
+      isi
+    );
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
@@ -268,11 +298,21 @@ export function RabTree({
                       </div>
                     </td>
                     <td className="tabular px-2 py-1.5 text-right align-top">
-                      {node.volume != null ? formatNumber(node.volume) : ""}
+                      {node.volume == null
+                        ? ""
+                        : node.kind === "item" && rincian
+                          ? adaBackup.has(node.lineageKey)
+                            ? tautan(node, formatNumber(node.volume), "Lihat backup volume")
+                            : tautan(node, formatNumber(node.volume), "Backup volume belum ada – ketuk untuk melihat sebabnya", true)
+                          : formatNumber(node.volume)}
                     </td>
                     <td className="px-2 py-1.5 align-top text-ink-muted">{node.unit ?? ""}</td>
                     <td className="tabular px-2 py-1.5 text-right align-top">
-                      {node.unitPrice != null ? formatRupiahSatuan(node.unitPrice) : ""}
+                      {node.unitPrice == null
+                        ? ""
+                        : node.kind === "item" && adaAnalisa.has(node.lineageKey)
+                          ? tautan(node, formatRupiahSatuan(node.unitPrice), "Lihat analisa harga satuan")
+                          : formatRupiahSatuan(node.unitPrice)}
                     </td>
                     <td className="tabular px-2 py-1.5 text-right align-top">
                       {formatRupiah(Number(node.amount))}

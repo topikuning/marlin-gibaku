@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { isWahaConfigured, normalizeGroupChatId, toFilePayload, WahaError } from "@/lib/waha/client";
 import { sendFile } from "@/lib/waha/kirim";
+import { catatanPeminta, denganCatatan, pemintaPengguna } from "@/lib/waha/asal-pesan";
 import { grupUntukLokasi } from "@/lib/waha/grup";
 import { namaBerkasLaporanLokasi } from "./jenis";
 
@@ -87,7 +88,14 @@ export async function kirimLaporanLokasiWaAction(
     ].join("\n");
 
     const namaBerkas = namaBerkasLaporanLokasi(laporan, "laporan");
-    await sendFile(chatId, toFilePayload(pdf, "application/pdf", namaBerkas), caption);
+    // Siapa yang meminta disebut di pesannya (DECISIONS baru 2026-10-07).
+    const peminta = pemintaPengguna(user);
+    await sendFile(
+      chatId,
+      toFilePayload(pdf, "application/pdf", namaBerkas),
+      denganCatatan(caption, catatanPeminta(peminta)),
+      { peminta },
+    );
 
     await audit(user.id, "report.lokasi_lengkap_wa_send", "location", locationId, {
       chatId,

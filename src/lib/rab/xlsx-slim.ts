@@ -97,7 +97,7 @@ export async function slimRabWorkbook(
   const sheets: SheetRef[] = [];
   for (const m of wbXml.matchAll(/<sheet\b[^>]*\/>/g)) {
     const el = m[0];
-    const name = /\bname="([^"]*)"/.exec(el)?.[1] ?? "";
+    const name = lepasEntitas(/\bname="([^"]*)"/.exec(el)?.[1] ?? "");
     const rid = /\br:id="([^"]*)"/.exec(el)?.[1] ?? "";
     sheets.push({ el, name, rid });
   }
@@ -182,6 +182,20 @@ export async function slimRabWorkbook(
 
   const result = await out.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return result;
+}
+
+/**
+ * Nama sheet di workbook.xml ditulis dengan entitas XML ("Bahan &amp; Upah").
+ * Tanpa dilepas, sheet bernama "Bahan & Upah" tidak pernah cocok dengan
+ * pilihan pemanggil, dan penipisan diam-diam jatuh ke berkas UTUH.
+ */
+function lepasEntitas(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function toBuffer(buf: Buffer | ArrayBuffer): Buffer {

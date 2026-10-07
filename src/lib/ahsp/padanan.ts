@@ -53,16 +53,38 @@ export function adalahJudul(n: { unit: string | null; volume: number | null; amo
   return !n.unit && n.volume === null && n.amount === 0n;
 }
 
-/** Item (daun) RAB revisi aktif satu lokasi — TANPA baris judul. */
-export async function itemRabAktif(locationId: string): Promise<ItemRabRingkas[]> {
+/**
+ * Item (daun) RAB revisi aktif satu lokasi — TANPA baris judul.
+ *
+ * `tanpaAnalisaKontrak`: buang item yang SUDAH punya analisa terurai di berkas
+ * RAB-nya sendiri – atau diwarisi dari revisi sebelumnya – dan item yang
+ * analisa usulan AI-nya sudah diterima (keputusan user 2026-10-06/07 – analisa
+ * kontrak jadi dasar utama). Item itu tidak perlu dicarikan padanan AHSP; menyodorkannya ke
+ * daftar Petakan/Setujui berarti menyuruh orang mengerjakan yang sudah ada.
+ */
+export async function itemRabAktif(
+  locationId: string,
+  opsi: { tanpaAnalisaKontrak?: boolean } = {},
+): Promise<ItemRabRingkas[]> {
   const revisi = await db.rabRevision.findFirst({
     where: { locationId, status: "aktif" },
     select: { id: true },
   });
   if (!revisi) return [];
+  const sudahBeranalisa = opsi.tanpaAnalisaKontrak
+    ? await (async () => {
+        const { analisaAiDiterima, analisaKontrakLokasi } = await import("./analisa-kontrak");
+        const [kontrak, ai] = await Promise.all([analisaKontrakLokasi(locationId), analisaAiDiterima(locationId)]);
+        return new Set([...kontrak.keys(), ...ai.keys()]);
+      })()
+    : null;
 
   const nodes = await db.rabNode.findMany({
-    where: { revisionId: revisi.id, kind: "item" },
+    where: {
+      revisionId: revisi.id,
+      kind: "item",
+      ...(sudahBeranalisa && sudahBeranalisa.size > 0 ? { lineageKey: { notIn: [...sudahBeranalisa] } } : {}),
+    },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,
@@ -164,7 +186,7 @@ export async function petakanLokasi(
   locationId: string,
   userId: string | null,
 ): Promise<HasilPemetaan> {
-  const items = await itemRabAktif(locationId);
+  const items = await itemRabAktif(locationId, { tanpaAnalisaKontrak: true });
   const perTanda = new Map<string, ItemRabRingkas>();
   for (const it of items) if (!perTanda.has(it.tanda)) perTanda.set(it.tanda, it);
 
@@ -355,7 +377,7 @@ export type CakupanPadanan = {
 export async function keadaanPadanan(
   locationId: string,
 ): Promise<{ baris: BarisPadanan[]; cakupan: CakupanPadanan }> {
-  const items = await itemRabAktif(locationId);
+  const items = await itemRabAktif(locationId, { tanpaAnalisaKontrak: true });
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
   const sumber = await db.ahspSource.findFirst({ select: { matchingEngine: true } });
@@ -624,7 +646,7 @@ export async function setujuiPadanan(args: {
 
 /** Tanda usulan mesin yang masih menunggu persetujuan di satu lokasi. */
 export async function tandaMenunggu(locationId: string): Promise<string[]> {
-  const items = await itemRabAktif(locationId);
+  const items = await itemRabAktif(locationId, { tanpaAnalisaKontrak: true });
   const tanda = [...new Set(items.map((i) => i.tanda))];
   if (tanda.length === 0) return [];
   const rows = await db.ahspPadanan.findMany({

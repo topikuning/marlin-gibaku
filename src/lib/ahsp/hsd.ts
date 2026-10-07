@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { simulasiRapl } from "./rapl";
+import { gabungHarga, hargaDariKontrak, simulasiRapl } from "./rapl";
 import {
   bandingkanDenganNilaiProyek,
   hitungBiaya,
@@ -60,7 +60,11 @@ export async function keadaanHarga(locationId: string): Promise<KeadaanHarga> {
     select: { kategori: true, nama: true, satuan: true, harga: true, sumber: true, catatan: true },
   });
 
-  const biaya = hitungBiaya(rapl.kebutuhan, tersimpan);
+  // Harga dari analisa kontrak mengisi yang belum diisi orang (keputusan user
+  // 2026-10-06); sumbernya disebut di baris, jadi tidak terbaca sebagai survei.
+  const kontrak = await hargaDariKontrak(locationId);
+  const biaya = hitungBiaya(rapl.kebutuhan, gabungHarga(tersimpan, kontrak));
+  const kunciKontrak = new Set(kontrak.map((k) => kunciSumberDaya(k.kategori, k.nama, k.satuan)));
 
   /*
    * REKOMENDASI dari lokasi lain — hanya untuk sumber daya yang memang muncul
@@ -122,7 +126,13 @@ export async function keadaanHarga(locationId: string): Promise<KeadaanHarga> {
       // harga di lokasi ini.
       .sort((x, y) => Number(y.seKabupaten) - Number(x.seKabupaten))
       .slice(0, 3);
-    return { ...b, sumber: meta?.sumber ?? null, catatan: meta?.catatan ?? null, rekomendasi: rek };
+    const dariKontrak = !meta && kunciKontrak.has(kunci) && b.harga !== null;
+    return {
+      ...b,
+      sumber: meta?.sumber ?? (dariKontrak ? "Analisa kontrak (belum disurvei)" : null),
+      catatan: meta?.catatan ?? null,
+      rekomendasi: rek,
+    };
   });
 
   return {

@@ -647,6 +647,12 @@ export type ParseHpsResult = {
    */
   sheetName: string;
   /**
+   * Kolom volume & harga satuan yang BENAR-BENAR dibaca. Dipakai pelacak
+   * rincian (backup volume & analisa) supaya menelusuri sel yang sama persis
+   * dengan angka yang masuk, bukan menebak ulang kolomnya.
+   */
+  kolom: { vol: number; price: number };
+  /**
    * Sheet yang bisa dipilih + kolom terlihat + kolom yang dipakai – supaya
    * layar bisa MENANYAKAN/mengganti keduanya (DECISIONS 624).
    */
@@ -1762,5 +1768,5 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     categories,
   };
 
-  return { parsed, warnings, priceColumn, sheetName: ws.name };
+  return { parsed, warnings, priceColumn, sheetName: ws.name, kolom: { vol: col.vol, price: col.price } };
 }

@@ -78,6 +78,14 @@ export type KirimWaInput = {
    * bukan menjawab orang yang menyapa kita.
    */
   balasanMasuk?: boolean;
+  /**
+   * SIAPA YANG MEMINTA (DECISIONS baru 2026-10-07): akun MARLIN dan/atau label
+   * nama peminta. Kosong = kiriman terjadwal.
+   */
+  dimintaOlehId?: string | null;
+  peminta?: string | null;
+  /** ID pesan yang dikutip (jawaban atas pertanyaan di grup). */
+  balasKe?: string | null;
 };
 
 export type HasilKirimWa = {
@@ -253,12 +261,26 @@ export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> 
   }
 
   try {
-    const waMessageId =
+    const kirim = (kutip: string | null) =>
       "teks" in input.payload
-        ? await kirimMentahTeks(chatId, input.payload.teks)
+        ? kirimMentahTeks(chatId, input.payload.teks, kutip)
         : input.kind === "gambar"
-          ? await kirimMentahGambar(chatId, input.payload.file, input.payload.caption)
-          : await kirimMentahFile(chatId, input.payload.file, input.payload.caption);
+          ? kirimMentahGambar(chatId, input.payload.file, input.payload.caption, kutip)
+          : kirimMentahFile(chatId, input.payload.file, input.payload.caption, kutip);
+    let waMessageId: string | null;
+    try {
+      waMessageId = await kirim(input.balasKe ?? null);
+    } catch (err) {
+      /*
+       * Kutipan ditolak (pesan aslinya sudah terlalu lama, engine WAHA tidak
+       * mendukung, …): jawabannya tetap harus sampai. Satu kali kirim ulang
+       * TANPA kutipan – hanya untuk 4xx, yang memang berarti permintaannya
+       * yang ditolak, bukan jaringannya.
+       */
+      const kode = err instanceof WahaError ? err.status : undefined;
+      if (!input.balasKe || kode == null || kode < 400 || kode >= 500) throw err;
+      waMessageId = await kirim(null);
+    }
 
     await db.waOutbound.update({
       where: { id: baris.id },
@@ -313,6 +335,8 @@ async function catat(
       idempotencyKey: key,
       sourceType: input.sourceType,
       sourceId: input.sourceId ?? null,
+      dimintaOlehId: input.dimintaOlehId ?? null,
+      peminta: input.peminta?.slice(0, 200) ?? null,
       status,
       ringkas: ringkasIsi(input),
       ...extra,

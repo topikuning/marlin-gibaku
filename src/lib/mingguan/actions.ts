@@ -1,5 +1,6 @@
 "use server";
 
+import { pemintaPengguna } from "@/lib/waha/asal-pesan";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { audit } from "@/lib/audit";
@@ -116,6 +117,7 @@ export async function kirimMingguanAction(
       manual: true,
       paksa: true,
       sentById: user.id,
+      peminta: pemintaPengguna(user),
       mingguKe: parsed.data.mingguKe,
     });
     await audit(user.id, "report.weekly_wa.send", "package", parsed.data.packageId, {

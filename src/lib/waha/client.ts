@@ -441,11 +441,12 @@ export type FilePayload = { mimetype: string; filename: string; data: string }; 
  * justru yang paling penting dilacak — tidak pernah punya bukti apa pun bahwa
  * WAHA menerimanya.
  */
-export async function kirimMentahTeks(chatId: string, text: string): Promise<string | null> {
+export async function kirimMentahTeks(chatId: string, text: string, replyTo?: string | null): Promise<string | null> {
   const c = await cfg();
   const res = await wahaFetch(c, `/api/sendText`, {
     method: "POST",
-    body: JSON.stringify({ session: c.session, chatId, text }),
+    // `reply_to` = kutip pesan penanya (DECISIONS baru 2026-10-07).
+    body: JSON.stringify({ session: c.session, chatId, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
   try {
     const data = (await res.json()) as unknown;
@@ -475,12 +476,22 @@ async function kirimMentahBerkas(
   chatId: string,
   file: FilePayload,
   caption?: string,
+  replyTo?: string | null,
 ): Promise<string | null> {
   const c = await cfg();
   const res = await wahaFetch(
     c,
     `/api/${jalur}`,
-    { method: "POST", body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        session: c.session,
+        chatId,
+        file,
+        caption: caption || undefined,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+      }),
+    },
     120_000,
   );
   try {
@@ -492,12 +503,12 @@ async function kirimMentahBerkas(
   }
 }
 
-export function kirimMentahGambar(chatId: string, file: FilePayload, caption?: string) {
-  return kirimMentahBerkas("sendImage", chatId, file, caption);
+export function kirimMentahGambar(chatId: string, file: FilePayload, caption?: string, replyTo?: string | null) {
+  return kirimMentahBerkas("sendImage", chatId, file, caption, replyTo);
 }
 
-export function kirimMentahFile(chatId: string, file: FilePayload, caption?: string) {
-  return kirimMentahBerkas("sendFile", chatId, file, caption);
+export function kirimMentahFile(chatId: string, file: FilePayload, caption?: string, replyTo?: string | null) {
+  return kirimMentahBerkas("sendFile", chatId, file, caption, replyTo);
 }
 
 /** Ubah buffer → payload file base64 WAHA. */

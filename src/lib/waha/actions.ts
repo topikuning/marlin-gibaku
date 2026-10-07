@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { catatanPeminta, denganCatatan, pemintaPengguna } from "./asal-pesan";
+import type { UserRole } from "@/generated/prisma/enums";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { formatTanggal } from "@/lib/format";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
@@ -20,6 +22,19 @@ import { ingestWaEvent } from "@/lib/waha/ingest";
 import { grupUntukLokasi } from "@/lib/waha/grup";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { ambilBerkas } from "@/lib/penyimpanan/berkas";
+
+/**
+ * Keterangan PEMINTA untuk kiriman dari tombol di aplikasi (DECISIONS baru
+ * 2026-10-07): baris "atas permintaan Nama (Peran)" di pesan pembuka, dan
+ * pencatatan peminta di outbox untuk setiap pesan kiriman itu.
+ */
+function asalKiriman(user: { id: string; fullName: string; role: UserRole }) {
+  const peminta = pemintaPengguna(user);
+  return {
+    opsi: { peminta },
+    tandai: (teks: string) => denganCatatan(teks, catatanPeminta(peminta)),
+  };
+}
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -355,6 +370,7 @@ export async function sendActivityToWaAction(
 
   try {
     const user = await requireCapability("field_activity.manage");
+    const asal = asalKiriman(user);
     const activity = await db.fieldActivity.findUnique({
       where: { id: idParse.data },
       select: {
@@ -399,7 +415,7 @@ export async function sendActivityToWaAction(
       solusi: activity.solusi,
       locationName: activity.location.name,
     });
-    await sendText(chatId, message);
+    await sendText(chatId, asal.tandai(message), asal.opsi);
 
     // 2) Foto (sebagai gambar). Best-effort — kumpulkan kegagalan.
     const errors: string[] = [];
@@ -408,7 +424,7 @@ export async function sendActivityToWaAction(
       photoI++;
       try {
         const buf = await r2GetFotoBercap(p.r2Key);
-        await sendImage(chatId, toFilePayload(buf, "image/jpeg", `foto-${photoI}.jpg`));
+        await sendImage(chatId, toFilePayload(buf, "image/jpeg", `foto-${photoI}.jpg`), undefined, asal.opsi);
       } catch (err) {
         errors.push(`foto-${photoI}: ${err instanceof Error ? err.message : "gagal"}`);
       }
@@ -418,7 +434,7 @@ export async function sendActivityToWaAction(
     for (const att of activity.attachments) {
       try {
         const buf = await ambilBerkas(att.r2Key);
-        await sendFile(chatId, toFilePayload(buf, att.mimeType || "application/octet-stream", att.fileName));
+        await sendFile(chatId, toFilePayload(buf, att.mimeType || "application/octet-stream", att.fileName), undefined, asal.opsi);
       } catch (err) {
         errors.push(`${att.fileName}: ${err instanceof Error ? err.message : "gagal"}`);
       }
@@ -477,6 +493,7 @@ export async function sendActivityPdfToWaAction(
 
   try {
     const user = await requireCapability("field_activity.manage");
+    const asal = asalKiriman(user);
     const activity = await db.fieldActivity.findUnique({
       where: { id: idParse.data },
       select: {
@@ -527,7 +544,7 @@ export async function sendActivityPdfToWaAction(
     const fileName = `laporan-kegiatan-${activity.location.slug}-${result.activityDate
       .toISOString()
       .slice(0, 10)}.pdf`;
-    await sendFile(chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+    await sendFile(chatId, toFilePayload(result.buffer, PDF_MIME, fileName), asal.tandai(caption), asal.opsi);
 
     await audit(user.id, "field_activity.wa_send_pdf", "field_activity", activity.id, {
       locationId: activity.locationId,
@@ -593,6 +610,7 @@ export async function sendPeriodReportToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     await requireLocationAccess(user, locationId);
     const loc = await identitasLokasi(locationId);
     if (!loc) return { error: "Lokasi tidak ditemukan." };
@@ -615,9 +633,9 @@ export async function sendPeriodReportToWaAction(
       .filter(Boolean)
       .join("\n");
 
-    await sendText(chatId, caption);
+    await sendText(chatId, asal.tandai(caption), asal.opsi);
     const fileName = `laporan-${kind}-${loc.slug}-${n}.xlsx`;
-    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName);
+    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName, asal.opsi);
 
     await audit(user.id, "report.wa_send", "location", locationId, { kind, n });
     return { success: `Laporan ${kind} (${periodeLabel}) terkirim ke grup WhatsApp.` };
@@ -641,6 +659,7 @@ export async function sendDailyReportToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
     if (!locBasic) return { error: "Lokasi tidak ditemukan." };
     await requireLocationAccess(user, locBasic.id);
@@ -660,9 +679,9 @@ export async function sendDailyReportToWaAction(
       `👷 ${data.totalWorkers} pekerja${data.activeWeather ? ` · ☁️ ${data.activeWeather}` : ""}`,
     ].join("\n");
 
-    await sendText(chatId, caption);
+    await sendText(chatId, asal.tandai(caption), asal.opsi);
     const fileName = `laporan-harian-${slug}-${dateKey}.xlsx`;
-    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName);
+    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName, asal.opsi);
 
     // Tandai "sudah dikirim" bila laporan final tersimpan (row nyata).
     await db.dailyReport
@@ -712,6 +731,7 @@ export async function sendDailyReportPdfToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
     if (!locBasic) return { error: "Lokasi tidak ditemukan." };
     await requireLocationAccess(user, locBasic.id);
@@ -734,7 +754,7 @@ export async function sendDailyReportPdfToWaAction(
       .filter(Boolean)
       .join("\n");
     const fileName = `laporan-harian-${slug}-${dateKey}.pdf`;
-    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), asal.tandai(caption), asal.opsi);
 
     await db.dailyReport
       .update({
@@ -768,6 +788,7 @@ export async function sendWeeklyBundleToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     await requireLocationAccess(user, locationId);
 
     const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
@@ -793,7 +814,7 @@ export async function sendWeeklyBundleToWaAction(
       .filter(Boolean)
       .join("\n");
     const fileName = `laporan-harian-minggu-${minggu}-${loc.slug}.pdf`;
-    await sendFile(target.chatId, toFilePayload(hasil.buffer, PDF_MIME, fileName), caption);
+    await sendFile(target.chatId, toFilePayload(hasil.buffer, PDF_MIME, fileName), asal.tandai(caption), asal.opsi);
 
     await audit(user.id, "report.wa_send_pdf", "location", locationId, {
       kind: "berkas_mingguan",
@@ -826,6 +847,7 @@ export async function sendPeriodReportPdfToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     await requireLocationAccess(user, locationId);
 
     const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
@@ -844,7 +866,7 @@ export async function sendPeriodReportPdfToWaAction(
       .filter(Boolean)
       .join("\n");
     const fileName = `laporan-${kind}-${loc?.slug ?? locationId}-${n}.pdf`;
-    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), asal.tandai(caption), asal.opsi);
 
     await audit(user.id, "report.wa_send_pdf", "location", locationId, { kind, n, chatId: target.chatId });
     return { success: `Laporan ${kind} (PDF) terkirim ke ${target.label}.` };
@@ -888,6 +910,7 @@ export async function sendRencanaMingguanToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     await requireLocationAccess(user, locationId);
 
     const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
@@ -932,9 +955,9 @@ export async function sendRencanaMingguanToWaAction(
     const pdf = await buildRencanaKkpPdf(rencana, branding.appName);
 
     const loc = await identitasLokasi(locationId);
-    await sendText(target.chatId, teks);
+    await sendText(target.chatId, asal.tandai(teks), asal.opsi);
     const fileName = `rencana-mingguan-${loc?.slug ?? locationId}-minggu-${weekNumber}.pdf`;
-    await sendFile(target.chatId, toFilePayload(pdf, PDF_MIME, fileName), fileName);
+    await sendFile(target.chatId, toFilePayload(pdf, PDF_MIME, fileName), fileName, asal.opsi);
 
     await audit(user.id, "weekly_plan.wa_send", "location", locationId, {
       weekNumber,
@@ -980,6 +1003,7 @@ export async function sendDailyRingkasToWaAction(
 
   try {
     const user = await requireCapability("report.export");
+    const asal = asalKiriman(user);
     const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
     if (!locBasic) return { error: "Lokasi tidak ditemukan." };
     await requireLocationAccess(user, locBasic.id);
@@ -1032,9 +1056,9 @@ export async function sendDailyRingkasToWaAction(
     const pdf = await renderHarianRingkasPdf(slug, dateKey, { baseUrl: await getRequestOrigin() });
     if (!pdf) return { error: "Lokasi tidak ditemukan." };
 
-    await sendText(target.chatId, teks);
+    await sendText(target.chatId, asal.tandai(teks), asal.opsi);
     const fileName = `laporan-harian-${slug}-${dateKey}.pdf`;
-    await sendFile(target.chatId, toFilePayload(pdf.buffer, PDF_MIME, fileName), fileName);
+    await sendFile(target.chatId, toFilePayload(pdf.buffer, PDF_MIME, fileName), fileName, asal.opsi);
 
     // Penanda "sudah dikirim" hanya ditulis bila barisnya memang ada. Hari
     // tanpa laporan harian tetap boleh dikirim (kegiatan lapangannya nyata),

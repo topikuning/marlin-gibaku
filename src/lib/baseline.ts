@@ -12,6 +12,7 @@ import { rebucketWeeklyToGrid,
   rescheduleToCurve,
   segmentsFromWeekly,
   validateBaselinePoints,
+  validasiKurvaJadwal,
   weeklyFromSegments,
   type WeekSegment,
 } from "@/lib/scurve/generate";
@@ -620,7 +621,9 @@ export async function hitungJadwalBaru(
     rows.map((r) => r.weekly),
     totalWeeks,
   );
-  const invalid = validateBaselinePoints(weekly);
+  // Jadwal Excel apa adanya boleh memuat minus sesudah CCO dan kurvanya boleh
+  // turun (DECISIONS baru 2026-10-07); jadwal hasil sistem tetap wajib naik.
+  const invalid = mode === "apaadanya" ? validasiKurvaJadwal(weekly) : validateBaselinePoints(weekly);
   if (invalid) throw new Error(invalid);
 
   const active = await db.baseline.findFirst({

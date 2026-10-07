@@ -11,19 +11,22 @@ import {
 } from "@/components/ui";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
-import { formatPct, formatRupiah } from "@/lib/format";
+import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { keadaanPadanan } from "@/lib/ahsp/padanan";
 import { hitungTahap, kelompokkanPerUraian } from "@/lib/ahsp/kelompok";
 import { keadaanItemRapl, simulasiRapl } from "@/lib/ahsp/rapl";
 import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { keadaanUsulanAi } from "@/lib/ahsp/hsd-usulan";
+import { analisaKontrakLokasi } from "@/lib/ahsp/analisa-kontrak";
 import { requireLocationPage } from "../get-location";
 import { PadananPanel, type BarisUraianRow } from "./padanan-panel";
 import { SimulasiKebutuhan } from "./simulasi-kebutuhan";
 import { Stepper, type TahapView } from "./stepper";
 import { HargaPanel, RingkasBiaya, type BarisHargaRow } from "./harga-panel";
 import { RincianPanel, type ItemRaplRow } from "./rincian-panel";
+import { AnalisaAiPanel } from "./analisa-ai-panel";
+import { keadaanAnalisaAi } from "@/lib/ahsp/analisa-ai-keadaan";
 import { Kenapa } from "./kenapa";
 
 export const metadata: Metadata = { title: "RAPL" };
@@ -90,13 +93,15 @@ export default async function RaplPage({
   const bagian =
     (diminta === "kebutuhan" || diminta === "rincian") && !canSeeMoney ? "ringkasan" : diminta;
 
-  const [basis, { baris, cakupan }, rapl, harga, usulan, perItem] = await Promise.all([
+  const [basis, { baris, cakupan }, rapl, harga, usulan, perItem, analisaAi] = await Promise.all([
     ringkasAhsp(),
     keadaanPadanan(location.id),
     simulasiRapl(location.id),
     canSeeMoney ? keadaanHarga(location.id) : Promise.resolve(null),
     canSeeMoney && canInput ? keadaanUsulanAi(location.id) : Promise.resolve(null),
     canSeeMoney ? keadaanItemRapl(location.id) : Promise.resolve(null),
+    // Draf analisa AI tampil di "Rincian per item" – ikut pintu uang yang sama.
+    canSeeMoney && bagian === "rincian" ? keadaanAnalisaAi(location.id) : Promise.resolve(null),
   ]);
 
   /*
@@ -113,6 +118,7 @@ export default async function RaplPage({
       volume: i.volume,
       nilaiRab: i.nilaiRab.toString(),
       cara: i.cara,
+      sumberAnalisa: i.sumberAnalisa,
       komponen: i.komponen.map((k) => ({
         kategori: k.kategori,
         nama: k.nama,
@@ -120,6 +126,7 @@ export default async function RaplPage({
         jumlah: k.jumlah,
         dariAhsp: k.dariAhsp,
         harga: k.harga === null ? null : k.harga.toString(),
+        hargaDariKontrak: k.hargaDariKontrak,
         biaya: k.biaya === null ? null : k.biaya.toString(),
       })),
       biaya: i.biaya.toString(),
@@ -134,6 +141,11 @@ export default async function RaplPage({
       hargaBorongan: i.hargaBorongan === null ? null : i.hargaBorongan.toString(),
     };
   });
+
+  // Item yang memakai analisa dari berkas kontrak (keputusan user 2026-10-06)
+  // – tidak ikut daftar padanan AHSP, tapi tetap dihitung di RAPL.
+  const itemKontrak = (await analisaKontrakLokasi(location.id)).size;
+  const adaRab = cakupan.item > 0 || rapl.barisRab > 0;
 
   const uraian = kelompokkanPerUraian(baris);
   const tahapan = hitungTahap(uraian);
@@ -235,13 +247,25 @@ export default async function RaplPage({
 
   return (
     <div className="space-y-4">
-      {!basis ? (
+      {itemKontrak > 0 ? (
+        <Banner
+          tone="info"
+          title={`${itemKontrak} item memakai analisa dari berkas kontrak`}
+          description={
+            cakupan.item > 0
+              ? `Koefisiennya diambil dari sheet ANALISA berkas RAB. Padanan AHSP hanya dipakai untuk ${cakupan.item} item lain yang tidak punya analisa di berkas.`
+              : "Koefisiennya diambil dari sheet ANALISA berkas RAB. Semua item sudah punya analisa, jadi tidak ada yang perlu dicarikan padanan AHSP."
+          }
+        />
+      ) : null}
+
+      {!basis && cakupan.item > 0 ? (
         <Banner
           tone="warning"
           title="Basis analisa AHSP belum dimuat"
-          description="Tanpa basis AHSP, RAB belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
+          description="Tanpa basis AHSP, item yang tidak punya analisa di berkas kontrak belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
         />
-      ) : basis.belumSelesai ? (
+      ) : basis?.belumSelesai ? (
         <Banner
           tone="error"
           title="Basis AHSP belum lengkap karena impornya terputus"
@@ -249,7 +273,7 @@ export default async function RaplPage({
         />
       ) : null}
 
-      {cakupan.item === 0 ? (
+      {!adaRab ? (
         <Banner
           tone="info"
           title="Belum ada revisi RAB aktif"
@@ -394,19 +418,58 @@ export default async function RaplPage({
               subtitle={`${itemRows.length} item · biaya dan margin dihitung per item, bukan hanya sebagai total lokasi.`}
             />
             <CardBody className="space-y-4">
-              <Kenapa judul="AHSP pembantu, bukan gerbang">
-                Analisa AHSP mengisi rincian tiap item, tetapi tidak lagi menentukan item mana yang
-                boleh masuk hitungan. Bila satuannya tidak sepadan, nyatakan faktor konversinya
+              <Kenapa judul="Dari mana rincian tiap item?">
+                Urutan dasar rincian tiap item: analisa di berkas kontrak, lalu padanan AHSP yang
+                disetujui, lalu draf analisa AI yang Anda terima. Ketiganya disebut terpisah di kolom
+                Cara hitung. Bila satuannya tidak sepadan, nyatakan faktor konversinya
                 beserta alasannya. Bila pekerjaannya tidak punya analisa, rinci sendiri
                 komponennya. Bila memang disubkan, nyatakan harga borongannya. Koefisien yang
                 berasal dari AHSP terkunci, karena itu angka resmi yang harus bisa
                 dipertanggungjawabkan saat diperiksa.
               </Kenapa>
+              {analisaAi ? (
+                <AnalisaAiPanel
+                  locationId={location.id}
+                  slug={slug}
+                  canInput={canInput}
+                  canUseAi={canUseAi}
+                  tampilkanMargin={canSeeMargin}
+                  k={{
+                    menunggu: analisaAi.menunggu,
+                    terputus: analisaAi.terputus,
+                    pendingSinceMs: analisaAi.pendingSinceMs,
+                    model: analisaAi.model,
+                    error: analisaAi.error,
+                    jumlahTanpa: analisaAi.jumlahTanpa,
+                    nilaiTanpa: analisaAi.nilaiTanpa.toString(),
+                    draf: analisaAi.draf.map((d) => ({
+                      ...d,
+                      nilaiRab: d.nilaiRab.toString(),
+                      biaya: d.biaya.toString(),
+                      margin: d.margin === null ? null : d.margin.toString(),
+                      komponen: d.komponen.map((c) => ({
+                        ...c,
+                        harga: c.harga === null ? null : c.harga.toString(),
+                        biaya: c.biaya === null ? null : c.biaya.toString(),
+                      })),
+                    })),
+                    diterima: analisaAi.diterima.map((d) => ({
+                      id: d.id,
+                      code: d.code,
+                      uraian: d.uraian,
+                      komponen: d.komponen,
+                      pada: formatTanggal(d.pada, "d MMM yyyy HH.mm"),
+                      oleh: d.oleh,
+                    })),
+                  }}
+                />
+              ) : null}
               <RincianPanel
                 locationId={location.id}
                 slug={slug}
                 items={itemRows}
                 canInput={canInput}
+                canUseAi={canUseAi}
                 tampilkanMargin={canSeeMargin}
                 ringkas={{
                   biayaLengkap: perItem.biayaLengkap.toString(),

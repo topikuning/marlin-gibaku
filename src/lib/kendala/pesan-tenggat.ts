@@ -1,3 +1,5 @@
+import { catatanOtomatis } from "@/lib/waha/asal-pesan";
+
 /**
  * TEKS PENGINGAT KENDALA LEWAT TENGGAT — MODUL MURNI (DECISIONS 392).
  *
@@ -86,6 +88,6 @@ export function pesanKendalaTenggat(
     "",
     "Perbarui tenggat atau tutup kendalanya lewat menu *Kendala* di MARLIN.",
     "",
-    "_Pesan otomatis._",
+    catatanOtomatis("pengingat harian kendala lewat tenggat. Tidak ada yang memintanya; pesan ini terkirim sendiri setiap hari selama masih ada kendala yang lewat tenggat"),
   ].join("\n");
 }

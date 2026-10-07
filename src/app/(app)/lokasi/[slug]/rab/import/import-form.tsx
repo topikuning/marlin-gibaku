@@ -22,6 +22,7 @@ import {
   type ProfilKurvaState,
 } from "./actions";
 import type { KolomManual } from "@/lib/rab/hps-parser";
+import { RincianBerkasRingkas } from "@/components/knmp/rincian-berkas-ringkas";
 import { PanelBeda } from "./panel-beda";
 import { PilihBaca } from "./pilih-baca";
 import { TabelBanding } from "./tabel-banding";
@@ -376,6 +377,25 @@ export function ImportForm({
             grandTotal={preview.grandTotal}
             totalKontrak={preview.beda?.totalAktif ?? null}
           />
+
+          {preview.rincian ? (
+            <Banner
+              tone="info"
+              title="Backup volume & analisa dari berkas ini"
+              description={
+                <RincianBerkasRingkas
+                  r={preview.rincian.ringkasan}
+                  tersembunyiDibaca={preview.rincian.tersembunyiDibaca}
+                />
+              }
+            />
+          ) : preview.rincianGagal ? (
+            <Banner
+              tone="warning"
+              title="Backup volume & analisa tidak terbaca"
+              description={`${preview.rincianGagal}. RAB tetap bisa disimpan – angka resminya tidak bergantung pada rincian ini.`}
+            />
+          ) : null}
 
           {preview.warnings.some((w) => !w.startsWith("PERHATIAN")) ? (
             <Banner

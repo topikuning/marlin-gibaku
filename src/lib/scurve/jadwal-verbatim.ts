@@ -41,6 +41,10 @@ export type HasilApaAdanya = {
   tanpaJadwal: string[];
   /** Kategori yang bobot Excel-nya berbeda dari bobot RAB (> 0,1 pp). */
   selisihBobot: { name: string; excel: number; rab: number }[];
+  /** Pekerjaan yang punya minggu bernilai MINUS (penyesuaian CCO) – disebut, tidak diubah. */
+  selMinus: { name: string; minggu: number[] }[];
+  /** Minggu (1-based) tempat rencana KUMULATIF total turun dari minggu sebelumnya. */
+  mingguTurun: number[];
 };
 
 /**
@@ -84,18 +88,29 @@ export function susunJadwalApaAdanya(
       mentah.push({ kat, weekly: kosong(), sum: 0 });
       continue;
     }
-    // Nilai negatif tidak bisa diikuti: kurva-S kumulatif harus monoton naik.
-    // Menolaknya lebih jujur daripada mengubahnya jadi 0 tanpa memberi tahu.
-    const minggu = raw.findIndex((v) => !Number.isFinite(v) || v < 0);
-    if (minggu >= 0) {
-      throw new Error(
-        `"${kat.name}" minggu ${minggu + 1} bernilai ${raw[minggu]}. Nilai negatif membuat kurva turun, jadi perbaiki dulu berkasnya.`,
-      );
+    /*
+     * NILAI MINUS DIIKUTI (DECISIONS baru 2026-10-07). Sesudah CCO, minggu yang
+     * sudah terlapor tidak diubah; bobot yang turun diserap minggu sesudahnya,
+     * jadi satu pekerjaan bisa minus di minggu tertentu. Yang ditolak hanya sel
+     * yang bukan angka, dan pekerjaan yang JUMLAH akhirnya negatif – bobot
+     * pekerjaan tidak mungkin di bawah nol.
+     */
+    const rusak = raw.findIndex((v) => !Number.isFinite(v));
+    if (rusak >= 0) {
+      throw new Error(`"${kat.name}" minggu ${rusak + 1} bukan angka (${raw[rusak]}). Perbaiki dulu berkasnya.`);
     }
     const weekly = raw.map(bulat6);
     const sum = weekly.reduce((s, v) => s + v, 0);
-    if (sum <= 0) tanpaJadwal.push(kat.name);
-    mentah.push(sum > 0 ? { kat, weekly, sum } : { kat, weekly: kosong(), sum: 0 });
+    if (sum < -1e-6) {
+      throw new Error(
+        `Jumlah minggu "${kat.name}" di Excel ${pp(sum)}% – negatif. Nilai minus boleh untuk penyesuaian sesudah CCO, tapi jumlah akhir tiap pekerjaan tidak boleh di bawah 0%.`,
+      );
+    }
+    const adaIsi = weekly.some((v) => Math.abs(v) > 1e-9);
+    // Pekerjaan yang dicabut CCO bisa berjumlah 0 tapi tetap membawa minggu
+    // yang sudah terlapor (+x lalu −x). Itu jadwal, bukan "tanpa jadwal".
+    if (!adaIsi) tanpaJadwal.push(kat.name);
+    mentah.push(adaIsi ? { kat, weekly, sum: Math.max(0, sum) } : { kat, weekly: kosong(), sum: 0 });
   }
 
   const totalExcel = mentah.reduce((s, r) => s + r.sum, 0);
@@ -116,7 +131,9 @@ export function susunJadwalApaAdanya(
   }
 
   const faktorSkala = 100 / totalExcel;
-  const perluSkala = Math.abs(faktorSkala - 1) > 1e-9;
+  // Sisa pembulatan sel (bulat6 per sel, desimal panjang Excel) bukan alasan
+  // menyentuh angka user – di bawah 0,0001 poin dianggap tepat 100%.
+  const perluSkala = Math.abs(totalExcel - 100) > 1e-4;
 
   const rows: BarisJadwal[] = mentah.map((r) => {
     const weekly = perluSkala ? r.weekly.map((v) => bulat6(v * faktorSkala)) : r.weekly;
@@ -132,13 +149,35 @@ export function susunJadwalApaAdanya(
     .map((row, i) => ({ name: row.name, excel: row.weightPct, rab: mentah[i].kat.weightRabPct }))
     .filter((d) => Math.abs(d.excel - d.rab) > AMBANG_SELISIH_PP);
 
+  const selMinus = rows
+    .map((r) => ({ name: r.name, minggu: r.weekly.flatMap((v, i) => (v < -1e-9 ? [i + 1] : [])) }))
+    .filter((r) => r.minggu.length > 0);
+
+  // Kumulatif MENTAH (sebelum dibatasi 100) – yang lewat 100% di tengah jalan
+  // lalu turun lagi akan terpotong diam-diam oleh penyimpan, jadi ditolak di sini.
+  const mingguTurun: number[] = [];
+  let kum = 0;
+  let sebelum = 0;
+  for (let w = 0; w < n; w++) {
+    kum += rows.reduce((s, r) => s + (r.weekly[w] ?? 0), 0);
+    if (kum > 100 + 0.5 || kum < -0.5) {
+      throw new Error(
+        `Rencana kumulatif minggu ${w + 1} menjadi ${pp(kum)}% – di luar 0–100%. Nilai minus boleh, tapi kumulatifnya harus tetap di antara 0% dan 100%.`,
+      );
+    }
+    if (w > 0 && kum < sebelum - 0.005) mingguTurun.push(w + 1);
+    sebelum = kum;
+  }
+
   return {
     rows,
-    cocok: mentah.filter((r) => r.sum > 0).length,
+    cocok: mentah.filter((r) => r.weekly.some((v) => Math.abs(v) > 1e-9)).length,
     totalExcel,
     faktorSkala: perluSkala ? faktorSkala : 1,
     tanpaJadwal,
     selisihBobot,
+    selMinus,
+    mingguTurun,
   };
 }
 
@@ -163,6 +202,16 @@ export function ringkasApaAdanya(h: HasilApaAdanya): string {
     bagian.push(
       `${h.selisihBobot.length} pekerjaan berbeda dari bobot RAB – ${contoh}${h.selisihBobot.length > 3 ? "; …" : ""}`,
     );
+  }
+  if (h.selMinus.length > 0) {
+    const contoh = h.selMinus
+      .slice(0, 3)
+      .map((m) => `${m.name} minggu ${m.minggu.join(", ")}`)
+      .join("; ");
+    bagian.push(`${h.selMinus.length} pekerjaan punya nilai minus (penyesuaian CCO) – ${contoh}${h.selMinus.length > 3 ? "; …" : ""}`);
+  }
+  if (h.mingguTurun.length > 0) {
+    bagian.push(`rencana kumulatif turun di minggu ${h.mingguTurun.join(", ")}`);
   }
   return bagian.join(". ") + ".";
 }

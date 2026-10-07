@@ -33,6 +33,13 @@ export type KomponenUntukRapl = {
   nama: string;
   satuan: string | null;
   koefisien: number;
+  /**
+   * Harga komponen seperti tertulis di baris analisa KONTRAK item ini
+   * (keputusan user 2026-10-06). Harga bawaan: harga yang diisi untuk lokasi
+   * (HSD) selalu menang. Per item, bukan per sumber daya – satu berkas bisa
+   * menulis harga "Pekerja" berbeda di analisa yang berbeda.
+   */
+  hargaKontrak?: number | null;
 };
 
 /**
@@ -93,6 +100,13 @@ export type ItemUntukRapl = {
     /** Satuan analisa AHSP, sudah dinormalkan. */
     satuanNorm: string;
     komponen: KomponenUntukRapl[];
+    /**
+     * Asal analisanya (keputusan user 2026-10-06): `kontrak` = analisa yang
+     * tertulis di berkas RAB item itu sendiri – dasar utama; `ahsp` = padanan
+     * AHSP PUPR yang disetujui, hanya untuk item tanpa analisa di berkas.
+     * Kosong = `ahsp` (data lama).
+     */
+    sumber?: "kontrak" | "ahsp" | "ai";
   } | null;
 };
 
@@ -558,6 +572,8 @@ export type KomponenItem = {
   /** false = ditambahkan orang, bukan dari analisa AHSP. */
   dariAhsp: boolean;
   harga: bigint | null;
+  /** true = harga belum diisi untuk lokasi; yang dipakai harga di analisa kontrak. */
+  hargaDariKontrak: boolean;
   /** null selama harganya belum diisi — BUKAN nol. */
   biaya: bigint | null;
 };
@@ -574,6 +590,8 @@ export type BiayaItem = {
   /** Nilai item menurut RAB aktif — harga jualnya. */
   nilaiRab: bigint;
   cara: CaraItem;
+  /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
+  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;
@@ -630,6 +648,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       faktorKonversi: it.rincian?.faktorKonversi ?? null,
       catatanKonversi: it.rincian?.catatanKonversi ?? null,
       hargaBorongan: it.rincian?.hargaBorongan ?? null,
+      sumberAnalisa: it.analisa ? (it.analisa.sumber ?? "ahsp") : null,
     };
 
     const pecah = pecahItem(it);
@@ -668,7 +687,10 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
 
     const komponen: KomponenItem[] = pecah.komponen.map((c) => {
       const satuan = (c.komponen.satuan ?? "").trim();
-      const h = peta.get(kunciSumberDaya(c.komponen.kategori, c.komponen.nama, satuan)) ?? null;
+      const hk = c.komponen.hargaKontrak;
+      const hLokasi = peta.get(kunciSumberDaya(c.komponen.kategori, c.komponen.nama, satuan)) ?? null;
+      const hKontrak = hk != null && Number.isFinite(hk) && hk > 0 ? BigInt(Math.round(hk)) : null;
+      const h = hLokasi ?? hKontrak;
       const jumlah = Math.round(c.jumlah * SKALA) / SKALA;
       return {
         kategori: c.komponen.kategori,
@@ -677,6 +699,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
         jumlah,
         dariAhsp: c.dariAhsp,
         harga: h,
+        hargaDariKontrak: hLokasi === null && hKontrak !== null,
         biaya: h === null ? null : BigInt(Math.round(jumlah * Number(h))),
       };
     });
@@ -701,4 +724,43 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       rinciLewat: null,
     };
   });
+}
+
+/* ── Backup volume isian MARLIN (DECISIONS baru 2026-10-07) ─────────────── */
+
+export type BarisBackupIsian = {
+  jumlah: number | null;
+  panjang: number | null;
+  lebar: number | null;
+  tinggi: number | null;
+  /** Pengurang (bukaan pintu/jendela, dll.). */
+  kurang: boolean;
+};
+
+/**
+ * Hasil satu baris backup volume:
+ *
+ *     hasil = ± (jumlah × panjang × lebar × tinggi), faktor yang kosong dilewati
+ *
+ * Baris tanpa satu angka pun tidak punya hasil (null), bukan nol – nol akan
+ * terbaca "sudah dihitung, hasilnya nol".
+ */
+export function hasilBarisBackup(b: BarisBackupIsian): number | null {
+  const faktor = [b.jumlah, b.panjang, b.lebar, b.tinggi].filter((x): x is number => x != null);
+  if (faktor.length === 0) return null;
+  const hasil = faktor.reduce((a, x) => a * x, 1);
+  return b.kurang ? -hasil : hasil;
+}
+
+/**
+ * Σ hasil baris, dan selisihnya terhadap volume RAB. Angka resmi tetap volume
+ * RAB; selisih hanya DISEBUT (3 desimal, presisi kolom volume).
+ */
+export function totalBackupIsian(
+  baris: BarisBackupIsian[],
+  volumeRab: number | null,
+): { total: number; selisih: number | null; cocok: boolean } {
+  const total = baris.reduce((a, b) => a + (hasilBarisBackup(b) ?? 0), 0);
+  const selisih = volumeRab == null ? null : Math.round((total - volumeRab) * 1000) / 1000;
+  return { total: Math.round(total * 1000) / 1000, selisih, cocok: selisih !== null && selisih === 0 };
 }

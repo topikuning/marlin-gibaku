@@ -6,6 +6,7 @@ import { weekDateRange, weekOfDate, weightedPct, weightedRealizedPct, type WeekP
 import { isWahaConfigured } from "@/lib/waha/client";
 import { kanonikGrupId } from "@/lib/waha/grup-id";
 import { sendText } from "@/lib/waha/kirim";
+import { catatanOtomatis, catatanPeminta, denganCatatan, type Peminta } from "@/lib/waha/asal-pesan";
 import { formatTanggal } from "@/lib/format";
 import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
 
@@ -286,6 +287,8 @@ export async function kirimLaporanMingguan(
     manual?: boolean;
     paksa?: boolean;
     sentById?: string;
+    /** Peminta tombol manual – disebut di pesan (DECISIONS baru 2026-10-07). */
+    peminta?: Peminta;
     now?: Date;
     /** Minggu kontrak yang diminta; kosong = minggu berjalan (DECISIONS 357). */
     mingguKe?: number;
@@ -357,7 +360,7 @@ async function kirimSatuGrup(
   packageId: string,
   tujuan: TujuanMingguan,
   now: Date,
-  opts: { manual?: boolean; paksa?: boolean; sentById?: string; mingguKe?: number },
+  opts: { manual?: boolean; paksa?: boolean; sentById?: string; peminta?: Peminta; mingguKe?: number },
 ): Promise<HasilKirimMingguan> {
   const siap = await pratinjauMingguan(packageId, now, opts.mingguKe, tujuan.lokasiIds);
   if ("alasan" in siap) return { ok: false, alasan: siap.alasan };
@@ -376,8 +379,19 @@ async function kirimSatuGrup(
   let waMessageId: string | null = null;
   let status = "sukses";
   let error: string | null = null;
+  /*
+   * Asal pesan disebut (DECISIONS baru 2026-10-07): tombol manual menyebut
+   * siapa yang meminta, penjadwal menyebut dirinya otomatis. Yang tercatat di
+   * log adalah teks yang BENAR-BENAR terkirim.
+   */
+  const teks = denganCatatan(
+    siap.body,
+    opts.peminta
+      ? catatanPeminta(opts.peminta)
+      : catatanOtomatis("laporan progres mingguan, dikirim terjadwal setiap minggu"),
+  );
   try {
-    waMessageId = await sendText(tujuan.chatId, siap.body);
+    waMessageId = await sendText(tujuan.chatId, teks, { peminta: opts.peminta ?? null });
   } catch (err) {
     status = "gagal";
     error = err instanceof Error ? err.message : "Gagal mengirim";
@@ -390,7 +404,7 @@ async function kirimSatuGrup(
     waMessageId,
     chatId: tujuan.chatId,
     manual: opts.manual ?? false,
-    body: siap.body,
+    body: teks,
     sentById: opts.sentById ?? null,
     lastSentAt: now,
   };
