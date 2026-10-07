@@ -472,6 +472,7 @@ model User {
   raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
   backupIsian       RabBackupIsian[]        @relation("BackupIsianPenulis")
   analisaAiDiminta  RaplAnalisaAiRun[]      @relation("AnalisaAiPeminta")
+  waDiminta         WaOutbound[]            @relation("WaOutboundPeminta")
   analisaAiDiputus  RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
   waVerification    WaVerification?
 
@@ -2596,6 +2597,15 @@ model WaOutbound {
   /// lain, dan isi chat pribadi tidak pantas ada di sana.
   ringkas String?
 
+  /// SIAPA YANG MEMINTA kiriman ini (DECISIONS baru 2026-10-07). Pengguna
+  /// MARLIN yang menekan tombol kirim, atau penanya di WhatsApp yang dikenali.
+  /// Kosong = kiriman terjadwal/otomatis.
+  dimintaOlehId String? @map("diminta_oleh_id") @db.Uuid
+  /// Label peminta seperti tertulis di pesan ("Budi – Site Manager", nama WA
+  /// penanya yang belum terdaftar). Disimpan karena penanya grup tidak wajib punya akun.
+  peminta       String?
+  dimintaOleh   User?   @relation("WaOutboundPeminta", fields: [dimintaOlehId], references: [id], onDelete: SetNull)
+
   sentAt    DateTime? @map("sent_at") @db.Timestamptz
   ackAt     DateTime? @map("ack_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -2603,6 +2613,7 @@ model WaOutbound {
 
   @@index([status, createdAt])
   @@index([sourceType, sourceId])
+  @@index([dimintaOlehId])
   @@map("wa_outbound")
 }
 

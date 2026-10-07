@@ -1,5 +1,6 @@
 "use server";
 
+import { catatanPeminta, denganCatatan, pemintaPengguna } from "@/lib/waha/asal-pesan";
 import { updateMutableArtifact } from "@/lib/ai-hub/mutate-artifact";
 import { aiArtifactOrgWhere } from "@/lib/ai-hub/org-scope";
 
@@ -595,13 +596,17 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
      * kirim dua kali untuk artefak yang sama ke tujuan yang sama tidak akan
      * mengirim dua pesan; mengubah isinya (hash berubah) memang kiriman baru.
      */
+    // Siapa yang meminta disebut di pesannya (DECISIONS baru 2026-10-07).
+    const peminta = pemintaPengguna(user);
     const hasil = await sendWaMessage({
       kind: "teks",
       destination: target.chatId,
-      payload: { teks: text },
+      payload: { teks: denganCatatan(text, catatanPeminta(peminta)) },
       idempotencyKey: `artifact:${artifact.id}:${target.chatId}:${artifact.contentHash}`,
       sourceType: "ai_artifact",
       sourceId: artifact.id,
+      dimintaOlehId: peminta.userId,
+      peminta: peminta.label,
     });
     if (!hasil.diterimaWaha) {
       return { error: hasil.error ?? "Pengiriman WhatsApp gagal." };

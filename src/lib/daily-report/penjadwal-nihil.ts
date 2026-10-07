@@ -1,3 +1,4 @@
+import { catatanOtomatis } from "@/lib/waha/asal-pesan";
 import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
@@ -126,7 +127,7 @@ export async function kirimPengingatNihilTerjadwal(
       "Mohon dipastikan penyebabnya sudah ditangani, dan bila menunggu sesuatu",
       "catat sebagai kendala lewat menu *Kendala* supaya ada yang menagihnya.",
       "",
-      "_Pesan otomatis._",
+      catatanOtomatis("peringatan pekerjaan berhenti beruntun. Tidak ada yang memintanya; pesan ini terkirim sendiri saat laporan TIDAK ADA KEGIATAN berturut-turut"),
     ].join("\n");
 
     try {

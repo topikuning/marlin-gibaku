@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 654 | 2026-10-07 | Setiap pesan MARLIN di WhatsApp menyebut asalnya: tombol aplikasi → "atas permintaan Nama (Peran)", jawaban di grup mengutip pesan penanya (cadangan tanpa kutipan bila 4xx), terjadwal → "Pesan otomatis MARLIN – … Tidak ada yang memintanya"; outbox mencatat diminta_oleh_id + peminta |
 | 653 | 2026-10-07 | Impor jadwal Excel apa adanya boleh memuat nilai minus (penyesuaian sesudah CCO) asal total 100%, kumulatif tetap 0–100%, dan bobot akhir tiap pekerjaan tidak negatif; kurva hasil impor boleh turun (disebut), kurva otomatis/manual tetap wajib naik; 275 tidak diubah |
 | 652 | 2026-10-07 | Backup volume tiap item menyebut sumbernya di revisi mana pun (berkas tertaut / diwarisi bila volume sama / isian MARLIN jumlah×P×L×T / belum + sebab); analisa kontrak diwarisi bila harga satuan sama; Template Adendum ditelusuri; draf analisa AI untuk item tanpa analisa (mencabut "belum" 326 dgn syaratnya: draf, diterima orang, sumber "ai" terpisah di layar & Excel) |
 | 651 | 2026-10-06 | Backup volume, analisa, dan bahan & upah dibaca LEWAT RUMUS dari berkas RAB (sheet tersembunyi yang dirujuk ikut, disebut) dan disimpan per revisi terpisah dari angka resmi; tampil per item; analisa kontrak jadi dasar RAPL (AHSP PUPR hanya cadangan); data lama dilengkapi dari berkas arsip lewat Periksa → Simpan di Sistem |

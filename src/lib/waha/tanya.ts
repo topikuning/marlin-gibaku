@@ -34,6 +34,7 @@ import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-pa
 import { kanonikGrupId } from "./grup-id";
 import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";
 import { putuskanLayanan } from "./resolver-kanal";
+import { jalankanDenganKonteksBalasan, type KonteksBalasan } from "./konteks-balasan";
 import { potongPesan } from "./potong-pesan";
 import {
   PETUNJUK_SKEMA,
@@ -327,9 +328,28 @@ function penyaringGrup(orgId: string): SessionUser {
 /* Perangkai                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Jawab satu pesan masuk – di dalam KONTEKS BALASAN (DECISIONS baru
+ * 2026-10-07): setiap balasan di grup mengutip pesan penanyanya, dan outbox
+ * mencatat siapa yang meminta. Keluhan user: *"siapa yg request? perlu
+ * diketahui siapa peminta data agar jelas"*.
+ */
 export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const m = parseWaEvent(body);
   if (!m) return DIAM("bukan pesan yang bisa dibaca");
+  const konteks: KonteksBalasan = {
+    balasKe: m.chatId.endsWith("@g.us") ? m.waMessageId : null,
+    dimintaOlehId: null,
+    peminta: m.fromName ?? m.fromNumber ?? null,
+  };
+  return jalankanDenganKonteksBalasan(konteks, () => jawabDalamKonteks(body, m, konteks));
+}
+
+async function jawabDalamKonteks(
+  body: unknown,
+  m: ParsedWaMessage,
+  konteks: KonteksBalasan,
+): Promise<HasilTanya> {
 
   // (1) Pesan KITA SENDIRI tidak pernah dijawab. Tanpa pagar ini, balasan MARLIN
   // masuk lagi lewat `message.any` dan MARLIN membalas dirinya sendiri.
@@ -392,6 +412,10 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     nomorPengirim = await nomorDariLid(m.senderLid);
   }
   const { user, alasan: alasanNomor0 } = await cariPengguna(nomorPengirim, m.senderLid);
+  if (user) {
+    konteks.dimintaOlehId = user.id;
+    konteks.peminta = user.fullName;
+  }
 
   /*
    * MARLIN mengingat padanannya SENDIRI (DECISIONS 445).

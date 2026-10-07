@@ -1,5 +1,7 @@
 import "server-only";
 import { sendWaMessage } from "./gateway";
+import type { Peminta } from "./asal-pesan";
+import { konteksBalasan } from "./konteks-balasan";
 import type { FilePayload } from "./client";
 
 /**
@@ -24,13 +26,29 @@ import type { FilePayload } from "./client";
  * memanggil `sendWaMessage()` langsung dengan kuncinya sendiri.
  */
 
+/**
+ * Siapa yang meminta kiriman ini (DECISIONS baru 2026-10-07) – dicatat di
+ * outbox. Kosong untuk kiriman terjadwal.
+ */
+export type OpsiKirim = { peminta?: Peminta | null };
+
+const pemintaInput = (o?: OpsiKirim) =>
+  o?.peminta ? { dimintaOlehId: o.peminta.userId, peminta: o.peminta.label } : {};
+
+/** Konteks penjawab pesan: kutip pesan penanya + catat siapa dia. */
+function dariKonteks() {
+  const k = konteksBalasan();
+  return k ? { balasKe: k.balasKe, dimintaOlehId: k.dimintaOlehId, peminta: k.peminta } : {};
+}
+
 /** Kirim teks. Mengembalikan ID pesan WAHA bila ada; `null` bila tidak. */
-export async function sendText(chatId: string, text: string): Promise<string | null> {
+export async function sendText(chatId: string, text: string, opsi?: OpsiKirim): Promise<string | null> {
   const r = await sendWaMessage({
     kind: "teks",
     destination: chatId,
     payload: { teks: text },
     sourceType: "legacy_sendText",
+    ...pemintaInput(opsi),
   });
   /*
    * Melempar saat gagal — SENGAJA, karena itulah perilaku lama yang
@@ -57,6 +75,7 @@ export async function balasWa(chatId: string, text: string): Promise<string | nu
     payload: { teks: text },
     sourceType: "balasan_wa",
     balasanMasuk: true,
+    ...dariKonteks(),
   });
   if (r.error) throw new Error(r.error);
   return r.waMessageId;
@@ -80,6 +99,7 @@ export async function balasFileWa(
     payload: { file, caption },
     sourceType: "balasan_wa_berkas",
     balasanMasuk: true,
+    ...dariKonteks(),
   });
   if (r.error) throw new Error(r.error);
   return r.waMessageId;
@@ -89,12 +109,14 @@ export async function sendImage(
   chatId: string,
   file: FilePayload,
   caption?: string,
+  opsi?: OpsiKirim,
 ): Promise<string | null> {
   const r = await sendWaMessage({
     kind: "gambar",
     destination: chatId,
     payload: { file, caption },
     sourceType: "legacy_sendImage",
+    ...pemintaInput(opsi),
   });
   if (r.error) throw new Error(r.error);
   return r.waMessageId;
@@ -104,12 +126,14 @@ export async function sendFile(
   chatId: string,
   file: FilePayload,
   caption?: string,
+  opsi?: OpsiKirim,
 ): Promise<string | null> {
   const r = await sendWaMessage({
     kind: "berkas",
     destination: chatId,
     payload: { file, caption },
     sourceType: "legacy_sendFile",
+    ...pemintaInput(opsi),
   });
   if (r.error) throw new Error(r.error);
   return r.waMessageId;

@@ -1,3 +1,5 @@
+import { catatanOtomatis } from "@/lib/waha/asal-pesan";
+
 /**
  * Teks pengingat laporan harian yang masuk ke GRUP WhatsApp paket — MODUL
  * MURNI, seperti `pesan.ts` untuk pengingat perorangan.
@@ -60,6 +62,6 @@ export function pesanPengingatGrup(input: {
     // harian diminta tiap hari, dan berkas mingguan paling lambat Minggu 23.59.
     "Mohon dilengkapi lewat menu *Hari Ini* di MARLIN sebelum tutup hari, beserta dokumentasi fotonya.",
     "",
-    "_Pesan otomatis. Bila laporannya sudah dikirim setelah pesan ini terkirim, abaikan saja._",
+    catatanOtomatis("pengingat laporan harian, terkirim sendiri setiap hari. Bila laporannya sudah dikirim setelah pesan ini terkirim, abaikan saja"),
   ].join("\n");
 }

@@ -1,3 +1,5 @@
+import { catatanOtomatis } from "@/lib/waha/asal-pesan";
+
 /**
  * Teks pengingat laporan harian — MODUL MURNI (DECISIONS 202).
  *
@@ -38,6 +40,6 @@ export function pesanPengingat(
     "",
     "Mohon diisi lewat menu *Hari Ini* di MARLIN sebelum tutup hari.",
     "",
-    "_Pesan otomatis. Bila laporannya sudah dikirim setelah pesan ini terkirim, abaikan saja._",
+    catatanOtomatis("pengingat laporan harian, terkirim sendiri setiap hari. Bila laporannya sudah dikirim setelah pesan ini terkirim, abaikan saja"),
   ].join("\n");
 }

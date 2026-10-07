@@ -21,6 +21,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 /** Pesan yang "terkirim" ke WhatsApp — inti seluruh pembuktian di berkas ini. */
 const terkirim: { chatId: string; teks: string }[] = [];
+/** Konteks balasan yang berlaku saat tiap balasan dikirim (DECISIONS baru 2026-10-07). */
+const konteksTerkirim: ({ balasKe: string | null; dimintaOlehId: string | null; peminta: string | null } | null)[] = [];
 /** Berkas yang "terkirim" — jalur PDF untuk daftar panjang (DECISIONS 448). */
 const berkasTerkirim: { chatId: string; nama: string; mime: string; caption: string; bytes: number }[] =
   [];
@@ -45,6 +47,8 @@ vi.mock("@/lib/waha/kirim", () => ({
   // ikut ditiru karena berkas lain memakainya; keduanya dicatat sama.
   balasWa: async (chatId: string, teks: string) => {
     terkirim.push({ chatId, teks });
+    const { konteksBalasan } = await import("@/lib/waha/konteks-balasan");
+    konteksTerkirim.push(konteksBalasan());
     return "mock-id";
   },
   sendText: async (chatId: string, teks: string) => {
@@ -209,6 +213,7 @@ let lokA1 = "";
 let lokA2 = "";
 let lokB1 = "";
 let nomorSM = "6285700000001";
+let smId = "";
 const nomorSmB = "6285700000009";
 let nomorAdmin = "6285700000002";
 /** Program Director org kita — peran istimewa kedua (brief 5A). */
@@ -307,6 +312,7 @@ beforeAll(async () => {
 
   // Site Manager: ditugaskan ke SELURUH lokasi org (A1, A2, B1).
   const sm = await buatUser(orgId, "SiteManager", "site_manager", nomorSM);
+  smId = sm;
   for (const locationId of [lokA1, lokA2, lokB1]) {
     await db.locationAssignment.create({ data: { userId: sm, locationId } });
   }
@@ -403,16 +409,21 @@ describe("kapan MARLIN benar-benar membalas", () => {
   });
 
   it("grup dengan mention ke MARLIN: dijawab", async () => {
+    konteksTerkirim.length = 0;
     const r = await jawabPertanyaanWa(
       event({
         chatId: GRUP_A,
         dari: nomorSM,
         teks: "@6281200000000 mana yang deviasinya negatif",
         mention: [`${NOMOR_MARLIN}@c.us`],
+        id: "pesan-penanya-1",
       }),
     );
     expect(r.dijawab).toBe(true);
     expect(terkirim).toHaveLength(1);
+    // Jawaban di grup MENGUTIP pesan penanyanya dan mencatat siapa dia
+    // (DECISIONS baru 2026-10-07): *"siapa yg request? perlu diketahui"*.
+    expect(konteksTerkirim[0]).toMatchObject({ balasKe: "pesan-penanya-1", dimintaOlehId: smId, peminta: "SiteManager" });
   });
 });
 

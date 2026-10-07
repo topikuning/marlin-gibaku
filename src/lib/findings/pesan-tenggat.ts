@@ -6,6 +6,7 @@
  * membukanya. Sidik jari & batas baris DIPAKAI ULANG dari modul kendala —
  * logikanya identik dan dua salinan pasti perlahan berbeda.
  */
+import { catatanOtomatis } from "@/lib/waha/asal-pesan";
 import { MAKS_BARIS, sidikTenggat, type BarisTenggat } from "@/lib/kendala/pesan-tenggat";
 
 export { MAKS_BARIS, sidikTenggat };
@@ -58,6 +59,6 @@ export function pesanTemuanTenggat(
     "",
     "Tindak lanjuti lalu ajukan verifikasi lewat menu *Temuan* di MARLIN – temuan hanya selesai setelah verifikator menutupnya.",
     "",
-    "_Pesan otomatis._",
+    catatanOtomatis("pengingat harian temuan pemeriksa lewat tenggat. Tidak ada yang memintanya; pesan ini terkirim sendiri setiap hari selama masih ada temuan yang lewat tenggat"),
   ].join("\n");
 }
