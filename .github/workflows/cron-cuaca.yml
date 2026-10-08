@@ -1,11 +1,12 @@
 name: Pembaruan cuaca satelit MARLIN
 
 # Pembaruan cuaca laporan harian KEMARIN dari pengamatan satelit (awan
-# Himawari-9 + hujan JAXA GSMaP), pukul 04.00 WIB (DECISIONS 657).
+# Himawari-9 + hujan JAXA GSMaP), pukul 04.00 WIB (DECISIONS 657, 659) –
+# termasuk laporan yang sudah final; PDF-nya di Drive ikut diganti.
 #
 # Pemanggilan ini hanya MEMULAI putaran di latar aplikasi lalu pulang. Sakelar
-# MATI, jam belum 04.00 WIB, atau tanggalnya sudah diproses = tidak melakukan
-# apa-apa. Aman dipicu berkali-kali.
+# MATI = tidak melakukan apa-apa; laporan yang isinya sudah sama tidak ditulis
+# ulang. Aman dipicu berkali-kali.
 #
 # Perilaku GitHub yang perlu diketahui (sama dengan cron lain): scheduled
 # workflow sering telat 5–20 menit, sesekali dilewati, dan DIMATIKAN diam-diam

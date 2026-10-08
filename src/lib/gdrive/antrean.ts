@@ -2,7 +2,9 @@ import "server-only";
 import { db } from "@/lib/db";
 import { jakartaHour } from "@/lib/format";
 import { akhirMingguKontrak, mingguKontrak } from "@/lib/mingguan/kirim";
+import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { getPeriodBounds } from "@/lib/periodic-report";
+import { weekOfDate } from "@/lib/progress-calc";
 import { getGDriveConfigDisplay } from "./config";
 import {
   adalahBatal,
@@ -320,6 +322,110 @@ export async function antrekanLaporanHarian(reportId: string): Promise<void> {
   }
 }
 
+/**
+ * Jenis pekerjaan yang HANYA mengganti PDF laporan harian di Drive (DECISIONS
+ * 659). Barisnya terpisah dari `laporan_harian` (kunci `(kind, refKey)`), jadi
+ * status unggahan lengkapnya tidak ikut tertimpa; jejak unggahnya tetap
+ * tercatat sebagai `laporan_harian`.
+ */
+export const KIND_PDF_HARIAN = "laporan_harian_pdf";
+
+/**
+ * Ganti PDF laporan harian FINAL yang sudah ada di Drive, tanpa mengirim ulang
+ * fotonya – dipakai sesudah cuacanya diperbarui dari satelit (DECISIONS 659).
+ * Foto tidak berubah, jadi mengunggahnya lagi hanya membuang kuota.
+ *
+ * Tidak mengantre bila tidak perlu: unggahan lengkap yang masih menunggu
+ * membuat PDF-nya saat naik, dari data terbaru; laporan yang belum pernah naik
+ * akan dijaring pindai dengan isi terbaru juga. Best-effort, seperti
+ * `antrekanLaporanHarian`. Mengembalikan true bila diantre.
+ */
+export async function antrekanPdfHarian(reportId: string): Promise<boolean> {
+  try {
+    const r = await db.dailyReport.findUnique({
+      where: { id: reportId },
+      select: {
+        reportDate: true,
+        locationId: true,
+        location: { select: { slug: true, packageId: true, package: { select: { driveFolderId: true } } } },
+      },
+    });
+    if (!r?.location.package.driveFolderId) return false;
+    const periode = r.reportDate.toISOString().slice(0, 10);
+    const refKey = refKeyHarian(r.location.slug, periode);
+    const lengkap = await db.gDriveJob.findUnique({
+      where: { kind_refKey: { kind: "laporan_harian", refKey } },
+      select: { status: true },
+    });
+    if (lengkap?.status === "menunggu") return false;
+    // "jalan" ikut dihitung: unggahan yang sedang berjalan bisa saja sudah
+    // membuat PDF-nya sebelum cuacanya diperbarui.
+    const sudahNaik =
+      lengkap?.status === "sukses" ||
+      lengkap?.status === "jalan" ||
+      (await db.gDriveUpload.count({ where: { kind: "laporan_harian", refKey, status: "sukses" } })) > 0;
+    if (!sudahNaik) return false;
+    await db.gDriveJob.upsert({
+      where: { kind_refKey: { kind: KIND_PDF_HARIAN, refKey } },
+      create: { kind: KIND_PDF_HARIAN, refKey, periode, packageId: r.location.packageId, locationId: r.locationId },
+      update: {
+        status: "menunggu",
+        attempts: 0,
+        lastError: null,
+        nextAttemptAt: new Date(),
+        claimedAt: null,
+        finishedAt: null,
+      },
+    });
+    return true;
+  } catch (err) {
+    console.error("[gdrive/antrean] gagal mengantre penggantian PDF laporan harian:", err);
+    return false;
+  }
+}
+
+/**
+ * Laporan mingguan yang SUDAH naik ke Drive diantre ulang bila cuaca salah
+ * satu hari di minggunya berubah (DECISIONS 659).
+ *
+ * Ringkasan cuaca laporan mingguan ("Cerah 4 hari · Hujan 3 hari") dihitung
+ * dari laporan harian yang terhitung, dan minggu dianggap tuntas pukul 23.00
+ * di hari terakhirnya (`BATAS_JAM_UNGGAH_MINGGUAN`) – sebelum pembaruan dari
+ * satelit pukul 04.00 untuk hari itu. Tanpa ini, berkas mingguan di Drive
+ * selalu memuat cuaca lama untuk hari terakhirnya.
+ *
+ * Yang masih menunggu atau belum diantre tidak disentuh: PDF-nya dibuat saat
+ * naik, dari data terbaru. Yang menyerah/batal tetap urusan orang.
+ */
+export async function antrekanUlangMingguan(reportId: string): Promise<boolean> {
+  try {
+    const r = await db.dailyReport.findUnique({
+      where: { id: reportId },
+      select: { reportDate: true, locationId: true, status: true, location: { select: { package: { select: { driveFolderId: true } } } } },
+    });
+    if (!r?.location.package.driveFolderId) return false;
+    if (!(COUNTED_REPORT_STATUSES as readonly string[]).includes(r.status)) return false;
+    const bounds = await getPeriodBounds(r.locationId);
+    if (!bounds || bounds.assumed) return false;
+    const n = weekOfDate(bounds.startDate, r.reportDate, bounds.weekMode);
+    if (n < 1) return false;
+    const refKey = refKeyPeriodik("mingguan", r.locationId, n);
+    const job = await db.gDriveJob.findUnique({
+      where: { kind_refKey: { kind: "laporan_mingguan", refKey } },
+      select: { status: true },
+    });
+    if (job?.status !== "sukses" && job?.status !== "jalan") return false;
+    await db.gDriveJob.update({
+      where: { kind_refKey: { kind: "laporan_mingguan", refKey } },
+      data: { status: "menunggu", attempts: 0, lastError: null, nextAttemptAt: new Date(), claimedAt: null, finishedAt: null },
+    });
+    return true;
+  } catch (err) {
+    console.error("[gdrive/antrean] gagal mengantre ulang laporan mingguan:", err);
+    return false;
+  }
+}
+
 /* ── Tahap 2: kerjakan ───────────────────────────────────────────────────── */
 
 /** Penjaga satu proses: dua putaran bersamaan hanya menggandakan beban Drive. */
@@ -358,7 +464,7 @@ async function jalankanSatu(
   job: Pekerjaan,
   baseUrl: string | null,
 ): Promise<HasilUnggah | { error: string } | { batal: string }> {
-  if (job.kind === "laporan_harian") {
+  if (job.kind === "laporan_harian" || job.kind === KIND_PDF_HARIAN) {
     const loc = await db.location.findUnique({
       where: { id: job.locationId },
       select: { slug: true },
@@ -372,6 +478,7 @@ async function jalankanSatu(
       jedaMs: JEDA_ANTAR_BERKAS_MS,
       // Jalur otomatis WAJIB memeriksa ulang — lihat catatan di `kirim.ts`.
       wajibFinal: true,
+      hanyaPdf: job.kind === KIND_PDF_HARIAN,
     });
   }
   const n = Number.parseInt(job.periode, 10);
@@ -446,8 +553,8 @@ export async function jalankanAntreanDrive(
       // bukan kegagalan yang perlu ditindak orang, dan tidak boleh diulang.
       if (adalahBatal(r)) {
         hasil.batal += 1;
-        await db.gDriveJob.update({
-          where: { id: job.id },
+        await db.gDriveJob.updateMany({
+          where: { id: job.id, status: "jalan" },
           data: { status: "batal", lastError: r.batal, claimedAt: null, finishedAt: new Date() },
         });
         continue;
@@ -460,8 +567,15 @@ export async function jalankanAntreanDrive(
 
       if (!galat) {
         hasil.sukses += 1;
-        await db.gDriveJob.update({
-          where: { id: job.id },
+        /*
+         * Hanya menutup baris yang MASIH "jalan". Laporan yang diantre ulang
+         * selagi diunggah (finalisasi ulang, cuaca diperbarui dari satelit –
+         * DECISIONS 659) sudah kembali "menunggu": berkas yang barusan naik
+         * bisa dibuat sebelum perubahan itu, jadi antrean ulangnya tidak boleh
+         * tertimpa "sukses". Berlaku juga untuk gagal & batal di bawah/atas.
+         */
+        await db.gDriveJob.updateMany({
+          where: { id: job.id, status: "jalan" },
           data: {
             status: "sukses",
             lastError: null,
@@ -484,8 +598,8 @@ export async function jalankanAntreanDrive(
       else hasil.gagal += 1;
       if (mundur.menyerah) hasil.menyerah += 1;
 
-      await db.gDriveJob.update({
-        where: { id: job.id },
+      await db.gDriveJob.updateMany({
+        where: { id: job.id, status: "jalan" },
         data: {
           status: mundur.menyerah ? "menyerah" : "menunggu",
           attempts: mundur.attempts,

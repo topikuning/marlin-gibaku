@@ -13,15 +13,45 @@ import {
 } from "@/lib/weather/actions";
 
 type RingkasSubuh = {
-  tanggal: string;
+  tanggal: string[];
   pada: string;
   laporan: number;
   diperbarui: number;
+  final: number;
+  drive: number;
+  mingguan: number;
   jamSatelit: number;
   jamModel: number;
   catatan: string[];
   manual?: boolean;
 };
+
+/** "7 Okt" dari "2026-10-07". */
+function tanggalPendek(k: string): string {
+  return new Date(`${k}T00:00:00Z`).toLocaleDateString("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
+}
+
+/** Satu kalimat ringkasan putaran terakhir, seperti orang melapor. */
+function kalimatTerakhir(r: RingkasSubuh): string {
+  const kapan = `${waktuWib(r.pada)} WIB${r.manual ? " (dari tombol)" : ""}`;
+  if (r.diperbarui === 0) {
+    return `Terakhir ${kapan}: ${r.laporan} laporan diperiksa, tidak ada yang berubah.`;
+  }
+  const daftar = r.tanggal.map(tanggalPendek);
+  const tgl = daftar.length
+    ? ` tanggal ${daftar.length > 1 ? `${daftar.slice(0, -1).join(", ")} dan ${daftar.at(-1)}` : daftar[0]}`
+    : "";
+  const final =
+    r.final > 0
+      ? ` ${r.final} di antaranya sudah final${r.drive > 0 ? `, dan ${r.drive} PDF-nya di Google Drive diganti` : ""}.`
+      : "";
+  const mingguan =
+    r.mingguan > 0 ? ` ${r.mingguan} laporan mingguan di Drive juga diganti karena ringkasan cuacanya berubah.` : "";
+  return (
+    `Terakhir ${kapan}: ${r.diperbarui} laporan${tgl} diperbarui – ${r.jamSatelit} jam dari satelit, ` +
+    `${r.jamModel} jam dari Open-Meteo.${final}${mingguan}`
+  );
+}
 
 function waktuWib(iso: string): string {
   return new Date(iso).toLocaleString("id-ID", {
@@ -34,10 +64,10 @@ function waktuWib(iso: string): string {
 }
 
 /**
- * CUACA OTOMATIS (DECISIONS 655, 657): tombol ambil cuaca di laporan harian
- * memakai Open-Meteo; pukul 04.00 WIB laporan kemarin diperbarui senyap dari
- * pengamatan satelit. Di sini: sakelarnya, jalankan sekarang, akun GSMaP, dan
- * pembanding kedua sumber.
+ * CUACA OTOMATIS (DECISIONS 655, 657, 659): tombol ambil cuaca di laporan
+ * harian memakai Open-Meteo; mulai pukul 04.00 WIB laporan kemarin – apa pun
+ * statusnya – diperbarui senyap dari pengamatan satelit. Di sini: sakelarnya,
+ * jalankan sekarang, akun GSMaP, dan pembanding kedua sumber.
  */
 export function CuacaPanel({
   subuhAktif,
@@ -85,15 +115,16 @@ export function CuacaPanel({
         <p className="text-[13px] text-ink-muted">
           Tombol ambil cuaca di laporan harian memakai Open-Meteo supaya langsung terisi. Pukul 04.00 WIB, cuaca laporan
           kemarin diperbarui per jam dengan pengamatan satelit (awan Himawari, hujan JAXA GSMaP) di jam yang datanya
-          cukup; jam lain tetap dari Open-Meteo. Isian manual dan laporan yang sudah disetujui atau final tidak
-          disentuh.
+          cukup. Jam lain tetap dari Open-Meteo.
+        </p>
+        <p className="text-[13px] text-ink-muted">
+          Laporan yang sudah disetujui atau final ikut diperbarui, dan PDF-nya di Google Drive diganti. Laporan yang
+          baru dibuat sesudah pukul 04.00, atau data satelit yang terlambat terbit, disusul tiap jam sampai 7 hari ke
+          belakang. Yang tidak pernah disentuh hanya cuaca yang diisi manual dari lapangan.
         </p>
         {subuhTerakhir ? (
           <p className="text-[13px] text-ink-muted">
-            Terakhir: laporan {subuhTerakhir.tanggal}, {waktuWib(subuhTerakhir.pada)} WIB
-            {subuhTerakhir.manual ? " (dijalankan dari tombol)" : ""} – {subuhTerakhir.diperbarui} dari{" "}
-            {subuhTerakhir.laporan} laporan diperbarui, {subuhTerakhir.jamSatelit} jam dari satelit,{" "}
-            {subuhTerakhir.jamModel} jam dari Open-Meteo.
+            {kalimatTerakhir(subuhTerakhir)}
             {subuhTerakhir.catatan.length ? ` ${subuhTerakhir.catatan.join(" ")}` : ""}
           </p>
         ) : (

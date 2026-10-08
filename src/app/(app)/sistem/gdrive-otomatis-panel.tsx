@@ -132,7 +132,12 @@ export function GDriveOtomatisPanel({
             {antrean.macet.map((m, i) => (
               <li key={`${m.lokasi}-${m.kind}-${m.periode}-${i}`}>
                 <span className="font-medium text-ink">{m.lokasi}</span>{" "}
-                {m.kind === "laporan_harian" ? `harian ${m.periode}` : `mingguan ke-${m.periode}`} –{" "}
+                {m.kind === "laporan_harian"
+                  ? `harian ${m.periode}`
+                  : m.kind === "laporan_harian_pdf"
+                    ? `harian ${m.periode} (ganti PDF, cuaca diperbarui)`
+                    : `mingguan ke-${m.periode}`}{" "}
+                –{" "}
                 {m.error ?? "penyebab tidak tercatat"}
               </li>
             ))}

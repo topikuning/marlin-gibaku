@@ -17,7 +17,9 @@ import type { WeatherCode } from "@/generated/prisma/enums";
  * ATURAN yang dijaga di sini:
  * - Isian MANUAL orang lapangan TIDAK PERNAH ditimpa otomatis (pengamatan
  *   menang atas model).
- * - Laporan yang sudah `disetujui`/`final` tidak boleh berubah.
+ * - Laporan yang sudah `disetujui`/`final` tidak bisa diubah lewat TOMBOL.
+ *   Pembaruan dari satelit tetap memperbaruinya – data yang lebih valid
+ *   menang, meskipun sudah final (DECISIONS 659).
  * - Gagal ambil = pesan ramah, JANGAN memblokir pengisian laporan.
  * - Tombol selalu memakai Open-Meteo (cepat). Pembaruan dari satelit terjadi
  *   senyap pukul 04.00 WIB (`weather/subuh.ts`, DECISIONS 657); hasil gabungan
@@ -28,7 +30,7 @@ export { WeatherFetchError };
 
 export class WeatherError extends Error {}
 
-/** Status laporan yang isian cuacanya masih boleh berubah. */
+/** Status laporan yang cuacanya masih boleh diisi lewat tombol. */
 export const FILLABLE_STATUSES = ["draft", "perlu_koreksi", "dikirim"] as const;
 
 /** Penanda simpanan hasil pembaruan pukul 04.00 (satelit + Open-Meteo). */

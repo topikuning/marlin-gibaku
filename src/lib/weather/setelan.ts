@@ -4,32 +4,39 @@ import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
 
 /**
- * PEMBARUAN CUACA DARI SATELIT TIAP PUKUL 04.00 WIB (DECISIONS 657).
+ * PEMBARUAN CUACA DARI SATELIT (DECISIONS 657, 659).
  *
  * Pola yang diminta user: tombol ambil cuaca di laporan harian selalu memakai
- * Open-Meteo (cepat), lalu pukul 04.00 WIB laporan KEMARIN diperbarui senyap
- * dengan pengamatan satelit (awan Himawari-9 + hujan JAXA GSMaP) pada jam yang
- * datanya cukup. Laporan belum dikirim ke mana pun hari itu juga, jadi
- * memperbaruinya sebelum diperiksa dan difinalkan tidak mengubah apa yang
- * sudah diterima orang lain.
+ * Open-Meteo (cepat), lalu mulai pukul 04.00 WIB laporan KEMARIN diperbarui
+ * senyap dengan pengamatan satelit (awan Himawari-9 + hujan JAXA GSMaP) pada
+ * jam yang datanya cukup – termasuk laporan yang sudah disetujui atau final:
+ * *"prinsipnya data yang lebih valid!"*.
  *
- * BAWAAN NYALA: user sendiri yang meminta polanya. Isian manual dari lapangan
- * dan laporan yang sudah disetujui/final tetap tidak disentuh.
+ * BAWAAN NYALA: user sendiri yang meminta polanya. Hanya isian manual dari
+ * lapangan yang tidak disentuh.
  */
 export const SATELIT_SUBUH_KEY = "cuaca.satelit_subuh";
 export const SATELIT_SUBUH_DEFAULT = true;
-/** Ringkasan putaran terakhir (terjadwal atau tombol) untuk layar Sistem (JSON). */
+/**
+ * Ringkasan putaran terakhir yang MENGUBAH sesuatu, atau yang dijalankan dari
+ * tombol, untuk layar Sistem (JSON).
+ */
 export const SATELIT_SUBUH_TERAKHIR_KEY = "cuaca.satelit_subuh.terakhir";
-/** Tanggal laporan terakhir yang sudah diproses PENJADWAL – penanda susulan. */
-export const SATELIT_SUBUH_TANGGAL_KEY = "cuaca.satelit_subuh.tanggal";
 
 export type RingkasSubuh = {
-  /** Tanggal laporan (YYYY-MM-DD) yang diproses. */
-  tanggal: string;
+  /** Tanggal laporan (YYYY-MM-DD) yang ikut diperbarui, urut. */
+  tanggal: string[];
   /** Kapan diproses (ISO). */
   pada: string;
+  /** Laporan yang diperiksa. */
   laporan: number;
   diperbarui: number;
+  /** Di antara yang diperbarui, yang sudah final (snapshot-nya ikut diganti). */
+  final: number;
+  /** PDF laporan final di Google Drive yang diantre untuk diganti. */
+  drive: number;
+  /** Laporan mingguan di Drive yang diantre ulang karena ringkasan cuacanya berubah. */
+  mingguan: number;
   jamSatelit: number;
   jamModel: number;
   catatan: string[];
@@ -69,8 +76,23 @@ export async function getSubuhTerakhir(): Promise<RingkasSubuh | null> {
   const v = await nilaiSetelan(SATELIT_SUBUH_TERAKHIR_KEY);
   if (!v) return null;
   try {
-    const j = JSON.parse(v) as RingkasSubuh;
-    return typeof j.tanggal === "string" && typeof j.pada === "string" ? j : null;
+    const j = JSON.parse(v) as Partial<RingkasSubuh> & { tanggal?: string | string[] };
+    if (typeof j.pada !== "string") return null;
+    // Ringkasan versi 657 menyimpan satu tanggal sebagai string.
+    const tanggal = typeof j.tanggal === "string" ? [j.tanggal] : Array.isArray(j.tanggal) ? j.tanggal : [];
+    return {
+      tanggal,
+      pada: j.pada,
+      laporan: j.laporan ?? 0,
+      diperbarui: j.diperbarui ?? 0,
+      final: j.final ?? 0,
+      drive: j.drive ?? 0,
+      mingguan: j.mingguan ?? 0,
+      jamSatelit: j.jamSatelit ?? 0,
+      jamModel: j.jamModel ?? 0,
+      catatan: Array.isArray(j.catatan) ? j.catatan : [],
+      ...(j.manual ? { manual: true } : {}),
+    };
   } catch {
     return null;
   }
@@ -78,19 +100,6 @@ export async function getSubuhTerakhir(): Promise<RingkasSubuh | null> {
 
 export async function catatSubuhTerakhir(r: RingkasSubuh): Promise<void> {
   await simpanSetelan(SATELIT_SUBUH_TERAKHIR_KEY, JSON.stringify(r));
-}
-
-/**
- * Penanda penjadwal terpisah dari ringkasan layar: tombol "Perbarui sekarang"
- * yang ditekan sebelum data hujan sehari penuh terbit tidak boleh membuat
- * penjadwal pukul 04.00 melewati tanggal itu.
- */
-export async function getSubuhTanggalTerjadwal(): Promise<string | null> {
-  return (await nilaiSetelan(SATELIT_SUBUH_TANGGAL_KEY)) || null;
-}
-
-export async function catatSubuhTanggalTerjadwal(tanggal: string): Promise<void> {
-  await simpanSetelan(SATELIT_SUBUH_TANGGAL_KEY, tanggal);
 }
 
 /**

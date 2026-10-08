@@ -144,6 +144,11 @@ export async function unggahLaporanHarian(input: {
   baseUrl: string | null;
   jedaMs?: number;
   wajibFinal?: boolean;
+  /**
+   * Hanya PDF-nya – dipakai pengganti PDF sesudah cuaca laporan final
+   * diperbarui dari satelit (DECISIONS 659). Fotonya tidak berubah.
+   */
+  hanyaPdf?: boolean;
 }): Promise<HasilUnggah | Terhalang | TidakBerlaku> {
   const { slug, dateKey } = input;
   const c = await konteksUnggah({ slug }, "laporan_harian", refKeyHarian(slug, dateKey), input.byId);
@@ -184,7 +189,7 @@ export async function unggahLaporanHarian(input: {
   ];
 
   let skipped = 0;
-  if (report.photos.length > 0) {
+  if (!input.hanyaPdf && report.photos.length > 0) {
     const got = await photoItems(report.photos, { dateKey, locationName: c.locationName });
     skipped = got.skipped;
     outcomes.push(
