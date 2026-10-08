@@ -1122,6 +1122,30 @@ model WeatherObservation {
   @@map("weather_observations")
 }
 
+/// Bacaan satelit MENTAH per lokasi per jam blanko (DECISIONS 655): persen
+/// awan Himawari dan curah hujan GSMaP. Diisi di latar tiap jam untuk semua
+/// lokasi sekaligus (satu berkas satelit melayani 83 lokasi), supaya tombol
+/// ambil cuaca tinggal membaca. `*_diambil` null = berkasnya belum terbit /
+/// belum dibaca → dicoba lagi; terisi tapi nilainya null = berkas ada, tapi
+/// titik itu tanpa pengamatan sah. Kategori blanko TIDAK disimpan di sini –
+/// diturunkan saat dipakai (`kategoriSatelit`).
+model CuacaSatelitJam {
+  id           String    @id @default(uuid()) @db.Uuid
+  locationId   String    @map("location_id") @db.Uuid
+  tanggal      DateTime  @db.Date
+  /// Jam WIB kolom blanko (7..21) – rentang jam.00–jam.59.
+  jam          Int       @db.SmallInt
+  awanPersen   Int?      @map("awan_persen") @db.SmallInt
+  awanDiambil  DateTime? @map("awan_diambil") @db.Timestamptz
+  hujanMm      Float?    @map("hujan_mm")
+  hujanDiambil DateTime? @map("hujan_diambil") @db.Timestamptz
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, tanggal, jam])
+  @@map("cuaca_satelit_jam")
+}
+
 /// APPEND-ONLY (trigger): histori transisi stage paket
 model PackageStageHistory {
   id          String        @id @default(uuid()) @db.Uuid
@@ -1338,6 +1362,7 @@ model Location {
   alerts              Alert[]
   photos              Photo[]
   weatherObservations WeatherObservation[]
+  cuacaSatelitJam     CuacaSatelitJam[]
   masterLocation      MasterLocation?
   gdriveJobs          GDriveJob[]
   findings            Finding[]

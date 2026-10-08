@@ -7,8 +7,6 @@ import {
   type HourlyWeather,
 } from "@/lib/weather/hourly";
 import { fetchHourlyWeather, WEATHER_PROVIDER, WeatherFetchError } from "@/lib/weather/open-meteo";
-import { fetchHourlySatelit, SATELIT_PROVIDER, SatelitError } from "@/lib/weather/satelit";
-import { getSumberCuaca, type SumberCuaca } from "@/lib/weather/setelan";
 import type { Prisma } from "@/generated/prisma/client";
 import type { WeatherCode } from "@/generated/prisma/enums";
 
@@ -19,64 +17,54 @@ import type { WeatherCode } from "@/generated/prisma/enums";
  * ATURAN yang dijaga di sini:
  * - Isian MANUAL orang lapangan TIDAK PERNAH ditimpa otomatis (pengamatan
  *   menang atas model).
- * - Laporan yang sudah `disetujui`/`final` tidak boleh berubah.
+ * - Laporan yang sudah `disetujui`/`final` tidak bisa diubah lewat TOMBOL.
+ *   Pembaruan dari satelit tetap memperbaruinya – data yang lebih valid
+ *   menang, meskipun sudah final (DECISIONS 659).
  * - Gagal ambil = pesan ramah, JANGAN memblokir pengisian laporan.
+ * - Tombol selalu memakai Open-Meteo (cepat). Pembaruan dari satelit terjadi
+ *   senyap pukul 04.00 WIB (`weather/subuh.ts`, DECISIONS 657); hasil gabungan
+ *   itu yang dipakai bila tombol ditekan lagi sesudahnya.
  */
 
 export { WeatherFetchError };
 
 export class WeatherError extends Error {}
 
-/** Status laporan yang isian cuacanya masih boleh berubah. */
-const FILLABLE_STATUSES = ["draft", "perlu_koreksi", "dikirim"] as const;
+/** Status laporan yang cuacanya masih boleh diisi lewat tombol. */
+export const FILLABLE_STATUSES = ["draft", "perlu_koreksi", "dikirim"] as const;
+
+/** Penanda simpanan hasil pembaruan pukul 04.00 (satelit + Open-Meteo). */
+export const GABUNGAN_PROVIDER = "gabungan: satelit (Himawari-9 + JAXA GSMaP) + Open-Meteo";
 
 export type WeatherApplyResult = {
   hours: HourlyWeather[];
   weather: WeatherCode | null;
   cached: boolean;
-  sumber: SumberCuaca;
-  /** Keterangan jam yang dibiarkan kosong dan sebabnya (sumber satelit). */
-  catatan: string[];
+  /** true = data sudah diperbarui dengan pengamatan satelit pukul 04.00. */
+  diperbarui: boolean;
 };
 
 /**
- * Simpanan cuaca satelit dianggap TUNTAS bila lima belas jamnya lengkap, atau
- * bila diambil ≥ 6 jam sesudah hari itu selesai (GSMaP tertunda ±4 jam).
- * Selain itu diambil ulang: hari yang belum lengkap tidak boleh membeku.
- */
-function satelitTuntas(dateKey: string, fetchedAt: Date, hours: HourlyWeather[]): boolean {
-  if (hours.length >= 15) return true;
-  return fetchedAt.getTime() >= Date.parse(`${dateKey}T22:00:00+07:00`) + 6 * 3_600_000;
-}
-
-function rentangJam(jam: number[]): string {
-  return jam.map((h) => `${String(h).padStart(2, "0")}.00`).join(", ");
-}
-
-/**
  * Ambil pengamatan per jam untuk (lokasi, tanggal) — dari cache bila ada.
- * `force` mengabaikan cache (dipakai bila user minta muat ulang).
+ * Hasil gabungan pukul 04.00 selalu didahulukan; `force` hanya mengabaikan
+ * cache Open-Meteo, tidak membuang hasil gabungan.
  */
 export async function getObservation(
   locationId: string,
   dateKey: string,
   opts: { force?: boolean } = {},
-): Promise<{ hours: HourlyWeather[]; cached: boolean; sumber: SumberCuaca; catatan: string[] }> {
+): Promise<{ hours: HourlyWeather[]; cached: boolean; diperbarui: boolean }> {
   const observedOn = parseDateKey(dateKey);
   if (!observedOn) throw new WeatherError("Tanggal tidak valid.");
-  const sumber = await getSumberCuaca();
-  const provider = sumber === "satelit" ? SATELIT_PROVIDER : WEATHER_PROVIDER;
 
-  if (!opts.force) {
-    const cached = await db.weatherObservation.findUnique({
-      where: { locationId_observedOn: { locationId, observedOn } },
-      select: { hourly: true, provider: true, fetchedAt: true },
-    });
-    // Simpanan dari sumber lain tidak dipakai: ganti sumber = ambil ulang.
-    const hours = cached && cached.provider === provider ? parseHourlyWeather(cached.hourly) : null;
-    if (hours && (sumber !== "satelit" || satelitTuntas(dateKey, cached!.fetchedAt, hours))) {
-      return { hours, cached: true, sumber, catatan: [] };
-    }
+  const cached = await db.weatherObservation.findUnique({
+    where: { locationId_observedOn: { locationId, observedOn } },
+    select: { hourly: true, provider: true },
+  });
+  const jamCache = cached ? parseHourlyWeather(cached.hourly) : null;
+  if (jamCache && cached?.provider === GABUNGAN_PROVIDER) return { hours: jamCache, cached: true, diperbarui: true };
+  if (jamCache && !opts.force && cached?.provider === WEATHER_PROVIDER) {
+    return { hours: jamCache, cached: true, diperbarui: false };
   }
 
   const location = await db.location.findUnique({
@@ -92,55 +80,26 @@ export async function getObservation(
 
   const lat = Number(location.gpsLat);
   const lng = Number(location.gpsLng);
-  let hours: HourlyWeather[];
-  const catatan: string[] = [];
-  if (sumber === "satelit") {
-    let hasil;
-    try {
-      hasil = await fetchHourlySatelit({ lat, lng, dateKey, sekarang: new Date() });
-    } catch (e) {
-      if (e instanceof SatelitError) throw new WeatherFetchError(e.message);
-      throw new WeatherFetchError(`Data satelit gagal diambil: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    hours = hasil.hours;
-    if (hasil.belumTerjadi.length > 0) {
-      catatan.push(`${hasil.belumTerjadi.length} jam belum terjadi, dibiarkan kosong.`);
-    }
-    if (hasil.kosong.length > 0) {
-      catatan.push(`Jam ${rentangJam(hasil.kosong)} dibiarkan kosong karena datanya belum cukup.`);
-    }
-    catatan.push(...hasil.catatan);
-  } else {
-    hours = await fetchHourlyWeather({
-      lat,
-      lng,
-      dateKey,
-      todayKey: jakartaDateKey(new Date()),
-    });
-  }
+  const hours = await fetchHourlyWeather({ lat, lng, dateKey, todayKey: jakartaDateKey(new Date()) });
+  await simpanObservasi(locationId, observedOn, WEATHER_PROVIDER, lat, lng, hours);
+  return { hours, cached: false, diperbarui: false };
+}
 
+/** Simpan/timpa cache pengamatan satu lokasi-tanggal. */
+export async function simpanObservasi(
+  locationId: string,
+  observedOn: Date,
+  provider: string,
+  lat: number,
+  lng: number,
+  hours: HourlyWeather[],
+): Promise<void> {
+  const data = { provider, lat, lng, hourly: hours as unknown as Prisma.InputJsonValue, fetchedAt: new Date() };
   await db.weatherObservation.upsert({
     where: { locationId_observedOn: { locationId, observedOn } },
-    create: {
-      locationId,
-      observedOn,
-      provider,
-      lat,
-      lng,
-      hourly: hours as unknown as Prisma.InputJsonValue,
-      // Jam aplikasi, bukan jam database: penentu "tuntas" membandingkannya.
-      fetchedAt: new Date(),
-    },
-    update: {
-      provider,
-      lat,
-      lng,
-      hourly: hours as unknown as Prisma.InputJsonValue,
-      fetchedAt: new Date(),
-    },
+    create: { locationId, observedOn, ...data },
+    update: data,
   });
-
-  return { hours, cached: false, sumber, catatan };
 }
 
 /**
@@ -165,7 +124,7 @@ export async function applyWeatherToReport(
   }
 
   const dateKey = jakartaDateKey(report.reportDate);
-  const { hours, cached, sumber, catatan } = await getObservation(report.locationId, dateKey, { force: opts.force });
+  const { hours, cached, diperbarui } = await getObservation(report.locationId, dateKey, { force: opts.force });
   const weather = dominantWeatherCode(hours);
 
   await db.dailyReport.update({
@@ -178,5 +137,5 @@ export async function applyWeatherToReport(
     },
   });
 
-  return { hours, weather, cached, sumber, catatan };
+  return { hours, weather, cached, diperbarui };
 }

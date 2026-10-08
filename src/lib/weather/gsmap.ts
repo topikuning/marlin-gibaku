@@ -44,62 +44,95 @@ async function bersihkan(dir: string): Promise<void> {
   }
 }
 
+export type TitikHujan = { id: string; lat: number; lng: number };
+
 export type SesiGsmap = {
   /**
-   * Curah hujan (mm/jam) di titik untuk jam UTC itu. `undefined` = berkas jam
-   * itu belum terbit (GSMaP tertunda ±4 jam); `null` = berkas ada tapi kotak
-   * itu tanpa pengamatan.
+   * Unduh berkas jam-jam itu ke folder simpanan, beberapa sambungan FTP
+   * sekaligus. Mengembalikan jam (kunci "YYYY-MM-DD|jamUtc") yang berkasnya
+   * sudah ada; yang belum terbit tidak termasuk.
    */
-  hujan(tanggalUtc: string, jamUtc: number, lat: number, lng: number): Promise<number | null | undefined>;
+  unduh(jam: { tanggalUtc: string; jamUtc: number }[]): Promise<Set<string>>;
+  /**
+   * Curah hujan (mm/jam) di tiap titik untuk jam UTC itu, dari SATU berkas.
+   * `undefined` = berkas jam itu belum terbit (GSMaP tertunda ±4 jam); nilai
+   * null untuk satu titik = kotaknya tanpa pengamatan.
+   */
+  hujanBanyak(tanggalUtc: string, jamUtc: number, titik: TitikHujan[]): Promise<Map<string, number | null> | undefined>;
   tutup(): Promise<void>;
 };
+
+/** Sambungan FTP yang dipakai bersamaan untuk mengunduh. */
+const SAMBUNGAN_PARALEL = 3;
 
 /** Buka sesi baca GSMaP. FTP baru dihubungi bila ada berkas yang belum tersimpan. */
 export async function bukaGsmap(): Promise<SesiGsmap> {
   const akun = await getAkunGsmap();
   if (!akun) {
-    throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Sumber cuaca otomatis).");
+    throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Cuaca otomatis).");
   }
   const dir = folderSimpan();
   await mkdir(dir, { recursive: true });
   await bersihkan(dir);
 
-  let ftp: Promise<SesiFtp> | null = null;
+  const terbuka: Promise<SesiFtp>[] = [];
+  const bukaSatu = () => {
+    const p = bukaFtp({ host: GSMAP_HOST, user: akun.user, pass: akun.pass, timeoutMs: 30_000 });
+    terbuka.push(p);
+    return p;
+  };
   let versi: Promise<string[]> | null = null;
-  const sesi = () =>
-    (ftp ??= bukaFtp({ host: GSMAP_HOST, user: akun.user, pass: akun.pass, timeoutMs: 30_000 }));
-  const daftarVersi = () =>
-    (versi ??= sesi().then(async (f) => {
-      const v = urutkanVersiGsmap(await f.daftar("realtime_ver"));
+  const daftarVersi = (f: SesiFtp) =>
+    (versi ??= f.daftar("realtime_ver").then((nama) => {
+      const v = urutkanVersiGsmap(nama);
       if (v.length === 0) throw new Error("Folder versi GSMaP (realtime_ver/vN) tidak ditemukan di server JAXA.");
       return v;
     }));
 
-  const isiBerkas = async (tanggalUtc: string, jamUtc: number): Promise<Uint8Array | undefined> => {
-    const kunci = `${tanggalUtc.replaceAll("-", "")}${String(jamUtc).padStart(2, "0")}.dat.gz`;
-    const lokal = join(dir, kunci);
-    const ada = await readFile(lokal).catch(() => null);
-    if (ada) return gunzipSync(ada);
-    const f = await sesi();
+  const kunciBerkas = (tanggalUtc: string, jamUtc: number) =>
+    join(dir, `${tanggalUtc.replaceAll("-", "")}${String(jamUtc).padStart(2, "0")}.dat.gz`);
+  const ada = async (path: string) => (await stat(path).catch(() => null))?.isFile() === true;
+
+  const unduhSatu = async (f: SesiFtp, tanggalUtc: string, jamUtc: number): Promise<boolean> => {
     // Versi terbaru dulu; versi lama dipakai untuk tanggal yang belum ada di versi baru.
-    for (const v of await daftarVersi()) {
+    for (const v of await daftarVersi(f)) {
       const isi = await f.ambil(jalurGsmap(v, tanggalUtc, jamUtc));
       if (!isi) continue;
-      const mentah = gunzipSync(isi);
-      await writeFile(lokal, isi).catch(() => undefined);
-      return mentah;
+      gunzipSync(isi); // berkas rusak/terpotong ditolak sebelum disimpan
+      await writeFile(kunciBerkas(tanggalUtc, jamUtc), isi);
+      return true;
     }
-    return undefined;
+    return false;
   };
 
   return {
-    async hujan(tanggalUtc, jamUtc, lat, lng) {
-      const isi = await isiBerkas(tanggalUtc, jamUtc);
-      if (!isi) return undefined;
-      return hujanDariGrid(isi, lat, lng);
+    async unduh(daftar) {
+      const siap = new Set<string>();
+      const antre: { tanggalUtc: string; jamUtc: number }[] = [];
+      for (const j of daftar) {
+        if (await ada(kunciBerkas(j.tanggalUtc, j.jamUtc))) siap.add(`${j.tanggalUtc}|${j.jamUtc}`);
+        else antre.push(j);
+      }
+      if (antre.length === 0) return siap;
+      let i = 0;
+      const pekerja = async () => {
+        const f = await bukaSatu();
+        while (i < antre.length) {
+          const j = antre[i++];
+          if (await unduhSatu(f, j.tanggalUtc, j.jamUtc)) siap.add(`${j.tanggalUtc}|${j.jamUtc}`);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(SAMBUNGAN_PARALEL, antre.length) }, pekerja));
+      return siap;
+    },
+    async hujanBanyak(tanggalUtc, jamUtc, titik) {
+      const gz = await readFile(kunciBerkas(tanggalUtc, jamUtc)).catch(() => null);
+      if (!gz) return undefined;
+      const isi = gunzipSync(gz);
+      return new Map(titik.map((t) => [t.id, hujanDariGrid(isi, t.lat, t.lng)]));
     },
     async tutup() {
-      if (ftp) await (await ftp.catch(() => null))?.tutup();
+      await Promise.all(terbuka.map(async (p) => (await p.catch(() => null))?.tutup()));
     },
   };
 }

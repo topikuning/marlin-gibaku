@@ -31,6 +31,8 @@ vi.mock("@/lib/pdf/harian-kkp", () => ({
 let lemparBerikut: { status: number | null; pesan: string; retryAfter?: string } | null = null;
 /** Nama berkas yang berhasil naik, berurutan. */
 let naik: string[] = [];
+/** Dijalankan di tengah unggahan berikutnya – meniru antre ulang yang bersamaan. */
+let selagiNaik: (() => Promise<void>) | null = null;
 
 vi.mock("@/lib/gdrive/client", () => {
   class GDriveError extends Error {
@@ -52,6 +54,11 @@ vi.mock("@/lib/gdrive/client", () => {
         throw new GDriveError(l.pesan, { status: l.status, retryAfter: l.retryAfter ?? null });
       }
       naik.push(input.fileName);
+      if (selagiNaik) {
+        const f = selagiNaik;
+        selagiNaik = null;
+        await f();
+      }
       return {
         id: `id-${input.fileName}`,
         name: input.fileName,
@@ -75,6 +82,8 @@ vi.mock("@/lib/gdrive/config", () => ({
 const { db } = await import("@/lib/db");
 const {
   antrekanLaporanHarian,
+  antrekanPdfHarian,
+  antrekanUlangMingguan,
   jalankanAntreanDrive,
   pindaiHarian,
   pindaiMingguan,
@@ -204,6 +213,7 @@ afterAll(async () => {
 beforeEach(async () => {
   terhubung = true;
   lemparBerikut = null;
+  selagiNaik = null;
   naik = [];
   await db.gDriveJob.deleteMany({});
   await db.gDriveUpload.deleteMany({});
@@ -396,6 +406,129 @@ describe("mengerjakan antrean", () => {
 
     await antrekanLaporanHarian(laporanFinalId);
     expect(await jobHarian()).toMatchObject({ status: "menunggu", attempts: 0 });
+  });
+});
+
+describe("cuaca laporan final diperbarui dari satelit (DECISIONS 659)", () => {
+  const jobPdf = () =>
+    db.gDriveJob.findUnique({
+      where: { kind_refKey: { kind: "laporan_harian_pdf", refKey: `${lokasiSlug}:2026-07-20` } },
+    });
+  const fotoSatu = () =>
+    db.photo.create({
+      data: {
+        locationId: lokasiId,
+        reportId: laporanFinalId,
+        r2Key: `foto/${suffix}-pdf.jpg`,
+        sha256: `sha-${suffix}-pdf`,
+        bytes: 1024,
+      },
+    });
+
+  it("yang sudah di Drive: hanya PDF yang diganti, foto tidak dikirim ulang", async () => {
+    await fotoSatu();
+    await pindaiHarian();
+    await jalankanAntreanDrive({ pindai: false });
+    expect(naik).toHaveLength(2);
+
+    naik = [];
+    expect(await antrekanPdfHarian(laporanFinalId)).toBe(true);
+    const h = await jalankanAntreanDrive({ pindai: false });
+    expect(h.sukses).toBe(1);
+    expect(naik).toEqual(["Laporan Harian - Pasar Banggi - 2026-07-20.pdf"]);
+    expect(await jobPdf()).toMatchObject({ status: "sukses" });
+    // Unggahan lengkapnya tidak ikut diantre ulang.
+    expect(await jobHarian()).toMatchObject({ status: "sukses" });
+    // Jejaknya tetap jejak laporan harian – daftar "sudah ke Drive" membacanya.
+    expect(
+      await db.gDriveUpload.count({
+        where: { kind: "laporan_harian", refKey: `${lokasiSlug}:2026-07-20`, status: "sukses" },
+      }),
+    ).toBe(3);
+  });
+
+  it("unggahan lengkap masih menunggu: tidak diantre terpisah, PDF dibuat saat naik", async () => {
+    await pindaiHarian();
+    expect(await antrekanPdfHarian(laporanFinalId)).toBe(false);
+    expect(await jobPdf()).toBeNull();
+  });
+
+  it("belum pernah naik dan belum diantre: tidak diantre (pindai yang menjaringnya)", async () => {
+    expect(await antrekanPdfHarian(laporanFinalId)).toBe(false);
+    expect(await jobPdf()).toBeNull();
+  });
+
+  it("pernah naik lewat tombol (tanpa antrean): PDF tetap diganti", async () => {
+    await db.gDriveUpload.create({
+      data: {
+        packageId,
+        locationId: lokasiId,
+        kind: "laporan_harian",
+        refKey: `${lokasiSlug}:2026-07-20`,
+        fileName: "Laporan Harian - Pasar Banggi - 2026-07-20.pdf",
+        status: "sukses",
+      },
+    });
+    expect(await antrekanPdfHarian(laporanFinalId)).toBe(true);
+  });
+
+  it("diantre ulang SELAGI diunggah: antrean ulangnya tidak tertimpa \"sukses\"", async () => {
+    await pindaiHarian();
+    await jalankanAntreanDrive({ pindai: false });
+    await antrekanPdfHarian(laporanFinalId);
+    // Cuaca diperbarui lagi tepat saat PDF pertama sedang naik.
+    selagiNaik = async () => {
+      await antrekanPdfHarian(laporanFinalId);
+    };
+    await jalankanAntreanDrive({ pindai: false });
+    expect(await jobPdf()).toMatchObject({ status: "menunggu" });
+    naik = [];
+    await jalankanAntreanDrive({ pindai: false });
+    expect(naik).toEqual(["Laporan Harian - Pasar Banggi - 2026-07-20.pdf"]);
+    expect(await jobPdf()).toMatchObject({ status: "sukses" });
+  });
+
+  it("laporan dibuka kembali sebelum PDF diganti: dibatalkan, tidak naik", async () => {
+    await pindaiHarian();
+    await jalankanAntreanDrive({ pindai: false });
+    naik = [];
+    await antrekanPdfHarian(laporanFinalId);
+    await db.dailyReport.update({ where: { id: laporanFinalId }, data: { status: "disetujui" } });
+    const h = await jalankanAntreanDrive({ pindai: false });
+    expect(h.batal).toBe(1);
+    expect(naik).toEqual([]);
+  });
+});
+
+describe("ringkasan cuaca laporan mingguan ikut diperbarui (DECISIONS 659)", () => {
+  // 2026-07-20 jatuh di minggu ke-8 kontrak yang mulai 2026-06-01.
+  const jobMinggu = () =>
+    db.gDriveJob.findUnique({
+      where: { kind_refKey: { kind: "laporan_mingguan", refKey: `${lokasiId}:mingguan-8` } },
+    });
+  const buatJobMinggu = (status: string) =>
+    db.gDriveJob.create({
+      data: { kind: "laporan_mingguan", refKey: `${lokasiId}:mingguan-8`, periode: "8", packageId, locationId: lokasiId, status },
+    });
+
+  it("mingguan yang sudah naik diantre ulang", async () => {
+    await buatJobMinggu("sukses");
+    expect(await antrekanUlangMingguan(laporanFinalId)).toBe(true);
+    expect(await jobMinggu()).toMatchObject({ status: "menunggu", attempts: 0 });
+  });
+
+  it("mingguan yang masih menunggu atau belum diantre: dibiarkan – dibuat dari data terbaru saat naik", async () => {
+    expect(await antrekanUlangMingguan(laporanFinalId)).toBe(false);
+    expect(await jobMinggu()).toBeNull();
+    await buatJobMinggu("menunggu");
+    expect(await antrekanUlangMingguan(laporanFinalId)).toBe(false);
+  });
+
+  it("laporan yang belum terhitung (draf) tidak ada di ringkasan mingguan: tidak diantre", async () => {
+    await buatJobMinggu("sukses");
+    await db.dailyReport.update({ where: { id: laporanFinalId }, data: { status: "draft" } });
+    expect(await antrekanUlangMingguan(laporanFinalId)).toBe(false);
+    expect(await jobMinggu()).toMatchObject({ status: "sukses" });
   });
 });
 

@@ -10,36 +10,46 @@ import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly
 import { fetchHourlyWeather } from "@/lib/weather/open-meteo";
 import { fetchHourlySatelit } from "@/lib/weather/satelit";
 import { jamSudahLewat } from "@/lib/weather/satelit-murni";
-import {
-  getAkunGsmap,
-  getSumberCuaca,
-  LABEL_SUMBER_CUACA,
-  setAkunGsmap,
-  setSumberCuaca,
-  SUMBER_CUACA,
-} from "@/lib/weather/setelan";
+import { getAkunGsmap, getSatelitSubuhAktif, setAkunGsmap, setSatelitSubuhAktif } from "@/lib/weather/setelan";
 import { ujiAkunGsmap } from "@/lib/weather/gsmap";
+import { mulaiPerbaruiCuacaSubuh } from "@/lib/weather/subuh";
 
 /**
- * Aksi layar Sistem untuk sumber cuaca (DECISIONS baru 2026-10-07): memilih
- * sumber, dan MEMBANDINGKAN kedua sumber untuk satu lokasi & tanggal tanpa
- * menyimpan apa pun – supaya pilihan diputuskan dari hari yang kondisinya
- * diketahui, bukan dari klaim.
+ * Aksi layar Sistem untuk cuaca (DECISIONS 655, 657): sakelar pembaruan dari
+ * satelit pukul 04.00 WIB, menjalankannya sekarang untuk laporan kemarin, akun
+ * GSMaP, dan MEMBANDINGKAN kedua sumber untuk satu lokasi & tanggal tanpa
+ * menyimpan apa pun.
  */
 
-export type SumberCuacaState = { error?: string; success?: string } | undefined;
+export type SubuhState = { error?: string; success?: string } | undefined;
 
-export async function setSumberCuacaAction(_prev: SumberCuacaState, formData: FormData): Promise<SumberCuacaState> {
-  const p = z.object({ sumber: z.enum(SUMBER_CUACA) }).safeParse({ sumber: formData.get("sumber") });
-  if (!p.success) return { error: "Pilihan sumber cuaca tidak dikenali. Muat ulang halaman, lalu coba lagi." };
+/** `aksi` = "nyalakan" | "matikan" | "jalankan" (perbarui laporan kemarin sekarang). */
+export async function cuacaSubuhAction(_prev: SubuhState, formData: FormData): Promise<SubuhState> {
+  const p = z.object({ aksi: z.enum(["nyalakan", "matikan", "jalankan"]) }).safeParse({ aksi: formData.get("aksi") });
+  if (!p.success) return { error: "Pilihan tidak dikenali. Muat ulang halaman, lalu coba lagi." };
   try {
     const user = await requireCapability("system.manage");
-    const sebelum = await getSumberCuaca();
-    await setSumberCuaca(p.data.sumber);
-    await audit(user.id, "system.sumber_cuaca", "system", null, { sebelum, sesudah: p.data.sumber });
+    if (p.data.aksi === "jalankan") {
+      const kemarin = new Date(Date.parse(`${jakartaDateKey(new Date())}T00:00:00Z`) - 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      const r = mulaiPerbaruiCuacaSubuh(kemarin);
+      await audit(user.id, "system.cuaca_subuh_jalankan", "system", null, { tanggal: kemarin, dimulai: r.dimulai });
+      return r.dimulai
+        ? {
+            success: `Pembaruan laporan tanggal ${kemarin} dimulai di latar. Biasanya selesai dalam beberapa menit; muat ulang halaman ini untuk melihat hasilnya.`,
+          }
+        : { error: "Pembaruan sebelumnya masih berjalan. Tunggu sebentar, lalu muat ulang halaman ini." };
+    }
+    const aktif = p.data.aksi === "nyalakan";
+    const sebelum = await getSatelitSubuhAktif();
+    await setSatelitSubuhAktif(aktif);
+    await audit(user.id, "system.cuaca_subuh", "system", null, { sebelum, sesudah: aktif });
     revalidatePath("/sistem");
     return {
-      success: `Sumber cuaca otomatis sekarang: ${LABEL_SUMBER_CUACA[p.data.sumber]}. Berlaku untuk tombol ambil cuaca berikutnya; laporan yang sudah terisi tidak berubah.`,
+      success: aktif
+        ? "Pembaruan dari satelit pukul 04.00 WIB DINYALAKAN."
+        : "Pembaruan dari satelit DIMATIKAN. Cuaca laporan hanya dari tombol ambil cuaca (Open-Meteo).",
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -70,7 +80,7 @@ export async function akunGsmapAction(_prev: AkunGsmapState, formData: FormData)
       await setAkunGsmap({ user: "", pass: "" });
       await audit(user.id, "system.gsmap_akun", "system", null, { aksi });
       revalidatePath("/sistem");
-      return { success: "Akun GSMaP dihapus. Sumber satelit kini hanya memakai data awan Himawari." };
+      return { success: "Akun GSMaP dihapus. Pembaruan pukul 04.00 kini hanya memakai data awan Himawari." };
     }
     const tersimpan = await getAkunGsmap();
     const akun = { user: p.data.user || tersimpan?.user || "", pass: p.data.pass || tersimpan?.pass || "" };
@@ -137,7 +147,7 @@ export async function bandingkanCuacaAction(_prev: BandingState, formData: FormD
 
     const [om, sat] = await Promise.allSettled([
       fetchHourlyWeather({ lat, lng, dateKey, todayKey: jakartaDateKey(sekarang) }),
-      fetchHourlySatelit({ lat, lng, dateKey, sekarang }),
+      fetchHourlySatelit({ locationId: p.data.locationId, lat, lng, dateKey, sekarang }),
     ]);
     const pesan = (r: PromiseSettledResult<unknown>) =>
       r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : undefined;

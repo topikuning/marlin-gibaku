@@ -29,6 +29,12 @@ export type HourlyWeather = {
    * sumbernya satelit (DECISIONS baru 2026-10-07).
    */
   cloudPct?: number;
+  /**
+   * Asal kategori jam ini setelah pembaruan pukul 04.00 (DECISIONS 657):
+   * pengamatan satelit, atau model Open-Meteo bila satelit belum cukup. Kosong
+   * = hasil tombol ambil cuaca (Open-Meteo saja).
+   */
+  sumber?: "satelit" | "model";
 };
 
 /** Kolom jam pada blanko KKP (07.00–21.00). */
@@ -128,6 +134,7 @@ export function parseHourlyWeather(value: unknown): HourlyWeather[] | null {
       precipMm: typeof r.precipMm === "number" ? r.precipMm : 0,
       code: typeof r.code === "number" ? r.code : 0,
       ...(typeof r.cloudPct === "number" ? { cloudPct: r.cloudPct } : {}),
+      ...(r.sumber === "satelit" || r.sumber === "model" ? { sumber: r.sumber } : {}),
     });
   }
   return out.length > 0 ? out.sort((a, b) => a.hour - b.hour) : null;
