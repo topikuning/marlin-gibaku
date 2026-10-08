@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canViewDocument } from "@/lib/documents";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
  * Unduh dokumen: auth → scope → redirect ke presigned URL R2 (120 detik).
@@ -47,5 +48,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const url = await alamatBerkas(doc.r2Key, 120);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
-  return NextResponse.redirect(new URL(url, req.url), 302);
+  // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
+  return alihkanKeBerkas(url);
 }

@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 661 | 2026-10-08 | Berkas di arsip Lenovo dialihkan dengan alamat RELATIF (`alihkanKeBerkas`): enam route menyusunnya dari `req.url` yang di Railway berisi alamat dalam server 0.0.0.0:8080 – dokumen, foto, surat, lampiran lama tidak bisa dibuka |
 | 660 | 2026-10-08 | Laporan harian: tombol hari sebelum/sesudah (dengan status harinya) di bawah judul, sekali klik; strip "Hari sekitar" berpusat pada tanggal yang dibuka (3 sebelum, 3 sesudah, tidak melewati hari ini) |
 | 659 | 2026-10-08 | Cuaca dari satelit juga memperbarui laporan disetujui dan final (hanya isian manual yang tidak disentuh): bagian cuaca snapshot diganti, PDF Drive diganti tanpa foto (`laporan_harian_pdf`), laporan mingguan di Drive diantre ulang bila kode cuaca harinya berubah; putaran tiap jam memeriksa 7 hari terakhir – laporan terlambat & data satelit terlambat ikut disusul |
 | 658 | 2026-10-08 | `next` 16.3.6 → 16.3.8 (advisory high GHSA-cjq9-62q9-8jv4, SSRF Image Optimization) |
