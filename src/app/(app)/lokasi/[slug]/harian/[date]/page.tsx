@@ -16,6 +16,7 @@ import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { PindahTanggalForm } from "./pindah-tanggal-form";
+import { PindahHari } from "./pindah-hari";
 import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
 import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
@@ -88,6 +89,9 @@ export default async function HarianWorkspacePage({
         }
         actions={<StatusPill tone={status ? REPORT_STATUS_TONE[status] : "neutral"} label={status ? REPORT_STATUS_LABEL[status] : "Belum Ada"} />}
       />
+
+      {/* Sekali klik ke hari sebelum/sesudah – tanpa kembali ke kalender. */}
+      <PindahHari slug={slug} dateKey={date} todayKey={todayKey} hari={data.hariSekitar} />
 
       {isFuture ? (
         <Banner
@@ -395,7 +399,12 @@ export default async function HarianWorkspacePage({
           riwayat lengkapnya sudah punya rumah sendiri berupa kalender yang
           menjangkau seluruh masa kontrak, bukan cuma 14 hari. Yang berguna
           DI SINI cuma satu hal — melompat ke hari sebelah tanpa keluar dari
-          alur mengisi. Tujuh sel cukup untuk itu. */}
+          alur mengisi. Tujuh sel cukup untuk itu.
+
+          Sejak 2026-10-08 stripnya BERPUSAT pada tanggal ini (tiga sebelum,
+          tiga sesudah, tidak melewati hari ini) dan sel tanggal yang sedang
+          dibuka yang bercincin. Dulu ia berhenti di tanggal ini, jadi hari
+          berikutnya tidak pernah ada di sini. */}
       <Card>
         <CardHeader
           title={
@@ -414,7 +423,7 @@ export default async function HarianWorkspacePage({
           }
         />
         <CardBody className="space-y-2">
-          <Strip7Hari slug={slug} hari={[...data.recentDays].slice(0, 7).reverse()} todayKey={todayKey} />
+          <Strip7Hari slug={slug} hari={data.hariSekitar} todayKey={todayKey} dibukaKey={date} />
           <KeteranganStatus />
         </CardBody>
       </Card>

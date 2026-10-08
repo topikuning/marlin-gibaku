@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 660 | 2026-10-08 | Laporan harian: tombol hari sebelum/sesudah (dengan status harinya) di bawah judul, sekali klik; strip "Hari sekitar" berpusat pada tanggal yang dibuka (3 sebelum, 3 sesudah, tidak melewati hari ini) |
 | 659 | 2026-10-08 | Cuaca dari satelit juga memperbarui laporan disetujui dan final (hanya isian manual yang tidak disentuh): bagian cuaca snapshot diganti, PDF Drive diganti tanpa foto (`laporan_harian_pdf`), laporan mingguan di Drive diantre ulang bila kode cuaca harinya berubah; putaran tiap jam memeriksa 7 hari terakhir – laporan terlambat & data satelit terlambat ikut disusul |
 | 658 | 2026-10-08 | `next` 16.3.6 → 16.3.8 (advisory high GHSA-cjq9-62q9-8jv4, SSRF Image Optimization) |
 | 657 | 2026-10-08 | Pola cuaca: tombol selalu Open-Meteo; pukul 04.00 WIB laporan kemarin (belum disetujui/final, bukan manual) diperbarui senyap per jam – satelit bila bisa disimpulkan, Open-Meteo selebihnya; cron 04:02 WIB + susulan per jam; snapshot final (Drive) membawa hasilnya; menggantikan pilihan sumber 655 |
