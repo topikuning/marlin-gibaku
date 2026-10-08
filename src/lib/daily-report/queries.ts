@@ -30,6 +30,7 @@ import type {
 } from "@/generated/prisma/enums";
 import { hourlyCategoryEntries, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { WEATHER_KKP_CATEGORY } from "./constants";
+import { jendelaHariSekitar, LEBAR_HARI_SEKITAR } from "./hari-sekitar";
 import type { FinalSnapshot } from "./service";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
 
@@ -253,7 +254,12 @@ export type WorkspaceData = {
   location: { id: string; slug: string; name: string; village: string; regency: string; province: string };
   dateKey: string;
   report: WorkspaceReport | null;
-  recentDays: RecentDay[];
+  /**
+   * Tujuh hari di sekitar tanggal ini, URUT NAIK: tiga sebelum, tiga sesudah,
+   * tidak melewati hari ini (`jendelaHariSekitar`). Dipakai tombol pindah hari
+   * dan strip "Hari sekitar".
+   */
+  hariSekitar: RecentDay[];
 };
 
 /** Daftar N hari terakhir (termasuk dateKey acuan) + status laporan per hari. */
@@ -285,7 +291,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   });
   if (!location) return null;
 
-  const [report, recentDays] = await Promise.all([
+  const [report, hariSekitar] = await Promise.all([
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId: location.id, reportDate } },
       include: {
@@ -299,10 +305,14 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         issues: { where: { mergedIntoId: null }, orderBy: { createdAt: "asc" } },
       },
     }),
-    getRecentDays(location.id, 14, dateKey),
+    getRecentDays(
+      location.id,
+      LEBAR_HARI_SEKITAR,
+      jendelaHariSekitar(dateKey, jakartaDateKey(new Date())).akhir,
+    ).then((d) => d.reverse()),
   ]);
 
-  if (!report) return { location, dateKey, report: null, recentDays };
+  if (!report) return { location, dateKey, report: null, hariSekitar };
 
   // Kumulatif "s/d tanggal laporan ini" — laporan tanggal sesudahnya TIDAK ikut
   // dihitung, supaya angka kumulatif hari ini tidak tampak menghitung volume
@@ -421,7 +431,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   return {
     location,
     dateKey,
-    recentDays,
+    hariSekitar,
     report: {
       id: report.id,
       status: report.status,

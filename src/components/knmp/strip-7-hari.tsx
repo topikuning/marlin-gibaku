@@ -34,30 +34,39 @@ export function Strip7Hari({
   slug,
   hari,
   todayKey,
+  dibukaKey,
 }: {
   slug: string;
   hari: RecentDay[];
   todayKey: string;
+  /**
+   * Tanggal yang sedang dibuka (halaman laporan harian). Bila diisi, cincin
+   * menandai sel INI, bukan hari ini: di halaman itu yang perlu terlihat
+   * adalah posisi pembaca di antara hari-hari sekitarnya.
+   */
+  dibukaKey?: string;
 }) {
   return (
     <ul className="grid grid-cols-7 gap-1">
       {hari.map((d) => {
         const tanggal = new Date(`${d.dateKey}T00:00:00Z`);
         const sel = selHari(d.dateKey, d.status, formatTanggal(tanggal, "EEEE, d MMM"));
-        const iniHariIni = d.dateKey === todayKey;
+        const ditandai = d.dateKey === (dibukaKey ?? todayKey);
         return (
           <li key={d.dateKey}>
             <Link
               href={`/lokasi/${slug}/harian/${d.dateKey}`}
               title={sel.judul}
               aria-label={sel.judul}
+              aria-current={dibukaKey && d.dateKey === dibukaKey ? "date" : undefined}
               className={cn(
                 "flex min-h-[58px] flex-col items-center justify-center gap-0.5 rounded-md border px-0.5 py-1.5 transition-colors hover:border-border-strong",
                 NADA_SEL[sel.nada],
-                // Hari ini ditandai cincin, BUKAN warna lain: warnanya sudah
+                // Hari ini – atau tanggal yang sedang dibuka, bila `dibukaKey`
+                // diisi – ditandai cincin, BUKAN warna lain: warnanya sudah
                 // dipakai menyatakan status, dan satu saluran tidak boleh
                 // membawa dua arti.
-                iniHariIni && "ring-2 ring-primary ring-offset-1",
+                ditandai && "ring-2 ring-primary ring-offset-1",
               )}
             >
               <span className="text-[10px] leading-none font-semibold opacity-70">
