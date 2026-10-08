@@ -63,20 +63,18 @@ export async function POST(req: Request) {
      */
     const { pulihkanYangTertinggal } = await import("@/lib/photo-stamp/cap-latar");
     const capSusulan = await pulihkanYangTertinggal().catch(() => 0);
-    // Bacaan satelit cuaca untuk semua lokasi (DECISIONS 655) – menumpang
-    // jadwal per jam ini supaya tombol ambil cuaca tinggal membaca.
-    const { mulaiCuacaSatelitLatar } = await import("@/lib/weather/satelit");
-    const cuacaSatelit = await mulaiCuacaSatelitLatar().catch((err: unknown) => ({
-      dimulai: false,
-      galat: err instanceof Error ? err.message : "gagal dimulai",
-    }));
+    // Susulan pembaruan cuaca pukul 04.00 (DECISIONS 657): bila putaran
+    // `/api/cron/cuaca` terlewat, putaran per jam ini yang menyusulnya. Tidak
+    // melakukan apa pun bila tanggalnya sudah diproses.
+    const { mulaiPerbaruiCuacaSubuh } = await import("@/lib/weather/subuh");
+    const cuacaSubuh = mulaiPerbaruiCuacaSubuh();
     const { terakhir } = keadaanArsipLatar();
     const ringkas = await ringkasArsipAsli();
     return NextResponse.json({
       ...mulai,
       capSusulan,
       pindahBerkas,
-      cuacaSatelit,
+      cuacaSubuh,
       menunggu: ringkas.menunggu,
       masaTenggang: ringkas.masaTenggang,
       putaranTerakhir: terakhir,

@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 657 | 2026-10-08 | Pola cuaca: tombol selalu Open-Meteo; pukul 04.00 WIB laporan kemarin (belum disetujui/final, bukan manual) diperbarui senyap per jam – satelit bila bisa disimpulkan, Open-Meteo selebihnya; cron 04:02 WIB + susulan per jam; snapshot final (Drive) membawa hasilnya; menggantikan pilihan sumber 655 |
 | 656 | 2026-10-07 | Kode varian huruf "d.1" (adendum harga timpang: kelebihan volume pakai harga HPS) dibaca sebagai item sejajar "d" – sebelumnya dibuang diam-diam sehingga tidak terjumlah; baris bernilai berkode asing kini disebut di pratinjau; daftar pemasangan item & peringatan realisasi menyebut jalur induk |
 | 655 | 2026-10-07 | Sumber cuaca otomatis bisa dipilih di Sistem: Open-Meteo (bawaan, model) atau satelit – awan Himawari-9 (NOAA S3, dibaca lewat HTTP Range) + hujan JAXA GSMaP Gauge NRT (FTP, akun diisi di Sistem, sandi tersandi di basis data); jam tanpa data cukup dan jam yang belum lewat dikosongkan; layar Bandingkan per jam |
 | 654 | 2026-10-07 | Setiap pesan MARLIN di WhatsApp menyebut asalnya: tombol aplikasi → "atas permintaan Nama (Peran)", jawaban di grup mengutip pesan penanya (cadangan tanpa kutipan bila 4xx), terjadwal → "Pesan otomatis MARLIN – … Tidak ada yang memintanya"; outbox mencatat diminta_oleh_id + peminta |

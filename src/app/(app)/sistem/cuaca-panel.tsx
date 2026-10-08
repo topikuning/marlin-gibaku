@@ -5,94 +5,116 @@ import { Banner, Button, Combobox, Input, Label, PasswordInput, StatusPill } fro
 import {
   akunGsmapAction,
   bandingkanCuacaAction,
+  cuacaSubuhAction,
   type AkunGsmapState,
-  setSumberCuacaAction,
   type BandingState,
   type BarisBanding,
-  type SumberCuacaState,
+  type SubuhState,
 } from "@/lib/weather/actions";
 
-type Sumber = "open-meteo" | "satelit";
+type RingkasSubuh = {
+  tanggal: string;
+  pada: string;
+  laporan: number;
+  diperbarui: number;
+  jamSatelit: number;
+  jamModel: number;
+  catatan: string[];
+  manual?: boolean;
+};
 
-const PILIHAN: { nilai: Sumber; judul: string; isi: string }[] = [
-  {
-    nilai: "open-meteo",
-    judul: "Open-Meteo (model cuaca)",
-    isi: "Hitungan model cuaca, bukan pengamatan. Lima belas jam selalu terisi, termasuk jam yang belum lewat (berupa prakiraan).",
-  },
-  {
-    nilai: "satelit",
-    judul: "Satelit: awan Himawari + hujan JAXA GSMaP",
-    isi: "Pengamatan satelit atas jam yang sudah lewat. Hujan baru ada ±4 jam sesudahnya; jam yang datanya belum cukup dibiarkan kosong, tidak ditebak.",
-  },
-];
+function waktuWib(iso: string): string {
+  return new Date(iso).toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /**
- * SUMBER CUACA OTOMATIS (DECISIONS baru 2026-10-07): pilih sumber, dan
- * bandingkan kedua sumber untuk satu lokasi & tanggal tanpa menyimpan apa pun.
+ * CUACA OTOMATIS (DECISIONS 655, 657): tombol ambil cuaca di laporan harian
+ * memakai Open-Meteo; pukul 04.00 WIB laporan kemarin diperbarui senyap dari
+ * pengamatan satelit. Di sini: sakelarnya, jalankan sekarang, akun GSMaP, dan
+ * pembanding kedua sumber.
  */
 export function CuacaPanel({
-  sumber,
+  subuhAktif,
+  subuhTerakhir,
   gsmapSiap,
   akunGsmap,
   lokasi,
   tanggalAwal,
   tanggalMaks,
 }: {
-  sumber: Sumber;
+  subuhAktif: boolean;
+  subuhTerakhir: RingkasSubuh | null;
   gsmapSiap: boolean;
   akunGsmap: { user: string; adaSandi: boolean };
   lokasi: { value: string; label: string }[];
   tanggalAwal: string;
   tanggalMaks: string;
 }) {
-  const [state, aksi, menyimpan] = useAksi<SumberCuacaState>(setSumberCuacaAction, undefined);
+  const [state, aksi, menyimpan] = useAksi<SubuhState>(cuacaSubuhAction, undefined);
   const [banding, aksiBanding, membandingkan] = useAksi<BandingState>(bandingkanCuacaAction, undefined);
   const [akun, aksiAkun, mengurusAkun] = useAksi<AkunGsmapState>(akunGsmapAction, undefined);
 
   return (
     <div className="space-y-4">
-      {sumber === "satelit" && !gsmapSiap ? (
+      {subuhAktif && !gsmapSiap ? (
         <Banner
           tone="warning"
           title="Akun GSMaP belum diisi"
-          description="Tanpa akun itu data hujan tidak bisa diambil, jadi hanya jam yang langitnya nyaris bersih yang terisi. Isi akunnya di bawah."
+          description="Tanpa akun itu data hujan satelit tidak bisa diambil, jadi pembaruan pukul 04.00 hanya memakai data awan. Isi akunnya di bawah."
         />
       ) : null}
-      {state?.error ? <Banner tone="error" title="Gagal menyimpan" description={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title="Tersimpan" description={state.success} /> : null}
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {PILIHAN.map((p) => {
-          const aktif = p.nilai === sumber;
-          return (
-            <form
-              key={p.nilai}
-              action={aksi}
-              className={
-                aktif
-                  ? "flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft px-4 py-3"
-                  : "flex flex-col gap-2 rounded-lg border border-border px-4 py-3"
-              }
-            >
-              <input type="hidden" name="sumber" value={p.nilai} />
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-medium text-ink">{p.judul}</p>
-                {aktif ? <StatusPill tone="success" label="Dipakai" /> : null}
-              </div>
-              <p className="text-[13px] text-ink-muted">{p.isi}</p>
-              {aktif ? null : (
-                <div>
-                  <Button type="submit" variant="secondary" size="sm" loading={menyimpan}>
-                    Pakai sumber ini
-                  </Button>
-                </div>
-              )}
-            </form>
-          );
-        })}
+      <div
+        className={
+          subuhAktif
+            ? "space-y-2 rounded-lg border border-success-border bg-success-soft px-4 py-3"
+            : "space-y-2 rounded-lg border border-warning-border bg-warning-soft px-4 py-3"
+        }
+      >
+        <p className="text-sm font-medium text-ink">
+          Pembaruan dari satelit tiap pukul 04.00 WIB: {subuhAktif ? "NYALA" : "MATI"}
+        </p>
+        <p className="text-[13px] text-ink-muted">
+          Tombol ambil cuaca di laporan harian memakai Open-Meteo supaya langsung terisi. Pukul 04.00 WIB, cuaca laporan
+          kemarin diperbarui per jam dengan pengamatan satelit (awan Himawari, hujan JAXA GSMaP) di jam yang datanya
+          cukup; jam lain tetap dari Open-Meteo. Isian manual dan laporan yang sudah disetujui atau final tidak
+          disentuh.
+        </p>
+        {subuhTerakhir ? (
+          <p className="text-[13px] text-ink-muted">
+            Terakhir: laporan {subuhTerakhir.tanggal}, {waktuWib(subuhTerakhir.pada)} WIB
+            {subuhTerakhir.manual ? " (dijalankan dari tombol)" : ""} – {subuhTerakhir.diperbarui} dari{" "}
+            {subuhTerakhir.laporan} laporan diperbarui, {subuhTerakhir.jamSatelit} jam dari satelit,{" "}
+            {subuhTerakhir.jamModel} jam dari Open-Meteo.
+            {subuhTerakhir.catatan.length ? ` ${subuhTerakhir.catatan.join(" ")}` : ""}
+          </p>
+        ) : (
+          <p className="text-[13px] text-ink-muted">Belum pernah berjalan.</p>
+        )}
+        <form action={aksi} className="flex flex-wrap gap-2">
+          <Button type="submit" name="aksi" value="jalankan" variant="secondary" size="sm" loading={menyimpan}>
+            Perbarui laporan kemarin sekarang
+          </Button>
+          <Button
+            type="submit"
+            name="aksi"
+            value={subuhAktif ? "matikan" : "nyalakan"}
+            variant="secondary"
+            size="sm"
+            loading={menyimpan}
+          >
+            {subuhAktif ? "Matikan" : "Nyalakan"}
+          </Button>
+        </form>
       </div>
-      <p className="text-[13px] text-ink-muted">Isian cuaca manual dari lapangan selalu menang atas sumber otomatis.</p>
 
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex flex-wrap items-center gap-2">

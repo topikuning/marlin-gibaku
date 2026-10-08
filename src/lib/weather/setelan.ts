@@ -4,42 +4,93 @@ import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
 
 /**
- * PILIHAN SUMBER CUACA OTOMATIS (DECISIONS baru 2026-10-07) – di layar Sistem.
+ * PEMBARUAN CUACA DARI SATELIT TIAP PUKUL 04.00 WIB (DECISIONS 657).
  *
- * - `open-meteo`: model cuaca (perilaku lama, tetap BAWAAN supaya tidak ada
- *   yang berubah diam-diam).
- * - `satelit`: pengamatan satelit – awan Himawari-9 + hujan JAXA GSMaP.
+ * Pola yang diminta user: tombol ambil cuaca di laporan harian selalu memakai
+ * Open-Meteo (cepat), lalu pukul 04.00 WIB laporan KEMARIN diperbarui senyap
+ * dengan pengamatan satelit (awan Himawari-9 + hujan JAXA GSMaP) pada jam yang
+ * datanya cukup. Laporan belum dikirim ke mana pun hari itu juga, jadi
+ * memperbaruinya sebelum diperiksa dan difinalkan tidak mengubah apa yang
+ * sudah diterima orang lain.
  *
- * Isian manual dari lapangan tetap menang atas keduanya.
+ * BAWAAN NYALA: user sendiri yang meminta polanya. Isian manual dari lapangan
+ * dan laporan yang sudah disetujui/final tetap tidak disentuh.
  */
+export const SATELIT_SUBUH_KEY = "cuaca.satelit_subuh";
+export const SATELIT_SUBUH_DEFAULT = true;
+/** Ringkasan putaran terakhir (terjadwal atau tombol) untuk layar Sistem (JSON). */
+export const SATELIT_SUBUH_TERAKHIR_KEY = "cuaca.satelit_subuh.terakhir";
+/** Tanggal laporan terakhir yang sudah diproses PENJADWAL – penanda susulan. */
+export const SATELIT_SUBUH_TANGGAL_KEY = "cuaca.satelit_subuh.tanggal";
 
-export const SUMBER_CUACA_KEY = "cuaca.sumber";
-export const SUMBER_CUACA = ["open-meteo", "satelit"] as const;
-export type SumberCuaca = (typeof SUMBER_CUACA)[number];
-export const SUMBER_CUACA_DEFAULT: SumberCuaca = "open-meteo";
-
-export const LABEL_SUMBER_CUACA: Record<SumberCuaca, string> = {
-  "open-meteo": "Open-Meteo (model cuaca)",
-  satelit: "Satelit (awan Himawari + hujan JAXA GSMaP)",
+export type RingkasSubuh = {
+  /** Tanggal laporan (YYYY-MM-DD) yang diproses. */
+  tanggal: string;
+  /** Kapan diproses (ISO). */
+  pada: string;
+  laporan: number;
+  diperbarui: number;
+  jamSatelit: number;
+  jamModel: number;
+  catatan: string[];
+  /** true = dijalankan dari tombol, bukan penjadwal. */
+  manual?: boolean;
 };
 
-export async function getSumberCuaca(): Promise<SumberCuaca> {
+async function nilaiSetelan(key: string): Promise<string | null> {
   const row = await db.appSetting.findFirst({
-    where: { key: SUMBER_CUACA_KEY },
+    where: { key },
     orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
     select: { value: true },
   });
-  const v = row?.value.trim();
-  return (SUMBER_CUACA as readonly string[]).includes(v ?? "") ? (v as SumberCuaca) : SUMBER_CUACA_DEFAULT;
+  return row?.value.trim() ?? null;
 }
 
-export async function setSumberCuaca(sumber: SumberCuaca): Promise<void> {
+async function simpanSetelan(key: string, value: string): Promise<void> {
   const effectiveFrom = jakartaToday();
   await db.appSetting.upsert({
-    where: { key_effectiveFrom: { key: SUMBER_CUACA_KEY, effectiveFrom } },
-    update: { value: sumber },
-    create: { key: SUMBER_CUACA_KEY, value: sumber, effectiveFrom },
+    where: { key_effectiveFrom: { key, effectiveFrom } },
+    update: { value },
+    create: { key, value, effectiveFrom },
   });
+}
+
+export async function getSatelitSubuhAktif(): Promise<boolean> {
+  const v = await nilaiSetelan(SATELIT_SUBUH_KEY);
+  if (v == null || v === "") return SATELIT_SUBUH_DEFAULT;
+  return v === "1" || v.toLowerCase() === "true";
+}
+
+export async function setSatelitSubuhAktif(aktif: boolean): Promise<void> {
+  await simpanSetelan(SATELIT_SUBUH_KEY, aktif ? "1" : "0");
+}
+
+export async function getSubuhTerakhir(): Promise<RingkasSubuh | null> {
+  const v = await nilaiSetelan(SATELIT_SUBUH_TERAKHIR_KEY);
+  if (!v) return null;
+  try {
+    const j = JSON.parse(v) as RingkasSubuh;
+    return typeof j.tanggal === "string" && typeof j.pada === "string" ? j : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function catatSubuhTerakhir(r: RingkasSubuh): Promise<void> {
+  await simpanSetelan(SATELIT_SUBUH_TERAKHIR_KEY, JSON.stringify(r));
+}
+
+/**
+ * Penanda penjadwal terpisah dari ringkasan layar: tombol "Perbarui sekarang"
+ * yang ditekan sebelum data hujan sehari penuh terbit tidak boleh membuat
+ * penjadwal pukul 04.00 melewati tanggal itu.
+ */
+export async function getSubuhTanggalTerjadwal(): Promise<string | null> {
+  return (await nilaiSetelan(SATELIT_SUBUH_TANGGAL_KEY)) || null;
+}
+
+export async function catatSubuhTanggalTerjadwal(tanggal: string): Promise<void> {
+  await simpanSetelan(SATELIT_SUBUH_TANGGAL_KEY, tanggal);
 }
 
 /**

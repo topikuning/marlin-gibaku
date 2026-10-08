@@ -69,7 +69,7 @@ const SAMBUNGAN_PARALEL = 3;
 export async function bukaGsmap(): Promise<SesiGsmap> {
   const akun = await getAkunGsmap();
   if (!akun) {
-    throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Sumber cuaca otomatis).");
+    throw new GsmapBelumSiapError("Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Cuaca otomatis).");
   }
   const dir = folderSimpan();
   await mkdir(dir, { recursive: true });

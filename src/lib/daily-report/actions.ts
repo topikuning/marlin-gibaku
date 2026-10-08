@@ -945,18 +945,16 @@ export async function fetchWeatherAction(_prev: DailyActionState, formData: Form
       hours: result.hours.length,
       weather: result.weather,
       cached: result.cached,
-      sumber: result.sumber,
+      diperbarui: result.diperbarui,
     });
     revalidateReport(ctx.slug, ctx.dateKey);
     const hujan = result.hours.filter((h) => h.category === "Hujan").length;
-    if (result.sumber === "satelit") {
+    if (result.diperbarui) {
       return {
-        success: [
-          `Cuaca ${result.hours.length} jam terisi dari pengamatan satelit (awan Himawari, hujan JAXA GSMaP)` +
-            (hujan > 0 ? ` – ${hujan} jam hujan.` : " – tidak ada jam hujan."),
-          ...result.catatan,
-          "Ubah manual bila berbeda dengan kondisi di lapangan.",
-        ].join(" "),
+        success:
+          `Cuaca ${result.hours.length} jam terisi dari data yang sudah diperbarui dengan pengamatan satelit` +
+          (hujan > 0 ? ` – ${hujan} jam hujan.` : " – tidak ada jam hujan.") +
+          " Ubah manual bila berbeda dengan kondisi di lapangan.",
       };
     }
     return {

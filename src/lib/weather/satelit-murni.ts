@@ -1,4 +1,4 @@
-import type { HourlyWeather, KkpWeatherCategory } from "@/lib/weather/hourly";
+import { KKP_WEATHER_HOURS, type HourlyWeather, type KkpWeatherCategory } from "@/lib/weather/hourly";
 
 /**
  * CUACA DARI PENGAMATAN SATELIT – bagian murni (DECISIONS baru 2026-10-07).
@@ -174,4 +174,39 @@ export function jamUtc(jamWib: number): number {
 export function jamSudahLewat(dateKey: string, jamWib: number, sekarang: Date): boolean {
   const akhir = Date.parse(`${dateKey}T${String(jamWib + 1).padStart(2, "0")}:00:00+07:00`);
   return sekarang.getTime() >= akhir;
+}
+
+// ── Pembaruan pukul 04.00 ───────────────────────────────────────────────────
+
+export type BacaanSatelit = { awan: number | null; hujan: number | null };
+
+/**
+ * Gabungkan per jam (DECISIONS 657): pengamatan satelit dipakai di jam yang
+ * kategorinya bisa disimpulkan darinya (`kategoriSatelit` tidak null);
+ * selebihnya jam dari model Open-Meteo dipertahankan. Pengamatan menang atas
+ * model karena ia mengukur, bukan menghitung; model tetap mengisi jam yang
+ * satelitnya kosong supaya blanko tidak bolong.
+ */
+export function gabungkanJam(
+  model: HourlyWeather[],
+  satelit: Map<number, BacaanSatelit>,
+): { hours: HourlyWeather[]; jamSatelit: number; jamModel: number } {
+  const hours: HourlyWeather[] = [];
+  let jamSatelit = 0;
+  let jamModel = 0;
+  for (const jam of KKP_WEATHER_HOURS) {
+    const s = satelit.get(jam);
+    const k = s ? kategoriSatelit(jam, s.awan, s.hujan) : null;
+    if (k) {
+      hours.push({ ...k, sumber: "satelit" });
+      jamSatelit++;
+      continue;
+    }
+    const m = model.find((h) => h.hour === jam);
+    if (m) {
+      hours.push({ hour: m.hour, category: m.category, precipMm: m.precipMm, code: m.code, sumber: "model" });
+      jamModel++;
+    }
+  }
+  return { hours, jamSatelit, jamModel };
 }

@@ -1,12 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { parseDateKey } from "@/lib/format";
 import type { HourlyWeather } from "@/lib/weather/hourly";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { awanHimawariBanyak } from "@/lib/weather/himawari";
 import { bukaGsmap, gsmapSiap, GsmapBelumSiapError, type SesiGsmap } from "@/lib/weather/gsmap";
 import { jamSudahLewat, jamUtc, kategoriSatelit } from "@/lib/weather/satelit-murni";
-import { getSumberCuaca } from "@/lib/weather/setelan";
 
 /**
  * CUACA PER JAM DARI PENGAMATAN SATELIT (DECISIONS 655): awan Himawari-9 +
@@ -14,9 +13,9 @@ import { getSumberCuaca } from "@/lib/weather/setelan";
  * atau tidak cukup dibiarkan kosong dan disebut.
  *
  * KECEPATAN. Bacaan mentah disimpan per lokasi per jam (`cuaca_satelit_jam`)
- * dan hanya jam yang BELUM terbaca yang diambil. Penjadwal tiap jam mengisinya
- * untuk SEMUA lokasi sekaligus – satu berkas satelit melayani 83 lokasi – jadi
- * tombol ambil cuaca biasanya tinggal membaca basis data.
+ * dan hanya jam yang BELUM terbaca yang diambil. Pembaruan pukul 04.00
+ * (`weather/subuh.ts`) mengisinya untuk SEMUA lokasi sekaligus – satu berkas
+ * satelit melayani 83 lokasi.
  */
 
 export const SATELIT_PROVIDER = "satelit: Himawari-9 (awan) + JAXA GSMaP (hujan)";
@@ -141,7 +140,7 @@ export async function fetchHourlySatelit(args: {
   const akunAda = await gsmapSiap();
   if (!akunAda) {
     catatan.push(
-      "Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Sumber cuaca otomatis). Tanpa data hujan, hanya jam yang langitnya nyaris bersih yang bisa diisi.",
+      "Akun GSMaP belum diisi (Sistem → Pekerjaan Harian → Cuaca otomatis). Tanpa data hujan, hanya jam yang langitnya nyaris bersih yang bisa diisi.",
     );
   } else {
     const tertunda = lewat.filter((h) => !perJam.get(h)?.hujanDiambil).length;
@@ -162,42 +161,4 @@ export async function fetchHourlySatelit(args: {
     throw new SatelitError(["Data satelit untuk tanggal itu belum cukup untuk mengisi satu jam pun.", ...catatan].join(" "));
   }
   return { hours, belumTerjadi, kosong, catatan };
-}
-
-// ── Pengisian latar untuk semua lokasi ──────────────────────────────────────
-
-let berjalan: Promise<void> | null = null;
-
-/**
- * Isi bacaan satelit hari ini dan kemarin untuk SEMUA lokasi aktif yang punya
- * koordinat. Dipanggil penjadwal tiap jam; tidak menunggu, dan tidak jalan dua
- * kali bersamaan. Tidak melakukan apa pun bila sumber cuaca bukan satelit.
- */
-export async function mulaiCuacaSatelitLatar(): Promise<{ dimulai: boolean; alasan?: string }> {
-  if ((await getSumberCuaca()) !== "satelit") return { dimulai: false, alasan: "sumber cuaca bukan satelit" };
-  if (berjalan) return { dimulai: false, alasan: "masih berjalan" };
-  berjalan = (async () => {
-    const lok = await db.location.findMany({
-      where: { isActive: true, gpsLat: { not: null }, gpsLng: { not: null } },
-      select: { id: true, gpsLat: true, gpsLng: true },
-    });
-    const titik = lok.map((l) => ({ id: l.id, lat: Number(l.gpsLat), lng: Number(l.gpsLng) }));
-    const sekarang = new Date();
-    const hariIni = jakartaDateKey(sekarang);
-    const kemarin = jakartaDateKey(new Date(sekarang.getTime() - 86_400_000));
-    for (const d of [kemarin, hariIni]) {
-      const catatan = await isiCuacaSatelit(titik, d, sekarang);
-      if (catatan.length) console.warn(`[cuaca-satelit] ${d}: ${catatan.join(" ")}`);
-    }
-  })()
-    .catch((e) => console.error("[cuaca-satelit] gagal:", e))
-    .finally(() => {
-      berjalan = null;
-    });
-  return { dimulai: true };
-}
-
-/** Tunggu putaran latar yang sedang berjalan (untuk uji dan pemanggil yang perlu). */
-export async function tungguCuacaSatelitLatar(): Promise<void> {
-  await berjalan;
 }

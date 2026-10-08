@@ -29,7 +29,7 @@ import { PenyimpananPanel } from "./penyimpanan-panel";
 import { ArsipAsliPanel } from "./arsip-asli-panel";
 import { PindahBerkasPanel } from "./pindah-berkas-panel";
 import { CuacaPanel } from "./cuaca-panel";
-import { getAkunGsmapTampil, getSumberCuaca } from "@/lib/weather/setelan";
+import { getAkunGsmapTampil, getSatelitSubuhAktif, getSubuhTerakhir } from "@/lib/weather/setelan";
 import { gsmapSiap } from "@/lib/weather/gsmap";
 import { CadanganPanel, type CadanganPanelProps } from "./cadangan-panel";
 import { PolicyCard } from "./policy-card";
@@ -917,12 +917,13 @@ export default async function SistemPage() {
       </Card>
       <Card>
         <CardHeader
-          title="Sumber cuaca otomatis"
-          subtitle="Dipakai tombol ambil cuaca di laporan harian. Isian manual dari lapangan tetap menang."
+          title="Cuaca otomatis"
+          subtitle="Tombol ambil cuaca memakai Open-Meteo; pukul 04.00 WIB diperbarui dari satelit. Isian manual dari lapangan tetap menang."
         />
         <CardBody>
           <CuacaPanel
-            sumber={await getSumberCuaca()}
+            subuhAktif={await getSatelitSubuhAktif()}
+            subuhTerakhir={await getSubuhTerakhir()}
             gsmapSiap={await gsmapSiap()}
             akunGsmap={await getAkunGsmapTampil()}
             lokasi={(

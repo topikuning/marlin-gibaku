@@ -17,6 +17,7 @@ import {
   jamSudahLewat,
   jamUtc,
   jarakKm,
+  gabungkanJam,
   kategoriSatelit,
   persenAwan,
   pikselHimawari,
@@ -125,5 +126,28 @@ describe("waktu", () => {
     expect(jamSudahLewat("2026-10-07", 13, jam1430)).toBe(true);
     expect(jamSudahLewat("2026-10-07", 14, jam1430)).toBe(false);
     expect(jamSudahLewat("2026-10-06", 21, jam1430)).toBe(true);
+  });
+});
+
+describe("gabungkanJam (pembaruan pukul 04.00, DECISIONS 657)", () => {
+  const model = [7, 8, 9].map((hour) => ({ hour, category: "Hujan" as const, precipMm: 2, code: 61 }));
+
+  it("satelit menang di jam yang bisa disimpulkan, model mengisi sisanya, asal tiap jam dicatat", () => {
+    const sat = new Map([
+      [7, { awan: 0, hujan: 0 }], // langit bersih, tidak hujan → Cerah (satelit)
+      [8, { awan: 90, hujan: null }], // berawan, hujan tidak diketahui → model
+    ]);
+    const g = gabungkanJam(model, sat);
+    expect(g.hours.map((h) => [h.hour, h.category, h.sumber])).toEqual([
+      [7, "Cerah", "satelit"],
+      [8, "Hujan", "model"],
+      [9, "Hujan", "model"],
+    ]);
+    expect(g).toMatchObject({ jamSatelit: 1, jamModel: 2 });
+  });
+
+  it("jam tanpa model dan tanpa satelit tetap kosong – tidak dikarang", () => {
+    const g = gabungkanJam([], new Map([[10, { awan: null, hujan: null }]]));
+    expect(g.hours).toEqual([]);
   });
 });
