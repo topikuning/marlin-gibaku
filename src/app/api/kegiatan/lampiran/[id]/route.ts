@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
  * Unduh lampiran kegiatan lapangan: auth → scope lokasi → redirect ke presigned
@@ -43,5 +44,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const url = await alamatBerkas(att.r2Key, 120);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
-  return NextResponse.redirect(new URL(url, req.url), 302);
+  // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
+  return alihkanKeBerkas(url);
 }

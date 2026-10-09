@@ -5,6 +5,7 @@ import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
  * Buka berkas lampiran WhatsApp yang menunggu ketetapan.
@@ -72,7 +73,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   if (a.r2Key && isR2Configured()) {
     // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
-    return NextResponse.redirect(new URL(await alamatBerkas(a.r2Key, 120), req.url), 302);
+  // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
+    return alihkanKeBerkas(await alamatBerkas(a.r2Key, 120));
   }
 
   if (a.localPath) {

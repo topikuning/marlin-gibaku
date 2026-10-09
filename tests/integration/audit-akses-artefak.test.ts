@@ -104,6 +104,21 @@ it("dokumen paket di luar penugasan tidak dapat diunduh maupun disunting", async
   } finally { actor = a.u; }
 });
 
+it("dokumen yang sudah pindah ke arsip Lenovo dialihkan RELATIF – bukan ke alamat dalam server (0.0.0.0:8080)", async () => {
+  // Laporan user 2026-10-08: https://marlin.gibaku.com/api/documents/… dialihkan ke
+  // https://0.0.0.0:8080/api/berkas/… – di belakang proxy Railway, `req.url` adalah
+  // alamat dalam server. Permintaan di bawah meniru persis apa yang dilihat route.
+  const kunci = `documents/2026/${randomUUID()}-Siteplan.pdf`;
+  const doc = await db.document.create({data:{orgId:a.u.orgId,phase:"kontrak",type:"lainnya",title:"Siteplan",r2Key:kunci,fileName:"Siteplan.pdf",mimeType:"application/pdf",bytes:1,sha256:randomUUID(),uploadedById:a.u.id}});
+  await db.berkasPindah.create({data:{kunci,kunciDingin:`photos/pindahan/2026-10-08/${randomUUID()}`,kategori:"dokumen",dipindahAt:new Date()}});
+  const { GET } = await import("@/app/api/documents/[id]/route");
+  const response = await GET(new Request("https://0.0.0.0:8080/api/documents/"+doc.id),{params:Promise.resolve({id:doc.id})});
+  expect(response.status).toBe(302);
+  const lokasi = response.headers.get("location") ?? "";
+  expect(lokasi).toMatch(/^\/api\/berkas\//);
+  expect(lokasi).not.toContain("0.0.0.0");
+});
+
 it("metadata dokumen paket di luar penugasan tidak bisa diubah lewat ID", async () => {
   const pkg = await db.package.create({data:{orgId:a.u.orgId,name:"Paket lain"}});
   const doc = await db.document.create({data:{orgId:a.u.orgId,packageId:pkg.id,phase:"kontrak",type:"lainnya",title:"Dokumen terbatas",r2Key:randomUUID(),fileName:"x.pdf",mimeType:"application/pdf",bytes:1,sha256:randomUUID(),uploadedById:a.u.id}});

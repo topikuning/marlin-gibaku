@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isR2Configured } from "@/lib/r2";
 import { verifyPhotoToken } from "@/lib/pdf/photo-token";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
  * Foto publik lewat MARLIN — link permanen yang bisa dibuka SIAPA SAJA (tanpa
@@ -23,5 +24,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   }
   const url = await alamatBerkas(photo.r2Key, 300);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
-  return NextResponse.redirect(new URL(url, req.url), 302);
+  // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
+  return alihkanKeBerkas(url);
 }
