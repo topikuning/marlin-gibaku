@@ -280,18 +280,28 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
 
   // ── Tanda tangan ───────────────────────────────────────────────────────────
   const rTtd = r;
+  // Wakil Sah PPK – Pengawas Lapangan – Pelaksana (DECISIONS 662).
   const ttd: { c1: number; c2: number; atas: string; peran: string; firma: string; nama: string | null; jabatan: string }[] = [
     {
       c1: 1,
-      c2: 9,
+      c2: 6,
+      atas: "Mengetahui :",
+      peran: "Wakil Sah PPK",
+      firma: "",
+      nama: d.wakilSahName ?? null,
+      jabatan: d.wakilSahSub ?? "",
+    },
+    {
+      c1: 7,
+      c2: 13,
       atas: "Disetujui Oleh;",
       peran: "Konsultan Pengawas",
       firma: d.supervisorFirm ?? d.supervisorSub ?? "",
       nama: d.supervisorName ?? null,
-      jabatan: "Inspector",
+      jabatan: d.supervisorJabatan || "Pengawas Lapangan",
     },
     {
-      c1: 10,
+      c1: 14,
       c2: KOL_AKHIR,
       atas: "Dibuat Oleh :",
       peran: "Kontraktor Pelaksana",

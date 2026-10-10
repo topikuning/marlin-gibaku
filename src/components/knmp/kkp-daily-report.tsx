@@ -113,8 +113,13 @@ export type KkpDailyData = {
   /** URL presign logo pelaksana — kop blanko (2026-08-26). */
   vendorLogoUrl?: string | null;
   /** Penanda tangan (dari kontrak, current — null = baris kosong). */
+  /** Wakil Sah PPK – slot "Mengetahui" (DECISIONS 662); sub = "NIP. …". */
+  wakilSahName?: string | null;
+  wakilSahSub?: string | null;
   supervisorName?: string | null;
   supervisorSub?: string | null;
+  /** Jabatan pengawas di bawah namanya ("Pengawas Lapangan"). */
+  supervisorJabatan?: string | null;
   contractorName?: string | null;
   contractorSub?: string | null;
   /** Nama perusahaan pengawas & pelaksana (di blanko: kotak "logo perusahaan"). */
@@ -474,7 +479,18 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
         ditandatanganinya — dokumen yang tanda tangannya berdiri sendiri di
         halaman lain mengundang pertanyaan tentang keasliannya. DECISIONS 395.
       */}
-      <div className="grid grid-cols-2 border-x border-b border-slate-500 break-inside-avoid break-before-avoid">
+      {/* Wakil Sah PPK – Pengawas Lapangan – Pelaksana (Team Leader pengawas BANUSA, DECISIONS 662). */}
+      <div className="grid grid-cols-3 border-x border-b border-slate-500 break-inside-avoid break-before-avoid">
+        <div className="border-r border-slate-500 px-3 py-2 text-center">
+          <div className="text-[10px] text-slate-600">Mengetahui :</div>
+          <div className="text-[10px] text-slate-600">Wakil Sah PPK</div>
+          <div className="text-[10px] text-slate-500">&nbsp;</div>
+          <RuangTtd tinggi={RUANG_TTD_HARIAN} {...gambarPihak(ttd, "ppk")} />
+          <div className="border-t border-slate-400 pt-1 font-semibold text-slate-900">
+            {d.wakilSahName ? `( ${d.wakilSahName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
+          </div>
+          <div className="text-[9px] text-slate-500 italic">{d.wakilSahSub ?? <>&nbsp;</>}</div>
+        </div>
         <div className="border-r border-slate-500 px-3 py-2 text-center">
           <div className="text-[10px] text-slate-600">Disetujui Oleh;</div>
           <div className="text-[10px] text-slate-600">Konsultan Pengawas</div>
@@ -483,7 +499,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
           <div className="border-t border-slate-400 pt-1 font-semibold text-slate-900">
             {d.supervisorName ? `( ${d.supervisorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
           </div>
-          <div className="text-[9px] text-slate-500 italic">Inspector</div>
+          <div className="text-[9px] text-slate-500 italic">{d.supervisorJabatan || "Pengawas Lapangan"}</div>
         </div>
         <div className="px-3 py-2 text-center">
           <div className="text-[10px] text-slate-600">Dibuat Oleh :</div>

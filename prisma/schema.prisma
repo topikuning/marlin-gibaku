@@ -1223,6 +1223,24 @@ model Contract {
   supervisorFirm        String?   @map("supervisor_firm")
   contractorSignerName  String?   @map("contractor_signer_name")
   contractorSignerTitle String?   @map("contractor_signer_title")
+  /// PENANDA TANGAN TAMBAHAN menurut Team Leader pengawas BANUSA (2026-10-10):
+  ///   Harian: Wakil Sah PPK – Pengawas Lapangan – Pelaksana
+  ///   Mingguan & Kurva S lokasi: Wakil Sah PPK – Koordinator Team Leader – Manajer Proyek
+  ///   Bulanan: PPK – Team Leader – Manajer Proyek
+  /// Siapa meneken dokumen apa diputuskan di SATU tempat:
+  /// `src/lib/laporan/penandatangan.ts`. Koordinator TL boleh ditimpa per
+  /// lokasi (Location.coTeamLeader*). QS dan Site Manager untuk BUD/Calculation
+  /// Sheet (dokumennya menyusul).
+  teamLeaderName          String? @map("team_leader_name")
+  teamLeaderTtdKey        String? @map("team_leader_ttd_key")
+  coTeamLeaderName        String? @map("co_team_leader_name")
+  coTeamLeaderTtdKey      String? @map("co_team_leader_ttd_key")
+  qualitySurveyorName    String? @map("quality_surveyor_name")
+  qualitySurveyorTtdKey  String? @map("quality_surveyor_ttd_key")
+  projectManagerName      String? @map("project_manager_name")
+  projectManagerTtdKey    String? @map("project_manager_ttd_key")
+  siteManagerName         String? @map("site_manager_name")
+  siteManagerTtdKey       String? @map("site_manager_ttd_key")
   /// GAMBAR tanda tangan & stempel ketiga pihak — key R2 (DECISIONS 328).
   ///
   /// Ditaruh di KONTRAK, bukan di master perusahaan, karena penanda tangannya
@@ -1333,6 +1351,11 @@ model Location {
   wakilSahName   String? @map("wakil_sah_name")
   wakilSahNip    String? @map("wakil_sah_nip")
   wakilSahTtdKey String? @map("wakil_sah_ttd_key")
+
+  /// Penimpaan KOORDINATOR TEAM LEADER untuk lokasi ini (2026-10-10).
+  /// Kosong = pakai milik kontrak. Aturan blok sama dengan Wakil Sah.
+  coTeamLeaderName   String? @map("co_team_leader_name")
+  coTeamLeaderTtdKey String? @map("co_team_leader_ttd_key")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz

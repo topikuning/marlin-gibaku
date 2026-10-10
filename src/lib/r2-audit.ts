@@ -142,10 +142,16 @@ async function rujukanMenggantung(ada: Set<string>): Promise<RujukanHilang[]> {
         "supervisor_stempel_key",
         "contractor_ttd_key",
         "contractor_stempel_key",
+        // Personel BANUSA (DECISIONS 662).
+        "co_team_leader_ttd_key",
+        "team_leader_ttd_key",
+        "quality_surveyor_ttd_key",
+        "project_manager_ttd_key",
+        "site_manager_ttd_key",
       ] as const
     ).map((kolom) => ({ tabel: "contracts", kolom, label: "Tanda tangan/stempel kontrak" })),
     { tabel: "packages", kolom: "pelaksana_ttd_key", label: "Tanda tangan pelaksana" },
-    ...(["pelaksana_ttd_key", "supervisor_ttd_key", "wakil_sah_ttd_key"] as const).map((kolom) => ({
+    ...(["pelaksana_ttd_key", "supervisor_ttd_key", "wakil_sah_ttd_key", "co_team_leader_ttd_key"] as const).map((kolom) => ({
       tabel: "locations",
       kolom,
       label: "Tanda tangan penandatangan lokasi",

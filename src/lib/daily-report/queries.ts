@@ -1,5 +1,5 @@
 import "server-only";
-import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
+import { JABATAN_KONSULTAN, pihakKonsultan, pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import {
   weekOfDate,
@@ -696,6 +696,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       supervisorName: true,
       supervisorFirm: true,
       supervisorTtdKey: true,
+      // Laporan harian kini juga diketahui Wakil Sah PPK (DECISIONS 662).
+      wakilSahName: true,
+      wakilSahNip: true,
+      wakilSahTtdKey: true,
       package: {
         select: {
           pelaksanaName: true,
@@ -708,6 +712,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
               workTitle: true,
               contractNumber: true,
               signedDate: true,
+              wakilSahName: true,
+              wakilSahNip: true,
+              wakilSahTtdKey: true,
               supervisorName: true,
               supervisorFirm: true,
               supervisorTtdKey: true,
@@ -736,9 +743,15 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   const pelaksana = pilihPelaksana(location, location.package);
   // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
   const pengawas = pilihPengawas(location, contract);
+  // Wakil Sah lokasi menimpa kontrak – SATU BLOK. Harian: Wakil Sah PPK –
+  // Pengawas Lapangan – Pelaksana (Team Leader pengawas BANUSA, DECISIONS 662).
+  const wakilSah = pilihWakilSah(location, contract);
   const signatories = {
+    wakilSahName: wakilSah.nama,
+    wakilSahSub: wakilSah.nip ? `NIP. ${wakilSah.nip}` : null,
     supervisorName: pengawas.nama,
     supervisorSub: pengawas.firma,
+    supervisorJabatan: JABATAN_KONSULTAN[pihakKonsultan("harian")],
     contractorName: pelaksana.nama,
     contractorSub: pelaksana.jabatan,
     // Nama perusahaan untuk kop blanko (posisi "logo perusahaan" di contoh KKP).

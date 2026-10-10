@@ -214,6 +214,11 @@ export const getPackageWorkspace = cache(async (id: string) => {
           supervisorFirm: true,
           contractorSignerName: true,
           contractorSignerTitle: true,
+          coTeamLeaderName: true,
+          teamLeaderName: true,
+          qualitySurveyorName: true,
+          projectManagerName: true,
+          siteManagerName: true,
           // Gambar tanda tangan & stempel utk laporan cetak (DECISIONS 328).
           ppkTtdKey: true,
           ppkStempelKey: true,
@@ -223,6 +228,11 @@ export const getPackageWorkspace = cache(async (id: string) => {
           supervisorLogoKey: true,
           contractorTtdKey: true,
           contractorStempelKey: true,
+          coTeamLeaderTtdKey: true,
+          teamLeaderTtdKey: true,
+          qualitySurveyorTtdKey: true,
+          projectManagerTtdKey: true,
+          siteManagerTtdKey: true,
           vendor: { select: { id: true, name: true, stempelKey: true } },
           amendments: {
             orderBy: { effectiveDate: "asc" },

@@ -48,6 +48,11 @@ const KOSONG: SumberKunciTtd = {
   // yang menyebut sebaliknya (DECISIONS 402).
   penyedia: "direktur",
   kkp: "ppk",
+  konsultan: "pengawas_lapangan",
+  supervisorStempelKontrakKey: null,
+  coTeamLeaderTtdKey: null,
+  teamLeaderTtdKey: null,
+  projectManagerTtdKey: null,
   wakilSahTtdKey: null,
   pelaksanaTtdKey: null,
   ppkTtdKey: null,
