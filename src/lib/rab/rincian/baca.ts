@@ -1,4 +1,5 @@
 import { BukuRingan } from "./xlsx-ringan";
+import { tanpaAwalanNamespace } from "@/lib/rab/xlsx-slim";
 import { rujukanTunggal } from "./rumus";
 import { Pelacak, PelacakAnalisa, type BlokAnalisa, type HargaDasar, type JejakSel, type Kepala } from "./lacak";
 
@@ -83,7 +84,9 @@ export async function bacaRincian(
   buf: Buffer | ArrayBuffer,
   opsi: { sheetRab: string; kolom: { vol: number; price: number }; items: ItemMasuk[] },
 ): Promise<RincianBerkas> {
-  const buku = await BukuRingan.buka(buf);
+  // Workbook ber-awalan namespace dibaca dengan bentuk yang sama dengan parser
+  // RAB-nya (DECISIONS 664).
+  const buku = await BukuRingan.buka(await tanpaAwalanNamespace(buf));
   const pelacak = new Pelacak(buku);
   const pAnalisa = new PelacakAnalisa(buku, pelacak);
   const blokAnalisa = new Map<string, BlokAnalisa>();

@@ -55,6 +55,8 @@ let pkgId = "";
 let userId = "";
 
 const DIREKTUR = "Andi Prasetyo";
+// Laporan progres mingguan & bulanan diteken Manajer Proyek (BANUSA, DECISIONS 662).
+const MANAJER = "Bambang Manajer";
 const PELAKSANA_PAKET = "Joko Susilo";
 const PELAKSANA_LOKASI = "Sari Handayani";
 
@@ -95,6 +97,7 @@ beforeAll(async () => {
       endDate: new Date("2026-06-09"),
       contractorSignerName: DIREKTUR,
       contractorSignerTitle: "Direktur",
+      projectManagerName: MANAJER,
       supervisorName: "Rina Wijaya",
       supervisorFirm: "CV Pengawas",
     },
@@ -180,10 +183,11 @@ describe("laporan MINGGUAN vs BULANAN dari baris DB yang sama", () => {
     return h!;
   }
 
-  it("mingguan → Pelaksana, bulanan → Direktur", async () => {
+  it("harian → Pelaksana; mingguan & bulanan → Manajer Proyek, bukan Direktur", async () => {
     const h = await kop(slugPaket);
-    expect(penyediaLaporan("mingguan", h).nama).toBe(PELAKSANA_PAKET);
-    expect(penyediaLaporan("bulanan", h).nama).toBe(DIREKTUR);
+    expect(penyediaLaporan("harian", h).nama).toBe(PELAKSANA_PAKET);
+    expect(penyediaLaporan("mingguan", h).nama).toBe(MANAJER);
+    expect(penyediaLaporan("bulanan", h).nama).toBe(MANAJER);
   });
 
   it("MC dan CCO ikut Direktur", async () => {
@@ -193,11 +197,13 @@ describe("laporan MINGGUAN vs BULANAN dari baris DB yang sama", () => {
   });
 
   it("penimpaan lokasi hanya menyentuh yang diteken Pelaksana", async () => {
-    // Lokasi B punya pelaksana sendiri, tapi direkturnya tetap direktur paket:
-    // penimpaan pelaksana tidak boleh merembet ke dokumen yang bukan miliknya.
+    // Lokasi B punya pelaksana sendiri, tapi Manajer Proyek & Direktur tetap
+    // milik paket: penimpaan pelaksana tidak boleh merembet ke dokumen yang
+    // bukan miliknya.
     const h = await kop(slugSendiri);
-    expect(penyediaLaporan("mingguan", h).nama).toBe(PELAKSANA_LOKASI);
-    expect(penyediaLaporan("bulanan", h).nama).toBe(DIREKTUR);
+    expect(penyediaLaporan("harian", h).nama).toBe(PELAKSANA_LOKASI);
+    expect(penyediaLaporan("mingguan", h).nama).toBe(MANAJER);
+    expect(penyediaLaporan("mc", h).nama).toBe(DIREKTUR);
   });
 });
 
@@ -287,6 +293,32 @@ describe("formulir penanda tangan menulis pelaksana ke paket", () => {
     });
     expect(p.pelaksanaName).toBe("Pelaksana Baru");
     expect(p.pelaksanaTitle).toBe("Site Engineer");
+  });
+
+  it("menyimpan personel BANUSA: Koordinator TL, TL, Quality Surveyor, Manajer Proyek, Site Manager (DECISIONS 662)", async () => {
+    // Bentuk cacat yang sama dengan uji di bawah: medan yang tidak masuk
+    // `safeParse` dibuang zod diam-diam dan tersimpan null.
+    const { updateContractSignatories } = await import("@/lib/package/actions");
+    const kontrak = await db.contract.findFirstOrThrow({ where: { packageId: pkgId }, select: { id: true } });
+    const isi = {
+      coTeamLeaderName: "Koordinator Uji",
+      teamLeaderName: "Ketua Tim Uji",
+      qualitySurveyorName: "QS Uji",
+      projectManagerName: "Manajer Uji",
+      siteManagerName: "SM Uji",
+    };
+    const f = new FormData();
+    f.set("contractId", kontrak.id);
+    for (const [k, v] of Object.entries(isi)) f.set(k, v);
+    const r = await updateContractSignatories(undefined, f);
+    expect(r?.error).toBeUndefined();
+    const c = await db.contract.findUniqueOrThrow({
+      where: { id: kontrak.id },
+      select: { coTeamLeaderName: true, teamLeaderName: true, qualitySurveyorName: true, projectManagerName: true, siteManagerName: true },
+    });
+    expect(c).toEqual(isi);
+    // Kembalikan Manajer Proyek fixture supaya uji lain di berkas ini tidak bergantung urutan.
+    await db.contract.update({ where: { id: kontrak.id }, data: { projectManagerName: MANAJER } });
   });
 
   it("REGRESI: tidak melapor berhasil sambil menghapus nama yang ada", async () => {

@@ -156,7 +156,10 @@ export async function renderMingguanKkpPdf(
   const branding = await getBranding();
   const [logo, gambarTtd] = await Promise.all([
     muatLogoPemilik(branding.ownerLogoKey),
-    muatTtdPdf(lokasi.id, "mingguan").catch(() => TANPA_TTD_PDF),
+    // Tujuh blanko HARIAN: ditandatangani penanda tangan laporan harian
+    // (Wakil Sah PPK – Pengawas Lapangan – Pelaksana), bukan penanda tangan
+    // laporan progres mingguan (DECISIONS 662).
+    muatTtdPdf(lokasi.id, "harian").catch(() => TANPA_TTD_PDF),
   ]);
 
   // Data hari pertama dipakai sampul: identitas kontrak & "MINGGU KE-n"-nya

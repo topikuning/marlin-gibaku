@@ -1,5 +1,5 @@
 import "server-only";
-import { pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/penandatangan";
+import { pilihKoordinatorTl, pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
@@ -155,6 +155,14 @@ export type PeriodHeader = {
    */
   pelaksanaName: string | null;
   pelaksanaTitle: string | null;
+  /** Firma konsultan di kontrak – Team Leader & Koordinator TL (DECISIONS 662). */
+  supervisorFirmKontrak: string | null;
+  /** Koordinator Team Leader (lokasi menimpa kontrak) – mingguan & Kurva S lokasi. */
+  coTeamLeaderName: string | null;
+  /** Team Leader konsultan – laporan bulanan. */
+  teamLeaderName: string | null;
+  /** Manajer Proyek penyedia – mingguan, bulanan, Kurva S lokasi. */
+  projectManagerName: string | null;
 };
 
 export type PeriodReport = {
@@ -253,6 +261,9 @@ export const HEADER_LOCATION_SELECT = {
   wakilSahName: true,
   wakilSahNip: true,
   wakilSahTtdKey: true,
+  // Penimpaan Koordinator Team Leader per lokasi (DECISIONS 662).
+  coTeamLeaderName: true,
+  coTeamLeaderTtdKey: true,
   package: {
     select: {
       name: true,
@@ -279,6 +290,10 @@ export const HEADER_LOCATION_SELECT = {
           supervisorStempelKey: true,
           contractorSignerName: true,
           contractorSignerTitle: true,
+          teamLeaderName: true,
+          coTeamLeaderName: true,
+          coTeamLeaderTtdKey: true,
+          projectManagerName: true,
           vendor: { select: { name: true } },
         },
       },
@@ -310,6 +325,8 @@ export function buildPeriodHeader(
   const pengawas = pilihPengawas(location, contract);
   // Wakil Sah lokasi menimpa Wakil Sah kontrak – SATU BLOK (2026-08-24).
   const wakilSah = pilihWakilSah(location, contract);
+  // Koordinator TL lokasi menimpa kontrak – SATU BLOK (DECISIONS 662).
+  const kortl = pilihKoordinatorTl(location, contract);
   return {
     locationName: location.name,
     village: location.village,
@@ -337,6 +354,10 @@ export function buildPeriodHeader(
     wakilSahNip: wakilSah.nip,
     supervisorName: pengawas.nama,
     supervisorFirm: pengawas.firma,
+    supervisorFirmKontrak: contract.supervisorFirm,
+    coTeamLeaderName: kortl.nama,
+    teamLeaderName: contract.teamLeaderName,
+    projectManagerName: contract.projectManagerName,
     contractorSignerName: contract.contractorSignerName,
     contractorSignerTitle: contract.contractorSignerTitle,
     pelaksanaName: pelaksana.nama,

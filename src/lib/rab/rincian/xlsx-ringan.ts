@@ -108,9 +108,11 @@ export class BukuRingan {
       if (id && t) target.set(id, t.startsWith("/") ? t.slice(1) : `xl/${t}`.replace(/xl\/\.\.\//, ""));
     }
     const daftar: (InfoSheet & { path: string | null })[] = [];
-    for (const m of wb.matchAll(/<sheet\b[^>]*\/>/g)) {
+    // Bentuk elemen sama longgarnya dengan pembaca daftar sheet impor
+    // (`<sheet …></sheet>` juga sah) – DECISIONS 664.
+    for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
       const nama = lepas(/\bname="([^"]*)"/.exec(m[0])?.[1] ?? "");
-      const rid = /\br:id="([^"]*)"/.exec(m[0])?.[1] ?? "";
+      const rid = /\b[A-Za-z_][\w.-]*:id="([^"]*)"/.exec(m[0])?.[1] ?? "";
       const state = /\bstate="([^"]*)"/.exec(m[0])?.[1] ?? "visible";
       daftar.push({ nama, tersembunyi: state !== "visible", path: target.get(rid) ?? null });
     }

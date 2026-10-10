@@ -24,6 +24,12 @@ import {
   updateContractSignatureImages,
   type PackageActionState,
 } from "@/lib/package/actions";
+import {
+  PERSONEL_KONTRAK,
+  siapaMenekenApa,
+  type MedanNamaPersonel,
+  type MedanTtdPersonel,
+} from "@/lib/laporan/penandatangan";
 
 type VendorOption = { id: string; name: string };
 
@@ -141,7 +147,7 @@ export function EditContractForm({
 export type Signatories = {
   ppkName: string | null;
   ppkNip: string | null;
-  /** Wakil Sah — penanda tangan pihak KKP laporan mingguan & bulanan (2026-08-24). */
+  /** Wakil Sah PPK — slot KKP laporan harian, mingguan, dan Kurva S lokasi (DECISIONS 662). */
   wakilSahName: string | null;
   wakilSahNip: string | null;
   supervisorName: string | null;
@@ -149,8 +155,7 @@ export type Signatories = {
   contractorSignerName: string | null;
   contractorSignerTitle: string | null;
   /**
-   * Pelaksana Lapangan — penanda tangan laporan harian & mingguan
-   * (DECISIONS 402/404).
+   * Pelaksana Lapangan — penanda tangan laporan harian (DECISIONS 402/404/662).
    *
    * Ikut di formulir ini, bukan di kartunya sendiri. Keberatan user
    * 2026-08-21: *"kamu terlalu mengistimewakan pelaksana di paket, jadikan
@@ -164,58 +169,123 @@ export type Signatories = {
    */
   pelaksanaName: string | null;
   pelaksanaTitle: string | null;
+} & Record<MedanNamaPersonel, string | null>;
+
+const PLACEHOLDER_PERSONEL: Record<MedanNamaPersonel, string> = {
+  coTeamLeaderName: "mis. Rudi Hartanto",
+  teamLeaderName: "mis. Ir. Sutrisno",
+  qualitySurveyorName: "mis. Dewi Lestari",
+  projectManagerName: "mis. Bambang Wijaya",
+  siteManagerName: "mis. Fajar Nugroho",
 };
 
-/** Field penanda tangan KKP (dipakai form konversi & form edit). Semua opsional. */
+function IsianPersonel({ pihak, v }: { pihak: "konsultan" | "penyedia"; v?: Signatories }) {
+  return PERSONEL_KONTRAK.filter((p) => p.pihak === pihak).map((p) => (
+    <div key={p.nama}>
+      <Label htmlFor={`sg-${p.nama}`}>{p.jabatan}</Label>
+      <Input id={`sg-${p.nama}`} name={p.nama} defaultValue={v?.[p.nama] ?? ""} placeholder={PLACEHOLDER_PERSONEL[p.nama]} />
+    </div>
+  ));
+}
+
+/**
+ * Field penanda tangan (dipakai form konversi & form edit). Semua opsional.
+ *
+ * Dikelompokkan per PIHAK, bukan per dokumen: yang mengisi berpikir "siapa
+ * orang KKP-nya, siapa orang pengawasnya", lalu tabel di bawahnya menjawab
+ * siapa meneken apa (BANUSA, DECISIONS 662).
+ */
 function SignatoryFields({ v }: { v?: Signatories }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <Label htmlFor="sg-ppk">Nama PPK</Label>
-        <Input id="sg-ppk" name="ppkName" defaultValue={v?.ppkName ?? ""} placeholder="mis. Ir. Budi Santoso" />
-      </div>
-      <div>
-        <Label htmlFor="sg-ppk-nip">NIP PPK</Label>
-        <Input id="sg-ppk-nip" name="ppkNip" defaultValue={v?.ppkNip ?? ""} placeholder="mis. 19700101 ..." />
-      </div>
-      <div>
-        <Label htmlFor="sg-ws">Nama Wakil Sah</Label>
-        <Input id="sg-ws" name="wakilSahName" defaultValue={v?.wakilSahName ?? ""} placeholder="mis. Drs. Hartono" />
-      </div>
-      <div>
-        <Label htmlFor="sg-ws-nip">NIP Wakil Sah</Label>
-        <Input id="sg-ws-nip" name="wakilSahNip" defaultValue={v?.wakilSahNip ?? ""} placeholder="mis. 19750101 ..." />
-      </div>
-      <div>
-        <Label htmlFor="sg-sup">Nama Konsultan Pengawas</Label>
-        <Input id="sg-sup" name="supervisorName" defaultValue={v?.supervisorName ?? ""} placeholder="mis. Agus Prasetyo" />
-      </div>
-      <div>
-        <Label htmlFor="sg-sup-firm">Konsultan / Instansi Pengawas</Label>
-        <Input id="sg-sup-firm" name="supervisorFirm" defaultValue={v?.supervisorFirm ?? ""} placeholder="mis. CV Konsultan Nusantara" />
-      </div>
-      <div>
-        <Label htmlFor="sg-ctr">Nama Penanda Tangan Penyedia</Label>
-        <Input id="sg-ctr" name="contractorSignerName" defaultValue={v?.contractorSignerName ?? ""} placeholder="mis. Andi Wijaya" />
-      </div>
-      <div>
-        <Label htmlFor="sg-ctr-title">Jabatan Penyedia</Label>
-        <Input id="sg-ctr-title" name="contractorSignerTitle" defaultValue={v?.contractorSignerTitle ?? ""} placeholder="mis. Direktur" />
-      </div>
-      <div>
-        <Label htmlFor="sg-pl">Nama Pelaksana Lapangan</Label>
-        <Input id="sg-pl" name="pelaksanaName" defaultValue={v?.pelaksanaName ?? ""} placeholder="mis. Joko Susilo" />
-      </div>
-      <div>
-        <Label htmlFor="sg-pl-title">Jabatan Pelaksana</Label>
-        <Input id="sg-pl-title" name="pelaksanaTitle" defaultValue={v?.pelaksanaTitle ?? ""} placeholder="Pelaksana Lapangan" />
-      </div>
-      <p className="text-xs text-ink-muted sm:col-span-2">
-        Penyedia (Direktur) menandatangani laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
-        menandatangani laporan <b>harian</b> dan <b>mingguan</b>. Dari pihak KKP, laporan
-        <b> mingguan</b> dan <b>bulanan</b> ditandatangani <b>Wakil Sah</b>, dokumen lain tetap oleh PPK.
-        Tiap lokasi boleh punya pelaksana atau Wakil Sah sendiri. Aturnya di halaman lokasi itu.
+    <div className="space-y-5">
+      <fieldset className="grid gap-4 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-semibold text-ink">KKP</legend>
+        <div>
+          <Label htmlFor="sg-ppk">Nama PPK</Label>
+          <Input id="sg-ppk" name="ppkName" defaultValue={v?.ppkName ?? ""} placeholder="mis. Ir. Budi Santoso" />
+        </div>
+        <div>
+          <Label htmlFor="sg-ppk-nip">NIP PPK</Label>
+          <Input id="sg-ppk-nip" name="ppkNip" defaultValue={v?.ppkNip ?? ""} placeholder="mis. 19700101 ..." />
+        </div>
+        <div>
+          <Label htmlFor="sg-ws">Wakil Sah PPK</Label>
+          <Input id="sg-ws" name="wakilSahName" defaultValue={v?.wakilSahName ?? ""} placeholder="mis. Drs. Hartono" />
+        </div>
+        <div>
+          <Label htmlFor="sg-ws-nip">NIP Wakil Sah PPK</Label>
+          <Input id="sg-ws-nip" name="wakilSahNip" defaultValue={v?.wakilSahNip ?? ""} placeholder="mis. 19750101 ..." />
+        </div>
+      </fieldset>
+
+      <fieldset className="grid gap-4 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-semibold text-ink">Konsultan Pengawas</legend>
+        <div className="sm:col-span-2">
+          <Label htmlFor="sg-sup-firm">Nama firma pengawas</Label>
+          <Input id="sg-sup-firm" name="supervisorFirm" defaultValue={v?.supervisorFirm ?? ""} placeholder="mis. PT Banusa" />
+        </div>
+        <div>
+          <Label htmlFor="sg-sup">Pengawas Lapangan</Label>
+          <Input id="sg-sup" name="supervisorName" defaultValue={v?.supervisorName ?? ""} placeholder="mis. Agus Prasetyo" />
+        </div>
+        <IsianPersonel pihak="konsultan" v={v} />
+      </fieldset>
+
+      <fieldset className="grid gap-4 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-semibold text-ink">Penyedia Jasa</legend>
+        <div>
+          <Label htmlFor="sg-ctr">Nama Direktur</Label>
+          <Input id="sg-ctr" name="contractorSignerName" defaultValue={v?.contractorSignerName ?? ""} placeholder="mis. Andi Wijaya" />
+        </div>
+        <div>
+          <Label htmlFor="sg-ctr-title">Jabatan Direktur</Label>
+          <Input id="sg-ctr-title" name="contractorSignerTitle" defaultValue={v?.contractorSignerTitle ?? ""} placeholder="mis. Direktur" />
+        </div>
+        <IsianPersonel pihak="penyedia" v={v} />
+        <div>
+          <Label htmlFor="sg-pl">Pelaksana Lapangan</Label>
+          <Input id="sg-pl" name="pelaksanaName" defaultValue={v?.pelaksanaName ?? ""} placeholder="mis. Joko Susilo" />
+        </div>
+        <div>
+          <Label htmlFor="sg-pl-title">Jabatan Pelaksana</Label>
+          <Input id="sg-pl-title" name="pelaksanaTitle" defaultValue={v?.pelaksanaTitle ?? ""} placeholder="Pelaksana Lapangan" />
+        </div>
+      </fieldset>
+
+      <SiapaMenekenApa />
+      <p className="text-xs text-ink-muted">
+        Pengawas Lapangan, Koordinator Team Leader, Pelaksana, dan Wakil Sah PPK boleh berbeda di tiap
+        lokasi. Aturnya di halaman lokasi itu. Quality Surveyor dan Site Manager belum tercetak di
+        dokumen mana pun – keduanya untuk BUD/Calculation Sheet yang menyusul.
       </p>
+    </div>
+  );
+}
+
+/** Tabel "siapa meneken apa" – diturunkan dari aturan cetaknya, bukan ditulis ulang. */
+function SiapaMenekenApa() {
+  return (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <table className="w-full text-xs">
+        <thead className="bg-surface-muted text-left text-ink-muted">
+          <tr>
+            <th className="px-2 py-1.5 font-medium">Dokumen</th>
+            <th className="px-2 py-1.5 font-medium">KKP</th>
+            <th className="px-2 py-1.5 font-medium">Konsultan</th>
+            <th className="px-2 py-1.5 font-medium">Penyedia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {siapaMenekenApa().map((r) => (
+            <tr key={r.label} className="border-t border-border">
+              <td className="px-2 py-1.5 font-medium text-ink">{r.label}</td>
+              <td className="px-2 py-1.5">{r.kkp}</td>
+              <td className="px-2 py-1.5">{r.konsultan}</td>
+              <td className="px-2 py-1.5">{r.penyedia}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -676,6 +746,9 @@ export type GambarTtdKontrak = {
   /** Stempel dari master perusahaan — cadangan bila kontrak tidak punya sendiri. */
   vendorStempelUrl: string | null;
   vendorName: string;
+  /** Koordinator TL, TL, QS, Manajer Proyek, Site Manager (DECISIONS 662). */
+  personelTtdUrl: Partial<Record<MedanTtdPersonel, string | null>>;
+  supervisorFirm: string | null;
 };
 
 /**
@@ -724,13 +797,13 @@ export function TtdStempelForm({
           stempelUrl={gambar.ppkStempelUrl}
         />
         <PihakTtdFields
-          judul="Wakil Sah"
+          judul="Wakil Sah PPK"
           medanTtd="wakilSahTtdKey"
           ttdUrl={gambar.wakilSahTtdUrl}
-          catatanStempel="Meneken laporan mingguan dan bulanan atas nama KKP. Stempelnya memakai stempel instansi di kolom PPK."
+          catatanStempel="Memakai stempel instansi di kolom PPK."
         />
         <PihakTtdFields
-          judul="Konsultan Pengawas"
+          judul="Konsultan Pengawas – Pengawas Lapangan"
           medanTtd="supervisorTtdKey"
           medanStempel="supervisorStempelKey"
           ttdUrl={gambar.supervisorTtdUrl}
@@ -757,6 +830,20 @@ export function TtdStempelForm({
           ttdUrl={gambar.pelaksanaTtdUrl}
           catatanStempel={`Memakai stempel ${gambar.vendorName} di kolom sebelah – satu perusahaan, satu stempel.`}
         />
+        {/* Personel BANUSA (DECISIONS 662): tanda tangan saja – stempel milik firma. */}
+        {PERSONEL_KONTRAK.map((p) => (
+          <PihakTtdFields
+            key={p.ttd}
+            judul={p.jabatan}
+            medanTtd={p.ttd}
+            ttdUrl={gambar.personelTtdUrl[p.ttd] ?? null}
+            catatanStempel={
+              p.pihak === "konsultan"
+                ? `Memakai stempel ${gambar.supervisorFirm || "konsultan pengawas"} di kolom pengawas.`
+                : `Memakai stempel ${gambar.vendorName} di kolom penyedia.`
+            }
+          />
+        ))}
         </div>
       </div>
 

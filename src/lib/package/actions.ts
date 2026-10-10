@@ -694,6 +694,11 @@ const convertSchema = z
     supervisorFirm: z.string().trim().max(200).optional(),
     contractorSignerName: z.string().trim().max(150).optional(),
     contractorSignerTitle: z.string().trim().max(120).optional(),
+    coTeamLeaderName: z.string().trim().max(150).optional(),
+    teamLeaderName: z.string().trim().max(150).optional(),
+    qualitySurveyorName: z.string().trim().max(150).optional(),
+    projectManagerName: z.string().trim().max(150).optional(),
+    siteManagerName: z.string().trim().max(150).optional(),
     // Form konversi memakai `SignatoryFields` YANG SAMA, jadi ia ikut membawa
     // Pelaksana Lapangan. Tanpa baris ini zod membuangnya diam-diam dan yang
     // sudah diketik hilang tanpa satu pun pesan (DECISIONS 404).
@@ -729,6 +734,11 @@ export async function convertToContract(
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    coTeamLeaderName: optionalText(formData.get("coTeamLeaderName"), 150) ?? undefined,
+    teamLeaderName: optionalText(formData.get("teamLeaderName"), 150) ?? undefined,
+    qualitySurveyorName: optionalText(formData.get("qualitySurveyorName"), 150) ?? undefined,
+    projectManagerName: optionalText(formData.get("projectManagerName"), 150) ?? undefined,
+    siteManagerName: optionalText(formData.get("siteManagerName"), 150) ?? undefined,
     pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
     pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
@@ -818,6 +828,11 @@ export async function convertToContract(
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
         contractorSignerTitle: d.contractorSignerTitle ?? null,
+        coTeamLeaderName: d.coTeamLeaderName ?? null,
+        teamLeaderName: d.teamLeaderName ?? null,
+        qualitySurveyorName: d.qualitySurveyorName ?? null,
+        projectManagerName: d.projectManagerName ?? null,
+        siteManagerName: d.siteManagerName ?? null,
       },
       select: { id: true },
     });
@@ -1429,6 +1444,12 @@ const signatoriesSchema = z.object({
   supervisorFirm: z.string().trim().max(200).optional(),
   contractorSignerName: z.string().trim().max(150).optional(),
   contractorSignerTitle: z.string().trim().max(120).optional(),
+  // Personel BANUSA (DECISIONS 662): Koordinator TL, TL, QS, Manajer Proyek, Site Manager.
+  coTeamLeaderName: z.string().trim().max(150).optional(),
+  teamLeaderName: z.string().trim().max(150).optional(),
+  qualitySurveyorName: z.string().trim().max(150).optional(),
+  projectManagerName: z.string().trim().max(150).optional(),
+  siteManagerName: z.string().trim().max(150).optional(),
   // Pelaksana Lapangan ikut formulir ini (DECISIONS 404) walau tersimpan di
   // PAKET, bukan kontrak: yang disatukan formulirnya, bukan tempat simpannya.
   pelaksanaName: z.string().trim().max(150).optional(),
@@ -1451,6 +1472,11 @@ export async function updateContractSignatories(
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    coTeamLeaderName: optionalText(formData.get("coTeamLeaderName"), 150) ?? undefined,
+    teamLeaderName: optionalText(formData.get("teamLeaderName"), 150) ?? undefined,
+    qualitySurveyorName: optionalText(formData.get("qualitySurveyorName"), 150) ?? undefined,
+    projectManagerName: optionalText(formData.get("projectManagerName"), 150) ?? undefined,
+    siteManagerName: optionalText(formData.get("siteManagerName"), 150) ?? undefined,
     pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
     pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
@@ -1481,6 +1507,11 @@ export async function updateContractSignatories(
         supervisorFirm: d.supervisorFirm ?? null,
         contractorSignerName: d.contractorSignerName ?? null,
         contractorSignerTitle: d.contractorSignerTitle ?? null,
+        coTeamLeaderName: d.coTeamLeaderName ?? null,
+        teamLeaderName: d.teamLeaderName ?? null,
+        qualitySurveyorName: d.qualitySurveyorName ?? null,
+        projectManagerName: d.projectManagerName ?? null,
+        siteManagerName: d.siteManagerName ?? null,
       },
     }),
     db.package.update({
@@ -1498,6 +1529,11 @@ export async function updateContractSignatories(
     wakilSahName: d.wakilSahName ?? null,
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
+    coTeamLeaderName: d.coTeamLeaderName ?? null,
+    teamLeaderName: d.teamLeaderName ?? null,
+    qualitySurveyorName: d.qualitySurveyorName ?? null,
+    projectManagerName: d.projectManagerName ?? null,
+    siteManagerName: d.siteManagerName ?? null,
     pelaksanaName: d.pelaksanaName ?? null,
   });
   revalidatePath(`/paket/${contract.packageId}`, "layout");
@@ -2212,6 +2248,12 @@ const MEDAN_TTD = [
   "supervisorLogoKey",
   "contractorTtdKey",
   "contractorStempelKey",
+  // Personel BANUSA (DECISIONS 662) – tanda tangan saja; stempel milik firma.
+  "coTeamLeaderTtdKey",
+  "teamLeaderTtdKey",
+  "qualitySurveyorTtdKey",
+  "projectManagerTtdKey",
+  "siteManagerTtdKey",
 ] as const;
 
 /** Medan gambar Pelaksana Lapangan — tersimpan di `packages`. */
@@ -2229,12 +2271,17 @@ type MedanTtd = (typeof MEDAN_TTD)[number];
 const LABEL_TTD: Record<MedanTtd, string> = {
   ppkTtdKey: "tanda tangan PPK",
   ppkStempelKey: "stempel PPK",
-  wakilSahTtdKey: "tanda tangan Wakil Sah",
+  wakilSahTtdKey: "tanda tangan Wakil Sah PPK",
   supervisorTtdKey: "tanda tangan konsultan pengawas",
   supervisorStempelKey: "stempel konsultan pengawas",
   supervisorLogoKey: "logo firma pengawas",
   contractorTtdKey: "tanda tangan penyedia",
   contractorStempelKey: "stempel penyedia",
+  coTeamLeaderTtdKey: "tanda tangan Koordinator Team Leader",
+  teamLeaderTtdKey: "tanda tangan Team Leader",
+  qualitySurveyorTtdKey: "tanda tangan Quality Surveyor",
+  projectManagerTtdKey: "tanda tangan Manajer Proyek",
+  siteManagerTtdKey: "tanda tangan Site Manager",
 };
 
 const LABEL_TTD_PAKET: Record<MedanTtdPaket, string> = {
@@ -2263,6 +2310,11 @@ export async function updateContractSignatureImages(
       supervisorLogoKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
+      coTeamLeaderTtdKey: true,
+      teamLeaderTtdKey: true,
+      qualitySurveyorTtdKey: true,
+      projectManagerTtdKey: true,
+      siteManagerTtdKey: true,
       package: { select: { id: true, pelaksanaTtdKey: true } },
     },
   });

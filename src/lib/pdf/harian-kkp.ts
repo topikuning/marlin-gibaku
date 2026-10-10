@@ -443,44 +443,36 @@ export function tulisBadanHarian(
   draw([{ text: "CATATAN / KETERANGAN", head: true }], catatan);
   draw([{ text: d.notes || " " }], { ...catatan, minRowHeight: 34 });
 
-  const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 94 };
+  // Tiga kolom sama lebar: Wakil Sah PPK – Pengawas Lapangan – Pelaksana
+  // (Team Leader pengawas BANUSA, DECISIONS 662).
+  const kolomTtd = colWidths(width, [1, 1, 1]);
+  const ttd: GridOptions = { x, width, cols: kolomTtd, fontSize: 7, minRowHeight: 94 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
     `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
   /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
      atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
-     itulah lapisannya. Kolomnya dua sama lebar: pengawas kiri, penyedia kanan —
-     urutan yang sama dengan teksnya. Baris nama "( … )" ada di baris ke-6 blok;
-     coretan berpijak tepat di atasnya. */
+     itulah lapisannya. Urutan kolom gambar = urutan teks: Wakil Sah PPK,
+     pengawas, penyedia. Baris nama "( … )" ada di baris ke-6 blok; coretan
+     berpijak tepat di atasnya. */
   const yTtd = y;
   const gbr = lampiran?.ttd;
-  const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
   // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
   // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
   const RUANG_TTD_PDF = 70;
   const yDasarTtd = yTtd + RUANG_TTD_PDF;
+  const kiriKolom = (i: number) => x + kolomTtd.slice(0, i).reduce((a, b) => a + b, 0);
   y = blokTandaTanganPdf(
     doc,
     gbr
-      ? [
-          {
-            berkas: gbr.pengawas,
-            opsi: {
-              xTengah: x + kolomKiri / 2,
-              yDasar: yDasarTtd,
-              lebarKolom: kolomKiri,
-              ruangDiAtasNama: RUANG_TTD_PDF,
-            },
+      ? [gbr.ppk, gbr.pengawas, gbr.penyedia].map((berkas, i) => ({
+          berkas,
+          opsi: {
+            xTengah: kiriKolom(i) + kolomTtd[i] / 2,
+            yDasar: yDasarTtd,
+            lebarKolom: kolomTtd[i],
+            ruangDiAtasNama: RUANG_TTD_PDF,
           },
-          {
-            berkas: gbr.penyedia,
-            opsi: {
-              xTengah: x + kolomKiri + kolomKanan / 2,
-              yDasar: yDasarTtd,
-              lebarKolom: kolomKanan,
-              ruangDiAtasNama: RUANG_TTD_PDF,
-            },
-          },
-        ]
+        }))
       : [],
     () =>
       gridRow(
@@ -488,7 +480,19 @@ export function tulisBadanHarian(
         yTtd,
         [
           {
-            text: blokTtd("Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub, d.supervisorName, "Inspector"),
+            // Baris firma dibiarkan KOSONG (bukan dihilangkan) supaya garis nama
+            // sejajar dengan dua kolom di sebelahnya.
+            text: blokTtd("Mengetahui :", "Wakil Sah PPK", " ", d.wakilSahName, d.wakilSahSub ?? ""),
+            align: "center",
+          },
+          {
+            text: blokTtd(
+              "Disetujui Oleh;",
+              "Konsultan Pengawas",
+              d.supervisorFirm ?? d.supervisorSub,
+              d.supervisorName,
+              d.supervisorJabatan || "Pengawas Lapangan",
+            ),
             align: "center",
           },
           {

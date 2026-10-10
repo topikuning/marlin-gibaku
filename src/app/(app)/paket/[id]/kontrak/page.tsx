@@ -33,6 +33,7 @@ import {
   TtdStempelForm,
 } from "./kontrak-forms";
 import { presignKeys } from "@/lib/photos";
+import { PERSONEL_KONTRAK } from "@/lib/laporan/penandatangan";
 import { AmendmentDocUpload } from "./amendment-doc-upload";
 import { AksiTile } from "./aksi-tile";
 
@@ -130,6 +131,7 @@ export default async function KontrakPage({
     contract.contractorStempelKey,
     contract.vendor.stempelKey,
     pkg.pelaksanaTtdKey,
+    ...PERSONEL_KONTRAK.map((p) => contract[p.ttd]),
   ].filter((k): k is string => !!k);
   // Satu jam: formulir ini dibuka lama; tautan 5 menit membuat gambar yang
   // tersimpan tampil rusak (DECISIONS 634).
@@ -343,14 +345,14 @@ export default async function KontrakPage({
           judul="Penanda tangan dokumen KKP"
           penjelasan={
             canContract
-              ? "Nama PPK, Konsultan Pengawas, Penyedia (Direktur), dan Pelaksana Lapangan yang tercetak pada bagian tanda tangan laporan."
+              ? "Nama PPK, Wakil Sah PPK, konsultan pengawas, dan penyedia yang tercetak pada bagian tanda tangan laporan."
               : "Nama yang tercetak pada bagian tanda tangan laporan. Hanya pengelola kontrak yang boleh mengubahnya."
           }
           aksi={
             <Drawer
               trigger={canContract ? "Kelola nama" : "Lihat nama"}
               title="Penanda tangan dokumen KKP"
-              subtitle="Nama yang tercetak di bagian tanda tangan laporan. Bisa diganti kalau ada pergantian personel. Direktur menandatangani laporan bulanan, MC, dan CCO; Pelaksana Lapangan menandatangani laporan harian dan mingguan."
+              subtitle="Nama yang tercetak di bagian tanda tangan laporan. Bisa diganti kalau ada pergantian personel. Tabel di bawah isian menunjukkan siapa meneken dokumen mana."
             >
               {canContract ? (
                 <SignatoriesForm
@@ -366,51 +368,42 @@ export default async function KontrakPage({
                     contractorSignerTitle: contract.contractorSignerTitle,
                     pelaksanaName: pkg.pelaksanaName,
                     pelaksanaTitle: pkg.pelaksanaTitle,
+                    coTeamLeaderName: contract.coTeamLeaderName,
+                    teamLeaderName: contract.teamLeaderName,
+                    qualitySurveyorName: contract.qualitySurveyorName,
+                    projectManagerName: contract.projectManagerName,
+                    siteManagerName: contract.siteManagerName,
                   }}
                 />
               ) : (
                 <dl className="space-y-3 text-sm">
-                  <div>
-                    <dt className="text-ink-muted">PPK</dt>
-                    <dd className="font-medium text-ink">{contract.ppkName || "–"}</dd>
-                    {contract.ppkNip ? (
-                      <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd>
-                    ) : null}
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Wakil Sah – mingguan, bulanan</dt>
-                    <dd className="font-medium text-ink">{contract.wakilSahName || "–"}</dd>
-                    {contract.wakilSahNip ? (
-                      <dd className="text-xs text-ink-muted">NIP. {contract.wakilSahNip}</dd>
-                    ) : null}
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Konsultan Pengawas</dt>
-                    <dd className="font-medium text-ink">{contract.supervisorName || "–"}</dd>
-                    {contract.supervisorFirm ? (
-                      <dd className="text-xs text-ink-muted">{contract.supervisorFirm}</dd>
-                    ) : null}
-                  </div>
-                  <div>
-                    {/* "Penyedia / Pelaksana" dipecah: sejak DECISIONS 402
-                        keduanya orang yang BERBEDA dan meneken dokumen yang
-                        berbeda; satu label untuk dua peran justru menyamarkan
-                        perbedaan yang baru saja dibuat. */}
-                    <dt className="text-ink-muted">Penyedia (Direktur) – bulanan, MC, CCO</dt>
-                    <dd className="font-medium text-ink">
-                      {contract.contractorSignerName || "–"}
-                    </dd>
-                    {contract.contractorSignerTitle ? (
-                      <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd>
-                    ) : null}
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Pelaksana Lapangan – harian, mingguan</dt>
-                    <dd className="font-medium text-ink">{pkg.pelaksanaName || "–"}</dd>
-                    <dd className="text-xs text-ink-muted">
-                      {pkg.pelaksanaTitle || "Pelaksana Lapangan"}
-                    </dd>
-                  </div>
+                  {[
+                    { label: "PPK", nama: contract.ppkName, sub: contract.ppkNip ? `NIP. ${contract.ppkNip}` : null },
+                    {
+                      label: "Wakil Sah PPK",
+                      nama: contract.wakilSahName,
+                      sub: contract.wakilSahNip ? `NIP. ${contract.wakilSahNip}` : null,
+                    },
+                    { label: "Pengawas Lapangan", nama: contract.supervisorName, sub: contract.supervisorFirm },
+                    ...PERSONEL_KONTRAK.filter((p) => p.pihak === "konsultan").map((p) => ({
+                      label: p.jabatan,
+                      nama: contract[p.nama],
+                      sub: null,
+                    })),
+                    { label: "Direktur", nama: contract.contractorSignerName, sub: contract.contractorSignerTitle },
+                    ...PERSONEL_KONTRAK.filter((p) => p.pihak === "penyedia").map((p) => ({
+                      label: p.jabatan,
+                      nama: contract[p.nama],
+                      sub: null,
+                    })),
+                    { label: "Pelaksana Lapangan", nama: pkg.pelaksanaName, sub: pkg.pelaksanaTitle },
+                  ].map((r) => (
+                    <div key={r.label}>
+                      <dt className="text-ink-muted">{r.label}</dt>
+                      <dd className="font-medium text-ink">{r.nama || "–"}</dd>
+                      {r.sub ? <dd className="text-xs text-ink-muted">{r.sub}</dd> : null}
+                    </div>
+                  ))}
                 </dl>
               )}
             </Drawer>
@@ -420,7 +413,7 @@ export default async function KontrakPage({
         {canContract ? (
           <AksiTile
             judul="Tanda tangan & stempel"
-            penjelasan="Gambar tanda tangan dan stempel PPK, pengawas, Direktur, dan Pelaksana Lapangan untuk ditempel pada laporan cetak. Boleh dikosongkan kalau laporan tetap ditandatangani dengan pena."
+            penjelasan="Gambar tanda tangan dan stempel para penanda tangan untuk ditempel pada laporan cetak. Boleh dikosongkan kalau laporan tetap ditandatangani dengan pena."
             aksi={
               <Drawer
                 trigger="Kelola gambar"
@@ -441,6 +434,8 @@ export default async function KontrakPage({
                     pelaksanaTtdUrl: urlTtd(pkg.pelaksanaTtdKey),
                     vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
                     vendorName: contract.vendor.name,
+                    supervisorFirm: contract.supervisorFirm,
+                    personelTtdUrl: Object.fromEntries(PERSONEL_KONTRAK.map((p) => [p.ttd, urlTtd(contract[p.ttd])])),
                   }}
                 />
               </Drawer>

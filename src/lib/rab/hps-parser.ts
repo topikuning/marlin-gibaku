@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { bacaAngkaLokal } from "@/lib/rab/angka-lokal";
-import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
+import { namaSheetXlsx, slimRabWorkbook, tanpaAwalanNamespace } from "@/lib/rab/xlsx-slim";
 import { berbentukCco, deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
@@ -729,6 +729,29 @@ function pesanSheetTakAdaDariNama(nama: string[], dibacaTapiKosong: string[] = [
   return `Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat tambah/kurang KKP. Sheet yang ada di berkas ini: ${daftar}.`;
 }
 
+/**
+ * Berkas yang daftar sheet-nya tidak terbaca – sebabnya dikenali dari byte
+ * pertamanya (DECISIONS 664). Dulu jatuh ke *"Sheet "RAB" tidak ditemukan …
+ * (tidak ada sheet terlihat)"*, yang menyuruh orang mencari sheet padahal
+ * berkasnya sendiri yang tidak bisa dibuka.
+ */
+function pesanBerkasTakTerbaca(buf: Buffer): string {
+  const b = buf.subarray(0, 4);
+  if (b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) {
+    return (
+      "Berkas ini format Excel lama (.xls, Excel 97-2003). MARLIN hanya bisa membaca .xlsx. " +
+      'Buka berkasnya di Excel, pilih File › Simpan Sebagai › "Buku Kerja Excel (*.xlsx)", lalu unggah berkas yang baru.'
+    );
+  }
+  if (b[0] === 0x50 && b[1] === 0x4b) {
+    return (
+      "Berkas .xlsx ini terbuka, tapi daftar sheet-nya tidak bisa dibaca – biasanya berkas hasil ekspor aplikasi lain. " +
+      "Buka di Excel, Simpan Sebagai .xlsx, lalu unggah berkas yang baru."
+    );
+  }
+  return "Berkas ini bukan berkas Excel .xlsx, atau rusak. Coba buka di Excel; kalau terbuka, Simpan Sebagai .xlsx lalu unggah lagi.";
+}
+
 function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
   return pesanSheetTakAdaDariNama(wb.worksheets.map((w) => w.name));
 }
@@ -888,8 +911,20 @@ async function muatSheet(buf: Buffer | ArrayBuffer, nama: string): Promise<Excel
  * dipastikan dilempar sebagai `ImporPerluJawaban` – bahan pertanyaannya
  * disusun dari sheet yang sudah dimuat, tanpa memuat ulang berkas.
  */
-export async function parseHpsBuffer(buf: Buffer | ArrayBuffer, opsi: OpsiBaca = {}): Promise<ParseHpsResult> {
-  const sheets = (await namaSheetXlsx(buf)).filter((s) => !s.tersembunyi);
+export async function parseHpsBuffer(asli: Buffer | ArrayBuffer, opsi: OpsiBaca = {}): Promise<ParseHpsResult> {
+  const buf = await tanpaAwalanNamespace(asli);
+  const daftar = await namaSheetXlsx(buf);
+  // Daftar sheet yang tidak terbaca BUKAN "tidak ada sheet RAB": sebutkan
+  // sebab yang sebenarnya (DECISIONS 664).
+  if (daftar.length === 0) throw new Error(pesanBerkasTakTerbaca(buf));
+  const sheets = daftar.filter((s) => !s.tersembunyi);
+  if (sheets.length === 0) {
+    const nama = daftar.slice(0, 6).map((s) => `"${s.nama}"`).join(", ");
+    throw new Error(
+      `Semua sheet di berkas ini disembunyikan (${nama}${daftar.length > 6 ? ", …" : ""}), ` +
+        "dan sheet yang disembunyikan tidak dibaca. Tampilkan (Unhide) sheet RAB-nya di Excel, simpan, lalu unggah lagi.",
+    );
+  }
   const semuaNama = sheets.map((s) => s.nama);
 
   if (opsi.sheet != null || opsi.kolom != null) {

@@ -1,5 +1,5 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
-import { labelPihakKkp, pihakKkp, penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
+import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -51,7 +51,8 @@ export function ScurveKkpSheet({
   /** Gambar tanda tangan & stempel; null = ruang kosong utk tanda tangan pena. */
   ttd?: TtdLaporan | null;
 }) {
-  const penyedia = penyediaLaporan(jenis, r.header);
+  // Siapa meneken dokumen ini – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
+  const tt = penandatanganDokumen(jenis, r.header);
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -260,34 +261,25 @@ export function ScurveKkpSheet({
 
       {/* Tanda tangan */}
       <div className="mt-6 flex justify-between px-8 text-center text-[8.5px]">
-        {/* Mingguan/bulanan: slot KKP = WAKIL SAH; jadwal tetap PPK (2026-08-24). */}
         <SignBlock
           title="MENGETAHUI :"
-          role={labelPihakKkp(jenis)}
-          name={pihakKkp(jenis) === "wakil_sah" ? hdr.wakilSahName : hdr.ppkName}
-          sub={
-            pihakKkp(jenis) === "wakil_sah"
-              ? hdr.wakilSahNip
-                ? `NIP. ${hdr.wakilSahNip}`
-                : null
-              : hdr.ppkNip
-                ? `NIP. ${hdr.ppkNip}`
-                : null
-          }
+          role={peranSlot(tt.kkp, true)}
+          name={tt.kkp.nama}
+          sub={tt.kkp.sub}
           {...gambarPihak(ttd, "ppk")}
         />
         <SignBlock
           title="DIPERIKSA :"
-          role="KONSULTAN PENGAWAS"
-          name={hdr.supervisorName}
-          sub={hdr.supervisorFirm}
+          role={peranSlot(tt.konsultan, true)}
+          name={tt.konsultan.nama}
+          sub={tt.konsultan.sub}
           {...gambarPihak(ttd, "pengawas")}
         />
         <SignBlock
           title="DIBUAT OLEH :"
-          role={`PENYEDIA JASA – ${hdr.vendorName}`}
-          name={penyedia.nama}
-          sub={penyedia.sub}
+          role={peranSlot(tt.penyedia, true)}
+          name={tt.penyedia.nama}
+          sub={tt.penyedia.sub}
           {...gambarPihak(ttd, "penyedia")}
         />
       </div>

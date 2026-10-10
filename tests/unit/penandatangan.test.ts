@@ -41,13 +41,13 @@ const KOSONG: SumberPelaksana = {
 };
 
 describe("dokumen mana diteken siapa", () => {
-  it("harian & mingguan → Pelaksana Lapangan", () => {
+  // Sejak BANUSA 2026-10-10 (DECISIONS 662) mingguan & bulanan diteken Manajer
+  // Proyek – lihat penandatangan-banusa.test.ts.
+  it("harian → Pelaksana Lapangan", () => {
     expect(pihakPenyedia("harian")).toBe("pelaksana");
-    expect(pihakPenyedia("mingguan")).toBe("pelaksana");
   });
 
-  it("bulanan, MC, dan CCO → Direktur", () => {
-    expect(pihakPenyedia("bulanan")).toBe("direktur");
+  it("MC dan CCO → Direktur", () => {
     expect(pihakPenyedia("mc")).toBe("direktur");
     expect(pihakPenyedia("cco")).toBe("direktur");
   });

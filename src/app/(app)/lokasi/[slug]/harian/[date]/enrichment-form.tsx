@@ -20,6 +20,7 @@ import {
 } from "@/lib/daily-report/constants";
 import { FotoBarisPelengkap } from "@/components/knmp/foto-baris-pelengkap";
 import type { WorkspaceReport } from "@/lib/daily-report/queries";
+import { kunciBadanPelengkap } from "@/lib/daily-report/kunci-pelengkap";
 import type { PhotoView } from "@/lib/photos";
 
 /**
@@ -230,17 +231,11 @@ export function EnrichmentForm({
     saveEnrichmentAction,
     undefined,
   );
-  const tandaTangan = [
-    report.weather,
-    report.workStart,
-    report.workEnd,
-    ...report.materials.map((m) => m.id),
-    ...report.equipment.map((e) => e.id),
-  ].join("|");
-
   return (
     <BadanForm
-      key={tandaTangan}
+      // Kategori cuaca sengaja TIDAK ikut kunci: "Muat ulang cuaca" tidak boleh
+      // menghapus isian tenaga yang belum disimpan (DECISIONS 663).
+      key={kunciBadanPelengkap(report)}
       report={report}
       locationId={locationId}
       fotoAktif={fotoAktif}
@@ -329,7 +324,9 @@ function BadanForm({
             sama sekali sehingga server tahu harus membiarkan isian cuaca apa
             adanya — bukan mengosongkannya. */}
         {SHOW_MANUAL_WEATHER_PICKER ? (
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          // Kuncinya sendiri: hanya pilihan cuaca yang menyusul data server,
+          // bukan seluruh form (DECISIONS 663).
+          <div key={report.weather ?? ""} className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             {WEATHER_ORDER.map((w) => (
               <label
                 key={w}

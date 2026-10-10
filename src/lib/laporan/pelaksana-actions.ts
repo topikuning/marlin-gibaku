@@ -36,6 +36,8 @@ const skema = z.object({
   // Wakil Sah lokasi ini (2026-08-24) – pihak ketiga di formulir yang sama.
   wakilSahNama: z.string().trim().max(150).optional(),
   wakilSahNip: z.string().trim().max(60).optional(),
+  // Koordinator Team Leader lokasi ini (BANUSA, DECISIONS 662).
+  koordinatorTlNama: z.string().trim().max(150).optional(),
 });
 
 const BERKAS_MAKS = 2 * 1024 * 1024;
@@ -43,13 +45,14 @@ const BERKAS_MAKS = 2 * 1024 * 1024;
 /** Medan gambar; nama medan = nama field form, sama untuk kedua sasaran. */
 // Stempel TIDAK ada di sini lagi – lihat DECISIONS 408 (milik perusahaan/firma,
 // bukan orang). Yang diunggah per lokasi hanya CORETAN tanda tangan.
-const MEDAN = ["pelaksanaTtdKey", "supervisorTtdKey", "wakilSahTtdKey"] as const;
+const MEDAN = ["pelaksanaTtdKey", "supervisorTtdKey", "wakilSahTtdKey", "coTeamLeaderTtdKey"] as const;
 type Medan = (typeof MEDAN)[number];
 
 const LABEL: Record<Medan, string> = {
   pelaksanaTtdKey: "tanda tangan pelaksana",
   supervisorTtdKey: "tanda tangan pengawas",
-  wakilSahTtdKey: "tanda tangan Wakil Sah",
+  wakilSahTtdKey: "tanda tangan Wakil Sah PPK",
+  coTeamLeaderTtdKey: "tanda tangan Koordinator Team Leader",
 };
 
 function teks(v: FormDataEntryValue | null, maks: number): string | undefined {
@@ -69,6 +72,7 @@ export async function simpanPelaksana(
     pengawasFirma: teks(formData.get("pengawasFirma"), 150),
     wakilSahNama: teks(formData.get("wakilSahNama"), 150),
     wakilSahNip: teks(formData.get("wakilSahNip"), 60),
+    koordinatorTlNama: teks(formData.get("koordinatorTlNama"), 150),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -90,6 +94,7 @@ export async function simpanPelaksana(
       pelaksanaTtdKey: true,
       supervisorTtdKey: true,
       wakilSahTtdKey: true,
+      coTeamLeaderTtdKey: true,
     },
   });
   if (!lokasi) return { error: "Lokasi tidak ditemukan." };
@@ -102,6 +107,7 @@ export async function simpanPelaksana(
     supervisorFirm: d.pengawasFirma ?? null,
     wakilSahName: d.wakilSahNama ?? null,
     wakilSahNip: d.wakilSahNip ?? null,
+    coTeamLeaderName: d.koordinatorTlNama ?? null,
   };
   const berubah: string[] = [];
 
@@ -146,6 +152,7 @@ export async function simpanPelaksana(
     pengawas: d.pengawasNama ?? null,
     pengawasFirma: d.pengawasFirma ?? null,
     wakilSah: d.wakilSahNama ?? null,
+    koordinatorTl: d.koordinatorTlNama ?? null,
     berkas: berubah,
   });
   revalidatePath(`/lokasi/${lokasi.slug}`, "layout");
@@ -165,8 +172,11 @@ export async function simpanPelaksana(
       ? `Pengawas: ${d.pengawasNama}`
       : "Pengawas mengikuti paket",
     d.wakilSahNama
-      ? `Wakil Sah: ${d.wakilSahNama}`
-      : "Wakil Sah mengikuti paket",
+      ? `Wakil Sah PPK: ${d.wakilSahNama}`
+      : "Wakil Sah PPK mengikuti paket",
+    d.koordinatorTlNama
+      ? `Koordinator Team Leader: ${d.koordinatorTlNama}`
+      : "Koordinator Team Leader mengikuti paket",
   ];
   const ekor = berubah.length > 0 ? ` (${berubah.join(", ")})` : "";
   return { success: `${bagian.join(" · ")}${ekor}.` };

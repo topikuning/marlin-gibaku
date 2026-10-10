@@ -30,17 +30,20 @@ const kontrak: SumberWakilSah = {
 };
 
 describe("pihak KKP per jenis dokumen", () => {
-  it("mingguan & bulanan = Wakil Sah; lainnya tetap PPK", () => {
-    expect(pihakKkp("mingguan")).toBe("wakil_sah");
-    expect(pihakKkp("bulanan")).toBe("wakil_sah");
-    for (const jenis of ["harian", "mc", "cco", "jadwal", "rencana"] as const) {
+  // BANUSA 2026-10-10 (DECISIONS 662): harian, mingguan, Kurva S lokasi =
+  // Wakil Sah PPK; bulanan kembali PPK.
+  it("harian, mingguan, Kurva S lokasi = Wakil Sah PPK; lainnya PPK", () => {
+    for (const jenis of ["harian", "mingguan", "jadwal"] as const) {
+      expect(pihakKkp(jenis)).toBe("wakil_sah");
+    }
+    for (const jenis of ["bulanan", "mc", "cco", "rencana"] as const) {
       expect(pihakKkp(jenis)).toBe("ppk");
     }
   });
 
   it("labelnya mengikuti pihaknya", () => {
-    expect(labelPihakKkp("mingguan")).toBe("WAKIL SAH");
-    expect(labelPihakKkp("jadwal")).toBe("PEJABAT PEMBUAT KOMITMEN");
+    expect(labelPihakKkp("mingguan")).toBe("WAKIL SAH PPK");
+    expect(labelPihakKkp("bulanan")).toBe("PEJABAT PEMBUAT KOMITMEN");
   });
 });
 
@@ -69,6 +72,11 @@ describe("pilihWakilSah – blok utuh, nama penentu", () => {
 describe("pilihKunciTtd – slot KKP mengikuti pihaknya", () => {
   const dasar = {
     penyedia: "direktur" as const,
+    konsultan: "pengawas_lapangan" as const,
+    supervisorStempelKontrakKey: null,
+    coTeamLeaderTtdKey: null,
+    teamLeaderTtdKey: null,
+    projectManagerTtdKey: null,
     pelaksanaTtdKey: null,
     ppkTtdKey: "kontrak/x/ppkTtdKey.webp",
     ppkStempelKey: "kontrak/x/ppkStempelKey.webp",

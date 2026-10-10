@@ -41,7 +41,10 @@ export type JenisDokumen =
   | "rencana";
 
 /** Pihak penyedia jasa yang meneken. */
-export type PihakPenyedia = "pelaksana" | "direktur";
+export type PihakPenyedia = "pelaksana" | "manajer_proyek" | "direktur";
+
+/** Jabatan Project Manager penyedia, dengan istilah resmi Indonesia (user 2026-10-10). */
+export const JABATAN_MANAJER_PROYEK = "Manajer Proyek";
 
 /**
  * Jabatan bawaan bila kolomnya dikosongkan.
@@ -62,12 +65,14 @@ export const JABATAN_PELAKSANA_BAWAAN = "Pelaksana Lapangan";
  */
 const PENEKEN: Record<JenisDokumen, PihakPenyedia> = {
   harian: "pelaksana",
-  mingguan: "pelaksana",
-  bulanan: "direktur",
+  // Team Leader pengawas BANUSA 2026-10-10 (DECISIONS 662): mingguan, bulanan,
+  // dan Kurva S lokasi diteken Manajer Proyek (PM).
+  mingguan: "manajer_proyek",
+  bulanan: "manajer_proyek",
+  jadwal: "manajer_proyek",
   mc: "direktur",
   cco: "direktur",
   // Belum ditetapkan user – dipertahankan seperti sebelum DECISIONS 402.
-  jadwal: "direktur",
   rencana: "direktur",
 };
 
@@ -83,12 +88,14 @@ export function pihakPenyedia(jenis: JenisDokumen): PihakPenyedia {
 export type PihakKkp = "ppk" | "wakil_sah";
 
 const PENEKEN_KKP: Record<JenisDokumen, PihakKkp> = {
-  harian: "ppk",
+  // BANUSA 2026-10-10 (DECISIONS 662): harian, mingguan, dan Kurva S lokasi
+  // diketahui Wakil Sah PPK; bulanan oleh PPK.
+  harian: "wakil_sah",
   mingguan: "wakil_sah",
-  bulanan: "wakil_sah",
+  bulanan: "ppk",
+  jadwal: "wakil_sah",
   mc: "ppk",
   cco: "ppk",
-  jadwal: "ppk",
   rencana: "ppk",
 };
 
@@ -98,8 +105,87 @@ export function pihakKkp(jenis: JenisDokumen): PihakKkp {
 
 /** Label jabatan slot KKP pada blok tanda tangan, per jenis dokumen. */
 export function labelPihakKkp(jenis: JenisDokumen): string {
-  return pihakKkp(jenis) === "wakil_sah" ? "WAKIL SAH" : "PEJABAT PEMBUAT KOMITMEN";
+  return pihakKkp(jenis) === "wakil_sah" ? "WAKIL SAH PPK" : "PEJABAT PEMBUAT KOMITMEN";
 }
+
+/**
+ * Pihak KONSULTAN PENGAWAS yang meneken slot "DIPERIKSA" (BANUSA 2026-10-10,
+ * DECISIONS 662). `pengawas_lapangan` = pengawas lokasi (DECISIONS 409) –
+ * yang dipakai semua dokumen sebelum ketetapan ini.
+ */
+export type PihakKonsultan = "pengawas_lapangan" | "koordinator_tl" | "team_leader";
+
+const PENEKEN_KONSULTAN: Record<JenisDokumen, PihakKonsultan> = {
+  harian: "pengawas_lapangan",
+  mingguan: "koordinator_tl",
+  bulanan: "team_leader",
+  jadwal: "koordinator_tl",
+  mc: "pengawas_lapangan",
+  cco: "pengawas_lapangan",
+  rencana: "pengawas_lapangan",
+};
+
+export function pihakKonsultan(jenis: JenisDokumen): PihakKonsultan {
+  return PENEKEN_KONSULTAN[jenis];
+}
+
+/** Jabatan yang tercetak di bawah nama konsultan. */
+export const JABATAN_KONSULTAN: Record<PihakKonsultan, string> = {
+  pengawas_lapangan: "Pengawas Lapangan",
+  koordinator_tl: "Koordinator Team Leader",
+  team_leader: "Team Leader",
+};
+
+/** Sebutan pihak KKP & penyedia di layar (bukan blok cetak). */
+export const JABATAN_KKP: Record<PihakKkp, string> = { ppk: "PPK", wakil_sah: "Wakil Sah PPK" };
+export const JABATAN_PENYEDIA: Record<PihakPenyedia, string> = {
+  pelaksana: JABATAN_PELAKSANA_BAWAAN,
+  manajer_proyek: JABATAN_MANAJER_PROYEK,
+  direktur: "Direktur",
+};
+
+/**
+ * Dokumen yang ditampilkan di layar "siapa meneken apa", urut seperti daftar
+ * Team Leader pengawas BANUSA. Isinya DITURUNKAN dari tiga `Record` di atas –
+ * layar tidak punya daftarnya sendiri yang bisa berbeda dari cetakannya.
+ */
+const DOKUMEN_DI_LAYAR: { jenis: JenisDokumen; label: string }[] = [
+  { jenis: "harian", label: "Laporan harian" },
+  { jenis: "mingguan", label: "Laporan progres mingguan" },
+  { jenis: "bulanan", label: "Laporan progres bulanan" },
+  { jenis: "jadwal", label: "Kurva S lokasi" },
+  { jenis: "rencana", label: "Rencana mingguan" },
+  { jenis: "mc", label: "MC" },
+  { jenis: "cco", label: "CCO" },
+];
+
+export function siapaMenekenApa(): { label: string; kkp: string; konsultan: string; penyedia: string }[] {
+  return DOKUMEN_DI_LAYAR.map(({ jenis, label }) => ({
+    label,
+    kkp: JABATAN_KKP[pihakKkp(jenis)],
+    konsultan: JABATAN_KONSULTAN[pihakKonsultan(jenis)],
+    penyedia: JABATAN_PENYEDIA[pihakPenyedia(jenis)],
+  }));
+}
+
+/**
+ * Personel tambahan di kontrak (BANUSA, DECISIONS 662). Nama + coretan tanda
+ * tangan; stempelnya milik firma, bukan orang (DECISIONS 408).
+ *
+ * Quality Surveyor dan Site Manager BELUM meneken dokumen apa pun di MARLIN:
+ * keduanya untuk BUD/Calculation Sheet (WSP – QS – PM/SM) yang menyusul.
+ * Diisi sekarang supaya datanya sudah ada saat dokumen itu dibuat.
+ */
+export const PERSONEL_KONTRAK = [
+  { nama: "coTeamLeaderName", ttd: "coTeamLeaderTtdKey", pihak: "konsultan", jabatan: "Koordinator Team Leader" },
+  { nama: "teamLeaderName", ttd: "teamLeaderTtdKey", pihak: "konsultan", jabatan: "Team Leader" },
+  { nama: "qualitySurveyorName", ttd: "qualitySurveyorTtdKey", pihak: "konsultan", jabatan: "Quality Surveyor" },
+  { nama: "projectManagerName", ttd: "projectManagerTtdKey", pihak: "penyedia", jabatan: JABATAN_MANAJER_PROYEK },
+  { nama: "siteManagerName", ttd: "siteManagerTtdKey", pihak: "penyedia", jabatan: "Site Manager" },
+] as const;
+
+export type MedanNamaPersonel = (typeof PERSONEL_KONTRAK)[number]["nama"];
+export type MedanTtdPersonel = (typeof PERSONEL_KONTRAK)[number]["ttd"];
 
 /**
  * Satu blok penanda tangan: nama, jabatan, dan CORETAN TANDA TANGANNYA.
@@ -340,8 +426,12 @@ export function penyediaLaporan(
     contractorSignerTitle: string | null;
     pelaksanaName: string | null;
     pelaksanaTitle: string | null;
+    projectManagerName?: string | null;
   },
 ): { nama: string | null; sub: string | null } {
+  if (pihakPenyedia(jenis) === "manajer_proyek") {
+    return { nama: kosong(h.projectManagerName) ? null : h.projectManagerName!.trim(), sub: JABATAN_MANAJER_PROYEK };
+  }
   if (pihakPenyedia(jenis) === "pelaksana") {
     return {
       nama: kosong(h.pelaksanaName) ? null : h.pelaksanaName!.trim(),
@@ -354,10 +444,161 @@ export function penyediaLaporan(
   };
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * KOORDINATOR TEAM LEADER PER LOKASI (DECISIONS 662)
+ *
+ * Satu kontrak bisa mencakup beberapa wilayah, dan tiap wilayah punya
+ * koordinatornya sendiri. Aturan blok sama dengan Wakil Sah: nama penentu,
+ * coretan tidak pernah dipinjam antar orang.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type SumberKoordinatorTl = {
+  coTeamLeaderName: string | null;
+  coTeamLeaderTtdKey: string | null;
+};
+
+export function pilihKoordinatorTl(
+  lokasi: SumberKoordinatorTl | null | undefined,
+  kontrak: SumberKoordinatorTl | null | undefined,
+): { nama: string | null; ttdKey: string | null } {
+  const sumber = lokasi && !kosong(lokasi.coTeamLeaderName) ? lokasi : kontrak;
+  if (!sumber || kosong(sumber.coTeamLeaderName)) return { nama: null, ttdKey: null };
+  return { nama: sumber.coTeamLeaderName!.trim(), ttdKey: sumber.coTeamLeaderTtdKey ?? null };
+}
+
+/** Lokasi ini memakai Koordinator TL-nya sendiri, atau ikut kontrak? */
+export function asalKoordinatorTl(
+  lokasi: SumberKoordinatorTl | null | undefined,
+  kontrak: SumberKoordinatorTl | null | undefined,
+): "lokasi" | "kontrak" | "belum diisi" {
+  if (lokasi && !kosong(lokasi.coTeamLeaderName)) return "lokasi";
+  if (kontrak && !kosong(kontrak.coTeamLeaderName)) return "kontrak";
+  return "belum diisi";
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * TIGA SLOT TANDA TANGAN SATU DOKUMEN (DECISIONS 662)
+ *
+ * SATU-SATUNYA tempat yang menyusun apa yang tercetak di blok tanda tangan –
+ * dipakai halaman cetak, PDF, dan Excel. Sebelum ini tiap penyaji memilih
+ * sendiri dari medan kop, dan Excel sempat mencetak nama pelaksana di bawah
+ * jabatan direktur.
+ *
+ * Yang belum diisi tercetak sebagai baris kosong untuk ditandatangani tangan,
+ * TIDAK PERNAH jatuh ke orang lain (DECISIONS 402): laporan mingguan tanpa
+ * Manajer Proyek tidak boleh diam-diam diteken pelaksana.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Nama-nama yang SUDAH dipilih (penimpaan lokasi sudah diterapkan). */
+export type NamaPenandatangan = {
+  ppkName: string | null;
+  ppkNip: string | null;
+  wakilSahName: string | null;
+  wakilSahNip: string | null;
+  /** Pengawas Lapangan (lokasi menimpa kontrak) dan firmanya. */
+  supervisorName: string | null;
+  supervisorFirm: string | null;
+  /** Firma konsultan di KONTRAK – dipakai Team Leader & Koordinator TL. */
+  supervisorFirmKontrak: string | null;
+  coTeamLeaderName: string | null;
+  teamLeaderName: string | null;
+  vendorName: string;
+  contractorSignerName: string | null;
+  contractorSignerTitle: string | null;
+  projectManagerName: string | null;
+  pelaksanaName: string | null;
+  pelaksanaTitle: string | null;
+};
+
+export type SlotDokumen = {
+  /** "Wakil Sah PPK" · "Pejabat Pembuat Komitmen" · "Konsultan Pengawas" · "Penyedia Jasa". */
+  pihak: string;
+  /** Firma konsultan / perusahaan penyedia, ditulis apa adanya. */
+  instansi: string | null;
+  /** null = belum diisi: dicetak garis titik. */
+  nama: string | null;
+  /** Di bawah nama: NIP (KKP) atau jabatan (konsultan, penyedia). */
+  sub: string | null;
+};
+
+const isi = (v: string | null | undefined): string | null => (kosong(v) ? null : v!.trim());
+
+export function penandatanganDokumen(
+  jenis: JenisDokumen,
+  h: NamaPenandatangan,
+): { kkp: SlotDokumen; konsultan: SlotDokumen; penyedia: SlotDokumen } {
+  const wakil = pihakKkp(jenis) === "wakil_sah";
+  const nip = isi(wakil ? h.wakilSahNip : h.ppkNip);
+  const kkp: SlotDokumen = {
+    pihak: wakil ? "Wakil Sah PPK" : "Pejabat Pembuat Komitmen",
+    instansi: null,
+    nama: isi(wakil ? h.wakilSahName : h.ppkName),
+    sub: nip ? `NIP. ${nip}` : null,
+  };
+
+  const k = pihakKonsultan(jenis);
+  const konsultan: SlotDokumen = {
+    pihak: "Konsultan Pengawas",
+    instansi: k === "pengawas_lapangan" ? isi(h.supervisorFirm) : isi(h.supervisorFirmKontrak),
+    nama: isi(k === "pengawas_lapangan" ? h.supervisorName : k === "koordinator_tl" ? h.coTeamLeaderName : h.teamLeaderName),
+    sub: JABATAN_KONSULTAN[k],
+  };
+
+  const p = penyediaLaporan(jenis, h);
+  const penyedia: SlotDokumen = { pihak: "Penyedia Jasa", instansi: isi(h.vendorName), nama: p.nama, sub: p.sub };
+  return { kkp, konsultan, penyedia };
+}
+
+/**
+ * Baris peran di atas ruang tanda tangan: "Konsultan Pengawas – PT X". Hanya
+ * nama PIHAK-nya yang dibesarkan bila diminta; nama firma ditulis apa adanya.
+ */
+export function peranSlot(slot: SlotDokumen, kapital = false): string {
+  const pihak = kapital ? slot.pihak.toUpperCase() : slot.pihak;
+  return slot.instansi ? `${pihak} – ${slot.instansi}` : pihak;
+}
+
+/** Dokumen yang penanda tangannya ditetapkan BANUSA – yang diperiksa kekosongannya. */
+const DOKUMEN_DIPERIKSA: JenisDokumen[] = ["harian", "mingguan", "bulanan", "jadwal"];
+const URUTAN_JABATAN = [
+  "PPK",
+  "Wakil Sah PPK",
+  "Pengawas Lapangan",
+  "Koordinator Team Leader",
+  "Team Leader",
+  "Manajer Proyek",
+  "Pelaksana Lapangan",
+  "Direktur",
+];
+
+/**
+ * Penanda tangan yang BELUM DIISI, berikut dokumen yang slotnya akan tercetak
+ * kosong (DECISIONS 662). Kosong tetap boleh dicetak – garis titik untuk
+ * ditandatangani tangan – tapi orang harus tahu SEBELUM mengirimnya.
+ */
+export function slotPenandatanganKosong(h: NamaPenandatangan): { jabatan: string; dokumen: string[] }[] {
+  const per = new Map<string, string[]>();
+  for (const { jenis, label } of DOKUMEN_DI_LAYAR.filter((d) => DOKUMEN_DIPERIKSA.includes(d.jenis))) {
+    const tt = penandatanganDokumen(jenis, h);
+    const slot: [string, SlotDokumen][] = [
+      [JABATAN_KKP[pihakKkp(jenis)], tt.kkp],
+      [JABATAN_KONSULTAN[pihakKonsultan(jenis)], tt.konsultan],
+      [JABATAN_PENYEDIA[pihakPenyedia(jenis)], tt.penyedia],
+    ];
+    for (const [jabatan, s] of slot) {
+      if (s.nama) continue;
+      per.set(jabatan, [...(per.get(jabatan) ?? []), label]);
+    }
+  }
+  return [...per.entries()]
+    .map(([jabatan, dokumen]) => ({ jabatan, dokumen }))
+    .sort((a, b) => URUTAN_JABATAN.indexOf(a.jabatan) - URUTAN_JABATAN.indexOf(b.jabatan));
+}
+
 export function peringatanPelaksana(blok: BlokPelaksana): string | null {
   if (blok.nama) return null;
   return (
-    "Pelaksana Lapangan belum diisi – blok tanda tangan laporan harian dan mingguan " +
+    "Pelaksana Lapangan belum diisi – blok tanda tangan laporan harian " +
     "akan tercetak tanpa nama. Isi di Paket › Kontrak, atau di lokasi ini bila pelaksananya berbeda."
   );
 }
