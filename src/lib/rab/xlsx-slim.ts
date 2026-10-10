@@ -95,16 +95,19 @@ export async function slimRabWorkbook(
   // Sheet dari workbook.xml: name + r:id. Pilih RAB (nama sama persis, lalu /rab/i).
   type SheetRef = { el: string; name: string; rid: string };
   const sheets: SheetRef[] = [];
-  for (const m of wbXml.matchAll(/<sheet\b[^>]*\/>/g)) {
-    const el = m[0];
+  for (const m of wbXml.matchAll(ELEMEN_SHEET)) {
+    // Disimpan sebagai elemen self-closing: `<sheet …></sheet>` yang sah juga
+    // ditulis sebagian aplikasi, dan elemen pembukanya saja tidak boleh
+    // ditaruh sendirian di <sheets> yang baru.
+    const el = m[0].replace(/\s*\/?>$/, "/>");
     const name = lepasEntitas(/\bname="([^"]*)"/.exec(el)?.[1] ?? "");
-    const rid = /\br:id="([^"]*)"/.exec(el)?.[1] ?? "";
+    const rid = ID_RELASI.exec(el)?.[1] ?? "";
     sheets.push({ el, name, rid });
   }
   /**
    * Sheet TERSEMBUNYI tidak pernah dipilih (permintaan user 2026-08-07:
    * *"kamu kan cuma perlu baca sheet tertentu saja, dan yang tidak dihide"*).
-   * Sheet yang di-hide di berkas KKP itu sisa kerja, arsip, atau lembar bantu —
+   * Sheet yang di-hide di berkas KKP itu sisa kerja, arsip, atau lembar bantu –
    * bukan yang sedang dipakai tim.
    */
   const terlihat = sheets.filter((s) => !/\bstate="(hidden|veryHidden)"/i.test(s.el));
@@ -195,7 +198,63 @@ function lepasEntitas(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h: string) => String.fromCodePoint(Number.parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_m, d: string) => String.fromCodePoint(Number(d)))
     .replace(/&amp;/g, "&");
+}
+
+/**
+ * Elemen `<sheet>` di workbook.xml, dalam semua bentuk sah yang pernah ditemui:
+ * `<sheet …/>`, `<sheet …></sheet>`, dan ber-awalan namespace (`<x:sheet …/>`,
+ * keluaran OpenXML SDK). `\b` sesudah "sheet" menolak `<sheets>`.
+ *
+ * Dulu hanya `<sheet …/>` yang dikenali. Berkas bentuk lain terbaca "tanpa
+ * sheet", lalu impor berhenti dengan pesan *"Sheet RAB tidak ditemukan"* –
+ * padahal sheet-nya ada (pertanyaan user 2026-10-10, DECISIONS 664).
+ */
+const ELEMEN_SHEET = /<(?:[A-Za-z_][\w.-]*:)?sheet\b[^>]*>/g;
+/** `r:id` – awalannya bebas, yang tetap adalah atribut `id` ber-awalan. */
+const ID_RELASI = /\b[A-Za-z_][\w.-]*:id="([^"]*)"/;
+const NS_UTAMA = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const DEKLARASI_AWALAN_UTAMA = /\sxmlns:([A-Za-z_][\w.-]*)="http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main"/;
+
+/**
+ * Lepas awalan namespace utama spreadsheet (`<x:row>` → `<row>`) di semua
+ * part XML. exceljs hanya mengenal nama elemen tanpa awalan; workbook
+ * ber-awalan – sah menurut standar, ditulis OpenXML SDK – gagal dibuka sama
+ * sekali (DECISIONS 664). Berkas biasa dikembalikan apa adanya tanpa ditulis
+ * ulang.
+ *
+ * Hanya untuk MEMBACA. Berkas yang diarsipkan tetap berkas yang diunggah.
+ */
+export async function tanpaAwalanNamespace(buf: Buffer | ArrayBuffer): Promise<Buffer> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(buf);
+  } catch {
+    return toBuffer(buf);
+  }
+  const wb = zip.file("xl/workbook.xml");
+  if (!wb || !DEKLARASI_AWALAN_UTAMA.test(await wb.async("string"))) return toBuffer(buf);
+  for (const path of Object.keys(zip.files)) {
+    const f = zip.file(path);
+    if (!f || !/^xl\/.+\.xml$/i.test(path)) continue;
+    const xml = await f.async("string");
+    const awalan = DEKLARASI_AWALAN_UTAMA.exec(xml)?.[1];
+    if (!awalan) continue;
+    const bawaan = /\sxmlns="([^"]*)"/.exec(xml)?.[1];
+    // Namespace bawaan milik namespace lain → melepas awalan akan memindahkan
+    // elemennya ke namespace yang salah. Biarkan part itu.
+    if (bawaan && bawaan !== NS_UTAMA) continue;
+    const a = awalan.replace(/[.-]/g, "\\$&");
+    zip.file(
+      path,
+      xml
+        .replace(new RegExp(`<(/?)${a}:`, "g"), "<$1")
+        .replace(new RegExp(`\\sxmlns:${a}="[^"]*"`), bawaan ? "" : ` xmlns="${NS_UTAMA}"`),
+    );
+  }
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
 function toBuffer(buf: Buffer | ArrayBuffer): Buffer {
@@ -203,7 +262,7 @@ function toBuffer(buf: Buffer | ArrayBuffer): Buffer {
 }
 
 /**
- * Nama sheet saja — TANPA memuat isinya.
+ * Nama sheet saja – TANPA memuat isinya.
  *
  * Hanya `xl/workbook.xml` yang dibuka (beberapa KB), jadi biayanya tetap kecil
  * berapa pun besarnya berkas.
@@ -211,13 +270,13 @@ function toBuffer(buf: Buffer | ArrayBuffer): Buffer {
  * Ada untuk menghentikan pemborosan yang nyata. Impor mode draft dulu memuat
  * SELURUH workbook cuma untuk mengintip satu sel penanda template adendum.
  * Pada berkas KKP 3 MB / 45 sheet, sekali intip itu berharga **180 MB heap dan
- * 25 detik** — sementara parse yang sesungguhnya (sesudah penipisan) hanya
+ * 25 detik** – sementara parse yang sesungguhnya (sesudah penipisan) hanya
  * 69 MB dan 0,5 detik. Di kontainer 512 MB, itulah yang mematikan prosesnya
  * (DECISIONS 297).
  *
  * Nama sheet sudah cukup: penanda template hanya mungkin ada bila sheet-nya
  * ada. Berkas gagal dibaca → daftar kosong, dan pemanggilnya memperlakukan itu
- * sebagai "bukan template" — jalur berikutnya yang akan melaporkan galatnya
+ * sebagai "bukan template" – jalur berikutnya yang akan melaporkan galatnya
  * dengan pesan yang sudah dikenal user.
  */
 export async function namaSheetXlsx(buf: Buffer | ArrayBuffer): Promise<SheetInfo[]> {
@@ -227,15 +286,14 @@ export async function namaSheetXlsx(buf: Buffer | ArrayBuffer): Promise<SheetInf
     if (!wbFile) return [];
     const xml = await wbFile.async("string");
     const out: SheetInfo[] = [];
-    for (const m of xml.matchAll(/<sheet\b[^>]*\/>/g)) {
+    for (const m of xml.matchAll(ELEMEN_SHEET)) {
       const nama = /\bname="([^"]*)"/.exec(m[0])?.[1];
       if (!nama) continue;
       // state="hidden" / "veryHidden" → sheet kerja lama, arsip, atau bantuan.
       const state = /\bstate="([^"]*)"/.exec(m[0])?.[1] ?? "visible";
-      out.push({
-        nama: nama.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-        tersembunyi: state !== "visible",
-      });
+      // Entitas dilepas dengan aturan yang SAMA dengan penipisan; kalau tidak,
+      // nama ber-tanda kutip tidak pernah cocok dan sheet yang benar tidak dibaca.
+      out.push({ nama: lepasEntitas(nama), tersembunyi: state !== "visible" });
     }
     return out;
   } catch {
