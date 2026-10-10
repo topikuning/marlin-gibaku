@@ -1,4 +1,5 @@
-import { peringatanPelaksana, pilihPelaksana } from "@/lib/laporan/penandatangan";
+import { slotPenandatanganKosong } from "@/lib/laporan/penandatangan";
+import { namaPenandatanganLokasi } from "@/lib/export/ttd-laporan";
 import { notFound } from "next/navigation";
 import { CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
 import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
@@ -39,16 +40,10 @@ export default async function LaporanLokasiPage({
     select: {
       id: true,
       name: true,
-      pelaksanaName: true,
-      pelaksanaTitle: true,
-      pelaksanaTtdKey: true,
       package: {
         select: {
           id: true,
           driveFolderId: true,
-          pelaksanaName: true,
-          pelaksanaTitle: true,
-          pelaksanaTtdKey: true,
         },
       },
     },
@@ -72,15 +67,14 @@ export default async function LaporanLokasiPage({
   const driveOn = (await getGDriveConfigDisplay()).connected;
 
   /*
-   * Peringatan Pelaksana Lapangan (DECISIONS 402) – DI SINI, di layar tempat
-   * orang menekan cetak/kirim, bukan hanya di halaman pengaturan yang mungkin
-   * tidak pernah dibuka. Yang kosong tetap bisa dicetak: blok TTD-nya keluar
+   * Penanda tangan yang belum diisi (DECISIONS 402/662) – DI SINI, di layar
+   * tempat orang menekan cetak/kirim, bukan hanya di halaman pengaturan yang
+   * mungkin tidak pernah dibuka. Yang kosong tetap bisa dicetak: slotnya keluar
    * tanpa nama untuk ditandatangani tangan. Yang TIDAK dilakukan adalah
-   * memakai nama Direktur sebagai pengganti.
+   * memakai nama orang lain sebagai pengganti.
    */
-  const peringatanTtd = peringatanPelaksana(
-    pilihPelaksana(location, location.package ?? null),
-  );
+  const namaTtd = await namaPenandatanganLokasi(location.id);
+  const ttdKosong = namaTtd ? slotPenandatanganKosong(namaTtd) : [];
 
   // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
   // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
@@ -119,8 +113,26 @@ export default async function LaporanLokasiPage({
 
   return (
     <div className="space-y-6">
-      {peringatanTtd ? (
-        <Banner tone="warning" title="Pelaksana Lapangan belum diisi" description={peringatanTtd} />
+      {ttdKosong.length > 0 ? (
+        <Banner
+          tone="warning"
+          title={`Penanda tangan belum diisi: ${ttdKosong.map((k) => k.jabatan).join(", ")}`}
+          description={
+            <>
+              <ul className="list-disc pl-4">
+                {ttdKosong.map((k) => (
+                  <li key={k.jabatan}>
+                    <b className="font-medium text-ink">{k.jabatan}</b> – {k.dokumen.join(", ")}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1">
+                Slot itu tercetak kosong untuk ditandatangani dengan tangan. Isi di Paket › Kontrak ›
+                Penanda tangan dokumen KKP, atau di halaman lokasi ini bila orangnya berbeda.
+              </p>
+            </>
+          }
+        />
       ) : null}
 
       <Card>

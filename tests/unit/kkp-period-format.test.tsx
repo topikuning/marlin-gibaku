@@ -70,6 +70,10 @@ function fixture(): PeriodReport {
       contractorSignerTitle: null,
   pelaksanaName: "Joko Susilo",
   pelaksanaTitle: "Pelaksana Lapangan",
+      supervisorFirmKontrak: null,
+      coTeamLeaderName: null,
+      teamLeaderName: null,
+      projectManagerName: null,
     },
     categories: [
       {

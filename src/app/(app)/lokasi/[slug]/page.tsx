@@ -47,7 +47,12 @@ export default async function LokasiRingkasanPage({
 
   // Pratinjau tanda tangan/stempel pelaksana lokasi ini. Satu presign untuk
   // keduanya; yang belum diunggah tidak ikut diminta.
-  const kunciPelaksana = [location.pelaksanaTtdKey, location.supervisorTtdKey, location.wakilSahTtdKey].filter(
+  const kunciPelaksana = [
+    location.pelaksanaTtdKey,
+    location.supervisorTtdKey,
+    location.wakilSahTtdKey,
+    location.coTeamLeaderTtdKey,
+  ].filter(
     (k): k is string => !!k,
   );
   const urlsPelaksana =
@@ -413,7 +418,7 @@ export default async function LokasiRingkasanPage({
           <Card>
             <CardHeader
               title="Penanda tangan lokasi ini"
-              subtitle="Isi HANYA bila lokasi ini dikerjakan pelaksana atau diperiksa pengawas yang berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
+              subtitle="Isi HANYA bila orang di lokasi ini berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
             />
             <CardBody>
               <PelaksanaForm
@@ -439,6 +444,9 @@ export default async function LokasiRingkasanPage({
                   nama: contract?.wakilSahName ?? null,
                   nip: contract?.wakilSahNip ?? null,
                 }}
+                koordinatorTlNama={location.coTeamLeaderName}
+                koordinatorTlTtdUrl={urlTtdPelaksana(location.coTeamLeaderTtdKey)}
+                warisanKoordinatorTl={{ nama: contract?.coTeamLeaderName ?? null }}
               />
             </CardBody>
           </Card>

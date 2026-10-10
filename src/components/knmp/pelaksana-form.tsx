@@ -32,6 +32,9 @@ export function PelaksanaForm({
   wakilSahNip,
   wakilSahTtdUrl,
   warisanWakilSah,
+  koordinatorTlNama,
+  koordinatorTlTtdUrl,
+  warisanKoordinatorTl,
 }: {
   locationId: string;
   nama: string | null;
@@ -44,12 +47,16 @@ export function PelaksanaForm({
   pengawasTtdUrl: string | null;
   /** Pengawas kontrak yang berlaku bila lokasi ini dikosongkan. */
   warisanPengawas?: { nama: string | null; firma: string | null } | null;
-  /** Wakil Sah lokasi ini (2026-08-24) — meneken laporan mingguan & bulanan. */
+  /** Wakil Sah PPK lokasi ini — laporan harian, mingguan, dan Kurva S lokasi (DECISIONS 662). */
   wakilSahNama: string | null;
   wakilSahNip: string | null;
   wakilSahTtdUrl: string | null;
   /** Wakil Sah kontrak yang berlaku bila lokasi ini dikosongkan. */
   warisanWakilSah?: { nama: string | null; nip: string | null } | null;
+  /** Koordinator Team Leader lokasi ini (DECISIONS 662) – laporan mingguan & Kurva S lokasi. */
+  koordinatorTlNama: string | null;
+  koordinatorTlTtdUrl: string | null;
+  warisanKoordinatorTl?: { nama: string | null } | null;
 }) {
   const [state, kirim, sibuk] = useAksiKlik<PelaksanaActionState>(simpanPelaksana, undefined);
 
@@ -71,7 +78,7 @@ export function PelaksanaForm({
         <Banner
           tone="warning"
           title="Pelaksana Lapangan belum diisi di paket maupun lokasi ini"
-          description="Isi di Paket › Kontrak › Penanda tangan dokumen KKP. Selama belum diisi, bagian tanda tangan laporan harian dan mingguan tercetak tanpa nama, untuk ditandatangani dengan tangan. Nama Direktur TIDAK dipakai sebagai pengganti."
+          description="Isi di Paket › Kontrak › Penanda tangan dokumen KKP. Selama belum diisi, bagian tanda tangan laporan harian tercetak tanpa nama, untuk ditandatangani dengan tangan. Nama Direktur TIDAK dipakai sebagai pengganti."
         />
       ) : null}
 
@@ -209,10 +216,10 @@ export function PelaksanaForm({
       </div>
 
       <div className="border-t border-border pt-4">
-        <p className="text-sm font-medium text-ink">Wakil Sah</p>
+        <p className="text-sm font-medium text-ink">Wakil Sah PPK</p>
         <p className="mt-0.5 text-[13px] text-ink-muted">
-          Menandatangani laporan mingguan &amp; bulanan atas nama KKP. Isi HANYA bila Wakil Sah
-          lokasi ini berbeda dari paketnya.
+          Mengetahui laporan harian, mingguan, dan Kurva S lokasi atas nama KKP. Isi HANYA bila
+          Wakil Sah PPK lokasi ini berbeda dari paketnya.
         </p>
 
         {!wakilSahNama && warisanWakilSah?.nama ? (
@@ -226,7 +233,7 @@ export function PelaksanaForm({
 
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="ws-nama-lokasi">Nama Wakil Sah</Label>
+            <Label htmlFor="ws-nama-lokasi">Nama Wakil Sah PPK</Label>
             <Input
               id="ws-nama-lokasi"
               name="wakilSahNama"
@@ -259,8 +266,53 @@ export function PelaksanaForm({
 
         {wakilSahNama && !wakilSahTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai Wakil Sah-nya sendiri, tetapi tanda tangannya belum diunggah, jadi
-            blok TTD-nya tercetak kosong. Tanda tangan Wakil Sah paket sengaja tidak dipakai.
+            Lokasi ini memakai Wakil Sah PPK-nya sendiri, tetapi tanda tangannya belum diunggah, jadi
+            blok TTD-nya tercetak kosong. Tanda tangan Wakil Sah PPK paket sengaja tidak dipakai.
+          </HelpText>
+        ) : null}
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <p className="text-sm font-medium text-ink">Koordinator Team Leader</p>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          Memeriksa laporan mingguan dan Kurva S lokasi atas nama konsultan pengawas. Isi HANYA bila
+          lokasi ini dikoordinasi orang lain dari yang tercatat di paket.
+        </p>
+
+        {!koordinatorTlNama && warisanKoordinatorTl?.nama ? (
+          <Banner
+            className="mt-3"
+            tone="info"
+            title={`Mengikuti paket: ${warisanKoordinatorTl.nama}`}
+            description="Kosongkan kolom di bawah supaya tetap mengikuti paket."
+          />
+        ) : null}
+
+        <div className="mt-3">
+          <Label htmlFor="kortl-nama-lokasi">Nama Koordinator Team Leader</Label>
+          <Input
+            id="kortl-nama-lokasi"
+            name="koordinatorTlNama"
+            defaultValue={koordinatorTlNama ?? ""}
+            maxLength={150}
+            placeholder="kosongkan = ikut paket"
+          />
+        </div>
+
+        <div className="mt-4">
+          <BerkasTtd
+            id="kortl-ttd-lokasi"
+            medan="coTeamLeaderTtdKey"
+            label="Tanda tangan"
+            url={koordinatorTlTtdUrl}
+            kelasPratinjau="h-12 w-full"
+          />
+        </div>
+
+        {koordinatorTlNama && !koordinatorTlTtdUrl ? (
+          <HelpText>
+            Lokasi ini memakai Koordinator Team Leader-nya sendiri, tetapi tanda tangannya belum
+            diunggah, jadi blok TTD-nya tercetak kosong. Tanda tangan dari paket sengaja tidak dipakai.
           </HelpText>
         ) : null}
       </div>

@@ -75,6 +75,10 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       contractorSignerTitle: "Direktur Utama",
   pelaksanaName: "Joko Susilo",
   pelaksanaTitle: "Pelaksana Lapangan",
+      supervisorFirmKontrak: "CV Konsultan Bahari Nusantara",
+      coTeamLeaderName: null,
+      teamLeaderName: null,
+      projectManagerName: null,
     },
     categories: CATS.map((name, ci) => ({
       lineageKey: CODES[ci],

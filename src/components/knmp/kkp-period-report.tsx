@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { penyediaLaporan } from "@/lib/laporan/penandatangan";
+import { penandatanganDokumen, peranSlot } from "@/lib/laporan/penandatangan";
 import type { PeriodCategory, PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
@@ -46,7 +46,8 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
   const h = r.header;
   // Mingguan diteken Pelaksana Lapangan, bulanan diteken Direktur
   // (DECISIONS 402). Jawabannya datang dari satu tempat, bukan dari `if` di sini.
-  const penyedia = penyediaLaporan(r.kind, h);
+  // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
+  const tt = penandatanganDokumen(r.kind, h);
 
   return (
     <div className="mx-auto min-w-[900px] max-w-[1050px] bg-white p-2 text-[11px] text-slate-900">
@@ -173,10 +174,10 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
 
       {/* ── TTD ── */}
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
-        {/* Mingguan & bulanan diteken WAKIL SAH, bukan PPK (2026-08-24). */}
-        <Sign title="Mengetahui" role="Wakil Sah" name={h.wakilSahName} sub={h.wakilSahNip ? `NIP. ${h.wakilSahNip}` : null} {...gambarPihak(ttd, "ppk")} />
-        <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} {...gambarPihak(ttd, "pengawas")} />
-        <Sign title="Dibuat Oleh" role={`Penyedia Jasa – ${h.vendorName}`} name={penyedia.nama} sub={penyedia.sub} {...gambarPihak(ttd, "penyedia")} />
+        {/* Mingguan: Wakil Sah PPK – Koordinator TL – Manajer Proyek; bulanan: PPK – Team Leader – Manajer Proyek (DECISIONS 662). */}
+        <Sign title="Mengetahui" role={peranSlot(tt.kkp)} name={tt.kkp.nama} sub={tt.kkp.sub} {...gambarPihak(ttd, "ppk")} />
+        <Sign title="Diperiksa" role={peranSlot(tt.konsultan)} name={tt.konsultan.nama} sub={tt.konsultan.sub} {...gambarPihak(ttd, "pengawas")} />
+        <Sign title="Dibuat Oleh" role={peranSlot(tt.penyedia)} name={tt.penyedia.nama} sub={tt.penyedia.sub} {...gambarPihak(ttd, "penyedia")} />
       </div>
     </div>
   );

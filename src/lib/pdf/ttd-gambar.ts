@@ -1,13 +1,5 @@
 import "server-only";
-import {
-  pihakKkp,
-  pihakPenyedia,
-  pilihPelaksana,
-  pilihPengawas,
-  pilihWakilSah,
-  type JenisDokumen,
-  type SumberPelaksana,
-} from "@/lib/laporan/penandatangan";
+import type { JenisDokumen } from "@/lib/laporan/penandatangan";
 import { ukuranTtd } from "@/lib/export/ttd-ukuran";
 import type { PdfDoc } from "./document";
 
@@ -52,71 +44,16 @@ export const TANPA_TTD_PDF: TtdPdf = {
  */
 export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promise<TtdPdf> {
   try {
-    const [{ db }, { pilihKunciTtd }, { isR2Configured }, { ambilBerkas }] = await Promise.all([
-      import("@/lib/db"),
+    const [{ penandatanganLokasi }, { isR2Configured }, { ambilBerkas }] = await Promise.all([
       import("@/lib/export/ttd-laporan"),
       import("@/lib/r2"),
       import("@/lib/penyimpanan/berkas"),
     ]);
     if (!isR2Configured()) return TANPA_TTD_PDF;
-
-    const lokasi = await db.location.findUnique({
-      where: { id: locationId },
-      select: {
-        pelaksanaName: true,
-        pelaksanaTitle: true,
-        pelaksanaTtdKey: true,
-        supervisorName: true,
-        supervisorFirm: true,
-        supervisorTtdKey: true,
-        wakilSahName: true,
-        wakilSahNip: true,
-        wakilSahTtdKey: true,
-        package: {
-          select: {
-            pelaksanaName: true,
-            pelaksanaTitle: true,
-            pelaksanaTtdKey: true,
-            contract: {
-              select: {
-                ppkTtdKey: true,
-                ppkStempelKey: true,
-                wakilSahName: true,
-                wakilSahNip: true,
-                wakilSahTtdKey: true,
-                supervisorName: true,
-                supervisorFirm: true,
-                supervisorTtdKey: true,
-                supervisorStempelKey: true,
-                contractorTtdKey: true,
-                contractorStempelKey: true,
-                vendor: { select: { stempelKey: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-    const k = lokasi?.package.contract;
-    if (!k) return TANPA_TTD_PDF;
-
-    const pelaksana = pilihPelaksana(
-      lokasi as SumberPelaksana,
-      lokasi.package as SumberPelaksana,
-    );
-    const pengawas = pilihPengawas(lokasi, k);
-    // Wakil Sah lokasi menimpa kontrak – slot KKP mingguan/bulanan (2026-08-24).
-    const wakilSah = pilihWakilSah(lokasi, k);
-    const kunci = pilihKunciTtd({
-      ...k,
-      penyedia: pihakPenyedia(jenis),
-      kkp: pihakKkp(jenis),
-      wakilSahTtdKey: wakilSah.ttdKey,
-      pelaksanaTtdKey: pelaksana.ttdKey,
-      supervisorTtdKey: pengawas.ttdKey,
-      supervisorStempelKey: pengawas.stempelKey,
-      vendorStempelKey: k.vendor.stempelKey,
-    });
+    // Orang & kuncinya dipilih di tempat yang SAMA dengan halaman cetak.
+    const t = await penandatanganLokasi(locationId, jenis);
+    if (!t) return TANPA_TTD_PDF;
+    const { kunci } = t;
     const sharp = (await import("sharp")).default;
     const { hapusLatarPutih } = await import("@/lib/export/ttd-latar");
     const png = async (key: string | null): Promise<Buffer | null> => {

@@ -1,5 +1,5 @@
 import "server-only";
-import { labelPihakKkp, penyediaLaporan, pihakKkp, type JenisDokumen } from "@/lib/laporan/penandatangan";
+import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
 import { getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
@@ -511,7 +511,8 @@ function signatureBlock(
   };
   const nameOf = (n: string | null, sub: string | null) =>
     `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
-  const penyedia = penyediaLaporan(o.jenis, o.h);
+  // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
+  const tt = penandatanganDokumen(o.jenis, o.h);
   o.fit(90);
   /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
      atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
@@ -542,21 +543,15 @@ function signatureBlock(
         o.y,
         [
           {
-            // Mingguan/bulanan diteken WAKIL SAH, bukan PPK (2026-08-24);
-            // dokumen lain yang memakai blok ini tetap PPK — satu penentu:
-            // `pihakKkp(jenis)` di lib/laporan/penandatangan.ts.
-            text:
-              pihakKkp(o.jenis) === "wakil_sah"
-                ? `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.wakilSahName, o.h.wakilSahNip ? `NIP. ${o.h.wakilSahNip}` : null)}`
-                : `MENGETAHUI :\n${labelPihakKkp(o.jenis)}${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
+            text: `MENGETAHUI :\n${peranSlot(tt.kkp, true)}${nameOf(tt.kkp.nama, tt.kkp.sub)}`,
             align: "center",
           },
           {
-            text: `DIPERIKSA :\nKONSULTAN PENGAWAS${nameOf(o.h.supervisorName, o.h.supervisorFirm)}`,
+            text: `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}${nameOf(tt.konsultan.nama, tt.konsultan.sub)}`,
             align: "center",
           },
           {
-            text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(penyedia.nama, penyedia.sub)}`,
+            text: `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}${nameOf(tt.penyedia.nama, tt.penyedia.sub)}`,
             align: "center",
           },
         ],
