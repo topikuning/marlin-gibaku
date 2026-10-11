@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 666 | 2026-10-11 | Dokumentasi foto per bangunan di Drive: `6. DOKUMENTASI/<Lokasi>/<Bangunan>` berisi SHORTCUT ke foto laporan harian (tanpa salinan); bangunan = kategori RAB tingkat 1 revisi aktif; foto lama diisi bertahap |
 | 665 | 2026-10-11 | Baris RAB terbaca tapi tak satu pun bernilai (kolom harga/jumlah salah tebak) → user DITANYA sheet & kolomnya, bukan galat buntu "Tidak ada baris RAB yang terbaca" |
 | 664 | 2026-10-10 | Impor RAB tidak lagi berhenti dengan "Sheet RAB tidak ditemukan" saat daftar sheet tak terbaca: `<sheet></sheet>` & awalan namespace dikenali, nama ber-kutip cocok; .xls/rusak/semua tersembunyi disebut sebabnya |
 | 663 | 2026-10-10 | "Muat ulang cuaca" tidak lagi menghapus isian tenaga/jam kerja yang belum disimpan: kategori cuaca dikeluarkan dari kunci pemasangan ulang form Pelengkap (`kunciBadanPelengkap`) |

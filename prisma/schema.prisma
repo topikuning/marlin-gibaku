@@ -686,11 +686,39 @@ model GDriveUpload {
   error       String?
   createdById String?  @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  /// Foto asal berkas ini (laporan harian). Dasar shortcut dokumentasi per
+  /// bangunan (DECISIONS 666); kosong untuk PDF/Excel dan unggahan lama.
+  photoId     String?  @map("photo_id") @db.Uuid
 
   package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@index([packageId, kind, refKey, createdAt])
+  @@index([photoId])
   @@map("gdrive_uploads")
+}
+
+/// Shortcut Drive satu foto di "6. DOKUMENTASI/<Lokasi>/<Bangunan>" (DECISIONS 666).
+///
+/// Foto aslinya tetap satu, di folder laporan harian; yang di folder bangunan
+/// hanya penunjuk. `shortcutId` null = foto ini belum bisa ditautkan (berkas
+/// Drive-nya belum diketahui) – dicoba lagi saat laporannya diunggah ulang.
+model GDrivePintasanFoto {
+  photoId    String   @id @map("photo_id") @db.Uuid
+  reportId   String   @map("report_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  /// Revisi RAB yang menentukan nama bangunan saat terakhir disusun.
+  revisionId String?  @map("revision_id") @db.Uuid
+  targetId   String?  @map("target_id")
+  shortcutId String?  @map("shortcut_id")
+  folderId   String?  @map("folder_id")
+  bangunan   String
+  nama       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([reportId])
+  @@index([locationId])
+  @@map("gdrive_pintasan_foto")
 }
 
 /// SUMBER AHSP — satu baris per terbitan regulasi (mis. SE DJBK 47/2026).

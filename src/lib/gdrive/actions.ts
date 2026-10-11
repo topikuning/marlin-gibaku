@@ -139,6 +139,9 @@ export async function jalankanAntreanDriveAction(): Promise<GDriveActionState> {
     if (h.menyerah > 0) bagian.push(`${h.menyerah} berhenti dicoba`);
     if (h.batal > 0) bagian.push(`${h.batal} batal`);
     bagian.push(`${h.sisa} masih menunggu`);
+    // Shortcut foto per bangunan di "6. DOKUMENTASI" (DECISIONS 666).
+    const dok = h.dokumentasi.dibuat + h.dokumentasi.dipindah;
+    if (dok > 0) bagian.push(`${dok} foto masuk dokumentasi per bangunan`);
     const ekor = h.berhenti ? ` ${h.berhenti}` : "";
     return { success: `Antrean selesai diproses: ${bagian.join(", ")}.${ekor}` };
   } catch (err) {

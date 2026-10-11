@@ -24,7 +24,13 @@ export type UploadTarget = {
   byId: string | null;
 };
 
-export type UploadItem = { fileName: string; mime: string; data: Buffer };
+export type UploadItem = {
+  fileName: string;
+  mime: string;
+  data: Buffer;
+  /** Foto asal berkas – dicatat supaya shortcut dokumentasi tahu berkas Drive-nya (DECISIONS 666). */
+  photoId?: string;
+};
 
 /**
  * Catat satu berkas ke `GDriveUpload`.
@@ -50,7 +56,7 @@ async function log(
   t: UploadTarget,
   fileName: string,
   status: "sukses" | "gagal",
-  extra: { fileId?: string | null; webLink?: string | null; error?: string | null },
+  extra: { fileId?: string | null; webLink?: string | null; error?: string | null; photoId?: string | null },
 ): Promise<void> {
   await catatUnggah(t, fileName, status, extra);
 }
@@ -59,7 +65,7 @@ export async function catatUnggah(
   t: UploadTarget,
   fileName: string,
   status: "sukses" | "gagal",
-  extra: { fileId?: string | null; webLink?: string | null; error?: string | null },
+  extra: { fileId?: string | null; webLink?: string | null; error?: string | null; photoId?: string | null },
 ): Promise<void> {
   await db.gDriveUpload
     .create({
@@ -73,6 +79,7 @@ export async function catatUnggah(
         webLink: extra.webLink ?? null,
         status,
         error: extra.error ?? null,
+        photoId: extra.photoId ?? null,
         createdById: t.byId || null,
       },
     })
@@ -154,7 +161,7 @@ export async function uploadBatch(
       out.ok++;
       if (!file.created) out.updated++;
       out.webLink ??= file.webViewLink;
-      await log(target, it.fileName, "sukses", { fileId: file.id, webLink: file.webViewLink });
+      await log(target, it.fileName, "sukses", { fileId: file.id, webLink: file.webViewLink, photoId: it.photoId });
     } catch (err) {
       const g = rinciGalat(err);
       out.failed++;
@@ -163,7 +170,7 @@ export async function uploadBatch(
         out.firstErrorStatus = g.status;
         out.firstRetryAfter = g.retryAfter;
       }
-      await log(target, it.fileName, "gagal", { error: g.pesan });
+      await log(target, it.fileName, "gagal", { error: g.pesan, photoId: it.photoId });
     }
   }
   return out;
@@ -178,7 +185,7 @@ function tidur(ms: number): Promise<void> {
  * (dilaporkan lewat `skipped`) — laporan utamanya tetap naik.
  */
 export async function photoItems(
-  photos: { r2Key: string }[],
+  photos: { r2Key: string; id?: string }[],
   naming: { dateKey: string; locationName: string },
 ): Promise<{ items: UploadItem[]; skipped: number }> {
   const items: UploadItem[] = [];
@@ -193,6 +200,7 @@ export async function photoItems(
         fileName: photoFileName({ ...naming, index: i, ext }),
         mime,
         data,
+        photoId: p.id,
       });
     } catch {
       skipped++;

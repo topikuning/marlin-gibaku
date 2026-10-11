@@ -1236,7 +1236,9 @@ function dorongAntreanDrive(): void {
   try {
     after(async () => {
       const { jalankanAntreanDrive } = await import("@/lib/gdrive/antrean");
-      await jalankanAntreanDrive({ pindai: false, maksPekerjaan: 3 });
+      // Shortcut dokumentasi laporan ini sudah disusun di unggahannya sendiri;
+      // pengisian foto lama urusan penjadwal (DECISIONS 666).
+      await jalankanAntreanDrive({ pindai: false, maksPekerjaan: 3, dokumentasi: false });
     });
   } catch (err) {
     console.error("[daily-report] gagal menjadwalkan unggah Drive:", err);
