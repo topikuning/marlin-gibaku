@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 668 | 2026-10-11 | Cetak dari aplikasi terpasang (PWA): Buka PDF / Bagikan (iPhone) / Buka di peramban `?cetak=1`; PDF baru rencana mingguan & Time Schedule; tautan cetak dibuka di tempat; area aman layar |
+| 667 | 2026-10-11 | RAB aktif langsung dianalisa AI per bangunan (urutan, prasyarat, kritis, cuaca) → dasar saran rencana mingguan; volume tetap hitungan kode; saran: 0% sebelum SPMK, "tertinggal" hanya yang jatuh tempo, pilih per baris |
 | 666 | 2026-10-11 | Dokumentasi foto per bangunan di Drive: `6. DOKUMENTASI/<Lokasi>/<Bangunan>` berisi SHORTCUT ke foto laporan harian (tanpa salinan); bangunan = kategori RAB tingkat 1 revisi aktif; foto lama diisi bertahap |
 | 665 | 2026-10-11 | Baris RAB terbaca tapi tak satu pun bernilai (kolom harga/jumlah salah tebak) → user DITANYA sheet & kolomnya, bukan galat buntu "Tidak ada baris RAB yang terbaca" |
 | 664 | 2026-10-10 | Impor RAB tidak lagi berhenti dengan "Sheet RAB tidak ditemukan" saat daftar sheet tak terbaca: `<sheet></sheet>` & awalan namespace dikenali, nama ber-kutip cocok; .xls/rusak/semua tersembunyi disebut sebabnya |

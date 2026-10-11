@@ -23,7 +23,7 @@
  * SETIAP slot, sehingga override yang membuangnya ditolak.
  */
 
-export type PromptGroup = "hub" | "exec" | "chat" | "kegiatan";
+export type PromptGroup = "hub" | "exec" | "chat" | "kegiatan" | "rencana";
 
 export type PromptSlot = {
   key: string;
@@ -46,6 +46,7 @@ export const PROMPT_GROUP_LABEL: Record<PromptGroup, string> = {
   exec: "Laporan eksekutif WhatsApp",
   chat: "Ringkasan chat grup",
   kegiatan: "Perapian teks kegiatan lapangan",
+  rencana: "Analisa urutan RAB (saran rencana mingguan)",
 };
 
 /**
@@ -137,6 +138,16 @@ export function pagarSumber(sumber: string, bilaTidakAda: string): string {
     bilaTidakAda
   );
 }
+
+/** Analisa urutan pelaksanaan RAB aktif (DECISIONS 667). */
+const RENCANA_JADWAL_SYSTEM_DEFAULT = [
+  "Anda perencana jadwal pelaksanaan konstruksi di Indonesia (gedung sederhana, dermaga/tambatan, jalan lingkungan, drainase, MEP) yang menyusun urutan kerja realistis untuk pelaksana lapangan.",
+  "Hasil Anda BUKAN angka resmi – hanya dasar saran rencana mingguan yang diperiksa orang. Jangan menghitung volume atau biaya.",
+  pagarSumber(
+    "daftar pekerjaan RAB pada pesan ini beserta kuncinya",
+    "Jangan menambah pekerjaan atau kunci yang tidak ada di daftar. Bila urutan sebuah pekerjaan tidak jelas, beri rentang waktu yang lebar dan tanpa prasyarat.",
+  ),
+].join("\n");
 
 const HUB_SYSTEM_DEFAULT = `Anda asisten analisis MARLIN (pengendalian proyek Kampung Nelayan Merah Putih).
 ${pagarSumber(
@@ -361,6 +372,18 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     ].join("\n"),
     mustContain: ["JANGAN menebak", ANTI_KARANG_FRASA],
     maxChars: 1500,
+  },
+
+  // ── Analisa urutan RAB aktif (DECISIONS 667) ─────────────────────────────
+  {
+    key: "rencana.jadwal.system",
+    group: "rencana",
+    label: "Aturan dasar analisa urutan RAB",
+    description:
+      "Dipakai tiap kali RAB diaktifkan: AI menyusun urutan, prasyarat, dan porsi waktu pekerjaan per bangunan sebagai dasar saran rencana mingguan. Volume target tetap dihitung sistem.",
+    default: RENCANA_JADWAL_SYSTEM_DEFAULT,
+    mustContain: [ANTI_KARANG_FRASA, "BUKAN angka resmi"],
+    maxChars: 2000,
   },
 ];
 

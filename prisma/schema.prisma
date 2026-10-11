@@ -1559,6 +1559,7 @@ model RabRevision {
   analisa        RabAnalisa[]
   itemAnalisa    RabItemAnalisa[]
   hargaDasar     RabHargaDasar[]
+  jadwalAi       RabJadwalAi?
   backupIsian    RabBackupIsian[]
 
   @@unique([locationId, revisionNo])
@@ -2798,6 +2799,9 @@ enum AiRunKind {
   /// kondisi terkininya. Bahannya deterministik (`src/lib/kronologi`); AI
   /// hanya merangkainya jadi prosa.
   kronologi
+  /// Analisa urutan pelaksanaan RAB aktif per bangunan – dasar saran rencana
+  /// mingguan (DECISIONS 667). Satu run per analisa, bukan per panggilan.
+  jadwal_rab
 }
 
 enum AiRunStatus {
@@ -3982,4 +3986,56 @@ model RaplAnalisaAiKomponen {
 
   @@index([usulanId, urutan])
   @@map("rapl_analisa_ai_komponen")
+}
+
+/// ANALISA AI URUTAN PELAKSANAAN satu revisi RAB (DECISIONS 667).
+///
+/// Dikirim otomatis begitu revisi itu aktif, per bangunan (kategori tingkat 1).
+/// Hasilnya STRUKTUR – urutan, prasyarat, porsi waktu di jendela bangunan,
+/// pekerjaan kritis – yang dipakai saran rencana mingguan. BUKAN angka resmi:
+/// volume, bobot, dan progres tetap dihitung calculation layer.
+model RabJadwalAi {
+  id              String    @id @default(uuid()) @db.Uuid
+  revisionId      String    @unique @map("revision_id") @db.Uuid
+  locationId      String    @map("location_id") @db.Uuid
+  /// antre | jalan | selesai | sebagian | gagal
+  status          String    @default("antre")
+  /// Diisi saat sebuah proses mengerjakannya; yang basi diambil alih cron.
+  pendingSince    DateTime? @map("pending_since") @db.Timestamptz
+  runId           String?   @map("run_id") @db.Uuid
+  provider        String?
+  model           String?
+  galat           String?
+  dimintaOlehId   String?   @map("diminta_oleh_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  selesaiAt       DateTime? @map("selesai_at") @db.Timestamptz
+
+  revision RabRevision           @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  kelompok RabJadwalAiKelompok[]
+
+  @@index([locationId])
+  @@index([status])
+  @@map("rab_jadwal_ai")
+}
+
+/// Satu bagian analisa: satu bangunan, atau satu potongan bangunan besar.
+model RabJadwalAiKelompok {
+  id          String    @id @default(uuid()) @db.Uuid
+  analisaId   String    @map("analisa_id") @db.Uuid
+  kategoriKey String    @map("kategori_key")
+  bagian      Int       @default(1)
+  nama        String
+  /// antre | selesai | gagal
+  status      String    @default("antre")
+  /// Hasil tervalidasi: { catatan, item: [{ kunci, mulai, selesai, prasyarat, kritis, cuaca, alasan }] }
+  hasil       Json?
+  galat       String?
+  percobaan   Int       @default(0)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  analisa RabJadwalAi @relation(fields: [analisaId], references: [id], onDelete: Cascade)
+
+  @@unique([analisaId, kategoriKey, bagian])
+  @@map("rab_jadwal_ai_kelompok")
 }

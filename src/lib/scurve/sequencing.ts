@@ -515,6 +515,15 @@ export function itemPlannedFraction(
   totalWeeks: number,
 ): number {
   const [is, ie] = nestedItemWindow(workType, stage, catStart, catEnd);
+  return fraksiJendela(is, ie, weekNumber, totalWeeks);
+}
+
+/**
+ * Porsi rencana kumulatif sebuah pekerjaan berjendela [is, ie] (porsi masa
+ * kontrak) pada akhir minggu `weekNumber` – lonceng smoothstep. Dipakai juga
+ * oleh jendela dari analisa AI (DECISIONS 667) supaya kurvanya sama.
+ */
+export function fraksiJendela(is: number, ie: number, weekNumber: number, totalWeeks: number): number {
   const t = Math.max(0, Math.min(1, weekNumber / Math.max(1, totalWeeks)));
   const w = Math.max(1e-9, ie - is);
   const x = (t - is) / w;

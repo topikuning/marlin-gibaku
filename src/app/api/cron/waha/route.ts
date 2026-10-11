@@ -88,6 +88,17 @@ export async function POST(req: Request) {
      * dinilai saat run gagal dicatat; di sini hanya untuk organisasi yang punya
      * run 60 menit terakhir, bila pemeriksaan latar sempat terlewat.
      */
+    /*
+     * Analisa AI urutan RAB (DECISIONS 667) yang antre atau terhenti
+     * dilanjutkan di sini – per bangunan, jadi yang sudah jadi tidak diulang.
+     */
+    let jadwalAi: unknown = null;
+    try {
+      const { jemputJadwalAi } = await import("@/lib/plan/jadwal-ai");
+      jadwalAi = await jemputJadwalAi({ batasMs: 200_000 });
+    } catch (err) {
+      console.error("[cron/waha] analisa AI urutan RAB gagal:", err);
+    }
     let alarmAi: unknown = null;
     try {
       const { periksaAlarmAi } = await import("@/lib/ai-hub/alarm");
@@ -124,6 +135,7 @@ export async function POST(req: Request) {
       konteksDibuang,
       tanyaTertunda,
       pengingatGrup,
+      jadwalAi,
       alarmAi,
       lampiranDiarsipkan,
     });

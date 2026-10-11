@@ -3,14 +3,15 @@
 import { useAksi } from "@/lib/aksi-klien";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { Download, MessageCircle, Printer } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Download, MessageCircle, Printer, Sparkles } from "lucide-react";
 import { sendRencanaMingguanToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { Banner, Button, ButtonLink, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
-import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
+import { formatNumber, formatPct, formatRupiah, formatTanggalWaktu } from "@/lib/format";
 import { LABEL_STATUS, labelKejar, type Ppc, type StatusRencana } from "@/lib/plan/rencana-format";
 import {
   addWeeklyPlanItem,
+  analisaUlangJadwalAi,
   applyWeeklySuggestions,
   getWeeklySuggestions,
   removeWeeklyPlanItem,
@@ -40,6 +41,109 @@ export type LeafOption = {
 };
 
 const MAX_OPTIONS = 100;
+
+/** Keadaan analisa AI urutan RAB aktif (DECISIONS 667). */
+export type AnalisaAiView = {
+  status: "antre" | "jalan" | "selesai" | "sebagian" | "gagal";
+  model: string | null;
+  galat: string | null;
+  selesaiAt: string | null;
+  bangunan: { total: number; selesai: number; gagal: number };
+  pekerjaan: number;
+  catatan: { nama: string; catatan: string }[];
+};
+
+function kalimatAnalisaAi(a: AnalisaAiView | null): { tone: "info" | "warning" | "success"; teks: string } {
+  if (!a) return { tone: "info", teks: "RAB ini belum dianalisa AI. Saran memakai urutan bawaan sistem." };
+  const b = a.bangunan;
+  const kapan = a.selesaiAt ? `, ${formatTanggalWaktu(new Date(a.selesaiAt))}` : "";
+  const model = a.model ? ` (${a.model}${kapan})` : "";
+  switch (a.status) {
+    case "antre":
+      return { tone: "info", teks: "AI segera menganalisa urutan pekerjaan RAB ini. Halaman ini memperbarui sendiri." };
+    case "jalan":
+      return {
+        tone: "info",
+        teks: `AI sedang menganalisa urutan pekerjaan: ${b.selesai} dari ${b.total} bangunan selesai. Yang sudah selesai langsung dipakai.`,
+      };
+    case "selesai":
+      return {
+        tone: "success",
+        teks: `Urutan ${a.pekerjaan} pekerjaan di ${b.total} bangunan sudah dianalisa AI${model}. Saran di bawah memakai urutan itu.`,
+      };
+    case "sebagian":
+      return {
+        tone: "warning",
+        teks: `AI selesai menganalisa ${b.selesai} dari ${b.total} bangunan${model}. Bangunan lain memakai urutan bawaan.${a.galat ? ` Sebabnya: ${a.galat}` : ""}`,
+      };
+    case "gagal":
+      return {
+        tone: "warning",
+        teks: `Analisa AI gagal${a.galat ? `: ${a.galat}` : "."} Saran memakai urutan bawaan sistem.`,
+      };
+  }
+}
+
+/**
+ * Baris keadaan analisa AI di atas saran. Selama AI masih bekerja halaman
+ * dimuat ulang berkala, jadi bangunan yang selesai langsung terlihat.
+ */
+function AnalisaAiBar({
+  locationId,
+  analisa,
+  bolehAnalisa,
+}: {
+  locationId: string;
+  analisa: AnalisaAiView | null;
+  bolehAnalisa: boolean;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useAksi<RabActionState>(analisaUlangJadwalAi, undefined);
+  const berjalan = analisa?.status === "antre" || analisa?.status === "jalan";
+  useEffect(() => {
+    if (!berjalan) return;
+    const t = setInterval(() => router.refresh(), 15_000);
+    return () => clearInterval(t);
+  }, [berjalan, router]);
+  const k = kalimatAnalisaAi(analisa);
+  const nada = k.tone === "success" ? "text-success" : k.tone === "warning" ? "text-warning" : "text-ink-muted";
+
+  return (
+    <div className="space-y-2 rounded border border-border bg-surface p-2.5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className={`flex min-w-0 flex-1 items-start gap-1.5 text-xs ${nada}`}>
+          <Sparkles className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{k.teks}</span>
+        </p>
+        {bolehAnalisa && !berjalan ? (
+          <form action={action}>
+            <input type="hidden" name="locationId" value={locationId} />
+            <Button type="submit" variant="secondary" size="sm" loading={pending}>
+              {analisa ? "Analisa ulang dengan AI" : "Analisa dengan AI"}
+            </Button>
+          </form>
+        ) : null}
+      </div>
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {analisa && analisa.catatan.length > 0 ? (
+        <details className="text-xs text-ink-muted">
+          <summary className="cursor-pointer select-none text-ink">
+            Strategi pelaksanaan per bangunan dari AI ({analisa.catatan.length})
+          </summary>
+          <ul className="mt-1.5 space-y-1.5">
+            {analisa.catatan.map((c) => (
+              <li key={c.nama}>
+                <span className="font-semibold text-ink">{c.nama}</span> – {c.catatan}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5">Ini pendapat AI, bukan angka resmi. Volume target tetap dihitung sistem dari RAB dan realisasi.</p>
+        </details>
+      ) : null}
+    </div>
+  );
+}
 
 function RemoveButton({ itemId }: { itemId: string }) {
   const [state, action, pending] = useAksi<RabActionState>(
@@ -140,7 +244,17 @@ function AddItemForm({
   );
 }
 
-function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
+function SuggestPanel({
+  locationId,
+  weekNumber,
+  analisaAi,
+  canAnalisaAi,
+}: {
+  locationId: string;
+  weekNumber: number;
+  analisaAi: AnalisaAiView | null;
+  canAnalisaAi: boolean;
+}) {
   const [sugState, suggest, suggesting] = useAksi<SuggestState>(
     getWeeklySuggestions,
     undefined,
@@ -150,6 +264,15 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
     undefined,
   );
   const result = sugState?.result;
+  // Baris yang TIDAK dicentang; saran baru = semua tercentang lagi.
+  const [lepas, setLepas] = useState<Set<string>>(new Set());
+  const [hasilTerakhir, setHasilTerakhir] = useState(result);
+  if (hasilTerakhir !== result) {
+    setHasilTerakhir(result);
+    setLepas(new Set());
+  }
+  const terpilih = result ? result.suggestions.filter((s) => !lepas.has(s.rabNodeId)).length : 0;
+  const formTerapkan = `wp-terapkan-${weekNumber}`;
 
   return (
     <div className="space-y-3 rounded-md border border-primary/30 bg-primary-50 p-3">
@@ -157,7 +280,7 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
         <div>
           <p className="text-sm font-semibold text-ink">Saran otomatis minggu {weekNumber}</p>
           <p className="text-xs text-ink-muted">
-            Disusun dari urutan pekerjaan lapangan dan realisasi. Kalau tertinggal, sarannya ikut mengejar deviasi.
+            Disusun dari urutan pekerjaan dan realisasi. Kalau tertinggal, sarannya ikut mengejar deviasi.
           </p>
         </div>
         <form action={suggest}>
@@ -169,6 +292,8 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
         </form>
       </div>
 
+      <AnalisaAiBar locationId={locationId} analisa={analisaAi} bolehAnalisa={canAnalisaAi} />
+
       {sugState?.error ? <Banner tone="info" title={sugState.error} /> : null}
       {applyState?.error ? <Banner tone="error" title={applyState.error} /> : null}
       {applyState?.success ? <Banner tone="success" title={applyState.success} /> : null}
@@ -177,8 +302,21 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
         <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className="text-ink-muted">
-              Rencana s/d minggu berjalan: <span className="font-semibold text-ink">{formatPct(result.planPct)}</span>
+              {result.currentWeek > 0 ? (
+                <>
+                  Rencana s/d minggu berjalan ({result.currentWeek}):{" "}
+                  <span className="font-semibold text-ink">{formatPct(result.planPct)}</span>
+                </>
+              ) : (
+                "Proyek belum mulai (belum SPMK)"
+              )}
             </span>
+            {result.weekNumber !== result.currentWeek ? (
+              <span className="text-ink-muted">
+                Target akhir minggu {result.weekNumber}:{" "}
+                <span className="font-semibold text-ink">{formatPct(result.targetPct)}</span>
+              </span>
+            ) : null}
             <span className="text-ink-muted">
               Realisasi: <span className="font-semibold text-ink">{formatPct(result.actualPct)}</span>
             </span>
@@ -192,7 +330,18 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                  <th className="py-1.5 pr-3 pl-2">Uraian</th>
+                  <th className="w-8 py-1.5 pl-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Pilih semua saran"
+                      className="size-4 accent-primary"
+                      checked={lepas.size === 0}
+                      onChange={(e) =>
+                        setLepas(e.target.checked ? new Set() : new Set(result.suggestions.map((s) => s.rabNodeId)))
+                      }
+                    />
+                  </th>
+                  <th className="py-1.5 pr-3">Uraian</th>
                   <th className="py-1.5 pr-3">Tahap</th>
                   <th className="py-1.5 pr-3 text-right">Sisa</th>
                   <th className="py-1.5 pr-3 text-right">Target mgg ini</th>
@@ -203,8 +352,25 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
               </thead>
               <tbody className="divide-y divide-border">
                 {result.suggestions.map((s) => (
-                  <tr key={s.rabNodeId}>
-                    <td className="max-w-64 truncate py-1.5 pr-3 pl-2" title={s.name}>
+                  <tr key={s.rabNodeId} className={lepas.has(s.rabNodeId) ? "opacity-50" : undefined}>
+                    <td className="py-1.5 pl-2 align-top">
+                      <input
+                        type="checkbox"
+                        name="pilih"
+                        value={s.rabNodeId}
+                        form={formTerapkan}
+                        aria-label={`Pilih ${s.name}`}
+                        className="mt-0.5 size-4 accent-primary"
+                        checked={!lepas.has(s.rabNodeId)}
+                        onChange={(e) => {
+                          const n = new Set(lepas);
+                          if (e.target.checked) n.delete(s.rabNodeId);
+                          else n.add(s.rabNodeId);
+                          setLepas(n);
+                        }}
+                      />
+                    </td>
+                    <td className="max-w-64 truncate py-1.5 pr-3" title={s.name}>
                       <span className="text-xs text-ink-muted">{s.code}</span> {s.name}
                     </td>
                     <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.stageLabel}</td>
@@ -228,18 +394,28 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
                     </td>
                     <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{formatRupiah(s.valueTarget)}</td>
                     <td className="tabular py-1.5 pr-3">{s.priority}</td>
-                    <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.reason}</td>
+                    <td className="max-w-72 py-1.5 pr-3 text-xs text-ink-muted">
+                      {s.reason}
+                      {s.kritis ? <span className="ml-1.5 font-semibold text-danger">· kritis</span> : null}
+                      {s.pekaCuaca ? <span className="ml-1.5 font-semibold text-warning">· peka cuaca</span> : null}
+                      {s.alasanAi ? (
+                        <span className="mt-0.5 line-clamp-2 text-[11px]" title={s.alasanAi}>
+                          AI: {s.alasanAi}
+                        </span>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <form action={apply}>
+          <form id={formTerapkan} action={apply}>
             <input type="hidden" name="locationId" value={locationId} />
             <input type="hidden" name="weekNumber" value={weekNumber} />
-            <Button type="submit" loading={applying}>
-              Terapkan {result.suggestions.length} saran ke rencana minggu {weekNumber}
+            <input type="hidden" name="pilihDikirim" value="1" />
+            <Button type="submit" loading={applying} disabled={terpilih === 0}>
+              Terapkan {terpilih} saran ke rencana minggu {weekNumber}
             </Button>
             <HelpText>Item dimasukkan ke rencana. Anda tetap bisa mengubah target, PIC, atau menghapusnya.</HelpText>
           </form>
@@ -421,6 +597,8 @@ export function WeeklyPlanSection({
   options,
   ringkas,
   canManage,
+  analisaAi = null,
+  canAnalisaAi = false,
 }: {
   locationId: string;
   weekNumber: number;
@@ -431,6 +609,8 @@ export function WeeklyPlanSection({
   options: LeafOption[];
   ringkas: RingkasRencana | null;
   canManage: boolean;
+  analisaAi?: AnalisaAiView | null;
+  canAnalisaAi?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -479,7 +659,12 @@ export function WeeklyPlanSection({
 
       {canManage ? (
         <>
-          <SuggestPanel locationId={locationId} weekNumber={weekNumber} />
+          <SuggestPanel
+            locationId={locationId}
+            weekNumber={weekNumber}
+            analisaAi={analisaAi}
+            canAnalisaAi={canAnalisaAi}
+          />
           <AddItemForm locationId={locationId} weekNumber={weekNumber} options={options} />
         </>
       ) : null}
