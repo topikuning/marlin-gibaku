@@ -479,7 +479,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         };
       }
     }
-    if (nodes.length === 0) return { error: "Tidak ada baris RAB yang terbaca. Periksa sheet 'RAB' di berkas Anda." };
+    if (nodes.length === 0) {
+      // MARLIN tidak paham berkasnya → TANYA sheet & kolomnya (DECISIONS 624/665),
+      // bukan berhenti. Galat hanya bila bahan pertanyaannya tidak ada.
+      const sebab =
+        "Tidak ada baris RAB yang bernilai dari pembacaan ini. Pilih sheet dan kolom volume, satuan, harga satuan, dan jumlah di bawah.";
+      if (baca) return { tanya: { sebab, ...baca } };
+      return { error: sebab.replace(/ Pilih sheet.*$/, " Periksa sheet RAB di berkas Anda.") };
+    }
 
     /*
      * VOLUME / JUMLAH NEGATIF DITOLAK DI SINI — BUKAN OLEH POSTGRES.
