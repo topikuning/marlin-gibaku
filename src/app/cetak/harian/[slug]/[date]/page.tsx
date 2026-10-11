@@ -17,6 +17,9 @@ import { getRequestOrigin } from "@/lib/http";
 import { signPhotoToken } from "@/lib/pdf/photo-token";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { can } from "@/lib/authz";
+import { alamatPdf } from "@/lib/cetak/alamat-pdf";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +120,11 @@ export default async function CetakHarianPage({
           // lokasi (di sana ada laporan mingguan, terasa nyasar).
           `/lokasi/${slug}/harian/${date}`,
         )}
+        // PDF-nya dokumen yang sama (sampul → blanko → dokumentasi), dan hanya
+        // ditawarkan kepada yang boleh mengekspor – route-nya menegakkan hal
+        // yang sama.
+        pdfHref={can(user.role, "report.export") ? alamatPdf.harian(slug, date) : null}
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
       />
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
       {!data.isFinal && (

@@ -119,6 +119,23 @@
   }
 }
 
+/*
+ * AREA AMAN KIRI/KANAN (poni iPhone saat HP dimiringkan).
+ *
+ * Sejak `viewport-fit=cover` (root layout) halaman memakai layar penuh. Atas
+ * dan bawah ditangani oleh bilah yang menempel di sana (topbar, toolbar cetak,
+ * nav bawah); kiri/kanan cukup sekali di sini supaya SETIAP halaman – termasuk
+ * /masuk, /offline, dan /cetak – tidak ada yang terselip di balik poni.
+ * Elemen `fixed` (nav bawah, laci) tidak ikut bantalan body; mereka mengurus
+ * sisinya sendiri. Hanya di layar: kertas tidak punya poni.
+ */
+@media screen {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
 /* Hormati preferensi reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

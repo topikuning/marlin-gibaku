@@ -31,7 +31,8 @@ function isActive(pathname: string, item: LinkTabItem): boolean {
  * yang jauh, dan satu-satunya jalan menuju sembilan halaman lain dari lokasi
  * ini. Navigasi utama yang harus dikejar bukan navigasi.
  *
- * Melekat di bawah topbar (`top-13` = tinggi topbar), bukan di `top-0`: kalau
+ * Melekat di bawah topbar (3,25rem + area aman atas = tinggi topbar; area aman
+ * 0 di peramban biasa, setinggi status bar di aplikasi terpasang iPhone), bukan di `top-0`: kalau
  * `top-0`, ia bersembunyi DI BALIK topbar yang juga melekat, dan gejalanya
  * justru terlihat seperti tab yang hilang.
  *
@@ -72,7 +73,7 @@ export function LinkTabs({
     <nav
       aria-label="Tab"
       className={cn(
-        "sticky top-13 z-10 -mx-4 border-b border-border bg-surface px-4 lg:-mx-6 lg:px-6",
+        "sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 border-b border-border bg-surface px-4 lg:-mx-6 lg:px-6",
         className,
       )}
     >

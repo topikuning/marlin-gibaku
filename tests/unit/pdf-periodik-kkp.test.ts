@@ -133,3 +133,38 @@ describe("PDF blanko KKP periodik (yang disetor ke Drive)", () => {
     expect(buf.length).toBeGreaterThan(10_000);
   });
 });
+
+describe("PDF Time Schedule berdiri sendiri (halaman cetak jadwal)", () => {
+  /*
+   * Dokumen jadwal = lembar kurva-S SAJA, bukan laporan periodik. Ketetapan
+   * user 2026-08-21: *"kurva s yang menyatu dalam laporan mingguan adalah
+   * laporan mingguan, jangan campuradukkan dengan kurva s sebagai jadwal."*
+   * Kalau rincian ikut tercetak, yang beredar adalah laporan mingguan berjudul
+   * jadwal.
+   */
+  const pages = (buf: Buffer) => buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g)?.length ?? 0;
+
+  it("hanya lembar kurva – tanpa halaman rincian laporan", { timeout: 30_000 }, async () => {
+    const { buildJadwalKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const r = fixture("mingguan");
+    const buf = await buildJadwalKkpPdf(r, "MARLIN", null, {
+      periode: { start: r.header.contractStart, end: new Date(Date.UTC(2026, 9, 27)) },
+      catatan: null,
+    });
+    expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(pages(buf), "jumlah halaman").toBe(1);
+  });
+
+  it("catatan asumsi SPMK ikut tercetak tanpa menambah halaman", { timeout: 30_000 }, async () => {
+    const { buildJadwalKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const r = fixture("mingguan");
+    const opsi = { periode: { start: r.header.contractStart, end: new Date(Date.UTC(2026, 9, 27)) } };
+    const tanpa = await buildJadwalKkpPdf(r, "MARLIN", null, { ...opsi, catatan: null });
+    const dengan = await buildJadwalKkpPdf(r, "MARLIN", null, {
+      ...opsi,
+      catatan: "Catatan: SPMK belum diterbitkan. Jadwal ini dihitung dari asumsi mulai 15 Juni 2026.",
+    });
+    expect(pages(dengan)).toBe(1);
+    expect(dengan.length).toBeGreaterThan(tanpa.length);
+  });
+});

@@ -781,6 +781,43 @@ export type PilihanBaca = {
   usulan: KolomManual | null;
 };
 
+/**
+ * Isi hasil baca: berapa baris pekerjaan, berapa yang BERNILAI (harga satuan
+ * atau jumlah > 0). Kriterianya sama dengan yang dipakai `flattenParsedRab`
+ * untuk mempertahankan kategori – supaya "terbaca" di sini berarti "akan ada
+ * yang tersimpan" di sana (DECISIONS 665).
+ */
+function ringkasIsi(parsed: ParsedRab): { baris: number; bernilai: number } {
+  let baris = 0;
+  let bernilai = 0;
+  const telusuri = (items: ParsedRabItem[]): void => {
+    for (const it of items) {
+      baris++;
+      if ((it.unit_price ?? 0) > 0 || (it.total_price ?? 0) > 0) bernilai++;
+      telusuri(it.children);
+    }
+  };
+  for (const c of parsed.categories) {
+    telusuri(c.direct_items);
+    for (const s of c.subcategories) telusuri(s.items);
+  }
+  return { baris, bernilai };
+}
+
+/**
+ * Baris pekerjaan ada tapi tidak satu pun bernilai = kolom harga/jumlah salah
+ * tebak. Itu MARLIN yang tidak paham, jadi user DITANYA (DECISIONS 624/665).
+ * Dulu sheet begini dianggap berisi, lalu semua barisnya dibuang di tahap
+ * berikut dan layar buntu di "Tidak ada baris RAB yang terbaca" (user
+ * 2026-10-11, berkas "RAB Nego.xlsx").
+ */
+function pesanTanpaNilai(nama: string, baris: number): string {
+  return (
+    `Sheet "${nama}" terbaca (${baris} baris pekerjaan), tapi kolom harga satuan dan jumlah yang dikenali kosong semua – ` +
+    "kolomnya kemungkinan salah tebak. Pilih kolom volume, satuan, harga satuan, dan jumlah di bawah."
+  );
+}
+
 /** Pembacaan tidak bisa dipastikan → layar BERTANYA, bukan menampilkan galat. */
 export class ImporPerluJawaban extends Error {
   constructor(
@@ -935,9 +972,11 @@ export async function parseHpsBuffer(asli: Buffer | ArrayBuffer, opsi: OpsiBaca 
     const wb = await muatSheet(buf, nama);
     try {
       const hasil = parseHpsWorkbook(wb, opsi.kolom);
-      if (!hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0)) {
+      const isi = ringkasIsi(hasil.parsed);
+      if (isi.baris === 0) {
         throw new Error(`Sheet "${nama}" terbaca, tapi tidak ada satu pun baris pekerjaan yang dikenali dengan kolom ini.`);
       }
+      if (isi.bernilai === 0) throw new Error(pesanTanpaNilai(nama, isi.baris));
       return { ...hasil, pilihan: pilihanDari(wb, semuaNama, opsi.kolom ?? null) };
     } catch (e) {
       throw new ImporPerluJawaban(
@@ -987,6 +1026,8 @@ async function parseHpsOtomatis(
    * ada yang terbaca. Yang pertama = yang paling mirip RAB menurut namanya.
    */
   let wbTanya: ExcelJS.Workbook | null = null;
+  /** Sheet pertama yang punya baris pekerjaan tapi tanpa nilai – lihat `pesanTanpaNilai`. */
+  let tanpaNilai: { wb: ExcelJS.Workbook; sebab: string } | null = null;
   const tanya = (sebab: string): never => {
     if (!wbTanya) throw new Error(sebab);
     throw new ImporPerluJawaban(sebab, pilihanDari(wbTanya, semuaNama, null));
@@ -1004,8 +1045,20 @@ async function parseHpsOtomatis(
       const hasil = parseHpsWorkbook(wb);
       // Sheet yang bukan RAB (Resume, Analisa, …) terbaca tanpa satu pun baris.
       // Itu bukan galat — cukup lanjut ke kandidat berikutnya.
-      if (hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0))
-        return { ...hasil, pilihan: pilihanDari(wb, semuaNama, null) };
+      const isi = ringkasIsi(hasil.parsed);
+      if (isi.bernilai > 0) return { ...hasil, pilihan: pilihanDari(wb, semuaNama, null) };
+      if (isi.baris > 0) {
+        // Barisnya ada, nilainya tidak: kolomnya salah tebak. Sheet bernama RAB
+        // langsung ditanyakan; sheet lain diingat dan ditanyakan bila tidak ada
+        // kandidat lain yang terbaca utuh.
+        const sebab = pesanTanpaNilai(nama, isi.baris);
+        if (skor(nama) <= 1) {
+          wbTanya = wb;
+          tanya(sebab);
+        }
+        tanpaNilai ??= { wb, sebab };
+        continue;
+      }
       // Sheet bernama RAB yang kosong itu KEJANGGALAN, bukan sekadar kandidat
       // lewat: ia harus disebut di pesan galat, bukan hilang.
       if (/rab/i.test(nama)) kosong.push(nama);
@@ -1025,6 +1078,10 @@ async function parseHpsOtomatis(
     }
   }
   // Tidak ada kandidat yang berisi: TANYA user, dengan menyebut sebabnya.
+  if (tanpaNilai) {
+    wbTanya = tanpaNilai.wb;
+    tanya(tanpaNilai.sebab);
+  }
   if (terakhir instanceof Error) tanya(terakhir.message);
   return tanya(pesanSheetTakAdaDariNama(semuaNama, kosong));
 }

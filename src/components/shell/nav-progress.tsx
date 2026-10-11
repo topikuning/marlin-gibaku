@@ -259,7 +259,7 @@ export function NavProgressBar() {
         aria-label="Memuat halaman"
         // Tanpa aria-valuenow: kemajuannya memang tidak diketahui, dan mengarang
         // angka persen di sini sama saja berbohong ke pembaca layar.
-        className="no-print pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden bg-primary-100"
+        className="no-print pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-50 h-0.5 overflow-hidden bg-primary-100"
       >
         <div className="marlin-nav-progress h-full w-full bg-primary" />
       </div>
@@ -293,7 +293,7 @@ export function NavProgressBar() {
          */
         <div
           role="status"
-          className="no-print fixed inset-x-0 top-2 z-50 mx-auto flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-warning-border bg-warning-soft px-3 py-1.5 text-xs font-medium text-ink shadow-lg"
+          className="no-print fixed inset-x-0 top-[calc(0.5rem+env(safe-area-inset-top))] z-50 mx-auto flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-warning-border bg-warning-soft px-3 py-1.5 text-xs font-medium text-ink shadow-lg"
         >
           <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warning" />
           Masih memuat – jaringan sepertinya lambat.

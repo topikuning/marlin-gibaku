@@ -54,7 +54,9 @@ export function AppShell({
         <Topbar brand={brand} user={user} logoutAction={logoutAction} penanda={penanda}>
           {topbarContent}
         </Topbar>
-        <main className="mx-auto w-full max-w-[1600px] px-4 py-5 pb-20 lg:px-6 lg:pb-8">
+        {/* Bantalan bawah = tinggi nav bawah, yang di aplikasi terpasang iPhone
+            ikut bertambah setinggi garis home (`safe-area-inset-bottom`). */}
+        <main className="mx-auto w-full max-w-[1600px] px-4 py-5 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:px-6 lg:pb-8">
           {children}
         </main>
       </div>

@@ -83,6 +83,8 @@ export type HasilPutaran = {
   sisa: number;
   /** Kenapa putaran berhenti — null bila antreannya memang habis. */
   berhenti: string | null;
+  /** Shortcut dokumentasi per bangunan yang disusun di sisa putaran (DECISIONS 666). */
+  dokumentasi: { laporan: number; dibuat: number; dipindah: number; dibuang: number };
 };
 
 function putaranKosong(over: Partial<HasilPutaran> = {}): HasilPutaran {
@@ -99,6 +101,7 @@ function putaranKosong(over: Partial<HasilPutaran> = {}): HasilPutaran {
     berkas: 0,
     sisa: 0,
     berhenti: null,
+    dokumentasi: { laporan: 0, dibuat: 0, dipindah: 0, dibuang: 0 },
     ...over,
   };
 }
@@ -499,7 +502,13 @@ async function jalankanSatu(
  * sudah ada (mis. sesudah satu finalisasi) tanpa menyapu seluruh riwayat.
  */
 export async function jalankanAntreanDrive(
-  opts: { now?: Date; pindai?: boolean; maksPekerjaan?: number } = {},
+  opts: {
+    now?: Date;
+    pindai?: boolean;
+    maksPekerjaan?: number;
+    /** false = jangan isi shortcut dokumentasi lama (dorongan sesudah finalisasi). */
+    dokumentasi?: boolean;
+  } = {},
 ): Promise<HasilPutaran> {
   const now = opts.now ?? new Date();
 
@@ -616,6 +625,21 @@ export async function jalankanAntreanDrive(
         hasil.berhenti = "Google menahan laju – sisanya dijadwalkan mundur.";
         break;
       }
+    }
+
+    /*
+     * Sisa anggaran putaran dipakai menyusun shortcut dokumentasi per bangunan
+     * untuk foto yang sudah di Drive (DECISIONS 666) – termasuk foto lama
+     * sebelum fitur ini ada, terisi bertahap. Tidak dijalankan bila Google
+     * sedang menahan laju.
+     */
+    const sisaMs = ANGGARAN_WAKTU_MS - (Date.now() - mulai);
+    if (opts.dokumentasi !== false && !hasil.berhenti && sisaMs > 20_000) {
+      const { isiDokumentasi } = await import("./dokumentasi");
+      const dok = await isiDokumentasi({ batasMs: sisaMs - 10_000, jedaMs: JEDA_ANTAR_BERKAS_MS });
+      hasil.dokumentasi = { laporan: dok.laporan, dibuat: dok.dibuat, dipindah: dok.dipindah, dibuang: dok.dibuang };
+      if (dok.galat?.laju) hasil.berhenti = "Google menahan laju saat menyusun dokumentasi – dilanjutkan putaran berikutnya.";
+      else if (dok.galat) console.error("[gdrive] dokumentasi per bangunan:", dok.galat.pesan);
     }
 
     hasil.berkas = berkas;

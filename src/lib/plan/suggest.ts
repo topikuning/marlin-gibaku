@@ -1,10 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cumulativeVolumeByLineage, currentWeekNumber } from "@/lib/progress";
+import { cumulativeVolumeByLineage, currentWeekNumber, planPctAtWeek } from "@/lib/progress";
 import { totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
 import { contractDaysFor } from "@/lib/rab/import";
 import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
+import { bacaJadwalAi } from "./jadwal-ai";
 import { computeSuggestions, type LeafInput, type WeeklySuggestionResult } from "./suggest-core";
 
 /**
@@ -33,7 +34,7 @@ export async function suggestWeeklyPlan(
   });
   if (!revision) return null;
 
-  const [nodes, realizedByLineage, contractDays, baseline, loc] = await Promise.all([
+  const [nodes, realizedByLineage, contractDays, baseline, loc, jadwalAi] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: revision.id, kind: { in: ["kategori", "item"] } },
       select: { id: true, kind: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true, lineageKey: true },
@@ -55,6 +56,8 @@ export async function suggestWeeklyPlan(
         package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
       },
     }),
+    // Analisa AI urutan pelaksanaan revisi aktif (DECISIONS 667).
+    bacaJadwalAi(revision.id),
   ]);
 
   // Jumlah minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
@@ -104,15 +107,30 @@ export async function suggestWeeklyPlan(
   }
   const winFrac = (name: string, key?: string): [number, number] =>
     storedWin.get(key ?? "") ?? autoCategoryWindowFrac(name);
-  const suggestions = computeSuggestions(leaves, realizedByLineage, weekNumber, totalWeeks, 20, winFrac);
-
-  // Konteks deviasi (minggu berjalan).
+  // Minggu berjalan. Sebelum SPMK = 0: belum ada rencana yang jatuh tempo.
+  // Dulu `points[currentWeek - 1]` dengan minggu 0 jatuh ke titik TERAKHIR,
+  // jadi panel menulis rencana 100% dan deviasi −100% sebelum proyek mulai.
   const startDate = loc?.package.contract?.startDate ?? null;
-  const points = baseline?.points ?? [];
   const currentWeek = startDate
     ? currentWeekNumber(startDate, totalWeeks, new Date(), loc?.package.contract?.weekMode ?? "tujuh_hari")
-    : Math.min(weekNumber, totalWeeks);
-  const planPct = Number(points[currentWeek - 1]?.plannedPct ?? points[points.length - 1]?.plannedPct ?? 0);
+    : 0;
+
+  const petaAi = jadwalAi?.peta ?? new Map();
+  const suggestions = computeSuggestions(
+    leaves,
+    realizedByLineage,
+    weekNumber,
+    totalWeeks,
+    20,
+    winFrac,
+    petaAi,
+    currentWeek,
+  );
+
+  // Konteks deviasi (minggu berjalan) – titik rencana lewat calculation layer.
+  const points = (baseline?.points ?? []).map((p) => Number(p.plannedPct));
+  const planPct = planPctAtWeek(points, currentWeek);
+  const targetPct = planPctAtWeek(points, weekNumber);
 
   // Deviasi di panel saran memakai formula & BASIS yang sama dengan laporan
   // resmi & dashboard: grandTotal = Σ amount KATEGORI, bobot dari `amount`
@@ -135,10 +153,23 @@ export async function suggestWeeklyPlan(
   return {
     weekNumber,
     totalWeeks,
+    currentWeek,
     planPct: Math.round(planPct * 100) / 100,
+    targetPct: Math.round(targetPct * 100) / 100,
     actualPct: Math.round(actualPct * 100) / 100,
     deviationPct,
     behind: deviationPct < -0.01,
     suggestions,
+    jadwalAi: jadwalAi
+      ? {
+          status: jadwalAi.ringkas.status,
+          model: jadwalAi.ringkas.model,
+          galat: jadwalAi.ringkas.galat,
+          selesaiAt: jadwalAi.ringkas.selesaiAt?.toISOString() ?? null,
+          bangunan: jadwalAi.ringkas.bangunan,
+          pekerjaan: leaves.filter((l) => petaAi.has(l.lineageKey)).length,
+          catatan: jadwalAi.ringkas.catatan,
+        }
+      : null,
   };
 }

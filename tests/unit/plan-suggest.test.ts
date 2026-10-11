@@ -126,3 +126,26 @@ function fracTanahByWeek4(): number {
   const x = Math.max(0, Math.min(1, (t - s) / (e - s)));
   return 3 * x * x - 2 * x * x * x;
 }
+
+/*
+ * Merencanakan minggu DEPAN (permintaan user 2026-10-11, analisa ulang saran).
+ * Rencana minggu berjalan yang belum selesai bukan tunggakan: ia dibawa ke
+ * target sebagai lanjutan, tetapi tidak disebut "tertinggal".
+ */
+describe("minggu berjalan vs minggu yang direncanakan", () => {
+  it("bawaan (minggu berjalan = minggu yang direncanakan) tidak berubah", () => {
+    const a = computeSuggestions([leaf()], new Map(), 5, 22);
+    const b = computeSuggestions([leaf()], new Map(), 5, 22, 20, undefined, undefined, 5);
+    expect(b).toEqual(a);
+  });
+
+  it("merencanakan minggu 6 saat minggu berjalan 2: yang belum jatuh tempo tidak disebut tertinggal", () => {
+    const res = computeSuggestions([leaf()], new Map(), 6, 22, 20, undefined, undefined, 2);
+    expect(res).toHaveLength(1);
+    expect(res[0].targetVolume).toBeGreaterThan(0);
+    // Rencana s/d minggu 1 (0.05–0.28 → minggu 1 masih sangat kecil) yang jatuh tempo.
+    expect(res[0].catchUpVolume).toBeLessThan(res[0].targetVolume / 2);
+    const jauh = computeSuggestions([leaf()], new Map(), 6, 22, 20, undefined, undefined, 0);
+    expect(jauh[0]).toMatchObject({ catchUpVolume: 0, reason: "Lanjutan rencana minggu sebelumnya" });
+  });
+});

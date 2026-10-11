@@ -753,6 +753,39 @@ export async function getWeeklySuggestions(_prev: SuggestState, formData: FormDa
 }
 
 /**
+ * Minta AI menganalisa ulang urutan pelaksanaan RAB aktif (DECISIONS 667).
+ * Analisa yang sama juga berjalan sendiri tiap kali RAB diaktifkan; tombol ini
+ * untuk analisa yang gagal, atau sesudah prompt-nya disetel ulang.
+ */
+export async function analisaUlangJadwalAi(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  const parsed = z.object({ locationId: z.uuid() }).safeParse({ locationId: formData.get("locationId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    const user = await requireCapability("weekly_plan.manage");
+    await requireCapability("ai.generate");
+    await requireLocationAccess(user, parsed.data.locationId);
+    const rev = await db.rabRevision.findFirst({
+      where: { locationId: parsed.data.locationId, status: "aktif" },
+      select: { id: true, revisionNo: true, location: { select: { slug: true } } },
+    });
+    if (!rev) return { error: "Belum ada revisi RAB aktif." };
+    const { antrekanJadwalAi, dorongJadwalAi, sedangDianalisa } = await import("@/lib/plan/jadwal-ai");
+    if (await sedangDianalisa(rev.id)) return { error: "Analisa AI untuk RAB ini masih berjalan. Tunggu sampai selesai." };
+    const analisaId = await antrekanJadwalAi(rev.id, user.id);
+    if (!analisaId) return { error: "RAB aktif tidak bisa dianalisa." };
+    dorongJadwalAi(analisaId);
+    await audit(user.id, "rencana.jadwal_ai.antre", "rab_revision", rev.id, {
+      locationId: parsed.data.locationId,
+      revisionNo: rev.revisionNo,
+    });
+    revalidatePath(`/lokasi/${rev.location.slug}/rab`);
+    return { success: "Analisa AI dimulai. Hasilnya masuk per bangunan dalam beberapa menit." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
  * Terapkan saran otomatis → upsert WeeklyPlanItem utk minggu itu. Saran
  * DIHITUNG ULANG di server (tidak percaya payload klien). Item yang sudah ada
  * di rencana minggu itu di-update targetnya; sisanya dibuat.
@@ -784,6 +817,13 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
     const result = await suggestWeeklyPlan(locationId, weekNumber);
     if (!result || result.suggestions.length === 0) {
       return { error: "Tidak ada saran untuk diterapkan." };
+    }
+    // Hanya baris yang dicentang di layar. Formulir lama tanpa centang tetap
+    // menerapkan semuanya.
+    if (formData.get("pilihDikirim")) {
+      const pilih = new Set(formData.getAll("pilih").map(String));
+      result.suggestions = result.suggestions.filter((s) => pilih.has(s.rabNodeId));
+      if (result.suggestions.length === 0) return { error: "Centang minimal satu saran yang mau diterapkan." };
     }
 
     // Grid kontrak, sama dengan addWeeklyPlanItem di atas (G-3).

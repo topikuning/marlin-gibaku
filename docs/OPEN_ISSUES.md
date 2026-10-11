@@ -562,6 +562,11 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
+**Sejak DECISIONS 668** Time Schedule juga punya dua penyaji (`/cetak/jadwal` dan
+`renderJadwalKkpPdf`, lembar kurvanya memakai fungsi gambar yang sama dengan
+laporan periodik). Di aplikasi terpasang tombol cetak sudah membuka PDF-nya;
+di peramban biasa masih halaman HTML.
+
 ## 🟡 UJI-01 · `tugas-harian.test.ts` tidak bisa dijalankan dua kali berturut-turut
 
 Ditemukan 2026-08-19 saat menelusuri kegagalan yang tampak tidak berhubungan.

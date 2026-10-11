@@ -6,6 +6,9 @@ import { db } from "@/lib/db";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { can } from "@/lib/authz";
+import { alamatPdf } from "@/lib/cetak/alamat-pdf";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +44,8 @@ export default async function CetakRencanaPage({
           // bukan di rencana minggu yang barusan dicetak.
           `/lokasi/${slug}/rab?bagian=rencana&minggu=${minggu}`,
         )}
+        pdfHref={can(user.role, "report.export") ? alamatPdf.rencana(slug, minggu) : null}
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
       />
       <style>{`@media print { @page { size: A4 portrait; margin: 12mm; } }`}</style>
       <main className="bg-white">

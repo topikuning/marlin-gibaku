@@ -161,7 +161,7 @@ export async function unggahLaporanHarian(input: {
         reportDate: new Date(`${dateKey}T00:00:00.000Z`),
       },
     },
-    select: { status: true, photos: { select: { r2Key: true }, orderBy: { createdAt: "asc" } } },
+    select: { id: true, status: true, photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } } },
   });
   if (!report) return { batal: "Laporan harian tidak ditemukan." };
   if (input.wajibFinal && report.status !== "final") {
@@ -200,6 +200,17 @@ export async function unggahLaporanHarian(input: {
         { jedaMs },
       ),
     );
+  }
+  if (!input.hanyaPdf) {
+    // Shortcut foto per bangunan di "6. DOKUMENTASI" (DECISIONS 666). Tidak
+    // pernah menggagalkan unggahan laporan: yang tertinggal diisi pengisi
+    // berkala di putaran antrean berikutnya. Diimpor saat dipakai – modul itu
+    // memakai `refKeyHarian` dari berkas ini.
+    const { sinkronDokumentasiLaporan } = await import("./dokumentasi");
+    const dok = await sinkronDokumentasiLaporan(report.id, { jedaMs }).catch((e: unknown) => ({
+      galat: { pesan: e instanceof Error ? e.message : String(e), laju: false },
+    }));
+    if (dok.galat) console.error(`[gdrive] dokumentasi per bangunan ${slug} ${dateKey}:`, dok.galat.pesan);
   }
   return rangkum("Laporan harian", outcomes, skipped);
 }

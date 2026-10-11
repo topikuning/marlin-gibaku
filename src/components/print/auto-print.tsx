@@ -1,27 +1,32 @@
 "use client";
 
-import { Printer } from "lucide-react";
 import { useEffect } from "react";
 
 /**
- * Auto-buka dialog print saat mount + tombol "Cetak" manual.
- * Satu-satunya salinan util print — jangan duplikasi di halaman.
+ * Buka dialog cetak SEKALI saat halaman cetak dibuka dengan `?cetak=1`.
+ *
+ * Bukan bawaan halaman cetak: dulu auto-print di setiap halaman membuat
+ * pengguna "terjebak" dan harus menekan Back peramban. Sekarang ia hanya hidup
+ * bila DIMINTA lewat alamat – yaitu oleh tombol "Buka di peramban" dari
+ * aplikasi terpasang, yang memang membuka jendela peramban baru hanya untuk
+ * mencetak (lihat `lib/cetak/mode-cetak.ts`).
+ *
+ * Menunggu `load`, bukan sekadar satu frame: halaman cetak memuat foto, dan
+ * dialog yang terbuka sebelum fotonya tiba mencetak kotak kosong.
  */
 export function AutoPrint() {
   useEffect(() => {
-    // Tunda satu frame supaya layout selesai render sebelum print.
-    const t = window.setTimeout(() => window.print(), 150);
-    return () => window.clearTimeout(t);
+    let jeda: number | undefined;
+    const cetak = () => {
+      jeda = window.setTimeout(() => window.print(), 150);
+    };
+    if (document.readyState === "complete") cetak();
+    else window.addEventListener("load", cetak, { once: true });
+    return () => {
+      window.removeEventListener("load", cetak);
+      if (jeda !== undefined) window.clearTimeout(jeda);
+    };
   }, []);
 
-  return (
-    <button
-      type="button"
-      onClick={() => window.print()}
-      className="no-print inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-    >
-      <Printer aria-hidden className="size-4" />
-      Cetak
-    </button>
-  );
+  return null;
 }

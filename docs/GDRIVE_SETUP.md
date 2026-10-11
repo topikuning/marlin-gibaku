@@ -85,7 +85,11 @@ supaya satu paket dengan banyak lokasi tetap rapi & seragam:
 ├── 4. LAPORAN MINGGUAN/<Lokasi>/    ← PDF + Excel per periode
 ├── 5. LAPORAN BULANAN/<Lokasi>/     ← PDF + Excel per periode
 ├── 6. DOKUMENTASI/
-│   └── <Lokasi>/<2026-07 Juli>/<2026-07-26 Judul kegiatan>/   ← PDF kegiatan + fotonya
+│   └── <Lokasi>/
+│       ├── <2026-07 Juli>/<2026-07-26 Judul kegiatan>/   ← PDF kegiatan + fotonya
+│       ├── <II PEKERJAAN BALAI NELAYAN>/                 ← SHORTCUT foto laporan harian per bangunan
+│       ├── Material Masuk/                               ← SHORTCUT foto material masuk
+│       └── Peralatan/                                    ← SHORTCUT foto peralatan
 ├── 7. BERKAS TERMIN/                ← MC berkala, invoice, faktur pajak, BA pembayaran, BAST
 ├── 8. SHOP DRAWING/                 ← dokumen jenis Shop Drawing
 └── 9. AS BUILT/                     ← dokumen jenis As Built Drawing
@@ -102,6 +106,13 @@ Catatan:
   sanggah) **sengaja tidak** punya tujuan folder — tidak ikut terupload.
 - Cek kelengkapan per paket: halaman paket → kartu **"Kelengkapan folder KKP di
   Drive"** (jumlah terupload vs yang layak disetor + kapan terakhir).
+- **Dokumentasi per bangunan** (DECISIONS 666) berisi **shortcut**, bukan salinan.
+  Foto aslinya tetap satu di `3. LAPORAN HARIAN/…/Foto`; shortcut tidak memakan
+  kuota. Bangunan = kategori RAB tingkat 1 dari pekerjaan fotonya, dengan nama
+  revisi RAB yang aktif – adendum yang mengganti nama bangunan ikut memindahkan
+  shortcut-nya. Hanya foto laporan FINAL. Foto lama terisi bertahap di sisa
+  waktu tiap putaran unggah otomatis; foto lama yang diunggah sebelum laporannya
+  final tidak ditebak dan baru tertaut saat laporannya diunggah ulang.
 
 ## Upload ulang = versi baru, bukan file kembar
 

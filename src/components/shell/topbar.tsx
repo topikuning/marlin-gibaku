@@ -29,7 +29,10 @@ export function Topbar({ brand, user, logoutAction, children, penanda }: TopbarP
   return (
     <header
       className={cn(
-        "no-print sticky top-0 z-20 flex h-13 items-center justify-between gap-3 border-b px-4 lg:px-6",
+        // Tinggi + bantalan atas ikut `safe-area-inset-top` (0 di peramban
+        // biasa): di aplikasi terpasang kepala ini tidak boleh masuk ke bawah
+        // status bar. Isinya tetap setinggi 3,25rem.
+        "no-print sticky top-0 z-20 flex h-[calc(3.25rem+env(safe-area-inset-top))] items-center justify-between gap-3 border-b px-4 pt-[env(safe-area-inset-top)] lg:px-6",
         // Server uji: kepala bergaris kuning – lengket, jadi tetap terlihat di
         // halaman mana pun dan sejauh apa pun digulir (DECISIONS 640).
         penanda ? cn(LATAR_PENANDA, "border-b-2 border-warning") : "border-border bg-surface",

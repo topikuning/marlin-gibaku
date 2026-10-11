@@ -1,7 +1,7 @@
 import "server-only";
 import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
-import { getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
+import { getPeriodBounds, getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
@@ -43,7 +43,69 @@ export async function buildPeriodikKkpPdf(
 ): Promise<Buffer> {
   const kindLabel = r.kind === "mingguan" ? "MINGGU" : "BULAN";
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
-  const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} – ${r.header.locationName}` });
+  return susunPdfPeriodik(r, appName, gambarTtd, {
+    judulBerkas: `Laporan ${periodeLabel} ke-${r.n} – ${r.header.locationName}`,
+    judulKurva: `KURVA S ${kindLabel} KE - ${r.n}`,
+    periode: { start: r.header.periodeStart, end: r.header.periodeEnd },
+    catatan: null,
+    // Lembar kurva di sini BAGIAN laporan periodik – diteken penanda tangan
+    // laporannya, bukan penanda tangan dokumen jadwal (DECISIONS 403).
+    jenis: r.kind,
+    rincian: true,
+  });
+}
+
+/**
+ * TIME SCHEDULE (KURVA-S) BERDIRI SENDIRI – cermin halaman `/cetak/jadwal`.
+ *
+ * Lembar kurvanya sama persis dengan halaman 1 laporan periodik (fungsi gambar
+ * yang sama), dengan tiga beda yang juga ada di layar: judulnya, periodenya =
+ * seluruh masa kontrak, dan penanda tangannya = penanda tangan DOKUMEN JADWAL
+ * (DECISIONS 402/403). Halaman rincian TIDAK ikut – itu laporan mingguan, bukan
+ * jadwal.
+ *
+ * Ada supaya aplikasi terpasang (PWA) punya berkas untuk dibuka/dicetak:
+ * `window.print()` sering tidak bekerja di sana (laporan user 2026-10-11).
+ */
+export async function buildJadwalKkpPdf(
+  r: PeriodReport,
+  appName: string,
+  gambarTtd: TtdPdf | null,
+  opsi: {
+    periode: { start: Date; end: Date };
+    /** Catatan di bawah judul – mis. asumsi tanggal mulai sebelum SPMK. */
+    catatan: string | null;
+  },
+): Promise<Buffer> {
+  return susunPdfPeriodik(r, appName, gambarTtd, {
+    judulBerkas: `Time Schedule – ${r.header.locationName}`,
+    judulKurva: JUDUL_JADWAL,
+    periode: opsi.periode,
+    catatan: opsi.catatan,
+    jenis: "jadwal",
+    rincian: false,
+  });
+}
+
+/** Judul dokumen jadwal – SAMA dengan halaman `/cetak/jadwal`. */
+const JUDUL_JADWAL = "TIME SCHEDULE (KURVA S) – RENCANA & REALISASI";
+
+async function susunPdfPeriodik(
+  r: PeriodReport,
+  appName: string,
+  gambarTtd: TtdPdf | null | undefined,
+  opsi: {
+    judulBerkas: string;
+    judulKurva: string;
+    periode: { start: Date; end: Date };
+    catatan: string | null;
+    jenis: JenisDokumen;
+    /** false = lembar kurva saja (dokumen jadwal). */
+    rincian: boolean;
+  },
+): Promise<Buffer> {
+  const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
+  const doc = createLandscapeA4Doc({ title: opsi.judulBerkas });
   const x = LANDSCAPE_MARGIN;
   const width = doc.page.width - LANDSCAPE_MARGIN * 2;
   const bottom = doc.page.height - LANDSCAPE_MARGIN - 14;
@@ -80,13 +142,20 @@ export async function buildPeriodikKkpPdf(
   };
 
   /* ═════ HALAMAN 1 — KURVA S ═════════════════════════════════════════════ */
-  centerText(`KURVA S ${kindLabel} KE - ${r.n}`, 12, true);
+  centerText(opsi.judulKurva, 12, true);
   centerText(
-    `Periode tanggal ${formatTanggal(h.periodeStart)} s/d ${formatTanggal(h.periodeEnd)}`,
+    `Periode tanggal ${formatTanggal(opsi.periode.start)} s/d ${formatTanggal(opsi.periode.end)}`,
     8,
     true,
     6,
   );
+  if (opsi.catatan) {
+    // Tinggi DIUKUR: catatan bisa membungkus dua baris.
+    doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.ink);
+    const tinggi = doc.heightOfString(opsi.catatan, { width });
+    doc.text(opsi.catatan, x, y, { width });
+    y += tinggi + 4;
+  }
 
   // Identitas dua kolom (kiri identitas paket, kanan masa/tahun + legenda garis).
   const identOpt: GridOptions = { x, width, cols: colWidths(width, [1.1, 2.6, 1.1, 2.2]), fontSize: 7.5 };
@@ -221,7 +290,12 @@ export async function buildPeriodikKkpPdf(
   });
 
   y += 8;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: opsi.jenis });
+
+  if (!opsi.rincian) {
+    catatanKaki(doc, appName, width);
+    return docToBuffer(doc);
+  }
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */
   newPage();
@@ -457,7 +531,12 @@ export async function buildPeriodikKkpPdf(
   y += 10;
   signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
-  /* ── Catatan kaki tiap halaman ──────────────────────────────────────── */
+  catatanKaki(doc, appName, width);
+  return docToBuffer(doc);
+}
+
+/** Catatan kaki tiap halaman: nama aplikasi + "Halaman i dari n". */
+function catatanKaki(doc: PdfDoc, appName: string, width: number): void {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
@@ -476,8 +555,6 @@ export async function buildPeriodikKkpPdf(
         lineBreak: false,
       });
   }
-
-  return docToBuffer(doc);
 }
 
 /** Judul bagian bergaris bawah — cermin `SectionTitle` komponen layar. */
@@ -644,4 +721,34 @@ export async function renderPeriodikKkpPdf(
   // bukan PDF yang gagal terbit.
   const gambarTtd = await muatTtdPdf(locationId, kind).catch(() => TANPA_TTD_PDF);
   return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd) };
+}
+
+/**
+ * Muat Time Schedule + render PDF – data diambil PERSIS seperti halaman
+ * `/cetak/jadwal`: snapshot s/d minggu berjalan, periode = seluruh masa
+ * kontrak, dan sebelum SPMK tanggal mulainya diasumsikan (dan disebut).
+ * TANPA otorisasi (pemanggil gate). Null bila kontrak/durasi belum ada.
+ */
+export async function renderJadwalKkpPdf(locationId: string): Promise<PeriodikKkpPdfResult | null> {
+  const bounds = await getPeriodBounds(locationId, { assume: true });
+  if (!bounds) return null;
+  const [report, branding] = await Promise.all([
+    getPeriodReport(locationId, "mingguan", bounds.currentWeek, { assume: true }),
+    getBranding(),
+  ]);
+  if (!report) return null;
+  const gambarTtd = await muatTtdPdf(locationId, "jadwal").catch(() => TANPA_TTD_PDF);
+  // Kalimat yang sama dengan catatan di halaman cetak – jadwal berasumsi tidak
+  // boleh beredar tanpa mengatakannya.
+  const catatan = bounds.assumed
+    ? `Catatan: SPMK belum diterbitkan. Jadwal ini dihitung dari asumsi mulai ${formatTanggal(bounds.startDate)} ` +
+      `(durasi kontrak ${report.header.masaPelaksanaanHari} hari). Tanggalnya akan menyesuaikan sendiri setelah ` +
+      `tanggal SPMK diisi.`
+    : null;
+  return {
+    buffer: await buildJadwalKkpPdf(report, branding.appName, gambarTtd, {
+      periode: { start: bounds.startDate, end: bounds.endDate },
+      catatan,
+    }),
+  };
 }

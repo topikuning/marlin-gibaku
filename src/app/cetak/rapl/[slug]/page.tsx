@@ -7,6 +7,7 @@ import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { simulasiRapl } from "@/lib/ahsp/rapl";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 import { RaplLembar } from "@/components/knmp/rapl-lembar";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +72,9 @@ export default async function CetakRaplPage({
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
           `/lokasi/${slug}/rapl`,
         )}
+        // RAPL belum punya PDF: di aplikasi terpasang halaman ini dibuka di
+        // peramban dengan `?cetak=1`, dan dialog cetaknya terbuka di sana.
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
       />
       <style>{`@media print { @page { size: A4 portrait; margin: 12mm; } }`}</style>
       <main className="bg-white">

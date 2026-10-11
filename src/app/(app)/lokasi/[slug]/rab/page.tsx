@@ -17,9 +17,11 @@ import { env } from "@/lib/env";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { bacaJadwalAi } from "@/lib/plan/jadwal-ai";
 import { weekDateRange } from "@/lib/progress-calc";
 import {
   WeeklyPlanSection,
+  type AnalisaAiView,
   type LeafOption,
   type PlanItemRow,
   type RingkasRencana,
@@ -312,6 +314,22 @@ export default async function RabPage({
       }
     : null;
 
+  // Keadaan analisa AI urutan RAB aktif (DECISIONS 667) – tampil tanpa menunggu
+  // orang menekan "Sarankan otomatis".
+  const jadwalAi = perluRencana && active ? await bacaJadwalAi(active.id) : null;
+  const analisaAi: AnalisaAiView | null = jadwalAi
+    ? {
+        status: jadwalAi.ringkas.status,
+        model: jadwalAi.ringkas.model,
+        galat: jadwalAi.ringkas.galat,
+        selesaiAt: jadwalAi.ringkas.selesaiAt?.toISOString() ?? null,
+        bangunan: jadwalAi.ringkas.bangunan,
+        pekerjaan: jadwalAi.peta.size,
+        catatan: jadwalAi.ringkas.catatan,
+      }
+    : null;
+  const canAnalisaAi = canPlan && can(user.role, "ai.generate");
+
   // Minggu yang sedang dilihat ikut dibawa saat berpindah bagian: kembali ke
   // "Rencana" setelah melihat RAB harus mendarat di minggu yang sama, bukan
   // melompat ke minggu berjalan.
@@ -472,6 +490,8 @@ export default async function RabPage({
                 options={leafOptions}
                 ringkas={ringkas}
                 canManage={canPlan}
+                analisaAi={analisaAi}
+                canAnalisaAi={canAnalisaAi}
               />
             ) : (
               <p className="text-sm text-ink-muted">

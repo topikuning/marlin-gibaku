@@ -227,6 +227,77 @@ export async function uploadToDrive(input: {
 }
 
 /** Validasi akses folder (dipakai saat menyimpan ID folder di paket). */
+const SHORTCUT_MIME = "application/vnd.google-apps.shortcut";
+
+/** Galat Drive dengan status HTTP-nya – supaya pemanggil bisa mengenali 404 & tahan laju. */
+async function galatDrive(res: Response, awal: string): Promise<GDriveError> {
+  return new GDriveError(`${awal}: ${await readError(res)}`, {
+    status: res.status,
+    retryAfter: res.headers.get("retry-after"),
+  });
+}
+
+/**
+ * Buat shortcut Drive di `folderId` yang menunjuk `targetId` (DECISIONS 666).
+ * Shortcut hanya penunjuk – tidak menyalin isi dan tidak memakan kuota.
+ */
+export async function buatPintasan(input: { folderId: string; name: string; targetId: string }): Promise<string> {
+  const token = await getAccessToken();
+  const res = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: input.name,
+      mimeType: SHORTCUT_MIME,
+      parents: [input.folderId],
+      shortcutDetails: { targetId: input.targetId },
+      appProperties: MARLIN_APP_PROPERTIES,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw await galatDrive(res, `Gagal membuat shortcut "${input.name}"`);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/**
+ * Pindah dan/atau ganti nama shortcut. Target shortcut tidak bisa diubah lewat
+ * API – shortcut yang targetnya berganti dibuang lalu dibuat ulang.
+ */
+export async function ubahPintasan(
+  id: string,
+  ubah: { name?: string; dariFolder?: string; keFolder?: string },
+): Promise<void> {
+  const token = await getAccessToken();
+  const q = new URLSearchParams({ supportsAllDrives: "true", fields: "id" });
+  if (ubah.keFolder && ubah.dariFolder && ubah.keFolder !== ubah.dariFolder) {
+    q.set("addParents", ubah.keFolder);
+    q.set("removeParents", ubah.dariFolder);
+  }
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?${q}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(ubah.name ? { name: ubah.name } : {}),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw await galatDrive(res, "Gagal memindahkan shortcut");
+}
+
+/** Buang shortcut ke Sampah (bukan hapus permanen – masih bisa dipulihkan dari Drive). */
+export async function buangPintasan(id: string): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ trashed: true }),
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  // Sudah tidak ada (dihapus orang dari Drive) = tujuan sudah tercapai.
+  if (!res.ok && res.status !== 404) throw await galatDrive(res, "Gagal membuang shortcut");
+}
+
 export async function probeDriveFolder(folderId: string): Promise<{ name: string }> {
   const token = await getAccessToken();
   const res = await fetch(

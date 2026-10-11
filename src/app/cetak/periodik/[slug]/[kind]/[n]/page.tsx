@@ -7,6 +7,9 @@ import { db } from "@/lib/db";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { can } from "@/lib/authz";
+import { alamatPdf } from "@/lib/cetak/alamat-pdf";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +45,8 @@ export default async function CetakPeriodikPage({
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
           `/lokasi/${slug}/laporan-lokasi`,
         )}
+        pdfHref={can(user.role, "report.export") ? alamatPdf.periodik(slug, kind, periodN) : null}
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
       />
       {/* Landscape utk halaman Kurva-S; tetap A4 potrait utk tabel detail. */}
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
