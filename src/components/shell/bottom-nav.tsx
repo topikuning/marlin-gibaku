@@ -63,7 +63,7 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
             onClick={dismiss.close}
             className="absolute inset-0 bg-black/40"
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[75dvh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl">
+          <div className="absolute inset-x-0 bottom-0 max-h-[75dvh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(env(safe-area-inset-bottom)+1rem)] pl-[max(1rem,env(safe-area-inset-left))] shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-ink">Semua menu</p>
               <button
@@ -108,7 +108,7 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
 
       <nav
         aria-label="Navigasi bawah"
-        className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:hidden"
       >
         <ul
           className="grid"

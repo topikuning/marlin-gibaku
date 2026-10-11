@@ -6,6 +6,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { parseAiReportContent, renderAiReportHtml } from "@/lib/ai-hub/render";
+import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +16,15 @@ export const dynamic = "force-dynamic";
  * /cetak existing). HTML dari renderer deterministik yang SAMA dengan
  * pratinjau/WA/Excel → angka identik. DECISIONS 133.
  */
-export default async function CetakAiPage({ params }: { params: Promise<{ artifactId: string }> }) {
+export default async function CetakAiPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ artifactId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { artifactId } = await params;
+  const sp = await searchParams;
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
@@ -50,7 +59,15 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
           .executive-grid, .priority, .kpi { break-inside: avoid; }
         }
       `}</style>
-      <PrintToolbar backHref={artifact.runId ? `/ai/run/${artifact.runId}` : "/ai/reports"} />
+      <PrintToolbar
+        backHref={safeBackPath(
+          typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
+          artifact.runId ? `/ai/run/${artifact.runId}` : "/ai/reports",
+        )}
+        // Laporan AI belum punya PDF: di aplikasi terpasang halaman ini dibuka
+        // di peramban dengan `?cetak=1`, dan dialog cetaknya terbuka di sana.
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
+      />
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
         {artifact.status === "draft" || artifact.status === "direview" ? (
           <p className="no-print mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm">

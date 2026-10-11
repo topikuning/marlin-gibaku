@@ -1,5 +1,6 @@
 import { PendaftarServiceWorker } from "@/components/pwa/pendaftar-sw";
 import { PemasangAplikasi } from "@/components/pwa/pemasang-aplikasi";
+import { PenahanTabCetak } from "@/components/pwa/penahan-tab-cetak";
 import { AppShell } from "@/components/shell/app-shell";
 import { filterNav, MOBILE_NAV } from "@/components/shell/nav-config";
 import { Banner } from "@/components/ui";
@@ -37,6 +38,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           perlu sekali terbuka di mana saja, dan pengakuannya harus muncul di
           halaman mana pun yang kelak disajikan luring. */}
       <PendaftarServiceWorker pemilik={user.id} siapkanFotoCepat={can(user.role, "photo.quick")} />
+      {/* Aplikasi terpasang: tautan cetak "tab baru" dibuka di tempat – di
+          iPhone tab baru tidak membawa sesi dan berakhir di halaman masuk. */}
+      <PenahanTabCetak />
       {/* Tawaran pasang PWA (DECISIONS 405) – tombolnya di dalam MARLIN, bukan
           di menu ⋮ peramban yang tidak akan ditemukan orang lapangan. Menyaring
           dirinya sendiri: tidak muncul bila sudah terpasang, bila peramban tidak

@@ -6,6 +6,10 @@ import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport } from "@/lib/periodic-report";
 import { formatTanggal } from "@/lib/format";
 import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
+import { can } from "@/lib/authz";
+import { alamatPdf } from "@/lib/cetak/alamat-pdf";
+import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +21,13 @@ export const dynamic = "force-dynamic";
  */
 export default async function CetakJadwalPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
+  const sp = await searchParams;
   const user = await requireUser();
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
@@ -36,7 +43,17 @@ export default async function CetakJadwalPage({
 
   return (
     <>
-      <PrintToolbar backHref={`/lokasi/${slug}/progress`} />
+      <PrintToolbar
+        // Jadwal dibuka dari dua tempat (Progress dan Laporan Lokasi); keduanya
+        // mengirim `?dari=`. Dulu tujuannya dipaku ke Progress, jadi yang datang
+        // dari Laporan Lokasi "nyasar" saat menekan Kembali (DECISIONS 192).
+        backHref={safeBackPath(
+          typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
+          `/lokasi/${slug}/progress`,
+        )}
+        pdfHref={can(user.role, "report.export") ? alamatPdf.jadwal(slug) : null}
+        cetakOtomatis={cetakOtomatisDiminta(sp[PARAM_CETAK])}
+      />
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <main className="bg-white">
         <section className="mx-auto w-full max-w-[1400px] overflow-x-auto p-6 print:overflow-visible print:p-0">

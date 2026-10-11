@@ -27,6 +27,14 @@ export function generateMetadata(): Metadata {
       template: `${awalan}%s · MARLIN`,
     },
     description: "Sistem pengendalian proyek Kampung Nelayan Merah Putih",
+    /*
+     * iPhone yang memasang MARLIN ke layar depan membaca tag `apple-*`, bukan
+     * hanya manifest: tanpa ini namanya diambil dari judul tab (lengkap dengan
+     * awalan [DEV]) dan status bar-nya tidak ditentukan. `default` = status bar
+     * terang dengan isi halaman DI BAWAHNYA – tidak ada konten yang terselip
+     * di balik jam dan baterai.
+     */
+    appleWebApp: { capable: true, title: "MARLIN", statusBarStyle: "default" },
   };
 }
 
@@ -34,6 +42,14 @@ export const viewport: Viewport = {
   themeColor: "#1E3A8A",
   width: "device-width",
   initialScale: 1,
+  /*
+   * `cover`: halaman memakai layar penuh, termasuk area poni dan garis home.
+   * Tanpa ini `env(safe-area-inset-*)` bernilai 0 di iPhone, sehingga bantalan
+   * nav bawah (`pb-[env(safe-area-inset-bottom)]`) tidak pernah berlaku dan
+   * tombolnya tertutup garis home di aplikasi terpasang. Sisi kiri/kanan
+   * ditangani di `globals.css`, atas di bilah-bilah yang lengket.
+   */
+  viewportFit: "cover",
 };
 
 /**
