@@ -277,18 +277,6 @@ export async function activateRevision(revisionId: string, userId: string) {
     snapshotDibangunUlang,
   });
   /*
-   * RAB yang baru aktif langsung dikirim ke AI untuk dianalisa urutan
-   * pelaksanaannya – dasar saran rencana mingguan (DECISIONS 667). Berjalan di
-   * latar; kegagalannya tidak pernah membatalkan aktivasi yang sudah sah.
-   */
-  try {
-    const { antrekanJadwalAi, dorongJadwalAi } = await import("@/lib/plan/jadwal-ai");
-    const analisaId = await antrekanJadwalAi(activated.revisi.id, userId);
-    if (analisaId) dorongJadwalAi(analisaId);
-  } catch (err) {
-    console.error("[rab/activate] analisa AI urutan gagal diantrekan:", err);
-  }
-  /*
    * Yang DIUBAH ikut pulang, bukan cuma masuk audit.
    *
    * CLAUDE.md dan DECISIONS 203: penyesuaian angka pengguna "wajib seragam DAN

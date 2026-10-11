@@ -329,6 +329,14 @@ export default async function RabPage({
       }
     : null;
   const canAnalisaAi = canPlan && can(user.role, "ai.generate");
+  // RAB berganti sejak analisa terakhir: analisa lama milik revisi lama dan
+  // tidak dipakai lagi – layar mengatakannya, bukan diam (DECISIONS 669).
+  const analisaRevisiLama =
+    perluRencana && active && !jadwalAi
+      ? (await db.rabJadwalAi.count({
+          where: { locationId: location.id, revisionId: { not: active.id }, status: { in: ["selesai", "sebagian"] } },
+        })) > 0
+      : false;
 
   // Minggu yang sedang dilihat ikut dibawa saat berpindah bagian: kembali ke
   // "Rencana" setelah melihat RAB harus mendarat di minggu yang sama, bukan
@@ -491,6 +499,7 @@ export default async function RabPage({
                 ringkas={ringkas}
                 canManage={canPlan}
                 analisaAi={analisaAi}
+                analisaRevisiLama={analisaRevisiLama}
                 canAnalisaAi={canAnalisaAi}
               />
             ) : (
