@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
+import { ringkasKelompok } from "@/lib/progress-calc";
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
   code: "",
@@ -89,6 +90,8 @@ function fixture(): PeriodReport {
         subtotalBobotRencana: 3.75,
       },
     ],
+    progresKategori: [],
+    progresKategoriTotal: ringkasKelompok([]),
     totals: { bobotLalu: 1.03, bobotIni: 1.55, bobotSd: 2.58, bobotRencana: 3.75 },
     planPct: 3.75,
     planPrevPct: 1.2,

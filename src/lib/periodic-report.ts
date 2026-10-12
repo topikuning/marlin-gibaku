@@ -16,6 +16,8 @@ import {
   weekEndFractions,
   weekOfDate,
   type WeekPeriodMode,
+  ringkasKelompok,
+  type RingkasanKelompok,
 } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
@@ -105,6 +107,16 @@ export type PeriodCategory = {
   subtotalBobotRencana: number;
 };
 
+/**
+ * Satu baris halaman "Progres per Kategori" (format Lampiran Termin,
+ * DECISIONS 670): kategori RAB (tingkat 1) dan sub-kategorinya (tingkat 2).
+ */
+export type BarisProgresKategori = RingkasanKelompok & {
+  tingkat: 1 | 2;
+  code: string;
+  name: string;
+};
+
 export type PeriodHeader = {
   locationName: string;
   village: string;
@@ -118,6 +130,8 @@ export type PeriodHeader = {
    */
   ownerAgency: string;
   contractNumber: string;
+  /** Tanggal kontrak ditandatangani – baris "No. dan Tanggal Kontrak". */
+  contractSignedDate?: Date | null;
   vendorName: string;
   /** Nilai kontrak paket (seluruh lokasi) — dipakai bila perlu konteks paket. */
   contractValue: bigint;
@@ -173,6 +187,12 @@ export type PeriodReport = {
   totalMonths: number;
   header: PeriodHeader;
   categories: PeriodCategory[];
+  /**
+   * Halaman "Progres per Kategori": kategori + sub-kategori, angka dari baris
+   * rincian yang SAMA (DECISIONS 670). `progresKategoriTotal` = baris JUMLAH.
+   */
+  progresKategori: BarisProgresKategori[];
+  progresKategoriTotal: RingkasanKelompok;
   totals: { bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number };
   planPct: number;
   /**
@@ -274,6 +294,7 @@ export const HEADER_LOCATION_SELECT = {
       contract: {
         select: {
           contractNumber: true,
+          signedDate: true,
           contractValue: true,
           workTitle: true,
           durationDays: true,
@@ -337,6 +358,7 @@ export function buildPeriodHeader(
     packageName: contract.workTitle?.trim() || location.package.name,
     ownerAgency: location.package.ownerAgency,
     contractNumber: contract.contractNumber,
+    contractSignedDate: contract.signedDate,
     vendorName: contract.vendor.name,
     contractValue: contract.contractValue,
     // Nilai fisik lokasi ini = Σ RAB aktif (bukan nilai kontrak seluruh paket).
@@ -496,10 +518,14 @@ export async function getPeriodReport(
     select: { id: true },
   });
   if (!revision) return null;
+  // Sub/grup ikut dibaca untuk halaman "Progres per Kategori" (DECISIONS 670);
+  // perhitungan lain tetap memakai kategori & item saja (disaring per `kind`).
   const nodes = await db.rabNode.findMany({
-    where: { revisionId: revision.id, kind: { in: ["kategori", "item"] } },
+    where: { revisionId: revision.id },
     orderBy: { sortOrder: "asc" },
     select: {
+      id: true,
+      parentId: true,
       kind: true,
       code: true,
       name: true,
@@ -585,6 +611,24 @@ export async function getPeriodReport(
     return cat;
   };
 
+  /*
+   * Sub-kategori (tingkat 2) tiap item = leluhurnya yang induknya kategori.
+   * Ditelusuri lewat `parentId`, bukan potongan lineageKey: "#" juga dipakai
+   * sufiks kode kembar (lihat catatan kategori di atas).
+   */
+  const nodeById = new Map(nodes.map((nd) => [nd.id, nd]));
+  const subKategoriOf = (it: (typeof nodes)[number]): (typeof nodes)[number] | null => {
+    let anak = it;
+    let induk = it.parentId ? nodeById.get(it.parentId) : undefined;
+    for (let i = 0; induk && i < 30; i++) {
+      if (induk.kind === "kategori") return anak === it ? null : anak;
+      anak = induk;
+      induk = induk.parentId ? nodeById.get(induk.parentId) : undefined;
+    }
+    return null;
+  };
+  const subKategoriRow = new Map<PeriodItemRow, (typeof nodes)[number]>();
+
   let totalBobotLalu = 0;
   let totalBobotIni = 0;
   let totalBobotSd = 0;
@@ -614,7 +658,7 @@ export async function getPeriodReport(
     cat.subtotalBobotLalu += bobotLalu;
     cat.subtotalBobotIni += bobotIni;
     cat.subtotalBobotSd += bobotSd;
-    cat.rows.push({
+    const row: PeriodItemRow = {
       no: 0,
       code: it.code,
       name: it.name,
@@ -635,7 +679,10 @@ export async function getPeriodReport(
       bobotRencana: 0, // diisi setelah jadwal kategori & minggu acuan diketahui (bawah)
       sisaVol: Math.max(0, vk - volSd),
       sisaPrestasi: Math.max(0, 100 - prestasiSd),
-    });
+    };
+    cat.rows.push(row);
+    const sub = subKategoriOf(it);
+    if (sub) subKategoriRow.set(row, sub);
   }
   const categories = [...catMap.values()];
   let seq = 0;
@@ -848,6 +895,40 @@ export async function getPeriodReport(
     totalBobotRencana += distributed[i];
   });
 
+  // Halaman "Progres per Kategori" (DECISIONS 670): kategori + sub-kategori,
+  // dirangkum dari baris rincian yang sama (termasuk Bobot Rencana di atas).
+  const progresKategori: BarisProgresKategori[] = [];
+  for (const cat of categories) {
+    progresKategori.push({ tingkat: 1, code: cat.code, name: cat.name, ...ringkasKelompok(cat.rows) });
+    const subs = new Map<string, { code: string; name: string; rows: PeriodItemRow[] }>();
+    const langsung: PeriodItemRow[] = [];
+    for (const row of cat.rows) {
+      const sub = subKategoriRow.get(row);
+      if (!sub) {
+        langsung.push(row);
+        continue;
+      }
+      const g = subs.get(sub.id) ?? { code: sub.code, name: sub.name, rows: [] };
+      g.rows.push(row);
+      subs.set(sub.id, g);
+    }
+    if (subs.size === 0) continue;
+    for (const g of subs.values()) {
+      progresKategori.push({ tingkat: 2, code: g.code, name: g.name, ...ringkasKelompok(g.rows) });
+    }
+    // Item yang langsung di bawah kategori ikut punya baris – tanpa itu jumlah
+    // sub-kategori tidak sama dengan baris kategorinya.
+    if (langsung.length > 0) {
+      progresKategori.push({
+        tingkat: 2,
+        code: "",
+        name: "Pekerjaan lain di kategori ini",
+        ...ringkasKelompok(langsung),
+      });
+    }
+  }
+  const progresKategoriTotal = ringkasKelompok(categories.flatMap((c) => c.rows));
+
   // Agregat tenaga/material/alat + cuaca dari laporan harian dalam periode.
   const periodReports = await db.dailyReport.findMany({
     where: {
@@ -916,6 +997,8 @@ export async function getPeriodReport(
     totalMonths,
     header,
     categories,
+    progresKategori,
+    progresKategoriTotal,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,
     planPrevPct,

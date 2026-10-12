@@ -22,6 +22,7 @@ import JSZip from "jszip";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
+import { ringkasKelompok } from "@/lib/progress-calc";
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
   code: "",
@@ -109,6 +110,8 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
         subtotalBobotRencana: 6,
       },
     ],
+    progresKategori: [],
+    progresKategoriTotal: ringkasKelompok([]),
     totals: { bobotLalu: 2, bobotIni: 3, bobotSd: 5, bobotRencana: 6 },
     planPct: 6,
     planPrevPct: 2.5,
@@ -173,8 +176,13 @@ function cariBaris(ws: ExcelJS.Worksheet, cocok: (t: string) => boolean, kolom =
 }
 
 describe("urutan & kelengkapan sheet", () => {
-  it("empat sheet, urut seperti dokumen cetak KKP", async () => {
+  it("laporan mingguan: lima sheet, urut seperti dokumen cetak KKP (progres per kategori sesudah kurva-S)", async () => {
     const wb = await book();
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "PROGRES KATEGORI", "Laporan"]);
+  });
+
+  it("laporan bulanan tetap empat sheet", async () => {
+    const wb = await book({ kind: "bulanan", n: 3 });
     expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "Laporan"]);
   });
 });
@@ -506,7 +514,7 @@ describe("logo kop – TATA LETAK dari berkas acuan", () => {
 
   it("tanpa logo sama sekali, seluruh sheet tetap terbentuk", async () => {
     const wb = await book();
-    expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "Laporan"]);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "PROGRES KATEGORI", "Laporan"]);
     expect(posisi(wb.getWorksheet("COV-BQ")!)).toHaveLength(0);
   });
 });

@@ -4,6 +4,8 @@ import { getBranding } from "@/lib/branding";
 import { getPeriodBounds, getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
+import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
+import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
@@ -295,6 +297,152 @@ async function susunPdfPeriodik(
   if (!opsi.rincian) {
     catatanKaki(doc, appName, width);
     return docToBuffer(doc);
+  }
+
+  /* ═════ LAPORAN PROGRES MINGGUAN per kategori (DECISIONS 670) ══════════ */
+  if (r.kind === "mingguan") {
+    newPage();
+    const kata = terbilang(r.n);
+    centerText("LAPORAN PROGRES MINGGUAN", 12, true);
+    centerText(`MINGGU KE-${r.n}${kata ? ` (${kata})` : ""}`, 9, true);
+    centerText(
+      `Periode tanggal ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
+      8,
+      false,
+      6,
+    );
+    const kontrak = h.contractSignedDate
+      ? `${h.contractNumber || "–"}, tgl. ${formatTanggal(h.contractSignedDate, "d MMMM yyyy")}`
+      : h.contractNumber || "–";
+    for (const [k1, v1, k2, v2] of [
+      ["Paket Pekerjaan", h.packageName, "Kontraktor Pelaksana", h.vendorName],
+      [
+        "Lokasi",
+        `${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
+        "Konsultan Pengawas",
+        h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–",
+      ],
+      ["Nilai Kontrak Fisik", rupiah(Number(h.contractValue)), "Nilai Fisik Lokasi", rupiah(Number(h.locationValue))],
+      ["No. dan Tanggal Kontrak", kontrak, "Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`],
+    ] as [string, string, string, string][]) {
+      draw([{ text: k1, head: true }, { text: v1 }, { text: k2, head: true }, { text: v2 }], identOpt);
+    }
+    y += 6;
+
+    const prog: GridOptions = {
+      x,
+      width,
+      cols: colWidths(width, [0.55, 4.3, 1.45, 0.75, 0.8, 0.75, 0.8, 0.75, 0.8, 0.75, 0.85, 0.8, 0.75]),
+      fontSize: 6.6,
+    };
+    const progHead = () => {
+      y = gridRow(
+        doc,
+        y,
+        [
+          { text: "NO", head: true, align: "center" },
+          { text: "JENIS PEKERJAAN", head: true, align: "center" },
+          { text: "NILAI PEKERJAAN (Rp)", head: true, align: "center" },
+          { text: "BOBOT (%)", head: true, align: "center" },
+          { text: "REALISASI PEKERJAAN", head: true, align: "center", span: 6 },
+          { text: "BOBOT RENCANA", head: true, align: "center" },
+          { text: "SISA PEKERJAAN", head: true, align: "center", span: 2 },
+        ],
+        prog,
+      );
+      y = gridRow(
+        doc,
+        y,
+        [
+          { text: "", head: true, span: 4 },
+          { text: "MINGGU LALU", head: true, align: "center", span: 2 },
+          { text: "MINGGU INI", head: true, align: "center", span: 2 },
+          { text: "s/d MINGGU INI", head: true, align: "center", span: 2 },
+          { text: "s/d MINGGU INI", head: true, align: "center" },
+          { text: "s/d MINGGU INI", head: true, align: "center", span: 2 },
+        ],
+        prog,
+      );
+      y = gridRow(
+        doc,
+        y,
+        [
+          { text: "", head: true, span: 4 },
+          ...[0, 1, 2].flatMap((): GridCell[] => [
+            { text: "PROGRES", head: true, align: "center" },
+            { text: "BOBOT", head: true, align: "center" },
+          ]),
+          { text: "BOBOT", head: true, align: "center" },
+          { text: "PROGRES", head: true, align: "center" },
+          { text: "BOBOT", head: true, align: "center" },
+        ],
+        prog,
+      );
+    };
+    progHead();
+    const b3 = (v: number) => (Math.abs(v) < 0.0005 ? "–" : f3.format(v));
+    const pr = (v: number) => (Math.abs(v) < 0.005 ? "–" : `${f2.format(v)}%`);
+    const angkaBaris = (
+      b: PeriodReport["progresKategoriTotal"],
+      bold: boolean,
+      // Baris JUMLAH menulis bobot lengkap walau nol, bukan "–".
+      bb: (v: number) => string = b3,
+    ): GridCell[] => [
+      { text: new Intl.NumberFormat("id-ID").format(Math.round(b.nilai)), align: "right", bold },
+      { text: f3.format(b.bobot), align: "right", bold },
+      { text: pr(b.progresLalu), align: "right", bold },
+      { text: bb(b.bobotLalu), align: "right", bold },
+      { text: pr(b.progresIni), align: "right", bold },
+      { text: bb(b.bobotIni), align: "right", bold },
+      { text: pr(b.progresSd), align: "right", bold },
+      { text: bb(b.bobotSd), align: "right", bold },
+      { text: bb(b.bobotRencana), align: "right", bold },
+      { text: pr(b.sisaProgres), align: "right", bold },
+      { text: bb(b.sisaBobot), align: "right", bold },
+    ];
+    for (const b of r.progresKategori) {
+      const satu = b.tingkat === 1;
+      const cells: GridCell[] = [
+        { text: b.code, align: satu ? "center" : "left", bold: satu, bg: satu ? PDF_COLORS.primary50 : undefined },
+        { text: satu ? b.name : `   ${b.name}`, bold: satu, bg: satu ? PDF_COLORS.primary50 : undefined },
+        ...angkaBaris(b, satu).map((c) => ({ ...c, bg: satu ? PDF_COLORS.primary50 : undefined })),
+      ];
+      fit(gridRowHeight(doc, cells, prog), progHead);
+      y = gridRow(doc, y, cells, prog);
+    }
+    const tot: GridCell[] = [
+      { text: "JUMLAH", span: 2, align: "right", bold: true },
+      ...angkaBaris(r.progresKategoriTotal, true, (v) => f3.format(v)),
+    ];
+    fit(gridRowHeight(doc, tot, prog), progHead);
+    y = gridRow(doc, y, tot, prog);
+    y += 6;
+
+    const ringkas: GridOptions = {
+      x: x + width * 0.45,
+      width: width * 0.55,
+      cols: colWidths(width * 0.55, [2.2, 0.8, 1.2]),
+      fontSize: 7.5,
+    };
+    fit(4 * 13);
+    const dev = r.deviationPct;
+    for (const [k, v, ket] of [
+      ["BOBOT REALISASI MINGGU INI", `${f3.format(r.totals.bobotIni)} %`, ""],
+      ["BOBOT REALISASI s/d MINGGU INI", `${f3.format(r.totals.bobotSd)} %`, ""],
+      ["BOBOT RENCANA s/d MINGGU INI", `${f3.format(r.planPct)} %`, ""],
+      ["DEVIASI (+/-)", `${dev > 0.005 ? "+" : ""}${f3.format(dev)} %`, `( ${keteranganDeviasi(dev)} )`],
+    ] as [string, string, string][]) {
+      draw(
+        [
+          { text: k, align: "right", bold: true },
+          { text: v, align: "right", bold: true },
+          { text: ket, bold: true },
+        ],
+        ringkas,
+      );
+    }
+    y += 8;
+    signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
   }
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */

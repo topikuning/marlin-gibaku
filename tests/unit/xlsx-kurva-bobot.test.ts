@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildJadwalXlsx } from "@/lib/export/xlsx";
 import type { PeriodReport } from "@/lib/periodic-report";
+import { ringkasKelompok } from "@/lib/progress-calc";
 
 /**
  * Kolom "Bobot (%)" sheet Kurva S wajib berupa RUMUS `=SUM(kolom minggu)` —
@@ -59,6 +60,8 @@ function fixture(): PeriodReport {
       projectManagerName: null,
     },
     categories: [],
+    progresKategori: [],
+    progresKategoriTotal: ringkasKelompok([]),
     totals: { bobotLalu: 0, bobotIni: 0, bobotSd: 0, bobotRencana: 0 },
     planPct: 20,
     planPrevPct: 12,

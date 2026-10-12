@@ -21,6 +21,8 @@ import {
   logoTengah,
 } from "@/lib/export/xlsx-gaya";
 import { formatTanggal } from "@/lib/format";
+import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
+import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
@@ -753,6 +755,184 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
 }
 
 /**
+ * "LAPORAN PROGRES MINGGUAN" per kategori & sub-kategori – format Lampiran
+ * Termin (permintaan user 2026-10-12, DECISIONS 670). Angka dari
+ * `r.progresKategori`; progres, sisa, dan JUMLAH ditulis sebagai RUMUS supaya
+ * kolom di satu baris tidak bisa saling berselisih di tangan pembaca.
+ */
+function addProgresKategoriSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
+  const h = r.header;
+  const LAST = 13;
+  const ws = wb.addWorksheet("PROGRES KATEGORI", {
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ws.columns = [7, 46, 18, 9, 10, 9, 10, 9, 10, 9, 11, 10, 9].map((width) => ({ width }));
+
+  const judul = (teks: string, size: number, warna: string) => {
+    const row = ws.addRow([teks]);
+    ws.mergeCells(row.number, 1, row.number, LAST);
+    row.getCell(1).font = { bold: true, size, color: { argb: warna } };
+    row.getCell(1).alignment = { horizontal: "center" };
+  };
+  const kata = terbilang(r.n);
+  judul("LAPORAN PROGRES MINGGUAN", 14, WARNA.kepala);
+  judul(`MINGGU KE-${r.n}${kata ? ` (${kata})` : ""}`, 11, WARNA.kepalaSub);
+  judul(
+    `Periode tanggal ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
+    10,
+    WARNA.kepalaSub,
+  );
+  ws.addRow([]);
+
+  const kv = (k: string, v: string) => {
+    const row = ws.addRow([]);
+    row.getCell(1).value = k;
+    row.getCell(1).font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
+    ws.mergeCells(row.number, 1, row.number, 2);
+    row.getCell(3).value = `:  ${v}`;
+    row.getCell(3).font = { size: 9, color: { argb: WARNA.teks } };
+    ws.mergeCells(row.number, 3, row.number, 8);
+    return row;
+  };
+  const kontrak = h.contractSignedDate
+    ? `${h.contractNumber || "–"}, tgl. ${formatTanggal(h.contractSignedDate, "d MMMM yyyy")}`
+    : h.contractNumber || "–";
+  const barisPertama = kv("Paket Pekerjaan", h.packageName).number;
+  kv("Lokasi", lokasiLengkap(h));
+  kv("Nilai Kontrak Fisik", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.contractValue))}`);
+  kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
+  kv("No. dan Tanggal Kontrak", kontrak);
+  kv("Kontraktor Pelaksana", h.vendorName);
+  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–");
+  kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
+  logoPasanganKanan(wb, ws, logo, { rowAtas: barisPertama, tinggiPx: 62, kolomKiri: 9, kolomKanan: LAST });
+  ws.addRow([]);
+
+  // Kepala tabel 3 baris.
+  const k1 = ws.addRow([
+    "NO", "JENIS PEKERJAAN", "NILAI PEKERJAAN (Rp)", "BOBOT (%)", "REALISASI PEKERJAAN",
+    null, null, null, null, null, "BOBOT RENCANA s/d MINGGU INI", "SISA PEKERJAAN", null,
+  ]);
+  const k2 = ws.addRow([null, null, null, null, "MINGGU LALU", null, "MINGGU INI", null, "s/d MINGGU INI", null, null, "s/d MINGGU INI", null]);
+  const k3 = ws.addRow([null, null, null, null, "PROGRES", "BOBOT", "PROGRES", "BOBOT", "PROGRES", "BOBOT", null, "PROGRES", "BOBOT"]);
+  for (const c of [1, 2, 3, 4, 11]) ws.mergeCells(k1.number, c, k3.number, c);
+  ws.mergeCells(k1.number, 5, k1.number, 10);
+  ws.mergeCells(k1.number, 12, k1.number, 13);
+  ws.mergeCells(k2.number, 5, k2.number, 6);
+  ws.mergeCells(k2.number, 7, k2.number, 8);
+  ws.mergeCells(k2.number, 9, k2.number, 10);
+  ws.mergeCells(k2.number, 12, k2.number, 13);
+  for (const row of [k1, k2, k3]) {
+    row.height = row === k1 ? 26 : 16;
+    for (let c = 1; c <= LAST; c++) gayaKepala(row.getCell(c), { size: 8 });
+  }
+
+  const tulis = (
+    row: ExcelJS.Row,
+    b: PeriodReport["progresKategoriTotal"],
+    opts: { bold: boolean; fill?: string },
+  ) => {
+    const n = row.number;
+    const nilaiBaris: [number, number | ExcelJS.CellFormulaValue][] = [
+      [5, { formula: `IF(D${n}>0,F${n}/D${n}*100,0)`, result: round2(b.progresLalu) }],
+      [7, { formula: `IF(D${n}>0,H${n}/D${n}*100,0)`, result: round2(b.progresIni) }],
+      [9, { formula: `IF(D${n}>0,J${n}/D${n}*100,0)`, result: round2(b.progresSd) }],
+      [12, { formula: `MAX(0,100-I${n})`, result: round2(b.sisaProgres) }],
+      [13, { formula: `MAX(0,D${n}-J${n})`, result: round2(b.sisaBobot) }],
+    ];
+    for (const [c, v] of nilaiBaris) row.getCell(c).value = v;
+    for (let c = 1; c <= LAST; c++) {
+      const cell = row.getCell(c);
+      cell.border = KOTAK;
+      cell.font = { size: 9, bold: opts.bold, color: { argb: WARNA.teks } };
+      if (opts.fill) cell.fill = isi(opts.fill);
+      if (c === 1) cell.alignment = { horizontal: "center" };
+      if (c === 3) {
+        cell.numFmt = FMT_RUPIAH;
+        cell.alignment = { horizontal: "right" };
+      } else if (c >= 4) {
+        cell.numFmt = c === 5 || c === 7 || c === 9 || c === 12 ? FMT_PERSEN : "#,##0.000";
+        cell.alignment = { horizontal: "right" };
+      }
+    }
+  };
+
+  const barisKategori: number[] = [];
+  for (const b of r.progresKategori) {
+    const satu = b.tingkat === 1;
+    const row = ws.addRow([
+      b.code,
+      satu ? b.name : `   ${b.name}`,
+      Math.round(b.nilai),
+      b.bobot,
+      null,
+      b.bobotLalu,
+      null,
+      b.bobotIni,
+      null,
+      b.bobotSd,
+      b.bobotRencana,
+      null,
+      null,
+    ]);
+    tulis(row, b, { bold: satu, fill: satu ? WARNA.kategori : undefined });
+    if (satu) barisKategori.push(row.number);
+  }
+
+  // JUMLAH = Σ baris KATEGORI saja (sub-kategori sudah termasuk di kategorinya).
+  const t = r.progresKategoriTotal;
+  const total = ws.addRow([null, "JUMLAH"]);
+  const jumlah = (col: number, hasil: number) => {
+    const L = colLetter(col);
+    total.getCell(col).value =
+      barisKategori.length > 0
+        ? { formula: `SUM(${barisKategori.map((n) => `${L}${n}`).join(",")})`, result: round2(hasil) }
+        : round2(hasil);
+  };
+  jumlah(3, Math.round(t.nilai));
+  jumlah(4, t.bobot);
+  jumlah(6, t.bobotLalu);
+  jumlah(8, t.bobotIni);
+  jumlah(10, t.bobotSd);
+  jumlah(11, t.bobotRencana);
+  tulis(total, t, { bold: true, fill: WARNA.total });
+  total.getCell(2).alignment = { horizontal: "right" };
+  ws.addRow([]);
+
+  // Ringkasan bobot + deviasi. Realisasi tertaut ke baris JUMLAH; rencana dari
+  // kurva-S resmi (baseline).
+  const blok = (label: string, nilai: number | ExcelJS.CellFormulaValue, ket = "") => {
+    const row = ws.addRow([]);
+    row.getCell(6).value = label;
+    ws.mergeCells(row.number, 6, row.number, 9);
+    row.getCell(6).alignment = { horizontal: "right" };
+    row.getCell(6).font = { size: 9, bold: true, color: { argb: WARNA.teks } };
+    row.getCell(10).value = nilai;
+    row.getCell(10).numFmt = FMT_PERSEN;
+    row.getCell(10).font = { size: 9, bold: true, color: { argb: WARNA.teks } };
+    if (ket) {
+      row.getCell(11).value = ket;
+      ws.mergeCells(row.number, 11, row.number, LAST);
+      row.getCell(11).font = { size: 9, bold: true, italic: true, color: { argb: WARNA.teks } };
+    }
+    return row;
+  };
+  blok("BOBOT REALISASI MINGGU INI", { formula: `H${total.number}`, result: round2(r.totals.bobotIni) });
+  const rReal = blok("BOBOT REALISASI s/d MINGGU INI", { formula: `J${total.number}`, result: round2(r.totals.bobotSd) });
+  const rRen = blok("BOBOT RENCANA s/d MINGGU INI", round2(r.planPct));
+  const dev = r.deviationPct;
+  const rDev = blok(
+    "DEVIASI (+/-)",
+    { formula: `J${rReal.number}-J${rRen.number}`, result: round2(dev) },
+    `( ${keteranganDeviasi(dev)} )`,
+  );
+  const warnaDev = dev < -0.005 ? WARNA.negatif : dev > 0.005 ? WARNA.positif : WARNA.teks;
+  rDev.getCell(10).font = { size: 9, bold: true, color: { argb: warnaDev } };
+
+  blokTandaTangan(ws, { lastCol: LAST, h, jenis: r.kind });
+}
+
+/**
  * Time Schedule (Kurva-S) berdiri sendiri sebagai .xlsx — satu sheet tabel
  * kategori × minggu (bobot) + kumulatif rencana/realisasi + GRAFIK NATIVE Excel.
  * Format menyerupai time schedule sipil (contoh TS vendor).
@@ -778,12 +958,16 @@ export async function buildPeriodReportXlsx(
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S → rincian.
+  // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S →
+  // (mingguan) progres per kategori → rincian.
   addCoverSheet(wb, r, logo);
   addRekapSheet(wb, r, logo);
   // Sheet "Kurva S" di dalam workbook LAPORAN adalah bagian laporannya,
   // bukan dokumen jadwal (DECISIONS 403).
   const kurva = await addKurvaSheet(wb, r, { jenis: r.kind, logo });
+  // Laporan mingguan: progres per kategori & sub-kategori, sesudah kurva-S –
+  // urutan yang sama dengan cetak dan PDF (DECISIONS 670).
+  if (r.kind === "mingguan") addProgresKategoriSheet(wb, r, logo);
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
