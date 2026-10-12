@@ -249,6 +249,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Paket ber-folder Drive dengan SPMK yang tertinggal di basis data ikut
+  // terpindai berkas lain (antrean Drive mingguan) – hasilnya bergantung urutan
+  // berkas. Dibersihkan seperti berkas integrasi lain.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });
 

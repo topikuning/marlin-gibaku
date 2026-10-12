@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PrintToolbar } from "@/components/print/print-toolbar";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
+import { KkpProgresKategori } from "@/components/knmp/kkp-progres-kategori";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
@@ -59,7 +60,14 @@ export default async function CetakPeriodikPage({
               (DECISIONS 403), bukan penanda tangan dokumen jadwal. */}
           <ScurveKkpSheet r={report} ttd={ttd} jenis={kind as PeriodKind} />
         </section>
-        {/* Hal-2+: tabel detail item */}
+        {/* Laporan mingguan: progres per kategori & sub-kategori – format
+            Lampiran Termin (DECISIONS 670). */}
+        {kind === "mingguan" ? (
+          <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
+            <KkpProgresKategori r={report} ttd={ttd} />
+          </section>
+        ) : null}
+        {/* Hal-berikutnya: tabel detail item */}
         <section className="mx-auto w-full max-w-[1100px] overflow-x-auto p-6 print:overflow-visible print:p-0">
           <KkpPeriodReport r={report} ttd={ttd} />
         </section>

@@ -168,6 +168,17 @@ export function statusDeviasi(deviasiPct: number): StatusRencana {
   return "kritis";
 }
 
+/**
+ * Keterangan deviasi pada dokumen resmi (halaman Progres per Kategori,
+ * DECISIONS 670): angka minus tanpa kata "terlambat" rutin dibaca "kurang
+ * sedikit". Ambang setengah per seratus poin = pembulatan dua desimal.
+ */
+export function keteranganDeviasi(deviasiPct: number): "LEBIH CEPAT" | "TERLAMBAT" | "SESUAI RENCANA" {
+  if (deviasiPct < -0.005) return "TERLAMBAT";
+  if (deviasiPct > 0.005) return "LEBIH CEPAT";
+  return "SESUAI RENCANA";
+}
+
 export const LABEL_STATUS: Record<StatusRencana, string> = {
   aman: "Sesuai jadwal",
   perhatian: "Perlu perhatian",

@@ -380,7 +380,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     group: "rencana",
     label: "Aturan dasar analisa urutan RAB",
     description:
-      "Dipakai tiap kali RAB diaktifkan: AI menyusun urutan, prasyarat, dan porsi waktu pekerjaan per bangunan sebagai dasar saran rencana mingguan. Volume target tetap dihitung sistem.",
+      "Dipakai saat pengguna menekan “Analisa dengan AI” di Rencana: AI menyusun urutan, prasyarat, dan porsi waktu pekerjaan per bangunan sebagai dasar saran rencana mingguan. Volume target tetap dihitung sistem.",
     default: RENCANA_JADWAL_SYSTEM_DEFAULT,
     mustContain: [ANTI_KARANG_FRASA, "BUKAN angka resmi"],
     maxChars: 2000,

@@ -53,8 +53,17 @@ export type AnalisaAiView = {
   catatan: { nama: string; catatan: string }[];
 };
 
-function kalimatAnalisaAi(a: AnalisaAiView | null): { tone: "info" | "warning" | "success"; teks: string } {
-  if (!a) return { tone: "info", teks: "RAB ini belum dianalisa AI. Saran memakai urutan bawaan sistem." };
+function kalimatAnalisaAi(
+  a: AnalisaAiView | null,
+  revisiLama: boolean,
+  bolehAnalisa: boolean,
+): { tone: "info" | "warning" | "success"; teks: string } {
+  if (!a) {
+    const ajak = bolehAnalisa ? " Tekan Analisa dengan AI kalau ingin urutan pekerjaan per bangunan disusun AI." : "";
+    return revisiLama
+      ? { tone: "warning", teks: `RAB sudah berganti sejak analisa AI terakhir, jadi analisa itu tidak dipakai lagi. Saran memakai urutan bawaan sistem.${ajak}` }
+      : { tone: "info", teks: `RAB ini belum dianalisa AI. Saran memakai urutan bawaan sistem.${ajak}` };
+  }
   const b = a.bangunan;
   const kapan = a.selesaiAt ? `, ${formatTanggalWaktu(new Date(a.selesaiAt))}` : "";
   const model = a.model ? ` (${a.model}${kapan})` : "";
@@ -91,10 +100,12 @@ function kalimatAnalisaAi(a: AnalisaAiView | null): { tone: "info" | "warning" |
 function AnalisaAiBar({
   locationId,
   analisa,
+  revisiLama,
   bolehAnalisa,
 }: {
   locationId: string;
   analisa: AnalisaAiView | null;
+  revisiLama: boolean;
   bolehAnalisa: boolean;
 }) {
   const router = useRouter();
@@ -105,7 +116,7 @@ function AnalisaAiBar({
     const t = setInterval(() => router.refresh(), 15_000);
     return () => clearInterval(t);
   }, [berjalan, router]);
-  const k = kalimatAnalisaAi(analisa);
+  const k = kalimatAnalisaAi(analisa, revisiLama, bolehAnalisa);
   const nada = k.tone === "success" ? "text-success" : k.tone === "warning" ? "text-warning" : "text-ink-muted";
 
   return (
@@ -248,11 +259,13 @@ function SuggestPanel({
   locationId,
   weekNumber,
   analisaAi,
+  analisaRevisiLama,
   canAnalisaAi,
 }: {
   locationId: string;
   weekNumber: number;
   analisaAi: AnalisaAiView | null;
+  analisaRevisiLama: boolean;
   canAnalisaAi: boolean;
 }) {
   const [sugState, suggest, suggesting] = useAksi<SuggestState>(
@@ -292,7 +305,12 @@ function SuggestPanel({
         </form>
       </div>
 
-      <AnalisaAiBar locationId={locationId} analisa={analisaAi} bolehAnalisa={canAnalisaAi} />
+      <AnalisaAiBar
+        locationId={locationId}
+        analisa={analisaAi}
+        revisiLama={analisaRevisiLama}
+        bolehAnalisa={canAnalisaAi}
+      />
 
       {sugState?.error ? <Banner tone="info" title={sugState.error} /> : null}
       {applyState?.error ? <Banner tone="error" title={applyState.error} /> : null}
@@ -598,6 +616,7 @@ export function WeeklyPlanSection({
   ringkas,
   canManage,
   analisaAi = null,
+  analisaRevisiLama = false,
   canAnalisaAi = false,
 }: {
   locationId: string;
@@ -610,6 +629,7 @@ export function WeeklyPlanSection({
   ringkas: RingkasRencana | null;
   canManage: boolean;
   analisaAi?: AnalisaAiView | null;
+  analisaRevisiLama?: boolean;
   canAnalisaAi?: boolean;
 }) {
   const router = useRouter();
@@ -663,6 +683,7 @@ export function WeeklyPlanSection({
             locationId={locationId}
             weekNumber={weekNumber}
             analisaAi={analisaAi}
+            analisaRevisiLama={analisaRevisiLama}
             canAnalisaAi={canAnalisaAi}
           />
           <AddItemForm locationId={locationId} weekNumber={weekNumber} options={options} />

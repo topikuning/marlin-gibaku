@@ -2,8 +2,9 @@
  * ANALISA AI URUTAN RAB AKTIF (DECISIONS 667) – jalur penuh dengan basis data
  * sungguhan; hanya provider AI yang ditiru.
  *
- * Yang dibuktikan: aktivasi RAB langsung mengantrekan analisa dan
- * mendorongnya ke latar; tiap bangunan disimpan begitu jadi; bangunan yang
+ * Yang dibuktikan: aktivasi RAB TIDAK memanggil AI – analisa hanya jalan
+ * atas permintaan pengguna (DECISIONS 669); permintaan itu mengantrekan
+ * analisa dan mendorongnya ke latar; tiap bangunan disimpan begitu jadi; bangunan yang
  * gagal dilanjutkan cron tanpa mengulang yang sudah selesai; seluruhnya
  * tercatat sebagai SATU AiRun; dan saran rencana mingguan memakai hasilnya.
  */
@@ -97,7 +98,7 @@ const { db } = await import("@/lib/db");
 const { activateRevision } = await import("@/lib/rab/import");
 const { bacaJadwalAi, jemputJadwalAi } = await import("@/lib/plan/jadwal-ai");
 const { suggestWeeklyPlan } = await import("@/lib/plan/suggest");
-const { applyWeeklySuggestions } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
+const { analisaUlangJadwalAi, applyWeeklySuggestions } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
 
 const suffix = `ja${Date.now().toString(36)}`;
 let userId = "";
@@ -159,8 +160,18 @@ afterAll(async () => {
 });
 
 describe("analisa AI urutan RAB", () => {
-  it("aktivasi RAB langsung mengantrekan analisa per bangunan dan mendorongnya ke latar", async () => {
+  it("aktivasi RAB tidak memanggil AI – belum ada analisa, belum ada pekerjaan latar", async () => {
     await activateRevision(revisionId, userId);
+    expect(await db.rabJadwalAi.count({ where: { revisionId } })).toBe(0);
+    expect(latar).toHaveLength(0);
+    expect((await suggestWeeklyPlan(locationId, 22))!.jadwalAi).toBeNull();
+  });
+
+  it("pengguna menekan Analisa dengan AI → analisa per bangunan diantrekan dan didorong ke latar", async () => {
+    sesi = { id: userId, orgId, role: "super_admin" };
+    const f = new FormData();
+    f.set("locationId", locationId);
+    expect((await analisaUlangJadwalAi(undefined, f))?.success).toMatch(/Analisa AI dimulai/);
     const a = await db.rabJadwalAi.findUniqueOrThrow({
       where: { revisionId },
       include: { kelompok: { orderBy: { kategoriKey: "asc" } } },

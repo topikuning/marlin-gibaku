@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
+import { ringkasKelompok } from "@/lib/progress-calc";
 
 /**
  * PDF blanko KKP untuk laporan mingguan/bulanan hanya dieksekusi saat unggah ke
@@ -92,6 +93,8 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       subtotalBobotSd: 3,
       subtotalBobotRencana: 4.6,
     })),
+    progresKategori: [],
+    progresKategoriTotal: ringkasKelompok([]),
     totals: { bobotLalu: 4.8, bobotIni: 7.2, bobotSd: 12, bobotRencana: 18.4 },
     planPct: 18.4,
     planPrevPct: 12.1,
@@ -166,5 +169,22 @@ describe("PDF Time Schedule berdiri sendiri (halaman cetak jadwal)", () => {
     });
     expect(pages(dengan)).toBe(1);
     expect(dengan.length).toBeGreaterThan(tanpa.length);
+  });
+});
+
+describe("PDF laporan mingguan: halaman progres per kategori (DECISIONS 670)", () => {
+  const pages = (buf: Buffer) => buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g)?.length ?? 0;
+
+  it("mingguan mendapat SATU halaman tambahan; bulanan tidak", { timeout: 30_000 }, async () => {
+    const { buildPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const isi = (kind: "mingguan" | "bulanan") => {
+      const r = fixture(kind);
+      r.progresKategori = r.categories.map((c) => ({ tingkat: 1 as const, code: c.code, name: c.name, ...ringkasKelompok(c.rows) }));
+      r.progresKategoriTotal = ringkasKelompok(r.categories.flatMap((c) => c.rows));
+      return r;
+    };
+    const mingguan = await buildPeriodikKkpPdf(isi("mingguan"), "MARLIN");
+    const bulanan = await buildPeriodikKkpPdf(isi("bulanan"), "MARLIN");
+    expect(pages(mingguan)).toBe(pages(bulanan) + 1);
   });
 });

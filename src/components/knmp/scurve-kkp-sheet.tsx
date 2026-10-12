@@ -288,7 +288,7 @@ export function ScurveKkpSheet({
 }
 
 /** Blok tanda tangan: judul, peran, nama (dlm kurung), baris sub (NIP/instansi/jabatan). */
-function SignBlock({
+export function SignBlock({
   title,
   role,
   name,

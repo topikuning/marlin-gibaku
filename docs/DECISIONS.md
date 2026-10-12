@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 670 | 2026-10-12 | Laporan mingguan: halaman baru "LAPORAN PROGRES MINGGUAN" per kategori & sub-kategori (format Lampiran Termin) di cetak, PDF, dan Excel; angka dari baris rincian yang sama |
+| 669 | 2026-10-11 | Analisa AI urutan RAB hanya dari tombol pengguna di Rencana – tidak otomatis saat impor/aktivasi RAB; RAB berganti → layar menyebut analisa lama tidak dipakai |
 | 668 | 2026-10-11 | Cetak dari aplikasi terpasang (PWA): Buka PDF / Bagikan (iPhone) / Buka di peramban `?cetak=1`; PDF baru rencana mingguan & Time Schedule; tautan cetak dibuka di tempat; area aman layar |
 | 667 | 2026-10-11 | RAB aktif langsung dianalisa AI per bangunan (urutan, prasyarat, kritis, cuaca) → dasar saran rencana mingguan; volume tetap hitungan kode; saran: 0% sebelum SPMK, "tertinggal" hanya yang jatuh tempo, pilih per baris |
 | 666 | 2026-10-11 | Dokumentasi foto per bangunan di Drive: `6. DOKUMENTASI/<Lokasi>/<Bangunan>` berisi SHORTCUT ke foto laporan harian (tanpa salinan); bangunan = kategori RAB tingkat 1 revisi aktif; foto lama diisi bertahap |

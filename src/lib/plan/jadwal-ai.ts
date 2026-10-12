@@ -16,10 +16,11 @@ import {
 } from "./jadwal-ai-murni";
 
 /**
- * ANALISA AI URUTAN PELAKSANAAN RAB AKTIF (DECISIONS 667).
+ * ANALISA AI URUTAN PELAKSANAAN RAB AKTIF (DECISIONS 667, 669).
  *
- * Tiap kali sebuah revisi RAB menjadi aktif, MARLIN langsung mengirim isinya
- * ke AI, satu bangunan per permintaan. Hasilnya (urutan, prasyarat, porsi
+ * Saat pengguna menekan "Analisa dengan AI", MARLIN mengirim isi RAB aktif ke
+ * AI, satu bangunan per permintaan. TIDAK pernah otomatis saat RAB diimpor
+ * atau diaktifkan (ketetapan user 2026-10-11, DECISIONS 669). Hasilnya (urutan, prasyarat, porsi
  * waktu, kritis, peka cuaca) menjadi dasar saran rencana mingguan. Volume
  * target tetap dihitung kode; AI tidak menyentuh angka resmi.
  *
@@ -112,7 +113,7 @@ async function bacaRevisi(revisionId: string): Promise<DataRevisi | null> {
 
 /**
  * Catat analisa baru untuk revisi aktif ini – baris lama (kalau ada) disetel
- * ulang. Dipanggil saat aktivasi dan dari tombol "Analisa ulang".
+ * ulang. Hanya dari tombol pengguna (DECISIONS 669).
  */
 export async function antrekanJadwalAi(revisionId: string, dimintaOlehId: string | null): Promise<string | null> {
   const data = await bacaRevisi(revisionId);

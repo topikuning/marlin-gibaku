@@ -101,6 +101,66 @@ export function realisasiKategoriPct(
   return Math.min(100, Math.max(0, p));
 }
 
+/**
+ * Ringkasan satu KELOMPOK pekerjaan – kategori atau sub-kategori – untuk
+ * halaman "Progres per Kategori" laporan mingguan (DECISIONS 670).
+ *
+ * Bobot kelompok = Σ bobot itemnya; progres kelompok = bobot terealisasi ÷
+ * bobot kelompok. Hasilnya sama dengan `realisasiKategoriPct` (prestasi
+ * tertimbang nilai), tapi diturunkan dari kolom bobot yang SAMA dengan blanko
+ * rincian, jadi jumlah halaman ini selalu sama dengan halaman rincian.
+ *
+ * Sisa ditulis sebagai yang MASIH harus dikerjakan (positif), sama dengan
+ * kolom sisa blanko rincian – bukan angka minus seperti contoh berkas termin.
+ */
+export type RingkasanKelompok = {
+  nilai: number;
+  bobot: number;
+  bobotLalu: number;
+  bobotIni: number;
+  bobotSd: number;
+  bobotRencana: number;
+  progresLalu: number;
+  progresIni: number;
+  progresSd: number;
+  sisaProgres: number;
+  sisaBobot: number;
+};
+
+export function ringkasKelompok(
+  rows: { amount: number; bobot: number; bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number }[],
+): RingkasanKelompok {
+  let nilai = 0;
+  let bobot = 0;
+  let bobotLalu = 0;
+  let bobotIni = 0;
+  let bobotSd = 0;
+  let bobotRencana = 0;
+  for (const r of rows) {
+    nilai += r.amount;
+    bobot += r.bobot;
+    bobotLalu += r.bobotLalu;
+    bobotIni += r.bobotIni;
+    bobotSd += r.bobotSd;
+    bobotRencana += r.bobotRencana;
+  }
+  const persen = (x: number) => (bobot > 0 && Number.isFinite(x / bobot) ? (x / bobot) * 100 : 0);
+  const progresSd = Math.min(100, Math.max(0, persen(bobotSd)));
+  return {
+    nilai,
+    bobot,
+    bobotLalu,
+    bobotIni,
+    bobotSd,
+    bobotRencana,
+    progresLalu: persen(bobotLalu),
+    progresIni: persen(bobotIni),
+    progresSd,
+    sisaProgres: Math.max(0, 100 - progresSd),
+    sisaBobot: Math.max(0, bobot - bobotSd),
+  };
+}
+
 /** Bobot satu item terhadap grand total (%) — 0 bila grand total tak sah. */
 export function bobotPct(amount: number, grandTotal: number): number {
   if (!(grandTotal > 0)) return 0;

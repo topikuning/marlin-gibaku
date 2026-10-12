@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
+import { ringkasKelompok } from "@/lib/progress-calc";
 
 /**
  * Sheet "Laporan": angka yang bisa DIHITUNG harus berupa rumus, bukan tempelan —
@@ -95,6 +96,8 @@ function fixture(): PeriodReport {
         subtotalBobotRencana: 6,
       },
     ],
+    progresKategori: [],
+    progresKategoriTotal: ringkasKelompok([]),
     totals: { bobotLalu: 2, bobotIni: 3, bobotSd: 5, bobotRencana: 6 },
     planPct: 6,
     planPrevPct: 0,
@@ -202,5 +205,43 @@ describe("sheet Laporan – angka terhitung memakai rumus", () => {
     expect(subtotal).toBeGreaterThan(judul);
     const bobot = ws.getRow(judul).getCell(7).value as { formula?: string };
     expect(bobot.formula).toBe(`G${subtotal}`);
+  });
+});
+
+describe("sheet PROGRES KATEGORI – laporan mingguan per kategori & sub-kategori (DECISIONS 670)", () => {
+  async function wb(kind: "mingguan" | "bulanan") {
+    const r = fixture();
+    r.kind = kind;
+    const rows = r.categories[0].rows;
+    const kat = { tingkat: 1 as const, code: "I", name: "PEKERJAAN PERSIAPAN", ...ringkasKelompok(rows) };
+    r.progresKategori = [
+      kat,
+      { tingkat: 2 as const, code: "I.1", name: "Sub satu", ...ringkasKelompok(rows.slice(0, 1)) },
+      { tingkat: 2 as const, code: "I.2", name: "Sub dua", ...ringkasKelompok(rows.slice(1)) },
+    ];
+    r.progresKategoriTotal = ringkasKelompok(rows);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildPeriodReportXlsx(r)) as unknown as ArrayBuffer);
+    return book;
+  }
+
+  it("hanya laporan mingguan yang punya sheet ini", async () => {
+    expect((await wb("mingguan")).getWorksheet("PROGRES KATEGORI")).toBeTruthy();
+    expect((await wb("bulanan")).getWorksheet("PROGRES KATEGORI")).toBeUndefined();
+  });
+
+  it("progres & sisa = rumus di barisnya; JUMLAH hanya menjumlah baris kategori", async () => {
+    const ws = (await wb("mingguan")).getWorksheet("PROGRES KATEGORI")!;
+    const baris = rowWithLabel(ws, "I");
+    expect(baris).toBeGreaterThan(0);
+    const f = (r: number, c: number) => (ws.getRow(r).getCell(c).value as { formula?: string }).formula;
+    expect(f(baris, 9)).toBe(`IF(D${baris}>0,J${baris}/D${baris}*100,0)`);
+    expect(f(baris, 13)).toBe(`MAX(0,D${baris}-J${baris})`);
+    let jumlah = 0;
+    ws.eachRow((row, r) => {
+      if (cellText(row.getCell(2).value) === "JUMLAH") jumlah = r;
+    });
+    // Baris sub-kategori (baris+1, baris+2) TIDAK ikut dijumlah – sudah di kategorinya.
+    expect(f(jumlah, 10)).toBe(`SUM(J${baris})`);
   });
 });
