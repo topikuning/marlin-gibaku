@@ -115,6 +115,12 @@ export type BarisProgresKategori = RingkasanKelompok & {
   tingkat: 1 | 2;
   code: string;
   name: string;
+  /**
+   * Sub-kategori tanpa item sendiri (mis. "VIII.3 Pekerjaan Deep Well" yang
+   * rinciannya ada di VIII.3.1/VIII.3.2) – tampil sebagai judul, angkanya
+   * kosong seperti contoh Lampiran Termin, bukan nol/sisa 100%.
+   */
+  judulSaja?: true;
 };
 
 export type PeriodHeader = {
@@ -612,7 +618,10 @@ export async function getPeriodReport(
   };
 
   /*
-   * Sub-kategori (tingkat 2) tiap item = leluhurnya yang induknya kategori.
+   * Sub-kategori (tingkat 2) tiap item = leluhurnya yang induknya kategori,
+   * HANYA bila leluhur itu berjenis `sub` (III.1, V.1, …). Kelompok item
+   * bernomor (`grup`, mis. "6 Pengadaan SMK3K") bukan sub-kategori dan tidak
+   * diberi baris – koreksi user 2026-10-12, sesuai contoh Lampiran Termin.
    * Ditelusuri lewat `parentId`, bukan potongan lineageKey: "#" juga dipakai
    * sufiks kode kembar (lihat catatan kategori di atas).
    */
@@ -621,13 +630,19 @@ export async function getPeriodReport(
     let anak = it;
     let induk = it.parentId ? nodeById.get(it.parentId) : undefined;
     for (let i = 0; induk && i < 30; i++) {
-      if (induk.kind === "kategori") return anak === it ? null : anak;
+      if (induk.kind === "kategori") return anak !== it && anak.kind === "sub" ? anak : null;
       anak = induk;
       induk = induk.parentId ? nodeById.get(induk.parentId) : undefined;
     }
     return null;
   };
   const subKategoriRow = new Map<PeriodItemRow, (typeof nodes)[number]>();
+  const subKategoriNodes = new Map<string, (typeof nodes)[number][]>();
+  for (const nd of nodes) {
+    const induk = nd.kind === "sub" && nd.parentId ? nodeById.get(nd.parentId) : undefined;
+    if (induk?.kind !== "kategori") continue;
+    subKategoriNodes.set(induk.lineageKey, [...(subKategoriNodes.get(induk.lineageKey) ?? []), nd]);
+  }
 
   let totalBobotLalu = 0;
   let totalBobotIni = 0;
@@ -900,31 +915,24 @@ export async function getPeriodReport(
   const progresKategori: BarisProgresKategori[] = [];
   for (const cat of categories) {
     progresKategori.push({ tingkat: 1, code: cat.code, name: cat.name, ...ringkasKelompok(cat.rows) });
+    // Item di luar sub-kategori (langsung di bawah kategori atau di `grup`)
+    // tetap terhitung di baris kategorinya; tidak dibuatkan baris sendiri.
+    // Urutan = urutan RAB; sub tanpa item tetap ditulis sebagai judul.
     const subs = new Map<string, { code: string; name: string; rows: PeriodItemRow[] }>();
-    const langsung: PeriodItemRow[] = [];
+    for (const sub of subKategoriNodes.get(cat.lineageKey) ?? []) subs.set(sub.id, { code: sub.code, name: sub.name, rows: [] });
     for (const row of cat.rows) {
       const sub = subKategoriRow.get(row);
-      if (!sub) {
-        langsung.push(row);
-        continue;
-      }
+      if (!sub) continue;
       const g = subs.get(sub.id) ?? { code: sub.code, name: sub.name, rows: [] };
       g.rows.push(row);
       subs.set(sub.id, g);
     }
-    if (subs.size === 0) continue;
     for (const g of subs.values()) {
-      progresKategori.push({ tingkat: 2, code: g.code, name: g.name, ...ringkasKelompok(g.rows) });
-    }
-    // Item yang langsung di bawah kategori ikut punya baris – tanpa itu jumlah
-    // sub-kategori tidak sama dengan baris kategorinya.
-    if (langsung.length > 0) {
-      progresKategori.push({
-        tingkat: 2,
-        code: "",
-        name: "Pekerjaan lain di kategori ini",
-        ...ringkasKelompok(langsung),
-      });
+      progresKategori.push(
+        g.rows.length > 0
+          ? { tingkat: 2, code: g.code, name: g.name, ...ringkasKelompok(g.rows) }
+          : { tingkat: 2, code: g.code, name: g.name, ...ringkasKelompok([]), judulSaja: true },
+      );
     }
   }
   const progresKategoriTotal = ringkasKelompok(categories.flatMap((c) => c.rows));

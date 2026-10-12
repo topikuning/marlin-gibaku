@@ -1,6 +1,6 @@
+import { Fragment } from "react";
 import { penandatanganDokumen, peranSlot } from "@/lib/laporan/penandatangan";
-import { formatRupiah, formatTanggal } from "@/lib/format";
-import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
+import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -12,61 +12,71 @@ import { SignBlock } from "./scurve-kkp-sheet";
  *
  * Kolomnya sama dengan blanko rincian, hanya dirangkum per kategori RAB dan
  * sub-kategorinya. Semua angka datang dari `r.progresKategori` – tidak ada
- * yang dihitung di sini.
+ * yang dihitung di sini. Teks kop dari `kopProgresMingguan`, sama dengan PDF
+ * dan Excel (DECISIONS 671).
  */
+
+/** Alamat logo kop (presign singkat) – kotak PENYEDIA JASA · KONSULTAN · PEMBERI TUGAS. */
+export type LogoKopProgres = { pemilik: string | null; konsultan: string | null; penyedia: string | null };
 
 const angka = (v: number, d: number) =>
   v.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
 const bobot = (v: number) => (Math.abs(v) < 0.0005 ? "–" : angka(v, 3));
 const persen = (v: number) => (Math.abs(v) < 0.005 ? "–" : `${angka(v, 2)}%`);
 
-export function KkpProgresKategori({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan | null }) {
+export function KkpProgresKategori({
+  r,
+  ttd,
+  logo,
+}: {
+  r: PeriodReport;
+  ttd?: TtdLaporan | null;
+  logo?: LogoKopProgres | null;
+}) {
   const h = r.header;
   const tt = penandatanganDokumen(r.kind, h);
-  const kata = terbilang(r.n);
+  const kop = kopProgresMingguan(h, r.n);
   const total = r.progresKategoriTotal;
   const dev = r.deviationPct;
-  const lokasi = `${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`;
-  const kontrak = h.contractSignedDate
-    ? `${h.contractNumber || "–"}, tgl. ${formatTanggal(h.contractSignedDate, "d MMMM yyyy")}`
-    : h.contractNumber || "–";
+  const logoPihak = [logo?.penyedia, logo?.konsultan, logo?.pemilik];
 
   const th = "border border-black px-1 py-0.5 text-center font-bold";
   const td = "border border-black px-1 py-0.5";
 
   return (
     <div className="mx-auto w-[1060px] text-[8.5px] leading-tight text-black">
-      <div className="text-center">
-        <div className="text-[13px] font-bold underline">LAPORAN PROGRES MINGGUAN</div>
-        <div className="text-[10px] font-bold">
-          MINGGU KE-{r.n}
-          {kata ? ` (${kata})` : ""}
-        </div>
-        <div className="text-[9px] font-semibold">
-          Periode tanggal {formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d{" "}
-          {formatTanggal(h.periodeEnd, "d MMMM yyyy")}
+      <div className="text-center text-[14px] font-bold">{kop.judul}</div>
+
+      <div className="mt-1 flex items-start gap-4">
+        <table className="flex-1 border-collapse text-[9px]">
+          <tbody>
+            {kop.identitas.map(([k, v]) => (
+              <tr key={k}>
+                <td className="w-[130px] py-px pr-2 align-top font-bold whitespace-nowrap">{k}</td>
+                <td className="w-3 py-px align-top">:</td>
+                <td className="py-px align-top font-semibold">{v}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="w-[380px] shrink-0 text-center">
+          <div className="text-[10px] font-bold">{kop.minggu}</div>
+          <div className="mt-1 border-b border-black pb-0.5 text-[10px] font-bold">{kop.periode}</div>
+          <div className="grid grid-cols-3">
+            {kop.pihak.map((p, i) => (
+              <div key={p} className="flex flex-col items-center">
+                <div className="text-[8.5px] font-bold">{p}</div>
+                <div className="flex h-[58px] items-center justify-center">
+                  {logoPihak[i] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPihak[i]!} alt={`Logo ${p.toLowerCase()}`} className="max-h-[54px] max-w-[110px] object-contain" />
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <table className="mt-2 border-collapse text-[8.5px]">
-        <tbody>
-          {[
-            ["Paket Pekerjaan", h.packageName],
-            ["Lokasi", lokasi],
-            ["Nilai Kontrak Fisik", formatRupiah(h.contractValue)],
-            ["Nilai Fisik Lokasi", formatRupiah(h.locationValue)],
-            ["No. dan Tanggal Kontrak", kontrak],
-            ["Kontraktor Pelaksana", h.vendorName],
-            ["Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–"],
-            ["Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`],
-          ].map(([k, v]) => (
-            <tr key={k}>
-              <td className="pr-2 font-semibold whitespace-nowrap">{k}</td>
-              <td>: {v}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
 
       <table className="mt-2 w-full border-collapse border border-black" style={{ tableLayout: "fixed" }}>
         <colgroup>
@@ -108,22 +118,34 @@ export function KkpProgresKategori({ r, ttd }: { r: PeriodReport; ttd?: TtdLapor
         <tbody>
           {r.progresKategori.map((b, i) => {
             const satu = b.tingkat === 1;
+            const kosong = b.judulSaja === true;
+            const sel = (isi: string) => <td className={`${td} text-right tabular-nums`}>{kosong ? "" : isi}</td>;
             return (
-              <tr key={i} className={satu ? "bg-slate-50 font-bold" : undefined}>
-                <td className={`${td} ${satu ? "text-center" : "pl-2"}`}>{b.code}</td>
-                <td className={`${td} ${satu ? "" : "pl-3"}`}>{b.name}</td>
-                <td className={`${td} text-right tabular-nums`}>{angka(b.nilai, 0)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.bobot)}</td>
-                <td className={`${td} text-right tabular-nums`}>{persen(b.progresLalu)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.bobotLalu)}</td>
-                <td className={`${td} text-right tabular-nums`}>{persen(b.progresIni)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.bobotIni)}</td>
-                <td className={`${td} text-right tabular-nums`}>{persen(b.progresSd)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.bobotSd)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.bobotRencana)}</td>
-                <td className={`${td} text-right tabular-nums`}>{persen(b.sisaProgres)}</td>
-                <td className={`${td} text-right tabular-nums`}>{bobot(b.sisaBobot)}</td>
-              </tr>
+              <Fragment key={i}>
+                {/* Baris jeda sebelum tiap kategori – seperti contoh Lampiran Termin. */}
+                {satu ? (
+                  <tr aria-hidden>
+                    {Array.from({ length: 13 }).map((_, c) => (
+                      <td key={c} className={`${td} h-3`} />
+                    ))}
+                  </tr>
+                ) : null}
+                <tr className={satu ? "bg-slate-50 font-bold" : undefined}>
+                  <td className={`${td} ${satu ? "text-center" : "pl-2"}`}>{b.code}</td>
+                  <td className={`${td} ${satu ? "" : "pl-3"}`}>{b.name}</td>
+                  {sel(angka(b.nilai, 0))}
+                  {sel(bobot(b.bobot))}
+                  {sel(persen(b.progresLalu))}
+                  {sel(bobot(b.bobotLalu))}
+                  {sel(persen(b.progresIni))}
+                  {sel(bobot(b.bobotIni))}
+                  {sel(persen(b.progresSd))}
+                  {sel(bobot(b.bobotSd))}
+                  {sel(bobot(b.bobotRencana))}
+                  {sel(persen(b.sisaProgres))}
+                  {sel(bobot(b.sisaBobot))}
+                </tr>
+              </Fragment>
             );
           })}
           <tr className="bg-slate-100 font-bold">

@@ -23,25 +23,32 @@ const plusDays = (key: string, n: number) => new Date(d(key).getTime() + n * DAY
 let locationId = "";
 
 /*
- * I   PERSIAPAN                       – item langsung, tanpa sub
+ * Bentuk RAB sungguhan (data Kedung Mutih): sub-kategori berjenis `sub`
+ * (III.1, V.1, …), kelompok item bernomor berjenis `grup`.
+ *
+ * I   PERSIAPAN                       – item langsung + grup "6 SMK3K" (BUKAN sub-kategori)
  * III TAMBATAN PERAHU
- *     III.1 Perancah (grup)          – 2 item
+ *     III.1 Perancah (sub)           – 2 item
  *     III.2 Struktur (sub)
- *           III.2.a Beton (grup)     – 1 item, satu tingkat lebih dalam
- *     (item langsung di bawah III)   – "Pekerjaan lain di kategori ini"
+ *           a Beton (grup)           – 1 item, satu tingkat lebih dalam
+ *     III.3 Deep Well (sub)          – tanpa item (rinciannya di sub saudara) → judul saja
+ *     (item langsung di bawah III)   – ikut baris III saja, tanpa baris sendiri
  */
 type Simpul = { key: string; kind: "kategori" | "sub" | "grup" | "item"; code: string; name: string; parent?: string; vol?: number; price?: number };
 const POHON: Simpul[] = [
   { key: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN" },
   { key: "I#1", kind: "item", code: "1", name: "Mobilisasi", parent: "I", vol: 1, price: 30_000_000 },
   { key: "I#2", kind: "item", code: "2", name: "Direksi keet", parent: "I", vol: 20, price: 1_250_000 },
+  { key: "I#6", kind: "grup", code: "6", name: "Pekerjaan Pengadaan SMK3K", parent: "I" },
+  { key: "I#6#1", kind: "item", code: "1", name: "APD", parent: "I#6", vol: 10, price: 500_000 },
   { key: "III", kind: "kategori", code: "III", name: "PEKERJAAN TAMBATAN PERAHU" },
-  { key: "III#1", kind: "grup", code: "III.1.", name: "Pekerjaan Perancah Dan Bongkaran", parent: "III" },
+  { key: "III#1", kind: "sub", code: "III.1.", name: "Pekerjaan Perancah Dan Bongkaran", parent: "III" },
   { key: "III#1#1", kind: "item", code: "1", name: "Perancah", parent: "III#1", vol: 100, price: 150_000 },
   { key: "III#1#2", kind: "item", code: "2", name: "Bongkaran", parent: "III#1", vol: 40, price: 90_000 },
   { key: "III#2", kind: "sub", code: "III.2.", name: "Pekerjaan Struktur", parent: "III" },
   { key: "III#2#a", kind: "grup", code: "a", name: "Beton", parent: "III#2" },
   { key: "III#2#a#1", kind: "item", code: "1", name: "Beton K-300", parent: "III#2#a", vol: 50, price: 1_400_000 },
+  { key: "III#3", kind: "sub", code: "III.3.", name: "Pekerjaan Deep Well", parent: "III" },
   { key: "III#9", kind: "item", code: "9", name: "Uji beton", parent: "III", vol: 4, price: 2_500_000 },
 ];
 const amt = (s: Simpul) => BigInt((s.vol ?? 0) * (s.price ?? 0));
@@ -118,26 +125,29 @@ afterAll(async () => {
 const dekat = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-9);
 
 describe("halaman progres per kategori & sub-kategori", () => {
-  it("baris: kategori lalu sub-kategorinya; kategori tanpa sub tidak diberi sub", async () => {
+  it("baris: kategori lalu sub-kategori berjenis `sub` saja – grup bernomor dan item langsung tidak diberi baris", async () => {
     const r = (await getPeriodReport(locationId, "mingguan", 2))!;
     expect(r.progresKategori.map((b) => [b.tingkat, b.code, b.name])).toEqual([
       [1, "I", "PEKERJAAN PERSIAPAN"],
       [1, "III", "PEKERJAAN TAMBATAN PERAHU"],
       [2, "III.1.", "Pekerjaan Perancah Dan Bongkaran"],
       [2, "III.2.", "Pekerjaan Struktur"],
-      [2, "", "Pekerjaan lain di kategori ini"],
+      [2, "III.3.", "Pekerjaan Deep Well"],
     ]);
+    // Sub tanpa item = judul saja (angka kosong di contoh), bukan "sisa 100%".
+    expect(r.progresKategori.map((b) => b.judulSaja ?? false)).toEqual([false, false, false, false, true]);
     expect(r.header.contractSignedDate?.toISOString().slice(0, 10)).toBe("2025-12-20");
   });
 
-  it("item yang lebih dalam masuk ke sub-kategori tingkat 2-nya; sub-kategori menjumlah ke kategorinya", async () => {
+  it("item yang lebih dalam masuk ke sub-kategori tingkat 2-nya; item di luar sub tetap terhitung di kategorinya", async () => {
     const r = (await getPeriodReport(locationId, "mingguan", 2))!;
-    const [, iii, s1, s2, lain] = r.progresKategori;
+    const [i, iii, s1, s2] = r.progresKategori;
+    expect(s1.nilai).toBe(Number(totalDi("III#1")));
     expect(s2.nilai).toBe(Number(totalDi("III#2")));
-    expect(lain.nilai).toBe(Number(totalDi("III#9")));
-    for (const k of ["nilai", "bobot", "bobotLalu", "bobotIni", "bobotSd", "bobotRencana"] as const) {
-      dekat(s1[k] + s2[k] + lain[k], iii[k]);
-    }
+    expect(iii.nilai).toBe(Number(totalDi("III")));
+    expect(i.nilai).toBe(Number(totalDi("I")));
+    // Item langsung di bawah III ("Uji beton") ada di baris III, tidak di sub mana pun.
+    dekat(iii.nilai - s1.nilai - s2.nilai, Number(totalDi("III#9")));
   });
 
   it("JUMLAH = Σ kategori = angka blanko rincian; progres = bobot terealisasi ÷ bobot kelompok", async () => {

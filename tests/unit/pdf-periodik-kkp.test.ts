@@ -1,3 +1,4 @@
+import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
 import { ringkasKelompok } from "@/lib/progress-calc";
@@ -186,5 +187,86 @@ describe("PDF laporan mingguan: halaman progres per kategori (DECISIONS 670)", (
     const mingguan = await buildPeriodikKkpPdf(isi("mingguan"), "MARLIN");
     const bulanan = await buildPeriodikKkpPdf(isi("bulanan"), "MARLIN");
     expect(pages(mingguan)).toBe(pages(bulanan) + 1);
+  });
+});
+
+/*
+ * PDF yang "berantakan mulai halaman 19" (laporan user 2026-10-12): blok tanda
+ * tangan meminta halaman baru tapi tetap digambar di posisi lama (dasar halaman
+ * sebelumnya), lalu meluber – pdfkit menambah halaman berisi sepotong tanda
+ * tangan atau catatan kaki saja. Uji ini menggeser panjang tabel supaya tanda
+ * tangan jatuh di berbagai posisi dekat batas bawah, lalu memeriksa tidak ada
+ * halaman yang isinya cuma sisa luberan.
+ */
+describe("PDF periodik: tidak ada halaman luberan", () => {
+  const isiHalaman = (buf: Buffer): number[] => {
+    const teks = buf.toString("latin1");
+    const objek = new Map<number, { kamus: string; awal: number }>();
+    for (const m of teks.matchAll(/(\d+) 0 obj\s*<<([\s\S]*?)>>\s*(stream\r?\n)?/g)) {
+      objek.set(Number(m[1]), { kamus: m[2], awal: m[3] ? (m.index ?? 0) + m[0].length : -1 });
+    }
+    const panjang: number[] = [];
+    for (const { kamus } of objek.values()) {
+      if (!/\/Type\s*\/Page[^s]/.test(kamus)) continue;
+      const ref = /\/Contents\s+(\d+)\s+0\s+R/.exec(kamus);
+      const isi = ref ? objek.get(Number(ref[1])) : undefined;
+      if (!isi || isi.awal < 0) {
+        panjang.push(0);
+        continue;
+      }
+      const akhir = teks.indexOf("endstream", isi.awal);
+      const mentah = buf.subarray(isi.awal, akhir);
+      let n = mentah.length;
+      try {
+        n = inflateSync(mentah).length;
+      } catch {
+        // tidak terkompresi
+      }
+      panjang.push(n);
+    }
+    return panjang;
+  };
+
+  it("tanda tangan pindah utuh ke halaman berikut – tidak ada halaman berisi sisa saja", { timeout: 120_000 }, async () => {
+    const { buildPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const kosong: number[] = [];
+    for (let n = 4; n <= 46; n += 3) {
+      const r = fixture("mingguan");
+      r.categories[3].rows = Array.from({ length: n }, (_, i) => item(1000 + i, `Butir tambahan ${i + 1}`));
+      const buf = await buildPeriodikKkpPdf(r, "MARLIN");
+      // Halaman sah selalu memuat tabel/kop (ribuan byte perintah gambar);
+      // luberan cuma catatan kaki atau satu-dua baris teks.
+      if (isiHalaman(buf).some((b) => b < 1500)) kosong.push(n);
+    }
+    expect(kosong, "panjang tabel yang menghasilkan halaman luberan").toEqual([]);
+  });
+});
+
+/*
+ * Kop halaman progres mingguan memasang TIGA logo (PENYEDIA JASA · KONSULTAN
+ * PENGAWAS · PEMBERI TUGAS) seperti contoh Lampiran Termin (DECISIONS 671).
+ * Logo yang dikirim sebagai Buffer pernah hilang diam-diam: pdfkit membacanya
+ * sebagai nama berkas, melempar, dan `catch` menelannya.
+ */
+describe("PDF laporan mingguan: tiga logo di kop halaman progres", () => {
+  it("logo penyedia, konsultan, dan pemberi tugas benar-benar tergambar", { timeout: 30_000 }, async () => {
+    const sharp = (await import("sharp")).default;
+    const logo = async (w: number, h: number, warna: string) => ({
+      buffer: await sharp({ create: { width: w, height: h, channels: 3, background: warna } }).png().toBuffer(),
+      width: w,
+      height: h,
+    });
+    const { buildPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const r = fixture("mingguan");
+    r.progresKategori = r.categories.map((c) => ({ tingkat: 1 as const, code: c.code, name: c.name, ...ringkasKelompok(c.rows) }));
+    r.progresKategoriTotal = ringkasKelompok(r.categories.flatMap((c) => c.rows));
+    const gambar = (buf: Buffer) => buf.toString("latin1").match(/\/Subtype\s*\/Image/g)?.length ?? 0;
+    const tanpa = await buildPeriodikKkpPdf(r, "MARLIN", null, null);
+    const dengan = await buildPeriodikKkpPdf(r, "MARLIN", null, {
+      kontraktor: await logo(240, 110, "#1d4ed8"),
+      konsultan: await logo(120, 140, "#0ea5e9"),
+      pemilik: await logo(150, 150, "#f59e0b"),
+    });
+    expect(gambar(dengan) - gambar(tanpa)).toBe(3);
   });
 });
