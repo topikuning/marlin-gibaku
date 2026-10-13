@@ -4,10 +4,11 @@ import { getBranding } from "@/lib/branding";
 import { getPeriodBounds, getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
-import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
+import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
+import { muatLogoLaporan, type LogoLaporan } from "@/lib/export/logo-laporan";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
-import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
+import { GRID_HEAD_BG, GRID_LINE, colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
@@ -42,6 +43,8 @@ export async function buildPeriodikKkpPdf(
   appName: string,
   /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
   gambarTtd?: TtdPdf | null,
+  /** Logo kop halaman progres mingguan (DECISIONS 671); null = kotak tanpa logo. */
+  logo?: LogoLaporan | null,
 ): Promise<Buffer> {
   const kindLabel = r.kind === "mingguan" ? "MINGGU" : "BULAN";
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -54,6 +57,7 @@ export async function buildPeriodikKkpPdf(
     // laporannya, bukan penanda tangan dokumen jadwal (DECISIONS 403).
     jenis: r.kind,
     rincian: true,
+    logo: logo ?? null,
   });
 }
 
@@ -104,6 +108,7 @@ async function susunPdfPeriodik(
     jenis: JenisDokumen;
     /** false = lembar kurva saja (dokumen jadwal). */
     rincian: boolean;
+    logo?: LogoLaporan | null;
   },
 ): Promise<Buffer> {
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -206,7 +211,7 @@ async function susunPdfPeriodik(
   const kurvaFont = N > 26 ? 4.6 : N > 18 ? 5.2 : 6;
   const weekWeight = 1;
   const kurvaCols = colWidths(width, [0.6, 4.2, 0.9, ...Array.from({ length: N }, () => weekWeight), 0.9]);
-  const kurvaOpt: GridOptions = { x, width, cols: kurvaCols, fontSize: kurvaFont };
+  let kurvaOpt: GridOptions = { x, width, cols: kurvaCols, fontSize: kurvaFont };
 
   // Header 2 baris: kelompok bulan (span) + M1..MN.
   const monthCells: GridCell[] = [
@@ -234,23 +239,14 @@ async function susunPdfPeriodik(
     y = gridRow(doc, y, monthCells, kurvaOpt);
     y = gridRow(doc, y, weekCells, kurvaOpt);
   };
-  kurvaHead();
 
-  // Baris kategori — sekaligus catat rentang vertikal untuk overlay kurva.
-  const plotTop = y;
-  for (const c of sheet.categories) {
-    const cells: GridCell[] = [
-      { text: c.code, align: "center" },
-      { text: c.name, bold: true },
-      { text: p2(c.bobotShown), align: "center" },
-      ...c.weeklyShown.map((v): GridCell => ({ text: v > 0 ? f3.format(v) : "", align: "right" })),
-      { text: "", align: "center" },
-    ];
-    fit(gridRowHeight(doc, cells, kurvaOpt), kurvaHead);
-    y = gridRow(doc, y, cells, kurvaOpt);
-  }
-  const plotBottom = y;
-
+  const barisKategori = sheet.categories.map((c): GridCell[] => [
+    { text: c.code, align: "center" },
+    { text: c.name, bold: true },
+    { text: p2(c.bobotShown), align: "center" },
+    ...c.weeklyShown.map((v): GridCell => ({ text: v > 0 ? f3.format(v) : "", align: "right" })),
+    { text: "", align: "center" },
+  ]);
   // Baris prestasi (rencana/realisasi kumulatif + deviasi).
   const prestasiRows: [string, (number | null)[], boolean][] = [
     ["Rencana Prestasi %", sheet.rencanaPerWeek, false],
@@ -259,15 +255,41 @@ async function susunPdfPeriodik(
     ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
     ["Deviasi +/-", sheet.deviasi, true],
   ];
-  for (const [label, arr, bold] of prestasiRows) {
-    const cells: GridCell[] = [
-      { text: label, span: 2, align: "right", bold },
-      { text: label.startsWith("Kumulatif Rencana") ? p2(sheet.totalBobotShown) : "", align: "center", bold },
-      // Tanpa akhiran "%" — label barisnya sudah menyebut %, dan sufiks itu
-      // membuat "100,00%" terbungkus dua baris di kolom minggu yang sempit.
-      ...arr.map((v): GridCell => ({ text: v == null ? "" : f2.format(v), align: "right", bold })),
-      { text: "", align: "center" },
-    ];
+  const barisPrestasi = prestasiRows.map(([label, arr, bold]): GridCell[] => [
+    { text: label, span: 2, align: "right", bold },
+    { text: label.startsWith("Kumulatif Rencana") ? p2(sheet.totalBobotShown) : "", align: "center", bold },
+    // Tanpa akhiran "%" — label barisnya sudah menyebut %, dan sufiks itu
+    // membuat "100,00%" terbungkus dua baris di kolom minggu yang sempit.
+    ...arr.map((v): GridCell => ({ text: v == null ? "" : f2.format(v), align: "right", bold })),
+    { text: "", align: "center" },
+  ]);
+  /*
+   * Lembar kurva + tanda tangannya SATU halaman, seperti blanko KKP. RAB
+   * dengan banyak kategori (17+) dulu mendorong tanda tangan ke halaman 2
+   * sendirian; kini baris dirapatkan bertahap sampai muat. Kalau tetap tidak
+   * muat (puluhan kategori), tabel mengalir ke halaman berikut seperti biasa.
+   */
+  const TINGGI_TTD = 8 + 100;
+  const tinggiLembar = (o: GridOptions) =>
+    [monthCells, weekCells, ...barisKategori, ...barisPrestasi].reduce((t, c) => t + gridRowHeight(doc, c, o), 0);
+  for (const rapat of [
+    { padY: 1.5, minRowHeight: 10 },
+    { padY: 1, minRowHeight: 8, fontSize: kurvaFont - 0.6 },
+  ]) {
+    if (y + tinggiLembar(kurvaOpt) + TINGGI_TTD <= bottom) break;
+    kurvaOpt = { ...kurvaOpt, ...rapat };
+  }
+  kurvaHead();
+
+  // Baris kategori — sekaligus catat rentang vertikal untuk overlay kurva.
+  const plotTop = y;
+  for (const cells of barisKategori) {
+    fit(gridRowHeight(doc, cells, kurvaOpt), kurvaHead);
+    y = gridRow(doc, y, cells, kurvaOpt);
+  }
+  const plotBottom = y;
+
+  for (const cells of barisPrestasi) {
     fit(gridRowHeight(doc, cells, kurvaOpt));
     y = gridRow(doc, y, cells, kurvaOpt);
   }
@@ -292,7 +314,7 @@ async function susunPdfPeriodik(
   });
 
   y += 8;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: opsi.jenis });
+  signatureBlock(doc, { x, width, getY: () => y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: opsi.jenis });
 
   if (!opsi.rincian) {
     catatanKaki(doc, appName, width);
@@ -302,32 +324,56 @@ async function susunPdfPeriodik(
   /* ═════ LAPORAN PROGRES MINGGUAN per kategori (DECISIONS 670) ══════════ */
   if (r.kind === "mingguan") {
     newPage();
-    const kata = terbilang(r.n);
-    centerText("LAPORAN PROGRES MINGGUAN", 12, true);
-    centerText(`MINGGU KE-${r.n}${kata ? ` (${kata})` : ""}`, 9, true);
-    centerText(
-      `Periode tanggal ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
-      8,
-      false,
-      6,
-    );
-    const kontrak = h.contractSignedDate
-      ? `${h.contractNumber || "–"}, tgl. ${formatTanggal(h.contractSignedDate, "d MMMM yyyy")}`
-      : h.contractNumber || "–";
-    for (const [k1, v1, k2, v2] of [
-      ["Paket Pekerjaan", h.packageName, "Kontraktor Pelaksana", h.vendorName],
-      [
-        "Lokasi",
-        `${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
-        "Konsultan Pengawas",
-        h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–",
-      ],
-      ["Nilai Kontrak Fisik", rupiah(Number(h.contractValue)), "Nilai Fisik Lokasi", rupiah(Number(h.locationValue))],
-      ["No. dan Tanggal Kontrak", kontrak, "Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`],
-    ] as [string, string, string, string][]) {
-      draw([{ text: k1, head: true }, { text: v1 }, { text: k2, head: true }, { text: v2 }], identOpt);
+    // Kop sama dengan web & Excel – teksnya dari `kopProgresMingguan`
+    // (DECISIONS 671): identitas di kiri, minggu/periode + tiga logo di kanan.
+    const kop = kopProgresMingguan(h, r.n);
+    centerText(kop.judul, 13, true, 5);
+    const yKop = y;
+    const lebarKiri = width * 0.6;
+    const kolLabel = 108;
+    const kolTitik = 9;
+    const lebarNilai = lebarKiri - kolLabel - kolTitik;
+    let yKiri = yKop;
+    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
+    for (const [k, v] of kop.identitas) {
+      const tinggi = doc.heightOfString(v, { width: lebarNilai });
+      doc.text(k, x, yKiri, { width: kolLabel, lineBreak: false });
+      doc.text(":", x + kolLabel, yKiri, { width: kolTitik, lineBreak: false });
+      doc.text(v, x + kolLabel + kolTitik, yKiri, { width: lebarNilai });
+      yKiri += Math.max(10, tinggi + 1.5);
     }
-    y += 6;
+    const xKanan = x + width * 0.63;
+    const lebarKanan = width - width * 0.63;
+    let yKanan = yKop;
+    doc.font(PDF_FONT.bold).fontSize(9);
+    doc.text(kop.minggu, xKanan, yKanan, { width: lebarKanan, align: "center", lineBreak: false });
+    yKanan += 13;
+    doc.text(kop.periode, xKanan, yKanan, { width: lebarKanan, align: "center", lineBreak: false });
+    yKanan += 12;
+    doc.save().moveTo(xKanan, yKanan).lineTo(xKanan + lebarKanan, yKanan).lineWidth(0.6).strokeColor(PDF_COLORS.ink).stroke().restore();
+    yKanan += 2;
+    const lebarPihak = lebarKanan / 3;
+    const TINGGI_LOGO = 44;
+    const gambarPihak = [opsi.logo?.kontraktor, opsi.logo?.konsultan, opsi.logo?.pemilik];
+    kop.pihak.forEach((pihak, i) => {
+      const xp = xKanan + i * lebarPihak;
+      doc.font(PDF_FONT.bold).fontSize(7).fillColor(PDF_COLORS.ink);
+      doc.text(pihak, xp, yKanan, { width: lebarPihak, align: "center", lineBreak: false });
+      const g = gambarPihak[i];
+      if (!g) return;
+      const skala = Math.min(TINGGI_LOGO / g.height, (lebarPihak - 12) / g.width);
+      const [w, t] = [g.width * skala, g.height * skala];
+      // ArrayBuffer, bukan Buffer: pdfkit membaca Buffer dari realm lain
+      // sebagai NAMA BERKAS (pola yang sama di `ttd-gambar.ts`).
+      const ab = g.buffer.buffer.slice(g.buffer.byteOffset, g.buffer.byteOffset + g.buffer.byteLength) as ArrayBuffer;
+      try {
+        doc.image(ab, xp + (lebarPihak - w) / 2, yKanan + 10 + (TINGGI_LOGO - t) / 2, { width: w, height: t });
+      } catch {
+        // Logo rusak = kotak tanpa logo, bukan PDF yang gagal terbit.
+      }
+    });
+    yKanan += 10 + TINGGI_LOGO + 4;
+    y = Math.max(yKiri, yKanan) + 6;
 
     const prog: GridOptions = {
       x,
@@ -335,49 +381,43 @@ async function susunPdfPeriodik(
       cols: colWidths(width, [0.55, 4.3, 1.45, 0.75, 0.8, 0.75, 0.8, 0.75, 0.8, 0.75, 0.85, 0.8, 0.75]),
       fontSize: 6.6,
     };
+    /*
+     * Kepala tabel 3 baris dengan sel TERGABUNG (NO, JENIS PEKERJAAN, … setinggi
+     * tiga baris) seperti contoh – `gridRow` tidak mengenal rowspan, jadi
+     * kotaknya digambar langsung.
+     */
+    const xKol = prog.cols.reduce<number[]>((acc, w) => [...acc, acc[acc.length - 1] + w], [x]);
+    const TINGGI_KEPALA = [14, 12, 12];
+    const kepala: [number, number, number, number, string][] = [
+      [0, 0, 0, 2, "NO"],
+      [1, 1, 0, 2, "JENIS PEKERJAAN"],
+      [2, 2, 0, 2, "NILAI PEKERJAAN (Rp)"],
+      [3, 3, 0, 2, "BOBOT (%)"],
+      [4, 9, 0, 0, "REALISASI PEKERJAAN"],
+      [4, 5, 1, 1, "MINGGU LALU"],
+      [6, 7, 1, 1, "MINGGU INI"],
+      [8, 9, 1, 1, "s/d MINGGU INI"],
+      ...[4, 6, 8].flatMap((c): [number, number, number, number, string][] => [
+        [c, c, 2, 2, "PROGRES"],
+        [c + 1, c + 1, 2, 2, "BOBOT"],
+      ]),
+      [10, 10, 0, 2, "BOBOT RENCANA s/d MINGGU INI"],
+      [11, 12, 0, 0, "SISA PEKERJAAN"],
+      [11, 12, 1, 1, "s/d MINGGU INI"],
+      [11, 11, 2, 2, "PROGRES"],
+      [12, 12, 2, 2, "BOBOT"],
+    ];
     const progHead = () => {
-      y = gridRow(
-        doc,
-        y,
-        [
-          { text: "NO", head: true, align: "center" },
-          { text: "JENIS PEKERJAAN", head: true, align: "center" },
-          { text: "NILAI PEKERJAAN (Rp)", head: true, align: "center" },
-          { text: "BOBOT (%)", head: true, align: "center" },
-          { text: "REALISASI PEKERJAAN", head: true, align: "center", span: 6 },
-          { text: "BOBOT RENCANA", head: true, align: "center" },
-          { text: "SISA PEKERJAAN", head: true, align: "center", span: 2 },
-        ],
-        prog,
-      );
-      y = gridRow(
-        doc,
-        y,
-        [
-          { text: "", head: true, span: 4 },
-          { text: "MINGGU LALU", head: true, align: "center", span: 2 },
-          { text: "MINGGU INI", head: true, align: "center", span: 2 },
-          { text: "s/d MINGGU INI", head: true, align: "center", span: 2 },
-          { text: "s/d MINGGU INI", head: true, align: "center" },
-          { text: "s/d MINGGU INI", head: true, align: "center", span: 2 },
-        ],
-        prog,
-      );
-      y = gridRow(
-        doc,
-        y,
-        [
-          { text: "", head: true, span: 4 },
-          ...[0, 1, 2].flatMap((): GridCell[] => [
-            { text: "PROGRES", head: true, align: "center" },
-            { text: "BOBOT", head: true, align: "center" },
-          ]),
-          { text: "BOBOT", head: true, align: "center" },
-          { text: "PROGRES", head: true, align: "center" },
-          { text: "BOBOT", head: true, align: "center" },
-        ],
-        prog,
-      );
+      const yBaris = TINGGI_KEPALA.reduce<number[]>((acc, t) => [...acc, acc[acc.length - 1] + t], [y]);
+      doc.font(PDF_FONT.bold).fontSize(prog.fontSize ?? 6.6);
+      for (const [c0, c1, r0, r1, teks] of kepala) {
+        const [kx, ky, kw, kt] = [xKol[c0], yBaris[r0], xKol[c1 + 1] - xKol[c0], yBaris[r1 + 1] - yBaris[r0]];
+        doc.rect(kx, ky, kw, kt).fill(GRID_HEAD_BG);
+        doc.rect(kx, ky, kw, kt).lineWidth(0.5).strokeColor(GRID_LINE).stroke();
+        const tinggiTeks = doc.heightOfString(teks, { width: kw - 4 });
+        doc.fillColor(PDF_COLORS.inkMuted).text(teks, kx + 2, ky + (kt - tinggiTeks) / 2, { width: kw - 4, align: "center" });
+      }
+      y = yBaris[yBaris.length - 1];
     };
     progHead();
     const b3 = (v: number) => (Math.abs(v) < 0.0005 ? "–" : f3.format(v));
@@ -400,14 +440,20 @@ async function susunPdfPeriodik(
       { text: pr(b.sisaProgres), align: "right", bold },
       { text: bb(b.sisaBobot), align: "right", bold },
     ];
+    const jeda: GridCell[] = Array.from({ length: 13 }, () => ({ text: "" }));
     for (const b of r.progresKategori) {
       const satu = b.tingkat === 1;
+      // Baris jeda sebelum tiap kategori – seperti contoh Lampiran Termin.
+      const angka = angkaBaris(b, satu).map((c) => ({ ...c, text: b.judulSaja ? "" : c.text }));
       const cells: GridCell[] = [
         { text: b.code, align: satu ? "center" : "left", bold: satu, bg: satu ? PDF_COLORS.primary50 : undefined },
         { text: satu ? b.name : `   ${b.name}`, bold: satu, bg: satu ? PDF_COLORS.primary50 : undefined },
-        ...angkaBaris(b, satu).map((c) => ({ ...c, bg: satu ? PDF_COLORS.primary50 : undefined })),
+        ...angka.map((c) => ({ ...c, bg: satu ? PDF_COLORS.primary50 : undefined })),
       ];
-      fit(gridRowHeight(doc, cells, prog), progHead);
+      // Jeda + baris kategori tidak dipisah halaman (jeda yatim di dasar halaman).
+      const tinggiJeda = satu ? gridRowHeight(doc, jeda, prog) : 0;
+      fit(tinggiJeda + gridRowHeight(doc, cells, prog), progHead);
+      if (satu) y = gridRow(doc, y, jeda, prog);
       y = gridRow(doc, y, cells, prog);
     }
     const tot: GridCell[] = [
@@ -426,23 +472,22 @@ async function susunPdfPeriodik(
     };
     fit(4 * 13);
     const dev = r.deviationPct;
+    // Tanpa bingkai – sama dengan contoh, web, dan Excel.
+    const [wLabel, wNilai] = ringkas.cols;
+    doc.font(PDF_FONT.bold).fontSize(ringkas.fontSize ?? 7.5).fillColor(PDF_COLORS.ink);
     for (const [k, v, ket] of [
       ["BOBOT REALISASI MINGGU INI", `${f3.format(r.totals.bobotIni)} %`, ""],
       ["BOBOT REALISASI s/d MINGGU INI", `${f3.format(r.totals.bobotSd)} %`, ""],
       ["BOBOT RENCANA s/d MINGGU INI", `${f3.format(r.planPct)} %`, ""],
       ["DEVIASI (+/-)", `${dev > 0.005 ? "+" : ""}${f3.format(dev)} %`, `( ${keteranganDeviasi(dev)} )`],
     ] as [string, string, string][]) {
-      draw(
-        [
-          { text: k, align: "right", bold: true },
-          { text: v, align: "right", bold: true },
-          { text: ket, bold: true },
-        ],
-        ringkas,
-      );
+      doc.text(k, ringkas.x, y, { width: wLabel - 4, align: "right", lineBreak: false });
+      doc.text(v, ringkas.x + wLabel, y, { width: wNilai - 4, align: "right", lineBreak: false });
+      if (ket) doc.text(ket, ringkas.x + wLabel + wNilai + 4, y, { width: ringkas.cols[2] - 4, lineBreak: false, oblique: true });
+      y += 11;
     }
     y += 8;
-    signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
+    signatureBlock(doc, { x, width, getY: () => y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
   }
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */
@@ -677,7 +722,7 @@ async function susunPdfPeriodik(
   }
 
   y += 10;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
+  signatureBlock(doc, { x, width, getY: () => y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
   catatanKaki(doc, appName, width);
   return docToBuffer(doc);
@@ -718,7 +763,13 @@ function signatureBlock(
   o: {
     x: number;
     width: number;
-    y: number;
+    /**
+     * Posisi saat ini – DIBACA SESUDAH `fit`. Dulu `y` dikirim sebagai angka:
+     * bila `fit` membuka halaman baru, blok tetap digambar di dasar halaman
+     * lama, meluber, dan pdfkit menambah halaman berisi sepotong tanda tangan
+     * (laporan user 2026-10-12, "halaman 19 ke atas berantakan").
+     */
+    getY: () => number;
     h: PeriodReport["header"];
     fit: (need: number) => void;
     setY: (v: number) => void;
@@ -738,7 +789,24 @@ function signatureBlock(
     `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
   // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
   const tt = penandatanganDokumen(o.jenis, o.h);
-  o.fit(90);
+  const sel: GridCell[] = [
+    {
+      text: `MENGETAHUI :\n${peranSlot(tt.kkp, true)}${nameOf(tt.kkp.nama, tt.kkp.sub)}`,
+      align: "center",
+    },
+    {
+      text: `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}${nameOf(tt.konsultan.nama, tt.konsultan.sub)}`,
+      align: "center",
+    },
+    {
+      text: `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}${nameOf(tt.penyedia.nama, tt.penyedia.sub)}`,
+      align: "center",
+    },
+  ];
+  // Tinggi DIUKUR (peran/firma bisa terbungkus dua baris), lalu posisi dibaca
+  // ulang: `fit` mungkin baru saja membuka halaman.
+  o.fit(gridRowHeight(doc, sel, opt));
+  const yAtas = o.getY();
   /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
      atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
      itulah lapisannya. Urutan kolomnya tetap: PPK · pengawas · penyedia — sama
@@ -756,32 +824,13 @@ function signatureBlock(
           berkas: o.gambarTtd![pihak],
           opsi: {
             xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
-            yDasar: o.y + RUANG_TTD,
+            yDasar: yAtas + RUANG_TTD,
             lebarKolom: lebarKolomTtd,
             ruangDiAtasNama: RUANG_TTD,
           },
         }))
       : [],
-    () =>
-      gridRow(
-        doc,
-        o.y,
-        [
-          {
-            text: `MENGETAHUI :\n${peranSlot(tt.kkp, true)}${nameOf(tt.kkp.nama, tt.kkp.sub)}`,
-            align: "center",
-          },
-          {
-            text: `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}${nameOf(tt.konsultan.nama, tt.konsultan.sub)}`,
-            align: "center",
-          },
-          {
-            text: `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}${nameOf(tt.penyedia.nama, tt.penyedia.sub)}`,
-            align: "center",
-          },
-        ],
-        opt,
-      ),
+    () => gridRow(doc, yAtas, sel, opt),
   );
 
   o.setY(y);
@@ -867,8 +916,11 @@ export async function renderPeriodikKkpPdf(
   if (!report) return null;
   // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
   // bukan PDF yang gagal terbit.
-  const gambarTtd = await muatTtdPdf(locationId, kind).catch(() => TANPA_TTD_PDF);
-  return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd) };
+  const [gambarTtd, logo] = await Promise.all([
+    muatTtdPdf(locationId, kind).catch(() => TANPA_TTD_PDF),
+    kind === "mingguan" ? muatLogoLaporan(locationId) : Promise.resolve(null),
+  ]);
+  return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd, logo) };
 }
 
 /**

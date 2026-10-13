@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { isR2Configured } from "@/lib/r2";
-import { ambilBerkas } from "@/lib/penyimpanan/berkas";
+import { alamatBerkas, ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 /**
  * LOGO KOP LAPORAN — pemilik pekerjaan (KKP) & kontraktor pelaksana.
@@ -37,9 +37,15 @@ export type LogoLaporan = {
   pemilik: LogoGambar | null;
   /** Kontraktor pelaksana (kanan kop). */
   kontraktor: LogoGambar | null;
+  /**
+   * Konsultan pengawas (`Contract.supervisorLogoKey`) – kotak tengah kop
+   * "LAPORAN PROGRES MINGGUAN" (DECISIONS 671). Opsional supaya pemakai lama
+   * yang hanya memasang dua logo tidak berubah.
+   */
+  konsultan?: LogoGambar | null;
 };
 
-export const TANPA_LOGO: LogoLaporan = { pemilik: null, kontraktor: null };
+export const TANPA_LOGO: LogoLaporan = { pemilik: null, kontraktor: null, konsultan: null };
 
 /** Sisi terpanjang hasil normalisasi — cukup tajam untuk cetak, tetap ringan. */
 const SISI_MAKS = 320;
@@ -66,16 +72,57 @@ export async function muatLogoLaporan(locationId: string): Promise<LogoLaporan> 
       getBranding(),
       db.location.findUnique({
         where: { id: locationId },
-        select: { package: { select: { contract: { select: { vendor: { select: { logoKey: true } } } } } } },
+        select: {
+          package: {
+            select: { contract: { select: { supervisorLogoKey: true, vendor: { select: { logoKey: true } } } } },
+          },
+        },
       }),
     ]);
-    const [pemilik, kontraktor] = await Promise.all([
+    const [pemilik, kontraktor, konsultan] = await Promise.all([
       muatSatu(branding.ownerLogoKey, "pemilik pekerjaan"),
       muatSatu(loc?.package.contract?.vendor?.logoKey, "kontraktor"),
+      muatSatu(loc?.package.contract?.supervisorLogoKey, "konsultan pengawas"),
     ]);
-    return { pemilik, kontraktor };
+    return { pemilik, kontraktor, konsultan };
   } catch (err) {
     console.error("[export] pasangan logo kop gagal dimuat:", err);
     return TANPA_LOGO;
+  }
+}
+
+/** Alamat tiga logo kop untuk layar (presign singkat). Tidak pernah melempar. */
+export type AlamatLogoLaporan = { pemilik: string | null; konsultan: string | null; penyedia: string | null };
+
+export async function alamatLogoLaporan(locationId: string): Promise<AlamatLogoLaporan> {
+  const alamat = async (key: string | null | undefined) => {
+    if (!key) return null;
+    try {
+      return await alamatBerkas(key, 600);
+    } catch {
+      return null;
+    }
+  };
+  try {
+    const [branding, loc] = await Promise.all([
+      getBranding(),
+      db.location.findUnique({
+        where: { id: locationId },
+        select: {
+          package: {
+            select: { contract: { select: { supervisorLogoKey: true, vendor: { select: { logoKey: true } } } } },
+          },
+        },
+      }),
+    ]);
+    const c = loc?.package.contract;
+    const [pemilik, konsultan, penyedia] = await Promise.all([
+      alamat(branding.ownerLogoKey),
+      alamat(c?.supervisorLogoKey),
+      alamat(c?.vendor?.logoKey),
+    ]);
+    return { pemilik, konsultan, penyedia };
+  } catch {
+    return { pemilik: null, konsultan: null, penyedia: null };
   }
 }

@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 671 | 2026-10-12 | Koreksi 670: sub-kategori hanya node `sub` (tanpa baris "pekerjaan lain"), halaman tampil di layar Laporan, kop satu sumber di web/PDF/Excel + logo penyedia·konsultan·pemberi tugas; tanda tangan PDF tidak meluber |
 | 670 | 2026-10-12 | Laporan mingguan: halaman baru "LAPORAN PROGRES MINGGUAN" per kategori & sub-kategori (format Lampiran Termin) di cetak, PDF, dan Excel; angka dari baris rincian yang sama |
 | 669 | 2026-10-11 | Analisa AI urutan RAB hanya dari tombol pengguna di Rencana – tidak otomatis saat impor/aktivasi RAB; RAB berganti → layar menyebut analisa lama tidak dipakai |
 | 668 | 2026-10-11 | Cetak dari aplikasi terpasang (PWA): Buka PDF / Bagikan (iPhone) / Buka di peramban `?cetak=1`; PDF baru rencana mingguan & Time Schedule; tautan cetak dibuka di tempat; area aman layar |

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
 import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
+import { KkpProgresKategori } from "@/components/knmp/kkp-progres-kategori";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
 import { MenuBerkas } from "@/components/ui";
@@ -20,6 +21,7 @@ import { grupUntukLokasi } from "@/lib/waha/grup";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { ambilRiwayatHarian } from "@/lib/laporan/riwayat-queries";
 import { withBackTo } from "@/lib/print-back";
+import { alamatLogoLaporan } from "@/lib/export/logo-laporan";
 
 export const dynamic = "force-dynamic";
 
@@ -90,13 +92,14 @@ export default async function LaporanLokasiPage({
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
   const shown = sp.show === "1" && !!bounds;
 
-  const [report, riwayat, terhitung] = await Promise.all([
+  const [report, riwayat, terhitung, logoKop] = await Promise.all([
     shown ? getPeriodReport(location.id, kind, n) : Promise.resolve(null),
     ambilRiwayatHarian({ locationId: location.id, slug }),
     // Bahan laporan periodik = status yang DIHITUNG progres, bukan hanya final.
     db.dailyReport.count({
       where: { locationId: location.id, status: { in: [...COUNTED_REPORT_STATUSES] } },
     }),
+    shown && kind === "mingguan" ? alamatLogoLaporan(location.id) : Promise.resolve(null),
   ]);
   const { baris, ringkas, tersembunyi } = riwayat;
 
@@ -234,7 +237,14 @@ export default async function LaporanLokasiPage({
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
                     <ScurveKkpSheet r={report} jenis={report.kind} />
                   </div>
-                  {/* Hal-2+: tabel detail item */}
+                  {/* Laporan mingguan: progres per kategori & sub-kategori – halaman
+                      yang sama dengan cetak, PDF, dan Excel (DECISIONS 670). */}
+                  {report.kind === "mingguan" ? (
+                    <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
+                      <KkpProgresKategori r={report} logo={logoKop} />
+                    </div>
+                  ) : null}
+                  {/* Hal-berikutnya: tabel detail item */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
                     <KkpPeriodReport r={report} />
                   </div>

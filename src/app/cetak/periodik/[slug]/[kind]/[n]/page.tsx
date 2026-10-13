@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { alamatLogoLaporan } from "@/lib/export/logo-laporan";
 import { can } from "@/lib/authz";
 import { alamatPdf } from "@/lib/cetak/alamat-pdf";
 import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
@@ -34,7 +35,10 @@ export default async function CetakPeriodikPage({
   await requireLocationAccess(user, location.id);
   // `kind` menentukan penanda tangannya: mingguan diteken Pelaksana Lapangan,
   // bulanan diteken Direktur (DECISIONS 402).
-  const ttd = await muatTtdLaporan(location.id, kind as PeriodKind);
+  const [ttd, logo] = await Promise.all([
+    muatTtdLaporan(location.id, kind as PeriodKind),
+    kind === "mingguan" ? alamatLogoLaporan(location.id) : Promise.resolve(null),
+  ]);
 
   const report = await getPeriodReport(location.id, kind as PeriodKind, periodN);
   if (!report) notFound();
@@ -64,7 +68,7 @@ export default async function CetakPeriodikPage({
             Lampiran Termin (DECISIONS 670). */}
         {kind === "mingguan" ? (
           <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
-            <KkpProgresKategori r={report} ttd={ttd} />
+            <KkpProgresKategori r={report} ttd={ttd} logo={logo} />
           </section>
         ) : null}
         {/* Hal-berikutnya: tabel detail item */}

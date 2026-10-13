@@ -53,3 +53,53 @@ describe("keteranganDeviasi", () => {
     expect(keteranganDeviasi(dev)).toBe(ket);
   });
 });
+
+describe("kop LAPORAN PROGRES MINGGUAN (satu teks untuk web, PDF, Excel – DECISIONS 671)", async () => {
+  const { kopProgresMingguan, terbilangHari } = await import("@/lib/laporan/kop-progres");
+
+  it.each([
+    [120, "Seratus Dua Puluh"],
+    [180, "Seratus Delapan Puluh"],
+    [90, "Sembilan Puluh"],
+    [215, "Dua Ratus Lima Belas"],
+    [11, "Sebelas"],
+    [1000, "Seribu"],
+  ] as const)("terbilangHari(%s) = %s", (n, kata) => {
+    expect(terbilangHari(n)).toBe(kata);
+  });
+
+  it("susunan contoh Lampiran Termin: minggu terbilang, periode, identitas, tiga pihak", () => {
+    const kop = kopProgresMingguan(
+      {
+        packageName: "Pembangunan KNMP",
+        village: "Sukalela",
+        district: "Tambak",
+        regency: "Kab. Gresik",
+        province: "Jawa Timur",
+        contractValue: 7_733_855_000n,
+        contractNumber: "B.22007/PPK/2026",
+        contractSignedDate: new Date("2026-08-14T00:00:00Z"),
+        vendorName: "PT. SANG KARYA CIPTA",
+        supervisorFirm: "PT. AGRINAS JALADRI NUSANTARA",
+        supervisorName: null,
+        masaPelaksanaanHari: 120,
+        periodeStart: new Date("2026-09-21T00:00:00Z"),
+        periodeEnd: new Date("2026-09-27T00:00:00Z"),
+      } as unknown as Parameters<typeof kopProgresMingguan>[0],
+      7,
+    );
+    expect(kop.judul).toBe("LAPORAN PROGRES MINGGUAN");
+    expect(kop.minggu).toBe("MINGGU KE-7 (TUJUH)");
+    expect(kop.periode).toBe("Periode 21 September s/d 27 September 2026");
+    expect(Object.fromEntries(kop.identitas)).toEqual({
+      "Paket Pekerjaan": "Pembangunan KNMP",
+      Lokasi: "Sukalela, Kec. Tambak, Kab. Gresik, Jawa Timur",
+      "Nilai Kontrak Fisik": "Rp 7.733.855.000",
+      "No. dan Tanggal Kontrak": "B.22007/PPK/2026. Tgl. 14 Agustus 2026",
+      "Kontraktor Pelaksana": "PT. SANG KARYA CIPTA",
+      "Konsultan Pengawas": "PT. AGRINAS JALADRI NUSANTARA",
+      "Masa Pelaksanaan": "120 (Seratus Dua Puluh) Hari Kalender",
+    });
+    expect(kop.pihak).toEqual(["PENYEDIA JASA", "KONSULTAN PENGAWAS", "PEMBERI TUGAS"]);
+  });
+});

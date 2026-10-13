@@ -23,6 +23,7 @@ import {
 import { formatTanggal } from "@/lib/format";
 import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
+import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
@@ -768,44 +769,56 @@ function addProgresKategoriSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: L
   });
   ws.columns = [7, 46, 18, 9, 10, 9, 10, 9, 10, 9, 11, 10, 9].map((width) => ({ width }));
 
-  const judul = (teks: string, size: number, warna: string) => {
-    const row = ws.addRow([teks]);
-    ws.mergeCells(row.number, 1, row.number, LAST);
-    row.getCell(1).font = { bold: true, size, color: { argb: warna } };
-    row.getCell(1).alignment = { horizontal: "center" };
-  };
-  const kata = terbilang(r.n);
-  judul("LAPORAN PROGRES MINGGUAN", 14, WARNA.kepala);
-  judul(`MINGGU KE-${r.n}${kata ? ` (${kata})` : ""}`, 11, WARNA.kepalaSub);
-  judul(
-    `Periode tanggal ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
-    10,
-    WARNA.kepalaSub,
-  );
-  ws.addRow([]);
+  /*
+   * Kop = contoh Lampiran Termin, teksnya dari `kopProgresMingguan` – sama
+   * dengan web & PDF (DECISIONS 671). Kiri A:G identitas; kanan H:M minggu,
+   * periode, lalu tiga kotak PENYEDIA JASA · KONSULTAN PENGAWAS · PEMBERI TUGAS.
+   */
+  const kop = kopProgresMingguan(h, r.n);
+  const jdl = ws.addRow([kop.judul]);
+  ws.mergeCells(jdl.number, 1, jdl.number, LAST);
+  jdl.getCell(1).font = { bold: true, size: 14, color: { argb: WARNA.kepala } };
+  jdl.getCell(1).alignment = { horizontal: "center" };
+  jdl.height = 22;
 
-  const kv = (k: string, v: string) => {
+  const barisKop = kop.identitas.map(([k, v]) => {
     const row = ws.addRow([]);
     row.getCell(1).value = k;
     row.getCell(1).font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
+    row.getCell(1).alignment = { vertical: "top" };
     ws.mergeCells(row.number, 1, row.number, 2);
     row.getCell(3).value = `:  ${v}`;
-    row.getCell(3).font = { size: 9, color: { argb: WARNA.teks } };
-    ws.mergeCells(row.number, 3, row.number, 8);
+    row.getCell(3).font = { bold: true, size: 9, color: { argb: WARNA.teks } };
+    row.getCell(3).alignment = { vertical: "top", wrapText: true };
+    ws.mergeCells(row.number, 3, row.number, 7);
+    // Sel gabungan tidak menyesuaikan tingginya sendiri – perkirakan dari panjang teks.
+    row.height = 13 * Math.max(1, Math.ceil((v.length + 3) / 66));
     return row;
+  });
+  const kanan = (row: ExcelJS.Row, teks: string, size: number) => {
+    row.getCell(8).value = teks;
+    row.getCell(8).font = { bold: true, size, color: { argb: WARNA.kepala } };
+    row.getCell(8).alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells(row.number, 8, row.number, LAST);
   };
-  const kontrak = h.contractSignedDate
-    ? `${h.contractNumber || "–"}, tgl. ${formatTanggal(h.contractSignedDate, "d MMMM yyyy")}`
-    : h.contractNumber || "–";
-  const barisPertama = kv("Paket Pekerjaan", h.packageName).number;
-  kv("Lokasi", lokasiLengkap(h));
-  kv("Nilai Kontrak Fisik", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.contractValue))}`);
-  kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
-  kv("No. dan Tanggal Kontrak", kontrak);
-  kv("Kontraktor Pelaksana", h.vendorName);
-  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–");
-  kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
-  logoPasanganKanan(wb, ws, logo, { rowAtas: barisPertama, tinggiPx: 62, kolomKiri: 9, kolomKanan: LAST });
+  kanan(barisKop[0], kop.minggu, 11);
+  kanan(barisKop[1], kop.periode, 10);
+  barisKop[1].getCell(8).border = { bottom: { style: "thin", color: { argb: WARNA.kepala } } };
+  const blokPihak: [number, number][] = [
+    [8, 9],
+    [10, 11],
+    [12, 13],
+  ];
+  const gambarPihak = [logo?.kontraktor, logo?.konsultan, logo?.pemilik];
+  kop.pihak.forEach((pihak, i) => {
+    const [a, b] = blokPihak[i];
+    const sel = barisKop[2].getCell(a);
+    sel.value = pihak;
+    sel.font = { bold: true, size: 8, color: { argb: WARNA.kepala } };
+    sel.alignment = { horizontal: "center" };
+    ws.mergeCells(barisKop[2].number, a, barisKop[2].number, b);
+    logoTengah(wb, ws, gambarPihak[i] ?? null, { rowAtas: barisKop[3].number, tinggiPx: 50, kolomKiri: a, kolomKanan: b });
+  });
   ws.addRow([]);
 
   // Kepala tabel 3 baris.
@@ -858,8 +871,20 @@ function addProgresKategoriSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: L
   };
 
   const barisKategori: number[] = [];
+  const bingkai = (row: ExcelJS.Row) => {
+    for (let c = 1; c <= LAST; c++) row.getCell(c).border = KOTAK;
+  };
   for (const b of r.progresKategori) {
     const satu = b.tingkat === 1;
+    // Baris jeda sebelum tiap kategori – seperti contoh Lampiran Termin.
+    if (satu) bingkai(ws.addRow([]));
+    if (b.judulSaja) {
+      // Sub-kategori tanpa item sendiri: judul saja, angka kosong.
+      const row = ws.addRow([b.code, `   ${b.name}`]);
+      bingkai(row);
+      for (let c = 1; c <= 2; c++) row.getCell(c).font = { size: 9, color: { argb: WARNA.teks } };
+      continue;
+    }
     const row = ws.addRow([
       b.code,
       satu ? b.name : `   ${b.name}`,
