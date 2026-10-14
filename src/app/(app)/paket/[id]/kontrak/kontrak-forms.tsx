@@ -45,6 +45,7 @@ export type ContractEditInitial = {
   signedDate: string; // yyyy-mm-dd
   durationDays: number;
   startDate: string; // yyyy-mm-dd or ""
+  tahunJamak: boolean;
 };
 
 /**
@@ -135,7 +136,27 @@ export function EditContractForm({
         <div>
           <Label htmlFor="ec-start">Tanggal mulai (SPMK)</Label>
           <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
-          <HelpText>Kosongkan bila SPMK belum terbit. Tanggal selesai dihitung otomatis: SPMK + masa pelaksanaan.</HelpText>
+          <HelpText>
+            Kosongkan bila SPMK belum terbit. Tanggal selesai dihitung otomatis: SPMK + masa pelaksanaan,
+            paling lambat 31 Desember untuk kontrak tahun tunggal.
+          </HelpText>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="flex items-start gap-2 text-[13px] text-ink">
+            <input
+              type="checkbox"
+              name="tahunJamak"
+              value="1"
+              defaultChecked={initial.tahunJamak}
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <span>
+              Kontrak tahun jamak (multi years)
+              <span className="block text-ink-muted">
+                Biarkan kosong untuk kontrak tahun tunggal. Tanggal selesainya tidak akan melewati 31 Desember.
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 

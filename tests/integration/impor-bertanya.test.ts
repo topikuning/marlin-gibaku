@@ -56,6 +56,29 @@ async function berkasAneh(): Promise<File> {
   });
 }
 
+/**
+ * Kolom JUMLAH kosong di semua baris: parser membaca total 0, lapisan simpan
+ * menghitung volume × harga. Bentuk persis laporan user 2026-10-14 ("berkas 0,
+ * akan tersimpan 589", `2 MC-0 Desa Batu Putih R1.xlsx`).
+ */
+async function berkasJumlahKosong(): Promise<File> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("RAB");
+  ws.getRow(1).values = ["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN", "JUMLAH HARGA"];
+  ws.getRow(2).values = ["I", "PEKERJAAN PERSIAPAN"];
+  [
+    ["1", "Pagar sementara", 100, "m", 3],
+    ["2", "Direksi keet", 1, "unit", 250],
+    ["3", "Papan nama", 2, "bh", 15],
+  ].forEach((r, i) => {
+    ws.getRow(3 + i).values = r;
+  });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  return new File([new Uint8Array(buf)], "jumlah-kosong.xlsx", {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org TN ${suffix}`, slug: `org-${suffix}` } });
   const user = await db.user.create({
@@ -108,5 +131,18 @@ describe("aksi impor bertanya, bukan menampilkan galat", () => {
     expect(res?.preview?.itemCount).toBe(4);
     expect(res?.preview?.baca?.usulan).toEqual({ vol: 3, unit: 4, price: 6, amount: 7 });
     expect(res?.preview?.priceColumnLabel).toMatch(/pilihan Anda/);
+  });
+
+  it("angka bacaan tidak cocok dengan yang akan disimpan → pilihan sheet & kolom, bukan jalan buntu", async () => {
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("mode", "aktifkan");
+    fd.set("file", await berkasJumlahKosong());
+    const res = await importHps(undefined, fd);
+    expect(res?.error).toBeUndefined();
+    expect(res?.tanya?.sebab).toMatch(/I PEKERJAAN PERSIAPAN: berkas 0, akan tersimpan 580/);
+    expect(res?.tanya?.sebab).toMatch(/pilih sendiri sheet dan kolom/i);
+    expect(res?.tanya?.sheets).toEqual(["RAB"]);
+    expect(await db.rabRevision.count({ where: { locationId } })).toBe(0);
   });
 });

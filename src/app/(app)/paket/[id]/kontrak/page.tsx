@@ -16,6 +16,7 @@ import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
 import { adendumTertunda } from "@/lib/package/aktivasi-adendum";
+import { akhirKontrak } from "@/lib/progress-calc";
 import {
   getPackageWorkspace,
   listVendors,
@@ -117,6 +118,9 @@ export default async function KontrakPage({
   /* ---------- Kontrak sudah ada ---------- */
   const running = runningContractValue(contract.contractValue, contract.amendments);
   const endRunning = runningEndDate(contract.endDate, contract.amendments);
+  const batasTahun = contract.startDate
+    ? akhirKontrak(contract.startDate, contract.durationDays, contract.tahunJamak)
+    : null;
 
   // Pratinjau tanda tangan & stempel (DECISIONS 328). Satu kali presign untuk
   // tujuh kunci sekaligus; yang belum diunggah tidak ikut diminta.
@@ -250,6 +254,18 @@ export default async function KontrakPage({
                   <span className="text-ink-muted italic">Menunggu SPMK</span>
                 )
               }
+              /* Batas 31 Desember kontrak tahun tunggal dikatakan, bukan
+                 diam-diam memendekkan kontrak (DECISIONS 672). */
+              sub={
+                batasTahun?.dibatasi ? (
+                  <span className="text-warning">
+                    dibatasi 31 Desember (tahun tunggal) – SPMK + {contract.durationDays} hari jatuh{" "}
+                    {formatTanggal(batasTahun.tanpaBatas)}
+                  </span>
+                ) : contract.tahunJamak ? (
+                  "kontrak tahun jamak"
+                ) : undefined
+              }
             />
           </div>
           {contract.workTitle ? (
@@ -334,6 +350,7 @@ export default async function KontrakPage({
                     startDate: contract.startDate
                       ? contract.startDate.toISOString().slice(0, 10)
                       : "",
+                    tahunJamak: contract.tahunJamak,
                   }}
                 />
               </Drawer>

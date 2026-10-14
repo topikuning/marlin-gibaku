@@ -12,9 +12,9 @@ import {
   revertTargetFor,
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
-import { formatRupiah, jakartaDateKey, parseDateKey } from "@/lib/format";
+import { formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
+import { akhirKontrak, weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { cariDuplikat, existingLocationIndex } from "@/lib/master-location/queries";
@@ -1155,7 +1155,17 @@ const editContractSchema = z.object({
   startDate: z.string().optional(),
   // Mode periode minggu laporan (user 2026-08-24). Kosong = tidak diubah.
   weekMode: z.enum(["tujuh_hari", "senin_minggu"]).optional(),
+  // Kontrak tahun jamak (multi years). Kotak centang: tidak dikirim = tahun tunggal.
+  tahunJamak: z.boolean(),
 });
+
+/** Kalimat yang menyebut pembatasan 31 Desember – sama di semua aksi (DECISIONS 672). */
+function kalimatBatasTahun(a: ReturnType<typeof akhirKontrak>): string {
+  return a.dibatasi
+    ? ` Tanggal selesai dibatasi ${formatTanggal(a.akhir, "d MMMM yyyy")} karena kontrak tahun tunggal ` +
+        `(SPMK + masa pelaksanaan jatuh ${formatTanggal(a.tanpaBatas, "d MMMM yyyy")}).`
+    : "";
+}
 
 export async function editContractAction(
   _prev: PackageActionState,
@@ -1173,6 +1183,7 @@ export async function editContractAction(
     durationDays: formData.get("durationDays"),
     startDate: optionalText(formData.get("startDate"), 20) ?? undefined,
     weekMode: optionalText(formData.get("weekMode"), 20) ?? undefined,
+    tahunJamak: formData.get("tahunJamak") === "1",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1183,13 +1194,14 @@ export async function editContractAction(
   if (!signedDate) return { error: "Format tanggal TTD tidak valid." };
   const startDate = d.startDate ? parseDateKey(d.startDate) : null;
   if (d.startDate && !startDate) return { error: "Format tanggal SPMK tidak valid." };
-  const endDate = startDate ? new Date(startDate.getTime() + d.durationDays * DAY_MS) : null;
+  const akhir = startDate ? akhirKontrak(startDate, d.durationDays, d.tahunJamak) : null;
+  const endDate = akhir?.akhir ?? null;
 
   const pkg = await db.package.findFirst({
     where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, durationDays: true, startDate: true, weekMode: true } },
+      contract: { select: { id: true, durationDays: true, startDate: true, endDate: true, weekMode: true } },
       locations: { select: { id: true } },
     },
   });
@@ -1207,8 +1219,12 @@ export async function editContractAction(
   // Mode minggu ikut menggeser peta tanggal & jumlah kolom minggu — jadi
   // perlakuannya sama dengan perubahan waktu: kurva-S dihitung ulang.
   const weekModeChanged = d.weekMode != null && d.weekMode !== pkg.contract.weekMode;
+  // Tanggal selesai ikut dibandingkan: centang tahun jamak menggeser akhir
+  // kontrak tanpa mengubah SPMK maupun durasi (DECISIONS 672).
+  const prevEnd = pkg.contract.endDate ? pkg.contract.endDate.toISOString().slice(0, 10) : null;
+  const newEnd = endDate ? endDate.toISOString().slice(0, 10) : null;
   const timeChanged =
-    pkg.contract.durationDays !== d.durationDays || prevStart !== newStart || weekModeChanged;
+    pkg.contract.durationDays !== d.durationDays || prevStart !== newStart || prevEnd !== newEnd || weekModeChanged;
 
   await db.$transaction(async (tx) => {
     await tx.package.update({
@@ -1228,6 +1244,7 @@ export async function editContractAction(
         durationDays: d.durationDays,
         startDate,
         endDate,
+        tahunJamak: d.tahunJamak,
         ...(d.weekMode ? { weekMode: d.weekMode } : {}),
       },
     });
@@ -1244,7 +1261,7 @@ export async function editContractAction(
   // lokasi yang konversinya tidak mungkin (baseline tak cocok / belum ada).
   let recomputed = 0;
   const hanyaModeBerubah =
-    weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart;
+    weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart && prevEnd === newEnd;
   if (hanyaModeBerubah && startDate && endDate) {
     recomputed = await konversiModeMingguSemuaLokasi(
       pkg.locations,
@@ -1273,16 +1290,20 @@ export async function editContractAction(
     contractValue,
     durationDays: d.durationDays,
     startDate: newStart,
+    endDate: newEnd,
+    tahunJamak: d.tahunJamak,
     weekMode: d.weekMode ?? null,
     timeChanged,
     baselinesRecomputed: recomputed,
   });
   revalidatePath("/paket");
   revalidatePath(`/paket/${pkg.id}`, "layout");
+  const batas = akhir ? kalimatBatasTahun(akhir) : "";
   return {
-    success: timeChanged
-      ? `Kontrak dikoreksi. Waktu berubah → ${recomputed} kurva-S lokasi dihitung ulang.`
-      : "Kontrak dikoreksi.",
+    success:
+      (timeChanged
+        ? `Kontrak dikoreksi. Waktu berubah → ${recomputed} kurva-S lokasi dihitung ulang.`
+        : "Kontrak dikoreksi.") + batas,
   };
 }
 
@@ -1559,7 +1580,7 @@ export async function startPelaksanaan(
       where: { id: id.data, orgId: actor.orgId },
       select: {
         stage: true,
-        contract: { select: { id: true, durationDays: true } },
+        contract: { select: { id: true, durationDays: true, tahunJamak: true } },
         locations: { select: { id: true, status: true } },
       },
     });
@@ -1571,13 +1592,14 @@ export async function startPelaksanaan(
       };
     }
 
-    // SPMK menetapkan tanggal mulai; tanggal selesai = SPMK + masa pelaksanaan.
-    const DAY_MS = 86_400_000;
-    const endDate = new Date(spmkDate.getTime() + pkg.contract.durationDays * DAY_MS);
+    // SPMK menetapkan tanggal mulai; tanggal selesai = SPMK + masa pelaksanaan,
+    // dibatasi 31 Desember untuk kontrak tahun tunggal (DECISIONS 672).
+    const akhir = akhirKontrak(spmkDate, pkg.contract.durationDays, pkg.contract.tahunJamak);
     await tx.contract.update({
       where: { id: pkg.contract.id },
-      data: { startDate: spmkDate, endDate },
+      data: { startDate: spmkDate, endDate: akhir.akhir },
     });
+    const batas = kalimatBatasTahun(akhir);
 
     // SPMK BERTANGGAL MASA DEPAN: dicatat, tapi pelaksanaannya BELUM dimulai
     // (DECISIONS 202). Dulu status langsung naik apa pun tanggalnya — mengisi
@@ -1586,7 +1608,7 @@ export async function startPelaksanaan(
     // hari yang pekerjaannya belum boleh dimulai. Aktivasinya dijalankan
     // penjadwal harian pada tanggal SPMK-nya.
     if (spmkDate.getTime() > parseDateKey(jakartaDateKey(new Date()))!.getTime()) {
-      return { terjadwal: spmkDateStr as string };
+      return { terjadwal: spmkDateStr as string, batas };
     }
 
     await tx.package.update({ where: { id: id.data }, data: { stage: "pelaksanaan" } });
@@ -1616,7 +1638,7 @@ export async function startPelaksanaan(
         })),
       });
     }
-    return { started: startable.length };
+    return { started: startable.length, batas };
   });
   if ("error" in result) return { error: result.error };
 
@@ -1628,7 +1650,8 @@ export async function startPelaksanaan(
       success:
         `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai. Status paket dan lokasi ` +
         `berubah otomatis pada tanggal tersebut, supaya kurva-S tidak menghitung hari ` +
-        `sebelum pekerjaan dimulai.`,
+        `sebelum pekerjaan dimulai.` +
+        result.batas,
     };
   }
 
@@ -1638,7 +1661,9 @@ export async function startPelaksanaan(
   });
   revalidatePath("/paket");
   revalidatePath(`/paket/${id.data}`, "layout");
-  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}). ${result.started} lokasi kini berstatus Berjalan.` };
+  return {
+    success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}). ${result.started} lokasi kini berstatus Berjalan.${result.batas}`,
+  };
 }
 
 /* ------------------------------------------------------------------ */

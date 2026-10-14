@@ -205,6 +205,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
           durationDays: true,
           startDate: true,
           endDate: true,
+          tahunJamak: true,
           weekMode: true,
           ppkName: true,
           ppkNip: true,
