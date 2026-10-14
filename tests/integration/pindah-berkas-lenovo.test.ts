@@ -20,6 +20,13 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 
 vi.mock("server-only", () => ({}));
 
+/** Yang sedang masuk – untuk route unduh dokumen (DECISIONS 676). */
+let aktor: { id: string; orgId: string; role: string; mustChangePassword: boolean } | null = null;
+vi.mock("@/lib/auth/session", async (asli) => ({
+  ...(await asli<typeof import("@/lib/auth/session")>()),
+  getCurrentUser: async () => aktor,
+}));
+
 const HARI = 86_400_000;
 type ObyekTiruan = { isi: Buffer; diubah: Date; jenis: string; bytesTercatat?: number };
 const gudangR2 = new Map<string, ObyekTiruan>();
@@ -120,6 +127,9 @@ const { simpanSetelanPindah, PINDAH_AKTIF_KEY, PINDAH_BATAS_GB_KEY, PINDAH_UMUR_
   await import("@/lib/penyimpanan/setelan");
 const { ambilBerkas, alamatBerkas, hapusBerkas, BerkasTidakTerjangkau } = await import("@/lib/penyimpanan/berkas");
 const { GET: ambilLewatRoute } = await import("@/app/api/berkas/[token]/route");
+const { GET: ambilLewatRouteBernama } = await import("@/app/api/berkas/[token]/[nama]/route");
+const { GET: unduhDokumen } = await import("@/app/api/documents/[id]/route");
+const { GET: unduhDokumenBernama } = await import("@/app/api/documents/[id]/[nama]/route");
 
 const AWALAN = "uji-pindah-lenovo";
 const umur = (hari: number) => new Date(Date.now() - hari * HARI);
@@ -233,15 +243,65 @@ describe("pemindahan berkas ke Lenovo", () => {
     const alamat = await alamatBerkas(dok.r2Key, 120, "dok-link.pdf");
     expect(alamat.startsWith("/api/berkas/")).toBe(true);
     const url = new URL(alamat, "https://marlin.uji");
-    const token = url.pathname.split("/").pop()!;
-    const res = await ambilLewatRoute(new Request(url), { params: Promise.resolve({ token }) });
+    // Nama berkas = ruas terakhir alamat, bukan token (DECISIONS 676).
+    const [, , , token, nama] = url.pathname.split("/");
+    expect(nama).toBe("dok-link.pdf");
+    const res = await ambilLewatRouteBernama(new Request(url), { params: Promise.resolve({ token, nama }) });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("content-disposition")).toContain(`filename="dok-link.pdf"`);
     expect(Buffer.from(await res.arrayBuffer())).toEqual(dok.isi);
+
+    // Link lama (`?nama=`, tanpa ruas nama) yang masih beredar tetap berlaku.
+    const lama = await ambilLewatRoute(new Request(`https://marlin.uji/api/berkas/${token}?nama=lama.pdf`), {
+      params: Promise.resolve({ token }),
+    });
+    expect(lama.status).toBe(200);
+    expect(lama.headers.get("content-disposition")).toContain(`filename="lama.pdf"`);
 
     // Yang masih di R2 tetap dialamatkan ke R2.
     const muda = await foto("muda-link", 5);
     expect(await alamatBerkas(muda.r2Key)).toBe(`https://r2.tiruan/${muda.r2Key}`);
+  });
+
+  it("dokumen diunduh dengan nama saat diunggah – bukan token arsip (laporan user 2026-10-14)", async () => {
+    const tua = await dokumen("SPBBJ-CV.Inti-Prakarsa", 60);
+    const muda = await dokumen("Undangan PCM", 1);
+    await jalankanPindahBerkas();
+    expect(gudangR2.has(tua.r2Key)).toBe(false);
+    expect(gudangR2.has(muda.r2Key)).toBe(true);
+    aktor = { ...(await milikUji()), role: "super_admin", mustChangePassword: false };
+    try {
+      for (const [dok, nama] of [[tua, "SPBBJ-CV.Inti-Prakarsa.pdf"], [muda, "Undangan PCM.pdf"]] as const) {
+        const { id } = await db.document.findFirstOrThrow({ where: { r2Key: dok.r2Key }, select: { id: true } });
+        // Link lama di halaman → alamat yang membawa nama, RELATIF (bukan 0.0.0.0:8080).
+        const alih = await unduhDokumen(new Request(`https://0.0.0.0:8080/api/documents/${id}`), {
+          params: Promise.resolve({ id }),
+        });
+        expect(alih.status).toBe(302);
+        expect(alih.headers.get("location")).toBe(`/api/documents/${id}/${encodeURIComponent(nama)}`);
+
+        const res = await unduhDokumenBernama(new Request(`https://marlin.uji/api/documents/${id}/x`), {
+          params: Promise.resolve({ id, nama: "x" }),
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("application/pdf");
+        // Nama dari data dokumen, bukan dari ruas alamat yang bisa diketik siapa pun.
+        expect(res.headers.get("content-disposition")).toContain(`inline; filename="${nama}"`);
+        expect(Buffer.from(await res.arrayBuffer())).toEqual(dok.isi);
+      }
+
+      // Arsip mati dan salinan R2 sudah dibuang: sebabnya disebut, bukan "tidak ditemukan".
+      const { id } = await db.document.findFirstOrThrow({ where: { r2Key: tua.r2Key }, select: { id: true } });
+      lenovoMati = true;
+      const mati = await unduhDokumenBernama(new Request(`https://marlin.uji/api/documents/${id}/x`), {
+        params: Promise.resolve({ id, nama: "x" }),
+      });
+      expect(mati.status).toBe(503);
+      expect(((await mati.json()) as { error: string }).error).toMatch(/arsip Lenovo/);
+    } finally {
+      aktor = null;
+    }
   });
 
   it("di atas batas: yang lebih muda ikut dipindah, tapi tidak yang < 3 hari", async () => {

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { namaUnduhan } from "@/lib/penyimpanan/nama-unduhan";
 import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
@@ -26,7 +27,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const att = await db.fieldActivityAttachment.findUnique({
     where: { id },
-    select: { r2Key: true, activity: { select: { locationId: true } } },
+    select: { r2Key: true, fileName: true, mimeType: true, activity: { select: { locationId: true } } },
   });
   if (!att?.activity) {
     return NextResponse.json({ error: "Lampiran tidak ditemukan" }, { status: 404 });
@@ -42,7 +43,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     );
   }
 
-  const url = await alamatBerkas(att.r2Key, 120);
+  const url = await alamatBerkas(att.r2Key, 120, namaUnduhan(att.fileName, att.mimeType, "lampiran"), att.mimeType);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
   // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
   return alihkanKeBerkas(url);

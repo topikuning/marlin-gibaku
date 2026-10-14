@@ -1,53 +1,16 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/session";
-import { canViewDocument } from "@/lib/documents";
-import { isR2Configured } from "@/lib/r2";
-import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alamatUnduhDokumen, periksaUnduhDokumen } from "@/lib/documents-unduh";
 import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
- * Unduh dokumen: auth → scope → redirect ke presigned URL R2 (120 detik).
- * Dokumen ber-lokasi mengikuti scope penugasan; dokumen paket/organisasi
- * cukup capability document.view. Dokumen DIBATALKAN hanya bisa diunduh oleh
- * yang berwenang membatalkan/memulihkan (audit & peninjauan) — bukan hilang,
- * tetapi juga tidak lagi beredar sebagai berkas resmi.
+ * Link lama "buka berkas" di semua halaman. Hak akses diperiksa, lalu
+ * dialihkan ke `/api/documents/<id>/<nama asli>` – alamat yang membawa nama
+ * berkas, supaya yang tersimpan di perangkat bernama seperti saat diunggah,
+ * bukan token atau kunci penyimpanan (DECISIONS 676). Dialihkan RELATIF;
+ * jangan disusun terhadap req.url (alamat dalam server di Railway).
  */
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (!z.uuid().safeParse(id).success) {
-    return NextResponse.json({ error: "ID dokumen tidak valid" }, { status: 404 });
-  }
-
-  const user = await getCurrentUser();
-  if (user?.mustChangePassword) {
-    return NextResponse.json({ error: "Ganti password terlebih dahulu." }, { status: 403 });
-  }
-  if (!user) {
-    return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
-  }
-
-  const doc = await db.document.findUnique({
-    where: { id },
-    select: { id: true, orgId: true, packageId: true, locationId: true, r2Key: true, title: true, status: true },
-  });
-  if (!doc || doc.orgId !== user.orgId) {
-    return NextResponse.json({ error: "Dokumen tidak ditemukan" }, { status: 404 });
-  }
-  if (!(await canViewDocument(user, doc))) {
-    return NextResponse.json({ error: "Tidak punya akses ke dokumen ini" }, { status: 403 });
-  }
-
-  if (!isR2Configured()) {
-    return NextResponse.json(
-      { error: "Penyimpanan berkas (R2) belum diatur, jadi berkas belum bisa diunduh. Hubungi admin." },
-      { status: 503 },
-    );
-  }
-
-  const url = await alamatBerkas(doc.r2Key, 120);
-  // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
-  // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
-  return alihkanKeBerkas(url);
+  const r = await periksaUnduhDokumen(id);
+  if ("tolak" in r) return r.tolak;
+  return alihkanKeBerkas(alamatUnduhDokumen(r.doc));
 }

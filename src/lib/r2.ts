@@ -56,8 +56,13 @@ export async function r2GetDenganJenis(key: string): Promise<{ isi: Buffer; jeni
   return { isi: Buffer.from(bytes), jenis: res.ContentType ?? null };
 }
 
-export async function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
-  return getSignedUrl(r2(), new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }), { expiresIn });
+/** @param disposisi `Content-Disposition` yang dikirim R2 – supaya berkas diunduh dengan nama aslinya. */
+export async function r2PresignGet(key: string, expiresIn = 300, disposisi?: string): Promise<string> {
+  return getSignedUrl(
+    r2(),
+    new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key, ResponseContentDisposition: disposisi }),
+    { expiresIn },
+  );
 }
 
 export type R2Obyek = { key: string; bytes: number; diubah: Date | null };

@@ -5,6 +5,7 @@ import { accessibleLocationIds, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { namaUnduhan } from "@/lib/penyimpanan/nama-unduhan";
 import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
@@ -39,6 +40,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       orgId: true,
       fileR2Key: true,
       fileName: true,
+      fileMime: true,
       locationId: true,
       package: { select: { locations: { select: { id: true } } } },
     },
@@ -70,7 +72,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     );
   }
 
-  const url = await alamatBerkas(surat.fileR2Key, 120);
+  // Nama saat diunggah, bukan token/kunci penyimpanan (DECISIONS 676).
+  const url = await alamatBerkas(surat.fileR2Key, 120, namaUnduhan(surat.fileName, surat.fileMime, "surat"), surat.fileMime);
   // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
   // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
   return alihkanKeBerkas(url);

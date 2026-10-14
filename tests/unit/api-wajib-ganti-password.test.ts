@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({ db: new Proxy({}, { get() { throw new Error("Data d
 
 const routes = [
   { path: "documents/[id]", load: () => import("../../src/app/api/documents/[id]/route") },
+  { path: "documents/[id]/[nama]", load: () => import("../../src/app/api/documents/[id]/[nama]/route") },
   { path: "foto-asli/[id]", load: () => import("../../src/app/api/foto-asli/[id]/route") },
   { path: "ai-artifact/[id]/excel", load: () => import("../../src/app/api/ai-artifact/[id]/excel/route") },
   { path: "paparan/[id]/pdf", load: () => import("../../src/app/api/paparan/[id]/pdf/route") },
