@@ -96,6 +96,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
     })),
     progresKategori: [],
     progresKategoriTotal: ringkasKelompok([]),
+    realisasiKategoriMingguan: [],
     totals: { bobotLalu: 4.8, bobotIni: 7.2, bobotSd: 12, bobotRencana: 18.4 },
     planPct: 18.4,
     planPrevPct: 12.1,

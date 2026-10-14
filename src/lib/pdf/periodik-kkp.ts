@@ -6,6 +6,7 @@ import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
+import { susunRencanaRealisasi } from "@/lib/laporan/rencana-realisasi-kategori";
 import { muatLogoLaporan, type LogoLaporan } from "@/lib/export/logo-laporan";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { GRID_HEAD_BG, GRID_LINE, colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
@@ -904,6 +905,187 @@ function drawCurveOverlay(
   }
   line(act, "#16a34a", 1.2);
   doc.restore();
+}
+
+/**
+ * LAPORAN RENCANA & REALISASI MINGGUAN PER KATEGORI (DECISIONS 674) – cermin
+ * halaman `/cetak/rencana-realisasi`. Isi dari `susunRencanaRealisasi`; di sini
+ * hanya ditata. Dua baris per kategori (Rencana, Realisasi) tidak dipisah halaman.
+ */
+export async function buildRencanaRealisasiPdf(
+  r: PeriodReport,
+  appName: string,
+  gambarTtd?: TtdPdf | null,
+): Promise<Buffer> {
+  const lap = susunRencanaRealisasi(r);
+  const h = r.header;
+  const doc = createLandscapeA4Doc({ title: `Rencana & Realisasi per Kategori – ${h.locationName}` });
+  const x = LANDSCAPE_MARGIN;
+  const width = doc.page.width - LANDSCAPE_MARGIN * 2;
+  const bottom = doc.page.height - LANDSCAPE_MARGIN - 14;
+  let y = LANDSCAPE_MARGIN;
+  const noAutoBreak = () => {
+    doc.page.margins.bottom = 0;
+  };
+  noAutoBreak();
+  const fit = (need: number, ulangKepala?: () => void) => {
+    if (y + need <= bottom) return;
+    doc.addPage();
+    noAutoBreak();
+    y = LANDSCAPE_MARGIN;
+    ulangKepala?.();
+  };
+  const centerText = (text: string, size: number, bold: boolean, gap = 2) => {
+    doc.font(bold ? PDF_FONT.bold : PDF_FONT.regular).fontSize(size).fillColor(PDF_COLORS.ink);
+    doc.text(text, x, y, { width, align: "center", lineBreak: false });
+    y += size + gap;
+  };
+
+  const rentangKini = lap.weekRanges[lap.sampai - 1];
+  centerText(lap.judul, 12, true);
+  centerText(
+    `Posisi s/d Minggu ke-${lap.sampai}${rentangKini ? ` (${rentangKini})` : ""} · Periode kontrak ` +
+      `${formatTanggal(h.contractStart)} s/d ${formatTanggal(h.contractEnd ?? h.periodeEnd)}`,
+    8,
+    true,
+    6,
+  );
+  const identOpt: GridOptions = { x, width, cols: colWidths(width, [1.1, 2.6, 1.1, 2.2]), fontSize: 7.5 };
+  for (const [k1, v1, k2, v2] of [
+    ["Paket Pekerjaan", h.packageName, "Kontraktor Pelaksana", h.vendorName],
+    [
+      "Lokasi",
+      `${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
+      "Masa Pelaksanaan",
+      `${h.masaPelaksanaanHari} Hari Kalender`,
+    ],
+    ["Nilai Fisik Lokasi", rupiah(Number(h.locationValue)), "Tahun Anggaran", String(h.tahunAnggaran)],
+    ["Nomor Kontrak", h.contractNumber || "–", "Minggu berjalan", `Minggu ke-${lap.sampai} dari ${lap.totalMinggu}`],
+  ] as [string, string, string, string][]) {
+    y = gridRow(doc, y, [{ text: k1, head: true }, { text: v1 }, { text: k2, head: true }, { text: v2 }], identOpt);
+  }
+  y += 3;
+  doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.ink);
+  doc.text(
+    `Angka mingguan = bobot terhadap nilai fisik lokasi (%). Kolom "% Kategori" = capaian s/d minggu ke-${lap.sampai} ` +
+      "terhadap kategori itu sendiri.",
+    x,
+    y,
+    { width, oblique: true, lineBreak: false },
+  );
+  y += 10;
+
+  const N = lap.totalMinggu;
+  const fs = N > 26 ? 4.6 : N > 18 ? 5.2 : 6;
+  const opt: GridOptions = {
+    x,
+    width,
+    cols: colWidths(width, [0.9, 3.6, 1.0, 1.75, ...Array.from({ length: N }, () => 1), 1.3, 1.3]),
+    fontSize: fs,
+    padY: 1.5,
+    minRowHeight: 9,
+  };
+  const kini = (w: number) => (w === lap.sampai ? "#fef3c7" : undefined);
+  const kepala = () => {
+    y = gridRow(
+      doc,
+      y,
+      [
+        { text: "No", head: true, align: "center" },
+        { text: "Uraian Pekerjaan", head: true, align: "center" },
+        { text: "Bobot (%)", head: true, align: "center" },
+        { text: "Keterangan", head: true, align: "center" },
+        ...lap.monthGroups.map((g): GridCell => ({ text: g.label, head: true, align: "center", span: g.span })),
+        { text: `s/d M${lap.sampai}`, head: true, align: "center" },
+        { text: "% Kategori", head: true, align: "center" },
+      ],
+      opt,
+    );
+    y = gridRow(
+      doc,
+      y,
+      [
+        { text: "", head: true, span: 4 },
+        ...Array.from({ length: N }, (_, i): GridCell => ({
+          text: `M${i + 1}\n${lap.weekRanges[i] ?? ""}`,
+          head: true,
+          align: "center",
+          bg: kini(i + 1),
+        })),
+        { text: "", head: true },
+        { text: "", head: true },
+      ],
+      opt,
+    );
+  };
+  kepala();
+
+  const a3 = (v: number) => f3.format(v);
+  const rencanaSel = (v: number) => (Math.abs(v) < 0.0005 ? "" : a3(v));
+  const realisasiSel = (v: number | null) => (v == null ? "" : Math.abs(v) < 0.0005 ? "–" : a3(v));
+  const minggu = (isi: string[], bold = false): GridCell[] =>
+    isi.map((text, w) => ({ text, align: "right", bold, bg: kini(w + 1) }));
+
+  for (const b of lap.baris) {
+    const telat = b.ringkas.realisasiSd + 0.0005 < b.ringkas.rencanaSd;
+    const baris1: GridCell[] = [
+      { text: b.code, align: "center" },
+      { text: b.name, bold: true },
+      { text: f2.format(b.bobot), align: "center" },
+      { text: "Rencana", color: "#1d4ed8" },
+      ...minggu(b.rencana.map(rencanaSel)),
+      { text: a3(b.ringkas.rencanaSd), align: "right" },
+      { text: `${f2.format(b.ringkas.rencanaPct)}%`, align: "right" },
+    ];
+    const baris2: GridCell[] = [
+      { text: "" },
+      { text: "" },
+      { text: "" },
+      { text: "Realisasi", color: "#15803d" },
+      ...minggu(b.realisasi.map(realisasiSel)),
+      { text: a3(b.ringkas.realisasiSd), align: "right", bold: true },
+      { text: `${f2.format(b.ringkas.realisasiPct)}%`, align: "right", bold: true, color: telat ? "#b91c1c" : undefined },
+    ];
+    fit(gridRowHeight(doc, baris1, opt) + gridRowHeight(doc, baris2, opt), kepala);
+    y = gridRow(doc, y, baris1, opt);
+    y = gridRow(doc, y, baris2, opt);
+  }
+
+  const t = lap.total;
+  const s = lap.sampai - 1;
+  for (const [label, isi, sd] of [
+    ["Rencana mingguan (%)", t.rencana.map(rencanaSel), a3(t.ringkas.rencanaSd)],
+    ["Realisasi mingguan (%)", t.realisasi.map(realisasiSel), a3(t.ringkas.realisasiSd)],
+    ["Kumulatif rencana (%)", t.kumRencana.map((v) => f2.format(v)), f2.format(t.kumRencana[s] ?? 0)],
+    ["Kumulatif realisasi (%)", t.kumRealisasi.map((v) => (v == null ? "" : f2.format(v))), f2.format(t.kumRealisasi[s] ?? 0)],
+    ["Deviasi (%)", t.deviasi.map((v) => (v == null ? "" : f2.format(v))), f2.format(t.deviasi[s] ?? 0)],
+  ] as [string, string[], string][]) {
+    const sel: GridCell[] = [
+      { text: label, span: 4, align: "right", bold: true, bg: PDF_COLORS.primary50 },
+      ...minggu(isi, true),
+      { text: sd, align: "right", bold: true },
+      { text: "" },
+    ];
+    fit(gridRowHeight(doc, sel, opt), kepala);
+    y = gridRow(doc, y, sel, opt);
+  }
+  y += 8;
+  signatureBlock(doc, { x, width, getY: () => y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: "mingguan" });
+  catatanKaki(doc, appName, width);
+  return docToBuffer(doc);
+}
+
+/** Muat data + render PDF Rencana & Realisasi per Kategori. TANPA otorisasi (pemanggil gate). */
+export async function renderRencanaRealisasiPdf(locationId: string): Promise<PeriodikKkpPdfResult | null> {
+  const bounds = await getPeriodBounds(locationId, { assume: true });
+  if (!bounds) return null;
+  const [report, branding] = await Promise.all([
+    getPeriodReport(locationId, "mingguan", bounds.currentWeek, { assume: true }),
+    getBranding(),
+  ]);
+  if (!report) return null;
+  const gambarTtd = await muatTtdPdf(locationId, "mingguan").catch(() => TANPA_TTD_PDF);
+  return { buffer: await buildRencanaRealisasiPdf(report, branding.appName, gambarTtd) };
 }
 
 /** Muat laporan periodik + render PDF blanko KKP. TANPA otorisasi (pemanggil gate). */

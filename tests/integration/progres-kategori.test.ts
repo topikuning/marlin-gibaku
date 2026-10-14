@@ -167,3 +167,49 @@ describe("halaman progres per kategori & sub-kategori", () => {
     dekat(s1.sisaBobot, s1.bobot - s1.bobotSd);
   });
 });
+
+describe("laporan Rencana & Realisasi per Kategori (DECISIONS 674)", () => {
+  it("Σ realisasi mingguan kategori = garis realisasi kurva-S; s/d tiap kategori = kolom bobot s/d laporan mingguan", async () => {
+    const r = (await getPeriodReport(locationId, "mingguan", 2))!;
+    const { susunRencanaRealisasi } = await import("@/lib/laporan/rencana-realisasi-kategori");
+    const kum = r.scurve.actualPct;
+    for (const w of [0, 1]) {
+      const sum = r.realisasiKategoriMingguan.reduce((s, k) => s + (k.weekly[w] ?? 0), 0);
+      dekat(sum, (kum[w] ?? 0) - (w > 0 ? (kum[w - 1] ?? 0) : 0));
+    }
+    expect(r.realisasiKategoriMingguan.every((k) => k.weekly.slice(2).every((v) => v === null))).toBe(true);
+
+    const lap = susunRencanaRealisasi(r);
+    expect(lap.sampai).toBe(2);
+    const katMingguan = r.progresKategori.filter((b) => b.tingkat === 1);
+    expect(lap.baris.map((b) => b.code)).toEqual(katMingguan.map((b) => b.code));
+    lap.baris.forEach((b, i) => {
+      dekat(b.ringkas.realisasiSd, katMingguan[i].bobotSd);
+      dekat(b.ringkas.realisasiPct, katMingguan[i].progresSd);
+    });
+  });
+
+  it("PDF dan Excel terbentuk dari data yang sama", { timeout: 60_000 }, async () => {
+    const r = (await getPeriodReport(locationId, "mingguan", 2))!;
+    const { buildRencanaRealisasiPdf } = await import("@/lib/pdf/periodik-kkp");
+    const pdf = await buildRencanaRealisasiPdf(r, "MARLIN", null);
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+
+    const ExcelJS = (await import("exceljs")).default;
+    const { buildRencanaRealisasiXlsx } = await import("@/lib/export/xlsx");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildRencanaRealisasiXlsx(r)) as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("Rencana vs Realisasi")!;
+    let barisIII = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(1).value === "III" && !barisIII) barisIII = n;
+    });
+    expect(barisIII).toBeGreaterThan(0);
+    // Realisasi = baris kedua kategori; s/d = SUM M1..M2, % kategori dibagi bobot kategori.
+    const sd = ws.getRow(barisIII + 1).getCell(5 + r.totalWeeks).value as { formula: string };
+    expect(sd.formula).toBe(`SUM(E${barisIII + 1}:F${barisIII + 1})`);
+    const pct = ws.getRow(barisIII + 1).getCell(6 + r.totalWeeks).value as { formula: string };
+    expect(pct.formula).toContain(`/$C$${barisIII}*100`);
+  });
+});

@@ -92,6 +92,7 @@ function fixture(): PeriodReport {
     ],
     progresKategori: [],
     progresKategoriTotal: ringkasKelompok([]),
+    realisasiKategoriMingguan: [],
     totals: { bobotLalu: 1.03, bobotIni: 1.55, bobotSd: 2.58, bobotRencana: 3.75 },
     planPct: 3.75,
     planPrevPct: 1.2,

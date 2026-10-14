@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 674 | 2026-10-14 | Laporan Rencana & Realisasi Mingguan per Kategori (rencana vs realisasi tiap kategori × M1..Mn, % terhadap kategori) – cetak, PDF, Excel; rumus dari kurva-S |
 | 673 | 2026-10-14 | Impor RAB: angka bacaan ≠ yang akan disimpan → layar menanyakan sheet & kolom (bukan jalan buntu); tetap tidak menyimpan sebelum sama |
 | 672 | 2026-10-13 | Kontrak tahun tunggal selesai paling lambat 31 Desember (`akhirKontrak`), kotak centang tahun jamak; data lama + kolom minggu kurva-S ikut dibetulkan |
 | 671 | 2026-10-12 | Koreksi 670: sub-kategori hanya node `sub` (tanpa baris "pekerjaan lain"), halaman tampil di layar Laporan, kop satu sumber di web/PDF/Excel + logo penyedia·konsultan·pemberi tugas; tanda tangan PDF tidak meluber |

@@ -1,7 +1,7 @@
 import { slotPenandatanganKosong } from "@/lib/laporan/penandatangan";
 import { namaPenandatanganLokasi } from "@/lib/export/ttd-laporan";
 import { notFound } from "next/navigation";
-import { CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
+import { BarChart3, CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
 import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { KkpProgresKategori } from "@/components/knmp/kkp-progres-kategori";
@@ -144,11 +144,35 @@ export default async function LaporanLokasiPage({
           subtitle="Mingguan atau bulanan. Dihitung dari laporan harian yang sudah terkirim, dengan rumus yang sama di semua laporan."
           action={
             scheduleBounds ? (
-              // Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
-              // Sebelumnya tiga tombol sejajar, salah satunya berlabel "Unduh
-              // Excel" — persis sama dengan tombol Excel LAPORAN di bawahnya,
-              // padahal isinya jadwal. Label yang sama untuk dua berkas berbeda
-              // adalah cara tercepat orang mengirim yang salah ke PPK.
+              <div className="flex flex-wrap gap-2">
+                {/* Rencana vs realisasi per kategori × minggu (DECISIONS 674) –
+                    satu tombol, isinya bentuk-bentuknya, sama dengan Jadwal. */}
+                <MenuBerkas
+                  label="Rencana vs Realisasi per Kategori"
+                  icon={<BarChart3 aria-hidden className="size-4" />}
+                  pilihan={[
+                    {
+                      label: "Buka untuk dicetak",
+                      icon: <Printer aria-hidden className="size-3.5" />,
+                      href: withBackTo(`/cetak/rencana-realisasi/${slug}`, `/lokasi/${slug}/laporan-lokasi`),
+                      jenis: "tab",
+                      hint: "Tiap kategori: rencana & realisasi M1 sampai minggu terakhir",
+                    },
+                    {
+                      label: "Unduh Excel",
+                      icon: <Sheet aria-hidden className="size-3.5" />,
+                      href: `/lokasi/${slug}/rencana-realisasi/export`,
+                      jenis: "berkas",
+                      labelSibuk: "Menyiapkan Excel rencana vs realisasi…",
+                      hint: "Bobot per kategori × minggu, rencana dan realisasi",
+                    },
+                  ]}
+                />
+              {/* Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
+                  Sebelumnya tiga tombol sejajar, salah satunya berlabel "Unduh
+                  Excel" — persis sama dengan tombol Excel LAPORAN di bawahnya,
+                  padahal isinya jadwal. Label yang sama untuk dua berkas berbeda
+                  adalah cara tercepat orang mengirim yang salah ke PPK. */}
               <MenuBerkas
                 label="Jadwal / Time Schedule"
                 icon={<CalendarClock aria-hidden className="size-4" />}
@@ -178,6 +202,7 @@ export default async function LaporanLokasiPage({
                   },
                 ]}
               />
+              </div>
             ) : undefined
           }
         />

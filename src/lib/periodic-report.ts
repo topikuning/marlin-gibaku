@@ -11,6 +11,7 @@ import {
   itemAchievement,
   akhirKontrak,
   planFractionFromWeekly,
+  realisasiMingguanKelompok,
   prestasiPct,
   totalWeeksBetween,
   weekDateRange,
@@ -200,6 +201,12 @@ export type PeriodReport = {
    */
   progresKategori: BarisProgresKategori[];
   progresKategoriTotal: RingkasanKelompok;
+  /**
+   * Realisasi bobot per MINGGU tiap kategori (M1..Mn, null sesudah minggu
+   * acuan) – laporan Rencana & Realisasi per Kategori (DECISIONS 674).
+   * Rumus sama dengan garis realisasi kurva-S, jadi Σ kategori = realisasi lokasi.
+   */
+  realisasiKategoriMingguan: { lineageKey: string; bobot: number; weekly: (number | null)[] }[];
   totals: { bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number };
   planPct: number;
   /**
@@ -651,6 +658,8 @@ export async function getPeriodReport(
   let totalBobotSd = 0;
   /** Basis kurva-S: bobot + volume kontrak per item, dipakai ulang di bawah. */
   const curveBasis: { lineageKey: string; volK: number; bobot: number }[] = [];
+  /** Basis yang sama, dikelompokkan per kategori – realisasi mingguan per kategori. */
+  const itemsByCat = new Map<string, { lineageKey: string; volK: number; bobot: number }[]>();
   for (const it of itemNodes) {
     const cat = catOf(it.lineageKey);
     const bobot = bobotPct(Number(it.amount), grandTotal);
@@ -659,6 +668,9 @@ export async function getPeriodReport(
     const volIni = ini.get(it.lineageKey) ?? 0;
     const volSd = volLalu + volIni;
     curveBasis.push({ lineageKey: it.lineageKey, volK: vk, bobot });
+    const sekategori = itemsByCat.get(cat.lineageKey) ?? [];
+    sekategori.push({ lineageKey: it.lineageKey, volK: vk, bobot });
+    itemsByCat.set(cat.lineageKey, sekategori);
     // Pembatas 100% hanya di kumulatif; kolom periode diturunkan dgn
     // pengurangan supaya "lalu + ini = s/d" (DECISIONS 151).
     const { prestasiLalu, prestasiIni, prestasiSd, bobotLalu, bobotIni, bobotSd } = itemAchievement({
@@ -861,6 +873,19 @@ export async function getPeriodReport(
     }
   }
   const actualSeries: (number | null)[] = actualTotals.map((v, i) => (i + 1 <= cutoffWeek ? v : null));
+  const realisasiKategoriMingguan = categories.map((cat) => ({
+    lineageKey: cat.lineageKey,
+    // Bobot kategori = Σ bobot item, sama dengan kolom BOBOT laporan mingguan.
+    bobot: cat.subtotalBobot,
+    weekly: realisasiMingguanKelompok(
+      (itemsByCat.get(cat.lineageKey) ?? []).map((b) => ({
+        volK: b.volK,
+        bobot: b.bobot,
+        volMingguan: weeklyVolume.get(b.lineageKey) ?? [],
+      })),
+      seriesLen,
+    ).map((v, i) => (i + 1 <= cutoffWeek ? v : null)),
+  }));
 
   const planIdx = Math.min(Math.max(planSeries.length, 1), Math.max(1, weekIndex)) - 1;
   const planPct = planSeries[planIdx] ?? 0;
@@ -1009,6 +1034,7 @@ export async function getPeriodReport(
     categories,
     progresKategori,
     progresKategoriTotal,
+    realisasiKategoriMingguan,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,
     planPrevPct,

@@ -102,6 +102,74 @@ export function realisasiKategoriPct(
 }
 
 /**
+ * REALISASI BOBOT PER MINGGU satu kelompok item (kategori) – laporan Rencana &
+ * Realisasi per Kategori (DECISIONS 674).
+ *
+ * Rumusnya SAMA dengan garis realisasi kurva-S: tiap minggu dihitung prestasi
+ * KUMULATIF item × bobotnya (pembatas 100% di kumulatif), lalu angka mingguan =
+ * selisih kumulatif, jadi "minggu lalu + minggu ini = s/d" (DECISIONS 151) dan
+ * Σ seluruh kategori = realisasi lokasi per minggu.
+ */
+export function realisasiMingguanKelompok(
+  items: { volK: number; bobot: number; volMingguan: number[] }[],
+  nMinggu: number,
+): number[] {
+  const kum = new Array<number>(nMinggu).fill(0);
+  for (const it of items) {
+    let vol = 0;
+    for (let w = 0; w < nMinggu; w++) {
+      vol += it.volMingguan[w] ?? 0;
+      kum[w] += (prestasiPct(vol, it.volK) / 100) * it.bobot;
+    }
+  }
+  return kum.map((v, w) => v - (w > 0 ? kum[w - 1] : 0));
+}
+
+export type RingkasanRencanaRealisasi = {
+  /** Σ bobot rencana s/d minggu acuan (% kontrak). */
+  rencanaSd: number;
+  /** Σ bobot realisasi s/d minggu acuan (% kontrak). */
+  realisasiSd: number;
+  /** Rencana s/d terhadap kategori itu sendiri (%). */
+  rencanaPct: number;
+  /** Realisasi s/d terhadap kategori itu sendiri (%) – "bangunan ini sudah berapa persen". */
+  realisasiPct: number;
+  /** Realisasi − rencana s/d (bobot kontrak). */
+  deviasi: number;
+};
+
+/**
+ * Ringkasan s/d minggu `sampai` (1-based) untuk satu baris kategori atau totalnya.
+ *
+ * Penyebutnya DUA: rencana dibagi bobot JADWAL kategori (Σ baris rencananya,
+ * jadi jadwal yang tuntas = 100%), realisasi dibagi bobot RAB kategori (Σ bobot
+ * item, sama dengan kolom PROGRES laporan mingguan). Keduanya hampir selalu
+ * sama; bila jadwal dibuat dari RAB lama, membagi rencana dengan bobot RAB
+ * baru akan menulis "100,16%" untuk jadwal yang sudah selesai.
+ */
+export function ringkasRencanaRealisasi(
+  bobot: { rencana: number; realisasi: number },
+  rencana: number[],
+  realisasi: (number | null)[],
+  sampai: number,
+): RingkasanRencanaRealisasi {
+  let rencanaSd = 0;
+  let realisasiSd = 0;
+  for (let w = 0; w < sampai; w++) {
+    rencanaSd += rencana[w] ?? 0;
+    realisasiSd += realisasi[w] ?? 0;
+  }
+  const pct = (v: number, b: number) => (b > 0 ? (v / b) * 100 : 0);
+  return {
+    rencanaSd,
+    realisasiSd,
+    rencanaPct: pct(rencanaSd, bobot.rencana),
+    realisasiPct: pct(realisasiSd, bobot.realisasi),
+    deviasi: realisasiSd - rencanaSd,
+  };
+}
+
+/**
  * Ringkasan satu KELOMPOK pekerjaan – kategori atau sub-kategori – untuk
  * halaman "Progres per Kategori" laporan mingguan (DECISIONS 670).
  *
