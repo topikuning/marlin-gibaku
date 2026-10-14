@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 675 | 2026-10-14 | Impor RAB: sel "DIBUAT OLEH," di baris pekerjaan (bukan romawi kembar) menghentikan pembacaan – baris pekerjaan tak lagi dianggap tanda tangan; item bernilai tanpa satuan disebut di pratinjau |
 | 674 | 2026-10-14 | Laporan Rencana & Realisasi Mingguan per Kategori (rencana vs realisasi tiap kategori × M1..Mn, % terhadap kategori) – cetak, PDF, Excel; rumus dari kurva-S |
 | 673 | 2026-10-14 | Impor RAB: angka bacaan ≠ yang akan disimpan → layar menanyakan sheet & kolom (bukan jalan buntu); tetap tidak menyimpan sebelum sama |
 | 672 | 2026-10-13 | Kontrak tahun tunggal selesai paling lambat 31 Desember (`akhirKontrak`), kotak centang tahun jamak; data lama + kolom minggu kurva-S ikut dibetulkan |

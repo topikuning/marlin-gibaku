@@ -1429,8 +1429,24 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     });
     return ketemu;
   };
+  /*
+   * Baris PEKERJAAN lengkap (kode + uraian + angka di kolom volume/harga/
+   * jumlah) bukan awal blok tanda tangan, walau salah satu selnya berisi
+   * "DIBUAT OLEH,". Laporan user 2026-10-14 (MC-0 Desa Batu Putih): sel SATUAN
+   * item 6.9.e tertulis begitu – sisa salin-tempel – dan pembacaan berhenti
+   * di baris 48; seluruh sisa berkas, termasuk semua kategori ADD-2, hilang
+   * tanpa sepatah kata.
+   */
+  const barisPekerjaan = (row: ExcelJS.Row): boolean => {
+    const { code, name } = kodeNamaOf(row);
+    if (!code || !name) return false;
+    return [col.vol, col.price, col.amount].some((c) => c > 0 && (num(cellVal(row, c)) ?? 0) > 0);
+  };
   let adaItem = false;
   let selesai = false;
+  /** Baris tempat pembacaan berhenti karena blok tanda tangan – disebut bila sesudahnya masih ada pekerjaan. */
+  let berhentiDi: { baris: number; teks: string } | null = null;
+  let pekerjaanSesudahBerhenti = 0;
 
   /*
    * Baris yang dilewati karena di-hide, LENGKAP dengan identitasnya.
@@ -1445,9 +1461,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
    */
   const hiddenRows: { baris: number; code: string; name: string; nilai: number }[] = [];
   ws.eachRow((row) => {
-    if (selesai) return;
-    if (adaItem && barisTandaTangan(row)) {
+    if (selesai) {
+      if (barisPekerjaan(row)) pekerjaanSesudahBerhenti++;
+      return;
+    }
+    if (adaItem && barisTandaTangan(row) && !barisPekerjaan(row)) {
       selesai = true;
+      let teks = "";
+      row.eachCell({ includeEmpty: false }, (_c, kolom) => {
+        const t = str(cellVal(row, kolom));
+        if (!teks && PENANDA_TTD.test(t)) teks = t;
+      });
+      berhentiDi = { baris: row.number, teks };
       return;
     }
     // Baris yang SENGAJA DI-HIDE di Excel (mis. dikecualikan dari resume) tidak
@@ -1722,6 +1747,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
       );
     }
   });
+
+  // Pembacaan berhenti di "blok tanda tangan" padahal sesudahnya masih ada
+  // baris pekerjaan: itu bukan tanda tangan, atau tanda tangannya ada di
+  // tengah tabel. Disebut, bukan didiamkan (DECISIONS 675).
+  const henti = berhentiDi as { baris: number; teks: string } | null;
+  if (henti && pekerjaanSesudahBerhenti > 0) {
+    warnings.push(
+      `Pembacaan tabel berhenti di baris ${henti.baris} karena sel "${henti.teks}" dianggap awal blok tanda ` +
+        `tangan, padahal sesudahnya masih ada ${pekerjaanSesudahBerhenti} baris pekerjaan. Kalau blok tanda ` +
+        "tangannya memang belum di situ, hapus atau pindahkan teks itu di Excel, lalu unggah ulang.",
+    );
+  }
 
   if (hiddenRows.length > 0) {
     const rp = (n: number) => Math.round(n).toLocaleString("id-ID");

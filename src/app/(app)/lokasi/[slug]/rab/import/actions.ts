@@ -462,6 +462,26 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         );
       }
 
+      /*
+       * Item BERNILAI tanpa satuan – disebut, tidak dikarang (DECISIONS 675).
+       * Bentuk yang ditemukan: berkas CCO yang item barunya hanya punya blok
+       * TAMBAH/ADD-2, dan kedua blok itu tidak punya kolom SAT (MC-0 Desa Batu
+       * Putih: 393 item). Satuannya kosong di MARLIN sampai berkasnya diisi.
+       */
+      const tanpaSatuan = nodes.filter((n) => n.kind === "item" && n.amount > 0n && !n.unit?.trim());
+      if (tanpaSatuan.length > 0) {
+        const contoh = tanpaSatuan
+          .slice(0, 3)
+          .map((n) => `${n.excelRow != null ? `baris ${n.excelRow} ` : ""}"${n.name.slice(0, 60)}"`)
+          .join("; ");
+        warnings.push(
+          `${tanpaSatuan.length} item bernilai tidak punya satuan di berkas: ${contoh}` +
+            `${tanpaSatuan.length > 3 ? `, dan ${tanpaSatuan.length - 3} item lain` : ""}. ` +
+            "MARLIN tidak mengarang satuannya, jadi kolom satuannya akan kosong. Kalau perlu, isi kolom satuan di " +
+            "Excel lalu impor ulang.",
+        );
+      }
+
       const beda = bedaAntarLayer(parsed, nodes);
       if (beda.length > 0) {
         const rinci = beda

@@ -145,4 +145,25 @@ describe("aksi impor bertanya, bukan menampilkan galat", () => {
     expect(res?.tanya?.sheets).toEqual(["RAB"]);
     expect(await db.rabRevision.count({ where: { locationId } })).toBe(0);
   });
+
+  it("item bernilai tanpa satuan disebut di pratinjau, tidak dikarang (DECISIONS 675)", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.getRow(1).values = ["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN", "JUMLAH HARGA"];
+    ws.getRow(2).values = ["I", "PEKERJAAN PERSIAPAN"];
+    ws.getRow(3).values = ["1", "Pagar sementara", 100, "m", 375_000, 37_500_000];
+    ws.getRow(4).values = ["2", "Perancah jalan kerja", 259, null, 231_665, 60_001_235];
+    ws.getRow(5).values = ["", "JUMLAH", null, null, null, 97_501_235];
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("mode", "aktifkan");
+    fd.set("file", new File([new Uint8Array(buf)], "tanpa-satuan.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }));
+    const res = await importHps(undefined, fd);
+    expect(res?.error, res?.error).toBeUndefined();
+    expect(res?.preview?.warnings.join(" ")).toMatch(/1 item bernilai tidak punya satuan di berkas: baris 4 "Perancah jalan kerja"/);
+  });
 });
+
