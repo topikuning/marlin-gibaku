@@ -24,6 +24,7 @@ import { formatTanggal } from "@/lib/format";
 import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
+import { susunRencanaRealisasi } from "@/lib/laporan/rencana-realisasi-kategori";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
@@ -973,6 +974,161 @@ export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLapor
   } catch {
     return buf;
   }
+}
+
+/**
+ * LAPORAN RENCANA & REALISASI MINGGUAN PER KATEGORI (DECISIONS 674) sebagai
+ * .xlsx. Isi dari `susunRencanaRealisasi` – sama dengan layar & PDF. Kolom
+ * "s/d" dan "% Kategori" ditulis sebagai RUMUS supaya tidak bisa berselisih
+ * dengan sel minggu di barisnya.
+ */
+export async function buildRencanaRealisasiXlsx(r: PeriodReport, opts?: { logo?: LogoLaporan }): Promise<Buffer> {
+  const lap = susunRencanaRealisasi(r);
+  const h = r.header;
+  const N = lap.totalMinggu;
+  const W0 = 5; // kolom minggu pertama (E)
+  const C_SD = W0 + N;
+  const C_PCT = C_SD + 1;
+  const LAST = C_PCT;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "MARLIN";
+  wb.created = new Date();
+  const ws = wb.addWorksheet("Rencana vs Realisasi", {
+    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ws.columns = [5, 40, 9, 11, ...Array.from({ length: N }, () => 8), 10, 10].map((width) => ({ width }));
+
+  const judul = (teks: string, size: number) => {
+    const row = ws.addRow([teks]);
+    ws.mergeCells(row.number, 1, row.number, LAST);
+    row.getCell(1).font = { bold: true, size, color: { argb: WARNA.kepala } };
+    row.getCell(1).alignment = { horizontal: "center" };
+  };
+  const rentangKini = lap.weekRanges[lap.sampai - 1];
+  judul(lap.judul, 14);
+  judul(
+    `Posisi s/d Minggu ke-${lap.sampai}${rentangKini ? ` (${rentangKini})` : ""} · Periode kontrak ` +
+      `${formatTanggal(h.contractStart)} s/d ${formatTanggal(h.contractEnd ?? h.periodeEnd)}`,
+    10,
+  );
+  ws.addRow([]);
+  const kv = (k: string, v: string) => {
+    const row = ws.addRow([]);
+    row.getCell(1).value = k;
+    row.getCell(1).font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
+    ws.mergeCells(row.number, 1, row.number, 2);
+    row.getCell(3).value = `:  ${v}`;
+    row.getCell(3).font = { size: 9, color: { argb: WARNA.teks } };
+    ws.mergeCells(row.number, 3, row.number, Math.min(LAST - 6, W0 + 8));
+    return row.number;
+  };
+  const awalKop = kv("Paket Pekerjaan", h.packageName);
+  kv("Lokasi", lokasiLengkap(h));
+  kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
+  kv("Nomor Kontrak", h.contractNumber || "–");
+  kv("Kontraktor Pelaksana", h.vendorName);
+  kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender · Tahun Anggaran ${h.tahunAnggaran}`);
+  logoPasanganKanan(wb, ws, opts?.logo, { rowAtas: awalKop, tinggiPx: 56, kolomKiri: LAST - 5, kolomKanan: LAST });
+  const catatan = ws.addRow([
+    `Angka mingguan = bobot terhadap nilai fisik lokasi (%). Kolom "% Kategori" = capaian s/d minggu ke-${lap.sampai} ` +
+      "terhadap kategori itu sendiri.",
+  ]);
+  ws.mergeCells(catatan.number, 1, catatan.number, LAST);
+  catatan.getCell(1).font = { italic: true, size: 8, color: { argb: WARNA.teksRedup } };
+  ws.addRow([]);
+
+  const k1 = ws.addRow([]);
+  const k2 = ws.addRow([]);
+  ["No", "Uraian Pekerjaan", "Bobot (%)", "Keterangan"].forEach((t, i) => {
+    k1.getCell(i + 1).value = t;
+    ws.mergeCells(k1.number, i + 1, k2.number, i + 1);
+  });
+  let c = W0;
+  for (const g of lap.monthGroups) {
+    k1.getCell(c).value = g.label;
+    if (g.span > 1) ws.mergeCells(k1.number, c, k1.number, c + g.span - 1);
+    c += g.span;
+  }
+  for (let w = 0; w < N; w++) k2.getCell(W0 + w).value = `M${w + 1}\n${lap.weekRanges[w] ?? ""}`;
+  k1.getCell(C_SD).value = `s/d M${lap.sampai}`;
+  k1.getCell(C_PCT).value = "% Kategori";
+  ws.mergeCells(k1.number, C_SD, k2.number, C_SD);
+  ws.mergeCells(k1.number, C_PCT, k2.number, C_PCT);
+  k1.height = 18;
+  k2.height = 26;
+  for (const row of [k1, k2]) for (let i = 1; i <= LAST; i++) gayaKepala(row.getCell(i), { size: 8 });
+  ws.views = [{ state: "frozen", xSplit: 4, ySplit: k2.number }];
+
+  const kolKini = colLetter(W0 + lap.sampai - 1);
+  const kolAwal = colLetter(W0);
+  const gayaBaris = (row: ExcelJS.Row, o: { bold?: boolean; fill?: string }) => {
+    for (let i = 1; i <= LAST; i++) {
+      const cell = row.getCell(i);
+      cell.border = KOTAK;
+      cell.font = { size: 8, bold: o.bold, color: { argb: WARNA.teks } };
+      if (o.fill) cell.fill = isi(o.fill);
+      if (i >= W0 && i < C_SD) {
+        cell.numFmt = "0.000";
+        if (i === W0 + lap.sampai - 1 && !o.fill) cell.fill = isi("FFFEF3C7");
+      }
+    }
+    row.getCell(C_SD).numFmt = "0.000";
+    row.getCell(C_PCT).numFmt = FMT_PERSEN;
+  };
+  const sdRumus = (n: number, hasil: number): ExcelJS.CellFormulaValue => ({
+    formula: `SUM(${kolAwal}${n}:${kolKini}${n})`,
+    result: round2(hasil),
+  });
+
+  for (const b of lap.baris) {
+    const r1 = ws.addRow([b.code, b.name, b.bobot, "Rencana", ...b.rencana]);
+    const r2 = ws.addRow([null, null, null, "Realisasi", ...b.realisasi.map((v) => (v == null ? null : v))]);
+    for (const [row, sd, pct] of [
+      [r1, b.ringkas.rencanaSd, b.ringkas.rencanaPct],
+      [r2, b.ringkas.realisasiSd, b.ringkas.realisasiPct],
+    ] as [ExcelJS.Row, number, number][]) {
+      row.getCell(C_SD).value = sdRumus(row.number, sd);
+      // Rencana dibagi bobot JADWAL (Σ barisnya), realisasi dibagi bobot RAB
+      // (kolom C) – sama dengan `ringkasRencanaRealisasi`.
+      const penyebut =
+        row === r1 ? `SUM(${kolAwal}${r1.number}:${colLetter(C_SD - 1)}${r1.number})` : `$C$${r1.number}`;
+      row.getCell(C_PCT).value = {
+        formula: `IF(${penyebut}>0,${colLetter(C_SD)}${row.number}/${penyebut}*100,0)`,
+        result: round2(pct),
+      };
+      gayaBaris(row, { bold: row === r2 });
+    }
+    for (const col of [1, 2, 3]) ws.mergeCells(r1.number, col, r2.number, col);
+    r1.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+    r1.getCell(2).alignment = { vertical: "middle", wrapText: true };
+    r1.getCell(2).font = { size: 8, bold: true, color: { argb: WARNA.teks } };
+    r1.getCell(3).alignment = { horizontal: "center", vertical: "middle" };
+    r1.getCell(3).numFmt = "0.00";
+    r1.getCell(4).font = { size: 8, color: { argb: "FF1D4ED8" } };
+    r2.getCell(4).font = { size: 8, bold: true, color: { argb: WARNA.positif } };
+  }
+
+  const t = lap.total;
+  const s = lap.sampai - 1;
+  for (const [label, isiMinggu, sd] of [
+    ["Rencana mingguan (%)", t.rencana, null],
+    ["Realisasi mingguan (%)", t.realisasi, null],
+    ["Kumulatif rencana (%)", t.kumRencana, t.kumRencana[s] ?? 0],
+    ["Kumulatif realisasi (%)", t.kumRealisasi, t.kumRealisasi[s] ?? 0],
+    ["Deviasi (%)", t.deviasi, t.deviasi[s] ?? 0],
+  ] as [string, (number | null)[], number | null][]) {
+    const row = ws.addRow([label, null, null, null, ...isiMinggu.map((v) => (v == null ? null : round2(v)))]);
+    ws.mergeCells(row.number, 1, row.number, 4);
+    row.getCell(C_SD).value =
+      sd == null ? sdRumus(row.number, label.startsWith("Rencana") ? t.ringkas.rencanaSd : t.ringkas.realisasiSd) : round2(sd);
+    gayaBaris(row, { bold: true, fill: WARNA.total });
+    row.getCell(1).alignment = { horizontal: "right" };
+    for (let i = W0; i <= C_SD; i++) row.getCell(i).numFmt = "0.00";
+  }
+
+  ws.addRow([]);
+  blokTandaTangan(ws, { lastCol: LAST, h, jenis: "mingguan" });
+  return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 export async function buildPeriodReportXlsx(

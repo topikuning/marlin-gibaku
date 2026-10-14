@@ -211,6 +211,7 @@ describe("alamatPdf menunjuk route yang ADA", () => {
     [alamatPdf.periodik("kedungmutih", "mingguan", 6), "/api/laporan/periodik/kedungmutih/mingguan/6/pdf", "src/app/api/laporan/periodik/[slug]/[kind]/[n]/pdf/route.ts"],
     [alamatPdf.rencana("kedungmutih", 6), "/api/laporan/rencana/kedungmutih/6/pdf", "src/app/api/laporan/rencana/[slug]/[n]/pdf/route.ts"],
     [alamatPdf.jadwal("kedungmutih"), "/api/laporan/jadwal/kedungmutih/pdf", "src/app/api/laporan/jadwal/[slug]/pdf/route.ts"],
+    [alamatPdf.rencanaRealisasi("kedungmutih"), "/api/laporan/rencana-realisasi/kedungmutih/pdf", "src/app/api/laporan/rencana-realisasi/[slug]/pdf/route.ts"],
   ])("%s", (href, harap, berkas) => {
     expect(href).toBe(harap);
     expect(existsSync(berkas), berkas).toBe(true);

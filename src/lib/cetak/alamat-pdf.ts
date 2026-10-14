@@ -12,4 +12,5 @@ export const alamatPdf = {
     `/api/laporan/periodik/${e(slug)}/${jenis}/${n}/pdf`,
   rencana: (slug: string, minggu: number) => `/api/laporan/rencana/${e(slug)}/${minggu}/pdf`,
   jadwal: (slug: string) => `/api/laporan/jadwal/${e(slug)}/pdf`,
+  rencanaRealisasi: (slug: string) => `/api/laporan/rencana-realisasi/${e(slug)}/pdf`,
 };

@@ -103,3 +103,34 @@ describe("kop LAPORAN PROGRES MINGGUAN (satu teks untuk web, PDF, Excel – DECI
     expect(kop.pihak).toEqual(["PENYEDIA JASA", "KONSULTAN PENGAWAS", "PEMBERI TUGAS"]);
   });
 });
+
+describe("realisasi mingguan per kategori (DECISIONS 674)", async () => {
+  const { realisasiMingguanKelompok, ringkasRencanaRealisasi } = await import("@/lib/progress-calc");
+
+  it("selisih kumulatif: minggu lalu + minggu ini = s/d, dan dibatasi 100% per item", () => {
+    // Item A: bobot 6, volume kontrak 10 → 4 lalu 8 (lewat batas) → maks 6.
+    // Item B: bobot 4, volume 5 → 0, 5.
+    const w = realisasiMingguanKelompok(
+      [
+        { volK: 10, bobot: 6, volMingguan: [4, 8, 0] },
+        { volK: 5, bobot: 4, volMingguan: [0, 5, 0] },
+      ],
+      3,
+    );
+    expect(w[0]).toBeCloseTo(2.4, 10);
+    expect(w[1]).toBeCloseTo(3.6 + 4, 10);
+    expect(w[2]).toBeCloseTo(0, 10);
+    expect(w.reduce((a, b) => a + b, 0)).toBeCloseTo(10, 10);
+  });
+
+  it("ringkasan s/d minggu acuan: bobot kontrak dan persen terhadap kategori", () => {
+    const r = ringkasRencanaRealisasi({ rencana: 8, realisasi: 8 }, [1, 2, 3, 2], [0.5, 1.5, null, null], 2);
+    expect(r).toMatchObject({ rencanaSd: 3, realisasiSd: 2 });
+    expect(r.rencanaPct).toBeCloseTo(37.5, 10);
+    expect(r.realisasiPct).toBeCloseTo(25, 10);
+    expect(r.deviasi).toBeCloseTo(-1, 10);
+    expect(ringkasRencanaRealisasi({ rencana: 0, realisasi: 0 }, [0], [0], 1).realisasiPct).toBe(0);
+    // Jadwal tuntas = 100% terhadap bobot jadwalnya, walau bobot RAB sedikit beda.
+    expect(ringkasRencanaRealisasi({ rencana: 5.02, realisasi: 5.0155 }, [5.02], [5], 1).rencanaPct).toBeCloseTo(100, 10);
+  });
+});
