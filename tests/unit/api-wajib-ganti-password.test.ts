@@ -37,7 +37,7 @@ const routes = [
 describe("sesi password sementara tidak boleh melewati API langsung", () => {
   for (const {path,load} of routes) it(path, async () => {
     const route = await load();
-    const response = await route.GET(new NextRequest("https://marlin.test/api/"+path), {params:Promise.resolve({id:"00000000-0000-4000-8000-000000000003",slug:"lokasi",date:"2026-09-01",minggu:"1",kind:"mingguan",n:"1"})});
+    const response = await route.GET(new NextRequest("https://marlin.test/api/"+path), {params:Promise.resolve({id:"00000000-0000-4000-8000-000000000003",slug:"lokasi",date:"2026-09-01",minggu:"1",kind:"mingguan",n:"1",nama:"x"})});
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({error:"Ganti password terlebih dahulu."});
   });
