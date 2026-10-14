@@ -819,6 +819,15 @@ function pesanTanpaNilai(nama: string, baris: number): string {
 }
 
 /** Pembacaan tidak bisa dipastikan → layar BERTANYA, bukan menampilkan galat. */
+/**
+ * Galat yang sebabnya SATU SEL tertentu di berkas, dan MARLIN tidak bisa
+ * membetulkannya sendiri. Pesannya diawali alamat sel ("Sel B52 di sheet
+ * …"), dan TIDAK dijawab dengan pilihan kolom – memilih kolom lain tidak
+ * akan menolong. Teguran user 2026-10-14: *"sebut errornya dengan jelas,
+ * bahwa cell ini menyebabkan error, coba periksa"* (DECISIONS 675).
+ */
+export class GalatSelBerkas extends Error {}
+
 export class ImporPerluJawaban extends Error {
   constructor(
     public readonly sebab: string,
@@ -979,6 +988,8 @@ export async function parseHpsBuffer(asli: Buffer | ArrayBuffer, opsi: OpsiBaca 
       if (isi.bernilai === 0) throw new Error(pesanTanpaNilai(nama, isi.baris));
       return { ...hasil, pilihan: pilihanDari(wb, semuaNama, opsi.kolom ?? null) };
     } catch (e) {
+      // Sebabnya satu sel: memilih kolom lain tidak menolong, jadi bukan pertanyaan.
+      if (e instanceof GalatSelBerkas) throw e;
       throw new ImporPerluJawaban(
         e instanceof Error ? e.message : "Sheet ini tidak terbaca.",
         pilihanDari(wb, semuaNama, opsi.kolom ?? null),
@@ -1063,6 +1074,7 @@ async function parseHpsOtomatis(
       // lewat: ia harus disebut di pesan galat, bukan hilang.
       if (/rab/i.test(nama)) kosong.push(nama);
     } catch (e) {
+      if (e instanceof GalatSelBerkas) throw e;
       /*
        * Sheet bernama RAB yang TERBACA tapi isinya ditolak = sebab yang harus
        * didengar user, bukan alasan mencoba lima sheet lain. Mencoba sisanya
@@ -1445,8 +1457,9 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
   let adaItem = false;
   let selesai = false;
   /** Baris tempat pembacaan berhenti karena blok tanda tangan – disebut bila sesudahnya masih ada pekerjaan. */
-  let berhentiDi: { baris: number; teks: string } | null = null;
+  let berhentiDi: { baris: number; teks: string; sel: string } | null = null;
   let pekerjaanSesudahBerhenti = 0;
+  let barisPekerjaanPertamaSesudah = 0;
 
   /*
    * Baris yang dilewati karena di-hide, LENGKAP dengan identitasnya.
@@ -1462,17 +1475,24 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
   const hiddenRows: { baris: number; code: string; name: string; nilai: number }[] = [];
   ws.eachRow((row) => {
     if (selesai) {
-      if (barisPekerjaan(row)) pekerjaanSesudahBerhenti++;
+      if (barisPekerjaan(row)) {
+        pekerjaanSesudahBerhenti++;
+        barisPekerjaanPertamaSesudah ||= row.number;
+      }
       return;
     }
     if (adaItem && barisTandaTangan(row) && !barisPekerjaan(row)) {
       selesai = true;
       let teks = "";
+      let sel = "";
       row.eachCell({ includeEmpty: false }, (_c, kolom) => {
         const t = str(cellVal(row, kolom));
-        if (!teks && PENANDA_TTD.test(t)) teks = t;
+        if (!teks && PENANDA_TTD.test(t)) {
+          teks = t;
+          sel = `${colLetter(kolom)}${row.number}`;
+        }
       });
-      berhentiDi = { baris: row.number, teks };
+      berhentiDi = { baris: row.number, teks, sel };
       return;
     }
     // Baris yang SENGAJA DI-HIDE di Excel (mis. dikecualikan dari resume) tidak
@@ -1748,15 +1768,21 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     }
   });
 
-  // Pembacaan berhenti di "blok tanda tangan" padahal sesudahnya masih ada
-  // baris pekerjaan: itu bukan tanda tangan, atau tanda tangannya ada di
-  // tengah tabel. Disebut, bukan didiamkan (DECISIONS 675).
-  const henti = berhentiDi as { baris: number; teks: string } | null;
+  /*
+   * Pembacaan berhenti di "blok tanda tangan" padahal di bawahnya masih ada
+   * baris pekerjaan = MARLIN tidak tahu mana yang benar: sel itu salah tempat,
+   * atau tabelnya memang dua bagian. Yang pasti, menyimpan bagian atasnya saja
+   * berarti RAB terpotong – dan baris JUMLAH berkas (di bawah) tidak pernah
+   * terbaca, jadi pemeriksaan total pun diam. Karena itu DITOLAK dengan alamat
+   * selnya, bukan diperingatkan (DECISIONS 675).
+   */
+  const henti = berhentiDi as { baris: number; teks: string; sel: string } | null;
   if (henti && pekerjaanSesudahBerhenti > 0) {
-    warnings.push(
-      `Pembacaan tabel berhenti di baris ${henti.baris} karena sel "${henti.teks}" dianggap awal blok tanda ` +
-        `tangan, padahal sesudahnya masih ada ${pekerjaanSesudahBerhenti} baris pekerjaan. Kalau blok tanda ` +
-        "tangannya memang belum di situ, hapus atau pindahkan teks itu di Excel, lalu unggah ulang.",
+    throw new GalatSelBerkas(
+      `Sel ${henti.sel} di sheet "${ws.name}" berisi "${henti.teks}". MARLIN membacanya sebagai awal blok ` +
+        `tanda tangan, jadi pembacaan berhenti di situ – padahal di bawahnya masih ada ` +
+        `${pekerjaanSesudahBerhenti} baris pekerjaan (mulai baris ${barisPekerjaanPertamaSesudah}). Periksa sel ` +
+        `${henti.sel}: kalau bukan tanda tangan, hapus atau pindahkan teksnya di Excel, lalu unggah ulang.`,
     );
   }
 

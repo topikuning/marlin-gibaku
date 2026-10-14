@@ -139,7 +139,10 @@ describe("penanda tanda tangan di dalam baris PEKERJAAN tidak menghentikan pemba
     expect(r.parsed.total).toBe(27_000_000);
   });
 
-  it("blok tanda tangan di TENGAH tabel tetap menghentikan, tapi layar menyebut barisnya", async () => {
+  it("blok tanda tangan di TENGAH tabel = galat yang menyebut ALAMAT SELNYA, bukan RAB terpotong diam-diam", async () => {
+    // Teguran user 2026-10-14: "kalau error disebabkan sel seperti itu, dan tidak
+    // bisa handle solusinya, sebut errornya dengan jelas, bahwa cell ini
+    // menyebabkan error, coba periksa."
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("RAB");
     ws.addRow(["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN (Rp)", "JUMLAH HARGA (Rp)"]);
@@ -148,9 +151,16 @@ describe("penanda tanda tangan di dalam baris PEKERJAAN tidak menghentikan pemba
     ws.addRow(["", "DIBUAT OLEH,", null, null, null, null]);
     ws.addRow(["II", "PEKERJAAN JALAN", null, null, null, null]);
     ws.addRow(["1", "Paving", 100, "m2", 100_000, 10_000_000]);
-    const r = parseHpsWorkbook(wb);
-    expect(r.parsed.total).toBe(10_000_000);
-    expect(r.warnings.join(" ")).toMatch(/berhenti di baris 4 karena sel "DIBUAT OLEH," .* 1 baris pekerjaan/);
+    const { GalatSelBerkas } = await import("@/lib/rab/hps-parser");
+    let galat: unknown = null;
+    try {
+      parseHpsWorkbook(wb);
+    } catch (e) {
+      galat = e;
+    }
+    expect(galat).toBeInstanceOf(GalatSelBerkas);
+    expect((galat as Error).message).toMatch(/^Sel B4 di sheet "RAB" berisi "DIBUAT OLEH,"/);
+    expect((galat as Error).message).toMatch(/1 baris pekerjaan \(mulai baris 6\)/);
   });
 });
 

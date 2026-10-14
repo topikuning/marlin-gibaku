@@ -165,5 +165,26 @@ describe("aksi impor bertanya, bukan menampilkan galat", () => {
     expect(res?.error, res?.error).toBeUndefined();
     expect(res?.preview?.warnings.join(" ")).toMatch(/1 item bernilai tidak punya satuan di berkas: baris 4 "Perancah jalan kerja"/);
   });
+
+  it("sel yang memotong pembacaan disebut alamatnya sebagai galat – tanpa pilihan kolom (DECISIONS 675)", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.getRow(1).values = ["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN", "JUMLAH HARGA"];
+    ws.getRow(2).values = ["I", "PEKERJAAN PERSIAPAN"];
+    ws.getRow(3).values = ["1", "Pagar sementara", 100, "m", 375_000, 37_500_000];
+    ws.getRow(4).values = ["", "DIBUAT OLEH,"];
+    ws.getRow(5).values = ["II", "PEKERJAAN JALAN"];
+    ws.getRow(6).values = ["1", "Paving", 100, "m2", 100_000, 10_000_000];
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("mode", "aktifkan");
+    fd.set("file", new File([new Uint8Array(buf)], "ttd-tengah.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }));
+    const res = await importHps(undefined, fd);
+    expect(res?.tanya).toBeUndefined();
+    expect(res?.error).toMatch(/^Sel B4 di sheet "RAB" berisi "DIBUAT OLEH,"/);
+  });
 });
 

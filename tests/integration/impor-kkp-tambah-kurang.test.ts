@@ -209,6 +209,8 @@ describe("impor berkas tambah/kurang KKP lewat aksi server", () => {
      * bermasalah baris 191, blok KURANG.
      */
     expect(res!.error, "nomor baris Excel tidak disebut").toMatch(/baris\s*191\b/i);
+    // …dan alamat selnya, supaya bisa langsung diketik ke "Go To" Excel (DECISIONS 675).
+    expect(res!.error, "alamat sel tidak disebut").toMatch(/baris 191 \(sel [A-Z]+191\)/);
     expect(res!.error).not.toMatch(/constraint|rab_nodes|violates/i);
     // Ditolak SEBELUM menulis: tidak ada pratinjau yang bisa ditekan "Simpan".
     expect(res!.preview).toBeUndefined();

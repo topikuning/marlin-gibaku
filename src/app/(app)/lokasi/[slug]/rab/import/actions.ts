@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
-import { ImporPerluJawaban, parseHpsBuffer } from "@/lib/rab/hps-parser";
+import { ImporPerluJawaban, colLetter, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
@@ -557,7 +557,15 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
              * muncul SEMBILAN kali; nomor baris satu-satunya penunjuk yang bisa
              * langsung diketik ke kotak "Go To" Excel.
              */
-            `${n.excelRow != null ? `baris ${n.excelRow}` : "baris tak diketahui"} – ` +
+            // Alamat SEL bila kolom volumenya diketahui (teguran user 2026-10-14:
+            // "sebut … bahwa cell ini menyebabkan error"), baris saja bila tidak.
+            `${
+              n.excelRow == null
+                ? "baris tak diketahui"
+                : kolomBaca && n.volume != null && n.volume < 0
+                  ? `baris ${n.excelRow} (sel ${colLetter(kolomBaca.vol)}${n.excelRow})`
+                  : `baris ${n.excelRow}`
+            } – ` +
             `${n.code} "${n.name}" (volume ${(n.volume ?? 0).toLocaleString("id-ID")}, ` +
             `jumlah ${n.amount.toLocaleString("id-ID")})`,
         )
