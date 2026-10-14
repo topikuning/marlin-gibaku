@@ -9,6 +9,7 @@ import {
   bobotPct,
   distributeWithCaps,
   itemAchievement,
+  akhirKontrak,
   planFractionFromWeekly,
   prestasiPct,
   totalWeeksBetween,
@@ -425,7 +426,7 @@ export async function getPeriodBounds(
       id: true,
       package: {
         select: {
-          contract: { select: { startDate: true, endDate: true, durationDays: true, weekMode: true } },
+          contract: { select: { startDate: true, endDate: true, durationDays: true, weekMode: true, tahunJamak: true } },
         },
       },
     },
@@ -449,10 +450,11 @@ export async function getPeriodBounds(
      * SPMK adalah titik nol). Dulu di sini tertulis `durasi − 1`, jadi jadwal
      * yang dicetak SEBELUM SPMK punya satu kolom minggu lebih sedikit daripada
      * jadwal yang sama sesudah SPMK terbit — tanpa satu pun angka berubah.
-     * Audit 2026-09-15 (G-2).
+     * Audit 2026-09-15 (G-2). Batas 31 Desember kontrak tahun tunggal ikut
+     * dari rumus yang sama (DECISIONS 672).
      */
     startDate = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
-    endDate = new Date(startDate.getTime() + contract.durationDays * DAY);
+    endDate = akhirKontrak(startDate, contract.durationDays, contract.tahunJamak).akhir;
     assumed = true;
   } else {
     return null;

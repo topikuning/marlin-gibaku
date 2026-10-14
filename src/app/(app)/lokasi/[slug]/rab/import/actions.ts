@@ -471,6 +471,20 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               `${b.masuk.toLocaleString("id-ID")} (selisih ${(b.berkas - b.masuk).toLocaleString("id-ID")})`,
           )
           .join("; ");
+        /*
+         * Bacaan yang tidak cocok = MARLIN tidak paham berkasnya, jadi user
+         * DITANYA sheet & kolomnya, bukan diberi jalan buntu (DECISIONS 624/665;
+         * teguran user 2026-10-14: *"seharusnya kamu sajikan saja pemilihan
+         * manual kalau sistem impor rab mu tidak sanggup"*). Bentuk yang paling
+         * sering: kolom JUMLAH kosong, sehingga berkas terbaca 0 sementara
+         * volume × harga satuan menghasilkan angka lain. Tetap tidak ada yang
+         * disimpan sebelum keduanya sama.
+         */
+        const sebab =
+          `Angka yang terbaca dari berkas tidak sama dengan yang akan disimpan – ${rinci}. ` +
+          "Biasanya kolom yang dipakai MARLIN keliru, atau kolom jumlahnya kosong. Nilai kontrak tidak disimpan " +
+          "sebelum angkanya sama. Pilih sendiri sheet dan kolom volume, satuan, harga satuan, dan jumlah di bawah.";
+        if (baca) return { tanya: { sebab, ...baca } };
         return {
           error:
             `Impor dihentikan: angka yang akan tersimpan tidak sama dengan angka yang dibaca dari berkas ini. ` +

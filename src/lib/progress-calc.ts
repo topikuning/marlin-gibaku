@@ -378,6 +378,32 @@ export type WeekPeriodMode = "tujuh_hari" | "senin_minggu";
 
 const DAY_MS = 24 * 3600 * 1000;
 
+/**
+ * TANGGAL SELESAI KONTRAK – satu rumus untuk aksi SPMK, koreksi kontrak, dan
+ * jadwal sebelum SPMK.
+ *
+ * Akhir = SPMK + masa pelaksanaan; SPMK adalah TITIK NOL (keputusan user
+ * 2026-09-15, DECISIONS 578).
+ *
+ * Kontrak TAHUN TUNGGAL wajib selesai di tahun anggaran yang sama, jadi bila
+ * hasilnya melewati 31 Desember tahun SPMK, tanggalnya DIBATASI 31 Desember
+ * (laporan user 2026-10-13: SPMK 18 September + 105 hari jatuh 1 Januari).
+ * Kontrak tahun jamak tidak dibatasi. `tanpaBatas` dikembalikan supaya layar
+ * bisa mengatakan pembatasannya, bukan diam-diam (DECISIONS 672).
+ */
+export function akhirKontrak(
+  mulai: Date,
+  durasiHari: number,
+  tahunJamak: boolean,
+): { akhir: Date; tanpaBatas: Date; dibatasi: boolean } {
+  const tanpaBatas = new Date(mulai.getTime() + durasiHari * DAY_MS);
+  const akhirTahun = new Date(Date.UTC(mulai.getUTCFullYear(), 11, 31));
+  if (tahunJamak || tanpaBatas.getTime() <= akhirTahun.getTime()) {
+    return { akhir: tanpaBatas, tanpaBatas, dibatasi: false };
+  }
+  return { akhir: akhirTahun, tanpaBatas, dibatasi: true };
+}
+
 /** Senin (UTC-midnight) pada minggu kalender yang memuat `d`. */
 function seninPekan(d: Date): Date {
   const dow = (d.getUTCDay() + 6) % 7; // Senin=0 … Minggu=6

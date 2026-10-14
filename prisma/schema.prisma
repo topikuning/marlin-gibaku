@@ -1236,6 +1236,9 @@ model Contract {
   durationDays          Int       @default(150) @map("duration_days")
   startDate             DateTime? @map("start_date") @db.Date
   endDate               DateTime? @map("end_date") @db.Date
+  /// Kontrak TAHUN JAMAK (multi years). false = tahun tunggal: tanggal selesai
+  /// dibatasi 31 Desember tahun SPMK (DECISIONS 672, `akhirKontrak`).
+  tahunJamak            Boolean   @default(false) @map("tahun_jamak")
   paymentTerms          String?   @map("payment_terms")
   // Penanda tangan dokumen KKP (opsional, bisa diganti kapan saja bila ada
   // pergantian personel). PPK = pihak KKP; Pengawas = konsultan; Penyedia = pelaksana.

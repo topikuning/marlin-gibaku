@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 673 | 2026-10-14 | Impor RAB: angka bacaan ≠ yang akan disimpan → layar menanyakan sheet & kolom (bukan jalan buntu); tetap tidak menyimpan sebelum sama |
+| 672 | 2026-10-13 | Kontrak tahun tunggal selesai paling lambat 31 Desember (`akhirKontrak`), kotak centang tahun jamak; data lama + kolom minggu kurva-S ikut dibetulkan |
 | 671 | 2026-10-12 | Koreksi 670: sub-kategori hanya node `sub` (tanpa baris "pekerjaan lain"), halaman tampil di layar Laporan, kop satu sumber di web/PDF/Excel + logo penyedia·konsultan·pemberi tugas; tanda tangan PDF tidak meluber |
 | 670 | 2026-10-12 | Laporan mingguan: halaman baru "LAPORAN PROGRES MINGGUAN" per kategori & sub-kategori (format Lampiran Termin) di cetak, PDF, dan Excel; angka dari baris rincian yang sama |
 | 669 | 2026-10-11 | Analisa AI urutan RAB hanya dari tombol pengguna di Rencana – tidak otomatis saat impor/aktivasi RAB; RAB berganti → layar menyebut analisa lama tidak dipakai |
