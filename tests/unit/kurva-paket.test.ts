@@ -9,7 +9,7 @@
 // menentukan apakah kurvanya boleh dipercaya: bobot, lokasi berjadwal pendek,
 // realisasi yang tidak boleh turun, dan lokasi yang TIDAK boleh dipaksa masuk.
 import { describe, expect, it } from "vitest";
-import { gabungKurvaS, type KurvaLokasi } from "@/lib/progress-calc";
+import { gabungKurvaS, rincianKurvaPaket, type KurvaLokasi } from "@/lib/progress-calc";
 
 const lokasi = (o: Partial<KurvaLokasi> & Pick<KurvaLokasi, "planPct" | "grandTotal">): KurvaLokasi => ({
   totalWeeks: o.planPct.length,
@@ -111,5 +111,36 @@ describe("minggu berjalan", () => {
     ]);
     expect(k.currentWeek).toBe(3);
     expect(k.totalWeeks).toBe(3);
+  });
+});
+
+describe("rincian per lokasi untuk dokumen Kurva-S paket (DECISIONS 678)", () => {
+  const deret = [
+    lokasi({ planPct: [10, 40, 80, 100], actualPct: [12, 35, null, null], grandTotal: 600_000_000n }),
+    // Jadwal lebih pendek: sesudah minggu ke-2 dianggap 100%, tidak naik lagi.
+    lokasi({ planPct: [30, 100], actualPct: [20, 90], grandTotal: 400_000_000n }),
+  ];
+
+  it("bobot baris = porsi RAB, totalnya 100", () => {
+    const r = rincianKurvaPaket(deret);
+    expect(r.map((x) => x.bobotPct)).toEqual([60, 40]);
+    for (const x of r) expect(x.weekly.reduce((a, b) => a + b, 0)).toBeCloseTo(x.bobotPct, 9);
+  });
+
+  it("Σ baris tiap minggu = kenaikan rencana gabungan – tabel & garis tidak bisa berselisih", () => {
+    const r = rincianKurvaPaket(deret);
+    const g = gabungKurvaS(deret);
+    expect(r[0].weekly).toHaveLength(g.totalWeeks);
+    let kum = 0;
+    for (let w = 0; w < g.totalWeeks; w++) {
+      kum += r[0].weekly[w] + r[1].weekly[w];
+      expect(kum).toBeCloseTo(g.planPct[w], 9);
+    }
+    expect(r[1].weekly.slice(2)).toEqual([0, 0]);
+  });
+
+  it("lokasi tanpa baseline atau RAB tidak jadi baris", () => {
+    const r = rincianKurvaPaket([...deret, lokasi({ planPct: [], grandTotal: 500_000_000n }), lokasi({ planPct: [50, 100], grandTotal: 0n })]);
+    expect(r).toHaveLength(2);
   });
 });

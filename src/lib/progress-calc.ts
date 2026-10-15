@@ -596,8 +596,34 @@ export type KurvaPaket = {
  *    di SEMUA lokasi tetap `null` — garis realisasi berhenti di minggu
  *    berjalan, tidak dijatuhkan ke nol.
  */
+/** Lokasi yang ikut kurva-S paket: punya baseline dan RAB aktif bernilai. */
+export function ikutKurvaPaket(l: KurvaLokasi): boolean {
+  return l.totalWeeks > 0 && l.planPct.length > 0 && l.grandTotal > 0n;
+}
+
+/**
+ * Rincian kurva-S paket per LOKASI untuk tabel Time Schedule paket
+ * (DECISIONS 678): tiap lokasi jadi satu baris, bobotnya = porsi RAB-nya di
+ * paket (%), dan isi minggu ke-w = porsi × kenaikan rencana lokasi itu pada
+ * minggu w. Σ baris pada minggu w = kenaikan rencana `gabungKurvaS` pada
+ * minggu yang sama – dengan aturan yang sama: sesudah minggu terakhirnya,
+ * jadwal lokasi itu menyatakan 100% (jadi tidak naik lagi). MURNI.
+ */
+export function rincianKurvaPaket(lokasi: KurvaLokasi[]): { bobotPct: number; weekly: number[] }[] {
+  const ikut = lokasi.filter(ikutKurvaPaket);
+  const total = ikut.reduce((t, l) => t + l.grandTotal, 0n);
+  if (ikut.length === 0 || total === 0n) return [];
+  const minggu = Math.max(...ikut.map((l) => l.totalWeeks));
+  return ikut.map((l) => {
+    const porsi = Number(l.grandTotal) / Number(total);
+    const rencana = (w: number) => (w < 0 ? 0 : w < l.planPct.length ? l.planPct[w] : 100);
+    const weekly = Array.from({ length: minggu }, (_, w) => porsi * (rencana(w) - rencana(w - 1)));
+    return { bobotPct: porsi * 100, weekly };
+  });
+}
+
 export function gabungKurvaS(lokasi: KurvaLokasi[]): KurvaPaket {
-  const ikut = lokasi.filter((l) => l.totalWeeks > 0 && l.planPct.length > 0 && l.grandTotal > 0n);
+  const ikut = lokasi.filter(ikutKurvaPaket);
   const total = ikut.reduce((t, l) => t + l.grandTotal, 0n);
   if (ikut.length === 0 || total === 0n)
     return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0 };

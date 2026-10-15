@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileText, LineChart, Sheet } from "lucide-react";
 import {
   Badge,
   Banner,
@@ -10,6 +11,7 @@ import {
   CardHeader,
   Drawer,
   KpiCard,
+  MenuBerkas,
   MiniStat,
   ProgressBar,
   StatusPill,
@@ -186,6 +188,8 @@ export default async function RingkasanPaketPage({
   const canDocument = can(user.role, "document.view");
 
   const idLokasi = pkg.locations.map((l) => l.id);
+  // Nama di garis per lokasi Kurva-S paket (DECISIONS 677).
+  const namaLokasi = new Map(pkg.locations.map((l) => [l.id, l.name]));
   /*
    * LINGKUP dibaca LEBIH DULU karena seluruh agregat bergantung padanya:
    * lokasi yang sudah dicabut lewat adendum tidak boleh ikut menghitung progres,
@@ -497,21 +501,56 @@ export default async function RingkasanPaketPage({
           }
           action={
             kurvaPaket.dihitung > 0 ? (
-              <span className="text-sm">
-                <span className="text-ink-muted">Rencana</span>{" "}
-                <span className="tabular font-semibold text-ink">
-                  {formatPct(kurvaPaket.planPct[kurvaPaket.currentWeek - 1] ?? 0)}
-                </span>{" "}
-                <span className="text-ink-muted">· Realisasi</span>{" "}
-                <span className="tabular font-semibold text-ink">{formatPct(aggregatePct)}</span>
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm">
+                  <span className="text-ink-muted">Rencana</span>{" "}
+                  <span className="tabular font-semibold text-ink">
+                    {formatPct(kurvaPaket.planPct[kurvaPaket.currentWeek - 1] ?? 0)}
+                  </span>{" "}
+                  <span className="text-ink-muted">· Realisasi</span>{" "}
+                  <span className="tabular font-semibold text-ink">{formatPct(aggregatePct)}</span>
+                </span>
+                {/* Kurva-S paket sebagai dokumen (DECISIONS 678): lembar Time
+                    Schedule yang sama dengan lokasi, barisnya lokasi. */}
+                {can(user.role, "report.export") ? (
+                  <MenuBerkas
+                    label="Kurva-S Paket"
+                    icon={<LineChart aria-hidden className="size-4" />}
+                    pilihan={[
+                      {
+                        label: "Unduh PDF",
+                        icon: <FileText aria-hidden className="size-3.5" />,
+                        href: `/api/laporan/kurva-paket/${pkg.id}/pdf`,
+                        jenis: "berkas",
+                        labelSibuk: "Menyiapkan PDF kurva-S paket…",
+                        hint: "Gabungan seluruh lokasi, siap cetak dan diteken",
+                      },
+                      {
+                        label: "Unduh Excel",
+                        icon: <Sheet aria-hidden className="size-3.5" />,
+                        href: `/api/laporan/kurva-paket/${pkg.id}/xlsx`,
+                        jenis: "berkas",
+                        labelSibuk: "Menyiapkan Excel kurva-S paket…",
+                        hint: "Bobot tiap lokasi × minggu, dengan grafik",
+                      },
+                    ]}
+                  />
+                ) : null}
+              </div>
             ) : null
           }
         />
         <CardBody className="space-y-2">
           {kurvaPaket.dihitung > 0 ? (
             <>
-              <ScurveChart series={kurvaPaket} />
+              <ScurveChart
+                series={kurvaPaket}
+                lokasi={kurvaPaket.perLokasi.map((d) => ({
+                  nama: namaLokasi.get(d.locationId) ?? "Lokasi",
+                  planPct: d.planPct,
+                  actualPct: d.actualPct,
+                }))}
+              />
               {/* Lokasi yang belum punya baseline TIDAK dipaksa masuk sebagai
                   nol – itu akan menuduhnya tertinggal 100%. Yang tidak ikut
                   disebut jumlahnya, supaya kurva ini tidak terbaca "seluruh

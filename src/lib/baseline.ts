@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
-import { gabungKurvaS, weekOfDate, type KurvaPaket } from "@/lib/progress-calc";
+import { gabungKurvaS, ikutKurvaPaket, weekOfDate, type KurvaLokasi, type KurvaPaket } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { PROFIL_BASELINE_BAWAAN, contractDaysFor, profilBaselineAktif, totalWeeksFor } from "@/lib/rab/import";
 import { rebucketWeeklyToGrid,
@@ -936,9 +936,12 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
  */
 export async function getScurveSeriesPaket(
   locationIds: string[],
-): Promise<KurvaPaket & { totalLokasi: number }> {
+): Promise<KurvaPaket & { totalLokasi: number; perLokasi: (KurvaLokasi & { locationId: string })[] }> {
   if (locationIds.length === 0)
-    return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0, totalLokasi: 0 };
+    return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0, totalLokasi: 0, perLokasi: [] };
   const deret = await Promise.all(locationIds.map((id) => getScurveSeries(id)));
-  return { ...gabungKurvaS(deret), totalLokasi: locationIds.length };
+  // Deret tiap lokasi yang IKUT gabungan – digambar tipis di bawah garis paket
+  // (DECISIONS 677), angkanya sama persis dengan kurva di halaman lokasinya.
+  const perLokasi = deret.map((d, i) => ({ ...d, locationId: locationIds[i] })).filter(ikutKurvaPaket);
+  return { ...gabungKurvaS(deret), totalLokasi: locationIds.length, perLokasi };
 }

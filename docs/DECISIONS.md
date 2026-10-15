@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 678 | 2026-10-15 | Kurva-S paket diunduh sebagai PDF & Excel: lembar Time Schedule KKP yang sama, satu baris per lokasi (bobot = porsi RAB), angka dari `gabungKurvaS`; lokasi yang tidak ikut disebut di catatan |
+| 677 | 2026-10-15 | Kurva-S paket: realisasi tiap lokasi digambar tipis berwarna tetap di bawah garis paket (bisa disembunyikan); semua Kurva-S web menampilkan angka minggu yang disorot; kop Laporan Progres Mingguan menyebut Nilai Kontrak Lokasi (RAB + PPN) di samping nilai paket |
 | 676 | 2026-10-14 | Dokumen diunduh dengan nama saat diunggah (bukan token arsip): `/api/documents/<id>` → `/api/documents/<id>/<nama>` yang menyerahkan isinya sendiri, tidak kedaluwarsa; `alamatBerkas` membawa nama (Lenovo di ruas alamat, R2 lewat presign); jenis tak aman diunduh, bukan dibuka di tab |
 | 675 | 2026-10-14 | Impor RAB: sel "DIBUAT OLEH," di baris pekerjaan (bukan romawi kembar) menghentikan pembacaan – baris pekerjaan tak lagi dianggap tanda tangan; item bernilai tanpa satuan disebut di pratinjau |
 | 674 | 2026-10-14 | Laporan Rencana & Realisasi Mingguan per Kategori (rencana vs realisasi tiap kategori × M1..Mn, % terhadap kategori) – cetak, PDF, Excel; rumus dari kurva-S |
