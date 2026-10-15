@@ -1,4 +1,5 @@
 import "server-only";
+import type { KurvaPaketDokumen } from "@/lib/laporan/kurva-paket";
 import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
 import { getPeriodBounds, getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
@@ -94,6 +95,32 @@ export async function buildJadwalKkpPdf(
   });
 }
 
+/**
+ * KURVA-S PAKET – gabungan seluruh lokasi (DECISIONS 678). Lembar yang sama
+ * dengan Time Schedule lokasi; barisnya lokasi (bobot = porsi RAB), dirakit
+ * `susunKurvaPaket`.
+ */
+export async function buildKurvaPaketPdf(
+  r: PeriodReport,
+  appName: string,
+  gambarTtd: TtdPdf | null,
+  opsi: { periode: { start: Date; end: Date }; catatan: string | null },
+): Promise<Buffer> {
+  return susunPdfPeriodik(r, appName, gambarTtd, {
+    judulBerkas: `Kurva S Paket – ${r.header.packageName}`,
+    judulKurva: JUDUL_KURVA_PAKET,
+    periode: opsi.periode,
+    catatan: opsi.catatan,
+    jenis: "jadwal",
+    rincian: false,
+    labelNilai: "Nilai Fisik Seluruh Lokasi",
+    labelUraian: "Lokasi",
+    tinggiPlotMin: 230,
+  });
+}
+
+export const JUDUL_KURVA_PAKET = "KURVA S PAKET – RENCANA & REALISASI GABUNGAN SELURUH LOKASI";
+
 /** Judul dokumen jadwal – SAMA dengan halaman `/cetak/jadwal`. */
 const JUDUL_JADWAL = "TIME SCHEDULE (KURVA S) – RENCANA & REALISASI";
 
@@ -110,6 +137,16 @@ async function susunPdfPeriodik(
     /** false = lembar kurva saja (dokumen jadwal). */
     rincian: boolean;
     logo?: LogoLaporan | null;
+    /** Kurva-S paket (DECISIONS 678): barisnya lokasi, nilainya Σ lokasi. */
+    labelNilai?: string;
+    labelUraian?: string;
+    /**
+     * Tinggi minimum area kurva (pt). Garis kurva digambar di atas baris
+     * kategori; dokumen paket hanya punya beberapa baris lokasi, dan tanpa ini
+     * kurva 0–100% terjepit di ±50 pt. Hanya mengisi ruang yang tersisa di
+     * halaman, tidak pernah mendorong tanda tangan ke halaman berikut.
+     */
+    tinggiPlotMin?: number;
   },
 ): Promise<Buffer> {
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -187,7 +224,7 @@ async function susunPdfPeriodik(
   );
   draw(
     [
-      { text: "Nilai Fisik Lokasi", head: true },
+      { text: opsi.labelNilai ?? "Nilai Fisik Lokasi", head: true },
       { text: rupiah(Number(h.locationValue)) },
       { text: "Nomor Kontrak", head: true },
       { text: h.contractNumber || "-" },
@@ -217,7 +254,7 @@ async function susunPdfPeriodik(
   // Header 2 baris: kelompok bulan (span) + M1..MN.
   const monthCells: GridCell[] = [
     { text: "No", head: true, align: "center" },
-    { text: "Uraian Pekerjaan", head: true, align: "center" },
+    { text: opsi.labelUraian ?? "Uraian Pekerjaan", head: true, align: "center" },
     { text: "Bobot (%)", head: true, align: "center" },
     ...sheet.monthGroups.map((g): GridCell => ({ text: g.label, head: true, align: "center", span: g.span })),
     { text: "KET", head: true, align: "center" },
@@ -280,13 +317,20 @@ async function susunPdfPeriodik(
     if (y + tinggiLembar(kurvaOpt) + TINGGI_TTD <= bottom) break;
     kurvaOpt = { ...kurvaOpt, ...rapat };
   }
+  let optKategori = kurvaOpt;
+  if (opsi.tinggiPlotMin && barisKategori.length > 0) {
+    const kini = barisKategori.reduce((t, c) => t + gridRowHeight(doc, c, kurvaOpt), 0);
+    const sisa = bottom - y - tinggiLembar(kurvaOpt) - TINGGI_TTD;
+    const target = Math.min(opsi.tinggiPlotMin, kini + Math.max(0, sisa));
+    if (target > kini) optKategori = { ...kurvaOpt, minRowHeight: target / barisKategori.length };
+  }
   kurvaHead();
 
   // Baris kategori — sekaligus catat rentang vertikal untuk overlay kurva.
   const plotTop = y;
   for (const cells of barisKategori) {
-    fit(gridRowHeight(doc, cells, kurvaOpt), kurvaHead);
-    y = gridRow(doc, y, cells, kurvaOpt);
+    fit(gridRowHeight(doc, cells, optKategori), kurvaHead);
+    y = gridRow(doc, y, cells, optKategori);
   }
   const plotBottom = y;
 
@@ -1113,6 +1157,22 @@ export async function renderPeriodikKkpPdf(
  * kontrak, dan sebelum SPMK tanggal mulainya diasumsikan (dan disebut).
  * TANPA otorisasi (pemanggil gate). Null bila kontrak/durasi belum ada.
  */
+/**
+ * Render Kurva-S paket dari hasil `susunKurvaPaket` – periode, catatan, dan
+ * penanda tangan dokumen jadwal lokasi acuan (kontrak yang sama). TANPA
+ * otorisasi (pemanggil gate).
+ */
+export async function renderKurvaPaketPdf(dok: KurvaPaketDokumen): Promise<PeriodikKkpPdfResult> {
+  const branding = await getBranding();
+  const gambarTtd = await muatTtdPdf(dok.lokasiAcuanId, "jadwal").catch(() => TANPA_TTD_PDF);
+  return {
+    buffer: await buildKurvaPaketPdf(dok.report, branding.appName, gambarTtd, {
+      periode: { start: dok.bounds.startDate, end: dok.bounds.endDate },
+      catatan: dok.catatan ? `Catatan: ${dok.catatan}` : null,
+    }),
+  };
+}
+
 export async function renderJadwalKkpPdf(locationId: string): Promise<PeriodikKkpPdfResult | null> {
   const bounds = await getPeriodBounds(locationId, { assume: true });
   if (!bounds) return null;

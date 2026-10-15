@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileText, LineChart, Sheet } from "lucide-react";
 import {
   Badge,
   Banner,
@@ -10,6 +11,7 @@ import {
   CardHeader,
   Drawer,
   KpiCard,
+  MenuBerkas,
   MiniStat,
   ProgressBar,
   StatusPill,
@@ -499,14 +501,42 @@ export default async function RingkasanPaketPage({
           }
           action={
             kurvaPaket.dihitung > 0 ? (
-              <span className="text-sm">
-                <span className="text-ink-muted">Rencana</span>{" "}
-                <span className="tabular font-semibold text-ink">
-                  {formatPct(kurvaPaket.planPct[kurvaPaket.currentWeek - 1] ?? 0)}
-                </span>{" "}
-                <span className="text-ink-muted">· Realisasi</span>{" "}
-                <span className="tabular font-semibold text-ink">{formatPct(aggregatePct)}</span>
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm">
+                  <span className="text-ink-muted">Rencana</span>{" "}
+                  <span className="tabular font-semibold text-ink">
+                    {formatPct(kurvaPaket.planPct[kurvaPaket.currentWeek - 1] ?? 0)}
+                  </span>{" "}
+                  <span className="text-ink-muted">· Realisasi</span>{" "}
+                  <span className="tabular font-semibold text-ink">{formatPct(aggregatePct)}</span>
+                </span>
+                {/* Kurva-S paket sebagai dokumen (DECISIONS 678): lembar Time
+                    Schedule yang sama dengan lokasi, barisnya lokasi. */}
+                {can(user.role, "report.export") ? (
+                  <MenuBerkas
+                    label="Kurva-S Paket"
+                    icon={<LineChart aria-hidden className="size-4" />}
+                    pilihan={[
+                      {
+                        label: "Unduh PDF",
+                        icon: <FileText aria-hidden className="size-3.5" />,
+                        href: `/api/laporan/kurva-paket/${pkg.id}/pdf`,
+                        jenis: "berkas",
+                        labelSibuk: "Menyiapkan PDF kurva-S paket…",
+                        hint: "Gabungan seluruh lokasi, siap cetak dan diteken",
+                      },
+                      {
+                        label: "Unduh Excel",
+                        icon: <Sheet aria-hidden className="size-3.5" />,
+                        href: `/api/laporan/kurva-paket/${pkg.id}/xlsx`,
+                        jenis: "berkas",
+                        labelSibuk: "Menyiapkan Excel kurva-S paket…",
+                        hint: "Bobot tiap lokasi × minggu, dengan grafik",
+                      },
+                    ]}
+                  />
+                ) : null}
+              </div>
             ) : null
           }
         />

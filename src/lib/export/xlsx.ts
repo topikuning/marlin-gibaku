@@ -109,7 +109,16 @@ async function addKurvaSheet(
    * sebagai bagian laporan periodik (ikut jenis laporannya) dan sebagai Time
    * Schedule berdiri sendiri (dokumen jadwal). DECISIONS 403.
    */
-  opts: { jenis: JenisDokumen; sheetName?: string; logo?: LogoLaporan },
+  opts: {
+    jenis: JenisDokumen;
+    sheetName?: string;
+    logo?: LogoLaporan;
+    /** Kurva-S paket (DECISIONS 678): judul sendiri, barisnya lokasi. */
+    judul?: string;
+    labelUraian?: string;
+    /** Kalimat di bawah judul – mis. lokasi yang tidak ikut dihitung. */
+    catatan?: string | null;
+  },
 ): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -152,12 +161,13 @@ async function addKurvaSheet(
     return row;
   };
   const barisJudul = banner(
-    `KURVA S – ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    opts.judul ?? `KURVA S – ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
     true,
     12,
     WARNA.kepala,
   );
   banner(`${r.header.packageName} – ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
+  if (opts.catatan) banner(opts.catatan, false, 9, WARNA.teksRedup);
   // Tata letak berkas acuan (Time Schedule): identitas di kiri, PASANGAN logo
   // pemilik + kontraktor BERJAJAR DI KANAN — bukan kiri-kanan terpisah.
   ws.getRow(barisJudul.number + 1).height = 34;
@@ -172,7 +182,7 @@ async function addKurvaSheet(
   // Header 2 baris: kelompok bulan (merge) + minggu.
   const monthRow = ws.addRow([]);
   monthRow.getCell(1).value = "No";
-  monthRow.getCell(2).value = "Uraian Pekerjaan";
+  monthRow.getCell(2).value = opts.labelUraian ?? "Uraian Pekerjaan";
   monthRow.getCell(3).value = "Bobot (%)";
   let c = FIRST;
   for (const g of sheet.monthGroups) {
@@ -968,6 +978,34 @@ export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLapor
   wb.creator = "MARLIN";
   wb.created = new Date();
   const { chart } = await addKurvaSheet(wb, r, { jenis: "jadwal", sheetName: "Time Schedule", logo: opts?.logo });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  try {
+    return await addLineChartToXlsx(buf, chart);
+  } catch {
+    return buf;
+  }
+}
+
+/**
+ * KURVA-S PAKET – gabungan seluruh lokasi (DECISIONS 678) sebagai .xlsx: lembar
+ * Time Schedule yang sama, barisnya lokasi (bobot = porsi RAB), dirakit
+ * `susunKurvaPaket`. Grafik native Excel ikut.
+ */
+export async function buildKurvaPaketXlsx(
+  r: PeriodReport,
+  opts?: { logo?: LogoLaporan; catatan?: string | null },
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "MARLIN";
+  wb.created = new Date();
+  const { chart } = await addKurvaSheet(wb, r, {
+    jenis: "jadwal",
+    sheetName: "Kurva S Paket",
+    logo: opts?.logo,
+    judul: `KURVA S PAKET – MINGGU KE-${r.n}`,
+    labelUraian: "Lokasi",
+    catatan: opts?.catatan ? `Catatan: ${opts.catatan}` : null,
+  });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
