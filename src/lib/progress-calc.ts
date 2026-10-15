@@ -596,8 +596,13 @@ export type KurvaPaket = {
  *    di SEMUA lokasi tetap `null` — garis realisasi berhenti di minggu
  *    berjalan, tidak dijatuhkan ke nol.
  */
+/** Lokasi yang ikut kurva-S paket: punya baseline dan RAB aktif bernilai. */
+export function ikutKurvaPaket(l: KurvaLokasi): boolean {
+  return l.totalWeeks > 0 && l.planPct.length > 0 && l.grandTotal > 0n;
+}
+
 export function gabungKurvaS(lokasi: KurvaLokasi[]): KurvaPaket {
-  const ikut = lokasi.filter((l) => l.totalWeeks > 0 && l.planPct.length > 0 && l.grandTotal > 0n);
+  const ikut = lokasi.filter(ikutKurvaPaket);
   const total = ikut.reduce((t, l) => t + l.grandTotal, 0n);
   if (ikut.length === 0 || total === 0n)
     return { totalWeeks: 0, currentWeek: 1, planPct: [], actualPct: [], grandTotal: 0n, dihitung: 0 };

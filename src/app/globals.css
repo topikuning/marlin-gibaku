@@ -57,6 +57,22 @@
   --radius-lg: 10px;
 }
 
+:root {
+  /* Seri grafik per lokasi (urutan tetap, divalidasi buta warna – DECISIONS 677).
+     Di :root, BUKAN @theme: Tailwind membuang variabel @theme yang tidak
+     dipakai kelas mana pun, padahal nomor seri disusun saat jalan.
+     Warna ikut lokasinya, bukan peringkatnya; lebih dari 8 lokasi tidak diberi
+     warna ke-9 karangan. */
+  --color-seri-1: #2a78d6;
+  --color-seri-2: #eb6834;
+  --color-seri-3: #1baf7a;
+  --color-seri-4: #eda100;
+  --color-seri-5: #e87ba4;
+  --color-seri-6: #008300;
+  --color-seri-7: #6250d6;
+  --color-seri-8: #e34948;
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);

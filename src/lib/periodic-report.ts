@@ -1,6 +1,7 @@
 import "server-only";
 import { pilihKoordinatorTl, pilihPelaksana, pilihPengawas, pilihWakilSah } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
+import { withPpn } from "@/lib/money";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
@@ -145,6 +146,13 @@ export type PeriodHeader = {
   contractValue: bigint;
   /** Nilai fisik LOKASI ini (Σ RAB aktif) — dipakai di header laporan per-lokasi. */
   locationValue: bigint;
+  /**
+   * Nilai kontrak LOKASI ini = Σ RAB aktif + PPN kontrak (RAB pre-PPN, kontrak
+   * incl-PPN) – sebanding dengan `contractValue` paket di kop yang sama
+   * (DECISIONS 677). Opsional hanya supaya fixture lama tetap sah.
+   */
+  nilaiKontrakLokasi?: bigint;
+  ppnPercent?: number;
   masaPelaksanaanHari: number;
   tahunAnggaran: number;
   /** Tanggal mulai kontrak — utk kolom kurva-S dikelompokkan per bulan. */
@@ -310,6 +318,7 @@ export const HEADER_LOCATION_SELECT = {
           contractNumber: true,
           signedDate: true,
           contractValue: true,
+          ppnPercent: true,
           workTitle: true,
           durationDays: true,
           endDate: true,
@@ -377,6 +386,8 @@ export function buildPeriodHeader(
     contractValue: contract.contractValue,
     // Nilai fisik lokasi ini = Σ RAB aktif (bukan nilai kontrak seluruh paket).
     locationValue: BigInt(Math.round(o.grandTotal)),
+    nilaiKontrakLokasi: withPpn(BigInt(Math.round(o.grandTotal)), Number(contract.ppnPercent)),
+    ppnPercent: Number(contract.ppnPercent),
     masaPelaksanaanHari: Math.max(1, contract.durationDays),
     tahunAnggaran: o.startDate.getUTCFullYear(),
     contractStart: o.startDate,

@@ -44,6 +44,20 @@ export type KopProgresMingguan = {
 
 const rupiah = (n: bigint) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n))}`;
 
+/**
+ * Nilai kontrak di kop. Nilai kontrak paket saja menyesatkan di laporan satu
+ * lokasi (permintaan user 2026-10-15) – nilai kontrak lokasinya ikut disebut,
+ * dan yang paket diberi tanda "(Paket)" supaya keduanya tidak tertukar.
+ */
+function barisNilai(h: PeriodHeader): [string, string][] {
+  if (h.nilaiKontrakLokasi == null) return [["Nilai Kontrak Fisik", rupiah(h.contractValue)]];
+  const ppn = h.ppnPercent != null ? ` (termasuk PPN ${new Intl.NumberFormat("id-ID").format(h.ppnPercent)}%)` : "";
+  return [
+    ["Nilai Kontrak Fisik (Paket)", rupiah(h.contractValue)],
+    ["Nilai Kontrak Lokasi", `${rupiah(h.nilaiKontrakLokasi)}${ppn}`],
+  ];
+}
+
 export function kopProgresMingguan(h: PeriodHeader, n: number): KopProgresMingguan {
   const kata = terbilang(n);
   const hari = terbilangHari(h.masaPelaksanaanHari);
@@ -58,7 +72,7 @@ export function kopProgresMingguan(h: PeriodHeader, n: number): KopProgresMinggu
     identitas: [
       ["Paket Pekerjaan", h.packageName],
       ["Lokasi", lokasi],
-      ["Nilai Kontrak Fisik", rupiah(h.contractValue)],
+      ...barisNilai(h),
       ["No. dan Tanggal Kontrak", kontrak],
       ["Kontraktor Pelaksana", h.vendorName],
       ["Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–"],

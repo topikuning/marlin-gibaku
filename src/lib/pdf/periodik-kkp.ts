@@ -331,11 +331,13 @@ async function susunPdfPeriodik(
     centerText(kop.judul, 13, true, 5);
     const yKop = y;
     const lebarKiri = width * 0.6;
-    const kolLabel = 108;
+    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
+    // Lebar label dari label terpanjang – "Nilai Kontrak Fisik (Paket)"
+    // terlipat di kolom tetap 108 pt dan menimpa baris di bawahnya (DECISIONS 677).
+    const kolLabel = Math.max(108, ...kop.identitas.map(([k]) => doc.widthOfString(k) + 6));
     const kolTitik = 9;
     const lebarNilai = lebarKiri - kolLabel - kolTitik;
     let yKiri = yKop;
-    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
     for (const [k, v] of kop.identitas) {
       const tinggi = doc.heightOfString(v, { width: lebarNilai });
       doc.text(k, x, yKiri, { width: kolLabel, lineBreak: false });

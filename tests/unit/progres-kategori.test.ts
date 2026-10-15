@@ -102,6 +102,31 @@ describe("kop LAPORAN PROGRES MINGGUAN (satu teks untuk web, PDF, Excel – DECI
     });
     expect(kop.pihak).toEqual(["PENYEDIA JASA", "KONSULTAN PENGAWAS", "PEMBERI TUGAS"]);
   });
+
+  it("nilai kontrak lokasi ikut disebut di samping nilai kontrak paket (DECISIONS 677)", () => {
+    const kop = kopProgresMingguan(
+      {
+        packageName: "Pembangunan KNMP Lingga",
+        village: "Pantai Harapan",
+        district: "Selayar",
+        regency: "Lingga",
+        province: "Kepulauan Riau",
+        contractValue: 30_000_752_000n,
+        nilaiKontrakLokasi: 7_492_500_000n,
+        ppnPercent: 11,
+        contractNumber: "B.24716",
+        vendorName: "PT Prima Shina Cahaya",
+        masaPelaksanaanHari: 135,
+        periodeStart: new Date("2026-10-05T00:00:00Z"),
+        periodeEnd: new Date("2026-10-11T00:00:00Z"),
+      } as unknown as Parameters<typeof kopProgresMingguan>[0],
+      6,
+    );
+    const label = kop.identitas.map(([k]) => k);
+    expect(label.slice(1, 4)).toEqual(["Lokasi", "Nilai Kontrak Fisik (Paket)", "Nilai Kontrak Lokasi"]);
+    expect(Object.fromEntries(kop.identitas)["Nilai Kontrak Fisik (Paket)"]).toBe("Rp 30.000.752.000");
+    expect(Object.fromEntries(kop.identitas)["Nilai Kontrak Lokasi"]).toBe("Rp 7.492.500.000 (termasuk PPN 11%)");
+  });
 });
 
 describe("realisasi mingguan per kategori (DECISIONS 674)", async () => {

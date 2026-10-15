@@ -186,6 +186,8 @@ export default async function RingkasanPaketPage({
   const canDocument = can(user.role, "document.view");
 
   const idLokasi = pkg.locations.map((l) => l.id);
+  // Nama di garis per lokasi Kurva-S paket (DECISIONS 677).
+  const namaLokasi = new Map(pkg.locations.map((l) => [l.id, l.name]));
   /*
    * LINGKUP dibaca LEBIH DULU karena seluruh agregat bergantung padanya:
    * lokasi yang sudah dicabut lewat adendum tidak boleh ikut menghitung progres,
@@ -511,7 +513,14 @@ export default async function RingkasanPaketPage({
         <CardBody className="space-y-2">
           {kurvaPaket.dihitung > 0 ? (
             <>
-              <ScurveChart series={kurvaPaket} />
+              <ScurveChart
+                series={kurvaPaket}
+                lokasi={kurvaPaket.perLokasi.map((d) => ({
+                  nama: namaLokasi.get(d.locationId) ?? "Lokasi",
+                  planPct: d.planPct,
+                  actualPct: d.actualPct,
+                }))}
+              />
               {/* Lokasi yang belum punya baseline TIDAK dipaksa masuk sebagai
                   nol – itu akan menuduhnya tertinggal 100%. Yang tidak ikut
                   disebut jumlahnya, supaya kurva ini tidak terbaca "seluruh
