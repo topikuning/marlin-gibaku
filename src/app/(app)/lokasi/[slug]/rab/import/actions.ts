@@ -25,6 +25,8 @@ import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanPerItem, bandingkanTerhadapAktif, type BandingItem, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { pohonRingkas, pohonRingkasBanding, type SimpulBanding } from "@/lib/rab/pohon-ringkas";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
+import { bandingKoreksiBaca, type PerubahanKoreksi } from "@/lib/rab/koreksi-baca";
+import { KoreksiBacaError, terapkanKoreksiBaca } from "@/lib/rab/koreksi-baca-simpan";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
@@ -98,6 +100,27 @@ export type ImportPreview = {
    */
   baca: import("@/lib/rab/hps-parser").PilihanBaca | null;
   mode: ImportMode;
+  /**
+   * Mode `aktifkan` pada lokasi yang SUDAH punya RAB aktif (DECISIONS 680):
+   * apakah berkas ini cuma membetulkan pembacaan RAB aktif (item, induk,
+   * volume, jumlah sama persis) atau memang mengubah isi kontrak.
+   *
+   * `boleh` → disimpan langsung ke revisi aktif, tanpa revisi baru dan tanpa
+   * dua persetujuan, karena tidak ada angka kontrak yang berubah.
+   * Tidak `boleh` → jalur adendum: revisi baru yang tertahan sebagai DRAFT
+   * sampai disetujui. Sebabnya disebut supaya orang tahu sebelum menyimpan.
+   */
+  koreksi:
+    | {
+        boleh: true;
+        revisionNo: number;
+        hargaTerisi: number;
+        hargaBerubah: number;
+        jumlahBaris: number;
+        contoh: string[];
+      }
+    | { boleh: false; revisionNo: number; sebab: string[] }
+    | null;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
   /**
@@ -973,7 +996,60 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
+    let perubahanKoreksi: PerubahanKoreksi[] | null = null;
+    let koreksi: ImportPreview["koreksi"] = null;
+    if (activeRevision && mode === "aktifkan") {
+      const kunciById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
+      const k = bandingKoreksiBaca(
+        aktifNodes.map((n) => ({
+          id: n.id,
+          lineageKey: n.lineageKey,
+          parentLineageKey: n.parentId ? (kunciById.get(n.parentId) ?? null) : null,
+          kind: n.kind,
+          code: n.code,
+          name: n.name,
+          unit: n.unit,
+          volume: n.volume == null ? null : Number(n.volume),
+          unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
+          amount: n.amount,
+        })),
+        nodes,
+      );
+      if (k.boleh) {
+        perubahanKoreksi = k.perubahan;
+        const kalimat = (p: PerubahanKoreksi) =>
+          [
+            p.unitPrice
+              ? p.unitPrice.dari == null
+                ? `harga satuan kosong → ${formatRupiahSatuan(p.unitPrice.ke)}`
+                : `harga satuan ${formatRupiahSatuan(p.unitPrice.dari)} → ${formatRupiahSatuan(p.unitPrice.ke)}`
+              : null,
+            p.unit ? `satuan "${p.unit.dari ?? ""}" → "${p.unit.ke ?? ""}"` : null,
+            p.name ? `nama → "${p.name.ke}"` : null,
+            p.code ? `nomor ${p.code.dari} → ${p.code.ke}` : null,
+            p.jenis ? `jenis ${p.jenis.dari} → ${p.jenis.ke}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+        koreksi = {
+          boleh: true,
+          revisionNo: activeRevision.revisionNo,
+          hargaTerisi: k.hargaTerisi,
+          hargaBerubah: k.hargaBerubah,
+          jumlahBaris: k.perubahan.length,
+          // Harga yang dulu kosong lebih dulu – itu yang dicari orang.
+          contoh: [...k.perubahan]
+            .sort((a, b) => Number(b.unitPrice?.dari === null) - Number(a.unitPrice?.dari === null))
+            .slice(0, 12)
+            .map((p) => `${p.label}: ${kalimat(p)}`),
+        };
+      } else {
+        koreksi = { boleh: false, revisionNo: activeRevision.revisionNo, sebab: k.sebab };
+      }
+    }
+
     const preview: ImportPreview = {
+      koreksi,
       rincian: rincian ? { ringkasan: rincian.ringkasan, tersembunyiDibaca: rincian.tersembunyiDibaca } : null,
       ...(rincianGagal ? { rincianGagal } : {}),
       padanan: {
@@ -1150,6 +1226,91 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `Draft ini baru berlaku setelah diaktifkan.` +
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : "") +
           kalimatRincianDraft,
+      };
+    }
+
+    /*
+     * PERBAIKAN PEMBACAAN RAB AKTIF — tanpa adendum (DECISIONS 680).
+     *
+     * Laporan user 2026-10-15: *"ketika sudah pilih jadikan langsung RAB
+     * aktif, kenapa hasil impor diperlakukan seperti draft cco/adendum"*.
+     * Berkas yang item, induk, volume, dan jumlahnya SAMA PERSIS dengan RAB
+     * aktif tidak mengubah kontrak; yang dibawanya hanya bacaan yang lebih
+     * benar (harga satuan yang dulu kosong, satuan, nama). Membuat revisi baru
+     * untuknya justru menyeretnya ke gerbang dua persetujuan yang dibuat untuk
+     * perubahan kontrak, dan berakhir sebagai draft yang tidak pernah perlu ada.
+     *
+     * Jadi dibetulkan di tempat: revisi aktif yang sama, node yang sama.
+     * Berkas yang mengubah isi kontrak tetap lewat jalur adendum di bawah.
+     */
+    if (activeRevision && perubahanKoreksi) {
+      let h = { node: 0, barisHarian: 0, snapshotDibangunUlang: 0 };
+      if (perubahanKoreksi.length > 0) {
+        try {
+          h = await terapkanKoreksiBaca({
+            revisionId: activeRevision.id,
+            locationId: location.id,
+            perubahan: perubahanKoreksi,
+            userId: user.id,
+            berkas: file.name,
+          });
+        } catch (e) {
+          if (e instanceof KoreksiBacaError) return { preview, notice: e.message } as ImportState;
+          throw e;
+        }
+      }
+      const docKoreksi =
+        h.node > 0
+          ? await arsipkanSumber({
+              buffer,
+              file,
+              sha256,
+              location,
+              userId: user.id,
+              revisionId: activeRevision.id,
+              revisionNo: activeRevision.revisionNo,
+              adendum: isAdendum,
+              judul: `HPS/RAB perbaikan pembacaan (revisi #${activeRevision.revisionNo}) – ${location.name}`,
+            })
+          : null;
+      // Rincian (backup volume, analisa) hanya diisi bila revisi aktif belum
+      // punya: yang sudah ada bisa memuat isian tangan, dan perbaikan
+      // pembacaan tidak boleh menghapusnya diam-diam.
+      const rincianAda = await db.rabRincianRevisi.findUnique({
+        where: { revisionId: activeRevision.id },
+        select: { revisionId: true },
+      });
+      const kalimatRincianKoreksi = rincianAda
+        ? ""
+        : await simpanRincianImpor(activeRevision.id, rincian, nodes, docKoreksi, user.id);
+      revalidatePath(`/lokasi/${location.slug}`, "layout");
+      revalidatePath("/progress");
+      if (h.node === 0) {
+        return {
+          success:
+            `Isi berkas ini sudah sama dengan RAB aktif revisi #${activeRevision.revisionNo}, ` +
+            `jadi tidak ada angka yang diubah.` +
+            kalimatRincianKoreksi,
+        };
+      }
+      const k = koreksi?.boleh ? koreksi : null;
+      const bagian = [
+        k && k.hargaTerisi > 0 ? `${k.hargaTerisi} harga satuan yang kosong kini terisi` : null,
+        k && k.hargaBerubah > 0 ? `${k.hargaBerubah} harga satuan terbaca ulang` : null,
+        k && h.node - k.hargaTerisi - k.hargaBerubah > 0
+          ? `${h.node - k.hargaTerisi - k.hargaBerubah} baris lain dibetulkan satuan, nama, nomor, atau jenis judulnya`
+          : null,
+      ].filter(Boolean);
+      return {
+        success:
+          `RAB aktif revisi #${activeRevision.revisionNo} sudah dibetulkan dari ${file.name}: ${bagian.join("; ")}. ` +
+          `Tidak ada revisi baru dan tidak perlu persetujuan, karena item, volume, dan jumlahnya sama dengan kontrak. ` +
+          `Progres, kurva-S, dan nilai kontrak tidak berubah.` +
+          (h.barisHarian > 0
+            ? ` Nilai terpasang di ${h.barisHarian} baris laporan harian dihitung ulang dengan harga yang benar` +
+              (h.snapshotDibangunUlang > 0 ? `, dan ${h.snapshotDibangunUlang} blanko harian final dibuat ulang.` : ".")
+            : "") +
+          kalimatRincianKoreksi,
       };
     }
 
@@ -1408,6 +1569,7 @@ async function arsipkanSumber(a: {
   revisionId: string;
   revisionNo: number;
   adendum: boolean;
+  judul?: string;
 }): Promise<string | null> {
   if (!isR2Configured()) return null;
   try {
@@ -1420,7 +1582,7 @@ async function arsipkanSumber(a: {
         locationId: a.location.id,
         phase: a.adendum ? "adendum" : "kontrak",
         type: "hps",
-        title: `HPS/RAB ${a.adendum ? `adendum (revisi #${a.revisionNo})` : "awal"} – ${a.location.name}`,
+        title: a.judul ?? `HPS/RAB ${a.adendum ? `adendum (revisi #${a.revisionNo})` : "awal"} – ${a.location.name}`,
         r2Key: key,
         fileName: a.file.name,
         mimeType: a.file.type || XLSX_MIME[0],

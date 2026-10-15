@@ -36,7 +36,7 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           title="Impor HPS / Adendum"
           subtitle={
             active
-              ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File baru akan jadi revisi berikutnya.`
+              ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File yang mengubah isinya jadi revisi berikutnya; yang isinya sama dipakai membetulkan bacaan revisi ini.`
               : "Belum ada revisi RAB – file akan jadi revisi #1. Bentuk kurva-S dipilih sesudah impor berhasil, tidak dibuat sendiri."
           }
           action={

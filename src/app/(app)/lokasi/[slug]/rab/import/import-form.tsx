@@ -202,7 +202,16 @@ export function ImportForm({
           {(
             [
               ["draft", "Isi DRAFT adendum", "RAB aktif, progres, kurva-S, dan keuangan TIDAK berubah. Draft baru berlaku setelah diaktifkan."],
-              ["aktifkan", "Jadikan RAB AKTIF sekarang", "Menggantikan RAB aktif dan membuat ulang kurva-S. Untuk HPS awal atau adendum yang SUDAH resmi."],
+              [
+                "aktifkan",
+                "Jadikan RAB AKTIF sekarang",
+                // Kalimat lama ("menggantikan RAB aktif") tidak jujur untuk
+                // lokasi yang sudah punya RAB aktif: perubahan kontrak tetap
+                // menunggu dua persetujuan (DECISIONS 234/680).
+                adaAktif
+                  ? "Berkas yang isinya sama dengan RAB aktif (item, volume, jumlah) dipakai membetulkan bacaannya, langsung, tanpa revisi baru. Berkas yang mengubah isi kontrak tersimpan sebagai DRAFT dan baru aktif setelah disetujui."
+                  : "Menjadi RAB aktif lokasi ini. Untuk HPS awal.",
+              ],
             ] as const
           ).map(([nilai, judul, jelas]) => {
             // Kunci mengikuti keadaan, dan alasannya SELALU disebut — pilihan
@@ -255,8 +264,8 @@ export function ImportForm({
           ) : null}
           {adaAktif && bukaKunci ? (
             <p className="text-[13px] text-warning">
-              Kunci dibuka. Kalau disimpan dengan tujuan ini, RAB aktif akan DIGANTI dan kurva-S dibuat
-              ulang. Pakai hanya bila adendumnya memang sudah resmi.
+              Kunci dibuka. Pratinjau menyebut mana yang akan terjadi pada berkas Anda sebelum ada yang
+              disimpan.
             </p>
           ) : null}
         </div>
@@ -275,6 +284,9 @@ export function ImportForm({
 
       {preview ? (
         <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
+          {preview.mode === "aktifkan" && preview.koreksi ? (
+            <BannerKoreksi koreksi={preview.koreksi} />
+          ) : (
           <Banner
             tone={preview.mode === "draft" ? "info" : preview.isAdendum ? "warning" : "info"}
             title={
@@ -294,6 +306,7 @@ export function ImportForm({
                   : "Revisi #1 akan dibuat. Kurva-S TIDAK langsung dibuat. Bentuknya Anda pilih setelah impor berhasil."
             }
           />
+          )}
 
           {preview.baca ? (
             <PilihBaca
@@ -413,18 +426,21 @@ export function ImportForm({
             />
           ) : null}
 
-          <div>
-            <Label htmlFor="hps-note">Catatan revisi (opsional)</Label>
-            <Textarea
-              id="hps-note"
-              name="note"
-              rows={2}
-              maxLength={500}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="mis. Adendum CCO-01, perubahan volume revetment"
-            />
-          </div>
+          {/* Perbaikan pembacaan tidak membuat revisi – tidak ada yang diberi catatan. */}
+          {preview.mode === "aktifkan" && preview.koreksi?.boleh ? null : (
+            <div>
+              <Label htmlFor="hps-note">Catatan revisi (opsional)</Label>
+              <Textarea
+                id="hps-note"
+                name="note"
+                rows={2}
+                maxLength={500}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="mis. Adendum CCO-01, perubahan volume revetment"
+              />
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -432,7 +448,13 @@ export function ImportForm({
         {preview ? (
           <>
             <Button type="button" loading={pending} onClick={() => run(true)}>
-              {preview.mode === "draft" ? "Simpan ke draft adendum" : "Simpan & aktifkan revisi"}
+              {preview.mode === "draft"
+                ? "Simpan ke draft adendum"
+                : preview.koreksi?.boleh
+                  ? "Simpan perbaikan"
+                  : preview.koreksi
+                    ? "Simpan revisi (menunggu persetujuan)"
+                    : "Simpan & aktifkan revisi"}
             </Button>
             <Button type="button" variant="secondary" loading={pending} onClick={() => run(false)}>
               Pratinjau ulang
@@ -642,3 +664,68 @@ function PanelPadanan({
 }
 
 /** Apa yang berubah terhadap RAB aktif — ditampilkan SEBELUM ada yang ditulis. */
+
+/**
+ * Pratinjau mode "Jadikan RAB AKTIF" pada lokasi yang sudah punya RAB aktif
+ * (DECISIONS 680): apa yang SEBENARNYA akan terjadi, sebelum disimpan.
+ */
+function BannerKoreksi({ koreksi }: { koreksi: NonNullable<ImportPreview["koreksi"]> }) {
+  if (!koreksi.boleh) {
+    return (
+      <Banner
+        tone="warning"
+        title={`Berkas ini mengubah isi RAB aktif revisi #${koreksi.revisionNo}, jadi tersimpan sebagai DRAFT dulu`}
+        description={
+          <>
+            <span className="block">
+              Revisi barunya baru aktif setelah disetujui Program Director dan satu Area/Project/Site
+              Manager di tab Adendum. Yang berbeda dari RAB aktif:
+            </span>
+            <ul className="mt-1 list-disc pl-5">
+              {koreksi.sebab.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+          </>
+        }
+      />
+    );
+  }
+  if (koreksi.jumlahBaris === 0) {
+    return (
+      <Banner
+        tone="info"
+        title={`Isinya sudah sama dengan RAB aktif revisi #${koreksi.revisionNo}`}
+        description="Tidak ada angka yang akan diubah."
+      />
+    );
+  }
+  const ringkas = [
+    koreksi.hargaTerisi > 0 ? `${koreksi.hargaTerisi} harga satuan yang kosong akan terisi` : null,
+    koreksi.hargaBerubah > 0 ? `${koreksi.hargaBerubah} harga satuan terbaca lain` : null,
+  ].filter(Boolean);
+  return (
+    <Banner
+      tone="info"
+      title={`Perbaikan pembacaan RAB aktif revisi #${koreksi.revisionNo}`}
+      description={
+        <>
+          <span className="block">
+            Item, volume, dan jumlahnya sama dengan RAB aktif. Yang berbeda hanya bacaannya, jadi
+            langsung dibetulkan di revisi #{koreksi.revisionNo}, tanpa revisi baru dan tanpa persetujuan.
+            Progres, kurva-S, dan nilai kontrak tidak berubah.
+            {ringkas.length > 0 ? ` ${ringkas.join("; ")}.` : ""}
+          </span>
+          <ul className="mt-1 list-disc pl-5">
+            {koreksi.contoh.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+            {koreksi.jumlahBaris > koreksi.contoh.length ? (
+              <li>dan {koreksi.jumlahBaris - koreksi.contoh.length} baris lainnya</li>
+            ) : null}
+          </ul>
+        </>
+      }
+    />
+  );
+}
