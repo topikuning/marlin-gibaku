@@ -52,14 +52,16 @@ function sheetDetailRab(wb: ExcelJS.Workbook): void {
 }
 
 describe("CCO dengan blok hasil di depan tambah/kurang", () => {
-  it("volume dari blok CC 0 - 1, harga & satuan dari Kontrak", () => {
+  it("volume dari blok CC 0 - 1, satuan dari Kontrak, harga dari blok berharga yang terbukti", () => {
     const wb = new ExcelJS.Workbook();
     sheetCc0(wb);
     const h = parseHpsWorkbook(wb);
     const item = h.parsed.categories[0]!.direct_items;
     expect(item.map((i) => i.volume)).toEqual([50, 4.5, 1, 6]);
     expect(item[1]).toMatchObject({ unit: "bln", unit_price: 2_500_000, total_price: 11_250_000 });
-    expect(h.warnings.join(" ")).toMatch(/blok "CC 0 - 1" \(kolom G\)/);
+    // CC 0 - 1 membawa kolom HARGA SATUAN sendiri yang terbukti, jadi harga
+    // diambil dari sana (DECISIONS 679) – angkanya sama dengan Kontrak.
+    expect(h.warnings.join(" ")).toMatch(/blok "CC 0 - 1" \(kolom G(\/[A-Z]+\/[A-Z]+)?\)/);
   });
 
   it("berkas dengan sheet \"Detail RAB\" DAN \"CC 0\": yang dibaca CC 0", async () => {

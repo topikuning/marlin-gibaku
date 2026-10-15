@@ -57,12 +57,15 @@ describe("tata letak berkas tambah/kurang KKP", () => {
     it(`${label} – dikenali, dan perannya dibuktikan angkanya`, async () => {
       const peta = deteksiCco(await sheetRab(nama));
       expect(peta, "berkas tambah/kurang tidak dikenali").not.toBeNull();
-      // Harga satuan dari blok DASAR, volume & jumlah dari blok HASIL. Itu yang
-      // membedakan "sesudah adendum" dari "keadaan awal"; tertukar berarti
-      // nilai kontrak diambil dari keadaan yang salah, dan itu tidak kelihatan
-      // salah karena angkanya tetap besar dan rapi.
-      expect(peta!.col.price).toBeGreaterThanOrEqual(peta!.blokDasar.mulai);
-      expect(peta!.col.price).toBeLessThanOrEqual(peta!.blokDasar.akhir);
+      // Volume & jumlah dari blok HASIL. Itu yang membedakan "sesudah
+      // adendum" dari "keadaan awal"; tertukar berarti nilai kontrak diambil
+      // dari keadaan yang salah, dan itu tidak kelihatan salah karena angkanya
+      // tetap besar dan rapi. Harga satuan dari blok DASAR – atau dari blok
+      // HASIL bila blok itu punya kolom harga yang terbukti (DECISIONS 679,
+      // Karangmangu: CCO - 01 membawa harga satuannya sendiri, angkanya sama).
+      const blokHarga = peta!.hargaHasil ? peta!.blokHasil : peta!.blokDasar;
+      expect(peta!.col.price).toBeGreaterThanOrEqual(blokHarga.mulai);
+      expect(peta!.col.price).toBeLessThanOrEqual(blokHarga.akhir);
       expect(peta!.col.vol).toBeGreaterThanOrEqual(peta!.blokHasil.mulai);
       expect(peta!.col.vol).toBeLessThanOrEqual(peta!.blokHasil.akhir);
       expect(peta!.col.amount).toBeGreaterThanOrEqual(peta!.blokHasil.mulai);
