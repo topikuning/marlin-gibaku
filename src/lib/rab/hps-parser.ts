@@ -195,7 +195,18 @@ export type ColMap = { vol: number; unit: number; price: number; amount: number;
 
 export type PriceSource = "nego" | "penawaran" | "hps";
 
-const NC = 24; // kolom A..X — cukup utk semua varian RAB KKP
+const NC = 24; // kolom A..X — cukup utk semua varian RAB KKP (deteksi OTOMATIS)
+
+/**
+ * Lebar sheet untuk PILIHAN KOLOM TANGAN (DECISIONS 679). Deteksi otomatis
+ * tetap A..X, tapi pilihan tangan harus bisa menjangkau setiap kolom terlihat:
+ * blok CCO-01 berkas CCO 1 Krakahan ada di X–AA, dan Y/Z (harga & jumlah
+ * CCO-01) tidak pernah muncul di daftar pilihan. Dibatasi 80 kolom (A..CB)
+ * karena ada sheet yang pemformatannya membentang sampai kolom terakhir Excel.
+ */
+function lebarSheet(ws: ExcelJS.Worksheet): number {
+  return Math.max(NC, Math.min(ws.columnCount || 0, 80));
+}
 
 /** Huruf kolom Excel utk pesan ke user ("kolom K/L"). */
 export function colLetter(c: number): string {
@@ -231,9 +242,9 @@ const BLOCK_RE = /HPS|PENAWAR|NEGO/;
  * keduanya sama saja — cadangan defensif yang sama dipakai untuk baris
  * (`row.hidden === true || row.height === 0`).
  */
-export function kolomTersembunyi(ws: ExcelJS.Worksheet): Set<number> {
+export function kolomTersembunyi(ws: ExcelJS.Worksheet, sampai: number = NC): Set<number> {
   const keluar = new Set<number>();
-  for (let c = 1; c <= NC; c++) {
+  for (let c = 1; c <= sampai; c++) {
     const kol = ws.getColumn(c);
     if (kol?.hidden === true || kol?.width === 0) keluar.add(c);
   }
@@ -850,7 +861,8 @@ function tampilSel(v: unknown): string {
  * (DECISIONS 604).
  */
 export function ringkasKolom(ws: ExcelJS.Worksheet): KolomBerkas[] {
-  const sembunyi = kolomTersembunyi(ws);
+  const lebar = lebarSheet(ws);
+  const sembunyi = kolomTersembunyi(ws, lebar);
   let h = 0;
   for (let rn = 1; rn <= Math.min(60, ws.rowCount) && !h; rn++) {
     const L = labelsOf(ws.getRow(rn));
@@ -872,7 +884,7 @@ export function ringkasKolom(ws: ExcelJS.Worksheet): KolomBerkas[] {
   const barisJudul: number[] = [];
   for (let r = Math.max(1, h - 2); r <= akhirJudul; r++) if (!ws.getRow(r).hidden) barisJudul.push(r);
   const out: KolomBerkas[] = [];
-  for (let c = 1; c <= NC; c++) {
+  for (let c = 1; c <= lebar; c++) {
     if (sembunyi.has(c)) continue;
     const label: string[] = [];
     for (const r of barisJudul) {
@@ -902,7 +914,8 @@ function siapkanKolomManual(
   ws: ExcelJS.Worksheet,
   k: KolomManual,
 ): { col: ColMap; label: string; catatan: string } {
-  const sembunyi = kolomTersembunyi(ws);
+  const lebar = lebarSheet(ws);
+  const sembunyi = kolomTersembunyi(ws, lebar);
   const peran: [number, string][] = [
     [k.vol, "Volume"],
     [k.unit, "Satuan"],
@@ -910,7 +923,7 @@ function siapkanKolomManual(
     [k.amount, "Jumlah harga"],
   ];
   for (const [c, judul] of peran) {
-    if (!Number.isInteger(c) || c < 1 || c > NC) throw new Error(`Kolom ${judul} tidak valid – pilih ulang.`);
+    if (!Number.isInteger(c) || c < 1 || c > lebar) throw new Error(`Kolom ${judul} tidak valid – pilih ulang.`);
     if (sembunyi.has(c))
       throw new Error(
         `Kolom ${judul} (${colLetter(c)}) disembunyikan di Excel – kolom tersembunyi tidak dibaca. ` +
@@ -935,8 +948,9 @@ function usulanKolom(ws: ExcelJS.Worksheet): KolomManual | null {
     // CCO yang kolomnya tidak terbukti: jangan usulkan kolom HPS/penawaran.
     if (!peta && berbentukCco(ws)) return null;
     const col = peta ? peta.col : detectColumns(ws).col;
-    const sembunyi = kolomTersembunyi(ws);
-    const ok = (c: number) => c >= 1 && c <= NC && !sembunyi.has(c);
+    const lebar = lebarSheet(ws);
+    const sembunyi = kolomTersembunyi(ws, lebar);
+    const ok = (c: number) => c >= 1 && c <= lebar && !sembunyi.has(c);
     if (!ok(col.vol) || !ok(col.unit) || !ok(col.price) || !ok(col.amount)) return null;
     return { vol: col.vol, unit: col.unit, price: col.price, amount: col.amount };
   } catch {
@@ -1178,7 +1192,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     : peta
     ? {
         source: "hps" as const,
-        label: peta.hargaDariHasil
+        label: peta.hargaDariHasil || peta.hargaHasil
           ? `CCO KKP – volume, harga satuan, dan jumlah dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}/${colLetter(peta.col.price)}/${colLetter(peta.col.amount)})`
           : `CCO KKP – volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
       }
@@ -1196,9 +1210,13 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     const { berubah, total } = hitungPerubahan(ws, peta);
     warnings.push(
       `Berkas berformat tambah/kurang KKP. ` +
-        (peta.hargaDariHasil
+        (peta.tambahKurangTersembunyi
+          ? `Kolom PEKERJAAN TAMBAH/KURANG disembunyikan di Excel – hanya judulnya yang dipakai untuk mengenali susunan berkas, angkanya tidak dibaca. `
+          : "") +
+        (peta.hargaDariHasil || peta.hargaHasil
           ? `Volume, harga satuan, dan jumlah diambil dari blok "${peta.blokHasil.label}" (kolom ` +
-            `${colLetter(peta.col.vol)}/${colLetter(peta.col.price)}/${colLetter(peta.col.amount)}) – keadaan SESUDAH adendum. `
+            `${colLetter(peta.col.vol)}/${colLetter(peta.col.price)}/${colLetter(peta.col.amount)}) – keadaan SESUDAH adendum` +
+            `${peta.hargaHasil ? `, termasuk harga item yang baru masuk adendum` : ""}. `
           : `Volume diambil dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}) – keadaan SESUDAH ` +
             `adendum; satuan & harga satuan dari blok "${peta.blokDasar.label}". `) +
         `${berubah} dari ${total} item volumenya berbeda dari volume kontrak (kolom ${colLetter(peta.volDasar)}).`,

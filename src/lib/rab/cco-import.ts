@@ -70,6 +70,13 @@ export type PetaCco = {
    * angka yang dihitung: ketiganya sel berkas.
    */
   hargaDariHasil?: true;
+  /**
+   * Harga satuan dari kolom harga blok HASIL (terbukti), padahal blok dasar
+   * juga berharga – item baru adendum hanya berharga di sana (DECISIONS 679).
+   */
+  hargaHasil?: true;
+  /** Blok TAMBAH/KURANG disembunyikan di Excel – hanya judulnya yang dipakai. */
+  tambahKurangTersembunyi?: true;
 };
 
 
@@ -118,27 +125,37 @@ const punyaKurang = (s: string) => /PEKERJAAN\s*KURANG|KURANG/i.test(s);
  * H dan J kosong-tersembunyi) terbelah jadi F–G · I · K–L: harga satuan I
  * yang terlihat terlepas dari blok dasarnya, lalu harga "dihitung" dari
  * jumlah ÷ volume – turunan yang dicabut 625.
+ *
+ * Blok yang SELURUH kolomnya tersembunyi tetap tercatat (dengan `kolom`
+ * kosong): JUDULNYA dipakai untuk mengenali susunan berkas, ANGKANYA tidak
+ * pernah dibaca (DECISIONS 604 tetap). CCO 1 Krakahan (2026-10-15)
+ * menyembunyikan PEKERJAAN TAMBAH (R–T) dan KURANG (U–W); tanpa judul itu
+ * berkasnya tidak dikenali sebagai CCO dan yang terbaca nilai MC-0 – kontrak
+ * lama, dengan kategori baru CCO bernilai 0 (DECISIONS 679).
  */
 function blokDi(ws: ExcelJS.Worksheet, baris: number, sembunyi: Set<number> = new Set()): BlokNilai[] {
   const blok: BlokNilai[] = [];
   let kini: BlokNilai | null = null;
   for (let c = 1; c <= NC; c++) {
-    if (sembunyi.has(c)) continue;
+    const tersembunyi = sembunyi.has(c);
     const label = teks(ws.getRow(baris).getCell(c).value).replace(/\s+/g, " ").trim();
     if (!label) {
-      kini = null;
+      if (!tersembunyi) kini = null;
       continue;
     }
     if (kini && kini.label === label) {
       kini.akhir = c;
-      kini.kolom.push(c);
+      if (!tersembunyi) kini.kolom.push(c);
     } else {
-      kini = { label, mulai: c, akhir: c, kolom: [c] };
+      kini = { label, mulai: c, akhir: c, kolom: tersembunyi ? [] : [c] };
       blok.push(kini);
     }
   }
   return blok;
 }
+
+/** Blok yang punya sedikitnya satu kolom TERLIHAT – hanya ini yang bisa dibaca angkanya. */
+const terbaca = (b: BlokNilai) => b.kolom.length > 0;
 
 /** Baris-baris contoh: ada uraian (kolom teks kiri) dan sedikitnya satu angka. */
 function barisContoh(ws: ExcelJS.Worksheet, mulai: number, blok: BlokNilai): number[] {
@@ -273,12 +290,13 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
    * memilih kolom bobot itu, pembuktian gagal, dan seluruh berkas jatuh ke
    * pembaca HPS biasa – yang lalu membaca blok HPS/penawaran.
    */
-  const bukanNilai = (b: BlokNilai) => /^(BOBOT|KET|KETERANGAN|%)/i.test(b.label);
+  const bukanNilai = (b: BlokNilai) => /^(BOBOT|KET|KETERANGAN|%)/i.test(b.label) || !terbaca(b);
   let iDasar = iTambah - 1;
   while (iDasar > 0 && bukanNilai(blok[iDasar])) iDasar--;
   let blokDasar = blok[iDasar];
-  // Kandidat blok HASIL = semua blok sesudah "kurang", tanpa kolom keterangan.
-  let sesudah = blok.slice(iKurang + 1).filter((b) => !/^KET|KETERANGAN/i.test(b.label));
+  if (!terbaca(blokDasar)) return null;
+  // Kandidat blok HASIL = semua blok TERLIHAT sesudah "kurang", tanpa kolom keterangan.
+  let sesudah = blok.slice(iKurang + 1).filter((b) => terbaca(b) && !/^KET|KETERANGAN/i.test(b.label));
   if (sesudah.length === 0) {
     /*
      * Hasil DI DEPAN tambah/kurang: Kontrak · CC 0 - 1 · VOLUME TAMBAH ·
@@ -385,6 +403,39 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
   }
 
   let hasilDariDasar = false;
+  /*
+   * HARGA SATUAN BLOK HASIL (DECISIONS 679). Item yang BARU di adendum tidak
+   * punya harga di blok dasar – harganya hanya ada di blok hasil. CCO 1
+   * Krakahan: "Pekerjaan Skonengan" baris 420 (kategori XIII yang baru)
+   * berharga di Y420, kolom K (MC-0) kosong; mengambil harga dari dasar
+   * membuat harga satuannya kosong padahal jumlahnya ada. Bila blok hasil
+   * punya kolom harga yang TERBUKTI `volume × harga ≈ jumlah` sedikitnya
+   * sesering harga dasar, kolom itulah harga satuannya – sel berkas, bukan
+   * hitungan.
+   */
+  let hargaHasil: number | null = null;
+  if (blokHasil) {
+    const skorHarga = (p: number): number => {
+      let skor = 0;
+      for (const r of contoh) {
+        const row = ws.getRow(r);
+        const nv = angka(row.getCell(volHasil).value);
+        const np = angka(row.getCell(p).value);
+        const na = angka(row.getCell(amountHasil).value);
+        if (nv == null || np == null || na == null || nv === 0 || np === 0 || na === 0) continue;
+        if (cocok(nv * np, na)) skor++;
+      }
+      return skor;
+    };
+    const skorDasar = skorHarga(dasar.price);
+    let terbaik: { c: number; skor: number } | null = null;
+    for (const p of blokHasil.kolom) {
+      if (p === volHasil || p === amountHasil) continue;
+      const skor = skorHarga(p);
+      if (skor >= 3 && (!terbaik || skor > terbaik.skor)) terbaik = { c: p, skor };
+    }
+    if (terbaik && terbaik.skor >= skorDasar) hargaHasil = terbaik.c;
+  }
   if (!blokHasil) {
     // Ada isinya tapi tidak satu pun terbukti → jangan diterka; biarkan pesan
     // "kolom volume/harga/jumlah tidak bisa dipastikan" yang bicara.
@@ -410,12 +461,16 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
     blokHasil,
     hasilDariDasar,
     volDasar: dasar.vol,
+    ...(hargaHasil != null ? { hargaHasil: true as const } : {}),
+    ...(blok.slice(iTambah, iKurang + 1).some((b) => !terbaca(b)) ? { tambahKurangTersembunyi: true as const } : {}),
     col: {
       // Volume ADENDUM (keadaan sesudah) — inti dari impor ini.
       vol: volHasil,
-      // Satuan & harga satuan tidak berubah karena adendum; diambil dari dasar.
+      // Satuan dari dasar. Harga satuan dari blok hasil bila blok itu punya
+      // kolom harga yang terbukti (item baru adendum hanya berharga di sana),
+      // selain itu dari dasar.
       unit,
-      price: dasar.price,
+      price: hargaHasil ?? dasar.price,
       amount: amountHasil,
       // Berkas CCO tidak membawa TKDN. Kolom jauh = selalu kosong.
       tkdn: 999,
