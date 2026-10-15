@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
-import { ImporPerluJawaban, parseHpsBuffer } from "@/lib/rab/hps-parser";
+import { ImporPerluJawaban, colLetter, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
@@ -462,6 +462,26 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         );
       }
 
+      /*
+       * Item BERNILAI tanpa satuan – disebut, tidak dikarang (DECISIONS 675).
+       * Bentuk yang ditemukan: berkas CCO yang item barunya hanya punya blok
+       * TAMBAH/ADD-2, dan kedua blok itu tidak punya kolom SAT (MC-0 Desa Batu
+       * Putih: 393 item). Satuannya kosong di MARLIN sampai berkasnya diisi.
+       */
+      const tanpaSatuan = nodes.filter((n) => n.kind === "item" && n.amount > 0n && !n.unit?.trim());
+      if (tanpaSatuan.length > 0) {
+        const contoh = tanpaSatuan
+          .slice(0, 3)
+          .map((n) => `${n.excelRow != null ? `baris ${n.excelRow} ` : ""}"${n.name.slice(0, 60)}"`)
+          .join("; ");
+        warnings.push(
+          `${tanpaSatuan.length} item bernilai tidak punya satuan di berkas: ${contoh}` +
+            `${tanpaSatuan.length > 3 ? `, dan ${tanpaSatuan.length - 3} item lain` : ""}. ` +
+            "MARLIN tidak mengarang satuannya, jadi kolom satuannya akan kosong. Kalau perlu, isi kolom satuan di " +
+            "Excel lalu impor ulang.",
+        );
+      }
+
       const beda = bedaAntarLayer(parsed, nodes);
       if (beda.length > 0) {
         const rinci = beda
@@ -537,7 +557,15 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
              * muncul SEMBILAN kali; nomor baris satu-satunya penunjuk yang bisa
              * langsung diketik ke kotak "Go To" Excel.
              */
-            `${n.excelRow != null ? `baris ${n.excelRow}` : "baris tak diketahui"} – ` +
+            // Alamat SEL bila kolom volumenya diketahui (teguran user 2026-10-14:
+            // "sebut … bahwa cell ini menyebabkan error"), baris saja bila tidak.
+            `${
+              n.excelRow == null
+                ? "baris tak diketahui"
+                : kolomBaca && n.volume != null && n.volume < 0
+                  ? `baris ${n.excelRow} (sel ${colLetter(kolomBaca.vol)}${n.excelRow})`
+                  : `baris ${n.excelRow}`
+            } – ` +
             `${n.code} "${n.name}" (volume ${(n.volume ?? 0).toLocaleString("id-ID")}, ` +
             `jumlah ${n.amount.toLocaleString("id-ID")})`,
         )

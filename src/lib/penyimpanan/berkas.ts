@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { r2Delete, r2GetBuffer, r2GetDenganJenis, r2HapusBanyak, r2PresignGet } from "@/lib/r2";
 import { ambilDingin, bentukKunciSah, hapusDingin, setelanDingin } from "@/lib/arsip-asli/dingin";
+import { kepalaDisposisi, ruasNama } from "./nama-unduhan";
 
 /**
  * SATU PINTU KE BERKAS, DI MANA PUN IA BERADA (DECISIONS 645).
@@ -135,19 +136,30 @@ export function bacaTokenBerkas(token: string, sekarang = Date.now()): string | 
   return a.length === b.length && timingSafeEqual(a, b) ? kunci : null;
 }
 
+/** Nama berkas jadi ruas terakhir alamat – penampil PDF peramban menamai simpanan dari situ (DECISIONS 676). */
 function alamatLenovo(kunci: string, expiresIn: number, namaBerkas?: string): string {
-  const q = namaBerkas ? `?nama=${encodeURIComponent(namaBerkas)}` : "";
-  return `/api/berkas/${tokenBerkas(kunci, kedaluwarsa(expiresIn))}${q}`;
+  const ekor = namaBerkas ? `/${ruasNama(namaBerkas)}` : "";
+  return `/api/berkas/${tokenBerkas(kunci, kedaluwarsa(expiresIn))}${ekor}`;
 }
 
 /**
  * Alamat sementara untuk membuka berkas. Di R2: presign seperti sebelumnya.
- * Di Lenovo: `/api/berkas/<token>` (RELATIF – pemanggil di route handler
- * menyusunnya terhadap URL permintaan), yang mengambil isinya lewat MARLIN.
+ * Di Lenovo: `/api/berkas/<token>[/<nama>]` (RELATIF – dikirim apa adanya,
+ * lihat `alihkan.ts`), yang mengambil isinya lewat MARLIN.
+ *
+ * `namaBerkas` (nama rapi dari `namaUnduhan`) membuat berkas diunduh dengan
+ * nama itu, bukan token atau kunci penyimpanan; `jenis` menentukan dibuka di
+ * tab atau langsung diunduh.
  */
-export async function alamatBerkas(kunci: string, expiresIn = 300, namaBerkas?: string): Promise<string> {
+export async function alamatBerkas(
+  kunci: string,
+  expiresIn = 300,
+  namaBerkas?: string,
+  jenis?: string | null,
+): Promise<string> {
   const p = await pindahan(kunci);
-  return p ? alamatLenovo(kunci, expiresIn, namaBerkas) : r2PresignGet(kunci, expiresIn);
+  if (p) return alamatLenovo(kunci, expiresIn, namaBerkas);
+  return r2PresignGet(kunci, expiresIn, namaBerkas ? kepalaDisposisi(namaBerkas, jenis) : undefined);
 }
 
 export async function alamatBerkasBanyak(kunci: string[], expiresIn = 300): Promise<Map<string, string>> {

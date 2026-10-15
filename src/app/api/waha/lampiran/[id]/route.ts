@@ -5,6 +5,7 @@ import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { isR2Configured } from "@/lib/r2";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { kepalaDisposisi, namaUnduhan } from "@/lib/penyimpanan/nama-unduhan";
 import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 
 /**
@@ -74,7 +75,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (a.r2Key && isR2Configured()) {
     // Berkas yang sudah dipindah ke Lenovo beralamat relatif (/api/berkas/…) – DECISIONS 645.
   // Dikirim apa adanya; jangan disusun terhadap req.url (alamat dalam server).
-    return alihkanKeBerkas(await alamatBerkas(a.r2Key, 120));
+    return alihkanKeBerkas(
+      await alamatBerkas(a.r2Key, 120, namaUnduhan(a.fileName, a.mimeType, "lampiran"), a.mimeType),
+    );
   }
 
   if (a.localPath) {
@@ -87,7 +90,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
           // `inline`: berkas ini dibuka untuk DINILAI, bukan dikoleksi. Memaksa
           // unduhan membuat orang menumpuk salinan di laptopnya hanya untuk
           // menjawab satu pertanyaan.
-          "Content-Disposition": `inline; filename="${(a.fileName ?? "lampiran").replace(/["\\]/g, "")}"`,
+          // Jenis yang tidak aman (HTML, SVG, …) tetap diunduh – DECISIONS 676.
+          "Content-Disposition": kepalaDisposisi(namaUnduhan(a.fileName, a.mimeType, "lampiran"), a.mimeType),
+          "X-Content-Type-Options": "nosniff",
           "Cache-Control": "private, no-store",
         },
       });

@@ -108,3 +108,59 @@ describe("penghenti hanya berlaku sesudah ada item", () => {
     expect(parsed.total).toBe(10_000_000);
   });
 });
+
+/*
+ * Laporan user 2026-10-14, berkas "2 MC-0 Desa Batu Putih R1": sel SATUAN item
+ * 6.9.e tertulis "DIBUAT OLEH," (sisa salin-tempel). Penghenti blok tanda tangan
+ * menganggap baris itu awal tanda tangan, pembacaan berhenti di baris 48, dan
+ * seluruh sisa berkas (Rp 4,1 M, semua kategori ADD-2) hilang tanpa sepatah kata.
+ * Baris pekerjaan lengkap (kode, uraian, angka) bukan blok tanda tangan.
+ */
+describe("penanda tanda tangan di dalam baris PEKERJAAN tidak menghentikan pembacaan", () => {
+  async function berkasNyasar(): Promise<ExcelJS.Workbook> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN (Rp)", "JUMLAH HARGA (Rp)"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null]);
+    ws.addRow(["1", "Galian Tanah", 10, "m3", 1_000_000, 10_000_000]);
+    ws.addRow(["2", "Pelaporan K3", 1, "DIBUAT OLEH,", 2_000_000, 2_000_000]);
+    ws.addRow(["3", "Urugan Pasir", 5, "m3", 1_000_000, 5_000_000]);
+    ws.addRow(["II", "PEKERJAAN JALAN", null, null, null, null]);
+    ws.addRow(["1", "Paving", 100, "m2", 100_000, 10_000_000]);
+    ws.addRow(["", "JUMLAH", null, null, null, 27_000_000]);
+    ws.addRow(["", "MENGETAHUI,", null, null, null, null]);
+    ws.addRow(["", "NIP. 19910620 201503 1 001", null, null, null, 199106202015031001]);
+    return wb;
+  }
+
+  it("semua kategori & item sesudahnya tetap terbaca; blok tanda tangan sungguhan tetap menghentikan", async () => {
+    const r = parseHpsWorkbook(await berkasNyasar());
+    expect(r.parsed.categories.map((c) => c.roman)).toEqual(["I", "II"]);
+    expect(r.parsed.total).toBe(27_000_000);
+  });
+
+  it("blok tanda tangan di TENGAH tabel = galat yang menyebut ALAMAT SELNYA, bukan RAB terpotong diam-diam", async () => {
+    // Teguran user 2026-10-14: "kalau error disebabkan sel seperti itu, dan tidak
+    // bisa handle solusinya, sebut errornya dengan jelas, bahwa cell ini
+    // menyebabkan error, coba periksa."
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["NO", "URAIAN PEKERJAAN", "VOLUME", "SATUAN", "HARGA SATUAN (Rp)", "JUMLAH HARGA (Rp)"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null]);
+    ws.addRow(["1", "Galian Tanah", 10, "m3", 1_000_000, 10_000_000]);
+    ws.addRow(["", "DIBUAT OLEH,", null, null, null, null]);
+    ws.addRow(["II", "PEKERJAAN JALAN", null, null, null, null]);
+    ws.addRow(["1", "Paving", 100, "m2", 100_000, 10_000_000]);
+    const { GalatSelBerkas } = await import("@/lib/rab/hps-parser");
+    let galat: unknown = null;
+    try {
+      parseHpsWorkbook(wb);
+    } catch (e) {
+      galat = e;
+    }
+    expect(galat).toBeInstanceOf(GalatSelBerkas);
+    expect((galat as Error).message).toMatch(/^Sel B4 di sheet "RAB" berisi "DIBUAT OLEH,"/);
+    expect((galat as Error).message).toMatch(/1 baris pekerjaan \(mulai baris 6\)/);
+  });
+});
+

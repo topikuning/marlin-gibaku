@@ -873,3 +873,11 @@ untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
   adalah editor draft; `approveRevisionAction` dan `activateDraftAction`
   menyelesaikan lokasi dari `revisionId` sehingga kebal, tapi itu belum dikunci
   uji.
+
+## 🟡 Berkas pindahan tidak bisa dibuka selama arsip Lenovo mati (DECISIONS 676)
+
+Berkas yang sudah dipindah ke Lenovo dan salinan R2-nya dibuang hanya bisa dibaca
+dari Lenovo. Kalau Lenovo mati, dokumen/surat/foto lama menjawab 503 ("arsip Lenovo
+sedang tidak bisa dihubungi") sampai Lenovo hidup lagi. Cadangan Drive
+(DECISIONS 650) sudah memegang salinannya, tapi belum dipakai sebagai jalur baca
+cadangan di `src/lib/penyimpanan/berkas.ts`.

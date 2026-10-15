@@ -105,6 +105,8 @@ it("dokumen paket di luar penugasan tidak dapat diunduh maupun disunting", async
 });
 
 it("dokumen yang sudah pindah ke arsip Lenovo dialihkan RELATIF – bukan ke alamat dalam server (0.0.0.0:8080)", async () => {
+  // Sejak DECISIONS 676 alihannya ke alamat MARLIN yang membawa nama berkas,
+  // dan route itu yang mengambil isinya dari R2 atau Lenovo.
   // Laporan user 2026-10-08: https://marlin.gibaku.com/api/documents/… dialihkan ke
   // https://0.0.0.0:8080/api/berkas/… – di belakang proxy Railway, `req.url` adalah
   // alamat dalam server. Permintaan di bawah meniru persis apa yang dilihat route.
@@ -115,7 +117,7 @@ it("dokumen yang sudah pindah ke arsip Lenovo dialihkan RELATIF – bukan ke ala
   const response = await GET(new Request("https://0.0.0.0:8080/api/documents/"+doc.id),{params:Promise.resolve({id:doc.id})});
   expect(response.status).toBe(302);
   const lokasi = response.headers.get("location") ?? "";
-  expect(lokasi).toMatch(/^\/api\/berkas\//);
+  expect(lokasi).toBe(`/api/documents/${doc.id}/Siteplan.pdf`);
   expect(lokasi).not.toContain("0.0.0.0");
 });
 
