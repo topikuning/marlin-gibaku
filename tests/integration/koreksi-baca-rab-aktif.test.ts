@@ -56,7 +56,7 @@ const berkas = () =>
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
-async function impor(confirmSha?: string) {
+async function impor(confirmSha?: string, opsi: { isiHargaKosong?: boolean } = {}) {
   const fd = new FormData();
   fd.set("locationId", locationId);
   fd.set("mode", "aktifkan");
@@ -64,6 +64,7 @@ async function impor(confirmSha?: string) {
   if (confirmSha) {
     fd.set("confirm", "1");
     fd.set("previewSha", confirmSha);
+    if (opsi.isiHargaKosong) fd.set("isiHargaKosong", "1");
   }
   return (await importHps(undefined, fd)) ?? {};
 }
@@ -206,6 +207,50 @@ describe("perbaikan pembacaan RAB aktif", () => {
       expect(k && !k.boleh ? k.sebab.join(" ") : "").toMatch(/volumenya berbeda/);
     } finally {
       await db.rabNode.update({ where: { id: item.id }, data: { volume: item.volume } });
+    }
+  }, 300_000);
+
+  /*
+   * Laporan user 2026-10-16 (DECISIONS 681): impor ulang CCO Krakahan TETAP
+   * jadi draft karena susunan berkasnya tidak sama persis dengan RAB aktif.
+   * Harga yang kosong harus tetap bisa diisi – tanpa revisi baru.
+   */
+  it("berkas berbeda dari RAB aktif: harga satuan yang kosong tetap bisa diisi, sisanya tidak disentuh", async () => {
+    const [kosong, beda] = await db.rabNode.findMany({
+      where: { revisionId, kind: "item", unitPrice: { not: null }, volume: { gt: 1 } },
+      orderBy: { sortOrder: "asc" },
+      skip: 5,
+      take: 2,
+      select: { id: true, unitPrice: true, volume: true },
+    });
+    await db.rabNode.update({ where: { id: kosong!.id }, data: { unitPrice: null } });
+    const volumeBeda = Number(beda!.volume) + 1;
+    await db.rabNode.update({ where: { id: beda!.id }, data: { volume: volumeBeda } });
+    try {
+      const pratinjau = await impor();
+      const k = pratinjau.preview!.koreksi;
+      expect(k?.boleh).toBe(false);
+      if (!k || k.boleh) return;
+      expect(k.hargaKosong.jumlah).toBe(1);
+
+      const simpan = await impor(pratinjau.preview!.sha256, { isiHargaKosong: true });
+      expect(simpan.error, `simpan gagal: ${simpan.error}`).toBeUndefined();
+      expect(simpan.success).toMatch(/1 harga satuan yang kosong di RAB aktif revisi #\d+ sudah diisi/);
+
+      expect(await db.rabRevision.count({ where: { locationId } })).toBe(1);
+      const kini = await db.rabNode.findUniqueOrThrow({ where: { id: kosong!.id }, select: { unitPrice: true } });
+      expect(String(kini.unitPrice)).toBe(String(kosong!.unitPrice));
+      // Perbedaan lain TIDAK ikut "dibetulkan" ke isi berkas.
+      const bedaKini = await db.rabNode.findUniqueOrThrow({ where: { id: beda!.id }, select: { volume: true } });
+      expect(Number(bedaKini.volume)).toBe(volumeBeda);
+      const jejak = await db.auditLog.findFirst({
+        where: { action: "rab.koreksi_baca", resourceId: revisionId },
+        orderBy: { createdAt: "desc" },
+        select: { payload: true },
+      });
+      expect(jejak?.payload).toMatchObject({ cakupan: "harga_kosong" });
+    } finally {
+      await db.rabNode.update({ where: { id: beda!.id }, data: { volume: beda!.volume } });
     }
   }, 300_000);
 });

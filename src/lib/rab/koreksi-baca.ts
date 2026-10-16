@@ -59,7 +59,17 @@ export type HasilKoreksi =
       /** Item yang harga satuannya sudah ada, kini terbaca lain. */
       hargaBerubah: number;
     }
-  | { boleh: false; sebab: string[] };
+  | {
+      boleh: false;
+      sebab: string[];
+      /**
+       * Jalur sempit (laporan user 2026-10-16): harga satuan yang KOSONG di RAB
+       * aktif, untuk item yang volume dan jumlahnya cocok dengan berkas. Mengisinya
+       * tidak mengubah satu angka kontrak pun, berapa pun perbedaan lain berkas
+       * itu dengan RAB aktif.
+       */
+      hargaKosong: PerubahanKoreksi[];
+    };
 
 // Volume disimpan Decimal(15,3), harga Decimal(15,2): selisih di bawah satu
 // satuan presisinya hanyalah pembulatan simpan, bukan angka yang berbeda.
@@ -107,7 +117,7 @@ export function bandingKoreksiBaca(aktif: SimpulAktif[], baru: FlatNode[]): Hasi
     kalimat(volume, "item volumenya berbeda"),
     kalimat(jumlah, "baris jumlahnya berbeda"),
   ].filter((s): s is string => s != null);
-  if (sebab.length > 0) return { boleh: false, sebab };
+  if (sebab.length > 0) return { boleh: false, sebab, hargaKosong: isiHargaKosong(aktif, baru) };
 
   const perubahan: PerubahanKoreksi[] = [];
   let hargaTerisi = 0;
@@ -127,4 +137,59 @@ export function bandingKoreksiBaca(aktif: SimpulAktif[], baru: FlatNode[]): Hasi
     if (p.unitPrice || p.unit || p.name || p.code || p.jenis) perubahan.push(p);
   }
   return { boleh: true, perubahan, hargaTerisi, hargaBerubah };
+}
+
+/**
+ * Harga satuan yang kosong di RAB aktif, diisi dari berkas – hanya untuk item
+ * yang volume (±0,0005) dan jumlahnya (rupiah persis) SAMA dengan baris
+ * pasangannya, dan baris itu punya harga satuan. Item lain, dan harga yang
+ * sudah terisi, tidak disentuh.
+ *
+ * Pasangan dicari lewat identitas baris (lineage) lebih dulu. Bila identitasnya
+ * berbeda (susunan berkas tidak sama dengan RAB aktif), lewat nama + volume +
+ * jumlah – dan hanya bila calonnya TUNGGAL. Dua calon kembar tidak ditebak.
+ */
+function isiHargaKosong(aktif: SimpulAktif[], baru: FlatNode[]): PerubahanKoreksi[] {
+  const kunciNama = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const label = (n: { code: string; name: string }) => [n.code, n.name].filter(Boolean).join(" ");
+  const cocok = (a: SimpulAktif, n: FlatNode) =>
+    n.kind === "item" && n.unitPrice != null && samaAngka(a.volume, n.volume, SAMA_VOLUME) && a.amount === n.amount;
+
+  const kosong = aktif.filter((a) => a.kind === "item" && a.unitPrice == null && a.amount > 0n);
+  const baruByKey = new Map(baru.map((n) => [n.lineageKey, n]));
+  const perNama = new Map<string, FlatNode[]>();
+  for (const n of baru) {
+    if (n.kind !== "item" || n.unitPrice == null) continue;
+    const k = kunciNama(n.name);
+    perNama.set(k, [...(perNama.get(k) ?? []), n]);
+  }
+
+  const dipakai = new Set<string>();
+  const pasangan = new Map<string, FlatNode>();
+  // Putaran 1: identitas baris yang sama.
+  for (const a of kosong) {
+    const n = baruByKey.get(a.lineageKey);
+    if (n && cocok(a, n)) {
+      pasangan.set(a.id, n);
+      dipakai.add(n.lineageKey);
+    }
+  }
+  // Putaran 2: nama + volume + jumlah, hanya bila tunggal.
+  for (const a of kosong) {
+    if (pasangan.has(a.id)) continue;
+    const calon = (perNama.get(kunciNama(a.name)) ?? []).filter((n) => cocok(a, n));
+    if (calon.length !== 1 || dipakai.has(calon[0].lineageKey)) continue;
+    pasangan.set(a.id, calon[0]);
+    dipakai.add(calon[0].lineageKey);
+  }
+
+  return kosong
+    .filter((a) => pasangan.has(a.id))
+    .map((a) => ({
+      id: a.id,
+      lineageKey: a.lineageKey,
+      kind: a.kind,
+      label: label(a),
+      unitPrice: { dari: null, ke: pasangan.get(a.id)!.unitPrice },
+    }));
 }

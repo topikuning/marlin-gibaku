@@ -109,6 +109,7 @@ export function ImportForm({
     confirm: boolean,
     padananPakai: Record<string, string> = padanan,
     bacaPakai: { sheet?: string; kolom?: KolomManual } = baca,
+    isiHargaKosong = false,
   ) {
     if (!file) {
       setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
@@ -128,6 +129,7 @@ export function ImportForm({
     if (confirm && preview) {
       fd.set("confirm", "1");
       fd.set("previewSha", preview.sha256);
+      if (isiHargaKosong) fd.set("isiHargaKosong", "1");
     }
     startTransition(async () => {
       // DIBUNGKUS: aksi ini dipanggil telanjang, jadi kegagalan MENGIRIM
@@ -447,7 +449,24 @@ export function ImportForm({
       <div className="flex flex-wrap items-center gap-2">
         {preview ? (
           <>
-            <Button type="button" loading={pending} onClick={() => run(true)}>
+            {/* Berkas yang berbeda dari RAB aktif tetap bisa mengisi harga satuan
+                yang kosong, tanpa revisi baru (DECISIONS 681). Itu yang utama;
+                menyimpannya sebagai revisi menunggu persetujuan jadi pilihan kedua. */}
+            {preview.mode === "aktifkan" && preview.koreksi && !preview.koreksi.boleh && preview.koreksi.hargaKosong.jumlah > 0 ? (
+              <Button type="button" loading={pending} onClick={() => run(true, padanan, baca, true)}>
+                Isi {preview.koreksi.hargaKosong.jumlah} harga satuan yang kosong
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant={
+                preview.mode === "aktifkan" && preview.koreksi && !preview.koreksi.boleh && preview.koreksi.hargaKosong.jumlah > 0
+                  ? "secondary"
+                  : "primary"
+              }
+              loading={pending}
+              onClick={() => run(true)}
+            >
               {preview.mode === "draft"
                 ? "Simpan ke draft adendum"
                 : preview.koreksi?.boleh
@@ -674,18 +693,41 @@ function BannerKoreksi({ koreksi }: { koreksi: NonNullable<ImportPreview["koreks
     return (
       <Banner
         tone="warning"
-        title={`Berkas ini mengubah isi RAB aktif revisi #${koreksi.revisionNo}, jadi tersimpan sebagai DRAFT dulu`}
+        title={
+          koreksi.hargaKosong.jumlah > 0
+            ? `Berkas ini berbeda dari RAB aktif revisi #${koreksi.revisionNo}, tapi harga satuan yang kosong tetap bisa diisi`
+            : `Berkas ini mengubah isi RAB aktif revisi #${koreksi.revisionNo}, jadi tersimpan sebagai DRAFT dulu`
+        }
         description={
           <>
             <span className="block">
-              Revisi barunya baru aktif setelah disetujui Program Director dan satu Area/Project/Site
-              Manager di tab Adendum. Yang berbeda dari RAB aktif:
+              Kalau disimpan sebagai revisi, berkas ini jadi DRAFT yang baru aktif setelah disetujui
+              Program Director dan satu Area/Project/Site Manager di tab Adendum. Yang berbeda dari RAB
+              aktif:
             </span>
             <ul className="mt-1 list-disc pl-5">
               {koreksi.sebab.map((s) => (
                 <li key={s}>{s}</li>
               ))}
             </ul>
+            {koreksi.hargaKosong.jumlah > 0 ? (
+              <>
+                <span className="mt-2 block font-medium text-ink">
+                  Yang bisa dibetulkan sekarang, tanpa revisi baru dan tanpa persetujuan:{" "}
+                  {koreksi.hargaKosong.jumlah} harga satuan yang kosong di RAB aktif. Volume dan jumlah
+                  item-item ini sama dengan berkas, jadi nilai kontrak tidak berubah. Perbedaan lain di
+                  atas tidak disentuh.
+                </span>
+                <ul className="mt-1 list-disc pl-5">
+                  {koreksi.hargaKosong.contoh.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                  {koreksi.hargaKosong.jumlah > koreksi.hargaKosong.contoh.length ? (
+                    <li>dan {koreksi.hargaKosong.jumlah - koreksi.hargaKosong.contoh.length} lainnya</li>
+                  ) : null}
+                </ul>
+              </>
+            ) : null}
           </>
         }
       />

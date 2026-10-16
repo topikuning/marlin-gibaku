@@ -114,3 +114,60 @@ describe("bandingKoreksiBaca", () => {
     expect(h.hargaBerubah).toBe(1);
   });
 });
+
+/*
+ * Laporan user 2026-10-16: impor ulang CCO Krakahan lewat "Jadikan RAB
+ * AKTIF" TETAP jadi draft #3 – berkasnya tidak sama persis dengan RAB aktif
+ * #2 (susunan barisnya berbeda), jadi perbaikan penuh ditolak. Padahal yang
+ * perlu dibetulkan hanya harga satuan yang kosong, dan untuk item-item itu
+ * volume serta jumlahnya cocok.
+ */
+describe("bandingKoreksiBaca – berkas tidak sama persis: harga kosong tetap bisa diisi", () => {
+  it("item ber-harga kosong yang volume & jumlahnya cocok ikut ditawarkan, perbedaan lain tidak", () => {
+    const h = bandingKoreksiBaca(
+      aktif,
+      baru((ns) => {
+        ns[1].volume = 3; // beda isi kontrak di item lain
+        ns.push({ ...ns[2], lineageKey: "I#9", code: "9", name: "Pagar", amount: 0n });
+      }),
+    );
+    expect(h.boleh).toBe(false);
+    if (h.boleh) return;
+    expect(h.hargaKosong).toEqual([
+      expect.objectContaining({ id: "i2", unitPrice: { dari: null, ke: 110_000 } }),
+    ]);
+  });
+
+  it("identitas baris berbeda: dicocokkan lewat nama + volume + jumlah, bila tunggal", () => {
+    const h = bandingKoreksiBaca(
+      aktif,
+      baru((ns) => {
+        ns[2].lineageKey = "I#2b";
+        ns[2].code = "2b";
+      }),
+    );
+    expect(h.boleh).toBe(false);
+    if (h.boleh) return;
+    expect(h.hargaKosong.map((p) => p.id)).toEqual(["i2"]);
+  });
+
+  it("volume atau jumlah item itu sendiri berbeda – tidak diisi", () => {
+    const h = bandingKoreksiBaca(aktif, baru((ns) => (ns[2].volume = 11)));
+    expect(h.boleh).toBe(false);
+    if (h.boleh) return;
+    expect(h.hargaKosong).toEqual([]);
+  });
+
+  it("dua calon kembar (nama, volume, jumlah sama) – tidak ditebak", () => {
+    const h = bandingKoreksiBaca(
+      aktif,
+      baru((ns) => {
+        ns[2].lineageKey = "I#2b";
+        ns.push({ ...ns[2], lineageKey: "I#2c", code: "2c" });
+      }),
+    );
+    expect(h.boleh).toBe(false);
+    if (h.boleh) return;
+    expect(h.hargaKosong).toEqual([]);
+  });
+});
