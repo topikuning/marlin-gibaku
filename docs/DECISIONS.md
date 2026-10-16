@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 683 | 2026-10-16 | Tab "Foto Sarpras": foto laporan harian dipilah per sarana & prasarana (kategori RAB tingkat 1), slide urut tanggal dengan progres sarana s/d tanggal foto (`progresKelompokPerTanggal`, = Progres per Kategori mingguan), saring per pekerjaan, satu foto per minggu; PDF 0% – 50% – 100% |
 | 682 | 2026-10-16 | Mengubah 234: super admin UTAMA boleh mengaktifkan revisi RAB tanpa dua persetujuan (tombol Aktifkan draft & impor "Jadikan RAB AKTIF"), hanya bila diminta + ketik `AKTIFKAN #N`; audit `rab.aktivasi_tanpa_persetujuan`, riwayat revisi menandai; peran lain tetap empat mata |
 | 681 | 2026-10-16 | Berkas yang tidak sama persis dengan RAB aktif tetap bisa mengisi harga satuan yang KOSONG (volume & jumlah item itu cocok; pasangan lewat identitas, lalu nama + volume + jumlah tunggal) – tombol "Isi N harga satuan yang kosong", tanpa revisi baru; perbedaan lain tidak disentuh |
 | 680 | 2026-10-15 | RAB aktif yang salah terbaca dibetulkan di tempat (item, induk, volume, jumlah sama → harga satuan/satuan/nama/nomor diterapkan ke revisi aktif, tanpa revisi baru & tanpa empat mata; `valueDone` harian dihitung ulang); berkas yang mengubah kontrak tetap adendum dan pratinjau mengatakannya |

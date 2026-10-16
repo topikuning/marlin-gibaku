@@ -30,6 +30,9 @@ function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
     // dibaca hampir tiap hari, RAPL jauh lebih jarang — jadi yang sering duduk
     // dekat "Rencana & RAB", dan yang jarang pindah ke belakang.
     { label: "Progress", href: `${base}/progress` },
+    // Foto laporan harian dipilah per sarana & prasarana, urut tanggal
+    // (DECISIONS 683) – seperti kawal-knmp KKP.
+    { label: "Foto Sarpras", href: `${base}/foto-sarpras` },
     // Tab milik slice lain — link saja, halamannya dibangun terpisah.
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
     { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },

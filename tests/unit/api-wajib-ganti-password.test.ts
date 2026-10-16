@@ -13,6 +13,7 @@ const routes = [
   { path: "documents/[id]/[nama]", load: () => import("../../src/app/api/documents/[id]/[nama]/route") },
   { path: "laporan/kurva-paket/[id]/pdf", load: () => import("../../src/app/api/laporan/kurva-paket/[id]/pdf/route") },
   { path: "laporan/kurva-paket/[id]/xlsx", load: () => import("../../src/app/api/laporan/kurva-paket/[id]/xlsx/route") },
+  { path: "laporan/foto-sarpras/[slug]/pdf", load: () => import("../../src/app/api/laporan/foto-sarpras/[slug]/pdf/route") },
   { path: "foto-asli/[id]", load: () => import("../../src/app/api/foto-asli/[id]/route") },
   { path: "ai-artifact/[id]/excel", load: () => import("../../src/app/api/ai-artifact/[id]/excel/route") },
   { path: "paparan/[id]/pdf", load: () => import("../../src/app/api/paparan/[id]/pdf/route") },

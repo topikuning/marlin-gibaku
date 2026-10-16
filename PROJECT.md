@@ -105,8 +105,8 @@ formula ini di modul, komponen, PDF, Excel, atau prompt AI mana pun):
 
 | Modul | Isi |
 |---|---|
-| `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct`, `realisasiKategoriPct` |
-| `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES` |
+| `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct`, `realisasiKategoriPct`, `ringkasKelompok`, `progresKelompokPerTanggal` (progres sarana s/d tanggal foto, DECISIONS 683) |
+| `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES`, `volumeHarianByLineage` |
 | `src/lib/finance/calc.ts` | agregat keuangan + `unbilledWork`, `alokasiBelumTertagih`, `totalPortofolio` |
 | `src/lib/plan/rencana-format.ts` | MURNI: penilaian RENCANA — `hitungProyeksi`, `hitungPpc`, `statusDeviasi`, `labelKejar` (DECISIONS 258) |
 | `src/lib/ahsp/rapl-calc.ts` | MURNI: kebutuhan + biaya RAPL (DECISIONS 320/327) |

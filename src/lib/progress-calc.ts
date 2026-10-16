@@ -229,6 +229,44 @@ export function ringkasKelompok(
   };
 }
 
+/**
+ * Progres SATU KELOMPOK (sarana/prasarana = kategori RAB tingkat 1) s/d tiap
+ * tanggal yang ditanya – untuk dokumentasi foto per sarana (DECISIONS 683).
+ *
+ * Rumusnya SAMA dengan baris kategori "Progres per Kategori" laporan mingguan:
+ * bobot item `bobotPct`, prestasi s/d `prestasiPct` (dibatasi 0–100), lalu
+ * `ringkasKelompok` – jadi angka di slide foto pada akhir minggu ke-N sama
+ * dengan angka kategori itu di laporan minggu ke-N.
+ *
+ * `realisasi` = volume per laporan yang SUDAH disaring pemanggil (status
+ * terhitung, basis aktif – `volumeHarianByLineage`). Tanggal = kunci
+ * `YYYY-MM-DD` Asia/Jakarta, dibandingkan sebagai teks (s/d = `<=`).
+ */
+export function progresKelompokPerTanggal(
+  items: { lineageKey: string; amount: number; volume: number | null }[],
+  realisasi: { lineageKey: string; tanggal: string; volume: number }[],
+  grandTotal: number,
+  tanggal: string[],
+): Map<string, number> {
+  const milikKelompok = new Set(items.map((i) => i.lineageKey));
+  const urut = realisasi.filter((r) => milikKelompok.has(r.lineageKey)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  const vol = new Map<string, number>();
+  const hasil = new Map<string, number>();
+  let j = 0;
+  for (const t of [...new Set(tanggal)].sort()) {
+    for (; j < urut.length && urut[j].tanggal <= t; j++) {
+      vol.set(urut[j].lineageKey, (vol.get(urut[j].lineageKey) ?? 0) + urut[j].volume);
+    }
+    const rows = items.map((it) => {
+      const bobot = bobotPct(it.amount, grandTotal);
+      const bobotSd = (prestasiPct(vol.get(it.lineageKey) ?? 0, it.volume ?? 0) / 100) * bobot;
+      return { amount: it.amount, bobot, bobotLalu: 0, bobotIni: 0, bobotSd, bobotRencana: 0 };
+    });
+    hasil.set(t, ringkasKelompok(rows).progresSd);
+  }
+  return hasil;
+}
+
 /** Bobot satu item terhadap grand total (%) — 0 bila grand total tak sah. */
 export function bobotPct(amount: number, grandTotal: number): number {
   if (!(grandTotal > 0)) return 0;

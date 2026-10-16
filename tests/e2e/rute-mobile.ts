@@ -158,6 +158,14 @@ export const RUTE_DINAMIS: {
   { pola: "/lokasi/[slug]/dokumen", nama: "Dokumen lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/dokumen`] : null) },
   { pola: "/lokasi/[slug]/kegiatan", nama: "Kegiatan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/kegiatan`] : null) },
   { pola: "/lokasi/[slug]/progress", nama: "Progress lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/progress`] : null) },
+  // Foto per sarana & prasarana (DECISIONS 683). Kunci "I" = kategori pertama
+  // RAB seed kedungmutih (PEKERJAAN PERSIAPAN).
+  { pola: "/lokasi/[slug]/foto-sarpras", nama: "Foto Sarpras", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/foto-sarpras`] : null) },
+  {
+    pola: "/lokasi/[slug]/foto-sarpras/[kunci]",
+    nama: "Slide foto satu sarana",
+    isi: (k) => (k.slug ? [`/lokasi/${k.slug}/foto-sarpras/I`] : null),
+  },
   { pola: "/lokasi/[slug]/rab", nama: "RAB lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab`] : null) },
   { pola: "/lokasi/[slug]/rab/adendum", nama: "Adendum RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/adendum`] : null) },
   { pola: "/lokasi/[slug]/rab/bandingkan", nama: "Bandingkan revisi RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/bandingkan`] : null) },
