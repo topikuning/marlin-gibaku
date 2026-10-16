@@ -119,7 +119,13 @@ export type ImportPreview = {
         jumlahBaris: number;
         contoh: string[];
       }
-    | { boleh: false; revisionNo: number; sebab: string[] }
+    | {
+        boleh: false;
+        revisionNo: number;
+        sebab: string[];
+        /** Harga satuan kosong yang tetap bisa diisi tanpa adendum. */
+        hargaKosong: { jumlah: number; contoh: string[] };
+      }
     | null;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
@@ -997,6 +1003,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     }
 
     let perubahanKoreksi: PerubahanKoreksi[] | null = null;
+    let hargaKosongKoreksi: PerubahanKoreksi[] = [];
     let koreksi: ImportPreview["koreksi"] = null;
     if (activeRevision && mode === "aktifkan") {
       const kunciById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
@@ -1015,22 +1022,22 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         })),
         nodes,
       );
+      const kalimat = (p: PerubahanKoreksi) =>
+        [
+          p.unitPrice
+            ? p.unitPrice.dari == null
+              ? `harga satuan kosong → ${formatRupiahSatuan(p.unitPrice.ke)}`
+              : `harga satuan ${formatRupiahSatuan(p.unitPrice.dari)} → ${formatRupiahSatuan(p.unitPrice.ke)}`
+            : null,
+          p.unit ? `satuan "${p.unit.dari ?? ""}" → "${p.unit.ke ?? ""}"` : null,
+          p.name ? `nama → "${p.name.ke}"` : null,
+          p.code ? `nomor ${p.code.dari} → ${p.code.ke}` : null,
+          p.jenis ? `jenis ${p.jenis.dari} → ${p.jenis.ke}` : null,
+        ]
+          .filter(Boolean)
+          .join(", ");
       if (k.boleh) {
         perubahanKoreksi = k.perubahan;
-        const kalimat = (p: PerubahanKoreksi) =>
-          [
-            p.unitPrice
-              ? p.unitPrice.dari == null
-                ? `harga satuan kosong → ${formatRupiahSatuan(p.unitPrice.ke)}`
-                : `harga satuan ${formatRupiahSatuan(p.unitPrice.dari)} → ${formatRupiahSatuan(p.unitPrice.ke)}`
-              : null,
-            p.unit ? `satuan "${p.unit.dari ?? ""}" → "${p.unit.ke ?? ""}"` : null,
-            p.name ? `nama → "${p.name.ke}"` : null,
-            p.code ? `nomor ${p.code.dari} → ${p.code.ke}` : null,
-            p.jenis ? `jenis ${p.jenis.dari} → ${p.jenis.ke}` : null,
-          ]
-            .filter(Boolean)
-            .join(", ");
         koreksi = {
           boleh: true,
           revisionNo: activeRevision.revisionNo,
@@ -1044,7 +1051,13 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             .map((p) => `${p.label}: ${kalimat(p)}`),
         };
       } else {
-        koreksi = { boleh: false, revisionNo: activeRevision.revisionNo, sebab: k.sebab };
+        hargaKosongKoreksi = k.hargaKosong;
+        koreksi = {
+          boleh: false,
+          revisionNo: activeRevision.revisionNo,
+          sebab: k.sebab,
+          hargaKosong: { jumlah: k.hargaKosong.length, contoh: k.hargaKosong.slice(0, 12).map((p) => `${p.label}: ${kalimat(p)}`) },
+        };
       }
     }
 
@@ -1253,6 +1266,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             perubahan: perubahanKoreksi,
             userId: user.id,
             berkas: file.name,
+            cakupan: "penuh",
           });
         } catch (e) {
           if (e instanceof KoreksiBacaError) return { preview, notice: e.message } as ImportState;
@@ -1311,6 +1325,50 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               (h.snapshotDibangunUlang > 0 ? `, dan ${h.snapshotDibangunUlang} blanko harian final dibuat ulang.` : ".")
             : "") +
           kalimatRincianKoreksi,
+      };
+    }
+
+    /*
+     * HANYA HARGA SATUAN YANG KOSONG (laporan user 2026-10-16, DECISIONS 681).
+     *
+     * Impor ulang CCO Krakahan tetap jadi draft #3: susunan barisnya tidak sama
+     * persis dengan RAB aktif #2, jadi perbaikan penuh di atas ditolak. Yang
+     * dibutuhkan sebenarnya cuma harga satuan yang kosong, dan untuk item-item
+     * itu volume dan jumlahnya cocok. Mengisinya tidak mengubah satu angka
+     * kontrak pun; perbedaan lain berkas itu tidak disentuh.
+     */
+    if (activeRevision && koreksi && !koreksi.boleh && formData.get("isiHargaKosong") === "1") {
+      if (hargaKosongKoreksi.length === 0) {
+        return {
+          preview,
+          notice: "Tidak ada harga satuan kosong di RAB aktif yang bisa diisi dari berkas ini.",
+        } as ImportState;
+      }
+      let h: Awaited<ReturnType<typeof terapkanKoreksiBaca>>;
+      try {
+        h = await terapkanKoreksiBaca({
+          revisionId: activeRevision.id,
+          locationId: location.id,
+          perubahan: hargaKosongKoreksi,
+          userId: user.id,
+          berkas: file.name,
+          cakupan: "harga_kosong",
+        });
+      } catch (e) {
+        if (e instanceof KoreksiBacaError) return { preview, notice: e.message } as ImportState;
+        throw e;
+      }
+      revalidatePath(`/lokasi/${location.slug}`, "layout");
+      revalidatePath("/progress");
+      return {
+        success:
+          `${h.node} harga satuan yang kosong di RAB aktif revisi #${activeRevision.revisionNo} sudah diisi dari ${file.name}. ` +
+          `Item, volume, dan jumlahnya tidak diubah, jadi tidak ada revisi baru dan tidak perlu persetujuan. ` +
+          `Perbedaan lain antara berkas dan RAB aktif tidak disentuh.` +
+          (h.barisHarian > 0
+            ? ` Nilai terpasang di ${h.barisHarian} baris laporan harian dihitung ulang dengan harga yang benar` +
+              (h.snapshotDibangunUlang > 0 ? `, dan ${h.snapshotDibangunUlang} blanko harian final dibuat ulang.` : ".")
+            : ""),
       };
     }
 

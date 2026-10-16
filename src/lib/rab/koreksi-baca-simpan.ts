@@ -27,6 +27,8 @@ export async function terapkanKoreksiBaca(a: {
   perubahan: PerubahanKoreksi[];
   userId: string;
   berkas: string;
+  /** `harga_kosong`: hanya harga satuan yang kosong (DECISIONS 681). */
+  cakupan: "penuh" | "harga_kosong";
 }): Promise<{ node: number; barisHarian: number; snapshotDibangunUlang: number }> {
   const hasil = await db.$transaction(
     async (tx) => {
@@ -72,6 +74,7 @@ export async function terapkanKoreksiBaca(a: {
         locationId: a.locationId,
         revisionNo: rev.revisionNo,
         berkas: a.berkas,
+        cakupan: a.cakupan,
         barisHarian,
         // Angka sebelum dan sesudahnya, per node – jejak lengkap tanpa revisi baru.
         perubahan: a.perubahan.map(({ id: _id, ...p }) => p),

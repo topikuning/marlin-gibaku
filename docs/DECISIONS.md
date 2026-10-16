@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 681 | 2026-10-16 | Berkas yang tidak sama persis dengan RAB aktif tetap bisa mengisi harga satuan yang KOSONG (volume & jumlah item itu cocok; pasangan lewat identitas, lalu nama + volume + jumlah tunggal) – tombol "Isi N harga satuan yang kosong", tanpa revisi baru; perbedaan lain tidak disentuh |
 | 680 | 2026-10-15 | RAB aktif yang salah terbaca dibetulkan di tempat (item, induk, volume, jumlah sama → harga satuan/satuan/nama/nomor diterapkan ke revisi aktif, tanpa revisi baru & tanpa empat mata; `valueDone` harian dihitung ulang); berkas yang mengubah kontrak tetap adendum dan pratinjau mengatakannya |
 | 679 | 2026-10-15 | CCO: TAMBAH/KURANG tersembunyi tetap dikenali (judul blok untuk susunan, angka tidak dibaca); harga satuan dari kolom harga blok hasil yang terbukti (item baru adendum); pilihan kolom tangan menjangkau seluruh kolom terlihat, bukan hanya A–X |
 | 678 | 2026-10-15 | Kurva-S paket diunduh sebagai PDF & Excel: lembar Time Schedule KKP yang sama, satu baris per lokasi (bobot = porsi RAB), angka dari `gabungKurvaS`; lokasi yang tidak ikut disebut di catatan |
