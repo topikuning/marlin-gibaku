@@ -88,6 +88,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 683 | 2026-10-16 | Tab "Foto Sarpras": foto laporan harian dipilah per sarana & prasarana (kategori RAB tingkat 1), slide urut tanggal dengan progres sarana s/d tanggal foto (`progresKelompokPerTanggal`, = Progres per Kategori mingguan), saring per pekerjaan, satu foto per minggu; PDF 0% – 50% – 100% |
+| 682 | 2026-10-16 | Mengubah 234: super admin UTAMA boleh mengaktifkan revisi RAB tanpa dua persetujuan (tombol Aktifkan draft & impor "Jadikan RAB AKTIF"), hanya bila diminta + ketik `AKTIFKAN #N`; audit `rab.aktivasi_tanpa_persetujuan`, riwayat revisi menandai; peran lain tetap empat mata |
 | 681 | 2026-10-16 | Berkas yang tidak sama persis dengan RAB aktif tetap bisa mengisi harga satuan yang KOSONG (volume & jumlah item itu cocok; pasangan lewat identitas, lalu nama + volume + jumlah tunggal) – tombol "Isi N harga satuan yang kosong", tanpa revisi baru; perbedaan lain tidak disentuh |
 | 680 | 2026-10-15 | RAB aktif yang salah terbaca dibetulkan di tempat (item, induk, volume, jumlah sama → harga satuan/satuan/nama/nomor diterapkan ke revisi aktif, tanpa revisi baru & tanpa empat mata; `valueDone` harian dihitung ulang); berkas yang mengubah kontrak tetap adendum dan pratinjau mengatakannya |
 | 679 | 2026-10-15 | CCO: TAMBAH/KURANG tersembunyi tetap dikenali (judul blok untuk susunan, angka tidak dibaca); harga satuan dari kolom harga blok hasil yang terbukti (item baru adendum); pilihan kolom tangan menjangkau seluruh kolom terlihat, bukan hanya A–X |
@@ -557,7 +559,7 @@ hilang.
 | 237 | 2026-08-03 | CCO dirapikan; aksi jadi tombol (lagi) |
 | 236 | 2026-08-03 | Ekspor dokumen CCO format KKP |
 | 235 | 2026-08-03 | Warna pin peta ≠ status lapor; daftar "sudah submit" akhirnya ada |
-| 234 | 2026-08-03 | Aktivasi adendum butuh DUA orang; super admin tidak termasuk |
+| 234 | 2026-08-03 | Aktivasi adendum butuh DUA orang; super admin tidak termasuk (pengecualian super admin UTAMA: 682) |
 | 233 | 2026-08-03 | Batas 10% Perpres mengukur kenaikan NILAI KONTRAK, bukan pekerjaan tambah kotor |
 | 232 | 2026-08-03 | Aksi jadi tombol; tujuan impor mengikuti keadaan |
 | 231 | 2026-08-03 | EXIF cacat menjatuhkan unggahan; fokus melompat saat "Tambah foto" |

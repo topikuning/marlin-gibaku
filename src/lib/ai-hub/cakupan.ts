@@ -143,7 +143,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
   {
     nama: "Dokumentasi foto & kegiatan lapangan",
     halaman: "/foto, /aktivitas",
-    rute: ["foto/*", "foto-cepat", "aktivitas", "peta", "lokasi/[slug]/kegiatan"],
+    rute: ["foto/*", "foto-cepat", "aktivitas", "peta", "lokasi/[slug]/kegiatan", "lokasi/[slug]/foto-sarpras/*"],
     jalur: [{ jenis: "pulse", sourceRefSuffix: "foto" }],
   },
   {

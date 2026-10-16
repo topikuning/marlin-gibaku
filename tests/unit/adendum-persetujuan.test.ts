@@ -15,6 +15,8 @@ import {
   suaraMasihBerlaku,
   PERAN_PENUGASAN,
   type Suara,
+  cocokKonfirmasiTanpaPersetujuan,
+  konfirmasiTanpaPersetujuan,
 } from "@/lib/rab/persetujuan-aturan";
 import type { UserRole } from "@/generated/prisma/enums";
 
@@ -123,5 +125,23 @@ describe("draft berubah → suara gugur", () => {
 
   it("suara tepat pada detik perubahan dianggap sah", () => {
     expect(suaraMasihBerlaku([suara("pd", "program_director", 10)], jam(10))).toHaveLength(1);
+  });
+});
+
+/*
+ * Jalan pintas super admin UTAMA (DECISIONS 682): kalimat konfirmasinya harus
+ * menyebut nomor revisi yang akan diaktifkan – bukan sekadar "ya".
+ */
+describe("konfirmasi aktivasi tanpa persetujuan", () => {
+  it("kalimatnya menyebut nomor revisi", () => {
+    expect(konfirmasiTanpaPersetujuan(3)).toBe("AKTIFKAN #3");
+  });
+
+  it("huruf besar/kecil dan spasi berlebih dimaafkan, nomor lain tidak", () => {
+    expect(cocokKonfirmasiTanpaPersetujuan("aktifkan #3", 3)).toBe(true);
+    expect(cocokKonfirmasiTanpaPersetujuan("  AKTIFKAN   #3 ", 3)).toBe(true);
+    expect(cocokKonfirmasiTanpaPersetujuan("AKTIFKAN #2", 3)).toBe(false);
+    expect(cocokKonfirmasiTanpaPersetujuan("AKTIFKAN", 3)).toBe(false);
+    expect(cocokKonfirmasiTanpaPersetujuan(null, 3)).toBe(false);
   });
 });

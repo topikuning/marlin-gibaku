@@ -12,6 +12,7 @@ import {
   discardDraftAction,
   type RabActionState,
 } from "./actions";
+import { PanelTanpaPersetujuan } from "./panel-tanpa-persetujuan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
 /**
@@ -43,6 +44,8 @@ export type RevisionRow = {
   totalValue: string;
   createdAt: string;
   note: string | null;
+  /** Diaktifkan super admin utama tanpa dua persetujuan (DECISIONS 682). */
+  tanpaPersetujuan?: boolean;
 };
 
 const SOURCE_LABEL: Record<RabRevisionSource, string> = {
@@ -64,11 +67,20 @@ const STATUS_TONE: Record<RevisionStatus, BadgeTone> = {
 
 function DraftActions({
   revisionId,
+  revisionNo,
   persetujuan,
+  bolehTanpaPersetujuan,
+  onBerhasil,
 }: {
   revisionId: string;
+  revisionNo: number;
   persetujuan: PersetujuanRow | null;
+  /** Hanya super admin utama (DECISIONS 682). */
+  bolehTanpaPersetujuan: boolean;
+  /** Pesan berhasil dinaikkan ke daftar: baris draft ini sendiri berganti begitu aktif. */
+  onBerhasil: (pesan: string) => void;
 }) {
+  const [bukaTanpa, setBukaTanpa] = useState(false);
   const [activateState, activate, activating] = useAksi<RabActionState>(
     activateDraftAction,
     undefined,
@@ -148,6 +160,11 @@ function DraftActions({
             Aktifkan
           </Button>
         </form>
+        {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
+          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa(true)}>
+            Aktifkan tanpa persetujuan…
+          </Button>
+        ) : null}
         <form action={discard}>
           <input type="hidden" name="revisionId" value={revisionId} />
           <Button size="sm" variant="danger" type="submit" loading={discarding} disabled={activating}>
@@ -155,6 +172,15 @@ function DraftActions({
           </Button>
         </form>
       </div>
+      {terkunci && bolehTanpaPersetujuan && bukaTanpa ? (
+        <PanelTanpaPersetujuan
+          revisionId={revisionId}
+          revisionNo={revisionNo}
+          kurang={persetujuan?.kurang ?? []}
+          onBatal={() => setBukaTanpa(false)}
+          onBerhasil={onBerhasil}
+        />
+      ) : null}
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
     </div>
@@ -280,6 +306,7 @@ export function RevisionList({
   persetujuan = null,
   hapus = {},
   slug,
+  bolehTanpaPersetujuan = false,
 }: {
   revisions: RevisionRow[];
   /** Untuk tautan backup volume & analisa per revisi (DECISIONS baru 2026-10-07). */
@@ -289,6 +316,8 @@ export function RevisionList({
   persetujuan?: PersetujuanRow | null;
   /** Revisi keliru yang boleh dinilai untuk dihapus – hanya terisi untuk super admin utama. */
   hapus?: Record<string, HapusRevisiView>;
+  /** Super admin utama: boleh mengaktifkan draft tanpa dua persetujuan (DECISIONS 682). */
+  bolehTanpaPersetujuan?: boolean;
 }) {
   const adaAksi = canManage || Object.keys(hapus).length > 0;
   const [pesanHapus, setPesanHapus] = useState<string | null>(null);
@@ -316,6 +345,9 @@ export function RevisionList({
               <td className="py-2 pr-3">{SOURCE_LABEL[r.source]}</td>
               <td className="py-2 pr-3">
                 <StatusPill tone={STATUS_TONE[r.status]} label={STATUS_LABEL[r.status]} />
+                {r.tanpaPersetujuan ? (
+                  <span className="mt-0.5 block text-xs text-warning">Diaktifkan tanpa persetujuan</span>
+                ) : null}
               </td>
               <td className="tabular py-2 pr-3 text-right">{formatRupiah(Number(r.totalValue))}</td>
               <td className="tabular py-2 pr-3">{formatTanggal(new Date(r.createdAt))}</td>
@@ -335,7 +367,13 @@ export function RevisionList({
               {adaAksi ? (
                 <td className="py-2 text-right align-top">
                   {canManage && r.status === "draft" ? (
-                    <DraftActions revisionId={r.id} persetujuan={persetujuan} />
+                    <DraftActions
+                      revisionId={r.id}
+                      revisionNo={r.revisionNo}
+                      persetujuan={persetujuan}
+                      bolehTanpaPersetujuan={bolehTanpaPersetujuan}
+                      onBerhasil={setPesanHapus}
+                    />
                   ) : null}
                   {hapus[r.id] ? (
                     <HapusRevisi revisionId={r.id} revisionNo={r.revisionNo} v={hapus[r.id]} onBerhasil={setPesanHapus} />

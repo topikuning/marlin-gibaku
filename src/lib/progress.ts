@@ -435,6 +435,27 @@ export async function cumulativeVolumeByLineage(
 }
 
 /**
+ * Volume terhitung per item PER TANGGAL laporan (basis aktif, status
+ * terhitung) – bahan `progresKelompokPerTanggal` untuk dokumentasi foto per
+ * sarana (DECISIONS 683). Saringannya SAMA dengan `cumulativeVolumeByLineage`;
+ * bedanya hanya tidak dijumlahkan lintas tanggal, supaya progres s/d tanggal
+ * foto mana pun bisa dihitung dari satu kueri.
+ */
+export async function volumeHarianByLineage(
+  locationId: string,
+): Promise<{ lineageKey: string; tanggal: string; volume: number }[]> {
+  const rows = await db.dailyReportItem.findMany({
+    where: { basis: "aktif", report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } } },
+    select: { lineageKey: true, volumeDone: true, report: { select: { reportDate: true } } },
+  });
+  return rows.map((r) => ({
+    lineageKey: r.lineageKey,
+    tanggal: jakartaDateKey(r.report.reportDate),
+    volume: Number(r.volumeDone),
+  }));
+}
+
+/**
  * Realisasi yang TIDAK TERBOBOT: volume terhitung (basis aktif) milik lineage
  * yang bukan item di revisi AKTIF – mis. kategori yang dihilangkan adendum
  * padahal sudah dilaporkan (permintaan user 2026-10-04).
