@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
-import { Banner, Button, Combobox, FileInput, HelpText, Label, Textarea } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, Textarea } from "@/components/ui";
+import { konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -109,7 +110,7 @@ export function ImportForm({
     confirm: boolean,
     padananPakai: Record<string, string> = padanan,
     bacaPakai: { sheet?: string; kolom?: KolomManual } = baca,
-    isiHargaKosong = false,
+    opsi: { isiHargaKosong?: boolean; konfirmasiTanpaPersetujuan?: string } = {},
   ) {
     if (!file) {
       setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
@@ -129,7 +130,11 @@ export function ImportForm({
     if (confirm && preview) {
       fd.set("confirm", "1");
       fd.set("previewSha", preview.sha256);
-      if (isiHargaKosong) fd.set("isiHargaKosong", "1");
+      if (opsi.isiHargaKosong) fd.set("isiHargaKosong", "1");
+      if (opsi.konfirmasiTanpaPersetujuan != null) {
+        fd.set("tanpaPersetujuan", "1");
+        fd.set("konfirmasi", opsi.konfirmasiTanpaPersetujuan);
+      }
     }
     startTransition(async () => {
       // DIBUNGKUS: aksi ini dipanggil telanjang, jadi kegagalan MENGIRIM
@@ -446,6 +451,14 @@ export function ImportForm({
         </div>
       ) : null}
 
+      {preview?.mode === "aktifkan" && preview.tanpaPersetujuan ? (
+        <AktifkanTanpaPersetujuan
+          revisionNo={preview.tanpaPersetujuan.revisionNo}
+          pending={pending}
+          onAktifkan={(konfirmasi) => run(true, padanan, baca, { konfirmasiTanpaPersetujuan: konfirmasi })}
+        />
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         {preview ? (
           <>
@@ -453,7 +466,7 @@ export function ImportForm({
                 yang kosong, tanpa revisi baru (DECISIONS 681). Itu yang utama;
                 menyimpannya sebagai revisi menunggu persetujuan jadi pilihan kedua. */}
             {preview.mode === "aktifkan" && preview.koreksi && !preview.koreksi.boleh && preview.koreksi.hargaKosong.jumlah > 0 ? (
-              <Button type="button" loading={pending} onClick={() => run(true, padanan, baca, true)}>
+              <Button type="button" loading={pending} onClick={() => run(true, padanan, baca, { isiHargaKosong: true })}>
                 Isi {preview.koreksi.hargaKosong.jumlah} harga satuan yang kosong
               </Button>
             ) : null}
@@ -769,5 +782,46 @@ function BannerKoreksi({ koreksi }: { koreksi: NonNullable<ImportPreview["koreks
         </>
       }
     />
+  );
+}
+
+/**
+ * Super admin UTAMA saja (DECISIONS 682): berkas yang mengubah isi RAB aktif
+ * langsung dijadikan RAB aktif, tanpa menunggu dua persetujuan. Server
+ * memeriksa ulang siapa yang meminta dan kalimat konfirmasinya.
+ */
+function AktifkanTanpaPersetujuan({
+  revisionNo,
+  pending,
+  onAktifkan,
+}: {
+  revisionNo: number;
+  pending: boolean;
+  onAktifkan: (konfirmasi: string) => void;
+}) {
+  const [ketik, setKetik] = useState("");
+  const wajib = konfirmasiTanpaPersetujuan(revisionNo);
+  return (
+    <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
+      <p className="font-semibold text-ink">Super admin utama: jadikan RAB aktif sekarang, tanpa persetujuan</p>
+      <p className="text-ink">
+        Berkas ini akan jadi revisi #{revisionNo} dan langsung menggantikan RAB aktif. Kurva-S dibuat ulang. Persetujuan
+        Program Director dan Area/Project/Site Manager dilewati, dan tindakan ini tercatat di jejak audit atas nama Anda.
+      </p>
+      <label className="block text-ink" htmlFor="impor-tanpa-ttd">
+        Ketik <span className="font-semibold">{wajib}</span> untuk konfirmasi
+      </label>
+      <Input id="impor-tanpa-ttd" autoComplete="off" value={ketik} onChange={(e) => setKetik(e.target.value)} />
+      <Button
+        type="button"
+        size="sm"
+        variant="danger"
+        loading={pending}
+        disabled={ketik.trim().toUpperCase() !== wajib}
+        onClick={() => onAktifkan(ketik)}
+      >
+        Jadikan revisi #{revisionNo} RAB aktif
+      </Button>
+    </div>
   );
 }

@@ -10,7 +10,9 @@ import { nilaiAdendum } from "@/lib/rab/batas-adendum";
 import { diffRevisions, type RevisionDiff } from "@/lib/rab/adendum";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
-import { ROLE_LABEL } from "@/lib/authz";
+import { ROLE_LABEL, can } from "@/lib/authz";
+import { adalahAkar, parseAkar } from "@/lib/akar";
+import { env } from "@/lib/env";
 import { formatTanggal } from "@/lib/format";
 import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
@@ -469,6 +471,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             ringkasan={ringkasan}
             adaPeringatan={peringatan.length > 0}
             persetujuan={persetujuan}
+            bolehTanpaPersetujuan={can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))}
           />
         </CardBody>
       </Card>

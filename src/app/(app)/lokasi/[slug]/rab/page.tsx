@@ -175,7 +175,24 @@ export default async function RabPage({
     }
   }
 
+  /*
+   * Revisi yang diaktifkan super admin utama TANPA dua persetujuan
+   * (DECISIONS 682) ditandai di riwayat – sumbernya jejak audit, bukan kolom
+   * baru: audit itu append-only, jadi tandanya tidak bisa dihapus diam-diam.
+   */
+  const tanpaPersetujuanIds = new Set(
+    (
+      await db.auditLog.findMany({
+        where: { action: "rab.aktivasi_tanpa_persetujuan", resourceId: { in: revisions.map((r) => r.id) } },
+        select: { resourceId: true },
+      })
+    ).map((a) => a.resourceId),
+  );
+  const bolehTanpaPersetujuan =
+    can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA));
+
   const revisionRows: RevisionRow[] = revisions.map((r) => ({
+    tanpaPersetujuan: tanpaPersetujuanIds.has(r.id),
     id: r.id,
     revisionNo: r.revisionNo,
     source: r.source,
@@ -529,6 +546,7 @@ export default async function RabPage({
                 canManage={canManage}
                 persetujuan={persetujuanDraft}
                 hapus={hapusRevisi}
+                bolehTanpaPersetujuan={bolehTanpaPersetujuan}
               />
             </div>
           ) : null}

@@ -17,12 +17,14 @@ import {
 import { PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import {
+  bolehAktifTanpaPersetujuan,
   cabutPersetujuan,
   pastikanBolehAktivasi,
   PersetujuanError,
   ringkasPersetujuan,
   setujuiRevisi,
 } from "@/lib/rab/persetujuan";
+import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
 import {
   restoreBaseline,
   saveCategorySchedule,
@@ -118,8 +120,35 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.
-    await pastikanBolehAktivasi(rev.id);
+    //
+    // Satu pengecualian (DECISIONS 682, pilihan user 2026-10-16): super admin
+    // UTAMA yang MEMINTANYA sendiri dan mengetik `AKTIFKAN #N`. Tidak pernah
+    // otomatis – tanpa permintaan itu, ia pun tertahan seperti orang lain.
+    const tanpaPersetujuan = formData.get("tanpaPersetujuan") === "1";
+    let persetujuanSaatItu: Awaited<ReturnType<typeof ringkasPersetujuan>> | null = null;
+    if (tanpaPersetujuan && adendum) {
+      if (!bolehAktifTanpaPersetujuan(user)) {
+        return { error: "Hanya super admin utama yang boleh mengaktifkan revisi tanpa persetujuan." };
+      }
+      if (!cocokKonfirmasiTanpaPersetujuan(formData.get("konfirmasi"), rev.revisionNo)) {
+        return { error: `Ketik ${konfirmasiTanpaPersetujuan(rev.revisionNo)} persis untuk konfirmasi.` };
+      }
+      persetujuanSaatItu = await ringkasPersetujuan(rev.id);
+    } else {
+      await pastikanBolehAktivasi(rev.id);
+    }
     const aktif = await activateRevision(rev.id, user.id);
+    if (persetujuanSaatItu) {
+      await audit(user.id, "rab.aktivasi_tanpa_persetujuan", "rab_revision", rev.id, {
+        locationId: rev.locationId,
+        revisionNo: rev.revisionNo,
+        jalur: "tombol_aktifkan",
+        // Siapa yang SUDAH menyetujui dan apa yang dilewati – supaya jejaknya
+        // menyebut persis gerbang mana yang tidak ditunggu.
+        sudahSetuju: persetujuanSaatItu.berlaku.map((p) => ({ nama: p.nama, role: p.role })),
+        dilewati: persetujuanSaatItu.kurang,
+      });
+    }
     // Ditandai SESUDAH aktif: menyentuh draft sebelumnya menggeser updatedAt
     // dan menggugurkan suara persetujuan yang baru diperiksa.
     if (adendum) await db.rabRevision.update({ where: { id: rev.id }, data: { awaitingCco: true } });
@@ -153,7 +182,10 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
      * lineage". Audit 2026-09-15 (E-2).
      */
     const p = aktif.penyesuaian;
-    let kabar = `Revisi #${rev.revisionNo} aktif. Baseline kurva-S sudah dibuat ulang.`;
+    let kabar =
+      `Revisi #${rev.revisionNo} aktif` +
+      (persetujuanSaatItu ? ` tanpa persetujuan (super admin utama, tercatat di jejak audit)` : "") +
+      `. Baseline kurva-S sudah dibuat ulang.`;
     if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
     if (p.item > 0) {
       const contoh = p.rincian

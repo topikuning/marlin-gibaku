@@ -9,6 +9,8 @@ import {
   type Suara,
 } from "./persetujuan-aturan";
 import type { UserRole } from "@/generated/prisma/enums";
+import { adalahAkar, parseAkar, type CalonAkar } from "@/lib/akar";
+import { env } from "@/lib/env";
 
 /**
  * Persetujuan aktivasi revisi RAB — sisi database (DECISIONS 234).
@@ -128,4 +130,15 @@ export async function pastikanBolehAktivasi(revisionId: string): Promise<void> {
       `Adendum mengganti RAB kontrak yang berlaku dan menghitung ulang kurva-S – ` +
       `tidak ada peran, termasuk Super Admin, yang boleh melakukannya sendirian.`,
   );
+}
+
+/**
+ * Boleh mengaktifkan revisi TANPA dua persetujuan? Hanya super admin UTAMA
+ * (`SUPER_ADMIN_UTAMA`), bukan sekadar peran super admin (DECISIONS 682).
+ * Pemanggil tetap wajib mencocokkan kalimat konfirmasinya
+ * (`cocokKonfirmasiTanpaPersetujuan`) dan menulis audit
+ * `rab.aktivasi_tanpa_persetujuan`.
+ */
+export function bolehAktifTanpaPersetujuan(user: CalonAkar): boolean {
+  return adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA));
 }

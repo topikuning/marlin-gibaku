@@ -8,7 +8,8 @@ import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { ImporPerluJawaban, colLetter, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
-import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
+import { bolehAktifTanpaPersetujuan, pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
+import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
 import {
   activateRevision,
   createRevisionFromNodes,
@@ -127,6 +128,13 @@ export type ImportPreview = {
         hargaKosong: { jumlah: number; contoh: string[] };
       }
     | null;
+  /**
+   * Jalan pintas super admin UTAMA (DECISIONS 682): berkas yang mengubah isi
+   * RAB aktif boleh langsung diaktifkan tanpa dua persetujuan, setelah ia
+   * mengetik `AKTIFKAN #<revisionNo>`. `null` untuk siapa pun selain dia, dan
+   * bila berkas tidak akan jadi revisi baru.
+   */
+  tanpaPersetujuan: { revisionNo: number } | null;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
   /**
@@ -1061,8 +1069,21 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
+    // Nomor revisi berikutnya: penomoran yang sama dengan `createRevisionFromNodes`.
+    const tanpaPersetujuan: ImportPreview["tanpaPersetujuan"] =
+      // Draft yang sudah ada menolak impor ini lebih dulu (satu draft per
+      // lokasi) – jalan pintasnya ada di tombol Aktifkan draft itu.
+      koreksi && !koreksi.boleh && !draft && bolehAktifTanpaPersetujuan(user)
+        ? {
+            revisionNo:
+              ((await db.rabRevision.aggregate({ where: { locationId: location.id }, _max: { revisionNo: true } }))._max
+                .revisionNo ?? 0) + 1,
+          }
+        : null;
+
     const preview: ImportPreview = {
       koreksi,
+      tanpaPersetujuan,
       rincian: rincian ? { ringkasan: rincian.ringkasan, tersembunyiDibaca: rincian.tersembunyiDibaca } : null,
       ...(rincianGagal ? { rincianGagal } : {}),
       padanan: {
@@ -1395,6 +1416,23 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       } as ImportState;
     }
 
+    /*
+     * JALAN PINTAS SUPER ADMIN UTAMA (DECISIONS 682) – diperiksa SEBELUM revisi
+     * dibuat, supaya permintaan yang ditolak tidak meninggalkan draft.
+     */
+    const mintaTanpaPersetujuan = formData.get("tanpaPersetujuan") === "1" && activeRevision != null;
+    if (mintaTanpaPersetujuan) {
+      if (!bolehAktifTanpaPersetujuan(user) || !tanpaPersetujuan) {
+        return { preview, notice: "Hanya super admin utama yang boleh mengaktifkan revisi tanpa persetujuan." } as ImportState;
+      }
+      if (!cocokKonfirmasiTanpaPersetujuan(formData.get("konfirmasi"), tanpaPersetujuan.revisionNo)) {
+        return {
+          preview,
+          notice: `Ketik ${konfirmasiTanpaPersetujuan(tanpaPersetujuan.revisionNo)} persis untuk konfirmasi.`,
+        } as ImportState;
+      }
+    }
+
     const res = await createRevisionFromNodes(location.id, nodes, {
       source,
       note,
@@ -1427,8 +1465,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
      * Yang tidak terjadi hanyalah aktivasinya — dan itu dikatakan apa adanya,
      * bukan dilaporkan sebagai error yang membuat orang mengunggah ulang.
      */
+    // Konfirmasi menyebut nomor revisi; bila nomornya bergeser (impor lain
+    // menyela), jalan pintas tidak dipakai dan revisinya tertahan seperti biasa.
+    const lewatiPersetujuan = mintaTanpaPersetujuan && res.revisionNo === tanpaPersetujuan?.revisionNo;
     try {
-      await pastikanBolehAktivasi(res.revisionId);
+      if (!lewatiPersetujuan) await pastikanBolehAktivasi(res.revisionId);
     } catch (e) {
       if (!(e instanceof PersetujuanError)) throw e;
       revalidatePath(`/lokasi/${location.slug}`, "layout");
@@ -1441,6 +1482,18 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       };
     }
     await activateRevision(res.revisionId, user.id);
+    if (lewatiPersetujuan) {
+      await audit(user.id, "rab.aktivasi_tanpa_persetujuan", "rab_revision", res.revisionId, {
+        locationId: location.id,
+        revisionNo: res.revisionNo,
+        jalur: "impor",
+        berkas: file.name,
+        menggantikan: activeRevision?.revisionNo ?? null,
+      });
+    }
+    const kataTanpaPersetujuan = lewatiPersetujuan
+      ? " Diaktifkan tanpa persetujuan (super admin utama, tercatat di jejak audit)."
+      : "";
     /*
      * KURVA-S TIDAK LAGI DIPAKSAKAN PADA HPS AWAL (permintaan user 2026-09-19).
      *
@@ -1491,7 +1544,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (baselineError) {
       return {
         error:
-          `Revisi RAB #${res.revisionNo} sudah aktif, tetapi kurva-S gagal dibuat ulang (${baselineError}). ` +
+          `Revisi RAB #${res.revisionNo} sudah aktif${lewatiPersetujuan ? " tanpa persetujuan" : ""}, tetapi kurva-S gagal dibuat ulang (${baselineError}). ` +
           `Grafik dan deviasi masih memakai baseline lama. Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.` +
           kalimatRincian,
       };
@@ -1499,7 +1552,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (!isAdendum) {
       return {
         success:
-          `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item.${carryInfo} ` +
+          `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item.${carryInfo}${kataTanpaPersetujuan} ` +
           `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.` +
           kalimatRincian,
         pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
@@ -1510,6 +1563,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         `Revisi RAB #${res.revisionNo} (adendum) aktif, berisi ${res.itemCount} item. ` +
         `Baseline kurva-S dibuat ulang dengan bentuk ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()}, ` +
         `sama dengan yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah.${carryInfo}` +
+        kataTanpaPersetujuan +
         kalimatRincian,
     };
   } catch (err) {
