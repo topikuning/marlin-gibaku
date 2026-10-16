@@ -1,22 +1,20 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Download, Images } from "lucide-react";
-import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, ProgressBar } from "@/components/ui";
+import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { UbinSarpras } from "@/components/knmp/ubin-sarpras";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
-import { formatNumber, formatPct, formatTanggal } from "@/lib/format";
-import { presignKeys } from "@/lib/photos";
-import { susunDokumentasiSarpras, type FotoSarpras } from "@/lib/dokumentasi-sarpras/susun";
+import { formatNumber } from "@/lib/format";
+import { susunDokumentasiSarpras } from "@/lib/dokumentasi-sarpras/susun";
+import { ubinSarpras } from "@/lib/dokumentasi-sarpras/ubin";
 import { requireLocationPage } from "../get-location";
 
 export const metadata: Metadata = { title: "Foto Sarana & Prasarana" };
 export const dynamic = "force-dynamic";
 
-const tgl = (t: string) => formatTanggal(new Date(`${t}T00:00:00Z`));
-
 /**
- * DOKUMENTASI FOTO PER SARANA & PRASARANA (DECISIONS 683) – daftar sarana
- * lokasi ini dengan foto paling awal, foto terkini, dan progresnya.
+ * DOKUMENTASI FOTO PER SARANA & PRASARANA (DECISIONS 683) – ubin per sarana
+ * (foto terkini, nama, progres) seperti kawal-knmp KKP; ketuk untuk slide.
  */
 export default async function FotoSarprasPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -34,12 +32,6 @@ export default async function FotoSarprasPage({ params }: { params: Promise<{ sl
     );
   }
 
-  // Hanya foto awal & terkini tiap sarana yang ditampilkan di sini.
-  const tampil = dok.sarpras.flatMap((s) => [s.foto[0], s.foto.at(-1)].filter((f): f is FotoSarpras => !!f));
-  const url = await presignKeys(
-    tampil.flatMap((f) => [f.thumbnailKey ?? f.r2Key]),
-    3600,
-  );
   const jumlahFoto = dok.sarpras.reduce((t, s) => t + s.foto.length, 0);
   const t = dok.tanpaSarana;
   const tanpa = t.material + t.alat + t.umum + t.tanpaKategori;
@@ -90,61 +82,15 @@ export default async function FotoSarprasPage({ params }: { params: Promise<{ sl
         ) : null}
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {dok.sarpras.map((s) => {
-          const awal = s.foto[0];
-          const kini = s.foto.at(-1);
-          const href = `/lokasi/${slug}/foto-sarpras/${encodeURIComponent(s.kunci)}`;
-          return (
-            <Card key={s.kunci} className="flex flex-col">
-              <div className="space-y-2 p-3">
-                <Link href={href} className="block font-semibold text-ink hover:underline">
-                  {s.code}. {s.name}
-                </Link>
-                <div className="flex items-center gap-2 text-[13px] text-ink-muted">
-                  <ProgressBar value={s.progresKini} label={`Progres ${s.name}`} className="flex-1" />
-                  <span className="tabular shrink-0">{formatPct(s.progresKini, 2)}</span>
-                </div>
-              </div>
-              {awal ? (
-                <div className="grid grid-cols-2 gap-1 px-3">
-                  {[
-                    ["Awal", awal],
-                    ["Terkini", kini!],
-                  ].map(([label, f]) => {
-                    const foto = f as FotoSarpras;
-                    const src = url.get(foto.thumbnailKey ?? foto.r2Key);
-                    return (
-                      <Link key={label as string} href={href} className="block">
-                        <div className="aspect-[4/3] overflow-hidden rounded-md bg-surface-inset">
-                          {src ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={src} alt={`${label} – ${s.name}`} loading="lazy" className="size-full object-cover" />
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-xs text-ink-muted">
-                          <span className="font-medium text-ink">{label as string}</span> · {tgl(foto.tanggal)} ·{" "}
-                          {formatPct(foto.progres, 1)}
-                        </p>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="px-3 text-[13px] text-ink-muted">Belum ada foto dari laporan harian.</p>
-              )}
-              <div className="mt-auto flex items-center justify-between gap-2 p-3">
-                <span className="text-[13px] text-ink-muted">{formatNumber(s.foto.length)} foto</span>
-                {s.foto.length > 0 ? (
-                  <ButtonLink href={href} variant="secondary" size="sm">
-                    Lihat urutan foto
-                  </ButtonLink>
-                ) : null}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+      <section className="space-y-2">
+        <h2 className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold text-ink">
+          Sarana &amp; Prasarana
+          <span className="font-normal text-ink-muted">
+            {dok.sarpras.length} item · {dok.sarpras.filter((s) => s.progresKini >= 100).length} tuntas
+          </span>
+        </h2>
+        <UbinSarpras items={await ubinSarpras(dok, slug)} />
+      </section>
     </div>
   );
 }

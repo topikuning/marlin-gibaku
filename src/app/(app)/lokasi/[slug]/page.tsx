@@ -6,6 +6,9 @@ import { AlertTriangle, CalendarRange, ClipboardList, Mail } from "lucide-react"
 import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, StatusPill } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
+import { UbinSarpras } from "@/components/knmp/ubin-sarpras";
+import { susunDokumentasiSarpras } from "@/lib/dokumentasi-sarpras/susun";
+import { ubinSarpras } from "@/lib/dokumentasi-sarpras/ubin";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { getLocationProgress } from "@/lib/progress";
@@ -75,11 +78,14 @@ export default async function LokasiRingkasanPage({
     bolehKelolaAkses ? calonDitugaskan(location.id, user.orgId) : Promise.resolve([]),
   ]);
 
-  const [progress, series, packageLocationCount] = await Promise.all([
+  const [progress, series, packageLocationCount, dokSarpras] = await Promise.all([
     getLocationProgress(location.id),
     getScurveSeries(location.id),
     db.location.count({ where: { packageId: location.package.id } }),
+    // Ubin sarana & prasarana di bawah Kurva-S, seperti kawal-knmp (DECISIONS 683).
+    susunDokumentasiSarpras(location.id),
   ]);
+  const ubin = dokSarpras ? await ubinSarpras(dokSarpras, slug) : [];
 
   const [weeklyPlan, openIssues, lastReport, statusHistory, surat] = await Promise.all([
     db.weeklyPlan.findUnique({
@@ -304,6 +310,23 @@ export default async function LokasiRingkasanPage({
           </Card>
         </div>
       </div>
+
+      {ubin.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Sarana & Prasarana"
+            subtitle={`${ubin.length} item · ${ubin.filter((u) => u.progres >= 100).length} tuntas · foto terkini dari laporan harian`}
+            action={
+              <ButtonLink href={`/lokasi/${slug}/foto-sarpras`} variant="ghost" size="sm">
+                Foto per sarana
+              </ButtonLink>
+            }
+          />
+          <CardBody>
+            <UbinSarpras items={ubin} />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
