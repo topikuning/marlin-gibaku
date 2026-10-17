@@ -10,8 +10,9 @@ Instruksi untuk Claude Code saat bekerja di repo ini.
    nomornya sudah diketahui. **Jangan membaca seluruh arsip** — 1,5 MB, ±425 ribu
    token; itu persis alasan berkasnya dipecah (DECISIONS 560). 051 = rebuild total.
 4. [`docs/README.md`](./docs/README.md) — peta seluruh dokumentasi (mana yang hidup, mana yang arsip)
-5. [`docs/CARA_KERJA_AGEN.md`](./docs/CARA_KERJA_AGEN.md) — repo ini dikerjakan TIGA agen:
-   siapa penulis, siapa pengoreksi, syarat merah-dulu, daftar blind spot yang sudah terbukti
+5. [`docs/CARA_KERJA_AGEN.md`](./docs/CARA_KERJA_AGEN.md) — sejak 2026-10-17 hanya Claude
+   yang mengubah kode, langsung ke `dev` (DECISIONS 688); syarat merah-dulu dan daftar
+   blind spot yang sudah terbukti tetap berlaku
 
 **Menyentuh progress / deviasi / kurva-S / laporan / uang?** Baca
 [`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md)
@@ -54,10 +55,10 @@ lebih dulu — protokol itu wajib, bukan anjuran.
 5. **Status hanya berubah lewat mesin transisi** `src/lib/lifecycle.ts` + tulis histori.
 6. Bug baru → `docs/OPEN_ISSUES.md` (yang SELESAI dihapus dari sana, bukan
    dicoret); keputusan baru → tulis di **arsip nomor tertinggi**
-   (`docs/decisions/NNN-NNN.md`) **tanpa memilih nomor**
-   (`## (baru) · Judul (tanggal)`), lalu pemeriksa terakhir memberi nomornya
-   saat merge DAN menambahkan satu baris ke indeks `docs/DECISIONS.md`. Cara
-   lengkapnya di kepala indeks itu; dijaga `tests/unit/decisions-nomor.test.ts`.
+   (`docs/decisions/NNN-NNN.md`) dengan **nomor berikutnya** (nomor tertinggi di
+   `origin/dev` + 1) DAN satu baris di indeks `docs/DECISIONS.md`, dalam commit
+   yang sama (DECISIONS 688). `## (baru)` hanya sah di cabang selain `dev`/`main`.
+   Dijaga `tests/unit/decisions-nomor.test.ts`.
 7. **Formula angka hanya boleh ditulis di calculation layer kanonik — daftarnya
    ada di `PROJECT.md` §3 (LIMA berkas, DECISIONS 461).** Jangan menyalin
    daftarnya ke sini: sampai audit 2026-08-28, CLAUDE.md, PROJECT.md, dan
@@ -88,16 +89,22 @@ pnpm audit:ahsp          # daftar temuan janggal basis AHSP → xlsx
 docker build --no-cache -t marlin:test .   # verifikasi deploy
 ```
 
-### Gerbang sebelum push — E2E DIJALANKAN SEKALI, DI CI
+### Gerbang: `dev` cepat, `main` lengkap (DECISIONS 688)
+
+Ketetapan user 2026-10-17: *"kamu itu langsung coding ke dev, test yang buang
+waktu itu hanya dari dev ke main"* – tujuannya *"memastikan di main zero error"*.
+
+- **Ke `dev`**: commit dan push LANGSUNG ke `dev`. Tanpa cabang fitur, tanpa PR,
+  tanpa menunggu CI. Sebelum commit cukup `pnpm typecheck` · `pnpm lint` · berkas
+  uji yang menyangkut perubahan itu. Suite penuh TIDAK dijalankan di sini.
+- **Ke `main`** (hanya atas perintah user, prinsip 0): typecheck · lint · unit
+  penuh · integrasi · `pnpm build` lokal, lalu CI di `dev` hijau termasuk E2E.
+  Baru merge.
 
 Ketetapan user 2026-08-29: *"ci tetap menjalankan e2e atau tes apa pun itu,
-kalau memang harus dilakukan, lakukan salah satu"*.
-
-Jalankan lokal sebelum push: **typecheck · lint · unit · integrasi** (±7 menit).
-**JANGAN** menjalankan `pnpm test:e2e` lokal — CI sudah menjalankannya pada tiap
-PR, dan menjalankannya dua kali menambah ±14 menit tunggu tanpa menambah satu
-pun bukti. Yang lolos empat gerbang di atas dan lolos CI sama saja dengan yang
-lolos lima gerbang lokal; bedanya cuma siapa yang menunggu.
+kalau memang harus dilakukan, lakukan salah satu"*. **JANGAN** menjalankan
+`pnpm test:e2e` lokal — CI sudah menjalankannya, dan menjalankannya dua kali
+menambah ±14 menit tunggu tanpa menambah satu pun bukti.
 
 Alasannya bukan penghematan buta: dari lima kali E2E lokal di sesi 2026-08-28/29,
 hanya DUA yang menemukan sesuatu, dan keduanya pada perubahan yang menyentuh
@@ -117,8 +124,8 @@ tidak. Dan menunggu CI/build selesai adalah bagian dari merge itu sendiri —
 perintah user "merge ke main" izin MENGGABUNGKAN, bukan izin melewatkan
 pembuktian.
 
-Saat iterasi, jalankan BERKAS uji yang bersangkutan saja; suite penuh cukup
-sekali, tepat sebelum commit.
+Saat iterasi, jalankan BERKAS uji yang bersangkutan saja; suite penuh hanya
+sebelum `dev` → `main`.
 
 ## Membaca kode – Graphify DULU (ketetapan user 2026-09-26)
 
