@@ -56,7 +56,9 @@ test.describe("penyaring mengaku sedang menyaring", () => {
   test("papan Kendala: tombol Cari berubah jadi Menyaring…", async ({ page }) => {
     await login(page);
     await page.goto("/kendala");
-    const cari = page.getByRole("button", { name: /^(Cari|Menyaring)/ });
+    // Dibatasi ke isi halaman: topbar punya tombol "Cari lokasi atau paket"
+    // (Cari Cepat, DECISIONS 684) yang namanya juga diawali "Cari".
+    const cari = page.getByRole("main").getByRole("button", { name: /^(Cari|Menyaring)/ });
     await expect(cari).toBeVisible({ timeout: 30_000 });
 
     /*
