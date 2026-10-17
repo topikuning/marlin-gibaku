@@ -34,7 +34,7 @@ export type BarisAksesUi = {
 };
 
 /**
- * Berapa orang yang tampil di kartu sebelum "Lihat semua".
+ * Berapa orang yang tampil di kartu sebelum "Lihat semua" (DECISIONS 685).
  *
  * Keluhan user 2026-10-17: kartu ini memanjang ke bawah di kolom samping
  * Kurva-S, satu baris per akun. Lima = yang ditugaskan lebih dulu (urutan

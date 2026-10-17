@@ -60,8 +60,8 @@ export default async function LokasiLayout({
 }) {
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
-  // Pensil ganti nama: super_admin + Program Director saja (ketetapan user
-  // 2026-10-17). Server action-nya memeriksa kapabilitas yang sama.
+  // Pensil ganti nama: super_admin + Program Director saja (DECISIONS 686).
+  // Server action-nya memeriksa kapabilitas yang sama.
   const canRename = can(user.role, "location.rename");
   // Halaman paket dijaga `package.view`; Pelaksana tidak memegangnya, jadi
   // baginya nama paket ditulis biasa, bukan tautan ke layar "tidak punya izin".
@@ -220,7 +220,7 @@ export default async function LokasiLayout({
           ke daftar dan mencari dari awal — padahal justru di ponsel, di mana
           tab-tab-nya digulir mendatar, kehilangan konteks itu paling mahal. */}
       <div className="space-y-1 sm:hidden">
-        {/* Jalan kembali ke paket (keluhan user 2026-10-17: *"di HP, saat masuk
+        {/* Jalan kembali ke paket, DECISIONS 687 (keluhan user 2026-10-17: *"di HP, saat masuk
             lokasi, sulit untuk kembali ke halaman paket"*). Tautan paket di
             desktop ada di header yang di ponsel disembunyikan, jadi di sini
             tidak ada jalan ke atas sama sekali. */}

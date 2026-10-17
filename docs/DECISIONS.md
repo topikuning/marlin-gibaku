@@ -88,6 +88,9 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 687 | 2026-10-17 | Ponsel: tautan "‹ Paket …" di atas baris nama lokasi di semua tab, hanya bagi pemegang `package.view`; Pelaksana tidak diberi tautan paket (juga di header desktop) yang berujung layar "tidak punya izin" |
+| 686 | 2026-10-17 | Mengubah 117: ganti nama lokasi hanya Super Admin + Program Director (kapabilitas `location.rename`, diperiksa pensil DAN `renameLocation`); sebelumnya AM & PM ikut lewat `location.manage`. Koordinat tetap `location.manage` (koreksi, diperbolehkan user) |
+| 685 | 2026-10-17 | Kartu "Akses pengguna" di Ringkasan lokasi: paling banyak 5 orang + jumlahnya disebut, tanpa nomor WA; daftar lengkap, cari, Cabut, dan formulir tambah di `PanelGeser` |
 | 684 | 2026-10-17 | Cari Cepat ⌘K / Ctrl+K di topbar: lompat ke lokasi atau paket dari halaman mana pun; isinya = yang boleh dibuka (penugasan, organisasi, capability, arsip pencabutan), dimuat saat dibuka; lokasi dibuka di tab yang sama; "Terakhir dibuka" dari kunjungan di peramban itu |
 | 683 | 2026-10-16 | Tab "Foto Sarpras": foto laporan harian dipilah per sarana & prasarana (kategori RAB tingkat 1), slide urut tanggal dengan progres sarana s/d tanggal foto (`progresKelompokPerTanggal`, = Progres per Kategori mingguan), saring per pekerjaan, satu foto per minggu; PDF 0% – 50% – 100% |
 | 682 | 2026-10-16 | Mengubah 234: super admin UTAMA boleh mengaktifkan revisi RAB tanpa dua persetujuan (tombol Aktifkan draft & impor "Jadikan RAB AKTIF"), hanya bila diminta + ketik `AKTIFKAN #N`; audit `rab.aktivasi_tanpa_persetujuan`, riwayat revisi menandai; peran lain tetap empat mata |
