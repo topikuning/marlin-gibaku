@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { StatusPill } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
+import { hrefLokasiSerupa } from "@/lib/cari-cepat/murni";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import { cn } from "@/lib/cn";
@@ -108,16 +109,13 @@ export function LocationSwitcher({
   }, [open, showSearch]);
 
   /**
-   * Ganti HANYA segmen slug; sisa path dipertahankan apa adanya. Seluruh
-   * sub-halaman workspace ada di setiap lokasi (`harian/[date]` memakai
-   * tanggal, bukan id milik lokasi), jadi tidak ada tautan yang jadi 404.
+   * Ganti HANYA segmen slug; sisa path dipertahankan (`harian/[date]` memakai
+   * tanggal, bukan id milik lokasi). Satu-satunya segmen milik lokasi –
+   * `foto-sarpras/[kunci]` – berhenti di daftar sarananya. Aturan yang sama
+   * dipakai Cari Cepat (DECISIONS 684).
    */
   function hrefFor(slug: string): string {
-    const parts = pathname.split("/");
-    // ["", "lokasi", "<slug>", ...sisa]
-    if (parts[1] !== "lokasi" || parts.length < 3) return `/lokasi/${slug}`;
-    parts[2] = slug;
-    return parts.join("/");
+    return hrefLokasiSerupa(pathname, slug);
   }
 
   function pindah(slug: string) {
