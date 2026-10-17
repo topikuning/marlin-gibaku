@@ -59,7 +59,9 @@ export default async function LokasiLayout({
 }) {
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
-  const canRename = can(user.role, "location.manage");
+  // Pensil ganti nama: super_admin + Program Director saja (ketetapan user
+  // 2026-10-17). Server action-nya memeriksa kapabilitas yang sama.
+  const canRename = can(user.role, "location.rename");
   const [progress, { siblings, hiddenCount }, tertutup] = await Promise.all([
     getLocationProgress(location.id),
     getSiblingLocations(user, location.package.id),

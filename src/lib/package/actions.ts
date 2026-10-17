@@ -632,9 +632,11 @@ const renameLocationSchema = z.object({
 /**
  * Ubah NAMA TAMPILAN lokasi (bukan slug — URL tetap stabil). Untuk merapikan
  * penamaan yang tak seragam (mis. prefix "KNMP"). DECISIONS 117.
+ * Hanya super_admin + Program Director (`location.rename`, ketetapan user
+ * 2026-10-17).
  */
 export async function renameLocation(_prev: PackageActionState, formData: FormData): Promise<PackageActionState> {
-  const actor = await requireCapability("location.manage");
+  const actor = await requireCapability("location.rename");
   const parsed = renameLocationSchema.safeParse({
     locationId: formData.get("locationId"),
     name: formData.get("name"),

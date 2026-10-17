@@ -21,6 +21,12 @@ export const CAPABILITIES = [
   "amendment.manage",
   "location.view",
   "location.manage",
+  // Ganti NAMA TAMPILAN lokasi — super_admin + Program Director SAJA (ketetapan
+  // user 2026-10-17: *"yang punya akses harusnya cuma Program Director dan super
+  // admin"*). Dulu menumpang `location.manage` (DECISIONS 117), sehingga Area
+  // Manager dan Project Manager ikut bisa mengganti nama. Alamat, koordinat,
+  // dan status lokasi tetap `location.manage`.
+  "location.rename",
   // Koreksi susunan lokasi paket — super_admin SAJA, bukan adendum.
   //
   // Dua tindakan, satu wewenang yang sama: MENAMBAH lokasi yang ketinggalan
