@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import type { UserRole } from "@/generated/prisma/enums";
 import type { Branding } from "@/lib/branding";
 import { BrandWordmark } from "@/components/ui/brand-mark";
-import { ROLE_LABEL } from "@/lib/authz";
+import { can, ROLE_LABEL } from "@/lib/authz";
 import { cn } from "@/lib/cn";
+import { CariCepat } from "./cari-cepat";
 import { LATAR_PENANDA, LencanaLingkungan } from "./penanda-lingkungan";
 
 export interface TopbarUser {
@@ -38,7 +39,9 @@ export function Topbar({ brand, user, logoutAction, children, penanda }: TopbarP
         penanda ? cn(LATAR_PENANDA, "border-b-2 border-warning") : "border-border bg-surface",
       )}
     >
-      <div className="flex min-w-0 items-center gap-2">
+      {/* Kiri tidak pernah menciut: isinya kecil (logo, lencana server uji),
+          dan yang mengalah saat sempit adalah nama pengguna di kanan. */}
+      <div className="flex min-w-0 shrink-0 items-center gap-2">
         {/* Brand mini utk mobile (sidebar tersembunyi) */}
         <span className="flex shrink-0 items-center lg:hidden">
           <BrandWordmark tinggi={18} />
@@ -46,20 +49,24 @@ export function Topbar({ brand, user, logoutAction, children, penanda }: TopbarP
         {penanda ? <LencanaLingkungan label={penanda} /> : null}
         <div className="min-w-0 truncate text-sm text-ink-muted">{children}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        {/* ⌘K / Ctrl+K – pindah lokasi/paket dari halaman mana pun (DECISIONS 684). */}
+        {can(user.role, "location.view") || can(user.role, "package.view") ? <CariCepat /> : null}
         {/* Jalan pasang PERMANEN (DECISIONS 405): banner boleh ditutup 14 hari,
             tombol ini tidak ikut diredam. Menyaring dirinya sendiri – hanya
             terbit bila peramban memang menawarkan dan belum terpasang. */}
         <PemasangAplikasi varian="ringkas" />
-        <div className="text-right">
-          <p className="text-[13px] leading-tight font-medium text-ink">
+        {/* Di ponsel nama dipotong supaya tombol cari muat tanpa menimpa
+            lencana server uji; nama lengkapnya tetap di `title`. */}
+        <div className="min-w-0 text-right" title={user.fullName}>
+          <p className="truncate text-[13px] leading-tight font-medium text-ink">
             {user.fullName}
           </p>
-          <p className="text-[11px] leading-tight text-ink-muted">
+          <p className="truncate text-[11px] leading-tight text-ink-muted">
             {ROLE_LABEL[user.role]}
           </p>
         </div>
-        <form action={logoutAction}>
+        <form action={logoutAction} className="shrink-0">
           <button
             type="submit"
             aria-label="Keluar"

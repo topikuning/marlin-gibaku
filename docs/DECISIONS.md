@@ -88,6 +88,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 684 | 2026-10-17 | Cari Cepat ⌘K / Ctrl+K di topbar: lompat ke lokasi atau paket dari halaman mana pun; isinya = yang boleh dibuka (penugasan, organisasi, capability, arsip pencabutan), dimuat saat dibuka; lokasi dibuka di tab yang sama; "Terakhir dibuka" dari kunjungan di peramban itu |
 | 683 | 2026-10-16 | Tab "Foto Sarpras": foto laporan harian dipilah per sarana & prasarana (kategori RAB tingkat 1), slide urut tanggal dengan progres sarana s/d tanggal foto (`progresKelompokPerTanggal`, = Progres per Kategori mingguan), saring per pekerjaan, satu foto per minggu; PDF 0% – 50% – 100% |
 | 682 | 2026-10-16 | Mengubah 234: super admin UTAMA boleh mengaktifkan revisi RAB tanpa dua persetujuan (tombol Aktifkan draft & impor "Jadikan RAB AKTIF"), hanya bila diminta + ketik `AKTIFKAN #N`; audit `rab.aktivasi_tanpa_persetujuan`, riwayat revisi menandai; peran lain tetap empat mata |
 | 681 | 2026-10-16 | Berkas yang tidak sama persis dengan RAB aktif tetap bisa mengisi harga satuan yang KOSONG (volume & jumlah item itu cocok; pasangan lewat identitas, lalu nama + volume + jumlah tunggal) – tombol "Isi N harga satuan yang kosong", tanpa revisi baru; perbedaan lain tidak disentuh |
