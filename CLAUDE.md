@@ -97,9 +97,12 @@ waktu itu hanya dari dev ke main"* – tujuannya *"memastikan di main zero error
 - **Ke `dev`**: commit dan push LANGSUNG ke `dev`. Tanpa cabang fitur, tanpa PR,
   tanpa menunggu CI. Sebelum commit cukup `pnpm typecheck` · `pnpm lint` · berkas
   uji yang menyangkut perubahan itu. Suite penuh TIDAK dijalankan di sini.
-- **Ke `main`** (hanya atas perintah user, prinsip 0): typecheck · lint · unit
-  penuh · integrasi · `pnpm build` lokal, lalu CI di `dev` hijau termasuk E2E.
-  Baru merge.
+- **PR `dev` → `main` selalu terbuka** selama `dev` di depan `main`: sesudah push
+  ke `dev`, buka PR-nya bila belum ada (yang sudah ada ikut terbarui sendiri).
+  Di PR itulah gerbang lengkap dijalankan: typecheck · lint · unit penuh ·
+  integrasi · `pnpm build` lokal, plus CI hijau termasuk E2E. Hasilnya ditulis di
+  PR. Membuka PR bukan merge: **merge ke `main` tetap hanya atas perintah user**
+  (prinsip 0).
 
 Ketetapan user 2026-08-29: *"ci tetap menjalankan e2e atau tes apa pun itu,
 kalau memang harus dilakukan, lakukan salah satu"*. **JANGAN** menjalankan

@@ -94,7 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
-| 688 | 2026-10-17 | Satu agen (Claude) mengubah kode, commit dan push langsung ke `dev` tanpa cabang/PR/menunggu CI; sebelum commit cukup typecheck + lint + uji yang bersangkutan; gerbang lengkap (unit, integrasi, build, CI termasuk E2E) hanya sebelum `dev` → `main`; nomor keputusan diberikan penulis saat menulis |
+| 688 | 2026-10-17 | Satu agen (Claude) mengubah kode, commit dan push langsung ke `dev` tanpa cabang/PR/menunggu CI; sebelum commit cukup typecheck + lint + uji yang bersangkutan; PR `dev` → `main` selalu terbuka dan gerbang lengkap (unit, integrasi, build, CI termasuk E2E) dijalankan di sana, merge tetap perintah user; nomor keputusan diberikan penulis saat menulis |
 | 687 | 2026-10-17 | Ponsel: tautan "‹ Paket …" di atas baris nama lokasi di semua tab, hanya bagi pemegang `package.view`; Pelaksana tidak diberi tautan paket (juga di header desktop) yang berujung layar "tidak punya izin" |
 | 686 | 2026-10-17 | Mengubah 117: ganti nama lokasi hanya Super Admin + Program Director (kapabilitas `location.rename`, diperiksa pensil DAN `renameLocation`); sebelumnya AM & PM ikut lewat `location.manage`. Koordinat tetap `location.manage` (koreksi, diperbolehkan user) |
 | 685 | 2026-10-17 | Kartu "Akses pengguna" di Ringkasan lokasi: paling banyak 5 orang + jumlahnya disebut, tanpa nomor WA; daftar lengkap, cari, Cabut, dan formulir tambah di `PanelGeser` |
