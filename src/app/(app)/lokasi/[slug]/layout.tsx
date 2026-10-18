@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ChevronLeft } from "lucide-react";
 import { Banner, ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { cn } from "@/lib/cn";
@@ -59,7 +60,12 @@ export default async function LokasiLayout({
 }) {
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
-  const canRename = can(user.role, "location.manage");
+  // Pensil ganti nama: super_admin + Program Director saja (DECISIONS 686).
+  // Server action-nya memeriksa kapabilitas yang sama.
+  const canRename = can(user.role, "location.rename");
+  // Halaman paket dijaga `package.view`; Pelaksana tidak memegangnya, jadi
+  // baginya nama paket ditulis biasa, bukan tautan ke layar "tidak punya izin".
+  const bolehPaket = can(user.role, "package.view");
   const [progress, { siblings, hiddenCount }, tertutup] = await Promise.all([
     getLocationProgress(location.id),
     getSiblingLocations(user, location.package.id),
@@ -124,9 +130,13 @@ export default async function LokasiLayout({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 text-right text-[13px]">
-            <Link href={`/paket/${location.package.id}`} className="font-medium text-primary hover:underline">
-              {location.package.name}
-            </Link>
+            {bolehPaket ? (
+              <Link href={`/paket/${location.package.id}`} className="font-medium text-primary hover:underline">
+                {location.package.name}
+              </Link>
+            ) : (
+              <span className="font-medium text-ink">{location.package.name}</span>
+            )}
             {contract ? <p className="text-ink-muted">{contract.vendor.name}</p> : null}
             {/*
               Presentasi SATU lokasi (DECISIONS 420). Tautannya membawa
@@ -209,25 +219,41 @@ export default async function LokasiLayout({
           mati, jadi di ponsel satu-satunya jalan pindah lokasi adalah kembali
           ke daftar dan mencari dari awal — padahal justru di ponsel, di mana
           tab-tab-nya digulir mendatar, kehilangan konteks itu paling mahal. */}
-      <div className="flex items-center gap-2 sm:hidden">
-        <LocationSwitcher
-          compact
-          current={current}
-          siblings={siblings}
-          hiddenCount={hiddenCount}
-          packageName={location.package.name}
-        />
-        {tertutup ? (
-          <StatusPill tone="warning" label="Dicabut" />
-        ) : (
-          <StatusPill
-            tone={LOCATION_STATUS_TONE[location.status]}
-            label={LOCATION_STATUS_LABEL[location.status]}
+      <div className="space-y-1 sm:hidden">
+        {/* Jalan kembali ke paket, DECISIONS 687 (keluhan user 2026-10-17: *"di HP, saat masuk
+            lokasi, sulit untuk kembali ke halaman paket"*). Tautan paket di
+            desktop ada di header yang di ponsel disembunyikan, jadi di sini
+            tidak ada jalan ke atas sama sekali. */}
+        {bolehPaket ? (
+          <Link
+            href={`/paket/${location.package.id}`}
+            title={`Kembali ke ${location.package.name}`}
+            className="-ml-1 inline-flex min-h-8 max-w-full items-center gap-0.5 rounded-md pr-1.5 text-[13px] font-medium text-primary hover:underline"
+          >
+            <ChevronLeft aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{location.package.name}</span>
+          </Link>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <LocationSwitcher
+            compact
+            current={current}
+            siblings={siblings}
+            hiddenCount={hiddenCount}
+            packageName={location.package.name}
           />
-        )}
-        <span className="ms-auto shrink-0">
-          <DeltaBadge value={progress.deviationPct} />
-        </span>
+          {tertutup ? (
+            <StatusPill tone="warning" label="Dicabut" />
+          ) : (
+            <StatusPill
+              tone={LOCATION_STATUS_TONE[location.status]}
+              label={LOCATION_STATUS_LABEL[location.status]}
+            />
+          )}
+          <span className="ms-auto shrink-0">
+            <DeltaBadge value={progress.deviationPct} />
+          </span>
+        </div>
       </div>
 
       <LinkTabs items={tabItems(location.slug, can(user.role, "finance.view"))} />

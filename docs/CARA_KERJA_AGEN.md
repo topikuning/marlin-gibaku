@@ -1,5 +1,12 @@
 # Cara Kerja Tiga Agen di Repo Ini
 
+> **Status 2026-10-17 (DECISIONS 688): hanya Claude yang mengubah kode; ECC dan
+> Codex tidak lagi dijalankan** (ketetapan user). Yang TIDAK berlaku lagi: §1
+> (pembagian peran, PR ke `dev`, pemeriksa terakhir) dan §4 (gerbang sebelum
+> merge ke `dev`). Claude commit dan push langsung ke `dev`; gerbang lengkap hanya
+> sebelum `dev` → `main` (`CLAUDE.md` §Gerbang). Yang TETAP berlaku: §2 merah-dulu,
+> §3 format temuan, §5 daftar blind spot, §6 berkas pembentuk perilaku agen.
+
 Repo ini dikerjakan tiga agen sekaligus: **Claude sesi remote** (punya DB uji,
 bisa push), **ECC** (plugin di dalam Claude CLI), dan **Codex**. Berkas ini
 mengatur siapa mengerjakan apa, supaya koreksi di antara mereka menghasilkan
