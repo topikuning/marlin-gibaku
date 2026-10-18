@@ -15,6 +15,8 @@ import { parseAkar } from "@/lib/akar";
 import { AhspPanel } from "./ahsp-panel";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { GDrivePanel } from "./gdrive-panel";
+import { KawalPanel } from "./kawal-panel";
+import { getAkunKawalTampil } from "@/lib/kawal/setelan";
 import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
 import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
 import { ringkasAntrean } from "@/lib/gdrive/antrean";
@@ -637,6 +639,16 @@ export default async function SistemPage() {
             status={gdriveDisplay.connected ? "Terhubung" : "Belum terhubung"}
           />
           <GDrivePanel initial={gdriveDisplay} redirectUri={driveRedirectUriFrom(h)} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Kawal KNMP"
+          subtitle="Pembanding progres dari aplikasi pengawasan KKP – rujukan, bukan angka resmi (DECISIONS 689)"
+        />
+        <CardBody>
+          <KawalPanel akunKawal={await getAkunKawalTampil()} />
         </CardBody>
       </Card>
 

@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 689 | 2026-10-18 | Sinkron Kawal KNMP: data Kawal = rujukan, bukan angka resmi; pembanding sederhana progres MARLIN vs tarikan Kawal terbaru, ambang 5/10 pp; semua peran boleh melihat (`kawal.view`); Relatif ditampilkan dengan keterangan; tahap 1 = akun tersandi di Sistem + uji sambungan yang melaporkan bentuk data tanpa nilai |
 | 688 | 2026-10-17 | Satu agen (Claude) mengubah kode, commit dan push langsung ke `dev` tanpa cabang/PR/menunggu CI; sebelum commit cukup typecheck + lint + uji yang bersangkutan; PR `dev` → `main` selalu terbuka dan gerbang lengkap (unit, integrasi, build, CI termasuk E2E) dijalankan di sana, merge tetap perintah user; nomor keputusan diberikan penulis saat menulis |
 | 687 | 2026-10-17 | Ponsel: tautan "‹ Paket …" di atas baris nama lokasi di semua tab, hanya bagi pemegang `package.view`; Pelaksana tidak diberi tautan paket (juga di header desktop) yang berujung layar "tidak punya izin" |
 | 686 | 2026-10-17 | Mengubah 117: ganti nama lokasi hanya Super Admin + Program Director (kapabilitas `location.rename`, diperiksa pensil DAN `renameLocation`); sebelumnya AM & PM ikut lewat `location.manage`. Koordinat tetap `location.manage` (koreksi, diperbolehkan user) |
