@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { formatPct } from "@/lib/format";
 
 /**
@@ -36,6 +36,43 @@ const warnaLokasi = (i: number) => (i < JUMLAH_WARNA ? `var(--color-seri-${i + 1
 
 const tanda = (d: number) => `${d >= 0 ? "+" : "−"}${formatPct(Math.abs(d))}`;
 
+/**
+ * Letak kotak angka penunjuk, dalam px dari tepi kiri grafik. `batasKiri` /
+ * `batasKanan` = irisan grafik dengan LAYAR YANG TERLIHAT, juga dalam px dari
+ * tepi kiri grafik.
+ *
+ * Keluhan user 2026-10-18 (tangkapan layar HP): kotaknya keluar dari tepi kanan
+ * layar dan menggeser seluruh halaman. Dulu sisinya dipilih dengan ambang tetap
+ * 290 px, jadi di grafik HP (±330 px) minggu di tengah selalu ditaruh di kanan
+ * walau ruang kanannya tinggal ±110 px. Disusul *"melebihi layar aktif,
+ * peletakan kanan kiri layar yang pas perlu kamu pertimbangkan"* – batasnya
+ * layar, bukan hanya grafik.
+ *
+ * Kini: di KIRI garis bila muat (bagian kiri-atas kurva-S hampir selalu kosong),
+ * di KANAN bila muat, dan bila tidak ada yang muat kotak dijepit di dalam batas –
+ * boleh menutupi garisnya, tidak boleh keluar layar.
+ */
+export function letakKotakPenunjuk(
+  x: number,
+  lebarKotak: number,
+  batasKiri: number,
+  batasKanan: number,
+  jarak = 8,
+): number {
+  const muat = (posisi: number) => posisi >= batasKiri && posisi + lebarKotak <= batasKanan;
+  const kiri = x - jarak - lebarKotak;
+  if (muat(kiri)) return kiri;
+  const kanan = x + jarak;
+  if (muat(kanan)) return kanan;
+  return Math.min(Math.max(batasKiri, x - lebarKotak / 2), Math.max(batasKiri, batasKanan - lebarKotak));
+}
+
+/** Jarak minimal kotak dari tepi layar. */
+const TEPI_LAYAR = 8;
+/** Lebar kotak (11rem – 16rem), keduanya dikecilkan bila layarnya lebih sempit. */
+const LEBAR_KOTAK_MIN = 176;
+const LEBAR_KOTAK_MAKS = 256;
+
 export function ScurveChartInteraktif({
   totalWeeks: n,
   currentWeek,
@@ -52,10 +89,9 @@ export function ScurveChartInteraktif({
   lokasi: DeretLokasiKurva[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wadahRef = useRef<HTMLDivElement>(null);
+  const kotakRef = useRef<HTMLDivElement>(null);
   const [aktif, setAktif] = useState<number | null>(null);
-  // Kotak angka di KIRI garis penunjuk bila ruangnya cukup: di kurva-S bagian
-  // kiri-atas penunjuk (minggu sebelumnya, angka lebih kecil) hampir selalu kosong.
-  const [kotakKiri, setKotakKiri] = useState(false);
   const [sembunyi, setSembunyi] = useState<ReadonlySet<number>>(new Set());
 
   // Ada data realisasi? (pratinjau editor kirim semua null → sembunyikan.)
@@ -97,12 +133,29 @@ export function ScurveChartInteraktif({
   // Label minggu: mulai (0), tengah, akhir.
   const weekTicks = [...new Set([0, Math.round(n / 2), n])];
 
-  const tunjuk = (i: number) => {
-    const minggu = Math.min(n, Math.max(1, i));
-    const lebar = svgRef.current?.getBoundingClientRect().width ?? 0;
-    setKotakKiri((xFor(minggu) / W) * lebar > 290);
-    setAktif(minggu);
-  };
+  const tunjuk = (i: number) => setAktif(Math.min(n, Math.max(1, i)));
+
+  // Kotak diletakkan sesudah lebarnya diketahui (isinya berubah tiap minggu),
+  // sebelum dilukis – jadi tidak pernah sempat terlihat di tempat yang salah.
+  // Batasnya irisan grafik dengan layar yang TERLIHAT: `visualViewport` ikut
+  // memperhitungkan layar HP yang sedang di-zoom dua jari.
+  useLayoutEffect(() => {
+    const wadah = wadahRef.current;
+    const kotak = kotakRef.current;
+    if (aktif == null || !wadah || !kotak) return;
+    const r = wadah.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const layarKiri = (vv?.offsetLeft ?? 0) + TEPI_LAYAR;
+    const layarKanan = (vv ? vv.offsetLeft + vv.width : document.documentElement.clientWidth) - TEPI_LAYAR;
+    const batasKiri = Math.max(0, layarKiri - r.left);
+    const batasKanan = Math.min(r.width, layarKanan - r.left);
+    // min-width menang atas max-width di CSS: keduanya dijepit ke ruang yang ada.
+    const ruang = Math.max(0, batasKanan - batasKiri);
+    kotak.style.maxWidth = `${Math.min(LEBAR_KOTAK_MAKS, ruang)}px`;
+    kotak.style.minWidth = `${Math.min(LEBAR_KOTAK_MIN, ruang)}px`;
+    const x = (xFor(aktif) / W) * r.width;
+    kotak.style.left = `${letakKotakPenunjuk(x, kotak.offsetWidth, batasKiri, batasKanan)}px`;
+  });
   const arahkan = (e: PointerEvent<SVGRectElement>) => {
     const r = svgRef.current?.getBoundingClientRect();
     if (!r || r.width === 0) return;
@@ -122,13 +175,12 @@ export function ScurveChartInteraktif({
       return baru;
     });
 
-  const posisi = aktif != null ? (xFor(aktif) / W) * 100 : 0;
   const nilaiAktif = aktif != null ? actual[aktif] : null;
   const rencanaAktif = aktif != null ? plan[aktif] : 0;
   const prognosaAktif = aktif != null ? (fc[aktif] ?? null) : null;
 
   return (
-    <div className="relative">
+    <div ref={wadahRef} className="relative">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -247,9 +299,9 @@ export function ScurveChartInteraktif({
 
       {aktif != null && (
         <div
+          ref={kotakRef}
           role="status"
-          className="pointer-events-none absolute top-1 z-10 w-max min-w-44 max-w-64 rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
-          style={kotakKiri ? { right: `${100 - posisi + 1.5}%` } : { left: `${posisi + 1.5}%` }}
+          className="pointer-events-none absolute top-1 left-0 z-10 w-max rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
         >
           <p className="font-semibold text-ink">
             Minggu ke-{aktif}
