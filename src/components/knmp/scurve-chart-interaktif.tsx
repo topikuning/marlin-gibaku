@@ -37,24 +37,41 @@ const warnaLokasi = (i: number) => (i < JUMLAH_WARNA ? `var(--color-seri-${i + 1
 const tanda = (d: number) => `${d >= 0 ? "+" : "−"}${formatPct(Math.abs(d))}`;
 
 /**
- * Letak kotak angka penunjuk, dalam px dari tepi kiri grafik.
+ * Letak kotak angka penunjuk, dalam px dari tepi kiri grafik. `batasKiri` /
+ * `batasKanan` = irisan grafik dengan LAYAR YANG TERLIHAT, juga dalam px dari
+ * tepi kiri grafik.
  *
  * Keluhan user 2026-10-18 (tangkapan layar HP): kotaknya keluar dari tepi kanan
  * layar dan menggeser seluruh halaman. Dulu sisinya dipilih dengan ambang tetap
  * 290 px, jadi di grafik HP (±330 px) minggu di tengah selalu ditaruh di kanan
- * walau ruang kanannya tinggal ±110 px.
+ * walau ruang kanannya tinggal ±110 px. Disusul *"melebihi layar aktif,
+ * peletakan kanan kiri layar yang pas perlu kamu pertimbangkan"* – batasnya
+ * layar, bukan hanya grafik.
  *
  * Kini: di KIRI garis bila muat (bagian kiri-atas kurva-S hampir selalu kosong),
- * di KANAN bila muat, dan bila tidak ada yang muat kotak dijepit di dalam
- * grafik – boleh menutupi garisnya, tidak boleh keluar layar.
+ * di KANAN bila muat, dan bila tidak ada yang muat kotak dijepit di dalam batas –
+ * boleh menutupi garisnya, tidak boleh keluar layar.
  */
-export function letakKotakPenunjuk(x: number, lebarWadah: number, lebarKotak: number, jarak = 8): number {
+export function letakKotakPenunjuk(
+  x: number,
+  lebarKotak: number,
+  batasKiri: number,
+  batasKanan: number,
+  jarak = 8,
+): number {
+  const muat = (posisi: number) => posisi >= batasKiri && posisi + lebarKotak <= batasKanan;
   const kiri = x - jarak - lebarKotak;
-  if (kiri >= 0) return kiri;
+  if (muat(kiri)) return kiri;
   const kanan = x + jarak;
-  if (kanan + lebarKotak <= lebarWadah) return kanan;
-  return Math.min(Math.max(0, x - lebarKotak / 2), Math.max(0, lebarWadah - lebarKotak));
+  if (muat(kanan)) return kanan;
+  return Math.min(Math.max(batasKiri, x - lebarKotak / 2), Math.max(batasKiri, batasKanan - lebarKotak));
 }
+
+/** Jarak minimal kotak dari tepi layar. */
+const TEPI_LAYAR = 8;
+/** Lebar kotak (11rem – 16rem), keduanya dikecilkan bila layarnya lebih sempit. */
+const LEBAR_KOTAK_MIN = 176;
+const LEBAR_KOTAK_MAKS = 256;
 
 export function ScurveChartInteraktif({
   totalWeeks: n,
@@ -120,12 +137,24 @@ export function ScurveChartInteraktif({
 
   // Kotak diletakkan sesudah lebarnya diketahui (isinya berubah tiap minggu),
   // sebelum dilukis – jadi tidak pernah sempat terlihat di tempat yang salah.
+  // Batasnya irisan grafik dengan layar yang TERLIHAT: `visualViewport` ikut
+  // memperhitungkan layar HP yang sedang di-zoom dua jari.
   useLayoutEffect(() => {
     const wadah = wadahRef.current;
     const kotak = kotakRef.current;
     if (aktif == null || !wadah || !kotak) return;
-    const lebar = wadah.clientWidth;
-    kotak.style.left = `${letakKotakPenunjuk((xFor(aktif) / W) * lebar, lebar, kotak.offsetWidth)}px`;
+    const r = wadah.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const layarKiri = (vv?.offsetLeft ?? 0) + TEPI_LAYAR;
+    const layarKanan = (vv ? vv.offsetLeft + vv.width : document.documentElement.clientWidth) - TEPI_LAYAR;
+    const batasKiri = Math.max(0, layarKiri - r.left);
+    const batasKanan = Math.min(r.width, layarKanan - r.left);
+    // min-width menang atas max-width di CSS: keduanya dijepit ke ruang yang ada.
+    const ruang = Math.max(0, batasKanan - batasKiri);
+    kotak.style.maxWidth = `${Math.min(LEBAR_KOTAK_MAKS, ruang)}px`;
+    kotak.style.minWidth = `${Math.min(LEBAR_KOTAK_MIN, ruang)}px`;
+    const x = (xFor(aktif) / W) * r.width;
+    kotak.style.left = `${letakKotakPenunjuk(x, kotak.offsetWidth, batasKiri, batasKanan)}px`;
   });
   const arahkan = (e: PointerEvent<SVGRectElement>) => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -272,7 +301,7 @@ export function ScurveChartInteraktif({
         <div
           ref={kotakRef}
           role="status"
-          className="pointer-events-none absolute top-1 left-0 z-10 w-max min-w-[min(11rem,100%)] max-w-[min(16rem,100%)] rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
+          className="pointer-events-none absolute top-1 left-0 z-10 w-max rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
         >
           <p className="font-semibold text-ink">
             Minggu ke-{aktif}
