@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { formatPct } from "@/lib/format";
 
 /**
@@ -36,6 +36,26 @@ const warnaLokasi = (i: number) => (i < JUMLAH_WARNA ? `var(--color-seri-${i + 1
 
 const tanda = (d: number) => `${d >= 0 ? "+" : "−"}${formatPct(Math.abs(d))}`;
 
+/**
+ * Letak kotak angka penunjuk, dalam px dari tepi kiri grafik.
+ *
+ * Keluhan user 2026-10-18 (tangkapan layar HP): kotaknya keluar dari tepi kanan
+ * layar dan menggeser seluruh halaman. Dulu sisinya dipilih dengan ambang tetap
+ * 290 px, jadi di grafik HP (±330 px) minggu di tengah selalu ditaruh di kanan
+ * walau ruang kanannya tinggal ±110 px.
+ *
+ * Kini: di KIRI garis bila muat (bagian kiri-atas kurva-S hampir selalu kosong),
+ * di KANAN bila muat, dan bila tidak ada yang muat kotak dijepit di dalam
+ * grafik – boleh menutupi garisnya, tidak boleh keluar layar.
+ */
+export function letakKotakPenunjuk(x: number, lebarWadah: number, lebarKotak: number, jarak = 8): number {
+  const kiri = x - jarak - lebarKotak;
+  if (kiri >= 0) return kiri;
+  const kanan = x + jarak;
+  if (kanan + lebarKotak <= lebarWadah) return kanan;
+  return Math.min(Math.max(0, x - lebarKotak / 2), Math.max(0, lebarWadah - lebarKotak));
+}
+
 export function ScurveChartInteraktif({
   totalWeeks: n,
   currentWeek,
@@ -52,10 +72,9 @@ export function ScurveChartInteraktif({
   lokasi: DeretLokasiKurva[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wadahRef = useRef<HTMLDivElement>(null);
+  const kotakRef = useRef<HTMLDivElement>(null);
   const [aktif, setAktif] = useState<number | null>(null);
-  // Kotak angka di KIRI garis penunjuk bila ruangnya cukup: di kurva-S bagian
-  // kiri-atas penunjuk (minggu sebelumnya, angka lebih kecil) hampir selalu kosong.
-  const [kotakKiri, setKotakKiri] = useState(false);
   const [sembunyi, setSembunyi] = useState<ReadonlySet<number>>(new Set());
 
   // Ada data realisasi? (pratinjau editor kirim semua null → sembunyikan.)
@@ -97,12 +116,17 @@ export function ScurveChartInteraktif({
   // Label minggu: mulai (0), tengah, akhir.
   const weekTicks = [...new Set([0, Math.round(n / 2), n])];
 
-  const tunjuk = (i: number) => {
-    const minggu = Math.min(n, Math.max(1, i));
-    const lebar = svgRef.current?.getBoundingClientRect().width ?? 0;
-    setKotakKiri((xFor(minggu) / W) * lebar > 290);
-    setAktif(minggu);
-  };
+  const tunjuk = (i: number) => setAktif(Math.min(n, Math.max(1, i)));
+
+  // Kotak diletakkan sesudah lebarnya diketahui (isinya berubah tiap minggu),
+  // sebelum dilukis – jadi tidak pernah sempat terlihat di tempat yang salah.
+  useLayoutEffect(() => {
+    const wadah = wadahRef.current;
+    const kotak = kotakRef.current;
+    if (aktif == null || !wadah || !kotak) return;
+    const lebar = wadah.clientWidth;
+    kotak.style.left = `${letakKotakPenunjuk((xFor(aktif) / W) * lebar, lebar, kotak.offsetWidth)}px`;
+  });
   const arahkan = (e: PointerEvent<SVGRectElement>) => {
     const r = svgRef.current?.getBoundingClientRect();
     if (!r || r.width === 0) return;
@@ -122,13 +146,12 @@ export function ScurveChartInteraktif({
       return baru;
     });
 
-  const posisi = aktif != null ? (xFor(aktif) / W) * 100 : 0;
   const nilaiAktif = aktif != null ? actual[aktif] : null;
   const rencanaAktif = aktif != null ? plan[aktif] : 0;
   const prognosaAktif = aktif != null ? (fc[aktif] ?? null) : null;
 
   return (
-    <div className="relative">
+    <div ref={wadahRef} className="relative">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -247,9 +270,9 @@ export function ScurveChartInteraktif({
 
       {aktif != null && (
         <div
+          ref={kotakRef}
           role="status"
-          className="pointer-events-none absolute top-1 z-10 w-max min-w-44 max-w-64 rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
-          style={kotakKiri ? { right: `${100 - posisi + 1.5}%` } : { left: `${posisi + 1.5}%` }}
+          className="pointer-events-none absolute top-1 left-0 z-10 w-max min-w-[min(11rem,100%)] max-w-[min(16rem,100%)] rounded-md border border-border bg-surface px-3 py-2 text-xs shadow-md"
         >
           <p className="font-semibold text-ink">
             Minggu ke-{aktif}
