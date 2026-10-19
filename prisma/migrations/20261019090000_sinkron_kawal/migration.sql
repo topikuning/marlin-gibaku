@@ -3,9 +3,11 @@
 -- Data Kawal = RUJUKAN, bukan angka resmi: tabel-tabel ini tidak dibaca
 -- calculation layer. Snapshot APPEND-ONLY (trigger di bawah) – tarikan yang
 -- isinya sama tidak membuat snapshot baru, hanya baris `kawal_sync_runs`.
+--
+-- Idempoten (DECISIONS 167): aman dijalankan ulang bila deploy terputus.
 
 -- CreateTable
-CREATE TABLE "kawal_snapshots" (
+CREATE TABLE IF NOT EXISTS "kawal_snapshots" (
     "id" UUID NOT NULL,
     "captured_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "row_count" INTEGER NOT NULL,
@@ -16,7 +18,7 @@ CREATE TABLE "kawal_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "kawal_location_snapshots" (
+CREATE TABLE IF NOT EXISTS "kawal_location_snapshots" (
     "id" UUID NOT NULL,
     "snapshot_id" UUID NOT NULL,
     "kawal_id" INTEGER NOT NULL,
@@ -61,7 +63,7 @@ CREATE TABLE "kawal_location_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "kawal_sarana_snapshots" (
+CREATE TABLE IF NOT EXISTS "kawal_sarana_snapshots" (
     "id" UUID NOT NULL,
     "location_snapshot_id" UUID NOT NULL,
     "kawal_item_id" INTEGER NOT NULL,
@@ -78,7 +80,7 @@ CREATE TABLE "kawal_sarana_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "kawal_location_maps" (
+CREATE TABLE IF NOT EXISTS "kawal_location_maps" (
     "id" UUID NOT NULL,
     "kawal_id" INTEGER NOT NULL,
     "location_id" UUID,
@@ -92,7 +94,7 @@ CREATE TABLE "kawal_location_maps" (
 );
 
 -- CreateTable
-CREATE TABLE "kawal_sync_runs" (
+CREATE TABLE IF NOT EXISTS "kawal_sync_runs" (
     "id" UUID NOT NULL,
     "started_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "finished_at" TIMESTAMPTZ,
@@ -110,56 +112,66 @@ CREATE TABLE "kawal_sync_runs" (
 );
 
 -- CreateIndex
-CREATE INDEX "kawal_snapshots_captured_at_idx" ON "kawal_snapshots"("captured_at");
+CREATE INDEX IF NOT EXISTS "kawal_snapshots_captured_at_idx" ON "kawal_snapshots"("captured_at");
 
 -- CreateIndex
-CREATE INDEX "kawal_location_snapshots_kawal_id_idx" ON "kawal_location_snapshots"("kawal_id");
+CREATE INDEX IF NOT EXISTS "kawal_location_snapshots_kawal_id_idx" ON "kawal_location_snapshots"("kawal_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "kawal_location_snapshots_snapshot_id_kawal_id_key" ON "kawal_location_snapshots"("snapshot_id", "kawal_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "kawal_location_snapshots_snapshot_id_kawal_id_key" ON "kawal_location_snapshots"("snapshot_id", "kawal_id");
 
 -- CreateIndex
-CREATE INDEX "kawal_sarana_snapshots_location_snapshot_id_idx" ON "kawal_sarana_snapshots"("location_snapshot_id");
+CREATE INDEX IF NOT EXISTS "kawal_sarana_snapshots_location_snapshot_id_idx" ON "kawal_sarana_snapshots"("location_snapshot_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "kawal_location_maps_kawal_id_key" ON "kawal_location_maps"("kawal_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "kawal_location_maps_kawal_id_key" ON "kawal_location_maps"("kawal_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "kawal_location_maps_location_id_key" ON "kawal_location_maps"("location_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "kawal_location_maps_location_id_key" ON "kawal_location_maps"("location_id");
 
 -- CreateIndex
-CREATE INDEX "kawal_sync_runs_started_at_idx" ON "kawal_sync_runs"("started_at");
+CREATE INDEX IF NOT EXISTS "kawal_sync_runs_started_at_idx" ON "kawal_sync_runs"("started_at");
 
 -- AddForeignKey
+ALTER TABLE "kawal_location_snapshots" DROP CONSTRAINT IF EXISTS "kawal_location_snapshots_snapshot_id_fkey";
 ALTER TABLE "kawal_location_snapshots" ADD CONSTRAINT "kawal_location_snapshots_snapshot_id_fkey" FOREIGN KEY ("snapshot_id") REFERENCES "kawal_snapshots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "kawal_sarana_snapshots" DROP CONSTRAINT IF EXISTS "kawal_sarana_snapshots_location_snapshot_id_fkey";
 ALTER TABLE "kawal_sarana_snapshots" ADD CONSTRAINT "kawal_sarana_snapshots_location_snapshot_id_fkey" FOREIGN KEY ("location_snapshot_id") REFERENCES "kawal_location_snapshots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "kawal_location_maps" DROP CONSTRAINT IF EXISTS "kawal_location_maps_location_id_fkey";
 ALTER TABLE "kawal_location_maps" ADD CONSTRAINT "kawal_location_maps_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
 -- Pasangan: `bukan_marlin` satu-satunya status tanpa lokasi.
+ALTER TABLE "kawal_location_maps" DROP CONSTRAINT IF EXISTS "kawal_location_maps_status_check";
 ALTER TABLE "kawal_location_maps" ADD CONSTRAINT "kawal_location_maps_status_check"
   CHECK ("status" IN ('otomatis', 'dikonfirmasi', 'bukan_marlin'));
+ALTER TABLE "kawal_location_maps" DROP CONSTRAINT IF EXISTS "kawal_location_maps_lokasi_check";
 ALTER TABLE "kawal_location_maps" ADD CONSTRAINT "kawal_location_maps_lokasi_check"
   CHECK (("status" = 'bukan_marlin') = ("location_id" IS NULL));
 
+ALTER TABLE "kawal_sync_runs" DROP CONSTRAINT IF EXISTS "kawal_sync_runs_outcome_check";
 ALTER TABLE "kawal_sync_runs" ADD CONSTRAINT "kawal_sync_runs_outcome_check"
   CHECK ("outcome" IN ('berjalan', 'berhasil', 'tidak_berubah', 'gagal'));
+ALTER TABLE "kawal_sync_runs" DROP CONSTRAINT IF EXISTS "kawal_sync_runs_trigger_check";
 ALTER TABLE "kawal_sync_runs" ADD CONSTRAINT "kawal_sync_runs_trigger_check"
   CHECK ("trigger" IN ('cron', 'manual'));
 
 -- Snapshot = catatan apa yang dikirim Kawal pada waktu itu. Tidak dikoreksi.
+DROP TRIGGER IF EXISTS kawal_snapshots_append_only ON "kawal_snapshots";
 CREATE TRIGGER kawal_snapshots_append_only
   BEFORE UPDATE OR DELETE ON "kawal_snapshots"
   FOR EACH ROW EXECUTE FUNCTION marlin_forbid_mutation();
 
+DROP TRIGGER IF EXISTS kawal_location_snapshots_append_only ON "kawal_location_snapshots";
 CREATE TRIGGER kawal_location_snapshots_append_only
   BEFORE UPDATE OR DELETE ON "kawal_location_snapshots"
   FOR EACH ROW EXECUTE FUNCTION marlin_forbid_mutation();
 
+DROP TRIGGER IF EXISTS kawal_sarana_snapshots_append_only ON "kawal_sarana_snapshots";
 CREATE TRIGGER kawal_sarana_snapshots_append_only
   BEFORE UPDATE OR DELETE ON "kawal_sarana_snapshots"
   FOR EACH ROW EXECUTE FUNCTION marlin_forbid_mutation();

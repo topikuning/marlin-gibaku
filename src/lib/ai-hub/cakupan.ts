@@ -227,6 +227,9 @@ export const RUTE_BUKAN_WILAYAH: Record<string, string> = {
   ".": "Command center – ringkasan lintas wilayah; tiap angkanya sudah punya rumahnya sendiri di bawah.",
   "ai/*": "Permukaan Ask MARLIN itu sendiri – bukan data yang ditanyakan.",
   "chat-grup/*": "Arsip percakapan WhatsApp; isinya masuk AI lewat pencarian narasi, bukan sebagai wilayah fakta.",
+  "kawal/pencocokan":
+    "Memasangkan lokasi Kawal KNMP dengan lokasi MARLIN – keputusan pemetaan, bukan keadaan pekerjaan. " +
+    "Data Kawal sendiri rujukan, bukan angka resmi (DECISIONS 689/690).",
   "kontak-wa": "Pengaturan kanal WhatsApp – konfigurasi, bukan data pekerjaan.",
   lampiran: "Kurasi lampiran WhatsApp masuk – tahap sebelum data jadi dokumen/laporan.",
   "laporan-wa": "Riwayat kiriman WhatsApp – jejak pengiriman, bukan keadaan pekerjaan.",
