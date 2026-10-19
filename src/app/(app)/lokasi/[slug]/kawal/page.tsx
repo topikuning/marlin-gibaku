@@ -145,6 +145,28 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
             angka yang bernama relatif, dan angka mana yang dipakai layar Kawal untuk jalur itu belum terbukti. Begitu
             terbukti dari data, angkanya muncul di sini.
           </p>
+          {bolehAtur ? (
+            /* DECISIONS 693: dua angka Kawal yang tidak cocok dengan angka lain
+               mana pun di 96 baris – calon terkuat jalur Relatif. Dicocokkan
+               dengan layar Kawal oleh orang yang bisa membukanya. */
+            <div className="rounded-md border border-dashed border-border-strong bg-surface-muted p-3 text-[13px]">
+              <p className="font-medium text-ink">Bantu tetapkan jalur Relatif</p>
+              <p className="mt-0.5 text-ink-muted">
+                Dua angka Kawal lokasi ini belum terjelaskan dari data. Buka lokasi ini di layar Kawal: bila angka
+                Relatif di sana sama dengan salah satunya, kabari – angka itulah yang dipasang sebagai Relatif.
+              </p>
+              <dl className="mt-2 grid max-w-sm grid-cols-[1fr_auto] gap-x-6 gap-y-0.5">
+                <dt className="text-ink-muted">Angka A (realisasi_pengawas)</dt>
+                <dd className="tabular text-ink">
+                  {k.realisasiPengawasPct != null ? formatPct(k.realisasiPengawasPct, 2) : "–"}
+                </dd>
+                <dt className="text-ink-muted">Angka B (realisasi_pelaksana)</dt>
+                <dd className="tabular text-ink">
+                  {k.realisasiPelaksanaPct != null ? formatPct(k.realisasiPelaksanaPct, 2) : "–"}
+                </dd>
+              </dl>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 

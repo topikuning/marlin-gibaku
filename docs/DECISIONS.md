@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 693 | 2026-10-19 | Kawal: makna `progres_final`/`progres_pelaksana`/`target_fisik`/`deviasi`/kurva `*_json` terbukti dari data sungguhan; Relatif belum – calonnya `realisasi_pengawas`/`realisasi_pelaksana`, uji sambungan menambah rasio terhadap rencana, tab menampilkan calon untuk `kawal.manage`; strip atas MARLIN \| Kawal dipisah garis diagonal merah + beda warna |
 | 692 | 2026-10-19 | Ringkasan lokasi: samping kurva-S = laporan terakhir, rencana minggu ini, kendala terbuka; akses pengguna bersebelahan dengan penanda tangan lokasi; kotak cari Dasbor Eksekutif dihapus (mengulang cari di bilah atas) |
 | 691 | 2026-10-19 | Kawal tahap 3: strip atas lokasi memuat MARLIN + Kawal di Rencana/Realisasi/Deviasi; tab "Kawal KNMP" per lokasi; halaman `/kawal` diurut selisih terbesar; selisih di `lib/kawal/compare.ts` (MARLIN − Kawal, 5/10 pp, pagar minggu-0); `kawal.view` semua peran; Relatif ditampilkan dengan keterangan karena belum terbukti |
 | 690 | 2026-10-19 | Sinkron Kawal tahap 2: parser ketat dari bentuk yang terbukti (field hilang/tipe berubah = tarikan gagal, tanpa simpan setengah); snapshot append-only + hash isi (idempoten); pencocokan lokasi otomatis hanya bila bukti tunggal, sisanya antrean; `kawal.manage` (SA + PD); cron 06.13 WIB, workflow merah bila gagal; uji sambungan melaporkan hubungan antar angka untuk membuktikan jalur Relatif |

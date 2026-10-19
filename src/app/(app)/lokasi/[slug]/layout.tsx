@@ -161,7 +161,15 @@ export default async function LokasiLayout({
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+        {/* Sel berpasangan MARLIN | Kawal butuh ruang dua angka: enam kolom baru
+            dipakai mulai xl, supaya di 1024 px lencana deviasi tidak menabrak
+            garis pemisahnya. */}
+        <dl
+          className={cn(
+            "grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3",
+            kawal ? "xl:grid-cols-6" : "lg:grid-cols-6",
+          )}
+        >
           <StatCell label="Nilai kontrak">
             {contract ? (
               <span className="tabular">{formatRupiah(contract.contractValue)}</span>
@@ -299,19 +307,31 @@ export default async function LokasiLayout({
 }
 
 /** Sel stat berlabel untuk header lokasi. */
-/** Dua angka sejajar dengan label kecil di bawahnya; "Kawal" menuju tab pembandingnya. */
+/**
+ * Dua angka dalam satu sel, DIPISAH GARIS DIAGONAL merah – bentuk yang
+ * digambar user 2026-10-19 – dan dibedakan warnanya: MARLIN (resmi) biru tua,
+ * Kawal (rujukan pengawas) abu-abu. Label "Kawal" menuju tab pembandingnya.
+ */
 function PasanganAngka({ slug, marlin, kawal }: { slug: string; marlin: ReactNode; kawal: ReactNode }) {
   return (
-    <span className="grid grid-cols-2 items-center gap-x-3">
-      <span className="tabular">{marlin}</span>
-      <span className="tabular">{kawal}</span>
-      <span className="text-[10px] font-medium tracking-wide text-ink-faint uppercase">MARLIN</span>
+    <span className="relative grid grid-cols-2 items-center gap-x-6">
+      <span className="tabular text-primary">{marlin}</span>
+      <span className="tabular text-ink-muted">{kawal}</span>
+      <span className="text-[10px] font-semibold tracking-wide text-primary uppercase">MARLIN</span>
       <Link
         href={`/lokasi/${slug}/kawal`}
-        className="text-[10px] font-medium tracking-wide text-ink-faint uppercase hover:text-primary hover:underline"
+        className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase hover:text-ink hover:underline"
       >
         Kawal
       </Link>
+      <svg
+        aria-hidden
+        viewBox="0 0 10 40"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-y-0 left-1/2 h-full w-4 -translate-x-1/2 text-brand-red"
+      >
+        <line x1="1" y1="40" x2="9" y2="0" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      </svg>
     </span>
   );
 }
