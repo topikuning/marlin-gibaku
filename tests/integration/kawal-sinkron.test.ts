@@ -21,6 +21,7 @@ vi.mock("server-only", () => ({}));
 const { db } = await import("@/lib/db");
 const { sinkronKawal } = await import("@/lib/kawal/sinkron");
 const { setAkunKawal, KAWAL_ALAMAT_KEY, KAWAL_AKUN_KEY, KAWAL_SANDI_KEY } = await import("@/lib/kawal/setelan");
+const { kawalUntukLokasi } = await import("@/lib/kawal/queries");
 
 const suffix = `kw${Date.now().toString(36)}`;
 const FORM = `<html><head><meta name="csrf-token" content="t"></head><body>
@@ -211,6 +212,24 @@ describe("sinkron Kawal", () => {
     expect(r.status).not.toBe("sedang_berjalan");
     const basi = await db.kawalSyncRun.findUniqueOrThrow({ where: { id: jalan.id } });
     expect(basi).toMatchObject({ outcome: "gagal", error: "Putaran terhenti sebelum selesai." });
+  });
+
+  it("data Kawal per lokasi: angka TERBARU, hanya lokasi yang berpasangan", async () => {
+    const per = await kawalUntukLokasi([ids.lokasiA, ids.lokasiB, ids.lokasiC]);
+    expect([...per.keys()].sort()).toEqual([ids.lokasiA, ids.lokasiB, ids.lokasiC].sort());
+    // Riwayat lokasi A: 6 → 7,25 → 6 (putaran terakhir di uji sebelumnya
+    // menarik data dasar lagi). Yang dipakai harus snapshot TERBARU.
+    const riwayat = await db.kawalLocationSnapshot.findMany({
+      where: { kawalId: 1 },
+      orderBy: { snapshot: { capturedAt: "asc" } },
+      select: { actualPct: true },
+    });
+    expect(riwayat.map((r) => Number(r.actualPct))).toEqual([6, 7.25, 6]);
+    expect(per.get(ids.lokasiA)).toMatchObject({ kawalId: 1, actualPct: 6, weekNo: 12 });
+    expect(per.get(ids.lokasiA)!.sarana.map((x) => x.nama)).toEqual(["Dermaga", "Gudang Beku"]);
+    // Pasangan "bukan MARLIN" tidak pernah muncul.
+    await db.kawalLocationMap.update({ where: { kawalId: 2 }, data: { status: "bukan_marlin", locationId: null } });
+    expect((await kawalUntukLokasi([ids.lokasiB])).size).toBe(0);
   });
 
   it("snapshot append-only: UPDATE dan DELETE ditolak basis data", async () => {

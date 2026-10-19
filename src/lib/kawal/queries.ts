@@ -214,3 +214,107 @@ export async function dataPencocokanKawal(orgId: string): Promise<DataPencocokan
     lokasiBebas: [...pilihan.values()].filter((l) => !terpakai.has(l.id)),
   };
 }
+
+/* ── Perbandingan progres (tahap 3, DECISIONS 691) ───────────────────────── */
+
+export type KawalLokasiTerbaru = {
+  kawalId: number;
+  namaKnmp: string;
+  /** Waktu snapshot yang memuat baris ini – kapan angkanya terakhir BERUBAH di Kawal. */
+  snapshotAt: Date;
+  noKontrak: string | null;
+  noSpmk: string | null;
+  mulai: Date | null;
+  selesai: Date | null;
+  nilaiLokasi: bigint | null;
+  actualPct: number | null;
+  pelaksanaPct: number | null;
+  targetPct: number | null;
+  /** `deviasi` Kawal apa adanya – tidak dihitung ulang di MARLIN. */
+  deviasiPct: number | null;
+  weekNo: number | null;
+  maxWeeks: number | null;
+  lastActualWeek: number | null;
+  remarkKondisiUmum: string | null;
+  remarkHambatan: string | null;
+  remarkSaranInstruksi: string | null;
+  sarana: { nama: string; jenis: string | null; bobot: number | null; progresPct: number | null }[];
+};
+
+const angkaAtauNull = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
+
+/**
+ * Data Kawal TERBARU untuk lokasi MARLIN yang sudah berpasangan (otomatis
+ * atau dikonfirmasi). Lokasi tanpa pasangan tidak ada di peta hasilnya.
+ * Pemanggil WAJIB sudah menyaring `locationIds` ke lokasi yang boleh dilihat.
+ */
+export async function kawalUntukLokasi(locationIds: string[]): Promise<Map<string, KawalLokasiTerbaru>> {
+  const hasil = new Map<string, KawalLokasiTerbaru>();
+  if (locationIds.length === 0) return hasil;
+  const peta = await db.kawalLocationMap.findMany({
+    where: { locationId: { in: locationIds }, status: { in: ["otomatis", "dikonfirmasi"] } },
+    select: { kawalId: true, locationId: true },
+  });
+  if (peta.length === 0) return hasil;
+  const baris = await db.kawalLocationSnapshot.findMany({
+    where: { kawalId: { in: peta.map((p) => p.kawalId) } },
+    orderBy: { snapshot: { capturedAt: "desc" } },
+    distinct: ["kawalId"],
+    select: {
+      kawalId: true,
+      namaKnmp: true,
+      noKontrak: true,
+      noSpmk: true,
+      mulai: true,
+      selesai: true,
+      nilaiLokasi: true,
+      actualPct: true,
+      pelaksanaPct: true,
+      targetPct: true,
+      deviasiPct: true,
+      weekNo: true,
+      maxWeeks: true,
+      lastActualWeek: true,
+      remarkKondisiUmum: true,
+      remarkHambatan: true,
+      remarkSaranInstruksi: true,
+      snapshot: { select: { capturedAt: true } },
+      sarana: {
+        select: { nama: true, jenis: true, bobot: true, progresPct: true, kawalItemId: true },
+        orderBy: { kawalItemId: "asc" },
+      },
+    },
+  });
+  const perKawal = new Map(baris.map((b) => [b.kawalId, b]));
+  for (const p of peta) {
+    const b = perKawal.get(p.kawalId);
+    if (!b || !p.locationId) continue;
+    hasil.set(p.locationId, {
+      kawalId: b.kawalId,
+      namaKnmp: b.namaKnmp,
+      snapshotAt: b.snapshot.capturedAt,
+      noKontrak: b.noKontrak,
+      noSpmk: b.noSpmk,
+      mulai: b.mulai,
+      selesai: b.selesai,
+      nilaiLokasi: b.nilaiLokasi,
+      actualPct: angkaAtauNull(b.actualPct),
+      pelaksanaPct: angkaAtauNull(b.pelaksanaPct),
+      targetPct: angkaAtauNull(b.targetPct),
+      deviasiPct: angkaAtauNull(b.deviasiPct),
+      weekNo: b.weekNo,
+      maxWeeks: b.maxWeeks,
+      lastActualWeek: b.lastActualWeek,
+      remarkKondisiUmum: b.remarkKondisiUmum,
+      remarkHambatan: b.remarkHambatan,
+      remarkSaranInstruksi: b.remarkSaranInstruksi,
+      sarana: b.sarana.map((s) => ({
+        nama: s.nama,
+        jenis: s.jenis,
+        bobot: angkaAtauNull(s.bobot),
+        progresPct: angkaAtauNull(s.progresPct),
+      })),
+    });
+  }
+  return hasil;
+}

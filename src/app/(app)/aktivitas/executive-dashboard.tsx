@@ -28,7 +28,6 @@ import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOV
 import { sumberPeta } from "@/lib/peta/sumber";
 import { getKelompokBawaan } from "@/lib/peta/setelan";
 import { DashboardMap } from "./dashboard-map";
-import { DashboardSearch } from "./dashboard-search";
 
 /**
  * Dashboard Eksekutif — pantau laporan harian, deviasi progres, kendala, solusi,
@@ -64,7 +63,6 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <DashboardSearch locations={data.locationsIndex} />
           <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-ink-muted">
             <Clock aria-hidden className="size-3.5" />
             <span>

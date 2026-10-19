@@ -9,6 +9,7 @@ import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 import { getLocationProgress } from "@/lib/progress";
 import { can } from "@/lib/authz";
 import { alasanLokasiTertutup } from "@/lib/package/lingkup-lokasi";
+import { kawalUntukLokasi } from "@/lib/kawal/queries";
 import { getSiblingLocations, requireLocationPage } from "./get-location";
 import { EditableLocationName } from "./edit-name";
 import { LocationSwitcher } from "./location-switcher";
@@ -34,6 +35,8 @@ function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
     // Foto laporan harian dipilah per sarana & prasarana, urut tanggal
     // (DECISIONS 683) – seperti kawal-knmp KKP.
     { label: "Foto Sarpras", href: `${base}/foto-sarpras` },
+    // Pembanding dari Kawal KNMP (DECISIONS 691) – rujukan, bukan angka resmi.
+    { label: "Kawal KNMP", href: `${base}/kawal` },
     // Tab milik slice lain — link saja, halamannya dibangun terpisah.
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
     { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
@@ -66,13 +69,17 @@ export default async function LokasiLayout({
   // Halaman paket dijaga `package.view`; Pelaksana tidak memegangnya, jadi
   // baginya nama paket ditulis biasa, bukan tautan ke layar "tidak punya izin".
   const bolehPaket = can(user.role, "package.view");
-  const [progress, { siblings, hiddenCount }, tertutup] = await Promise.all([
+  const [progress, { siblings, hiddenCount }, tertutup, kawalPer] = await Promise.all([
     getLocationProgress(location.id),
     getSiblingLocations(user, location.package.id),
     // Dicabut dari kontrak: dikatakan di SETIAP tab, sebelum orang mengisi
     // apa pun lalu ditolak (DECISIONS 616).
     alasanLokasiTertutup(location.id),
+    // Angka Kawal di samping angka MARLIN (DECISIONS 691) – hanya bila lokasi
+    // ini sudah berpasangan; tanpa pasangan sel-selnya tetap seperti dulu.
+    can(user.role, "kawal.view") ? kawalUntukLokasi([location.id]) : Promise.resolve(null),
   ]);
+  const kawal = kawalPer?.get(location.id) ?? null;
   const contract = location.package.contract;
   const current = siblings.find((l) => l.slug === location.slug) ?? {
     slug: location.slug,
@@ -184,14 +191,41 @@ export default async function LokasiLayout({
               </span>
             ) : null}
           </StatCell>
+          {/* Bila lokasi ini berpasangan dengan Kawal KNMP, tiga sel ini
+              memuat DUA angka: MARLIN (resmi) dan Kawal (rujukan pengawas,
+              apa adanya) – permintaan user 2026-10-19, DECISIONS 691. */}
           <StatCell label="Rencana">
-            <span className="tabular">{formatPct(progress.planPct)}</span>
+            {kawal ? (
+              <PasanganAngka
+                slug={slug}
+                marlin={formatPct(progress.planPct)}
+                kawal={kawal.targetPct != null ? formatPct(kawal.targetPct) : "–"}
+              />
+            ) : (
+              <span className="tabular">{formatPct(progress.planPct)}</span>
+            )}
           </StatCell>
           <StatCell label="Realisasi">
-            <span className="tabular">{formatPct(progress.realizedPct)}</span>
+            {kawal ? (
+              <PasanganAngka
+                slug={slug}
+                marlin={formatPct(progress.realizedPct)}
+                kawal={kawal.actualPct != null ? formatPct(kawal.actualPct) : "–"}
+              />
+            ) : (
+              <span className="tabular">{formatPct(progress.realizedPct)}</span>
+            )}
           </StatCell>
           <StatCell label="Deviasi">
-            <DeltaBadge value={progress.deviationPct} />
+            {kawal ? (
+              <PasanganAngka
+                slug={slug}
+                marlin={<DeltaBadge value={progress.deviationPct} />}
+                kawal={kawal.deviasiPct != null ? <DeltaBadge value={kawal.deviasiPct} /> : "–"}
+              />
+            ) : (
+              <DeltaBadge value={progress.deviationPct} />
+            )}
           </StatCell>
           {/* Angka yang DIBACA, jadi `weekNumberElapsed` — bukan `weekNumber`
               yang di-clamp untuk mencari rencana%. Sel ini pernah menulis
@@ -265,6 +299,23 @@ export default async function LokasiLayout({
 }
 
 /** Sel stat berlabel untuk header lokasi. */
+/** Dua angka sejajar dengan label kecil di bawahnya; "Kawal" menuju tab pembandingnya. */
+function PasanganAngka({ slug, marlin, kawal }: { slug: string; marlin: ReactNode; kawal: ReactNode }) {
+  return (
+    <span className="grid grid-cols-2 items-center gap-x-3">
+      <span className="tabular">{marlin}</span>
+      <span className="tabular">{kawal}</span>
+      <span className="text-[10px] font-medium tracking-wide text-ink-faint uppercase">MARLIN</span>
+      <Link
+        href={`/lokasi/${slug}/kawal`}
+        className="text-[10px] font-medium tracking-wide text-ink-faint uppercase hover:text-primary hover:underline"
+      >
+        Kawal
+      </Link>
+    </span>
+  );
+}
+
 function StatCell({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="bg-surface px-3 py-2">

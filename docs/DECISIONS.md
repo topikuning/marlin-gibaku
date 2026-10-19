@@ -94,6 +94,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 692 | 2026-10-19 | Ringkasan lokasi: samping kurva-S = laporan terakhir, rencana minggu ini, kendala terbuka; akses pengguna bersebelahan dengan penanda tangan lokasi; kotak cari Dasbor Eksekutif dihapus (mengulang cari di bilah atas) |
+| 691 | 2026-10-19 | Kawal tahap 3: strip atas lokasi memuat MARLIN + Kawal di Rencana/Realisasi/Deviasi; tab "Kawal KNMP" per lokasi; halaman `/kawal` diurut selisih terbesar; selisih di `lib/kawal/compare.ts` (MARLIN − Kawal, 5/10 pp, pagar minggu-0); `kawal.view` semua peran; Relatif ditampilkan dengan keterangan karena belum terbukti |
 | 690 | 2026-10-19 | Sinkron Kawal tahap 2: parser ketat dari bentuk yang terbukti (field hilang/tipe berubah = tarikan gagal, tanpa simpan setengah); snapshot append-only + hash isi (idempoten); pencocokan lokasi otomatis hanya bila bukti tunggal, sisanya antrean; `kawal.manage` (SA + PD); cron 06.13 WIB, workflow merah bila gagal; uji sambungan melaporkan hubungan antar angka untuk membuktikan jalur Relatif |
 | 689 | 2026-10-18 | Sinkron Kawal KNMP: data Kawal = rujukan, bukan angka resmi; pembanding sederhana progres MARLIN vs tarikan Kawal terbaru, ambang 5/10 pp; semua peran boleh melihat (`kawal.view`); Relatif ditampilkan dengan keterangan; tahap 1 = akun tersandi di Sistem + uji sambungan yang melaporkan bentuk data tanpa nilai |
 | 688 | 2026-10-17 | Satu agen (Claude) mengubah kode, commit dan push langsung ke `dev` tanpa cabang/PR/menunggu CI; sebelum commit cukup typecheck + lint + uji yang bersangkutan; PR `dev` → `main` selalu terbuka dan gerbang lengkap (unit, integrasi, build, CI termasuk E2E) dijalankan di sana, merge tetap perintah user; nomor keputusan diberikan penulis saat menulis |

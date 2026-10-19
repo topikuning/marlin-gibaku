@@ -96,9 +96,9 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Verifikasi", href: "/verifikasi", icon: "shieldCheck", capability: "report.verify_external" },
   { label: "Perlu Tindakan", href: "/perlu-tindakan", icon: "siren", capability: "portfolio.view" },
   { label: "Kesiapan", href: "/kesiapan", icon: "gauge", capability: "package.view" },
-  // Pembanding progres dari Kawal KNMP (DECISIONS 689/690). Tahap 2 baru
-  // berisi sinkron + pencocokan lokasi, jadi hanya untuk pemegang kawal.manage.
-  { label: "Kawal KNMP", href: "/kawal/pencocokan", icon: "arrowLeftRight", capability: "kawal.manage" },
+  // Pembanding progres MARLIN vs Kawal KNMP (DECISIONS 689/691) – semua peran;
+  // pencocokan lokasinya (kawal.manage) dibuka dari halaman ini.
+  { label: "Kawal KNMP", href: "/kawal", icon: "arrowLeftRight", capability: "kawal.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   // Register surat + antrean lampiran grup WA (DECISIONS 432).

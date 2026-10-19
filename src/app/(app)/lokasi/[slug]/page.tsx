@@ -225,7 +225,29 @@ export default async function LokasiRingkasanPage({
           </CardBody>
         </Card>
 
+        {/* Samping kurva hanya yang dibaca setiap hari dan pendek: laporan
+            terakhir, rencana minggu ini, kendala terbuka. Daftar pengguna yang
+            panjang pindah ke bawah, bersebelahan dengan penanda tangan
+            (permintaan user 2026-10-19). */}
         <div className="space-y-4">
+          <Card>
+            <CardHeader title="Laporan terakhir" />
+            <CardBody>
+              {lastReport ? (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <Link href={`/lokasi/${slug}/harian`} className="text-primary hover:underline">
+                    {formatTanggal(lastReport.reportDate)}
+                  </Link>
+                  <StatusPill
+                    tone={REPORT_STATUS_TONE[lastReport.status]}
+                    label={REPORT_STATUS_LABEL[lastReport.status]}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-ink-muted">Belum ada laporan harian.</p>
+              )}
+            </CardBody>
+          </Card>
           <Card>
             <CardHeader
               title={`Rencana minggu ${progress.weekNumber}`}
@@ -263,48 +285,31 @@ export default async function LokasiRingkasanPage({
 
           <Card>
             <CardHeader
-              title="Akses pengguna"
+              title="Kendala terbuka"
               action={
-                bolehKelolaAkses ? (
-                  <ButtonLink href="/master/pengguna" variant="ghost" size="sm">
-                    Semua pengguna
-                  </ButtonLink>
-                ) : undefined
+                <ButtonLink href={`/lokasi/${slug}/progress`} variant="ghost" size="sm">
+                  Kelola kendala
+                </ButtonLink>
               }
             />
             <CardBody>
-              {/*
-               * Siapa yang bisa membuka lokasi ini, dan sebagai apa
-               * (DECISIONS 571). Ditaruh di halaman lokasinya sendiri karena
-               * di situlah pertanyaannya muncul — bukan di layar Master yang
-               * mengurus pengguna satu per satu.
-               */}
-              <AksesPanel
-                locationId={location.id}
-                slug={slug}
-                baris={aksesRows}
-                calon={calonAkses}
-                bolehKelola={bolehKelolaAkses}
-                eksekutifDisembunyikan={!bolehKelolaAkses}
-              />
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Laporan terakhir" />
-            <CardBody>
-              {lastReport ? (
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <Link href={`/lokasi/${slug}/harian`} className="text-primary hover:underline">
-                    {formatTanggal(lastReport.reportDate)}
-                  </Link>
-                  <StatusPill
-                    tone={REPORT_STATUS_TONE[lastReport.status]}
-                    label={REPORT_STATUS_LABEL[lastReport.status]}
-                  />
-                </div>
+              {openIssues.length === 0 ? (
+                <EmptyState icon={AlertTriangle} title="Tidak ada kendala terbuka" className="py-6" />
               ) : (
-                <p className="text-sm text-ink-muted">Belum ada laporan harian.</p>
+                <ul className="divide-y divide-border">
+                  {openIssues.map((issue) => (
+                    <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{issue.title}</p>
+                        <p className="text-xs text-ink-muted">{formatTanggal(issue.createdAt)}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        <StatusPill tone={ISSUE_SEVERITY_TONE[issue.severity]} label={ISSUE_SEVERITY_LABEL[issue.severity]} />
+                        <StatusPill tone={ISSUE_STATUS_TONE[issue.status]} label={ISSUE_STATUS_LABEL[issue.status]} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </CardBody>
           </Card>
@@ -328,37 +333,76 @@ export default async function LokasiRingkasanPage({
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* items-start: formulir penanda tangan jauh lebih tinggi daripada daftar
+          pengguna; tanpa ini kartu di sebelahnya ikut memanjang kosong. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Kendala terbuka"
+            title="Akses pengguna"
             action={
-              <ButtonLink href={`/lokasi/${slug}/progress`} variant="ghost" size="sm">
-                Kelola kendala
-              </ButtonLink>
+              bolehKelolaAkses ? (
+                <ButtonLink href="/master/pengguna" variant="ghost" size="sm">
+                  Semua pengguna
+                </ButtonLink>
+              ) : undefined
             }
           />
           <CardBody>
-            {openIssues.length === 0 ? (
-              <EmptyState icon={AlertTriangle} title="Tidak ada kendala terbuka" className="py-6" />
-            ) : (
-              <ul className="divide-y divide-border">
-                {openIssues.map((issue) => (
-                  <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{issue.title}</p>
-                      <p className="text-xs text-ink-muted">{formatTanggal(issue.createdAt)}</p>
-                    </div>
-                    <div className="flex shrink-0 gap-1.5">
-                      <StatusPill tone={ISSUE_SEVERITY_TONE[issue.severity]} label={ISSUE_SEVERITY_LABEL[issue.severity]} />
-                      <StatusPill tone={ISSUE_STATUS_TONE[issue.status]} label={ISSUE_STATUS_LABEL[issue.status]} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {/*
+             * Siapa yang bisa membuka lokasi ini, dan sebagai apa
+             * (DECISIONS 571). Ditaruh di halaman lokasinya sendiri karena
+             * di situlah pertanyaannya muncul — bukan di layar Master yang
+             * mengurus pengguna satu per satu.
+             */}
+            <AksesPanel
+              locationId={location.id}
+              slug={slug}
+              baris={aksesRows}
+              calon={calonAkses}
+              bolehKelola={bolehKelolaAkses}
+              eksekutifDisembunyikan={!bolehKelolaAkses}
+            />
           </CardBody>
         </Card>
+
+        {canSigner ? (
+          <Card>
+            <CardHeader
+              title="Penanda tangan lokasi ini"
+              subtitle="Isi HANYA bila orang di lokasi ini berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
+            />
+            <CardBody>
+              <PelaksanaForm
+                locationId={location.id}
+                nama={location.pelaksanaName}
+                jabatan={location.pelaksanaTitle}
+                ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
+                warisan={{
+                  nama: location.package.pelaksanaName,
+                  jabatan: location.package.pelaksanaTitle,
+                }}
+                pengawasNama={location.supervisorName}
+                pengawasFirma={location.supervisorFirm}
+                pengawasTtdUrl={urlTtdPelaksana(location.supervisorTtdKey)}
+                warisanPengawas={{
+                  nama: contract?.supervisorName ?? null,
+                  firma: contract?.supervisorFirm ?? null,
+                }}
+                wakilSahNama={location.wakilSahName}
+                wakilSahNip={location.wakilSahNip}
+                wakilSahTtdUrl={urlTtdPelaksana(location.wakilSahTtdKey)}
+                warisanWakilSah={{
+                  nama: contract?.wakilSahName ?? null,
+                  nip: contract?.wakilSahNip ?? null,
+                }}
+                koordinatorTlNama={location.coTeamLeaderName}
+                koordinatorTlTtdUrl={urlTtdPelaksana(location.coTeamLeaderTtdKey)}
+                warisanKoordinatorTl={{ nama: contract?.coTeamLeaderName ?? null }}
+              />
+            </CardBody>
+          </Card>
+        ) : null}
+
 
 
         {/*
@@ -437,43 +481,6 @@ export default async function LokasiRingkasanPage({
           </Card>
         ) : null}
 
-        {canSigner ? (
-          <Card>
-            <CardHeader
-              title="Penanda tangan lokasi ini"
-              subtitle="Isi HANYA bila orang di lokasi ini berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
-            />
-            <CardBody>
-              <PelaksanaForm
-                locationId={location.id}
-                nama={location.pelaksanaName}
-                jabatan={location.pelaksanaTitle}
-                ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
-                warisan={{
-                  nama: location.package.pelaksanaName,
-                  jabatan: location.package.pelaksanaTitle,
-                }}
-                pengawasNama={location.supervisorName}
-                pengawasFirma={location.supervisorFirm}
-                pengawasTtdUrl={urlTtdPelaksana(location.supervisorTtdKey)}
-                warisanPengawas={{
-                  nama: contract?.supervisorName ?? null,
-                  firma: contract?.supervisorFirm ?? null,
-                }}
-                wakilSahNama={location.wakilSahName}
-                wakilSahNip={location.wakilSahNip}
-                wakilSahTtdUrl={urlTtdPelaksana(location.wakilSahTtdKey)}
-                warisanWakilSah={{
-                  nama: contract?.wakilSahName ?? null,
-                  nip: contract?.wakilSahNip ?? null,
-                }}
-                koordinatorTlNama={location.coTeamLeaderName}
-                koordinatorTlTtdUrl={urlTtdPelaksana(location.coTeamLeaderTtdKey)}
-                warisanKoordinatorTl={{ nama: contract?.coTeamLeaderName ?? null }}
-              />
-            </CardBody>
-          </Card>
-        ) : null}
 
         <Card>
           <CardHeader
