@@ -132,6 +132,7 @@ Bukan hipotesis. Semuanya pernah terjadi di repo ini dan lolos sekali.
 | **Balapan yang tidak terbuka oleh `Promise.all`** | Tes lampiran ganda hijau meski indeks unik dilepas: upsert pesan mengunci lebih dulu | Tahan salah satu jalur (gerbang eksplisit) sampai jalur lain selesai, baru ukur |
 | **`git add -A`** | `.data/lampiran/<sha>.pdf` hasil tes ikut ter-commit | Lihat `git status` sebelum add; artefak tes masuk `.gitignore` |
 | **Migrasi tidak idempoten** | Ditolak `tests/unit/migrasi-idempoten.test.ts` | `IF NOT EXISTS` pada tiap DDL |
+| **Penjaga seluruh repo lolos dari "uji yang bersangkutan"** | 2026-10-19, Kawal tahap 2: rute baru dan migrasi baru lulus semua uji Kawal + typecheck + lint di `dev`, lalu CI merah di tiga penjaga yang namanya tidak menyebut fiturnya – `rute-terjaga` (pagar overflow ponsel), `ai-cakupan` (rumah tiap halaman), `migrasi-idempoten` (baris di atas, padahal sudah tercatat) | Menambah **halaman `(app)`** → jalankan `rute-terjaga` + `ai-cakupan`; menambah **migrasi** → `migrasi-idempoten`. Ragu → `pnpm vitest run tests/unit` (±5 menit) sebelum push |
 | **Regex untuk menyunting dokumen** | Sebuah regex menghapus 105 baris `OPEN_ISSUES.md` | Sunting berbasis indeks/potongan tepat, lalu periksa selisih barisnya |
 | **Angka pengguna "dibetulkan" diam-diam** | Dilarang keras — DECISIONS 203 | Penyesuaian wajib seragam DAN dikatakan di UI; selisih terlalu besar ditolak dengan menyebut sebabnya |
 

@@ -203,6 +203,18 @@ export const CAPABILITIES = [
   "user.manage",
   "user.create",
   "system.manage",
+  /**
+   * SINKRON KAWAL KNMP (DECISIONS 690): memicu sinkron dan memutuskan pasangan
+   * lokasi Kawal ↔ MARLIN. Super Admin + Program Director (PD mewarisi semua
+   * kecuali yang dikecualikan di bawah). Bukan `system.manage`: memasangkan
+   * lokasi adalah keputusan data proyek, dan Program Director-lah pemberi
+   * perintah integrasi ini. Akun Kawal-nya sendiri tetap `system.manage`.
+   */
+  "kawal.manage",
+  // Melihat perbandingan progres MARLIN vs Kawal (DECISIONS 689/691) – SEMUA
+  // peran (jawaban user 2026-10-18: "semua boleh"), tetap sebatas lokasi yang
+  // ditugaskan. Diberikan lewat VIEW_ALL.
+  "kawal.view",
   "audit.view",
 ] as const;
 
@@ -216,6 +228,8 @@ const VIEW_ALL: Capability[] = [
   // Papan temuan terbuka untuk semua yang boleh melihat lokasi — temuan yang
   // disembunyikan dari pelaksananya sendiri tidak akan pernah ditindaklanjuti.
   "finding.view",
+  // Pembanding Kawal KNMP: semua peran (DECISIONS 689/691).
+  "kawal.view",
 ];
 
 /**

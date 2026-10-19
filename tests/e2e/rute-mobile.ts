@@ -37,6 +37,8 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/foto", nama: "Foto lapangan" },
   { pola: "/foto-cepat", nama: "Foto Cepat" },
   { pola: "/hari-ini", nama: "Hari Ini (mandor)" },
+  { pola: "/kawal", nama: "Kawal KNMP – perbandingan progres" },
+  { pola: "/kawal/pencocokan", nama: "Kawal KNMP – pencocokan lokasi" },
   { pola: "/kendala", nama: "Papan kendala terpusat" },
   { pola: "/kontak-wa", nama: "Kontak WhatsApp" },
   { pola: "/lampiran", nama: "Antrean lampiran grup WA" },
@@ -104,6 +106,11 @@ export const RUTE_DINAMIS: {
     isi: () => ["/laporan/menunggu-verifikasi", "/laporan/perlu-koreksi"],
   },
   { pola: "/lokasi/[slug]", nama: "Workspace lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}`] : null) },
+  {
+    pola: "/lokasi/[slug]/kawal",
+    nama: "Pembanding Kawal KNMP satu lokasi",
+    isi: (k) => (k.slug ? [`/lokasi/${k.slug}/kawal`] : null),
+  },
   {
     pola: "/lokasi/[slug]/harian",
     nama: "Pelaksanaan harian (kalender + daftar)",

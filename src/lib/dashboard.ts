@@ -75,7 +75,6 @@ export type DashboardData = {
    * hilang dari hitungan dan petanya berselisih dengan kartu KPI.
    */
   markerSubmit: Record<string, StatusLapor>;
-  locationsIndex: { name: string; slug: string }[];
   // Portofolio & administrasi (gabungan dari Command Center).
   finance: { totalContract: bigint; totalRealized: bigint; realizedPct: number };
   paketAktif: number;
@@ -291,7 +290,6 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     markers,
     markerTone,
     markerSubmit,
-    locationsIndex: locations.map((l) => ({ name: l.name, slug: l.slug })),
     finance: { totalContract, totalRealized, realizedPct },
     paketAktif,
     menungguVerifikasi,

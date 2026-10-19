@@ -72,6 +72,16 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   Kandidat: tabel konfigurasi effective-dated.
 - 🟢 Province/Regency masih string bebas (belum reference table BPS).
 
+- 🟡 **KAWAL-RELATIF — jalur Relatif (Wakil Sah / Penyuluh) Kawal KNMP belum
+  ditampilkan.** Di respons Kawal tidak ada field progres bernama relatif; yang
+  mirip namanya hanya data pribadi. Calonnya enam kurva teks-JSON
+  (`kurva_k/r/a1/a2/a3/pelaksana_json`). FIX: user menjalankan "Uji sambungan" di
+  server dan mengirim bagian "Hubungan antar angka" (DECISIONS 690) → tetapkan
+  field-nya → tampilkan di tab Kawal lokasi dan strip atas (DECISIONS 691).
+- 🟢 **KAWAL-TAHAP-4 — per sarana + EWS belum ada.** Sarana Kawal belum dipasangkan
+  dengan kelompok RAB MARLIN (`progresKelompokPerTanggal`), dan aturan EWS
+  `selisih_kawal` (5/10 pp, ambang lewat AppSetting) belum dibuat (DECISIONS 689).
+
 ## Security
 
 - 🟡 **RLS belum diimplementasi** (dan TIDAK diklaim). Otorisasi di application layer

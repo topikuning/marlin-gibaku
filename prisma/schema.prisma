@@ -1262,16 +1262,16 @@ model Contract {
   /// `src/lib/laporan/penandatangan.ts`. Koordinator TL boleh ditimpa per
   /// lokasi (Location.coTeamLeader*). QS dan Site Manager untuk BUD/Calculation
   /// Sheet (dokumennya menyusul).
-  teamLeaderName          String? @map("team_leader_name")
-  teamLeaderTtdKey        String? @map("team_leader_ttd_key")
-  coTeamLeaderName        String? @map("co_team_leader_name")
-  coTeamLeaderTtdKey      String? @map("co_team_leader_ttd_key")
-  qualitySurveyorName    String? @map("quality_surveyor_name")
-  qualitySurveyorTtdKey  String? @map("quality_surveyor_ttd_key")
-  projectManagerName      String? @map("project_manager_name")
-  projectManagerTtdKey    String? @map("project_manager_ttd_key")
-  siteManagerName         String? @map("site_manager_name")
-  siteManagerTtdKey       String? @map("site_manager_ttd_key")
+  teamLeaderName        String?   @map("team_leader_name")
+  teamLeaderTtdKey      String?   @map("team_leader_ttd_key")
+  coTeamLeaderName      String?   @map("co_team_leader_name")
+  coTeamLeaderTtdKey    String?   @map("co_team_leader_ttd_key")
+  qualitySurveyorName   String?   @map("quality_surveyor_name")
+  qualitySurveyorTtdKey String?   @map("quality_surveyor_ttd_key")
+  projectManagerName    String?   @map("project_manager_name")
+  projectManagerTtdKey  String?   @map("project_manager_ttd_key")
+  siteManagerName       String?   @map("site_manager_name")
+  siteManagerTtdKey     String?   @map("site_manager_ttd_key")
   /// GAMBAR tanda tangan & stempel ketiga pihak — key R2 (DECISIONS 328).
   ///
   /// Ditaruh di KONTRAK, bukan di master perusahaan, karena penanda tangannya
@@ -1422,6 +1422,7 @@ model Location {
   findings            Finding[]
   inspections         Inspection[]
   letters             Letter[]
+  kawalMap            KawalLocationMap?
 
   @@index([packageId])
   @@index([province])
@@ -3998,21 +3999,21 @@ model RaplAnalisaAiKomponen {
 /// pekerjaan kritis – yang dipakai saran rencana mingguan. BUKAN angka resmi:
 /// volume, bobot, dan progres tetap dihitung calculation layer.
 model RabJadwalAi {
-  id              String    @id @default(uuid()) @db.Uuid
-  revisionId      String    @unique @map("revision_id") @db.Uuid
-  locationId      String    @map("location_id") @db.Uuid
+  id            String    @id @default(uuid()) @db.Uuid
+  revisionId    String    @unique @map("revision_id") @db.Uuid
+  locationId    String    @map("location_id") @db.Uuid
   /// antre | jalan | selesai | sebagian | gagal
-  status          String    @default("antre")
+  status        String    @default("antre")
   /// Diisi saat sebuah proses mengerjakannya; yang basi diambil alih cron.
-  pendingSince    DateTime? @map("pending_since") @db.Timestamptz
-  runId           String?   @map("run_id") @db.Uuid
-  provider        String?
-  model           String?
-  galat           String?
-  dimintaOlehId   String?   @map("diminta_oleh_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-  selesaiAt       DateTime? @map("selesai_at") @db.Timestamptz
+  pendingSince  DateTime? @map("pending_since") @db.Timestamptz
+  runId         String?   @map("run_id") @db.Uuid
+  provider      String?
+  model         String?
+  galat         String?
+  dimintaOlehId String?   @map("diminta_oleh_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  selesaiAt     DateTime? @map("selesai_at") @db.Timestamptz
 
   revision RabRevision           @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   kelompok RabJadwalAiKelompok[]
@@ -4024,21 +4025,171 @@ model RabJadwalAi {
 
 /// Satu bagian analisa: satu bangunan, atau satu potongan bangunan besar.
 model RabJadwalAiKelompok {
-  id          String    @id @default(uuid()) @db.Uuid
-  analisaId   String    @map("analisa_id") @db.Uuid
-  kategoriKey String    @map("kategori_key")
-  bagian      Int       @default(1)
+  id          String   @id @default(uuid()) @db.Uuid
+  analisaId   String   @map("analisa_id") @db.Uuid
+  kategoriKey String   @map("kategori_key")
+  bagian      Int      @default(1)
   nama        String
   /// antre | selesai | gagal
-  status      String    @default("antre")
+  status      String   @default("antre")
   /// Hasil tervalidasi: { catatan, item: [{ kunci, mulai, selesai, prasyarat, kritis, cuaca, alasan }] }
   hasil       Json?
   galat       String?
-  percobaan   Int       @default(0)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  percobaan   Int      @default(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   analisa RabJadwalAi @relation(fields: [analisaId], references: [id], onDelete: Cascade)
 
   @@unique([analisaId, kategoriKey, bagian])
   @@map("rab_jadwal_ai_kelompok")
+}
+
+// ─────────────────────────────────────────────────────────────
+// SINKRON KAWAL KNMP (DECISIONS 689, 690) – RUJUKAN, bukan angka resmi
+// ─────────────────────────────────────────────────────────────
+//
+// Data Kawal (aplikasi pengawasan KKP) tidak pernah masuk calculation layer
+// dan tidak menggerakkan status, progres, atau keuangan. Yang disimpan hanya
+// field yang dipakai (`lib/kawal/parser.ts`); nomor HP, nama personel,
+// `*_user_id`, `token_id`, CCTV, dan gambar tidak pernah sampai ke sini.
+
+/// Satu tarikan Kawal yang ISINYA berubah. Tarikan dengan isi sama hanya
+/// tercatat di `kawal_sync_runs` sebagai "tidak berubah". APPEND-ONLY (trigger).
+model KawalSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  capturedAt  DateTime @default(now()) @map("captured_at") @db.Timestamptz
+  /// Baris yang dikirim Kawal, termasuk yang dibuang karena bukan lokasi MARLIN.
+  rowCount    Int      @map("row_count")
+  /// Baris yang disimpan: yang sudah berpasangan + yang menunggu konfirmasi.
+  storedCount Int      @map("stored_count")
+  /// sha256 isi yang disimpan – pembanding tarikan berikutnya.
+  contentHash String   @map("content_hash")
+
+  lokasi KawalLocationSnapshot[]
+
+  @@index([capturedAt])
+  @@map("kawal_snapshots")
+}
+
+/// Satu lokasi Kawal di satu snapshot. Pasangan lokasi MARLIN-nya TIDAK
+/// disalin ke sini – dibaca dari `kawal_location_maps`, supaya koreksi
+/// pemetaan berlaku juga untuk snapshot lama. APPEND-ONLY (trigger).
+model KawalLocationSnapshot {
+  id                    String    @id @default(uuid()) @db.Uuid
+  snapshotId            String    @map("snapshot_id") @db.Uuid
+  kawalId               Int       @map("kawal_id")
+  namaKnmp              String    @map("nama_knmp")
+  desa                  String?
+  kecamatan             String?
+  kabupaten             String
+  provinsi              String?
+  tahap                 Int?
+  kategori              Int?
+  penyedia              String?
+  noKontrak             String?   @map("no_kontrak")
+  tglKontrak            DateTime? @map("tgl_kontrak") @db.Date
+  noSpmk                String?   @map("no_spmk")
+  mulai                 DateTime? @db.Date
+  selesai               DateTime? @db.Date
+  estimasiHari          Int?      @map("estimasi_hari")
+  nilaiKontrak          BigInt?   @map("nilai_kontrak")
+  nilaiLokasi           BigInt?   @map("nilai_lokasi")
+  nilaiAdd1             BigInt?   @map("nilai_add1")
+  nilaiAdd2             BigInt?   @map("nilai_add2")
+  nilaiAdd3             BigInt?   @map("nilai_add3")
+  statusKontrak         String?   @map("status_kontrak")
+  latitude              Decimal?  @db.Decimal(10, 7)
+  longitude             Decimal?  @db.Decimal(10, 7)
+  /// `progres_final` – progres menurut pengawas (Actual di layar Kawal).
+  actualPct             Decimal?  @map("actual_pct") @db.Decimal(9, 4)
+  /// `progres_pelaksana` – laporan kontraktor sendiri di Kawal.
+  pelaksanaPct          Decimal?  @map("pelaksana_pct") @db.Decimal(9, 4)
+  /// `target_fisik` – rencana kumulatif minggu berjalan menurut Kawal.
+  targetPct             Decimal?  @map("target_pct") @db.Decimal(9, 4)
+  deviasiPct            Decimal?  @map("deviasi_pct") @db.Decimal(9, 4)
+  /// `realisasi_pengawas` / `realisasi_pelaksana` – disimpan untuk membuktikan
+  /// maknanya dari data (DECISIONS 690), belum ditampilkan.
+  realisasiPengawasPct  Decimal?  @map("realisasi_pengawas_pct") @db.Decimal(9, 4)
+  realisasiPelaksanaPct Decimal?  @map("realisasi_pelaksana_pct") @db.Decimal(9, 4)
+  /// `current_week` – minggu ke-N = 7 hari sejak `start_date_penyedia`
+  /// (terbukti 96/96 baris, uji sambungan 2026-10-18).
+  weekNo                Int?      @map("week_no")
+  maxWeeks              Int?      @map("max_weeks")
+  lastActualWeek        Int?      @map("last_actual_week")
+  lastPelaksanaWeek     Int?      @map("last_pelaksana_week")
+  /// Semua kurva Kawal: { rencanaKumulatif, realisasiKumulatif, … , k, r, a1, a2, a3, pelaksana } → (angka|null)[]
+  kurva                 Json
+  remarkKondisiUmum     String?   @map("remark_kondisi_umum")
+  remarkHambatan        String?   @map("remark_hambatan")
+  remarkSaranInstruksi  String?   @map("remark_saran_instruksi")
+
+  snapshot KawalSnapshot         @relation(fields: [snapshotId], references: [id])
+  sarana   KawalSaranaSnapshot[]
+
+  @@unique([snapshotId, kawalId])
+  @@index([kawalId])
+  @@map("kawal_location_snapshots")
+}
+
+/// Sarana (sarpras) satu lokasi Kawal di satu snapshot. APPEND-ONLY (trigger).
+model KawalSaranaSnapshot {
+  id                 String   @id @default(uuid()) @db.Uuid
+  locationSnapshotId String   @map("location_snapshot_id") @db.Uuid
+  kawalItemId        Int      @map("kawal_item_id")
+  sarprasId          Int?     @map("sarpras_id")
+  nama               String
+  jenis              String?
+  nilai              BigInt?
+  status             Int?
+  bobot              Decimal? @db.Decimal(9, 4)
+  progresPct         Decimal? @map("progres_pct") @db.Decimal(9, 4)
+  realisasiKumulatif Decimal? @map("realisasi_kumulatif") @db.Decimal(9, 4)
+
+  locationSnapshot KawalLocationSnapshot @relation(fields: [locationSnapshotId], references: [id])
+
+  @@index([locationSnapshotId])
+  @@map("kawal_sarana_snapshots")
+}
+
+/// Pasangan lokasi Kawal ↔ lokasi MARLIN. Satu lokasi Kawal paling banyak satu
+/// pasangan, dan sebaliknya.
+model KawalLocationMap {
+  id          String   @id @default(uuid()) @db.Uuid
+  kawalId     Int      @unique @map("kawal_id")
+  /// Null hanya untuk status `bukan_marlin`.
+  locationId  String?  @unique @map("location_id") @db.Uuid
+  /// otomatis | dikonfirmasi | bukan_marlin
+  status      String
+  /// Dasar pencocokan otomatis (`lib/kawal/cocok.ts`); null untuk keputusan orang.
+  basis       String?
+  decidedById String?  @map("decided_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("kawal_location_maps")
+}
+
+/// Satu putaran sinkron – berhasil, tidak berubah, atau gagal beserta sebabnya.
+/// Kegagalan sinkron bersifat sistem (bukan milik satu lokasi), jadi dicatat
+/// di sini, bukan di `alerts` yang wajib menempel ke lokasi (DECISIONS 689).
+model KawalSyncRun {
+  id             String    @id @default(uuid()) @db.Uuid
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz
+  /// berjalan | berhasil | tidak_berubah | gagal
+  outcome        String
+  /// cron | manual
+  trigger        String
+  byId           String?   @map("by_id") @db.Uuid
+  rowCount       Int?      @map("row_count")
+  matchedCount   Int?      @map("matched_count")
+  queueCount     Int?      @map("queue_count")
+  discardedCount Int?      @map("discarded_count")
+  snapshotId     String?   @map("snapshot_id") @db.Uuid
+  error          String?
+
+  @@index([startedAt])
+  @@map("kawal_sync_runs")
 }
