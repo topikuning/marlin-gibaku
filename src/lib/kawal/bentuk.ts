@@ -289,6 +289,11 @@ function besaranBaris(b: Record<string, unknown>): Besaran[] {
   const tf = angkaLepas(b.target_fisik);
   if (pf != null && tf != null) tambah("progres_final − target_fisik", "selisih_final", "nilai", pf - tf);
   if (pp != null && tf != null) tambah("progres_pelaksana − target_fisik", "selisih_pelaksana", "nilai", pp - tf);
+  // Calon "Relatif" (DECISIONS 693): progres RELATIF terhadap rencana minggu ini.
+  if (pf != null && tf != null && tf > 0)
+    tambah("progres_final ÷ target_fisik × 100", "rasio_final", "nilai", (pf / tf) * 100);
+  if (pp != null && tf != null && tf > 0)
+    tambah("progres_pelaksana ÷ target_fisik × 100", "rasio_pelaksana", "nilai", (pp / tf) * 100);
 
   if (Array.isArray(b.sarpras)) {
     let bobot = 0;
@@ -308,6 +313,7 @@ function besaranBaris(b: Record<string, unknown>): Besaran[] {
       tambah("Σ sarpras.bobot", "sarpras", "nilai", bobot);
       tambah("Σ bobot × progres sarpras ÷ 100", "sarpras", "nilai", bp);
       tambah("Σ bobot × realisasi_kumulatif sarpras ÷ 100", "sarpras", "nilai", br);
+      if (bobot > 0) tambah("Σ bobot × progres sarpras ÷ Σ bobot", "sarpras", "nilai", (bp * 100) / bobot);
     }
   }
 

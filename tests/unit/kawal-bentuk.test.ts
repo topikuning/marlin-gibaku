@@ -163,6 +163,17 @@ describe("hubungan antar angka Kawal", () => {
     expect(keluar).not.toMatch(/"nilai"/);
   });
 
+  it("calon Relatif: angka yang sama dengan progres ÷ rencana × 100 ikut terdeteksi (DECISIONS 693)", () => {
+    const relatif = (id: number, actual: number, target: number) => ({
+      ...baris(id, actual, target),
+      realisasi_pengawas: Math.round((actual / target) * 10_000) / 100,
+    });
+    const h = cekHubunganAngka(responsKawal([relatif(1, 6, 20), relatif(2, 9.5, 12), relatif(3, 14, 30)]), {
+      maks: 10_000,
+    });
+    expect(ada(h, "progres_final ÷ target_fisik × 100", "realisasi_pengawas")).toMatchObject({ sama: 3 });
+  });
+
   it("respons yang bukan objek ber-data tidak melempar", () => {
     expect(cekHubunganAngka("<html>")).toEqual({ baris: 0, hubungan: [], kurvaTanpaPadanan: [] });
   });

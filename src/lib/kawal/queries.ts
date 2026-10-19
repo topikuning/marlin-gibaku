@@ -232,6 +232,9 @@ export type KawalLokasiTerbaru = {
   targetPct: number | null;
   /** `deviasi` Kawal apa adanya – tidak dihitung ulang di MARLIN. */
   deviasiPct: number | null;
+  /** `realisasi_pengawas` / `realisasi_pelaksana` – maknanya belum terbukti (DECISIONS 693). */
+  realisasiPengawasPct: number | null;
+  realisasiPelaksanaPct: number | null;
   weekNo: number | null;
   maxWeeks: number | null;
   lastActualWeek: number | null;
@@ -272,6 +275,8 @@ export async function kawalUntukLokasi(locationIds: string[]): Promise<Map<strin
       pelaksanaPct: true,
       targetPct: true,
       deviasiPct: true,
+      realisasiPengawasPct: true,
+      realisasiPelaksanaPct: true,
       weekNo: true,
       maxWeeks: true,
       lastActualWeek: true,
@@ -302,6 +307,8 @@ export async function kawalUntukLokasi(locationIds: string[]): Promise<Map<strin
       pelaksanaPct: angkaAtauNull(b.pelaksanaPct),
       targetPct: angkaAtauNull(b.targetPct),
       deviasiPct: angkaAtauNull(b.deviasiPct),
+      realisasiPengawasPct: angkaAtauNull(b.realisasiPengawasPct),
+      realisasiPelaksanaPct: angkaAtauNull(b.realisasiPelaksanaPct),
       weekNo: b.weekNo,
       maxWeeks: b.maxWeeks,
       lastActualWeek: b.lastActualWeek,
