@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cekPenanggalanMinggu, FIELD_DIPAKAI, petakanBentuk, tipeNilai } from "@/lib/kawal/bentuk";
+import { cekHubunganAngka, cekPenanggalanMinggu, FIELD_DIPAKAI, petakanBentuk, tipeNilai } from "@/lib/kawal/bentuk";
+import { barisKawal, RAHASIA, responsKawal } from "../fixtures/kawal-sintetis";
 
 /**
  * PETA BENTUK DATA KAWAL – NAMA & TIPE SAJA, TANPA NILAI (DECISIONS 689).
@@ -112,5 +113,57 @@ describe("penanggalan minggu Kawal", () => {
       new Date(Date.UTC(2026, 9, 18)),
     );
     expect(hasil).toEqual({ diperiksa: 1, tanpaData: 1, selisih: [{ selisih: 1, jumlah: 1 }] });
+  });
+});
+
+describe("hubungan antar angka Kawal", () => {
+  // Kurva berbeda per baris: besaran yang sama di SEMUA baris sengaja tidak
+  // dihitung sebagai bukti.
+  const baris = (id: number, actual: number, target: number) => ({
+    ...barisKawal({ id, actual, target }),
+    kurva_rencana_kumulatif: [0, target / 2, target],
+    kurva_k_json: JSON.stringify([0, target / 2, target]),
+    kurva_realisasi_kumulatif: [0, actual, null],
+    current_week: 3,
+  });
+  const BODY_SINTETIS = responsKawal([baris(1, 6, 20), baris(2, 9.5, 12), baris(3, 14, 30)]);
+  const ada = (h: ReturnType<typeof cekHubunganAngka>, a: string, b: string) =>
+    h.hubungan.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+
+  it("pasangan yang selalu sama ditemukan dari data, bukan dari nama", () => {
+    // Baris sintetis berbagi kurva yang sama persis, jadi pasangan "sama"-nya
+    // jauh lebih banyak dari data sungguhan – batas daftar dibuka di sini.
+    const h = cekHubunganAngka(BODY_SINTETIS, { maks: 10_000 });
+    expect(h.baris).toBe(3);
+    expect(ada(h, "progres_final", "realisasi_pengawas")).toMatchObject({ sama: 3, diperiksa: 3 });
+    expect(ada(h, "deviasi", "progres_final − target_fisik")).toMatchObject({ sama: 3 });
+    expect(ada(h, "kurva_k_json: nilai terakhir", "kurva_rencana_kumulatif: nilai terakhir")).toBeDefined();
+    expect(ada(h, "kurva_rencana_kumulatif[minggu berjalan]", "target_fisik")).toBeDefined();
+    expect(ada(h, "kurva_realisasi_kumulatif: nilai terakhir", "progres_final")).toBeDefined();
+    // Besaran dari SATU sumber tidak dipasangkan dengan dirinya sendiri.
+    expect(ada(h, "kurva_k_json: panjang", "kurva_k_json: jumlah terisi")).toBeUndefined();
+    // Panjang kurva A = panjang kurva B bukan bukti apa pun.
+    expect(h.hubungan.some((x) => x.a.endsWith(": panjang") && x.b.endsWith(": panjang"))).toBe(false);
+  });
+
+  it("besaran yang nilainya sama di semua baris tidak dijadikan bukti", () => {
+    const h = cekHubunganAngka(BODY_SINTETIS, { maks: 10_000 });
+    // max_weeks = 21 di semua baris sintetis.
+    expect(h.hubungan.some((x) => x.a === "max_weeks" || x.b === "max_weeks")).toBe(false);
+  });
+
+  it("pasangan yang hanya kebetulan sama di sebagian kecil baris tidak dilaporkan", () => {
+    const h = cekHubunganAngka(BODY_SINTETIS, { maks: 10_000 });
+    expect(ada(h, "progres_final", "target_fisik")).toBeUndefined();
+  });
+
+  it("tidak ada nilai yang keluar – hanya nama field dan hitungan", () => {
+    const keluar = JSON.stringify(cekHubunganAngka(BODY_SINTETIS));
+    for (const v of Object.values(RAHASIA)) expect(keluar).not.toContain(v);
+    expect(keluar).not.toMatch(/"nilai"/);
+  });
+
+  it("respons yang bukan objek ber-data tidak melempar", () => {
+    expect(cekHubunganAngka("<html>")).toEqual({ baris: 0, hubungan: [], kurvaTanpaPadanan: [] });
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fragment, type ReactNode } from "react";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { ButtonLink, Card, CardHeader, CardBody, KpiCard, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -17,6 +18,7 @@ import { ringkasAhsp } from "@/lib/ahsp/import";
 import { GDrivePanel } from "./gdrive-panel";
 import { KawalPanel } from "./kawal-panel";
 import { getAkunKawalTampil } from "@/lib/kawal/setelan";
+import { ringkasSinkronKawal, type RingkasSinkron } from "@/lib/kawal/queries";
 import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
 import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
 import { ringkasAntrean } from "@/lib/gdrive/antrean";
@@ -647,8 +649,9 @@ export default async function SistemPage() {
           title="Kawal KNMP"
           subtitle="Pembanding progres dari aplikasi pengawasan KKP – rujukan, bukan angka resmi (DECISIONS 689)"
         />
-        <CardBody>
+        <CardBody className="space-y-4">
           <KawalPanel akunKawal={await getAkunKawalTampil()} />
+          <KawalSinkronRingkas ringkas={await ringkasSinkronKawal()} />
         </CardBody>
       </Card>
 
@@ -1100,6 +1103,26 @@ export default async function SistemPage() {
           audit: auditPanel,
         }}
       />
+    </div>
+  );
+}
+
+/** Status sinkron Kawal terakhir + jalan ke layar pencocokan (DECISIONS 690). */
+function KawalSinkronRingkas({ ringkas }: { ringkas: RingkasSinkron }) {
+  const t = ringkas.terakhir;
+  const teks = !t
+    ? "Belum pernah sinkron."
+    : t.outcome === "gagal"
+      ? `Sinkron terakhir ${formatTanggalWaktu(t.startedAt)} gagal: ${t.error ?? "tanpa keterangan"}`
+      : t.outcome === "berjalan"
+        ? `Sinkron sedang berjalan sejak ${formatTanggalWaktu(t.startedAt)}.`
+        : `Sinkron terakhir ${formatTanggalWaktu(t.startedAt)}: ${t.rowCount ?? 0} lokasi diterima, ${t.matchedCount ?? 0} berpasangan, ${t.queueCount ?? 0} menunggu konfirmasi.`;
+  return (
+    <div className="space-y-1 border-t border-border pt-3 text-[13px]">
+      <p className={t?.outcome === "gagal" ? "text-danger" : "text-ink-muted"}>{teks}</p>
+      <Link href="/kawal/pencocokan" className="text-primary">
+        Buka pencocokan lokasi Kawal ›
+      </Link>
     </div>
   );
 }

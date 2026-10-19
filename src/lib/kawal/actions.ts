@@ -5,7 +5,8 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { jakartaToday } from "@/lib/format";
-import { cekPenanggalanMinggu, petakanBentuk, type BentukData } from "./bentuk";
+import { cekHubunganAngka, cekPenanggalanMinggu, petakanBentuk, type BentukData, type LaporanHubungan } from "./bentuk";
+import { parseResponsKawal } from "./parser";
 import { ambilLokasiKawal, KawalGalat, normalisasiAlamat, type LangkahKawal, type RingkasFormulir } from "./klien";
 import { getAkunKawal, setAkunKawal } from "./setelan";
 
@@ -21,6 +22,10 @@ export type LaporanUjiKawal = {
   formulir: RingkasFormulir | null;
   bentuk: BentukData | null;
   minggu: ReturnType<typeof cekPenanggalanMinggu> | null;
+  /** Apakah parser sinkron menerima data ini – bukti sebelum sinkron pertama (DECISIONS 690). */
+  parser: { diterima: boolean; masalah: string[] } | null;
+  /** Pasangan angka yang nilainya sama – bukti makna field dari data (DECISIONS 690). */
+  hubungan: LaporanHubungan | null;
 };
 
 export type KawalAkunState = { error?: string; success?: string; laporan?: LaporanUjiKawal } | undefined;
@@ -82,6 +87,11 @@ export async function kawalAkunAction(_prev: KawalAkunState, formData: FormData)
             formulir: hasil.formulir,
             bentuk,
             minggu: cekPenanggalanMinggu(hasil.body, jakartaToday()),
+            parser: (() => {
+              const r = parseResponsKawal(hasil.body);
+              return r.ok ? { diterima: true, masalah: [] } : { diterima: false, masalah: r.masalah };
+            })(),
+            hubungan: cekHubunganAngka(hasil.body),
           },
         };
       } catch (e) {
@@ -94,7 +104,7 @@ export async function kawalAkunAction(_prev: KawalAkunState, formData: FormData)
           error: `Uji sambungan Kawal gagal: ${pesan}`,
           laporan:
             e instanceof KawalGalat
-              ? { langkah: e.langkah, formulir: e.formulir, bentuk: null, minggu: null }
+              ? { langkah: e.langkah, formulir: e.formulir, bentuk: null, minggu: null, parser: null, hubungan: null }
               : undefined,
         };
       }

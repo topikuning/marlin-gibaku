@@ -203,6 +203,14 @@ export const CAPABILITIES = [
   "user.manage",
   "user.create",
   "system.manage",
+  /**
+   * SINKRON KAWAL KNMP (DECISIONS 690): memicu sinkron dan memutuskan pasangan
+   * lokasi Kawal ↔ MARLIN. Super Admin + Program Director (PD mewarisi semua
+   * kecuali yang dikecualikan di bawah). Bukan `system.manage`: memasangkan
+   * lokasi adalah keputusan data proyek, dan Program Director-lah pemberi
+   * perintah integrasi ini. Akun Kawal-nya sendiri tetap `system.manage`.
+   */
+  "kawal.manage",
   "audit.view",
 ] as const;
 

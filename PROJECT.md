@@ -93,6 +93,10 @@ Location → HargaSatuanDasar (HSD per lokasi; kunci kategori+nama+satuan sama p
            dengan kunci kebutuhan RAPL. Harga lokasi lain = rekomendasi, tak pernah dipakai sendiri;
            AI boleh memberi DRAF harga, tetapi baru menjadi HSD setelah disetujui manusia)
 Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting effective-dated
+Kawal   → KawalSnapshot → KawalLocationSnapshot → KawalSaranaSnapshot (append-only;
+           RUJUKAN dari aplikasi pengawas KKP – tidak dibaca calculation layer,
+           tidak menggerakkan status/progres/keuangan, DECISIONS 689/690) ·
+           KawalLocationMap (lokasi Kawal ↔ Location) · KawalSyncRun
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)
 ```

@@ -20,9 +20,9 @@ export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: s
         <StatusPill tone={terisi ? "success" : "neutral"} label={terisi ? "Terisi" : "Belum diisi"} />
       </div>
       <p className="text-[13px] text-ink-muted">
-        Data Kawal dipakai sebagai pembanding progres, bukan angka resmi. Sandinya disimpan tersandi dan tidak
-        pernah ditampilkan lagi; kosongkan kolom sandi bila tidak ingin menggantinya. Uji sambungan masuk ke Kawal
-        sekali dan hanya melaporkan bentuk datanya – tidak ada yang disimpan.
+        Data Kawal dipakai sebagai pembanding progres, bukan angka resmi. Sandinya disimpan tersandi dan tidak pernah
+        ditampilkan lagi; kosongkan kolom sandi bila tidak ingin menggantinya. Uji sambungan masuk ke Kawal sekali dan
+        hanya melaporkan bentuk datanya – tidak ada yang disimpan.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
@@ -77,7 +77,7 @@ export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: s
 }
 
 function LaporanUji({ laporan }: { laporan: LaporanUjiKawal }) {
-  const { langkah, formulir, bentuk, minggu } = laporan;
+  const { langkah, formulir, bentuk, minggu, parser, hubungan } = laporan;
   return (
     <div className="space-y-4 border-t border-border pt-4 text-[13px]">
       <section className="space-y-1.5">
@@ -104,9 +104,7 @@ function LaporanUji({ laporan }: { laporan: LaporanUjiKawal }) {
             <span className="text-ink">{formulir.namaKolomSandi}</span> · token CSRF di halaman:{" "}
             {formulir.adaCsrfMeta ? "ada" : "tidak ada"}
           </p>
-          <p className="text-ink-muted">
-            Semua kolom: {formulir.kolom.map((k) => `${k.nama} (${k.tipe})`).join(", ")}
-          </p>
+          <p className="text-ink-muted">Semua kolom: {formulir.kolom.map((k) => `${k.nama} (${k.tipe})`).join(", ")}</p>
         </section>
       ) : null}
 
@@ -131,13 +129,13 @@ function LaporanUji({ laporan }: { laporan: LaporanUjiKawal }) {
             <p className="text-success">Semua field yang akan dipakai sinkron ada.</p>
           ) : null}
           <p className="text-ink-muted">
-            Kurva mingguan: {bentuk.kurvaMingguan.length ? bentuk.kurvaMingguan.join(", ") : "tidak ada"} · Calon
-            jalur Relatif: {bentuk.kandidatRelatif.length ? bentuk.kandidatRelatif.join(", ") : "tidak ditemukan"}
+            Kurva mingguan: {bentuk.kurvaMingguan.length ? bentuk.kurvaMingguan.join(", ") : "tidak ada"} · Calon jalur
+            Relatif: {bentuk.kandidatRelatif.length ? bentuk.kandidatRelatif.join(", ") : "tidak ditemukan"}
           </p>
           {minggu ? (
             <p className="text-ink-muted">
-              Penanggalan minggu (current_week dibanding “7 hari sejak start_date_penyedia”): {minggu.diperiksa}{" "}
-              baris diperiksa
+              Penanggalan minggu (current_week dibanding “7 hari sejak start_date_penyedia”): {minggu.diperiksa} baris
+              diperiksa
               {minggu.selisih.length
                 ? ` – ${minggu.selisih
                     .map((s) => `selisih ${s.selisih > 0 ? "+" : ""}${s.selisih} di ${s.jumlah} baris`)
@@ -145,6 +143,44 @@ function LaporanUji({ laporan }: { laporan: LaporanUjiKawal }) {
                 : ""}
               {minggu.tanpaData ? ` · ${minggu.tanpaData} baris tanpa tanggal/minggu yang terbaca` : ""}.
             </p>
+          ) : null}
+          {parser ? (
+            parser.diterima ? (
+              <p className="text-success">Parser sinkron menerima seluruh baris.</p>
+            ) : (
+              <Banner
+                tone="warning"
+                title="Parser sinkron menolak data ini – sinkron akan gagal sampai parsernya disesuaikan"
+                description={parser.masalah.join(" ")}
+              />
+            )
+          ) : null}
+          {hubungan && hubungan.hubungan.length > 0 ? (
+            <details>
+              <summary className="cursor-pointer text-primary">
+                Hubungan antar angka ({hubungan.hubungan.length} pasangan yang nilainya sama)
+              </summary>
+              <p className="mt-2 text-ink-muted">
+                Pasangan yang nilainya sama (selisih ≤ 0,01) di sebagian besar baris – bukti makna field dari data,
+                bukan dari namanya. Nilainya sendiri tidak ditampilkan.
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {hubungan.hubungan.map((h) => (
+                  <li key={`${h.a}|${h.b}`} className="text-ink-muted">
+                    <span className="text-ink">{h.a}</span> = <span className="text-ink">{h.b}</span>{" "}
+                    <span className="tabular">
+                      ({h.sama}/{h.diperiksa} baris)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {hubungan.kurvaTanpaPadanan.length ? (
+                <p className="mt-2 text-ink-muted">
+                  Kurva yang nilai terakhirnya tidak sama dengan angka mana pun:{" "}
+                  <span className="text-ink">{hubungan.kurvaTanpaPadanan.join(", ")}</span>
+                </p>
+              ) : null}
+            </details>
           ) : null}
           <details>
             <summary className="cursor-pointer text-primary">Semua field ({bentuk.field.length})</summary>

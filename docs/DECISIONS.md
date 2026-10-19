@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 690 | 2026-10-19 | Sinkron Kawal tahap 2: parser ketat dari bentuk yang terbukti (field hilang/tipe berubah = tarikan gagal, tanpa simpan setengah); snapshot append-only + hash isi (idempoten); pencocokan lokasi otomatis hanya bila bukti tunggal, sisanya antrean; `kawal.manage` (SA + PD); cron 06.13 WIB, workflow merah bila gagal; uji sambungan melaporkan hubungan antar angka untuk membuktikan jalur Relatif |
 | 689 | 2026-10-18 | Sinkron Kawal KNMP: data Kawal = rujukan, bukan angka resmi; pembanding sederhana progres MARLIN vs tarikan Kawal terbaru, ambang 5/10 pp; semua peran boleh melihat (`kawal.view`); Relatif ditampilkan dengan keterangan; tahap 1 = akun tersandi di Sistem + uji sambungan yang melaporkan bentuk data tanpa nilai |
 | 688 | 2026-10-17 | Satu agen (Claude) mengubah kode, commit dan push langsung ke `dev` tanpa cabang/PR/menunggu CI; sebelum commit cukup typecheck + lint + uji yang bersangkutan; PR `dev` → `main` selalu terbuka dan gerbang lengkap (unit, integrasi, build, CI termasuk E2E) dijalankan di sana, merge tetap perintah user; nomor keputusan diberikan penulis saat menulis |
 | 687 | 2026-10-17 | Ponsel: tautan "‹ Paket …" di atas baris nama lokasi di semua tab, hanya bagi pemegang `package.view`; Pelaksana tidak diberi tautan paket (juga di header desktop) yang berujung layar "tidak punya izin" |
