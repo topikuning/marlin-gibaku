@@ -5,7 +5,7 @@ import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { volumeHarianByLineage } from "@/lib/progress";
 import { progresKelompokPerTanggal, weekOfDate } from "@/lib/progress-calc";
-import { kategoriDariLineage } from "@/lib/rab/kategori-lineage";
+import { itemPerKategori, kategoriDariLineage } from "@/lib/rab/kategori-lineage";
 import { urutkanFoto } from "./murni";
 
 /**
@@ -92,17 +92,8 @@ export async function susunDokumentasiSarpras(locationId: string): Promise<Dokum
     getPeriodBounds(locationId),
   ]);
 
-  const akar = nodes.filter((n) => n.parentId == null);
+  const { akar, item: itemPerAkar } = itemPerKategori(nodes);
   const kunciAkar = akar.map((n) => n.lineageKey);
-  const itemPerAkar = new Map<string, { lineageKey: string; amount: number; volume: number | null }[]>();
-  for (const n of nodes) {
-    if (n.kind !== "item") continue;
-    const k = kategoriDariLineage(n.lineageKey, kunciAkar);
-    if (!k) continue;
-    const arr = itemPerAkar.get(k) ?? [];
-    arr.push({ lineageKey: n.lineageKey, amount: Number(n.amount), volume: n.volume == null ? null : Number(n.volume) });
-    itemPerAkar.set(k, arr);
-  }
 
   const adaSpmk = bounds != null && !bounds.assumed;
   const minggu = (tanggal: string) =>
@@ -139,7 +130,11 @@ export async function susunDokumentasiSarpras(locationId: string): Promise<Dokum
   const hariIni = jakartaDateKey(new Date());
   const grandTotal = Number(rev.totalValue);
   const sarpras: Sarpras[] = akar.map((a) => {
-    const items = itemPerAkar.get(a.lineageKey) ?? [];
+    const items = (itemPerAkar.get(a.lineageKey) ?? []).map((n) => ({
+      lineageKey: n.lineageKey,
+      amount: Number(n.amount),
+      volume: n.volume == null ? null : Number(n.volume),
+    }));
     const mentah = urutkanFoto(fotoPerAkar.get(a.lineageKey) ?? []);
     const progres = progresKelompokPerTanggal(items, realisasi, grandTotal, [...mentah.map((f) => f.tanggal), hariIni]);
     const jumlahPekerjaan = new Map<string, { label: string; jumlah: number }>();

@@ -55,3 +55,26 @@ export function kategoriDariLineageAtau(
 ): string {
   return kategoriDariLineage(lineageKey, kategoriKeys) ?? lineageKey.split("#")[0];
 }
+
+/**
+ * Node revisi dikelompokkan ke kategori tingkat 1 (akar = `parentId` null):
+ * sarana/prasarana yang dipakai dokumentasi foto (DECISIONS 683) dan pembanding
+ * per sarana Kawal (DECISIONS 694). Urutan akar dan item mengikuti `nodes`;
+ * item yang tidak jatuh ke kategori mana pun tidak masuk.
+ */
+export function itemPerKategori<N extends { parentId: string | null; kind: string; lineageKey: string }>(
+  nodes: N[],
+): { akar: N[]; item: Map<string, N[]> } {
+  const akar = nodes.filter((n) => n.parentId == null);
+  const kunci = akar.map((n) => n.lineageKey);
+  const item = new Map<string, N[]>();
+  for (const n of nodes) {
+    if (n.kind !== "item") continue;
+    const k = kategoriDariLineage(n.lineageKey, kunci);
+    if (!k) continue;
+    const arr = item.get(k) ?? [];
+    arr.push(n);
+    item.set(k, arr);
+  }
+  return { akar, item };
+}

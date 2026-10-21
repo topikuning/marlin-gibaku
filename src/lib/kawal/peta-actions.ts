@@ -6,6 +6,8 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
+import { ambangSah, formatAmbangPp } from "./compare";
+import { getAmbangKawal, setAmbangKawal } from "./setelan";
 import { sinkronKawal } from "./sinkron";
 
 /**
@@ -131,6 +133,138 @@ export async function petaKawalAction(_prev: KawalAksiState, formData: FormData)
     await audit(user.id, "kawal.peta", "system", null, { aksi: d.aksi, kawalId: d.kawalId, sebelum });
     segarkan();
     return { success: "Dikembalikan. Baris ini dicocokkan ulang di sinkron berikutnya." };
+  } catch (err) {
+    return galat(err);
+  }
+}
+
+const skemaSarana = z.discriminatedUnion("aksi", [
+  z.object({
+    aksi: z.literal("pasangkan"),
+    locationId: z.uuid(),
+    kawalItemId: z.coerce.number().int(),
+    lineageKey: z.string().min(1),
+  }),
+  z.object({ aksi: z.literal("tidak_ada"), locationId: z.uuid(), kawalItemId: z.coerce.number().int() }),
+  z.object({ aksi: z.literal("kembalikan"), locationId: z.uuid(), kawalItemId: z.coerce.number().int() }),
+]);
+
+/**
+ * Pasangan sarana Kawal ↔ kelompok RAB MARLIN di satu lokasi (DECISIONS 694).
+ * `kembalikan` menghapus keputusan orang – sarananya kembali ke usulan otomatis.
+ */
+export async function petaSaranaKawalAction(_prev: KawalAksiState, formData: FormData): Promise<KawalAksiState> {
+  const p = skemaSarana.safeParse({
+    aksi: formData.get("aksi"),
+    locationId: formData.get("locationId"),
+    kawalItemId: formData.get("kawalItemId"),
+    lineageKey: formData.get("lineageKey") || undefined,
+  });
+  if (!p.success) {
+    return {
+      error:
+        formData.get("aksi") === "pasangkan" && !formData.get("lineageKey")
+          ? "Pilih kelompok RAB-nya dulu."
+          : "Isian tidak dikenali. Muat ulang halaman, lalu coba lagi.",
+    };
+  }
+  const d = p.data;
+  try {
+    const user = await requireCapability("kawal.manage");
+    const lokasi = await db.location.findFirst({
+      where: { id: d.locationId, package: { orgId: user.orgId } },
+      select: { id: true, slug: true, kawalMap: { select: { kawalId: true, status: true } } },
+    });
+    if (!lokasi) return { error: "Lokasi tidak ditemukan." };
+    await requireLocationAccess(user, lokasi.id);
+    if (!lokasi.kawalMap || lokasi.kawalMap.status === "bukan_marlin") {
+      return { error: "Lokasi ini belum berpasangan dengan Kawal." };
+    }
+
+    // Sarana harus ada di tarikan TERBARU lokasi Kawal pasangannya.
+    const terbaru = await db.kawalLocationSnapshot.findFirst({
+      where: { kawalId: lokasi.kawalMap.kawalId },
+      orderBy: { snapshot: { capturedAt: "desc" } },
+      select: { sarana: { where: { kawalItemId: d.kawalItemId }, select: { nama: true }, take: 1 } },
+    });
+    const sarana = terbaru?.sarana[0];
+    if (!sarana) return { error: "Sarana ini tidak ada lagi di data Kawal terbaru. Muat ulang halaman." };
+
+    const kunci = { locationId_kawalItemId: { locationId: lokasi.id, kawalItemId: d.kawalItemId } };
+    const sebelum = await db.kawalSaranaMap.findUnique({ where: kunci, select: { status: true, lineageKey: true } });
+    const selesai = async (pesan: string) => {
+      await audit(user.id, "kawal.peta_sarana", "location", lokasi.id, {
+        aksi: d.aksi,
+        kawalItemId: d.kawalItemId,
+        lineageKey: d.aksi === "pasangkan" ? d.lineageKey : null,
+        sebelum,
+      });
+      revalidatePath(`/lokasi/${lokasi.slug}/kawal`);
+      return { success: pesan };
+    };
+
+    if (d.aksi === "pasangkan") {
+      const kelompok = await db.rabNode.findFirst({
+        where: { lineageKey: d.lineageKey, parentId: null, revision: { locationId: lokasi.id, status: "aktif" } },
+        select: { name: true },
+      });
+      if (!kelompok) return { error: "Kelompok itu tidak ada di RAB aktif lokasi ini." };
+      await db.kawalSaranaMap.upsert({
+        where: kunci,
+        create: {
+          locationId: lokasi.id,
+          kawalItemId: d.kawalItemId,
+          status: "dikonfirmasi",
+          lineageKey: d.lineageKey,
+          decidedById: user.id,
+        },
+        update: { status: "dikonfirmasi", lineageKey: d.lineageKey, decidedById: user.id },
+      });
+      return selesai(`${sarana.nama} dipasangkan dengan ${kelompok.name}.`);
+    }
+
+    if (d.aksi === "tidak_ada") {
+      await db.kawalSaranaMap.upsert({
+        where: kunci,
+        create: { locationId: lokasi.id, kawalItemId: d.kawalItemId, status: "tidak_ada", decidedById: user.id },
+        update: { status: "tidak_ada", lineageKey: null, decidedById: user.id },
+      });
+      return selesai(`${sarana.nama} ditandai tidak ada padanannya di RAB.`);
+    }
+
+    if (!sebelum) return { error: "Sarana ini belum pernah diputuskan." };
+    await db.kawalSaranaMap.delete({ where: kunci });
+    return selesai(`Keputusan untuk ${sarana.nama} dihapus. Kembali ke usulan otomatis.`);
+  } catch (err) {
+    return galat(err);
+  }
+}
+
+/** "7,5" dan "7.5" sama-sama dibaca 7,5 – orang Indonesia menulis koma. */
+const angkaPp = z.preprocess(
+  (v) => (typeof v === "string" ? Number(v.trim().replace(",", ".")) : v),
+  z.number(),
+);
+
+/** Ambang selisih MARLIN vs Kawal – dipakai layar Kawal DAN aturan EWS `selisih_kawal` (DECISIONS 694). */
+export async function ambangKawalAction(_prev: KawalAksiState, formData: FormData): Promise<KawalAksiState> {
+  const p = z
+    .object({ tinggiPp: angkaPp, kritisPp: angkaPp })
+    .safeParse({ tinggiPp: formData.get("tinggiPp"), kritisPp: formData.get("kritisPp") });
+  if (!p.success || !ambangSah(p.data)) {
+    return { error: "Isi dua angka: ambang tinggi lebih dari 0, ambang kritis lebih besar dari ambang tinggi, paling besar 100." };
+  }
+  try {
+    const user = await requireCapability("kawal.manage");
+    const sebelum = await getAmbangKawal();
+    await setAmbangKawal(p.data);
+    await audit(user.id, "kawal.ambang", "system", null, { sebelum, sesudah: p.data });
+    revalidatePath("/kawal");
+    revalidatePath("/kawal/pencocokan");
+    revalidatePath("/perlu-tindakan");
+    return {
+      success: `Ambang disimpan: tinggi ${formatAmbangPp(p.data.tinggiPp)}, kritis ${formatAmbangPp(p.data.kritisPp)}.`,
+    };
   } catch (err) {
     return galat(err);
   }

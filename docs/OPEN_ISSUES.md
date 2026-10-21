@@ -79,9 +79,11 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   tab Kawal KNMP satu lokasi dengan angka Relatif di layar Kawal, ATAU uji sambungan
   berikutnya menunjukkan Relatif = rasio terhadap rencana → tetapkan field-nya →
   tampilkan di tab dan strip atas.
-- 🟢 **KAWAL-TAHAP-4 — per sarana + EWS belum ada.** Sarana Kawal belum dipasangkan
-  dengan kelompok RAB MARLIN (`progresKelompokPerTanggal`), dan aturan EWS
-  `selisih_kawal` (5/10 pp, ambang lewat AppSetting) belum dibuat (DECISIONS 689).
+- 🟢 **KAWAL-SARANA — makna progres per sarana Kawal belum terbukti.** Tabel per
+  sarana (DECISIONS 694) menampilkan angka sarana Kawal apa adanya dan selisihnya
+  tanpa warna, karena Σ bobot × progres sarana belum terbukti sama dengan
+  `progres_final`. FIX: uji sambungan berikutnya (sudah menghitung Σ bobot × progres
+  ÷ 100 dan ÷ Σ bobot) menunjukkan hubungannya → tetapkan maknanya → beri tingkat.
 
 ## Security
 

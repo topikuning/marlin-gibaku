@@ -3,9 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useAksi } from "@/lib/aksi-klien";
-import { Banner, Button, Combobox } from "@/components/ui";
+import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import type { ComboOption } from "@/components/ui/combobox";
-import { petaKawalAction, sinkronKawalAction, type KawalAksiState } from "@/lib/kawal/peta-actions";
+import {
+  ambangKawalAction,
+  petaKawalAction,
+  sinkronKawalAction,
+  type KawalAksiState,
+} from "@/lib/kawal/peta-actions";
 
 /**
  * Pesan hasil di tingkat HALAMAN. Baris yang baru dipasangkan langsung pindah
@@ -107,6 +112,31 @@ export function FormPasangkan({
         </Button>
       </div>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
+    </form>
+  );
+}
+
+/** Ambang selisih tinggi/kritis (pp). Angka awal = yang berlaku sekarang. */
+export function FormAmbang({ tinggiPp, kritisPp }: { tinggiPp: number; kritisPp: number }) {
+  const [state, aksi, sibuk] = useAksi<KawalAksiState>(ambangKawalAction, undefined);
+  const tulis = (n: number) => n.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+  return (
+    <form action={aksi} className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-36">
+          <Label htmlFor="ambang-tinggi">Tinggi mulai (pp)</Label>
+          <Input id="ambang-tinggi" name="tinggiPp" inputMode="decimal" defaultValue={tulis(tinggiPp)} required />
+        </div>
+        <div className="w-36">
+          <Label htmlFor="ambang-kritis">Kritis mulai (pp)</Label>
+          <Input id="ambang-kritis" name="kritisPp" inputMode="decimal" defaultValue={tulis(kritisPp)} required />
+        </div>
+        <Button type="submit" variant="secondary" loading={sibuk}>
+          Simpan ambang
+        </Button>
+      </div>
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
     </form>
   );
 }

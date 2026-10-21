@@ -11,9 +11,21 @@
  * progres Kawal dari tarikan terbaru, tanpa syarat bertahan sekian minggu.
  */
 
-/** Ambang brief 2026-10-18: |selisih| ≥ 5 pp tinggi, ≥ 10 pp kritis. */
-export const AMBANG_TINGGI_PP = 5;
-export const AMBANG_KRITIS_PP = 10;
+export type AmbangSelisih = { tinggiPp: number; kritisPp: number };
+
+/**
+ * Ambang brief 2026-10-18: |selisih| ≥ 5 pp tinggi, ≥ 10 pp kritis. Bisa
+ * diganti lewat AppSetting (`lib/kawal/setelan.ts`, DECISIONS 694); ini
+ * nilainya bila belum pernah diatur.
+ */
+export const AMBANG_BAWAAN: AmbangSelisih = { tinggiPp: 5, kritisPp: 10 };
+
+/** Ambang sah: 0 < tinggi < kritis ≤ 100. */
+export function ambangSah(a: AmbangSelisih): boolean {
+  return (
+    Number.isFinite(a.tinggiPp) && Number.isFinite(a.kritisPp) && a.tinggiPp > 0 && a.tinggiPp < a.kritisPp && a.kritisPp <= 100
+  );
+}
 
 export type TingkatSelisih = "wajar" | "tinggi" | "kritis" | "tidak_dinilai";
 export type ArahSelisih = "marlin_lebih_tinggi" | "kawal_lebih_tinggi" | "sama";
@@ -34,6 +46,7 @@ export function bandingkanProgres(
   marlinPct: number | null,
   kawalPct: number | null,
   mingguKawal: number | null,
+  ambang: AmbangSelisih = AMBANG_BAWAAN,
 ): Perbandingan {
   if (marlinPct == null || kawalPct == null || !Number.isFinite(marlinPct) || !Number.isFinite(kawalPct)) {
     return { selisihPp: null, arah: null, tingkat: "tidak_dinilai" };
@@ -43,7 +56,7 @@ export function bandingkanProgres(
     Math.abs(selisihPp) < 0.005 ? "sama" : selisihPp > 0 ? "marlin_lebih_tinggi" : "kawal_lebih_tinggi";
   if (mingguKawal == null || mingguKawal < 1) return { selisihPp, arah, tingkat: "tidak_dinilai" };
   const besar = Math.abs(selisihPp);
-  const tingkat: TingkatSelisih = besar >= AMBANG_KRITIS_PP ? "kritis" : besar >= AMBANG_TINGGI_PP ? "tinggi" : "wajar";
+  const tingkat: TingkatSelisih = besar >= ambang.kritisPp ? "kritis" : besar >= ambang.tinggiPp ? "tinggi" : "wajar";
   return { selisihPp, arah, tingkat };
 }
 
@@ -72,12 +85,16 @@ export const TONE_TINGKAT: Record<TingkatSelisih, "success" | "warning" | "dange
   tidak_dinilai: "neutral",
 };
 
-export const LABEL_TINGKAT: Record<TingkatSelisih, string> = {
-  wajar: "Wajar",
-  tinggi: `Selisih ≥ ${AMBANG_TINGGI_PP} pp`,
-  kritis: `Selisih ≥ ${AMBANG_KRITIS_PP} pp`,
-  tidak_dinilai: "Belum dinilai",
-};
+/** "5 pp" / "7,5 pp" – angka ambang untuk dibaca orang. */
+export function formatAmbangPp(pp: number): string {
+  return `${pp.toLocaleString("id-ID", { maximumFractionDigits: 2 })} pp`;
+}
+
+export function labelTingkat(t: TingkatSelisih, ambang: AmbangSelisih = AMBANG_BAWAAN): string {
+  if (t === "tinggi") return `Selisih ≥ ${formatAmbangPp(ambang.tinggiPp)}`;
+  if (t === "kritis") return `Selisih ≥ ${formatAmbangPp(ambang.kritisPp)}`;
+  return t === "wajar" ? "Wajar" : "Belum dinilai";
+}
 
 /** "+4,25 pp" / "−3,10 pp" – tanda selalu ditulis supaya arah terbaca dari angkanya. */
 export function formatSelisihPp(pp: number): string {

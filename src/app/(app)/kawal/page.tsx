@@ -7,8 +7,16 @@ import { db } from "@/lib/db";
 import { formatPct, formatTanggalWaktu } from "@/lib/format";
 import { idLokasiDiarsipkan } from "@/lib/package/lingkup-lokasi";
 import { getLocationsProgress } from "@/lib/progress";
-import { bandingkanProgres, formatSelisihPp, LABEL_ARAH, LABEL_TINGKAT, TONE_TINGKAT } from "@/lib/kawal/compare";
+import {
+  bandingkanProgres,
+  formatAmbangPp,
+  formatSelisihPp,
+  LABEL_ARAH,
+  labelTingkat,
+  TONE_TINGKAT,
+} from "@/lib/kawal/compare";
 import { kawalUntukLokasi, ringkasSinkronKawal } from "@/lib/kawal/queries";
+import { getAmbangKawal } from "@/lib/kawal/setelan";
 import { PerbandinganGrid, type BarisKawal } from "./perbandingan-grid";
 
 export const metadata: Metadata = { title: "Kawal KNMP" };
@@ -34,14 +42,18 @@ export default async function KawalPage() {
     : await idLokasiDiarsipkan(lokasiSemua.map((l) => l.id));
   const lokasi = lokasiSemua.filter((l) => !arsip.has(l.id));
 
-  const [kawalPer, sinkron] = await Promise.all([kawalUntukLokasi(lokasi.map((l) => l.id)), ringkasSinkronKawal()]);
+  const [kawalPer, sinkron, ambang] = await Promise.all([
+    kawalUntukLokasi(lokasi.map((l) => l.id)),
+    ringkasSinkronKawal(),
+    getAmbangKawal(),
+  ]);
   const berpasangan = lokasi.filter((l) => kawalPer.has(l.id));
   const progresPer = await getLocationsProgress(berpasangan.map((l) => l.id));
 
   const rows: BarisKawal[] = berpasangan.map((l) => {
     const k = kawalPer.get(l.id)!;
     const p = progresPer.get(l.id);
-    const b = bandingkanProgres(p?.realizedPct ?? null, k.actualPct, k.weekNo);
+    const b = bandingkanProgres(p?.realizedPct ?? null, k.actualPct, k.weekNo, ambang);
     return {
       slug: l.slug,
       lokasi: l.name,
@@ -51,8 +63,8 @@ export default async function KawalPage() {
       kawal: k.actualPct != null ? formatPct(k.actualPct, 2) : "–",
       selisih: b.selisihPp != null ? formatSelisihPp(b.selisihPp) : "–",
       urutSelisih: b.tingkat === "tidak_dinilai" || b.selisihPp == null ? -1 : Math.abs(b.selisihPp),
-      arah: b.tingkat === "tidak_dinilai" ? LABEL_TINGKAT.tidak_dinilai : b.arah ? LABEL_ARAH[b.arah] : "",
-      tingkat: LABEL_TINGKAT[b.tingkat],
+      arah: b.tingkat === "tidak_dinilai" ? labelTingkat(b.tingkat) : b.arah ? LABEL_ARAH[b.arah] : "",
+      tingkat: labelTingkat(b.tingkat, ambang),
       tone: TONE_TINGKAT[b.tingkat],
       minggu:
         k.weekNo != null
@@ -91,9 +103,14 @@ export default async function KawalPage() {
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Lokasi berpasangan" value={rows.length} sub={`dari ${lokasi.length} lokasi Anda`} />
-        <KpiCard label="Selisih ≥ 10 pp" value={kritis} sub="perlu ditanyakan" tone={kritis ? "danger" : "default"} />
         <KpiCard
-          label="Selisih 5–10 pp"
+          label={`Selisih ≥ ${formatAmbangPp(ambang.kritisPp)}`}
+          value={kritis}
+          sub="perlu ditanyakan"
+          tone={kritis ? "danger" : "default"}
+        />
+        <KpiCard
+          label={`Selisih ${ambang.tinggiPp.toLocaleString("id-ID")}–${formatAmbangPp(ambang.kritisPp)}`}
           value={tinggi}
           sub="perlu diperhatikan"
           tone={tinggi ? "warning" : "default"}

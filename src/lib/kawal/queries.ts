@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cocokkanLokasi, LABEL_BASIS, type BasisOtomatis, type Kandidat } from "./cocok";
+import type { SaranaKawalTampil } from "./sarana-cocok";
 import { lokasiUntukCocok } from "./sinkron";
 
 /**
@@ -241,7 +242,7 @@ export type KawalLokasiTerbaru = {
   remarkKondisiUmum: string | null;
   remarkHambatan: string | null;
   remarkSaranInstruksi: string | null;
-  sarana: { nama: string; jenis: string | null; bobot: number | null; progresPct: number | null }[];
+  sarana: SaranaKawalTampil[];
 };
 
 const angkaAtauNull = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
@@ -316,6 +317,7 @@ export async function kawalUntukLokasi(locationIds: string[]): Promise<Map<strin
       remarkHambatan: b.remarkHambatan,
       remarkSaranInstruksi: b.remarkSaranInstruksi,
       sarana: b.sarana.map((s) => ({
+        kawalItemId: s.kawalItemId,
         nama: s.nama,
         jenis: s.jenis,
         bobot: angkaAtauNull(s.bobot),

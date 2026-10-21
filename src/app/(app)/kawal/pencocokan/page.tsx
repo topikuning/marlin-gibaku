@@ -6,8 +6,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import { dataPencocokanKawal, ringkasSinkronKawal, type KandidatTampil, type LokasiPilihan } from "@/lib/kawal/queries";
-import { getAkunKawalTampil } from "@/lib/kawal/setelan";
-import { FormPasangkan, TombolKembalikan, TombolSinkron, UmpanBalikKawal } from "./pencocokan-client";
+import { getAkunKawalTampil, getAmbangKawal } from "@/lib/kawal/setelan";
+import { FormAmbang, FormPasangkan, TombolKembalikan, TombolSinkron, UmpanBalikKawal } from "./pencocokan-client";
 
 export const metadata: Metadata = { title: "Kawal KNMP – Pencocokan Lokasi" };
 export const dynamic = "force-dynamic";
@@ -52,16 +52,17 @@ function WilayahKawal({
 }
 
 /**
- * Sinkron + pencocokan lokasi Kawal KNMP (DECISIONS 690). Data Kawal di sini
- * hanya untuk MEMASANGKAN lokasi; perbandingan progresnya tahap berikutnya.
+ * Sinkron + pencocokan lokasi Kawal KNMP (DECISIONS 690) dan ambang selisihnya
+ * (DECISIONS 694). Data Kawal di sini hanya untuk MEMASANGKAN lokasi.
  */
 export default async function KawalPencocokanPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "kawal.manage");
-  const [akun, ringkas, data] = await Promise.all([
+  const [akun, ringkas, data, ambang] = await Promise.all([
     getAkunKawalTampil(),
     ringkasSinkronKawal(),
     dataPencocokanKawal(user.orgId),
+    getAmbangKawal(),
   ]);
   const akunSiap = !!(akun.alamat && akun.akun && akun.adaSandi);
   const t = ringkas.terakhir;
@@ -272,6 +273,16 @@ export default async function KawalPencocokanPage() {
             </CardBody>
           </Card>
         ) : null}
+
+        <Card>
+          <CardHeader
+            title="Ambang peringatan selisih"
+            subtitle="Berlaku untuk halaman Kawal KNMP dan Perlu Tindakan. Selisih dihitung MARLIN − Kawal, dinilai dari besarnya ke arah mana pun."
+          />
+          <CardBody>
+            <FormAmbang tinggiPp={ambang.tinggiPp} kritisPp={ambang.kritisPp} />
+          </CardBody>
+        </Card>
       </div>
     </UmpanBalikKawal>
   );
