@@ -309,7 +309,7 @@ export function ImportForm({
               preview.mode === "draft"
                 ? "RAB aktif, progres, kurva-S, dan keuangan tidak ikut berubah. Draft ini baru berlaku setelah diaktifkan lewat halaman Adendum."
                 : preview.isAdendum
-                  ? "Revisi baru akan menggantikan revisi aktif. Realisasi item yang sama otomatis tersambung, dan kurva-S dibuat ulang dengan bentuk yang sudah dipakai lokasi ini."
+                  ? "Revisi baru akan menggantikan revisi aktif. Realisasi item yang sama otomatis tersambung. Kurva-S tidak diubah – bobot mingguannya tetap seperti sekarang."
                   : "Revisi #1 akan dibuat. Kurva-S TIDAK langsung dibuat. Bentuknya Anda pilih setelah impor berhasil."
             }
           />
@@ -805,7 +805,7 @@ function AktifkanTanpaPersetujuan({
     <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
       <p className="font-semibold text-ink">Super admin utama: jadikan RAB aktif sekarang, tanpa persetujuan</p>
       <p className="text-ink">
-        Berkas ini akan jadi revisi #{revisionNo} dan langsung menggantikan RAB aktif. Kurva-S dibuat ulang. Persetujuan
+        Berkas ini akan jadi revisi #{revisionNo} dan langsung menggantikan RAB aktif. Kurva-S tidak diubah. Persetujuan
         Program Director dan Area/Project/Site Manager dilewati, dan tindakan ini tercatat di jejak audit atas nama Anda.
       </p>
       <label className="block text-ink" htmlFor="impor-tanpa-ttd">

@@ -38,7 +38,7 @@ export function PanelTanpaPersetujuan({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="font-semibold text-ink">Aktifkan revisi #{revisionNo} tanpa menunggu persetujuan</p>
       <p className="text-ink">
-        Pilihan ini hanya untuk super admin utama. RAB aktif sekarang langsung digantikan dan kurva-S dibuat ulang.
+        Pilihan ini hanya untuk super admin utama. RAB aktif sekarang langsung digantikan. Kurva-S tidak diubah.
         {kurang.length > 0 ? ` Yang dilewati: ${kurang.join(" + ")}.` : ""} Tindakan ini tercatat di jejak audit atas
         nama Anda.
       </p>

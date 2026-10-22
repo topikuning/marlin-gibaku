@@ -17,9 +17,9 @@ import {
   discardDraft,
   DraftTerpakaiError,
   gantiDraftLama,
-  profilBaselineAktif,
   regenerateBaseline,
 } from "@/lib/rab/import";
+import { kalimatKurvaAdendum, kurvaSesudahAdendum } from "@/lib/baseline";
 import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
@@ -1506,30 +1506,28 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
      * murah dan tidak ada ruginya: layar menawarkan tiga jalan (awal lambat,
      * optimalisasi pekerjaan, atau susun sendiri) lewat `pilihProfilKurvaAction`.
      *
-     * ADENDUM tetap regenerate OTOMATIS, tanpa bertanya, memakai profil yang
-     * sudah dipilih lokasi ini. Lokasi itu sudah punya kurva dan sudah punya
-     * pilihan; menanyakannya lagi di tiap adendum cuma gangguan, dan
-     * membiarkannya kosong justru menghapus rencana yang sedang dipakai
-     * menghitung deviasi.
+     * ADENDUM TIDAK MENGATUR ULANG KURVA-S (DECISIONS 698, ketetapan user
+     * 2026-10-22): bobot mingguan yang berlaku dibawa ke revisi baru apa
+     * adanya. Dulu di sini regenerate dengan profil lokasi, lalu layar
+     * mengatakan "bentuk rencananya tidak berubah" – padahal seluruh bobot
+     * mingguan, termasuk jadwal impor Excel, diganti hasil generator.
      */
-    // Bila regenerate baseline gagal, JANGAN jatuh ke catch generik ("Terjadi
+    // Bila baseline gagal diperbarui, JANGAN jatuh ke catch generik ("Terjadi
     // kesalahan saat impor") — user akan mengira impor batal padahal revisi
-    // sudah berganti dan kurva-S masih memakai baseline lama. Laporkan keadaan
-    // campuran itu apa adanya. Audit 2026-07-27, B17.
+    // sudah berganti. Laporkan keadaan campuran itu apa adanya. Audit
+    // 2026-07-27, B17.
     let baselineError: string | null = null;
-    let profilDipakai: BaselineProfil | null = null;
+    let kalimatKurva = "";
     if (isAdendum) {
       try {
-        profilDipakai = await profilBaselineAktif(location.id);
-        await regenerateBaseline(location.id, {
-          source: "adendum",
-          rabRevisionId: res.revisionId,
-          profil: profilDipakai,
-          note: `Regenerate otomatis (impor revisi #${res.revisionNo}, profil ${profilDipakai})`,
-          userId: user.id,
-        });
+        kalimatKurva = kalimatKurvaAdendum(
+          await kurvaSesudahAdendum(location.id, res.revisionId, {
+            userId: user.id,
+            asal: `impor revisi #${res.revisionNo}`,
+          }),
+        );
       } catch (e) {
-        console.error("[rab-import] regenerate baseline gagal (revisi sudah aktif):", e);
+        console.error("[rab-import] baseline gagal diperbarui (revisi sudah aktif):", e);
         baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
       }
     }
@@ -1544,8 +1542,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (baselineError) {
       return {
         error:
-          `Revisi RAB #${res.revisionNo} sudah aktif${lewatiPersetujuan ? " tanpa persetujuan" : ""}, tetapi kurva-S gagal dibuat ulang (${baselineError}). ` +
-          `Grafik dan deviasi masih memakai baseline lama. Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.` +
+          `Revisi RAB #${res.revisionNo} sudah aktif${lewatiPersetujuan ? " tanpa persetujuan" : ""}, tetapi kurva-S gagal disambungkan ke revisi ini (${baselineError}). ` +
+          `Grafik dan deviasi masih memakai kurva-S yang lama. Buka Progress › Kurva-S & Baseline untuk memeriksanya.` +
           kalimatRincian,
       };
     }
@@ -1561,8 +1559,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     return {
       success:
         `Revisi RAB #${res.revisionNo} (adendum) aktif, berisi ${res.itemCount} item. ` +
-        `Baseline kurva-S dibuat ulang dengan bentuk ${PROFIL_KURVA_LABEL[profilDipakai ?? "lambat"].toLowerCase()}, ` +
-        `sama dengan yang sudah dipakai lokasi ini, jadi bentuk rencananya tidak berubah.${carryInfo}` +
+        `${kalimatKurva}${carryInfo}` +
         kataTanpaPersetujuan +
         kalimatRincian,
     };

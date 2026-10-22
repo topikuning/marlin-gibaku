@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 698 | 2026-10-22 | Aktivasi adendum RAB (tombol lokasi, impor "jadikan RAB aktif", CCO paket) tidak lagi mengatur ulang kurva-S: baseline dibawa ke revisi baru apa adanya (titik, matriks mingguan, asal-usul, profil); pekerjaan baru dari adendum berbaris nol dan disebut; penyesuaian jadwal lewat Perbarui Kurva-S/Hitung ulang. Lokasi tanpa baseline tetap dibuatkan; lokasi yang masuk lewat CCO tetap mulai minggu berlakunya (527). Mengubah 027 butir 3 |
 | 697 | 2026-10-22 | Pindah tanggal laporan harian (`daily_report.move_date`) dibuka untuk Program Director, Area Manager, Project Manager (semula super admin saja, DECISIONS 415); Site Manager tidak; membuka laporan final untuk mengubah isi tetap super admin saja |
 | 696 | 2026-10-22 | Foto susulan: pekerjaan yang belum punya foto boleh diberi foto walau laporan sudah dikirim/disetujui/final (semua pelapor lokasi), lewat unggah langsung dan Foto Cepat; ditandai `Photo.addedAfterSubmitAt`, diberi keterangan di layar, ter-audit; pekerjaan yang sudah berfoto tetap terkunci; foto susulan boleh dihapus pengunggah/SM/SA, foto asli tidak; salinan Drive dibuang saat dihapus. Membalik sebagian aturan 28 Juli |
 | 695 | 2026-10-22 | Parser Kawal: daftar `sarpras` diparse per sarana (bukan `z.union`) supaya masalah menyebut sarana ke berapa, field-nya, dan tipe yang diterima (tanpa nilai); bentuk yang isinya sama diterima: objek berkunci nomor (array PHP bolong), teks JSON berisi daftar, teks kosong. Kebijakan "satu baris rusak = tarikan ditolak" tetap |

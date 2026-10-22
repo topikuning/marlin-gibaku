@@ -1725,8 +1725,31 @@ export async function addAmendment(
 
   const bagian: string[] = [`Adendum ${hasil.ccoNumber} berlaku.`];
   if (hasil.dicatat > 0) bagian.push(`${hasil.dicatat} perubahan yang sudah berlaku kini bernomor CCO ini.`);
-  if (hasil.revisi.length > 0)
-    bagian.push(`${hasil.revisi.length} draft revisi RAB diaktifkan, kurva-S dibuat ulang.`);
+  if (hasil.revisi.length > 0) {
+    // Kurva-S lokasi TIDAK diatur ulang (DECISIONS 698) – yang dikatakan
+    // adalah yang terjadi per lokasi, bukan satu kalimat untuk semua.
+    const dibawa = hasil.revisi.filter((r) => r.kurva?.cara === "dibawa");
+    const dibuat = hasil.revisi.filter((r) => r.kurva?.cara === "dibuat");
+    const masuk = hasil.revisi.filter((r) => r.kurva === null && !hasil.baselineGagal.includes(r.locationName));
+    bagian.push(`${hasil.revisi.length} draft revisi RAB diaktifkan.`);
+    if (dibawa.length > 0)
+      bagian.push(
+        `Kurva-S ${dibawa.length === hasil.revisi.length ? "lokasinya" : dibawa.map((r) => r.locationName).join(", ")} ` +
+          `tidak diubah – bobot mingguannya sama dengan sebelum adendum. Kalau jadwalnya ikut berubah, perbarui ` +
+          `lewat Progress › Perbarui Kurva-S di lokasi masing-masing.`,
+      );
+    const tanpaJadwal = hasil.revisi.flatMap((r) =>
+      r.kurva?.cara === "dibawa" && r.kurva.pekerjaanBaru.length > 0
+        ? [`${r.locationName} (${r.kurva.pekerjaanBaru.length})`]
+        : [],
+    );
+    if (tanpaJadwal.length > 0)
+      bagian.push(`Pekerjaan baru yang belum punya jadwal di kurva-S: ${tanpaJadwal.join(", ")}.`);
+    if (dibuat.length > 0)
+      bagian.push(`Kurva-S dibuat dari RAB baru di ${dibuat.map((r) => r.locationName).join(", ")} – belum punya kurva-S sebelumnya.`);
+    if (masuk.length > 0)
+      bagian.push(`Kurva-S ${masuk.map((r) => r.locationName).join(", ")} dibuat ulang mulai minggu berlakunya.`);
+  }
   if (hasil.lingkup > 0) bagian.push(`${hasil.lingkup} perubahan lokasi diberlakukan.`);
   if (hasil.valueDelta !== hasil.valueDeltaRab)
     bagian.push(
@@ -1745,8 +1768,8 @@ export async function addAmendment(
     return {
       error:
         bagian.join(" ") +
-        ` Tetapi kurva-S GAGAL dibuat ulang di ${hasil.baselineGagal.join(", ")} – buka tab Kurva-S lokasinya ` +
-        `lalu tekan "Hitung ulang kurva-S".`,
+        ` Tetapi kurva-S GAGAL diperbarui di ${hasil.baselineGagal.join(", ")} – buka Progress › Kurva-S & Baseline ` +
+        `di lokasinya untuk memeriksanya.`,
     };
   return { success: bagian.join(" ") };
 }

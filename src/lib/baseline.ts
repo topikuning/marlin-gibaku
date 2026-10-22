@@ -5,7 +5,13 @@ import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { gabungKurvaS, ikutKurvaPaket, weekOfDate, type KurvaLokasi, type KurvaPaket } from "@/lib/progress-calc";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
-import { PROFIL_BASELINE_BAWAAN, contractDaysFor, profilBaselineAktif, totalWeeksFor } from "@/lib/rab/import";
+import {
+  PROFIL_BASELINE_BAWAAN,
+  contractDaysFor,
+  profilBaselineAktif,
+  regenerateBaseline,
+  totalWeeksFor,
+} from "@/lib/rab/import";
 import { rebucketWeeklyToGrid,
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
@@ -808,6 +814,173 @@ export async function restoreBaseline(baselineId: string, userId: string) {
     baselineNo: baseline.baselineNo,
   });
   return { baselineNo: baseline.baselineNo, locationId: src.locationId, unchanged: false as const };
+}
+
+/* ── Adendum RAB: kurva-S TIDAK diatur ulang (DECISIONS 698) ─────────────────
+   Ketetapan user 2026-10-22: *"kurva s setelah aktivasi rab adendum,
+   seharusnya tidak berubah bobot mingguannya dari sebelumnya"*.
+
+   Dulu ketiga pintu aktivasi adendum memanggil `regenerateBaseline`, jadi
+   jadwal yang diimpor dari Excel atau disusun orang dibuang dan diganti hasil
+   generator – termasuk minggu-minggu yang sudah dilaporkan. Sekarang baseline
+   yang berlaku DIBAWA ke revisi baru apa adanya: titik kurva dan matriks
+   mingguan sama persis, asal-usul & profilnya ikut. Menyesuaikan jadwal ke
+   adendum adalah langkah yang DIMINTA orang (Perbarui Kurva-S / Hitung ulang),
+   bukan efek samping aktivasi.
+
+   Satu-satunya tambahan: pekerjaan yang baru lahir dari adendum diberi baris
+   NOL. Tanpa baris itu, editor & tabel KKP menolak matriks tersimpan (tidak
+   meliput seluruh kategori RAB aktif) lalu jatuh ke jadwal otomatis, sementara
+   kurvanya tetap dari titik tersimpan – satu dokumen, dua rencana (G-1). */
+
+export type KurvaSesudahAdendum =
+  | {
+      /** Baseline yang berlaku dibawa ke revisi baru tanpa perubahan. */
+      cara: "dibawa";
+      baselineNo: number;
+      dariBaselineNo: number;
+      /** Nama pekerjaan baru dari adendum yang belum punya jadwal (baris nol). */
+      pekerjaanBaru: string[];
+    }
+  | {
+      /** Lokasi belum punya kurva-S – tidak ada yang bisa dipertahankan. */
+      cara: "dibuat";
+      baselineNo: number;
+    };
+
+/**
+ * Bawa baseline aktif lokasi ke revisi RAB yang baru diaktifkan lewat adendum.
+ * `null` = lokasi belum punya baseline aktif.
+ */
+export async function bawaBaselineKeRevisi(
+  locationId: string,
+  revisionId: string,
+  o: { userId: string; note: string },
+): Promise<Extract<KurvaSesudahAdendum, { cara: "dibawa" }> | null> {
+  const lama = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    include: {
+      points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
+      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, weekly: true } },
+    },
+  });
+  if (!lama) return null;
+  if (lama.rabRevisionId === revisionId) {
+    return { cara: "dibawa", baselineNo: lama.baselineNo, dariBaselineNo: lama.baselineNo, pekerjaanBaru: [] };
+  }
+
+  // Baris nol hanya untuk baseline yang memang bermatriks; baseline lama yang
+  // cuma punya titik tetap cuma punya titik.
+  const sudahAda = new Set(lama.scheduleItems.map((s) => s.lineageKey));
+  const baru =
+    lama.scheduleItems.length === 0
+      ? []
+      : await db.rabNode.findMany({
+          where: { revisionId, kind: "kategori", amount: { gt: 0n }, lineageKey: { notIn: [...sudahAda] } },
+          select: { lineageKey: true, name: true },
+          orderBy: { sortOrder: "asc" },
+        });
+  const panjang = asWeekly(lama.scheduleItems[0]?.weekly).length || lama.points.length;
+
+  const created = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({ where: { locationId }, _max: { baselineNo: true } });
+    const created = await tx.baseline.create({
+      data: {
+        locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        // Asal-usul & profil DIPERTAHANKAN (pola konversi mode minggu): jadwal
+        // impor Excel tetap tercatat dari sumbernya, bukan menyamar "adendum".
+        source: lama.source,
+        profil: lama.profil,
+        status: "aktif",
+        rabRevisionId: revisionId,
+        contractDays: lama.contractDays,
+        note: o.note,
+        createdById: o.userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: lama.points.map((p) => ({ baselineId: created.id, weekNumber: p.weekNumber, plannedPct: p.plannedPct })),
+    });
+    if (lama.scheduleItems.length > 0) {
+      await tx.baselineScheduleItem.createMany({
+        data: [
+          ...lama.scheduleItems.map((s) => ({
+            baselineId: created.id,
+            lineageKey: s.lineageKey,
+            name: s.name,
+            weightPct: s.weightPct,
+            weekly: s.weekly as Prisma.InputJsonValue,
+          })),
+          ...baru.map((k) => ({
+            baselineId: created.id,
+            lineageKey: k.lineageKey,
+            name: k.name,
+            weightPct: 0,
+            weekly: new Array<number>(panjang).fill(0),
+          })),
+        ],
+      });
+    }
+    return created;
+  });
+  await audit(o.userId, "baseline.bawa_adendum", "baseline", created.id, {
+    locationId,
+    rabRevisionId: revisionId,
+    dariBaselineId: lama.id,
+    dariBaselineNo: lama.baselineNo,
+    baselineNo: created.baselineNo,
+    pekerjaanBaru: baru.length,
+  });
+  return {
+    cara: "dibawa",
+    baselineNo: created.baselineNo,
+    dariBaselineNo: lama.baselineNo,
+    pekerjaanBaru: baru.map((k) => k.name),
+  };
+}
+
+/**
+ * Kurva-S sesudah revisi adendum diaktifkan – SATU pintu untuk tombol
+ * Aktifkan, impor "jadikan RAB aktif", dan aktivasi CCO di paket.
+ * Lokasi tanpa baseline baru dibuatkan dari RAB barunya (perilaku lama).
+ */
+export async function kurvaSesudahAdendum(
+  locationId: string,
+  revisionId: string,
+  o: { userId: string; asal: string },
+): Promise<KurvaSesudahAdendum> {
+  const dibawa = await bawaBaselineKeRevisi(locationId, revisionId, {
+    userId: o.userId,
+    note: `Bobot mingguan tidak diubah (${o.asal})`,
+  });
+  if (dibawa) return dibawa;
+  const b = await regenerateBaseline(locationId, {
+    source: "adendum",
+    rabRevisionId: revisionId,
+    note: `Dibuat dari RAB adendum (${o.asal}) – lokasi belum punya kurva-S`,
+    userId: o.userId,
+  });
+  return { cara: "dibuat", baselineNo: b.baselineNo };
+}
+
+/** Kalimat layar untuk hasil `kurvaSesudahAdendum`. */
+export function kalimatKurvaAdendum(k: KurvaSesudahAdendum): string {
+  if (k.cara === "dibuat") return "Lokasi ini belum punya kurva-S, jadi kurvanya dibuat dari RAB baru.";
+  const n = k.pekerjaanBaru.length;
+  const baru =
+    n > 0
+      ? ` ${n} pekerjaan baru dari adendum belum punya jadwal di kurva-S: ` +
+        `${k.pekerjaanBaru.slice(0, 3).join(", ")}${n > 3 ? `, +${n - 3} lainnya` : ""}.`
+      : "";
+  return (
+    `Kurva-S tidak diubah – bobot mingguannya sama dengan sebelum adendum.${baru}` +
+    ` Kalau jadwalnya ikut berubah, perbarui lewat Progress › Perbarui Kurva-S.`
+  );
 }
 
 export type ScurveSeries = {
