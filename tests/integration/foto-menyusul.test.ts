@@ -209,11 +209,28 @@ describe("KASUS INTI: menambah foto tidak menyentuh angka", () => {
 });
 
 describe("gerbang & penolakan", () => {
-  it("laporan DIKIRIM: ditolak – bukti sudah jadi dasar verifikasi", async () => {
+  /*
+   * Dulu: laporan DIKIRIM menolak foto apa pun ("bukti sudah jadi dasar
+   * verifikasi", 28 Juli). Permintaan user 2026-10-22 membuka SATU celah:
+   * pekerjaan yang belum punya foto sama sekali boleh diberi foto SUSULAN
+   * (DECISIONS 696). Pekerjaan yang sudah berfoto tetap terkunci.
+   */
+  it("laporan DIKIRIM, pekerjaan BELUM berfoto: boleh, sebagai foto susulan", async () => {
     await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
     const hasil = await tambah([berkas()]);
-    expect(hasil?.error).toMatch(/sudah dikirim/i);
+    expect(hasil?.success).toBe("1 foto susulan ditambahkan.");
+    expect(panggilan[0]?.susulanAt).toBeInstanceOf(Date);
+  });
+
+  it("laporan DIKIRIM, pekerjaan SUDAH berfoto: ditolak – bukti yang diperiksa tidak ditambah", async () => {
+    const ada = await db.photo.create({
+      data: { locationId, reportId, reportItemId: itemId, r2Key: `uji/${suffix}/ada.webp`, sha256: `${suffix}-ada`, bytes: 1 },
+    });
+    await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
+    const hasil = await tambah([berkas()]);
+    expect(hasil?.error).toMatch(/sudah punya foto/i);
     expect(panggilan).toHaveLength(0);
+    await db.photo.delete({ where: { id: ada.id } });
   });
 
   it("PERLU KOREKSI: boleh – memang untuk diperbaiki", async () => {

@@ -268,6 +268,8 @@ export type SavePhotoInput = {
   reportMaterialId?: string | null;
   reportEquipmentId?: string | null;
   activityId?: string | null;
+  /** Foto SUSULAN ke laporan yang sudah dikirim (DECISIONS 696): waktu penempelannya. */
+  susulanAt?: Date | null;
   file: File;
   userId: string;
   locationSlug: string;
@@ -528,6 +530,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     reportMaterialId: input.reportMaterialId ?? null,
     reportEquipmentId: input.reportEquipmentId ?? null,
     activityId: input.activityId ?? null,
+    addedAfterSubmitAt: input.susulanAt ?? null,
     sha256,
     exifTakenAt: takenAt,
     stampPhotoId: photoId,
@@ -1001,6 +1004,8 @@ export type PhotoView = {
   reportEquipmentId?: string | null;
   /** Pengunggah — dipakai UI untuk memutuskan siapa boleh menghapus. */
   uploadedById?: string | null;
+  /** Foto SUSULAN: ISO waktu ditempel ke laporan yang sudah dikirim (DECISIONS 696). */
+  susulanAt?: string | null;
   thumbUrl?: string;
   fullUrl?: string;
   takenAt: string | null; // ISO
@@ -1016,6 +1021,7 @@ type PhotoRow = {
   reportMaterialId?: string | null;
   reportEquipmentId?: string | null;
   uploadedById?: string | null;
+  addedAfterSubmitAt?: Date | null;
   exifTakenAt?: Date | null;
   exifGpsLat?: { toString(): string } | null;
   exifGpsLng?: { toString(): string } | null;
@@ -1057,6 +1063,7 @@ export async function buildPhotoViews(photos: PhotoRow[], expiresIn = 300): Prom
       reportMaterialId: p.reportMaterialId ?? null,
       reportEquipmentId: p.reportEquipmentId ?? null,
       uploadedById: p.uploadedById ?? null,
+      susulanAt: p.addedAfterSubmitAt ? p.addedAfterSubmitAt.toISOString() : null,
       thumbUrl: thumbUrl ?? fullUrl,
       fullUrl,
       takenAt: p.exifTakenAt ? p.exifTakenAt.toISOString() : null,

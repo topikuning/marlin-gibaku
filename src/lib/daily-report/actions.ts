@@ -18,8 +18,9 @@ import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photo
 import { isR2Configured } from "@/lib/r2";
 import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
-import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
+import type { DailyReportStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
+import { izinHapusFotoLaporan, izinTambahFotoItem, PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN } from "./foto-susulan";
 import { bacaKendalaKirim } from "./kirim-kendala";
 import { ALASAN_NIHIL, judulKendalaDariNihil } from "./nihil";
 import {
@@ -392,6 +393,8 @@ async function unggahFotoItem(p: {
   dateKey: string;
   files: File[];
   foto: PhotoFields;
+  /** Foto susulan ke laporan yang sudah dikirim (DECISIONS 696). */
+  susulanAt?: Date | null;
 }): Promise<string[]> {
   const { files, foto, location, user } = p;
   const photoErrors: string[] = [];
@@ -459,6 +462,7 @@ async function unggahFotoItem(p: {
         locationId: location.id,
         reportId: p.reportId,
         reportItemId: p.itemId,
+        susulanAt: p.susulanAt ?? null,
         file,
         userId: user.id,
         locationSlug: location.slug,
@@ -613,6 +617,29 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
 }
 
 /**
+ * Jejak foto susulan + salinan Drive (DECISIONS 696). Laporan FINAL sudah
+ * (atau akan) naik ke Google Drive; unggahannya diantre ulang supaya fotonya
+ * ikut. Laporan yang belum final belum pernah naik, jadi tidak ada yang perlu
+ * diantre. Kiriman WhatsApp yang sudah terkirim tidak diulang.
+ */
+async function catatFotoSusulan(
+  userId: string,
+  ctx: { id: string; status: DailyReportStatus },
+  itemId: string,
+  jumlah: number,
+): Promise<void> {
+  await audit(userId, "daily_report.photo_late_add", "daily_report", ctx.id, {
+    itemId,
+    jumlah,
+    status: ctx.status,
+  });
+  if (ctx.status === "final") {
+    const { antrekanLaporanHarian } = await import("@/lib/gdrive/antrean");
+    await antrekanLaporanHarian(ctx.id);
+  }
+}
+
+/**
  * Tambah foto MENYUSUL ke item yang sudah tersimpan (DECISIONS 226).
  *
  * Permintaan user 2026-08-02: *"jika pekerjaan berhasil disimpan, tapi foto
@@ -647,20 +674,20 @@ export async function addItemPhotosAction(
 
     const ctx = await loadReportContext(d.reportId);
     await requireLocationAccess(user, ctx.locationId);
-    // Batas yang sama dengan hapus foto: begitu laporan dikirim, fotonya sudah
-    // jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
-    if (!EDITABLE_STATUSES.includes(ctx.status)) {
-      return { error: "Laporan sudah dikirim, jadi foto tidak bisa ditambah lagi." };
-    }
 
     const item = await db.dailyReportItem.findFirst({
       where: { id: d.itemId, reportId: ctx.id },
-      select: { id: true, rabNodeId: true },
+      select: { id: true, rabNodeId: true, _count: { select: { photos: true } } },
     });
     if (!item) return { error: "Item tidak ditemukan di laporan ini." };
+    // Sesudah laporan dikirim, foto hanya boleh masuk ke pekerjaan yang belum
+    // punya foto sama sekali – sebagai foto SUSULAN (DECISIONS 696).
+    const izin = izinTambahFotoItem(ctx.status, item._count.photos);
+    if (!izin.boleh) return { error: izin.pesan };
 
     const { files, dibuang } = fotoDariForm(formData);
     if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
+    const susulanAt = izin.susulan ? new Date() : null;
 
     const { location, companyName, companyLogoKey } = await muatLokasiCap(ctx.locationId);
     const photoErrors = await unggahFotoItem({
@@ -674,6 +701,7 @@ export async function addItemPhotosAction(
       dateKey: ctx.dateKey,
       files,
       foto: d,
+      susulanAt,
     });
 
     const berhasil = files.length - photoErrors.length;
@@ -682,8 +710,9 @@ export async function addItemPhotosAction(
     if (berhasil === 0) {
       return { error: `Foto tidak tersimpan: ${[...new Set(photoErrors)].join("; ")}` };
     }
+    if (susulanAt) await catatFotoSusulan(user.id, ctx, item.id, berhasil);
     return {
-      success: `${berhasil} foto ditambahkan.`,
+      success: susulanAt ? `${berhasil} foto susulan ditambahkan.` : `${berhasil} foto ditambahkan.`,
       warning:
         [
           photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
@@ -727,15 +756,13 @@ export async function removeItemAction(_prev: DailyActionState, formData: FormDa
  * (`reportItemId = null`) — foto itu lalu tidak tampil di mana pun dan jadi
  * mustahil dibersihkan, baik dari layar maupun dari bucket.
  *
- * Aturan (keputusan user 28 Juli 2026):
- * - Hanya saat laporan masih DRAFT atau PERLU KOREKSI. Begitu dikirim, foto
- *   sudah jadi dasar verifikasi — mengubah bukti setelah itu bukan koreksi.
+ * Aturan (keputusan user 28 Juli 2026, diperluas DECISIONS 696):
+ * - Saat laporan masih DRAFT atau PERLU KOREKSI. Begitu dikirim, foto sudah
+ *   jadi dasar verifikasi — mengubah bukti setelah itu bukan koreksi. Satu
+ *   pengecualian: foto SUSULAN yang salah tempel (`izinHapusFotoLaporan`).
  * - Yang boleh: PENGUNGGAH foto itu sendiri, Site Manager, atau Super Admin.
  */
 const photoIdSchema = z.object({ photoId: z.uuid("Foto tidak valid.") });
-
-/** Peran yang boleh menghapus foto milik orang lain. */
-const PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN: UserRole[] = ["site_manager", "super_admin"];
 
 export async function removeReportPhotoAction(
   _prev: DailyActionState,
@@ -754,6 +781,8 @@ export async function removeReportPhotoAction(
         thumbnailKey: true,
         uploadedById: true,
         reportId: true,
+        addedAfterSubmitAt: true,
+        _count: { select: { evidenceLinks: true } },
         report: {
           select: {
             id: true,
@@ -768,12 +797,18 @@ export async function removeReportPhotoAction(
     if (!photo?.report) return { error: "Foto laporan tidak ditemukan." };
     await requireLocationAccess(user, photo.report.locationId);
 
-    if (!EDITABLE_STATUSES.includes(photo.report.status)) {
-      return { error: "Foto hanya bisa dihapus saat laporan berstatus Draft atau Perlu Koreksi." };
-    }
-    const miliknyaSendiri = photo.uploadedById !== null && photo.uploadedById === user.id;
-    if (!miliknyaSendiri && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role)) {
-      return { error: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa menghapus foto ini." };
+    const susulan = photo.addedAfterSubmitAt !== null;
+    const izin = izinHapusFotoLaporan({
+      status: photo.report.status,
+      susulan,
+      pengunggahId: photo.uploadedById,
+      user,
+    });
+    if (!izin.boleh) return { error: izin.pesan };
+    // Bukti yang sudah ditautkan pemeriksa ke temuan/inspeksi tidak boleh
+    // lenyap dari bawah tautannya (DECISIONS 426).
+    if (photo._count.evidenceLinks > 0) {
+      return { error: "Foto ini sudah dipakai sebagai bukti temuan atau inspeksi, jadi tidak bisa dihapus." };
     }
 
     // Baris dulu, objek belakangan: gagal hapus objek hanya menyisakan berkas
@@ -786,13 +821,30 @@ export async function removeReportPhotoAction(
           .map((k) => hapusBerkas(k).catch(() => {})),
       );
     }
+
+    // Foto susulan di laporan FINAL bisa sudah naik ke Drive: buang berkasnya
+    // dan ganti PDF-nya saja. Mengunggah ulang semua foto akan menggeser nomor
+    // urut nama berkas dan meninggalkan salinan ganda (DECISIONS 696).
+    let peringatanDrive: string | undefined;
+    if (susulan && photo.report.status === "final") {
+      const { buangFotoDariDrive } = await import("@/lib/gdrive/buang-foto");
+      const { antrekanPdfHarian } = await import("@/lib/gdrive/antrean");
+      const drive = await buangFotoDariDrive(photo.id);
+      await antrekanPdfHarian(photo.report.id);
+      if (drive.galat) {
+        peringatanDrive =
+          "Foto sudah dihapus dari MARLIN, tetapi salinannya di Google Drive gagal dibuang. Buang manual di folder Foto laporan itu.";
+      }
+    }
     await audit(user.id, "daily_report.photo_remove", "photo", photo.id, {
       reportId: photo.report.id,
       uploadedById: photo.uploadedById,
+      susulan,
+      status: photo.report.status,
     });
 
     revalidateReport(photo.report.location.slug, jakartaDateKey(photo.report.reportDate));
-    return { success: "Foto dihapus." };
+    return { success: susulan ? "Foto susulan dihapus." : "Foto dihapus.", warning: peringatanDrive };
   } catch (err) {
     return errState(err);
   }

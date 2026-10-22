@@ -52,7 +52,9 @@ const pemicu = (page: Page) =>
   page.getByRole("button", { name: /Salah tanggal\? Pindahkan laporan ini/ });
 
 test.describe("pindah tanggal laporan", () => {
-  test("hanya super admin yang melihat pintunya", async ({ page }) => {
+  // Super Admin + Project Manager ke atas (perintah user 2026-10-22, DECISIONS
+  // 697 – semula super admin saja). Site Manager tidak.
+  test("Super Admin dan Program Director melihat pintunya, Site Manager tidak", async ({ page }) => {
     const tgl = await (async () => {
       await masuk(page, "admin");
       return tanggalBerisi(page);
@@ -61,6 +63,15 @@ test.describe("pindah tanggal laporan", () => {
     await page.goto(`/lokasi/${LOKASI}/harian/${tgl}`);
     await expect(pemicu(page)).toBeVisible({ timeout: 20_000 });
 
+    {
+      const ctx = await page.context().browser()!.newContext();
+      const pd = await ctx.newPage();
+      await masuk(pd, "hery");
+      await pd.goto(`/lokasi/${LOKASI}/harian/${tgl}`);
+      await expect(pemicu(pd), "hery (Program Director)").toBeVisible({ timeout: 20_000 });
+      await ctx.close();
+    }
+
     /*
      * Peran lain: bukan sekadar tombolnya tidak terlihat – teksnya TIDAK BOLEH
      * ADA di halaman sama sekali. Menyembunyikan dengan CSS meninggalkan
@@ -68,7 +79,7 @@ test.describe("pindah tanggal laporan", () => {
      * sebenarnya tetap server action, tapi merender pintunya untuk orang yang
      * tidak boleh masuk cuma menghasilkan penolakan yang membingungkan.
      */
-    for (const user of ["hery", "sm-01"]) {
+    for (const user of ["sm-01"]) {
       const ctx = await page.context().browser()!.newContext();
       const p2 = await ctx.newPage();
       await masuk(p2, user);

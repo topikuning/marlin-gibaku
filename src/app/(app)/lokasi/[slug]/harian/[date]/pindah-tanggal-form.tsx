@@ -24,7 +24,8 @@ function ejaTanggal(v: string): string | null {
 }
 
 /**
- * PINDAHKAN LAPORAN KE TANGGAL LAIN — super admin saja (DECISIONS 415).
+ * PINDAHKAN LAPORAN KE TANGGAL LAIN — Super Admin + Project Manager ke atas
+ * (DECISIONS 415, diperluas 697).
  *
  * User 2026-08-22, atas laporan Banjarejo yang dikembalikan dengan alasan
  * *"salah penginputan tanggal pelaksanaan sondir saya input di tanggal 21 Juli
@@ -83,7 +84,7 @@ export function PindahTanggalForm({
         onClick={() => setBuka(true)}
         className="text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 hover:text-ink"
       >
-        Salah tanggal? Pindahkan laporan ini (super admin)
+        Salah tanggal? Pindahkan laporan ini
       </button>
     );
   }

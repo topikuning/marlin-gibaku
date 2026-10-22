@@ -12,7 +12,11 @@ import { ISSUE_SEVERITY_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/
 import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
-import { ReportEditor } from "./report-editor";
+import { ReportEditor, TambahFotoSusulan } from "./report-editor";
+import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
+import { removeReportPhotoAction } from "@/lib/daily-report/actions";
+import type { PhotoView } from "@/lib/photos";
+import type { SessionUser } from "@/lib/auth/session";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { PindahTanggalForm } from "./pindah-tanggal-form";
@@ -24,6 +28,53 @@ import { withBackTo } from "@/lib/print-back";
 export const metadata: Metadata = { title: "Laporan Harian" };
 export const dynamic = "force-dynamic";
 
+
+/**
+ * Foto satu pekerjaan di laporan yang sudah dikirim. Foto SUSULAN (DECISIONS
+ * 696) dipisah dan diberi keterangan supaya pemeriksa tahu bukti itu masuk
+ * sesudah laporannya dikirim; tombol hapus hanya untuknya, dan hanya bagi
+ * pengunggahnya, Site Manager, atau Super Admin.
+ */
+function FotoItemTerkirim({
+  photos,
+  user,
+  bolehHapusSusulan,
+}: {
+  photos: PhotoView[];
+  user: SessionUser;
+  bolehHapusSusulan: boolean;
+}) {
+  const asli = photos.filter((p) => !p.susulanAt);
+  const susulan = photos.filter((p) => p.susulanAt);
+  const dapatDihapus = bolehHapusSusulan
+    ? susulan
+        .filter((p) => p.uploadedById === user.id || PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role))
+        .map((p) => p.id)
+    : [];
+  return (
+    <>
+      {asli.length > 0 ? (
+        <div className="mt-1.5">
+          <PhotoGallery photos={asli} thumbClass="h-14 w-14" />
+        </div>
+      ) : null}
+      {susulan.length > 0 ? (
+        <div className="mt-1.5 space-y-1">
+          <div className="text-[11px] font-medium text-warning">
+            Foto susulan – ditambahkan sesudah laporan dikirim
+          </div>
+          <PhotoGallery
+            photos={susulan}
+            thumbClass="h-14 w-14"
+            canDelete={dapatDihapus.length > 0}
+            deletableIds={dapatDihapus}
+            deleteAction={removeReportPhotoAction}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * WORKSPACE HARIAN SATU LAYAR — draft/koreksi (input SM), verifikasi (PM/SM),
@@ -68,6 +119,10 @@ export default async function HarianWorkspacePage({
     ((canReview && (status === "draft" || status === "perlu_koreksi" || status === "dikirim")) ||
       (canCreate && (status === "draft" || status === "perlu_koreksi")));
   const showReadOnlyItems = !!report && report.items.length > 0 && !editable;
+  // Foto susulan ke pekerjaan yang belum berfoto di laporan yang sudah
+  // dikirim (DECISIONS 696). Server tetap penegaknya.
+  const bisaFotoSusulan =
+    canCreate && !!status && STATUS_FOTO_SUSULAN.includes(status) && isR2Configured();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -136,6 +191,14 @@ export default async function HarianWorkspacePage({
             subtitle={`Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}`}
           />
           <CardBody className="px-0 py-0">
+            {/* Sekali di atas daftar, bukan di tiap pekerjaan: laporan lapangan
+                bisa memuat ratusan pekerjaan tanpa foto. DECISIONS 696. */}
+            {bisaFotoSusulan && report.items.some((it) => it.photos.length === 0) ? (
+              <p className="border-b border-border px-4 py-2 text-xs text-ink-muted">
+                Laporan ini sudah dikirim. Pekerjaan yang belum berfoto masih bisa diberi foto, dan fotonya
+                ditandai sebagai foto susulan. Volume dan progres tidak berubah.
+              </p>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -167,10 +230,13 @@ export default async function HarianWorkspacePage({
                         ) : null}
                         {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
                         {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
-                        {it.photos.length > 0 ? (
-                          <div className="mt-1.5">
-                            <PhotoGallery photos={it.photos} thumbClass="h-14 w-14" />
-                          </div>
+                        <FotoItemTerkirim
+                          photos={it.photos}
+                          user={user}
+                          bolehHapusSusulan={bisaFotoSusulan}
+                        />
+                        {bisaFotoSusulan && it.photos.length === 0 ? (
+                          <TambahFotoSusulan reportId={report.id} itemId={it.id} locationId={data.location.id} />
                         ) : null}
                       </td>
                       <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
@@ -293,7 +359,7 @@ export default async function HarianWorkspacePage({
       ) : null}
 
       {/*
-        Pindah tanggal (DECISIONS 415) — super admin saja, berlaku di SEMUA
+        Pindah tanggal (DECISIONS 415/697) — Super Admin + PM ke atas, berlaku di SEMUA
         status. Salah tanggal paling sering ketahuan saat verifikasi (laporan
         dikembalikan dengan alasan "salah penginputan tanggal"), tapi bisa juga
         baru ketahuan setelah final; yang final dibuka & difinalkan ulang

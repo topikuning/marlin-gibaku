@@ -18,7 +18,7 @@ import type {
   WeatherCode,
   WorkerRole,
 } from "@/generated/prisma/enums";
-import { VOLUME_EPSILON } from "./constants";
+import { EDITABLE_STATUSES, VOLUME_EPSILON } from "./constants";
 
 /**
  * Logika inti laporan harian TERPADU (satu entitas menggantikan 4 menu lama).
@@ -37,7 +37,9 @@ import { VOLUME_EPSILON } from "./constants";
 
 export class DailyReportError extends Error {}
 
-export const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
+// Didefinisikan di `constants.ts` (murni) supaya aturan foto susulan bisa diuji
+// tanpa basis data; diekspor ulang di sini untuk pemanggil lama.
+export { EDITABLE_STATUSES };
 /** Satu kalimat untuk seluruh pagar nihil, supaya orangnya tahu harus apa. */
 export const PESAN_NIHIL_AKTIF =
   "Hari ini sudah dinyatakan tidak ada kegiatan – batalkan pernyataannya dulu " +

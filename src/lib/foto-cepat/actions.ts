@@ -263,12 +263,12 @@ export async function pakaiFotoAction(
         : { tujuan: "laporan", reportItemId: d.reportItemId! },
     );
     if ("error" in hasil) return { error: hasil.error };
-    const { dipakai, labelTujuan, gagalCap } = hasil;
+    const { dipakai, labelTujuan, gagalCap, susulan } = hasil;
 
     revalidatePath("/foto-cepat");
     revalidatePath("/foto");
 
-    const dasar = `${dipakai} foto dipakai di ${labelTujuan}.`;
+    const dasar = `${dipakai} foto dipakai di ${labelTujuan}${susulan ? " sebagai foto susulan" : ""}.`;
     if (gagalCap.length > 0) {
       const unik = [...new Set(gagalCap)].join(", ");
       return {

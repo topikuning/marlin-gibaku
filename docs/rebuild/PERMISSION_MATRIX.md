@@ -45,7 +45,7 @@ Jumlah capability: **71**.
 | `daily_report.review` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `daily_report.finalize` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `daily_report.unfinalize` | ✓ | – | – | – | – | – | – | – |
-| `daily_report.move_date` | ✓ | – | – | – | – | – | – | – |
+| `daily_report.move_date` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `field_activity.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | – |
 | `photo.quick` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | – |
 | `photo.restamp` | ✓ | ✓ | – | – | – | – | – | – |
@@ -97,7 +97,6 @@ Jumlah capability: **71**.
 - `daily_report.reset_location`
 - `rab.revision_purge`
 - `daily_report.unfinalize`
-- `daily_report.move_date`
 - `wa.configure`
 - `gdrive.open_folder`
 - `finance.view`

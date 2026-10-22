@@ -1973,6 +1973,11 @@ model Photo {
   reportMaterialId       String?             @map("report_material_id") @db.Uuid
   reportEquipmentId      String?             @map("report_equipment_id") @db.Uuid
   activityId             String?             @map("activity_id") @db.Uuid
+  /// FOTO SUSULAN (DECISIONS 696): kapan foto ini ditempelkan ke laporan yang
+  /// SUDAH dikirim. Dicatat saat menempel, tidak disimpulkan dari `createdAt` –
+  /// foto Foto Cepat bisa dipotret sebelum laporan dikirim lalu baru ditempel
+  /// sesudahnya. null = foto biasa.
+  addedAfterSubmitAt     DateTime?           @map("added_after_submit_at") @db.Timestamptz
   r2Key                  String              @unique @map("r2_key")
   thumbnailKey           String?             @map("thumbnail_key")
   /// Berkas ASLI apa adanya (sebelum kompresi & cap) — arsip bukti mentah.

@@ -2,7 +2,9 @@ import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
 import { requireLocationAccess, type SessionUser } from "@/lib/auth/session";
 import { konteksFoto } from "@/lib/photo-restamp/service";
-import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
+import type { DailyReportStatus } from "@/generated/prisma/enums";
+import { EDITABLE_STATUSES } from "@/lib/daily-report/constants";
+import { izinTambahFotoItem } from "@/lib/daily-report/foto-susulan";
 import { lengkapiCap } from "./service";
 
 /**
@@ -47,7 +49,7 @@ export type TujuanPakai =
 
 export type HasilPakai =
   | { error: string }
-  | { dipakai: number; labelTujuan: string; gagalCap: string[] };
+  | { dipakai: number; labelTujuan: string; gagalCap: string[]; susulan?: boolean };
 
 export async function pakaiFotoKeTujuan(
   actor: SessionUser,
@@ -62,6 +64,8 @@ export async function pakaiFotoKeTujuan(
   let reportMaterialId: string | null = null;
   let reportEquipmentId: string | null = null;
   let labelTujuan: string;
+  /** Diisi bila penautan ini foto SUSULAN ke laporan yang sudah dikirim. */
+  let susulan: { reportId: string; status: DailyReportStatus } | null = null;
 
   if (target.tujuan === "material" || target.tujuan === "alat") {
     const baris =
@@ -113,13 +117,15 @@ export async function pakaiFotoKeTujuan(
         reportId: true,
         report: { select: { locationId: true, status: true } },
         rabNode: { select: { name: true } },
+        _count: { select: { photos: true } },
       },
     });
     if (!item) return { error: "Item laporan tidak ditemukan." };
-    if (!EDITABLE_STATUSES.includes(item.report.status))
-      return {
-        error: "Laporan itu sudah dikirim atau disetujui, jadi lampirannya tidak bisa diubah dari sini.",
-      };
+    // Aturan yang sama dengan unggah langsung: sesudah dikirim, hanya pekerjaan
+    // yang belum punya foto yang boleh diberi foto SUSULAN (DECISIONS 696).
+    const izin = izinTambahFotoItem(item.report.status, item._count.photos);
+    if (!izin.boleh) return { error: izin.pesan };
+    if (izin.susulan) susulan = { reportId: item.reportId, status: item.report.status };
     tujuanLocationId = item.report.locationId;
     reportId = item.reportId;
     reportItemId = item.id;
@@ -148,6 +154,7 @@ export async function pakaiFotoKeTujuan(
 
   const gagalCap: string[] = [];
   let dipakai = 0;
+  const susulanAt = susulan ? new Date() : null;
   for (const f of fotos) {
     // Nilai cap SEBELUM ditautkan — sesudahnya `konteksFoto` sudah membaca
     // induk barunya, jadi tidak lagi bisa dipakai sebagai pembanding.
@@ -155,10 +162,11 @@ export async function pakaiFotoKeTujuan(
     await db.$transaction(async (tx) => {
       await tx.photo.update({
         where: { id: f.id },
-        data: { reportId, reportItemId, activityId, reportMaterialId, reportEquipmentId },
+        data: { reportId, reportItemId, activityId, reportMaterialId, reportEquipmentId, addedAfterSubmitAt: susulanAt },
       });
       await auditIn(tx, actor.id, "photo.quick_attach", "photo", f.id, {
         tujuan: target.tujuan,
+        susulan: susulanAt !== null,
         reportItemId,
         activityId,
         reportMaterialId,
@@ -176,5 +184,11 @@ export async function pakaiFotoKeTujuan(
     }
   }
 
-  return { dipakai, labelTujuan, gagalCap };
+  // Laporan FINAL sudah (atau akan) naik ke Drive – antre ulang supaya foto
+  // susulannya ikut (DECISIONS 696).
+  if (susulan?.status === "final" && dipakai > 0) {
+    const { antrekanLaporanHarian } = await import("@/lib/gdrive/antrean");
+    await antrekanLaporanHarian(susulan.reportId);
+  }
+  return { dipakai, labelTujuan, gagalCap, susulan: susulanAt !== null };
 }

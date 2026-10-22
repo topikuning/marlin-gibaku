@@ -375,15 +375,32 @@ describe("memakai foto dari kantong", () => {
     expect(sesudah.reportItemId).toBeNull();
   });
 
-  it("laporan yang sudah final ditolak", async () => {
-    // Menambah lampiran ke laporan yang sudah disahkan berarti mengubah berkas
-    // yang sudah dipertanggungjawabkan orang lain.
+  /*
+   * Dulu: laporan final menolak lampiran apa pun ("mengubah berkas yang sudah
+   * dipertanggungjawabkan orang lain"). Permintaan user 2026-10-22 membuka
+   * SATU celah: pekerjaan yang belum punya foto boleh diberi foto SUSULAN,
+   * bertanda (DECISIONS 696). Sesudah itu pekerjaannya terkunci lagi.
+   */
+  it("laporan FINAL: pekerjaan tanpa foto menerima foto susulan, lalu terkunci", async () => {
     const f = await buatFotoKantong(locA, `${suffix}-final`);
     const hasil = await pakaiFotoAction(
       {},
       fd({ photoIds: [f.id], tujuan: "laporan", reportItemId: itemFinalId }),
     );
-    expect(hasil.error).toMatch(/dikirim|disetujui/i);
+    expect(hasil.error).toBeUndefined();
+    const row = await db.photo.findUniqueOrThrow({
+      where: { id: f.id },
+      select: { reportItemId: true, addedAfterSubmitAt: true },
+    });
+    expect(row.reportItemId).toBe(itemFinalId);
+    expect(row.addedAfterSubmitAt).toBeInstanceOf(Date);
+
+    const g = await buatFotoKantong(locA, `${suffix}-final2`);
+    const lagi = await pakaiFotoAction(
+      {},
+      fd({ photoIds: [g.id], tujuan: "laporan", reportItemId: itemFinalId }),
+    );
+    expect(lagi.error).toMatch(/sudah punya foto/i);
   });
 
   it("kegiatan yang sudah final ditolak", async () => {

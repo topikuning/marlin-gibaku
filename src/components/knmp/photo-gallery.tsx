@@ -22,6 +22,7 @@ export function PhotoGallery({
   photos,
   thumbClass = "h-20 w-20",
   canDelete = false,
+  deletableIds,
   deleteAction,
   reuse,
   rotateAction,
@@ -30,6 +31,12 @@ export function PhotoGallery({
   thumbClass?: string;
   /** Tampilkan tombol hapus per foto (butuh deleteAction). */
   canDelete?: boolean;
+  /**
+   * Bila diisi, tombol hapus HANYA untuk foto dengan id di sini – dipakai foto
+   * susulan, yang boleh dihapus pengunggahnya sendiri tapi tidak orang lain
+   * (DECISIONS 696). Server tetap penegaknya.
+   */
+  deletableIds?: string[];
   deleteAction?: PhotoDeleteAction;
   /**
    * Aksi kedua per foto — dipakai foto YATIM: "pakai lagi".
@@ -52,13 +59,16 @@ export function PhotoGallery({
   const [open, setOpen] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const removable = canDelete && !!deleteAction;
+  const bolehHapus = (id: string) => removable && (!deletableIds || deletableIds.includes(id));
 
   const del = (photoId: string) => {
     if (typeof window !== "undefined" && !window.confirm("Hapus foto ini? Tidak bisa dibatalkan.")) return;
     const fd = new FormData();
     fd.set("photoId", photoId);
     startTransition(async () => {
-      await deleteAction?.(undefined, fd);
+      const hasil = await deleteAction?.(undefined, fd);
+      // Penolakan server harus terbaca – tanpa ini tombolnya tampak tidak bekerja.
+      if (hasil?.error && typeof window !== "undefined") window.alert(hasil.error);
       setOpen(null);
     });
   };
@@ -132,7 +142,7 @@ export function PhotoGallery({
                 <MapPin aria-hidden className="size-3 text-white" />
               </span>
             )}
-            {removable && (
+            {bolehHapus(p.id) && (
               <button
                 type="button"
                 onClick={() => del(p.id)}
