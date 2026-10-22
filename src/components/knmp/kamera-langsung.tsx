@@ -2,11 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
-import { Lapisan } from "@/components/ui";
-import { Camera, CameraOff, MapPin, MapPinOff, X } from "lucide-react";
+import { Button, Lapisan } from "@/components/ui";
+import { Camera, CameraOff, ChevronLeft, ChevronRight, MapPin, MapPinOff, Trash2, X } from "lucide-react";
 import { posisiJepret, type PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 
 export type { PosisiJepret };
+
+/**
+ * Satu jepretan sesi kamera ini – untuk gambar kecil & tampilan besar
+ * (DECISIONS 699). `keterangan` = di mana fotonya sekarang, dari pemanggil.
+ */
+export type JepretanSesi = { id: string; url: string; keterangan: string };
 
 /** Sudut layar dari peramban; `null` bila API-nya tidak ada. */
 function bacaSudutLayar(): number | null {
@@ -115,17 +121,27 @@ export function KameraLangsung({
   onFoto,
   onTutup,
   menunggu = 0,
+  jepretan = [],
+  onBuang,
 }: {
   /** Dipanggil tiap kali rana ditekan. Pengunggahan urusan pemanggil. */
   onFoto: (file: File, posisi: PosisiJepret) => void;
   onTutup: () => void;
   /** Jumlah foto di antrean yang belum sampai server — ditempel di layar kamera. */
   menunggu?: number;
+  /** Jepretan sesi ini, lama → baru. Yang terbaru tampil kecil di samping rana. */
+  jepretan?: JepretanSesi[];
+  /** Buang satu jepretan. `null` = berhasil, teks = sebab gagal. */
+  onBuang?: (id: string) => Promise<string | null>;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [keadaan, setKeadaan] = useState<KeadaanKamera>("belum");
   const [kilat, setKilat] = useState(false);
+  /** Tampilan besar: urutan jepretan yang sedang dilihat, null = tertutup. */
+  const [lihat, setLihat] = useState<number | null>(null);
+  const terbaru = jepretan.at(-1) ?? null;
+  const dilihat = lihat != null ? (jepretan[lihat] ?? null) : null;
   /** Pelepas listener kesiapan video — dipanggil saat kamera dimatikan. */
   const lepasSiap = useRef<(() => void) | null>(null);
   const ranaTerakhir = useRef(0);
@@ -385,24 +401,184 @@ export function KameraLangsung({
             ? "Menyiapkan kamera… Tombol jepret aktif begitu gambar muncul."
             : menunggu > 0
               ? `${menunggu} foto menunggu dikirim, aman tersimpan di HP.`
-              : "Ketuk untuk memotret. Foto langsung tersimpan tanpa perlu konfirmasi."}
+              : terbaru
+                ? "Foto tersimpan. Ketuk gambar kecil di kiri untuk melihatnya besar atau membuangnya."
+                : "Ketuk untuk memotret. Foto langsung tersimpan tanpa perlu konfirmasi."}
         </p>
         {/*
           Rana SENGAJA tetap aktif selagi unggahan berjalan: menonaktifkannya
           membuat ketukan berikutnya hilang tanpa jejak, dan di lapangan orang
           memotret beruntun. Antreannya diurus pemanggil.
         */}
+        {/*
+          Tiga kolom tetap: gambar kecil | rana | kosong. Rana selalu di kolom
+          tengah, jadi munculnya gambar kecil sesudah jepretan pertama TIDAK
+          menggeser rana (dijaga tests/e2e/foto-cepat-satu-layar).
+        */}
+        <div className="grid w-full max-w-sm grid-cols-3 items-center">
+          <div className="justify-self-start">
+            {terbaru ? (
+              <button
+                type="button"
+                onClick={() => setLihat(jepretan.length - 1)}
+                aria-label="Lihat foto terakhir"
+                className="relative block size-14 overflow-hidden rounded-md border-2 border-white bg-ink"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={terbaru.url} alt="" className="size-full object-cover" />
+                {jepretan.length > 1 ? (
+                  <span className="absolute right-0.5 bottom-0.5 rounded-full bg-ink/80 px-1.5 text-[10px] font-semibold text-white">
+                    {jepretan.length}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={jepret}
+            disabled={keadaan !== "hidup"}
+            aria-label="Jepret"
+            className="flex size-18 items-center justify-center justify-self-center rounded-full border-4 border-white bg-white/20 active:bg-white/50 disabled:opacity-40"
+          >
+            <Camera aria-hidden className="size-8 text-white" />
+          </button>
+          <span aria-hidden />
+        </div>
+      </div>
+
+      {dilihat && lihat != null ? (
+        <TampilanJepretan
+          foto={dilihat}
+          urutan={lihat}
+          jumlah={jepretan.length}
+          onGeser={(arah) => setLihat(Math.min(jepretan.length - 1, Math.max(0, lihat + arah)))}
+          onTutup={() => setLihat(null)}
+          onBuang={
+            onBuang
+              ? async () => {
+                  const galat = await onBuang(dilihat.id);
+                  if (galat) return galat;
+                  // Daftar dari pemanggil menyusut satu; geser ke foto sebelumnya,
+                  // tutup kalau tidak ada lagi.
+                  setLihat(jepretan.length > 1 ? Math.max(0, lihat - 1) : null);
+                  return null;
+                }
+              : undefined
+          }
+        />
+      ) : null}
+    </Lapisan>
+  );
+}
+
+/**
+ * TAMPILAN BESAR satu jepretan, di atas pratinjau kamera (DECISIONS 699).
+ *
+ * Permintaan user 2026-10-22: pratinjau foto berukuran besar, lalu "hapus dan
+ * ambil lagi, atau simpan dan langsung ambil lagi". Pilihannya: simpan
+ * langsung (jepret tetap satu ketukan, keputusan 256), dan yang jelek dibuang
+ * DI SINI tanpa menutup kamera. Kameranya tetap menyala di belakang, jadi
+ * "Kembali memotret" tidak menunggu kamera dinyalakan ulang.
+ */
+function TampilanJepretan({
+  foto,
+  urutan,
+  jumlah,
+  onGeser,
+  onTutup,
+  onBuang,
+}: {
+  foto: JepretanSesi;
+  urutan: number;
+  jumlah: number;
+  onGeser: (arah: -1 | 1) => void;
+  onTutup: () => void;
+  onBuang?: () => Promise<string | null>;
+}) {
+  const [galat, setGalat] = useState<string | null>(null);
+  const [membuang, setMembuang] = useState(false);
+  // Galat milik foto yang dilihat; berganti foto = mulai bersih. Disetel saat
+  // render (lint repo ini melarang setState di badan effect).
+  const [fotoTadi, setFotoTadi] = useState(foto.id);
+  if (fotoTadi !== foto.id) {
+    setFotoTadi(foto.id);
+    setGalat(null);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Foto yang baru diambil"
+      className="absolute inset-0 z-10 flex flex-col bg-ink"
+    >
+      <div className="flex items-center justify-between gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <p className="text-[13px] font-medium text-white">
+          Foto {urutan + 1} dari {jumlah}
+          <span className="block text-[11px] font-normal text-white/70">{foto.keterangan}</span>
+        </p>
         <button
           type="button"
-          onClick={jepret}
-          disabled={keadaan !== "hidup"}
-          aria-label="Jepret"
-          className="flex size-18 items-center justify-center rounded-full border-4 border-white bg-white/20 active:bg-white/50 disabled:opacity-40"
+          onClick={onTutup}
+          aria-label="Tutup tampilan foto"
+          className="rounded-full bg-white/15 p-2.5 text-white"
         >
-          <Camera aria-hidden className="size-8 text-white" />
+          <X aria-hidden className="size-5" />
         </button>
       </div>
-    </Lapisan>
+
+      <div className="relative min-h-0 flex-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={foto.url} alt="Foto yang baru diambil" className="absolute inset-0 size-full object-contain" />
+        {urutan > 0 ? (
+          <button
+            type="button"
+            onClick={() => onGeser(-1)}
+            aria-label="Foto sebelumnya"
+            className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-ink/60 p-2 text-white"
+          >
+            <ChevronLeft aria-hidden className="size-6" />
+          </button>
+        ) : null}
+        {urutan < jumlah - 1 ? (
+          <button
+            type="button"
+            onClick={() => onGeser(1)}
+            aria-label="Foto berikutnya"
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-ink/60 p-2 text-white"
+          >
+            <ChevronRight aria-hidden className="size-6" />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="space-y-2 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {galat ? <p className="rounded-md bg-danger px-3 py-2 text-[13px] text-white">{galat}</p> : null}
+        <div className="grid grid-cols-2 gap-2">
+          {onBuang ? (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={membuang}
+              onClick={async () => {
+                setMembuang(true);
+                const g = await onBuang();
+                setMembuang(false);
+                setGalat(g);
+              }}
+            >
+              {membuang ? null : <Trash2 aria-hidden className="size-4" />}
+              Buang foto ini
+            </Button>
+          ) : null}
+          <Button type="button" onClick={onTutup} className={onBuang ? undefined : "col-span-2"}>
+            <Camera aria-hidden className="size-4" />
+            Kembali memotret
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

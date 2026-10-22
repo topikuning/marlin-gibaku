@@ -47,7 +47,17 @@ import {
  * lalu dilengkapi otomatis saat fotonya dipakai — lihat `service.ts`.
  */
 
-export type FotoCepatState = { error?: string; ok?: string; warning?: string };
+export type FotoCepatState = {
+  error?: string;
+  ok?: string;
+  warning?: string;
+  /**
+   * Id foto yang BENAR-BENAR tersimpan oleh kiriman ini. Dipakai antrean
+   * kamera supaya foto yang sudah terkirim tetap bisa dibuang dari layar kamera
+   * ("Buang foto ini" pada gambar kecil foto terakhir, DECISIONS 699).
+   */
+  photoIds?: string[];
+};
 
 /** Batas satu kali proses "pakai" — tiap foto dirender ulang dari arsip aslinya. */
 const MAX_PAKAI_SEKALI = 20;
@@ -106,6 +116,7 @@ export async function simpanFotoCepatAction(
       };
 
     const dateKey = jakartaDateKey(new Date());
+    const tersimpan: string[] = [];
     const gagal: string[] = [];
     const belumTerdeteksi: string[] = [];
     let sukses = 0;
@@ -173,6 +184,7 @@ export async function simpanFotoCepatAction(
           },
         });
         sukses++;
+        tersimpan.push(foto.id);
         if (foto.gpsSource !== "exif" && foto.gpsSource !== "device") tanpaKoordinat++;
         if (lokasi) perLokasi.set(lokasi.name, (perLokasi.get(lokasi.name) ?? 0) + 1);
       } catch (err) {
@@ -210,8 +222,10 @@ export async function simpanFotoCepatAction(
     // memotret ulang dengan GPS menyala.
     const catatanGps = tanpaKoordinat > 0 ? ` ${tanpaKoordinat} foto TANPA koordinat.` : "";
     const pesan = `${dasar}${catatanGps}${catatanBelum}`;
-    if (gagal.length) return { warning: `${pesan} Gagal: ${gagal.join(" · ")}` };
-    return tanpaKoordinat > 0 || belumTerdeteksi.length > 0 ? { warning: pesan } : { ok: pesan };
+    if (gagal.length) return { warning: `${pesan} Gagal: ${gagal.join(" · ")}`, photoIds: tersimpan };
+    return tanpaKoordinat > 0 || belumTerdeteksi.length > 0
+      ? { warning: pesan, photoIds: tersimpan }
+      : { ok: pesan, photoIds: tersimpan };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan foto." };

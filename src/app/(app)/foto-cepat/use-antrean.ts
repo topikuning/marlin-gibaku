@@ -24,7 +24,7 @@ import {
   simpananTersedia,
   type FotoTertunda,
 } from "@/lib/foto-cepat/simpanan-lokal";
-import { simpanFotoCepatAction } from "@/lib/foto-cepat/actions";
+import { hapusFotoCepatAction, simpanFotoCepatAction } from "@/lib/foto-cepat/actions";
 import type { PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 
 /**
@@ -133,6 +133,21 @@ export function useAntreanFoto() {
    * terkirim tidak pernah rusak; yang rusak selalu yang menunggu di antrean.
    */
   const segarRef = useRef(new Map<string, Blob>());
+  /*
+   * BUANG DARI LAYAR KAMERA (DECISIONS 699) – foto yang jelek dibuang di tempat,
+   * tanpa menutup kamera, ke mana pun fotonya sudah sampai:
+   *
+   * - `terkirimRef`: jepretan yang SUDAH tersimpan di server → id fotonya, supaya
+   *   bisa dibuang dari kantong. Hanya untuk halaman ini; yang sudah lewat tetap
+   *   dibuang lewat kantong seperti biasa.
+   * - `sedangKirimRef`: jepretan yang unggahannya sedang berjalan. Membuangnya
+   *   dari simpanan saat itu tidak menghentikan unggahan, jadi ia cuma DITANDAI.
+   * - `dibatalkanRef`: tanda itu. Unggahan yang selesai sesudah ditandai langsung
+   *   membuang salinannya di server; yang belum mulai dilewati.
+   */
+  const terkirimRef = useRef(new Map<string, string[]>());
+  const sedangKirimRef = useRef(new Set<string>());
+  const dibatalkanRef = useRef(new Set<string>());
   const [kuota, setKuota] = useState<string | null>(null);
 
   /**
@@ -181,6 +196,13 @@ export function useAntreanFoto() {
   /** Coba kirim satu foto. Sebab kegagalan DIBEDAKAN — lihat antrean-kebijakan. */
   const kirimSatu = useCallback(
     async (r: FotoTertunda) => {
+      // Dibuang dari layar kamera sebelum sempat dikirim – jangan dikirim.
+      if (dibatalkanRef.current.has(r.id)) {
+        await buang(r.id);
+        segarRef.current.delete(r.id);
+        await muat();
+        return;
+      }
       // Salinan segar dulu (kalau halamannya masih yang sama), simpanan belakangan.
       const berkas = segarRef.current.get(r.id) ?? (await ambilBerkas(r.id, r.tipe));
       // Ukuran nol = tidak ada yang bisa dikirim. Membiarkannya lewat berarti
@@ -204,6 +226,7 @@ export function useAntreanFoto() {
       }
 
       await perbarui(r.id, { status: "kirim", terakhirCoba: Date.now() });
+      sedangKirimRef.current.add(r.id);
       await muat();
 
       const fd = new FormData();
@@ -220,7 +243,18 @@ export function useAntreanFoto() {
           BATAS_SATU_KIRIM_MS,
           "batas waktu",
         );
-        if (hasil.error) {
+        if (dibatalkanRef.current.has(r.id)) {
+          // Dibuang dari layar kamera selagi terkirim: salinan yang terlanjur
+          // tersimpan di server ikut dibuang, lalu simpanan HP dikosongkan.
+          for (const photoId of hasil.photoIds ?? []) {
+            const fdHapus = new FormData();
+            fdHapus.set("photoId", photoId);
+            const h = await hapusFotoCepatAction({}, fdHapus);
+            if (h.error) setGalat(`Foto yang dibuang dari kamera masih ada di kantong – ${h.error}`);
+          }
+          await buang(r.id);
+          segarRef.current.delete(r.id);
+        } else if (hasil.error) {
           // Server MENJAWAB dan menolak — mencoba lagi akan ditolak lagi.
           await perbarui(r.id, {
             status: statusDariKegagalan("server"),
@@ -233,6 +267,7 @@ export function useAntreanFoto() {
           // berarti kegagalan di tengah jalan menghapus bukti.
           await buang(r.id);
           segarRef.current.delete(r.id);
+          terkirimRef.current.set(r.id, hasil.photoIds ?? []);
         }
       } catch (e) {
         /*
@@ -263,6 +298,14 @@ export function useAntreanFoto() {
               : `Pengiriman gagal padahal jaringan TERDETEKSI ADA – ${nama}. Akan dicoba lagi otomatis.`,
           percobaan: r.percobaan + 1,
         });
+        // Gagal terkirim DAN sudah dibuang dari kamera: tidak ada yang perlu
+        // dicoba lagi.
+        if (dibatalkanRef.current.has(r.id)) {
+          await buang(r.id);
+          segarRef.current.delete(r.id);
+        }
+      } finally {
+        sedangKirimRef.current.delete(r.id);
       }
       await muat();
     },
@@ -330,12 +373,12 @@ export function useAntreanFoto() {
     }
   }, [kirimSatu]);
 
-  /** Titipkan satu jepretan ke antrean. Mengembalikan false bila simpanan penuh. */
+  /** Titipkan satu jepretan ke antrean. Mengembalikan id antreannya, null bila gagal disimpan. */
   const titip = useCallback(
-    async (file: File, posisi: PosisiJepret): Promise<boolean> => {
+    async (file: File, posisi: PosisiJepret): Promise<string | null> => {
       if (!simpananTersedia()) {
         setPenuh("Peramban ini tidak mendukung simpanan lokal – foto dikirim langsung tanpa antrean.");
-        return false;
+        return null;
       }
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
@@ -361,12 +404,12 @@ export function useAntreanFoto() {
               ? `Gagal menyimpan foto di HP – ${e.message}`
               : "Gagal menyimpan foto di perangkat.",
         );
-        return false;
+        return null;
       }
       setPenuh(null);
       await muat().catch(() => {});
       void proses().catch(() => {});
-      return true;
+      return id;
     },
     [muat, proses],
   );
@@ -431,8 +474,40 @@ export function useAntreanFoto() {
     [muat],
   );
 
+  /**
+   * Buang satu jepretan dari layar kamera, di mana pun ia sekarang berada:
+   * masih di HP, sedang terkirim, atau sudah di kantong. `null` = berhasil.
+   */
+  const buangJepretan = useCallback(
+    async (id: string): Promise<string | null> => {
+      const diServer = terkirimRef.current.get(id);
+      if (diServer) {
+        for (const photoId of diServer) {
+          const fd = new FormData();
+          fd.set("photoId", photoId);
+          const h = await hapusFotoCepatAction({}, fd);
+          if (h.error) return h.error;
+        }
+        terkirimRef.current.delete(id);
+        return null;
+      }
+      dibatalkanRef.current.add(id);
+      // Sedang terkirim: unggahannya yang membereskan begitu selesai.
+      if (sedangKirimRef.current.has(id)) return null;
+      try {
+        await buang(id);
+        segarRef.current.delete(id);
+        await muat();
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : "Gagal membuang foto dari HP.";
+      }
+    },
+    [muat],
+  );
+
   const ringkas = ringkasAntrean(baris);
   const kirimSekarang = useCallback(() => proses(true), [proses]);
 
-  return { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang };
+  return { baris, ringkas, penuh, galat, kuota, online, titip, hapus, buangJepretan, kirimSekarang };
 }
