@@ -1423,6 +1423,7 @@ model Location {
   inspections         Inspection[]
   letters             Letter[]
   kawalMap            KawalLocationMap?
+  kawalSaranaMaps     KawalSaranaMap[]
 
   @@index([packageId])
   @@index([province])
@@ -4169,6 +4170,28 @@ model KawalLocationMap {
   location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@map("kawal_location_maps")
+}
+
+/// Keputusan orang: sarana Kawal ↔ kelompok RAB MARLIN (kategori tingkat 1)
+/// di satu lokasi (DECISIONS 694). Usulan otomatis TIDAK disimpan – dihitung
+/// ulang setiap kali dari nama, jadi hanya keputusan yang punya baris.
+model KawalSaranaMap {
+  id          String   @id @default(uuid()) @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
+  /// `sarpras[].id` Kawal – nomor sarana di lokasi itu.
+  kawalItemId Int      @map("kawal_item_id")
+  /// dikonfirmasi | tidak_ada
+  status      String
+  /// `lineageKey` kategori RAB tingkat 1 – tetap sama lintas revisi. Null hanya untuk `tidak_ada`.
+  lineageKey  String?  @map("lineage_key")
+  decidedById String?  @map("decided_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, kawalItemId])
+  @@map("kawal_sarana_maps")
 }
 
 /// Satu putaran sinkron – berhasil, tidak berubah, atau gagal beserta sebabnya.

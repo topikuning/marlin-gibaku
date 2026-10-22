@@ -96,7 +96,8 @@ Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting 
 Kawal   → KawalSnapshot → KawalLocationSnapshot → KawalSaranaSnapshot (append-only;
            RUJUKAN dari aplikasi pengawas KKP – tidak dibaca calculation layer,
            tidak menggerakkan status/progres/keuangan, DECISIONS 689/690) ·
-           KawalLocationMap (lokasi Kawal ↔ Location) · KawalSyncRun
+           KawalLocationMap (lokasi Kawal ↔ Location) · KawalSaranaMap (keputusan orang:
+           sarana Kawal ↔ kategori RAB tingkat 1, DECISIONS 694) · KawalSyncRun
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)
 ```

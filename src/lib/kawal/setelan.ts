@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { encryptionKeyFromEnv, readStoredSecret, secretUntukSimpan } from "@/lib/ai/crypto";
 import { jakartaToday } from "@/lib/format";
+import { AMBANG_BAWAAN, ambangSah, type AmbangSelisih } from "./compare";
 import type { AkunKawal } from "./klien";
 
 /**
@@ -59,4 +60,39 @@ export async function setAkunKawal(input: { alamat: string; akun: string; sandi?
   await put(KAWAL_ALAMAT_KEY, input.alamat.trim());
   await put(KAWAL_AKUN_KEY, input.akun.trim());
   if (sandi !== undefined) await put(KAWAL_SANDI_KEY, sandi);
+}
+
+/* ── Ambang selisih MARLIN vs Kawal (DECISIONS 689 butir 3, DECISIONS 694) ── */
+
+export const KAWAL_AMBANG_TINGGI_KEY = "kawal.ambang_tinggi_pp";
+export const KAWAL_AMBANG_KRITIS_KEY = "kawal.ambang_kritis_pp";
+
+/**
+ * Ambang yang berlaku. Belum pernah diatur, tidak terbaca, atau pasangannya
+ * tidak sah (tinggi ≥ kritis) → ambang bawaan 5/10 – SEPASANG, supaya satu
+ * angka yang rusak tidak menghasilkan campuran yang tidak pernah diputuskan.
+ */
+export async function getAmbangKawal(): Promise<AmbangSelisih> {
+  const [tinggi, kritis] = await Promise.all([
+    nilaiTerbaru(KAWAL_AMBANG_TINGGI_KEY),
+    nilaiTerbaru(KAWAL_AMBANG_KRITIS_KEY),
+  ]);
+  if (!tinggi || !kritis) return AMBANG_BAWAAN;
+  const a = { tinggiPp: Number(tinggi), kritisPp: Number(kritis) };
+  return ambangSah(a) ? a : AMBANG_BAWAAN;
+}
+
+export async function setAmbangKawal(a: AmbangSelisih): Promise<void> {
+  if (!ambangSah(a)) throw new Error("Ambang tidak sah.");
+  const effectiveFrom = jakartaToday();
+  for (const [key, value] of [
+    [KAWAL_AMBANG_TINGGI_KEY, String(a.tinggiPp)],
+    [KAWAL_AMBANG_KRITIS_KEY, String(a.kritisPp)],
+  ] as const) {
+    await db.appSetting.upsert({
+      where: { key_effectiveFrom: { key, effectiveFrom } },
+      update: { value },
+      create: { key, value, effectiveFrom },
+    });
+  }
 }

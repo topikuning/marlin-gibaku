@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandingkanProgres, formatSelisihPp } from "@/lib/kawal/compare";
+import { ambangSah, bandingkanProgres, formatSelisihPp, labelTingkat } from "@/lib/kawal/compare";
 
 /**
  * SELISIH PROGRES MARLIN vs KAWAL (DECISIONS 691): MARLIN − Kawal, arah selalu
@@ -38,5 +38,23 @@ describe("bandingkan progres MARLIN vs Kawal", () => {
     expect(formatSelisihPp(4.25)).toBe("+4,25 pp");
     expect(formatSelisihPp(-3.1)).toBe("−3,10 pp");
     expect(formatSelisihPp(0)).toBe("0,00 pp");
+  });
+
+  it("ambang yang diatur (DECISIONS 694) menggantikan 5/10, dan labelnya ikut", () => {
+    const a = { tinggiPp: 3, kritisPp: 7.5 };
+    expect(bandingkanProgres(10, 6.5, 8, a).tingkat).toBe("tinggi");
+    expect(bandingkanProgres(10, 2.5, 8, a).tingkat).toBe("kritis");
+    expect(bandingkanProgres(10, 7.5, 8, a).tingkat).toBe("wajar");
+    expect(labelTingkat("kritis", a)).toBe("Selisih ≥ 7,5 pp");
+    expect(labelTingkat("tinggi")).toBe("Selisih ≥ 5 pp");
+  });
+
+  it("ambang sah hanya bila 0 < tinggi < kritis ≤ 100", () => {
+    expect(ambangSah({ tinggiPp: 5, kritisPp: 10 })).toBe(true);
+    expect(ambangSah({ tinggiPp: 0, kritisPp: 10 })).toBe(false);
+    expect(ambangSah({ tinggiPp: 10, kritisPp: 10 })).toBe(false);
+    expect(ambangSah({ tinggiPp: 12, kritisPp: 10 })).toBe(false);
+    expect(ambangSah({ tinggiPp: 5, kritisPp: 101 })).toBe(false);
+    expect(ambangSah({ tinggiPp: Number.NaN, kritisPp: 10 })).toBe(false);
   });
 });

@@ -10,12 +10,16 @@ import {
   bandingkanProgres,
   formatSelisihPp,
   LABEL_ARAH,
-  LABEL_TINGKAT,
+  labelTingkat,
   SARAN_ARAH,
   TONE_TINGKAT,
 } from "@/lib/kawal/compare";
 import { kawalUntukLokasi, ringkasSinkronKawal } from "@/lib/kawal/queries";
+import { perSaranaKawal } from "@/lib/kawal/sarana";
+import { LABEL_ASAL, type BarisSarana, type KelompokMarlin } from "@/lib/kawal/sarana-cocok";
+import { getAmbangKawal } from "@/lib/kawal/setelan";
 import { requireLocationPage } from "../get-location";
+import { FormSarana } from "./sarana-client";
 
 export const metadata: Metadata = { title: "Kawal KNMP" };
 export const dynamic = "force-dynamic";
@@ -25,6 +29,84 @@ const kunciTanggal = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : nul
 /** "sama" / "beda" untuk satu data administrasi; null bila salah satu kosong. */
 function cocok(a: string | null, b: string | null): boolean | null {
   return a && b ? a === b : null;
+}
+
+const labelKelompok = (k: KelompokMarlin) => [k.code, k.name].filter(Boolean).join(" ");
+
+/** Satu sarana Kawal: angka Kawal apa adanya lawan kelompok RAB yang dipasangkan. */
+function BarisPerSarana({
+  b,
+  kelompok,
+  locationId,
+  bolehAtur,
+}: {
+  b: BarisSarana;
+  kelompok: KelompokMarlin[];
+  locationId: string;
+  bolehAtur: boolean;
+}) {
+  const s = b.sarana;
+  const opsi = kelompok.map((k) => ({
+    value: k.kunci,
+    label: b.asal === "usulan" && b.kelompok?.kunci === k.kunci ? `${labelKelompok(k)} (usulan)` : labelKelompok(k),
+  }));
+  const ringkasAsal = b.kelompokHilang ? "kelompok yang dipilih tidak ada lagi di RAB aktif" : LABEL_ASAL[b.asal];
+  return (
+    <li className="py-2.5 first:pt-0 last:pb-0">
+      {/* Di ponsel angkanya turun ke baris sendiri – di samping nama, nama sarana terjepit. */}
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-ink">
+            {s.nama}
+            {s.bobot != null ? (
+              <span className="ml-1.5 text-xs text-ink-muted">bobot Kawal {formatPct(s.bobot, 2)}</span>
+            ) : null}
+          </p>
+          <p className="text-[13px] text-ink-muted">
+            RAB:{" "}
+            {b.kelompok ? (
+              <>
+                <span className="text-ink">{labelKelompok(b.kelompok)}</span> · {ringkasAsal}
+              </>
+            ) : (
+              ringkasAsal
+            )}
+          </p>
+        </div>
+        <dl className="grid w-fit shrink-0 grid-cols-[4.5rem_4.5rem_5.5rem] gap-x-3 text-sm sm:text-right">
+          <div>
+            <dt className="text-[10px] font-semibold tracking-wide text-primary uppercase">MARLIN</dt>
+            <dd className="tabular text-primary">{b.kelompok ? formatPct(b.kelompok.progresPct, 1) : "–"}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">Kawal</dt>
+            <dd className="tabular text-ink-muted">{s.progresPct != null ? formatPct(s.progresPct, 1) : "–"}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">Selisih</dt>
+            <dd className="tabular text-ink">{b.selisihPp != null ? formatSelisihPp(b.selisihPp) : "–"}</dd>
+          </div>
+        </dl>
+      </div>
+      {bolehAtur && kelompok.length > 0 ? (
+        <details className="mt-1.5">
+          <summary className="cursor-pointer text-[13px] text-primary">
+            {b.asal === "usulan" ? "Konfirmasi atau ubah" : b.asal === "belum" ? "Pasangkan" : "Ubah"}
+          </summary>
+          <div className="mt-2">
+            <FormSarana
+              locationId={locationId}
+              kawalItemId={s.kawalItemId}
+              opsi={opsi}
+              awal={b.kelompok?.kunci}
+              sudahDiputuskan={b.asal === "dikonfirmasi" || b.asal === "tidak_ada" || b.kelompokHilang}
+              nama={s.nama}
+            />
+          </div>
+        </details>
+      ) : null}
+    </li>
+  );
 }
 
 /**
@@ -37,10 +119,11 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "kawal.view");
 
-  const [kawalPer, progresPer, sinkron] = await Promise.all([
+  const [kawalPer, progresPer, sinkron, ambang] = await Promise.all([
     kawalUntukLokasi([location.id]),
     getLocationsProgress([location.id]),
     ringkasSinkronKawal(),
+    getAmbangKawal(),
   ]);
   const k = kawalPer.get(location.id);
   const progres = progresPer.get(location.id);
@@ -67,7 +150,8 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
     );
   }
 
-  const banding = bandingkanProgres(progres?.realizedPct ?? null, k.actualPct, k.weekNo);
+  const perSarana = await perSaranaKawal(location.id, k.sarana);
+  const banding = bandingkanProgres(progres?.realizedPct ?? null, k.actualPct, k.weekNo, ambang);
   const kontrak = location.package.contract;
   const kontrakSama = cocok(kunciKontrak(k.noKontrak) || null, kunciKontrak(kontrak?.contractNumber) || null);
   const spmkSama = cocok(kunciTanggal(k.mulai), kunciTanggal(kontrak?.startDate ?? null));
@@ -120,7 +204,7 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
       <Card>
         <CardHeader
           title="Artinya"
-          action={<StatusPill tone={TONE_TINGKAT[banding.tingkat]} label={LABEL_TINGKAT[banding.tingkat]} />}
+          action={<StatusPill tone={TONE_TINGKAT[banding.tingkat]} label={labelTingkat(banding.tingkat, ambang)} />}
         />
         <CardBody className="space-y-2 text-sm">
           {banding.tingkat === "tidak_dinilai" ? (
@@ -170,35 +254,48 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
         </CardBody>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Sarana menurut Kawal"
-            subtitle="Bobot dan progres per sarana yang diisi pengawas – belum dipasangkan dengan kelompok RAB MARLIN."
-          />
-          <CardBody>
-            {k.sarana.length === 0 ? (
-              <p className="text-sm text-ink-muted">Kawal belum mencatat sarana untuk lokasi ini.</p>
-            ) : (
-              <ul className="divide-y divide-border text-sm">
-                {k.sarana.map((s, i) => (
-                  <li key={`${s.nama}-${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
-                    <span className="min-w-0">
-                      <span className="text-ink">{s.nama}</span>
-                      {s.bobot != null ? (
-                        <span className="ml-1.5 text-xs text-ink-muted">bobot {formatPct(s.bobot, 2)}</span>
-                      ) : null}
-                    </span>
-                    <span className="tabular shrink-0 text-ink">
-                      {s.progresPct != null ? formatPct(s.progresPct, 1) : "–"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
+      <Card>
+        <CardHeader
+          title="Per sarana: Kawal lawan kelompok RAB MARLIN"
+          subtitle="Tiap sarana Kawal dipasangkan dengan kelompok RAB (kategori tingkat 1). Usulan dibuat dari kemiripan nama dan baru pasti setelah dikonfirmasi."
+        />
+        <CardBody className="space-y-3">
+          {k.sarana.length === 0 ? (
+            <p className="text-sm text-ink-muted">Kawal belum mencatat sarana untuk lokasi ini.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {perSarana.baris.map((b) => (
+                <BarisPerSarana
+                  key={b.sarana.kawalItemId}
+                  b={b}
+                  kelompok={perSarana.kelompok}
+                  locationId={location.id}
+                  bolehAtur={bolehAtur}
+                />
+              ))}
+            </ul>
+          )}
+          {perSarana.kelompok.length === 0 ? (
+            <p className="text-[13px] text-ink-muted">
+              Lokasi ini belum punya RAB aktif, jadi progres per kelompok MARLIN belum bisa dihitung.
+            </p>
+          ) : perSarana.kelompokTanpaPasangan.length > 0 && k.sarana.length > 0 ? (
+            <p className="text-[13px] text-ink-muted">
+              Kelompok RAB tanpa padanan di Kawal ({perSarana.kelompokTanpaPasangan.length}):{" "}
+              {perSarana.kelompokTanpaPasangan.map(labelKelompok).join(", ")}.
+            </p>
+          ) : null}
+          <p className="text-[13px] text-ink-muted">
+            <span className="text-primary">MARLIN</span> = progres kelompok dari laporan harian terkirim s/d hari ini,
+            rumus yang sama dengan Progres per Kategori di laporan mingguan.{" "}
+            <span className="text-ink">Kawal</span> = progres sarana yang diisi pengawas, apa adanya. Selisih per sarana
+            menunjukkan di mana bedanya terletak. Ia belum bisa dijumlahkan menjadi selisih total, karena hubungan angka
+            sarana Kawal dengan progres totalnya belum terbukti dari data.
+          </p>
+        </CardBody>
+      </Card>
 
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader title="Catatan pengawas di Kawal" subtitle="Ditulis pengawas KKP, apa adanya." />
           <CardBody>
@@ -216,37 +313,37 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
             )}
           </CardBody>
         </Card>
-      </div>
 
-      <Card>
-        <CardHeader title="Data kontrak di Kawal" subtitle="Dibandingkan dengan data kontrak paket ini di MARLIN." />
-        <CardBody>
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-medium text-ink-muted">Nomor kontrak</dt>
-              <dd className="flex flex-wrap items-center gap-2 text-ink">
-                {k.noKontrak ?? "–"}
-                {kontrakSama === false ? <StatusPill tone="warning" label="beda dengan MARLIN" /> : null}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-ink-muted">Tanggal SPMK (mulai)</dt>
-              <dd className="flex flex-wrap items-center gap-2 text-ink">
-                {k.mulai ? formatTanggal(k.mulai) : "–"}
-                {spmkSama === false ? <StatusPill tone="warning" label="beda dengan MARLIN" /> : null}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-ink-muted">Selesai menurut Kawal</dt>
-              <dd className="text-ink">{k.selesai ? formatTanggal(k.selesai) : "–"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-ink-muted">Nilai lokasi di Kawal</dt>
-              <dd className="text-ink">{k.nilaiLokasi != null ? formatRupiahShort(k.nilaiLokasi) : "–"}</dd>
-            </div>
-          </dl>
-        </CardBody>
-      </Card>
+        <Card>
+          <CardHeader title="Data kontrak di Kawal" subtitle="Dibandingkan dengan data kontrak paket ini di MARLIN." />
+          <CardBody>
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium text-ink-muted">Nomor kontrak</dt>
+                <dd className="flex flex-wrap items-center gap-2 text-ink">
+                  {k.noKontrak ?? "–"}
+                  {kontrakSama === false ? <StatusPill tone="warning" label="beda dengan MARLIN" /> : null}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-ink-muted">Tanggal SPMK (mulai)</dt>
+                <dd className="flex flex-wrap items-center gap-2 text-ink">
+                  {k.mulai ? formatTanggal(k.mulai) : "–"}
+                  {spmkSama === false ? <StatusPill tone="warning" label="beda dengan MARLIN" /> : null}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-ink-muted">Selesai menurut Kawal</dt>
+                <dd className="text-ink">{k.selesai ? formatTanggal(k.selesai) : "–"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-ink-muted">Nilai lokasi di Kawal</dt>
+                <dd className="text-ink">{k.nilaiLokasi != null ? formatRupiahShort(k.nilaiLokasi) : "–"}</dd>
+              </div>
+            </dl>
+          </CardBody>
+        </Card>
+      </div>
     </div>
   );
 }

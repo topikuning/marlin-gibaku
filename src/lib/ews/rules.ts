@@ -12,6 +12,14 @@
  * bukan keterlambatan.
  */
 
+import {
+  bandingkanProgres,
+  formatSelisihPp,
+  LABEL_ARAH,
+  SARAN_ARAH,
+  type AmbangSelisih,
+} from "@/lib/kawal/compare";
+
 export type EwsSeverity = "kritis" | "tinggi" | "sedang";
 
 export const EWS_SEVERITY_LABEL: Record<EwsSeverity, string> = {
@@ -291,6 +299,54 @@ export function evaluasiEwsLokasi(f: EwsLocationFacts): EwsWarning[] {
   }
 
   return w.map((x) => ({ ...x, locationSlug: f.locationSlug }));
+}
+
+/* ── Selisih progres MARLIN vs Kawal KNMP (DECISIONS 689, 694) ──────────────
+   Data Kawal = RUJUKAN, bukan angka resmi: aturan ini hanya menunjuk lokasi
+   yang angkanya perlu ditanyakan, tidak mengubah apa pun. Arah selalu ditulis
+   karena tindakannya berbeda menurut arah. */
+
+export type EwsKawalFacts = {
+  locationName: string;
+  locationSlug: string;
+  status: string;
+  /** Minggu MARLIN; 0 = SPMK belum tiba. */
+  weekNumber: number;
+  /** Progres MARLIN saat ini (calculation layer). */
+  marlinPct: number;
+  /** `progres_final` tarikan terbaru; null bila Kawal belum mengisi. */
+  kawalPct: number | null;
+  /** `current_week` Kawal. */
+  mingguKawal: number | null;
+  /** Minggu terakhir yang diisi pengawas di Kawal. */
+  mingguIsiKawal: number | null;
+  ambang: AmbangSelisih;
+};
+
+const pct = (n: number) => `${n.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+
+export function evaluasiEwsKawal(f: EwsKawalFacts): EwsWarning[] {
+  // Pagar minggu-0 di DUA sisi: MARLIN (SPMK belum tiba) dan Kawal (bandingkanProgres).
+  const aktif = f.status === "berjalan" || f.status === "terhenti";
+  if (!aktif || f.weekNumber < 1) return [];
+  const b = bandingkanProgres(f.marlinPct, f.kawalPct, f.mingguKawal, f.ambang);
+  if ((b.tingkat !== "tinggi" && b.tingkat !== "kritis") || b.selisihPp == null || !b.arah) return [];
+  const isi =
+    f.mingguIsiKawal != null && f.mingguIsiKawal !== f.mingguKawal ? `, terakhir diisi minggu ke-${f.mingguIsiKawal}` : "";
+  return [
+    {
+      ruleId: "selisih_kawal",
+      kategori: "progress",
+      severity: b.tingkat,
+      objek: f.locationName,
+      alasan:
+        `Progres MARLIN ${pct(f.marlinPct)}, Kawal ${pct(f.kawalPct!)} (minggu ke-${f.mingguKawal}${isi}). ` +
+        `Selisih ${formatSelisihPp(b.selisihPp)}, ${LABEL_ARAH[b.arah]}.`,
+      tindakan: SARAN_ARAH[b.arah],
+      href: `/lokasi/${f.locationSlug}/kawal`,
+      locationSlug: f.locationSlug,
+    },
+  ];
 }
 
 export type EwsPackageFacts = {

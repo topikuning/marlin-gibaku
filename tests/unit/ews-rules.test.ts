@@ -3,9 +3,11 @@
 import { describe, expect, it } from "vitest";
 import {
   AMBANG,
+  evaluasiEwsKawal,
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
   urutkanWarning,
+  type EwsKawalFacts,
   type EwsLocationFacts,
 } from "@/lib/ews/rules";
 
@@ -192,5 +194,70 @@ describe("identitas objek ikut di tiap warning (review 2026-08-28)", () => {
       });
       expect(w[0].packageId).toBeUndefined();
     });
+  });
+});
+
+/* Selisih MARLIN vs Kawal KNMP (DECISIONS 689, 694). */
+describe("EWS selisih_kawal", () => {
+  const kawal: EwsKawalFacts = {
+    locationName: "Lokasi Uji",
+    locationSlug: "lokasi-uji",
+    status: "berjalan",
+    weekNumber: 8,
+    marlinPct: 10,
+    kawalPct: 6,
+    mingguKawal: 8,
+    mingguIsiKawal: 8,
+    ambang: { tinggiPp: 5, kritisPp: 10 },
+  };
+  const ev = (f: Partial<EwsKawalFacts>) => evaluasiEwsKawal({ ...kawal, ...f });
+
+  it("contoh brief 10% vs 6% (+4 pp) → belum menyala", () => {
+    expect(ev({})).toEqual([]);
+  });
+
+  it("≥ 5 pp tinggi, ≥ 10 pp kritis, ke arah mana pun; arah dan tindakan ikut ditulis", () => {
+    const tinggi = ev({ marlinPct: 11 });
+    expect(tinggi).toHaveLength(1);
+    expect(tinggi[0]).toMatchObject({
+      ruleId: "selisih_kawal",
+      kategori: "progress",
+      severity: "tinggi",
+      href: "/lokasi/lokasi-uji/kawal",
+      locationSlug: "lokasi-uji",
+    });
+    expect(tinggi[0].alasan).toContain("+5,00 pp, MARLIN lebih tinggi");
+    expect(tinggi[0].tindakan).toContain("pengawas");
+
+    const kritis = ev({ marlinPct: 6, kawalPct: 16 });
+    expect(kritis[0].severity).toBe("kritis");
+    expect(kritis[0].alasan).toContain("−10,00 pp, Kawal lebih tinggi");
+    expect(kritis[0].tindakan).toContain("laporan harian");
+  });
+
+  it("minggu terakhir diisi pengawas disebut bila tertinggal dari minggu berjalan", () => {
+    expect(ev({ marlinPct: 20, mingguIsiKawal: 5 })[0].alasan).toContain("minggu ke-8, terakhir diisi minggu ke-5");
+    expect(ev({ marlinPct: 20 })[0].alasan).not.toContain("terakhir diisi");
+  });
+
+  it("ambang yang diatur dipakai", () => {
+    expect(ev({ ambang: { tinggiPp: 3, kritisPp: 4 } })[0].severity).toBe("kritis");
+  });
+
+  it("PAGAR MINGGU-0 di kedua sisi + hanya lokasi yang sedang dikerjakan", () => {
+    expect(ev({ marlinPct: 30, weekNumber: 0 })).toEqual([]);
+    expect(ev({ marlinPct: 30, mingguKawal: 0 })).toEqual([]);
+    expect(ev({ marlinPct: 30, mingguKawal: null })).toEqual([]);
+    expect(ev({ marlinPct: 30, status: "selesai" })).toEqual([]);
+    expect(ev({ marlinPct: 30, status: "terhenti" })).toHaveLength(1);
+  });
+
+  it("Kawal belum mengisi → tidak dinilai", () => {
+    expect(ev({ marlinPct: 30, kawalPct: null })).toEqual([]);
+  });
+
+  it("teks layar memakai en-dash, bukan em-dash", () => {
+    const w = ev({ marlinPct: 30, mingguIsiKawal: 2 })[0];
+    expect(`${w.alasan} ${w.tindakan}`).not.toContain(String.fromCharCode(0x2014));
   });
 });

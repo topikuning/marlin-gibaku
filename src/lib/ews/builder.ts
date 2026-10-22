@@ -1,12 +1,16 @@
 import "server-only";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
+import { kawalUntukLokasi } from "@/lib/kawal/queries";
+import { getAmbangKawal } from "@/lib/kawal/setelan";
 import { COUNTED_REPORT_STATUSES, OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
 import { getLocationsProgress } from "@/lib/progress";
 import {
   AMBANG,
+  evaluasiEwsKawal,
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
   evaluasiEwsSurat,
@@ -58,7 +62,11 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
   if (locations.length === 0) return [];
   const ids = locations.map((l) => l.id);
 
-  const [progress, lastReport, perluKoreksi, temuanTerbuka, kendalaTelat] = await Promise.all([
+  // Kawal hanya untuk lokasi yang sedang dikerjakan – aturannya tidak menilai yang lain.
+  const idsAktif = locations.filter((l) => l.status === "berjalan" || l.status === "terhenti").map((l) => l.id);
+  const lihatKawal = can(user.role, "kawal.view") && idsAktif.length > 0;
+
+  const [progress, lastReport, perluKoreksi, temuanTerbuka, kendalaTelat, kawalPer, ambangKawal] = await Promise.all([
     getLocationsProgress(ids),
     db.dailyReport.groupBy({
       by: ["locationId"],
@@ -86,6 +94,8 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
       },
       select: { locationId: true },
     }),
+    lihatKawal ? kawalUntukLokasi(idsAktif) : Promise.resolve(null),
+    lihatKawal ? getAmbangKawal() : Promise.resolve(null),
   ]);
 
   const lastByLoc = new Map(lastReport.map((r) => [r.locationId, r._max.reportDate]));
@@ -127,6 +137,23 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
         kendalaLewatTenggat: kendalaTelat.filter((k) => k.locationId === loc.id).length,
       }),
     );
+
+    const k = kawalPer?.get(loc.id);
+    if (k && ambangKawal) {
+      warnings.push(
+        ...evaluasiEwsKawal({
+          locationName: loc.name,
+          locationSlug: loc.slug,
+          status: loc.status,
+          weekNumber: p.weekNumber,
+          marlinPct: p.realizedPct,
+          kawalPct: k.actualPct,
+          mingguKawal: k.weekNo,
+          mingguIsiKawal: k.lastActualWeek,
+          ambang: ambangKawal,
+        }),
+      );
+    }
   }
 
   /* Fakta level paket: dokumen & milestone. */

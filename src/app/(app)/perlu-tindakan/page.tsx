@@ -59,7 +59,7 @@ export default async function PerluTindakanPage({
     <div className="space-y-4">
       <PageHeader
         title="Perlu Tindakan"
-        description="Peringatan dini soal progress, kontrak, laporan, temuan, kendala, dan dokumen. Semua dihitung dari aturan yang pasti dan angka resmi sistem, tanpa AI."
+        description="Peringatan dini soal progress, kontrak, laporan, temuan, kendala, dan dokumen. Semua dihitung dari aturan yang pasti dan angka resmi sistem, tanpa AI. Selisih dengan Kawal KNMP memakai angka pengawas KKP sebagai pembanding."
       />
 
       <section className="grid grid-cols-3 gap-2">
