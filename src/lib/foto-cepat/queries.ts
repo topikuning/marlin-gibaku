@@ -5,6 +5,7 @@ import type { SessionUser } from "@/lib/auth/session";
 import { buildPhotoViews } from "@/lib/photos";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
+import { STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
 import type { LokasiBerkoordinat } from "./jarak";
 import { LABEL_TANPA_LOKASI, type FotoKantong } from "./kantong-pilihan";
 
@@ -163,10 +164,11 @@ export type TujuanLaporan = {
 /**
  * Tujuan yang MASIH BOLEH menerima foto di satu lokasi.
  *
- * Hanya yang masih bisa disunting yang ditawarkan: laporan yang sudah disetujui
- * atau final TIDAK muncul, karena menambahkan lampiran ke sana berarti mengubah
- * berkas yang sudah disahkan orang lain. Daftar yang menawarkan tujuan mustahil
- * hanya memindahkan kegagalannya ke saat tombol ditekan.
+ * Laporan yang masih bisa disunting: semua pekerjaannya. Laporan yang sudah
+ * dikirim, disetujui, atau final: HANYA pekerjaan yang belum punya foto sama
+ * sekali – foto yang dipakai di sana menjadi foto susulan (DECISIONS 696).
+ * Pekerjaan yang sudah berfoto tidak ditawarkan: daftar yang menawarkan tujuan
+ * mustahil hanya memindahkan kegagalannya ke saat tombol ditekan.
  */
 export async function getTujuan(
   locationId: string,
@@ -179,13 +181,22 @@ export async function getTujuan(
       select: { id: true, title: true, activityDate: true },
     }),
     db.dailyReport.findMany({
-      where: { locationId, status: { in: [...EDITABLE_STATUSES] } },
+      where: {
+        locationId,
+        OR: [
+          { status: { in: [...EDITABLE_STATUSES] } },
+          { status: { in: [...STATUS_FOTO_SUSULAN] }, items: { some: { photos: { none: {} } } } },
+        ],
+      },
       orderBy: [{ reportDate: "desc" }],
       take: 30,
       select: {
         id: true,
         reportDate: true,
-        items: { select: { id: true, rabNode: { select: { code: true, name: true } } } },
+        status: true,
+        items: {
+          select: { id: true, rabNode: { select: { code: true, name: true } }, _count: { select: { photos: true } } },
+        },
       },
     }),
   ]);
@@ -195,14 +206,19 @@ export async function getTujuan(
       id: k.id,
       label: `${formatTanggal(k.activityDate)} – ${k.title}`,
     })),
-    laporan: laporan.map((r) => ({
-      id: r.id,
-      label: formatTanggal(r.reportDate),
-      items: r.items.map((i) => ({
-        id: i.id,
-        label: i.rabNode.code ? `${i.rabNode.code}. ${i.rabNode.name}` : i.rabNode.name,
-      })),
-    })),
+    laporan: laporan.map((r) => {
+      const terkirim = !EDITABLE_STATUSES.includes(r.status);
+      return {
+        id: r.id,
+        label: terkirim ? `${formatTanggal(r.reportDate)} – sudah dikirim, foto susulan` : formatTanggal(r.reportDate),
+        items: r.items
+          .filter((i) => !terkirim || i._count.photos === 0)
+          .map((i) => ({
+            id: i.id,
+            label: i.rabNode.code ? `${i.rabNode.code}. ${i.rabNode.name}` : i.rabNode.name,
+          })),
+      };
+    }),
   };
 }
 

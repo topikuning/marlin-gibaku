@@ -1,4 +1,7 @@
-import type { WeatherCode, WorkerRole } from "@/generated/prisma/enums";
+import type { DailyReportStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
+
+/** Status laporan yang isinya masih bisa disunting pelapor. */
+export const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
 
 /**
  * Konstanta laporan harian terpadu — dipakai server (snapshot/print) & client (form).

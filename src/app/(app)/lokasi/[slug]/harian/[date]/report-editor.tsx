@@ -744,6 +744,36 @@ function TambahFoto({
   );
 }
 
+/**
+ * FOTO SUSULAN untuk pekerjaan yang belum berfoto di laporan yang SUDAH
+ * dikirim (DECISIONS 696). Panelnya sama dengan draft – potret/galeri atau
+ * ambil dari kantong Foto Cepat – dan aturannya ditegakkan di server.
+ */
+export function TambahFotoSusulan({
+  reportId,
+  itemId,
+  locationId,
+}: {
+  reportId: string;
+  itemId: string;
+  locationId: string;
+}) {
+  const [kantongTerbuka, setKantongTerbuka] = useState(false);
+  return (
+    <div className="mt-1.5">
+      <TambahFoto
+        reportId={reportId}
+        itemId={itemId}
+        locationId={locationId}
+        jumlahFoto={0}
+        kantongTerbuka={kantongTerbuka}
+        onToggleKantong={() => setKantongTerbuka((b) => !b)}
+        onTutupKantong={() => setKantongTerbuka(false)}
+      />
+    </div>
+  );
+}
+
 function ItemRow({
   reportId,
   locationId,
