@@ -359,7 +359,7 @@ export default async function HarianWorkspacePage({
       ) : null}
 
       {/*
-        Pindah tanggal (DECISIONS 415) — super admin saja, berlaku di SEMUA
+        Pindah tanggal (DECISIONS 415/697) — Super Admin + PM ke atas, berlaku di SEMUA
         status. Salah tanggal paling sering ketahuan saat verifikasi (laporan
         dikembalikan dengan alasan "salah penginputan tanggal"), tapi bisa juga
         baru ketahuan setelah final; yang final dibuka & difinalkan ulang

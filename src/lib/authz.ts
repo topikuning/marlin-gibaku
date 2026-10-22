@@ -90,11 +90,10 @@ export const CAPABILITIES = [
   "daily_report.finalize",
   // Buka kunci laporan final untuk koreksi — super_admin SAJA (DECISIONS 149).
   "daily_report.unfinalize",
-  // Pindahkan laporan ke tanggal lain (salah input tanggal) — super_admin SAJA
-  // (permintaan user 2026-08-22, DECISIONS 415). Menggeser tanggal berarti
-  // menggeser volume ke hari lain: kurva-S, deviasi, dan angka kumulatif
-  // laporan di antaranya ikut berubah. Karena itu setara membuka laporan final,
-  // bukan setara mengedit isi.
+  // Pindahkan laporan ke tanggal lain (salah input tanggal) – DECISIONS 415.
+  // Menggeser tanggal berarti menggeser volume ke hari lain: kurva-S, deviasi,
+  // dan angka kumulatif laporan di antaranya ikut berubah. Semula super_admin
+  // saja; sejak 2026-10-22 juga Project Manager ke atas (DECISIONS 697).
   "daily_report.move_date",
   "field_activity.manage",
   // Foto Cepat: jepret/simpan foto DULU (koordinat + jam terekam saat itu),
@@ -394,6 +393,18 @@ const PROJECT_MANAGER: Capability[] = [
    * angka deviasi paketnya.
    */
   "contract.week_mode",
+  /**
+   * PINDAH TANGGAL LAPORAN HARIAN – perintah user 2026-10-22: *"yang bisa
+   * memindah tanggal PD, AM, PM"* (DECISIONS 697, mengubah 415).
+   *
+   * Konsekuensinya disebut apa adanya: memindah laporan FINAL membuka lalu
+   * memfinalkannya ulang secara otomatis, jadi PM ke atas kini bisa menggerakkan
+   * laporan final – tetapi HANYA tanggalnya, dengan alasan wajib dan jejak
+   * audit. Membuka laporan final untuk mengubah ISInya tetap
+   * `daily_report.unfinalize`, super_admin saja. Site Manager tidak ikut:
+   * pelapor tidak memindah laporannya sendiri.
+   */
+  "daily_report.move_date",
   "amendment.manage",
   // `rab.manage` (DECISIONS 302) dan `baseline.manage` (DECISIONS 353) kini
   // datang dari SITE_MANAGER — tidak didaftar ulang di sini supaya jelas
@@ -420,7 +431,6 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // contract.edit = koreksi data kontrak, khusus super_admin.
     // wa.configure (set grup WhatsApp paket) sementara khusus super_admin juga.
     // daily_report.unfinalize = membuka laporan yang sudah final, super_admin saja.
-    // daily_report.move_date = memindahkan laporan ke tanggal lain, super_admin saja.
     // contact.view_all = melihat kontak milik akun lain, super_admin saja.
     // document.delete = hapus permanen dokumen, super_admin saja (batalkan cukup).
     // gdrive.open_folder = tautan keluar ke folder Drive vendor, super_admin saja.
@@ -432,7 +442,6 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "contract.edit" &&
         c !== "wa.configure" &&
         c !== "daily_report.unfinalize" &&
-        c !== "daily_report.move_date" &&
         c !== "contact.view_all" &&
         c !== "document.delete" &&
         c !== "gdrive.open_folder" &&

@@ -49,10 +49,8 @@ describe("authz capability matrix", () => {
       "contract.edit", // koreksi kontrak
       "wa.configure", // set grup WA (sementara)
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
-      // Pindahkan laporan ke tanggal lain (DECISIONS 415). Menggeser tanggal
-      // menggeser volume ke hari lain — kurva-S, deviasi, dan angka kumulatif
-      // laporan di antaranya ikut berubah. Setara membuka laporan final.
-      "daily_report.move_date",
+      // `daily_report.move_date` TIDAK lagi di sini: sejak 2026-10-22 juga
+      // PD, AM, PM (perintah user, DECISIONS 697). Diuji tersendiri di bawah.
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
       "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)
@@ -79,6 +77,19 @@ describe("authz capability matrix", () => {
     for (const cap of CAPABILITIES) {
       if ((HANYA_SUPER_ADMIN as readonly string[]).includes(cap)) continue;
       expect(can("program_director", cap), cap).toBe(true);
+    }
+  });
+
+  it("pindah tanggal laporan: SA, PD, AM, PM – bukan SM, pelaksana, viewer, Wakil PPK (DECISIONS 697)", () => {
+    for (const role of ["super_admin", "program_director", "regional_manager", "project_manager"] as const) {
+      expect(can(role, "daily_report.move_date"), role).toBe(true);
+    }
+    for (const role of ["site_manager", "field_supervisor", "exec_viewer", "wakil_ppk"] as const) {
+      expect(can(role, "daily_report.move_date"), role).toBe(false);
+    }
+    // Membuka laporan final untuk mengubah isinya TETAP super_admin saja.
+    for (const role of ["program_director", "regional_manager", "project_manager"] as const) {
+      expect(can(role, "daily_report.unfinalize"), role).toBe(false);
     }
   });
 
