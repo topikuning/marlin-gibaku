@@ -81,8 +81,55 @@ describe("parser Kawal", () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.masalah).toContain("Baris 1 (id Kawal 4), field progres_final: harus angka.");
-    expect(r.masalah).toContain("Baris 1 (id Kawal 4), field kurva_rencana_kumulatif: tipenya berubah.");
+    expect(r.masalah).toContain("Baris 1 (id Kawal 4), field kurva_rencana_kumulatif: tipenya berubah (sekarang objek).");
     expect(r.masalah.join(" ")).not.toContain("dua belas");
+  });
+
+  /*
+   * Tarikan 2026-10-22 gagal dengan "field sarpras: tipenya berubah" saja –
+   * union zod melipat SEMUA masalah di dalam daftar sarana ke pesan itu, jadi
+   * sebab sebenarnya tidak terbaca (DECISIONS 695).
+   */
+  it("masalah di dalam daftar sarana menyebut sarana ke berapa dan field-nya, tanpa nilai", () => {
+    const b = barisKawal({ id: 334 });
+    const [s0] = b.sarpras as Record<string, unknown>[];
+    const kasus: [unknown, string][] = [
+      [[s0, { ...s0, nama_sarpras: "" }], "sarana ke-2 (id 33401), nama_sarpras tidak boleh kosong"],
+      [[{ ...s0, nama_sarpras: null }], "sarana ke-1 (id 33401), nama_sarpras tipenya berubah (sekarang null)"],
+      [[{ ...s0, bobot: "dua belas" }], "sarana ke-1 (id 33401), bobot harus angka"],
+      [["x"], "sarana ke-1 tipenya berubah (sekarang teks)"],
+      [5, "tipenya berubah (sekarang angka)"],
+      [{ a: 1 }, "tipenya berubah (sekarang objek)"],
+    ];
+    for (const [sarpras, pesan] of kasus) {
+      const r = parseResponsKawal(responsKawal([{ ...b, sarpras }]));
+      expect(r.ok).toBe(false);
+      if (r.ok) continue;
+      expect(r.masalah).toEqual([`Baris 1 (id Kawal 334), field sarpras: ${pesan}.`]);
+      expect(r.masalah.join(" ")).not.toMatch(/dua belas|Dermaga/);
+    }
+  });
+
+  it("bentuk lain yang ISINYA sama diterima: objek berkunci nomor, teks JSON, teks kosong", () => {
+    const b = barisKawal({ id: 7 });
+    const [s0, s1] = b.sarpras as Record<string, unknown>[];
+    const daftar = (sarpras: unknown) => {
+      const r = parseResponsKawal(responsKawal([{ ...b, sarpras }]));
+      expect(r.ok).toBe(true);
+      return r.ok ? r.baris[0].sarana.map((s) => s.kawalItemId) : [];
+    };
+    // Array PHP yang kuncinya bolong ter-encode sebagai objek.
+    expect(daftar({ "0": s0, "3": s1 })).toEqual([701, 702]);
+    expect(daftar(JSON.stringify([s0, s1]))).toEqual([701, 702]);
+    expect(daftar(JSON.stringify({ "1": s1 }))).toEqual([702]);
+    expect(daftar("")).toEqual([]);
+    expect(daftar(null)).toEqual([]);
+    // Field wajib sarana tetap diperiksa di bentuk objek berkunci.
+    const tanpaBobot = { ...s0 };
+    delete tanpaBobot.bobot;
+    const r = parseResponsKawal(responsKawal([{ ...b, sarpras: { "0": tanpaBobot } }]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.masalah).toEqual(["Baris 1 (id Kawal 7): field sarpras[].bobot tidak ada."]);
   });
 
   it("nilai kosong boleh: lokasi baru tanpa SPMK dan tanpa kurva", () => {

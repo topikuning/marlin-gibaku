@@ -223,6 +223,104 @@ const sarana = bentukSarana.transform((s, ctx): SaranaKawal => {
   };
 });
 
+const objek = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+
+/** Nama tipe untuk pesan masalah – tidak pernah nilainya. */
+function namaTipe(v: unknown): string {
+  if (v === undefined) return "tidak ada";
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "daftar";
+  if (typeof v === "string") return "teks";
+  if (typeof v === "number") return "angka";
+  if (typeof v === "boolean") return "benar/salah";
+  return typeof v === "object" ? "objek" : typeof v;
+}
+
+/** Objek berkunci nomor yang semua isinya objek → daftar isinya (urut kunci). */
+function objekBernomor(v: unknown): unknown[] | null {
+  if (!objek(v)) return null;
+  const kunci = Object.keys(v);
+  if (!kunci.every((k) => /^\d+$/.test(k))) return null;
+  const isi = Object.values(v);
+  return isi.every(objek) ? isi : null;
+}
+
+/**
+ * `sarpras` sebagai daftar mentah. Selain array, diterima tiga bentuk yang
+ * ISINYA SAMA (DECISIONS 695) – bukan pelonggaran makna:
+ * - objek berkunci nomor (`{"0": {...}, "2": {...}}`): array PHP yang kuncinya
+ *   bolong di-encode sebagai objek, khas `filter()` tanpa `values()`;
+ * - teks JSON berisi daftar (pola yang sama dengan `kurva_*_json`);
+ * - teks kosong = tidak ada sarana, sama dengan null.
+ * `null` = tidak ada sarana; `undefined` = bentuk lain (tipe berubah).
+ */
+export function daftarSarpras(v: unknown): unknown[] | null | undefined {
+  if (v === null) return null;
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (s === "") return null;
+    let isi: unknown;
+    try {
+      isi = JSON.parse(s);
+    } catch {
+      return undefined;
+    }
+    if (isi === null) return null;
+    return Array.isArray(isi) ? isi : (objekBernomor(isi) ?? undefined);
+  }
+  return objekBernomor(v) ?? undefined;
+}
+
+/** Nilai di dalam `mentah` menurut path masalah zod – untuk menyebut tipenya. */
+function nilaiDi(mentah: unknown, path: PropertyKey[]): unknown {
+  let v = mentah;
+  for (const k of path) {
+    if (v === null || typeof v !== "object") return undefined;
+    v = (v as Record<PropertyKey, unknown>)[k];
+  }
+  return v;
+}
+
+/** Sebab satu masalah: pesan sendiri, atau "tipenya berubah (sekarang …)". */
+function sebabMasalah(iss: z.core.$ZodIssue, mentah: unknown): string {
+  return iss.code === "custom" ? iss.message : `tipenya berubah (sekarang ${namaTipe(nilaiDi(mentah, iss.path))})`;
+}
+
+/**
+ * Daftar sarana. Diparse SATU per SATU, bukan lewat `z.union`: union zod
+ * melipat semua masalah di dalam daftar menjadi satu "sarpras: tipenya
+ * berubah" – nama kosong di satu sarana tidak bisa dibedakan dari bentuk
+ * daftar yang berubah (tarikan 2026-10-22 gagal persis begitu).
+ */
+const daftarSarana = z.unknown().transform((v, ctx): SaranaKawal[] => {
+  const daftar = daftarSarpras(v);
+  if (daftar === undefined) {
+    ctx.addIssue({ code: "custom", message: `tipenya berubah (sekarang ${namaTipe(v)})` });
+    return z.NEVER;
+  }
+  if (daftar === null) return [];
+  const hasil: SaranaKawal[] = [];
+  let rusak = false;
+  daftar.forEach((s, i) => {
+    const r = sarana.safeParse(s);
+    if (r.success) {
+      hasil.push(r.data);
+      return;
+    }
+    rusak = true;
+    const id = objek(s) && typeof s.id === "number" ? ` (id ${s.id})` : "";
+    for (const iss of r.error.issues) {
+      const field = iss.path.map(String).join(".");
+      ctx.addIssue({
+        code: "custom",
+        message: `sarana ke-${i + 1}${id}${field ? `, ${field}` : ""} ${sebabMasalah(iss, s)}`,
+      });
+    }
+  });
+  return rusak ? z.NEVER : hasil;
+});
+
 const kolomKurva = Object.fromEntries(
   (Object.entries(KURVA_KAWAL) as [NamaKurva, string][]).map(([nama, field]) => [
     field,
@@ -272,7 +370,7 @@ const bentukBaris = z.object({
   remark_kondisi_umum: teks,
   remark_hambatan: teks,
   remark_saran_instruksi: teks,
-  sarpras: z.union([z.array(sarana), z.null()]),
+  sarpras: daftarSarana,
   ...kolomKurva,
 });
 
@@ -323,7 +421,7 @@ const baris = bentukBaris.transform((b, ctx): BarisKawal => {
     remarkKondisiUmum: b.remark_kondisi_umum,
     remarkHambatan: b.remark_hambatan,
     remarkSaranInstruksi: b.remark_saran_instruksi,
-    sarana: b.sarpras ?? [],
+    sarana: b.sarpras,
   };
 });
 
@@ -338,14 +436,13 @@ function fieldWajib(bentuk: z.ZodObject): string[] {
 const WAJIB_BARIS = fieldWajib(bentukBaris);
 const WAJIB_SARANA = fieldWajib(bentukSarana);
 
-const objek = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-
 /** Field wajib yang tidak ada di satu baris, termasuk di dalam `sarpras`. */
 function fieldHilang(mentah: Record<string, unknown>): string[] {
   const hilang = WAJIB_BARIS.filter((f) => !(f in mentah));
-  if (Array.isArray(mentah.sarpras)) {
+  const sarpras = daftarSarpras(mentah.sarpras);
+  if (sarpras) {
     const diSarana = new Set<string>();
-    for (const s of mentah.sarpras) {
+    for (const s of sarpras) {
       if (objek(s)) for (const f of WAJIB_SARANA) if (!(f in s)) diSarana.add(`sarpras[].${f}`);
     }
     hilang.push(...diSarana);
@@ -394,8 +491,7 @@ export function parseResponsKawal(body: unknown): HasilParse {
     if (!r.success) {
       for (const iss of r.error.issues) {
         const field = iss.path.map(String).join(".") || "(baris)";
-        const sebab = iss.code === "custom" ? iss.message : "tipenya berubah";
-        catat(`${label}, field ${field}: ${sebab}.`);
+        catat(`${label}, field ${field}: ${sebabMasalah(iss, mentah)}.`);
       }
       return;
     }

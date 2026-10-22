@@ -79,6 +79,11 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   tab Kawal KNMP satu lokasi dengan angka Relatif di layar Kawal, ATAU uji sambungan
   berikutnya menunjukkan Relatif = rasio terhadap rencana → tetapkan field-nya →
   tampilkan di tab dan strip atas.
+- 🔴 **KAWAL-SINKRON-SARPRAS — sinkron Kawal gagal sejak 2026-10-22.** Baris 80 (id
+  Kawal 334), field `sarpras` ditolak; pesan lama tidak menyebut sebabnya (DECISIONS
+  695). Perbaikan (pesan rinci + bentuk yang isinya sama diterima) ada di `dev`,
+  menunggu rilis ke `main`. Selesai bila sinkron terjadwal sesudah rilis berhasil;
+  bila masih gagal, pesan barunya menyebut sarana dan field yang rusak.
 - 🟢 **KAWAL-SARANA — makna progres per sarana Kawal belum terbukti.** Tabel per
   sarana (DECISIONS 694) menampilkan angka sarana Kawal apa adanya dan selisihnya
   tanpa warna, karena Σ bobot × progres sarana belum terbukti sama dengan
