@@ -258,6 +258,9 @@ describe("menyimpan ke kantong", () => {
     expect(panggilan[0].reportId).toBeNull();
     expect(panggilan[0].reportItemId).toBeNull();
     expect(panggilan[0].activityId).toBeNull();
+    // Id foto yang tersimpan dikembalikan – dipakai antrean kamera supaya foto
+    // yang SUDAH terkirim tetap bisa dibuang dari layar kamera (DECISIONS 699).
+    expect(hasil.photoIds).toEqual(["foto-1"]);
   });
 
   it("TIDAK mengirim titik proyek sebagai cadangan koordinat", async () => {

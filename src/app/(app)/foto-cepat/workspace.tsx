@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useAksi } from "@/lib/aksi-klien";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Images, MapPin, MapPinOff, RotateCw, Trash2, X } from "lucide-react";
-import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
+import { Camera, Check, ChevronLeft, ChevronRight, Images, MapPin, MapPinOff, Maximize2, RotateCw, Trash2, X } from "lucide-react";
+import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label, Lapisan } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
+import { KameraLangsung, type JepretanSesi, type PosisiJepret } from "@/components/knmp/kamera-langsung";
 import { useAntreanFoto, type BarisAntrean } from "./use-antrean";
 import { labelJarak, urutkanTerdekat, type LokasiBerjarak } from "@/lib/foto-cepat/jarak";
 import type {
@@ -110,8 +110,19 @@ function JepretCard({
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
   const [state, action, pending] = useAksi(simpanFotoCepatAction, KOSONG);
-  const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang } =
+  const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, buangJepretan, kirimSekarang } =
     useAntreanFoto();
+  /**
+   * Jepretan sesi kamera ini – untuk gambar kecil & tampilan besar di layar
+   * kamera (DECISIONS 699). URL-nya dari berkas jepretan itu sendiri, jadi
+   * tampil seketika, sebelum (dan sesudah) terkirim.
+   */
+  const [sesi, setSesi] = useState<{ id: string; url: string }[]>([]);
+  const sesiRef = useRef(sesi);
+  useEffect(() => {
+    sesiRef.current = sesi;
+  }, [sesi]);
+  useEffect(() => () => sesiRef.current.forEach((j) => URL.revokeObjectURL(j.url)), []);
 
   /**
    * Rana → SIMPAN DI PERANGKAT, bukan → kirim (DECISIONS 257).
@@ -122,10 +133,44 @@ function JepretCard({
    */
   const kirim = useCallback(
     (file: File, posisi: PosisiJepret) => {
-      void titip(file, posisi);
+      void titip(file, posisi).then((id) => {
+        // Hanya jepretan yang BENAR-BENAR tersimpan yang diberi gambar kecil.
+        if (id) setSesi((s) => [...s, { id, url: URL.createObjectURL(file) }]);
+      });
     },
     [titip],
   );
+
+  const buang = useCallback(
+    async (id: string) => {
+      const g = await buangJepretan(id);
+      if (g) return g;
+      const j = sesiRef.current.find((x) => x.id === id);
+      if (j) URL.revokeObjectURL(j.url);
+      setSesi((s) => s.filter((x) => x.id !== id));
+      return null;
+    },
+    [buangJepretan],
+  );
+
+  // Di mana tiap jepretan sekarang – dibaca dari antrean, bukan ditebak.
+  const status = new Map(baris.map((b) => [b.id, b.status]));
+  const jepretan: JepretanSesi[] = sesi.map((j) => {
+    const st = status.get(j.id);
+    return {
+      ...j,
+      keterangan:
+        st === "kirim"
+          ? "Sedang dikirim"
+          : st === "ditolak"
+            ? "Ditolak server – lihat sebabnya di antrean"
+            : st === "rusak"
+              ? "Rusak di simpanan HP"
+              : st
+                ? "Tersimpan di HP, menunggu dikirim"
+                : "Sudah terkirim ke kantong",
+    };
+  });
 
   /**
    * Kantong di bawah baru disegarkan saat kamera DITUTUP, bukan tiap jepretan.
@@ -134,6 +179,9 @@ function JepretCard({
    */
   const tutupKamera = useCallback(() => {
     setKameraBuka(false);
+    // Sesi kamera selesai: gambar kecilnya ikut selesai.
+    sesiRef.current.forEach((j) => URL.revokeObjectURL(j.url));
+    setSesi([]);
     router.refresh();
   }, [router]);
 
@@ -184,7 +232,13 @@ function JepretCard({
           naik-turun — keluhan user 2026-08-06.
         */}
         {kameraBuka ? (
-          <KameraLangsung onFoto={kirim} onTutup={tutupKamera} menunggu={ringkas.menunggu} />
+          <KameraLangsung
+            onFoto={kirim}
+            onTutup={tutupKamera}
+            menunggu={ringkas.menunggu}
+            jepretan={jepretan}
+            onBuang={buang}
+          />
         ) : null}
 
         <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
@@ -464,6 +518,8 @@ function KantongCard({
 }) {
   const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
   const [hasil, setHasil] = useState<FotoCepatState | null>(null);
+  /** Tampilan besar (DECISIONS 699): urutan foto yang dilihat, null = tertutup. */
+  const [lihat, setLihat] = useState<number | null>(null);
 
   /**
    * Buang id yang sudah tidak ada di kantong (baru dipakai / dibuang).
@@ -513,6 +569,11 @@ function KantongCard({
    * tengah daftar berarti ia tidak akan pernah dikerjakan.
    */
   const kelompok = useMemo(() => kelompokkanKantong(kantong), [kantong]);
+  // Urutan tampilan, supaya geser kiri/kanan di tampilan besar mengikuti petak.
+  const urutan = useMemo(() => kelompok.flatMap((g) => g.fotos), [kelompok]);
+  // Foto terakhir dibuang dari tampilan besar → tutup, supaya foto yang masuk
+  // belakangan tidak tiba-tiba membuka tampilan besar sendiri.
+  if (lihat != null && urutan.length === 0) setLihat(null);
   // Aturan "boleh diapakan" tinggal di modul murni `kantong-pilihan.ts`, bukan
   // di sini — termasuk pagar bahwa foto tanpa lokasi tidak boleh dipakai
   // sebelum lokasinya ditetapkan (DECISIONS 254).
@@ -552,7 +613,8 @@ function KantongCard({
             bertombol, dan satu-satunya ikon yang menonjol justru tong sampah. */}
         <HelpText>
           Ketuk foto untuk memilihnya. Anda boleh memilih berapa pun, dari kelompok mana pun.
-          Pilihan tindakannya muncul di bawah, sesuai foto yang Anda pilih.
+          Pilihan tindakannya muncul di bawah, sesuai foto yang Anda pilih. Untuk melihat foto
+          ukuran besar, ketuk tombol perbesar di pojok kanan bawah foto.
         </HelpText>
 
         {hasil?.error ? <Banner tone="error" title={hasil.error} /> : null}
@@ -590,7 +652,13 @@ function KantongCard({
               ) : null}
               <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {g.fotos.map((f) => (
-                  <FotoPetak key={f.id} foto={f} dipilih={terpilih.has(f.id)} onToggle={toggle} />
+                  <FotoPetak
+                    key={f.id}
+                    foto={f}
+                    dipilih={terpilih.has(f.id)}
+                    onToggle={toggle}
+                    onPerbesar={() => setLihat(urutan.findIndex((x) => x.id === f.id))}
+                  />
                 ))}
               </ul>
             </div>
@@ -617,11 +685,137 @@ function KantongCard({
           />
         )}
       </div>
+
+      {lihat != null && urutan.length > 0 ? (
+        <PenampilKantong
+          fotos={urutan}
+          urutanKe={Math.min(lihat, urutan.length - 1)}
+          terpilih={terpilih}
+          onToggle={toggle}
+          onGeser={(i) => setLihat(i)}
+          onTutup={() => setLihat(null)}
+        />
+      ) : null}
     </Card>
   );
 }
 
-function FotoPetak({
+/**
+ * TAMPILAN BESAR foto kantong (DECISIONS 699).
+ *
+ * Keluhan user 2026-10-22: *"di menu foto cepat yang foto2 diambil tidak ada
+ * preview jelas (ukuran besar) sama sekali"*. Betul – petaknya kecil dan
+ * terpotong persegi, dan ketukan pada petak MEMILIH foto (keputusan 2026-08-06),
+ * jadi tidak ada satu pun jalan untuk melihat foto utuh. Ketukan memilih tetap;
+ * tampilan besar dibuka dari tombolnya sendiri, dan dari sini foto bisa
+ * dipilih, diputar, atau dibuang tanpa kembali ke petak.
+ */
+function PenampilKantong({
+  fotos,
+  urutanKe,
+  terpilih,
+  onToggle,
+  onGeser,
+  onTutup,
+}: {
+  fotos: FotoKantong[];
+  urutanKe: number;
+  terpilih: Set<string>;
+  onToggle: (id: string) => void;
+  onGeser: (i: number) => void;
+  onTutup: () => void;
+}) {
+  const foto = fotos[urutanKe];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onTutup();
+      else if (e.key === "ArrowRight" && urutanKe < fotos.length - 1) onGeser(urutanKe + 1);
+      else if (e.key === "ArrowLeft" && urutanKe > 0) onGeser(urutanKe - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [urutanKe, fotos.length, onGeser, onTutup]);
+
+  return (
+    <Lapisan
+      lapis="penampil"
+      className="flex h-[100dvh] w-screen flex-col bg-ink"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Foto kantong ukuran besar"
+    >
+      <div className="flex items-center justify-between gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <p className="text-[13px] font-medium text-white">
+          Foto {urutanKe + 1} dari {fotos.length}
+          <span className="block text-[11px] font-normal text-white/70">{foto.locationName}</span>
+        </p>
+        <button
+          type="button"
+          onClick={onTutup}
+          aria-label="Tutup tampilan foto"
+          className="rounded-full bg-white/15 p-2.5 text-white"
+        >
+          <X aria-hidden className="size-5" />
+        </button>
+      </div>
+
+      <div className="relative min-h-0 flex-1">
+        {foto.fullUrl ?? foto.thumbUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={foto.fullUrl ?? foto.thumbUrl}
+            alt={`Foto ${foto.waktuLabel}`}
+            className="absolute inset-0 size-full object-contain"
+          />
+        ) : (
+          <p className="absolute inset-x-0 top-1/2 text-center text-sm text-white/70">Foto belum bisa ditampilkan.</p>
+        )}
+        {urutanKe > 0 ? (
+          <button
+            type="button"
+            onClick={() => onGeser(urutanKe - 1)}
+            aria-label="Foto sebelumnya"
+            className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-ink/60 p-2 text-white"
+          >
+            <ChevronLeft aria-hidden className="size-6" />
+          </button>
+        ) : null}
+        {urutanKe < fotos.length - 1 ? (
+          <button
+            type="button"
+            onClick={() => onGeser(urutanKe + 1)}
+            aria-label="Foto berikutnya"
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-ink/60 p-2 text-white"
+          >
+            <ChevronRight aria-hidden className="size-6" />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mx-auto w-full max-w-2xl space-y-2 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-white/80">
+          <span>{foto.waktuLabel}</span>
+          {foto.lat != null && foto.lng != null ? (
+            <span className="inline-flex items-center gap-1">
+              <MapPin aria-hidden className={`size-3 ${foto.gpsAsli ? "text-success" : "text-warning"}`} />
+              {foto.lat.toFixed(5)}, {foto.lng.toFixed(5)}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <MapPinOff aria-hidden className="size-3 text-warning" /> Tanpa koordinat
+            </span>
+          )}
+          <span>Oleh {foto.reporterName}</span>
+        </p>
+        {/* `key` per foto: pesan gagal milik satu foto tidak boleh terbawa ke foto lain. */}
+        <AksiFotoBesar key={foto.id} foto={foto} dipilih={terpilih.has(foto.id)} onToggle={onToggle} />
+      </div>
+    </Lapisan>
+  );
+}
+
+function AksiFotoBesar({
   foto,
   dipilih,
   onToggle,
@@ -629,6 +823,48 @@ function FotoPetak({
   foto: FotoKantong;
   dipilih: boolean;
   onToggle: (id: string) => void;
+}) {
+  const [hapusState, hapusAction, menghapus] = useAksi(hapusFotoCepatAction, KOSONG);
+  const [putarState, putarAction, memutar] = useAksi(putarFotoAction, undefined);
+  const galat = hapusState.error ?? putarState?.error ?? null;
+  return (
+    <>
+      {galat ? <p className="rounded-md bg-danger px-3 py-2 text-[13px] text-white">{galat}</p> : null}
+      <div className="grid grid-cols-3 gap-2">
+        <Button type="button" onClick={() => onToggle(foto.id)} aria-pressed={dipilih}>
+          <Check aria-hidden className="size-4" />
+          {dipilih ? "Batal pilih" : "Pilih"}
+        </Button>
+        <form action={putarAction} className="contents">
+          <input type="hidden" name="photoId" value={foto.id} />
+          <input type="hidden" name="arah" value="kanan" />
+          <Button type="submit" variant="secondary" loading={memutar}>
+            {memutar ? null : <RotateCw aria-hidden className="size-4" />}
+            Putar
+          </Button>
+        </form>
+        <form action={hapusAction} className="contents">
+          <input type="hidden" name="photoId" value={foto.id} />
+          <Button type="submit" variant="secondary" loading={menghapus}>
+            {menghapus ? null : <Trash2 aria-hidden className="size-4" />}
+            Buang
+          </Button>
+        </form>
+      </div>
+    </>
+  );
+}
+
+function FotoPetak({
+  foto,
+  dipilih,
+  onToggle,
+  onPerbesar,
+}: {
+  foto: FotoKantong;
+  dipilih: boolean;
+  onToggle: (id: string) => void;
+  onPerbesar: () => void;
 }) {
   const [state, action, pending] = useAksi(hapusFotoCepatAction, KOSONG);
   const [putarState, putarAction, putarPending] = useAksi(putarFotoAction, undefined);
@@ -671,6 +907,17 @@ function FotoPetak({
           )}
           <span className="truncate">{foto.waktuLabel}</span>
         </span>
+      </button>
+      {/* Perbesar di pojok kanan bawah GAMBAR – jauh dari tong sampah di atas,
+          dan di luar tombol pilih (tombol tidak boleh bersarang). */}
+      <button
+        type="button"
+        onClick={onPerbesar}
+        aria-label={`Perbesar foto ${foto.waktuLabel}`}
+        title="Perbesar"
+        className="absolute right-1 bottom-7 rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-primary"
+      >
+        <Maximize2 aria-hidden className="size-3.5" />
       </button>
       <div className="absolute right-1 top-1 flex flex-col gap-1">
         <form action={action}>

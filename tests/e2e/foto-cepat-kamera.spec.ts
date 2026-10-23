@@ -102,4 +102,54 @@ test.describe("Foto Cepat – rana di dalam aplikasi", () => {
       .toBeGreaterThanOrEqual(3);
     await expect(rana).toBeEnabled();
   });
+
+  /*
+   * GAMBAR KECIL + TAMPILAN BESAR (DECISIONS 699). Pilihan user 2026-10-22:
+   * jepret tetap langsung tersimpan; yang jelek dilihat besar lalu dibuang DI
+   * LAYAR KAMERA, tanpa menutupnya. Luring supaya fotonya pasti masih di HP –
+   * jalur "sudah terkirim" butuh penyimpanan foto yang tidak ada di CI.
+   */
+  test("foto terakhir bisa dilihat besar lalu dibuang tanpa menutup kamera", async ({ page, context }) => {
+    await page.goto("/foto-cepat", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /buka kamera/i }).click();
+    const video = page.getByLabel("Pratinjau kamera");
+    await expect
+      .poll(async () => video.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 20_000 })
+      .toBeGreaterThan(0);
+    const rana = page.getByRole("button", { name: "Jepret" });
+    await expect(rana).toBeEnabled({ timeout: 20_000 });
+
+    await context.setOffline(true);
+    await rana.click();
+    await page.waitForTimeout(500);
+    await rana.click();
+
+    const kecil = page.getByRole("button", { name: "Lihat foto terakhir" });
+    await expect(kecil).toBeVisible({ timeout: 20_000 });
+    await expect(kecil).toContainText("2");
+    await kecil.click();
+
+    const besar = page.getByRole("dialog", { name: "Foto yang baru diambil" });
+    await expect(besar).toBeVisible();
+    await expect(besar.getByText("Foto 2 dari 2")).toBeVisible();
+    await expect(besar.getByText("Tersimpan di HP, menunggu dikirim")).toBeVisible();
+    // Gambarnya benar-benar termuat, bukan kotak kosong.
+    await expect
+      .poll(async () =>
+        besar.getByRole("img", { name: "Foto yang baru diambil" }).evaluate((i: HTMLImageElement) => i.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+
+    await besar.getByRole("button", { name: "Buang foto ini" }).click();
+    // Pindah ke foto sebelumnya – tinggal satu.
+    await expect(besar.getByText("Foto 1 dari 1")).toBeVisible({ timeout: 10_000 });
+    await besar.getByRole("button", { name: "Kembali memotret" }).click();
+    await expect(besar).toHaveCount(0);
+
+    // Kamera tetap menyala, dan antrean HP ikut menyusut.
+    await expect(rana).toBeEnabled();
+    await expect(page.getByText("1 foto menunggu dikirim, aman tersimpan di HP.")).toBeVisible({ timeout: 10_000 });
+    await expect(kecil).not.toContainText("2");
+    await context.setOffline(false);
+  });
 });

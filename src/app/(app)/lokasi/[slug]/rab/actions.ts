@@ -26,6 +26,8 @@ import {
 } from "@/lib/rab/persetujuan";
 import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
 import {
+  kalimatKurvaAdendum,
+  kurvaSesudahAdendum,
   restoreBaseline,
   saveCategorySchedule,
   hitungJadwalBaru,
@@ -103,7 +105,10 @@ export async function renameRabCategoryAction(_prev: RabActionState, formData: F
   }
 }
 
-/** Aktifkan revisi draft → revisi aktif lama digantikan + baseline di-regenerate. */
+/**
+ * Aktifkan revisi draft → revisi aktif lama digantikan. RAB pertama lokasi
+ * dibuatkan baseline; adendum MEMBAWA baseline yang berlaku (DECISIONS 698).
+ */
 export async function activateDraftAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
   const parsed = z.uuid().safeParse(formData.get("revisionId"));
   if (!parsed.success) return { error: "Revisi tidak valid." };
@@ -152,23 +157,37 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // Ditandai SESUDAH aktif: menyentuh draft sebelumnya menggeser updatedAt
     // dan menggugurkan suara persetujuan yang baru diperiksa.
     if (adendum) await db.rabRevision.update({ where: { id: rev.id }, data: { awaitingCco: true } });
-    // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
-    // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
+    // Revisi sudah aktif — kegagalan baseline TIDAK boleh tampil sebagai error
+    // generik seolah aktivasi batal (audit 2026-07-27, B17).
+    //
+    // ADENDUM tidak mengatur ulang kurva-S (DECISIONS 698): bobot mingguannya
+    // dibawa apa adanya. Regenerate hanya untuk RAB pertama lokasi.
+    let kalimatKurva = "Baseline kurva-S sudah dibuat ulang.";
     try {
-      await regenerateBaseline(rev.locationId, {
-        source: rev.source === "adendum" ? "adendum" : "auto",
-        rabRevisionId: rev.id,
-        note: `Regenerate otomatis (aktivasi revisi #${rev.revisionNo})`,
-        userId: user.id,
-      });
+      if (adendum) {
+        kalimatKurva = kalimatKurvaAdendum(
+          await kurvaSesudahAdendum(rev.locationId, rev.id, {
+            userId: user.id,
+            asal: `aktivasi revisi #${rev.revisionNo}`,
+          }),
+        );
+      } else {
+        await regenerateBaseline(rev.locationId, {
+          source: rev.source === "adendum" ? "adendum" : "auto",
+          rabRevisionId: rev.id,
+          note: `Regenerate otomatis (aktivasi revisi #${rev.revisionNo})`,
+          userId: user.id,
+        });
+      }
     } catch (e) {
-      console.error("[rab] regenerate baseline gagal (revisi sudah aktif):", e);
+      console.error("[rab] baseline gagal diperbarui (revisi sudah aktif):", e);
       revalidateRab(rev.location.slug);
       return {
         error:
-          `Revisi #${rev.revisionNo} sudah aktif, tetapi kurva-S gagal dibuat ulang ` +
+          `Revisi #${rev.revisionNo} sudah aktif, tetapi kurva-S gagal ` +
+          `${adendum ? "disambungkan ke revisi ini" : "dibuat"} ` +
           `(${e instanceof Error ? e.message : "kesalahan tak dikenal"}). ` +
-          `Buka Progress › Kurva-S & Baseline, lalu tekan "Hitung ulang" untuk menyelaraskannya.`,
+          `Buka Progress › Kurva-S & Baseline untuk memeriksanya.`,
       };
     }
     revalidateRab(rev.location.slug);
@@ -185,7 +204,7 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     let kabar =
       `Revisi #${rev.revisionNo} aktif` +
       (persetujuanSaatItu ? ` tanpa persetujuan (super admin utama, tercatat di jejak audit)` : "") +
-      `. Baseline kurva-S sudah dibuat ulang.`;
+      `. ${kalimatKurva}`;
     if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
     if (p.item > 0) {
       const contoh = p.rincian

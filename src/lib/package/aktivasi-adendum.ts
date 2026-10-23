@@ -5,6 +5,7 @@ import { selisihNilaiAdendum, type ItemSelisihAdendum } from "@/lib/finance/calc
 import { nilaiPersetujuan, suaraMasihBerlaku } from "@/lib/rab/persetujuan-aturan";
 import { pastikanBolehAktivasi, ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { activateRevision, regenerateBaseline } from "@/lib/rab/import";
+import { kurvaSesudahAdendum, type KurvaSesudahAdendum } from "@/lib/baseline";
 import type { LocationScopeKind } from "@/generated/prisma/enums";
 
 /**
@@ -197,12 +198,18 @@ export type HasilAktivasiAdendum = {
     revisionNo: number;
     locationName: string;
     penyesuaian: Awaited<ReturnType<typeof activateRevision>>["penyesuaian"];
+    /**
+     * Nasib kurva-S lokasinya: dibawa apa adanya (DECISIONS 698), atau dibuat
+     * karena belum ada. null = lokasi yang masuk lewat CCO ini (kurvanya
+     * dibuat ulang mulai minggu berlaku) atau gagal (lihat `baselineGagal`).
+     */
+    kurva: KurvaSesudahAdendum | null;
   }[];
   /** Usulan lingkup yang baru berlaku lewat CCO ini (masih draft sebelumnya). */
   lingkup: number;
   /** Perubahan yang SUDAH berlaku sejak dua persetujuan, kini bernomor CCO. */
   dicatat: number;
-  /** Lokasi yang revisinya SUDAH aktif tetapi kurva-S-nya gagal dibuat ulang. */
+  /** Lokasi yang revisinya SUDAH aktif tetapi kurva-S-nya gagal diperbarui. */
   baselineGagal: string[];
 };
 
@@ -339,23 +346,34 @@ export async function aktifkanAdendumPaket(input: InputAktivasiAdendum): Promise
 
   const hasilRevisi: HasilAktivasiAdendum["revisi"] = [];
   const baselineGagal: string[] = [];
+  // Lokasi yang baru MASUK kontrak lewat CCO ini: kurvanya memang harus mulai
+  // dari minggu berlakunya, jadi ia tetap dibuat ulang (lihat loop lingkup).
+  const masukSekarang = new Set(
+    lingkup.filter((l) => !l.sudahBerlaku && l.kind === "tambah").map((l) => l.locationId),
+  );
   for (const r of draftRevisi) {
     const aktif = await activateRevision(r.revisionId, user.id);
     // Ditautkan SESUDAH aktif: menyentuh draft sebelum aktivasi menggeser
     // updatedAt-nya dan menggugurkan suara persetujuan yang baru diperiksa.
     await db.rabRevision.update({ where: { id: r.revisionId }, data: { amendmentId: amendment.id } });
-    hasilRevisi.push({ revisionNo: r.revisionNo, locationName: r.locationName, penyesuaian: aktif.penyesuaian });
+    let kurva: KurvaSesudahAdendum | null = null;
     try {
-      await regenerateBaseline(r.locationId, {
-        source: "adendum",
-        rabRevisionId: r.revisionId,
-        note: `Regenerate otomatis (aktivasi ${ccoNumber})`,
-        userId: user.id,
-      });
+      if (masukSekarang.has(r.locationId)) {
+        await regenerateBaseline(r.locationId, {
+          source: "adendum",
+          rabRevisionId: r.revisionId,
+          note: `Regenerate otomatis (lokasi masuk lewat ${ccoNumber})`,
+          userId: user.id,
+        });
+      } else {
+        // Bobot mingguan TIDAK diatur ulang (DECISIONS 698).
+        kurva = await kurvaSesudahAdendum(r.locationId, r.revisionId, { userId: user.id, asal: `aktivasi ${ccoNumber}` });
+      }
     } catch (e) {
-      console.error("[adendum] regenerate baseline gagal (revisi sudah aktif):", e);
+      console.error("[adendum] baseline gagal diperbarui (revisi sudah aktif):", e);
       baselineGagal.push(r.locationName);
     }
+    hasilRevisi.push({ revisionNo: r.revisionNo, locationName: r.locationName, penyesuaian: aktif.penyesuaian, kurva });
   }
   // Lokasi tambahan yang baru berlaku LEWAT CCO ini (draft) dan RAB-nya sudah
   // aktif: kurva-S-nya dibuat ulang supaya mulai dari tanggal berlakunya. Yang

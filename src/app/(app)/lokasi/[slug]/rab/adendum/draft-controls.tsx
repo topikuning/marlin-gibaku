@@ -134,7 +134,7 @@ export function DraftControls({
             activateDraftAction,
             `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
               (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman. Pastikan sudah Anda baca.\n\n" : "") +
-              "Revisi aktif lama disimpan sebagai arsip (catatannya tetap ada), kurva-S dibuat ulang, dan realisasi otomatis tersambung ke revisi baru.",
+              "Revisi aktif lama disimpan sebagai arsip (catatannya tetap ada) dan realisasi otomatis tersambung ke revisi baru. Kurva-S tidak diubah – bobot mingguannya tetap seperti sekarang.",
           )
         }
       >
