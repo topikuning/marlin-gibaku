@@ -239,4 +239,32 @@ describe("sinkron Kawal", () => {
     );
     await expect(db.kawalSnapshot.deleteMany({})).rejects.toThrow(/append-only/);
   });
+
+  /*
+   * Tarikan 2026-10-23: satu sarana dari 893 punya `nilai` teks bukan angka,
+   * dan seluruh tarikan gagal (DECISIONS 700). Sekarang: tersimpan, nilai
+   * sarana itu kosong, dan catatannya ada di putaran – terpisah dari `error`.
+   */
+  it("nilai sarana bukan angka → tetap tersimpan, nilai kosong, dicatat di putaran", async () => {
+    const data = RESPON_DASAR();
+    const baris0 = (data.data as Record<string, unknown>[])[0];
+    const [s0, s1] = baris0.sarpras as Record<string, unknown>[];
+    baris0.sarpras = [s0, { ...s1, nilai: "menunggu adendum" }];
+    baris0.progres_final = 8.5;
+    respons = data;
+    const r = await sinkronKawal({ pemicu: "cron", fetchFn: fetchTiruan });
+    expect(r.status).toBe("berhasil");
+    expect(r.pesan).toContain("bukan angka – disimpan kosong");
+    expect(r.pesan).not.toContain("menunggu adendum");
+    const run = await db.kawalSyncRun.findFirstOrThrow({ where: { id: r.runId } });
+    expect(run.outcome).toBe("berhasil");
+    expect(run.error).toBeNull();
+    expect(run.catatan).toMatch(/Baris 1 \(id Kawal 1\): nilai sarana ke-2 \(id \d+\) bukan angka – disimpan kosong\./);
+    const sarana = await db.kawalSaranaSnapshot.findMany({
+      where: { locationSnapshot: { snapshotId: run.snapshotId!, kawalId: 1 } },
+      orderBy: { kawalItemId: "asc" },
+      select: { nilai: true },
+    });
+    expect(sarana.map((s) => s.nilai)).toEqual([1_500_000_000n, null]);
+  });
 });

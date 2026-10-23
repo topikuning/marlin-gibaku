@@ -121,6 +121,13 @@ export default async function KawalPencocokanPage() {
             {t?.outcome === "gagal" && t.error ? (
               <Banner tone="error" title="Sinkron terakhir gagal" description={t.error} />
             ) : null}
+            {t?.outcome !== "gagal" && t?.catatan ? (
+              <Banner
+                tone="warning"
+                title="Sinkron berhasil, dengan catatan dari data Kawal"
+                description={t.catatan}
+              />
+            ) : null}
             <TombolSinkron bisa={akunSiap} />
           </CardBody>
         </Card>

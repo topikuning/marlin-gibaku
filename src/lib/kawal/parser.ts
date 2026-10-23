@@ -16,6 +16,11 @@ import { z } from "zod";
  *   punya SPMK atau kurva.
  * - Angka boleh datang sebagai angka atau teks angka – Kawal sendiri memakai
  *   keduanya (mis. `nilai_lokasi` angka, `nilai_add1_kontrak_penyedia` teks).
+ *   Rupiah boleh berformat (`1.250.000`, `Rp 1.250.000,-`) – DECISIONS 700.
+ * - SATU pengecualian dari "gagal keras": `nilai` sarana berupa teks yang
+ *   bukan angka sama sekali disimpan kosong dan DICATAT (DECISIONS 700). Field
+ *   itu tidak dipakai di layar mana pun, dan satu sarana dari 893 tidak boleh
+ *   menahan seluruh 96 lokasi.
  *
  * Murni, tanpa jaringan dan basis data.
  */
@@ -129,8 +134,38 @@ const bulat = angka.transform((v, ctx) => {
   return z.NEVER;
 });
 
+/**
+ * Teks rupiah → angka; `undefined` = tidak terbaca. Selain teks angka biasa,
+ * diterima format tulisan rupiah yang ISINYA sama (DECISIONS 700): awalan
+ * `Rp`/`IDR`, ekor `,-`, titik ribuan (`1.250.000,50`), koma ribuan
+ * (`1,250,000`). Teks angka biasa dibaca lebih dulu, jadi `12,5` tetap 12,5.
+ */
+export function bacaRupiahTeks(teksMentah: string): number | undefined {
+  const s = teksMentah
+    .trim()
+    .replace(/^(rp\.?|idr)\s*/i, "")
+    .replace(/[,.]-$/, "")
+    .replace(/\s+/g, "");
+  if (ANGKA_TEKS.test(s)) return keAngka(s);
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) return Number(s.replace(/\./g, "").replace(",", "."));
+  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ""));
+  return undefined;
+}
+
 /** Rupiah: dibulatkan ke rupiah utuh, disimpan BigInt. */
-const rupiah = angka.transform((v) => (v === null ? null : BigInt(Math.round(v))));
+const rupiah = z.union([z.number(), z.string(), z.null()]).transform((v, ctx) => {
+  if (v === null) return null;
+  if (typeof v === "number") {
+    if (Number.isFinite(v)) return BigInt(Math.round(v));
+    ctx.addIssue({ code: "custom", message: "angka tidak sah" });
+    return z.NEVER;
+  }
+  if (v.trim() === "") return null;
+  const n = bacaRupiahTeks(v);
+  if (n !== undefined) return BigInt(Math.round(n));
+  ctx.addIssue({ code: "custom", message: "harus angka" });
+  return z.NEVER;
+});
 
 const teks = z.union([z.string(), z.null()]).transform((v) => {
   if (v === null) return null;
@@ -450,7 +485,37 @@ function fieldHilang(mentah: Record<string, unknown>): string[] {
   return hilang;
 }
 
-export type HasilParse = { ok: true; baris: BarisKawal[] } | { ok: false; masalah: string[] };
+export type HasilParse =
+  | {
+      ok: true;
+      baris: BarisKawal[];
+      /** Yang diterima dengan penyesuaian (DECISIONS 700) – disebut, tanpa nilainya. */
+      catatan: string[];
+    }
+  | { ok: false; masalah: string[] };
+
+/**
+ * `nilai` sarana berupa teks yang bukan rupiah sama sekali → kosong + catatan
+ * (DECISIONS 700). Dikerjakan SEBELUM skema ketat, supaya semua field lain –
+ * termasuk tipe `nilai` yang berubah jadi objek/daftar – tetap diperiksa
+ * seketat biasa. Catatan hanya menyebut letaknya, tidak pernah isinya.
+ */
+function longgarkanNilaiSarana(
+  mentah: Record<string, unknown>,
+  label: string,
+): { mentah: Record<string, unknown>; catatan: string[] } {
+  const daftar = daftarSarpras(mentah.sarpras);
+  if (!daftar) return { mentah, catatan: [] };
+  const catatan: string[] = [];
+  const baru = daftar.map((s, i) => {
+    if (!objek(s) || typeof s.nilai !== "string") return s;
+    if (s.nilai.trim() === "" || bacaRupiahTeks(s.nilai) !== undefined) return s;
+    const id = typeof s.id === "number" ? ` (id ${s.id})` : "";
+    catatan.push(`${label}: nilai sarana ke-${i + 1}${id} bukan angka – disimpan kosong.`);
+    return { ...s, nilai: null };
+  });
+  return catatan.length ? { mentah: { ...mentah, sarpras: baru }, catatan } : { mentah, catatan };
+}
 
 /** Batas masalah yang dilaporkan – sisanya diringkas jumlahnya. */
 const MASALAH_MAKS = 8;
@@ -467,6 +532,7 @@ export function parseResponsKawal(body: unknown): HasilParse {
 
   const hasil: BarisKawal[] = [];
   const masalah: string[] = [];
+  const catatan: string[] = [];
   let lebih = 0;
   const catat = (m: string) => {
     if (masalah.length < MASALAH_MAKS) masalah.push(m);
@@ -487,7 +553,8 @@ export function parseResponsKawal(body: unknown): HasilParse {
       catat(`${label}: field ${hilang.join(", ")} tidak ada.`);
       return;
     }
-    const r = baris.safeParse(mentah);
+    const longgar = longgarkanNilaiSarana(mentah, label);
+    const r = baris.safeParse(longgar.mentah);
     if (!r.success) {
       for (const iss of r.error.issues) {
         const field = iss.path.map(String).join(".") || "(baris)";
@@ -501,7 +568,13 @@ export function parseResponsKawal(body: unknown): HasilParse {
     }
     idTerlihat.add(r.data.kawalId);
     hasil.push(r.data);
+    catatan.push(...longgar.catatan);
   });
   if (lebih > 0) masalah.push(`…dan ${lebih} masalah lain.`);
-  return masalah.length ? { ok: false, masalah } : { ok: true, baris: hasil };
+  if (masalah.length) return { ok: false, masalah };
+  const ringkasCatatan =
+    catatan.length > MASALAH_MAKS
+      ? [...catatan.slice(0, MASALAH_MAKS), `…dan ${catatan.length - MASALAH_MAKS} catatan lain.`]
+      : catatan;
+  return { ok: true, baris: hasil, catatan: ringkasCatatan };
 }

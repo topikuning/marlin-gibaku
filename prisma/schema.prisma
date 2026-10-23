@@ -4217,6 +4217,9 @@ model KawalSyncRun {
   discardedCount Int?      @map("discarded_count")
   snapshotId     String?   @map("snapshot_id") @db.Uuid
   error          String?
+  /// Yang DITERIMA dengan penyesuaian (mis. nilai sarana bukan angka →
+  /// kosong, DECISIONS 700). Bukan galat: putarannya tetap berhasil.
+  catatan        String?
 
   @@index([startedAt])
   @@map("kawal_sync_runs")

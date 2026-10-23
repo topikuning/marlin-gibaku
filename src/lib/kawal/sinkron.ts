@@ -212,6 +212,9 @@ export async function sinkronKawal(opsi: {
     );
 
     const outcome = snapshotId ? "berhasil" : "tidak_berubah";
+    // Yang diterima dengan penyesuaian disimpan TERPISAH dari `error`: putaran
+    // ini berhasil, dan layar menampilkannya sebagai catatan (DECISIONS 700).
+    const catatan = parse.catatan.length ? parse.catatan.join(" ").slice(0, 2000) : null;
     await db.kawalSyncRun.update({
       where: { id: run.id },
       data: {
@@ -222,6 +225,7 @@ export async function sinkronKawal(opsi: {
         queueCount: antre,
         discardedCount: dibuang,
         snapshotId,
+        catatan,
       },
     });
     const ringkas =
@@ -230,7 +234,9 @@ export async function sinkronKawal(opsi: {
       `, ${antre} menunggu konfirmasi, ${dibuang} dibuang.`;
     return {
       status: outcome,
-      pesan: snapshotId ? ringkas : `Data Kawal tidak berubah sejak tarikan terakhir. ${ringkas}`,
+      pesan:
+        (snapshotId ? ringkas : `Data Kawal tidak berubah sejak tarikan terakhir. ${ringkas}`) +
+        (catatan ? ` Catatan: ${catatan}` : ""),
       runId: run.id,
       diterima: parse.baris.length,
       berpasangan,

@@ -23,7 +23,7 @@ export type LaporanUjiKawal = {
   bentuk: BentukData | null;
   minggu: ReturnType<typeof cekPenanggalanMinggu> | null;
   /** Apakah parser sinkron menerima data ini – bukti sebelum sinkron pertama (DECISIONS 690). */
-  parser: { diterima: boolean; masalah: string[] } | null;
+  parser: { diterima: boolean; masalah: string[]; catatan: string[] } | null;
   /** Pasangan angka yang nilainya sama – bukti makna field dari data (DECISIONS 690). */
   hubungan: LaporanHubungan | null;
 };
@@ -89,7 +89,9 @@ export async function kawalAkunAction(_prev: KawalAkunState, formData: FormData)
             minggu: cekPenanggalanMinggu(hasil.body, jakartaToday()),
             parser: (() => {
               const r = parseResponsKawal(hasil.body);
-              return r.ok ? { diterima: true, masalah: [] } : { diterima: false, masalah: r.masalah };
+              return r.ok
+                ? { diterima: true, masalah: [], catatan: r.catatan }
+                : { diterima: false, masalah: r.masalah, catatan: [] };
             })(),
             hubungan: cekHubunganAngka(hasil.body),
           },
