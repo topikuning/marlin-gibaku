@@ -10,6 +10,8 @@
  * Murni, tanpa jaringan.
  */
 
+import { bacaRupiahTeks } from "./parser";
+
 /** Field yang akan dipakai sinkron (brief 2026-10-18). Sisanya dibuang saat parse. */
 export const FIELD_DIPAKAI = [
   "id",
@@ -90,6 +92,8 @@ export function tipeNilai(v: unknown): string {
   const s = v.trim();
   if (s === "") return "teks kosong";
   if (/^-?\d+([.,]\d+)?$/.test(s)) return "teks angka";
+  // Rupiah bertulisan (`1.250.000`, `Rp 1.250.000,-`) – dibaca parser (DECISIONS 700).
+  if (bacaRupiahTeks(s) !== undefined) return "teks rupiah berformat";
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return "teks tanggal (YYYY-MM-DD)";
   if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(s)) return "teks tanggal (DD/MM/YYYY)";
   if (s.startsWith("[") || s.startsWith("{")) {

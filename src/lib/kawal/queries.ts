@@ -20,6 +20,7 @@ export type RingkasSinkron = {
     queueCount: number | null;
     discardedCount: number | null;
     error: string | null;
+    catatan: string | null;
   } | null;
   /** Waktu tarikan terakhir yang BERHASIL (isinya berubah atau tidak). */
   berhasilTerakhir: Date | null;
@@ -41,6 +42,7 @@ export async function ringkasSinkronKawal(): Promise<RingkasSinkron> {
         queueCount: true,
         discardedCount: true,
         error: true,
+        catatan: true,
       },
     }),
     db.kawalSyncRun.findFirst({

@@ -179,4 +179,61 @@ describe("parser Kawal", () => {
     b.start_date_penyedia = "2026-02-30";
     expect(parseResponsKawal(responsKawal([b])).ok).toBe(false);
   });
+
+  /*
+   * Tarikan 2026-10-23: SATU dari 893 sarana (baris 80, id Kawal 334, sarana
+   * ke-6) punya `nilai` berupa teks yang bukan angka, dan karenanya 96 lokasi
+   * tidak tersimpan sama sekali (DECISIONS 700).
+   */
+  it("rupiah berformat dibaca: titik ribuan, Rp, ,-, koma ribuan – di sarana maupun lokasi", () => {
+    const b = barisKawal({ id: 12 });
+    const [s0] = b.sarpras as Record<string, unknown>[];
+    const kasus: [string, bigint][] = [
+      ["1.250.000.000", 1_250_000_000n],
+      ["1.250.000,50", 1_250_001n],
+      ["Rp 1.250.000,-", 1_250_000n],
+      ["Rp1.250.000", 1_250_000n],
+      ["IDR 2.000.000", 2_000_000n],
+      ["1,250,000", 1_250_000n],
+    ];
+    for (const [nilai, harap] of kasus) {
+      const r = parseResponsKawal(responsKawal([{ ...b, nilai_lokasi: nilai, sarpras: [{ ...s0, nilai }] }]));
+      expect(r.ok, nilai).toBe(true);
+      if (!r.ok) continue;
+      expect(r.baris[0].sarana[0].nilai, nilai).toBe(harap);
+      expect(r.baris[0].nilaiLokasi, nilai).toBe(harap);
+      expect(r.catatan, nilai).toEqual([]);
+    }
+  });
+
+  it("nilai sarana yang bukan angka tidak menggagalkan tarikan: disimpan kosong, dicatat tanpa isinya", () => {
+    const b = barisKawal({ id: 334 });
+    const [s0, s1] = b.sarpras as Record<string, unknown>[];
+    const r = parseResponsKawal(
+      responsKawal([barisKawal({ id: 1 }), { ...b, sarpras: [s0, { ...s1, nilai: "menunggu adendum" }] }]),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.baris).toHaveLength(2);
+    expect(r.baris[1].sarana[0].nilai).toBe(1_500_000_000n);
+    expect(r.baris[1].sarana[1]).toMatchObject({ kawalItemId: 33402, nama: "Gudang Beku", nilai: null });
+    expect(r.catatan).toEqual([
+      "Baris 2 (id Kawal 334): nilai sarana ke-2 (id 33402) bukan angka – disimpan kosong.",
+    ]);
+    expect(serialisasi(r)).not.toContain("menunggu adendum");
+  });
+
+  it("kelonggaran itu HANYA untuk nilai sarana: rupiah lokasi & tipe lain tetap ketat", () => {
+    const b = barisKawal({ id: 13 });
+    const [s0] = b.sarpras as Record<string, unknown>[];
+    const lokasi = parseResponsKawal(responsKawal([{ ...b, nilai_lokasi: "menunggu adendum" }]));
+    expect(lokasi.ok).toBe(false);
+    if (!lokasi.ok) expect(lokasi.masalah).toEqual(["Baris 1 (id Kawal 13), field nilai_lokasi: harus angka."]);
+    const objekNilai = parseResponsKawal(responsKawal([{ ...b, sarpras: [{ ...s0, nilai: { a: 1 } }] }]));
+    expect(objekNilai.ok).toBe(false);
+    if (!objekNilai.ok)
+      expect(objekNilai.masalah).toEqual([
+        "Baris 1 (id Kawal 13), field sarpras: sarana ke-1 (id 1301), nilai tipenya berubah (sekarang objek).",
+      ]);
+  });
 });

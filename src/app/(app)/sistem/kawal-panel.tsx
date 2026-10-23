@@ -146,7 +146,15 @@ function LaporanUji({ laporan }: { laporan: LaporanUjiKawal }) {
           ) : null}
           {parser ? (
             parser.diterima ? (
-              <p className="text-success">Parser sinkron menerima seluruh baris.</p>
+              parser.catatan.length ? (
+                <Banner
+                  tone="warning"
+                  title="Parser sinkron menerima seluruh baris, dengan catatan"
+                  description={parser.catatan.join(" ")}
+                />
+              ) : (
+                <p className="text-success">Parser sinkron menerima seluruh baris.</p>
+              )
             ) : (
               <Banner
                 tone="warning"
