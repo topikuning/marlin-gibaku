@@ -74,11 +74,11 @@ urutannya dibuktikan sama.
 
 ### Menambah keputusan baru
 
-1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/601-700.md`),
+1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/701-800.md`),
    judulnya `## (baru) · Judul (YYYY-MM-DD)` — tetap **tanpa memilih nomor**.
 2. Pemeriksa terakhir memberi nomornya saat merge, lalu menambahkan **satu
    baris** ke tabel di bawah.
-3. Nomor melewati kelipatan seratus ⇒ arsip baru (`701-800.md`), dan bagian
+3. Nomor melewati kelipatan seratus ⇒ arsip baru (`801-900.md`), dan bagian
    barunya ditambahkan di indeks ini.
 
 Dijaga `tests/unit/decisions-nomor.test.ts`: nomor unik, urutannya tidak mundur,
@@ -89,6 +89,12 @@ hilang.
 ---
 
 ## Indeks keputusan (terbaru di atas)
+
+### [701-800](./decisions/701-800.md)
+
+| # | Tanggal | Keputusan |
+|---|---|---|
+| 701 | 2026-10-23 | `next` 16.3.8 → 16.4.1 (advisory kritis GHSA-2464-fhr4-w9xw & GHSA-673q-mjm6-r5xr – RCE tanpa login; tinggi GHSA-p3m5-59mp-jv5r – DoS Server Actions) |
 
 ### [601-700](./decisions/601-700.md)
 
