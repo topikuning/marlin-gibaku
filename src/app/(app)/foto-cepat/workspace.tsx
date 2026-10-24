@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useAksi } from "@/lib/aksi-klien";
 import { useRouter } from "next/navigation";
-import { Camera, Check, ChevronLeft, ChevronRight, Images, MapPin, MapPinOff, Maximize2, RotateCw, Trash2, X } from "lucide-react";
+import { Camera, Check, ChevronLeft, ChevronRight, Images, MapPin, MapPinOff, Maximize2, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label, Lapisan } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type JepretanSesi, type PosisiJepret } from "@/components/knmp/kamera-langsung";
@@ -826,23 +826,47 @@ function AksiFotoBesar({
 }) {
   const [hapusState, hapusAction, menghapus] = useAksi(hapusFotoCepatAction, KOSONG);
   const [putarState, putarAction, memutar] = useAksi(putarFotoAction, undefined);
+  const [arahDitekan, setArahDitekan] = useState<"kiri" | "kanan" | null>(null);
   const galat = hapusState.error ?? putarState?.error ?? null;
   return (
     <>
       {galat ? <p className="rounded-md bg-danger px-3 py-2 text-[13px] text-white">{galat}</p> : null}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Dua arah, SATU form: putar kiri tidak perlu tiga kali kanan – tiap
+          putaran merender ulang berkas asli di server dan menyimpan versi baru.
+          Satu form = satu keadaan sibuk, jadi kiri lalu kanan yang ditekan
+          cepat tidak berjalan bersamaan dan saling menimpa total putarannya. */}
+      <form action={putarAction} className="grid grid-cols-2 gap-2">
+        <input type="hidden" name="photoId" value={foto.id} />
+        <Button
+          type="submit"
+          name="arah"
+          value="kiri"
+          variant="secondary"
+          disabled={memutar}
+          loading={memutar && arahDitekan === "kiri"}
+          onClick={() => setArahDitekan("kiri")}
+        >
+          {memutar && arahDitekan === "kiri" ? null : <RotateCcw aria-hidden className="size-4" />}
+          Putar kiri
+        </Button>
+        <Button
+          type="submit"
+          name="arah"
+          value="kanan"
+          variant="secondary"
+          disabled={memutar}
+          loading={memutar && arahDitekan === "kanan"}
+          onClick={() => setArahDitekan("kanan")}
+        >
+          {memutar && arahDitekan === "kanan" ? null : <RotateCw aria-hidden className="size-4" />}
+          Putar kanan
+        </Button>
+      </form>
+      <div className="grid grid-cols-2 gap-2">
         <Button type="button" onClick={() => onToggle(foto.id)} aria-pressed={dipilih}>
           <Check aria-hidden className="size-4" />
           {dipilih ? "Batal pilih" : "Pilih"}
         </Button>
-        <form action={putarAction} className="contents">
-          <input type="hidden" name="photoId" value={foto.id} />
-          <input type="hidden" name="arah" value="kanan" />
-          <Button type="submit" variant="secondary" loading={memutar}>
-            {memutar ? null : <RotateCw aria-hidden className="size-4" />}
-            Putar
-          </Button>
-        </form>
         <form action={hapusAction} className="contents">
           <input type="hidden" name="photoId" value={foto.id} />
           <Button type="submit" variant="secondary" loading={menghapus}>
@@ -919,39 +943,51 @@ function FotoPetak({
       >
         <Maximize2 aria-hidden className="size-3.5" />
       </button>
-      <div className="absolute right-1 top-1 flex flex-col gap-1">
-        <form action={action}>
-          <input type="hidden" name="photoId" value={foto.id} />
-          <button
-            type="submit"
-            disabled={pending}
-            aria-label="Buang foto ini dari kantong"
-            title={state.error ?? "Buang dari kantong"}
-            className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-danger"
-          >
-            <Trash2 aria-hidden className="size-3.5" />
-          </button>
-        </form>
-        {/*
-          PUTAR di kantong Foto Cepat (DECISIONS 424b).
-          Foto miring paling sering LAHIR di sini – kamera dalam aplikasi tanpa
-          EXIF. Sebelumnya tombol putar hanya ada di galeri laporan/kegiatan,
-          jadi jalan memperbaikinya justru absen di tempat masalahnya muncul.
-        */}
-        <form action={putarAction}>
-          <input type="hidden" name="photoId" value={foto.id} />
-          <input type="hidden" name="arah" value="kanan" />
-          <button
-            type="submit"
-            disabled={putarPending}
-            aria-label="Putar foto ini 90 derajat"
-            title={putarState?.error ?? "Putar 90°"}
-            className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-primary"
-          >
-            <RotateCw aria-hidden className="size-3.5" />
-          </button>
-        </form>
-      </div>
+      <form action={action} className="absolute right-1 top-1">
+        <input type="hidden" name="photoId" value={foto.id} />
+        <button
+          type="submit"
+          disabled={pending}
+          aria-label="Buang foto ini dari kantong"
+          title={state.error ?? "Buang dari kantong"}
+          className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-danger"
+        >
+          <Trash2 aria-hidden className="size-3.5" />
+        </button>
+      </form>
+      {/*
+        PUTAR di kantong Foto Cepat (DECISIONS 424b).
+        Foto miring paling sering LAHIR di sini – kamera dalam aplikasi tanpa
+        EXIF. Sebelumnya tombol putar hanya ada di galeri laporan/kegiatan,
+        jadi jalan memperbaikinya justru absen di tempat masalahnya muncul.
+        Kiri DAN kanan dalam satu form (DECISIONS 704): satu arah saja memaksa
+        tiga putaran – tiga render ulang berkas asli – untuk memutar ke kiri.
+      */}
+      <form action={putarAction} className="absolute bottom-7 left-1 flex gap-1">
+        <input type="hidden" name="photoId" value={foto.id} />
+        <button
+          type="submit"
+          name="arah"
+          value="kiri"
+          disabled={putarPending}
+          aria-label={`Putar foto ${foto.waktuLabel} ke kiri`}
+          title={putarState?.error ?? "Putar kiri 90°"}
+          className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-primary disabled:opacity-60"
+        >
+          <RotateCcw aria-hidden className="size-3.5" />
+        </button>
+        <button
+          type="submit"
+          name="arah"
+          value="kanan"
+          disabled={putarPending}
+          aria-label={`Putar foto ${foto.waktuLabel} ke kanan`}
+          title={putarState?.error ?? "Putar kanan 90°"}
+          className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-primary disabled:opacity-60"
+        >
+          <RotateCw aria-hidden className="size-3.5" />
+        </button>
+      </form>
     </li>
   );
 }
