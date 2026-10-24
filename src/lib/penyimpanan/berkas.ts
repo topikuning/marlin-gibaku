@@ -3,7 +3,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { r2Delete, r2GetBuffer, r2GetDenganJenis, r2HapusBanyak, r2PresignGet } from "@/lib/r2";
-import { ambilDingin, bentukKunciSah, hapusDingin, setelanDingin } from "@/lib/arsip-asli/dingin";
+import { ambilDingin, bentukKunciSah, hapusDingin, setelanDingin, type SetelanDingin } from "@/lib/arsip-asli/dingin";
 import { kepalaDisposisi, ruasNama } from "./nama-unduhan";
 
 /**
@@ -22,7 +22,8 @@ import { kepalaDisposisi, ruasNama } from "./nama-unduhan";
  * ini akan membaca R2 untuk berkas yang sudah tidak ada di sana.
  *
  * Berkas ASLI foto (`Photo.originalKey`) tetap diurus `arsip-asli/` dengan
- * kolomnya sendiri; modul ini tidak pernah mencatatnya.
+ * kolomnya sendiri; modul ini hanya mencatatnya sebagai titipan hapus yang
+ * tertunda (`antreHapusLenovo`, DECISIONS 705).
  */
 
 /** Berkas sudah dipindah tapi mesin arsipnya sedang tidak bisa dihubungi. */
@@ -217,6 +218,58 @@ async function hapusSalinanLenovo(kunci: string[]): Promise<void> {
 
 /** Kategori baris yang berkasnya sudah dihapus pemiliknya, menunggu salinan Lenovo dibuang. */
 export const KATEGORI_DIHAPUS = "dihapus";
+
+/**
+ * Titipkan salinan Lenovo yang belum bisa dihapus (arsip mati, belum diatur)
+ * sebagai baris `dihapus`; `ulangiHapusLenovo` mengulanginya tiap putaran.
+ *
+ * Dipakai juga untuk berkas ASLI foto (DECISIONS 705), satu-satunya catatan
+ * `arsip-asli/` di tabel ini: barisnya ikut hilang bersama fotonya, jadi tanpa
+ * titipan ini tidak ada lagi yang tahu salinan Lenovo itu ada.
+ */
+export async function antreHapusLenovo(r: {
+  kunci: string;
+  kunciDingin: string;
+  sha256: string | null;
+  sebab: string;
+}): Promise<void> {
+  const galat = `dihapus pemiliknya, salinan Lenovo belum terhapus: ${r.sebab}`.slice(0, 500);
+  await db.berkasPindah.upsert({
+    where: { kunci: r.kunci },
+    create: {
+      kunci: r.kunci,
+      kunciDingin: r.kunciDingin,
+      kategori: KATEGORI_DIHAPUS,
+      sha256: r.sha256,
+      dipindahAt: new Date(),
+      galat,
+    },
+    update: { kunciDingin: r.kunciDingin, kategori: KATEGORI_DIHAPUS, sha256: r.sha256, galat },
+  });
+}
+
+/**
+ * Ulangi penghapusan salinan Lenovo yang tertunda. Dijalankan putaran pindah
+ * berkas DAN putaran arsip asli – keduanya bisa dimatikan sendiri-sendiri, dan
+ * titipan tidak boleh menunggu yang sedang mati. Berjalan bersamaan aman:
+ * DELETE yang kedua dijawab 404 (sudah tidak ada) dan barisnya dihapus
+ * `deleteMany`, yang tidak melempar bila sudah didahului.
+ */
+export async function ulangiHapusLenovo(s: SetelanDingin, galat: string[]): Promise<void> {
+  const dihapus = await db.berkasPindah.findMany({
+    where: { kategori: KATEGORI_DIHAPUS },
+    select: { kunci: true, kunciDingin: true, sha256: true },
+    take: 200,
+  });
+  for (const r of dihapus) {
+    try {
+      await hapusDingin(s, r.kunciDingin, r.sha256 ?? undefined);
+      await db.berkasPindah.deleteMany({ where: { kunci: r.kunci, kategori: KATEGORI_DIHAPUS } });
+    } catch (err) {
+      galat.push(`hapus-lenovo ${r.kunci.slice(-24)}: ${err instanceof Error ? err.message : "gagal"}`);
+    }
+  }
+}
 
 export async function hapusBerkas(kunci: string): Promise<void> {
   await r2Delete(kunci);

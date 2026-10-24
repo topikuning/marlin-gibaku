@@ -139,19 +139,16 @@ export async function resetHarianLokasi(locationId: string): Promise<HasilResetH
     berkasGagal = (await hapusBerkasBanyak([...new Set(kunci)])).gagal.length;
   }
 
-  // Salinan berkas asli di arsip dingin.
+  // Salinan berkas asli di arsip dingin. Yang gagal dititipkan dan diulang
+  // putaran berikutnya (DECISIONS 705) – angkanya tetap dilaporkan.
   let arsipGagal = 0;
   const terarsip = foto.filter((f) => f.originalArchivedAt && f.originalKey);
   if (terarsip.length > 0) {
-    const { setelanDingin, hapusDingin } = await import("@/lib/arsip-asli/dingin");
-    const setelan = setelanDingin();
-    if (!setelan) arsipGagal = terarsip.length;
-    else
-      for (const f of terarsip) {
-        await hapusDingin(setelan, f.originalKey!, f.sha256.toLowerCase()).catch(() => {
-          arsipGagal++;
-        });
-      }
+    const { hapusSalinanLenovoAsli } = await import("@/lib/arsip-asli/hapus");
+    for (const f of terarsip) {
+      const tertunda = await hapusSalinanLenovoAsli(f).catch(() => true);
+      if (tertunda) arsipGagal++;
+    }
   }
 
   return { ...ringkas, berkasGagal, arsipGagal };

@@ -94,6 +94,10 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 705 | 2026-10-24 | Hapus foto (Foto Cepat, laporan harian, kegiatan, hapus arsip asli) ikut menghapus salinan Lenovo berkas asli lewat satu fungsi `arsip-asli/hapus.ts`; Lenovo mati → dititipkan `berkas_pindah` `dihapus` dan diulang putaran pindah & arsip asli; hapus foto laporan harian kini juga membuang berkas aslinya di R2 (terlewat audit I-5). Sisa sebelum ini → OPEN_ISSUES FOTO-03 |
+| 704 | 2026-10-24 | Foto Cepat: Putar kiri + Putar kanan di petak kantong dan tampilan besar (sebelumnya hanya kanan – putar kiri = tiga render ulang penuh di server + tiga versi tersimpan); kedua arah dalam satu form supaya satu putaran mengunci keduanya dan tidak ada dua render bersamaan yang saling menimpa `rotationDeg` |
+| 703 | 2026-10-24 | `zod` 4.4.3 → 4.6.6 (advisory tinggi GHSA-mrhx-c7xc-m3w5 – memori habis saat validasi koleksi besar ber-batas) |
+| 702 | 2026-10-24 | Unduh foto asli: berkas yang salinan R2-nya sudah dibuang dibaca dari arsip Lenovo (`bacaBerkasAsli`) dan dikirim langsung, bukan alamat R2 mati; arsip tak terhubung → 503 dengan sebab; dihapus permanen → 410 (dulu "diunggah sebelum arsip dinyalakan"). Salinan Lenovo yang tertinggal saat hapus foto → OPEN_ISSUES FOTO-02 |
 | 701 | 2026-10-23 | `next` 16.3.8 → 16.4.1 (advisory kritis GHSA-2464-fhr4-w9xw & GHSA-673q-mjm6-r5xr – RCE tanpa login; tinggi GHSA-p3m5-59mp-jv5r – DoS Server Actions) |
 
 ### [601-700](./decisions/601-700.md)

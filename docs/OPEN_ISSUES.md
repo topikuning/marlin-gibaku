@@ -238,6 +238,26 @@ mengembalikan obyek terhapus. Jangan mengganti isi snapshot final dengan versi
 foto baru secara diam-diam. Ketidakcocokan kunci snapshot dengan kolom `photos`
 saja bukan bukti kehilangan; keberadaan obyek perlu diperiksa di bucket.
 
+## 🟡 FOTO-03 · Salinan Lenovo berkas ASLI yang tertinggal sebelum DECISIONS 705
+
+Sejak 705 semua jalur hapus foto dan "hapus arsip asli" ikut menghapus salinan
+Lenovo berkas asli (FOTO-02 selesai). Yang tertinggal SEBELUM itu belum
+disapu, dan tidak bisa ditemukan dari MARLIN saja:
+
+- gateway Lenovo tidak punya fungsi daftar berkas (DECISIONS 554, tidak dibongkar);
+- foto yang dihapus sudah tidak punya baris; "hapus arsip asli" mengosongkan
+  `originalKey`, jadi kuncinya ikut hilang (yang tersisa hanya
+  `originalPurgedAt` + `originalArchivedAt` terisi – bisa DIHITUNG, tidak bisa
+  ditunjuk berkasnya);
+- DELETE gateway menuntut sidik jari isi, yang untuk berkas tanpa baris juga
+  sudah tidak diketahui.
+
+Jalan yang tersisa: sapu dari sisi Lenovo – bandingkan isi direktorinya dengan
+daftar kunci yang MASIH dipakai MARLIN (berkas asli ber-`originalArchivedAt`
+dengan `originalKey` terisi + `berkas_pindah.kunciDingin`), lalu buang sisanya.
+Butuh keputusan user sebelum dibuat: penghapusan di mesin arsip tidak bisa
+dibatalkan, dan cadangan Drive (650) sengaja tidak pernah dihapus otomatis.
+
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
 ```text

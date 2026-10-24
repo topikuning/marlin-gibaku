@@ -40,6 +40,7 @@ import {
   upsertItem,
 } from "./service";
 import { hapusBerkas } from "@/lib/penyimpanan/berkas";
+import { hapusBerkasAsli } from "@/lib/arsip-asli/hapus";
 
 /**
  * Server actions laporan harian — boundary FormData + zod v4.
@@ -779,6 +780,9 @@ export async function removeReportPhotoAction(
         id: true,
         r2Key: true,
         thumbnailKey: true,
+        originalKey: true,
+        originalArchivedAt: true,
+        sha256: true,
         uploadedById: true,
         reportId: true,
         addedAfterSubmitAt: true,
@@ -821,6 +825,9 @@ export async function removeReportPhotoAction(
           .map((k) => hapusBerkas(k).catch(() => {})),
       );
     }
+    // Berkas ASLI ikut, dari R2 dan arsip Lenovo: tanpa barisnya tidak ada lagi
+    // yang bisa menemukannya (audit I-5; jalur ini terlewat sampai DECISIONS 705).
+    await hapusBerkasAsli(photo).catch(() => {});
 
     // Foto susulan di laporan FINAL bisa sudah naik ke Drive: buang berkasnya
     // dan ganti PDF-nya saja. Mengunggah ulang semua foto akan menggeser nomor
