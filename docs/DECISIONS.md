@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 702 | 2026-10-24 | Unduh foto asli: berkas yang salinan R2-nya sudah dibuang dibaca dari arsip Lenovo (`bacaBerkasAsli`) dan dikirim langsung, bukan alamat R2 mati; arsip tak terhubung → 503 dengan sebab; dihapus permanen → 410 (dulu "diunggah sebelum arsip dinyalakan"). Salinan Lenovo yang tertinggal saat hapus foto → OPEN_ISSUES FOTO-02 |
 | 701 | 2026-10-23 | `next` 16.3.8 → 16.4.1 (advisory kritis GHSA-2464-fhr4-w9xw & GHSA-673q-mjm6-r5xr – RCE tanpa login; tinggi GHSA-p3m5-59mp-jv5r – DoS Server Actions) |
 
 ### [601-700](./decisions/601-700.md)

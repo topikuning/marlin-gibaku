@@ -238,6 +238,29 @@ mengembalikan obyek terhapus. Jangan mengganti isi snapshot final dengan versi
 foto baru secara diam-diam. Ketidakcocokan kunci snapshot dengan kolom `photos`
 saja bukan bukti kehilangan; keberadaan obyek perlu diperiksa di bucket.
 
+## 🟡 FOTO-02 · Hapus foto / hapus arsip asli tidak menghapus salinan Lenovo berkas ASLI
+
+Ditemukan saat memperbaiki unduh foto asli (DECISIONS 702). Berkas asli foto
+dipindah ke Lenovo oleh `arsip-asli/` dengan kolomnya sendiri
+(`originalArchivedAt`), tidak lewat `berkas_pindah`. `hapusBerkas` hanya
+menghapus R2 + salinan yang tercatat di `berkas_pindah`, jadi untuk berkas
+asli yang sudah diarsipkan, salinan Lenovo-nya TERTINGGAL. Terkena:
+
+- "Hapus arsip asli" borongan & satuan (`photo-restamp/actions.ts`) – baris
+  ditandai `originalPurgedAt` ("dihapus permanen") padahal byte-nya masih di Lenovo;
+- hapus foto kegiatan & hapus kegiatan (`field-activity/actions.ts`);
+- buang foto Foto Cepat (`foto-cepat/service.ts`) – jarang kena, foto yang dibuang
+  biasanya belum sempat diarsipkan;
+- hapus foto laporan harian (`daily-report/actions.ts`) bahkan tidak menyentuh
+  `originalKey` sama sekali (R2 pun tertinggal) – pastikan dulu apakah disengaja.
+
+Satu-satunya jalur yang benar: `reset-harian/service.ts` (`hapusDingin` untuk
+foto ber-`originalArchivedAt`). FIX: satu fungsi hapus berkas asli di
+`arsip-asli/` yang menghapus R2 + Lenovo, dipakai semua jalur di atas, plus uji
+yang memeriksa Lenovo tiruan benar-benar kosong. Sisa yang sudah terlanjur
+tertinggal perlu disapu sekali (kunci Lenovo tanpa baris foto / dengan
+`originalPurgedAt`).
+
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
 ```text
