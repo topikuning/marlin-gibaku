@@ -10,7 +10,7 @@ import {
   statusDingin,
   type SetelanDingin,
 } from "@/lib/arsip-asli/dingin";
-import { KATEGORI_DIHAPUS, kunciDinginUntuk } from "./berkas";
+import { KATEGORI_DIHAPUS, kunciDinginUntuk, ulangiHapusLenovo } from "./berkas";
 import { catatUkuranR2, setelanPindah } from "./setelan";
 
 /**
@@ -219,19 +219,7 @@ async function bereskanTertinggal(s: SetelanDingin, galat: string[]): Promise<vo
       galat.push(`buang-r2 ${r.kunci.slice(-24)}: ${err instanceof Error ? err.message : "gagal"}`);
     }
   }
-  const dihapus = await db.berkasPindah.findMany({
-    where: { kategori: KATEGORI_DIHAPUS },
-    select: { kunci: true, kunciDingin: true, sha256: true },
-    take: 200,
-  });
-  for (const r of dihapus) {
-    try {
-      await hapusDingin(s, r.kunciDingin, r.sha256 ?? undefined);
-      await db.berkasPindah.delete({ where: { kunci: r.kunci } });
-    } catch (err) {
-      galat.push(`hapus-lenovo ${r.kunci.slice(-24)}: ${err instanceof Error ? err.message : "gagal"}`);
-    }
-  }
+  await ulangiHapusLenovo(s, galat);
 }
 
 export async function jalankanPindahBerkas(opsi: { anggaranMs?: number } = {}): Promise<HasilPindah> {

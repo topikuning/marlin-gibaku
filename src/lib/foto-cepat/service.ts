@@ -13,6 +13,7 @@ import { kotakTulisanUntuk, processWithSharpOrOriginal } from "@/lib/photos";
 import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { r2Put } from "@/lib/r2";
 import { hapusBerkas } from "@/lib/penyimpanan/berkas";
+import { hapusBerkasAsli } from "@/lib/arsip-asli/hapus";
 
 /**
  * MELENGKAPI CAP FOTO CEPAT setelah fotonya dipakai (DECISIONS 253).
@@ -145,6 +146,8 @@ export async function hapusFotoKantong(photoId: string, actorId: string): Promis
       r2Key: true,
       thumbnailKey: true,
       originalKey: true,
+      originalArchivedAt: true,
+      sha256: true,
       locationId: true,
       reportId: true,
       activityId: true,
@@ -163,5 +166,6 @@ export async function hapusFotoKantong(photoId: string, actorId: string): Promis
   await audit(actorId, "photo.quick_discard", "photo", photoId, { locationId: p.locationId });
   await hapusBerkas(p.r2Key).catch(() => {});
   if (p.thumbnailKey) await hapusBerkas(p.thumbnailKey).catch(() => {});
-  if (p.originalKey) await hapusBerkas(p.originalKey).catch(() => {});
+  // Berkas asli dari R2 DAN arsip Lenovo (DECISIONS 705).
+  await hapusBerkasAsli(p).catch(() => {});
 }

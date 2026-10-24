@@ -11,6 +11,7 @@ import {
   type SetelanDingin,
 } from "./dingin";
 import { arsipAktif, tenggangHari } from "./setelan";
+import { ulangiHapusLenovo } from "@/lib/penyimpanan/berkas";
 
 /**
  * PEMINDAHAN BERKAS ASLI KE ARSIP DINGIN — satu putaran.
@@ -121,6 +122,8 @@ export async function jalankanArsipAsli(
 
   const tenggat = Date.now() + (opsi.anggaranMs ?? ANGGARAN_BAWAAN_MS);
   const galat: string[] = [];
+  // Salinan Lenovo dari berkas asli yang dihapus saat arsipnya mati (DECISIONS 705).
+  await ulangiHapusLenovo(setelan, galat);
   let dikirim = 0;
   let gagal = 0;
   // Yang gagal di putaran ini tidak diambil lagi di putaran yang sama: satu

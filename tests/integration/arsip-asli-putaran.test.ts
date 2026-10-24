@@ -109,6 +109,9 @@ const { setArsipAktif, setTenggangHari, ARSIP_AKTIF_KEY, ARSIP_TENGGANG_KEY } = 
 async function bersihkan() {
   await db.photo.deleteMany({ where: { r2Key: { startsWith: "photos/uji-arsip-dingin/" } } });
   await db.appSetting.deleteMany({ where: { key: { in: [ARSIP_AKTIF_KEY, ARSIP_TENGGANG_KEY] } } });
+  // Putaran ini juga mengulang hapus Lenovo yang dititipkan (DECISIONS 705);
+  // titipan sisa uji lain akan menambah DELETE ke `jejak`.
+  await db.berkasPindah.deleteMany({ where: { kategori: "dihapus" } });
 }
 
 /** Satu baris foto yang berkas aslinya menunggu dipindahkan. */

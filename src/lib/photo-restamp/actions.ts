@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { bacaBerkasAsli } from "@/lib/arsip-asli/antrean";
+import { hapusBerkasAsli } from "@/lib/arsip-asli/hapus";
 import { audit, auditIn } from "@/lib/audit";
 import {
   ForbiddenError,
@@ -299,6 +300,13 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
 
 /* ── Arsip berkas asli ───────────────────────────────────────────────────── */
 
+/** Salinan Lenovo yang dititipkan karena arsipnya sedang mati (DECISIONS 705). */
+function kalimatLenovoTertunda(n: number): string {
+  return n === 1
+    ? "Salinannya di arsip Lenovo menyusul dihapus, karena arsip itu sedang tidak bisa dihubungi."
+    : `${n} salinan di arsip Lenovo menyusul dihapus, karena arsip itu sedang tidak bisa dihubungi.`;
+}
+
 /**
  * Hapus arsip berkas asli — HANYA atas permintaan eksplisit (DECISIONS 198).
  * Tidak ada penghapusan otomatis, tidak ada retensi diam-diam: arsip ini adalah
@@ -328,20 +336,22 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
     const where = whereArsip(f.data, scope, actor.orgId);
     const rows = await db.photo.findMany({
       where: where as never,
-      select: { id: true, originalKey: true, originalBytes: true },
+      select: { id: true, originalKey: true, originalBytes: true, originalArchivedAt: true, sha256: true },
       take: 5000,
     });
     if (rows.length === 0) return { error: "Tidak ada arsip asli yang cocok dengan filter ini." };
 
     const bytes = rows.reduce((s, r) => s + (r.originalBytes ?? 0), 0);
     let terhapus = 0;
+    let lenovoTertunda = 0;
     for (const r of rows) {
       if (!r.originalKey) continue;
       // Objek dihapus dulu; baris DB baru ditandai bila objeknya benar-benar
       // hilang — supaya tidak ada baris yang mengaku "sudah dihapus" padahal
-      // berkasnya masih memakan penyimpanan.
+      // berkasnya masih memakan penyimpanan. Termasuk salinan arsip Lenovo
+      // (DECISIONS 705); yang arsipnya sedang mati dititipkan dan diulang.
       try {
-        await hapusBerkas(r.originalKey);
+        if (await hapusBerkasAsli(r)) lenovoTertunda++;
       } catch {
         continue;
       }
@@ -355,6 +365,7 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
       filter: f.data,
       cocok: rows.length,
       terhapus,
+      lenovoTertunda,
       bytes,
     });
     revalidatePath("/sistem/arsip-foto");
@@ -364,6 +375,7 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
       ok:
         `${terhapus} arsip asli dihapus (${(bytes / 1024 / 1024).toFixed(1)} MB).` +
         (sisa > 0 ? ` ${sisa} gagal dihapus dan dibiarkan utuh.` : "") +
+        (lenovoTertunda > 0 ? ` ${kalimatLenovoTertunda(lenovoTertunda)}` : "") +
         " Cap foto-foto itu tidak bisa diperbaiki lagi.",
     };
   } catch (err) {
@@ -380,7 +392,15 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     const actor = await requireCapability("photo.archive_purge");
     const p = await db.photo.findUnique({
       where: { id: parsed.data.photoId },
-      select: { id: true, originalKey: true, originalBytes: true, locationId: true, stampPending: true },
+      select: {
+        id: true,
+        originalKey: true,
+        originalBytes: true,
+        originalArchivedAt: true,
+        sha256: true,
+        locationId: true,
+        stampPending: true,
+      },
     });
     if (!p) return { error: "Foto tidak ditemukan." };
     if (p.stampPending) return { error: "Cap foto ini masih diproses. Coba lagi sebentar lagi." };
@@ -388,7 +408,7 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     await requireLocationAccess(actor, p.locationId);
     if (!p.originalKey) return { error: "Foto ini memang tidak punya arsip berkas asli." };
 
-    await hapusBerkas(p.originalKey);
+    const lenovoTertunda = await hapusBerkasAsli(p);
     await db.photo.update({
       where: { id: p.id },
       data: { originalKey: null, originalPurgedAt: new Date(), originalPurgedById: actor.id },
@@ -396,9 +416,15 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     await audit(actor.id, "photo.archive_purge", "photo", p.id, {
       bytes: p.originalBytes ?? 0,
       locationId: p.locationId,
+      lenovoTertunda,
     });
     revalidatePath("/foto");
-    return { ok: "Arsip asli dihapus. Cap foto ini tidak bisa diperbaiki lagi." };
+    return {
+      ok:
+        "Arsip asli dihapus." +
+        (lenovoTertunda ? ` ${kalimatLenovoTertunda(1)}` : "") +
+        " Cap foto ini tidak bisa diperbaiki lagi.",
+    };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Penghapusan arsip gagal." };

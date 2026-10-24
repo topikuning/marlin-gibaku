@@ -119,7 +119,10 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  await db.$executeRawUnsafe(`DELETE FROM "organizations" WHERE id = '${orgId}'`).catch(() => null);
+  // Pola uji integrasi lain (fileParallelism: false). DELETE per organisasi
+  // gagal diam-diam oleh kunci asing `users`, dan fotonya lalu ikut diproses
+  // uji lain – mis. putaran arsip asli.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
   await new Promise<void>((ok) => server.close(() => ok()));
 });
