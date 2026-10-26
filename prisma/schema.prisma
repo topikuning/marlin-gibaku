@@ -475,6 +475,7 @@ model User {
   waDiminta         WaOutbound[]            @relation("WaOutboundPeminta")
   analisaAiDiputus  RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
   waVerification    WaVerification?
+  waLaporSesi       WaLaporSesi?
 
   @@index([orgId])
   @@index([role])
@@ -516,6 +517,42 @@ model WaVerification {
 
   @@index([expiresAt])
   @@map("wa_verifications")
+}
+
+/// SESI LAPOR LEWAT WHATSAPP PRIBADI (DECISIONS 706).
+///
+/// PIC mengetik "lokasi X" ke nomor MARLIN; foto berikutnya disimpan untuk
+/// lokasi itu sampai ia menyebut lokasi lain, mengetik "selesai", 3 jam tanpa
+/// kiriman, atau tengah malam WIB. Satu baris per orang – sesi baru menimpa
+/// yang lama, jadi tidak ada dua lokasi aktif sekaligus untuk satu nomor.
+model WaLaporSesi {
+  userId           String    @id @map("user_id") @db.Uuid
+  chatId           String    @map("chat_id")
+  /// null = belum ada lokasi aktif (mis. masih memilih dari beberapa lokasi).
+  locationId       String?   @map("location_id") @db.Uuid
+  /// Garis keturunan item RAB pekerjaan aktif: foto berikutnya untuk pekerjaan
+  /// ini. Lineage, bukan id node, supaya tetap benar sesudah adendum aktif.
+  lineageKey       String?   @map("lineage_key")
+  /// Pilihan yang sedang ditawarkan (dijawab dengan angka).
+  tawaran          Json?
+  /// Foto sesi ini yang menunggu pekerjaannya masuk laporan: "photoId|lineageKey".
+  fotoMenunggu     String[]  @default([]) @map("foto_menunggu")
+  /// Foto yang tersimpan tapi belum disebut di balasan – balasan dirapel
+  /// supaya sepuluh foto tidak dijawab sepuluh pesan.
+  rapelTersimpan   Int       @default(0) @map("rapel_tersimpan")
+  rapelDitempel    Int       @default(0) @map("rapel_ditempel")
+  rapelTanpaGps    Int       @default(0) @map("rapel_tanpa_gps")
+  fotoTersimpan    Int       @default(0) @map("foto_tersimpan")
+  /// Catatan "WA membuang GPS, kirim sebagai Dokumen" cukup sekali per sesi.
+  catatanGpsDikirim Boolean  @default(false) @map("catatan_gps_dikirim")
+  mulaiAt          DateTime  @map("mulai_at") @db.Timestamptz
+  terakhirAt       DateTime  @map("terakhir_at") @db.Timestamptz
+  selesaiAt        DateTime? @map("selesai_at") @db.Timestamptz
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("wa_lapor_sesi")
 }
 
 /// Session DB-backed: revocable. id = SHA-256 hash token (token asli hanya di cookie).
@@ -1424,6 +1461,7 @@ model Location {
   letters             Letter[]
   kawalMap            KawalLocationMap?
   kawalSaranaMaps     KawalSaranaMap[]
+  waLaporSesi         WaLaporSesi[]
 
   @@index([packageId])
   @@index([province])

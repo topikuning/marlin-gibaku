@@ -210,7 +210,8 @@ export async function tangkapLampiran(input: TangkapInput): Promise<TangkapHasil
  * Unduh berkas dari server WAHA. API key disertakan karena URL media WAHA
  * umumnya dilayani server WAHA itu sendiri dan tertutup untuk publik.
  */
-async function unduhBerkas(url: string): Promise<Buffer> {
+/** Unduh berkas media WAHA – dipakai juga lapor WhatsApp (DECISIONS 706). */
+export async function unduhBerkas(url: string): Promise<Buffer> {
   const { getWahaConfig } = await import("./config");
   let apiKey: string | null = null;
   try {

@@ -354,9 +354,10 @@ async function jawabDalamKonteks(
   // (1) Pesan KITA SENDIRI tidak pernah dijawab. Tanpa pagar ini, balasan MARLIN
   // masuk lagi lewat `message.any` dan MARLIN membalas dirinya sendiri.
   if (m.fromMe) return DIAM("pesan dari MARLIN sendiri");
-  if (m.hasMedia && !m.body.trim()) return DIAM("media tanpa teks");
-
   const grup = m.chatId.endsWith("@g.us");
+  // Foto tanpa teks di chat PRIBADI bisa jadi kiriman lapor (DECISIONS 706) –
+  // diperiksa sesudah pengirimnya dikenali, bukan dibuang di sini.
+  if (grup && m.hasMedia && !m.body.trim()) return DIAM("media tanpa teks");
 
   // (2) Diajak bicara? Di grup: HANYA kalau JID kita di-mention. Nomor DAN LID,
   // karena mention kini berisi @lid (DECISIONS 349). Membalas pesan MARLIN tidak
@@ -435,6 +436,19 @@ async function jawabDalamKonteks(
       /* gagal mengingat tidak boleh menggagalkan jawaban */
     }
   }
+  /*
+   * LAPOR LEWAT WHATSAPP (DECISIONS 706) – hanya chat PRIBADI dari pengguna
+   * yang dikenali. "lokasi X", foto, nama pekerjaan (dan volumenya) di tengah
+   * sesi, "selesai", dan jawaban angka atas tawarannya ditangani di sana;
+   * selebihnya – termasuk semua yang berakhir tanda tanya – tetap pertanyaan.
+   */
+  if (!grup && user) {
+    const { tanganiLaporWa } = await import("./lapor");
+    const lapor = await tanganiLaporWa(m, user);
+    if (lapor.ditangani) return { dijawab: true, alasan: lapor.alasan };
+  }
+  if (m.hasMedia && !m.body.trim()) return DIAM("media tanpa teks");
+
   /*
    * Pengirim ber-@lid yang TIDAK ketemu: catat medan JID apa saja yang benar-
    * benar ada di payload (DECISIONS 347). Tanpa ini, menutup celahnya berarti
