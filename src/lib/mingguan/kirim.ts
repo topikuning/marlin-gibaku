@@ -2,7 +2,15 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
-import { weekDateRange, weekOfDate, weightedPct, weightedRealizedPct, type WeekPeriodMode } from "@/lib/progress-calc";
+import {
+  hariMulaiMinggu,
+  modeKalender,
+  weekDateRange,
+  weekOfDate,
+  weightedPct,
+  weightedRealizedPct,
+  type WeekPeriodMode,
+} from "@/lib/progress-calc";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { kanonikGrupId } from "@/lib/waha/grup-id";
 import { sendText } from "@/lib/waha/kirim";
@@ -34,7 +42,7 @@ const HARI_MS = 86_400_000;
  * bukan menahannya di 20.
  */
 export function mingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): number {
-  if (mode === "senin_minggu") return weekOfDate(startDate, new Date(tengahMalam(now)), "senin_minggu");
+  if (modeKalender(mode)) return weekOfDate(startDate, new Date(tengahMalam(now)), mode);
   const hari = Math.floor((tengahMalam(now) - tengahMalam(startDate)) / HARI_MS);
   return Math.floor(hari / 7) + 1;
 }
@@ -46,17 +54,19 @@ export function mingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode =
  * "sudah waktunya", sehingga harinya SELALU ikut mode periode minggu kontrak —
  * tidak pernah hari tetap yang jatuh di tengah minggu kontrak:
  *
- *   `senin_minggu` (bawaan sejak DECISIONS 429): minggu kalender berakhir hari
- *     MINGGU, jadi seluruh paket dikirimi pada hari yang sama.
+ *   minggu kalender (`senin_minggu`, `jumat_kamis`, …, DECISIONS 708): minggu
+ *     berakhir sehari sebelum hari mulainya (Senin–Minggu → Minggu, Jumat–Kamis
+ *     → Kamis), jadi paket dengan periode yang sama dikirimi pada hari yang sama.
  *   `tujuh_hari`: minggu ke-N mencakup hari ke-(N−1)×7 sampai N×7−1 sejak SPMK,
  *     jadi hari terakhirnya yang sisa-baginya 6 — harinya berbeda antar paket
  *     karena mengikuti tanggal SPMK masing-masing.
  */
 export function akhirMingguKontrak(startDate: Date, now: Date, mode: WeekPeriodMode = "tujuh_hari"): boolean {
   const hari = Math.floor((tengahMalam(now) - tengahMalam(startDate)) / HARI_MS);
-  if (mode === "senin_minggu") {
-    // Minggu kalender berakhir hari MINGGU (dow 0 UTC pada tanggal kerja).
-    return hari >= 0 && new Date(tengahMalam(now)).getUTCDay() === 0;
+  const hariMulai = hariMulaiMinggu(mode);
+  if (hariMulai !== null) {
+    // Minggu kalender berakhir sehari sebelum hari mulainya (dow UTC pada tanggal kerja).
+    return hari >= 0 && new Date(tengahMalam(now)).getUTCDay() === (hariMulai + 6) % 7;
   }
   return hari >= 0 && hari % 7 === 6;
 }

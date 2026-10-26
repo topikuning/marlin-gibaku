@@ -14,7 +14,10 @@ import {
 } from "@/lib/lifecycle";
 import { formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { akhirKontrak, weekEndFractions, weightedRealizedPct } from "@/lib/progress-calc";
+import { akhirKontrak, weekEndFractions, weightedRealizedPct, WEEK_PERIOD_MODES, type WeekPeriodMode } from "@/lib/progress-calc";
+import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
+import { LABEL_MODE_MINGGU } from "@/lib/periode-minggu";
+import { selaraskanRentangRencana } from "@/lib/plan/rentang-rencana";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { cariDuplikat, existingLocationIndex } from "@/lib/master-location/queries";
@@ -755,6 +758,7 @@ export async function convertToContract(
   // startDate (SPMK) & endDate belum ada saat kontrak dibuat — diisi saat Mulai
   // Pelaksanaan. Kontrak hanya menyimpan durationDays (masa pelaksanaan).
 
+  const modeMingguBawaan = await getModeMingguBawaan();
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findFirst({
       where: { id: d.packageId, orgId: actor.orgId },
@@ -821,6 +825,8 @@ export async function convertToContract(
         durationDays: d.durationDays,
         startDate: null,
         endDate: null,
+        // Periode minggu bawaan diatur di Sistem (DECISIONS 708), bukan ditulis di skema.
+        weekMode: modeMingguBawaan,
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
         wakilSahName: d.wakilSahName ?? null,
@@ -970,6 +976,7 @@ export async function createDirectProject(
   const signedDate = parseDateKey(d.signedDate);
   if (!signedDate) return { error: "Format tanggal tidak valid." };
 
+  const modeMingguBawaan = await getModeMingguBawaan();
   const result = await db.$transaction(async (tx) => {
     // Lokasi katalog: milik org, belum terpakai.
     const masters = await tx.masterLocation.findMany({
@@ -1066,6 +1073,7 @@ export async function createDirectProject(
         durationDays: d.durationDays,
         startDate: null,
         endDate: null,
+        weekMode: modeMingguBawaan,
       },
     });
 
@@ -1155,7 +1163,7 @@ const editContractSchema = z.object({
   // SPMK / tanggal mulai. Kosong = SPMK belum terbit (startDate null).
   startDate: z.string().optional(),
   // Mode periode minggu laporan (user 2026-08-24). Kosong = tidak diubah.
-  weekMode: z.enum(["tujuh_hari", "senin_minggu"]).optional(),
+  weekMode: z.enum(WEEK_PERIOD_MODES).optional(),
   // Kontrak tahun jamak (multi years). Kotak centang: tidak dikirim = tahun tunggal.
   tahunJamak: z.boolean(),
 });
@@ -1283,6 +1291,13 @@ export async function editContractAction(
       }
     }
   }
+  // Grid minggu berubah → rentang rencana mingguan ikut grid baru (DECISIONS 708).
+  if (timeChanged && startDate) {
+    await selaraskanRentangRencana(
+      pkg.locations.map((l) => l.id),
+      { startDate, endDate, weekMode: d.weekMode ?? pkg.contract.weekMode },
+    );
+  }
 
   await audit(actor.id, "contract.edit", "package", pkg.id, {
     contractId: pkg.contract.id,
@@ -1326,15 +1341,15 @@ async function konversiModeMingguSemuaLokasi(
   opts: {
     startDate: Date;
     endDate: Date;
-    dari: "tujuh_hari" | "senin_minggu";
-    ke: "tujuh_hari" | "senin_minggu";
+    dari: WeekPeriodMode;
+    ke: WeekPeriodMode;
   },
   userId: string,
 ): Promise<number> {
   // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga untuk mode
   // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
   // (minggu terakhir yang pendek dipetakan sebesar harinya).
-  const gridDari = (mode: "tujuh_hari" | "senin_minggu") => {
+  const gridDari = (mode: WeekPeriodMode) => {
     const fr = weekEndFractions(opts.startDate, opts.endDate, mode);
     return { fracs: fr as number[] | null, totalWeeks: fr.length };
   };
@@ -1374,7 +1389,7 @@ async function konversiModeMingguSemuaLokasi(
 
 const weekModeSchema = z.object({
   packageId: z.uuid("ID paket tidak valid"),
-  weekMode: z.enum(["tujuh_hari", "senin_minggu"]),
+  weekMode: z.enum(WEEK_PERIOD_MODES),
 });
 
 /**
@@ -1437,18 +1452,29 @@ export async function ubahModeMingguAction(
           actor.id,
         )
       : 0;
+  // Rencana mingguan tetap milik nomor minggunya; tanggalnya ikut grid baru.
+  const rencanaDisesuaikan = startDate
+    ? (
+        await selaraskanRentangRencana(
+          pkg.locations.map((l) => l.id),
+          { startDate, endDate, weekMode },
+        )
+      ).diubah
+    : 0;
 
   await audit(actor.id, "contract.week_mode", "package", pkg.id, {
     contractId: pkg.contract.id,
     dari: modeLama,
     ke: weekMode,
     baselinesRecomputed: recomputed,
+    rencanaDisesuaikan,
   });
   revalidatePath(`/paket/${pkg.id}`, "layout");
   return {
     success: startDate
-      ? `Mode periode minggu diganti. ${recomputed} kurva-S lokasi dikonversi ke grid baru.`
-      : "Mode periode minggu diganti. Berlaku begitu SPMK terbit.",
+      ? `Periode minggu diganti ke ${LABEL_MODE_MINGGU[weekMode]}. ${recomputed} kurva-S lokasi dikonversi ke pembagian minggu yang baru` +
+        (rencanaDisesuaikan > 0 ? `, ${rencanaDisesuaikan} rencana mingguan ikut tanggal barunya.` : ".")
+      : `Periode minggu diganti ke ${LABEL_MODE_MINGGU[weekMode]}. Berlaku begitu SPMK terbit.`,
   };
 }
 

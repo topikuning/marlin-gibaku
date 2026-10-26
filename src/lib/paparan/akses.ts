@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
+import type { WeekPeriodMode } from "@/lib/progress-calc";
 
 /**
  * AKSES PAKET UNTUK PAPARAN (DECISIONS 416 + 420).
@@ -37,7 +38,7 @@ export type PaketPaparan = {
     startDate: Date;
     endDate: Date | null;
     durationDays: number;
-    weekMode: "tujuh_hari" | "senin_minggu";
+    weekMode: WeekPeriodMode;
     ppkName: string | null;
     supervisorName: string | null;
     supervisorFirm: string | null;

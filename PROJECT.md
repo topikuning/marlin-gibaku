@@ -363,16 +363,25 @@ harian. DECISIONS 402/403/404/427.
 
 ### Periode minggu laporan (M1–MN)
 
-Per kontrak (`Contract.weekMode`, DECISIONS 427):
+Per kontrak (`Contract.weekMode`, DECISIONS 427, 708):
 
-- `tujuh_hari` (bawaan, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
-- `senin_minggu`: minggu KALENDER Senin–Minggu; M1 (dan minggu terakhir) bisa
-  pendek — SPMK Kamis ⇒ M1 = Kamis–Minggu (4 hari).
+- minggu KALENDER dengan hari mulai pilihan: `senin_minggu`, `selasa_senin`,
+  `rabu_selasa`, `kamis_rabu`, `jumat_kamis`, `sabtu_jumat`, `minggu_sabtu`.
+  M1 (dan minggu terakhir) bisa pendek — Senin–Minggu dengan SPMK Kamis ⇒
+  M1 = Kamis–Minggu (4 hari).
+- `tujuh_hari`: minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
 
-Helper murninya HANYA di `progress-calc.ts` (`weekOfDate`, `weekDateRange`,
-`totalWeeksBetween`); `currentWeekNumber` (progress.ts) menerima mode. Semua
-kolom M1–MN (layar, PDF, Excel) menampilkan rentang tanggal minggunya.
-Mengubah mode lewat koreksi kontrak menghitung ulang kurva-S semua lokasi.
+Ketujuh hari mulai = seluruh kemungkinan; hari mulai dibaca dari SATU tabel
+(`HARI_MULAI`), jadi hari mulai baru tidak butuh kode baru. Bawaan kontrak
+BARU diatur di Sistem (AppSetting `kontrak.mode_minggu_bawaan`, awalnya
+Senin–Minggu sesuai DECISIONS 429); kontrak berjalan diganti per paket
+(`contract.week_mode`). Helper murninya HANYA di `progress-calc.ts`
+(`weekOfDate`, `weekDateRange`, `totalWeeksBetween`, `weekEndFractions`,
+`modeKalender`, `hariMulaiMinggu`); `currentWeekNumber` (progress.ts) menerima
+mode. Semua kolom M1–MN (layar, PDF, Excel) menampilkan rentang tanggal
+minggunya. Mengganti periode MENGONVERSI kurva-S semua lokasi paket (bentuk
+kalender dipertahankan, DECISIONS 427d) dan menyesuaikan tanggal rencana
+mingguan ke grid baru menurut nomor minggunya (`plan/rentang-rencana.ts`).
 
 ## 10. Scope yang sengaja ditunda
 

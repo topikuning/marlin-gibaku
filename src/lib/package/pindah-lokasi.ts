@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
-import { weekDateRange, weekEndFractions } from "@/lib/progress-calc";
+import { weekEndFractions, type WeekPeriodMode } from "@/lib/progress-calc";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
+import { selaraskanRentangRencana } from "@/lib/plan/rentang-rencana";
 import { bangunUlangSnapshotFinal } from "@/lib/daily-report/snapshot-rebuild";
 import { namaKembarDi } from "@/lib/package/nama-kembar";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -88,7 +89,7 @@ export type HasilPindahLokasi = {
 type Kontrak = {
   startDate: Date | null;
   endDate: Date | null;
-  weekMode: "tujuh_hari" | "senin_minggu";
+  weekMode: WeekPeriodMode;
 } | null;
 
 /** Grid minggu sebuah kontrak; null bila SPMK/akhir belum ada. */
@@ -287,20 +288,16 @@ export async function pindahkanLokasi(
      */
     let rencanaDihitungUlang = 0;
     if (gridTujuan && tujuan.contract?.startDate) {
-      const rencana = await tx.weeklyPlan.findMany({
-        where: { locationId: lokasi.id },
-        select: { id: true, weekNumber: true },
-      });
-      for (const r of rencana) {
-        const { start, end } = weekDateRange(
-          tujuan.contract.startDate,
-          r.weekNumber,
-          tujuan.contract.weekMode,
-          tujuan.contract.endDate,
-        );
-        await tx.weeklyPlan.update({ where: { id: r.id }, data: { weekStart: start, weekEnd: end } });
-        rencanaDihitungUlang++;
-      }
+      const r = await selaraskanRentangRencana(
+        [lokasi.id],
+        {
+          startDate: tujuan.contract.startDate,
+          endDate: tujuan.contract.endDate,
+          weekMode: tujuan.contract.weekMode,
+        },
+        tx,
+      );
+      rencanaDihitungUlang = r.dihitung;
     }
 
     const catatan =

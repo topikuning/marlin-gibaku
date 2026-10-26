@@ -48,7 +48,7 @@ export function MingguanPanel({ aktif }: { aktif: boolean }) {
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Tiap paket yang berjalan dikirimi laporan pada HARI TERAKHIR minggu kontraknya, sesuai PERIODE MINGGU di kontraknya. Periode Senin–Minggu (bawaan) berarti tiap hari Minggu. Periode 7 hari dihitung sejak SPMK, jadi harinya bisa berbeda antar paket. Satu minggu hanya dikirim sekali."
+                ? "Tiap paket yang berjalan dikirimi laporan pada HARI TERAKHIR minggu kontraknya, sesuai PERIODE MINGGU di kontraknya. Periode Senin–Minggu berarti tiap hari Minggu, Jumat–Kamis tiap hari Kamis, dan seterusnya. Periode 7 hari dihitung sejak SPMK, jadi harinya bisa berbeda antar paket. Satu minggu hanya dikirim sekali."
                 : "Tidak ada yang dikirim otomatis. Tombol “Kirim ke grup sekarang” di halaman paket TETAP bisa dipakai."}
             </p>
           </div>

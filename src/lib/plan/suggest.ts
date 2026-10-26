@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber, planPctAtWeek } from "@/lib/progress";
-import { totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
+import { modeKalender, totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
 import { contractDaysFor } from "@/lib/rab/import";
 import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
@@ -63,8 +63,8 @@ export async function suggestWeeklyPlan(
   // Jumlah minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
   const kontrakSuggest = loc?.package.contract;
   const totalWeeks =
-    kontrakSuggest?.weekMode === "senin_minggu" && kontrakSuggest.startDate && kontrakSuggest.endDate
-      ? totalWeeksBetween(kontrakSuggest.startDate, kontrakSuggest.endDate, "senin_minggu")
+    kontrakSuggest && modeKalender(kontrakSuggest.weekMode) && kontrakSuggest.startDate && kontrakSuggest.endDate
+      ? totalWeeksBetween(kontrakSuggest.startDate, kontrakSuggest.endDate, kontrakSuggest.weekMode)
       : Math.max(1, Math.ceil(contractDays / 7));
 
   // Kategori per lineage (prefix terpanjang) — sama seperti regenerateBaseline.

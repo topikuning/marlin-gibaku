@@ -124,3 +124,32 @@ describe("asOf: tanggal yang dipakai menghitung angka", () => {
     }
   });
 });
+
+describe("periode minggu dengan hari mulai bebas (DECISIONS 708)", () => {
+  it("mingguKontrak dan rentangMingguKontrak saling membalik untuk setiap periode", async () => {
+    const { WEEK_PERIOD_MODES } = await import("@/lib/progress-calc");
+    for (const mode of WEEK_PERIOD_MODES) {
+      for (let n = 1; n <= 12; n++) {
+        const r = rentangMingguKontrak(SPMK, n, mode);
+        for (let d = r.mulai; d <= r.akhir; d = new Date(d.getTime() + 86_400_000)) {
+          expect(mingguKontrak(SPMK, d, mode), `${mode} M${n} ${d.toISOString().slice(0, 10)}`).toBe(n);
+        }
+      }
+    }
+  });
+
+  it("laporan otomatis dikirim di HARI TERAKHIR periode: Jumat–Kamis → tiap Kamis", async () => {
+    const { akhirMingguKontrak } = await import("@/lib/mingguan/kirim");
+    // SPMK Senin 6 Jul 2026. Jumat–Kamis: M1 = 6–9 Jul, M2 = 10–16 Jul.
+    expect(akhirMingguKontrak(SPMK, tgl("2026-07-09"), "jumat_kamis")).toBe(true); // Kamis
+    expect(akhirMingguKontrak(SPMK, tgl("2026-07-16"), "jumat_kamis")).toBe(true); // Kamis
+    for (const t of ["2026-07-10", "2026-07-12", "2026-07-13", "2026-07-15"]) {
+      expect(akhirMingguKontrak(SPMK, tgl(t), "jumat_kamis"), t).toBe(false);
+    }
+    // Senin–Minggu tetap tiap Minggu, seperti sebelumnya.
+    expect(akhirMingguKontrak(SPMK, tgl("2026-07-12"), "senin_minggu")).toBe(true);
+    expect(akhirMingguKontrak(SPMK, tgl("2026-07-09"), "senin_minggu")).toBe(false);
+    // Sebelum SPMK tidak pernah "akhir minggu".
+    expect(akhirMingguKontrak(SPMK, tgl("2026-07-02"), "jumat_kamis")).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 import type { SourceRef } from "@/lib/ai-hub/types";
 import type { KondisiTerkini, Peristiwa } from "@/lib/kronologi/susun";
 import type { EwsWarning } from "@/lib/ews/rules";
+import type { WeekPeriodMode } from "@/lib/progress-calc";
 
 /**
  * LAPORAN LENGKAP LOKASI — tipe MURNI (tanpa "server-only").
@@ -46,7 +47,7 @@ export type IdentitasLaporanLokasi = {
     mulaiKey: string;
     akhirKey: string | null;
     durasiHari: number;
-    weekMode: "tujuh_hari" | "senin_minggu";
+    weekMode: WeekPeriodMode;
     ppk: string | null;
     pengawas: string | null;
     pengawasFirma: string | null;

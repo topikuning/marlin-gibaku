@@ -8,6 +8,7 @@ import {
   type LocationProgress,
 } from "@/lib/progress";
 import {
+  modeKalender,
   bobotPct,
   realisasiKategoriPct,
   totalWeeksBetween,
@@ -693,8 +694,8 @@ export async function buatSnapshotPaparan(
       mingguKe: weekNumber,
       // Total minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
       totalMinggu:
-        mode === "senin_minggu" && pkg.contract.endDate
-          ? totalWeeksBetween(start, pkg.contract.endDate, "senin_minggu")
+        modeKalender(mode) && pkg.contract.endDate
+          ? totalWeeksBetween(start, pkg.contract.endDate, mode)
           : Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
       mulaiKey,
       akhirKey,

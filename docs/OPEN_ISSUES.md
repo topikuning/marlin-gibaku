@@ -258,6 +258,17 @@ dengan `originalKey` terisi + `berkas_pindah.kunciDingin`), lalu buang sisanya.
 Butuh keputusan user sebelum dibuat: penghapusan di mesin arsip tidak bisa
 dibatalkan, dan cadangan Drive (650) sengaja tidak pernah dihapus otomatis.
 
+## 🟢 MINGGU-01 · "Laporan mingguan" di Tanya MARLIN WA tetap pekan Senin–Minggu (DECISIONS 708)
+
+Sejak 708 periode minggu kontrak bisa dimulai hari apa saja. Pertanyaan WA
+"laporan mingguan minggu lalu" (`pekanDari`, DECISIONS 358) masih menjawab
+pekan KALENDER Senin–Minggu, bukan periode kontrak paket itu. Satu pertanyaan
+bisa mencakup beberapa paket dengan periode berbeda, jadi tidak ada satu
+"minggu kontrak" yang bisa dipakai. Laporan Progres Mingguan resmi (grup WA,
+PDF, Excel) sudah mengikuti periode kontrak; yang belum hanya jawaban Tanya
+MARLIN ini. Perlu keputusan bila ada keluhan: ikut periode paket bila
+pertanyaannya menyebut satu paket/lokasi, atau tetap Senin–Minggu.
+
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
 ```text
