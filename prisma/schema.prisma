@@ -476,6 +476,8 @@ model User {
   analisaAiDiputus  RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
   waVerification    WaVerification?
   waLaporSesi       WaLaporSesi?
+  waUsulanDiajukan  WaUsulan[]              @relation("WaUsulanPengusul")
+  waUsulanDiputus   WaUsulan[]              @relation("WaUsulanPemutus")
 
   @@index([orgId])
   @@index([role])
@@ -535,12 +537,11 @@ model WaLaporSesi {
   lineageKey       String?   @map("lineage_key")
   /// Pilihan yang sedang ditawarkan (dijawab dengan angka).
   tawaran          Json?
-  /// Foto sesi ini yang menunggu pekerjaannya masuk laporan: "photoId|lineageKey".
-  fotoMenunggu     String[]  @default([]) @map("foto_menunggu")
   /// Foto yang tersimpan tapi belum disebut di balasan – balasan dirapel
   /// supaya sepuluh foto tidak dijawab sepuluh pesan.
   rapelTersimpan   Int       @default(0) @map("rapel_tersimpan")
-  rapelDitempel    Int       @default(0) @map("rapel_ditempel")
+  /// Di antaranya, yang ikut USULAN pekerjaan aktif (DECISIONS 707).
+  rapelDiusulkan   Int       @default(0) @map("rapel_diusulkan")
   rapelTanpaGps    Int       @default(0) @map("rapel_tanpa_gps")
   fotoTersimpan    Int       @default(0) @map("foto_tersimpan")
   /// Catatan "WA membuang GPS, kirim sebagai Dokumen" cukup sekali per sesi.
@@ -553,6 +554,54 @@ model WaLaporSesi {
   location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@map("wa_lapor_sesi")
+}
+
+enum WaUsulanStatus {
+  menunggu
+  dimasukkan
+  dibuang
+}
+
+/// USULAN DARI WHATSAPP (DECISIONS 707).
+///
+/// Volume dan foto pekerjaan yang dikirim PIC lewat WhatsApp TIDAK langsung
+/// masuk laporan harian. Ditampung di sini, lalu orang yang boleh mengisi
+/// laporan memeriksanya di halaman laporan harian dan menekan Masukkan (atau
+/// Buang). Satu usulan per (lokasi, hari, pekerjaan, pengirim): kiriman
+/// berikutnya untuk pekerjaan yang sama memperbarui usulan yang masih menunggu.
+model WaUsulan {
+  id              String         @id @default(uuid()) @db.Uuid
+  locationId      String         @map("location_id") @db.Uuid
+  /// Hari laporan yang dituju (WIB) – hari pesan diterima.
+  reportDate      DateTime       @map("report_date") @db.Date
+  lineageKey      String         @map("lineage_key")
+  /// Nama & satuan pekerjaan SAAT diusulkan – tetap terbaca walau RAB berganti.
+  namaPekerjaan   String         @map("nama_pekerjaan")
+  satuan          String?
+  /// null = hanya foto; volumenya belum disebut.
+  volume          Decimal?       @db.Decimal(15, 3)
+  /// Foto kantong Foto Cepat yang ikut usulan ini.
+  photoIds        String[]       @default([]) @map("photo_ids")
+  status          WaUsulanStatus @default(menunggu)
+  /// Kunci "satu usulan menunggu per lokasi+hari+pekerjaan+pengirim". Diisi
+  /// selama menunggu, dikosongkan saat diputus – unique atas kolom yang boleh
+  /// null, jadi usulan yang sudah diputus tidak saling bertabrakan.
+  kunciMenunggu   String?        @unique @map("kunci_menunggu")
+  diusulkanOlehId String         @map("diusulkan_oleh_id") @db.Uuid
+  diputusOlehId   String?        @map("diputus_oleh_id") @db.Uuid
+  diputusAt       DateTime?      @map("diputus_at") @db.Timestamptz
+  /// Baris laporan yang terisi saat dimasukkan.
+  reportItemId    String?        @map("report_item_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  location      Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  diusulkanOleh User     @relation("WaUsulanPengusul", fields: [diusulkanOlehId], references: [id], onDelete: Cascade)
+  diputusOleh   User?    @relation("WaUsulanPemutus", fields: [diputusOlehId], references: [id], onDelete: SetNull)
+
+  @@index([locationId, reportDate, status])
+  @@index([status])
+  @@map("wa_usulan")
 }
 
 /// Session DB-backed: revocable. id = SHA-256 hash token (token asli hanya di cookie).
@@ -1462,6 +1511,7 @@ model Location {
   kawalMap            KawalLocationMap?
   kawalSaranaMaps     KawalSaranaMap[]
   waLaporSesi         WaLaporSesi[]
+  waUsulan            WaUsulan[]
 
   @@index([packageId])
   @@index([province])
@@ -2021,6 +2071,9 @@ model Photo {
   /// Berkas ASLI apa adanya (sebelum kompresi & cap) — arsip bukti mentah.
   /// null = foto lama, diunggah sebelum arsip asli ada (DECISIONS 197).
   originalKey            String?             @map("original_key")
+  /// Foto ini dikirim lewat WhatsApp pribadi (DECISIONS 706/707): id pesan
+  /// WA-nya. Ditampilkan sebagai "Lewat WhatsApp" supaya pemeriksa tahu asalnya.
+  waMessageId            String?             @map("wa_message_id")
   originalBytes          Int?                @map("original_bytes")
   sha256                 String
   bytes                  Int

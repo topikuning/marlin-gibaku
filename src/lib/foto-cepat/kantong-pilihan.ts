@@ -47,6 +47,8 @@ export type FotoKantong = {
   reporterName: string;
   /** Arsip berkas asli ada → cap masih bisa dilengkapi saat foto dipakai. */
   bisaDilengkapi: boolean;
+  /** Dikirim lewat WhatsApp pribadi (DECISIONS 707) – asalnya disebut di layar. */
+  lewatWa: boolean;
 };
 
 /** Nama rak untuk foto yang lokasinya belum ketahuan. */

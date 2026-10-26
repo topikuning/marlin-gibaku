@@ -27,9 +27,9 @@ import {
  *
  * PIC yang nomornya SUDAH DIVERIFIKASI (570) mengetik "lokasi X" ke nomor
  * MARLIN; foto berikutnya disimpan untuk lokasi itu. Menyebut nama pekerjaan
- * membuat foto berikutnya ditempel ke pekerjaan itu di laporan harian; volume
- * yang ikut diketik langsung menjadi volume hari itu (laporan tetap DRAFT dan
- * tidak dihitung sampai dikirim dan disetujui).
+ * (dan volumenya) membuat USULAN (DECISIONS 707): volume dan foto pekerjaan
+ * dari WA TIDAK PERNAH langsung masuk laporan harian. Orang yang boleh mengisi
+ * laporan memeriksanya di halaman laporan harian lalu menekan Masukkan.
  *
  * Dipanggil dari antrean tanya-jawab, jadi idempotensi per pesan, coba ulang,
  * dan cron cadangannya ikut dari sana (DECISIONS 372). Yang TIDAK ditangani di
@@ -40,7 +40,7 @@ import {
  *  - foto disimpan sebagai foto GALERI: GPS & jam dari EXIF bila ada (dikirim
  *    sebagai Dokumen), selain itu titik lokasi proyek BERTANDA dan tanggal saja
  *    (DECISIONS 197) – tidak pernah dihitung sebagai bukti GPS;
- *  - volume lewat `upsertItem` yang sama: sisa RAB, status laporan, audit.
+ *  - usulan dimasukkan lewat `upsertItem` yang sama: sisa RAB, status laporan, audit.
  */
 
 export type HasilLapor = { ditangani: false } | { ditangani: true; alasan: string };
@@ -243,9 +243,8 @@ async function aktifkanLokasi(
     locationId,
     lineageKey: null,
     tawaran: Prisma.DbNull,
-    fotoMenunggu: [],
     rapelTersimpan: 0,
-    rapelDitempel: 0,
+    rapelDiusulkan: 0,
     rapelTanpaGps: 0,
     fotoTersimpan: 0,
     catatanGpsDikirim: false,
@@ -402,8 +401,8 @@ async function isiPekerjaan(
 }
 
 /**
- * Pekerjaan terpilih: jadikan pekerjaan aktif, catat volumenya bila ada, lalu
- * tempelkan foto sesi ini yang sudah menunggu pekerjaan tersebut.
+ * Pekerjaan terpilih: jadikan pekerjaan aktif, dan bila volumenya ikut
+ * diketik, catat sebagai USULAN – tidak pernah langsung ke laporan.
  */
 async function tetapkanPekerjaan(
   m: ParsedWaMessage,
@@ -417,19 +416,15 @@ async function tetapkanPekerjaan(
     where: { userId: user.id },
     data: { lineageKey: node.lineageKey, tawaran: Prisma.DbNull, terakhirAt: waktu(m) },
   });
-  const dateKey = jakartaDateKey(waktu(m));
   const nama = node.name.trim();
 
   if (isian.volume == null) {
-    const item = await itemHariIni(lokasi.id, dateKey, node.lineageKey);
-    const ikut = item ? await tempelFotoMenunggu(user, node.lineageKey, item.id) : 0;
-    await balasWa(
-      m.chatId,
-      teks.pekerjaanAktif(nama, node.unit, !!item) + (ikut > 0 ? ` ${ikut} foto yang tadi menunggu ikut ditempel.` : ""),
-    );
+    await balasWa(m.chatId, teks.pekerjaanAktif(nama, node.unit));
     return "lanjut";
   }
 
+  // Yang PASTI salah ditolak sekarang, selagi PIC masih memegang ponselnya –
+  // bukan baru ketahuan saat seseorang menekan Masukkan di kantor.
   if (!satuanSepadan(isian.satuan, node.unit)) {
     await balasWa(m.chatId, teks.satuanBeda(nama, node.unit ?? "-", isian.satuan ?? "-"));
     return "berhenti";
@@ -438,82 +433,77 @@ async function tetapkanPekerjaan(
     await balasWa(m.chatId, teks.tanpaIzinVolume);
     return "berhenti";
   }
-
-  const { getOrCreateDraft, upsertItem } = await import("@/lib/daily-report/service");
-  let volumeLama: number | null = null;
-  try {
-    const report = await getOrCreateDraft(lokasi.id, dateKey, user.id);
-    const lama = await db.dailyReportItem.findUnique({
-      where: { reportId_lineageKey: { reportId: report.id, lineageKey: node.lineageKey } },
-      select: { volumeDone: true, notes: true },
-    });
-    volumeLama = lama ? Number(lama.volumeDone) : null;
-    const item = await upsertItem(
-      report.id,
-      // Catatan yang sudah ada DIBAWA: upsertItem menimpa catatan dengan apa pun yang dikirim.
-      { rabNodeId: node.id, volumeDone: isian.volume, notes: lama?.notes ?? null },
-      user.id,
-    );
-    await audit(user.id, "wa.lapor.volume", "daily_report_item", item.id, {
-      locationId: lokasi.id,
-      dateKey,
-      lineageKey: node.lineageKey,
-      volume: isian.volume,
-      volumeLama,
-      waMessageId: m.waMessageId,
-    });
-    const ikut = await tempelFotoMenunggu(user, node.lineageKey, item.id);
-    await balasWa(
-      m.chatId,
-      teks.volumeTercatat(
-        nama,
-        angkaSatuan(isian.volume, node.unit),
-        volumeLama != null && volumeLama !== isian.volume ? angkaSatuan(volumeLama, node.unit) : null,
-        ikut,
-      ),
-    );
-    return "lanjut";
-  } catch (err) {
-    // Galat ATURAN laporan (sisa RAB habis, laporan sudah dikirim, lokasi
-    // dicabut) dikembalikan apa adanya – pesannya memang ditulis untuk orang.
-    // Galat lain tidak dikirim mentah ke WhatsApp.
-    const { DailyReportError } = await import("@/lib/daily-report/service");
-    if (!(err instanceof DailyReportError)) console.error("[wa/lapor] gagal mencatat volume:", err);
-    const pesan =
-      err instanceof DailyReportError ? err.message : "sistem sedang bermasalah. Coba kirim lagi sebentar lagi.";
-    await balasWa(m.chatId, teks.volumeDitolak(pesan));
+  if (node.remaining != null && isian.volume > node.remaining + 1e-6) {
+    await balasWa(m.chatId, teks.volumeDitolak(teks.melebihiSisa(angkaSatuan(node.remaining, node.unit))));
     return "berhenti";
   }
-}
 
-async function itemHariIni(locationId: string, dateKey: string, lineageKey: string) {
-  const reportDate = parseDateKey(dateKey);
-  if (!reportDate) return null;
-  const report = await db.dailyReport.findUnique({
-    where: { locationId_reportDate: { locationId, reportDate } },
-    select: { id: true },
+  const { usulan, volumeLama } = await catatUsulan(user, lokasi.id, jakartaDateKey(waktu(m)), node, {
+    volume: isian.volume,
   });
-  if (!report) return null;
-  return db.dailyReportItem.findUnique({
-    where: { reportId_lineageKey: { reportId: report.id, lineageKey } },
-    select: { id: true },
+  await audit(user.id, "wa.lapor.usulan_volume", "wa_usulan", usulan.id, {
+    locationId: lokasi.id,
+    lineageKey: node.lineageKey,
+    volume: isian.volume,
+    volumeLama,
+    waMessageId: m.waMessageId,
   });
-}
-
-/** Tempelkan foto sesi yang menunggu pekerjaan ini. Mengembalikan jumlah yang tertempel. */
-async function tempelFotoMenunggu(user: SessionUser, lineageKey: string, reportItemId: string): Promise<number> {
-  const sesi = await db.waLaporSesi.findUnique({ where: { userId: user.id }, select: { fotoMenunggu: true } });
-  const milik = (sesi?.fotoMenunggu ?? []).filter((e) => e.endsWith(`|${lineageKey}`));
-  if (milik.length === 0) return 0;
-  const ids = milik.map((e) => e.split("|")[0]);
-  const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
-  const hasil = await pakaiFotoKeTujuan(user, ids, { tujuan: "laporan", reportItemId }).catch(
-    (err: unknown) => ({ error: err instanceof Error ? err.message : "gagal" }),
+  await balasWa(
+    m.chatId,
+    teks.usulanVolume(
+      nama,
+      angkaSatuan(isian.volume, node.unit),
+      volumeLama != null && volumeLama !== isian.volume ? angkaSatuan(volumeLama, node.unit) : null,
+      usulan.photoIds.length,
+    ),
   );
-  if ("error" in hasil) return 0;
-  const sisa = (sesi?.fotoMenunggu ?? []).filter((e) => !milik.includes(e));
-  await db.waLaporSesi.update({ where: { userId: user.id }, data: { fotoMenunggu: sisa } });
-  return hasil.dipakai;
+  return "lanjut";
+}
+
+/**
+ * Satu usulan MENUNGGU per (lokasi, hari, pekerjaan, pengirim): kiriman
+ * berikutnya memperbaruinya – volume baru menggantikan yang lama, foto
+ * ditambahkan. Kunci unik `kunciMenunggu` membuat dua foto yang diproses
+ * bersamaan tidak membuat dua usulan; yang kalah balapan mengulang sebagai
+ * pembaruan.
+ */
+async function catatUsulan(
+  user: SessionUser,
+  locationId: string,
+  dateKey: string,
+  node: OpsiPekerjaan,
+  ubah: { volume?: number; fotoId?: string },
+) {
+  const kunci = `${locationId}|${dateKey}|${node.lineageKey}|${user.id}`;
+  const lama = await db.waUsulan.findUnique({ where: { kunciMenunggu: kunci }, select: { volume: true } });
+  const perbarui = {
+    namaPekerjaan: node.name.trim(),
+    satuan: node.unit,
+    ...(ubah.volume != null ? { volume: ubah.volume } : {}),
+    ...(ubah.fotoId ? { photoIds: { push: ubah.fotoId } } : {}),
+  };
+  let usulan;
+  try {
+    usulan = await db.waUsulan.upsert({
+      where: { kunciMenunggu: kunci },
+      create: {
+        locationId,
+        reportDate: parseDateKey(dateKey)!,
+        lineageKey: node.lineageKey,
+        namaPekerjaan: node.name.trim(),
+        satuan: node.unit,
+        volume: ubah.volume ?? null,
+        photoIds: ubah.fotoId ? [ubah.fotoId] : [],
+        kunciMenunggu: kunci,
+        diusulkanOlehId: user.id,
+      },
+      update: perbarui,
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "P2002") throw err;
+    usulan = await db.waUsulan.update({ where: { kunciMenunggu: kunci }, data: perbarui });
+  }
+  return { usulan, volumeLama: lama?.volume != null ? Number(lama.volume) : null };
 }
 
 /* ── Foto ───────────────────────────────────────────────────────────────── */
@@ -543,8 +533,8 @@ async function simpanFoto(m: ParsedWaMessage, user: SessionUser, sesi: Sesi): Pr
     const file = new File([new Uint8Array(isi)], nama, { type: mime });
     const foto = await savePhotoForItem({
       locationId: lokasi.id,
-      // Tanpa induk dulu – masuk kantong Foto Cepat lokasi ini, lalu ditempel
-      // ke pekerjaan bila pekerjaannya sudah ada di laporan hari ini.
+      // Tanpa induk – masuk kantong Foto Cepat lokasi ini. Ke laporan hanya
+      // lewat usulan yang dimasukkan orang (DECISIONS 707).
       reportId: null,
       reportItemId: null,
       activityId: null,
@@ -585,17 +575,17 @@ async function simpanFoto(m: ParsedWaMessage, user: SessionUser, sesi: Sesi): Pr
     return { ditangani: true, alasan: `lapor: foto gagal – ${sebab}`.slice(0, 300) };
   }
 
-  // Tempel ke pekerjaan aktif bila pekerjaan itu sudah ada di laporan hari ini;
-  // kalau belum, catat sebagai menunggu – ikut masuk saat volumenya dikirim.
-  let ditempel = false;
+  // Penanda asal: tampil "Lewat WhatsApp" di kantong, galeri, dan usulan.
+  await db.photo.update({ where: { id: fotoId }, data: { waMessageId: m.waMessageId } });
+
+  // Pekerjaan aktif → foto ikut USULAN pekerjaan itu; tanpa pekerjaan aktif
+  // cukup di kantong Foto Cepat.
+  let diusulkan = false;
   if (sesi.lineageKey) {
-    const item = await itemHariIni(lokasi.id, dateKey, sesi.lineageKey);
-    if (item) {
-      const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
-      const h = await pakaiFotoKeTujuan(user, [fotoId], { tujuan: "laporan", reportItemId: item.id }).catch(
-        (err: unknown) => ({ error: err instanceof Error ? err.message : "gagal" }),
-      );
-      ditempel = !("error" in h);
+    const node = (await pilihanPekerjaanLokasi(lokasi.id)).find((o) => o.lineageKey === sesi.lineageKey);
+    if (node) {
+      await catatUsulan(user, lokasi.id, dateKey, node, { fotoId });
+      diusulkan = true;
     }
   }
 
@@ -605,22 +595,21 @@ async function simpanFoto(m: ParsedWaMessage, user: SessionUser, sesi: Sesi): Pr
       terakhirAt: waktu(m),
       fotoTersimpan: { increment: 1 },
       rapelTersimpan: { increment: 1 },
-      rapelDitempel: { increment: ditempel ? 1 : 0 },
+      rapelDiusulkan: { increment: diusulkan ? 1 : 0 },
       rapelTanpaGps: { increment: gpsAsli ? 0 : 1 },
-      ...(sesi.lineageKey && !ditempel ? { fotoMenunggu: { push: `${fotoId}|${sesi.lineageKey}` } } : {}),
     },
   });
   await audit(user.id, "wa.lapor.foto", "photo", fotoId, {
     locationId: lokasi.id,
     dateKey,
     lineageKey: sesi.lineageKey,
-    ditempel,
+    diusulkan,
     gpsAsli,
     waMessageId: m.waMessageId,
   });
 
   await mungkinBalasRapel(m, user);
-  return { ditangani: true, alasan: `lapor: foto tersimpan${ditempel ? " + ditempel" : ""}` };
+  return { ditangani: true, alasan: `lapor: foto tersimpan${diusulkan ? " + diusulkan" : ""}` };
 }
 
 /**
@@ -657,7 +646,7 @@ async function kirimRapel(m: ParsedWaMessage, user: SessionUser): Promise<void> 
     where: { userId: user.id },
     data: {
       rapelTersimpan: { decrement: s.rapelTersimpan },
-      rapelDitempel: { decrement: s.rapelDitempel },
+      rapelDiusulkan: { decrement: s.rapelDiusulkan },
       rapelTanpaGps: { decrement: s.rapelTanpaGps },
       ...(catatanGps ? { catatanGpsDikirim: true } : {}),
     },
@@ -667,9 +656,9 @@ async function kirimRapel(m: ParsedWaMessage, user: SessionUser): Promise<void> 
     teks.fotoTersimpan({
       jumlah: s.rapelTersimpan,
       lokasi: s.location?.name ?? "lokasi",
-      ditempel: s.rapelDitempel,
+      diusulkan: s.rapelDiusulkan,
       pekerjaan: node?.name.trim() ?? null,
-      kantong: s.rapelTersimpan - s.rapelDitempel,
+      kantong: s.rapelTersimpan - s.rapelDiusulkan,
       catatanGps,
     }),
   );

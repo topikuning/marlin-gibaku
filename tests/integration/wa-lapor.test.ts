@@ -1,13 +1,15 @@
 /*
  * LAPOR LEWAT WHATSAPP PRIBADI – dari pesan masuk sampai baris laporan
- * (DECISIONS 706).
+ * (DECISIONS 706, 707).
  *
  * Permintaan user 2026-10-26: PIC mengetik "lokasi A", lalu foto yang dikirim
  * lewat WA disimpan untuk lokasi itu; menyebut nama pekerjaan mencari
- * pekerjaan yang cocok, dan volume yang ikut diketik langsung jadi volume.
+ * pekerjaan yang cocok. Volume dan foto pekerjaan berhenti sebagai USULAN
+ * (707) dan baru masuk laporan setelah orang yang boleh mengisi laporan
+ * menekan Masukkan di aplikasi.
  *
  * Yang ASLI: basis data, pencocok lokasi & pekerjaan, penyimpan foto (sharp),
- * `upsertItem`, `pakaiFotoKeTujuan`, antrean jawaban. Yang dipalsukan hanya
+ * `upsertItem`, `pakaiFotoKeTujuan`, antrean jawaban, EWS. Yang dipalsukan hanya
  * yang memang bukan milik kita: kiriman WhatsApp, server media WAHA, R2, AI.
  */
 import { createServer, type Server } from "node:http";
@@ -85,6 +87,7 @@ const NOMOR_BELUM = "6281299990002";
 const CHAT_PIC = `${NOMOR_PIC}@c.us`;
 let locationId = "";
 let picId = "";
+let smId = "";
 let nomorPesan = 0;
 let detik = Math.floor(Date.now() / 1000);
 
@@ -123,6 +126,8 @@ async function gambar(nama: string) {
 }
 
 const hariIni = () => jakartaDateKey(new Date());
+const usulan = (lineageKey: string) =>
+  db.waUsulan.findFirst({ where: { locationId, lineageKey, status: "menunggu" } });
 async function itemLaporan(lineageKey: string) {
   const report = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId, reportDate: parseDateKey(hariIni())! } },
@@ -153,6 +158,11 @@ beforeAll(async () => {
     ).id;
   picId = await buatUser("pic", NOMOR_PIC, true);
   const belumId = await buatUser("belum", NOMOR_BELUM, false);
+  smId = (
+    await db.user.create({
+      data: { orgId: org.id, username: `sm-${suffix}`, fullName: "SM Uji", passwordHash: "x", role: "site_manager" },
+    })
+  ).id;
   const pkg = await db.package.create({ data: { orgId: org.id, name: `Paket WL ${suffix}`, stage: "pelaksanaan" } });
   const buatLokasi = (name: string) =>
     db.location.create({
@@ -173,7 +183,7 @@ beforeAll(async () => {
   locationId = lok.id;
   // Lokasi lain di organisasi yang sama, TIDAK ditugaskan ke PIC.
   await buatLokasi("Kedung Lain");
-  for (const u of [picId, belumId]) await db.locationAssignment.create({ data: { userId: u, locationId } });
+  for (const u of [picId, belumId, smId]) await db.locationAssignment.create({ data: { userId: u, locationId } });
 
   const rev = await db.rabRevision.create({
     data: { locationId, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
@@ -246,64 +256,78 @@ describe("lapor lewat WhatsApp", () => {
     expect(sesudah?.terakhirAt).toEqual(sebelum?.terakhirAt);
   });
 
-  it("nama pekerjaan + volume → baris laporan DRAFT hari ini dengan volume itu", async () => {
+  it("nama pekerjaan + volume → USULAN, bukan baris laporan", async () => {
     const { balasan } = await kirim({ teks: "pasang paving 20 m2" });
-    expect(balasan.join("\n")).toMatch(/Volume \*Pemasangan Paving Block\* hari ini: \*20 m2\*/);
-    const item = await itemLaporan("I#1");
-    expect(Number(item?.volumeDone)).toBe(20);
-    const report = await db.dailyReport.findFirst({ where: { locationId }, select: { status: true } });
-    expect(report?.status, "lewat WA tidak pernah mengirim laporan").toBe("draft");
+    expect(balasan.join("\n")).toMatch(/Usulan volume \*Pemasangan Paving Block\* hari ini: \*20 m2\*/);
+    expect(balasan.join("\n")).toMatch(/Belum masuk laporan/);
+    const u = await usulan("I#1");
+    expect(Number(u?.volume)).toBe(20);
+    expect(u?.status).toBe("menunggu");
+    expect(await itemLaporan("I#1"), "WA tidak pernah menulis baris laporan").toBeNull();
   });
 
-  it("foto berikutnya ditempel ke pekerjaan itu", async () => {
+  it("foto berikutnya ikut usulan pekerjaan itu, dan bertanda lewat WhatsApp", async () => {
     const { balasan } = await kirim({ foto: await gambar("tiga.jpg") });
-    const item = await itemLaporan("I#1");
     const foto = await db.photo.findFirst({ where: { uploadedById: picId }, orderBy: { createdAt: "desc" } });
-    expect(foto?.reportItemId).toBe(item?.id);
-    expect(balasan.join("\n")).toMatch(/ditempel ke pekerjaan \*Pemasangan Paving Block\*/);
+    expect(foto?.reportItemId, "tidak ditempel ke laporan").toBeNull();
+    expect(foto?.waMessageId).toMatch(/^lapor-/);
+    expect((await usulan("I#1"))?.photoIds).toContain(foto!.id);
+    expect(balasan.join("\n")).toMatch(/diusulkan untuk pekerjaan \*Pemasangan Paving Block\*/);
   });
 
-  it("volume baru menimpa, dan balasannya menyebut angka sebelumnya", async () => {
+  it("volume baru menggantikan usulan, dan balasannya menyebut angka sebelumnya", async () => {
     const { balasan } = await kirim({ teks: "25" });
-    expect(balasan.join("\n")).toMatch(/\*25 m2\* \(sebelumnya 20 m2\)/);
-    expect(Number((await itemLaporan("I#1"))?.volumeDone)).toBe(25);
+    expect(balasan.join("\n")).toMatch(/\*25 m2\* \(menggantikan usulan sebelumnya 20 m2\), dengan 1 foto/);
+    expect(Number((await usulan("I#1"))?.volume)).toBe(25);
+    expect(await db.waUsulan.count({ where: { locationId, lineageKey: "I#1" } }), "satu usulan, diperbarui").toBe(1);
   });
 
   it("satuan beda dengan RAB ditolak, tidak dibetulkan diam-diam", async () => {
     const { balasan } = await kirim({ teks: "galian tanah 5 m2" });
     expect(balasan.join("\n")).toMatch(/Satuan \*Galian Tanah\* di RAB adalah \*m3\*, bukan \*m2\*/);
-    expect(await itemLaporan("I#2")).toBeNull();
+    expect(await usulan("I#2")).toBeNull();
   });
 
-  it("pekerjaan tanpa volume: foto menunggu, lalu ikut masuk saat volumenya dikirim", async () => {
+  it("volume melebihi sisa RAB ditolak saat itu juga", async () => {
+    const { balasan } = await kirim({ teks: "galian tanah 60" });
+    expect(balasan.join("\n")).toMatch(/melebihi sisa RAB\. Sisa yang masih bisa dilaporkan: 50 m3/);
+    expect(await usulan("I#2")).toBeNull();
+  });
+
+  it("pekerjaan tanpa volume: foto diusulkan dulu, volumenya menyusul ke usulan yang sama", async () => {
     const aktif = await kirim({ teks: "galian" });
-    expect(aktif.balasan.join("\n")).toMatch(/Pekerjaan aktif: \*Galian Tanah\*.*belum ada di laporan hari ini/s);
+    expect(aktif.balasan.join("\n")).toMatch(/Pekerjaan aktif: \*Galian Tanah\* \(m3\)\. Foto berikutnya diusulkan/);
     await kirim({ foto: await gambar("empat.jpg") });
-    const menunggu = await db.photo.findFirst({ where: { uploadedById: picId }, orderBy: { createdAt: "desc" } });
-    expect(menunggu?.reportItemId).toBeNull();
+    const u0 = await usulan("I#2");
+    expect(u0?.volume, "usulan foto saja").toBeNull();
+    expect(u0?.photoIds).toHaveLength(1);
 
     const vol = await kirim({ teks: "galian tanah 5" });
-    expect(vol.balasan.join("\n")).toMatch(/\*5 m3\*.*1 foto ikut ditempel/s);
-    const item = await itemLaporan("I#2");
-    const sesudah = await db.photo.findUnique({ where: { id: menunggu!.id }, select: { reportItemId: true } });
-    expect(sesudah?.reportItemId).toBe(item?.id);
+    expect(vol.balasan.join("\n")).toMatch(/\*5 m3\*, dengan 1 foto/);
+    const u1 = await usulan("I#2");
+    expect(u1?.id).toBe(u0?.id);
+    expect(Number(u1?.volume)).toBe(5);
   });
 
   it("beberapa pekerjaan cocok → ditawarkan, dijawab dengan angka", async () => {
     const tawar = await kirim({ teks: "bekesting kolom 3" });
     expect(tawar.balasan.join("\n")).toMatch(/Ada 2 pekerjaan yang cocok/);
     const pilih = await kirim({ teks: "2" });
-    expect(pilih.balasan.join("\n")).toMatch(/Volume \*Bekesting Kolom Utama\* hari ini: \*3 m2\*/);
+    expect(pilih.balasan.join("\n")).toMatch(/Usulan volume \*Bekesting Kolom Utama\* hari ini: \*3 m2\*/);
   });
 
-  it("yang hanya MENDEKATI ditawarkan dulu – volumenya tidak dicatat sebelum dipilih", async () => {
+  it("yang hanya MENDEKATI ditawarkan dulu – tidak jadi usulan sebelum dipilih", async () => {
     const tawar = await kirim({ teks: "pasang batako 2" });
     expect(tawar.balasan.join("\n")).toMatch(/Tidak ada pekerjaan yang persis cocok dengan "pasang batako"/);
-    expect(await itemLaporan("I#5"), "tebakan tidak boleh langsung jadi volume").toBeNull();
+    expect(await usulan("I#5"), "tebakan tidak boleh langsung jadi usulan").toBeNull();
     const nomor = /(\d+)\. 5 Pasangan Bata/.exec(tawar.balasan.join("\n"))?.[1];
     expect(nomor, "Pasangan Bata ada di antara yang ditawarkan").toBeDefined();
     const pilih = await kirim({ teks: nomor! });
-    expect(pilih.balasan.join("\n")).toMatch(/Volume \*Pasangan Bata\* hari ini: \*2 m2\*/);
+    expect(pilih.balasan.join("\n")).toMatch(/Usulan volume \*Pasangan Bata\* hari ini: \*2 m2\*/);
+  });
+
+  it("tidak satu pun baris laporan harian tertulis dari WhatsApp", async () => {
+    expect(await db.dailyReport.count({ where: { locationId } })).toBe(0);
   });
 
   it("pekerjaan yang tidak ada di RAB dijawab apa adanya", async () => {
@@ -352,5 +376,112 @@ describe("lapor lewat WhatsApp", () => {
   it("chat sesi tetap milik PIC: semua balasan lapor ke nomornya sendiri", () => {
     const keLain = terkirim.filter((t) => t.chatId !== CHAT_PIC && t.chatId !== `${NOMOR_BELUM}@c.us`);
     expect(keLain).toEqual([]);
+  });
+});
+
+describe("usulan WA diputus di aplikasi (DECISIONS 707)", () => {
+  const sm = () =>
+    db.user.findUniqueOrThrow({
+      where: { id: smId },
+      select: { id: true, orgId: true, username: true, email: true, fullName: true, role: true, mustChangePassword: true },
+    });
+  const svc = () => import("@/lib/wa-usulan/service");
+  const usulanDiEws = async () => {
+    const { bangunEws } = await import("@/lib/ews/builder");
+    return (await bangunEws(await sm())).filter((w) => w.ruleId === "usulan_wa_menunggu");
+  };
+
+  it("Perlu Tindakan menunjuk lokasi yang usulannya belum diperiksa", async () => {
+    const menunggu = await db.waUsulan.count({ where: { locationId, status: "menunggu" } });
+    expect(menunggu).toBeGreaterThan(0);
+    const [w, ...lain] = await usulanDiEws();
+    expect(lain).toEqual([]);
+    expect(w.alasan).toContain(`${menunggu} usulan dari WhatsApp`);
+    expect(w.href).toMatch(new RegExp(`/harian/${hariIni()}$`));
+  });
+
+  it("halaman laporan melihat usulan yang menunggu, lengkap dengan foto dan pengirimnya", async () => {
+    const daftar = await (await svc()).usulanMenunggu(locationId, hariIni());
+    const paving = daftar.find((u) => u.lineageKey === "I#1");
+    expect(paving?.volume).toBe(25);
+    expect(paving?.fotos).toHaveLength(1);
+    expect(paving?.pengusul).toBe("PIC pic");
+    expect(paving?.volumeDiLaporan).toBeNull();
+  });
+
+  it("Masukkan → baris laporan DRAFT + fotonya ditempel; usulan tercatat siapa yang memasukkan", async () => {
+    const u = await usulan("I#1");
+    const h = await (await svc()).masukkanUsulan(await sm(), u!.id, null);
+    expect(h).toMatchObject({ volume: 25, foto: 1, gagalFoto: null });
+    const item = await itemLaporan("I#1");
+    expect(Number(item?.volumeDone)).toBe(25);
+    const foto = await db.photo.findUnique({ where: { id: u!.photoIds[0] }, select: { reportItemId: true } });
+    expect(foto?.reportItemId).toBe(item?.id);
+    const sesudah = await db.waUsulan.findUniqueOrThrow({ where: { id: u!.id } });
+    expect(sesudah).toMatchObject({ status: "dimasukkan", kunciMenunggu: null, diputusOlehId: smId, reportItemId: item?.id });
+    const report = await db.dailyReport.findFirst({ where: { locationId }, select: { status: true } });
+    expect(report?.status).toBe("draft");
+  });
+
+  it("volume boleh dibetulkan pemeriksa sebelum dimasukkan", async () => {
+    const u = await usulan("I#2");
+    await (await svc()).masukkanUsulan(await sm(), u!.id, 4);
+    expect(Number((await itemLaporan("I#2"))?.volumeDone)).toBe(4);
+  });
+
+  it("usulan yang sudah diputus tidak bisa diputus lagi", async () => {
+    const u = await db.waUsulan.findFirstOrThrow({ where: { locationId, lineageKey: "I#1" } });
+    await expect((await svc()).masukkanUsulan(await sm(), u.id, null)).rejects.toThrow(/sudah diputus/);
+  });
+
+  it("Buang → usulan dibuang, fotonya tetap di kantong", async () => {
+    const u = await usulan("I#5");
+    expect(u?.photoIds.length).toBeGreaterThan(0);
+    await (await svc()).buangUsulan(await sm(), u!.id);
+    expect((await db.waUsulan.findUniqueOrThrow({ where: { id: u!.id } })).status).toBe("dibuang");
+    const fotos = await db.photo.findMany({ where: { id: { in: u!.photoIds } }, select: { reportId: true } });
+    expect(fotos).toHaveLength(u!.photoIds.length);
+    expect(fotos.every((f) => f.reportId === null)).toBe(true);
+    expect(await itemLaporan("I#5")).toBeNull();
+  });
+
+  it("usulan foto saja tanpa volume tidak bisa jadi baris baru", async () => {
+    const u = await db.waUsulan.create({
+      data: {
+        locationId,
+        reportDate: parseDateKey(hariIni())!,
+        lineageKey: "I#3",
+        namaPekerjaan: "Bekesting Kolom Praktis",
+        satuan: "m2",
+        diusulkanOlehId: picId,
+        kunciMenunggu: `uji-foto-saja-${suffix}`,
+      },
+    });
+    await expect((await svc()).masukkanUsulan(await sm(), u.id, null)).rejects.toThrow(/belum punya volume/);
+  });
+
+  it("laporan yang sudah dikirim menolak usulan – aturan laporan tetap berlaku", async () => {
+    await db.dailyReport.updateMany({ where: { locationId }, data: { status: "dikirim" } });
+    const u = await db.waUsulan.create({
+      data: {
+        locationId,
+        reportDate: parseDateKey(hariIni())!,
+        lineageKey: "I#4",
+        namaPekerjaan: "Bekesting Kolom Utama",
+        satuan: "m2",
+        volume: 1,
+        diusulkanOlehId: picId,
+        kunciMenunggu: `uji-dikirim-${suffix}`,
+      },
+    });
+    await expect((await svc()).masukkanUsulan(await sm(), u.id, null)).rejects.toThrow(/Draft atau Perlu Koreksi/);
+    expect((await db.waUsulan.findUniqueOrThrow({ where: { id: u.id } })).status, "tetap menunggu").toBe("menunggu");
+  });
+
+  it("semua usulan sudah diputus → Perlu Tindakan tidak menyebutnya lagi", async () => {
+    const sisa = await db.waUsulan.findMany({ where: { locationId, status: "menunggu" }, select: { id: true } });
+    expect(sisa.length).toBeGreaterThan(0);
+    for (const u of sisa) await (await svc()).buangUsulan(await sm(), u.id);
+    expect(await usulanDiEws()).toEqual([]);
   });
 });

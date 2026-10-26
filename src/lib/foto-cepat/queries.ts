@@ -109,6 +109,7 @@ export async function getKantong(
       gpsSource: true,
       originalKey: true,
       originalPurgedAt: true,
+      waMessageId: true,
       createdAt: true,
       uploadedById: true,
       locationId: true,
@@ -150,6 +151,7 @@ export async function getKantong(
       gpsAsli: r.gpsSource === "exif" || r.gpsSource === "device",
       reporterName: (r.uploadedById && nama.get(r.uploadedById)) || "–",
       bisaDilengkapi: r.originalKey != null && r.originalPurgedAt == null,
+      lewatWa: r.waMessageId != null,
     };
   });
 }

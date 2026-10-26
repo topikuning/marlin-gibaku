@@ -27,6 +27,7 @@ const foto = (id: string, locationId: string | null, locationName?: string): Fot
   gpsAsli: false,
   reporterName: "Mandor",
   bisaDilengkapi: true,
+  lewatWa: false,
 });
 
 describe("kelompokkanKantong", () => {

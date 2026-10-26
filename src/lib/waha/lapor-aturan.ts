@@ -228,8 +228,9 @@ export const teks = {
     "Cara melapor lewat WhatsApp:\n" +
     "1. Ketik *lokasi* lalu namanya, mis. *lokasi Kedung Mutih*.\n" +
     "2. Kirim fotonya. Supaya GPS dan jam aslinya ikut, kirim sebagai *Dokumen*.\n" +
-    "3. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, mis. *pasang paving*. " +
-    "Tambahkan volumenya kalau mau sekalian dilaporkan: *pasang paving 20 m2*.\n" +
+    "3. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, mis. *pasang paving*, " +
+    "atau sekalian volumenya: *pasang paving 20 m2*. Foto dan volume itu menjadi USULAN – " +
+    "masuk laporan harian setelah diperiksa di aplikasi.\n" +
     "4. Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.\n" +
     "Pertanyaan untuk MARLIN tetap bisa, akhiri dengan tanda tanya.",
 
@@ -269,12 +270,9 @@ export const teks = {
       : "Tidak ada foto yang tersimpan di sesi ini."),
   tanpaSesi: "Tidak ada sesi lapor yang sedang aktif.",
 
-  pekerjaanAktif: (nama: string, satuan: string | null, sudahDiLaporan: boolean) =>
-    `Pekerjaan aktif: *${nama}*${satuan ? ` (${satuan})` : ""}. ` +
-    (sudahDiLaporan
-      ? "Foto berikutnya ditempel ke pekerjaan ini di laporan hari ini."
-      : "Pekerjaan ini belum ada di laporan hari ini. Foto berikutnya disimpan dulu, lalu ikut masuk " +
-        `begitu volumenya dikirim (mis. *20${satuan ? ` ${satuan}` : ""}*) atau diisi di aplikasi.`),
+  pekerjaanAktif: (nama: string, satuan: string | null) =>
+    `Pekerjaan aktif: *${nama}*${satuan ? ` (${satuan})` : ""}. Foto berikutnya diusulkan untuk pekerjaan ini. ` +
+    `Kirim volumenya juga kalau mau, mis. *20${satuan ? ` ${satuan}` : ""}*.`,
 
   pekerjaanTidakAda: (diketik: string, lokasi: string) =>
     `Pekerjaan "${diketik}" tidak ketemu di RAB *${lokasi}*. Coba kata lain yang ada di nama pekerjaannya. ` +
@@ -308,36 +306,35 @@ export const teks = {
     `Satuan *${pekerjaan}* di RAB adalah *${rab}*, bukan *${diketik}*. Kirim ulang dengan satuan yang benar, ` +
     "atau tanpa satuan.",
 
-  volumeTercatat: (pekerjaan: string, baru: string, lama: string | null, fotoIkut: number) =>
-    `Volume *${pekerjaan}* hari ini: *${baru}*` +
-    (lama ? ` (sebelumnya ${lama})` : "") +
-    "." +
-    (fotoIkut > 0 ? ` ${fotoIkut} foto ikut ditempel ke pekerjaan ini.` : "") +
-    " Laporannya masih draft – periksa dan kirim lewat aplikasi.",
+  usulanVolume: (pekerjaan: string, baru: string, lama: string | null, foto: number) =>
+    `Usulan volume *${pekerjaan}* hari ini: *${baru}*` +
+    (lama ? ` (menggantikan usulan sebelumnya ${lama})` : "") +
+    (foto > 0 ? `, dengan ${foto} foto` : "") +
+    ". Belum masuk laporan – yang memeriksa memasukkannya lewat halaman laporan harian di aplikasi.",
+
+  melebihiSisa: (sisa: string) => `melebihi sisa RAB. Sisa yang masih bisa dilaporkan: ${sisa}.`,
 
   volumeDitolak: (sebab: string) => `Volume tidak dicatat: ${sebab}`,
 
   fotoTersimpan: (o: {
     jumlah: number;
     lokasi: string;
-    ditempel: number;
+    diusulkan: number;
     pekerjaan: string | null;
     kantong: number;
     catatanGps: boolean;
   }) => {
     const bagian = [`${o.jumlah} foto tersimpan untuk *${o.lokasi}*.`];
-    if (o.ditempel > 0 && o.pekerjaan)
+    if (o.diusulkan > 0 && o.pekerjaan)
       bagian.push(
-        o.ditempel === o.jumlah
-          ? `Semuanya ditempel ke pekerjaan *${o.pekerjaan}* di laporan hari ini.`
-          : `${o.ditempel} ditempel ke pekerjaan *${o.pekerjaan}*.`,
+        o.diusulkan === o.jumlah
+          ? `Semuanya diusulkan untuk pekerjaan *${o.pekerjaan}* – masuk laporan setelah diperiksa di aplikasi.`
+          : `${o.diusulkan} diusulkan untuk pekerjaan *${o.pekerjaan}*.`,
       );
     if (o.kantong > 0)
       bagian.push(
-        o.pekerjaan
-          ? `${o.kantong} menunggu di kantong Foto Cepat sampai volume *${o.pekerjaan}* dikirim atau diisi di aplikasi.`
-          : `${o.kantong === o.jumlah ? "Semuanya" : o.kantong} ada di kantong Foto Cepat. ` +
-              "Sebut nama pekerjaannya kalau foto berikutnya untuk pekerjaan tertentu.",
+        `${o.kantong === o.jumlah ? "Semuanya" : o.kantong} ada di kantong Foto Cepat. ` +
+          "Sebut nama pekerjaannya kalau foto berikutnya untuk pekerjaan tertentu.",
       );
     if (o.catatanGps)
       bagian.push(
