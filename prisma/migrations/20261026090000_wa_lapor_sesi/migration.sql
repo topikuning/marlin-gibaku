@@ -18,14 +18,10 @@ CREATE TABLE IF NOT EXISTS "wa_lapor_sesi" (
     CONSTRAINT "wa_lapor_sesi_pkey" PRIMARY KEY ("user_id")
 );
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'wa_lapor_sesi_user_id_fkey') THEN
-    ALTER TABLE "wa_lapor_sesi" ADD CONSTRAINT "wa_lapor_sesi_user_id_fkey"
-      FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'wa_lapor_sesi_location_id_fkey') THEN
-    ALTER TABLE "wa_lapor_sesi" ADD CONSTRAINT "wa_lapor_sesi_location_id_fkey"
-      FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
-END $$;
+ALTER TABLE "wa_lapor_sesi" DROP CONSTRAINT IF EXISTS "wa_lapor_sesi_user_id_fkey";
+ALTER TABLE "wa_lapor_sesi" ADD CONSTRAINT "wa_lapor_sesi_user_id_fkey"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "wa_lapor_sesi" DROP CONSTRAINT IF EXISTS "wa_lapor_sesi_location_id_fkey";
+ALTER TABLE "wa_lapor_sesi" ADD CONSTRAINT "wa_lapor_sesi_location_id_fkey"
+  FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
