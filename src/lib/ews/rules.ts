@@ -90,6 +90,8 @@ export const AMBANG = {
   laporanMenggantungSedang: 3,
   /// Surat yang menuntut jawaban dianggap kritis bila lewat tenggat sekian hari.
   suratTelatKritisHari: 7,
+  /// Usulan WA yang menunggu sejak sekian hari dinaikkan ke tinggi (DECISIONS 707).
+  usulanWaTinggiHari: 2,
 } as const;
 
 export type EwsLocationFacts = {
@@ -344,6 +346,42 @@ export function evaluasiEwsKawal(f: EwsKawalFacts): EwsWarning[] {
         `Selisih ${formatSelisihPp(b.selisihPp)}, ${LABEL_ARAH[b.arah]}.`,
       tindakan: SARAN_ARAH[b.arah],
       href: `/lokasi/${f.locationSlug}/kawal`,
+      locationSlug: f.locationSlug,
+    },
+  ];
+}
+
+/* ── Usulan dari WhatsApp yang belum diputus (DECISIONS 707) ────────────────
+   Volume & foto kiriman WA tidak masuk laporan sebelum ada yang menekan
+   Masukkan. Usulan yang didiamkan = laporan yang tertahan, jadi ia harus
+   kelihatan. Sengaja aturan TERPISAH dari `evaluasiEwsLokasi`: snapshot
+   laporan lokasi lengkap memakai aturan itu, dan antrean kerja harian bukan
+   isi laporan. */
+
+export type EwsUsulanWaFacts = {
+  locationName: string;
+  locationSlug: string;
+  /** Jumlah usulan berstatus menunggu. */
+  menunggu: number;
+  /** Tanggal laporan usulan tertua yang menunggu (YYYY-MM-DD). */
+  tanggalTertua: string;
+  /** Umur usulan tertua dalam hari (0 = hari ini). */
+  umurTertuaHari: number;
+};
+
+export function evaluasiEwsUsulanWa(f: EwsUsulanWaFacts): EwsWarning[] {
+  if (f.menunggu <= 0) return [];
+  const lama = f.umurTertuaHari >= AMBANG.usulanWaTinggiHari;
+  const umur = f.umurTertuaHari === 0 ? "dari hari ini" : `tertua ${f.umurTertuaHari} hari lalu`;
+  return [
+    {
+      ruleId: "usulan_wa_menunggu",
+      kategori: "laporan",
+      severity: lama ? "tinggi" : "sedang",
+      objek: f.locationName,
+      alasan: `${f.menunggu} usulan dari WhatsApp belum diperiksa (${umur}). Isinya belum masuk laporan harian.`,
+      tindakan: "Buka laporan harian, periksa usulannya, lalu Masukkan atau Buang.",
+      href: `/lokasi/${f.locationSlug}/harian/${f.tanggalTertua}`,
       locationSlug: f.locationSlug,
     },
   ];

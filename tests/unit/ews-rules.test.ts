@@ -6,6 +6,7 @@ import {
   evaluasiEwsKawal,
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
+  evaluasiEwsUsulanWa,
   urutkanWarning,
   type EwsKawalFacts,
   type EwsLocationFacts,
@@ -258,6 +259,37 @@ describe("EWS selisih_kawal", () => {
 
   it("teks layar memakai en-dash, bukan em-dash", () => {
     const w = ev({ marlinPct: 30, mingguIsiKawal: 2 })[0];
+    expect(`${w.alasan} ${w.tindakan}`).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe("EWS usulan WA yang belum diputus (DECISIONS 707)", () => {
+  const ev = (menunggu: number, umurTertuaHari: number) =>
+    evaluasiEwsUsulanWa({
+      locationName: "Lokasi Uji",
+      locationSlug: "lokasi-uji",
+      menunggu,
+      tanggalTertua: "2026-10-24",
+      umurTertuaHari,
+    });
+
+  it("tidak ada yang menunggu → diam", () => {
+    expect(ev(0, 5)).toEqual([]);
+  });
+
+  it("baru hari ini → sedang; menunggu sejak ambang hari → tinggi", () => {
+    expect(ev(2, 0)[0].severity).toBe("sedang");
+    expect(ev(2, AMBANG.usulanWaTinggiHari - 1)[0].severity).toBe("sedang");
+    expect(ev(2, AMBANG.usulanWaTinggiHari)[0].severity).toBe("tinggi");
+  });
+
+  it("menunjuk laporan harian TANGGAL usulan tertua, membawa slug, berkategori laporan", () => {
+    const [w] = ev(3, 2);
+    expect(w.href).toBe("/lokasi/lokasi-uji/harian/2026-10-24");
+    expect(w.locationSlug).toBe("lokasi-uji");
+    expect(w.kategori).toBe("laporan");
+    expect(w.alasan).toContain("3 usulan");
+    expect(w.alasan).toContain("2 hari lalu");
     expect(`${w.alasan} ${w.tindakan}`).not.toContain(String.fromCharCode(0x2014));
   });
 });

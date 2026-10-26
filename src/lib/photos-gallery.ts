@@ -157,6 +157,7 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
         exifGpsLng: true,
         gpsSource: true,
         originalKey: true,
+        waMessageId: true,
         createdAt: true,
         uploadedById: true,
         report: { select: { status: true, location: { select: { name: true, slug: true } } } },
@@ -215,7 +216,9 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
       title: r.reportItem?.rabNode.name ?? r.activity?.title ?? "Foto lapangan",
       locationName: r.report?.location.name ?? r.activity?.location.name ?? "–",
       locationSlug: r.report?.location.slug ?? r.activity?.location.slug ?? null,
-      sourceLabel: r.report ? "Laporan Harian" : "Kegiatan Lapangan",
+      // Asal WhatsApp disebut (DECISIONS 707): pemeriksa perlu tahu foto ini
+      // datang dari chat, bukan dari kamera aplikasi.
+      sourceLabel: `${r.report ? "Laporan Harian" : "Kegiatan Lapangan"}${r.waMessageId ? " · lewat WhatsApp" : ""}`,
       reporterName: (r.uploadedById && uploaderName.get(r.uploadedById)) || "–",
       hasGps: r.gpsSource === "exif" || r.gpsSource === "device",
       gpsFromProject: r.gpsSource === "project",

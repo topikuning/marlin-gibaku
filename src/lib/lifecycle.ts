@@ -6,6 +6,7 @@ import type {
   FindingCategory,
   FindingStatus,
   InspectionStatus,
+  WaUsulanStatus,
   IssueSeverity,
   LocationStatus,
   PackageStage,
@@ -307,6 +308,31 @@ export const INSPECTION_STATUS_LABEL: Record<InspectionStatus, string> = {
 export const INSPECTION_STATUS_TONE: Record<InspectionStatus, "neutral" | "success"> = {
   draft: "neutral",
   final: "success",
+};
+
+/* ── Usulan dari WhatsApp (DECISIONS 707) ─────────────────────────────────
+   Sekali diputus, selesai: yang dimasukkan sudah jadi baris laporan (diubah
+   lewat laporannya), yang dibuang tidak dihidupkan lagi – kirim ulang dari WA. */
+const WA_USULAN_TRANSITIONS: Record<WaUsulanStatus, WaUsulanStatus[]> = {
+  menunggu: ["dimasukkan", "dibuang"],
+  dimasukkan: [],
+  dibuang: [],
+};
+
+export function canTransitionWaUsulan(from: WaUsulanStatus, to: WaUsulanStatus): boolean {
+  return WA_USULAN_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export const WA_USULAN_STATUS_LABEL: Record<WaUsulanStatus, string> = {
+  menunggu: "Menunggu diperiksa",
+  dimasukkan: "Sudah masuk laporan",
+  dibuang: "Dibuang",
+};
+
+export const WA_USULAN_STATUS_TONE: Record<WaUsulanStatus, "warning" | "success" | "neutral"> = {
+  menunggu: "warning",
+  dimasukkan: "success",
+  dibuang: "neutral",
 };
 
 /**

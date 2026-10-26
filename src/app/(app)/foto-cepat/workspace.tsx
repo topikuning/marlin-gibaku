@@ -796,6 +796,7 @@ function PenampilKantong({
       <div className="mx-auto w-full max-w-2xl space-y-2 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-white/80">
           <span>{foto.waktuLabel}</span>
+          {foto.lewatWa ? <span>Lewat WhatsApp</span> : null}
           {foto.lat != null && foto.lng != null ? (
             <span className="inline-flex items-center gap-1">
               <MapPin aria-hidden className={`size-3 ${foto.gpsAsli ? "text-success" : "text-warning"}`} />
@@ -929,7 +930,10 @@ function FotoPetak({
           ) : (
             <MapPinOff aria-hidden className="size-3 shrink-0 text-warning" />
           )}
-          <span className="truncate">{foto.waktuLabel}</span>
+          <span className="truncate">
+            {foto.lewatWa ? "WA · " : null}
+            {foto.waktuLabel}
+          </span>
         </span>
       </button>
       {/* Perbesar di pojok kanan bawah GAMBAR – jauh dari tong sampah di atas,

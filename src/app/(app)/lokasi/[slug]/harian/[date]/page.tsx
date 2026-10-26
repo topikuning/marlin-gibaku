@@ -22,6 +22,8 @@ import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { PindahTanggalForm } from "./pindah-tanggal-form";
 import { PindahHari } from "./pindah-hari";
 import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
+import { UsulanWa } from "./usulan-wa";
+import { usulanMenunggu } from "@/lib/wa-usulan/service";
 import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
 
@@ -123,6 +125,14 @@ export default async function HarianWorkspacePage({
   // dikirim (DECISIONS 696). Server tetap penegaknya.
   const bisaFotoSusulan =
     canCreate && !!status && STATUS_FOTO_SUSULAN.includes(status) && isR2Configured();
+  // Usulan dari WhatsApp (DECISIONS 707): diputus di sini oleh yang boleh
+  // mengisi laporan, selama laporannya masih bisa diubah.
+  const usulanWa = await usulanMenunggu(data.location.id, date);
+  const alasanUsulanTertahan = !canCreate
+    ? "Usulan ini dimasukkan oleh yang boleh mengisi laporan harian."
+    : status && !editable
+      ? `Laporan ini berstatus ${REPORT_STATUS_LABEL[status]}, jadi isinya tidak bisa diubah. Usulan hanya bisa dimasukkan selama laporan masih Draft atau Perlu Koreksi.`
+      : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -157,6 +167,28 @@ export default async function HarianWorkspacePage({
               Buka laporan hari ini →
             </Link>
           }
+        />
+      ) : null}
+
+      {usulanWa.length > 0 ? (
+        <UsulanWa
+          usulan={usulanWa.map((u) => ({
+            id: u.id,
+            namaPekerjaan: u.namaPekerjaan,
+            satuan: u.satuan,
+            volume: u.volume,
+            pengusul: u.pengusul,
+            jam: new Date(u.diperbaruiAt).toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Asia/Jakarta",
+            }),
+            volumeDiLaporan: u.volumeDiLaporan,
+            masihDiRab: u.masihDiRab,
+            fotos: u.fotos,
+          }))}
+          bolehPutus={editable}
+          alasanTidakBisa={alasanUsulanTertahan}
         />
       ) : null}
 

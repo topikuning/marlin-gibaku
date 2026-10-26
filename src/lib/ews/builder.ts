@@ -3,7 +3,7 @@ import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { jakartaToday } from "@/lib/format";
+import { jakartaDateKey, jakartaToday } from "@/lib/format";
 import { kawalUntukLokasi } from "@/lib/kawal/queries";
 import { getAmbangKawal } from "@/lib/kawal/setelan";
 import { COUNTED_REPORT_STATUSES, OPEN_FINDING_STATUSES } from "@/lib/lifecycle";
@@ -14,6 +14,7 @@ import {
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
   evaluasiEwsSurat,
+  evaluasiEwsUsulanWa,
   urutkanWarning,
   type EwsWarning,
 } from "./rules";
@@ -101,8 +102,31 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
   const lastByLoc = new Map(lastReport.map((r) => [r.locationId, r._max.reportDate]));
   const koreksiByLoc = new Map(perluKoreksi.map((r) => [r.locationId, r._count._all]));
 
+  // Usulan WA yang belum diputus (DECISIONS 707): jumlah + tanggal tertua per lokasi.
+  const usulanWa = await db.waUsulan.groupBy({
+    by: ["locationId"],
+    where: { locationId: { in: ids }, status: "menunggu" },
+    _count: { _all: true },
+    _min: { reportDate: true },
+  });
+  const usulanByLoc = new Map(usulanWa.map((r) => [r.locationId, r]));
+
   const warnings: EwsWarning[] = [];
   for (const loc of locations) {
+    // Sebelum pagar progres: usulan yang menunggu tetap kelihatan walau progres lokasinya belum terhitung.
+    const u = usulanByLoc.get(loc.id);
+    if (u?._min.reportDate) {
+      warnings.push(
+        ...evaluasiEwsUsulanWa({
+          locationName: loc.name,
+          locationSlug: loc.slug,
+          menunggu: u._count._all,
+          tanggalTertua: jakartaDateKey(u._min.reportDate),
+          umurTertuaHari: Math.max(0, selisihHari(today, u._min.reportDate)),
+        }),
+      );
+    }
+
     const p = progress.get(loc.id);
     if (!p) continue;
     const contract = loc.package.contract;
