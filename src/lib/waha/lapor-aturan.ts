@@ -306,7 +306,8 @@ function kataPembeda(nama: string): string {
 }
 
 export const teks = {
-  bantuan:
+  /** `tanyaAktif` = Tanya MARLIN lewat WA hidup (DECISIONS 714) – kalau mati, jalan keluarnya tidak dijanjikan. */
+  bantuan: (tanyaAktif: boolean) =>
     "Cara melapor lewat WhatsApp:\n" +
     "1. Ketik *lokasi* saja untuk daftar lokasi Anda lalu balas dengan nomornya, " +
     "atau langsung *lokasi* dan namanya, mis. *lokasi Kedung Mutih*.\n" +
@@ -315,8 +316,8 @@ export const teks = {
     "atau sekalian volumenya: *pasang paving 20*. Cukup angkanya, satuannya mengikuti RAB. " +
     "Foto dan volume itu menjadi USULAN – " +
     "masuk laporan harian setelah diperiksa di aplikasi.\n" +
-    "4. Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.\n" +
-    "Pertanyaan untuk MARLIN tetap bisa, akhiri dengan tanda tanya.",
+    "4. Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman." +
+    (tanyaAktif ? "\nPertanyaan untuk MARLIN tetap bisa, akhiri dengan tanda tanya." : ""),
 
   lokasiAktif: (nama: string) =>
     `Lokasi aktif: *${nama}*.\n` +
@@ -368,9 +369,9 @@ export const teks = {
     `Kirim volumenya juga kalau mau, cukup angkanya, mis. *20*` +
     (satuan ? ` – dicatat dalam ${satuan}, satuan RAB pekerjaan ini.` : "."),
 
-  pekerjaanTidakAda: (diketik: string, lokasi: string) =>
-    `Pekerjaan "${diketik}" tidak ketemu di RAB *${lokasi}*. Coba kata lain yang ada di nama pekerjaannya. ` +
-    "Kalau ini pertanyaan untuk MARLIN, akhiri dengan tanda tanya.",
+  pekerjaanTidakAda: (diketik: string, lokasi: string, tanyaAktif: boolean) =>
+    `Pekerjaan "${diketik}" tidak ketemu di RAB *${lokasi}*. Coba kata lain yang ada di nama pekerjaannya.` +
+    (tanyaAktif ? " Kalau ini pertanyaan untuk MARLIN, akhiri dengan tanda tanya." : ""),
 
   pilihPekerjaan: (diketik: string, pilihan: string[]) =>
     `Ada ${pilihan.length} pekerjaan yang cocok dengan "${diketik}":\n` +

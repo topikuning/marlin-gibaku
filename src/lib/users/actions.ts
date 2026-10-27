@@ -16,6 +16,7 @@ import { ADMIN_ROLES, ALL_ROLES, ROLE_LABEL, can, canCreateRole, outranks } from
 import { adalahAkar, parseAkar } from "@/lib/akar";
 import { env } from "@/lib/env";
 import { normalizeWaTarget } from "@/lib/contacts/model";
+import { normalizePhone } from "@/lib/waha/sender-identity";
 import type { UserRole } from "@/generated/prisma/enums";
 
 /**
@@ -206,14 +207,22 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
 
     const waNumber = d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null;
     const waLid = rapikanLid(d.waLid);
+    /*
+     * Verifikasi membuktikan orangnya memegang NOMOR ITU (DECISIONS 570). Nomor
+     * yang diganti admin belum terbukti apa-apa, jadi tanda verifikasinya ikut
+     * gugur – persetujuan aktivasi lewat WA bersandar padanya (DECISIONS 714).
+     */
+    const lama = await db.user.findUniqueOrThrow({ where: { id: d.userId }, select: { waNumber: true } });
+    const nomorBerubah = normalizePhone(lama.waNumber) !== normalizePhone(waNumber);
     await db.user.update({
       where: { id: d.userId },
-      data: { fullName: d.fullName, email, waNumber, waLid },
+      data: { fullName: d.fullName, email, waNumber, waLid, ...(nomorBerubah ? { waVerifiedAt: null } : {}) },
     });
     await audit(actor.id, "user.update_profile", "user", d.userId, {
       fullName: d.fullName,
       waDiisi: !!waNumber,
       lidDiisi: !!waLid,
+      nomorBerubah,
     });
     revalidatePath("/master/pengguna");
     return { success: "Data pengguna diperbarui." };

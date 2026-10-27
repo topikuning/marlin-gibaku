@@ -157,6 +157,20 @@ export function balasDitolak(alasan: string): string {
   return alasan;
 }
 
+/**
+ * Balasan selama Tanya MARLIN dimatikan (DECISIONS 714). Di chat pribadi yang
+ * disebut adalah apa yang MASIH bisa dilakukan lewat WA; di grup cukup satu
+ * kalimat, karena lapor dan persetujuan memang tidak lewat grup.
+ */
+export function balasTanyaMati(grup: boolean): string {
+  if (grup) return "Tanya MARLIN sedang dimatikan sementara. Datanya bisa dilihat di aplikasi MARLIN.";
+  return (
+    "Tanya MARLIN sedang dimatikan sementara, jadi pertanyaan belum bisa saya jawab. " +
+    "Lewat WhatsApp, MARLIN saat ini menerima laporan lapangan dan persetujuan aktivasi adendum.\n" +
+    "Untuk melapor, ketik *lokasi* lalu pilih lokasinya. Ketik *lapor* untuk caranya."
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Balasan berdata                                                     */
 /* ------------------------------------------------------------------ */

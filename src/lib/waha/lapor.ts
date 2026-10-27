@@ -7,6 +7,7 @@ import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { Prisma } from "@/generated/prisma/client";
 import type { ParsedWaMessage } from "./ingest-parse";
 import { balasWa } from "./kirim";
+import { tanyaWaAktif } from "./config";
 import { cocokkanLokasi, type LokasiKatalog } from "./tanya-niat";
 import { katalogLokasi } from "./tanya-data";
 import {
@@ -120,7 +121,7 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
     if ((sesi?.rapelTersimpan ?? 0) > 0) await kirimRapel(m, user);
     switch (perintah.jenis) {
       case "bantuan":
-        await balasWa(m.chatId, teks.bantuan);
+        await balasWa(m.chatId, teks.bantuan(await tanyaWaAktif()));
         return { ditangani: true, alasan: "lapor: bantuan" };
       case "lokasi":
         return (await mulaiLokasi(m, user, perintah.nama)).hasil;
@@ -341,7 +342,7 @@ async function jawabPilihan(m: ParsedWaMessage, user: SessionUser, sesi: Sesi, n
   const pk = p as PilihanPekerjaan;
   const node = (await pilihanPekerjaanLokasi(sesi.location.id)).find((o) => o.lineageKey === pk.lineageKey);
   if (!node) {
-    await balasWa(m.chatId, teks.pekerjaanTidakAda(pk.label, sesi.location.name));
+    await balasWa(m.chatId, teks.pekerjaanTidakAda(pk.label, sesi.location.name, await tanyaWaAktif()));
     return { ditangani: true, alasan: "lapor: pilihan pekerjaan hilang dari RAB" };
   }
   await tetapkanPekerjaan(m, user, sesi, node, { volume: tawaran.volume, satuan: tawaran.satuan });
@@ -435,7 +436,7 @@ async function isiPekerjaan(
   // Tebakan selalu ditawarkan, tidak pernah langsung dipakai – walau cuma satu.
   if (hasil.mendekati.length > 0) return tawarkan(hasil.mendekati, true);
 
-  await balasWa(m.chatId, teks.pekerjaanTidakAda(diketik, lokasi.name));
+  await balasWa(m.chatId, teks.pekerjaanTidakAda(diketik, lokasi.name, await tanyaWaAktif()));
   return "berhenti";
 }
 

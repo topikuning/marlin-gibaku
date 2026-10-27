@@ -272,8 +272,10 @@ describe("lapor lewat WhatsApp", () => {
 
   it("pertanyaan di tengah sesi tetap untuk Tanya MARLIN, dan tidak menyentuh sesi", async () => {
     const sebelum = await db.waLaporSesi.findUnique({ where: { userId: picId }, select: { terakhirAt: true } });
-    const { hasil } = await kirim({ teks: "berapa progres matabulu?" });
+    const { hasil, balasan } = await kirim({ teks: "berapa progres matabulu?" });
     expect(hasil.alasan).not.toMatch(/^lapor:/);
+    // Tanya MARLIN mati secara bawaan (DECISIONS 714): dijawab begitu, lapornya tetap jalan.
+    expect(balasan.join("\n")).toMatch(/Tanya MARLIN sedang dimatikan/);
     const sesudah = await db.waLaporSesi.findUnique({ where: { userId: picId }, select: { terakhirAt: true } });
     expect(sesudah?.terakhirAt).toEqual(sebelum?.terakhirAt);
   });
