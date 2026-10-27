@@ -285,10 +285,6 @@ export const teks = {
     " ini belum saya simpan karena lokasinya belum disebut. Ketik dulu *lokasi* untuk memilih dari " +
     "daftar, atau *lokasi* dan namanya, mis. *lokasi Kedung Mutih*, kemudian kirim ulang fotonya.",
 
-  belumVerifikasi:
-    "Nomor WhatsApp Anda belum diverifikasi di MARLIN, jadi foto dan laporan dari nomor ini belum bisa " +
-    "diterima. Buka MARLIN, masuk ke halaman *Verifikasi WhatsApp*, lalu coba lagi.",
-
   tanpaIzinFoto: "Akun Anda tidak punya izin mengirim foto lapangan, jadi foto ini tidak disimpan.",
   tanpaIzinVolume:
     "Akun Anda tidak punya izin mengisi laporan harian, jadi volumenya tidak dicatat. Fotonya tetap bisa dikirim.",

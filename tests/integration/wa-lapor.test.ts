@@ -390,16 +390,31 @@ describe("lapor lewat WhatsApp", () => {
     expect(await db.photo.count({ where: { uploadedById: picId } })).toBe(jumlah);
   });
 
-  it("nomor yang belum diverifikasi tidak bisa menulis apa pun", async () => {
+  it("nomor TERCATAT yang belum diverifikasi langsung diterima; status verifikasinya diaudit (DECISIONS 711)", async () => {
     const lokasi = await kirim({ dari: NOMOR_BELUM, teks: "lokasi matabulu" });
-    expect(lokasi.balasan.join("\n")).toMatch(/belum diverifikasi/);
+    expect(lokasi.balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
+    const belumId = (await db.user.findFirstOrThrow({ where: { waNumber: `${NOMOR_BELUM}@c.us` } })).id;
     const foto = await kirim({ dari: NOMOR_BELUM, foto: await gambar("belum.jpg") });
-    expect(foto.balasan.join("\n")).toMatch(/belum diverifikasi/);
-    expect(await db.waLaporSesi.count({ where: { chatId: `${NOMOR_BELUM}@c.us` } })).toBe(0);
+    expect(foto.hasil.alasan).toMatch(/^lapor: foto tersimpan/);
+    expect(await db.photo.count({ where: { uploadedById: belumId, locationId } })).toBe(1);
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "wa.lapor.lokasi", userId: belumId },
+      select: { payload: true },
+    });
+    expect(jejak?.payload).toMatchObject({ nomorTerverifikasi: false });
+  });
+
+  it("nomor yang TIDAK tercatat di akun mana pun tetap tidak bisa melapor", async () => {
+    const asing = "6281299990009";
+    const { hasil } = await kirim({ dari: asing, teks: "lokasi matabulu" });
+    expect(hasil.alasan).not.toMatch(/^lapor:/);
+    expect(await db.waLaporSesi.count({ where: { chatId: `${asing}@c.us` } })).toBe(0);
   });
 
   it("chat sesi tetap milik PIC: semua balasan lapor ke nomornya sendiri", () => {
-    const keLain = terkirim.filter((t) => t.chatId !== CHAT_PIC && t.chatId !== `${NOMOR_BELUM}@c.us`);
+    const keLain = terkirim.filter(
+      (t) => t.chatId !== CHAT_PIC && t.chatId !== `${NOMOR_BELUM}@c.us` && t.chatId !== "6281299990009@c.us",
+    );
     expect(keLain).toEqual([]);
   });
 });

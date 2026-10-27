@@ -102,20 +102,15 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
     if (!urusanLapor) return TIDAK;
   }
 
-  // Menulis atas nama orang butuh identitas yang TERBUKTI, bukan sekadar nomor
-  // yang diketik admin (DECISIONS 570).
-  const terverifikasi = await db.user.findUnique({ where: { id: user.id }, select: { waVerifiedAt: true } });
-  if (!terverifikasi?.waVerifiedAt) {
-    // "lokasi …" yang tidak cocok lokasi mana pun mungkin pertanyaan biasa.
-    if (perintah.jenis === "lokasi" && !foto) {
-      if (cocokkanLokasi(perintah.nama, await katalogUntuk(user)).jenis === "tidak_ada") return TIDAK;
-    }
-    if (foto || perintah.jenis === "lokasi" || perintah.jenis === "daftar_lokasi" || perintah.jenis === "bantuan") {
-      await balasWa(m.chatId, teks.belumVerifikasi);
-      return { ditangani: true, alasan: "lapor: nomor belum diverifikasi" };
-    }
-    return TIDAK;
-  }
+  /*
+   * Verifikasi dua arah (570) TIDAK disyaratkan di sini (DECISIONS 711).
+   * `user` ditemukan dari nomor yang BENAR-BENAR mengirim pesan, dicocokkan ke
+   * nomor yang tersimpan di akunnya, dan nomor yang tercatat di dua akun aktif
+   * tidak dijawab sama sekali (`cariPengguna`). Pesan masuk itu sendiri bukti
+   * bahwa pengirimnya memegang nomor yang tercatat. Sisa risikonya – nomor
+   * salah ketik milik orang lain – dibatasi 707: semua kiriman WA hanya usulan
+   * yang harus diterima orang di aplikasi. Status verifikasinya dicatat di audit.
+   */
 
   if (!foto) {
     // Foto yang belum disebut di balasan dilaporkan DULU: rentetan foto yang
@@ -294,7 +289,11 @@ async function aktifkanLokasi(
     create: { userId: user.id, ...awal },
     update: awal,
   });
-  await audit(user.id, "wa.lapor.lokasi", "location", locationId, { chatId: m.chatId });
+  const akun = await db.user.findUnique({ where: { id: user.id }, select: { waVerifiedAt: true } });
+  await audit(user.id, "wa.lapor.lokasi", "location", locationId, {
+    chatId: m.chatId,
+    nomorTerverifikasi: !!akun?.waVerifiedAt,
+  });
   await balasWa(m.chatId, teks.lokasiAktif(nama));
   return { ditangani: true, alasan: "lapor: lokasi aktif" };
 }
