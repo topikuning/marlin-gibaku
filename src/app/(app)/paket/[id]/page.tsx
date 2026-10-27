@@ -34,7 +34,7 @@ import {
   formatTanggalWaktu,
 } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { weightedRealizedPct } from "@/lib/progress-calc";
+import { weightedRealizedPct, type WeekPeriodMode } from "@/lib/progress-calc";
 import { getScurveSeriesPaket } from "@/lib/baseline";
 import { getAdendumBerjalan } from "@/lib/package/adendum-berjalan";
 import { idLokasiDiarsipkan, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
@@ -98,7 +98,7 @@ export const dynamic = "force-dynamic";
  */
 function pilihanMingguPaket(
   startDate: Date | null,
-  weekMode: "tujuh_hari" | "senin_minggu" = "tujuh_hari",
+  weekMode: WeekPeriodMode = "tujuh_hari",
 ): { nilai: number; label: string }[] {
   if (!startDate) return [];
   const now = new Date();

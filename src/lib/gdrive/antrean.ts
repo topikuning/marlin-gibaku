@@ -4,7 +4,7 @@ import { jakartaHour } from "@/lib/format";
 import { akhirMingguKontrak, mingguKontrak } from "@/lib/mingguan/kirim";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { getPeriodBounds } from "@/lib/periodic-report";
-import { weekOfDate } from "@/lib/progress-calc";
+import { weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
 import { getGDriveConfigDisplay } from "./config";
 import {
   adalahBatal,
@@ -207,7 +207,7 @@ export function mingguRampung(
   startDate: Date,
   now: Date,
   totalWeeks: number,
-  mode: "tujuh_hari" | "senin_minggu" = "tujuh_hari",
+  mode: WeekPeriodMode = "tujuh_hari",
 ): number {
   const berjalan = mingguKontrak(startDate, now, mode);
   const hariTerakhirLarutMalam =

@@ -23,6 +23,7 @@ import { PindahTanggalForm } from "./pindah-tanggal-form";
 import { PindahHari } from "./pindah-hari";
 import { PanelVerifikasiWakil } from "./panel-verifikasi-wakil";
 import { UsulanWa } from "./usulan-wa";
+import { labelPekerjaanUsulan } from "@/lib/wa-usulan/label";
 import { usulanMenunggu } from "@/lib/wa-usulan/service";
 import { riwayatVerifikasi } from "@/lib/verifikasi/service";
 import { withBackTo } from "@/lib/print-back";
@@ -128,6 +129,10 @@ export default async function HarianWorkspacePage({
   // Usulan dari WhatsApp (DECISIONS 707): diputus di sini oleh yang boleh
   // mengisi laporan, selama laporannya masih bisa diubah.
   const usulanWa = await usulanMenunggu(data.location.id, date);
+  // Daftar pekerjaan RAB – SATU kali, dipakai formulir laporan dan pilihan
+  // pekerjaan di kotak usulan WA (DECISIONS 709).
+  const nodes = editable ? await getLeafNodeOptions(data.location.id) : [];
+  const volumeDiLaporan = new Map((report?.items ?? []).map((it) => [it.lineageKey, it.volumeDone]));
   const alasanUsulanTertahan = !canCreate
     ? "Usulan ini dimasukkan oleh yang boleh mengisi laporan harian."
     : status && !editable
@@ -183,9 +188,16 @@ export default async function HarianWorkspacePage({
               minute: "2-digit",
               timeZone: "Asia/Jakarta",
             }),
+            lineageKey: u.lineageKey,
             volumeDiLaporan: u.volumeDiLaporan,
             masihDiRab: u.masihDiRab,
             fotos: u.fotos,
+          }))}
+          pilihan={nodes.map((n) => ({
+            value: n.lineageKey,
+            label: labelPekerjaanUsulan(n),
+            satuan: n.unit,
+            volumeDiLaporan: volumeDiLaporan.get(n.lineageKey) ?? null,
           }))}
           bolehPutus={editable}
           alasanTidakBisa={alasanUsulanTertahan}
@@ -199,7 +211,7 @@ export default async function HarianWorkspacePage({
           slug={slug}
           dateKey={date}
           reportId={report?.id ?? null}
-          nodes={await getLeafNodeOptions(data.location.id)}
+          nodes={nodes}
           items={report?.items ?? []}
           photosTanpaItem={report?.photosTanpaItem ?? []}
           // Foto hanya bisa dihapus selama laporan masih bisa diedit; siapa yang

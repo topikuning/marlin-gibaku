@@ -50,6 +50,8 @@ import { listPrompts } from "@/lib/ai/prompts";
 import { PromptPanel } from "./prompt-panel";
 import { PengingatPanel } from "./pengingat-panel";
 import { MingguanPanel } from "./mingguan-panel";
+import { ModeMingguPanel } from "./mode-minggu-panel";
+import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
 import { PengingatGrupPanel } from "./pengingat-grup-panel";
 import { getMingguanAktif } from "@/lib/mingguan/setelan";
 import { getPengingatGrupAktif } from "@/lib/harian/setelan-grup";
@@ -924,10 +926,19 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Laporan progres mingguan → grup WA"
-          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket, mengikuti cara hitung minggu di kontraknya (Senin–Minggu atau 7 hari sejak SPMK)"
+          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket, mengikuti periode minggu di kontraknya"
         />
         <CardBody>
           <MingguanPanel aktif={await getMingguanAktif()} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Periode minggu kontrak baru"
+          subtitle="Hari mulai minggu laporan (M1–MN) yang dipakai saat kontrak baru dibuat"
+        />
+        <CardBody>
+          <ModeMingguPanel bawaan={await getModeMingguBawaan()} />
         </CardBody>
       </Card>
       <Card>

@@ -86,6 +86,7 @@ const NOMOR_PIC = "6281299990001";
 const NOMOR_BELUM = "6281299990002";
 const CHAT_PIC = `${NOMOR_PIC}@c.us`;
 let locationId = "";
+let lokasiKedua = "";
 let picId = "";
 let smId = "";
 let nomorPesan = 0;
@@ -184,6 +185,9 @@ beforeAll(async () => {
   // Lokasi lain di organisasi yang sama, TIDAK ditugaskan ke PIC.
   await buatLokasi("Kedung Lain");
   for (const u of [picId, belumId, smId]) await db.locationAssignment.create({ data: { userId: u, locationId } });
+  // Lokasi kedua PIC – untuk daftar bernomor "lokasi" saja (DECISIONS 710).
+  lokasiKedua = (await buatLokasi("Pesisir Utara")).id;
+  await db.locationAssignment.create({ data: { userId: picId, locationId: lokasiKedua } });
 
   const rev = await db.rabRevision.create({
     data: { locationId, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
@@ -226,6 +230,22 @@ describe("lapor lewat WhatsApp", () => {
     expect(balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
     const s = await db.waLaporSesi.findUnique({ where: { userId: picId } });
     expect(s?.locationId).toBe(locationId);
+  });
+
+  it("'lokasi' saja → daftar bernomor lokasi PIC sendiri; balas angka = lokasi itu aktif (DECISIONS 710)", async () => {
+    const daftar = await kirim({ teks: "daftar lokasi" });
+    const b = daftar.balasan.join("\n");
+    expect(b).toMatch(/Lokasi yang bisa Anda laporkan:\n1\. Matabulu Timur – Desa Uji, Kab Uji\n2\. Pesisir Utara – Desa Uji, Kab Uji\nBalas dengan angkanya\./);
+    expect(b, "lokasi yang tidak ditugaskan tidak ikut").not.toMatch(/Kedung Lain/);
+    const pilih2 = await kirim({ teks: "2" });
+    expect(pilih2.balasan.join("\n")).toMatch(/Lokasi aktif: \*Pesisir Utara\*/);
+    expect((await db.waLaporSesi.findUnique({ where: { userId: picId } }))?.locationId).toBe(lokasiKedua);
+
+    // Kembali ke Matabulu lewat "lokasi" saja – uji berikutnya bekerja di sana.
+    await kirim({ teks: "lokasi" });
+    const pilih1 = await kirim({ teks: "1" });
+    expect(pilih1.balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
+    expect((await db.waLaporSesi.findUnique({ where: { userId: picId } }))?.locationId).toBe(locationId);
   });
 
   it("lokasi yang TIDAK ditugaskan tidak pernah cocok – diteruskan ke Tanya MARLIN", async () => {
@@ -282,12 +302,6 @@ describe("lapor lewat WhatsApp", () => {
     expect(await db.waUsulan.count({ where: { locationId, lineageKey: "I#1" } }), "satu usulan, diperbarui").toBe(1);
   });
 
-  it("satuan beda dengan RAB ditolak, tidak dibetulkan diam-diam", async () => {
-    const { balasan } = await kirim({ teks: "galian tanah 5 m2" });
-    expect(balasan.join("\n")).toMatch(/Satuan \*Galian Tanah\* di RAB adalah \*m3\*, bukan \*m2\*/);
-    expect(await usulan("I#2")).toBeNull();
-  });
-
   it("volume melebihi sisa RAB ditolak saat itu juga", async () => {
     const { balasan } = await kirim({ teks: "galian tanah 60" });
     expect(balasan.join("\n")).toMatch(/melebihi sisa RAB\. Sisa yang masih bisa dilaporkan: 50 m3/);
@@ -304,9 +318,20 @@ describe("lapor lewat WhatsApp", () => {
 
     const vol = await kirim({ teks: "galian tanah 5" });
     expect(vol.balasan.join("\n")).toMatch(/\*5 m3\*, dengan 1 foto/);
+    expect(vol.balasan.join("\n"), "tanpa satuan = tidak perlu disebut").not.toMatch(/Satuan mengikuti RAB/);
     const u1 = await usulan("I#2");
     expect(u1?.id).toBe(u0?.id);
     expect(Number(u1?.volume)).toBe(5);
+  });
+
+  it("satuan TIDAK perlu diketik: yang diketik diabaikan, angkanya dalam satuan RAB dan disebut (DECISIONS 709)", async () => {
+    const { balasan } = await kirim({ teks: "galian tanah 6 m2" });
+    const b = balasan.join("\n");
+    expect(b).toMatch(/Usulan volume \*Galian Tanah\* hari ini: \*6 m3\* \(menggantikan usulan sebelumnya 5 m3\)/);
+    expect(b).toMatch(/Satuan mengikuti RAB: \*m3\*\./);
+    const u = await usulan("I#2");
+    expect(Number(u?.volume)).toBe(6);
+    expect(u?.satuan).toBe("m3");
   });
 
   it("beberapa pekerjaan cocok → ditawarkan, dijawab dengan angka", async () => {
@@ -365,16 +390,31 @@ describe("lapor lewat WhatsApp", () => {
     expect(await db.photo.count({ where: { uploadedById: picId } })).toBe(jumlah);
   });
 
-  it("nomor yang belum diverifikasi tidak bisa menulis apa pun", async () => {
+  it("nomor TERCATAT yang belum diverifikasi langsung diterima; status verifikasinya diaudit (DECISIONS 711)", async () => {
     const lokasi = await kirim({ dari: NOMOR_BELUM, teks: "lokasi matabulu" });
-    expect(lokasi.balasan.join("\n")).toMatch(/belum diverifikasi/);
+    expect(lokasi.balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
+    const belumId = (await db.user.findFirstOrThrow({ where: { waNumber: `${NOMOR_BELUM}@c.us` } })).id;
     const foto = await kirim({ dari: NOMOR_BELUM, foto: await gambar("belum.jpg") });
-    expect(foto.balasan.join("\n")).toMatch(/belum diverifikasi/);
-    expect(await db.waLaporSesi.count({ where: { chatId: `${NOMOR_BELUM}@c.us` } })).toBe(0);
+    expect(foto.hasil.alasan).toMatch(/^lapor: foto tersimpan/);
+    expect(await db.photo.count({ where: { uploadedById: belumId, locationId } })).toBe(1);
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "wa.lapor.lokasi", userId: belumId },
+      select: { payload: true },
+    });
+    expect(jejak?.payload).toMatchObject({ nomorTerverifikasi: false });
+  });
+
+  it("nomor yang TIDAK tercatat di akun mana pun tetap tidak bisa melapor", async () => {
+    const asing = "6281299990009";
+    const { hasil } = await kirim({ dari: asing, teks: "lokasi matabulu" });
+    expect(hasil.alasan).not.toMatch(/^lapor:/);
+    expect(await db.waLaporSesi.count({ where: { chatId: `${asing}@c.us` } })).toBe(0);
   });
 
   it("chat sesi tetap milik PIC: semua balasan lapor ke nomornya sendiri", () => {
-    const keLain = terkirim.filter((t) => t.chatId !== CHAT_PIC && t.chatId !== `${NOMOR_BELUM}@c.us`);
+    const keLain = terkirim.filter(
+      (t) => t.chatId !== CHAT_PIC && t.chatId !== `${NOMOR_BELUM}@c.us` && t.chatId !== "6281299990009@c.us",
+    );
     expect(keLain).toEqual([]);
   });
 });
@@ -458,6 +498,45 @@ describe("usulan WA diputus di aplikasi (DECISIONS 707)", () => {
       },
     });
     await expect((await svc()).masukkanUsulan(await sm(), u.id, null)).rejects.toThrow(/belum punya volume/);
+  });
+
+  it("pekerjaan bisa diganti sebelum Masukkan: angkanya ikut, satuannya satuan pekerjaan baru (DECISIONS 709)", async () => {
+    // Dari WA: "bekesting kolom 3" → dipilih Bekesting Kolom UTAMA (I#4), 3 m2.
+    // Ternyata yang dikerjakan kolom PRAKTIS (I#3).
+    const u = await db.waUsulan.findFirstOrThrow({
+      where: { locationId, lineageKey: "I#4", status: "menunggu", diusulkanOlehId: picId },
+    });
+    expect(Number(u.volume)).toBe(3);
+    const h = await (await svc()).masukkanUsulan(await sm(), u.id, null, "I#3");
+    expect(h.volume).toBe(3);
+    expect(Number((await itemLaporan("I#3"))?.volumeDone)).toBe(3);
+    expect(await itemLaporan("I#4"), "pekerjaan usulan WA tidak tersentuh").toBeNull();
+    const sesudah = await db.waUsulan.findUniqueOrThrow({ where: { id: u.id } });
+    expect(sesudah.status).toBe("dimasukkan");
+    expect(sesudah.reportItemId).toBe((await itemLaporan("I#3"))?.id);
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "wa.usulan.masukkan", resourceId: u.id },
+      select: { payload: true },
+    });
+    expect(jejak?.payload).toMatchObject({ lineageKey: "I#4", lineageKeyDimasukkan: "I#3", pekerjaanDiganti: true });
+  });
+
+  it("usulan yang pekerjaannya sudah tidak ada di RAB bisa dimasukkan ke pekerjaan lain, bukan hanya dibuang", async () => {
+    const u = await db.waUsulan.create({
+      data: {
+        locationId,
+        reportDate: parseDateKey(hariIni())!,
+        lineageKey: "I#99",
+        namaPekerjaan: "Pekerjaan yang dihapus adendum",
+        satuan: "m2",
+        volume: 2,
+        diusulkanOlehId: picId,
+        kunciMenunggu: `uji-luar-rab-${suffix}`,
+      },
+    });
+    await expect((await svc()).masukkanUsulan(await sm(), u.id, null)).rejects.toThrow(/Pilih pekerjaan lain/);
+    await (await svc()).masukkanUsulan(await sm(), u.id, null, "I#5");
+    expect(Number((await itemLaporan("I#5"))?.volumeDone)).toBe(2);
   });
 
   it("laporan yang sudah dikirim menolak usulan – aturan laporan tetap berlaku", async () => {

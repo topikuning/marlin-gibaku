@@ -17,6 +17,8 @@ import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
 import { adendumTertunda } from "@/lib/package/aktivasi-adendum";
 import { akhirKontrak } from "@/lib/progress-calc";
+import { LABEL_MODE_MINGGU } from "@/lib/periode-minggu";
+import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
 import {
   getPackageWorkspace,
   listVendors,
@@ -60,6 +62,7 @@ export default async function KontrakPage({
   // Mode minggu punya kapabilitasnya sendiri: PM boleh, tanpa ikut membuka
   // koreksi kontrak (DECISIONS 507).
   const canWeekMode = can(user.role, "contract.week_mode");
+  const modeBawaan = canWeekMode ? await getModeMingguBawaan() : "senin_minggu";
 
   /* ---------- Belum ada kontrak ---------- */
   if (!contract) {
@@ -313,14 +316,14 @@ export default async function KontrakPage({
         {canWeekMode ? (
           <AksiTile
             judul="Periode minggu laporan"
-            penjelasan="Batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian. Kalau diganti, jadwal & kurva-S SEMUA lokasi paket ini ikut disesuaikan ke pembagian minggu yang baru."
+            penjelasan={`Sekarang: ${LABEL_MODE_MINGGU[contract.weekMode]}. Batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian. Kalau diganti, jadwal & kurva-S SEMUA lokasi paket ini ikut disesuaikan ke pembagian minggu yang baru.`}
             aksi={
               <Drawer
                 trigger="Ubah periode minggu"
                 title="Periode minggu laporan"
                 subtitle="Berlaku untuk seluruh lokasi paket ini."
               >
-                <WeekModeForm packageId={pkg.id} weekMode={contract.weekMode} />
+                <WeekModeForm packageId={pkg.id} weekMode={contract.weekMode} bawaan={modeBawaan} />
               </Drawer>
             }
           />

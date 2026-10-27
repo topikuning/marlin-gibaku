@@ -16,11 +16,18 @@ import { formatNumber, jakartaDateKey } from "@/lib/format";
 
 /** Sesi berakhir sendiri setelah sekian lama tanpa kiriman (pilihan user). */
 export const JAM_SESI = 3;
-/** Pilihan yang ditawarkan paling banyak sekian; lebih dari itu diminta lebih khusus. */
+/** Pilihan PEKERJAAN yang ditawarkan paling banyak sekian; lebih dari itu diminta lebih khusus. */
 export const MAKS_PILIHAN = 9;
+/**
+ * Daftar LOKASI yang ditawarkan paling banyak sekian (DECISIONS 710). Lebih
+ * panjang dari ini tidak terbaca di WhatsApp – arsitekturnya menargetkan 200+
+ * lokasi – jadi diminta menyebut sebagian nama atau kabupatennya.
+ */
+export const MAKS_DAFTAR_LOKASI = 30;
 
 export type Perintah =
   | { jenis: "lokasi"; nama: string }
+  | { jenis: "daftar_lokasi" }
   | { jenis: "selesai" }
   | { jenis: "bantuan" }
   | { jenis: "pilih"; nomor: number }
@@ -44,6 +51,10 @@ export function bacaPerintah(teks: string): Perintah {
   if (/^(selesai|stop|keluar)\.?$/i.test(t)) return { jenis: "selesai" };
   if (/^(lapor|cara lapor|bantuan lapor)\.?$/i.test(t)) return { jenis: "bantuan" };
   if (/^\d{1,2}$/.test(t)) return { jenis: "pilih", nomor: Number(t) };
+  // "lokasi" saja / "daftar lokasi" / "lokasi saya" → daftar bernomor (DECISIONS 710).
+  if (/^(?:(?:daftar|list|semua|pilih)\s+)?lokasi(?:\s+(?:saya|ku|aku|anda))?\.?$|^lokasiku\.?$/i.test(t)) {
+    return { jenis: "daftar_lokasi" };
+  }
   const lokasi = /^lokasi\b[\s:\-–]*(.+)$/i.exec(t);
   if (lokasi && lokasi[1].trim()) return { jenis: "lokasi", nama: lokasi[1].trim() };
   if (KATA_TANYA.test(t)) return { jenis: "tanya" };
@@ -95,10 +106,14 @@ export function bakuSatuan(s: string | null | undefined): string | null {
   return SATUAN[t] ?? SATUAN[t.replace(/\s/g, "")] ?? t.replace(/\s/g, "");
 }
 
-/** Satuan yang diketik sepadan dengan satuan RAB? Tanpa satuan = ikut RAB. */
-export function satuanSepadan(diketik: string | null, rab: string | null): boolean {
-  if (!diketik || !rab) return true;
-  return bakuSatuan(diketik) === bakuSatuan(rab);
+/**
+ * Satuan yang diketik TIDAK dipakai: volume selalu dalam satuan RAB (DECISIONS 709).
+ * Yang dikembalikan hanya satuan RAB untuk disebut di balasan bila yang diketik
+ * berbeda, supaya PIC tahu angkanya dicatat dalam satuan apa. null = tidak perlu disebut.
+ */
+export function satuanPerluDisebut(diketik: string | null, rab: string | null): string | null {
+  if (!diketik || !rab) return null;
+  return bakuSatuan(diketik) === bakuSatuan(rab) ? null : rab;
 }
 
 export type IsianPekerjaan = { nama: string; volume: number | null; satuan: string | null };
@@ -107,8 +122,10 @@ export type IsianPekerjaan = { nama: string; volume: number | null; satuan: stri
 const EKOR_VOLUME = /(?:^|[\s,:=])(\d[\d.,]*)\s*([a-zA-Z²³'][a-zA-Z²³'0-9]*(?:\s(?:persegi|kubik|lari))?)?\s*\.?$/;
 
 /**
- * "pasang paving 20 m2" → nama "pasang paving", volume 20, satuan "m2".
- * "20 m2" saja → nama kosong (untuk pekerjaan yang sedang aktif).
+ * "pasang paving 20" → nama "pasang paving", volume 20 (satuan mengikuti RAB).
+ * "pasang paving 20 m2" → sama; satuan yang diketik dipisah supaya tidak terbaca
+ * sebagai bagian nama, tapi tidak dipakai (DECISIONS 709).
+ * "20" saja → nama kosong (untuk pekerjaan yang sedang aktif).
  *
  * Volume hanya dibaca di AKHIR pesan, dan satuannya harus satuan yang dikenali
  * atau tidak ada: "pipa 4 inch" tetap nama pekerjaan. Angka yang ternyata
@@ -226,10 +243,12 @@ export function angkaSatuan(v: number, satuan: string | null): string {
 export const teks = {
   bantuan:
     "Cara melapor lewat WhatsApp:\n" +
-    "1. Ketik *lokasi* lalu namanya, mis. *lokasi Kedung Mutih*.\n" +
+    "1. Ketik *lokasi* saja untuk daftar lokasi Anda lalu balas dengan nomornya, " +
+    "atau langsung *lokasi* dan namanya, mis. *lokasi Kedung Mutih*.\n" +
     "2. Kirim fotonya. Supaya GPS dan jam aslinya ikut, kirim sebagai *Dokumen*.\n" +
     "3. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, mis. *pasang paving*, " +
-    "atau sekalian volumenya: *pasang paving 20 m2*. Foto dan volume itu menjadi USULAN – " +
+    "atau sekalian volumenya: *pasang paving 20*. Cukup angkanya, satuannya mengikuti RAB. " +
+    "Foto dan volume itu menjadi USULAN – " +
     "masuk laporan harian setelah diperiksa di aplikasi.\n" +
     "4. Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.\n" +
     "Pertanyaan untuk MARLIN tetap bisa, akhiri dengan tanda tanya.",
@@ -237,8 +256,21 @@ export const teks = {
   lokasiAktif: (nama: string) =>
     `Lokasi aktif: *${nama}*.\n` +
     "Kirim fotonya sekarang. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, " +
-    "mis. *pasang paving*, atau sekalian volumenya: *pasang paving 20 m2*.\n" +
+    "mis. *pasang paving*, atau sekalian volumenya: *pasang paving 20*.\n" +
     "Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.",
+
+  daftarLokasi: (pilihan: string[]) =>
+    "Lokasi yang bisa Anda laporkan:\n" +
+    pilihan.map((p, i) => `${i + 1}. ${p}`).join("\n") +
+    "\nBalas dengan angkanya.",
+
+  daftarLokasiKosong:
+    "Belum ada lokasi yang ditugaskan ke akun Anda, jadi belum ada yang bisa dilaporkan. " +
+    "Minta admin MARLIN menambahkan akses lokasi Anda.",
+
+  daftarLokasiPanjang: (jumlah: number) =>
+    `Ada ${jumlah} lokasi yang bisa Anda laporkan, terlalu panjang untuk satu daftar. ` +
+    "Ketik *lokasi* lalu sebagian namanya atau nama kabupatennya, mis. *lokasi Demak*.",
 
   pilihLokasi: (diketik: string, pilihan: string[]) =>
     `Ada ${pilihan.length} lokasi yang cocok dengan "${diketik}":\n` +
@@ -250,12 +282,8 @@ export const teks = {
 
   fotoTanpaLokasi: (sesiHabis: boolean) =>
     (sesiHabis ? "Sesi lapor sebelumnya sudah berakhir, jadi foto" : "Foto") +
-    " ini belum saya simpan karena lokasinya belum disebut. Ketik dulu *lokasi* lalu namanya, " +
-    "mis. *lokasi Kedung Mutih*, kemudian kirim ulang fotonya.",
-
-  belumVerifikasi:
-    "Nomor WhatsApp Anda belum diverifikasi di MARLIN, jadi foto dan laporan dari nomor ini belum bisa " +
-    "diterima. Buka MARLIN, masuk ke halaman *Verifikasi WhatsApp*, lalu coba lagi.",
+    " ini belum saya simpan karena lokasinya belum disebut. Ketik dulu *lokasi* untuk memilih dari " +
+    "daftar, atau *lokasi* dan namanya, mis. *lokasi Kedung Mutih*, kemudian kirim ulang fotonya.",
 
   tanpaIzinFoto: "Akun Anda tidak punya izin mengirim foto lapangan, jadi foto ini tidak disimpan.",
   tanpaIzinVolume:
@@ -272,7 +300,8 @@ export const teks = {
 
   pekerjaanAktif: (nama: string, satuan: string | null) =>
     `Pekerjaan aktif: *${nama}*${satuan ? ` (${satuan})` : ""}. Foto berikutnya diusulkan untuk pekerjaan ini. ` +
-    `Kirim volumenya juga kalau mau, mis. *20${satuan ? ` ${satuan}` : ""}*.`,
+    `Kirim volumenya juga kalau mau, cukup angkanya, mis. *20*` +
+    (satuan ? ` – dicatat dalam ${satuan}, satuan RAB pekerjaan ini.` : "."),
 
   pekerjaanTidakAda: (diketik: string, lokasi: string) =>
     `Pekerjaan "${diketik}" tidak ketemu di RAB *${lokasi}*. Coba kata lain yang ada di nama pekerjaannya. ` +
@@ -295,16 +324,14 @@ export const teks = {
   pilihanDiLuar: (jumlah: number) => `Balas dengan angka 1 sampai ${jumlah}.`,
 
   pilihanKedaluwarsa:
-    "Pilihan itu sudah tidak berlaku karena sesi lapornya berakhir. Ketik *lokasi* lalu namanya untuk mulai lagi.",
+    "Pilihan itu sudah tidak berlaku karena sesi lapornya berakhir. Ketik *lokasi* untuk mulai lagi.",
 
   fotoMenungguPilihan: "Foto tadi belum disimpan. Kirim ulang setelah memilih lokasinya.",
 
   volumeTanpaPekerjaan:
-    "Volume itu untuk pekerjaan apa? Sebut nama pekerjaannya, mis. *pasang paving 20 m2*.",
+    "Volume itu untuk pekerjaan apa? Sebut nama pekerjaannya, mis. *pasang paving 20*.",
 
-  satuanBeda: (pekerjaan: string, rab: string, diketik: string) =>
-    `Satuan *${pekerjaan}* di RAB adalah *${rab}*, bukan *${diketik}*. Kirim ulang dengan satuan yang benar, ` +
-    "atau tanpa satuan.",
+  satuanIkutRab: (rab: string) => ` Satuan mengikuti RAB: *${rab}*.`,
 
   usulanVolume: (pekerjaan: string, baru: string, lama: string | null, foto: number) =>
     `Usulan volume *${pekerjaan}* hari ini: *${baru}*` +

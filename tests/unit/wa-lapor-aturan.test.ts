@@ -14,7 +14,7 @@ import {
   bentukKata,
   cariPekerjaanWa,
   pisahVolume,
-  satuanSepadan,
+  satuanPerluDisebut,
   sesiBerlaku,
   tawaranBerlaku,
 } from "@/lib/waha/lapor-aturan";
@@ -24,6 +24,16 @@ describe("bacaPerintah", () => {
     expect(bacaPerintah("lokasi Kedung Mutih")).toEqual({ jenis: "lokasi", nama: "Kedung Mutih" });
     expect(bacaPerintah("Lokasi: Matabulu Timur")).toEqual({ jenis: "lokasi", nama: "Matabulu Timur" });
     expect(bacaPerintah("  LOKASI   randu   putih ")).toEqual({ jenis: "lokasi", nama: "randu putih" });
+  });
+
+  it("'lokasi' saja / 'daftar lokasi' → daftar bernomor (DECISIONS 710)", () => {
+    for (const t of ["lokasi", "Lokasi.", "daftar lokasi", "DAFTAR LOKASI", "list lokasi", "pilih lokasi", "lokasi saya", "lokasiku"]) {
+      expect(bacaPerintah(t), t).toEqual({ jenis: "daftar_lokasi" });
+    }
+    // Pertanyaan tetap untuk Tanya MARLIN; nama lokasi tetap mencari lokasi itu.
+    expect(bacaPerintah("daftar lokasi?")).toEqual({ jenis: "tanya" });
+    expect(bacaPerintah("lokasi saya mana saja?")).toEqual({ jenis: "tanya" });
+    expect(bacaPerintah("lokasi sayangan")).toEqual({ jenis: "lokasi", nama: "sayangan" });
   });
 
   it("pertanyaan tidak pernah terbaca perintah lapor", () => {
@@ -92,10 +102,14 @@ describe("satuan", () => {
     expect(bakuSatuan("m'")).toBe("m");
     expect(bakuSatuan("Ls")).toBe("ls");
   });
-  it("sepadan: tanpa satuan ikut RAB, beda satuan ditolak", () => {
-    expect(satuanSepadan(null, "m2")).toBe(true);
-    expect(satuanSepadan("m²", "M2")).toBe(true);
-    expect(satuanSepadan("m2", "m3")).toBe(false);
+  it("satuan yang diketik tidak dipakai; satuan RAB disebut hanya bila yang diketik berbeda (DECISIONS 709)", () => {
+    expect(satuanPerluDisebut(null, "m2")).toBeNull();
+    expect(satuanPerluDisebut("m²", "M2")).toBeNull();
+    expect(satuanPerluDisebut("m2", "m3")).toBe("m3");
+    expect(satuanPerluDisebut("m2", null)).toBeNull();
+  });
+  it("angka tanpa satuan tetap terbaca sebagai volume", () => {
+    expect(pisahVolume("pasang paving 20")).toEqual({ nama: "pasang paving", volume: 20, satuan: null });
   });
 });
 

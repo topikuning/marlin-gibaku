@@ -46,7 +46,9 @@ export async function masukkanUsulanAction(_prev: UsulanState, formData: FormDat
     // Volume diketik orang Indonesia: "12,5" dan "1.250" dibaca sama seperti di WhatsApp.
     const volume = mentah ? bacaAngka(mentah) : null;
     if (mentah && (volume == null || volume <= 0)) return { error: "Volume harus angka lebih dari 0." };
-    const h = await masukkanUsulan(actor, id, volume);
+    // Pekerjaan pilihan pemeriksa (DECISIONS 709); kosong = pekerjaan usulan.
+    const lineageKey = String(formData.get("lineageKey") ?? "").trim().slice(0, 200) || null;
+    const h = await masukkanUsulan(actor, id, volume, lineageKey);
     await segarkan(id);
     const dasar =
       h.volume != null ? "Usulan dimasukkan ke laporan harian." : "Foto usulan ditempel ke pekerjaan di laporan harian.";

@@ -463,16 +463,20 @@ export function weightedPct(rows: { grandTotal: bigint; pct: number }[]): number
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * PERIODE MINGGU LAPORAN (user 2026-08-24) — MURNI, tanpa DB.
+ * PERIODE MINGGU LAPORAN (user 2026-08-24, DECISIONS 427/708) — MURNI, tanpa DB.
  *
- * Dua cara menghitung "minggu ke-n" sejak SPMK, dipilih per kontrak
+ * Cara menghitung "minggu ke-n" sejak SPMK, dipilih per kontrak
  * (`Contract.weekMode`):
  *
- * - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari,
- *   +6 hari]. Semua minggu 7 hari; hari mulainya mengikuti hari SPMK.
- * - `senin_minggu`: minggu KALENDER Senin–Minggu. Minggu pertama bisa pendek:
- *   SPMK hari Kamis ⇒ M1 = Kamis–Minggu (4 hari). Minggu terakhir juga bisa
- *   pendek bila kontrak berakhir sebelum hari Minggu.
+ * - `tujuh_hari`: minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari]. Semua minggu
+ *   7 hari; hari mulainya mengikuti hari SPMK.
+ * - minggu KALENDER yang dimulai hari tertentu (`senin_minggu`, `jumat_kamis`,
+ *   … tujuh pilihan, DECISIONS 708). Minggu pertama bisa pendek: Senin–Minggu
+ *   dengan SPMK hari Kamis ⇒ M1 = Kamis–Minggu (4 hari). Minggu terakhir juga
+ *   bisa pendek bila kontrak berakhir sebelum hari akhir minggunya.
+ *
+ * Hari mulai dibaca dari SATU tabel (`HARI_MULAI`), bukan dicabangkan per
+ * mode: hari mulai yang diminta kelak sudah ada di daftar, tanpa kode baru.
  *
  * Semua tanggal di sini adalah TANGGAL KERJA @db.Date (UTC-midnight), jadi
  * `getUTCDay()` adalah hari kalender tanggal itu — bukan hari di zona lain.
@@ -480,7 +484,41 @@ export function weightedPct(rows: { grandTotal: bigint; pct: number }[]): number
  * minggu ke-n"; yang berubah hanya tanggal kalender batas minggunya.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type WeekPeriodMode = "tujuh_hari" | "senin_minggu";
+/** Semua periode minggu yang bisa dipilih kontrak – SAMA dengan enum `WeekMode` di skema (dijaga uji). */
+export const WEEK_PERIOD_MODES = [
+  "senin_minggu",
+  "selasa_senin",
+  "rabu_selasa",
+  "kamis_rabu",
+  "jumat_kamis",
+  "sabtu_jumat",
+  "minggu_sabtu",
+  "tujuh_hari",
+] as const;
+
+export type WeekPeriodMode = (typeof WEEK_PERIOD_MODES)[number];
+
+/** Hari mulai minggu kalender menurut `getUTCDay()` (0 = Minggu … 6 = Sabtu); null = 7 hari sejak SPMK. */
+const HARI_MULAI: Record<WeekPeriodMode, number | null> = {
+  minggu_sabtu: 0,
+  senin_minggu: 1,
+  selasa_senin: 2,
+  rabu_selasa: 3,
+  kamis_rabu: 4,
+  jumat_kamis: 5,
+  sabtu_jumat: 6,
+  tujuh_hari: null,
+};
+
+/** Hari mulai minggu kalender (0 = Minggu … 6 = Sabtu), atau null untuk 7 hari sejak SPMK. */
+export function hariMulaiMinggu(mode: WeekPeriodMode): number | null {
+  return HARI_MULAI[mode];
+}
+
+/** Minggu KALENDER (hari mulai tetap; M1 bisa pendek), bukan 7 hari sejak SPMK. */
+export function modeKalender(mode: WeekPeriodMode): boolean {
+  return HARI_MULAI[mode] !== null;
+}
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -510,10 +548,10 @@ export function akhirKontrak(
   return { akhir: akhirTahun, tanpaBatas, dibatasi: true };
 }
 
-/** Senin (UTC-midnight) pada minggu kalender yang memuat `d`. */
-function seninPekan(d: Date): Date {
-  const dow = (d.getUTCDay() + 6) % 7; // Senin=0 … Minggu=6
-  return new Date(d.getTime() - dow * DAY_MS);
+/** Hari pertama (UTC-midnight) minggu kalender yang memuat `d`, untuk minggu yang mulai hari `hariMulai`. */
+function awalPekan(d: Date, hariMulai: number): Date {
+  const mundur = (d.getUTCDay() - hariMulai + 7) % 7; // hari mulai = 0 … sehari sebelumnya = 6
+  return new Date(d.getTime() - mundur * DAY_MS);
 }
 
 /**
@@ -523,10 +561,11 @@ function seninPekan(d: Date): Date {
  */
 export function weekOfDate(start: Date, date: Date, mode: WeekPeriodMode): number {
   // Sebelum SPMK = belum mulai (DECISIONS 202) — juga pada mode kalender,
-  // walau tanggalnya berada di minggu Senin–Minggu yang sama dengan SPMK.
+  // walau tanggalnya berada di minggu kalender yang sama dengan SPMK.
   if (date.getTime() < start.getTime()) return 0;
-  if (mode === "senin_minggu") {
-    return Math.floor((seninPekan(date).getTime() - seninPekan(start).getTime()) / (7 * DAY_MS)) + 1;
+  const hariMulai = HARI_MULAI[mode];
+  if (hariMulai !== null) {
+    return Math.floor((awalPekan(date, hariMulai).getTime() - awalPekan(start, hariMulai).getTime()) / (7 * DAY_MS)) + 1;
   }
   return Math.floor((date.getTime() - start.getTime()) / (7 * DAY_MS)) + 1;
 }
@@ -544,7 +583,7 @@ export function totalWeeksBetween(start: Date, end: Date, mode: WeekPeriodMode):
  */
 /**
  * Fraksi HARI kumulatif pada AKHIR tiap minggu, relatif total hari kontrak —
- * grid evaluasi generator kurva-S untuk mode `senin_minggu` (M1/minggu akhir
+ * grid evaluasi generator kurva-S untuk mode kalender (M1/minggu akhir
  * pendek menyumbang fraksi lebih kecil). Naik ketat; elemen terakhir = 1.
  * Mode `tujuh_hari` TIDAK memakai grid ini (generator tetap grid seragam
  * lamanya) supaya angka baseline yang sudah beredar tidak bergeser.
@@ -570,9 +609,10 @@ export function weekDateRange(
 ): { start: Date; end: Date } {
   let s: Date;
   let e: Date;
-  if (mode === "senin_minggu") {
-    const senin1 = seninPekan(start);
-    s = new Date(senin1.getTime() + (n - 1) * 7 * DAY_MS);
+  const hariMulai = HARI_MULAI[mode];
+  if (hariMulai !== null) {
+    const awal1 = awalPekan(start, hariMulai);
+    s = new Date(awal1.getTime() + (n - 1) * 7 * DAY_MS);
     e = new Date(s.getTime() + 6 * DAY_MS);
     if (s.getTime() < start.getTime()) s = start; // M1 pendek
   } else {

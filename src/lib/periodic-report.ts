@@ -7,6 +7,7 @@ import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import {
+  modeKalender,
   bobotPct,
   distributeWithCaps,
   itemAchievement,
@@ -813,10 +814,9 @@ export async function getPeriodReport(
         return { name: nd.name, categoryKey: root, categoryName: catNameByRoot.get(root) ?? "", amount: nd.amount };
       });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
-    // Grid minggu tak-seragam (mode senin_minggu) — generator fallback memakai
+    // Grid minggu tak-seragam (mode kalender) — generator fallback memakai
     // pembagi hari yang sama dengan regenerateBaseline (DECISIONS 427b).
-    const fracsFallback =
-      weekMode === "senin_minggu" ? weekEndFractions(startDate, bounds.endDate, weekMode) : null;
+    const fracsFallback = modeKalender(weekMode) ? weekEndFractions(startDate, bounds.endDate, weekMode) : null;
     kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac, fracsFallback).categories.map((c) => ({
       lineageKey: c.categoryKey,
       code: catByRootNode.get(c.categoryKey)?.code ?? "",

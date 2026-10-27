@@ -30,6 +30,8 @@ import {
   type MedanNamaPersonel,
   type MedanTtdPersonel,
 } from "@/lib/laporan/penandatangan";
+import type { WeekPeriodMode } from "@/lib/progress-calc";
+import { opsiModeMinggu } from "@/lib/periode-minggu";
 
 type VendorOption = { id: string; name: string };
 
@@ -493,9 +495,12 @@ export function ConvertContractForm({
 export function WeekModeForm({
   packageId,
   weekMode,
+  bawaan,
 }: {
   packageId: string;
-  weekMode: "tujuh_hari" | "senin_minggu";
+  weekMode: WeekPeriodMode;
+  /** Periode bawaan kontrak baru (Sistem) – ditandai "(bawaan)" di daftar. */
+  bawaan: WeekPeriodMode;
 }) {
   const [state, action, pending] = useAksi<PackageActionState>(
     ubahModeMingguAction,
@@ -513,13 +518,11 @@ export function WeekModeForm({
           id="wm-mode"
           name="weekMode"
           defaultValue={weekMode}
-          options={[
-            { value: "senin_minggu", label: "Kalender Senin–Minggu, M1 bisa pendek (bawaan)" },
-            { value: "tujuh_hari", label: "7 hari sejak SPMK" },
-          ]}
+          options={opsiModeMinggu(bawaan)}
         />
         <HelpText>
-          Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
+          Pilih hari mulai minggu, atau 7 hari sejak SPMK. Bila SPMK tidak jatuh di hari mulai, M1 lebih pendek
+          dari 7 hari. Menentukan batas tanggal M1–MN di laporan mingguan, kurva-S, dan blanko harian.
           Jadwal &amp; kurva-S semua lokasi otomatis disesuaikan ke pembagian minggu yang baru.
           Bentuk rencananya tetap, tidak perlu impor ulang.
         </HelpText>
@@ -533,7 +536,7 @@ export function WeekModeForm({
           if (typeof window !== "undefined" && !window.confirm(msg)) e.preventDefault();
         }}
       >
-        Simpan mode minggu
+        Simpan periode minggu
       </Button>
     </form>
   );

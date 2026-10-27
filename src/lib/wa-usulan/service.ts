@@ -97,28 +97,39 @@ async function muatMenunggu(usulanId: string) {
 /**
  * Masukkan usulan ke laporan harian hari itu.
  *
- * Volume yang dipakai: isian pemeriksa bila ada (boleh dibetulkan sebelum
- * dimasukkan), selain itu volume usulan. Usulan foto saja boleh dimasukkan
- * bila pekerjaannya sudah ada di laporan – fotonya ditempel, volumenya tidak
- * disentuh. Semua aturan laporan (status, sisa RAB, lokasi dicabut) ditegakkan
+ * Pekerjaan yang dipakai: pilihan pemeriksa bila ada – nama yang diketik di WA
+ * bisa saja dicocokkan ke pekerjaan yang keliru (DECISIONS 709) – selain itu
+ * pekerjaan usulan. Volume yang dipakai: isian pemeriksa bila ada, selain itu
+ * volume usulan. Angkanya selalu dalam satuan RAB pekerjaan yang DIPILIH; tidak
+ * ada konversi satuan. Usulan foto saja boleh dimasukkan bila pekerjaannya
+ * sudah ada di laporan – fotonya ditempel, volumenya tidak disentuh. Semua
+ * aturan laporan (status, sisa RAB, lokasi dicabut) ditegakkan
  * `upsertItem`/`pakaiFotoKeTujuan` yang sama dengan aplikasi.
  */
 export async function masukkanUsulan(
   actor: SessionUser,
   usulanId: string,
   volumeIsian: number | null,
+  lineageKeyPilihan: string | null = null,
 ): Promise<{ volume: number | null; foto: number; gagalFoto: string | null }> {
   const u = await muatMenunggu(usulanId);
   await requireLocationAccess(actor, u.locationId);
   const dateKey = jakartaDateKey(u.reportDate);
-  const node = (await pilihanPekerjaan(u.locationId)).find((o) => o.lineageKey === u.lineageKey);
-  if (!node) throw new UsulanError(`"${u.namaPekerjaan}" sudah tidak ada di RAB yang berlaku. Buang usulan ini.`);
+  const tujuan = lineageKeyPilihan ?? u.lineageKey;
+  const node = (await pilihanPekerjaan(u.locationId)).find((o) => o.lineageKey === tujuan);
+  if (!node) {
+    throw new UsulanError(
+      tujuan === u.lineageKey
+        ? `"${u.namaPekerjaan}" sudah tidak ada di RAB yang berlaku. Pilih pekerjaan lain, atau Buang usulan ini.`
+        : "Pekerjaan yang dipilih tidak ada di RAB yang berlaku.",
+    );
+  }
 
   const { getOrCreateDraft, upsertItem } = await import("@/lib/daily-report/service");
   const volume = volumeIsian ?? (u.volume != null ? Number(u.volume) : null);
   const report = await getOrCreateDraft(u.locationId, dateKey, actor.id);
   const ada = await db.dailyReportItem.findUnique({
-    where: { reportId_lineageKey: { reportId: report.id, lineageKey: u.lineageKey } },
+    where: { reportId_lineageKey: { reportId: report.id, lineageKey: node.lineageKey } },
     select: { id: true, notes: true },
   });
 
@@ -176,6 +187,9 @@ export async function masukkanUsulan(
     locationId: u.locationId,
     dateKey,
     lineageKey: u.lineageKey,
+    // Pekerjaan yang benar-benar diisi – berbeda bila pemeriksa menggantinya.
+    lineageKeyDimasukkan: node.lineageKey,
+    pekerjaanDiganti: node.lineageKey !== u.lineageKey,
     volumeUsulan: u.volume != null ? Number(u.volume) : null,
     volumeDimasukkan: volume,
     foto: dipakai,

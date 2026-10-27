@@ -1,4 +1,4 @@
-import { totalWeeksBetween, weekEndFractions, weekOfDate } from "@/lib/progress-calc";
+import { modeKalender, totalWeeksBetween, weekEndFractions, weekOfDate } from "@/lib/progress-calc";
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
@@ -638,8 +638,8 @@ export async function totalWeeksFor(locationId: string): Promise<{
   });
   const c = loc?.package.contract;
   const contractDays = (c?.durationDays ?? 0) > 0 ? c!.durationDays : DEFAULT_CONTRACT_DAYS;
-  if (c?.weekMode === "senin_minggu" && c.startDate && c.endDate) {
-    const weekEndFracs = weekEndFractions(c.startDate, c.endDate, "senin_minggu");
+  if (c && modeKalender(c.weekMode) && c.startDate && c.endDate) {
+    const weekEndFracs = weekEndFractions(c.startDate, c.endDate, c.weekMode);
     return { contractDays, totalWeeks: weekEndFracs.length, weekEndFracs };
   }
   /*

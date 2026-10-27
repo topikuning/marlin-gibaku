@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { pct } from "@/lib/money";
-import { weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
+import { modeKalender, weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
 import { mingguKontrak } from "@/lib/mingguan/kirim";
 
@@ -63,11 +63,11 @@ export function currentWeekNumber(
   now = new Date(),
   mode: WeekPeriodMode = "tujuh_hari",
 ): number {
-  if (mode === "senin_minggu") {
+  if (modeKalender(mode)) {
     // Hari-dalam-minggu harus dihitung pada TANGGAL KERJA Asia/Jakarta —
-    // jam dinding UTC bisa masih "kemarin" padahal di Jakarta sudah Senin.
+    // jam dinding UTC bisa masih "kemarin" padahal di Jakarta sudah hari mulai.
     const today = new Date(`${jakartaDateKey(now)}T00:00:00.000Z`);
-    const wk = weekOfDate(startDate, today, "senin_minggu");
+    const wk = weekOfDate(startDate, today, mode);
     return wk === 0 ? 0 : Math.min(wk, Math.max(totalWeeks, 1));
   }
   const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;

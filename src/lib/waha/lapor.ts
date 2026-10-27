@@ -13,9 +13,10 @@ import {
   angkaSatuan,
   bacaPerintah,
   cariPekerjaanWa,
+  MAKS_DAFTAR_LOKASI,
   MAKS_PILIHAN,
   pisahVolume,
-  satuanSepadan,
+  satuanPerluDisebut,
   sesiBerlaku,
   tawaranBerlaku,
   teks,
@@ -93,6 +94,7 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
   if (!foto) {
     const urusanLapor =
       perintah.jenis === "lokasi" ||
+      perintah.jenis === "daftar_lokasi" ||
       perintah.jenis === "bantuan" ||
       (perintah.jenis === "selesai" && !!sesi) ||
       (perintah.jenis === "pilih" && (adaTawaran || berlaku)) ||
@@ -100,20 +102,15 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
     if (!urusanLapor) return TIDAK;
   }
 
-  // Menulis atas nama orang butuh identitas yang TERBUKTI, bukan sekadar nomor
-  // yang diketik admin (DECISIONS 570).
-  const terverifikasi = await db.user.findUnique({ where: { id: user.id }, select: { waVerifiedAt: true } });
-  if (!terverifikasi?.waVerifiedAt) {
-    // "lokasi …" yang tidak cocok lokasi mana pun mungkin pertanyaan biasa.
-    if (perintah.jenis === "lokasi" && !foto) {
-      if (cocokkanLokasi(perintah.nama, await katalogUntuk(user)).jenis === "tidak_ada") return TIDAK;
-    }
-    if (foto || perintah.jenis === "lokasi" || perintah.jenis === "bantuan") {
-      await balasWa(m.chatId, teks.belumVerifikasi);
-      return { ditangani: true, alasan: "lapor: nomor belum diverifikasi" };
-    }
-    return TIDAK;
-  }
+  /*
+   * Verifikasi dua arah (570) TIDAK disyaratkan di sini (DECISIONS 711).
+   * `user` ditemukan dari nomor yang BENAR-BENAR mengirim pesan, dicocokkan ke
+   * nomor yang tersimpan di akunnya, dan nomor yang tercatat di dua akun aktif
+   * tidak dijawab sama sekali (`cariPengguna`). Pesan masuk itu sendiri bukti
+   * bahwa pengirimnya memegang nomor yang tercatat. Sisa risikonya – nomor
+   * salah ketik milik orang lain – dibatasi 707: semua kiriman WA hanya usulan
+   * yang harus diterima orang di aplikasi. Status verifikasinya dicatat di audit.
+   */
 
   if (!foto) {
     // Foto yang belum disebut di balasan dilaporkan DULU: rentetan foto yang
@@ -126,6 +123,8 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
         return { ditangani: true, alasan: "lapor: bantuan" };
       case "lokasi":
         return (await mulaiLokasi(m, user, perintah.nama)).hasil;
+      case "daftar_lokasi":
+        return (await daftarLokasi(m, user)).hasil;
       case "selesai":
         return akhiriSesi(m, user, sesi!, berlaku);
       case "pilih":
@@ -146,6 +145,12 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
   /* ── Foto ── */
   let s: Sesi | null = sesi;
   let aktif = berlaku;
+  if (perintah.jenis === "daftar_lokasi") {
+    // Foto berketerangan "lokasi" saja: daftarnya dulu; fotonya dikirim ulang sesudah memilih.
+    const d = await daftarLokasi(m, user);
+    if (d.ditawarkan) await balasWa(m.chatId, teks.fotoMenungguPilihan);
+    return d.hasil;
+  }
   if (perintah.jenis === "lokasi") {
     // Foto berketerangan "lokasi X": lokasinya dulu, lalu fotonya – asal
     // lokasinya langsung pasti. Selama masih memilih, foto TIDAK disimpan ke
@@ -207,10 +212,39 @@ async function mulaiLokasi(
       : h.jenis === "wilayah"
         ? h.wilayah.lokasi
         : [...new Map(h.pilihan.flatMap((p) => p.lokasi).map((l) => [l.id, l])).values()];
-  if (kandidat.length > MAKS_PILIHAN) {
+  if (kandidat.length > MAKS_DAFTAR_LOKASI) {
     await balasWa(m.chatId, teks.terlaluBanyakLokasi(diketik, kandidat.length));
     return { hasil: { ditangani: true, alasan: "lapor: lokasi terlalu banyak cocok" } };
   }
+  await tawarkanLokasi(m, user, kandidat);
+  await balasWa(m.chatId, teks.pilihLokasi(diketik, kandidat.map(labelLokasi)));
+  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" } };
+}
+
+/**
+ * "lokasi" saja / "daftar lokasi" → daftar bernomor lokasi yang BOLEH diakses
+ * orang ini, urut nama; balasan angka mengaktifkan lokasi itu (DECISIONS 710).
+ */
+async function daftarLokasi(
+  m: ParsedWaMessage,
+  user: SessionUser,
+): Promise<{ hasil: HasilLapor; ditawarkan: boolean }> {
+  const katalog = (await katalogUntuk(user)).sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+  if (katalog.length === 0) {
+    await balasWa(m.chatId, teks.daftarLokasiKosong);
+    return { hasil: { ditangani: true, alasan: "lapor: daftar lokasi kosong" }, ditawarkan: false };
+  }
+  if (katalog.length > MAKS_DAFTAR_LOKASI) {
+    await balasWa(m.chatId, teks.daftarLokasiPanjang(katalog.length));
+    return { hasil: { ditangani: true, alasan: "lapor: daftar lokasi terlalu panjang" }, ditawarkan: false };
+  }
+  await tawarkanLokasi(m, user, katalog);
+  await balasWa(m.chatId, teks.daftarLokasi(katalog.map(labelLokasi)));
+  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" }, ditawarkan: true };
+}
+
+/** Simpan tawaran lokasi bernomor; jawabannya ditangani `jawabPilihan`. */
+async function tawarkanLokasi(m: ParsedWaMessage, user: SessionUser, kandidat: LokasiKatalog[]): Promise<void> {
   const tawaran: Tawaran = { jenis: "lokasi", pilihan: kandidat.map((l) => ({ id: l.id, label: labelLokasi(l) })) };
   // Lokasi sesi sebelumnya DILEPAS selama memilih: orang yang baru saja
   // menyebut lokasi lain tidak sedang memotret lokasi lama.
@@ -226,8 +260,6 @@ async function mulaiLokasi(
     create: { userId: user.id, ...data, mulaiAt: waktu(m) },
     update: data,
   });
-  await balasWa(m.chatId, teks.pilihLokasi(diketik, tawaran.pilihan.map((p) => p.label)));
-  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" } };
 }
 
 async function aktifkanLokasi(
@@ -257,7 +289,11 @@ async function aktifkanLokasi(
     create: { userId: user.id, ...awal },
     update: awal,
   });
-  await audit(user.id, "wa.lapor.lokasi", "location", locationId, { chatId: m.chatId });
+  const akun = await db.user.findUnique({ where: { id: user.id }, select: { waVerifiedAt: true } });
+  await audit(user.id, "wa.lapor.lokasi", "location", locationId, {
+    chatId: m.chatId,
+    nomorTerverifikasi: !!akun?.waVerifiedAt,
+  });
   await balasWa(m.chatId, teks.lokasiAktif(nama));
   return { ditangani: true, alasan: "lapor: lokasi aktif" };
 }
@@ -424,11 +460,8 @@ async function tetapkanPekerjaan(
   }
 
   // Yang PASTI salah ditolak sekarang, selagi PIC masih memegang ponselnya –
-  // bukan baru ketahuan saat seseorang menekan Masukkan di kantor.
-  if (!satuanSepadan(isian.satuan, node.unit)) {
-    await balasWa(m.chatId, teks.satuanBeda(nama, node.unit ?? "-", isian.satuan ?? "-"));
-    return "berhenti";
-  }
+  // bukan baru ketahuan saat seseorang menekan Masukkan di kantor. Satuan
+  // BUKAN salah satunya: angkanya selalu dalam satuan RAB (DECISIONS 709).
   if (!can(user.role, "daily_report.create")) {
     await balasWa(m.chatId, teks.tanpaIzinVolume);
     return "berhenti";
@@ -446,8 +479,10 @@ async function tetapkanPekerjaan(
     lineageKey: node.lineageKey,
     volume: isian.volume,
     volumeLama,
+    satuanDiketik: isian.satuan,
     waMessageId: m.waMessageId,
   });
+  const satuanRab = satuanPerluDisebut(isian.satuan, node.unit);
   await balasWa(
     m.chatId,
     teks.usulanVolume(
@@ -455,7 +490,7 @@ async function tetapkanPekerjaan(
       angkaSatuan(isian.volume, node.unit),
       volumeLama != null && volumeLama !== isian.volume ? angkaSatuan(volumeLama, node.unit) : null,
       usulan.photoIds.length,
-    ),
+    ) + (satuanRab ? teks.satuanIkutRab(satuanRab) : ""),
   );
   return "lanjut";
 }

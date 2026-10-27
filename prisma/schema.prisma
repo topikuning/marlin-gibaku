@@ -171,13 +171,21 @@ enum PhotoMetadataSource {
 /// karena keduanya bisa berbeda sumber. `project` = titik lokasi proyek dari
 /// database — cadangan saat foto tidak membawa GPS; itu BUKAN posisi foto dan
 /// tidak boleh dihitung sebagai bukti GPS (DECISIONS 197).
-/// Cara menghitung periode MINGGU laporan (per kontrak; user 2026-08-24).
-/// - `tujuh_hari` (default, perilaku lama): minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
-/// - `senin_minggu`: minggu kalender Senin–Minggu; minggu pertama bisa pendek
-///   (SPMK hari Kamis ⇒ M1 = Kamis–Minggu, 4 hari).
+/// Cara menghitung periode MINGGU laporan (per kontrak; DECISIONS 427, 708).
+/// - `tujuh_hari`: minggu ke-n = [SPMK + (n−1)×7 hari, +6 hari].
+/// - `<hari mulai>_<hari akhir>`: minggu KALENDER yang dimulai hari itu; minggu
+///   pertama bisa pendek (Senin–Minggu, SPMK Kamis ⇒ M1 = Kamis–Minggu, 4 hari).
+/// Tujuh hari mulai = seluruh kemungkinan; hari mulai baru tidak butuh kode baru.
+/// Bawaan kontrak baru diatur di Sistem (AppSetting `kontrak.mode_minggu_bawaan`).
 enum WeekMode {
   tujuh_hari
   senin_minggu
+  selasa_senin
+  rabu_selasa
+  kamis_rabu
+  jumat_kamis
+  sabtu_jumat
+  minggu_sabtu
 }
 
 enum PhotoGpsSource {
