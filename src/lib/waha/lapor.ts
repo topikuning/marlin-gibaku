@@ -14,6 +14,7 @@ import {
   bacaPerintah,
   cariPekerjaanWa,
   MAKS_DAFTAR_LOKASI,
+  kelompokPekerjaan,
   MAKS_PILIHAN,
   pisahVolume,
   satuanPerluDisebut,
@@ -357,7 +358,9 @@ async function pilihanPekerjaanLokasi(locationId: string) {
 }
 
 function labelPekerjaan(o: OpsiPekerjaan): string {
-  const konteks = o.subPath || o.category;
+  // Kategori DAN sub-kategori: "Dolken" ada di banyak bangunan, dan sub-kategori
+  // bernama sama ("1. Pondasi") ada di tiap bangunan (DECISIONS 713).
+  const konteks = [o.category, o.subPath].filter(Boolean).join(" › ");
   return `${[o.code, o.name].filter(Boolean).join(" ")}${o.unit ? ` (${o.unit})` : ""}${konteks ? ` – ${konteks}` : ""}`;
 }
 
@@ -404,7 +407,7 @@ async function isiPekerjaan(
   const diketik = isian.nama || teksMasuk;
   const tawarkan = async (pilihan: OpsiPekerjaan[], mendekati: boolean): Promise<"berhenti"> => {
     if (pilihan.length > MAKS_PILIHAN) {
-      await balasWa(m.chatId, teks.terlaluBanyakPekerjaan(diketik, pilihan.length));
+      await balasWa(m.chatId, teks.terlaluBanyakPekerjaan(diketik, pilihan.length, kelompokPekerjaan(pilihan)));
       return "berhenti";
     }
     const tawaran: Tawaran = {

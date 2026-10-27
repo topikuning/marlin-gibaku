@@ -13,6 +13,8 @@ import {
   bakuSatuan,
   bentukKata,
   cariPekerjaanWa,
+  kelompokPekerjaan,
+  teks,
   pisahVolume,
   satuanPerluDisebut,
   sesiBerlaku,
@@ -179,6 +181,61 @@ describe("cariPekerjaanWa", () => {
 
   it("tidak ada kata yang cocok sama sekali → kosong", () => {
     expect(nama(cariPekerjaanWa(rab, "atap baja ringan"))).toEqual({ semua: [], mendekati: [] });
+  });
+});
+
+describe("cariPekerjaanWa – menambah kata tidak pernah memperlebar tebakan (DECISIONS 713)", () => {
+  // Kasus nyata user 2026-10-27: "dolken" 15 cocok, "pasang dolken" 115.
+  const pemasangan = Array.from({ length: 100 }, (_, i) => ({
+    code: String(i + 1),
+    name: `Pemasangan Item ${i + 1}`,
+    category: i % 2 ? "GUDANG BEKU" : "BALAI PERTEMUAN",
+    subPath: "",
+  }));
+  const dolken = Array.from({ length: 15 }, (_, i) => ({
+    code: `D${i + 1}`,
+    name: "Dolken Kayu Galam",
+    category: ["GUDANG BEKU", "BALAI PERTEMUAN", "DERMAGA"][i % 3],
+    subPath: "1. Pekerjaan Pondasi",
+  }));
+  const bedeng = [{ code: "1", name: "Buat Bedeng Pekerja Dan Gudang", category: "PEKERJAAN PERSIAPAN", subPath: "" }];
+  const rab = [...pemasangan, ...dolken, ...bedeng];
+
+  it("'pasang dolken' (tidak ada yang memuat keduanya) → 15 dolken, bukan 115", () => {
+    const r = cariPekerjaanWa(rab, "pasang dolken");
+    expect(r.semua).toEqual([]);
+    expect(r.mendekati).toHaveLength(15);
+    expect(r.mendekati.every((o) => o.name.includes("Dolken"))).toBe(true);
+    expect(r.mendekati.length).toBeLessThanOrEqual(cariPekerjaanWa(rab, "dolken").semua.length);
+  });
+
+  it("'pasang bedeng' → Buat Bedeng saja, bukan 100 item Pemasangan", () => {
+    expect(cariPekerjaanWa(rab, "pasang bedeng").mendekati.map((o) => o.name)).toEqual(["Buat Bedeng Pekerja Dan Gudang"]);
+  });
+
+  it("kelompok untuk petunjuk: kategori terbanyak dulu, dengan jumlahnya", () => {
+    expect(kelompokPekerjaan(dolken)).toEqual([
+      { nama: "BALAI PERTEMUAN", jumlah: 5 },
+      { nama: "DERMAGA", jumlah: 5 },
+      { nama: "GUDANG BEKU", jumlah: 5 },
+    ]);
+    // Semua di satu kategori → dikelompokkan menurut sub-kategori.
+    const satu = [
+      { code: "1", name: "A", category: "GUDANG", subPath: "1. Pondasi › a" },
+      { code: "2", name: "B", category: "GUDANG", subPath: "2. Atap" },
+      { code: "3", name: "C", category: "GUDANG", subPath: "1. Pondasi › b" },
+    ];
+    expect(kelompokPekerjaan(satu)).toEqual([
+      { nama: "1. Pondasi", jumlah: 2 },
+      { nama: "2. Atap", jumlah: 1 },
+    ]);
+  });
+
+  it("balasan terlalu banyak menyebut kelompok dan contoh kata yang bisa ditambahkan", () => {
+    const b = teks.terlaluBanyakPekerjaan("pasang", 100, kelompokPekerjaan(pemasangan));
+    expect(b).toMatch(/Ada 100 pekerjaan yang cocok dengan "pasang"/);
+    expect(b).toMatch(/– BALAI PERTEMUAN \(50\)\n– GUDANG BEKU \(50\)/);
+    expect(b).toMatch(/Mis\. \*pasang balai\*\./);
   });
 });
 

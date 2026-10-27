@@ -207,6 +207,8 @@ beforeAll(async () => {
   await item("3", "Bekesting Kolom Praktis", "m2", 40, 4);
   await item("4", "Bekesting Kolom Utama", "m2", 40, 5);
   await item("5", "Pasangan Bata", "m2", 60, 6);
+  // 12 item "Dolken" – lebih dari 9 (batas lama), untuk daftar bernomor (DECISIONS 713).
+  for (let i = 1; i <= 12; i++) await item(`D${i}`, "Dolken Kayu Galam", "btg", 100, 10 + i);
 }, 60_000);
 
 afterAll(async () => {
@@ -379,6 +381,26 @@ describe("lapor lewat WhatsApp", () => {
     expect(balasan).toHaveLength(2);
     expect(balasan[0]).toMatch(/^2 foto tersimpan untuk \*Matabulu Timur\*/);
     expect(balasan[1]).toMatch(/^Pekerjaan aktif: \*Galian Tanah\*/);
+  });
+
+  it("lebih dari 9 cocok tetap DIDAFTAR bernomor, bukan disuruh menambah kata (DECISIONS 713)", async () => {
+    const { balasan } = await kirim({ teks: "dolken" });
+    const b = balasan.join("\n");
+    expect(b).toMatch(/Ada 12 pekerjaan yang cocok dengan "dolken":/);
+    expect(b).toMatch(/\n1\. D1 Dolken Kayu Galam \(btg\) – PEKERJAAN JALAN/);
+    expect(b).toMatch(/\n12\. D12 Dolken Kayu Galam/);
+    expect(b).not.toMatch(/Tambahkan kata/);
+    const pilih = await kirim({ teks: "12" });
+    expect(pilih.balasan.join("\n")).toMatch(/Pekerjaan aktif: \*Dolken Kayu Galam\* \(btg\)/);
+    expect((await db.waLaporSesi.findUnique({ where: { userId: picId } }))?.lineageKey).toBe("I#D12");
+  });
+
+  it("menambah kata tidak memperlebar tebakan: 'pasang dolken' → 12 dolken, tanpa item Pemasangan", async () => {
+    const { balasan } = await kirim({ teks: "pasang dolken" });
+    const b = balasan.join("\n");
+    expect(b).toMatch(/Tidak ada pekerjaan yang persis cocok dengan "pasang dolken"\. Yang paling mendekati:/);
+    expect(b).toMatch(/\n12\. D12 Dolken/);
+    expect(b, "item yang hanya cocok kata umum 'pasang' tidak ikut").not.toMatch(/Pemasangan Paving/);
   });
 
   it("'selesai' menutup sesi; foto sesudahnya tidak disimpan", async () => {

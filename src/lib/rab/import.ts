@@ -593,7 +593,13 @@ export async function gantiDraftLama(
       tanggal: terpakai.map((r) => r.tanggal.toISOString().slice(0, 10)),
     });
     return { dipindah: terpakai.length };
-  });
+    /*
+     * 60 detik (DECISIONS 712): menghapus draft lama menghapus berantai seluruh
+     * item, backup volume, dan analisanya. Dengan batas bawaan 5 detik impor
+     * draft Songbanyu 2026-10-27 dibatalkan di 5.026 ms – seluruh impornya
+     * gagal karena langkah bersih-bersih.
+     */
+  }, { timeout: 60_000, maxWait: 15_000 });
 }
 
 /** Masa pelaksanaan (hari) dari kontrak paket lokasi; fallback 150. */
