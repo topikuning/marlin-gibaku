@@ -235,7 +235,8 @@ export async function createAdendumDraft(
       nodeCount: nodes.length,
     });
     return { revisionId: draft.id, revisionNo };
-  });
+    // Salinan PENUH revisi aktif – sebanyak item RAB-nya (DECISIONS 712).
+  }, { timeout: 60_000, maxWait: 15_000 });
 }
 
 /**
