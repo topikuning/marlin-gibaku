@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 713 | 2026-10-27 | WA lapor: tebakan pekerjaan mengabaikan kata kerja umum (pasang/buat/gali/…) bila kata lain cocok, lalu menimbang kelangkaan kata – "pasang dolken" tidak lagi 115 (semua Pemasangan + dolken); sampai 30 pekerjaan didaftar bernomor (semula 9 lalu ditolak), label memuat kategori › sub-kategori; lebih dari 30 → kelompok + jumlah + contoh kata tambahan |
 | 712 | 2026-10-27 | Batas waktu transaksi Prisma: bawaan 30 s (`transactionOptions` di `lib/db.ts`, semula 5 s bawaan Prisma – 95 dari 101 transaksi tanpa batas sendiri); `gantiDraftLama` & `createAdendumDraft` 60 s. Impor draft adendum Songbanyu batal di 5.026 ms saat mengganti draft lama |
 | 711 | 2026-10-27 | Lapor WA dari nomor yang TERCATAT di akun aktif diterima tanpa verifikasi dua arah 570 (pengirim dikenali dari nomor pesan masuk, nomor ganda tidak dijawab; sisa risiko salah ketik dibatasi usulan 707); audit `wa.lapor.lokasi` mencatat `nomorTerverifikasi`; nomor tak tercatat tetap ditolak; verifikasi 570 tetap untuk hal lain. Mengganti syarat di 706/710 |
 | 710 | 2026-10-27 | WA: *lokasi* saja / *daftar lokasi* → daftar bernomor lokasi yang boleh diakses (urut nama, maks 30, lebih dari itu diminta nama/kabupaten); balas angka mengaktifkan lokasi lewat jalur tawaran `lokasi X`; batas tawaran lokasi 9 → 30 (pekerjaan tetap 9); tanda tanya tetap ke Tanya MARLIN |

@@ -16,8 +16,12 @@ import { formatNumber, jakartaDateKey } from "@/lib/format";
 
 /** Sesi berakhir sendiri setelah sekian lama tanpa kiriman (pilihan user). */
 export const JAM_SESI = 3;
-/** Pilihan PEKERJAAN yang ditawarkan paling banyak sekian; lebih dari itu diminta lebih khusus. */
-export const MAKS_PILIHAN = 9;
+/**
+ * Pilihan PEKERJAAN yang ditawarkan paling banyak sekian; lebih dari itu diminta
+ * menambah nama bangunan/bagiannya (DECISIONS 713; semula 9 – "Ada 15 pekerjaan,
+ * tambahkan kata" tanpa daftarnya tidak bisa dijawab orang lapangan).
+ */
+export const MAKS_PILIHAN = 30;
 /**
  * Daftar LOKASI yang ditawarkan paling banyak sekian (DECISIONS 710). Lebih
  * panjang dari ini tidak terbaca di WhatsApp – arsitekturnya menargetkan 200+
@@ -176,6 +180,18 @@ export function bentukKata(kata: string): string[] {
 
 export type OpsiCari = { code: string; name: string; category: string; subPath: string };
 
+/**
+ * Kata kerja yang lazim diketik di depan nama pekerjaan ("pasang dolken", "buat
+ * bedeng", "gali tanah"). Ia hanya menunjuk JENIS kegiatan – yang menunjuk
+ * item adalah bendanya – jadi diabaikan untuk tebakan bila kata lain cocok
+ * (DECISIONS 713). Pencocokan PENUH (semua kata) tetap memakainya.
+ */
+const KATA_KERJA_UMUM = new Set([
+  "pasang", "buat", "bikin", "gali", "cor", "bongkar", "urug", "urugan", "timbun", "angkut",
+  "kerja", "kerjakan", "pekerjaan", "pemasangan", "pembuatan", "pengecoran", "penggalian",
+  "bersih", "bersihkan", "pasangkan", "tanam", "potong", "rakit", "isi", "lanjut",
+]);
+
 function cocokKata(o: OpsiCari, kata: string): boolean {
   const teksItem = `${o.name} ${o.subPath} ${o.category}`.toLowerCase();
   if (bentukKata(kata).some((b) => teksItem.includes(b))) return true;
@@ -188,10 +204,19 @@ function cocokKata(o: OpsiCari, kata: string): boolean {
 
 /**
  * `semua` = item yang memuat SEMUA kata (boleh dalam bentuk peN-). Bila tidak
- * ada, `mendekati` = item dengan kata cocok terbanyak – hanya untuk DITAWARKAN,
+ * ada, `mendekati` = item dengan skor tertinggi – hanya untuk DITAWARKAN,
  * tidak pernah langsung dipakai: "pasang batako" yang mendekati "Pasangan Bata"
  * adalah tebakan, dan volume yang dicatat ke pekerjaan yang salah tidak
  * terlihat salah di laporan.
+ *
+ * Dulu tiap kata bernilai 1, sehingga "pasang dolken" – tanpa item yang memuat
+ * keduanya – menawarkan semua item "Pemasangan …" DAN semua "dolken" sekaligus
+ * (115, padahal "dolken" saja 15): menambah kata justru memperlebar hasil
+ * (DECISIONS 713). Kini dua aturan:
+ * 1. KATA KERJA UMUM ("pasang", "buat", "gali", …) diabaikan selama kata lain
+ *    masih cocok dengan sesuatu – yang menunjuk pekerjaan adalah bendanya.
+ * 2. Kata yang tersisa DITIMBANG KELANGKAANNYA: kata yang ada di sedikit item
+ *    bernilai besar, kata umum bernilai kecil.
  */
 export function cariPekerjaanWa<T extends OpsiCari>(daftar: T[], query: string): { semua: T[]; mendekati: T[] } {
   const kata = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -200,9 +225,38 @@ export function cariPekerjaanWa<T extends OpsiCari>(daftar: T[], query: string):
   if (semua.length > 0) return { semua, mendekati: [] };
   const berarti = kata.filter((k) => /[a-z]/.test(k) && k.length >= 3);
   if (berarti.length === 0) return { semua: [], mendekati: [] };
-  const skor = daftar.map((o) => berarti.filter((k) => cocokKata(o, k)).length);
+  const benda = berarti.filter((k) => !KATA_KERJA_UMUM.has(k));
+  const dipakai = benda.some((k) => daftar.some((o) => cocokKata(o, k))) ? benda : berarti;
+  const cocok = dipakai.map((k) => daftar.map((o) => cocokKata(o, k)));
+  const bobot = cocok.map((baris) => {
+    const n = baris.filter(Boolean).length;
+    return n === 0 ? 0 : 1 / n;
+  });
+  const skor = daftar.map((_, i) => cocok.reduce((s, baris, j) => s + (baris[i] ? bobot[j] : 0), 0));
   const maks = Math.max(0, ...skor);
-  return { semua: [], mendekati: maks === 0 ? [] : daftar.filter((_, i) => skor[i] === maks) };
+  // Pembanding dengan toleransi: jumlah pecahan yang sama bisa berbeda di digit terakhir.
+  return { semua: [], mendekati: maks === 0 ? [] : daftar.filter((_, i) => maks - skor[i] < 1e-9) };
+}
+
+/**
+ * Pekerjaan yang terlalu banyak untuk satu daftar, DIKELOMPOKKAN menurut
+ * bangunan/kategorinya – supaya balasan menyebut kata yang bisa ditambahkan
+ * ("dolken gudang"), bukan sekadar "tambahkan kata" (DECISIONS 713).
+ * Kelompok terbesar dulu; bila semua di satu kategori, dikelompokkan menurut
+ * sub-kategorinya.
+ */
+export function kelompokPekerjaan(daftar: OpsiCari[], maks = 8): { nama: string; jumlah: number }[] {
+  const hitung = (kunci: (o: OpsiCari) => string) => {
+    const m = new Map<string, number>();
+    for (const o of daftar) {
+      const k = kunci(o).trim();
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].map(([nama, jumlah]) => ({ nama, jumlah }));
+  };
+  let kelompok = hitung((o) => o.category);
+  if (kelompok.length <= 1) kelompok = hitung((o) => o.subPath.split("›")[0] ?? "");
+  return kelompok.sort((a, b) => b.jumlah - a.jumlah || a.nama.localeCompare(b.nama, "id")).slice(0, maks);
 }
 
 /* ── Masa sesi ──────────────────────────────────────────────────────────── */
@@ -238,6 +292,17 @@ export function tawaranBerlaku(terakhirAt: Date, sekarang: Date): boolean {
 
 export function angkaSatuan(v: number, satuan: string | null): string {
   return `${formatNumber(v)}${satuan ? ` ${satuan}` : ""}`;
+}
+
+/** Satu kata khas dari nama kelompok untuk contoh balasan ("PEKERJAAN GUDANG BEKU" → "gudang"). */
+function kataPembeda(nama: string): string {
+  const umum = new Set(["pekerjaan", "bangunan", "dan", "untuk", "lain", "lainnya", "sub"]);
+  const kata = nama
+    .toLowerCase()
+    .replace(/^[\divxlc.]+\s*/i, "")
+    .split(/[^a-z0-9]+/)
+    .filter((k) => k.length >= 3 && !umum.has(k));
+  return kata[0] ?? nama.toLowerCase();
 }
 
 export const teks = {
@@ -317,9 +382,13 @@ export const teks = {
     pilihan.map((p, i) => `${i + 1}. ${p}`).join("\n") +
     "\nBalas dengan angkanya kalau memang itu, atau tulis ulang nama pekerjaannya.",
 
-  terlaluBanyakPekerjaan: (diketik: string, jumlah: number) =>
-    `Ada ${jumlah} pekerjaan yang cocok dengan "${diketik}". Tambahkan kata supaya lebih khusus, ` +
-    "mis. kode atau nama bagiannya.",
+  terlaluBanyakPekerjaan: (diketik: string, jumlah: number, kelompok: { nama: string; jumlah: number }[]) =>
+    `Ada ${jumlah} pekerjaan yang cocok dengan "${diketik}", terlalu banyak untuk satu daftar. ` +
+    (kelompok.length > 0
+      ? "Tambahkan nama bagian atau bangunannya. Pekerjaan itu ada di:\n" +
+        kelompok.map((k) => `– ${k.nama} (${k.jumlah})`).join("\n") +
+        `\nMis. *${diketik} ${kataPembeda(kelompok[0].nama)}*.`
+      : "Tambahkan kata supaya lebih khusus, mis. kode atau nama bagiannya."),
 
   pilihanDiLuar: (jumlah: number) => `Balas dengan angka 1 sampai ${jumlah}.`,
 
