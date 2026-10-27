@@ -14,7 +14,7 @@ import {
   bentukKata,
   cariPekerjaanWa,
   pisahVolume,
-  satuanSepadan,
+  satuanPerluDisebut,
   sesiBerlaku,
   tawaranBerlaku,
 } from "@/lib/waha/lapor-aturan";
@@ -92,10 +92,14 @@ describe("satuan", () => {
     expect(bakuSatuan("m'")).toBe("m");
     expect(bakuSatuan("Ls")).toBe("ls");
   });
-  it("sepadan: tanpa satuan ikut RAB, beda satuan ditolak", () => {
-    expect(satuanSepadan(null, "m2")).toBe(true);
-    expect(satuanSepadan("m²", "M2")).toBe(true);
-    expect(satuanSepadan("m2", "m3")).toBe(false);
+  it("satuan yang diketik tidak dipakai; satuan RAB disebut hanya bila yang diketik berbeda (DECISIONS 709)", () => {
+    expect(satuanPerluDisebut(null, "m2")).toBeNull();
+    expect(satuanPerluDisebut("m²", "M2")).toBeNull();
+    expect(satuanPerluDisebut("m2", "m3")).toBe("m3");
+    expect(satuanPerluDisebut("m2", null)).toBeNull();
+  });
+  it("angka tanpa satuan tetap terbaca sebagai volume", () => {
+    expect(pisahVolume("pasang paving 20")).toEqual({ nama: "pasang paving", volume: 20, satuan: null });
   });
 });
 

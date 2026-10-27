@@ -95,10 +95,14 @@ export function bakuSatuan(s: string | null | undefined): string | null {
   return SATUAN[t] ?? SATUAN[t.replace(/\s/g, "")] ?? t.replace(/\s/g, "");
 }
 
-/** Satuan yang diketik sepadan dengan satuan RAB? Tanpa satuan = ikut RAB. */
-export function satuanSepadan(diketik: string | null, rab: string | null): boolean {
-  if (!diketik || !rab) return true;
-  return bakuSatuan(diketik) === bakuSatuan(rab);
+/**
+ * Satuan yang diketik TIDAK dipakai: volume selalu dalam satuan RAB (DECISIONS 709).
+ * Yang dikembalikan hanya satuan RAB untuk disebut di balasan bila yang diketik
+ * berbeda, supaya PIC tahu angkanya dicatat dalam satuan apa. null = tidak perlu disebut.
+ */
+export function satuanPerluDisebut(diketik: string | null, rab: string | null): string | null {
+  if (!diketik || !rab) return null;
+  return bakuSatuan(diketik) === bakuSatuan(rab) ? null : rab;
 }
 
 export type IsianPekerjaan = { nama: string; volume: number | null; satuan: string | null };
@@ -107,8 +111,10 @@ export type IsianPekerjaan = { nama: string; volume: number | null; satuan: stri
 const EKOR_VOLUME = /(?:^|[\s,:=])(\d[\d.,]*)\s*([a-zA-Z²³'][a-zA-Z²³'0-9]*(?:\s(?:persegi|kubik|lari))?)?\s*\.?$/;
 
 /**
- * "pasang paving 20 m2" → nama "pasang paving", volume 20, satuan "m2".
- * "20 m2" saja → nama kosong (untuk pekerjaan yang sedang aktif).
+ * "pasang paving 20" → nama "pasang paving", volume 20 (satuan mengikuti RAB).
+ * "pasang paving 20 m2" → sama; satuan yang diketik dipisah supaya tidak terbaca
+ * sebagai bagian nama, tapi tidak dipakai (DECISIONS 709).
+ * "20" saja → nama kosong (untuk pekerjaan yang sedang aktif).
  *
  * Volume hanya dibaca di AKHIR pesan, dan satuannya harus satuan yang dikenali
  * atau tidak ada: "pipa 4 inch" tetap nama pekerjaan. Angka yang ternyata
@@ -229,7 +235,8 @@ export const teks = {
     "1. Ketik *lokasi* lalu namanya, mis. *lokasi Kedung Mutih*.\n" +
     "2. Kirim fotonya. Supaya GPS dan jam aslinya ikut, kirim sebagai *Dokumen*.\n" +
     "3. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, mis. *pasang paving*, " +
-    "atau sekalian volumenya: *pasang paving 20 m2*. Foto dan volume itu menjadi USULAN – " +
+    "atau sekalian volumenya: *pasang paving 20*. Cukup angkanya, satuannya mengikuti RAB. " +
+    "Foto dan volume itu menjadi USULAN – " +
     "masuk laporan harian setelah diperiksa di aplikasi.\n" +
     "4. Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.\n" +
     "Pertanyaan untuk MARLIN tetap bisa, akhiri dengan tanda tanya.",
@@ -237,7 +244,7 @@ export const teks = {
   lokasiAktif: (nama: string) =>
     `Lokasi aktif: *${nama}*.\n` +
     "Kirim fotonya sekarang. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, " +
-    "mis. *pasang paving*, atau sekalian volumenya: *pasang paving 20 m2*.\n" +
+    "mis. *pasang paving*, atau sekalian volumenya: *pasang paving 20*.\n" +
     "Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.",
 
   pilihLokasi: (diketik: string, pilihan: string[]) =>
@@ -272,7 +279,8 @@ export const teks = {
 
   pekerjaanAktif: (nama: string, satuan: string | null) =>
     `Pekerjaan aktif: *${nama}*${satuan ? ` (${satuan})` : ""}. Foto berikutnya diusulkan untuk pekerjaan ini. ` +
-    `Kirim volumenya juga kalau mau, mis. *20${satuan ? ` ${satuan}` : ""}*.`,
+    `Kirim volumenya juga kalau mau, cukup angkanya, mis. *20*` +
+    (satuan ? ` – dicatat dalam ${satuan}, satuan RAB pekerjaan ini.` : "."),
 
   pekerjaanTidakAda: (diketik: string, lokasi: string) =>
     `Pekerjaan "${diketik}" tidak ketemu di RAB *${lokasi}*. Coba kata lain yang ada di nama pekerjaannya. ` +
@@ -300,11 +308,9 @@ export const teks = {
   fotoMenungguPilihan: "Foto tadi belum disimpan. Kirim ulang setelah memilih lokasinya.",
 
   volumeTanpaPekerjaan:
-    "Volume itu untuk pekerjaan apa? Sebut nama pekerjaannya, mis. *pasang paving 20 m2*.",
+    "Volume itu untuk pekerjaan apa? Sebut nama pekerjaannya, mis. *pasang paving 20*.",
 
-  satuanBeda: (pekerjaan: string, rab: string, diketik: string) =>
-    `Satuan *${pekerjaan}* di RAB adalah *${rab}*, bukan *${diketik}*. Kirim ulang dengan satuan yang benar, ` +
-    "atau tanpa satuan.",
+  satuanIkutRab: (rab: string) => ` Satuan mengikuti RAB: *${rab}*.`,
 
   usulanVolume: (pekerjaan: string, baru: string, lama: string | null, foto: number) =>
     `Usulan volume *${pekerjaan}* hari ini: *${baru}*` +

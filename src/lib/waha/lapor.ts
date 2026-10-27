@@ -15,7 +15,7 @@ import {
   cariPekerjaanWa,
   MAKS_PILIHAN,
   pisahVolume,
-  satuanSepadan,
+  satuanPerluDisebut,
   sesiBerlaku,
   tawaranBerlaku,
   teks,
@@ -424,11 +424,8 @@ async function tetapkanPekerjaan(
   }
 
   // Yang PASTI salah ditolak sekarang, selagi PIC masih memegang ponselnya –
-  // bukan baru ketahuan saat seseorang menekan Masukkan di kantor.
-  if (!satuanSepadan(isian.satuan, node.unit)) {
-    await balasWa(m.chatId, teks.satuanBeda(nama, node.unit ?? "-", isian.satuan ?? "-"));
-    return "berhenti";
-  }
+  // bukan baru ketahuan saat seseorang menekan Masukkan di kantor. Satuan
+  // BUKAN salah satunya: angkanya selalu dalam satuan RAB (DECISIONS 709).
   if (!can(user.role, "daily_report.create")) {
     await balasWa(m.chatId, teks.tanpaIzinVolume);
     return "berhenti";
@@ -446,8 +443,10 @@ async function tetapkanPekerjaan(
     lineageKey: node.lineageKey,
     volume: isian.volume,
     volumeLama,
+    satuanDiketik: isian.satuan,
     waMessageId: m.waMessageId,
   });
+  const satuanRab = satuanPerluDisebut(isian.satuan, node.unit);
   await balasWa(
     m.chatId,
     teks.usulanVolume(
@@ -455,7 +454,7 @@ async function tetapkanPekerjaan(
       angkaSatuan(isian.volume, node.unit),
       volumeLama != null && volumeLama !== isian.volume ? angkaSatuan(volumeLama, node.unit) : null,
       usulan.photoIds.length,
-    ),
+    ) + (satuanRab ? teks.satuanIkutRab(satuanRab) : ""),
   );
   return "lanjut";
 }
