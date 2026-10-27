@@ -13,6 +13,7 @@ import {
   angkaSatuan,
   bacaPerintah,
   cariPekerjaanWa,
+  MAKS_DAFTAR_LOKASI,
   MAKS_PILIHAN,
   pisahVolume,
   satuanPerluDisebut,
@@ -93,6 +94,7 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
   if (!foto) {
     const urusanLapor =
       perintah.jenis === "lokasi" ||
+      perintah.jenis === "daftar_lokasi" ||
       perintah.jenis === "bantuan" ||
       (perintah.jenis === "selesai" && !!sesi) ||
       (perintah.jenis === "pilih" && (adaTawaran || berlaku)) ||
@@ -108,7 +110,7 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
     if (perintah.jenis === "lokasi" && !foto) {
       if (cocokkanLokasi(perintah.nama, await katalogUntuk(user)).jenis === "tidak_ada") return TIDAK;
     }
-    if (foto || perintah.jenis === "lokasi" || perintah.jenis === "bantuan") {
+    if (foto || perintah.jenis === "lokasi" || perintah.jenis === "daftar_lokasi" || perintah.jenis === "bantuan") {
       await balasWa(m.chatId, teks.belumVerifikasi);
       return { ditangani: true, alasan: "lapor: nomor belum diverifikasi" };
     }
@@ -126,6 +128,8 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
         return { ditangani: true, alasan: "lapor: bantuan" };
       case "lokasi":
         return (await mulaiLokasi(m, user, perintah.nama)).hasil;
+      case "daftar_lokasi":
+        return (await daftarLokasi(m, user)).hasil;
       case "selesai":
         return akhiriSesi(m, user, sesi!, berlaku);
       case "pilih":
@@ -146,6 +150,12 @@ export async function tanganiLaporWa(m: ParsedWaMessage, user: SessionUser): Pro
   /* ── Foto ── */
   let s: Sesi | null = sesi;
   let aktif = berlaku;
+  if (perintah.jenis === "daftar_lokasi") {
+    // Foto berketerangan "lokasi" saja: daftarnya dulu; fotonya dikirim ulang sesudah memilih.
+    const d = await daftarLokasi(m, user);
+    if (d.ditawarkan) await balasWa(m.chatId, teks.fotoMenungguPilihan);
+    return d.hasil;
+  }
   if (perintah.jenis === "lokasi") {
     // Foto berketerangan "lokasi X": lokasinya dulu, lalu fotonya – asal
     // lokasinya langsung pasti. Selama masih memilih, foto TIDAK disimpan ke
@@ -207,10 +217,39 @@ async function mulaiLokasi(
       : h.jenis === "wilayah"
         ? h.wilayah.lokasi
         : [...new Map(h.pilihan.flatMap((p) => p.lokasi).map((l) => [l.id, l])).values()];
-  if (kandidat.length > MAKS_PILIHAN) {
+  if (kandidat.length > MAKS_DAFTAR_LOKASI) {
     await balasWa(m.chatId, teks.terlaluBanyakLokasi(diketik, kandidat.length));
     return { hasil: { ditangani: true, alasan: "lapor: lokasi terlalu banyak cocok" } };
   }
+  await tawarkanLokasi(m, user, kandidat);
+  await balasWa(m.chatId, teks.pilihLokasi(diketik, kandidat.map(labelLokasi)));
+  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" } };
+}
+
+/**
+ * "lokasi" saja / "daftar lokasi" → daftar bernomor lokasi yang BOLEH diakses
+ * orang ini, urut nama; balasan angka mengaktifkan lokasi itu (DECISIONS 710).
+ */
+async function daftarLokasi(
+  m: ParsedWaMessage,
+  user: SessionUser,
+): Promise<{ hasil: HasilLapor; ditawarkan: boolean }> {
+  const katalog = (await katalogUntuk(user)).sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+  if (katalog.length === 0) {
+    await balasWa(m.chatId, teks.daftarLokasiKosong);
+    return { hasil: { ditangani: true, alasan: "lapor: daftar lokasi kosong" }, ditawarkan: false };
+  }
+  if (katalog.length > MAKS_DAFTAR_LOKASI) {
+    await balasWa(m.chatId, teks.daftarLokasiPanjang(katalog.length));
+    return { hasil: { ditangani: true, alasan: "lapor: daftar lokasi terlalu panjang" }, ditawarkan: false };
+  }
+  await tawarkanLokasi(m, user, katalog);
+  await balasWa(m.chatId, teks.daftarLokasi(katalog.map(labelLokasi)));
+  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" }, ditawarkan: true };
+}
+
+/** Simpan tawaran lokasi bernomor; jawabannya ditangani `jawabPilihan`. */
+async function tawarkanLokasi(m: ParsedWaMessage, user: SessionUser, kandidat: LokasiKatalog[]): Promise<void> {
   const tawaran: Tawaran = { jenis: "lokasi", pilihan: kandidat.map((l) => ({ id: l.id, label: labelLokasi(l) })) };
   // Lokasi sesi sebelumnya DILEPAS selama memilih: orang yang baru saja
   // menyebut lokasi lain tidak sedang memotret lokasi lama.
@@ -226,8 +265,6 @@ async function mulaiLokasi(
     create: { userId: user.id, ...data, mulaiAt: waktu(m) },
     update: data,
   });
-  await balasWa(m.chatId, teks.pilihLokasi(diketik, tawaran.pilihan.map((p) => p.label)));
-  return { hasil: { ditangani: true, alasan: "lapor: pilih lokasi" } };
 }
 
 async function aktifkanLokasi(

@@ -26,6 +26,16 @@ describe("bacaPerintah", () => {
     expect(bacaPerintah("  LOKASI   randu   putih ")).toEqual({ jenis: "lokasi", nama: "randu putih" });
   });
 
+  it("'lokasi' saja / 'daftar lokasi' → daftar bernomor (DECISIONS 710)", () => {
+    for (const t of ["lokasi", "Lokasi.", "daftar lokasi", "DAFTAR LOKASI", "list lokasi", "pilih lokasi", "lokasi saya", "lokasiku"]) {
+      expect(bacaPerintah(t), t).toEqual({ jenis: "daftar_lokasi" });
+    }
+    // Pertanyaan tetap untuk Tanya MARLIN; nama lokasi tetap mencari lokasi itu.
+    expect(bacaPerintah("daftar lokasi?")).toEqual({ jenis: "tanya" });
+    expect(bacaPerintah("lokasi saya mana saja?")).toEqual({ jenis: "tanya" });
+    expect(bacaPerintah("lokasi sayangan")).toEqual({ jenis: "lokasi", nama: "sayangan" });
+  });
+
   it("pertanyaan tidak pernah terbaca perintah lapor", () => {
     expect(bacaPerintah("lokasi mana yang deviasinya negatif?")).toEqual({ jenis: "tanya" });
     expect(bacaPerintah("berapa progres kedung mutih")).toEqual({ jenis: "tanya" });

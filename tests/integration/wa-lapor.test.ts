@@ -86,6 +86,7 @@ const NOMOR_PIC = "6281299990001";
 const NOMOR_BELUM = "6281299990002";
 const CHAT_PIC = `${NOMOR_PIC}@c.us`;
 let locationId = "";
+let lokasiKedua = "";
 let picId = "";
 let smId = "";
 let nomorPesan = 0;
@@ -184,6 +185,9 @@ beforeAll(async () => {
   // Lokasi lain di organisasi yang sama, TIDAK ditugaskan ke PIC.
   await buatLokasi("Kedung Lain");
   for (const u of [picId, belumId, smId]) await db.locationAssignment.create({ data: { userId: u, locationId } });
+  // Lokasi kedua PIC – untuk daftar bernomor "lokasi" saja (DECISIONS 710).
+  lokasiKedua = (await buatLokasi("Pesisir Utara")).id;
+  await db.locationAssignment.create({ data: { userId: picId, locationId: lokasiKedua } });
 
   const rev = await db.rabRevision.create({
     data: { locationId, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
@@ -226,6 +230,22 @@ describe("lapor lewat WhatsApp", () => {
     expect(balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
     const s = await db.waLaporSesi.findUnique({ where: { userId: picId } });
     expect(s?.locationId).toBe(locationId);
+  });
+
+  it("'lokasi' saja → daftar bernomor lokasi PIC sendiri; balas angka = lokasi itu aktif (DECISIONS 710)", async () => {
+    const daftar = await kirim({ teks: "daftar lokasi" });
+    const b = daftar.balasan.join("\n");
+    expect(b).toMatch(/Lokasi yang bisa Anda laporkan:\n1\. Matabulu Timur – Desa Uji, Kab Uji\n2\. Pesisir Utara – Desa Uji, Kab Uji\nBalas dengan angkanya\./);
+    expect(b, "lokasi yang tidak ditugaskan tidak ikut").not.toMatch(/Kedung Lain/);
+    const pilih2 = await kirim({ teks: "2" });
+    expect(pilih2.balasan.join("\n")).toMatch(/Lokasi aktif: \*Pesisir Utara\*/);
+    expect((await db.waLaporSesi.findUnique({ where: { userId: picId } }))?.locationId).toBe(lokasiKedua);
+
+    // Kembali ke Matabulu lewat "lokasi" saja – uji berikutnya bekerja di sana.
+    await kirim({ teks: "lokasi" });
+    const pilih1 = await kirim({ teks: "1" });
+    expect(pilih1.balasan.join("\n")).toMatch(/Lokasi aktif: \*Matabulu Timur\*/);
+    expect((await db.waLaporSesi.findUnique({ where: { userId: picId } }))?.locationId).toBe(locationId);
   });
 
   it("lokasi yang TIDAK ditugaskan tidak pernah cocok – diteruskan ke Tanya MARLIN", async () => {

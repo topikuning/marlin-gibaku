@@ -16,11 +16,18 @@ import { formatNumber, jakartaDateKey } from "@/lib/format";
 
 /** Sesi berakhir sendiri setelah sekian lama tanpa kiriman (pilihan user). */
 export const JAM_SESI = 3;
-/** Pilihan yang ditawarkan paling banyak sekian; lebih dari itu diminta lebih khusus. */
+/** Pilihan PEKERJAAN yang ditawarkan paling banyak sekian; lebih dari itu diminta lebih khusus. */
 export const MAKS_PILIHAN = 9;
+/**
+ * Daftar LOKASI yang ditawarkan paling banyak sekian (DECISIONS 710). Lebih
+ * panjang dari ini tidak terbaca di WhatsApp – arsitekturnya menargetkan 200+
+ * lokasi – jadi diminta menyebut sebagian nama atau kabupatennya.
+ */
+export const MAKS_DAFTAR_LOKASI = 30;
 
 export type Perintah =
   | { jenis: "lokasi"; nama: string }
+  | { jenis: "daftar_lokasi" }
   | { jenis: "selesai" }
   | { jenis: "bantuan" }
   | { jenis: "pilih"; nomor: number }
@@ -44,6 +51,10 @@ export function bacaPerintah(teks: string): Perintah {
   if (/^(selesai|stop|keluar)\.?$/i.test(t)) return { jenis: "selesai" };
   if (/^(lapor|cara lapor|bantuan lapor)\.?$/i.test(t)) return { jenis: "bantuan" };
   if (/^\d{1,2}$/.test(t)) return { jenis: "pilih", nomor: Number(t) };
+  // "lokasi" saja / "daftar lokasi" / "lokasi saya" → daftar bernomor (DECISIONS 710).
+  if (/^(?:(?:daftar|list|semua|pilih)\s+)?lokasi(?:\s+(?:saya|ku|aku|anda))?\.?$|^lokasiku\.?$/i.test(t)) {
+    return { jenis: "daftar_lokasi" };
+  }
   const lokasi = /^lokasi\b[\s:\-–]*(.+)$/i.exec(t);
   if (lokasi && lokasi[1].trim()) return { jenis: "lokasi", nama: lokasi[1].trim() };
   if (KATA_TANYA.test(t)) return { jenis: "tanya" };
@@ -232,7 +243,8 @@ export function angkaSatuan(v: number, satuan: string | null): string {
 export const teks = {
   bantuan:
     "Cara melapor lewat WhatsApp:\n" +
-    "1. Ketik *lokasi* lalu namanya, mis. *lokasi Kedung Mutih*.\n" +
+    "1. Ketik *lokasi* saja untuk daftar lokasi Anda lalu balas dengan nomornya, " +
+    "atau langsung *lokasi* dan namanya, mis. *lokasi Kedung Mutih*.\n" +
     "2. Kirim fotonya. Supaya GPS dan jam aslinya ikut, kirim sebagai *Dokumen*.\n" +
     "3. Sebut nama pekerjaannya kalau fotonya untuk pekerjaan itu, mis. *pasang paving*, " +
     "atau sekalian volumenya: *pasang paving 20*. Cukup angkanya, satuannya mengikuti RAB. " +
@@ -247,6 +259,19 @@ export const teks = {
     "mis. *pasang paving*, atau sekalian volumenya: *pasang paving 20*.\n" +
     "Ketik *selesai* kalau sudah. Sesi berakhir sendiri setelah 3 jam tanpa kiriman.",
 
+  daftarLokasi: (pilihan: string[]) =>
+    "Lokasi yang bisa Anda laporkan:\n" +
+    pilihan.map((p, i) => `${i + 1}. ${p}`).join("\n") +
+    "\nBalas dengan angkanya.",
+
+  daftarLokasiKosong:
+    "Belum ada lokasi yang ditugaskan ke akun Anda, jadi belum ada yang bisa dilaporkan. " +
+    "Minta admin MARLIN menambahkan akses lokasi Anda.",
+
+  daftarLokasiPanjang: (jumlah: number) =>
+    `Ada ${jumlah} lokasi yang bisa Anda laporkan, terlalu panjang untuk satu daftar. ` +
+    "Ketik *lokasi* lalu sebagian namanya atau nama kabupatennya, mis. *lokasi Demak*.",
+
   pilihLokasi: (diketik: string, pilihan: string[]) =>
     `Ada ${pilihan.length} lokasi yang cocok dengan "${diketik}":\n` +
     pilihan.map((p, i) => `${i + 1}. ${p}`).join("\n") +
@@ -257,8 +282,8 @@ export const teks = {
 
   fotoTanpaLokasi: (sesiHabis: boolean) =>
     (sesiHabis ? "Sesi lapor sebelumnya sudah berakhir, jadi foto" : "Foto") +
-    " ini belum saya simpan karena lokasinya belum disebut. Ketik dulu *lokasi* lalu namanya, " +
-    "mis. *lokasi Kedung Mutih*, kemudian kirim ulang fotonya.",
+    " ini belum saya simpan karena lokasinya belum disebut. Ketik dulu *lokasi* untuk memilih dari " +
+    "daftar, atau *lokasi* dan namanya, mis. *lokasi Kedung Mutih*, kemudian kirim ulang fotonya.",
 
   belumVerifikasi:
     "Nomor WhatsApp Anda belum diverifikasi di MARLIN, jadi foto dan laporan dari nomor ini belum bisa " +
@@ -303,7 +328,7 @@ export const teks = {
   pilihanDiLuar: (jumlah: number) => `Balas dengan angka 1 sampai ${jumlah}.`,
 
   pilihanKedaluwarsa:
-    "Pilihan itu sudah tidak berlaku karena sesi lapornya berakhir. Ketik *lokasi* lalu namanya untuk mulai lagi.",
+    "Pilihan itu sudah tidak berlaku karena sesi lapornya berakhir. Ketik *lokasi* untuk mulai lagi.",
 
   fotoMenungguPilihan: "Foto tadi belum disimpan. Kirim ulang setelah memilih lokasinya.",
 
