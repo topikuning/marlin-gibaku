@@ -7,6 +7,7 @@ import type {
   FindingStatus,
   InspectionStatus,
   WaUsulanStatus,
+  WaPersetujuanStatus,
   IssueSeverity,
   LocationStatus,
   PackageStage,
@@ -333,6 +334,25 @@ export const WA_USULAN_STATUS_TONE: Record<WaUsulanStatus, "warning" | "success"
   menunggu: "warning",
   dimasukkan: "success",
   dibuang: "neutral",
+};
+
+/* ── Persetujuan aktivasi lewat WhatsApp (DECISIONS 714) ──────────────────
+   Satu kode, satu kali: disetujui atau batal (draft berubah, sudah aktif,
+   dibuang). Kode baru dikirim untuk isi draft yang baru. */
+const WA_PERSETUJUAN_TRANSITIONS: Record<WaPersetujuanStatus, WaPersetujuanStatus[]> = {
+  menunggu: ["disetujui", "batal"],
+  disetujui: [],
+  batal: [],
+};
+
+export function canTransitionWaPersetujuan(from: WaPersetujuanStatus, to: WaPersetujuanStatus): boolean {
+  return WA_PERSETUJUAN_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export const WA_PERSETUJUAN_STATUS_LABEL: Record<WaPersetujuanStatus, string> = {
+  menunggu: "Menunggu balasan WA",
+  disetujui: "Disetujui lewat WA",
+  batal: "Batal",
 };
 
 /**

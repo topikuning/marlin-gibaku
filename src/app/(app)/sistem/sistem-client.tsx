@@ -67,6 +67,7 @@ import {
 import {
   saveWahaConfigAction,
   setWahaIzinPersonalAction,
+  setWahaTanyaAktifAction,
   wahaStatusAction,
   generateWahaWebhookSecretAction,
   testWahaCaptureAction,
@@ -91,13 +92,14 @@ import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 export function WahaConfigPanel({
   initial,
 }: {
-  initial: { baseUrl: string; session: string; hasApiKey: boolean; izinkanPersonal: boolean };
+  initial: { baseUrl: string; session: string; hasApiKey: boolean; izinkanPersonal: boolean; tanyaAktif: boolean };
 }) {
   const [state, action, pending] = useAksi<WaActionState>(saveWahaConfigAction, undefined);
   const [izinState, izinAction, izinPending] = useAksi<WaActionState>(
     setWahaIzinPersonalAction,
     undefined,
   );
+  const [tanyaState, tanyaAction, tanyaPending] = useAksi<WaActionState>(setWahaTanyaAktifAction, undefined);
   const [testing, startTest] = useTransition();
   const [result, setResult] = useState<
     { ok: true; status: string; me: string | null } | { ok: false; error: string } | null
@@ -159,6 +161,29 @@ export function WahaConfigPanel({
           <input type="hidden" name="izinkan" value={initial.izinkanPersonal ? "0" : "1"} />
           <Button type="submit" size="sm" variant="secondary" loading={izinPending}>
             {initial.izinkanPersonal ? "Matikan kiriman pribadi" : "Buka kiriman pribadi"}
+          </Button>
+        </div>
+      </form>
+
+      {/* Tanya MARLIN lewat WA (DECISIONS 714) – bawaan mati; lapor dan
+          persetujuan aktivasi lewat WA tidak ikut berhenti. */}
+      <form action={tanyaAction} className="space-y-2 border-t border-border pt-3">
+        {tanyaState?.error ? <Banner tone="error" title={tanyaState.error} /> : null}
+        {tanyaState?.success ? <Banner tone="success" title={tanyaState.success} /> : null}
+        <p className="text-sm font-medium text-ink">Tanya MARLIN lewat WhatsApp</p>
+        <p className="text-[13px] text-ink-muted">
+          Menjawab pertanyaan di grup dan chat pribadi. Selama dimatikan, MARLIN di WhatsApp hanya
+          menerima laporan lapangan dan persetujuan aktivasi adendum. Yang bertanya diberi tahu bahwa
+          fitur ini sedang dimatikan.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            tone={initial.tanyaAktif ? "success" : "neutral"}
+            label={initial.tanyaAktif ? "Sedang hidup" : "Sedang dimatikan"}
+          />
+          <input type="hidden" name="aktif" value={initial.tanyaAktif ? "0" : "1"} />
+          <Button type="submit" size="sm" variant="secondary" loading={tanyaPending}>
+            {initial.tanyaAktif ? "Matikan Tanya MARLIN" : "Hidupkan Tanya MARLIN"}
           </Button>
         </div>
       </form>

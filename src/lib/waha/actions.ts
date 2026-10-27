@@ -110,6 +110,32 @@ export async function setWahaIzinPersonalAction(
 }
 
 /**
+ * Hidupkan/matikan Tanya MARLIN lewat WhatsApp (DECISIONS 714).
+ *
+ * Dipisah dari tombol simpan konfigurasi, sama seperti pagar nomor pribadi:
+ * ini keputusan layanan, bukan setelan sambungan.
+ */
+export async function setWahaTanyaAktifAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const aktif = String(formData.get("aktif") ?? "") === "1";
+    await setWahaConfig({ tanyaAktif: aktif });
+    await audit(user.id, "system.waha_tanya_aktif", "app_setting", null, { aktif });
+    revalidatePath("/sistem");
+    return {
+      success: aktif
+        ? "Tanya MARLIN lewat WhatsApp dihidupkan."
+        : "Tanya MARLIN lewat WhatsApp dimatikan. Lapor lewat WA dan persetujuan aktivasi tetap jalan.",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
  * Buat/rotasi secret webhook inbound WAHA. Secret masuk query `?token=` pada URL
  * webhook yang dipasang di WAHA. Merotasi = URL lama tak berlaku. DECISIONS 119.
  */

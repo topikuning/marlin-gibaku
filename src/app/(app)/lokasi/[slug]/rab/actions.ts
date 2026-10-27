@@ -3,12 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { formatNumber } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
 import {
   totalWeeksFor,
-  activateRevision,
   contractDaysFor,
   discardDraft,
   profilBaselineAktif,
@@ -25,9 +23,10 @@ import {
   setujuiRevisi,
 } from "@/lib/rab/persetujuan";
 import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
+import { jalankanAktivasi } from "@/lib/rab/aktivasi";
+import { kirimPermintaanPd } from "@/lib/rab/persetujuan-wa";
+import { perluNotifikasiPd } from "@/lib/rab/persetujuan-wa-aturan";
 import {
-  kalimatKurvaAdendum,
-  kurvaSesudahAdendum,
   restoreBaseline,
   saveCategorySchedule,
   hitungJadwalBaru,
@@ -142,84 +141,15 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     } else {
       await pastikanBolehAktivasi(rev.id);
     }
-    const aktif = await activateRevision(rev.id, user.id);
-    if (persetujuanSaatItu) {
-      await audit(user.id, "rab.aktivasi_tanpa_persetujuan", "rab_revision", rev.id, {
-        locationId: rev.locationId,
-        revisionNo: rev.revisionNo,
-        jalur: "tombol_aktifkan",
-        // Siapa yang SUDAH menyetujui dan apa yang dilewati – supaya jejaknya
-        // menyebut persis gerbang mana yang tidak ditunggu.
-        sudahSetuju: persetujuanSaatItu.berlaku.map((p) => ({ nama: p.nama, role: p.role })),
-        dilewati: persetujuanSaatItu.kurang,
-      });
-    }
-    // Ditandai SESUDAH aktif: menyentuh draft sebelumnya menggeser updatedAt
-    // dan menggugurkan suara persetujuan yang baru diperiksa.
-    if (adendum) await db.rabRevision.update({ where: { id: rev.id }, data: { awaitingCco: true } });
-    // Revisi sudah aktif — kegagalan baseline TIDAK boleh tampil sebagai error
-    // generik seolah aktivasi batal (audit 2026-07-27, B17).
-    //
-    // ADENDUM tidak mengatur ulang kurva-S (DECISIONS 698): bobot mingguannya
-    // dibawa apa adanya. Regenerate hanya untuk RAB pertama lokasi.
-    let kalimatKurva = "Baseline kurva-S sudah dibuat ulang.";
-    try {
-      if (adendum) {
-        kalimatKurva = kalimatKurvaAdendum(
-          await kurvaSesudahAdendum(rev.locationId, rev.id, {
-            userId: user.id,
-            asal: `aktivasi revisi #${rev.revisionNo}`,
-          }),
-        );
-      } else {
-        await regenerateBaseline(rev.locationId, {
-          source: rev.source === "adendum" ? "adendum" : "auto",
-          rabRevisionId: rev.id,
-          note: `Regenerate otomatis (aktivasi revisi #${rev.revisionNo})`,
-          userId: user.id,
-        });
-      }
-    } catch (e) {
-      console.error("[rab] baseline gagal diperbarui (revisi sudah aktif):", e);
-      revalidateRab(rev.location.slug);
-      return {
-        error:
-          `Revisi #${rev.revisionNo} sudah aktif, tetapi kurva-S gagal ` +
-          `${adendum ? "disambungkan ke revisi ini" : "dibuat"} ` +
-          `(${e instanceof Error ? e.message : "kesalahan tak dikenal"}). ` +
-          `Buka Progress › Kurva-S & Baseline untuk memeriksanya.`,
-      };
-    }
+    const hasil = await jalankanAktivasi({
+      rev,
+      userId: user.id,
+      adendum,
+      persetujuanSaatItu,
+      jalur: "tombol_aktifkan",
+    });
     revalidateRab(rev.location.slug);
-    /*
-     * PENYESUAIAN REALISASI DIKATAKAN, bukan cuma masuk audit log.
-     *
-     * Aktivasi bisa MENURUNKAN volume laporan harian yang sudah dikirim orang —
-     * termasuk yang sudah FINAL — ketika volume kontraknya turun di bawah
-     * realisasi. DECISIONS 203: penyesuaian angka pengguna wajib dikatakan di
-     * UI. Sebelumnya layar hanya bilang "realisasi tersambung otomatis via
-     * lineage". Audit 2026-09-15 (E-2).
-     */
-    const p = aktif.penyesuaian;
-    let kabar =
-      `Revisi #${rev.revisionNo} aktif` +
-      (persetujuanSaatItu ? ` tanpa persetujuan (super admin utama, tercatat di jejak audit)` : "") +
-      `. ${kalimatKurva}`;
-    if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
-    if (p.item > 0) {
-      const contoh = p.rincian
-        .slice(0, 3)
-        .map((x) => `${x.item} ${formatNumber(x.dari)} → ${formatNumber(x.ke)}`)
-        .join("; ");
-      const adaFinal = p.rincian.some((x) => x.adaFinal);
-      kabar +=
-        ` PERHATIAN: realisasi ${p.item} item DITURUNKAN mengikuti volume kontrak barunya` +
-        ` (${contoh}${p.rincian.length > 3 ? `; +${p.rincian.length - 3} lainnya` : ""})` +
-        (adaFinal ? `, termasuk laporan yang sudah FINAL` : "") +
-        `. ${p.snapshotDibangunUlang} blanko harian final ikut diperbarui.` +
-        ` Rinciannya ada di jejak audit.`;
-    }
-    return { success: kabar };
+    return hasil.ok ? { success: hasil.kabar } : { error: hasil.error };
   } catch (err) {
     return fail(err);
   }
@@ -987,6 +917,25 @@ export async function approveRevisionAction(
      * selesai, dan yang ditunggu harus disebut namanya.
      */
     const sesudah = await ringkasPersetujuan(parsed.data);
+    /*
+     * AM/PM/SM baru menyetujui adendum dan suara PD belum ada → Program
+     * Director dikirimi WA berkode (DECISIONS 714). Kegagalan di sini tidak
+     * membatalkan persetujuan yang sudah tercatat – disebut di layar saja.
+     */
+    let kabarWa = "";
+    if (!cabut) {
+      const adendum = (await db.rabRevision.count({ where: { locationId: rev.locationId, status: "aktif" } })) > 0;
+      if (perluNotifikasiPd({ adendum, peranPenyetuju: user.role, status: sesudah })) {
+        try {
+          kabarWa = await kirimPermintaanPd(parsed.data, user);
+        } catch (e) {
+          console.error("[rab] permintaan persetujuan WA gagal:", e);
+          kabarWa = `Permintaan persetujuan lewat WA ke Program Director gagal dibuat (${
+            e instanceof Error ? e.message : "kesalahan tak dikenal"
+          }). Minta persetujuannya lewat aplikasi.`;
+        }
+      }
+    }
     const lanjutan = cabut
       ? sesudah.kurang.length > 0
         ? ` Aktivasi kembali terkunci. Masih perlu ${sesudah.kurang.join(" + ")}.`
@@ -998,7 +947,9 @@ export async function approveRevisionAction(
       success:
         (cabut
           ? `Persetujuan Anda atas revisi #${rev.revisionNo} dicabut.`
-          : `Revisi #${rev.revisionNo} Anda setujui.`) + lanjutan,
+          : `Revisi #${rev.revisionNo} Anda setujui.`) +
+        lanjutan +
+        (kabarWa ? ` ${kabarWa}` : ""),
     };
   } catch (err) {
     if (err instanceof PersetujuanError) return { error: err.message };

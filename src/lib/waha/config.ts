@@ -30,6 +30,15 @@ export const WAHA_KEYS = {
    * secara bawaan, dan hanya dibuka sadar oleh admin di Sistem.
    */
   izinkanPersonal: "waha.izinkan_personal",
+  /**
+   * Tanya MARLIN lewat WhatsApp hidup? "1" = hidup.
+   *
+   * Bawaannya MATI (DECISIONS 714). Perintah user 2026-10-27: *"untuk
+   * sementara matikan fitur tanya marlin. kita fokus di fitur wa laporan dan
+   * approval ini dulu"*. Lapor lewat WA dan persetujuan aktivasi tetap jalan;
+   * yang berhenti hanya menjawab pertanyaan.
+   */
+  tanyaAktif: "waha.tanya_aktif",
 } as const;
 
 export class WahaConfigError extends Error {}
@@ -117,6 +126,7 @@ export async function getWahaConfigDisplay(): Promise<{
   hasApiKey: boolean;
   webhookSecret: string;
   izinkanPersonal: boolean;
+  tanyaAktif: boolean;
 }> {
   const s = await latestSettings();
   return {
@@ -127,6 +137,7 @@ export async function getWahaConfigDisplay(): Promise<{
     // ia memang DIBUKA di sini — layarnya sudah dipagari kapabilitas.
     webhookSecret: bukaRahasia(s.get(WAHA_KEYS.webhookSecret)),
     izinkanPersonal: (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1",
+    tanyaAktif: (s.get(WAHA_KEYS.tanyaAktif) ?? "").trim() === "1",
   };
 }
 
@@ -134,6 +145,12 @@ export async function getWahaConfigDisplay(): Promise<{
 export async function izinKirimPersonal(): Promise<boolean> {
   const s = await latestSettings();
   return (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1";
+}
+
+/** Tanya MARLIN lewat WhatsApp hidup? Bawaan: TIDAK (lihat catatan di WAHA_KEYS). */
+export async function tanyaWaAktif(): Promise<boolean> {
+  const s = await latestSettings();
+  return (s.get(WAHA_KEYS.tanyaAktif) ?? "").trim() === "1";
 }
 
 /** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
@@ -194,6 +211,8 @@ export async function setWahaConfig(input: {
   webhookSecret?: string;
   /** Buka/tutup pagar kiriman ke nomor pribadi (DECISIONS 433). */
   izinkanPersonal?: boolean;
+  /** Hidupkan/matikan Tanya MARLIN lewat WhatsApp (DECISIONS 714). */
+  tanyaAktif?: boolean;
 }): Promise<void> {
   const effectiveFrom = jakartaToday();
   const put = async (key: string, value: string) => {
@@ -210,6 +229,9 @@ export async function setWahaConfig(input: {
   }
   if (input.izinkanPersonal !== undefined) {
     await put(WAHA_KEYS.izinkanPersonal, input.izinkanPersonal ? "1" : "0");
+  }
+  if (input.tanyaAktif !== undefined) {
+    await put(WAHA_KEYS.tanyaAktif, input.tanyaAktif ? "1" : "0");
   }
   if (input.session !== undefined) {
     await put(WAHA_KEYS.session, input.session.trim() || "default");

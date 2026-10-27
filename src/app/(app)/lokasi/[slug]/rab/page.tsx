@@ -15,6 +15,7 @@ import { RevisionList, type HapusRevisiView, type PersetujuanRow, type RevisionR
 import { adalahAkar, parseAkar } from "@/lib/akar";
 import { env } from "@/lib/env";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
+import { permintaanWaMenunggu } from "@/lib/rab/persetujuan-wa";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { bacaJadwalAi } from "@/lib/plan/jadwal-ai";
@@ -221,6 +222,11 @@ export default async function RabPage({
               waktu: formatTanggal(v.approvedAt, "d MMM yyyy HH.mm"),
             })),
             gugur: r.gugur.map((v) => ({ nama: v.nama, peran: ROLE_LABEL[v.role] })),
+            // Permintaan WA ke Program Director yang belum dibalas (DECISIONS 714).
+            menungguWa: (await permintaanWaMenunggu(draft.id)).map((w) => ({
+              nama: w.nama,
+              waktu: formatTanggal(w.dikirimAt, "d MMM yyyy HH.mm"),
+            })),
             bolehTtd: bolehMenyetujui(user.role),
             sudahTtd: r.berlaku.some((v) => v.userId === user.id),
           };

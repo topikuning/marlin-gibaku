@@ -200,6 +200,7 @@ const LID_MARLIN = "77712345678901";
 const { db } = await import("@/lib/db");
 const { jawabPertanyaanWa } = await import("@/lib/waha/tanya");
 const { normalizeWaTarget } = await import("@/lib/contacts/model");
+const { setWahaConfig } = await import("@/lib/waha/config");
 
 const suffix = `wt${Date.now().toString(36)}`;
 const GRUP_A = `12036300000000001@g.us`;
@@ -294,6 +295,8 @@ function event(p: {
 }
 
 beforeAll(async () => {
+  // Berkas ini menguji MENJAWAB pertanyaan; bawaannya kini mati (DECISIONS 714).
+  await setWahaConfig({ tanyaAktif: true });
   const org = await db.organization.create({ data: { name: `Org ${suffix}`, slug: `o-${suffix}` } });
   const orgLain = await db.organization.create({
     data: { name: `OrgLain ${suffix}`, slug: `ol-${suffix}` },
@@ -331,6 +334,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.appSetting.deleteMany({ where: { key: "waha.tanya_aktif" } });
   await db.$executeRawUnsafe(
     `TRUNCATE TABLE ai_runs, audit_logs, location_assignments, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
   );

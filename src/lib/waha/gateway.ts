@@ -79,6 +79,14 @@ export type KirimWaInput = {
    */
   balasanMasuk?: boolean;
   /**
+   * Kiriman alur PERSETUJUAN AKTIVASI ADENDUM (DECISIONS 714): permintaan ke
+   * Program Director dan kabar hasilnya ke yang sudah menyetujui. Pengecualian
+   * SEMPIT pada pagar nomor pribadi, pilihan user 2026-10-27 – dan seperti
+   * `balasanMasuk`, penandanya DIBUKTIKAN ke data, bukan dipercaya begitu saja
+   * (`kirimanPersetujuanSah`).
+   */
+  persetujuanAktivasiId?: string;
+  /**
    * SIAPA YANG MEMINTA (DECISIONS baru 2026-10-07): akun MARLIN dan/atau label
    * nama peminta. Kosong = kiriman terjadwal.
    */
@@ -202,6 +210,39 @@ async function balasanSah(input: KirimWaInput, chatId: string): Promise<boolean>
   return verifikasi !== null;
 }
 
+/**
+ * Benarkah ini kiriman alur persetujuan aktivasi kepada orang yang memang
+ * terlibat (DECISIONS 714)?
+ *
+ * Penanda `persetujuanAktivasiId` harus menunjuk baris `wa_persetujuan` yang
+ * ada, DAN tujuannya harus nomor TERVERIFIKASI milik salah satu dari:
+ *   – Program Director aktif yang dikirimi baris itu, atau
+ *   – orang yang sudah menyetujui draft revisinya (kabar hasil).
+ * Selebihnya tetap tertahan pagar – termasuk kiriman lain yang kebetulan
+ * menumpang penanda ini ke nomor siapa pun.
+ */
+async function kirimanPersetujuanSah(input: KirimWaInput, chatId: string): Promise<boolean> {
+  if (!input.persetujuanAktivasiId) return false;
+  const nomor = normalizePhone(chatId);
+  if (!nomor) return false;
+  const baris = await db.waPersetujuan.findUnique({
+    where: { id: input.persetujuanAktivasiId },
+    select: {
+      revisionId: true,
+      untuk: { select: { role: true, isActive: true, waNumber: true, waVerifiedAt: true } },
+    },
+  });
+  if (!baris) return false;
+  const milik = (u: { isActive: boolean; waNumber: string | null; waVerifiedAt: Date | null }) =>
+    u.isActive && u.waVerifiedAt !== null && normalizePhone(u.waNumber) === nomor;
+  if (baris.untuk.role === "program_director" && milik(baris.untuk)) return true;
+  const penyetuju = await db.rabRevisionApproval.findMany({
+    where: { revisionId: baris.revisionId },
+    select: { user: { select: { isActive: true, waNumber: true, waVerifiedAt: true } } },
+  });
+  return penyetuju.some((p) => milik(p.user));
+}
+
 export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> {
   const chatId = kanonikGrupId(input.destination);
   const key = input.idempotencyKey ?? `auto:${randomUUID()}`;
@@ -224,7 +265,12 @@ export async function sendWaMessage(input: KirimWaInput): Promise<HasilKirimWa> 
    * melihat kiriman mana yang tertahan dan kenapa, lalu memutuskan membuka
    * pagarnya di Sistem atau memindahkan tujuannya ke grup.
    */
-  if (!tujuanGrup(chatId) && !(await izinKirimPersonal()) && !(await balasanSah(input, chatId))) {
+  if (
+    !tujuanGrup(chatId) &&
+    !(await izinKirimPersonal()) &&
+    !(await balasanSah(input, chatId)) &&
+    !(await kirimanPersetujuanSah(input, chatId))
+  ) {
     const alasan =
       "Kiriman ke nomor pribadi sedang dimatikan (Sistem → WhatsApp). " +
       "WhatsApp memblokir nomor yang banyak mengirim chat pribadi, dan blokir itu ikut mematikan kiriman ke grup. " +

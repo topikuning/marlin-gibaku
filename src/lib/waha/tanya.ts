@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai-hub/guard";
 import type { SourceRef } from "@/lib/ai-hub/types";
 import { getIdentitasMarlin } from "./client";
+import { tanyaWaAktif } from "./config";
 import { balasFileWa, balasWa } from "./kirim";
 import {
   keteranganBerkas,
@@ -76,6 +77,7 @@ import {
   balasKronologiTanpaLokasi,
   balasLaporanLokasi,
   balasDitolak,
+  balasTanyaMati,
   balasKelengkapan,
   balasKendala,
   balasLupakan,
@@ -443,6 +445,13 @@ async function jawabDalamKonteks(
    * selebihnya – termasuk semua yang berakhir tanda tanya – tetap pertanyaan.
    */
   if (!grup && user) {
+    /*
+     * PERSETUJUAN AKTIVASI ADENDUM (DECISIONS 714) – "SETUJU <kode>" diperiksa
+     * SEBELUM lapor: di tengah sesi lapor, teks itu akan terbaca nama pekerjaan.
+     */
+    const { tanganiBalasanPersetujuan } = await import("@/lib/rab/persetujuan-wa");
+    const persetujuan = await tanganiBalasanPersetujuan(m, user, nomorPengirim);
+    if (persetujuan.ditangani) return { dijawab: true, alasan: persetujuan.alasan };
     const { tanganiLaporWa } = await import("./lapor");
     const lapor = await tanganiLaporWa(m, user);
     if (lapor.ditangani) return { dijawab: true, alasan: lapor.alasan };
@@ -494,6 +503,15 @@ async function jawabDalamKonteks(
   });
 
   if (keputusan.jenis === "diam") return DIAM(keputusan.alasan);
+  /*
+   * TANYA MARLIN DIMATIKAN (DECISIONS 714) – sesudah resolver, supaya nomor tak
+   * dikenal di chat pribadi tetap DIDIAMKAN, dan sesudah lapor + persetujuan,
+   * yang tetap jalan. Yang bertanya diberi tahu; diam terbaca rusak.
+   */
+  if (!(await tanyaWaAktif())) {
+    await balasWa(m.chatId, balasTanyaMati(grup));
+    return { dijawab: true, alasan: "Tanya MARLIN dimatikan (Sistem → WhatsApp)" };
+  }
   if (keputusan.jenis === "tolak") {
     await balasWa(m.chatId, balasDitolak(keputusan.pesan));
     await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {

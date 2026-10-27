@@ -31,6 +31,8 @@ export type PersetujuanRow = {
   kurang: string[];
   berlaku: { nama: string; peran: string; waktu: string }[];
   gugur: { nama: string; peran: string }[];
+  /** Program Director yang sudah dikirimi WA dan belum membalas (DECISIONS 714). */
+  menungguWa: { nama: string; waktu: string }[];
   bolehTtd: boolean;
   sudahTtd: boolean;
 };
@@ -120,6 +122,12 @@ function DraftActions({
             <p className="mt-1 text-warning">
               Persetujuan batal karena draft berubah setelah disetujui:{" "}
               {persetujuan.gugur.map((p) => `${p.nama} (${p.peran})`).join(", ")}. Perlu disetujui ulang.
+            </p>
+          ) : null}
+          {persetujuan.menungguWa.length > 0 ? (
+            <p className="mt-1 text-ink-muted">
+              Permintaan lewat WhatsApp sudah dikirim ke{" "}
+              {persetujuan.menungguWa.map((w) => `${w.nama} (${w.waktu})`).join(", ")}, menunggu balasannya.
             </p>
           ) : null}
           {persetujuan.bolehTtd ? (

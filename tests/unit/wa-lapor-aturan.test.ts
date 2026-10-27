@@ -247,3 +247,12 @@ describe("tawaranBerlaku", () => {
     expect(tawaranBerlaku(new Date("2026-10-26T16:50:00Z"), new Date("2026-10-26T17:05:00Z"))).toBe(false);
   });
 });
+
+describe("Tanya MARLIN mati (DECISIONS 714)", () => {
+  it("bantuan dan 'pekerjaan tidak ketemu' tidak menjanjikan jawaban pertanyaan selama Tanya mati", () => {
+    expect(teks.bantuan(true)).toMatch(/akhiri dengan tanda tanya/);
+    expect(teks.bantuan(false)).not.toMatch(/tanda tanya/);
+    expect(teks.pekerjaanTidakAda("bekisting", "Matabulu", true)).toMatch(/akhiri dengan tanda tanya/);
+    expect(teks.pekerjaanTidakAda("bekisting", "Matabulu", false)).not.toMatch(/tanda tanya/);
+  });
+});
