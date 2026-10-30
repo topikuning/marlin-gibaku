@@ -441,6 +441,33 @@ describe("unduh", () => {
     expect(xml).toContain("Rp 2.655.375.377,-");
   });
 
+  it("adendum SESUDAH tanggal surat tidak mengubah surat itu; surat sesudah adendum menyebut dan memakainya", async () => {
+    const { id } = await suratNomor("324.2/SP/PF-KNMP-ATMP/IX/2026"); // tanggal 17 Sep 2026
+    await db.contractAmendment.create({
+      data: {
+        contractId,
+        ccoNumber: `ADD2-${suffix}`,
+        valueDelta: 1_000_000_000n,
+        endDateDelta: 0,
+        effectiveDate: new Date("2026-10-23T00:00:00.000Z"),
+        reason: "Uji adendum kedua",
+        createdById: pengguna!.id,
+      },
+    });
+    const lama = await (await JSZip.loadAsync(await (await unduh(id, "docx")).arrayBuffer())).file("word/document.xml")!.async("string");
+    // 20% × 14.000.000.000 (adendum 1 berlaku 1 Sep) – adendum 2 (23 Okt) tidak ikut.
+    expect(lama).toContain("Rp 2.800.000.000,-");
+    expect(lama).toContain(`Nomor Adendum 1: CCO-${suffix} tanggal 1 September 2026`);
+    expect(lama).not.toContain(`ADD2-${suffix}`);
+
+    expect((await buat({ jenis: "permohonan_pembayaran", terminKe: "2", tanggal: "2026-10-29", nomor: "T2/SESUDAH" }))?.success).toBeTruthy();
+    const { id: idBaru } = await suratNomor("T2/SESUDAH");
+    const baru = await (await JSZip.loadAsync(await (await unduh(idBaru, "docx")).arrayBuffer())).file("word/document.xml")!.async("string");
+    expect(baru).toContain(`Nomor Adendum 2: ADD2-${suffix} tanggal 23 Oktober 2026`);
+    expect(baru).toContain("Rp 15.000.000.000,-");
+    await db.suratPenyedia.delete({ where: { id: idBaru } });
+  });
+
   it("data yang dikosongkan sesudah surat dibuat: unduhan menyebut kekurangannya (409), bukan surat cacat", async () => {
     const { id } = await suratNomor("324.2/SP/PF-KNMP-ATMP/IX/2026");
     await dataSurat({ bankNama: "", bankRekening: "", bankAtasNama: "" });

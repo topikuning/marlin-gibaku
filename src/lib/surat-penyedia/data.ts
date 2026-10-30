@@ -42,7 +42,10 @@ const pilihKontrak = {
   bankNama: true,
   bankRekening: true,
   bankAtasNama: true,
-  amendments: { select: { valueDelta: true } },
+  amendments: {
+    orderBy: { effectiveDate: "asc" },
+    select: { valueDelta: true, ccoNumber: true, effectiveDate: true },
+  },
   termin: {
     orderBy: { terminKe: "asc" },
     select: { terminKe: true, ambangPct: true, bayarPct: true, retensiPct: true },
@@ -238,7 +241,13 @@ export function dataDariKontrak(
   s: { jenis: JenisSuratPenyedia; terminKe: number; nomor: string; tanggal: Date; kota: string; isian: unknown },
 ): DataSurat {
   const isian = isianSuratSchema.parse(s.isian ?? {});
-  const nilaiKontrak = runningContractValue(c.contractValue, c.amendments);
+  // Kontrak PER TANGGAL SURAT: adendum yang berlaku sesudahnya tidak ikut, supaya
+  // surat lama yang diunduh ulang tetap sama isinya (DECISIONS 719). Nomor
+  // adendum = urutannya di antara SEMUA adendum kontrak.
+  const adendum = c.amendments
+    .map((a, i) => ({ ...a, ke: i + 1 }))
+    .filter((a) => a.effectiveDate.getTime() <= s.tanggal.getTime());
+  const nilaiKontrak = runningContractValue(c.contractValue, adendum);
   const jadwal = jadwalBerlaku(barisTersimpan(c)).baris;
   const t = jadwal.find((x) => x.terminKe === s.terminKe);
   const rincian = t
@@ -269,6 +278,7 @@ export function dataDariKontrak(
       tanggal: c.signedDate,
       judul: c.workTitle?.trim() || c.package.name,
       nilai: nilaiKontrak,
+      adendum: adendum.map((a) => ({ ke: a.ke, nomor: a.ccoNumber, tanggal: a.effectiveDate })),
     },
     bank:
       c.bankNama && c.bankRekening && c.bankAtasNama

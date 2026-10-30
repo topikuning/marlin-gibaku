@@ -94,6 +94,7 @@ const DATA: DataSurat = {
     judul:
       "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Kabupaten Pemalang, Kota Tegal dan Kabupaten Tegal Provinsi Jawa Tengah",
     nilai: 13_478_994_000n,
+    adendum: [],
   },
   bank: { nama: "Bank BJB KC Bogor", rekening: "0138941035001", atasNama: "PUTERA FAHLEVI CV" },
   termin: { ke: 1, ambangPct: 25, bayarPct: 20, retensiPct: 0, bruto: 2_695_798_800n, retensi: 0n, nilai: 2_695_798_800n },
@@ -171,6 +172,24 @@ describe("susunSurat", () => {
     for (const jenis of ["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "invoice", "kwitansi"] as const) {
       expect(teks(susunSurat({ ...DATA, jenis }).blok)).not.toMatch(/\u2014/);
     }
+  });
+
+  it("kontrak beradendum: kelima surat menyebut nomor & tanggal adendum, seperti surat termin 2 contoh", () => {
+    const d = {
+      ...DATA,
+      kontrak: {
+        ...DATA.kontrak,
+        adendum: [{ ke: 1, nomor: "B.29714/DJPT.6/PI.420/PPK/X/2026", tanggal: new Date("2026-10-23T00:00:00Z") }],
+      },
+    };
+    const rujukan =
+      "Surat Perjanjian Nomor: B.19714/DJPT.6/PI.420/PPK/VII/2026 tanggal 15 Juli 2026, " +
+      "Nomor Adendum 1: B.29714/DJPT.6/PI.420/PPK/X/2026 tanggal 23 Oktober 2026";
+    for (const jenis of ["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "invoice", "kwitansi"] as const) {
+      expect(teks(susunSurat({ ...d, jenis }).blok), jenis).toContain(rujukan);
+    }
+    // Tanpa adendum tidak ada kata "Adendum".
+    expect(teks(susunSurat(DATA).blok)).not.toMatch(/Adendum/);
   });
 
   it("termin dengan retensi: ketiga surat uang menyebut potongannya dan memakai nilai DIBAYAR", () => {

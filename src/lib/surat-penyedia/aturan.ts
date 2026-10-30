@@ -268,7 +268,12 @@ export type DataSurat = {
   jenis: JenisSuratPenyedia;
   penyedia: { nama: string; npwp: string | null };
   penandaTangan: { nama: string; jabatan: string };
-  kontrak: { nomor: string; tanggal: Date; judul: string; nilai: bigint };
+  /**
+   * `nilai` dan `adendum` per TANGGAL SURAT: hanya adendum yang berlaku sampai
+   * tanggal itu. Surat termin 1 yang diunduh ulang sesudah adendum tidak boleh
+   * berubah isi (DECISIONS 719).
+   */
+  kontrak: { nomor: string; tanggal: Date; judul: string; nilai: bigint; adendum: { ke: number; nomor: string; tanggal: Date }[] };
   bank: { nama: string; rekening: string; atasNama: string } | null;
   /** `bruto` = persen bayar × nilai kontrak; `nilai` = yang DIBAYAR (bruto − retensi). */
   termin: {
@@ -405,8 +410,10 @@ function tandaTangan(d: DataSurat, o: { tempatTanggal: boolean; meterai?: boolea
   };
 }
 
+/** "Surat Perjanjian Nomor: … tanggal …, Nomor Adendum 1: … tanggal …" – seperti surat termin 2 contoh. */
 function rincianKontrak(d: DataSurat): string {
-  return `Surat Perjanjian Nomor: ${d.kontrak.nomor} tanggal ${tanggalSurat(d.kontrak.tanggal)}`;
+  const adendum = d.kontrak.adendum.map((a) => `, Nomor Adendum ${a.ke}: ${a.nomor} tanggal ${tanggalSurat(a.tanggal)}`);
+  return `Surat Perjanjian Nomor: ${d.kontrak.nomor} tanggal ${tanggalSurat(d.kontrak.tanggal)}${adendum.join("")}`;
 }
 
 /** "20% × Rp 13.478.994.000,- = Rp 2.695.798.800,-" (nilai bruto termin). */

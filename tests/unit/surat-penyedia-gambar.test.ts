@@ -21,6 +21,7 @@ const DATA = {
     tanggal: new Date("2026-07-15T00:00:00Z"),
     judul: "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Kabupaten Pemalang",
     nilai: 13_478_994_000n,
+    adendum: [],
   },
   bank: { nama: "Bank BJB KC Bogor", rekening: "0138941035001", atasNama: "PUTERA FAHLEVI CV" },
   termin: { ke: 1, ambangPct: 25, bayarPct: 20, retensiPct: 0, bruto: 2_695_798_800n, retensi: 0n, nilai: 2_695_798_800n },
