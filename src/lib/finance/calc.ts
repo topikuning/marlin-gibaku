@@ -302,3 +302,35 @@ export function selisihNilaiAdendum(
   }
   return { sebelumPpn, denganPpn: withPpn(sebelumPpn, ppnPercent) };
 }
+
+/**
+ * NILAI TAGIHAN TERMIN (DECISIONS 716) = bayarPct × nilai kontrak berjalan
+ * (inklusif PPN, sesudah adendum), dibulatkan half-up ke rupiah.
+ *
+ * SATU-SATUNYA tempat rumus ini. Surat permohonan pembayaran, invoice, dan
+ * kwitansi termin yang sama memakainya, jadi ketiganya tidak pernah berbeda
+ * angka – contoh nyata yang menjadi acuannya memuat "Rp. Rp." dan terbilang
+ * yang kehilangan "delapan ratus" karena diketik ulang di tiap surat.
+ *
+ * Pembulatan KUMULATIF: termin k = bulat(Σ% s/d k × nilai) − bulat(Σ% s/d
+ * k−1 × nilai), dengan `bayarPctSebelumnya` = jumlah persen termin-termin
+ * sebelumnya. Membulatkan tiap termin sendiri-sendiri membuat jadwal 100%
+ * bisa berjumlah Rp 1 di atas nilai kontrak (20+25+30+25% × Rp 8.851.251.259
+ * = Rp 8.851.251.260). Termin pertama tetap persis bulat(% × nilai).
+ *
+ * Potongan uang muka & retensi TIDAK dihitung di sini: aturannya per SSKK dan
+ * belum dicatat MARLIN; layar surat menyebutnya bila kontrak memuat keduanya.
+ */
+export function nilaiTagihanTermin(nilaiKontrak: bigint, bayarPct: number, bayarPctSebelumnya = 0): bigint {
+  const bpSebelum = Math.round(bayarPctSebelumnya * 100);
+  return bagianBasisPoin(nilaiKontrak, bpSebelum + Math.round(bayarPct * 100)) - bagianBasisPoin(nilaiKontrak, bpSebelum);
+}
+
+/** bulat-half-up(nilai × bp / 10.000). */
+function bagianBasisPoin(nilai: bigint, bp: number): bigint {
+  const scaled = nilai * BigInt(bp);
+  const neg = scaled < 0n;
+  const abs = neg ? -scaled : scaled;
+  const rounded = (abs + 5000n) / 10000n;
+  return neg ? -rounded : rounded;
+}
