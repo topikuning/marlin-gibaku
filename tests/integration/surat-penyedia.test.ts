@@ -1,6 +1,7 @@
 /*
- * SURAT BERKOP PENYEDIA (DECISIONS 716) – jadwal termin per kontrak, data
- * surat, nomor otomatis dari pola perusahaan, dan unduhan PDF/Word.
+ * SURAT BERKOP PENYEDIA (DECISIONS 716/717) – jadwal termin (bawaan KKP atau
+ * milik kontrak), retensi, progres laporan konsultan, data surat, nomor
+ * otomatis dari pola perusahaan, dan unduhan PDF/Word.
  *
  * Isi gambar surat diuji di `tests/unit/surat-penyedia-gambar.test.ts`; di sini
  * sambungannya: gerbang `contract.manage`, isolasi organisasi, nomor urut per
@@ -39,9 +40,9 @@ vi.mock("@/lib/auth/session", async (importAsli) => {
 
 const { db } = await import("@/lib/db");
 const { can } = await import("@/lib/authz");
-const { buatSuratAction, hapusSuratAction, simpanDataSuratAction, simpanJadwalTerminAction } = await import(
-  "@/lib/surat-penyedia/actions"
-);
+const { buatSuratAction, hapusSuratAction, simpanDataSuratAction, simpanJadwalTerminAction, simpanProgresKonsultanAction } =
+  await import("@/lib/surat-penyedia/actions");
+const { muatTerminSurat } = await import("@/lib/surat-penyedia/data");
 const { GET } = await import("@/app/api/surat-penyedia/[id]/[format]/route");
 
 const suffix = `sp${Date.now().toString(36)}`;
@@ -49,6 +50,8 @@ let orgId = "";
 let contractId = "";
 let vendorId = "";
 let contractLainId = "";
+let contractBawaanId = "";
+const lokasiIds: string[] = [];
 
 function fd(isi: Record<string, string>) {
   const f = new FormData();
@@ -100,6 +103,19 @@ beforeAll(async () => {
       );
   contractId = (await kontrak(1)).id;
   contractLainId = (await kontrak(2)).id;
+  contractBawaanId = (await kontrak(3)).id;
+  // Paket kontrak 1: dua lokasi aktif + satu nonaktif (tidak ikut surat progres).
+  const k1 = await db.contract.findUniqueOrThrow({ where: { id: contractId }, select: { packageId: true } });
+  for (const [nama, aktif] of [["Muarareja", true], ["Asemdoyong", true], ["Lama", false]] as const) {
+    const l = await db.location.create({
+      data: { packageId: k1.packageId, name: nama, slug: `${nama.toLowerCase()}-${suffix}`, village: nama, regency: "K", province: "P", isActive: aktif },
+    });
+    if (aktif) lokasiIds.push(l.id);
+  }
+  await db.contract.update({
+    where: { id: contractId },
+    data: { supervisorFirm: "PT. Konsultan Sintetis", coTeamLeaderName: "Ir. Co Uji", supervisorName: "Pengawas Lapangan Uji" },
+  });
 });
 
 afterAll(async () => {
@@ -220,8 +236,140 @@ describe("surat", () => {
     expect(nomor.map((s) => s.nomorUrut).sort()).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("termin yang tidak ada di jadwal ditolak", async () => {
-    expect((await buat({ terminKe: "3" }))?.error).toMatch(/Termin 3 belum ada/);
+  it("termin yang tidak ada di jadwal milik kontrak ditolak, walau jadwal bawaan punya termin 3", async () => {
+    expect((await buat({ terminKe: "3" }))?.error).toMatch(/Termin 3 tidak ada di jadwal/);
+  });
+});
+
+describe("jadwal bawaan KKP & retensi (DECISIONS 717)", () => {
+  const unduhXml = async (id: string) =>
+    (await JSZip.loadAsync(await (await unduh(id, "docx")).arrayBuffer())).file("word/document.xml")!.async("string");
+
+  it("kontrak tanpa jadwal tersimpan memakai jadwal bawaan: termin 4 = 25% dikurangi retensi 5%", async () => {
+    expect(await db.contractTermin.count({ where: { contractId: contractBawaanId } })).toBe(0);
+    await dataSurat({ bankNama: "Bank Uji", bankRekening: "77", bankAtasNama: "UJI" }, contractBawaanId);
+    const r = await buatSuratAction(
+      undefined,
+      fd({ contractId: contractBawaanId, jenis: "kwitansi", terminKe: "4", tanggal: "2026-12-20", kota: "Bogor", nomor: "T4/BAWAAN" }),
+    );
+    expect(r?.success).toBeTruthy();
+    const { id } = await db.suratPenyedia.findFirstOrThrow({ where: { nomor: "T4/BAWAAN" }, select: { id: true } });
+    const xml = await unduhXml(id);
+    // 25% × 13.478.994.000 = 3.369.748.500; retensi 5% = 673.949.700; dibayar 2.695.798.800.
+    expect(xml).toContain("Rp 2.695.798.800,-");
+    expect(xml).toContain("dikurangi retensi 5%");
+  });
+
+  it("jadwal dengan retensi tersimpan; retensi melebihi persen termin ditolak; mengosongkan = kembali ke bawaan", async () => {
+    expect(
+      (await jadwal({ ambang1: "50", bayar1: "40", retensi1: "45" }, contractBawaanId))?.error,
+    ).toMatch(/retensi paling besar/);
+    expect((await jadwal({ ambang1: "50", bayar1: "60", ambang2: "100", bayar2: "40", retensi2: "5" }, contractBawaanId))?.success).toMatch(/2 termin/);
+    const rows = await db.contractTermin.findMany({ where: { contractId: contractBawaanId }, orderBy: { terminKe: "asc" } });
+    expect(rows.map((t) => Number(t.retensiPct))).toEqual([0, 5]);
+    expect((await jadwal({}, contractBawaanId))?.success).toMatch(/bawaan KKP/);
+    expect(await db.contractTermin.count({ where: { contractId: contractBawaanId } })).toBe(0);
+  });
+});
+
+describe("progres laporan konsultan + surat progres (DECISIONS 717)", () => {
+  const isiProgres = (ubah: Record<string, string> = {}) => {
+    const isi: Record<string, string> = { contractId, terminKe: "1", progresPct: "26,6", mingguKe: "7" };
+    const [muara, asem] = lokasiIds;
+    Object.assign(isi, {
+      [`persen_${muara}`]: "3,7",
+      [`tanggal_${muara}`]: "2026-09-13",
+      [`nomor_${muara}`]: "LKP/MR/07",
+      [`persen_${asem}`]: "35,9",
+      [`tanggal_${asem}`]: "2026-09-13",
+      [`minggu_${asem}`]: "7",
+    });
+    return fd({ ...isi, ...ubah });
+  };
+  const buatProgres = (jenis: string, nomor: string, tambahan: Record<string, string> = {}) =>
+    buat({ jenis, nomor, tanggal: "2026-09-16", ...tambahan });
+
+  it("surat progres sebelum progres konsultan diisi ditolak dengan menyebutnya", async () => {
+    expect((await buatProgres("permohonan_pemeriksaan", "PP/1"))?.error).toMatch(/progres dari laporan konsultan untuk termin 1/);
+  });
+
+  it("menyimpan progres: semua lokasi AKTIF wajib, tanggal tidak di masa depan, peran tanpa izin ditolak", async () => {
+    const [muara] = lokasiIds;
+    expect((await simpanProgresKonsultanAction(undefined, isiProgres({ [`persen_${muara}`]: "" })))?.error).toMatch(/Muarareja/);
+    expect((await simpanProgresKonsultanAction(undefined, isiProgres({ [`tanggal_${muara}`]: "2999-01-01" })))?.error).toMatch(
+      /sesudah hari ini/,
+    );
+    peran = "site_manager";
+    try {
+      expect((await simpanProgresKonsultanAction(undefined, isiProgres()))?.error).toBeTruthy();
+    } finally {
+      peran = "super_admin";
+    }
+    expect(await db.terminProgresKonsultan.count({ where: { contractId } })).toBe(0);
+
+    expect((await simpanProgresKonsultanAction(undefined, isiProgres()))?.success).toMatch(/26,6%/);
+    const p = await db.terminProgresKonsultan.findFirstOrThrow({ where: { contractId, terminKe: 1 } });
+    expect(Number(p.progresPct)).toBe(26.6);
+    const lokasi = p.lokasi as { locationId: string; persen: number; mingguKe: number }[];
+    expect(lokasi.map((l) => l.persen).sort()).toEqual([3.7, 35.9]);
+    // Minggu kosong per lokasi = minggu keseluruhan.
+    expect(lokasi.every((l) => l.mingguKe === 7)).toBe(true);
+    expect(await db.auditLog.count({ where: { action: "surat_penyedia.progres_konsultan", resourceId: contractId } })).toBe(1);
+  });
+
+  it("halaman: progres tersimpan tampil per termin bersama angka MARLIN per lokasi aktif", async () => {
+    const d = await muatTerminSurat(
+      (await db.contract.findUniqueOrThrow({ where: { id: contractId }, select: { packageId: true } })).packageId,
+      { ...pengguna!, role: "super_admin" },
+    );
+    const t1 = d!.progres.find((p) => p.terminKe === 1)!;
+    expect(t1.tersimpan?.progresPct).toBe(26.6);
+    expect(t1.lokasi.map((l) => l.nama)).toEqual(["Asemdoyong", "Muarareja"]);
+    expect(t1.lokasi.every((l) => l.marlinPct !== null)).toBe(true);
+    // Lokasi tanpa RAB tidak punya bobot → tidak ada rata-rata tertimbang palsu "0%".
+    expect(t1.tertimbangKonsultan).toBeNull();
+  });
+
+  it("progres di bawah ambang termin: surat progres ditolak, menyebut angka dan ambangnya", async () => {
+    await simpanProgresKonsultanAction(undefined, isiProgres({ progresPct: "24,5" }));
+    expect((await buatProgres("ba_pembahasan_kemajuan", "BA/1"))?.error).toMatch(/tercatat 24,5%, ambangnya 25%/);
+    await simpanProgresKonsultanAction(undefined, isiProgres());
+  });
+
+  it("permohonan pemeriksaan & BA: dibuat, diunduh berisi angka konsultan, lokasi, dan penanda tangan konsultan", async () => {
+    expect((await buatProgres("permohonan_pemeriksaan", "PP/1"))?.success).toBeTruthy();
+    expect(
+      (await buatProgres("ba_pembahasan_kemajuan", "BA/1", { pimpinan: "Wakil Sah PPK Wilayah Uji", peserta: "Peserta Satu\nPeserta Dua", cara: "di kantor PPK" }))
+        ?.success,
+    ).toBeTruthy();
+    const xml = async (nomor: string) => {
+      const { id } = await db.suratPenyedia.findFirstOrThrow({ where: { nomor }, select: { id: true } });
+      return (await JSZip.loadAsync(await (await unduh(id, "docx")).arrayBuffer())).file("word/document.xml")!.async("string");
+    };
+    const pp = await xml("PP/1");
+    expect(pp).toContain("rata-rata progres sebesar ");
+    expect(pp).toContain("26,6%");
+    expect(pp).toContain("Lokasi KNMP Desa Muarareja Nomor: LKP/MR/07 tanggal 13 September 2026 pada Minggu ke-7 sebesar 3,7%");
+    expect(pp).toContain("PT. Konsultan Sintetis");
+    expect(pp).not.toContain("Lama");
+    const ba = await xml("BA/1");
+    expect(ba).toContain("PEMBAHASAN KEMAJUAN HASIL PEKERJAAN (25%)");
+    expect(ba).toContain("Rabu, tanggal Enam Belas, bulan September");
+    expect(ba).toContain("Wakil Sah PPK Wilayah Uji");
+    expect(ba).toContain("Peserta Dua");
+    expect(ba).toContain("Ir. Co Uji");
+    expect(ba).toContain("Co-Team Leader");
+    // Pengawas lapangan BUKAN penanda tangan BA.
+    expect(ba).not.toContain("Pengawas Lapangan Uji");
+  });
+
+  it("BA tanpa Co-Team Leader/Team Leader ditolak, tidak jatuh ke pengawas lapangan", async () => {
+    await db.contract.update({ where: { id: contractId }, data: { coTeamLeaderName: null, teamLeaderName: null } });
+    try {
+      expect((await buatProgres("ba_pembahasan_kemajuan", "BA/2"))?.error).toMatch(/Co-Team Leader atau Team Leader/);
+    } finally {
+      await db.contract.update({ where: { id: contractId }, data: { coTeamLeaderName: "Ir. Co Uji" } });
+    }
   });
 });
 

@@ -326,6 +326,26 @@ export function nilaiTagihanTermin(nilaiKontrak: bigint, bayarPct: number, bayar
   return bagianBasisPoin(nilaiKontrak, bpSebelum + Math.round(bayarPct * 100)) - bagianBasisPoin(nilaiKontrak, bpSebelum);
 }
 
+/**
+ * RINCIAN TAGIHAN TERMIN (DECISIONS 717): bruto = `nilaiTagihanTermin`;
+ * retensi = bulat(retensiPct × NILAI KONTRAK); dibayar = bruto − retensi.
+ *
+ * Retensi dihitung dari nilai kontrak, bukan dari bruto termin – jadwal KKP:
+ * termin 4 = 25% kontrak, ditahan 5% kontrak, dibayar 20%. Berbeda dengan
+ * `retentionHeld` tagihan owner di modul keuangan yang dibatasi persen dari
+ * nilai termin; yang ini milik jadwal termin surat penyedia.
+ */
+export function rincianTagihanTermin(
+  nilaiKontrak: bigint,
+  bayarPct: number,
+  bayarPctSebelumnya: number,
+  retensiPct: number,
+): { bruto: bigint; retensi: bigint; dibayar: bigint } {
+  const bruto = nilaiTagihanTermin(nilaiKontrak, bayarPct, bayarPctSebelumnya);
+  const retensi = bagianBasisPoin(nilaiKontrak, Math.round(retensiPct * 100));
+  return { bruto, retensi, dibayar: bruto - retensi };
+}
+
 /** bulat-half-up(nilai × bp / 10.000). */
 function bagianBasisPoin(nilai: bigint, bp: number): bigint {
   const scaled = nilai * BigInt(bp);

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
-import { parseDateKey } from "@/lib/format";
+import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import {
   JENIS_SURAT_TERSEDIA,
   LABEL_JENIS_SURAT,
@@ -13,12 +13,13 @@ import {
   polaNomorSah,
   susunNomor,
 } from "./aturan";
-import { dataDariKontrak, kunciNomorPerusahaan, muatKontrakSurat, nomorUrutBerikut } from "./data";
-import { barisTeks } from "./skema";
+import { dataDariKontrak, kunciNomorPerusahaan, muatKontrakSurat, nomorUrutBerikut, terminAda } from "./data";
+import { barisTeks, type ProgresLokasi } from "./skema";
 
 /**
- * Aksi SURAT BERKOP PENYEDIA (DECISIONS 716). Kapabilitas `contract.manage`,
- * sama dengan data kontrak & penanda tangannya. Semua mutasi di-audit.
+ * Aksi SURAT BERKOP PENYEDIA (DECISIONS 716/717). Kapabilitas
+ * `contract.manage`, sama dengan data kontrak & penanda tangannya. Semua
+ * mutasi di-audit.
  */
 
 export type SuratPenyediaState = { error?: string; success?: string } | undefined;
@@ -101,6 +102,8 @@ export async function simpanDataSuratAction(_prev: SuratPenyediaState, formData:
 
 const MAKS_TERMIN = 6;
 const persen = z.coerce.number().gt(0, "Persen harus lebih dari 0.").max(100, "Persen paling besar 100.");
+const persenRetensi = z.coerce.number().min(0).max(100);
+const angkaForm = (v: FormDataEntryValue | null) => String(v ?? "").trim().replace(",", ".");
 
 export async function simpanJadwalTerminAction(_prev: SuratPenyediaState, formData: FormData): Promise<SuratPenyediaState> {
   try {
@@ -108,16 +111,20 @@ export async function simpanJadwalTerminAction(_prev: SuratPenyediaState, formDa
     const contractId = z.uuid().safeParse(formData.get("contractId"));
     if (!contractId.success) return { error: "Kontrak tidak valid." };
 
-    const baris: { terminKe: number; ambangPct: number; bayarPct: number }[] = [];
+    const baris: { terminKe: number; ambangPct: number; bayarPct: number; retensiPct: number }[] = [];
     for (let ke = 1; ke <= MAKS_TERMIN; ke++) {
-      const ambang = String(formData.get(`ambang${ke}`) ?? "").trim().replace(",", ".");
-      const bayar = String(formData.get(`bayar${ke}`) ?? "").trim().replace(",", ".");
-      if (!ambang && !bayar) continue;
+      const ambang = angkaForm(formData.get(`ambang${ke}`));
+      const bayar = angkaForm(formData.get(`bayar${ke}`));
+      const retensi = angkaForm(formData.get(`retensi${ke}`));
+      if (!ambang && !bayar && !retensi) continue;
       const a = persen.safeParse(ambang);
       const b = persen.safeParse(bayar);
       if (!a.success || !b.success)
         return { error: `Termin ${ke}: isi ambang progres dan persen bayar, keduanya lebih dari 0 dan paling besar 100.` };
-      baris.push({ terminKe: ke, ambangPct: a.data, bayarPct: b.data });
+      const r = persenRetensi.safeParse(retensi || "0");
+      if (!r.success || r.data > b.data)
+        return { error: `Termin ${ke}: retensi paling besar sama dengan persen bayarnya (${b.data}%).` };
+      baris.push({ terminKe: ke, ambangPct: a.data, bayarPct: b.data, retensiPct: r.data });
     }
     for (let i = 1; i < baris.length; i++) {
       if (baris[i].terminKe !== baris[i - 1].terminKe + 1)
@@ -139,7 +146,7 @@ export async function simpanJadwalTerminAction(_prev: SuratPenyediaState, formDa
     return {
       success:
         baris.length === 0
-          ? "Jadwal termin dikosongkan."
+          ? "Jadwal termin dikembalikan ke jadwal bawaan KKP."
           : `Jadwal ${baris.length} termin disimpan. Jumlah persen bayar ${totalBayar.toLocaleString("id-ID")}%.`,
     };
   } catch (err) {
@@ -175,15 +182,20 @@ export async function buatSuratAction(_prev: SuratPenyediaState, formData: FormD
     const tanggal = parseDateKey(d.tanggal)!;
 
     const c = await kontrakMilik(d.contractId, user.orgId);
-    const termin = await db.contractTermin.findUnique({
-      where: { contractId_terminKe: { contractId: c.id, terminKe: d.terminKe } },
-      select: { id: true },
-    });
-    if (!termin) return { error: `Termin ${d.terminKe} belum ada di jadwal termin kontrak ini. Isi jadwalnya dulu.` };
-
-    const isian = { kepada: barisTeks(formData.get("kepada")), lampiran: barisTeks(formData.get("lampiran")) };
     const kontrak = await muatKontrakSurat(c.id, user.orgId);
     if (!kontrak) return { error: "Kontrak tidak ditemukan." };
+    if (!terminAda(kontrak, d.terminKe)) return { error: `Termin ${d.terminKe} tidak ada di jadwal termin kontrak ini.` };
+
+    const isian =
+      jenis === "ba_pembahasan_kemajuan"
+        ? {
+            kepada: [],
+            lampiran: [],
+            pimpinan: String(formData.get("pimpinan") ?? "").trim().slice(0, 200),
+            peserta: barisTeks(formData.get("peserta")),
+            cara: String(formData.get("cara") ?? "").trim().slice(0, 200),
+          }
+        : { kepada: barisTeks(formData.get("kepada")), lampiran: barisTeks(formData.get("lampiran")) };
 
     // Nomor kosong = otomatis dari pola perusahaan; diketik = dipakai apa adanya.
     const pola = kontrak.vendor.polaNomorSurat;
@@ -221,6 +233,81 @@ export async function buatSuratAction(_prev: SuratPenyediaState, formData: FormD
     });
     revalidatePath(`/paket/${c.packageId}/termin`);
     return { success: `${LABEL_JENIS_SURAT[jenis]} termin ${d.terminKe} dibuat dengan nomor ${nomor}.` };
+  } catch (err) {
+    return gagal(err);
+  }
+}
+
+/* ── Progres dari laporan kemajuan konsultan (DECISIONS 717) ─────────────── */
+
+const progresSchema = z.object({
+  contractId: z.uuid(),
+  terminKe: z.coerce.number().int().min(1).max(MAKS_TERMIN),
+  progresPct: z.coerce.number().min(0, "Progres keseluruhan 0–100%.").max(100, "Progres keseluruhan 0–100%."),
+  mingguKe: z.coerce.number().int("Minggu ke- harus bilangan bulat.").min(1, "Minggu ke- diisi.").max(260),
+});
+
+/**
+ * Simpan progres menurut laporan konsultan untuk satu termin: angka
+ * keseluruhan + satu baris per lokasi aktif paket. Angka dipakai APA ADANYA
+ * (DECISIONS 203); ini rujukan surat, bukan progres resmi MARLIN.
+ */
+export async function simpanProgresKonsultanAction(
+  _prev: SuratPenyediaState,
+  formData: FormData,
+): Promise<SuratPenyediaState> {
+  try {
+    const user = await requireCapability("contract.manage");
+    const parsed = progresSchema.safeParse({
+      contractId: formData.get("contractId"),
+      terminKe: formData.get("terminKe"),
+      progresPct: angkaForm(formData.get("progresPct")),
+      mingguKe: angkaForm(formData.get("mingguKe")),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+
+    const c = await kontrakMilik(d.contractId, user.orgId);
+    const kontrak = await muatKontrakSurat(c.id, user.orgId);
+    if (!kontrak) return { error: "Kontrak tidak ditemukan." };
+    if (!terminAda(kontrak, d.terminKe)) return { error: `Termin ${d.terminKe} tidak ada di jadwal termin kontrak ini.` };
+
+    const lokasi: ProgresLokasi[] = [];
+    for (const l of kontrak.package.locations.filter((x) => x.isActive)) {
+      const persenTeks = angkaForm(formData.get(`persen_${l.id}`));
+      const tanggal = String(formData.get(`tanggal_${l.id}`) ?? "").trim();
+      const mingguTeks = angkaForm(formData.get(`minggu_${l.id}`));
+      const p = z.coerce.number().min(0).max(100).safeParse(persenTeks);
+      if (!persenTeks || !p.success) return { error: `${l.name}: isi progres 0–100% sesuai laporan konsultan.` };
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || !parseDateKey(tanggal))
+        return { error: `${l.name}: isi tanggal laporan konsultan.` };
+      if (tanggal > jakartaDateKey(new Date())) return { error: `${l.name}: tanggal laporan tidak boleh sesudah hari ini.` };
+      const m = z.coerce.number().int().min(1).max(260).safeParse(mingguTeks || String(d.mingguKe));
+      if (!m.success) return { error: `${l.name}: minggu ke- harus bilangan bulat 1 ke atas.` };
+      lokasi.push({
+        locationId: l.id,
+        nomor: String(formData.get(`nomor_${l.id}`) ?? "").trim().slice(0, 120),
+        tanggal,
+        mingguKe: m.data,
+        persen: p.data,
+      });
+    }
+    if (lokasi.length === 0) return { error: "Paket ini belum punya lokasi aktif." };
+
+    const data = { progresPct: d.progresPct, mingguKe: d.mingguKe, lokasi, diubahOlehId: user.id };
+    await db.terminProgresKonsultan.upsert({
+      where: { contractId_terminKe: { contractId: c.id, terminKe: d.terminKe } },
+      create: { contractId: c.id, terminKe: d.terminKe, ...data },
+      update: data,
+    });
+    await audit(user.id, "surat_penyedia.progres_konsultan", "contract", c.id, {
+      terminKe: d.terminKe,
+      progresPct: d.progresPct,
+      mingguKe: d.mingguKe,
+      lokasi: lokasi.map((l) => ({ locationId: l.locationId, persen: l.persen, tanggal: l.tanggal })),
+    });
+    revalidatePath(`/paket/${c.packageId}/termin`);
+    return { success: `Progres laporan konsultan termin ${d.terminKe} disimpan: ${d.progresPct.toLocaleString("id-ID")}%.` };
   } catch (err) {
     return gagal(err);
   }

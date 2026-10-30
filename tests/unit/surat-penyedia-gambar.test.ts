@@ -23,20 +23,27 @@ const DATA = {
     nilai: 13_478_994_000n,
   },
   bank: { nama: "Bank BJB KC Bogor", rekening: "0138941035001", atasNama: "PUTERA FAHLEVI CV" },
-  termin: { ke: 1, bayarPct: 20, nilai: 2_695_798_800n },
+  termin: { ke: 1, ambangPct: 25, bayarPct: 20, retensiPct: 0, bruto: 2_695_798_800n, retensi: 0n, nilai: 2_695_798_800n },
+  progres: {
+    pct: 26.6,
+    mingguKe: 7,
+    lokasi: [{ nama: "Asemdoyong", nomor: "", tanggal: new Date("2026-09-13T00:00:00Z"), mingguKe: 7, persen: 35.9 }],
+  },
+  konsultan: { firma: "PT. Konsultan Uji", nama: "Ir. Uji", jabatan: "Co-Team Leader" },
   surat: {
     nomor: "324.19/SP/PF-KNMP-ATMP/IX/2026",
     tanggal: new Date("2026-09-17T03:00:00Z"),
     kota: "Bogor",
     kepada: ["Pejabat Pembuat Komitmen", "Satker Sekretariat DJPT"],
     lampiran: [],
+    rapat: { pimpinan: "", peserta: [], cara: "" },
   },
 };
 const KOP = { gambar: null, logo: null, nama: "CV. Putera Fahlevi", alamat: "Perum Bumi Citra Kencana No. 3, Kota Bogor", telepon: "0813-9901-7896", email: "puterafahlevi@gmail.com" };
 
 describe("buatPdfSurat", () => {
-  it("menghasilkan PDF untuk ketiga jenis surat", async () => {
-    for (const jenis of ["permohonan_pembayaran", "invoice", "kwitansi"] as const) {
+  it("menghasilkan PDF untuk kelima jenis surat", async () => {
+    for (const jenis of ["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "invoice", "kwitansi"] as const) {
       const pdf = await buatPdfSurat(susunSurat({ ...DATA, jenis }), KOP);
       expect(pdf.subarray(0, 5).toString(), jenis).toBe("%PDF-");
       expect(pdf.length, jenis).toBeGreaterThan(1500);
@@ -71,5 +78,18 @@ describe("buatDocxSurat", () => {
     const isi = await (await JSZip.loadAsync(denganAmp)).file("word/document.xml")!.async("string");
     expect(isi).toContain("CV. A &amp; B");
     expect(isi).not.toMatch(/CV\. A & B/);
+  });
+
+  it("BA: dua pihak meneken berdampingan; penanda daftar ditulis, tab sebagai <w:tab/>", async () => {
+    const buf = await buatDocxSurat(susunSurat({ ...DATA, jenis: "ba_pembahasan_kemajuan" }), KOP);
+    const doc = await (await JSZip.loadAsync(buf)).file("word/document.xml")!.async("string");
+    expect(doc).toContain("Ir. Uji");
+    expect(doc).toContain("Co-Team Leader");
+    expect(doc).toContain("PT. Konsultan Uji");
+    expect(doc).toContain("(1)</w:t><w:tab/>");
+    expect(doc).toContain("a)</w:t><w:tab/>");
+    expect(doc).not.toMatch(/<w:t[^>]*>[^<]*\t/);
+    // Butir induk ("3. Penjelasan dari …") ditahan bersama butir anaknya.
+    expect(doc).toMatch(/<w:keepNext\/>(?:(?!<\/w:p>).)*3\.<\/w:t><w:tab\/>/);
   });
 });

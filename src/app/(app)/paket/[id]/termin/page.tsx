@@ -1,28 +1,40 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileSignature } from "lucide-react";
-import { Banner, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { Badge, Banner, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
-import { formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
+import { formatPct, formatRupiah, formatTanggal, formatTanggalWaktu, jakartaDateKey } from "@/lib/format";
 import {
+  CARA_RAPAT_BAWAAN,
   JENIS_SURAT_TERSEDIA,
   KEPADA_BAWAAN,
   LABEL_JENIS_SURAT,
+  PIMPINAN_RAPAT_BAWAAN,
   lampiranBawaan,
+  persenSurat,
+  pesertaRapatBawaan,
 } from "@/lib/surat-penyedia/aturan";
 import { muatTerminSurat } from "@/lib/surat-penyedia/data";
-import { AMBANG_TERMIN_PCT } from "@/lib/kesiapan/rules";
-import { BarisSurat, BuatSuratForm, DataSuratForm, JadwalTerminForm, type BarisTermin } from "./termin-forms";
+import {
+  BarisSurat,
+  BuatSuratForm,
+  DataSuratForm,
+  JadwalTerminForm,
+  ProgresKonsultanForm,
+  type BarisTermin,
+  type ProgresTerminKlien,
+} from "./termin-forms";
 
 export const metadata: Metadata = { title: "Termin & Surat" };
 export const dynamic = "force-dynamic";
 
 /**
- * TERMIN & SURAT PENYEDIA (DECISIONS 716): jadwal termin menurut SSKK, data
- * surat (rekening, pola nomor), dan surat berkop penyedia untuk pengajuan
- * termin – permohonan pembayaran, invoice, kwitansi – sebagai PDF dan Word.
+ * TERMIN & SURAT PENYEDIA (DECISIONS 716/717): jadwal termin (bawaan KKP atau
+ * milik kontrak), progres dari laporan konsultan, data surat, dan surat berkop
+ * penyedia untuk pengajuan termin – permohonan pemeriksaan, BA pembahasan
+ * kemajuan, permohonan pembayaran, invoice, kwitansi – sebagai PDF dan Word.
  */
 export default async function TerminPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -47,43 +59,68 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
   const tersimpan = new Map(d.termin.map((t) => [t.terminKe, t]));
   const jumlahBaris = Math.min(6, Math.max(4, d.termin.length + 1));
   const baris: BarisTermin[] = Array.from({ length: jumlahBaris }, (_, i) => {
-    const ke = i + 1;
-    const t = tersimpan.get(ke);
+    const t = tersimpan.get(i + 1);
     return {
-      terminKe: ke,
-      // Jadwal kosong diusulkan dari ambang kesiapan (25/50/80/100); persen bayarnya tetap diisi orang.
-      ambangPct: t?.ambangPct ?? (d.termin.length === 0 ? (AMBANG_TERMIN_PCT[i] ?? null) : null),
+      terminKe: i + 1,
+      ambangPct: t?.ambangPct ?? null,
       bayarPct: t?.bayarPct ?? null,
-      nilai: t ? formatRupiah(t.nilai) : null,
+      retensiPct: t?.retensiPct ?? null,
+      nilai: t
+        ? t.retensi > 0n
+          ? `${formatRupiah(t.dibayar)} (${formatRupiah(t.bruto)} − retensi ${formatRupiah(t.retensi)})`
+          : formatRupiah(t.dibayar)
+        : null,
     };
   });
 
   const kurang: string[] = [];
   if (!k.contractorSignerName?.trim()) kurang.push("nama penanda tangan penyedia (Kontrak & Adendum › Penanda tangan)");
-  if (!v.npwp?.trim()) kurang.push("NPWP perusahaan (Master › Perusahaan)");
-  if (!(k.bankNama && k.bankRekening && k.bankAtasNama)) kurang.push("rekening bank (Data surat di bawah)");
-  if (d.termin.length === 0) kurang.push("jadwal termin (di bawah)");
-  const adaPotongan = Number(k.advancePercent ?? 0) > 0 || Number(k.retentionPercent ?? 0) > 0;
+  if (!v.npwp?.trim()) kurang.push("NPWP perusahaan untuk invoice dan kwitansi (Master › Perusahaan)");
+  if (!(k.bankNama && k.bankRekening && k.bankAtasNama)) kurang.push("rekening bank untuk invoice dan kwitansi (Data surat di bawah)");
+  if (!d.konsultan.firma) kurang.push("nama firma konsultan pengawas (Kontrak & Adendum › Penanda tangan)");
+  if (!d.konsultan.nama) kurang.push("nama Co-Team Leader atau Team Leader konsultan untuk BA (Kontrak & Adendum › Penanda tangan)");
 
   const lampiran: Record<string, string[]> = {};
   for (const j of JENIS_SURAT_TERSEDIA) for (const t of d.termin) lampiran[`${j}:${t.terminKe}`] = lampiranBawaan(j, t.terminKe);
+
+  const progres: ProgresTerminKlien[] = d.progres.map((p) => ({
+    terminKe: p.terminKe,
+    ambangPct: p.ambangPct,
+    ambangTeks: persenSurat(p.ambangPct),
+    progresPct: p.tersimpan?.progresPct ?? null,
+    mingguKe: p.tersimpan?.mingguKe ?? null,
+    diubah: p.tersimpan ? formatTanggalWaktu(p.tersimpan.diubah) : null,
+    tertimbangTeks: p.tertimbangKonsultan === null ? null : formatPct(p.tertimbangKonsultan),
+    lokasi: p.lokasi.map((l) => ({
+      locationId: l.locationId,
+      nama: l.nama,
+      nomor: l.nomor,
+      tanggal: l.tanggal,
+      mingguKe: l.mingguKe,
+      persen: l.persen,
+      marlinTeks:
+        l.marlinPct === null
+          ? "belum ada data"
+          : `${formatPct(l.marlinPct)}${l.marlinMinggu ? ` · minggu ke-${l.marlinMinggu}` : ""}${l.tanggal ? ` · s.d. ${formatTanggal(new Date(`${l.tanggal}T00:00:00Z`))}` : " · hari ini"}`,
+    })),
+  }));
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader
           title="Termin & surat penyedia"
-          subtitle={`Surat berkop ${v.name} untuk pengajuan termin: permohonan pembayaran, invoice, dan kwitansi, dalam PDF dan Word. Nilai kontrak berjalan ${formatRupiah(d.nilaiKontrak)}.`}
+          subtitle={`Surat berkop ${v.name} untuk pengajuan termin, dari permohonan pemeriksaan sampai kwitansi, dalam PDF dan Word. Nilai kontrak berjalan ${formatRupiah(d.nilaiKontrak)}.`}
         />
         <CardBody className="space-y-2">
           {kurang.length > 0 ? (
-            <Banner tone="warning" title="Belum lengkap untuk menyusun surat" description={`Lengkapi: ${kurang.join("; ")}.`} />
+            <Banner tone="warning" title="Belum lengkap untuk semua surat" description={`Lengkapi: ${kurang.join("; ")}.`} />
           ) : null}
-          {adaPotongan ? (
+          {Number(k.advancePercent ?? 0) > 0 ? (
             <Banner
               tone="info"
-              title="Kontrak ini mencatat uang muka atau retensi"
-              description="Potongan uang muka dan retensi belum dihitung di surat. Nilai di surat = persen bayar × nilai kontrak. Periksa nilainya sebelum dikirim."
+              title="Kontrak ini mencatat uang muka"
+              description="Potongan pengembalian uang muka belum dihitung di surat. Periksa nilainya sebelum dikirim."
             />
           ) : null}
           {!v.kopKey ? (
@@ -96,7 +133,11 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
       </Card>
 
       <Card>
-        <CardHeader title="Jadwal termin" subtitle="Menurut Syarat-Syarat Khusus Kontrak (SSKK)." />
+        <CardHeader
+          title="Jadwal termin"
+          subtitle="Menurut Syarat-Syarat Khusus Kontrak (SSKK)."
+          action={d.jadwalBawaan ? <Badge tone="info">Jadwal bawaan KKP</Badge> : <Badge tone="neutral">Jadwal kontrak ini</Badge>}
+        />
         <CardBody>
           {boleh ? (
             <JadwalTerminForm contractId={k.id} baris={baris} />
@@ -105,6 +146,22 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
           )}
         </CardBody>
       </Card>
+
+      {boleh ? (
+        <Card>
+          <CardHeader
+            title="Progres laporan konsultan"
+            subtitle="Untuk surat permohonan pemeriksaan dan BA pembahasan kemajuan. Diisi per termin."
+          />
+          <CardBody>
+            {progres.length > 0 && progres[0].lokasi.length > 0 ? (
+              <ProgresKonsultanForm contractId={k.id} termin={progres} hariIni={jakartaDateKey(new Date())} />
+            ) : (
+              <p className="text-sm text-ink-muted">Paket ini belum punya lokasi aktif.</p>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {boleh ? (
         <Card>
@@ -125,7 +182,7 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
       ) : null}
 
       <Card>
-        <CardHeader title="Surat" subtitle="Angka uang selalu dihitung ulang dari kontrak dan jadwal termin saat diunduh." />
+        <CardHeader title="Surat" subtitle="Angka uang dan progres selalu diambil ulang dari kontrak, jadwal termin, dan progres konsultan saat diunduh." />
         <CardBody className="space-y-4">
           {d.surat.length === 0 ? (
             <p className="text-sm text-ink-muted">Belum ada surat.</p>
@@ -142,7 +199,7 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
               ))}
             </ul>
           )}
-          {boleh && d.termin.length > 0 ? (
+          {boleh ? (
             <div className="border-t border-border pt-4">
               <h3 className="mb-2 text-sm font-semibold text-ink">Buat surat</h3>
               <BuatSuratForm
@@ -154,6 +211,11 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
                 kotaBawaan={v.kotaSurat ?? ""}
                 usulanNomor={d.usulanNomor}
                 hariIni={jakartaDateKey(new Date())}
+                rapatBawaan={{
+                  pimpinan: PIMPINAN_RAPAT_BAWAAN,
+                  peserta: pesertaRapatBawaan(v.name, d.konsultan.firma),
+                  cara: CARA_RAPAT_BAWAAN,
+                }}
               />
             </div>
           ) : null}

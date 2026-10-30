@@ -20,10 +20,11 @@ import {
   hapusSuratAction,
   simpanDataSuratAction,
   simpanJadwalTerminAction,
+  simpanProgresKonsultanAction,
   type SuratPenyediaState,
 } from "@/lib/surat-penyedia/actions";
 
-/** Surat berkop penyedia – formulir halaman Termin & Surat (DECISIONS 716). */
+/** Surat berkop penyedia – formulir halaman Termin & Surat (DECISIONS 716/717). */
 
 function Hasil({ state }: { state: SuratPenyediaState }) {
   if (state?.error) return <Banner tone="error" title={state.error} />;
@@ -31,7 +32,14 @@ function Hasil({ state }: { state: SuratPenyediaState }) {
   return null;
 }
 
-export type BarisTermin = { terminKe: number; ambangPct: number | null; bayarPct: number | null; nilai: string | null };
+export type BarisTermin = {
+  terminKe: number;
+  ambangPct: number | null;
+  bayarPct: number | null;
+  retensiPct: number | null;
+  /** Teks nilai yang sudah dirakit server (rupiah dibayar + retensi). */
+  nilai: string | null;
+};
 
 export function JadwalTerminForm({ contractId, baris }: { contractId: string; baris: BarisTermin[] }) {
   const [state, action, pending] = useAksi<SuratPenyediaState>(simpanJadwalTerminAction, undefined);
@@ -40,11 +48,12 @@ export function JadwalTerminForm({ contractId, baris }: { contractId: string; ba
       <Hasil state={state} />
       <input type="hidden" name="contractId" value={contractId} />
       <div className="overflow-x-auto">
-        <div className="grid min-w-[30rem] grid-cols-[5rem_1fr_1fr_1.4fr] items-center gap-x-3 gap-y-2 text-sm">
+        <div className="grid min-w-[36rem] grid-cols-[4.5rem_1fr_1fr_1fr_1.6fr] items-center gap-x-3 gap-y-2 text-sm">
           <div className="text-[12px] font-medium text-ink-muted">Termin</div>
           <div className="text-[12px] font-medium text-ink-muted">Ditagih saat progres (%)</div>
-          <div className="text-[12px] font-medium text-ink-muted">Dibayar (% nilai kontrak)</div>
-          <div className="text-[12px] font-medium text-ink-muted">Nilai tagihan</div>
+          <div className="text-[12px] font-medium text-ink-muted">Nilai termin (% kontrak)</div>
+          <div className="text-[12px] font-medium text-ink-muted">Retensi ditahan (% kontrak)</div>
+          <div className="text-[12px] font-medium text-ink-muted">Dibayar</div>
           {baris.map((b) => (
             <div key={b.terminKe} className="contents">
               <div className="font-medium text-ink">Termin {b.terminKe}</div>
@@ -59,7 +68,15 @@ export function JadwalTerminForm({ contractId, baris }: { contractId: string; ba
                 name={`bayar${b.terminKe}`}
                 inputMode="decimal"
                 defaultValue={b.bayarPct ?? ""}
-                aria-label={`Persen bayar termin ${b.terminKe}`}
+                aria-label={`Persen nilai termin ${b.terminKe}`}
+                className="h-8"
+              />
+              <Input
+                name={`retensi${b.terminKe}`}
+                inputMode="decimal"
+                defaultValue={b.retensiPct ? b.retensiPct : ""}
+                placeholder="0"
+                aria-label={`Retensi termin ${b.terminKe}`}
                 className="h-8"
               />
               <div className="tabular-nums text-ink">{b.nilai ?? <span className="text-ink-muted">–</span>}</div>
@@ -68,8 +85,9 @@ export function JadwalTerminForm({ contractId, baris }: { contractId: string; ba
         </div>
       </div>
       <HelpText>
-        Sesuai Syarat-Syarat Khusus Kontrak. Contoh: termin 1 ditagih saat progres 25% dan dibayar 20% nilai kontrak.
-        Kosongkan baris termin yang tidak ada. Nilai tagihan dihitung dari nilai kontrak sesudah adendum.
+        Sesuai Syarat-Syarat Khusus Kontrak. Retensi dipotong dari termin itu dan bisa dicairkan dengan jaminan
+        pemeliharaan. Kosongkan baris termin yang tidak ada. Kosongkan semua baris lalu simpan untuk kembali ke jadwal
+        bawaan KKP.
       </HelpText>
       <Button type="submit" size="sm" variant="secondary" loading={pending}>
         {pending ? null : <Save aria-hidden className="size-4" />}
@@ -91,7 +109,7 @@ export function DataSuratForm({
     <form action={action} className="space-y-3">
       <Hasil state={state} />
       <input type="hidden" name="contractId" value={contractId} />
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3 [&>*]:min-w-0">
         <div>
           <Label htmlFor="bankNama">Nama bank</Label>
           <Input id="bankNama" name="bankNama" defaultValue={awal.bankNama} placeholder="Bank BJB KC Bogor" />
@@ -106,7 +124,7 @@ export function DataSuratForm({
         </div>
       </div>
       <HelpText>Rekening penerima pembayaran termin paket ini. Dipakai di invoice dan kwitansi.</HelpText>
-      <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+      <div className="grid gap-3 sm:grid-cols-[2fr_1fr] [&>*]:min-w-0">
         <div>
           <Label htmlFor="polaNomorSurat">Pola nomor surat perusahaan</Label>
           <Input
@@ -133,6 +151,135 @@ export function DataSuratForm({
   );
 }
 
+/* ── Progres dari laporan konsultan ─────────────────────────────────────── */
+
+export type ProgresTerminKlien = {
+  terminKe: number;
+  ambangPct: number;
+  /** "26,6%" dst. sudah dirakit server. */
+  ambangTeks: string;
+  progresPct: number | null;
+  mingguKe: number | null;
+  diubah: string | null;
+  tertimbangTeks: string | null;
+  lokasi: {
+    locationId: string;
+    nama: string;
+    nomor: string;
+    tanggal: string | null;
+    mingguKe: number | null;
+    persen: number | null;
+    marlinTeks: string;
+  }[];
+};
+
+export function ProgresKonsultanForm({
+  contractId,
+  termin,
+  hariIni,
+}: {
+  contractId: string;
+  termin: ProgresTerminKlien[];
+  hariIni: string;
+}) {
+  const [state, action, pending] = useAksi<SuratPenyediaState>(simpanProgresKonsultanAction, undefined);
+  // Termin pertama yang belum diisi lebih dulu ditawarkan; kalau semua terisi, termin terakhir.
+  const awal = termin.find((t) => t.progresPct === null) ?? termin[termin.length - 1];
+  const [dipilih, setDipilih] = useState(String(awal?.terminKe ?? ""));
+  const t = termin.find((x) => String(x.terminKe) === dipilih);
+  if (!t) return null;
+  const diBawahAmbang = t.progresPct !== null && t.progresPct < t.ambangPct;
+  return (
+    <form action={action} className="space-y-3">
+      <Hasil state={state} />
+      <input type="hidden" name="contractId" value={contractId} />
+      <div className="grid gap-3 sm:grid-cols-3 [&>*]:min-w-0">
+        <div>
+          <Label htmlFor="terminProgres">Termin</Label>
+          <Combobox
+            id="terminProgres"
+            name="terminKe"
+            value={dipilih}
+            onChange={setDipilih}
+            options={termin.map((x) => ({
+              value: String(x.terminKe),
+              label: `Termin ${x.terminKe} (${x.ambangTeks})${x.progresPct === null ? " – belum diisi" : ""}`,
+            }))}
+            searchThreshold={99}
+          />
+        </div>
+        <div key={`p${t.terminKe}`}>
+          <Label htmlFor="progresPct">Progres keseluruhan (%)</Label>
+          <Input id="progresPct" name="progresPct" inputMode="decimal" defaultValue={t.progresPct ?? ""} placeholder="mis. 26,6" />
+        </div>
+        <div key={`m${t.terminKe}`}>
+          <Label htmlFor="mingguKe">Minggu ke-</Label>
+          <Input id="mingguKe" name="mingguKe" inputMode="numeric" defaultValue={t.mingguKe ?? ""} placeholder="mis. 7" />
+        </div>
+      </div>
+      {diBawahAmbang ? (
+        <Banner
+          tone="warning"
+          title={`Progres ini belum mencapai ambang termin ${t.terminKe} (${t.ambangTeks})`}
+          description="Surat permohonan pemeriksaan dan BA pembahasan kemajuan termin ini belum bisa dibuat."
+        />
+      ) : null}
+      <div key={`l${t.terminKe}`} className="space-y-2">
+        {t.lokasi.map((l) => (
+          <div key={l.locationId} className="rounded-md border border-border p-3">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+              <div className="text-sm font-medium text-ink">{l.nama}</div>
+              <div className="text-[12px] text-ink-muted">MARLIN: {l.marlinTeks}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1.2fr_0.8fr_0.8fr] [&>*]:min-w-0">
+              <div className="col-span-2 sm:col-span-1">
+                <Label htmlFor={`nomor_${l.locationId}`}>Nomor laporan</Label>
+                <Input id={`nomor_${l.locationId}`} name={`nomor_${l.locationId}`} defaultValue={l.nomor} placeholder="Boleh kosong" />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label htmlFor={`tanggal_${l.locationId}`}>Tanggal laporan</Label>
+                <Input
+                  id={`tanggal_${l.locationId}`}
+                  name={`tanggal_${l.locationId}`}
+                  type="date"
+                  max={hariIni}
+                  defaultValue={l.tanggal ?? ""}
+                />
+              </div>
+              <div>
+                <Label htmlFor={`minggu_${l.locationId}`}>Minggu ke-</Label>
+                <Input
+                  id={`minggu_${l.locationId}`}
+                  name={`minggu_${l.locationId}`}
+                  inputMode="numeric"
+                  defaultValue={l.mingguKe ?? ""}
+                  placeholder="Sama"
+                />
+              </div>
+              <div>
+                <Label htmlFor={`persen_${l.locationId}`}>Progres (%)</Label>
+                <Input id={`persen_${l.locationId}`} name={`persen_${l.locationId}`} inputMode="decimal" defaultValue={l.persen ?? ""} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <HelpText>
+        Diketik dari Laporan Kemajuan Pekerjaan konsultan pengawas dan dipakai apa adanya di surat. Angka MARLIN dihitung
+        dari laporan harian yang dikirim sampai tanggal laporan konsultan itu.
+        {t.tertimbangTeks ? ` Rata-rata tertimbang angka per lokasi di atas (bobot RAB MARLIN): ${t.tertimbangTeks}.` : ""}
+        {t.diubah ? ` Terakhir diubah ${t.diubah}.` : ""}
+      </HelpText>
+      <Button type="submit" size="sm" variant="secondary" loading={pending}>
+        {pending ? null : <Save aria-hidden className="size-4" />}
+        Simpan progres termin {t.terminKe}
+      </Button>
+    </form>
+  );
+}
+
+/* ── Buat surat ─────────────────────────────────────────────────────────── */
+
 export type OpsiJenis = { value: string; label: string };
 
 export function BuatSuratForm({
@@ -144,6 +291,7 @@ export function BuatSuratForm({
   kotaBawaan,
   usulanNomor,
   hariIni,
+  rapatBawaan,
 }: {
   contractId: string;
   jenis: OpsiJenis[];
@@ -154,16 +302,18 @@ export function BuatSuratForm({
   kotaBawaan: string;
   usulanNomor: string | null;
   hariIni: string;
+  rapatBawaan: { pimpinan: string; peserta: string[]; cara: string };
 }) {
   const [state, action, pending] = useAksi<SuratPenyediaState>(buatSuratAction, undefined);
   const [jenisDipilih, setJenis] = useState(jenis[0]?.value ?? "");
   const [terminDipilih, setTermin] = useState(String(termin[0] ?? ""));
   const lampiran = lampiranBawaan[`${jenisDipilih}:${terminDipilih}`] ?? [];
+  const ba = jenisDipilih === "ba_pembahasan_kemajuan";
   return (
     <form action={action} className="space-y-3">
       <Hasil state={state} />
       <input type="hidden" name="contractId" value={contractId} />
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
         <div>
           <Label htmlFor="jenis">Jenis surat</Label>
           <Combobox id="jenis" name="jenis" value={jenisDipilih} onChange={setJenis} options={jenis} searchThreshold={99} />
@@ -180,7 +330,7 @@ export function BuatSuratForm({
           />
         </div>
         <div>
-          <Label htmlFor="tanggal">Tanggal surat</Label>
+          <Label htmlFor="tanggal">{ba ? "Tanggal rapat" : "Tanggal surat"}</Label>
           <Input id="tanggal" name="tanggal" type="date" defaultValue={hariIni} />
         </div>
         <div>
@@ -201,24 +351,45 @@ export function BuatSuratForm({
             : "Pola nomor perusahaan belum diatur, jadi nomornya diketik."}
         </HelpText>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="kepada">Kepada Yth</Label>
-          <Textarea id="kepada" name="kepada" rows={4} defaultValue={kepadaBawaan.join("\n")} />
-          <HelpText>Satu baris satu jabatan/instansi. &quot;di – Tempat&quot; ditambahkan otomatis.</HelpText>
+      {ba ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
+            <div>
+              <Label htmlFor="pimpinan">Rapat dipimpin oleh</Label>
+              <Input id="pimpinan" name="pimpinan" defaultValue={rapatBawaan.pimpinan} />
+            </div>
+            <div>
+              <Label htmlFor="cara">Cara rapat</Label>
+              <Input id="cara" name="cara" defaultValue={rapatBawaan.cara} />
+              <HelpText>Mis. &quot;di kantor PPK&quot; atau &quot;secara daring melalui zoom meeting&quot;.</HelpText>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="peserta">Peserta rapat</Label>
+            <Textarea id="peserta" name="peserta" rows={5} defaultValue={rapatBawaan.peserta.join("\n")} />
+            <HelpText>Satu baris satu peserta.</HelpText>
+          </div>
         </div>
-        <div>
-          <Label htmlFor="lampiran">Lampiran</Label>
-          <Textarea
-            id="lampiran"
-            name="lampiran"
-            rows={4}
-            key={`${jenisDipilih}:${terminDipilih}`}
-            defaultValue={lampiran.join("\n")}
-          />
-          <HelpText>Satu baris satu lampiran. Kosongkan bila tidak ada.</HelpText>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
+          <div>
+            <Label htmlFor="kepada">Kepada Yth</Label>
+            <Textarea id="kepada" name="kepada" rows={4} defaultValue={kepadaBawaan.join("\n")} />
+            <HelpText>Satu baris satu jabatan/instansi. &quot;di – Tempat&quot; ditambahkan otomatis.</HelpText>
+          </div>
+          <div>
+            <Label htmlFor="lampiran">Lampiran</Label>
+            <Textarea
+              id="lampiran"
+              name="lampiran"
+              rows={4}
+              key={`${jenisDipilih}:${terminDipilih}`}
+              defaultValue={lampiran.join("\n")}
+            />
+            <HelpText>Satu baris satu lampiran. Kosongkan bila tidak ada.</HelpText>
+          </div>
         </div>
-      </div>
+      )}
       <Button type="submit" size="sm" loading={pending} disabled={!jenisDipilih || !terminDipilih}>
         {pending ? null : <FileText aria-hidden className="size-4" />}
         Buat surat

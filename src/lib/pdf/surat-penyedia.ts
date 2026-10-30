@@ -9,7 +9,7 @@ import {
   sanitizeText,
   type PdfDoc,
 } from "./document";
-import type { Blok, Run, SuratTersusun } from "@/lib/surat-penyedia/aturan";
+import { penandaButir, type Blok, type Run, type SuratTersusun } from "@/lib/surat-penyedia/aturan";
 
 /**
  * PDF SURAT BERKOP PENYEDIA (DECISIONS 716). Isi kalimatnya TIDAK ditulis di
@@ -110,7 +110,14 @@ function gambarKop(doc: PdfDoc, kop: KopSurat): void {
   doc.y = garis + 16;
 }
 
-function gambarBlok(doc: PdfDoc, b: Blok): void {
+/** Tinggi satu butir daftar – dipakai juga untuk menahan induk bersama anak pertamanya. */
+function tinggiButir(doc: PdfDoc, b: Extract<Blok, { jenis: "daftar" }>, i: number): number {
+  doc.font(PDF_FONT.regular);
+  const lebar = CONTENT_WIDTH - (b.tingkat ?? 0) * 24 - 24;
+  return doc.heightOfString(sanitizeText(b.butir[i] ?? ""), { width: lebar, lineGap: JARAK });
+}
+
+function gambarBlok(doc: PdfDoc, b: Blok, berikut: Blok | undefined): void {
   const x = PAGE_MARGIN;
   switch (b.jenis) {
     case "paragraf": {
@@ -154,19 +161,52 @@ function gambarBlok(doc: PdfDoc, b: Blok): void {
     }
     case "daftar": {
       doc.y += 2;
+      const jorok = (b.tingkat ?? 0) * 24;
+      const lebarPenanda = 24;
+      const lebar = CONTENT_WIDTH - jorok - lebarPenanda;
+      doc.font(PDF_FONT.regular);
+      // Butir induk terakhir ("3. Penjelasan dari …") tidak boleh tertinggal di dasar
+      // halaman sementara butir anaknya pindah ke halaman berikut.
+      const anak = berikut?.jenis === "daftar" && (berikut.tingkat ?? 0) > (b.tingkat ?? 0) ? berikut : null;
       b.butir.forEach((butir, i) => {
         const teks = sanitizeText(butir);
-        const tinggi = doc.heightOfString(teks, { width: CONTENT_WIDTH - 22, lineGap: JARAK });
-        ensureSpace(doc, tinggi);
+        const tinggi = doc.heightOfString(teks, { width: lebar, lineGap: JARAK });
+        const tahan = anak && i === b.butir.length - 1 ? Math.min(tinggiButir(doc, anak, 0), 80) : 0;
+        ensureSpace(doc, Math.min(tinggi, 120) + tahan);
         const y = doc.y;
-        doc.text(`${i + 1}.`, x + 4, y, { width: 18, lineGap: JARAK });
-        doc.text(teks, x + 22, y, { width: CONTENT_WIDTH - 22, lineGap: JARAK });
+        doc.text(penandaButir(b, i), x + jorok + 2, y, { width: lebarPenanda, lineGap: JARAK });
+        doc.text(teks, x + jorok + lebarPenanda, y, { width: lebar, lineGap: JARAK, align: "justify" });
       });
       return;
     }
-    case "ttd": {
+    case "ttd2": {
       doc.y += 18;
-      ensureSpace(doc, 150);
+      ensureSpace(doc, 4 * (UKURAN + 3) + 66);
+      const lebar = CONTENT_WIDTH * 0.46;
+      const atas = doc.y;
+      const kolom = [
+        { p: b.kiri, xs: x },
+        { p: b.kanan, xs: x + CONTENT_WIDTH - lebar },
+      ];
+      let bawahKepala = atas;
+      for (const { p, xs } of kolom) {
+        doc.font(PDF_FONT.regular).text(sanitizeText(p.peran), xs, atas, { width: lebar, align: "center" });
+        doc.font(PDF_FONT.bold).text(sanitizeText(p.perusahaan), xs, doc.y, { width: lebar, align: "center" });
+        bawahKepala = Math.max(bawahKepala, doc.y);
+      }
+      // Nama kedua pihak sebaris walau nama perusahaannya beda panjang.
+      const yNama = bawahKepala + 62;
+      for (const { p, xs } of kolom) {
+        doc.font(PDF_FONT.bold).text(sanitizeText(p.nama), xs, yNama, { width: lebar, align: "center", underline: true });
+        doc.font(PDF_FONT.regular).text(sanitizeText(p.jabatan), xs, doc.y, { width: lebar, align: "center" });
+      }
+      return;
+    }
+    case "ttd": {
+      doc.y += 14;
+      // Pesan ruang sebesar blok yang sebenarnya (±4 baris + ruang tanda tangan). Pesanan
+      // yang kelewat besar melempar tanda tangan sendirian ke halaman berikut.
+      ensureSpace(doc, (b.tempatTanggal ? 4 : 3) * (UKURAN + 3) + 66 + (UKURAN + 3));
       const lebar = CONTENT_WIDTH * 0.45;
       const xKanan = x + CONTENT_WIDTH - lebar;
       const atas = doc.y;
@@ -204,6 +244,6 @@ export async function buatPdfSurat(surat: SuratTersusun, kop: KopSurat): Promise
   const doc = createA4Doc({ title: surat.judulBerkas, author: kop.nama });
   doc.fontSize(UKURAN);
   gambarKop(doc, kop);
-  for (const b of surat.blok) gambarBlok(doc, b);
+  surat.blok.forEach((b, i) => gambarBlok(doc, b, surat.blok[i + 1]));
   return docToBuffer(doc);
 }

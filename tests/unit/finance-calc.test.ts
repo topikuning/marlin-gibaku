@@ -296,3 +296,37 @@ describe("nilaiTagihanTermin (DECISIONS 716)", () => {
     expect(jadwal.map((p) => nilaiTagihanTermin(nilai, p)).reduce((a, b) => a + b, 0n)).toBe(nilai + 1n);
   });
 });
+
+describe("rincianTagihanTermin (DECISIONS 717)", () => {
+  it("jadwal bawaan KKP: termin 4 = 25% dikurangi retensi 5% NILAI KONTRAK = dibayar 20%", async () => {
+    const { rincianTagihanTermin } = await import("../../src/lib/finance/calc");
+    expect(rincianTagihanTermin(13_478_994_000n, 25, 75, 5)).toEqual({
+      bruto: 3_369_748_500n,
+      retensi: 673_949_700n,
+      dibayar: 2_695_798_800n,
+    });
+    expect(rincianTagihanTermin(13_478_994_000n, 20, 0, 0)).toEqual({ bruto: 2_695_798_800n, retensi: 0n, dibayar: 2_695_798_800n });
+  });
+
+  it("Σ dibayar + Σ retensi = nilai kontrak persis, termasuk nilai yang tidak habis dibagi", async () => {
+    const { rincianTagihanTermin } = await import("../../src/lib/finance/calc");
+    const nilai = 8_851_251_259n;
+    const jadwal = [
+      [20, 0],
+      [25, 0],
+      [30, 0],
+      [25, 5],
+    ];
+    let sebelum = 0;
+    let dibayar = 0n;
+    let retensi = 0n;
+    for (const [bayar, ret] of jadwal) {
+      const r = rincianTagihanTermin(nilai, bayar, sebelum, ret);
+      sebelum += bayar;
+      dibayar += r.dibayar;
+      retensi += r.retensi;
+    }
+    expect(dibayar + retensi).toBe(nilai);
+    expect(retensi).toBe(442_562_563n); // bulat(5% × 8.851.251.259) = 442.562.562,95
+  });
+});

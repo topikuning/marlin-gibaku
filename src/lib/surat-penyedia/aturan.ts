@@ -15,8 +15,11 @@ import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
  * nama direktur.
  *
  * Angka uang TIDAK dihitung di sini: nilai tagihan termin datang dari
- * `nilaiTagihanTermin` (calculation layer keuangan); modul ini hanya
+ * `rincianTagihanTermin` (calculation layer keuangan); modul ini hanya
  * menuliskannya – rupiah dan terbilangnya.
+ *
+ * Tahap 2b (DECISIONS 717): jadwal termin bawaan KKP, retensi termin akhir,
+ * Surat Permohonan Pemeriksaan, dan BA Pembahasan Kemajuan Pekerjaan.
  */
 
 /* ── Angka & tanggal ────────────────────────────────────────────────────── */
@@ -100,6 +103,41 @@ export function tanggalSurat(d: Date): string {
   return formatTanggal(d, "d MMMM yyyy");
 }
 
+/** "Rabu, tanggal Enam Belas, bulan September, tahun Dua Ribu Dua Puluh Enam" (WIB). */
+export function hariTanggalTerbilang(d: Date): string {
+  const [hari, tgl, bulan, tahun] = formatTanggal(d, "EEEE|d|MMMM|yyyy").split("|");
+  return `${hari}, tanggal ${terbilang(BigInt(tgl))}, bulan ${bulan}, tahun ${terbilang(BigInt(tahun))}`;
+}
+
+/* ── Jadwal termin bawaan KKP ───────────────────────────────────────────── */
+
+export type BarisJadwal = { terminKe: number; ambangPct: number; bayarPct: number; retensiPct: number };
+
+/**
+ * JADWAL TERMIN BAWAAN KKP (ketetapan user 2026-10-30): *"di semua kkp,
+ * termin nya 4x"* – progres 25% ditagih 20%, 50% → 25%, 80% → 30%, 100% →
+ * 25% dengan retensi 5% ditahan, jadi termin 4 dibayar 20%. Retensi bisa
+ * dicairkan dengan jaminan pemeliharaan, tidak harus menunggu FHO.
+ *
+ * Langsung berlaku untuk kontrak yang belum menyimpan jadwal sendiri.
+ */
+export const JADWAL_TERMIN_BAWAAN: readonly BarisJadwal[] = [
+  { terminKe: 1, ambangPct: 25, bayarPct: 20, retensiPct: 0 },
+  { terminKe: 2, ambangPct: 50, bayarPct: 25, retensiPct: 0 },
+  { terminKe: 3, ambangPct: 80, bayarPct: 30, retensiPct: 0 },
+  { terminKe: 4, ambangPct: 100, bayarPct: 25, retensiPct: 5 },
+];
+
+/** Jadwal yang berlaku: milik kontrak bila ada, selain itu bawaan KKP. */
+export function jadwalBerlaku(tersimpan: readonly BarisJadwal[]): { bawaan: boolean; baris: readonly BarisJadwal[] } {
+  return tersimpan.length > 0 ? { bawaan: false, baris: tersimpan } : { bawaan: true, baris: JADWAL_TERMIN_BAWAAN };
+}
+
+/** Jumlah persen bayar termin-termin SEBELUM `terminKe` – dasar pembulatan kumulatif. */
+export function pctSebelum(jadwal: readonly BarisJadwal[], terminKe: number): number {
+  return jadwal.filter((t) => t.terminKe < terminKe).reduce((s, t) => s + t.bayarPct, 0);
+}
+
 /* ── Nomor surat ────────────────────────────────────────────────────────── */
 
 /**
@@ -140,8 +178,30 @@ export const LABEL_JENIS_SURAT: Record<JenisSuratPenyedia, string> = {
   kwitansi: "Kwitansi",
 };
 
-/** Jenis surat yang sudah bisa disusun (tahap 2a); sisanya menyusul. */
-export const JENIS_SURAT_TERSEDIA: JenisSuratPenyedia[] = ["permohonan_pembayaran", "invoice", "kwitansi"];
+/** Jenis surat yang bisa disusun, berurutan seperti berkas termin. */
+export const JENIS_SURAT_TERSEDIA: JenisSuratPenyedia[] = [
+  "permohonan_pemeriksaan",
+  "ba_pembahasan_kemajuan",
+  "permohonan_pembayaran",
+  "invoice",
+  "kwitansi",
+];
+
+/** Surat yang memuat progres dari laporan konsultan. */
+export const JENIS_SURAT_PROGRES: JenisSuratPenyedia[] = ["permohonan_pemeriksaan", "ba_pembahasan_kemajuan"];
+
+/** Isian bawaan BA pembahasan kemajuan, mengikuti contoh TERMIN 1. */
+export const PIMPINAN_RAPAT_BAWAAN = "Wakil Sah PPK Sesditjen DJPT";
+export const CARA_RAPAT_BAWAAN = "secara hybrid melalui zoom meeting";
+export function pesertaRapatBawaan(penyedia: string, konsultan: string | null): string[] {
+  return [
+    "Wakil Sah PPK",
+    `Konsultan Pengawas${konsultan ? ` ${konsultan}` : ""}`,
+    "Tenaga Ahli Teknis KNMP",
+    "Tenaga Ahli Administrasi KNMP",
+    `Direktur ${penyedia}`,
+  ];
+}
 
 /** Alamat tujuan bawaan – PPK KNMP, persis contoh; bisa diubah per surat. */
 export const KEPADA_BAWAAN = [
@@ -156,7 +216,22 @@ export type Blok =
   | { jenis: "paragraf"; isi: Run[]; rata?: "kiri" | "kanan" | "tengah" | "penuh"; jarakAtas?: number }
   | { jenis: "judul"; teks: string; sub?: string }
   | { jenis: "pasangan"; baris: { label: string; isi: Run[] }[] }
-  | { jenis: "daftar"; butir: string[] }
+  | {
+      jenis: "daftar";
+      butir: string[];
+      /** "angka" 1. · "kurung" (1) · "huruf" a) · "poin" • – bawaan "angka". */
+      penanda?: "angka" | "kurung" | "huruf" | "poin";
+      /** Nomor/huruf pertama (melanjutkan daftar yang diselingi). */
+      mulai?: number;
+      /** 1 = anak daftar (menjorok sekali lagi). */
+      tingkat?: 0 | 1;
+    }
+  | {
+      /** Dua tanda tangan berdampingan (BA: penyedia & konsultan). */
+      jenis: "ttd2";
+      kiri: PihakTtd;
+      kanan: PihakTtd;
+    }
   | {
       jenis: "ttd";
       tempatTanggal: string | null;
@@ -170,6 +245,23 @@ export type Blok =
       kotakNominal: string | null;
     };
 
+export type PihakTtd = { peran: string; perusahaan: string; nama: string; jabatan: string };
+
+/** Penanda butir daftar – satu tempat, supaya PDF dan Word sama persis. */
+export function penandaButir(b: Extract<Blok, { jenis: "daftar" }>, i: number): string {
+  const n = (b.mulai ?? 1) + i;
+  switch (b.penanda ?? "angka") {
+    case "kurung":
+      return `(${n})`;
+    case "huruf":
+      return `${String.fromCharCode(96 + n)})`;
+    case "poin":
+      return "•";
+    default:
+      return `${n}.`;
+  }
+}
+
 export type SuratTersusun = { judulBerkas: string; blok: Blok[] };
 
 export type DataSurat = {
@@ -178,8 +270,32 @@ export type DataSurat = {
   penandaTangan: { nama: string; jabatan: string };
   kontrak: { nomor: string; tanggal: Date; judul: string; nilai: bigint };
   bank: { nama: string; rekening: string; atasNama: string } | null;
-  termin: { ke: number; bayarPct: number; nilai: bigint };
-  surat: { nomor: string; tanggal: Date; kota: string; kepada: string[]; lampiran: string[] };
+  /** `bruto` = persen bayar × nilai kontrak; `nilai` = yang DIBAYAR (bruto − retensi). */
+  termin: {
+    ke: number;
+    ambangPct: number;
+    bayarPct: number;
+    retensiPct: number;
+    bruto: bigint;
+    retensi: bigint;
+    nilai: bigint;
+  };
+  /** Progres menurut laporan konsultan untuk termin ini; null = belum diisi. */
+  progres: {
+    pct: number;
+    mingguKe: number;
+    lokasi: { nama: string; nomor: string; tanggal: Date; mingguKe: number; persen: number }[];
+  } | null;
+  /** Konsultan pengawas & penanda tangannya di BA (Co-Team Leader / Team Leader). */
+  konsultan: { firma: string | null; nama: string | null; jabatan: string };
+  surat: {
+    nomor: string;
+    tanggal: Date;
+    kota: string;
+    kepada: string[];
+    lampiran: string[];
+    rapat: { pimpinan: string; peserta: string[]; cara: string };
+  };
 };
 
 const t = (teks: string, tebal = false): Run => ({ teks, tebal });
@@ -193,6 +309,17 @@ export function kekuranganData(d: DataSurat): string[] {
   if ((d.jenis === "invoice" || d.jenis === "kwitansi") && !d.penyedia.npwp?.trim())
     kurang.push("NPWP perusahaan (Master › Perusahaan)");
   if (d.termin.nilai <= 0n) kurang.push("persen pembayaran termin ini (Termin & Surat › Jadwal termin)");
+  if (JENIS_SURAT_PROGRES.includes(d.jenis)) {
+    if (!d.konsultan.firma?.trim()) kurang.push("nama firma konsultan pengawas (Kontrak › Penanda tangan)");
+    if (!d.progres) kurang.push(`progres dari laporan konsultan untuk termin ${d.termin.ke} (Termin & Surat › Progres laporan konsultan)`);
+    else if (d.progres.pct < d.termin.ambangPct)
+      kurang.push(
+        `progres laporan konsultan yang mencapai ambang termin ${d.termin.ke}: tercatat ${persenSurat(d.progres.pct)}, ` +
+          `ambangnya ${persenSurat(d.termin.ambangPct)}`,
+      );
+  }
+  if (d.jenis === "ba_pembahasan_kemajuan" && !d.konsultan.nama?.trim())
+    kurang.push("nama Co-Team Leader atau Team Leader konsultan (Kontrak › Penanda tangan)");
   return kurang;
 }
 
@@ -233,9 +360,27 @@ function rincianKontrak(d: DataSurat): string {
   return `Surat Perjanjian Nomor: ${d.kontrak.nomor} tanggal ${tanggalSurat(d.kontrak.tanggal)}`;
 }
 
-/** "20% × Rp 13.478.994.000,- = Rp 2.695.798.800,-" */
+/** "20% × Rp 13.478.994.000,- = Rp 2.695.798.800,-" (nilai bruto termin). */
 function hitunganTermin(d: DataSurat): string {
-  return `${persenSurat(d.termin.bayarPct)} × ${rupiahSurat(d.kontrak.nilai)} = ${rupiahSurat(d.termin.nilai)}`;
+  return `${persenSurat(d.termin.bayarPct)} × ${rupiahSurat(d.kontrak.nilai)} = ${rupiahSurat(d.termin.bruto)}`;
+}
+
+/** "5% × Rp 13.478.994.000,- = Rp 673.949.700,-" */
+function hitunganRetensi(d: DataSurat): string {
+  return `${persenSurat(d.termin.retensiPct)} × ${rupiahSurat(d.kontrak.nilai)} = ${rupiahSurat(d.termin.retensi)}`;
+}
+
+const adaRetensi = (d: DataSurat) => d.termin.retensi > 0n;
+
+/** "Lokasi KNMP Desa Asemdoyong" – nama yang sudah memuat Desa/Kelurahan tidak digandakan. */
+function namaLokasiSurat(nama: string): string {
+  return /^(desa|kelurahan|kel\.)\s/i.test(nama.trim()) ? `Lokasi KNMP ${nama.trim()}` : `Lokasi KNMP Desa ${nama.trim()}`;
+}
+
+/** "di 4 lokasi" / "di Lokasi KNMP Desa X" – kalimat BA mengikuti jumlah lokasi. */
+function cakupanLokasi(d: DataSurat): string {
+  const n = d.progres?.lokasi.length ?? 0;
+  return n === 1 ? `di ${namaLokasiSurat(d.progres!.lokasi[0].nama)}` : `di ${n} lokasi`;
 }
 
 export function susunSurat(d: DataSurat): SuratTersusun {
@@ -254,7 +399,9 @@ export function susunSurat(d: DataSurat): SuratTersusun {
                 `Sehubungan dengan ${rincianKontrak(d)} tentang ${d.kontrak.judul} dengan nilai Kontrak sebesar ` +
                   `${rupiahSurat(d.kontrak.nilai)} (${terbilangRupiah(d.kontrak.nilai)}), maka dengan ini kami ` +
                   `mengajukan permohonan Pembayaran Termin ${ke} sesuai dengan yang tertuang dalam Syarat-Syarat ` +
-                  `Khusus Kontrak sebesar ${hitunganTermin(d)}. Sehingga Pembayaran Termin ${ke} menjadi sebesar `,
+                  `Khusus Kontrak sebesar ${hitunganTermin(d)}` +
+                  (adaRetensi(d) ? `, dikurangi retensi sebesar ${hitunganRetensi(d)}` : "") +
+                  `. Sehingga Pembayaran Termin ${ke} menjadi sebesar `,
               ),
               t(rupiahSurat(d.termin.nilai), true),
               t(` (${terbilangRupiah(d.termin.nilai)}).`),
@@ -305,7 +452,18 @@ export function susunSurat(d: DataSurat): SuratTersusun {
             jenis: "pasangan",
             baris: [
               { label: "Uraian Pekerjaan", isi: [t(`${d.kontrak.judul} sesuai dengan ${rincianKontrak(d)}`)] },
-              { label: "Total Tagihan", isi: [t(`${persenSurat(d.termin.bayarPct)} × ${rupiahSurat(d.kontrak.nilai)} = `), t(rupiahSurat(d.termin.nilai), true)] },
+              ...(adaRetensi(d)
+                ? [
+                    { label: "Nilai Termin", isi: [t(hitunganTermin(d))] },
+                    { label: "Retensi", isi: [t(`${hitunganRetensi(d)} (ditahan)`)] },
+                    { label: "Total Tagihan", isi: [t(rupiahSurat(d.termin.nilai), true)] },
+                  ]
+                : [
+                    {
+                      label: "Total Tagihan",
+                      isi: [t(`${persenSurat(d.termin.bayarPct)} × ${rupiahSurat(d.kontrak.nilai)} = `), t(rupiahSurat(d.termin.nilai), true)],
+                    },
+                  ]),
               { label: "Terbilang", isi: [t(`(${terbilangRupiah(d.termin.nilai)})`)] },
               { label: "NPWP", isi: [t(d.penyedia.npwp ?? "–")] },
               { label: "Bank", isi: [t(teksBank(d))] },
@@ -333,7 +491,15 @@ export function susunSurat(d: DataSurat): SuratTersusun {
               { label: "Terbilang", isi: [t(`(${terbilangRupiah(d.termin.nilai)})`)] },
               {
                 label: "Guna Membayar",
-                isi: [t(`Pembayaran Termin ${ke} ${d.kontrak.judul} sesuai dengan ${rincianKontrak(d)}`)],
+                isi: [
+                  t(
+                    `Pembayaran Termin ${ke}` +
+                      (adaRetensi(d)
+                        ? ` (${persenSurat(d.termin.bayarPct)} dikurangi retensi ${persenSurat(d.termin.retensiPct)})`
+                        : "") +
+                      ` ${d.kontrak.judul} sesuai dengan ${rincianKontrak(d)}`,
+                  ),
+                ],
               },
               { label: "NPWP", isi: [t(d.penyedia.npwp ?? "–")] },
               { label: "Bank", isi: [t(teksBank(d))] },
@@ -343,8 +509,147 @@ export function susunSurat(d: DataSurat): SuratTersusun {
         ],
       };
 
-    default:
-      throw new Error(`${LABEL_JENIS_SURAT[d.jenis]} belum bisa disusun.`);
+    case "permohonan_pemeriksaan": {
+      const p = d.progres;
+      if (!p) throw new Error("Progres dari laporan konsultan belum diisi.");
+      const butir = p.lokasi.map(
+        (l, i) =>
+          `${namaLokasiSurat(l.nama)}${l.nomor ? ` Nomor: ${l.nomor}` : ""} tanggal ${tanggalSurat(l.tanggal)} ` +
+          `pada Minggu ke-${l.mingguKe} sebesar ${persenSurat(l.persen)}${i === p.lokasi.length - 1 ? "." : ";"}`,
+      );
+      return {
+        judulBerkas: `Surat Permohonan Pemeriksaan Pekerjaan Termin ${d.termin.ke} - ${d.penyedia.nama}`,
+        blok: [
+          ...kepalaSurat(d, "Permohonan Pemeriksaan Progres Pekerjaan"),
+          {
+            jenis: "paragraf",
+            rata: "penuh",
+            isi: [
+              t(
+                `Sehubungan dengan ${rincianKontrak(d)} tentang ${d.kontrak.judul} dan Laporan Kemajuan Pekerjaan ` +
+                  `dari Konsultan Pengawas ${d.konsultan.firma ?? ""} dengan nilai rata-rata progres sebesar `,
+              ),
+              t(persenSurat(p.pct), true),
+              t(butir.length > 0 ? ", yaitu:" : "."),
+            ],
+          },
+          ...(butir.length > 0 ? ([{ jenis: "daftar", butir, penanda: "kurung" }] satisfies Blok[]) : []),
+          {
+            jenis: "paragraf",
+            rata: "penuh",
+            isi: [
+              t(
+                `Maka dengan ini kami mengajukan permohonan Pemeriksaan Progres Pekerjaan kepada ` +
+                  `${d.surat.kepada.slice(0, 2).join(" ")} sebagai syarat pengajuan Pembayaran Termin ${ke}.`,
+              ),
+            ],
+          },
+          {
+            jenis: "paragraf",
+            rata: "penuh",
+            isi: [t("Demikian kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.")],
+          },
+          tandaTangan(d, { tempatTanggal: false }),
+        ],
+      };
+    }
+
+    case "ba_pembahasan_kemajuan": {
+      const p = d.progres;
+      if (!p) throw new Error("Progres dari laporan konsultan belum diisi.");
+      const r = d.surat.rapat;
+      const pimpinan = r.pimpinan || PIMPINAN_RAPAT_BAWAAN;
+      const peserta = r.peserta.length > 0 ? r.peserta : pesertaRapatBawaan(d.penyedia.nama, d.konsultan.firma);
+      const capaian = `progres fisik pekerjaan ${cakupanLokasi(d)} pada minggu ke-${p.mingguKe} telah mencapai sebesar `;
+      return {
+        judulBerkas: `BA Pembahasan Kemajuan Pekerjaan Termin ${d.termin.ke} - ${d.penyedia.nama}`,
+        blok: [
+          {
+            jenis: "judul",
+            teks: `BERITA ACARA\nPEMBAHASAN KEMAJUAN HASIL PEKERJAAN (${persenSurat(d.termin.ambangPct)})`,
+            sub: `Nomor ${d.surat.nomor}`,
+          },
+          {
+            jenis: "paragraf",
+            rata: "penuh",
+            jarakAtas: 12,
+            isi: [
+              t(
+                `Pada hari ini ${hariTanggalTerbilang(d.surat.tanggal)}, telah dilaksanakan Pembahasan Kemajuan ` +
+                  // Judul kontrak biasanya sudah diawali "Pekerjaan …" – jangan jadi "Pekerjaan Pekerjaan".
+                  `${/^pekerjaan\s/i.test(d.kontrak.judul) ? "" : "Pekerjaan "}${d.kontrak.judul}, ${rincianKontrak(d)} ` +
+                  `${r.cara || CARA_RAPAT_BAWAAN} ` +
+                  "dengan hasil sebagai berikut:",
+              ),
+            ],
+          },
+          { jenis: "paragraf", isi: [t("I. Peserta Rapat", true)], jarakAtas: 10 },
+          {
+            jenis: "paragraf",
+            rata: "penuh",
+            isi: [t(`Rapat atau pembahasan ini dipimpin langsung oleh ${pimpinan} dan dihadiri oleh:`)],
+          },
+          { jenis: "daftar", butir: peserta, penanda: "kurung" },
+          { jenis: "paragraf", isi: [t("Susunan acara rapat sebagai berikut:")] },
+          { jenis: "daftar", butir: ["Pembukaan", "Pembahasan Kemajuan Pekerjaan", "Penutup"], penanda: "poin" },
+          { jenis: "paragraf", isi: [t("II. Hasil Rapat", true)], jarakAtas: 10 },
+          { jenis: "daftar", butir: [`Penjelasan dari ${pimpinan}:`] },
+          {
+            jenis: "daftar",
+            tingkat: 1,
+            penanda: "huruf",
+            butir: [
+              `Berdasarkan hasil pemantauan dan evaluasi pelaksanaan pekerjaan, ${capaian}${persenSurat(p.pct)}. ` +
+                `Capaian tersebut menjadi dasar Pengajuan Termin ${ke} serta memastikan kegiatan selanjutnya ` +
+                "dilaksanakan sesuai dengan rencana, jadwal, dan ketentuan yang telah ditetapkan dalam kontrak.",
+            ],
+          },
+          { jenis: "daftar", mulai: 2, butir: [`Penjelasan dari Penyedia Jasa Konstruksi, ${d.penyedia.nama}:`] },
+          {
+            jenis: "daftar",
+            tingkat: 1,
+            penanda: "huruf",
+            butir: [
+              "Pelaksanaan di lapangan terus dilakukan sesuai dengan rencana pelaksanaan pekerjaan. Kegiatan " +
+                "difokuskan pada pekerjaan yang dapat dilaksanakan berdasarkan kondisi lapangan, ketersediaan " +
+                "material, tenaga kerja, serta kesiapan area kerja.",
+              "Penyedia akan melakukan percepatan dan pengendalian pelaksanaan pekerjaan di lapangan agar target " +
+                "progres fisik tercapai sesuai dengan jadwal pelaksanaan yang telah ditetapkan.",
+            ],
+          },
+          {
+            jenis: "daftar",
+            mulai: 3,
+            butir: [`Penjelasan dari Konsultan Pengawas ${d.konsultan.firma ?? ""}:`],
+          },
+          {
+            jenis: "daftar",
+            tingkat: 1,
+            penanda: "huruf",
+            butir: [
+              `Berdasarkan hasil pengukuran bersama di lapangan dan perhitungan volume, ${capaian}${persenSurat(p.pct)}. ` +
+                "Capaian tersebut merupakan hasil verifikasi dan pengukuran terhadap pekerjaan yang telah " +
+                "dilaksanakan di lapangan.",
+            ],
+          },
+          {
+            jenis: "ttd2",
+            kiri: {
+              peran: "Penyedia Jasa Konstruksi",
+              perusahaan: d.penyedia.nama,
+              nama: d.penandaTangan.nama,
+              jabatan: d.penandaTangan.jabatan,
+            },
+            kanan: {
+              peran: "Konsultan Pengawas",
+              perusahaan: d.konsultan.firma ?? "",
+              nama: d.konsultan.nama ?? "",
+              jabatan: d.konsultan.jabatan,
+            },
+          },
+        ],
+      };
+    }
   }
 }
 
@@ -353,8 +658,9 @@ function teksBank(d: DataSurat): string {
   return `${d.bank.nama} dengan Nomor Rekening ${d.bank.rekening} atas nama ${d.bank.atasNama}`;
 }
 
-/** Lampiran bawaan permohonan pembayaran, persis contoh TERMIN 1. */
+/** Lampiran bawaan, persis contoh TERMIN 1. */
 export function lampiranBawaan(jenis: JenisSuratPenyedia, terminKe: number): string[] {
+  if (jenis === "permohonan_pemeriksaan") return ["Laporan Kemajuan Pekerjaan dari Konsultan Pengawas"];
   if (jenis !== "permohonan_pembayaran") return [];
   const ke = urutanTermin(terminKe);
   return ["Laporan Kemajuan Pekerjaan", `Kwitansi Pembayaran Termin ${ke}`, `Faktur Pajak Pembayaran Termin ${ke}`];

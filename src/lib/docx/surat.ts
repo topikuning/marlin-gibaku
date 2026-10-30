@@ -1,7 +1,7 @@
 import "server-only";
 import JSZip from "jszip";
 import sharp from "sharp";
-import type { Blok, Run, SuratTersusun } from "@/lib/surat-penyedia/aturan";
+import { penandaButir, type Blok, type PihakTtd, type Run, type SuratTersusun } from "@/lib/surat-penyedia/aturan";
 import type { KopSurat } from "@/lib/pdf/surat-penyedia";
 
 /**
@@ -27,15 +27,33 @@ function run(r: Run, ukuran?: number): string {
   const rPr = [r.tebal ? "<w:b/>" : "", r.garisBawah ? '<w:u w:val="single"/>' : "", ukuran ? `<w:sz w:val="${ukuran}"/>` : ""].join("");
   return r.teks
     .split("\n")
-    .map((baris, i) => `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : ""}${i > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${esc(baris)}</w:t></w:r>`)
+    .map(
+      (baris, i) =>
+        `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : ""}${i > 0 ? "<w:br/>" : ""}` +
+        // Tab harus <w:tab/>; karakter tab di dalam <w:t> tidak dijamin dibaca Word sebagai tab.
+        baris
+          .split("\t")
+          .map((seg) => `<w:t xml:space="preserve">${esc(seg)}</w:t>`)
+          .join("<w:tab/>") +
+        "</w:r>",
+    )
     .join("");
 }
 
 function paragraf(
   isi: Run[],
-  o: { rata?: "left" | "right" | "center" | "both"; sebelum?: number; ukuran?: number; indentKiri?: number; gantung?: number } = {},
+  o: {
+    rata?: "left" | "right" | "center" | "both";
+    sebelum?: number;
+    ukuran?: number;
+    indentKiri?: number;
+    gantung?: number;
+    /** Tetap satu halaman dengan paragraf berikutnya. */
+    tahanBerikut?: boolean;
+  } = {},
 ): string {
   const pPr = [
+    o.tahanBerikut ? "<w:keepNext/>" : "",
     `<w:spacing w:before="${o.sebelum ?? 0}" w:after="60"/>`,
     o.indentKiri ? `<w:ind w:left="${o.indentKiri}" w:hanging="${o.gantung ?? 0}"/>` : "",
     o.rata ? `<w:jc w:val="${o.rata}"/>` : "",
@@ -111,7 +129,7 @@ function kopXml(kop: KopSurat, gambar: Gambar | null, logo: Gambar | null): stri
   return `${isi}<w:p><w:pPr><w:pBdr><w:bottom w:val="double" w:sz="12" w:space="1" w:color="111111"/></w:pBdr><w:spacing w:after="240"/></w:pPr></w:p>`;
 }
 
-function blokXml(b: Blok): string {
+function blokXml(b: Blok, berikut: Blok | undefined): string {
   switch (b.jenis) {
     case "paragraf":
       return paragraf(b.isi, {
@@ -134,8 +152,29 @@ function blokXml(b: Blok): string {
         ]),
       );
     }
-    case "daftar":
-      return b.butir.map((butir, i) => paragraf([{ teks: `${i + 1}.\t${butir}` }], { indentKiri: 567, gantung: 340 })).join("");
+    case "daftar": {
+      const kiri = 567 * ((b.tingkat ?? 0) + 1);
+      const adaAnak = berikut?.jenis === "daftar" && (berikut.tingkat ?? 0) > (b.tingkat ?? 0);
+      return b.butir
+        .map((butir, i) =>
+          paragraf([{ teks: `${penandaButir(b, i)}\t${butir}` }], {
+            rata: "both",
+            indentKiri: kiri,
+            gantung: 420,
+            tahanBerikut: adaAnak && i === b.butir.length - 1,
+          }),
+        )
+        .join("");
+    }
+    case "ttd2": {
+      const lebar = Math.round(LEBAR_ISI / 2);
+      const pihak = (p: PihakTtd) =>
+        paragraf([{ teks: p.peran }], { rata: "center" }) +
+        paragraf([{ teks: p.perusahaan, tebal: true }], { rata: "center" }) +
+        paragraf([{ teks: p.nama, tebal: true, garisBawah: true }], { rata: "center", sebelum: 1100 }) +
+        paragraf([{ teks: p.jabatan }], { rata: "center" });
+      return paragraf([], { sebelum: 300 }) + tabel([lebar, LEBAR_ISI - lebar], [[sel(lebar, pihak(b.kiri)), sel(LEBAR_ISI - lebar, pihak(b.kanan))]]);
+    }
     case "ttd": {
       const kiri = Math.round(LEBAR_ISI * 0.5);
       const kanan = LEBAR_ISI - kiri;
@@ -159,7 +198,7 @@ export async function buatDocxSurat(surat: SuratTersusun, kop: KopSurat): Promis
   const logo = !gambar && kop.logo ? await siapkanGambar(kop.logo, "rIdLogo", "logo.png", 1300, 1300) : null;
   const media = [gambar, logo].filter((g): g is Gambar => g !== null);
 
-  const body = kopXml(kop, gambar, logo) + surat.blok.map(blokXml).join("");
+  const body = kopXml(kop, gambar, logo) + surat.blok.map((b, i) => blokXml(b, surat.blok[i + 1])).join("");
   const dokumen =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +

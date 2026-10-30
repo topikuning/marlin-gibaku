@@ -487,6 +487,7 @@ model User {
   waUsulanDiajukan     WaUsulan[]              @relation("WaUsulanPengusul")
   waUsulanDiputus      WaUsulan[]              @relation("WaUsulanPemutus")
   suratPenyediaDibuat  SuratPenyedia[]         @relation("SuratPenyediaPembuat")
+  terminProgresDiubah  TerminProgresKonsultan[] @relation("TerminProgresPengubah")
   waPersetujuanUntuk   WaPersetujuan[]         @relation("WaPersetujuanUntuk")
   waPersetujuanPemohon WaPersetujuan[]         @relation("WaPersetujuanPemohon")
 
@@ -1454,6 +1455,7 @@ model Contract {
   documents     Document[]
   termin        ContractTermin[]
   suratPenyedia SuratPenyedia[]
+  terminProgres TerminProgresKonsultan[]
 
   @@index([vendorId])
   @@map("contracts")
@@ -1468,6 +1470,10 @@ model ContractTermin {
   terminKe   Int      @map("termin_ke")
   ambangPct  Decimal  @map("ambang_pct") @db.Decimal(5, 2)
   bayarPct   Decimal  @map("bayar_pct") @db.Decimal(5, 2)
+  /// RETENSI yang ditahan dari termin ini, % NILAI KONTRAK (DECISIONS 717).
+  /// Jadwal KKP: termin 4 = 25%, ditahan 5% → dibayar 20%. Retensi bisa
+  /// dicairkan lebih awal dengan jaminan pemeliharaan.
+  retensiPct Decimal  @default(0) @map("retensi_pct") @db.Decimal(5, 2)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1475,6 +1481,32 @@ model ContractTermin {
 
   @@unique([contractId, terminKe])
   @@map("contract_termin")
+}
+
+/// PROGRES MENURUT LAPORAN KEMAJUAN KONSULTAN PENGAWAS, per termin (DECISIONS
+/// 717) – diketik dari laporan konsultan untuk surat permohonan pemeriksaan
+/// dan BA pembahasan kemajuan. RUJUKAN, bukan angka progres resmi: tidak
+/// pernah dibaca calculation layer. Angka MARLIN ditampilkan di sebelahnya.
+/// Termin tidak perlu tersimpan di `contract_termin` (jadwal bawaan KKP).
+model TerminProgresKonsultan {
+  id           String   @id @default(uuid()) @db.Uuid
+  contractId   String   @map("contract_id") @db.Uuid
+  terminKe     Int      @map("termin_ke")
+  /// Progres keseluruhan menurut laporan konsultan (mis. 26,6).
+  progresPct   Decimal  @map("progres_pct") @db.Decimal(6, 3)
+  mingguKe     Int      @map("minggu_ke")
+  /// Baris per lokasi { locationId, nomor, tanggal, mingguKe, persen } –
+  /// bentuknya dijaga zod di `surat-penyedia/skema.ts`.
+  lokasi       Json     @default("[]")
+  diubahOlehId String   @map("diubah_oleh_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  diubahOleh User     @relation("TerminProgresPengubah", fields: [diubahOlehId], references: [id])
+
+  @@unique([contractId, terminKe])
+  @@map("termin_progres_konsultan")
 }
 
 enum JenisSuratPenyedia {
