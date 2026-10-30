@@ -317,7 +317,12 @@ export function BuatSuratForm({
   usulanNomor,
   hariIni,
   rapatBawaan,
+  jenisAwal,
+  terminAwal,
 }: {
+  /** Pilihan awal dari tautan "Buat surat" halaman Penagihan. */
+  jenisAwal?: string;
+  terminAwal?: number;
   contractId: string;
   jenis: OpsiJenis[];
   termin: number[];
@@ -330,8 +335,8 @@ export function BuatSuratForm({
   rapatBawaan: { pimpinan: string; peserta: string[]; cara: string };
 }) {
   const [state, action, pending] = useAksi<SuratPenyediaState>(buatSuratAction, undefined);
-  const [jenisDipilih, setJenis] = useState(jenis[0]?.value ?? "");
-  const [terminDipilih, setTermin] = useState(String(termin[0] ?? ""));
+  const [jenisDipilih, setJenis] = useState(jenis.find((j) => j.value === jenisAwal)?.value ?? jenis[0]?.value ?? "");
+  const [terminDipilih, setTermin] = useState(String(termin.find((t) => t === terminAwal) ?? termin[0] ?? ""));
   const lampiran = lampiranBawaan[`${jenisDipilih}:${terminDipilih}`] ?? [];
   const ba = jenisDipilih === "ba_pembahasan_kemajuan";
   return (

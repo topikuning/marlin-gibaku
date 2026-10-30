@@ -188,6 +188,7 @@ export const RUTE_DINAMIS: {
   { pola: "/paket/[id]/kontrak", nama: "Kontrak paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/kontrak`] : null) },
   { pola: "/paket/[id]/lokasi", nama: "Lokasi paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/lokasi`] : null) },
   { pola: "/paket/[id]/tender", nama: "Tender paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/tender`] : null) },
+  { pola: "/paket/[id]/penagihan", nama: "Penagihan paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/penagihan`] : null) },
   { pola: "/paket/[id]/termin", nama: "Termin & surat paket", isi: (k) => (k.paketId ? [`/paket/${k.paketId}/termin`] : null) },
   { pola: "/dokumen/[id]", nama: "Detail dokumen", isi: (k) => (k.dokumenId ? [`/dokumen/${k.dokumenId}`] : null) },
   { pola: "/foto/[id]/cap", nama: "Cap foto", isi: (k) => (k.fotoId ? [`/foto/${k.fotoId}/cap`] : null) },

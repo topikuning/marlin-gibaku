@@ -2709,6 +2709,14 @@ model Document {
   drivePath       String?        @map("drive_path")
   driveModifiedAt DateTime?      @map("drive_modified_at") @db.Timestamptz
 
+  /// BERKAS TERMIN (DECISIONS 720): butir daftar periksa penagihan yang
+  /// dipenuhi dokumen ini (`KATALOG_BERKAS_TERMIN`, mis. "9c") dan termin-nya.
+  /// Diisi tombol unggah di halaman Penagihan, atau dari letak folder saat
+  /// ditarik dari `7. BERKAS TERMIN/TERMIN n/…` Drive KKP. `terminKe` kosong =
+  /// dokumen tetap yang berlaku untuk semua termin (SSUK, NIB, …).
+  terminKe    Int?    @map("termin_ke")
+  butirTermin String? @map("butir_termin")
+
   organization  Organization       @relation(fields: [orgId], references: [id])
   package       Package?           @relation(fields: [packageId], references: [id])
   contract      Contract?          @relation(fields: [contractId], references: [id])
@@ -2728,6 +2736,7 @@ model Document {
   @@index([orgId, sha256])
   @@index([orgId, status])
   @@index([type])
+  @@index([packageId, butirTermin])
   @@map("documents")
 }
 

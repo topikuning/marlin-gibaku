@@ -47,6 +47,7 @@ export default async function PaketWorkspaceLayout({
     { label: "Ringkasan", href: base, exact: true },
     { label: "Tender & Administrasi", href: `${base}/tender` },
     { label: "Kontrak & Adendum", href: `${base}/kontrak` },
+    { label: "Penagihan", href: `${base}/penagihan` },
     { label: "Termin & Surat", href: `${base}/termin` },
     { label: "Lokasi", href: `${base}/lokasi` },
     { label: "Dokumen", href: `${base}/dokumen` },

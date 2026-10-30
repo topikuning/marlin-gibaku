@@ -26,6 +26,7 @@ import {
   type Keyakinan,
 } from "./classify";
 import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
+import { butirBerkas, butirDariJalur } from "@/lib/penagihan/katalog";
 
 /**
  * IMPOR dokumen dari folder Google Drive KKP ke Document Center. DECISIONS 184.
@@ -309,6 +310,9 @@ export async function commitDriveImport(
       if (!kanonik) throw new DocumentError(`Jenis berkas tidak didukung (${mime})`);
 
       const file = new File([new Uint8Array(data)], fileName, { type: kanonik });
+      // Berkas di `7. BERKAS TERMIN/TERMIN n/<butir>` dikenali dari letaknya (DECISIONS 720).
+      const termin = butirDariJalur(bersihkanPath(sel.path).split(" / "));
+      const butir = termin ? butirBerkas(termin.kode) : null;
       const doc = await uploadDocument(
         {
           file,
@@ -325,6 +329,7 @@ export async function commitDriveImport(
             drivePath: bersihkanPath(sel.path),
             driveModifiedAt: meta.modifiedTime,
           },
+          termin: termin && butir ? { ke: butir.sumber === "tetap" ? null : termin.terminKe, butir: termin.kode } : null,
         },
         user.id,
       );

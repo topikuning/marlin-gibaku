@@ -45,12 +45,15 @@ export default async function TerminPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ termin?: string }>;
+  searchParams: Promise<{ termin?: string; surat?: string }>;
 }) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "package.view");
   const { id } = await params;
-  const terminDiminta = Number((await searchParams).termin) || undefined;
+  const sp = await searchParams;
+  const terminDiminta = Number(sp.termin) || undefined;
+  // "Buat surat" dari halaman Penagihan membawa jenis & termin yang dimaksud (DECISIONS 720).
+  const jenisDiminta = (JENIS_SURAT_TERSEDIA as string[]).includes(sp.surat ?? "") ? sp.surat : undefined;
   const boleh = can(user.role, "contract.manage");
 
   const d = await muatTerminSurat(id, user);
@@ -222,9 +225,12 @@ export default async function TerminPage({
             </ul>
           )}
           {boleh ? (
-            <div className="border-t border-border pt-4">
+            <div id="buat-surat" className="scroll-mt-20 border-t border-border pt-4">
               <h3 className="mb-2 text-sm font-semibold text-ink">Buat surat</h3>
               <BuatSuratForm
+                key={`${jenisDiminta ?? ""}|${terminDiminta ?? ""}`}
+                jenisAwal={jenisDiminta}
+                terminAwal={terminDiminta}
                 contractId={k.id}
                 jenis={JENIS_SURAT_TERSEDIA.map((j) => ({ value: j, label: LABEL_JENIS_SURAT[j] }))}
                 termin={d.termin.map((t) => t.terminKe)}

@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 720 | 2026-10-30 | Halaman Penagihan per termin: langkah 0–8 + daftar periksa 42 berkas folder TERMIN Drive KKP (`penagihan/katalog.ts`, nama folder dari `ISI_TERMIN`), asal marlin/paket/tetap/pihak lain, status diturunkan; `documents.termin_ke` + `butir_termin` diisi dari unggahan per baris atau dari LETAK folder saat ditarik dari Drive; NIB/NPWP per perusahaan, dokumen tetap lintas termin |
 | 719 | 2026-10-30 | Surat penyedia menyebut "Nomor Adendum n: … tanggal …" (urutan menurut tanggal berlaku), dan nilai kontrak di surat = kontrak + adendum yang berlaku s.d. TANGGAL SURAT, sehingga surat lama yang diunduh ulang sesudah adendum tidak berubah isi |
 | 718 | 2026-10-30 | Kekurangan data surat penyedia bertautan "isi di …" langsung ke tempat pengisiannya (`kekuranganTertaut` + `tautanLengkapi`); `Drawer` prop `hash` membuka panel dari alamat (`#penanda-tangan`); Master Perusahaan `?buka=<id>`; isian progres `?termin=n`; nama menu di pesan disamakan dengan layar |
 | 717 | 2026-10-30 | Surat Permohonan Pemeriksaan + BA Pembahasan Kemajuan (PDF + Word) dari progres yang diketik dari laporan konsultan (`termin_progres_konsultan`, angka MARLIN per lokasi s.d. tanggal laporan di sebelahnya; ditolak bila di bawah ambang); jadwal termin bawaan KKP 25/20, 50/25, 80/30, 100/25 dengan retensi 5% di termin 4 langsung berlaku; `retensi_pct` per termin + `rincianTagihanTermin` (bruto − retensi = dibayar) di ketiga surat uang; BA diteken penyedia + Co-TL/TL konsultan, tidak jatuh ke pengawas lapangan |
