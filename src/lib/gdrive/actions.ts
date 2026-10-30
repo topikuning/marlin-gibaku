@@ -5,7 +5,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
-import { GDriveError, driveAbout, probeDriveFolder } from "./client";
+import { GDriveError, buatFolder, daftarSubfolder, driveAbout, probeDriveFolder } from "./client";
+import { siapkanStruktur } from "./siapkan";
+import { hitungSimpul, strukturDriveKkp } from "./struktur";
 import { clearGDriveToken, saveGDriveClient } from "./config";
 import { parseDriveFolderId } from "./parse";
 import {
@@ -169,6 +171,70 @@ export async function ulangiAntreanDriveAction(): Promise<GDriveActionState> {
 }
 
 /* ── Folder Drive per paket ─────────────────────────────────────────────── */
+
+/** Tenggat satu tekanan "Siapkan folder Drive" – sisanya dilanjutkan tekanan berikutnya. */
+const TENGGAT_SIAPKAN_MS = 45_000;
+
+/**
+ * Buat kerangka folder baku KKP yang BELUM ada di folder Drive paket
+ * (DECISIONS 715): 9 folder akar, sub-folder folder 1 & 2, folder per lokasi,
+ * dan 4 folder termin lengkap dengan isinya. Yang sudah ada tidak disentuh.
+ */
+export async function siapkanFolderDriveAction(
+  _prev: GDriveActionState,
+  formData: FormData,
+): Promise<GDriveActionState> {
+  try {
+    const user = await requireCapability("wa.configure");
+    const parsed = z.uuid().safeParse(formData.get("packageId"));
+    if (!parsed.success) return { error: "Paket tidak valid." };
+    const pkg = await db.package.findFirst({
+      where: { id: parsed.data, orgId: user.orgId },
+      select: {
+        id: true,
+        driveFolderId: true,
+        contract: { select: { vendor: { select: { name: true } } } },
+        locations: { where: { isActive: true }, select: { name: true }, orderBy: { name: "asc" } },
+      },
+    });
+    if (!pkg) return { error: "Paket tidak ditemukan." };
+    if (!pkg.driveFolderId) return { error: "Folder Drive paket ini belum diatur. Simpan dulu link foldernya." };
+
+    const pohon = strukturDriveKkp({
+      penyedia: pkg.contract?.vendor.name ?? null,
+      lokasi: pkg.locations.map((l) => l.name),
+    });
+    const hasil = await siapkanStruktur(
+      pkg.driveFolderId,
+      pohon,
+      { daftarSubfolder, buatFolder },
+      { batasMs: TENGGAT_SIAPKAN_MS },
+    );
+    await audit(user.id, "gdrive.siapkan_folder", "package", pkg.id, {
+      dibuat: hasil.dibuat.length,
+      sudahAda: hasil.sudahAda,
+      selesai: hasil.selesai,
+      contoh: hasil.dibuat.slice(0, 30),
+    });
+    revalidatePath(`/paket/${pkg.id}`);
+
+    const total = hitungSimpul(pohon);
+    if (hasil.dibuat.length === 0 && hasil.selesai) {
+      return { success: `Semua ${total} folder baku sudah ada. Tidak ada yang perlu dibuat.` };
+    }
+    return {
+      success:
+        `${hasil.dibuat.length} folder baru dibuat` +
+        (hasil.sudahAda > 0 ? `, ${hasil.sudahAda} sudah ada dan tidak diubah` : "") +
+        "." +
+        (hasil.selesai
+          ? ""
+          : " Belum semua sempat dibuat. Tekan Siapkan folder Drive sekali lagi untuk melanjutkan."),
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
 
 export async function setPackageDriveFolderAction(
   _prev: GDriveActionState,

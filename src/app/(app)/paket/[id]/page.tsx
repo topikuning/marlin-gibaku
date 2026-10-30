@@ -53,7 +53,7 @@ import {
   StartPelaksanaanButton,
 } from "./stage-actions";
 import { WaGroupForm } from "./wa-group-form";
-import { DriveFolderForm } from "./drive-folder-form";
+import { DriveFolderForm, SiapkanFolderDrive } from "./drive-folder-form";
 import { mingguKontrak, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { LaporanMingguanWa } from "./laporan-mingguan-wa";
 import { adaTujuanMingguan } from "@/lib/mingguan/kirim";
@@ -976,6 +976,14 @@ export default async function RingkasanPaketPage({
                             currentFolderId={pkg.driveFolderId}
                             driveConnected={(await getGDriveConfigDisplay()).connected}
                           />
+                          {pkg.driveFolderId && (await getGDriveConfigDisplay()).connected ? (
+                            <div>
+                              <h3 className="text-sm font-semibold text-ink">Kerangka folder</h3>
+                              <div className="mt-1">
+                                <SiapkanFolderDrive packageId={pkg.id} />
+                              </div>
+                            </div>
+                          ) : null}
                           {pkg.driveFolderId ? (
                             <div>
                               <h3 className="text-sm font-semibold text-ink">

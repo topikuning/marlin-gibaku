@@ -1,6 +1,7 @@
 import "server-only";
 import { getGDriveAuth } from "./config";
 import { buildMultipartBody } from "./parse";
+import { ALIAS_FOLDER_AKAR, samaNamaFolder, type KkpFolder } from "./folders";
 
 /**
  * Klien Google Drive v3 via fetch murni (tanpa SDK googleapis — hemat bundle).
@@ -102,7 +103,16 @@ function escapeQ(name: string): string {
   return name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-export async function ensureFolder(parentId: string, name: string): Promise<string> {
+/**
+ * Cari folder bernama `name` di `parentId`; bila tidak ada, buat.
+ *
+ * Pencarian dua lapis (DECISIONS 715): nama persis dulu (satu kueri murah),
+ * lalu bila meleset, daftar sub-folder dicocokkan LONGGAR – huruf besar/kecil,
+ * tanda baca, spasi – termasuk `aliases` (nama lama). Folder yang dibuat orang
+ * jarang persis sama ejaannya ("CV. Putera Fahlevi" vs "CV Putera Fahlevi"),
+ * dan pencocokan persis saja melahirkan folder kembar di sebelahnya.
+ */
+export async function ensureFolder(parentId: string, name: string, aliases: readonly string[] = []): Promise<string> {
   const cacheKey = `${parentId}/${name}`;
   const hit = folderCache.get(cacheKey);
   if (hit) return hit;
@@ -124,6 +134,48 @@ export async function ensureFolder(parentId: string, name: string): Promise<stri
     return found[0].id;
   }
 
+  // Meleset persis → cocokkan longgar di antara sub-folder yang ada. Nama baku
+  // menang atas alias bila keduanya ada.
+  const anak = await daftarSubfolder(parentId);
+  const cocok =
+    anak.find((f) => samaNamaFolder(f.name, name)) ??
+    anak.find((f) => aliases.some((a) => samaNamaFolder(f.name, a)));
+  if (cocok) {
+    folderCache.set(cacheKey, cocok.id);
+    return cocok.id;
+  }
+
+  const id = await buatFolder(parentId, name);
+  folderCache.set(cacheKey, id);
+  return id;
+}
+
+/** Sub-folder langsung (bukan berkas, bukan yang di tempat sampah) sebuah folder. */
+export async function daftarSubfolder(parentId: string): Promise<{ id: string; name: string }[]> {
+  const token = await getAccessToken();
+  const q = `mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed = false`;
+  const out: { id: string; name: string }[] = [];
+  let pageToken: string | null = null;
+  do {
+    const url: string =
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+      `&fields=nextPageToken,files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "");
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new GDriveError(`Gagal membaca isi folder: ${await readError(res)}`);
+    const j = (await res.json()) as { files?: { id: string; name: string }[]; nextPageToken?: string };
+    out.push(...(j.files ?? []));
+    pageToken = j.nextPageToken ?? null;
+  } while (pageToken);
+  return out;
+}
+
+/** Buat SATU folder baru – tanpa memeriksa apakah sudah ada (pemanggil yang memastikan). */
+export async function buatFolder(parentId: string, name: string): Promise<string> {
+  const token = await getAccessToken();
   const create = await fetch(
     "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id",
     {
@@ -134,15 +186,19 @@ export async function ensureFolder(parentId: string, name: string): Promise<stri
     },
   );
   if (!create.ok) throw new GDriveError(`Gagal membuat folder "${name}": ${await readError(create)}`);
-  const id = ((await create.json()) as { id: string }).id;
-  folderCache.set(cacheKey, id);
-  return id;
+  return ((await create.json()) as { id: string }).id;
 }
 
-/** Telusuri/buat berjenjang; mengembalikan ID folder terdalam. */
+/**
+ * Telusuri/buat berjenjang; mengembalikan ID folder terdalam. Segmen pertama
+ * (folder baku KKP) ikut mengenali nama lamanya (`ALIAS_FOLDER_AKAR`).
+ */
 export async function ensureFolderPath(rootId: string, segments: string[]): Promise<string> {
   let parent = rootId;
-  for (const seg of segments.slice(0, 8)) parent = await ensureFolder(parent, seg);
+  for (const [i, seg] of segments.slice(0, 8).entries()) {
+    const alias = i === 0 ? (ALIAS_FOLDER_AKAR[seg as KkpFolder] ?? []) : [];
+    parent = await ensureFolder(parent, seg, alias);
+  }
   return parent;
 }
 
@@ -339,7 +395,7 @@ export type DriveEntry = {
   size: number | null;
   modifiedTime: Date | null;
   webViewLink: string | null;
-  /** Jalur folder relatif dari akar paket, mis. ["2. PCM", "Kedungrejo"]. */
+  /** Jalur folder relatif dari akar paket, mis. ["2. Peninjauan Lokasi, PCM, MC-0", "2. PCM", "Kedungrejo"]. */
   path: string[];
   /** true = berkas ini diunggah MARLIN sendiri (lihat MARLIN_APP_PROPERTY). */
   terbitanMarlin: boolean;
