@@ -5,6 +5,8 @@ import {
   hariTanggalTerbilang,
   jadwalBerlaku,
   kekuranganData,
+  kekuranganTertaut,
+  tautanLengkapi,
   lampiranBawaan,
   persenSurat,
   polaNomorSah,
@@ -287,9 +289,36 @@ describe("kekuranganData", () => {
     ).toMatch(/tercatat 24,9%, ambangnya 25%/);
     const ba = kekuranganData({ ...DATA, jenis: "ba_pembahasan_kemajuan", konsultan: { firma: null, nama: null, jabatan: "Team Leader" } });
     expect(ba.join(" ")).toMatch(/firma konsultan/);
-    expect(ba.join(" ")).toMatch(/Co-Team Leader atau Team Leader/);
+    expect(ba.join(" ")).toMatch(/Koordinator Team Leader atau Team Leader/);
     // Permohonan pemeriksaan tidak butuh penanda tangan konsultan; surat uang tidak butuh progres.
     expect(kekuranganData({ ...DATA, jenis: "permohonan_pemeriksaan", konsultan: { ...DATA.konsultan, nama: null } })).toEqual([]);
     expect(kekuranganData({ ...DATA, progres: null })).toEqual([]);
+  });
+  it("tiap kekurangan menyebut tempat mengisinya, dengan nama menu yang sebenarnya", () => {
+    const k = kekuranganTertaut({
+      ...DATA,
+      jenis: "kwitansi",
+      bank: null,
+      penyedia: { ...DATA.penyedia, npwp: null },
+      penandaTangan: { nama: "", jabatan: "Direktur" },
+    });
+    expect(k.map((x) => x.tujuan)).toEqual(["penanda_tangan", "rekening", "npwp"]);
+    expect(kekuranganData({ ...DATA, penandaTangan: { nama: "", jabatan: "Direktur" } })[0]).toBe(
+      "nama penanda tangan penyedia (Kontrak & Adendum › Penanda tangan dokumen KKP)",
+    );
+    const ba = kekuranganTertaut({ ...DATA, jenis: "ba_pembahasan_kemajuan", progres: null, konsultan: { firma: "F", nama: null, jabatan: "Team Leader" } });
+    expect(ba.map((x) => x.tujuan)).toEqual(["progres", "penanda_tangan"]);
+  });
+});
+
+describe("tautanLengkapi", () => {
+  const ke = { packageId: "pkg-1", vendorId: "ven-1" };
+  it("membawa langsung ke isiannya: panel penanda tangan terbuka, perusahaan terbuka, termin terpilih", () => {
+    expect(tautanLengkapi("penanda_tangan", ke)).toBe("/paket/pkg-1/kontrak#penanda-tangan");
+    expect(tautanLengkapi("npwp", ke)).toBe("/master/perusahaan?buka=ven-1");
+    expect(tautanLengkapi("rekening", ke)).toBe("/paket/pkg-1/termin#data-surat");
+    expect(tautanLengkapi("jadwal", ke)).toBe("/paket/pkg-1/termin#jadwal-termin");
+    expect(tautanLengkapi("progres", { ...ke, terminKe: 3 })).toBe("/paket/pkg-1/termin?termin=3#progres-konsultan");
+    expect(tautanLengkapi("progres", ke)).toBe("/paket/pkg-1/termin#progres-konsultan");
   });
 });

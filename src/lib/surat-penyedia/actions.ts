@@ -9,9 +9,12 @@ import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import {
   JENIS_SURAT_TERSEDIA,
   LABEL_JENIS_SURAT,
-  kekuranganData,
+  TEMPAT_LENGKAPI,
+  kekuranganTertaut,
   polaNomorSah,
   susunNomor,
+  tautanLengkapi,
+  teksKekurangan,
 } from "./aturan";
 import { dataDariKontrak, kunciNomorPerusahaan, muatKontrakSurat, nomorUrutBerikut, terminAda } from "./data";
 import { barisTeks, type ProgresLokasi } from "./skema";
@@ -22,7 +25,16 @@ import { barisTeks, type ProgresLokasi } from "./skema";
  * mutasi di-audit.
  */
 
-export type SuratPenyediaState = { error?: string; success?: string } | undefined;
+export type SuratPenyediaState =
+  | {
+      error?: string;
+      success?: string;
+      /** Judul pendek bila `kurang` diisi – daftarnya yang dibaca, bukan kalimat panjang. */
+      judul?: string;
+      /** Yang belum lengkap, masing-masing dengan tautan ke tempat mengisinya. */
+      kurang?: { teks: string; tempat: string; href: string }[];
+    }
+  | undefined;
 
 function gagal(err: unknown): SuratPenyediaState {
   if (err instanceof ForbiddenError) return { error: err.message };
@@ -202,12 +214,21 @@ export async function buatSuratAction(_prev: SuratPenyediaState, formData: FormD
     if (!d.nomor && !pola)
       return { error: "Isi nomor surat, atau atur pola nomor perusahaan di Data surat supaya nomornya otomatis." };
 
-    // Yang belum lengkap DISEBUT sekarang, bukan baru ketahuan saat diunduh.
-    const kurang = kekuranganData(
+    // Yang belum lengkap DISEBUT sekarang, bukan baru ketahuan saat diunduh –
+    // lengkap dengan tautan langsung ke tempat mengisinya.
+    const kurang = kekuranganTertaut(
       dataDariKontrak(kontrak, { jenis, terminKe: d.terminKe, nomor: d.nomor, tanggal, kota: d.kota, isian }),
     );
     if (kurang.length > 0)
-      return { error: `${LABEL_JENIS_SURAT[jenis]} belum bisa disusun. Lengkapi dulu: ${kurang.join("; ")}.` };
+      return {
+        error: `${LABEL_JENIS_SURAT[jenis]} belum bisa disusun. Lengkapi dulu: ${kurang.map(teksKekurangan).join("; ")}.`,
+        judul: `${LABEL_JENIS_SURAT[jenis]} belum bisa disusun. Lengkapi dulu:`,
+        kurang: kurang.map((k) => ({
+          teks: k.teks,
+          tempat: TEMPAT_LENGKAPI[k.tujuan],
+          href: tautanLengkapi(k.tujuan, { packageId: kontrak.package.id, vendorId: kontrak.vendor.id, terminKe: d.terminKe }),
+        })),
+      };
 
     const { s, nomor, nomorUrut } = await db.$transaction(async (tx) => {
       let nomor = d.nomor;

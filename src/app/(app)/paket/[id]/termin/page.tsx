@@ -12,14 +12,18 @@ import {
   KEPADA_BAWAAN,
   LABEL_JENIS_SURAT,
   PIMPINAN_RAPAT_BAWAAN,
+  TEMPAT_LENGKAPI,
   lampiranBawaan,
   persenSurat,
   pesertaRapatBawaan,
+  tautanLengkapi,
+  type TujuanLengkapi,
 } from "@/lib/surat-penyedia/aturan";
 import { muatTerminSurat } from "@/lib/surat-penyedia/data";
 import {
   BarisSurat,
   BuatSuratForm,
+  DaftarKekurangan,
   DataSuratForm,
   JadwalTerminForm,
   ProgresKonsultanForm,
@@ -36,10 +40,17 @@ export const dynamic = "force-dynamic";
  * penyedia untuk pengajuan termin – permohonan pemeriksaan, BA pembahasan
  * kemajuan, permohonan pembayaran, invoice, kwitansi – sebagai PDF dan Word.
  */
-export default async function TerminPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TerminPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ termin?: string }>;
+}) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "package.view");
   const { id } = await params;
+  const terminDiminta = Number((await searchParams).termin) || undefined;
   const boleh = can(user.role, "contract.manage");
 
   const d = await muatTerminSurat(id, user);
@@ -73,12 +84,17 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
     };
   });
 
-  const kurang: string[] = [];
-  if (!k.contractorSignerName?.trim()) kurang.push("nama penanda tangan penyedia (Kontrak & Adendum › Penanda tangan)");
-  if (!v.npwp?.trim()) kurang.push("NPWP perusahaan untuk invoice dan kwitansi (Master › Perusahaan)");
-  if (!(k.bankNama && k.bankRekening && k.bankAtasNama)) kurang.push("rekening bank untuk invoice dan kwitansi (Data surat di bawah)");
-  if (!d.konsultan.firma) kurang.push("nama firma konsultan pengawas (Kontrak & Adendum › Penanda tangan)");
-  if (!d.konsultan.nama) kurang.push("nama Co-Team Leader atau Team Leader konsultan untuk BA (Kontrak & Adendum › Penanda tangan)");
+  const butirKurang: [string, TujuanLengkapi][] = [];
+  if (!k.contractorSignerName?.trim()) butirKurang.push(["nama penanda tangan penyedia", "penanda_tangan"]);
+  if (!v.npwp?.trim()) butirKurang.push(["NPWP perusahaan, untuk invoice dan kwitansi", "npwp"]);
+  if (!(k.bankNama && k.bankRekening && k.bankAtasNama)) butirKurang.push(["rekening bank, untuk invoice dan kwitansi", "rekening"]);
+  if (!d.konsultan.firma) butirKurang.push(["nama firma konsultan pengawas", "penanda_tangan"]);
+  if (!d.konsultan.nama) butirKurang.push(["nama Koordinator Team Leader atau Team Leader konsultan, untuk BA", "penanda_tangan"]);
+  const kurang = butirKurang.map(([teks, tujuan]) => ({
+    teks,
+    tempat: TEMPAT_LENGKAPI[tujuan],
+    href: tautanLengkapi(tujuan, { packageId: id, vendorId: v.id }),
+  }));
 
   const lampiran: Record<string, string[]> = {};
   for (const j of JENIS_SURAT_TERSEDIA) for (const t of d.termin) lampiran[`${j}:${t.terminKe}`] = lampiranBawaan(j, t.terminKe);
@@ -114,7 +130,7 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
         />
         <CardBody className="space-y-2">
           {kurang.length > 0 ? (
-            <Banner tone="warning" title="Belum lengkap untuk semua surat" description={`Lengkapi: ${kurang.join("; ")}.`} />
+            <Banner tone="warning" title="Belum lengkap untuk semua surat" description={<DaftarKekurangan kurang={kurang} />} />
           ) : null}
           {Number(k.advancePercent ?? 0) > 0 ? (
             <Banner
@@ -132,7 +148,7 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
         </CardBody>
       </Card>
 
-      <Card>
+      <Card id="jadwal-termin" className="scroll-mt-20">
         <CardHeader
           title="Jadwal termin"
           subtitle="Menurut Syarat-Syarat Khusus Kontrak (SSKK)."
@@ -148,14 +164,20 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
       </Card>
 
       {boleh ? (
-        <Card>
+        <Card id="progres-konsultan" className="scroll-mt-20">
           <CardHeader
             title="Progres laporan konsultan"
             subtitle="Untuk surat permohonan pemeriksaan dan BA pembahasan kemajuan. Diisi per termin."
           />
           <CardBody>
             {progres.length > 0 && progres[0].lokasi.length > 0 ? (
-              <ProgresKonsultanForm contractId={k.id} termin={progres} hariIni={jakartaDateKey(new Date())} />
+              <ProgresKonsultanForm
+                key={terminDiminta ?? "bawaan"}
+                contractId={k.id}
+                termin={progres}
+                hariIni={jakartaDateKey(new Date())}
+                terminAwal={terminDiminta}
+              />
             ) : (
               <p className="text-sm text-ink-muted">Paket ini belum punya lokasi aktif.</p>
             )}
@@ -164,7 +186,7 @@ export default async function TerminPage({ params }: { params: Promise<{ id: str
       ) : null}
 
       {boleh ? (
-        <Card>
+        <Card id="data-surat" className="scroll-mt-20">
           <CardHeader title="Data surat" subtitle="Rekening penerima pembayaran, pola nomor surat, dan kota penulisan." />
           <CardBody>
             <DataSuratForm

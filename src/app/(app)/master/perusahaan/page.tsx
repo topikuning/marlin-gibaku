@@ -8,9 +8,11 @@ import { VendorManager } from "./vendor-client";
 export const metadata: Metadata = { title: "Master Perusahaan" };
 export const dynamic = "force-dynamic";
 
-export default async function VendorPage() {
+export default async function VendorPage({ searchParams }: { searchParams: Promise<{ buka?: string }> }) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "contract.manage");
+  // `?buka=<id>` – tautan "isi di Master Data › Perusahaan" membuka perusahaannya langsung.
+  const { buka } = await searchParams;
 
   const vendors = await listVendorsWithUsage(user.orgId);
   const imageUrls = await presignKeys(
@@ -42,6 +44,7 @@ export default async function VendorPage() {
         normKey: v.normKey,
       }))}
       duplicateKeys={groups.map((g) => g[0].normKey)}
+      bukaAwal={vendors.some((v) => v.id === buka) ? buka! : null}
     />
   );
 }

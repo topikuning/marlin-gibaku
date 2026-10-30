@@ -300,27 +300,76 @@ export type DataSurat = {
 
 const t = (teks: string, tebal = false): Run => ({ teks, tebal });
 
-/** Hal yang belum lengkap untuk menyusun surat ini – kosong = siap. */
-export function kekuranganData(d: DataSurat): string[] {
-  const kurang: string[] = [];
-  if (!d.penandaTangan.nama.trim()) kurang.push("nama penanda tangan penyedia (Kontrak › Penanda tangan)");
-  if ((d.jenis === "invoice" || d.jenis === "kwitansi") && !d.bank)
-    kurang.push("rekening bank penyedia (Termin & Surat › Data surat)");
-  if ((d.jenis === "invoice" || d.jenis === "kwitansi") && !d.penyedia.npwp?.trim())
-    kurang.push("NPWP perusahaan (Master › Perusahaan)");
-  if (d.termin.nilai <= 0n) kurang.push("persen pembayaran termin ini (Termin & Surat › Jadwal termin)");
+/** Ke mana sebuah kekurangan diisi – dipakai untuk tautan "Isi sekarang". */
+export type TujuanLengkapi = "penanda_tangan" | "npwp" | "rekening" | "jadwal" | "progres";
+
+export type Kekurangan = { teks: string; tujuan: TujuanLengkapi };
+
+/** Nama tempat pengisian, persis seperti tertulis di menu. */
+export const TEMPAT_LENGKAPI: Record<TujuanLengkapi, string> = {
+  penanda_tangan: "Kontrak & Adendum › Penanda tangan dokumen KKP",
+  npwp: "Master Data › Perusahaan",
+  rekening: "Termin & Surat › Data surat",
+  jadwal: "Termin & Surat › Jadwal termin",
+  progres: "Termin & Surat › Progres laporan konsultan",
+};
+
+/**
+ * Alamat tempat pengisian. Tautan ke kontrak MEMBUKA panel penanda tangannya
+ * (`#penanda-tangan`), tautan ke Master MEMBUKA perusahaan itu (`?buka=`), dan
+ * tautan progres memilih termin yang dimaksud – pengguna tidak perlu mencari.
+ */
+export function tautanLengkapi(
+  tujuan: TujuanLengkapi,
+  ke: { packageId: string; vendorId: string; terminKe?: number },
+): string {
+  const termin = `/paket/${ke.packageId}/termin`;
+  switch (tujuan) {
+    case "penanda_tangan":
+      return `/paket/${ke.packageId}/kontrak#penanda-tangan`;
+    case "npwp":
+      return `/master/perusahaan?buka=${ke.vendorId}`;
+    case "rekening":
+      return `${termin}#data-surat`;
+    case "jadwal":
+      return `${termin}#jadwal-termin`;
+    case "progres":
+      return `${termin}${ke.terminKe ? `?termin=${ke.terminKe}` : ""}#progres-konsultan`;
+  }
+}
+
+/** Hal yang belum lengkap untuk menyusun surat ini, beserta tempat mengisinya – kosong = siap. */
+export function kekuranganTertaut(d: DataSurat): Kekurangan[] {
+  const kurang: Kekurangan[] = [];
+  const uang = d.jenis === "invoice" || d.jenis === "kwitansi";
+  if (!d.penandaTangan.nama.trim()) kurang.push({ teks: "nama penanda tangan penyedia", tujuan: "penanda_tangan" });
+  if (uang && !d.bank) kurang.push({ teks: "rekening bank penyedia", tujuan: "rekening" });
+  if (uang && !d.penyedia.npwp?.trim()) kurang.push({ teks: "NPWP perusahaan", tujuan: "npwp" });
+  if (d.termin.nilai <= 0n) kurang.push({ teks: "persen pembayaran termin ini", tujuan: "jadwal" });
   if (JENIS_SURAT_PROGRES.includes(d.jenis)) {
-    if (!d.konsultan.firma?.trim()) kurang.push("nama firma konsultan pengawas (Kontrak › Penanda tangan)");
-    if (!d.progres) kurang.push(`progres dari laporan konsultan untuk termin ${d.termin.ke} (Termin & Surat › Progres laporan konsultan)`);
+    if (!d.konsultan.firma?.trim()) kurang.push({ teks: "nama firma konsultan pengawas", tujuan: "penanda_tangan" });
+    if (!d.progres) kurang.push({ teks: `progres dari laporan konsultan untuk termin ${d.termin.ke}`, tujuan: "progres" });
     else if (d.progres.pct < d.termin.ambangPct)
-      kurang.push(
-        `progres laporan konsultan yang mencapai ambang termin ${d.termin.ke}: tercatat ${persenSurat(d.progres.pct)}, ` +
+      kurang.push({
+        teks:
+          `progres laporan konsultan yang mencapai ambang termin ${d.termin.ke}: tercatat ${persenSurat(d.progres.pct)}, ` +
           `ambangnya ${persenSurat(d.termin.ambangPct)}`,
-      );
+        tujuan: "progres",
+      });
   }
   if (d.jenis === "ba_pembahasan_kemajuan" && !d.konsultan.nama?.trim())
-    kurang.push("nama Co-Team Leader atau Team Leader konsultan (Kontrak › Penanda tangan)");
+    kurang.push({ teks: "nama Koordinator Team Leader atau Team Leader konsultan", tujuan: "penanda_tangan" });
   return kurang;
+}
+
+/** Kekurangan sebagai kalimat utuh – untuk pesan tanpa tautan (mis. jawaban unduhan). */
+export function teksKekurangan(k: Kekurangan): string {
+  return `${k.teks} (${TEMPAT_LENGKAPI[k.tujuan]})`;
+}
+
+/** Hal yang belum lengkap untuk menyusun surat ini – kosong = siap. */
+export function kekuranganData(d: DataSurat): string[] {
+  return kekuranganTertaut(d).map(teksKekurangan);
 }
 
 function kepalaSurat(d: DataSurat, perihal: string): Blok[] {

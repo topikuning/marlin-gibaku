@@ -177,6 +177,11 @@ describe("surat", () => {
   it("invoice tanpa rekening DITOLAK sebelum disimpan, dengan menyebut yang kurang", async () => {
     const r = await buat({ nomor: "1/MANUAL" });
     expect(r?.error).toMatch(/rekening bank/);
+    // Tiap kekurangan membawa tautan langsung ke tempat mengisinya.
+    const pkg = (await db.contract.findUniqueOrThrow({ where: { id: contractId }, select: { packageId: true } })).packageId;
+    expect(r?.kurang).toEqual([
+      { teks: "rekening bank penyedia", tempat: "Termin & Surat › Data surat", href: `/paket/${pkg}/termin#data-surat` },
+    ]);
     expect(await db.suratPenyedia.count({ where: { contractId } })).toBe(0);
   });
 
@@ -289,8 +294,10 @@ describe("progres laporan konsultan + surat progres (DECISIONS 717)", () => {
   const buatProgres = (jenis: string, nomor: string, tambahan: Record<string, string> = {}) =>
     buat({ jenis, nomor, tanggal: "2026-09-16", ...tambahan });
 
-  it("surat progres sebelum progres konsultan diisi ditolak dengan menyebutnya", async () => {
-    expect((await buatProgres("permohonan_pemeriksaan", "PP/1"))?.error).toMatch(/progres dari laporan konsultan untuk termin 1/);
+  it("surat progres sebelum progres konsultan diisi ditolak dengan menyebutnya, bertautan ke termin itu", async () => {
+    const r = await buatProgres("permohonan_pemeriksaan", "PP/1");
+    expect(r?.error).toMatch(/progres dari laporan konsultan untuk termin 1/);
+    expect(r?.kurang?.map((k) => k.href)).toEqual([expect.stringMatching(/\/termin\?termin=1#progres-konsultan$/)]);
   });
 
   it("menyimpan progres: semua lokasi AKTIF wajib, tanggal tidak di masa depan, peran tanpa izin ditolak", async () => {
@@ -366,7 +373,9 @@ describe("progres laporan konsultan + surat progres (DECISIONS 717)", () => {
   it("BA tanpa Co-Team Leader/Team Leader ditolak, tidak jatuh ke pengawas lapangan", async () => {
     await db.contract.update({ where: { id: contractId }, data: { coTeamLeaderName: null, teamLeaderName: null } });
     try {
-      expect((await buatProgres("ba_pembahasan_kemajuan", "BA/2"))?.error).toMatch(/Co-Team Leader atau Team Leader/);
+      const r = await buatProgres("ba_pembahasan_kemajuan", "BA/2");
+      expect(r?.error).toMatch(/Koordinator Team Leader atau Team Leader/);
+      expect(r?.kurang?.[0].href).toMatch(/\/kontrak#penanda-tangan$/);
     } finally {
       await db.contract.update({ where: { id: contractId }, data: { coTeamLeaderName: "Ir. Co Uji" } });
     }

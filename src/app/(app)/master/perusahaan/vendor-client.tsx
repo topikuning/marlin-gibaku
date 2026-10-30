@@ -50,14 +50,23 @@ type V = {
 
 type Saring = "" | "perlu_lengkap" | "duplikat" | "lengkap" | "tanpa_pemakaian";
 
-export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplicateKeys: string[] }) {
+export function VendorManager({
+  vendors,
+  duplicateKeys,
+  bukaAwal = null,
+}: {
+  vendors: V[];
+  duplicateKeys: string[];
+  /** Perusahaan yang langsung dibuka (`?buka=`), mis. dari tautan kekurangan surat. */
+  bukaAwal?: string | null;
+}) {
   const [cari, setCari] = useState("");
   const [saring, setSaring] = useState<Saring>("");
   // Yang disimpan ID, bukan barisnya. Sesudah simpan/gabung, `vendors` datang
   // baru dari server; memegang objek lama membuat laci menampilkan data basi
   // persis pada saat orang ingin memastikan simpanannya masuk — dan sesudah
   // "Gabung", laci menutup sendiri karena barisnya memang sudah tidak ada.
-  const [idBuka, setIdBuka] = useState<string | null>(null);
+  const [idBuka, setIdBuka] = useState<string | null>(bukaAwal);
   const dibuka = idBuka ? (vendors.find((v) => v.id === idBuka) ?? null) : null;
   const dupSet = useMemo(() => new Set(duplicateKeys), [duplicateKeys]);
 

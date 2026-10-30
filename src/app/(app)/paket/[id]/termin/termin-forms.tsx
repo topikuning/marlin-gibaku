@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FileText, Save } from "lucide-react";
 import { useAksi } from "@/lib/aksi-klien";
 import {
@@ -26,7 +27,25 @@ import {
 
 /** Surat berkop penyedia – formulir halaman Termin & Surat (DECISIONS 716/717). */
 
+/** Daftar yang belum lengkap, masing-masing langsung menuju tempat mengisinya. */
+export function DaftarKekurangan({ kurang }: { kurang: { teks: string; tempat: string; href: string }[] }) {
+  return (
+    <ul className="mt-1 space-y-1">
+      {kurang.map((k) => (
+        <li key={`${k.teks}|${k.href}`}>
+          {k.teks} –{" "}
+          <Link href={k.href} className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+            isi di {k.tempat}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Hasil({ state }: { state: SuratPenyediaState }) {
+  if (state?.error && state.kurang?.length)
+    return <Banner tone="error" title={state.judul ?? state.error} description={<DaftarKekurangan kurang={state.kurang} />} />;
   if (state?.error) return <Banner tone="error" title={state.error} />;
   if (state?.success) return <Banner tone="success" title={state.success} />;
   return null;
@@ -177,14 +196,20 @@ export function ProgresKonsultanForm({
   contractId,
   termin,
   hariIni,
+  terminAwal,
 }: {
   contractId: string;
   termin: ProgresTerminKlien[];
   hariIni: string;
+  /** Termin yang diminta tautan "isi di …" (`?termin=`); kosong = pilihan bawaan. */
+  terminAwal?: number;
 }) {
   const [state, action, pending] = useAksi<SuratPenyediaState>(simpanProgresKonsultanAction, undefined);
-  // Termin pertama yang belum diisi lebih dulu ditawarkan; kalau semua terisi, termin terakhir.
-  const awal = termin.find((t) => t.progresPct === null) ?? termin[termin.length - 1];
+  // Termin dari tautan lebih dulu; selain itu termin pertama yang belum diisi, atau termin terakhir.
+  const awal =
+    termin.find((t) => t.terminKe === terminAwal) ??
+    termin.find((t) => t.progresPct === null) ??
+    termin[termin.length - 1];
   const [dipilih, setDipilih] = useState(String(awal?.terminKe ?? ""));
   const t = termin.find((x) => String(x.terminKe) === dipilih);
   if (!t) return null;
