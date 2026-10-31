@@ -134,6 +134,18 @@ export function samakanLineage(
   opts: { padanan?: PadananManual[] } = {},
 ): HasilCocok {
   const lamaByKey = new Map(lama.map((n) => [n.lineageKey, n]));
+  /*
+   * Kunci kontrak tanpa beda huruf besar/kecil – varian pelaksana menulis
+   * "A"/"B" untuk rincian yang di RAB asli "a"/"b" (DECISIONS 726). Hanya kunci
+   * yang tetap TUNGGAL setelah dikecilkan.
+   */
+  const lamaByKeyKecil = new Map<string, NodeLamaCocok | null>();
+  for (const n of lama) {
+    const k = n.lineageKey.toLowerCase();
+    lamaByKeyKecil.set(k, lamaByKeyKecil.has(k) ? null : n);
+  }
+  const cariKunci = (k: string): NodeLamaCocok | undefined =>
+    lamaByKey.get(k) ?? lamaByKeyKecil.get(k.toLowerCase()) ?? undefined;
   const anakLama = new Map<string, NodeLamaCocok[]>();
   for (const n of lama) {
     const k = n.parentLineageKey ?? "";
@@ -324,7 +336,7 @@ export function samakanLineage(
     for (const n of grup) {
       if (pilihan.has(n)) continue;
       const kunciKode = indukFinal === null ? n.code : `${indukFinal}#${n.code}`;
-      const byKey = lamaByKey.get(kunciKode);
+      const byKey = cariKunci(kunciKode);
       if (!byKey || dipakaiLama.has(byKey.lineageKey) || kelas(byKey.kind) !== kelas(n.kind)) continue;
       pilihan.set(n, byKey);
       dipakaiLama.add(byKey.lineageKey);
@@ -343,7 +355,8 @@ export function samakanLineage(
       let kunciFinal: string;
       if (cocok) {
         kunciFinal = cocok.lineageKey;
-        if (cocok.lineageKey !== kunciKode)
+        // Beda huruf besar/kecil saja bukan nomor yang bergeser.
+        if (cocok.lineageKey.toLowerCase() !== kunciKode.toLowerCase())
           digeser.push({
             name: n.name,
             kode: n.code,

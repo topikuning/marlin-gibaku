@@ -505,8 +505,8 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   };
 }
 
-/** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
-export function berbentukKode(t: string): boolean {
+/** Bentuk kode yang dikenali walker, TANPA dirapikan dulu. */
+function bentukKode(t: string): boolean {
   return (
     isRoman(t) ||
     SUBCODE.test(t) ||
@@ -517,6 +517,39 @@ export function berbentukKode(t: string): boolean {
     LETTER_VARIAN.test(t) ||
     DEEPCODE_VARIAN.test(t)
   );
+}
+
+/**
+ * Tulisan kode VARIAN PELAKSANA dirapikan ke bentuk yang sama dengan RAB asli
+ * (DECISIONS 726).
+ *
+ * Berkas CCO/adendum disusun ulang pelaksana, dan tiap pelaksana menulis nomor
+ * rincian dengan caranya sendiri: "a.", "a)", "(a)", "6.8.a." – untuk pekerjaan
+ * yang di RAB asli bernomor "a" / "6.8.a". Bentuk itu dulu tidak dikenali:
+ * barisnya DIBUANG (hanya diperingatkan), sehingga di adendum item kontraknya
+ * terbaca dicabut dan realisasinya kehilangan pasangan.
+ *
+ * Yang dirapikan sengaja sempit:
+ * - kurung hanya untuk HURUF ("a)", "(a)", "d.1)"). "1)" dibiarkan: angka
+ *   berkurung lazim dipakai sebagai rincian di bawah huruf, dan menjadikannya
+ *   "1" akan mengangkatnya ke item utama nomor 1;
+ * - titik di ujung dibuang hanya bila sisanya kode yang dikenali;
+ * - "6.8 a" (spasi pengganti titik) disambung jadi "6.8.a".
+ * Teks yang tetap tidak berbentuk kode dikembalikan apa adanya.
+ */
+export function rapikanKode(t: string): string {
+  const asli = t.trim();
+  let k = asli;
+  const huruf = /^\(?([a-z](?:\.\d+)?)\)$/i.exec(k);
+  if (huruf) k = huruf[1];
+  k = k.replace(/^(\d+(?:\.\d+)*)\s+([a-z])$/i, "$1.$2");
+  if (k.endsWith(".") && bentukKode(k.slice(0, -1))) k = k.slice(0, -1);
+  return bentukKode(k) ? k : asli;
+}
+
+/** Bentuk teks yang bisa jadi KODE baris — dipakai saat kode tidak di kolom A. */
+export function berbentukKode(t: string): boolean {
+  return bentukKode(rapikanKode(t));
 }
 
 /** Label kolom uraian — bervariasi tiap penyusun, jadi dikumpulkan, bukan ditebak satu. */
@@ -1353,11 +1386,25 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
    * menggeser semuanya sejauh satu kolom.
    */
   const kodeNamaOf = (row: ExcelJS.Row): { code: string; name: string } => {
-    if (kolomKode <= 1)
+    if (kolomKode <= 1) {
+      const a = str(cellVal(row, 1));
+      /*
+       * Huruf rincian di KOLOM SENDIRI (B), uraian di C – varian pelaksana
+       * (DECISIONS 726): "6.8." di A, lalu "a"/"b" di B. Tanpa ini kode baris
+       * terbaca kosong dan hurufnya terbaca sebagai NAMA, jadi item "Rambu
+       * Petunjuk" masuk sebagai item baru bernama "a". Hanya huruf: angka di
+       * kolom B tidak jelas jenjangnya.
+       */
+      if (!a) {
+        const b = rapikanKode(str(cellVal(row, 2)));
+        const nama = str(cellVal(row, 3)) || str(cellVal(row, 4));
+        if (nama && (LETTER.test(b) || LETTER_VARIAN.test(b))) return { code: b, name: nama };
+      }
       return {
-        code: str(cellVal(row, 1)),
+        code: rapikanKode(a),
         name: str(cellVal(row, 2)) || str(cellVal(row, 3)) || str(cellVal(row, 4)),
       };
+    }
     const batas = Math.min(col.vol, NC + 1);
     for (let c = kolomKode; c < batas; c++) {
       const t = str(cellVal(row, c));
@@ -1368,9 +1415,9 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
       if (!berbentukKode(t)) return { code: "", name: t };
       for (let d = c + 1; d < batas; d++) {
         const n = str(cellVal(row, d));
-        if (n) return { code: t, name: n };
+        if (n) return { code: rapikanKode(t), name: n };
       }
-      return { code: t, name: "" };
+      return { code: rapikanKode(t), name: "" };
     }
     return { code: "", name: "" };
   };
@@ -1770,7 +1817,9 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
      */
     const volLain = num(cellVal(row, col.vol));
     const jmlLain = num(cellVal(row, col.amount));
-    const miripKode = /^[0-9a-z]{1,4}(?:[.\-][0-9a-z]{1,4}){0,4}\.?$/i.test(code);
+    // Termasuk kode berkurung ("1)", "(1)"): dulu tidak dianggap mirip kode,
+    // jadi barisnya hilang TANPA peringatan (DECISIONS 726).
+    const miripKode = /^\(?[0-9a-z]{1,4}(?:[.\-][0-9a-z]{1,4}){0,4}[.)]?$/i.test(code);
     if (
       miripKode &&
       !SUMMARY_PREFIX.test(code) &&
