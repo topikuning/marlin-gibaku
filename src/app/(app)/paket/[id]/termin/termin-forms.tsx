@@ -194,6 +194,8 @@ export type ProgresTerminKlien = {
     mingguKe: number | null;
     persen: number | null;
     marlinTeks: string;
+    /** Pembanding Kawal (DECISIONS 724); null = lokasi tidak berpasangan / tanpa izin lihat Kawal. */
+    kawal: { teks: string; beda: boolean } | null;
   }[];
 };
 
@@ -296,7 +298,12 @@ export function ProgresKonsultanForm({
           <div key={l.locationId} className="rounded-md border border-border p-3">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
               <div className="text-sm font-medium text-ink">{l.nama}</div>
-              <div className="text-[12px] text-ink-muted">MARLIN: {l.marlinTeks}</div>
+              <div className="text-right text-[12px] text-ink-muted">
+                <div>MARLIN: {l.marlinTeks}</div>
+                {l.kawal ? (
+                  <div className={l.kawal.beda ? "text-warning" : undefined}>Kawal (pengawas): {l.kawal.teks}</div>
+                ) : null}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1.2fr_0.8fr_0.8fr] [&>*]:min-w-0">
               <div className="col-span-2 sm:col-span-1">

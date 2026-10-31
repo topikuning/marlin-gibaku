@@ -8,13 +8,28 @@ import { KKP_FOLDERS, kunciNamaFolder, safeFileName } from "@/lib/gdrive/folders
 import { rangkum, type HasilUnggah, type Terhalang, type TidakBerlaku } from "@/lib/gdrive/kirim";
 import { namaFolderTermin, polaFolderTermin } from "@/lib/gdrive/struktur";
 import { bolehDibuang, documentItem, uploadBatch, type UploadItem, type UploadTarget } from "@/lib/gdrive/upload";
-import { ambangTermin, dataSuratTersimpan } from "@/lib/surat-penyedia/data";
-import { kekuranganData, susunSurat } from "@/lib/surat-penyedia/aturan";
+import { ambangTermin, dataSuratTersimpan, muatKontrakSurat } from "@/lib/surat-penyedia/data";
+import {
+  CARA_RAPAT_BAWAAN,
+  JENIS_SURAT_TERSEDIA,
+  KEPADA_BAWAAN,
+  LABEL_JENIS_SURAT,
+  PIMPINAN_RAPAT_BAWAAN,
+  TEMPAT_LENGKAPI,
+  kekuranganData,
+  lampiranBawaan,
+  pesertaRapatBawaan,
+  susunSurat,
+  tautanLengkapi,
+} from "@/lib/surat-penyedia/aturan";
+import { buatSuratPenyedia, type HasilBuatSurat, type IsianSurat } from "@/lib/surat-penyedia/buat";
+import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
 import { muatPenagihan } from "./data";
 import { butirBerkas } from "./katalog";
 import {
   KIND_BERKAS_TERMIN,
   awalanPeriodeTermin,
+  kodeSurat,
   labelPekerjaanTermin,
   namaLaporanTermin,
   pekerjaanBuang,
@@ -153,6 +168,91 @@ export async function antrekanBerkasTermin(
     },
   });
   return { ok: true, jumlah: rencana.length, rentang: r.rentang, dariDrive: dariDrive.size, dibuang: buang.length };
+}
+
+/* ── Lima surat penyedia dari tombol Siapkan berkas (DECISIONS 724) ──────── */
+
+export type HasilSuratTermin = {
+  dibuat: { jenis: JenisSuratPenyedia; nomor: string }[];
+  /** Surat pertama yang belum bisa dibuat; pembuatan berhenti di situ. */
+  gagal: (Extract<HasilBuatSurat, { ok: false }> & { jenis: JenisSuratPenyedia }) | null;
+};
+
+/**
+ * Buat surat termin `terminKe` yang BELUM ada, berurutan menurut alur KKP
+ * (nomor urut naik bersama tanggalnya). Surat yang sudah dibuat, atau yang
+ * sudah diganti scan versi sendiri (unggahan butir 9a/9b/10a–c), tidak
+ * disentuh. Berhenti di surat pertama yang belum bisa disusun – mis. progres
+ * di bawah ambang menahan permohonan pemeriksaan, jadi surat uang sesudahnya
+ * juga tidak dibuat. Pemanggil yang memastikan `contract.manage`.
+ */
+export async function buatSuratTermin(input: {
+  userId: string;
+  orgId: string;
+  contractId: string;
+  terminKe: number;
+  tanggal: Partial<Record<JenisSuratPenyedia, Date>>;
+}): Promise<HasilSuratTermin> {
+  const hasil: HasilSuratTermin = { dibuat: [], gagal: null };
+  const kontrak = await muatKontrakSurat(input.contractId, input.orgId);
+  if (!kontrak) return { ...hasil, gagal: { ok: false, jenis: "permohonan_pemeriksaan", error: "Kontrak tidak ditemukan." } };
+
+  const [ada, diganti] = await Promise.all([
+    db.suratPenyedia.findMany({ where: { contractId: kontrak.id, terminKe: input.terminKe }, select: { jenis: true } }),
+    db.document.findMany({
+      where: {
+        packageId: kontrak.package.id,
+        status: "aktif",
+        terminKe: input.terminKe,
+        butirTermin: { in: JENIS_SURAT_TERSEDIA.map(kodeSurat) },
+      },
+      select: { butirTermin: true },
+    }),
+  ]);
+  const sudah = new Set<string>([...ada.map((x) => kodeSurat(x.jenis)), ...diganti.map((x) => x.butirTermin!)]);
+
+  for (const jenis of JENIS_SURAT_TERSEDIA) {
+    if (sudah.has(kodeSurat(jenis))) continue;
+    const tanggal = input.tanggal[jenis];
+    if (!tanggal) {
+      hasil.gagal = { ok: false, jenis, error: `Tanggal ${LABEL_JENIS_SURAT[jenis]} belum diisi.` };
+      break;
+    }
+    const kota = kontrak.vendor.kotaSurat?.trim() ?? "";
+    if (!kota) {
+      hasil.gagal = {
+        ok: false,
+        jenis,
+        error: "Kota penulisan surat perusahaan belum diatur.",
+        kurang: [
+          {
+            teks: "kota penulisan surat",
+            tempat: TEMPAT_LENGKAPI.rekening,
+            href: tautanLengkapi("rekening", { packageId: kontrak.package.id, vendorId: kontrak.vendor.id, terminKe: input.terminKe }),
+          },
+        ],
+      };
+      break;
+    }
+    // Isian bawaan yang sama dengan formulir "Buat surat".
+    const isian: IsianSurat =
+      jenis === "ba_pembahasan_kemajuan"
+        ? {
+            kepada: [],
+            lampiran: [],
+            pimpinan: PIMPINAN_RAPAT_BAWAAN,
+            peserta: pesertaRapatBawaan(kontrak.vendor.name, kontrak.supervisorFirm),
+            cara: CARA_RAPAT_BAWAAN,
+          }
+        : { kepada: [...KEPADA_BAWAAN], lampiran: lampiranBawaan(jenis, input.terminKe) };
+    const r = await buatSuratPenyedia(input.userId, kontrak, { jenis, terminKe: input.terminKe, tanggal, kota, nomor: "", isian });
+    if (!r.ok) {
+      hasil.gagal = { ...r, jenis };
+      break;
+    }
+    hasil.dibuat.push({ jenis, nomor: r.nomor });
+  }
+  return hasil;
 }
 
 /* ── Mengerjakan satu pekerjaan ─────────────────────────────────────────── */

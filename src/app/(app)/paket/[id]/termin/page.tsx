@@ -22,6 +22,8 @@ import {
 import { muatTerminSurat } from "@/lib/surat-penyedia/data";
 import { realisasiMingguanPaket } from "@/lib/laporan/kurva-paket";
 import { mingguTercapai } from "@/lib/progress-calc";
+import { kurvaRealisasiKawal } from "@/lib/kawal/queries";
+import { progresKawalPada } from "@/lib/kawal/progres-pada";
 import {
   BarisSurat,
   BuatSuratForm,
@@ -115,6 +117,35 @@ export default async function TerminPage({
   }));
   const pctMingguan = mingguMarlin.map((m) => m.pct);
 
+  // Pembanding Kawal (DECISIONS 724): angka pengawas Kawal pada tanggal laporan
+  // konsultan, untuk lokasi yang berpasangan. Ditampilkan saja – tidak mengisi
+  // dan tidak memutuskan apa pun.
+  const kawal = can(user.role, "kawal.view")
+    ? await kurvaRealisasiKawal([...new Set(d.progres.flatMap((p) => p.lokasi.map((l) => l.locationId)))])
+    : new Map();
+  const pembandingKawal = (
+    locationId: string,
+    tanggal: string | null,
+    mingguKe: number | null,
+    persen: number | null,
+  ): { teks: string; beda: boolean } | null => {
+    const k = kawal.get(locationId);
+    if (!k) return null;
+    const akhirMinggu = mingguKe ? mingguMarlin.find((m) => m.mingguKe === mingguKe)?.akhir : undefined;
+    const pada = tanggal ? new Date(`${tanggal}T00:00:00Z`) : akhirMinggu;
+    if (!pada) return { teks: "isi tanggal laporan untuk membandingkan", beda: false };
+    const r = progresKawalPada({ mulai: k.mulai, realisasiKumulatif: k.realisasiKumulatif, tanggal: pada });
+    if (!r || r.pct === null) {
+      return { teks: `belum ada angka pengawas per ${formatTanggal(pada)}`, beda: false };
+    }
+    const dasar = `${formatPct(r.pct)} · minggu Kawal ke-${r.mingguKawal} · per ${formatTanggal(pada)}`;
+    if (persen === null) return { teks: dasar, beda: false };
+    const selisih = Math.abs(persen - r.pct);
+    return selisih < 0.005
+      ? { teks: `${dasar} · cocok`, beda: false }
+      : { teks: `${dasar} · beda ${selisih.toLocaleString("id-ID", { maximumFractionDigits: 2 })} poin dari angka tersimpan`, beda: true };
+  };
+
   const progres: ProgresTerminKlien[] = d.progres.map((p) => ({
     terminKe: p.terminKe,
     ambangPct: p.ambangPct,
@@ -125,6 +156,7 @@ export default async function TerminPage({
     diubah: p.tersimpan ? formatTanggalWaktu(p.tersimpan.diubah) : null,
     tertimbangTeks: p.tertimbangKonsultan === null ? null : formatPct(p.tertimbangKonsultan),
     lokasi: p.lokasi.map((l) => ({
+      kawal: pembandingKawal(l.locationId, l.tanggal, l.mingguKe ?? p.tersimpan?.mingguKe ?? null, l.persen),
       locationId: l.locationId,
       nama: l.nama,
       nomor: l.nomor,

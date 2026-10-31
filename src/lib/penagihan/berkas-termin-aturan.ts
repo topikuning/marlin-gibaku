@@ -1,3 +1,4 @@
+import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
 import { KATALOG_BERKAS_TERMIN, butirBerkas, type LaporanMarlin, type StatusButir } from "./katalog";
 
 /**
@@ -240,4 +241,31 @@ export function labelPekerjaanTermin(p: PekerjaanTermin): string {
       return `${asal ? labelPekerjaanTermin({ ...p, jenis: asal }) : "Laporan MARLIN"} – versi MARLIN dibuang ke Sampah Drive`;
     }
   }
+}
+
+/* ── Lima surat penyedia dari tombol Siapkan berkas (DECISIONS 724) ──────── */
+
+/**
+ * Tanggal AWAL surat yang belum dibuat, dihitung dari hari H (bawaan: hari
+ * ini): permohonan pemeriksaan H, BA pembahasan H+1, permohonan pembayaran,
+ * invoice, kwitansi H+2 – urutan alur KKP. Isian awal saja: orang mengubahnya
+ * sesuai kenyataan sebelum menekan tombol.
+ */
+export const HARI_SESUDAH_H: Record<JenisSuratPenyedia, number> = {
+  permohonan_pemeriksaan: 0,
+  ba_pembahasan_kemajuan: 1,
+  permohonan_pembayaran: 2,
+  invoice: 2,
+  kwitansi: 2,
+};
+
+/** "YYYY-MM-DD" + `hari` hari, tetap sebagai kunci tanggal (tanpa zona). */
+export function tanggalSuratAwal(jenis: JenisSuratPenyedia, hariH: string): string {
+  const [y, m, d] = hariH.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + HARI_SESUDAH_H[jenis])).toISOString().slice(0, 10);
+}
+
+/** Butir katalog surat `jenis` (9a, 9b, 10a, 10b, 10c). */
+export function kodeSurat(jenis: JenisSuratPenyedia): string {
+  return KATALOG_BERKAS_TERMIN.find((b) => b.surat === jenis)!.kode;
 }

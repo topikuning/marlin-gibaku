@@ -75,7 +75,7 @@ const pilihKontrak = {
   },
 } as const;
 
-type KontrakSurat = NonNullable<Awaited<ReturnType<typeof muatKontrakSurat>>>;
+export type KontrakSurat = NonNullable<Awaited<ReturnType<typeof muatKontrakSurat>>>;
 
 /** Jadwal termin tersimpan → baris murni (Decimal → number). */
 function barisTersimpan(c: Pick<KontrakSurat, "termin">): BarisJadwal[] {

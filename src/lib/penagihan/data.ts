@@ -133,6 +133,8 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
     /** Minggu prestasi tiap termin yang progres konsultannya sudah diisi. */
     mingguPrestasi: d.progres.flatMap((p) => (p.tersimpan ? [{ terminKe: p.terminKe, mingguKe: p.tersimpan.mingguKe }] : [])),
     lokasiAktif,
+    /** Tanggal surat penyedia termin ini yang sudah dibuat (DECISIONS 724). */
+    tanggalSurat: Object.fromEntries(suratTermin.map((x) => [x.jenis, x.tanggal])) as Partial<Record<JenisSuratPenyedia, Date>>,
     langkah,
     ringkas: {
       ada: baris.filter((b) => b.status === "ada").length,

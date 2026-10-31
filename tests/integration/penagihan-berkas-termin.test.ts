@@ -551,3 +551,122 @@ describe("siapkanBerkasTerminAction", () => {
     expect(r?.tautan?.href).toBe(`/paket/${packageId}/termin?termin=3#progres-konsultan`);
   });
 });
+
+describe("lima surat otomatis dari tombol Siapkan berkas (DECISIONS 724)", () => {
+  const form = (terminKe: number, tanggal: Record<string, string>) => {
+    const f = new FormData();
+    f.set("packageId", packageId);
+    f.set("terminKe", String(terminKe));
+    for (const [j, t] of Object.entries(tanggal)) f.set(`tanggal_${j}`, t);
+    return f;
+  };
+  const LIMA = {
+    permohonan_pemeriksaan: "2026-09-21",
+    ba_pembahasan_kemajuan: "2026-09-22",
+    permohonan_pembayaran: "2026-09-23",
+    invoice: "2026-09-23",
+    kwitansi: "2026-09-23",
+  };
+  const suratTermin = (terminKe: number) =>
+    db.suratPenyedia.findMany({
+      where: { contractId, terminKe },
+      orderBy: { nomorUrut: "asc" },
+      select: { id: true, jenis: true, nomor: true, nomorUrut: true, tanggal: true },
+    });
+  /** Progres konsultan lengkap per lokasi aktif – syarat surat progres. */
+  async function progresLengkap(terminKe: number, mingguKe: number, pct: number) {
+    const lokasi = await db.location.findMany({ where: { packageId, isActive: true }, select: { id: true } });
+    await db.terminProgresKonsultan.upsert({
+      where: { contractId_terminKe: { contractId, terminKe } },
+      create: {
+        contractId,
+        terminKe,
+        progresPct: pct,
+        mingguKe,
+        diubahOlehId: pengguna!.id,
+        lokasi: lokasi.map((l) => ({ locationId: l.id, nomor: "", tanggal: "2026-09-20", mingguKe, persen: pct })),
+      },
+      update: {
+        progresPct: pct,
+        mingguKe,
+        lokasi: lokasi.map((l) => ({ locationId: l.id, nomor: "", tanggal: "2026-09-20", mingguKe, persen: pct })),
+      },
+    });
+  }
+
+  it("data belum lengkap: berhenti di surat pertama dengan tautan 'isi di …', tidak ada surat, berkas tidak diantre", async () => {
+    await progresLengkap(1, 3, 26.6);
+    const sebelum = await db.gDriveJob.count({ where: { packageId } });
+    const r = await siapkanBerkasTerminAction(undefined, form(1, LIMA));
+    expect(r?.error).toMatch(/Kota penulisan surat/);
+    expect(r?.kurang?.[0].href).toBe(`/paket/${packageId}/termin#data-surat`);
+    await db.vendor.updateMany({ where: { name: VENDOR }, data: { kotaSurat: "Bogor", polaNomorSurat: "77.{urut}/SP/{bulan}/{tahun}" } });
+    const r2 = await siapkanBerkasTerminAction(undefined, form(1, LIMA));
+    expect(r2?.judul).toMatch(/Surat Permohonan Pemeriksaan Pekerjaan belum bisa disusun/);
+    expect(r2?.kurang?.length).toBeGreaterThan(0);
+    expect(await suratTermin(1)).toEqual([]);
+    expect(await db.gDriveJob.count({ where: { packageId } })).toBe(sebelum);
+  });
+
+  it("data lengkap: kelima surat dibuat berurutan dengan tanggal formulir dan nomor otomatis, lalu ikut disalin ke Drive", async () => {
+    await db.vendor.updateMany({ where: { name: VENDOR }, data: { npwp: "0000 1111 2222 3333", address: "Jl. Sintetis 1" } });
+    await db.contract.update({
+      where: { id: contractId },
+      data: {
+        workTitle: "Pekerjaan Konstruksi Uji",
+        contractorSignerName: "Penanda Tangan Uji",
+        contractorSignerTitle: "Direktur",
+        supervisorFirm: "PT. Konsultan Sintetis",
+        coTeamLeaderName: "Ir. Co Uji",
+        bankNama: "Bank Uji",
+        bankRekening: "0011223344",
+        bankAtasNama: "CV TERMIN UJI",
+      },
+    });
+    const r = await siapkanBerkasTerminAction(undefined, form(1, LIMA));
+    expect(r?.error).toBeUndefined();
+    expect(r?.success).toMatch(/Surat dibuat: Surat Permohonan Pemeriksaan Pekerjaan nomor 77\.1\/SP\/IX\/2026/);
+    const s = await suratTermin(1);
+    expect(s.map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "invoice", "kwitansi"]);
+    expect(s.map((x) => x.nomorUrut)).toEqual([1, 2, 3, 4, 5]);
+    expect(s.map((x) => x.tanggal.toISOString().slice(0, 10))).toEqual(Object.values(LIMA));
+    const salinan = (await pekerjaan()).filter((x) => /^1\|berkas\|\|(9a|9b|10a|10b|10c)\|s/.test(x.periode));
+    expect(salinan).toHaveLength(5);
+  });
+
+  it("ditekan lagi: surat yang sudah ada tidak dibuat ulang dan tidak diubah", async () => {
+    const lama = await suratTermin(1);
+    await siapkanBerkasTerminAction(undefined, form(1, LIMA));
+    expect(await suratTermin(1)).toEqual(lama);
+  });
+
+  it("surat yang sudah diganti scan versi sendiri tidak dibuat MARLIN", async () => {
+    await progresLengkap(2, 5, 55);
+    const f = new FormData();
+    f.set("packageId", packageId);
+    f.set("terminKe", "2");
+    f.set("kode", "9b");
+    f.append("file", new File(["ba diteken"], "ba-termin-2.pdf", { type: "application/pdf" }));
+    await unggahBerkasTerminAction(undefined, f);
+    const r = await siapkanBerkasTerminAction(undefined, form(2, LIMA));
+    expect(r?.error).toBeUndefined();
+    expect((await suratTermin(2)).map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "permohonan_pembayaran", "invoice", "kwitansi"]);
+  });
+
+  it("progres di bawah ambang: tidak ada surat yang dibuat sama sekali", async () => {
+    await progresLengkap(3, 7, 60); // ambang termin 3 = 80%
+    const r = await siapkanBerkasTerminAction(undefined, form(3, LIMA));
+    expect(r?.kurang?.some((k) => k.href === `/paket/${packageId}/termin?termin=3#progres-konsultan`)).toBe(true);
+    expect(await suratTermin(3)).toEqual([]);
+  });
+
+  it("tanpa izin kelola kontrak: surat tidak dibuat, berkas lain tetap disiapkan", async () => {
+    const lokasi = await db.location.findMany({ where: { packageId, isActive: true }, select: { id: true } });
+    await db.locationAssignment.createMany({ data: lokasi.map((l) => ({ userId: pengguna!.id, locationId: l.id })), skipDuplicates: true });
+    await progresLengkap(4, 9, 100);
+    peran = "site_manager";
+    const r = await siapkanBerkasTerminAction(undefined, form(4, LIMA));
+    expect(r?.success).toMatch(/perlu izin kelola kontrak/);
+    expect(await suratTermin(4)).toEqual([]);
+  });
+});

@@ -6,14 +6,14 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { cn } from "@/lib/cn";
-import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
+import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu, jakartaDateKey } from "@/lib/format";
 import { LABEL_STATUS_BUTIR, kelompokButir, namaButir, type StatusLangkah } from "@/lib/penagihan/katalog";
 import { muatPenagihan } from "@/lib/penagihan/data";
 import { ringkasBerkasTermin } from "@/lib/penagihan/berkas-termin";
-import { rentangMingguTermin } from "@/lib/penagihan/berkas-termin-aturan";
+import { rentangMingguTermin, tanggalSuratAwal } from "@/lib/penagihan/berkas-termin-aturan";
 import { persenSurat } from "@/lib/surat-penyedia/aturan";
 import { BarisBerkas, type BarisKlien } from "./baris-berkas";
-import { SiapkanBerkasTermin } from "./siapkan-berkas";
+import { SiapkanBerkasTermin, type SuratTerminKlien } from "./siapkan-berkas";
 
 export const metadata: Metadata = { title: "Penagihan" };
 export const dynamic = "force-dynamic";
@@ -63,6 +63,20 @@ export default async function PenagihanPage({
   const n = d.terminKe;
   const berkasDrive = await ringkasBerkasTermin(id, n);
   const rentang = rentangMingguTermin(n, d.mingguPrestasi);
+  // Lima surat penyedia termin ini (DECISIONS 724): yang sudah ada disebut,
+  // yang belum diberi tanggal awal H/H+1/H+2. H = tanggal permohonan
+  // pemeriksaan bila sudah dibuat, selain itu hari ini.
+  const pemeriksaan = d.tanggalSurat.permohonan_pemeriksaan;
+  const hariIni = pemeriksaan ? jakartaDateKey(pemeriksaan) : jakartaDateKey(new Date());
+  const suratTermin: SuratTerminKlien[] = d.langkah
+    .flatMap((l) => l.baris)
+    .filter((b) => b.butir.surat)
+    .map((b): SuratTerminKlien => {
+      const nama = namaButir(b.butir);
+      return b.status === "ada"
+        ? { jenis: b.butir.surat!, nama, ada: true, keterangan: b.rujukan?.judul ?? "sudah ada" }
+        : { jenis: b.butir.surat!, nama, ada: false, tanggalAwal: tanggalSuratAwal(b.butir.surat!, hariIni) };
+    });
   const t = d.termin;
   const lolosAmbang = d.progresKonsultan ? d.progresKonsultan.progresPct >= t.ambangPct : null;
 
@@ -214,7 +228,14 @@ export default async function PenagihanPage({
             </div>
           ) : null}
           {bolehUnggah && rentang.ok ? (
-            <SiapkanBerkasTermin packageId={id} terminKe={n} ulang={berkasDrive.total > 0} folderDrive={berkasDrive.folderDrive} />
+            <SiapkanBerkasTermin
+              packageId={id}
+              terminKe={n}
+              ulang={berkasDrive.total > 0}
+              folderDrive={berkasDrive.folderDrive}
+              surat={suratTermin}
+              bolehBuatSurat={can(user.role, "contract.manage")}
+            />
           ) : null}
         </CardBody>
       </Card>

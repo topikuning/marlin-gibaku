@@ -6,17 +6,9 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
-import {
-  JENIS_SURAT_TERSEDIA,
-  LABEL_JENIS_SURAT,
-  TEMPAT_LENGKAPI,
-  kekuranganTertaut,
-  polaNomorSah,
-  susunNomor,
-  tautanLengkapi,
-  teksKekurangan,
-} from "./aturan";
-import { dataDariKontrak, kunciNomorPerusahaan, muatKontrakSurat, nomorUrutBerikut, terminAda } from "./data";
+import { JENIS_SURAT_TERSEDIA, LABEL_JENIS_SURAT, polaNomorSah } from "./aturan";
+import { buatSuratPenyedia } from "./buat";
+import { muatKontrakSurat, terminAda } from "./data";
 import { barisTeks, type ProgresLokasi } from "./skema";
 
 /**
@@ -209,49 +201,16 @@ export async function buatSuratAction(_prev: SuratPenyediaState, formData: FormD
           }
         : { kepada: barisTeks(formData.get("kepada")), lampiran: barisTeks(formData.get("lampiran")) };
 
-    // Nomor kosong = otomatis dari pola perusahaan; diketik = dipakai apa adanya.
-    const pola = kontrak.vendor.polaNomorSurat;
-    if (!d.nomor && !pola)
-      return { error: "Isi nomor surat, atau atur pola nomor perusahaan di Data surat supaya nomornya otomatis." };
-
-    // Yang belum lengkap DISEBUT sekarang, bukan baru ketahuan saat diunduh –
-    // lengkap dengan tautan langsung ke tempat mengisinya.
-    const kurang = kekuranganTertaut(
-      dataDariKontrak(kontrak, { jenis, terminKe: d.terminKe, nomor: d.nomor, tanggal, kota: d.kota, isian }),
-    );
-    if (kurang.length > 0)
-      return {
-        error: `${LABEL_JENIS_SURAT[jenis]} belum bisa disusun. Lengkapi dulu: ${kurang.map(teksKekurangan).join("; ")}.`,
-        judul: `${LABEL_JENIS_SURAT[jenis]} belum bisa disusun. Lengkapi dulu:`,
-        kurang: kurang.map((k) => ({
-          teks: k.teks,
-          tempat: TEMPAT_LENGKAPI[k.tujuan],
-          href: tautanLengkapi(k.tujuan, { packageId: kontrak.package.id, vendorId: kontrak.vendor.id, terminKe: d.terminKe }),
-        })),
-      };
-
-    const { s, nomor, nomorUrut } = await db.$transaction(async (tx) => {
-      let nomor = d.nomor;
-      let nomorUrut: number | null = null;
-      if (!nomor) {
-        await kunciNomorPerusahaan(tx, c.vendorId);
-        nomorUrut = await nomorUrutBerikut(c.vendorId, tanggal, tx);
-        nomor = susunNomor(pola!, nomorUrut, tanggal);
-      }
-      const s = await tx.suratPenyedia.create({
-        data: { contractId: c.id, jenis, terminKe: d.terminKe, nomor, nomorUrut, tanggal, kota: d.kota, isian, dibuatOlehId: user.id },
-        select: { id: true },
-      });
-      return { s, nomor, nomorUrut };
-    });
-
-    await audit(user.id, "surat_penyedia.buat", "surat_penyedia", s.id, {
-      contractId: c.id,
+    const hasil = await buatSuratPenyedia(user.id, kontrak, {
       jenis,
       terminKe: d.terminKe,
-      nomor,
-      otomatis: nomorUrut !== null,
+      tanggal,
+      kota: d.kota,
+      nomor: d.nomor,
+      isian,
     });
+    if (!hasil.ok) return { error: hasil.error, judul: hasil.judul, kurang: hasil.kurang };
+    const nomor = hasil.nomor;
     revalidatePath(`/paket/${c.packageId}/termin`);
     return { success: `${LABEL_JENIS_SURAT[jenis]} termin ${d.terminKe} dibuat dengan nomor ${nomor}.` };
   } catch (err) {

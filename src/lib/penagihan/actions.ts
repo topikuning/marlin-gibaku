@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { can } from "@/lib/authz";
+import { parseDateKey } from "@/lib/format";
+import { JENIS_SURAT_TERSEDIA, LABEL_JENIS_SURAT } from "@/lib/surat-penyedia/aturan";
+import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
 import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { DocumentError, uploadDocument } from "@/lib/documents";
@@ -19,7 +23,15 @@ import { butirBerkas, namaButir } from "./katalog";
  */
 
 export type PenagihanState =
-  | { error?: string; success?: string; tautan?: { teks: string; href: string } }
+  | {
+      error?: string;
+      success?: string;
+      tautan?: { teks: string; href: string };
+      /** Judul pendek bila `kurang` diisi (surat belum bisa disusun). */
+      judul?: string;
+      /** Data yang kurang, masing-masing dengan tautan ke tempat mengisinya. */
+      kurang?: { teks: string; tempat: string; href: string }[];
+    }
   | undefined;
 
 const schema = z.object({
@@ -123,11 +135,42 @@ export async function siapkanBerkasTerminAction(_prev: PenagihanState, formData:
       return { error: "Akun Google Drive MARLIN belum terhubung. Minta admin menghubungkannya di menu Sistem." };
     }
 
-    const { antrekanBerkasTermin } = await import("./berkas-termin");
+    const { antrekanBerkasTermin, buatSuratTermin } = await import("./berkas-termin");
+
+    // Lima surat penyedia yang belum ada dibuat lebih dulu (DECISIONS 724),
+    // dengan tanggal dari formulir. Butuh izin kelola kontrak, sama dengan
+    // formulir "Buat surat".
+    const tanggal: Partial<Record<JenisSuratPenyedia, Date>> = {};
+    for (const j of JENIS_SURAT_TERSEDIA) {
+      const t = parseDateKey(String(formData.get(`tanggal_${j}`) ?? ""));
+      if (t) tanggal[j] = t;
+    }
+    const adaTanggal = Object.keys(tanggal).length > 0;
+    let catatanSurat = "";
+    if (adaTanggal && can(user.role, "contract.manage")) {
+      const k = await db.contract.findFirst({ where: { packageId: pkg.id }, select: { id: true } });
+      const surat = await buatSuratTermin({ userId: user.id, orgId: user.orgId, contractId: k!.id, terminKe, tanggal });
+      const dibuat = surat.dibuat.map((x) => `${LABEL_JENIS_SURAT[x.jenis]} nomor ${x.nomor}`);
+      if (surat.gagal) {
+        revalidatePath(`/paket/${pkg.id}/penagihan`);
+        return {
+          error: `${dibuat.length ? `Sudah dibuat: ${dibuat.join("; ")}. ` : ""}${surat.gagal.error} Berkas belum disiapkan ke Drive.`,
+          judul: surat.gagal.judul
+            ? `${dibuat.length ? `${dibuat.length} surat sudah dibuat. ` : ""}${surat.gagal.judul}`
+            : undefined,
+          kurang: surat.gagal.kurang,
+        };
+      }
+      if (dibuat.length) catatanSurat = ` Surat dibuat: ${dibuat.join("; ")}.`;
+    } else if (adaTanggal) {
+      catatanSurat = " Surat yang belum ada tidak dibuat: perlu izin kelola kontrak.";
+    }
+
     const r = await antrekanBerkasTermin(pkg.id, terminKe, user);
     if (!r.ok) {
+      if (catatanSurat) revalidatePath(`/paket/${pkg.id}/penagihan`);
       return {
-        error: r.error,
+        error: `${r.error}${catatanSurat}`,
         tautan: r.terminKe
           ? { teks: `Isi progres konsultan termin ${r.terminKe}`, href: `/paket/${pkg.id}/termin?termin=${r.terminKe}#progres-konsultan` }
           : undefined,
@@ -156,6 +199,7 @@ export async function siapkanBerkasTerminAction(_prev: PenagihanState, formData:
         (r.dibuang
           ? ` ${r.dibuang} versi MARLIN yang sudah digantikan unggahan Anda dipindah ke Sampah Drive (masih bisa dipulihkan).`
           : "") +
+        catatanSurat +
         " Anda tidak perlu menunggu di halaman ini; muat ulang nanti untuk melihat kemajuannya.",
     };
   } catch (err) {
