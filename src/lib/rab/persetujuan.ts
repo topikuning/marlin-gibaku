@@ -133,11 +133,10 @@ export async function pastikanBolehAktivasi(revisionId: string): Promise<void> {
 }
 
 /**
- * Boleh mengaktifkan revisi TANPA dua persetujuan? Hanya super admin UTAMA
- * (`SUPER_ADMIN_UTAMA`), bukan sekadar peran super admin (DECISIONS 682).
- * Pemanggil tetap wajib mencocokkan kalimat konfirmasinya
- * (`cocokKonfirmasiTanpaPersetujuan`) dan menulis audit
- * `rab.aktivasi_tanpa_persetujuan`.
+ * Boleh KOREKSI RAB aktif tanpa dua persetujuan? Hanya super admin UTAMA
+ * (`SUPER_ADMIN_UTAMA`), bukan sekadar peran super admin (DECISIONS 682/728).
+ * Jalan pintasnya kini koreksi di tempat, bukan aktivasi adendum; pemanggil
+ * tetap wajib mencocokkan kalimat konfirmasi (`cocokKonfirmasiKoreksi`).
  */
 export function bolehAktifTanpaPersetujuan(user: CalonAkar): boolean {
   return adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA));

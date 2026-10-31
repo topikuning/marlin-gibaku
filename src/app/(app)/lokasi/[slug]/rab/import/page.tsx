@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { bolehAktifTanpaPersetujuan } from "@/lib/rab/persetujuan";
+import { tahapRevisi } from "@/lib/rab/tahap";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
@@ -17,10 +19,12 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.manage");
 
-  const active = await db.rabRevision.findFirst({
-    where: { locationId: location.id, status: "aktif" },
-    select: { revisionNo: true, totalValue: true, createdAt: true, source: true },
+  const riwayat = await db.rabRevision.findMany({
+    where: { locationId: location.id },
+    select: { id: true, revisionNo: true, totalValue: true, createdAt: true, source: true, status: true },
   });
+  const active = riwayat.find((r) => r.status === "aktif") ?? null;
+  const tahapAktif = active ? tahapRevisi(riwayat).get(active.id)?.label : null;
   /*
    * Jumlah kolom minggu kontrak — dipakai HANYA untuk mencetak angka minggu
    * pertama profil "awal lambat" di panel pilihan. Penghitungnya yang SAMA
@@ -36,7 +40,7 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           title="Impor HPS / Adendum"
           subtitle={
             active
-              ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File yang mengubah isinya jadi revisi berikutnya; yang isinya sama dipakai membetulkan bacaan revisi ini.`
+              ? `Revisi aktif sekarang: #${active.revisionNo} (${tahapAktif}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. Perubahan kontrak (MC-0, CCO) lewat draft adendum; "Jadikan RAB AKTIF" di sini adalah koreksi oleh super admin utama.`
               : "Belum ada revisi RAB – file akan jadi revisi #1. Bentuk kurva-S dipilih sesudah impor berhasil, tidak dibuat sendiri."
           }
           action={
@@ -52,6 +56,7 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
             slug={slug}
             adaAktif={active != null}
             totalWeeks={totalWeeks}
+            bolehKoreksi={bolehAktifTanpaPersetujuan(user)}
           />
         </CardBody>
       </Card>

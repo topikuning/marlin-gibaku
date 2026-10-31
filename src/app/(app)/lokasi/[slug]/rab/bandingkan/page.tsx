@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { tahapRevisi } from "@/lib/rab/tahap";
 import { ArrowLeft, GitCompare } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, Combobox, EmptyState, FormSaring, KpiCard, Label, TombolSaring } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -50,8 +51,10 @@ export default async function BandingkanRevisiPage({
   const dari = pasangan ? byId.get(pasangan.dari)! : null;
   const ke = pasangan ? byId.get(pasangan.ke)! : null;
   const diff = pasangan ? await diffRevisions(pasangan.dari, pasangan.ke) : null;
+  // Tahap dari riwayat (DECISIONS 728): RAB kontrak · MC-0 · CCO-01 · Koreksi.
+  const tahap = tahapRevisi(revisi);
   const label = (r: (typeof revisi)[number]) =>
-    `#${r.revisionNo} · ${r.source === "hps_awal" ? "RAB kontrak" : "adendum"} · ${STATUS[r.status]} · ${formatTanggal(r.createdAt)}`;
+    `#${r.revisionNo} · ${tahap.get(r.id)?.label ?? ""} · ${STATUS[r.status]} · ${formatTanggal(r.createdAt)}`;
 
   return (
     <div className="max-w-6xl space-y-4">

@@ -99,19 +99,15 @@ export function suaraMasihBerlaku<T extends { approvedAt: Date }>(
 }
 
 /**
- * JALAN PINTAS SUPER ADMIN UTAMA (DECISIONS 682) – kalimat konfirmasi yang
- * wajib diketik sebelum revisi diaktifkan tanpa dua persetujuan.
- *
- * Permintaan user 2026-10-16: *"itu adalah aksi bypass yang sengaja dibuat
- * hanya untuk super admin"*. Aturan empat mata di atas tetap berlaku untuk
- * semua orang; pengecualiannya hanya super admin UTAMA (env, bukan peran),
- * dan hanya bila ia memintanya sendiri dengan mengetik kalimat ini. Pola yang
- * sama dengan hapus revisi (`HAPUS #N`, DECISIONS 636).
+ * Kalimat konfirmasi KOREKSI oleh super admin UTAMA (DECISIONS 728, mengganti
+ * `AKTIFKAN #N` dari 682): menimpa isi RAB aktif di tempat, tanpa revisi baru
+ * dan tanpa dua persetujuan. Menyebut nomor revisi supaya tidak tertukar –
+ * pola yang sama dengan hapus revisi (`HAPUS #N`, DECISIONS 636).
  */
-export function konfirmasiTanpaPersetujuan(revisionNo: number): string {
-  return `AKTIFKAN #${revisionNo}`;
+export function konfirmasiKoreksi(revisionNo: number): string {
+  return `KOREKSI #${revisionNo}`;
 }
 
-export function cocokKonfirmasiTanpaPersetujuan(ketik: unknown, revisionNo: number): boolean {
-  return String(ketik ?? "").trim().replace(/\s+/g, " ").toUpperCase() === konfirmasiTanpaPersetujuan(revisionNo);
+export function cocokKonfirmasiKoreksi(ketik: unknown, revisionNo: number): boolean {
+  return String(ketik ?? "").trim().replace(/\s+/g, " ").toUpperCase() === konfirmasiKoreksi(revisionNo);
 }

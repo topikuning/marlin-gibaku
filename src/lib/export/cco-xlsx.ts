@@ -88,7 +88,15 @@ export type CcoXlsxInput = {
   vendorName: string | null;
   /** Dari `Contract.ppnPercent` — JANGAN dipatok 11. */
   ppnPercent: number;
+  /** Nomor CCO tahap hasil (diturunkan dari riwayat, `lib/rab/tahap.ts`). */
   ccoNo: number;
+  /**
+   * Tahap hasil adalah MC-0 (perubahan pertama sesudah kontrak, DECISIONS 728):
+   * judul "MUTUAL CHECK AWAL (MC - 0)", blok hasil "MC - 0", `ccoNo` diabaikan.
+   */
+  mc0?: boolean;
+  /** Label blok DASAR: "KONTRAK" untuk MC-0, "MC - 0" untuk CCO-01, dst. */
+  labelDasar?: string;
   /**
    * Nilai revisi yang TERCATAT di MARLIN (pra-PPN) — dipakai baris rekonsiliasi.
    * Bukan hiasan: pada RAB nyata Σ(volume × harga satuan) bisa TIDAK sama
@@ -125,7 +133,7 @@ const KOL_KET: Kolom = { key: "ket", judul: "KET", lebar: 11, rata: "center" };
 
 const BLOK: { judul: string; kolom: Kolom[] }[] = [
   {
-    judul: "MC - 0",
+    judul: "DASAR",
     kolom: [
       { key: "volumeLama", judul: "VOLUME", lebar: 11, rata: "right", fmt: VOL_FMT },
       // Realisasi lapangan — dasar pengaman "volume tidak boleh turun di bawah
@@ -154,7 +162,7 @@ const BLOK: { judul: string; kolom: Kolom[] }[] = [
     ],
   },
   {
-    judul: "CCO - 01",
+    judul: "HASIL",
     kolom: [
       { key: "volumeBaru", judul: "VOLUME", lebar: 11, rata: "right", fmt: VOL_FMT },
       { key: "jumlahBaru", judul: "JUMLAH HARGA (Rp)", lebar: 18, rata: "right", fmt: RUPIAH_FMT },
@@ -184,14 +192,30 @@ const BARIS_IDENTITAS = 3;
 const BARIS_HEADER = 8;
 const BARIS_DATA = 10;
 
+/**
+ * Label tahap di dokumen (DECISIONS 728). Dulu blok dasar selalu "MC - 0" dan
+ * blok hasil selalu "CCO - 01", apa pun tahapnya – dokumen CCO-02 tetap
+ * menulis "CCO - 01" di kepala kolomnya, dan tahap MC-0 tidak bisa dicetak.
+ */
+type LabelTahap = { dasar: string; hasil: string; judul: string; sheet: string };
+
+function labelTahap(input: CcoXlsxInput): LabelTahap {
+  const dasar = input.labelDasar ?? "MC - 0";
+  if (input.mc0) {
+    return { dasar, hasil: "MC - 0", judul: "MUTUAL CHECK AWAL (MC - 0) – PEKERJAAN TAMBAH KURANG", sheet: "MC-0" };
+  }
+  const no = String(input.ccoNo).padStart(2, "0");
+  return { dasar, hasil: `CCO - ${no}`, judul: `CONTRACT CHANGE ORDER - ${no} (CCO - ${no})`, sheet: `CCO-${no}` };
+}
+
 export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   const { rows } = susunBarisCco(input.lama, input.baru, input.realisasiByLineage);
-  const noCco = String(input.ccoNo).padStart(2, "0");
+  const L = labelTahap(input);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.calcProperties.fullCalcOnLoad = true; // Excel hitung ulang saat dibuka
-  const ws = wb.addWorksheet(`CCO-${noCco}`, {
+  const ws = wb.addWorksheet(L.sheet, {
     views: [{ state: "frozen", xSplit: 2, ySplit: BARIS_HEADER + 1 }],
     pageSetup: {
       orientation: "landscape",
@@ -205,9 +229,9 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   ws.pageSetup.printTitlesRow = `${BARIS_HEADER}:${BARIS_HEADER + 1}`;
   KOLOM.forEach((k, i) => (ws.getColumn(i + 1).width = k.lebar));
 
-  tulisJudul(ws, noCco);
+  tulisJudul(ws, L);
   tulisIdentitas(ws, input);
-  tulisHeader(ws);
+  tulisHeader(ws, L);
 
   // ── Isi tabel ──────────────────────────────────────────────────────────────
   // Baris JUMLAH belum diketahui saat baris data ditulis, padahal formula bobot
@@ -222,13 +246,13 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   // Baris yang punya realisasi — dipakai memasang sorotan merah sesudahnya.
   const barisBerealisasi: number[] = [];
   const hargaBeda: BarisHargaBeda[] = [];
-  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah, barisBerealisasi, hargaBeda));
+  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah, barisBerealisasi, hargaBeda, L));
 
   tulisKaki(ws, { barisAkhirData, barisJumlah, barisPpn, barisTotal, ppnPercent: input.ppnPercent });
   sorotBarisBerubah(ws, barisAkhirData);
   sorotDiBawahRealisasi(ws, barisBerealisasi);
-  const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input, hargaBeda);
-  tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input);
+  const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input, hargaBeda, L);
+  tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input, L);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -236,9 +260,9 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
 
 // ── Bagian-bagian lembar ──────────────────────────────────────────────────────
 
-function tulisJudul(ws: ExcelJS.Worksheet, noCco: string) {
+function tulisJudul(ws: ExcelJS.Worksheet, L: LabelTahap) {
   const c = ws.getCell(BARIS_JUDUL, 1);
-  c.value = `CONTRACT CHANGE ORDER - ${noCco} (CCO - ${noCco})`;
+  c.value = L.judul;
   c.font = { bold: true, size: 14 };
   c.alignment = { horizontal: "center" };
   ws.mergeCells(BARIS_JUDUL, 1, BARIS_JUDUL, TOTAL_KOLOM);
@@ -266,7 +290,7 @@ function tulisIdentitas(ws: ExcelJS.Worksheet, input: CcoXlsxInput) {
   });
 }
 
-function tulisHeader(ws: ExcelJS.Worksheet) {
+function tulisHeader(ws: ExcelJS.Worksheet, L: LabelTahap) {
   const H = BARIS_HEADER;
   const set = (cell: ExcelJS.Cell, teks: string) => {
     cell.value = teks;
@@ -285,7 +309,7 @@ function tulisHeader(ws: ExcelJS.Worksheet) {
     const dari = kursor;
     const sampai = kursor + blok.kolom.length - 1;
     ws.mergeCells(H, dari, H, sampai);
-    set(ws.getCell(H, dari), blok.judul);
+    set(ws.getCell(H, dari), blok.judul === "DASAR" ? L.dasar : blok.judul === "HASIL" ? L.hasil : blok.judul);
     blok.kolom.forEach((k, i) => set(ws.getCell(H + 1, dari + i), k.judul));
     kursor = sampai + 1;
   }
@@ -337,6 +361,7 @@ function tulisBaris(
   barisJumlah: number,
   barisBerealisasi: number[],
   hargaBeda: BarisHargaBeda[],
+  L: LabelTahap,
 ) {
   const judul = row.jenis === "judul" || tanpaIsi(row);
   const baris = ws.getRow(r);
@@ -386,7 +411,7 @@ function tulisBaris(
       sel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
       sel.note =
         `Harga kontrak ${RUPIAH_ID.format(row.hargaLama ?? 0)}; di berkas adendum ` +
-        `${RUPIAH_ID.format(row.hargaBaru ?? 0)}. Kolom ini harga MC-0 (kontrak); JUMLAH sisi CCO-01 ` +
+        `${RUPIAH_ID.format(row.hargaBaru ?? 0)}. Kolom ini harga ${L.dasar} (kontrak); JUMLAH sisi ${L.hasil} ` +
         `memakai harga BERKAS – angka berkas dipakai apa adanya. Kalau yang benar harga kontrak, ` +
         `betulkan harganya di berkas adendum lalu impor ulang.`;
       hargaBeda.push({ baris: r, no: row.no, uraian: row.uraian, dampak: dampakHarga ?? 0 });
@@ -420,7 +445,7 @@ function tulisBaris(
         errorTitle: "Di bawah realisasi",
         error:
           `Pekerjaan ini sudah terealisasi ${VOL_ID.format(row.realisasi)}${row.satuan ? ` ${row.satuan}` : ""} ` +
-          `di lapangan (kolom REALISASI). Volume CCO-01 tidak boleh di bawahnya – pekerjaan-kurang atas item ` +
+          `di lapangan (kolom REALISASI). Volume ${L.hasil} tidak boleh di bawahnya – pekerjaan-kurang atas item ` +
           `berjalan maksimal sampai volume yang sudah dikerjakan.`,
       };
       barisBerealisasi.push(r);
@@ -693,6 +718,7 @@ function tulisRekonsiliasi(
   barisJumlah: number,
   input: CcoXlsxInput,
   hargaBeda: BarisHargaBeda[] = [],
+  L: LabelTahap = labelTahap(input),
 ): number {
   const label = (r: number, teks: string) => {
     const c = ws.getCell(r, 1);
@@ -769,9 +795,9 @@ function tulisRekonsiliasi(
   const sel = ws.getCell(rHarga, 1);
   sel.value =
     `PERHATIAN – harga satuan ${hargaBeda.length} item berbeda antara kontrak dan berkas adendum. ` +
-    `Kolom HARGA SATUAN memuat harga KONTRAK (blok MC-0); JUMLAH sisi CCO-01 dihitung dengan harga ` +
+    `Kolom HARGA SATUAN memuat harga KONTRAK (blok ${L.dasar}); JUMLAH sisi ${L.hasil} dihitung dengan harga ` +
     `BERKAS – angka berkas dipakai apa adanya (DECISIONS 203), jadi item yang dinolkan di berkas tetap ` +
-    `bernilai nol di sini. Bila dihitung dengan harga kontrak, JUMLAH CCO-01 akan ` +
+    `bernilai nol di sini. Bila dihitung dengan harga kontrak, JUMLAH ${L.hasil} akan ` +
     `${total >= 0 ? "LEBIH TINGGI" : "LEBIH RENDAH"} ${RUPIAH_ID.format(Math.abs(total))}. ` +
     `Item: ${daftar}${hargaBeda.length > 8 ? `; +${hargaBeda.length - 8} lainnya` : ""}. ` +
     `Sel harga satuannya berlatar kuning – periksa berkas sumbernya sebelum dokumen ini diajukan.`;
@@ -781,11 +807,11 @@ function tulisRekonsiliasi(
   return rHarga;
 }
 
-function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number, input: CcoXlsxInput) {
+function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number, input: CcoXlsxInput, L: LabelTahap) {
   const catatan = ws.getCell(baris, 1);
   catatan.value =
-    "Sel berlatar putih pada kolom VOLUME (MC-0 & CCO-01) dan HARGA SATUAN adalah data; kolom lain formula yang ikut menyesuaikan. " +
-    "Bobot MC-0, PEKERJAAN TAMBAH, dan PEKERJAAN KURANG dihitung terhadap JUMLAH MC-0; bobot CCO-01 terhadap JUMLAH CCO-01 – keduanya pra-PPN. " +
+    `Sel berlatar putih pada kolom VOLUME (${L.dasar} & ${L.hasil}) dan HARGA SATUAN adalah data; kolom lain formula yang ikut menyesuaikan. ` +
+    `Bobot ${L.dasar}, PEKERJAAN TAMBAH, dan PEKERJAAN KURANG dihitung terhadap JUMLAH ${L.dasar}; bobot ${L.hasil} terhadap JUMLAH ${L.hasil} – keduanya pra-PPN. ` +
     "Kolom tambah/kurang dikosongkan bila volumenya tidak berubah.";
   catatan.font = { size: 8, italic: true, color: { argb: "FF6B7280" } };
   catatan.alignment = { horizontal: "left", wrapText: true };

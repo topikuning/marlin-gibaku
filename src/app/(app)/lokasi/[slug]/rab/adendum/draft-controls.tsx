@@ -150,7 +150,7 @@ export function DraftControls({
       </Button>
       {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
         <Button type="button" variant="secondary" onClick={() => setBukaTanpa(true)}>
-          Aktifkan tanpa persetujuan…
+          Terapkan sebagai koreksi…
         </Button>
       ) : null}
       <Button

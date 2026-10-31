@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, Textarea } from "@/components/ui";
-import { konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
+import { konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -40,6 +40,7 @@ export function ImportForm({
   adaAktif,
   modeAwal,
   totalWeeks,
+  bolehKoreksi = false,
 }: {
   locationId: string;
   /** Dipakai `pilihProfilKurvaAction` sesudah impor HPS awal berhasil. */
@@ -61,6 +62,11 @@ export function ImportForm({
   adaAktif: boolean;
   /** "draft" = halaman adendum: isi draft, JANGAN sentuh RAB aktif. */
   modeAwal?: ImportMode;
+  /**
+   * Super admin utama: boleh mengoreksi RAB aktif ("Jadikan RAB AKTIF" pada
+   * lokasi ber-RAB aktif, DECISIONS 728). Server memeriksa ulang.
+   */
+  bolehKoreksi?: boolean;
 }) {
   /**
    * Tujuan bawaan MENGIKUTI KEADAAN, bukan konstanta (DECISIONS 232).
@@ -110,7 +116,7 @@ export function ImportForm({
     confirm: boolean,
     padananPakai: Record<string, string> = padanan,
     bacaPakai: { sheet?: string; kolom?: KolomManual } = baca,
-    opsi: { isiHargaKosong?: boolean; konfirmasiTanpaPersetujuan?: string } = {},
+    opsi: { konfirmasiKoreksi?: string } = {},
   ) {
     if (!file) {
       setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
@@ -130,11 +136,7 @@ export function ImportForm({
     if (confirm && preview) {
       fd.set("confirm", "1");
       fd.set("previewSha", preview.sha256);
-      if (opsi.isiHargaKosong) fd.set("isiHargaKosong", "1");
-      if (opsi.konfirmasiTanpaPersetujuan != null) {
-        fd.set("tanpaPersetujuan", "1");
-        fd.set("konfirmasi", opsi.konfirmasiTanpaPersetujuan);
-      }
+      if (opsi.konfirmasiKoreksi != null) fd.set("konfirmasi", opsi.konfirmasiKoreksi);
     }
     startTransition(async () => {
       // DIBUNGKUS: aksi ini dipanggil telanjang, jadi kegagalan MENGIRIM
@@ -212,11 +214,10 @@ export function ImportForm({
               [
                 "aktifkan",
                 "Jadikan RAB AKTIF sekarang",
-                // Kalimat lama ("menggantikan RAB aktif") tidak jujur untuk
-                // lokasi yang sudah punya RAB aktif: perubahan kontrak tetap
-                // menunggu dua persetujuan (DECISIONS 234/680).
+                // Lokasi ber-RAB aktif: KOREKSI oleh super admin utama – isi RAB
+                // aktif ditimpa, bukan adendum/CCO (DECISIONS 728).
                 adaAktif
-                  ? "Berkas yang isinya sama dengan RAB aktif (item, volume, jumlah) dipakai membetulkan bacaannya, langsung, tanpa revisi baru. Berkas yang mengubah isi kontrak tersimpan sebagai DRAFT dan baru aktif setelah disetujui."
+                  ? "KOREKSI: isi RAB aktif ditimpa langsung dengan isi berkas ini. Tidak ada revisi baru, tidak dihitung sebagai adendum/CCO, tanpa persetujuan. Hanya super admin utama."
                   : "Menjadi RAB aktif lokasi ini. Untuk HPS awal.",
               ],
             ] as const
@@ -226,11 +227,13 @@ export function ImportForm({
             const terkunci =
               nilai === "draft"
                 ? !adaAktif // tidak ada RAB untuk diadendum
-                : adaAktif && !bukaKunci; // mengganti RAB kontrak yang berlaku
+                : adaAktif && (!bolehKoreksi || !bukaKunci); // koreksi RAB kontrak yang berlaku
             const sebab =
               nilai === "draft"
                 ? "Belum ada RAB aktif. Draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
-                : "Terkunci karena lokasi ini sudah punya RAB aktif.";
+                : bolehKoreksi
+                  ? "Terkunci karena lokasi ini sudah punya RAB aktif."
+                  : "Koreksi RAB aktif hanya untuk super admin utama. Perubahan kontrak diajukan lewat draft adendum.";
             return (
               <label
                 key={nilai}
@@ -257,7 +260,7 @@ export function ImportForm({
           })}
           {/* Jalan keluarnya ADA, tapi harus disengaja: satu ketukan tambahan
               plus kalimat yang menyebut akibatnya. */}
-          {adaAktif && !bukaKunci ? (
+          {adaAktif && bolehKoreksi && !bukaKunci ? (
             <Button
               type="button"
               variant="secondary"
@@ -271,8 +274,7 @@ export function ImportForm({
           ) : null}
           {adaAktif && bukaKunci ? (
             <p className="text-[13px] text-warning">
-              Kunci dibuka. Pratinjau menyebut mana yang akan terjadi pada berkas Anda sebelum ada yang
-              disimpan.
+              Kunci dibuka. Pratinjau menyebut baris mana yang akan berubah sebelum ada yang disimpan.
             </p>
           ) : null}
         </div>
@@ -433,8 +435,8 @@ export function ImportForm({
             />
           ) : null}
 
-          {/* Perbaikan pembacaan tidak membuat revisi – tidak ada yang diberi catatan. */}
-          {preview.mode === "aktifkan" && preview.koreksi?.boleh ? null : (
+          {/* Koreksi tidak membuat revisi – tidak ada yang diberi catatan. */}
+          {preview.mode === "aktifkan" && preview.koreksi ? null : (
             <div>
               <Label htmlFor="hps-note">Catatan revisi (opsional)</Label>
               <Textarea
@@ -451,43 +453,23 @@ export function ImportForm({
         </div>
       ) : null}
 
-      {preview?.mode === "aktifkan" && preview.tanpaPersetujuan ? (
-        <AktifkanTanpaPersetujuan
-          revisionNo={preview.tanpaPersetujuan.revisionNo}
+      {preview?.mode === "aktifkan" && preview.koreksi?.boleh && preview.koreksi.terhalang.length === 0 ? (
+        <KonfirmasiKoreksi
+          revisionNo={preview.koreksi.revisionNo}
           pending={pending}
-          onAktifkan={(konfirmasi) => run(true, padanan, baca, { konfirmasiTanpaPersetujuan: konfirmasi })}
+          onKoreksi={(konfirmasi) => run(true, padanan, baca, { konfirmasiKoreksi: konfirmasi })}
         />
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {preview ? (
           <>
-            {/* Berkas yang berbeda dari RAB aktif tetap bisa mengisi harga satuan
-                yang kosong, tanpa revisi baru (DECISIONS 681). Itu yang utama;
-                menyimpannya sebagai revisi menunggu persetujuan jadi pilihan kedua. */}
-            {preview.mode === "aktifkan" && preview.koreksi && !preview.koreksi.boleh && preview.koreksi.hargaKosong.jumlah > 0 ? (
-              <Button type="button" loading={pending} onClick={() => run(true, padanan, baca, { isiHargaKosong: true })}>
-                Isi {preview.koreksi.hargaKosong.jumlah} harga satuan yang kosong
+            {/* Koreksi disimpan dari panel konfirmasinya – tidak ada tombol simpan kedua. */}
+            {preview.mode === "aktifkan" && preview.koreksi ? null : (
+              <Button type="button" loading={pending} onClick={() => run(true)}>
+                {preview.mode === "draft" ? "Simpan ke draft adendum" : "Simpan & aktifkan revisi"}
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant={
-                preview.mode === "aktifkan" && preview.koreksi && !preview.koreksi.boleh && preview.koreksi.hargaKosong.jumlah > 0
-                  ? "secondary"
-                  : "primary"
-              }
-              loading={pending}
-              onClick={() => run(true)}
-            >
-              {preview.mode === "draft"
-                ? "Simpan ke draft adendum"
-                : preview.koreksi?.boleh
-                  ? "Simpan perbaikan"
-                  : preview.koreksi
-                    ? "Simpan revisi (menunggu persetujuan)"
-                    : "Simpan & aktifkan revisi"}
-            </Button>
+            )}
             <Button type="button" variant="secondary" loading={pending} onClick={() => run(false)}>
               Pratinjau ulang
             </Button>
@@ -698,129 +680,120 @@ function PanelPadanan({
 /** Apa yang berubah terhadap RAB aktif — ditampilkan SEBELUM ada yang ditulis. */
 
 /**
- * Pratinjau mode "Jadikan RAB AKTIF" pada lokasi yang sudah punya RAB aktif
- * (DECISIONS 680): apa yang SEBENARNYA akan terjadi, sebelum disimpan.
+ * Pratinjau KOREKSI (DECISIONS 728): mode "Jadikan RAB AKTIF" pada lokasi yang
+ * sudah punya RAB aktif menimpa isinya di tempat. Yang akan berubah disebut
+ * sebelum disimpan; baris yang masih dipakai laporan tidak boleh hilang.
  */
 function BannerKoreksi({ koreksi }: { koreksi: NonNullable<ImportPreview["koreksi"]> }) {
+  const r = koreksi.ringkas;
+  const bagian = [
+    r.volume ? `${r.volume} volume` : null,
+    r.harga ? `${r.harga} harga satuan` : null,
+    r.jumlah ? `${r.jumlah} jumlah` : null,
+    r.pindah ? `${r.pindah} pindah kelompok` : null,
+    r.lain ? `${r.lain} nomor/nama/satuan` : null,
+    r.tambah ? `${r.tambah} baris baru` : null,
+    r.hapus ? `${r.hapus} baris dihapus` : null,
+  ].filter(Boolean);
   if (!koreksi.boleh) {
     return (
       <Banner
         tone="warning"
+        title="Koreksi RAB aktif hanya untuk super admin utama"
+        description="Berkas ini tidak disimpan. Perubahan kontrak (MC-0, CCO) diajukan lewat “Isi DRAFT adendum” dan berlaku setelah disetujui Program Director dan satu Area/Project/Site Manager."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <Banner
+        tone={koreksi.terhalang.length > 0 ? "error" : "warning"}
         title={
-          koreksi.hargaKosong.jumlah > 0
-            ? `Berkas ini berbeda dari RAB aktif revisi #${koreksi.revisionNo}, tapi harga satuan yang kosong tetap bisa diisi`
-            : `Berkas ini mengubah isi RAB aktif revisi #${koreksi.revisionNo}, jadi tersimpan sebagai DRAFT dulu`
+          bagian.length === 0
+            ? `Isinya sudah sama dengan RAB aktif revisi #${koreksi.revisionNo}`
+            : `Koreksi RAB aktif revisi #${koreksi.revisionNo}: ${bagian.join(", ")}`
         }
         description={
           <>
             <span className="block">
-              Kalau disimpan sebagai revisi, berkas ini jadi DRAFT yang baru aktif setelah disetujui
-              Program Director dan satu Area/Project/Site Manager di tab Adendum. Yang berbeda dari RAB
-              aktif:
+              Isi revisi #{koreksi.revisionNo} ditimpa langsung dengan berkas ini. Tidak ada revisi baru, tidak dihitung
+              sebagai adendum/CCO, dan tidak menunggu persetujuan. Realisasi yang melebihi volume barunya ikut diturunkan.
             </span>
-            <ul className="mt-1 list-disc pl-5">
-              {koreksi.sebab.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
-            {koreksi.hargaKosong.jumlah > 0 ? (
-              <>
-                <span className="mt-2 block font-medium text-ink">
-                  Yang bisa dibetulkan sekarang, tanpa revisi baru dan tanpa persetujuan:{" "}
-                  {koreksi.hargaKosong.jumlah} harga satuan yang kosong di RAB aktif. Volume dan jumlah
-                  item-item ini sama dengan berkas, jadi nilai kontrak tidak berubah. Perbedaan lain di
-                  atas tidak disentuh.
-                </span>
-                <ul className="mt-1 list-disc pl-5">
-                  {koreksi.hargaKosong.contoh.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                  {koreksi.hargaKosong.jumlah > koreksi.hargaKosong.contoh.length ? (
-                    <li>dan {koreksi.hargaKosong.jumlah - koreksi.hargaKosong.contoh.length} lainnya</li>
-                  ) : null}
-                </ul>
-              </>
+            {koreksi.contoh.length > 0 ? (
+              <ul className="mt-1 list-disc pl-5">
+                {koreksi.contoh.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            ) : null}
+            {koreksi.tambah.length > 0 ? (
+              <span className="mt-1 block">
+                Baris baru: {koreksi.tambah.join("; ")}
+                {r.tambah > koreksi.tambah.length ? "; …" : ""}.
+              </span>
+            ) : null}
+            {koreksi.hapus.length > 0 ? (
+              <span className="mt-1 block">
+                Dihapus: {koreksi.hapus.join("; ")}
+                {r.hapus > koreksi.hapus.length ? "; …" : ""}.
+              </span>
             ) : null}
           </>
         }
       />
-    );
-  }
-  if (koreksi.jumlahBaris === 0) {
-    return (
-      <Banner
-        tone="info"
-        title={`Isinya sudah sama dengan RAB aktif revisi #${koreksi.revisionNo}`}
-        description="Tidak ada angka yang akan diubah."
-      />
-    );
-  }
-  const ringkas = [
-    koreksi.hargaTerisi > 0 ? `${koreksi.hargaTerisi} harga satuan yang kosong akan terisi` : null,
-    koreksi.hargaBerubah > 0 ? `${koreksi.hargaBerubah} harga satuan terbaca lain` : null,
-  ].filter(Boolean);
-  return (
-    <Banner
-      tone="info"
-      title={`Perbaikan pembacaan RAB aktif revisi #${koreksi.revisionNo}`}
-      description={
-        <>
-          <span className="block">
-            Item, volume, dan jumlahnya sama dengan RAB aktif. Yang berbeda hanya bacaannya, jadi
-            langsung dibetulkan di revisi #{koreksi.revisionNo}, tanpa revisi baru dan tanpa persetujuan.
-            Progres, kurva-S, dan nilai kontrak tidak berubah.
-            {ringkas.length > 0 ? ` ${ringkas.join("; ")}.` : ""}
-          </span>
-          <ul className="mt-1 list-disc pl-5">
-            {koreksi.contoh.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-            {koreksi.jumlahBaris > koreksi.contoh.length ? (
-              <li>dan {koreksi.jumlahBaris - koreksi.contoh.length} baris lainnya</li>
-            ) : null}
-          </ul>
-        </>
-      }
-    />
+      {koreksi.terhalang.length > 0 ? (
+        <Banner
+          tone="error"
+          title={`${koreksi.terhalang.length} baris yang akan hilang masih dipakai`}
+          description={
+            <>
+              <span className="block">
+                Biarkan baris ini tetap ada di berkas (volumenya boleh dinolkan), atau pindahkan dulu laporannya.
+              </span>
+              <ul className="mt-1 list-disc pl-5">
+                {koreksi.terhalang.slice(0, 12).map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            </>
+          }
+        />
+      ) : null}
+    </div>
   );
 }
 
-/**
- * Super admin UTAMA saja (DECISIONS 682): berkas yang mengubah isi RAB aktif
- * langsung dijadikan RAB aktif, tanpa menunggu dua persetujuan. Server
- * memeriksa ulang siapa yang meminta dan kalimat konfirmasinya.
- */
-function AktifkanTanpaPersetujuan({
+/** Konfirmasi koreksi – server memeriksa ulang orang dan kalimatnya. */
+function KonfirmasiKoreksi({
   revisionNo,
   pending,
-  onAktifkan,
+  onKoreksi,
 }: {
   revisionNo: number;
   pending: boolean;
-  onAktifkan: (konfirmasi: string) => void;
+  onKoreksi: (konfirmasi: string) => void;
 }) {
   const [ketik, setKetik] = useState("");
-  const wajib = konfirmasiTanpaPersetujuan(revisionNo);
+  const wajib = konfirmasiKoreksi(revisionNo);
   return (
     <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
-      <p className="font-semibold text-ink">Super admin utama: jadikan RAB aktif sekarang, tanpa persetujuan</p>
+      <p className="font-semibold text-ink">Simpan koreksi RAB aktif revisi #{revisionNo}</p>
       <p className="text-ink">
-        Berkas ini akan jadi revisi #{revisionNo} dan langsung menggantikan RAB aktif. Kurva-S tidak diubah. Persetujuan
-        Program Director dan Area/Project/Site Manager dilewati, dan tindakan ini tercatat di jejak audit atas nama Anda.
+        Tindakan ini tercatat di jejak audit atas nama Anda, lengkap dengan angka sebelum dan sesudahnya.
       </p>
-      <label className="block text-ink" htmlFor="impor-tanpa-ttd">
+      <label className="block text-ink" htmlFor="impor-koreksi">
         Ketik <span className="font-semibold">{wajib}</span> untuk konfirmasi
       </label>
-      <Input id="impor-tanpa-ttd" autoComplete="off" value={ketik} onChange={(e) => setKetik(e.target.value)} />
+      <Input id="impor-koreksi" autoComplete="off" value={ketik} onChange={(e) => setKetik(e.target.value)} />
       <Button
         type="button"
         size="sm"
         variant="danger"
         loading={pending}
-        disabled={ketik.trim().toUpperCase() !== wajib}
-        onClick={() => onAktifkan(ketik)}
+        disabled={ketik.trim().replace(/\s+/g, " ").toUpperCase() !== wajib}
+        onClick={() => onKoreksi(ketik)}
       >
-        Jadikan revisi #{revisionNo} RAB aktif
+        Simpan koreksi
       </Button>
     </div>
   );

@@ -516,3 +516,38 @@ describe("TANDA TANGAN: nama pihak diambil dari kontrak", () => {
     expect(t).toContain("( Rudi Hartono )"); // yang ada tetap terisi
   });
 });
+
+/*
+ * Label tahap di dokumen (DECISIONS 728): dulu blok dasar selalu "MC - 0" dan
+ * blok hasil selalu "CCO - 01", apa pun tahapnya, dan tahap MC-0 tidak bisa
+ * dicetak sama sekali.
+ */
+describe("label tahap MC-0 / CCO-n", () => {
+  async function kepala(d: typeof MASUKAN & { mc0?: boolean; labelDasar?: string }) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildCcoXlsx(d)) as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]!;
+    return {
+      sheet: ws.name,
+      judul: String(ws.getCell("A1").value),
+      // Baris header blok (8): dasar di C, hasil sesudah blok kurang.
+      blok: [...new Set((ws.getRow(8).values as unknown[]).filter((v): v is string => typeof v === "string"))],
+    };
+  }
+
+  it("MC-0: KONTRAK → MC - 0, judul Mutual Check Awal", async () => {
+    const k = await kepala({ ...MASUKAN, mc0: true, labelDasar: "KONTRAK" });
+    expect(k.sheet).toBe("MC-0");
+    expect(k.judul).toMatch(/^MUTUAL CHECK AWAL \(MC - 0\)/);
+    expect(k.blok).toEqual(["NO", "URAIAN PEKERJAAN", "KONTRAK", "PEKERJAAN TAMBAH", "PEKERJAAN KURANG", "MC - 0", "KET"]);
+  });
+
+  it("CCO-02: blok dasar CCO - 01, hasil CCO - 02", async () => {
+    const k = await kepala({ ...MASUKAN, ccoNo: 2, labelDasar: "CCO - 01" });
+    expect(k.sheet).toBe("CCO-02");
+    expect(k.judul).toBe("CONTRACT CHANGE ORDER - 02 (CCO - 02)");
+    expect(k.blok).toContain("CCO - 01");
+    expect(k.blok).toContain("CCO - 02");
+    expect(k.blok).not.toContain("MC - 0");
+  });
+});

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { tahapRevisi } from "@/lib/rab/tahap";
 import { Calculator, Download, FilePen, History, Unlink, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -162,7 +163,7 @@ export default async function RabPage({
     adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))
   ) {
     const { ringkasHapusRevisi } = await import("@/lib/rab/hapus-revisi");
-    for (const r of revisions.filter((x) => x.status === "digantikan" && x.source === "adendum")) {
+    for (const r of revisions.filter((x) => x.status === "digantikan" && x.source !== "hps_awal")) {
       const h = await ringkasHapusRevisi(r.id);
       hapusRevisi[r.id] = {
         pengganti: h.pengganti?.revisionNo ?? null,
@@ -192,7 +193,9 @@ export default async function RabPage({
   const bolehTanpaPersetujuan =
     can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA));
 
+  const tahap = tahapRevisi(revisions);
   const revisionRows: RevisionRow[] = revisions.map((r) => ({
+    tahap: tahap.get(r.id)?.label ?? "",
     tanpaPersetujuan: tanpaPersetujuanIds.has(r.id),
     id: r.id,
     revisionNo: r.revisionNo,

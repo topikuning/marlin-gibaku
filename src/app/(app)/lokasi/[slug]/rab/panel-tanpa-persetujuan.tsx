@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAksi } from "@/lib/aksi-klien";
 import { Banner, Button, Input } from "@/components/ui";
-import { konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
+import { konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
 import { activateDraftAction, type RabActionState } from "./actions";
 
 /**
@@ -31,14 +31,16 @@ export function PanelTanpaPersetujuan({
     if (r?.success) onBerhasil?.(r.success);
     return r;
   }, undefined);
-  const wajib = konfirmasiTanpaPersetujuan(revisionNo);
+  const wajib = konfirmasiKoreksi(revisionNo);
   return (
     <div className="ml-auto max-w-md space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-left text-[13px]">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
-      <p className="font-semibold text-ink">Aktifkan revisi #{revisionNo} tanpa menunggu persetujuan</p>
+      <p className="font-semibold text-ink">Terapkan draft #{revisionNo} sebagai koreksi RAB aktif</p>
       <p className="text-ink">
-        Pilihan ini hanya untuk super admin utama. RAB aktif sekarang langsung digantikan. Kurva-S tidak diubah.
+        Pilihan ini hanya untuk super admin utama. Isi RAB aktif ditimpa dengan isi draft ini, lalu draftnya habis
+        terpakai. Tidak ada revisi baru dan tidak dihitung sebagai MC-0/CCO. Laporan harian yang diinput terhadap draft
+        ikut menjadi resmi.
         {kurang.length > 0 ? ` Yang dilewati: ${kurang.join(" + ")}.` : ""} Tindakan ini tercatat di jejak audit atas
         nama Anda.
       </p>
@@ -61,9 +63,9 @@ export function PanelTanpaPersetujuan({
             size="sm"
             variant="danger"
             loading={pending}
-            disabled={ketik.trim().toUpperCase() !== wajib}
+            disabled={ketik.trim().replace(/\s+/g, " ").toUpperCase() !== wajib}
           >
-            Aktifkan revisi #{revisionNo}
+            Terapkan sebagai koreksi
           </Button>
           <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={onBatal}>
             Batal

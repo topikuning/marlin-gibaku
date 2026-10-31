@@ -58,6 +58,10 @@ enum LocationStatus {
 enum RabRevisionSource {
   hps_awal
   adendum
+  /// Perbaikan oleh super admin – BUKAN tahap adendum, tidak menggeser nomor
+  /// MC-0/CCO (DECISIONS 728). Koreksi baru menimpa revisi aktif di tempat;
+  /// nilai ini untuk revisi lama yang dulu tercatat sebagai adendum.
+  koreksi
 }
 
 enum RevisionStatus {

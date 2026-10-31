@@ -55,6 +55,11 @@ Organization → Package (spine) → Contract (0..1, uniq per paket; ppnPercent 
                               → Location (1..N; multi-lokasi per kontrak didukung)
 Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
            lineageKey path stabil utk carry-over realisasi lintas revisi)
+           Tahap revisi DITURUNKAN dari riwayat (DECISIONS 728): RAB kontrak →
+           perubahan pertama = MC-0 (CCO-0) → CCO-01 → CCO-02 …; `koreksi`
+           bukan tahap. Koreksi super admin utama MENIMPA revisi aktif di
+           tempat (tanpa revisi baru); perubahan kontrak lewat draft + dua
+           persetujuan.
            + rincian berkas per revisi (DECISIONS 651, RUJUKAN – bukan angka
            resmi): RabBackupVolume / RabItemAnalisa → RabAnalisa(+Komponen) /
            RabHargaDasar, ditelusuri lewat rumus berkas RAB; + RabBackupIsian

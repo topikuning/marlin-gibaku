@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { labelTahapBerlaku, tahapRevisi } from "@/lib/rab/tahap";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -107,16 +108,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Tidak punya akses lokasi" }, { status: 403 });
   }
 
-  const [aktif, draft] = await Promise.all([
-    db.rabRevision.findFirst({
-      where: { locationId: location.id, status: "aktif" },
-      select: { id: true, revisionNo: true, totalValue: true },
-    }),
-    db.rabRevision.findFirst({
-      where: { locationId: location.id, status: "draft" },
-      select: { id: true, revisionNo: true, totalValue: true },
-    }),
-  ]);
+  const riwayat = await db.rabRevision.findMany({
+    where: { locationId: location.id },
+    select: { id: true, revisionNo: true, totalValue: true, source: true, status: true },
+  });
+  const aktif = riwayat.find((r) => r.status === "aktif") ?? null;
+  const draft = riwayat.find((r) => r.status === "draft") ?? null;
   if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif, jadi belum ada MC-0 untuk dibandingkan." }, { status: 404 });
   if (!draft) return NextResponse.json({ error: "Belum ada draft adendum. Buat draftnya dulu di tab Adendum." }, { status: 404 });
 
@@ -127,6 +124,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const c = location.package.contract;
   const pengawas = pilihPengawas(location, c);
+  // Tahap DITURUNKAN dari riwayat (DECISIONS 728): perubahan pertama sesudah
+  // kontrak = MC-0, sesudahnya CCO-01, …; koreksi tidak dihitung. Dulu nomor
+  // revisi − 1, sehingga koreksi menggeser semua nomor CCO.
+  const tahapDraft = tahapRevisi(riwayat).get(draft.id);
+  const ccoNo = tahapDraft?.jenis === "cco" ? tahapDraft.ke : 1;
+  const mc0 = tahapDraft?.jenis === "mc0";
   const buf = await buildCcoXlsx({
     locationName: location.name,
     packageName: location.package.name,
@@ -138,8 +141,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     vendorName: c?.vendor?.name ?? null,
     // PPN dari kontrak, JANGAN dipatok 11 (RAB pra-PPN, kontrak incl-PPN).
     ppnPercent: c ? Number(c.ppnPercent) : 11,
-    // Nomor CCO = nomor revisi draft dikurangi HPS awal: revisi #2 = CCO-01.
-    ccoNo: Math.max(1, draft.revisionNo - 1),
+    ccoNo,
+    mc0,
+    labelDasar: labelTahapBerlaku(riwayat, aktif.id),
     // Nilai kontrak yang TERCATAT — dokumen memakainya untuk baris rekonsiliasi
     // terhadap Σ(harga × volume). Selisih bukan-nol harus terlihat, bukan
     // ditutup diam-diam (DECISIONS 203).
@@ -165,7 +169,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     revisiDraft: draft.revisionNo,
   });
 
-  const nama = `CCO-${String(Math.max(1, draft.revisionNo - 1)).padStart(2, "0")}_${slug}.xlsx`;
+  const nama = `${mc0 ? "MC-0" : `CCO-${String(ccoNo).padStart(2, "0")}`}_${slug}.xlsx`;
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -15,8 +15,8 @@ import {
   suaraMasihBerlaku,
   PERAN_PENUGASAN,
   type Suara,
-  cocokKonfirmasiTanpaPersetujuan,
-  konfirmasiTanpaPersetujuan,
+  cocokKonfirmasiKoreksi,
+  konfirmasiKoreksi,
 } from "@/lib/rab/persetujuan-aturan";
 import type { UserRole } from "@/generated/prisma/enums";
 
@@ -129,19 +129,19 @@ describe("draft berubah → suara gugur", () => {
 });
 
 /*
- * Jalan pintas super admin UTAMA (DECISIONS 682): kalimat konfirmasinya harus
- * menyebut nomor revisi yang akan diaktifkan – bukan sekadar "ya".
+ * Jalan pintas super admin UTAMA = KOREKSI (DECISIONS 728): kalimat
+ * konfirmasinya menyebut nomor revisi – bukan sekadar "ya".
  */
-describe("konfirmasi aktivasi tanpa persetujuan", () => {
+describe("konfirmasi koreksi super admin utama", () => {
   it("kalimatnya menyebut nomor revisi", () => {
-    expect(konfirmasiTanpaPersetujuan(3)).toBe("AKTIFKAN #3");
+    expect(konfirmasiKoreksi(3)).toBe("KOREKSI #3");
   });
 
   it("huruf besar/kecil dan spasi berlebih dimaafkan, nomor lain tidak", () => {
-    expect(cocokKonfirmasiTanpaPersetujuan("aktifkan #3", 3)).toBe(true);
-    expect(cocokKonfirmasiTanpaPersetujuan("  AKTIFKAN   #3 ", 3)).toBe(true);
-    expect(cocokKonfirmasiTanpaPersetujuan("AKTIFKAN #2", 3)).toBe(false);
-    expect(cocokKonfirmasiTanpaPersetujuan("AKTIFKAN", 3)).toBe(false);
-    expect(cocokKonfirmasiTanpaPersetujuan(null, 3)).toBe(false);
+    expect(cocokKonfirmasiKoreksi("koreksi #3", 3)).toBe(true);
+    expect(cocokKonfirmasiKoreksi("  KOREKSI   #3 ", 3)).toBe(true);
+    expect(cocokKonfirmasiKoreksi("KOREKSI #2", 3)).toBe(false);
+    expect(cocokKonfirmasiKoreksi("AKTIFKAN #3", 3)).toBe(false);
+    expect(cocokKonfirmasiKoreksi(null, 3)).toBe(false);
   });
 });

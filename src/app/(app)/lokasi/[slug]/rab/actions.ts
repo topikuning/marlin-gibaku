@@ -22,7 +22,8 @@ import {
   ringkasPersetujuan,
   setujuiRevisi,
 } from "@/lib/rab/persetujuan";
-import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
+import { cocokKonfirmasiKoreksi, konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
+import { KoreksiTimpaError, koreksiDariDraft } from "@/lib/rab/koreksi-timpa-simpan";
 import { jalankanAktivasi } from "@/lib/rab/aktivasi";
 import { kirimPermintaanPd } from "@/lib/rab/persetujuan-wa";
 import { perluNotifikasiPd } from "@/lib/rab/persetujuan-wa-aturan";
@@ -129,15 +130,41 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // UTAMA yang MEMINTANYA sendiri dan mengetik `AKTIFKAN #N`. Tidak pernah
     // otomatis – tanpa permintaan itu, ia pun tertahan seperti orang lain.
     const tanpaPersetujuan = formData.get("tanpaPersetujuan") === "1";
-    let persetujuanSaatItu: Awaited<ReturnType<typeof ringkasPersetujuan>> | null = null;
+    const persetujuanSaatItu: Awaited<ReturnType<typeof ringkasPersetujuan>> | null = null;
     if (tanpaPersetujuan && adendum) {
+      /*
+       * JALAN PINTAS SUPER ADMIN = KOREKSI (DECISIONS 728, mengubah 682).
+       * Isi draft menimpa RAB aktif di tempat – tidak ada revisi baru, tidak
+       * dihitung sebagai MC-0/CCO. Dulu draft ini diaktifkan sebagai revisi
+       * adendum tanpa persetujuan dan menggeser nomor CCO lokasinya.
+       */
       if (!bolehAktifTanpaPersetujuan(user)) {
-        return { error: "Hanya super admin utama yang boleh mengaktifkan revisi tanpa persetujuan." };
+        return { error: "Hanya super admin utama yang boleh menerapkan draft sebagai koreksi tanpa persetujuan." };
       }
-      if (!cocokKonfirmasiTanpaPersetujuan(formData.get("konfirmasi"), rev.revisionNo)) {
-        return { error: `Ketik ${konfirmasiTanpaPersetujuan(rev.revisionNo)} persis untuk konfirmasi.` };
+      if (!cocokKonfirmasiKoreksi(formData.get("konfirmasi"), rev.revisionNo)) {
+        return { error: `Ketik ${konfirmasiKoreksi(rev.revisionNo)} persis untuk konfirmasi.` };
       }
-      persetujuanSaatItu = await ringkasPersetujuan(rev.id);
+      const dilewati = (await ringkasPersetujuan(rev.id)).kurang;
+      try {
+        const h = await koreksiDariDraft({ draftId: rev.id, userId: user.id });
+        await audit(user.id, "rab.koreksi_dari_draft", "rab_revision", rev.id, {
+          locationId: rev.locationId,
+          draftNo: rev.revisionNo,
+          revisiAktif: h.revisionNo,
+          dilewati,
+        });
+        revalidateRab(rev.location.slug);
+        return {
+          success:
+            `Isi draft #${rev.revisionNo} diterapkan sebagai koreksi RAB aktif revisi #${h.revisionNo}. ` +
+            `Tidak ada revisi baru dan tidak dihitung sebagai MC-0/CCO; draftnya sudah terpakai.` +
+            (h.dipindahDariDraft > 0 ? ` ${h.dipindahDariDraft} baris laporan harian yang diinput terhadap draft kini resmi.` : "") +
+            (h.disesuaikan.length > 0 ? ` PERHATIAN: realisasi ${h.disesuaikan.length} item diturunkan mengikuti volume barunya.` : ""),
+        };
+      } catch (e) {
+        if (e instanceof KoreksiTimpaError) return { error: e.message };
+        throw e;
+      }
     } else {
       await pastikanBolehAktivasi(rev.id);
     }
