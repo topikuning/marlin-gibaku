@@ -56,11 +56,12 @@ let urut = 0;
 function berkas(nama = "berkas.pdf") {
   return new File([`isi ${nama} ${++urut} ${suffix}`], nama, { type: "application/pdf" });
 }
-function unggah(packageId: string, terminKe: number, kode: string) {
+function unggah(packageId: string, terminKe: number, kode: string, locationId?: string) {
   const f = new FormData();
   f.set("packageId", packageId);
   f.set("terminKe", String(terminKe));
   f.set("kode", kode);
+  if (locationId) f.set("locationId", locationId);
   f.set("file", berkas(`${kode}.pdf`));
   return unggahBerkasTerminAction(undefined, f);
 }
@@ -104,7 +105,8 @@ describe("muatPenagihan", () => {
     const d = await muatPenagihan(paketA, sesi());
     expect(d!.daftarTermin.map((t) => t.ambangPct)).toEqual([25, 50, 80, 100]);
     expect(d!.terminKe).toBe(1);
-    expect(d!.ringkas.total).toBe(42);
+    // 46 butir; 9 duplikat BERKAS DOKUMEN TEKNIS tidak dihitung (DECISIONS 725).
+    expect(d!.ringkas.total).toBe(37);
     expect(d!.langkah).toHaveLength(9);
     const s = await status(paketA, 1);
     expect(s.get("9a")!.status).toBe("belum_dibuat");
@@ -155,13 +157,15 @@ describe("unggah dari baris daftar periksa", () => {
     expect((await status(paketA, 2)).get("9c")!.rujukan?.href).toBe(`/api/documents/${doc2.id}`);
   });
 
-  it("dokumen tetap (SSUK) tanpa termin: berlaku di semua termin dan ikut memenuhi no. 2 'SSUK & SKK'", async () => {
-    expect((await unggah(paketA, 1, "T12"))?.success).toMatch(/semua termin/);
-    const doc = await db.document.findFirstOrThrow({ where: { packageId: paketA, butirTermin: "T12" } });
+  it("dokumen tetap (SSUK & SKK) tanpa termin: berlaku di semua termin; folder duplikat T12 cukup di no. 2", async () => {
+    // Folder duplikat menolak unggahan dan menunjuk butir utamanya.
+    expect((await unggah(paketA, 1, "T12"))?.error).toMatch(/cukup diisi di 2\. SSUK & SKK/);
+    expect((await unggah(paketA, 1, "2"))?.success).toMatch(/semua termin/);
+    const doc = await db.document.findFirstOrThrow({ where: { packageId: paketA, butirTermin: "2" } });
     expect(doc.terminKe).toBeNull();
     const s3 = await status(paketA, 3);
-    expect(s3.get("T12")!.status).toBe("ada");
     expect(s3.get("2")!.status).toBe("ada");
+    expect(s3.get("T12")!.status).toBe("ada");
   });
 
   it("NIB milik perusahaan: diunggah di paket A, terpenuhi juga di paket B perusahaan yang sama, tidak di perusahaan lain", async () => {
@@ -184,5 +188,100 @@ describe("unggah dari baris daftar periksa", () => {
     const pLain = await db.package.create({ data: { orgId: lain.id, name: "Paket Lain" } });
     expect((await unggah(pLain.id, 1, "9d"))?.error).toMatch(/tidak ditemukan/);
     expect(await db.document.count({ where: { butirTermin: "9d" } })).toBe(0);
+  });
+});
+
+describe("paket multi-lokasi (DECISIONS 725)", () => {
+  let paketM = "";
+  const lok: Record<string, string> = {};
+
+  beforeAll(async () => {
+    const vendor = await db.vendor.create({ data: { orgId, name: `CV. Multi ${suffix}` } });
+    const p = await db.package.create({ data: { orgId, name: `Paket multi ${suffix}`, stage: "pelaksanaan" } });
+    paketM = p.id;
+    await db.contract.create({
+      data: { packageId: p.id, vendorId: vendor.id, contractNumber: `K-M-${suffix}`, contractValue: 1_000_000_000n, signedDate: new Date("2026-07-15T00:00:00Z") },
+    });
+    for (const [nama, aktif] of [["Asemdoyong", true], ["Muarareja", true], ["Lama", false]] as const) {
+      const l = await db.location.create({
+        data: { packageId: p.id, name: nama, slug: `${nama.toLowerCase()}-${suffix}`, village: nama, regency: "K", province: "P", isActive: aktif },
+      });
+      lok[nama] = l.id;
+    }
+  });
+
+  it("RAB tiap lokasi diambil dari berkas Excel revisi RAB aktif; satu lokasi saja = 'sebagian', bukan 'ada'", async () => {
+    const { uploadDocument } = await import("@/lib/documents");
+    const excel = await uploadDocument(
+      { file: berkas("Lampiran NEGO Asemdoyong.xlsx"), packageId: paketM, locationId: lok.Asemdoyong, phase: "kontrak", type: "hps", title: "RAB Asemdoyong" },
+      pengguna!.id,
+    );
+    await db.rabRevision.create({
+      data: { locationId: lok.Asemdoyong, revisionNo: 0, source: "hps_awal", status: "aktif", totalValue: 1n, sourceDocumentId: excel.id },
+    });
+    const rab = (await status(paketM, 1)).get("12")!;
+    expect(rab.status).toBe("sebagian");
+    expect(rab.lokasi!.map((l) => [l.nama, l.status])).toEqual([
+      ["Asemdoyong", "ada"],
+      ["Muarareja", "belum_diunggah"],
+    ]);
+    expect(rab.lokasi![0].berkas[0].href).toBe(`/api/documents/${excel.id}`);
+  });
+
+  it("Excel revisi RAB draft/digantikan dan dokumen lokasi nonaktif tidak ikut sebagai RAB berkas termin", async () => {
+    const { uploadDocument } = await import("@/lib/documents");
+    const ex = (nama: string, locationId: string) =>
+      uploadDocument({ file: berkas(nama), packageId: paketM, locationId, phase: "kontrak", type: "hps", title: nama }, pengguna!.id);
+    const lama = await ex("RAB Muarareja revisi lama.xlsx", lok.Muarareja);
+    const draf = await ex("RAB Muarareja draf.xlsx", lok.Muarareja);
+    const mati = await ex("RAB Lama.xlsx", lok.Lama);
+    await db.rabRevision.createMany({
+      data: [
+        { locationId: lok.Muarareja, revisionNo: 0, source: "hps_awal", status: "digantikan", totalValue: 1n, sourceDocumentId: lama.id },
+        { locationId: lok.Muarareja, revisionNo: 1, source: "hps_awal", status: "draft", totalValue: 1n, sourceDocumentId: draf.id },
+        { locationId: lok.Lama, revisionNo: 0, source: "hps_awal", status: "aktif", totalValue: 1n, sourceDocumentId: mati.id },
+      ],
+    });
+    const rab = (await status(paketM, 1)).get("12")!;
+    expect(rab.berkas.map((b) => b.judul)).toEqual(["RAB Asemdoyong"]);
+    expect(rab.lokasi!.map((l) => [l.nama, l.status])).toEqual([
+      ["Asemdoyong", "ada"],
+      ["Muarareja", "belum_diunggah"],
+    ]);
+    expect(rab.sumber).toHaveLength(1);
+    // Begitu revisi drafnya diaktifkan, Excel-nya yang dipakai.
+    await db.rabRevision.updateMany({ where: { sourceDocumentId: draf.id }, data: { status: "aktif" } });
+    expect((await status(paketM, 1)).get("12")!.lokasi!.map((l) => l.status)).toEqual(["ada", "ada"]);
+  });
+
+  it("unggah per lokasi: berkas tercatat untuk lokasi itu; lokasi lengkap = 'ada'", async () => {
+    expect((await unggah(paketM, 1, "4", lok.Muarareja))?.success).toMatch(/Muarareja/);
+    const doc = await db.document.findFirstOrThrow({ where: { packageId: paketM, butirTermin: "4" } });
+    expect(doc).toMatchObject({ locationId: lok.Muarareja, terminKe: 1 });
+    expect(doc.title).toContain("Muarareja");
+    const shop = (await status(paketM, 1)).get("4")!;
+    expect(shop.lokasi!.map((l) => l.status)).toEqual(["belum_diunggah", "ada"]);
+    expect((await unggah(paketM, 1, "4", lok.Asemdoyong))?.success).toBeTruthy();
+    expect((await status(paketM, 1)).get("4")!.status).toBe("ada");
+  });
+
+  it("dokumen tanpa lokasi berlaku untuk seluruh paket; semua berkas tampil, bukan hanya yang pertama", async () => {
+    await unggah(paketM, 1, "T16");
+    expect((await status(paketM, 1)).get("T16")!.status).toBe("ada");
+    await unggah(paketM, 1, "3");
+    await unggah(paketM, 1, "3");
+    expect((await status(paketM, 1)).get("3")!.berkas).toHaveLength(2);
+  });
+
+  it("lokasi ditolak bila butirnya satu per paket, lokasinya nonaktif, atau milik paket lain", async () => {
+    expect((await unggah(paketM, 1, "3", lok.Asemdoyong))?.error).toMatch(/satu untuk seluruh paket/);
+    expect((await unggah(paketM, 1, "4", lok.Lama))?.error).toMatch(/tidak ditemukan di paket ini/);
+    const lain = await db.location.findFirstOrThrow({ where: { packageId: paketA }, select: { id: true } });
+    expect((await unggah(paketM, 1, "4", lain.id))?.error).toMatch(/tidak ditemukan di paket ini/);
+  });
+
+  it("lokasi nonaktif tidak ikut dihitung", async () => {
+    const rab = (await status(paketM, 1)).get("12")!;
+    expect(rab.lokasi!.map((l) => l.nama)).not.toContain("Lama");
   });
 });

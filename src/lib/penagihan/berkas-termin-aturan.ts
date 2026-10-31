@@ -1,5 +1,5 @@
 import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
-import { KATALOG_BERKAS_TERMIN, butirBerkas, type LaporanMarlin, type StatusButir } from "./katalog";
+import { KATALOG_BERKAS_TERMIN, butirBerkas, namaButir, type LaporanMarlin, type StatusButir } from "./katalog";
 
 /**
  * "SIAPKAN BERKAS TERMIN n" – aturan murni (DECISIONS 721): periode laporan
@@ -71,7 +71,7 @@ export function rentangMingguTermin(
 
 /* ── Rencana pekerjaan ──────────────────────────────────────────────────── */
 
-const LAPORAN_PER_LOKASI: readonly LaporanMarlin[] = ["mingguan", "harian", "bulanan", "dokumentasi"];
+const LAPORAN_PER_LOKASI: readonly LaporanMarlin[] = ["kurva_s", "mingguan", "harian", "bulanan", "dokumentasi"];
 
 /**
  * Pekerjaan unggah satu termin.
@@ -84,19 +84,28 @@ const LAPORAN_PER_LOKASI: readonly LaporanMarlin[] = ["mingguan", "harian", "bul
  */
 export function rencanaBerkasTermin(input: {
   terminKe: number;
-  baris: readonly { kode: string; status: StatusButir; sumber: readonly ({ dokumenId: string } | { suratId: string })[] }[];
+  baris: readonly {
+    kode: string;
+    status: StatusButir;
+    sumber: readonly ({ dokumenId: string } | { suratId: string })[];
+    /** Status per lokasi untuk butir per lokasi (DECISIONS 725). */
+    lokasi?: readonly { locationId: string; status: StatusButir }[] | null;
+  }[];
   lokasi: readonly string[];
   rentang: RentangMinggu;
   bulan: readonly number[];
 }): PekerjaanTermin[] {
   const { terminKe } = input;
-  const status = new Map(input.baris.map((b) => [b.kode, b]));
+  const perKode = new Map(input.baris.map((b) => [b.kode, b]));
   const hasil: PekerjaanTermin[] = [];
 
   // Semua berkas yang memenuhi butir disalin – unggahan sendiri bisa beberapa
-  // (scan bertanda tangan per minggu, per lokasi).
+  // (scan bertanda tangan per minggu, per lokasi). Statusnya tidak dilihat:
+  // butir per lokasi yang baru satu desanya berisi versi sendiri belum "ada",
+  // tapi berkas desa itu tetap ikut. Butir duplikat BERKAS DOKUMEN TEKNIS
+  // tidak diisi ulang (DECISIONS 725).
   for (const b of input.baris) {
-    if (b.status !== "ada") continue;
+    if (butirBerkas(b.kode)?.cukupDi) continue;
     for (const x of b.sumber) {
       const sumber = "dokumenId" in x ? `d${x.dokumenId}` : `s${x.suratId}`;
       hasil.push({ terminKe, jenis: "berkas", nomor: null, kode: [b.kode], sumber, locationId: null });
@@ -104,27 +113,38 @@ export function rencanaBerkasTermin(input: {
   }
 
   /**
-   * Folder laporan `l` yang belum diisi unggahan orang. MARLIN membantu, tidak
-   * memaksa (ketetapan user 2026-10-31): folder yang sudah berisi versi sendiri
-   * (dicetak, diteken, dipindai) tidak diberi versi MARLIN.
+   * Lokasi yang laporan `l`-nya dibuat MARLIN. MARLIN membantu, tidak memaksa
+   * (ketetapan user 2026-10-31): lokasi yang sudah diisi versi sendiri
+   * (dicetak, diteken, dipindai) tidak diberi versi MARLIN – per lokasi, bukan
+   * per paket (DECISIONS 725).
    */
-  const kodeLaporan = (l: LaporanMarlin) =>
-    KATALOG_BERKAS_TERMIN.filter((k) => k.laporan === l && status.get(k.kode)?.status !== "ada").map((k) => k.kode);
-
-  // Kurva S berhenti di minggu prestasi termin ini (DECISIONS 722), bukan di
-  // minggu saat berkasnya disiapkan.
-  const kurva = kodeLaporan("kurva_s");
-  if (kurva.length) {
-    hasil.push({ terminKe, jenis: "kurva_s", nomor: input.rentang.akhir, kode: kurva, sumber: null, locationId: null });
-  }
+  const lokasiLaporan = (l: LaporanMarlin): { kode: string[]; lokasi: string[] } => {
+    const butir = KATALOG_BERKAS_TERMIN.find((k) => k.laporan === l && !k.cukupDi);
+    if (!butir) return { kode: [], lokasi: [] };
+    const b = perKode.get(butir.kode);
+    if (b?.status === "ada") return { kode: [butir.kode], lokasi: [] };
+    const terisi = new Set((b?.lokasi ?? []).filter((x) => x.status === "ada").map((x) => x.locationId));
+    return { kode: [butir.kode], lokasi: input.lokasi.filter((id) => !terisi.has(id)) };
+  };
 
   const minggu: number[] = [];
   for (let m = input.rentang.awal; m <= input.rentang.akhir; m++) minggu.push(m);
   for (const jenis of LAPORAN_PER_LOKASI) {
-    const kode = kodeLaporan(jenis);
-    if (!kode.length) continue;
-    const nomor: (number | null)[] = jenis === "dokumentasi" ? [null] : jenis === "bulanan" ? [...input.bulan] : minggu;
-    for (const locationId of input.lokasi) {
+    const { kode, lokasi } = lokasiLaporan(jenis);
+    // Pola berkas yang lolos (TERMIN 1 CV. Putera Fahlevi):
+    // - Kurva S per lokasi s.d. minggu prestasi ("TS MINGGU 1-7 <DESA>");
+    // - Laporan Mingguan hanya minggu prestasi per lokasi;
+    // - Laporan Harian tiap minggu di rentang (pilihan user, DECISIONS 721);
+    // - Laporan Bulanan tiap bulan yang beririsan; dokumentasi per lokasi.
+    const nomor: (number | null)[] =
+      jenis === "kurva_s" || jenis === "mingguan"
+        ? [input.rentang.akhir]
+        : jenis === "dokumentasi"
+          ? [null]
+          : jenis === "bulanan"
+            ? [...input.bulan]
+            : minggu;
+    for (const locationId of lokasi) {
       for (const n of nomor) hasil.push({ terminKe, jenis, nomor: n, kode, sumber: null, locationId });
     }
   }
@@ -203,7 +223,7 @@ export function namaLaporanTermin(p: PekerjaanTermin, nama: { lokasi: string | n
   const lokasi = nama.lokasi ?? nama.paket;
   switch (p.jenis) {
     case "kurva_s":
-      return `Kurva S - ${nama.paket}.pdf`;
+      return `Kurva S Minggu 1-${p.nomor ?? ""} - ${lokasi}.pdf`;
     case "mingguan":
       return `Laporan Mingguan Minggu ke-${p.nomor} - ${lokasi}.pdf`;
     case "harian":
@@ -222,7 +242,7 @@ export function namaLaporanTermin(p: PekerjaanTermin, nama: { lokasi: string | n
 export function labelPekerjaanTermin(p: PekerjaanTermin): string {
   switch (p.jenis) {
     case "kurva_s":
-      return p.nomor ? `Kurva S paket s.d. minggu ke-${p.nomor}` : "Kurva S paket";
+      return p.nomor ? `Kurva S s.d. minggu ke-${p.nomor}` : "Kurva S";
     case "mingguan":
       return `Laporan mingguan minggu ke-${p.nomor}`;
     case "harian":
@@ -233,7 +253,7 @@ export function labelPekerjaanTermin(p: PekerjaanTermin): string {
       return "Dokumentasi sarana prasarana";
     case "berkas": {
       const b = butirBerkas(p.kode[0]);
-      return b ? `${b.kode}. ${b.jalur[b.jalur.length - 1].replace(/^[a-z0-9]+\.\s*/i, "")}` : p.kode[0];
+      return b ? namaButir(b) : p.kode[0];
     }
     case "buang": {
       // Jenis laporan lamanya dikenali dari butir foldernya (7/T6 = mingguan, dst).
@@ -268,4 +288,24 @@ export function tanggalSuratAwal(jenis: JenisSuratPenyedia, hariH: string): stri
 /** Butir katalog surat `jenis` (9a, 9b, 10a, 10b, 10c). */
 export function kodeSurat(jenis: JenisSuratPenyedia): string {
   return KATALOG_BERKAS_TERMIN.find((b) => b.surat === jenis)!.kode;
+}
+
+/**
+ * Subfolder per lokasi di dalam folder butir, mengikuti berkas yang lolos
+ * (DECISIONS 725): "7. Laporan Mingguan/<DESA>" dan "8. Dokumentasi Pekerjaan
+ * Per Item/DOKUMENTASI - <DESA>". Butir per lokasi lainnya datar, dengan nama
+ * desa di nama berkasnya.
+ */
+export function subfolderLokasi(kode: string, lokasi: string | null): string[] {
+  if (!lokasi) return [];
+  const besar = lokasi.toUpperCase();
+  if (kode === "7") return [besar];
+  if (kode === "8") return [`DOKUMENTASI - ${besar}`];
+  return [];
+}
+
+/** Nama berkas salinan dokumen satu lokasi: nama desa ditambahkan bila belum ada. */
+export function namaDenganLokasi(namaBerkas: string, lokasi: string | null): string {
+  if (!lokasi || namaBerkas.toLowerCase().includes(lokasi.toLowerCase())) return namaBerkas;
+  return `${lokasi} - ${namaBerkas}`;
 }

@@ -31,12 +31,14 @@ import {
   awalanPeriodeTermin,
   kodeSurat,
   labelPekerjaanTermin,
+  namaDenganLokasi,
   namaLaporanTermin,
   pekerjaanBuang,
   periodePekerjaanTermin,
   refKeyPekerjaanTermin,
   rencanaBerkasTermin,
   rentangMingguTermin,
+  subfolderLokasi,
   uraiPeriodeTermin,
   type PekerjaanTermin,
   type RentangMinggu,
@@ -99,7 +101,12 @@ export async function antrekanBerkasTermin(
 
   const semua = rencanaBerkasTermin({
     terminKe,
-    baris: d.langkah.flatMap((l) => l.baris).map((b) => ({ kode: b.butir.kode, status: b.status, sumber: b.sumber })),
+    baris: d.langkah.flatMap((l) => l.baris).map((b) => ({
+      kode: b.butir.kode,
+      status: b.status,
+      sumber: b.sumber,
+      lokasi: b.lokasi?.map((x) => ({ locationId: x.locationId, status: x.status })) ?? null,
+    })),
     lokasi: d.lokasiAktif,
     rentang: r.rentang,
     bulan: bulanBeririsan(kontrak.startDate, kontrak.weekMode, r.rentang),
@@ -186,6 +193,19 @@ export type HasilSuratTermin = {
  * di bawah ambang menahan permohonan pemeriksaan, jadi surat uang sesudahnya
  * juga tidak dibuat. Pemanggil yang memastikan `contract.manage`.
  */
+/**
+ * Urutan pembuatan = urutan NOMOR surat di berkas yang lolos (TERMIN 1 CV.
+ * Putera Fahlevi): BA pembahasan .17 → permohonan pembayaran .18 → kwitansi
+ * .19 → invoice .20 (DECISIONS 725).
+ */
+const URUTAN_NOMOR_SURAT: readonly JenisSuratPenyedia[] = [
+  "permohonan_pemeriksaan",
+  "ba_pembahasan_kemajuan",
+  "permohonan_pembayaran",
+  "kwitansi",
+  "invoice",
+];
+
 export async function buatSuratTermin(input: {
   userId: string;
   orgId: string;
@@ -211,7 +231,7 @@ export async function buatSuratTermin(input: {
   ]);
   const sudah = new Set<string>([...ada.map((x) => kodeSurat(x.jenis)), ...diganti.map((x) => x.butirTermin!)]);
 
-  for (const jenis of JENIS_SURAT_TERSEDIA) {
+  for (const jenis of URUTAN_NOMOR_SURAT) {
     if (sudah.has(kodeSurat(jenis))) continue;
     const tanggal = input.tanggal[jenis];
     if (!tanggal) {
@@ -258,21 +278,33 @@ export async function buatSuratTermin(input: {
 /* ── Mengerjakan satu pekerjaan ─────────────────────────────────────────── */
 
 const PDF_MIME = "application/pdf";
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 type PaketTermin = { id: string; name: string; orgId: string; driveFolderId: string };
 type LokasiTermin = { name: string; slug: string } | null;
 
-/** Susun berkas satu pekerjaan; `batal` = sumbernya sudah tidak ada/tidak bisa disusun. */
+/**
+ * Susun berkas satu pekerjaan; `batal` = sumbernya sudah tidak ada/tidak bisa
+ * disusun. `lokasi` = desa pemilik berkas (untuk subfolder & nama), bila ada.
+ */
+type BerkasTersusun = { items: UploadItem[]; lokasi: string | null };
+
 async function susunBerkas(
   p: PekerjaanTermin,
   pkg: PaketTermin,
   lokasi: LokasiTermin,
   baseUrl: string | null,
-): Promise<UploadItem | TidakBerlaku> {
-  const pdf = (data: Buffer): UploadItem => ({
-    fileName: safeFileName(namaLaporanTermin(p, { lokasi: lokasi?.name ?? null, paket: pkg.name }), "laporan.pdf"),
-    mime: PDF_MIME,
-    data,
+): Promise<BerkasTersusun | TidakBerlaku> {
+  const namaLokasi = lokasi?.name ?? null;
+  const pdf = (data: Buffer): BerkasTersusun => ({
+    items: [
+      {
+        fileName: safeFileName(namaLaporanTermin(p, { lokasi: namaLokasi, paket: pkg.name }), "laporan.pdf"),
+        mime: PDF_MIME,
+        data,
+      },
+    ],
+    lokasi: namaLokasi,
   });
   switch (p.jenis) {
     case "berkas": {
@@ -280,9 +312,18 @@ async function susunBerkas(
       if (p.sumber?.startsWith("d")) {
         const doc = await db.document.findFirst({
           where: { id, orgId: pkg.orgId, status: "aktif" },
-          select: { r2Key: true, fileName: true, mimeType: true, packageId: true, butirTermin: true, terminKe: true },
+          select: {
+            r2Key: true,
+            fileName: true,
+            mimeType: true,
+            packageId: true,
+            butirTermin: true,
+            terminKe: true,
+            location: { select: { name: true } },
+          },
         });
         if (!doc) return { batal: "Dokumennya sudah dihapus atau diganti. Tekan Siapkan berkas lagi." };
+        const desa = doc.location?.name ?? null;
         // Beberapa scan bisa bernama sama ("scan.pdf" dari HP): nama yang
         // sama di satu folder Drive akan saling menimpa, jadi diberi pembeda.
         const kembar = doc.butirTermin
@@ -291,10 +332,14 @@ async function susunBerkas(
             })
           : 0;
         const item = await documentItem(doc);
-        if (!kembar) return item;
-        const titik = item.fileName.lastIndexOf(".");
-        const [dasar, ext] = titik > 0 ? [item.fileName.slice(0, titik), item.fileName.slice(titik)] : [item.fileName, ""];
-        return { ...item, fileName: `${dasar} (${id.slice(0, 8)})${ext}` };
+        let nama = item.fileName;
+        if (kembar) {
+          const titik = nama.lastIndexOf(".");
+          const [dasar, ext] = titik > 0 ? [nama.slice(0, titik), nama.slice(titik)] : [nama, ""];
+          nama = `${dasar} (${id.slice(0, 8)})${ext}`;
+        }
+        // Berkas satu desa diberi nama desanya bila belum (berkas lolos: "… ASEMDOYONG.pdf").
+        return { items: [{ ...item, fileName: safeFileName(namaDenganLokasi(nama, desa), "dokumen") }], lokasi: desa };
       }
       const s = await dataSuratTersimpan(id, pkg.orgId);
       if (!s) return { batal: "Suratnya sudah dihapus. Tekan Siapkan berkas lagi." };
@@ -303,25 +348,46 @@ async function susunBerkas(
       const surat = susunSurat(s.data);
       const { buatPdfSurat } = await import("@/lib/pdf/surat-penyedia");
       return {
-        fileName: safeFileName(`${surat.judulBerkas}.pdf`, "surat.pdf"),
-        mime: PDF_MIME,
-        data: await buatPdfSurat(surat, s.kop),
+        items: [{ fileName: safeFileName(`${surat.judulBerkas}.pdf`, "surat.pdf"), mime: PDF_MIME, data: await buatPdfSurat(surat, s.kop) }],
+        lokasi: null,
       };
     }
     case "kurva_s": {
+      // Kurva S PER LOKASI s.d. minggu prestasi – berkas lolos: "TS MINGGU 1-7 <DESA>".
       const [{ susunKurvaPaket }, { renderKurvaPaketPdf }] = await Promise.all([
         import("@/lib/laporan/kurva-paket"),
         import("@/lib/pdf/periodik-kkp"),
       ]);
-      const dok = await susunKurvaPaket(pkg.id, null, { sampaiMinggu: p.nomor ?? undefined });
+      const dok = await susunKurvaPaket(pkg.id, null, {
+        sampaiMinggu: p.nomor ?? undefined,
+        lokasiIds: p.locationId ? [p.locationId] : undefined,
+      });
       if (dok === "tidak_ada") return { batal: "Paketnya sudah tidak ada." };
-      if (dok === "kosong") return { batal: "Kurva S belum bisa dibuat: belum ada lokasi dengan baseline kurva-S dan RAB aktif." };
+      if (dok === "kosong") return { batal: "Kurva S belum bisa dibuat: lokasi ini belum punya baseline kurva-S dan RAB aktif." };
       return pdf((await renderKurvaPaketPdf(dok)).buffer);
     }
-    case "mingguan":
+    case "mingguan": {
+      // Minggu prestasi saja, PDF + Excel – seperti berkas yang lolos.
+      const [{ renderPeriodikKkpPdf }, { getPeriodReport }, { buildPeriodReportXlsx }, { muatLogoLaporan }] = await Promise.all([
+        import("@/lib/pdf/periodik-kkp"),
+        import("@/lib/periodic-report"),
+        import("@/lib/export/xlsx"),
+        import("@/lib/export/logo-laporan"),
+      ]);
+      const [hasil, report] = await Promise.all([
+        renderPeriodikKkpPdf(p.locationId!, "mingguan", p.nomor!),
+        getPeriodReport(p.locationId!, "mingguan", p.nomor!),
+      ]);
+      if (!hasil || !report) return { batal: `${labelPekerjaanTermin(p)} belum bisa disusun.` };
+      const xlsx = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(p.locationId!) });
+      const dasar = pdf(hasil.buffer);
+      const namaPdf = dasar.items[0].fileName;
+      dasar.items.push({ fileName: namaPdf.replace(/\.pdf$/i, ".xlsx"), mime: XLSX_MIME, data: xlsx });
+      return dasar;
+    }
     case "bulanan": {
       const { renderPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
-      const hasil = await renderPeriodikKkpPdf(p.locationId!, p.jenis, p.nomor!);
+      const hasil = await renderPeriodikKkpPdf(p.locationId!, "bulanan", p.nomor!);
       if (!hasil) return { batal: `${labelPekerjaanTermin(p)} belum bisa disusun.` };
       return pdf(hasil.buffer);
     }
@@ -407,67 +473,116 @@ export async function jalankanPekerjaanTermin(
     refKey: job.refKey,
     byId: null,
   };
+  const sebelum = new Set(
+    (await db.gDriveUpload.findMany({ where: { kind: "berkas_termin", refKey: job.refKey }, select: { id: true } })).map((r) => r.id),
+  );
   const outcomes = [];
   for (const kode of p.kode) {
-    outcomes.push(await uploadBatch(target, [...butirBerkas(kode)!.jalur], [berkas], { jedaMs: opts.jedaMs }));
+    const jalur = [...butirBerkas(kode)!.jalur, ...subfolderLokasi(kode, berkas.lokasi)];
+    outcomes.push(await uploadBatch(target, jalur, berkas.items, { jedaMs: opts.jedaMs }));
   }
-  return rangkum(labelPekerjaanTermin(p), outcomes, 0);
+  const hasil = rangkum(labelPekerjaanTermin(p), outcomes, 0);
+  // Berlaku juga untuk salinan versi sendiri: dokumennya SAMA dan salinan
+  // barunya sudah naik, jadi tidak ada yang hilang. Salinan yang dokumennya
+  // dicabut tetap tidak dibuang otomatis (DECISIONS 722).
+  if (hasil.galat) return hasil;
+  try {
+    const n = await buangVersiLama(job, p.terminKe, sebelum);
+    return n ? { ...hasil, ringkas: `${hasil.ringkas} ${n} versi lama dibuang ke Sampah Drive.` } : hasil;
+  } catch (err) {
+    // Unggahannya sudah naik; diulang = ditimpa berkas yang sama, lalu dicoba lagi.
+    return { ...hasil, galat: galatDrive(err, "Versi lama gagal dibuang.") };
+  }
 }
 
 /**
- * Buang ke Sampah Drive berkas yang diunggah pekerjaan lama `p.sumber`.
- * Berkas yang MASIH dipakai pekerjaan lain termin ini tidak ikut terbuang:
- * nama yang sama di folder yang sama menunjuk berkas Drive yang sama.
+ * Berkas Drive yang dipakai pekerjaan termin `terminKe` yang masih aktif
+ * (selain pekerjaan `kecuali`). Nama yang sama di folder yang sama menunjuk
+ * berkas Drive yang sama, jadi berkas ini tidak boleh ikut terbuang.
  */
-async function buangVersiMarlin(packageId: string, p: PekerjaanTermin): Promise<HasilUnggah> {
-  const lamaKey = p.sumber ?? "";
-  const kosong = (ringkas: string): HasilUnggah => ({ ringkas, outcomes: [], berkas: 0, skipped: 0, galat: null });
+async function berkasDipakai(packageId: string, terminKe: number, kecuali?: string): Promise<Set<string>> {
   const aktif = await db.gDriveJob.findMany({
     where: {
       kind: KIND_BERKAS_TERMIN,
       packageId,
-      periode: { startsWith: awalanPeriodeTermin(p.terminKe) },
-      NOT: { refKey: { startsWith: AWALAN_BUANG } },
+      periode: { startsWith: awalanPeriodeTermin(terminKe) },
+      NOT: [{ refKey: { startsWith: AWALAN_BUANG } }, ...(kecuali ? [{ refKey: kecuali }] : [])],
     },
     select: { refKey: true },
   });
+  const rows = await db.gDriveUpload.findMany({
+    where: { kind: "berkas_termin", refKey: { in: aktif.map((a) => a.refKey) }, status: "sukses", fileId: { not: null } },
+    select: { fileId: true },
+  });
+  return new Set(rows.map((u) => u.fileId!));
+}
+
+/**
+ * Pindahkan ke Sampah Drive berkas `calon` yang tercatat di bawah `refKey`.
+ * Hanya berkas buatan MARLIN yang tidak diubah orang (DECISIONS 723).
+ */
+async function buangMilikMarlin(refKey: string, calon: readonly string[]): Promise<number> {
+  let n = 0;
+  for (const id of calon) {
+    if (!(await bolehDibuang(id))) continue;
+    await buangKeSampah(id);
+    await db.gDriveUpload.updateMany({ where: { kind: "berkas_termin", refKey, fileId: id }, data: { status: "dibuang" } });
+    n++;
+  }
+  return n;
+}
+
+function galatDrive(err: unknown, cadangan: string): NonNullable<HasilUnggah["galat"]> {
+  return err instanceof GDriveError
+    ? { pesan: err.message, status: err.status, retryAfter: err.retryAfter }
+    : { pesan: err instanceof Error ? err.message : cadangan, status: null, retryAfter: null };
+}
+
+/**
+ * Buang ke Sampah Drive berkas yang diunggah pekerjaan lama `p.sumber`.
+ * Berkas yang MASIH dipakai pekerjaan lain termin ini tidak ikut terbuang.
+ */
+async function buangVersiMarlin(packageId: string, p: PekerjaanTermin): Promise<HasilUnggah> {
+  const lamaKey = p.sumber ?? "";
+  const kosong = (ringkas: string): HasilUnggah => ({ ringkas, outcomes: [], berkas: 0, skipped: 0, galat: null });
   // Termasuk bila pekerjaan lamanya dibuat lagi (unggahan sendiri dicabut):
-  // refKey-nya ada di `aktif`, jadi berkasnya terhitung dipakai.
-  const dipakai = new Set(
-    (
-      await db.gDriveUpload.findMany({
-        where: { kind: "berkas_termin", refKey: { in: aktif.map((a) => a.refKey) }, status: "sukses", fileId: { not: null } },
-        select: { fileId: true },
-      })
-    ).map((u) => u.fileId),
-  );
+  // refKey-nya aktif lagi, jadi berkasnya terhitung dipakai.
+  const dipakai = await berkasDipakai(packageId, p.terminKe);
   const target = await db.gDriveUpload.findMany({
     where: { kind: "berkas_termin", refKey: lamaKey, status: "sukses", fileId: { not: null } },
     select: { fileId: true },
   });
   const calon = [...new Set(target.map((t) => t.fileId!))].filter((id) => !dipakai.has(id));
-  const ids: string[] = [];
   try {
-    for (const id of calon) {
-      // Hanya berkas buatan MARLIN yang tidak diubah orang (DECISIONS 723).
-      if (!(await bolehDibuang(id))) continue;
-      await buangKeSampah(id);
-      await db.gDriveUpload.updateMany({
-        where: { kind: "berkas_termin", refKey: lamaKey, fileId: id },
-        data: { status: "dibuang" },
-      });
-      ids.push(id);
-    }
+    const n = await buangMilikMarlin(lamaKey, calon);
+    return { ...kosong(`${n} berkas versi MARLIN dibuang ke Sampah Drive.`), berkas: n };
   } catch (err) {
-    return {
-      ...kosong(`${labelPekerjaanTermin(p)}: gagal dibuang.`),
-      galat:
-        err instanceof GDriveError
-          ? { pesan: err.message, status: err.status, retryAfter: err.retryAfter }
-          : { pesan: err instanceof Error ? err.message : "Gagal membuang berkas.", status: null, retryAfter: null },
-    };
+    return { ...kosong(`${labelPekerjaanTermin(p)}: gagal dibuang.`), galat: galatDrive(err, "Gagal membuang berkas.") };
   }
-  return { ...kosong(`${ids.length} berkas versi MARLIN dibuang ke Sampah Drive.`), berkas: ids.length };
+}
+
+/**
+ * Versi lama berkas yang SAMA yang kini bernama atau berfolder lain – Kurva
+ * S memuat minggu prestasinya, laporan mingguan pindah ke subfolder desa,
+ * salinan dokumen satu desa diberi nama desanya, folder duplikat BERKAS
+ * DOKUMEN TEKNIS tidak diisi lagi (DECISIONS 725).
+ * Tanpa ini versi lama tertinggal di samping yang baru. `sebelum` = id catatan
+ * unggah pekerjaan ini sebelum dijalankan (bukan jam: jam aplikasi dan
+ * database bisa berbeda).
+ */
+async function buangVersiLama(job: { refKey: string; packageId: string }, terminKe: number, sebelum: ReadonlySet<string>) {
+  const rows = await db.gDriveUpload.findMany({
+    where: { kind: "berkas_termin", refKey: job.refKey, status: "sukses", fileId: { not: null } },
+    select: { id: true, fileId: true },
+  });
+  const baru = new Set(rows.filter((r) => !sebelum.has(r.id)).map((r) => r.fileId!));
+  const lama = [...new Set(rows.filter((r) => sebelum.has(r.id)).map((r) => r.fileId!))].filter((id) => !baru.has(id));
+  if (!lama.length) return 0;
+  const dipakai = await berkasDipakai(job.packageId, terminKe, job.refKey);
+  return buangMilikMarlin(
+    job.refKey,
+    lama.filter((id) => !dipakai.has(id)),
+  );
 }
 
 /* ── Ringkasan untuk layar Penagihan ────────────────────────────────────── */

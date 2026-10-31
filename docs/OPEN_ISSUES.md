@@ -258,6 +258,18 @@ dengan `originalKey` terisi + `berkas_pindah.kunciDingin`), lalu buang sisanya.
 Butuh keputusan user sebelum dibuat: penghapusan di mesin arsip tidak bisa
 dibatalkan, dan cadangan Drive (650) sengaja tidak pernah dihapus otomatis.
 
+## 🟡 TAGIH-01 · Berkas termin belum sama persis dengan berkas yang lolos (DECISIONS 725)
+
+Patokan: TERMIN 1 CV. Putera Fahlevi (sudah dibayar). Yang masih beda:
+
+- **Dokumentasi**: berkas lolos berisi foto mentah per item pekerjaan per desa
+  ("8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - <DESA>/<pekerjaan>/…"). MARLIN masih
+  mengirim satu PDF dokumentasi 0–50–100 per desa ke folder itu. FIX: salin/shortcut foto
+  per kelompok pekerjaan (pola shortcut DECISIONS 666), tanya user dulu foto mana yang dipilih.
+- **Daftar periksa xlsx** yang ada di berkas lolos belum dibuat.
+- Salinan versi sendiri di folder T (T6/T9/…) dari tekanan "Siapkan berkas" sebelum 725 tidak
+  dibuang otomatis (722) – kalau ada, rapikan tangan.
+
 ## 🟢 MINGGU-01 · "Laporan mingguan" di Tanya MARLIN WA tetap pekan Senin–Minggu (DECISIONS 708)
 
 Sejak 708 periode minggu kontrak bisa dimulai hari apa saja. Pertanyaan WA

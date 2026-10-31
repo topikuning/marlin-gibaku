@@ -9,7 +9,7 @@ import { can } from "@/lib/authz";
 import { parseDateKey } from "@/lib/format";
 import { JENIS_SURAT_TERSEDIA, LABEL_JENIS_SURAT } from "@/lib/surat-penyedia/aturan";
 import type { JenisSuratPenyedia } from "@/generated/prisma/enums";
-import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
+import { ForbiddenError, accessibleLocationIds, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { DocumentError, uploadDocument } from "@/lib/documents";
 import { phaseForType } from "@/lib/gdrive/classify";
@@ -37,7 +37,9 @@ export type PenagihanState =
 const schema = z.object({
   packageId: z.uuid(),
   terminKe: z.coerce.number().int().min(1).max(6),
-  kode: z.string().trim().min(1).max(5),
+  kode: z.string().trim().min(1).max(8),
+  /** Lokasi pemilik berkas pada butir per lokasi (DECISIONS 725); kosong = seluruh paket. */
+  locationId: z.uuid().optional(),
 });
 
 export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: FormData): Promise<PenagihanState> {
@@ -47,10 +49,15 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
       packageId: formData.get("packageId"),
       terminKe: formData.get("terminKe"),
       kode: formData.get("kode"),
+      locationId: formData.get("locationId") || undefined,
     });
     if (!parsed.success) return { error: "Permintaan tidak valid. Muat ulang halaman, lalu coba lagi." };
     const butir = butirBerkas(parsed.data.kode);
     if (!butir) return { error: "Butir berkas tidak dikenal." };
+    if (butir.cukupDi) {
+      const utama = butirBerkas(butir.cukupDi);
+      return { error: `Butir ini cukup diisi di ${utama ? namaButir(utama) : butir.cukupDi}.` };
+    }
     // Beberapa berkas sekaligus: scan bertanda tangan sering per minggu/per
     // lokasi (DECISIONS 722).
     const berkas = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
@@ -64,6 +71,20 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
     });
     if (!pkg?.contract) return { error: "Paket atau kontraknya tidak ditemukan." };
 
+    // Berkas satu lokasi: lokasinya harus milik paket ini, aktif, dan boleh diakses.
+    const locationId = parsed.data.locationId ?? null;
+    let namaLokasi = "";
+    if (locationId) {
+      if (!butir.perLokasi) return { error: "Butir ini satu untuk seluruh paket, tidak per lokasi." };
+      const lok = await db.location.findFirst({
+        where: { id: locationId, packageId: pkg.id, isActive: true },
+        select: { name: true },
+      });
+      if (!lok) return { error: "Lokasi tidak ditemukan di paket ini." };
+      await requireLocationAccess(user, locationId);
+      namaLokasi = lok.name;
+    }
+
     const ke = butir.sumber === "tetap" ? null : parsed.data.terminKe;
     let naik = 0;
     for (const file of berkas) {
@@ -75,8 +96,9 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
             contractId: pkg.contract.id,
             phase: phaseForType(butir.jenisDokumen),
             type: butir.jenisDokumen,
-            title: `${namaButir(butir)}${ke ? ` – Termin ${ke}` : ""}`,
+            title: `${namaButir(butir)}${namaLokasi ? ` – ${namaLokasi}` : ""}${ke ? ` – Termin ${ke}` : ""}`,
             termin: { ke, butir: butir.kode },
+            locationId: locationId ?? undefined,
           },
           user.id,
         );
@@ -91,10 +113,11 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
     }
     revalidatePath(`/paket/${pkg.id}/penagihan`);
     const jumlah = berkas.length > 1 ? `${berkas.length} berkas ` : "";
+    const untuk = namaLokasi ? ` (${namaLokasi})` : "";
     return {
       success: ke
-        ? `${jumlah}${namaButir(butir)} untuk termin ${ke} diunggah.`
-        : `${jumlah}${namaButir(butir)} diunggah dan berlaku untuk semua termin.`,
+        ? `${jumlah}${namaButir(butir)}${untuk} untuk termin ${ke} diunggah.`
+        : `${jumlah}${namaButir(butir)}${untuk} diunggah dan berlaku untuk semua termin.`,
     };
   } catch (err) {
     if (err instanceof DocumentError || err instanceof ForbiddenError) return { error: err.message };
