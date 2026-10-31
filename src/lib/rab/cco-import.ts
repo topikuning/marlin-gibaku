@@ -114,8 +114,15 @@ function teks(v: ExcelJS.CellValue): string {
  */
 const angka = bacaAngkaLokal;
 
-const punyaTambah = (s: string) => /PEKERJAAN\s*TAMBAH|TAMBAH/i.test(s);
-const punyaKurang = (s: string) => /PEKERJAAN\s*KURANG|KURANG/i.test(s);
+/*
+ * Label yang memuat TAMBAH sekaligus KURANG adalah JUDUL berkas, bukan blok
+ * (DECISIONS 727). MC0 Buyat Tengah (2026-10-31) berjudul "LAMPIRAN MUTUAL CEK
+ * AWAL (MC 0%) / PEKERJAAN TAMBAH KURANG (CCO)" di baris 2: satu sel itu
+ * dianggap blok tambah DAN blok kurang, baris judulnya terpilih sebagai baris
+ * grup, dan header tabel yang sebenarnya (baris 18) tidak pernah dibaca.
+ */
+const punyaTambah = (s: string) => /TAMBAH/i.test(s) && !/KURANG/i.test(s);
+const punyaKurang = (s: string) => /KURANG/i.test(s) && !/TAMBAH/i.test(s);
 
 /**
  * Blok label kontinu di baris grup (sel ter-merge terbaca berulang — itu dipakai).
@@ -134,11 +141,41 @@ const punyaKurang = (s: string) => /PEKERJAAN\s*KURANG|KURANG/i.test(s);
  * lama, dengan kategori baru CCO bernilai 0 (DECISIONS 679).
  */
 function blokDi(ws: ExcelJS.Worksheet, baris: number, sembunyi: Set<number> = new Set()): BlokNilai[] {
+  return blokDariLabel((c) => labelDi(ws, baris, c), sembunyi);
+}
+
+function labelDi(ws: ExcelJS.Worksheet, baris: number, c: number): string {
+  return baris < 1 ? "" : teks(ws.getRow(baris).getCell(c).value).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Blok dari header DUA TINGKAT (DECISIONS 727): label grup di baris ATAS,
+ * dengan PEKERJAAN TAMBAH/KURANG baru muncul di baris bawahnya sebagai anak
+ * grup "SELISIH". Berkas MC0 Buyat Tengah (2026-10-31):
+ *
+ *   baris 17: NO · JENIS PEKERJAAN · KONTRAK (E–I) · MC0 (J–N) · SELISIH (O–R)
+ *   baris 18: … VOL · SAT · HARGA SATUAN · JUMLAH · BOBOT … · TAMBAH · KURANG
+ *
+ * Membaca baris 18 saja memecah KONTRAK dan MC0 jadi kolom-kolom tunggal
+ * (VOL, SAT, …), jadi tidak ada blok yang bisa dibuktikan dan berkasnya
+ * ditolak. Di sini tiap kolom memakai label baris ATAS, kecuali kolom
+ * TAMBAH/KURANG yang memakai label baris bawah. Peran blok tetap harus
+ * TERBUKTI lewat aritmetika seperti bentuk lain.
+ */
+function blokBertingkat(ws: ExcelJS.Worksheet, baris: number, sembunyi: Set<number>): BlokNilai[] {
+  return blokDariLabel((c) => {
+    const bawah = labelDi(ws, baris, c);
+    if (punyaTambah(bawah) || punyaKurang(bawah)) return bawah;
+    return labelDi(ws, baris - 1, c) || bawah;
+  }, sembunyi);
+}
+
+function blokDariLabel(labelKolom: (c: number) => string, sembunyi: Set<number>): BlokNilai[] {
   const blok: BlokNilai[] = [];
   let kini: BlokNilai | null = null;
   for (let c = 1; c <= NC; c++) {
     const tersembunyi = sembunyi.has(c);
-    const label = teks(ws.getRow(baris).getCell(c).value).replace(/\s+/g, " ").trim();
+    const label = labelKolom(c);
     if (!label) {
       if (!tersembunyi) kini = null;
       continue;
@@ -278,7 +315,12 @@ export function deteksiCco(ws: ExcelJS.Worksheet): PetaCco | null {
     }
   }
   if (barisGrup < 0) return null;
+  // Header satu tingkat dulu – berkas yang sudah terbaca tidak berubah. Header
+  // dua tingkat hanya dicoba bila itu gagal.
+  return petaCco(ws, barisGrup, blok, sembunyi) ?? petaCco(ws, barisGrup, blokBertingkat(ws, barisGrup, sembunyi), sembunyi);
+}
 
+function petaCco(ws: ExcelJS.Worksheet, barisGrup: number, blok: BlokNilai[], sembunyi: Set<number>): PetaCco | null {
   const iTambah = blok.findIndex((b) => punyaTambah(b.label));
   const iKurang = blok.findIndex((b) => punyaKurang(b.label));
   if (iTambah < 1 || iKurang <= iTambah) return null;

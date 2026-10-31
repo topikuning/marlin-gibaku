@@ -82,6 +82,27 @@ function cellVal(row: ExcelJS.Row, c: number): unknown {
 function str(v: unknown): string {
   return v == null ? "" : String(v).trim();
 }
+
+/**
+ * Nomor pekerjaan yang DIUBAH EXCEL jadi tanggal (DECISIONS 727).
+ *
+ * Excel berlokal Indonesia membaca ketikan "6.1." sebagai tanggal 6 Januari
+ * dan menyimpannya sebagai tanggal berformat "d.m." – di layar tetap tampil
+ * "6.1.", di dalam berkas isinya tanggal. Berkas MC0 Buyat Tengah
+ * (2026-10-31) punya 21 sel begitu di kolom NO. Dulu sel tanggal dibaca
+ * kosong: judul sub-item "6.1 Penyiapan RK3K" hilang dan rinciannya
+ * menumpuk di bawah induk yang salah.
+ *
+ * Dikembalikan ke teks yang TAMPIL di sel, hanya bila formatnya memang hari.bulan
+ * ("d.m", "d.m.", "dd.mm"). Hanya untuk kolom NOMOR – sel tanggal di kolom
+ * angka tidak disentuh.
+ */
+function tanggalSebagaiKode(d: Date, fmt: string | undefined): string | null {
+  const f = (fmt ?? "").replace(/\[\$-[^\]]*\]/g, "").replace(/\\/g, "").trim();
+  const m = /^d{1,2}\.m{1,2}(\.?)$/i.exec(f);
+  if (!m) return null;
+  return `${d.getUTCDate()}.${d.getUTCMonth() + 1}${m[1]}`;
+}
 /**
  * Pembaca angka BERSAMA (`lib/rab/angka-lokal`). Sebelumnya lokal di sini dan
  * membuang semua koma lalu memperlakukan titik sebagai desimal, sementara
@@ -1385,9 +1406,19 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
    * (NO di B untuk "1"/"6.1", tapi di D untuk huruf "a"), bukan sekadar
    * menggeser semuanya sejauh satu kolom.
    */
+  /** Sel nomor sebagai teks; tanggal ber-format hari.bulan dikembalikan ke nomornya. */
+  const kodeDariTanggal: { baris: number; kode: string }[] = [];
+  const selKode = (row: ExcelJS.Row, c: number): string => {
+    const v = row.getCell(c).value;
+    if (!(v instanceof Date)) return str(cellVal(row, c));
+    const kode = tanggalSebagaiKode(v, row.getCell(c).numFmt);
+    if (kode == null) return "";
+    if (!kodeDariTanggal.some((x) => x.baris === row.number)) kodeDariTanggal.push({ baris: row.number, kode });
+    return kode;
+  };
   const kodeNamaOf = (row: ExcelJS.Row): { code: string; name: string } => {
     if (kolomKode <= 1) {
-      const a = str(cellVal(row, 1));
+      const a = selKode(row, 1);
       /*
        * Huruf rincian di KOLOM SENDIRI (B), uraian di C – varian pelaksana
        * (DECISIONS 726): "6.8." di A, lalu "a"/"b" di B. Tanpa ini kode baris
@@ -1396,7 +1427,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
        * kolom B tidak jelas jenjangnya.
        */
       if (!a) {
-        const b = rapikanKode(str(cellVal(row, 2)));
+        const b = rapikanKode(selKode(row, 2));
         const nama = str(cellVal(row, 3)) || str(cellVal(row, 4));
         if (nama && (LETTER.test(b) || LETTER_VARIAN.test(b))) return { code: b, name: nama };
       }
@@ -1407,7 +1438,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     }
     const batas = Math.min(col.vol, NC + 1);
     for (let c = kolomKode; c < batas; c++) {
-      const t = str(cellVal(row, c));
+      const t = selKode(row, c);
       if (!t) continue;
       // Sel terisi PERTAMA bukan kode ⇒ baris tanpa kode (uraian lanjutan,
       // baris rekap, metadata). Jangan diangkat jadi kode: itu akan membuat
@@ -1843,6 +1874,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
    * terbaca, jadi pemeriksaan total pun diam. Karena itu DITOLAK dengan alamat
    * selnya, bukan diperingatkan (DECISIONS 675).
    */
+  // Nomor yang dikembalikan dari tanggal DISEBUT – angka unggahan yang
+  // disesuaikan tidak boleh diam-diam (DECISIONS 203).
+  if (kodeDariTanggal.length > 0) {
+    const contoh = kodeDariTanggal
+      .slice(0, 3)
+      .map((x) => `baris ${x.baris} "${x.kode}"`)
+      .join(", ");
+    warnings.push(
+      `${kodeDariTanggal.length} nomor pekerjaan tersimpan sebagai TANGGAL oleh Excel (${contoh}${kodeDariTanggal.length > 3 ? ", …" : ""}). ` +
+        `MARLIN membacanya sebagai nomor yang tampil di sel. Periksa urutannya di pratinjau.`,
+    );
+  }
   const henti = berhentiDi as { baris: number; teks: string; sel: string } | null;
   if (henti && pekerjaanSesudahBerhenti > 0) {
     throw new GalatSelBerkas(
