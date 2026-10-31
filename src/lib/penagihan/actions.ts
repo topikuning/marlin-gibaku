@@ -1,8 +1,10 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { ForbiddenError, accessibleLocationIds, requireCapability } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { DocumentError, uploadDocument } from "@/lib/documents";
@@ -16,7 +18,9 @@ import { butirBerkas, namaButir } from "./katalog";
  * (SSUK, NIB, …) disimpan tanpa termin: sekali unggah, berlaku di semua termin.
  */
 
-export type PenagihanState = { error?: string; success?: string } | undefined;
+export type PenagihanState =
+  | { error?: string; success?: string; tautan?: { teks: string; href: string } }
+  | undefined;
 
 const schema = z.object({
   packageId: z.uuid(),
@@ -66,6 +70,77 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
     };
   } catch (err) {
     if (err instanceof DocumentError || err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+  }
+}
+
+/**
+ * "Siapkan berkas Termin n" (DECISIONS 721): mengantre seluruh berkas termin
+ * ke folder `7. BERKAS TERMIN / TERMIN n` di Drive, lalu mulai mengerjakannya
+ * di latar. Orang tidak perlu menunggu: halaman menampilkan kemajuannya, dan
+ * yang belum selesai diambil putaran antrean berikutnya. Menekan ulang aman –
+ * berkas yang sama di Drive diperbarui, bukan digandakan.
+ */
+export async function siapkanBerkasTerminAction(_prev: PenagihanState, formData: FormData): Promise<PenagihanState> {
+  try {
+    const user = await requireCapability("document.upload");
+    const parsed = z
+      .object({ packageId: z.uuid(), terminKe: z.coerce.number().int().min(1).max(6) })
+      .safeParse({ packageId: formData.get("packageId"), terminKe: formData.get("terminKe") });
+    if (!parsed.success) return { error: "Permintaan tidak valid. Muat ulang halaman, lalu coba lagi." };
+    const { packageId, terminKe } = parsed.data;
+
+    const scoped = await accessibleLocationIds(user);
+    const pkg = await db.package.findFirst({
+      where: { id: packageId, ...packageScopeWhere(user, scoped) },
+      select: { id: true, driveFolderId: true },
+    });
+    if (!pkg) return { error: "Paket tidak ditemukan." };
+    if (!pkg.driveFolderId) {
+      return {
+        error: "Paket ini belum punya folder Google Drive.",
+        tautan: { teks: "Atur folder Drive di halaman paket", href: `/paket/${pkg.id}` },
+      };
+    }
+    const { getGDriveConfigDisplay } = await import("@/lib/gdrive/config");
+    if (!(await getGDriveConfigDisplay()).connected) {
+      return { error: "Akun Google Drive MARLIN belum terhubung. Minta admin menghubungkannya di menu Sistem." };
+    }
+
+    const { antrekanBerkasTermin } = await import("./berkas-termin");
+    const r = await antrekanBerkasTermin(pkg.id, terminKe, user);
+    if (!r.ok) {
+      return {
+        error: r.error,
+        tautan: r.terminKe
+          ? { teks: `Isi progres konsultan termin ${r.terminKe}`, href: `/paket/${pkg.id}/termin?termin=${r.terminKe}#progres-konsultan` }
+          : undefined,
+      };
+    }
+    await audit(user.id, "penagihan.siapkan_berkas", "package", pkg.id, {
+      terminKe,
+      jumlah: r.jumlah,
+      minggu: `${r.rentang.awal}-${r.rentang.akhir}`,
+    });
+
+    try {
+      after(async () => {
+        const { jalankanAntreanTermin } = await import("@/lib/gdrive/antrean");
+        await jalankanAntreanTermin({ packageId: pkg.id, terminKe });
+      });
+    } catch (err) {
+      // Barisnya sudah di antrean; putaran cron berikutnya yang mengambilnya.
+      console.error("[penagihan] gagal menjadwalkan berkas termin:", err);
+    }
+    revalidatePath(`/paket/${pkg.id}/penagihan`);
+    return {
+      success:
+        `${r.jumlah} berkas Termin ${terminKe} sedang disiapkan ke Drive (laporan minggu ke-${r.rentang.awal} s.d. ke-${r.rentang.akhir}).` +
+        (r.dariDrive ? ` ${r.dariDrive} berkas lain memang berasal dari Drive, jadi tidak diunggah balik.` : "") +
+        " Anda tidak perlu menunggu di halaman ini; muat ulang nanti untuk melihat kemajuannya.",
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
   }
 }

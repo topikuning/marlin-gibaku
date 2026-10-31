@@ -977,7 +977,7 @@ model AhspComponent {
 /// bisa disandingkan tanpa menebak.
 model GDriveJob {
   id            String    @id @default(uuid()) @db.Uuid
-  /// laporan_harian | laporan_mingguan — sama dengan GDriveUpload.kind.
+  /// laporan_harian | laporan_mingguan | berkas_termin — sama dengan GDriveUpload.kind.
   kind          String
   /// "<slug>:<YYYY-MM-DD>" (harian) atau "<locationId>:mingguan-<n>" (mingguan).
   refKey        String    @map("ref_key")
@@ -987,7 +987,9 @@ model GDriveJob {
   /// dengan `GDriveUpload`, bukan oleh kebutuhan menjalankan pekerjaannya.
   periode       String
   packageId     String    @map("package_id") @db.Uuid
-  locationId    String    @map("location_id") @db.Uuid
+  /// Kosong = berkas tingkat paket (Kurva S, surat, dokumen kontrak di berkas
+  /// termin – DECISIONS 721).
+  locationId    String?   @map("location_id") @db.Uuid
   /// menunggu | jalan | sukses | menyerah | batal
   /// `batal` = prasyaratnya hilang sebelum sempat naik (mis. laporan dibuka
   /// kembali dari final); bukan kegagalan, jadi tidak perlu ditindak orang.
@@ -1004,7 +1006,7 @@ model GDriveJob {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   package  Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([kind, refKey])
   @@index([status, nextAttemptAt])

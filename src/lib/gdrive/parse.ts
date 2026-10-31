@@ -122,7 +122,8 @@ export type GDriveUploadKind =
   | "laporan_mingguan"
   | "laporan_bulanan"
   | "kegiatan"
-  | "dokumen";
+  | "dokumen"
+  | "berkas_termin";
 
 export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
   laporan_harian: "Laporan harian",
@@ -130,6 +131,7 @@ export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
   laporan_bulanan: "Laporan bulanan",
   kegiatan: "Kegiatan lapangan",
   dokumen: "Dokumen administrasi",
+  berkas_termin: "Berkas termin",
 };
 
 /* ── Hasil upload ───────────────────────────────────────────────────────── */

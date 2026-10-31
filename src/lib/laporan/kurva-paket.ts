@@ -37,11 +37,12 @@ export type KurvaPaketDokumen = {
 
 export async function susunKurvaPaket(
   packageId: string,
-  user: SessionUser,
+  /** null = penyusun di latar (berkas termin, DECISIONS 721): tanpa saringan akses. */
+  user: SessionUser | null,
 ): Promise<KurvaPaketDokumen | "tidak_ada" | "kosong"> {
-  const scoped = await accessibleLocationIds(user);
+  const scoped = user ? await accessibleLocationIds(user) : null;
   const pkg = await db.package.findFirst({
-    where: { id: packageId, ...packageScopeWhere(user, scoped) },
+    where: { id: packageId, ...(user ? packageScopeWhere(user, scoped) : {}) },
     select: {
       id: true,
       name: true,

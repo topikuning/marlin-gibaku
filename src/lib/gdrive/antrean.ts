@@ -27,6 +27,12 @@ import {
 } from "./laju";
 import { publicOriginFromEnv } from "./origin";
 import { getGDriveOtomatisAktif } from "./setelan";
+import {
+  KIND_BERKAS_TERMIN,
+  awalanPeriodeTermin,
+  labelPekerjaanTermin,
+  uraiPeriodeTermin,
+} from "@/lib/penagihan/berkas-termin-aturan";
 
 /**
  * ANTREAN unggah otomatis ke Drive KKP (DECISIONS 313).
@@ -437,10 +443,23 @@ let sedangJalan = false;
 type Pekerjaan = {
   id: string;
   kind: string;
+  refKey: string;
   periode: string;
-  locationId: string;
+  packageId: string;
+  /** Kosong hanya untuk berkas termin tingkat paket (DECISIONS 721). */
+  locationId: string | null;
   attempts: number;
 };
+
+const PILIH_PEKERJAAN = {
+  id: true,
+  kind: true,
+  refKey: true,
+  periode: true,
+  packageId: true,
+  locationId: true,
+  attempts: true,
+} as const;
 
 /**
  * Bebaskan pekerjaan yang tertinggal berstatus `jalan` karena prosesnya mati di
@@ -467,6 +486,11 @@ async function jalankanSatu(
   job: Pekerjaan,
   baseUrl: string | null,
 ): Promise<HasilUnggah | { error: string } | { batal: string }> {
+  if (job.kind === KIND_BERKAS_TERMIN) {
+    const { jalankanPekerjaanTermin } = await import("@/lib/penagihan/berkas-termin");
+    return jalankanPekerjaanTermin(job, { baseUrl, jedaMs: JEDA_ANTAR_BERKAS_MS });
+  }
+  if (!job.locationId) return { batal: "Pekerjaan laporan tanpa lokasi." };
   if (job.kind === "laporan_harian" || job.kind === KIND_PDF_HARIAN) {
     const loc = await db.location.findUnique({
       where: { id: job.locationId },
@@ -493,6 +517,105 @@ async function jalankanSatu(
     byId: null,
     jedaMs: JEDA_ANTAR_BERKAS_MS,
   });
+}
+
+/**
+ * Kerjakan daftar pekerjaan yang sudah ditarik: klaim, jalankan, catat hasil,
+ * mundur saat gagal. Dipakai putaran cron dan putaran satu termin (DECISIONS
+ * 721) supaya keduanya tunduk pada aturan laju yang sama. Mengembalikan jumlah
+ * berkas yang dicoba.
+ */
+async function kerjakanDaftar(
+  antre: Pekerjaan[],
+  baseUrl: string | null,
+  hasil: HasilPutaran,
+  mulai: number,
+): Promise<number> {
+  let berkas = 0;
+  for (const job of antre) {
+    if (!masihAdaJatah({ berkas, mulai, sekarang: Date.now() })) {
+      hasil.berhenti = "Jatah satu putaran habis – sisanya lanjut putaran berikutnya.";
+      break;
+    }
+    if (!(await klaim(job.id, new Date()))) continue;
+    hasil.dikerjakan += 1;
+
+    let r: Awaited<ReturnType<typeof jalankanSatu>>;
+    try {
+      r = await jalankanSatu(job, baseUrl);
+    } catch (err) {
+      r = { error: err instanceof Error ? err.message : "Gagal mengunggah." };
+    }
+
+    // Prasyarat hilang (laporan dibuka kembali, periode belum bisa disusun):
+    // bukan kegagalan yang perlu ditindak orang, dan tidak boleh diulang.
+    if (adalahBatal(r)) {
+      hasil.batal += 1;
+      await db.gDriveJob.updateMany({
+        where: { id: job.id, status: "jalan" },
+        data: { status: "batal", lastError: r.batal, claimedAt: null, finishedAt: new Date() },
+      });
+      continue;
+    }
+
+    const galat = adalahTerhalang(r)
+      ? { pesan: r.error, status: null as number | null, retryAfter: null as string | null }
+      : r.galat;
+    if (!adalahTerhalang(r)) berkas += r.berkas;
+
+    if (!galat) {
+      hasil.sukses += 1;
+      /*
+       * Hanya menutup baris yang MASIH "jalan". Laporan yang diantre ulang
+       * selagi diunggah (finalisasi ulang, cuaca diperbarui dari satelit –
+       * DECISIONS 659) sudah kembali "menunggu": berkas yang barusan naik
+       * bisa dibuat sebelum perubahan itu, jadi antrean ulangnya tidak boleh
+       * tertimpa "sukses". Berlaku juga untuk gagal & batal di bawah/atas.
+       */
+      await db.gDriveJob.updateMany({
+        where: { id: job.id, status: "jalan" },
+        data: {
+          status: "sukses",
+          lastError: null,
+          claimedAt: null,
+          finishedAt: new Date(),
+          attempts: job.attempts,
+        },
+      });
+      continue;
+    }
+
+    const jenis = jenisGalat(galat.status, galat.pesan);
+    const mundur = hitungMundur({
+      jenis,
+      attemptsSebelum: job.attempts,
+      sekarang: new Date(),
+      retryAfterMs: retryAfterMs(galat.retryAfter, Date.now()),
+    });
+    if (jenis === "laju") hasil.ditahan += 1;
+    else hasil.gagal += 1;
+    if (mundur.menyerah) hasil.menyerah += 1;
+
+    await db.gDriveJob.updateMany({
+      where: { id: job.id, status: "jalan" },
+      data: {
+        status: mundur.menyerah ? "menyerah" : "menunggu",
+        attempts: mundur.attempts,
+        lastError: galat.pesan,
+        nextAttemptAt: mundur.nextAttemptAt,
+        claimedAt: null,
+        finishedAt: mundur.menyerah ? new Date() : null,
+      },
+    });
+
+    // Ditahan laju = Google sedang menyuruh berhenti. Meneruskan putaran ini
+    // hanya menambah tekanan pada kuota yang sudah ditolak.
+    if (jenis === "laju") {
+      hasil.berhenti = "Google menahan laju – sisanya dijadwalkan mundur.";
+      break;
+    }
+  }
+  return berkas;
 }
 
 /**
@@ -534,98 +657,14 @@ export async function jalankanAntreanDrive(
 
     const baseUrl = publicOriginFromEnv();
     const mulai = Date.now();
-    let berkas = 0;
 
     const antre = await db.gDriveJob.findMany({
       where: { status: "menunggu", nextAttemptAt: { lte: now } },
       orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
       take: opts.maksPekerjaan ?? MAKS_PEKERJAAN_PER_PUTARAN,
-      select: { id: true, kind: true, periode: true, locationId: true, attempts: true },
+      select: PILIH_PEKERJAAN,
     });
-
-    for (const job of antre) {
-      if (!masihAdaJatah({ berkas, mulai, sekarang: Date.now() })) {
-        hasil.berhenti = "Jatah satu putaran habis – sisanya lanjut putaran berikutnya.";
-        break;
-      }
-      if (!(await klaim(job.id, new Date()))) continue;
-      hasil.dikerjakan += 1;
-
-      let r: Awaited<ReturnType<typeof jalankanSatu>>;
-      try {
-        r = await jalankanSatu(job, baseUrl);
-      } catch (err) {
-        r = { error: err instanceof Error ? err.message : "Gagal mengunggah." };
-      }
-
-      // Prasyarat hilang (laporan dibuka kembali, periode belum bisa disusun):
-      // bukan kegagalan yang perlu ditindak orang, dan tidak boleh diulang.
-      if (adalahBatal(r)) {
-        hasil.batal += 1;
-        await db.gDriveJob.updateMany({
-          where: { id: job.id, status: "jalan" },
-          data: { status: "batal", lastError: r.batal, claimedAt: null, finishedAt: new Date() },
-        });
-        continue;
-      }
-
-      const galat = adalahTerhalang(r)
-        ? { pesan: r.error, status: null as number | null, retryAfter: null as string | null }
-        : r.galat;
-      if (!adalahTerhalang(r)) berkas += r.berkas;
-
-      if (!galat) {
-        hasil.sukses += 1;
-        /*
-         * Hanya menutup baris yang MASIH "jalan". Laporan yang diantre ulang
-         * selagi diunggah (finalisasi ulang, cuaca diperbarui dari satelit –
-         * DECISIONS 659) sudah kembali "menunggu": berkas yang barusan naik
-         * bisa dibuat sebelum perubahan itu, jadi antrean ulangnya tidak boleh
-         * tertimpa "sukses". Berlaku juga untuk gagal & batal di bawah/atas.
-         */
-        await db.gDriveJob.updateMany({
-          where: { id: job.id, status: "jalan" },
-          data: {
-            status: "sukses",
-            lastError: null,
-            claimedAt: null,
-            finishedAt: new Date(),
-            attempts: job.attempts,
-          },
-        });
-        continue;
-      }
-
-      const jenis = jenisGalat(galat.status, galat.pesan);
-      const mundur = hitungMundur({
-        jenis,
-        attemptsSebelum: job.attempts,
-        sekarang: new Date(),
-        retryAfterMs: retryAfterMs(galat.retryAfter, Date.now()),
-      });
-      if (jenis === "laju") hasil.ditahan += 1;
-      else hasil.gagal += 1;
-      if (mundur.menyerah) hasil.menyerah += 1;
-
-      await db.gDriveJob.updateMany({
-        where: { id: job.id, status: "jalan" },
-        data: {
-          status: mundur.menyerah ? "menyerah" : "menunggu",
-          attempts: mundur.attempts,
-          lastError: galat.pesan,
-          nextAttemptAt: mundur.nextAttemptAt,
-          claimedAt: null,
-          finishedAt: mundur.menyerah ? new Date() : null,
-        },
-      });
-
-      // Ditahan laju = Google sedang menyuruh berhenti. Meneruskan putaran ini
-      // hanya menambah tekanan pada kuota yang sudah ditolak.
-      if (jenis === "laju") {
-        hasil.berhenti = "Google menahan laju – sisanya dijadwalkan mundur.";
-        break;
-      }
-    }
+    const berkas = await kerjakanDaftar(antre, baseUrl, hasil, mulai);
 
     /*
      * Sisa anggaran putaran dipakai menyusun shortcut dokumentasi per bangunan
@@ -653,6 +692,68 @@ export async function jalankanAntreanDrive(
   }
 }
 
+/** Termin yang sedang dikerjakan putaran khususnya di proses ini. */
+const terminSedangJalan = new Set<string>();
+
+/**
+ * Putaran khusus berkas SATU termin, dipanggil di latar sesudah tombol
+ * "Siapkan berkas Termin n" ditekan (DECISIONS 721).
+ *
+ * Berbeda dari putaran cron: TIDAK bergantung sakelar unggah otomatis (orang
+ * menekan tombolnya sendiri), dan diulang sampai pekerjaan termin itu habis
+ * atau `batasMs` lewat. Aturan lajunya sama (`kerjakanDaftar`); yang tersisa
+ * diambil putaran cron atau tekanan berikutnya.
+ */
+export async function jalankanAntreanTermin(opts: {
+  packageId: string;
+  terminKe: number;
+  batasMs?: number;
+}): Promise<HasilPutaran> {
+  const konfig = await getGDriveConfigDisplay();
+  if (!konfig.connected) return putaranKosong({ terhubung: false });
+  const kunci = `${opts.packageId}:${opts.terminKe}`;
+  if (terminSedangJalan.has(kunci)) return putaranKosong({ berhenti: "Berkas termin ini sedang dikerjakan." });
+  terminSedangJalan.add(kunci);
+
+  const hasil = putaranKosong();
+  const tenggat = Date.now() + (opts.batasMs ?? 10 * 60_000);
+  const baseUrl = publicOriginFromEnv();
+  try {
+    await bebaskanMenggantung(new Date());
+    while (Date.now() < tenggat) {
+      const antre = await db.gDriveJob.findMany({
+        where: {
+          kind: KIND_BERKAS_TERMIN,
+          packageId: opts.packageId,
+          periode: { startsWith: awalanPeriodeTermin(opts.terminKe) },
+          status: "menunggu",
+          nextAttemptAt: { lte: new Date() },
+        },
+        orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
+        take: MAKS_PEKERJAAN_PER_PUTARAN,
+        select: PILIH_PEKERJAAN,
+      });
+      if (antre.length === 0) break;
+      hasil.berhenti = null;
+      hasil.berkas += await kerjakanDaftar(antre, baseUrl, hasil, Date.now());
+      // Google menahan laju: berhenti, jangan menekan kuota yang sudah ditolak.
+      // (`kerjakanDaftar` mengisi `berhenti`; TS tidak melihat mutasinya.)
+      if ((hasil.berhenti as string | null)?.startsWith("Google")) break;
+    }
+    hasil.sisa = await db.gDriveJob.count({
+      where: {
+        kind: KIND_BERKAS_TERMIN,
+        packageId: opts.packageId,
+        periode: { startsWith: awalanPeriodeTermin(opts.terminKe) },
+        status: "menunggu",
+      },
+    });
+    return hasil;
+  } finally {
+    terminSedangJalan.delete(kunci);
+  }
+}
+
 /* ── Ringkasan untuk layar Sistem ────────────────────────────────────────── */
 
 export type RingkasAntrean = {
@@ -677,7 +778,9 @@ export async function ringkasAntrean(): Promise<RingkasAntrean> {
         periode: true,
         lastError: true,
         updatedAt: true,
+        locationId: true,
         location: { select: { name: true } },
+        package: { select: { name: true } },
       },
     }),
   ]);
@@ -690,12 +793,19 @@ export async function ringkasAntrean(): Promise<RingkasAntrean> {
     batal: hitung("batal"),
     macet: macet.map((m) => ({
       kind: m.kind,
-      periode: m.periode,
-      lokasi: m.location.name,
+      periode: m.kind === KIND_BERKAS_TERMIN ? labelBerkasTermin(m.periode, m.locationId) : m.periode,
+      // Berkas termin tingkat paket tidak punya lokasi (DECISIONS 721).
+      lokasi: m.location?.name ?? m.package.name,
       error: m.lastError,
       pada: m.updatedAt,
     })),
   };
+}
+
+/** "Termin 1 · Laporan mingguan minggu ke-7" – bukan isi kolom `periode` mentah. */
+function labelBerkasTermin(periode: string, locationId: string | null): string {
+  const p = uraiPeriodeTermin(periode, locationId);
+  return p ? `Termin ${p.terminKe} · ${labelPekerjaanTermin(p)}` : periode;
 }
 
 /** Kembalikan pekerjaan yang MENYERAH ke antrean (tombol "coba lagi"). */

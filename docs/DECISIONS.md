@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 721 | 2026-10-31 | "Siapkan berkas Termin n": satu tekan mengantre seluruh berkas termin ke `7. BERKAS TERMIN/TERMIN n` di Drive (butir yang ada disalin; Kurva S, laporan mingguan/harian/bulanan, dokumentasi dibuat MARLIN untuk folder yang belum diisi), periode = sesudah minggu prestasi termin sebelumnya s.d. minggu prestasi termin ini; antrean `gdrive_jobs` kind `berkas_termin` (lokasi boleh kosong), putaran latar `after()` tanpa bergantung sakelar otomatis, folder termin yang ada dipakai ulang |
 | 720 | 2026-10-30 | Halaman Penagihan per termin: langkah 0–8 + daftar periksa 42 berkas folder TERMIN Drive KKP (`penagihan/katalog.ts`, nama folder dari `ISI_TERMIN`), asal marlin/paket/tetap/pihak lain, status diturunkan; `documents.termin_ke` + `butir_termin` diisi dari unggahan per baris atau dari LETAK folder saat ditarik dari Drive; NIB/NPWP per perusahaan, dokumen tetap lintas termin |
 | 719 | 2026-10-30 | Surat penyedia menyebut "Nomor Adendum n: … tanggal …" (urutan menurut tanggal berlaku), dan nilai kontrak di surat = kontrak + adendum yang berlaku s.d. TANGGAL SURAT, sehingga surat lama yang diunduh ulang sesudah adendum tidak berubah isi |
 | 718 | 2026-10-30 | Kekurangan data surat penyedia bertautan "isi di …" langsung ke tempat pengisiannya (`kekuranganTertaut` + `tautanLengkapi`); `Drawer` prop `hash` membuka panel dari alamat (`#penanda-tangan`); Master Perusahaan `?buka=<id>`; isian progres `?termin=n`; nama menu di pesan disamakan dengan layar |

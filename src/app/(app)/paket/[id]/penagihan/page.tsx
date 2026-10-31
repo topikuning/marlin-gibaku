@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
-import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard, type BadgeTone } from "@/components/ui";
+import { Badge, Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, type BadgeTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -9,8 +9,11 @@ import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
 import { LABEL_STATUS_BUTIR, kelompokButir, namaButir, type StatusLangkah } from "@/lib/penagihan/katalog";
 import { muatPenagihan } from "@/lib/penagihan/data";
+import { ringkasBerkasTermin } from "@/lib/penagihan/berkas-termin";
+import { rentangMingguTermin } from "@/lib/penagihan/berkas-termin-aturan";
 import { persenSurat } from "@/lib/surat-penyedia/aturan";
 import { BarisBerkas, type BarisKlien } from "./baris-berkas";
+import { SiapkanBerkasTermin } from "./siapkan-berkas";
 
 export const metadata: Metadata = { title: "Penagihan" };
 export const dynamic = "force-dynamic";
@@ -58,6 +61,8 @@ export default async function PenagihanPage({
   }
   const bolehUnggah = can(user.role, "document.upload");
   const n = d.terminKe;
+  const berkasDrive = await ringkasBerkasTermin(id, n);
+  const rentang = rentangMingguTermin(n, d.mingguPrestasi);
   const t = d.termin;
   const lolosAmbang = d.progresKonsultan ? d.progresKonsultan.progresPct >= t.ambangPct : null;
 
@@ -143,6 +148,59 @@ export default async function PenagihanPage({
               title={`Progres konsultan belum mencapai ambang termin ${n}`}
               description={`Tercatat ${formatPct(d.progresKonsultan!.progresPct)}, ambangnya ${persenSurat(t.ambangPct)}. Surat permohonan pemeriksaan dan BA pembahasan belum bisa dibuat.`}
             />
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card id="berkas-drive" className="scroll-mt-20">
+        <CardHeader
+          title={`Berkas Termin ${n} di Drive`}
+          subtitle={`Sekali tekan: semua berkas yang sudah ada di MARLIN, ditambah Kurva S, laporan mingguan, laporan harian, laporan bulanan, dan dokumentasi, disalin ke folder 7. BERKAS TERMIN / TERMIN ${n} dengan susunan folder KKP.`}
+        />
+        <CardBody className="space-y-3">
+          {rentang.ok ? (
+            <p className="text-[13px] text-ink-muted">
+              Laporan yang ikut: minggu ke-{rentang.rentang.awal} s.d. ke-{rentang.rentang.akhir}
+              {n === 1
+                ? ", sampai minggu prestasi termin 1 menurut laporan konsultan."
+                : `, sesudah prestasi termin ${n - 1} sampai prestasi termin ${n} menurut laporan konsultan.`}
+            </p>
+          ) : (
+            <Banner
+              tone="warning"
+              title="Periode laporan termin ini belum diketahui"
+              description={rentang.alasan}
+              action={
+                <ButtonLink href={`/paket/${id}/termin?termin=${rentang.terminKe}#progres-konsultan`} variant="secondary" size="sm">
+                  Isi progres termin {rentang.terminKe}
+                </ButtonLink>
+              }
+            />
+          )}
+          {berkasDrive.total > 0 ? (
+            <div className="space-y-1.5 text-[13px]">
+              <p className="text-ink">
+                <strong>{berkasDrive.sukses}</strong> dari {berkasDrive.total} berkas sudah di Drive
+                {berkasDrive.menunggu ? ` · ${berkasDrive.menunggu} masih diproses` : ""}
+                {berkasDrive.gagal ? ` · ${berkasDrive.gagal} gagal` : ""}
+                {berkasDrive.batal ? ` · ${berkasDrive.batal} tidak bisa disusun` : ""}
+                {berkasDrive.terakhir ? ` · terakhir ${formatTanggalWaktu(berkasDrive.terakhir)}` : ""}
+              </p>
+              {berkasDrive.masalah.length ? (
+                <ul className="space-y-1 text-ink-muted">
+                  {berkasDrive.masalah.slice(0, 6).map((m, i) => (
+                    <li key={i} className={m.menyerah ? "text-danger" : undefined}>
+                      {m.label}
+                      {m.lokasi ? ` (${m.lokasi})` : ""}: {m.pesan}
+                    </li>
+                  ))}
+                  {berkasDrive.masalah.length > 6 ? <li>dan {berkasDrive.masalah.length - 6} lainnya.</li> : null}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {bolehUnggah && rentang.ok ? (
+            <SiapkanBerkasTermin packageId={id} terminKe={n} ulang={berkasDrive.total > 0} folderDrive={berkasDrive.folderDrive} />
           ) : null}
         </CardBody>
       </Card>

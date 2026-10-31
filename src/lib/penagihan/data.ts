@@ -25,11 +25,16 @@ const BUTIR_PERUSAHAAN = KATALOG_BERKAS_TERMIN.filter((b) => b.tetapDi === "peru
 
 export type RujukanBerkas = { judul: string; href: string } | null;
 
+/** Asal berkas yang memenuhi butir: dokumen MARLIN atau surat penyedia. */
+export type SumberBerkasAda = { dokumenId: string } | { suratId: string } | null;
+
 export type BarisPenagihan = {
   butir: ButirBerkas;
   status: StatusButir;
   /** Berkas yang memenuhi butir ini (dokumen atau surat), untuk tombol "Lihat". */
   rujukan: RujukanBerkas;
+  /** Berkas yang sama sebagai id – dipakai "Siapkan berkas termin" (DECISIONS 721). */
+  sumber: SumberBerkasAda;
 };
 
 export async function muatPenagihan(packageId: string, user: SessionUser, terminDiminta?: number) {
@@ -67,6 +72,7 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
   const baris: BarisPenagihan[] = KATALOG_BERKAS_TERMIN.map((butir) => {
     const status = statusButir(butir, keadaan);
     let rujukan: RujukanBerkas = null;
+    let sumber: SumberBerkasAda = null;
     if (status === "ada") {
       const kode = [butir.kode, ...(butir.juga ?? [])];
       const unggahan = semuaDokumen.find(
@@ -79,8 +85,10 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
         : surat
           ? { judul: `Nomor ${surat.nomor}`, href: `/api/surat-penyedia/${surat.id}/pdf` }
           : rujukanDokumen(paket);
+      const doc = unggahan ?? (surat ? undefined : paket);
+      sumber = doc ? { dokumenId: doc.id } : surat ? { suratId: surat.id } : null;
     }
-    return { butir, status, rujukan };
+    return { butir, status, rujukan, sumber };
   });
 
   const statusPerKode = new Map(baris.map((b) => [b.butir.kode, b.status]));
@@ -112,6 +120,9 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
     termin,
     progresMarlin,
     progresKonsultan,
+    /** Minggu prestasi tiap termin yang progres konsultannya sudah diisi. */
+    mingguPrestasi: d.progres.flatMap((p) => (p.tersimpan ? [{ terminKe: p.terminKe, mingguKe: p.tersimpan.mingguKe }] : [])),
+    lokasiAktif,
     langkah,
     ringkas: {
       ada: baris.filter((b) => b.status === "ada").length,

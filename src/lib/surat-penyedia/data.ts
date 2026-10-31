@@ -227,6 +227,12 @@ export async function muatKontrakSurat(contractId: string, orgId: string) {
   return db.contract.findFirst({ where: { id: contractId, package: { orgId } }, select: pilihKontrak });
 }
 
+/** Ambang termin `terminKe` di jadwal yang berlaku; null bila terminnya tidak ada. */
+export async function ambangTermin(contractId: string, terminKe: number): Promise<number | null> {
+  const termin = await db.contractTermin.findMany({ where: { contractId }, ...pilihKontrak.termin });
+  return jadwalBerlaku(barisTersimpan({ termin })).baris.find((t) => t.terminKe === terminKe)?.ambangPct ?? null;
+}
+
 /** Termin `terminKe` ada di jadwal yang berlaku (tersimpan atau bawaan KKP)? */
 export function terminAda(c: KontrakSurat, terminKe: number): boolean {
   return jadwalBerlaku(barisTersimpan(c)).baris.some((t) => t.terminKe === terminKe);

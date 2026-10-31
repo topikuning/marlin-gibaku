@@ -86,6 +86,15 @@ export const ISI_TERMIN: SimpulFolder[] = [
   },
 ];
 
+/**
+ * Folder termin ke-n dikenali dari "termin n" saja: "TERMIN 1 (25%) CV. Putera
+ * Fahlevi" dan "Termin 1" sama-sama cocok, berapa pun persen & nama penyedianya.
+ * `nama` sudah dinormalkan `kunciNamaFolder`.
+ */
+export function polaFolderTermin(terminKe: number): RegExp {
+  return new RegExp(`^termin ${terminKe}( |$)`);
+}
+
 /** Nama folder termin: "TERMIN 1 (25%) CV. Putera Fahlevi". */
 export function namaFolderTermin(terminKe: number, pct: number, penyedia: string | null): string {
   return `TERMIN ${terminKe} (${pct}%)${penyedia?.trim() ? ` ${penyedia.trim()}` : ""}`;
@@ -112,7 +121,7 @@ export function strukturDriveKkp(input: { penyedia: string | null; lokasi: reado
       anak: AMBANG_TERMIN_PCT.map((pct, i) => ({
         nama: namaFolderTermin(i + 1, pct, input.penyedia),
         // "TERMIN 1 (25%) CV. Putera Fahlevi" dikenali dari "termin 1" saja.
-        cocok: new RegExp(`^termin ${i + 1}( |$)`),
+        cocok: polaFolderTermin(i + 1),
         anak: ISI_TERMIN,
       })),
     },

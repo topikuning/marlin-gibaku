@@ -136,7 +136,9 @@ export function GDriveOtomatisPanel({
                   ? `harian ${m.periode}`
                   : m.kind === "laporan_harian_pdf"
                     ? `harian ${m.periode} (ganti PDF, cuaca diperbarui)`
-                    : `mingguan ke-${m.periode}`}{" "}
+                    : m.kind === "berkas_termin"
+                      ? `berkas ${m.periode}`
+                      : `mingguan ke-${m.periode}`}{" "}
                 –{" "}
                 {m.error ?? "penyebab tidak tercatat"}
               </li>
