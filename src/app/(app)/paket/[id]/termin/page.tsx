@@ -20,6 +20,8 @@ import {
   type TujuanLengkapi,
 } from "@/lib/surat-penyedia/aturan";
 import { muatTerminSurat } from "@/lib/surat-penyedia/data";
+import { realisasiMingguanPaket } from "@/lib/laporan/kurva-paket";
+import { mingguTercapai } from "@/lib/progress-calc";
 import {
   BarisSurat,
   BuatSuratForm,
@@ -28,6 +30,7 @@ import {
   JadwalTerminForm,
   ProgresKonsultanForm,
   type BarisTermin,
+  type PilihanMingguKlien,
   type ProgresTerminKlien,
 } from "./termin-forms";
 
@@ -102,9 +105,20 @@ export default async function TerminPage({
   const lampiran: Record<string, string[]> = {};
   for (const j of JENIS_SURAT_TERSEDIA) for (const t of d.termin) lampiran[`${j}:${t.terminKe}`] = lampiranBawaan(j, t.terminKe);
 
+  // Realisasi kurva-S MARLIN per minggu: pilihan "minggu ke-" progres konsultan,
+  // dengan minggu pertama yang mencapai ambang termin ditandai (DECISIONS 722).
+  const mingguMarlin = await realisasiMingguanPaket(id);
+  const pilihanMinggu: PilihanMingguKlien[] = mingguMarlin.map((m) => ({
+    mingguKe: m.mingguKe,
+    rentang: `${formatTanggal(m.awal, "d MMM")} – ${formatTanggal(m.akhir, "d MMM yyyy")}`,
+    pctTeks: m.pct === null ? "belum ada laporan" : formatPct(m.pct),
+  }));
+  const pctMingguan = mingguMarlin.map((m) => m.pct);
+
   const progres: ProgresTerminKlien[] = d.progres.map((p) => ({
     terminKe: p.terminKe,
     ambangPct: p.ambangPct,
+    mingguTercapai: mingguTercapai(pctMingguan, p.ambangPct),
     ambangTeks: persenSurat(p.ambangPct),
     progresPct: p.tersimpan?.progresPct ?? null,
     mingguKe: p.tersimpan?.mingguKe ?? null,
@@ -180,6 +194,7 @@ export default async function TerminPage({
                 termin={progres}
                 hariIni={jakartaDateKey(new Date())}
                 terminAwal={terminDiminta}
+                pilihanMinggu={pilihanMinggu}
               />
             ) : (
               <p className="text-sm text-ink-muted">Paket ini belum punya lokasi aktif.</p>

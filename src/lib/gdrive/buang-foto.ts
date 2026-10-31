@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { buangPintasan } from "./client";
+import { bolehDibuang } from "./upload";
 
 /**
  * Buang SATU foto laporan yang dihapus di MARLIN dari folder Drive paket
@@ -31,6 +32,8 @@ export async function buangFotoDariDrive(photoId: string): Promise<{ dibuang: nu
         select: { photoId: true },
       });
       if (terakhir?.photoId !== photoId) continue;
+      // Hanya berkas buatan MARLIN yang tidak diubah orang (DECISIONS 723).
+      if (!(await bolehDibuang(fileId))) continue;
       // `buangPintasan` memindah berkas APA PUN ke Sampah – namanya dari pemakai pertamanya.
       await buangPintasan(fileId);
       dibuang++;

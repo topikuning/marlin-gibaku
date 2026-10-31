@@ -40,6 +40,27 @@ vi.mock("@/lib/penyimpanan/berkas", async (importAsli) => ({
 const anak = new Map<string, { id: string; name: string }[]>();
 let dibuat: string[] = [];
 let naik: string[] = [];
+/** Berkas Drive yang dibuang ke Sampah. */
+let sampah: string[] = [];
+/**
+ * Isi Drive tiruan, setia pada Drive & `uploadToDrive` sungguhan: berkas
+ * bernama sama bisa lebih dari satu; MARLIN hanya menimpa yang dipilih
+ * `pilihTimpa` (milik MARLIN – DECISIONS 723), selain itu membuat berkas baru.
+ * Berkas yang dibuang ke Sampah hilang.
+ */
+type Meta = { createdTime: Date; terbitanMarlin: boolean; diubahOrangLain: boolean };
+const isiDrive = new Map<string, string[]>();
+const metaDrive = new Map<string, Meta>();
+let urutId = 0;
+/** Id berkas terbaru bernama `kunci` ("folder :: nama"). */
+const idDi = (kunci: string) => isiDrive.get(kunci)?.at(-1);
+/** Taruh berkas buatan ORANG di Drive tiruan. */
+function taruhBerkasOrang(kunci: string, meta: Partial<Meta> = {}): string {
+  const id = `orang-${++urutId}`;
+  isiDrive.set(kunci, [...(isiDrive.get(kunci) ?? []), id]);
+  metaDrive.set(id, { createdTime: new Date(Date.now() - 86_400_000), terbitanMarlin: false, diubahOrangLain: true, ...meta });
+  return id;
+}
 vi.mock("@/lib/gdrive/client", () => {
   class GDriveError extends Error {
     readonly status: number | null = null;
@@ -55,9 +76,28 @@ vi.mock("@/lib/gdrive/client", () => {
       dibuat.push(id);
       return id;
     },
-    uploadToDrive: async (input: { folderId: string; fileName: string }) => {
-      naik.push(`${input.folderId} :: ${input.fileName}`);
-      return { id: `f-${naik.length}`, name: input.fileName, webViewLink: null, created: true };
+    uploadToDrive: async (input: {
+      folderId: string;
+      fileName: string;
+      pilihTimpa: (c: (Meta & { id: string })[]) => Promise<string | null>;
+    }) => {
+      const kunci = `${input.folderId} :: ${input.fileName}`;
+      naik.push(kunci);
+      const calon = (isiDrive.get(kunci) ?? []).map((id) => ({ id, ...metaDrive.get(id)! }));
+      const timpa = calon.length ? await input.pilihTimpa(calon) : null;
+      if (timpa) return { id: timpa, name: input.fileName, webViewLink: null, created: false };
+      const id = `f-${++urutId}`;
+      isiDrive.set(kunci, [...(isiDrive.get(kunci) ?? []), id]);
+      metaDrive.set(id, { createdTime: new Date(), terbitanMarlin: true, diubahOrangLain: false });
+      return { id, name: input.fileName, webViewLink: null, created: true };
+    },
+    metaBerkas: async (id: string) => {
+      const ada = [...isiDrive.values()].some((ids) => ids.includes(id));
+      return ada ? { id, ...metaDrive.get(id)! } : null;
+    },
+    buangKeSampah: async (id: string) => {
+      sampah.push(id);
+      for (const [k, ids] of isiDrive) isiDrive.set(k, ids.filter((x) => x !== id));
     },
   };
 });
@@ -72,7 +112,14 @@ vi.mock("@/lib/pdf/periodik-kkp", () => ({
   renderPeriodikKkpPdf: async (_l: string, kind: string, n: number) => pdf(`${kind} ${n}`),
   renderKurvaPaketPdf: async () => pdf("kurva"),
 }));
-vi.mock("@/lib/laporan/kurva-paket", () => ({ susunKurvaPaket: async () => ({}) }));
+/** Batas minggu yang diminta tiap Kurva S paket. */
+let kurvaSampai: (number | undefined)[] = [];
+vi.mock("@/lib/laporan/kurva-paket", () => ({
+  susunKurvaPaket: async (_id: string, _u: unknown, opsi?: { sampaiMinggu?: number }) => {
+    kurvaSampai.push(opsi?.sampaiMinggu);
+    return {};
+  },
+}));
 vi.mock("@/lib/pdf/mingguan-kkp", () => ({ renderMingguanKkpPdf: async (_s: string, n: number) => pdf(`harian ${n}`) }));
 vi.mock("@/lib/pdf/dokumentasi-sarpras", () => ({
   renderDokumentasiSarprasPdf: async () => (dokumentasiKosong ? null : { ...pdf("dok"), lokasi: "x" }),
@@ -99,7 +146,7 @@ const { db } = await import("@/lib/db");
 const { antrekanBerkasTermin, ringkasBerkasTermin } = await import("@/lib/penagihan/berkas-termin");
 const { jalankanAntreanTermin, jalankanAntreanDrive, ringkasAntrean } = await import("@/lib/gdrive/antrean");
 const { setGDriveOtomatisAktif } = await import("@/lib/gdrive/setelan");
-const { siapkanBerkasTerminAction } = await import("@/lib/penagihan/actions");
+const { siapkanBerkasTerminAction, unggahBerkasTerminAction } = await import("@/lib/penagihan/actions");
 const { uploadDocument } = await import("@/lib/documents");
 
 const suffix = `bt${Date.now().toString(36)}`;
@@ -160,6 +207,8 @@ beforeEach(() => {
   anak.clear();
   dibuat = [];
   naik = [];
+  sampah = [];
+  kurvaSampai = [];
   tertunda.length = 0;
   peran = "super_admin";
   dokumentasiKosong = false;
@@ -180,7 +229,7 @@ describe("antrekanBerkasTermin", () => {
   it("termin 1 minggu 1–3: berkas yang ada + Kurva S + laporan per lokasi AKTIF", async () => {
     await progres(1, 3);
     const r = await antrekanBerkasTermin(packageId, 1, sesi());
-    expect(r).toEqual({ ok: true, jumlah: 18, rentang: { awal: 1, akhir: 3 }, dariDrive: 0 });
+    expect(r).toEqual({ ok: true, jumlah: 18, rentang: { awal: 1, akhir: 3 }, dariDrive: 0, dibuang: 0 });
     // SPMK 1 + Kurva 1 + (mingguan 3 + harian 3 + bulanan 1 + dokumentasi 1) × 2 lokasi aktif.
     const j = await pekerjaan();
     expect(j).toHaveLength(18);
@@ -240,9 +289,15 @@ describe("antrekanBerkasTermin", () => {
     );
     await antrekanBerkasTermin(packageId, 1, sesi());
     const j = await pekerjaan();
+    // Kurva MARLIN keluar; scan yang sama disalin ke 5 DAN T9 (folder berpasangan).
     expect(j).toHaveLength(19);
-    expect(j.find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s||T9|");
+    expect(j.some((x) => x.periode.startsWith("1|kurva_s|"))).toBe(false);
     expect(j.find((x) => x.periode === `1|berkas||5|d${doc.id}`)).toBeTruthy();
+    expect(j.find((x) => x.periode === `1|berkas||T9|d${doc.id}`)).toBeTruthy();
+    // Unggahan dicabut: Kurva S kembali disiapkan MARLIN.
+    await db.document.delete({ where: { id: doc.id } });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    expect((await pekerjaan()).find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s|3|5+T9|");
   });
 });
 
@@ -259,7 +314,102 @@ describe("jalankanAntreanTermin", () => {
     expect(naik).toContain(`${termin}/BERKAS DOKUMEN TEKNIS/5. Laporan Harian :: Laporan Harian Minggu ke-3 - Desa dua.pdf`);
     expect(naik.some((x) => x.includes("Desa mati"))).toBe(false);
     expect((await pekerjaan()).every((x) => x.status === "sukses")).toBe(true);
-    expect(await ringkasBerkasTermin(packageId, 1)).toMatchObject({ total: 19, sukses: 19, menunggu: 0 });
+    expect(await ringkasBerkasTermin(packageId, 1)).toMatchObject({ total: 18, sukses: 18, menunggu: 0 });
+    // Kurva S termin 1 berhenti di minggu prestasinya (3), bukan minggu berjalan.
+    expect(kurvaSampai).toEqual([3]);
+  });
+
+  it("minggu prestasi dibetulkan: isi berkas mengikuti, baris minggu yang keluar rentang dibuang", async () => {
+    await progres(1, 2);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    const j = await pekerjaan();
+    // SPMK + Kurva S + (mingguan 2 + harian 2 + bulanan 1 + dokumentasi 1) × 2 lokasi.
+    expect(j.filter((x) => !x.refKey.startsWith("buang>"))).toHaveLength(14);
+    expect(j.some((x) => /^1\|(mingguan|harian)\|3\|/.test(x.periode))).toBe(false);
+    expect(j.find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s|2|5+T9|");
+    // Laporan minggu 3 versi MARLIN yang sudah naik dibuang dari folder termin 1.
+    expect(j.filter((x) => x.refKey.startsWith("buang>"))).toHaveLength(4);
+    await progres(1, 3);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+  });
+
+  it("scan bertanda tangan menggantikan versi MARLIN: semua scan disalin ke kedua folder, versi MARLIN dibuang ke Sampah", async () => {
+    // Pastikan semua sudah naik dulu, lalu catat berkas Drive tiap pekerjaan.
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    const unggahan = await db.gDriveUpload.findMany({
+      where: { packageId, kind: "berkas_termin", status: "sukses" },
+      select: { refKey: true, fileId: true },
+    });
+    const idMingguan = [...new Set(unggahan.filter((u) => u.refKey.includes(":mingguan:")).map((u) => u.fileId))];
+    const idLain = unggahan.filter((u) => !u.refKey.includes(":mingguan:")).map((u) => u.fileId);
+    expect(idMingguan).toHaveLength(12); // 3 minggu × 2 lokasi × 2 folder (7 & T6)
+
+    // Dua scan sekaligus, nama berkasnya sama-sama "scan.pdf" (dari HP).
+    const f = new FormData();
+    f.set("packageId", packageId);
+    f.set("terminKe", "1");
+    f.set("kode", "7");
+    f.append("file", new File(["scan minggu 1"], "scan.pdf", { type: "application/pdf" }));
+    f.append("file", new File(["scan minggu 2"], "scan.pdf", { type: "application/pdf" }));
+    expect((await unggahBerkasTerminAction(undefined, f))?.success).toMatch(/^2 berkas 7\. Laporan Mingguan/);
+
+    naik = [];
+    const r = await antrekanBerkasTermin(packageId, 1, sesi());
+    expect(r).toMatchObject({ ok: true, dibuang: 6 });
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+
+    // Versi MARLIN laporan mingguan dibuang; berkas lain tidak tersentuh.
+    expect([...sampah].sort()).toEqual([...idMingguan].sort());
+    expect(sampah.some((id) => idLain.includes(id))).toBe(false);
+    // Kedua scan masuk ke 7 dan T6, dengan nama yang tidak saling menimpa.
+    const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
+    const scanNaik = naik.filter((x) => x.includes(":: scan"));
+    expect(scanNaik).toHaveLength(4);
+    expect(new Set(scanNaik).size).toBe(4);
+    expect(scanNaik.filter((x) => x.startsWith(`${termin}/7. Laporan Mingguan ::`))).toHaveLength(2);
+    expect(scanNaik.filter((x) => x.startsWith(`${termin}/BERKAS DOKUMEN TEKNIS/6. Laporan Mingguan ::`))).toHaveLength(2);
+    const ringkas = await ringkasBerkasTermin(packageId, 1);
+    expect(ringkas.berkasDibuang).toBe(12);
+    expect(ringkas.menunggu).toBe(0);
+
+    // Menekan lagi tidak membuang apa-apa lagi.
+    sampah = [];
+    expect(await antrekanBerkasTermin(packageId, 1, sesi())).toMatchObject({ dibuang: 0 });
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(sampah).toEqual([]);
+
+    // Bersihkan: scan dicabut, laporan mingguan kembali disiapkan MARLIN.
+    await db.document.deleteMany({ where: { packageId, butirTermin: "7" } });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+  });
+
+  it("scan yang namanya persis sama dengan berkas MARLIN menimpa berkas Drive yang sama – scan itu tidak ikut dibuang", async () => {
+    const nama = "Laporan Mingguan Minggu ke-1 - Desa satu.pdf";
+    const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
+    const kunci7 = `${termin}/7. Laporan Mingguan :: ${nama}`;
+    const kunciT6 = `${termin}/BERKAS DOKUMEN TEKNIS/6. Laporan Mingguan :: ${nama}`;
+    const idLama = [idDi(kunci7), idDi(kunciT6)];
+    expect(idLama.every(Boolean)).toBe(true);
+
+    const f = new FormData();
+    f.set("packageId", packageId);
+    f.set("terminKe", "1");
+    f.set("kode", "7");
+    f.append("file", new File(["scan diteken"], nama, { type: "application/pdf" }));
+    await unggahBerkasTerminAction(undefined, f);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+
+    // Salinan scan menimpa berkas Drive yang sama (id sama) – id itu dilindungi.
+    expect([idDi(kunci7), idDi(kunciT6)]).toEqual(idLama);
+    expect(sampah.some((id) => idLama.includes(id))).toBe(false);
+    expect(sampah).toHaveLength(10);
+
+    await db.document.deleteMany({ where: { packageId, butirTermin: "7" } });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
   });
 
   it("folder termin yang sudah ada dipakai walau namanya lain (persen/penyedia) – tidak dibuat kembaran", async () => {
@@ -292,6 +442,69 @@ describe("jalankanAntreanTermin", () => {
       "Desa satu",
     ]);
     expect(r.masalah[0].pesan).toMatch(/Belum ada foto/);
+  });
+});
+
+describe("buatan orang tidak pernah diubah atau dibuang (DECISIONS 723)", () => {
+  const termin = () => `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
+
+  it("berkas orang bernama sama tidak ditimpa – MARLIN membuat berkas baru di sebelahnya, dan hanya membuang miliknya", async () => {
+    const kunci = `${termin()}/BERKAS DOKUMEN TEKNIS/5. Laporan Harian :: Laporan Harian Minggu ke-4 - Desa satu.pdf`;
+    const punyaOrang = taruhBerkasOrang(kunci);
+    await progres(1, 4);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    const ids = isiDrive.get(kunci)!;
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(punyaOrang);
+    const punyaMarlin = ids[1];
+
+    // Minggu prestasi kembali ke 3: versi MARLIN minggu 4 dibuang, berkas orang tetap.
+    await progres(1, 3);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(sampah).toContain(punyaMarlin);
+    expect(sampah).not.toContain(punyaOrang);
+    expect(isiDrive.get(kunci)).toEqual([punyaOrang]);
+  });
+
+  it("berkas yang dulu ditimpa kode lama (bertanda MARLIN, tapi sudah ada sebelum MARLIN mengunggah) tidak dibuang dan tidak ditimpa lagi", async () => {
+    const kunci = `${termin()}/7. Laporan Mingguan :: Laporan Mingguan Minggu ke-1 - Desa satu.pdf`;
+    const id = idDi(kunci)!;
+    // Seolah berkas orang yang sempat diberi revisi & penanda oleh kode lama.
+    metaDrive.set(id, { createdTime: new Date(Date.now() - 86_400_000), terbitanMarlin: true, diubahOrangLain: false });
+
+    const f = new FormData();
+    f.set("packageId", packageId);
+    f.set("terminKe", "1");
+    f.set("kode", "7");
+    f.append("file", new File(["scan"], "scan-minggu.pdf", { type: "application/pdf" }));
+    await unggahBerkasTerminAction(undefined, f);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(sampah).not.toContain(id);
+    // Di folder termin, laporan mingguan versi MARLIN yang tersisa hanya berkas itu.
+    const tersisa = [...isiDrive.entries()]
+      .filter(([k, ids]) => k.startsWith(`${termin()}/`) && k.split(" :: ")[1].startsWith("Laporan Mingguan Minggu") && ids.length)
+      .map(([k]) => k);
+    expect(tersisa).toEqual([kunci]);
+
+    // Scan dicabut, laporan MARLIN dibuat lagi: berkas itu tidak ditimpa, MARLIN membuat yang baru.
+    await db.document.deleteMany({ where: { packageId, butirTermin: "7" } });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(isiDrive.get(kunci)![0]).toBe(id);
+    expect(isiDrive.get(kunci)).toHaveLength(2);
+  });
+
+  it("berkas MARLIN yang sudah diubah orang lain tidak ditimpa", async () => {
+    const kunci = `${termin()}/BERKAS DOKUMEN TEKNIS/9. Kurva S :: Kurva S - Paket BT ${suffix}.pdf`;
+    const id = idDi(kunci)!;
+    metaDrive.set(id, { ...metaDrive.get(id)!, diubahOrangLain: true });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(isiDrive.get(kunci)).toHaveLength(2);
+    expect(isiDrive.get(kunci)![0]).toBe(id);
   });
 });
 

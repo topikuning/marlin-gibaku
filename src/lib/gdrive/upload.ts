@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { ensureFolderPath, GDriveError, uploadToDrive } from "./client";
+import { ensureFolderPath, GDriveError, metaBerkas, uploadToDrive } from "./client";
+import { milikMarlin, type MetaBerkasDrive } from "./milik";
 import { photoFileName, photoMimeFromKey, safeFileName } from "./folders";
 import { type GDriveUploadKind, type UploadOutcome } from "./parse";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
@@ -91,6 +92,34 @@ export async function catatUnggah(
     });
 }
 
+/** Jejak unggah MARLIN paling awal per berkas Drive (status apa pun). */
+async function unggahPertama(fileIds: readonly string[]): Promise<Map<string, Date>> {
+  if (fileIds.length === 0) return new Map();
+  const grup = await db.gDriveUpload.groupBy({
+    by: ["fileId"],
+    where: { fileId: { in: [...fileIds] } },
+    _min: { createdAt: true },
+  });
+  return new Map(grup.flatMap((g) => (g.fileId && g._min.createdAt ? [[g.fileId, g._min.createdAt] as const] : [])));
+}
+
+/** Di antara berkas bernama sama, yang milik MARLIN (boleh ditimpa revisi); null = buat baru. */
+async function pilihMilikMarlin(calon: MetaBerkasDrive[]): Promise<string | null> {
+  const pertama = await unggahPertama(calon.map((c) => c.id));
+  return calon.find((c) => milikMarlin(c, pertama.get(c.id)))?.id ?? null;
+}
+
+/**
+ * Boleh MARLIN membuang berkas Drive ini ke Sampah? Hanya bila berkasnya masih
+ * ada dan milik MARLIN (DECISIONS 723) – berkas buatan orang, atau yang sudah
+ * diubah orang, tidak pernah dibuang walau jejak unggah MARLIN menunjuknya.
+ */
+export async function bolehDibuang(fileId: string): Promise<boolean> {
+  const meta = await metaBerkas(fileId);
+  if (!meta) return false;
+  return milikMarlin(meta, (await unggahPertama([fileId])).get(fileId));
+}
+
 /** Detail galat Drive (status HTTP + Retry-After) bila galatnya memang dari Drive. */
 function rinciGalat(err: unknown): { pesan: string; status: number | null; retryAfter: string | null } {
   if (err instanceof GDriveError) {
@@ -157,6 +186,7 @@ export async function uploadBatch(
         fileName: it.fileName,
         mime: it.mime,
         data: it.data,
+        pilihTimpa: pilihMilikMarlin,
       });
       out.ok++;
       if (!file.created) out.updated++;

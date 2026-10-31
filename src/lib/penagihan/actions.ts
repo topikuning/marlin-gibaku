@@ -39,8 +39,11 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
     if (!parsed.success) return { error: "Permintaan tidak valid. Muat ulang halaman, lalu coba lagi." };
     const butir = butirBerkas(parsed.data.kode);
     if (!butir) return { error: "Butir berkas tidak dikenal." };
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) return { error: "Pilih berkasnya dulu." };
+    // Beberapa berkas sekaligus: scan bertanda tangan sering per minggu/per
+    // lokasi (DECISIONS 722).
+    const berkas = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+    if (berkas.length === 0) return { error: "Pilih berkasnya dulu." };
+    if (berkas.length > 30) return { error: "Paling banyak 30 berkas sekali unggah." };
 
     const scoped = await accessibleLocationIds(user);
     const pkg = await db.package.findFirst({
@@ -50,23 +53,36 @@ export async function unggahBerkasTerminAction(_prev: PenagihanState, formData: 
     if (!pkg?.contract) return { error: "Paket atau kontraknya tidak ditemukan." };
 
     const ke = butir.sumber === "tetap" ? null : parsed.data.terminKe;
-    await uploadDocument(
-      {
-        file,
-        packageId: pkg.id,
-        contractId: pkg.contract.id,
-        phase: phaseForType(butir.jenisDokumen),
-        type: butir.jenisDokumen,
-        title: `${namaButir(butir)}${ke ? ` – Termin ${ke}` : ""}`,
-        termin: { ke, butir: butir.kode },
-      },
-      user.id,
-    );
+    let naik = 0;
+    for (const file of berkas) {
+      try {
+        await uploadDocument(
+          {
+            file,
+            packageId: pkg.id,
+            contractId: pkg.contract.id,
+            phase: phaseForType(butir.jenisDokumen),
+            type: butir.jenisDokumen,
+            title: `${namaButir(butir)}${ke ? ` – Termin ${ke}` : ""}`,
+            termin: { ke, butir: butir.kode },
+          },
+          user.id,
+        );
+        naik++;
+      } catch (err) {
+        if (naik > 0) revalidatePath(`/paket/${pkg.id}/penagihan`);
+        const sebab = err instanceof DocumentError ? err.message : err instanceof Error ? err.message : "gagal";
+        return {
+          error: `${naik} dari ${berkas.length} berkas terunggah. "${file.name}" gagal: ${sebab}`,
+        };
+      }
+    }
     revalidatePath(`/paket/${pkg.id}/penagihan`);
+    const jumlah = berkas.length > 1 ? `${berkas.length} berkas ` : "";
     return {
       success: ke
-        ? `${namaButir(butir)} untuk termin ${ke} diunggah.`
-        : `${namaButir(butir)} diunggah dan berlaku untuk semua termin.`,
+        ? `${jumlah}${namaButir(butir)} untuk termin ${ke} diunggah.`
+        : `${jumlah}${namaButir(butir)} diunggah dan berlaku untuk semua termin.`,
     };
   } catch (err) {
     if (err instanceof DocumentError || err instanceof ForbiddenError) return { error: err.message };
@@ -137,6 +153,9 @@ export async function siapkanBerkasTerminAction(_prev: PenagihanState, formData:
       success:
         `${r.jumlah} berkas Termin ${terminKe} sedang disiapkan ke Drive (laporan minggu ke-${r.rentang.awal} s.d. ke-${r.rentang.akhir}).` +
         (r.dariDrive ? ` ${r.dariDrive} berkas lain memang berasal dari Drive, jadi tidak diunggah balik.` : "") +
+        (r.dibuang
+          ? ` ${r.dibuang} versi MARLIN yang sudah digantikan unggahan Anda dipindah ke Sampah Drive (masih bisa dipulihkan).`
+          : "") +
         " Anda tidak perlu menunggu di halaman ini; muat ulang nanti untuk melihat kemajuannya.",
     };
   } catch (err) {

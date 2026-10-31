@@ -2,6 +2,7 @@ import "server-only";
 import { getGDriveAuth } from "./config";
 import { buildMultipartBody } from "./parse";
 import { ALIAS_FOLDER_AKAR, samaNamaFolder, type KkpFolder } from "./folders";
+import type { MetaBerkasDrive } from "./milik";
 
 /**
  * Klien Google Drive v3 via fetch murni (tanpa SDK googleapis — hemat bundle).
@@ -211,39 +212,76 @@ export type DriveFile = {
 };
 
 /** Cari file bernama `name` di dalam folder (yang tidak di sampah). */
-async function findFileInFolder(folderId: string, name: string): Promise<string | null> {
+/** Bentuk berkas dari Drive API → `MetaBerkasDrive`. */
+const FIELDS_META = "id,createdTime,appProperties,lastModifyingUser(me)";
+function keMeta(f: {
+  id: string;
+  createdTime?: string;
+  appProperties?: Record<string, string>;
+  lastModifyingUser?: { me?: boolean };
+}): MetaBerkasDrive {
+  return {
+    id: f.id,
+    createdTime: new Date(f.createdTime ?? 0),
+    terbitanMarlin: f.appProperties?.[MARLIN_APP_PROPERTY] === "1",
+    // Tanpa keterangan pengubah = anggap orang lain (lebih aman tidak menyentuh).
+    diubahOrangLain: f.lastModifyingUser?.me !== true,
+  };
+}
+
+/** Semua berkas bernama `name` di folder, beserta keterangan kepemilikannya (DECISIONS 723). */
+async function cariBerkasSeNama(folderId: string, name: string): Promise<MetaBerkasDrive[]> {
   const token = await getAccessToken();
   const q = `name = '${escapeQ(name)}' and '${folderId}' in parents and trashed = false`;
   const url =
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
-    `&fields=files(id)&pageSize=2&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+    `&fields=files(${FIELDS_META})&pageSize=20&supportsAllDrives=true&includeItemsFromAllDrives=true` +
     `&orderBy=createdTime`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new GDriveError(`Gagal mencari file "${name}": ${await readError(res)}`);
-  const files = ((await res.json()) as { files?: { id: string }[] }).files ?? [];
-  return files[0]?.id ?? null;
+  return (((await res.json()) as { files?: Parameters<typeof keMeta>[0][] }).files ?? []).map(keMeta);
+}
+
+/** Keterangan kepemilikan satu berkas; null = sudah tidak ada (dihapus/di Sampah). */
+export async function metaBerkas(id: string): Promise<MetaBerkasDrive | null> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true&fields=${encodeURIComponent(`${FIELDS_META},trashed`)}`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw await galatDrive(res, "Gagal membaca keterangan berkas");
+  const j = (await res.json()) as Parameters<typeof keMeta>[0] & { trashed?: boolean };
+  return j.trashed ? null : keMeta(j);
 }
 
 /**
- * Upload satu file ke folder — MEMPERBARUI bila nama yang sama sudah ada.
- * Drive membolehkan nama ganda dalam satu folder, jadi tanpa pencarian ini
- * upload ulang akan menumpuk file kembar. Dengan PATCH ke fileId yang sama,
+ * Upload satu file ke folder — MEMPERBARUI berkas bernama sama yang MILIK
+ * MARLIN. Drive membolehkan nama ganda dalam satu folder, jadi tanpa pencarian
+ * ini upload ulang akan menumpuk file kembar. Dengan PATCH ke fileId yang sama,
  * Drive menyimpan isi baru sebagai REVISI: versi lama tetap bisa dibuka lewat
  * "Kelola versi" dan tautan yang sudah dibagikan tidak berubah.
  * `keepRevisionForever` menjaga revisi lama tidak dipangkas otomatis —
  * laporan resmi ke KKP harus bisa ditelusuri. DECISIONS 146.
+ *
+ * Berkas bernama sama buatan ORANG tidak pernah ditimpa (DECISIONS 723):
+ * `pilihTimpa` memilih di antara calon yang ada, dan bila tidak ada yang milik
+ * MARLIN, berkas baru dibuat di sebelahnya.
  */
 export async function uploadToDrive(input: {
   folderId: string;
   fileName: string;
   mime: string;
   data: Buffer;
+  /** Pilih berkas yang boleh ditimpa di antara yang bernama sama; null = buat baru. */
+  pilihTimpa: (calon: MetaBerkasDrive[]) => Promise<string | null>;
 }): Promise<DriveFile> {
   const token = await getAccessToken();
-  const existingId = await findFileInFolder(input.folderId, input.fileName);
+  const calon = await cariBerkasSeNama(input.folderId, input.fileName);
+  const existingId = calon.length ? await input.pilihTimpa(calon) : null;
 
   // Saat memperbarui: JANGAN kirim `parents` (Drive menolak perubahan induk
   // lewat body; pemindahan folder butuh addParents/removeParents).
@@ -340,6 +378,15 @@ export async function ubahPintasan(
 
 /** Buang shortcut ke Sampah (bukan hapus permanen – masih bisa dipulihkan dari Drive). */
 export async function buangPintasan(id: string): Promise<void> {
+  return buangKeSampah(id, "shortcut");
+}
+
+/**
+ * Buang berkas ke Sampah Drive – bisa dipulihkan dari Drive selama 30 hari.
+ * Dipakai untuk shortcut dokumentasi (666) dan versi MARLIN di folder termin
+ * yang digantikan scan bertanda tangan (DECISIONS 722).
+ */
+export async function buangKeSampah(id: string, apa = "berkas"): Promise<void> {
   const token = await getAccessToken();
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`,
@@ -351,7 +398,7 @@ export async function buangPintasan(id: string): Promise<void> {
     },
   );
   // Sudah tidak ada (dihapus orang dari Drive) = tujuan sudah tercapai.
-  if (!res.ok && res.status !== 404) throw await galatDrive(res, "Gagal membuang shortcut");
+  if (!res.ok && res.status !== 404) throw await galatDrive(res, `Gagal membuang ${apa}`);
 }
 
 export async function probeDriveFolder(folderId: string): Promise<{ name: string }> {

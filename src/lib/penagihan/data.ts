@@ -33,8 +33,12 @@ export type BarisPenagihan = {
   status: StatusButir;
   /** Berkas yang memenuhi butir ini (dokumen atau surat), untuk tombol "Lihat". */
   rujukan: RujukanBerkas;
-  /** Berkas yang sama sebagai id – dipakai "Siapkan berkas termin" (DECISIONS 721). */
-  sumber: SumberBerkasAda;
+  /**
+   * Semua berkas yang memenuhi butir ini sebagai id – dipakai "Siapkan berkas
+   * termin" (DECISIONS 721/722). Unggahan sendiri (bisa beberapa: scan per
+   * minggu) didahulukan dari surat & dokumen paket.
+   */
+  sumber: NonNullable<SumberBerkasAda>[];
 };
 
 export async function muatPenagihan(packageId: string, user: SessionUser, terminDiminta?: number) {
@@ -72,12 +76,13 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
   const baris: BarisPenagihan[] = KATALOG_BERKAS_TERMIN.map((butir) => {
     const status = statusButir(butir, keadaan);
     let rujukan: RujukanBerkas = null;
-    let sumber: SumberBerkasAda = null;
+    let sumber: NonNullable<SumberBerkasAda>[] = [];
     if (status === "ada") {
       const kode = [butir.kode, ...(butir.juga ?? [])];
-      const unggahan = semuaDokumen.find(
+      const semuaUnggahan = semuaDokumen.filter(
         (x) => x.butirTermin && kode.includes(x.butirTermin) && (x.terminKe === terminKe || x.terminKe === null),
       );
+      const unggahan = semuaUnggahan[0];
       const surat = butir.surat ? suratTermin.find((s) => s.jenis === butir.surat) : undefined;
       const paket = butir.dokumenPaket ? dokumenPaket.find((x) => !x.butirTermin && butir.dokumenPaket!.includes(x.type)) : undefined;
       rujukan = unggahan
@@ -85,8 +90,13 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
         : surat
           ? { judul: `Nomor ${surat.nomor}`, href: `/api/surat-penyedia/${surat.id}/pdf` }
           : rujukanDokumen(paket);
-      const doc = unggahan ?? (surat ? undefined : paket);
-      sumber = doc ? { dokumenId: doc.id } : surat ? { suratId: surat.id } : null;
+      sumber = semuaUnggahan.length
+        ? semuaUnggahan.map((x) => ({ dokumenId: x.id }))
+        : surat
+          ? [{ suratId: surat.id }]
+          : paket
+            ? [{ dokumenId: paket.id }]
+            : [];
     }
     return { butir, status, rujukan, sumber };
   });

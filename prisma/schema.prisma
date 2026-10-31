@@ -835,6 +835,8 @@ model GDriveUpload {
 
   @@index([packageId, kind, refKey, createdAt])
   @@index([photoId])
+  /// Kepemilikan berkas Drive dicek per fileId sebelum menimpa/membuang (DECISIONS 723).
+  @@index([fileId])
   @@map("gdrive_uploads")
 }
 

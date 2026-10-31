@@ -99,6 +99,7 @@ export function BarisBerkas({
           <input
             type="file"
             name="file"
+            multiple
             aria-label={`Berkas ${baris.nama}`}
             className="min-w-0 max-w-full text-sm"
             accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx"

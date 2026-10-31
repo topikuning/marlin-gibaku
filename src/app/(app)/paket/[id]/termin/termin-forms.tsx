@@ -172,9 +172,14 @@ export function DataSuratForm({
 
 /* ── Progres dari laporan konsultan ─────────────────────────────────────── */
 
+/** Satu minggu kontrak yang sudah berjalan, dengan realisasi kurva-S MARLIN-nya. */
+export type PilihanMingguKlien = { mingguKe: number; rentang: string; pctTeks: string };
+
 export type ProgresTerminKlien = {
   terminKe: number;
   ambangPct: number;
+  /** Minggu pertama kurva-S MARLIN mencapai ambang termin ini; null = belum. */
+  mingguTercapai: number | null;
   /** "26,6%" dst. sudah dirakit server. */
   ambangTeks: string;
   progresPct: number | null;
@@ -192,17 +197,42 @@ export type ProgresTerminKlien = {
   }[];
 };
 
+/**
+ * Pilihan minggu prestasi (DECISIONS 722): tiap minggu menyebut tanggalnya dan
+ * realisasi kurva-S MARLIN; minggu pertama yang mencapai ambang ditandai dan
+ * dipilih lebih dulu bila belum pernah diisi. Yang disimpan tetap pilihan orang.
+ */
+function PilihMingguPrestasi({ t, pilihan }: { t: ProgresTerminKlien; pilihan: PilihanMingguKlien[] }) {
+  const [minggu, setMinggu] = useState(String(t.mingguKe ?? t.mingguTercapai ?? ""));
+  return (
+    <Combobox
+      id="mingguKe"
+      name="mingguKe"
+      value={minggu}
+      onChange={setMinggu}
+      placeholder="Pilih minggu"
+      options={pilihan.map((m) => ({
+        value: String(m.mingguKe),
+        label: `Minggu ke-${m.mingguKe} · ${m.rentang} · MARLIN ${m.pctTeks}${m.mingguKe === t.mingguTercapai ? ` · tercapai ${t.ambangTeks}` : ""}`,
+      }))}
+    />
+  );
+}
+
 export function ProgresKonsultanForm({
   contractId,
   termin,
   hariIni,
   terminAwal,
+  pilihanMinggu = [],
 }: {
   contractId: string;
   termin: ProgresTerminKlien[];
   hariIni: string;
   /** Termin yang diminta tautan "isi di …" (`?termin=`); kosong = pilihan bawaan. */
   terminAwal?: number;
+  /** Minggu yang sudah berjalan; kosong (belum SPMK/baseline) = kolom angka biasa. */
+  pilihanMinggu?: PilihanMingguKlien[];
 }) {
   const [state, action, pending] = useAksi<SuratPenyediaState>(simpanProgresKonsultanAction, undefined);
   // Termin dari tautan lebih dulu; selain itu termin pertama yang belum diisi, atau termin terakhir.
@@ -238,10 +268,22 @@ export function ProgresKonsultanForm({
           <Input id="progresPct" name="progresPct" inputMode="decimal" defaultValue={t.progresPct ?? ""} placeholder="mis. 26,6" />
         </div>
         <div key={`m${t.terminKe}`}>
-          <Label htmlFor="mingguKe">Minggu ke-</Label>
-          <Input id="mingguKe" name="mingguKe" inputMode="numeric" defaultValue={t.mingguKe ?? ""} placeholder="mis. 7" />
+          <Label htmlFor="mingguKe">Minggu prestasi tercapai</Label>
+          {pilihanMinggu.length > 0 ? (
+            <PilihMingguPrestasi t={t} pilihan={pilihanMinggu} />
+          ) : (
+            <Input id="mingguKe" name="mingguKe" inputMode="numeric" defaultValue={t.mingguKe ?? ""} placeholder="mis. 7" />
+          )}
         </div>
       </div>
+      {pilihanMinggu.length > 0 ? (
+        <p className="text-[12px] text-ink-muted">
+          {t.mingguTercapai
+            ? `Menurut kurva-S MARLIN, ambang ${t.ambangTeks} tercapai di minggu ke-${t.mingguTercapai}. Pilih minggu lain bila laporan konsultan berbeda.`
+            : `Kurva-S MARLIN belum mencapai ${t.ambangTeks} (terakhir ${pilihanMinggu[pilihanMinggu.length - 1].pctTeks} di minggu ke-${pilihanMinggu.length}).`}{" "}
+          Minggu ini juga menjadi batas laporan dan Kurva S di berkas termin.
+        </p>
+      ) : null}
       {diBawahAmbang ? (
         <Banner
           tone="warning"

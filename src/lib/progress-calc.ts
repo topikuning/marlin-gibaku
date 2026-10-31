@@ -744,3 +744,28 @@ export function gabungKurvaS(lokasi: KurvaLokasi[]): KurvaPaket {
 
   return { totalWeeks: minggu, currentWeek, planPct, actualPct, grandTotal: total, dihitung: ikut.length };
 }
+
+/**
+ * Kurva paket PER MINGGU `sampaiMinggu` (DECISIONS 722): realisasi sesudah
+ * minggu itu dikosongkan dan minggu berjalannya jadi `sampaiMinggu`. Dipakai
+ * berkas termin: Kurva S termin 1 berhenti di minggu prestasi termin 1, berapa
+ * pun minggu saat berkasnya disiapkan. Rencana tetap utuh sampai akhir kontrak.
+ */
+export function potongKurvaPaket<K extends { currentWeek: number; actualPct: (number | null)[] }>(
+  kurva: K,
+  sampaiMinggu: number,
+): K {
+  const m = Math.max(1, Math.min(sampaiMinggu, kurva.currentWeek));
+  return { ...kurva, currentWeek: m, actualPct: kurva.actualPct.map((v, i) => (i < m ? v : null)) };
+}
+
+/**
+ * Minggu PERTAMA realisasi kumulatif mencapai `ambangPct` (mis. 25% termin 1);
+ * null bila belum pernah. Dipakai sebagai usulan "minggu ke-" di isian progres
+ * laporan konsultan – usulan, bukan angka resmi: yang dipakai tetap pilihan orang.
+ */
+export function mingguTercapai(actualPct: readonly (number | null)[], ambangPct: number): number | null {
+  // Toleransi pembulatan: 24,9999999 dari penjumlahan berbobot = 25.
+  const i = actualPct.findIndex((v) => v != null && v >= ambangPct - 1e-9);
+  return i < 0 ? null : i + 1;
+}

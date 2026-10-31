@@ -3,11 +3,11 @@ import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth/session";
 import { addMonths } from "@/lib/periodic-report";
 import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
-import { buatFolder, daftarSubfolder, ensureFolderPath, GDriveError } from "@/lib/gdrive/client";
+import { buangKeSampah, buatFolder, daftarSubfolder, ensureFolderPath, GDriveError } from "@/lib/gdrive/client";
 import { KKP_FOLDERS, kunciNamaFolder, safeFileName } from "@/lib/gdrive/folders";
 import { rangkum, type HasilUnggah, type Terhalang, type TidakBerlaku } from "@/lib/gdrive/kirim";
 import { namaFolderTermin, polaFolderTermin } from "@/lib/gdrive/struktur";
-import { documentItem, uploadBatch, type UploadItem, type UploadTarget } from "@/lib/gdrive/upload";
+import { bolehDibuang, documentItem, uploadBatch, type UploadItem, type UploadTarget } from "@/lib/gdrive/upload";
 import { ambangTermin, dataSuratTersimpan } from "@/lib/surat-penyedia/data";
 import { kekuranganData, susunSurat } from "@/lib/surat-penyedia/aturan";
 import { muatPenagihan } from "./data";
@@ -17,6 +17,7 @@ import {
   awalanPeriodeTermin,
   labelPekerjaanTermin,
   namaLaporanTermin,
+  pekerjaanBuang,
   periodePekerjaanTermin,
   refKeyPekerjaanTermin,
   rencanaBerkasTermin,
@@ -37,10 +38,15 @@ import {
  */
 
 const DAY_MS = 86_400_000;
+const AWALAN_BUANG = "buang>";
 
 export type HasilAntreTermin =
-  /** `dariDrive` = berkas yang ditarik DARI Drive KKP: sudah di sana, tidak diunggah balik. */
-  | { ok: true; jumlah: number; rentang: RentangMinggu; dariDrive: number }
+  /**
+   * `dariDrive` = berkas yang ditarik DARI Drive KKP: sudah di sana, tidak
+   * diunggah balik. `dibuang` = versi MARLIN di Drive yang akan dibuang karena
+   * digantikan (DECISIONS 722).
+   */
+  | { ok: true; jumlah: number; rentang: RentangMinggu; dariDrive: number; dibuang: number }
   /** `terminKe` = termin yang progres konsultannya perlu diisi (untuk tautan). */
   | { ok: false; error: string; terminKe?: number };
 
@@ -93,15 +99,29 @@ export async function antrekanBerkasTermin(
   );
   const rencana = semua.filter((p) => !(p.jenis === "berkas" && p.sumber && dariDrive.has(p.sumber.slice(1))));
 
+  // Versi MARLIN yang sudah naik tapi kini keluar rencana (diganti unggahan
+  // sendiri, minggu prestasi dibetulkan, lokasi dinonaktifkan) dibuang dari
+  // folder termin lewat antrean – Sampah Drive, bisa dipulihkan.
+  const lama = await db.gDriveJob.findMany({
+    where: { kind: KIND_BERKAS_TERMIN, packageId, periode: { startsWith: awalanPeriodeTermin(terminKe) } },
+    select: { refKey: true, periode: true, locationId: true, status: true },
+  });
+  const buang = pekerjaanBuang(lama, new Set(rencana.map((p) => refKeyPekerjaanTermin(packageId, p))));
+
   const sekarang = new Date();
+  // Pekerjaan buang selalu SESUDAH salinan dari tekanan yang sama (antrean
+  // urut `nextAttemptAt`): berkas yang tertimpa salinan sudah tercatat
+  // dipakai saat pembuangnya berjalan.
+  const sesudahnya = new Date(sekarang.getTime() + 1);
   const kunci: string[] = [];
-  for (const p of rencana) {
+  for (const p of [...rencana, ...buang]) {
     const refKey = refKeyPekerjaanTermin(packageId, p);
     const periode = periodePekerjaanTermin(p);
+    const kapan = p.jenis === "buang" ? sesudahnya : sekarang;
     kunci.push(refKey);
     await db.gDriveJob.upsert({
       where: { kind_refKey: { kind: KIND_BERKAS_TERMIN, refKey } },
-      create: { kind: KIND_BERKAS_TERMIN, refKey, periode, packageId, locationId: p.locationId },
+      create: { kind: KIND_BERKAS_TERMIN, refKey, periode, packageId, locationId: p.locationId, nextAttemptAt: kapan },
       // Ditekan ulang = dikerjakan ulang dengan isi terbaru (dokumen diganti,
       // laporan direvisi). Baris yang sedang "jalan" ikut kembali menunggu,
       // sehingga hasil lamanya tidak menutupnya sebagai sukses (DECISIONS 313).
@@ -111,24 +131,28 @@ export async function antrekanBerkasTermin(
         status: "menunggu",
         attempts: 0,
         lastError: null,
-        nextAttemptAt: sekarang,
+        nextAttemptAt: kapan,
         claimedAt: null,
         finishedAt: null,
       },
     });
   }
   // Pekerjaan termin ini yang tidak dibutuhkan lagi (lokasi dinonaktifkan,
-  // folder laporan kini diisi unggahan orang) dibuang selama belum selesai.
+  // folder laporan kini diisi unggahan orang, minggu prestasi dibetulkan)
+  // dibuang, supaya kemajuan di layar menghitung isi berkas yang SEKARANG.
+  // Berkas yang terlanjur naik tidak dihapus dari Drive.
   await db.gDriveJob.deleteMany({
     where: {
       kind: KIND_BERKAS_TERMIN,
       packageId,
       periode: { startsWith: awalanPeriodeTermin(terminKe) },
       refKey: { notIn: kunci },
-      status: { in: ["menunggu", "menyerah", "batal"] },
+      status: { not: "jalan" },
+      // Pekerjaan buang lama tetap disimpan: jejak versi apa yang dibuang.
+      NOT: { refKey: { startsWith: AWALAN_BUANG } },
     },
   });
-  return { ok: true, jumlah: rencana.length, rentang: r.rentang, dariDrive: dariDrive.size };
+  return { ok: true, jumlah: rencana.length, rentang: r.rentang, dariDrive: dariDrive.size, dibuang: buang.length };
 }
 
 /* ── Mengerjakan satu pekerjaan ─────────────────────────────────────────── */
@@ -156,10 +180,21 @@ async function susunBerkas(
       if (p.sumber?.startsWith("d")) {
         const doc = await db.document.findFirst({
           where: { id, orgId: pkg.orgId, status: "aktif" },
-          select: { r2Key: true, fileName: true, mimeType: true },
+          select: { r2Key: true, fileName: true, mimeType: true, packageId: true, butirTermin: true, terminKe: true },
         });
         if (!doc) return { batal: "Dokumennya sudah dihapus atau diganti. Tekan Siapkan berkas lagi." };
-        return documentItem(doc);
+        // Beberapa scan bisa bernama sama ("scan.pdf" dari HP): nama yang
+        // sama di satu folder Drive akan saling menimpa, jadi diberi pembeda.
+        const kembar = doc.butirTermin
+          ? await db.document.count({
+              where: { id: { not: id }, status: "aktif", packageId: doc.packageId, butirTermin: doc.butirTermin, terminKe: doc.terminKe, fileName: doc.fileName },
+            })
+          : 0;
+        const item = await documentItem(doc);
+        if (!kembar) return item;
+        const titik = item.fileName.lastIndexOf(".");
+        const [dasar, ext] = titik > 0 ? [item.fileName.slice(0, titik), item.fileName.slice(titik)] : [item.fileName, ""];
+        return { ...item, fileName: `${dasar} (${id.slice(0, 8)})${ext}` };
       }
       const s = await dataSuratTersimpan(id, pkg.orgId);
       if (!s) return { batal: "Suratnya sudah dihapus. Tekan Siapkan berkas lagi." };
@@ -178,7 +213,7 @@ async function susunBerkas(
         import("@/lib/laporan/kurva-paket"),
         import("@/lib/pdf/periodik-kkp"),
       ]);
-      const dok = await susunKurvaPaket(pkg.id, null);
+      const dok = await susunKurvaPaket(pkg.id, null, { sampaiMinggu: p.nomor ?? undefined });
       if (dok === "tidak_ada") return { batal: "Paketnya sudah tidak ada." };
       if (dok === "kosong") return { batal: "Kurva S belum bisa dibuat: belum ada lokasi dengan baseline kurva-S dan RAB aktif." };
       return pdf((await renderKurvaPaketPdf(dok)).buffer);
@@ -196,6 +231,8 @@ async function susunBerkas(
       if (!hasil) return { batal: "Laporan harian belum bisa disusun karena kontraknya belum punya tanggal SPMK." };
       return pdf(hasil.buffer);
     }
+    case "buang":
+      return { batal: "Pekerjaan buang tidak membuat berkas." };
     case "dokumentasi": {
       const { renderDokumentasiSarprasPdf } = await import("@/lib/pdf/dokumentasi-sarpras");
       const hasil = await renderDokumentasiSarprasPdf(p.locationId!);
@@ -223,6 +260,7 @@ export async function jalankanPekerjaanTermin(
 ): Promise<HasilUnggah | Terhalang | TidakBerlaku> {
   const p = uraiPeriodeTermin(job.periode, job.locationId);
   if (!p) return { batal: `Pekerjaan berkas termin tidak dikenali (${job.periode}).` };
+  if (p.jenis === "buang") return buangVersiMarlin(job.packageId, p);
   const pkg = await db.package.findUnique({
     where: { id: job.packageId },
     select: {
@@ -276,6 +314,62 @@ export async function jalankanPekerjaanTermin(
   return rangkum(labelPekerjaanTermin(p), outcomes, 0);
 }
 
+/**
+ * Buang ke Sampah Drive berkas yang diunggah pekerjaan lama `p.sumber`.
+ * Berkas yang MASIH dipakai pekerjaan lain termin ini tidak ikut terbuang:
+ * nama yang sama di folder yang sama menunjuk berkas Drive yang sama.
+ */
+async function buangVersiMarlin(packageId: string, p: PekerjaanTermin): Promise<HasilUnggah> {
+  const lamaKey = p.sumber ?? "";
+  const kosong = (ringkas: string): HasilUnggah => ({ ringkas, outcomes: [], berkas: 0, skipped: 0, galat: null });
+  const aktif = await db.gDriveJob.findMany({
+    where: {
+      kind: KIND_BERKAS_TERMIN,
+      packageId,
+      periode: { startsWith: awalanPeriodeTermin(p.terminKe) },
+      NOT: { refKey: { startsWith: AWALAN_BUANG } },
+    },
+    select: { refKey: true },
+  });
+  // Termasuk bila pekerjaan lamanya dibuat lagi (unggahan sendiri dicabut):
+  // refKey-nya ada di `aktif`, jadi berkasnya terhitung dipakai.
+  const dipakai = new Set(
+    (
+      await db.gDriveUpload.findMany({
+        where: { kind: "berkas_termin", refKey: { in: aktif.map((a) => a.refKey) }, status: "sukses", fileId: { not: null } },
+        select: { fileId: true },
+      })
+    ).map((u) => u.fileId),
+  );
+  const target = await db.gDriveUpload.findMany({
+    where: { kind: "berkas_termin", refKey: lamaKey, status: "sukses", fileId: { not: null } },
+    select: { fileId: true },
+  });
+  const calon = [...new Set(target.map((t) => t.fileId!))].filter((id) => !dipakai.has(id));
+  const ids: string[] = [];
+  try {
+    for (const id of calon) {
+      // Hanya berkas buatan MARLIN yang tidak diubah orang (DECISIONS 723).
+      if (!(await bolehDibuang(id))) continue;
+      await buangKeSampah(id);
+      await db.gDriveUpload.updateMany({
+        where: { kind: "berkas_termin", refKey: lamaKey, fileId: id },
+        data: { status: "dibuang" },
+      });
+      ids.push(id);
+    }
+  } catch (err) {
+    return {
+      ...kosong(`${labelPekerjaanTermin(p)}: gagal dibuang.`),
+      galat:
+        err instanceof GDriveError
+          ? { pesan: err.message, status: err.status, retryAfter: err.retryAfter }
+          : { pesan: err instanceof Error ? err.message : "Gagal membuang berkas.", status: null, retryAfter: null },
+    };
+  }
+  return { ...kosong(`${ids.length} berkas versi MARLIN dibuang ke Sampah Drive.`), berkas: ids.length };
+}
+
 /* ── Ringkasan untuk layar Penagihan ────────────────────────────────────── */
 
 export type RingkasBerkasTermin = {
@@ -284,6 +378,8 @@ export type RingkasBerkasTermin = {
   menunggu: number;
   gagal: number;
   batal: number;
+  /** Berkas versi MARLIN yang sudah dipindah ke Sampah Drive karena digantikan. */
+  berkasDibuang: number;
   /** Yang perlu dilihat orang: gagal berulang / menyerah / tidak bisa disusun. */
   masalah: { label: string; lokasi: string | null; pesan: string; menyerah: boolean }[];
   terakhir: Date | null;
@@ -293,10 +389,11 @@ export type RingkasBerkasTermin = {
 
 export async function ringkasBerkasTermin(packageId: string, terminKe: number): Promise<RingkasBerkasTermin> {
   const pkg = await db.package.findUnique({ where: { id: packageId }, select: { driveFolderId: true } });
-  const baris = await db.gDriveJob.findMany({
+  const semuaBaris = await db.gDriveJob.findMany({
     where: { kind: KIND_BERKAS_TERMIN, packageId, periode: { startsWith: awalanPeriodeTermin(terminKe) } },
     orderBy: { createdAt: "asc" },
     select: {
+      refKey: true,
       status: true,
       periode: true,
       locationId: true,
@@ -305,8 +402,20 @@ export async function ringkasBerkasTermin(packageId: string, terminKe: number): 
       location: { select: { name: true } },
     },
   });
+  const buang = semuaBaris.filter((b) => b.refKey.startsWith(AWALAN_BUANG));
+  // Dihitung dari berkas Drive yang benar-benar dibuang, bukan dari pekerjaan
+  // buang (yang bisa batal membuang karena laporannya dipakai lagi).
+  const berkasDibuang = new Set(
+    (
+      await db.gDriveUpload.findMany({
+        where: { packageId, kind: "berkas_termin", status: "dibuang", refKey: { startsWith: `${packageId}:t${terminKe}:` } },
+        select: { fileId: true },
+      })
+    ).map((u) => u.fileId),
+  ).size;
+  const baris = semuaBaris.filter((b) => !b.refKey.startsWith(AWALAN_BUANG));
   const masalah: RingkasBerkasTermin["masalah"] = [];
-  for (const b of baris) {
+  for (const b of [...baris, ...buang]) {
     if (!b.lastError || b.status === "sukses") continue;
     const p = uraiPeriodeTermin(b.periode, b.locationId);
     masalah.push({
@@ -323,6 +432,7 @@ export async function ringkasBerkasTermin(packageId: string, terminKe: number): 
     menunggu: baris.filter((b) => b.status === "menunggu" || b.status === "jalan").length,
     gagal: baris.filter((b) => b.status === "menyerah").length,
     batal: baris.filter((b) => b.status === "batal").length,
+    berkasDibuang,
     masalah,
     terakhir: selesai.length ? new Date(Math.max(...selesai)) : null,
     folderDrive: pkg?.driveFolderId ? `https://drive.google.com/drive/folders/${pkg.driveFolderId}` : null,

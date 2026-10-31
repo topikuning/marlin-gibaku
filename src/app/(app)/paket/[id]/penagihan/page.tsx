@@ -74,13 +74,20 @@ export default async function PenagihanPage({
     status: b.status,
     statusLabel: LABEL_STATUS_BUTIR[b.status],
     lihat: b.rujukan,
-    unggah: !bolehUnggah || b.status === "disiapkan_marlin"
+    // MARLIN membantu, tidak memaksa (DECISIONS 722): SEMUA butir bisa diisi
+    // versi sendiri – laporan yang dicetak, diteken, lalu dipindai.
+    unggah: !bolehUnggah
       ? null
-      : b.rujukan?.href.startsWith("/api/documents/")
-        ? { label: "Unggah lagi", judul: "Ganti dengan berkas yang lebih baru" }
-        : b.butir.surat
-          ? { label: "Unggah scan", judul: "Unggah surat yang sudah ditandatangani, atau yang dibuat di luar MARLIN" }
-          : { label: "Unggah", judul: null },
+      : b.butir.laporan && b.status !== "ada"
+        ? {
+            label: "Unggah versi sendiri",
+            judul: "Unggah versi yang sudah dicetak, ditandatangani, dan dipindai. MARLIN lalu tidak membuat versinya untuk folder ini.",
+          }
+        : b.rujukan?.href.startsWith("/api/documents/")
+          ? { label: "Unggah lagi", judul: "Tambah berkas, misalnya scan minggu berikutnya" }
+          : b.butir.surat
+            ? { label: "Unggah scan", judul: "Unggah surat yang sudah ditandatangani, atau yang dibuat di luar MARLIN" }
+            : { label: "Unggah", judul: null },
     buatHref:
       b.status === "belum_dibuat" && b.butir.surat && can(user.role, "contract.manage")
         ? `/paket/${id}/termin?termin=${n}&surat=${b.butir.surat}#buat-surat`
@@ -91,8 +98,12 @@ export default async function PenagihanPage({
           ? "sekali unggah, berlaku di semua paket perusahaan ini"
           : "sekali unggah, berlaku untuk semua termin"
         : b.status === "disiapkan_marlin"
-          ? "dibuat dari data MARLIN saat berkas termin disiapkan"
-          : null,
+          ? "MARLIN membuatnya saat berkas termin disiapkan; bila perlu versi bertanda tangan, cetak dari Drive lalu unggah scannya di sini"
+          : b.butir.laporan && b.sumber.length
+            ? `versi sendiri dipakai (${b.sumber.length} berkas); MARLIN tidak membuat versinya`
+            : b.sumber.length > 1
+              ? `${b.sumber.length} berkas diunggah`
+              : null,
   });
 
   return (
@@ -155,7 +166,7 @@ export default async function PenagihanPage({
       <Card id="berkas-drive" className="scroll-mt-20">
         <CardHeader
           title={`Berkas Termin ${n} di Drive`}
-          subtitle={`Sekali tekan: semua berkas yang sudah ada di MARLIN, ditambah Kurva S, laporan mingguan, laporan harian, laporan bulanan, dan dokumentasi, disalin ke folder 7. BERKAS TERMIN / TERMIN ${n} dengan susunan folder KKP.`}
+          subtitle={`Sekali tekan: semua berkas yang sudah ada disalin ke folder 7. BERKAS TERMIN / TERMIN ${n} dengan susunan folder KKP. Kurva S, laporan mingguan, harian, bulanan, dan dokumentasi dibuat MARLIN untuk folder yang belum Anda isi versi sendiri.`}
         />
         <CardBody className="space-y-3">
           {rentang.ok ? (
@@ -184,6 +195,9 @@ export default async function PenagihanPage({
                 {berkasDrive.menunggu ? ` · ${berkasDrive.menunggu} masih diproses` : ""}
                 {berkasDrive.gagal ? ` · ${berkasDrive.gagal} gagal` : ""}
                 {berkasDrive.batal ? ` · ${berkasDrive.batal} tidak bisa disusun` : ""}
+                {berkasDrive.berkasDibuang
+                  ? ` · ${berkasDrive.berkasDibuang} berkas versi MARLIN dipindah ke Sampah Drive karena diganti versi Anda`
+                  : ""}
                 {berkasDrive.terakhir ? ` · terakhir ${formatTanggalWaktu(berkasDrive.terakhir)}` : ""}
               </p>
               {berkasDrive.masalah.length ? (

@@ -39,7 +39,11 @@ export type ButirBerkas = {
   /** Dokumen paket yang memenuhi butir ini. */
   dokumenPaket?: readonly DocumentType[];
   tetapDi?: "perusahaan" | "kontrak";
-  /** Butir lain yang unggahannya juga memenuhi butir ini (SSUK & SSKK di no. 2). */
+  /**
+   * Butir lain yang unggahannya juga memenuhi butir ini: SSUK & SSKK di no. 2,
+   * dan laporan yang sama di dua folder (Kurva S 5↔T9, Laporan Mingguan 7↔T6,
+   * Dokumentasi 8↔T8 – DECISIONS 722): satu scan bertanda tangan mengisi keduanya.
+   */
   juga?: readonly string[];
 };
 
@@ -64,10 +68,10 @@ export const KATALOG_BERKAS_TERMIN: readonly ButirBerkas[] = [
   { kode: "2", jalur: ["2. SSUK & SKK"], sumber: "tetap", tetapDi: "kontrak", pemberi: "Penyedia", langkah: 0, jenisDokumen: "kontrak", juga: ["T12", "T13"] },
   { kode: "3", jalur: ["3. SPMK"], sumber: "paket", pemberi: "PPK", langkah: 0, jenisDokumen: "spmk", dokumenPaket: ["spmk"] },
   { kode: "4", jalur: ["4. Shop Drawing"], sumber: "paket", pemberi: "Penyedia", langkah: 0, jenisDokumen: "shop_drawing", dokumenPaket: ["shop_drawing"] },
-  { kode: "5", jalur: ["5. Kurva S"], sumber: "marlin", laporan: "kurva_s", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
+  { kode: "5", jalur: ["5. Kurva S"], sumber: "marlin", laporan: "kurva_s", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["T9"] },
   { kode: "6", jalur: ["6. Back Up Perhitungan Kemajuan Pekerjaan"], sumber: "pihak_lain", pemberi: "Penyedia (backup volume per lokasi)", langkah: 0, jenisDokumen: "laporan" },
-  { kode: "7", jalur: ["7. Laporan Mingguan"], sumber: "marlin", laporan: "mingguan", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
-  { kode: "8", jalur: ["8. Dokumentasi Pekerjaan Per Item"], sumber: "marlin", laporan: "dokumentasi", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
+  { kode: "7", jalur: ["7. Laporan Mingguan"], sumber: "marlin", laporan: "mingguan", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["T6"] },
+  { kode: "8", jalur: ["8. Dokumentasi Pekerjaan Per Item"], sumber: "marlin", laporan: "dokumentasi", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["T8"] },
   { kode: "9a", jalur: [PEMERIKSAAN, "a. Surat Permohonan Pemeriksaan Pekerjaan"], sumber: "marlin", surat: "permohonan_pemeriksaan", pemberi: "Penyedia (MARLIN)", langkah: 2, jenisDokumen: "lainnya" },
   { kode: "9b", jalur: [PEMERIKSAAN, "b. BA Pembahasan Kemajuan Pekerjaan"], sumber: "marlin", surat: "ba_pembahasan_kemajuan", pemberi: "Penyedia & konsultan (MARLIN)", langkah: 4, jenisDokumen: "lainnya" },
   { kode: "9c", jalur: [PEMERIKSAAN, "c. BA Pemeriksaan Hasil Pekerjaan"], sumber: "pihak_lain", pemberi: "PPK / tim pemeriksa", langkah: 5, jenisDokumen: "lainnya" },
@@ -88,10 +92,10 @@ export const KATALOG_BERKAS_TERMIN: readonly ButirBerkas[] = [
   { kode: "T3", jalur: [TEKNIS, "3. Gambar Perencanaan (Shop Drawing)"], sumber: "paket", pemberi: "Penyedia", langkah: 0, jenisDokumen: "shop_drawing", dokumenPaket: ["shop_drawing", "ded"] },
   { kode: "T4", jalur: [TEKNIS, "4. Backup Volume"], sumber: "pihak_lain", pemberi: "Penyedia (backup volume per lokasi)", langkah: 0, jenisDokumen: "laporan", juga: ["6"] },
   { kode: "T5", jalur: [TEKNIS, "5. Laporan Harian"], sumber: "marlin", laporan: "harian", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
-  { kode: "T6", jalur: [TEKNIS, "6. Laporan Mingguan"], sumber: "marlin", laporan: "mingguan", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
+  { kode: "T6", jalur: [TEKNIS, "6. Laporan Mingguan"], sumber: "marlin", laporan: "mingguan", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["7"] },
   { kode: "T7", jalur: [TEKNIS, "7. Laporan Bulanan"], sumber: "marlin", laporan: "bulanan", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
-  { kode: "T8", jalur: [TEKNIS, "8. Dokumentasi Pekerjaan"], sumber: "marlin", laporan: "dokumentasi", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
-  { kode: "T9", jalur: [TEKNIS, "9. Kurva S"], sumber: "marlin", laporan: "kurva_s", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan" },
+  { kode: "T8", jalur: [TEKNIS, "8. Dokumentasi Pekerjaan"], sumber: "marlin", laporan: "dokumentasi", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["8"] },
+  { kode: "T9", jalur: [TEKNIS, "9. Kurva S"], sumber: "marlin", laporan: "kurva_s", pemberi: "MARLIN", langkah: 0, jenisDokumen: "laporan", juga: ["5"] },
   { kode: "T10", jalur: [TEKNIS, "10. Hasil Pengujian Material"], sumber: "pihak_lain", pemberi: "Penyedia (laboratorium uji)", langkah: 0, jenisDokumen: "lainnya" },
   { kode: "T11", jalur: [TEKNIS, "11. Spesifikasi Teknis dan Gambar"], sumber: "paket", pemberi: "PPK", langkah: 0, jenisDokumen: "rks", dokumenPaket: ["rks", "ded"] },
   { kode: "T12", jalur: [TEKNIS, "12. SSUK"], sumber: "tetap", tetapDi: "kontrak", pemberi: "Penyedia", langkah: 0, jenisDokumen: "kontrak" },

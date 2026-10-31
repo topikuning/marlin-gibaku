@@ -93,6 +93,15 @@ describe("status butir & langkah", () => {
     expect(statusButir(b("9c"), { ...kosong, butirTetap: new Set(["9c"]) })).toBe("menunggu");
   });
 
+  it("versi sendiri laporan MARLIN mengisi kedua foldernya (DECISIONS 722)", () => {
+    for (const [a, c] of [["5", "T9"], ["7", "T6"], ["8", "T8"]]) {
+      expect(statusButir(b(a), { ...kosong, butirTermin: new Set([c]) }), `${c}→${a}`).toBe("ada");
+      expect(statusButir(b(c), { ...kosong, butirTermin: new Set([a]) }), `${a}→${c}`).toBe("ada");
+    }
+    // Harian & bulanan hanya punya satu folder.
+    expect(statusButir(b("T5"), { ...kosong, butirTermin: new Set(["T7"]) })).toBe("disiapkan_marlin");
+  });
+
   it("langkah selesai bila semua butirnya ada atau disiapkan MARLIN", () => {
     const status = new Map<string, StatusButir>(KATALOG_BERKAS_TERMIN.map((x) => [x.kode, "menunggu"]));
     expect(statusLangkah(5, status)).toBe("belum");
