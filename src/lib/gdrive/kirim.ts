@@ -61,7 +61,7 @@ export function adalahTerhalang(v: unknown): v is Terhalang {
 }
 
 /** Rangkum beberapa batch jadi satu hasil + galat pertamanya. */
-function rangkum(label: string, outcomes: UploadOutcome[], skipped: number): HasilUnggah {
+export function rangkum(label: string, outcomes: UploadOutcome[], skipped: number): HasilUnggah {
   const gagal = outcomes.find((o) => o.firstError);
   return {
     ringkas: summarize(label, outcomes, skipped),

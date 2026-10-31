@@ -31,11 +31,18 @@ vi.mock("@/lib/photo-restamp/service", () => ({ konteksFoto: async () => null })
 
 /** Berkas Drive yang dibuang ke Sampah. */
 const dibuangDrive: string[] = [];
+/** Keterangan berkas di Drive tiruan; bawaan = buatan MARLIN, baru dibuat, tidak diubah orang. */
+const metaDrive = new Map<string, { createdTime: Date; terbitanMarlin: boolean; diubahOrangLain: boolean }>();
 vi.mock("@/lib/gdrive/client", async (importAsli) => ({
   ...(await importAsli<typeof import("@/lib/gdrive/client")>()),
   buangPintasan: async (id: string) => {
     dibuangDrive.push(id);
   },
+  metaBerkas: async (id: string) => ({
+    id,
+    // Bawaan: dibuat sesaat sebelum jejak unggahnya (jejak uji ditulis 10 menit lalu).
+    ...(metaDrive.get(id) ?? { createdTime: new Date(Date.now() - 11 * 60_000), terbitanMarlin: true, diubahOrangLain: false }),
+  }),
 }));
 
 let nomor = 0;
@@ -353,6 +360,14 @@ describe("menghapus foto di laporan yang sudah dikirim", () => {
     await db.gDrivePintasanFoto.create({
       data: { photoId: foto, reportId, locationId, shortcutId: `pintasan-${suffix}`, bangunan: "I", nama: "x" },
     });
+
+    // file-C & file-D: jejak MARLIN menunjuknya, tapi berkasnya buatan orang
+    // (sudah ada sebelum MARLIN mengunggah) atau sudah diubah orang → tidak
+    // pernah dibuang (DECISIONS 723).
+    await log(`file-C-${suffix}`, foto, 10);
+    metaDrive.set(`file-C-${suffix}`, { createdTime: new Date(Date.now() - 86_400_000), terbitanMarlin: true, diubahOrangLain: false });
+    await log(`file-D-${suffix}`, foto, 10);
+    metaDrive.set(`file-D-${suffix}`, { createdTime: new Date(Date.now() - 30 * 60_000), terbitanMarlin: true, diubahOrangLain: true });
 
     expect((await hapus(foto))?.success).toBe("Foto susulan dihapus.");
     expect(dibuangDrive.sort()).toEqual([`file-A-${suffix}`, `pintasan-${suffix}`].sort());

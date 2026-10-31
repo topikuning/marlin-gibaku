@@ -313,6 +313,26 @@ describe("commit", () => {
     expect(doc.sha256).toHaveLength(64);
   });
 
+  it("berkas di folder TERMIN dikenali termin & butirnya dari letak foldernya (DECISIONS 720)", async () => {
+    driveFiles = [
+      pdf({ id: "t9c", name: "4.BA Pemeriksaan Pekerjaan_Termin.pdf" }),
+      pdf({ id: "tssuk", name: "SSUK Kontrak.pdf" }),
+    ];
+    const akar = "7. BERKAS TERMIN / TERMIN 2 (50%) CV. Uji";
+    const res = await commitDriveImport(packageId, [
+      { driveFileId: "t9c", type: "lainnya", locationId: null, path: `${akar} / 9. Pemeriksaan Pekerjaan / c. BA Pemeriksaan Hasil Pekerjaan` },
+      { driveFileId: "tssuk", type: "kontrak", locationId: null, path: `${akar} / BERKAS DOKUMEN TEKNIS / 12. SSUK` },
+    ]);
+    expect(res.gagal).toEqual([]);
+    const docs = await db.document.findMany({
+      where: { id: { in: res.berhasil.map((b) => b.documentId) } },
+      select: { driveFileId: true, terminKe: true, butirTermin: true },
+    });
+    expect(docs.find((d) => d.driveFileId === "t9c")).toMatchObject({ terminKe: 2, butirTermin: "9c" });
+    // Dokumen tetap (SSUK) berlaku untuk semua termin: tanpa nomor termin.
+    expect(docs.find((d) => d.driveFileId === "tssuk")).toMatchObject({ terminKe: null, butirTermin: "T12" });
+  });
+
   it("dokumen native Google diekspor & ekstensi namanya ikut benar", async () => {
     driveFiles = [
       pdf({

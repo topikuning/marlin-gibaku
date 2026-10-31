@@ -13,7 +13,9 @@ import type { DocumentType } from "@/generated/prisma/enums";
 
 export const KKP_FOLDERS = [
   "1. SPPBJ, SPK, SPMK, RAB, DED",
-  "2. PCM",
+  // Nama di Drive KKP (DECISIONS 715); semula "2. PCM" – tetap dikenali lewat
+  // ALIAS_FOLDER_AKAR supaya folder lama buatan MARLIN tidak terkembar.
+  "2. Peninjauan Lokasi, PCM, MC-0",
   "3. LAPORAN HARIAN",
   "4. LAPORAN MINGGUAN",
   "5. LAPORAN BULANAN",
@@ -24,6 +26,36 @@ export const KKP_FOLDERS = [
 ] as const;
 
 export type KkpFolder = (typeof KKP_FOLDERS)[number];
+
+/**
+ * Nama lama folder akar yang tetap dikenali sebagai folder baku (DECISIONS 715).
+ * "2. PCM" dipakai MARLIN sebelum mengikuti nama di Drive KKP; Drive yang sudah
+ * punya folder itu tidak dibuatkan kembarannya.
+ */
+export const ALIAS_FOLDER_AKAR: Partial<Record<KkpFolder, readonly string[]>> = {
+  "2. Peninjauan Lokasi, PCM, MC-0": ["2. PCM"],
+};
+
+/** Sub-folder di dalam folder 2, persis seperti di Drive KKP. */
+export const SUB_FOLDER_2 = ["1. Peninjauan Lokasi", "2. PCM", "3. MC-0"] as const;
+export type SubFolder2 = (typeof SUB_FOLDER_2)[number];
+
+/**
+ * Dua nama folder dianggap SAMA bila hanya berbeda huruf besar/kecil, tanda
+ * baca, atau spasi: "TERMIN 1 (25%) CV. Putera Fahlevi" = "termin 1 25 cv
+ * putera fahlevi". Folder buatan orang tidak pernah persis sama ejaannya.
+ */
+export function kunciNamaFolder(raw: string): string {
+  return raw
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function samaNamaFolder(a: string, b: string): boolean {
+  return kunciNamaFolder(a) === kunciNamaFolder(b);
+}
 
 /**
  * Dokumen administrasi → folder KKP. Yang TIDAK dipetakan (dokumen proses
@@ -39,9 +71,9 @@ const DOC_FOLDER: Partial<Record<DocumentType, KkpFolder>> = {
   adendum: "1. SPPBJ, SPK, SPMK, RAB, DED",
   jaminan: "1. SPPBJ, SPK, SPMK, RAB, DED",
 
-  pcm: "2. PCM",
-  ba_serah_terima_lapangan: "2. PCM",
-  mc0: "2. PCM",
+  pcm: "2. Peninjauan Lokasi, PCM, MC-0",
+  ba_serah_terima_lapangan: "2. Peninjauan Lokasi, PCM, MC-0",
+  mc0: "2. Peninjauan Lokasi, PCM, MC-0",
 
   mc_berkala: "7. BERKAS TERMIN",
   invoice: "7. BERKAS TERMIN",
@@ -84,21 +116,22 @@ const MILESTONE_FOLDER: Record<string, KkpFolder> = {
   "undangan-kontrak": "1. SPPBJ, SPK, SPMK, RAB, DED",
   kontrak: "1. SPPBJ, SPK, SPMK, RAB, DED",
 
-  // 3. Serah terima lokasi & mulai kerja
-  "undangan-peninjauan-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
-  "pernyataan-pemahaman-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
-  "ba-serah-terima-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  // 3. Peninjauan & serah terima lokasi → folder 2 (namanya memang menyebut
+  //    Peninjauan Lokasi, DECISIONS 715). SPMK tetap folder 1.
+  "undangan-peninjauan-lokasi": "2. Peninjauan Lokasi, PCM, MC-0",
+  "pernyataan-pemahaman-lokasi": "2. Peninjauan Lokasi, PCM, MC-0",
+  "ba-serah-terima-lokasi": "2. Peninjauan Lokasi, PCM, MC-0",
   spmk: "1. SPPBJ, SPK, SPMK, RAB, DED",
 
   // 4. PCM & Mutual Check 0% — satu rangkaian acara
-  "undangan-pcm": "2. PCM",
-  "ba-pcm": "2. PCM",
-  "permohonan-kesiapan-mc0": "2. PCM",
-  "undangan-pelaksanaan-mc0": "2. PCM",
-  "ba-pemeriksaan-bersama-mc0": "2. PCM",
-  "justifikasi-teknis-pengawas": "2. PCM",
-  "undangan-pembahasan-mc0": "2. PCM",
-  "ba-persetujuan-mc0": "2. PCM",
+  "undangan-pcm": "2. Peninjauan Lokasi, PCM, MC-0",
+  "ba-pcm": "2. Peninjauan Lokasi, PCM, MC-0",
+  "permohonan-kesiapan-mc0": "2. Peninjauan Lokasi, PCM, MC-0",
+  "undangan-pelaksanaan-mc0": "2. Peninjauan Lokasi, PCM, MC-0",
+  "ba-pemeriksaan-bersama-mc0": "2. Peninjauan Lokasi, PCM, MC-0",
+  "justifikasi-teknis-pengawas": "2. Peninjauan Lokasi, PCM, MC-0",
+  "undangan-pembahasan-mc0": "2. Peninjauan Lokasi, PCM, MC-0",
+  "ba-persetujuan-mc0": "2. Peninjauan Lokasi, PCM, MC-0",
 
   // 5. Adendum / CCO
   "adendum-1-kontrak": "1. SPPBJ, SPK, SPMK, RAB, DED",
@@ -131,6 +164,37 @@ const MILESTONE_FOLDER: Record<string, KkpFolder> = {
   "bast-pho": "7. BERKAS TERMIN",
   "bast-fho": "7. BERKAS TERMIN",
 };
+
+/**
+ * Sub-folder di dalam folder 2 (DECISIONS 715): peninjauan lokasi, PCM, atau
+ * MC-0. Milestone dulu, baru jenis dokumen – sama dengan penentuan folder.
+ */
+const MILESTONE_SUB_2: Record<string, SubFolder2> = {
+  "undangan-peninjauan-lokasi": "1. Peninjauan Lokasi",
+  "pernyataan-pemahaman-lokasi": "1. Peninjauan Lokasi",
+  "ba-serah-terima-lokasi": "1. Peninjauan Lokasi",
+  "undangan-pcm": "2. PCM",
+  "ba-pcm": "2. PCM",
+  "permohonan-kesiapan-mc0": "3. MC-0",
+  "undangan-pelaksanaan-mc0": "3. MC-0",
+  "ba-pemeriksaan-bersama-mc0": "3. MC-0",
+  "justifikasi-teknis-pengawas": "3. MC-0",
+  "undangan-pembahasan-mc0": "3. MC-0",
+  "ba-persetujuan-mc0": "3. MC-0",
+};
+
+const DOC_SUB_2: Partial<Record<DocumentType, SubFolder2>> = {
+  ba_serah_terima_lapangan: "1. Peninjauan Lokasi",
+  pcm: "2. PCM",
+  mc0: "3. MC-0",
+};
+
+/** Sub-folder folder 2 untuk dokumen; null bila bukan dokumen folder 2 atau tak tertentu. */
+export function subFolder2(input: { type: DocumentType; milestoneKey?: string | null }): SubFolder2 | null {
+  if (input.milestoneKey && MILESTONE_SUB_2[input.milestoneKey]) return MILESTONE_SUB_2[input.milestoneKey];
+  if (input.milestoneKey && MILESTONE_FOLDER[input.milestoneKey]) return null;
+  return DOC_SUB_2[input.type] ?? null;
+}
 
 /** Folder KKP untuk milestone (templateKey). Null bila key tak dikenal. */
 export function folderForMilestone(templateKey: string | null | undefined): KkpFolder | null {
@@ -225,7 +289,7 @@ export function activityPath(input: {
 }
 
 /**
- * Dokumen administrasi → <folder KKP> / <Lokasi bila dokumen milik lokasi>.
+ * Dokumen administrasi → <folder KKP> / [<sub-folder 2>] / <Lokasi bila dokumen milik lokasi>.
  * Urutan penentuan: MILESTONE dulu (paling spesifik — banyak milestone tidak
  * punya jenis dokumen sendiri), baru jenis dokumen. Null = tak dipetakan.
  */
@@ -234,7 +298,8 @@ export function documentPath(
 ): string[] | null {
   const folder = folderForMilestone(input.milestoneKey) ?? folderForDocumentType(input.type);
   if (!folder) return null;
-  return cleanPath([folder, input.locationName ?? null]);
+  const sub = folder === KKP_FOLDERS[1] ? subFolder2(input) : null;
+  return cleanPath([folder, sub, input.locationName ?? null]);
 }
 
 /* ── Penamaan file ──────────────────────────────────────────────────────── */

@@ -329,3 +329,37 @@ export async function kawalUntukLokasi(locationIds: string[]): Promise<Map<strin
   }
   return hasil;
 }
+
+/**
+ * Kurva realisasi pengawas Kawal TERBARU per lokasi MARLIN yang berpasangan,
+ * beserta tanggal mulai penyedianya – pembanding progres laporan konsultan
+ * (DECISIONS 724). Pemanggil WAJIB sudah menyaring `locationIds`.
+ */
+export async function kurvaRealisasiKawal(
+  locationIds: string[],
+): Promise<Map<string, { mulai: Date | null; realisasiKumulatif: (number | null)[]; snapshotAt: Date }>> {
+  const hasil = new Map<string, { mulai: Date | null; realisasiKumulatif: (number | null)[]; snapshotAt: Date }>();
+  if (locationIds.length === 0) return hasil;
+  const peta = await db.kawalLocationMap.findMany({
+    where: { locationId: { in: locationIds }, status: { in: ["otomatis", "dikonfirmasi"] } },
+    select: { kawalId: true, locationId: true },
+  });
+  if (peta.length === 0) return hasil;
+  const baris = await db.kawalLocationSnapshot.findMany({
+    where: { kawalId: { in: peta.map((p) => p.kawalId) } },
+    orderBy: { snapshot: { capturedAt: "desc" } },
+    distinct: ["kawalId"],
+    select: { kawalId: true, mulai: true, kurva: true, snapshot: { select: { capturedAt: true } } },
+  });
+  const perKawal = new Map(baris.map((b) => [b.kawalId, b]));
+  for (const p of peta) {
+    const b = perKawal.get(p.kawalId);
+    if (!b || !p.locationId) continue;
+    const k = (b.kurva ?? {}) as Record<string, unknown>;
+    const deret = Array.isArray(k.realisasiKumulatif)
+      ? k.realisasiKumulatif.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : null))
+      : [];
+    hasil.set(p.locationId, { mulai: b.mulai, realisasiKumulatif: deret, snapshotAt: b.snapshot.capturedAt });
+  }
+  return hasil;
+}

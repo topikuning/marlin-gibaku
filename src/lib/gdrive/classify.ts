@@ -117,7 +117,7 @@ const NAME_RULES: { keys: string[]; type: DocumentType }[] = [
  */
 const FOLDER_DEFAULT: Partial<Record<(typeof KKP_FOLDERS)[number], DocumentType>> = {
   "1. SPPBJ, SPK, SPMK, RAB, DED": "kontrak",
-  "2. PCM": "pcm",
+  "2. Peninjauan Lokasi, PCM, MC-0": "pcm",
   "3. LAPORAN HARIAN": "laporan",
   "4. LAPORAN MINGGUAN": "laporan",
   "5. LAPORAN BULANAN": "laporan",

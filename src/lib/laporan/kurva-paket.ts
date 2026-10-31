@@ -5,7 +5,7 @@ import { packageScopeWhere } from "@/lib/auth/scope";
 import { getScurveSeriesPaket } from "@/lib/baseline";
 import { lingkupLokasi } from "@/lib/package/lingkup-lokasi";
 import { getPeriodBounds, getPeriodReport, type PeriodBounds, type PeriodReport } from "@/lib/periodic-report";
-import { rincianKurvaPaket } from "@/lib/progress-calc";
+import { potongKurvaPaket, rincianKurvaPaket, weekDateRange } from "@/lib/progress-calc";
 
 /**
  * KURVA-S PAKET (gabungan seluruh lokasi) sebagai dokumen – PDF & Excel
@@ -37,11 +37,14 @@ export type KurvaPaketDokumen = {
 
 export async function susunKurvaPaket(
   packageId: string,
-  user: SessionUser,
+  /** null = penyusun di latar (berkas termin, DECISIONS 721): tanpa saringan akses. */
+  user: SessionUser | null,
+  /** Kurva s.d. minggu ini saja (minggu prestasi termin, DECISIONS 722); kosong = s.d. minggu berjalan. */
+  opsi: { sampaiMinggu?: number } = {},
 ): Promise<KurvaPaketDokumen | "tidak_ada" | "kosong"> {
-  const scoped = await accessibleLocationIds(user);
+  const scoped = user ? await accessibleLocationIds(user) : null;
   const pkg = await db.package.findFirst({
-    where: { id: packageId, ...packageScopeWhere(user, scoped) },
+    where: { id: packageId, ...(user ? packageScopeWhere(user, scoped) : {}) },
     select: {
       id: true,
       name: true,
@@ -59,13 +62,16 @@ export async function susunKurvaPaket(
   const idLokasi = pkg.locations.map((l) => l.id);
   const lingkup = await lingkupLokasi(idLokasi);
   const idIkut = idLokasi.filter((id) => !lingkup.dicabut.has(id));
-  const kurva = await getScurveSeriesPaket(idIkut);
-  if (kurva.dihitung === 0) return "kosong";
+  const semua = await getScurveSeriesPaket(idIkut);
+  if (semua.dihitung === 0) return "kosong";
+  const kurva = opsi.sampaiMinggu ? potongKurvaPaket(semua, opsi.sampaiMinggu) : semua;
 
   const acuan = kurva.perLokasi[0].locationId;
   const bounds = await getPeriodBounds(acuan, { assume: true });
   if (!bounds) return "kosong";
-  const dasar = await getPeriodReport(acuan, "mingguan", bounds.currentWeek, { assume: true });
+  // Kepala laporan (periode "minggu ke-n") ikut minggu kurvanya, bukan hari ini.
+  const mingguKepala = opsi.sampaiMinggu ? kurva.currentWeek : bounds.currentWeek;
+  const dasar = await getPeriodReport(acuan, "mingguan", mingguKepala, { assume: true });
   if (!dasar) return "kosong";
 
   const byId = new Map(pkg.locations.map((l) => [l.id, l]));
@@ -117,4 +123,29 @@ export async function susunKurvaPaket(
     .join(" ");
 
   return { report, bounds, lokasiAcuanId: acuan, paket: { id: pkg.id, name: pkg.name }, catatan: catatan || null };
+}
+
+/**
+ * Realisasi kumulatif kurva-S paket tiap minggu yang sudah berjalan, beserta
+ * rentang tanggalnya (DECISIONS 722). Dipakai isian progres laporan konsultan:
+ * orang memilih minggu prestasi termin sambil melihat kapan data MARLIN
+ * mencapai ambangnya. Lokasi yang ikut sama dengan Kurva S paket.
+ */
+export async function realisasiMingguanPaket(
+  packageId: string,
+): Promise<{ mingguKe: number; awal: Date; akhir: Date; pct: number | null }[]> {
+  const pkg = await db.package.findUnique({
+    where: { id: packageId },
+    select: { locations: { select: { id: true } }, contract: { select: { startDate: true, weekMode: true } } },
+  });
+  const kontrak = pkg?.contract;
+  if (!pkg || !kontrak?.startDate) return [];
+  const idLokasi = pkg.locations.map((l) => l.id);
+  const lingkup = await lingkupLokasi(idLokasi);
+  const kurva = await getScurveSeriesPaket(idLokasi.filter((id) => !lingkup.dicabut.has(id)));
+  if (kurva.dihitung === 0) return [];
+  return Array.from({ length: kurva.currentWeek }, (_, i) => {
+    const r = weekDateRange(kontrak.startDate!, i + 1, kontrak.weekMode);
+    return { mingguKe: i + 1, awal: r.start, akhir: r.end, pct: kurva.actualPct[i] ?? null };
+  });
 }

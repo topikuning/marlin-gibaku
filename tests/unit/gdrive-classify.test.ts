@@ -17,7 +17,7 @@ import { ALL_DOC_TYPES } from "../../src/lib/documents-meta";
  */
 
 const FOLDER_1 = ["1. SPPBJ, SPK, SPMK, RAB, DED"];
-const FOLDER_2 = ["2. PCM"];
+const FOLDER_2 = ["2. Peninjauan Lokasi, PCM, MC-0", "2. PCM"];
 const FOLDER_7 = ["7. BERKAS TERMIN"];
 
 describe("classifyDriveFile – nama berkas menang atas folder", () => {
@@ -97,7 +97,8 @@ describe("classifyDriveFile – jatuh ke folder & keyakinan", () => {
   });
 
   it("folder KKP dikenali walau ditulis longgar (nomor saja / tanpa titik)", () => {
-    for (const seg of ["2. PCM", "2 PCM", "2", "PCM"]) {
+    // Nama lama "2. PCM" (DECISIONS 715) tetap dikenali sebagai folder 2.
+    for (const seg of ["2. Peninjauan Lokasi, PCM, MC-0", "2. PCM", "2 PCM", "2", "PCM"]) {
       expect(classifyDriveFile({ fileName: "Scan.pdf", path: [seg] }).type).toBe("pcm");
     }
   });

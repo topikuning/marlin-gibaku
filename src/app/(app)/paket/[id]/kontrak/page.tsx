@@ -370,6 +370,7 @@ export default async function KontrakPage({
           }
           aksi={
             <Drawer
+              hash="penanda-tangan"
               trigger={canContract ? "Kelola nama" : "Lihat nama"}
               title="Penanda tangan dokumen KKP"
               subtitle="Nama yang tercetak di bagian tanda tangan laporan. Bisa diganti kalau ada pergantian personel. Tabel di bawah isian menunjukkan siapa meneken dokumen mana."

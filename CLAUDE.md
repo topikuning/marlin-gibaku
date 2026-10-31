@@ -206,6 +206,10 @@ src/
   `r2PresignGet` / `r2Delete` langsung. Berkas lama dipindah dari R2 ke arsip
   Lenovo (DECISIONS 645); pemanggil yang membaca R2 langsung gagal persis pada
   berkas lama. Dijaga `tests/unit/penyimpanan-satu-pintu.test.ts`.
+- **Drive: MARLIN hanya mengubah atau membuang berkas buatannya sendiri** – buatan orang
+  tidak pernah ditimpa, diubah, atau dibuang (ketetapan user 2026-10-31, DECISIONS 723).
+  Kepemilikan lewat `gdrive/milik.ts` (`pilihTimpa`, `bolehDibuang`), bukan lewat nama atau
+  penanda saja.
 - **Foto: berkas ASLI wajib diarsipkan** (`Photo.originalKey`) di samping versi
   ber-cap — cap dibakar ke gambar dan tidak bisa dibatalkan, jadi tanpa aslinya
   perbaikan cap mustahil. DILARANG menghapus jalur arsip ini. DECISIONS 197.

@@ -40,6 +40,7 @@ export function Drawer({
   subtitle,
   children,
   className,
+  hash,
 }: {
   /** Teks tombol pemicu. */
   trigger: string;
@@ -49,6 +50,12 @@ export function Drawer({
   subtitle?: ReactNode;
   children: ReactNode;
   className?: string;
+  /**
+   * Panel terbuka sendiri bila alamat berakhiran `#<hash>` – supaya tautan
+   * "isi di …" dari halaman lain langsung membawa orang ke isiannya, bukan ke
+   * halaman tempat ia masih harus mencari tombolnya.
+   */
+  hash?: string;
 }) {
   const [open, setOpen] = useState(false);
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -58,6 +65,16 @@ export function Drawer({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!hash) return;
+    const cocok = () => {
+      if (window.location.hash === `#${hash}`) setOpen(true);
+    };
+    cocok();
+    window.addEventListener("hashchange", cocok);
+    return () => window.removeEventListener("hashchange", cocok);
+  }, [hash]);
 
   const tutup = useCallback(() => {
     setOpen(false);

@@ -267,7 +267,7 @@ const WEATHER_LABEL: Record<WeatherCode, string> = {
 const DAY = 24 * 3600 * 1000;
 
 /** Tambah bulan kalender (UTC, kolom @db.Date) — formula lama dipertahankan. */
-function addMonths(base: Date, months: number): Date {
+export function addMonths(base: Date, months: number): Date {
   return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + months, base.getUTCDate()));
 }
 

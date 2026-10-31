@@ -112,7 +112,7 @@ formula ini di modul, komponen, PDF, Excel, atau prompt AI mana pun):
 |---|---|
 | `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct`, `realisasiKategoriPct`, `ringkasKelompok`, `progresKelompokPerTanggal` (progres sarana s/d tanggal foto, DECISIONS 683) |
 | `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES`, `volumeHarianByLineage` |
-| `src/lib/finance/calc.ts` | agregat keuangan + `unbilledWork`, `alokasiBelumTertagih`, `totalPortofolio` |
+| `src/lib/finance/calc.ts` | agregat keuangan + `unbilledWork`, `alokasiBelumTertagih`, `totalPortofolio`, `nilaiTagihanTermin` (pembulatan kumulatif, DECISIONS 716), `rincianTagihanTermin` (retensi termin, DECISIONS 717) |
 | `src/lib/plan/rencana-format.ts` | MURNI: penilaian RENCANA — `hitungProyeksi`, `hitungPpc`, `statusDeviasi`, `labelKejar` (DECISIONS 258) |
 | `src/lib/ahsp/rapl-calc.ts` | MURNI: kebutuhan + biaya RAPL (DECISIONS 320/327) |
 

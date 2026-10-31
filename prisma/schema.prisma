@@ -463,31 +463,33 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization      Organization            @relation(fields: [orgId], references: [id])
-  sessions          Session[]
-  assignments       LocationAssignment[]
-  auditLogs         AuditLog[]
-  creator           User?                   @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers      User[]                  @relation("UserCreator")
-  waContacts        WaContact[]             @relation("WaContactOwner")
-  waAliases         WaSenderAlias[]         @relation("WaSenderAliasCreator")
-  devicePermissions DevicePermission[]
-  rabApprovals      RabRevisionApproval[]
-  scopeApprovals    LocationScopeApproval[]
-  ahspPadanan       AhspPadanan[]           @relation("AhspPadananDecider")
-  hsdDiubah         HargaSatuanDasar[]      @relation("HsdUpdater")
-  hsdUsulanDiminta  HsdUsulanRun[]          @relation("HsdUsulanPeminta")
-  raplRincian       RaplRincian[]           @relation("RaplRincianUpdater")
-  backupIsian       RabBackupIsian[]        @relation("BackupIsianPenulis")
-  analisaAiDiminta  RaplAnalisaAiRun[]      @relation("AnalisaAiPeminta")
-  waDiminta         WaOutbound[]            @relation("WaOutboundPeminta")
-  analisaAiDiputus  RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
-  waVerification    WaVerification?
-  waLaporSesi       WaLaporSesi?
-  waUsulanDiajukan  WaUsulan[]              @relation("WaUsulanPengusul")
-  waUsulanDiputus   WaUsulan[]              @relation("WaUsulanPemutus")
-  waPersetujuanUntuk   WaPersetujuan[]      @relation("WaPersetujuanUntuk")
-  waPersetujuanPemohon WaPersetujuan[]      @relation("WaPersetujuanPemohon")
+  organization         Organization            @relation(fields: [orgId], references: [id])
+  sessions             Session[]
+  assignments          LocationAssignment[]
+  auditLogs            AuditLog[]
+  creator              User?                   @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers         User[]                  @relation("UserCreator")
+  waContacts           WaContact[]             @relation("WaContactOwner")
+  waAliases            WaSenderAlias[]         @relation("WaSenderAliasCreator")
+  devicePermissions    DevicePermission[]
+  rabApprovals         RabRevisionApproval[]
+  scopeApprovals       LocationScopeApproval[]
+  ahspPadanan          AhspPadanan[]           @relation("AhspPadananDecider")
+  hsdDiubah            HargaSatuanDasar[]      @relation("HsdUpdater")
+  hsdUsulanDiminta     HsdUsulanRun[]          @relation("HsdUsulanPeminta")
+  raplRincian          RaplRincian[]           @relation("RaplRincianUpdater")
+  backupIsian          RabBackupIsian[]        @relation("BackupIsianPenulis")
+  analisaAiDiminta     RaplAnalisaAiRun[]      @relation("AnalisaAiPeminta")
+  waDiminta            WaOutbound[]            @relation("WaOutboundPeminta")
+  analisaAiDiputus     RaplAnalisaAi[]         @relation("AnalisaAiPemutus")
+  waVerification       WaVerification?
+  waLaporSesi          WaLaporSesi?
+  waUsulanDiajukan     WaUsulan[]              @relation("WaUsulanPengusul")
+  waUsulanDiputus      WaUsulan[]              @relation("WaUsulanPemutus")
+  suratPenyediaDibuat  SuratPenyedia[]         @relation("SuratPenyediaPembuat")
+  terminProgresDiubah  TerminProgresKonsultan[] @relation("TerminProgresPengubah")
+  waPersetujuanUntuk   WaPersetujuan[]         @relation("WaPersetujuanUntuk")
+  waPersetujuanPemohon WaPersetujuan[]         @relation("WaPersetujuanPemohon")
 
   @@index([orgId])
   @@index([role])
@@ -538,27 +540,27 @@ model WaVerification {
 /// kiriman, atau tengah malam WIB. Satu baris per orang – sesi baru menimpa
 /// yang lama, jadi tidak ada dua lokasi aktif sekaligus untuk satu nomor.
 model WaLaporSesi {
-  userId           String    @id @map("user_id") @db.Uuid
-  chatId           String    @map("chat_id")
+  userId            String    @id @map("user_id") @db.Uuid
+  chatId            String    @map("chat_id")
   /// null = belum ada lokasi aktif (mis. masih memilih dari beberapa lokasi).
-  locationId       String?   @map("location_id") @db.Uuid
+  locationId        String?   @map("location_id") @db.Uuid
   /// Garis keturunan item RAB pekerjaan aktif: foto berikutnya untuk pekerjaan
   /// ini. Lineage, bukan id node, supaya tetap benar sesudah adendum aktif.
-  lineageKey       String?   @map("lineage_key")
+  lineageKey        String?   @map("lineage_key")
   /// Pilihan yang sedang ditawarkan (dijawab dengan angka).
-  tawaran          Json?
+  tawaran           Json?
   /// Foto yang tersimpan tapi belum disebut di balasan – balasan dirapel
   /// supaya sepuluh foto tidak dijawab sepuluh pesan.
-  rapelTersimpan   Int       @default(0) @map("rapel_tersimpan")
+  rapelTersimpan    Int       @default(0) @map("rapel_tersimpan")
   /// Di antaranya, yang ikut USULAN pekerjaan aktif (DECISIONS 707).
-  rapelDiusulkan   Int       @default(0) @map("rapel_diusulkan")
-  rapelTanpaGps    Int       @default(0) @map("rapel_tanpa_gps")
-  fotoTersimpan    Int       @default(0) @map("foto_tersimpan")
+  rapelDiusulkan    Int       @default(0) @map("rapel_diusulkan")
+  rapelTanpaGps     Int       @default(0) @map("rapel_tanpa_gps")
+  fotoTersimpan     Int       @default(0) @map("foto_tersimpan")
   /// Catatan "WA membuang GPS, kirim sebagai Dokumen" cukup sekali per sesi.
-  catatanGpsDikirim Boolean  @default(false) @map("catatan_gps_dikirim")
-  mulaiAt          DateTime  @map("mulai_at") @db.Timestamptz
-  terakhirAt       DateTime  @map("terakhir_at") @db.Timestamptz
-  selesaiAt        DateTime? @map("selesai_at") @db.Timestamptz
+  catatanGpsDikirim Boolean   @default(false) @map("catatan_gps_dikirim")
+  mulaiAt           DateTime  @map("mulai_at") @db.Timestamptz
+  terakhirAt        DateTime  @map("terakhir_at") @db.Timestamptz
+  selesaiAt         DateTime? @map("selesai_at") @db.Timestamptz
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
@@ -833,6 +835,8 @@ model GDriveUpload {
 
   @@index([packageId, kind, refKey, createdAt])
   @@index([photoId])
+  /// Kepemilikan berkas Drive dicek per fileId sebelum menimpa/membuang (DECISIONS 723).
+  @@index([fileId])
   @@map("gdrive_uploads")
 }
 
@@ -975,7 +979,7 @@ model AhspComponent {
 /// bisa disandingkan tanpa menebak.
 model GDriveJob {
   id            String    @id @default(uuid()) @db.Uuid
-  /// laporan_harian | laporan_mingguan — sama dengan GDriveUpload.kind.
+  /// laporan_harian | laporan_mingguan | berkas_termin — sama dengan GDriveUpload.kind.
   kind          String
   /// "<slug>:<YYYY-MM-DD>" (harian) atau "<locationId>:mingguan-<n>" (mingguan).
   refKey        String    @map("ref_key")
@@ -985,7 +989,9 @@ model GDriveJob {
   /// dengan `GDriveUpload`, bukan oleh kebutuhan menjalankan pekerjaannya.
   periode       String
   packageId     String    @map("package_id") @db.Uuid
-  locationId    String    @map("location_id") @db.Uuid
+  /// Kosong = berkas tingkat paket (Kurva S, surat, dokumen kontrak di berkas
+  /// termin – DECISIONS 721).
+  locationId    String?   @map("location_id") @db.Uuid
   /// menunggu | jalan | sukses | menyerah | batal
   /// `batal` = prasyaratnya hilang sebelum sempat naik (mis. laporan dibuka
   /// kembali dari final); bukan kegagalan, jadi tidak perlu ditindak orang.
@@ -1002,7 +1008,7 @@ model GDriveJob {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   package  Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([kind, refKey])
   @@index([status, nextAttemptAt])
@@ -1331,22 +1337,28 @@ model PackageStageHistory {
 }
 
 model Vendor {
-  id         String   @id @default(uuid()) @db.Uuid
-  orgId      String   @map("org_id") @db.Uuid
-  name       String
-  npwp       String?
-  contact    String?
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @map("org_id") @db.Uuid
+  name           String
+  npwp           String?
+  contact        String?
   // Master data perusahaan — dasar kop surat & logo (DECISIONS 134).
-  address    String?
-  phone      String?
-  email      String?
-  logoKey    String?  @map("logo_key") // key R2 logo perusahaan
-  kopKey     String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
+  address        String?
+  phone          String?
+  email          String?
+  logoKey        String?  @map("logo_key") // key R2 logo perusahaan
+  kopKey         String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
   /// Stempel perusahaan — cadangan bila kontrak belum mengunggah stempelnya
   /// sendiri. Satu perusahaan satu stempel; itu memang benda fisik yang sama.
-  stempelKey String?  @map("stempel_key")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  stempelKey     String?  @map("stempel_key")
+  /// POLA NOMOR SURAT perusahaan (DECISIONS 716), mis.
+  /// "324.{urut}/SP/PF-KNMP-ATMP/{bulan}/{tahun}" – {urut} nomor urut per
+  /// tahun, {bulan} bulan Romawi, {tahun} empat angka.
+  polaNomorSurat String?  @map("pola_nomor_surat")
+  /// Kota penulisan surat bawaan ("Bogor"); bisa diganti per surat.
+  kotaSurat      String?  @map("kota_surat")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id])
   contracts    Contract[]
@@ -1430,6 +1442,13 @@ model Contract {
   weekMode              WeekMode  @default(senin_minggu) @map("week_mode")
   contractorTtdKey      String?   @map("contractor_ttd_key")
   contractorStempelKey  String?   @map("contractor_stempel_key")
+  /// REKENING PENYEDIA untuk invoice & kwitansi termin (DECISIONS 716) – per
+  /// kontrak (pilihan user): satu perusahaan bisa memakai rekening berbeda
+  /// untuk tiap paket. Contoh: "Bank BJB KC Bogor" · 0138941035001 · a.n.
+  /// PUTERA FAHLEVI CV.
+  bankNama              String?   @map("bank_nama")
+  bankRekening          String?   @map("bank_rekening")
+  bankAtasNama          String?   @map("bank_atas_nama")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1438,9 +1457,96 @@ model Contract {
   amendments    ContractAmendment[]
   ownerBillings OwnerBilling[]
   documents     Document[]
+  termin        ContractTermin[]
+  suratPenyedia SuratPenyedia[]
+  terminProgres TerminProgresKonsultan[]
 
   @@index([vendorId])
   @@map("contracts")
+}
+
+/// JADWAL TERMIN menurut SSKK (DECISIONS 716): termin ke-n ditagih saat
+/// progres mencapai `ambangPct`, nilainya `bayarPct` × nilai kontrak berjalan.
+/// Contoh CV. Putera Fahlevi: termin 1 dibayar 20% saat progres 25%.
+model ContractTermin {
+  id         String   @id @default(uuid()) @db.Uuid
+  contractId String   @map("contract_id") @db.Uuid
+  terminKe   Int      @map("termin_ke")
+  ambangPct  Decimal  @map("ambang_pct") @db.Decimal(5, 2)
+  bayarPct   Decimal  @map("bayar_pct") @db.Decimal(5, 2)
+  /// RETENSI yang ditahan dari termin ini, % NILAI KONTRAK (DECISIONS 717).
+  /// Jadwal KKP: termin 4 = 25%, ditahan 5% → dibayar 20%. Retensi bisa
+  /// dicairkan lebih awal dengan jaminan pemeliharaan.
+  retensiPct Decimal  @default(0) @map("retensi_pct") @db.Decimal(5, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, terminKe])
+  @@map("contract_termin")
+}
+
+/// PROGRES MENURUT LAPORAN KEMAJUAN KONSULTAN PENGAWAS, per termin (DECISIONS
+/// 717) – diketik dari laporan konsultan untuk surat permohonan pemeriksaan
+/// dan BA pembahasan kemajuan. RUJUKAN, bukan angka progres resmi: tidak
+/// pernah dibaca calculation layer. Angka MARLIN ditampilkan di sebelahnya.
+/// Termin tidak perlu tersimpan di `contract_termin` (jadwal bawaan KKP).
+model TerminProgresKonsultan {
+  id           String   @id @default(uuid()) @db.Uuid
+  contractId   String   @map("contract_id") @db.Uuid
+  terminKe     Int      @map("termin_ke")
+  /// Progres keseluruhan menurut laporan konsultan (mis. 26,6).
+  progresPct   Decimal  @map("progres_pct") @db.Decimal(6, 3)
+  mingguKe     Int      @map("minggu_ke")
+  /// Baris per lokasi { locationId, nomor, tanggal, mingguKe, persen } –
+  /// bentuknya dijaga zod di `surat-penyedia/skema.ts`.
+  lokasi       Json     @default("[]")
+  diubahOlehId String   @map("diubah_oleh_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  diubahOleh User     @relation("TerminProgresPengubah", fields: [diubahOlehId], references: [id])
+
+  @@unique([contractId, terminKe])
+  @@map("termin_progres_konsultan")
+}
+
+enum JenisSuratPenyedia {
+  permohonan_pemeriksaan
+  ba_pembahasan_kemajuan
+  permohonan_pembayaran
+  invoice
+  kwitansi
+}
+
+/// SURAT BERKOP PENYEDIA yang disusun MARLIN (DECISIONS 716): isian disimpan,
+/// PDF & Word dibangkitkan ulang dari isian ini setiap diunduh – angka uang
+/// tidak pernah disimpan sebagai teks, selalu dihitung dari kontrak & jadwal
+/// termin. `nomorUrut` = nomor urut di pola nomor perusahaan (null bila nomor
+/// diketik bebas).
+model SuratPenyedia {
+  id           String             @id @default(uuid()) @db.Uuid
+  contractId   String             @map("contract_id") @db.Uuid
+  jenis        JenisSuratPenyedia
+  terminKe     Int                @map("termin_ke")
+  nomor        String
+  nomorUrut    Int?               @map("nomor_urut")
+  tanggal      DateTime           @db.Date
+  kota         String
+  /// Isian khusus jenis surat (lampiran, progres per lokasi dari laporan
+  /// konsultan, peserta rapat, …) – bentuknya dijaga zod di `surat-penyedia`.
+  isian        Json               @default("{}")
+  dibuatOlehId String             @map("dibuat_oleh_id") @db.Uuid
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  dibuatOleh User     @relation("SuratPenyediaPembuat", fields: [dibuatOlehId], references: [id])
+
+  @@index([contractId, terminKe])
+  @@map("surat_penyedia")
 }
 
 /// APPEND-ONLY (trigger): adendum/CCO
@@ -2607,6 +2713,14 @@ model Document {
   drivePath       String?        @map("drive_path")
   driveModifiedAt DateTime?      @map("drive_modified_at") @db.Timestamptz
 
+  /// BERKAS TERMIN (DECISIONS 720): butir daftar periksa penagihan yang
+  /// dipenuhi dokumen ini (`KATALOG_BERKAS_TERMIN`, mis. "9c") dan termin-nya.
+  /// Diisi tombol unggah di halaman Penagihan, atau dari letak folder saat
+  /// ditarik dari `7. BERKAS TERMIN/TERMIN n/…` Drive KKP. `terminKe` kosong =
+  /// dokumen tetap yang berlaku untuk semua termin (SSUK, NIB, …).
+  terminKe    Int?    @map("termin_ke")
+  butirTermin String? @map("butir_termin")
+
   organization  Organization       @relation(fields: [orgId], references: [id])
   package       Package?           @relation(fields: [packageId], references: [id])
   contract      Contract?          @relation(fields: [contractId], references: [id])
@@ -2626,6 +2740,7 @@ model Document {
   @@index([orgId, sha256])
   @@index([orgId, status])
   @@index([type])
+  @@index([packageId, butirTermin])
   @@map("documents")
 }
 

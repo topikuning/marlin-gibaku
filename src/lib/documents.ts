@@ -87,6 +87,8 @@ export type UploadDocumentInput = {
     drivePath: string;
     driveModifiedAt: Date | null;
   } | null;
+  /** Butir berkas termin yang dipenuhi (DECISIONS 720); `ke` kosong = dokumen tetap. */
+  termin?: { ke: number | null; butir: string } | null;
 };
 
 export type UploadedDocument = { id: string; title: string; milestoneId: string | null };
@@ -269,6 +271,8 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
       driveWebLink: input.origin?.driveWebLink ?? null,
       drivePath: input.origin?.drivePath ?? null,
       driveModifiedAt: input.origin?.driveModifiedAt ?? null,
+      terminKe: input.termin?.ke ?? null,
+      butirTermin: input.termin?.butir ?? null,
     },
     select: { id: true, title: true, milestoneId: true },
   });
