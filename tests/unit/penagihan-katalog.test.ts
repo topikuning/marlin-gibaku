@@ -5,6 +5,7 @@ import {
   LANGKAH_PENAGIHAN,
   butirDariJalur,
   namaButir,
+  gabungStatusLokasi,
   statusButir,
   statusLangkah,
   type KeadaanBerkas,
@@ -20,15 +21,17 @@ function daunISI(simpul: readonly SimpulFolder[], induk: string[] = []): string[
 describe("katalog berkas termin", () => {
   it("setiap folder daun TERMIN di Drive punya tepat satu butir, dan sebaliknya", () => {
     const daun = daunISI(ISI_TERMIN).sort();
-    const katalog = KATALOG_BERKAS_TERMIN.map((b) => b.jalur.join(" / ")).sort();
+    const katalog = KATALOG_BERKAS_TERMIN.filter((b) => !b.tambahan).map((b) => b.jalur.join(" / ")).sort();
     expect(katalog).toEqual(daun);
     expect(new Set(KATALOG_BERKAS_TERMIN.map((b) => b.kode)).size).toBe(KATALOG_BERKAS_TERMIN.length);
-    expect(KATALOG_BERKAS_TERMIN).toHaveLength(42);
+    // 42 folder baku + 4 berkas yang ada di berkas nyata di luar folder baku (DECISIONS 725).
+    expect(KATALOG_BERKAS_TERMIN).toHaveLength(46);
+    expect(KATALOG_BERKAS_TERMIN.filter((b) => b.tambahan).map((b) => b.kode).sort()).toEqual(["JP", "RB", "SPPBJ", "ST"]);
   });
 
-  it("asal berkas: 13 dibuat MARLIN, 10 dokumen paket, 7 dokumen tetap, 12 dari pihak lain", () => {
+  it("asal berkas: 13 dibuat MARLIN, 12 dokumen paket, 8 dokumen tetap, 13 dari pihak lain", () => {
     const hitung = (s: string) => KATALOG_BERKAS_TERMIN.filter((b) => b.sumber === s).length;
-    expect([hitung("marlin"), hitung("paket"), hitung("tetap"), hitung("pihak_lain")]).toEqual([13, 10, 7, 12]);
+    expect([hitung("marlin"), hitung("paket"), hitung("tetap"), hitung("pihak_lain")]).toEqual([13, 12, 8, 13]);
     // Kelima surat penyedia ada di katalog, masing-masing sekali.
     expect(KATALOG_BERKAS_TERMIN.flatMap((b) => (b.surat ? [b.surat] : [])).sort()).toEqual(
       ["ba_pembahasan_kemajuan", "invoice", "kwitansi", "permohonan_pembayaran", "permohonan_pemeriksaan"].sort(),
@@ -46,6 +49,18 @@ describe("katalog berkas termin", () => {
   it("nama terbaca", () => {
     const b = KATALOG_BERKAS_TERMIN.find((x) => x.kode === "9c")!;
     expect(namaButir(b)).toBe("9c. BA Pemeriksaan Hasil Pekerjaan");
+    expect(namaButir(KATALOG_BERKAS_TERMIN.find((x) => x.kode === "JP")!)).toBe("Jaminan Pelaksanaan");
+  });
+
+  it("mengikuti berkas yang lolos (TERMIN 1 CV. Putera Fahlevi): butir per desa, duplikat BERKAS DOKUMEN TEKNIS tidak diisi ulang", () => {
+    const kode = (f: (b: (typeof KATALOG_BERKAS_TERMIN)[number]) => unknown) => KATALOG_BERKAS_TERMIN.filter(f).map((b) => b.kode).sort();
+    expect(kode((b) => b.perLokasi)).toEqual(["12", "4", "5", "6", "7", "8", "ST", "T16", "T5", "T7"].sort());
+    expect(kode((b) => b.cukupDi)).toEqual(["T1", "T12", "T13", "T2", "T3", "T4", "T6", "T8", "T9"].sort());
+    // Duplikat menunjuk butir utama yang ada dan bukan duplikat.
+    for (const b of KATALOG_BERKAS_TERMIN.filter((x) => x.cukupDi)) {
+      const utama = KATALOG_BERKAS_TERMIN.find((x) => x.kode === b.cukupDi);
+      expect(utama?.cukupDi, b.kode).toBeUndefined();
+    }
   });
 });
 
@@ -93,13 +108,21 @@ describe("status butir & langkah", () => {
     expect(statusButir(b("9c"), { ...kosong, butirTetap: new Set(["9c"]) })).toBe("menunggu");
   });
 
-  it("versi sendiri laporan MARLIN mengisi kedua foldernya (DECISIONS 722)", () => {
-    for (const [a, c] of [["5", "T9"], ["7", "T6"], ["8", "T8"]]) {
-      expect(statusButir(b(a), { ...kosong, butirTermin: new Set([c]) }), `${c}→${a}`).toBe("ada");
-      expect(statusButir(b(c), { ...kosong, butirTermin: new Set([a]) }), `${a}→${c}`).toBe("ada");
+  it("berkas yang terlanjur ditaruh di folder duplikat tetap memenuhi butir utamanya", () => {
+    for (const [utama, dup] of [["5", "T9"], ["7", "T6"], ["8", "T8"], ["12", "T2"], ["4", "T3"], ["6", "T4"], ["1", "T1"]]) {
+      expect(statusButir(b(utama), { ...kosong, butirTermin: new Set([dup]) }), `${dup}→${utama}`).toBe("ada");
     }
-    // Harian & bulanan hanya punya satu folder.
     expect(statusButir(b("T5"), { ...kosong, butirTermin: new Set(["T7"]) })).toBe("disiapkan_marlin");
+  });
+
+  it("status per lokasi digabung: ada hanya bila semua lokasi ada", () => {
+    expect(gabungStatusLokasi(["ada", "ada"])).toBe("ada");
+    expect(gabungStatusLokasi(["ada", "belum_diunggah"])).toBe("sebagian");
+    expect(gabungStatusLokasi(["belum_diunggah", "belum_diunggah"])).toBe("belum_diunggah");
+    expect(gabungStatusLokasi(["menunggu", "ada"])).toBe("sebagian");
+    // Lokasi yang laporannya disiapkan MARLIN tidak dihitung kurang.
+    expect(gabungStatusLokasi(["ada", "disiapkan_marlin"])).toBe("disiapkan_marlin");
+    expect(gabungStatusLokasi([])).toBeNull();
   });
 
   it("langkah selesai bila semua butirnya ada atau disiapkan MARLIN", () => {

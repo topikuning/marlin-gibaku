@@ -80,45 +80,64 @@ export default async function PenagihanPage({
   const t = d.termin;
   const lolosAmbang = d.progresKonsultan ? d.progresKonsultan.progresPct >= t.ambangPct : null;
 
-  const keKlien = (b: (typeof d.langkah)[number]["baris"][number]): BarisKlien => ({
-    kode: b.butir.kode,
-    nama: namaButir(b.butir),
-    pemberi: b.butir.pemberi,
-    folder: b.butir.jalur.join(" / "),
-    status: b.status,
-    statusLabel: LABEL_STATUS_BUTIR[b.status],
-    lihat: b.rujukan,
-    // MARLIN membantu, tidak memaksa (DECISIONS 722): SEMUA butir bisa diisi
-    // versi sendiri – laporan yang dicetak, diteken, lalu dipindai.
-    unggah: !bolehUnggah
-      ? null
-      : b.butir.laporan && b.status !== "ada"
-        ? {
-            label: "Unggah versi sendiri",
-            judul: "Unggah versi yang sudah dicetak, ditandatangani, dan dipindai. MARLIN lalu tidak membuat versinya untuk folder ini.",
-          }
-        : b.rujukan?.href.startsWith("/api/documents/")
-          ? { label: "Unggah lagi", judul: "Tambah berkas, misalnya scan minggu berikutnya" }
-          : b.butir.surat
-            ? { label: "Unggah scan", judul: "Unggah surat yang sudah ditandatangani, atau yang dibuat di luar MARLIN" }
-            : { label: "Unggah", judul: null },
-    buatHref:
-      b.status === "belum_dibuat" && b.butir.surat && can(user.role, "contract.manage")
-        ? `/paket/${id}/termin?termin=${n}&surat=${b.butir.surat}#buat-surat`
+  const namaLokasi = new Map(d.kontrak.package.locations.map((l) => [l.id, l.name]));
+  const butirUtama = new Map(d.langkah.flatMap((l) => l.baris).map((b) => [b.butir.kode, namaButir(b.butir)]));
+  const keKlien = (b: (typeof d.langkah)[number]["baris"][number]): BarisKlien => {
+    const lihat = (x: { judul: string; href: string }) => ({ judul: x.judul, href: x.href });
+    const perLokasi = b.lokasi;
+    const dilengkapiLokasi = perLokasi?.filter((l) => l.status === "ada").length ?? 0;
+    return {
+      kode: b.butir.kode,
+      nama: namaButir(b.butir),
+      pemberi: b.butir.pemberi,
+      folder: b.butir.jalur.length ? b.butir.jalur.join(" / ") : "langsung di folder termin",
+      status: b.status,
+      statusLabel:
+        b.status === "sebagian" && perLokasi
+          ? `${dilengkapiLokasi} dari ${perLokasi.length} lokasi`
+          : LABEL_STATUS_BUTIR[b.status],
+      berkas: b.berkas.map((x) => ({ ...lihat(x), lokasi: x.locationId ? (namaLokasi.get(x.locationId) ?? null) : null })),
+      lokasi: perLokasi
+        ? perLokasi.map((l) => ({
+            locationId: l.locationId,
+            nama: l.nama,
+            status: l.status,
+            statusLabel: LABEL_STATUS_BUTIR[l.status],
+            berkas: l.berkas.map(lihat),
+          }))
         : null,
-    catatan:
-      b.butir.sumber === "tetap"
-        ? b.butir.tetapDi === "perusahaan"
-          ? "sekali unggah, berlaku di semua paket perusahaan ini"
-          : "sekali unggah, berlaku untuk semua termin"
-        : b.status === "disiapkan_marlin"
-          ? "MARLIN membuatnya saat berkas termin disiapkan; bila perlu versi bertanda tangan, cetak dari Drive lalu unggah scannya di sini"
-          : b.butir.laporan && b.sumber.length
-            ? `versi sendiri dipakai (${b.sumber.length} berkas); MARLIN tidak membuat versinya`
-            : b.sumber.length > 1
-              ? `${b.sumber.length} berkas diunggah`
+      berkasPaket: perLokasi ? b.berkas.filter((x) => x.locationId === null).map(lihat) : [],
+      // MARLIN membantu, tidak memaksa (DECISIONS 722): SEMUA butir bisa diisi
+      // versi sendiri – laporan yang dicetak, diteken, lalu dipindai.
+      unggah: !bolehUnggah
+        ? null
+        : b.butir.laporan
+          ? {
+              label: "Unggah versi sendiri",
+              judul: "Unggah versi yang sudah dicetak, ditandatangani, dan dipindai. MARLIN lalu tidak membuat versinya untuk lokasi itu.",
+            }
+          : b.berkas.some((x) => "dokumenId" in x.sumber)
+            ? { label: "Unggah lagi", judul: "Tambah berkas" }
+            : b.butir.surat
+              ? { label: "Unggah scan", judul: "Unggah surat yang sudah ditandatangani, atau yang dibuat di luar MARLIN" }
+              : { label: "Unggah", judul: null },
+      buatHref:
+        b.status === "belum_dibuat" && b.butir.surat && can(user.role, "contract.manage")
+          ? `/paket/${id}/termin?termin=${n}&surat=${b.butir.surat}#buat-surat`
+          : null,
+      catatan:
+        b.butir.sumber === "tetap"
+          ? b.butir.tetapDi === "perusahaan"
+            ? "sekali unggah, berlaku di semua paket perusahaan ini"
+            : "sekali unggah, berlaku untuk semua termin"
+          : b.butir.laporan
+            ? "MARLIN membuatnya per lokasi saat berkas termin disiapkan, kecuali lokasi yang sudah diisi versi sendiri"
+            : b.butir.kode === "12"
+              ? "RAB tiap lokasi diambil dari berkas Excel revisi RAB aktif lokasi itu"
               : null,
-  });
+      cukupDi: b.butir.cukupDi ? { kode: b.butir.cukupDi, nama: butirUtama.get(b.butir.cukupDi) ?? b.butir.cukupDi } : null,
+    };
+  };
 
   return (
     <div className="space-y-4">

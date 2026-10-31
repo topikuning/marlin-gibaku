@@ -112,13 +112,26 @@ vi.mock("@/lib/pdf/periodik-kkp", () => ({
   renderPeriodikKkpPdf: async (_l: string, kind: string, n: number) => pdf(`${kind} ${n}`),
   renderKurvaPaketPdf: async () => pdf("kurva"),
 }));
-/** Batas minggu yang diminta tiap Kurva S paket. */
-let kurvaSampai: (number | undefined)[] = [];
+/** Batas minggu + lokasi yang diminta tiap Kurva S (DECISIONS 722/725). */
+let kurvaSampai: { sampai: number | undefined; lokasi: string[] | undefined }[] = [];
 vi.mock("@/lib/laporan/kurva-paket", () => ({
-  susunKurvaPaket: async (_id: string, _u: unknown, opsi?: { sampaiMinggu?: number }) => {
-    kurvaSampai.push(opsi?.sampaiMinggu);
+  susunKurvaPaket: async (_id: string, _u: unknown, opsi?: { sampaiMinggu?: number; lokasiIds?: string[] }) => {
+    kurvaSampai.push({ sampai: opsi?.sampaiMinggu, lokasi: opsi?.lokasiIds });
     return {};
   },
+}));
+/* Laporan mingguan versi Excel (DECISIONS 725): datanya ditiru. */
+vi.mock("@/lib/periodic-report", async (importAsli) => ({
+  ...(await importAsli<typeof import("@/lib/periodic-report")>()),
+  getPeriodReport: async () => ({}),
+}));
+vi.mock("@/lib/export/xlsx", async (importAsli) => ({
+  ...(await importAsli<typeof import("@/lib/export/xlsx")>()),
+  buildPeriodReportXlsx: async () => Buffer.from("xlsx"),
+}));
+vi.mock("@/lib/export/logo-laporan", async (importAsli) => ({
+  ...(await importAsli<typeof import("@/lib/export/logo-laporan")>()),
+  muatLogoLaporan: async () => null,
 }));
 vi.mock("@/lib/pdf/mingguan-kkp", () => ({ renderMingguanKkpPdf: async (_s: string, n: number) => pdf(`harian ${n}`) }));
 vi.mock("@/lib/pdf/dokumentasi-sarpras", () => ({
@@ -165,7 +178,22 @@ async function progres(terminKe: number, mingguKe: number) {
   });
 }
 const pekerjaan = () =>
-  db.gDriveJob.findMany({ where: { packageId, kind: "berkas_termin" }, select: { refKey: true, periode: true, status: true, lastError: true } });
+  db.gDriveJob.findMany({
+    where: { packageId, kind: "berkas_termin" },
+    select: { refKey: true, periode: true, status: true, lastError: true, locationId: true },
+  });
+/** Id lokasi aktif menurut namanya ("satu"/"dua"). */
+const idLokasi = async (n: string) => (await db.location.findFirstOrThrow({ where: { packageId, name: `Desa ${n}` } })).id;
+/** Unggah versi sendiri lewat aksi Penagihan, opsional untuk satu lokasi. */
+async function unggahSendiri(kode: string, berkas: File[], locationId?: string) {
+  const f = new FormData();
+  f.set("packageId", packageId);
+  f.set("terminKe", "1");
+  f.set("kode", kode);
+  if (locationId) f.set("locationId", locationId);
+  for (const b of berkas) f.append("file", b);
+  return unggahBerkasTerminAction(undefined, f);
+}
 
 beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org BT ${suffix}`, slug: `org-${suffix}` } });
@@ -226,15 +254,22 @@ describe("antrekanBerkasTermin", () => {
     expect(await pekerjaan()).toHaveLength(0);
   });
 
-  it("termin 1 minggu 1–3: berkas yang ada + Kurva S + laporan per lokasi AKTIF", async () => {
+  it("termin 1 minggu 1–3: pola berkas yang lolos – Kurva S & mingguan per lokasi AKTIF s.d. minggu prestasi", async () => {
     await progres(1, 3);
     const r = await antrekanBerkasTermin(packageId, 1, sesi());
-    expect(r).toEqual({ ok: true, jumlah: 18, rentang: { awal: 1, akhir: 3 }, dariDrive: 0, dibuang: 0 });
-    // SPMK 1 + Kurva 1 + (mingguan 3 + harian 3 + bulanan 1 + dokumentasi 1) × 2 lokasi aktif.
+    expect(r).toEqual({ ok: true, jumlah: 15, rentang: { awal: 1, akhir: 3 }, dariDrive: 0, dibuang: 0 });
+    // SPMK 1 + (Kurva 1 + mingguan 1 + harian 3 + bulanan 1 + dokumentasi 1) × 2 lokasi aktif.
     const j = await pekerjaan();
-    expect(j).toHaveLength(18);
+    expect(j).toHaveLength(15);
     expect(j.every((x) => x.status === "menunggu")).toBe(true);
     expect(j.filter((x) => x.periode.includes("|bulanan|"))).toHaveLength(2);
+    // Kurva S dan laporan mingguan: satu per lokasi, minggu prestasi saja (DECISIONS 725).
+    const kurva = j.filter((x) => x.periode.startsWith("1|kurva_s|"));
+    expect(kurva.map((x) => x.periode)).toEqual(["1|kurva_s|3|5|", "1|kurva_s|3|5|"]);
+    expect(new Set(kurva.map((x) => x.locationId)).size).toBe(2);
+    expect(j.filter((x) => x.periode.startsWith("1|mingguan|")).map((x) => x.periode)).toEqual(["1|mingguan|3|7|", "1|mingguan|3|7|"]);
+    // Folder duplikat BERKAS DOKUMEN TEKNIS (T4/T6/T8/T9) tidak diisi ulang.
+    expect(j.some((x) => /\|(T4|T6|T8|T9)[|+]|\+(T4|T6|T8|T9)\|/.test(x.periode))).toBe(false);
   });
 
   it("berkas yang ditarik DARI Drive KKP tidak diunggah balik (DECISIONS 197)", async () => {
@@ -251,7 +286,7 @@ describe("antrekanBerkasTermin", () => {
     );
     await db.document.update({ where: { id: doc.id }, data: { source: "drive_kkp" } });
     const r = await antrekanBerkasTermin(packageId, 1, sesi());
-    expect(r).toMatchObject({ ok: true, jumlah: 18, dariDrive: 1 });
+    expect(r).toMatchObject({ ok: true, jumlah: 15, dariDrive: 1 });
     expect((await pekerjaan()).some((x) => x.periode.includes("|9c|"))).toBe(false);
     await db.document.delete({ where: { id: doc.id } });
   });
@@ -260,7 +295,7 @@ describe("antrekanBerkasTermin", () => {
     await db.gDriveJob.updateMany({ where: { packageId }, data: { status: "sukses" } });
     await antrekanBerkasTermin(packageId, 1, sesi());
     const j = await pekerjaan();
-    expect(j).toHaveLength(18);
+    expect(j).toHaveLength(15);
     expect(j.every((x) => x.status === "menunggu")).toBe(true);
   });
 
@@ -271,62 +306,78 @@ describe("antrekanBerkasTermin", () => {
     await progres(2, 5);
     expect(await antrekanBerkasTermin(packageId, 2, sesi())).toMatchObject({ ok: true, rentang: { awal: 4, akhir: 5 } });
     // Termin 2 tidak menyentuh baris termin 1.
-    expect((await pekerjaan()).filter((x) => x.periode.startsWith("1|"))).toHaveLength(18);
+    expect((await pekerjaan()).filter((x) => x.periode.startsWith("1|"))).toHaveLength(15);
     await db.gDriveJob.deleteMany({ where: { packageId, periode: { startsWith: "2|" } } });
   });
 
-  it("Kurva S yang diunggah sendiri disalin; laporan MARLIN hanya mengisi folder yang masih kosong", async () => {
-    const doc = await uploadDocument(
-      {
-        file: new File(["kurva"], "kurva-sendiri.pdf", { type: "application/pdf" }),
-        packageId,
-        phase: "pelaksanaan",
-        type: "laporan",
-        title: "Kurva S",
-        termin: { ke: 1, butir: "5" },
-      },
-      pengguna!.id,
-    );
+  it("Kurva S versi sendiri satu desa: MARLIN hanya membuat Kurva S desa lain; untuk seluruh paket: tidak sama sekali", async () => {
+    const [satu, dua] = [await idLokasi("satu"), await idLokasi("dua")];
+    expect(
+      (await unggahSendiri("5", [new File(["kurva"], "kurva-sendiri.pdf", { type: "application/pdf" })], satu))?.success,
+    ).toBeTruthy();
+    const docSatu = await db.document.findFirstOrThrow({ where: { packageId, butirTermin: "5" } });
+    expect(docSatu.locationId).toBe(satu);
     await antrekanBerkasTermin(packageId, 1, sesi());
-    const j = await pekerjaan();
-    // Kurva MARLIN keluar; scan yang sama disalin ke 5 DAN T9 (folder berpasangan).
-    expect(j).toHaveLength(19);
+    let j = await pekerjaan();
+    // Kurva MARLIN Desa satu keluar, versi sendiri disalin ke folder 5 saja (T9 duplikat).
+    expect(j).toHaveLength(15);
+    expect(j.filter((x) => x.periode.startsWith("1|kurva_s|")).map((x) => x.locationId)).toEqual([dua]);
+    expect(j.filter((x) => x.periode.startsWith("1|berkas||5|") || x.periode.includes("|T9|")).map((x) => x.periode)).toEqual([
+      `1|berkas||5|d${docSatu.id}`,
+    ]);
+
+    // Satu Kurva S untuk seluruh paket: tidak ada Kurva S MARLIN sama sekali.
+    await unggahSendiri("5", [new File(["kurva paket"], "kurva-paket.pdf", { type: "application/pdf" })]);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    j = await pekerjaan();
     expect(j.some((x) => x.periode.startsWith("1|kurva_s|"))).toBe(false);
-    expect(j.find((x) => x.periode === `1|berkas||5|d${doc.id}`)).toBeTruthy();
-    expect(j.find((x) => x.periode === `1|berkas||T9|d${doc.id}`)).toBeTruthy();
-    // Unggahan dicabut: Kurva S kembali disiapkan MARLIN.
-    await db.document.delete({ where: { id: doc.id } });
+    expect(j.filter((x) => x.periode.startsWith("1|berkas||5|"))).toHaveLength(2);
+
+    // Unggahan dicabut: Kurva S kembali disiapkan MARLIN untuk kedua desa.
+    await db.document.deleteMany({ where: { packageId, butirTermin: "5" } });
     await antrekanBerkasTermin(packageId, 1, sesi());
-    expect((await pekerjaan()).find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s|3|5+T9|");
+    j = await pekerjaan();
+    expect(j.filter((x) => x.periode.startsWith("1|kurva_s|")).map((x) => x.periode)).toEqual(["1|kurva_s|3|5|", "1|kurva_s|3|5|"]);
+    expect(j).toHaveLength(15);
   });
 });
 
 describe("jalankanAntreanTermin", () => {
-  it("semua berkas naik ke folder termin dengan susunan KKP; satu laporan mingguan ke dua folder", async () => {
+  it("semua berkas naik ke folder termin dengan susunan berkas yang lolos (TERMIN 1 CV. Putera Fahlevi)", async () => {
     const h = await jalankanAntreanTermin({ packageId, terminKe: 1 });
     expect(h.sisa).toBe(0);
     expect(h.gagal).toBe(0);
     const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
     expect(dibuat.filter((d) => d === termin)).toHaveLength(1);
     expect(naik).toContain(`${termin}/3. SPMK :: spmk.pdf`);
-    expect(naik).toContain(`${termin}/7. Laporan Mingguan :: Laporan Mingguan Minggu ke-2 - Desa satu.pdf`);
-    expect(naik).toContain(`${termin}/BERKAS DOKUMEN TEKNIS/6. Laporan Mingguan :: Laporan Mingguan Minggu ke-2 - Desa satu.pdf`);
+    // Kurva S per desa s.d. minggu prestasi.
+    expect(naik).toContain(`${termin}/5. Kurva S :: Kurva S Minggu 1-3 - Desa satu.pdf`);
+    expect(naik).toContain(`${termin}/5. Kurva S :: Kurva S Minggu 1-3 - Desa dua.pdf`);
+    // Laporan mingguan minggu prestasi, PDF + Excel, di subfolder desa.
+    expect(naik).toContain(`${termin}/7. Laporan Mingguan/DESA SATU :: Laporan Mingguan Minggu ke-3 - Desa satu.pdf`);
+    expect(naik).toContain(`${termin}/7. Laporan Mingguan/DESA SATU :: Laporan Mingguan Minggu ke-3 - Desa satu.xlsx`);
+    expect(naik.filter((x) => x.includes(":: Laporan Mingguan"))).toHaveLength(4);
+    expect(naik).toContain(`${termin}/8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - DESA DUA :: Dokumentasi Sarana Prasarana - Desa dua.pdf`);
     expect(naik).toContain(`${termin}/BERKAS DOKUMEN TEKNIS/5. Laporan Harian :: Laporan Harian Minggu ke-3 - Desa dua.pdf`);
+    // Folder duplikat tidak diisi; lokasi nonaktif tidak ikut.
+    expect(naik.some((x) => /BERKAS DOKUMEN TEKNIS\/(4|6|8|9)\. /.test(x))).toBe(false);
     expect(naik.some((x) => x.includes("Desa mati"))).toBe(false);
     expect((await pekerjaan()).every((x) => x.status === "sukses")).toBe(true);
-    expect(await ringkasBerkasTermin(packageId, 1)).toMatchObject({ total: 18, sukses: 18, menunggu: 0 });
-    // Kurva S termin 1 berhenti di minggu prestasinya (3), bukan minggu berjalan.
-    expect(kurvaSampai).toEqual([3]);
+    expect(await ringkasBerkasTermin(packageId, 1)).toMatchObject({ total: 15, sukses: 15, menunggu: 0 });
+    // Kurva S termin 1 berhenti di minggu prestasinya (3), satu lokasi per berkas.
+    const [satu, dua] = [await idLokasi("satu"), await idLokasi("dua")];
+    expect(kurvaSampai.map((k) => k.sampai)).toEqual([3, 3]);
+    expect(kurvaSampai.map((k) => k.lokasi?.[0]).sort()).toEqual([satu, dua].sort());
   });
 
   it("minggu prestasi dibetulkan: isi berkas mengikuti, baris minggu yang keluar rentang dibuang", async () => {
     await progres(1, 2);
     await antrekanBerkasTermin(packageId, 1, sesi());
     const j = await pekerjaan();
-    // SPMK + Kurva S + (mingguan 2 + harian 2 + bulanan 1 + dokumentasi 1) × 2 lokasi.
-    expect(j.filter((x) => !x.refKey.startsWith("buang>"))).toHaveLength(14);
+    // SPMK + (Kurva S + mingguan 1 + harian 2 + bulanan 1 + dokumentasi 1) × 2 lokasi.
+    expect(j.filter((x) => !x.refKey.startsWith("buang>"))).toHaveLength(13);
     expect(j.some((x) => /^1\|(mingguan|harian)\|3\|/.test(x.periode))).toBe(false);
-    expect(j.find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s|2|5+T9|");
+    expect(j.find((x) => x.periode.startsWith("1|kurva_s|"))!.periode).toBe("1|kurva_s|2|5|");
     // Laporan minggu 3 versi MARLIN yang sudah naik dibuang dari folder termin 1.
     expect(j.filter((x) => x.refKey.startsWith("buang>"))).toHaveLength(4);
     await progres(1, 3);
@@ -334,7 +385,7 @@ describe("jalankanAntreanTermin", () => {
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
   });
 
-  it("scan bertanda tangan menggantikan versi MARLIN: semua scan disalin ke kedua folder, versi MARLIN dibuang ke Sampah", async () => {
+  it("scan bertanda tangan menggantikan versi MARLIN: semua scan disalin ke folder 7, versi MARLIN (PDF + Excel) dibuang ke Sampah", async () => {
     // Pastikan semua sudah naik dulu, lalu catat berkas Drive tiap pekerjaan.
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
     const unggahan = await db.gDriveUpload.findMany({
@@ -343,34 +394,34 @@ describe("jalankanAntreanTermin", () => {
     });
     const idMingguan = [...new Set(unggahan.filter((u) => u.refKey.includes(":mingguan:")).map((u) => u.fileId))];
     const idLain = unggahan.filter((u) => !u.refKey.includes(":mingguan:")).map((u) => u.fileId);
-    expect(idMingguan).toHaveLength(12); // 3 minggu × 2 lokasi × 2 folder (7 & T6)
+    expect(idMingguan).toHaveLength(4); // minggu prestasi × 2 lokasi × (PDF + Excel)
 
-    // Dua scan sekaligus, nama berkasnya sama-sama "scan.pdf" (dari HP).
-    const f = new FormData();
-    f.set("packageId", packageId);
-    f.set("terminKe", "1");
-    f.set("kode", "7");
-    f.append("file", new File(["scan minggu 1"], "scan.pdf", { type: "application/pdf" }));
-    f.append("file", new File(["scan minggu 2"], "scan.pdf", { type: "application/pdf" }));
-    expect((await unggahBerkasTerminAction(undefined, f))?.success).toMatch(/^2 berkas 7\. Laporan Mingguan/);
+    // Dua scan sekaligus untuk seluruh paket, nama berkasnya sama-sama "scan.pdf" (dari HP).
+    expect(
+      (
+        await unggahSendiri("7", [
+          new File(["scan minggu 1"], "scan.pdf", { type: "application/pdf" }),
+          new File(["scan minggu 2"], "scan.pdf", { type: "application/pdf" }),
+        ])
+      )?.success,
+    ).toMatch(/^2 berkas 7\. Laporan Mingguan/);
 
     naik = [];
     const r = await antrekanBerkasTermin(packageId, 1, sesi());
-    expect(r).toMatchObject({ ok: true, dibuang: 6 });
+    expect(r).toMatchObject({ ok: true, dibuang: 2 });
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
 
     // Versi MARLIN laporan mingguan dibuang; berkas lain tidak tersentuh.
     expect([...sampah].sort()).toEqual([...idMingguan].sort());
     expect(sampah.some((id) => idLain.includes(id))).toBe(false);
-    // Kedua scan masuk ke 7 dan T6, dengan nama yang tidak saling menimpa.
+    // Kedua scan masuk ke folder 7 saja (T6 duplikat), dengan nama yang tidak saling menimpa.
     const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
     const scanNaik = naik.filter((x) => x.includes(":: scan"));
-    expect(scanNaik).toHaveLength(4);
-    expect(new Set(scanNaik).size).toBe(4);
-    expect(scanNaik.filter((x) => x.startsWith(`${termin}/7. Laporan Mingguan ::`))).toHaveLength(2);
-    expect(scanNaik.filter((x) => x.startsWith(`${termin}/BERKAS DOKUMEN TEKNIS/6. Laporan Mingguan ::`))).toHaveLength(2);
+    expect(scanNaik).toHaveLength(2);
+    expect(new Set(scanNaik).size).toBe(2);
+    expect(scanNaik.every((x) => x.startsWith(`${termin}/7. Laporan Mingguan ::`))).toBe(true);
     const ringkas = await ringkasBerkasTermin(packageId, 1);
-    expect(ringkas.berkasDibuang).toBe(12);
+    expect(ringkas.berkasDibuang).toBe(4);
     expect(ringkas.menunggu).toBe(0);
 
     // Menekan lagi tidak membuang apa-apa lagi.
@@ -385,29 +436,86 @@ describe("jalankanAntreanTermin", () => {
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
   });
 
-  it("scan yang namanya persis sama dengan berkas MARLIN menimpa berkas Drive yang sama – scan itu tidak ikut dibuang", async () => {
-    const nama = "Laporan Mingguan Minggu ke-1 - Desa satu.pdf";
+  it("scan satu desa yang namanya persis sama dengan berkas MARLIN menimpa berkas Drive yang sama – scan itu tidak ikut dibuang", async () => {
+    const nama = "Laporan Mingguan Minggu ke-3 - Desa satu.pdf";
     const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
-    const kunci7 = `${termin}/7. Laporan Mingguan :: ${nama}`;
-    const kunciT6 = `${termin}/BERKAS DOKUMEN TEKNIS/6. Laporan Mingguan :: ${nama}`;
-    const idLama = [idDi(kunci7), idDi(kunciT6)];
-    expect(idLama.every(Boolean)).toBe(true);
+    const kunci = `${termin}/7. Laporan Mingguan/DESA SATU :: ${nama}`;
+    const kunciXlsx = kunci.replace(/\.pdf$/, ".xlsx");
+    const idLama = idDi(kunci);
+    const idXlsx = idDi(kunciXlsx);
+    expect(idLama && idXlsx).toBeTruthy();
 
-    const f = new FormData();
-    f.set("packageId", packageId);
-    f.set("terminKe", "1");
-    f.set("kode", "7");
-    f.append("file", new File(["scan diteken"], nama, { type: "application/pdf" }));
-    await unggahBerkasTerminAction(undefined, f);
+    await unggahSendiri("7", [new File(["scan diteken"], nama, { type: "application/pdf" })], await idLokasi("satu"));
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
 
-    // Salinan scan menimpa berkas Drive yang sama (id sama) – id itu dilindungi.
-    expect([idDi(kunci7), idDi(kunciT6)]).toEqual(idLama);
-    expect(sampah.some((id) => idLama.includes(id))).toBe(false);
-    expect(sampah).toHaveLength(10);
+    // Salinan scan masuk subfolder desanya dan menimpa berkas Drive yang sama (id sama) – id itu dilindungi.
+    expect(idDi(kunci)).toBe(idLama);
+    expect(sampah).not.toContain(idLama);
+    // Versi Excel MARLIN desa itu ikut keluar; Desa dua tidak tersentuh.
+    expect(sampah).toEqual([idXlsx]);
 
     await db.document.deleteMany({ where: { packageId, butirTermin: "7" } });
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+  });
+
+  it("laporan MARLIN yang pindah nama/folder: versi lamanya dibuang, bukan ditinggal di samping yang baru", async () => {
+    const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
+    const kunciLama = `${termin}/5. Kurva S :: Kurva S Minggu 1-3 - Desa satu.pdf`;
+    const idLama = idDi(kunciLama)!;
+    expect(idLama).toBeTruthy();
+    // Berkas lama Desa dua kebetulan juga tercatat milik pekerjaan lain yang masih aktif.
+    const idDuaLama = idDi(`${termin}/5. Kurva S :: Kurva S Minggu 1-3 - Desa dua.pdf`)!;
+    const spmk = (await pekerjaan()).find((x) => x.periode.startsWith("1|berkas||3|"))!;
+    const pinjam = await db.gDriveUpload.create({
+      data: { packageId, kind: "berkas_termin", refKey: spmk.refKey, fileName: "x", fileId: idDuaLama, status: "sukses" },
+    });
+    // Minggu prestasi maju: nama Kurva S ikut berubah, barisnya tetap.
+    await progres(1, 4);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(idDi(`${termin}/5. Kurva S :: Kurva S Minggu 1-4 - Desa satu.pdf`)).toBeTruthy();
+    expect(sampah).toContain(idLama);
+    expect(isiDrive.get(kunciLama)).toEqual([]);
+    // Yang masih dipakai pekerjaan lain tidak ikut dibuang.
+    expect(sampah).not.toContain(idDuaLama);
+    await db.gDriveUpload.delete({ where: { id: pinjam.id } });
+
+    // Berkas lama yang sudah diubah orang tidak ikut dibuang (DECISIONS 723).
+    sampah = [];
+    const idEmpat = idDi(`${termin}/5. Kurva S :: Kurva S Minggu 1-4 - Desa dua.pdf`)!;
+    metaDrive.set(idEmpat, { ...metaDrive.get(idEmpat)!, diubahOrangLain: true });
+    await progres(1, 3);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(sampah).not.toContain(idEmpat);
+    expect(idDi(`${termin}/5. Kurva S :: Kurva S Minggu 1-4 - Desa dua.pdf`)).toBe(idEmpat);
+    expect(idDi(`${termin}/5. Kurva S :: Kurva S Minggu 1-3 - Desa dua.pdf`)).toBeTruthy();
+  });
+
+  it("salinan versi sendiri yang namanya berubah (scan kedua bernama sama menyusul): salinan lama dibuang, tidak jadi kembaran", async () => {
+    const folder = `${INDUK}/TERMIN 1 (25%) ${VENDOR}/6. Back Up Perhitungan Kemajuan Pekerjaan`;
+    const satu = await idLokasi("satu");
+    await unggahSendiri("6", [new File(["backup 1"], "backup.pdf", { type: "application/pdf" })], satu);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    // Berkas satu desa diberi nama desanya.
+    const kunciLama = `${folder} :: Desa satu - backup.pdf`;
+    const idPertama = idDi(kunciLama)!;
+    expect(idPertama).toBeTruthy();
+
+    sampah = [];
+    naik = [];
+    await unggahSendiri("6", [new File(["backup 2"], "backup.pdf", { type: "application/pdf" })], satu);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    // Keduanya kini diberi pembeda; salinan lama bernama polos dibuang.
+    expect(naik.filter((x) => x.startsWith(`${folder} :: Desa satu - backup (`))).toHaveLength(2);
+    expect(sampah).toEqual([idPertama]);
+    expect(isiDrive.get(kunciLama)).toEqual([]);
+
+    await db.document.deleteMany({ where: { packageId, butirTermin: "6" } });
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
   });
@@ -437,6 +545,7 @@ describe("jalankanAntreanTermin", () => {
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
     const r = await ringkasBerkasTermin(packageId, 1);
     expect(r.batal).toBe(2);
+    expect(r.masalah).toHaveLength(2);
     expect(r.masalah.filter((m) => m.label === "Dokumentasi sarana prasarana").map((m) => m.lokasi).sort()).toEqual([
       "Desa dua",
       "Desa satu",
@@ -469,17 +578,12 @@ describe("buatan orang tidak pernah diubah atau dibuang (DECISIONS 723)", () => 
   });
 
   it("berkas yang dulu ditimpa kode lama (bertanda MARLIN, tapi sudah ada sebelum MARLIN mengunggah) tidak dibuang dan tidak ditimpa lagi", async () => {
-    const kunci = `${termin()}/7. Laporan Mingguan :: Laporan Mingguan Minggu ke-1 - Desa satu.pdf`;
+    const kunci = `${termin()}/7. Laporan Mingguan/DESA SATU :: Laporan Mingguan Minggu ke-3 - Desa satu.pdf`;
     const id = idDi(kunci)!;
     // Seolah berkas orang yang sempat diberi revisi & penanda oleh kode lama.
     metaDrive.set(id, { createdTime: new Date(Date.now() - 86_400_000), terbitanMarlin: true, diubahOrangLain: false });
 
-    const f = new FormData();
-    f.set("packageId", packageId);
-    f.set("terminKe", "1");
-    f.set("kode", "7");
-    f.append("file", new File(["scan"], "scan-minggu.pdf", { type: "application/pdf" }));
-    await unggahBerkasTerminAction(undefined, f);
+    await unggahSendiri("7", [new File(["scan"], "scan-minggu.pdf", { type: "application/pdf" })]);
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
     expect(sampah).not.toContain(id);
@@ -498,7 +602,7 @@ describe("buatan orang tidak pernah diubah atau dibuang (DECISIONS 723)", () => 
   });
 
   it("berkas MARLIN yang sudah diubah orang lain tidak ditimpa", async () => {
-    const kunci = `${termin()}/BERKAS DOKUMEN TEKNIS/9. Kurva S :: Kurva S - Paket BT ${suffix}.pdf`;
+    const kunci = `${termin()}/5. Kurva S :: Kurva S Minggu 1-3 - Desa satu.pdf`;
     const id = idDi(kunci)!;
     metaDrive.set(id, { ...metaDrive.get(id)!, diubahOrangLain: true });
     await antrekanBerkasTermin(packageId, 1, sesi());
@@ -510,10 +614,10 @@ describe("buatan orang tidak pernah diubah atau dibuang (DECISIONS 723)", () => 
 
 describe("layar Sistem", () => {
   it("berkas termin yang menyerah terbaca sebagai nama berkasnya, bukan kode antrean", async () => {
-    const j = await db.gDriveJob.findFirstOrThrow({ where: { packageId, periode: { startsWith: "1|mingguan|2|" }, location: { name: "Desa satu" } } });
+    const j = await db.gDriveJob.findFirstOrThrow({ where: { packageId, periode: { startsWith: "1|mingguan|3|" }, location: { name: "Desa satu" } } });
     await db.gDriveJob.update({ where: { id: j.id }, data: { status: "menyerah", lastError: "uji" } });
     const m = (await ringkasAntrean()).macet.find((x) => x.kind === "berkas_termin");
-    expect(m).toMatchObject({ periode: "Termin 1 · Laporan mingguan minggu ke-2", lokasi: "Desa satu" });
+    expect(m).toMatchObject({ periode: "Termin 1 · Laporan mingguan minggu ke-3", lokasi: "Desa satu" });
   });
 });
 
@@ -560,12 +664,13 @@ describe("lima surat otomatis dari tombol Siapkan berkas (DECISIONS 724)", () =>
     for (const [j, t] of Object.entries(tanggal)) f.set(`tanggal_${j}`, t);
     return f;
   };
+  // Urutan nomor = urutan berkas yang lolos: kwitansi sebelum invoice (DECISIONS 725).
   const LIMA = {
     permohonan_pemeriksaan: "2026-09-21",
     ba_pembahasan_kemajuan: "2026-09-22",
     permohonan_pembayaran: "2026-09-23",
-    invoice: "2026-09-23",
     kwitansi: "2026-09-23",
+    invoice: "2026-09-23",
   };
   const suratTermin = (terminKe: number) =>
     db.suratPenyedia.findMany({
@@ -627,7 +732,7 @@ describe("lima surat otomatis dari tombol Siapkan berkas (DECISIONS 724)", () =>
     expect(r?.error).toBeUndefined();
     expect(r?.success).toMatch(/Surat dibuat: Surat Permohonan Pemeriksaan Pekerjaan nomor 77\.1\/SP\/IX\/2026/);
     const s = await suratTermin(1);
-    expect(s.map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "invoice", "kwitansi"]);
+    expect(s.map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "ba_pembahasan_kemajuan", "permohonan_pembayaran", "kwitansi", "invoice"]);
     expect(s.map((x) => x.nomorUrut)).toEqual([1, 2, 3, 4, 5]);
     expect(s.map((x) => x.tanggal.toISOString().slice(0, 10))).toEqual(Object.values(LIMA));
     const salinan = (await pekerjaan()).filter((x) => /^1\|berkas\|\|(9a|9b|10a|10b|10c)\|s/.test(x.periode));
@@ -650,7 +755,7 @@ describe("lima surat otomatis dari tombol Siapkan berkas (DECISIONS 724)", () =>
     await unggahBerkasTerminAction(undefined, f);
     const r = await siapkanBerkasTerminAction(undefined, form(2, LIMA));
     expect(r?.error).toBeUndefined();
-    expect((await suratTermin(2)).map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "permohonan_pembayaran", "invoice", "kwitansi"]);
+    expect((await suratTermin(2)).map((x) => x.jenis)).toEqual(["permohonan_pemeriksaan", "permohonan_pembayaran", "kwitansi", "invoice"]);
   });
 
   it("progres di bawah ambang: tidak ada surat yang dibuat sama sekali", async () => {
