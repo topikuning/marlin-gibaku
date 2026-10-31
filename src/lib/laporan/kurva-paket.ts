@@ -39,8 +39,12 @@ export async function susunKurvaPaket(
   packageId: string,
   /** null = penyusun di latar (berkas termin, DECISIONS 721): tanpa saringan akses. */
   user: SessionUser | null,
-  /** Kurva s.d. minggu ini saja (minggu prestasi termin, DECISIONS 722); kosong = s.d. minggu berjalan. */
-  opsi: { sampaiMinggu?: number } = {},
+  /**
+   * `sampaiMinggu`: kurva s.d. minggu ini saja (minggu prestasi termin,
+   * DECISIONS 722); kosong = s.d. minggu berjalan. `lokasiIds`: hanya lokasi
+   * ini – Kurva S per lokasi untuk berkas termin (DECISIONS 725).
+   */
+  opsi: { sampaiMinggu?: number; lokasiIds?: readonly string[] } = {},
 ): Promise<KurvaPaketDokumen | "tidak_ada" | "kosong"> {
   const scoped = user ? await accessibleLocationIds(user) : null;
   const pkg = await db.package.findFirst({
@@ -49,7 +53,10 @@ export async function susunKurvaPaket(
       id: true,
       name: true,
       locations: {
-        where: scoped === null ? undefined : { id: { in: scoped } },
+        where: {
+          ...(scoped === null ? {} : { id: { in: scoped } }),
+          ...(opsi.lokasiIds ? { AND: [{ id: { in: [...opsi.lokasiIds] } }] } : {}),
+        },
         // Urutan yang sama dengan halaman paket – warna garis & nomor baris
         // mengikuti lokasinya.
         orderBy: { name: "asc" },
@@ -85,7 +92,8 @@ export async function susunKurvaPaket(
     totalWeeks: kurva.totalWeeks,
     header: {
       ...dasar.header,
-      locationName: `${ikut.length} lokasi`,
+      // Kurva satu lokasi (berkas termin, DECISIONS 725) memakai nama lokasinya.
+      locationName: ikut.length === 1 ? ikut[0].name : `${ikut.length} lokasi`,
       village: ikut.map((l) => l.name).join(", "),
       district: null,
       regency: unik(ikut.map((l) => l.regency)),

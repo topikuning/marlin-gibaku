@@ -3,14 +3,16 @@ import {
   awalanPeriodeTermin,
   namaLaporanTermin,
   pekerjaanBuang,
+  namaDenganLokasi,
   periodePekerjaanTermin,
   refKeyPekerjaanTermin,
+  subfolderLokasi,
   rencanaBerkasTermin,
   rentangMingguTermin,
   uraiPeriodeTermin,
   type PekerjaanTermin,
 } from "@/lib/penagihan/berkas-termin-aturan";
-import { KATALOG_BERKAS_TERMIN, type StatusButir } from "@/lib/penagihan/katalog";
+import { KATALOG_BERKAS_TERMIN, gabungStatusLokasi, type StatusButir } from "@/lib/penagihan/katalog";
 
 /**
  * "Siapkan berkas Termin n" (DECISIONS 721): periode laporan termin dan
@@ -61,47 +63,59 @@ function baris(ada: Record<string, Sumber[]> = {}) {
 describe("rencanaBerkasTermin", () => {
   const dasar = { terminKe: 1, lokasi: ["L1", "L2"], rentang: { awal: 1, akhir: 3 }, bulan: [1] };
 
-  it("laporan MARLIN: Kurva S sekali per paket; mingguan & harian per lokasi per minggu; bulanan per bulan; dokumentasi per lokasi", () => {
+  it("pola berkas yang lolos (Putera Fahlevi): Kurva S & mingguan minggu prestasi per lokasi; harian tiap minggu; bulanan per bulan; dokumentasi per lokasi", () => {
     const r = rencanaBerkasTermin({ ...dasar, baris: baris() });
     const hitung = (j: string) => r.filter((p) => p.jenis === j).length;
-    expect(hitung("kurva_s")).toBe(1);
-    expect(hitung("mingguan")).toBe(2 * 3);
+    expect(hitung("kurva_s")).toBe(2);
+    expect(hitung("mingguan")).toBe(2);
     expect(hitung("harian")).toBe(2 * 3);
     expect(hitung("bulanan")).toBe(2 * 1);
     expect(hitung("dokumentasi")).toBe(2);
     expect(hitung("berkas")).toBe(0);
-    // Satu PDF untuk dua folder: "7. Laporan Mingguan" dan BERKAS DOKUMEN TEKNIS 6.
-    expect(r.find((p) => p.jenis === "mingguan")!.kode).toEqual(["7", "T6"]);
-    // Kurva S berhenti di minggu prestasi (akhir rentang), bukan minggu berjalan.
-    expect(r.find((p) => p.jenis === "kurva_s")).toMatchObject({ kode: ["5", "T9"], nomor: 3, locationId: null });
+    // Hanya folder utama – duplikat BERKAS DOKUMEN TEKNIS tidak diisi ulang.
+    expect(r.find((p) => p.jenis === "mingguan")).toMatchObject({ kode: ["7"], nomor: 3 });
+    expect(r.filter((p) => p.jenis === "kurva_s").map((p) => [p.locationId, p.nomor, p.kode])).toEqual([
+      ["L1", 3, ["5"]],
+      ["L2", 3, ["5"]],
+    ]);
     expect(r.filter((p) => p.jenis === "harian").map((p) => p.nomor)).toEqual([1, 2, 3, 1, 2, 3]);
   });
 
-  it("berkas yang sudah ada disalin; folder yang diisi versi sendiri tidak diberi versi MARLIN", () => {
-    // Kurva S bertanda tangan diunggah: karena 5 & T9 berpasangan, keduanya "ada".
+  it("berkas yang sudah ada disalin ke folder utama saja", () => {
     const kurva = [{ dokumenId: "kurva-sendiri" }];
     const r = rencanaBerkasTermin({
       ...dasar,
       baris: baris({ "3": [{ dokumenId: "spmk" }], "9a": [{ suratId: "s1" }], "5": kurva, T9: kurva }),
     });
-    const salin = r.filter((p) => p.jenis === "berkas");
-    expect(salin.map((p) => [p.kode[0], p.sumber])).toEqual([
+    expect(r.filter((p) => p.jenis === "berkas").map((p) => [p.kode[0], p.sumber])).toEqual([
       ["3", "dspmk"],
       ["5", "dkurva-sendiri"],
       ["9a", "ss1"],
-      ["T9", "dkurva-sendiri"],
     ]);
     expect(r.some((p) => p.jenis === "kurva_s")).toBe(false);
   });
 
+  it("versi sendiri PER LOKASI: hanya lokasi yang belum diisi diberi versi MARLIN; berkas desa itu tetap disalin", () => {
+    const perLokasi: { locationId: string; status: StatusButir }[] = [
+      { locationId: "L1", status: "ada" },
+      { locationId: "L2", status: "disiapkan_marlin" },
+    ];
+    // Status gabungannya seperti di halaman: satu desa versi sendiri, satu desa MARLIN = belum "ada".
+    const status = gabungStatusLokasi(perLokasi.map((x) => x.status))!;
+    expect(status).not.toBe("ada");
+    const rows = baris({ "7": [{ dokumenId: "scan-l1" }] }).map((b) => (b.kode === "7" ? { ...b, status, lokasi: perLokasi } : b));
+    const r = rencanaBerkasTermin({ ...dasar, baris: rows });
+    expect(r.filter((p) => p.jenis === "mingguan").map((p) => p.locationId)).toEqual(["L2"]);
+    expect(r.filter((p) => p.jenis === "berkas").map((p) => p.sumber)).toEqual(["dscan-l1"]);
+  });
+
   it("versi sendiri bisa beberapa berkas (scan per minggu): semuanya disalin, satu baris antrean per berkas", () => {
     const scan = [{ dokumenId: "m1" }, { dokumenId: "m2" }, { dokumenId: "m3" }];
-    const r = rencanaBerkasTermin({ ...dasar, baris: baris({ "7": scan, T6: scan }) });
+    const r = rencanaBerkasTermin({ ...dasar, baris: baris({ "7": scan }) });
     const salin = r.filter((p) => p.jenis === "berkas");
-    expect(salin).toHaveLength(6);
-    expect(new Set(salin.map((p) => refKeyPekerjaanTermin("P", p))).size).toBe(6);
+    expect(salin).toHaveLength(3);
+    expect(new Set(salin.map((p) => refKeyPekerjaanTermin("P", p))).size).toBe(3);
     expect(r.some((p) => p.jenis === "mingguan")).toBe(false);
-    // Laporan lain tetap dibuat MARLIN.
     expect(r.filter((p) => p.jenis === "harian")).toHaveLength(6);
   });
 
@@ -110,14 +124,24 @@ describe("rencanaBerkasTermin", () => {
     expect(r.some((p) => p.kode.includes("9c") || p.kode.includes("9b"))).toBe(false);
   });
 
-  it("tanpa lokasi aktif: hanya berkas paket dan Kurva S", () => {
+  it("tanpa lokasi aktif: hanya berkas yang ada", () => {
     const r = rencanaBerkasTermin({ ...dasar, lokasi: [], baris: baris({ "3": [{ dokumenId: "x" }] }) });
-    expect(r.map((p) => p.jenis).sort()).toEqual(["berkas", "kurva_s"]);
+    expect(r.map((p) => p.jenis)).toEqual(["berkas"]);
+  });
+
+  it("subfolder & nama desa seperti berkas yang lolos", () => {
+    expect(subfolderLokasi("7", "Asemdoyong")).toEqual(["ASEMDOYONG"]);
+    expect(subfolderLokasi("8", "Asemdoyong")).toEqual(["DOKUMENTASI - ASEMDOYONG"]);
+    expect(subfolderLokasi("12", "Asemdoyong")).toEqual([]);
+    expect(subfolderLokasi("7", null)).toEqual([]);
+    expect(namaDenganLokasi("Lampiran NEGO.xlsx", "Muarareja")).toBe("Muarareja - Lampiran NEGO.xlsx");
+    expect(namaDenganLokasi("SHOP DRAWING KNMP MUARAREJA.pdf", "Muarareja")).toBe("SHOP DRAWING KNMP MUARAREJA.pdf");
+    expect(namaDenganLokasi("RKS.pdf", null)).toBe("RKS.pdf");
   });
 });
 
 describe("kunci & periode antrean", () => {
-  const p: PekerjaanTermin = { terminKe: 2, jenis: "mingguan", nomor: 9, kode: ["7", "T6"], sumber: null, locationId: "L1" };
+  const p: PekerjaanTermin = { terminKe: 2, jenis: "mingguan", nomor: 9, kode: ["7"], sumber: null, locationId: "L1" };
 
   it("periode bolak-balik utuh dan diawali nomor termin", () => {
     const periode = periodePekerjaanTermin(p);
@@ -137,7 +161,7 @@ describe("kunci & periode antrean", () => {
     const a: PekerjaanTermin = { terminKe: 1, jenis: "berkas", nomor: null, kode: ["3"], sumber: "dlama", locationId: null };
     expect(refKeyPekerjaanTermin("P", a)).not.toBe(refKeyPekerjaanTermin("P", { ...a, sumber: "dbaru" }));
     expect(refKeyPekerjaanTermin("P", a)).not.toBe(refKeyPekerjaanTermin("P", { ...a, kode: ["T12"] }));
-    expect(refKeyPekerjaanTermin("P", p)).toBe(refKeyPekerjaanTermin("P", { ...p, kode: ["T6"] }));
+    expect(refKeyPekerjaanTermin("P", p)).toBe(refKeyPekerjaanTermin("P", { ...p, kode: ["7", "T6"] }));
     // Minggu prestasi dibetulkan: Kurva S termin itu tetap satu baris.
     const kurva: PekerjaanTermin = { terminKe: 1, jenis: "kurva_s", nomor: 7, kode: ["5"], sumber: null, locationId: null };
     expect(refKeyPekerjaanTermin("P", kurva)).toBe(refKeyPekerjaanTermin("P", { ...kurva, nomor: 6 }));
@@ -179,8 +203,8 @@ describe("kunci & periode antrean", () => {
 
   it("nama berkas laporan menyebut minggu dan lokasinya", () => {
     expect(namaLaporanTermin(p, { lokasi: "Asemdoyong", paket: "Paket A" })).toBe("Laporan Mingguan Minggu ke-9 - Asemdoyong.pdf");
-    expect(namaLaporanTermin({ ...p, jenis: "kurva_s", nomor: null, locationId: null }, { lokasi: null, paket: "Paket A" })).toBe(
-      "Kurva S - Paket A.pdf",
+    expect(namaLaporanTermin({ ...p, jenis: "kurva_s", nomor: 7 }, { lokasi: "Asemdoyong", paket: "Paket A" })).toBe(
+      "Kurva S Minggu 1-7 - Asemdoyong.pdf",
     );
   });
 });

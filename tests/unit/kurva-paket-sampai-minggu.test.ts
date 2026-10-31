@@ -7,8 +7,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 vi.mock("server-only", () => ({}));
+/** Saringan lokasi yang diminta ke database. */
+let saringLokasi: unknown = null;
 vi.mock("@/lib/db", () => ({
-  db: { package: { findFirst: async () => ({ id: "P", name: "Paket", locations: [{ id: "L1", name: "Desa", regency: "K", province: "P" }] }) } },
+  db: {
+    package: {
+      findFirst: async (q: { select: { locations: { where: unknown } } }) => {
+        saringLokasi = q.select.locations.where;
+        return { id: "P", name: "Paket", locations: [{ id: "L1", name: "Desa", regency: "K", province: "P" }] };
+      },
+    },
+  },
 }));
 vi.mock("@/lib/auth/session", () => ({ accessibleLocationIds: async () => null }));
 vi.mock("@/lib/auth/scope", () => ({ packageScopeWhere: () => ({}) }));
@@ -38,6 +47,7 @@ const { susunKurvaPaket } = await import("@/lib/laporan/kurva-paket");
 
 beforeEach(() => {
   mingguKepala.length = 0;
+  saringLokasi = null;
 });
 
 describe("susunKurvaPaket sampaiMinggu", () => {
@@ -57,5 +67,19 @@ describe("susunKurvaPaket sampaiMinggu", () => {
     expect(dok.report.scurve.currentWeek).toBe(6);
     expect(dok.report.scurve.actualPct[5]).toBe(41);
     expect(mingguKepala).toEqual([6]);
+  });
+});
+
+describe("susunKurvaPaket lokasiIds (DECISIONS 725)", () => {
+  it("Kurva S satu lokasi untuk berkas termin: hanya lokasi itu yang dimuat, kepalanya memakai nama lokasinya", async () => {
+    const dok = await susunKurvaPaket("P", null, { sampaiMinggu: 4, lokasiIds: ["L1"] });
+    if (typeof dok === "string") throw new Error(dok);
+    expect(saringLokasi).toEqual({ AND: [{ id: { in: ["L1"] } }] });
+    expect(dok.report.header.locationName).toBe("Desa");
+  });
+
+  it("tanpa lokasiIds: semua lokasi paket, kepala menyebut jumlahnya", async () => {
+    await susunKurvaPaket("P", null);
+    expect(saringLokasi).toEqual({});
   });
 });
