@@ -17,6 +17,7 @@ import { isR2Configured, r2Put } from "@/lib/r2";
 import { kotakTulisanFoto, processWithSharpOrOriginal, ringkasBukti, tagBawaanFoto } from "@/lib/photos";
 import { pastikanFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { parseCoordinatePair } from "@/lib/geo";
+import { jakartaDateKey } from "@/lib/format";
 import {
   filterArsipSchema,
   konteksFoto,
@@ -106,7 +107,18 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
       const iso = waktuRaw.length <= 10 ? `${waktuRaw}T00:00:00+07:00` : `${waktuRaw}:00+07:00`;
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return { error: "Format waktu tidak dikenali." };
-      if (d.getTime() !== lama.takenAt.getTime()) {
+      /*
+       * Dibandingkan SETELITI kolomnya (DECISIONS 734). Kolom form hanya sampai
+       * menit, sedangkan jam EXIF berdetik (09:39:22). Membandingkan milidetik
+       * membuat setiap perbaikan cap – bahkan yang cuma mengganti nama pelapor –
+       * dihitung "waktu diketik manual": jam terpotong, cap mencetak tanggal
+       * biru, dan tanggal cap kamera tidak lagi diakui.
+       */
+      const sama =
+        waktuRaw.length <= 10
+          ? jakartaDateKey(lama.takenAt) === waktuRaw
+          : Math.floor(lama.takenAt.getTime() / 60_000) === Math.floor(d.getTime() / 60_000);
+      if (!sama) {
         takenAt = d;
         timeSource = "manual";
         manualFields.push("waktu");

@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 734 | 2026-11-01 | Cap MARLIN tidak lagi menimpa cap kamera di atas foto: susunan baru `dasar` (kepala di bawah, blok info di atasnya) – 12 susunan lama selalu menaruh sesuatu di atas; jam di form perbaikan cap dibandingkan per menit (dulu selisih detik = "diketik manual" → jam terpotong, tanggal biru tercetak ganda); migrasi mengembalikan jam manual palsu + cap ulang di latar untuk foto ber-tulisan di pita atas, kecuali yang punya ketikan sungguhan |
 | 733 | 2026-11-01 | Impor laporan harian buatan pelaksana (PDF) ke draft: templat dibaca dari posisi teks (`unpdf`), format lain lewat AI (prompt `harian.baca_pelaksana`); pratinjau mencocokkan uraian ke item RAB, volume di atas sisa DITAHAN dengan peringatan (pilih ulang/ke draft adendum/lewati), tanggal/hari/lokasi/satuan yang janggal disebut; simpan lewat layanan biasa (penjaga sisa tetap), tenaga diganti bila dicentang, bahan/alat ditambah, cuaca & foto tidak diimpor |
 | 732 | 2026-11-01 | Kartu Realisasi (kepala lokasi) dan Terpasang (Ringkasan, juga ponsel) menyebut "Menurut draft adendum #N: x% · belum resmi" dari `getProgresDraftAdendum` (kanonik, 210) – tanpa rumus baru; angka resmi tidak berubah |
 | 731 | 2026-11-01 | Di layar sentuh (`pointer: coarse`) tombol, kotak isian, Combobox, dan pil sub-tab minimal 44 px (`pointer-coarse:min-h-11` di primitif + elemen ketuk buatan sendiri di layar harian/RAB); desktop tetap |

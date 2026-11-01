@@ -92,8 +92,12 @@ export function tutupan(peta: PetaTulisan, r: Persegi, W: number, H: number): nu
  * - `bawah`: kepala di atas, blok info di bawah (tata letak lama).
  * - `atas`: kepala di atas, blok info tepat di bawah kepala – bawah foto bebas.
  * - `tukar`: blok info di atas, kepala di bawah.
+ * - `dasar`: kepala di bawah, blok info tepat di atas kepala – ATAS foto bebas.
+ *   Cermin `atas`, untuk cap aplikasi kamera selebar foto di bagian atas
+ *   (DECISIONS 734). Tanpa susunan ini ke-12 susunan lain selalu menaruh
+ *   sesuatu di atas, jadi salah satu unsur MARLIN pasti menimpa cap itu.
  */
-export type LetakTegak = "bawah" | "atas" | "tukar";
+export type LetakTegak = "bawah" | "atas" | "tukar" | "dasar";
 
 export type TataLetak = {
   tegak: LetakTegak;
@@ -125,15 +129,23 @@ export type UkuranCap = {
 
 export const TATA_LETAK_LAMA: TataLetak = { tegak: "bawah", infoKanan: false, logoKiri: false };
 
+/** Kepala (panel perusahaan + logo) di tepi bawah foto. */
+export const kepalaDiBawah = (t: TataLetak): boolean => t.tegak === "tukar" || t.tegak === "dasar";
+
+/** Blok info di bagian atas foto (bayangannya dari tepi atas). */
+export const infoDiAtas = (t: TataLetak): boolean => t.tegak === "atas" || t.tegak === "tukar";
+
 /** Letak tiap unsur untuk satu susunan. */
 export function letakUnsur(u: UkuranCap, t: TataLetak) {
-  const kepalaY = t.tegak === "tukar" ? u.H - u.safeY - u.kepalaH : u.safeY;
+  const kepalaY = kepalaDiBawah(t) ? u.H - u.safeY - u.kepalaH : u.safeY;
   const infoY =
     t.tegak === "bawah"
       ? u.H - u.safeY - u.info.h
       : t.tegak === "atas"
         ? u.safeY + u.kepalaH + u.jarak
-        : u.safeY;
+        : t.tegak === "dasar"
+          ? u.H - u.safeY - u.kepalaH - u.jarak - u.info.h
+          : u.safeY;
   const infoX = t.infoKanan ? u.W - u.safeX - u.info.w : u.safeX;
   const logoX = t.logoKiri ? u.safeX : u.W - u.safeX - u.logo.w;
   const celah = Math.round(u.safeX * 0.6);
@@ -159,7 +171,7 @@ export function letakUnsur(u: UkuranCap, t: TataLetak) {
  * satu-dua kata nyasar hasil OCR (tekstur rumput, papan kecil) tidak
  * memindahkan cap: yang layak dihindari adalah blok tulisan sungguhan.
  */
-const HARGA = { atas: 0.05, tukar: 0.04, infoKanan: 0.03, logoKiri: 0.02, kepalaRapat: 0.03 };
+const HARGA = { atas: 0.05, tukar: 0.04, dasar: 0.06, infoKanan: 0.03, logoKiri: 0.02, kepalaRapat: 0.03 };
 
 const perluas = (r: Persegi, d: number): Persegi => ({ x: r.x - d, y: r.y - d, w: r.w + 2 * d, h: r.h + 2 * d });
 
@@ -169,9 +181,9 @@ export function pilihTataLetak(u: UkuranCap, kotak: KotakTulisan[]): TataLetak {
   const tepi = Math.round(Math.min(u.W, u.H) * 0.012);
   let terbaik = TATA_LETAK_LAMA;
   let skorTerbaik = Infinity;
-  for (const tegak of ["bawah", "tukar", "atas"] as const) {
-    // `atas` hanya kalau kepala + blok info muat di tinggi foto.
-    if (tegak === "atas" && u.safeY + u.kepalaH + u.jarak + u.info.h > u.H - u.safeY) continue;
+  for (const tegak of ["bawah", "tukar", "atas", "dasar"] as const) {
+    // `atas`/`dasar` hanya kalau kepala + blok info muat di tinggi foto.
+    if ((tegak === "atas" || tegak === "dasar") && u.safeY + u.kepalaH + u.jarak + u.info.h > u.H - u.safeY) continue;
     for (const infoKanan of [false, true])
       for (const logoKiri of [false, true])
         for (const kepalaRapat of [false, true]) {
@@ -183,7 +195,7 @@ export function pilihTataLetak(u: UkuranCap, kotak: KotakTulisan[]): TataLetak {
             tutupan(peta, perluas(l.info, tepi), u.W, u.H) +
             tutupan(peta, perluas(l.logo, tepi), u.W, u.H) +
             (l.panel ? 0.8 * tutupan(peta, perluas(l.panel, tepi), u.W, u.H) : 0) +
-            (tegak === "atas" ? HARGA.atas : tegak === "tukar" ? HARGA.tukar : 0) +
+            (tegak === "bawah" ? 0 : HARGA[tegak]) +
             (infoKanan ? HARGA.infoKanan : 0) +
             (logoKiri ? HARGA.logoKiri : 0) +
             (kepalaRapat ? HARGA.kepalaRapat : 0);

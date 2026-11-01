@@ -5,6 +5,8 @@ import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
 import { wordmarkSvgInner, WORDMARK_DEFS, WORDMARK_W, WORDMARK_H } from "@/lib/brand-mark";
 import {
   adaTulisanDi,
+  infoDiAtas,
+  kepalaDiBawah as kepalaDiBawahTata,
   letakUnsur,
   pilihTataLetak,
   type KotakTulisan,
@@ -390,7 +392,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   };
   const tata = pilihTataLetak(ukuran, hindari);
   const letak = letakUnsur(ukuran, tata);
-  const infoAtas = tata.tegak !== "bawah";
+  const infoAtas = infoDiAtas(tata);
   const kanan = tata.infoKanan;
   const xKiri = safeX;
   const xKanan = w - safeX;
@@ -401,7 +403,11 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   // bayangan dipersempit ke belakang blok MARLIN saja dan memudar ke dalam,
   // supaya cap aplikasi kamera di sebelahnya tidak ikut digelapkan.
   const a = Math.max(0, Math.min(1, d.overlayAlpha));
-  const band = Math.round(h * (portrait ? 0.3 : 0.34));
+  const bandBaku = Math.round(h * (portrait ? 0.3 : 0.34));
+  // `dasar`: blok info duduk di atas kepala, jadi pitanya harus mencapai blok
+  // itu juga (DECISIONS 734). Susunan lain tetap memakai pita baku.
+  const band =
+    tata.tegak === "dasar" ? Math.min(h, Math.max(bandBaku, Math.round(h - letak.info.y + safeY))) : bandBaku;
   // Di atas: bayangan dari tepi atas foto sampai sedikit melewati bawah blok,
   // dan tetap PEKAT sepanjang blok – baris metadata (paling redup) ada di
   // ujung bawahnya, persis di tempat bayangan mulai memudar.
@@ -419,7 +425,13 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     const pudar = Math.round(Math.max(safeX * 3, infoW * 0.4));
     const lebar = Math.min(w, safeX + infoW + pudar);
     const x0 = kanan ? w - lebar : 0;
-    const y0 = infoAtas ? 0 : Math.max(0, h - Math.round(total + safeY + total * 0.35));
+    // Di bawah: mulai sedikit di atas blok info. `dasar` (734) menghitungnya
+    // dari letak blok; `bawah` tetap rumus lamanya, piksel demi piksel.
+    const y0 = infoAtas
+      ? 0
+      : tata.tegak === "dasar"
+        ? Math.max(0, Math.round(letak.info.y - total * 0.35))
+        : Math.max(0, h - Math.round(total + safeY + total * 0.35));
     const tinggi = infoAtas ? pita.h : h - y0;
     const mulaiPudar = (1 - Math.min(0.9, pudar / lebar)).toFixed(3);
     masker =
@@ -435,7 +447,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 
   // ── Kepala ──
   // Garis tengah kepala; di bawah bila blok info pindah ke atas (`tukar`).
-  const kepalaDiBawah = tata.tegak === "tukar";
+  const kepalaDiBawah = kepalaDiBawahTata(tata);
   const kepalaTengah = kepalaDiBawah ? h - safeY - tinggiPanel / 2 : safeY + tinggiPanel / 2;
   if (co) {
     const fsCo = co.fs;
@@ -538,7 +550,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     const warnaBaris = row.warna ?? TEXT_WHITE;
     // Bayangan teks hanya saat tata letaknya menyesuaikan cap lama: di situ
     // latarnya lebih tipis. Cap baku tetap persis seperti semula.
-    const haloMeta = infoAtas || setempat ? ` ${halo(fsMeta)}` : "";
+    const haloMeta = tata.tegak !== "bawah" || setempat ? ` ${halo(fsMeta)}` : "";
     if (row.boldTail) {
       parts.push(
         `<text x="${tx}" y="${ty}"${anchor} font-family="${ff}" font-weight="400" font-size="${fsMeta}"${haloMeta} fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,

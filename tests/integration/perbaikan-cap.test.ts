@@ -9,6 +9,7 @@
 // sini adalah SAMBUNGANNYA — setelah arsip dihapus, perbaikan cap harus
 // menolak dengan sebab yang benar, bukan gagal dengan pesan yang menyesatkan.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync as bacaBerkas } from "node:fs";
 
 process.env.APP_ENV ??= "test";
 process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
@@ -383,6 +384,36 @@ describe("pagar perbaikan cap", () => {
     expect(res?.error).toMatch(/tidak ada yang berubah/i);
   });
 
+  it("waktu yang dikirim form apa adanya (tanpa detik) BUKAN ketikan manual (DECISIONS 734)", async () => {
+    // Foto Botuliodu 2026-11-01: jam EXIF 09:39:22, kolom form hanya sampai
+    // menit (09:39). Selisih 22 detik itu dulu dihitung "diketik manual" →
+    // jam terpotong, sumber waktu jadi `manual` (biru di cap), dan tanggal
+    // dicetak ulang di atas tanggal cap kamera.
+    fotoId = await buatFoto({ exifTakenAt: new Date("2026-09-30T02:39:22.000Z"), metadataSource: "exif" });
+    const res = await restampPhotoAction(
+      undefined,
+      fdRestamp({ takenAt: "2026-09-30T09:39", jamDiketahui: "on", reporterName: "Rivaldo" }),
+    );
+    expect(res?.error).toBeUndefined();
+    const p = await db.photo.findUniqueOrThrow({
+      where: { id: fotoId },
+      select: { exifTakenAt: true, metadataSource: true },
+    });
+    expect(p.exifTakenAt?.toISOString()).toBe("2026-09-30T02:39:22.000Z");
+    expect(p.metadataSource).toBe("exif");
+    const rev = await db.photoStampRevision.findFirstOrThrow({ where: { photoId: fotoId }, select: { manualFields: true } });
+    expect(rev.manualFields).toEqual(["reporterName"]);
+  });
+
+  it("waktu yang memang diganti menitnya tetap dicatat manual", async () => {
+    fotoId = await buatFoto({ exifTakenAt: new Date("2026-09-30T02:39:22.000Z"), metadataSource: "exif" });
+    const res = await restampPhotoAction(undefined, fdRestamp({ takenAt: "2026-09-30T10:15", jamDiketahui: "on" }));
+    expect(res?.error).toBeUndefined();
+    const p = await db.photo.findUniqueOrThrow({ where: { id: fotoId }, select: { exifTakenAt: true, metadataSource: true } });
+    expect(p.exifTakenAt?.toISOString()).toBe("2026-09-30T03:15:00.000Z");
+    expect(p.metadataSource).toBe("manual");
+  });
+
   it("koordinat di luar Indonesia ditolak", async () => {
     const res = await restampPhotoAction(undefined, fdRestamp({ lat: "48.85", lng: "2.35" }));
     expect(res?.error).toBeTruthy();
@@ -605,4 +636,77 @@ describe("perbaikan cap memakai aturan terbaru", () => {
     expect(p).toMatchObject({ existingTagLocation: true, existingTagTime: true, stampRevision: 1 });
     expect(Array.isArray(p.textBoxes) && p.textBoxes.length).toBeGreaterThan(0);
   }, 60_000);
+});
+
+// Data lama DECISIONS 734: jam "manual" palsu dikembalikan, cap yang tertimpa
+// dibuat ulang di latar. Migrasi dijalankan di dalam transaksi yang DIBATALKAN
+// – ia menyapu seluruh tabel foto, dan uji lain berbagi basis data yang sama.
+describe("migrasi 734: jam manual palsu + cap kamera di atas", () => {
+  const MIGRASI = bacaBerkas(
+    new URL("../../prisma/migrations/20261101100000_cap_foto_kamera_atas/migration.sql", import.meta.url).pathname,
+    "utf8",
+  )
+    .split(/;\s*$/m)
+    .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
+    .filter(Boolean);
+  const BATAL = new Error("batalkan");
+  const ATAS = [{ x: 0, y: 0.09, w: 0.52, h: 0.06 }];
+  const BAWAH = [{ x: 0.02, y: 0.84, w: 0.3, h: 0.05 }];
+  const ringkas = (waktu: string, sumber: string) => ({ waktu, jamDiketahui: true, sumberWaktu: sumber, pelapor: "Aktor" });
+  const revisi = (photoId: string, before: object, after: object, manualFields: string[]) =>
+    db.photoStampRevision.create({
+      data: { photoId, revision: 1, reason: "uji migrasi 734", before, after, manualFields, changedById: sessionUserId },
+    });
+
+  it("jam yang cuma kehilangan detik dikembalikan; ketikan sungguhan tidak disentuh; cap dibuat ulang hanya bila aman", async () => {
+    const atasBersih = await buatFoto({ textBoxes: ATAS });
+    const bawahSaja = await buatFoto({ textBoxes: BAWAH });
+    const palsu = await buatFoto({ exifTakenAt: new Date("2026-09-30T02:39:00.000Z"), metadataSource: "manual", stampRevision: 1 });
+    await revisi(palsu, ringkas("2026-09-30T02:39:22.000Z", "exif"), ringkas("2026-09-30T02:39:00.000Z", "manual"), ["waktu"]);
+    const palsuBernama = await buatFoto({
+      exifTakenAt: new Date("2026-09-30T02:39:00.000Z"),
+      metadataSource: "manual",
+      stampRevision: 1,
+      textBoxes: ATAS,
+    });
+    await revisi(
+      palsuBernama,
+      ringkas("2026-09-30T02:39:22.000Z", "exif"),
+      ringkas("2026-09-30T02:39:00.000Z", "manual"),
+      ["waktu", "reporterName"],
+    );
+    const sungguhan = await buatFoto({
+      exifTakenAt: new Date("2026-09-30T03:15:00.000Z"),
+      metadataSource: "manual",
+      stampRevision: 1,
+      textBoxes: ATAS,
+    });
+    await revisi(sungguhan, ringkas("2026-09-30T02:39:22.000Z", "exif"), ringkas("2026-09-30T03:15:00.000Z", "manual"), ["waktu"]);
+
+    let hasil: Record<string, { exifTakenAt: Date | null; metadataSource: string; ocrPending: boolean }> = {};
+    await db
+      .$transaction(async (tx) => {
+        for (let i = 0; i < 2; i++) for (const sql of MIGRASI) await tx.$executeRawUnsafe(sql); // idempoten
+        const rows = await tx.photo.findMany({
+          where: { id: { in: [atasBersih, bawahSaja, palsu, palsuBernama, sungguhan] } },
+          select: { id: true, exifTakenAt: true, metadataSource: true, ocrPending: true },
+        });
+        hasil = Object.fromEntries(rows.map((r) => [r.id, r]));
+        throw BATAL;
+      })
+      .catch((e) => {
+        if (e !== BATAL) throw e;
+      });
+
+    expect(hasil[atasBersih].ocrPending).toBe(true);
+    expect(hasil[bawahSaja].ocrPending).toBe(false);
+    expect(hasil[palsu]).toMatchObject({ metadataSource: "exif", ocrPending: true });
+    expect(hasil[palsu].exifTakenAt?.toISOString()).toBe("2026-09-30T02:39:22.000Z");
+    // Jam tetap dikembalikan, tapi cap TIDAK dibuat ulang otomatis: nama yang diketik akan hilang.
+    expect(hasil[palsuBernama]).toMatchObject({ metadataSource: "exif", ocrPending: false });
+    expect(hasil[palsuBernama].exifTakenAt?.toISOString()).toBe("2026-09-30T02:39:22.000Z");
+    // Jam yang memang diganti: tidak disentuh, tidak dicap ulang.
+    expect(hasil[sungguhan]).toMatchObject({ metadataSource: "manual", ocrPending: false });
+    expect(hasil[sungguhan].exifTakenAt?.toISOString()).toBe("2026-09-30T03:15:00.000Z");
+  });
 });
