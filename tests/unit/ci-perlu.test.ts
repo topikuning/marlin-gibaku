@@ -138,4 +138,20 @@ describe("alur kerja memakai skrip ini, dan `checks` tidak pernah digerbang", ()
   it("push ke main tetap menjalankan semuanya", () => {
     expect(alur).toContain('!= "pull_request"');
   });
+
+  /*
+   * 2026-11-01: job E2E tertahan 30+ menit di "Install Playwright Chromium"
+   * (biasanya 20 detik) – sebelum satu uji pun jalan. Tanpa batas waktu, job
+   * GitHub baru dihentikan sesudah 360 menit, dan PR menunggu selama itu.
+   */
+  it("job E2E berbatas waktu; pemasangan Chromium yang macet diulang, tidak ditunggu", () => {
+    const mulai = alur.indexOf("\n  e2e:\n");
+    expect(mulai).toBeGreaterThan(-1);
+    const job = alur.slice(mulai);
+    expect(job).toMatch(/\n {4}timeout-minutes: \d+\n/);
+    const pasang = job.slice(job.indexOf("- name: Install Playwright Chromium"), job.indexOf("- name: Build"));
+    expect(pasang).toMatch(/timeout-minutes: \d+/);
+    expect(pasang).toMatch(/timeout \d+ pnpm exec playwright install/);
+    expect(job.slice(0, job.indexOf("- name: Install Playwright Chromium"))).toContain("~/.cache/ms-playwright");
+  });
 });

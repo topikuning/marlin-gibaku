@@ -184,6 +184,10 @@ jobs:
     needs: perubahan
     if: needs.perubahan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    # Biasanya ±17 menit. Tanpa batas, job yang macet baru dihentikan GitHub
+    # sesudah 360 menit dan PR ikut menunggu selama itu (2026-11-01: 30+ menit
+    # tertahan di pemasangan Chromium sebelum satu uji pun jalan).
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -215,8 +219,22 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Migrate + generate + seed
         run: pnpm prisma migrate deploy && pnpm db:generate && pnpm db:seed
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        # Tahan-macet: biasanya 20 detik (apt `--with-deps` + unduhan
+        # cdn.playwright.dev). Percobaan yang menggantung dihentikan sesudah
+        # 150 detik lalu diulang, bukan ditunggu sampai batas job habis.
+        timeout-minutes: 10
+        run: |
+          for i in 1 2 3; do
+            if timeout 150 pnpm exec playwright install --with-deps chromium; then exit 0; fi
+            echo "::warning::Pemasangan Chromium gagal/macet (percobaan $i) – diulang…"; sleep $((i * 5))
+          done
+          echo "::error::Pemasangan Chromium gagal 3 kali."; exit 1
       - name: Build
         run: pnpm build
       - name: E2E
