@@ -24,4 +24,15 @@ describe("pembersihan uji integrasi", () => {
     const pelanggar = berkas.filter((f) => /DELETE FROM \\?"organizations\\?"/.test(readFileSync(`${dir}/${f}`, "utf8")));
     expect(pelanggar).toEqual([]);
   });
+
+  /*
+   * Uji yang kehabisan waktu terus berjalan di latar dan merusak uji
+   * sesudahnya (CI PR #380, 2026-11-01: satu timeout → 8 kegagalan ikutan).
+   * Batas bawaan 5 detik terlalu ketat untuk berkas pertama di shard CI.
+   */
+  it("batas waktu uji cukup untuk mesin CI yang masih dingin", () => {
+    const konfig = readFileSync("vitest.config.ts", "utf8");
+    const batas = Number(konfig.match(/testTimeout:\s*([\d_]+)/)?.[1].replace(/_/g, "") ?? 0);
+    expect(batas).toBeGreaterThanOrEqual(20_000);
+  });
 });
