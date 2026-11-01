@@ -100,11 +100,23 @@ const angka = (b: Awaited<ReturnType<typeof baselineAktif>>) => b.points.map((p)
 const matriks = (b: Awaited<ReturnType<typeof baselineAktif>>) =>
   Object.fromEntries(b.scheduleItems.map((s) => [s.lineageKey, s.weekly as number[]]));
 
-function aktifkan(revisionId: string, revisionNo: number) {
+/**
+ * Aktivasi ADENDUM lewat dua persetujuan yang sah (PD + SM). Jalan pintas
+ * super admin kini KOREKSI di tempat (DECISIONS 728) – bukan aktivasi adendum
+ * yang membawa kurva-S ke revisi baru, yang justru diuji di sini.
+ */
+async function aktifkan(revisionId: string, _revisionNo: number) {
+  const rev = await db.rabRevision.findUniqueOrThrow({ where: { id: revisionId }, select: { totalValue: true } });
+  await db.rabRevisionApproval.createMany({
+    data: (["pd", "sm"] as const).map((k) => ({
+      revisionId,
+      userId: penyetuju[k].id,
+      role: penyetuju[k].role,
+      totalValue: rev.totalValue,
+    })),
+  });
   const fd = new FormData();
   fd.set("revisionId", revisionId);
-  fd.set("tanpaPersetujuan", "1");
-  fd.set("konfirmasi", `AKTIFKAN #${revisionNo}`);
   return activateDraftAction(undefined, fd);
 }
 
@@ -270,7 +282,7 @@ describe("lokasi yang belum punya kurva-S", () => {
   }, 60_000);
 });
 
-describe("impor \"jadikan RAB aktif\" untuk adendum", () => {
+describe("impor \"jadikan RAB aktif\" = koreksi (DECISIONS 728)", () => {
   const NAMA = "rab-aktif-situbondo.xlsx";
   const ISI = readFileSync(new URL(`../fixtures/${NAMA}`, import.meta.url).pathname);
 
@@ -321,22 +333,22 @@ describe("impor \"jadikan RAB aktif\" untuk adendum", () => {
       return (await importHps(undefined, fd)) ?? {};
     };
     const pratinjau = await impor();
-    const no = pratinjau.preview!.tanpaPersetujuan!.revisionNo;
+    const no = pratinjau.preview!.koreksi!.revisionNo;
     const simpan = await impor({
       confirm: "1",
       previewSha: pratinjau.preview!.sha256,
-      tanpaPersetujuan: "1",
-      konfirmasi: `AKTIFKAN #${no}`,
+      konfirmasi: `KOREKSI #${no}`,
     });
     expect(simpan.error, simpan.error).toBeUndefined();
-    expect(simpan.success).toMatch(/Kurva-S tidak diubah/);
-    expect(simpan.success).not.toMatch(/dibuat ulang/);
+    expect(simpan.success).toMatch(/dikoreksi/);
 
+    // Koreksi menimpa revisi aktif di tempat: revisi & kurva-S yang sama.
     const sesudah = await baselineAktif(lok.id);
     const aktif = await db.rabRevision.findFirstOrThrow({ where: { locationId: lok.id, status: "aktif" } });
     expect(aktif.revisionNo).toBe(no);
+    expect(aktif.id).toBe(awal.revisionId);
     expect(sesudah.rabRevisionId).toBe(aktif.id);
-    expect(sesudah.baselineNo).toBe(sebelum.baselineNo + 1);
+    expect(sesudah.baselineNo).toBe(sebelum.baselineNo);
     expect(angka(sesudah)).toEqual(angka(sebelum));
     expect(matriks(sesudah)).toEqual(matriks(sebelum));
   }, 300_000);

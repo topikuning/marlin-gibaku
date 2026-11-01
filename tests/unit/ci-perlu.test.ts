@@ -138,4 +138,79 @@ describe("alur kerja memakai skrip ini, dan `checks` tidak pernah digerbang", ()
   it("push ke main tetap menjalankan semuanya", () => {
     expect(alur).toContain('!= "pull_request"');
   });
+
+  /*
+   * 2026-11-01: job E2E tertahan 30+ menit di "Install Playwright Chromium"
+   * (biasanya 20 detik) – sebelum satu uji pun jalan. Tanpa batas waktu, job
+   * GitHub baru dihentikan sesudah 360 menit, dan PR menunggu selama itu.
+   */
+  it("job E2E berbatas waktu; pemasangan Chromium yang macet diulang, tidak ditunggu", () => {
+    const mulai = alur.indexOf("\n  e2e:\n");
+    expect(mulai).toBeGreaterThan(-1);
+    const job = alur.slice(mulai);
+    expect(job).toMatch(/\n {4}timeout-minutes: \d+\n/);
+    const pasang = job.slice(job.indexOf("- name: Install Playwright Chromium"), job.indexOf("- name: Build"));
+    expect(pasang).toMatch(/timeout-minutes: \d+/);
+    expect(pasang).toMatch(/timeout \d+ pnpm exec playwright install/);
+    expect(job.slice(0, job.indexOf("- name: Install Playwright Chromium"))).toContain("~/.cache/ms-playwright");
+  });
+});
+
+/*
+ * CI PARALEL (DECISIONS 729, pilihan user 2026-11-01 "lanjut A + B").
+ *
+ * E2E adalah jalur kritis di 16 run berturut-turut (16–20 menit), dan ±60%-nya
+ * satu berkas: sapuan overflow ponsel di dua lebar (8,7–9,8 menit). Integrasi
+ * ±12 menit. Keduanya kini dipecah menjadi job paralel yang masing-masing
+ * punya Postgres sendiri.
+ *
+ * Kegagalan yang dijaga di sini senyap: lebar sapuan baru yang tidak punya
+ * job sendiri TIDAK JALAN DI MANA PUN (bagian "lainnya" membuang semua
+ * @sapuan), dan shard yang angkanya tidak cocok dengan matriks melewatkan
+ * sebagian berkas integrasi – CI hijau dengan uji yang tidak pernah jalan.
+ */
+describe("CI paralel: tidak ada uji yang jatuh di antara bagian", () => {
+  const alur = readFileSync(".github/workflows/ci.yml", "utf8");
+  const spec = readFileSync("tests/e2e/mobile-overflow.spec.ts", "utf8");
+  const ruteMobile = readFileSync("tests/e2e/rute-mobile.ts", "utf8");
+  const lebar = (ruteMobile.match(/export const LEBAR_SAPUAN = \[([^\]]+)\]/)?.[1] ?? "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => n > 0);
+
+  it("tiap lebar sapuan punya bagian E2E sendiri; bagian lainnya membuang semua sapuan", () => {
+    expect(lebar.length).toBeGreaterThan(0);
+    for (const w of lebar) expect(alur).toContain(`--project=mobile --grep @sapuan-${w}`);
+    expect(alur).toContain("--grep-invert @sapuan");
+    expect(alur).toContain("pnpm test:e2e ${{ matrix.bagian.args }}");
+  });
+
+  it("uji sapuan bertanda @sapuan dan @sapuan-<lebar> – tanda itulah yang dipilih matriks", () => {
+    expect(spec).toContain('tag: ["@sapuan", `@sapuan-${LEBAR}`]');
+  });
+
+  it("shard integrasi sama dengan isi matriksnya", () => {
+    const isi = alur.match(/\n {8}shard: \[([^\]]+)\]/)?.[1].split(",").map((s) => s.trim()) ?? [];
+    expect(isi.length).toBeGreaterThan(1);
+    expect(isi).toEqual(isi.map((_, i) => String(i + 1)));
+    expect(alur).toContain(`pnpm vitest run tests/integration --shard=\${{ matrix.shard }}/${isi.length}`);
+  });
+
+  it("nama cek lama tetap ada sebagai penagih hasil semua bagian", () => {
+    for (const [kunci, nama, perlu] of [
+      ["e2e-hasil", "E2E (Playwright)", "e2e"],
+      ["integration-hasil", "Integration tests (Postgres)", "integration"],
+    ]) {
+      const mulai = alur.indexOf(`\n  ${kunci}:\n`);
+      expect(mulai, kunci).toBeGreaterThan(-1);
+      const job = alur.slice(mulai, mulai + 900);
+      expect(job).toContain(`name: ${nama}`);
+      expect(job).toContain(`needs.${perlu}.result`);
+      expect(job).toContain("always()");
+    }
+  });
+
+  it("artefak kegagalan tiap bagian tidak saling menimpa", () => {
+    expect(alur).toContain("name: playwright-hasil-${{ strategy.job-index }}");
+  });
 });

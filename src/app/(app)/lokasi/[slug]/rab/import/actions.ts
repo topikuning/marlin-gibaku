@@ -8,8 +8,7 @@ import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { ImporPerluJawaban, colLetter, parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { barisTanpaJumlah, bedaAntarLayer, flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
-import { bolehAktifTanpaPersetujuan, pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
-import { cocokKonfirmasiTanpaPersetujuan, konfirmasiTanpaPersetujuan } from "@/lib/rab/persetujuan-aturan";
+import { bolehAktifTanpaPersetujuan } from "@/lib/rab/persetujuan";
 import {
   activateRevision,
   createRevisionFromNodes,
@@ -19,15 +18,15 @@ import {
   gantiDraftLama,
   regenerateBaseline,
 } from "@/lib/rab/import";
-import { kalimatKurvaAdendum, kurvaSesudahAdendum } from "@/lib/baseline";
 import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanPerItem, bandingkanTerhadapAktif, type BandingItem, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { pohonRingkas, pohonRingkasBanding, type SimpulBanding } from "@/lib/rab/pohon-ringkas";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
-import { bandingKoreksiBaca, type PerubahanKoreksi } from "@/lib/rab/koreksi-baca";
-import { KoreksiBacaError, terapkanKoreksiBaca } from "@/lib/rab/koreksi-baca-simpan";
+import { kalimatUbah, rencanaKoreksiTimpa } from "@/lib/rab/koreksi-timpa";
+import { KoreksiTimpaError, kalimatTerhalang, simpulAktif, terapkanKoreksiTimpa, terhalangKoreksi } from "@/lib/rab/koreksi-timpa-simpan";
+import { cocokKonfirmasiKoreksi, konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
@@ -102,39 +101,21 @@ export type ImportPreview = {
   baca: import("@/lib/rab/hps-parser").PilihanBaca | null;
   mode: ImportMode;
   /**
-   * Mode `aktifkan` pada lokasi yang SUDAH punya RAB aktif (DECISIONS 680):
-   * apakah berkas ini cuma membetulkan pembacaan RAB aktif (item, induk,
-   * volume, jumlah sama persis) atau memang mengubah isi kontrak.
-   *
-   * `boleh` → disimpan langsung ke revisi aktif, tanpa revisi baru dan tanpa
-   * dua persetujuan, karena tidak ada angka kontrak yang berubah.
-   * Tidak `boleh` → jalur adendum: revisi baru yang tertahan sebagai DRAFT
-   * sampai disetujui. Sebabnya disebut supaya orang tahu sebelum menyimpan.
+   * Mode `aktifkan` pada lokasi yang SUDAH punya RAB aktif = KOREKSI (DECISIONS
+   * 728): isi RAB aktif ditimpa di tempat dengan isi berkas, tanpa revisi baru,
+   * bukan adendum/CCO, tanpa dua persetujuan. Hanya super admin utama (`boleh`).
+   * Baris yang masih dipakai laporan harian/rencana tidak boleh hilang
+   * (`terhalang`) – disebut sebelum disimpan.
    */
-  koreksi:
-    | {
-        boleh: true;
-        revisionNo: number;
-        hargaTerisi: number;
-        hargaBerubah: number;
-        jumlahBaris: number;
-        contoh: string[];
-      }
-    | {
-        boleh: false;
-        revisionNo: number;
-        sebab: string[];
-        /** Harga satuan kosong yang tetap bisa diisi tanpa adendum. */
-        hargaKosong: { jumlah: number; contoh: string[] };
-      }
-    | null;
-  /**
-   * Jalan pintas super admin UTAMA (DECISIONS 682): berkas yang mengubah isi
-   * RAB aktif boleh langsung diaktifkan tanpa dua persetujuan, setelah ia
-   * mengetik `AKTIFKAN #<revisionNo>`. `null` untuk siapa pun selain dia, dan
-   * bila berkas tidak akan jadi revisi baru.
-   */
-  tanpaPersetujuan: { revisionNo: number } | null;
+  koreksi: {
+    revisionNo: number;
+    boleh: boolean;
+    ringkas: import("@/lib/rab/koreksi-timpa").RencanaTimpa["ringkas"];
+    contoh: string[];
+    tambah: string[];
+    hapus: string[];
+    terhalang: string[];
+  } | null;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
   draftAda: { revisionNo: number; totalValue: string } | null;
   /**
@@ -1010,80 +991,35 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
-    let perubahanKoreksi: PerubahanKoreksi[] | null = null;
-    let hargaKosongKoreksi: PerubahanKoreksi[] = [];
+    /*
+     * KOREKSI (DECISIONS 728): "Jadikan RAB AKTIF" pada lokasi ber-RAB aktif
+     * menimpa isi revisi aktif di tempat. Rencananya dihitung di pratinjau –
+     * berapa baris berubah, baru, dihapus, dan baris mana yang tidak boleh
+     * hilang – supaya orang melihatnya sebelum ada yang ditulis.
+     */
     let koreksi: ImportPreview["koreksi"] = null;
     if (activeRevision && mode === "aktifkan") {
-      const kunciById = new Map(aktifNodes.map((n) => [n.id, n.lineageKey]));
-      const k = bandingKoreksiBaca(
-        aktifNodes.map((n) => ({
-          id: n.id,
-          lineageKey: n.lineageKey,
-          parentLineageKey: n.parentId ? (kunciById.get(n.parentId) ?? null) : null,
-          kind: n.kind,
-          code: n.code,
-          name: n.name,
-          unit: n.unit,
-          volume: n.volume == null ? null : Number(n.volume),
-          unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
-          amount: n.amount,
-        })),
-        nodes,
-      );
-      const kalimat = (p: PerubahanKoreksi) =>
-        [
-          p.unitPrice
-            ? p.unitPrice.dari == null
-              ? `harga satuan kosong → ${formatRupiahSatuan(p.unitPrice.ke)}`
-              : `harga satuan ${formatRupiahSatuan(p.unitPrice.dari)} → ${formatRupiahSatuan(p.unitPrice.ke)}`
-            : null,
-          p.unit ? `satuan "${p.unit.dari ?? ""}" → "${p.unit.ke ?? ""}"` : null,
-          p.name ? `nama → "${p.name.ke}"` : null,
-          p.code ? `nomor ${p.code.dari} → ${p.code.ke}` : null,
-          p.jenis ? `jenis ${p.jenis.dari} → ${p.jenis.ke}` : null,
-        ]
-          .filter(Boolean)
-          .join(", ");
-      if (k.boleh) {
-        perubahanKoreksi = k.perubahan;
-        koreksi = {
-          boleh: true,
-          revisionNo: activeRevision.revisionNo,
-          hargaTerisi: k.hargaTerisi,
-          hargaBerubah: k.hargaBerubah,
-          jumlahBaris: k.perubahan.length,
-          // Harga yang dulu kosong lebih dulu – itu yang dicari orang.
-          contoh: [...k.perubahan]
-            .sort((a, b) => Number(b.unitPrice?.dari === null) - Number(a.unitPrice?.dari === null))
-            .slice(0, 12)
-            .map((p) => `${p.label}: ${kalimat(p)}`),
-        };
-      } else {
-        hargaKosongKoreksi = k.hargaKosong;
-        koreksi = {
-          boleh: false,
-          revisionNo: activeRevision.revisionNo,
-          sebab: k.sebab,
-          hargaKosong: { jumlah: k.hargaKosong.length, contoh: k.hargaKosong.slice(0, 12).map((p) => `${p.label}: ${kalimat(p)}`) },
-        };
-      }
+      const rencana = rencanaKoreksiTimpa(await simpulAktif(activeRevision.id), nodes);
+      const fmt = {
+        angka: (n: number | null) => (n == null ? "kosong" : formatNumber(n)),
+        rupiah: (n: number | null) => (n == null ? "kosong" : formatRupiahSatuan(n)),
+      };
+      koreksi = {
+        revisionNo: activeRevision.revisionNo,
+        boleh: bolehAktifTanpaPersetujuan(user),
+        ringkas: rencana.ringkas,
+        contoh: rencana.ubah
+          .filter((u) => u.volume || u.unitPrice || u.amount || u.induk || u.kind || u.code || u.name || u.unit)
+          .slice(0, 12)
+          .map((u) => `${u.label}: ${kalimatUbah(u, fmt)}`),
+        tambah: rencana.tambah.slice(0, 8).map((n) => [n.code, n.name].filter(Boolean).join(" ")),
+        hapus: rencana.hapus.slice(0, 8).map((h) => h.label),
+        terhalang: await terhalangKoreksi(rencana),
+      };
     }
-
-    // Nomor revisi berikutnya: penomoran yang sama dengan `createRevisionFromNodes`.
-    const tanpaPersetujuan: ImportPreview["tanpaPersetujuan"] =
-      // Draft yang sudah ada menolak impor ini lebih dulu (satu draft per
-      // lokasi) – jalan pintasnya ada di tombol Aktifkan draft itu.
-      koreksi && !koreksi.boleh && !draft && bolehAktifTanpaPersetujuan(user)
-        ? {
-            revisionNo:
-              ((await db.rabRevision.aggregate({ where: { locationId: location.id }, _max: { revisionNo: true } }))._max
-                .revisionNo ?? 0) + 1,
-          }
-        : null;
 
     const preview: ImportPreview = {
       koreksi,
-      tanpaPersetujuan,
       rincian: rincian ? { ringkasan: rincian.ringkasan, tersembunyiDibaca: rincian.tersembunyiDibaca } : null,
       ...(rincianGagal ? { rincianGagal } : {}),
       padanan: {
@@ -1191,7 +1127,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
 
     // ── Commit ──────────────────────────────────────────────────────────────
     const note = String(formData.get("note") ?? "").trim() || null;
-    const source = isAdendum || mode === "draft" ? ("adendum" as const) : ("hps_awal" as const);
+    // Draft = usulan perubahan kontrak (MC-0/CCO); "aktifkan" tanpa RAB aktif =
+    // HPS awal. "Aktifkan" DENGAN RAB aktif adalah koreksi, tanpa revisi baru.
+    const source = mode === "draft" ? ("adendum" as const) : ("hps_awal" as const);
 
     // Mode DRAFT: isi draft adendum saja. RAB aktif, progres, kurva-S, dan
     // keuangan tidak tersentuh sedikit pun. Draft yang sudah ada DIGANTI
@@ -1200,9 +1138,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (mode === "draft") {
       if (!activeRevision) {
         return {
-          preview,
-          notice:
-            "Belum ada RAB aktif di lokasi ini – impor draft adendum butuh RAB aktif sebagai pembanding. Impor sebagai RAB aktif dulu.",
+          preview: {
+            ...preview,
+            notice:
+              "Belum ada RAB aktif di lokasi ini – impor draft adendum butuh RAB aktif sebagai pembanding. Impor sebagai RAB aktif dulu.",
+          },
         } as ImportState;
       }
       const amendmentId = draft?.amendmentId ?? null;
@@ -1264,53 +1204,77 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     }
 
     /*
-     * PERBAIKAN PEMBACAAN RAB AKTIF — tanpa adendum (DECISIONS 680).
+     * KOREKSI RAB AKTIF – DITIMPA DI TEMPAT (DECISIONS 728).
      *
-     * Laporan user 2026-10-15: *"ketika sudah pilih jadikan langsung RAB
-     * aktif, kenapa hasil impor diperlakukan seperti draft cco/adendum"*.
-     * Berkas yang item, induk, volume, dan jumlahnya SAMA PERSIS dengan RAB
-     * aktif tidak mengubah kontrak; yang dibawanya hanya bacaan yang lebih
-     * benar (harga satuan yang dulu kosong, satuan, nama). Membuat revisi baru
-     * untuknya justru menyeretnya ke gerbang dua persetujuan yang dibuat untuk
-     * perubahan kontrak, dan berakhir sebagai draft yang tidak pernah perlu ada.
-     *
-     * Jadi dibetulkan di tempat: revisi aktif yang sama, node yang sama.
-     * Berkas yang mengubah isi kontrak tetap lewat jalur adendum di bawah.
+     * Ketetapan user 2026-11-01: *"pilihan jadikan rab aktif sekarang oleh dan
+     * hanya super admin adalah koreksi, bukan adendum"*. Dulu jalur ini membuat
+     * REVISI ADENDUM baru (atau draft yang menunggu dua persetujuan), ikut
+     * terhitung sebagai CCO, dan menggeser nomor CCO seluruh lokasi itu.
+     * Perubahan kontrak (MC-0, CCO) tetap lewat "Isi DRAFT adendum".
      */
-    if (activeRevision && perubahanKoreksi) {
-      let h = { node: 0, barisHarian: 0, snapshotDibangunUlang: 0 };
-      if (perubahanKoreksi.length > 0) {
-        try {
-          h = await terapkanKoreksiBaca({
-            revisionId: activeRevision.id,
-            locationId: location.id,
-            perubahan: perubahanKoreksi,
-            userId: user.id,
-            berkas: file.name,
-            cakupan: "penuh",
+    if (activeRevision && mode === "aktifkan") {
+      if (!koreksi?.boleh) {
+        return {
+          preview: {
+            ...preview,
+            notice:
+              "Koreksi RAB aktif hanya untuk super admin utama. Perubahan kontrak (MC-0, CCO) diajukan lewat " +
+              "\"Isi DRAFT adendum\" dan berlaku setelah disetujui.",
+          },
+        } as ImportState;
+      }
+      if (!cocokKonfirmasiKoreksi(formData.get("konfirmasi"), activeRevision.revisionNo)) {
+        return {
+          preview: {
+            ...preview,
+            notice: `Ketik ${konfirmasiKoreksi(activeRevision.revisionNo)} persis untuk konfirmasi koreksi.`,
+          },
+        } as ImportState;
+      }
+      if (koreksi.terhalang.length > 0) {
+        return { preview: { ...preview, notice: kalimatTerhalang(koreksi.terhalang) } } as ImportState;
+      }
+      let h: Awaited<ReturnType<typeof terapkanKoreksiTimpa>>;
+      try {
+        h = await terapkanKoreksiTimpa({
+          revisionId: activeRevision.id,
+          locationId: location.id,
+          nodes,
+          userId: user.id,
+          berkas: file.name,
+        });
+      } catch (e) {
+        if (e instanceof KoreksiTimpaError) return { preview: { ...preview, notice: e.message } } as ImportState;
+        throw e;
+      }
+      // Berkas koreksi menjadi berkas sumber revisi aktif. Berkas sumber lama
+      // tidak lagi RAB yang berlaku: ditandai, tidak dihapus.
+      const sumberLama = await db.rabRevision.findUnique({
+        where: { id: activeRevision.id },
+        select: { sourceDocumentId: true },
+      });
+      const docKoreksi = await arsipkanSumber({
+        buffer,
+        file,
+        sha256,
+        location,
+        userId: user.id,
+        revisionId: activeRevision.id,
+        revisionNo: activeRevision.revisionNo,
+        adendum: false,
+        judul: `HPS/RAB koreksi (revisi #${activeRevision.revisionNo}) – ${location.name}`,
+      });
+      if (docKoreksi && sumberLama?.sourceDocumentId && sumberLama.sourceDocumentId !== docKoreksi) {
+        const lama = await db.document.findUnique({ where: { id: sumberLama.sourceDocumentId }, select: { title: true } });
+        if (lama) {
+          await db.document.update({
+            where: { id: sumberLama.sourceDocumentId },
+            data: { type: "lainnya", title: `${lama.title} (sebelum koreksi)` },
           });
-        } catch (e) {
-          if (e instanceof KoreksiBacaError) return { preview, notice: e.message } as ImportState;
-          throw e;
         }
       }
-      const docKoreksi =
-        h.node > 0
-          ? await arsipkanSumber({
-              buffer,
-              file,
-              sha256,
-              location,
-              userId: user.id,
-              revisionId: activeRevision.id,
-              revisionNo: activeRevision.revisionNo,
-              adendum: isAdendum,
-              judul: `HPS/RAB perbaikan pembacaan (revisi #${activeRevision.revisionNo}) – ${location.name}`,
-            })
-          : null;
       // Rincian (backup volume, analisa) hanya diisi bila revisi aktif belum
-      // punya: yang sudah ada bisa memuat isian tangan, dan perbaikan
-      // pembacaan tidak boleh menghapusnya diam-diam.
+      // punya: yang sudah ada bisa memuat isian tangan (DECISIONS 680).
       const rincianAda = await db.rabRincianRevisi.findUnique({
         where: { revisionId: activeRevision.id },
         select: { revisionId: true },
@@ -1320,129 +1284,46 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         : await simpanRincianImpor(activeRevision.id, rincian, nodes, docKoreksi, user.id);
       revalidatePath(`/lokasi/${location.slug}`, "layout");
       revalidatePath("/progress");
-      if (h.node === 0) {
-        return {
-          success:
-            `Isi berkas ini sudah sama dengan RAB aktif revisi #${activeRevision.revisionNo}, ` +
-            `jadi tidak ada angka yang diubah.` +
-            kalimatRincianKoreksi,
-        };
-      }
-      const k = koreksi?.boleh ? koreksi : null;
+      const r = h.ringkas;
       const bagian = [
-        k && k.hargaTerisi > 0 ? `${k.hargaTerisi} harga satuan yang kosong kini terisi` : null,
-        k && k.hargaBerubah > 0 ? `${k.hargaBerubah} harga satuan terbaca ulang` : null,
-        k && h.node - k.hargaTerisi - k.hargaBerubah > 0
-          ? `${h.node - k.hargaTerisi - k.hargaBerubah} baris lain dibetulkan satuan, nama, nomor, atau jenis judulnya`
-          : null,
+        r.volume ? `${r.volume} volume` : null,
+        r.harga ? `${r.harga} harga satuan` : null,
+        r.jumlah ? `${r.jumlah} jumlah` : null,
+        r.pindah ? `${r.pindah} pindah kelompok` : null,
+        r.lain ? `${r.lain} nomor/nama/satuan` : null,
+        r.tambah ? `${r.tambah} baris baru` : null,
+        r.hapus ? `${r.hapus} baris dihapus` : null,
       ].filter(Boolean);
       return {
         success:
-          `RAB aktif revisi #${activeRevision.revisionNo} sudah dibetulkan dari ${file.name}: ${bagian.join("; ")}. ` +
-          `Tidak ada revisi baru dan tidak perlu persetujuan, karena item, volume, dan jumlahnya sama dengan kontrak. ` +
-          `Progres, kurva-S, dan nilai kontrak tidak berubah.` +
-          (h.barisHarian > 0
-            ? ` Nilai terpasang di ${h.barisHarian} baris laporan harian dihitung ulang dengan harga yang benar` +
-              (h.snapshotDibangunUlang > 0 ? `, dan ${h.snapshotDibangunUlang} blanko harian final dibuat ulang.` : ".")
+          `RAB aktif revisi #${h.revisionNo} dikoreksi dari ${file.name}` +
+          (bagian.length ? `: ${bagian.join(", ")}.` : ", tidak ada angka yang berbeda.") +
+          ` Tidak ada revisi baru, tidak dihitung sebagai adendum/CCO.` +
+          (h.barisHarian > 0 ? ` Nilai terpasang ${h.barisHarian} baris laporan harian dihitung ulang dengan harga baru.` : "") +
+          (h.disesuaikan.length > 0
+            ? ` PERHATIAN: realisasi ${h.disesuaikan.length} item diturunkan mengikuti volume barunya` +
+              ` (${h.disesuaikan.slice(0, 3).map((d) => `${d.item} ${formatNumber(d.dari)} → ${formatNumber(d.ke)}`).join("; ")}` +
+              `${h.disesuaikan.length > 3 ? `; +${h.disesuaikan.length - 3} lainnya` : ""}).`
+            : "") +
+          (h.snapshotDibangunUlang > 0 ? ` ${h.snapshotDibangunUlang} blanko harian final dibangun ulang.` : "") +
+          (h.kategoriBaruTanpaKurva.length > 0
+            ? ` ${h.kategoriBaruTanpaKurva.length} kategori baru belum punya jadwal di kurva-S (${h.kategoriBaruTanpaKurva.slice(0, 3).join(", ")}` +
+              `${h.kategoriBaruTanpaKurva.length > 3 ? ", …" : ""}); perbarui lewat Progress › Perbarui Kurva-S.`
             : "") +
           kalimatRincianKoreksi,
       };
     }
 
     /*
-     * HANYA HARGA SATUAN YANG KOSONG (laporan user 2026-10-16, DECISIONS 681).
-     *
-     * Impor ulang CCO Krakahan tetap jadi draft #3: susunan barisnya tidak sama
-     * persis dengan RAB aktif #2, jadi perbaikan penuh di atas ditolak. Yang
-     * dibutuhkan sebenarnya cuma harga satuan yang kosong, dan untuk item-item
-     * itu volume dan jumlahnya cocok. Mengisinya tidak mengubah satu angka
-     * kontrak pun; perbedaan lain berkas itu tidak disentuh.
+     * Sampai di sini hanya HPS AWAL: lokasi belum punya RAB aktif (koreksi dan
+     * draft adendum sudah ditangani di atas). HPS awal tidak menggantikan
+     * kontrak apa pun, jadi tidak menuntut dua persetujuan (DECISIONS 234).
      */
-    if (activeRevision && koreksi && !koreksi.boleh && formData.get("isiHargaKosong") === "1") {
-      if (hargaKosongKoreksi.length === 0) {
-        return {
-          preview,
-          notice: "Tidak ada harga satuan kosong di RAB aktif yang bisa diisi dari berkas ini.",
-        } as ImportState;
-      }
-      let h: Awaited<ReturnType<typeof terapkanKoreksiBaca>>;
-      try {
-        h = await terapkanKoreksiBaca({
-          revisionId: activeRevision.id,
-          locationId: location.id,
-          perubahan: hargaKosongKoreksi,
-          userId: user.id,
-          berkas: file.name,
-          cakupan: "harga_kosong",
-        });
-      } catch (e) {
-        if (e instanceof KoreksiBacaError) return { preview, notice: e.message } as ImportState;
-        throw e;
-      }
-      revalidatePath(`/lokasi/${location.slug}`, "layout");
-      revalidatePath("/progress");
-      return {
-        success:
-          `${h.node} harga satuan yang kosong di RAB aktif revisi #${activeRevision.revisionNo} sudah diisi dari ${file.name}. ` +
-          `Item, volume, dan jumlahnya tidak diubah, jadi tidak ada revisi baru dan tidak perlu persetujuan. ` +
-          `Perbedaan lain antara berkas dan RAB aktif tidak disentuh.` +
-          (h.barisHarian > 0
-            ? ` Nilai terpasang di ${h.barisHarian} baris laporan harian dihitung ulang dengan harga yang benar` +
-              (h.snapshotDibangunUlang > 0 ? `, dan ${h.snapshotDibangunUlang} blanko harian final dibuat ulang.` : ".")
-            : ""),
-      };
-    }
-
-    /*
-     * SATU DRAFT PER LOKASI — juga di jalur "Jadikan RAB AKTIF".
-     *
-     * Mode draft sudah menjaganya (draft lama diganti), tapi mode aktifkan dulu
-     * langsung membuat revisi baru. Ketika gerbang empat mata menahan
-     * aktivasinya — yang justru bentuk NORMAL-nya — revisi itu tertinggal
-     * sebagai DRAFT KEDUA. Sejak itu halaman adendum, pemilih item laporan, dan
-     * tombol aktifkan memilih draft "yang mana saja" menurut urutan baca
-     * Postgres; laporan harian berbasis draft yang kalah undian tidak pernah
-     * naik jadi resmi, dan draft itu tidak bisa dibuang karena FK-nya RESTRICT.
-     * Audit 2026-09-15 (E-1).
-     */
-    if (draft) {
-      return {
-        preview,
-        notice:
-          `Lokasi ini sudah punya draft adendum revisi #${draft.revisionNo}. Satu lokasi hanya boleh ` +
-          `punya satu draft. Kalau ada dua, halaman adendum, laporan harian, dan tombol Aktifkan bisa ` +
-          `menunjuk revisi yang berbeda-beda. Impor berkas ini sebagai DRAFT (isi draft #${draft.revisionNo} ` +
-          `akan diganti), atau aktifkan/buang draft itu dulu.`,
-      } as ImportState;
-    }
-
-    /*
-     * JALAN PINTAS SUPER ADMIN UTAMA (DECISIONS 682) – diperiksa SEBELUM revisi
-     * dibuat, supaya permintaan yang ditolak tidak meninggalkan draft.
-     */
-    const mintaTanpaPersetujuan = formData.get("tanpaPersetujuan") === "1" && activeRevision != null;
-    if (mintaTanpaPersetujuan) {
-      if (!bolehAktifTanpaPersetujuan(user) || !tanpaPersetujuan) {
-        return { preview, notice: "Hanya super admin utama yang boleh mengaktifkan revisi tanpa persetujuan." } as ImportState;
-      }
-      if (!cocokKonfirmasiTanpaPersetujuan(formData.get("konfirmasi"), tanpaPersetujuan.revisionNo)) {
-        return {
-          preview,
-          notice: `Ketik ${konfirmasiTanpaPersetujuan(tanpaPersetujuan.revisionNo)} persis untuk konfirmasi.`,
-        } as ImportState;
-      }
-    }
-
     const res = await createRevisionFromNodes(location.id, nodes, {
       source,
       note,
       userId: user.id,
     });
-    /*
-     * Arsip berkas + rincian disimpan SEKARANG, sebelum gerbang empat mata:
-     * revisi yang tertahan sebagai draft pun berasal dari berkas ini, dan
-     * dulu justru jalur tertahan itu yang tidak pernah mengarsipkan apa pun.
-     */
     const docAktif = await arsipkanSumber({
       buffer,
       file,
@@ -1451,117 +1332,23 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       userId: user.id,
       revisionId: res.revisionId,
       revisionNo: res.revisionNo,
-      adendum: isAdendum,
+      adendum: false,
     });
     const kalimatRincian = await simpanRincianImpor(res.revisionId, rincian, nodes, docAktif, user.id);
-    /*
-     * GERBANG EMPAT MATA (DECISIONS 234) — hanya berlaku bila lokasi SUDAH
-     * punya RAB aktif (= ini adendum). HPS awal tidak menggantikan kontrak apa
-     * pun, jadi tidak menuntut dua tanda tangan.
-     *
-     * Revisi yang baru dibuat jelas belum punya persetujuan, jadi impor
-     * "langsung aktifkan" untuk adendum PASTI tertahan di sini. Itu BUKAN
-     * kegagalan impor: berkasnya sudah terbaca dan tersimpan sebagai draft.
-     * Yang tidak terjadi hanyalah aktivasinya — dan itu dikatakan apa adanya,
-     * bukan dilaporkan sebagai error yang membuat orang mengunggah ulang.
-     */
-    // Konfirmasi menyebut nomor revisi; bila nomornya bergeser (impor lain
-    // menyela), jalan pintas tidak dipakai dan revisinya tertahan seperti biasa.
-    const lewatiPersetujuan = mintaTanpaPersetujuan && res.revisionNo === tanpaPersetujuan?.revisionNo;
-    try {
-      if (!lewatiPersetujuan) await pastikanBolehAktivasi(res.revisionId);
-    } catch (e) {
-      if (!(e instanceof PersetujuanError)) throw e;
-      revalidatePath(`/lokasi/${location.slug}`, "layout");
-      return {
-        success:
-          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) dan belum aktif. ` +
-          `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
-          `Buka tab Adendum untuk meminta persetujuan, lalu aktifkan.` +
-          kalimatRincian,
-      };
-    }
     await activateRevision(res.revisionId, user.id);
-    if (lewatiPersetujuan) {
-      await audit(user.id, "rab.aktivasi_tanpa_persetujuan", "rab_revision", res.revisionId, {
-        locationId: location.id,
-        revisionNo: res.revisionNo,
-        jalur: "impor",
-        berkas: file.name,
-        menggantikan: activeRevision?.revisionNo ?? null,
-      });
-    }
-    const kataTanpaPersetujuan = lewatiPersetujuan
-      ? " Diaktifkan tanpa persetujuan (super admin utama, tercatat di jejak audit)."
-      : "";
     /*
-     * KURVA-S TIDAK LAGI DIPAKSAKAN PADA HPS AWAL (permintaan user 2026-09-19).
-     *
-     * *"saat impor RAB awal langsung aktifkan kurva S, akan lebih baik jika
-     * kemudian kamu kasih opsi … jadi tidak langsung pemaksaan gayamu
-     * sekarang."*
-     *
-     * Impor HPS awal adalah satu-satunya titik di mana sistem tahu PASTI belum
-     * ada rencana apa pun yang bisa dirusak — jadi di situlah pertanyaannya
-     * murah dan tidak ada ruginya: layar menawarkan tiga jalan (awal lambat,
-     * optimalisasi pekerjaan, atau susun sendiri) lewat `pilihProfilKurvaAction`.
-     *
-     * ADENDUM TIDAK MENGATUR ULANG KURVA-S (DECISIONS 698, ketetapan user
-     * 2026-10-22): bobot mingguan yang berlaku dibawa ke revisi baru apa
-     * adanya. Dulu di sini regenerate dengan profil lokasi, lalu layar
-     * mengatakan "bentuk rencananya tidak berubah" – padahal seluruh bobot
-     * mingguan, termasuk jadwal impor Excel, diganti hasil generator.
+     * KURVA-S TIDAK DIPAKSAKAN PADA HPS AWAL (permintaan user 2026-09-19):
+     * layar menawarkan tiga bentuk lewat `pilihProfilKurvaAction`.
      */
-    // Bila baseline gagal diperbarui, JANGAN jatuh ke catch generik ("Terjadi
-    // kesalahan saat impor") — user akan mengira impor batal padahal revisi
-    // sudah berganti. Laporkan keadaan campuran itu apa adanya. Audit
-    // 2026-07-27, B17.
-    let baselineError: string | null = null;
-    let kalimatKurva = "";
-    if (isAdendum) {
-      try {
-        kalimatKurva = kalimatKurvaAdendum(
-          await kurvaSesudahAdendum(location.id, res.revisionId, {
-            userId: user.id,
-            asal: `impor revisi #${res.revisionNo}`,
-          }),
-        );
-      } catch (e) {
-        console.error("[rab-import] baseline gagal diperbarui (revisi sudah aktif):", e);
-        baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
-      }
-    }
-
     revalidatePath(`/lokasi/${location.slug}`, "layout");
     revalidatePath("/lokasi");
     revalidatePath("/progress");
-    const carryInfo =
-      isAdendum && res.carriedItemLineages > 0
-        ? ` ${res.carriedItemLineages} item tersambung ke realisasi lama.`
-        : "";
-    if (baselineError) {
-      return {
-        error:
-          `Revisi RAB #${res.revisionNo} sudah aktif${lewatiPersetujuan ? " tanpa persetujuan" : ""}, tetapi kurva-S gagal disambungkan ke revisi ini (${baselineError}). ` +
-          `Grafik dan deviasi masih memakai kurva-S yang lama. Buka Progress › Kurva-S & Baseline untuk memeriksanya.` +
-          kalimatRincian,
-      };
-    }
-    if (!isAdendum) {
-      return {
-        success:
-          `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item.${carryInfo}${kataTanpaPersetujuan} ` +
-          `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.` +
-          kalimatRincian,
-        pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
-      };
-    }
     return {
       success:
-        `Revisi RAB #${res.revisionNo} (adendum) aktif, berisi ${res.itemCount} item. ` +
-        `${kalimatKurva}${carryInfo}` +
-        kataTanpaPersetujuan +
+        `Revisi RAB #${res.revisionNo} (HPS awal) aktif, berisi ${res.itemCount} item. ` +
+        `Kurva-S BELUM dibuat. Pilih bentuknya di bawah.` +
         kalimatRincian,
+      pilihProfil: { revisionNo: res.revisionNo, itemCount: res.itemCount },
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

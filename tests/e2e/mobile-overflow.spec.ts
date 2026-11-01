@@ -203,7 +203,9 @@ for (const LEBAR of LEBAR_SAPUAN) {
       await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
     });
 
-    test(`seluruh halaman muat di ${LEBAR}px`, async ({ page }) => {
+    // Tanda ini dipilih matriks CI: tiap lebar jalan di job sendiri, paralel
+    // dengan uji lainnya (DECISIONS 729). Dijaga tests/unit/ci-perlu.test.ts.
+    test(`seluruh halaman muat di ${LEBAR}px`, { tag: ["@sapuan", `@sapuan-${LEBAR}`] }, async ({ page }) => {
       // Viewport sudah dipaksa di atas, jadi menjalankan ulang di project
       // "desktop" hanya menggandakan waktu tanpa menambah cakupan.
       test.skip(test.info().project.name !== "mobile", "cukup sekali, di project mobile");

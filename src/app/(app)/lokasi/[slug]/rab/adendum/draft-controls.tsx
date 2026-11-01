@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Banner, Button } from "@/components/ui";
 import { activateDraftAction, approveRevisionAction, discardDraftAction, type RabActionState } from "../actions";
-import { PanelTanpaPersetujuan } from "../panel-tanpa-persetujuan";
+import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "../panel-tanpa-persetujuan";
 
 /**
  * Aktivasi / buang draft LANGSUNG dari halaman adendum — review-nya adalah
@@ -41,7 +41,7 @@ export function DraftControls({
   bolehTanpaPersetujuan?: boolean;
 }) {
   const [state, setState] = useState<RabActionState>(undefined);
-  const [bukaTanpa, setBukaTanpa] = useState(false);
+  const [bukaTanpa, setBukaTanpa] = useState<CaraTanpaPersetujuan | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -149,8 +149,13 @@ export function DraftControls({
         Aktifkan draft #{revisionNo}
       </Button>
       {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
-        <Button type="button" variant="secondary" onClick={() => setBukaTanpa(true)}>
+        <Button type="button" variant="secondary" onClick={() => setBukaTanpa("aktifkan")}>
           Aktifkan tanpa persetujuan…
+        </Button>
+      ) : null}
+      {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
+        <Button type="button" variant="secondary" onClick={() => setBukaTanpa("koreksi")}>
+          Terapkan sebagai koreksi…
         </Button>
       ) : null}
       <Button
@@ -169,10 +174,11 @@ export function DraftControls({
       </div>
       {terkunci && bolehTanpaPersetujuan && bukaTanpa ? (
         <PanelTanpaPersetujuan
+          cara={bukaTanpa}
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
-          onBatal={() => setBukaTanpa(false)}
+          onBatal={() => setBukaTanpa(null)}
           onBerhasil={() => router.push("../rab")}
         />
       ) : null}

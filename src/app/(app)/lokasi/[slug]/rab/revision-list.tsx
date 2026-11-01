@@ -12,7 +12,7 @@ import {
   discardDraftAction,
   type RabActionState,
 } from "./actions";
-import { PanelTanpaPersetujuan } from "./panel-tanpa-persetujuan";
+import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "./panel-tanpa-persetujuan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
 /**
@@ -48,11 +48,11 @@ export type RevisionRow = {
   note: string | null;
   /** Diaktifkan super admin utama tanpa dua persetujuan (DECISIONS 682). */
   tanpaPersetujuan?: boolean;
-};
-
-const SOURCE_LABEL: Record<RabRevisionSource, string> = {
-  hps_awal: "HPS awal",
-  adendum: "Adendum",
+  /**
+   * Tahap revisi, diturunkan dari riwayat lokasi (DECISIONS 728): "RAB
+   * kontrak", "MC-0", "CCO-01", … atau "Koreksi" (bukan tahap).
+   */
+  tahap: string;
 };
 
 const STATUS_LABEL: Record<RevisionStatus, string> = {
@@ -82,7 +82,7 @@ function DraftActions({
   /** Pesan berhasil dinaikkan ke daftar: baris draft ini sendiri berganti begitu aktif. */
   onBerhasil: (pesan: string) => void;
 }) {
-  const [bukaTanpa, setBukaTanpa] = useState(false);
+  const [bukaTanpa, setBukaTanpa] = useState<CaraTanpaPersetujuan | null>(null);
   const [activateState, activate, activating] = useAksi<RabActionState>(
     activateDraftAction,
     undefined,
@@ -98,7 +98,7 @@ function DraftActions({
   const state = approveState ?? activateState ?? discardState;
   const terkunci = persetujuan != null && !persetujuan.lengkap;
   return (
-    <div className="space-y-1.5">
+    <div className="ml-auto max-w-md space-y-1.5">
       {persetujuan ? (
         <div className="rounded-md border border-border bg-surface-muted p-2 text-left text-xs">
           <p className="font-medium">Persetujuan aktivasi (perlu dua orang berbeda)</p>
@@ -151,7 +151,7 @@ function DraftActions({
           )}
         </div>
       ) : null}
-      <div className="flex justify-end gap-1.5">
+      <div className="flex flex-wrap justify-end gap-1.5">
         <form action={activate}>
           <input type="hidden" name="revisionId" value={revisionId} />
           <Button
@@ -169,8 +169,13 @@ function DraftActions({
           </Button>
         </form>
         {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
-          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa(true)}>
+          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa("aktifkan")}>
             Aktifkan tanpa persetujuan…
+          </Button>
+        ) : null}
+        {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
+          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa("koreksi")}>
+            Terapkan sebagai koreksi…
           </Button>
         ) : null}
         <form action={discard}>
@@ -182,10 +187,11 @@ function DraftActions({
       </div>
       {terkunci && bolehTanpaPersetujuan && bukaTanpa ? (
         <PanelTanpaPersetujuan
+          cara={bukaTanpa}
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
-          onBatal={() => setBukaTanpa(false)}
+          onBatal={() => setBukaTanpa(null)}
           onBerhasil={onBerhasil}
         />
       ) : null}
@@ -337,7 +343,7 @@ export function RevisionList({
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
             <th className="py-2 pr-3">No</th>
-            <th className="py-2 pr-3">Sumber</th>
+            <th className="py-2 pr-3">Tahap</th>
             <th className="py-2 pr-3">Status</th>
             <th className="py-2 pr-3 text-right">Total (pra-PPN)</th>
             <th className="py-2 pr-3">Tanggal</th>
@@ -350,7 +356,7 @@ export function RevisionList({
           {revisions.map((r) => (
             <tr key={r.id}>
               <td className="tabular py-2 pr-3">#{r.revisionNo}</td>
-              <td className="py-2 pr-3">{SOURCE_LABEL[r.source]}</td>
+              <td className="py-2 pr-3">{r.tahap}</td>
               <td className="py-2 pr-3">
                 <StatusPill tone={STATUS_TONE[r.status]} label={STATUS_LABEL[r.status]} />
                 {r.tanpaPersetujuan ? (
