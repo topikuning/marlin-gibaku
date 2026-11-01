@@ -55,6 +55,7 @@ const { flattenParsedRab, grandTotal } = await import("@/lib/rab/flatten");
 const { getOrCreateDraft } = await import("@/lib/daily-report/service");
 const { tahapRevisi } = await import("@/lib/rab/tahap");
 const { GET: unduhCco } = await import("@/app/(app)/lokasi/[slug]/rab/adendum/cco/route");
+const { adendumTertunda } = await import("@/lib/package/aktivasi-adendum");
 
 const NAMA = "rab-aktif-situbondo.xlsx";
 const ISI = readFileSync(new URL(`../fixtures/${NAMA}`, import.meta.url).pathname);
@@ -62,6 +63,14 @@ const MIGRASI = readFileSync(
   new URL("../../prisma/migrations/20261101090100_rab_koreksi_lama/migration.sql", import.meta.url).pathname,
   "utf8",
 );
+/** Semua migrasi data lama 728, berurutan seperti `migrate deploy` menjalankannya. */
+const MIGRASI_LAMA = [
+  MIGRASI,
+  readFileSync(
+    new URL("../../prisma/migrations/20261101090200_rab_koreksi_status_cco/migration.sql", import.meta.url).pathname,
+    "utf8",
+  ),
+];
 let orgId: string;
 let pkgId: string;
 let locationId: string;
@@ -378,8 +387,7 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
     const sebelum = tahapRevisi(await db.rabRevision.findMany({ where: { locationId: lok.id } }));
     expect(sebelum.get(r3.id)!.label).toBe("CCO-01");
 
-    await db.$executeRawUnsafe(MIGRASI);
-    await db.$executeRawUnsafe(MIGRASI); // idempoten
+    for (let i = 0; i < 2; i++) for (const sql of MIGRASI_LAMA) await db.$executeRawUnsafe(sql); // idempoten
 
     const kini = await db.rabRevision.findMany({
       where: { locationId: lok.id },
@@ -394,5 +402,80 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
     ]);
     const tahap = tahapRevisi(kini);
     expect([r1, r2, r3, r4].map((r) => tahap.get(r.id)!.label)).toEqual(["RAB kontrak", "Koreksi", "MC-0", "CCO-01"]);
+  });
+
+  /*
+   * Koreksi tidak mengubah status CCO: ia mewarisi status revisi yang
+   * dikoreksinya. Dulu impor jalan pintas tidak pernah menandai "menunggu
+   * CCO", tombol draft jalan pintas selalu menandainya. Kalau semuanya disetel
+   * "tidak menunggu", adendum sah sebelumnya yang belum ber-CCO hilang dari
+   * selisih CCO berikutnya.
+   */
+  it("koreksi lama mewarisi status CCO revisi yang dikoreksinya; yang sudah ber-CCO tidak disentuh", async () => {
+    const kontrak = await db.contract.findFirstOrThrow({ where: { packageId: pkgId }, select: { id: true } });
+    const cco = await db.contractAmendment.create({
+      data: { contractId: kontrak.id, ccoNumber: `CCO-${suffix}`, valueDelta: 0n, endDateDelta: 0, effectiveDate: new Date("2026-08-01"), reason: "uji" },
+    });
+    const lokasi = (nama: string) =>
+      db.location.create({
+        data: { packageId: pkgId, name: nama, slug: `${nama}-${suffix}`, village: "D", regency: "K", province: "P", isActive: true },
+      });
+    const A = await lokasi("tertunda");
+    const B = await lokasi("ber-cco");
+    const buat = (
+      locationId: string,
+      revisionNo: number,
+      source: "hps_awal" | "adendum",
+      status: "aktif" | "digantikan",
+      awaitingCco: boolean,
+      amendmentId: string | null = null,
+    ) =>
+      db.rabRevision.create({
+        data: { locationId, revisionNo, source, status, totalValue: BigInt(revisionNo) * 1000n, awaitingCco, amendmentId, createdById: akar.id },
+      });
+    const pintas = (id: string, jalur: string) =>
+      db.auditLog.create({
+        data: { userId: akar.id, action: "rab.aktivasi_tanpa_persetujuan", resourceType: "rab_revision", resourceId: id, payload: { jalur } },
+      });
+    // A: kontrak → adendum dua persetujuan, belum ber-CCO → dua koreksi jalan pintas.
+    const a1 = await buat(A.id, 1, "hps_awal", "digantikan", false);
+    const a2 = await buat(A.id, 2, "adendum", "digantikan", true);
+    const a3 = await buat(A.id, 3, "adendum", "digantikan", false); // impor: dulu tak ditandai menunggu
+    const a4 = await buat(A.id, 4, "adendum", "aktif", true); // tombol draft: dulu selalu ditandai
+    await pintas(a3.id, "impor");
+    await pintas(a4.id, "web");
+    // B: koreksi jalan pintas yang sudah tersapu ke CCO paket.
+    await buat(B.id, 1, "hps_awal", "digantikan", false);
+    const b2 = await buat(B.id, 2, "adendum", "aktif", false, cco.id);
+    await pintas(b2.id, "impor");
+
+    for (let i = 0; i < 2; i++) for (const sql of MIGRASI_LAMA) await db.$executeRawUnsafe(sql); // idempoten
+
+    const kini = async (locationId: string) =>
+      (
+        await db.rabRevision.findMany({
+          where: { locationId },
+          orderBy: { revisionNo: "asc" },
+          select: { id: true, revisionNo: true, source: true, status: true, awaitingCco: true, amendmentId: true },
+        })
+      ).map((r) => [r.revisionNo, r.source, r.awaitingCco, r.amendmentId]);
+    expect(await kini(A.id)).toEqual([
+      [1, "hps_awal", false, null],
+      [2, "adendum", true, null],
+      [3, "koreksi", true, null],
+      [4, "koreksi", true, null],
+    ]);
+    expect(await kini(B.id)).toEqual([
+      [1, "hps_awal", false, null],
+      [2, "koreksi", false, cco.id],
+    ]);
+    // Uang: selisih CCO berikutnya dihitung dari RAB kontrak, jadi adendum #2 ikut.
+    const tertunda = await adendumTertunda(pkgId);
+    expect(tertunda.revisi.filter((r) => r.locationId === A.id).map((r) => [r.revisionId, r.totalAktif, r.totalDraft])).toEqual([
+      [a4.id, 1000n, 4000n],
+    ]);
+    expect(tertunda.revisi.some((r) => r.locationId === B.id)).toBe(false);
+    const tahap = tahapRevisi(await db.rabRevision.findMany({ where: { locationId: A.id } }));
+    expect([a1, a2, a3, a4].map((r) => tahap.get(r.id)!.label)).toEqual(["RAB kontrak", "MC-0", "Koreksi", "Koreksi"]);
   });
 });
