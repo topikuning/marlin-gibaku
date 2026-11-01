@@ -128,6 +128,15 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Teknis
 
+- 🟡 **UJI-01 · Uji integrasi masih meninggalkan data.** Sesudah suite integrasi
+  penuh, 33 organisasi tertinggal di DB uji. Contohnya `weather-fetch.test.ts`, yang
+  `afterAll`-nya hanya memutus koneksi. Belum ada yang gagal, tapi pemindai global
+  (mis. antrean Drive) ikut menghitung sisa itu begitu urutan berkas bergeser. Itu
+  persis yang membuat gerbang PR #380 merah (lima berkas dengan `DELETE` yang selalu
+  gagal; sudah dibetulkan, dijaga `tests/unit/uji-integrasi-bersih.test.ts`). FIX:
+  petakan berkas yang tidak membersihkan, lalu beri `TRUNCATE … CASCADE` di
+  `afterAll`-nya. Pertimbangkan penjaga yang mewajibkan setiap berkas yang membuat
+  organisasi juga membersihkannya.
 - 🟡 **AI-01 (sisa) · Grok/xAI belum bisa menerima PDF dari MARLIN.** Jalur PDF
   OpenAI (`type:"file"`) dan Mistral (`type:"document_url"`) sudah dibangun dan
   diuji bentuk medannya (DECISIONS 435). xAI belum: PDF di sana tidak bisa
