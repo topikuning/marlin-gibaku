@@ -11,7 +11,8 @@ import { susunDokumentasiSarpras } from "@/lib/dokumentasi-sarpras/susun";
 import { ubinSarpras } from "@/lib/dokumentasi-sarpras/ubin";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
-import { getLocationProgress } from "@/lib/progress";
+import { getLocationProgress, getProgresDraftAdendum } from "@/lib/progress";
+import { BarisDraftAdendum } from "./baris-draft-adendum";
 import { getScurveSeries } from "@/lib/baseline";
 import { contractMismatch, withPpn } from "@/lib/money";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort, formatTanggal } from "@/lib/format";
@@ -86,6 +87,11 @@ export default async function LokasiRingkasanPage({
     susunDokumentasiSarpras(location.id),
   ]);
   const ubin = dokSarpras ? await ubinSarpras(dokSarpras, slug) : [];
+  // Bobot menurut DRAFT adendum di kartu Terpasang (DECISIONS 732) – kartu ini
+  // juga terlihat di ponsel, tempat kepala lokasi disembunyikan.
+  const draftProg = await getProgresDraftAdendum(location.id, undefined, {
+    realizedValueResmi: progress.realizedValue,
+  });
 
   const [weeklyPlan, openIssues, lastReport, statusHistory, surat] = await Promise.all([
     db.weeklyPlan.findUnique({
@@ -199,7 +205,12 @@ export default async function LokasiRingkasanPage({
         <KpiCard
           label="Terpasang"
           value={formatRupiahShort(progress.realizedValue)}
-          sub={formatPct(progress.realizedPct)}
+          sub={
+            <>
+              {formatPct(progress.realizedPct)}
+              {draftProg ? <BarisDraftAdendum slug={slug} draft={draftProg} /> : null}
+            </>
+          }
         />
         <KpiCard
           label="Deviasi"

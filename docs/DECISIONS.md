@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 732 | 2026-11-01 | Kartu Realisasi (kepala lokasi) dan Terpasang (Ringkasan, juga ponsel) menyebut "Menurut draft adendum #N: x% · belum resmi" dari `getProgresDraftAdendum` (kanonik, 210) – tanpa rumus baru; angka resmi tidak berubah |
 | 731 | 2026-11-01 | Di layar sentuh (`pointer: coarse`) tombol, kotak isian, Combobox, dan pil sub-tab minimal 44 px (`pointer-coarse:min-h-11` di primitif + elemen ketuk buatan sendiri di layar harian/RAB); desktop tetap |
 | 730 | 2026-11-01 | Tombol foto bisa disentuh jari: tidak ada lagi ikon aksi ±22 px di pojok thumbnail – kisi = satu sasaran "buka foto", hapus/putar/kembalikan di tampilan besar (44 px, berlabel); panel "Foto tanpa pekerjaan" pakai tata letak baris dengan tombol berlabel ≥44 px; tombol `md` 36 px di seluruh aplikasi belum diubah (perlu keputusan) |
 | 729 | 2026-11-01 | CI paralel: E2E tiga job (sapuan ponsel 375 px, 414 px, uji lainnya – bertanda `@sapuan-<lebar>`), integrasi dua shard, tiap job ber-Postgres sendiri; penagih bernama lama "E2E (Playwright)" & "Integration tests (Postgres)"; job berbatas waktu, pemasangan Chromium yang macet diulang; tidak ada uji yang dikurangi |

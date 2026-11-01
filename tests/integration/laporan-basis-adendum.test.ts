@@ -188,6 +188,18 @@ describe("KASUS INTI: laporan atas adendum yang belum sah TIDAK menggerakkan ang
 });
 
 describe("laporan berbasis draft menunjukkan angkanya sendiri", () => {
+  /*
+   * Kartu Realisasi/Terpasang (DECISIONS 732) sudah memegang angka resmi;
+   * memberikannya tidak boleh mengubah satu pun angka draft – hanya melewati
+   * perhitungan resmi yang kedua.
+   */
+  it("angka resmi yang diberikan pemanggil menghasilkan angka yang SAMA dengan menghitung sendiri", async () => {
+    const sendiri = (await getProgresDraftAdendum(locationId))!;
+    const resmi = await getLocationProgress(locationId);
+    const diberi = (await getProgresDraftAdendum(locationId, undefined, { realizedValueResmi: resmi.realizedValue }))!;
+    expect(diberi).toEqual(sendiri);
+  });
+
   it("terpasang dihitung memakai RAB draft, mencakup kedua basis", async () => {
     const p = (await getProgresDraftAdendum(locationId))!;
     expect(p.revisionNo).toBe(2);

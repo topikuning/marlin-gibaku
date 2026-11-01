@@ -6,7 +6,8 @@ import { DeltaBadge } from "@/components/ui/stat-delta";
 import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
-import { getLocationProgress } from "@/lib/progress";
+import { getLocationProgress, getProgresDraftAdendum } from "@/lib/progress";
+import { BarisDraftAdendum } from "./baris-draft-adendum";
 import { can } from "@/lib/authz";
 import { alasanLokasiTertutup } from "@/lib/package/lingkup-lokasi";
 import { kawalUntukLokasi } from "@/lib/kawal/queries";
@@ -80,6 +81,10 @@ export default async function LokasiLayout({
     can(user.role, "kawal.view") ? kawalUntukLokasi([location.id]) : Promise.resolve(null),
   ]);
   const kawal = kawalPer?.get(location.id) ?? null;
+  // Bobot menurut DRAFT adendum (DECISIONS 732) – pantauan, bukan angka resmi.
+  const draftProg = await getProgresDraftAdendum(location.id, undefined, {
+    realizedValueResmi: progress.realizedValue,
+  });
   const contract = location.package.contract;
   const current = siblings.find((l) => l.slug === location.slug) ?? {
     slug: location.slug,
@@ -223,6 +228,7 @@ export default async function LokasiLayout({
             ) : (
               <span className="tabular">{formatPct(progress.realizedPct)}</span>
             )}
+            {draftProg ? <BarisDraftAdendum slug={slug} draft={draftProg} /> : null}
           </StatCell>
           <StatCell label="Deviasi">
             {kawal ? (
