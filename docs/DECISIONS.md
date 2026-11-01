@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 733 | 2026-11-01 | Impor laporan harian buatan pelaksana (PDF) ke draft: templat dibaca dari posisi teks (`unpdf`), format lain lewat AI (prompt `harian.baca_pelaksana`); pratinjau mencocokkan uraian ke item RAB, volume di atas sisa DITAHAN dengan peringatan (pilih ulang/ke draft adendum/lewati), tanggal/hari/lokasi/satuan yang janggal disebut; simpan lewat layanan biasa (penjaga sisa tetap), tenaga diganti bila dicentang, bahan/alat ditambah, cuaca & foto tidak diimpor |
 | 732 | 2026-11-01 | Kartu Realisasi (kepala lokasi) dan Terpasang (Ringkasan, juga ponsel) menyebut "Menurut draft adendum #N: x% · belum resmi" dari `getProgresDraftAdendum` (kanonik, 210) – tanpa rumus baru; angka resmi tidak berubah |
 | 731 | 2026-11-01 | Di layar sentuh (`pointer: coarse`) tombol, kotak isian, Combobox, dan pil sub-tab minimal 44 px (`pointer-coarse:min-h-11` di primitif + elemen ketuk buatan sendiri di layar harian/RAB); desktop tetap |
 | 730 | 2026-11-01 | Tombol foto bisa disentuh jari: tidak ada lagi ikon aksi ±22 px di pojok thumbnail – kisi = satu sasaran "buka foto", hapus/putar/kembalikan di tampilan besar (44 px, berlabel); panel "Foto tanpa pekerjaan" pakai tata letak baris dengan tombol berlabel ≥44 px; tombol `md` 36 px di seluruh aplikasi belum diubah (perlu keputusan) |

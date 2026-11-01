@@ -29,6 +29,7 @@ Kebijakan: versi stable/LTS terbaru, open-source, pinned exact. Lihat `docs/DEPE
 | sharp | ^0.35.3 | 0.35.3 | 0.35.3 | Apache-2.0 | Node 24 + bookworm-slim OK | KEEP (pin) | |
 | exifreader | ^4.25.0 | 4.41.0 | 4.41.0 | MPL-2.0 | — | UPGRADE | EXIF/GPS foto |
 | exceljs | ^4.4.0 | 4.4.0 | 4.4.0 | MIT | — | KEEP (pin) | Import RAB xlsx + export spreadsheet server-side (bukan AG Grid Enterprise) |
+| unpdf | — (baru 2026-11-01) | 2.1.0 | **1.9.0** | MIT | pdf.js tanpa native/worker; dipilih rilis ≥2 minggu (2.x baru 2–3 hari) | ADD (pin) | Baca teks + letak PDF laporan harian pelaksana (DECISIONS 733) |
 | date-fns | ^4.1.0 | 4.4.0 | 4.4.0 | MIT | — | UPGRADE | |
 | @date-fns/tz | — | 1.5.0 | 1.5.0 | MIT | date-fns 4 | **ADD** | Asia/Jakarta first-class |
 | lucide-react | ^0.469.0 | 1.24.0 | 1.24.0 | ISC | React 19 OK | UPGRADE | Satu library ikon |
