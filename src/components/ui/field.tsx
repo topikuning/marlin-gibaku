@@ -71,7 +71,7 @@ export function Input({ invalid, className, ...rest }: InputProps) {
   return (
     <input
       aria-invalid={invalid || undefined}
-      className={cn(CONTROL_CLASS, "h-9", invalid && INVALID_CLASS, className)}
+      className={cn(CONTROL_CLASS, "h-9 pointer-coarse:min-h-11", invalid && INVALID_CLASS, className)}
       {...rest}
     />
   );
@@ -85,7 +85,7 @@ export function Select({ invalid, className, children, ...rest }: SelectProps) {
   return (
     <select
       aria-invalid={invalid || undefined}
-      className={cn(CONTROL_CLASS, "h-9", invalid && INVALID_CLASS, className)}
+      className={cn(CONTROL_CLASS, "h-9 pointer-coarse:min-h-11", invalid && INVALID_CLASS, className)}
       {...rest}
     >
       {children}

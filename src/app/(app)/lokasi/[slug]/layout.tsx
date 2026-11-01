@@ -270,7 +270,7 @@ export default async function LokasiLayout({
           <Link
             href={`/paket/${location.package.id}`}
             title={`Kembali ke ${location.package.name}`}
-            className="-ml-1 inline-flex min-h-8 max-w-full items-center gap-0.5 rounded-md pr-1.5 text-[13px] font-medium text-primary hover:underline"
+            className="-ml-1 inline-flex min-h-8 max-w-full items-center gap-0.5 rounded-md pr-1.5 text-[13px] font-medium text-primary pointer-coarse:min-h-11 hover:underline"
           >
             <ChevronLeft aria-hidden className="size-4 shrink-0" />
             <span className="truncate">{location.package.name}</span>

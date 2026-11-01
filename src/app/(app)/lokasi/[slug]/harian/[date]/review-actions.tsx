@@ -136,7 +136,7 @@ export function FinalizePanel({
           <Link
             href={withBackTo(`/cetak/harian/${slug}/${dateKey}`, `/lokasi/${slug}/harian/${dateKey}`)}
             target="_blank"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white pointer-coarse:min-h-11 hover:bg-primary-800"
           >
             <Printer aria-hidden className="size-4" />
             Cetak Laporan KKP
@@ -181,7 +181,7 @@ function UnfinalizeForm({ reportId }: { reportId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 hover:text-ink"
+        className="inline-flex items-center text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 pointer-coarse:min-h-11 hover:text-ink"
       >
         Buka kembali untuk koreksi (super admin)
       </button>

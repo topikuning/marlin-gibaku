@@ -146,7 +146,7 @@ export function LocationSwitcher({
       // pernah ditemukan orang yang belum tahu ada fiturnya. Panah di
       // sebelahnya sengaja lebih ringan supaya hierarkinya tidak terbalik.
       className={cn(
-        "inline-flex items-center rounded-lg border border-border bg-surface font-semibold text-ink hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600",
+        "inline-flex items-center rounded-lg border border-border bg-surface font-semibold text-ink pointer-coarse:min-h-11 hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600",
         compact
           ? // min-h-9 supaya tetap bisa diketuk jempol; max-w menyisakan ruang
             // untuk status + deviasi yang berbagi baris yang sama.
