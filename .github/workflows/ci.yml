@@ -116,11 +116,20 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # PARALEL (DECISIONS 729): berkas integrasi dibagi ke beberapa job, masing-
+  # masing dengan Postgres sendiri. Di dalam satu job berkasnya tetap serial
+  # (`fileParallelism: false`) karena tiap berkas membersihkan DB-nya dengan
+  # TRUNCATE. Jumlah shard = isi matriks; dijaga tests/unit/ci-perlu.test.ts.
   integration:
-    name: Integration tests (Postgres)
+    name: Integrasi – bagian ${{ matrix.shard }}
     needs: perubahan
     if: needs.perubahan.outputs.integrasi == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:16
@@ -153,7 +162,20 @@ jobs:
       - name: Migrate + generate
         run: pnpm prisma migrate deploy && pnpm db:generate
       - name: Integration tests
-        run: pnpm vitest run tests/integration
+        run: pnpm vitest run tests/integration --shard=${{ matrix.shard }}/2
+
+  # Penagih hasil dengan NAMA CEK LAMA: aturan cabang, Railway, dan pembaca PR
+  # yang menunggu "Integration tests (Postgres)" tetap melihat satu cek.
+  integration-hasil:
+    name: Integration tests (Postgres)
+    needs: [perubahan, integration]
+    if: always() && needs.perubahan.outputs.integrasi == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.integration.result }}" != "success" ]; then
+            echo "::error::Ada bagian integrasi yang tidak lulus (${{ needs.integration.result }})."; exit 1
+          fi
 
   docker:
     name: Docker build
@@ -179,15 +201,31 @@ jobs:
           done
           echo "::error::Docker registry tak responsif setelah retry."; exit 1
 
+  # PARALEL (DECISIONS 729). Sapuan overflow ponsel memakan ±60% waktu E2E
+  # (8,7–9,8 dari 14–17 menit, dua lebar × ±88 halaman); tiap lebar kini jalan
+  # di job sendiri, berdampingan dengan seluruh uji lainnya. Tiap bagian punya
+  # Postgres + seed sendiri, jadi uji yang mengubah data tidak saling ganggu.
+  # Lebar sapuan baru WAJIB ditambah di sini – bagian "uji lainnya" membuang
+  # semua @sapuan; dijaga tests/unit/ci-perlu.test.ts.
   e2e:
-    name: E2E (Playwright)
+    name: E2E – ${{ matrix.bagian.nama }}
     needs: perubahan
     if: needs.perubahan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
-    # Biasanya ±17 menit. Tanpa batas, job yang macet baru dihentikan GitHub
-    # sesudah 360 menit dan PR ikut menunggu selama itu (2026-11-01: 30+ menit
-    # tertahan di pemasangan Chromium sebelum satu uji pun jalan).
+    # Tanpa batas, job yang macet baru dihentikan GitHub sesudah 360 menit dan
+    # PR ikut menunggu selama itu (2026-11-01: 30+ menit tertahan di
+    # pemasangan Chromium sebelum satu uji pun jalan).
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        bagian:
+          - nama: sapuan ponsel 375px
+            args: --project=mobile --grep @sapuan-375
+          - nama: sapuan ponsel 414px
+            args: --project=mobile --grep @sapuan-414
+          - nama: uji lainnya
+            args: --grep-invert @sapuan
     services:
       postgres:
         image: postgres:16
@@ -244,7 +282,7 @@ jobs:
         # dev & produksi tetap menampilkan petanya.
         env:
           PETA_MATI: "1"
-        run: pnpm test:e2e
+        run: pnpm test:e2e ${{ matrix.bagian.args }}
       # `test-results/` — BUKAN `playwright-report/`. Di CI reporter-nya
       # "github" (lihat playwright.config.ts), jadi laporan HTML tidak pernah
       # dibuat dan unggahan lama selalu berakhir "No files were found": setiap
@@ -256,8 +294,21 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-hasil
+          name: playwright-hasil-${{ strategy.job-index }}
           path: |
             test-results/
             playwright-report/
           retention-days: 7
+
+  # Penagih hasil dengan NAMA CEK LAMA: aturan cabang, Railway, dan pembaca PR
+  # yang menunggu "E2E (Playwright)" tetap melihat satu cek.
+  e2e-hasil:
+    name: E2E (Playwright)
+    needs: [perubahan, e2e]
+    if: always() && needs.perubahan.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.e2e.result }}" != "success" ]; then
+            echo "::error::Ada bagian E2E yang tidak lulus (${{ needs.e2e.result }})."; exit 1
+          fi
