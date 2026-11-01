@@ -565,10 +565,17 @@ export type ProgresDraftAdendum = {
  *
  * Ini BUKAN angka resmi dan tidak boleh dipakai untuk termin, kurva-S, atau
  * blanko KKP. Null bila lokasi tidak sedang punya draft.
+ *
+ * `opsi.realizedValueResmi`: pemanggil yang SUDAH memegang terpasang resmi
+ * (kartu Realisasi/Terpasang, DECISIONS 732) memberikannya supaya
+ * `getLocationProgress` tidak dihitung dua kali dalam satu permintaan. Hanya
+ * melewati perhitungan resmi; angka draft tidak berubah (diuji di
+ * `laporan-basis-adendum.test.ts`).
  */
 export async function getProgresDraftAdendum(
   locationId: string,
   asOf?: Date,
+  opsi: { realizedValueResmi?: bigint } = {},
 ): Promise<ProgresDraftAdendum | null> {
   const draft = await db.rabRevision.findFirst({
     where: { locationId, status: "draft" },
@@ -603,7 +610,9 @@ export async function getProgresDraftAdendum(
         GROUP BY rn.id, rn.volume, rn.amount
       ) t
     `,
-    getLocationProgress(locationId, asOf ? { asOf } : {}),
+    opsi.realizedValueResmi != null
+      ? Promise.resolve({ realizedValue: opsi.realizedValueResmi })
+      : getLocationProgress(locationId, asOf ? { asOf } : {}),
   ]);
 
   const grandTotal = catSum._sum.amount ?? 0n;

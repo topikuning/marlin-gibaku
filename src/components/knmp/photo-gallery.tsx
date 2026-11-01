@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { MapPin, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
-import { Lapisan } from "@/components/ui";
+import { Button, Lapisan } from "@/components/ui";
 import type { PhotoView } from "@/lib/photos";
 
 type PhotoDeleteAction = (prev: undefined, fd: FormData) => Promise<{ error?: string } | undefined>;
@@ -17,6 +17,15 @@ const takenFmt = new Intl.DateTimeFormat("id-ID", {
  * Grid thumbnail kecil + lightbox in-page (tidak buka tab baru).
  * Thumbnail pakai gambar kecil (thumbUrl) supaya ringan; full hanya saat dibuka.
  * Menampilkan tag EXIF (tanggal ambil, koordinat) di lightbox.
+ *
+ * SASARAN SENTUH (DECISIONS 730). Keluhan user 2026-11-01: *"apa menurutmu ini
+ * tidak super terlalu kecil? kamu gak mikir ux di mobile"*. Dulu tombol hapus
+ * dan "kembalikan" ditempel di pojok thumbnail 56 px, ±22 px, berdempetan
+ * dengan area "buka foto". Kini:
+ * - kisi: seluruh thumbnail SATU sasaran (buka foto); hapus/putar/kembalikan
+ *   ada di tampilan foto besar sebagai tombol berlabel setinggi 44 px;
+ * - `tataLetak="baris"`: untuk panel yang tugasnya memang aksi (foto yatim) –
+ *   tiap foto satu baris dengan tombol berlabel 44 px di sampingnya.
  */
 export function PhotoGallery({
   photos,
@@ -26,6 +35,7 @@ export function PhotoGallery({
   deleteAction,
   reuse,
   rotateAction,
+  tataLetak = "kisi",
 }: {
   photos: PhotoView[];
   thumbClass?: string;
@@ -55,6 +65,11 @@ export function PhotoGallery({
    * satu pun nilai cap yang berubah.
    */
   rotateAction?: PhotoDeleteAction;
+  /**
+   * "kisi" (bawaan): thumbnail berjajar, aksi di tampilan foto besar.
+   * "baris": tiap foto satu baris dengan tombol aksi berlabel di sampingnya.
+   */
+  tataLetak?: "kisi" | "baris";
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
@@ -117,58 +132,58 @@ export function PhotoGallery({
   if (!shown.length) return null;
 
   const active = open != null ? shown[open] : null;
+  const adaAksi = !!rotateAction || !!reuse || shown.some((p) => bolehHapus(p.id));
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        {shown.map((p, i) => (
-          <div key={p.id} className={`group relative overflow-hidden rounded-md border border-border ${thumbClass}`}>
-            <button
-              type="button"
-              onClick={() => setOpen(i)}
-              className="block h-full w-full"
-              aria-label="Buka foto"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL R2 sementara, bukan asset Next */}
-              <img
-                src={p.thumbUrl}
-                alt=""
-                loading="lazy"
-                className="h-full w-full object-cover transition group-hover:scale-105"
-              />
-            </button>
-            {p.lat != null && (
-              <span className="pointer-events-none absolute right-0 bottom-0 grid place-items-center rounded-tl bg-primary/85 p-0.5">
-                <MapPin aria-hidden className="size-3 text-white" />
-              </span>
-            )}
-            {bolehHapus(p.id) && (
-              <button
-                type="button"
-                onClick={() => del(p.id)}
-                disabled={pending}
-                aria-label="Hapus foto"
-                title="Hapus foto"
-                className="absolute top-0.5 right-0.5 grid place-items-center rounded bg-danger/90 p-1 text-white hover:bg-danger disabled:opacity-50"
-              >
-                <Trash2 aria-hidden className="size-3.5" />
-              </button>
-            )}
-            {reuse && (
-              <button
-                type="button"
-                onClick={() => pakaiLagi(p.id)}
-                disabled={pending}
-                aria-label={reuse.label}
-                title={reuse.label}
-                className="absolute bottom-0.5 left-0.5 grid place-items-center rounded bg-primary/90 p-1 text-white hover:bg-primary disabled:opacity-50"
-              >
-                <Undo2 aria-hidden className="size-3.5" />
-              </button>
-            )}
+      {tataLetak === "baris" ? (
+        <ul className="space-y-3">
+          {shown.map((p, i) => (
+            <li key={p.id} className="flex items-center gap-3">
+              <Thumb p={p} className="h-24 w-24 shrink-0" onOpen={() => setOpen(i)} />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                {reuse ? (
+                  <Button
+                    className="h-auto min-h-11 w-full py-1.5 leading-snug whitespace-normal"
+                    disabled={pending}
+                    onClick={() => pakaiLagi(p.id)}
+                  >
+                    <Undo2 aria-hidden className="size-4 shrink-0" />
+                    {reuse.label}
+                  </Button>
+                ) : null}
+                {bolehHapus(p.id) ? (
+                  <Button
+                    variant="secondary"
+                    className="h-auto min-h-11 w-full py-1.5"
+                    disabled={pending}
+                    onClick={() => del(p.id)}
+                  >
+                    <Trash2 aria-hidden className="size-4 shrink-0" />
+                    Hapus
+                  </Button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {shown.map((p, i) => (
+              <Thumb key={p.id} p={p} className={thumbClass} onOpen={() => setOpen(i)} />
+            ))}
           </div>
-        ))}
-      </div>
+          {adaAksi ? (
+            <p className="mt-1 text-[11px] text-ink-muted">
+              Ketuk foto untuk {[rotateAction ? "memutar" : null, reuse ? "memakainya lagi" : null, removable ? "menghapus" : null]
+                .filter(Boolean)
+                .join(" atau ")}
+              .
+            </p>
+          ) : null}
+        </>
+      )}
 
       {active && (
         <Lapisan
@@ -207,36 +222,66 @@ export function PhotoGallery({
               </span>
             </div>
 
-            {rotateAction ? (
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => putar(active.id, "kiri")}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow disabled:opacity-60"
-                >
-                  <RotateCcw aria-hidden className="size-3.5" />
-                  Putar kiri
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => putar(active.id, "kanan")}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow disabled:opacity-60"
-                >
-                  <RotateCw aria-hidden className="size-3.5" />
-                  Putar kanan
-                </button>
-                <span className="text-[11px] text-white/70">
-                  Cap dibuat ulang dari foto asli. Waktu dan koordinatnya tetap sama.
-                </span>
+            {/* Aksi di tampilan besar: berlabel dan setinggi 44 px – fotonya
+                terlihat jelas sebelum dihapus atau dipindah (DECISIONS 730). */}
+            {active && (rotateAction || reuse || bolehHapus(active.id)) ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {reuse ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => pakaiLagi(active.id)}
+                    className="inline-flex h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white shadow disabled:opacity-60"
+                  >
+                    <Undo2 aria-hidden className="size-4" />
+                    {reuse.label}
+                  </button>
+                ) : null}
+                {rotateAction ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => putar(active.id, "kiri")}
+                      className="inline-flex h-11 items-center gap-2 rounded-md bg-white/95 px-4 text-sm font-medium text-slate-700 shadow disabled:opacity-60"
+                    >
+                      <RotateCcw aria-hidden className="size-4" />
+                      Putar kiri
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => putar(active.id, "kanan")}
+                      className="inline-flex h-11 items-center gap-2 rounded-md bg-white/95 px-4 text-sm font-medium text-slate-700 shadow disabled:opacity-60"
+                    >
+                      <RotateCw aria-hidden className="size-4" />
+                      Putar kanan
+                    </button>
+                  </>
+                ) : null}
+                {bolehHapus(active.id) ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => del(active.id)}
+                    className="ml-auto inline-flex h-11 items-center gap-2 rounded-md bg-danger px-4 text-sm font-medium text-white shadow disabled:opacity-60"
+                  >
+                    <Trash2 aria-hidden className="size-4" />
+                    Hapus foto
+                  </button>
+                ) : null}
               </div>
+            ) : null}
+            {rotateAction ? (
+              <p className="mt-1 text-[11px] text-white/70">
+                Putar: cap dibuat ulang dari foto asli. Waktu dan koordinatnya tetap sama.
+              </p>
             ) : null}
 
             <button
               type="button"
               onClick={close}
-              className="absolute -top-3 -right-3 grid h-8 w-8 place-items-center rounded-full bg-white text-slate-700 shadow"
+              className="absolute -top-3 -right-3 grid h-11 w-11 place-items-center rounded-full bg-white text-slate-700 shadow"
               aria-label="Tutup"
             >
               ✕
@@ -260,12 +305,29 @@ function NavBtn({ side, onClick }: { side: "left" | "right"; onClick: () => void
     <button
       type="button"
       onClick={onClick}
-      className={`absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-800 shadow ${
+      className={`absolute top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-800 shadow ${
         side === "left" ? "left-2" : "right-2"
       }`}
       aria-label={side === "left" ? "Sebelumnya" : "Berikutnya"}
     >
       {side === "left" ? "‹" : "›"}
     </button>
+  );
+}
+
+/** Satu thumbnail = satu sasaran sentuh: buka foto besar. Tanda GPS hanya penanda. */
+function Thumb({ p, className, onOpen }: { p: PhotoView; className: string; onOpen: () => void }) {
+  return (
+    <div className={`group relative overflow-hidden rounded-md border border-border ${className}`}>
+      <button type="button" onClick={onOpen} className="block h-full w-full" aria-label="Buka foto">
+        {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL R2 sementara, bukan asset Next */}
+        <img src={p.thumbUrl} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
+      </button>
+      {p.lat != null && (
+        <span className="pointer-events-none absolute right-0 bottom-0 grid place-items-center rounded-tl bg-primary/85 p-0.5">
+          <MapPin aria-hidden className="size-3 text-white" />
+        </span>
+      )}
+    </div>
   );
 }

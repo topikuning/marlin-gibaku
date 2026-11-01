@@ -65,7 +65,7 @@ export interface ComboboxProps {
 }
 
 const CONTROL =
-  "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 text-base sm:text-sm text-ink " +
+  "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 text-base sm:text-sm text-ink pointer-coarse:min-h-11 " +
   "focus-visible:outline-2 focus-visible:outline-primary-600 disabled:cursor-not-allowed disabled:bg-surface-inset disabled:text-ink-faint";
 
 export function Combobox({

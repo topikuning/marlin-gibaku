@@ -30,9 +30,13 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
     "bg-transparent text-ink-muted hover:bg-surface-inset hover:text-ink active:bg-surface-muted border border-transparent",
 };
 
+// `pointer-coarse:min-h-11`: di perangkat yang alat tunjuk utamanya JARI,
+// tombol minimal 44 px (DECISIONS 731, pilihan user 2026-11-01: "naikkan
+// tombol ke 44 px di layar sentuh"). Desktop tetap 32/36 px supaya tabel dan
+// baris aksi tidak membengkak. Dijaga tests/unit/tombol-sentuh.test.ts.
 const SIZE_CLASS: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-[13px] gap-1.5",
-  md: "h-9 px-4 text-sm gap-2",
+  sm: "h-8 px-3 text-[13px] gap-1.5 pointer-coarse:min-h-11",
+  md: "h-9 px-4 text-sm gap-2 pointer-coarse:min-h-11",
 };
 
 export function Button({

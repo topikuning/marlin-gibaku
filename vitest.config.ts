@@ -30,5 +30,16 @@ export default defineConfig({
      * lebih lambat.
      */
     hookTimeout: 60_000,
+    /*
+     * Batas UJI juga dinaikkan dari bawaan 5 detik (2026-11-01). Sejak integrasi
+     * dibagi dua shard (DECISIONS 729), `penagihan-berkas-termin` jalan PERTAMA
+     * di shard 2, saat mesin CI masih dingin. Satu ujinya menyusun PDF & Excel
+     * sungguhan (±1,5 detik di mesin pengembang) dan lewat 5 detik. Uji yang
+     * kehabisan waktu terus berjalan di latar dan mengubah tiruan Drive & baris
+     * DB, sehingga 8 uji berikutnya ikut gagal dalam hitungan milidetik –
+     * ditirukan lokal dengan `--testTimeout=1200`. Seperti `hookTimeout`, ini
+     * tidak menutupi apa pun: uji yang benar-benar menggantung tetap gagal.
+     */
+    testTimeout: 30_000,
   },
 });

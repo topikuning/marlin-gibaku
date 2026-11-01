@@ -85,7 +85,7 @@ export function SubTabs({
               // berlabel pendek pun masih meleset dari 375px pada ukuran penuh
               // — dan 375px adalah lebar ponsel yang benar-benar dipakai di
               // lapangan, bukan kasus tepi.
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors sm:px-3 sm:text-[13px]",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors pointer-coarse:min-h-11 sm:px-3 sm:text-[13px]",
               aktif
                 ? "border-primary-600 bg-primary-600 text-white"
                 : "border-border bg-surface text-ink-muted hover:border-border-strong hover:bg-surface-muted",

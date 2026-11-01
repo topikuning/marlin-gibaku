@@ -82,7 +82,7 @@ export function PindahTanggalForm({
       <button
         type="button"
         onClick={() => setBuka(true)}
-        className="text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 hover:text-ink"
+        className="inline-flex items-center text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 pointer-coarse:min-h-11 hover:text-ink"
       >
         Salah tanggal? Pindahkan laporan ini
       </button>
