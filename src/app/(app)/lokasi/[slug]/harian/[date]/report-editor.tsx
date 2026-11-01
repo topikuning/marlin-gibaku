@@ -135,21 +135,22 @@ export function ReportEditor({
               ditempelinya. Pertanyaan user 2026-08-07: *"kalau mau dipakai lagi
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
           <p className="mt-0.5 text-xs text-muted">
-            Foto ini terlepas karena pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
-            kantong Foto Cepat. Dari sana, foto bisa dipakai untuk pekerjaan mana pun. Hapus hanya
-            kalau memang tidak dipakai.
+            Foto ini terlepas karena pekerjaannya dihapus. Kembalikan ke Foto Cepat supaya bisa
+            dipakai untuk pekerjaan mana pun. Hapus hanya kalau memang tidak dipakai.
           </p>
-          <div className="mt-2">
+          <div className="mt-3">
+            {/* Tombol berlabel 44 px di samping foto, bukan ikon di pojok
+                thumbnail 56 px (keluhan user 2026-11-01, DECISIONS 730). */}
             <PhotoGallery
               photos={photosTanpaItem}
-              thumbClass="h-14 w-14"
+              tataLetak="baris"
               canDelete={bolehHapusFoto}
               deleteAction={removeReportPhotoAction}
               rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
               reuse={
                 bolehHapusFoto
                   ? {
-                      label: "Kembalikan ke kantong Foto Cepat",
+                      label: "Kembalikan ke Foto Cepat",
                       run: returnPhotoToKantongAction,
                     }
                   : undefined
