@@ -16,7 +16,9 @@ import {
   PERAN_PENUGASAN,
   type Suara,
   cocokKonfirmasiKoreksi,
+  cocokKonfirmasiTanpaPersetujuan,
   konfirmasiKoreksi,
+  konfirmasiTanpaPersetujuan,
 } from "@/lib/rab/persetujuan-aturan";
 import type { UserRole } from "@/generated/prisma/enums";
 
@@ -143,5 +145,22 @@ describe("konfirmasi koreksi super admin utama", () => {
     expect(cocokKonfirmasiKoreksi("KOREKSI #2", 3)).toBe(false);
     expect(cocokKonfirmasiKoreksi("AKTIFKAN #3", 3)).toBe(false);
     expect(cocokKonfirmasiKoreksi(null, 3)).toBe(false);
+  });
+});
+
+/*
+ * Jalan pintas super admin UTAMA untuk ADENDUM (682; ditegaskan 728: "super
+ * admin utama tetap boleh aktifkan CCO"). Kalimatnya beda dari koreksi supaya
+ * keduanya tidak tertukar.
+ */
+describe("konfirmasi aktivasi CCO tanpa persetujuan", () => {
+  it("kalimatnya menyebut nomor revisi", () => {
+    expect(konfirmasiTanpaPersetujuan(4)).toBe("AKTIFKAN #4");
+  });
+
+  it("tidak tertukar dengan kalimat koreksi", () => {
+    expect(cocokKonfirmasiTanpaPersetujuan(" aktifkan  #4", 4)).toBe(true);
+    expect(cocokKonfirmasiTanpaPersetujuan("KOREKSI #4", 4)).toBe(false);
+    expect(cocokKonfirmasiTanpaPersetujuan("AKTIFKAN #3", 4)).toBe(false);
   });
 });

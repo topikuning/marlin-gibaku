@@ -12,7 +12,7 @@ import {
   discardDraftAction,
   type RabActionState,
 } from "./actions";
-import { PanelTanpaPersetujuan } from "./panel-tanpa-persetujuan";
+import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "./panel-tanpa-persetujuan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
 /**
@@ -82,7 +82,7 @@ function DraftActions({
   /** Pesan berhasil dinaikkan ke daftar: baris draft ini sendiri berganti begitu aktif. */
   onBerhasil: (pesan: string) => void;
 }) {
-  const [bukaTanpa, setBukaTanpa] = useState(false);
+  const [bukaTanpa, setBukaTanpa] = useState<CaraTanpaPersetujuan | null>(null);
   const [activateState, activate, activating] = useAksi<RabActionState>(
     activateDraftAction,
     undefined,
@@ -98,7 +98,7 @@ function DraftActions({
   const state = approveState ?? activateState ?? discardState;
   const terkunci = persetujuan != null && !persetujuan.lengkap;
   return (
-    <div className="space-y-1.5">
+    <div className="ml-auto max-w-md space-y-1.5">
       {persetujuan ? (
         <div className="rounded-md border border-border bg-surface-muted p-2 text-left text-xs">
           <p className="font-medium">Persetujuan aktivasi (perlu dua orang berbeda)</p>
@@ -151,7 +151,7 @@ function DraftActions({
           )}
         </div>
       ) : null}
-      <div className="flex justify-end gap-1.5">
+      <div className="flex flex-wrap justify-end gap-1.5">
         <form action={activate}>
           <input type="hidden" name="revisionId" value={revisionId} />
           <Button
@@ -169,7 +169,12 @@ function DraftActions({
           </Button>
         </form>
         {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
-          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa(true)}>
+          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa("aktifkan")}>
+            Aktifkan tanpa persetujuan…
+          </Button>
+        ) : null}
+        {terkunci && bolehTanpaPersetujuan && !bukaTanpa ? (
+          <Button size="sm" variant="secondary" type="button" onClick={() => setBukaTanpa("koreksi")}>
             Terapkan sebagai koreksi…
           </Button>
         ) : null}
@@ -182,10 +187,11 @@ function DraftActions({
       </div>
       {terkunci && bolehTanpaPersetujuan && bukaTanpa ? (
         <PanelTanpaPersetujuan
+          cara={bukaTanpa}
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
-          onBatal={() => setBukaTanpa(false)}
+          onBatal={() => setBukaTanpa(null)}
           onBerhasil={onBerhasil}
         />
       ) : null}

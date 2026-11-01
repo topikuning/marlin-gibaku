@@ -22,7 +22,12 @@ import {
   ringkasPersetujuan,
   setujuiRevisi,
 } from "@/lib/rab/persetujuan";
-import { cocokKonfirmasiKoreksi, konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
+import {
+  cocokKonfirmasiKoreksi,
+  cocokKonfirmasiTanpaPersetujuan,
+  konfirmasiKoreksi,
+  konfirmasiTanpaPersetujuan,
+} from "@/lib/rab/persetujuan-aturan";
 import { KoreksiTimpaError, koreksiDariDraft } from "@/lib/rab/koreksi-timpa-simpan";
 import { jalankanAktivasi } from "@/lib/rab/aktivasi";
 import { kirimPermintaanPd } from "@/lib/rab/persetujuan-wa";
@@ -129,15 +134,25 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // Satu pengecualian (DECISIONS 682, pilihan user 2026-10-16): super admin
     // UTAMA yang MEMINTANYA sendiri dan mengetik `AKTIFKAN #N`. Tidak pernah
     // otomatis – tanpa permintaan itu, ia pun tertahan seperti orang lain.
+    //
+    // Dua cara, dipilih orangnya sendiri dengan kalimat yang berbeda
+    // (DECISIONS 728, pilihan user 2026-11-01):
+    // - `AKTIFKAN #N` – draft diaktifkan sebagai ADENDUM (MC-0/CCO) tanpa
+    //   menunggu dua persetujuan: *"super admin utama tetap boleh aktifkan CCO"*;
+    // - `KOREKSI #N` – isi draft menimpa RAB aktif di tempat, tanpa revisi baru
+    //   dan tidak dihitung sebagai MC-0/CCO.
     const tanpaPersetujuan = formData.get("tanpaPersetujuan") === "1";
-    const persetujuanSaatItu: Awaited<ReturnType<typeof ringkasPersetujuan>> | null = null;
-    if (tanpaPersetujuan && adendum) {
-      /*
-       * JALAN PINTAS SUPER ADMIN = KOREKSI (DECISIONS 728, mengubah 682).
-       * Isi draft menimpa RAB aktif di tempat – tidak ada revisi baru, tidak
-       * dihitung sebagai MC-0/CCO. Dulu draft ini diaktifkan sebagai revisi
-       * adendum tanpa persetujuan dan menggeser nomor CCO lokasinya.
-       */
+    const caraKoreksi = formData.get("cara") === "koreksi";
+    let persetujuanSaatItu: Awaited<ReturnType<typeof ringkasPersetujuan>> | null = null;
+    if (tanpaPersetujuan && adendum && !caraKoreksi) {
+      if (!bolehAktifTanpaPersetujuan(user)) {
+        return { error: "Hanya super admin utama yang boleh mengaktifkan adendum tanpa persetujuan." };
+      }
+      if (!cocokKonfirmasiTanpaPersetujuan(formData.get("konfirmasi"), rev.revisionNo)) {
+        return { error: `Ketik ${konfirmasiTanpaPersetujuan(rev.revisionNo)} persis untuk konfirmasi.` };
+      }
+      persetujuanSaatItu = await ringkasPersetujuan(rev.id);
+    } else if (tanpaPersetujuan && adendum) {
       if (!bolehAktifTanpaPersetujuan(user)) {
         return { error: "Hanya super admin utama yang boleh menerapkan draft sebagai koreksi tanpa persetujuan." };
       }

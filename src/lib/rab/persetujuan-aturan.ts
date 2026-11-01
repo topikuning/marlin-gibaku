@@ -98,16 +98,33 @@ export function suaraMasihBerlaku<T extends { approvedAt: Date }>(
   return suara.filter((s) => s.approvedAt.getTime() >= draftDiubahPada.getTime());
 }
 
+const rapikanKetik = (ketik: unknown) => String(ketik ?? "").trim().replace(/\s+/g, " ").toUpperCase();
+
 /**
- * Kalimat konfirmasi KOREKSI oleh super admin UTAMA (DECISIONS 728, mengganti
- * `AKTIFKAN #N` dari 682): menimpa isi RAB aktif di tempat, tanpa revisi baru
- * dan tanpa dua persetujuan. Menyebut nomor revisi supaya tidak tertukar –
- * pola yang sama dengan hapus revisi (`HAPUS #N`, DECISIONS 636).
+ * JALAN PINTAS SUPER ADMIN UTAMA (DECISIONS 682, ditegaskan lagi 728) –
+ * kalimat yang wajib diketik sebelum draft ADENDUM (MC-0/CCO) diaktifkan
+ * tanpa dua persetujuan. Pilihan user 2026-11-01: *"super admin utama tetap
+ * boleh aktifkan CCO"*. Menyebut nomor revisi supaya tidak tertukar – pola
+ * yang sama dengan hapus revisi (`HAPUS #N`, DECISIONS 636).
+ */
+export function konfirmasiTanpaPersetujuan(revisionNo: number): string {
+  return `AKTIFKAN #${revisionNo}`;
+}
+
+export function cocokKonfirmasiTanpaPersetujuan(ketik: unknown, revisionNo: number): boolean {
+  return rapikanKetik(ketik) === konfirmasiTanpaPersetujuan(revisionNo);
+}
+
+/**
+ * Kalimat konfirmasi KOREKSI oleh super admin UTAMA (DECISIONS 728): menimpa
+ * isi RAB aktif di tempat, tanpa revisi baru, tanpa dua persetujuan, dan
+ * tidak dihitung sebagai MC-0/CCO. Kalimatnya sengaja beda dari `AKTIFKAN #N`
+ * supaya koreksi dan CCO tidak tertukar.
  */
 export function konfirmasiKoreksi(revisionNo: number): string {
   return `KOREKSI #${revisionNo}`;
 }
 
 export function cocokKonfirmasiKoreksi(ketik: unknown, revisionNo: number): boolean {
-  return String(ketik ?? "").trim().replace(/\s+/g, " ").toUpperCase() === konfirmasiKoreksi(revisionNo);
+  return rapikanKetik(ketik) === konfirmasiKoreksi(revisionNo);
 }

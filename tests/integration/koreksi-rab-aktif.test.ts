@@ -70,6 +70,10 @@ const MIGRASI_LAMA = [
     new URL("../../prisma/migrations/20261101090200_rab_koreksi_status_cco/migration.sql", import.meta.url).pathname,
     "utf8",
   ),
+  readFileSync(
+    new URL("../../prisma/migrations/20261101090300_rab_koreksi_hanya_impor/migration.sql", import.meta.url).pathname,
+    "utf8",
+  ),
 ];
 let orgId: string;
 let pkgId: string;
@@ -275,7 +279,7 @@ describe("impor \"Jadikan RAB AKTIF\" pada lokasi ber-RAB aktif = koreksi", () =
   }, 300_000);
 });
 
-describe("tombol draft \"Terapkan sebagai koreksi\"", () => {
+describe("tombol draft: \"Terapkan sebagai koreksi\" dan \"Aktifkan tanpa persetujuan\" (CCO)", () => {
   let draftId: string;
   let draftNo: number;
   let lineageD: string;
@@ -320,6 +324,7 @@ describe("tombol draft \"Terapkan sebagai koreksi\"", () => {
     const fd = new FormData();
     fd.set("revisionId", kedua.revisionId);
     fd.set("tanpaPersetujuan", "1");
+    fd.set("cara", "koreksi");
     fd.set("konfirmasi", `KOREKSI #${kedua.revisionNo}`);
     const res = await activateDraftAction(undefined, fd);
     expect(res?.error).toMatch(/tidak bisa menghapus/);
@@ -342,16 +347,20 @@ describe("tombol draft \"Terapkan sebagai koreksi\"", () => {
   it("super admin biasa ditolak; konfirmasi yang tidak persis ditolak", async () => {
     sebagai = adminBiasa;
     try {
-      expect((await terapkan({ tanpaPersetujuan: "1", konfirmasi: `KOREKSI #${draftNo}` }))?.error).toMatch(/super admin utama/);
+      expect((await terapkan({ tanpaPersetujuan: "1", cara: "koreksi", konfirmasi: `KOREKSI #${draftNo}` }))?.error).toMatch(/super admin utama/);
+      expect((await terapkan({ tanpaPersetujuan: "1", konfirmasi: `AKTIFKAN #${draftNo}` }))?.error).toMatch(/super admin utama/);
     } finally {
       sebagai = akar;
     }
-    expect((await terapkan({ tanpaPersetujuan: "1", konfirmasi: "koreksi" }))?.error).toContain(`KOREKSI #${draftNo}`);
+    expect((await terapkan({ tanpaPersetujuan: "1", cara: "koreksi", konfirmasi: "koreksi" }))?.error).toContain(`KOREKSI #${draftNo}`);
+    // Kalimat koreksi tidak membuka jalan pintas CCO, dan sebaliknya.
+    expect((await terapkan({ tanpaPersetujuan: "1", konfirmasi: `KOREKSI #${draftNo}` }))?.error).toContain(`AKTIFKAN #${draftNo}`);
+    expect((await terapkan({ tanpaPersetujuan: "1", cara: "koreksi", konfirmasi: `AKTIFKAN #${draftNo}` }))?.error).toContain(`KOREKSI #${draftNo}`);
     expect((await db.rabRevision.findUniqueOrThrow({ where: { id: draftId } })).status).toBe("draft");
   });
 
   it("super admin utama: isi draft menimpa RAB aktif, draft habis, laporan draft jadi resmi, tanpa revisi baru", async () => {
-    const res = await terapkan({ tanpaPersetujuan: "1", konfirmasi: `KOREKSI #${draftNo}` });
+    const res = await terapkan({ tanpaPersetujuan: "1", cara: "koreksi", konfirmasi: `KOREKSI #${draftNo}` });
     expect(res?.error, res?.error).toBeUndefined();
     expect(res?.success).toMatch(/diterapkan sebagai koreksi/);
     const revisi = await db.rabRevision.findMany({ where: { locationId }, select: { id: true, status: true } });
@@ -362,6 +371,36 @@ describe("tombol draft \"Terapkan sebagai koreksi\"", () => {
     expect(baris).toMatchObject({ rabNodeId: d.id, basis: "aktif" });
     expect(await db.auditLog.count({ where: { action: "rab.koreksi_dari_draft", resourceId: draftId } })).toBe(1);
     expect(await db.auditLog.count({ where: { action: "rab.aktivasi_tanpa_persetujuan", resourceId: draftId } })).toBe(0);
+  }, 300_000);
+
+  /*
+   * Pilihan user 2026-11-01: "super admin utama tetap boleh aktifkan CCO".
+   * Draft adendum yang diaktifkan dengan `AKTIFKAN #N` tetap ADENDUM – revisi
+   * baru, tahap MC-0, menunggu nomor CCO paket – bukan koreksi.
+   */
+  it("super admin utama: AKTIFKAN #N mengaktifkan draft sebagai adendum (MC-0) tanpa dua persetujuan", async () => {
+    const cco = await createRevisionFromNodes(locationId, nodesBerkas, { source: "adendum", userId: akar.id, note: "CCO" });
+    const fd = new FormData();
+    fd.set("revisionId", cco.revisionId);
+    fd.set("tanpaPersetujuan", "1");
+    fd.set("konfirmasi", `AKTIFKAN #${cco.revisionNo}`);
+    const res = await activateDraftAction(undefined, fd);
+    expect(res?.error, res?.error).toBeUndefined();
+    const revisi = await db.rabRevision.findMany({
+      where: { locationId },
+      orderBy: { revisionNo: "asc" },
+      select: { id: true, revisionNo: true, source: true, status: true, awaitingCco: true },
+    });
+    expect(revisi.map((r) => [r.id, r.source, r.status, r.awaitingCco])).toEqual([
+      [rev1, "hps_awal", "digantikan", false],
+      [cco.revisionId, "adendum", "aktif", true],
+    ]);
+    expect(tahapRevisi(revisi).get(cco.revisionId)!.label).toBe("MC-0");
+    const jejak = await db.auditLog.findFirstOrThrow({
+      where: { action: "rab.aktivasi_tanpa_persetujuan", resourceId: cco.revisionId },
+      select: { payload: true },
+    });
+    expect(jejak.payload).toMatchObject({ jalur: "tombol_aktifkan" });
   }, 300_000);
 });
 
@@ -411,7 +450,7 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
    * "tidak menunggu", adendum sah sebelumnya yang belum ber-CCO hilang dari
    * selisih CCO berikutnya.
    */
-  it("koreksi lama mewarisi status CCO revisi yang dikoreksinya; yang sudah ber-CCO tidak disentuh", async () => {
+  it("aturan jalur: impor = koreksi yang mewarisi status CCO; tombol draft = tetap adendum; yang sudah ber-CCO tidak disentuh", async () => {
     const kontrak = await db.contract.findFirstOrThrow({ where: { packageId: pkgId }, select: { id: true } });
     const cco = await db.contractAmendment.create({
       data: { contractId: kontrak.id, ccoNumber: `CCO-${suffix}`, valueDelta: 0n, endDateDelta: 0, effectiveDate: new Date("2026-08-01"), reason: "uji" },
@@ -443,11 +482,24 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
     const a3 = await buat(A.id, 3, "adendum", "digantikan", false); // impor: dulu tak ditandai menunggu
     const a4 = await buat(A.id, 4, "adendum", "aktif", true); // tombol draft: dulu selalu ditandai
     await pintas(a3.id, "impor");
-    await pintas(a4.id, "web");
+    await pintas(a4.id, "tombol_aktifkan");
     // B: koreksi jalan pintas yang sudah tersapu ke CCO paket.
     await buat(B.id, 1, "hps_awal", "digantikan", false);
     const b2 = await buat(B.id, 2, "adendum", "aktif", false, cco.id);
     await pintas(b2.id, "impor");
+    // C: draft adendum yang diaktifkan lewat tombol lalu sudah dicatat dalam CCO paket.
+    const C = await lokasi("tombol-cco");
+    await buat(C.id, 1, "hps_awal", "digantikan", false);
+    const c2 = await buat(C.id, 2, "adendum", "aktif", false, cco.id);
+    await pintas(c2.id, "tombol_aktifkan");
+    // D: koreksi impor SESUDAH adendum lewat tombol yang belum ber-CCO – status
+    // CCO-nya harus mengikuti adendum itu, yang baru kembali di 090300.
+    const D = await lokasi("tombol-lalu-impor");
+    await buat(D.id, 1, "hps_awal", "digantikan", false);
+    const d2 = await buat(D.id, 2, "adendum", "digantikan", true);
+    const d3 = await buat(D.id, 3, "adendum", "aktif", false);
+    await pintas(d2.id, "tombol_aktifkan");
+    await pintas(d3.id, "impor");
 
     for (let i = 0; i < 2; i++) for (const sql of MIGRASI_LAMA) await db.$executeRawUnsafe(sql); // idempoten
 
@@ -463,11 +515,20 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
       [1, "hps_awal", false, null],
       [2, "adendum", true, null],
       [3, "koreksi", true, null],
-      [4, "koreksi", true, null],
+      [4, "adendum", true, null],
     ]);
     expect(await kini(B.id)).toEqual([
       [1, "hps_awal", false, null],
       [2, "koreksi", false, cco.id],
+    ]);
+    expect(await kini(C.id)).toEqual([
+      [1, "hps_awal", false, null],
+      [2, "adendum", false, cco.id],
+    ]);
+    expect(await kini(D.id)).toEqual([
+      [1, "hps_awal", false, null],
+      [2, "adendum", true, null],
+      [3, "koreksi", true, null],
     ]);
     // Uang: selisih CCO berikutnya dihitung dari RAB kontrak, jadi adendum #2 ikut.
     const tertunda = await adendumTertunda(pkgId);
@@ -476,6 +537,8 @@ describe("migrasi data lama: jalan pintas super admin = koreksi, di semua lokasi
     ]);
     expect(tertunda.revisi.some((r) => r.locationId === B.id)).toBe(false);
     const tahap = tahapRevisi(await db.rabRevision.findMany({ where: { locationId: A.id } }));
-    expect([a1, a2, a3, a4].map((r) => tahap.get(r.id)!.label)).toEqual(["RAB kontrak", "MC-0", "Koreksi", "Koreksi"]);
+    expect([a1, a2, a3, a4].map((r) => tahap.get(r.id)!.label)).toEqual(["RAB kontrak", "MC-0", "Koreksi", "CCO-01"]);
+    const tahapD = tahapRevisi(await db.rabRevision.findMany({ where: { locationId: D.id } }));
+    expect([d2, d3].map((r) => tahapD.get(r.id)!.label)).toEqual(["MC-0", "Koreksi"]);
   });
 });
