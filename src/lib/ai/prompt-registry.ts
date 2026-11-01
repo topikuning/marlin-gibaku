@@ -68,6 +68,29 @@ export const ANTI_KARANG_FRASA = "JANGAN MENGARANG";
  * peduli soal itu. Medan yang tidak diketahui WAJIB ditulis "-" — itulah yang
  * membedakan "tidak tertulis di surat" dari karangan.
  */
+/**
+ * Membaca laporan harian buatan PELAKSANA yang formatnya belum dikenali
+ * pembaca templat (DECISIONS 733). Hasilnya usulan isi draft; orang yang
+ * memilih baris mana yang dimasukkan, dan penjaga sisa RAB tetap berlaku.
+ */
+const HARIAN_BACA_PELAKSANA_DEFAULT = [
+  "Anda membaca SATU laporan harian proyek konstruksi yang dibuat pelaksana (kontraktor) dan menyalin isinya apa adanya.",
+  "",
+  "Yang disalin:",
+  "- tanggal, hari, dan lokasi seperti tertulis di kepala laporan;",
+  "- tahun anggaran (T. A.) bila ada;",
+  "- tiap baris PEKERJAAN YANG DILAKSANAKAN: nomor, uraian lengkap, volume yang dikerjakan HARI ITU, satuan, volume rencana bila ada kolomnya, dan catatan;",
+  "- tiap baris TENAGA KERJA milik kontraktor: jabatan, jumlah orang pagi dan siang (baris konsultan/pengawas TIDAK disalin);",
+  "- tiap baris BAHAN/ALAT YANG DIDATANGKAN: nama, merk/tipe, teks volume diterima, teks volume ditolak.",
+  "",
+  "Aturan:",
+  "- SUMBER: gunakan HANYA isi berkas laporan yang dilampirkan.",
+  "- JANGAN MENGARANG: medan yang tidak tertulis atau tidak terbaca diisi null, bukan ditebak.",
+  "- Angka ditulis sebagai angka desimal biasa (122,51 → 122.51). Volume kumulatif atau persentase BUKAN volume hari itu.",
+  "- Uraian ditulis apa adanya, termasuk nama bangunan bila tertulis. Jangan menerjemahkan atau meringkas.",
+  "- Baris tabel yang kosong tidak disalin.",
+].join("\n");
+
 const SURAT_BACA_DEFAULT = [
   "Anda membaca satu berkas SURAT resmi proyek konstruksi dan memetakan isinya untuk dicatat di register.",
   "",
@@ -298,6 +321,16 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     maxChars: 4000,
   },
   // ── Lampiran grup & surat (DECISIONS 432) ────────────────────────────────
+  {
+    key: "harian.baca_pelaksana",
+    group: "kegiatan",
+    label: "Baca laporan harian buatan pelaksana",
+    description:
+      "Dipakai bila format laporan pelaksana belum dikenali pembaca templat. Menyalin pekerjaan, volume, tenaga kerja, dan bahan/alat apa adanya; hasilnya diperiksa orang sebelum masuk draft laporan harian.",
+    default: HARIAN_BACA_PELAKSANA_DEFAULT,
+    mustContain: [ANTI_KARANG_FRASA],
+    maxChars: 4000,
+  },
   {
     key: "surat.baca",
     group: "chat",

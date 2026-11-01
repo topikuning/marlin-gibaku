@@ -13,6 +13,7 @@ import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor, TambahFotoSusulan } from "./report-editor";
+import { ImporLaporanPelaksana } from "./impor-pelaksana";
 import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
 import type { PhotoView } from "@/lib/photos";
@@ -203,6 +204,9 @@ export default async function HarianWorkspacePage({
           alasanTidakBisa={alasanUsulanTertahan}
         />
       ) : null}
+
+      {/* Laporan harian buatan pelaksana → draft ini (DECISIONS 733). */}
+      {editable ? <ImporLaporanPelaksana locationId={data.location.id} slug={slug} dateKey={date} /> : null}
 
       {/* Input item (draft / perlu_koreksi) */}
       {editable ? (
