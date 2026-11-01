@@ -61,6 +61,7 @@ export function SimulasiKebutuhan({
   barisDipakai,
   nilaiRab,
   barisRab,
+  tanpaUang = false,
 }: {
   kebutuhan: BarisKebutuhan[];
   dilewat: BarisDilewatRow[];
@@ -68,6 +69,8 @@ export function SimulasiKebutuhan({
   barisDipakai: number;
   nilaiRab: string;
   barisRab: number;
+  /** Pelaksana (DECISIONS 735): cakupan disebut dalam baris, bukan nilai; kolom nilai tidak dirender. */
+  tanpaUang?: boolean;
 }) {
   const [tab, setTab] = useState<"kebutuhan" | "dilewat">("kebutuhan");
 
@@ -140,11 +143,11 @@ export function SimulasiKebutuhan({
     () => [
       { field: "code", headerName: "Kode", width: 100 },
       { field: "uraian", headerName: "Uraian item RAB", flex: 2, minWidth: 260, filter: true },
-      { ...rupiahCol<BarisDilewatGrid>("nilai", "Nilai"), width: 160, sort: "desc" },
+      ...(tanpaUang ? [] : [{ ...rupiahCol<BarisDilewatGrid>("nilai", "Nilai"), width: 160, sort: "desc" as const }]),
       { field: "alasanLabel", headerName: "Sebab", width: 220, filter: true },
       { field: "rinci", headerName: "Keterangan", flex: 1, minWidth: 240 },
     ],
-    [],
+    [tanpaUang],
   );
 
   const nilaiDilewat = dilewat.reduce((a, d) => a + BigInt(d.amount), 0n);
@@ -163,7 +166,11 @@ export function SimulasiKebutuhan({
     <div className="space-y-3">
       <Banner
         tone={pct >= 80 ? "success" : pct >= 40 ? "warning" : "info"}
-        title={`Mencakup ${formatPct(pct, 1)} nilai RAB (${formatRupiah(dipakai)} dari ${formatRupiah(total)})`}
+        title={
+          tanpaUang
+            ? `Mencakup ${barisDipakai} dari ${barisRab} baris RAB`
+            : `Mencakup ${formatPct(pct, 1)} nilai RAB (${formatRupiah(dipakai)} dari ${formatRupiah(total)})`
+        }
         description={`Dihitung dari ${barisDipakai} dari ${barisRab} baris kerja. Angka di tabel ini VOLUME kebutuhan, belum biaya. Harga diisi di tahap 4.`}
       />
 
@@ -200,7 +207,7 @@ export function SimulasiKebutuhan({
         >
           Tidak masuk hitungan <span className="tabular">({dilewat.length})</span>
         </button>
-        {tab === "dilewat" && dilewat.length > 0 ? (
+        {tab === "dilewat" && dilewat.length > 0 && !tanpaUang ? (
           <Badge tone="warning">senilai {formatRupiah(nilaiDilewat)}</Badge>
         ) : null}
       </div>

@@ -62,18 +62,19 @@ export default async function CetakPeriodikPage({
         <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
           {/* Bagian DARI laporan periodik – ikut penanda tangan laporannya
               (DECISIONS 403), bukan penanda tangan dokumen jadwal. */}
-          <ScurveKkpSheet r={report} ttd={ttd} jenis={kind as PeriodKind} />
+          {/* Pelaksana: tanpa nilai rupiah (DECISIONS 735). */}
+          <ScurveKkpSheet r={report} ttd={ttd} jenis={kind as PeriodKind} tanpaUang={!can(user.role, "money.view")} />
         </section>
         {/* Laporan mingguan: progres per kategori & sub-kategori – format
             Lampiran Termin (DECISIONS 670). */}
         {kind === "mingguan" ? (
           <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
-            <KkpProgresKategori r={report} ttd={ttd} logo={logo} />
+            <KkpProgresKategori r={report} ttd={ttd} logo={logo} tanpaUang={!can(user.role, "money.view")} />
           </section>
         ) : null}
         {/* Hal-berikutnya: tabel detail item */}
         <section className="mx-auto w-full max-w-[1100px] overflow-x-auto p-6 print:overflow-visible print:p-0">
-          <KkpPeriodReport r={report} ttd={ttd} />
+          <KkpPeriodReport r={report} ttd={ttd} tanpaUang={!can(user.role, "money.view")} />
         </section>
       </main>
     </>

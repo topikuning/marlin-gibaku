@@ -463,7 +463,8 @@ export type RingkasRencana = {
   proyeksiPct: number;
   selisihPct: number;
   masihTertinggal: boolean;
-  totalNilai: number;
+  /** null = peran tanpa `money.view` (Pelaksana, DECISIONS 735). */
+  totalNilai: number | null;
   totalBobot: number;
   jumlahKomitmen: number;
   ppc: Ppc;
@@ -567,7 +568,11 @@ function RingkasanRencana({
         <Angka
           label="Bobot rencana minggu ini"
           value={signed(r.tambahanPct)}
-          note={`${r.jumlahKomitmen} komitmen · ${formatRupiah(r.totalNilai)}`}
+          note={
+            r.totalNilai == null
+              ? `${r.jumlahKomitmen} komitmen`
+              : `${r.jumlahKomitmen} komitmen · ${formatRupiah(r.totalNilai)}`
+          }
         />
       </div>
 

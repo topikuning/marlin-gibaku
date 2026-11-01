@@ -25,7 +25,8 @@ export type RecapPreview = {
   okCount: number;
   problemCount: number;
   dates: { dateKey: string; count: number }[];
-  totalValue: number;
+  /** null = peran tanpa `money.view` (Pelaksana, DECISIONS 735) – dikosongkan di aksi. */
+  totalValue: number | null;
 };
 
 export type RecapCommitResult = {

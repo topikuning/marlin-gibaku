@@ -123,7 +123,8 @@ function deviasiTone(d: number): string {
 export function buildHarianRingkasPdf(
   d: RingkasHarian,
   foto: FotoTertanam[],
-  opts: { logoPerusahaan?: Buffer | null } = {},
+  /** `tanpaUang`: penerima tanpa `money.view` (Pelaksana, DECISIONS 735) – kolom & jumlah nilai tidak dicetak. */
+  opts: { logoPerusahaan?: Buffer | null; tanpaUang?: boolean } = {},
 ): Promise<Buffer> {
   const doc = createA4Doc({
     title: `Ringkasan Pelaksanaan Harian – ${d.locationName} – ${d.dateKey}`,
@@ -133,7 +134,7 @@ export function buildHarianRingkasPdf(
   pitaStatus(doc, d);
   identitas(doc, d);
   pitaKinerja(doc, d);
-  bagianPekerjaan(doc, d);
+  bagianPekerjaan(doc, d, opts.tanpaUang ?? false);
   bagianKegiatan(doc, d);
   bagianKendala(doc, d);
   bagianKondisiKerja(doc, d);
@@ -166,7 +167,8 @@ export function buildHarianRingkasPdf(
 export async function renderHarianRingkasPdf(
   slug: string,
   dateKey: string,
-  opts?: { baseUrl?: string | null },
+  /** `tanpaUang`: penerima tanpa `money.view` (Pelaksana, DECISIONS 735). */
+  opts?: { baseUrl?: string | null; tanpaUang?: boolean },
 ): Promise<HarianRingkasPdfResult | null> {
   const d = await getRingkasHarian(slug, dateKey);
   if (!d) return null;
@@ -217,7 +219,7 @@ export async function renderHarianRingkasPdf(
   }
 
   return {
-    buffer: await buildHarianRingkasPdf(data, foto, { logoPerusahaan }),
+    buffer: await buildHarianRingkasPdf(data, foto, { logoPerusahaan, tanpaUang: opts?.tanpaUang ?? false }),
     locationId: d.locationId,
     locationName: d.locationName,
     dateKey: d.dateKey,
@@ -663,7 +665,7 @@ function kosong(doc: PdfDoc, teks: string): void {
   doc.x = PAGE_MARGIN;
 }
 
-function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
+function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian, tanpaUang = false): void {
   judul(
     doc,
     "Pekerjaan hari ini",
@@ -678,9 +680,10 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
         : "Tidak ada volume pekerjaan yang dilaporkan pada tanggal ini.",
     );
   } else {
-    const cols = [30, 0, 52, 62, 54, 84];
+    // Tanpa uang: kolom Nilai dilepas, lebarnya diberikan ke uraian.
+    const cols = tanpaUang ? [30, 0, 52, 62, 54] : [30, 0, 52, 62, 54, 84];
     cols[1] = CONTENT_WIDTH - cols.reduce((s, c) => s + c, 0);
-    const head = ["Kode", "Uraian pekerjaan", "Satuan", "Volume", "Bobot", "Nilai"];
+    const head = ["Kode", "Uraian pekerjaan", "Satuan", "Volume", "Bobot", ...(tanpaUang ? [] : ["Nilai"])];
     const align: ("left" | "right" | "center")[] = [
       "left",
       "left",
@@ -714,7 +717,7 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
         p.unit ?? "–",
         nf3.format(p.volumeToday),
         pct(p.bobotToday),
-        formatRupiah(p.valueToday),
+        ...(tanpaUang ? [] : [formatRupiah(p.valueToday)]),
       ];
       // Tinggi baris ditentukan kolom uraian (satu-satunya yang membungkus).
       const hUraian = doc
@@ -766,12 +769,14 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
       align: "right",
       lineBreak: false,
     });
-    doc.text(
-      formatRupiah(d.nilaiHariIni),
-      PAGE_MARGIN + cols[0] + cols[1] + cols[2] + cols[3] + cols[4] + 4,
-      y + 4,
-      { width: cols[5] - 8, align: "right", lineBreak: false },
-    );
+    if (!tanpaUang) {
+      doc.text(
+        formatRupiah(d.nilaiHariIni),
+        PAGE_MARGIN + cols[0] + cols[1] + cols[2] + cols[3] + cols[4] + 4,
+        y + 4,
+        { width: cols[5] - 8, align: "right", lineBreak: false },
+      );
+    }
     doc.y = y + 15 + 3;
   }
 

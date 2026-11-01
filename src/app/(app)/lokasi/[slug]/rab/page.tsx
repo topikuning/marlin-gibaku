@@ -59,6 +59,9 @@ export default async function RabPage({
   requireCapabilityPage(user.role, "rab.view");
   const canManage = can(user.role, "rab.manage");
   const canPlan = can(user.role, "weekly_plan.manage");
+  // Pelaksana: item, volume, satuan – tanpa harga & jumlah rupiah. Nilainya
+  // tidak dikirim ke peramban sama sekali (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   const bagian = bacaBagian(sp.bagian);
 
   const [progress, revisions] = await Promise.all([
@@ -139,8 +142,8 @@ export default async function RabPage({
     name: n.name,
     volume: n.volume == null ? null : Number(n.volume),
     unit: n.unit,
-    unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
-    amount: n.amount.toString(),
+    unitPrice: !lihatUang || n.unitPrice == null ? null : Number(n.unitPrice),
+    amount: lihatUang ? n.amount.toString() : "0",
     sortOrder: n.sortOrder,
     lineageKey: n.lineageKey,
   }));
@@ -201,7 +204,7 @@ export default async function RabPage({
     revisionNo: r.revisionNo,
     source: r.source,
     status: r.status,
-    totalValue: r.totalValue.toString(),
+    totalValue: lihatUang ? r.totalValue.toString() : null,
     createdAt: r.createdAt.toISOString(),
     note: r.note,
   }));
@@ -331,7 +334,7 @@ export default async function RabPage({
         proyeksiPct: rencana.proyeksi.proyeksiPct,
         selisihPct: rencana.proyeksi.selisihPct,
         masihTertinggal: rencana.proyeksi.masihTertinggal,
-        totalNilai: rencana.totalNilai,
+        totalNilai: lihatUang ? rencana.totalNilai : null,
         totalBobot: rencana.totalBobot,
         jumlahKomitmen: rencana.baris.length,
         ppc: rencana.ppc,
@@ -416,7 +419,9 @@ export default async function RabPage({
           title="Rencana & RAB"
           subtitle={
             active
-              ? `Revisi aktif #${active.revisionNo} · ${itemCount} item · ${formatRupiah(Number(grand))} pra-PPN`
+              ? lihatUang
+                ? `Revisi aktif #${active.revisionNo} · ${itemCount} item · ${formatRupiah(Number(grand))} pra-PPN`
+                : `Revisi aktif #${active.revisionNo} · ${itemCount} item`
               : "Belum ada revisi aktif. Impor HPS dulu."
           }
           action={
@@ -424,7 +429,7 @@ export default async function RabPage({
             // Yang lama terbaca seperti keterangan kartu, bukan seperti sesuatu
             // yang bisa ditekan. DECISIONS 232.
             <span className="flex flex-wrap items-center gap-2">
-              {active ? (
+              {active && lihatUang ? (
                 <ButtonLink
                   href={`/lokasi/${slug}/rab/export`}
                   unduhan
@@ -498,10 +503,11 @@ export default async function RabPage({
             active ? (
               <RabTree
                 nodes={nodeRows}
-                grandTotal={grand.toString()}
+                grandTotal={lihatUang ? grand.toString() : "0"}
                 ppnPercent={ppnPercent}
-                ppnValue={ppnValue.toString()}
-                totalWithPpn={totalWithPpn.toString()}
+                ppnValue={lihatUang ? ppnValue.toString() : "0"}
+                totalWithPpn={lihatUang ? totalWithPpn.toString() : "0"}
+                tanpaUang={!lihatUang}
                 canEdit={canManage}
                 rincian={sumberBv ? { slug, backup: backupAda, analisa: analisaAda } : null}
               />

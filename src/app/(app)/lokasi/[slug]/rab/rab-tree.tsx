@@ -123,6 +123,7 @@ export function RabTree({
   totalWithPpn,
   canEdit = false,
   rincian = null,
+  tanpaUang = false,
 }: {
   nodes: RabNodeRow[];
   /** Σ kategori (pra-PPN), rupiah string. */
@@ -138,6 +139,11 @@ export function RabTree({
    * punya backup diberi warna peringatan. null = tanpa revisi aktif.
    */
   rincian?: { slug: string; backup: string[]; analisa: string[] } | null;
+  /**
+   * Pelaksana (tanpa `money.view`, DECISIONS 735): kolom harga satuan, jumlah,
+   * dan total rupiah tidak dirender. Server juga tidak mengirim angkanya.
+   */
+  tanpaUang?: boolean;
 }) {
   const adaBackup = useMemo(() => new Set(rincian?.backup ?? []), [rincian]);
   const adaAnalisa = useMemo(() => new Set(rincian?.analisa ?? []), [rincian]);
@@ -252,14 +258,18 @@ export function RabTree({
               <th className="px-2 py-2">Uraian pekerjaan</th>
               <th className="w-20 px-2 py-2 text-right">Vol</th>
               <th className="w-16 px-2 py-2">Satuan</th>
-              <th className="w-32 px-2 py-2 text-right">Harga satuan</th>
-              <th className="w-36 px-2 py-2 text-right">Jumlah</th>
+              {tanpaUang ? null : (
+                <>
+                  <th className="w-32 px-2 py-2 text-right">Harga satuan</th>
+                  <th className="w-36 px-2 py-2 text-right">Jumlah</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-2 py-6 text-center text-ink-muted">
+                <td colSpan={tanpaUang ? 4 : 6} className="px-2 py-6 text-center text-ink-muted">
                   Tidak ada item yang cocok dengan pencarian.
                 </td>
               </tr>
@@ -307,6 +317,8 @@ export function RabTree({
                           : formatNumber(node.volume)}
                     </td>
                     <td className="px-2 py-1.5 align-top text-ink-muted">{node.unit ?? ""}</td>
+                    {tanpaUang ? null : (
+                    <>
                     <td className="tabular px-2 py-1.5 text-right align-top">
                       {node.unitPrice == null
                         ? ""
@@ -317,11 +329,14 @@ export function RabTree({
                     <td className="tabular px-2 py-1.5 text-right align-top">
                       {formatRupiah(Number(node.amount))}
                     </td>
+                    </>
+                    )}
                   </tr>
                 );
               })
             )}
           </tbody>
+          {tanpaUang ? null : (
           <tfoot className="border-t border-border text-sm">
             <tr>
               <td colSpan={5} className="px-2 py-1.5 text-right font-medium text-ink-muted">
@@ -346,6 +361,7 @@ export function RabTree({
               </td>
             </tr>
           </tfoot>
+          )}
         </table>
       </div>
     </div>

@@ -24,7 +24,7 @@ const terkirim: { chatId: string; teks: string }[] = [];
 /** Konteks balasan yang berlaku saat tiap balasan dikirim (DECISIONS baru 2026-10-07). */
 const konteksTerkirim: ({ balasKe: string | null; dimintaOlehId: string | null; peminta: string | null } | null)[] = [];
 /** Berkas yang "terkirim" — jalur PDF untuk daftar panjang (DECISIONS 448). */
-const berkasTerkirim: { chatId: string; nama: string; mime: string; caption: string; bytes: number }[] =
+const berkasTerkirim: { chatId: string; nama: string; mime: string; caption: string; bytes: number; data: Buffer }[] =
   [];
 
 vi.mock("@/lib/waha/client", () => ({
@@ -66,6 +66,7 @@ vi.mock("@/lib/waha/kirim", () => ({
       mime: file.mimetype,
       caption: caption ?? "",
       bytes: Buffer.from(file.data, "base64").length,
+      data: Buffer.from(file.data, "base64"),
     });
     return "mock-id";
   },
@@ -216,6 +217,8 @@ let lokB1 = "";
 let nomorSM = "6285700000001";
 let smId = "";
 const nomorSmB = "6285700000009";
+/** Pelaksana ber-WA di Kedung Mutih – tidak memegang `money.view` (DECISIONS 735). */
+const nomorPelaksana = "6285700000011";
 let nomorAdmin = "6285700000002";
 /** Program Director org kita — peran istimewa kedua (brief 5A). */
 const nomorPD = "6285700000003";
@@ -331,6 +334,8 @@ beforeAll(async () => {
   // tak terdaftar justru dilayani di grup yang sama.
   const smB = await buatUser(orgId, "SmPaketB", "site_manager", nomorSmB);
   await db.locationAssignment.create({ data: { userId: smB, locationId: lokB1 } });
+  const pelaksana = await buatUser(orgId, "PelaksanaKM", "field_supervisor", nomorPelaksana);
+  await db.locationAssignment.create({ data: { userId: pelaksana, locationId: lokA1 } });
 });
 
 afterAll(async () => {
@@ -2603,5 +2608,58 @@ describe("tanya bebas: jawaban bersumber", () => {
     );
     expect(r.alasan).not.toBe("dijawab fleksibel dari sumber MARLIN");
     expect(terkirim.map((t) => t.teks).join("\n")).not.toContain("Pekerjaan tanggul masih berjalan");
+  });
+});
+
+
+/*
+ * RUPIAH DI BERKAS WA (DECISIONS 735). Pelaksana tidak melihat uang – juga
+ * lewat PDF yang dikirim ke WhatsApp-nya. Teks PDF dibaca balik (unpdf), bukan
+ * sekadar dicek ukuran berkasnya.
+ */
+describe("berkas WA tanpa rupiah untuk Pelaksana (DECISIONS 735)", () => {
+  async function teksPdf(buf: Buffer): Promise<string> {
+    const { getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(buf));
+    const halaman: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const isi = await (await pdf.getPage(i)).getTextContent();
+      halaman.push(isi.items.map((it) => ("str" in it ? it.str : "")).join(" "));
+    }
+    return halaman.join("\n");
+  }
+
+  it("Site Manager (chat pribadi): laporan lengkap memuat nilai RAB – kontrol positif", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "laporan lengkap kedung mutih" }));
+    expect(berkasTerkirim.length).toBeGreaterThan(0);
+    // Label kartu dicetak huruf besar ("NILAI RAB").
+    expect(await teksPdf(berkasTerkirim[0].data)).toMatch(/Nilai RAB/i);
+  });
+
+  it("Pelaksana (chat pribadi): laporan lengkap tanpa rupiah", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorPelaksana}@c.us`, dari: nomorPelaksana, teks: "laporan lengkap kedung mutih" }),
+    );
+    expect(berkasTerkirim.length, terkirim.map((t) => t.teks).join("\n")).toBeGreaterThan(0);
+    const teks = await teksPdf(berkasTerkirim[0].data);
+    expect(teks).not.toMatch(/\bRp\b|Nilai RAB|Nilai kontrak|Nilai terpasang/i);
+    // Bukan berkas kosong: progresnya tetap ada.
+    expect(teks).toMatch(/Realisasi/i);
+  });
+
+  it("grup paket: laporan lengkap tanpa rupiah, siapa pun yang bertanya", async () => {
+    niatPalsu = null;
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: `@${NOMOR_MARLIN} laporan lengkap kedung mutih`,
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(berkasTerkirim.length, terkirim.map((t) => t.teks).join("\n")).toBeGreaterThan(0);
+    expect(await teksPdf(berkasTerkirim[0].data)).not.toMatch(/\bRp\b|Nilai RAB|Nilai kontrak/i);
   });
 });

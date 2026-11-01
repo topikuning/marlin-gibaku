@@ -16,6 +16,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Anda belum masuk. Silakan masuk dulu." }, { status: 401 });
   if (!can(user.role, "rab.view")) return NextResponse.json({ error: "Tidak punya izin" }, { status: 403 });
+  // Berkas ini berisi harga satuan, jumlah, PPN, dan total – Pelaksana tidak
+  // melihat rupiah (DECISIONS 735). Tombolnya juga tidak ditampilkan.
+  if (!can(user.role, "money.view")) {
+    return NextResponse.json({ error: "Berkas RAB memuat nilai rupiah, jadi tidak tersedia untuk peran Anda." }, { status: 403 });
+  }
 
   const location = await db.location.findUnique({
     where: { slug },

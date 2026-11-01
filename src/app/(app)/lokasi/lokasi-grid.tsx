@@ -20,7 +20,8 @@ export type LokasiRow = {
   realizedPct: number;
   deviationPct: number;
   /** Nilai RAB pra-PPN (rupiah, Number — hanya display). */
-  rabValue: number;
+  /** null = peran tanpa `money.view` (Pelaksana, DECISIONS 735): kolomnya tidak ada. */
+  rabValue: number | null;
 };
 
 /**
@@ -155,11 +156,14 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
   rupiahCol<LokasiRow>("rabValue", "Nilai RAB", { width: 160 }),
 ];
 
-export function LokasiGrid({ rows }: { rows: LokasiRow[] }) {
+/** Kolom tanpa "Nilai RAB" – untuk Pelaksana (DECISIONS 735), termasuk unduhan CSV-nya. */
+const COLUMN_DEFS_TANPA_UANG = COLUMN_DEFS.filter((c) => !("field" in c && c.field === "rabValue"));
+
+export function LokasiGrid({ rows, tanpaUang = false }: { rows: LokasiRow[]; tanpaUang?: boolean }) {
   return (
     <MarlinGrid<LokasiRow>
       rowData={rows}
-      columnDefs={COLUMN_DEFS}
+      columnDefs={tanpaUang ? COLUMN_DEFS_TANPA_UANG : COLUMN_DEFS}
       quickFilter
       csvExport
       /*

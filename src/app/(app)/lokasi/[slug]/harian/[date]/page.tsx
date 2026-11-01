@@ -99,7 +99,16 @@ export default async function HarianWorkspacePage({
 
   const todayKey = jakartaDateKey(new Date());
   const isFuture = date > todayKey;
-  const report = data.report;
+  // Pelaksana tidak melihat rupiah (DECISIONS 735): nilai per item & nilai
+  // hari ini dikosongkan di SINI, sebelum ada yang dikirim ke peramban.
+  const lihatUang = can(user.role, "money.view");
+  const report = data.report && !lihatUang
+    ? {
+        ...data.report,
+        totalValueToday: "0",
+        items: data.report.items.map((it) => ({ ...it, valueDone: "0" })),
+      }
+    : data.report;
   const status = report?.status ?? null;
 
   const canCreate = can(user.role, "daily_report.create");
@@ -155,7 +164,9 @@ export default async function HarianWorkspacePage({
         title={`Laporan ${formatTanggal(parseDateKey(date)!, "EEEE, d MMMM yyyy")}`}
         description={
           report
-            ? `${report.items.length} item · nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}`
+            ? lihatUang
+              ? `${report.items.length} item · nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}`
+              : `${report.items.length} item`
             : "Belum ada laporan untuk tanggal ini."
         }
         actions={<StatusPill tone={status ? REPORT_STATUS_TONE[status] : "neutral"} label={status ? REPORT_STATUS_LABEL[status] : "Belum Ada"} />}
@@ -228,6 +239,7 @@ export default async function HarianWorkspacePage({
           }}
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
           photoEnabled={isR2Configured()}
+          tanpaUang={!lihatUang}
         />
       ) : null}
 
@@ -236,7 +248,7 @@ export default async function HarianWorkspacePage({
         <Card>
           <CardHeader
             title={`Item pekerjaan (${report.items.length})`}
-            subtitle={`Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}`}
+            subtitle={lihatUang ? `Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}` : undefined}
           />
           <CardBody className="px-0 py-0">
             {/* Sekali di atas daftar, bukan di tiap pekerjaan: laporan lapangan
@@ -254,7 +266,7 @@ export default async function HarianWorkspacePage({
                     <th className="py-2 pr-3 pl-4">Uraian</th>
                     <th className="py-2 pr-3 text-right">Hari ini</th>
                     <th className="py-2 pr-3 text-right">Kumulatif</th>
-                    <th className="py-2 pr-4 text-right">Nilai</th>
+                    {lihatUang ? <th className="py-2 pr-4 text-right">Nilai</th> : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -297,9 +309,11 @@ export default async function HarianWorkspacePage({
                           ? ` (${it.pctCumulative.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%)`
                           : ""}
                       </td>
-                      <td className="py-2 pr-4 text-right tabular whitespace-nowrap">
-                        {formatRupiah(BigInt(it.valueDone))}
-                      </td>
+                      {lihatUang ? (
+                        <td className="py-2 pr-4 text-right tabular whitespace-nowrap">
+                          {formatRupiah(BigInt(it.valueDone))}
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

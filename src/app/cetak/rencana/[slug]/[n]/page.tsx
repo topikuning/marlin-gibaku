@@ -52,7 +52,8 @@ export default async function CetakRencanaPage({
         {/* Dokumen fixed-layout: di layar sempit di-scroll horizontal,
             saat dicetak tetap utuh. */}
         <section className="mx-auto w-full max-w-[860px] overflow-x-auto p-6 print:overflow-visible print:p-0">
-          <KkpWeeklyPlan r={rencana} ttd={ttd} />
+          {/* Pelaksana: tanpa nilai rupiah (DECISIONS 735). */}
+          <KkpWeeklyPlan r={rencana} ttd={ttd} tanpaUang={!can(user.role, "money.view")} />
         </section>
       </main>
     </>

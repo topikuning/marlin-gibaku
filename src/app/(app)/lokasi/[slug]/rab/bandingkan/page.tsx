@@ -4,6 +4,7 @@ import { ArrowLeft, GitCompare } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, Combobox, EmptyState, FormSaring, KpiCard, Label, TombolSaring } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { diffRevisions } from "@/lib/rab/adendum";
 import { pilihPasanganBawaan } from "@/lib/rab/pasangan-banding";
 import { formatTanggal } from "@/lib/format";
@@ -40,6 +41,8 @@ export default async function BandingkanRevisiPage({
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
+  // Pelaksana: perubahan item & volume saja, tanpa nilai rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
 
   const revisi = await db.rabRevision.findMany({
     where: { locationId: location.id, status: { not: "draft" } },
@@ -121,6 +124,7 @@ export default async function BandingkanRevisiPage({
 
       {diff && dari && ke ? (
         <>
+          {lihatUang ? (
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <KpiCard label={`RAB #${dari.revisionNo}`} value={`Rp ${rupiah.format(dari.totalValue)}`} sub="sebelumnya · pra-PPN" />
             <KpiCard label={`RAB #${ke.revisionNo}`} value={`Rp ${rupiah.format(ke.totalValue)}`} sub={`${STATUS[ke.status]} · pra-PPN`} />
@@ -139,11 +143,21 @@ export default async function BandingkanRevisiPage({
               }
             />
           </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <KpiCard
+                label="Item berubah"
+                value={String(diff.diubah.length + diff.ditambah.length + diff.dihapus.length)}
+                sub={`${diff.diubah.length} diubah · ${diff.ditambah.length} baru · ${diff.dihapus.length} dihapus`}
+              />
+            </div>
+          )}
           <DiffCard
             diff={diff}
             judul={`RAB #${dari.revisionNo} → RAB #${ke.revisionNo}`}
             subjudul="Per item, dicocokkan lewat kode item yang sama di kedua revisi. Item yang tidak berubah tidak ditampilkan."
             kosong="Kedua revisi sama persis. Tidak ada item yang berubah."
+            tanpaUang={!lihatUang}
           />
         </>
       ) : null}

@@ -118,6 +118,8 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "kawal.view");
+  // Pelaksana tidak melihat rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
 
   const [kawalPer, progresPer, sinkron, ambang] = await Promise.all([
     kawalUntukLokasi([location.id]),
@@ -336,10 +338,12 @@ export default async function KawalLokasiPage({ params }: { params: Promise<{ sl
                 <dt className="text-xs font-medium text-ink-muted">Selesai menurut Kawal</dt>
                 <dd className="text-ink">{k.selesai ? formatTanggal(k.selesai) : "–"}</dd>
               </div>
-              <div>
-                <dt className="text-xs font-medium text-ink-muted">Nilai lokasi di Kawal</dt>
-                <dd className="text-ink">{k.nilaiLokasi != null ? formatRupiahShort(k.nilaiLokasi) : "–"}</dd>
-              </div>
+              {lihatUang ? (
+                <div>
+                  <dt className="text-xs font-medium text-ink-muted">Nilai lokasi di Kawal</dt>
+                  <dd className="text-ink">{k.nilaiLokasi != null ? formatRupiahShort(k.nilaiLokasi) : "–"}</dd>
+                </div>
+              ) : null}
             </dl>
           </CardBody>
         </Card>

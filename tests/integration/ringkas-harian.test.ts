@@ -443,6 +443,24 @@ describe("PDF benar-benar terbentuk (bukan cuma lolos typecheck)", () => {
     expect(tanpa.toString("latin1")).not.toContain("/api/foto/");
   });
 
+  it("tanpaUang (Pelaksana, DECISIONS 735): kolom & jumlah nilai rupiah tidak dicetak", async () => {
+    const teks = async (buf: Buffer) => {
+      const { getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      const isi = await (await pdf.getPage(1)).getTextContent();
+      return isi.items.map((it) => ("str" in it ? it.str : "")).join(" ");
+    };
+    const d = await getRingkasHarian(slug, HARI);
+    expect(d!.pekerjaan.length).toBeGreaterThan(0);
+    // Kontrol: versi biasa memuat rupiah.
+    expect(await teks(await buildHarianRingkasPdf(d!, []))).toMatch(/\bRp\b/);
+    const tanpa = await teks(await buildHarianRingkasPdf(d!, [], { tanpaUang: true }));
+    expect(tanpa).not.toMatch(/\bRp\b/);
+    // Volume & bobot tetap ada.
+    expect(tanpa).toMatch(/Volume/i);
+    expect(tanpa).toMatch(/Bobot/i);
+  });
+
   it("hari KOSONG → PDF tetap terbentuk", async () => {
     // Jalur kosong paling sering terlewat: tabel tanpa baris, status null,
     // catatan null, tanpa foto. Semuanya harus tetap menghasilkan dokumen.

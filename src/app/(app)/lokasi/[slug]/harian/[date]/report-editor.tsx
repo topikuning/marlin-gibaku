@@ -74,7 +74,10 @@ export function ReportEditor({
   photosTanpaItem,
   bolehHapusFoto,
   nihil,
+  tanpaUang = false,
 }: {
+  /** Pelaksana (DECISIONS 735): nilai rupiah per item tidak dirender; server mengirim "0". */
+  tanpaUang?: boolean;
   locationId: string;
   slug: string;
   dateKey: string;
@@ -125,6 +128,7 @@ export function ReportEditor({
         items={items}
         bolehHapusFoto={bolehHapusFoto}
         photoEnabled={photoEnabled}
+        tanpaUang={tanpaUang}
       />
       {photosTanpaItem.length > 0 ? (
         <section className="rounded-lg border border-border bg-surface p-3">
@@ -783,6 +787,7 @@ function ItemRow({
   item,
   bolehHapusFoto,
   photoEnabled,
+  tanpaUang,
   kantongTerbuka,
   onToggleKantong,
   onTutupKantong,
@@ -794,6 +799,7 @@ function ItemRow({
   item: WorkspaceItem;
   bolehHapusFoto: boolean;
   photoEnabled: boolean;
+  tanpaUang: boolean;
   /** Keadaan panel kantong DIANGKAT ke ItemList — lihat catatan di sana. */
   kantongTerbuka: boolean;
   onToggleKantong: () => void;
@@ -819,7 +825,8 @@ function ItemRow({
         <div className="min-w-0">
           <div className="text-sm font-medium text-ink">{item.name}</div>
           <div className="mt-0.5 text-xs text-ink-muted">
-            {item.code} · {formatNumber(item.volumeDone)} {item.unit ?? ""} · {formatRupiah(BigInt(item.valueDone))}
+            {item.code} · {formatNumber(item.volumeDone)} {item.unit ?? ""}
+            {tanpaUang ? null : <> · {formatRupiah(BigInt(item.valueDone))}</>}
           </div>
           <div className="text-xs text-ink-muted">
             Kumulatif: {formatNumber(item.volumeCumulative)}
@@ -879,6 +886,7 @@ function ItemList({
   items,
   bolehHapusFoto,
   photoEnabled,
+  tanpaUang,
 }: {
   reportId: string | null;
   locationId: string;
@@ -887,6 +895,7 @@ function ItemList({
   items: WorkspaceItem[];
   bolehHapusFoto: boolean;
   photoEnabled: boolean;
+  tanpaUang: boolean;
 }) {
   /**
    * HANYA SATU panel kantong yang boleh terbuka, dan ia menutup sendiri saat
@@ -943,6 +952,7 @@ function ItemList({
             item={it}
             bolehHapusFoto={bolehHapusFoto}
             photoEnabled={photoEnabled}
+            tanpaUang={tanpaUang}
             kantongTerbuka={kantongUntuk === it.id}
             onToggleKantong={() => setKantongUntuk((k) => (k === it.id ? null : it.id))}
             onTutupKantong={() => setKantongUntuk(null)}

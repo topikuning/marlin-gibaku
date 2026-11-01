@@ -132,7 +132,9 @@ export function RecapImportClient({ locationId, slug, hasRab }: { locationId: st
               <span className="font-medium text-ink">{previewData.okCount} baris siap</span>
               {previewData.problemCount > 0 && <span className="text-warning">{previewData.problemCount} bermasalah (dilewati)</span>}
               <span className="text-ink-muted">{previewData.dates.length} tanggal</span>
-              <span className="text-ink-muted">Total nilai ≈ Rp {rupiah.format(previewData.totalValue)}</span>
+              {previewData.totalValue != null ? (
+                <span className="text-ink-muted">Total nilai ≈ Rp {rupiah.format(previewData.totalValue)}</span>
+              ) : null}
             </div>
 
             <div className="max-h-[28rem] overflow-auto rounded-md border border-border">

@@ -28,7 +28,10 @@ export function ScurveKkpSheet({
   periodeOverride,
   ttd,
   jenis,
+  tanpaUang = false,
 }: {
+  /** Pelaksana (DECISIONS 735): "Nilai Fisik Lokasi" tidak dicetak. */
+  tanpaUang?: boolean;
   r: PeriodReport;
   /**
    * Dokumen apa lembar ini bagian darinya (DECISIONS 402/403).
@@ -102,9 +105,9 @@ export function ScurveKkpSheet({
             {[
               ["Paket Pekerjaan", `: ${hdr.packageName}`],
               ["Lokasi", `: ${hdr.village}${hdr.district ? `, Kec. ${hdr.district}` : ""}, ${hdr.regency}`],
-              ["Nilai Fisik Lokasi", `: ${formatRupiah(hdr.locationValue)}`],
+              ["Nilai Fisik Lokasi", tanpaUang ? null : `: ${formatRupiah(hdr.locationValue)}`],
               ["Nomor dan Tanggal Kontrak", `: ${hdr.contractNumber || "-"}`],
-            ].map(([k, v]) => (
+            ].filter(([, v]) => v !== null).map(([k, v]) => (
               <tr key={k}>
                 <td className="pr-2 font-semibold whitespace-nowrap">{k}</td>
                 <td className="whitespace-nowrap">{v}</td>

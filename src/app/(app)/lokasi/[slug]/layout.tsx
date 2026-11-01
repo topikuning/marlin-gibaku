@@ -70,6 +70,8 @@ export default async function LokasiLayout({
   // Halaman paket dijaga `package.view`; Pelaksana tidak memegangnya, jadi
   // baginya nama paket ditulis biasa, bukan tautan ke layar "tidak punya izin".
   const bolehPaket = can(user.role, "package.view");
+  // Pelaksana tidak melihat rupiah, termasuk nilai kontrak (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   const [progress, { siblings, hiddenCount }, tertutup, kawalPer] = await Promise.all([
     getLocationProgress(location.id),
     getSiblingLocations(user, location.package.id),
@@ -172,17 +174,19 @@ export default async function LokasiLayout({
         <dl
           className={cn(
             "grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3",
-            kawal ? "xl:grid-cols-6" : "lg:grid-cols-6",
+            lihatUang ? (kawal ? "xl:grid-cols-6" : "lg:grid-cols-6") : kawal ? "xl:grid-cols-5" : "lg:grid-cols-5",
           )}
         >
-          <StatCell label="Nilai kontrak">
-            {contract ? (
-              <span className="tabular">{formatRupiah(contract.contractValue)}</span>
-            ) : (
-              <span className="text-ink-faint">–</span>
-            )}
-            {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
-          </StatCell>
+          {lihatUang ? (
+            <StatCell label="Nilai kontrak">
+              {contract ? (
+                <span className="tabular">{formatRupiah(contract.contractValue)}</span>
+              ) : (
+                <span className="text-ink-faint">–</span>
+              )}
+              {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
+            </StatCell>
+          ) : null}
           <StatCell label="Periode kontrak">
             {contract?.startDate && contract.endDate ? (
               <span className="tabular text-[13px]">

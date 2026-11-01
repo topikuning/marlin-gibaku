@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
+import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 export default async function LokasiListPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "location.view");
+  // Pelaksana tidak melihat rupiah (DECISIONS 735): nilai RAB tidak dikirim.
+  const lihatUang = can(user.role, "money.view");
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
@@ -53,7 +56,7 @@ export default async function LokasiListPage() {
       status: l.status,
       realizedPct: p.realizedPct,
       deviationPct: p.deviationPct,
-      rabValue: Number(p.grandTotal),
+      rabValue: lihatUang ? Number(p.grandTotal) : null,
     };
   });
 
@@ -63,7 +66,7 @@ export default async function LokasiListPage() {
         title="Lokasi"
         description={`${rows.length} lokasi yang bisa Anda lihat.`}
       />
-      <LokasiGrid rows={rows} />
+      <LokasiGrid rows={rows} tanpaUang={!lihatUang} />
     </div>
   );
 }

@@ -64,6 +64,8 @@ export default async function CetakJadwalPage({
             </p>
           ) : null}
           <ScurveKkpSheet
+            // Pelaksana: tanpa "Nilai Fisik Lokasi" (DECISIONS 735).
+            tanpaUang={!can(user.role, "money.view")}
             jenis="jadwal"
             ttd={ttd}
             r={report}
