@@ -62,6 +62,8 @@ export default async function LaporanLengkapLokasiPage({
   }
 
   const bolehEkspor = can(user.role, "report.export");
+  // Pelaksana tidak melihat rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   const wahaOn = bolehEkspor && (await isWahaConfigured());
   // Tujuan ditanyakan ke resolver: lokasi bisa punya grup KABUPATEN sendiri,
   // dan paketnya belum tentu punya grup (DECISIONS 609).
@@ -137,7 +139,7 @@ export default async function LaporanLengkapLokasiPage({
             <>
               <Info label="Kontrak">{l.identitas.kontrak.nomor}</Info>
               <Info label="Penyedia">{l.identitas.kontrak.vendor}</Info>
-              <Info label="Nilai kontrak">{formatRupiah(BigInt(l.identitas.kontrak.nilai))}</Info>
+              {lihatUang ? <Info label="Nilai kontrak">{formatRupiah(BigInt(l.identitas.kontrak.nilai))}</Info> : null}
               <Info label="Masa kontrak">
                 {tgl(l.identitas.kontrak.mulaiKey)} – {tgl(l.identitas.kontrak.akhirKey)} (
                 {l.identitas.kontrak.durasiHari} hari)
@@ -178,16 +180,20 @@ export default async function LaporanLengkapLokasiPage({
         {/* Rupiah penuh ("Rp 7.817.745.327") tidak muat di kartu setengah layar
             HP – halaman melebar 8 px (sapuan 375 px, 2026-10-01). Angka besar
             ringkas, angka persisnya tetap di bawahnya: ini laporan lengkap. */}
-        <KpiCard
-          label="Nilai RAB"
-          value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiRab)) : "–"}
-          sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiRab)) : undefined}
-        />
-        <KpiCard
-          label="Nilai terpasang"
-          value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiTerpasang)) : "–"}
-          sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiTerpasang)) : undefined}
-        />
+        {lihatUang ? (
+          <>
+            <KpiCard
+              label="Nilai RAB"
+              value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiRab)) : "–"}
+              sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiRab)) : undefined}
+            />
+            <KpiCard
+              label="Nilai terpasang"
+              value={p.punyaRab ? formatRupiahShort(BigInt(p.nilaiTerpasang)) : "–"}
+              sub={p.punyaRab ? formatRupiah(BigInt(p.nilaiTerpasang)) : undefined}
+            />
+          </>
+        ) : null}
       </div>
 
       {/* Kurva-S */}

@@ -294,6 +294,7 @@ function slideKategori(
   bagian: number,
   total: number,
   gelap: boolean,
+  tanpaUang: boolean,
 ): void {
   latarSlide(ctx, gelap);
   const y0 = judulSlide(ctx, judulBagian("Status pekerjaan per kategori RAB", bagian, total), gelap);
@@ -313,7 +314,7 @@ function slideKategori(
         nilai: formatPct(k.realisasiPct),
         pct: k.realisasiPct,
         band: bandStatus(k.realisasiPct),
-        catatan: `bobot ${formatPct(k.bobotPct)} · ${rupiah(k.nilai)}`,
+        catatan: tanpaUang ? `bobot ${formatPct(k.bobotPct)}` : `bobot ${formatPct(k.bobotPct)} · ${rupiah(k.nilai)}`,
       },
       gelap,
     );
@@ -821,7 +822,8 @@ function slidePenutup(ctx: DeckCtx, l: LaporanLokasiLengkap): void {
 
 export async function renderLaporanLokasiDeck(
   l: LaporanLokasiLengkap,
-  opts: { tema?: TemaDeckKey } = {},
+  /** `tanpaUang`: penerima tanpa `money.view` (Pelaksana, DECISIONS 735) – nilai kategori tidak dicetak. */
+  opts: { tema?: TemaDeckKey; tanpaUang?: boolean } = {},
 ): Promise<Buffer> {
   const tema = temaDeck(opts.tema);
   const doc = createDeck169Doc({ title: `Deck laporan lengkap ${l.identitas.nama}` });
@@ -846,7 +848,9 @@ export async function renderLaporanLokasiDeck(
   mingguan.forEach((baris, i) => isi.push((gelap) => slideMingguan(ctx, baris, i + 1, mingguan.length, gelap)));
 
   const kategori = potong(l.kategori, 16);
-  kategori.forEach((baris, i) => isi.push((gelap) => slideKategori(ctx, baris, i + 1, kategori.length, gelap)));
+  kategori.forEach((baris, i) =>
+    isi.push((gelap) => slideKategori(ctx, baris, i + 1, kategori.length, gelap, opts.tanpaUang ?? false)),
+  );
 
   if (l.kelengkapan) isi.push((gelap) => slideKelengkapan(ctx, l, gelap));
 

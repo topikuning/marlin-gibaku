@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { getLocationSnapshot } from "@/lib/peta";
 
 /** Snapshot lokasi untuk panel detail peta: auth → scope lokasi → JSON (BigInt aman). */
@@ -25,5 +26,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!snap) {
     return NextResponse.json({ error: "Lokasi tidak ditemukan" }, { status: 404 });
   }
-  return NextResponse.json(snap);
+  // Pelaksana tidak menerima rupiah, juga lewat API (DECISIONS 735).
+  return NextResponse.json(can(user.role, "money.view") ? snap : { ...snap, contractValue: null });
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { buildRecapPreview, commitRecap, type RecapPreview, type RecapCommitResult } from "@/lib/daily-report/recap-import";
 
@@ -22,7 +23,9 @@ export type RecapImportState =
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
-async function readFileForLocation(formData: FormData): Promise<{ locationId: string; slug: string; buf: Buffer }> {
+async function readFileForLocation(
+  formData: FormData,
+): Promise<{ locationId: string; slug: string; buf: Buffer; lihatUang: boolean }> {
   const locationId = String(formData.get("locationId") ?? "");
   const slug = String(formData.get("slug") ?? "");
   const file = formData.get("file");
@@ -34,13 +37,22 @@ async function readFileForLocation(formData: FormData): Promise<{ locationId: st
   if (!loc) throw new Error("Lokasi tidak ditemukan.");
   await requireLocationAccess(user, locationId); // gate akses lokasi (scope org + penugasan)
 
-  return { locationId, slug: slug || loc.slug, buf: Buffer.from(await file.arrayBuffer()) };
+  return {
+    locationId,
+    slug: slug || loc.slug,
+    buf: Buffer.from(await file.arrayBuffer()),
+    lihatUang: can(user.role, "money.view"),
+  };
 }
 
 export async function previewRecapAction(_prev: RecapImportState, formData: FormData): Promise<RecapImportState> {
   try {
-    const { locationId, buf } = await readFileForLocation(formData);
-    const preview = await buildRecapPreview(locationId, buf);
+    const { locationId, buf, lihatUang } = await readFileForLocation(formData);
+    const mentah = await buildRecapPreview(locationId, buf);
+    // Pelaksana tidak menerima nilai rupiah, juga lewat balasan aksi (DECISIONS 735).
+    const preview = lihatUang
+      ? mentah
+      : { ...mentah, totalValue: null, rows: mentah.rows.map((r) => ({ ...r, valueDone: null })) };
     if (preview.rows.length === 0) return { ok: false, error: "Tidak ada baris data yang terbaca di file ini. Periksa lagi isinya." };
     return { ok: true, phase: "preview", preview };
   } catch (err) {

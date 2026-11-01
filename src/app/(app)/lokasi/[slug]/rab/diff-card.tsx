@@ -15,11 +15,17 @@ export function DiffCard({
   judul,
   subjudul = "Revisi lama tidak pernah diubah, jadi item yang dihapus pun tetap tercatat.",
   kosong: teksKosong = "Belum ada perubahan terhadap revisi aktif.",
+  tanpaUang = false,
 }: {
   diff: RevisionDiff;
   judul: string;
   subjudul?: string;
   kosong?: string;
+  /**
+   * Pelaksana (tanpa `money.view`, DECISIONS 735): kolom harga, nilai, dan Δ
+   * tidak dirender, begitu pula selisih pembulatan (murni rupiah).
+   */
+  tanpaUang?: boolean;
 }) {
   const kosong =
     diff.ditambah.length === 0 && diff.dihapus.length === 0 && diff.diubah.length === 0 && diff.pembulatan.length === 0;
@@ -34,14 +40,20 @@ export function DiffCard({
           <p className="text-sm text-ink-muted">{teksKosong}</p>
         ) : (
           <div className="space-y-4">
-            <DiffSection judul="Diubah (volume / harga)" tone="warning" rows={diff.diubah} mode="ubah" />
-            <DiffSection judul="Ditambah" tone="success" rows={diff.ditambah} mode="tambah" />
-            <DiffSection judul="Dihapus" tone="danger" rows={diff.dihapus} mode="hapus" />
+            <DiffSection
+              judul={tanpaUang ? "Diubah" : "Diubah (volume / harga)"}
+              tone="warning"
+              rows={diff.diubah}
+              mode="ubah"
+              tanpaUang={tanpaUang}
+            />
+            <DiffSection judul="Ditambah" tone="success" rows={diff.ditambah} mode="tambah" tanpaUang={tanpaUang} />
+            <DiffSection judul="Dihapus" tone="danger" rows={diff.dihapus} mode="hapus" tanpaUang={tanpaUang} />
             {/* Selisih pembulatan: volume & harga satuan sama, nilai beda Rp 1.
                 Bukan perubahan lingkup, jadi tidak dihitung "diubah" – tapi
                 disebut, bukan disembunyikan. Tertutup bawaan: ratusan baris ±1
                 mengubur perubahan yang sebenarnya. */}
-            {diff.pembulatan.length > 0 ? (
+            {!tanpaUang && diff.pembulatan.length > 0 ? (
               <details className="rounded-lg border border-border px-3 py-2">
                 <summary className="cursor-pointer text-[12px] font-semibold text-ink-muted uppercase">
                   Selisih pembulatan · {diff.pembulatan.length} item · volume &amp; harga sama, nilai beda Rp 1
@@ -65,7 +77,9 @@ function DiffSection({
   tone,
   rows,
   mode,
+  tanpaUang = false,
 }: {
+  tanpaUang?: boolean;
   /** Kosong = tanpa kepala (bagian yang sudah berjudul di pembungkusnya). */
   judul?: string;
   tone: "success" | "warning" | "danger" | "muted";
@@ -95,10 +109,14 @@ function DiffSection({
               <th className="px-3 py-1.5">Item</th>
               <th className="px-3 py-1.5 text-right">Vol. lama</th>
               <th className="px-3 py-1.5 text-right">Vol. baru</th>
-              <th className="px-3 py-1.5 text-right">Harga satuan</th>
-              <th className="px-3 py-1.5 text-right">Nilai lama</th>
-              <th className="px-3 py-1.5 text-right">Nilai baru</th>
-              <th className="px-3 py-1.5 text-right">Δ</th>
+              {tanpaUang ? null : (
+                <>
+                  <th className="px-3 py-1.5 text-right">Harga satuan</th>
+                  <th className="px-3 py-1.5 text-right">Nilai lama</th>
+                  <th className="px-3 py-1.5 text-right">Nilai baru</th>
+                  <th className="px-3 py-1.5 text-right">Δ</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -127,6 +145,8 @@ function DiffSection({
                       dan diberi warna bahaya: kalau hanya harga barunya yang
                       tampil, satu-satunya jejaknya cuma kolom Δ — dan Δ terlihat
                       sama saja seperti perubahan volume. DECISIONS 213. */}
+                  {tanpaUang ? null : (
+                  <>
                   <td
                     className={`px-3 py-1.5 text-right tabular-nums ${r.hargaBergeser ? "font-medium text-danger" : ""}`}
                   >
@@ -153,6 +173,8 @@ function DiffSection({
                     {d >= 0n ? "+" : "−"}
                     {rupiah.format(d < 0n ? -d : d)}
                   </td>
+                  </>
+                  )}
                 </tr>
               );
             })}

@@ -38,7 +38,16 @@ const p1 = (n: number) => `${d1(n)}%`;
 const p2 = (n: number) => `${d2(n)}%`;
 const dash = (n: number) => (n > 0 ? volFmt.format(n) : "–");
 
-export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan | null }) {
+export function KkpPeriodReport({
+  r,
+  ttd,
+  tanpaUang = false,
+}: {
+  r: PeriodReport;
+  ttd?: TtdLaporan | null;
+  /** Pelaksana (DECISIONS 735): "Nilai Fisik Lokasi" tidak dicetak. */
+  tanpaUang?: boolean;
+}) {
   const judul = r.kind === "mingguan" ? "LAPORAN MINGGUAN PEKERJAAN" : "LAPORAN BULANAN PEKERJAAN";
   const ke = r.kind === "mingguan" ? `Minggu Ke-${r.n}` : `Bulan Ke-${r.n}`;
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -65,7 +74,7 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
         <KV k="Paket Pekerjaan" v={h.packageName} />
         <KV k="Masa Pelaksanaan" v={`${h.masaPelaksanaanHari} Hari Kalender`} />
         <KV k="Lokasi" v={`${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`} />
-        <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />
+        {tanpaUang ? null : <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />}
         <KV k="Nomor Kontrak" v={h.contractNumber} />
         <KV k="Kontraktor Pelaksana" v={h.vendorName} />
         <KV k="Tahun Anggaran" v={String(h.tahunAnggaran)} />

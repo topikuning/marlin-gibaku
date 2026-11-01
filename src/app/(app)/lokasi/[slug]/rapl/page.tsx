@@ -85,6 +85,12 @@ export default async function RaplPage({
    * lapangan. Yang tidak ia lihat cuma marginnya.
    */
   const canSeeMoney = canSeeMargin || canInput;
+  /**
+   * NILAI RAB (rupiah) di halaman ini – kartu nilai, nilai tertahan per tahap,
+   * kolom nilai padanan, cakupan simulasi. Pelaksana tidak melihat rupiah sama
+   * sekali (DECISIONS 735); angkanya tidak dikirim ke peramban.
+   */
+  const lihatUang = can(user.role, "money.view");
 
   const diminta = ["ringkasan", "rincian", "kebutuhan", "validasi"].includes(query.bagian ?? "")
     ? (query.bagian as "ringkasan" | "rincian" | "kebutuhan" | "validasi")
@@ -156,7 +162,7 @@ export default async function RaplPage({
     judul: t.judul,
     sisa: t.sisa,
     selesai: t.selesai,
-    nilaiSisa: t.nilaiSisa.toString(),
+    nilaiSisa: lihatUang ? t.nilaiSisa.toString() : null,
     aktif: t.aktif,
     ajakan: t.ajakan,
   }));
@@ -168,7 +174,7 @@ export default async function RaplPage({
     kodeContoh: u.kodeContoh,
     jumlahBaris: u.jumlahBaris,
     volume: u.volume,
-    nilai: u.nilai.toString(),
+    nilai: lihatUang ? u.nilai.toString() : "0",
     keadaan: u.keadaan,
     skor: u.skor,
     meyakinkan: u.meyakinkan,
@@ -305,11 +311,13 @@ export default async function RaplPage({
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Nilai RAB aktif"
-          value={formatRupiah(rapl.nilaiRab)}
-          sub="nilai proyek pra-PPN"
-        />
+        {lihatUang ? (
+          <KpiCard
+            label="Nilai RAB aktif"
+            value={formatRupiah(rapl.nilaiRab)}
+            sub="nilai proyek pra-PPN"
+          />
+        ) : null}
         <KpiCard
           label="Breakdown kebutuhan"
           value={formatPct(pctBreakdown, 1)}
@@ -550,14 +558,16 @@ export default async function RaplPage({
                 canManage={canManage}
                 basisAda={basis !== null && !basis.belumSelesai}
                 saringAwal={saringAwal}
+                tanpaUang={!lihatUang}
               />
               <SimulasiKebutuhan
                 kebutuhan={rapl.kebutuhan.map((k) => ({ kategori: k.kategori, nama: k.nama, satuan: k.satuan, jumlah: k.jumlah, dariBaris: k.dariBaris, janggal: k.janggal }))}
-                dilewat={rapl.dilewat.map((d) => ({ code: d.code, uraian: d.uraian, amount: d.amount.toString(), alasan: d.alasan, rinci: d.rinci }))}
-                nilaiDipakai={rapl.dipakai.nilai.toString()}
+                dilewat={rapl.dilewat.map((d) => ({ code: d.code, uraian: d.uraian, amount: lihatUang ? d.amount.toString() : "0", alasan: d.alasan, rinci: d.rinci }))}
+                nilaiDipakai={lihatUang ? rapl.dipakai.nilai.toString() : "0"}
                 barisDipakai={rapl.dipakai.baris}
-                nilaiRab={rapl.nilaiRab.toString()}
+                nilaiRab={lihatUang ? rapl.nilaiRab.toString() : "0"}
                 barisRab={rapl.barisRab}
+                tanpaUang={!lihatUang}
               />
             </CardBody>
           </>

@@ -167,12 +167,15 @@ export function PadananPanel({
   canManage,
   basisAda,
   saringAwal,
+  tanpaUang = false,
 }: {
   locationId: string;
   slug: string;
   rows: BarisUraianRow[];
   canManage: boolean;
   basisAda: boolean;
+  /** Pelaksana (DECISIONS 735): kolom & jumlah nilai RAB tidak dirender; server mengirim "0". */
+  tanpaUang?: boolean;
   /** Saringan pembuka — ditentukan tahap yang sedang aktif, bukan tebakan. */
   saringAwal: SaringKey;
 }) {
@@ -294,14 +297,18 @@ export function PadananPanel({
         cellClass: (p: CellClassParams<BarisUraianRow>) =>
           p.data ? `font-medium ${keadaanKelas(p.data)}` : "",
       },
-      {
-        ...rupiahCol<BarisUraianRow>("nilai", "Nilai RAB"),
-        width: 160,
-        sort: "desc",
-        // Nilai datang sebagai string BigInt: tanpa ini AG Grid mengurutnya
-        // seperti teks dan "9.000.000" naik di atas "80.000.000".
-        valueGetter: (p) => (p.data ? Number(p.data.nilai) : 0),
-      },
+      ...(tanpaUang
+        ? []
+        : [
+            {
+              ...rupiahCol<BarisUraianRow>("nilai", "Nilai RAB"),
+              width: 160,
+              sort: "desc" as const,
+              // Nilai datang sebagai string BigInt: tanpa ini AG Grid mengurutnya
+              // seperti teks dan "9.000.000" naik di atas "80.000.000".
+              valueGetter: (p: { data?: BarisUraianRow }) => (p.data ? Number(p.data.nilai) : 0),
+            },
+          ]),
       {
         field: "jumlahBaris",
         headerName: "Baris RAB",
@@ -322,7 +329,7 @@ export function PadananPanel({
       },
       { field: "kodeContoh", headerName: "Kode", width: 110, hide: true },
     ],
-    [],
+    [tanpaUang],
   );
 
   const kirimSetuju = (daftar: string[]) => {
@@ -403,7 +410,7 @@ export function PadananPanel({
           >
             <CheckCheck aria-hidden className="size-3.5" />
             Setujui {terpilih.length} uraian
-            {terpilih.length > 0 ? ` · ${formatRupiahShort(nilaiTerpilih)}` : ""}
+            {terpilih.length > 0 && !tanpaUang ? ` · ${formatRupiahShort(nilaiTerpilih)}` : ""}
           </Button>
         </div>
       ) : null}
@@ -450,7 +457,7 @@ export function PadananPanel({
         title={terbuka?.uraian ?? ""}
         subtitle={
           terbuka
-            ? `${formatRupiah(BigInt(terbuka.nilai))} · ${terbuka.jumlahBaris} baris RAB${terbuka.unit ? ` · ${terbuka.unit}` : ""}`
+            ? `${tanpaUang ? "" : `${formatRupiah(BigInt(terbuka.nilai))} · `}${terbuka.jumlahBaris} baris RAB${terbuka.unit ? ` · ${terbuka.unit}` : ""}`
             : undefined
         }
         className="max-w-2xl"

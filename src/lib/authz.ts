@@ -83,6 +83,20 @@ export const CAPABILITIES = [
    */
   "rapl.view",
   "rapl.manage",
+  /*
+   * MELIHAT UANG – nilai kontrak, harga satuan, jumlah, bobot rupiah, termin,
+   * apa pun yang ber-Rp (DECISIONS 735). SEMUA peran kecuali Pelaksana.
+   *
+   * Ketetapan user 2026-11-01: *"untuk level pelaksana, jangan tampilkan nilai
+   * rupiahnya sama sekali. hanya item, volume, satuan, presentase progress.
+   * bahkan nilai kontrak lokasinya jangan dimunculkan. intinya rupiah/uang
+   * jangan muncul di level pelaksana"*.
+   *
+   * Pagarnya di SERVER: tanpa capability ini, nilai rupiah tidak dikirim ke
+   * peramban sama sekali – bukan dikirim lalu disembunyikan kolomnya. Persen
+   * (progres, bobot %, deviasi) tetap tampil; itu bukan uang.
+   */
+  "money.view",
   "baseline.manage",
   "weekly_plan.manage",
   "daily_report.create",
@@ -257,6 +271,8 @@ const PELAKSANA: Capability[] = [
 
 const SITE_MANAGER: Capability[] = [
   ...PELAKSANA,
+  // Uang mulai Site Manager – Pelaksana tidak melihat rupiah (DECISIONS 735).
+  "money.view",
   "package.view",
   "weekly_plan.manage",
   // Mengisi HSD & rincian pelaksanaan RAPL. Melihat marginnya TIDAK ikut —
@@ -458,6 +474,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   field_supervisor: new Set<Capability>(PELAKSANA),
   exec_viewer: new Set<Capability>([
     ...VIEW_ALL,
+    "money.view",
     "portfolio.view",
     "package.view",
     "report.export",
@@ -490,6 +507,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
    */
   wakil_ppk: new Set<Capability>([
     ...VIEW_ALL,
+    // Nilai kontrak & termin tetap terlihat pemberi kerja (lihat di atas).
+    "money.view",
     "portfolio.view",
     "package.view",
     "report.export",

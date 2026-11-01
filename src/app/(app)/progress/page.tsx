@@ -21,6 +21,8 @@ const SEHARI_MS = 86_400_000;
 export default async function ProgressPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "progress.view");
+  // Pelaksana: persen saja, tanpa rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
@@ -64,7 +66,7 @@ export default async function ProgressPage() {
         planPct: p.planPct,
         realizedPct: p.realizedPct,
         deviationPct: p.deviationPct,
-        terpasang: Number(p.realizedValue),
+        terpasang: lihatUang ? Number(p.realizedValue) : null,
         terakhirLapor: lapor ? formatTanggal(lapor) : null,
         // Keduanya tanggal kerja (@db.Date = tengah malam UTC), jadi selisihnya
         // bulat hari — tanpa jam yang bisa menggeser hasilnya.
@@ -94,8 +96,12 @@ export default async function ProgressPage() {
         }
       />
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalRab)} sub="pra-PPN" />
-        <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} />
+        {lihatUang ? (
+          <>
+            <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalRab)} sub="pra-PPN" />
+            <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} />
+          </>
+        ) : null}
         <KpiCard label="Rencana (tertimbang)" value={formatPct(avgPlan)} />
         <KpiCard
           label="Realisasi (tertimbang)"
@@ -110,7 +116,7 @@ export default async function ProgressPage() {
           subtitle="Diurutkan dari deviasi terburuk. Kolom “Terakhir lapor” menunjukkan mana yang tertinggal dan mana yang sama sekali tidak melapor."
         />
         <CardBody>
-          <ProgressGrid rows={rows} />
+          <ProgressGrid rows={rows} tanpaUang={!lihatUang} />
         </CardBody>
       </Card>
     </div>

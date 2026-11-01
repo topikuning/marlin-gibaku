@@ -87,6 +87,30 @@ describe("pilihTataLetak", () => {
     expect(t.tegak).not.toBe("tukar");
   });
 
+  it("cap aplikasi kamera selebar foto di ATAS → kepala DAN blok info turun ke bawah, tidak ada yang menimpa", () => {
+    // Foto Botuliodu 2026-09-30 (keluhan user 2026-11-01, DECISIONS 734): lima
+    // baris cap kamera di kiri-atas, tiga di antaranya ≥40% lebar foto. Ke-12
+    // susunan lama selalu menaruh SESUATU di atas – pilihannya cuma kepala atau
+    // blok info yang menimpa, dan yang terpilih blok info (`tukar`).
+    const U43: UkuranCap = { ...U, W: 1600, H: 1200, safeY: 36, kepalaH: 81, jarak: 36, info: { w: 470, h: 250 } };
+    const kamera = [
+      { x: 0.0, y: 0.0, w: 0.32, h: 0.07 },
+      { x: 0.0, y: 0.05, w: 0.29, h: 0.06 },
+      { x: 0.0, y: 0.09, w: 0.52, h: 0.06 },
+      { x: 0.0, y: 0.13, w: 0.57, h: 0.065 },
+      { x: 0.0, y: 0.175, w: 0.62, h: 0.07 },
+    ];
+    const t = pilihTataLetak(U43, kamera);
+    const l = letakUnsur(U43, t);
+    const atasKamera = 0.25 * U43.H;
+    expect(l.info.y).toBeGreaterThan(atasKamera);
+    expect(l.logo.y).toBeGreaterThan(atasKamera);
+    expect(l.panel!.y).toBeGreaterThan(atasKamera);
+    // Blok info di ATAS kepala, keduanya di dalam foto, tidak saling tindih.
+    expect(l.info.y + l.info.h).toBeLessThanOrEqual(l.kepalaY);
+    expect(l.kepalaY + U43.kepalaH).toBeLessThanOrEqual(U43.H - U43.safeY);
+  });
+
   it("baris lebar dianggap pita penuh (logo di ujung bilah tidak terbaca OCR)", () => {
     expect(adaTulisanDi([{ x: 0.01, y: 0.85, w: 0.45, h: 0.05 }], { x: 1500, y: 700, w: 100, h: 200 }, 1600, 900)).toBe(
       true,
@@ -117,6 +141,33 @@ describe("buildStampSvg dengan tulisan lama", () => {
     const svg = buildStampSvg(1600, 900, DATA, OPTS);
     expect(svg).toContain('<rect x="0" y="594" width="1600" height="306" fill="url(#pg)"/>');
     expect(svg).not.toContain('mask="url(#pmk)"');
+  });
+
+  it("cap kamera selebar foto di atas: pill kategori + kepala di bawah, bayangan bawah mencapai pill (DECISIONS 734)", () => {
+    const kamera = [
+      { x: 0.0, y: 0.0, w: 0.32, h: 0.07 },
+      { x: 0.0, y: 0.05, w: 0.29, h: 0.06 },
+      { x: 0.0, y: 0.09, w: 0.52, h: 0.06 },
+      { x: 0.0, y: 0.13, w: 0.57, h: 0.065 },
+      { x: 0.0, y: 0.175, w: 0.62, h: 0.07 },
+    ];
+    const svg = buildStampSvg(1600, 1200, { ...DATA, locationName: null, coordinateText: null, hindari: kamera }, OPTS);
+    // Pill kategori = rect beraksen yang bulat (rx > 1); bilah aksen panel ber-rx 1.
+    const pill = [...svg.matchAll(/<rect x="\d+" y="(\d+)" width="\d+" height="\d+" rx="(\d+)" fill="#F7941D"\/>/g)].find(
+      (m) => Number(m[2]) > 1,
+    );
+    expect(pill).toBeDefined();
+    const pillY = Number(pill![1]);
+    expect(pillY).toBeGreaterThan(0.25 * 1200);
+    // Panel perusahaan (kepala) di bawah pill.
+    const panel = svg.match(/<rect x="\d+" y="(\d+)" width="\d+" height="\d+" rx="\d+" fill="rgba/);
+    expect(panel).not.toBeNull();
+    expect(Number(panel![1])).toBeGreaterThan(pillY);
+    // Bayangan bawah selebar foto (tak ada tulisan lama di bawah), mulai di atas pill.
+    const pita = svg.match(/<rect x="0" y="(\d+)" width="1600" height="(\d+)" fill="url\(#pg\)"\/>/);
+    expect(pita).not.toBeNull();
+    expect(Number(pita![1])).toBeLessThan(pillY);
+    expect(Number(pita![1]) + Number(pita![2])).toBe(1200);
   });
 
   it("cap lama kiri-bawah: teks MARLIN rata kanan, bayangan setempat tidak sampai ke kiri", () => {

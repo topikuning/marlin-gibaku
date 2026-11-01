@@ -283,12 +283,15 @@ function SnapshotPanel({ snap, onClose }: { snap: LocationSnapshot; onClose: () 
             {snap.contractNumber ?? "–"}
           </dd>
         </div>
-        <div className="flex justify-between gap-2">
-          <dt className="shrink-0 text-ink-muted">Nilai</dt>
-          <dd className="text-right font-medium text-ink tabular-nums">
-            {snap.contractValue !== null ? formatRupiahShort(BigInt(snap.contractValue)) : "–"}
-          </dd>
-        </div>
+        {/* null = tanpa kontrak, atau peran tanpa `money.view` (DECISIONS 735). */}
+        {snap.contractValue !== null ? (
+          <div className="flex justify-between gap-2">
+            <dt className="shrink-0 text-ink-muted">Nilai</dt>
+            <dd className="text-right font-medium text-ink tabular-nums">
+              {formatRupiahShort(BigInt(snap.contractValue))}
+            </dd>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-2">
           <dt className="shrink-0 text-ink-muted">Periode</dt>
           <dd className="text-right font-medium text-ink">

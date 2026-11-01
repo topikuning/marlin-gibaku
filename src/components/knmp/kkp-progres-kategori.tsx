@@ -28,7 +28,10 @@ export function KkpProgresKategori({
   r,
   ttd,
   logo,
+  tanpaUang = false,
 }: {
+  /** Pelaksana (DECISIONS 735): kolom "NILAI PEKERJAAN (Rp)" tidak dicetak. */
+  tanpaUang?: boolean;
   r: PeriodReport;
   ttd?: TtdLaporan | null;
   logo?: LogoKopProgres | null;
@@ -50,7 +53,8 @@ export function KkpProgresKategori({
       <div className="mt-1 flex items-start gap-4">
         <table className="flex-1 border-collapse text-[9px]">
           <tbody>
-            {kop.identitas.map(([k, v]) => (
+            {/* Pelaksana: baris "Nilai Kontrak …" kop tidak dicetak (DECISIONS 735). */}
+            {kop.identitas.filter(([k]) => !(tanpaUang && k.startsWith("Nilai Kontrak"))).map(([k, v]) => (
               <tr key={k}>
                 <td className="w-[130px] py-px pr-2 align-top font-bold whitespace-nowrap">{k}</td>
                 <td className="w-3 py-px align-top">:</td>
@@ -82,7 +86,7 @@ export function KkpProgresKategori({
         <colgroup>
           <col style={{ width: 44 }} />
           <col />
-          <col style={{ width: 100 }} />
+          {tanpaUang ? null : <col style={{ width: 100 }} />}
           <col style={{ width: 48 }} />
           {Array.from({ length: 6 }).map((_, i) => (
             <col key={i} style={{ width: i % 2 === 0 ? 52 : 46 }} />
@@ -95,7 +99,7 @@ export function KkpProgresKategori({
           <tr>
             <th rowSpan={3} className={th}>NO</th>
             <th rowSpan={3} className={th}>JENIS PEKERJAAN</th>
-            <th rowSpan={3} className={th}>NILAI PEKERJAAN (Rp)</th>
+            {tanpaUang ? null : <th rowSpan={3} className={th}>NILAI PEKERJAAN (Rp)</th>}
             <th rowSpan={3} className={th}>BOBOT (%)</th>
             <th colSpan={6} className={th}>REALISASI PEKERJAAN</th>
             <th rowSpan={3} className={th}>BOBOT RENCANA s/d MINGGU INI</th>
@@ -125,7 +129,7 @@ export function KkpProgresKategori({
                 {/* Baris jeda sebelum tiap kategori – seperti contoh Lampiran Termin. */}
                 {satu ? (
                   <tr aria-hidden>
-                    {Array.from({ length: 13 }).map((_, c) => (
+                    {Array.from({ length: tanpaUang ? 12 : 13 }).map((_, c) => (
                       <td key={c} className={`${td} h-3`} />
                     ))}
                   </tr>
@@ -133,7 +137,7 @@ export function KkpProgresKategori({
                 <tr className={satu ? "bg-slate-50 font-bold" : undefined}>
                   <td className={`${td} ${satu ? "text-center" : "pl-2"}`}>{b.code}</td>
                   <td className={`${td} ${satu ? "" : "pl-3"}`}>{b.name}</td>
-                  {sel(angka(b.nilai, 0))}
+                  {tanpaUang ? null : sel(angka(b.nilai, 0))}
                   {sel(bobot(b.bobot))}
                   {sel(persen(b.progresLalu))}
                   {sel(bobot(b.bobotLalu))}
@@ -152,7 +156,7 @@ export function KkpProgresKategori({
             <td colSpan={2} className={`${td} text-right`}>
               JUMLAH
             </td>
-            <td className={`${td} text-right tabular-nums`}>{angka(total.nilai, 0)}</td>
+            {tanpaUang ? null : <td className={`${td} text-right tabular-nums`}>{angka(total.nilai, 0)}</td>}
             <td className={`${td} text-right tabular-nums`}>{angka(total.bobot, 3)}</td>
             <td className={`${td} text-right tabular-nums`}>{persen(total.progresLalu)}</td>
             <td className={`${td} text-right tabular-nums`}>{angka(total.bobotLalu, 3)}</td>

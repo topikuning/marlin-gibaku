@@ -19,7 +19,8 @@ export type TahapView = {
   sisa: number;
   selesai: number;
   /** BigInt diserialisasi. */
-  nilaiSisa: string;
+  /** null = peran tanpa `money.view` (Pelaksana, DECISIONS 735). */
+  nilaiSisa: string | null;
   aktif: boolean;
   ajakan: string;
 };
@@ -60,7 +61,7 @@ export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
                   {t.sisa > 0 ? "tersisa" : "uraian"}
                 </span>
               </p>
-              {t.sisa > 0 && BigInt(t.nilaiSisa) > 0n ? (
+              {t.sisa > 0 && t.nilaiSisa != null && BigInt(t.nilaiSisa) > 0n ? (
                 <p className="tabular text-[12px] text-ink-muted">
                   {formatRupiahShort(BigInt(t.nilaiSisa))} tertahan
                 </p>

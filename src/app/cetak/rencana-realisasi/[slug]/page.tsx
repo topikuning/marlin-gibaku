@@ -59,7 +59,8 @@ export default async function CetakRencanaRealisasiPage({
               (durasi kontrak {report.header.masaPelaksanaanHari} hari), jadi realisasinya masih kosong.
             </p>
           ) : null}
-          <KkpRencanaRealisasi r={report} ttd={ttd} />
+          {/* Pelaksana: tanpa nilai rupiah (DECISIONS 735). */}
+          <KkpRencanaRealisasi r={report} ttd={ttd} tanpaUang={!can(user.role, "money.view")} />
         </section>
       </main>
     </>

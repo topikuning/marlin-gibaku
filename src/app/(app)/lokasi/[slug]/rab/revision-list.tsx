@@ -43,7 +43,8 @@ export type RevisionRow = {
   source: RabRevisionSource;
   status: RevisionStatus;
   /** Rupiah string (BigInt serialized). */
-  totalValue: string;
+  /** null = peran tanpa `money.view` (Pelaksana, DECISIONS 735): kolom total tidak dirender. */
+  totalValue: string | null;
   createdAt: string;
   note: string | null;
   /** Diaktifkan super admin utama tanpa dua persetujuan (DECISIONS 682). */
@@ -334,6 +335,8 @@ export function RevisionList({
   bolehTanpaPersetujuan?: boolean;
 }) {
   const adaAksi = canManage || Object.keys(hapus).length > 0;
+  // Server mengosongkan total untuk peran tanpa `money.view` (DECISIONS 735).
+  const tanpaUang = revisions.some((r) => r.totalValue == null);
   const [pesanHapus, setPesanHapus] = useState<string | null>(null);
   return (
     <div className="space-y-2">
@@ -345,7 +348,7 @@ export function RevisionList({
             <th className="py-2 pr-3">No</th>
             <th className="py-2 pr-3">Tahap</th>
             <th className="py-2 pr-3">Status</th>
-            <th className="py-2 pr-3 text-right">Total (pra-PPN)</th>
+            {tanpaUang ? null : <th className="py-2 pr-3 text-right">Total (pra-PPN)</th>}
             <th className="py-2 pr-3">Tanggal</th>
             <th className="py-2 pr-3">Catatan</th>
             {slug ? <th className="py-2 pr-3">Backup &amp; analisa</th> : null}
@@ -363,7 +366,9 @@ export function RevisionList({
                   <span className="mt-0.5 block text-xs text-warning">Diaktifkan tanpa persetujuan</span>
                 ) : null}
               </td>
-              <td className="tabular py-2 pr-3 text-right">{formatRupiah(Number(r.totalValue))}</td>
+              {r.totalValue == null ? null : (
+                <td className="tabular py-2 pr-3 text-right">{formatRupiah(Number(r.totalValue))}</td>
+              )}
               <td className="tabular py-2 pr-3">{formatTanggal(new Date(r.createdAt))}</td>
               <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={r.note ?? undefined}>
                 {r.note ?? "–"}

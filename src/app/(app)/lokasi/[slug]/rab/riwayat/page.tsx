@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { formatNumber, formatRupiah, formatTanggal } from "@/lib/format";
 import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 import { cariItemBerealisasi, riwayatInputItem } from "@/lib/rab/riwayat-item";
@@ -37,6 +38,8 @@ export default async function RiwayatItemPage({
   const { q = "", item = "" } = await searchParams;
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "progress.view");
+  // Pelaksana: volume saja, tanpa nilai rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
 
   const terpilih = item ? await riwayatInputItem(location.id, item) : null;
   const hasil = terpilih ? [] : await cariItemBerealisasi(location.id, q);
@@ -58,7 +61,7 @@ export default async function RiwayatItemPage({
           <FormCari slug={slug} q={q} />
 
           {terpilih ? (
-            <RiwayatSatuItem slug={slug} data={terpilih} />
+            <RiwayatSatuItem slug={slug} data={terpilih} lihatUang={lihatUang} />
           ) : (
             <DaftarHasil slug={slug} q={q} hasil={hasil} />
           )}
@@ -142,9 +145,11 @@ function DaftarHasil({
 function RiwayatSatuItem({
   slug,
   data,
+  lihatUang,
 }: {
   slug: string;
   data: NonNullable<Awaited<ReturnType<typeof riwayatInputItem>>>;
+  lihatUang: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -191,7 +196,7 @@ function RiwayatSatuItem({
               <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                 <th className="px-2 py-1.5">Tanggal kerja</th>
                 <th className="px-2 py-1.5 text-right">Volume</th>
-                <th className="px-2 py-1.5 text-right">Nilai</th>
+                {lihatUang ? <th className="px-2 py-1.5 text-right">Nilai</th> : null}
                 <th className="px-2 py-1.5">Diinput</th>
                 <th className="px-2 py-1.5">Pelapor</th>
                 <th className="px-2 py-1.5">Status</th>
@@ -225,7 +230,9 @@ function RiwayatSatuItem({
                       ) : null}
                     </td>
                     <td className="tabular px-2 py-1.5 text-right">{formatNumber(b.volume)}</td>
-                    <td className="tabular px-2 py-1.5 text-right text-ink-muted">{formatRupiah(b.nilai)}</td>
+                    {lihatUang ? (
+                      <td className="tabular px-2 py-1.5 text-right text-ink-muted">{formatRupiah(b.nilai)}</td>
+                    ) : null}
                     <td className="px-2 py-1.5 text-ink-muted">
                       {formatTanggal(b.diinputPada)}
                       {selisihHari >= 2 ? (

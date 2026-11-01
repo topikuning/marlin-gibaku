@@ -202,9 +202,11 @@ async function ambilFoto(r2Key: string): Promise<string | null> {
 
 export async function renderLaporanLokasiPdf(
   l: LaporanLokasiLengkap,
-  opts: { appName?: string } = {},
+  /** `tanpaUang`: penerima tanpa `money.view` (Pelaksana, DECISIONS 735) – nilai rupiah tidak dicetak. */
+  opts: { appName?: string; tanpaUang?: boolean } = {},
 ): Promise<Buffer> {
   const appName = opts.appName ?? "MARLIN";
+  const tanpaUang = opts.tanpaUang ?? false;
   const id = l.identitas;
   const p = l.progres;
   const doc = createA4Doc({ title: `Laporan Lengkap ${id.nama}`, author: appName });
@@ -250,7 +252,7 @@ export async function renderLaporanLokasiPdf(
     rincian.push(
       ["Kontrak", `${id.kontrak.nomor}${id.kontrak.judulKerja ? ` – ${id.kontrak.judulKerja}` : ""}`],
       ["Penyedia", id.kontrak.vendor],
-      ["Nilai kontrak", `${rupiah(id.kontrak.nilai)} (inkl. PPN)`],
+      ...(tanpaUang ? [] : [["Nilai kontrak", `${rupiah(id.kontrak.nilai)} (inkl. PPN)`] as [string, string]]),
       [
         "Masa kontrak",
         `${tgl(id.kontrak.mulaiKey)} – ${id.kontrak.akhirKey ? tgl(id.kontrak.akhirKey) : "?"} (${id.kontrak.durasiHari} hari)`,
@@ -310,8 +312,12 @@ export async function renderLaporanLokasiPdf(
       nilai: l.durasi ? `${l.durasi.hariBerjalan}/${l.durasi.totalHari} hr` : "–",
       sub: l.durasi ? `sisa ${l.durasi.sisaHari} hari · ${formatPct(l.durasi.pctWaktu, 0)} waktu` : null,
     },
-    { label: "Nilai RAB", nilai: p.punyaRab ? rupiah(p.nilaiRab) : "–" },
-    { label: "Nilai terpasang", nilai: p.punyaRab ? rupiah(p.nilaiTerpasang) : "–" },
+    ...(tanpaUang
+      ? []
+      : [
+          { label: "Nilai RAB", nilai: p.punyaRab ? rupiah(p.nilaiRab) : "–" },
+          { label: "Nilai terpasang", nilai: p.punyaRab ? rupiah(p.nilaiTerpasang) : "–" },
+        ]),
   ]);
 
   /* ── Kurva-S ─────────────────────────────────────────────────────────── */

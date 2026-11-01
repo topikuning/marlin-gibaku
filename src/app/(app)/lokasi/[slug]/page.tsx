@@ -171,6 +171,8 @@ export default async function LokasiRingkasanPage({
       : false;
 
   const canManageLocation = can(user.role, "location.manage");
+  // Pelaksana: tanpa rupiah sama sekali – progres dalam persen saja (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   // Penanda tangan lokasi punya pagar sendiri (DECISIONS 419) — Site Manager
   // boleh mengisinya tanpa ikut memegang master lokasi.
   const canSigner = can(user.role, "location.signer");
@@ -180,7 +182,7 @@ export default async function LokasiRingkasanPage({
 
   return (
     <div className="space-y-4">
-      {mismatch && contract ? (
+      {lihatUang && mismatch && contract ? (
         <Banner
           tone="warning"
           title="Nilai kontrak tidak cocok dengan RAB + PPN"
@@ -188,6 +190,7 @@ export default async function LokasiRingkasanPage({
         />
       ) : null}
 
+      {lihatUang ? (
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(progress.grandTotal)} sub="pra-PPN" />
         <KpiCard
@@ -219,6 +222,26 @@ export default async function LokasiRingkasanPage({
           sub={`rencana ${formatPct(progress.planPct)} · minggu ${progress.weekNumberElapsed}/${progress.totalWeeks}`}
         />
       </section>
+      ) : (
+        <section className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+          <KpiCard
+            label="Terpasang"
+            value={formatPct(progress.realizedPct)}
+            sub={draftProg ? <BarisDraftAdendum slug={slug} draft={draftProg} /> : "dari seluruh pekerjaan"}
+          />
+          <KpiCard
+            label="Rencana"
+            value={formatPct(progress.planPct)}
+            sub={`minggu ${progress.weekNumberElapsed}/${progress.totalWeeks}`}
+          />
+          <KpiCard
+            label="Deviasi"
+            value={formatPct(progress.deviationPct)}
+            tone={deviationTone(progress.deviationPct)}
+            sub="terpasang − rencana"
+          />
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

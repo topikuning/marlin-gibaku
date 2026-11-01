@@ -44,6 +44,8 @@ export default async function BackupAnalisaPage({
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
+  // Pelaksana: volume & koefisien saja, tanpa harga (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
 
   const semua = await db.rabRevision.findMany({
     where: { locationId: location.id },
@@ -127,6 +129,7 @@ export default async function BackupAnalisaPage({
         kembali={kembali}
         pemilih={pemilih}
         bolehUbah={bolehUbah}
+        lihatUang={lihatUang}
       />
     );
   }
@@ -269,7 +272,7 @@ export default async function BackupAnalisaPage({
                   <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                     <th className="py-2 pr-3">Kode</th>
                     <th className="py-2 pr-3">Uraian</th>
-                    <th className="py-2 pr-3 text-right">Harga satuan</th>
+                    {lihatUang ? <th className="py-2 pr-3 text-right">Harga satuan</th> : null}
                     <th className="py-2 pr-3 text-right">Komponen</th>
                     <th className="py-2 text-right">Dipakai item</th>
                   </tr>
@@ -284,9 +287,11 @@ export default async function BackupAnalisaPage({
                           {a.sheet}, baris {a.barisAwal}
                         </span>
                       </td>
-                      <td className="tabular py-1.5 pr-3 text-right align-top">
-                        {a.hargaSatuan != null ? formatRupiahSatuan(Number(a.hargaSatuan)) : "–"}
-                      </td>
+                      {lihatUang ? (
+                        <td className="tabular py-1.5 pr-3 text-right align-top">
+                          {a.hargaSatuan != null ? formatRupiahSatuan(Number(a.hargaSatuan)) : "–"}
+                        </td>
+                      ) : null}
                       <td className="tabular py-1.5 pr-3 text-right align-top">{a._count.komponen}</td>
                       <td className="tabular py-1.5 text-right align-top">{a._count.items}</td>
                     </tr>
@@ -302,7 +307,11 @@ export default async function BackupAnalisaPage({
         <Card>
           <CardHeader
             title={`Bahan & upah (${hargaDasar.length})`}
-            subtitle="Yang dipakai analisa, dengan harga seperti di sheet Bahan & Upah berkas"
+            subtitle={
+              lihatUang
+                ? "Yang dipakai analisa, dengan harga seperti di sheet Bahan & Upah berkas"
+                : "Yang dipakai analisa, seperti di sheet Bahan & Upah berkas"
+            }
           />
           <CardBody>
             <div className="overflow-x-auto">
@@ -311,7 +320,7 @@ export default async function BackupAnalisaPage({
                   <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                     <th className="py-2 pr-3">Nama</th>
                     <th className="py-2 pr-3">Satuan</th>
-                    <th className="py-2 pr-3 text-right">Harga</th>
+                    {lihatUang ? <th className="py-2 pr-3 text-right">Harga</th> : null}
                     <th className="py-2">Letak di berkas</th>
                   </tr>
                 </thead>
@@ -320,9 +329,11 @@ export default async function BackupAnalisaPage({
                     <tr key={h.id}>
                       <td className="py-1.5 pr-3">{h.nama ?? "–"}</td>
                       <td className="py-1.5 pr-3 text-ink-muted">{h.satuan ?? "–"}</td>
-                      <td className="tabular py-1.5 pr-3 text-right">
-                        {h.harga != null ? formatRupiahSatuan(Number(h.harga)) : "–"}
-                      </td>
+                      {lihatUang ? (
+                        <td className="tabular py-1.5 pr-3 text-right">
+                          {h.harga != null ? formatRupiahSatuan(Number(h.harga)) : "–"}
+                        </td>
+                      ) : null}
                       <td className="py-1.5 text-xs text-ink-muted">
                         {h.sheet}!{h.sel}
                         {h.tersembunyi ? " (sheet tersembunyi)" : ""}
@@ -337,7 +348,9 @@ export default async function BackupAnalisaPage({
       ) : null}
 
       <p className="text-sm text-ink-muted">
-        Rincian per item: buka RAB, lalu ketuk angka volume atau harga satuan yang bergaris bawah.
+        {lihatUang
+          ? "Rincian per item: buka RAB, lalu ketuk angka volume atau harga satuan yang bergaris bawah."
+          : "Rincian per item: buka RAB, lalu ketuk angka volume yang bergaris bawah."}
       </p>
     </div>
   );
@@ -446,6 +459,7 @@ async function DetailItem({
   kembali,
   pemilih,
   bolehUbah,
+  lihatUang,
 }: {
   slug: string;
   rev: { id: string; revisionNo: number };
@@ -454,6 +468,8 @@ async function DetailItem({
   kembali: React.ReactNode;
   pemilih: React.ReactNode;
   bolehUbah: boolean;
+  /** false = Pelaksana (DECISIONS 735): harga, jumlah, dan baris asli analisa tidak dirender. */
+  lihatUang: boolean;
 }) {
   const node = await db.rabNode.findUnique({
     where: { revisionId_lineageKey: { revisionId: rev.id, lineageKey } },
@@ -492,7 +508,7 @@ async function DetailItem({
       <Card>
         <CardHeader
           title={`${node.code} ${node.name}`}
-          subtitle={`Revisi #${rev.revisionNo} · volume ${volume != null ? formatNumber(volume) : "–"} ${satuan} · harga satuan ${formatRupiahSatuan(harga)}`}
+          subtitle={`Revisi #${rev.revisionNo} · volume ${volume != null ? formatNumber(volume) : "–"} ${satuan}${lihatUang ? ` · harga satuan ${formatRupiahSatuan(harga)}` : ""}`}
           action={kembali}
         />
         <CardBody>{pemilih}</CardBody>
@@ -572,7 +588,7 @@ async function DetailItem({
 
       <Card>
         <CardHeader
-          title="Analisa harga satuan"
+          title={lihatUang ? "Analisa harga satuan" : "Analisa: kebutuhan per satuan"}
           subtitle={
             a
               ? `${a.kode ?? "Tanpa kode"} · ${a.sheet}, baris ${a.barisAwal}–${a.barisAkhir}${sa?.warisan ? ` · dari berkas revisi #${sa.revisionNo}` : ""}`
@@ -581,13 +597,13 @@ async function DetailItem({
         />
         {a ? (
           <CardBody className="space-y-3">
-            {sa?.warisan ? (
+            {lihatUang && sa?.warisan ? (
               <Banner
                 tone="info"
                 title={`Harga satuan item ini sama dengan revisi #${sa.revisionNo}, jadi analisanya diambil dari berkas revisi itu`}
               />
             ) : null}
-            {sa?.cara === "cocok_harga" ? (
+            {lihatUang && sa?.cara === "cocok_harga" ? (
               <Banner
                 tone="warning"
                 title="Dicocokkan lewat harga, bukan rumus"
@@ -595,6 +611,7 @@ async function DetailItem({
               />
             ) : null}
             {a.uraian ? <p className="text-sm text-ink">{a.uraian}</p> : null}
+            {lihatUang ? (
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span>
                 Harga analisa: <span className="tabular font-medium">{formatRupiahSatuan(hargaAnalisa)}</span>
@@ -612,6 +629,7 @@ async function DetailItem({
                 <span>Overhead & profit: {(Number(a.overhead) * 100).toLocaleString("id-ID", { maximumFractionDigits: 2 })}%</span>
               ) : null}
             </div>
+            ) : null}
             {a.komponen.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
@@ -621,8 +639,12 @@ async function DetailItem({
                       <th className="py-2 pr-3">Uraian</th>
                       <th className="py-2 pr-3 text-right">Koefisien</th>
                       <th className="py-2 pr-3">Satuan</th>
-                      <th className="py-2 pr-3 text-right">Harga dasar</th>
-                      <th className="py-2 text-right">Jumlah</th>
+                      {lihatUang ? (
+                        <>
+                          <th className="py-2 pr-3 text-right">Harga dasar</th>
+                          <th className="py-2 text-right">Jumlah</th>
+                        </>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -634,6 +656,8 @@ async function DetailItem({
                           {k.koefisien != null ? Number(k.koefisien).toLocaleString("id-ID", { maximumFractionDigits: 6 }) : "–"}
                         </td>
                         <td className="py-1.5 pr-3 text-ink-muted">{k.satuan ?? "–"}</td>
+                        {lihatUang ? (
+                        <>
                         <td className="tabular py-1.5 pr-3 text-right">
                           {k.harga != null ? formatRupiahSatuan(Number(k.harga)) : "–"}
                           {k.sumberSheet ? (
@@ -645,6 +669,8 @@ async function DetailItem({
                         <td className="tabular py-1.5 text-right">
                           {k.jumlah != null ? formatRupiahSatuan(Math.round(Number(k.jumlah) * 100) / 100) : "–"}
                         </td>
+                        </>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -653,12 +679,15 @@ async function DetailItem({
             ) : (
               <p className="text-sm text-ink-muted">Komponennya tidak bisa diurai dari blok ini. Baris aslinya di bawah.</p>
             )}
+            {/* Baris asli memuat harga dasar & jumlah sebagai angka mentah. */}
+            {lihatUang ? (
             <details className="text-sm">
               <summary className="cursor-pointer text-primary">Baris asli blok analisa di berkas</summary>
               <div className="mt-2">
                 <TabelBaris baris={a.baris as unknown as BarisBerkas[]} kepala={{}} sorot={[]} />
               </div>
             </details>
+            ) : null}
           </CardBody>
         ) : (
           <CardBody>
@@ -675,7 +704,7 @@ async function DetailItem({
         <Link href={`/lokasi/${slug}/rab`} className="text-primary hover:underline">
           Kembali ke RAB
         </Link>{" "}
-        · Angka di halaman ini dibaca dari berkas apa adanya. Volume, harga, dan nilai resmi tetap dari RAB.
+        · Angka di halaman ini dibaca dari berkas apa adanya. {lihatUang ? "Volume, harga, dan nilai resmi" : "Volume resmi"} tetap dari RAB.
       </p>
     </div>
   );

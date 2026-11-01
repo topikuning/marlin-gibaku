@@ -59,7 +59,16 @@ const vol = (n: number, unit: string | null) => `${volFmt.format(n)}${unit ? ` $
  */
 const bobot = (n: number) => (n <= 0 ? "–" : n < 0.005 ? "< 0,01" : pctFmt.format(n));
 
-export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan | null }) {
+export function KkpWeeklyPlan({
+  r,
+  ttd,
+  tanpaUang = false,
+}: {
+  r: RencanaMingguan;
+  ttd?: TtdLaporan | null;
+  /** Pelaksana (DECISIONS 735): nilai fisik lokasi, kolom Nilai, dan jumlah rupiah tidak dicetak. */
+  tanpaUang?: boolean;
+}) {
   const h = r.header;
   const byCategory = groupByCategory(r.baris);
   const jejak = jejakPenyusun(r, (d) => dFmt.format(d));
@@ -83,7 +92,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
           k="Lokasi"
           v={`${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`}
         />
-        <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />
+        {tanpaUang ? null : <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />}
         <KV k="Nomor Kontrak" v={h.contractNumber} />
         <KV k="Kontraktor Pelaksana" v={h.vendorName} />
         <KV k="Tahun Anggaran" v={String(h.tahunAnggaran)} />
@@ -107,7 +116,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
         <Metric
           label="Bobot rencana minggu ini"
           value={signed(r.proyeksi.tambahanPct)}
-          note={rupiahFmt.format(r.totalNilai)}
+          note={tanpaUang ? undefined : rupiahFmt.format(r.totalNilai)}
         />
       </div>
 
@@ -214,7 +223,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
               <Th colSpan={3}>Posisi Volume</Th>
               <Th rowSpan={2} align="right" w="66px">Target Minggu Ini</Th>
               <Th rowSpan={2} align="right" w="44px">Bobot</Th>
-              <Th rowSpan={2} align="right" w="86px">Nilai</Th>
+              {tanpaUang ? null : <Th rowSpan={2} align="right" w="86px">Nilai</Th>}
               <Th rowSpan={2} w="72px">PIC</Th>
             </tr>
             <tr className="bg-slate-100 text-center text-[8.5px]">
@@ -225,7 +234,7 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
           </thead>
           <tbody>
             {byCategory.map((c, ci) => (
-              <CategoryBlock key={ci} name={c.name} rows={c.rows} startNo={c.startNo} />
+              <CategoryBlock key={ci} name={c.name} rows={c.rows} startNo={c.startNo} tanpaUang={tanpaUang} />
             ))}
             <tr className="bg-slate-100 font-bold">
               <Td colSpan={6} align="right">
@@ -233,14 +242,15 @@ export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan
               </Td>
               <Td align="right">{r.baris.length} item</Td>
               <Td align="right">{p2(r.totalBobot)}</Td>
-              <Td align="right">{rupiahFmt.format(r.totalNilai)}</Td>
+              {tanpaUang ? null : <Td align="right">{rupiahFmt.format(r.totalNilai)}</Td>}
               <Td />
             </tr>
           </tbody>
         </table>
       )}
       <p className="mt-1 text-[9px] text-slate-500">
-        Kolom <b>Bobot</b> = nilai target dibagi nilai fisik lokasi ({rupiahFmt.format(Number(h.locationValue))}),
+        Kolom <b>Bobot</b> = nilai target dibagi nilai fisik lokasi
+        {tanpaUang ? "" : ` (${rupiahFmt.format(Number(h.locationValue))})`},
         dinyatakan dalam poin persen. Dasarnya sama dengan kurva-S dan laporan mingguan KKP.
         Kolom <b>Realisasi</b> adalah volume kumulatif s/d saat formulir ini disusun.
       </p>
@@ -306,10 +316,12 @@ function CategoryBlock({
   name,
   rows,
   startNo,
+  tanpaUang,
 }: {
   name: string;
   rows: BarisRencana[];
   startNo: number;
+  tanpaUang: boolean;
 }) {
   const subtotalBobot = rows.reduce((s, r) => s + r.bobotTarget, 0);
   const subtotalNilai = rows.reduce((s, r) => s + r.nilaiTarget, 0);
@@ -318,7 +330,7 @@ function CategoryBlock({
       <tr className="bg-slate-50 font-semibold">
         <Td colSpan={7}>{name}</Td>
         <Td align="right">{p2(subtotalBobot)}</Td>
-        <Td align="right">{rupiahFmt.format(subtotalNilai)}</Td>
+        {tanpaUang ? null : <Td align="right">{rupiahFmt.format(subtotalNilai)}</Td>}
         <Td />
       </tr>
       {rows.map((b, i) => (
@@ -340,7 +352,7 @@ function CategoryBlock({
             {volFmt.format(b.target)}
           </Td>
           <Td align="right">{bobot(b.bobotTarget)}</Td>
-          <Td align="right">{rupiahFmt.format(b.nilaiTarget)}</Td>
+          {tanpaUang ? null : <Td align="right">{rupiahFmt.format(b.nilaiTarget)}</Td>}
           <Td>{b.picName ?? "–"}</Td>
         </tr>
       ))}

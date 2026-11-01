@@ -17,7 +17,7 @@ export type ProgressRow = {
   realizedPct: number;
   deviationPct: number;
   /** Nilai terpasang (rupiah, Number — hanya display). */
-  terpasang: number;
+  terpasang: number | null;
   /** Tanggal kerja laporan terakhir yang DIKIRIM, "28 Agu 2026". null = belum pernah. */
   terakhirLapor: string | null;
   /** Umur tanggal itu dalam hari. null = belum pernah ada laporan terkirim. */
@@ -104,11 +104,14 @@ const COLUMN_DEFS: ColDef<ProgressRow>[] = [
   },
 ];
 
-export function ProgressGrid({ rows }: { rows: ProgressRow[] }) {
+/** Tanpa kolom "Terpasang" (rupiah) – untuk Pelaksana (DECISIONS 735), termasuk unduhan CSV-nya. */
+const COLUMN_DEFS_TANPA_UANG = COLUMN_DEFS.filter((c) => !("field" in c && c.field === "terpasang"));
+
+export function ProgressGrid({ rows, tanpaUang = false }: { rows: ProgressRow[]; tanpaUang?: boolean }) {
   return (
     <MarlinGrid<ProgressRow>
       rowData={rows}
-      columnDefs={COLUMN_DEFS}
+      columnDefs={tanpaUang ? COLUMN_DEFS_TANPA_UANG : COLUMN_DEFS}
       quickFilter
       csvExport
       // Sama dengan `/lokasi`: sel identitas dua baris + lajur penggulir

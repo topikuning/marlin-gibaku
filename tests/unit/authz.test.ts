@@ -7,6 +7,7 @@ import {
   isCrossLocation,
   ALL_ROLES,
   ROLE_CAPABILITIES,
+  type Capability,
 } from "@/lib/authz";
 
 describe("authz capability matrix", () => {
@@ -39,6 +40,13 @@ describe("authz capability matrix", () => {
     ]);
     for (const cap of CAPABILITIES) {
       expect(can("field_supervisor", cap), cap).toBe(expected.has(cap));
+    }
+  });
+
+  it("money.view: semua peran KECUALI Pelaksana (DECISIONS 735)", () => {
+    // Ketetapan user 2026-11-01: "intinya rupiah/uang jangan muncul di level pelaksana".
+    for (const role of ALL_ROLES) {
+      expect(can(role, "money.view" as Capability), role).toBe(role !== "field_supervisor");
     }
   });
 

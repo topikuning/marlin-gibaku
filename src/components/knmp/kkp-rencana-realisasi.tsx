@@ -26,7 +26,16 @@ const selRencana = (v: number) => (Math.abs(v) < 0.0005 ? "" : angka(v));
 const selRealisasi = (v: number | null) => (v == null ? "" : Math.abs(v) < 0.0005 ? "–" : angka(v));
 const persen = (v: number) => `${angka(v, 2)}%`;
 
-export function KkpRencanaRealisasi({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan | null }) {
+export function KkpRencanaRealisasi({
+  r,
+  ttd,
+  tanpaUang = false,
+}: {
+  r: PeriodReport;
+  ttd?: TtdLaporan | null;
+  /** Pelaksana (DECISIONS 735): "Nilai Fisik Lokasi" tidak dicetak. */
+  tanpaUang?: boolean;
+}) {
   const h = r.header;
   const lap = susunRencanaRealisasi(r);
   const tt = penandatanganDokumen("mingguan", h);
@@ -56,9 +65,9 @@ export function KkpRencanaRealisasi({ r, ttd }: { r: PeriodReport; ttd?: TtdLapo
             {[
               ["Paket Pekerjaan", h.packageName],
               ["Lokasi", `${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`],
-              ["Nilai Fisik Lokasi", formatRupiah(h.locationValue)],
+              ["Nilai Fisik Lokasi", tanpaUang ? null : formatRupiah(h.locationValue)],
               ["Nomor Kontrak", h.contractNumber || "–"],
-            ].map(([k, v]) => (
+            ].filter(([, v]) => v !== null).map(([k, v]) => (
               <tr key={k}>
                 <td className="pr-2 font-semibold whitespace-nowrap">{k}</td>
                 <td>: {v}</td>

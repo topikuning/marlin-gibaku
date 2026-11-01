@@ -81,6 +81,8 @@ export default async function ProgressLokasiPage({
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "progress.view");
+  // Pelaksana: progres dalam persen saja, tanpa rupiah (DECISIONS 735).
+  const lihatUang = can(user.role, "money.view");
   const canManageIssues = can(user.role, "issue.manage");
   const canManageBaseline = can(user.role, "baseline.manage");
   const bagian = bacaBagianProgress(sp.bagian);
@@ -190,6 +192,7 @@ export default async function ProgressLokasiPage({
               fcStatus={fcStatus}
               bounds={bounds}
               bisaAi={can(user.role, "ai.view")}
+              lihatUang={lihatUang}
             />
           ) : null}
 
@@ -207,6 +210,7 @@ export default async function ProgressLokasiPage({
               planNow={series.planPct[series.currentWeek - 1] ?? 0}
               currentWeek={series.currentWeek}
               canManageIssues={canManageIssues}
+              lihatUang={lihatUang}
             />
           ) : null}
         </CardBody>
@@ -225,7 +229,9 @@ async function BagianRingkasan({
   fcStatus,
   bounds,
   bisaAi,
+  lihatUang,
 }: {
+  lihatUang: boolean;
   slug: string;
   locationId: string;
   series: Awaited<ReturnType<typeof getScurveSeries>>;
@@ -257,6 +263,14 @@ async function BagianRingkasan({
               <ArrowRight aria-hidden className="size-3.5" />
             </ButtonLink>
           </div>
+          {!lihatUang ? (
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-md border border-border bg-surface px-3 py-2">
+                <p className="text-[11px] tracking-wide text-ink-faint uppercase">Terpasang menurut draft</p>
+                <p className="tabular text-sm font-semibold text-ink">{formatPct(draftProg.realizedPct)}</p>
+              </div>
+            </div>
+          ) : (
           <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
             <div className="rounded-md border border-border bg-surface px-3 py-2">
               <p className="text-[11px] tracking-wide text-ink-faint uppercase">Nilai RAB draft</p>
@@ -282,6 +296,7 @@ async function BagianRingkasan({
               </p>
             </div>
           </div>
+          )}
           <p className="mt-2 text-[11px] text-ink-muted">
             {draftProg.barisBasisDraft === 0
               ? "Belum ada baris laporan yang dicatat terhadap draft ini – angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
@@ -651,11 +666,13 @@ async function BagianKendala({
   planNow,
   currentWeek,
   canManageIssues,
+  lihatUang,
 }: {
   locationId: string;
   planNow: number;
   currentWeek: number;
   canManageIssues: boolean;
+  lihatUang: boolean;
 }) {
   const planFraction = planNow / 100;
 
@@ -849,7 +866,7 @@ async function BagianKendala({
                   <th className="px-3 py-2 text-right">Target s/d mgg ini</th>
                   <th className="px-3 py-2 text-right">Realisasi</th>
                   <th className="px-3 py-2 text-right">Kekurangan</th>
-                  <th className="px-3 py-2 text-right">Nilai kekurangan</th>
+                  {lihatUang ? <th className="px-3 py-2 text-right">Nilai kekurangan</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -867,7 +884,9 @@ async function BagianKendala({
                     <td className="tabular px-3 py-2 text-right text-danger">
                       {formatNumber(it.expected - it.realized)}
                     </td>
-                    <td className="tabular px-3 py-2 text-right">{formatRupiahShort(it.gapValue)}</td>
+                    {lihatUang ? (
+                      <td className="tabular px-3 py-2 text-right">{formatRupiahShort(it.gapValue)}</td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

@@ -1,4 +1,5 @@
 import "server-only";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, jakartaToday, formatTanggal, parseDateKey } from "@/lib/format";
@@ -533,6 +534,14 @@ async function jawabDalamKonteks(
    * supaya jawaban di satu grup tidak berubah-ubah tergantung siapa mengetik.
    */
   const penyaring: SessionUser = pkg ? penyaringGrup(keputusan.orgId) : user!;
+
+  /*
+   * RUPIAH DI BERKAS (DECISIONS 735). Pelaksana tidak melihat uang – juga
+   * lewat PDF yang dikirim ke WhatsApp-nya. Nilai rupiah hanya dicetak di chat
+   * PRIBADI dengan penanya yang memegang `money.view`. Di grup, siapa pun yang
+   * bertanya, berkasnya tanpa rupiah: anggota grup paket bisa Pelaksana.
+   */
+  const berkasTanpaUang = grup || !user || !can(user.role, "money.view");
 
   /*
    * `lokasiIds = null` berarti "seluruh lokasi yang boleh diakses penanya di
@@ -1349,7 +1358,7 @@ async function jawabDalamKonteks(
             "@/lib/lokasi-lengkap/render-deck"
           );
           try {
-            deck = { buffer: await renderLaporanLokasiDeck(l, {}) };
+            deck = { buffer: await renderLaporanLokasiDeck(l, { tanpaUang: berkasTanpaUang }) };
           } catch (err) {
             if (err instanceof DeckBelumTersediaError) {
               deck = { belumTersedia: true };
@@ -1474,10 +1483,15 @@ async function jawabDalamKonteks(
         select: { slug: true },
       });
       const kkp = berkasHarian.bentuk === "kkp";
-      const render = kkp
-        ? (await import("@/lib/pdf/harian-kkp")).renderHarianKkpPdf
-        : (await import("@/lib/pdf/harian-ringkas")).renderHarianRingkasPdf;
-      const hasil = lok ? await render(lok.slug, berkasHarian.dateKey) : null;
+      // Blanko KKP tidak memuat rupiah; ringkasan harian memuat – dilepas
+      // untuk penerima tanpa `money.view` (DECISIONS 735).
+      const hasil = !lok
+        ? null
+        : kkp
+          ? await (await import("@/lib/pdf/harian-kkp")).renderHarianKkpPdf(lok.slug, berkasHarian.dateKey)
+          : await (await import("@/lib/pdf/harian-ringkas")).renderHarianRingkasPdf(lok.slug, berkasHarian.dateKey, {
+              tanpaUang: berkasTanpaUang,
+            });
       const namaDokumen = kkp ? "Blanko harian KKP" : "Ringkasan pelaksanaan harian";
       if (!hasil) {
         await balasWa(
@@ -1574,7 +1588,7 @@ async function jawabDalamKonteks(
     try {
       const { renderLaporanLokasiPdf } = await import("@/lib/lokasi-lengkap/render-pdf");
       const { namaBerkasLaporanLokasi } = await import("@/lib/lokasi-lengkap/jenis");
-      const pdf = await renderLaporanLokasiPdf(laporan);
+      const pdf = await renderLaporanLokasiPdf(laporan, { tanpaUang: berkasTanpaUang });
       await balasFileWa(
         m.chatId,
         // Bentuknya sama dengan `toFilePayload` di `client.ts`, ditulis inline
