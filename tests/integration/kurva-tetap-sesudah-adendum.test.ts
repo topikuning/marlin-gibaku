@@ -147,7 +147,9 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  await db.$executeRawUnsafe(`DELETE FROM "organizations" WHERE id = '${orgId}'`).catch(() => null);
+  // TRUNCATE ... CASCADE, bukan DELETE: DELETE organisasi selalu ditolak FK
+  // users.org_id dan datanya tertinggal untuk berkas berikutnya.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });
 

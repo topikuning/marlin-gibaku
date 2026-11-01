@@ -216,7 +216,9 @@ afterAll(async () => {
     "TRUNCATE TABLE kawal_sarana_maps, kawal_sarana_snapshots, kawal_location_snapshots, kawal_snapshots, kawal_location_maps, kawal_sync_runs",
   );
   await db.appSetting.deleteMany({ where: { key: { startsWith: "kawal." } } });
-  await db.$executeRawUnsafe(`DELETE FROM "organizations" WHERE slug = 'org-${suffix}'`).catch(() => null);
+  // TRUNCATE ... CASCADE, bukan DELETE: DELETE organisasi selalu ditolak FK
+  // users.org_id dan datanya tertinggal untuk berkas berikutnya.
+  await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });
 
