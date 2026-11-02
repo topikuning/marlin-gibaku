@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { Banner, ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
-import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
-import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
+import { formatTanggal } from "@/lib/format";
 import { getLocationProgress, getProgresDraftAdendum } from "@/lib/progress";
-import { BarisDraftAdendum } from "./baris-draft-adendum";
+import { ProgressStrip, ProgressStripPonsel, type JalurStrip, type NilaiStrip, type WaktuStrip } from "@/components/knmp/progress-strip";
+import { bobotPct } from "@/lib/progress-calc";
+import { withPpn } from "@/lib/money";
+import { TampilKecualiInputHarian } from "./tampil-kecuali-input-harian";
 import { can } from "@/lib/authz";
 import { alasanLokasiTertutup } from "@/lib/package/lingkup-lokasi";
 import { kawalUntukLokasi } from "@/lib/kawal/queries";
@@ -99,6 +101,65 @@ export default async function LokasiLayout({
 
   const remainingDays = contract?.endDate ? remainingDaysUntil(contract.endDate) : null;
 
+  /*
+   * PROGRESS STRIP (DECISIONS 737). Semua angka dari calculation layer:
+   * nilai lokasi = RAB aktif + PPN (`withPpn`, sama dengan "Nilai Kontrak
+   * Lokasi" laporan periodik), porsi paket & lebar bar waktu = `bobotPct`,
+   * rencana/realisasi/deviasi = `getLocationProgress`, Kawal apa adanya.
+   */
+  const nilaiLokasi = contract ? withPpn(progress.grandTotal, Number(contract.ppnPercent)) : 0n;
+  const nilaiStrip: NilaiStrip | null =
+    !lihatUang || !contract
+      ? null
+      : progress.grandTotal > 0n
+        ? {
+            judul: `Nilai lokasi · ${location.name}`,
+            nilai: nilaiLokasi,
+            paket: { nilai: contract.contractValue, porsiPct: bobotPct(Number(nilaiLokasi), Number(contract.contractValue)) },
+          }
+        : { judul: "Nilai kontrak paket · inkl. PPN", nilai: contract.contractValue, paket: null };
+  const waktuStrip: WaktuStrip = {
+    // `weekNumberElapsed`, bukan `weekNumber` yang di-clamp (DECISIONS 593).
+    mingguKe: progress.weekNumberElapsed,
+    totalMinggu: progress.totalWeeks,
+    lebarPct: bobotPct(Math.min(progress.weekNumberElapsed, progress.totalWeeks), progress.totalWeeks),
+    sisaHari: remainingDays,
+    periode:
+      contract?.startDate && contract.endDate
+        ? `${formatTanggal(contract.startDate)} – ${formatTanggal(contract.endDate)}`
+        : contract
+          ? `${contract.durationDays} hari – menunggu SPMK`
+          : "Belum ada kontrak",
+  };
+  // Tanpa baseline aktif rencana = 0 dan deviasi = realisasi − 0: angka yang
+  // tidak berarti apa-apa, jadi tidak ditampilkan (pola pemilih lokasi).
+  const adaRencana = progress.activeBaselineId != null;
+  const jalurStrip: JalurStrip[] = [
+    {
+      kunci: "marlin",
+      label: "MARLIN",
+      href: `/lokasi/${slug}/progress`,
+      realisasi: progress.realizedPct,
+      rencana: adaRencana ? progress.planPct : null,
+      deviasi: adaRencana ? progress.deviationPct : null,
+      draft: draftProg
+        ? { nomor: draftProg.revisionNo, realisasi: draftProg.realizedPct, href: `/lokasi/${slug}/progress` }
+        : null,
+    },
+    ...(kawal
+      ? [
+          {
+            kunci: "kawal" as const,
+            label: "KAWAL",
+            href: `/lokasi/${slug}/kawal`,
+            realisasi: kawal.actualPct,
+            rencana: kawal.targetPct,
+            deviasi: kawal.deviasiPct,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="space-y-4">
       {/* Header proyek terstruktur (audit UI #5): identitas + stat berlabel dalam
@@ -169,100 +230,10 @@ export default async function LokasiLayout({
           </div>
         </div>
 
-        {/* Sel berpasangan MARLIN | Kawal butuh ruang dua angka: enam kolom baru
-            dipakai mulai xl, supaya di 1024 px lencana deviasi tidak menabrak
-            garis pemisahnya. */}
-        <dl
-          className={cn(
-            "grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3",
-            lihatUang ? (kawal ? "xl:grid-cols-6" : "lg:grid-cols-6") : kawal ? "xl:grid-cols-5" : "lg:grid-cols-5",
-          )}
-        >
-          {lihatUang ? (
-            <StatCell label="Nilai kontrak">
-              {contract ? (
-                <span className="tabular">{formatRupiah(contract.contractValue)}</span>
-              ) : (
-                <span className="text-ink-faint">–</span>
-              )}
-              {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
-            </StatCell>
-          ) : null}
-          <StatCell label="Periode kontrak">
-            {contract?.startDate && contract.endDate ? (
-              <span className="tabular text-[13px]">
-                {formatTanggal(contract.startDate)} – {formatTanggal(contract.endDate)}
-              </span>
-            ) : contract ? (
-              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari – menunggu SPMK</span>
-            ) : (
-              <span className="text-ink-faint">Belum ada</span>
-            )}
-            {remainingDays != null ? (
-              <span
-                className={cn(
-                  "ml-1 text-[11px] font-normal",
-                  remainingDays >= 0 ? "text-ink-faint" : "text-danger",
-                )}
-              >
-                {remainingDays >= 0 ? `sisa ${remainingDays} hari` : `lewat ${-remainingDays} hari`}
-              </span>
-            ) : null}
-          </StatCell>
-          {/* Bila lokasi ini berpasangan dengan Kawal KNMP, tiga sel ini
-              memuat DUA angka: MARLIN (resmi) dan Kawal (rujukan pengawas,
-              apa adanya) – permintaan user 2026-10-19, DECISIONS 691. */}
-          <StatCell label="Rencana">
-            {kawal ? (
-              <PasanganAngka
-                slug={slug}
-                marlin={formatPct(progress.planPct)}
-                kawal={kawal.targetPct != null ? formatPct(kawal.targetPct) : "–"}
-              />
-            ) : (
-              <span className="tabular">{formatPct(progress.planPct)}</span>
-            )}
-          </StatCell>
-          <StatCell label="Realisasi">
-            {kawal ? (
-              <PasanganAngka
-                slug={slug}
-                marlin={formatPct(progress.realizedPct)}
-                kawal={kawal.actualPct != null ? formatPct(kawal.actualPct) : "–"}
-              />
-            ) : (
-              <span className="tabular">{formatPct(progress.realizedPct)}</span>
-            )}
-            {draftProg ? <BarisDraftAdendum slug={slug} draft={draftProg} /> : null}
-          </StatCell>
-          <StatCell label="Deviasi">
-            {kawal ? (
-              <PasanganAngka
-                slug={slug}
-                marlin={<DeltaBadge value={progress.deviationPct} />}
-                kawal={kawal.deviasiPct != null ? <DeltaBadge value={kawal.deviasiPct} /> : "–"}
-              />
-            ) : (
-              <DeltaBadge value={progress.deviationPct} />
-            )}
-          </StatCell>
-          {/* Angka yang DIBACA, jadi `weekNumberElapsed` — bukan `weekNumber`
-              yang di-clamp untuk mencari rencana%. Sel ini pernah menulis
-              "22/22" untuk lokasi yang kontraknya sudah lewat seminggu dengan
-              realisasi 0%, sementara laporan lengkap di layar yang sama menulis
-              "ke-23". DECISIONS 593. */}
-          <StatCell label="Minggu berjalan">
-            <span className="tabular">
-              {progress.weekNumberElapsed}
-              <span className="text-ink-faint">/{progress.totalWeeks}</span>
-              {progress.totalWeeks > 0 && progress.weekNumberElapsed > progress.totalWeeks ? (
-                <span className="ml-1 text-[11px] font-medium text-danger">
-                  lewat {progress.weekNumberElapsed - progress.totalWeeks}
-                </span>
-              ) : null}
-            </span>
-          </StatCell>
-        </dl>
+        {/* Pengganti kartu enam sel (DECISIONS 737): angka per JALUR, rencana
+            vs realisasi dalam satu bar. Kisi 2 × 2 di tablet, satu baris di
+            desktop. */}
+        <ProgressStrip nilai={nilaiStrip} waktu={waktuStrip} jalur={jalurStrip} />
       </header>
 
       {/* Baris ringkas pengganti header di ponsel — satu baris, bukan blok.
@@ -307,51 +278,19 @@ export default async function LokasiLayout({
             <DeltaBadge value={progress.deviationPct} />
           </span>
         </div>
+        {/* Ponsel juga butuh angka ini, terbaca sekali lihat (user 2026-11-02) –
+            kecuali di halaman input laporan harian (user 2026-08-02). DECISIONS 737. */}
+        <TampilKecualiInputHarian slug={location.slug}>
+          <div className="pt-2">
+            <ProgressStripPonsel nilai={nilaiStrip} waktu={waktuStrip} jalur={jalurStrip} />
+          </div>
+        </TampilKecualiInputHarian>
       </div>
 
       <LinkTabs items={tabItems(location.slug, can(user.role, "finance.view"), can(user.role, "document.view"))} />
 
       {tertutup ? <Banner tone="warning" title={tertutup} /> : null}
       {children}
-    </div>
-  );
-}
-
-/** Sel stat berlabel untuk header lokasi. */
-/**
- * Dua angka dalam satu sel, DIPISAH GARIS DIAGONAL merah – bentuk yang
- * digambar user 2026-10-19 – dan dibedakan warnanya: MARLIN (resmi) biru tua,
- * Kawal (rujukan pengawas) abu-abu. Label "Kawal" menuju tab pembandingnya.
- */
-function PasanganAngka({ slug, marlin, kawal }: { slug: string; marlin: ReactNode; kawal: ReactNode }) {
-  return (
-    <span className="relative grid grid-cols-2 items-center gap-x-6">
-      <span className="tabular text-primary">{marlin}</span>
-      <span className="tabular text-ink-muted">{kawal}</span>
-      <span className="text-[10px] font-semibold tracking-wide text-primary uppercase">MARLIN</span>
-      <Link
-        href={`/lokasi/${slug}/kawal`}
-        className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase hover:text-ink hover:underline"
-      >
-        Kawal
-      </Link>
-      <svg
-        aria-hidden
-        viewBox="0 0 10 40"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-y-0 left-1/2 h-full w-4 -translate-x-1/2 text-brand-red"
-      >
-        <line x1="1" y1="40" x2="9" y2="0" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-      </svg>
-    </span>
-  );
-}
-
-function StatCell({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="bg-surface px-3 py-2">
-      <dt className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold text-ink">{children}</dd>
     </div>
   );
 }
