@@ -25,7 +25,8 @@ describe("authz capability matrix", () => {
       "location.view",
       "rab.view",
       "progress.view",
-      "document.view",
+      // `document.view` DICABUT (DECISIONS 736): Pelaksana fokus ke pelaporan
+      // harian, dan kontrak/adendum/berkas pembayaran memuat nilai rupiah.
       "daily_report.create",
       "field_activity.manage",
       // Foto Cepat (DECISIONS 253). Dipisah dari daily_report.create karena
@@ -47,6 +48,12 @@ describe("authz capability matrix", () => {
     // Ketetapan user 2026-11-01: "intinya rupiah/uang jangan muncul di level pelaksana".
     for (const role of ALL_ROLES) {
       expect(can(role, "money.view" as Capability), role).toBe(role !== "field_supervisor");
+    }
+  });
+
+  it("document.view: semua peran KECUALI Pelaksana (DECISIONS 736)", () => {
+    for (const role of ALL_ROLES) {
+      expect(can(role, "document.view"), role).toBe(role !== "field_supervisor");
     }
   });
 
