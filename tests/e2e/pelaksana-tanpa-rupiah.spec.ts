@@ -160,3 +160,21 @@ test.describe("Pelaksana tidak melihat rupiah", () => {
     expect(diperiksa, "tidak ada lokasi yang bisa diperiksa lewat API peta").toBeGreaterThan(0);
   });
 });
+
+/*
+ * PELAKSANA TIDAK MEMBUKA DOKUMEN (DECISIONS 736). Ketetapan user 2026-11-02:
+ * *"poinnya pelaksana fokus pada pelaporan harian"*. Kontrak, adendum, dan
+ * berkas pembayaran memuat nilai rupiah, dan isi berkas tidak bisa disaring.
+ */
+test.describe("Pelaksana tidak membuka dokumen", () => {
+  test("menu, tab lokasi, dan alamat dokumen tertutup", async ({ page }) => {
+    await masuk(page, "mandor-01");
+    for (const url of ["/dokumen", `/lokasi/${SLUG}/dokumen`]) {
+      const res = await page.goto(url);
+      expect(res?.status(), url).toBe(404);
+    }
+    await page.goto(`/lokasi/${SLUG}`);
+    await expect(page.locator(`a[href="/lokasi/${SLUG}/dokumen"]`)).toHaveCount(0);
+    await expect(page.locator('a[href="/dokumen"]')).toHaveCount(0);
+  });
+});

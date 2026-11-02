@@ -237,7 +237,9 @@ const VIEW_ALL: Capability[] = [
   "location.view",
   "rab.view",
   "progress.view",
-  "document.view",
+  // `document.view` TIDAK di sini lagi (DECISIONS 736): Pelaksana fokus ke
+  // pelaporan harian, dan kontrak/adendum/berkas pembayaran memuat rupiah.
+  // Diberikan eksplisit ke Site Manager ke atas, Executive View, Wakil PPK.
   // Papan temuan terbuka untuk semua yang boleh melihat lokasi — temuan yang
   // disembunyikan dari pelaksananya sendiri tidak akan pernah ditindaklanjuti.
   "finding.view",
@@ -273,6 +275,8 @@ const SITE_MANAGER: Capability[] = [
   ...PELAKSANA,
   // Uang mulai Site Manager – Pelaksana tidak melihat rupiah (DECISIONS 735).
   "money.view",
+  // Dokumen unggahan mulai Site Manager (DECISIONS 736).
+  "document.view",
   "package.view",
   "weekly_plan.manage",
   // Mengisi HSD & rincian pelaksanaan RAPL. Melihat marginnya TIDAK ikut —
@@ -475,6 +479,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   exec_viewer: new Set<Capability>([
     ...VIEW_ALL,
     "money.view",
+    "document.view",
     "portfolio.view",
     "package.view",
     "report.export",
@@ -509,6 +514,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     ...VIEW_ALL,
     // Nilai kontrak & termin tetap terlihat pemberi kerja (lihat di atas).
     "money.view",
+    "document.view",
     "portfolio.view",
     "package.view",
     "report.export",

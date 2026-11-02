@@ -179,7 +179,8 @@ export default async function DetailTemuanPage({ params }: { params: Promise<{ i
                     )}
                     <div className="min-w-0 flex-1 text-sm">
                       <div className="truncate font-medium text-ink">
-                        {e.document ? (
+                        {/* Tanpa `document.view` (Pelaksana, DECISIONS 736) namanya saja – tautannya buntu. */}
+                        {e.document && can(user.role, "document.view") ? (
                           <Link className="text-primary underline" href={`/dokumen/${e.document.id}`}>{label}</Link>
                         ) : (
                           label

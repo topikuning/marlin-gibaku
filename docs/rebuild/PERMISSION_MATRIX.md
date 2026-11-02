@@ -64,7 +64,7 @@ Jumlah capability: **72**.
 | `finance.view` | ✓ | – | – | – | – | – | – | – |
 | `finance.input` | ✓ | – | – | – | – | – | – | – |
 | `finance.approve` | ✓ | – | – | – | – | – | – | – |
-| `document.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `document.view` | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ |
 | `document.upload` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `letter.view` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `letter.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |

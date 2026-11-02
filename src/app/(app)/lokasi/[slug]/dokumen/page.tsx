@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
+import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { ensureMilestones } from "@/lib/milestones/actions";
@@ -18,6 +19,9 @@ export const dynamic = "force-dynamic";
 export default async function DokumenKepatuhanPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await requireUser();
+  // Dulu hanya dijaga akses lokasi – Pelaksana ikut membuka kontrak & berkas
+  // pembayaran. Pelaksana fokus ke pelaporan harian (DECISIONS 736).
+  requireCapabilityPage(user.role, "document.view");
   const location = await db.location.findUnique({
     where: { slug },
     select: { id: true, name: true, packageId: true },
