@@ -167,6 +167,21 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
 // Workspace harian (satu layar)
 // ─────────────────────────────────────────────────────────────
 
+/** Catatan pekerjaan di luar RAB pada satu laporan (DECISIONS 738). Tanpa harga. */
+export type CatatanLuarRabLaporan = {
+  id: string;
+  uraian: string;
+  satuan: string;
+  volume: number;
+  catatan: string | null;
+  status: "tercatat" | "dipadankan" | "dibatalkan";
+  dicatatOleh: string | null;
+  createdById: string;
+  padanan: { item: string; resmi: boolean; oleh: string | null; pada: string | null } | null;
+  batal: { alasan: string; oleh: string | null; pada: string } | null;
+  photos: PhotoView[];
+};
+
 export type WorkspaceItem = {
   id: string;
   rabNodeId: string;
@@ -239,6 +254,8 @@ export type WorkspaceReport = {
   photos: PhotoView[];
   /** Foto yang tidak menempel ke item mana pun (item-nya sudah dihapus). */
   photosTanpaItem: PhotoView[];
+  /** Catatan pekerjaan di luar RAB hari ini (DECISIONS 738). */
+  luarRab: CatatanLuarRabLaporan[];
   /** Alasan pengembalian terakhir (transisi → perlu_koreksi paling baru). */
   lastCorrectionReason: string | null;
   isFinal: boolean;
@@ -303,6 +320,10 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         statusHistory: { orderBy: { changedAt: "asc" } },
         photos: { orderBy: { createdAt: "asc" } },
         issues: { where: { mergedIntoId: null }, orderBy: { createdAt: "asc" } },
+        luarRab: {
+          orderBy: { createdAt: "asc" },
+          include: { reportItem: { select: { basis: true, rabNode: { select: { code: true, name: true, unit: true } } } } },
+        },
       },
     }),
     getRecentDays(
@@ -330,7 +351,19 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   const photoByMaterial = new Map<string, PhotoView[]>();
   const photoByEquipment = new Map<string, PhotoView[]>();
   const photosTanpaItem: PhotoView[] = [];
+  const photoByLuarRab = new Map<string, PhotoView[]>();
   for (const p of photoViews) {
+    /*
+     * Bukti catatan PEKERJAAN DI LUAR RAB (DECISIONS 738) juga bukan foto yatim.
+     * Sesudah dipadankan ia ikut menjadi foto baris laporannya (reportItemId
+     * terisi), jadi diteruskan ke pengelompokan per item di bawah.
+     */
+    if (p.luarRabId) {
+      const arr = photoByLuarRab.get(p.luarRabId) ?? [];
+      arr.push(p);
+      photoByLuarRab.set(p.luarRabId, arr);
+      if (!p.reportItemId) continue;
+    }
     /*
      * Bukti MATERIAL / ALAT bukan foto yatim (DECISIONS 304).
      *
@@ -361,7 +394,12 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   }
 
   // Nama pengubah status (DailyReportStatusHistory tidak punya relasi user).
-  const userIds = [...new Set(report.statusHistory.map((h) => h.changedById))];
+  const userIds = [
+    ...new Set([
+      ...report.statusHistory.map((h) => h.changedById),
+      ...report.luarRab.flatMap((c) => [c.createdById, c.dipadankanById, c.dibatalkanById]).filter((x): x is string => !!x),
+    ]),
+  ];
   const users = userIds.length
     ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true } })
     : [];
@@ -471,6 +509,32 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       })),
       photos: photoViews,
       photosTanpaItem,
+      luarRab: report.luarRab.map((c): CatatanLuarRabLaporan => ({
+        id: c.id,
+        uraian: c.uraian,
+        satuan: c.satuan,
+        volume: Number(c.volume),
+        catatan: c.catatan,
+        status: c.dibatalkanAt ? "dibatalkan" : c.reportItemId ? "dipadankan" : "tercatat",
+        dicatatOleh: nameById.get(c.createdById) ?? null,
+        createdById: c.createdById,
+        padanan: c.reportItem
+          ? {
+              item: `${c.reportItem.rabNode.code ? `${c.reportItem.rabNode.code} ` : ""}${c.reportItem.rabNode.name}`,
+              resmi: c.reportItem.basis === "aktif",
+              oleh: c.dipadankanById ? (nameById.get(c.dipadankanById) ?? null) : null,
+              pada: c.dipadankanAt?.toISOString() ?? null,
+            }
+          : null,
+        batal: c.dibatalkanAt
+          ? {
+              alasan: c.alasanBatal ?? "",
+              oleh: c.dibatalkanById ? (nameById.get(c.dibatalkanById) ?? null) : null,
+              pada: c.dibatalkanAt.toISOString(),
+            }
+          : null,
+        photos: photoByLuarRab.get(c.id) ?? [],
+      })),
       lastCorrectionReason: lastCorrection?.reason ?? null,
       noActivity: report.noActivity,
       noActivityReason: report.noActivityReason,
@@ -826,6 +890,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
         select: {
           id: true,
           r2Key: true,
+          luarRabId: true,
+          reportItemId: true,
           reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
           // Bukti material & alat (DECISIONS 304) — dicetak di halamannya
           // sendiri, bukan dicampur ke foto pekerjaan.
@@ -922,7 +988,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
      * ditautkan, padahal ia memang bukan foto pekerjaan.
      */
     photos: (report?.photos ?? [])
-      .filter((ph) => ph.reportMaterial == null && ph.reportEquipment == null)
+      // Foto catatan pekerjaan di luar RAB yang BELUM dipadankan bukan foto
+      // pekerjaan blanko (DECISIONS 738): catatannya sendiri tidak dicetak, dan
+      // tanpa saringan ini fotonya terbaca "(tanpa item pekerjaan)".
+      .filter((ph) => ph.reportMaterial == null && ph.reportEquipment == null && !(ph.luarRabId && !ph.reportItemId))
       .map((ph) => {
         const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
         return {

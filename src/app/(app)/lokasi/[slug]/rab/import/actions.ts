@@ -1171,9 +1171,10 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
        * ditolak tidak meninggalkan lokasi dengan DUA draft. Itu persis keadaan
        * yang dilaporkan user: create berhasil, discard gagal, drafnya dua.
        */
+      let catatanDilepas = 0;
       if (draft) {
         try {
-          await gantiDraftLama(draft.id, resDraft.revisionId, user.id);
+          catatanDilepas = (await gantiDraftLama(draft.id, resDraft.revisionId, user.id)).catatanLuarRabDilepas;
         } catch (e) {
           await discardDraft(resDraft.revisionId, user.id).catch(() => {});
           if (e instanceof DraftTerpakaiError) return { error: e.message };
@@ -1199,6 +1200,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah. ` +
           `Draft ini baru berlaku setelah diaktifkan.` +
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : "") +
+          (catatanDilepas > 0
+            ? ` ${catatanDilepas} baris dari catatan pekerjaan di luar RAB itemnya tidak ada di berkas ini – catatannya kembali menunggu dipadankan.`
+            : "") +
           kalimatRincianDraft,
       };
     }

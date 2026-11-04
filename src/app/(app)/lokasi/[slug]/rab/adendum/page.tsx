@@ -22,6 +22,8 @@ import { DraftControls } from "./draft-controls";
 import { sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
 import { DiffCard } from "../diff-card";
 import { ImportForm } from "../import/import-form";
+import { PanelLuarRab } from "./panel-luar-rab";
+import { dataPadanan, rekapLuarRab } from "@/lib/luar-rab/service";
 
 export const metadata: Metadata = { title: "Adendum RAB" };
 export const dynamic = "force-dynamic";
@@ -64,6 +66,24 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   const active = revisions.find((r) => r.status === "aktif") ?? null;
   const draft = revisions.find((r) => r.status === "draft") ?? null;
 
+  // Pekerjaan di luar RAB (DECISIONS 738): saran padanan dihitung dari draft
+  // yang ada SAAT INI, jadi ikut berubah tiap kali draftnya berubah.
+  const padanan = await dataPadanan(location.id);
+  const rekap = await rekapLuarRab(location.id, padanan.catatan);
+  const panelLuarRab = (
+    <PanelLuarRab
+      slug={slug}
+      adaDraft={!!padanan.draft}
+      catatan={padanan.catatan}
+      kandidat={padanan.kandidat}
+      usulan={padanan.usulan}
+      barisAda={padanan.barisAda}
+      dipadankan={rekap.dipadankan}
+      dibatalkan={rekap.dibatalkan}
+      kelompok={rekap.kelompok}
+    />
+  );
+
   if (!active && !draft) {
     return (
       <Card>
@@ -89,15 +109,18 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       valueDelta: a.valueDelta.toString(),
     }));
     return (
-      <Card>
-        <CardHeader
-          title="Adendum RAB"
-          subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)}. Draft adendum menyalin seluruh isinya. Angka yang berlaku tidak berubah sampai draft diaktifkan.`}
-        />
-        <CardBody>
-          <CreateDraftForm slug={slug} amendments={amendmentOptions} />
-        </CardBody>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader
+            title="Adendum RAB"
+            subtitle={`Revisi aktif #${active!.revisionNo} · Rp ${rupiah.format(active!.totalValue)}. Draft adendum menyalin seluruh isinya. Angka yang berlaku tidak berubah sampai draft diaktifkan.`}
+          />
+          <CardBody>
+            <CreateDraftForm slug={slug} amendments={amendmentOptions} />
+          </CardBody>
+        </Card>
+        {panelLuarRab}
+      </div>
     );
   }
 
@@ -395,6 +418,10 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           <ImportForm locationId={location.id} slug={location.slug} adaAktif modeAwal="draft" />
         </CardBody>
       </Card>
+
+      {/* Tepat di bawah impor: begitu berkas adendum masuk, catatan lapangan
+          yang menunggu langsung diberi saran item dari draft barunya. */}
+      {panelLuarRab}
 
       <Card>
         <CardHeader

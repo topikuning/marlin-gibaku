@@ -13,6 +13,7 @@ import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor, TambahFotoSusulan } from "./report-editor";
+import { PekerjaanLuarRab } from "./luar-rab";
 import { ImporLaporanPelaksana } from "./impor-pelaksana";
 import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
@@ -240,6 +241,17 @@ export default async function HarianWorkspacePage({
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
           photoEnabled={isR2Configured()}
           tanpaUang={!lihatUang}
+          jumlahLuarRab={(report?.luarRab ?? []).filter((c) => c.status !== "dibatalkan").length}
+          luarRab={
+            <PekerjaanLuarRab
+              locationId={data.location.id}
+              dateKey={date}
+              reportId={report?.id ?? null}
+              catatan={report?.luarRab ?? []}
+              bisaCatat={!(report?.noActivity ?? false)}
+              photoEnabled={isR2Configured()}
+            />
+          }
         />
       ) : null}
 
@@ -321,6 +333,18 @@ export default async function HarianWorkspacePage({
             </div>
           </CardBody>
         </Card>
+      ) : null}
+
+      {/* Catatan pekerjaan di luar RAB, baca saja (DECISIONS 738). */}
+      {report && !editable && report.luarRab.length > 0 ? (
+        <PekerjaanLuarRab
+          locationId={data.location.id}
+          dateKey={date}
+          reportId={report.id}
+          catatan={report.luarRab}
+          bisaCatat={false}
+          photoEnabled={isR2Configured()}
+        />
       ) : null}
 
       {/* Verifikasi (dikirim) */}

@@ -46,7 +46,9 @@ describe("transaksi draft adendum yang bebannya sebesar RAB", () => {
       db: {
         $transaction: async (_fn: unknown, o?: { timeout?: number }) => {
           opsi.push(o);
-          return undefined;
+          // Hasil kosong, bukan undefined: `gantiDraftLama` membaca hasil
+          // transaksinya untuk pekerjaan SESUDAH transaksi (DECISIONS 738).
+          return {};
         },
       },
     }));

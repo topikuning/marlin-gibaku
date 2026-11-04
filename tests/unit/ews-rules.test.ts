@@ -7,6 +7,7 @@ import {
   evaluasiEwsLokasi,
   evaluasiEwsPaket,
   evaluasiEwsUsulanWa,
+  evaluasiEwsLuarRab,
   urutkanWarning,
   type EwsKawalFacts,
   type EwsLocationFacts,
@@ -290,6 +291,29 @@ describe("EWS usulan WA yang belum diputus (DECISIONS 707)", () => {
     expect(w.kategori).toBe("laporan");
     expect(w.alasan).toContain("3 usulan");
     expect(w.alasan).toContain("2 hari lalu");
+    expect(`${w.alasan} ${w.tindakan}`).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe("EWS pekerjaan di luar RAB yang menggantung (DECISIONS 738)", () => {
+  const ev = (menunggu: number, lewatAmbang: number, umurTertuaHari: number) =>
+    evaluasiEwsLuarRab({ locationName: "Lokasi Uji", locationSlug: "lokasi-uji", menunggu, lewatAmbang, umurTertuaHari });
+
+  it("baru beberapa hari → diam; sejak ambang hari → sedang", () => {
+    expect(ev(3, 0, AMBANG.luarRabMenggantungHari - 1)).toEqual([]);
+    expect(ev(0, 0, 40)).toEqual([]);
+    const [w] = ev(3, 1, AMBANG.luarRabMenggantungHari);
+    expect(w.severity).toBe("sedang");
+    expect(w.ruleId).toBe("luar_rab_menggantung");
+  });
+
+  it("menunjuk halaman draft adendum, menyebut jumlah yang lewat dan totalnya", () => {
+    const [w] = ev(5, 2, 20);
+    expect(w.href).toBe("/lokasi/lokasi-uji/rab/adendum");
+    expect(w.kategori).toBe("kontrak");
+    expect(w.alasan).toContain("2 catatan");
+    expect(w.alasan).toContain("tertua 20 hari");
+    expect(w.alasan).toContain("Total yang menunggu 5");
     expect(`${w.alasan} ${w.tindakan}`).not.toContain(String.fromCharCode(0x2014));
   });
 });

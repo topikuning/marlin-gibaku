@@ -1654,6 +1654,7 @@ model Location {
   baselines           Baseline[]
   weeklyPlans         WeeklyPlan[]
   dailyReports        DailyReport[]
+  pekerjaanLuarRab    PekerjaanLuarRab[]
   fieldActivities     FieldActivity[]
   issues              Issue[]
   budgetLines         BudgetLine[]
@@ -2059,6 +2060,7 @@ model DailyReport {
   issues        Issue[]
   findings      Finding[]
   verifications ReportVerification[]
+  luarRab       PekerjaanLuarRab[]
 
   @@unique([locationId, reportDate])
   @@index([status])
@@ -2159,14 +2161,62 @@ model DailyReportItem {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  report  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  rabNode RabNode     @relation(fields: [rabNodeId], references: [id])
+  report  DailyReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  rabNode RabNode            @relation(fields: [rabNodeId], references: [id])
   photos  Photo[]
+  /// Catatan pekerjaan di luar RAB yang dipadankan ke baris ini (DECISIONS 738).
+  luarRab PekerjaanLuarRab[]
 
   @@unique([reportId, lineageKey])
   @@index([lineageKey])
   @@index([basis])
   @@map("daily_report_items")
+}
+
+/// PEKERJAAN DI LUAR RAB (DECISIONS 738) – pekerjaan yang sudah dikerjakan di
+/// lapangan tetapi itemnya belum ada di RAB maupun di draft adendum.
+///
+/// Ketetapan user 2026-11-04: pelaksana mencatatnya di laporan harian (uraian,
+/// satuan, volume, foto wajib, TANPA harga). Catatan ini BUKAN angka resmi: ia
+/// tidak masuk progres, kurva-S, termin, maupun blanko KKP. Gunanya bahan
+/// menyusun CCO, lalu dipadankan Site Manager ke item draft adendum.
+///
+/// Status DITURUNKAN, tidak disimpan:
+///   dibatalkanAt terisi      → dibatalkan (tetap tersimpan berikut fotonya)
+///   reportItemId terisi      → dipadankan (barisnya ada di laporan aslinya)
+///   keduanya kosong          → tercatat, menunggu dipadankan
+/// Karena turunan, baris laporan hasil padanan yang dihapus (draft dibuang,
+/// item tidak ada lagi di draft pengganti) otomatis mengembalikan catatannya
+/// ke "menunggu" lewat SetNull – tidak ada status yang bisa basi.
+model PekerjaanLuarRab {
+  id             String    @id @default(uuid()) @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  /// Laporan harian hari pekerjaan itu dicatat. Baris hasil padanan masuk ke
+  /// laporan INI, pada tanggal aslinya.
+  reportId       String    @map("report_id") @db.Uuid
+  uraian         String
+  satuan         String
+  volume         Decimal   @db.Decimal(15, 3)
+  catatan        String?
+  reportItemId   String?   @map("report_item_id") @db.Uuid
+  dipadankanById String?   @map("dipadankan_by_id") @db.Uuid
+  dipadankanAt   DateTime? @map("dipadankan_at") @db.Timestamptz
+  dibatalkanAt   DateTime? @map("dibatalkan_at") @db.Timestamptz
+  dibatalkanById String?   @map("dibatalkan_by_id") @db.Uuid
+  alasanBatal    String?   @map("alasan_batal")
+  createdById    String    @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  location   Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  report     DailyReport      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id], onDelete: SetNull)
+  photos     Photo[]
+
+  @@index([locationId, dibatalkanAt, reportItemId])
+  @@index([reportId])
+  @@index([reportItemId])
+  @@map("pekerjaan_luar_rab")
 }
 
 model DailyReportWorker {
@@ -2225,6 +2275,12 @@ model Photo {
   reportMaterialId       String?             @map("report_material_id") @db.Uuid
   reportEquipmentId      String?             @map("report_equipment_id") @db.Uuid
   activityId             String?             @map("activity_id") @db.Uuid
+  /// Bukti catatan PEKERJAAN DI LUAR RAB (DECISIONS 738). Tetap terisi sesudah
+  /// catatannya dipadankan – saat itu `reportItemId` ikut menunjuk baris hasil
+  /// padanan, dan kolom ini menyimpan asal fotonya. Bila baris itu kelak
+  /// dihapus, `reportItemId` kembali kosong (SetNull) dan foto pulang ke
+  /// catatannya, bukan jadi foto yatim.
+  luarRabId              String?             @map("luar_rab_id") @db.Uuid
   /// FOTO SUSULAN (DECISIONS 696): kapan foto ini ditempelkan ke laporan yang
   /// SUDAH dikirim. Dicatat saat menempel, tidak disimpulkan dari `createdAt` –
   /// foto Foto Cepat bisa dipotret sebelum laporan dikirim lalu baru ditempel
@@ -2344,6 +2400,7 @@ model Photo {
   reportMaterial  DailyReportMaterial?  @relation(fields: [reportMaterialId], references: [id])
   reportEquipment DailyReportEquipment? @relation(fields: [reportEquipmentId], references: [id])
   activity        FieldActivity?        @relation(fields: [activityId], references: [id])
+  luarRab         PekerjaanLuarRab?     @relation(fields: [luarRabId], references: [id])
 
   stampRevisions PhotoStampRevision[]
   evidenceLinks  EvidenceLink[]
@@ -2354,6 +2411,7 @@ model Photo {
   @@index([reportMaterialId])
   @@index([reportEquipmentId])
   @@index([activityId])
+  @@index([luarRabId])
   @@index([locationId])
   @@index([gpsSource])
   @@index([stampPhotoId])

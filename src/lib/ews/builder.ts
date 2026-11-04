@@ -12,6 +12,7 @@ import {
   AMBANG,
   evaluasiEwsKawal,
   evaluasiEwsLokasi,
+  evaluasiEwsLuarRab,
   evaluasiEwsPaket,
   evaluasiEwsSurat,
   evaluasiEwsUsulanWa,
@@ -111,6 +112,26 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
   });
   const usulanByLoc = new Map(usulanWa.map((r) => [r.locationId, r]));
 
+  // Catatan pekerjaan di luar RAB yang menunggu dipadankan (DECISIONS 738).
+  // Hanya untuk yang bisa memadankannya: tindakannya ada di halaman draft
+  // adendum, dan Pelaksana tidak membuka halaman itu.
+  const luarRabByLoc = new Map<string, { menunggu: number; lewat: number; tertua: Date }>();
+  if (can(user.role, "rab.manage")) {
+    const batas = new Date(today.getTime() - AMBANG.luarRabMenggantungHari * HARI_MS);
+    const rows = await db.pekerjaanLuarRab.findMany({
+      where: { locationId: { in: ids }, dibatalkanAt: null, reportItemId: null },
+      select: { locationId: true, report: { select: { reportDate: true } } },
+    });
+    for (const r of rows) {
+      const d = r.report.reportDate;
+      const g = luarRabByLoc.get(r.locationId) ?? { menunggu: 0, lewat: 0, tertua: d };
+      g.menunggu++;
+      if (d <= batas) g.lewat++;
+      if (d < g.tertua) g.tertua = d;
+      luarRabByLoc.set(r.locationId, g);
+    }
+  }
+
   const warnings: EwsWarning[] = [];
   for (const loc of locations) {
     // Sebelum pagar progres: usulan yang menunggu tetap kelihatan walau progres lokasinya belum terhitung.
@@ -123,6 +144,19 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
           menunggu: u._count._all,
           tanggalTertua: jakartaDateKey(u._min.reportDate),
           umurTertuaHari: Math.max(0, selisihHari(today, u._min.reportDate)),
+        }),
+      );
+    }
+
+    const lr = luarRabByLoc.get(loc.id);
+    if (lr) {
+      warnings.push(
+        ...evaluasiEwsLuarRab({
+          locationName: loc.name,
+          locationSlug: loc.slug,
+          menunggu: lr.menunggu,
+          lewatAmbang: lr.lewat,
+          umurTertuaHari: Math.max(0, selisihHari(today, lr.tertua)),
         }),
       );
     }

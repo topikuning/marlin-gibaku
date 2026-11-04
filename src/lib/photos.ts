@@ -267,6 +267,8 @@ export type SavePhotoInput = {
    */
   reportMaterialId?: string | null;
   reportEquipmentId?: string | null;
+  /** Bukti catatan pekerjaan di luar RAB (DECISIONS 738). */
+  luarRabId?: string | null;
   activityId?: string | null;
   /** Foto SUSULAN ke laporan yang sudah dikirim (DECISIONS 696): waktu penempelannya. */
   susulanAt?: Date | null;
@@ -529,6 +531,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     reportItemId: input.reportItemId ?? null,
     reportMaterialId: input.reportMaterialId ?? null,
     reportEquipmentId: input.reportEquipmentId ?? null,
+    luarRabId: input.luarRabId ?? null,
     activityId: input.activityId ?? null,
     addedAfterSubmitAt: input.susulanAt ?? null,
     sha256,
@@ -1002,6 +1005,8 @@ export type PhotoView = {
    */
   reportMaterialId?: string | null;
   reportEquipmentId?: string | null;
+  /** Bukti catatan pekerjaan di luar RAB (DECISIONS 738) – juga bukan foto yatim. */
+  luarRabId?: string | null;
   /** Pengunggah — dipakai UI untuk memutuskan siapa boleh menghapus. */
   uploadedById?: string | null;
   /** Foto SUSULAN: ISO waktu ditempel ke laporan yang sudah dikirim (DECISIONS 696). */
@@ -1020,6 +1025,7 @@ type PhotoRow = {
   reportItemId?: string | null;
   reportMaterialId?: string | null;
   reportEquipmentId?: string | null;
+  luarRabId?: string | null;
   uploadedById?: string | null;
   addedAfterSubmitAt?: Date | null;
   exifTakenAt?: Date | null;
@@ -1060,6 +1066,7 @@ export async function buildPhotoViews(photos: PhotoRow[], expiresIn = 300): Prom
     return {
       id: p.id,
       reportItemId: p.reportItemId ?? null,
+      luarRabId: p.luarRabId ?? null,
       reportMaterialId: p.reportMaterialId ?? null,
       reportEquipmentId: p.reportEquipmentId ?? null,
       uploadedById: p.uploadedById ?? null,

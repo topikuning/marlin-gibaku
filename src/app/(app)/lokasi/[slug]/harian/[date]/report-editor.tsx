@@ -75,9 +75,15 @@ export function ReportEditor({
   bolehHapusFoto,
   nihil,
   tanpaUang = false,
+  jumlahLuarRab = 0,
+  luarRab = null,
 }: {
   /** Pelaksana (DECISIONS 735): nilai rupiah per item tidak dirender; server mengirim "0". */
   tanpaUang?: boolean;
+  /** Catatan pekerjaan di luar RAB hari ini (DECISIONS 738) – juga isi laporan. */
+  jumlahLuarRab?: number;
+  /** Panel catatan di luar RAB, dirender tepat sebelum panel kirim. */
+  luarRab?: React.ReactNode;
   locationId: string;
   slug: string;
   dateKey: string;
@@ -108,7 +114,7 @@ export function ReportEditor({
         samping pekerjaan yang sudah tercatat cuma mengundang orang mencentang
         dua pernyataan yang saling menyangkal. DECISIONS 396.
       */}
-      {nihil.aktif || items.length === 0 ? (
+      {nihil.aktif || (items.length === 0 && jumlahLuarRab === 0) ? (
         <HariNihilPanel
           locationId={locationId}
           dateKey={dateKey}
@@ -170,12 +176,14 @@ export function ReportEditor({
         tombol Kirim digantung pada `items.length > 0`, dan hari nihil memang
         tidak punya item. DECISIONS 396.
       */}
-      {reportId && (items.length > 0 || nihil.aktif) ? (
+      {luarRab}
+      {reportId && (items.length > 0 || nihil.aktif || jumlahLuarRab > 0) ? (
         <SubmitPanel
           reportId={reportId}
           slug={slug}
           dateKey={dateKey}
           jumlahItem={items.length}
+          jumlahLuarRab={jumlahLuarRab}
           jumlahFoto={items.reduce((n, it) => n + it.photos.length, 0)}
           nihil={nihil.aktif}
           nihilAlasan={nihil.alasan}
@@ -989,6 +997,7 @@ function SubmitPanel({
   slug,
   dateKey,
   jumlahItem,
+  jumlahLuarRab,
   nihil,
   nihilAlasan,
   nihilCatatan,
@@ -998,6 +1007,7 @@ function SubmitPanel({
   slug: string;
   dateKey: string;
   jumlahItem: number;
+  jumlahLuarRab: number;
   /** Hari dinyatakan tanpa kegiatan — ringkasannya berbeda. */
   nihil?: boolean;
   nihilAlasan?: NoActivityReason | null;
@@ -1076,7 +1086,8 @@ function SubmitPanel({
                   <p className="mt-0.5 text-xs text-ink-muted">
                     {nihil
                       ? "Hari ini dinyatakan TIDAK ADA KEGIATAN"
-                      : `${jumlahItem} item pekerjaan · ${jumlahFoto} foto`}
+                      : `${jumlahItem} item pekerjaan · ${jumlahFoto} foto` +
+                        (jumlahLuarRab > 0 ? ` · ${jumlahLuarRab} pekerjaan di luar RAB` : "")}
                   </p>
                 </div>
                 <button
