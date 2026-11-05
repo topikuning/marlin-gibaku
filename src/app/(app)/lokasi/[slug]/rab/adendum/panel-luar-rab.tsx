@@ -51,13 +51,18 @@ export function PanelLuarRab({
   return (
     <section
       aria-labelledby="panel-luar-rab"
-      className="space-y-4 rounded-lg border border-warning-border bg-surface p-4 shadow-xs"
+      // Warna yang sama dengan bagian ini di laporan harian (DECISIONS 739):
+      // orang mengenalinya sebagai hal yang sama di dua layar.
+      className="space-y-4 rounded-lg border-2 border-l-8 border-luar-rab-border border-l-luar-rab bg-luar-rab-soft p-4 shadow-xs"
     >
       <div>
-        <h2 id="panel-luar-rab" className="text-base font-semibold text-ink">
+        <span className="inline-block rounded bg-luar-rab px-2 py-0.5 text-[11px] font-bold tracking-wide text-white uppercase">
+          Di luar RAB
+        </span>
+        <h2 id="panel-luar-rab" className="mt-1.5 text-base font-semibold text-luar-rab">
           Pekerjaan di luar RAB{catatan.length > 0 ? ` – ${catatan.length} menunggu` : ""}
         </h2>
-        <p className="mt-0.5 text-sm text-ink-muted">
+        <p className="mt-0.5 text-sm text-ink">
           Dicatat pelaksana di laporan harian: sudah dikerjakan, tapi itemnya belum ada di RAB. Catatan ini tidak masuk
           progres. Setelah dipadankan, volumenya masuk draft adendum pada tanggal aslinya – angka resmi tetap tidak
           berubah sampai adendumnya diaktifkan.
@@ -150,7 +155,7 @@ function FormPadanan({
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {state?.warning ? <Banner tone="warning" title="Sebagian ditahan" description={state.warning} /> : null}
-      <ul className="divide-y divide-border rounded-md border border-border">
+      <ul className="divide-y divide-luar-rab-border overflow-hidden rounded-md border border-luar-rab-border bg-surface">
         {catatan.map((c) => {
           const p = pilihan[c.id]!;
           const st = status.get(c.id);
@@ -306,7 +311,7 @@ function BatalkanCatatan({ slug, catatanId, uraian }: { slug: string; catatanId:
 
 function DaftarMenunggu({ slug, catatan }: { slug: string; catatan: CatatanTampil[] }) {
   return (
-    <ul className="divide-y divide-border rounded-md border border-border">
+    <ul className="divide-y divide-luar-rab-border overflow-hidden rounded-md border border-luar-rab-border bg-surface">
       {catatan.map((c) => (
         <li key={c.id} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5">
           <div className="min-w-0">
@@ -328,7 +333,7 @@ function DaftarMenunggu({ slug, catatan }: { slug: string; catatan: CatatanTampi
 
 function RekapCco({ kelompok }: { kelompok: RekapKelompok[] }) {
   return (
-    <details className="rounded-md border border-border">
+    <details className="rounded-md border border-luar-rab-border bg-surface">
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-ink">
         Rekap yang menunggu, untuk menyusun CCO ({kelompok.length} jenis pekerjaan)
       </summary>
@@ -376,7 +381,7 @@ function DaftarSelesai({
   jenis: "padan" | "batal";
 }) {
   return (
-    <details className="rounded-md border border-border">
+    <details className="rounded-md border border-luar-rab-border bg-surface">
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-ink">
         {judul} ({baris.length})
       </summary>

@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 739 | 2026-11-05 | Pekerjaan di luar RAB diberi warna sendiri: token `luar-rab` (ungu, karena biru/oranye/hijau/merah sudah punya arti); laporan harian & panel draft adendum: latar ungu muda, garis kiri tebal, label DI LUAR RAB, tombol simpan ungu "Simpan catatan di luar RAB"; isian RAB tidak berubah |
 | 738 | 2026-11-04 | Pekerjaan di luar RAB: pelaksana mencatat di laporan harian (uraian, satuan, volume, foto wajib, tanpa harga; bukan angka resmi); Site Manager memadankan ke item draft adendum dengan saran otomatis berhati-hati (bisa diubah); hasilnya baris basis draft di tanggal aslinya, juga di laporan final; ditahan bila melebihi sisa draft/bentrok/satuan beda; batalkan dengan alasan (tetap tersimpan); draft dibuang/diganti tidak lagi tertahan baris dari catatan; EWS ≥ 14 hari |
 | 737 | 2026-11-02 | Progress Strip (desain 2a) menggantikan kartu enam sel header lokasi: sel nilai lokasi (RAB+PPN, porsi paket), waktu, satu bar per jalur MARLIN/Kawal (isi=realisasi, arsir=tertinggal, garis=rencana, putus-putus=draft adendum); ambang deviasi kanonik; satu baris mulai 1280 px (2×2 di bawahnya); ponsel ikut menampilkannya kecuali di halaman input laporan harian |
 | 736 | 2026-11-02 | Pelaksana tidak membuka dokumen unggahan: `document.view` dicabut dari Pelaksana (keluar dari VIEW_ALL, eksplisit ke SM+/Exec/Wakil PPK); tab Dokumen & Kepatuhan lokasi kini dijaga `document.view` (dulu hanya akses lokasi); menu lain tetap (pilihan user "Dokumen saja dulu"); kiriman grup WA dari web dibiarkan |

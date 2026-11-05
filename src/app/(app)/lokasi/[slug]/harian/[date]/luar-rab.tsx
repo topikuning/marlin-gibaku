@@ -37,19 +37,39 @@ export function PekerjaanLuarRab({
   const [buka, setBuka] = useState(false);
   if (!bisaCatat && catatan.length === 0) return null;
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-surface p-4" aria-labelledby="luar-rab-judul">
+    /*
+     * SENGAJA TIDAK SERUPA isian RAB (permintaan user 2026-11-05: *"kasih warna
+     * highlight tertentu untuk memberikan kesadaran itu di luar rab. jangan
+     * samakan persis dengan tampilan inputan rab"*). Ungu `luar-rab` di seluruh
+     * bagian: latar, garis tepi kiri tebal, label DI LUAR RAB, dan tombol
+     * simpannya. Isian RAB tetap putih-biru. DECISIONS 739.
+     */
+    <section
+      className="space-y-3 rounded-lg border-2 border-l-8 border-luar-rab-border border-l-luar-rab bg-luar-rab-soft p-4"
+      aria-labelledby="luar-rab-judul"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h2 id="luar-rab-judul" className="text-sm font-semibold text-ink">
+          <span className="inline-block rounded bg-luar-rab px-2 py-0.5 text-[11px] font-bold tracking-wide text-white uppercase">
+            Di luar RAB
+          </span>
+          <h2 id="luar-rab-judul" className="mt-1.5 text-sm font-semibold text-luar-rab">
             Pekerjaan di luar RAB{catatan.length > 0 ? ` (${catatan.length})` : ""}
           </h2>
-          <p className="mt-0.5 text-xs text-ink-muted">
-            Untuk pekerjaan yang sudah dikerjakan tapi itemnya belum ada di RAB maupun draft adendum. Catat apa
-            adanya dengan fotonya. Catatan ini tidak masuk progres – Site Manager yang memasukkannya ke draft adendum.
+          <p className="mt-0.5 text-xs text-ink">
+            Untuk pekerjaan yang sudah dikerjakan tapi itemnya <strong>belum ada di RAB</strong> maupun draft adendum.
+            Catat apa adanya dengan fotonya. Catatan ini <strong>tidak masuk progres</strong> – Site Manager yang
+            memasukkannya ke draft adendum.
           </p>
         </div>
         {bisaCatat && !buka ? (
-          <Button type="button" variant="secondary" size="sm" onClick={() => setBuka(true)}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="border-luar-rab-border text-luar-rab"
+            onClick={() => setBuka(true)}
+          >
             Catat pekerjaan di luar RAB
           </Button>
         ) : null}
@@ -66,7 +86,7 @@ export function PekerjaanLuarRab({
       ) : null}
 
       {catatan.length > 0 ? (
-        <ul className="divide-y divide-border rounded-md border border-border">
+        <ul className="divide-y divide-luar-rab-border overflow-hidden rounded-md border border-luar-rab-border bg-surface">
           {catatan.map((c) => (
             <BarisCatatan key={c.id} c={c} reportId={reportId} bisaHapus={bisaCatat} />
           ))}
@@ -91,7 +111,7 @@ function FormCatat({ locationId, dateKey, onTutup }: { locationId: string; dateK
   }, [state]);
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
+    <form ref={formRef} action={formAction} className="space-y-3 rounded-md border border-luar-rab-border bg-surface p-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {state?.warning ? <Banner tone="warning" title="Sebagian foto tidak tersimpan" description={state.warning} /> : null}
@@ -158,8 +178,13 @@ function FormCatat({ locationId, dateKey, onTutup }: { locationId: string; dateK
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" loading={pending} className="h-11">
-          Simpan catatan
+        {/* Ungu, bukan biru "Simpan Progres": yang ditekan di sini BUKAN progres. */}
+        <Button
+          type="submit"
+          loading={pending}
+          className="h-11 bg-luar-rab hover:bg-luar-rab/90 active:bg-luar-rab disabled:bg-luar-rab/60"
+        >
+          Simpan catatan di luar RAB
         </Button>
         <Button type="button" variant="ghost" onClick={onTutup} disabled={pending}>
           Tutup
