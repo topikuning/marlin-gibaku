@@ -1,6 +1,8 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { susunBarisCco, type CcoNode, type CcoRow } from "@/lib/rab/cco-rows";
+import { tambahSheetRab, tulisCatatanRincian, tulisLembar, type SelisihRincian } from "./rab-xlsx";
+import { susunRincian, type RincianEkspor } from "./rincian-rencana";
 
 /**
  * DOKUMEN CCO (Contract Change Order) — format pengajuan adendum KKP.
@@ -121,6 +123,14 @@ export type CcoXlsxInput = {
   contractorSignerTitle?: string | null;
   lama: CcoNode[];
   baru: CcoNode[];
+  /**
+   * Backup volume & analisa draft adendum (DECISIONS 741). Bila ada, berkas
+   * ikut memuat Resume / Sub Resume / Detail RAB draft dan sheet rinciannya,
+   * dan kolom VOLUME sisi hasil tertaut ke Detail RAB draft.
+   */
+  rincianBaru?: RincianEkspor;
+  /** Nomor revisi draft – judul sheet Detail RAB. */
+  revisiBaruNo?: number;
 };
 
 // ── Peta kolom ────────────────────────────────────────────────────────────────
@@ -253,9 +263,56 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   sorotDiBawahRealisasi(ws, barisBerealisasi);
   const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input, hargaBeda, L);
   tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input, L);
+  if (input.rincianBaru) tautkanRincian(wb, ws, input, barisTabel, L);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
+}
+
+/**
+ * RINCIAN BERTAUT (DECISIONS 741). Sheet sesudah lembar CCO: Resume / Sub
+ * Resume / Detail RAB DRAFT, lalu Backup Volume, Resume Analisa, Analisa,
+ * Bahan & Upah, Catatan Rincian. Kolom VOLUME sisi hasil menunjuk Detail RAB
+ * draft, yang menunjuk backup-nya – rantai lengkap sampai baris backup.
+ *
+ * Harga satuan hanya ditautkan bila harga kontrak dan harga berkas adendum
+ * SAMA (atau itemnya baru). Bila berbeda, kolom harga tetap harga kontrak
+ * bertanda (DECISIONS 213/525) – menautkannya ke Detail draft diam-diam
+ * mengganti harga kontrak dengan harga berkas.
+ *
+ * Volume sisi DASAR tidak ditautkan: itu keadaan kontrak berlaku, rinciannya
+ * milik dokumen kontrak, bukan pengajuan ini.
+ */
+function tautkanRincian(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, input: CcoXlsxInput, barisTabel: CcoRow[], L: LabelTahap) {
+  const rencana = susunRincian(input.rincianBaru!);
+  const selisih: SelisihRincian[] = [];
+  const { barisDetail } = tambahSheetRab(
+    wb,
+    {
+      locationName: input.locationName,
+      packageName: input.packageName,
+      contractNumber: input.contractNumber,
+      vendorName: input.vendorName,
+      ppnPercent: input.ppnPercent,
+      revisionNo: input.revisiBaruNo ?? 0,
+      labelRevisi: `Draft adendum (${L.hasil})${input.revisiBaruNo ? ` – revisi #${input.revisiBaruNo}` : ""}`,
+      totalValue: input.nilaiTercatatBaru,
+      nodes: input.baru.map((n) => ({ ...n })),
+    },
+    { tautan: rencana.tautan, selisih },
+  );
+  for (const l of rencana.lembar) tulisLembar(wb, l);
+  tulisCatatanRincian(wb, input.rincianBaru!, rencana.tautan, selisih, rencana.catatan);
+
+  barisTabel.forEach((row, i) => {
+    if (row.jenis !== "item" || !row.lineageKey || row.volumeBaru == null) return;
+    const rd = barisDetail.get(row.lineageKey);
+    if (!rd) return;
+    const r = BARIS_DATA + i;
+    ws.getCell(r, nomorKolom("volumeBaru")).value = { formula: `'Detail RAB'!C${rd}`, result: row.volumeBaru };
+    const hargaSama = row.hargaBaru != null && (!row.adaDiKontrak || Math.abs((row.hargaLama ?? 0) - row.hargaBaru) < 0.005);
+    if (hargaSama) ws.getCell(r, nomorKolom("harga")).value = { formula: `'Detail RAB'!E${rd}`, result: row.hargaLama ?? 0 };
+  });
 }
 
 // ── Bagian-bagian lembar ──────────────────────────────────────────────────────

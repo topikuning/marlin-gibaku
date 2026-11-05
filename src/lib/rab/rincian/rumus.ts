@@ -34,6 +34,11 @@ export function alamat(c: number, r: number): string {
   return `${angkaKeKolom(c)}${r}`;
 }
 
+/** Teks galat Excel (#VALUE!, #REF!, …) – isi sel yang rusak, bukan judul atau label. */
+export function galatExcel(v: string): boolean {
+  return /^#(?:NULL!|DIV\/0!|VALUE!|REF!|NAME\?|NUM!|N\/A|SPILL!|CALC!)$/i.test(v.trim());
+}
+
 /** "M14" / "$M$14" → { c, r }; null bila bukan alamat sel. */
 export function bacaAlamat(a: string): { c: number; r: number } | null {
   const m = /^\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(a.trim());

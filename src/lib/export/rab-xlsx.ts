@@ -2,6 +2,13 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { ppnAmount, withPpn } from "@/lib/money";
 import { formatRupiah } from "@/lib/format";
+import {
+  rumusTautan,
+  susunRincian,
+  type LembarRencana,
+  type RincianEkspor,
+  type TautanItem,
+} from "./rincian-rencana";
 
 /**
  * EKSPOR RAB AKTIF → .xlsx 3 sheet SALING TERTAUT FORMULA (permintaan user
@@ -38,6 +45,8 @@ export type RabExportNode = {
   volume: number | null;
   unitPrice: number | null;
   amount: bigint;
+  /** Kunci item lintas revisi – dipakai menautkan ke rincian (DECISIONS 741). */
+  lineageKey?: string;
 };
 
 export type RabExportInput = {
@@ -47,8 +56,26 @@ export type RabExportInput = {
   vendorName: string | null;
   ppnPercent: number;
   revisionNo: number;
+  /** Teks revisi di judul sheet; bawaan "RAB revisi aktif #n". */
+  labelRevisi?: string;
   totalValue: bigint;
   nodes: RabExportNode[];
+  /**
+   * Backup volume & analisa revisi ini (DECISIONS 741). Bila ada, berkas ikut
+   * memuat sheet Backup Volume, Resume Analisa, Analisa, Bahan & Upah, dan
+   * Catatan Rincian; Volume & Harga Satuan di Detail ditautkan ke sana bila
+   * angkanya sama dengan angka resmi.
+   */
+  rincian?: RincianEkspor;
+};
+
+/** Sel Detail yang TIDAK ditautkan karena angka rinciannya berbeda. */
+export type SelisihRincian = {
+  kode: string;
+  uraian: string;
+  apa: "Volume" | "Harga satuan";
+  resmi: number;
+  rincian: number;
 };
 
 const RUPIAH_FMT = "#,##0";
@@ -115,7 +142,7 @@ function addTitle(ws: ExcelJS.Worksheet, judul: string, input: RabExportInput) {
     (input.vendorName ? ` · ${input.vendorName}` : "");
   ws.getCell("A3").value =
     (input.contractNumber ? `Kontrak: ${input.contractNumber} · ` : "") +
-    `RAB revisi aktif #${input.revisionNo}`;
+    (input.labelRevisi ?? `RAB revisi aktif #${input.revisionNo}`);
   ws.getCell("A2").font = { size: 10 };
   ws.getCell("A3").font = { size: 10, color: { argb: "FF666666" } };
 }
@@ -123,7 +150,33 @@ function addTitle(ws: ExcelJS.Worksheet, judul: string, input: RabExportInput) {
 export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
+  if (input.rincian) {
+    const rencana = susunRincian(input.rincian);
+    const selisih: SelisihRincian[] = [];
+    tambahSheetRab(wb, input, { tautan: rencana.tautan, selisih });
+    for (const l of rencana.lembar) tulisLembar(wb, l);
+    tulisCatatanRincian(wb, input.rincian, rencana.tautan, selisih, rencana.catatan);
+    // Rumus antar-sheet dihitung ulang saat dibuka – hasil tersimpan sudah
+    // angka resmi, tapi Excel tetap memeriksanya sendiri.
+    wb.calcProperties.fullCalcOnLoad = true;
+  } else {
+    tambahSheetRab(wb, input);
+  }
+  const out = await wb.xlsx.writeBuffer();
+  return Buffer.from(out);
+}
 
+/**
+ * Tiga sheet RAB (Resume, Sub Resume, Detail RAB) ke workbook yang ada.
+ * Mengembalikan baris Detail tiap item per lineageKey – dipakai dokumen CCO
+ * untuk menautkan volume CCO ke Detail (DECISIONS 741).
+ */
+export function tambahSheetRab(
+  wb: ExcelJS.Workbook,
+  input: RabExportInput,
+  opsi: { tautan?: Map<string, TautanItem>; selisih?: SelisihRincian[] } = {},
+): { barisDetail: Map<string, number> } {
+  const barisDetail = new Map<string, number>();
   const byParent = new Map<string | null, RabExportNode[]>();
   for (const n of input.nodes) {
     const arr = byParent.get(n.parentId) ?? [];
@@ -208,11 +261,34 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     det.getCell(row, 2).value = displayName(n.name);
     det.getCell(row, 2).alignment = { indent: depth, wrapText: true, vertical: "top" };
     if (n.kind === "item") {
+      if (n.lineageKey) barisDetail.set(n.lineageKey, row);
       det.getCell(row, 3).value = n.volume ?? 0;
       det.getCell(row, 3).numFmt = VOL_FMT;
       det.getCell(row, 4).value = n.unit ?? "";
       det.getCell(row, 5).value = n.unitPrice ?? 0;
       det.getCell(row, 5).numFmt = RUPIAH_FMT;
+      /*
+       * TAUTAN KE RINCIAN – HANYA BILA COCOK (pilihan user 2026-11-05,
+       * DECISIONS 741). Rumusnya ROUND ke presisi MARLIN, jadi hasilnya PERSIS
+       * angka resmi; yang berbeda tetap angka resmi, diberi warna dan catatan,
+       * dan didaftar di sheet Catatan Rincian. Tautan tidak mengubah satu
+       * angka pun dibanding unduhan tanpa rincian.
+       */
+      const t = n.lineageKey ? opsi.tautan?.get(n.lineageKey) : undefined;
+      if (t) {
+        const tandai = (kolom: 3 | 5, apa: SelisihRincian["apa"], resmi: number, rincian: number) => {
+          const sel = det.getCell(row, kolom);
+          sel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+          sel.note = `${apa} menurut ${kolom === 3 ? "backup volume" : "Resume Analisa"}: ${rincian}. Angka resmi MARLIN dipakai: ${resmi}.`;
+          opsi.selisih?.push({ kode: displayCode(n.code), uraian: displayName(n.name), apa, resmi, rincian });
+        };
+        const fVol = rumusTautan(t.volume, n.volume, 3);
+        if (fVol) det.getCell(row, 3).value = { formula: fVol, result: n.volume ?? 0 };
+        else if (t.volume && n.volume != null) tandai(3, "Volume", n.volume, t.volume.nilai);
+        const fHarga = rumusTautan(t.harga, n.unitPrice, 2);
+        if (fHarga) det.getCell(row, 5).value = { formula: fHarga, result: n.unitPrice ?? 0 };
+        else if (t.harga && n.unitPrice != null) tandai(5, "Harga satuan", n.unitPrice, t.harga.nilai);
+      }
       /*
        * RUMUS `ROUND(volume × harga satuan, 0)` — perintah user 2026-09-21,
        * MEMBALIK DECISIONS 212.
@@ -448,7 +524,94 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     res.mergeCells(q, 1, q, 3);
     res.getRow(q).height = 56;
   }
+  return { barisDetail };
+}
 
-  const out = await wb.xlsx.writeBuffer();
-  return Buffer.from(out);
+/* ── Sheet rincian (DECISIONS 741) ──────────────────────────────────────── */
+
+/** Tulis satu sheet dari rencananya (`rincian-rencana`). */
+export function tulisLembar(wb: ExcelJS.Workbook, l: LembarRencana): ExcelJS.Worksheet {
+  const ws = wb.addWorksheet(l.nama);
+  l.lebar.forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  for (const b of l.baris) {
+    for (const s of b.sel) {
+      const cell = ws.getCell(b.r, s.c);
+      cell.value = s.f != null ? { formula: s.f, result: typeof s.v === "number" ? s.v : 0 } : s.v;
+      if (s.fmt) cell.numFmt = s.fmt;
+      const gaya = s.gaya ?? b.gaya;
+      if (gaya === "judul") cell.font = { bold: true, size: 13 };
+      else if (gaya === "kepala") headerCell(cell);
+      else if (gaya === "subjudul" || gaya === "total") cell.font = { bold: true };
+      if (s.gaya === "beda") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+      if (s.catatan) cell.note = s.catatan;
+      if (b.gaya === "total") cell.border = { top: { style: "thin" } };
+    }
+  }
+  return ws;
+}
+
+/**
+ * Sheet terakhir: apa yang tertaut, apa yang berbeda, dan item mana yang
+ * belum punya rincian. Ditulis supaya "tidak tertaut" tidak terbaca
+ * "tidak ada" – dan supaya pemeriksa tahu sel berwarna di Detail itu apa.
+ */
+export function tulisCatatanRincian(
+  wb: ExcelJS.Workbook,
+  rincian: RincianEkspor,
+  tautan: Map<string, TautanItem>,
+  selisih: SelisihRincian[],
+  catatanDalam: string[],
+): ExcelJS.Worksheet {
+  const ws = wb.addWorksheet("Catatan Rincian");
+  [10, 56, 16, 18, 18].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  let r = 1;
+  const tulis = (vals: (string | number | null)[], gaya?: "judul" | "kepala" | "tebal") => {
+    vals.forEach((v, i) => {
+      const c = ws.getCell(r, i + 1);
+      c.value = v;
+      if (gaya === "judul") c.font = { bold: true, size: 13 };
+      else if (gaya === "kepala") headerCell(c);
+      else if (gaya === "tebal") c.font = { bold: true };
+      if (typeof v === "number") c.numFmt = Number.isInteger(v) ? "#,##0" : "#,##0.000";
+    });
+    r++;
+  };
+  const volTertaut = [...tautan.values()].filter((t) => t.volume).length;
+  const hargaTertaut = [...tautan.values()].filter((t) => t.harga).length;
+  const tanpaBackup = rincian.item.filter((i) => !i.backup);
+  const tanpaAnalisa = rincian.item.filter((i) => !i.analisaId);
+  tulis(["CATATAN RINCIAN – BACKUP VOLUME & ANALISA"], "judul");
+  tulis([
+    "Volume dan Harga Satuan di Detail RAB ditautkan ke rinciannya HANYA bila angkanya sama dengan angka resmi MARLIN, jadi tautan tidak mengubah satu angka pun. Sel berwarna di Detail = rinciannya berbeda; angka resminya yang dipakai. Selisih Jumlah karena rumus Volume × Harga Satuan (bila ada) disebut di sheet Resume.",
+  ]);
+  r++;
+  tulis(["Item pekerjaan", null, rincian.item.length]);
+  tulis(["Volume punya backup", null, rincian.item.length - tanpaBackup.length]);
+  tulis(["Harga satuan punya analisa kontrak", null, rincian.item.length - tanpaAnalisa.length]);
+  tulis(["Volume tertaut ke Backup Volume", null, volTertaut - selisih.filter((s) => s.apa === "Volume").length]);
+  tulis(["Harga satuan tertaut ke Resume Analisa", null, hargaTertaut - selisih.filter((s) => s.apa === "Harga satuan").length]);
+  r++;
+  if (selisih.length) {
+    tulis(["SELISIH – angka rincian tidak sama dengan angka resmi"], "tebal");
+    tulis(["Kode", "Uraian", "Yang berbeda", "Angka resmi", "Angka rincian"], "kepala");
+    for (const s of selisih) tulis([s.kode, s.uraian, s.apa, s.resmi, s.rincian]);
+    r++;
+  }
+  if (catatanDalam.length) {
+    tulis(["DI DALAM RINCIAN"], "tebal");
+    for (const c of catatanDalam) tulis([null, c]);
+    r++;
+  }
+  if (tanpaBackup.length) {
+    tulis([`BELUM PUNYA BACKUP VOLUME (${tanpaBackup.length})`], "tebal");
+    tulis(["Kode", "Uraian", "Sebab"], "kepala");
+    for (const i of tanpaBackup) tulis([i.kode, i.nama, i.sebabTanpaBackup ?? "-"]);
+    r++;
+  }
+  if (tanpaAnalisa.length) {
+    tulis([`BELUM PUNYA ANALISA KONTRAK (${tanpaAnalisa.length})`], "tebal");
+    tulis(["Kode", "Uraian"], "kepala");
+    for (const i of tanpaAnalisa) tulis([i.kode, i.nama]);
+  }
+  return ws;
 }

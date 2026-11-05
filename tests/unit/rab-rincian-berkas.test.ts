@@ -50,6 +50,9 @@ describe("Karangmangu (MC-0, tautan analisa lewat kolom NILAI TKDN)", () => {
     expect(baris).toContain(23);
     expect(baris).toContain(12);
     expect(r.kepala["2. Vol Revetment"]).toMatchObject({ 3: "PANJANG", 4: "LEBAR", 5: "TINGGI" });
+    // Sel galat (#VALUE!) di baris judul berkas bukan judul kolom.
+    expect(r.kepala["3. Vol Tmbtn Prhu"]).toMatchObject({ 3: "PANJANG", 10: "PEMBULATAN" });
+    expect(Object.values(r.kepala).flatMap((k) => Object.values(k)).filter((v) => v.startsWith("#"))).toEqual([]);
 
     expect(r.ringkasan.item).toBe(583);
     expect(r.ringkasan.volumeTertaut).toBeGreaterThan(500);
