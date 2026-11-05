@@ -614,16 +614,19 @@ async function transition(
  * tetap jujur.
  */
 export async function submitReport(reportId: string, userId: string) {
-  const [itemCount, materialCount, equipmentCount, laporan] = await Promise.all([
+  const [itemCount, materialCount, equipmentCount, luarRabCount, laporan] = await Promise.all([
     db.dailyReportItem.count({ where: { reportId } }),
     db.dailyReportMaterial.count({ where: { reportId } }),
     db.dailyReportEquipment.count({ where: { reportId } }),
+    // Pekerjaan di luar RAB (DECISIONS 738) juga isi laporan: hari yang hanya
+    // mengerjakan pekerjaan tambah tetap hari kerja, dan harus bisa dikirim.
+    db.pekerjaanLuarRab.count({ where: { reportId, dibatalkanAt: null } }),
     db.dailyReport.findUnique({
       where: { id: reportId },
       select: { noActivity: true, noActivityReason: true },
     }),
   ]);
-  if (itemCount === 0 && materialCount === 0 && equipmentCount === 0) {
+  if (itemCount === 0 && materialCount === 0 && equipmentCount === 0 && luarRabCount === 0) {
     /*
      * Hari nihil BOLEH dikirim — tapi hanya kalau dinyatakan, berikut sebabnya
      * (DECISIONS 396). Pagarnya tidak dilonggarkan, melainkan diberi satu pintu
@@ -658,6 +661,7 @@ export async function submitReport(reportId: string, userId: string) {
         itemCount > 0 ? `${itemCount} item pekerjaan` : null,
         materialCount > 0 ? `${materialCount} material` : null,
         equipmentCount > 0 ? `${equipmentCount} alat` : null,
+        luarRabCount > 0 ? `${luarRabCount} catatan pekerjaan di luar RAB` : null,
       ]
         .filter(Boolean)
         .join(", ")}. Batalkan pernyataan "Tidak ada kegiatan" atau hapus isinya.`,
@@ -668,7 +672,10 @@ export async function submitReport(reportId: string, userId: string) {
     "dikirim",
     userId,
     { submittedById: userId, submittedAt: new Date() },
-    { action: "daily_report.submit", payload: { items: itemCount, materials: materialCount, equipment: equipmentCount } },
+    {
+      action: "daily_report.submit",
+      payload: { items: itemCount, materials: materialCount, equipment: equipmentCount, luarRab: luarRabCount },
+    },
   );
   return updated;
 }
@@ -1189,12 +1196,13 @@ export async function setHariNihil(
 
   if (input.nihil) {
     if (!input.alasan) throw new DailyReportError("Pilih dulu sebab tidak ada kegiatan.");
-    const [jumlahItem, jumlahMaterial, jumlahAlat] = await Promise.all([
+    const [jumlahItem, jumlahMaterial, jumlahAlat, jumlahLuarRab] = await Promise.all([
       db.dailyReportItem.count({ where: { reportId } }),
       db.dailyReportMaterial.count({ where: { reportId } }),
       db.dailyReportEquipment.count({ where: { reportId } }),
+      db.pekerjaanLuarRab.count({ where: { reportId, dibatalkanAt: null } }),
     ]);
-    const halangan = alasanTidakBisaNihil({ jumlahItem, jumlahMaterial, jumlahAlat });
+    const halangan = alasanTidakBisaNihil({ jumlahItem, jumlahMaterial, jumlahAlat, jumlahLuarRab });
     if (halangan) throw new DailyReportError(halangan);
   }
 

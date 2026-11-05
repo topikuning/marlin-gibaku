@@ -210,7 +210,13 @@ export async function discardDraftAction(_prev: RabActionState, formData: FormDa
     await requireLocationAccess(user, rev.locationId);
     const discarded = await discardDraft(rev.id, user.id);
     revalidateRab(rev.location.slug);
-    return { success: `Draft revisi #${discarded.revisionNo} dibuang.` };
+    return {
+      success:
+        `Draft revisi #${discarded.revisionNo} dibuang.` +
+        (discarded.catatanLuarRabDilepas > 0
+          ? ` ${discarded.catatanLuarRabDilepas} baris dari catatan pekerjaan di luar RAB dilepas – catatannya kembali menunggu dipadankan.`
+          : ""),
+    };
   } catch (err) {
     return fail(err);
   }

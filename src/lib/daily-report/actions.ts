@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { LuarRabError } from "@/lib/luar-rab/service";
 import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -107,7 +108,12 @@ export type DailyActionState =
  * harus tetap lewat, kalau tidak navigasinya rusak.
  */
 function errState(err: unknown): DailyActionState {
-  if (err instanceof DailyReportError || err instanceof PhotoError || err instanceof ForbiddenError) {
+  if (
+    err instanceof DailyReportError ||
+    err instanceof PhotoError ||
+    err instanceof ForbiddenError ||
+    err instanceof LuarRabError
+  ) {
     return { error: err.message };
   }
   const digest = (err as { digest?: unknown } | null)?.digest;
@@ -298,7 +304,8 @@ async function unggahFotoPelengkap(p: {
    */
   companyLogoKey: string | null;
   reportId: string;
-  jenis: "material" | "alat";
+  /** `luar_rab` = bukti catatan pekerjaan di luar RAB (DECISIONS 738). */
+  jenis: "material" | "alat" | "luar_rab";
   barisId: string;
   namaBaris: string;
   dateKey: string;
@@ -325,7 +332,8 @@ async function unggahFotoPelengkap(p: {
   const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
   const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
   const workDate = new Date(`${p.dateKey}T00:00:00.000Z`);
-  const badge = p.jenis === "material" ? "MATERIAL MASUK" : "PERALATAN";
+  const badge =
+    p.jenis === "material" ? "MATERIAL MASUK" : p.jenis === "alat" ? "PERALATAN" : "PEKERJAAN DI LUAR RAB";
 
   for (const file of files) {
     try {
@@ -334,6 +342,7 @@ async function unggahFotoPelengkap(p: {
         reportId: p.reportId,
         reportMaterialId: p.jenis === "material" ? p.barisId : null,
         reportEquipmentId: p.jenis === "alat" ? p.barisId : null,
+        luarRabId: p.jenis === "luar_rab" ? p.barisId : null,
         file,
         userId: user.id,
         locationSlug: location.slug,
@@ -1541,6 +1550,104 @@ export async function setHariNihilAction(
      * hambatan yang sama tetap tidak hilang – hanya ditanyakan satu kali.
      */
     return { success: "Hari ini dinyatakan tidak ada kegiatan." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/* ── PEKERJAAN DI LUAR RAB (DECISIONS 738) ─────────────────────────────── */
+
+const catatLuarRabSchema = z.object({
+  locationId: z.uuid(),
+  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  uraian: z.string().trim().min(3, "Tulis uraian pekerjaannya – minimal 3 huruf.").max(300),
+  satuan: z.string().trim().min(1, "Isi satuannya (mis. m3, m2, m', bh).").max(20),
+  volume: z.coerce.number().positive("Volume harus lebih dari 0"),
+  catatan: z.string().trim().max(500).optional(),
+  ...photoFieldsShape,
+});
+
+/**
+ * Catat pekerjaan di luar RAB. Foto WAJIB: catatan tanpa harga dan tanpa item
+ * hanya bisa dipertanggungjawabkan lewat buktinya. Kalau tidak satu pun foto
+ * tersimpan, catatannya dibuang lagi dan orangnya diberi tahu – tidak ada
+ * catatan tanpa bukti yang tertinggal diam-diam.
+ */
+export async function catatLuarRabAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = catatLuarRabSchema.safeParse({
+      locationId: formData.get("locationId"),
+      dateKey: formData.get("dateKey"),
+      uraian: formData.get("uraian"),
+      satuan: formData.get("satuan"),
+      volume: formData.get("volume"),
+      catatan: formData.get("catatan") ?? undefined,
+      ...photoFieldsFrom(formData),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+    await requireLocationAccess(user, d.locationId);
+
+    const { files, dibuang } = fotoDariForm(formData);
+    if (files.length === 0) return { error: "Foto wajib – ambil minimal satu foto pekerjaannya." };
+
+    const { location, companyName, companyLogoKey } = await muatLokasiCap(d.locationId);
+    const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
+    const { catatLuarRab, buangCatatanGagal } = await import("@/lib/luar-rab/service");
+    const catatan = await catatLuarRab(
+      report.id,
+      { uraian: d.uraian, satuan: d.satuan, volume: d.volume, catatan: d.catatan ?? null },
+      user.id,
+    );
+    const photoErrors = await unggahFotoPelengkap({
+      user,
+      location,
+      companyName,
+      companyLogoKey,
+      reportId: report.id,
+      jenis: "luar_rab",
+      barisId: catatan.id,
+      namaBaris: catatan.uraian,
+      dateKey: d.dateKey,
+      files,
+      foto: d,
+    });
+    revalidateReport(location.slug, d.dateKey);
+    if (await buangCatatanGagal(catatan.id, user.id)) {
+      return {
+        error: `Catatan tidak disimpan karena fotonya gagal tersimpan: ${[...new Set(photoErrors)].join("; ") || "sebab tidak diketahui"}.`,
+      };
+    }
+    const peringatan = [
+      photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+      dibuang > 0 ? `${dibuang} foto belum tersimpan – maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim.` : null,
+    ].filter(Boolean);
+    return {
+      success: "Pekerjaan di luar RAB tercatat. Site Manager akan memadankannya ke draft adendum.",
+      warning: peringatan.length ? peringatan.join(" · ") : undefined,
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+const hapusLuarRabSchema = z.object({ reportId: z.uuid(), catatanId: z.uuid() });
+
+export async function hapusLuarRabAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = hapusLuarRabSchema.safeParse({
+      reportId: formData.get("reportId"),
+      catatanId: formData.get("catatanId"),
+    });
+    if (!parsed.success) return { error: "Catatan tidak dikenali." };
+    const ctx = await loadReportContext(parsed.data.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+    const { hapusLuarRab } = await import("@/lib/luar-rab/service");
+    await hapusLuarRab(ctx.id, parsed.data.catatanId, user.id);
+    revalidateReport(ctx.slug, ctx.dateKey);
+    return { success: "Catatan dihapus. Fotonya tetap di laporan ini." };
   } catch (err) {
     return errState(err);
   }

@@ -92,6 +92,8 @@ export const AMBANG = {
   suratTelatKritisHari: 7,
   /// Usulan WA yang menunggu sejak sekian hari dinaikkan ke tinggi (DECISIONS 707).
   usulanWaTinggiHari: 2,
+  /// Catatan pekerjaan di luar RAB yang belum dipadankan sekian hari (DECISIONS 738).
+  luarRabMenggantungHari: 14,
 } as const;
 
 export type EwsLocationFacts = {
@@ -382,6 +384,43 @@ export function evaluasiEwsUsulanWa(f: EwsUsulanWaFacts): EwsWarning[] {
       alasan: `${f.menunggu} usulan dari WhatsApp belum diperiksa (${umur}). Isinya belum masuk laporan harian.`,
       tindakan: "Buka laporan harian, periksa usulannya, lalu Masukkan atau Buang.",
       href: `/lokasi/${f.locationSlug}/harian/${f.tanggalTertua}`,
+      locationSlug: f.locationSlug,
+    },
+  ];
+}
+
+/* ── Pekerjaan di luar RAB yang menggantung (DECISIONS 738) ───────────────
+   Pekerjaan yang sudah dikerjakan tapi belum masuk draft adendum tidak bisa
+   ditagih sampai ada CCO-nya. Makin lama didiamkan, makin sulit dibuktikan
+   kemudian – fotonya menua, orangnya lupa. Peringatan hanya untuk catatan yang
+   menunggu sejak ambang hari; yang baru beberapa hari masih wajar. */
+
+export type EwsLuarRabFacts = {
+  locationName: string;
+  locationSlug: string;
+  /** Catatan yang belum dipadankan dan tidak dibatalkan. */
+  menunggu: number;
+  /** Berapa di antaranya yang sudah melewati ambang hari. */
+  lewatAmbang: number;
+  /** Umur catatan tertua dalam hari, dihitung dari tanggal laporannya. */
+  umurTertuaHari: number;
+};
+
+export function evaluasiEwsLuarRab(f: EwsLuarRabFacts): EwsWarning[] {
+  if (f.menunggu <= 0 || f.lewatAmbang <= 0 || f.umurTertuaHari < AMBANG.luarRabMenggantungHari) return [];
+  return [
+    {
+      ruleId: "luar_rab_menggantung",
+      kategori: "kontrak",
+      severity: "sedang",
+      objek: f.locationName,
+      alasan:
+        `${f.lewatAmbang} catatan pekerjaan di luar RAB belum masuk draft adendum lebih dari ` +
+        `${AMBANG.luarRabMenggantungHari} hari (tertua ${f.umurTertuaHari} hari).` +
+        (f.menunggu > f.lewatAmbang ? ` Total yang menunggu ${f.menunggu}.` : "") +
+        " Pekerjaannya belum bisa ditagih.",
+      tindakan: "Buka halaman draft adendum, padankan catatannya, atau batalkan dengan alasan.",
+      href: `/lokasi/${f.locationSlug}/rab/adendum`,
       locationSlug: f.locationSlug,
     },
   ];

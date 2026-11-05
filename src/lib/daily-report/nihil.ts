@@ -71,7 +71,13 @@ export function judulKendalaDariNihil(
   return c && c.length <= 80 ? `${dasar} – ${c}` : dasar;
 }
 
-export type IsiHari = { jumlahItem: number; jumlahMaterial: number; jumlahAlat: number };
+export type IsiHari = {
+  jumlahItem: number;
+  jumlahMaterial: number;
+  jumlahAlat: number;
+  /** Catatan pekerjaan di luar RAB (DECISIONS 738) – juga kegiatan. */
+  jumlahLuarRab?: number;
+};
 
 /**
  * Alasan sebuah laporan TIDAK boleh dinyatakan nihil. `null` = boleh.
@@ -95,6 +101,9 @@ export function alasanTidakBisaNihil(isi: IsiHari): string | null {
   }
   if (isi.jumlahAlat > 0) {
     return "Sudah ada alat tercatat hari ini – itu kegiatan, jadi tidak bisa dinyatakan nihil.";
+  }
+  if ((isi.jumlahLuarRab ?? 0) > 0) {
+    return "Sudah ada catatan pekerjaan di luar RAB hari ini – itu kegiatan, jadi tidak bisa dinyatakan nihil.";
   }
   return null;
 }

@@ -40,6 +40,13 @@
   --color-info: #1d4ed8;
   --color-info-soft: #eff6ff;
   --color-info-border: #bfdbfe;
+  /* Pekerjaan DI LUAR RAB (DECISIONS 739). Ungu, sengaja bukan biru (warna
+     aplikasi / isian RAB), oranye (draft adendum, peringatan), hijau, atau
+     merah: catatan ini bukan salah satu arti itu, dan harus terlihat lain
+     sekali lihat. `luar-rab` 7,1:1 di atas putih – lolos AA untuk teks kecil. */
+  --color-luar-rab: #6d28d9;
+  --color-luar-rab-soft: #f5f3ff;
+  --color-luar-rab-border: #c4b5fd;
 
   /* Permukaan & teks */
   --color-surface: #ffffff;
