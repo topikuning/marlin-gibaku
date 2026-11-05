@@ -59,7 +59,7 @@ export default async function ImporDokumenDrivePage({
         actions={
           <Link
             href="/dokumen"
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+            className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-muted"
           >
             Kembali ke arsip
           </Link>

@@ -126,7 +126,7 @@ export function RapikanTeksPanel({ locationId }: { locationId: string }) {
                     <p className="text-xs whitespace-pre-wrap text-ink">{f.suggestion}</p>
                   </div>
                 </div>
-                {f.note ? <p className="text-xs text-warning-700">{f.note}</p> : null}
+                {f.note ? <p className="text-xs text-warning">{f.note}</p> : null}
               </div>
             );
           })}

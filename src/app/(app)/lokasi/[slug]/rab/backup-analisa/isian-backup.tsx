@@ -123,7 +123,7 @@ export function FormIsian({ revisionId, lineageKey }: { revisionId: string; line
     if (state?.success) form.current?.reset();
   }, [state]);
   return (
-    <form ref={form} action={kirim} className="space-y-2 rounded-lg border border-line p-3">
+    <form ref={form} action={kirim} className="space-y-2 rounded-lg border border-border p-3">
       <input type="hidden" name="revisionId" value={revisionId} />
       <input type="hidden" name="lineageKey" value={lineageKey} />
       <h3 className="text-[13px] font-semibold text-ink">Tambah baris backup</h3>

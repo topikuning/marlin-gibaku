@@ -29,12 +29,12 @@ function Kelompok({
   sarankanNama: boolean;
 }) {
   return (
-    <li className="rounded-lg border border-line bg-surface-muted p-3">
+    <li className="rounded-lg border border-border bg-surface-muted p-3">
       <ul className="space-y-2">
         {g.anggota.map((a) => (
           <li key={a.id} className="text-[13px]">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <Link href={`/lokasi/${a.slug}`} className="font-medium text-brand hover:underline">
+              <Link href={`/lokasi/${a.slug}`} className="font-medium text-primary hover:underline">
                 {a.name}
               </Link>
               <span className="text-ink-muted">{a.packageName}</span>

@@ -34,7 +34,7 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
           <CheckCircle2 aria-hidden className="size-3.5" />
           Finalkan
         </Button>
-        {state?.error ? <span className="text-xs text-danger-700">{state.error}</span> : null}
+        {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
       </div>
     );
   }
@@ -45,7 +45,7 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
         Finalkan kegiatan ini? Setelah final, isinya tidak bisa diubah lagi. Kalau teksnya masih
         perlu dirapikan, ubah dulu lewat tombol Edit.
       </p>
-      {state?.error ? <p className="text-xs text-danger-700">{state.error}</p> : null}
+      {state?.error ? <p className="text-xs text-danger">{state.error}</p> : null}
       <div className="flex flex-wrap gap-2">
         <form action={action}>
           <input type="hidden" name="activityId" value={activityId} />

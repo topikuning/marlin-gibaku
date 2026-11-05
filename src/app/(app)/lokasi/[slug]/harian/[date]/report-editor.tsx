@@ -144,7 +144,7 @@ export function ReportEditor({
               waktu & koordinatnya benar; yang salah cuma pekerjaan yang
               ditempelinya. Pertanyaan user 2026-08-07: *"kalau mau dipakai lagi
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-0.5 text-xs text-ink-muted">
             Foto ini terlepas karena pekerjaannya dihapus. Kembalikan ke Foto Cepat supaya bisa
             dipakai untuk pekerjaan mana pun. Hapus hanya kalau memang tidak dipakai.
           </p>

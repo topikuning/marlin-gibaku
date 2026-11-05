@@ -28,8 +28,8 @@ export type TahapView = {
 export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
   const aktif = tahapan.find((t) => t.aktif);
   return (
-    <div className="rounded-lg border border-line bg-surface">
-      <ol className="grid gap-px bg-line sm:grid-cols-4">
+    <div className="rounded-lg border border-border bg-surface">
+      <ol className="grid gap-px bg-border sm:grid-cols-4">
         {tahapan.map((t, i) => {
           const tuntas = t.sisa === 0 && t.selesai > 0;
           return (
@@ -37,7 +37,7 @@ export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
               key={t.tahap}
               className={cn(
                 "bg-surface px-3 py-2.5",
-                t.aktif && "bg-brand-soft",
+                t.aktif && "bg-primary-50",
               )}
             >
               <p className="flex items-center gap-1.5 text-[12px] font-medium tracking-wide uppercase">
@@ -45,7 +45,7 @@ export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
                   className={cn(
                     "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px]",
                     t.aktif
-                      ? "bg-brand text-white"
+                      ? "bg-primary text-white"
                       : tuntas
                         ? "bg-success text-white"
                         : "bg-surface-inset text-ink-muted",
@@ -53,7 +53,7 @@ export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
                 >
                   {tuntas && !t.aktif ? <Check aria-hidden className="size-2.5" /> : i + 1}
                 </span>
-                <span className={t.aktif ? "text-brand" : "text-ink-muted"}>{t.judul}</span>
+                <span className={t.aktif ? "text-primary" : "text-ink-muted"}>{t.judul}</span>
               </p>
               <p className="tabular mt-1 text-lg font-semibold text-ink">
                 {t.sisa > 0 ? t.sisa : t.selesai}
@@ -71,7 +71,7 @@ export function Stepper({ tahapan }: { tahapan: TahapView[] }) {
         })}
       </ol>
       {aktif ? (
-        <p className="border-t border-line px-3 py-2 text-[13px] text-ink">
+        <p className="border-t border-border px-3 py-2 text-[13px] text-ink">
           <span className="font-medium">Sekarang: {aktif.judul}.</span> {aktif.ajakan}
         </p>
       ) : null}

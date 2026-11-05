@@ -40,7 +40,7 @@ export function KronologiGarisWaktu({ k, judul }: { k: KronologiView; judul?: st
         subtitle={`${k.sejak} s.d. ${k.sampai} · kendala dan kegiatan lapangan, terbaru dulu`}
       />
       <CardBody className="space-y-4 text-sm">
-        <div className="rounded-lg border border-line bg-surface-inset px-3 py-2">
+        <div className="rounded-lg border border-border bg-surface-inset px-3 py-2">
           <p className="text-[12px] tracking-wide text-ink-muted uppercase">Kondisi terkini</p>
           <ul className="mt-1 space-y-0.5 text-ink">
             <li>

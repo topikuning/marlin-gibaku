@@ -54,6 +54,10 @@
   --color-surface-inset: #f1f5f9; /* slate-100 */
   --color-border: #e2e8f0; /* slate-200 */
   --color-border-strong: #cbd5e1; /* slate-300 */
+  /* Garis pemisah SAMAR – di dalam kartu, antar-baris yang sudah dibatasi
+     kartunya. Dulu dipakai 13 berkas tanpa pernah didefinisikan, jadi garisnya
+     tidak tampil sama sekali (OPEN_ISSUES UI-04, DECISIONS 740). */
+  --color-border-muted: #eef2f7;
   --color-ink: #0f172a; /* teks utama */
   --color-ink-muted: #64748b; /* teks sekunder */
   --color-ink-faint: #94a3b8; /* placeholder/eyebrow */

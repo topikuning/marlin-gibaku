@@ -263,7 +263,7 @@ export function HargaPanel({
         <Banner tone="error" title="Permintaan draf harga gagal" description={usulan.error} />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-inset px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-inset px-3 py-2">
         <p className="min-w-[240px] flex-1 text-[13px] text-ink-muted">
           {canInput ? (
             <>Klik sel <strong>Harga satuan</strong> untuk mengisi harga. Tekan Enter untuk pindah ke baris berikutnya.</>
@@ -494,7 +494,7 @@ export function RingkasBiaya({
     <div
       className={cn(
         "rounded-lg border",
-        berhatiHati ? "border-warning-border bg-warning-soft" : "border-line bg-surface",
+        berhatiHati ? "border-warning-border bg-warning-soft" : "border-border bg-surface",
       )}
     >
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2">
@@ -518,7 +518,7 @@ export function RingkasBiaya({
       </div>
 
       {!tampilkanMargin ? (
-        <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
+        <p className="border-t border-border px-3 py-2 text-[13px] text-ink-muted">
           {belumBerharga > 0
             ? `${belumBerharga} sumber daya masih kosong harganya. Biaya di atas akan bertambah setelah diisi.`
             : `Seluruh ${berharga} sumber daya sudah ada harganya.`}{" "}
@@ -533,7 +533,7 @@ export function RingkasBiaya({
           akan MENGECILKAN selisihnya, bukan membesarkannya.
         </p>
       ) : (
-        <p className="border-t border-line px-3 py-2 text-[13px] text-ink-muted">
+        <p className="border-t border-border px-3 py-2 text-[13px] text-ink-muted">
           Seluruh nilai RAB sudah masuk hitungan dan seluruh {berharga} sumber daya sudah ada
           harganya. Angka ini potensi margin pelaksanaan, bukan laba bersih setelah pajak dan biaya
           lain di luar rincian RAPL.

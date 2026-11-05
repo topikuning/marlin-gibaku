@@ -120,13 +120,13 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
               href={`/api/documents/${doc.id}`}
               target="_blank"
               rel="noopener"
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-muted"
             >
               Buka berkas
             </a>
             <Link
               href="/dokumen"
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-muted"
             >
               Kembali ke arsip
             </Link>

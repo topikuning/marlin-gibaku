@@ -144,7 +144,7 @@ export default async function DokumenPage({
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/dokumen/impor"
-                className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+                className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-muted"
               >
                 Impor dari Drive KKP
               </Link>

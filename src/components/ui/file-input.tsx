@@ -169,7 +169,7 @@ export function FileInput({
         }}
         className={cn(
           "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed px-3 py-2.5 transition-colors",
-          seret ? "border-primary bg-primary/5" : "border-line bg-surface-inset/40",
+          seret ? "border-primary bg-primary/5" : "border-border bg-surface-inset/40",
           error && "border-danger",
         )}
       >

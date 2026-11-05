@@ -368,10 +368,10 @@ export function PadananPanel({
             className={cn(
               "rounded-full border px-3 py-1 text-[13px] transition",
               saring === s.key
-                ? "border-brand bg-brand-soft font-medium text-brand"
+                ? "border-primary bg-primary-50 font-medium text-primary"
                 : hitung[s.key] === 0
-                  ? "border-line text-ink-faint opacity-50"
-                  : "border-line text-ink-muted hover:bg-surface-inset",
+                  ? "border-border text-ink-faint opacity-50"
+                  : "border-border text-ink-muted hover:bg-surface-inset",
             )}
           >
             {s.label} <span className="tabular">({hitung[s.key]})</span>
@@ -396,7 +396,7 @@ export function PadananPanel({
       </div>
 
       {canManage && usulanTampil > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-inset px-3 py-2">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface-inset px-3 py-2">
           <p className="text-[13px] text-ink-muted">
             Centang baris di tabel. Ada {usulanTampil} usulan yang menunggu keputusan pada saringan ini.
           </p>
@@ -591,9 +591,9 @@ function PemilihPadanan({
               type="button"
               disabled={koreksiPending}
               onClick={() => kirim(k.id)}
-              className="flex w-full items-start gap-2 rounded-md border border-line bg-surface px-2.5 py-2 text-start text-[13px] hover:border-brand disabled:opacity-60"
+              className="flex w-full items-start gap-2 rounded-md border border-border bg-surface px-2.5 py-2 text-start text-[13px] hover:border-primary disabled:opacity-60"
             >
-              <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-brand" />
+              <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-primary" />
               <span className="min-w-0 flex-1">
                 <span className="tabular text-ink-muted">[{k.kode}]</span> {k.uraian}{" "}
                 <span className="text-ink-muted">({k.satuan})</span>
@@ -608,7 +608,7 @@ function PemilihPadanan({
         ))}
       </ul>
 
-      <div className="mt-2 border-t border-line pt-2">
+      <div className="mt-2 border-t border-border pt-2">
         <Button
           type="button"
           variant="ghost"

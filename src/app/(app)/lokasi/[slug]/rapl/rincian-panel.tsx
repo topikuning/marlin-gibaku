@@ -278,7 +278,7 @@ export function RincianPanel({
           "flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border px-3 py-2 text-[13px] text-ink-muted",
           tampilkanMargin && ringkas.jumlahRugi > 0
             ? "border-danger-border bg-danger-soft"
-            : "border-line",
+            : "border-border",
         )}
       >
         <span>
@@ -346,7 +346,7 @@ export function RincianPanel({
                     : "Belum ada komponen. Tambahkan di bawah, atau nyatakan item ini diborongkan."}
                 </p>
               ) : (
-                <ul className="mt-1 divide-y divide-line rounded-lg border border-line">
+                <ul className="mt-1 divide-y divide-border rounded-lg border border-border">
                   {dibuka.komponen.map((k) => (
                     <li key={`${k.kategori}|${k.nama}|${k.satuan}`} className="flex items-center gap-2 px-3 py-2">
                       <div className="min-w-0 flex-1">
@@ -411,7 +411,7 @@ export function RincianPanel({
             </section>
 
             {canInput && canUseAi && dibuka.cara === "belum" && dibuka.komponen.length === 0 && dibuka.alasanLewat !== "volume_kosong" ? (
-              <section className="rounded-lg border border-line p-3">
+              <section className="rounded-lg border border-border p-3">
                 <h3 className="text-[13px] font-semibold text-ink">Draf analisa AI</h3>
                 <p className="mt-0.5 text-[12px] text-ink-muted">
                   AI menyusun koefisien bahan, upah, dan alat untuk satu satuan item ini. Drafnya muncul di atas
@@ -516,7 +516,7 @@ function FormTambahKomponen({
   const [koefisien, setKoefisien] = useState("");
 
   return (
-    <section className="rounded-lg border border-line p-3">
+    <section className="rounded-lg border border-border p-3">
       <h3 className="text-[13px] font-semibold text-ink">Tambah komponen</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
         Koefisiennya untuk SATU {""}satuan item ini, bukan per satuan analisa AHSP.
@@ -596,7 +596,7 @@ function FormKonversi({
   const [alasan, setAlasan] = useState(catatan ?? "");
 
   return (
-    <section className="rounded-lg border border-line p-3">
+    <section className="rounded-lg border border-border p-3">
       <h3 className="text-[13px] font-semibold text-ink">Faktor konversi satuan</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
         Dipakai bila satuan item berbeda dari satuan analisa (mis. item m² dinding vs analisa m³
@@ -651,7 +651,7 @@ function FormBorongan({
   const [catatan, setCatatan] = useState("");
 
   return (
-    <section className="rounded-lg border border-line p-3">
+    <section className="rounded-lg border border-border p-3">
       <h3 className="text-[13px] font-semibold text-ink">Borongan</h3>
       <p className="mt-0.5 text-[12px] text-ink-muted">
         Satu harga per satuan item, tanpa rincian komponen. Cocok untuk pekerjaan yang memang
