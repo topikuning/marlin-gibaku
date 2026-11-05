@@ -2,7 +2,6 @@ import "server-only";
 import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
 import { valueDone } from "@/lib/money";
-import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { VOLUME_EPSILON } from "@/lib/daily-report/constants";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -29,6 +28,30 @@ import type { Prisma } from "@/generated/prisma/client";
 export class AdendumError extends Error {}
 
 const EPS = VOLUME_EPSILON;
+
+/**
+ * Volume yang sudah DILAPORKAN per lineage di lokasi ini: semua basis, SEMUA
+ * status laporan – termasuk laporan yang belum dikirim (DECISIONS 742).
+ *
+ * Pagar draft dulu memakai `cumulativeVolumeByLineage` (hanya laporan
+ * terkirim). Akibatnya volume draft bisa dikecilkan di bawah laporan yang
+ * sedang diisi – yang begitu dikirim langsung melampauinya – dan item draft
+ * yang hanya dilaporkan di laporan belum terkirim lolos pagar hapus lalu
+ * ditolak FK dengan kalimat Prisma mentah. Ditemukan saat menjawab pertanyaan
+ * user 2026-11-05 "bagaimana jika draft kemudian ganti volumenya lebih kecil
+ * atau dihapus".
+ */
+export async function volumeTerlapor(tx: Tx, locationId: string, lineageKeys: string[]): Promise<Map<string, number>> {
+  if (lineageKeys.length === 0) return new Map();
+  const rows = await tx.dailyReportItem.groupBy({
+    by: ["lineageKey"],
+    where: { lineageKey: { in: lineageKeys }, report: { locationId } },
+    _sum: { volumeDone: true },
+  });
+  return new Map(rows.map((r) => [r.lineageKey, Math.round(Number(r._sum.volumeDone ?? 0) * 1000) / 1000]));
+}
+
+const fmtVol = (v: number) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(v);
 
 type Tx = Prisma.TransactionClient;
 
@@ -263,16 +286,14 @@ export async function updateDraftItemVolume(
     if (!node || node.revisionId !== revisionId) throw new AdendumError("Item tidak ditemukan di draft ini.");
     if (node.kind !== "item") throw new AdendumError("Hanya item pekerjaan yang volumenya bisa diubah.");
 
-    // Cakupan "semua": laporan atas item draft adendum ber-`basis=draft_adendum`
-    // (DECISIONS 210 — pekerjaan dikerjakan dulu, adendumnya menyusul). Dengan
-    // cakupan "aktif" pagar ini membaca 0 untuk justru item yang paling mungkin
-    // sudah dikerjakan, lalu meloloskan volume di bawah realisasinya.
-    const realized =
-      (await cumulativeVolumeByLineage(rev.locationId, undefined, "semua")).get(node.lineageKey) ?? 0;
+    // Semua basis (laporan atas draft adendum, DECISIONS 210) DAN semua status
+    // laporan, termasuk yang belum dikirim (742) – lihat `volumeTerlapor`.
+    const realized = (await volumeTerlapor(tx, rev.locationId, [node.lineageKey])).get(node.lineageKey) ?? 0;
     if (v + EPS < realized) {
       throw new AdendumError(
-        `Volume ${node.name} tidak boleh di bawah realisasi tercatat (${realized}). ` +
-          `Pekerjaan-kurang untuk item yang sudah berjalan hanya boleh sampai sebesar volume yang sudah terealisasi.`,
+        `Volume ${node.name} tidak boleh di bawah realisasi tercatat (${fmtVol(realized)}, termasuk laporan harian ` +
+          `yang belum dikirim). Pekerjaan-kurang untuk item yang sudah berjalan hanya boleh sampai sebesar volume ` +
+          `yang sudah dilaporkan.`,
       );
     }
 
@@ -516,17 +537,17 @@ export async function removeDraftNode(
       for (const c of childrenOf.get(id) ?? []) stack.push(c);
     }
 
-    // Cakupan "semua" — lihat alasan di updateDraftItemVolume. Dengan "aktif",
-    // item draft yang sudah dilaporkan terbaca "tanpa realisasi", pagar ini
-    // lolos, lalu `rabNode.delete` ditolak FK RESTRICT dan user hanya melihat
-    // "kesalahan tak terduga" pada item yang tidak akan pernah bisa dihapus.
-    const realized = await cumulativeVolumeByLineage(rev.locationId, undefined, "semua");
+    // Semua basis DAN semua status laporan (742). Dengan hanya laporan terkirim,
+    // item draft yang dilaporkan di laporan belum dikirim lolos pagar ini, lalu
+    // `rabNode.delete` ditolak FK RESTRICT dengan kalimat Prisma mentah.
     const items = subtree.map((id) => byId.get(id)!).filter((n) => n.kind === "item");
+    const realized = await volumeTerlapor(tx, rev.locationId, items.map((n) => n.lineageKey));
     const blocked = items.find((n) => (realized.get(n.lineageKey) ?? 0) > EPS);
     if (blocked) {
       throw new AdendumError(
-        `"${blocked.name}" punya realisasi tercatat, jadi tidak bisa dihapus. ` +
-          `Kecilkan volumenya sampai sama dengan realisasi (pekerjaan-kurang).`,
+        `"${blocked.name}" sudah punya realisasi di laporan harian (${fmtVol(realized.get(blocked.lineageKey) ?? 0)}), ` +
+          `jadi tidak bisa dihapus. Kecilkan volumenya sampai sama dengan yang sudah dilaporkan (pekerjaan-kurang), ` +
+          `atau hapus dulu baris laporannya.`,
       );
     }
 

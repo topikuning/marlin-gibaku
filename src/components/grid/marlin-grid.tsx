@@ -136,6 +136,12 @@ export interface MarlinGridProps<T> {
   columnDefs: ColDef<T>[];
   /** Render input "Cari..." (quick filter) di atas grid. */
   quickFilter?: boolean;
+  /**
+   * Dipanggil tiap isi kotak Cari berubah. Dipakai grid yang barisnya perlu
+   * tampil lain saat tersaring – mis. editor draft adendum menyebut jalur
+   * kategori/sarpras karena baris induknya ikut tersaring keluar (DECISIONS 742).
+   */
+  onQuickFilterChange?: (teks: string) => void;
   /** Default true, pageSize 25. */
   pagination?: boolean;
   pageSize?: number;
@@ -204,6 +210,7 @@ export function MarlinGrid<T>({
   rowData,
   columnDefs,
   quickFilter = false,
+  onQuickFilterChange,
   pagination = true,
   pageSize = 25,
   height = "auto",
@@ -406,7 +413,10 @@ export function MarlinGrid<T>({
             <input
               type="search"
               value={quickFilterText}
-              onChange={(e) => setQuickFilterText(e.target.value)}
+              onChange={(e) => {
+                setQuickFilterText(e.target.value);
+                onQuickFilterChange?.(e.target.value);
+              }}
               placeholder="Cari..."
               aria-label="Cari di tabel"
               // text-base di ponsel: kotak ini diketik, dan kontrol <16px

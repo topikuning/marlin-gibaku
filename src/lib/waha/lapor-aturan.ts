@@ -411,6 +411,10 @@ export const teks = {
 
   melebihiSisa: (sisa: string) => `melebihi sisa RAB. Sisa yang masih bisa dilaporkan: ${sisa}.`,
 
+  /** Volume di atas sisa kontrak, masih di dalam draft adendum (DECISIONS 742). */
+  keDraftAdendum: (sisaKontrak: string) =>
+    ` Volume ini melebihi sisa kontrak (${sisaKontrak}), jadi dicatat terhadap draft adendum – belum masuk progres resmi sampai adendumnya diaktifkan.`,
+
   volumeDitolak: (sebab: string) => `Volume tidak dicatat: ${sebab}`,
 
   fotoTersimpan: (o: {

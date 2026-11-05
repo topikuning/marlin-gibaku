@@ -243,10 +243,15 @@ describe("pagar yang tetap berlaku", () => {
     ).rejects.toThrow(/digantikan/i);
   });
 
-  it("lewat item AKTIF, batas volume kontrak tetap ditegakkan", async () => {
+  it("lewat item AKTIF di atas kontrak: dialihkan ke draft (742); di atas draft juga: ditolak", async () => {
+    const dialihkan = await upsertItem(reportId, { rabNodeId: nodeAktifId, volumeDone: 101 }, userId);
+    expect(dialihkan.basis).toBe("draft_adendum");
+    expect(dialihkan.rabNodeId).toBe(nodeDraftNaikId);
     await expect(
-      upsertItem(reportId, { rabNodeId: nodeAktifId, volumeDone: 101 }, userId),
-    ).rejects.toThrow(/melebihi sisa RAB/i);
+      upsertItem(reportId, { rabNodeId: nodeAktifId, volumeDone: 151 }, userId),
+    ).rejects.toThrow(/melebihi sisa/i);
+    // Kembalikan baris semula (130 terhadap draft) untuk kasus berikutnya.
+    await upsertItem(reportId, { rabNodeId: nodeDraftNaikId, volumeDone: 130 }, userId);
   });
 
   it("lewat item DRAFT, batasnya volume draft – dan tetap ditegakkan", async () => {

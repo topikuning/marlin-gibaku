@@ -279,6 +279,16 @@ Patokan: TERMIN 1 CV. Putera Fahlevi (sudah dibayar). Yang masih beda:
 - Salinan versi sendiri di folder T (T6/T9/…) dari tekanan "Siapkan berkas" sebelum 725 tidak
   dibuang otomatis (722) – kalau ada, rapikan tangan.
 
+## 🟡 VOL-01 · Sisa volume laporan harian tidak menghitung laporan yang belum dikirim (DECISIONS 742)
+
+Penjaga `upsertItem` (dan sisa di daftar pilihan) hanya menghitung laporan berstatus
+dikirim/disetujui/final. Dua laporan yang belum dikirim (tanggal berbeda) masing-masing bisa
+memakai sisa yang sama, dan saat dikirim tidak ada pemeriksaan ulang, jadi jumlahnya bisa
+melampaui volume RAB. Berlaku untuk item kontrak biasa maupun draft adendum; ditemukan saat
+mencoba skenario 742, bukan disebabkan olehnya. Editor draft adendum sudah menghitung SEMUA
+status (742). FIX yang diusulkan: periksa ulang batas volume saat laporan dikirim (dan saat
+disetujui), dengan pesan yang menyebut laporan mana yang memakai sisanya.
+
 ## 🟢 MINGGU-01 · "Laporan mingguan" di Tanya MARLIN WA tetap pekan Senin–Minggu (DECISIONS 708)
 
 Sejak 708 periode minggu kontrak bisa dimulai hari apa saja. Pertanyaan WA

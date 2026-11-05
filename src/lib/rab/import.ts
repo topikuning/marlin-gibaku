@@ -565,15 +565,16 @@ export async function gantiDraftLama(
   draftLamaId: string,
   draftBaruId: string,
   userId: string,
-): Promise<{ dipindah: number; catatanLuarRabDilepas: number }> {
+): Promise<{ dipindah: number; catatanLuarRabDilepas: number; diAtasVolumeBaru: DiAtasVolumeBaru[] }> {
   const { barisMurniDariCatatan, lepasBarisDariCatatan, bangunUlangSnapshotTanggal } = await import(
     "@/lib/luar-rab/service"
   );
+  const { volumeTerlapor } = await import("@/lib/rab/adendum");
   const hasil = await db.$transaction(async (tx) => {
     const terpakai = await laporanDariDraft(tx, draftLamaId);
     if (terpakai.length === 0) {
       await tx.rabRevision.delete({ where: { id: draftLamaId } });
-      return { dipindah: 0, catatanLuarRabDilepas: 0, finalTersentuh: [] as Date[], locationId: null };
+      return { dipindah: 0, catatanLuarRabDilepas: 0, diAtasVolumeBaru: [], finalTersentuh: [] as Date[], locationId: null };
     }
 
     const kunci = [...new Set(terpakai.map((r) => r.lineageKey))];
@@ -622,14 +623,42 @@ export async function gantiDraftLama(
       });
     }
     const lokasi = await tx.rabRevision.findUniqueOrThrow({ where: { id: draftLamaId }, select: { locationId: true } });
+    /*
+     * VOLUME BARU DI BAWAH YANG SUDAH DILAPORKAN – DISEBUT (DECISIONS 742).
+     *
+     * Pertanyaan user 2026-11-05: "bagaimana jika draft kemudian ganti
+     * volumenya lebih kecil". Editor draft menolaknya; impor pengganti dulu
+     * memindahkan barisnya diam-diam. Tidak ditolak di sini: berkas adendum
+     * bisa memang lebih kecil dari laporan lapangan, dan aturan aktivasi
+     * (laporan diturunkan mengikuti volume barunya) sudah ada. Yang dicegah
+     * adalah DIAMNYA – daftarnya pulang ke layar impor.
+     */
+    const lkPindah = [...new Set(pindah.map((r) => r.lineageKey))];
+    const [terlapor, nodeBaru] = await Promise.all([
+      volumeTerlapor(tx, lokasi.locationId, lkPindah),
+      tx.rabNode.findMany({
+        where: { revisionId: draftBaruId, kind: "item", lineageKey: { in: lkPindah } },
+        select: { lineageKey: true, name: true, unit: true, volume: true },
+      }),
+    ]);
+    const diAtasVolumeBaru: DiAtasVolumeBaru[] = nodeBaru
+      .filter((n) => n.volume != null && (terlapor.get(n.lineageKey) ?? 0) > Number(n.volume) + 1e-6)
+      .map((n) => ({ lineageKey: n.lineageKey, nama: n.name, satuan: n.unit, terlapor: terlapor.get(n.lineageKey) ?? 0, volumeBaru: Number(n.volume) }));
     await tx.rabRevision.delete({ where: { id: draftLamaId } });
     await auditIn(tx, userId, "rab.draft_diganti", "rab_revision", draftBaruId, {
       draftLamaId,
       baris: pindah.length,
       tanggal: pindah.map((r) => r.tanggal.toISOString().slice(0, 10)),
       catatanLuarRabDilepas: murni.size,
+      diAtasVolumeBaru,
     });
-    return { dipindah: pindah.length, catatanLuarRabDilepas: murni.size, finalTersentuh: dilepas, locationId: lokasi.locationId };
+    return {
+      dipindah: pindah.length,
+      catatanLuarRabDilepas: murni.size,
+      diAtasVolumeBaru,
+      finalTersentuh: dilepas,
+      locationId: lokasi.locationId,
+    };
     /*
      * 60 detik (DECISIONS 712): menghapus draft lama menghapus berantai seluruh
      * item, backup volume, dan analisanya. Dengan batas bawaan 5 detik impor
@@ -638,8 +667,11 @@ export async function gantiDraftLama(
      */
   }, { timeout: 60_000, maxWait: 15_000 });
   if (hasil.locationId) await bangunUlangSnapshotTanggal(hasil.locationId, hasil.finalTersentuh);
-  return { dipindah: hasil.dipindah, catatanLuarRabDilepas: hasil.catatanLuarRabDilepas };
+  return { dipindah: hasil.dipindah, catatanLuarRabDilepas: hasil.catatanLuarRabDilepas, diAtasVolumeBaru: hasil.diAtasVolumeBaru };
 }
+
+/** Item yang volume draft barunya di bawah volume yang sudah dilaporkan (DECISIONS 742). */
+export type DiAtasVolumeBaru = { lineageKey: string; nama: string; satuan: string | null; terlapor: number; volumeBaru: number };
 
 /** Masa pelaksanaan (hari) dari kontrak paket lokasi; fallback 150. */
 export async function contractDaysFor(locationId: string): Promise<number> {
