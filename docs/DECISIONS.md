@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 745 | 2026-11-06 | Aktivasi adendum: laporan yang melebihi volume baru dipotong dari baris berbasis draft adendum dulu (dibagi rata di antara baris draft); baris kontrak baru ikut turun bila baris draft sudah habis – mengubah pembagian rata semua baris (ketetapan 2026-09-03) untuk kasus ada baris draft |
 | 744 | 2026-11-06 | Papan Status Laporan Harian diberi saringan Paket (Combobox, `?paket=`): pemilih lokasi menyempit ke paket itu, kartu angka dihitung untuk paket itu, ganti paket mengosongkan lokasi; kolom nama paket tetap tidak kembali ke tabel |
 | 743 | 2026-11-06 | Baris laporan harian berbasis draft adendum diberi label, kumulatifnya dua baris (Kontrak x / volume kontrak · Draft adendum semua basis / volume draft), rupiahnya "belum resmi"; "Nilai hari ini" hanya baris kontrak, nilai draft disebut terpisah (dulu kumulatif kontrak dibagi volume draft, tanpa penanda) |
 | 742 | 2026-11-05 | Laporan harian di atas sisa kontrak dicatat terhadap draft adendum (`upsertItem` mengalihkan bila masih dalam sisa draft; form, WA, rekap ikut; hari batas: seluruh volume hari itu ke draft); daftar pilihan menyebut sisa kontrak + sisa draft; pagar editor draft menghitung laporan yang belum dikirim; draft pengganti bervolume di bawah yang dilaporkan disebut di layar impor; editor draft menyebut kategori/sarpras saat mencari |

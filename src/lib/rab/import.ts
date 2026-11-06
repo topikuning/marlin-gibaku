@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { audit, auditIn } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { valueDone as hitungNilai } from "@/lib/money";
-import { sesuaikanProporsional } from "@/lib/rab/sesuaikan-realisasi";
+import { sesuaikanDraftDulu } from "@/lib/rab/sesuaikan-realisasi";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import { formatTanggal } from "@/lib/format";
 import type { ParsedRab } from "@/lib/rab/parsed";
@@ -200,6 +200,16 @@ export async function activateRevision(revisionId: string, userId: string) {
         where: { locationId: rev.locationId, status: "aktif" },
         data: { status: "digantikan", supersededAt: new Date() },
       });
+      // Baris yang berasal dari DRAFT dicatat sebelum penandanya dinaikkan:
+      // kelebihan atas volume baru dipotong dari baris inilah lebih dulu (745).
+      const dariDraft = new Set(
+        (
+          await tx.dailyReportItem.findMany({
+            where: { basis: "draft_adendum", rabNode: { revisionId: rev.id } },
+            select: { id: true },
+          })
+        ).map((r) => r.id),
+      );
       const naik = await tx.dailyReportItem.updateMany({
         where: { basis: "draft_adendum", rabNode: { revisionId: rev.id } },
         data: { basis: "aktif" },
@@ -209,7 +219,7 @@ export async function activateRevision(revisionId: string, userId: string) {
         data: { status: "aktif" },
       });
 
-      const penyesuaian = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId);
+      const penyesuaian = await sesuaikanRealisasiKeVolumeBaru(tx, rev.id, rev.locationId, userId, { dariDraft });
       return {
         revisi,
         laporanDinaikkan: naik.count,
@@ -319,8 +329,14 @@ export async function activateRevision(revisionId: string, userId: string) {
  * ### Yang TIDAK disentuh
  *
  * Item yang realisasinya masih di bawah volume baru, dan adendum yang MENAIKKAN
- * volume: `sesuaikanProporsional` mengembalikan `null` untuk keduanya, jadi
+ * volume: `sesuaikanDraftDulu` mengembalikan `null` untuk keduanya, jadi
  * tidak ada baris yang ditulis ulang tanpa perlu.
+ *
+ * ### Baris draft dulu (DECISIONS 745)
+ *
+ * Kelebihan dipotong dari baris yang dilaporkan terhadap draft adendum lebih
+ * dulu; baris kontrak baru ikut turun bila baris draft sudah habis. Tanpa
+ * `opsi.dariDraft` (hapus revisi, koreksi timpa) semua baris dibagi rata.
  *
  * Laporan berstatus `final` IKUT disesuaikan (keputusan user 2026-09-03):
  * melewatinya hanya memindahkan ketidakcocokan, bukan menghilangkannya. Setiap
@@ -331,6 +347,12 @@ export async function sesuaikanRealisasiKeVolumeBaru(
   revisionId: string,
   locationId: string,
   userId: string,
+  /**
+   * Id baris laporan yang dilaporkan terhadap draft adendum (diisi
+   * `activateRevision`). Kelebihan dipotong dari baris ini lebih dulu
+   * (DECISIONS 745); tanpa isian semua baris dibagi rata seperti dulu.
+   */
+  opsi: { dariDraft?: ReadonlySet<string> } = {},
 ): Promise<{
   jumlahItem: number;
   tanggalTerawal: Date | null;
@@ -381,7 +403,11 @@ export async function sesuaikanRealisasiKeVolumeBaru(
     if (!rows || n.volume == null) continue;
     const volumeBaru = Number(n.volume);
     const sebelum = rows.map((r) => Number(r.volumeDone));
-    const sesudah = sesuaikanProporsional(sebelum, volumeBaru);
+    const sesudah = sesuaikanDraftDulu(
+      sebelum,
+      rows.map((r) => opsi.dariDraft?.has(r.id) ?? false),
+      volumeBaru,
+    );
     if (!sesudah) continue;
 
     const harga = Number(n.unitPrice ?? 0);

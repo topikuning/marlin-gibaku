@@ -3,7 +3,7 @@
 // Permintaan user 2026-09-03: laporan harian yang sudah masuk menyesuaikan
 // volume baru, dibagi PROPORSIONAL (keputusan user atas dua pilihan).
 import { describe, expect, it } from "vitest";
-import { sesuaikanProporsional as bagi } from "@/lib/rab/sesuaikan-realisasi";
+import { sesuaikanDraftDulu, sesuaikanProporsional, sesuaikanProporsional as bagi } from "@/lib/rab/sesuaikan-realisasi";
 
 const jumlah = (xs: number[]) => Math.round(xs.reduce((t, v) => t + v, 0) * 1000) / 1000;
 
@@ -71,5 +71,38 @@ describe("koreksi bervolume negatif ikut terskala, tidak diabaikan", () => {
     const hasil = bagi([30, -5], 20)!;
     expect(jumlah(hasil)).toBe(20);
     expect(hasil[1]).toBeLessThan(0);
+  });
+});
+
+/*
+ * KELEBIHAN DIPOTONG DARI BARIS DRAFT DULU (DECISIONS 745). Jawaban user
+ * 2026-11-06 atas pertanyaan "saat adendum disahkan dengan volume lebih kecil
+ * dari yang sudah dilaporkan, apakah kelebihannya dipotong dari baris draft
+ * dulu?": "ya". Baris kontrak yang sudah resmi tidak ikut turun selama
+ * kelebihannya masih bisa diserap baris draft.
+ */
+describe("sesuaikanDraftDulu", () => {
+  it("contoh pertanyaan: kontrak 100 + draft 150, disahkan 180 → 100 + 80", () => {
+    expect(sesuaikanDraftDulu([100, 150], [false, true], 180)).toEqual([100, 80]);
+  });
+
+  it("beberapa baris draft: dipotong rata di antara baris draft saja, menjumlah PERSIS", () => {
+    const hasil = sesuaikanDraftDulu([40, 30, 30, 50], [false, true, true, true], 100)!;
+    expect(hasil[0]).toBe(40);
+    expect(hasil.slice(1).reduce((t, v) => t + v, 0)).toBe(60);
+    expect(hasil.reduce((t, v) => Math.round((t + v) * 1000) / 1000, 0)).toBe(100);
+  });
+
+  it("baris draft habis tapi masih lebih: draft jadi 0, sisanya dari kontrak secara proporsional", () => {
+    expect(sesuaikanDraftDulu([60, 60, 10], [false, false, true], 100)).toEqual([50, 50, 0]);
+  });
+
+  it("tanpa baris draft: sama dengan proporsional lama", () => {
+    expect(sesuaikanDraftDulu([30, 20, 10], [false, false, false], 30)).toEqual(sesuaikanProporsional([30, 20, 10], 30));
+  });
+
+  it("belum melebihi: null", () => {
+    expect(sesuaikanDraftDulu([100, 50], [false, true], 150)).toBeNull();
+    expect(sesuaikanDraftDulu([100, 50], [false, true], 200)).toBeNull();
   });
 });
