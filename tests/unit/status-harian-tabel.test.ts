@@ -16,7 +16,7 @@ const sumber = (over: Partial<SumberBaris> = {}): SumberBaris => ({
   slug: "pasir",
   packageName: "KNMP Kebumen",
   driveFolderId: "fld-1",
-  waGroupId: "grp-1",
+  grupWaLabel: "grup WhatsApp paket",
   status: "final",
   itemCount: 3,
   fotoCount: 4,
@@ -32,7 +32,7 @@ describe("barisTabel – nilai datar yang bisa disortir", () => {
     // Inti tegurannya: "kalau memang belum punya folder drive, kasih aja
     // seperti tombol atau symbol X warna merah". Kolom boolean itulah yang
     // membuat tandanya mungkin DAN membuat kolomnya bisa disortir.
-    const b = barisTabel(sumber({ driveFolderId: null, waGroupId: null }));
+    const b = barisTabel(sumber({ driveFolderId: null, grupWaLabel: null }));
     expect(b.punyaFolderDrive).toBe(false);
     expect(b.punyaGrupWa).toBe(false);
   });

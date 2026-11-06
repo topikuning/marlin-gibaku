@@ -20,6 +20,7 @@ import { sendFile, sendImage, sendText } from "@/lib/waha/kirim";
 import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 import { grupUntukLokasi } from "@/lib/waha/grup";
+import { kanonikGrupId } from "@/lib/waha/grup-id";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
@@ -161,14 +162,35 @@ export async function generateWahaWebhookSecretAction(): Promise<WaActionState> 
 export async function testWahaCaptureAction(): Promise<WaActionState> {
   try {
     const user = await requireCapability("system.manage");
+    /*
+     * Grup paket ATAU grup kabupaten – keduanya jalur masuk yang sah
+     * (DECISIONS 596). Dulu hanya grup paket yang dicari, jadi organisasi yang
+     * seluruhnya memakai grup kabupaten mendapat "belum ada grup tertaut"
+     * padahal pesannya diarsipkan normal (DECISIONS 747).
+     */
     const pkg = await db.package.findFirst({
       where: { waGroupId: { not: null } },
       select: { id: true, name: true, waGroupId: true },
     });
-    if (!pkg?.waGroupId) {
+    const kab = pkg?.waGroupId
+      ? null
+      : await db.waGroup.findFirst({
+          select: { waGroupId: true, regency: true, package: { select: { id: true, name: true } } },
+        });
+    const sasaran = pkg?.waGroupId
+      ? { packageId: pkg.id, namaPaket: pkg.name, chatId: pkg.waGroupId, sebutan: "grup paket" }
+      : kab
+        ? {
+            packageId: kab.package.id,
+            namaPaket: kab.package.name,
+            chatId: kab.waGroupId,
+            sebutan: kab.regency ? `grup kabupaten ${kab.regency}` : "grup kabupaten",
+          }
+        : null;
+    if (!sasaran) {
       return {
         warning:
-          "Belum ada paket dengan grup WhatsApp tertaut. Tautkan grup dulu di Paket → Grup WhatsApp, lalu coba lagi.",
+          "Belum ada grup WhatsApp tertaut, baik grup paket maupun grup kabupaten. Tautkan grup dulu di halaman Paket → Komunikasi paket, lalu coba lagi.",
       };
     }
     const ts = Math.floor(Date.now() / 1000);
@@ -176,8 +198,8 @@ export async function testWahaCaptureAction(): Promise<WaActionState> {
       event: "message",
       session: "uji",
       payload: {
-        id: `TES_${ts}_${pkg.id.slice(0, 8)}`,
-        from: pkg.waGroupId,
+        id: `TES_${ts}_${sasaran.packageId.slice(0, 8)}`,
+        from: sasaran.chatId,
         timestamp: ts,
         fromMe: false,
         body: "[uji webhook MARLIN] pesan ini dibuat oleh tombol Kirim event uji di Sistem.",
@@ -190,10 +212,10 @@ export async function testWahaCaptureAction(): Promise<WaActionState> {
     await audit(user.id, "system.waha_selftest", "app_setting", null, { stored: result.stored });
     if (result.stored) {
       return {
-        success: `Penerimaan pesan berjalan baik: pesan uji tersimpan ke paket "${pkg.name}" (grup ${pkg.waGroupId}). Kalau pesan asli tetap tidak masuk, masalahnya ada di pengiriman WAHA, bukan di MARLIN.`,
+        success: `Penerimaan pesan berjalan baik: pesan uji tersimpan ke paket "${sasaran.namaPaket}" lewat ${sasaran.sebutan} (${sasaran.chatId}). Kalau pesan asli tetap tidak masuk, masalahnya ada di pengiriman WAHA, bukan di MARLIN.`,
       };
     }
-    return { warning: `Pesan uji tidak tersimpan: ${result.reason}. (grup ${pkg.waGroupId})` };
+    return { warning: `Pesan uji tidak tersimpan: ${result.reason}. (${sasaran.sebutan} ${sasaran.chatId})` };
   } catch (err) {
     return fail(err);
   }
@@ -301,9 +323,12 @@ export async function setPackageWaGroupAction(
   }
 }
 
-/** Ambil daftar grup dari WAHA (untuk dropdown pemilihan). */
+/** Grup dari WAHA + penanda apakah sudah tertaut ke paket/kabupaten mana pun. */
+export type GrupDaftar = WahaGroup & { tertaut: boolean };
+
+/** Ambil daftar grup dari WAHA (untuk pemilih grup yang bisa dicari). */
 export async function listWaGroupsAction(): Promise<
-  { ok: true; groups: WahaGroup[] } | { ok: false; error: string }
+  { ok: true; groups: GrupDaftar[] } | { ok: false; error: string }
 > {
   try {
     await requireCapability("wa.configure");
@@ -321,7 +346,28 @@ export async function listWaGroupsAction(): Promise<
       /* lanjut — biar /groups yang bicara */
     }
     const groups = await listGroups();
-    return { ok: true, groups };
+    /*
+     * Penanda "sudah tertaut" – satu grup WhatsApp hanya boleh dipakai satu
+     * paket atau satu kabupaten (DECISIONS 370/596). Dengan puluhan grup di
+     * daftar, tanpa penanda ini orang baru tahu grupnya sudah dipakai setelah
+     * menekan Simpan. Nama paket pemakainya sengaja TIDAK disebut: pemilih ini
+     * bisa dibuka orang yang tidak berwenang atas paket lain.
+     */
+    const kanonik = groups.map((g) => kanonikGrupId(g.id)).filter((x): x is string => x != null);
+    const [dariPaket, dariKab] = kanonik.length
+      ? await Promise.all([
+          db.package.findMany({ where: { waGroupId: { in: kanonik } }, select: { waGroupId: true } }),
+          db.waGroup.findMany({ where: { waGroupId: { in: kanonik } }, select: { waGroupId: true } }),
+        ])
+      : [[], []];
+    const tertaut = new Set<string>([
+      ...dariPaket.map((r) => r.waGroupId).filter((x): x is string => x != null),
+      ...dariKab.map((r) => r.waGroupId),
+    ]);
+    return {
+      ok: true,
+      groups: groups.map((g) => ({ ...g, tertaut: tertaut.has(kanonikGrupId(g.id) ?? "") })),
+    };
   } catch (err) {
     const s = fail(err);
     return { ok: false, error: s?.error ?? "Gagal memuat grup." };
@@ -413,7 +459,7 @@ export async function sendActivityToWaAction(
           select: {
             name: true,
             slug: true,
-            package: { select: { name: true, waGroupId: true, waGroupName: true } },
+            package: { select: { name: true } },
           },
         },
         photos: { orderBy: { createdAt: "asc" }, select: { r2Key: true } },
@@ -529,7 +575,7 @@ export async function sendActivityPdfToWaAction(
         activityDate: true,
         locationId: true,
         location: {
-          select: { name: true, slug: true, package: { select: { name: true, waGroupId: true } } },
+          select: { name: true, slug: true, package: { select: { name: true } } },
         },
       },
     });

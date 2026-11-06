@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { MapPin } from "lucide-react";
+import { useState, useTransition } from "react";
+import { MapPin, RefreshCw } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
+import { listWaGroupsAction, type GrupDaftar } from "@/lib/waha/actions";
+import { kataKunciKabupaten } from "@/lib/waha/cari-grup";
 import { setWaGrupKabupatenAction, type WaKabupatenState } from "@/lib/waha/kabupaten-actions";
+import { PemilihGrupWa } from "./pemilih-grup-wa";
 
 export type BarisKabupaten = {
   regency: string;
@@ -29,16 +32,58 @@ export type BarisKabupaten = {
  * kabupaten itu. Itu memang maksudnya — PPK meminta satu kabupaten satu grup,
  * dan memasangnya satu-satu berarti mengetik ID yang sama berkali-kali, yang
  * satu ketikan melesetnya membuat satu lokasi melapor ke grup lain.
+ *
+ * Sejak DECISIONS 747 grupnya juga bisa DIPILIH dari daftar yang bisa dicari –
+ * dulu form ini hanya menerima ID yang diketik/ditempel. Kotak carinya terisi
+ * nama kabupaten lebih dulu, karena itulah yang biasanya tertulis di nama grup.
+ * Daftar dimuat SEKALI untuk semua baris.
+ *
+ * Kalimat "mengikuti grup paket" hanya dipakai kalau grup paketnya ADA. Kalau
+ * tidak, lokasi tanpa grup kabupaten tidak mengikuti apa pun – dan menyebutnya
+ * "mengikuti grup paket" menyembunyikan bahwa kirimannya tidak punya tujuan.
  */
 export function WaKabupatenForm({
   packageId,
   baris,
+  adaGrupPaket,
+  wahaConfigured,
 }: {
   packageId: string;
   baris: BarisKabupaten[];
+  adaGrupPaket: boolean;
+  wahaConfigured: boolean;
 }) {
   const [state, action, pending] = useAksi<WaKabupatenState>(setWaGrupKabupatenAction, undefined);
   const [terbuka, setTerbuka] = useState<string | null>(null);
+  const [isianId, setIsianId] = useState("");
+  const [isianNama, setIsianNama] = useState("");
+
+  const [groups, setGroups] = useState<GrupDaftar[] | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [loading, startLoad] = useTransition();
+
+  const muatGrup = () => {
+    setLoadErr(null);
+    startLoad(async () => {
+      const res = await listWaGroupsAction();
+      if (res.ok) setGroups(res.groups);
+      else setLoadErr(res.error);
+    });
+  };
+
+  const bukaBaris = (b: BarisKabupaten) => {
+    if (terbuka === b.regency) {
+      setTerbuka(null);
+      return;
+    }
+    setTerbuka(b.regency);
+    setIsianId(b.chatId ?? "");
+    setIsianNama(b.namaGrup ?? "");
+  };
+
+  const ikutPaket = adaGrupPaket
+    ? "masih mengikuti grup paket"
+    : "jadi belum punya tujuan kiriman karena paket belum punya grup paket";
 
   if (baris.length === 0) {
     return (
@@ -60,6 +105,23 @@ export function WaKabupatenForm({
         dua paket.
       </p>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="secondary" onClick={muatGrup} loading={loading} disabled={!wahaConfigured}>
+          <RefreshCw aria-hidden className="size-3.5" />
+          {groups ? "Muat ulang daftar grup" : "Muat daftar grup dari WhatsApp"}
+        </Button>
+        {!wahaConfigured ? (
+          <span className="text-[12px] text-ink-muted">Server WhatsApp belum diatur – isi ID grup manual.</span>
+        ) : null}
+      </div>
+      {loadErr ? (
+        <Banner
+          tone="warning"
+          title="Belum bisa memuat daftar grup"
+          description={`${loadErr} – sementara itu, isi ID grup manual.`}
+        />
+      ) : null}
+
       <ul className="divide-y divide-border rounded-md border border-border">
         {baris.map((b) => {
           const buka = terbuka === b.regency;
@@ -79,21 +141,20 @@ export function WaKabupatenForm({
                         {b.belumIkut > 0 ? (
                           <span className="text-warning">
                             {" "}
-                            – {b.belumIkut} lokasi belum ikut, masih mengikuti grup paket
+                            · {b.belumIkut} lokasi belum ikut, {ikutPaket}
                           </span>
                         ) : null}
                       </>
-                    ) : (
+                    ) : adaGrupPaket ? (
                       "Belum punya grup sendiri, jadi semua lokasinya mengikuti grup paket."
+                    ) : (
+                      <span className="text-warning">
+                        Belum punya grup, dan paket belum punya grup paket – lokasinya belum punya tujuan kiriman.
+                      </span>
                     )}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setTerbuka(buka ? null : b.regency)}
-                >
+                <Button type="button" size="sm" variant="secondary" onClick={() => bukaBaris(b)}>
                   {buka ? "Tutup" : b.chatId ? "Ubah" : "Pasang grup"}
                 </Button>
               </div>
@@ -102,18 +163,46 @@ export function WaKabupatenForm({
                 <form action={action} className="mt-2 space-y-2 rounded-md bg-surface-muted p-2.5">
                   <input type="hidden" name="packageId" value={packageId} />
                   <input type="hidden" name="regency" value={b.regency} />
+                  <input type="hidden" name="waGroupName" value={isianNama} />
+
+                  {groups ? (
+                    groups.length === 0 ? (
+                      <p className="text-[12px] text-ink-muted">
+                        Tidak ada grup pada akun WhatsApp ini. Pastikan nomor pengirim sudah menjadi anggota
+                        grup, atau isi ID grup manual di bawah.
+                      </p>
+                    ) : (
+                      <PemilihGrupWa
+                        groups={groups}
+                        terpilih={isianId}
+                        onPilih={(g) => {
+                          setIsianId(g.id);
+                          setIsianNama(g.name);
+                        }}
+                        kataAwal={kataKunciKabupaten(b.regency)}
+                        idCari={`wa-cari-${b.regency}`}
+                      />
+                    )
+                  ) : null}
+
                   <div>
                     <Label htmlFor={`wa-${b.regency}`}>ID grup WhatsApp</Label>
                     <Input
                       id={`wa-${b.regency}`}
                       name="waGroupId"
-                      defaultValue={b.chatId ?? ""}
+                      value={isianId}
+                      onChange={(e) => {
+                        setIsianId(e.target.value);
+                        setIsianNama("");
+                      }}
                       placeholder="1203630…@g.us"
                       className="h-9"
                     />
                     <p className="mt-1 text-[11px] text-ink-muted">
-                      Untuk MELEPAS grup kabupaten ini, kosongkan isian lalu simpan. Lokasinya akan
-                      kembali mengikuti grup paket.
+                      Untuk MELEPAS grup kabupaten ini, kosongkan isian lalu simpan.{" "}
+                      {adaGrupPaket
+                        ? "Lokasinya akan kembali mengikuti grup paket."
+                        : "Sesudah itu lokasinya tidak punya tujuan kiriman, karena paket belum punya grup paket."}
                     </p>
                   </div>
                   <Button type="submit" size="sm" loading={pending}>

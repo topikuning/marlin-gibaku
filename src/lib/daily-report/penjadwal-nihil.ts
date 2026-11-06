@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { grupUntukLokasi } from "@/lib/waha/grup";
+import { LOKASI_PUNYA_GRUP_WA } from "@/lib/waha/grup-tujuan";
 import { sendText } from "@/lib/waha/kirim";
 import { AMBANG_NIHIL_BERUNTUN, LABEL_ALASAN_NIHIL, nihilBeruntun } from "./nihil";
 import type { NoActivityReason } from "@/generated/prisma/enums";
@@ -68,12 +69,12 @@ export async function kirimPengingatNihilTerjadwal(
        * sudah dipasang, tetapi paketnya belum punya grup (DECISIONS 596).
        */
       package: { stage: "pelaksanaan" },
-      OR: [{ waGroupRefId: { not: null } }, { package: { waGroupId: { not: null } } }],
+      ...LOKASI_PUNYA_GRUP_WA,
     },
     select: {
       id: true,
       name: true,
-      package: { select: { id: true, name: true, waGroupId: true } },
+      package: { select: { id: true, name: true } },
     },
   });
 

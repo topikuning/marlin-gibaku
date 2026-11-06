@@ -180,6 +180,42 @@ export default async function RingkasanPaketPage({
         return [...per.values()];
       })()
     : [];
+  /*
+   * Lokasi aktif yang TIDAK lewat grup kabupaten – hanya merekalah yang
+   * bergantung pada grup paket. Tanpa angka ini kartu grup paket menulis
+   * "tanpa grup, laporan tidak punya tujuan" untuk paket yang seluruh
+   * lokasinya sudah lewat grup kabupaten (DECISIONS 747).
+   */
+  const lokasiAktifKab = barisKabupaten.reduce((n, b) => n + b.jumlahLokasi, 0);
+  const lokasiIkutPaket = barisKabupaten.reduce(
+    (n, b) => n + (b.chatId ? b.belumIkut : b.jumlahLokasi),
+    0,
+  );
+  /*
+   * Kalimat baris "per kabupaten". Lokasi yang BELUM IKUT grup kabupatennya
+   * (mis. ditambahkan sesudah grup dipasang) wajib disebut: tanpa itu baris
+   * ini berbunyi "semua kabupaten punya grup" sementara dua lokasinya tidak
+   * punya tujuan kiriman sama sekali.
+   */
+  const kabBergrup = barisKabupaten.filter((b) => b.chatId);
+  const belumIkutKab = kabBergrup.reduce((n, b) => n + b.belumIkut, 0);
+  const sisaIkut = pkg.waGroupId ? "mengikuti grup paket" : "belum punya tujuan kiriman";
+  const kabTanpaTujuan = !pkg.waGroupId && lokasiIkutPaket > 0;
+  const keteranganKab =
+    kabBergrup.length === 0
+      ? pkg.waGroupId
+        ? "Belum ada. Lokasi paket ini seluruhnya mengikuti grup paket."
+        : "Belum ada, dan grup paket juga belum ada."
+      : [
+          kabBergrup.length === barisKabupaten.length
+            ? barisKabupaten.length === 1
+              ? `Kabupaten ${barisKabupaten[0].regency} punya grup sendiri`
+              : `Semua ${barisKabupaten.length} kabupaten punya grup sendiri`
+            : `${kabBergrup.length} dari ${barisKabupaten.length} kabupaten punya grup sendiri, sisanya ${sisaIkut}`,
+          belumIkutKab > 0 ? `${belumIkutKab} lokasi belum ikut grup kabupatennya dan ${sisaIkut}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
   const canKirimLaporan = can(user.role, "ai.report_send");
   // Tujuan kiriman mingguan ditanyakan ke syarat yang sama dengan pengirimnya:
   // grup paket ATAU grup kabupaten lokasi (bukan `pkg.waGroupId` saja).
@@ -883,11 +919,19 @@ export default async function RingkasanPaketPage({
                     nama="Grup WhatsApp paket"
                     keterangan={
                       pkg.waGroupId
-                        ? `${pkg.waGroupName ?? "Grup tertaut"} · tujuan kiriman laporan & kegiatan semua lokasi paket ini`
-                        : "Belum tertaut. Tanpa grup, laporan & kegiatan lapangan tidak punya tujuan kiriman."
+                        ? lokasiIkutPaket === lokasiAktifKab
+                          ? `${pkg.waGroupName ?? "Grup tertaut"} · tujuan kiriman laporan & kegiatan semua lokasi paket ini`
+                          : lokasiIkutPaket === 0
+                            ? `${pkg.waGroupName ?? "Grup tertaut"} · semua lokasi sudah lewat grup kabupaten, jadi kiriman lokasi tidak masuk ke sini`
+                            : `${pkg.waGroupName ?? "Grup tertaut"} · tujuan kiriman ${lokasiIkutPaket} lokasi yang tidak punya grup kabupaten`
+                        : lokasiAktifKab > 0 && lokasiIkutPaket === 0
+                          ? "Belum tertaut, dan tidak wajib: semua lokasi sudah lewat grup kabupaten."
+                          : lokasiIkutPaket < lokasiAktifKab
+                            ? `Belum tertaut. ${lokasiIkutPaket} lokasi tanpa grup kabupaten belum punya tujuan kiriman.`
+                            : "Belum tertaut. Tanpa grup, laporan & kegiatan lapangan tidak punya tujuan kiriman."
                     }
-                    status={pkg.waGroupId ? "Terpasang" : "Belum"}
-                    statusTone={pkg.waGroupId ? "success" : "warning"}
+                    status={pkg.waGroupId ? "Terpasang" : lokasiAktifKab > 0 && lokasiIkutPaket === 0 ? "Tidak wajib" : "Belum"}
+                    statusTone={pkg.waGroupId ? "success" : lokasiAktifKab > 0 && lokasiIkutPaket === 0 ? "neutral" : "warning"}
                     aksi={
                       <Drawer
                         trigger={pkg.waGroupId ? "Kelola koneksi" : "Tautkan grup"}
@@ -912,20 +956,27 @@ export default async function RingkasanPaketPage({
                 {canWaConfigure ? (
                   <BarisIntegrasi
                     nama="Grup WhatsApp per kabupaten"
-                    keterangan={
-                      barisKabupaten.some((b) => b.chatId)
-                        ? `${barisKabupaten.filter((b) => b.chatId).length} dari ${barisKabupaten.length} kabupaten punya grup sendiri · sisanya mengikuti grup paket`
-                        : "Belum ada. Lokasi paket ini seluruhnya mengikuti grup paket."
-                    }
+                    keterangan={keteranganKab}
                     status={barisKabupaten.some((b) => b.chatId) ? "Terpasang" : "Belum"}
-                    statusTone={barisKabupaten.some((b) => b.chatId) ? "success" : "neutral"}
+                    statusTone={
+                      !barisKabupaten.some((b) => b.chatId)
+                        ? "neutral"
+                        : kabTanpaTujuan
+                          ? "warning"
+                          : "success"
+                    }
                     aksi={
                       <Drawer
                         trigger="Atur per kabupaten"
                         title="Grup WhatsApp per kabupaten"
                         subtitle="Satu kabupaten satu grup – berlaku untuk lokasi paket ini saja."
                       >
-                        <WaKabupatenForm packageId={pkg.id} baris={barisKabupaten} />
+                        <WaKabupatenForm
+                          packageId={pkg.id}
+                          baris={barisKabupaten}
+                          adaGrupPaket={pkg.waGroupId != null}
+                          wahaConfigured={await isWahaConfigured()}
+                        />
                       </Drawer>
                     }
                   />

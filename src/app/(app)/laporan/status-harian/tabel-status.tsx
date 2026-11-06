@@ -203,12 +203,12 @@ export function TabelStatus({ rows, dateKey }: Props) {
               label={d.waTerkirim ? "Sudah" : "Kirim"}
               judul={
                 halangan === "Tanpa grup"
-                  ? "Paket belum punya grup WhatsApp – tidak bisa dikirim"
+                  ? "Lokasi ini belum punya grup WhatsApp – grup kabupaten maupun grup paket"
                   : halangan === "Kosong"
                     ? "Belum ada yang bisa dikirim"
                     : d.waTerkirim
-                      ? `${d.waKeterangan} · klik untuk kirim ulang`
-                      : "Belum dikirim · klik untuk kirim ke grup WA"
+                      ? `${d.waKeterangan} ke ${d.grupWaLabel} · klik untuk kirim ulang`
+                      : `Belum dikirim · klik untuk kirim ke ${d.grupWaLabel}`
               }
               onClick={() => {
                 // Kiriman ke grup PPK TIDAK bisa ditarik kembali — konfirmasi
@@ -224,7 +224,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
                 const ulang = d.waTerkirim ? "\n\nRingkasan tanggal ini SUDAH pernah dikirim." : "";
                 if (
                   !window.confirm(
-                    `Kirim ringkasan ${d.lokasi} ke grup WhatsApp?\n\nPesan dan PDF langsung masuk ke grup WhatsApp lokasi itu (PPK, dinas, pejabat) dan tidak bisa ditarik kembali.${peringatan}${ulang}`,
+                    `Kirim ringkasan ${d.lokasi} ke ${d.grupWaLabel}?\n\nPesan dan PDF langsung masuk ke grup itu (PPK, dinas, pejabat) dan tidak bisa ditarik kembali.${peringatan}${ulang}`,
                   )
                 )
                   return;

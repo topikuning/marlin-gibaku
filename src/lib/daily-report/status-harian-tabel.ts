@@ -32,7 +32,8 @@ export type SumberBaris = {
   slug: string;
   packageName: string;
   driveFolderId: string | null;
-  waGroupId: string | null;
+  /** Sebutan grup tujuan efektif (kabupaten dulu, lalu paket); null = tanpa tujuan. */
+  grupWaLabel: string | null;
   status: DailyReportStatus | null;
   itemCount: number;
   fotoCount: number;
@@ -64,6 +65,8 @@ export type BarisTabel = {
   /** Kalimat lengkap untuk `title` — tidak memakan kolom. */
   driveKeterangan: string;
   punyaGrupWa: boolean;
+  /** Ke grup mana kiriman WA lokasi ini masuk – untuk tooltip & konfirmasi. */
+  grupWaLabel: string | null;
   waTerkirim: boolean;
   waKeterangan: string;
   /** Ada sesuatu yang bisa diunggah/dikirim. Tanpa ini, tombolnya menipu. */
@@ -98,7 +101,8 @@ export function barisTabel(r: SumberBaris): BarisTabel {
     diDrive,
     driveWebLink: r.drive.webLink,
     driveKeterangan,
-    punyaGrupWa: r.waGroupId != null,
+    punyaGrupWa: r.grupWaLabel != null,
+    grupWaLabel: r.grupWaLabel,
     waTerkirim: r.waSentAt != null,
     waKeterangan: r.waSentAt ? `Terkirim ${formatTanggalWaktu(r.waSentAt)}` : "Belum dikirim",
     adaIsi,

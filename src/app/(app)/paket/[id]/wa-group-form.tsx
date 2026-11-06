@@ -9,10 +9,10 @@ import {
   listWaGroupsAction,
   resolveWaInviteAction,
   setPackageWaGroupAction,
+  type GrupDaftar,
   type WaActionState,
 } from "@/lib/waha/actions";
-
-type WahaGroup = { id: string; name: string };
+import { PemilihGrupWa } from "./pemilih-grup-wa";
 
 /**
  * Atur grup WhatsApp tujuan sebuah paket. Dua cara mengisi:
@@ -34,7 +34,7 @@ export function WaGroupForm({
   const [state, action, pending] = useAksi<WaActionState>(setPackageWaGroupAction, undefined);
   const [groupId, setGroupId] = useState(currentGroupId ?? "");
   const [groupName, setGroupName] = useState(currentGroupName ?? "");
-  const [groups, setGroups] = useState<WahaGroup[] | null>(null);
+  const [groups, setGroups] = useState<GrupDaftar[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [loading, startLoad] = useTransition();
 
@@ -65,7 +65,7 @@ export function WaGroupForm({
     });
   };
 
-  const pick = (g: WahaGroup) => {
+  const pick = (g: GrupDaftar) => {
     setGroupId(g.id);
     setGroupName(g.name);
   };
@@ -128,22 +128,8 @@ export function WaGroupForm({
               anggota grup, atau isi ID grup manual di bawah.
             </p>
           ) : (
-            <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-              {groups.map((g) => (
-                <label key={g.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="pickGroup"
-                    checked={groupId === g.id}
-                    onChange={() => pick(g)}
-                    className="border-border"
-                  />
-                  <span className="min-w-0">
-                    {g.name}
-                    <span className="block text-xs text-ink-faint">{g.id}</span>
-                  </span>
-                </label>
-              ))}
+            <div className="mt-2">
+              <PemilihGrupWa groups={groups} terpilih={groupId} onPilih={pick} idCari="wa-cari-paket" />
             </div>
           )
         ) : null}
@@ -234,7 +220,8 @@ export function WaGroupForm({
         ) : null}
       </div>
       <p className="text-xs text-ink-muted">
-        Semua laporan/kegiatan lokasi di paket ini dikirim ke grup ini.
+        Laporan dan kegiatan lokasi paket ini dikirim ke grup ini, kecuali lokasi yang punya grup
+        kabupaten sendiri.
       </p>
     </form>
   );

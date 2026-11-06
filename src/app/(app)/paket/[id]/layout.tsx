@@ -6,6 +6,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { formatRupiah } from "@/lib/format";
+import { paketPunyaGrupWa } from "@/lib/waha/grup-tujuan";
 import { contractMismatch, withPpn } from "@/lib/money";
 import {
   getActiveRabSum,
@@ -124,7 +125,7 @@ export default async function PaketWorkspaceLayout({
             contract?.startDate ? (
               <ButtonLink href={`/ai/paparan?paket=${pkg.id}`}>Buat Presentasi</ButtonLink>
             ) : null}
-            {pkg.waGroupId && can(user.role, "wa.chat") ? (
+            {paketPunyaGrupWa(pkg) && can(user.role, "wa.chat") ? (
               <ButtonLink href={`/chat-grup?p=${pkg.id}`} variant="primary">
                 Chat Grup MARLIN
               </ButtonLink>
