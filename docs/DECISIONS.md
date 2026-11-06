@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 746 | 2026-11-06 | OPEN_ISSUES VOL-01 (dicatat di 742) keliru – pemeriksaan ulang volume saat kirim sudah ada (CALC-02); dibuang. Pesan penolakan kini menyebut tanggal + volume laporan lain yang memakai sisanya |
 | 745 | 2026-11-06 | Aktivasi adendum: laporan yang melebihi volume baru dipotong dari baris berbasis draft adendum dulu (dibagi rata di antara baris draft); baris kontrak baru ikut turun bila baris draft sudah habis – mengubah pembagian rata semua baris (ketetapan 2026-09-03) untuk kasus ada baris draft |
 | 744 | 2026-11-06 | Papan Status Laporan Harian diberi saringan Paket (Combobox, `?paket=`): pemilih lokasi menyempit ke paket itu, kartu angka dihitung untuk paket itu, ganti paket mengosongkan lokasi; kolom nama paket tetap tidak kembali ke tabel |
 | 743 | 2026-11-06 | Baris laporan harian berbasis draft adendum diberi label, kumulatifnya dua baris (Kontrak x / volume kontrak · Draft adendum semua basis / volume draft), rupiahnya "belum resmi"; "Nilai hari ini" hanya baris kontrak, nilai draft disebut terpisah (dulu kumulatif kontrak dibagi volume draft, tanpa penanda) |

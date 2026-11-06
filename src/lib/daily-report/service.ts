@@ -9,7 +9,7 @@ import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
 import { weekOfDate, weekDateRange, prestasiPct } from "@/lib/progress-calc";
-import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
+import { formatNumber, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { dominantWeatherCode, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { Prisma } from "@/generated/prisma/client";
 import type {
@@ -556,8 +556,29 @@ async function assertVolumeWithinRab(
     const total = others + Number(it.volumeDone);
     if (total > volK + VOLUME_EPSILON) {
       const sisa = Math.max(0, Math.round((volK - others) * 1000) / 1000);
+      /*
+       * Laporan mana yang sudah memakai sisanya – disebut tanggalnya
+       * (permintaan user 2026-11-06). "Laporan lain sudah terkirim" saja tidak
+       * memberi tahu yang ditolak harus memeriksa laporan yang mana.
+       */
+      const pemakai = await tx.dailyReportItem.findMany({
+        where: {
+          lineageKey: it.lineageKey,
+          ...(it.basis === "aktif" ? { basis: "aktif" } : {}),
+          report: { locationId: report.locationId, status: { in: [...COUNTED_REPORT_STATUSES] }, id: { not: report.id } },
+        },
+        select: { volumeDone: true, report: { select: { reportDate: true } } },
+        orderBy: { report: { reportDate: "desc" } },
+        take: 3,
+      });
+      const satuan = ref.unit ?? "";
+      const dipakai = pemakai.length
+        ? `; sudah dipakai laporan ${pemakai
+            .map((p) => `${formatTanggal(p.report.reportDate)} (${formatNumber(Number(p.volumeDone))} ${satuan})`.replace(/ \)$/, ")"))
+            .join(", ")}${pemakai.length === 3 ? ", …" : ""}`
+        : "";
       offending.push(
-        `${ref.code} ${ref.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${ref.unit ?? ""} (sisa ${formatNumber(sisa)})`.trim(),
+        `${ref.code} ${ref.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${satuan} (sisa ${formatNumber(sisa)}${dipakai})`.trim(),
       );
     }
   }
