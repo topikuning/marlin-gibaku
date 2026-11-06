@@ -17,12 +17,15 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 - 🟡 **DATA-JUMLAH-NOL — item ber-`amount` 0 padahal volume dan harga satuannya
   terisi.** Terukur pada RAB aktif 16 lokasi: 3–19 baris per lokasi, dan di
-  `purworejo` nilainya **Rp 22,95 juta** (19 baris). Sebabnya kolom JUMLAH di berkas
-  sumber kosong sementara kolom itu dipakai apa adanya (DECISIONS 212), jadi
+  `purworejo` nilainya **Rp 22,95 juta** (19 baris). Sebabnya JUMLAH di berkas sumber
+  tertulis **0** (bukan kosong) dan dipakai apa adanya. Sel JUMLAH yang KOSONG sudah
+  punya aturan sejak DECISIONS 586 (subtotal berkas yang memutuskan, barisnya disebut
+  di pratinjau), tetapi yang bernilai 0 lolos dari aturan itu (`barisTanpaJumlah` di
+  `flatten.ts` hanya menjaring `null`) dan tidak disebut saat impor. Akibatnya
   pekerjaannya tercatat tanpa nilai: bobot item, kurva-S, dan seluruh persentase
   progress menghitungnya nol. Sejak DECISIONS 601 unduhan RAB MENYEBUTKAN baris ini
   di catatan sheet Resume, jadi tidak lagi tak terlihat — tetapi datanya sendiri
-  belum dibetulkan. FIX: putuskan (tanya user) apakah baris begini diisi
+  belum dibetulkan. FIX: putuskan (tanya user) apakah baris ber-JUMLAH 0 diisi
   `volume × harga satuan` saat impor, atau ditolak dengan menyebut barisnya.
 
 - 🔴 **Kualitas data seed JSON (parser python lama)**: `total_value` kategori korup di
@@ -79,13 +82,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   tab Kawal KNMP satu lokasi dengan angka Relatif di layar Kawal, ATAU uji sambungan
   berikutnya menunjukkan Relatif = rasio terhadap rencana → tetapkan field-nya →
   tampilkan di tab dan strip atas.
-- 🟡 **KAWAL-SINKRON-SARPRAS — sinkron Kawal gagal sejak 2026-10-22.** Sebab
-  terbukti dari pesan rinci (DECISIONS 695): `nilai` sarana ke-6 (id 5864) di baris
-  80 (id Kawal 334) berupa teks yang bukan angka – satu dari 893 sarana. Diperbaiki
-  di DECISIONS 700 (rupiah berformat dibaca; nilai sarana yang tetap tak terbaca
-  disimpan kosong + dicatat). Selesai bila sinkron terjadwal sesudah rilis ke
-  `main` hijau; layar Pencocokan lalu menyebut apakah catatan itu muncul (artinya
-  nilainya memang bukan angka, bukan sekadar format).
 - 🟢 **KAWAL-SARANA — makna progres per sarana Kawal belum terbukti.** Tabel per
   sarana (DECISIONS 694) menampilkan angka sarana Kawal apa adanya dan selisihnya
   tanpa warna, karena Σ bobot × progres sarana belum terbukti sama dengan
@@ -96,7 +92,8 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 - 🟡 **RLS belum diimplementasi** (dan TIDAK diklaim). Otorisasi di application layer
   (capability + scope), diuji test. RLS = hardening tahap berikut.
-- 🟡 Rate limit hanya untuk login; server action lain belum di-rate-limit.
+- 🟡 Rate limit baru ada untuk login dan panggilan AI (`ai-hub/guard.ts`, per user/jam &
+  org/hari); server action lain belum dibatasi.
 - 🟢 CSP/security headers belum diset di next.config.
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
@@ -114,7 +111,6 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   Dua yang terakhir menuntut cangkang native (Capacitor/TWA), bukan peramban —
   lihat DECISIONS 398 untuk kenapa aplikasi Android penuh ditolak.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
-- 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
   forecast biaya belum).
 - 🔵 **FUTURE — parse PDF undangan/penunjukan → buat prospek otomatis.** Surat KKP
@@ -182,17 +178,17 @@ Perlu: model serah terima parsial (per pekerjaan/kategori/lokasi selesai) + BA-n
 tanpa mengganggu PHO/FHO final.
 
 ## FUTURE · Auto-flag termin berdasar progres agregat — DECISIONS 078
-Termin 20/25/30/25 ditagih saat progres TOTAL kontrak mencapai 25/50/80/100%, dengan
-retensi pemeliharaan 5% (bisa diganti jaminan pemeliharaan). Perlu: modul keuangan
-otomatis menandai "termin-N siap ditagih" saat progres agregat lewat ambang, +
-perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scope induk.
+Sudah ada: kartu Kesiapan Termin menandai termin siap berdasar progres
+(`lib/kesiapan`), dan retensi per termin (`ContractTermin.retensiPct`, DECISIONS 716).
+Belum: opsi jaminan pemeliharaan sebagai pengganti retensi. Ambang kartu Kesiapan masih
+konstanta – lihat "Ambang termin: dua sumber" di Pengendalian Terpadu.
 
 ## FUTURE · AI Hub — pekerjaan lanjutan yang sengaja ditunda (DECISIONS 133)
 - E2E Playwright alur AI (PM buka hub → pulse → variance → report lifecycle →
   distribusi → Ask) belum ditulis — unit (34) + integration hijau.
-- Rule readiness/quality tambahan: dokumen WAJIB per fase (butuh definisi daftar
-  wajib), kandidat foto near-duplicate (butuh perceptual hash — byte-identik
-  sudah dicegah sha256), spike volume harian abnormal.
+- Rule quality tambahan: kandidat foto near-duplicate (butuh perceptual hash —
+  byte-identik sudah dicegah sha256) dan spike volume harian abnormal. (Dokumen wajib
+  per fase sudah ada di mesin kesiapan dari milestone.)
 - "What changed vs periode sebelumnya" di Pulse masih dari data run yang sama;
   pembanding run sebelumnya (inputHash sama) belum di-feed ke prompt.
 - Estimasi biaya: pricing per-provider (sekarang satu set harga global aktif).
@@ -204,16 +200,18 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
   balasan berupa tautan review ber-autentikasi — bukan PDF ke grup.
 - Distribusi artefak paparan (beku → terkirim) belum dibuka — unduh PDF final
   manual dulu; transisi `terkirim` sengaja ditolak di `transisiPaparanAction`.
-- Kurva-S PAKET pada slide progres masih visual rencana-vs-realisasi sederhana;
-  seri kurva-S agregat paket butuh builder calculation-layer sendiri.
+- Kurva-S PAKET: builder calculation-layer-nya sudah ada (`gabungKurvaS`,
+  DECISIONS 678), tetapi slide progres paparan belum memakainya dan merakit gabungan
+  sendiri (`paparan/snapshot.ts`) – dua jalur kurva paket.
 
 ## FUTURE · Chat grup & kop surat — lanjutan (DECISIONS 135)
 - Penjadwalan OTOMATIS ringkasan harian chat grup (tiap pagi utk H-1) — butuh
   scheduler; opsi: Railway cron job memanggil route internal. Perlu keputusan.
 - Sinkronisasi ringkasan chat ke laporan: tampilkan di workspace lokasi/paket,
   ikut sebagai konteks exec-report & AI Hub (sumber "chat_grup" + sourceRef).
-- Wiring kop surat + logo perusahaan ke header dokumen cetak /cetak/* (KKP,
-  laporan periodik, laporan AI).
+- Kop surat + logo di /cetak/*: cover harian & mingguan sudah ber-logo pelaksana,
+  kop surat dipakai surat penyedia. Belum: `/cetak/ai` tanpa logo/kop, periodik
+  bulanan memberi logo kosong, gambar kop vendor belum dipakai di header /cetak.
 
 ## PERF · Halaman cetak laporan mingguan lambat pada RAB besar (DECISIONS 151)
 Lokasi dengan RAB ~1.700 baris item butuh ~22 detik untuk merender
@@ -337,27 +335,27 @@ yang dilarang protokol.
 
 Protokol meminta tiap angka membawa metadata (`dataAsOf`, `calculationKey`,
 `statusLevel`, `revisionId`, `baselineId`, `sourceEntityIds`) supaya bisa
-di-drill-down. Saat ini hanya AI Hub Pulse yang punya `dataAsOf`.
+di-drill-down. `dataAsOf` kini ada di AI Hub Pulse dan paparan; dasbor dan laporan
+lain belum.
 
-Wujud konkretnya di `getLocationProgress`: realisasi dihitung untuk SELURUH
-waktu sementara `planPct` memakai minggu berjalan menurut jam dinding. Untuk
-"hari ini" angkanya benar; yang tidak bisa dijawab adalah **"berapa angkanya
-per 30 Juni?"**. Laporan periodik tidak punya masalah ini — ia memakai batas
-periode eksplisit dan sudah diuji stabil terhadap "hari ini" (*Date-as-of
-gate*). Jadi ini soal ketertelusuran, bukan kebenaran angka.
+Opsi (a) sudah terpasang: `getLocationProgress(id, { asOf })` menyaring laporan
+≤ `asOf` dan minggu rencananya ikut `asOf` (dipakai snapshot harian, paparan, surat
+penyedia), jadi "berapa angkanya per 30 Juni?" sudah bisa dijawab di kode. Ini soal
+ketertelusuran, bukan kebenaran angka.
 
-Opsi: (a) tambah parameter `asOf` pada `getLocationProgress`; (b) cukup beri
-label "s.d. hari ini" pada setiap KPI dashboard; (c) presentation contract
-berlabel penuh lintas modul. Perlu keputusan — (a) dan (c) refactor besar,
-(b) murah dan sudah menghilangkan salah tafsir.
+Sisa pilihan: (b) label "s.d. hari ini" pada setiap KPI dashboard (murah, baru ada di
+sebagian tempat); (c) presentation contract berlabel penuh lintas modul (refactor
+besar). Perlu keputusan.
 
 ## 🟢 Jadwal asumsi (SPMK belum terbit) tidak ditandai di output (audit M9)
 
 `getPeriodBounds(locationId, { assume: true })` mengasumsikan kontrak mulai HARI
 INI ketika SPMK belum ada, supaya kurva-S rencana tetap bisa dilihat. Flag
-`assumed` ADA di `PeriodBounds` tetapi tidak diteruskan ke `PeriodReport`,
-sehingga halaman Cetak Jadwal / Unduh Excel tidak memberi tanda bahwa tanggalnya
-karangan. Laporan periodik resmi tidak terpengaruh (dipanggil tanpa `assume`).
+`assumed` sudah ditandai di Cetak Jadwal, Cetak Rencana-Realisasi, PDF jadwal, dan
+kurva paket (membaca `bounds.assumed`). Belum: `PeriodReport` tanpa `assumed`, sehingga
+Unduh Excel jadwal (`jadwal/export`), `jadwal/rincian`, dan `rencana-realisasi/export`
+tidak memberi tanda bahwa tanggalnya karangan. Laporan periodik resmi tidak terpengaruh
+(dipanggil tanpa `assume`).
 
 ## 🟢 Pembulatan belum seragam antar layer (audit L9, L10)
 
@@ -375,20 +373,21 @@ PDF, Excel, komponen cetak, dan payload AI semuanya mengonsumsi objek
 `PeriodReport` / `getLocationsProgress` yang sama, jadi kesamaannya bersifat
 struktural. Tetapi tidak ada test yang MEMBUKTIKAN angka di file hasil render
 sama dengan angka di layar. Kalau suatu saat ada yang menyisipkan pembulatan di
-renderer, tidak ada yang menangkapnya.
+renderer, tidak ada yang menangkapnya. Sudah ada pengecekan per berkas (KPI Excel AI =
+brief, cache REKAP KKP, cache Jumlah RAB = angka tersimpan); yang belum: angka di PDF
+dan WA, dan uji lintas kanal "satu `PeriodReport` → layar = PDF = Excel = WA".
 
 ## Audit total 2026-07-27 — sisa yang sengaja di-defer (P0 di DECISIONS 154, P1/P2 di DECISIONS 155)
 
 Semua temuan B1–B19 sudah dikerjakan (lihat DECISIONS 154–155). Yang tersisa
 adalah defer eksplisit + item yang butuh keputusan:
 
-- 🟡 **UI — migrasi primitif Modal/Drawer penuh**: 4 dialog/drawer ad-hoc sudah
-  dapat Escape + focus-restore (`useDismissable`, `ConfirmSubmit`), tetapi belum
-  jadi satu primitif Modal/Drawer bersama (focus trap penuh + inert background).
-- 🟢 **UI — token tipografi**: skala font de-facto (10/11/12/13px, 262 kemunculan
-  `text-[Npx]`) belum diangkat jadi token; sensus 53 tombol mentah belum
-  dimigrasi semua ke `Button` (yang paling terlihat sudah: masuk, ganti-password,
-  foto).
+- 🟡 **UI — migrasi primitif Modal/Drawer penuh**: `ui/drawer.tsx` dan `ConfirmSubmit`
+  sudah mengurung fokus + Escape, tetapi masih 11 dialog buatan sendiri
+  (`role="dialog"`) tanpa primitif bersama, dan latar `inert` belum dipakai di mana pun.
+- 🟢 **UI — token tipografi**: skala font de-facto belum diangkat jadi token – kini
+  1.011 kemunculan `text-[Npx]` di 204 berkas (dulu 262); 157 `<button>` mentah belum
+  dimigrasi ke `Button`.
 - 🟢 **UI — a11y lanjutan**: combobox belum `aria-activedescendant`; toggle
   lihat-password belum focusable; token warna khusus cetak belum ada.
 - 🟢 **Paritas render**: belum ada test yang membuktikan angka PDF/Excel/WA/AI ==
@@ -405,76 +404,6 @@ apel-ke-apel — terpasang di-gross-up ke incl-PPN via `Contract.ppnPercent`
 sebelum dikurangi billing (incl-PPN). Yang MASIH menunggu keputusan: basis
 terpasang memakai level COUNTED (dilaporkan) atau VERIFIED — ini bagian dari
 KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
-
-## WAHA — pemeriksaan sesi baru dipasang di jalur pengingat harian
-
-- 🟡 **`sendImage` & pemakaian WAHA lain belum memeriksa status sesi.**
-  DECISIONS 206 memasang `getSessionStatus() === "WORKING"` sebagai syarat di
-  `kirimPengingatHarian` saja, karena itu jalur yang dilaporkan user gagal
-  senyap ("terkirim 7", nol sampai). Jalur lain (mis. kirim foto/laporan ke
-  grup WA) masih menganggap "2xx = terkirim", jadi bisa mengulangi kegagalan
-  yang sama. Perlu disisir jadi satu pembungkus kirim yang selalu memeriksa
-  sesi + menyimpan `waMessageId`.
-- 🟡 **Penyebab "terkirim 7, nol sampai" belum dipastikan.** DECISIONS 207
-  memperbaiki dua hal yang bisa menyebabkannya (nomor tak dinormalkan saat
-  kirim; "sukses" tanpa bukti ID pesan) dan membuat hasilnya bisa dibaca per
-  orang, tetapi mana yang sebenarnya terjadi di produksi belum terbukti — butuh
-  satu pengiriman nyata setelah rilis ini untuk melihat rinciannya.
-
-## RAB — angka berkas ekspor tidak sama dengan angka di layar
-
-- 🔴 **Selisih Rp 3.705 antara ekspor Sugihwaras dan tampilan RAB aktif.**
-  Berkas ekspor (revisi aktif #1) konsisten ke dalam: Σ kategori = JUMLAH =
-  Σ daun tiap kategori = **5.891.116.482**. Layar menunjukkan
-  **5.891.112.777**. Selisihnya tersebar di 8 dari 17 kategori, mis.:
-
-  | Kategori | Ekspor | Layar | Selisih |
-  |---|---:|---:|---:|
-  | I PEKERJAAN PERSIAPAN | 454.354.160 | 454.354.154 | +6 |
-  | V PEKERJAAN BANGUNAN SHELTER | 289.501.021 | 289.501.026 | −5 |
-  | VI PONDASI GUDANG BEKU | 302.657.239 | 302.657.158 | +81 |
-  | IX BANGUNAN KIOS PERBEKALAN | 172.985.194 | 172.982.810 | +2.384 |
-  | XI TANGKI AIR & SUMUR BOR | 493.031.923 | 493.032.035 | −112 |
-  | XIII BANGUNAN GENSET | 237.194.847 | 237.192.920 | +1.927 |
-  | XIV JALAN LINGKUNGAN & SALURAN | 607.649.275 | 607.648.828 | +447 |
-  | XVII BANGUNAN DOCKING KAPAL | 405.673.573 | 405.674.596 | −1.023 |
-
-  Selisihnya dua arah, jadi bukan sekadar pembulatan satu sisi. Penyebabnya
-  belum diketahui: bisa berarti berkas diekspor dari revisi yang berbeda dengan
-  yang kini tampil, bisa juga agregat layar dan agregat tersimpan memang
-  dihitung dari sumber yang berbeda. TIDAK diperbaiki dengan tebakan — perlu
-  dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
-  `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).
-
-## 🟢 WA-01 · Error 463 tidak bisa diakali dari aplikasi (DECISIONS 222 → 374/380)
-
-Log server user 2026-08-02:
-
-```
-error 463: account restricted or missing tctoken for contact
-msgId: 3EB052C20C9F6C2394177D  from: 6287776689958@s.whatsapp.net  engine: NOWEB
-```
-
-WAHA menerbitkan `msgId`, MARLIN mencatatnya sebagai bukti, halaman menyatakan
-berhasil — lalu mesin WAHA menolak sendiri karena WhatsApp membatasi nomor
-pengirim menghubungi nomor BARU. Penolakannya terjadi SESUDAH id terbit dan
-tidak terlihat dari respons API.
-
-**Sisi perangkat lunak SUDAH selesai.** DECISIONS 374 memasang outbox
-(`wa_outbound`) + rekonsiliasi `message.ack`, sehingga nasib tiap kiriman
-tercatat dan bisa naik (`terkirim`→`sampai`→`dibaca`) atau berakhir
-`gagal`/`ditolak`. DECISIONS 380 menyambungkannya ke layar pengingat harian:
-`DailyReminderLog` dicocokkan ke outbox lewat **ID pesan**, jadi pengingat yang
-ditolak WhatsApp tidak lagi tampil "ada ID pesan".
-
-**Yang tersisa BUKAN bug kode**: error 463 tidak bisa diakali dari aplikasi.
-Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah "hangat"
-(dipakai wajar, punya riwayat percakapan dua arah), atau penerima
-menyimpan/menghubungi nomor itu lebih dulu.
-
-**Syarat operasional**: event `message.ack` harus diaktifkan di WAHA untuk URL
-webhook yang sama. Tanpa itu status berhenti di `Diterima WAHA` selamanya — dan
-itu jujur: memang tidak ada bukti lain yang pernah tiba.
 
 ## UX-01 · `loading.tsx` masih terhalang: `router.refresh()` tidak selesai di balik batas Suspense (DECISIONS 245)
 
@@ -574,6 +503,9 @@ yang persis sudah dibuang.
 Yang masih perlu diperiksa terpisah: apakah pembatasan LAPORAN menurut periode
 (`report_date` dalam rentang periode) sudah benar di seluruh jalur laporan
 periodik — itu soal waktu, bukan soal versi, dan tidak ikut terjawab oleh 275.
+Diperiksa 2026-11-06: realisasi, laporan periode, dan kendala diiris per periode di satu
+fungsi `getPeriodReport` (dipakai cetak, unduhan, WA), dan batas mingguan diuji
+(*Date-as-of gate*). Yang belum: uji batas tanggal **bulanan**.
 
 ## 🟡 GDRV-01 · Pemilihan tautan Drive bergantung pada NAMA berkas (DECISIONS 278)
 
@@ -656,11 +588,11 @@ sama sekali tidak menunjuk ke sebabnya.
 memeriksa **nama paketnya sendiri** (`hasil.paket`), bukan hitungan global —
 lebih kuat, sekaligus kebal baris asing.
 
-**Belum**: uji `PAKSA mengirim ulang di hari yang sama` masih menghitung jumlah
-pesan terkirim secara global, jadi lokasi sisa run sebelumnya membuatnya
-mengharapkan 2 tapi menerima 7. Perbaikannya sejenis — saring ke fixture-nya
-sendiri — tapi menyentuh uji yang tidak berhubungan dengan pekerjaan berjalan,
-jadi dikerjakan terpisah.
+**Belum beres** (diperiksa ulang 2026-11-06): uji `PAKSA mengirim ulang di hari yang
+sama` kini menyaring lewat `punyaKita()` per alamat WA penerima, tetapi setiap run
+membuat SM dengan nomor WA yang SAMA dan penugasan run lama tidak dilepas, jadi pesan
+ke SM run lama ikut terhitung (diharap 2, dapat 3). Perbaikannya: saring dengan
+identitas fixture run itu sendiri (userId atau nomor unik per run).
 
 Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
 (berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
@@ -679,9 +611,11 @@ yang berikut DITUNDA SADAR supaya fase pertamanya bisa diuji dulu:
   jalur kompresi+cap yang sama dengan laporan harian.
 - 🟢 **E2E Playwright alur temuan/verifikasi** — unit + integrasi hijau;
   E2E menyusul (pola defer yang sama dengan AI Hub).
-- 🟢 **Ambang termin dari kontrak** — ambang 25/50/80/100 kini konstanta
-  (`lib/kesiapan/rules.ts`, DECISIONS 078). Kalau ada paket bertermin lain,
-  angkanya harus pindah ke data kontrak.
+- 🟡 **Ambang termin: dua sumber.** Ambang per kontrak sudah menjadi data
+  (`ContractTermin.ambangPct`, DECISIONS 716/717) dan dipakai penagihan & surat, tetapi
+  `/kesiapan` masih memakai konstanta 25/50/80/100 (`AMBANG_TERMIN_PCT`,
+  `lib/kesiapan/rules.ts`). Kontrak yang jadwal terminnya diubah diberi ambang keliru
+  di kartu Kesiapan. FIX: `/kesiapan` membaca jadwal termin kontrak.
 - 🔵 **EWS "GPS di luar radius" & "pekerjaan tanpa evidence"** — rule kualitas
   data ini sudah ada di ai-hub (`quality-rules.ts`); menyalinnya ke
   /perlu-tindakan berarti dua rumah untuk rule yang sama. Keputusan yang
@@ -714,11 +648,11 @@ BELUM, dan sengaja disebut supaya tidak terbaca sebagai selesai seluruhnya:
   itu di Playwright. Yang belum terbukti karenanya: bahwa kolom "Usulan AI"
   memang terlihat tanpa gulir mendatar di peramban sungguhan. Menutupnya menuntut
   seed yang memuat basis AHSP + satu draf usulan.
-- 🟢 **Kronologi belum diuji di basis data sungguhan.** `susunKronologi` dan
-  bahan AI-nya diuji unit; `ambilKronologi` (query Prisma) belum punya uji
-  integrasi, dan uji integrasi tidak bisa dijalankan di mesin penulis. Yang belum
-  terbukti: pemetaan `closedAt`/`createdAt` ke tanggal Asia/Jakarta, dan bahwa
-  saringan `mergedIntoId: null` benar-benar menahan kendala kembar di jalur ini.
+- 🟢 **Kronologi belum diuji penuh di basis data sungguhan.** `ambilKronologi` kini
+  ikut teruji tidak langsung lewat `lokasi-lengkap-snapshot.test.ts`, tetapi hanya
+  pengelompokan per bulan. Yang belum terbukti: pemetaan `closedAt`/`createdAt` ke
+  tanggal Asia/Jakarta, dan saringan `mergedIntoId: null` (fixture belum memuat kendala
+  kembar).
 - 🟢 **Grid RAPL lain belum diukur lebarnya.** Yang dirapikan baru "Kebutuhan &
   harga". `rapl-padanan` dan `rapl-rincian-item` memakai pola kolom yang sama dan
   bisa saja melewati lebar layar dengan cara yang sama – belum diperiksa.
@@ -768,7 +702,9 @@ perbaikan, dan hasil reproduksi merah-dulu tiap temuan — ada di
 MERAH-DULU yang diverifikasi gagal tanpa perbaikannya (DECISIONS 577 & 578).
 Yang tersisa untuk dikerjakan: **37 sedang + 11 rendah**, semuanya di laporan
 audit — belum didaftar ulang di sini supaya berkas ini tidak menjadi salinan
-kedua yang bisa menyimpang.
+kedua yang bisa menyimpang. Diperiksa ulang 2026-11-06: enam sudah beres – A-7, B-5,
+G-7, H-2, serta D-4 dan E-5 (jalurnya diganti DECISIONS 728); 42 sisanya masih
+terbuka.
 
 **Jangan menutup satu pun tanpa uji MERAH-DULU** — sebagian besar sudah punya
 reproduksinya di laporan, tinggal dijadikan tes tetap.
@@ -783,36 +719,7 @@ Yang sudah diperbaiki ada di DECISIONS (peringatan berbasis rupiah · otorisasi
 lokasi · pagar realisasi · kategori menggugurkan tanda tangan). Sisanya di bawah.
 Setiap butir diverifikasi dengan membaca kode; yang masih dugaan ditandai.
 
-### Sudah diputuskan user 2026-09-01 (tidak lagi menunggu)
-
-Ketiganya dijawab langsung; yang perlu kode sudah dikerjakan, lihat DECISIONS.
-
-- ✅ **Realisasi `draft_adendum` naik otomatis saat aktivasi.** *"Kalau sudah
-  diaktivasi dengan skema dua orang yang sudah kita atur, ya otomatis aktif.
-  History laporan apa yang berubah?"* — benar, tidak ada: `basis` adalah penanda
-  sistem, bukan angka yang dilaporkan siapa pun. `activateRevision` kini
-  menaikkannya dalam transaksi yang sama.
-- ✅ **Batas 10% terhadap NILAI KONTRAK, bukan per item, bukan HPS.** *"10% ini
-  terhadap apa? kontrak kan? bukan per item."* Aturannya pindah ke
-  `lib/rab/batas-adendum.ts`, dasarnya `Contract.contractValue`, dan adendum yang
-  sudah berlaku ikut dijumlahkan. Tetap PERINGATAN, bukan penghalang — itu
-  keputusan 29 Juli 2026 yang tidak dicabut.
-- ✅ **Dua orang tetap wajib.** *"Ya harus dua orang, karena ini vital, untuk
-  menjaga resiko salah."* Aturan yang berjalan sudah menuntut dua orang BERBEDA
-  (satu Program Director + satu peran penugasan, super admin tidak boleh mengisi
-  kursi mana pun — DECISIONS 234). Tidak ada perubahan kode.
-  **Satu hal yang perlu kau sadari, bukan pertanyaan**: pengusul boleh menjadi
-  salah satu dari dua itu, jadi pada kasus terburuk hanya SATU orang lain yang
-  benar-benar memeriksa. Itu masih "dua orang" dan konsisten dengan yang kau
-  minta; kalau maksudmu pengusul harus di luar keduanya, itu satu baris
-  perbandingan `createdById`.
-
 ### Perbandingan & pencocokan identitas
-
-Ditutup 2026-09-02: peringatan harga pada item ber-volume NOL (koreksi user
-*"jangan mempermasalahkan jika harga berubah 0 pada satu item jika volume / qty
-nya juga 0"*) — gerbangnya kini satu untuk semua bentuk item, yaitu apakah ada
-rupiah yang berpindah.
 
 - 🟡 **KEPUTUSAN · Pemetaan manual item yang BERGANTI NAMA tapi maksudnya sama.**
   Pertanyaan user 2026-09-02: *"ada satu kondisi dimana item yang sudah diinput
@@ -820,10 +727,10 @@ rupiah yang berpindah.
   diakomodir? atau dipetakan ke item baru di draft perubahan."* Secara alur
   MEMUNGKINKAN: pratinjau impor sudah menghitung "item hilang yang punya
   realisasi" dan "item baru", dan `samakanLineage` sudah bisa memaksakan sebuah
-  `lineageKey`. Yang belum ada adalah layar untuk memilih pasangannya dan tempat
-  menyimpan pilihan itu supaya tidak ditanya ulang tiap impor. Perlu diputuskan:
-  pemetaan disimpan sebagai data (tabel padanan lineage) atau sekali pakai per
-  impor.
+  `lineageKey`. Layar memilih pasangannya sudah ada (pemetaan manual di pratinjau
+  impor); yang belum adalah tempat menyimpan pilihan itu – kini sekali pakai per impor,
+  jadi berkas pengganti menanyakan ulang. Perlu diputuskan: disimpan sebagai data
+  (tabel padanan lineage) atau tetap sekali pakai.
 
 - 🟡 **Satuan tidak pernah dibandingkan.** `NodeAktif` tidak punya field `unit`,
   jadi item yang satuannya berubah m² → m³ dengan angka volume sama persis
@@ -836,21 +743,10 @@ rupiah yang berpindah.
   di berkas baru dapat anak dilaporkan "item hilang" (alarm palsu); grup yang
   jadi daun berharga dilaporkan "item baru" dan harganya tidak dibandingkan
   dengan apa pun.
-- 🟡 **`lineageKey` otoritatif dari template dibuang lalu ditebak ulang.**
-  `adendum-template-parse.ts` membaca `lineageKey` dari kolom tersembunyi justru
-  supaya identitas tidak perlu ditebak, tapi `samakanLineage` mengabaikannya dan
-  menyusun ulang kunci dari `${induk}#${code}`. Pada template yang nomornya
-  dinomori ulang (persis yang dilakukan orang saat menyisipkan baris adendum)
-  DAN namanya disunting, item kehilangan identitas yang sudah dibawa berkasnya
-  sendiri, lalu jatuh jadi "item baru" dan realisasinya terputus.
 - 🟢 **`normalNama` terlalu tipis.** "Urugan Pasir t=3 cm" vs "t = 3 cm"
   terbaca dua pekerjaan berbeda; `m2`/`m²` dan `-`/`–` juga tidak dirapikan.
 
 ### Parser & ekspor
-
-Yang 🔴 sudah ditutup 2026-09-02 (lihat DECISIONS): kolom SATUAN terpilih jadi
-kolom harga · berkas CCO tidak bisa diimpor ulang · `angka()` mengembalikan 0
-untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
 
 - 🔴 **KEPUTUSAN · Dokumen CCO memakai harga LAMA untuk kedua blok.**
   `cco-rows.ts` `hargaLama: (l ?? b)!.unitPrice`, dan berkasnya cuma punya SATU
@@ -862,6 +758,9 @@ untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
   keputusan format, bukan keputusan teknis. Catatan: harga item kontrak lama
   memang tidak boleh berubah (DECISIONS 213), jadi keadaan ini sendiri sudah
   janggal; pertanyaannya bagaimana dokumen harus menampilkannya kalau terjadi.
+  Sebagian sudah: blok CCO-01 memakai harga berkas, kolom TAMBAH dihitung dari selisih
+  nilai, selnya ditandai, dan ada baris rekonsiliasi. Masih: KET tertulis "TETAP" untuk
+  volume tetap dengan harga naik, dan tetap satu kolom harga.
 - 🟡 **Harga yang diubah user dipakai untuk harga, diabaikan untuk uang.**
   `adendum-template-parse.ts` menguji `tetap` hanya dari VOLUME, lalu memakai
   `jumlahKontrak` lama sebagai `amount` — padahal kolom Harga Satuan sengaja
@@ -878,12 +777,10 @@ untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
   disusun lalu commit dilanjutkan tanpa syarat, jadi pagar di `lib/rab/adendum.ts`
   bukan invarian sistem melainkan aturan satu layar. Mungkin disengaja
   (DECISIONS 203), tapi konsekuensinya: lineage yang hilang membuat realisasinya
-  lenyap dari angka resmi.
-- 🟡 **`discardDraft` bisa mengunci lokasi.** Draft yang itemnya sudah dilaporkan
-  (`rabNodeId` menunjuk node draft) tidak bisa dihapus karena FK `RESTRICT`;
-  impor pengganti gagal dengan pesan Prisma mentah dan draftnya tidak bisa
-  diganti maupun dibuang.
-
+  lenyap dari angka resmi. Sejak 742: draft pengganti yang volumenya di bawah yang
+  dilaporkan disebut di layar impor, dan baris laporan draft tanpa padanan ditolak;
+  item KONTRAK ber-realisasi yang hilang dari berkas tetap ter-commit (hanya peringatan
+  pratinjau).
 ### Siklus hidup & konkurensi
 
 - 🟡 **Tanda tangan menempel pada JAM, bukan pada ISI.** Gugurnya suara semata
@@ -922,7 +819,10 @@ untuk sel galat · dua konvensi desimal yang berlawanan. Sisanya:
   `buildCcoXlsx` → `deteksiCco`, sel teks, sel galat, formula tanpa cache, header
   `SATUAN`, atau volume negatif. `cco-import.test.ts` membangun sheet sintetis
   yang selalu berisi angka literal konsisten — persis kondisi yang TIDAK pernah
-  terjadi pada berkas terbitan MARLIN sendiri.
+  terjadi pada berkas terbitan MARLIN sendiri. Sebagian sudah: `cco-putar-balik.test.ts`
+  (`buildCcoXlsx` → `deteksiCco`, rumus ber-cache) dan `angka-lokal.test.ts` (sel teks,
+  galat, tanpa cache). Belum: round-trip CCO untuk sel teks/galat, header `SATUAN`, dan
+  volume negatif.
 - 🟡 **Tidak ada uji lintas-lokasi pada jalur persetujuan.** Yang baru ditutup
   adalah editor draft; `approveRevisionAction` dan `activateDraftAction`
   menyelesaikan lokasi dari `revisionId` sehingga kebal, tapi itu belum dikunci
