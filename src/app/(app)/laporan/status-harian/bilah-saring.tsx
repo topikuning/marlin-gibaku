@@ -47,6 +47,7 @@ import {
 export function BilahSaring({
   dateKey,
   filter,
+  opsiPaket,
   opsiLokasi,
   hariLabel,
   hariSebelum,
@@ -54,6 +55,7 @@ export function BilahSaring({
 }: {
   dateKey: string;
   filter: FilterStatusHarian;
+  opsiPaket: { value: string; label: string }[];
   opsiLokasi: { value: string; label: string }[];
   hariLabel: string;
   /** Alamat siap pakai — BUKAN fungsi: fungsi tidak bisa menyeberang batas RSC. */
@@ -68,6 +70,7 @@ export function BilahSaring({
       <form method="get" className="flex flex-wrap items-center gap-2">
         {/* Filter lain ikut terbawa saat tanggal diganti: berpindah hari TIDAK
             boleh diam-diam mengosongkan saringan yang sedang dipakai. */}
+        {filter.paket ? <input type="hidden" name="paket" value={filter.paket} /> : null}
         {filter.lokasi ? <input type="hidden" name="lokasi" value={filter.lokasi} /> : null}
         {filter.laporan !== "semua" ? (
           <input type="hidden" name="laporan" value={filter.laporan} />
@@ -108,16 +111,31 @@ export function BilahSaring({
         <span className="text-[13px] text-ink-muted">{hariLabel}</span>
       </form>
 
-      {/* Baris 2 — lokasi */}
-      <div>
-        <Label htmlFor="sh-lokasi">Lokasi</Label>
-        <Combobox
-          id="sh-lokasi"
-          value={filter.lokasi}
-          onChange={(v) => router.push(tautFilter(dateKey, filter, { lokasi: v }))}
-          options={[{ value: "", label: "Semua lokasi" }, ...opsiLokasi]}
-          placeholder="Cari lokasi…"
-        />
+      {/* Baris 2 — paket & lokasi. Paket dulu: ia mempersempit pilihan lokasi
+          (permintaan user 2026-11-06, "jika ingin satu paket"). Ganti paket
+          mengosongkan lokasi – lokasi paket lain tidak boleh tertinggal
+          sebagai saringan yang tak terlihat dan membuat daftar kosong. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="sh-paket">Paket</Label>
+          <Combobox
+            id="sh-paket"
+            value={filter.paket}
+            onChange={(v) => router.push(tautFilter(dateKey, filter, { paket: v, lokasi: "" }))}
+            options={[{ value: "", label: "Semua paket" }, ...opsiPaket]}
+            placeholder="Cari paket…"
+          />
+        </div>
+        <div>
+          <Label htmlFor="sh-lokasi">Lokasi</Label>
+          <Combobox
+            id="sh-lokasi"
+            value={filter.lokasi}
+            onChange={(v) => router.push(tautFilter(dateKey, filter, { lokasi: v }))}
+            options={[{ value: "", label: filter.paket ? "Semua lokasi di paket ini" : "Semua lokasi" }, ...opsiLokasi]}
+            placeholder="Cari lokasi…"
+          />
+        </div>
       </div>
 
       {/* Baris 3 — Laporan, Drive & WA */}

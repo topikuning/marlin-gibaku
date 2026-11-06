@@ -402,22 +402,23 @@ describe("KASUS INTI: adendum yang SAH menaikkan laporannya menjadi resmi", () =
     expect(muat[0]!.valueDone).toBe(sebelum.find((r) => r.lineageKey === LK_BARU)!.valueDone);
   });
 
-  it("laporan yang MELEBIHI volume barunya diturunkan proporsional sampai pas", async () => {
+  it("laporan yang MELEBIHI volume barunya: kelebihan dipotong dari baris DRAFT dulu (745)", async () => {
     /*
      * `LK_NAIK` dilaporkan 130 lewat draft (basis draft_adendum) DAN 40 lewat
      * item aktif di laporan lain – total 170, sedangkan volume di draft 150.
-     * Aktivasi membagi kelebihannya rata: 130 → 114,706 dan 40 → 35,294,
-     * berjumlah tepat 150. Permintaan user 2026-09-03; pembagian proporsional
-     * adalah pilihannya sendiri atas dua alternatif.
+     * Dulu kelebihannya dibagi rata ke kedua baris (114,706 + 35,294,
+     * ketetapan 2026-09-03). Jawaban user 2026-11-06: kelebihan dipotong dari
+     * baris draft dulu – baris kontrak 40 yang sudah resmi tetap 40, baris
+     * draft 130 turun jadi 110. Jumlahnya tetap tepat 150.
      */
     const rows = await db.dailyReportItem.findMany({
       where: { lineageKey: LK_NAIK, report: { locationId } },
-      select: { volumeDone: true },
+      select: { volumeDone: true, rabNodeId: true },
     });
     const total = rows.reduce((t, r) => t + Number(r.volumeDone), 0);
     expect(Math.round(total * 1000) / 1000).toBe(150);
-    // Tidak ada baris yang dinihilkan – porsi tiap laporan tetap.
-    expect(rows.every((r) => Number(r.volumeDone) > 0)).toBe(true);
+    expect(rows.find((r) => r.rabNodeId === nodeAktifId)?.volumeDone.toString()).toBe("40");
+    expect(rows.find((r) => r.rabNodeId === nodeDraftNaikId)?.volumeDone.toString()).toBe("110");
   });
 
   it("pekerjaan itu kini terhitung di angka RESMI, bukan cuma di pantauan draft", async () => {

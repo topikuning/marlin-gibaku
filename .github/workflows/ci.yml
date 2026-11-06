@@ -267,8 +267,15 @@ jobs:
         # cdn.playwright.dev). Percobaan yang menggantung dihentikan sesudah
         # 150 detik lalu diulang, bukan ditunggu sampai batas job habis.
         timeout-minutes: 10
+        #
+        # `timeout` hanya mematikan pnpm. apt-get (root) dari percobaan yang
+        # macet tetap hidup memegang kunci dpkg, sehingga percobaan 2 dan 3
+        # langsung gagal "Could not get lock" – terjadi 2026-11-06 di PR #386
+        # (mirror Ubuntu ±70 detik per paket font). Tunggu apt/dpkg selesai
+        # dulu; batasnya `timeout-minutes` langkah ini.
         run: |
           for i in 1 2 3; do
+            while pgrep -x apt-get >/dev/null || pgrep -x dpkg >/dev/null; do sleep 5; done
             if timeout 150 pnpm exec playwright install --with-deps chromium; then exit 0; fi
             echo "::warning::Pemasangan Chromium gagal/macet (percobaan $i) – diulang…"; sleep $((i * 5))
           done

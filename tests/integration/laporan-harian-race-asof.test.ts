@@ -153,6 +153,22 @@ describe("CALC-02 – dua submit PARALEL di satu lokasi tidak boleh sama-sama lo
     });
     expect(Number(counted._sum.volumeDone ?? 0)).toBeLessThanOrEqual(100);
   });
+
+  /*
+   * Contoh yang dipakai ke user 2026-11-06 ("Senin 10 + Selasa 10 atas sisa
+   * 10"): laporan kedua memang DITOLAK saat dikirim. Yang ditambahkan –
+   * pesannya menyebut TANGGAL laporan yang sudah memakai sisanya, supaya yang
+   * ditolak tahu laporan mana yang harus dicek, bukan cuma "laporan lain".
+   */
+  it("berurutan: laporan kedua ditolak dan pesannya menyebut tanggal laporan pemakai sisa", async () => {
+    const lok = await buatLokasi();
+    const lama = await draftDenganVolume(lok, "2026-07-01", 90);
+    await submitReport(lama.id, userId);
+    const senin = await draftDenganVolume(lok, "2026-07-13", 10);
+    const selasa = await draftDenganVolume(lok, "2026-07-14", 10);
+    await submitReport(senin.id, userId);
+    await expect(submitReport(selasa.id, userId)).rejects.toThrow(/sudah dipakai laporan 13 Jul 2026 \(10 m3\), 1 Jul 2026 \(90 m3\)/);
+  });
 });
 
 describe("CALC-01 – snapshot final memotret progres PADA TANGGAL LAPORAN", () => {

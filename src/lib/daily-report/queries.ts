@@ -236,6 +236,16 @@ export type WorkspaceItem = {
    * 2026-10-04 – dulu tampil persis seperti item biasa.
    */
   diLuarRabAktif: boolean;
+  /**
+   * Terhadap RAB mana baris ini dicatat (DECISIONS 210/742). Untuk baris
+   * `draft_adendum`, `volumeContract`/`volumeCumulative`/`pctCumulative`
+   * memakai ukuran DRAFT (volume draft, realisasi semua basis) dan angka
+   * kontraknya terpisah di `kontrak`. Keluhan user 2026-11-06: dulu kumulatif
+   * kontrak dibagi volume draft, tanpa penanda – "rancu".
+   */
+  basis: "aktif" | "draft_adendum";
+  /** Hanya baris draft yang lineage-nya ada di RAB aktif: angka resmi item itu. */
+  kontrak: { volume: number | null; kumulatif: number; pct: number | null } | null;
 };
 
 export type WorkspaceHistoryRow = {
@@ -271,7 +281,10 @@ export type WorkspaceReport = {
   noActivityReason: NoActivityReason | null;
   noActivityNote: string | null;
   items: WorkspaceItem[];
-  totalValueToday: string; // BigInt string
+  /** Nilai baris KONTRAK hari ini (BigInt string) – baris draft adendum tidak ikut (742). */
+  totalValueToday: string;
+  /** Nilai baris draft adendum hari ini (BigInt string) – belum resmi, disebut terpisah. */
+  totalValueDraft: string;
   workers: { role: WorkerRole; count: number }[];
   materials: { id: string; name: string; unit: string | null; qty: number | null; photos: PhotoView[] }[];
   equipment: { id: string; name: string; count: number; photos: PhotoView[] }[];
@@ -364,8 +377,11 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   // Kumulatif "s/d tanggal laporan ini" — laporan tanggal sesudahnya TIDAK ikut
   // dihitung, supaya angka kumulatif hari ini tidak tampak menghitung volume
   // dari laporan hari berikutnya (mis. 12 Juli tak boleh menyerap 13 Juli).
-  const [cumulative, photoViews] = await Promise.all([
+  const adaDraft = report.items.some((it) => it.basis !== "aktif");
+  const [cumulative, cumulativeSemua, photoViews] = await Promise.all([
     cumulativeVolumeByLineage(location.id, reportDate),
+    // Baris draft adendum diukur terhadap volume draft dengan realisasi SEMUA basis (210/742).
+    adaDraft ? cumulativeVolumeByLineage(location.id, reportDate, "semua") : Promise.resolve(new Map<string, number>()),
     buildPhotoViews(report.photos),
   ]);
   // Foto TANPA item (yatim). Terjadi saat item pekerjaannya dihapus: fotonya
@@ -451,17 +467,23 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   const jalurByNode = await jalurNodeById(report.items.map((it) => it.rabNodeId));
 
   let totalValueToday = 0n;
+  let totalValueDraft = 0n;
   const items: WorkspaceItem[] = report.items.map((it) => {
     const volumeDone = Number(it.volumeDone);
-    const base = cumulative.get(it.lineageKey) ?? 0;
+    const draft = it.basis !== "aktif";
+    const base = (draft ? cumulativeSemua : cumulative).get(it.lineageKey) ?? 0;
     const volumeCumulative = Math.round((includesSelf ? base : base + volumeDone) * 1000) / 1000;
-    const refAktif = it.basis === "aktif" ? aktifByLineage.get(it.lineageKey) : undefined;
+    const refAktif = !draft ? aktifByLineage.get(it.lineageKey) : undefined;
     const volumeContract = refAktif
       ? refAktif.volume
       : it.rabNode.volume != null
         ? Number(it.rabNode.volume)
         : null;
-    totalValueToday += it.valueDone;
+    // Angka resmi item yang sama di RAB kontrak – baris draft sendiri tidak ikut di dalamnya.
+    const kontrakAktif = draft ? aktifByLineage.get(it.lineageKey) : undefined;
+    const kumKontrak = Math.round((cumulative.get(it.lineageKey) ?? 0) * 1000) / 1000;
+    if (draft) totalValueDraft += it.valueDone;
+    else totalValueToday += it.valueDone;
     return {
       id: it.id,
       rabNodeId: it.rabNodeId,
@@ -485,6 +507,14 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       // Basis draft adendum punya penandanya sendiri; yang dicek di sini hanya
       // baris resmi yang lineage-nya tidak lolos ke RAB aktif.
       diLuarRabAktif: it.basis === "aktif" && !aktifByLineage.has(it.lineageKey),
+      basis: draft ? "draft_adendum" : "aktif",
+      kontrak: kontrakAktif
+        ? {
+            volume: kontrakAktif.volume,
+            kumulatif: kumKontrak,
+            pct: kontrakAktif.volume != null && kontrakAktif.volume > 0 ? prestasiPct(kumKontrak, kontrakAktif.volume) : null,
+          }
+        : null,
     };
   });
 
@@ -508,6 +538,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       notes: report.notes,
       items,
       totalValueToday: totalValueToday.toString(),
+      totalValueDraft: totalValueDraft.toString(),
       workers: report.workers.map((w) => ({ role: w.role, count: w.count })),
       materials: report.materials.map((m) => ({
       photos: photoByMaterial.get(m.id) ?? [],

@@ -66,3 +66,55 @@ export function sesuaikanProporsional(volume: number[], targetTotal: number): nu
 
   return bawah.map((b, i) => (b + (naik.has(i) ? 1 : 0)) / MILI);
 }
+
+/**
+ * KELEBIHAN DIPOTONG DARI BARIS DRAFT DULU (DECISIONS 745).
+ *
+ * Jawaban user 2026-11-06 atas pertanyaan "saat adendum disahkan dengan
+ * volume lebih kecil dari yang sudah dilaporkan, apakah kelebihannya dipotong
+ * dari baris draft dulu?": *"ya"*.
+ *
+ * Sejak 742 satu item bisa punya baris KONTRAK (resmi, mungkin sudah ditagih)
+ * dan baris DRAFT ADENDUM (di atas volume kontrak, belum resmi). Membagi rata
+ * kelebihannya ke semua baris menurunkan juga pekerjaan yang sah di dalam
+ * kontrak – contoh: kontrak 100 + draft 150, disahkan 180 → dulu 72 + 108.
+ * Sekarang:
+ *  - kelebihan diserap baris draft lebih dulu, dibagi rata DI ANTARA baris
+ *    draft (`sesuaikanProporsional`, menjumlah persis);
+ *  - baru bila baris draft habis (0) dan masih lebih – adendum menurunkan
+ *    volume di bawah realisasi kontrak sendiri – baris kontrak dibagi rata
+ *    seperti ketetapan 2026-09-03.
+ *
+ * `dariDraft[i]` = baris i dilaporkan terhadap draft adendum. Tanpa baris
+ * draft hasilnya sama dengan `sesuaikanProporsional`.
+ */
+export function sesuaikanDraftDulu(volume: number[], dariDraft: boolean[], targetTotal: number): number[] | null {
+  const mili = (v: number) => Math.round(v * MILI);
+  const total = volume.reduce((t, v) => t + mili(v), 0);
+  const target = mili(targetTotal);
+  if (target < 0 || total <= target) return null;
+  const iDraft = volume.map((_, i) => i).filter((i) => dariDraft[i]);
+  const iKontrak = volume.map((_, i) => i).filter((i) => !dariDraft[i]);
+  if (iDraft.length === 0) return sesuaikanProporsional(volume, targetTotal);
+
+  const totalKontrak = iKontrak.reduce((t, i) => t + mili(volume[i]!), 0);
+  const hasil = [...volume];
+  if (totalKontrak <= target) {
+    // Kelebihan muat di baris draft: baris kontrak utuh.
+    const draftBaru = sesuaikanProporsional(
+      iDraft.map((i) => volume[i]!),
+      (target - totalKontrak) / MILI,
+    );
+    if (!draftBaru) return null;
+    iDraft.forEach((i, k) => (hasil[i] = draftBaru[k]!));
+    return hasil;
+  }
+  // Draft habis, masih lebih: draft 0, kontrak dibagi rata ke target.
+  for (const i of iDraft) hasil[i] = 0;
+  const kontrakBaru = sesuaikanProporsional(
+    iKontrak.map((i) => volume[i]!),
+    targetTotal,
+  );
+  if (kontrakBaru) iKontrak.forEach((i, k) => (hasil[i] = kontrakBaru[k]!));
+  return hasil;
+}

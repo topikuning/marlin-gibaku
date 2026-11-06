@@ -3,6 +3,7 @@ import type { DailyReportStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import { parseDateKey } from "@/lib/format";
+import { ringkasStatus } from "./status-harian-filter";
 import type { SessionUser } from "@/lib/auth/session";
 
 /**
@@ -38,6 +39,7 @@ export type StatusHarianRow = {
   /** Kabupaten/kota — baris daftar ini tidak punya kolom wilayah sendiri. */
   regency: string;
   slug: string;
+  packageId: string;
   packageName: string;
   /** null = paket belum punya folder Drive; tombol unggah tidak akan berhasil. */
   driveFolderId: string | null;
@@ -194,6 +196,7 @@ export async function getStatusHarian(
       locationName: l.name,
       regency: l.regency,
       slug: l.slug,
+      packageId: l.package.id,
       packageName: l.package.name,
       driveFolderId: l.package.driveFolderId,
       waGroupId: l.package.waGroupId,
@@ -212,11 +215,6 @@ export async function getStatusHarian(
   return {
     dateKey,
     rows,
-    total: rows.length,
-    belumAda: rows.filter((r) => r.status == null).length,
-    masihDraft: rows.filter((r) => r.status === "draft").length,
-    sudahFinal: rows.filter((r) => r.status === "final").length,
-    sudahDrive: rows.filter((r) => r.drive.status === "sukses").length,
-    sudahWa: rows.filter((r) => r.waSentAt != null).length,
+    ...ringkasStatus(rows),
   };
 }
