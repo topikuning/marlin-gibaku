@@ -578,7 +578,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       companyLogoKey,
       reportId: report.id,
       itemId: item.id,
-      rabNodeId: d.rabNodeId,
+      // Bisa node draft adendum bila volumenya melewati sisa kontrak (DECISIONS 742).
+      rabNodeId: item.rabNodeId,
       dateKey: d.dateKey,
       files: fotoItem.files,
       foto: d,
@@ -618,7 +619,10 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       kantongGagal ?? null,
     ].filter(Boolean);
     return {
-      success: "Progres tersimpan.",
+      success:
+        item.basis === "draft_adendum"
+          ? "Progres tersimpan terhadap draft adendum – belum masuk progres resmi sampai adendumnya diaktifkan."
+          : "Progres tersimpan.",
       warning: peringatan.length ? peringatan.join(" · ") : undefined,
     };
   } catch (err) {

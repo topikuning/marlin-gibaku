@@ -1172,9 +1172,12 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
        * yang dilaporkan user: create berhasil, discard gagal, drafnya dua.
        */
       let catatanDilepas = 0;
+      let diAtasVolume: { nama: string; satuan: string | null; terlapor: number; volumeBaru: number }[] = [];
       if (draft) {
         try {
-          catatanDilepas = (await gantiDraftLama(draft.id, resDraft.revisionId, user.id)).catatanLuarRabDilepas;
+          const ganti = await gantiDraftLama(draft.id, resDraft.revisionId, user.id);
+          catatanDilepas = ganti.catatanLuarRabDilepas;
+          diAtasVolume = ganti.diAtasVolumeBaru;
         } catch (e) {
           await discardDraft(resDraft.revisionId, user.id).catch(() => {});
           if (e instanceof DraftTerpakaiError) return { error: e.message };
@@ -1202,6 +1205,16 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : "") +
           (catatanDilepas > 0
             ? ` ${catatanDilepas} baris dari catatan pekerjaan di luar RAB itemnya tidak ada di berkas ini – catatannya kembali menunggu dipadankan.`
+            : "") +
+          // Volume baru di bawah yang sudah dilaporkan – disebut, bukan didiamkan (DECISIONS 742).
+          (diAtasVolume.length > 0
+            ? ` PERHATIAN: ${diAtasVolume.length} item volumenya di berkas ini di bawah yang sudah dilaporkan – ` +
+              diAtasVolume
+                .slice(0, 5)
+                .map((d) => `${d.nama} (dilaporkan ${formatNumber(d.terlapor)}, di berkas ${formatNumber(d.volumeBaru)} ${d.satuan ?? ""})`.replace(/ \)$/, ")"))
+                .join("; ") +
+              (diAtasVolume.length > 5 ? `; +${diAtasVolume.length - 5} item lain` : "") +
+              `. Bila draft ini diaktifkan apa adanya, laporan hariannya diturunkan mengikuti volume baru.`
             : "") +
           kalimatRincianDraft,
       };

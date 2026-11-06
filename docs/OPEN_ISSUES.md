@@ -279,6 +279,16 @@ Patokan: TERMIN 1 CV. Putera Fahlevi (sudah dibayar). Yang masih beda:
 - Salinan versi sendiri di folder T (T6/T9/…) dari tekanan "Siapkan berkas" sebelum 725 tidak
   dibuang otomatis (722) – kalau ada, rapikan tangan.
 
+## 🟡 VOL-01 · Sisa volume laporan harian tidak menghitung laporan yang belum dikirim (DECISIONS 742)
+
+Penjaga `upsertItem` (dan sisa di daftar pilihan) hanya menghitung laporan berstatus
+dikirim/disetujui/final. Dua laporan yang belum dikirim (tanggal berbeda) masing-masing bisa
+memakai sisa yang sama, dan saat dikirim tidak ada pemeriksaan ulang, jadi jumlahnya bisa
+melampaui volume RAB. Berlaku untuk item kontrak biasa maupun draft adendum; ditemukan saat
+mencoba skenario 742, bukan disebabkan olehnya. Editor draft adendum sudah menghitung SEMUA
+status (742). FIX yang diusulkan: periksa ulang batas volume saat laporan dikirim (dan saat
+disetujui), dengan pesan yang menyebut laporan mana yang memakai sisanya.
+
 ## 🟢 MINGGU-01 · "Laporan mingguan" di Tanya MARLIN WA tetap pekan Senin–Minggu (DECISIONS 708)
 
 Sejak 708 periode minggu kontrak bisa dimulai hari apa saja. Pertanyaan WA
@@ -665,24 +675,6 @@ jadi dikerjakan terpisah.
 Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
 (berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
 dijalankan sendirian berulang kali.
-
-## 🟡 UI-04 · `border-border-muted` tidak pernah ada — 9 berkas memakai kelas mati
-
-Ditemukan 2026-08-20 saat menambah papan kendala.
-
-`--color-border-muted` **tidak pernah didefinisikan** di `src/app/globals.css`,
-tapi `border-border-muted` dipakai di 9 berkas komponen. Tailwind 4 membangun
-kelas dari token yang ada; token yang tidak ada tidak menghasilkan aturan CSS
-apa pun. Jadi elemen-elemen itu tampil **tanpa garis batas sama sekali**, bukan
-dengan garis yang lebih samar seperti yang jelas dimaksudkan penulisnya.
-
-Tidak merusak fungsi, dan tidak diperbaiki sekalian karena dua kemungkinan
-perbaikannya berbeda hasil: mendefinisikan tokennya (9 tempat itu mendadak
-bergaris) atau mengganti ke `border-border` yang ada (garisnya lebih tegas
-daripada niat aslinya). Mana yang benar keputusan tampilan, bukan keputusan
-kode.
-
-Ditemukan dengan `grep -c "color-border-muted" src/app/globals.css` → 0.
 
 ## FUTURE · Pengendalian Terpadu — lanjutan yang sengaja ditunda (DECISIONS 426)
 

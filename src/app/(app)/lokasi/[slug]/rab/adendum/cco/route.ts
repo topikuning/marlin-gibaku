@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { buildCcoXlsx } from "@/lib/export/cco-xlsx";
+import { muatRincianEkspor } from "@/lib/rab/rincian/ekspor";
 import type { CcoNode } from "@/lib/rab/cco-rows";
 import { pilihPengawas } from "@/lib/laporan/penandatangan";
 
@@ -161,6 +162,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     contractorSignerTitle: c?.contractorSignerTitle ?? null,
     lama: nodeLama.map(keCcoNode),
     baru: nodeBaru.map(keCcoNode),
+    // Resume / Sub Resume / Detail draft + backup volume & analisa bertaut (DECISIONS 741).
+    rincianBaru: await muatRincianEkspor(draft.id),
+    revisiBaruNo: draft.revisionNo,
   });
 
   await audit(user.id, "rab.cco_export", "rab_revision", draft.id, {

@@ -130,7 +130,7 @@ export function AnalisaAiPanel({
   if (k.jumlahTanpa === 0 && k.draf.length === 0 && k.diterima.length === 0) return null;
 
   return (
-    <section className="space-y-3 rounded-lg border border-line p-3">
+    <section className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-[240px] flex-1">
           <h3 className="text-[14px] font-semibold text-ink">Draf analisa AI</h3>
@@ -179,8 +179,8 @@ export function AnalisaAiPanel({
             {k.draf.length} draf menunggu keputusan{k.model ? ` · disusun ${k.model}` : ""}.
           </p>
           {k.draf.map((d) => (
-            <article key={d.id} className="rounded-lg border border-line">
-              <header className="flex flex-wrap items-start gap-2 border-b border-line px-3 py-2">
+            <article key={d.id} className="rounded-lg border border-border">
+              <header className="flex flex-wrap items-start gap-2 border-b border-border px-3 py-2">
                 <div className="min-w-[220px] flex-1">
                   <p className="text-[13px] font-medium text-ink">
                     {d.code} · {d.uraian}
@@ -197,7 +197,7 @@ export function AnalisaAiPanel({
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[560px] text-[13px]">
                     <thead>
-                      <tr className="border-b border-line text-left text-[11px] uppercase text-ink-muted">
+                      <tr className="border-b border-border text-left text-[11px] uppercase text-ink-muted">
                         <th className="py-1 pr-2">Kelompok</th>
                         <th className="py-1 pr-2">Sumber daya</th>
                         <th className="py-1 pr-2 text-right">Koefisien / {d.satuan}</th>
@@ -206,7 +206,7 @@ export function AnalisaAiPanel({
                         <th className="py-1 text-right">Biaya item</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line">
+                    <tbody className="divide-y divide-border">
                       {d.komponen.map((c) => (
                         <tr key={`${c.kategori}|${c.nama}|${c.satuan}`}>
                           <td className="py-1 pr-2 text-ink-muted">{KATEGORI[c.kategori] ?? c.kategori}</td>
@@ -275,7 +275,7 @@ export function AnalisaAiPanel({
       {k.diterima.length > 0 ? (
         <details className="text-[13px]">
           <summary className="cursor-pointer text-primary">{k.diterima.length} item memakai analisa usulan AI</summary>
-          <ul className="mt-2 divide-y divide-line rounded-lg border border-line">
+          <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
             {k.diterima.map((d) => (
               <li key={d.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                 <div className="min-w-[220px] flex-1">

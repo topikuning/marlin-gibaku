@@ -18,6 +18,7 @@ import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
 import { cariPekerjaan } from "@/lib/daily-report/cari-pekerjaan";
+import { batasLapor, keDraftAdendum } from "@/lib/daily-report/batas-lapor";
 import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
@@ -144,7 +145,7 @@ export function ReportEditor({
               waktu & koordinatnya benar; yang salah cuma pekerjaan yang
               ditempelinya. Pertanyaan user 2026-08-07: *"kalau mau dipakai lagi
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-0.5 text-xs text-ink-muted">
             Foto ini terlepas karena pekerjaannya dihapus. Kembalikan ke Foto Cepat supaya bisa
             dipakai untuk pekerjaan mana pun. Hapus hanya kalau memang tidak dipakai.
           </p>
@@ -213,6 +214,7 @@ function ItemForm({
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
+  const volumeAngka = volume.trim() !== "" && Number.isFinite(Number(volume)) && Number(volume) > 0 ? Number(volume) : null;
   const [photoKey, setPhotoKey] = useState(0);
   const [kantong, setKantong] = useState<ReadonlySet<string>>(new Set());
   const [bukaKantong, setBukaKantong] = useState(false);
@@ -386,13 +388,14 @@ function ItemForm({
                 {picked.code}
                 {picked.remaining != null ? (
                   <>
-                    {" · sisa "}
+                    {picked.sisaDraft != null ? " · sisa kontrak " : " · sisa "}
                     <span className="font-semibold">
                       {formatNumber(picked.remaining)} {picked.unit}
                     </span>
                   </>
                 ) : null}
               </div>
+              <SisaDraft n={picked} />
               {picked.basis === "draft_adendum" ? (
                 <p className="mt-1 text-[13px] font-medium text-warning">
                   Item ini dari draft adendum yang belum resmi. Volumenya tercatat dan terlihat di
@@ -446,8 +449,11 @@ function ItemForm({
                       <div className="text-xs text-ink-muted">
                         {n.code}
                         {n.unit ? ` · ${n.unit}` : ""}
-                        {n.remaining != null ? ` · sisa ${formatNumber(n.remaining)} ${n.unit ?? ""}` : ""}
+                        {n.remaining != null
+                          ? ` · ${n.sisaDraft != null ? "sisa kontrak" : "sisa"} ${formatNumber(n.remaining)} ${n.unit ?? ""}`
+                          : ""}
                       </div>
+                      <SisaDraft n={n} />
                     </button>
                   ))
                 )}
@@ -490,10 +496,30 @@ function ItemForm({
             {picked?.unit ?? "satuan"}
           </span>
         </div>
-        {picked?.remaining != null ? (
+        {picked?.remaining != null && picked.sisaDraft != null ? (
+          <p className="mt-1 text-xs text-ink-muted">
+            Sisa kontrak: {formatNumber(picked.remaining)} {picked.unit} (dari{" "}
+            {picked.volume != null ? formatNumber(picked.volume) : "–"}). Menurut draft adendum:{" "}
+            {formatNumber(picked.sisaDraft)} {picked.unit} (dari {formatNumber(picked.volumeDraft ?? 0)}).
+          </p>
+        ) : picked?.remaining != null ? (
           <p className="mt-1 text-xs text-ink-muted">
             Sisa yang bisa dilaporkan: {formatNumber(picked.remaining)} {picked.unit} (dari volume RAB{" "}
             {picked.volume != null ? formatNumber(picked.volume) : "–"}).
+          </p>
+        ) : null}
+        {picked && volumeAngka != null && keDraftAdendum(picked, volumeAngka) ? (
+          <p className="mt-2 rounded-lg border border-warning bg-warning-soft px-3 py-2 text-[13px] text-ink">
+            <span className="font-semibold">Melebihi sisa kontrak ({formatNumber(picked.remaining ?? 0)} {picked.unit}).</span>{" "}
+            Seluruh {formatNumber(volumeAngka)} {picked.unit} hari ini dicatat terhadap draft adendum
+            {(picked.remaining ?? 0) > 0
+              ? `, termasuk ${formatNumber(picked.remaining ?? 0)} ${picked.unit ?? ""} yang sebenarnya masih muat di kontrak`
+              : ""}
+            . Belum masuk progres resmi, kurva-S, maupun termin sampai adendumnya diaktifkan.
+          </p>
+        ) : picked && volumeAngka != null && batasLapor(picked) != null && volumeAngka > batasLapor(picked)! + 1e-6 ? (
+          <p className="mt-2 text-[13px] font-medium text-danger">
+            Melebihi sisa yang bisa dilaporkan ({formatNumber(batasLapor(picked)!)} {picked.unit}).
           </p>
         ) : null}
       </div>
@@ -626,6 +652,20 @@ function ItemForm({
  * progres, jadi kata "perlu" akan mengarang kewajiban yang tidak ada. Nada
  * amber sudah cukup mengatakan ini yang belum beres.
  */
+/**
+ * Item kontrak yang volumenya dinaikkan draft adendum (DECISIONS 742): sisa
+ * menurut draft disebut di samping sisa kontrak. Keluhan user 2026-11-05 –
+ * tanpa ini pilihan berhenti di "sisa 0" walau draftnya jauh lebih besar.
+ */
+function SisaDraft({ n }: { n: LeafNodeOption }) {
+  if (n.sisaDraft == null) return null;
+  return (
+    <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+      Draft adendum (belum resmi): sisa {formatNumber(n.sisaDraft)} {n.unit ?? ""}
+    </div>
+  );
+}
+
 function PenandaFoto({ jumlah }: { jumlah: number }) {
   const ada = jumlah > 0;
   return (

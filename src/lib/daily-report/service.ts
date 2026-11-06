@@ -143,7 +143,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
   if (report.noActivity) throw new DailyReportError(PESAN_NIHIL_AKTIF);
   const volumeDone = Math.round(input.volumeDone * 1000) / 1000; // presisi kolom Decimal(15,3)
 
-  const node = await db.rabNode.findUnique({
+  let node = await db.rabNode.findUnique({
     where: { id: input.rabNodeId },
     include: { revision: { select: { status: true, locationId: true } } },
   });
@@ -161,7 +161,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
    * nyata jadi tak tercatat) atau mengaktifkan adendum yang belum sah (angka
    * resmi jadi bohong). Sekarang dicatat apa adanya, dengan penanda.
    */
-  const basis: "aktif" | "draft_adendum" =
+  let basis: "aktif" | "draft_adendum" =
     node.revision.status === "aktif"
       ? "aktif"
       : node.revision.status === "draft"
@@ -180,27 +180,57 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
   // hanya menghitung basis draft, volume total bisa terlampaui diam-diam.
   const nodeVolume = node.volume != null ? Number(node.volume) : null;
   if (nodeVolume != null) {
-    const cumulative =
-      (await cumulativeVolumeByLineage(
-        report.locationId,
-        undefined,
-        basis === "draft_adendum" ? "semua" : "aktif",
-      )).get(node.lineageKey) ?? 0;
     // Kontribusi report INI dikeluarkan dulu (defensif; status editable memang tidak counted).
-    let ownContribution = 0;
-    if ((COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)) {
-      const own = await db.dailyReportItem.findUnique({
-        where: { reportId_lineageKey: { reportId, lineageKey: node.lineageKey } },
-        select: { volumeDone: true },
-      });
-      ownContribution = own ? Number(own.volumeDone) : 0;
-    }
-    const others = cumulative - ownContribution;
-    if (others + volumeDone > nodeVolume + VOLUME_EPSILON) {
-      const sisa = Math.max(0, Math.round((nodeVolume - others) * 1000) / 1000);
-      throw new DailyReportError(
-        `Volume melebihi sisa RAB. Sisa yang masih bisa dilaporkan: ${formatNumber(sisa)} ${node.unit ?? ""}`.trim(),
-      );
+    const own = (COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)
+      ? await db.dailyReportItem.findUnique({
+          where: { reportId_lineageKey: { reportId, lineageKey: node.lineageKey } },
+          select: { volumeDone: true, basis: true },
+        })
+      : null;
+    const sisaTerhadap = async (cakupan: "aktif" | "semua", volumeRab: number) => {
+      const kumulatif = (await cumulativeVolumeByLineage(report.locationId, undefined, cakupan)).get(node!.lineageKey) ?? 0;
+      const milikSendiri = own && (cakupan === "semua" || own.basis === "aktif") ? Number(own.volumeDone) : 0;
+      return Math.round((volumeRab - (kumulatif - milikSendiri)) * 1000) / 1000;
+    };
+    const sisa = await sisaTerhadap(basis === "draft_adendum" ? "semua" : "aktif", nodeVolume);
+    if (volumeDone > sisa + VOLUME_EPSILON) {
+      /*
+       * KONTRAK TERLAMPAUI, DRAFT ADENDUM LEBIH BESAR (DECISIONS 742).
+       *
+       * Keluhan user 2026-11-05: volume kontrak urugan 317,97 sudah habis,
+       * draft adendum 3.045,152 belum diaktifkan – input 200 m³ ditolak "sisa
+       * 0". Sejak 210 jalur draft ada, tapi hanya bila yang dikirim node
+       * DRAFT; semua daftar pilihan memberi node kontrak. Sekarang
+       * penyimpanan sendiri yang mengalihkan, jadi form, WA, dan rekap ikut.
+       *
+       * Satu baris per item per hari: volume hari ini SELURUHNYA pindah ke
+       * draft, termasuk bagian yang sebenarnya masih muat di kontrak. Angka
+       * resmi tidak pernah dilebihkan; bagian itu ikut resmi saat adendum
+       * diaktifkan (baris draft dinaikkan, 210).
+       */
+      const draftNode =
+        basis === "aktif"
+          ? await db.rabNode.findFirst({
+              where: { lineageKey: node.lineageKey, kind: "item", revision: { locationId: report.locationId, status: "draft" } },
+              include: { revision: { select: { status: true, locationId: true } } },
+            })
+          : null;
+      const volumeDraft = draftNode?.volume != null ? Number(draftNode.volume) : null;
+      const sisaDraft = volumeDraft != null && volumeDraft > nodeVolume ? await sisaTerhadap("semua", volumeDraft) : null;
+      const satuan = node.unit ?? "";
+      if (draftNode && sisaDraft != null && volumeDone <= sisaDraft + VOLUME_EPSILON) {
+        node = draftNode;
+        basis = "draft_adendum";
+      } else if (sisaDraft != null) {
+        throw new DailyReportError(
+          `Volume melebihi sisa. Sisa kontrak: ${formatNumber(Math.max(0, sisa))} ${satuan} · ` +
+            `sisa menurut draft adendum: ${formatNumber(Math.max(0, sisaDraft))} ${satuan}.`,
+        );
+      } else {
+        throw new DailyReportError(
+          `Volume melebihi sisa RAB. Sisa yang masih bisa dilaporkan: ${formatNumber(Math.max(0, sisa))} ${satuan}`.trim(),
+        );
+      }
     }
   }
 

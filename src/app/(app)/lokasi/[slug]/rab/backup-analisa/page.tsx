@@ -111,7 +111,7 @@ export default async function BackupAnalisaPage({
           key={r.id}
           href={alamat({ rev: r.status === "aktif" ? undefined : r.id, item: sp.item })}
           aria-current={r.id === rev.id ? "page" : undefined}
-          className={`rounded-full border px-2.5 py-0.5 ${r.id === rev.id ? "border-primary bg-primary-soft font-medium text-primary" : "border-border text-ink-muted hover:text-ink"}`}
+          className={`rounded-full border px-2.5 py-0.5 ${r.id === rev.id ? "border-primary bg-primary-50 font-medium text-primary" : "border-border text-ink-muted hover:text-ink"}`}
         >
           {labelRev(r)}
         </Link>

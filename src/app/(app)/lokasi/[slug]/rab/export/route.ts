@@ -4,12 +4,15 @@ import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildRabXlsx, type RabExportNode } from "@/lib/export/rab-xlsx";
+import { muatRincianEkspor } from "@/lib/rab/rincian/ekspor";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Unduh RAB revisi AKTIF sebagai .xlsx 3 sheet (Resume / Sub Resume / Detail
- * RAB) yang saling tertaut formula antar sel — bukan angka mati.
+ * Unduh RAB revisi AKTIF sebagai .xlsx yang saling tertaut formula antar sel:
+ * Resume / Sub Resume / Detail RAB, plus Backup Volume, Resume Analisa,
+ * Analisa, Bahan & Upah, dan Catatan Rincian (DECISIONS 741). Volume & harga
+ * satuan di Detail tertaut ke rinciannya bila angkanya sama dengan angka resmi.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -61,8 +64,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       volume: true,
       unitPrice: true,
       amount: true,
+      lineageKey: true,
     },
   });
+  const rincian = await muatRincianEkspor(active.id);
 
   const contract = location.package.contract;
   const buffer = await buildRabXlsx({
@@ -84,8 +89,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         volume: n.volume == null ? null : Number(n.volume),
         unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
         amount: n.amount,
+        lineageKey: n.lineageKey,
       }),
     ),
+    rincian,
   });
 
   await audit(user.id, "rab.export_xlsx", "rab_revision", active.id, {

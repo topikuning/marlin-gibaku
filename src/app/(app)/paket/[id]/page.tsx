@@ -556,7 +556,7 @@ export default async function RingkasanPaketPage({
                   disebut jumlahnya, supaya kurva ini tidak terbaca "seluruh
                   paket" padahal bukan. */}
               {kurvaPaket.dihitung < kurvaPaket.totalLokasi ? (
-                <p className="text-[13px] text-warning-700">
+                <p className="text-[13px] text-warning">
                   {kurvaPaket.totalLokasi - kurvaPaket.dihitung} lokasi belum punya baseline
                   kurva-S atau RAB aktif, jadi TIDAK ikut dihitung. Kurva ini belum mewakili
                   seluruh paket.
@@ -667,7 +667,7 @@ export default async function RingkasanPaketPage({
                           </span>
                         ) : null}
                         {d.suaraGugur > 0 ? (
-                          <span className="block text-xs text-warning-700">
+                          <span className="block text-xs text-warning">
                             {d.suaraGugur} persetujuan gugur karena draftnya diubah lagi
                           </span>
                         ) : null}

@@ -35,7 +35,7 @@ export function Kenapa({ judul, children }: { judul: string; children: ReactNode
         />
       </button>
       {buka ? (
-        <p className="mt-1.5 rounded-md border border-line bg-surface-inset px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted">
+        <p className="mt-1.5 rounded-md border border-border bg-surface-inset px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted">
           {children}
         </p>
       ) : null}

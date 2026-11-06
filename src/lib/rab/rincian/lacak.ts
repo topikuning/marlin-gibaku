@@ -1,6 +1,6 @@
 import type { BukuRingan, SheetRingan } from "./xlsx-ringan";
 import { uraiAnalisa, type UraiAnalisa } from "./analisa";
-import { alamat, angkaKeKolom, bacaAlamat, rujukanDalam, rujukanTunggal, type Rujukan } from "./rumus";
+import { alamat, angkaKeKolom, bacaAlamat, galatExcel, rujukanDalam, rujukanTunggal, type Rujukan } from "./rumus";
 
 /**
  * PELACAK RINCIAN: dari sel volume / harga satuan di sheet RAB ke sheet yang
@@ -96,7 +96,7 @@ export function kepalaSheet(ws: SheetRingan, sebelum: number): Kepala {
     let cocok = false;
     for (const [c, x] of ws.isiBaris(r)) {
       if (c > MAKS_KOLOM) break;
-      if (typeof x.v === "string" && x.f == null) {
+      if (typeof x.v === "string" && x.f == null && !galatExcel(x.v)) {
         teks[c] = x.v.trim();
         n++;
         if (KATA.test(x.v)) cocok = true;

@@ -77,6 +77,8 @@ export type CcoRow = {
   ket: CcoKet | null;
   /** Volume yang SUDAH terealisasi di lapangan (0 bila belum ada). DECISIONS 242. */
   realisasi: number;
+  /** Kunci item lintas revisi (baris item saja) – menautkan ke Detail RAB draft (DECISIONS 741). */
+  lineageKey?: string | null;
 };
 
 export type CcoRingkasan = {
@@ -184,6 +186,7 @@ export function susunBarisCco(
       jumlahBaru,
       ket,
       realisasi: realisasiByLineage?.get((b ?? l)!.lineageKey) ?? 0,
+      lineageKey: (b ?? l)!.lineageKey,
     };
   };
 

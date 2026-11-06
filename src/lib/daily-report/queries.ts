@@ -64,6 +64,14 @@ export type LeafNodeOption = {
    * pelapor tahu ia sedang mencatat pekerjaan yang belum punya dasar kontrak.
    */
   basis: "aktif" | "draft_adendum";
+  /**
+   * Item kontrak yang volumenya DINAIKKAN draft adendum (DECISIONS 742): sisa
+   * menurut draft (volume draft − realisasi semua basis) dan volume draftnya.
+   * Volume hari ini di atas `remaining` tapi ≤ `sisaDraft` dicatat terhadap
+   * draft adendum oleh `upsertItem`. Kosong bila draft tidak menaikkannya.
+   */
+  sisaDraft?: number | null;
+  volumeDraft?: number | null;
 };
 
 /**
@@ -72,8 +80,15 @@ export type LeafNodeOption = {
  * Mencakup revisi AKTIF dan — bila ada — DRAFT adendum. Item draft yang
  * lineage-nya SAMA dengan item aktif tidak digandakan: yang muncul adalah versi
  * aktifnya, karena pekerjaan itu masih punya dasar kontrak. Yang benar-benar
- * baru (atau volumenya dinaikkan melampaui kontrak) hanya ada di draft, dan
- * itulah yang perlu dilaporkan lewat basis draft.
+ * baru hanya ada di draft, dan itulah yang dilaporkan lewat basis draft.
+ *
+ * Item kontrak yang volumenya DINAIKKAN draft tetap satu pilihan (versi
+ * aktif), tetapi membawa `sisaDraft`: volume di atas sisa kontrak dialihkan
+ * ke draft oleh `upsertItem` (DECISIONS 742). Sebelum itu pilihan ini berhenti
+ * di "sisa 0" begitu kontrak habis, walau draftnya jauh lebih besar.
+ *
+ * Sisa item kontrak dihitung dari realisasi basis AKTIF saja – sama dengan
+ * penjaga di `upsertItem`; sisa item draft dan `sisaDraft` dari SEMUA basis.
  */
 export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOption[]> {
   const revision = await db.rabRevision.findFirst({
@@ -86,7 +101,7 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
   });
   if (!revision && !draft) return [];
 
-  const [nodes, cumulative] = await Promise.all([
+  const [nodes, kumSemua, kumAktif] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: { in: [revision?.id, draft?.id].filter((x): x is string => !!x) } },
       select: {
@@ -104,9 +119,16 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
       orderBy: { sortOrder: "asc" },
     }),
     cumulativeVolumeByLineage(locationId, undefined, "semua"),
+    cumulativeVolumeByLineage(locationId),
   ]);
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  const volumeDraftPer = new Map(
+    nodes
+      .filter((n) => n.kind === "item" && draft && n.revisionId === draft.id && n.volume != null)
+      .map((n) => [n.lineageKey, Number(n.volume)]),
+  );
+  const bulat3 = (x: number) => Math.max(0, Math.round(x * 1000) / 1000);
   /** Rantai sub-kategori (tanpa kategori teratas), dari atas ke bawah. */
   const subPathOf = (nodeId: string): string => {
     const bagian: string[] = [];
@@ -147,7 +169,10 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
     )
     .map((n) => {
       const volume = n.volume != null ? Number(n.volume) : null;
-      const done = cumulative.get(n.lineageKey) ?? 0;
+      const aktif = n.revisionId === revision?.id;
+      const done = (aktif ? kumAktif : kumSemua).get(n.lineageKey) ?? 0;
+      const volumeDraft = aktif ? volumeDraftPer.get(n.lineageKey) : undefined;
+      const naik = volume != null && volumeDraft != null && volumeDraft > volume;
       return {
         id: n.id,
         code: n.code,
@@ -157,8 +182,9 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         lineageKey: n.lineageKey,
         category: categoryOf(n.id),
         subPath: subPathOf(n.id),
-        remaining: volume != null ? Math.max(0, Math.round((volume - done) * 1000) / 1000) : null,
-        basis: n.revisionId === revision?.id ? ("aktif" as const) : ("draft_adendum" as const),
+        remaining: volume != null ? bulat3(volume - done) : null,
+        basis: aktif ? ("aktif" as const) : ("draft_adendum" as const),
+        ...(naik ? { sisaDraft: bulat3(volumeDraft - (kumSemua.get(n.lineageKey) ?? 0)), volumeDraft } : {}),
       };
     });
 }

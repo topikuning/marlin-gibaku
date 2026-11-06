@@ -10,6 +10,7 @@ import { balasWa } from "./kirim";
 import { tanyaWaAktif } from "./config";
 import { cocokkanLokasi, type LokasiKatalog } from "./tanya-niat";
 import { katalogLokasi } from "./tanya-data";
+import { batasLapor, keDraftAdendum } from "@/lib/daily-report/batas-lapor";
 import {
   angkaSatuan,
   bacaPerintah,
@@ -470,8 +471,10 @@ async function tetapkanPekerjaan(
     await balasWa(m.chatId, teks.tanpaIzinVolume);
     return "berhenti";
   }
-  if (node.remaining != null && isian.volume > node.remaining + 1e-6) {
-    await balasWa(m.chatId, teks.volumeDitolak(teks.melebihiSisa(angkaSatuan(node.remaining, node.unit))));
+  // Batasnya ikut draft adendum bila draft menaikkan volume item ini (DECISIONS 742).
+  const batas = batasLapor(node);
+  if (batas != null && isian.volume > batas + 1e-6) {
+    await balasWa(m.chatId, teks.volumeDitolak(teks.melebihiSisa(angkaSatuan(batas, node.unit))));
     return "berhenti";
   }
 
@@ -494,7 +497,9 @@ async function tetapkanPekerjaan(
       angkaSatuan(isian.volume, node.unit),
       volumeLama != null && volumeLama !== isian.volume ? angkaSatuan(volumeLama, node.unit) : null,
       usulan.photoIds.length,
-    ) + (satuanRab ? teks.satuanIkutRab(satuanRab) : ""),
+    ) +
+      (satuanRab ? teks.satuanIkutRab(satuanRab) : "") +
+      (keDraftAdendum(node, isian.volume) ? teks.keDraftAdendum(angkaSatuan(node.remaining ?? 0, node.unit)) : ""),
   );
   return "lanjut";
 }

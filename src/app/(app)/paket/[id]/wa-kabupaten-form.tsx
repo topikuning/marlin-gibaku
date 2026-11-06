@@ -77,7 +77,7 @@ export function WaKabupatenForm({
                       <>
                         {b.namaGrup ?? "Grup tertaut"}
                         {b.belumIkut > 0 ? (
-                          <span className="text-warning-700">
+                          <span className="text-warning">
                             {" "}
                             – {b.belumIkut} lokasi belum ikut, masih mengikuti grup paket
                           </span>

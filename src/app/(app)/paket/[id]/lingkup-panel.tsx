@@ -124,7 +124,7 @@ export function LingkupPanel({
                   Masih menunggu: {p.setuju.kurang.join(" · ")}. Langsung berlaku begitu lengkap.
                 </p>
                 {p.suaraGugur > 0 ? (
-                  <p className="text-xs text-warning-700">
+                  <p className="text-xs text-warning">
                     {p.suaraGugur} persetujuan gugur karena usulannya diubah lagi
                   </p>
                 ) : null}
@@ -269,8 +269,8 @@ function TombolPaket({
       <Button type="submit" size="sm" variant={variant} loading={pending}>
         {label}
       </Button>
-      {state?.error ? <span className="text-xs text-danger-700">{state.error}</span> : null}
-      {state?.success ? <span className="text-xs text-success-700">{state.success}</span> : null}
+      {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
+      {state?.success ? <span className="text-xs text-success">{state.success}</span> : null}
     </form>
   );
 }
@@ -297,8 +297,8 @@ function TombolAksi({
       <Button type="submit" size="sm" variant={variant} loading={pending}>
         {label}
       </Button>
-      {state?.error ? <span className="text-xs text-danger-700">{state.error}</span> : null}
-      {state?.success ? <span className="text-xs text-success-700">{state.success}</span> : null}
+      {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
+      {state?.success ? <span className="text-xs text-success">{state.success}</span> : null}
     </form>
   );
 }

@@ -189,8 +189,8 @@ export function SimulasiKebutuhan({
           className={cn(
             "rounded-full border px-3 py-1 text-[13px]",
             tab === "kebutuhan"
-              ? "border-brand bg-brand-soft font-medium text-brand"
-              : "border-line text-ink-muted hover:bg-surface-inset",
+              ? "border-primary bg-primary-50 font-medium text-primary"
+              : "border-border text-ink-muted hover:bg-surface-inset",
           )}
         >
           Kebutuhan <span className="tabular">({kebutuhan.length})</span>
@@ -201,8 +201,8 @@ export function SimulasiKebutuhan({
           className={cn(
             "rounded-full border px-3 py-1 text-[13px]",
             tab === "dilewat"
-              ? "border-brand bg-brand-soft font-medium text-brand"
-              : "border-line text-ink-muted hover:bg-surface-inset",
+              ? "border-primary bg-primary-50 font-medium text-primary"
+              : "border-border text-ink-muted hover:bg-surface-inset",
           )}
         >
           Tidak masuk hitungan <span className="tabular">({dilewat.length})</span>

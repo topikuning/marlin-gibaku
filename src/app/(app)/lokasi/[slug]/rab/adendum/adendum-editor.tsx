@@ -73,6 +73,7 @@ export function AdendumEditor({
   nodes: EditorNode[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [mencari, setMencari] = useState(false);
   const [, startTransition] = useTransition();
   // Mencegah loop: revert programatik men-trigger onCellValueChanged lagi.
   const reverting = useRef(false);
@@ -156,11 +157,8 @@ export function AdendumEditor({
         cellRenderer: (p: { data?: EditorNode; value?: string }) => {
           const n = p.data;
           if (!n) return p.value ?? "";
-          return (
-            <span
-              style={{ paddingLeft: `${n.depth * 16}px` }}
-              className={n.kind === "item" ? "" : "font-semibold"}
-            >
+          const isi = (
+            <>
               {p.value}
               {n.isNew ? (
                 <span className="ml-2 rounded bg-success/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-success">
@@ -177,6 +175,40 @@ export function AdendumEditor({
                   realisasi {volFmt.format(n.realized)}
                 </span>
               ) : null}
+            </>
+          );
+          /*
+           * SAAT MENCARI, JALUR INDUK DISEBUT (DECISIONS 742). Keluhan user
+           * 2026-11-05: hasil cari "menda" memuat dua "Pekerjaan Urugan Tanah
+           * mendatangkan" tanpa tahu kategori/sarpras mana – baris induknya
+           * ikut tersaring keluar, jadi indentasi tidak lagi bercerita.
+           */
+          if (mencari && n.jalur) {
+            // Kategori/sarpras dan sub-kategori di baris sendiri-sendiri, seperti
+            // daftar pilihan laporan harian: nama kategori KKP panjang, dan bila
+            // digabung, sub-kategori terdalam (pembedanya) yang terpotong.
+            const [atas, ...bawah] = n.jalur.split(" › ");
+            return (
+              // Uraian membungkus, bukan terpotong: pembedanya sering di ujung
+              // ("t = 12 cm"). Tinggi baris saat mencari diatur di bawah.
+              <span className="flex h-full min-w-0 flex-col justify-center whitespace-normal leading-snug">
+                <span className="truncate text-[11px] font-medium text-primary" title={n.jalur}>
+                  {atas}
+                </span>
+                {bawah.length > 0 ? (
+                  <span className="truncate text-[11px] font-medium text-ink-muted" title={n.jalur}>
+                    {bawah.join(" › ")}
+                  </span>
+                ) : null}
+                <span className={`line-clamp-2 ${n.kind === "item" ? "" : "font-semibold"}`} title={p.value}>
+                  {isi}
+                </span>
+              </span>
+            );
+          }
+          return (
+            <span style={{ paddingLeft: `${n.depth * 16}px` }} className={n.kind === "item" ? "" : "font-semibold"}>
+              {isi}
             </span>
           );
         },
@@ -299,7 +331,7 @@ export function AdendumEditor({
         },
       },
     ],
-    [onDelete],
+    [onDelete, mencari],
   );
 
   const rowClassRules = useMemo(
@@ -328,6 +360,9 @@ export function AdendumEditor({
         getRowId={(n) => n.id}
         pagination={false}
         quickFilter
+        onQuickFilterChange={(t) => setMencari(t.trim() !== "")}
+        // Dua baris (jalur + uraian) saat mencari; tinggi tetap, lihat MarlinGridProps.rowHeight.
+        rowHeight={mencari ? 84 : undefined}
         editMode
         onCellValueChanged={onCellValueChanged}
         rowClassRules={rowClassRules}
