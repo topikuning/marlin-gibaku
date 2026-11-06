@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { buildPhotoViews } from "@/lib/photos";
+import { jalurNodeById } from "@/lib/rab/jalur";
 import { jakartaDateKey, parseDateKey, formatTanggal } from "@/lib/format";
 import {
   deriveStatusFoto,
@@ -31,6 +32,12 @@ export type GalleryPhoto = {
   takenAtIso: string;
   timeLabel: string;
   title: string;
+  /**
+   * Kategori/sarana item fotonya, mis. "VII. PEKERJAAN BANGUNAN KIOS
+   * PERBEKALAN". Judul saja ("Pekerjaan Pembesian Besi Beton") tidak cukup:
+   * nama item yang sama ada di beberapa sarana (DECISIONS 748).
+   */
+  jalur: string | null;
   locationName: string;
   locationSlug: string | null;
   sourceLabel: string;
@@ -161,7 +168,7 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
         createdAt: true,
         uploadedById: true,
         report: { select: { status: true, location: { select: { name: true, slug: true } } } },
-        reportItem: { select: { rabNode: { select: { name: true } } } },
+        reportItem: { select: { rabNodeId: true, rabNode: { select: { name: true } } } },
         activity: {
           select: { title: true, status: true, location: { select: { name: true, slug: true } } },
         },
@@ -194,7 +201,10 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
     : [];
   const uploaderName = new Map(uploaders.map((u) => [u.id, u.fullName]));
 
-  const views = await buildPhotoViews(rows);
+  const [views, jalur] = await Promise.all([
+    buildPhotoViews(rows),
+    jalurNodeById(rows.flatMap((r) => (r.reportItem ? [r.reportItem.rabNodeId] : []))),
+  ]);
   const viewById = new Map(views.map((v) => [v.id, v]));
 
   const timeFmt = new Intl.DateTimeFormat("en-GB", {
@@ -214,6 +224,7 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
       takenAtIso: takenAt.toISOString(),
       timeLabel: timeFmt.format(takenAt),
       title: r.reportItem?.rabNode.name ?? r.activity?.title ?? "Foto lapangan",
+      jalur: (r.reportItem && jalur.get(r.reportItem.rabNodeId)?.nama) || null,
       locationName: r.report?.location.name ?? r.activity?.location.name ?? "–",
       locationSlug: r.report?.location.slug ?? r.activity?.location.slug ?? null,
       // Asal WhatsApp disebut (DECISIONS 707): pemeriksa perlu tahu foto ini

@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 748 | 2026-11-06 | Item bernama sama di sarana berbeda: nama kategori/sarana induk (`jalurNodeById`) kini ikut di PDF ringkasan harian (tabel + keterangan foto), galeri Foto Lapangan, dan label pilihan item Foto Cepat – dulu hanya layar laporan harian |
 | 747 | 2026-11-06 | Tujuan grup WA satu pintu: papan Status Harian, daftar paket, Chat Grup, kartu Komunikasi, uji penerimaan Sistem kini ikut grup KABUPATEN (dulu membaca grup paket saja – lokasi ber-grup kabupaten terbaca "Tanpa grup"); pagar `waGroupId` untuk seluruh `src/`; pemilih grup bisa dicari per kata + tanda "sudah tertaut", juga di form kabupaten |
 | 746 | 2026-11-06 | OPEN_ISSUES VOL-01 (dicatat di 742) keliru – pemeriksaan ulang volume saat kirim sudah ada (CALC-02); dibuang. Pesan penolakan kini menyebut tanggal + volume laporan lain yang memakai sisanya |
 | 745 | 2026-11-06 | Aktivasi adendum: laporan yang melebihi volume baru dipotong dari baris berbasis draft adendum dulu (dibagi rata di antara baris draft); baris kontrak baru ikut turun bila baris draft sudah habis – mengubah pembagian rata semua baris (ketetapan 2026-09-03) untuk kasus ada baris draft |

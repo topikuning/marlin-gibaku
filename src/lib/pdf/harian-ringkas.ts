@@ -73,6 +73,8 @@ export type HarianRingkasPdfResult = {
 export type FotoTertanam = {
   jpeg: Buffer;
   sumber: string;
+  /** Kategori/sarana item fotonya (DECISIONS 748); null untuk foto kegiatan. */
+  jalur?: string | null;
   sub: string | null;
   /**
    * Potongan keterangan beserta WARNANYA (ketetapan user 2026-09-04): asal
@@ -184,6 +186,7 @@ export async function renderHarianRingkasPdf(
         foto.push({
           jpeg: await normalisasiFoto(p.r2Key),
           sumber: p.sumber,
+          jalur: p.sumberJalur,
           sub: subFoto(p)
             .map((b) => b.teks)
             .join("  ·  ") || null,
@@ -720,10 +723,17 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian, tanpaUang = false): void
         ...(tanpaUang ? [] : [formatRupiah(p.valueToday)]),
       ];
       // Tinggi baris ditentukan kolom uraian (satu-satunya yang membungkus).
-      const hUraian = doc
+      // Kategori/sarana induknya dicetak kecil di bawah nama (DECISIONS 748):
+      // kode item hanya unik di dalam induknya, jadi dua baris "5.b" bisa
+      // milik dua sarana berbeda.
+      const hNama = doc
         .font(PDF_FONT.regular)
         .fontSize(7.2)
         .heightOfString(sanitizeText(p.name), { width: cols[1] - 8 });
+      const hJalur = p.jalur
+        ? doc.font(PDF_FONT.regular).fontSize(6).heightOfString(sanitizeText(p.jalur), { width: cols[1] - 8 }) + 1
+        : 0;
+      const hUraian = hNama + hJalur;
       const h = Math.max(13, hUraian + 5);
       if (doc.y + h > CONTENT_BOTTOM) {
         doc.addPage();
@@ -743,6 +753,13 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian, tanpaUang = false): void
           });
         x += cols[i];
       });
+      if (p.jalur) {
+        doc
+          .font(PDF_FONT.regular)
+          .fontSize(6)
+          .fillColor(PDF_COLORS.inkMuted)
+          .text(sanitizeText(p.jalur), PAGE_MARGIN + cols[0] + 4, y + 2.5 + hNama + 1, { width: cols[1] - 8 });
+      }
       doc
         .moveTo(PAGE_MARGIN, y + h)
         .lineTo(PAGE_MARGIN + CONTENT_WIDTH, y + h)
@@ -984,15 +1001,20 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
    * baris — dan baris waktu, yang ditulis pada offset tetap, menimpa baris
    * kedua itu. Terbukti saat dokumennya benar-benar dilihat.
    */
-  const tinggiKeterangan = (p: FotoTertanam): { judul: number; total: number } => {
+  const tinggiKeterangan = (p: FotoTertanam): { judul: number; jalur: number; total: number } => {
     const judul = doc
       .font(PDF_FONT.bold)
       .fontSize(7)
       .heightOfString(sanitizeText(p.sumber), { width: w });
+    // Kategori/sarana foto (DECISIONS 748) – dua foto "5.b" dari dua sarana
+    // berbeda tidak bisa dibedakan dari judulnya saja.
+    const jalur = p.jalur
+      ? doc.font(PDF_FONT.regular).fontSize(6).heightOfString(sanitizeText(p.jalur), { width: w }) + 1
+      : 0;
     const sub = p.sub
       ? doc.font(PDF_FONT.regular).fontSize(6).heightOfString(sanitizeText(p.sub), { width: w })
       : 0;
-    return { judul, total: 4 + judul + (p.sub ? 2 + sub : 0) };
+    return { judul, jalur, total: 4 + judul + jalur + (p.sub ? 2 + sub : 0) };
   };
 
   for (let i = 0; i < foto.length; i += 2) {
@@ -1032,11 +1054,18 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
         .fontSize(7)
         .fillColor(PDF_COLORS.ink)
         .text(sanitizeText(p.sumber), x, y + boxH + 3.5, { width: w });
+      if (p.jalur) {
+        doc
+          .font(PDF_FONT.regular)
+          .fontSize(6)
+          .fillColor(PDF_COLORS.inkMuted)
+          .text(sanitizeText(p.jalur), x, y + boxH + 4.5 + ukuran[c].judul, { width: w });
+      }
       // Tiap potongan diwarnai sendiri: warnanya yang menyebut asal nilai.
       const bagian = p.subBagian ?? (p.sub ? [{ teks: p.sub, warna: PDF_COLORS.inkFaint }] : []);
       if (bagian.length > 0) {
         doc.font(PDF_FONT.regular).fontSize(6);
-        const subY = y + boxH + 5 + ukuran[c].judul;
+        const subY = y + boxH + 5 + ukuran[c].judul + ukuran[c].jalur;
         bagian.forEach((b, i) => {
           const akhir = i === bagian.length - 1;
           if (i === 0) {
