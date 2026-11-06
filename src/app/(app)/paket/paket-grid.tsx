@@ -10,6 +10,8 @@ import { formatRupiah } from "@/lib/format";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { KESIAPAN_LABEL, KESIAPAN_TONE, type KesiapanPaket } from "@/lib/package/kesiapan";
 import type { PackageStage } from "@/generated/prisma/enums";
+import type { RingkasGrupPaket } from "@/lib/waha/grup-tujuan";
+import { cn } from "@/lib/cn";
 
 export type PaketRow = {
   id: string;
@@ -32,8 +34,8 @@ export type PaketRow = {
   progresTeks: string;
   /** Keterangan tooltip: dasar angkanya, lokasi yang ikut dan yang tidak. */
   progresCatatan: string;
-  /** Nama (atau ID) grup WhatsApp paket; null = belum diatur. */
-  waGroupName: string | null;
+  /** Ringkasan grup WA paket + grup kabupaten lokasinya, disusun di server. */
+  grupWa: RingkasGrupPaket;
   /** Folder Google Drive KKP sudah ditautkan? */
   hasDrive: boolean;
   /** Kesiapan data, dihitung di server (`lib/package/kesiapan.ts`). */
@@ -207,21 +209,28 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
       {
         // Kesiapan integrasi per paket — permintaan user 2026-07-30: dari daftar
         // langsung kelihatan paket mana yang belum diatur grup WA / folder Drive.
-        field: "waGroupName",
+        colId: "grupWa",
         headerName: "Grup WA",
         width: 150,
-        tooltipValueGetter: (p) => (p.data?.waGroupName ? `Grup: ${p.data.waGroupName}` : "Grup WhatsApp belum diatur"),
-        cellRenderer: (p: ICellRendererParams<GridRow>) =>
-          p.data ? (
-            p.data.waGroupName ? (
-              <span className="block truncate text-[13px] text-success" title={p.data.waGroupName}>
-                ✓ {p.data.waGroupName}
-              </span>
-            ) : (
-              <StatusPill tone="warning" label="Belum" />
-            )
-          ) : null,
-        // Filter/CSV memakai teks, bukan JSX.
+        // Sortir & saring memakai teks sel; kalimat lengkapnya di tooltip.
+        valueGetter: (p) => p.data?.grupWa.teks ?? "",
+        tooltipValueGetter: (p) => p.data?.grupWa.keterangan ?? "",
+        cellRenderer: (p: ICellRendererParams<GridRow>) => {
+          const g = p.data?.grupWa;
+          if (!g) return null;
+          if (g.keadaan === "belum") return <StatusPill tone="warning" label="Belum" />;
+          return (
+            <span
+              className={cn(
+                "block truncate text-[13px]",
+                g.keadaan === "lengkap" ? "text-success" : "text-warning",
+              )}
+              title={g.keterangan}
+            >
+              {g.keadaan === "lengkap" ? "✓" : "!"} {g.teks}
+            </span>
+          );
+        },
         valueFormatter: (p) => (p.value ? String(p.value) : "Belum diatur"),
       },
       {

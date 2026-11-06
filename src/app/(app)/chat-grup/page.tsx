@@ -7,6 +7,7 @@ import { packageScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { listSendableContacts } from "@/lib/contacts/queries";
+import { PAKET_PUNYA_GRUP_WA } from "@/lib/waha/grup-tujuan";
 import { getActiveAiConfig } from "@/lib/ai/config";
 import {
   buildSenderDirectory,
@@ -50,7 +51,13 @@ export default async function ChatGrupPage({
 
   const [packages, aiCfg, contacts] = await Promise.all([
     db.package.findMany({
-      where: { ...packageScopeWhere(user, await accessibleLocationIds(user)), waGroupId: { not: null } },
+      /*
+       * Paket dengan grup WA APA PUN – grup paket ATAU grup kabupaten. Pesan
+       * dari grup kabupaten diarsipkan dengan `packageId` paketnya, jadi syarat
+       * "punya grup paket" saja menyembunyikan arsip paket yang hanya memakai
+       * grup kabupaten (DECISIONS 747).
+       */
+      where: { AND: [packageScopeWhere(user, await accessibleLocationIds(user)), PAKET_PUNYA_GRUP_WA] },
       select: {
         id: true,
         name: true,

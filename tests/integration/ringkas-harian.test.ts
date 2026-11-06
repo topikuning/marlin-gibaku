@@ -481,7 +481,7 @@ describe("papan status harian", () => {
     expect(baris!.status).toBe("dikirim");
     expect(baris!.itemCount).toBe(1);
     expect(baris!.driveFolderId).toBe("FOLDER_UJI");
-    expect(baris!.waGroupId).toBe(GRUP);
+    expect(baris!.grupWaLabel).toBe("grup WhatsApp paket");
 
     // Lokasi kedua belum melapor — ditulis apa adanya, bukan dihilangkan.
     const lain = s!.rows.find((r) => r.slug === lainSlug);

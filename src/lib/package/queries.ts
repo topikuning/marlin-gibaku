@@ -270,7 +270,9 @@ export const getPackageWorkspace = cache(async (id: string) => {
           _count: { select: { rabRevisions: true, statusHistory: true, dailyReports: true } },
         },
       },
-      _count: { select: { locations: true } },
+      // Grup kabupaten paket ini – tombol Chat Grup MARLIN muncul juga untuk
+      // paket yang hanya memakai grup kabupaten (DECISIONS 747).
+      _count: { select: { locations: true, waGroups: true } },
     },
   });
   if (!pkg) return null;

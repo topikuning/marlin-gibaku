@@ -1,6 +1,15 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { kanonikGrupId } from "./grup-id";
+import {
+  CAKUPAN_KOSONG,
+  PILIH_GRUP_KABUPATEN,
+  PILIH_GRUP_PAKET,
+  tujuanGrupLokasi,
+  type AsalGrup,
+  type CakupanGrupPaket,
+  type GrupTujuan,
+} from "./grup-tujuan";
 
 /**
  * SATU tempat yang menjawab "lokasi ini bicara lewat grup WA yang mana", dan
@@ -29,55 +38,15 @@ import { kanonikGrupId } from "./grup-id";
  * MENGUBAH perilaku yang sudah dipakai orang hari ini, tanpa diminta.
  */
 
-export type AsalGrup = "kabupaten" | "paket";
-
-export type GrupTujuan = {
-  /** chatId kanonik, siap dipakai `sendText`/`sendFile`. */
-  chatId: string;
-  /** Nama grup bila diketahui – untuk kalimat balasan, bukan untuk pencocokan. */
-  nama: string | null;
-  asal: AsalGrup;
-  /** Sebutan siap-pakai di UI/balasan, mis. "grup WhatsApp kabupaten Jepara". */
-  label: string;
-};
-
-function labelGrup(asal: AsalGrup, nama: string | null, regency: string | null): string {
-  if (asal === "paket") return "grup WhatsApp paket";
-  if (regency) return `grup WhatsApp kabupaten ${regency}`;
-  return nama ? `grup WhatsApp ${nama}` : "grup WhatsApp kabupaten";
-}
+export type { AsalGrup, GrupTujuan } from "./grup-tujuan";
 
 /** Grup tujuan sebuah lokasi, atau `null` bila lokasinya tidak punya tujuan. */
 export async function grupUntukLokasi(locationId: string): Promise<GrupTujuan | null> {
   const loc = await db.location.findUnique({
     where: { id: locationId },
-    select: {
-      waGroup: { select: { waGroupId: true, waGroupName: true, regency: true } },
-      package: { select: { waGroupId: true, waGroupName: true } },
-    },
+    select: { waGroup: PILIH_GRUP_KABUPATEN, package: { select: PILIH_GRUP_PAKET } },
   });
-  if (!loc) return null;
-
-  if (loc.waGroup) {
-    const chatId = kanonikGrupId(loc.waGroup.waGroupId);
-    if (chatId) {
-      return {
-        chatId,
-        nama: loc.waGroup.waGroupName,
-        asal: "kabupaten",
-        label: labelGrup("kabupaten", loc.waGroup.waGroupName, loc.waGroup.regency),
-      };
-    }
-  }
-
-  const chatPaket = kanonikGrupId(loc.package?.waGroupId);
-  if (!chatPaket) return null;
-  return {
-    chatId: chatPaket,
-    nama: loc.package?.waGroupName ?? null,
-    asal: "paket",
-    label: labelGrup("paket", loc.package?.waGroupName ?? null, null),
-  };
+  return loc ? tujuanGrupLokasi(loc) : null;
 }
 
 export type LingkupGrup = {
@@ -154,25 +123,16 @@ export async function kelompokkanPerGrup(
   if (locationIds.length === 0) return [];
   const rows = await db.location.findMany({
     where: { id: { in: locationIds } },
-    select: {
-      id: true,
-      waGroup: { select: { waGroupId: true, waGroupName: true, regency: true } },
-      package: { select: { waGroupId: true, waGroupName: true } },
-    },
+    select: { id: true, waGroup: PILIH_GRUP_KABUPATEN, package: { select: PILIH_GRUP_PAKET } },
   });
 
   const per = new Map<string, { chatId: string; label: string; asal: AsalGrup; lokasiIds: string[] }>();
   for (const r of rows) {
-    const kab = r.waGroup ? kanonikGrupId(r.waGroup.waGroupId) : null;
-    const chatId = kab ?? kanonikGrupId(r.package?.waGroupId);
-    if (!chatId) continue; // lokasi tanpa tujuan – bukan kegagalan, tidak dikirimi
-    const asal: AsalGrup = kab ? "kabupaten" : "paket";
-    const label = kab
-      ? labelGrup("kabupaten", r.waGroup!.waGroupName, r.waGroup!.regency)
-      : labelGrup("paket", r.package?.waGroupName ?? null, null);
-    const ada = per.get(chatId);
+    const g = tujuanGrupLokasi(r);
+    if (!g) continue; // lokasi tanpa tujuan – bukan kegagalan, tidak dikirimi
+    const ada = per.get(g.chatId);
     if (ada) ada.lokasiIds.push(r.id);
-    else per.set(chatId, { chatId, label, asal, lokasiIds: [r.id] });
+    else per.set(g.chatId, { chatId: g.chatId, label: g.label, asal: g.asal, lokasiIds: [r.id] });
   }
   return [...per.values()];
 }
@@ -230,6 +190,36 @@ export async function grupPaketPelaksanaan(): Promise<
     for (const [chatId, v] of per) {
       hasil.push({ packageId: p.id, namaPaket: p.name, chatId, ...v });
     }
+  }
+  return hasil;
+}
+
+/**
+ * Jangkauan grup tiap paket atas lokasi AKTIF-nya – bahan kolom "Grup WA" di
+ * daftar paket (DECISIONS 747). Dua kueri berkelompok untuk seluruh daftar,
+ * bukan satu kueri per paket.
+ */
+export async function cakupanGrupPaket(packageIds: string[]): Promise<Map<string, CakupanGrupPaket>> {
+  const hasil = new Map<string, CakupanGrupPaket>();
+  if (packageIds.length === 0) return hasil;
+  const [aktif, perGrup] = await Promise.all([
+    db.location.groupBy({
+      by: ["packageId"],
+      where: { packageId: { in: packageIds }, isActive: true },
+      _count: { _all: true },
+    }),
+    db.location.groupBy({
+      by: ["packageId", "waGroupRefId"],
+      where: { packageId: { in: packageIds }, isActive: true, waGroupRefId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  for (const a of aktif) hasil.set(a.packageId, { ...CAKUPAN_KOSONG, lokasiAktif: a._count._all });
+  for (const g of perGrup) {
+    const c = hasil.get(g.packageId) ?? { ...CAKUPAN_KOSONG };
+    c.grupKabupaten += 1;
+    c.lokasiBerGrupKabupaten += g._count._all;
+    hasil.set(g.packageId, c);
   }
   return hasil;
 }

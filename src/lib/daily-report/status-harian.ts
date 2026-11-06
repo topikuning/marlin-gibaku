@@ -3,6 +3,7 @@ import type { DailyReportStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import { parseDateKey } from "@/lib/format";
+import { PILIH_GRUP_KABUPATEN, PILIH_GRUP_PAKET, tujuanGrupLokasi } from "@/lib/waha/grup-tujuan";
 import { ringkasStatus } from "./status-harian-filter";
 import type { SessionUser } from "@/lib/auth/session";
 
@@ -43,8 +44,15 @@ export type StatusHarianRow = {
   packageName: string;
   /** null = paket belum punya folder Drive; tombol unggah tidak akan berhasil. */
   driveFolderId: string | null;
-  /** null = paket belum punya grup WA; tombol kirim tidak akan berhasil. */
-  waGroupId: string | null;
+  /**
+   * Sebutan grup tujuan lokasi ini – grup KABUPATEN-nya kalau dipasang, selain
+   * itu grup paket (DECISIONS 596/747). null = tidak punya tujuan sama sekali.
+   *
+   * Dulu kolom ini `package.waGroupId` mentah, jadi lokasi yang grup
+   * kabupatennya sudah dipasang tetap bertanda "Tanpa grup" (laporan user
+   * 2026-11-06), padahal tombol kirimnya akan berhasil.
+   */
+  grupWaLabel: string | null;
 
   status: DailyReportStatus | null;
   itemCount: number;
@@ -89,7 +97,8 @@ export async function getStatusHarian(
       name: true,
       regency: true,
       slug: true,
-      package: { select: { id: true, name: true, driveFolderId: true, waGroupId: true } },
+      package: { select: { id: true, name: true, driveFolderId: true, ...PILIH_GRUP_PAKET } },
+      waGroup: PILIH_GRUP_KABUPATEN,
       dailyReports: {
         where: { reportDate },
         select: {
@@ -199,7 +208,7 @@ export async function getStatusHarian(
       packageId: l.package.id,
       packageName: l.package.name,
       driveFolderId: l.package.driveFolderId,
-      waGroupId: l.package.waGroupId,
+      grupWaLabel: tujuanGrupLokasi(l)?.label ?? null,
       status: lap?.status ?? null,
       itemCount: lap?._count.items ?? 0,
       fotoCount: lap?._count.photos ?? 0,

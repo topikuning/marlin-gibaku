@@ -16,6 +16,8 @@ import { progresPaketDaftar } from "@/lib/package/progres-paket";
 import { catatanProgresPaket, teksProgresPaket } from "@/lib/package/progres-paket-teks";
 import type { PackageStage } from "@/generated/prisma/enums";
 import { kesiapanPaket } from "@/lib/package/kesiapan";
+import { cakupanGrupPaket } from "@/lib/waha/grup";
+import { CAKUPAN_KOSONG, ringkasGrupWaPaket } from "@/lib/waha/grup-tujuan";
 import { nomorPaket } from "./nomor";
 import { FunnelPaket } from "./funnel";
 import { PaketGrid, type PaketRow } from "./paket-grid";
@@ -49,6 +51,10 @@ export default async function PaketPage({
     getPackageStats(user, scoped),
     listPackages(user, scoped, filter),
   ]);
+  // Grup kabupaten ikut dihitung – kolom "Grup WA" dulu membaca grup paket
+  // saja, jadi paket yang seluruh lokasinya lewat grup kabupaten tertulis
+  // "Belum" (DECISIONS 747).
+  const cakupanGrup = await cakupanGrupPaket(packages.map((p) => p.id));
 
   /*
    * PROGRES AGREGAT tiap paket — SATU putaran untuk seluruh daftar, bukan satu
@@ -72,7 +78,7 @@ export default async function PaketPage({
   const rows = bigintToString(
     packages.map((p) => {
       const vendorName = p.contract?.vendor.name ?? p.candidateVendorName ?? null;
-      const waGroupName = p.waGroupId ? p.waGroupName || p.waGroupId : null;
+      const grupWa = ringkasGrupWaPaket(p, cakupanGrup.get(p.id) ?? CAKUPAN_KOSONG);
       const hasDrive = p.driveFolderId != null && p.driveFolderId !== "";
       // Kesiapan dihitung di SERVER — komponen grid hanya menampilkan.
       const kesiapan = kesiapanPaket({
@@ -100,7 +106,7 @@ export default async function PaketPage({
         progresPct: ringkas?.pct ?? null,
         progresTeks: ringkas ? teksProgresPaket(ringkas) : "–",
         progresCatatan: ringkas ? catatanProgresPaket(ringkas) : "",
-        waGroupName,
+        grupWa,
         hasDrive,
         kesiapan: kesiapan.status,
         kurang: kesiapan.kurang,
