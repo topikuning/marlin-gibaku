@@ -12,6 +12,8 @@ import {
   adaFilterAktif,
   bacaFilter,
   FILTER_KOSONG,
+  opsiPaket,
+  ringkasStatus,
   saringBaris,
   tautFilter,
   type BarisTersaring,
@@ -22,7 +24,9 @@ const baris = (
   drive: "sukses" | "gagal" | null,
   wa: Date | null,
   status: BarisTersaring["status"] = "final",
-): BarisTersaring => ({ slug, status, drive: { status: drive }, waSentAt: wa });
+  packageId = "p-pantura",
+  packageName = "Paket Pantura",
+): BarisTersaring => ({ slug, status, drive: { status: drive }, waSentAt: wa, packageId, packageName });
 
 const KIRIM = new Date("2026-08-06T09:00:00.000Z");
 
@@ -30,7 +34,7 @@ const ISI: BarisTersaring[] = [
   baris("pasir", "sukses", KIRIM, "final"), // sudah semua
   baris("kedungmutih", null, KIRIM, "draft"), // drive belum, wa sudah
   baris("batah-timur", "gagal", null, "perlu_koreksi"), // drive gagal, wa belum
-  baris("tengket", null, null, null), // belum lapor sama sekali
+  baris("tengket", null, null, null, "p-madura", "Paket Madura"), // belum lapor sama sekali
 ];
 
 describe("bacaFilter", () => {
@@ -47,11 +51,22 @@ describe("bacaFilter", () => {
   it("spasi di slug lokasi dibuang", () => {
     expect(bacaFilter({ lokasi: "  pasir  " }).lokasi).toBe("pasir");
   });
+
+  it("paket dibaca dari alamat (permintaan user 2026-11-06)", () => {
+    expect(bacaFilter({ paket: " p-madura " }).paket).toBe("p-madura");
+  });
 });
 
 describe("saringBaris", () => {
   it("tanpa saringan → semua baris utuh", () => {
     expect(saringBaris(ISI, FILTER_KOSONG)).toHaveLength(4);
+  });
+
+  it("paket tertentu → hanya lokasi paket itu", () => {
+    // Keluhan user 2026-11-06: papan "hanya menampilkan lokasi, aku tidak bisa
+    // menemukan jika ingin satu paket".
+    expect(saringBaris(ISI, { ...FILTER_KOSONG, paket: "p-madura" }).map((r) => r.slug)).toEqual(["tengket"]);
+    expect(saringBaris(ISI, { ...FILTER_KOSONG, paket: "p-pantura" })).toHaveLength(3);
   });
 
   it("lokasi tertentu → hanya lokasi itu", () => {
@@ -136,6 +151,29 @@ describe("adaFilterAktif", () => {
     expect(adaFilterAktif(FILTER_KOSONG)).toBe(false);
     expect(adaFilterAktif({ ...FILTER_KOSONG, wa: "belum" })).toBe(true);
     expect(adaFilterAktif({ ...FILTER_KOSONG, lokasi: "pasir" })).toBe(true);
+    expect(adaFilterAktif({ ...FILTER_KOSONG, paket: "p-madura" })).toBe(true);
+  });
+});
+
+describe("opsiPaket", () => {
+  it("satu pilihan per paket, urut nama, menyebut jumlah lokasinya", () => {
+    expect(opsiPaket(ISI)).toEqual([
+      { value: "p-madura", label: "Paket Madura · 1 lokasi" },
+      { value: "p-pantura", label: "Paket Pantura · 3 lokasi" },
+    ]);
+  });
+});
+
+describe("ringkasStatus", () => {
+  it("angka kartu dihitung dari baris yang diberikan – dipakai untuk satu paket", () => {
+    expect(ringkasStatus(saringBaris(ISI, { ...FILTER_KOSONG, paket: "p-pantura" }))).toEqual({
+      total: 3,
+      belumAda: 0,
+      masihDraft: 1,
+      sudahFinal: 1,
+      sudahDrive: 1,
+      sudahWa: 2,
+    });
   });
 });
 
@@ -149,9 +187,10 @@ describe("tautFilter", () => {
   it("saringan lain dipertahankan saat satu diubah", () => {
     const t = tautFilter(
       "2026-08-06",
-      { lokasi: "pasir", laporan: "proses", drive: "belum", wa: "semua" },
+      { paket: "p-pantura", lokasi: "pasir", laporan: "proses", drive: "belum", wa: "semua" },
       { wa: "sudah" },
     );
+    expect(t).toContain("paket=p-pantura");
     expect(t).toContain("lokasi=pasir");
     expect(t).toContain("laporan=proses");
     expect(t).toContain("drive=belum");

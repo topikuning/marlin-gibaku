@@ -4,7 +4,7 @@ import { EmptyState, KpiCard, PageHeader } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getStatusHarian } from "@/lib/daily-report/status-harian";
-import { bacaFilter, saringBaris } from "@/lib/daily-report/status-harian-filter";
+import { bacaFilter, opsiPaket, ringkasStatus, saringBaris } from "@/lib/daily-report/status-harian-filter";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { BilahSaring } from "./bilah-saring";
 import { TabelStatus } from "./tabel-status";
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 export default async function StatusHarianPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tanggal?: string; lokasi?: string; laporan?: string; drive?: string; wa?: string }>;
+  searchParams: Promise<{ tanggal?: string; paket?: string; lokasi?: string; laporan?: string; drive?: string; wa?: string }>;
 }) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "report.export");
@@ -44,8 +44,19 @@ export default async function StatusHarianPage({
   const filter = bacaFilter(sp);
 
   const rows = data ? saringBaris(data.rows, filter) : [];
+  /*
+   * SARINGAN PAKET (permintaan user 2026-11-06: "aku tidak bisa menemukan jika
+   * ingin satu paket"). Paket adalah LINGKUP, bukan status: begitu dipilih,
+   * pemilih lokasi menyempit ke lokasi paket itu dan angka kartu dihitung
+   * untuk paket itu – saringan status (laporan/Drive/WA) tetap tidak
+   * menyusutkan kartu.
+   */
+  const semuaBaris = data?.rows ?? [];
+  const barisPaket = filter.paket ? semuaBaris.filter((r) => r.packageId === filter.paket) : semuaBaris;
+  const kartu = ringkasStatus(barisPaket);
+  const namaPaket = filter.paket ? barisPaket[0]?.packageName ?? null : null;
   // Nama desa berulang antar kabupaten, jadi label pemilih menyebut keduanya.
-  const opsiLokasi = (data?.rows ?? []).map((r) => ({
+  const opsiLokasi = barisPaket.map((r) => ({
     value: r.slug,
     label: `${r.locationName} – ${r.regency}`,
   }));
@@ -54,6 +65,7 @@ export default async function StatusHarianPage({
     const d = new Date(`${dateKey}T00:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + n);
     const q = new URLSearchParams({ tanggal: d.toISOString().slice(0, 10) });
+    if (filter.paket) q.set("paket", filter.paket);
     if (filter.lokasi) q.set("lokasi", filter.lokasi);
     if (filter.laporan !== "semua") q.set("laporan", filter.laporan);
     if (filter.drive !== "semua") q.set("drive", filter.drive);
@@ -72,6 +84,7 @@ export default async function StatusHarianPage({
       <BilahSaring
         dateKey={dateKey}
         filter={filter}
+        opsiPaket={opsiPaket(semuaBaris)}
         opsiLokasi={opsiLokasi}
         hariLabel={formatTanggal(hari, "EEEE, d MMMM yyyy")}
         hariSebelum={geser(-1)}
@@ -90,19 +103,20 @@ export default async function StatusHarianPage({
               mendorong gridnya — isi sebenarnya halaman ini — jauh ke bawah.
               Angkanya SELALU untuk seluruh hari, tidak ikut menyusut saat
               disaring: gunanya menjawab "sejauh mana hari ini". */}
+          {namaPaket ? <p className="text-[13px] font-medium text-ink">Angka di bawah untuk {namaPaket}.</p> : null}
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-            <KpiCard label="Lokasi aktif" value={String(data.total)} />
+            <KpiCard label="Lokasi aktif" value={String(kartu.total)} />
             {/* "Belum ada laporan" TIDAK diberi nada bahaya: hari libur dan
                 kelalaian menghasilkan angka yang sama, dan hanya satu yang
                 perlu ditindak. Angkanya disajikan, penilaiannya tidak. */}
-            <KpiCard label="Belum ada laporan" value={String(data.belumAda)} />
-            <KpiCard label="Masih draf" value={String(data.masihDraft)} />
-            <KpiCard label="Sudah final" value={String(data.sudahFinal)} />
-            <KpiCard label="Sudah di Drive" value={`${data.sudahDrive} / ${data.total}`} />
+            <KpiCard label="Belum ada laporan" value={String(kartu.belumAda)} />
+            <KpiCard label="Masih draf" value={String(kartu.masihDraft)} />
+            <KpiCard label="Sudah final" value={String(kartu.sudahFinal)} />
+            <KpiCard label="Sudah di Drive" value={`${kartu.sudahDrive} / ${kartu.total}`} />
           </div>
 
           <p className="text-[13px] text-ink-muted">
-            Menampilkan {rows.length} dari {data.total} lokasi
+            Menampilkan {rows.length} dari {kartu.total} lokasi{namaPaket ? ` di ${namaPaket}` : ""}
           </p>
 
           <TabelStatus rows={rows} dateKey={dateKey} />
