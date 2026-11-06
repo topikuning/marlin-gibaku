@@ -187,6 +187,44 @@ describe("penyimpanan: di atas sisa kontrak, di dalam sisa draft → draft adend
 });
 
 /*
+ * KELUHAN USER 2026-11-06 (tangkapan layar laporan terkirim): baris urugan
+ * tampil "220 m³ · 317,97 / 3.045,152 (10,4%) · Rp 49.199.282" – kumulatif
+ * kontrak dibagi volume draft, tanpa penanda, nilai seperti angka resmi.
+ * "harus ditampilkan dengan jelas mana yang berdasar kontrak dan draft
+ * adendum, kalau begini rancu".
+ */
+describe("tampilan laporan memisahkan kontrak dan draft adendum", () => {
+  it("baris draft: basisnya dibawa, angka draft (semua basis / volume draft) dan angka kontrak terpisah", async () => {
+    const { getWorkspaceData } = await import("@/lib/daily-report/queries");
+    const slug = (await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { slug: true } })).slug;
+    const w = (await getWorkspaceData(slug, "2026-11-05"))!;
+    const urug = w.report!.items.find((i) => i.lineageKey === LK_URUG)!;
+    expect(urug).toMatchObject({ basis: "draft_adendum", volumeDone: 200, volumeContract: 3045.152, volumeCumulative: 517.97 });
+    expect(urug.kontrak).toEqual({ volume: 317.97, kumulatif: 317.97, pct: 100 });
+    const gali = w.report!.items.find((i) => i.lineageKey === LK_GALI)!;
+    expect(gali).toMatchObject({ basis: "aktif", volumeContract: 100, volumeCumulative: 100, kontrak: null });
+    // Nilai hari ini = baris kontrak saja; baris draft disebut terpisah.
+    expect(w.report!.totalValueToday).toBe("5000");
+    expect(w.report!.totalValueDraft).toBe("200000");
+  });
+
+  it("laporan TERKIRIM (kasus tangkapan layar): kumulatif draft tetap memuat baris draft-nya sendiri", async () => {
+    const { getWorkspaceData } = await import("@/lib/daily-report/queries");
+    const slug = (await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { slug: true } })).slug;
+    await db.dailyReport.update({ where: { id: hariIni }, data: { status: "dikirim" } });
+    try {
+      const urug = (await getWorkspaceData(slug, "2026-11-05"))!.report!.items.find((i) => i.lineageKey === LK_URUG)!;
+      // Dulu: 317,97 / 3.045,152 – kumulatif kontrak dibagi volume draft.
+      expect(urug.volumeCumulative).toBe(517.97);
+      expect(urug.volumeContract).toBe(3045.152);
+      expect(urug.kontrak).toEqual({ volume: 317.97, kumulatif: 317.97, pct: 100 });
+    } finally {
+      await db.dailyReport.update({ where: { id: hariIni }, data: { status: "draft" } });
+    }
+  });
+});
+
+/*
  * PERTANYAAN USER 2026-11-05: "bagaimana jika draft kemudian ganti volumenya
  * lebih kecil atau dihapus, sudah termitigasi juga?" Dicoba dulu pada DB uji:
  * sesudah laporan DIKIRIM, mengecilkan/menghapus memang ditolak. Dua celah:

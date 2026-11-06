@@ -19,6 +19,7 @@ import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
 import { cariPekerjaan } from "@/lib/daily-report/cari-pekerjaan";
 import { batasLapor, keDraftAdendum } from "@/lib/daily-report/batas-lapor";
+import { KumulatifItem, PenandaDraftAdendum } from "./kumulatif-item";
 import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
@@ -874,12 +875,26 @@ function ItemRow({
           <div className="text-sm font-medium text-ink">{item.name}</div>
           <div className="mt-0.5 text-xs text-ink-muted">
             {item.code} · {formatNumber(item.volumeDone)} {item.unit ?? ""}
-            {tanpaUang ? null : <> · {formatRupiah(BigInt(item.valueDone))}</>}
+            {tanpaUang ? null : (
+              <>
+                {" · "}
+                {formatRupiah(BigInt(item.valueDone))}
+                {item.basis === "draft_adendum" ? <span className="text-warning"> (belum resmi)</span> : null}
+              </>
+            )}
           </div>
+          <PenandaDraftAdendum item={item} />
           <div className="text-xs text-ink-muted">
-            Kumulatif: {formatNumber(item.volumeCumulative)}
-            {item.volumeContract != null ? ` / ${formatNumber(item.volumeContract)}` : ""} {item.unit ?? ""}
-            {item.pctCumulative != null ? ` (${item.pctCumulative.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%)` : ""}
+            {item.basis === "draft_adendum" ? (
+              <>
+                <div>Kumulatif:</div>
+                <KumulatifItem item={item} satuan rataKiri />
+              </>
+            ) : (
+              <>
+                Kumulatif: <KumulatifItem item={item} satuan />
+              </>
+            )}
           </div>
           {item.notes ? <div className="mt-0.5 text-xs text-ink-faint">“{item.notes}”</div> : null}
           {item.diLuarRabAktif ? (

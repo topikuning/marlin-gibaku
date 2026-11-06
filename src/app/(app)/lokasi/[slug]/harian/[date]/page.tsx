@@ -13,6 +13,7 @@ import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey
 import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor, TambahFotoSusulan } from "./report-editor";
+import { KumulatifItem, PenandaDraftAdendum } from "./kumulatif-item";
 import { PekerjaanLuarRab } from "./luar-rab";
 import { ImporLaporanPelaksana } from "./impor-pelaksana";
 import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
@@ -107,6 +108,7 @@ export default async function HarianWorkspacePage({
     ? {
         ...data.report,
         totalValueToday: "0",
+        totalValueDraft: "0",
         items: data.report.items.map((it) => ({ ...it, valueDone: "0" })),
       }
     : data.report;
@@ -166,7 +168,10 @@ export default async function HarianWorkspacePage({
         description={
           report
             ? lihatUang
-              ? `${report.items.length} item · nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}`
+              ? `${report.items.length} item · nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}` +
+                (BigInt(report.totalValueDraft) > 0n
+                  ? ` · draft adendum ${formatRupiah(BigInt(report.totalValueDraft))} (belum resmi)`
+                  : "")
               : `${report.items.length} item`
             : "Belum ada laporan untuk tanggal ini."
         }
@@ -260,7 +265,14 @@ export default async function HarianWorkspacePage({
         <Card>
           <CardHeader
             title={`Item pekerjaan (${report.items.length})`}
-            subtitle={lihatUang ? `Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}` : undefined}
+            subtitle={
+              lihatUang
+                ? `Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}` +
+                  (BigInt(report.totalValueDraft) > 0n
+                    ? ` · draft adendum ${formatRupiah(BigInt(report.totalValueDraft))} (belum resmi)`
+                    : "")
+                : undefined
+            }
           />
           <CardBody className="px-0 py-0">
             {/* Sekali di atas daftar, bukan di tiap pekerjaan: laporan lapangan
@@ -300,6 +312,7 @@ export default async function HarianWorkspacePage({
                             Tidak ada di RAB aktif – tidak dihitung di progres
                           </div>
                         ) : null}
+                        <PenandaDraftAdendum item={it} />
                         {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
                         {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
                         <FotoItemTerkirim
@@ -315,15 +328,14 @@ export default async function HarianWorkspacePage({
                         {formatNumber(it.volumeDone)} {it.unit ?? ""}
                       </td>
                       <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
-                        {formatNumber(it.volumeCumulative)}
-                        {it.volumeContract != null ? ` / ${formatNumber(it.volumeContract)}` : ""}
-                        {it.pctCumulative != null
-                          ? ` (${it.pctCumulative.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%)`
-                          : ""}
+                        <KumulatifItem item={it} />
                       </td>
                       {lihatUang ? (
                         <td className="py-2 pr-4 text-right tabular whitespace-nowrap">
                           {formatRupiah(BigInt(it.valueDone))}
+                          {it.basis === "draft_adendum" ? (
+                            <div className="text-[11px] font-medium text-warning">belum resmi</div>
+                          ) : null}
                         </td>
                       ) : null}
                     </tr>
