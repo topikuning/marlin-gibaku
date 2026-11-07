@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { MarlinGrid, pctCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
+import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import { formatPct } from "@/lib/format";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import type { LocationStatus } from "@/generated/prisma/enums";
@@ -13,6 +14,9 @@ export type LokasiRow = {
   slug: string;
   name: string;
   wilayah: string;
+  /** Titik GPS (teks Decimal) – ikon Google Maps di sel Lokasi (DECISIONS 749). */
+  gpsLat: string | null;
+  gpsLng: string | null;
   paket: string;
   /** Perusahaan pelaksana dari KONTRAK. null = paket belum berkontrak. */
   perusahaan: string | null;
@@ -71,10 +75,18 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
         // `block py-1.5` — tautannya mengisi tinggi sel, bukan seutas teks
         // setinggi 16px. Sasaran ketuk sekecil itu lebih sering meleset
         // daripada kena di ponsel (DECISIONS 247).
-        <Link href={`/lokasi/${p.data.slug}`} className="block py-1.5 leading-tight">
-          <span className="block font-medium text-primary hover:underline">{p.data.name}</span>
-          <span className="block text-xs text-ink-muted">{p.data.wilayah}</span>
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link href={`/lokasi/${p.data.slug}`} className="block min-w-0 flex-1 py-1.5 leading-tight">
+            <span className="block truncate font-medium text-primary hover:underline" title={p.data.name}>
+              {p.data.name}
+            </span>
+            <span className="block truncate text-xs text-ink-muted" title={p.data.wilayah}>
+              {p.data.wilayah}
+            </span>
+          </Link>
+          {/* Sekali klik ke Google Maps (DECISIONS 749); tidak tampil bila koordinat kosong. */}
+          <TautanGoogleMaps rupa="ikon" lat={p.data.gpsLat} lng={p.data.gpsLng} />
+        </div>
       ) : null,
   },
   { field: "paket", headerName: "Paket", minWidth: 180, flex: 1 },

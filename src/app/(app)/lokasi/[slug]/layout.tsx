@@ -10,6 +10,7 @@ import { ProgressStrip, ProgressStripPonsel, type JalurStrip, type NilaiStrip, t
 import { bobotPct } from "@/lib/progress-calc";
 import { withPpn } from "@/lib/money";
 import { TampilKecualiInputHarian } from "./tampil-kecuali-input-harian";
+import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import { can } from "@/lib/authz";
 import { alasanLokasiTertutup } from "@/lib/package/lingkup-lokasi";
 import { kawalUntukLokasi } from "@/lib/kawal/queries";
@@ -201,8 +202,13 @@ export default async function LokasiLayout({
               />
               {tertutup ? <StatusPill tone="warning" label="Dicabut dari kontrak" /> : null}
             </div>
-            <p className="mt-1 text-[13px] text-ink-muted">
-              {location.village}, {location.regency} – {location.province}
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-ink-muted">
+              <span>
+                {location.village}, {location.regency} – {location.province}
+              </span>
+              {/* Sekali klik ke Google Maps (DECISIONS 749). Tidak tampil bila
+                  koordinat lokasi belum diisi. */}
+              <TautanGoogleMaps lat={location.gpsLat?.toString()} lng={location.gpsLng?.toString()} />
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 text-right text-[13px]">
@@ -274,7 +280,8 @@ export default async function LokasiLayout({
               label={LOCATION_STATUS_LABEL[location.status]}
             />
           )}
-          <span className="ms-auto shrink-0">
+          <span className="ms-auto flex shrink-0 items-center gap-1">
+            <TautanGoogleMaps rupa="ikon" lat={location.gpsLat?.toString()} lng={location.gpsLng?.toString()} />
             <DeltaBadge value={progress.deviationPct} />
           </span>
         </div>

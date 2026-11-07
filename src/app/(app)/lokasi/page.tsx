@@ -28,6 +28,8 @@ export default async function LokasiListPage() {
       village: true,
       regency: true,
       province: true,
+      gpsLat: true,
+      gpsLng: true,
       status: true,
       package: {
         select: {
@@ -51,6 +53,8 @@ export default async function LokasiListPage() {
       slug: l.slug,
       name: l.name,
       wilayah: `${l.regency}, ${l.province}`,
+      gpsLat: l.gpsLat?.toString() ?? null,
+      gpsLng: l.gpsLng?.toString() ?? null,
       paket: l.package.name,
       perusahaan: l.package.contract?.vendor.name ?? null,
       status: l.status,

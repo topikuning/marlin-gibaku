@@ -5,6 +5,7 @@ import { useAksi } from "@/lib/aksi-klien";
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
+import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import { updateLocationMaster, type StatusActionState } from "./actions";
 
 /**
@@ -54,10 +55,15 @@ export function LocationMasterForm({
               )}
             </p>
           </div>
-          <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}>
-            <Pencil aria-hidden className="size-3.5" />
-            Ubah alamat &amp; koordinat
-          </Button>
+          {/* Satu baris aksi, dua tombol sekunder berukuran sama (DECISIONS 592/603).
+              Tombol Maps hilang sendiri selama koordinat belum diisi (DECISIONS 749). */}
+          <div className="flex flex-wrap gap-2">
+            <TautanGoogleMaps rupa="tombol" lat={gpsLat} lng={gpsLng} />
+            <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}>
+              <Pencil aria-hidden className="size-3.5" />
+              Ubah alamat &amp; koordinat
+            </Button>
+          </div>
         </div>
         {!adaKoordinat ? (
           <Banner
