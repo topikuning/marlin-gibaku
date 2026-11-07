@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { locationRelScopeWhere, locationScopeWhere } from "@/lib/auth/scope";
 import type { SessionUser } from "@/lib/auth/session";
 import { buildPhotoViews } from "@/lib/photos";
+import { jalurNodeById } from "@/lib/rab/jalur";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
 import { STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
@@ -197,11 +198,23 @@ export async function getTujuan(
         reportDate: true,
         status: true,
         items: {
-          select: { id: true, rabNode: { select: { code: true, name: true } }, _count: { select: { photos: true } } },
+          select: {
+            id: true,
+            rabNodeId: true,
+            rabNode: { select: { code: true, name: true } },
+            _count: { select: { photos: true } },
+          },
         },
       },
     }),
   ]);
+
+  /*
+   * Kategori/sarana tiap item (DECISIONS 748). Nama item yang sama ada di
+   * beberapa sarana ("5.b Pembesian Besi Beton" di kios DAN di gudang); tanpa
+   * induknya, foto bisa ditautkan ke baris yang salah dan tidak ada yang tahu.
+   */
+  const jalur = await jalurNodeById(laporan.flatMap((r) => r.items.map((i) => i.rabNodeId)));
 
   return {
     kegiatan: kegiatan.map((k) => ({
@@ -217,7 +230,12 @@ export async function getTujuan(
           .filter((i) => !terkirim || i._count.photos === 0)
           .map((i) => ({
             id: i.id,
-            label: i.rabNode.code ? `${i.rabNode.code}. ${i.rabNode.name}` : i.rabNode.name,
+            label: [
+              i.rabNode.code ? `${i.rabNode.code}. ${i.rabNode.name}` : i.rabNode.name,
+              jalur.get(i.rabNodeId)?.nama,
+            ]
+              .filter(Boolean)
+              .join(" – "),
           })),
       };
     }),

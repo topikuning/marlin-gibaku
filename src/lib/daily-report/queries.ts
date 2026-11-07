@@ -625,6 +625,9 @@ export type HariIniLocation = {
   name: string;
   village: string;
   regency: string;
+  /** Titik GPS lokasi (teks Decimal) – tombol Google Maps di kartu Hari Ini (DECISIONS 749). */
+  gpsLat: string | null;
+  gpsLng: string | null;
   todayDraftItemCount: number | null; // null = belum ada laporan hari ini
   todayStatus: DailyReportStatus | null;
   corrections: PendingCorrection[];
@@ -639,7 +642,7 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
   const today = parseDateKey(todayKey)!;
   const location = await db.location.findUnique({
     where: { id: locationId },
-    select: { id: true, slug: true, name: true, village: true, regency: true },
+    select: { id: true, slug: true, name: true, village: true, regency: true, gpsLat: true, gpsLng: true },
   });
   if (!location) return null;
 
@@ -700,6 +703,8 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
 
   return {
     ...location,
+    gpsLat: location.gpsLat?.toString() ?? null,
+    gpsLng: location.gpsLng?.toString() ?? null,
     todayDraftItemCount: todayReport ? todayReport._count.items : null,
     todayStatus: todayReport?.status ?? null,
     corrections: correctionReports.map((r) => ({

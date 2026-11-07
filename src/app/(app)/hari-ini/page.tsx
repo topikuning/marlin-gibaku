@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, ClipboardList } from "lucide-react";
+import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import { Banner, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
@@ -74,6 +75,8 @@ export default async function HariIniPage() {
           <CardHeader
             title={s.name}
             subtitle={`${s.village}, ${s.regency}${s.weekNumber ? ` · minggu ke-${s.weekNumber}` : ""}`}
+            // Orang lapangan sering perlu RUTE ke lokasinya (DECISIONS 749).
+            action={<TautanGoogleMaps rupa="ikon" lat={s.gpsLat} lng={s.gpsLng} />}
           />
           <CardBody className="space-y-4">
             {s.corrections.length > 0 && (

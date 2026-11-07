@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { LocationSnapshot, PetaMarker } from "@/lib/peta";
 import type { SumberPeta } from "@/lib/peta/gaya";
@@ -233,7 +234,7 @@ export function PetaClient({
             {loading && !snap ? (
               <p className="text-sm text-ink-faint">Memuat…</p>
             ) : snap ? (
-              <SnapshotPanel snap={snap} onClose={close} />
+              <SnapshotPanel snap={snap} onClose={close} titik={markers.find((m) => m.id === selectedId) ?? null} />
             ) : null}
           </div>
         )}
@@ -243,7 +244,16 @@ export function PetaClient({
   );
 }
 
-function SnapshotPanel({ snap, onClose }: { snap: LocationSnapshot; onClose: () => void }) {
+function SnapshotPanel({
+  snap,
+  onClose,
+  titik,
+}: {
+  snap: LocationSnapshot;
+  onClose: () => void;
+  /** Penanda lokasi ini di peta – sumber koordinat tombol Google Maps (DECISIONS 749). */
+  titik: { lat: number; lng: number } | null;
+}) {
   const status = snap.status as LocationStatus;
   return (
     <>
@@ -339,12 +349,15 @@ function SnapshotPanel({ snap, onClose }: { snap: LocationSnapshot; onClose: () 
         <p className="mb-3 text-xs text-ink-faint">Belum ada laporan harian.</p>
       )}
 
-      <Link
-        href={`/lokasi/${snap.slug}`}
-        className="inline-flex h-8 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-[13px] font-medium text-white transition-colors hover:bg-primary-800"
-      >
-        Buka detail lokasi →
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/lokasi/${snap.slug}`}
+          className="inline-flex h-8 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-[13px] font-medium text-white transition-colors hover:bg-primary-800 pointer-coarse:min-h-11"
+        >
+          Buka detail lokasi →
+        </Link>
+        <TautanGoogleMaps rupa="tombol" lat={titik?.lat} lng={titik?.lng} />
+      </div>
     </>
   );
 }

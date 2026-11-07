@@ -58,6 +58,8 @@ function lok(
     name: nama,
     village: "Desa",
     regency: "Kab",
+    gpsLat: null,
+    gpsLng: null,
     todayDraftItemCount: null,
     todayStatus: hari[hari.length - 1] ?? null,
     corrections: koreksi.map((d) => ({ dateKey: d, itemCount: 1, reason: null })),

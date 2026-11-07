@@ -101,7 +101,14 @@ export function GalleryGrid({
                   </span>
                 </button>
                 <div className="p-2.5">
-                  <strong className="block truncate text-xs font-semibold text-ink">{p.title}</strong>
+                  <strong className="block truncate text-xs font-semibold text-ink" title={p.title}>
+                    {p.title}
+                  </strong>
+                  {p.jalur ? (
+                    <p className="truncate text-[11px] text-ink-muted" title={p.jalur}>
+                      {p.jalur}
+                    </p>
+                  ) : null}
                   <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                     {p.locationName} · {p.sourceLabel}
                   </p>
@@ -128,7 +135,10 @@ export function GalleryGrid({
             {/* eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara */}
             <img src={active.fullUrl ?? active.thumbUrl} alt="" className="max-h-[80vh] w-auto rounded-lg object-contain" />
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-700">
-              <span className="font-semibold text-slate-900">{active.title}</span>
+              <span className="font-semibold text-slate-900">
+                {active.title}
+                {active.jalur ? <span className="font-normal text-slate-600"> · {active.jalur}</span> : null}
+              </span>
               {active.locationSlug ? (
                 <Link href={`/lokasi/${active.locationSlug}`} className="inline-flex items-center gap-1 text-primary hover:underline">
                   <MapPin aria-hidden className="size-3" />

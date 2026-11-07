@@ -8,6 +8,7 @@ import { formatTanggal, parseDateKey } from "@/lib/format";
 import { jamTakDiketahui } from "@/lib/photo-stamp/format";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { getLocationProgress } from "@/lib/progress";
+import { jalurNodeById } from "@/lib/rab/jalur";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "./constants";
 
 /**
@@ -42,6 +43,15 @@ import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "./constants";
 export type RingkasPekerjaan = {
   code: string;
   name: string;
+  /**
+   * Kategori/sarana induknya, mis. "VII. PEKERJAAN BANGUNAN KIOS PERBEKALAN".
+   *
+   * Laporan user 2026-11-06: dua baris "5.b Pekerjaan Pembesian Besi Beton"
+   * di PDF ini ternyata milik dua sarana berbeda, dan tanpa induknya pembaca
+   * PPK tidak bisa membedakannya. Jalurnya sudah ada di layar laporan harian
+   * sejak 2026-09-23 (`jalurNodeById`), tapi tidak ikut ke sini (DECISIONS 748).
+   */
+  jalur: string | null;
   unit: string | null;
   /** Volume yang dikerjakan HARI ITU (bukan kumulatif). */
   volumeToday: number;
@@ -74,6 +84,8 @@ export type RingkasFoto = {
    * padahal itulah satu-satunya guna lampiran foto.
    */
   sumber: string;
+  /** Kategori/sarana item fotonya – tanpa ini dua foto "5.b" tidak bisa dibedakan. */
+  sumberJalur: string | null;
   takenAt: Date | null;
   /**
    * Jam jepretnya TIDAK DIKETAHUI; `takenAt` cuma membawa tanggal kerjanya.
@@ -237,6 +249,7 @@ export async function getRingkasHarian(
              * hendak ditutup.
              */
             lineageKey: true,
+            rabNodeId: true,
             rabNode: { select: { code: true, name: true, unit: true } },
           },
           orderBy: { createdAt: "asc" },
@@ -252,7 +265,7 @@ export async function getRingkasHarian(
             metadataSource: true,
             // Foto SUDAH tertaut ke item RAB-nya; judulnya tinggal dibaca dari
             // sini, tidak perlu ditebak dan tidak boleh diseragamkan.
-            reportItem: { select: { rabNode: { select: { code: true, name: true } } } },
+            reportItem: { select: { rabNodeId: true, rabNode: { select: { code: true, name: true } } } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -342,9 +355,21 @@ export async function getRingkasHarian(
     return (prestasiPct(volumeHariIni, n.volK) / 100) * bobotPct(n.amount, Number(grandTotal));
   }
 
+  /*
+   * Kategori/sarana tiap item dan foto – dari node yang MENEMPEL di baris
+   * laporan, sama dengan layar laporan harian (`getWorkspaceData`). Satu
+   * panggilan untuk tabel dan dokumentasi sekaligus.
+   */
+  const jalur = await jalurNodeById([
+    ...semuaItem.map((i) => i.rabNodeId),
+    ...(report?.photos ?? []).flatMap((p) => (p.reportItem ? [p.reportItem.rabNodeId] : [])),
+  ]);
+  const namaJalur = (id: string | undefined) => (id ? jalur.get(id)?.nama || null : null);
+
   const pekerjaan: RingkasPekerjaan[] = itemAktif.map((i) => ({
     code: i.rabNode.code,
     name: i.rabNode.name,
+    jalur: namaJalur(i.rabNodeId),
     unit: i.rabNode.unit,
     volumeToday: Number(i.volumeDone),
     /*
@@ -393,6 +418,7 @@ export async function getRingkasHarian(
         // untuk foto yang memang tidak tertaut item mana pun — di sana label
         // umum itu jujur, sedangkan menebak pekerjaannya tidak.
         sumber: node ? [node.code, node.name].filter(Boolean).join(" · ") : "Pekerjaan harian",
+        sumberJalur: namaJalur(p.reportItem?.rabNodeId),
         takenAt: p.exifTakenAt,
         jamTidakDiketahui: jamTakDiketahui(p.metadataSource, p.exifTakenAt),
         lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
@@ -410,6 +436,7 @@ export async function getRingkasHarian(
         id: p.id,
         r2Key: p.r2Key,
         sumber: `Kegiatan: ${k.title}`,
+        sumberJalur: null,
         takenAt: p.exifTakenAt,
         jamTidakDiketahui: jamTakDiketahui(p.metadataSource, p.exifTakenAt),
         lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
