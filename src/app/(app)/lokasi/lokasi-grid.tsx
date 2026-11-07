@@ -84,8 +84,12 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
               {p.data.wilayah}
             </span>
           </Link>
-          {/* Sekali klik ke Google Maps (DECISIONS 749); tidak tampil bila koordinat kosong. */}
-          <TautanGoogleMaps rupa="ikon" lat={p.data.gpsLat} lng={p.data.gpsLng} />
+          {/* Sekali klik ke Google Maps (DECISIONS 749); tidak tampil bila koordinat kosong.
+              DISEMBUNYIKAN di layar sempit: di ponsel daftar ini dipakai untuk MEMBUKA
+              lokasi, dan ikon 44 px di kolom 190 px merebut ketukan baris – orang yang
+              mau membuka lokasi malah dibawa ke Google Maps (terbukti oleh E2E
+              mobile-umpan-balik-navigasi). Di ponsel, ikon Maps ada di header lokasi. */}
+          <TautanGoogleMaps rupa="ikon" lat={p.data.gpsLat} lng={p.data.gpsLng} className="max-sm:hidden" />
         </div>
       ) : null,
   },
