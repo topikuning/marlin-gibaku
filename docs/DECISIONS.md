@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 750 | 2026-11-08 | Daftar Lokasi menyembunyikan lokasi dicabut adendum / berstatus Batal / di paket Batal kecuali `?tampil=semua`; jumlah yang disembunyikan disebut per sebab; status menyebut sebabnya (Dicabut / Batal / Paket batal); arsip pencabutan tetap mengikuti `location_scope.archive` |
 | 749 | 2026-11-07 | Tombol "Buka di Google Maps" (URL resmi `maps/search/?api=1`, tab baru) untuk lokasi berkoordinat: header lokasi desktop + ikon ponsel, kartu Alamat & koordinat, panel Peta, kartu Hari Ini, daftar Lokasi; koordinat kosong/0,0/mustahil = tanpa tombol |
 | 748 | 2026-11-06 | Item bernama sama di sarana berbeda: nama kategori/sarana induk (`jalurNodeById`) kini ikut di PDF ringkasan harian (tabel + keterangan foto), galeri Foto Lapangan, dan label pilihan item Foto Cepat – dulu hanya layar laporan harian |
 | 747 | 2026-11-06 | Tujuan grup WA satu pintu: papan Status Harian, daftar paket, Chat Grup, kartu Komunikasi, uji penerimaan Sistem kini ikut grup KABUPATEN (dulu membaca grup paket saja – lokasi ber-grup kabupaten terbaca "Tanpa grup"); pagar `waGroupId` untuk seluruh `src/`; pemilih grup bisa dicari per kata + tanda "sudah tertaut", juga di form kabupaten |
