@@ -887,7 +887,11 @@ export async function sendWeeklyBundleToWaAction(
     const caption = [
       `📄 *Laporan Harian Minggu ke-${minggu}* (7 hari dalam 1 berkas)`,
       loc.name ? `📍 ${loc.name}` : null,
-      hasil.hariKosong > 0 ? `⚠️ ${hasil.hariKosong} hari belum ada laporan` : null,
+      // Hari yang belum tiba bukan "belum lapor" (DECISIONS 752).
+      hasil.hariKosong - hasil.hariBelumTiba > 0
+        ? `⚠️ ${hasil.hariKosong - hasil.hariBelumTiba} hari belum ada laporan`
+        : null,
+      hasil.hariBelumTiba > 0 ? `${hasil.hariBelumTiba} hari belum tiba` : null,
       hasil.fotoDipotong > 0 ? `⚠️ ${hasil.fotoDipotong} foto tidak dimuat (batas berkas)` : null,
     ]
       .filter(Boolean)

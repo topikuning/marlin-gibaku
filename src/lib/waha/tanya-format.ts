@@ -449,6 +449,8 @@ export function balasBantuan(): string {
     "• *Progress* – “progress hari ini”, “progress kemarin di Kedung Mutih”",
     "• *Laporan harian* – isi laporan SATU tanggal: “laporan hari ini”, “laporan tanggal 12”",
     "• *Laporan mingguan* – rekap SEPEKAN: “laporan mingguan”, “laporan mingguan minggu lalu”",
+    "  Di grup, keduanya dikirim sebagai berkas KKP, satu per lokasi.",
+    "• *Rekap laporan harian* – berkas KKP laporan harian satu minggu: “rekap harian seminggu”",
     "• *Rencana kerja* – apa yang AKAN dikerjakan: “rencana minggu depan”,",
     "  “rencana kerja di Kemantren”, “apa yang perlu dikerjakan”",
     "• *Kendala* – “ada kendala apa”, “kendala di Tengket”",

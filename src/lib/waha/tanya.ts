@@ -38,6 +38,7 @@ import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-i
 import { putuskanLayanan } from "./resolver-kanal";
 import { jalankanDenganKonteksBalasan, type KonteksBalasan } from "./konteks-balasan";
 import { potongPesan } from "./potong-pesan";
+import { jenisBerkasKkp } from "./berkas-kkp";
 import {
   PETUNJUK_SKEMA,
   SISTEM_PROMPT,
@@ -542,12 +543,14 @@ async function jawabDalamKonteks(
   const penyaring: SessionUser = pkg ? penyaringGrup(keputusan.orgId) : user!;
 
   /*
-   * RUPIAH DI BERKAS (DECISIONS 735). Pelaksana tidak melihat uang – juga
-   * lewat PDF yang dikirim ke WhatsApp-nya. Nilai rupiah hanya dicetak di chat
-   * PRIBADI dengan penanya yang memegang `money.view`. Di grup, siapa pun yang
-   * bertanya, berkasnya tanpa rupiah: anggota grup paket bisa Pelaksana.
+   * RUPIAH DI BERKAS (DECISIONS 735, dikoreksi 753). Di GRUP berkasnya utuh,
+   * siapa pun yang bertanya – sama dengan berkas yang dikirim dari web. User
+   * 2026-11-09: *"digroup tidak perlu buang rupiahnya! yang dikurangi hanya web
+   * untuk pelaksana!"*. Aturan "di grup selalu tanpa rupiah" di 735 adalah
+   * perluasan agen, bukan perintah. Chat PRIBADI penanya tanpa `money.view`
+   * (Pelaksana) masih tanpa rupiah, menunggu keputusan user.
    */
-  const berkasTanpaUang = grup || !user || !can(user.role, "money.view");
+  const berkasTanpaUang = !grup && (!user || !can(user.role, "money.view"));
 
   /*
    * `lokasiIds = null` berarti "seluruh lokasi yang boleh diakses penanya di
@@ -1099,6 +1102,48 @@ async function jawabDalamKonteks(
     penandaLingkup: keputusan.penandaLingkup,
     ...o,
   });
+
+  /*
+   * BERKAS KKP PER LOKASI (DECISIONS 752). Di grup, laporan harian dan
+   * mingguan dijawab berkas KKP satu per lokasi; rekap harian seminggu di
+   * kanal mana pun. Jalurnya sendiri – pembuka, berkas, penutup – dan tidak
+   * ikut perakit teks/tabel di bawah: satu jawaban, satu bentuk.
+   */
+  const jenisBerkas = jenisBerkasKkp(niat.niat, teks, grup);
+  if (jenisBerkas) {
+    const { kirimBerkasKkp } = await import("./berkas-kkp-kirim");
+    const hasil = await kirimBerkasKkp({
+      chatId: m.chatId,
+      jenis: jenisBerkas,
+      sasaran,
+      periodeDiminta: niat.periode,
+      periode,
+      hariIniKey,
+      catatan:
+        jenisBerkas === "harian" && !periode.satuHari
+          ? `Laporan harian selalu satu tanggal. Anda menyebut ${periode.label}, jadi saya ambil hari terakhirnya. Untuk satu minggu penuh, minta "rekap harian seminggu".`
+          : periode.catatan,
+      pembuka: [jalur === "ai" ? barisTafsir(niat.niat) : null, keputusan.penandaLingkup],
+      userId: user?.id ?? null,
+      waMessageId: m.waMessageId,
+    });
+    await simpanKonteks(m, niat.niat, niat.lokasiDisebut, new Date(), { question: teks, answer: hasil.teks });
+    await audit(user?.id ?? null, "waha.tanya", "wa_message", m.waMessageId, {
+      chatId: m.chatId,
+      grup,
+      penanyaTerdaftar: !!user,
+      niat: niat.niat,
+      jalur,
+      berkasKkp: { jenis: jenisBerkas, terkirim: hasil.jejak.terkirim.length, dilewati: hasil.jejak.dilewati.length },
+      lokasiDisebut: niat.lokasiDisebut,
+      lokasiDijawab: sasaran.length,
+      dipotongKeGrup: keputusan.catatanPemotongan !== null,
+      asalScope: keputusan.asalScope,
+      peranDipakai: keputusan.peranDipakai,
+      scopeIds: lokasiIds ? lokasiIds.length : null,
+    });
+    return { dijawab: true, alasan: `dijawab (${niat.niat}, ${jalur}, berkas KKP ${jenisBerkas})` };
+  }
 
   if (niat.niat === "bantuan") {
     balasan = balasBantuan();
