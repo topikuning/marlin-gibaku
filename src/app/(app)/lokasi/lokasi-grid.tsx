@@ -8,9 +8,12 @@ import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import { formatPct } from "@/lib/format";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import type { LocationStatus } from "@/generated/prisma/enums";
+import type { AlasanTertutup } from "@/lib/lokasi/tertutup";
 
 export type LokasiRow = {
   id: string;
+  /** Dicabut adendum / dibatalkan – hanya muncul saat "Tampilkan semua" (DECISIONS 750). */
+  tertutup: AlasanTertutup | null;
   slug: string;
   name: string;
   wilayah: string;
@@ -60,6 +63,12 @@ export type LokasiRow = {
  * Nama paket sengaja TIDAK dikunci (permintaan user): perlu ada, tapi bukan
  * identitas yang dicari mata saat menggulir.
  */
+function labelStatus(r: LokasiRow): string {
+  if (r.tertutup === "dicabut") return "Dicabut";
+  if (r.tertutup === "batal") return r.status === "batal" ? LOCATION_STATUS_LABEL.batal : "Paket batal";
+  return LOCATION_STATUS_LABEL[r.status];
+}
+
 const COLUMN_DEFS: ColDef<LokasiRow>[] = [
   {
     field: "name",
@@ -117,11 +126,16 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
     field: "status",
     headerName: "Status",
     width: 130,
+    // Lokasi tertutup menyebut SEBABNYA, bukan status lapangan terakhirnya:
+    // "Berjalan" pada lokasi yang sudah dicabut adendum adalah keterangan palsu.
+    valueGetter: (p) => (p.data ? labelStatus(p.data) : ""),
     cellRenderer: (p: ICellRendererParams<LokasiRow>) =>
       p.data ? (
-        <StatusPill tone={LOCATION_STATUS_TONE[p.data.status]} label={LOCATION_STATUS_LABEL[p.data.status]} />
+        <StatusPill
+          tone={p.data.tertutup === "dicabut" ? "warning" : p.data.tertutup === "batal" ? "danger" : LOCATION_STATUS_TONE[p.data.status]}
+          label={labelStatus(p.data)}
+        />
       ) : null,
-    valueFormatter: (p) => (p.value ? LOCATION_STATUS_LABEL[p.value as LocationStatus] : ""),
   },
   /*
    * REALISASI yang dibaca lebih dulu, deviasi menyusul sebagai angka biasa.
