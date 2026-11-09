@@ -543,12 +543,14 @@ async function jawabDalamKonteks(
   const penyaring: SessionUser = pkg ? penyaringGrup(keputusan.orgId) : user!;
 
   /*
-   * RUPIAH DI BERKAS (DECISIONS 735). Pelaksana tidak melihat uang – juga
-   * lewat PDF yang dikirim ke WhatsApp-nya. Nilai rupiah hanya dicetak di chat
-   * PRIBADI dengan penanya yang memegang `money.view`. Di grup, siapa pun yang
-   * bertanya, berkasnya tanpa rupiah: anggota grup paket bisa Pelaksana.
+   * RUPIAH DI BERKAS (DECISIONS 735, dikoreksi 753). Di GRUP berkasnya utuh,
+   * siapa pun yang bertanya – sama dengan berkas yang dikirim dari web. User
+   * 2026-11-09: *"digroup tidak perlu buang rupiahnya! yang dikurangi hanya web
+   * untuk pelaksana!"*. Aturan "di grup selalu tanpa rupiah" di 735 adalah
+   * perluasan agen, bukan perintah. Chat PRIBADI penanya tanpa `money.view`
+   * (Pelaksana) masih tanpa rupiah, menunggu keputusan user.
    */
-  const berkasTanpaUang = grup || !user || !can(user.role, "money.view");
+  const berkasTanpaUang = !grup && (!user || !can(user.role, "money.view"));
 
   /*
    * `lokasiIds = null` berarti "seluruh lokasi yang boleh diakses penanya di

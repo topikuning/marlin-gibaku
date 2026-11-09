@@ -2702,17 +2702,23 @@ describe("berkas WA tanpa rupiah untuk Pelaksana (DECISIONS 735)", () => {
     expect(teks).toMatch(/Realisasi/i);
   });
 
-  it("grup paket: laporan lengkap tanpa rupiah, siapa pun yang bertanya", async () => {
+  it("grup paket: laporan lengkap TETAP memuat rupiah, siapa pun yang bertanya (DECISIONS 753)", async () => {
+    /*
+     * User 2026-11-09: *"digroup tidak perlu buang rupiahnya! yang dikurangi
+     * hanya web untuk pelaksana!"*. Versi 735 membuang rupiah di grup – itu
+     * perluasan agen, bukan perintah. Ditanyakan Pelaksana pun, berkas grup
+     * sama dengan berkas yang dikirim dari web.
+     */
     niatPalsu = null;
     await jawabPertanyaanWa(
       event({
         chatId: GRUP_A,
-        dari: nomorSM,
+        dari: nomorPelaksana,
         teks: `@${NOMOR_MARLIN} laporan lengkap kedung mutih`,
         mention: [`${NOMOR_MARLIN}@c.us`],
       }),
     );
     expect(berkasTerkirim.length, terkirim.map((t) => t.teks).join("\n")).toBeGreaterThan(0);
-    expect(await teksPdf(berkasTerkirim[0].data)).not.toMatch(/\bRp\b|Nilai RAB|Nilai kontrak/i);
+    expect(await teksPdf(berkasTerkirim[0].data)).toMatch(/Nilai RAB/i);
   });
 });
