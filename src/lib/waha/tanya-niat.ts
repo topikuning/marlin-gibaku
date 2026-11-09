@@ -37,6 +37,12 @@ export const NIAT = [
   /** Rekap posisi pekerjaan satu PEKAN — DECISIONS 358. */
   "laporan_mingguan",
   /**
+   * BERKAS rekap laporan HARIAN satu minggu – sampul + laporan harian tiap
+   * hari, format KKP, satu berkas per lokasi (DECISIONS 752). Berbeda dari
+   * `laporan_mingguan`, yang merekap progres pekan.
+   */
+  "rekap_harian",
+  /**
    * Rekap posisi pekerjaan satu BULAN kalender (audit 2026-08-28).
    *
    * Bukan rumus baru: `dataMingguan` menerima rentang apa pun, jadi yang
@@ -100,6 +106,7 @@ export const NIAT_LABEL: Record<Niat, string> = {
   kelengkapan: "kelengkapan laporan harian",
   laporan: "isi laporan harian satu tanggal",
   laporan_mingguan: "rekap mingguan (realisasi vs rencana per pekan)",
+  rekap_harian: "berkas rekap laporan harian satu minggu (format KKP, satu berkas per lokasi)",
   laporan_bulanan: "rekap bulanan (realisasi vs rencana satu bulan)",
   rencana: "rencana kerja pekan ini atau pekan depan",
   kronologi:
@@ -163,7 +170,7 @@ export const skemaNiat = z.object({
 export type NiatTerbaca = z.infer<typeof skemaNiat>;
 
 export const PETUNJUK_SKEMA = `{
-  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "laporan_bulanan" | "rencana" | "kronologi" | "produksi" | "bantuan" | null,
+  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "rekap_harian" | "laporan_bulanan" | "rencana" | "kronologi" | "produksi" | "bantuan" | null,
   // "produksi" = penanya MEMERINTAHKAN membuat/mengirim artefak ("buatkan
   // laporan eksekutif", "export excel", "kirim pdf ke pak PPK") – bukan
   // bertanya. Pilih ini walau kata bendanya sama dengan niat lain; kata
@@ -200,6 +207,10 @@ export const SISTEM_PROMPT = [
   "                     'laporan minggu lalu', 'progress mingguan'.",
   "                     PENTING: 'laporan MINGGUAN' selalu laporan_mingguan, JANGAN",
   "                     dipetakan ke 'laporan' (yang itu laporan HARIAN satu tanggal).",
+  "- rekap_harian : BERKAS kumpulan laporan HARIAN satu minggu (sampul + laporan",
+  "                 harian tiap hari). Dipakai untuk 'rekap harian seminggu', 'rekap",
+  "                 laporan harian minggu lalu', 'laporan harian seminggu'. Yang",
+  "                 diminta laporan hariannya, bukan rekap progres – itu laporan_mingguan.",
   "- rencana     : RENCANA KERJA – apa yang AKAN dikerjakan, bukan yang sudah.",
   "                Dipakai untuk 'rencana minggu depan', 'rencana seminggu ke depan',",
   "                'apa yang perlu dikerjakan', 'pekerjaan apa untuk mengejar",

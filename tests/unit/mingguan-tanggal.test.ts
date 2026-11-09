@@ -121,6 +121,17 @@ describe("status kaki berkas mingguan", () => {
     );
   });
 
+  it("hari yang BELUM TIBA tidak dihitung 'belum ada laporan' (DECISIONS 752)", () => {
+    // Berkas minggu berjalan kini biasa dikirim di tengah minggu (Tanya MARLIN
+    // "rekap harian seminggu"). Empat hari yang belum datang bukan empat hari
+    // yang tidak dilaporkan – menyebutnya begitu menuduh pelapor.
+    const s = statusBerkasMingguan({ ...dasar, hariKosong: 5, hariBelumTiba: 4 });
+    expect(s).toContain("1 hari belum ada laporan");
+    expect(s).toContain("4 hari belum tiba");
+    expect(s).not.toContain("5 hari");
+    expect(statusBerkasMingguan({ ...dasar, hariKosong: 4, hariBelumTiba: 4 })).toBe("Minggu ke-3 · 4 hari belum tiba");
+  });
+
   it("foto yang tidak muat DISEBUT jumlahnya", () => {
     // Memotong dokumentasi diam-diam membuat berkasnya terbaca lengkap.
     expect(statusBerkasMingguan({ ...dasar, fotoDipotong: 31 })).toContain(

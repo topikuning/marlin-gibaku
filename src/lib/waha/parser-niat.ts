@@ -233,6 +233,21 @@ export function mintaDeck(teksMentah: string): boolean {
   return POLA_DECK.test(bersih(teksMentah));
 }
 
+/**
+ * REKAP LAPORAN HARIAN satu minggu – berkas KKP sampul + laporan harian tiap
+ * hari (DECISIONS 752). Bukan laporan MINGGUAN: yang itu rekap progres pekan.
+ *
+ * Diperiksa juga SEBELUM kata kerja produksi, sama dengan kronologi: "kirim
+ * rekap harian seminggu" adalah perintah yang MEMANG dijalankan MARLIN, dan
+ * ARTEFAK memuat "rekap" – tanpa pengecualian itu kalimatnya jadi penolakan.
+ */
+const POLA_REKAP_HARIAN =
+  /\b(rekap(?:an)? (?:laporan )?harian(?: (?:seminggu|sepekan|mingguan))?|laporan harian (?:seminggu|sepekan|mingguan))\b/;
+
+export function mintaRekapHarian(teksMentah: string): boolean {
+  return POLA_REKAP_HARIAN.test(bersih(teksMentah));
+}
+
 const KUNCI: { niat: Niat; pola: RegExp }[] = [
   { niat: "bantuan", pola: /\b(bantuan\w*|bisa apa|apa saja yang bisa|kamu bisa|help|menu)\b/ },
   /*
@@ -249,6 +264,10 @@ const KUNCI: { niat: Niat; pola: RegExp }[] = [
     niat: "rencana",
     pola: /\b(rencana (?:mingguan|kerja|minggu\w*|pekan\w*)|rencana\w*|jadwal kerja|akan dikerjakan|mau dikerjakan|yang perlu dikerjakan|perlu dilakukan|harus dikerjakan|target mingguan)\b/,
   },
+  // Ditaruh SEBELUM mingguan dan laporan: potongannya menelan "laporan" dan
+  // "mingguan" ("rekap laporan harian mingguan"), jadi keduanya gugur sebagai
+  // temuan yang termuat (DECISIONS 752).
+  { niat: "rekap_harian", pola: POLA_REKAP_HARIAN },
   { niat: "laporan_bulanan", pola: /\b(laporan bulanan|rekap bulanan|bulanan|progress bulanan|rekap bulan)\b/ },
   { niat: "laporan_mingguan", pola: /\b(laporan mingguan|rekap mingguan|mingguan|progress mingguan|rekap pekan)\b/ },
   /*
@@ -352,6 +371,7 @@ const LABEL_NIAT: Record<Niat, string> = {
   kelengkapan: "Siapa yang sudah/belum lapor",
   laporan: "Isi laporan harian",
   laporan_mingguan: "Rekap laporan mingguan",
+  rekap_harian: "Berkas rekap laporan harian seminggu",
   laporan_bulanan: "Rekap laporan bulanan",
   rencana: "Rencana kerja",
   kronologi: "Kronologi lokasi",
@@ -444,7 +464,7 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
    * berubah jadi penolakan. Hanya pola KUAT yang mengecualikan: "buatkan
    * laporan eksekutif dan kesimpulan untuk direksi" tetap produksi.
    */
-  if (POLA_PRODUKSI.test(t) && !POLA_KRONOLOGI_KUAT.test(t)) {
+  if (POLA_PRODUKSI.test(t) && !POLA_KRONOLOGI_KUAT.test(t) && !POLA_REKAP_HARIAN.test(t)) {
     return { jenis: "yakin", kandidat: kandidat("produksi", periode) };
   }
   const temuan: Temuan[] = [];
@@ -777,6 +797,9 @@ export function frasaSisa(teksMentah: string): string[] {
   // Kata lemah ("kesimpulan progress kemadang") bukan nama tempat, apa pun
   // niat yang akhirnya menang.
   sisa = sisa.replace(new RegExp(POLA_KRONOLOGI_LEMAH.source, "g"), " ");
+  // Rekap harian juga DULU, alasannya sama: "kirim rekap harian seminggu"
+  // akan kehilangan "kirim rekap" ke produksi dan menyisakan "seminggu".
+  sisa = sisa.replace(new RegExp(POLA_REKAP_HARIAN.source, "g"), " ");
   sisa = sisa.replace(new RegExp(POLA_PRODUKSI.source, "g"), " ");
   // Penanda bentuk presentasi bukan nama tempat.
   sisa = sisa.replace(new RegExp(POLA_DECK.source, "g"), " ");

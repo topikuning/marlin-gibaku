@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import type { DailyReportStatus } from "@/generated/prisma/enums";
 import { jakartaDateKey } from "@/lib/format";
 import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
 import { createFormA4Doc, docToBuffer } from "./document";
@@ -59,6 +60,8 @@ export type MingguanKkpPdfResult = {
   tanggal: string[];
   /** Berapa hari yang belum punya laporan (halamannya tetap ada, blanko kosong). */
   hariKosong: number;
+  /** Bagian dari `hariKosong` yang tanggalnya belum tiba (minggu berjalan). */
+  hariBelumTiba: number;
   /** Foto yang tidak ikut karena batas memori. 0 = utuh. */
   fotoDipotong: number;
 };
@@ -101,11 +104,19 @@ export function statusBerkasMingguan(r: {
   adaFinal: boolean;
   hariKosong: number;
   fotoDipotong: number;
+  /**
+   * Bagian dari `hariKosong` yang tanggalnya belum tiba – disebut terpisah,
+   * karena hari yang belum datang bukan hari yang tidak dilaporkan (DECISIONS 752).
+   */
+  hariBelumTiba?: number;
 }): string {
+  const belumTiba = r.hariBelumTiba ?? 0;
+  const kosongLewat = r.hariKosong - belumTiba;
   return [
     `Minggu ke-${r.minggu}`,
     r.adaFinal ? null : "PRATINJAU – belum ada laporan final",
-    r.hariKosong > 0 ? `${r.hariKosong} hari belum ada laporan` : null,
+    kosongLewat > 0 ? `${kosongLewat} hari belum ada laporan` : null,
+    belumTiba > 0 ? `${belumTiba} hari belum tiba` : null,
     r.fotoDipotong > 0 ? `${r.fotoDipotong} foto tidak dimuat (batas berkas)` : null,
   ]
     .filter(Boolean)
@@ -119,7 +130,15 @@ export function statusBerkasMingguan(r: {
 export async function renderMingguanKkpPdf(
   slug: string,
   minggu: number,
-  opts?: { baseUrl?: string | null },
+  opts?: {
+    baseUrl?: string | null;
+    /**
+     * Hanya laporan berstatus ini yang dicetak; hari lain blanko kosong dan
+     * dihitung `hariKosong`. Berkas yang dikirim Tanya MARLIN memakai
+     * `COUNTED_REPORT_STATUSES`, supaya draft tidak sampai ke grup (DECISIONS 752).
+     */
+    hanyaStatus?: readonly DailyReportStatus[];
+  },
 ): Promise<MingguanKkpPdfResult | null> {
   const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
 
@@ -147,6 +166,7 @@ export async function renderMingguanKkpPdf(
         where: {
           locationId: lokasi.id,
           reportDate: { in: tanggal.map((t) => new Date(`${t}T00:00:00.000Z`)) },
+          ...(opts?.hanyaStatus ? { status: { in: [...opts.hanyaStatus] } } : {}),
         },
         select: { reportDate: true },
       })
@@ -164,7 +184,8 @@ export async function renderMingguanKkpPdf(
 
   // Data hari pertama dipakai sampul: identitas kontrak & "MINGGU KE-n"-nya
   // sama untuk ketujuh hari.
-  const hariPertama = await getKkpDailyData(slug, tanggal[0]);
+  const saring = opts?.hanyaStatus ? { hanyaStatus: opts.hanyaStatus } : undefined;
+  const hariPertama = await getKkpDailyData(slug, tanggal[0], saring);
   if (!hariPertama) return null;
 
   const doc = createFormA4Doc({
@@ -183,7 +204,7 @@ export async function renderMingguanKkpPdf(
   let adaFinal = false;
 
   for (const [i, tgl] of tanggal.entries()) {
-    const d: KkpDailyData | null = i === 0 ? hariPertama : await getKkpDailyData(slug, tgl);
+    const d: KkpDailyData | null = i === 0 ? hariPertama : await getKkpDailyData(slug, tgl, saring);
     if (!d) {
       hariKosong += 1;
       continue;
@@ -209,13 +230,21 @@ export async function renderMingguanKkpPdf(
     });
   }
 
-  kakiHalaman(doc, branding.appName, statusBerkasMingguan({ minggu, adaFinal, hariKosong, fotoDipotong }));
+  // Hari yang belum tiba (minggu berjalan) ikut kosong, tapi bukan "belum lapor".
+  const hariIni = jakartaDateKey(new Date());
+  const hariBelumTiba = tanggal.filter((t) => t > hariIni).length;
+  kakiHalaman(
+    doc,
+    branding.appName,
+    statusBerkasMingguan({ minggu, adaFinal, hariKosong, fotoDipotong, hariBelumTiba }),
+  );
 
   return {
     buffer: await docToBuffer(doc),
     locationId: lokasi.id,
     tanggal,
     hariKosong,
+    hariBelumTiba,
     fotoDipotong,
   };
 }

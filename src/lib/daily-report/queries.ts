@@ -806,7 +806,18 @@ async function kategoriLookup(
  * Data laporan harian KKP untuk halaman cetak. Sumber:
  *   status final → finalSnapshot beku (immutable), selain itu → hitung live.
  */
-export async function getKkpDailyData(slug: string, dateKey: string): Promise<KkpDailyData | null> {
+export async function getKkpDailyData(
+  slug: string,
+  dateKey: string,
+  opts?: {
+    /**
+     * Hanya laporan berstatus ini yang dimuat; selainnya diperlakukan seperti
+     * belum ada laporan (blanko kosong). Dipakai berkas rekap yang dikirim ke
+     * grup WhatsApp: draft yang belum dikirim pelapor tidak ikut (DECISIONS 752).
+     */
+    hanyaStatus?: readonly DailyReportStatus[];
+  },
+): Promise<KkpDailyData | null> {
   const reportDate = parseDateKey(dateKey);
   if (!reportDate) return null;
   const location = await db.location.findUnique({
@@ -939,8 +950,12 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   // kolomnya kosong seperti blanko cetak.
   const rencana = await rencanaHarianUntukTanggal(location.id, reportDate);
 
-  const report = await db.dailyReport.findUnique({
-    where: { locationId_reportDate: { locationId: location.id, reportDate } },
+  const report = await db.dailyReport.findFirst({
+    where: {
+      locationId: location.id,
+      reportDate,
+      ...(opts?.hanyaStatus ? { status: { in: [...opts.hanyaStatus] } } : {}),
+    },
     include: {
       items: { include: { rabNode: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
       workers: true,

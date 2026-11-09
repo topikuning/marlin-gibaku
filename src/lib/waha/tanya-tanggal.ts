@@ -87,7 +87,7 @@ function offsetSenin(key: TanggalKey): number {
   return (new Date(t).getUTCDay() + 6) % 7;
 }
 
-function formatKey(key: TanggalKey): string {
+export function formatKey(key: TanggalKey): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (!m) return key;
   return `${Number(m[3])} ${NAMA_BULAN[Number(m[2]) - 1]} ${m[1]}`;

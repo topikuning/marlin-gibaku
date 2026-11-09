@@ -100,7 +100,7 @@ export const CAKUPAN_AI: WilayahCakupan[] = [
     halaman: "/laporan/status-harian, /lokasi/[slug]/laporan-lokasi",
     rute: ["laporan/*", "hari-ini", "lokasi/[slug]/harian/*", "lokasi/[slug]/laporan-lokasi"],
     jalur: [
-      { jenis: "niat", niat: ["laporan", "kelengkapan"] },
+      { jenis: "niat", niat: ["laporan", "kelengkapan", "rekap_harian"] },
       { jenis: "pulse", sourceRefSuffix: "laporan" },
     ],
   },

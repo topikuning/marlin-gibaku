@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 752 | 2026-11-09 | Tanya MARLIN di grup: "laporan hari ini" → blanko KKP per lokasi, "laporan mingguan" → laporan mingguan KKP per lokasi, niat baru `rekap_harian` ("rekap harian seminggu") → berkas rekap laporan harian KKP; hanya laporan terkirim, minggu kontrak dari SPMK, maks 15 berkas; hari belum tiba ≠ belum lapor; koreksi 735: rupiah di grup bukan larangan user |
 | 751 | 2026-11-09 | Tanya MARLIN WA per kanal: grup (mention) punya sakelar sendiri `waha.tanya_grup_aktif`, bawaan HIDUP; `waha.tanya_aktif` kini hanya chat pribadi (bawaan tetap mati); dua baris sakelar di Sistem → WhatsApp |
 | 750 | 2026-11-08 | Daftar Lokasi menyembunyikan lokasi dicabut adendum / berstatus Batal / di paket Batal kecuali `?tampil=semua`; jumlah yang disembunyikan disebut per sebab; status menyebut sebabnya (Dicabut / Batal / Paket batal); arsip pencabutan tetap mengikuti `location_scope.archive` |
 | 749 | 2026-11-07 | Tombol "Buka di Google Maps" (URL resmi `maps/search/?api=1`, tab baru) untuk lokasi berkoordinat: header lokasi desktop + ikon ponsel, kartu Alamat & koordinat, panel Peta, kartu Hari Ini, daftar Lokasi; koordinat kosong/0,0/mustahil = tanpa tombol |
