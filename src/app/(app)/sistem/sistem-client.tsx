@@ -92,14 +92,20 @@ import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 export function WahaConfigPanel({
   initial,
 }: {
-  initial: { baseUrl: string; session: string; hasApiKey: boolean; izinkanPersonal: boolean; tanyaAktif: boolean };
+  initial: {
+    baseUrl: string;
+    session: string;
+    hasApiKey: boolean;
+    izinkanPersonal: boolean;
+    tanyaAktif: boolean;
+    tanyaGrupAktif: boolean;
+  };
 }) {
   const [state, action, pending] = useAksi<WaActionState>(saveWahaConfigAction, undefined);
   const [izinState, izinAction, izinPending] = useAksi<WaActionState>(
     setWahaIzinPersonalAction,
     undefined,
   );
-  const [tanyaState, tanyaAction, tanyaPending] = useAksi<WaActionState>(setWahaTanyaAktifAction, undefined);
   const [testing, startTest] = useTransition();
   const [result, setResult] = useState<
     { ok: true; status: string; me: string | null } | { ok: false; error: string } | null
@@ -165,28 +171,35 @@ export function WahaConfigPanel({
         </div>
       </form>
 
-      {/* Tanya MARLIN lewat WA (DECISIONS 714) – bawaan mati; lapor dan
+      {/* Tanya MARLIN lewat WA (DECISIONS 714), PER KANAL sejak DECISIONS 751:
+          grup (bawaan hidup) dan chat pribadi (bawaan mati). Lapor dan
           persetujuan aktivasi lewat WA tidak ikut berhenti. */}
-      <form action={tanyaAction} className="space-y-2 border-t border-border pt-3">
-        {tanyaState?.error ? <Banner tone="error" title={tanyaState.error} /> : null}
-        {tanyaState?.success ? <Banner tone="success" title={tanyaState.success} /> : null}
+      <div className="space-y-2 border-t border-border pt-3">
         <p className="text-sm font-medium text-ink">Tanya MARLIN lewat WhatsApp</p>
         <p className="text-[13px] text-ink-muted">
-          Menjawab pertanyaan di grup dan chat pribadi. Selama dimatikan, MARLIN di WhatsApp hanya
-          menerima laporan lapangan dan persetujuan aktivasi adendum. Yang bertanya diberi tahu bahwa
-          fitur ini sedang dimatikan.
+          Di grup dan di chat pribadi diatur sendiri-sendiri. Kanal yang dimatikan tetap menerima laporan
+          lapangan dan persetujuan aktivasi adendum, dan yang bertanya diberi tahu bahwa fiturnya sedang
+          dimatikan.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            tone={initial.tanyaAktif ? "success" : "neutral"}
-            label={initial.tanyaAktif ? "Sedang hidup" : "Sedang dimatikan"}
-          />
-          <input type="hidden" name="aktif" value={initial.tanyaAktif ? "0" : "1"} />
-          <Button type="submit" size="sm" variant="secondary" loading={tanyaPending}>
-            {initial.tanyaAktif ? "Matikan Tanya MARLIN" : "Hidupkan Tanya MARLIN"}
-          </Button>
-        </div>
-      </form>
+        {(
+          [
+            {
+              kanal: "grup",
+              judul: "Di grup",
+              ket: "Menjawab pertanyaan yang menyebut (mention) MARLIN di grup paket atau grup kabupaten.",
+              hidup: initial.tanyaGrupAktif,
+            },
+            {
+              kanal: "pribadi",
+              judul: "Di chat pribadi",
+              ket: "Menjawab pertanyaan pengguna terdaftar yang mengirim pesan langsung ke nomor MARLIN.",
+              hidup: initial.tanyaAktif,
+            },
+          ] as const
+        ).map((k) => (
+          <BarisTanyaKanal key={k.kanal} {...k} />
+        ))}
+      </div>
 
       <div className="border-t border-border pt-3">
         <Button
@@ -1040,5 +1053,44 @@ export function AiProvidersPanel({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Satu sakelar Tanya MARLIN per kanal (DECISIONS 751). Tiap baris punya status
+ * sendiri – memakai satu `useAksi` untuk dua formulir membuat KEDUA tombol
+ * berputar saat salah satunya ditekan.
+ */
+function BarisTanyaKanal({
+  kanal,
+  judul,
+  ket,
+  hidup,
+}: {
+  kanal: "grup" | "pribadi";
+  judul: string;
+  ket: string;
+  hidup: boolean;
+}) {
+  const [state, action, pending] = useAksi<WaActionState>(setWahaTanyaAktifAction, undefined);
+  return (
+    <form action={action} className="space-y-2 rounded-md border border-border px-3 py-2">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-[12rem] flex-1">
+          <p className="text-[13px] font-medium text-ink">{judul}</p>
+          <p className="text-[12px] text-ink-muted">{ket}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={hidup ? "success" : "neutral"} label={hidup ? "Sedang hidup" : "Sedang dimatikan"} />
+          <input type="hidden" name="kanal" value={kanal} />
+          <input type="hidden" name="aktif" value={hidup ? "0" : "1"} />
+          <Button type="submit" size="sm" variant="secondary" loading={pending}>
+            {hidup ? "Matikan" : "Hidupkan"}
+          </Button>
+        </div>
+      </div>
+    </form>
   );
 }

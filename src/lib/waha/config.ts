@@ -31,14 +31,27 @@ export const WAHA_KEYS = {
    */
   izinkanPersonal: "waha.izinkan_personal",
   /**
-   * Tanya MARLIN lewat WhatsApp hidup? "1" = hidup.
+   * Tanya MARLIN di CHAT PRIBADI hidup? "1" = hidup.
    *
    * Bawaannya MATI (DECISIONS 714). Perintah user 2026-10-27: *"untuk
    * sementara matikan fitur tanya marlin. kita fokus di fitur wa laporan dan
    * approval ini dulu"*. Lapor lewat WA dan persetujuan aktivasi tetap jalan;
    * yang berhenti hanya menjawab pertanyaan.
+   *
+   * Sejak DECISIONS 751 kunci ini hanya mengatur chat PRIBADI. Nama kuncinya
+   * dibiarkan supaya pilihan admin yang sudah tersimpan tetap berlaku.
    */
   tanyaAktif: "waha.tanya_aktif",
+  /**
+   * Tanya MARLIN di GRUP (selalu lewat mention) hidup? "0" = mati.
+   *
+   * Bawaannya HIDUP – kebalikan kunci pribadi. Permintaan user 2026-11-09:
+   * *"untuk tanya marlin, yang ditanyakan melalui group langsung dengan mention
+   * marlin, tetap aktifkan. atau buat togglenya di sistem"* (DECISIONS 751).
+   * Kunci yang belum pernah disimpan = hidup, jadi tidak perlu ada yang
+   * menekan apa pun supaya grup kembali dijawab.
+   */
+  tanyaGrupAktif: "waha.tanya_grup_aktif",
 } as const;
 
 export class WahaConfigError extends Error {}
@@ -127,6 +140,7 @@ export async function getWahaConfigDisplay(): Promise<{
   webhookSecret: string;
   izinkanPersonal: boolean;
   tanyaAktif: boolean;
+  tanyaGrupAktif: boolean;
 }> {
   const s = await latestSettings();
   return {
@@ -138,7 +152,13 @@ export async function getWahaConfigDisplay(): Promise<{
     webhookSecret: bukaRahasia(s.get(WAHA_KEYS.webhookSecret)),
     izinkanPersonal: (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1",
     tanyaAktif: (s.get(WAHA_KEYS.tanyaAktif) ?? "").trim() === "1",
+    tanyaGrupAktif: grupHidup(s.get(WAHA_KEYS.tanyaGrupAktif)),
   };
+}
+
+/** Kunci grup: kosong/belum pernah disimpan = HIDUP; hanya "0" yang mematikan. */
+function grupHidup(v: string | undefined): boolean {
+  return (v ?? "").trim() !== "0";
 }
 
 /** Boleh kirim ke nomor pribadi? Bawaan: TIDAK (lihat catatan di WAHA_KEYS). */
@@ -147,10 +167,16 @@ export async function izinKirimPersonal(): Promise<boolean> {
   return (s.get(WAHA_KEYS.izinkanPersonal) ?? "").trim() === "1";
 }
 
-/** Tanya MARLIN lewat WhatsApp hidup? Bawaan: TIDAK (lihat catatan di WAHA_KEYS). */
-export async function tanyaWaAktif(): Promise<boolean> {
+/** Tanya MARLIN di CHAT PRIBADI hidup? Bawaan: TIDAK (lihat catatan di WAHA_KEYS). */
+export async function tanyaPribadiAktif(): Promise<boolean> {
   const s = await latestSettings();
   return (s.get(WAHA_KEYS.tanyaAktif) ?? "").trim() === "1";
+}
+
+/** Tanya MARLIN di GRUP (lewat mention) hidup? Bawaan: YA (DECISIONS 751). */
+export async function tanyaGrupAktif(): Promise<boolean> {
+  const s = await latestSettings();
+  return grupHidup(s.get(WAHA_KEYS.tanyaGrupAktif));
 }
 
 /** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
@@ -213,6 +239,7 @@ export async function setWahaConfig(input: {
   izinkanPersonal?: boolean;
   /** Hidupkan/matikan Tanya MARLIN lewat WhatsApp (DECISIONS 714). */
   tanyaAktif?: boolean;
+  tanyaGrupAktif?: boolean;
 }): Promise<void> {
   const effectiveFrom = jakartaToday();
   const put = async (key: string, value: string) => {
@@ -229,6 +256,9 @@ export async function setWahaConfig(input: {
   }
   if (input.izinkanPersonal !== undefined) {
     await put(WAHA_KEYS.izinkanPersonal, input.izinkanPersonal ? "1" : "0");
+  }
+  if (input.tanyaGrupAktif !== undefined) {
+    await put(WAHA_KEYS.tanyaGrupAktif, input.tanyaGrupAktif ? "1" : "0");
   }
   if (input.tanyaAktif !== undefined) {
     await put(WAHA_KEYS.tanyaAktif, input.tanyaAktif ? "1" : "0");

@@ -16,7 +16,7 @@ import {
 } from "@/lib/ai-hub/guard";
 import type { SourceRef } from "@/lib/ai-hub/types";
 import { getIdentitasMarlin } from "./client";
-import { tanyaWaAktif } from "./config";
+import { tanyaGrupAktif, tanyaPribadiAktif } from "./config";
 import { balasFileWa, balasWa } from "./kirim";
 import {
   keteranganBerkas,
@@ -508,10 +508,16 @@ async function jawabDalamKonteks(
    * TANYA MARLIN DIMATIKAN (DECISIONS 714) – sesudah resolver, supaya nomor tak
    * dikenal di chat pribadi tetap DIDIAMKAN, dan sesudah lapor + persetujuan,
    * yang tetap jalan. Yang bertanya diberi tahu; diam terbaca rusak.
+   *
+   * Sakelarnya PER KANAL sejak DECISIONS 751: grup (bawaan hidup) dan chat
+   * pribadi (bawaan mati) diatur terpisah di Sistem → WhatsApp.
    */
-  if (!(await tanyaWaAktif())) {
+  if (!(grup ? await tanyaGrupAktif() : await tanyaPribadiAktif())) {
     await balasWa(m.chatId, balasTanyaMati(grup));
-    return { dijawab: true, alasan: "Tanya MARLIN dimatikan (Sistem → WhatsApp)" };
+    return {
+      dijawab: true,
+      alasan: `Tanya MARLIN di ${grup ? "grup" : "chat pribadi"} dimatikan (Sistem → WhatsApp)`,
+    };
   }
   if (keputusan.jenis === "tolak") {
     await balasWa(m.chatId, balasDitolak(keputusan.pesan));
