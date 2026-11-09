@@ -111,7 +111,8 @@ export async function setWahaIzinPersonalAction(
 }
 
 /**
- * Hidupkan/matikan Tanya MARLIN lewat WhatsApp (DECISIONS 714).
+ * Hidupkan/matikan Tanya MARLIN lewat WhatsApp (DECISIONS 714), per kanal –
+ * grup atau chat pribadi (DECISIONS 751).
  *
  * Dipisah dari tombol simpan konfigurasi, sama seperti pagar nomor pribadi:
  * ini keputusan layanan, bukan setelan sambungan.
@@ -123,13 +124,19 @@ export async function setWahaTanyaAktifAction(
   try {
     const user = await requireCapability("system.manage");
     const aktif = String(formData.get("aktif") ?? "") === "1";
-    await setWahaConfig({ tanyaAktif: aktif });
-    await audit(user.id, "system.waha_tanya_aktif", "app_setting", null, { aktif });
+    // Per kanal sejak DECISIONS 751. Tanpa `kanal` = pribadi: perilaku lama
+    // tombol ini, jadi formulir yang belum termuat ulang tetap benar.
+    const grup = String(formData.get("kanal") ?? "") === "grup";
+    await setWahaConfig(grup ? { tanyaGrupAktif: aktif } : { tanyaAktif: aktif });
+    await audit(user.id, grup ? "system.waha_tanya_grup_aktif" : "system.waha_tanya_aktif", "app_setting", null, {
+      aktif,
+    });
     revalidatePath("/sistem");
+    const kanal = grup ? "di grup" : "di chat pribadi";
     return {
       success: aktif
-        ? "Tanya MARLIN lewat WhatsApp dihidupkan."
-        : "Tanya MARLIN lewat WhatsApp dimatikan. Lapor lewat WA dan persetujuan aktivasi tetap jalan.",
+        ? `Tanya MARLIN ${kanal} dihidupkan.`
+        : `Tanya MARLIN ${kanal} dimatikan. Lapor lewat WA dan persetujuan aktivasi tetap jalan.`,
     };
   } catch (err) {
     return fail(err);

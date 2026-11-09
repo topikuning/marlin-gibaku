@@ -339,7 +339,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.appSetting.deleteMany({ where: { key: "waha.tanya_aktif" } });
+  await db.appSetting.deleteMany({ where: { key: { in: ["waha.tanya_aktif", "waha.tanya_grup_aktif"] } } });
   await db.$executeRawUnsafe(
     `TRUNCATE TABLE ai_runs, audit_logs, location_assignments, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
   );
@@ -433,6 +433,59 @@ describe("kapan MARLIN benar-benar membalas", () => {
     // Jawaban di grup MENGUTIP pesan penanyanya dan mencatat siapa dia
     // (DECISIONS baru 2026-10-07): *"siapa yg request? perlu diketahui"*.
     expect(konteksTerkirim[0]).toMatchObject({ balasKe: "pesan-penanya-1", dimintaOlehId: smId, peminta: "SiteManager" });
+  });
+});
+
+/*
+ * SAKELAR TANYA PER KANAL (DECISIONS 751).
+ *
+ * Permintaan user 2026-11-09: *"untuk tanya marlin, yang ditanyakan melalui
+ * group langsung dengan mention marlin, tetap aktifkan. atau buat togglenya di
+ * sistem"*. Dulu SATU sakelar (DECISIONS 714) mematikan grup DAN chat pribadi
+ * sekaligus. Kini dua sakelar; grup bawaannya HIDUP.
+ */
+describe("sakelar Tanya MARLIN per kanal", () => {
+  const tanyaGrup = () =>
+    jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "@6281200000000 mana yang deviasinya negatif",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+  const tanyaPribadi = () =>
+    jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }));
+
+  it("chat pribadi dimatikan, sakelar grup belum pernah diatur → grup dengan mention TETAP dijawab", async () => {
+    await setWahaConfig({ tanyaAktif: false });
+    await db.appSetting.deleteMany({ where: { key: "waha.tanya_grup_aktif" } });
+    try {
+      const g = await tanyaGrup();
+      expect(g.dijawab).toBe(true);
+      expect(terkirim).toHaveLength(1);
+      expect(terkirim[0].teks).not.toMatch(/dimatikan/);
+
+      terkirim.length = 0;
+      await tanyaPribadi();
+      expect(terkirim[0].teks).toMatch(/Tanya MARLIN sedang dimatikan sementara/);
+    } finally {
+      await setWahaConfig({ tanyaAktif: true });
+    }
+  });
+
+  it("sakelar grup dimatikan → grup diberi tahu fiturnya mati; chat pribadi tidak terpengaruh", async () => {
+    await setWahaConfig({ tanyaGrupAktif: false });
+    try {
+      await tanyaGrup();
+      expect(terkirim[0].teks).toMatch(/Tanya MARLIN sedang dimatikan sementara/);
+
+      terkirim.length = 0;
+      await tanyaPribadi();
+      expect(terkirim[0].teks).not.toMatch(/dimatikan/);
+    } finally {
+      await db.appSetting.deleteMany({ where: { key: "waha.tanya_grup_aktif" } });
+    }
   });
 });
 
