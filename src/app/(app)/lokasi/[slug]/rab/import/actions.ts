@@ -14,7 +14,6 @@ import {
   createRevisionFromNodes,
   createRevisionFromParsed,
   discardDraft,
-  DraftTerpakaiError,
   gantiDraftLama,
   regenerateBaseline,
   sisiLamaDraftTerlapor,
@@ -730,8 +729,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       /*
        * DRAFT YANG AKAN DIGANTI: item yang lahir di draft lama dan SUDAH
        * dilaporkan ikut menjadi sisi lama pencocokan (DECISIONS 754). Tanpa
-       * ini laporannya tidak pernah berpasangan dan penyimpanan ditolak
-       * ("Impor dihentikan: … itemnya TIDAK ADA di berkas ini").
+       * ini laporannya tidak pernah berpasangan lewat nama. Yang tetap tidak
+       * berpasangan menjadi catatan di luar RAB saat disimpan (DECISIONS 755).
        */
       if (mode === "draft") {
         const draftDiganti = await db.rabRevision.findFirst({
@@ -994,7 +993,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         warnings.push(
           `PERHATIAN – ${yatim.length} baris laporan harian yang diinput terhadap draft #${sisiDraft.revisionNo} ` +
             `belum punya pasangan di berkas ini: ${contoh}${yatim.length > 5 ? `; +${yatim.length - 5} lainnya` : ""}. ` +
-            `Pasangkan itemnya ke baris berkas di panel pemetaan. Tanpa pasangan, penyimpanan ditolak supaya laporannya tidak terbuang.`,
+            `Pasangkan itemnya ke baris berkas di panel pemetaan kalau pekerjaannya ada di berkas ini dengan nama lain. ` +
+            `Yang tidak dipasangkan tidak menghentikan impor: laporan dan fotonya disimpan sebagai catatan pekerjaan ` +
+            `di luar RAB, lalu bisa dipadankan ke item draft baru sebelum diaktifkan.`,
         );
       }
     }
@@ -1227,21 +1228,23 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
        * terhadapnya ikut pindah ke draft baru lewat `lineageKey`
        * (ketetapan user 2026-09-24, DECISIONS 611). Seluruhnya satu transaksi.
        *
-       * Kalau ada baris yang tidak berpadanan, pemindahannya menolak — dan
-       * draft yang baru saja dibuat DIBATALKAN di sini, supaya impor yang
-       * ditolak tidak meninggalkan lokasi dengan DUA draft. Itu persis keadaan
-       * yang dilaporkan user: create berhasil, discard gagal, drafnya dua.
+       * Baris yang itemnya tidak ada di berkas ini TIDAK lagi menghentikan
+       * impor (DECISIONS 755): ia menjadi catatan pekerjaan di luar RAB berikut
+       * fotonya. Kalau penggantiannya gagal karena sebab lain, draft yang baru
+       * saja dibuat DIBATALKAN di sini, supaya lokasi tidak tertinggal dengan
+       * DUA draft – keadaan yang dilaporkan user 2026-09-24.
        */
       let catatanDilepas = 0;
+      let jadiCatatan: { nama: string; tanggal: Date }[] = [];
       let diAtasVolume: { nama: string; satuan: string | null; terlapor: number; volumeBaru: number }[] = [];
       if (draft) {
         try {
           const ganti = await gantiDraftLama(draft.id, resDraft.revisionId, user.id);
           catatanDilepas = ganti.catatanLuarRabDilepas;
+          jadiCatatan = ganti.jadiCatatan;
           diAtasVolume = ganti.diAtasVolumeBaru;
         } catch (e) {
           await discardDraft(resDraft.revisionId, user.id).catch(() => {});
-          if (e instanceof DraftTerpakaiError) return { error: e.message };
           throw e;
         }
       }
@@ -1266,6 +1269,17 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : "") +
           (catatanDilepas > 0
             ? ` ${catatanDilepas} baris dari catatan pekerjaan di luar RAB itemnya tidak ada di berkas ini – catatannya kembali menunggu dipadankan.`
+            : "") +
+          // Laporan atas item draft lama yang tidak ada di berkas ini – disimpan, bukan ditolak (DECISIONS 755).
+          (jadiCatatan.length > 0
+            ? ` ${jadiCatatan.length} baris laporan harian itemnya tidak ada di berkas ini (` +
+              jadiCatatan
+                .slice(0, 5)
+                .map((b) => `${formatTanggal(b.tanggal)} – ${b.nama}`)
+                .join("; ") +
+              (jadiCatatan.length > 5 ? `; +${jadiCatatan.length - 5} lainnya` : "") +
+              `). Laporan dan fotonya disimpan sebagai catatan pekerjaan di luar RAB. Padankan ke item draft ini ` +
+              `di bagian "Pekerjaan di luar RAB" halaman Draft adendum sebelum diaktifkan.`
             : "") +
           // Volume baru di bawah yang sudah dilaporkan – disebut, bukan didiamkan (DECISIONS 742).
           (diAtasVolume.length > 0

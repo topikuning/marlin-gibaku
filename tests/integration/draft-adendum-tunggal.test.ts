@@ -33,8 +33,10 @@
  * apa pun meninggalkan tepat satu draft, bukan dua.
  *
  * Baris yang tidak punya padanan di berkas baru TIDAK dihapus diam-diam dan
- * TIDAK dibiarkan menggantung: impornya ditolak dengan menyebut tanggal dan
- * nama itemnya, supaya yang memutuskan tetap orang.
+ * TIDAK menghentikan impor (DECISIONS 755, keluhan user 2026-11-10: *"kenapa
+ * harus jadi menghentikan prosesnya"*). Barisnya disimpan sebagai catatan
+ * pekerjaan di luar RAB berikut fotonya, di laporan dan tanggal yang sama,
+ * lalu bisa dipadankan ke item draft baru sebelum aktivasi.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -200,16 +202,16 @@ describe("impor draft kedua menggantikan yang pertama", () => {
     expect(sesudah.basis).toBe("draft_adendum");
   }, 900_000);
 
-  it("baris tanpa padanan di draft baru DITOLAK dengan menyebut tanggal & itemnya", async () => {
+  it("baris tanpa padanan di draft baru TIDAK menghentikan: jadi catatan di luar RAB, draft tetap satu", async () => {
     /*
      * Diuji langsung pada `gantiDraftLama`, bukan lewat tombol impor.
      *
      * Lewat tombol, `samakanLineage` (DECISIONS 216/pemetaan manual) lebih dulu
      * MENYELARASKAN identitas berkas baru ke RAB aktif — jadi padanannya
      * nyaris selalu ketemu, dan uji yang menembak lewat sana akan hijau tanpa
-     * pernah menyentuh pagar ini. Yang dijaga di sini kontrak fungsinya: kalau
+     * pernah menyentuh jalur ini. Yang dijaga di sini kontrak fungsinya: kalau
      * sebuah baris laporan tidak punya rumah di draft baru, ia TIDAK dibuang
-     * diam-diam dan TIDAK digantung — orangnya diberi daftarnya.
+     * diam-diam, TIDAK digantung, dan TIDAK menahan impor (DECISIONS 755).
      */
     const draftSekarang = await draftLokasi();
     expect(draftSekarang).toHaveLength(1);
@@ -231,29 +233,38 @@ describe("impor draft kedua menggantikan yang pertama", () => {
       note: "uji",
     });
 
-    let pesan = "";
-    try {
-      await gantiDraftLama(draftSekarang[0]!.id, baru.revisionId, sesi.id);
-    } catch (e) {
-      pesan = e instanceof Error ? e.message : String(e);
+    const barisLama = await db.dailyReportItem.findMany({
+      where: { lineageKey: node.lineageKey, rabNode: { revisionId: draftSekarang[0]!.id } },
+      select: { id: true, reportId: true, volumeDone: true },
+    });
+    expect(barisLama.length, "baris 10 & 11 Sep harus menunjuk draft lama").toBeGreaterThanOrEqual(2);
+
+    const h = await gantiDraftLama(draftSekarang[0]!.id, baru.revisionId, sesi.id);
+    // Tanggalnya pulang ke layar: orang tahu laporan hari apa yang berpindah.
+    expect(h.jadiCatatan.map((r) => r.tanggal.toISOString().slice(0, 10))).toEqual(
+      expect.arrayContaining(["2026-09-10", "2026-09-11"]),
+    );
+    expect(h.dipindah).toBe(0);
+
+    // Drafnya tetap SATU: yang lama terganti, tidak ada yang tertinggal.
+    const draft = await draftLokasi();
+    expect(draft.map((d) => d.id)).toEqual([baru.revisionId]);
+
+    // Barisnya tidak menggantung: hilang dari laporan, isinya pindah ke catatan
+    // di laporan yang sama, ditandai nomor draft asalnya.
+    expect(await db.dailyReportItem.count({ where: { id: { in: barisLama.map((b) => b.id) } } })).toBe(0);
+    for (const b of barisLama) {
+      const c = await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: b.reportId, asalDraftNo: draftSekarang[0]!.revisionNo } });
+      expect([Number(c.volume), c.reportItemId, c.dibatalkanAt]).toEqual([Number(b.volumeDone), null, null]);
     }
-
-    expect(pesan, "tidak ditolak – baris laporan menggantung atau terhapus").toBeTruthy();
-    expect(pesan).toMatch(/laporan harian/i);
-    // Tanggalnya disebut: tanpa itu orang harus menyisir laporan hari per hari.
-    expect(pesan).toMatch(/11 Sep 2026|2026-09-11/);
-    expect(pesan).not.toMatch(/constraint|rab_nodes|violates|foreign key/i);
-
-    // Draft lama TETAP utuh: penolakan tidak boleh merusak yang sudah ada.
-    const masih = await db.rabRevision.findUnique({ where: { id: draftSekarang[0]!.id } });
-    expect(masih, "draft lama ikut terhapus oleh percobaan yang ditolak").not.toBeNull();
-    await discardDraft(baru.revisionId, sesi.id);
   }, 900_000);
 });
 
 describe("membuang draft yang sudah dipakai melapor", () => {
   it("dijawab kalimat MARLIN yang menyebut jumlah & tanggalnya, bukan galat Postgres", async () => {
     const [draft] = await draftLokasi();
+    // Baris 10 & 11 Sep sudah jadi catatan di uji sebelumnya; laporkan lagi terhadap draft ini.
+    await laporkanDariDraft(draft!.id, "2026-09-10");
     let pesan = "";
     try {
       await discardDraft(draft!.id, sesi.id);

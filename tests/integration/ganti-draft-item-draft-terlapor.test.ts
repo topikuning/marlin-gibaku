@@ -179,6 +179,10 @@ describe("draft diganti berkas baru", () => {
     const pv = p!.preview!;
     expect(pv.warnings.join("\n")).toMatch(/1 baris laporan harian yang diinput terhadap draft #\d+ belum punya pasangan/);
     expect(pv.warnings.join("\n")).toMatch(/20 Sep 2026 – Pekerjaan Uji Tanpa Pasangan/);
+    // DECISIONS 755: yang tidak dipasangkan tidak menahan impor – dan layar mengatakannya.
+    expect(pv.warnings.join("\n")).toMatch(/tidak menghentikan impor/i);
+    expect(pv.warnings.join("\n")).toMatch(/catatan pekerjaan di luar RAB/);
+    expect(pv.warnings.join("\n")).not.toMatch(/ditolak/i);
     expect(pv.padanan.lama.find((l) => l.sebab === "draft")?.name).toBe("Pekerjaan Uji Tanpa Pasangan");
     // Bersihkan: baris laporannya dihapus supaya uji berikut berdiri sendiri.
     await db.dailyReportItem.deleteMany({ where: { rabNode: { name: "Pekerjaan Uji Tanpa Pasangan" } } });
@@ -200,5 +204,62 @@ describe("draft diganti berkas baru", () => {
     expect(pindah.rabNode.revisionId).toBe(draft!.id);
     expect(pindah.rabNode.name).toBe(NAMA);
     expect(pindah.lineageKey).toBe(baris.lineageKey);
+  }, 900_000);
+
+  it("REGRESI BOTULIODU (DECISIONS 755): item draft terlapor yang TIDAK ADA di berkas baru – impor tetap jalan, laporan + fotonya jadi catatan yang bisa dipadankan sebelum aktivasi", async () => {
+    /*
+     * Keluhan user 2026-11-10, sesudah 754: *"itu casenya ada draft adendum,
+     * yang kemudian diinput kegiatan harian, lalu di draft yang baru tidak ada,
+     * kenapa harus jadi menghentikan prosesnya"*.
+     */
+    const NAMA = "Pekerjaan Uji Hilang Dari Berkas";
+    const draftLama = await draftLokasi();
+    const baris = await itemDraftTerlapor(NAMA, "2026-09-22");
+    const { reportId } = await db.dailyReportItem.findUniqueOrThrow({ where: { id: baris.id }, select: { reportId: true } });
+    const foto = await db.photo.create({
+      data: { locationId, reportId, reportItemId: baris.id, r2Key: `uji/${suffix}/hilang.jpg`, sha256: `${suffix}-hilang`, bytes: 1 },
+    });
+
+    const h = await imporDraft(asli);
+    expect(h.error, `impor ditolak: ${h.error}`).toBeFalsy();
+    expect(h.success).toMatch(/baris laporan harian .*catatan pekerjaan di luar RAB/);
+    const draftBaru = await draftLokasi();
+    expect(draftBaru!.id).not.toBe(draftLama!.id);
+
+    // Barisnya pindah ke catatan di laporan yang SAMA, ditandai draft asalnya.
+    expect(await db.dailyReportItem.findUnique({ where: { id: baris.id } })).toBeNull();
+    const c = await db.pekerjaanLuarRab.findFirstOrThrow({ where: { locationId, uraian: NAMA } });
+    expect({ reportId: c.reportId, volume: Number(c.volume), satuan: c.satuan, asal: c.asalDraftNo, item: c.reportItemId, batal: c.dibatalkanAt }).toEqual(
+      { reportId, volume: 1, satuan: "m3", asal: draftLama!.revisionNo, item: null, batal: null },
+    );
+    const f = await db.photo.findUniqueOrThrow({ where: { id: foto.id } });
+    expect([f.luarRabId, f.reportItemId, f.reportId]).toEqual([c.id, null, reportId]);
+
+    // Menunggu di panel pekerjaan di luar RAB, dan disebut di konfirmasi aktivasi.
+    const { dataPadanan, gabungkanLuarRab } = await import("@/lib/luar-rab/service");
+    const { belumDipetakan } = await import("@/lib/rab/padanan-draft");
+    expect((await dataPadanan(locationId)).catatan.map((x) => x.id)).toContain(c.id);
+    const disebut = (await belumDipetakan(draftBaru!.id)).find((b) => b.name === NAMA);
+    // Volume catatannya, walau laporannya masih draft – bukan "0 m3" (render-cek 755).
+    expect([disebut?.realisasi, disebut?.unit, disebut?.catatan]).toEqual([1, "m3", true]);
+
+    // Dipadankan ke item baru di draft pengganti: baris draft lahir lagi di tanggal aslinya, fotonya ikut.
+    const induk = await db.rabNode.findFirstOrThrow({
+      where: { revisionId: draftBaru!.id, lineageKey: korban!.parentLineageKey! },
+      select: { id: true },
+    });
+    const { nodeId } = await addDraftItem(
+      locationId,
+      draftBaru!.id,
+      induk.id,
+      { code: "Z99", name: `${NAMA} CCO`, unit: "m3", volume: 5, unitPrice: 100_000 },
+      sesi.id,
+    );
+    const g = await gabungkanLuarRab(locationId, [{ catatanId: c.id, kandidatId: nodeId, terimaSatuanBeda: false }], sesi.id);
+    expect(g.catatan, JSON.stringify(g.ditahan)).toBe(1);
+    const row = await db.dailyReportItem.findFirstOrThrow({ where: { rabNodeId: nodeId } });
+    expect([row.reportId, Number(row.volumeDone), row.basis]).toEqual([reportId, 1, "draft_adendum"]);
+    expect((await db.photo.findUniqueOrThrow({ where: { id: foto.id } })).reportItemId).toBe(row.id);
+    expect((await belumDipetakan(draftBaru!.id)).map((b) => b.name)).not.toContain(NAMA);
   }, 900_000);
 });

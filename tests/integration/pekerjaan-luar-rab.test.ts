@@ -279,6 +279,34 @@ describe("padanan ke draft adendum", () => {
     expect(await db.dailyReportItem.count({ where: { reportId: lapFinal } })).toBe(0);
   });
 
+  it("baris campuran (catatan + isian langsung) yang itemnya hilang: catatan lama kembali menunggu, sisanya jadi catatan berasal-draft (DECISIONS 755)", async () => {
+    const denganBatu = await buatDraft([GALIAN, URUGAN, BATU, PLESTER]);
+    await gantiDraftLama(draftId, denganBatu, userId);
+    draftId = denganBatu;
+    const batu = await nodeDraft(draftId, "3");
+    await svc.gabungkanLuarRab(locationId, [{ catatanId: c1, kandidatId: batu.id, terimaSatuanBeda: false }], userId);
+    const row = await db.dailyReportItem.findFirstOrThrow({ where: { reportId: lapFinal, rabNodeId: batu.id } });
+    // Volumenya ditambah langsung, bukan dari catatan: baris tidak lagi murni catatan.
+    await db.dailyReportItem.update({ where: { id: row.id }, data: { volumeDone: Number(row.volumeDone) + 1.25 } });
+    const noLama = (await db.rabRevision.findUniqueOrThrow({ where: { id: draftId } })).revisionNo;
+
+    const tanpaBatu = await buatDraft([GALIAN, URUGAN, PLESTER]);
+    const h = await gantiDraftLama(draftId, tanpaBatu, userId);
+    draftId = tanpaBatu;
+    expect(h.jadiCatatan.map((r) => r.nama)).toEqual(["Pasangan Batu Kali Talud"]);
+    expect(await db.dailyReportItem.findUnique({ where: { id: row.id } })).toBeNull();
+    expect((await db.pekerjaanLuarRab.findUniqueOrThrow({ where: { id: c1 } })).reportItemId).toBeNull();
+    const baru = await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: lapFinal, asalDraftNo: noLama } });
+    expect([baru.uraian, baru.satuan, Number(baru.volume), baru.reportItemId]).toEqual(["Pasangan Batu Kali Talud", "m3", 1.25, null]);
+    const f = await db.photo.findUniqueOrThrow({ where: { id: foto1 } });
+    expect([f.reportItemId, f.luarRabId]).toEqual([null, c1]);
+    // Snapshot laporan final dibangun ulang: baris draft-nya sudah tidak ada.
+    const snap = (await db.dailyReport.findUniqueOrThrow({ where: { id: lapFinal } })).finalSnapshot as { itemsDraftAdendum?: number };
+    expect(snap.itemsDraftAdendum).toBe(0);
+    // Bersihkan catatan baru supaya uji rekap di bawah tetap berdiri sendiri.
+    await db.pekerjaanLuarRab.delete({ where: { id: baru.id } });
+  });
+
   it("draft dibuang: baris dari catatan tidak menahan; baris isian langsung tetap menahan", async () => {
     const baruLagi = await buatDraft([GALIAN, URUGAN, BATU, PLESTER]);
     await gantiDraftLama(draftId, baruLagi, userId);

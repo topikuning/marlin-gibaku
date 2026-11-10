@@ -24,7 +24,7 @@ import { DiffCard } from "../diff-card";
 import { ImportForm } from "../import/import-form";
 import { PanelLuarRab } from "./panel-luar-rab";
 import { PanelPadananDraft } from "./panel-padanan-draft";
-import { dataPadananDraft } from "@/lib/rab/padanan-draft";
+import { catatanAsalDraftMenunggu, dataPadananDraft } from "@/lib/rab/padanan-draft";
 import { dataPadanan, rekapLuarRab } from "@/lib/luar-rab/service";
 
 export const metadata: Metadata = { title: "Adendum RAB" };
@@ -249,6 +249,22 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       label: `${c.jalur} ${c.name}${c.volume == null ? "" : ` – ${volFmt.format(c.volume)}${c.unit ? ` ${c.unit}` : ""}`}`,
     })),
   }));
+  /*
+   * Konfirmasi aktivasi menyebut juga laporan atas item draft lama yang kini
+   * menunggu sebagai catatan di luar RAB (DECISIONS 755). Dipadankan di panel
+   * catatan, jadi tidak masuk panel pemetaan.
+   */
+  const konfirmasiAktivasi = [
+    ...belumDipetakan,
+    ...(active ? await catatanAsalDraftMenunggu(location.id) : []).map((c) => ({
+      lineageKey: c.lineageKey,
+      jalur: c.jalur,
+      name: c.name,
+      unit: c.unit,
+      realisasi: c.realisasi,
+      catatan: true,
+    })),
+  ];
   const dipasangkan = new Set(padananDraft.sudah.map((x) => x.lineageLama));
 
   /*
@@ -546,7 +562,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             adaPeringatan={peringatan.length > 0}
             persetujuan={persetujuan}
             bolehTanpaPersetujuan={can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))}
-            belumDipetakan={belumDipetakan}
+            belumDipetakan={konfirmasiAktivasi}
           />
         </CardBody>
       </Card>

@@ -58,6 +58,8 @@ export type ItemBelumDipetakan = {
   terakhir: Date | null;
   /** Item draft yang SAH menjadi pasangannya. Kosong = tidak ada calon. */
   calon: CalonDraft[];
+  /** Laporan atas item draft lama yang menunggu sebagai catatan di luar RAB (DECISIONS 755). */
+  catatan: boolean;
 };
 
 export type PasanganDraft = {
@@ -209,6 +211,7 @@ export async function dataPadananDraft(
         pertama: l.pertama,
         terakhir: l.terakhir,
         calon,
+        catatan: false,
       };
     });
 
@@ -228,12 +231,77 @@ export async function dataPadananDraft(
   return { draftId: m.draft.id, belum, sudah };
 }
 
-/** Item terlapor yang belum dipasangkan untuk draft tertentu – dipakai gerbang aktivasi. */
+/** Awalan `jalur` untuk catatan berasal-draft di daftar konfirmasi aktivasi. */
+export const JALUR_CATATAN_ASAL_DRAFT = "Catatan di luar RAB:";
+
+/**
+ * LAPORAN ATAS ITEM DRAFT LAMA YANG SUDAH JADI CATATAN (DECISIONS 755) dan
+ * belum dipadankan. Itemnya hilang saat draft diganti berkas baru; laporannya
+ * menunggu di panel "Pekerjaan di luar RAB". Sama dengan item kontrak yang belum
+ * dipasangkan: sesudah aktivasi realisasinya tidak dihitung, jadi ikut disebut
+ * di konfirmasi aktivasi. Dikelompokkan per uraian + satuan; dipasangkan di
+ * panel catatan, bukan di panel pemetaan – `calon` selalu kosong.
+ *
+ * `realisasi` di sini = volume catatannya, status laporan apa pun: panel
+ * catatan di atasnya menyebut angka yang sama. Menghitung hanya laporan
+ * terkirim membuat daftar aktivasi menulis "0 m3" untuk catatan 3,5 m3
+ * yang laporannya masih draft (render-cek 755).
+ */
+export async function catatanAsalDraftMenunggu(locationId: string): Promise<ItemBelumDipetakan[]> {
+  const rows = await db.pekerjaanLuarRab.findMany({
+    where: { locationId, asalDraftNo: { not: null }, reportItemId: null, dibatalkanAt: null },
+    select: {
+      id: true,
+      reportId: true,
+      uraian: true,
+      satuan: true,
+      volume: true,
+      report: { select: { reportDate: true } },
+    },
+    orderBy: [{ report: { reportDate: "asc" } }, { createdAt: "asc" }],
+  });
+  const grup = new Map<string, ItemBelumDipetakan & { laporan: Set<string> }>();
+  for (const r of rows) {
+    const k = `${r.uraian}|${r.satuan}`;
+    const t = r.report.reportDate;
+    const vol = Number(r.volume);
+    const g = grup.get(k);
+    if (!g) {
+      grup.set(k, {
+        lineageKey: `luar-rab:${r.id}`,
+        code: "",
+        name: r.uraian,
+        unit: r.satuan,
+        jalur: JALUR_CATATAN_ASAL_DRAFT,
+        realisasi: vol,
+        jumlahLaporan: 1,
+        pertama: t,
+        terakhir: t,
+        calon: [],
+        catatan: true,
+        laporan: new Set([r.reportId]),
+      });
+    } else {
+      g.realisasi = Math.round((g.realisasi + vol) * 1000) / 1000;
+      g.laporan.add(r.reportId);
+      g.jumlahLaporan = g.laporan.size;
+      if (t > g.terakhir!) g.terakhir = t;
+    }
+  }
+  return [...grup.values()].map(({ laporan: _, ...i }) => i);
+}
+
+/**
+ * Item terlapor yang belum dipasangkan untuk draft tertentu – dipakai gerbang
+ * aktivasi: item kontrak yang tidak ada di draft (DECISIONS 754) dan laporan
+ * atas item draft lama yang menunggu sebagai catatan (DECISIONS 755).
+ */
 export async function belumDipetakan(draftId: string): Promise<ItemBelumDipetakan[]> {
   const rev = await db.rabRevision.findUnique({ where: { id: draftId }, select: { locationId: true, status: true } });
   if (!rev || rev.status !== "draft") return [];
   const d = await dataPadananDraft(rev.locationId);
-  return d.draftId === draftId ? d.belum : [];
+  if (d.draftId !== draftId) return [];
+  return [...d.belum, ...(await catatanAsalDraftMenunggu(rev.locationId))];
 }
 
 /**
