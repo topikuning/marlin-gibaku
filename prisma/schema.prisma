@@ -1868,6 +1868,11 @@ model RabNode {
   /// pemetaan di halaman draft adendum (DECISIONS 754). Terisi = node ini
   /// dipasangkan di tahap draft dan bisa dilepas lagi; null = kuncinya sendiri.
   lineageSemula String?  @map("lineage_semula")
+  /// Kunci item kontrak yang DISERAHKAN baris draft ini ke item pasangannya
+  /// (DECISIONS 756): item kontrak yang volumenya dinolkan di draft dipasangkan
+  /// ke item baru, item baru mewarisi kuncinya, dan baris bervolume 0 ini
+  /// memakai kunci lain. Diisi supaya Lepas bisa mengembalikannya.
+  lineageTergeser String? @map("lineage_tergeser")
   sortOrder  Int         @map("sort_order")
 
   revision     RabRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)

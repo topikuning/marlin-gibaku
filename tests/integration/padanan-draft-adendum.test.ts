@@ -84,7 +84,7 @@ type Lokasi = {
  * Draft:      I#1 DIHAPUS; I#2 tetap; I#3 BARU Pondasi batu belah (m3, vol 6);
  *             I#4 BARU Plester (m2); II#1 tetap; II#9 BARU Beton kolom (m3).
  */
-async function siapkan(opts: { barisDraftDiI3?: boolean } = {}): Promise<Lokasi> {
+async function siapkan(opts: { barisDraftDiI3?: boolean; nolkanI2?: boolean } = {}): Promise<Lokasi> {
   nLokasi++;
   const pkg = await db.package.create({ data: { orgId, name: `Paket ${suffix}-${nLokasi}` } });
   const loc = await db.location.create({
@@ -134,7 +134,7 @@ async function siapkan(opts: { barisDraftDiI3?: boolean } = {}): Promise<Lokasi>
   await node(aktif.id, "II#1", "item", "Pasangan bata", aII.id, 4, "m2", 40);
 
   const dI = await node(draft.id, "I", "kategori", "PEKERJAAN PONDASI", null, 0);
-  const d2 = await node(draft.id, "I#2", "item", "Urugan pasir", dI.id, 1, "m3", 5);
+  const d2 = await node(draft.id, "I#2", "item", "Urugan pasir", dI.id, 1, "m3", opts.nolkanI2 ? 0 : 5);
   const d3 = await node(draft.id, "I#3", "item", "Pondasi batu belah", dI.id, 2, "m3", 6);
   const d4 = await node(draft.id, "I#4", "item", "Plester", dI.id, 3, "m2", 12);
   const dII = await node(draft.id, "II", "kategori", "PEKERJAAN DINDING", null, 4);
@@ -220,6 +220,82 @@ describe("yang belum dipasangkan disebut, dengan calon yang sah saja", () => {
     // I#2 item lama, I#4 beda satuan, II#9 beda kategori.
     expect(i1.calon.map((c) => c.nodeId)).toEqual([L.draft["I#3"]]);
     expect(await belumDipetakan(L.draftId)).toHaveLength(1);
+  });
+});
+
+describe("item kontrak yang volumenya 0 di draft (DECISIONS 756)", () => {
+  /*
+   * Keluhan user 2026-11-10 (tangkapan layar: pratinjau menawarkan 6 item, panel
+   * draft hanya 1): *"bisa jadi item yang jadi 0 dan sudah dikerjakan juga perlu
+   * dipetakan, kenapa di konsep baru pencocokan tadi ini tidak ada, dan malah
+   * hilang"*. Saat aktivasi laporannya diturunkan jadi 0 (DECISIONS 742/745).
+   */
+  it("disebut di panel bersama yang hilang, dengan calon yang sah, dan ikut di konfirmasi aktivasi", async () => {
+    const L = await siapkan({ nolkanI2: true });
+    const d = await dataPadananDraft(L.locationId);
+    expect(d.belum.map((x) => [x.lineageKey, x.sebab])).toEqual([
+      ["I#1", "hilang"],
+      ["I#2", "dinolkan"],
+    ]);
+    const i2 = d.belum.find((x) => x.lineageKey === "I#2")!;
+    expect(i2.realisasi).toBe(2);
+    expect(i2.calon.map((c) => c.nodeId)).toEqual([L.draft["I#3"]]);
+    expect((await belumDipetakan(L.draftId)).map((x) => x.lineageKey)).toEqual(["I#1", "I#2"]);
+  });
+
+  it("dipasangkan: item baru mewarisi kuncinya, baris draft bervolume 0 memakai kunci lain; dilepas: keduanya kembali", async () => {
+    const L = await siapkan({ nolkanI2: true });
+    await pasangkanItemDraft({ locationId: L.locationId, revisionId: L.draftId, lineageLama: "I#2", nodeIdDraft: L.draft["I#3"], userId: pembuatId });
+    const [n3, n2] = await Promise.all([
+      db.rabNode.findUniqueOrThrow({ where: { id: L.draft["I#3"] } }),
+      db.rabNode.findUniqueOrThrow({ where: { id: L.draft["I#2"] } }),
+    ]);
+    expect([n3.lineageKey, n3.lineageSemula]).toEqual(["I#2", "I#3"]);
+    expect([n2.lineageKey, n2.lineageTergeser, Number(n2.volume)]).toEqual(["I#2~2", "I#2", 0]);
+    expect((await belumDipetakan(L.draftId)).map((x) => x.lineageKey)).toEqual(["I#1"]);
+    const d = await dataPadananDraft(L.locationId);
+    expect(d.sudah.map((x) => [x.nodeId, x.namaLama])).toEqual([[L.draft["I#3"], "Urugan pasir"]]);
+
+    await lepasPadananDraft({ locationId: L.locationId, revisionId: L.draftId, nodeIdDraft: L.draft["I#3"], userId: pembuatId });
+    const [m3, m2] = await Promise.all([
+      db.rabNode.findUniqueOrThrow({ where: { id: L.draft["I#3"] } }),
+      db.rabNode.findUniqueOrThrow({ where: { id: L.draft["I#2"] } }),
+    ]);
+    expect([m3.lineageKey, m3.lineageSemula]).toEqual(["I#3", null]);
+    expect([m2.lineageKey, m2.lineageTergeser]).toEqual(["I#2", null]);
+    expect((await belumDipetakan(L.draftId)).map((x) => x.lineageKey)).toEqual(["I#1", "I#2"]);
+  });
+
+  it("aktivasi sesudah dipasangkan: laporannya TIDAK diturunkan jadi 0, ikut ke item penggantinya", async () => {
+    const L = await siapkan({ nolkanI2: true });
+    await pasangkanItemDraft({ locationId: L.locationId, revisionId: L.draftId, lineageLama: "I#2", nodeIdDraft: L.draft["I#3"], userId: pembuatId });
+    for (const [userId, r] of [[pembuatId, "site_manager"], [pdId, "program_director"]] as const) {
+      await db.rabRevisionApproval.create({
+        data: { revisionId: L.draftId, userId, role: r, totalValue: 0n, approvedAt: new Date(Date.now() + 1000) },
+      });
+    }
+    const f = new FormData();
+    f.set("revisionId", L.draftId);
+    f.set("konfirmasiBelumDipetakan", "1"); // I#1 sengaja tidak dipasangkan
+    const r = await activateDraftAction(undefined, f);
+    expect(r?.success, r?.error).toBeTruthy();
+    expect((await cumulativeVolumeByLineage(L.locationId)).get("I#2")).toBe(2);
+    const baris = await db.dailyReportItem.findMany({ where: { lineageKey: "I#2", report: { locationId: L.locationId } } });
+    expect(baris.map((b) => Number(b.volumeDone))).toEqual([2]);
+  });
+
+  it("tanpa dipasangkan: konfirmasi aktivasi mengatakan laporannya akan diturunkan jadi 0", async () => {
+    const L = await siapkan({ nolkanI2: true });
+    for (const [userId, r] of [[pembuatId, "site_manager"], [pdId, "program_director"]] as const) {
+      await db.rabRevisionApproval.create({
+        data: { revisionId: L.draftId, userId, role: r, totalValue: 0n, approvedAt: new Date(Date.now() + 1000) },
+      });
+    }
+    const f = new FormData();
+    f.set("revisionId", L.draftId);
+    const r = await activateDraftAction(undefined, f);
+    expect(r?.error).toMatch(/Urugan pasir \(volume 0 di draft/);
+    expect(r?.error).toMatch(/diturunkan menjadi 0/);
   });
 });
 

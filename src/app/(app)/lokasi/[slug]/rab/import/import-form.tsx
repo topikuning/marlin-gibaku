@@ -619,6 +619,18 @@ function PanelPadanan({
     <div className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-[13px]">
       <p className="font-medium text-ink">
         {padanan.lama.length} item yang SUDAH dikerjakan tidak lagi punya volume di file ini
+        {/* Rinciannya disebut supaya tidak terbaca bertentangan dengan kotak "tidak ada di file ini". */}
+        {(() => {
+          const r = [
+            ["hilang", "tidak ada di file"],
+            ["dinolkan", "volumenya jadi 0"],
+            ["draft", "hanya ada di draft lama"],
+          ]
+            .map(([k, label]) => [padanan.lama.filter((l) => l.sebab === k).length, label] as const)
+            .filter(([n]) => n > 0)
+            .map(([n, label]) => `${n} ${label}`);
+          return r.length > 1 ? ` (${r.join(", ")})` : null;
+        })()}
       </p>
       <p className="text-ink-muted">
         Kalau pekerjaannya sebenarnya pindah ke baris lain (ganti nama atau dipecah), pasangkan di

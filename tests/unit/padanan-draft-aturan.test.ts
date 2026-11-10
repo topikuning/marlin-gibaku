@@ -36,6 +36,37 @@ const konteks = {
   lineageDraft: new Set(["I", "I#2", "I#3", "II", "II#1"]),
 };
 
+describe("item kontrak yang VOLUMENYA 0 di draft (DECISIONS 756)", () => {
+  /*
+   * Keluhan user 2026-11-10: *"bisa jadi item yang jadi 0 dan sudah dikerjakan
+   * juga perlu dipetakan, kenapa di konsep baru pencocokan tadi ini tidak ada"*.
+   * Pratinjau impor menawarkannya; panel draft menolaknya sebagai "masih ada
+   * di draft" – padahal saat aktivasi laporannya diturunkan jadi 0.
+   */
+  it("masih ada di draft tapi volumenya 0 → boleh dipasangkan ke item baru", () => {
+    expect(
+      periksaPadananDraft(lama({ lineageKey: "I#2", name: "Urugan pasir" }), baru(), {
+        ...konteks,
+        lineageDraftNol: new Set(["I#2"]),
+      }),
+    ).toBeNull();
+  });
+
+  it("masih ada di draft dengan volume → tetap ditolak", () => {
+    expect(
+      periksaPadananDraft(lama({ lineageKey: "I#2", name: "Urugan pasir" }), baru(), {
+        ...konteks,
+        lineageDraftNol: new Set(["II#1"]),
+      }),
+    ).toMatch(/masih ada di draft/);
+  });
+
+  it("volumeNol: kosong dan 0 dihitung nol, sisa pembulatan juga", async () => {
+    const { volumeNol } = await import("@/lib/rab/padanan-draft-aturan");
+    expect([null, 0, 0.0000001, 0.001, 5].map(volumeNol)).toEqual([true, true, true, false, false]);
+  });
+});
+
 describe("periksaPadananDraft", () => {
   it("item kontrak yang hilang dari draft → item baru draft di kategori yang sama: boleh", () => {
     expect(periksaPadananDraft(lama(), baru(), konteks)).toBeNull();

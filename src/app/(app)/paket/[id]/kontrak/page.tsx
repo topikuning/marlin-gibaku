@@ -155,7 +155,7 @@ export default async function KontrakPage({
     await Promise.all(
       tertunda.revisi
         .filter((r) => !r.sudahBerlaku)
-        .map(async (r) => [r.revisionId, (await belumDipetakan(r.revisionId)).map((b) => `${b.jalur} ${b.name}`)] as const),
+        .map(async (r) => [r.revisionId, (await belumDipetakan(r.revisionId)).map((b) => `${b.jalur} ${b.name}${b.sebab === "dinolkan" ? " (volume 0 di draft)" : ""}`)] as const),
     ),
   );
   const itemAdendum: ItemAdendumForm[] = [
