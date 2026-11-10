@@ -8,7 +8,23 @@ import { formatNumber } from "@/lib/format";
  * penghalang. Server memeriksa ulang (`tolakTanpaKonfirmasiPadanan`).
  */
 
-export type BelumDipetakanRingkas = { lineageKey: string; jalur: string; name: string; realisasi: number; unit: string | null };
+export type BelumDipetakanRingkas = {
+  lineageKey: string;
+  jalur: string;
+  name: string;
+  realisasi: number;
+  unit: string | null;
+  /** Laporan atas item draft lama yang menunggu sebagai catatan di luar RAB (DECISIONS 755). */
+  catatan?: boolean;
+};
+
+/**
+ * Jangkar tujuan "Pasangkan dulu": item kontrak dipasangkan di panel pemetaan,
+ * catatan berasal-draft di panel "Pekerjaan di luar RAB" (DECISIONS 755).
+ */
+export function jangkarPemetaan(items: readonly BelumDipetakanRingkas[]): string {
+  return items.some((i) => !i.catatan) ? "#pemetaan" : "#panel-luar-rab";
+}
 
 export function PeringatanBelumDipetakan({
   items,
@@ -48,6 +64,9 @@ export function PeringatanBelumDipetakan({
         ) : (
           " Pasangkan dulu di panel di atas, atau konfirmasi untuk tetap mengaktifkan."
         )}
+        {items.some((i) => i.catatan)
+          ? " Yang berlabel catatan di luar RAB tetap menunggu dan bisa dipadankan ke draft berikutnya."
+          : null}
       </p>
     </div>
   );

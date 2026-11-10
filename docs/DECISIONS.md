@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 755 | 2026-11-10 | Impor pengganti draft tidak lagi berhenti bila item draft yang sudah dilaporkan tidak ada di berkas: barisnya jadi catatan pekerjaan di luar RAB berikut fotonya di laporan dan tanggal yang sama (kolom `asal_draft_no`), bisa dipadankan ke item draft baru, dan ikut disebut di konfirmasi aktivasi; koreksi 754 (pagar simpan dibuang); tombol Buang draft tidak diubah |
 | 754 | 2026-11-10 | Item terlapor yang tidak ada di draft adendum bisa dipasangkan ke item baru draft kapan saja sebelum aktivasi (panel di halaman draft, bisa dilepas; kunci diwariskan, kolom `lineage_semula`); aktivasi dengan item belum dipasangkan minta konfirmasi di semua jalur (web, super admin, CCO paket, pesan WA); impor pengganti draft ikut mencocokkan item draft lama yang sudah dilaporkan (perbaikan galat "Impor dihentikan … TIDAK ADA di berkas ini") |
 | 753 | 2026-11-09 | Tanya MARLIN di grup tidak membuang rupiah dari berkas apa pun, siapa pun yang bertanya (koreksi 735: aturan grup itu perluasan agen); web untuk Pelaksana tetap tanpa rupiah; chat pribadi Pelaksana belum diubah, ditanyakan |
 | 752 | 2026-11-09 | Tanya MARLIN di grup: "laporan hari ini" → blanko KKP per lokasi, "laporan mingguan" → laporan mingguan KKP per lokasi, niat baru `rekap_harian` ("rekap harian seminggu") → berkas rekap laporan harian KKP; hanya laporan terkirim, minggu kontrak dari SPMK, maks 15 berkas; hari belum tiba ≠ belum lapor; koreksi 735: rupiah di grup bukan larangan user |

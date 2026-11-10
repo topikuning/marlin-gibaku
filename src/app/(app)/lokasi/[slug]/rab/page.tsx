@@ -250,6 +250,7 @@ export default async function RabPage({
           name: b.name,
           realisasi: b.realisasi,
           unit: b.unit,
+          catatan: b.catatan,
         }))
       : [];
 

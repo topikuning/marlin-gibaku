@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Banner, Button } from "@/components/ui";
 import { activateDraftAction, approveRevisionAction, discardDraftAction, type RabActionState } from "../actions";
 import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "../panel-tanpa-persetujuan";
-import { kalimatKonfirmasiBelumDipetakan, PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "../belum-dipetakan";
+import {
+  jangkarPemetaan,
+  kalimatKonfirmasiBelumDipetakan,
+  PeringatanBelumDipetakan,
+  type BelumDipetakanRingkas,
+} from "../belum-dipetakan";
 
 /**
  * Aktivasi / buang draft LANGSUNG dari halaman adendum — review-nya adalah
@@ -138,7 +143,7 @@ export function DraftControls({
         </div>
       ) : null}
 
-      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan="#pemetaan" />
+      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan={jangkarPemetaan(belumDipetakan)} />
 
       <div className="flex flex-wrap items-center gap-2">
       <Button

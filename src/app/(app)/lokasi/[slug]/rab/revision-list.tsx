@@ -13,7 +13,7 @@ import {
   type RabActionState,
 } from "./actions";
 import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "./panel-tanpa-persetujuan";
-import { PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "./belum-dipetakan";
+import { jangkarPemetaan, PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "./belum-dipetakan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
 /**
@@ -417,7 +417,7 @@ export function RevisionList({
                       persetujuan={persetujuan}
                       bolehTanpaPersetujuan={bolehTanpaPersetujuan}
                       belumDipetakan={belumDipetakan}
-                      hrefPemetaan={slug ? `/lokasi/${slug}/rab/adendum#pemetaan` : null}
+                      hrefPemetaan={slug ? `/lokasi/${slug}/rab/adendum${jangkarPemetaan(belumDipetakan)}` : null}
                       onBerhasil={setPesanHapus}
                     />
                   ) : null}

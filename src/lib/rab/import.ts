@@ -655,27 +655,42 @@ export async function discardDraft(revisionId: string, userId: string) {
  * dibungkus satu transaksi sehingga kegagalan apa pun tidak meninggalkan
  * setengah jalan.
  *
- * ### Yang TIDAK berpadanan
+ * ### Yang TIDAK berpadanan – TIDAK menghentikan impor (DECISIONS 755)
  *
- * Dilempar sebagai `DraftTerpakaiError` yang menyebut tanggal dan nama itemnya.
- * Menghapusnya berarti membuang laporan lapangan tanpa ditanya; membiarkannya
- * menggantung mustahil — kolomnya wajib menunjuk sebuah node. Yang memutuskan
- * harus orang, dan untuk memutuskan ia perlu daftarnya.
+ * Dulu dilempar sebagai `DraftTerpakaiError`. Keluhan user 2026-11-10: *"itu
+ * casenya ada draft adendum, yang kemudian diinput kegiatan harian, lalu di
+ * draft yang baru tidak ada, kenapa harus jadi menghentikan prosesnya"*.
+ *
+ * Sekarang barisnya pindah menjadi catatan pekerjaan di luar RAB di laporan dan
+ * tanggal yang sama, berikut fotonya (`jadikanCatatanDariDraft`). Tidak dibuang,
+ * tidak menggantung, dan bisa dipadankan ke item draft baru sebelum aktivasi.
+ * Daftarnya pulang ke layar impor lewat `jadiCatatan`.
  */
 export async function gantiDraftLama(
   draftLamaId: string,
   draftBaruId: string,
   userId: string,
-): Promise<{ dipindah: number; catatanLuarRabDilepas: number; diAtasVolumeBaru: DiAtasVolumeBaru[] }> {
-  const { barisMurniDariCatatan, lepasBarisDariCatatan, bangunUlangSnapshotTanggal } = await import(
-    "@/lib/luar-rab/service"
-  );
+): Promise<{
+  dipindah: number;
+  catatanLuarRabDilepas: number;
+  jadiCatatan: LaporanDariDraft[];
+  diAtasVolumeBaru: DiAtasVolumeBaru[];
+}> {
+  const { barisMurniDariCatatan, lepasBarisDariCatatan, jadikanCatatanDariDraft, bangunUlangSnapshotTanggal } =
+    await import("@/lib/luar-rab/service");
   const { volumeTerlapor } = await import("@/lib/rab/adendum");
   const hasil = await db.$transaction(async (tx) => {
     const terpakai = await laporanDariDraft(tx, draftLamaId);
     if (terpakai.length === 0) {
       await tx.rabRevision.delete({ where: { id: draftLamaId } });
-      return { dipindah: 0, catatanLuarRabDilepas: 0, diAtasVolumeBaru: [], finalTersentuh: [] as Date[], locationId: null };
+      return {
+        dipindah: 0,
+        catatanLuarRabDilepas: 0,
+        jadiCatatan: [] as LaporanDariDraft[],
+        diAtasVolumeBaru: [],
+        finalTersentuh: [] as Date[],
+        locationId: null,
+      };
     }
 
     const kunci = [...new Set(terpakai.map((r) => r.lineageKey))];
@@ -700,22 +715,19 @@ export async function gantiDraftLama(
       tanpaPadanan.map((r) => r.itemId),
     );
     const yatim = tanpaPadanan.filter((r) => !murni.has(r.itemId));
-    if (yatim.length > 0) {
-      const lamaNo = (
-        await tx.rabRevision.findUniqueOrThrow({
-          where: { id: draftLamaId },
-          select: { revisionNo: true },
-        })
-      ).revisionNo;
-      throw new DraftTerpakaiError(
-        `Impor dihentikan: ${yatim.length} baris laporan harian sudah diinput terhadap draft ` +
-          `#${lamaNo}, tetapi itemnya TIDAK ADA di berkas ini – ${sebutLaporan(yatim)}. ` +
-          `Laporan lapangan tidak dibuang diam-diam. Pakai berkas yang masih memuat item itu, ` +
-          `atau hapus dulu baris laporannya di layar Pelaksanaan Harian.`,
-      );
-    }
+    const lokasi = await tx.rabRevision.findUniqueOrThrow({
+      where: { id: draftLamaId },
+      select: { locationId: true, revisionNo: true },
+    });
 
     const dilepas = await lepasBarisDariCatatan(tx, [...murni], userId, "draft adendum diganti berkas baru");
+    // Laporan yang itemnya tidak ada di berkas baru → catatan di luar RAB, bukan penolakan (DECISIONS 755).
+    const jadi = await jadikanCatatanDariDraft(
+      tx,
+      yatim.map((r) => r.itemId),
+      { draftNo: lokasi.revisionNo, sebab: "draft itu diganti berkas baru" },
+      userId,
+    );
     const pindah = terpakai.filter((r) => padanan.has(r.lineageKey));
     for (const r of pindah) {
       await tx.dailyReportItem.update({
@@ -723,7 +735,6 @@ export async function gantiDraftLama(
         data: { rabNodeId: padanan.get(r.lineageKey)! },
       });
     }
-    const lokasi = await tx.rabRevision.findUniqueOrThrow({ where: { id: draftLamaId }, select: { locationId: true } });
     /*
      * VOLUME BARU DI BAWAH YANG SUDAH DILAPORKAN – DISEBUT (DECISIONS 742).
      *
@@ -751,13 +762,15 @@ export async function gantiDraftLama(
       baris: pindah.length,
       tanggal: pindah.map((r) => r.tanggal.toISOString().slice(0, 10)),
       catatanLuarRabDilepas: murni.size,
+      jadiCatatan: yatim.map((r) => ({ tanggal: r.tanggal.toISOString().slice(0, 10), item: r.nama, volume: r.volume })),
       diAtasVolumeBaru,
     });
     return {
       dipindah: pindah.length,
       catatanLuarRabDilepas: murni.size,
+      jadiCatatan: yatim,
       diAtasVolumeBaru,
-      finalTersentuh: dilepas,
+      finalTersentuh: [...dilepas, ...jadi.tanggalFinal],
       locationId: lokasi.locationId,
     };
     /*
@@ -768,7 +781,12 @@ export async function gantiDraftLama(
      */
   }, { timeout: 60_000, maxWait: 15_000 });
   if (hasil.locationId) await bangunUlangSnapshotTanggal(hasil.locationId, hasil.finalTersentuh);
-  return { dipindah: hasil.dipindah, catatanLuarRabDilepas: hasil.catatanLuarRabDilepas, diAtasVolumeBaru: hasil.diAtasVolumeBaru };
+  return {
+    dipindah: hasil.dipindah,
+    catatanLuarRabDilepas: hasil.catatanLuarRabDilepas,
+    jadiCatatan: hasil.jadiCatatan,
+    diAtasVolumeBaru: hasil.diAtasVolumeBaru,
+  };
 }
 
 /** Item yang volume draft barunya di bawah volume yang sudah dilaporkan (DECISIONS 742). */

@@ -2208,6 +2208,11 @@ model PekerjaanLuarRab {
   dibatalkanAt   DateTime? @map("dibatalkan_at") @db.Timestamptz
   dibatalkanById String?   @map("dibatalkan_by_id") @db.Uuid
   alasanBatal    String?   @map("alasan_batal")
+  /// Nomor draft adendum tempat pekerjaan ini DULU dilaporkan sebagai item
+  /// draft, sebelum draft itu diganti berkas yang tidak lagi memuat itemnya
+  /// (DECISIONS 755). Kosong = dicatat pelaksana sebagai pekerjaan di luar RAB.
+  /// Yang berasal dari draft ikut disebut di konfirmasi aktivasi (DECISIONS 754).
+  asalDraftNo    Int?      @map("asal_draft_no")
   createdById    String    @map("created_by_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz

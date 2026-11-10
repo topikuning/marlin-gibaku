@@ -707,4 +707,105 @@ export async function lepasBarisDariCatatan(tx: Tx, itemIds: string[], userId: s
   return rows.filter((r) => r.report.status === "final").map((r) => r.report.reportDate);
 }
 
+const potong = (s: string, maks: number) => (s.length > maks ? `${s.slice(0, maks - 1)}…` : s);
+
+/**
+ * BARIS LAPORAN YANG ITEM DRAFT-NYA HILANG → CATATAN DI LUAR RAB (DECISIONS 755).
+ *
+ * Keluhan user 2026-11-10: *"itu casenya ada draft adendum, yang kemudian
+ * diinput kegiatan harian, lalu di draft yang baru tidak ada, kenapa harus jadi
+ * menghentikan prosesnya"*. Dulu impor pengganti draft DITOLAK di sini.
+ *
+ * Pekerjaannya sungguh terjadi, hanya itemnya tidak ada lagi di draft mana pun –
+ * persis "pekerjaan di luar RAB" (DECISIONS 738). Jadi barisnya pindah ke catatan
+ * di laporan dan tanggal yang SAMA: uraian dan satuan dari item draft lamanya,
+ * volume dari laporannya, fotonya ikut. Tidak ada laporan yang hilang, dan Site
+ * Manager bisa memadankannya ke item draft baru sebelum aktivasi; `asalDraftNo`
+ * membuatnya ikut disebut di konfirmasi aktivasi (DECISIONS 754).
+ *
+ * Baris campuran (sebagian dari catatan lama, sebagian diketik langsung):
+ * catatan lamanya kembali menunggu seperti `lepasBarisDariCatatan`, dan
+ * hanya SELISIHNYA yang menjadi catatan baru – supaya volumenya tidak dobel.
+ *
+ * Mengembalikan jumlah catatan baru dan tanggal laporan final yang tersentuh
+ * (snapshot-nya menghitung baris draft, DECISIONS 215).
+ */
+export async function jadikanCatatanDariDraft(
+  tx: Tx,
+  itemIds: string[],
+  asal: { draftNo: number; sebab: string },
+  userId: string,
+): Promise<{ catatan: number; tanggalFinal: Date[] }> {
+  if (itemIds.length === 0) return { catatan: 0, tanggalFinal: [] };
+  const rows = await tx.dailyReportItem.findMany({
+    where: { id: { in: itemIds } },
+    select: {
+      id: true,
+      reportId: true,
+      lineageKey: true,
+      volumeDone: true,
+      notes: true,
+      reportedById: true,
+      rabNode: { select: { code: true, name: true, unit: true } },
+      report: { select: { locationId: true, status: true, reportDate: true } },
+      luarRab: { select: { id: true, volume: true } },
+    },
+  });
+  let dibuat = 0;
+  for (const r of rows) {
+    const dariCatatanLama = r.luarRab.reduce((t, c) => t + Number(c.volume), 0);
+    const sisa = Math.round((Number(r.volumeDone) - dariCatatanLama) * 1000) / 1000;
+    if (r.luarRab.length > 0) {
+      await tx.photo.updateMany({ where: { reportItemId: r.id, luarRabId: { not: null } }, data: { reportItemId: null } });
+      await tx.pekerjaanLuarRab.updateMany({
+        where: { reportItemId: r.id },
+        data: { reportItemId: null, dipadankanById: null, dipadankanAt: null },
+      });
+    }
+    let catatanId: string | null = null;
+    if (r.luarRab.length === 0 || sisa > VOLUME_EPSILON) {
+      const nomor = r.rabNode.code?.trim() ? ` nomor ${r.rabNode.code.trim()}` : "";
+      const keterangan =
+        `Dulu dilaporkan sebagai item${nomor} di draft adendum #${asal.draftNo}. ` +
+        `Itemnya tidak ada lagi sesudah ${asal.sebab}, jadi laporannya disimpan di sini untuk dipadankan ulang.` +
+        (r.notes?.trim() ? ` Catatan laporan: ${r.notes.trim()}` : "");
+      const c = await tx.pekerjaanLuarRab.create({
+        data: {
+          locationId: r.report.locationId,
+          reportId: r.reportId,
+          uraian: potong(r.rabNode.name.replace(/\s+/g, " ").trim(), MAKS_URAIAN),
+          satuan: r.rabNode.unit?.trim() || "-",
+          volume: r.luarRab.length === 0 ? Number(r.volumeDone) : sisa,
+          catatan: potong(keterangan, MAKS_CATATAN),
+          asalDraftNo: asal.draftNo,
+          createdById: r.reportedById ?? userId,
+        },
+      });
+      catatanId = c.id;
+      dibuat++;
+      await tx.photo.updateMany({ where: { reportItemId: r.id, luarRabId: null }, data: { luarRabId: c.id, reportItemId: null } });
+    }
+    // Foto yang tersisa (baris campuran tanpa selisih) tetap di laporannya.
+    await tx.photo.updateMany({ where: { reportItemId: r.id }, data: { reportItemId: null } });
+    await tx.dailyReportItem.delete({ where: { id: r.id } });
+    await auditIn(tx, userId, "luar_rab.dari_draft", "daily_report_item", r.id, {
+      locationId: r.report.locationId,
+      reportId: r.reportId,
+      tanggal: jakartaDateKey(r.report.reportDate),
+      statusLaporan: r.report.status,
+      draftNo: asal.draftNo,
+      sebab: asal.sebab,
+      item: `${r.rabNode.code ?? ""} ${r.rabNode.name}`.trim(),
+      lineageKey: r.lineageKey,
+      volume: Number(r.volumeDone),
+      catatanBaruId: catatanId,
+      catatanLamaKembali: r.luarRab.map((c) => c.id),
+    });
+  }
+  return {
+    catatan: dibuat,
+    tanggalFinal: rows.filter((r) => r.report.status === "final").map((r) => r.report.reportDate),
+  };
+}
+
 export { bangunUlangSnapshotTanggal };
