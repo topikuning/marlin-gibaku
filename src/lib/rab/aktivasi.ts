@@ -109,10 +109,14 @@ export async function jalankanAktivasi(o: {
     `. ${kalimatKurva}`;
   if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
   if (takDipasangkan.length > 0) {
+    const hilang = takDipasangkan.filter((i) => i.sebab !== "dinolkan").length;
+    const nol = takDipasangkan.length - hilang;
     kabar +=
       ` ${takDipasangkan.length} item yang sudah dilaporkan tidak dipasangkan` +
       ` (${takDipasangkan.slice(0, 3).map((i) => i.name).join("; ")}${takDipasangkan.length > 3 ? "; …" : ""}):` +
-      ` realisasinya tidak dihitung di progres dan tercatat di RAB › Tidak terbobot.`;
+      (hilang > 0 ? ` realisasi yang hilang dari draft tidak dihitung di progres dan tercatat di RAB › Tidak terbobot.` : "") +
+      // DECISIONS 756: item yang volumenya 0 ikut diturunkan di rincian penyesuaian di bawah.
+      (nol > 0 ? ` Laporan ${nol} item yang volumenya 0 di draft diturunkan menjadi 0.` : "");
   }
   if (p.item > 0) {
     const contoh = p.rincian

@@ -26,6 +26,14 @@ export type NodePadanan = {
   lineageSemula: string | null;
 };
 
+/**
+ * Volume yang dihitung NOL: kosong, 0, atau sisa pembulatan. Sama dengan
+ * pratinjau impor (`(ke ?? 0) === 0`), ditambah toleransi Decimal(15,3).
+ */
+export function volumeNol(v: number | null): boolean {
+  return v == null || Math.abs(v) < 0.0005;
+}
+
 /** Akar kunci = kode kategori; dipakai di banyak tempat untuk menemukan kategori. */
 export const akarLineage = (lineageKey: string): string => lineageKey.split("#")[0]!;
 
@@ -54,10 +62,20 @@ export function satuanSetara(a: string | null, b: string | null): boolean {
 export function periksaPadananDraft(
   lama: NodePadanan,
   draft: NodePadanan,
-  konteks: { lineageAktif: ReadonlySet<string>; lineageDraft: ReadonlySet<string> },
+  konteks: {
+    lineageAktif: ReadonlySet<string>;
+    lineageDraft: ReadonlySet<string>;
+    /**
+     * Kunci item kontrak yang MASIH ADA di draft tetapi volumenya 0 (DECISIONS
+     * 756). Pekerjaannya pindah ke item lain di draft; tanpa dipasangkan,
+     * laporannya diturunkan jadi 0 saat aktivasi. Boleh dipasangkan seperti
+     * item yang hilang – sama dengan pratinjau impor ("volumenya jadi 0").
+     */
+    lineageDraftNol?: ReadonlySet<string>;
+  },
 ): string | null {
   if (!konteks.lineageAktif.has(lama.lineageKey)) return `"${lama.name}" bukan item di RAB aktif.`;
-  if (konteks.lineageDraft.has(lama.lineageKey)) {
+  if (konteks.lineageDraft.has(lama.lineageKey) && !konteks.lineageDraftNol?.has(lama.lineageKey)) {
     return `"${lama.name}" masih ada di draft, jadi realisasinya sudah tersambung tanpa dipasangkan.`;
   }
   if (draft.kind !== "item" && draft.kind !== "grup") return `"${draft.name}" bukan item pekerjaan.`;

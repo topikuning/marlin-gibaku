@@ -116,7 +116,12 @@ export async function kirimPermintaanPd(
   const belumDipasang = tak.length
     ? {
         jumlah: tak.length,
-        contoh: tak.slice(0, 3).map((i) => `${i.jalur} ${i.name} (${fmtVol.format(i.realisasi)}${i.unit ? ` ${i.unit}` : ""})`),
+        contoh: tak
+          .slice(0, 3)
+          .map(
+            (i) =>
+              `${i.jalur} ${i.name} (${i.sebab === "dinolkan" ? "volume 0 di draft, " : ""}${fmtVol.format(i.realisasi)}${i.unit ? ` ${i.unit}` : ""})`,
+          ),
       }
     : null;
 

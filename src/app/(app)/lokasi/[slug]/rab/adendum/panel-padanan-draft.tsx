@@ -19,6 +19,8 @@ import { lepasPadananDraftAction, pasangkanItemDraftAction, type PadananActionSt
 
 export type BelumDipetakanView = {
   lineageKey: string;
+  /** `dinolkan` = masih ada di draft dengan volume 0 (DECISIONS 756). */
+  sebab: "hilang" | "dinolkan";
   jalur: string;
   name: string;
   unit: string | null;
@@ -51,13 +53,24 @@ export function PanelPadananDraft({
   sudah: SudahDipasangkanView[];
 }) {
   if (belum.length === 0 && sudah.length === 0) return null;
+  const nHilang = belum.filter((b) => b.sebab === "hilang").length;
+  const nNol = belum.length - nHilang;
+  const rincian = [nHilang > 0 ? `${nHilang} tidak ada lagi di draft` : null, nNol > 0 ? `${nNol} volumenya 0 di draft` : null]
+    .filter(Boolean)
+    .join(", ");
+  const akibat = [
+    nHilang > 0 ? "yang tidak ada lagi di draft, realisasinya tidak dihitung di progres" : null,
+    nNol > 0 ? "yang volumenya 0, laporan hariannya diturunkan menjadi 0" : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
   return (
     <Card id="pemetaan">
       <CardHeader
-        title="Pekerjaan yang sudah dilaporkan tapi tidak ada di draft ini"
+        title="Pekerjaan yang sudah dilaporkan tapi tidak ada atau dinolkan di draft ini"
         subtitle={
           belum.length > 0
-            ? `${belum.length} item kontrak sudah punya laporan harian, tetapi tidak ada lagi di draft. Kalau pekerjaannya pindah ke item lain di draft (ganti nama, dipecah, atau pindah kelompok), pasangkan di sini sebelum diaktifkan. Laporan dan fotonya ikut ke item draft itu, tanpa ada laporan yang diubah. Yang tidak dipasangkan, realisasinya tidak dihitung lagi di progres sesudah aktivasi.`
+            ? `${belum.length} item kontrak sudah punya laporan harian (${rincian}). Kalau pekerjaannya pindah ke item lain di draft (ganti nama, dipecah, atau pindah kelompok), pasangkan di sini sebelum diaktifkan. Laporan dan fotonya ikut ke item draft itu, tanpa ada laporan yang diubah. Kalau tidak dipasangkan, sesudah aktivasi ${akibat}.`
             : "Semua item yang sudah dilaporkan sudah ada di draft atau sudah dipasangkan."
         }
       />
@@ -99,7 +112,7 @@ function BarisBelum({ slug, revisionId, b }: { slug: string; revisionId: string;
         {b.jalur ? <span className="block text-xs text-ink-muted">{b.jalur}</span> : null}
         <span className="font-medium text-ink">{b.name}</span>{" "}
         <span className="text-ink-muted">
-          – sudah dilaporkan {formatNumber(b.realisasi)}
+          {b.sebab === "dinolkan" ? "– volumenya 0 di draft, " : "– "}sudah dilaporkan {formatNumber(b.realisasi)}
           {sat(b.unit)} di {b.jumlahLaporan} laporan
           {b.pertama ? ` (${b.pertama === b.terakhir ? b.pertama : `${b.pertama} – ${b.terakhir}`})` : ""}
         </span>

@@ -1755,7 +1755,11 @@ export async function addAmendment(
         tanpaPasangan.push({
           revisionId: r.id,
           lokasi: r.location.name,
-          item: b.map((i) => ({ lineageKey: i.lineageKey, name: i.name, realisasi: i.realisasi })),
+          item: b.map((i) => ({
+            lineageKey: i.lineageKey,
+            name: i.sebab === "dinolkan" ? `${i.name} (volume 0 di draft)` : i.name,
+            realisasi: i.realisasi,
+          })),
         });
       }
     }

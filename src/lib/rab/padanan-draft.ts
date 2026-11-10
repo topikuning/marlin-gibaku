@@ -4,7 +4,7 @@ import { audit } from "@/lib/audit";
 import { formatTanggal } from "@/lib/format";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { jalurNodeById } from "@/lib/rab/jalur";
-import { periksaPadananDraft, type NodePadanan } from "@/lib/rab/padanan-draft-aturan";
+import { periksaPadananDraft, volumeNol, type NodePadanan } from "@/lib/rab/padanan-draft-aturan";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -24,6 +24,12 @@ import type { Prisma } from "@/generated/prisma/client";
  * Yang TIDAK disentuh: baris laporan atas item lama dan fotonya – volume,
  * tanggal, nilai, status. Justru karena kuncinya diwariskan, mereka tidak
  * perlu ditulis ulang.
+ *
+ * ITEM YANG VOLUMENYA 0 DI DRAFT (DECISIONS 756) ikut ditawarkan, sama dengan
+ * pratinjau impor. Kuncinya masih dipakai baris draft bervolume 0 itu, jadi
+ * baris itu menyerahkannya: ia memakai kunci lain (`~N`) dan mencatat kunci
+ * aslinya di `lineageTergeser`, lalu item baru mewarisi kuncinya. Lepas
+ * mengembalikan keduanya.
  *
  * `updatedAt` draft disentuh: pemetaan menentukan ke mana realisasi resmi
  * pergi sesudah aktivasi, jadi persetujuan empat mata yang diberikan sebelum
@@ -60,6 +66,12 @@ export type ItemBelumDipetakan = {
   calon: CalonDraft[];
   /** Laporan atas item draft lama yang menunggu sebagai catatan di luar RAB (DECISIONS 755). */
   catatan: boolean;
+  /**
+   * `hilang` = tidak ada lagi di draft (realisasinya tidak terhitung sesudah
+   * aktivasi); `dinolkan` = masih ada di draft dengan volume 0 (laporannya
+   * diturunkan jadi 0 saat aktivasi, DECISIONS 745/756). Catatan: `hilang`.
+   */
+  sebab: "hilang" | "dinolkan";
 };
 
 export type PasanganDraft = {
@@ -87,6 +99,7 @@ type NodeRingkas = {
   volume: Prisma.Decimal | null;
   lineageKey: string;
   lineageSemula: string | null;
+  lineageTergeser: string | null;
 };
 
 const PILIH_NODE = {
@@ -99,6 +112,7 @@ const PILIH_NODE = {
   volume: true,
   lineageKey: true,
   lineageSemula: true,
+  lineageTergeser: true,
 } as const;
 
 function sebagaiPadanan(n: NodeRingkas, beranak: ReadonlySet<string>): NodePadanan {
@@ -111,6 +125,8 @@ function sebagaiPadanan(n: NodeRingkas, beranak: ReadonlySet<string>): NodePadan
     lineageSemula: n.lineageSemula,
   };
 }
+
+const keAngka = (v: Prisma.Decimal | null) => (v == null ? null : Number(v));
 
 /** Revisi aktif + draft lokasi, dengan seluruh nodenya. Null bila salah satunya tidak ada. */
 async function muat(c: Tx | typeof db, locationId: string, revisionId?: string) {
@@ -128,18 +144,37 @@ async function muat(c: Tx | typeof db, locationId: string, revisionId?: string) 
   ]);
   const beranak = new Set<string>();
   for (const n of [...nodeAktif, ...nodeDraft]) if (n.parentId) beranak.add(n.parentId);
+  const lineageAktif = new Set(nodeAktif.map((n) => n.lineageKey));
+  /*
+   * Item kontrak yang masih ada di draft dengan volume 0 (DECISIONS 756): baris
+   * pekerjaan tanpa rincian, kuncinya sendiri (bukan hasil pemetaan), dan
+   * memang item kontrak.
+   */
+  const nolDraft = new Map(
+    nodeDraft
+      .filter(
+        (n) =>
+          (n.kind === "item" || n.kind === "grup") &&
+          !beranak.has(n.id) &&
+          !n.lineageSemula &&
+          lineageAktif.has(n.lineageKey) &&
+          volumeNol(keAngka(n.volume)),
+      )
+      .map((n) => [n.lineageKey, n]),
+  );
   return {
     aktif,
     draft,
     nodeAktif,
     nodeDraft,
     beranak,
-    lineageAktif: new Set(nodeAktif.map((n) => n.lineageKey)),
+    lineageAktif,
     lineageDraft: new Set(nodeDraft.map((n) => n.lineageKey)),
+    nolDraft,
+    lineageDraftNol: new Set(nolDraft.keys()),
   };
 }
 
-const keAngka = (v: Prisma.Decimal | null) => (v == null ? null : Number(v));
 
 /**
  * Item kontrak yang sudah dilaporkan tetapi tidak ada di draft – beserta calon
@@ -151,8 +186,12 @@ export async function dataPadananDraft(
   const m = await muat(db, locationId);
   if (!m) return { draftId: null, belum: [], sudah: [] };
 
+  // Hilang dari draft, ATAU masih ada dengan volume 0 (DECISIONS 756).
   const lepas = m.nodeAktif.filter(
-    (n) => (n.kind === "item" || n.kind === "grup") && !m.beranak.has(n.id) && !m.lineageDraft.has(n.lineageKey),
+    (n) =>
+      (n.kind === "item" || n.kind === "grup") &&
+      !m.beranak.has(n.id) &&
+      (!m.lineageDraft.has(n.lineageKey) || m.lineageDraftNol.has(n.lineageKey)),
   );
   const dipasang = m.nodeDraft.filter((n) => n.lineageSemula);
   const kunci = [...new Set([...lepas.map((n) => n.lineageKey), ...dipasang.map((n) => n.lineageKey)])];
@@ -184,7 +223,7 @@ export async function dataPadananDraft(
 
   const jalur = await jalurNodeById([...lepas, ...m.nodeDraft].map((n) => n.id));
   const kodeJalur = (id: string, code: string) => jalur.get(id)?.kode ?? code;
-  const konteks = { lineageAktif: m.lineageAktif, lineageDraft: m.lineageDraft };
+  const konteks = { lineageAktif: m.lineageAktif, lineageDraft: m.lineageDraft, lineageDraftNol: m.lineageDraftNol };
 
   const belum: ItemBelumDipetakan[] = lepas
     .filter((n) => laporan.has(n.lineageKey))
@@ -212,6 +251,7 @@ export async function dataPadananDraft(
         terakhir: l.terakhir,
         calon,
         catatan: false,
+        sebab: m.lineageDraftNol.has(n.lineageKey) ? ("dinolkan" as const) : ("hilang" as const),
       };
     });
 
@@ -279,6 +319,7 @@ export async function catatanAsalDraftMenunggu(locationId: string): Promise<Item
         terakhir: t,
         calon: [],
         catatan: true,
+        sebab: "hilang",
         laporan: new Set([r.reportId]),
       });
     } else {
@@ -313,13 +354,21 @@ export function kalimatBelumDipetakan(items: readonly ItemBelumDipetakan[], bata
   const fmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
   const contoh = items
     .slice(0, batas)
-    .map((i) => `${i.jalur} ${i.name} (${fmt.format(i.realisasi)}${i.unit ? ` ${i.unit}` : ""})`)
+    .map((i) => `${labelBelumDipetakan(i)} (${i.sebab === "dinolkan" ? "volume 0 di draft, " : ""}${fmt.format(i.realisasi)}${i.unit ? ` ${i.unit}` : ""})`)
     .join("; ");
   const sisa = items.length > batas ? `; +${items.length - batas} lainnya` : "";
+  const adaNol = items.some((i) => i.sebab === "dinolkan");
+  const adaHilang = items.some((i) => i.sebab === "hilang");
   return (
     `${items.length} item yang sudah dilaporkan belum dipasangkan ke item draft: ${contoh}${sisa}. ` +
-    `Sesudah aktivasi, realisasinya tidak ikut dihitung di progres (laporan dan fotonya tetap ada).`
-  );
+    (adaHilang ? `Sesudah aktivasi, realisasi yang hilang dari draft tidak ikut dihitung di progres (laporan dan fotonya tetap ada). ` : "") +
+    (adaNol ? `Laporan harian item yang volumenya 0 di draft diturunkan menjadi 0 saat aktivasi. ` : "")
+  ).trim();
+}
+
+/** Sebutan satu item di daftar konfirmasi: jalur + nama. */
+export function labelBelumDipetakan(i: Pick<ItemBelumDipetakan, "jalur" | "name">): string {
+  return `${i.jalur} ${i.name}`.trim();
 }
 
 /**
@@ -355,8 +404,11 @@ export async function pasangkanItemDraft(i: {
     const tolak = periksaPadananDraft(sebagaiPadanan(lama, m.beranak), sebagaiPadanan(sasaran, m.beranak), {
       lineageAktif: m.lineageAktif,
       lineageDraft: m.lineageDraft,
+      lineageDraftNol: m.lineageDraftNol,
     });
     if (tolak) throw new PadananDraftError(tolak);
+    /** Baris draft bervolume 0 yang masih memakai kunci item lama (DECISIONS 756). */
+    const tergeser = m.nolDraft.get(lama.lineageKey) ?? null;
 
     /*
      * SATU LAPORAN YANG MEMUAT KEDUANYA tidak bisa dipasangkan begitu saja:
@@ -370,8 +422,14 @@ export async function pasangkanItemDraft(i: {
       select: { reportId: true },
     });
     if (barisSasaran.length > 0) {
+      // Baris atas node bervolume 0 ikut node itu ke kunci barunya, jadi tidak bentrok.
+      const syaratBentrok: Prisma.DailyReportItemWhereInput = {
+        lineageKey: lama.lineageKey,
+        reportId: { in: barisSasaran.map((b) => b.reportId) },
+      };
+      if (tergeser) syaratBentrok.rabNodeId = { not: tergeser.id };
       const bentrok = await tx.dailyReportItem.findMany({
-        where: { lineageKey: lama.lineageKey, reportId: { in: barisSasaran.map((b) => b.reportId) } },
+        where: syaratBentrok,
         select: { report: { select: { reportDate: true } } },
       });
       if (bentrok.length > 0) {
@@ -385,6 +443,22 @@ export async function pasangkanItemDraft(i: {
 
     const dariKunci = sasaran.lineageKey;
     const keKunci = lama.lineageKey;
+    /*
+     * Node bervolume 0 menyerahkan kuncinya lebih dulu – kunci unik per revisi.
+     * Ia tetap di draft (isi berkasnya tidak dibuang) dengan kunci `~N`; baris
+     * yang dilaporkan terhadapnya dan rinciannya ikut node itu.
+     */
+    let kunciTergeser: string | null = null;
+    if (tergeser) {
+      const terpakai = (k: string) => m.lineageDraft.has(k) || m.lineageAktif.has(k);
+      kunciTergeser = `${keKunci}~2`;
+      for (let k = 3; terpakai(kunciTergeser); k++) {
+        if (k > 999) throw new PadananDraftError("Gagal menyiapkan kunci untuk baris bervolume 0.");
+        kunciTergeser = `${keKunci}~${k}`;
+      }
+      await tx.rabNode.update({ where: { id: tergeser.id }, data: { lineageKey: kunciTergeser, lineageTergeser: keKunci } });
+      await tx.dailyReportItem.updateMany({ where: { rabNodeId: tergeser.id }, data: { lineageKey: kunciTergeser } });
+    }
     // Rincian backup/analisa node ini ikut lewat FK ON UPDATE CASCADE.
     await tx.rabNode.update({ where: { id: sasaran.id }, data: { lineageKey: keKunci, lineageSemula: dariKunci } });
     const pindah = await pindahKunciTerkait(tx, i.locationId, sasaran.id, dariKunci, keKunci);
@@ -394,6 +468,7 @@ export async function pasangkanItemDraft(i: {
       revisionNo: m.draft.revisionNo,
       itemLama: { lineageKey: keKunci, code: lama.code, name: lama.name },
       itemDraft: { nodeId: sasaran.id, lineageSemula: dariKunci, code: sasaran.code, name: sasaran.name },
+      dinolkan: tergeser ? { nodeId: tergeser.id, kunciBaru: kunciTergeser } : null,
       ...pindah,
     });
     return { barisDraftDipindah: pindah.barisLaporan };
@@ -427,6 +502,29 @@ export async function lepasPadananDraft(i: {
     // Hanya baris yang dilaporkan TERHADAP node draft ini yang kembali. Baris
     // atas item kontrak lama tetap pada kuncinya sendiri.
     const baris = await tx.dailyReportItem.updateMany({ where: { rabNodeId: n.id }, data: { lineageKey: semula } });
+    /*
+     * Baris bervolume 0 yang dulu menyerahkan kunci ini mendapatkannya kembali
+     * (DECISIONS 756), berikut baris yang dilaporkan terhadapnya.
+     */
+    const tergeser = m.nodeDraft.find((x) => x.lineageTergeser === kunciLama) ?? null;
+    if (tergeser) {
+      const laporanTergeser = await tx.dailyReportItem.findMany({
+        where: { rabNodeId: tergeser.id },
+        select: { reportId: true },
+      });
+      const bentrok = await tx.dailyReportItem.findMany({
+        where: { lineageKey: kunciLama, rabNodeId: { not: tergeser.id }, reportId: { in: laporanTergeser.map((b) => b.reportId) } },
+        select: { report: { select: { reportDate: true } } },
+      });
+      if (bentrok.length > 0) {
+        const tanggal = [...new Set(bentrok.map((b) => formatTanggal(b.report.reportDate, "d MMMM yyyy")))];
+        throw new PadananDraftError(
+          `Laporan tanggal ${tanggal.join(", ")} memuat "${tergeser.name}" dua kali sesudah dilepas. Satukan dulu di laporan itu.`,
+        );
+      }
+      await tx.rabNode.update({ where: { id: tergeser.id }, data: { lineageKey: kunciLama, lineageTergeser: null } });
+      await tx.dailyReportItem.updateMany({ where: { rabNodeId: tergeser.id }, data: { lineageKey: kunciLama } });
+    }
     await tx.rabRevision.update({ where: { id: m.draft.id }, data: { updatedAt: new Date() } });
     await audit(i.userId, "rab.padanan_draft_lepas", "rab_revision", m.draft.id, {
       locationId: i.locationId,
@@ -435,6 +533,7 @@ export async function lepasPadananDraft(i: {
       dariKunci: kunciLama,
       keKunci: semula,
       barisLaporan: baris.count,
+      dinolkanKembali: tergeser ? { nodeId: tergeser.id, kunci: kunciLama } : null,
     });
   });
 }

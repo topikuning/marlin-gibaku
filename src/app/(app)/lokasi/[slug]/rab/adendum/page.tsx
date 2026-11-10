@@ -237,6 +237,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   const tglPendek = (d: Date | null) => (d ? formatTanggal(d, "d MMM yyyy") : null);
   const belumDipetakan = padananDraft.belum.map((b) => ({
     lineageKey: b.lineageKey,
+    sebab: b.sebab,
     jalur: b.jalur,
     name: b.name,
     unit: b.unit,
@@ -263,6 +264,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       unit: c.unit,
       realisasi: c.realisasi,
       catatan: true,
+      sebab: c.sebab,
     })),
   ];
   const dipasangkan = new Set(padananDraft.sudah.map((x) => x.lineageLama));

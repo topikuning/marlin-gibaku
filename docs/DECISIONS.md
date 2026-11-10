@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 756 | 2026-11-10 | Item kontrak terlapor yang volumenya 0 di draft ikut di panel pemetaan halaman draft (koreksi 754, sebelumnya ditolak sebagai "masih ada di draft" lalu laporannya diturunkan jadi 0 saat aktivasi): bisa dipasangkan ke item baru (baris bervolume 0 menyerahkan kuncinya, kolom `lineage_tergeser`) dan dilepas lagi; konfirmasi aktivasi di semua jalur menyebutnya beserta akibatnya |
 | 755 | 2026-11-10 | Impor pengganti draft tidak lagi berhenti bila item draft yang sudah dilaporkan tidak ada di berkas: barisnya jadi catatan pekerjaan di luar RAB berikut fotonya di laporan dan tanggal yang sama (kolom `asal_draft_no`), bisa dipadankan ke item draft baru, dan ikut disebut di konfirmasi aktivasi; koreksi 754 (pagar simpan dibuang); tombol Buang draft tidak diubah |
 | 754 | 2026-11-10 | Item terlapor yang tidak ada di draft adendum bisa dipasangkan ke item baru draft kapan saja sebelum aktivasi (panel di halaman draft, bisa dilepas; kunci diwariskan, kolom `lineage_semula`); aktivasi dengan item belum dipasangkan minta konfirmasi di semua jalur (web, super admin, CCO paket, pesan WA); impor pengganti draft ikut mencocokkan item draft lama yang sudah dilaporkan (perbaikan galat "Impor dihentikan … TIDAK ADA di berkas ini") |
 | 753 | 2026-11-09 | Tanya MARLIN di grup tidak membuang rupiah dari berkas apa pun, siapa pun yang bertanya (koreksi 735: aturan grup itu perluasan agen); web untuk Pelaksana tetap tanpa rupiah; chat pribadi Pelaksana belum diubah, ditanyakan |
