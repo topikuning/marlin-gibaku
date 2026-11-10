@@ -13,6 +13,7 @@ import {
   type RabActionState,
 } from "./actions";
 import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "./panel-tanpa-persetujuan";
+import { PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "./belum-dipetakan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
 /**
@@ -73,6 +74,8 @@ function DraftActions({
   revisionNo,
   persetujuan,
   bolehTanpaPersetujuan,
+  belumDipetakan,
+  hrefPemetaan,
   onBerhasil,
 }: {
   revisionId: string;
@@ -80,6 +83,9 @@ function DraftActions({
   persetujuan: PersetujuanRow | null;
   /** Hanya super admin utama (DECISIONS 682). */
   bolehTanpaPersetujuan: boolean;
+  /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
+  belumDipetakan: BelumDipetakanRingkas[];
+  hrefPemetaan: string | null;
   /** Pesan berhasil dinaikkan ke daftar: baris draft ini sendiri berganti begitu aktif. */
   onBerhasil: (pesan: string) => void;
 }) {
@@ -98,6 +104,8 @@ function DraftActions({
   );
   const state = approveState ?? activateState ?? discardState;
   const terkunci = persetujuan != null && !persetujuan.lengkap;
+  const [paham, setPaham] = useState(false);
+  const perluKonfirmasi = belumDipetakan.length > 0;
   return (
     <div className="ml-auto max-w-md space-y-1.5">
       {persetujuan ? (
@@ -152,14 +160,27 @@ function DraftActions({
           )}
         </div>
       ) : null}
+      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan={hrefPemetaan} />
+      {perluKonfirmasi && !terkunci ? (
+        <label className="flex items-start justify-end gap-2 text-right text-xs text-ink">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={paham}
+            onChange={(e) => setPaham(e.target.checked)}
+          />
+          <span>Saya mengerti, aktifkan tanpa memasangkan item di atas</span>
+        </label>
+      ) : null}
       <div className="flex flex-wrap justify-end gap-1.5">
         <form action={activate}>
           <input type="hidden" name="revisionId" value={revisionId} />
+          {perluKonfirmasi && paham ? <input type="hidden" name="konfirmasiBelumDipetakan" value="1" /> : null}
           <Button
             size="sm"
             type="submit"
             loading={activating}
-            disabled={discarding || approving || terkunci}
+            disabled={discarding || approving || terkunci || (perluKonfirmasi && !paham)}
             title={
               terkunci
                 ? `Belum bisa diaktifkan. Masih menunggu ${persetujuan!.kurang.join(" + ")}`
@@ -192,6 +213,7 @@ function DraftActions({
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
+          belumDipetakan={belumDipetakan.length}
           onBatal={() => setBukaTanpa(null)}
           onBerhasil={onBerhasil}
         />
@@ -322,8 +344,11 @@ export function RevisionList({
   hapus = {},
   slug,
   bolehTanpaPersetujuan = false,
+  belumDipetakan = [],
 }: {
   revisions: RevisionRow[];
+  /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
+  belumDipetakan?: BelumDipetakanRingkas[];
   /** Untuk tautan backup volume & analisa per revisi (DECISIONS baru 2026-10-07). */
   slug?: string;
   canManage: boolean;
@@ -391,6 +416,8 @@ export function RevisionList({
                       revisionNo={r.revisionNo}
                       persetujuan={persetujuan}
                       bolehTanpaPersetujuan={bolehTanpaPersetujuan}
+                      belumDipetakan={belumDipetakan}
+                      hrefPemetaan={slug ? `/lokasi/${slug}/rab/adendum#pemetaan` : null}
                       onBerhasil={setPesanHapus}
                     />
                   ) : null}

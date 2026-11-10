@@ -23,6 +23,8 @@ import { sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
 import { DiffCard } from "../diff-card";
 import { ImportForm } from "../import/import-form";
 import { PanelLuarRab } from "./panel-luar-rab";
+import { PanelPadananDraft } from "./panel-padanan-draft";
+import { dataPadananDraft } from "@/lib/rab/padanan-draft";
 import { dataPadanan, rekapLuarRab } from "@/lib/luar-rab/service";
 
 export const metadata: Metadata = { title: "Adendum RAB" };
@@ -228,6 +230,28 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   const diff = active ? await diffRevisions(active.id, draft.id) : null;
 
   /*
+   * ITEM TERLAPOR YANG TIDAK ADA DI DRAFT (DECISIONS 754) – dipasangkan di
+   * sini kapan saja sampai aktivasi, bukan hanya di layar pratinjau impor.
+   */
+  const padananDraft = active ? await dataPadananDraft(location.id) : { draftId: null, belum: [], sudah: [] };
+  const tglPendek = (d: Date | null) => (d ? formatTanggal(d, "d MMM yyyy") : null);
+  const belumDipetakan = padananDraft.belum.map((b) => ({
+    lineageKey: b.lineageKey,
+    jalur: b.jalur,
+    name: b.name,
+    unit: b.unit,
+    realisasi: b.realisasi,
+    jumlahLaporan: b.jumlahLaporan,
+    pertama: tglPendek(b.pertama),
+    terakhir: tglPendek(b.terakhir),
+    calon: b.calon.map((c) => ({
+      nodeId: c.nodeId,
+      label: `${c.jalur} ${c.name}${c.volume == null ? "" : ` – ${volFmt.format(c.volume)}${c.unit ? ` ${c.unit}` : ""}`}`,
+    })),
+  }));
+  const dipasangkan = new Set(padananDraft.sudah.map((x) => x.lineageLama));
+
+  /*
    * EMPAT MATA (DECISIONS 234). `null` bila belum ada RAB aktif — itu HPS awal,
    * bukan adendum: tidak ada kontrak berjalan yang digantikan, jadi tidak ada
    * yang perlu ditandatangani berdua.
@@ -334,7 +358,9 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   // karena nilai kontrak berubah tanpa ada pekerjaan yang bertambah. Editor
   // draft memang mengunci harga item lama — peringatan ini menangkap jalur
   // lain, terutama draft yang diisi lewat impor Excel.
-  const hargaBergeser = diff?.diubah.filter((r) => r.hargaBergeser) ?? [];
+  // Pasangan dari pemetaan di halaman ini (DECISIONS 754) memang pekerjaan
+  // lain yang mewarisi kunci item lama – harganya berbeda bukan pergeseran.
+  const hargaBergeser = diff?.diubah.filter((r) => r.hargaBergeser && !dipasangkan.has(r.lineageKey)) ?? [];
   if (hargaBergeser.length > 0) {
     const contoh = hargaBergeser
       .slice(0, 5)
@@ -423,6 +449,21 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           yang menunggu langsung diberi saran item dari draft barunya. */}
       {panelLuarRab}
 
+      <PanelPadananDraft
+        slug={slug}
+        revisionId={draft.id}
+        belum={belumDipetakan}
+        sudah={padananDraft.sudah.map((x) => ({
+          nodeId: x.nodeId,
+          jalur: x.jalur,
+          name: x.name,
+          namaLama: x.namaLama,
+          unit: x.unit,
+          volume: x.volume,
+          realisasi: x.realisasi,
+        }))}
+      />
+
       <Card>
         <CardHeader
           title={`Draft adendum – revisi #${draft.revisionNo}`}
@@ -505,6 +546,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             adaPeringatan={peringatan.length > 0}
             persetujuan={persetujuan}
             bolehTanpaPersetujuan={can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))}
+            belumDipetakan={belumDipetakan}
           />
         </CardBody>
       </Card>

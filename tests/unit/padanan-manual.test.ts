@@ -116,3 +116,31 @@ describe("pemetaan yang tidak sah DITOLAK dengan sebabnya, bukan didiamkan", () 
     expect(h.padananDitolak[0].sebab).toMatch(/kategori/i);
   });
 });
+
+/*
+ * ITEM DRAFT LAMA YANG SUDAH DILAPORKAN sebagai sisi lama (DECISIONS 754).
+ *
+ * Saat draft diganti berkas baru, item yang lahir di draft lama ikut dioper ke
+ * `samakanLineage` di samping item kontrak (`sisiLamaDraftTerlapor`). Keluhan
+ * user 2026-11-10 ("Impor dihentikan … itemnya TIDAK ADA di berkas ini") lahir
+ * karena item itu tidak pernah ikut: tidak bisa dikenali nama, tidak bisa
+ * dipasangkan manual.
+ */
+describe("item draft lama yang dilaporkan ikut dicocokkan", () => {
+  const DRAFT_LAMA = lama({ lineageKey: "I#9", code: "9", name: "Pekerjaan Urugan Pasir t = 5 cm" });
+
+  it("nama sama di bawah induk yang sama → mewarisi kunci item draft lama", () => {
+    const berkas = [...BERKAS, baru({ lineageKey: "I#1.d", code: "1.d", name: "Pekerjaan Urugan Pasir t = 5 cm", volume: 4 })];
+    const h = samakanLineage(berkas, [...KONTRAK, DRAFT_LAMA]);
+    expect(kunci(h, "1.d")).toBe("I#9");
+  });
+
+  it("nama berbeda → bisa dipasangkan manual, bukan ditolak 'tidak ada di RAB aktif'", () => {
+    const berkas = [...BERKAS, baru({ lineageKey: "I#1.d", code: "1.d", name: "Urugan pasir bawah lantai", volume: 4 })];
+    const h = samakanLineage(berkas, [...KONTRAK, DRAFT_LAMA], {
+      padanan: [{ lineageBaru: "I#1.d", lineageLama: "I#9" }],
+    });
+    expect(h.padananDitolak).toEqual([]);
+    expect(kunci(h, "1.d")).toBe("I#9");
+  });
+});

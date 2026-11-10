@@ -94,6 +94,18 @@ describe("teks", () => {
     expect(t).toMatch(/batal kalau draftnya diubah/);
   });
 
+  it("item terlapor yang belum dipasangkan DISEBUT – SETUJU langsung mengaktifkan (DECISIONS 754)", () => {
+    const t = teksPersetujuanWa.notifikasi({
+      ...isi,
+      belumDipetakan: { jumlah: 2, contoh: ["IV · 2 Tapak beton menerus (7 m3)", "IV · 3 Urugan pasir (2 m3)"] },
+    });
+    expect(t).toMatch(/2 item yang sudah dilaporkan belum dipasangkan/);
+    expect(t).toMatch(/Tapak beton menerus \(7 m3\)/);
+    expect(t).toMatch(/tidak dihitung di progres/);
+    // Tanpa item seperti itu, barisnya tidak ditulis.
+    expect(teksPersetujuanWa.notifikasi(isi)).not.toMatch(/belum dipasangkan/);
+  });
+
   it("tanpa pembanding, baris perubahan tidak ditulis", () => {
     expect(teksPersetujuanWa.notifikasi({ ...isi, perubahan: null })).not.toMatch(/Perubahan dari RAB/);
   });

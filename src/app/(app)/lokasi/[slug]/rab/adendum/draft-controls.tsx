@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Banner, Button } from "@/components/ui";
 import { activateDraftAction, approveRevisionAction, discardDraftAction, type RabActionState } from "../actions";
 import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "../panel-tanpa-persetujuan";
+import { kalimatKonfirmasiBelumDipetakan, PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "../belum-dipetakan";
 
 /**
  * Aktivasi / buang draft LANGSUNG dari halaman adendum — review-nya adalah
@@ -18,6 +19,7 @@ export function DraftControls({
   adaPeringatan,
   persetujuan,
   bolehTanpaPersetujuan = false,
+  belumDipetakan = [],
 }: {
   revisionId: string;
   revisionNo: number;
@@ -39,6 +41,8 @@ export function DraftControls({
   } | null;
   /** Super admin utama: boleh mengaktifkan tanpa dua persetujuan (DECISIONS 682). */
   bolehTanpaPersetujuan?: boolean;
+  /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
+  belumDipetakan?: BelumDipetakanRingkas[];
 }) {
   const [state, setState] = useState<RabActionState>(undefined);
   const [bukaTanpa, setBukaTanpa] = useState<CaraTanpaPersetujuan | null>(null);
@@ -49,6 +53,9 @@ export function DraftControls({
     if (!window.confirm(confirmText)) return;
     const f = new FormData();
     f.append("revisionId", revisionId);
+    // Dialog di atas menyebut item yang belum dipasangkan – menyetujuinya
+    // adalah konfirmasinya (DECISIONS 754). Server memeriksa ulang.
+    if (action === activateDraftAction && belumDipetakan.length > 0) f.append("konfirmasiBelumDipetakan", "1");
     startTransition(() => {
       void action(undefined, f).then((res) => {
         setState(res);
@@ -131,6 +138,8 @@ export function DraftControls({
         </div>
       ) : null}
 
+      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan="#pemetaan" />
+
       <div className="flex flex-wrap items-center gap-2">
       <Button
         type="button"
@@ -142,6 +151,7 @@ export function DraftControls({
             activateDraftAction,
             `Aktifkan draft revisi #${revisionNo}?\n\n${ringkasan}\n\n` +
               (adaPeringatan ? "PERHATIAN: ada peringatan nilai di halaman. Pastikan sudah Anda baca.\n\n" : "") +
+              kalimatKonfirmasiBelumDipetakan(belumDipetakan) +
               "Revisi aktif lama disimpan sebagai arsip (catatannya tetap ada) dan realisasi otomatis tersambung ke revisi baru. Kurva-S tidak diubah – bobot mingguannya tetap seperti sekarang.",
           )
         }
@@ -178,6 +188,7 @@ export function DraftControls({
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
+          belumDipetakan={belumDipetakan.length}
           onBatal={() => setBukaTanpa(null)}
           onBerhasil={() => router.push("../rab")}
         />

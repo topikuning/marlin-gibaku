@@ -8,6 +8,7 @@ import { hasLocationAccess, type SessionUser } from "@/lib/auth/session";
 import { canTransitionWaPersetujuan } from "@/lib/lifecycle";
 import { diffRevisions } from "@/lib/rab/adendum";
 import { jalankanAktivasi } from "@/lib/rab/aktivasi";
+import { belumDipetakan } from "@/lib/rab/padanan-draft";
 import { pastikanBolehAktivasi, PersetujuanError, ringkasPersetujuan, setujuiRevisi } from "@/lib/rab/persetujuan";
 import {
   bacaBalasanSetuju,
@@ -110,6 +111,14 @@ export async function kirimPermintaanPd(
     `${diff.ditambah.length} item baru · ${diff.dihapus.length} dihapus · ${diff.diubah.length} diubah · ` +
     `Δ ${fmtDelta(diff.delta)}`;
   const sudahSetuju = (await ringkasPersetujuan(rev.id)).berlaku.map((p) => labelOrang(p.nama, p.role));
+  const tak = await belumDipetakan(rev.id);
+  const fmtVol = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
+  const belumDipasang = tak.length
+    ? {
+        jumlah: tak.length,
+        contoh: tak.slice(0, 3).map((i) => `${i.jalur} ${i.name} (${fmtVol.format(i.realisasi)}${i.unit ? ` ${i.unit}` : ""})`),
+      }
+    : null;
 
   const terkirim: string[] = [];
   const sudah: string[] = [];
@@ -152,6 +161,7 @@ export async function kirimPermintaanPd(
           perubahan,
           sudahSetuju,
           kode: baris.kode,
+          belumDipetakan: belumDipasang,
         }),
       },
       idempotencyKey: `wa_persetujuan:${baris.id}`,

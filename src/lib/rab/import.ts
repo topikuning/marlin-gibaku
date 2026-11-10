@@ -467,6 +467,7 @@ export type LaporanDariDraft = {
   lineageKey: string;
   nama: string;
   tanggal: Date;
+  volume: number;
 };
 
 async function laporanDariDraft(
@@ -478,6 +479,7 @@ async function laporanDariDraft(
     select: {
       id: true,
       lineageKey: true,
+      volumeDone: true,
       rabNode: { select: { name: true } },
       report: { select: { reportDate: true } },
     },
@@ -488,7 +490,80 @@ async function laporanDariDraft(
     lineageKey: r.lineageKey,
     nama: r.rabNode.name,
     tanggal: r.report.reportDate,
+    volume: Number(r.volumeDone),
   }));
+}
+
+/**
+ * ITEM DRAFT LAMA YANG SUDAH DILAPORKAN – ikut dicocokkan saat draft diganti
+ * berkas baru (DECISIONS 754).
+ *
+ * Keluhan user 2026-11-10 (tangkapan layar impor BOTULIODU CCO): *"error apa
+ * pula ini!"* – "Impor dihentikan: 1 baris laporan harian sudah diinput
+ * terhadap draft #3, tetapi itemnya TIDAK ADA di berkas ini". Sebabnya:
+ * berkas baru hanya dicocokkan dengan RAB AKTIF. Item yang lahir di draft lama
+ * dan sudah dilaporkan tidak ada di RAB aktif, jadi ia tidak pernah bisa
+ * dikenali – tidak lewat nama, tidak lewat nomor, dan tidak bisa dipasangkan
+ * manual – lalu baru ketahuan saat menyimpan.
+ *
+ * Yang dikembalikan di sini ikut menjadi "sisi lama" `samakanLineage`, sama
+ * seperti item kontrak: baris berkas yang namanya sama mewarisi kuncinya, dan
+ * yang tidak bisa dipasangkan manual di pratinjau. Induknya yang juga hanya
+ * ada di draft ikut, supaya pencocokan per saudara sekandung punya pohon.
+ */
+export async function sisiLamaDraftTerlapor(
+  draftId: string,
+  lineageAktif: ReadonlySet<string>,
+): Promise<{
+  lama: { lineageKey: string; parentLineageKey: string | null; kind: string; code: string; name: string; unit: string | null }[];
+  baris: LaporanDariDraft[];
+  /** Per kunci: kode, nama, dan jalur induknya untuk layar. */
+  info: Map<string, { code: string; name: string; jalur: string }>;
+}> {
+  const baris = await laporanDariDraft(db, draftId);
+  const terlapor = new Set(baris.map((b) => b.lineageKey).filter((k) => !lineageAktif.has(k)));
+  if (terlapor.size === 0) return { lama: [], baris, info: new Map() };
+  const nodes = await db.rabNode.findMany({
+    where: { revisionId: draftId },
+    select: { id: true, parentId: true, lineageKey: true, kind: true, code: true, name: true, unit: true },
+  });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const byKey = new Map(nodes.map((n) => [n.lineageKey, n]));
+  const ambil = new Set<string>();
+  for (const k of terlapor) {
+    let n = byKey.get(k);
+    while (n && !lineageAktif.has(n.lineageKey) && !ambil.has(n.id)) {
+      ambil.add(n.id);
+      n = n.parentId ? byId.get(n.parentId) : undefined;
+    }
+  }
+  const jalur = (id: string | null): string => {
+    const n = id ? byId.get(id) : undefined;
+    if (!n) return "";
+    const atas = jalur(n.parentId);
+    const nama = [n.code, n.name].filter(Boolean).join(". ");
+    return atas ? `${atas} › ${nama}` : nama;
+  };
+  const info = new Map<string, { code: string; name: string; jalur: string }>();
+  for (const k of terlapor) {
+    const n = byKey.get(k);
+    if (n) info.set(k, { code: n.code, name: n.name, jalur: jalur(n.parentId) });
+  }
+  return {
+    lama: [...ambil].map((id) => {
+      const n = byId.get(id)!;
+      return {
+        lineageKey: n.lineageKey,
+        parentLineageKey: n.parentId ? (byId.get(n.parentId)?.lineageKey ?? null) : null,
+        kind: n.kind,
+        code: n.code,
+        name: n.name,
+        unit: n.unit,
+      };
+    }),
+    baris,
+    info,
+  };
 }
 
 /** Sebutan siap-baca untuk sekumpulan baris laporan: tanggal + nama itemnya. */

@@ -20,6 +20,7 @@ export function PanelTanpaPersetujuan({
   revisionId,
   revisionNo,
   kurang,
+  belumDipetakan = 0,
   onBatal,
   onBerhasil,
 }: {
@@ -28,6 +29,11 @@ export function PanelTanpaPersetujuan({
   revisionNo: number;
   /** Persetujuan yang belum ada – disebut supaya jelas apa yang dilewati. */
   kurang: string[];
+  /**
+   * Item terlapor yang belum dipasangkan (DECISIONS 754). Daftarnya tampil di
+   * atas panel ini; mengetik kalimat konfirmasi sekaligus mengonfirmasinya.
+   */
+  belumDipetakan?: number;
   onBatal: () => void;
   onBerhasil?: (pesan: string) => void;
 }) {
@@ -56,10 +62,17 @@ export function PanelTanpaPersetujuan({
         {kurang.length > 0 ? ` Yang dilewati: ${kurang.join(" + ")}.` : ""} Tindakan ini tercatat di jejak audit atas
         nama Anda.
       </p>
+      {belumDipetakan > 0 ? (
+        <p className="text-warning">
+          {belumDipetakan} item yang sudah dilaporkan belum dipasangkan (daftarnya di atas). Realisasinya tidak dihitung
+          di progres sesudah {koreksi ? "koreksi ini" : "aktivasi"}.
+        </p>
+      ) : null}
       <form action={action} className="space-y-2">
         <input type="hidden" name="revisionId" value={revisionId} />
         <input type="hidden" name="tanpaPersetujuan" value="1" />
         <input type="hidden" name="cara" value={cara} />
+        {belumDipetakan > 0 ? <input type="hidden" name="konfirmasiBelumDipetakan" value="1" /> : null}
         <label className="block text-ink" htmlFor={`tanpa-ttd-${cara}-${revisionId}`}>
           Ketik <span className="font-semibold">{wajib}</span> untuk konfirmasi
         </label>

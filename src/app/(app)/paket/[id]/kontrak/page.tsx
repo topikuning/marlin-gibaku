@@ -16,6 +16,7 @@ import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
 import { adendumTertunda } from "@/lib/package/aktivasi-adendum";
+import { belumDipetakan } from "@/lib/rab/padanan-draft";
 import { akhirKontrak } from "@/lib/progress-calc";
 import { LABEL_MODE_MINGGU } from "@/lib/periode-minggu";
 import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
@@ -149,6 +150,14 @@ export default async function KontrakPage({
   // DIFORMAT di sini; selisih CCO dihitung server lewat calc layer.
   const tertunda = canAmend ? await adendumTertunda(pkg.id) : { revisi: [], lingkup: [] };
   const rp = (v: bigint | null) => (v === null ? "belum ada RAB" : formatRupiah(v));
+  // Draft yang belum berlaku: item terlapor tanpa pasangan disebut (DECISIONS 754).
+  const tanpaPasangan = new Map(
+    await Promise.all(
+      tertunda.revisi
+        .filter((r) => !r.sudahBerlaku)
+        .map(async (r) => [r.revisionId, (await belumDipetakan(r.revisionId)).map((b) => `${b.jalur} ${b.name}`)] as const),
+    ),
+  );
   const itemAdendum: ItemAdendumForm[] = [
     ...tertunda.revisi.map((r) => ({
       jenis: "revisi" as const,
@@ -159,6 +168,7 @@ export default async function KontrakPage({
       nilai: `RAB ${rp(r.totalAktif)} → ${formatRupiah(r.totalDraft)} (pra-PPN)`,
       lengkap: r.lengkap,
       kurang: r.kurang,
+      belumDipetakan: tanpaPasangan.get(r.revisionId) ?? [],
     })),
     ...tertunda.lingkup.map((l) => ({
       jenis: "lingkup" as const,

@@ -1738,6 +1738,39 @@ export async function addAmendment(
 
   const { aktifkanAdendumPaket, AktivasiAdendumError } = await import("@/lib/package/aktivasi-adendum");
   const { PersetujuanError } = await import("@/lib/rab/persetujuan");
+  /*
+   * ITEM TERLAPOR YANG BELUM DIPASANGKAN (DECISIONS 754) – CCO memberlakukan
+   * draftnya, jadi konfirmasinya diminta di sini juga, sebelum apa pun ditulis.
+   */
+  const tanpaPasangan: { revisionId: string; lokasi: string; item: { lineageKey: string; name: string; realisasi: number }[] }[] = [];
+  if (d.revisionIds.length > 0) {
+    const { belumDipetakan } = await import("@/lib/rab/padanan-draft");
+    const revisi = await db.rabRevision.findMany({
+      where: { id: { in: d.revisionIds }, status: "draft" },
+      select: { id: true, location: { select: { name: true } } },
+    });
+    for (const r of revisi) {
+      const b = await belumDipetakan(r.id);
+      if (b.length > 0) {
+        tanpaPasangan.push({
+          revisionId: r.id,
+          lokasi: r.location.name,
+          item: b.map((i) => ({ lineageKey: i.lineageKey, name: i.name, realisasi: i.realisasi })),
+        });
+      }
+    }
+    if (tanpaPasangan.length > 0 && formData.get("konfirmasiBelumDipetakan") !== "1") {
+      const tanpa = tanpaPasangan.map(
+        (t) => `${t.lokasi}: ${t.item.slice(0, 3).map((i) => i.name).join("; ")}${t.item.length > 3 ? "; …" : ""}`,
+      );
+      return {
+        error:
+          `Ada item yang sudah dilaporkan tetapi belum dipasangkan ke item draft – ${tanpa.join(" · ")}. ` +
+          `Realisasinya tidak dihitung di progres sesudah CCO berlaku. Pasangkan dulu di halaman draft adendum, ` +
+          `atau centang konfirmasi untuk tetap mencatat CCO.`,
+      };
+    }
+  }
   let hasil;
   try {
     hasil = await aktifkanAdendumPaket({ ...d, effectiveDate, valueDelta });
@@ -1750,6 +1783,21 @@ export async function addAmendment(
   revalidatePath("/lokasi", "layout");
 
   const bagian: string[] = [`Adendum ${hasil.ccoNumber} berlaku.`];
+  if (tanpaPasangan.length > 0) {
+    const user = await requireCapability("amendment.manage");
+    for (const t of tanpaPasangan) {
+      await audit(user.id, "rab.aktivasi_tanpa_padanan", "rab_revision", t.revisionId, {
+        jalur: "cco_paket",
+        ccoNumber: hasil.ccoNumber,
+        item: t.item,
+      });
+    }
+    const n = tanpaPasangan.reduce((x, t) => x + t.item.length, 0);
+    bagian.push(
+      `${n} item yang sudah dilaporkan tidak dipasangkan (${tanpaPasangan.map((t) => t.lokasi).join(", ")}): ` +
+        `realisasinya tidak dihitung di progres dan tercatat di RAB › Tidak terbobot.`,
+    );
+  }
   if (hasil.dicatat > 0) bagian.push(`${hasil.dicatat} perubahan yang sudah berlaku kini bernomor CCO ini.`);
   if (hasil.revisi.length > 0) {
     // Kurva-S lokasi TIDAK diatur ulang (DECISIONS 698) – yang dikatakan

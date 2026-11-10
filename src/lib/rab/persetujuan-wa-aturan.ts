@@ -62,6 +62,12 @@ export type IsiNotifikasi = {
   perubahan: string | null;
   sudahSetuju: string[];
   kode: string;
+  /**
+   * Item yang sudah dilaporkan tetapi belum dipasangkan ke item draft
+   * (DECISIONS 754). SETUJU langsung mengaktifkan, jadi pesan inilah tempat
+   * konfirmasinya: yang membalas SETUJU sudah membaca akibatnya.
+   */
+  belumDipetakan?: { jumlah: number; contoh: string[] } | null;
 };
 
 export const teksPersetujuanWa = {
@@ -71,6 +77,11 @@ export const teksPersetujuanWa = {
     `Draft revisi #${o.revisionNo}: ${o.nilaiDraft} (pra-PPN)\n` +
     (o.perubahan ? `Perubahan dari RAB berlaku: ${o.perubahan}\n` : "") +
     `Sudah disetujui: ${o.sudahSetuju.join(", ")}.\n\n` +
+    (o.belumDipetakan && o.belumDipetakan.jumlah > 0
+      ? `PERHATIAN: ${o.belumDipetakan.jumlah} item yang sudah dilaporkan belum dipasangkan ke item draft ` +
+        `(${o.belumDipetakan.contoh.join("; ")}${o.belumDipetakan.jumlah > o.belumDipetakan.contoh.length ? "; …" : ""}). ` +
+        `Kalau Anda setujui sekarang, realisasinya tidak dihitung di progres.\n\n`
+      : "") +
     `Balas *SETUJU ${o.kode}* untuk menyetujui. Begitu Anda setujui, draft langsung diaktifkan ` +
     `dan menggantikan RAB yang berlaku.\n` +
     `Kode ini batal kalau draftnya diubah sesudah pesan ini. Rinciannya ada di aplikasi: ` +

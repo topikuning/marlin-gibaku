@@ -17,7 +17,9 @@ import {
   DraftTerpakaiError,
   gantiDraftLama,
   regenerateBaseline,
+  sisiLamaDraftTerlapor,
 } from "@/lib/rab/import";
+import type { Prisma } from "@/generated/prisma/client";
 import { PROFIL_KURVA, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import type { BaselineProfil } from "@/generated/prisma/enums";
 import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
@@ -28,7 +30,7 @@ import { kalimatUbah, rencanaKoreksiTimpa } from "@/lib/rab/koreksi-timpa";
 import { KoreksiTimpaError, kalimatTerhalang, simpulAktif, terapkanKoreksiTimpa, terhalangKoreksi } from "@/lib/rab/koreksi-timpa-simpan";
 import { cocokKonfirmasiKoreksi, konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
-import { formatNumber, formatRupiah, formatRupiahSatuan } from "@/lib/format";
+import { formatNumber, formatRupiah, formatRupiahSatuan, formatTanggal } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
 /**
@@ -180,7 +182,8 @@ export type ImportPreview = {
      * user 2026-10-07: "1 Pekerjaan Bouwplank" saja tidak menunjuk pekerjaan
      * mana – nama dan nomor item berulang di banyak induk (DECISIONS 656).
      */
-    lama: { lineageKey: string; code: string; jalur: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" }[];
+    /** `draft` = item yang hanya ada di draft yang akan diganti, sudah dilaporkan terhadap draft itu (DECISIONS 754). */
+    lama: { lineageKey: string; code: string; jalur: string; name: string; realisasi: number; sebab: "dinolkan" | "hilang" | "draft" }[];
     /** `volume` ikut dibawa: pemakainya harus bisa melihat, SEBELUM memilih,
      *  apakah baris pengganti itu cukup menampung realisasi yang sudah ada. */
     baru: { lineageAsli: string; code: string; jalur: string; name: string; volume: number | null }[];
@@ -677,6 +680,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     let padananDipakai: { lineageBaru: string; lineageLama: string; code: string; name: string; namaLama: string }[] = [];
     let padananDitolak: { lineageBaru: string; lineageLama: string; sebab: string }[] = [];
     let padananBaruTersedia: { lineageAsli: string; code: string; jalur: string; name: string; volume: number | null }[] = [];
+    let sisiDraft: ({ revisionNo: number } & Awaited<ReturnType<typeof sisiLamaDraftTerlapor>>) | null = null;
     if (activeRevision) {
       aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
@@ -723,18 +727,39 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
        * terbaca sebagai adendum yang membuang separuh kontrak berikut
        * realisasinya — padahal tidak ada satu pun yang berubah.
        */
+      /*
+       * DRAFT YANG AKAN DIGANTI: item yang lahir di draft lama dan SUDAH
+       * dilaporkan ikut menjadi sisi lama pencocokan (DECISIONS 754). Tanpa
+       * ini laporannya tidak pernah berpasangan dan penyimpanan ditolak
+       * ("Impor dihentikan: … itemnya TIDAK ADA di berkas ini").
+       */
+      if (mode === "draft") {
+        const draftDiganti = await db.rabRevision.findFirst({
+          where: { locationId: location.id, status: "draft" },
+          select: { id: true, revisionNo: true },
+        });
+        if (draftDiganti) {
+          sisiDraft = {
+            revisionNo: draftDiganti.revisionNo,
+            ...(await sisiLamaDraftTerlapor(draftDiganti.id, new Set(aktifNodes.map((n) => n.lineageKey)))),
+          };
+        }
+      }
       const cocok: ReturnType<typeof samakanLineage> = templateAdendum
         ? { nodes, padananDipakai: [], padananDitolak: [], itemBaruAsli: [], namaBerbeda: [], digeser: [] }
         : samakanLineage(
         nodes,
-        aktifNodes.map((n) => ({
-          lineageKey: n.lineageKey,
-          parentLineageKey: n.parentId ? (keyById.get(n.parentId) ?? null) : null,
-          kind: n.kind,
-          code: n.code,
-          name: n.name,
-          unit: n.unit,
-        })),
+        [
+          ...aktifNodes.map((n) => ({
+            lineageKey: n.lineageKey,
+            parentLineageKey: n.parentId ? (keyById.get(n.parentId) ?? null) : null,
+            kind: n.kind,
+            code: n.code,
+            name: n.name,
+            unit: n.unit,
+          })),
+          ...(sisiDraft?.lama ?? []),
+        ],
         { padanan: padananDiminta },
       );
       nodes = cocok.nodes;
@@ -927,7 +952,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
      * ("pekerjaannya pindah ke baris lain"), jadi ditawarkan bersama - hanya
      * sebabnya yang dibedakan supaya kalimat di layar tidak mengarang.
      */
-    const padananLama = beda
+    const padananLama: ImportPreview["padanan"]["lama"] = beda
       ? [
           ...beda.volumeBerubah
             .filter((v) => v.realisasi > 0 && (v.ke ?? 0) === 0)
@@ -937,6 +962,42 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
             .map((v) => ({ lineageKey: v.lineageKey, code: v.code, jalur: v.jalur, name: v.name, realisasi: v.realisasi, sebab: "hilang" as const })),
         ]
       : [];
+
+    /*
+     * LAPORAN ATAS DRAFT LAMA YANG BELUM BERPASANGAN (DECISIONS 754) – disebut
+     * di PRATINJAU, bukan baru ketahuan saat menyimpan, dan ditawarkan untuk
+     * dipasangkan di panel yang sama. Baris yang seluruhnya dari catatan
+     * pekerjaan di luar RAB tidak dihitung: saat disimpan barisnya dilepas dan
+     * catatannya kembali menunggu (DECISIONS 738).
+     */
+    if (sisiDraft && sisiDraft.baris.length > 0) {
+      const lineageFinal = new Set(nodes.map((n) => n.lineageKey));
+      const calonYatim = sisiDraft.baris.filter((b) => !lineageFinal.has(b.lineageKey));
+      const { barisMurniDariCatatan } = await import("@/lib/luar-rab/service");
+      const murni = calonYatim.length
+        ? await barisMurniDariCatatan(db as unknown as Prisma.TransactionClient, calonYatim.map((b) => b.itemId))
+        : new Set<string>();
+      const yatim = calonYatim.filter((b) => !murni.has(b.itemId));
+      const sudahDitawarkan = new Set(padananLama.map((l) => l.lineageKey));
+      const volumePerKunci = new Map<string, number>();
+      for (const b of yatim) volumePerKunci.set(b.lineageKey, (volumePerKunci.get(b.lineageKey) ?? 0) + b.volume);
+      for (const [k, vol] of volumePerKunci) {
+        const i = sisiDraft.info.get(k);
+        if (!i || sudahDitawarkan.has(k)) continue;
+        padananLama.push({ lineageKey: k, code: i.code, jalur: i.jalur, name: i.name, realisasi: vol, sebab: "draft" as const });
+      }
+      if (yatim.length > 0) {
+        const contoh = yatim
+          .slice(0, 5)
+          .map((b) => `${formatTanggal(b.tanggal)} – ${b.nama}`)
+          .join("; ");
+        warnings.push(
+          `PERHATIAN – ${yatim.length} baris laporan harian yang diinput terhadap draft #${sisiDraft.revisionNo} ` +
+            `belum punya pasangan di berkas ini: ${contoh}${yatim.length > 5 ? `; +${yatim.length - 5} lainnya` : ""}. ` +
+            `Pasangkan itemnya ke baris berkas di panel pemetaan. Tanpa pasangan, penyimpanan ditolak supaya laporannya tidak terbuang.`,
+        );
+      }
+    }
 
     /*
      * Ringkasan berjenjang untuk layar — DIADU dengan kontrak kalau ada
