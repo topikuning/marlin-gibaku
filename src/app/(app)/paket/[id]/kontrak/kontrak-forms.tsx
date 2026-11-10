@@ -582,6 +582,11 @@ export type ItemAdendumForm = {
   nilai: string;
   lengkap: boolean;
   kurang: string[];
+  /**
+   * Item terlapor yang belum dipasangkan ke item draft ini (DECISIONS 754):
+   * realisasinya lepas dari progres begitu draftnya berlaku lewat CCO.
+   */
+  belumDipetakan?: string[];
 };
 
 /**
@@ -629,6 +634,9 @@ export function AktivasiAdendumForm({
   }, [kunciPilihan, nilaiKetik, packageId]);
 
   const turunan = pratinjau && "turunan" in pratinjau ? pratinjau : null;
+  // Draft terpilih yang masih punya item terlapor tanpa pasangan (DECISIONS 754).
+  const tanpaPasangan = items.filter((i) => pilih.has(`${i.jenis}:${i.id}`) && (i.belumDipetakan?.length ?? 0) > 0);
+  const [paham, setPaham] = useState(false);
 
   return (
     <form action={action} className="space-y-4">
@@ -678,6 +686,16 @@ export function AktivasiAdendumForm({
                         Belum bisa ikut – masih menunggu {i.kurang.join(" + ")}.{" "}
                         <a href={i.href} className="font-medium text-primary hover:underline">
                           Buka draft
+                        </a>
+                      </p>
+                    ) : null}
+                    {i.belumDipetakan && i.belumDipetakan.length > 0 ? (
+                      <p className="text-warning">
+                        {i.belumDipetakan.length} item yang sudah dilaporkan belum dipasangkan ke item draft:{" "}
+                        {i.belumDipetakan.slice(0, 3).join("; ")}
+                        {i.belumDipetakan.length > 3 ? "; …" : ""}.{" "}
+                        <a href={`${i.href}#pemetaan`} className="font-medium text-primary hover:underline">
+                          Pasangkan
                         </a>
                       </p>
                     ) : null}
@@ -748,7 +766,24 @@ export function AktivasiAdendumForm({
         <Textarea id="am-reason" name="reason" required minLength={5} />
       </div>
 
-      <Button type="submit" loading={pending}>
+      {tanpaPasangan.length > 0 ? (
+        <label className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-[13px] text-ink">
+          <input
+            type="checkbox"
+            name="konfirmasiBelumDipetakan"
+            value="1"
+            className="mt-0.5 size-4 accent-primary"
+            checked={paham}
+            onChange={(e) => setPaham(e.target.checked)}
+          />
+          <span>
+            Saya mengerti: realisasi item yang belum dipasangkan di {tanpaPasangan.map((i) => i.lokasi).join(", ")} tidak
+            dihitung di progres sesudah CCO ini berlaku. Laporan dan fotonya tetap ada.
+          </span>
+        </label>
+      ) : null}
+
+      <Button type="submit" loading={pending} disabled={tanpaPasangan.length > 0 && !paham}>
         Catat CCO
       </Button>
     </form>

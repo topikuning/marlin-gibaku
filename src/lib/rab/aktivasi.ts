@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { formatNumber } from "@/lib/format";
 import { activateRevision, regenerateBaseline } from "@/lib/rab/import";
+import { belumDipetakan } from "@/lib/rab/padanan-draft";
 import { kalimatKurvaAdendum, kurvaSesudahAdendum } from "@/lib/baseline";
 import type { RingkasanPersetujuan } from "@/lib/rab/persetujuan";
 import type { RabRevisionSource } from "@/generated/prisma/enums";
@@ -34,7 +35,17 @@ export async function jalankanAktivasi(o: {
   jalur: string;
 }): Promise<{ ok: true; kabar: string } | { ok: false; error: string }> {
   const { rev, userId, adendum, persetujuanSaatItu } = o;
+  // Dihitung SEBELUM aktivasi: sesudahnya draft ini sudah bukan draft lagi.
+  const takDipasangkan = adendum ? await belumDipetakan(rev.id) : [];
   const aktif = await activateRevision(rev.id, userId);
+  if (takDipasangkan.length > 0) {
+    await audit(userId, "rab.aktivasi_tanpa_padanan", "rab_revision", rev.id, {
+      locationId: rev.locationId,
+      revisionNo: rev.revisionNo,
+      jalur: o.jalur,
+      item: takDipasangkan.map((i) => ({ lineageKey: i.lineageKey, name: i.name, realisasi: i.realisasi })),
+    });
+  }
   if (persetujuanSaatItu) {
     await audit(userId, "rab.aktivasi_tanpa_persetujuan", "rab_revision", rev.id, {
       locationId: rev.locationId,
@@ -97,6 +108,12 @@ export async function jalankanAktivasi(o: {
     (persetujuanSaatItu ? ` tanpa persetujuan (super admin utama, tercatat di jejak audit)` : "") +
     `. ${kalimatKurva}`;
   if (adendum) kabar += ` Nomor CCO-nya dicatat nanti di Paket › Kontrak & Adendum.`;
+  if (takDipasangkan.length > 0) {
+    kabar +=
+      ` ${takDipasangkan.length} item yang sudah dilaporkan tidak dipasangkan` +
+      ` (${takDipasangkan.slice(0, 3).map((i) => i.name).join("; ")}${takDipasangkan.length > 3 ? "; …" : ""}):` +
+      ` realisasinya tidak dihitung di progres dan tercatat di RAB › Tidak terbobot.`;
+  }
   if (p.item > 0) {
     const contoh = p.rincian
       .slice(0, 3)

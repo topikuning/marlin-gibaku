@@ -16,6 +16,7 @@ import { RevisionList, type HapusRevisiView, type PersetujuanRow, type RevisionR
 import { adalahAkar, parseAkar } from "@/lib/akar";
 import { env } from "@/lib/env";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
+import { belumDipetakan as belumDipetakanDraft } from "@/lib/rab/padanan-draft";
 import { permintaanWaMenunggu } from "@/lib/rab/persetujuan-wa";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
@@ -238,6 +239,19 @@ export default async function RabPage({
           };
         })()
       : null;
+
+  // Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754) –
+  // disebut di samping tombol Aktifkan dan wajib dikonfirmasi.
+  const belumDipetakan =
+    draft && active
+      ? (await belumDipetakanDraft(draft.id)).map((b) => ({
+          lineageKey: b.lineageKey,
+          jalur: b.jalur,
+          name: b.name,
+          realisasi: b.realisasi,
+          unit: b.unit,
+        }))
+      : [];
 
   // ── Rencana mingguan (minggu terpilih, default berjalan) ─────────────────
   const parsedWeek = Number.parseInt(sp.minggu ?? "", 10);
@@ -562,6 +576,7 @@ export default async function RabPage({
                 persetujuan={persetujuanDraft}
                 hapus={hapusRevisi}
                 bolehTanpaPersetujuan={bolehTanpaPersetujuan}
+                belumDipetakan={belumDipetakan}
               />
             </div>
           ) : null}

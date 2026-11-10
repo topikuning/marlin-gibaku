@@ -1864,6 +1864,10 @@ model RabNode {
   unitPrice  Decimal?    @map("unit_price") @db.Decimal(15, 2)
   amount     BigInt      @default(0)
   lineageKey String      @map("lineage_key")
+  /// Kunci item DRAFT sebelum ia mewarisi kunci item kontrak lama lewat
+  /// pemetaan di halaman draft adendum (DECISIONS 754). Terisi = node ini
+  /// dipasangkan di tahap draft dan bisa dilepas lagi; null = kuncinya sendiri.
+  lineageSemula String?  @map("lineage_semula")
   sortOrder  Int         @map("sort_order")
 
   revision     RabRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)

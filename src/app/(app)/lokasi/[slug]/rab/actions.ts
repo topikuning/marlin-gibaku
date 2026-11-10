@@ -30,6 +30,7 @@ import {
 } from "@/lib/rab/persetujuan-aturan";
 import { KoreksiTimpaError, koreksiDariDraft } from "@/lib/rab/koreksi-timpa-simpan";
 import { jalankanAktivasi } from "@/lib/rab/aktivasi";
+import { tolakTanpaKonfirmasiPadanan } from "@/lib/rab/padanan-draft";
 import { kirimPermintaanPd } from "@/lib/rab/persetujuan-wa";
 import { perluNotifikasiPd } from "@/lib/rab/persetujuan-wa-aturan";
 import {
@@ -127,6 +128,13 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // Ada RAB aktif = ini adendum. Dua persetujuan = BERLAKU sekarang; nomor
     // CCO-nya administrasi yang menyusul di Kontrak & Adendum (DECISIONS 614).
     const adendum = (await db.rabRevision.count({ where: { locationId: rev.locationId, status: "aktif" } })) > 0;
+    // ITEM TERLAPOR YANG BELUM DIPASANGKAN (DECISIONS 754): realisasinya lepas
+    // dari progres begitu draft aktif. Pilihan user 2026-11-10: *"cukup minta
+    // konfirmasi saat aktivasi"* – berlaku untuk ketiga cara di bawah.
+    if (adendum) {
+      const tolakPadanan = await tolakTanpaKonfirmasiPadanan(rev.id, formData.get("konfirmasiBelumDipetakan"));
+      if (tolakPadanan) return { error: tolakPadanan };
+    }
     // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
     // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
     // Admin, yang boleh melakukannya sendirian.

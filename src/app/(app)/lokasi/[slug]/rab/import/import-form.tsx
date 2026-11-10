@@ -632,7 +632,13 @@ function PanelPadanan({
             <span className="block text-ink">
               {l.code} {l.name}{" "}
               <span className="text-ink-muted">
-                – {l.sebab === "dinolkan" ? "volumenya jadi 0" : "tidak ada di file"}, sudah dikerjakan{" "}
+                –{" "}
+                {l.sebab === "dinolkan"
+                  ? "volumenya jadi 0"
+                  : l.sebab === "draft"
+                    ? "dilaporkan terhadap draft yang akan diganti, tidak ada di file"
+                    : "tidak ada di file"}
+                , sudah dikerjakan{" "}
                 {l.realisasi}
               </span>
             </span>
