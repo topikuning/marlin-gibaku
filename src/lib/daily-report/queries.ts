@@ -770,6 +770,7 @@ function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
       pctCumulative: it.pctCumulative,
     })),
     isFinal: true,
+    status: "final",
   };
 }
 
@@ -1241,6 +1242,7 @@ export async function getKkpDailyData(
     noActivityReason: report?.noActivityReason ?? null,
     noActivityNote: report?.noActivityNote ?? null,
     isFinal: report?.status === "final",
+    status: report?.status ?? null,
     ...signatories,
   };
 }

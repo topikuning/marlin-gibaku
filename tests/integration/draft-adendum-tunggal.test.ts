@@ -261,20 +261,27 @@ describe("impor draft kedua menggantikan yang pertama", () => {
 });
 
 describe("membuang draft yang sudah dipakai melapor", () => {
-  it("dijawab kalimat MARLIN yang menyebut jumlah & tanggalnya, bukan galat Postgres", async () => {
+  /*
+   * DECISIONS 759 – keputusan user 2026-11-11 ("ya"): tombol Buang draft
+   * diperlakukan sama dengan impor pengganti (DECISIONS 755). Laporan yang
+   * diinput terhadap draft itu TIDAK menahan pembuangan dan TIDAK hilang:
+   * barisnya pindah menjadi catatan pekerjaan di luar RAB di laporan dan
+   * tanggal yang sama, menunggu dipadankan ke draft berikutnya.
+   */
+  it("tidak lagi ditolak: drafnya terbuang, laporannya jadi catatan di luar RAB yang menyebut draft asalnya", async () => {
     const [draft] = await draftLokasi();
     // Baris 10 & 11 Sep sudah jadi catatan di uji sebelumnya; laporkan lagi terhadap draft ini.
-    await laporkanDariDraft(draft!.id, "2026-09-10");
-    let pesan = "";
-    try {
-      await discardDraft(draft!.id, sesi.id);
-    } catch (e) {
-      pesan = e instanceof Error ? e.message : String(e);
-    }
-    expect(pesan, "discardDraft tidak menolak – baris laporannya ikut terhapus?").toBeTruthy();
-    expect(pesan).toMatch(/laporan harian/i);
-    expect(pesan).toMatch(/10 Sep 2026|2026-09-10/);
-    expect(pesan).not.toMatch(/constraint|rab_nodes|violates|foreign key/i);
-    expect(await draftLokasi()).toHaveLength(1);
+    const node = await laporkanDariDraft(draft!.id, "2026-09-12");
+    const baris = await db.dailyReportItem.findFirstOrThrow({
+      where: { rabNode: { revisionId: draft!.id } },
+      select: { id: true, reportId: true, volumeDone: true },
+    });
+    const h = await discardDraft(draft!.id, sesi.id);
+    expect(h.jadiCatatan).toBe(1);
+    expect(await draftLokasi()).toHaveLength(0);
+    expect(await db.dailyReportItem.findUnique({ where: { id: baris.id } })).toBeNull();
+    const c = await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: baris.reportId, asalDraftNo: draft!.revisionNo } });
+    expect([c.uraian, Number(c.volume), c.reportItemId]).toEqual([node.name, Number(baris.volumeDone), null]);
+    expect(c.catatan).toMatch(/dibuang/);
   }, 900_000);
 });

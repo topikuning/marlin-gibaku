@@ -16,7 +16,8 @@ import { presignKeys } from "@/lib/photos";
 import { getRequestOrigin } from "@/lib/http";
 import { signPhotoToken } from "@/lib/pdf/photo-token";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
-import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
+import { muatTtdLaporan, TANPA_TTD } from "@/lib/export/ttd-laporan";
+import { ttdHarian } from "@/lib/export/ttd-harian";
 import { can } from "@/lib/authz";
 import { alamatPdf } from "@/lib/cetak/alamat-pdf";
 import { PARAM_CETAK, cetakOtomatisDiminta } from "@/lib/cetak/mode-cetak";
@@ -46,10 +47,10 @@ export default async function CetakHarianPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id, "harian");
-
   const data = await getKkpDailyData(slug, date);
   if (!data) notFound();
+  // Hanya laporan yang disetujui / final yang bertanda tangan (DECISIONS 760).
+  const ttd = await ttdHarian(data.status, () => muatTtdLaporan(location.id, "harian"), TANPA_TTD);
 
   /*
    * Foto & logo pelaksana dipresign di sini, bukan di query: `getKkpDailyData`

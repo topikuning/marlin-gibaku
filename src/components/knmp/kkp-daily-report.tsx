@@ -80,6 +80,11 @@ export type KkpDailyData = {
   items: KkpDailyItem[];
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
+  /**
+   * Status laporan hari itu; null = belum ada laporan. Menentukan boleh
+   * tidaknya tanda tangan & stempel ditempel (DECISIONS 760).
+   */
+  status?: string | null;
   /** Hari itu DINYATAKAN tanpa kegiatan, berikut sebabnya (DECISIONS 396). */
   noActivity?: boolean;
   noActivityReason?: NoActivityReason | null;

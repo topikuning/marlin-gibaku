@@ -16,6 +16,7 @@ import {
   tulisBadanHarian,
 } from "./harian-kkp";
 import { muatTtdPdf, TANPA_TTD_PDF } from "./ttd-gambar";
+import { ttdHarianBoleh } from "@/lib/lifecycle";
 
 /**
  * BERKAS MINGGUAN: satu sampul + tujuh laporan harian (DECISIONS 332).
@@ -226,7 +227,8 @@ export async function renderMingguanKkpPdf(
       foto: lampiran.foto,
       fotoMaterial: lampiran.fotoMaterial,
       fotoAlat: lampiran.fotoAlat,
-      ttd: gambarTtd,
+      // Per hari: hanya laporan yang disetujui / final yang bertanda tangan (DECISIONS 760).
+      ttd: ttdHarianBoleh(d.status) ? gambarTtd : TANPA_TTD_PDF,
     });
   }
 

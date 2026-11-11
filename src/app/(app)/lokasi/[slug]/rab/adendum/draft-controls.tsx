@@ -180,7 +180,8 @@ export function DraftControls({
         onClick={() =>
           run(
             discardDraftAction,
-            `Buang draft revisi #${revisionNo}? Semua perubahan di draft ini hilang. Revisi aktif tidak berubah.`,
+            `Buang draft revisi #${revisionNo}? Semua perubahan di draft ini hilang. Revisi aktif tidak berubah. ` +
+              `Laporan harian yang diinput terhadap draft ini disimpan sebagai catatan pekerjaan di luar RAB.`,
           )
         }
       >

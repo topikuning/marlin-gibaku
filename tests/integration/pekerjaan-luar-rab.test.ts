@@ -307,21 +307,23 @@ describe("padanan ke draft adendum", () => {
     await db.pekerjaanLuarRab.delete({ where: { id: baru.id } });
   });
 
-  it("draft dibuang: baris dari catatan tidak menahan; baris isian langsung tetap menahan", async () => {
+  it("draft dibuang: baris dari catatan dilepas, baris isian langsung jadi catatan berasal-draft (DECISIONS 759)", async () => {
     const baruLagi = await buatDraft([GALIAN, URUGAN, BATU, PLESTER]);
     await gantiDraftLama(draftId, baruLagi, userId);
     draftId = baruLagi;
     const batu = await nodeDraft(draftId, "3");
     await svc.gabungkanLuarRab(locationId, [{ catatanId: c1, kandidatId: batu.id, terimaSatuanBeda: false }], userId);
-    // Baris plester isian langsung masih menunjuk draft ini → buang ditolak, catatan tidak tersentuh.
-    await expect(discardDraft(draftId, userId)).rejects.toThrow(/tidak bisa dibuang: 1 baris/);
-    expect((await db.pekerjaanLuarRab.findUniqueOrThrow({ where: { id: c1 } })).reportItemId).not.toBeNull();
-
+    const noDraft = (await db.rabRevision.findUniqueOrThrow({ where: { id: draftId } })).revisionNo;
+    // Baris plester isian langsung masih menunjuk draft ini – tidak lagi menahan.
     const lap = await db.dailyReport.findFirstOrThrow({ where: { locationId, reportDate: new Date("2026-10-06") } });
-    await db.dailyReportItem.deleteMany({ where: { reportId: lap.id } });
     const hasil = await discardDraft(draftId, userId);
-    expect(hasil.catatanLuarRabDilepas).toBe(1);
+    expect([hasil.catatanLuarRabDilepas, hasil.jadiCatatan]).toEqual([1, 1]);
     expect((await db.pekerjaanLuarRab.findUniqueOrThrow({ where: { id: c1 } })).reportItemId).toBeNull();
+    expect(await db.dailyReportItem.count({ where: { reportId: lap.id } })).toBe(0);
+    const plester = await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: lap.id, asalDraftNo: noDraft } });
+    expect([plester.uraian, plester.satuan, Number(plester.volume)]).toEqual(["Plesteran Dinding Talud", "m2", 4]);
+    // Bersihkan catatan berasal-draft supaya uji rekap di bawah tetap berdiri sendiri.
+    await db.pekerjaanLuarRab.delete({ where: { id: plester.id } });
     draftId = await buatDraft([GALIAN, URUGAN, BATU, PLESTER]);
   });
 

@@ -23,6 +23,7 @@ import {
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
 import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { ttdHarian } from "@/lib/export/ttd-harian";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
 /**
@@ -764,7 +765,12 @@ export async function renderHarianKkpPdf(
   if (!data || !loc) return null;
   const logo = await muatLogoPemilik(branding.ownerLogoKey);
   const { logoVendor, logoPengawas, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
-  const gambarTtd = await muatTtdPdf(loc.id, "harian").catch(() => TANPA_TTD_PDF);
+  // Hanya laporan yang disetujui / final yang bertanda tangan (DECISIONS 760).
+  const gambarTtd = await ttdHarian(
+    data.status,
+    () => muatTtdPdf(loc.id, "harian").catch(() => TANPA_TTD_PDF),
+    TANPA_TTD_PDF,
+  );
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,

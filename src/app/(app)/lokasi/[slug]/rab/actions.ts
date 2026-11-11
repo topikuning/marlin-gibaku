@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { formatTanggal } from "@/lib/format";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
@@ -223,6 +224,14 @@ export async function discardDraftAction(_prev: RabActionState, formData: FormDa
         `Draft revisi #${discarded.revisionNo} dibuang.` +
         (discarded.catatanLuarRabDilepas > 0
           ? ` ${discarded.catatanLuarRabDilepas} baris dari catatan pekerjaan di luar RAB dilepas – catatannya kembali menunggu dipadankan.`
+          : "") +
+        // DECISIONS 759: laporan atas draft ini disimpan sebagai catatan, tidak dibuang.
+        (discarded.jadiCatatan > 0
+          ? ` ${discarded.jadiCatatan} baris laporan harian yang diinput terhadap draft ini disimpan sebagai catatan ` +
+            `pekerjaan di luar RAB berikut fotonya (${discarded.barisJadiCatatan
+              .slice(0, 3)
+              .map((b) => `${formatTanggal(b.tanggal)} – ${b.nama}`)
+              .join("; ")}${discarded.jadiCatatan > 3 ? "; …" : ""}). Padankan ke draft adendum berikutnya.`
           : ""),
     };
   } catch (err) {

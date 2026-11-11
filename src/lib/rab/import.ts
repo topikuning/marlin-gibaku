@@ -566,17 +566,6 @@ export async function sisiLamaDraftTerlapor(
   };
 }
 
-/** Sebutan siap-baca untuk sekumpulan baris laporan: tanggal + nama itemnya. */
-function sebutLaporan(rows: LaporanDariDraft[], maks = 8): string {
-  const inti = rows
-    .slice(0, maks)
-    .map((r) => `${formatTanggal(r.tanggal)} – ${r.nama}`)
-    .join("; ");
-  return inti + (rows.length > maks ? `; +${rows.length - maks} baris lain` : "");
-}
-
-/** Draft yang masih dipakai laporan harian tidak bisa dibuang begitu saja. */
-export class DraftTerpakaiError extends Error {}
 
 export async function discardDraft(revisionId: string, userId: string) {
   const rev = await db.rabRevision.findUniqueOrThrow({
@@ -587,47 +576,50 @@ export async function discardDraft(revisionId: string, userId: string) {
     throw new Error(`Revisi #${rev.revisionNo} bukan draft, jadi tidak boleh dihapus.`);
   }
   /*
-   * DITOLAK DENGAN KALIMAT MARLIN, bukan oleh Postgres (DECISIONS 611).
+   * LAPORAN ATAS DRAFT INI TIDAK MENAHAN PEMBUANGAN (DECISIONS 759).
    *
-   * Laporan harian yang sudah diinput terhadap draft ini adalah pekerjaan
-   * lapangan yang sungguh terjadi. Menghapusnya bersama draftnya membuang data
-   * orang tanpa ditanya; membiarkan Postgres yang menolak membuat user membaca
-   * kalimat yang tidak bisa ditindaklanjuti siapa pun.
+   * Keputusan user 2026-11-11 ("ya"): tombol Buang draft diperlakukan sama
+   * dengan impor pengganti (DECISIONS 755). Sebelumnya pembuangan DITOLAK
+   * (DECISIONS 611) – menghapus baris laporan bersama draftnya membuang data
+   * orang. Sekarang barisnya tidak dihapus dan tidak menahan:
+   * - baris yang isinya SELURUHNYA dari catatan di luar RAB (DECISIONS 738)
+   *   dilepas; catatannya kembali menunggu berikut fotonya;
+   * - baris isian langsung pindah menjadi catatan di luar RAB di laporan dan
+   *   tanggal yang sama, berikut fotonya, menyebut draft asalnya.
+   * Keduanya menunggu dipadankan ke draft adendum berikutnya.
    */
-  /*
-   * Baris yang isinya SELURUHNYA dari catatan pekerjaan di luar RAB
-   * (DECISIONS 738) tidak menahan: yang dilaporkan orang adalah catatannya,
-   * dan catatan itu kembali menunggu dipadankan berikut fotonya.
-   */
-  const { barisMurniDariCatatan, lepasBarisDariCatatan, bangunUlangSnapshotTanggal } = await import(
-    "@/lib/luar-rab/service"
-  );
-  const finalTersentuh = await db.$transaction(async (tx) => {
-    const terpakai = await laporanDariDraft(tx, rev.id);
-    const murni = await barisMurniDariCatatan(
-      tx,
-      terpakai.map((r) => r.itemId),
-    );
-    const menahan = terpakai.filter((r) => !murni.has(r.itemId));
-    if (menahan.length > 0) {
-      throw new DraftTerpakaiError(
-        `Draft #${rev.revisionNo} tidak bisa dibuang: ${menahan.length} baris laporan harian sudah ` +
-          `diinput terhadap draft ini – ${sebutLaporan(menahan)}. ` +
-          `Unggah berkas adendum penggantinya (baris laporan akan ikut pindah ke draft baru), ` +
-          `atau hapus dulu baris laporan itu di layar Pelaksanaan Harian.`,
+  const { barisMurniDariCatatan, lepasBarisDariCatatan, jadikanCatatanDariDraft, bangunUlangSnapshotTanggal } =
+    await import("@/lib/luar-rab/service");
+  const hasil = await db.$transaction(
+    async (tx) => {
+      const terpakai = await laporanDariDraft(tx, rev.id);
+      const murni = await barisMurniDariCatatan(
+        tx,
+        terpakai.map((r) => r.itemId),
       );
-    }
-    const tanggal = await lepasBarisDariCatatan(tx, [...murni], userId, "draft adendum dibuang");
-    await tx.rabRevision.delete({ where: { id: rev.id } });
-    return { tanggal, dilepas: murni.size };
-  });
-  await bangunUlangSnapshotTanggal(rev.locationId, finalTersentuh.tanggal);
+      const isian = terpakai.filter((r) => !murni.has(r.itemId));
+      const tanggal = await lepasBarisDariCatatan(tx, [...murni], userId, "draft adendum dibuang");
+      const jadi = await jadikanCatatanDariDraft(
+        tx,
+        isian.map((r) => r.itemId),
+        { draftNo: rev.revisionNo, sebab: "draft itu dibuang" },
+        userId,
+      );
+      await tx.rabRevision.delete({ where: { id: rev.id } });
+      return { tanggal: [...tanggal, ...jadi.tanggalFinal], dilepas: murni.size, isian };
+    },
+    // Sama dengan penggantian draft (DECISIONS 712): menghapus draft menghapus
+    // berantai seluruh item, backup volume, dan analisanya.
+    { timeout: 60_000, maxWait: 15_000 },
+  );
+  await bangunUlangSnapshotTanggal(rev.locationId, hasil.tanggal);
   await audit(userId, "rab.revision_discard", "rab_revision", rev.id, {
     locationId: rev.locationId,
     revisionNo: rev.revisionNo,
-    catatanLuarRabDilepas: finalTersentuh.dilepas,
+    catatanLuarRabDilepas: hasil.dilepas,
+    barisJadiCatatan: hasil.isian.map((r) => ({ tanggal: r.tanggal.toISOString().slice(0, 10), item: r.nama, volume: r.volume })),
   });
-  return { ...rev, catatanLuarRabDilepas: finalTersentuh.dilepas };
+  return { ...rev, catatanLuarRabDilepas: hasil.dilepas, jadiCatatan: hasil.isian.length, barisJadiCatatan: hasil.isian };
 }
 
 /**
