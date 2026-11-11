@@ -3,6 +3,7 @@ import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/lapora
 import type { PeriodHeader } from "@/lib/periodic-report";
 import type { LogoGambar, LogoLaporan } from "@/lib/export/logo-laporan";
 import { formatTanggal } from "@/lib/format";
+import { ukuranTtd } from "@/lib/export/ttd-ukuran";
 
 /**
  * GAYA BERSAMA workbook laporan periodik (DECISIONS 265).
@@ -196,6 +197,92 @@ export function logoPasanganKanan(
   });
 }
 
+/* ── Tanda tangan & stempel (DECISIONS 757) ───────────────────────────────── */
+
+/** Berkas PNG satu pihak – bentuk yang sama dengan `BerkasTtd` di lib/pdf/ttd-gambar. */
+export type BerkasTtdXlsx = { ttd: Buffer | null; stempel: Buffer | null };
+/** Gambar tiga pihak blanko KKP – sama bentuknya dengan `TtdPdf` (dimuat `muatTtdPdf`). */
+export type GambarTtdXlsx = { ppk: BerkasTtdXlsx; pengawas: BerkasTtdXlsx; penyedia: BerkasTtdXlsx };
+
+/** Lebar & tinggi PNG dari kepala IHDR; null bila bukan PNG. */
+export function ukuranPng(b: Buffer): { w: number; h: number } | null {
+  if (b.length < 24 || b.readUInt32BE(0) !== 0x89504e47) return null;
+  const w = b.readUInt32BE(16);
+  const h = b.readUInt32BE(20);
+  return w > 0 && h > 0 ? { w, h } : null;
+}
+
+/** Tinggi baris dalam piksel; baris tanpa tinggi = bawaan Excel 15 pt. */
+const tinggiBarisPx = (ws: ExcelJS.Worksheet, row: number): number =>
+  Math.round(((ws.getRow(row).height ?? 15) * 4) / 3);
+
+/** Jangkar (baris 0-based + simpangan EMU) titik `naikPx` di ATAS tepi atas baris `row`. */
+function jangkarYNaik(ws: ExcelJS.Worksheet, row: number, naikPx: number): { row: number; offEmu: number } {
+  let sisa = naikPx;
+  for (let r = row - 1; r >= 1; r--) {
+    const h = tinggiBarisPx(ws, r);
+    if (sisa <= h) return { row: r - 1, offEmu: Math.round((h - sisa) * EMU_PER_PX) };
+    sisa -= h;
+  }
+  return { row: 0, offEmu: 0 };
+}
+
+/**
+ * Tempel tanda tangan & stempel ke blok tanda tangan Excel (DECISIONS 757).
+ *
+ * Keluhan user 2026-11-11: tanda tangan dan stempel hanya ada di PDF, jadi
+ * Excel harus ditandatangani ulang – "bikin orang kerja ganda". Aturannya
+ * SAMA dengan PDF (`gambarTtdPdf`):
+ * - ukuran dari `ttd-ukuran` (lebar kolom, direm ruang di atas baris nama);
+ * - stempel digambar lebih dulu, coretan sesudahnya; Excel menumpuk gambar
+ *   menurut urutan tambahnya, jadi coretan berada di atas stempel;
+ * - coretan berpijak tepat di baris nama, stempel turun sedikit menimpanya;
+ * - rasio gambar dijaga (`fit`), tidak diregangkan;
+ * - tidak ada yang naik melewati `rowAtasBlok`, supaya tidak menembus tabel.
+ *
+ * Mengembalikan jumlah gambar yang ditempel.
+ */
+export function tempelTtdXlsx(
+  ws: ExcelJS.Worksheet,
+  o: {
+    blok: { kolomKiri: number; kolomKanan: number; berkas: BerkasTtdXlsx }[];
+    /** Baris nama (1-based) – coretan berpijak di tepi atasnya. */
+    rowNama: number;
+    /** Baris pertama blok tanda tangan (1-based). */
+    rowAtasBlok: number;
+  },
+): number {
+  const wb = ws.workbook;
+  let ruang = 0;
+  for (let r = o.rowAtasBlok; r < o.rowNama; r++) ruang += tinggiBarisPx(ws, r);
+  let jumlah = 0;
+  for (const b of o.blok) {
+    const xKiri = lebarPx(ws, b.kolomKiri - 1);
+    const xKanan = lebarPx(ws, b.kolomKanan);
+    const xTengah = (xKiri + xKanan) / 2;
+    const u = ukuranTtd(xKanan - xKiri, ruang);
+    const pasang = (buf: Buffer, kotak: { lebar: number; tinggi: number }, kiriKotak: number, turun: number) => {
+      const d = ukuranPng(buf);
+      if (!d || kotak.lebar <= 0 || kotak.tinggi <= 0) return;
+      const skala = Math.min(kotak.lebar / d.w, kotak.tinggi / d.h);
+      const w = Math.max(1, Math.round(d.w * skala));
+      const h = Math.max(1, Math.round(d.h * skala));
+      const { col, offEmu } = jangkarX(ws, Math.max(0, kiriKotak + (kotak.lebar - w) / 2), b.kolomKanan);
+      const y = jangkarYNaik(ws, o.rowNama, Math.min(h - turun, ruang));
+      const id = wb.addImage({ buffer: buf as unknown as ExcelJS.Buffer, extension: "png" });
+      ws.addImage(id, {
+        tl: { nativeCol: col, nativeColOff: offEmu, nativeRow: y.row, nativeRowOff: y.offEmu },
+        ext: { width: w, height: h },
+        editAs: "oneCell",
+      } as unknown as Parameters<ExcelJS.Worksheet["addImage"]>[1]);
+      jumlah++;
+    };
+    if (b.berkas.stempel) pasang(b.berkas.stempel, u.stempel, xTengah - u.stempel.lebar / 2 - u.geser, u.turun);
+    if (b.berkas.ttd) pasang(b.berkas.ttd, u.ttd, xTengah - u.ttd.lebar / 2, 0);
+  }
+  return jumlah;
+}
+
 /**
  * BLOK TANDA TANGAN — permintaan user 2026-08-06 ("untuk kurva s juga sepertinya
  * kamu cukup kasih tambahan tanda tangan di bawah itu saja").
@@ -208,7 +295,14 @@ export function logoPasanganKanan(
  */
 export function blokTandaTangan(
   ws: ExcelJS.Worksheet,
-  o: { lastCol: number; h: PeriodHeader; tanggal?: Date; jenis: JenisDokumen },
+  o: {
+    lastCol: number;
+    h: PeriodHeader;
+    tanggal?: Date;
+    jenis: JenisDokumen;
+    /** Gambar tanda tangan & stempel untuk dokumen ini (DECISIONS 757); kosong = ruang pena. */
+    gambar?: GambarTtdXlsx | null;
+  },
 ): void {
   // Siapa yang meneken bergantung dokumennya (DECISIONS 402) — dan jawabannya
   // hanya boleh datang dari satu tempat, supaya PDF dan Excel dari laporan yang
@@ -258,16 +352,30 @@ export function blokTandaTangan(
   tulis([null, null, tglSah ? `${o.h.regency}, ${formatTanggal(tgl, "d MMMM yyyy")}` : `${o.h.regency},`], {
     size: 9,
   });
-  tulis(["Mengetahui,", "Diperiksa,", "Dibuat Oleh,"], { size: 9, color: WARNA.teksRedup });
+  const barisAtas = tulis(["Mengetahui,", "Diperiksa,", "Dibuat Oleh,"], { size: 9, color: WARNA.teksRedup }).number;
   tulis([peranSlot(tt.kkp), peranSlot(tt.konsultan), peranSlot(tt.penyedia)], { bold: true, size: 9 });
   // Ruang membubuhkan tanda tangan & cap basah.
   for (let i = 0; i < 4; i++) ws.addRow([]).height = 15;
 
   const garisTtd = "( ……………………………………… )";
   const nama = (n: string | null) => (n ? `( ${n} )` : garisTtd);
-  tulis([nama(tt.kkp.nama), nama(tt.konsultan.nama), nama(tt.penyedia.nama)], { bold: true, size: 9, garisAtas: true });
+  const barisNama = tulis([nama(tt.kkp.nama), nama(tt.konsultan.nama), nama(tt.penyedia.nama)], {
+    bold: true,
+    size: 9,
+    garisAtas: true,
+  }).number;
   // Jabatan di bawah nama penyedia mengikuti ORANG yang meneken – dulu selalu
   // jabatan direktur, jadi laporan mingguan mencetak nama pelaksana di bawah
   // jabatan direktur (DECISIONS 662).
   tulis([tt.kkp.sub, tt.konsultan.sub, tt.penyedia.sub], { size: 8, color: WARNA.teksRedup });
+  if (o.gambar) {
+    // Pihaknya dibawa DATA, bukan urutan larik (DECISIONS 328): kkp = PPK/Wakil
+    // Sah, konsultan = pengawas, penyedia = penyedia – sama dengan `muatTtdPdf`.
+    const berkas = [o.gambar.ppk, o.gambar.pengawas, o.gambar.penyedia];
+    tempelTtdXlsx(ws, {
+      blok: blok.map(([a, b], i) => ({ kolomKiri: a, kolomKanan: b, berkas: berkas[i]! })),
+      rowNama: barisNama,
+      rowAtasBlok: barisAtas,
+    });
+  }
 }

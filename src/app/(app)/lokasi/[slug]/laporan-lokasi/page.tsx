@@ -10,6 +10,7 @@ import { PeriodFilter } from "./period-filter";
 import { MenuBerkas } from "@/components/ui";
 import { MenuLaporanPeriodik } from "./menu-laporan";
 import { BarisLaporanHarian } from "./baris-harian";
+import { DaftarSlotKosong } from "./isi-penandatangan";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -45,6 +46,7 @@ export default async function LaporanLokasiPage({
       package: {
         select: {
           id: true,
+          name: true,
           driveFolderId: true,
         },
       },
@@ -122,16 +124,17 @@ export default async function LaporanLokasiPage({
           title={`Penanda tangan belum diisi: ${ttdKosong.map((k) => k.jabatan).join(", ")}`}
           description={
             <>
-              <ul className="list-disc pl-4">
-                {ttdKosong.map((k) => (
-                  <li key={k.jabatan}>
-                    <b className="font-medium text-ink">{k.jabatan}</b> – {k.dokumen.join(", ")}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-1">
-                Slot itu tercetak kosong untuk ditandatangani dengan tangan. Isi di Paket › Kontrak ›
-                Penanda tangan dokumen KKP, atau di halaman lokasi ini bila orangnya berbeda.
+              {/* Tiap slot langsung bisa diisi di sini (DECISIONS 758). */}
+              <DaftarSlotKosong
+                locationId={location.id}
+                slots={ttdKosong}
+                bolehIsi={can(user.role, "contract.manage")}
+                namaPaket={location.package.name}
+              />
+              <p className="mt-1.5">
+                {can(user.role, "contract.manage")
+                  ? "Slot yang belum diisi tercetak kosong untuk ditandatangani dengan tangan. Tekan tombol di sebelahnya untuk mengisi nama dan tanda tangannya."
+                  : "Slot itu tercetak kosong untuk ditandatangani dengan tangan. Minta pengelola kontrak mengisinya di Paket › Kontrak › Penanda tangan dokumen KKP."}
               </p>
             </>
           }

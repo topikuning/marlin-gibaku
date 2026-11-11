@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { barisRencanaRealisasi, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
+import { tempelTtdXlsx, type GambarTtdXlsx } from "@/lib/export/xlsx-gaya";
 
 /**
  * LAPORAN HARIAN KKP → .xlsx, MENGIKUTI BLANKO YANG SAMA dengan versi cetak
@@ -60,7 +61,11 @@ type OpsiSel = {
   ukuran?: number;
 };
 
-export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
+export async function buildDailyReportXlsx(
+  d: KkpDailyData,
+  /** Tanda tangan & stempel laporan harian (`muatTtdPdf(lokasi, "harian")`, DECISIONS 757). */
+  opts?: { ttd?: GambarTtdXlsx | null },
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   const ws = wb.addWorksheet("Laporan Harian", {
@@ -320,6 +325,19 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
   for (let i = 0; i <= 6; i++) garisBaris(rTtd + i);
   ws.getRow(rTtd + 3).height = 22;
   ws.getRow(rTtd + 4).height = 22;
+  // Gambar sama dengan PDF harian; urutan blok = Wakil Sah PPK, pengawas, penyedia.
+  if (opts?.ttd) {
+    const g = opts.ttd;
+    tempelTtdXlsx(ws, {
+      blok: [
+        { kolomKiri: ttd[0]!.c1, kolomKanan: ttd[0]!.c2, berkas: g.ppk },
+        { kolomKiri: ttd[1]!.c1, kolomKanan: ttd[1]!.c2, berkas: g.pengawas },
+        { kolomKiri: ttd[2]!.c1, kolomKanan: ttd[2]!.c2, berkas: g.penyedia },
+      ],
+      rowNama: rTtd + 5,
+      rowAtasBlok: rTtd,
+    });
+  }
   r = rTtd + 8;
 
   // ── TAMBAHAN di luar blanko: rincian kemajuan per pekerjaan ────────────────

@@ -571,27 +571,51 @@ const URUTAN_JABATAN = [
   "Direktur",
 ];
 
+/** Satu slot penanda tangan blanko KKP. */
+export type PihakSlot = PihakKkp | PihakKonsultan | PihakPenyedia;
+
+/**
+ * Kolom NAMA dan TANDA TANGAN tiap slot – tempat isian cepat menulis
+ * (DECISIONS 758). Harus kolom yang SAMA dengan yang dibaca cetakannya
+ * (`penandatanganDokumen`, `pilihKunciTtd`); dijaga uji unit.
+ * `di` = tabelnya: Pelaksana Lapangan tersimpan di paket (DECISIONS 404),
+ * sisanya di kontrak.
+ */
+export const MEDAN_SLOT: Record<PihakSlot, { nama: string; ttd: string; di: "kontrak" | "paket" }> = {
+  ppk: { nama: "ppkName", ttd: "ppkTtdKey", di: "kontrak" },
+  wakil_sah: { nama: "wakilSahName", ttd: "wakilSahTtdKey", di: "kontrak" },
+  pengawas_lapangan: { nama: "supervisorName", ttd: "supervisorTtdKey", di: "kontrak" },
+  koordinator_tl: { nama: "coTeamLeaderName", ttd: "coTeamLeaderTtdKey", di: "kontrak" },
+  team_leader: { nama: "teamLeaderName", ttd: "teamLeaderTtdKey", di: "kontrak" },
+  pelaksana: { nama: "pelaksanaName", ttd: "pelaksanaTtdKey", di: "paket" },
+  manajer_proyek: { nama: "projectManagerName", ttd: "projectManagerTtdKey", di: "kontrak" },
+  direktur: { nama: "contractorSignerName", ttd: "contractorTtdKey", di: "kontrak" },
+};
+
 /**
  * Penanda tangan yang BELUM DIISI, berikut dokumen yang slotnya akan tercetak
  * kosong (DECISIONS 662). Kosong tetap boleh dicetak – garis titik untuk
  * ditandatangani tangan – tapi orang harus tahu SEBELUM mengirimnya.
+ * `pihak` membawa slotnya supaya layar bisa langsung membuka isiannya
+ * (DECISIONS 758).
  */
-export function slotPenandatanganKosong(h: NamaPenandatangan): { jabatan: string; dokumen: string[] }[] {
-  const per = new Map<string, string[]>();
+export function slotPenandatanganKosong(h: NamaPenandatangan): { jabatan: string; pihak: PihakSlot; dokumen: string[] }[] {
+  const per = new Map<string, { pihak: PihakSlot; dokumen: string[] }>();
   for (const { jenis, label } of DOKUMEN_DI_LAYAR.filter((d) => DOKUMEN_DIPERIKSA.includes(d.jenis))) {
     const tt = penandatanganDokumen(jenis, h);
-    const slot: [string, SlotDokumen][] = [
-      [JABATAN_KKP[pihakKkp(jenis)], tt.kkp],
-      [JABATAN_KONSULTAN[pihakKonsultan(jenis)], tt.konsultan],
-      [JABATAN_PENYEDIA[pihakPenyedia(jenis)], tt.penyedia],
+    const slot: [string, PihakSlot, SlotDokumen][] = [
+      [JABATAN_KKP[pihakKkp(jenis)], pihakKkp(jenis), tt.kkp],
+      [JABATAN_KONSULTAN[pihakKonsultan(jenis)], pihakKonsultan(jenis), tt.konsultan],
+      [JABATAN_PENYEDIA[pihakPenyedia(jenis)], pihakPenyedia(jenis), tt.penyedia],
     ];
-    for (const [jabatan, s] of slot) {
+    for (const [jabatan, pihak, s] of slot) {
       if (s.nama) continue;
-      per.set(jabatan, [...(per.get(jabatan) ?? []), label]);
+      const ada = per.get(jabatan);
+      per.set(jabatan, { pihak, dokumen: [...(ada?.dokumen ?? []), label] });
     }
   }
   return [...per.entries()]
-    .map(([jabatan, dokumen]) => ({ jabatan, dokumen }))
+    .map(([jabatan, v]) => ({ jabatan, pihak: v.pihak, dokumen: v.dokumen }))
     .sort((a, b) => URUTAN_JABATAN.indexOf(a.jabatan) - URUTAN_JABATAN.indexOf(b.jabatan));
 }
 

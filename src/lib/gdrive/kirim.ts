@@ -305,7 +305,12 @@ export async function unggahLaporanPeriodik(input: {
   ]);
   const label = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
   if (!pdf || !report) return { batal: `Laporan ${kind} ${label} belum bisa disusun.` };
-  const xlsx = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(locationId) });
+  const { muatTtdPdf } = await import("@/lib/pdf/ttd-gambar");
+  // Tanda tangan & stempel sama dengan PDF-nya (DECISIONS 757).
+  const xlsx = await buildPeriodReportXlsx(report, {
+    logo: await muatLogoLaporan(locationId),
+    ttd: await muatTtdPdf(locationId, kind),
+  });
 
   const namaJenis = kind === "mingguan" ? "Mingguan" : "Bulanan";
   const base = `Laporan ${namaJenis} ${label} - ${c.locationName}`;

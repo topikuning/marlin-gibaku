@@ -699,7 +699,10 @@ export async function sendPeriodReportToWaAction(
 
     const report = await getPeriodReport(locationId, kind as PeriodKind, n);
     if (!report) return { error: "Laporan untuk periode ini tidak tersedia." };
-    const buf = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(locationId) });
+    const { muatTtdPdf } = await import("@/lib/pdf/ttd-gambar");
+    const [logo, ttd] = await Promise.all([muatLogoLaporan(locationId), muatTtdPdf(locationId, kind as PeriodKind)]);
+    // Tanda tangan & stempel sama dengan PDF-nya (DECISIONS 757).
+    const buf = await buildPeriodReportXlsx(report, { logo, ttd });
 
     const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
     const caption = [
@@ -749,7 +752,9 @@ export async function sendDailyReportToWaAction(
 
     const data = await getKkpDailyData(slug, dateKey);
     if (!data) return { error: "Laporan harian tidak ditemukan." };
-    const buf = await buildDailyReportXlsx(data);
+    const { muatTtdPdf } = await import("@/lib/pdf/ttd-gambar");
+    // Tanda tangan & stempel sama dengan PDF harian (DECISIONS 757).
+    const buf = await buildDailyReportXlsx(data, { ttd: await muatTtdPdf(locBasic.id, "harian") });
 
     const caption = [
       `*Laporan Harian*`,

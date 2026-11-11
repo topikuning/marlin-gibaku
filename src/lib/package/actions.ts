@@ -2355,8 +2355,6 @@ export async function correctRemoveLocationAction(
  * (`lib/export/ttd-laporan.ts`) jatuh ke `Vendor.stempelKey`.
  */
 
-const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
-
 /**
  * Medan gambar pada KONTRAK; nama medan = nama field form.
  *
@@ -2447,7 +2445,7 @@ export async function updateContractSignatureImages(
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
-  const { isR2Configured, r2Put } = await import("@/lib/r2");
+  const { simpanGambarTtd } = await import("@/lib/package/gambar-ttd");
   // Berkas BARU tiap unggahan – laporan final yang membekukan kunci lama tidak
   // boleh ikut berganti tanda tangan/stempel/logo (DECISIONS 634).
   const versi = Date.now().toString(36);
@@ -2455,23 +2453,8 @@ export async function updateContractSignatureImages(
   const dataPaket: Partial<Record<MedanTtdPaket, string | null>> = {};
   const berubah: string[] = [];
 
-  /** Olah satu berkas gambar jadi WebP 800px – aturan yang sama untuk semua pihak. */
-  const olah = async (berkas: File, label: string, key: string): Promise<string | { error: string }> => {
-    if (berkas.size > BERKAS_TTD_MAKS) return { error: `Berkas ${label} terlalu besar. Ukuran maksimal 2 MB.` };
-    if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
-      return { error: `Berkas ${label} harus berupa gambar PNG, JPG, atau WebP.` };
-    }
-    if (!isR2Configured()) {
-      return { error: "Penyimpanan berkas (R2) belum disiapkan, jadi gambar belum bisa diunggah. Hubungi admin." };
-    }
-    const sharp = (await import("sharp")).default;
-    const buf = await sharp(Buffer.from(await berkas.arrayBuffer()), { failOn: "none" })
-      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 92 })
-      .toBuffer();
-    await r2Put(key, buf, "image/webp");
-    return key;
-  };
+  /** Olah satu berkas gambar jadi WebP 800px – aturan yang sama untuk semua pihak (`lib/package/gambar-ttd`). */
+  const olah = simpanGambarTtd;
 
   for (const medan of MEDAN_TTD) {
     if (formData.get(`hapus_${medan}`) === "1") {
@@ -2485,25 +2468,9 @@ export async function updateContractSignatureImages(
     }
     const berkas = formData.get(medan);
     if (!(berkas instanceof File) || berkas.size === 0) continue;
-    if (berkas.size > BERKAS_TTD_MAKS) {
-      return { error: `Berkas ${LABEL_TTD[medan]} terlalu besar. Ukuran maksimal 2 MB.` };
-    }
-    if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
-      return { error: `Berkas ${LABEL_TTD[medan]} harus berupa gambar PNG, JPG, atau WebP.` };
-    }
-    if (!isR2Configured()) {
-      return { error: "Penyimpanan berkas (R2) belum disiapkan, jadi gambar belum bisa diunggah. Hubungi admin." };
-    }
-    const sharp = (await import("sharp")).default;
-    // 800px sisi terpanjang: cukup tajam untuk cetak A4 pada ruang ±2 cm,
-    // masih ringan untuk dimuat di halaman cetak yang berisi 3 blok.
-    const buf = await sharp(Buffer.from(await berkas.arrayBuffer()), { failOn: "none" })
-      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 92 })
-      .toBuffer();
-    const key = `kontrak/${contract.id}/${medan}-${versi}.webp`;
-    await r2Put(key, buf, "image/webp");
-    data[medan] = key;
+    const hasil = await olah(berkas, LABEL_TTD[medan], `kontrak/${contract.id}/${medan}-${versi}.webp`);
+    if (typeof hasil !== "string") return hasil;
+    data[medan] = hasil;
     berubah.push(`${LABEL_TTD[medan]} diperbarui`);
   }
 
