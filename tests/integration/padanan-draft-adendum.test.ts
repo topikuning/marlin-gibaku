@@ -325,6 +325,8 @@ describe("memasangkan", () => {
     expect(n3.lineageSemula).toBe("I#3");
     // Laporan & foto lama tidak disentuh sama sekali.
     const lama = await db.dailyReportItem.findMany({ where: { id: { in: L.barisLama } } });
+    // Urutan Postgres tanpa ORDER BY tidak dijamin – urutkan menurut urutan pembuatannya.
+    lama.sort((a, b) => L.barisLama.indexOf(a.id) - L.barisLama.indexOf(b.id));
     expect(lama.map((r) => [r.lineageKey, Number(r.volumeDone)])).toEqual([
       ["I#1", 4],
       ["I#1", 3],
