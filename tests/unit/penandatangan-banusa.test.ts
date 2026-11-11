@@ -16,6 +16,7 @@ import {
   pihakPenyedia,
   pilihKoordinatorTl,
   slotPenandatanganKosong,
+  MEDAN_SLOT,
   type NamaPenandatangan,
 } from "@/lib/laporan/penandatangan";
 import { pilihKunciTtd } from "@/lib/export/ttd-laporan";
@@ -149,10 +150,35 @@ describe("peringatan penanda tangan yang belum diisi", () => {
     expect(
       slotPenandatanganKosong({ ...LENGKAP, coTeamLeaderName: null, projectManagerName: "", pelaksanaName: null }),
     ).toEqual([
-      { jabatan: "Koordinator Team Leader", dokumen: ["Laporan progres mingguan", "Kurva S lokasi"] },
-      { jabatan: "Manajer Proyek", dokumen: ["Laporan progres mingguan", "Laporan progres bulanan", "Kurva S lokasi"] },
-      { jabatan: "Pelaksana Lapangan", dokumen: ["Laporan harian"] },
+      { jabatan: "Koordinator Team Leader", pihak: "koordinator_tl", dokumen: ["Laporan progres mingguan", "Kurva S lokasi"] },
+      {
+        jabatan: "Manajer Proyek",
+        pihak: "manajer_proyek",
+        dokumen: ["Laporan progres mingguan", "Laporan progres bulanan", "Kurva S lokasi"],
+      },
+      { jabatan: "Pelaksana Lapangan", pihak: "pelaksana", dokumen: ["Laporan harian"] },
     ]);
+  });
+
+  /*
+   * DECISIONS 758 – permintaan user 2026-11-11: *"ini yang belum terisi
+   * seharusnya tinggal klik yang mana, lalu masuk pilihan inputan nama dan
+   * ttdnya"*. Tiap slot kosong membawa PIHAK-nya, dan tiap pihak tahu kolom
+   * nama + tanda tangannya – supaya isian cepat menulis ke kolom yang SAMA
+   * dengan yang dibaca cetakannya.
+   */
+  it("tiap pihak punya kolom nama & tanda tangan yang dibaca cetakan", () => {
+    const kosongSemua = Object.fromEntries(Object.keys(LENGKAP).map((k) => [k, null])) as unknown as NamaPenandatangan;
+    const slot = slotPenandatanganKosong({ ...kosongSemua, vendorName: "PT X" });
+    expect(slot.length).toBeGreaterThan(0);
+    for (const s of slot) expect(MEDAN_SLOT[s.pihak], s.jabatan).toBeDefined();
+    // Nama yang ditulis isian cepat = nama yang dibaca cetakan.
+    for (const s of slot) {
+      const terisi = { ...kosongSemua, vendorName: "PT X", [MEDAN_SLOT[s.pihak].nama]: "Orang Uji" } as NamaPenandatangan;
+      expect(slotPenandatanganKosong(terisi).map((x) => x.pihak), s.jabatan).not.toContain(s.pihak);
+    }
+    expect(MEDAN_SLOT.pelaksana.di).toBe("paket");
+    expect(MEDAN_SLOT.team_leader).toEqual({ nama: "teamLeaderName", ttd: "teamLeaderTtdKey", di: "kontrak" });
   });
 
   it("semua terisi → tidak ada peringatan", () => {

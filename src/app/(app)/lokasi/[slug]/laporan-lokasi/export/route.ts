@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import { muatLogoLaporan } from "@/lib/export/logo-laporan";
+import { muatTtdPdf } from "@/lib/pdf/ttd-gambar";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const report = await getPeriodReport(location.id, kind as PeriodKind, n);
   if (!report) return NextResponse.json({ error: "Laporan tidak tersedia" }, { status: 404 });
 
-  const buffer = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(location.id) });
+  const [logo, ttd] = await Promise.all([muatLogoLaporan(location.id), muatTtdPdf(location.id, kind as PeriodKind)]);
+  // Tanda tangan & stempel sama dengan PDF-nya (DECISIONS 757).
+  const buffer = await buildPeriodReportXlsx(report, { logo, ttd });
   await audit(user.id, "report.export_xlsx", "location", location.id, { kind, n });
 
   return new NextResponse(new Uint8Array(buffer), {

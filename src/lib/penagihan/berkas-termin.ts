@@ -379,7 +379,12 @@ async function susunBerkas(
         getPeriodReport(p.locationId!, "mingguan", p.nomor!),
       ]);
       if (!hasil || !report) return { batal: `${labelPekerjaanTermin(p)} belum bisa disusun.` };
-      const xlsx = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(p.locationId!) });
+      const { muatTtdPdf } = await import("@/lib/pdf/ttd-gambar");
+      // Tanda tangan & stempel sama dengan PDF-nya (DECISIONS 757).
+      const xlsx = await buildPeriodReportXlsx(report, {
+        logo: await muatLogoLaporan(p.locationId!),
+        ttd: await muatTtdPdf(p.locationId!, "mingguan"),
+      });
       const dasar = pdf(hasil.buffer);
       const namaPdf = dasar.items[0].fileName;
       dasar.items.push({ fileName: namaPdf.replace(/\.pdf$/i, ".xlsx"), mime: XLSX_MIME, data: xlsx });
