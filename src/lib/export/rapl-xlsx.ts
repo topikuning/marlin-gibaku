@@ -5,6 +5,7 @@ import { FMT_ANGKA, FMT_PERSEN, FMT_RUPIAH, KOTAK, WARNA, gayaKepala, isi, logoP
 import type { SimulasiRapl } from "@/lib/ahsp/rapl";
 import type { KeadaanHarga } from "@/lib/ahsp/hsd";
 import type { BiayaItem } from "@/lib/ahsp/rapl-calc";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 
 /**
  * Unduhan KEBUTUHAN SUMBER DAYA (RAPL) — DECISIONS 322.
@@ -93,6 +94,7 @@ export async function buildRaplXlsx(
   tulisKebutuhan(wb, rapl, opsi.harga);
   tulisDilewat(wb, rapl);
 
+  siapCetakA4(wb);
   return wb.xlsx.writeBuffer();
 }
 

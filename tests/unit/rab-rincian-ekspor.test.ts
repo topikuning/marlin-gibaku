@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
 import { hitungRumus } from "@/lib/export/rumus-mini";
 import type { RincianEkspor } from "@/lib/export/rincian-rencana";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 vi.mock("server-only", () => ({}));
 const { buildRabXlsx } = await import("@/lib/export/rab-xlsx");
@@ -443,5 +444,21 @@ describe("dokumen CCO dengan rincian bertaut", () => {
     const dengan = await parseHpsBuffer(await cco(true));
     expect(dengan.sheetName).toBe("CCO-01");
     expect(JSON.stringify(dengan.parsed)).toBe(JSON.stringify(tanpa.parsed));
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("semua sheet RAB & rincian A4, orientasi menurut lebar isinya", async () => {
+    expect(ringkasCetak(await bangun())).toEqual({
+      Resume: "A4 portrait 1×n",
+      "Sub Resume": "A4 portrait 1×n",
+      "Detail RAB": "A4 portrait 1×n",
+      // Kolom backup bertambah mengikuti berkasnya; contoh ini sudah terlalu lebar untuk potret.
+      "Backup Volume": "A4 landscape 1×n",
+      "Resume Analisa": "A4 portrait 1×n",
+      Analisa: "A4 portrait 1×n",
+      "Bahan & Upah": "A4 portrait 1×n",
+      "Catatan Rincian": "A4 portrait 1×n",
+    });
   });
 });

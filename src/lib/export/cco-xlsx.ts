@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { susunBarisCco, type CcoNode, type CcoRow } from "@/lib/rab/cco-rows";
 import { tambahSheetRab, tulisCatatanRincian, tulisLembar, type SelisihRincian } from "./rab-xlsx";
 import { susunRincian, type RincianEkspor } from "./rincian-rencana";
+import { siapCetakA4 } from "./cetak-a4";
 
 /**
  * DOKUMEN CCO (Contract Change Order) — format pengajuan adendum KKP.
@@ -227,14 +228,8 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   wb.calcProperties.fullCalcOnLoad = true; // Excel hitung ulang saat dibuka
   const ws = wb.addWorksheet(L.sheet, {
     views: [{ state: "frozen", xSplit: 2, ySplit: BARIS_HEADER + 1 }],
-    pageSetup: {
-      orientation: "landscape",
-      paperSize: 9,
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
-    },
+    // Kertas & orientasi: `siapCetakA4` sebelum ditulis (DECISIONS 762).
+    pageSetup: { margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } },
   });
   ws.pageSetup.printTitlesRow = `${BARIS_HEADER}:${BARIS_HEADER + 1}`;
   KOLOM.forEach((k, i) => (ws.getColumn(i + 1).width = k.lebar));
@@ -265,6 +260,7 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input, L);
   if (input.rincianBaru) tautkanRincian(wb, ws, input, barisTabel, L);
 
+  siapCetakA4(wb);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
 }

@@ -23,6 +23,7 @@ import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
 import { ringkasKelompok } from "@/lib/progress-calc";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
   code: "",
@@ -556,5 +557,27 @@ describe("grafik kurva-S hidup berdampingan dengan logo", () => {
   it("tanpa logo, grafiknya tetap terpasang seperti sebelumnya", async () => {
     const zip = await zipDari();
     expect(Object.keys(zip.files).filter((f) => /^xl\/charts\/chart\d+\.xml$/.test(f))).toHaveLength(1);
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("laporan mingguan: semua sheet A4, sampul satu halaman, orientasi menurut lebar isinya", async () => {
+    expect(ringkasCetak(await book())).toEqual({
+      "COV-BQ": "A4 portrait 1×1",
+      // Satu halaman potret (huruf ±7,6 pt); di lanskap nama penanda tangan
+      // terlempar ke halaman kedua.
+      REKAP: "A4 portrait 1×n",
+      "Kurva S": "A4 landscape 1×n",
+      "PROGRES KATEGORI": "A4 landscape 1×n",
+      Laporan: "A4 landscape 1×n",
+    });
+  });
+  it("laporan bulanan juga", async () => {
+    expect(ringkasCetak(await book({ kind: "bulanan", n: 3 }))).toEqual({
+      "COV-BQ": "A4 portrait 1×1",
+      REKAP: "A4 portrait 1×n",
+      "Kurva S": "A4 landscape 1×n",
+      Laporan: "A4 landscape 1×n",
+    });
   });
 });

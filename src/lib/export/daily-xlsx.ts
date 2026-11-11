@@ -4,6 +4,7 @@ import { barisRencanaRealisasi, type KkpDailyData } from "@/components/knmp/kkp-
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { tempelTtdXlsx, type GambarTtdXlsx } from "@/lib/export/xlsx-gaya";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 
 /**
  * LAPORAN HARIAN KKP → .xlsx, MENGIKUTI BLANKO YANG SAMA dengan versi cetak
@@ -69,14 +70,8 @@ export async function buildDailyReportXlsx(
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   const ws = wb.addWorksheet("Laporan Harian", {
-    pageSetup: {
-      paperSize: 9,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
-    },
+    // Kertas & orientasi: `siapCetakA4` sebelum ditulis (DECISIONS 762).
+    pageSetup: { margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } },
   });
 
   // Kolom jam WAJIB sempit dan seragam supaya grid cuaca terbaca seperti blanko;
@@ -380,5 +375,6 @@ export async function buildDailyReportXlsx(
     });
   }
 
+  siapCetakA4(wb);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -4,6 +4,7 @@ import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import type { RencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { formatTanggal } from "@/lib/format";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 
 /**
  * Ekspor Formulir Rencana Kerja Mingguan ke .xlsx (DECISIONS 258).
@@ -52,9 +53,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const ws = wb.addWorksheet(`Rencana Minggu ${r.weekNumber}`, {
-    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet(`Rencana Minggu ${r.weekNumber}`);
   ws.columns = COL_WIDTHS.map((w) => ({ width: w }));
   const h = r.header;
 
@@ -310,6 +309,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   jejak.getCell(1).font = { size: 8, italic: true, color: { argb: "FF64748B" } };
   ws.mergeCells(jejak.number, 1, jejak.number, COL_COUNT);
 
+  siapCetakA4(wb);
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }

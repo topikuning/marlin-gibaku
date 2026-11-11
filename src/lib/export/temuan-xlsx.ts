@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import type { BarisTemuan } from "@/lib/findings/queries";
 import { formatTanggal } from "@/lib/format";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 import { FINDING_CATEGORY_LABEL, FINDING_STATUS_LABEL, ISSUE_SEVERITY_LABEL } from "@/lib/lifecycle";
 
 /**
@@ -17,9 +18,7 @@ const box: Partial<ExcelJS.Borders> = { top: thin, bottom: thin, left: thin, rig
 
 export async function buildTemuanXlsx(baris: BarisTemuan[], dibuatOleh: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Register Temuan", {
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet("Register Temuan");
 
   const judul = ws.addRow(["REGISTER TEMUAN"]);
   judul.font = { bold: true, size: 14 };
@@ -77,6 +76,7 @@ export async function buildTemuanXlsx(baris: BarisTemuan[], dibuatOleh: string):
     ws.getColumn(i + 1).width = w;
   });
 
+  siapCetakA4(wb);
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
 }

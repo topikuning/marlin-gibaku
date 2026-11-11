@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { ppnAmount, withPpn } from "@/lib/money";
 import { formatRupiah } from "@/lib/format";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 import {
   rumusTautan,
   susunRincian,
@@ -162,6 +163,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   } else {
     tambahSheetRab(wb, input);
   }
+  siapCetakA4(wb);
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
 }

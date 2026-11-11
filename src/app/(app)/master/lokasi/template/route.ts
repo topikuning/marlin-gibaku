@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { HEADER_TEMPLAT } from "@/lib/master-location/import";
@@ -75,6 +76,7 @@ export async function GET() {
   info.getColumn(3).width = 90;
   info.getColumn(3).alignment = { wrapText: true, vertical: "top" };
 
+  siapCetakA4(wb);
   const buf = await wb.xlsx.writeBuffer();
   return new NextResponse(Buffer.from(buf), {
     headers: {

@@ -7,6 +7,7 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit } from "@/lib/audit";
 import { parseAiReportContent } from "@/lib/ai-hub/render";
 import { buildAiReportWorkbook } from "@/lib/ai-hub/excel";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const wb = buildAiReportWorkbook(content);
+  siapCetakA4(wb);
   const buffer = await wb.xlsx.writeBuffer();
   await audit(user.id, "ai.artifact.export_xlsx", "ai_artifact", artifact.id, { version: artifact.version });
 
