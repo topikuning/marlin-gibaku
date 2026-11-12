@@ -303,11 +303,14 @@ export function SignBlock({
   role: string;
   name: string | null;
   sub: string | null;
-  ttd?: { url: string } | null;
+  ttd?: { url: string; ketik?: { rasio: number } } | null;
   stempel?: { url: string } | null;
 }) {
   return (
-    <div>
+    // Lebar minimal: induknya `flex justify-between`, jadi tanpa ini kolom
+    // "MENGETAHUI" hanya selebar judulnya dan tanda tangannya – unggahan
+    // maupun ketik (DECISIONS 763) – ikut mengecil ke ukuran itu.
+    <div className="min-w-[28%]">
       <div className="font-semibold">{title}</div>
       <div className="font-semibold">{role}</div>
       {/* 40px = `mt-10` yang dulu dipakai; lembar ini berhuruf 8,5px sehingga

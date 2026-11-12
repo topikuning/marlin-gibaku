@@ -108,3 +108,35 @@ export function ukuranTtd(lebarKolom: number, ruangDiAtasNama: number): UkuranTt
     turun: Math.round(stempel * TURUN_STEMPEL),
   };
 }
+
+/**
+ * Lebar paling besar tanda tangan KETIK, % lebar kolom (DECISIONS 763).
+ *
+ * Tanda tangan ketik adalah nama berhuruf tulisan tangan, jadi bentuknya jauh
+ * lebih memanjang daripada coretan (rasio ±4–8 lawan 2). Bila dipaksa masuk kotak
+ * coretan (`BENTUK_TTD`), ia mengecil sampai setinggi beberapa piksel. Permintaan
+ * user: *"dengan lebar menyesuaikan"* – maka tingginya disamakan dengan coretan
+ * biasa dan LEBARNYA mengikuti nama, sampai batas ini.
+ */
+export const PERSEN_TTD_KETIK = 90;
+
+/**
+ * Kotak tanda tangan ketik: setinggi coretan biasa (`u.ttd.tinggi`), selebar
+ * namanya (`rasio` = lebar : tinggi gambarnya), paling lebar
+ * {@link PERSEN_TTD_KETIK} kolom. Nama yang terlalu panjang mengecil utuh –
+ * tingginya yang mengalah, bentuknya tidak diregangkan.
+ */
+export function kotakTtdKetik(u: UkuranTtd, lebarKolom: number, rasio: number): { lebar: number; tinggi: number } {
+  if (!(rasio > 0)) return u.ttd;
+  const lebar = Math.min(u.ttd.tinggi * rasio, (lebarKolom * PERSEN_TTD_KETIK) / 100);
+  return { lebar: Math.round(lebar), tinggi: Math.round(lebar / rasio) };
+}
+
+/** Rasio lebar : tinggi PNG dari kepala IHDR; null bila bukan PNG. */
+export function rasioPng(b: Uint8Array): number | null {
+  if (b.length < 24 || b[0] !== 0x89 || b[1] !== 0x50 || b[2] !== 0x4e || b[3] !== 0x47) return null;
+  const baca = (i: number) => ((b[i]! << 24) | (b[i + 1]! << 16) | (b[i + 2]! << 8) | b[i + 3]!) >>> 0;
+  const w = baca(16);
+  const h = baca(20);
+  return w > 0 && h > 0 ? w / h : null;
+}

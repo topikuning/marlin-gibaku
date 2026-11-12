@@ -1,7 +1,8 @@
 import "server-only";
 import type { JenisDokumen } from "@/lib/laporan/penandatangan";
-import { ukuranTtd } from "@/lib/export/ttd-ukuran";
-import type { PdfDoc } from "./document";
+import { kotakTtdKetik, rasioPng, ukuranTtd } from "@/lib/export/ttd-ukuran";
+import { PDF_FONT, type PdfDoc } from "./document";
+import { PAD_X_GRID, PAD_Y_GRID } from "./grid";
 
 /**
  * Tempel tanda tangan & stempel ke PDF (DECISIONS 328).
@@ -20,7 +21,12 @@ import type { PdfDoc } from "./document";
  * sementara yang tersimpan di R2 adalah WebP.
  */
 
-export type BerkasTtd = { ttd: Buffer | null; stempel: Buffer | null };
+export type BerkasTtd = {
+  ttd: Buffer | null;
+  stempel: Buffer | null;
+  /** `ttd` adalah tanda tangan KETIK dari nama (DECISIONS 763) – lebarnya mengikuti nama. */
+  ttdKetik?: boolean;
+};
 
 export type TtdPdf = {
   ppk: BerkasTtd;
@@ -44,20 +50,22 @@ export const TANPA_TTD_PDF: TtdPdf = {
  */
 export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promise<TtdPdf> {
   try {
-    const [{ penandatanganLokasi }, { isR2Configured }, { ambilBerkas }] = await Promise.all([
+    const [{ penandatanganLokasi }, { isR2Configured }, { ambilBerkas }, { ttdKetikPng }] = await Promise.all([
       import("@/lib/export/ttd-laporan"),
       import("@/lib/r2"),
       import("@/lib/penyimpanan/berkas"),
+      import("@/lib/export/ttd-ketik"),
     ]);
-    if (!isR2Configured()) return TANPA_TTD_PDF;
     // Orang & kuncinya dipilih di tempat yang SAMA dengan halaman cetak.
     const t = await penandatanganLokasi(locationId, jenis);
     if (!t) return TANPA_TTD_PDF;
-    const { kunci } = t;
+    const { kunci, nama } = t;
+    // Tanpa R2 gambar unggahan tidak bisa diambil – tanda tangan ketik tetap jalan.
+    const adaR2 = isR2Configured();
     const sharp = (await import("sharp")).default;
     const { hapusLatarPutih } = await import("@/lib/export/ttd-latar");
     const png = async (key: string | null): Promise<Buffer | null> => {
-      if (!key) return null;
+      if (!key || !adaR2) return null;
       try {
         // Dikecilkan dulu: di kertas gambar ini tidak pernah lebih besar dari
         // ±70 pt, sementara pindaian stempel bisa ribuan piksel. Tanpa batas
@@ -83,18 +91,27 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
       }
     };
 
+    // Tanda tangan yang belum diunggah diisi tanda tangan KETIK dari namanya
+    // (DECISIONS 763). Hanya coretannya – stempel tidak pernah dibuatkan, dan
+    // slot tanpa nama tetap kosong.
+    const ttdAtauKetik = async (key: string | null, orang: string | null) => {
+      const unggahan = await png(key);
+      if (unggahan) return { ttd: unggahan, ttdKetik: false };
+      const ketik = await ttdKetikPng(orang);
+      return { ttd: ketik, ttdKetik: ketik != null };
+    };
     const [pt, ps, gt, gs, yt, ys] = await Promise.all([
-      png(kunci.ppk.ttd),
+      ttdAtauKetik(kunci.ppk.ttd, nama.kkp.nama),
       png(kunci.ppk.stempel),
-      png(kunci.pengawas.ttd),
+      ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan.nama),
       png(kunci.pengawas.stempel),
-      png(kunci.penyedia.ttd),
+      ttdAtauKetik(kunci.penyedia.ttd, nama.penyedia.nama),
       png(kunci.penyedia.stempel),
     ]);
     return {
-      ppk: { ttd: pt, stempel: ps },
-      pengawas: { ttd: gt, stempel: gs },
-      penyedia: { ttd: yt, stempel: ys },
+      ppk: { ...pt, stempel: ps },
+      pengawas: { ...gt, stempel: gs },
+      penyedia: { ...yt, stempel: ys },
     };
   } catch (err) {
     console.error("[pdf] tanda tangan & stempel gagal disiapkan:", err);
@@ -183,9 +200,12 @@ export function gambarTtdPdf(doc: PdfDoc, berkas: BerkasTtd, opsi: OpsiGambarTtd
       );
     }
     if (berkas.ttd) {
-      // Coretan berpijak PERSIS di garis nama.
-      doc.image(sebagaiArrayBuffer(berkas.ttd), xTengah - u.ttd.lebar / 2, yDasar - u.ttd.tinggi, {
-        fit: [u.ttd.lebar, u.ttd.tinggi],
+      // Coretan berpijak PERSIS di garis nama. Tanda tangan ketik: setinggi
+      // coretan, selebar namanya (DECISIONS 763).
+      const rasio = berkas.ttdKetik ? rasioPng(berkas.ttd) : null;
+      const k = rasio ? kotakTtdKetik(u, lebarKolom, rasio) : u.ttd;
+      doc.image(sebagaiArrayBuffer(berkas.ttd), xTengah - k.lebar / 2, yDasar - k.tinggi, {
+        fit: [k.lebar, k.tinggi],
         align: "center",
         valign: "bottom",
       });
@@ -194,4 +214,24 @@ export function gambarTtdPdf(doc: PdfDoc, berkas: BerkasTtd, opsi: OpsiGambarTtd
     // Satu gambar rusak tidak boleh menggagalkan seluruh PDF.
     console.error("[pdf] gagal menempel tanda tangan/stempel:", err);
   }
+}
+
+/**
+ * Jarak dari tepi ATAS sel blok tanda tangan (`gridRow`) sampai tepi atas baris
+ * nama "( … )" – DIUKUR, bukan ditebak. `atas` = teks sel sebelum baris-baris
+ * kosong (judul, peran, firma), `pemisah` = teks persis di antara `atas` dan
+ * nama (mis. "\n\n\n\n\n").
+ *
+ * Penyaji PDF dulu memakai angka tetap (68/70 pt), padahal tinggi `atas`
+ * berubah menurut peran dan firma yang terbungkus. Hasilnya coretan berpijak
+ * di bawah baris nama dan menimpanya – terlihat jelas begitu tanda tangan
+ * ketik (DECISIONS 763) mengisi setiap slot bernama.
+ */
+export function ruangSampaiNama(
+  doc: PdfDoc,
+  o: { atas: string; pemisah: string; lebarKolom: number; fontSize: number },
+): number {
+  const w = Math.max(4, o.lebarKolom - PAD_X_GRID * 2);
+  doc.font(PDF_FONT.regular).fontSize(o.fontSize);
+  return PAD_Y_GRID + doc.heightOfString(`${o.atas}${o.pemisah}.`, { width: w }) - doc.heightOfString(".", { width: w });
 }

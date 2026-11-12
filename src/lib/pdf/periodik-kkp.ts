@@ -11,7 +11,7 @@ import { susunRencanaRealisasi } from "@/lib/laporan/rencana-realisasi-kategori"
 import { muatLogoLaporan, type LogoLaporan } from "@/lib/export/logo-laporan";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { GRID_HEAD_BG, GRID_LINE, colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, ruangSampaiNama, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Mingguan/Bulanan format KKP — BLANKO RESMI, bukan ringkasan naratif.
@@ -832,8 +832,10 @@ function signatureBlock(
     fontSize: 7.5,
     minRowHeight: 90,
   };
+  // Baris kosong di antara peran dan nama = ruang tanda tangan.
+  const PEMISAH_NAMA = "\n\n\n\n\n";
   const nameOf = (n: string | null, sub: string | null) =>
-    `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
+    `${PEMISAH_NAMA}( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
   // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
   const tt = penandatanganDokumen(o.jenis, o.h);
   const sel: GridCell[] = [
@@ -860,22 +862,35 @@ function signatureBlock(
      dengan teks. Baris nama "( … )" ada di baris ke-5 blok; coretan berpijak
      tepat di atasnya. */
   const lebarKolomTtd = o.width / 3;
-  // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
-  // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
-  const RUANG_TTD = 68;
+  // Ruang dari tepi ATAS blok sampai garis nama – DIUKUR per kolom, karena
+  // peran/firma bisa terbungkus dua baris. Dulu angka tetap 68 pt, padahal
+  // dengan peran satu baris nama "( … )" berada ±10 pt lebih tinggi: coretan
+  // (unggahan maupun ketik, DECISIONS 763) berpijak DI BAWAH nama dan
+  // menimpanya. Stempel dibatasi tepat sebesar ruang ini supaya tidak menembus
+  // tabel di atasnya (DECISIONS 333).
+  const atasNama = [
+    `MENGETAHUI :\n${peranSlot(tt.kkp, true)}`,
+    `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}`,
+    `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}`,
+  ];
+  const ruangTtd = (atas: string): number =>
+    ruangSampaiNama(doc, { atas, pemisah: PEMISAH_NAMA, lebarKolom: lebarKolomTtd, fontSize: opt.fontSize! });
   const URUT_TTD = ["ppk", "pengawas", "penyedia"] as const;
   const y = blokTandaTanganPdf(
     doc,
     o.gambarTtd
-      ? URUT_TTD.map((pihak, i) => ({
-          berkas: o.gambarTtd![pihak],
-          opsi: {
-            xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
-            yDasar: yAtas + RUANG_TTD,
-            lebarKolom: lebarKolomTtd,
-            ruangDiAtasNama: RUANG_TTD,
-          },
-        }))
+      ? URUT_TTD.map((pihak, i) => {
+          const ruang = ruangTtd(atasNama[i]!);
+          return {
+            berkas: o.gambarTtd![pihak],
+            opsi: {
+              xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
+              yDasar: yAtas + ruang,
+              lebarKolom: lebarKolomTtd,
+              ruangDiAtasNama: ruang,
+            },
+          };
+        })
       : [],
     () => gridRow(doc, yAtas, sel, opt),
   );

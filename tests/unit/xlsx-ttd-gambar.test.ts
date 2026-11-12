@@ -217,6 +217,30 @@ describe("laporan periodik mingguan", () => {
     expect(g).toEqual(["stempel", "ttd", "ttd", "stempel", "ttd"]);
   });
 
+  it("tanda tangan KETIK (DECISIONS 763): setinggi coretan biasa, LEBARNYA mengikuti nama, tetap di dalam kolom", async () => {
+    // Coretan biasa 300×120 (rasio 2,5) vs nama ketik memanjang 900×120 (rasio 7,5).
+    const ketik = await png(900, 120);
+    const g = await siapkanGambar();
+    const dengan = (k: boolean) => ({
+      ppk: { ...g.ppk, stempel: null },
+      pengawas: { ttd: k ? ketik : g.pengawas.ttd, stempel: null, ttdKetik: k },
+      penyedia: { ...g.penyedia, stempel: null },
+    });
+    const ukur = async (k: boolean) => {
+      const wb = await muat(await buildPeriodReportXlsx(fixture(), { ttd: dengan(k) }));
+      const ws = wb.getWorksheet("Laporan")!;
+      return gambarBlok(ws, barisTeks(ws, /^Mengetahui,$/), barisTeks(ws, /^\( Budi Santoso \)$/)).map((x) => x.ext!);
+    };
+    const biasa = await ukur(false);
+    const [ppk, pengawas] = await ukur(true);
+    // Rasio nama dijaga, tidak diregangkan.
+    expect(pengawas!.width / pengawas!.height).toBeCloseTo(900 / 120, 1);
+    // Lebih lebar dari kotak coretan biasa (yang memaksanya mengecil).
+    expect(pengawas!.width).toBeGreaterThan(biasa[1]!.width * 1.4);
+    // Tingginya tidak melebihi coretan biasa, jadi tidak menembus ke atas.
+    expect(pengawas!.height).toBeLessThanOrEqual(ppk!.height + 1);
+  });
+
   it("tanpa berkas: tidak ada gambar di blok tanda tangan (ruang pena seperti dulu)", async () => {
     const wb = await muat(await buildPeriodReportXlsx(fixture()));
     const ws = wb.getWorksheet("Laporan")!;

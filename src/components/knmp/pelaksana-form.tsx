@@ -136,9 +136,9 @@ export function PelaksanaForm({
       */}
       {nama && !ttdUrl ? (
         <HelpText>
-          Lokasi ini memakai pelaksananya sendiri, tetapi tanda tangannya belum diunggah, jadi
-          blok TTD-nya tercetak kosong. Tanda tangan pelaksana paket sengaja tidak dipakai, karena
-          tanda tangan seseorang tidak boleh muncul di bawah nama orang lain.
+          Lokasi ini memakai pelaksananya sendiri, tetapi tanda tangannya belum diunggah. Sampai
+          diunggah, blok TTD-nya memakai tanda tangan ketik dari namanya. Tanda tangan pelaksana paket
+          sengaja tidak dipakai, karena tanda tangan seseorang tidak boleh muncul di bawah nama orang lain.
         </HelpText>
       ) : null}
 
@@ -208,9 +208,10 @@ export function PelaksanaForm({
 
         {pengawasNama && !pengawasTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai pengawasnya sendiri, tetapi tanda tangannya belum diunggah, jadi
-            blok TTD pengawas tercetak kosong. Tanda tangan pengawas paket sengaja tidak dipakai,
-            karena tanda tangan pengawas menyatakan siapa yang memeriksa pekerjaan ini.
+            Lokasi ini memakai pengawasnya sendiri, tetapi tanda tangannya belum diunggah. Sampai
+            diunggah, blok TTD pengawas memakai tanda tangan ketik dari namanya. Tanda tangan pengawas
+            paket sengaja tidak dipakai, karena tanda tangan pengawas menyatakan siapa yang memeriksa
+            pekerjaan ini.
           </HelpText>
         ) : null}
       </div>
@@ -266,8 +267,9 @@ export function PelaksanaForm({
 
         {wakilSahNama && !wakilSahTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai Wakil Sah PPK-nya sendiri, tetapi tanda tangannya belum diunggah, jadi
-            blok TTD-nya tercetak kosong. Tanda tangan Wakil Sah PPK paket sengaja tidak dipakai.
+            Lokasi ini memakai Wakil Sah PPK-nya sendiri, tetapi tanda tangannya belum diunggah. Sampai
+            diunggah, blok TTD-nya memakai tanda tangan ketik dari namanya. Tanda tangan Wakil Sah PPK
+            paket sengaja tidak dipakai.
           </HelpText>
         ) : null}
       </div>

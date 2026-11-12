@@ -18,6 +18,8 @@ import {
 } from "@/lib/laporan/penandatangan";
 import type { Prisma } from "@/generated/prisma/client";
 import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { ttdKetikPng } from "@/lib/export/ttd-ketik";
+import { rasioPng } from "@/lib/export/ttd-ukuran";
 
 /**
  * TANDA TANGAN & STEMPEL untuk laporan yang DICETAK (DECISIONS 328).
@@ -54,6 +56,8 @@ import { alamatBerkas } from "@/lib/penyimpanan/berkas";
 export type GambarTtd = {
   /** URL bertanda tangan waktu — dipakai <img> di halaman cetak. */
   url: string;
+  /** Ada = tanda tangan KETIK dari nama (DECISIONS 763); `rasio` = lebar : tinggi gambarnya. */
+  ketik?: { rasio: number };
 };
 
 export type TtdPihak = {
@@ -304,12 +308,21 @@ export async function muatTtdLaporan(locationId: string, jenis: JenisDokumen): P
   const t = await penandatanganLokasi(locationId, jenis);
   if (!t) return TANPA_TTD;
   const { nama, kunci } = t;
+  // Tanda tangan yang belum diunggah diisi tanda tangan KETIK dari namanya
+  // (DECISIONS 763) – sama dengan PDF & Excel (`muatTtdPdf`). Stempel tidak.
+  const ttdAtauKetik = async (key: string | null, orang: string | null): Promise<GambarTtd | null> => {
+    const unggahan = await gambar(key);
+    if (unggahan) return unggahan;
+    const png = await ttdKetikPng(orang);
+    const rasio = png ? rasioPng(png) : null;
+    return png && rasio ? { url: `data:image/png;base64,${png.toString("base64")}`, ketik: { rasio } } : null;
+  };
   const [ppkTtd, ppkStempel, pgwTtd, pgwStempel, pnyTtd, pnyStempel] = await Promise.all([
-    gambar(kunci.ppk.ttd),
+    ttdAtauKetik(kunci.ppk.ttd, nama.kkp.nama),
     gambar(kunci.ppk.stempel),
-    gambar(kunci.pengawas.ttd),
+    ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan.nama),
     gambar(kunci.pengawas.stempel),
-    gambar(kunci.penyedia.ttd),
+    ttdAtauKetik(kunci.penyedia.ttd, nama.penyedia.nama),
     gambar(kunci.penyedia.stempel),
   ]);
   return {

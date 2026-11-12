@@ -6,6 +6,7 @@ import {
   GESER_STEMPEL,
   PERSEN_STEMPEL,
   PERSEN_TTD,
+  PERSEN_TTD_KETIK,
   TURUN_STEMPEL,
 } from "@/lib/export/ttd-ukuran";
 
@@ -57,7 +58,7 @@ export function RuangTtd({
 }: {
   /** Tinggi ruang tanda tangan (px). Bukan penentu ukuran gambar — hanya rem. */
   tinggi: number;
-  ttd?: { url: string } | null;
+  ttd?: { url: string; ketik?: { rasio: number } } | null;
   stempel?: { url: string } | null;
 }) {
   // Tanpa gambar: ruang kosong biasa. Tidak ada bingkai, tidak ada penanda —
@@ -71,6 +72,14 @@ export function RuangTtd({
   // dari ruangnya akan melimpah ke atas menembus tabel (DECISIONS 333).
   const lebarStempel = `min(${PERSEN_STEMPEL}%, ${Math.round(tinggi * BATAS_STEMPEL)}px)`;
   const lebarTtd = `min(${PERSEN_TTD}%, ${Math.round(tinggi * BATAS_TTD * BENTUK_TTD)}px)`;
+  // Tanda tangan KETIK (DECISIONS 763): setinggi coretan biasa, selebar namanya,
+  // paling lebar PERSEN_TTD_KETIK – sama dengan `kotakTtdKetik` untuk PDF/Excel.
+  // Tinggi coretan = min(PERSEN_TTD/BENTUK_TTD % kolom, tinggi × BATAS_TTD px),
+  // jadi lebarnya rasio × itu.
+  const rasioKetik = ttd?.ketik?.rasio;
+  const lebarKetik = rasioKetik
+    ? `min(${PERSEN_TTD_KETIK}%, ${((PERSEN_TTD / BENTUK_TTD) * rasioKetik).toFixed(2)}%, ${Math.round(tinggi * BATAS_TTD * rasioKetik)}px)`
+    : null;
 
   return (
     <div className="relative overflow-visible" style={{ height: tinggi }}>
@@ -108,8 +117,8 @@ export function RuangTtd({
           style={{
             // Coretan berpijak PERSIS di garis nama — ia yang menandatangani
             // baris itu; hanya stempel yang boleh turun menimpanya.
-            width: lebarTtd,
-            aspectRatio: `${BENTUK_TTD} / 1`,
+            width: lebarKetik ?? lebarTtd,
+            aspectRatio: rasioKetik ? `${rasioKetik.toFixed(4)} / 1` : `${BENTUK_TTD} / 1`,
             mixBlendMode: "multiply",
             printColorAdjust: "exact",
             WebkitPrintColorAdjust: "exact",
@@ -127,7 +136,7 @@ export function RuangTtd({
 export function gambarPihak(
   t: TtdLaporan | null | undefined,
   pihak: "ppk" | "pengawas" | "penyedia",
-): { ttd: { url: string } | null; stempel: { url: string } | null } {
+): { ttd: TtdPihak["ttd"]; stempel: TtdPihak["stempel"] } {
   const p = t?.[pihak];
   return { ttd: p?.ttd ?? null, stempel: p?.stempel ?? null };
 }

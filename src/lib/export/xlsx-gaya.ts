@@ -3,7 +3,7 @@ import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/lapora
 import type { PeriodHeader } from "@/lib/periodic-report";
 import type { LogoGambar, LogoLaporan } from "@/lib/export/logo-laporan";
 import { formatTanggal } from "@/lib/format";
-import { ukuranTtd } from "@/lib/export/ttd-ukuran";
+import { kotakTtdKetik, rasioPng, ukuranTtd } from "@/lib/export/ttd-ukuran";
 
 /**
  * GAYA BERSAMA workbook laporan periodik (DECISIONS 265).
@@ -200,7 +200,12 @@ export function logoPasanganKanan(
 /* ── Tanda tangan & stempel (DECISIONS 757) ───────────────────────────────── */
 
 /** Berkas PNG satu pihak – bentuk yang sama dengan `BerkasTtd` di lib/pdf/ttd-gambar. */
-export type BerkasTtdXlsx = { ttd: Buffer | null; stempel: Buffer | null };
+export type BerkasTtdXlsx = {
+  ttd: Buffer | null;
+  stempel: Buffer | null;
+  /** `ttd` adalah tanda tangan KETIK dari nama (DECISIONS 763) – lebarnya mengikuti nama. */
+  ttdKetik?: boolean;
+};
 /** Gambar tiga pihak blanko KKP – sama bentuknya dengan `TtdPdf` (dimuat `muatTtdPdf`). */
 export type GambarTtdXlsx = { ppk: BerkasTtdXlsx; pengawas: BerkasTtdXlsx; penyedia: BerkasTtdXlsx };
 
@@ -278,7 +283,12 @@ export function tempelTtdXlsx(
       jumlah++;
     };
     if (b.berkas.stempel) pasang(b.berkas.stempel, u.stempel, xTengah - u.stempel.lebar / 2 - u.geser, u.turun);
-    if (b.berkas.ttd) pasang(b.berkas.ttd, u.ttd, xTengah - u.ttd.lebar / 2, 0);
+    if (b.berkas.ttd) {
+      // Tanda tangan ketik: setinggi coretan, selebar namanya (DECISIONS 763).
+      const rasio = b.berkas.ttdKetik ? rasioPng(b.berkas.ttd) : null;
+      const k = rasio ? kotakTtdKetik(u, xKanan - xKiri, rasio) : u.ttd;
+      pasang(b.berkas.ttd, k, xTengah - k.lebar / 2, 0);
+    }
   }
   return jumlah;
 }

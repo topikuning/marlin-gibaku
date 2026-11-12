@@ -81,8 +81,8 @@ function IsiSlot({ locationId, slot, namaPaket }: { locationId: string; slot: Sl
           <Label htmlFor={`${id}-ttd`}>Tanda tangan (boleh menyusul)</Label>
           <FileInput id={`${id}-ttd`} name="ttd" accept="image/png,image/jpeg,image/webp" maxBytes={2 * 1024 * 1024} />
           <HelpText>
-            Foto atau pindai coretan tanda tangan di kertas putih polos. PNG/JPG/WebP maks 2 MB. Tanpa gambar, slotnya
-            tercetak dengan nama dan ruang kosong untuk ditandatangani tangan.
+            Foto atau pindai coretan tanda tangan di kertas putih polos. PNG/JPG/WebP maks 2 MB. Sampai gambarnya
+            diunggah, dokumen memakai tanda tangan ketik dari nama di atas.
           </HelpText>
         </div>
         <Button type="submit" loading={pending}>

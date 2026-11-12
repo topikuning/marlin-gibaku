@@ -10,6 +10,10 @@ import { PDF_COLORS, PDF_FONT } from "./document";
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
+/** Jarak teks ke tepi sel bawaan (pt) – dipakai juga penyaji yang perlu tahu letak baris di dalam sel. */
+export const PAD_X_GRID = 3;
+export const PAD_Y_GRID = 2.5;
+
 export const GRID_LINE = "#64748b"; // slate-500, sama dgn tampilan web
 export const GRID_HEAD_BG = "#f8fafc"; // slate-50
 
@@ -40,8 +44,8 @@ export type GridOptions = {
 /** Tinggi baris yang dibutuhkan (untuk cek muat halaman sebelum menggambar). */
 export function gridRowHeight(doc: PdfDoc, cells: GridCell[], o: GridOptions): number {
   const fs = o.fontSize ?? 7.5;
-  const padX = o.padX ?? 3;
-  const padY = o.padY ?? 2.5;
+  const padX = o.padX ?? PAD_X_GRID;
+  const padY = o.padY ?? PAD_Y_GRID;
   const min = o.minRowHeight ?? 12;
   let max = 0;
   let ci = 0;
@@ -63,8 +67,8 @@ export function gridRowHeight(doc: PdfDoc, cells: GridCell[], o: GridOptions): n
  */
 export function gridRow(doc: PdfDoc, y: number, cells: GridCell[], o: GridOptions): number {
   const fs = o.fontSize ?? 7.5;
-  const padX = o.padX ?? 3;
-  const padY = o.padY ?? 2.5;
+  const padX = o.padX ?? PAD_X_GRID;
+  const padY = o.padY ?? PAD_Y_GRID;
   const h = gridRowHeight(doc, cells, o);
 
   let x = o.x;
