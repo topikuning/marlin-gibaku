@@ -15,6 +15,7 @@ import {
   pihakKonsultan,
   pihakPenyedia,
   pilihKoordinatorTl,
+  siapaMenekenApa,
   slotPenandatanganKosong,
   MEDAN_SLOT,
   type NamaPenandatangan,
@@ -185,3 +186,66 @@ describe("peringatan penanda tangan yang belum diisi", () => {
     expect(slotPenandatanganKosong(LENGKAP)).toEqual([]);
   });
 });
+
+/*
+ * KURVA S PAKET – gabungan seluruh lokasi (DECISIONS 764). Keberatan user
+ * 2026-11-12: *"kenapa kumulatif seluruh lokasi dalam satu kontrak pakai satu
+ * wsp, kalau betul satu wsp tidak masalah, tapi kalau banyak orang kan jadi
+ * kendala. seharusnya cukup pelaksana dan ppk saja."*
+ */
+describe("Kurva S paket: PPK dan penyedia saja", () => {
+  it("PPK kontrak (bukan Wakil Sah lokasi), Manajer Proyek kontrak, TANPA konsultan", () => {
+    expect(pihakKkp("kurva_paket")).toBe("ppk");
+    expect(pihakPenyedia("kurva_paket")).toBe("manajer_proyek");
+    expect(pihakKonsultan("kurva_paket")).toBeNull();
+    const t = penandatanganDokumen("kurva_paket", LENGKAP);
+    expect(t.kkp).toMatchObject({ pihak: "Pejabat Pembuat Komitmen", nama: "Ir. Pejabat Komitmen", sub: "NIP. 19700101" });
+    expect(t.konsultan).toBeNull();
+    expect(t.penyedia).toMatchObject({ nama: "Manajer Proyek Satu", sub: "Manajer Proyek" });
+    expect(labelPihakKkp("kurva_paket")).toBe("PEJABAT PEMBUAT KOMITMEN");
+  });
+
+  it("Kurva S LOKASI tidak berubah: tetap Wakil Sah – Koordinator TL – Manajer Proyek", () => {
+    const t = penandatanganDokumen("jadwal", LENGKAP);
+    expect([t.kkp.nama, t.konsultan.nama, t.penyedia.nama]).toEqual(["Wakil Sah Satu", "Koordinator Wilayah", "Manajer Proyek Satu"]);
+  });
+
+  it("gambar: coretan PPK, tidak ada gambar konsultan", () => {
+    const k = pilihKunciTtd({
+      wakilSahTtdKey: "ttd-wsp",
+      pelaksanaTtdKey: "ttd-pelaksana",
+      ppkTtdKey: "ttd-ppk",
+      ppkStempelKey: "stempel-kkp",
+      supervisorTtdKey: "ttd-pengawas",
+      supervisorStempelKey: "stempel-pengawas",
+      supervisorStempelKontrakKey: "stempel-banusa",
+      coTeamLeaderTtdKey: "ttd-kortl",
+      teamLeaderTtdKey: "ttd-tl",
+      projectManagerTtdKey: "ttd-pm",
+      contractorTtdKey: "ttd-direktur",
+      contractorStempelKey: "stempel-cv",
+      vendorStempelKey: null,
+      kkp: pihakKkp("kurva_paket"),
+      konsultan: pihakKonsultan("kurva_paket"),
+      penyedia: pihakPenyedia("kurva_paket"),
+    });
+    expect(k.ppk).toEqual({ ttd: "ttd-ppk", stempel: "stempel-kkp" });
+    expect(k.pengawas).toEqual({ ttd: null, stempel: null });
+    expect(k.penyedia).toEqual({ ttd: "ttd-pm", stempel: "stempel-cv" });
+  });
+
+  it("tampil di tabel siapa meneken apa, kolom konsultan '–'", () => {
+    expect(siapaMenekenApa().find((r) => r.label.startsWith("Kurva S paket"))).toEqual({
+      label: "Kurva S paket (gabungan lokasi)",
+      kkp: "PPK",
+      konsultan: "–",
+      penyedia: "Manajer Proyek",
+    });
+  });
+
+  it("peringatan penanda tangan kosong tetap hanya dari dokumen lokasi", () => {
+    const kosong = slotPenandatanganKosong({ ...LENGKAP, coTeamLeaderName: null });
+    expect(kosong.flatMap((s) => s.dokumen)).not.toContain("Kurva S paket (gabungan lokasi)");
+  });
+});
+

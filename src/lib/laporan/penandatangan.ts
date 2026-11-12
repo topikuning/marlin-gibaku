@@ -31,7 +31,7 @@
  * mingguan khususnya bisa jadi memang milik pelaksana; itu pertanyaan untuk
  * user, bukan tebakan untuk saya.
  */
-export type JenisDokumen =
+export type JenisLokasi =
   | "harian"
   | "mingguan"
   | "bulanan"
@@ -39,6 +39,15 @@ export type JenisDokumen =
   | "cco"
   | "jadwal"
   | "rencana";
+
+/**
+ * Semua dokumen bertanda tangan. `kurva_paket` = Kurva S PAKET gabungan lebih
+ * dari satu lokasi (DECISIONS 764): diteken pihak yang SATU untuk seluruh
+ * kontrak saja – PPK dan penyedia – tanpa konsultan. Wakil Sah PPK dan
+ * konsultan bisa berbeda tiap lokasi, jadi memilih salah satunya berarti
+ * mencetak orang lokasi lain di dokumen semua lokasi.
+ */
+export type JenisDokumen = JenisLokasi | "kurva_paket";
 
 /** Pihak penyedia jasa yang meneken. */
 export type PihakPenyedia = "pelaksana" | "manajer_proyek" | "direktur";
@@ -70,6 +79,9 @@ const PENEKEN: Record<JenisDokumen, PihakPenyedia> = {
   mingguan: "manajer_proyek",
   bulanan: "manajer_proyek",
   jadwal: "manajer_proyek",
+  // Sama dengan Kurva S lokasi; Manajer Proyek melekat pada KONTRAK, jadi satu
+  // orang untuk semua lokasi.
+  kurva_paket: "manajer_proyek",
   mc: "direktur",
   cco: "direktur",
   // Belum ditetapkan user – dipertahankan seperti sebelum DECISIONS 402.
@@ -94,6 +106,8 @@ const PENEKEN_KKP: Record<JenisDokumen, PihakKkp> = {
   mingguan: "wakil_sah",
   bulanan: "ppk",
   jadwal: "wakil_sah",
+  // Gabungan lokasi: PPK kontrak, bukan Wakil Sah salah satu lokasi (DECISIONS 764).
+  kurva_paket: "ppk",
   mc: "ppk",
   cco: "ppk",
   rencana: "ppk",
@@ -115,17 +129,21 @@ export function labelPihakKkp(jenis: JenisDokumen): string {
  */
 export type PihakKonsultan = "pengawas_lapangan" | "koordinator_tl" | "team_leader";
 
-const PENEKEN_KONSULTAN: Record<JenisDokumen, PihakKonsultan> = {
+/** `null` = dokumen ini TIDAK punya slot konsultan (DECISIONS 764). */
+const PENEKEN_KONSULTAN: Record<JenisDokumen, PihakKonsultan | null> = {
   harian: "pengawas_lapangan",
   mingguan: "koordinator_tl",
   bulanan: "team_leader",
   jadwal: "koordinator_tl",
+  kurva_paket: null,
   mc: "pengawas_lapangan",
   cco: "pengawas_lapangan",
   rencana: "pengawas_lapangan",
 };
 
-export function pihakKonsultan(jenis: JenisDokumen): PihakKonsultan {
+export function pihakKonsultan(jenis: JenisLokasi): PihakKonsultan;
+export function pihakKonsultan(jenis: JenisDokumen): PihakKonsultan | null;
+export function pihakKonsultan(jenis: JenisDokumen): PihakKonsultan | null {
   return PENEKEN_KONSULTAN[jenis];
 }
 
@@ -154,18 +172,22 @@ const DOKUMEN_DI_LAYAR: { jenis: JenisDokumen; label: string }[] = [
   { jenis: "mingguan", label: "Laporan progres mingguan" },
   { jenis: "bulanan", label: "Laporan progres bulanan" },
   { jenis: "jadwal", label: "Kurva S lokasi" },
+  { jenis: "kurva_paket", label: "Kurva S paket (gabungan lokasi)" },
   { jenis: "rencana", label: "Rencana mingguan" },
   { jenis: "mc", label: "MC" },
   { jenis: "cco", label: "CCO" },
 ];
 
 export function siapaMenekenApa(): { label: string; kkp: string; konsultan: string; penyedia: string }[] {
-  return DOKUMEN_DI_LAYAR.map(({ jenis, label }) => ({
-    label,
-    kkp: JABATAN_KKP[pihakKkp(jenis)],
-    konsultan: JABATAN_KONSULTAN[pihakKonsultan(jenis)],
-    penyedia: JABATAN_PENYEDIA[pihakPenyedia(jenis)],
-  }));
+  return DOKUMEN_DI_LAYAR.map(({ jenis, label }) => {
+    const k = pihakKonsultan(jenis);
+    return {
+      label,
+      kkp: JABATAN_KKP[pihakKkp(jenis)],
+      konsultan: k ? JABATAN_KONSULTAN[k] : "–",
+      penyedia: JABATAN_PENYEDIA[pihakPenyedia(jenis)],
+    };
+  });
 }
 
 /**
@@ -524,9 +546,18 @@ export type SlotDokumen = {
 const isi = (v: string | null | undefined): string | null => (kosong(v) ? null : v!.trim());
 
 export function penandatanganDokumen(
+  jenis: JenisLokasi,
+  h: NamaPenandatangan,
+): { kkp: SlotDokumen; konsultan: SlotDokumen; penyedia: SlotDokumen };
+/** `konsultan: null` = dokumen tanpa slot konsultan (Kurva S paket, DECISIONS 764). */
+export function penandatanganDokumen(
   jenis: JenisDokumen,
   h: NamaPenandatangan,
-): { kkp: SlotDokumen; konsultan: SlotDokumen; penyedia: SlotDokumen } {
+): { kkp: SlotDokumen; konsultan: SlotDokumen | null; penyedia: SlotDokumen };
+export function penandatanganDokumen(
+  jenis: JenisDokumen,
+  h: NamaPenandatangan,
+): { kkp: SlotDokumen; konsultan: SlotDokumen | null; penyedia: SlotDokumen } {
   const wakil = pihakKkp(jenis) === "wakil_sah";
   const nip = isi(wakil ? h.wakilSahNip : h.ppkNip);
   const kkp: SlotDokumen = {
@@ -537,12 +568,14 @@ export function penandatanganDokumen(
   };
 
   const k = pihakKonsultan(jenis);
-  const konsultan: SlotDokumen = {
-    pihak: "Konsultan Pengawas",
-    instansi: k === "pengawas_lapangan" ? isi(h.supervisorFirm) : isi(h.supervisorFirmKontrak),
-    nama: isi(k === "pengawas_lapangan" ? h.supervisorName : k === "koordinator_tl" ? h.coTeamLeaderName : h.teamLeaderName),
-    sub: JABATAN_KONSULTAN[k],
-  };
+  const konsultan: SlotDokumen | null = k
+    ? {
+        pihak: "Konsultan Pengawas",
+        instansi: k === "pengawas_lapangan" ? isi(h.supervisorFirm) : isi(h.supervisorFirmKontrak),
+        nama: isi(k === "pengawas_lapangan" ? h.supervisorName : k === "koordinator_tl" ? h.coTeamLeaderName : h.teamLeaderName),
+        sub: JABATAN_KONSULTAN[k],
+      }
+    : null;
 
   const p = penyediaLaporan(jenis, h);
   const penyedia: SlotDokumen = { pihak: "Penyedia Jasa", instansi: isi(h.vendorName), nama: p.nama, sub: p.sub };
@@ -559,7 +592,7 @@ export function peranSlot(slot: SlotDokumen, kapital = false): string {
 }
 
 /** Dokumen yang penanda tangannya ditetapkan BANUSA – yang diperiksa kekosongannya. */
-const DOKUMEN_DIPERIKSA: JenisDokumen[] = ["harian", "mingguan", "bulanan", "jadwal"];
+const DOKUMEN_DIPERIKSA: JenisLokasi[] = ["harian", "mingguan", "bulanan", "jadwal"];
 const URUTAN_JABATAN = [
   "PPK",
   "Wakil Sah PPK",
@@ -601,7 +634,8 @@ export const MEDAN_SLOT: Record<PihakSlot, { nama: string; ttd: string; di: "kon
  */
 export function slotPenandatanganKosong(h: NamaPenandatangan): { jabatan: string; pihak: PihakSlot; dokumen: string[] }[] {
   const per = new Map<string, { pihak: PihakSlot; dokumen: string[] }>();
-  for (const { jenis, label } of DOKUMEN_DI_LAYAR.filter((d) => DOKUMEN_DIPERIKSA.includes(d.jenis))) {
+  const diperiksa = (j: JenisDokumen): j is JenisLokasi => (DOKUMEN_DIPERIKSA as JenisDokumen[]).includes(j);
+  for (const { jenis, label } of DOKUMEN_DI_LAYAR.flatMap((d) => (diperiksa(d.jenis) ? [{ jenis: d.jenis, label: d.label }] : []))) {
     const tt = penandatanganDokumen(jenis, h);
     const slot: [string, PihakSlot, SlotDokumen][] = [
       [JABATAN_KKP[pihakKkp(jenis)], pihakKkp(jenis), tt.kkp],

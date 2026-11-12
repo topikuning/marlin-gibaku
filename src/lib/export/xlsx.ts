@@ -1004,13 +1004,19 @@ export async function buildJadwalXlsx(
  */
 export async function buildKurvaPaketXlsx(
   r: PeriodReport,
-  opts?: { logo?: LogoLaporan; catatan?: string | null; ttd?: GambarTtdXlsx | null },
+  opts?: {
+    logo?: LogoLaporan;
+    catatan?: string | null;
+    ttd?: GambarTtdXlsx | null;
+    /** `kurva_paket` = PPK + penyedia; `jadwal` (bawaan) = penanda tangan satu lokasi (DECISIONS 764). */
+    jenis?: JenisDokumen;
+  },
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
   const { chart } = await addKurvaSheet(wb, r, {
-    jenis: "jadwal",
+    jenis: opts?.jenis ?? "jadwal",
     sheetName: "Kurva S Paket",
     logo: opts?.logo,
     ttd: opts?.ttd,

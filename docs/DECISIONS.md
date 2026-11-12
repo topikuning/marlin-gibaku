@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 764 | 2026-11-12 | Kurva S paket gabungan >1 lokasi diteken PPK kontrak + penyedia (Manajer Proyek) saja – jenis `kurva_paket`, tanpa konsultan, bukan Wakil Sah lokasi acuan; satu lokasi tetap penanda tangan lokasinya |
 | 763 | 2026-11-12 | Tanda tangan ketik (huruf tulisan tangan OFL, lebar mengikuti nama) untuk slot bernama yang coretannya belum diunggah – semua jabatan, stempel tidak, 760 tetap; garis pijak PDF diukur ke baris nama (dulu menimpa nama) |
 | 762 | 2026-11-11 | Semua Excel buatan MARLIN dicetak di A4 lewat satu pintu `siapCetakA4` (muat 1 halaman ke samping); orientasi dinilai per sheet: huruf cetak ≥ 7 pt, halaman lebih sedikit menang, seri → potret bila ≥ 8 pt; termasuk laporan mingguan |
 | 761 | 2026-11-11 | Berkas WA di chat pribadi Pelaksana tetap tanpa rupiah (keputusan user, menjawab pertanyaan 753); di grup tetap ada rupiah |

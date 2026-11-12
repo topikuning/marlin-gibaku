@@ -92,8 +92,8 @@ export type SumberKunciTtd = {
   penyedia: PihakPenyedia;
   /** Pihak KKP slot "MENGETAHUI". */
   kkp: PihakKkp;
-  /** Pihak konsultan slot "DIPERIKSA" (DECISIONS 662). */
-  konsultan: PihakKonsultan;
+  /** Pihak konsultan slot "DIPERIKSA" (DECISIONS 662); null = dokumen tanpa slot konsultan (DECISIONS 764). */
+  konsultan: PihakKonsultan | null;
   /** Coretan Wakil Sah yang SUDAH dipilih (lokasi menimpa kontrak). */
   wakilSahTtdKey: string | null;
   /** Coretan pelaksana yang SUDAH dipilih (lokasi menimpa paket). */
@@ -145,7 +145,9 @@ export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
     // INSTANSI, jadi tetap satu — ppkStempelKey (DECISIONS 408).
     ppk: { ttd: s.kkp === "wakil_sah" ? s.wakilSahTtdKey : s.ppkTtdKey, stempel: s.ppkStempelKey },
     pengawas:
-      s.konsultan === "pengawas_lapangan"
+      s.konsultan === null
+        ? { ttd: null, stempel: null }
+        : s.konsultan === "pengawas_lapangan"
         ? { ttd: s.supervisorTtdKey, stempel: s.supervisorStempelKey }
         : {
             ttd: s.konsultan === "koordinator_tl" ? s.coTeamLeaderTtdKey : s.teamLeaderTtdKey,
@@ -320,14 +322,14 @@ export async function muatTtdLaporan(locationId: string, jenis: JenisDokumen): P
   const [ppkTtd, ppkStempel, pgwTtd, pgwStempel, pnyTtd, pnyStempel] = await Promise.all([
     ttdAtauKetik(kunci.ppk.ttd, nama.kkp.nama),
     gambar(kunci.ppk.stempel),
-    ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan.nama),
+    ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan?.nama ?? null),
     gambar(kunci.pengawas.stempel),
     ttdAtauKetik(kunci.penyedia.ttd, nama.penyedia.nama),
     gambar(kunci.penyedia.stempel),
   ]);
   return {
     ppk: { nama: nama.kkp.nama, sub: nama.kkp.sub, ttd: ppkTtd, stempel: ppkStempel },
-    pengawas: { nama: nama.konsultan.nama, sub: nama.konsultan.sub, ttd: pgwTtd, stempel: pgwStempel },
+    pengawas: { nama: nama.konsultan?.nama ?? null, sub: nama.konsultan?.sub ?? null, ttd: pgwTtd, stempel: pgwStempel },
     penyedia: { nama: nama.penyedia.nama, sub: nama.penyedia.sub, ttd: pnyTtd, stempel: pnyStempel },
   };
 }

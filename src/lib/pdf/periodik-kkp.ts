@@ -104,14 +104,19 @@ export async function buildKurvaPaketPdf(
   r: PeriodReport,
   appName: string,
   gambarTtd: TtdPdf | null,
-  opsi: { periode: { start: Date; end: Date }; catatan: string | null },
+  opsi: {
+    periode: { start: Date; end: Date };
+    catatan: string | null;
+    /** `kurva_paket` = PPK + penyedia; `jadwal` = penanda tangan satu lokasi (DECISIONS 764). */
+    jenis: JenisDokumen;
+  },
 ): Promise<Buffer> {
   return susunPdfPeriodik(r, appName, gambarTtd, {
     judulBerkas: `Kurva S Paket – ${r.header.packageName}`,
     judulKurva: JUDUL_KURVA_PAKET,
     periode: opsi.periode,
     catatan: opsi.catatan,
-    jenis: "jadwal",
+    jenis: opsi.jenis,
     rincian: false,
     labelNilai: "Nilai Fisik Seluruh Lokasi",
     labelUraian: "Lokasi",
@@ -825,10 +830,21 @@ function signatureBlock(
     jenis: JenisDokumen;
   },
 ): void {
+  // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
+  // Kurva S paket tanpa slot konsultan: dua kolom, PPK dan penyedia (DECISIONS 764).
+  const tt = penandatanganDokumen(o.jenis, o.h);
+  type Kolom = { pihak: "ppk" | "pengawas" | "penyedia"; atas: string; nama: string | null; sub: string | null };
+  const kolom: Kolom[] = [
+    { pihak: "ppk", atas: `MENGETAHUI :\n${peranSlot(tt.kkp, true)}`, nama: tt.kkp.nama, sub: tt.kkp.sub },
+    ...(tt.konsultan
+      ? [{ pihak: "pengawas" as const, atas: `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}`, nama: tt.konsultan.nama, sub: tt.konsultan.sub }]
+      : []),
+    { pihak: "penyedia", atas: `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}`, nama: tt.penyedia.nama, sub: tt.penyedia.sub },
+  ];
   const opt: GridOptions = {
     x: o.x,
     width: o.width,
-    cols: colWidths(o.width, [1, 1, 1]),
+    cols: colWidths(o.width, kolom.map(() => 1)),
     fontSize: 7.5,
     minRowHeight: 90,
   };
@@ -836,53 +852,32 @@ function signatureBlock(
   const PEMISAH_NAMA = "\n\n\n\n\n";
   const nameOf = (n: string | null, sub: string | null) =>
     `${PEMISAH_NAMA}( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
-  // Siapa meneken – SATU tempat untuk cetak, PDF, Excel (DECISIONS 662).
-  const tt = penandatanganDokumen(o.jenis, o.h);
-  const sel: GridCell[] = [
-    {
-      text: `MENGETAHUI :\n${peranSlot(tt.kkp, true)}${nameOf(tt.kkp.nama, tt.kkp.sub)}`,
-      align: "center",
-    },
-    {
-      text: `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}${nameOf(tt.konsultan.nama, tt.konsultan.sub)}`,
-      align: "center",
-    },
-    {
-      text: `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}${nameOf(tt.penyedia.nama, tt.penyedia.sub)}`,
-      align: "center",
-    },
-  ];
+  const sel: GridCell[] = kolom.map((k) => ({ text: `${k.atas}${nameOf(k.nama, k.sub)}`, align: "center" }));
   // Tinggi DIUKUR (peran/firma bisa terbungkus dua baris), lalu posisi dibaca
   // ulang: `fit` mungkin baru saja membuka halaman.
   o.fit(gridRowHeight(doc, sel, opt));
   const yAtas = o.getY();
   /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
      atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
-     itulah lapisannya. Urutan kolomnya tetap: PPK · pengawas · penyedia — sama
-     dengan teks. Baris nama "( … )" ada di baris ke-5 blok; coretan berpijak
-     tepat di atasnya. */
-  const lebarKolomTtd = o.width / 3;
+     itulah lapisannya. Urutan kolomnya sama dengan teks; pihaknya dibawa
+     data kolom, bukan indeks. Baris nama "( … )" ada di bawah ruang kosong;
+     coretan berpijak tepat di atasnya. */
+  const lebarKolomTtd = o.width / kolom.length;
   // Ruang dari tepi ATAS blok sampai garis nama – DIUKUR per kolom, karena
   // peran/firma bisa terbungkus dua baris. Dulu angka tetap 68 pt, padahal
   // dengan peran satu baris nama "( … )" berada ±10 pt lebih tinggi: coretan
   // (unggahan maupun ketik, DECISIONS 763) berpijak DI BAWAH nama dan
   // menimpanya. Stempel dibatasi tepat sebesar ruang ini supaya tidak menembus
   // tabel di atasnya (DECISIONS 333).
-  const atasNama = [
-    `MENGETAHUI :\n${peranSlot(tt.kkp, true)}`,
-    `DIPERIKSA :\n${peranSlot(tt.konsultan, true)}`,
-    `DIBUAT OLEH :\n${peranSlot(tt.penyedia, true)}`,
-  ];
   const ruangTtd = (atas: string): number =>
     ruangSampaiNama(doc, { atas, pemisah: PEMISAH_NAMA, lebarKolom: lebarKolomTtd, fontSize: opt.fontSize! });
-  const URUT_TTD = ["ppk", "pengawas", "penyedia"] as const;
   const y = blokTandaTanganPdf(
     doc,
     o.gambarTtd
-      ? URUT_TTD.map((pihak, i) => {
-          const ruang = ruangTtd(atasNama[i]!);
+      ? kolom.map((k, i) => {
+          const ruang = ruangTtd(k.atas);
           return {
-            berkas: o.gambarTtd![pihak],
+            berkas: o.gambarTtd![k.pihak],
             opsi: {
               xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
               yDasar: yAtas + ruang,
@@ -1179,11 +1174,12 @@ export async function renderPeriodikKkpPdf(
  */
 export async function renderKurvaPaketPdf(dok: KurvaPaketDokumen): Promise<PeriodikKkpPdfResult> {
   const branding = await getBranding();
-  const gambarTtd = await muatTtdPdf(dok.lokasiAcuanId, "jadwal").catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(dok.lokasiAcuanId, dok.jenisTtd).catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildKurvaPaketPdf(dok.report, branding.appName, gambarTtd, {
       periode: { start: dok.bounds.startDate, end: dok.bounds.endDate },
       catatan: dok.catatan ? `Catatan: ${dok.catatan}` : null,
+      jenis: dok.jenisTtd,
     }),
   };
 }

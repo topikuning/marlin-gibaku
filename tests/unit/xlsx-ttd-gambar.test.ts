@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import sharp from "sharp";
-import { buildJadwalXlsx, buildPeriodReportXlsx, buildRencanaRealisasiXlsx } from "@/lib/export/xlsx";
+import { buildJadwalXlsx, buildKurvaPaketXlsx, buildPeriodReportXlsx, buildRencanaRealisasiXlsx } from "@/lib/export/xlsx";
 import { buildDailyReportXlsx } from "@/lib/export/daily-xlsx";
 import type { GambarTtdXlsx } from "@/lib/export/xlsx-gaya";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
@@ -308,3 +308,43 @@ describe("cetak A4 (DECISIONS 762)", () => {
     });
   });
 });
+
+describe("Kurva S paket gabungan: PPK dan penyedia saja (DECISIONS 764)", () => {
+  /** Teks semua sel lembar, satu larik. */
+  const teksLembar = (ws: ExcelJS.Worksheet) => {
+    const out: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => typeof c.value === "string" && out.push(c.value)));
+    return out;
+  };
+  // Wakil Sah berbeda dari PPK supaya yang tercetak terbukti PPK, bukan WSP lokasi acuan.
+  const f = () => {
+    const r = fixture();
+    return { ...r, header: { ...r.header, wakilSahName: "Wakil Sah Lokasi Acuan" } };
+  };
+
+  it("dua blok: Mengetahui (PPK kontrak) dan Dibuat Oleh (Manajer Proyek); tanpa konsultan, tanpa Wakil Sah", async () => {
+    const wb = await muat(await buildKurvaPaketXlsx(f(), { jenis: "kurva_paket", ttd: await siapkanGambar() }));
+    const ws = wb.getWorksheet("Kurva S Paket")!;
+    const t = teksLembar(ws);
+    expect(t).toContain("Mengetahui,");
+    expect(t).toContain("Dibuat Oleh,");
+    expect(t).not.toContain("Diperiksa,");
+    expect(t).toContain("( Budi Santoso )");
+    expect(t).toContain("( Hadi Manajer )");
+    expect(t.join("|")).not.toMatch(/Wakil Sah Lokasi Acuan|Sari Koordinator|Konsultan Pengawas/);
+    // Gambar: coretan + stempel PPK, coretan + stempel penyedia – konsultan tidak ada.
+    const atas = barisTeks(ws, /^Mengetahui,$/);
+    expect(gambarBlok(ws, atas, atas + 12)).toHaveLength(4);
+  });
+
+  it("bawaan (satu lokasi) tetap tiga pihak lokasi itu", async () => {
+    const wb = await muat(await buildKurvaPaketXlsx(f(), { ttd: await siapkanGambar() }));
+    const ws = wb.getWorksheet("Kurva S Paket")!;
+    const t = teksLembar(ws);
+    expect(t).toContain("Diperiksa,");
+    expect(t).toContain("( Wakil Sah Lokasi Acuan )");
+    const atas = barisTeks(ws, /^Mengetahui,$/);
+    expect(gambarBlok(ws, atas, atas + 12)).toHaveLength(5);
+  });
+});
+

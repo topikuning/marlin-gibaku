@@ -81,7 +81,7 @@ describe("tanda tangan yang belum diunggah diisi tanda tangan ketik", () => {
       const p = (await penandatanganLokasi(lengkap, jenis))!.nama;
       for (const [pihak, orang] of [
         ["ppk", p.kkp.nama],
-        ["pengawas", p.konsultan.nama],
+        ["pengawas", p.konsultan!.nama],
         ["penyedia", p.penyedia.nama],
       ] as const) {
         expect(orang, `${jenis}/${pihak}`).toBeTruthy();
@@ -129,5 +129,16 @@ describe("tanda tangan yang belum diunggah diisi tanda tangan ketik", () => {
       expect(pdf[pihak].ttd, pihak).not.toBeNull();
       expect(html[pihak].ttd, pihak).not.toBeNull();
     }
+  });
+
+  it("Kurva S paket (DECISIONS 764): coretan PPK kontrak – bukan Wakil Sah – dan tanpa konsultan", async () => {
+    const t = await muatTtdPdf(lengkap, "kurva_paket");
+    expect(t.ppk.ttd!.equals((await ttdKetikPng("Ir. Pejabat Komitmen, M.T."))!)).toBe(true);
+    expect(t.ppk.ttd!.equals((await ttdKetikPng("Wakil Sah Satu"))!)).toBe(false);
+    expect(t.pengawas).toMatchObject({ ttd: null, stempel: null });
+    expect(t.penyedia.ttd!.equals((await ttdKetikPng("Hadi Manajer"))!)).toBe(true);
+    const html = await muatTtdLaporan(lengkap, "kurva_paket");
+    expect(html.ppk.nama).toBe("Ir. Pejabat Komitmen, M.T.");
+    expect(html.pengawas).toMatchObject({ nama: null, ttd: null });
   });
 });

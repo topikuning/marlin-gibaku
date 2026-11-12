@@ -271,3 +271,25 @@ describe("PDF laporan mingguan: tiga logo di kop halaman progres", () => {
     expect(gambar(dengan) - gambar(tanpa)).toBe(3);
   });
 });
+
+describe("PDF Kurva S paket gabungan: PPK dan penyedia saja (DECISIONS 764)", () => {
+  /** Jumlah objek gambar yang benar-benar tertanam. */
+  const jumlahGambar = (buf: Buffer) => buf.toString("latin1").match(/\/Subtype\s*\/Image/g)?.length ?? 0;
+  const png = async (warna: string) => {
+    const sharp = (await import("sharp")).default;
+    // Tanpa alfa: PNG beralfa ikut menanam satu objek topeng (SMask) per gambar.
+    return sharp({ create: { width: 200, height: 80, channels: 3, background: warna } }).png().toBuffer();
+  };
+
+  it("kolom konsultan tidak ada: coretan konsultan tidak ikut tergambar", { timeout: 30_000 }, async () => {
+    const { buildKurvaPaketPdf } = await import("@/lib/pdf/periodik-kkp");
+    const r = fixture("mingguan");
+    const [a, b, c] = await Promise.all([png("#1e3a8a"), png("#7f1d1d"), png("#14532d")]);
+    const gambar = { ppk: { ttd: a, stempel: null }, pengawas: { ttd: b, stempel: null }, penyedia: { ttd: c, stempel: null } };
+    const periode = { start: r.header.contractStart, end: new Date(Date.UTC(2026, 9, 27)) };
+    const paket = await buildKurvaPaketPdf(r, "MARLIN", gambar, { periode, catatan: null, jenis: "kurva_paket" });
+    const lokasi = await buildKurvaPaketPdf(r, "MARLIN", gambar, { periode, catatan: null, jenis: "jadwal" });
+    expect(jumlahGambar(lokasi) - jumlahGambar(paket)).toBe(1);
+  });
+});
+
