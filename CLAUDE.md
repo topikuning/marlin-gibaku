@@ -264,6 +264,9 @@ src/
   ia tanpa bingkai dan ber-`text-ink-muted`, jadi di antara tombol berbingkai
   ia terbaca MATI. Baris aksi WAJIB dilihat hasil render-nya, bukan dibaca
   kodenya.
+- **Isi grid boleh menyempit – global** (`.grid > * { min-width: 0 }` + `overflow-wrap: break-word`
+  di `globals.css`, DECISIONS 765). Sel/kolom harus muat di HP **360 px** dengan isinya sendiri,
+  bukan mengandalkan kolom yang melebar mengikuti teks; sapuan E2E memeriksa 360/375/414.
 - **SEMUA dropdown form → `Combobox`** (bisa diketik-cari), TIDAK PERNAH
   `<select>` native — DECISIONS 094/115/174, dijaga lint. Satu-satunya
   pengecualian: primitive `ui/field.tsx` & halaman `app/cetak/`.

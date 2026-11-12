@@ -851,6 +851,21 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
     });
   }
 
+  // Kendala berjudul PANJANG (DECISIONS 765). Sapuan E2E ponsel hanya
+  // menangkap halaman yang melebar bila datanya memicunya: judul kendala
+  // sepanjang ini di lapangan membuat Ringkasan lokasi selebar 861 px di HP,
+  // sementara semua data seed pendek dan sapuannya tetap hijau.
+  const judulPanjang =
+    "Material besi beton terlambat datang dari pemasok sehingga pembesian pondasi dan sloof gedung pengelola tertunda dua minggu";
+  // KEMBAR-OK: pemeriksa idempoten seed – kendala ini yang sudah digabungkan
+  // pun tetap berarti "sudah pernah dibuat"; menyaringnya membuat seed ulang
+  // menanam judul yang sama lagi.
+  if (!(await db.issue.findFirst({ where: { locationId: kdm.id, title: judulPanjang }, select: { id: true } }))) {
+    await db.issue.create({
+      data: { locationId: kdm.id, title: judulPanjang, severity: "sedang", status: "terbuka", raisedById: smId },
+    });
+  }
+
   // ── Keuangan demo kedungmutih: commitment → expense → invoice → pembayaran parsial ──
   const hasCommit = await db.commitment.count({ where: { locationId: kdm.id } });
   if (hasCommit === 0) {

@@ -49,7 +49,10 @@ export function PekerjaanLuarRab({
       aria-labelledby="luar-rab-judul"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        {/* `basis-56`: tanpa lebar dasar, `flex-1` berpangkal 0 sehingga baris
+            ini tidak pernah turun – di HP 360 px teksnya terjepit jadi kolom
+            79 px di samping tombol (DECISIONS 765). */}
+        <div className="min-w-0 flex-1 basis-56">
           <span className="inline-block rounded bg-luar-rab px-2 py-0.5 text-[11px] font-bold tracking-wide text-white uppercase">
             Di luar RAB
           </span>
