@@ -271,8 +271,11 @@ export default async function LaporanLengkapLokasiPage({
             <p className="text-sm text-ink-muted">Belum ada RAB aktif untuk lokasi ini.</p>
           ) : (
             l.kategori.map((k) => (
-              <div key={k.lineageKey} className="flex items-center gap-3">
-                <span className="w-40 shrink-0 truncate text-[12px] text-ink" title={k.nama}>
+              // Di HP kolom nama 112 px, bukan 160: tiga kolom tetap (160+56+80)
+              // plus jaraknya lebih lebar dari kartu di layar 360 px dan
+              // mendorong halaman ke samping (DECISIONS 765).
+              <div key={k.lineageKey} className="flex items-center gap-2 sm:gap-3">
+                <span className="w-28 shrink-0 truncate text-[12px] text-ink sm:w-40" title={k.nama}>
                   {k.lineageKey} {k.nama}
                 </span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-inset">

@@ -103,7 +103,7 @@ export function Kalender({ bulan, batas, sel, terpilih, disorot, taut, tautIsi }
             <div
               key={s.dateKey}
               aria-hidden
-              className="min-h-16 rounded-lg border border-transparent p-1.5 text-[12px] text-ink-faint sm:min-h-20"
+              className="min-h-16 rounded-lg border border-transparent px-0.5 py-1.5 text-[12px] text-ink-faint sm:min-h-20 sm:p-1.5"
             >
               {s.tanggal}
             </div>
@@ -182,7 +182,13 @@ function SelHariKalender({
          harus bisa diketahui SEBELUM ditekan. */
       title={bukaLangsung(sel) ? `${sel.kata} – buat laporan` : sel.kata}
       className={cn(
-        "relative flex min-h-16 flex-col justify-between rounded-lg border p-1.5 text-left transition sm:min-h-20",
+        /*
+         * Di ponsel bantalan samping 2 px, bukan 6 (DECISIONS 765). Sel di layar
+         * 360 px hanya ±39 px; dengan bantalan 6 px kata "Koreksi" (33 px pada
+         * 9 px) tidak muat dan terbelah "Korek/si". Dulu kolomnya melebar
+         * sendiri mengikuti kata – dan mendorong halaman ke samping.
+         */
+        "relative flex min-h-16 flex-col justify-between rounded-lg border px-0.5 py-1.5 text-left transition sm:min-h-20 sm:p-1.5",
         NADA_SEL[sel.nada],
         redup && "opacity-40",
         terpilih ? "ring-2 ring-primary ring-offset-1" : "hover:border-border-strong",
@@ -205,7 +211,7 @@ function SelHariKalender({
       {/* KATA-nya, bukan warnanya. Di layar sempit dipendekkan — tetap KATA,
           bukan huruf tunggal atau titik: "·" untuk *di luar kontrak* dan
           *belum tiba* membuat dua fakta berbeda tampil identik. */}
-      <span className={cn("text-[10px] leading-tight font-semibold", NADA_TEKS[sel.nada])}>
+      <span className={cn("text-[9px] leading-tight font-semibold sm:text-[10px]", NADA_TEKS[sel.nada])}>
         <span className="max-sm:hidden">{sel.kata}</span>
         <span className="sm:hidden">{sel.singkat}</span>
       </span>

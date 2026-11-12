@@ -95,6 +95,14 @@
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    /*
+     * Kata tanpa spasi yang lebih panjang dari barisnya (URL, kode, nama
+     * berkas) dipatahkan, bukan dibiarkan meluber dan mendorong halaman ke
+     * samping (DECISIONS 765: URL peta dasar di /sistem membuat halaman HP
+     * selebar 616 px). Hanya berlaku saat kata itu memang tidak muat – teks
+     * biasa tidak berubah.
+     */
+    overflow-wrap: break-word;
   }
 
   /*
@@ -116,6 +124,33 @@
     textarea {
       font-size: 16px;
     }
+  }
+
+  /*
+   * ISI GRID BOLEH MENYEMPIT SAMPAI LEBAR KOLOMNYA (DECISIONS 765).
+   *
+   * Keluhan user 2026-11-12 (tangkapan layar Ringkasan lokasi di HP, halaman
+   * melebar ke samping): "tampilanmu berantakan!". Sebabnya satu judul kendala
+   * yang panjang di kartu "Kendala terbuka".
+   *
+   * `grid gap-4 lg:grid-cols-3` di HP tidak punya kolom tertulis, jadi satu
+   * kolom OTOMATIS yang lebarnya mengikuti isi terlebar – dan teks `truncate`
+   * (tanpa patah) diukur sepanjang teks utuhnya. Kolomnya melebar melewati
+   * layar, semua kartu di grid itu ikut, dan Safari iOS memperkecil seisi
+   * halaman. Pola ini ada di ±150 wadah grid; data uji yang pendek tidak
+   * pernah memicunya.
+   *
+   * Isi grid tanpa batas bawah (`min-width: 0`) tidak bisa lagi mendorong
+   * kolomnya: teks panjang patah atau terpotong di DALAM kartunya. Kolom
+   * bertulis (`grid-cols-7` = minmax(0, 1fr)) sendiri tidak berubah, TETAPI
+   * wadahnya bisa ikut menyempit bila dulu ia dilebarkan isinya – sel sempit
+   * (kalender harian) harus muat di 360 px dengan isinya sendiri. Di
+   * `@layer base`, jadi utility `min-w-*` pada elemen tertentu tetap menang.
+   * Dijaga `tests/unit/grid-isi-menyempit.test.ts` dan sapuan E2E ponsel.
+   */
+  .grid > *,
+  .inline-grid > * {
+    min-width: 0;
   }
 
   /* Focus ring jelas untuk a11y — keyboard user harus selalu tahu posisi */

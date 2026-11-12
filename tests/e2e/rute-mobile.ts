@@ -246,5 +246,9 @@ export function polaTercakup(): Set<string> {
  * setiap menu mulai dari tepi kiri; baru di 414px dua tombol muat sebaris,
  * menu kedua mulai di x=264, dan panelnya 240px mendorong halaman jadi 504px.
  * Sapuan berlebar tunggal akan terus melewatkan seluruh keluarga cacat ini.
+ *
+ * 360px ditambah 2026-11-12 (DECISIONS 765): lebar HP Android paling umum di
+ * lapangan. Baris kategori di Laporan Lengkap melebar 5px HANYA di 360px –
+ * di 375px masih tersisa ruang 10px, jadi sapuan lama tidak pernah melihatnya.
  */
-export const LEBAR_SAPUAN = [375, 414] as const;
+export const LEBAR_SAPUAN = [360, 375, 414] as const;

@@ -220,6 +220,8 @@ jobs:
       fail-fast: false
       matrix:
         bagian:
+          - nama: sapuan ponsel 360px
+            args: --project=mobile --grep @sapuan-360
           - nama: sapuan ponsel 375px
             args: --project=mobile --grep @sapuan-375
           - nama: sapuan ponsel 414px
