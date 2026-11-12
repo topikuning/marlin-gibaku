@@ -16,8 +16,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const buffer = await buildKurvaPaketXlsx(r.dok.report, {
     logo: await muatLogoLaporan(r.dok.lokasiAcuanId),
     catatan: r.dok.catatan,
-    // Sama dengan PDF kurva paket: penanda tangan lokasi acuan, dokumen jadwal (DECISIONS 757).
-    ttd: await muatTtdPdf(r.dok.lokasiAcuanId, "jadwal"),
+    // Sama dengan PDF kurva paket (DECISIONS 757/764): gabungan lokasi = PPK + penyedia.
+    jenis: r.dok.jenisTtd,
+    ttd: await muatTtdPdf(r.dok.lokasiAcuanId, r.dok.jenisTtd),
   });
   await audit(r.userId, "report.export_kurva_paket_xlsx", "package", id);
   const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

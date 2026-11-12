@@ -318,13 +318,17 @@ export function blokTandaTangan(
   // hanya boleh datang dari satu tempat, supaya PDF dan Excel dari laporan yang
   // sama tidak pernah menyebut dua orang berbeda.
   const tt = penandatanganDokumen(o.jenis, o.h);
-  const L = Math.max(3, o.lastCol);
-  const lebar = Math.floor(L / 3);
-  const blok: [number, number][] = [
-    [1, lebar],
-    [lebar + 1, lebar * 2],
-    [lebar * 2 + 1, L],
+  // Pihak yang meneken dokumen ini, urut blanko. Kurva S paket tanpa slot
+  // konsultan: dua blok, PPK dan penyedia (DECISIONS 764).
+  const pihak = [
+    { slot: tt.kkp, judul: "Mengetahui,", gambar: o.gambar?.ppk },
+    ...(tt.konsultan ? [{ slot: tt.konsultan, judul: "Diperiksa,", gambar: o.gambar?.pengawas }] : []),
+    { slot: tt.penyedia, judul: "Dibuat Oleh,", gambar: o.gambar?.penyedia },
   ];
+  const n = pihak.length;
+  const L = Math.max(n, o.lastCol);
+  const lebar = Math.floor(L / n);
+  const blok: [number, number][] = pihak.map((_, i) => [i * lebar + 1, i === n - 1 ? L : (i + 1) * lebar]);
 
   const tulis = (
     teks: (string | null)[],
@@ -359,17 +363,18 @@ export function blokTandaTangan(
   // ini, dan tidak boleh menggagalkan seluruh ekspor.
   const tgl = o.tanggal ?? o.h.periodeEnd;
   const tglSah = tgl instanceof Date && Number.isFinite(tgl.getTime());
-  tulis([null, null, tglSah ? `${o.h.regency}, ${formatTanggal(tgl, "d MMMM yyyy")}` : `${o.h.regency},`], {
+  const kanan = (t: string | null) => pihak.map((_, i) => (i === n - 1 ? t : null));
+  tulis(kanan(tglSah ? `${o.h.regency}, ${formatTanggal(tgl, "d MMMM yyyy")}` : `${o.h.regency},`), {
     size: 9,
   });
-  const barisAtas = tulis(["Mengetahui,", "Diperiksa,", "Dibuat Oleh,"], { size: 9, color: WARNA.teksRedup }).number;
-  tulis([peranSlot(tt.kkp), peranSlot(tt.konsultan), peranSlot(tt.penyedia)], { bold: true, size: 9 });
+  const barisAtas = tulis(pihak.map((p) => p.judul), { size: 9, color: WARNA.teksRedup }).number;
+  tulis(pihak.map((p) => peranSlot(p.slot)), { bold: true, size: 9 });
   // Ruang membubuhkan tanda tangan & cap basah.
   for (let i = 0; i < 4; i++) ws.addRow([]).height = 15;
 
   const garisTtd = "( ……………………………………… )";
   const nama = (n: string | null) => (n ? `( ${n} )` : garisTtd);
-  const barisNama = tulis([nama(tt.kkp.nama), nama(tt.konsultan.nama), nama(tt.penyedia.nama)], {
+  const barisNama = tulis(pihak.map((p) => nama(p.slot.nama)), {
     bold: true,
     size: 9,
     garisAtas: true,
@@ -377,13 +382,12 @@ export function blokTandaTangan(
   // Jabatan di bawah nama penyedia mengikuti ORANG yang meneken – dulu selalu
   // jabatan direktur, jadi laporan mingguan mencetak nama pelaksana di bawah
   // jabatan direktur (DECISIONS 662).
-  tulis([tt.kkp.sub, tt.konsultan.sub, tt.penyedia.sub], { size: 8, color: WARNA.teksRedup });
+  tulis(pihak.map((p) => p.slot.sub), { size: 8, color: WARNA.teksRedup });
   if (o.gambar) {
     // Pihaknya dibawa DATA, bukan urutan larik (DECISIONS 328): kkp = PPK/Wakil
     // Sah, konsultan = pengawas, penyedia = penyedia – sama dengan `muatTtdPdf`.
-    const berkas = [o.gambar.ppk, o.gambar.pengawas, o.gambar.penyedia];
     tempelTtdXlsx(ws, {
-      blok: blok.map(([a, b], i) => ({ kolomKiri: a, kolomKanan: b, berkas: berkas[i]! })),
+      blok: blok.map(([a, b], i) => ({ kolomKiri: a, kolomKanan: b, berkas: pihak[i]!.gambar ?? { ttd: null, stempel: null } })),
       rowNama: barisNama,
       rowAtasBlok: barisAtas,
     });

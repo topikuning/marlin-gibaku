@@ -6,6 +6,7 @@ import { getScurveSeriesPaket } from "@/lib/baseline";
 import { lingkupLokasi } from "@/lib/package/lingkup-lokasi";
 import { getPeriodBounds, getPeriodReport, type PeriodBounds, type PeriodReport } from "@/lib/periodic-report";
 import { potongKurvaPaket, rincianKurvaPaket, weekDateRange } from "@/lib/progress-calc";
+import type { JenisDokumen } from "@/lib/laporan/penandatangan";
 
 /**
  * KURVA-S PAKET (gabungan seluruh lokasi) sebagai dokumen – PDF & Excel
@@ -29,8 +30,16 @@ import { potongKurvaPaket, rincianKurvaPaket, weekDateRange } from "@/lib/progre
 export type KurvaPaketDokumen = {
   report: PeriodReport;
   bounds: PeriodBounds;
-  /** Lokasi pertama yang ikut – sumber kop kontrak & penanda tangan. */
+  /** Lokasi pertama yang ikut – sumber kop kontrak (dan penanda tangan bila hanya satu lokasi). */
   lokasiAcuanId: string;
+  /**
+   * Penanda tangan dokumen ini (DECISIONS 764): gabungan LEBIH DARI SATU lokasi
+   * = `kurva_paket` (PPK + penyedia, tanpa konsultan) – Wakil Sah PPK dan
+   * konsultan bisa berbeda tiap lokasi, jadi tidak satu pun dari mereka boleh
+   * meneken dokumen semua lokasi. Satu lokasi (berkas termin per desa) =
+   * `jadwal`, penanda tangan lokasi itu sendiri.
+   */
+  jenisTtd: JenisDokumen;
   paket: { id: string; name: string };
   catatan: string | null;
 };
@@ -130,7 +139,14 @@ export async function susunKurvaPaket(
     .filter(Boolean)
     .join(" ");
 
-  return { report, bounds, lokasiAcuanId: acuan, paket: { id: pkg.id, name: pkg.name }, catatan: catatan || null };
+  return {
+    report,
+    bounds,
+    lokasiAcuanId: acuan,
+    jenisTtd: ikut.length > 1 ? "kurva_paket" : "jadwal",
+    paket: { id: pkg.id, name: pkg.name },
+    catatan: catatan || null,
+  };
 }
 
 /**

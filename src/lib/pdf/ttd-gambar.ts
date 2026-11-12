@@ -103,7 +103,7 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
     const [pt, ps, gt, gs, yt, ys] = await Promise.all([
       ttdAtauKetik(kunci.ppk.ttd, nama.kkp.nama),
       png(kunci.ppk.stempel),
-      ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan.nama),
+      ttdAtauKetik(kunci.pengawas.ttd, nama.konsultan?.nama ?? null),
       png(kunci.pengawas.stempel),
       ttdAtauKetik(kunci.penyedia.ttd, nama.penyedia.nama),
       png(kunci.penyedia.stempel),

@@ -1,5 +1,5 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
-import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/laporan/penandatangan";
+import { penandatanganDokumen, peranSlot, type JenisLokasi } from "@/lib/laporan/penandatangan";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -46,7 +46,8 @@ export function ScurveKkpSheet({
    * Kompiler yang menagih, supaya tidak ada pemanggil yang diam-diam memakai
    * bawaan yang salah.
    */
-  jenis: JenisDokumen;
+  /** Dokumen satu lokasi – Kurva S paket hanya ada sebagai PDF & Excel (DECISIONS 764). */
+  jenis: JenisLokasi;
   /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
   titleOverride?: string;
   /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
