@@ -94,3 +94,32 @@ describe("stempel di belakang, teks paling atas", () => {
     expect(jejak).toEqual(["text"]);
   });
 });
+
+describe("tanda tangan KETIK di PDF (DECISIONS 763)", () => {
+  it("setinggi coretan biasa, LEBARNYA mengikuti nama, berpijak di garis nama", async () => {
+    const sharp = (await import("sharp")).default;
+    const { ukuranTtd } = await import("@/lib/export/ttd-ukuran");
+    const panjang = await sharp({ create: { width: 800, height: 100, channels: 4, background: "#0000" } }).png().toBuffer();
+    const ukur = (ttdKetik: boolean) => {
+      const panggil: { x: number; y: number; fit: [number, number] }[] = [];
+      const doc = {
+        image: (_d: unknown, x: number, y: number, o: { fit: [number, number] }) => panggil.push({ x, y, fit: o.fit }),
+        text: () => {},
+      } as unknown as Parameters<typeof blokTandaTanganPdf>[0];
+      blokTandaTanganPdf(doc, [{ berkas: { ttd: panjang, stempel: null, ttdKetik }, opsi: OPSI }], () => 0);
+      return panggil[0]!;
+    };
+    const u = ukuranTtd(OPSI.lebarKolom, OPSI.ruangDiAtasNama);
+    const biasa = ukur(false);
+    const ketik = ukur(true);
+    expect(biasa.fit).toEqual([u.ttd.lebar, u.ttd.tinggi]);
+    // Rasio 8: setinggi coretan → 8× tingginya, dibatasi 90% kolom.
+    const lebar = Math.min(u.ttd.tinggi * 8, OPSI.lebarKolom * 0.9);
+    expect(ketik.fit[0]).toBe(Math.round(lebar));
+    expect(ketik.fit[0]).toBeGreaterThan(biasa.fit[0]);
+    expect(ketik.fit[1]).toBeLessThanOrEqual(u.ttd.tinggi);
+    // Tetap di tengah kolom dan berpijak tepat di garis nama.
+    expect(ketik.x + ketik.fit[0] / 2).toBeCloseTo(OPSI.xTengah, 0);
+    expect(ketik.y + ketik.fit[1]).toBeCloseTo(OPSI.yDasar, 0);
+  });
+});

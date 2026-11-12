@@ -22,7 +22,7 @@ import {
   type FotoPelengkapDok,
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
-import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, ruangSampaiNama, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 import { ttdHarian } from "@/lib/export/ttd-harian";
 import { r2GetFotoBercap } from "@/lib/photo-stamp/cap-latar";
 
@@ -448,8 +448,19 @@ export function tulisBadanHarian(
   // (Team Leader pengawas BANUSA, DECISIONS 662).
   const kolomTtd = colWidths(width, [1, 1, 1]);
   const ttd: GridOptions = { x, width, cols: kolomTtd, fontSize: 7, minRowHeight: 94 };
+  // Baris kosong di antara firma dan nama = ruang tanda tangan.
+  const PEMISAH_NAMA = "\n\n\n\n\n";
+  const atasTtd = (judul: string, peran: string, firm: string | null | undefined) =>
+    `${judul}\n${peran}${firm ? `\n${firm}` : ""}`;
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
-    `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+    `${atasTtd(judul, peran, firm)}${PEMISAH_NAMA}( ${nama ?? "……………………"} )\n${sub}`;
+  const KEPALA_TTD: [string, string, string | null | undefined][] = [
+    // Baris firma dibiarkan KOSONG (bukan dihilangkan) supaya garis nama
+    // sejajar dengan dua kolom di sebelahnya.
+    ["Mengetahui :", "Wakil Sah PPK", " "],
+    ["Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub],
+    ["Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm],
+  ];
   /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
      atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
      itulah lapisannya. Urutan kolom gambar = urutan teks: Wakil Sah PPK,
@@ -457,49 +468,36 @@ export function tulisBadanHarian(
      berpijak tepat di atasnya. */
   const yTtd = y;
   const gbr = lampiran?.ttd;
-  // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
-  // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
-  const RUANG_TTD_PDF = 70;
-  const yDasarTtd = yTtd + RUANG_TTD_PDF;
+  // Ruang dari tepi ATAS blok sampai garis nama – DIUKUR per kolom (firma bisa
+  // terbungkus). Dulu angka tetap 70 pt yang jatuh DI BAWAH nama, sehingga
+  // coretan menimpanya. Stempel dibatasi tepat sebesar ruang ini supaya tidak
+  // melimpah keluar blok (DECISIONS 333).
   const kiriKolom = (i: number) => x + kolomTtd.slice(0, i).reduce((a, b) => a + b, 0);
   y = blokTandaTanganPdf(
     doc,
     gbr
-      ? [gbr.ppk, gbr.pengawas, gbr.penyedia].map((berkas, i) => ({
-          berkas,
-          opsi: {
-            xTengah: kiriKolom(i) + kolomTtd[i] / 2,
-            yDasar: yDasarTtd,
-            lebarKolom: kolomTtd[i],
-            ruangDiAtasNama: RUANG_TTD_PDF,
-          },
-        }))
+      ? [gbr.ppk, gbr.pengawas, gbr.penyedia].map((berkas, i) => {
+          const [judul, peran, firm] = KEPALA_TTD[i]!;
+          const ruang = ruangSampaiNama(doc, {
+            atas: atasTtd(judul, peran, firm),
+            pemisah: PEMISAH_NAMA,
+            lebarKolom: kolomTtd[i]!,
+            fontSize: ttd.fontSize!,
+          });
+          return {
+            berkas,
+            opsi: { xTengah: kiriKolom(i) + kolomTtd[i]! / 2, yDasar: yTtd + ruang, lebarKolom: kolomTtd[i]!, ruangDiAtasNama: ruang },
+          };
+        })
       : [],
     () =>
       gridRow(
         doc,
         yTtd,
         [
-          {
-            // Baris firma dibiarkan KOSONG (bukan dihilangkan) supaya garis nama
-            // sejajar dengan dua kolom di sebelahnya.
-            text: blokTtd("Mengetahui :", "Wakil Sah PPK", " ", d.wakilSahName, d.wakilSahSub ?? ""),
-            align: "center",
-          },
-          {
-            text: blokTtd(
-              "Disetujui Oleh;",
-              "Konsultan Pengawas",
-              d.supervisorFirm ?? d.supervisorSub,
-              d.supervisorName,
-              d.supervisorJabatan || "Pengawas Lapangan",
-            ),
-            align: "center",
-          },
-          {
-            text: blokTtd("Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm, d.contractorName, d.contractorSub || "Pelaksana"),
-            align: "center",
-          },
+          { text: blokTtd(...KEPALA_TTD[0]!, d.wakilSahName, d.wakilSahSub ?? ""), align: "center" },
+          { text: blokTtd(...KEPALA_TTD[1]!, d.supervisorName, d.supervisorJabatan || "Pengawas Lapangan"), align: "center" },
+          { text: blokTtd(...KEPALA_TTD[2]!, d.contractorName, d.contractorSub || "Pelaksana"), align: "center" },
         ],
         ttd,
       ),
