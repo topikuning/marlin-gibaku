@@ -523,22 +523,6 @@ diperbaiki.
 berdasarkan kolom itu. Butuh migrasi + backfill (baris lama bisa ditebak dari
 `fileName` sekali saja), karena itu tidak digabung ke perubahan kecil ini.
 
-## 🟡 TTD-01 · Gambar tanda tangan ditempel tanpa memeriksa status dokumen (DECISIONS 328)
-
-`muatTtdLaporan` / `muatTtdPdf` menempelkan gambar pada SETIAP dokumen yang
-dicetak, termasuk pratinjau laporan harian yang **belum difinalisasi** (halaman
-cetak harian sudah menandainya dengan spanduk "Pratinjau", tapi tanda tangannya
-tetap tercetak).
-
-Yang seharusnya: pemanggil memutuskan, dan dokumen yang belum berstatus final /
-disetujui keluar dengan ruang kosong. Komponen penempelnya sudah dirancang untuk
-itu — ia hanya menggambar apa yang diberikan — jadi perbaikannya ada di sisi
-pemanggil, bukan di komponen.
-
-Belum dikerjakan karena aturannya berbeda per dokumen (harian punya
-`isFinal`; rencana mingguan & periodik tidak punya padanannya yang setara) dan
-itu keputusan user, bukan tebakan.
-
 ## 🟡 TTD-02 · Posisi gambar di PDF dipatok dari tinggi baris, bukan dari posisi baris nama
 
 Di PDF, koordinat tempat gambar dijatuhkan (`yTtd + 46` di harian, `o.y + 44` di

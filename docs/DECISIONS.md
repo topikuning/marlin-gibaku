@@ -94,6 +94,10 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 762 | 2026-11-11 | Semua Excel buatan MARLIN dicetak di A4 lewat satu pintu `siapCetakA4` (muat 1 halaman ke samping); orientasi dinilai per sheet: huruf cetak ≥ 7 pt, halaman lebih sedikit menang, seri → potret bila ≥ 8 pt; termasuk laporan mingguan |
+| 761 | 2026-11-11 | Berkas WA di chat pribadi Pelaksana tetap tanpa rupiah (keputusan user, menjawab pertanyaan 753); di grup tetap ada rupiah |
+| 760 | 2026-11-11 | Tanda tangan & stempel laporan harian hanya untuk status disetujui/final (cetak, PDF, rekap seminggu per hari, Excel WA) lewat satu pintu `ttdHarian` + pagar uji; mingguan/bulanan, jadwal, rencana tetap bertanda tangan (pilihan user); menutup TTD-01 |
+| 759 | 2026-11-11 | Buang draft adendum tidak lagi ditolak: baris laporan isian langsung jadi catatan di luar RAB (asal draft, foto ikut), baris dari catatan dilepas – sama dengan impor pengganti (755) |
 | 758 | 2026-11-11 | Peringatan "Penanda tangan belum diisi" di halaman Laporan: tiap jabatan kosong punya tombol isian nama + tanda tangan (aksi satu slot, `contract.manage`, kolom dari `MEDAN_SLOT`, tidak menimpa nama lain; gagal unggah tidak menulis nama); pengolah gambar tanda tangan jadi satu helper |
 | 757 | 2026-11-11 | Tanda tangan & stempel ditempel di Excel yang PDF-nya bertanda tangan (mingguan/bulanan semua lembar, Time Schedule, Kurva S paket, rencana-realisasi, harian WA) dengan ukuran, urutan, dan orang yang sama dengan PDF (`tempelTtdXlsx` + `muatTtdPdf`) |
 | 756 | 2026-11-10 | Item kontrak terlapor yang volumenya 0 di draft ikut di panel pemetaan halaman draft (koreksi 754, sebelumnya ditolak sebagai "masih ada di draft" lalu laporannya diturunkan jadi 0 saat aktivasi): bisa dipasangkan ke item baru (baris bervolume 0 menyerahkan kuncinya, kolom `lineage_tergeser`) dan dilepas lagi; konfirmasi aktivasi di semua jalur menyebutnya beserta akibatnya |

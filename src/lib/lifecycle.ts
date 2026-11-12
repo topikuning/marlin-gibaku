@@ -104,6 +104,16 @@ export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as cons
  */
 export const VERIFIED_REPORT_STATUSES = ["disetujui", "final"] as const;
 
+/**
+ * Laporan harian boleh tercetak BERTANDA TANGAN & BERSTEMPEL (DECISIONS 760,
+ * menutup TTD-01). Keputusan user 2026-11-11: *"hanya untuk disetujui dan
+ * final"*. Status lain tercetak dengan ruang kosong untuk pena. Mingguan /
+ * bulanan, jadwal, dan rencana tidak memakai aturan ini – tetap bertanda tangan.
+ */
+export function ttdHarianBoleh(status: string | null | undefined): boolean {
+  return status != null && (VERIFIED_REPORT_STATUSES as readonly string[]).includes(status);
+}
+
 export function canTransitionPackage(from: PackageStage, to: PackageStage): boolean {
   return PACKAGE_TRANSITIONS[from].includes(to);
 }

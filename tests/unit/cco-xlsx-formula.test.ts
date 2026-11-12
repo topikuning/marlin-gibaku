@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { susunBarisCco, type CcoNode } from "@/lib/rab/cco-rows";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 const { buildCcoXlsx, KOLOM_CCO: KOL } = await import("@/lib/export/cco-xlsx");
 
@@ -549,5 +550,13 @@ describe("label tahap MC-0 / CCO-n", () => {
     expect(k.blok).toContain("CCO - 01");
     expect(k.blok).toContain("CCO - 02");
     expect(k.blok).not.toContain("MC - 0");
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("CCO dicetak di A4, margin sempitnya tetap", async () => {
+    const { ws } = await lembarCco();
+    expect(ringkasCetak(ws.workbook)).toEqual({ "CCO-01": "A4 landscape 1×n" });
+    expect(ws.pageSetup.margins?.left).toBe(0.3);
   });
 });

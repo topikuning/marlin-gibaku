@@ -9,6 +9,7 @@ import ExcelJS from "exceljs";
 import { barisRencanaRealisasi, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 const { buildDailyReportXlsx } = await import("@/lib/export/daily-xlsx");
 
@@ -230,5 +231,13 @@ describe("pratinjau ditandai", () => {
   it("laporan final tidak memuatnya", async () => {
     const { semua } = await lembar();
     expect(semua).not.toContain("PRATINJAU");
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("blanko harian dicetak di A4", async () => {
+    const { ws } = await lembar();
+    // 19 kolom berhuruf 9 pt: di potret mengecil ke ±7 pt, di lanskap utuh.
+    expect(ringkasCetak(ws.workbook)).toEqual({ "Laporan Harian": "A4 landscape 1×n" });
   });
 });

@@ -8,6 +8,7 @@ import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import { colLetter } from "@/lib/export/xlsx-chart";
 import { logoPasanganKanan } from "@/lib/export/xlsx-gaya";
 import { type BarisRincian } from "@/lib/export/rincian-jadwal";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 
 /**
  * TIME SCHEDULE RINCI sampai level ITEM — mengikuti BERKAS ACUAN milik user
@@ -72,14 +73,6 @@ export async function buildRincianJadwalXlsx(
   wb.creator = "MARLIN";
   wb.created = new Date();
   const ws = wb.addWorksheet("RAB", {
-    pageSetup: {
-      orientation: "landscape",
-      paperSize: 9,
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      scale: 78,
-    },
     views: [{ state: "frozen", xSplit: 9, ySplit: 10 }],
   });
   ws.columns = [
@@ -320,5 +313,6 @@ export async function buildRincianJadwalXlsx(
   catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
   catatan.height = 42;
 
+  siapCetakA4(wb);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

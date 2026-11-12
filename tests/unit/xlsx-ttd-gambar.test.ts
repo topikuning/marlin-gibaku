@@ -21,6 +21,7 @@ import type { GambarTtdXlsx } from "@/lib/export/xlsx-gaya";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { ringkasKelompok } from "@/lib/progress-calc";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
@@ -272,5 +273,14 @@ describe("dokumen Excel lain yang PDF-nya bertanda tangan", () => {
     const nama = barisTeks(ws, /^\( Rudi \)$/);
     expect(nama).toBeGreaterThan(atas);
     expect(gambarBlok(ws, atas, nama)).toHaveLength(5);
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("jadwal dan rencana-realisasi: A4, orientasi menurut lebar isinya", async () => {
+    expect(ringkasCetak(await muat(await buildJadwalXlsx(fixture())))).toEqual({ "Time Schedule": "A4 landscape 1×n" });
+    expect(ringkasCetak(await muat(await buildRencanaRealisasiXlsx(fixture())))).toEqual({
+      "Rencana vs Realisasi": "A4 landscape 1×n",
+    });
   });
 });

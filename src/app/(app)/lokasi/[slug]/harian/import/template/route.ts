@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import ExcelJS from "exceljs";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -47,6 +48,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // Format kolom tanggal sebagai teks-tanggal supaya admin bisa isi bebas.
   ws.getColumn("tanggal").numFmt = "yyyy-mm-dd";
 
+  siapCetakA4(wb);
   const buffer = await wb.xlsx.writeBuffer();
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

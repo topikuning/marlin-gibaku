@@ -206,6 +206,10 @@ src/
   `r2PresignGet` / `r2Delete` langsung. Berkas lama dipindah dari R2 ke arsip
   Lenovo (DECISIONS 645); pemanggil yang membaca R2 langsung gagal persis pada
   berkas lama. Dijaga `tests/unit/penyimpanan-satu-pintu.test.ts`.
+- **Excel buatan MARLIN: kertas & orientasi HANYA lewat `siapCetakA4`**
+  (`src/lib/export/cetak-a4.ts`), dipanggil tepat sebelum `writeBuffer`. Hasilnya A4,
+  muat satu halaman ke samping, dan orientasi dinilai dari isi sheet, bukan ditulis
+  tangan (DECISIONS 762). Dijaga `tests/unit/excel-cetak-a4.test.ts`.
 - **Drive: MARLIN hanya mengubah atau membuang berkas buatannya sendiri** – buatan orang
   tidak pernah ditimpa, diubah, atau dibuang (ketetapan user 2026-10-31, DECISIONS 723).
   Kepemilikan lewat `gdrive/milik.ts` (`pilihTimpa`, `bolehDibuang`), bukan lewat nama atau

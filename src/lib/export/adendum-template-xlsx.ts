@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import type { RabExportNode } from "./rab-xlsx";
+import { siapCetakA4 } from "./cetak-a4";
 
 /**
  * TEMPLATE KERJA ADENDUM (.xlsx) — permintaan user 2026-08-02: "aku juga butuh
@@ -158,7 +159,6 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   const ws = wb.addWorksheet(ADENDUM_TEMPLATE_SHEET, {
-    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
     views: [{ state: "frozen", ySplit: ADENDUM_HEADER_ROW }],
   });
 
@@ -419,6 +419,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     formatRows: true,
   });
 
+  siapCetakA4(wb);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
 }

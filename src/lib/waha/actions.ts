@@ -752,9 +752,15 @@ export async function sendDailyReportToWaAction(
 
     const data = await getKkpDailyData(slug, dateKey);
     if (!data) return { error: "Laporan harian tidak ditemukan." };
-    const { muatTtdPdf } = await import("@/lib/pdf/ttd-gambar");
-    // Tanda tangan & stempel sama dengan PDF harian (DECISIONS 757).
-    const buf = await buildDailyReportXlsx(data, { ttd: await muatTtdPdf(locBasic.id, "harian") });
+    const [{ muatTtdPdf }, { ttdHarian }] = await Promise.all([
+      import("@/lib/pdf/ttd-gambar"),
+      import("@/lib/export/ttd-harian"),
+    ]);
+    // Tanda tangan & stempel sama dengan PDF harian (DECISIONS 757), hanya bila
+    // laporannya disetujui / final (DECISIONS 760).
+    const buf = await buildDailyReportXlsx(data, {
+      ttd: await ttdHarian(data.status, () => muatTtdPdf(locBasic.id, "harian"), null),
+    });
 
     const caption = [
       `*Laporan Harian*`,

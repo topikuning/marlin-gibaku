@@ -15,6 +15,7 @@
 //      yang tidak mungkin bentrok dengan item kontrak yang punya realisasi.
 import { describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 vi.mock("server-only", () => ({}));
 
@@ -163,5 +164,11 @@ describe("KASUS INTI: item baru menempel ke kategori tempat ia disisipkan", () =
 
     expect(() => parseAdendumTemplate(wb)).toThrow(AdendumTemplateError);
     expect(() => parseAdendumTemplate(wb)).toThrow(/Harga Satuan/i);
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("template adendum dicetak di A4", async () => {
+    expect(ringkasCetak(await terbitkan())).toEqual({ "Template Adendum": "A4 landscape 1×n" });
   });
 });

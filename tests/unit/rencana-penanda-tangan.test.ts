@@ -26,6 +26,7 @@ import {
   type SumberTtdRencana,
 } from "@/lib/plan/rencana-ttd";
 import type { RencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 vi.hoisted(() => {
   // `rencana-xlsx` menarik rantai import yang memvalidasi env saat DIMUAT, dan
@@ -220,5 +221,14 @@ describe("Excel formulir rencana mingguan", () => {
     );
     expect(sel).toContain("(………………………)");
     expect(sel).not.toContain(OPERATOR_APLIKASI);
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("formulir rencana mingguan dicetak di A4", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildRencanaMingguanXlsx(rencana())) as unknown as ArrayBuffer);
+    // Dulu potret: 11 kolom diperkecil ke ±49%, hurufnya ±5 pt. Lanskap ±74%.
+    expect(ringkasCetak(wb)).toEqual({ "Rencana Minggu 2": "A4 landscape 1×n" });
   });
 });

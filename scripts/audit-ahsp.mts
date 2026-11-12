@@ -17,6 +17,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import ExcelJS from "exceljs";
+import { siapCetakA4 } from "../src/lib/export/cetak-a4.ts";
 
 const BERKAS = join(process.cwd(), "seed-data", "ahsp-se-djbk-47-2026.json");
 const KELUARAN = join(process.cwd(), "AUDIT_AHSP_JANGGAL.xlsx");
@@ -323,6 +324,7 @@ async function main() {
   dup.getColumn(3).width = 80;
   dup.getColumn(3).alignment = { wrapText: true, vertical: "top" };
 
+  siapCetakA4(wb);
   const buf = await wb.xlsx.writeBuffer();
   await writeFile(KELUARAN, Buffer.from(buf));
 

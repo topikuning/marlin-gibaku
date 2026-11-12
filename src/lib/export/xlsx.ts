@@ -21,6 +21,7 @@ import {
   logoTengah,
   type GambarTtdXlsx,
 } from "@/lib/export/xlsx-gaya";
+import { siapCetakA4 } from "@/lib/export/cetak-a4";
 import { formatTanggal } from "@/lib/format";
 import { terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
@@ -141,9 +142,7 @@ async function addKurvaSheet(
   const scaleB = lastCol + 2;
   const ketLabel = lastCol + 3;
   const lastTableCol = ketLabel;
-  const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S", {
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S");
   ws.columns = [
     { width: 5 },
     { width: 40 },
@@ -487,9 +486,8 @@ const labelPeriode = (r: PeriodReport): string =>
 function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
   const h = r.header;
   const LAST = 8;
-  const ws = wb.addWorksheet("COV-BQ", {
-    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
-  });
+  // Sampul dicetak SATU halaman: `satuHalaman` di buildPeriodReportXlsx.
+  const ws = wb.addWorksheet("COV-BQ");
   ws.columns = [{ width: 4 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 4 }];
 
   const baris = (
@@ -594,9 +592,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   const h = r.header;
   const LAST = 6;
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
-  const ws = wb.addWorksheet("REKAP", {
-    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet("REKAP");
   ws.columns = [{ width: 5 }, { width: 46 }, { width: 14 }, { width: 15 }, { width: 15 }, { width: 16 }];
 
   const judul = (teks: string, size: number, warna: string) => {
@@ -783,9 +779,7 @@ function addProgresKategoriSheet(
 ): void {
   const h = r.header;
   const LAST = 13;
-  const ws = wb.addWorksheet("PROGRES KATEGORI", {
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet("PROGRES KATEGORI");
   ws.columns = [7, 46, 18, 9, 10, 9, 10, 9, 10, 9, 11, 10, 9].map((width) => ({ width }));
 
   /*
@@ -994,6 +988,7 @@ export async function buildJadwalXlsx(
     logo: opts?.logo,
     ttd: opts?.ttd,
   });
+  siapCetakA4(wb);
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -1023,6 +1018,7 @@ export async function buildKurvaPaketXlsx(
     labelUraian: "Lokasi",
     catatan: opts?.catatan ? `Catatan: ${opts.catatan}` : null,
   });
+  siapCetakA4(wb);
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -1051,9 +1047,7 @@ export async function buildRencanaRealisasiXlsx(
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const ws = wb.addWorksheet("Rencana vs Realisasi", {
-    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet("Rencana vs Realisasi");
   ws.columns = [5, 40, 9, 11, ...Array.from({ length: N }, () => 8), 10, 10].map((width) => ({ width }));
 
   const judul = (teks: string, size: number) => {
@@ -1186,6 +1180,7 @@ export async function buildRencanaRealisasiXlsx(
 
   ws.addRow([]);
   blokTandaTangan(ws, { lastCol: LAST, h, jenis: "mingguan", gambar: opts?.ttd });
+  siapCetakA4(wb);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
@@ -1212,9 +1207,7 @@ export async function buildPeriodReportXlsx(
   // Laporan mingguan: progres per kategori & sub-kategori, sesudah kurva-S –
   // urutan yang sama dengan cetak dan PDF (DECISIONS 670).
   if (r.kind === "mingguan") addProgresKategoriSheet(wb, r, logo, ttd);
-  const ws = wb.addWorksheet("Laporan", {
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
+  const ws = wb.addWorksheet("Laporan");
   ws.columns = COL_WIDTHS.map((w) => ({ width: w }));
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
 
@@ -1504,6 +1497,7 @@ export async function buildPeriodReportXlsx(
 
   blokTandaTangan(ws, { lastCol: COL_COUNT, h, jenis: r.kind, gambar: ttd });
 
+  siapCetakA4(wb, { satuHalaman: ["COV-BQ"] });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita
   // pasca-proses XML chart OOXML). Bila gagal, kembalikan workbook tanpa chart.

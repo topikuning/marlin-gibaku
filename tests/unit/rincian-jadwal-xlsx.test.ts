@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 import { sebarMingguan, susunRincian, type SimpulRab } from "@/lib/export/rincian-jadwal";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import type { PeriodHeader } from "@/lib/periodic-report";
+import { ringkasCetak } from "./cetak-a4-bantu";
 
 const { buildRincianJadwalXlsx } = await import("@/lib/export/rincian-jadwal-xlsx");
 
@@ -213,5 +214,12 @@ describe("berkas mengikuti tata letak acuan", () => {
     const catatan = teks.find((t) => t.includes("TURUNAN"));
     expect(catatan).toBeTruthy();
     expect(catatan).toMatch(/per KATEGORI, bukan per item/);
+  });
+});
+
+describe("cetak A4 (DECISIONS 762)", () => {
+  it("rincian jadwal dicetak di A4", async () => {
+    const { ws } = await baca();
+    expect(ringkasCetak(ws.workbook)).toEqual({ RAB: "A4 landscape 1×n" });
   });
 });
