@@ -94,11 +94,8 @@ function IsiSlot({
           <Label htmlFor={`${id}-ttd`}>Tanda tangan (boleh menyusul)</Label>
           <FileInput id={`${id}-ttd`} name="ttd" accept="image/png,image/jpeg,image/webp" maxBytes={2 * 1024 * 1024} />
           <HelpText>
-            Foto atau pindai coretan tanda tangan di kertas putih polos. PNG/JPG/WebP maks 2 MB. Sampai gambarnya
-            diunggah,{" "}
-            {ttdKetik
-              ? "dokumen lokasi ini memakai tanda tangan ketik dari nama di atas."
-              : "bagian tanda tangannya tercetak kosong untuk ditandatangani dengan pena."}
+            Foto tanda tangan di kertas putih polos. PNG/JPG/WebP, maks 2 MB.{" "}
+            {ttdKetik ? "Kalau belum ada, diisi otomatis dari nama." : "Kalau belum ada, kolomnya kosong."}
           </HelpText>
         </div>
         <Button type="submit" loading={pending}>

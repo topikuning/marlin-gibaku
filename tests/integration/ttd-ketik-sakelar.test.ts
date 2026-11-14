@@ -84,7 +84,7 @@ describe("sakelar tanda tangan ketik di halaman lokasi", () => {
 
   it("Site Manager menyalakannya: hanya lokasi itu yang berubah, tercatat di audit", async () => {
     const r = await kirim({ locationId: lokasi, aktif: "1" });
-    expect(r?.success).toMatch(/DINYALAKAN/);
+    expect(r?.success).toBe("Tanda tangan otomatis dinyalakan.");
     expect(await sakelar(lokasi)).toBe(true);
     expect(await sakelar(tetangga)).toBe(false);
     const log = await db.auditLog.findFirst({
@@ -97,7 +97,7 @@ describe("sakelar tanda tangan ketik di halaman lokasi", () => {
 
   it("lalu mematikannya lagi", async () => {
     const r = await kirim({ locationId: lokasi, aktif: "0" });
-    expect(r?.success).toMatch(/DIMATIKAN/);
+    expect(r?.success).toBe("Tanda tangan otomatis dimatikan.");
     expect(await sakelar(lokasi)).toBe(false);
     expect(await db.auditLog.count({ where: { action: "lokasi.ttd_ketik", resourceId: lokasi } })).toBe(2);
   });
