@@ -59,7 +59,7 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
     // Orang & kuncinya dipilih di tempat yang SAMA dengan halaman cetak.
     const t = await penandatanganLokasi(locationId, jenis);
     if (!t) return TANPA_TTD_PDF;
-    const { kunci, nama } = t;
+    const { kunci, nama, ketik } = t;
     // Tanpa R2 gambar unggahan tidak bisa diambil – tanda tangan ketik tetap jalan.
     const adaR2 = isR2Configured();
     const sharp = (await import("sharp")).default;
@@ -93,12 +93,13 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
 
     // Tanda tangan yang belum diunggah diisi tanda tangan KETIK dari namanya
     // (DECISIONS 763). Hanya coretannya – stempel tidak pernah dibuatkan, dan
-    // slot tanpa nama tetap kosong.
+    // slot tanpa nama tetap kosong. Hanya bila lokasi ini menyalakannya
+    // (DECISIONS 766, bawaan mati) – kalau tidak, slotnya kosong untuk pena.
     const ttdAtauKetik = async (key: string | null, orang: string | null) => {
       const unggahan = await png(key);
-      if (unggahan) return { ttd: unggahan, ttdKetik: false };
-      const ketik = await ttdKetikPng(orang);
-      return { ttd: ketik, ttdKetik: ketik != null };
+      if (unggahan || !ketik) return { ttd: unggahan, ttdKetik: false };
+      const gambarKetik = await ttdKetikPng(orang);
+      return { ttd: gambarKetik, ttdKetik: gambarKetik != null };
     };
     const [pt, ps, gt, gs, yt, ys] = await Promise.all([
       ttdAtauKetik(kunci.ppk.ttd, nama.kkp.nama),

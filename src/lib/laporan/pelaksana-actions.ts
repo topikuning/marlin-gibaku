@@ -181,3 +181,53 @@ export async function simpanPelaksana(
   const ekor = berubah.length > 0 ? ` (${berubah.join(", ")})` : "";
   return { success: `${bagian.join(" · ")}${ekor}.` };
 }
+
+const skemaTtdKetik = z.object({
+  locationId: z.uuid("ID lokasi tidak valid"),
+  aktif: z.enum(["0", "1"], "Pilihan nyala/mati tidak dikenal"),
+});
+
+/**
+ * NYALAKAN / MATIKAN TANDA TANGAN KETIK SATU LOKASI (DECISIONS 766).
+ *
+ * Permintaan user 2026-11-14: *"untuk fitur tanda tangan yang auto terisi,
+ * perlu toggle on/off dengan default off. yang kontrolnya ada di lokasi"*.
+ *
+ * Pagarnya sama dengan penimpaan penanda tangan lokasi (`location.signer`):
+ * yang memutuskan apakah slot kosong diisi tanda tangan ketik adalah yang
+ * mengurus penanda tangan lokasi itu. Tidak ada yang disimpan selain sakelarnya
+ * – gambar ketik dibuat ulang setiap kali dokumen dirakit.
+ */
+export async function setTtdKetikLokasi(
+  _prev: PelaksanaActionState,
+  formData: FormData,
+): Promise<PelaksanaActionState> {
+  const parsed = skemaTtdKetik.safeParse({
+    locationId: formData.get("locationId"),
+    aktif: formData.get("aktif"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const aktif = parsed.data.aktif === "1";
+
+  const actor = await requireCapability("location.signer");
+  await requireLocationAccess(actor, parsed.data.locationId);
+
+  const lokasi = await db.location.findFirst({
+    where: { id: parsed.data.locationId, package: { orgId: actor.orgId } },
+    select: { id: true, slug: true, packageId: true, ttdKetik: true },
+  });
+  if (!lokasi) return { error: "Lokasi tidak ditemukan." };
+
+  if (lokasi.ttdKetik !== aktif) {
+    await db.location.update({ where: { id: lokasi.id }, data: { ttdKetik: aktif } });
+    await audit(actor.id, "lokasi.ttd_ketik", "location", lokasi.id, { sebelum: lokasi.ttdKetik, sesudah: aktif });
+  }
+  revalidatePath(`/lokasi/${lokasi.slug}`, "layout");
+  revalidatePath(`/paket/${lokasi.packageId}`, "layout");
+
+  return {
+    success: aktif
+      ? "Tanda tangan otomatis DINYALAKAN. Penanda tangan yang namanya ada tetapi tanda tangannya belum diunggah kini tercetak dengan tanda tangan ketik dari namanya, di semua dokumen lokasi ini termasuk laporan harian."
+      : "Tanda tangan otomatis DIMATIKAN. Bagian tanda tangan yang gambarnya belum diunggah tercetak kosong untuk ditandatangani dengan pena.",
+  };
+}

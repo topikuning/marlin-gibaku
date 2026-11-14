@@ -1637,6 +1637,11 @@ model Location {
   coTeamLeaderName   String? @map("co_team_leader_name")
   coTeamLeaderTtdKey String? @map("co_team_leader_ttd_key")
 
+  /// Tanda tangan KETIK dari nama untuk slot yang coretannya belum diunggah
+  /// (DECISIONS 763) – hanya bila dinyalakan di halaman lokasi ini. Bawaan MATI
+  /// (DECISIONS 766): slot tanpa coretan tercetak kosong untuk ditandatangani pena.
+  ttdKetik Boolean @default(false) @map("ttd_ketik")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

@@ -182,6 +182,8 @@ export const LOKASI_TTD_SELECT = {
   wakilSahTtdKey: true,
   coTeamLeaderName: true,
   coTeamLeaderTtdKey: true,
+  // Sakelar tanda tangan ketik lokasi ini (DECISIONS 766, bawaan mati).
+  ttdKetik: true,
   package: {
     select: {
       pelaksanaName: true,
@@ -260,11 +262,16 @@ export async function namaPenandatanganLokasi(locationId: string): Promise<NamaP
  * Nama + kunci gambar satu dokumen satu lokasi. Dipakai `muatTtdLaporan`
  * (halaman cetak) dan `muatTtdPdf` (PDF) – keduanya tidak boleh memilih orang
  * dengan caranya sendiri-sendiri.
+ *
+ * `ketik` = lokasi ini menyalakan tanda tangan ketik (DECISIONS 766). Dibaca di
+ * sini, satu kali, supaya halaman cetak dan PDF/Excel tidak bisa berbeda
+ * pendapat. Kurva S paket gabungan lokasi mengikuti lokasi acuannya, sama
+ * dengan nama-nama penanda tangannya.
  */
 export async function penandatanganLokasi(
   locationId: string,
   jenis: JenisDokumen,
-): Promise<{ nama: ReturnType<typeof penandatanganDokumen>; kunci: KunciTtd } | null> {
+): Promise<{ nama: ReturnType<typeof penandatanganDokumen>; kunci: KunciTtd; ketik: boolean } | null> {
   const lokasi: LokasiTtd | null = await db.location.findUnique({ where: { id: locationId }, select: LOKASI_TTD_SELECT });
   const k = lokasi?.package.contract;
   if (!lokasi || !k) return null;
@@ -283,7 +290,7 @@ export async function penandatanganLokasi(
     coTeamLeaderTtdKey: kortl.ttdKey,
     vendorStempelKey: k.vendor.stempelKey,
   });
-  return { nama, kunci };
+  return { nama, kunci, ketik: lokasi.ttdKetik };
 }
 
 async function gambar(key: string | null | undefined): Promise<GambarTtd | null> {
@@ -309,12 +316,13 @@ async function gambar(key: string | null | undefined): Promise<GambarTtd | null>
 export async function muatTtdLaporan(locationId: string, jenis: JenisDokumen): Promise<TtdLaporan> {
   const t = await penandatanganLokasi(locationId, jenis);
   if (!t) return TANPA_TTD;
-  const { nama, kunci } = t;
+  const { nama, kunci, ketik } = t;
   // Tanda tangan yang belum diunggah diisi tanda tangan KETIK dari namanya
   // (DECISIONS 763) – sama dengan PDF & Excel (`muatTtdPdf`). Stempel tidak.
+  // Hanya bila lokasi ini menyalakannya (DECISIONS 766, bawaan mati).
   const ttdAtauKetik = async (key: string | null, orang: string | null): Promise<GambarTtd | null> => {
     const unggahan = await gambar(key);
-    if (unggahan) return unggahan;
+    if (unggahan || !ketik) return unggahan;
     const png = await ttdKetikPng(orang);
     const rasio = png ? rasioPng(png) : null;
     return png && rasio ? { url: `data:image/png;base64,${png.toString("base64")}`, ketik: { rasio } } : null;

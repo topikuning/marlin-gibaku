@@ -49,6 +49,8 @@ function findLocation(slug: string) {
       wakilSahTtdKey: true,
       coTeamLeaderName: true,
       coTeamLeaderTtdKey: true,
+      // Sakelar tanda tangan ketik lokasi ini (DECISIONS 766, bawaan mati).
+      ttdKetik: true,
       package: {
         select: {
           id: true,

@@ -43,6 +43,8 @@ export default async function LaporanLokasiPage({
     select: {
       id: true,
       name: true,
+      // Teks bantuan isian slot mengikuti sakelar tanda tangan ketik (DECISIONS 766).
+      ttdKetik: true,
       package: {
         select: {
           id: true,
@@ -130,6 +132,7 @@ export default async function LaporanLokasiPage({
                 slots={ttdKosong}
                 bolehIsi={can(user.role, "contract.manage")}
                 namaPaket={location.package.name}
+                ttdKetik={location.ttdKetik}
               />
               <p className="mt-1.5">
                 {can(user.role, "contract.manage")
