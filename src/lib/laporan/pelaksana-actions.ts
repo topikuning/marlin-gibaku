@@ -226,8 +226,6 @@ export async function setTtdKetikLokasi(
   revalidatePath(`/paket/${lokasi.packageId}`, "layout");
 
   return {
-    success: aktif
-      ? "Tanda tangan otomatis DINYALAKAN. Penanda tangan yang namanya ada tetapi tanda tangannya belum diunggah kini tercetak dengan tanda tangan ketik dari namanya, di semua dokumen lokasi ini termasuk laporan harian."
-      : "Tanda tangan otomatis DIMATIKAN. Bagian tanda tangan yang gambarnya belum diunggah tercetak kosong untuk ditandatangani dengan pena.",
+    success: aktif ? "Tanda tangan otomatis dinyalakan." : "Tanda tangan otomatis dimatikan.",
   };
 }

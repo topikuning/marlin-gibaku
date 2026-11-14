@@ -39,8 +39,8 @@ export function TtdKetikPanel({ locationId, aktif }: { locationId: string; aktif
             <p className="font-medium text-ink">Tanda tangan otomatis: {aktif ? "NYALA" : "MATI"}</p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Penanda tangan yang namanya ada tetapi tanda tangannya belum diunggah tercetak dengan tanda tangan ketik dari namanya. Berlaku di semua dokumen lokasi ini, termasuk laporan harian."
-                : "Bagian tanda tangan yang gambarnya belum diunggah tercetak kosong, untuk ditandatangani dengan pena. Nyalakan bila ingin diisi tanda tangan ketik dari nama orangnya."}
+                ? "Tanda tangan yang belum diunggah diisi otomatis dari nama orangnya."
+                : "Tanda tangan yang belum diunggah dibiarkan kosong."}
             </p>
           </div>
         </div>

@@ -67,9 +67,7 @@ export function PelaksanaForm({
   // Belum ada pelaksana di mana pun – dokumen akan terbit tanpa nama.
   const kosongTotal = !nama && !(warisan?.nama ?? null);
   // Yang tercetak selama coretan belum diunggah – mengikuti sakelar lokasi ini.
-  const sampaiDiunggah = ttdKetik
-    ? "blok TTD-nya memakai tanda tangan ketik dari namanya"
-    : "blok TTD-nya tercetak kosong untuk ditandatangani dengan pena";
+  const sampaiDiunggah = ttdKetik ? "diisi otomatis dari namanya" : "kolomnya kosong";
 
   return (
     <form
@@ -143,9 +141,8 @@ export function PelaksanaForm({
       */}
       {nama && !ttdUrl ? (
         <HelpText>
-          Lokasi ini memakai pelaksananya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-          diunggah, {sampaiDiunggah}. Tanda tangan pelaksana paket sengaja tidak dipakai, karena tanda
-          tangan seseorang tidak boleh muncul di bawah nama orang lain.
+          Tanda tangan pelaksana lokasi ini belum diunggah, jadi {sampaiDiunggah}. Tanda tangan
+          pelaksana paket tidak dipakai di sini.
         </HelpText>
       ) : null}
 
@@ -215,9 +212,8 @@ export function PelaksanaForm({
 
         {pengawasNama && !pengawasTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai pengawasnya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-            diunggah, {sampaiDiunggah}. Tanda tangan pengawas paket sengaja tidak dipakai, karena tanda
-            tangan pengawas menyatakan siapa yang memeriksa pekerjaan ini.
+            Tanda tangan pengawas lokasi ini belum diunggah, jadi {sampaiDiunggah}. Tanda tangan
+            pengawas paket tidak dipakai di sini.
           </HelpText>
         ) : null}
       </div>
@@ -273,8 +269,8 @@ export function PelaksanaForm({
 
         {wakilSahNama && !wakilSahTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai Wakil Sah PPK-nya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-            diunggah, {sampaiDiunggah}. Tanda tangan Wakil Sah PPK paket sengaja tidak dipakai.
+            Tanda tangan Wakil Sah PPK lokasi ini belum diunggah, jadi {sampaiDiunggah}. Tanda tangan
+            dari paket tidak dipakai di sini.
           </HelpText>
         ) : null}
       </div>
@@ -318,8 +314,8 @@ export function PelaksanaForm({
 
         {koordinatorTlNama && !koordinatorTlTtdUrl ? (
           <HelpText>
-            Lokasi ini memakai Koordinator Team Leader-nya sendiri, tetapi tanda tangannya belum
-            diunggah. Sampai diunggah, {sampaiDiunggah}. Tanda tangan dari paket sengaja tidak dipakai.
+            Tanda tangan Koordinator Team Leader lokasi ini belum diunggah, jadi {sampaiDiunggah}.
+            Tanda tangan dari paket tidak dipakai di sini.
           </HelpText>
         ) : null}
       </div>
