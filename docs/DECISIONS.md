@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 766 | 2026-11-14 | Tanda tangan ketik (763) dinyalakan PER LOKASI, bawaan MATI (semua lokasi lama ikut mati) – kotak Nyala/Mati di kartu Penanda tangan halaman lokasi (`location.signer` + audit); berlaku di semua dokumen termasuk laporan harian, lewat dua pemuat; Kurva S paket ikut lokasi acuan |
 | 765 | 2026-11-12 | Tampilan HP tidak melebar ke samping: isi grid boleh menyempit (`.grid > * { min-width: 0 }`) dan kata kepanjangan dipatahkan (`overflow-wrap: break-word`), global di `globals.css`; kalender harian, Laporan Lengkap, kotak di luar RAB dirapikan di 360 px; sapuan E2E +360 px |
 | 764 | 2026-11-12 | Kurva S paket gabungan >1 lokasi diteken PPK kontrak + penyedia (Manajer Proyek) saja – jenis `kurva_paket`, tanpa konsultan, bukan Wakil Sah lokasi acuan; satu lokasi tetap penanda tangan lokasinya |
 | 763 | 2026-11-12 | Tanda tangan ketik (huruf tulisan tangan OFL, lebar mengikuti nama) untuk slot bernama yang coretannya belum diunggah – semua jabatan, stempel tidak, 760 tetap; garis pijak PDF diukur ke baris nama (dulu menimpa nama) |

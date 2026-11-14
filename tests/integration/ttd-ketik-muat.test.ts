@@ -8,7 +8,11 @@
 //    ketik – di PDF/Excel (`muatTtdPdf`) maupun halaman cetak (`muatTtdLaporan`);
 // 2. tanda tangan ketiknya milik ORANG di slot itu, bukan nama pihak lain;
 // 3. slot tanpa nama tetap kosong, dan stempel tidak pernah dibuatkan;
-// 4. jalan walau R2 belum disiapkan (gambar ketik tidak butuh penyimpanan).
+// 4. jalan walau R2 belum disiapkan (gambar ketik tidak butuh penyimpanan);
+// 5. BAWAAN MATI per lokasi (DECISIONS 766, permintaan user 2026-11-14: *"perlu
+//    toggle on/off dengan default off. yang kontrolnya ada di lokasi"*) – lokasi
+//    yang belum menyalakannya mencetak slot tanpa coretan KOSONG, dan
+//    menyalakan satu lokasi tidak menyalakan lokasi lain.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -70,7 +74,44 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("tanda tangan yang belum diunggah diisi tanda tangan ketik", () => {
+describe("bawaan MATI: lokasi yang belum menyalakannya tidak mendapat tanda tangan ketik (DECISIONS 766)", () => {
+  it("lokasi baru tersimpan dengan sakelar mati", async () => {
+    const l = await db.location.findUniqueOrThrow({ where: { id: lengkap }, select: { ttdKetik: true } });
+    expect(l.ttdKetik).toBe(false);
+  });
+
+  it("PDF/Excel & halaman cetak: slot bernama tanpa coretan tetap KOSONG", async () => {
+    for (const jenis of ["harian", "mingguan", "bulanan", "jadwal", "kurva_paket"] as const) {
+      const pdf = await muatTtdPdf(lengkap, jenis);
+      const html = await muatTtdLaporan(lengkap, jenis);
+      for (const pihak of ["ppk", "pengawas", "penyedia"] as const) {
+        expect(pdf[pihak].ttd, `${jenis}/${pihak}`).toBeNull();
+        expect(pdf[pihak].ttdKetik ?? false, `${jenis}/${pihak}`).toBe(false);
+        expect(html[pihak].ttd, `${jenis}/${pihak}`).toBeNull();
+      }
+      // Nama tetap tercetak – yang dimatikan hanya coretan ketiknya.
+      expect(html.ppk.nama, jenis).toBeTruthy();
+    }
+  });
+
+  it("menyalakan SATU lokasi tidak menyalakan lokasi lain", async () => {
+    await db.location.update({ where: { id: lengkap }, data: { ttdKetik: true } });
+    try {
+      expect((await muatTtdPdf(lengkap, "mingguan")).ppk.ttd).not.toBeNull();
+      const lain = await muatTtdPdf(tanpaKonsultan, "mingguan");
+      expect(lain.ppk.ttd).toBeNull();
+      expect(lain.penyedia.ttd).toBeNull();
+    } finally {
+      await db.location.update({ where: { id: lengkap }, data: { ttdKetik: false } });
+    }
+  });
+});
+
+describe("tanda tangan yang belum diunggah diisi tanda tangan ketik (lokasi yang menyalakannya)", () => {
+  beforeAll(async () => {
+    await db.location.updateMany({ where: { id: { in: [lengkap, tanpaKonsultan] } }, data: { ttdKetik: true } });
+  });
+
   it("R2 memang belum disiapkan di lingkungan uji – gambar ketik tidak bergantung padanya", () => {
     expect(isR2Configured()).toBe(false);
   });

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PelaksanaForm } from "@/components/knmp/pelaksana-form";
+import { TtdKetikPanel } from "@/components/knmp/ttd-ketik-panel";
 import { presignKeys } from "@/lib/photos";
 import Link from "next/link";
 import { AlertTriangle, CalendarRange, ClipboardList, Mail } from "lucide-react";
@@ -405,8 +406,11 @@ export default async function LokasiRingkasanPage({
               title="Penanda tangan lokasi ini"
               subtitle="Isi HANYA bila orang di lokasi ini berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
             />
-            <CardBody>
+            <CardBody className="space-y-5">
+              {/* Sakelar tanda tangan ketik lokasi ini (DECISIONS 766, bawaan mati). */}
+              <TtdKetikPanel locationId={location.id} aktif={location.ttdKetik} />
               <PelaksanaForm
+                ttdKetik={location.ttdKetik}
                 locationId={location.id}
                 nama={location.pelaksanaName}
                 jabatan={location.pelaksanaTitle}

@@ -35,6 +35,7 @@ export function PelaksanaForm({
   koordinatorTlNama,
   koordinatorTlTtdUrl,
   warisanKoordinatorTl,
+  ttdKetik,
 }: {
   locationId: string;
   nama: string | null;
@@ -57,12 +58,18 @@ export function PelaksanaForm({
   koordinatorTlNama: string | null;
   koordinatorTlTtdUrl: string | null;
   warisanKoordinatorTl?: { nama: string | null } | null;
+  /** Lokasi ini menyalakan tanda tangan ketik (DECISIONS 766) – teks bantuan mengikutinya. */
+  ttdKetik: boolean;
 }) {
   const [state, kirim, sibuk] = useAksiKlik<PelaksanaActionState>(simpanPelaksana, undefined);
 
   const memakaiWarisan = !nama;
   // Belum ada pelaksana di mana pun – dokumen akan terbit tanpa nama.
   const kosongTotal = !nama && !(warisan?.nama ?? null);
+  // Yang tercetak selama coretan belum diunggah – mengikuti sakelar lokasi ini.
+  const sampaiDiunggah = ttdKetik
+    ? "blok TTD-nya memakai tanda tangan ketik dari namanya"
+    : "blok TTD-nya tercetak kosong untuk ditandatangani dengan pena";
 
   return (
     <form
@@ -137,8 +144,8 @@ export function PelaksanaForm({
       {nama && !ttdUrl ? (
         <HelpText>
           Lokasi ini memakai pelaksananya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-          diunggah, blok TTD-nya memakai tanda tangan ketik dari namanya. Tanda tangan pelaksana paket
-          sengaja tidak dipakai, karena tanda tangan seseorang tidak boleh muncul di bawah nama orang lain.
+          diunggah, {sampaiDiunggah}. Tanda tangan pelaksana paket sengaja tidak dipakai, karena tanda
+          tangan seseorang tidak boleh muncul di bawah nama orang lain.
         </HelpText>
       ) : null}
 
@@ -209,9 +216,8 @@ export function PelaksanaForm({
         {pengawasNama && !pengawasTtdUrl ? (
           <HelpText>
             Lokasi ini memakai pengawasnya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-            diunggah, blok TTD pengawas memakai tanda tangan ketik dari namanya. Tanda tangan pengawas
-            paket sengaja tidak dipakai, karena tanda tangan pengawas menyatakan siapa yang memeriksa
-            pekerjaan ini.
+            diunggah, {sampaiDiunggah}. Tanda tangan pengawas paket sengaja tidak dipakai, karena tanda
+            tangan pengawas menyatakan siapa yang memeriksa pekerjaan ini.
           </HelpText>
         ) : null}
       </div>
@@ -268,8 +274,7 @@ export function PelaksanaForm({
         {wakilSahNama && !wakilSahTtdUrl ? (
           <HelpText>
             Lokasi ini memakai Wakil Sah PPK-nya sendiri, tetapi tanda tangannya belum diunggah. Sampai
-            diunggah, blok TTD-nya memakai tanda tangan ketik dari namanya. Tanda tangan Wakil Sah PPK
-            paket sengaja tidak dipakai.
+            diunggah, {sampaiDiunggah}. Tanda tangan Wakil Sah PPK paket sengaja tidak dipakai.
           </HelpText>
         ) : null}
       </div>
@@ -314,7 +319,7 @@ export function PelaksanaForm({
         {koordinatorTlNama && !koordinatorTlTtdUrl ? (
           <HelpText>
             Lokasi ini memakai Koordinator Team Leader-nya sendiri, tetapi tanda tangannya belum
-            diunggah, jadi blok TTD-nya tercetak kosong. Tanda tangan dari paket sengaja tidak dipakai.
+            diunggah. Sampai diunggah, {sampaiDiunggah}. Tanda tangan dari paket sengaja tidak dipakai.
           </HelpText>
         ) : null}
       </div>

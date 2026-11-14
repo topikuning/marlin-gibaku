@@ -22,12 +22,15 @@ export function DaftarSlotKosong({
   slots,
   bolehIsi,
   namaPaket,
+  ttdKetik,
 }: {
   locationId: string;
   slots: SlotKosongView[];
   /** Pengguna punya `contract.manage`; tanpanya hanya daftar yang tampil. */
   bolehIsi: boolean;
   namaPaket: string;
+  /** Lokasi ini menyalakan tanda tangan ketik (DECISIONS 766). */
+  ttdKetik: boolean;
 }) {
   return (
     <ul className="space-y-1.5">
@@ -36,14 +39,24 @@ export function DaftarSlotKosong({
           <span>
             <b className="font-medium text-ink">{k.jabatan}</b> – {k.dokumen.join(", ")}
           </span>
-          {bolehIsi ? <IsiSlot locationId={locationId} slot={k} namaPaket={namaPaket} /> : null}
+          {bolehIsi ? <IsiSlot locationId={locationId} slot={k} namaPaket={namaPaket} ttdKetik={ttdKetik} /> : null}
         </li>
       ))}
     </ul>
   );
 }
 
-function IsiSlot({ locationId, slot, namaPaket }: { locationId: string; slot: SlotKosongView; namaPaket: string }) {
+function IsiSlot({
+  locationId,
+  slot,
+  namaPaket,
+  ttdKetik,
+}: {
+  locationId: string;
+  slot: SlotKosongView;
+  namaPaket: string;
+  ttdKetik: boolean;
+}) {
   const [state, action, pending] = useAksi<IsiPenandatanganState>(isiPenandatanganAction, undefined);
   const id = useId();
   // Terkendali: React mengosongkan formulir sesudah aksi, juga yang GAGAL
@@ -82,7 +95,10 @@ function IsiSlot({ locationId, slot, namaPaket }: { locationId: string; slot: Sl
           <FileInput id={`${id}-ttd`} name="ttd" accept="image/png,image/jpeg,image/webp" maxBytes={2 * 1024 * 1024} />
           <HelpText>
             Foto atau pindai coretan tanda tangan di kertas putih polos. PNG/JPG/WebP maks 2 MB. Sampai gambarnya
-            diunggah, dokumen memakai tanda tangan ketik dari nama di atas.
+            diunggah,{" "}
+            {ttdKetik
+              ? "dokumen lokasi ini memakai tanda tangan ketik dari nama di atas."
+              : "bagian tanda tangannya tercetak kosong untuk ditandatangani dengan pena."}
           </HelpText>
         </div>
         <Button type="submit" loading={pending}>
