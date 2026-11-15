@@ -20,7 +20,9 @@ vi.mock("server-only", () => ({}));
 
 const { db } = await import("@/lib/db");
 const { sinkronKawal } = await import("@/lib/kawal/sinkron");
-const { setAkunKawal, KAWAL_ALAMAT_KEY, KAWAL_AKUN_KEY, KAWAL_SANDI_KEY } = await import("@/lib/kawal/setelan");
+const { setAkunKawal, KAWAL_ALAMAT_KEY, KAWAL_AKUN_KEY, KAWAL_SANDI_KEY, KAWAL_COOKIE_KEY } = await import(
+  "@/lib/kawal/setelan"
+);
 const { kawalUntukLokasi } = await import("@/lib/kawal/queries");
 
 const suffix = `kw${Date.now().toString(36)}`;
@@ -53,7 +55,10 @@ async function bersihKawal() {
   await db.$executeRawUnsafe(
     "TRUNCATE TABLE kawal_sarana_snapshots, kawal_location_snapshots, kawal_snapshots, kawal_location_maps, kawal_sync_runs",
   );
-  await db.appSetting.deleteMany({ where: { key: { in: [KAWAL_ALAMAT_KEY, KAWAL_AKUN_KEY, KAWAL_SANDI_KEY] } } });
+  // Cookie "ingat saya" sisa berkas uji lain akan dipakai lebih dulu (DECISIONS 769).
+  await db.appSetting.deleteMany({
+    where: { key: { in: [KAWAL_ALAMAT_KEY, KAWAL_AKUN_KEY, KAWAL_SANDI_KEY, KAWAL_COOKIE_KEY] } },
+  });
 }
 
 beforeAll(async () => {

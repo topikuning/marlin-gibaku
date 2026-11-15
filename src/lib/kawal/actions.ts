@@ -7,7 +7,14 @@ import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { jakartaToday } from "@/lib/format";
 import { cekHubunganAngka, cekPenanggalanMinggu, petakanBentuk, type BentukData, type LaporanHubungan } from "./bentuk";
 import { parseResponsKawal } from "./parser";
-import { ambilLokasiKawal, KawalGalat, normalisasiAlamat, type LangkahKawal, type RingkasFormulir } from "./klien";
+import {
+  ambilLokasiKawal,
+  bacaCookieTempel,
+  KawalGalat,
+  normalisasiAlamat,
+  type LangkahKawal,
+  type RingkasFormulir,
+} from "./klien";
 import { getAkunKawal, setAkunKawal } from "./setelan";
 
 /**
@@ -37,31 +44,43 @@ export async function kawalAkunAction(_prev: KawalAkunState, formData: FormData)
       alamat: z.string().trim().max(300),
       akun: z.string().trim().max(150),
       sandi: z.string().max(300),
+      // Cookie "ingat saya" dari peramban (DECISIONS 769).
+      cookie: z.string().max(8000),
+      hapusCookie: z.boolean(),
     })
     .safeParse({
       aksi: formData.get("aksi"),
       alamat: formData.get("alamat") ?? "",
       akun: formData.get("akun") ?? "",
       sandi: formData.get("sandi") ?? "",
+      cookie: formData.get("cookie") ?? "",
+      hapusCookie: formData.get("hapusCookie") === "1",
     });
   if (!p.success) return { error: "Isian akun Kawal tidak dikenali. Muat ulang halaman, lalu coba lagi." };
   try {
     const user = await requireCapability("system.manage");
     const { aksi } = p.data;
     if (aksi === "hapus") {
-      await setAkunKawal({ alamat: "", akun: "", sandi: "" });
+      await setAkunKawal({ alamat: "", akun: "", sandi: "", cookie: "" });
       await audit(user.id, "system.kawal_akun", "system", null, { aksi });
       revalidatePath("/sistem");
       return { success: "Akun Kawal dihapus. Sinkron berhenti sampai akun diisi lagi." };
     }
 
+    const cookieBaru = p.data.cookie.trim() ? bacaCookieTempel(p.data.cookie) : null;
+    if (p.data.cookie.trim() && !cookieBaru) {
+      return { error: "Cookie tidak terbaca. Salin isi Cookie dari peramban (bentuknya nama=nilai; nama=nilai)." };
+    }
     const tersimpan = await getAkunKawal();
     const akun = {
       alamat: p.data.alamat || tersimpan?.alamat || "",
       akun: p.data.akun || tersimpan?.akun || "",
       sandi: p.data.sandi || tersimpan?.sandi || "",
+      cookie: p.data.hapusCookie ? null : cookieBaru || tersimpan?.cookie || null,
     };
-    if (!akun.alamat || !akun.akun || !akun.sandi) return { error: "Isi alamat Kawal, nama akun, dan sandi dulu." };
+    if (!akun.alamat || (!akun.cookie && (!akun.akun || !akun.sandi))) {
+      return { error: "Isi alamat Kawal, lalu cookie peramban, atau nama akun dan sandi." };
+    }
     try {
       akun.alamat = normalisasiAlamat(akun.alamat);
     } catch (e) {
@@ -112,15 +131,22 @@ export async function kawalAkunAction(_prev: KawalAkunState, formData: FormData)
       }
     }
 
-    await setAkunKawal({ alamat: akun.alamat, akun: akun.akun, sandi: p.data.sandi ? p.data.sandi : undefined });
+    await setAkunKawal({
+      alamat: akun.alamat,
+      akun: akun.akun,
+      sandi: p.data.sandi ? p.data.sandi : undefined,
+      cookie: p.data.hapusCookie ? "" : (cookieBaru ?? undefined),
+    });
     await audit(user.id, "system.kawal_akun", "system", null, {
       aksi,
       host: new URL(akun.alamat).host,
       akun: akun.akun,
       sandiDiganti: !!p.data.sandi,
+      cookieDiganti: !!cookieBaru,
+      cookieDihapus: p.data.hapusCookie,
     });
     revalidatePath("/sistem");
-    return { success: "Akun Kawal tersimpan. Sandinya disimpan tersandi. Tekan Uji sambungan untuk memeriksanya." };
+    return { success: "Akun Kawal tersimpan. Sandi dan cookie disimpan tersandi. Tekan Uji sambungan untuk memeriksanya." };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan akun Kawal." };

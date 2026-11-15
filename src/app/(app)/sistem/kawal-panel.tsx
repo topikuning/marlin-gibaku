@@ -1,7 +1,7 @@
 "use client";
 
 import { useAksi } from "@/lib/aksi-klien";
-import { Banner, Button, Input, Label, PasswordInput, StatusPill } from "@/components/ui";
+import { Banner, Button, HelpText, Input, Label, PasswordInput, StatusPill, Textarea } from "@/components/ui";
 import { kawalAkunAction, type KawalAkunState, type LaporanUjiKawal } from "@/lib/kawal/actions";
 import type { BentukField } from "@/lib/kawal/bentuk";
 
@@ -9,9 +9,13 @@ import type { BentukField } from "@/lib/kawal/bentuk";
  * Akun Kawal KNMP + uji sambungan (DECISIONS 689). Hasil uji hanya BENTUK data
  * Kawal (nama field, tipe, hitungan) – bukti sebelum parser sinkron ditulis.
  */
-export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: string; adaSandi: boolean } }) {
+export function KawalPanel({
+  akunKawal,
+}: {
+  akunKawal: { alamat: string; akun: string; adaSandi: boolean; adaCookie: boolean };
+}) {
   const [state, aksi, sibuk] = useAksi<KawalAkunState>(kawalAkunAction, undefined);
-  const terisi = !!(akunKawal.alamat && akunKawal.akun && akunKawal.adaSandi);
+  const terisi = !!(akunKawal.alamat && (akunKawal.adaCookie || (akunKawal.akun && akunKawal.adaSandi)));
 
   return (
     <div className="space-y-4">
@@ -20,9 +24,8 @@ export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: s
         <StatusPill tone={terisi ? "success" : "neutral"} label={terisi ? "Terisi" : "Belum diisi"} />
       </div>
       <p className="text-[13px] text-ink-muted">
-        Data Kawal dipakai sebagai pembanding progres, bukan angka resmi. Sandinya disimpan tersandi dan tidak pernah
-        ditampilkan lagi; kosongkan kolom sandi bila tidak ingin menggantinya. Uji sambungan masuk ke Kawal sekali dan
-        hanya melaporkan bentuk datanya – tidak ada yang disimpan.
+        Data Kawal hanya pembanding progres, bukan angka resmi. Sandi dan cookie disimpan tersandi dan tidak ditampilkan
+        lagi. Kosongkan kolomnya bila tidak ingin mengganti.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
@@ -54,6 +57,30 @@ export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: s
             />
           </div>
         </div>
+        {/* Cookie "ingat saya" (DECISIONS 769): jalan keluar saat masuk dengan
+            sandi ditolak. Bila ada, sandi tidak dicoba sama sekali. */}
+        <div>
+          <Label htmlFor="kawal-cookie">Cookie peramban</Label>
+          <Textarea
+            id="kawal-cookie"
+            name="cookie"
+            rows={2}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={akunKawal.adaCookie ? "•••••• tersimpan" : "nama=nilai; nama=nilai"}
+            className="font-mono text-xs"
+          />
+          <HelpText>
+            Dipakai bila masuk dengan sandi gagal. Buka Kawal di peramban yang masih masuk, tekan F12, buka tab Network,
+            muat ulang halaman, klik baris pertama, lalu salin isi Cookie di bagian Request Headers.
+          </HelpText>
+          {akunKawal.adaCookie ? (
+            <label className="mt-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="hapusCookie" value="1" className="size-4" />
+              <span>Hapus cookie tersimpan</span>
+            </label>
+          ) : null}
+        </div>
         {/* Tombol di baris sendiri: di layar sempit "Simpan" sempat menempel di
             baris kolom isian sementara dua tombol lain turun ke bawah. */}
         <div className="flex flex-wrap gap-2">
@@ -63,7 +90,7 @@ export function KawalPanel({ akunKawal }: { akunKawal: { alamat: string; akun: s
           <Button type="submit" name="aksi" value="uji" variant="secondary" loading={sibuk}>
             Uji sambungan
           </Button>
-          {akunKawal.alamat || akunKawal.akun || akunKawal.adaSandi ? (
+          {akunKawal.alamat || akunKawal.akun || akunKawal.adaSandi || akunKawal.adaCookie ? (
             <Button type="submit" name="aksi" value="hapus" variant="secondary" loading={sibuk}>
               Hapus akun
             </Button>

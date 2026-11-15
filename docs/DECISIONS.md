@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 769 | 2026-11-15 | Kawal bisa masuk memakai cookie "ingat saya" dari peramban (isian di Sistem, tersimpan tersandi `kawal.cookie.password`, tidak pernah di audit); alamat + cookie cukup; bila cookie ada, formulir masuk tidak pernah dikirim, juga saat cookie ditolak, supaya akun tidak terkunci |
 | 768 | 2026-11-15 | Foto lama dibuka langsung dari Lenovo seperti presign R2: alamat MARLIN tetap (`/api/berkas`, `/api/foto-asli`), dialihkan ke link `/v1/unduh` bertanda tangan HMAC di `server.mjs`; sakelar bawaan mati, nyala hanya lewat uji sambungan (gateway baru + Bypass Access); dokumen tetap lewat MARLIN (676) |
 | 767 | 2026-11-15 | RAM produksi dihemat: `MALLOC_ARENA_MAX=2` di Dockerfile + `sharp.cache(false)` saat server mulai; diukur pada beban foto: memori sesudah diam 704 → 373 MB (−47%), kecepatan sama. Railway menagih RAM terpakai (rata-rata ±1,8 GB), bukan batas 4 GB |
 | 766 | 2026-11-14 | Tanda tangan ketik (763) dinyalakan PER LOKASI, bawaan MATI (semua lokasi lama ikut mati) – kotak Nyala/Mati di kartu Penanda tangan halaman lokasi (`location.signer` + audit); berlaku di semua dokumen termasuk laporan harian, lewat dua pemuat; Kurva S paket ikut lokasi acuan |
