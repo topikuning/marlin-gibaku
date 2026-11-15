@@ -170,7 +170,23 @@ async function migrasiDataOtomatis() {
  * `AsyncLocalStorage` mengikuti seluruh rantai `await` di dalamnya, dan yang
  * ditambahkan besok ikut terlindungi tanpa harus ingat.
  */
+/**
+ * Cache operasi sharp/libvips dimatikan (DECISIONS 767). Setiap foto MARLIN
+ * berbeda, jadi cache itu hampir tidak pernah kena – ia hanya menahan memori.
+ * Bersama `MALLOC_ARENA_MAX=2` (Dockerfile) memori beban foto turun ±47%.
+ * Gagal memuat sharp di sini tidak boleh menggagalkan boot.
+ */
+async function hematMemoriSharp() {
+  try {
+    const sharp = (await import("sharp")).default;
+    sharp.cache(false);
+  } catch (err) {
+    console.error("[bootstrap] pengaturan memori sharp gagal:", err);
+  }
+}
+
 export const bootstrapDone: Promise<void> = jalankanDiLatar(async () => {
+  await hematMemoriSharp();
   await bootstrapAdmin();
   await bootstrapDemoData();
   await migrasiDataOtomatis();

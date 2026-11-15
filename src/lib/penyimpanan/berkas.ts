@@ -3,8 +3,16 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { r2Delete, r2GetBuffer, r2GetDenganJenis, r2HapusBanyak, r2PresignGet } from "@/lib/r2";
-import { ambilDingin, bentukKunciSah, hapusDingin, setelanDingin, type SetelanDingin } from "@/lib/arsip-asli/dingin";
-import { kepalaDisposisi, ruasNama } from "./nama-unduhan";
+import {
+  alamatUnduhLangsung,
+  ambilDingin,
+  bentukKunciSah,
+  hapusDingin,
+  setelanDingin,
+  type SetelanDingin,
+} from "@/lib/arsip-asli/dingin";
+import { kepalaDisposisi, namaUnduhan, ruasNama } from "./nama-unduhan";
+import { lenovoLangsung } from "./setelan";
 
 /**
  * SATU PINTU KE BERKAS, DI MANA PUN IA BERADA (DECISIONS 645).
@@ -161,6 +169,54 @@ export async function alamatBerkas(
   const p = await pindahan(kunci);
   if (p) return alamatLenovo(kunci, expiresIn, namaBerkas);
   return r2PresignGet(kunci, expiresIn, namaBerkas ? kepalaDisposisi(namaBerkas, jenis) : undefined);
+}
+
+/* ── Lenovo melayani peramban langsung (DECISIONS 768) ───────────────────── */
+
+/**
+ * Link Lenovo bertanda tangan, seperti presign R2: peramban mengambil isinya
+ * langsung dari Lenovo, tidak lewat MARLIN di Railway. Masa berlakunya sama
+ * dengan token alamat MARLIN (dibulatkan ke jam, ±1–2 jam).
+ */
+function tautanLangsung(s: SetelanDingin, kunciDingin: string, jenis: string | null, nama: string | null): string {
+  const tipe = jenis || "application/octet-stream";
+  // Sama dengan `responsBerkas`: tanpa nama pun jenis tak aman tetap diunduh.
+  const disposisi = nama ? kepalaDisposisi(nama, tipe) : kepalaDisposisi("berkas", tipe).split(";")[0];
+  return alamatUnduhLangsung(s, kunciDingin, {
+    jenis: tipe,
+    disposisi,
+    nama: nama ?? "berkas",
+    kedaluwarsa: kedaluwarsa(3600),
+  });
+}
+
+/**
+ * Alamat Lenovo langsung untuk berkas yang SUDAH dipindah (`berkas_pindah`).
+ * `null` = tetap lewat MARLIN: sakelar mati, arsip belum dikonfigurasi, atau
+ * berkasnya masih di R2. Dipanggil route yang memegang alamat MARLIN – link
+ * yang dilihat orang tidak pernah berubah.
+ *
+ * `nama` = nama yang DIMINTA di alamat (tidak ditandatangani); dirapikan di sini
+ * seperti nama unggahan, sama dengan `sajikanTokenBerkas`.
+ */
+export async function alamatLenovoLangsung(kunci: string, o: { nama: string | null }): Promise<string | null> {
+  const s = setelanDingin();
+  if (!s || !(await lenovoLangsung())) return null;
+  const p = await pindahan(kunci);
+  if (!p) return null;
+  const nama = o.nama ? namaUnduhan(o.nama, p.contentType, "berkas") : null;
+  return tautanLangsung(s, p.kunciDingin, p.contentType, nama);
+}
+
+/**
+ * Sama, untuk BERKAS ASLI foto yang salinan R2-nya sudah dibuang. Berkas asli
+ * disimpan di Lenovo dengan kuncinya sendiri (`arsip-asli/`), bukan lewat
+ * `berkas_pindah`.
+ */
+export async function alamatAsliLangsung(originalKey: string, nama: string, jenis: string): Promise<string | null> {
+  const s = setelanDingin();
+  if (!s || !(await lenovoLangsung()) || !bentukKunciSah(originalKey)) return null;
+  return tautanLangsung(s, originalKey, jenis, nama);
 }
 
 export async function alamatBerkasBanyak(kunci: string[], expiresIn = 300): Promise<Map<string, string>> {

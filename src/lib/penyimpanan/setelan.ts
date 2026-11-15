@@ -62,6 +62,32 @@ export async function simpanSetelanPindah(s: SetelanPindah): Promise<void> {
   await simpan(PINDAH_UMUR_HARI_KEY, String(s.umurHari));
 }
 
+/**
+ * LENOVO MELAYANI PERAMBAN LANGSUNG (DECISIONS 768). Bawaan MATI: hanya boleh
+ * dinyalakan sesudah uji sambungan membuktikan gateway sudah diperbarui dan
+ * Cloudflare Access membuka jalur `/v1/unduh/*` (lihat `uji-langsung.ts`).
+ */
+export const LENOVO_LANGSUNG_KEY = "pindah_berkas.lenovo_langsung";
+
+/**
+ * Dibaca di SETIAP gambar yang dibuka dari arsip, jadi disimpan sebentar di
+ * memori proses. Menyimpan sakelar (`simpanLenovoLangsung`) mengosongkannya
+ * seketika di proses yang sama.
+ */
+let langsungTersimpan: { nilai: boolean; sampai: number } | null = null;
+
+export async function lenovoLangsung(): Promise<boolean> {
+  if (langsungTersimpan && langsungTersimpan.sampai > Date.now()) return langsungTersimpan.nilai;
+  const nilaiLangsung = (await nilai(LENOVO_LANGSUNG_KEY)) === "1";
+  langsungTersimpan = { nilai: nilaiLangsung, sampai: Date.now() + 30_000 };
+  return nilaiLangsung;
+}
+
+export async function simpanLenovoLangsung(aktif: boolean): Promise<void> {
+  await simpan(LENOVO_LANGSUNG_KEY, aktif ? "1" : "0");
+  langsungTersimpan = null;
+}
+
 export type UkuranR2 = { bytes: number; obyek: number; pada: string };
 
 export async function ukuranR2Terakhir(): Promise<UkuranR2 | null> {

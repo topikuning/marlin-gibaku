@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { isR2Configured } from "@/lib/r2";
-import { alamatBerkas } from "@/lib/penyimpanan/berkas";
+import { alamatAsliLangsung, alamatBerkas } from "@/lib/penyimpanan/berkas";
 import { alihkanKeBerkas } from "@/lib/penyimpanan/alihkan";
 import { kepalaDisposisi } from "@/lib/penyimpanan/nama-unduhan";
 import { bacaBerkasAsli } from "@/lib/arsip-asli/antrean";
@@ -79,6 +79,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   if (photo.originalR2PurgedAt) {
+    const nama = photo.originalKey.split("/").pop() ?? "foto-asli";
+    const eks = /\.([a-z0-9]+)$/i.exec(nama)?.[1]?.toLowerCase() ?? "";
+    const jenis = JENIS_ASLI[eks] ?? "application/octet-stream";
+    // Lenovo melayani peramban langsung bila sakelarnya nyala (DECISIONS 768):
+    // hak akses tetap diperiksa di atas, isinya tidak lewat Railway.
+    const langsung = await alamatAsliLangsung(photo.originalKey, nama, jenis);
+    if (langsung) {
+      return new NextResponse(null, { status: 302, headers: { Location: langsung, "Cache-Control": "private, no-store" } });
+    }
     let isi: Buffer;
     try {
       isi = await bacaBerkasAsli({ originalKey: photo.originalKey, originalR2PurgedAt: photo.originalR2PurgedAt });
@@ -88,9 +97,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         { status: 503 },
       );
     }
-    const nama = photo.originalKey.split("/").pop() ?? "foto-asli";
-    const eks = /\.([a-z0-9]+)$/i.exec(nama)?.[1]?.toLowerCase() ?? "";
-    const jenis = JENIS_ASLI[eks] ?? "application/octet-stream";
     return new NextResponse(new Uint8Array(isi), {
       headers: {
         "Content-Type": jenis,

@@ -3,7 +3,12 @@
 import { useState, useTransition } from "react";
 import { Banner, Button, Input, Label, StatusPill } from "@/components/ui";
 import { useAksi } from "@/lib/aksi-klien";
-import { jalankanPindahBerkasAction, setPindahBerkasAction, type PindahBerkasState } from "@/lib/system/actions";
+import {
+  jalankanPindahBerkasAction,
+  setLenovoLangsungAction,
+  setPindahBerkasAction,
+  type PindahBerkasState,
+} from "@/lib/system/actions";
 
 /**
  * PEMINDAHAN BERKAS R2 → LENOVO (DECISIONS 645).
@@ -21,6 +26,7 @@ export function PindahBerkasPanel({
   gagalTerus,
   galatTerakhir,
   latar,
+  langsung,
 }: {
   aktif: boolean;
   batasGb: number;
@@ -30,6 +36,8 @@ export function PindahBerkasPanel({
   perKategori: { kategori: string; label: string; berkas: number; bytes: number }[];
   gagalTerus: number;
   galatTerakhir: string | null;
+  /** Lenovo melayani peramban langsung (DECISIONS 768). */
+  langsung: boolean;
   latar: {
     berjalanSejak: string | null;
     terakhir: { selesai: string; dipindah: number; bytesDipindah: number; gagal: number; galat: string[]; alasan: string } | null;
@@ -162,6 +170,44 @@ export function PindahBerkasPanel({
         Berjalan otomatis tiap jam. Kalau server Lenovo mati atau internet rumah putus, berkas yang sudah
         dipindah tidak bisa dibuka sampai tersambung lagi. Berkas baru tidak terpengaruh.
       </p>
+
+      {terkonfigurasi ? <LenovoLangsung aktif={langsung} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Sakelar Lenovo melayani peramban langsung (DECISIONS 768). Menyalakan selalu
+ * diuji dulu di server; pesan galatnya menyebut apa yang belum beres di Lenovo.
+ */
+function LenovoLangsung({ aktif }: { aktif: boolean }) {
+  const [state, aksi, pending] = useAksi<PindahBerkasState>(setLenovoLangsungAction, undefined);
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <div
+        className={
+          aktif
+            ? "flex flex-wrap items-start justify-between gap-3 rounded-lg border border-success-border bg-success-soft px-4 py-3"
+            : "flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-surface-muted px-4 py-3"
+        }
+      >
+        <div className="min-w-0 flex-1 basis-56 text-sm">
+          <p className="font-medium text-ink">Foto lama dibuka langsung dari Lenovo: {aktif ? "NYALA" : "MATI"}</p>
+          <p className="mt-0.5 text-[13px] text-ink-muted">
+            {aktif
+              ? "Foto lama diambil langsung dari Lenovo, tidak lewat Railway."
+              : "Foto lama masih dikirim lewat MARLIN dan memakai kuota data Railway."}
+          </p>
+        </div>
+        <form action={aksi} className="shrink-0">
+          <input type="hidden" name="aktif" value={aktif ? "0" : "1"} />
+          <Button type="submit" variant="secondary" size="sm" loading={pending}>
+            {aktif ? "Matikan" : "Uji & nyalakan"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -25,6 +25,7 @@
 //   PUT    /v1/objects/<...>             simpan (idempoten)
 //   GET    /v1/objects/<...>             ambil kembali
 //   DELETE /v1/objects/<...>             hapus – wajib `X-Delete-SHA256`
+//   GET    /v1/unduh/<...>/<nama>?…      unduh langsung oleh peramban, bertanda tangan (DECISIONS 768)
 //
 // Token salah dijawab 401 (bukan 403): 403 disediakan untuk Cloudflare Access,
 // yang menghadang lebih dulu di depan. Dua lapis, dua kode – supaya yang membaca
@@ -43,7 +44,7 @@
 //
 // 3. **Isi berbeda dengan kunci sama DITOLAK, bukan ditimpa** (409). Arsip yang
 //    boleh ditimpa bukan arsip.
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat, writeFile, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -271,6 +272,79 @@ async function tanganiDelete(req, res, p) {
   return balas(res, 204);
 }
 
+// ### Unduh langsung oleh peramban, seperti presign R2 (DECISIONS 768)
+//
+//   GET|HEAD /v1/unduh/<kunci base64url>/<nama>?e=<detik unix>&j=<jenis>&d=<disposisi>&s=<tanda tangan>
+//
+// Tanpa token pembawa – peramban tidak memegangnya. Yang menjaga adalah tanda
+// tangan HMAC dari MARLIN (kuncinya ARSIP_TOKEN yang sama), yang mengikat kunci,
+// masa berlaku, jenis, dan Content-Disposition. Nama di ruas terakhir hanya
+// hiasan untuk penampil PDF; nama di header datang dari `d` yang ditandatangani.
+// SAMA PERSIS dengan `alamatUnduhLangsung` di src/lib/arsip-asli/dingin.ts.
+//
+// Jalur ini satu-satunya yang boleh dibuka TANPA Cloudflare Access (aturan
+// Bypass khusus `/v1/unduh/*`). Jalur /v1/objects tetap menuntut keduanya.
+const AWALAN_UNDUH = "/v1/unduh/";
+/** Link lebih panjang dari ini ditolak, walau tanda tangannya sah. */
+const UNDUH_MAKS_DETIK = 2 * 86_400;
+
+const pesanUnduh = (b64, e, j, d) => `unduh|${b64}|${e}|${j}|${d}`;
+
+function tandaUnduhCocok(pesan, diberikan) {
+  if (!diberikan) return false;
+  const harap = createHmac("sha256", TOKEN).update(pesan).digest();
+  const beri = Buffer.from(diberikan, "base64url");
+  return beri.length === harap.length && timingSafeEqual(beri, harap);
+}
+
+/** Teks kepala dari base64url, hanya ASCII cetak – selebihnya bisa menyelundupkan kepala lain. */
+function teksKepala(b64, maks) {
+  const t = Buffer.from(b64 ?? "", "base64url").toString("utf8");
+  return t.length > 0 && t.length <= maks && /^[\x20-\x7e]+$/.test(t) ? t : null;
+}
+
+async function tanganiUnduh(req, res) {
+  const u = new URL(req.url ?? "/", "http://arsip.lokal");
+  const b64 = u.pathname.slice(AWALAN_UNDUH.length).split("/")[0];
+  const p = jalurBerkas(AWALAN_OBJEK + b64);
+  if (!p) return balas(res, 400, { error: "kunci tidak berbentuk sah" });
+
+  const e = u.searchParams.get("e") ?? "";
+  const j = u.searchParams.get("j") ?? "";
+  const d = u.searchParams.get("d") ?? "";
+  if (!/^\d{1,12}$/.test(e)) return balas(res, 400, { error: "masa berlaku tidak sah" });
+  // Tanda tangan diperiksa SEBELUM masa berlaku: tanpa tanda tangan sah, tidak
+  // ada yang perlu diberitahu soal kedaluwarsa.
+  if (!tandaUnduhCocok(pesanUnduh(b64, e, j, d), u.searchParams.get("s"))) return balas(res, 401);
+
+  const sisaDetik = Number(e) - Math.floor(Date.now() / 1000);
+  if (sisaDetik < 0) return balas(res, 410, { error: "link kedaluwarsa – buka lagi dari MARLIN" });
+  if (sisaDetik > UNDUH_MAKS_DETIK) return balas(res, 400, { error: "masa berlaku terlalu panjang" });
+
+  const jenis = teksKepala(j, 200);
+  const disposisi = teksKepala(d, 1000);
+  if (!jenis || !disposisi || !/^(inline|attachment)\b/.test(disposisi)) {
+    return balas(res, 400, { error: "jenis atau disposisi tidak sah" });
+  }
+
+  let st;
+  try {
+    st = await stat(p);
+  } catch {
+    return balas(res, 404);
+  }
+  res.writeHead(200, {
+    "content-type": jenis,
+    "content-length": String(st.size),
+    "content-disposition": disposisi,
+    "cache-control": `private, max-age=${Math.min(sisaDetik, 86_400)}`,
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+  });
+  if (req.method === "HEAD") return res.end();
+  await pipeline(createReadStream(p), res);
+}
+
 /** Sisa disk & batas — dipakai memastikan arsipnya menunjuk ke storage yang benar. */
 async function tanganiStatus(res) {
   const { statfs } = await import("node:fs/promises");
@@ -291,6 +365,10 @@ const server = createServer(async (req, res) => {
     // Tidak membocorkan apa-apa: ia tidak menyentuh isi arsip.
     if (req.url === "/health" && (req.method === "GET" || req.method === "HEAD")) {
       return balas(res, 200, { ok: true });
+    }
+    // Unduh langsung bertanda tangan – SEBELUM pemeriksaan token pembawa.
+    if ((req.url ?? "").startsWith(AWALAN_UNDUH) && (req.method === "GET" || req.method === "HEAD")) {
+      return await tanganiUnduh(req, res);
     }
     // 401, bukan 403: 403 milik Cloudflare Access yang menghadang di depan.
     if (!tokenCocok(req.headers.authorization)) return balas(res, 401);
