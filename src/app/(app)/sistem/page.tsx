@@ -221,12 +221,18 @@ export default async function SistemPage() {
   };
   // Pemindahan berkas R2 → Lenovo (DECISIONS 645): setelan, ukuran R2
   // terakhir, dan apa saja yang sudah di Lenovo.
-  const { setelanPindah, ukuranR2Terakhir } = await import("@/lib/penyimpanan/setelan");
+  const { setelanPindah, ukuranR2Terakhir, lenovoLangsung } = await import("@/lib/penyimpanan/setelan");
   const { keadaanPindahLatar, ringkasPindah, LABEL_KATEGORI } = await import("@/lib/penyimpanan/pindah");
-  const [setelanP, ukuranR2, ringkasP] = await Promise.all([setelanPindah(), ukuranR2Terakhir(), ringkasPindah()]);
+  const [setelanP, ukuranR2, ringkasP, langsungLenovo] = await Promise.all([
+    setelanPindah(),
+    ukuranR2Terakhir(),
+    ringkasPindah(),
+    lenovoLangsung(),
+  ]);
   const latarPindah = keadaanPindahLatar();
   const pindahBerkas = {
     ...setelanP,
+    langsung: langsungLenovo,
     terkonfigurasi: Boolean(env.ORIGINAL_ARCHIVE_URL && env.ORIGINAL_ARCHIVE_TOKEN),
     ukuranR2: ukuranR2 ? { bytes: ukuranR2.bytes, pada: ukuranR2.pada } : null,
     perKategori: ringkasP.perKategori.map((k) => ({ ...k, label: LABEL_KATEGORI[k.kategori] ?? k.kategori })),

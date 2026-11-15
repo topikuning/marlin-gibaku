@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { env } from "@/lib/env";
 
 /**
@@ -115,6 +115,56 @@ export function jalurDingin(kunci: string): string {
 
 /** Jalur pemeriksaan kesehatan gateway – tanpa token, dipakai mengenali lawan bicara. */
 export const JALUR_SEHAT = "health";
+
+/** Awalan jalur unduh publik bertanda tangan – SAMA dengan `AWALAN_UNDUH` di arsip-dingin/server.mjs. */
+export const AWALAN_UNDUH = "v1/unduh/";
+
+/** Masa berlaku link unduh langsung paling lama – gateway menolak yang lebih panjang. */
+export const UNDUH_MAKS_DETIK = 2 * 86_400;
+
+export type UnduhLangsung = {
+  /** Content-Type yang dikirim Lenovo. */
+  jenis: string;
+  /** Content-Disposition utuh (inline/attachment + nama) – diputuskan MARLIN, bukan gateway. */
+  disposisi: string;
+  /** Nama tampilan sebagai ruas terakhir alamat – penampil PDF menamai dari situ (DECISIONS 676). */
+  nama: string;
+  /** Detik Unix. */
+  kedaluwarsa: number;
+};
+
+/**
+ * Pesan yang ditandatangani – SAMA PERSIS dengan `pesanUnduh` di server.mjs.
+ * Nama di ruas alamat sengaja TIDAK ikut: ia hiasan; nama di header datang dari
+ * `disposisi` yang ikut ditandatangani.
+ */
+function pesanUnduh(b64: string, e: string, j: string, d: string): string {
+  return `unduh|${b64}|${e}|${j}|${d}`;
+}
+
+/**
+ * LINK UNDUH LANGSUNG KE LENOVO, SEPERTI PRESIGN R2 (DECISIONS 768).
+ *
+ * Peramban mengambil isinya langsung dari Lenovo, tidak lewat MARLIN di
+ * Railway: tidak ada egress Railway dan tidak ada berkas yang dimuat utuh ke
+ * memori MARLIN. Link yang dilihat orang TETAP alamat MARLIN
+ * (`/api/berkas/<token>`, `/api/foto/<token>`); MARLIN yang memeriksa token
+ * lalu mengalihkan ke sini.
+ *
+ * Kuncinya token gateway yang sudah ada (`ORIGINAL_ARCHIVE_TOKEN` =
+ * `ARSIP_TOKEN`), tidak menambah rahasia baru. Tanda tangan HMAC tidak
+ * membocorkan tokennya.
+ */
+export function alamatUnduhLangsung(s: SetelanDingin, kunci: string, u: UnduhLangsung): string {
+  if (!bentukKunciSah(kunci)) throw new Error(`Kunci arsip tidak berbentuk sah: ${kunci.slice(0, 80)}`);
+  const b64 = Buffer.from(kunci, "utf8").toString("base64url");
+  const e = String(Math.floor(u.kedaluwarsa));
+  const j = Buffer.from(u.jenis, "utf8").toString("base64url");
+  const d = Buffer.from(u.disposisi, "utf8").toString("base64url");
+  const sig = createHmac("sha256", s.token).update(pesanUnduh(b64, e, j, d)).digest("base64url");
+  const nama = encodeURIComponent(u.nama || "berkas");
+  return `${s.url}/${AWALAN_UNDUH}${b64}/${nama}?e=${e}&j=${j}&d=${d}&s=${sig}`;
+}
 
 /**
  * Header Cloudflare Access — dibangun di SATU tempat, dipakai semua jalur keluar.

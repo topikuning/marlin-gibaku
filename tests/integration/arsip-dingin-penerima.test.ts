@@ -49,7 +49,7 @@ let PORT = 0;
  * Setelannya karena itu dirakit langsung di sini. Yang diuji berkas ini adalah
  * protokolnya, bukan cara setelan itu dibaca dari lingkungan.
  */
-const { periksaDingin, kirimDingin, ambilDingin, hapusDingin } = await import(
+const { periksaDingin, kirimDingin, ambilDingin, hapusDingin, alamatUnduhLangsung } = await import(
   "@/lib/arsip-asli/dingin"
 );
 type Setelan = Parameters<typeof periksaDingin>[0];
@@ -179,5 +179,103 @@ describe("penerima arsip dingin menjawab klien MARLIN", () => {
     await expect(periksaDingin(setelan(), KUNCI)).resolves.toEqual({ ada: false });
     // 404 = memang sudah tidak ada; itu hasil yang diinginkan, bukan kegagalan.
     await expect(hapusDingin(setelan(), KUNCI, SHA)).resolves.toBeUndefined();
+  });
+});
+
+// LENOVO MELAYANI PERAMBAN LANGSUNG, SEPERTI R2 (DECISIONS 768).
+//
+// Permintaan user 2026-11-15: *"kenapa tidak kita buat di lenovo sama dengan r2
+// konsepnya … hanya, yg dilihat user di awal harus alamat marlin"*. MARLIN tetap
+// memegang link yang dilihat orang; ia hanya mengalihkan ke link bertanda tangan
+// ini, dan isinya mengalir dari Lenovo ke peramban tanpa lewat Railway.
+//
+// Yang dijaga: tanpa token pembawa (peramban tidak punya), tanda tangan
+// mengikat kunci + masa berlaku + jenis + nama, dan yang diubah sedikit pun
+// ditolak.
+describe("unduh langsung bertanda tangan – tanpa lewat MARLIN", () => {
+  const KUNCI2 = "photos/pindahan/2026-11-01/abcdef0123456789.webp";
+  const ISI2 = Buffer.from(`FOTO-CAP-${"y".repeat(3000)}`);
+  const sekarang = () => Math.floor(Date.now() / 1000);
+  const link = (o: Partial<Parameters<typeof alamatUnduhLangsung>[2]> = {}) =>
+    alamatUnduhLangsung(setelan(), KUNCI2, {
+      jenis: "image/webp",
+      disposisi: `inline; filename="foto.webp"`,
+      nama: "foto.webp",
+      kedaluwarsa: sekarang() + 3600,
+      ...o,
+    });
+
+  beforeAll(async () => {
+    await kirimDingin(setelan(), KUNCI2, ISI2);
+  });
+
+  it("link bertanda tangan → isi persis, TANPA token pembawa", async () => {
+    const r = await fetch(link());
+    expect(r.status).toBe(200);
+    expect(Buffer.from(await r.arrayBuffer()).equals(ISI2)).toBe(true);
+    expect(r.headers.get("content-type")).toBe("image/webp");
+    expect(r.headers.get("content-disposition")).toBe(`inline; filename="foto.webp"`);
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(r.headers.get("cache-control")).toMatch(/^private, max-age=\d+$/);
+  });
+
+  it("nama berkas jadi ruas terakhir alamat – penampil PDF menamai dari situ (DECISIONS 676)", () => {
+    expect(new URL(link({ nama: "Laporan Harian 12 Nov.pdf" })).pathname).toMatch(/\/Laporan%20Harian%2012%20Nov\.pdf$/);
+  });
+
+  it("HEAD dijawab dengan kepala yang sama, tanpa isi", async () => {
+    const r = await fetch(link(), { method: "HEAD" });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-length")).toBe(String(ISI2.length));
+  });
+
+  it("jenis, disposisi, atau masa berlaku yang diubah → ditolak 401", async () => {
+    for (const ubah of [
+      (u: URL) => u.searchParams.set("j", Buffer.from("text/html").toString("base64url")),
+      (u: URL) => u.searchParams.set("d", Buffer.from("inline").toString("base64url")),
+      (u: URL) => u.searchParams.set("e", String(Number(u.searchParams.get("e")) + 60)),
+      (u: URL) => u.searchParams.set("s", "AAAA"),
+      (u: URL) => u.searchParams.delete("s"),
+    ]) {
+      const u = new URL(link());
+      ubah(u);
+      expect((await fetch(u)).status, u.search).toBe(401);
+    }
+  });
+
+  it("kunci lain dengan tanda tangan kunci ini → ditolak 401", async () => {
+    const u = new URL(link());
+    const lain = Buffer.from("photos/pindahan/2026-11-01/0000000000000000.webp").toString("base64url");
+    u.pathname = u.pathname.replace(/\/v1\/unduh\/[^/]+/, `/v1/unduh/${lain}`);
+    expect((await fetch(u)).status).toBe(401);
+  });
+
+  it("kedaluwarsa → 410; masa berlaku lebih dari 2 hari → 400", async () => {
+    expect((await fetch(link({ kedaluwarsa: sekarang() - 5 }))).status).toBe(410);
+    expect((await fetch(link({ kedaluwarsa: sekarang() + 3 * 86400 }))).status).toBe(400);
+  });
+
+  it("bertanda tangan sah tapi berkasnya tidak ada → 404 (dipakai uji sambungan)", async () => {
+    const r = await fetch(
+      alamatUnduhLangsung(setelan(), "photos/pindahan/2026-01-01/ffffffffffffffff.webp", {
+        jenis: "image/webp",
+        disposisi: "inline",
+        nama: "x.webp",
+        kedaluwarsa: sekarang() + 600,
+      }),
+    );
+    expect(r.status).toBe(404);
+  });
+
+  it("kunci di luar ruang foto → 400, tidak pernah sampai ke disk", async () => {
+    const u = new URL(link());
+    const luar = Buffer.from("../../etc/passwd").toString("base64url");
+    u.pathname = u.pathname.replace(/\/v1\/unduh\/[^/]+/, `/v1/unduh/${luar}`);
+    expect((await fetch(u)).status).toBe(400);
+  });
+
+  it("jalur lama (/v1/objects) tetap menuntut token pembawa", async () => {
+    const r = await fetch(`http://127.0.0.1:${PORT}/v1/objects/${Buffer.from(KUNCI2).toString("base64url")}`);
+    expect(r.status).toBe(401);
   });
 });

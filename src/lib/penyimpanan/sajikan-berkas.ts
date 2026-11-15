@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { ambilBerkasDenganJenis, bacaTokenBerkas, BerkasTidakTerjangkau } from "./berkas";
+import { alamatLenovoLangsung, ambilBerkasDenganJenis, bacaTokenBerkas, BerkasTidakTerjangkau } from "./berkas";
 import { kepalaDisposisi, namaUnduhan } from "./nama-unduhan";
 
 /**
@@ -41,10 +41,26 @@ export function galatAmbilBerkas(err: unknown): Response {
 export async function sajikanTokenBerkas(req: Request, token: string, namaRuas?: string): Promise<Response> {
   const kunci = bacaTokenBerkas(token);
   if (!kunci) return NextResponse.json({ error: "Link tidak berlaku atau sudah kedaluwarsa." }, { status: 404 });
+  const diminta = namaRuas || new URL(req.url).searchParams.get("nama");
   try {
+    /*
+     * Lenovo melayani peramban langsung bila sakelarnya nyala (DECISIONS 768):
+     * alamat yang dipegang orang tetap alamat MARLIN ini, tokennya tetap
+     * diperiksa di sini, lalu peramban dialihkan ke link Lenovo bertanda
+     * tangan. Isinya tidak lewat Railway – tanpa egress, tanpa memuat berkas
+     * utuh ke memori.
+     */
+    const langsung = await alamatLenovoLangsung(kunci, { nama: diminta });
+    if (langsung) {
+      return new NextResponse(null, {
+        status: 302,
+        // Pengalihan boleh disimpan peramban sebentar: galeri yang dibuka ulang
+        // tidak bertanya ke MARLIN lagi untuk foto yang sama.
+        headers: { Location: langsung, "Cache-Control": "private, max-age=300" },
+      });
+    }
     const { isi, jenis } = await ambilBerkasDenganJenis(kunci);
     // Nama di alamat tidak ditandatangani – dirapikan lagi seperti nama unggahan.
-    const diminta = namaRuas || new URL(req.url).searchParams.get("nama");
     const nama = diminta ? namaUnduhan(diminta, jenis, "berkas") : null;
     // Isi sebuah kunci tidak pernah berubah; tokennya berlaku ±1 jam.
     return responsBerkas(isi, jenis, nama, "private, max-age=3600");

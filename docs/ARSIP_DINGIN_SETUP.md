@@ -136,6 +136,74 @@ tab **Actions** → *Arsip dingin berkas asli MARLIN* → **Run workflow**.
 
 ---
 
+## Foto lama dibuka langsung dari Lenovo (DECISIONS 768)
+
+Bawaannya, foto yang sudah dipindah ke Lenovo dikirim **lewat MARLIN**: Lenovo →
+Railway → peramban. Setiap foto lama yang dibuka memakai kuota data Railway
+($0,05/GB) dan dimuat utuh ke memori MARLIN.
+
+Dengan sakelar ini, Lenovo melayani peramban langsung, seperti R2:
+
+1. Orang tetap membuka alamat MARLIN (`/api/berkas/…`, `/api/foto-asli/…`). Link
+   lama di PDF dan WhatsApp tidak berubah.
+2. MARLIN memeriksa token/hak akses, lalu mengalihkan ke link Lenovo bertanda
+   tangan (`/v1/unduh/…`, berlaku ±1–2 jam).
+3. Peramban mengambil isinya langsung dari Lenovo. Tidak lewat Railway.
+
+Dokumen (`/api/documents/…`) sengaja **tidak** ikut: DECISIONS 676 memindahkannya
+lewat MARLIN supaya link tidak cepat kedaluwarsa dan nama berkas tetap rapi.
+
+### Dua hal yang dikerjakan di luar MARLIN
+
+**1. Program arsip yang mengenal `/v1/unduh/`.** Hanya `arsip-dingin/server.mjs`
+versi terbaru yang punya jalur ini. Gateway Docker `marlin-original-storage`
+**belum** punya. Pilihannya: ganti ke `server.mjs` (lihat bagian "Alternatif"
+di atas), atau tambahkan jalur yang sama di gateway Docker-nya.
+
+Sebelum mengganti, pastikan susunan berkasnya sama: `server.mjs` menyimpan tiap
+berkas di `<ARSIP_DIR>/<kunci>` (mis. `photos/pindahan/2026-10-01/<sidik>`),
+dengan pendamping `.sha256`. Pendamping yang tidak ada dihitung ulang sendiri.
+
+```bash
+find /srv/marlin-originals -maxdepth 4 | head -20
+```
+
+Memperbarui `server.mjs` yang sudah terpasang:
+
+```bash
+sudo cp arsip-dingin/server.mjs /opt/marlin-arsip/
+sudo systemctl restart marlin-arsip
+```
+
+**2. Aturan Bypass di Cloudflare Access** untuk jalur `/v1/unduh/*` saja.
+Peramban tidak punya kartu Service Token, jadi tanpa aturan ini ia dihadang halaman
+masuk Cloudflare. Di Cloudflare Zero Trust → Access → Applications → **Add an
+application** → Self-hosted:
+
+- Domain: hostname tunnel arsip, **Path: `v1/unduh/*`**
+- Policy: Action **Bypass**, Include **Everyone**
+
+Jalur lain (`/v1/objects`, `/v1/status`) tetap dijaga Access + token gateway.
+Yang menjaga `/v1/unduh` adalah tanda tangan HMAC dari MARLIN (kuncinya
+`ARSIP_TOKEN` yang sama): mengikat kunci berkas, masa berlaku, jenis, dan nama.
+Link yang diubah sedikit pun ditolak 401; yang kedaluwarsa 410.
+
+### Menyalakan
+
+**Sistem → Integrasi → Pindahkan berkas ke Lenovo → "Uji & nyalakan".** Sebelum
+menyalakan, MARLIN menguji dari luar persis seperti peramban (tanpa kartu Access,
+tanpa token):
+
+| Hasil uji | Artinya |
+|---|---|
+| Nyala | Program arsip sudah baru dan Access sudah membuka jalurnya |
+| "Program arsip di Lenovo belum diperbarui" | Langkah 1 belum |
+| "Cloudflare Access masih menghadang jalur /v1/unduh" | Langkah 2 belum |
+
+Mematikan seketika mengembalikan jalur lewat MARLIN.
+
+---
+
 ## Kalau ada masalah — apa yang dikerjakan sistem sendiri
 
 Peringatan adalah lapis TERAKHIR. Sebagian besar kerusakan tidak pernah sampai

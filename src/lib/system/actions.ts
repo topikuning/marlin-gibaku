@@ -820,6 +820,41 @@ export async function setPindahBerkasAction(
   };
 }
 
+/**
+ * NYALA/MATI LENOVO MELAYANI PERAMBAN LANGSUNG (DECISIONS 768).
+ *
+ * Menyalakan SELALU didahului uji sambungan nyata (`ujiUnduhLangsung`): tanpa
+ * program arsip yang sudah diperbarui dan aturan Bypass di Cloudflare Access,
+ * semua foto lama akan gagal dibuka. Mematikan tidak perlu diuji – jalur lewat
+ * MARLIN selalu ada.
+ */
+export async function setLenovoLangsungAction(
+  _prev: PindahBerkasState,
+  formData: FormData,
+): Promise<PindahBerkasState> {
+  const actor = await requireCapability("system.manage");
+  const aktif = formData.get("aktif") === "1";
+  const { lenovoLangsung, simpanLenovoLangsung } = await import("@/lib/penyimpanan/setelan");
+  const sebelum = await lenovoLangsung();
+  if (aktif) {
+    const { setelanDingin } = await import("@/lib/arsip-asli/dingin");
+    const s = setelanDingin();
+    if (!s) return { error: "Arsip Lenovo belum dikonfigurasi." };
+    const { ujiUnduhLangsung } = await import("@/lib/penyimpanan/uji-langsung");
+    const uji = await ujiUnduhLangsung(s);
+    if (!uji.siap) {
+      await audit(actor.id, "system.lenovo_langsung_gagal", "system", null, { sebab: uji.sebab });
+      return { error: uji.sebab };
+    }
+  }
+  await simpanLenovoLangsung(aktif);
+  await audit(actor.id, "system.lenovo_langsung", "system", null, { sebelum, sesudah: aktif });
+  revalidatePath("/sistem");
+  return {
+    success: aktif ? "Foto lama sekarang diambil langsung dari Lenovo." : "Foto lama kembali dikirim lewat MARLIN.",
+  };
+}
+
 export async function jalankanPindahBerkasAction(): Promise<PindahBerkasState> {
   const actor = await requireCapability("system.manage");
   const { mulaiPindahLatar } = await import("@/lib/penyimpanan/pindah");
