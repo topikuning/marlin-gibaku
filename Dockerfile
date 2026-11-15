@@ -38,6 +38,11 @@ FROM node:24.18.0-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
+# Hemat RAM (DECISIONS 767): glibc membuat arena memori per thread dan tidak
+# mengembalikannya; libvips (sharp) memicu itu di setiap foto. Diukur pada beban
+# foto ala MARLIN: memori sesudah diam 704 MB → 373 MB (bersama cache sharp mati),
+# kecepatan sama. Railway menagih RAM yang TERPAKAI.
+ENV MALLOC_ARENA_MAX=2
 
 # tini = PID 1 (signal handling SIGTERM), ca-certificates + openssl utk TLS (R2/Postgres).
 # fontconfig + fonts-dejavu-core = cadangan agar cap teks foto (sharp/librsvg) tetap
