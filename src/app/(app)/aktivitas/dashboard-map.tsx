@@ -20,15 +20,26 @@ const FILTERS: { key: FilterPeta; label: string }[] = [
   { key: "kritis", label: "Kritis" },
 ];
 
-// Merah sengaja MENANG atas status lapor (keputusan user 2026-08-03), jadi
-// labelnya harus mengaku: pin merah tidak berkata apa pun soal sudah/belum
-// lapor. Legenda yang menyiratkan sebaliknya membuat orang menghitung pin.
-const LEGEND: { tone: MarkerTone; label: string; dot: string }[] = [
-  { tone: "success", label: "Sudah lapor, sesuai jadwal", dot: "bg-success" },
-  { tone: "warning", label: "Sudah lapor, deviasi negatif", dot: "bg-warning" },
-  { tone: "danger", label: "Deviasi kritis (lapor atau belum)", dot: "bg-danger" },
-  { tone: "neutral", label: "Belum lapor hari ini", dot: "bg-ink-faint" },
-  { tone: "idle", label: "Belum mulai (target)", dot: "border border-ink-faint bg-surface" },
+/*
+ * DUA FAKTA, DUA TANDA (DECISIONS 770) – keluhan user 2026-11-15: *"permainan
+ * warna ini membingungkan. seharusnya warna utama adalah terhadap proyek itu
+ * sendiri, baru lingkaran diluarnya itu mencerminkan sudah lapor atau belum"*.
+ * Warna isi = kondisi proyek; cincin = laporan hari ini. Legendanya pun dua
+ * kelompok, supaya tidak ada lagi label "lapor atau belum".
+ */
+const LEGENDA_WARNA: { tone: MarkerTone; label: string; dot: string }[] = [
+  { tone: "success", label: "Sesuai jadwal", dot: "size-3 bg-success" },
+  { tone: "warning", label: "Terlambat", dot: "size-3 bg-warning" },
+  { tone: "danger", label: "Kritis (deviasi di bawah −10%)", dot: "size-3 bg-danger" },
+  { tone: "neutral", label: "Belum ada angka progres", dot: "size-3 bg-ink-faint" },
+  { tone: "idle", label: "Belum mulai", dot: "size-2 bg-ink-faint/50" },
+];
+
+// Cincin digambar KOSONG di legenda: isi abu di sini akan terbaca "belum ada
+// angka progres" dari kelompok warna.
+const LEGENDA_CINCIN: { key: string; label: string; dot: string }[] = [
+  { key: "sudah", label: "Sudah lapor", dot: "border border-ink-faint" },
+  { key: "belum", label: "Belum lapor", dot: "border-[3px] border-ink" },
 ];
 
 export function DashboardMap({
@@ -82,6 +93,7 @@ export function DashboardMap({
           markers={shown}
           selectedId={selected}
           toneById={markerTone}
+          laporById={markerSubmit}
           onSelect={(id) => {
             setSelected(id);
             const slug = slugById.get(id);
@@ -96,7 +108,7 @@ export function DashboardMap({
           ±20rem, jadi yang tersisa cuma pinggirannya. Di HP legendanya turun ke
           bawah peta (lihat di luar kotak ini).
         */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] hidden max-w-[15rem] rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm sm:block">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] hidden rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm sm:block">
           <Legenda />
         </div>
       </div>
@@ -111,13 +123,33 @@ export function DashboardMap({
 
 function Legenda() {
   return (
-    <ul className="space-y-1">
-      {LEGEND.map((l) => (
-        <li key={l.tone} className="flex items-center gap-2">
-          <span className={`size-2.5 shrink-0 rounded-full ${l.dot}`} />
-          <span className="text-ink-muted">{l.label}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-wrap gap-x-5 gap-y-2">
+      <div>
+        <p className="mb-1 font-medium text-ink">Warna: kondisi proyek</p>
+        <ul className="space-y-1">
+          {LEGENDA_WARNA.map((l) => (
+            <li key={l.tone} className="flex items-center gap-2">
+              <span className="flex size-3.5 shrink-0 items-center justify-center">
+                <span className={`rounded-full ${l.dot}`} />
+              </span>
+              <span className="text-ink-muted">{l.label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <p className="mb-1 font-medium text-ink">Cincin: laporan hari ini</p>
+        <ul className="space-y-1">
+          {LEGENDA_CINCIN.map((l) => (
+            <li key={l.key} className="flex items-center gap-2">
+              <span className="flex size-3.5 shrink-0 items-center justify-center">
+                <span className={`size-3.5 rounded-full ${l.dot}`} />
+              </span>
+              <span className="text-ink-muted">{l.label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }

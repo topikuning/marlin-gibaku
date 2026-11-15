@@ -19,14 +19,15 @@ import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } fr
 // Level status progress TUNGGAL — jangan pernah ditulis ulang sebagai literal
 // di modul mana pun (Calculation Integrity Protocol, DECISIONS 152).
 const COUNTED: DailyReportStatus[] = [...COUNTED_REPORT_STATUSES];
-const KRITIS_THRESHOLD = -10; // deviasi (pp) < -10 = kritis (butuh tindakan segera)
+// Ambang kritis satu sumber dengan warna peta (DECISIONS 770).
+const KRITIS_THRESHOLD = AMBANG_KRITIS_PP;
 
 // ── Tipe hasil ────────────────────────────────────────────────────────────────
 // MarkerTone & StatusLapor tinggal di modul MURNI dashboard-filter.ts supaya
 // aturan filter petanya bisa diuji tanpa database; di sini hanya di-ekspor
 // ulang agar pemanggil lama tidak perlu berubah.
 export type { MarkerTone, StatusLapor } from "./dashboard-filter";
-import type { MarkerTone, StatusLapor } from "./dashboard-filter";
+import { AMBANG_KRITIS_PP, toneKondisi, type MarkerTone, type StatusLapor } from "./dashboard-filter";
 
 export type DashboardData = {
   updatedAt: Date;
@@ -206,23 +207,13 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     ...(regionCount.get(REGION_OTHER) ? [{ region: REGION_OTHER, count: regionCount.get(REGION_OTHER)! }] : []),
   ];
 
-  // Warna pin peta = status submit + deviasi.
+  // Peta: ISI titik = kondisi proyek, CINCIN = laporan hari ini (DECISIONS 770).
+  // Dua fakta, dua tanda – tidak ada lagi warna yang "menang" atas yang lain.
   const markerTone: Record<string, MarkerTone> = {};
   const markerSubmit: DashboardData["markerSubmit"] = {};
   for (const m of markers) {
-    const p = progress.get(m.id);
-    // Lokasi belum mulai tidak diminta lapor hari ini — jangan diwarnai
-    // "belum submit" seolah menunggak.
-    if (!m.isActive) markerTone[m.id] = "idle";
-    // Deviasi kritis MENANG atas status lapor: itu sinyal paling mendesak dan
-    // harus tetap terlihat walau lokasinya belum lapor hari ini. Konsekuensinya
-    // pin merah bisa berarti "belum lapor" ATAU "sudah lapor" — karena itu
-    // status lapor dicatat terpisah di markerSubmit, jangan dibaca dari warna.
-    else if (p && p.deviationPct < KRITIS_THRESHOLD) markerTone[m.id] = "danger";
-    else if (!submittedIds.has(m.id)) markerTone[m.id] = "neutral";
-    else if (p && p.deviationPct < 0) markerTone[m.id] = "warning";
-    else markerTone[m.id] = "success";
-
+    markerTone[m.id] = toneKondisi({ aktif: m.isActive, deviasiPct: progress.get(m.id)?.deviationPct ?? null });
+    // Lokasi belum mulai tidak diminta lapor hari ini – bukan tunggakan.
     markerSubmit[m.id] = !m.isActive ? "belum_mulai" : submittedIds.has(m.id) ? "sudah" : "belum";
   }
 

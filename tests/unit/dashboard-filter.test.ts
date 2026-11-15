@@ -13,7 +13,14 @@
 // Peta lalu berselisih dengan kartu KPI tepat di atasnya — dan angka yang
 // saling bertentangan di satu layar membuat keduanya berhenti dipercaya.
 import { describe, expect, it } from "vitest";
-import { cocokFilter, type MarkerTone, type StatusLapor } from "@/lib/dashboard-filter";
+import {
+  AMBANG_KRITIS_PP,
+  cincinBelumLapor,
+  cocokFilter,
+  toneKondisi,
+  type MarkerTone,
+  type StatusLapor,
+} from "@/lib/dashboard-filter";
 
 /** Lokasi contoh: [warna, status lapor]. */
 const KRITIS_BELUM_LAPOR: [MarkerTone, StatusLapor] = ["danger", "belum"];
@@ -95,5 +102,47 @@ describe('"Semua" tidak menyaring apa pun', () => {
     for (const l of [ONTRACK_SUDAH_LAPOR, KRITIS_BELUM_LAPOR, BELUM_MULAI]) {
       expect(cocokFilter("semua", ...l), l[0]).toBe(true);
     }
+  });
+});
+
+// WARNA TITIK = KONDISI PROYEK SAJA; STATUS LAPOR PINDAH KE CINCIN (DECISIONS 770).
+//
+// Keluhan user 2026-11-15: *"permainan warna ini membingungkan. seharusnya warna
+// utama adalah terhadap proyek itu sendiri, baru lingkaran diluarnya itu
+// mencerminkan sudah lapor atau belum"*. Dulu satu warna memampatkan dua fakta:
+// lokasi terlambat yang belum lapor tampil abu (keterlambatannya hilang), dan
+// merah tidak berkata apa pun soal lapor.
+describe("toneKondisi: warna isi hanya dari deviasi, tidak pernah dari status lapor", () => {
+  it("terlambat tetap oranye walau belum lapor hari ini – dulu jadi abu", () => {
+    expect(toneKondisi({ aktif: true, deviasiPct: -3 })).toBe("warning");
+  });
+
+  it("kritis di bawah −10 pp merah; tepat −10 masih terlambat", () => {
+    expect(toneKondisi({ aktif: true, deviasiPct: -10.01 })).toBe("danger");
+    expect(toneKondisi({ aktif: true, deviasiPct: -10 })).toBe("warning");
+    expect(AMBANG_KRITIS_PP).toBe(-10);
+  });
+
+  it("sesuai atau di atas jadwal hijau", () => {
+    expect(toneKondisi({ aktif: true, deviasiPct: 0 })).toBe("success");
+    expect(toneKondisi({ aktif: true, deviasiPct: 4.2 })).toBe("success");
+  });
+
+  it("lokasi berjalan tanpa angka progres abu, bukan hijau", () => {
+    expect(toneKondisi({ aktif: true, deviasiPct: null })).toBe("neutral");
+  });
+
+  it("belum mulai tetap idle, apa pun deviasinya", () => {
+    expect(toneKondisi({ aktif: false, deviasiPct: -25 })).toBe("idle");
+    expect(toneKondisi({ aktif: false, deviasiPct: null })).toBe("idle");
+  });
+});
+
+describe("cincin hanya dari status lapor", () => {
+  it("belum lapor → cincin tebal; sudah lapor & belum mulai → cincin biasa", () => {
+    expect(cincinBelumLapor("belum")).toBe(true);
+    expect(cincinBelumLapor("sudah")).toBe(false);
+    expect(cincinBelumLapor("belum_mulai")).toBe(false);
+    expect(cincinBelumLapor(undefined)).toBe(false);
   });
 });

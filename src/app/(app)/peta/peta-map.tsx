@@ -5,6 +5,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { PetaMarker } from "@/lib/peta";
+import { cincinBelumLapor, type StatusLapor } from "@/lib/dashboard-filter";
 import {
   LAPIS_SATELIT,
   adaSumber,
@@ -67,6 +68,7 @@ const KELOMPOK_OPSI = (aktif: boolean) => ({
 });
 
 const MAP_TOKENS = [
+  "--color-ink",
   "--color-ink-faint",
   "--color-info",
   "--color-warning",
@@ -108,8 +110,10 @@ export interface PetaMapProps {
   markers: PetaMarker[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  /** Timpa warna pin per-id dengan tone (dashboard: status submit). */
+  /** Timpa warna ISI titik per-id dengan kondisi proyek (dashboard, DECISIONS 770). */
   toneById?: Record<string, "success" | "warning" | "danger" | "neutral" | "idle">;
+  /** Status lapor hari ini per-id → CINCIN titik (dashboard, DECISIONS 770). */
+  laporById?: Record<string, StatusLapor>;
   sumber: SumberPeta;
   /**
    * Penanda digabung saat peta dibuka? Datang dari setelan Sistem
@@ -123,6 +127,7 @@ export function PetaMap({
   selectedId,
   onSelect,
   toneById,
+  laporById,
   sumber,
   kelompokAwal = true,
 }: PetaMapProps) {
@@ -189,13 +194,16 @@ export function PetaMap({
             // "Belum mulai" digambar lebih kecil & pucat: hadir di peta, tapi
             // jelas bukan pekerjaan berjalan yang menunggu laporan hari ini.
             idle: tone === "idle" ? 1 : 0,
+            // Cincin tebal gelap = belum lapor hari ini; warna isinya tetap
+            // kondisi proyek (DECISIONS 770).
+            belumLapor: cincinBelumLapor(laporById?.[m.id]) ? 1 : 0,
           },
         };
       }),
     };
     // `token` stabil karena `warna` dihitung sekali.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markers, toneById, warna]);
+  }, [markers, toneById, laporById, warna]);
 
   const batas = useMemo(() => {
     if (markers.length === 0) return null;
@@ -303,8 +311,8 @@ export function PetaMap({
           "circle-color": ["get", "warna"],
           "circle-opacity": ["case", ["==", ["get", "idle"], 1], 0.45, 0.95],
           "circle-radius": ["case", ["==", ["get", "idle"], 1], 5, 7],
-          "circle-stroke-width": 1.4,
-          "circle-stroke-color": token("--color-surface"),
+          "circle-stroke-width": ["case", ["==", ["get", "belumLapor"], 1], 3, 1.4],
+          "circle-stroke-color": ["case", ["==", ["get", "belumLapor"], 1], token("--color-ink"), token("--color-surface")],
         },
       });
       map.addLayer({
