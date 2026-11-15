@@ -19,7 +19,16 @@ const USER_AGENT = "MARLIN-SinkronKawal/1.0 (pengendalian proyek KNMP)";
 const BATAS_PENGALIHAN = 6;
 const BATAS_WAKTU_MS = 30_000;
 
-export type AkunKawal = { alamat: string; akun: string; sandi: string };
+export type AkunKawal = {
+  alamat: string;
+  akun: string;
+  sandi: string;
+  /**
+   * Cookie "ingat saya" yang ditempel dari peramban (DECISIONS 769). Bila ada,
+   * formulir masuk TIDAK PERNAH dikirim – dan bila ditolak, sandi TIDAK dicoba.
+   */
+  cookie?: string | null;
+};
 
 /** Satu permintaan, untuk laporan uji. Hanya jalur (tanpa query) – query bisa memuat token. */
 export type LangkahKawal = { langkah: string; metode: string; jalur: string; status: number; jenis: string | null };
@@ -44,6 +53,32 @@ export class KawalGalat extends Error {
 }
 
 type FetchFn = typeof fetch;
+
+/**
+ * Tempelan cookie dari peramban → `nama=nilai; nama=nilai`. Menerima isi kepala
+ * `Cookie:` dari tab Network apa adanya (dengan atau tanpa awalan "Cookie:",
+ * baris baru, spasi). `null` bila tidak ada satu pun pasangan nama=nilai.
+ */
+export function bacaCookieTempel(teks: string | null | undefined): string | null {
+  const isi = (teks ?? "").trim().replace(/^cookie\s*:\s*/i, "");
+  const pasangan = isi
+    .split(/[;\n\r]+/)
+    .map((b) => b.trim())
+    .filter((b) => /^[^=\s;,]+=/.test(b));
+  return pasangan.length > 0 ? pasangan.join("; ") : null;
+}
+
+/**
+ * Pesan yang ditampilkan halaman masuk saat menolak (sandi salah, captcha,
+ * terlalu sering mencoba). Tanpa ini, semua penolakan terbaca "periksa sandi",
+ * padahal sebabnya bisa lain.
+ */
+function pesanDariHalaman(html: string): string | null {
+  const m = /<[^>]+class="[^"]*(?:alert|invalid-feedback|error|help-block)[^"]*"[^>]*>([\s\S]*?)<\/[a-z0-9]+>/i.exec(html);
+  if (!m) return null;
+  const teks = m[1].replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  return teks ? teks.slice(0, 200) : null;
+}
 
 /** Alamat dasar Kawal yang sah (http/https), tanpa garis miring di akhir. */
 export function normalisasiAlamat(alamat: string): string {
@@ -78,6 +113,14 @@ class Sesi {
       const nilai = pasang.slice(i + 1).trim();
       if (nilai === "" || /deleted/i.test(nilai)) this.cookie.delete(nama);
       else this.cookie.set(nama, nilai);
+    }
+  }
+
+  /** Isi awal dari cookie yang ditempel orang (DECISIONS 769). */
+  isiCookie(tempel: string) {
+    for (const pasang of tempel.split(";")) {
+      const i = pasang.indexOf("=");
+      if (i > 0) this.cookie.set(pasang.slice(0, i).trim(), pasang.slice(i + 1).trim());
     }
   }
 
@@ -155,9 +198,38 @@ const jenisHtml = (res: Response) => (res.headers.get("content-type") ?? "").inc
 export async function ambilLokasiKawal(
   akun: AkunKawal,
   fetchFn: FetchFn = fetch,
-): Promise<{ body: unknown; langkah: LangkahKawal[]; formulir: RingkasFormulir }> {
+): Promise<{ body: unknown; langkah: LangkahKawal[]; formulir: RingkasFormulir | null }> {
   const dasar = normalisasiAlamat(akun.alamat);
   const sesi = new Sesi(fetchFn);
+
+  /*
+   * COOKIE "INGAT SAYA" (DECISIONS 769): langsung minta data dengan cookie dari
+   * peramban. Formulir masuk tidak pernah dikirim, jadi tidak ada hitungan gagal
+   * masuk yang bisa mengunci akun. Ditolak → berhenti; sandi SENGAJA tidak
+   * dicoba, karena justru percobaan sandi yang ditolak yang menambah hitungan.
+   */
+  if (akun.cookie) {
+    const tempel = bacaCookieTempel(akun.cookie);
+    if (!tempel) {
+      throw new KawalGalat("Cookie 'ingat saya' yang tersimpan tidak terbaca. Tempel ulang dari peramban.", sesi.langkah);
+    }
+    sesi.isiCookie(tempel);
+    const { res } = await sesi.ambil("Ambil data lokasi (cookie ingat saya)", new URL(`${dasar}${JALUR_LOKASI}`), {
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    const teks = await res.text();
+    if (res.ok) {
+      try {
+        return { body: JSON.parse(teks), langkah: sesi.langkah, formulir: null };
+      } catch {
+        // Bukan JSON = halaman masuk; ditangani di bawah.
+      }
+    }
+    throw new KawalGalat(
+      "Kawal tidak menerima cookie 'ingat saya' lagi (sudah keluar di peramban, atau kedaluwarsa). Ambil ulang cookie-nya dari peramban. Sandi sengaja tidak dicoba supaya akun tidak terkunci.",
+      sesi.langkah,
+    );
+  }
 
   // 1. Cari halaman masuk: halaman depan (biasanya mengalihkan ke formulir), lalu /login.
   let halaman: { html: string; url: URL } | null = null;
@@ -194,8 +266,11 @@ export async function ambilLokasiKawal(
       : await sesi.ambil("Kirim formulir masuk", new URL(`${tujuanKirim.pathname}?${isian}`, tujuanKirim));
   const sesudah = jenisHtml(kirim.res) ? await kirim.res.text() : "";
   if (bacaFormulirMasuk(sesudah)) {
+    const pesan = pesanDariHalaman(sesudah);
     throw new KawalGalat(
-      "Kawal menolak masuk: sesudah formulir dikirim, halaman masuk muncul lagi. Periksa nama akun dan sandi.",
+      pesan
+        ? `Kawal menolak masuk dengan pesan: "${pesan}".`
+        : "Kawal menolak masuk: sesudah formulir dikirim, halaman masuk muncul lagi. Periksa nama akun dan sandi.",
       sesi.langkah,
       formulir,
     );

@@ -6,7 +6,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import { dataPencocokanKawal, ringkasSinkronKawal, type KandidatTampil, type LokasiPilihan } from "@/lib/kawal/queries";
-import { getAkunKawalTampil, getAmbangKawal } from "@/lib/kawal/setelan";
+import { akunKawalSiap, getAkunKawalTampil, getAmbangKawal } from "@/lib/kawal/setelan";
 import { FormAmbang, FormPasangkan, TombolKembalikan, TombolSinkron, UmpanBalikKawal } from "./pencocokan-client";
 
 export const metadata: Metadata = { title: "Kawal KNMP – Pencocokan Lokasi" };
@@ -64,7 +64,7 @@ export default async function KawalPencocokanPage() {
     dataPencocokanKawal(user.orgId),
     getAmbangKawal(),
   ]);
-  const akunSiap = !!(akun.alamat && akun.akun && akun.adaSandi);
+  const akunSiap = akunKawalSiap(akun);
   const t = ringkas.terakhir;
   const hasil = t ? (LABEL_HASIL[t.outcome] ?? { label: t.outcome, tone: "neutral" as const }) : null;
   const otomatis = data.berpasangan.filter((p) => p.status === "otomatis").length;
