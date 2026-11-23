@@ -51,7 +51,7 @@ diklik sampai data pembentuknya; mobile lapangan ringan; desktop manajemen padat
 
 ```
 Organization → Package (spine) → Contract (0..1, uniq per paket; ppnPercent di kontrak)
-                              → ContractAmendment (append-only)
+                              → ContractAmendment (tak bisa dihapus; koreksi ber-riwayat, DECISIONS 771)
                               → Location (1..N; multi-lokasi per kontrak didukung)
 Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
            lineageKey path stabil utk carry-over realisasi lintas revisi)

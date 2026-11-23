@@ -548,6 +548,33 @@ export function akhirKontrak(
   return { akhir: akhirTahun, tanpaBatas, dibatasi: true };
 }
 
+/** Tanggal (UTC-midnight) + n hari kalender; n boleh negatif. */
+export function tambahHari(d: Date, hari: number): Date {
+  return new Date(d.getTime() + hari * DAY_MS);
+}
+
+/** Jumlah hari kalender dari `dari` ke `ke` (negatif bila `ke` lebih awal). */
+export function selisihHari(dari: Date, ke: Date): number {
+  return Math.round((ke.getTime() - dari.getTime()) / DAY_MS);
+}
+
+/**
+ * AKHIR KONTRAK TEPAT SEBELUM SEBUAH CCO (DECISIONS 771): akhir awal + hari CCO
+ * yang DICATAT lebih dulu. `dicatatSebelum` null = CCO baru, semua CCO yang ada
+ * ikut dihitung. Dipakai untuk mengubah "tanggal akhir sesudah CCO ini" yang
+ * diketik orang menjadi jumlah hari yang disimpan.
+ */
+export function akhirSebelumAdendum(
+  akhirAwal: Date,
+  adendum: { endDateDelta: number; createdAt: Date }[],
+  dicatatSebelum: Date | null,
+): Date {
+  const hari = adendum
+    .filter((a) => dicatatSebelum === null || a.createdAt.getTime() < dicatatSebelum.getTime())
+    .reduce((s, a) => s + a.endDateDelta, 0);
+  return tambahHari(akhirAwal, hari);
+}
+
 /** Hari pertama (UTC-midnight) minggu kalender yang memuat `d`, untuk minggu yang mulai hari `hariMulai`. */
 function awalPekan(d: Date, hariMulai: number): Date {
   const mundur = (d.getUTCDay() - hariMulai + 7) % 7; // hari mulai = 0 … sehari sebelumnya = 6

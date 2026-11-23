@@ -17,7 +17,7 @@ import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal, jakartaDateKey } from "@/lib/format";
 import { adendumTertunda } from "@/lib/package/aktivasi-adendum";
 import { belumDipetakan } from "@/lib/rab/padanan-draft";
-import { akhirKontrak } from "@/lib/progress-calc";
+import { akhirKontrak, akhirSebelumAdendum, tambahHari } from "@/lib/progress-calc";
 import { LABEL_MODE_MINGGU } from "@/lib/periode-minggu";
 import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
 import {
@@ -29,6 +29,8 @@ import {
 import { StartPelaksanaanButton } from "../stage-actions";
 import {
   AktivasiAdendumForm,
+  KoreksiCcoForm,
+  type CcoKoreksiData,
   type ItemAdendumForm,
   ConvertContractForm,
   EditContractForm,
@@ -188,6 +190,33 @@ export default async function KontrakPage({
   ];
   const siap = itemAdendum.filter((i) => i.lengkap).length;
 
+  /*
+   * Jadwal selesai tepat sebelum dan sesudah tiap CCO (DECISIONS 771): akhir
+   * awal + hari CCO yang dicatat lebih dulu. Dipakai kolom Waktu dan panel
+   * Koreksi, supaya tanggal yang diketik orang dibaca terhadap titik yang sama.
+   */
+  const kunci = (d: Date) => d.toISOString().slice(0, 10);
+  const tanda = (n: number) => `${n > 0 ? "+" : ""}${n} hari`;
+  const ccoTampil = contract.amendments.map((a) => {
+    const lain = contract.amendments.filter((x) => x.id !== a.id);
+    const sebelum = contract.endDate ? akhirSebelumAdendum(contract.endDate, lain, a.createdAt) : null;
+    const koreksi: CcoKoreksiData = {
+      id: a.id,
+      ccoNumber: a.ccoNumber,
+      effectiveDate: kunci(a.effectiveDate),
+      valueDelta: a.valueDelta.toLocaleString("id-ID"),
+      endDateDelta: a.endDateDelta,
+      reason: a.reason,
+      adaLingkup: a._count.scopeChanges > 0,
+      akhirSebelum: sebelum ? kunci(sebelum) : null,
+      riwayat: a.history.map((h) => ({
+        replacedAt: formatTanggal(h.replacedAt),
+        teks: `${h.ccoNumber} · berlaku ${formatTanggal(h.effectiveDate)} · ${formatRupiah(h.valueDelta)} · ${tanda(h.endDateDelta)}`,
+      })),
+    };
+    return { a, selesai: sebelum ? tambahHari(sebelum, a.endDateDelta) : null, koreksi };
+  });
+
 
   return (
     <div className="space-y-4">
@@ -317,6 +346,7 @@ export default async function KontrakPage({
                   packageId={pkg.id}
                   items={itemAdendum}
                   hariIni={jakartaDateKey(new Date())}
+                  akhirBerjalan={endRunning ? kunci(endRunning) : null}
                 />
               </Drawer>
             }
@@ -498,9 +528,25 @@ export default async function KontrakPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {contract.amendments.map((a) => (
+                  {ccoTampil.map(({ a, selesai, koreksi }) => (
                     <tr key={a.id}>
-                      <td className="py-2 pr-3 font-medium text-ink">{a.ccoNumber}</td>
+                      <td className="py-2 pr-3 align-top">
+                        <span className="block font-medium text-ink">{a.ccoNumber}</span>
+                        {a.history.length > 0 ? (
+                          <span className="block text-[12px] text-ink-muted">dikoreksi {a.history.length}×</span>
+                        ) : null}
+                        {canAmend ? (
+                          <span className="mt-1 block">
+                            <Drawer
+                              trigger="Koreksi"
+                              title={`Koreksi ${a.ccoNumber}`}
+                              subtitle="Untuk isian yang salah dicatat. Isian lama tetap tersimpan sebagai riwayat."
+                            >
+                              <KoreksiCcoForm cco={koreksi} />
+                            </Drawer>
+                          </span>
+                        ) : null}
+                      </td>
                       <td
                         className={`tabular py-2 pr-3 text-right ${a.valueDelta < 0n ? "text-danger" : a.valueDelta > 0n ? "text-success" : "text-ink"}`}
                       >
@@ -513,8 +559,10 @@ export default async function KontrakPage({
                         ) : null}
                       </td>
                       <td className="tabular py-2 pr-3 text-right">
-                        {a.endDateDelta > 0 ? "+" : ""}
-                        {a.endDateDelta} hari
+                        {tanda(a.endDateDelta)}
+                        {selesai && a.endDateDelta !== 0 ? (
+                          <span className="block text-[12px] text-ink-muted">selesai {formatTanggal(selesai)}</span>
+                        ) : null}
                       </td>
                       <td className="py-2 pr-3">{formatTanggal(a.effectiveDate)}</td>
                       <td className="py-2 pr-3 text-ink-muted">{a.reason}</td>

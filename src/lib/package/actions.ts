@@ -50,7 +50,8 @@ function parseRupiah(s: unknown): bigint | null {
 /** Rupiah bertanda untuk delta adendum: "-1.500.000" → -1500000n. */
 function parseRupiahSigned(s: unknown): bigint | null {
   const raw = String(s ?? "").trim();
-  const negative = raw.startsWith("-") || raw.startsWith("−");
+  // Tanda minus di depan angka pertama, juga sesudah "Rp" ("Rp -1.500.000").
+  const negative = /^[^0-9]*[-−]/.test(raw);
   const digits = raw.replace(/[^0-9]/g, "");
   if (!digits) return null;
   const v = BigInt(digits);
@@ -1719,7 +1720,7 @@ export async function addAmendment(
   _prev: PackageActionState,
   formData: FormData,
 ): Promise<PackageActionState> {
-  await requireCapability("amendment.manage");
+  const actor = await requireCapability("amendment.manage");
   const parsed = amendmentSchema.safeParse({
     packageId: formData.get("packageId"),
     ccoNumber: formData.get("ccoNumber"),
@@ -1735,6 +1736,24 @@ export async function addAmendment(
   if (!effectiveDate) return { error: "Format tanggal berlaku tidak valid." };
   // Kosong = pakai angka turunan RAB; diketik = angka resmi dokumen CCO.
   const valueDelta = parseRupiahSigned(formData.get("valueDelta"));
+
+  // Perubahan waktu: jumlah hari ATAU tanggal selesai sesudah CCO (DECISIONS 771).
+  // Tanggal dihitung terhadap akhir kontrak berjalan dari basis data, bukan
+  // dari angka yang dikirim layar.
+  const { bacaIsianWaktu, hariDariIsian, KoreksiCcoError } = await import("@/lib/package/koreksi-cco");
+  const waktu = bacaIsianWaktu(formData);
+  if ("error" in waktu) return { error: waktu.error };
+  const kontrakWaktu = await db.contract.findFirst({
+    where: { packageId: d.packageId, package: { orgId: actor.orgId } },
+    select: { endDate: true, amendments: { select: { endDateDelta: true, createdAt: true } } },
+  });
+  if (!kontrakWaktu) return { error: "Paket ini belum punya kontrak." };
+  try {
+    d.endDateDelta = hariDariIsian(waktu, kontrakWaktu.endDate, kontrakWaktu.amendments, null);
+  } catch (e) {
+    if (e instanceof KoreksiCcoError) return { error: e.message };
+    throw e;
+  }
 
   const { aktifkanAdendumPaket, AktivasiAdendumError } = await import("@/lib/package/aktivasi-adendum");
   const { PersetujuanError } = await import("@/lib/rab/persetujuan");
@@ -1885,6 +1904,50 @@ export async function pratinjauSelisihAdendum(input: {
     selisih: selisih === null ? null : selisih.toString(),
     selisihTeks: selisih === null ? null : `${selisih > 0n ? "+" : ""}${formatRupiah(selisih)}`,
   };
+}
+
+/**
+ * Koreksi isian dokumen CCO yang salah dicatat (DECISIONS 771): nomor, tanggal
+ * berlaku, nilai resmi, perubahan waktu (hari ATAU tanggal selesai), alasan.
+ */
+export async function koreksiCcoAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  await requireCapability("amendment.manage");
+  const amendmentId = z.uuid().safeParse(formData.get("amendmentId"));
+  if (!amendmentId.success) return { error: "CCO tidak dikenali. Muat ulang halaman, lalu coba lagi." };
+  const effectiveDate = parseDateKey(String(formData.get("effectiveDate") ?? ""));
+  if (!effectiveDate) return { error: "Isi tanggal berlaku CCO." };
+  const { bacaIsianWaktu, koreksiCco, KoreksiCcoError } = await import("@/lib/package/koreksi-cco");
+  const waktu = bacaIsianWaktu(formData);
+  if ("error" in waktu) return { error: waktu.error };
+  const nilaiTeks = String(formData.get("valueDelta") ?? "").trim();
+  const valueDelta = nilaiTeks === "" ? null : parseRupiahSigned(nilaiTeks);
+  if (nilaiTeks !== "" && valueDelta === null) return { error: "Perubahan nilai tidak terbaca. Tulis angkanya saja, mis. 15.000.000." };
+  let hasil;
+  try {
+    hasil = await koreksiCco({
+      amendmentId: amendmentId.data,
+      ccoNumber: String(formData.get("ccoNumber") ?? ""),
+      effectiveDate,
+      waktu,
+      valueDelta,
+      reason: String(formData.get("reason") ?? ""),
+      alasanKoreksi: String(formData.get("alasanKoreksi") ?? ""),
+    });
+  } catch (e) {
+    if (e instanceof KoreksiCcoError) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/paket");
+  revalidatePath(`/paket/${hasil.packageId}`, "layout");
+  revalidatePath("/lokasi", "layout");
+  const geser =
+    hasil.ccoSesudahnya > 0
+      ? ` Tanggal selesai sesudah ${hasil.ccoSesudahnya} CCO berikutnya ikut bergeser, karena harinya dijumlahkan.`
+      : "";
+  return { success: `${hasil.ccoNumber} dikoreksi: ${hasil.perubahan.join("; ")}.${geser}` };
 }
 
 /* ------------------------------------------------------------------ */

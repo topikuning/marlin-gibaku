@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 771 | 2026-11-23 | CCO bisa dikoreksi (nomor, tanggal berlaku, nilai resmi, waktu, alasan; wajib alasan koreksi; tidak melepas draft yang ikut): trigger DB menyalin versi lama ke `contract_amendment_history` (append-only), identitas & turunan RAB tetap, CCO tetap tak bisa dihapus (mengganti append-only CCO dari rebuild); tanggal berlaku dikunci bila ada lokasi masuk/dicabut lewatnya; perubahan waktu boleh diisi hari ATAU tanggal selesai (dihitung server dari jadwal tepat sebelum CCO); kabar galat Catat CCO di dekat tombol |
 | 770 | 2026-11-15 | Peta Dasbor Eksekutif: warna isi titik = kondisi proyek dari deviasi saja (hijau/oranye/merah < −10 pp/abu tanpa angka/pucat belum mulai), cincin = laporan hari ini (tebal gelap = belum lapor); menggantikan "merah menang" (235); legenda dua kelompok |
 | 769 | 2026-11-15 | Kawal bisa masuk memakai cookie "ingat saya" dari peramban (isian di Sistem, tersimpan tersandi `kawal.cookie.password`, tidak pernah di audit); alamat + cookie cukup; bila cookie ada, formulir masuk tidak pernah dikirim, juga saat cookie ditolak, supaya akun tidak terkunci |
 | 768 | 2026-11-15 | Foto lama dibuka langsung dari Lenovo seperti presign R2: alamat MARLIN tetap (`/api/berkas`, `/api/foto-asli`), dialihkan ke link `/v1/unduh` bertanda tangan HMAC di `server.mjs`; sakelar bawaan mati, nyala hanya lewat uji sambungan (gateway baru + Bypass Access); dokumen tetap lewat MARLIN (676) |

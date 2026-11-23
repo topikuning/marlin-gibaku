@@ -8,7 +8,7 @@ Single source untuk schema baru. Konsolidasi dari temuan `DATA_MODEL_AUDIT.md`.
 - Status canonical disimpan + histori transisi; status display boleh derived (dari dokumen) tapi tidak pernah jadi sumber kebenaran ganda.
 - Angka agregat TIDAK disimpan untuk diedit — dihitung dari transaksi. Snapshot hanya untuk laporan final (immutable).
 - Semua FK nyata (tidak ada kolom uuid menggantung).
-- Append-only untuk: audit log, histori status, transisi laporan, adendum.
+- Append-only untuk: audit log, histori status, transisi laporan. Adendum (CCO) tidak bisa dihapus; isian dokumennya boleh dikoreksi dengan versi lama tersimpan otomatis (DECISIONS 771).
 
 ## Hierarki inti
 
@@ -17,7 +17,7 @@ Organization
 └─ Package (paket — spine lifecycle: prospek → tender → kontrak → pelaksanaan → serah terima → selesai | batal)
    ├─ PackageStageHistory (append-only)
    ├─ Contract (0..1 per package; nomor, nilai, tanggal, termin, uang muka, retensi, PPN%)
-   │  └─ ContractAmendment (adendum, append-only)
+   │  └─ ContractAmendment (adendum, tak bisa dihapus; koreksi ber-riwayat)
    ├─ Location (0..N; pre-kontrak = lokasi target, post-konversi = unit pelaksanaan)
    └─ Document (bukti per tahap)
 ```
@@ -40,7 +40,7 @@ Organization
 - `Package` — name, packageNumber?, ownerAgency (KKP), hpsValue BigInt, stage, kanwil/province?, note, cancelReason?, createdBy. Prospek = Package stage `prospek..penetapan`.
 - `Vendor` (rename Contractor) — name uniq/org, npwp?, kontak.
 - `Contract` — packageId uniq (1:1), vendorId, contractNumber uniq, contractValue, ppnPercent Decimal (default dari setting, tidak hardcode), signedDate, startDate, endDate, advancePercent?, retentionPercent?, paymentTerms (json ringkas)?. Nilai berjalan = contractValue + Σ amendment.valueDelta (derived).
-- `ContractAmendment` — append-only: ccoNumber, valueDelta, endDateDelta hari, effectiveDate, reason; relasi ke RabRevision & Baseline yang dihasilkan.
+- `ContractAmendment` — tidak bisa dihapus: ccoNumber, valueDelta, endDateDelta hari, effectiveDate, reason; relasi ke RabRevision & Baseline yang dihasilkan. Isian dokumen (5 kolom itu) boleh dikoreksi; trigger DB menyalin versi lama ke `ContractAmendmentHistory` (append-only), identitas & `valueDeltaRab` tetap (DECISIONS 771).
 - `Location` — packageId (bukan lagi via contract saja; kontrak diakses via package), name, slug uniq, village/regency/province, gps, status + `LocationStatusHistory`. **Tanpa** kolom keuangan snapshot, tanpa procurementStage, tanpa deviationCause/recoveryPlan.
 - Konversi prospek→kontrak = idempotent: satu transaksi membuat Contract + mengaktifkan Location target + set stage `kontrak`; guard unique(packageId) di Contract.
 

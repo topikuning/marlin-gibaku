@@ -16,6 +16,7 @@ import {
 import {
   ubahModeMingguAction,
   addAmendment,
+  koreksiCcoAction,
   pratinjauSelisihAdendum,
   type PratinjauSelisihAdendum,
   convertToContract,
@@ -30,7 +31,8 @@ import {
   type MedanNamaPersonel,
   type MedanTtdPersonel,
 } from "@/lib/laporan/penandatangan";
-import type { WeekPeriodMode } from "@/lib/progress-calc";
+import { selisihHari, tambahHari, type WeekPeriodMode } from "@/lib/progress-calc";
+import { formatTanggal, parseDateKey } from "@/lib/format";
 import { opsiModeMinggu } from "@/lib/periode-minggu";
 
 type VendorOption = { id: string; name: string };
@@ -599,10 +601,13 @@ export function AktivasiAdendumForm({
   packageId,
   items,
   hariIni,
+  akhirBerjalan,
 }: {
   packageId: string;
   items: ItemAdendumForm[];
   hariIni: string;
+  /** Jadwal selesai sekarang (YYYY-MM-DD), null bila SPMK belum terbit. */
+  akhirBerjalan: string | null;
 }) {
   const [state, action, pending] = useAksi<PackageActionState>(addAmendment, undefined);
   const [pilih, setPilih] = useState<Set<string>>(
@@ -640,8 +645,6 @@ export function AktivasiAdendumForm({
 
   return (
     <form action={action} className="space-y-4">
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="packageId" value={packageId} />
       {items
         .filter((i) => pilih.has(`${i.jenis}:${i.id}`))
@@ -714,12 +717,7 @@ export function AktivasiAdendumForm({
           </Label>
           <Input id="am-cco" name="ccoNumber" required placeholder="mis. CCO-01" />
         </div>
-        <div>
-          <Label htmlFor="am-effective" required>
-            Tanggal berlaku
-          </Label>
-          <Input id="am-effective" name="effectiveDate" type="date" required defaultValue={hariIni} />
-        </div>
+        <TanggalBerlakuCco id="am-effective" defaultValue={hariIni} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -736,8 +734,8 @@ export function AktivasiAdendumForm({
             {turunan ? (
               <>
                 Dari RAB: <span className="tabular font-medium text-ink">{turunan.turunanTeks}</span>
-                {menghitung ? " (menghitung…)" : ""}. Kosongkan untuk memakai angka ini. Kalau angka di
-                dokumen CCO berbeda karena pembulatan, ketik angka dokumen itu.
+                {menghitung ? " (menghitung…)" : ""}. Biarkan kosong untuk memakai angka ini, atau ketik angka di
+                dokumen CCO bila berbeda.
                 {turunan.selisih !== null && turunan.selisih !== "0" ? (
                   <span className="block text-warning">
                     Selisih dengan RAB: {turunan.selisihTeks}. Selisih ini ikut dicatat.
@@ -751,12 +749,7 @@ export function AktivasiAdendumForm({
             )}
           </HelpText>
         </div>
-        <div>
-          <Label htmlFor="am-days" required>
-            Perubahan waktu (hari)
-          </Label>
-          <Input id="am-days" name="endDateDelta" type="number" step={1} defaultValue={0} required />
-        </div>
+        <IsianPerubahanWaktu idAwal="am" akhirSebelum={akhirBerjalan} hariAwal={0} />
       </div>
 
       <div>
@@ -783,8 +776,202 @@ export function AktivasiAdendumForm({
         </label>
       ) : null}
 
+      {/* Kabar di dekat tombol: di panel yang panjang, banner di puncak form
+          tidak terlihat saat orang menekan tombol di bawah. */}
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <Button type="submit" loading={pending} disabled={tanpaPasangan.length > 0 && !paham}>
         Catat CCO
+      </Button>
+    </form>
+  );
+}
+
+/** Tanggal CCO berlaku – sering tertukar dengan tanggal selesai pekerjaan (keluhan user 2026-11-23). */
+function TanggalBerlakuCco({ id, defaultValue, disabled }: { id: string; defaultValue: string; disabled?: string }) {
+  return (
+    <div>
+      <Label htmlFor={id} required>
+        Tanggal CCO berlaku
+      </Label>
+      <Input id={id} name="effectiveDate" type="date" required defaultValue={defaultValue} readOnly={!!disabled} />
+      <HelpText>{disabled ?? "Tanggal di dokumen CCO, bukan tanggal selesai pekerjaan."}</HelpText>
+    </div>
+  );
+}
+
+/**
+ * PERUBAHAN WAKTU: JUMLAH HARI ATAU TANGGAL SELESAI (DECISIONS 771). Permintaan
+ * user 2026-11-23: *"bisa jadi aku hanya tahu … tanggal akhir dari
+ * perpanjangannya … jadi antara isi perubahan jumlah hari atau input tanggal
+ * akhir selesainya"*. Yang disimpan tetap hari; server menghitungnya ulang dari
+ * jadwal selesai di basis data, layar hanya menampilkan padanannya.
+ */
+function IsianPerubahanWaktu({
+  idAwal,
+  akhirSebelum,
+  hariAwal,
+}: {
+  idAwal: string;
+  /** Jadwal selesai tepat sebelum CCO ini (YYYY-MM-DD); null = SPMK belum terbit. */
+  akhirSebelum: string | null;
+  hariAwal: number;
+}) {
+  const sebelum = akhirSebelum ? parseDateKey(akhirSebelum) : null;
+  const [mode, setMode] = useState<"hari" | "tanggal">("hari");
+  const [hari, setHari] = useState(String(hariAwal));
+  const [tanggal, setTanggal] = useState(() =>
+    sebelum ? tambahHari(sebelum, hariAwal).toISOString().slice(0, 10) : "",
+  );
+  const n = Number(hari);
+  const akhirDariHari = sebelum && hari.trim() !== "" && Number.isInteger(n) ? tambahHari(sebelum, n) : null;
+  const akhirKetik = tanggal ? parseDateKey(tanggal) : null;
+  const hariDariTanggal = sebelum && akhirKetik ? selisihHari(sebelum, akhirKetik) : null;
+  const tanda = (x: number) => `${x > 0 ? "+" : ""}${x} hari`;
+
+  return (
+    <div>
+      <Label htmlFor={`${idAwal}-waktu`} required>
+        Perubahan waktu
+      </Label>
+      <input type="hidden" name="waktuMode" value={mode} />
+      <div className="mb-1.5 flex w-fit overflow-hidden rounded-md border border-border" role="group" aria-label="Cara mengisi perubahan waktu">
+        {(
+          [
+            ["hari", "Jumlah hari"],
+            ["tanggal", "Tanggal selesai"],
+          ] as const
+        ).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={mode === m}
+            disabled={m === "tanggal" && !sebelum}
+            onClick={() => setMode(m)}
+            className={`px-3 py-1 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+              mode === m ? "bg-primary/10 text-primary" : "bg-surface text-ink-muted hover:bg-surface-muted"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === "hari" ? (
+        <Input
+          id={`${idAwal}-waktu`}
+          name="endDateDelta"
+          type="number"
+          step={1}
+          required
+          value={hari}
+          onChange={(e) => setHari(e.target.value)}
+        />
+      ) : (
+        <Input
+          id={`${idAwal}-waktu`}
+          name="akhirBaru"
+          type="date"
+          required
+          value={tanggal}
+          onChange={(e) => setTanggal(e.target.value)}
+        />
+      )}
+      <HelpText>
+        {!sebelum
+          ? "SPMK belum terbit, jadi tanggal selesai belum bisa dipakai. Isi jumlah harinya."
+          : mode === "hari"
+            ? akhirDariHari
+              ? `Selesai pekerjaan menjadi ${formatTanggal(akhirDariHari)}.`
+              : `Jadwal selesai sekarang ${formatTanggal(sebelum)}.`
+            : hariDariTanggal !== null
+              ? `${tanda(hariDariTanggal)} dari jadwal selesai ${formatTanggal(sebelum)}.`
+              : `Jadwal selesai sekarang ${formatTanggal(sebelum)}.`}
+      </HelpText>
+    </div>
+  );
+}
+
+/** Isian CCO yang tercatat + riwayat koreksinya, untuk panel Koreksi (DECISIONS 771). */
+export type CcoKoreksiData = {
+  id: string;
+  ccoNumber: string;
+  effectiveDate: string;
+  /** Nilai resmi bertanda, siap ketik ulang (mis. "-1.500.000"). */
+  valueDelta: string;
+  endDateDelta: number;
+  reason: string;
+  /** Ada lokasi masuk/dicabut lewat CCO ini → tanggal berlaku dikunci. */
+  adaLingkup: boolean;
+  /** Jadwal selesai tepat sebelum CCO ini (YYYY-MM-DD). */
+  akhirSebelum: string | null;
+  riwayat: { replacedAt: string; teks: string }[];
+};
+
+/**
+ * KOREKSI CCO yang salah dicatat (DECISIONS 771). Hanya isian dokumen; draft
+ * RAB/lokasi yang ikut diberlakukan tidak dilepas dari sini.
+ */
+export function KoreksiCcoForm({ cco }: { cco: CcoKoreksiData }) {
+  const [state, action, pending] = useAksi<PackageActionState>(koreksiCcoAction, undefined);
+  const p = `kc-${cco.id.slice(0, 8)}`;
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="amendmentId" value={cco.id} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${p}-no`} required>
+            Nomor CCO/adendum
+          </Label>
+          <Input id={`${p}-no`} name="ccoNumber" required defaultValue={cco.ccoNumber} />
+        </div>
+        <TanggalBerlakuCco
+          id={`${p}-tgl`}
+          defaultValue={cco.effectiveDate}
+          disabled={
+            cco.adaLingkup
+              ? "Tidak bisa diubah: ada lokasi yang masuk atau dicabut lewat CCO ini, dan tanggalnya sudah dipakai lokasi itu."
+              : undefined
+          }
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${p}-nilai`} required>
+            Perubahan nilai (Rp, inkl. PPN)
+          </Label>
+          <Input id={`${p}-nilai`} name="valueDelta" required defaultValue={cco.valueDelta} inputMode="numeric" />
+          <HelpText>Minus untuk pengurangan, mis. -1.500.000.</HelpText>
+        </div>
+        <IsianPerubahanWaktu idAwal={p} akhirSebelum={cco.akhirSebelum} hariAwal={cco.endDateDelta} />
+      </div>
+      <div>
+        <Label htmlFor={`${p}-alasan`} required>
+          Alasan adendum
+        </Label>
+        <Textarea id={`${p}-alasan`} name="reason" required minLength={5} defaultValue={cco.reason} />
+      </div>
+      <div>
+        <Label htmlFor={`${p}-koreksi`} required>
+          Kenapa dikoreksi
+        </Label>
+        <Textarea id={`${p}-koreksi`} name="alasanKoreksi" required minLength={5} placeholder="mis. salah ketik jumlah hari" />
+      </div>
+      {cco.riwayat.length > 0 ? (
+        <div className="space-y-1 text-[13px]">
+          <p className="font-medium text-ink">Isian sebelum dikoreksi</p>
+          <ul className="space-y-0.5 text-ink-muted">
+            {cco.riwayat.map((r, i) => (
+              <li key={i}>
+                <span className="tabular">{r.replacedAt}</span> – {r.teks}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <Button type="submit" variant="primary" loading={pending}>
+        Simpan koreksi
       </Button>
     </form>
   );
