@@ -44,6 +44,8 @@ import {
   type ModeJadwal,
 } from "@/lib/baseline";
 import { cocokkanKategoriJadwal, parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
+import { bacaTiketJadwal, buatTiketJadwal } from "@/lib/scurve/tiket-jadwal";
+import { env } from "@/lib/env";
 import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
@@ -438,6 +440,8 @@ type SiapImpor = {
   catNodes: { code: string | null; name: string; lineageKey: string }[];
   mode: ModeJadwal;
   namaBerkas: string;
+  /** Ukuran berkas yang diunggah (byte); null bila memakai tiket pemeriksaan. */
+  ukuranBerkas: number | null;
 };
 
 async function siapkanImporJadwal(formData: FormData): Promise<{ error: string } | SiapImpor> {
@@ -450,6 +454,40 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     where: { id: locId.data },
     select: { id: true, slug: true },
   });
+
+  // Jumlah kolom minggu mengikuti MODE periode minggu kontrak (DECISIONS 427)
+  // — pada mode senin_minggu M1 pendek menambah satu kolom, dan Excel yang
+  // benar justru berkolom segitu; ceil(hari/7) akan MENOLAK berkas yang benar.
+  const { totalWeeks } = await totalWeeksFor(location.id);
+  const tolakMinggu = (n: number) => ({
+    error: `Jumlah minggu di Excel (${n}) tidak sama dengan durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan berkasnya berasal dari lokasi ini, dengan durasi kontrak yang sama.`,
+  });
+
+  // Kategori RAB aktif utk pencocokan (kode → nama).
+  const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
+  if (!revision) return { error: "Belum ada revisi RAB aktif. Impor RAB dulu." };
+  const catNodes = await db.rabNode.findMany({
+    where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
+    select: { code: true, name: true, lineageKey: true },
+  });
+
+  // Tanpa centang = apa adanya. Tidak ada mode "otomatis" yang menebak: yang
+  // tidak diminta tidak dilakukan.
+  const mode: ModeJadwal = formData.get("sesuaikanRab") === "1" ? "rab" : "apaadanya";
+
+  /*
+   * TIKET HASIL PEMERIKSAAN (DECISIONS 774): "Terapkan" mengirim jadwal yang
+   * sudah terbaca saat "Periksa", bertanda tangan server – berkasnya tidak
+   * diunggah & dibaca ulang. Jumlah minggu tetap diperiksa ulang di sini.
+   */
+  const tiket = String(formData.get("tiket") ?? "");
+  if (tiket) {
+    const t = bacaTiketJadwal(tiket, { lokasi: location.id, user: user.id }, env.SESSION_SECRET);
+    if (!t) return { error: "Hasil pemeriksaan sudah kedaluwarsa. Tekan Periksa hasilnya lagi." };
+    const salah = t.input.find((r) => r.weekly.length !== totalWeeks);
+    if (salah) return tolakMinggu(salah.weekly.length);
+    return { user, location, input: t.input, catNodes, mode, namaBerkas: t.namaBerkas, ukuranBerkas: null };
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
@@ -464,24 +502,7 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
   }
-
-  // Jumlah kolom minggu mengikuti MODE periode minggu kontrak (DECISIONS 427)
-  // — pada mode senin_minggu M1 pendek menambah satu kolom, dan Excel yang
-  // benar justru berkolom segitu; ceil(hari/7) akan MENOLAK berkas yang benar.
-  const { totalWeeks } = await totalWeeksFor(location.id);
-  if (parsed.totalWeeks !== totalWeeks) {
-    return {
-      error: `Jumlah minggu di Excel (${parsed.totalWeeks}) tidak sama dengan durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan berkasnya berasal dari lokasi ini, dengan durasi kontrak yang sama.`,
-    };
-  }
-
-  // Kategori RAB aktif utk pencocokan (kode → nama).
-  const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
-  if (!revision) return { error: "Belum ada revisi RAB aktif. Impor RAB dulu." };
-  const catNodes = await db.rabNode.findMany({
-    where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
-    select: { code: true, name: true, lineageKey: true },
-  });
+  if (parsed.totalWeeks !== totalWeeks) return tolakMinggu(parsed.totalWeeks);
 
   // Pencocokannya di `scurve/jadwal-import` supaya bisa diuji sendiri: kode
   // kategori TIDAK unik di berkas HPS nyata, dan versi lama di sini menelan
@@ -491,11 +512,7 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     return { error: "Tidak ada pekerjaan di Excel yang cocok dengan kategori RAB lokasi ini (dicocokkan lewat kode atau nama)." };
   }
 
-  // Tanpa centang = apa adanya. Tidak ada mode "otomatis" yang menebak: yang
-  // tidak diminta tidak dilakukan.
-  const mode: ModeJadwal = formData.get("sesuaikanRab") === "1" ? "rab" : "apaadanya";
-
-  return { user, location, input, catNodes, mode, namaBerkas: file.name };
+  return { user, location, input, catNodes, mode, namaBerkas: file.name, ukuranBerkas: file.size };
 }
 
 export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
@@ -531,6 +548,11 @@ export type PeriksaJadwal = { lolos: boolean; judul: string; rincian: string };
 
 export type PratinjauJadwal = {
   namaBerkas: string;
+  /** Jadwal terbaca bertanda tangan – dikirim balik saat Terapkan (DECISIONS 774). */
+  tiket: string;
+  /** Ukuran berkas (byte) dan lama server memprosesnya (ms) – untuk tahu di mana waktu habis. */
+  ukuranBerkas: number | null;
+  prosesMs: number;
   baselineAktif: number | null;
   totalMinggu: number;
   cocok: number;
@@ -560,10 +582,11 @@ export async function pratinjauJadwalAction(
   _prev: PratinjauState,
   formData: FormData,
 ): Promise<PratinjauState> {
+  const mulai = performance.now();
   try {
     const siap = await siapkanImporJadwal(formData);
     if ("error" in siap) return { error: siap.error };
-    const { location, input, mode, namaBerkas } = siap;
+    const { user, location, input, mode, namaBerkas, ukuranBerkas } = siap;
 
     const h = await hitungJadwalBaru(location.id, input, mode);
     const lama = h.aktif?.points ?? null;
@@ -616,6 +639,9 @@ export async function pratinjauJadwalAction(
     return {
       data: {
         namaBerkas,
+        tiket: buatTiketJadwal({ lokasi: location.id, user: user.id, namaBerkas, input }, env.SESSION_SECRET),
+        ukuranBerkas,
+        prosesMs: Math.round(performance.now() - mulai),
         baselineAktif: h.aktif?.baselineNo ?? null,
         totalMinggu: h.totalWeeks,
         cocok: h.matched,

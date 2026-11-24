@@ -65,9 +65,16 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     select: { locationId: true, contractDays: true, rabRevisionId: true, baselineNo: true, profil: true },
   });
   // Jumlah minggu boleh berubah saat edit manual — contractDays ikut deret baru
-  // bila tidak lagi cocok dengan acuan.
+  // bila tidak lagi cocok dengan acuan. Deret yang sama panjang dengan kontrak
+  // YANG BERLAKU (adendum waktu, DECISIONS 775) memakai masa kontrak itu.
   const refWeeks = Math.ceil(ref.contractDays / 7);
-  const contractDays = refWeeks === points.length ? ref.contractDays : points.length * 7;
+  const kontrak = refWeeks === points.length ? null : await totalWeeksFor(ref.locationId);
+  const contractDays =
+    refWeeks === points.length
+      ? ref.contractDays
+      : kontrak && kontrak.totalWeeks === points.length
+        ? kontrak.contractDays
+        : points.length * 7;
 
   const baseline = await db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
