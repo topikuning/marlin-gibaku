@@ -22,7 +22,10 @@ import {
   type WeekPeriodMode,
   ringkasKelompok,
   type RingkasanKelompok,
+  akhirKontrakBerlaku,
+  durasiKontrakBerlaku,
 } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { jakartaDateKey } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 import type {
@@ -323,6 +326,8 @@ export const HEADER_LOCATION_SELECT = {
           workTitle: true,
           durationDays: true,
           endDate: true,
+          // Masa & akhir kontrak di kop ikut adendum waktu (DECISIONS 773).
+          ...HARI_ADENDUM,
           weekMode: true,
           ppkName: true,
           ppkNip: true,
@@ -389,13 +394,13 @@ export function buildPeriodHeader(
     locationValue: BigInt(Math.round(o.grandTotal)),
     nilaiKontrakLokasi: withPpn(BigInt(Math.round(o.grandTotal)), Number(contract.ppnPercent)),
     ppnPercent: Number(contract.ppnPercent),
-    masaPelaksanaanHari: Math.max(1, contract.durationDays),
+    masaPelaksanaanHari: Math.max(1, durasiKontrakBerlaku(contract.durationDays, contract.amendments)),
     tahunAnggaran: o.startDate.getUTCFullYear(),
     contractStart: o.startDate,
     periodeStart: o.periodeStart,
     periodeEnd: o.periodeEnd,
     weekMode: contract.weekMode,
-    contractEnd: contract.endDate,
+    contractEnd: akhirKontrakBerlaku(contract.endDate, contract.amendments),
     ppkName: contract.ppkName,
     ppkNip: contract.ppkNip,
     wakilSahName: wakilSah.nama,
@@ -445,7 +450,9 @@ export async function getPeriodBounds(
       id: true,
       package: {
         select: {
-          contract: { select: { startDate: true, endDate: true, durationDays: true, weekMode: true, tahunJamak: true } },
+          contract: {
+            select: { startDate: true, endDate: true, durationDays: true, weekMode: true, tahunJamak: true, ...HARI_ADENDUM },
+          },
         },
       },
     },
@@ -457,10 +464,13 @@ export async function getPeriodBounds(
   let startDate: Date;
   let endDate: Date;
   let assumed = false;
-  if (contract.startDate && contract.endDate) {
+  // Akhir & masa kontrak YANG BERLAKU – termasuk hari adendum (DECISIONS 773).
+  const akhirBerlaku = akhirKontrakBerlaku(contract.endDate, contract.amendments);
+  const durasiBerlaku = durasiKontrakBerlaku(contract.durationDays, contract.amendments);
+  if (contract.startDate && akhirBerlaku) {
     startDate = contract.startDate;
-    endDate = contract.endDate;
-  } else if (opts?.assume && contract.durationDays > 0) {
+    endDate = akhirBerlaku;
+  } else if (opts?.assume && durasiBerlaku > 0) {
     /*
      * SPMK belum terbit → asumsikan mulai HARI INI, akhir = mulai + durasi.
      *
@@ -473,7 +483,7 @@ export async function getPeriodBounds(
      * dari rumus yang sama (DECISIONS 672).
      */
     startDate = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
-    endDate = akhirKontrak(startDate, contract.durationDays, contract.tahunJamak).akhir;
+    endDate = akhirKontrak(startDate, durasiBerlaku, contract.tahunJamak).akhir;
     assumed = true;
   } else {
     return null;

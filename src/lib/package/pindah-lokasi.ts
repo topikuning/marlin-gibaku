@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { auditIn } from "@/lib/audit";
-import { weekEndFractions, type WeekPeriodMode } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, weekEndFractions, type WeekPeriodMode } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { selaraskanRentangRencana } from "@/lib/plan/rentang-rencana";
 import { bangunUlangSnapshotFinal } from "@/lib/daily-report/snapshot-rebuild";
@@ -90,12 +91,14 @@ type Kontrak = {
   startDate: Date | null;
   endDate: Date | null;
   weekMode: WeekPeriodMode;
+  amendments: { endDateDelta: number }[];
 } | null;
 
-/** Grid minggu sebuah kontrak; null bila SPMK/akhir belum ada. */
+/** Grid minggu sebuah kontrak (akhir BERLAKU, DECISIONS 773); null bila SPMK/akhir belum ada. */
 function grid(k: Kontrak): { fracs: number[]; totalWeeks: number } | null {
-  if (!k?.startDate || !k.endDate) return null;
-  const fr = weekEndFractions(k.startDate, k.endDate, k.weekMode);
+  const akhir = k ? akhirKontrakBerlaku(k.endDate, k.amendments) : null;
+  if (!k?.startDate || !akhir) return null;
+  const fr = weekEndFractions(k.startDate, akhir, k.weekMode);
   return { fracs: fr, totalWeeks: fr.length };
 }
 
@@ -118,7 +121,7 @@ export async function pindahkanLokasi(
       slug: true,
       packageId: true,
       waGroupRefId: true,
-      package: { select: { id: true, name: true, orgId: true, stage: true, contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
+      package: { select: { id: true, name: true, orgId: true, stage: true, contract: { select: { startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } } } },
     },
   });
   // Filter organisasi DI SINI, bukan di UI: satu UUID yang terbaca dari dokumen
@@ -136,7 +139,7 @@ export async function pindahkanLokasi(
       id: true,
       name: true,
       stage: true,
-      contract: { select: { startDate: true, endDate: true, weekMode: true, durationDays: true } },
+      contract: { select: { startDate: true, endDate: true, weekMode: true, durationDays: true, ...HARI_ADENDUM } },
     },
   });
   if (!tujuan) throw new PindahLokasiError("Paket tujuan tidak ditemukan.");
@@ -292,7 +295,7 @@ export async function pindahkanLokasi(
         [lokasi.id],
         {
           startDate: tujuan.contract.startDate,
-          endDate: tujuan.contract.endDate,
+          akhir: akhirKontrakBerlaku(tujuan.contract.endDate, tujuan.contract.amendments),
           weekMode: tujuan.contract.weekMode,
         },
         tx,

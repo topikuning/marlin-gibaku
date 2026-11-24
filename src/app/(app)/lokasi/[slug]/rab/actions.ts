@@ -46,7 +46,8 @@ import {
 import { cocokkanKategoriJadwal, parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
 import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
-import { weekDateRange } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
 
@@ -693,7 +694,7 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
       select: {
         slug: true,
         package: {
-          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } } },
         },
       },
     });
@@ -726,7 +727,7 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
       startDate,
       d.weekNumber,
       kontrak.weekMode,
-      kontrak.endDate,
+      akhirKontrakBerlaku(kontrak.endDate, kontrak.amendments),
     );
 
     const plan = await db.weeklyPlan.upsert({
@@ -852,7 +853,7 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
       select: {
         slug: true,
         package: {
-          select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } },
+          select: { contract: { select: { startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } } },
         },
       },
     });
@@ -877,7 +878,7 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
       startDate,
       weekNumber,
       kontrak.weekMode,
-      kontrak.endDate,
+      akhirKontrakBerlaku(kontrak.endDate, kontrak.amendments),
     );
     const plan = await db.weeklyPlan.upsert({
       where: { locationId_weekNumber: { locationId, weekNumber } },

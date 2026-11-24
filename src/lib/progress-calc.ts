@@ -548,6 +548,24 @@ export function akhirKontrak(
   return { akhir: akhirTahun, tanpaBatas, dibatasi: true };
 }
 
+/**
+ * AKHIR KONTRAK YANG BERLAKU = akhir awal (SPMK + durasi, `Contract.endDate`) +
+ * Σ hari adendum (DECISIONS 773). Satu rumus untuk SEMUA penghitung minggu,
+ * sisa hari, dan batas laporan: grid kurva-S, impor TS, laporan periodik,
+ * kalender harian. Keluhan user 2026-11-24: *"sudah adendum waktu, tapi kenapa
+ * minggu masih sama?!"* – dulu hanya EWS & ringkasan lokasi yang menambahkannya.
+ * null = SPMK belum terbit.
+ */
+export function akhirKontrakBerlaku(akhirAwal: Date | null, adendum: { endDateDelta: number }[]): Date | null {
+  if (!akhirAwal) return null;
+  return tambahHari(akhirAwal, adendum.reduce((s, a) => s + a.endDateDelta, 0));
+}
+
+/** Masa pelaksanaan yang berlaku (hari) = durasi awal + Σ hari adendum. */
+export function durasiKontrakBerlaku(durasiAwal: number, adendum: { endDateDelta: number }[]): number {
+  return durasiAwal + adendum.reduce((s, a) => s + a.endDateDelta, 0);
+}
+
 /** Tanggal (UTC-midnight) + n hari kalender; n boleh negatif. */
 export function tambahHari(d: Date, hari: number): Date {
   return new Date(d.getTime() + hari * DAY_MS);

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { weekEndFractions } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, weekEndFractions } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { konversiBaselineModeMinggu } from "@/lib/baseline";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { jakartaToday } from "@/lib/format";
@@ -44,6 +45,7 @@ export async function terapkanDefaultSeninMinggu(): Promise<HasilMigrasiModeMing
       id: true,
       startDate: true,
       endDate: true,
+      ...HARI_ADENDUM,
       package: { select: { id: true, locations: { select: { id: true } } } },
     },
   });
@@ -64,11 +66,13 @@ export async function terapkanDefaultSeninMinggu(): Promise<HasilMigrasiModeMing
   for (const c of contracts) {
     // Urutan sama dengan editContractAction: kontrak dulu, baru baselinenya.
     await db.contract.update({ where: { id: c.id }, data: { weekMode: "senin_minggu" } });
-    if (c.startDate && c.endDate) {
+    // Grid baseline mengikuti akhir kontrak YANG BERLAKU (DECISIONS 773).
+    const akhir = akhirKontrakBerlaku(c.endDate, c.amendments);
+    if (c.startDate && akhir) {
       // Kedua grid dihitung dari HARI nyata (weekEndFractions) — juga sisi
       // tujuh_hari, supaya durasi yang tidak habis dibagi 7 terpetakan tepat.
-      const frLama = weekEndFractions(c.startDate, c.endDate, "tujuh_hari");
-      const frBaru = weekEndFractions(c.startDate, c.endDate, "senin_minggu");
+      const frLama = weekEndFractions(c.startDate, akhir, "tujuh_hari");
+      const frBaru = weekEndFractions(c.startDate, akhir, "senin_minggu");
       for (const loc of c.package.locations) {
         try {
           const hasil = await konversiBaselineModeMinggu(loc.id, {

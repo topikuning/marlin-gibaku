@@ -218,6 +218,7 @@ export async function buatSnapshotPaparan(
   /* ── Durasi pelaksanaan ─────────────────────────────────────────────── */
 
   const totalHari = pkg.contract.durationDays;
+  const akhirBerlaku = pkg.contract.endDate;
   const hariKontrakBerjalan = Math.max(
     0,
     Math.min(totalHari, Math.floor((jakartaToday().getTime() - start.getTime()) / HARI_MS) + 1),
@@ -694,8 +695,9 @@ export async function buatSnapshotPaparan(
       mingguKe: weekNumber,
       // Total minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
       totalMinggu:
-        modeKalender(mode) && pkg.contract.endDate
-          ? totalWeeksBetween(start, pkg.contract.endDate, mode)
+        // `pkg.contract.endDate` sudah akhir BERLAKU (akses.ts, DECISIONS 773).
+        modeKalender(mode) && akhirBerlaku
+          ? totalWeeksBetween(start, akhirBerlaku, mode)
           : Math.max(1, Math.ceil(pkg.contract.durationDays / 7)),
       mulaiKey,
       akhirKey,

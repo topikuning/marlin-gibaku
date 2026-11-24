@@ -14,7 +14,15 @@ import {
 } from "@/lib/lifecycle";
 import { formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
-import { akhirKontrak, weekEndFractions, weightedRealizedPct, WEEK_PERIOD_MODES, type WeekPeriodMode } from "@/lib/progress-calc";
+import {
+  akhirKontrak,
+  akhirKontrakBerlaku,
+  weekEndFractions,
+  weightedRealizedPct,
+  WEEK_PERIOD_MODES,
+  type WeekPeriodMode,
+} from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { getModeMingguBawaan } from "@/lib/periode-minggu-setelan";
 import { LABEL_MODE_MINGGU } from "@/lib/periode-minggu";
 import { selaraskanRentangRencana } from "@/lib/plan/rentang-rencana";
@@ -1211,7 +1219,7 @@ export async function editContractAction(
     where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, durationDays: true, startDate: true, endDate: true, weekMode: true } },
+      contract: { select: { id: true, durationDays: true, startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } },
       locations: { select: { id: true } },
     },
   });
@@ -1272,10 +1280,12 @@ export async function editContractAction(
   let recomputed = 0;
   const hanyaModeBerubah =
     weekModeChanged && pkg.contract.durationDays === d.durationDays && prevStart === newStart && prevEnd === newEnd;
-  if (hanyaModeBerubah && startDate && endDate) {
+  // Grid minggu mengikuti akhir kontrak YANG BERLAKU – hari adendum ikut (DECISIONS 773).
+  const akhirBerlaku = akhirKontrakBerlaku(endDate, pkg.contract.amendments);
+  if (hanyaModeBerubah && startDate && akhirBerlaku) {
     recomputed = await konversiModeMingguSemuaLokasi(
       pkg.locations,
-      { startDate, endDate, dari: pkg.contract.weekMode, ke: d.weekMode! },
+      { startDate, akhir: akhirBerlaku, dari: pkg.contract.weekMode, ke: d.weekMode! },
       actor.id,
     );
   } else if (timeChanged) {
@@ -1296,7 +1306,7 @@ export async function editContractAction(
   if (timeChanged && startDate) {
     await selaraskanRentangRencana(
       pkg.locations.map((l) => l.id),
-      { startDate, endDate, weekMode: d.weekMode ?? pkg.contract.weekMode },
+      { startDate, akhir: akhirBerlaku, weekMode: d.weekMode ?? pkg.contract.weekMode },
     );
   }
 
@@ -1341,7 +1351,8 @@ async function konversiModeMingguSemuaLokasi(
   locations: { id: string }[],
   opts: {
     startDate: Date;
-    endDate: Date;
+    /** Akhir kontrak YANG BERLAKU (DECISIONS 773). */
+    akhir: Date;
     dari: WeekPeriodMode;
     ke: WeekPeriodMode;
   },
@@ -1351,7 +1362,7 @@ async function konversiModeMingguSemuaLokasi(
   // tujuh_hari, supaya konversi tetap tepat saat durasi tidak habis dibagi 7
   // (minggu terakhir yang pendek dipetakan sebesar harinya).
   const gridDari = (mode: WeekPeriodMode) => {
-    const fr = weekEndFractions(opts.startDate, opts.endDate, mode);
+    const fr = weekEndFractions(opts.startDate, opts.akhir, mode);
     return { fracs: fr as number[] | null, totalWeeks: fr.length };
   };
   const lama = gridDari(opts.dari);
@@ -1433,23 +1444,24 @@ export async function ubahModeMingguAction(
     where: { id: packageId, orgId: actor.orgId },
     select: {
       id: true,
-      contract: { select: { id: true, startDate: true, endDate: true, weekMode: true } },
+      contract: { select: { id: true, startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } },
       locations: { select: { id: true } },
     },
   });
   if (!pkg?.contract) return { error: "Paket belum berkontrak." };
   if (pkg.contract.weekMode === weekMode) return { success: "Mode periode minggu tidak berubah." };
 
-  const { startDate, endDate, weekMode: modeLama } = pkg.contract;
+  const { startDate, weekMode: modeLama } = pkg.contract;
+  const akhirBerlaku = akhirKontrakBerlaku(pkg.contract.endDate, pkg.contract.amendments);
   await db.contract.update({ where: { id: pkg.contract.id }, data: { weekMode } });
 
   // Tanpa SPMK belum ada peta tanggal untuk dikonversi; modenya tersimpan dan
   // baru berlaku saat SPMK terbit. Dikatakan, bukan didiamkan.
   const recomputed =
-    startDate && endDate
+    startDate && akhirBerlaku
       ? await konversiModeMingguSemuaLokasi(
           pkg.locations,
-          { startDate, endDate, dari: modeLama, ke: weekMode },
+          { startDate, akhir: akhirBerlaku, dari: modeLama, ke: weekMode },
           actor.id,
         )
       : 0;
@@ -1458,7 +1470,7 @@ export async function ubahModeMingguAction(
     ? (
         await selaraskanRentangRencana(
           pkg.locations.map((l) => l.id),
-          { startDate, endDate, weekMode },
+          { startDate, akhir: akhirBerlaku, weekMode },
         )
       ).diubah
     : 0;

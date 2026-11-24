@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
-import type { WeekPeriodMode } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, durasiKontrakBerlaku, type WeekPeriodMode } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 
 /**
  * AKSES PAKET UNTUK PAPARAN (DECISIONS 416 + 420).
@@ -36,6 +37,7 @@ export type PaketPaparan = {
     workTitle: string | null;
     contractValue: bigint;
     startDate: Date;
+    /** Akhir & masa kontrak YANG BERLAKU – hari adendum sudah ditambahkan (DECISIONS 773). */
     endDate: Date | null;
     durationDays: number;
     weekMode: WeekPeriodMode;
@@ -82,6 +84,7 @@ export async function muatPaketPaparan(
           startDate: true,
           endDate: true,
           durationDays: true,
+          ...HARI_ADENDUM,
           weekMode: true,
           ppkName: true,
           supervisorName: true,
@@ -102,6 +105,14 @@ export async function muatPaketPaparan(
     throw new PaparanAksesError("Paket ini belum punya tanggal SPMK, jadi minggu kontraknya belum ada.");
   }
   if (pkg.locations.length === 0) throw new PaparanAksesError("Paket ini belum punya lokasi aktif.");
+  // Paparan memakai akhir & masa kontrak YANG BERLAKU (DECISIONS 773).
+  const { amendments, ...kontrakAwal } = pkg.contract;
+  const kontrak = {
+    ...kontrakAwal,
+    startDate: pkg.contract.startDate,
+    endDate: akhirKontrakBerlaku(kontrakAwal.endDate, amendments),
+    durationDays: durasiKontrakBerlaku(kontrakAwal.durationDays, amendments),
+  };
 
   const boleh = await accessibleLocationIds(user);
   const set = boleh === null ? null : new Set(boleh);
@@ -113,7 +124,7 @@ export async function muatPaketPaparan(
     if (set !== null && !set.has(lok.id)) throw new PaparanAksesError(TOLAK);
     return {
       ...pkg,
-      contract: { ...pkg.contract, startDate: pkg.contract.startDate },
+      contract: kontrak,
       locations: [lok],
       lingkup: { jenis: "lokasi", locationId: lok.id, nama: lok.name },
     } as PaketPaparan;
@@ -130,7 +141,7 @@ export async function muatPaketPaparan(
   }
   return {
     ...pkg,
-    contract: { ...pkg.contract, startDate: pkg.contract.startDate },
+    contract: kontrak,
     lingkup: { jenis: "paket" },
   } as PaketPaparan;
 }

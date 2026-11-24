@@ -19,7 +19,8 @@ import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
  */
 export async function selaraskanRentangRencana(
   locationIds: string[],
-  kontrak: { startDate: Date; endDate: Date | null; weekMode: WeekPeriodMode },
+  /** `akhir` = akhir kontrak YANG BERLAKU, termasuk hari adendum (DECISIONS 773). */
+  kontrak: { startDate: Date; akhir: Date | null; weekMode: WeekPeriodMode },
   client: Prisma.TransactionClient | typeof db = db,
 ): Promise<{ dihitung: number; diubah: number }> {
   if (locationIds.length === 0) return { dihitung: 0, diubah: 0 };
@@ -29,7 +30,7 @@ export async function selaraskanRentangRencana(
   });
   let diubah = 0;
   for (const r of rencana) {
-    const { start, end } = weekDateRange(kontrak.startDate, r.weekNumber, kontrak.weekMode, kontrak.endDate);
+    const { start, end } = weekDateRange(kontrak.startDate, r.weekNumber, kontrak.weekMode, kontrak.akhir);
     if (start.getTime() === r.weekStart.getTime() && end.getTime() === r.weekEnd.getTime()) continue;
     await client.weeklyPlan.update({ where: { id: r.id }, data: { weekStart: start, weekEnd: end } });
     diubah++;
