@@ -1,4 +1,4 @@
-import { totalWeeksBetween, weekDateRange, weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, totalWeeksBetween, weekDateRange, weekOfDate, type WeekPeriodMode } from "@/lib/progress-calc";
 import { mintaRekapHarian } from "./parser-niat";
 import type { Niat } from "./tanya-niat";
 import { formatKey, type PeriodeDiminta, type PeriodeTerbaca } from "./tanya-tanggal";
@@ -62,7 +62,13 @@ export function jenisBerkasKkp(niat: Niat, teksMentah: string, grup: boolean): J
   return null;
 }
 
-export type KontrakMinggu = { startDate: Date | null; endDate: Date | null; weekMode: WeekPeriodMode };
+export type KontrakMinggu = {
+  startDate: Date | null;
+  endDate: Date | null;
+  weekMode: WeekPeriodMode;
+  /** Hari adendum – masa kontrak yang berlaku ikut (DECISIONS 773). */
+  amendments?: { endDateDelta: number }[];
+};
 export type MingguKkp = { n: number; mulai: string; akhir: string; berjalan: boolean };
 
 const keKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -95,8 +101,9 @@ export function mingguKkpDiminta(
     n = weekOfDate(k.startDate, keTanggal(acuan), k.weekMode);
   }
   if (n < 1) return { sebab: `pekerjaannya belum mulai pada minggu itu (SPMK ${formatKey(keKey(k.startDate))})` };
-  if (k.endDate) {
-    const total = totalWeeksBetween(k.startDate, k.endDate, k.weekMode);
+  const akhirBerlaku = akhirKontrakBerlaku(k.endDate, k.amendments ?? []);
+  if (akhirBerlaku) {
+    const total = totalWeeksBetween(k.startDate, akhirBerlaku, k.weekMode);
     if (n > total) return { sebab: `masa kontrak hanya ${total} minggu` };
   }
   const r = weekDateRange(k.startDate, n, k.weekMode);

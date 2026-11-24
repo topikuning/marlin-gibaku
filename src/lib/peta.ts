@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getLocationProgress } from "@/lib/progress";
 import { bigintToString } from "@/lib/money";
 import type { DailyReportStatus, LocationStatus } from "@/generated/prisma/enums";
+import { akhirKontrakBerlaku } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 
 /**
  * Data layer halaman Peta (port dari versi lama, adaptasi schema rebuild):
@@ -135,6 +137,7 @@ export async function getLocationSnapshot(locationId: string): Promise<LocationS
               contractValue: true,
               startDate: true,
               endDate: true,
+              ...HARI_ADENDUM,
               vendor: { select: { name: true } },
             },
           },
@@ -167,7 +170,8 @@ export async function getLocationSnapshot(locationId: string): Promise<LocationS
     contractNumber: contract?.contractNumber ?? null,
     contractValue: contract?.contractValue ?? null,
     startDate: contract?.startDate ?? null,
-    endDate: contract?.endDate ?? null,
+    // Akhir kontrak YANG BERLAKU (DECISIONS 773).
+    endDate: contract ? akhirKontrakBerlaku(contract.endDate, contract.amendments) : null,
     planPct: progress.planPct,
     realizedPct: progress.realizedPct,
     deviationPct: progress.deviationPct,

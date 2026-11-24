@@ -10,7 +10,7 @@ import {
   OPEN_FINDING_STATUSES,
 } from "@/lib/lifecycle";
 import { getLocationProgress, getLocationsProgress, cumulativeVolumeByLineage } from "@/lib/progress";
-import { bobotPct, realisasiKategoriPct, type WeekPeriodMode } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, bobotPct, realisasiKategoriPct, type WeekPeriodMode } from "@/lib/progress-calc";
 import { getScurveSeries } from "@/lib/baseline";
 import { asOfMinggu, mingguKontrak, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { ambilKronologi } from "@/lib/kronologi/queries";
@@ -268,9 +268,9 @@ export async function buatLaporanLokasiLengkap(
   /* ── Durasi pelaksanaan ──────────────────────────────────────────────── */
 
   // Akhir kontrak EFEKTIF = endDate + Σ endDateDelta adendum.
-  let akhirEfektif: Date | null = kontrak?.endDate ?? null;
+  // Rumus kanonik (DECISIONS 773).
+  const akhirEfektif: Date | null = kontrak ? akhirKontrakBerlaku(kontrak.endDate, kontrak.amendments) : null;
   const deltaHari = kontrak?.amendments.reduce((acc, a) => acc + a.endDateDelta, 0) ?? 0;
-  if (akhirEfektif && deltaHari !== 0) akhirEfektif = new Date(akhirEfektif.getTime() + deltaHari * HARI_MS);
   if (deltaHari !== 0) {
     limitations.push(`Masa kontrak sudah diperpanjang/dipersingkat adendum (${deltaHari > 0 ? "+" : ""}${deltaHari} hari) – akhir kontrak yang dipakai sudah memperhitungkannya.`);
   }

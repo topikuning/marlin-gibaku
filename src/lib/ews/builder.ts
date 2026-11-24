@@ -20,6 +20,7 @@ import {
   type EwsWarning,
 } from "./rules";
 import { PIHAK_LABEL } from "@/lib/surat/lifecycle";
+import { akhirKontrakBerlaku } from "@/lib/progress-calc";
 
 /**
  * PENGUMPUL FAKTA EWS (DECISIONS 426). Semua angka progres dari calculation
@@ -165,11 +166,8 @@ export async function bangunEws(user: SessionUser): Promise<EwsWarning[]> {
     if (!p) continue;
     const contract = loc.package.contract;
     const start = contract?.startDate ?? null;
-    let endEfektif: Date | null = contract?.endDate ?? null;
-    if (endEfektif && contract) {
-      const deltaHari = contract.amendments.reduce((acc, a) => acc + a.endDateDelta, 0);
-      if (deltaHari !== 0) endEfektif = new Date(endEfektif.getTime() + deltaHari * HARI_MS);
-    }
+    // Rumus kanonik akhir kontrak berlaku (DECISIONS 773).
+    const endEfektif: Date | null = contract ? akhirKontrakBerlaku(contract.endDate, contract.amendments) : null;
     const last = lastByLoc.get(loc.id) ?? null;
     const temuanLoc = temuanTerbuka.filter((t) => t.locationId === loc.id);
 

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { accessibleLocationIds, requireUser, type SessionUser } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
 import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
+import { akhirKontrakBerlaku } from "@/lib/progress-calc";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -24,9 +25,7 @@ export function runningEndDate(
   endDate: Date | null,
   amendments: { endDateDelta: number }[],
 ): Date | null {
-  if (!endDate) return null;
-  const days = amendments.reduce((sum, a) => sum + a.endDateDelta, 0);
-  return new Date(endDate.getTime() + days * 86_400_000);
+  return akhirKontrakBerlaku(endDate, amendments);
 }
 
 /** Filter daftar paket: satu stage, atau grup "berkontrak" (kontrak dst). */

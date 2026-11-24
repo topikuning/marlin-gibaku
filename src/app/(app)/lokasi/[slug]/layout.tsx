@@ -7,7 +7,7 @@ import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { formatTanggal } from "@/lib/format";
 import { getLocationProgress, getProgresDraftAdendum } from "@/lib/progress";
 import { ProgressStrip, ProgressStripPonsel, type JalurStrip, type NilaiStrip, type WaktuStrip } from "@/components/knmp/progress-strip";
-import { bobotPct } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, bobotPct } from "@/lib/progress-calc";
 import { withPpn } from "@/lib/money";
 import { TampilKecualiInputHarian } from "./tampil-kecuali-input-harian";
 import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
@@ -100,7 +100,9 @@ export default async function LokasiLayout({
     deviationPct: null,
   };
 
-  const remainingDays = contract?.endDate ? remainingDaysUntil(contract.endDate) : null;
+  // Sisa hari & periode menuju akhir kontrak YANG BERLAKU (DECISIONS 773).
+  const akhirBerlaku = contract ? akhirKontrakBerlaku(contract.endDate, contract.amendments) : null;
+  const remainingDays = akhirBerlaku ? remainingDaysUntil(akhirBerlaku) : null;
 
   /*
    * PROGRESS STRIP (DECISIONS 737). Semua angka dari calculation layer:
@@ -126,8 +128,8 @@ export default async function LokasiLayout({
     lebarPct: bobotPct(Math.min(progress.weekNumberElapsed, progress.totalWeeks), progress.totalWeeks),
     sisaHari: remainingDays,
     periode:
-      contract?.startDate && contract.endDate
-        ? `${formatTanggal(contract.startDate)} – ${formatTanggal(contract.endDate)}`
+      contract?.startDate && akhirBerlaku
+        ? `${formatTanggal(contract.startDate)} – ${formatTanggal(akhirBerlaku)}`
         : contract
           ? `${contract.durationDays} hari – menunggu SPMK`
           : "Belum ada kontrak",

@@ -1,4 +1,5 @@
 import "server-only";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, REPORT_STATUS_LABEL } from "@/lib/lifecycle";
@@ -70,7 +71,7 @@ export async function kirimBerkasKkp(a: {
     select: {
       id: true,
       slug: true,
-      package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
+      package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } } } },
     },
   });
   const dataLokasi = new Map(lokasi.map((l) => [l.id, l]));

@@ -1,4 +1,12 @@
-import { modeKalender, totalWeeksBetween, weekEndFractions, weekOfDate } from "@/lib/progress-calc";
+import {
+  akhirKontrakBerlaku,
+  durasiKontrakBerlaku,
+  modeKalender,
+  totalWeeksBetween,
+  weekEndFractions,
+  weekOfDate,
+} from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
@@ -819,15 +827,22 @@ export async function totalWeeksFor(locationId: string): Promise<{
     select: {
       package: {
         select: {
-          contract: { select: { durationDays: true, startDate: true, endDate: true, weekMode: true } },
+          contract: { select: { durationDays: true, startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } },
         },
       },
     },
   });
   const c = loc?.package.contract;
-  const contractDays = (c?.durationDays ?? 0) > 0 ? c!.durationDays : DEFAULT_CONTRACT_DAYS;
-  if (c && modeKalender(c.weekMode) && c.startDate && c.endDate) {
-    const weekEndFracs = weekEndFractions(c.startDate, c.endDate, c.weekMode);
+  /*
+   * Masa & akhir kontrak YANG BERLAKU – termasuk hari adendum (DECISIONS 773).
+   * Tanpa ini TS sesudah CCO waktu ditolak: "jumlah minggu di Excel (23) tidak
+   * sama dengan durasi kontrak lokasi ini (20 minggu)".
+   */
+  const durasi = c ? durasiKontrakBerlaku(c.durationDays, c.amendments) : 0;
+  const contractDays = durasi > 0 ? durasi : DEFAULT_CONTRACT_DAYS;
+  const akhir = c ? akhirKontrakBerlaku(c.endDate, c.amendments) : null;
+  if (c && modeKalender(c.weekMode) && c.startDate && akhir) {
+    const weekEndFracs = weekEndFractions(c.startDate, akhir, c.weekMode);
     return { contractDays, totalWeeks: weekEndFracs.length, weekEndFracs };
   }
   /*
@@ -847,10 +862,10 @@ export async function totalWeeksFor(locationId: string): Promise<{
    * Yang dibetulkan JUMLAH kolomnya, bukan pembagi harinya.
    * Audit 2026-09-15 (G-2).
    */
-  if (c?.startDate && c.endDate) {
+  if (c?.startDate && akhir) {
     return {
       contractDays,
-      totalWeeks: totalWeeksBetween(c.startDate, c.endDate, "tujuh_hari"),
+      totalWeeks: totalWeeksBetween(c.startDate, akhir, "tujuh_hari"),
       weekEndFracs: null,
     };
   }

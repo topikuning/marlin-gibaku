@@ -21,7 +21,7 @@ import { permintaanWaMenunggu } from "@/lib/rab/persetujuan-wa";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { bacaJadwalAi } from "@/lib/plan/jadwal-ai";
-import { weekDateRange } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
 import {
   WeeklyPlanSection,
   type AnalisaAiView,
@@ -267,7 +267,7 @@ export default async function RabPage({
   // SPMK hanya kebetulan sama saat SPMK jatuh Senin. Audit 2026-09-15 (G-3).
   const startDate = contract?.startDate ?? null;
   const rentang = startDate
-    ? weekDateRange(startDate, weekNumber, contract!.weekMode, contract!.endDate)
+    ? weekDateRange(startDate, weekNumber, contract!.weekMode, akhirKontrakBerlaku(contract!.endDate, contract!.amendments))
     : null;
   const weekStart = rentang?.start ?? null;
   const weekEnd = rentang?.end ?? null;

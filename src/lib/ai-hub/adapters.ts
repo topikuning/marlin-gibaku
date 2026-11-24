@@ -26,6 +26,8 @@ export type HasilAdapter = {
   dilewati: WilayahAdapter[];
 };
 import type { SourceRef } from "./types";
+import { akhirKontrakBerlaku } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 
 /**
  * ADAPTER SUMBER — kontrak, keuangan, RAB, milestone (DECISIONS 379).
@@ -271,6 +273,7 @@ async function tambahKontrak(
       durationDays: true,
       startDate: true,
       endDate: true,
+      ...HARI_ADENDUM,
       vendor: { select: { name: true } },
     },
   });
@@ -290,9 +293,11 @@ async function tambahKontrak(
      * mengarang tanggal selesai dari `durationDays` berarti menerbitkan
      * tenggat yang tidak pernah disepakati siapa pun.
      */
+    // Akhir kontrak YANG BERLAKU – hari adendum ikut (DECISIONS 773).
+    const akhirBerlaku = akhirKontrakBerlaku(k.endDate, k.amendments);
     const sisaHari =
-      k.endDate != null
-        ? Math.ceil((k.endDate.getTime() - patokan) / (24 * 3600 * 1000))
+      akhirBerlaku != null
+        ? Math.ceil((akhirBerlaku.getTime() - patokan) / (24 * 3600 * 1000))
         : null;
 
     hasil.refs.push({
@@ -305,7 +310,7 @@ async function tambahKontrak(
         `vendor ${k.vendor.name}`,
         `durasi ${k.durationDays} hari`,
         k.startDate ? `mulai ${k.startDate.toISOString().slice(0, 10)}` : "SPMK belum terbit",
-        k.endDate ? `selesai ${k.endDate.toISOString().slice(0, 10)}` : null,
+        akhirBerlaku ? `selesai ${akhirBerlaku.toISOString().slice(0, 10)}` : null,
         sisaHari != null ? `sisa ${sisaHari} hari` : null,
       ]
         .filter(Boolean)

@@ -42,6 +42,7 @@ import {
   type SelKalender,
 } from "@/lib/daily-report/kalender-harian";
 import { Kalender } from "./kalender";
+import { akhirKontrakBerlaku } from "@/lib/progress-calc";
 import { PanelHari } from "./panel-hari";
 import { DaftarHarian, type BarisHarian } from "./daftar-harian";
 import { ResetHarian } from "./reset-harian";
@@ -103,9 +104,9 @@ export default async function HarianIndexPage({
   const mulaiKontrak = kontrak?.startDate
     ? jakartaDateKey(kontrak.startDate)
     : null;
-  const akhirKontrak = kontrak?.endDate
-    ? jakartaDateKey(kontrak.endDate)
-    : null;
+  // Hari sesudah akhir kontrak = "luar kontrak"; adendum waktu ikut (DECISIONS 773).
+  const akhirBerlaku = kontrak ? akhirKontrakBerlaku(kontrak.endDate, kontrak.amendments) : null;
+  const akhirKontrak = akhirBerlaku ? jakartaDateKey(akhirBerlaku) : null;
 
   const rentangLaporan = await getBatasLaporan(location.id);
   // Reset laporan harian lokasi: super admin UTAMA saja (DECISIONS 630).

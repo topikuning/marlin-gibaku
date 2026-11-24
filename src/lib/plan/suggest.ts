@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber, planPctAtWeek } from "@/lib/progress";
-import { modeKalender, totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
+import { akhirKontrakBerlaku, modeKalender, totalWeeksBetween, bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { contractDaysFor } from "@/lib/rab/import";
 import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
@@ -53,7 +54,7 @@ export async function suggestWeeklyPlan(
     db.location.findUnique({
       where: { id: locationId },
       select: {
-        package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true } } } },
+        package: { select: { contract: { select: { startDate: true, endDate: true, weekMode: true, ...HARI_ADENDUM } } } },
       },
     }),
     // Analisa AI urutan pelaksanaan revisi aktif (DECISIONS 667).
@@ -62,9 +63,11 @@ export async function suggestWeeklyPlan(
 
   // Jumlah minggu mengikuti mode periode minggu kontrak (DECISIONS 427).
   const kontrakSuggest = loc?.package.contract;
+  // Akhir kontrak BERLAKU – hari adendum ikut (DECISIONS 773).
+  const akhirSuggest = kontrakSuggest ? akhirKontrakBerlaku(kontrakSuggest.endDate, kontrakSuggest.amendments) : null;
   const totalWeeks =
-    kontrakSuggest && modeKalender(kontrakSuggest.weekMode) && kontrakSuggest.startDate && kontrakSuggest.endDate
-      ? totalWeeksBetween(kontrakSuggest.startDate, kontrakSuggest.endDate, kontrakSuggest.weekMode)
+    kontrakSuggest && modeKalender(kontrakSuggest.weekMode) && kontrakSuggest.startDate && akhirSuggest
+      ? totalWeeksBetween(kontrakSuggest.startDate, akhirSuggest, kontrakSuggest.weekMode)
       : Math.max(1, Math.ceil(contractDays / 7));
 
   // Kategori per lineage (prefix terpanjang) — sama seperti regenerateBaseline.

@@ -12,6 +12,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { idLokasiDiarsipkan, lingkupLokasi } from "@/lib/package/lingkup-lokasi";
 import { getLocationsProgress } from "@/lib/progress";
+import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import type { SiblingLocation } from "./location-switcher";
 
 export type LocationCtx = {
@@ -67,6 +68,8 @@ function findLocation(slug: string) {
               durationDays: true,
               startDate: true,
               endDate: true,
+              // Akhir kontrak BERLAKU = endDate + hari adendum (DECISIONS 773).
+              ...HARI_ADENDUM,
               weekMode: true,
               supervisorName: true,
               wakilSahName: true,
