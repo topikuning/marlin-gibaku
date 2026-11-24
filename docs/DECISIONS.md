@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 772 | 2026-11-24 | Koordinat lokasi diambil dari GPS HP (kartu Alamat & koordinat, `location.manage`): posisi diikuti s.d. 20 detik, bacaan terbaik dipakai; ≤30 m baik, ≤100 m dengan peringatan, >100 m ditolak layar DAN server; hanya mengisi kolom, tersimpan setelah Simpan; layar menyebut akurasi & jarak dari titik lama; audit mencatat sumber HP + akurasi |
 | 771 | 2026-11-23 | CCO bisa dikoreksi (nomor, tanggal berlaku, nilai resmi, waktu, alasan; wajib alasan koreksi; tidak melepas draft yang ikut): trigger DB menyalin versi lama ke `contract_amendment_history` (append-only), identitas & turunan RAB tetap, CCO tetap tak bisa dihapus (mengganti append-only CCO dari rebuild); tanggal berlaku dikunci bila ada lokasi masuk/dicabut lewatnya; perubahan waktu boleh diisi hari ATAU tanggal selesai (dihitung server dari jadwal tepat sebelum CCO); kabar galat Catat CCO di dekat tombol |
 | 770 | 2026-11-15 | Peta Dasbor Eksekutif: warna isi titik = kondisi proyek dari deviasi saja (hijau/oranye/merah < −10 pp/abu tanpa angka/pucat belum mulai), cincin = laporan hari ini (tebal gelap = belum lapor); menggantikan "merah menang" (235); legenda dua kelompok |
 | 769 | 2026-11-15 | Kawal bisa masuk memakai cookie "ingat saya" dari peramban (isian di Sistem, tersimpan tersandi `kawal.cookie.password`, tidak pernah di audit); alamat + cookie cukup; bila cookie ada, formulir masuk tidak pernah dikirim, juga saat cookie ditolak, supaya akun tidak terkunci |

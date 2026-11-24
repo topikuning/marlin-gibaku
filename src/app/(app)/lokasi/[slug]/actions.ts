@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { canTransitionLocation, LOCATION_STATUS_LABEL } from "@/lib/lifecycle";
-import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
+import { AKURASI_TOLAK_M, coordinateForDb, jarakMeter, parseCoordinatePair } from "@/lib/geo";
 import type { LocationStatus } from "@/generated/prisma/enums";
 
 export type StatusActionState = { error?: string; success?: string } | undefined;
@@ -121,6 +121,21 @@ export async function updateLocationMaster(
     const coord = parseCoordinatePair(d.gpsLat, d.gpsLng);
     if (!coord.ok) return { error: coord.error };
     const { lat, lng } = coord;
+    /*
+     * TITIK DARI GPS HP (DECISIONS 772): layar mengirim akurasinya. Titik yang
+     * lebih lemah dari ±100 m ditolak juga di sini, bukan hanya di layar –
+     * biasanya posisi menara seluler yang bisa meleset sampai kilometer.
+     */
+    const dariHp = formData.get("gpsSumber") === "hp" && lat != null;
+    // Kosong ≠ 0: Number("") dan Number(null) bernilai 0, terbaca "±0 m".
+    const akurasiTeks = String(formData.get("gpsAkurasi") ?? "").trim();
+    const akurasi = dariHp && akurasiTeks !== "" ? Number(akurasiTeks) : null;
+    if (dariHp && (akurasi === null || !Number.isFinite(akurasi) || akurasi < 0))
+      return { error: "Akurasi GPS HP tidak terbaca. Ambil ulang titiknya." };
+    if (dariHp && akurasi !== null && akurasi > AKURASI_TOLAK_M)
+      return {
+        error: `Titik HP kurang akurat (±${Math.round(akurasi)} m). Pindah ke tempat terbuka, tunggu sebentar, lalu ambil ulang.`,
+      };
     const before = await db.location.findUnique({
       where: { id: d.locationId },
       select: { slug: true, village: true, district: true, regency: true, province: true, gpsLat: true, gpsLng: true },
@@ -153,10 +168,26 @@ export async function updateLocationMaster(
         province: d.province,
         gps: lat != null ? `${lat},${lng}` : null,
       },
+      ...(dariHp ? { gpsSumber: "hp", gpsAkurasiM: Math.round(akurasi!) } : {}),
     });
     revalidatePath(`/lokasi/${before.slug}`);
     revalidatePath("/peta");
     revalidatePath("/aktivitas");
+    if (dariHp) {
+      const lama =
+        before.gpsLat != null && before.gpsLng != null
+          ? jarakMeter({ lat: Number(before.gpsLat), lng: Number(before.gpsLng) }, { lat: lat!, lng: lng! })
+          : null;
+      const geser =
+        lama === null
+          ? ""
+          : lama < 1
+            ? " Sama dengan titik lama."
+            : lama >= 1000
+            ? ` Bergeser ${(lama / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km dari titik lama.`
+            : ` Bergeser ${Math.round(lama)} m dari titik lama.`;
+      return { success: `Koordinat diperbarui dari GPS HP (±${Math.round(akurasi!)} m).${geser}` };
+    }
     return { success: "Master data lokasi tersimpan." };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
