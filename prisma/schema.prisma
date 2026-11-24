@@ -1575,9 +1575,30 @@ model ContractAmendment {
   documents    Document[]
   rabRevisions RabRevision[]
   scopeChanges LocationScopeChange[]
+  /// Versi lama isian dokumen tiap kali CCO dikoreksi (DECISIONS 771).
+  history      ContractAmendmentHistory[]
 
   @@unique([contractId, ccoNumber])
   @@map("contract_amendments")
+}
+
+/// RIWAYAT KOREKSI CCO (DECISIONS 771). Ditulis TRIGGER basis data sebelum baris
+/// CCO diubah – berisi isian LAMA – jadi tidak ada koreksi yang bisa lewat tanpa
+/// jejak, juga dari luar aplikasi. Append-only. Siapa & alasannya di audit_logs.
+model ContractAmendmentHistory {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amendmentId   String   @map("amendment_id") @db.Uuid
+  ccoNumber     String   @map("cco_number")
+  valueDelta    BigInt   @map("value_delta")
+  endDateDelta  Int      @map("end_date_delta")
+  effectiveDate DateTime @map("effective_date") @db.Date
+  reason        String
+  replacedAt    DateTime @default(now()) @map("replaced_at") @db.Timestamptz
+
+  amendment ContractAmendment @relation(fields: [amendmentId], references: [id], onDelete: Restrict)
+
+  @@index([amendmentId, replacedAt])
+  @@map("contract_amendment_history")
 }
 
 model Location {

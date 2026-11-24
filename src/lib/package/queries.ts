@@ -246,6 +246,19 @@ export const getPackageWorkspace = cache(async (id: string) => {
               effectiveDate: true,
               reason: true,
               createdAt: true,
+              // Koreksi CCO (DECISIONS 771): tanggal berlaku dikunci bila ada
+              // lokasi yang masuk/dicabut lewatnya; versi lama ditampilkan.
+              _count: { select: { scopeChanges: true } },
+              history: {
+                orderBy: { replacedAt: "desc" },
+                select: {
+                  ccoNumber: true,
+                  valueDelta: true,
+                  endDateDelta: true,
+                  effectiveDate: true,
+                  replacedAt: true,
+                },
+              },
               documents: {
                 where: { status: "aktif" },
                 orderBy: { uploadedAt: "asc" },

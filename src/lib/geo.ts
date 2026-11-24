@@ -76,3 +76,30 @@ export function parseCoordinatePair(rawLat: unknown, rawLng: unknown): CoordPars
 export function coordinateForDb(v: number | null): string | null {
   return v == null ? null : v.toFixed(7);
 }
+
+/* ── Titik dari GPS HP (DECISIONS 772) ───────────────────────────────────── */
+
+/** Jarak dua titik dalam meter (haversine, bumi bulat r = 6.371 km). */
+export function jarakMeter(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Akurasi GPS HP (meter) yang dianggap baik. */
+export const AKURASI_BAIK_M = 30;
+/**
+ * Di atas ini titik HP DITOLAK: biasanya posisi dari menara seluler atau GPS
+ * yang belum terkunci satelit, bisa meleset ratusan meter sampai kilometer.
+ */
+export const AKURASI_TOLAK_M = 100;
+
+export type MutuAkurasi = "baik" | "sedang" | "lemah";
+
+export function mutuAkurasi(meter: number): MutuAkurasi {
+  if (meter <= AKURASI_BAIK_M) return "baik";
+  if (meter <= AKURASI_TOLAK_M) return "sedang";
+  return "lemah";
+}
