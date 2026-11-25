@@ -135,3 +135,41 @@ describe("status butir & langkah", () => {
     expect(statusLangkah(8, status)).toBe("belum");
   });
 });
+
+/*
+ * SSUK/SSKK DIKENALI DARI NAMANYA (DECISIONS 778). Keluhan user 2026-11-25:
+ * *"spk, spmk, ssuk, sskk yang sudah ada di drive, kenapa di termin tidak
+ * nyambung atau link?"*. Impor Drive menggolongkan "Syarat-Syarat Umum
+ * Kontrak" sebagai kontrak, jadi ia terhitung SPK dan butir 2 tetap kosong.
+ */
+describe("adalahSsukSskk", () => {
+  it("mengenali singkatan dan kepanjangannya, apa pun penulisannya", async () => {
+    const { adalahSsukSskk } = await import("@/lib/penagihan/katalog");
+    for (const n of [
+      "SSUK Putera Fahlevi.pdf",
+      "sskk-paket-2.pdf",
+      "2. SSUK & SKK",
+      "SKK_Kontrak_KNMP",
+      "Syarat-Syarat Umum Kontrak (SSUK).pdf",
+      "syarat syarat khusus kontrak",
+      "SYARAT KHUSUS KONTRAK - CV X",
+      "Syarat Umum Kontrak",
+    ]) {
+      expect(adalahSsukSskk(n), n).toBe(true);
+    }
+  });
+
+  it("tidak salah menangkap SPK, kontrak, RKS, atau SMKK", async () => {
+    const { adalahSsukSskk } = await import("@/lib/penagihan/katalog");
+    for (const n of [
+      "SPK 001 Putera Fahlevi.pdf",
+      "Kontrak Konstruksi.pdf",
+      "RKS rencana kerja dan syarat-syarat teknis",
+      "SMKK.pdf",
+      "Surat Perjanjian",
+      "skkni pelaksana",
+    ]) {
+      expect(adalahSsukSskk(n), n).toBe(false);
+    }
+  });
+});

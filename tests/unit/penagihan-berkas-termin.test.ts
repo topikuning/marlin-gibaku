@@ -208,3 +208,14 @@ describe("kunci & periode antrean", () => {
     );
   });
 });
+
+describe("folderItemDokumentasi (DECISIONS 779)", () => {
+  it("kode jalur lalu nama item; spasi dirapikan; kode tidak diulang", async () => {
+    const { folderItemDokumentasi } = await import("@/lib/penagihan/berkas-termin-aturan");
+    expect(folderItemDokumentasi("I · 1", "Tapak  beton menerus ")).toBe("I · 1 Tapak beton menerus");
+    expect(folderItemDokumentasi("III · 2", "III · 2 Pasangan batu")).toBe("III · 2 Pasangan batu");
+    expect(folderItemDokumentasi("", "Urugan pasir")).toBe("Urugan pasir");
+    expect(folderItemDokumentasi("", "  ")).toBe("Pekerjaan");
+    expect(folderItemDokumentasi("I", "x".repeat(300))).toHaveLength(150);
+  });
+});

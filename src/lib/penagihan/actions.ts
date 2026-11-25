@@ -218,7 +218,7 @@ export async function siapkanBerkasTerminAction(_prev: PenagihanState, formData:
     return {
       success:
         `${r.jumlah} berkas Termin ${terminKe} sedang disiapkan ke Drive (laporan minggu ke-${r.rentang.awal} s.d. ke-${r.rentang.akhir}).` +
-        (r.dariDrive ? ` ${r.dariDrive} berkas lain memang berasal dari Drive, jadi tidak diunggah balik.` : "") +
+        (r.dariDrive ? ` ${r.dariDrive} berkas yang sudah ada di Drive KKP dipasang sebagai pintasan, bukan disalin.` : "") +
         (r.dibuang
           ? ` ${r.dibuang} versi MARLIN yang sudah digantikan unggahan Anda dipindah ke Sampah Drive (masih bisa dipulihkan).`
           : "") +

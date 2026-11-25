@@ -15,6 +15,9 @@ import { persenSurat } from "@/lib/surat-penyedia/aturan";
 import { BarisBerkas, type BarisKlien } from "./baris-berkas";
 import { SiapkanBerkasTermin, type SuratTerminKlien } from "./siapkan-berkas";
 
+/** Butir dokumen kontrak yang lazim sudah ada di folder 1 Drive KKP (DECISIONS 778). */
+const BUTIR_DOKUMEN_KONTRAK = new Set(["1", "2", "3"]);
+
 export const metadata: Metadata = { title: "Penagihan" };
 export const dynamic = "force-dynamic";
 
@@ -126,15 +129,27 @@ export default async function PenagihanPage({
           ? `/paket/${id}/termin?termin=${n}&surat=${b.butir.surat}#buat-surat`
           : null,
       catatan:
-        b.butir.sumber === "tetap"
-          ? b.butir.tetapDi === "perusahaan"
-            ? "sekali unggah, berlaku di semua paket perusahaan ini"
-            : "sekali unggah, berlaku untuk semua termin"
-          : b.butir.laporan
-            ? "MARLIN membuatnya per lokasi saat berkas termin disiapkan, kecuali lokasi yang sudah diisi versi sendiri"
-            : b.butir.kode === "12"
-              ? "RAB tiap lokasi diambil dari berkas Excel revisi RAB aktif lokasi itu"
-              : null,
+        [
+          b.butir.sumber === "tetap"
+            ? b.butir.tetapDi === "perusahaan"
+              ? "sekali unggah, berlaku di semua paket perusahaan ini"
+              : "sekali unggah, berlaku untuk semua termin"
+            : b.butir.kode === "8"
+              ? "pintasan ke foto laporan harian final per item pekerjaan, minggu termin ini – fotonya sama dengan di 6. DOKUMENTASI; lokasi yang diisi versi sendiri dilewati"
+              : b.butir.laporan
+              ? "MARLIN membuatnya per lokasi saat berkas termin disiapkan, kecuali lokasi yang sudah diisi versi sendiri"
+              : b.butir.kode === "12"
+                ? "RAB tiap lokasi diambil dari berkas Excel revisi RAB aktif lokasi itu"
+                : null,
+          // DECISIONS 778: dokumen kontrak yang ada di Drive KKP dipakai lewat pintasan.
+          BUTIR_DOKUMEN_KONTRAK.has(b.butir.kode)
+            ? b.status === "belum_diunggah"
+              ? "sudah ada di Drive KKP? Tarik dulu lewat Dokumen › Impor dari Drive"
+              : "yang ditarik dari Drive KKP dipasang sebagai pintasan di folder termin, tidak disalin"
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
       cukupDi: b.butir.cukupDi ? { kode: b.butir.cukupDi, nama: butirUtama.get(b.butir.cukupDi) ?? b.butir.cukupDi } : null,
     };
   };

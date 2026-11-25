@@ -250,7 +250,7 @@ export function labelPekerjaanTermin(p: PekerjaanTermin): string {
     case "bulanan":
       return `Laporan bulanan bulan ke-${p.nomor}`;
     case "dokumentasi":
-      return "Dokumentasi sarana prasarana";
+      return "Dokumentasi pekerjaan per item";
     case "berkas": {
       const b = butirBerkas(p.kode[0]);
       return b ? namaButir(b) : p.kode[0];
@@ -308,4 +308,17 @@ export function subfolderLokasi(kode: string, lokasi: string | null): string[] {
 export function namaDenganLokasi(namaBerkas: string, lokasi: string | null): string {
   if (!lokasi || namaBerkas.toLowerCase().includes(lokasi.toLowerCase())) return namaBerkas;
   return `${lokasi} - ${namaBerkas}`;
+}
+
+/**
+ * Nama folder satu item pekerjaan di "8. Dokumentasi Pekerjaan Per Item /
+ * DOKUMENTASI - <DESA>" (DECISIONS 779): kode jalurnya lalu namanya,
+ * "I · 1 Tapak beton menerus". Kodenya membedakan item bernama sama di
+ * bangunan berbeda dan mengurutkan folder seperti RAB.
+ */
+export function folderItemDokumentasi(jalurKode: string, nama: string): string {
+  const n = nama.replace(/\s+/g, " ").trim();
+  const k = jalurKode.replace(/\s+/g, " ").trim();
+  const gabung = k && !n.startsWith(k) ? `${k} ${n}` : n;
+  return gabung.slice(0, 150).trim() || "Pekerjaan";
 }

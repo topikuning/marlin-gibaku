@@ -8,6 +8,7 @@ import { muatTerminSurat } from "@/lib/surat-penyedia/data";
 import {
   KATALOG_BERKAS_TERMIN,
   LANGKAH_PENAGIHAN,
+  adalahSsukSskk,
   gabungStatusLokasi,
   statusButir,
   statusLangkah,
@@ -67,7 +68,7 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
   const terminKe = d.termin.some((t) => t.terminKe === terminDiminta) ? terminDiminta! : pilihTerminAktif(d);
   const lokasiAktif = k.package.locations.filter((l) => l.isActive);
 
-  const pilihDok = { id: true, type: true, title: true, terminKe: true, butirTermin: true, locationId: true } as const;
+  const pilihDok = { id: true, type: true, title: true, fileName: true, terminKe: true, butirTermin: true, locationId: true } as const;
   const [semuaDokumenPaket, dokumenPerusahaan, semuaRevisi] = await Promise.all([
     db.document.findMany({ where: { packageId, status: "aktif" }, orderBy: { uploadedAt: "desc" }, select: pilihDok }),
     // NIB & NPWP milik PERUSAHAAN: diunggah sekali, berlaku di semua paketnya.
@@ -92,6 +93,7 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
   const dokumenPaket = semuaDokumenPaket.filter((x) => x.locationId === null || idLokasiAktif.has(x.locationId));
   const semuaDokumen = [...dokumenPaket, ...dokumenPerusahaan.filter((x) => !dokumenPaket.some((y) => y.id === x.id))];
   const suratTermin = d.surat.filter((s) => s.terminKe === terminKe);
+  const ssukSskk = (x: { title: string; fileName: string }) => adalahSsukSskk(x.title) || adalahSsukSskk(x.fileName);
 
   const keDokumen = (x: { id: string; title: string; locationId: string | null }): BerkasAda => ({
     judul: x.title,
@@ -118,11 +120,17 @@ export async function muatPenagihan(packageId: string, user: SessionUser, termin
       : [];
     const paket = butir.dokumenPaket
       ? dokumenPaket
-          .filter((x) => !x.butirTermin && butir.dokumenPaket!.includes(x.type) && !rabBukanAktif.has(x.id))
+          .filter(
+            (x) =>
+              !x.butirTermin && butir.dokumenPaket!.includes(x.type) && !rabBukanAktif.has(x.id) && !ssukSskk(x),
+          )
           .map(keDokumen)
       : [];
+    // SSUK/SSKK dokumen paket (mis. ditarik dari Drive sebagai "kontrak") =
+    // butir 2, bukan SPK (DECISIONS 778).
+    const ssuk = butir.kode === "2" ? dokumenPaket.filter((x) => !x.butirTermin && ssukSskk(x)).map(keDokumen) : [];
     // Unggahan sendiri lebih dulu; satu dokumen tidak dihitung dua kali.
-    const semua = [...unggahan, ...surat, ...paket];
+    const semua = [...unggahan, ...surat, ...paket, ...ssuk];
     return semua.filter((b, i) => semua.findIndex((x) => x.href === b.href) === i);
   };
 

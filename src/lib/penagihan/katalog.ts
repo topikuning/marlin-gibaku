@@ -259,3 +259,22 @@ export function kelompokButir(b: ButirBerkas): string {
   if (b.tambahan) return "Berkas pendukung lain";
   return b.jalur.length > 1 ? b.jalur[0] : "Berkas utama";
 }
+
+/**
+ * SSUK/SSKK DIKENALI DARI NAMA BERKASNYA (DECISIONS 778).
+ *
+ * Keluhan user 2026-11-25: *"spk, spmk, ssuk, sskk yang sudah ada di drive,
+ * kenapa di termin tidak nyambung atau link?"*. Impor Drive menggolongkan
+ * "Syarat-Syarat Umum Kontrak" sebagai `kontrak` (namanya memuat kata
+ * kontrak), jadi berkas itu terhitung di butir 1 (SPK) dan butir 2 tetap
+ * "Belum diunggah". Tidak ada jenis dokumen SSUK; namanyalah satu-satunya
+ * petunjuk, dan pengenalannya diturunkan saat dibaca – dokumen tidak diubah.
+ */
+export function adalahSsukSskk(nama: string): boolean {
+  const n = ` ${nama.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  return (
+    / (ssuk|sskk|skk) /.test(n) ||
+    / syarat syarat (umum|khusus) /.test(n) ||
+    / syarat (umum|khusus) kontrak /.test(n)
+  );
+}
