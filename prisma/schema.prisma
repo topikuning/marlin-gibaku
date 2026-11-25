@@ -2243,6 +2243,9 @@ model RabPadananAktif {
   jenis          String
   /// Catatan pekerjaan di luar RAB yang dipadankan (jenis `luar_rab`); kosong untuk jenis lain.
   luarRabIds     String[]  @default([]) @map("luar_rab_ids") @db.Uuid
+  /// Volume yang masuk ke item tujuan, dalam satuan item tujuan, diisi pengusul
+  /// (DECISIONS 781). Kosong = volume asalnya (usulan sebelum 781).
+  volumeDiminta  Decimal?  @map("volume_diminta") @db.Decimal(15, 3)
   alasan         String
   /// Yang dilihat pengusul saat mengajukan (nama, satuan, volume, tanggal) – untuk penyetuju.
   ringkasan      Json

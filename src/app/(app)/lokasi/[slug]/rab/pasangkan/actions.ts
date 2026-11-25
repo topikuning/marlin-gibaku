@@ -70,10 +70,29 @@ async function usulanDanLokasi(padananId: string) {
 
 const alasan = z.string().trim().max(500, "Alasan terlalu panjang – maksimal 500 huruf.");
 
+/**
+ * Volume yang masuk ke item tujuan, satuan item tujuan (DECISIONS 781).
+ * Kosong = volume asalnya (layanannya menolak bila satuannya berbeda).
+ * Koma desimal Indonesia diterima.
+ */
+const volume = z
+  .string()
+  .trim()
+  .transform((v, ctx) => {
+    if (v === "") return null;
+    const n = Number(v.replace(/\s/g, "").replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) {
+      ctx.addIssue({ code: "custom", message: "Volume harus angka 0 atau lebih." });
+      return z.NEVER;
+    }
+    return n;
+  });
+
 const skemaAjukan = z.object({
   slug: z.string().trim().min(1),
   lineageLama: z.string().trim().min(1, "Item tidak valid."),
   lineageBaru: z.string().trim().min(1, "Pilih dulu item tujuannya."),
+  volume,
   alasan,
 });
 
@@ -82,6 +101,7 @@ export async function ajukanPadananAktifAction(_prev: PasangkanState, fd: FormDa
     slug: fd.get("slug"),
     lineageLama: fd.get("lineageLama"),
     lineageBaru: fd.get("lineageBaru"),
+    volume: fd.get("volume") ?? "",
     alasan: fd.get("alasan") ?? "",
   });
   if (!p.success) return { error: p.error.issues[0].message };
@@ -94,6 +114,7 @@ export async function ajukanPadananAktifAction(_prev: PasangkanState, fd: FormDa
       locationId: location.id,
       lineageLama: p.data.lineageLama,
       lineageBaru: p.data.lineageBaru,
+      volume: p.data.volume,
       alasan: p.data.alasan,
       userId: user.id,
     });
@@ -113,6 +134,7 @@ const skemaAjukanLuar = z.object({
     .transform((v) => v.split(",").map((x) => x.trim()).filter(Boolean))
     .pipe(z.array(z.uuid("Catatan tidak valid.")).min(1, "Tidak ada catatan yang bisa dipasangkan.").max(1000, "Catatan terlalu banyak.")),
   lineageBaru: z.string().trim().min(1, "Pilih dulu item tujuannya."),
+  volume,
   alasan,
 });
 
@@ -122,6 +144,7 @@ export async function ajukanPadananLuarRabAction(_prev: PasangkanState, fd: Form
     slug: fd.get("slug"),
     luarRabIds: fd.get("luarRabIds") ?? "",
     lineageBaru: fd.get("lineageBaru"),
+    volume: fd.get("volume") ?? "",
     alasan: fd.get("alasan") ?? "",
   });
   if (!p.success) return { error: p.error.issues[0].message };
@@ -134,6 +157,7 @@ export async function ajukanPadananLuarRabAction(_prev: PasangkanState, fd: Form
       locationId: location.id,
       luarRabIds: p.data.luarRabIds,
       lineageBaru: p.data.lineageBaru,
+      volume: p.data.volume,
       alasan: p.data.alasan,
       userId: user.id,
     });

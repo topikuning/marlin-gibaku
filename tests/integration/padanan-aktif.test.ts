@@ -12,14 +12,17 @@
 // 3. berlaku = baris laporan item lama pindah ke item aktif (foto tetap),
 //    volume yang dinolkan dipulihkan dari jejak aktivasi, progres menghitungnya;
 // 4. Lepas mengembalikan keadaan persis seperti sesudah aktivasi;
-// 5. semua penolakan: beda satuan, sisa volume 0, satu laporan memuat keduanya,
-//    laporan belum dikirim, usulan ganda, revisi aktif berganti, baris yang
-//    sudah diubah orang, peran yang tidak berhak.
+// 5. penolakan yang tersisa: laporan belum dikirim, usulan ganda, revisi aktif
+//    berganti, baris yang sudah diubah orang, peran yang tidak berhak, beda
+//    satuan tanpa isian volume, isian di atas sisa.
 // 6. (DECISIONS 780) sisa volume KURANG tidak menolak: kelebihannya dipotong
 //    dibagi rata, Lepas mengembalikan angka aslinya;
 // 7. (DECISIONS 780) catatan pekerjaan di luar RAB dipasangkan ke item RAB
 //    aktif: jadi baris laporan pada tanggal aslinya (atau menumpang di baris
 //    yang sudah ada), fotonya ikut, Lepas mengembalikan catatannya menunggu.
+// 8. (DECISIONS 781) tujuannya SEMUA item pekerjaan RAB aktif: beda kategori
+//    dan beda satuan boleh (satuan ikut item tujuan, volume diisi), sisa 0
+//    hanya memetakan, laporan yang memuat keduanya ditampung baris item tujuan.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -213,8 +216,8 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("yang belum dipasangkan sesudah aktivasi disebut, dengan calon yang sah saja", () => {
-  it("I#1 hilang (7 m3) dan I#2 dinolkan (2 m3 dari jejak aktivasi); calon hanya I#3 – I#4 beda satuan, II#9 beda kategori", async () => {
+describe("yang belum dipasangkan sesudah aktivasi disebut; tujuannya semua item pekerjaan RAB aktif", () => {
+  it("I#1 hilang (7 m3) dan I#2 dinolkan (2 m3 dari jejak aktivasi); semua item RAB aktif ditawarkan dengan sisanya", async () => {
     const L = await siapkan();
     // Prasyarat dari aktivasi sungguhan: I#2 memang diturunkan ke 0.
     expect(Number((await db.dailyReportItem.findUniqueOrThrow({ where: { id: L.barisI2 } })).volumeDone)).toBe(0);
@@ -224,10 +227,14 @@ describe("yang belum dipasangkan sesudah aktivasi disebut, dengan calon yang sah
       ["I#1", "hilang", 7, 2],
       ["I#2", "dinolkan", 2, 1],
     ]);
-    for (const b of d.belum) {
-      expect(b.calon.map((c) => [c.lineageKey, c.sisa])).toEqual([["I#3", 7]]);
-      expect(b.terhalang).toBeNull();
-    }
+    expect(d.belum.every((b) => b.terhalang === null)).toBe(true);
+    expect(d.calon.map((c) => [c.lineageKey, c.unit, c.sisa])).toEqual([
+      ["I#2", "m3", 0],
+      ["I#3", "m3", 7],
+      ["I#4", "m2", 12],
+      ["II#1", "m2", 40],
+      ["II#9", "m3", 3],
+    ]);
   });
 });
 
@@ -290,40 +297,23 @@ describe("item yang dinolkan: volumenya dipulihkan dari jejak aktivasi", () => {
     expect(await kumulatif(L, "I#3")).toBe(1);
   });
 
-  it("angka yang sudah berubah sejak aktivasi tidak ditimpa – diajukan pun ditolak dengan tanggalnya", async () => {
+  it("angka yang sudah diubah orang sesudah aktivasi dipakai apa adanya, tidak ditimpa angka lama", async () => {
     const L = await siapkan();
     await db.dailyReportItem.update({ where: { id: L.barisI2 }, data: { volumeDone: 0.5 } });
-    await gagalDengan(ajukan(L, "I#2", "I#3"), /tanggal 1 Oktober 2026 sudah berubah sejak diturunkan/);
-    const d = await dataPadananAktif(L.locationId);
-    expect(d.belum.find((b) => b.lineageKey === "I#2")?.terhalang).toMatch(/sudah berubah sejak aktivasi/);
+    const b = (await dataPadananAktif(L.locationId)).belum.find((x) => x.lineageKey === "I#2")!;
+    expect([b.volume, b.terhalang]).toEqual([0.5, null]);
+    await expect(ajukan(L, "I#2", "I#3")).resolves.toMatchObject({ ringkasan: { volume: 0.5, volumeAsal: 0.5 } });
   });
 });
 
 describe("penolakan", () => {
-  it("beda satuan, item yang tidak ada di RAB aktif, dan item yang masih bervolume", async () => {
+  it("item yang tidak ada di RAB aktif, dan item yang masih bervolume", async () => {
     const L = await siapkan();
-    await gagalDengan(ajukan(L, "I#1", "I#4"), /Beda satuan/);
     await gagalDengan(ajukan(L, "I#1", "I#9"), /tidak ada di RAB aktif/);
     await gagalDengan(ajukan(L, "I#3", "I#3"), /masih ada di RAB aktif dan bervolume/);
   });
 
-  it("item tujuan yang sudah dilaporkan penuh (sisa 0) ditolak dengan angkanya, dan tidak ditawarkan", async () => {
-    const L = await siapkan();
-    await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 7 }]);
-    await gagalDengan(ajukan(L, "I#1", "I#3"), /"Pondasi batu belah" sudah dilaporkan penuh \(8 m3 dari 8 m3\)/);
-    // Di menu: calonnya tidak ditawarkan, dan jumlah yang disembunyikan disebut.
-    const b = (await dataPadananAktif(L.locationId)).belum.find((x) => x.lineageKey === "I#1")!;
-    expect([b.calon.length, b.calonSisaKurang]).toEqual([0, 1]);
-  });
-
-  it("satu laporan yang memuat keduanya, dan laporan item lama yang belum dikirim", async () => {
-    const L = await siapkan();
-    await L.lapor(7, [
-      { node: L.node.a1, lineageKey: "I#1", vol: 0.5 },
-      { node: L.node.d3, lineageKey: "I#3", vol: 0.5 },
-    ]);
-    await gagalDengan(ajukan(L, "I#1", "I#3"), /8 Oktober 2026 memuat "Tapak beton menerus" DAN "Pondasi batu belah"/);
-
+  it("laporan item lama yang belum dikirim", async () => {
     const M = await siapkan();
     await M.lapor(8, [{ node: M.node.a1, lineageKey: "I#1", vol: 0.5 }], "draft");
     await gagalDengan(ajukan(M, "I#1", "I#3"), /9 Oktober 2026 .* belum dikirim/);
@@ -348,16 +338,16 @@ describe("penolakan", () => {
     );
   });
 
-  it("keadaan berubah di antara diajukan dan disetujui: diperiksa ulang, suara terakhir ikut batal", async () => {
+  it("sisa berkurang di antara diajukan dan disetujui: diperiksa ulang, volumenya dipotong ke sisa dan disebut", async () => {
     const L = await siapkan();
     const { id } = await ajukan(L, "I#1", "I#3");
     await setujui(id, U.sm);
-    // Sesudah diajukan, I#3 dilaporkan lagi sampai penuh.
-    await L.lapor(9, [{ node: L.node.d3, lineageKey: "I#3", vol: 7 }]);
-    await gagalDengan(setujui(id, U.pd), /sudah dilaporkan penuh/);
-    const u = (await dataPadananAktif(L.locationId)).usulan.find((x) => x.id === id)!;
-    expect([u.keadaan, u.suara.map((s) => s.role)]).toEqual(["diajukan", ["site_manager"]]);
+    // Sesudah diajukan (7 m3), I#3 dilaporkan lagi 5 m3: sisanya tinggal 2.
+    await L.lapor(9, [{ node: L.node.d3, lineageKey: "I#3", vol: 5 }]);
+    expect(await setujui(id, U.pd)).toMatchObject({ berlaku: true, volume: 2, dipotong: 5 });
     expect(await kumulatif(L, "I#3")).toBe(8);
+    const jejak = await db.auditLog.findFirst({ where: { action: "rab.padanan_aktif_berlaku", resourceId: id } });
+    expect(jejak?.payload).toMatchObject({ volumeDiminta: 7, volume: 2, dipotong: 5 });
   });
 
   it("revisi aktif berganti: usulan tidak bisa berlaku dan pasangan tidak bisa dilepas", async () => {
@@ -400,8 +390,7 @@ describe("sisa volume item tujuan kurang: kelebihannya dipotong dibagi rata, Lep
   it("I#1 7 m3 → I#3 yang sisanya 5,5: masuk 5,5, dipotong 1,5; dilepas kembali 4 + 3", async () => {
     const L = await siapkan();
     await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 1.5 }]);
-    const b = (await dataPadananAktif(L.locationId)).belum.find((x) => x.lineageKey === "I#1")!;
-    expect(b.calon.map((c) => [c.lineageKey, c.sisa, c.dipotong])).toEqual([["I#3", 5.5, 1.5]]);
+    expect((await dataPadananAktif(L.locationId)).calon.find((c) => c.lineageKey === "I#3")?.sisa).toBe(5.5);
 
     const { id, ringkasan } = await ajukan(L, "I#1", "I#3");
     expect([ringkasan.volume, ringkasan.dipotong]).toEqual([5.5, 1.5]);
@@ -456,13 +445,8 @@ describe("catatan pekerjaan di luar RAB dipasangkan ke item RAB aktif", () => {
     const k = d.luarRab[0]!;
     expect([k.catatanIds.sort(), k.volume, k.jumlahLaporan, k.tertahan?.jumlah]).toEqual([[c1, c2, c3].sort(), 4.5, 2, 1]);
     expect(k.saran[0]).toBe("I#3");
-    // Calon: item RAB aktif yang masih bersisa; satuannya disaring di layar.
-    expect(d.calonLuarRab.map((c) => [c.lineageKey, c.sisa])).toEqual([
-      ["I#3", 7],
-      ["I#4", 12],
-      ["II#1", 40],
-      ["II#9", 3],
-    ]);
+    // Tujuan: semua item pekerjaan RAB aktif (781).
+    expect(d.calon.map((c) => c.lineageKey)).toEqual(["I#2", "I#3", "I#4", "II#1", "II#9"]);
 
     // Catatan di laporan yang belum dikirim tidak bisa ikut.
     const draftId = (await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: r12 } })).id;
@@ -537,11 +521,11 @@ describe("catatan pekerjaan di luar RAB dipasangkan ke item RAB aktif", () => {
     await expect(ajukanLuar(L, [c], "I#3")).resolves.toMatchObject({ ringkasan: { volume: 1 } });
   });
 
-  it("penolakan: beda satuan, sisa 0, catatan yang dibatalkan di antara diajukan dan disetujui", async () => {
+  it("penolakan: beda satuan tanpa isian volume, catatan yang dibatalkan di antara diajukan dan disetujui", async () => {
     const L = await siapkan();
     const r = await laporan(L, 15);
     const c = await catat(L, r, "Plesteran dinding", "m3", 1);
-    await gagalDengan(ajukanLuar(L, [c], "I#4"), /Beda satuan/);
+    await gagalDengan(ajukanLuar(L, [c], "I#4"), /Isi volume yang masuk dalam m2/);
     await gagalDengan(ajukanLuar(L, [c], "I#9"), /tidak ada di RAB aktif/);
 
     const { id } = await ajukanLuar(L, [c], "II#9");
@@ -549,11 +533,124 @@ describe("catatan pekerjaan di luar RAB dipasangkan ke item RAB aktif", () => {
     await batalkanLuarRab(c, "Ternyata dobel dengan laporan lain.", U.sm.id);
     await gagalDengan(setujui(id, U.pd), /sudah dibatalkan/);
 
-    const M = await siapkan();
-    const rm = await laporan(M, 15);
-    const cm = await catat(M, rm, "Batu belah", "m3", 1);
-    await M.lapor(16, [{ node: M.node.d3, lineageKey: "I#3", vol: 7 }]);
-    await gagalDengan(ajukanLuar(M, [cm], "I#3"), /sudah dilaporkan penuh/);
-    expect((await dataPadananAktif(M.locationId)).calonLuarRab.map((x) => x.lineageKey)).not.toContain("I#3");
+  });
+});
+
+/* ── DECISIONS 781: semua item RAB aktif, satuan ikut tujuan, volume diisi ─ */
+
+describe("tujuan = semua item pekerjaan RAB aktif; satuan ikut item tujuan, volume diisi paling banyak sebesar sisa", () => {
+  it("beda satuan: tanpa isian ditolak, isian di atas sisa ditolak, isian sah dibagi ke laporan dan dilepas kembali", async () => {
+    const L = await siapkan();
+    // Harga item tujuan beda supaya nilai baris terbukti ikut item tujuan, lalu kembali saat dilepas.
+    await db.rabNode.update({ where: { id: L.node.d4 }, data: { unitPrice: 50_000 } });
+    await gagalDengan(ajukan(L, "I#1", "I#4"), /Satuan "Tapak beton menerus" \(m3\) berbeda dengan "Plester" \(m2\)\. Isi volume yang masuk dalam m2/);
+    await gagalDengan(
+      ajukanPadananAktif({ locationId: L.locationId, lineageLama: "I#1", lineageBaru: "I#4", volume: 13, alasan: ALASAN, userId: U.sm.id }),
+      /Volume 13 m2 melebihi sisa "Plester" \(12 m2\)/,
+    );
+    const { id, ringkasan } = await ajukanPadananAktif({
+      locationId: L.locationId,
+      lineageLama: "I#1",
+      lineageBaru: "I#4",
+      volume: 10,
+      alasan: ALASAN,
+      userId: U.sm.id,
+    });
+    expect(ringkasan).toMatchObject({ volume: 10, unit: "m2", volumeAsal: 7, unitAsal: "m3", dipotong: 0 });
+    await setujui(id, U.sm);
+    expect(await setujui(id, U.pd)).toMatchObject({ berlaku: true, volume: 10 });
+    const rows = new Map((await db.dailyReportItem.findMany({ where: { id: { in: L.barisI1 } } })).map((r) => [r.id, r]));
+    expect(
+      L.barisI1.map((k) => rows.get(k)!).map((r) => [r.lineageKey, Number(r.volumeDone), Number(r.volumeSebelumPadanan), Number(r.valueDone)]),
+    ).toEqual([
+      ["I#4", 5.714, 4, 285_700],
+      ["I#4", 4.286, 3, 214_300],
+    ]);
+    expect(await kumulatif(L, "I#4")).toBe(10);
+
+    await lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Salah pilih item tujuan." });
+    const k = new Map((await db.dailyReportItem.findMany({ where: { id: { in: L.barisI1 } } })).map((r) => [r.id, r]));
+    expect(L.barisI1.map((x) => k.get(x)!).map((r) => [r.lineageKey, Number(r.volumeDone), Number(r.valueDone)])).toEqual([
+      ["I#1", 4, 400_000],
+      ["I#1", 3, 300_000],
+    ]);
+  });
+
+  it("beda kategori boleh: I#1 (I. PONDASI) → II#9 (II. DINDING), dibatasi sisa 3", async () => {
+    const L = await siapkan();
+    await expect(ajukan(L, "I#1", "II#9")).resolves.toMatchObject({ ringkasan: { volume: 3, dipotong: 4 } });
+  });
+
+  it("item tujuan yang sisanya 0: hanya dipetakan (volume 0), isian di atasnya ditolak", async () => {
+    const L = await siapkan();
+    await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 7 }]);
+    expect((await dataPadananAktif(L.locationId)).calon.find((c) => c.lineageKey === "I#3")?.sisa).toBe(0);
+    await gagalDengan(
+      ajukanPadananAktif({ locationId: L.locationId, lineageLama: "I#1", lineageBaru: "I#3", volume: 1, alasan: ALASAN, userId: U.sm.id }),
+      /melebihi sisa "Pondasi batu belah" \(0 m3\)/,
+    );
+    const { id, ringkasan } = await ajukan(L, "I#1", "I#3");
+    expect([ringkasan.volume, ringkasan.dipotong]).toEqual([0, 7]);
+    await setujui(id, U.sm);
+    await setujui(id, U.pd);
+    expect(await kumulatif(L, "I#3")).toBe(8);
+    expect((await volumeTidakTerbobotByLineage(L.locationId)).has("I#1")).toBe(false);
+    const rows = await db.dailyReportItem.findMany({ where: { id: { in: L.barisI1 } } });
+    expect(rows.every((r) => r.lineageKey === "I#3" && Number(r.volumeDone) === 0 && r.volumeSebelumPadanan != null)).toBe(true);
+  });
+
+  it("laporan yang memuat item lama DAN item tujuan: baris item tujuan menampung, baris lama jadi 0; Lepas mengembalikan keduanya", async () => {
+    const L = await siapkan();
+    const [lama7, tujuan7] = await L.lapor(7, [
+      { node: L.node.a1, lineageKey: "I#1", vol: 0.5 },
+      { node: L.node.d3, lineageKey: "I#3", vol: 0.5 },
+    ]);
+    // I#1: 4 + 3 + 0,5 = 7,5. I#3: volume 8, terlapor 1 + 0,5 → sisa 6,5.
+    const { id, ringkasan } = await ajukan(L, "I#1", "I#3");
+    expect([ringkasan.volume, ringkasan.dipotong, ringkasan.baris]).toEqual([6.5, 1, 3]);
+    await setujui(id, U.sm);
+    await setujui(id, U.pd);
+    const r = new Map((await db.dailyReportItem.findMany({ where: { id: { in: [...L.barisI1, lama7!, tujuan7!] } } })).map((x) => [x.id, x]));
+    const lihat = (x: string) => [r.get(x)!.lineageKey, Number(r.get(x)!.volumeDone), Number(r.get(x)!.volumeSebelumPadanan)];
+    expect([lihat(L.barisI1[0]!), lihat(L.barisI1[1]!), lihat(lama7!), lihat(tujuan7!)]).toEqual([
+      ["I#3", 3.467, 4],
+      ["I#3", 2.6, 3],
+      ["I#1", 0, 0.5],
+      ["I#3", 0.933, 0.5],
+    ]);
+    expect(await kumulatif(L, "I#3")).toBe(8);
+    expect((await dataPadananAktif(L.locationId)).usulan.find((u) => u.id === id)).toMatchObject({ keadaan: "berlaku", baris: 3 });
+
+    expect((await lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Tunggu adendum berikutnya." })).baris).toBe(3);
+    const k = new Map((await db.dailyReportItem.findMany({ where: { id: { in: [...L.barisI1, lama7!, tujuan7!] } } })).map((x) => [x.id, x]));
+    const lihat2 = (x: string) => [k.get(x)!.lineageKey, Number(k.get(x)!.volumeDone), k.get(x)!.volumeSebelumPadanan, k.get(x)!.padananAktifId];
+    expect([lihat2(L.barisI1[0]!), lihat2(L.barisI1[1]!), lihat2(lama7!), lihat2(tujuan7!)]).toEqual([
+      ["I#1", 4, null, null],
+      ["I#1", 3, null, null],
+      ["I#1", 0.5, null, null],
+      ["I#3", 0.5, null, null],
+    ]);
+    expect(await kumulatif(L, "I#3")).toBe(1.5);
+  });
+
+  it("catatan ber-satuan m → item ber-satuan m2: volume diisi, jadi baris item tujuan dengan volume itu", async () => {
+    const L = await siapkan();
+    const r = await laporan(L, 18);
+    const c = await catat(L, r, "Pemasangan steakout area ruang genset", "m", 1);
+    await gagalDengan(ajukanLuar(L, [c], "II#1"), /Isi volume yang masuk dalam m2/);
+    const { id, ringkasan } = await ajukanPadananLuarRab({
+      locationId: L.locationId,
+      luarRabIds: [c],
+      lineageBaru: "II#1",
+      volume: 2.5,
+      alasan: ALASAN,
+      userId: U.sm.id,
+    });
+    expect(ringkasan).toMatchObject({ volume: 2.5, unit: "m2", volumeAsal: 1, unitAsal: "m", catatan: 1 });
+    await setujui(id, U.sm);
+    await setujui(id, U.pd);
+    const b = await db.dailyReportItem.findFirstOrThrow({ where: { reportId: r, lineageKey: "II#1" } });
+    expect([Number(b.volumeDone), b.basis, b.padananAktifId]).toEqual([2.5, "aktif", id]);
+    expect(await kumulatif(L, "II#1")).toBe(2.5);
   });
 });

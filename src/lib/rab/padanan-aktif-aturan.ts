@@ -12,92 +12,50 @@
  *
  * MURNI: tanpa DB.
  */
-import { akarLineage, kunciSatuan, satuanSetara, volumeNol } from "./padanan-draft-aturan";
-import { sesuaikanProporsional } from "./sesuaikan-realisasi";
+import { kunciSatuan } from "./padanan-draft-aturan";
 
-/** Item yang realisasinya akan dipasangkan (hilang dari RAB aktif, atau dinolkan). */
-export type ItemLama = { lineageKey: string; name: string; unit: string | null };
+/**
+ * DECISIONS 781 – ketetapan user 2026-11-25: *"intinya kasih saja semua list
+ * pekerjaan di RAB aktif, untuk dipadankan, satuan dsb mengikuti rab aktif,
+ * hanya volume saja disesuaikan atau bisa diinput sesuai sisa. mitigasi total
+ * masalah pemetaan manual ini."*
+ *
+ * Jadi tujuan pemasangan adalah SEMUA item pekerjaan RAB aktif – beda kategori
+ * dan beda satuan tidak lagi ditolak, hanya disebut. Satuan ikut item tujuan;
+ * volume yang masuk diisi orang (bawaan: volume asalnya bila satuannya sama),
+ * paling banyak sebesar sisa item tujuan.
+ */
 
 /** Item RAB aktif calon penerima realisasi. */
 export type ItemSasaran = {
   lineageKey: string;
   kind: string;
   name: string;
-  unit: string | null;
   punyaAnak: boolean;
-  volume: number | null;
 };
 
 /**
- * Sebab pasangan ini TIDAK sah, atau `null` bila sah.
- *
- * `lineageDraft` = kunci item di draft adendum yang sedang berjalan (null bila
- * tidak ada draft). Item lama yang muncul lagi di draft akan tersambung sendiri
- * saat draft itu aktif; memasangkannya sekarang membuat realisasinya terhitung
- * dua kali kelak.
+ * Sebab item ini TIDAK bisa menjadi tujuan, atau `null` bila bisa. Yang tersisa
+ * hanya syarat bentuk: harus item pekerjaan RAB aktif tanpa rincian, dan bukan
+ * item yang sama. Kategori, satuan, dan sisa volume tidak menolak.
  */
-export function periksaPasanganAktif(
-  lama: ItemLama,
-  sasaran: ItemSasaran,
-  konteks: { lineageAktif: ReadonlySet<string>; lineageDraft: ReadonlySet<string> | null },
-): string | null {
-  if (lama.lineageKey === sasaran.lineageKey) return `"${sasaran.name}" adalah item yang sama.`;
-  if (!konteks.lineageAktif.has(sasaran.lineageKey)) return `"${sasaran.name}" tidak ada di RAB aktif.`;
-  if (sasaran.kind !== "item" && sasaran.kind !== "grup") return `"${sasaran.name}" bukan item pekerjaan.`;
-  if (sasaran.punyaAnak) return `"${sasaran.name}" punya rincian di bawahnya. Pilih salah satu rinciannya.`;
-  if (volumeNol(sasaran.volume)) {
-    return `"${sasaran.name}" bervolume 0 di RAB aktif, jadi tidak bisa menampung realisasi.`;
-  }
-  if (akarLineage(lama.lineageKey) !== akarLineage(sasaran.lineageKey)) {
-    return (
-      `Beda kategori: "${lama.name}" dan "${sasaran.name}" ada di kategori yang berbeda. ` +
-      `Memasangkan lintas kategori memindahkan realisasinya ke kategori lain di blanko KKP.`
-    );
-  }
-  if (!satuanSetara(lama.unit, sasaran.unit)) {
-    return (
-      `Beda satuan: "${lama.name}" dalam ${lama.unit}, "${sasaran.name}" dalam ${sasaran.unit}. ` +
-      `Volume yang sudah dilaporkan dipindah apa adanya, jadi satuannya harus sama.`
-    );
-  }
-  if (konteks.lineageDraft?.has(lama.lineageKey)) {
-    return (
-      `"${lama.name}" muncul lagi di draft adendum yang sedang berjalan. ` +
-      `Realisasinya tersambung sendiri saat draft itu aktif, jadi tidak perlu dipasangkan.`
-    );
-  }
-  return null;
-}
-
-/**
- * Sebab item RAB aktif ini TIDAK bisa menampung catatan pekerjaan di luar RAB,
- * atau `null` bila bisa (DECISIONS 780). Catatan tidak punya kategori, jadi
- * yang diperiksa hanya itemnya dan satuannya; satuan "-" (tidak diketahui)
- * cocok dengan apa pun.
- */
-export function periksaSasaranLuarRab(
-  catatan: readonly { uraian: string; satuan: string }[],
+export function periksaSasaran(
   sasaran: ItemSasaran,
   lineageAktif: ReadonlySet<string>,
+  lineageLama: string | null = null,
 ): string | null {
+  if (lineageLama != null && lineageLama === sasaran.lineageKey) return `"${sasaran.name}" adalah item yang sama.`;
   if (!lineageAktif.has(sasaran.lineageKey)) return `"${sasaran.name}" tidak ada di RAB aktif.`;
   if (sasaran.kind !== "item" && sasaran.kind !== "grup") return `"${sasaran.name}" bukan item pekerjaan.`;
   if (sasaran.punyaAnak) return `"${sasaran.name}" punya rincian di bawahnya. Pilih salah satu rinciannya.`;
-  if (volumeNol(sasaran.volume)) {
-    return `"${sasaran.name}" bervolume 0 di RAB aktif, jadi tidak bisa menampung realisasi.`;
-  }
-  const ks = kunciSatuan(sasaran.unit);
-  const beda = catatan.find((c) => {
-    const kc = kunciSatuan(c.satuan);
-    return ks != null && kc != null && kc !== ks;
-  });
-  if (beda) {
-    return (
-      `Beda satuan: catatan "${beda.uraian}" dalam ${beda.satuan}, "${sasaran.name}" dalam ${sasaran.unit}. ` +
-      `Volume catatan dipindah apa adanya, jadi satuannya harus sama.`
-    );
-  }
   return null;
+}
+
+/** Satuan dianggap sama bila bentuk bakunya sama, atau salah satunya tidak diketahui. */
+export function satuanSama(a: string | null, b: string | null): boolean {
+  const ka = kunciSatuan(a);
+  const kb = kunciSatuan(b);
+  return ka == null || kb == null || ka === kb;
 }
 
 /** Toleransi Decimal(15,3) – sisa pembulatan bukan kelebihan. */
@@ -105,47 +63,73 @@ const TOLERANSI = 0.0005;
 const bulat3 = (v: number) => Math.round(v * 1000) / 1000;
 
 /**
- * Volume yang MASUK ke item tujuan (DECISIONS 780). Realisasi tidak boleh
- * melebihi volume kontrak item tujuan, tetapi kelebihannya DIPOTONG – dibagi
- * rata di antara baris pindahan, aturan yang sama dengan aktivasi adendum
- * (DECISIONS 745) – bukan ditolak: penolakan membuat pemasangan buntu persis
- * pada kasus adendum yang menurunkan volume (keluhan user 2026-11-25).
- * Baris milik item tujuan sendiri tidak disentuh. `null` = sisa volumenya 0.
+ * Volume yang MASUK ke item tujuan.
+ *
+ * - `diminta` = isian orang, dalam satuan item tujuan. Kosong → volume asalnya,
+ *   hanya bila satuannya sama; beda satuan WAJIB diisi (angka tidak bisa
+ *   dipindah apa adanya dari m ke m3).
+ * - Tidak boleh melebihi sisa item tujuan. `ketat` (saat mengajukan): isian
+ *   yang melebihi sisa ditolak. Saat berlaku (sisa bisa sudah berkurang
+ *   sejak diajukan) dan untuk isian kosong: dipotong ke sisa.
+ * - Sisa 0 tetap boleh: catatannya hanya dipetakan, volumenya 0.
+ * - `dipotong` = volume asal yang tidak ikut masuk; hanya bermakna bila
+ *   satuannya sama.
  */
-export function bagiMasuk(
-  pindahan: readonly number[],
-  tujuan: { volume: number; terlapor: number },
-): { hasil: number[]; masuk: number; dipotong: number } | null {
-  const sisa = bulat3(tujuan.volume - tujuan.terlapor);
-  if (sisa <= TOLERANSI) return null;
-  const total = bulat3(pindahan.reduce((t, v) => t + v, 0));
-  if (total <= sisa + TOLERANSI) return { hasil: [...pindahan], masuk: total, dipotong: 0 };
-  const hasil = sesuaikanProporsional([...pindahan], sisa) ?? [...pindahan];
-  return { hasil, masuk: sisa, dipotong: bulat3(total - sisa) };
+export function tentukanMasuk(o: {
+  asal: number;
+  diminta: number | null;
+  sisa: number;
+  satuanSama: boolean;
+  ketat: boolean;
+}): { masuk: number; dipotong: number } | { galat: "isi_volume" | "negatif" | "melebihi" } {
+  if (o.diminta == null && !o.satuanSama) return { galat: "isi_volume" };
+  const minta = bulat3(o.diminta ?? o.asal);
+  if (minta < 0) return { galat: "negatif" };
+  const sisa = bulat3(Math.max(0, o.sisa));
+  if (o.ketat && o.diminta != null && minta > sisa + TOLERANSI) return { galat: "melebihi" };
+  const masuk = Math.min(minta, sisa);
+  return { masuk, dipotong: o.satuanSama ? bulat3(Math.max(0, o.asal - masuk)) : 0 };
 }
 
 /**
- * Rencana PEMULIHAN volume yang dinolkan saat aktivasi, dari jejak audit
- * `rab.adendum_sesuaikan_realisasi` aktivasi itu (per tanggal: dari → ke).
- *
- * Hanya baris yang angkanya MASIH sama dengan sesudah aktivasi yang dipulihkan.
- * Bila ada yang sudah berubah, tidak satu pun dipulihkan – angka orang tidak
- * ditimpa diam-diam; tanggalnya disebut.
+ * Bagi `target` ke tiap baris sesuai bobotnya – naik ATAU turun. Σ hasil ==
+ * `target` PERSIS pada presisi 3 desimal (sisa terbesar / Hamilton, seperti
+ * `sesuaikanProporsional`). Bobot yang semuanya 0 → dibagi sama rata.
+ * Bobot yang sama dengan target mengembalikan bobotnya apa adanya.
  */
-export function rencanaPulihNol(
+export function bagiProporsional(bobot: readonly number[], target: number): number[] {
+  if (bobot.length === 0) return [];
+  const t = Math.max(0, Math.round(target * 1000));
+  const w = bobot.map((v) => Math.max(0, Math.round(v * 1000)));
+  const total = w.reduce((a, v) => a + v, 0);
+  const eksak = total > 0 ? w.map((v) => (v * t) / total) : w.map(() => t / w.length);
+  const bawah = eksak.map((e) => Math.floor(e));
+  const kurang = t - bawah.reduce((a, v) => a + v, 0);
+  const urut = eksak
+    .map((e, i) => ({ i, pecahan: e - bawah[i]! }))
+    .sort((a, b) => b.pecahan - a.pecahan || a.i - b.i);
+  const naik = new Set(urut.slice(0, Math.max(0, Math.min(kurang, w.length))).map((o) => o.i));
+  return bawah.map((v, i) => (v + (naik.has(i) ? 1 : 0)) / 1000);
+}
+
+/**
+ * Bobot baris item yang DINOLKAN saat aktivasi (DECISIONS 745/756): angka
+ * sebelum diturunkan, dari jejak audit aktivasi, untuk baris yang angkanya
+ * masih seperti sesudah aktivasi; baris yang sudah diubah orang sesudahnya
+ * memakai angkanya sekarang. Tidak ada lagi yang ditolak di sini – volumenya
+ * toh diisi dan disetujui orang (781).
+ */
+export function bobotDinolkan(
   jejak: readonly { tanggal: string; dari: number; ke: number }[],
   baris: readonly { id: string; tanggal: string; volume: number }[],
-): { ok: true; pulih: Map<string, number> } | { ok: false; tanggal: string[] } {
+): Map<string, number> {
   const perTanggal = new Map(jejak.map((j) => [j.tanggal, j]));
-  const pulih = new Map<string, number>();
-  const berubah: string[] = [];
-  for (const b of baris) {
-    const j = perTanggal.get(b.tanggal);
-    if (!j) continue;
-    if (Math.abs(b.volume - j.ke) > TOLERANSI) berubah.push(b.tanggal);
-    else if (Math.abs(j.dari - j.ke) > TOLERANSI) pulih.set(b.id, j.dari);
-  }
-  return berubah.length > 0 ? { ok: false, tanggal: berubah.sort() } : { ok: true, pulih };
+  return new Map(
+    baris.map((b) => {
+      const j = perTanggal.get(b.tanggal);
+      return [b.id, j && Math.abs(b.volume - j.ke) <= TOLERANSI ? j.dari : b.volume];
+    }),
+  );
 }
 
 export type KeadaanUsulan = "diajukan" | "berlaku" | "ditutup" | "dilepas";
@@ -173,7 +157,7 @@ export function barisDiubahSesudah(updatedAt: Date, berlakuPada: Date): boolean 
   return updatedAt.getTime() > berlakuPada.getTime() + JEDA_TULIS_MS;
 }
 
-/* ── Catatan pekerjaan di luar RAB → item RAB aktif (DECISIONS 780) ────── */
+/* ── Catatan pekerjaan di luar RAB → item RAB aktif (DECISIONS 780/781) ── */
 
 export type CatatanMasuk = { id: string; reportId: string; tanggal: string; volume: number };
 
@@ -182,7 +166,7 @@ export type BarisLuarRab = {
   reportId: string;
   tanggal: string;
   catatanIds: string[];
-  /** Volume catatan yang masuk ke baris ini (sesudah dipotong). */
+  /** Volume yang masuk ke baris ini, dalam satuan item tujuan. */
   tambah: number;
   /** Volume baris item tujuan yang SUDAH ada di laporan itu; null = baris baru. */
   adaVolume: number | null;
@@ -192,16 +176,16 @@ export type BarisLuarRab = {
  * Rencana baris laporan untuk catatan di luar RAB yang dipasangkan ke item RAB
  * aktif. Laporan harian hanya punya satu baris per item, jadi catatan di
  * laporan yang sama digabung; laporan yang sudah punya baris item tujuan
- * mendapat tambahan di baris itu. Kelebihan atas sisa volume dipotong dibagi
- * rata (`bagiMasuk`). `null` = sisa volume item tujuan 0.
+ * mendapat tambahan di baris itu. `masuk` dibagi ke laporan-laporan itu sesuai
+ * volume catatannya (`bagiProporsional`).
  *
  * `ada` = volume baris item tujuan yang sudah ada, per laporan.
  */
 export function rencanaLuarRab(
   catatan: readonly CatatanMasuk[],
   ada: ReadonlyMap<string, number>,
-  tujuan: { volume: number; terlapor: number },
-): { baris: BarisLuarRab[]; masuk: number; dipotong: number } | null {
+  masuk: number,
+): BarisLuarRab[] {
   const grup = new Map<string, BarisLuarRab>();
   for (const c of [...catatan].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.id.localeCompare(b.id))) {
     const g = grup.get(c.reportId);
@@ -219,11 +203,9 @@ export function rencanaLuarRab(
     }
   }
   const baris = [...grup.values()];
-  const bagi = bagiMasuk(
+  bagiProporsional(
     baris.map((b) => b.tambah),
-    tujuan,
-  );
-  if (!bagi) return null;
-  bagi.hasil.forEach((v, i) => (baris[i]!.tambah = v));
-  return { baris, masuk: bagi.masuk, dipotong: bagi.dipotong };
+    masuk,
+  ).forEach((v, i) => (baris[i]!.tambah = v));
+  return baris;
 }
