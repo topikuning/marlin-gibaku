@@ -95,8 +95,16 @@ vi.mock("@/lib/gdrive/client", () => {
     },
     daftarPintasan: async (folderId: string) => pintasan.filter((x) => x.folderId === folderId),
     buatPintasan: async (i: { folderId: string; name: string; targetId: string }) => {
+      if (i.targetId.startsWith("hilang-")) {
+        const e = new GDriveError("File not found");
+        (e as { status: number | null }).status = 404;
+        throw e;
+      }
       const id = `p-${++urutId}`;
       pintasan.push({ id, ...i });
+      // Pintasan buatan MARLIN: bertanda, dibuat sekarang, tidak diubah orang.
+      isiDrive.set(`${i.folderId} :: ${i.name}`, [...(isiDrive.get(`${i.folderId} :: ${i.name}`) ?? []), id]);
+      metaDrive.set(id, { createdTime: new Date(), terbitanMarlin: true, diubahOrangLain: false });
       return id;
     },
     metaBerkas: async (id: string) => {
@@ -106,6 +114,7 @@ vi.mock("@/lib/gdrive/client", () => {
     buangKeSampah: async (id: string) => {
       sampah.push(id);
       for (const [k, ids] of isiDrive) isiDrive.set(k, ids.filter((x) => x !== id));
+      pintasan = pintasan.filter((x) => x.id !== id);
     },
   };
 });
@@ -115,7 +124,6 @@ vi.mock("@/lib/gdrive/config", () => ({
 
 /* Pembuat PDF tiruan. */
 const pdf = (isi: string) => ({ buffer: Buffer.from(`%PDF ${isi}`) });
-let dokumentasiKosong = false;
 vi.mock("@/lib/pdf/periodik-kkp", () => ({
   renderPeriodikKkpPdf: async (_l: string, kind: string, n: number) => pdf(`${kind} ${n}`),
   renderKurvaPaketPdf: async () => pdf("kurva"),
@@ -142,10 +150,6 @@ vi.mock("@/lib/export/logo-laporan", async (importAsli) => ({
   muatLogoLaporan: async () => null,
 }));
 vi.mock("@/lib/pdf/mingguan-kkp", () => ({ renderMingguanKkpPdf: async (_s: string, n: number) => pdf(`harian ${n}`) }));
-vi.mock("@/lib/pdf/dokumentasi-sarpras", () => ({
-  renderDokumentasiSarprasPdf: async () => (dokumentasiKosong ? null : { ...pdf("dok"), lokasi: "x" }),
-}));
-
 let peran: SessionUser["role"] = "super_admin";
 let pengguna: SessionUser | null = null;
 vi.mock("@/lib/auth/session", async (importAsli) => {
@@ -232,6 +236,57 @@ beforeAll(async () => {
   }
   await uploadDocument({ file: new File(["spmk"], "spmk.pdf", { type: "application/pdf" }), packageId, phase: "mulai_kerja", type: "spmk", title: "SPMK" }, u.id);
 
+  /*
+   * Foto laporan harian final (DECISIONS 779). SPMK Rabu 1 Juli, minggu
+   * Senin–Minggu: minggu 1 = 1–5 Jul, minggu 2 = 6–12 Jul. Desa satu: dua foto
+   * item 2 Jul + satu foto bukan item, satu foto item 3 Jul yang BELUM naik ke
+   * Drive, satu foto item 8 Jul, satu foto item 20 Agu (di luar termin), satu
+   * foto 4 Jul yang berkas Drive-nya sudah dihapus. Desa dua: satu foto 3 Jul.
+   */
+  for (const n of ["satu", "dua"] as const) {
+    const loc = await db.location.findFirstOrThrow({ where: { packageId, name: `Desa ${n}` } });
+    const rev = await db.rabRevision.create({ data: { locationId: loc.id, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 0n } });
+    const kat = await db.rabNode.create({ data: { revisionId: rev.id, kind: "kategori", code: "I", name: "PEKERJAAN PONDASI", lineageKey: "I", sortOrder: 0, amount: 0n } });
+    const item = await db.rabNode.create({
+      data: { revisionId: rev.id, parentId: kat.id, kind: "item", code: "1", name: "Tapak beton", unit: "m3", volume: 10, unitPrice: 1000, amount: 10000n, lineageKey: "I#1", sortOrder: 1 },
+    });
+    const foto = async (tanggal: string, isi: ("item" | "lain")[], drive: (string | null)[]) => {
+      const r = await db.dailyReport.create({
+        data: { locationId: loc.id, reportDate: new Date(`${tanggal}T00:00:00Z`), status: "final", createdById: u.id, weather: "cerah" },
+      });
+      const baris = await db.dailyReportItem.create({
+        data: { reportId: r.id, rabNodeId: item.id, lineageKey: "I#1", volumeDone: 1, valueDone: 1000n },
+      });
+      for (const [i, jenis] of isi.entries()) {
+        const ph = await db.photo.create({
+          data: {
+            locationId: loc.id,
+            reportId: r.id,
+            reportItemId: jenis === "item" ? baris.id : null,
+            r2Key: `uji/${suffix}/${n}/${tanggal}/${i}.jpg`,
+            sha256: `${suffix}-${n}-${tanggal}-${i}`,
+            bytes: 10,
+            createdAt: new Date(Date.now() + i * 1000),
+          },
+        });
+        if (drive[i]) {
+          await db.gDriveUpload.create({
+            data: { packageId, locationId: loc.id, kind: "laporan_harian", refKey: `${n}:${tanggal}`, fileName: `${i}.jpg`, fileId: drive[i], photoId: ph.id, status: "sukses" },
+          });
+        }
+      }
+    };
+    if (n === "satu") {
+      await foto("2026-07-02", ["item", "item", "lain"], ["foto-satu-a", "foto-satu-b", "foto-satu-lain"]);
+      await foto("2026-07-03", ["item"], [null]);
+      await foto("2026-07-04", ["item"], ["hilang-satu"]);
+      await foto("2026-07-08", ["item"], ["foto-satu-c"]);
+      await foto("2026-08-20", ["item"], ["foto-satu-luar"]);
+    } else {
+      await foto("2026-07-03", ["item"], ["foto-dua-a"]);
+    }
+  }
+
   const p2 = await db.package.create({ data: { orgId: org.id, name: `Paket tanpa Drive ${suffix}`, stage: "pelaksanaan" } });
   paketTanpaDrive = p2.id;
   await db.contract.create({
@@ -244,11 +299,11 @@ beforeEach(() => {
   dibuat = [];
   naik = [];
   sampah = [];
-  pintasan = [];
+  // Pintasan TIDAK dikosongkan: seperti berkas lain di Drive tiruan, ia tetap
+  // ada antar-uji (Drive sungguhan juga begitu).
   kurvaSampai = [];
   tertunda.length = 0;
   peran = "super_admin";
-  dokumentasiKosong = false;
 });
 
 afterAll(async () => {
@@ -368,7 +423,9 @@ describe("jalankanAntreanTermin", () => {
     expect(naik).toContain(`${termin}/7. Laporan Mingguan/DESA SATU :: Laporan Mingguan Minggu ke-3 - Desa satu.pdf`);
     expect(naik).toContain(`${termin}/7. Laporan Mingguan/DESA SATU :: Laporan Mingguan Minggu ke-3 - Desa satu.xlsx`);
     expect(naik.filter((x) => x.includes(":: Laporan Mingguan"))).toHaveLength(4);
-    expect(naik).toContain(`${termin}/8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - DESA DUA :: Dokumentasi Sarana Prasarana - Desa dua.pdf`);
+    // Dokumentasi = pintasan ke foto laporan harian, per item pekerjaan (DECISIONS 779).
+    expect(pintasan.filter((x) => x.folderId === `${termin}/8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - DESA DUA/I · 1 Tapak beton`).map((x) => x.targetId)).toEqual(["foto-dua-a"]);
+    expect(naik.some((x) => x.includes("Dokumentasi Sarana Prasarana"))).toBe(false);
     expect(naik).toContain(`${termin}/BERKAS DOKUMEN TEKNIS/5. Laporan Harian :: Laporan Harian Minggu ke-3 - Desa dua.pdf`);
     // Folder duplikat tidak diisi; lokasi nonaktif tidak ikut.
     expect(naik.some((x) => /BERKAS DOKUMEN TEKNIS\/(4|6|8|9)\. /.test(x))).toBe(false);
@@ -551,17 +608,22 @@ describe("jalankanAntreanTermin", () => {
   });
 
   it("berkas yang tidak bisa disusun tercatat dengan sebabnya, tidak diulang", async () => {
-    dokumentasiKosong = true;
-    await antrekanBerkasTermin(packageId, 1, sesi());
-    await jalankanAntreanTermin({ packageId, terminKe: 1 });
-    const r = await ringkasBerkasTermin(packageId, 1);
-    expect(r.batal).toBe(2);
-    expect(r.masalah).toHaveLength(2);
-    expect(r.masalah.filter((m) => m.label === "Dokumentasi sarana prasarana").map((m) => m.lokasi).sort()).toEqual([
-      "Desa dua",
-      "Desa satu",
-    ]);
-    expect(r.masalah[0].pesan).toMatch(/Belum ada foto/);
+    // Laporan dibuka kembali: belum ada foto dari laporan FINAL di rentang termin.
+    await db.dailyReport.updateMany({ where: { location: { packageId }, status: "final" }, data: { status: "disetujui" } });
+    try {
+      await antrekanBerkasTermin(packageId, 1, sesi());
+      await jalankanAntreanTermin({ packageId, terminKe: 1 });
+      const r = await ringkasBerkasTermin(packageId, 1);
+      expect(r.batal).toBe(2);
+      expect(r.masalah).toHaveLength(2);
+      expect(r.masalah.filter((m) => m.label === "Dokumentasi pekerjaan per item").map((m) => m.lokasi).sort()).toEqual([
+        "Desa dua",
+        "Desa satu",
+      ]);
+      expect(r.masalah[0].pesan).toMatch(/Belum ada foto pekerjaan dari laporan harian final/);
+    } finally {
+      await db.dailyReport.updateMany({ where: { location: { packageId }, status: "disetujui" }, data: { status: "final" } });
+    }
   });
 });
 
@@ -823,7 +885,8 @@ describe("dokumen kontrak yang sudah ada di Drive KKP", () => {
     const h = await jalankanAntreanTermin({ packageId, terminKe: 1 });
     expect(h.gagal).toBe(0);
     const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
-    expect(pintasan.map((x) => [x.folderId, x.name, x.targetId]).sort()).toEqual(
+    const kontrak = () => pintasan.filter((x) => /\/(1\. SPK & Adendum|2\. SSUK & SKK)$/.test(x.folderId));
+    expect(kontrak().map((x) => [x.folderId, x.name, x.targetId]).sort()).toEqual(
       [
         [`${termin}/1. SPK & Adendum`, "SPK 001 Putera Fahlevi.pdf", idSpk],
         [`${termin}/2. SSUK & SKK`, "SSUK Putera Fahlevi.pdf", idSsuk],
@@ -835,7 +898,7 @@ describe("dokumen kontrak yang sudah ada di Drive KKP", () => {
 
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
-    expect(pintasan).toHaveLength(2);
+    expect(kontrak()).toHaveLength(2);
     await db.document.deleteMany({ where: { id: { in: [spk, ssuk] } } });
   });
 
@@ -843,9 +906,76 @@ describe("dokumen kontrak yang sudah ada di Drive KKP", () => {
     const spk = await dariDrive("SPK 002", "kontrak", "drive-sudah-dihapus");
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
-    expect(pintasan).toHaveLength(0);
+    expect(pintasan.some((x) => x.targetId === "drive-sudah-dihapus")).toBe(false);
     const j = (await pekerjaan()).find((x) => x.periode.includes("|1|") && x.status !== "sukses");
     expect(j?.lastError).toMatch(/sudah tidak ada atau ada di Sampah/);
     await db.document.delete({ where: { id: spk } });
+  });
+});
+
+/*
+ * 8. DOKUMENTASI PEKERJAAN PER ITEM TERSAMBUNG DENGAN FOTO LAPORAN HARIAN
+ * (DECISIONS 779). Permintaan user 2026-11-25: *"6.dokumentasi dengan 7.berkas
+ * termin -> 8 dokumentasi pekerjaan per item. itu seharusnya terhubung, hanya
+ * yang masuk ke 8 … seharusnya menyesuaikan pekerjaan harian apa saja sampai
+ * progress 25%"*.
+ */
+describe("dokumentasi pekerjaan per item", () => {
+  const folder8 = (desa: string) =>
+    `${INDUK}/TERMIN 1 (25%) ${VENDOR}/8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - ${desa}/I · 1 Tapak beton`;
+  const jalankan = async () => {
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    return jalankanAntreanTermin({ packageId, terminKe: 1 });
+  };
+  const ringkasDok = async (lokasi: string) =>
+    (
+      await db.gDriveJob.findFirst({
+        where: { packageId, kind: "berkas_termin", periode: { startsWith: "1|dokumentasi|" }, location: { name: lokasi } },
+        select: { lastError: true, status: true },
+      })
+    )!;
+
+  it("minggu 1–2: hanya foto ITEM dari laporan FINAL di rentang termin, sebagai pintasan ke berkas fotonya, per item pekerjaan", async () => {
+    await progres(1, 2);
+    const h = await jalankan();
+    expect(h.gagal).toBe(0);
+    const satu = pintasan.filter((x) => x.folderId === folder8("DESA SATU"));
+    // 2 Jul (dua foto item) + 8 Jul; bukan foto bukan-item, bukan yang belum naik, bukan 20 Agu.
+    expect(satu.map((x) => x.targetId).sort()).toEqual(["foto-satu-a", "foto-satu-b", "foto-satu-c"]);
+    expect(satu.map((x) => x.name).sort()).toEqual([
+      "2026-07-02 – Tapak beton – 01",
+      "2026-07-02 – Tapak beton – 02",
+      "2026-07-08 – Tapak beton – 01",
+    ]);
+    expect(pintasan.some((x) => x.targetId === "foto-satu-luar" || x.targetId === "foto-satu-lain")).toBe(false);
+    expect((await ringkasDok("Desa satu")).status).toBe("sukses");
+  });
+
+  it("ditekan lagi: tidak ada pintasan kembar", async () => {
+    const sebelum = pintasan.length;
+    await jalankan();
+    expect(pintasan.length).toBe(sebelum);
+  });
+
+  it("minggu prestasi dibetulkan ke 1: pintasan foto 8 Juli (minggu 2) dibuang ke Sampah, yang lain tetap", async () => {
+    const c = pintasan.find((x) => x.targetId === "foto-satu-c")!;
+    await progres(1, 1);
+    await jalankan();
+    expect(sampah).toContain(c.id);
+    expect(pintasan.filter((x) => x.folderId === folder8("DESA SATU")).map((x) => x.targetId).sort()).toEqual([
+      "foto-satu-a",
+      "foto-satu-b",
+    ]);
+    await progres(1, 3);
+  });
+
+  it("termin 2 mulai SESUDAH minggu prestasi termin 1: hanya foto minggu 2", async () => {
+    await progres(1, 1);
+    await progres(2, 2);
+    await antrekanBerkasTermin(packageId, 2, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 2 });
+    const t2 = `${INDUK}/TERMIN 2 (50%) ${VENDOR}/8. Dokumentasi Pekerjaan Per Item/DOKUMENTASI - DESA SATU/I · 1 Tapak beton`;
+    expect(pintasan.filter((x) => x.folderId === t2).map((x) => x.targetId)).toEqual(["foto-satu-c"]);
+    await progres(1, 3);
   });
 });

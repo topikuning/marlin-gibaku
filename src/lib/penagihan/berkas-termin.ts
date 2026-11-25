@@ -14,6 +14,9 @@ import {
   metaBerkas,
 } from "@/lib/gdrive/client";
 import { KKP_FOLDERS, kunciNamaFolder, safeFileName } from "@/lib/gdrive/folders";
+import { namaPintasan } from "@/lib/gdrive/dokumentasi-murni";
+import { jakartaDateKey } from "@/lib/format";
+import { jalurNodeById } from "@/lib/rab/jalur";
 import { rangkum, type HasilUnggah, type Terhalang, type TidakBerlaku } from "@/lib/gdrive/kirim";
 import { namaFolderTermin, polaFolderTermin } from "@/lib/gdrive/struktur";
 import {
@@ -46,6 +49,7 @@ import { butirBerkas } from "./katalog";
 import {
   KIND_BERKAS_TERMIN,
   awalanPeriodeTermin,
+  folderItemDokumentasi,
   kodeSurat,
   labelPekerjaanTermin,
   namaDenganLokasi,
@@ -300,7 +304,7 @@ export async function buatSuratTermin(input: {
 const PDF_MIME = "application/pdf";
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-type PaketTermin = { id: string; name: string; orgId: string; driveFolderId: string };
+type PaketTermin = { id: string; name: string; orgId: string; driveFolderId: string; contractId: string };
 type LokasiTermin = { name: string; slug: string } | null;
 
 /**
@@ -310,13 +314,16 @@ type LokasiTermin = { name: string; slug: string } | null;
 type BerkasTersusun = { items: UploadItem[]; lokasi: string | null };
 /** Dokumen yang ditarik dari Drive KKP: dipasang sebagai pintasan ke berkas aslinya (DECISIONS 778). */
 type PintasanTersusun = { pintasan: { targetId: string; fileName: string }; lokasi: string | null };
+/** Foto laporan harian rentang termin, dipasang sebagai pintasan per item pekerjaan (DECISIONS 779). */
+type FotoDokumentasi = { photoId: string; targetId: string | null; folder: string; nama: string };
+type DokumentasiTersusun = { foto: FotoDokumentasi[]; lokasi: string | null; rentang: RentangMinggu };
 
 async function susunBerkas(
   p: PekerjaanTermin,
   pkg: PaketTermin,
   lokasi: LokasiTermin,
   baseUrl: string | null,
-): Promise<BerkasTersusun | PintasanTersusun | TidakBerlaku> {
+): Promise<BerkasTersusun | PintasanTersusun | DokumentasiTersusun | TidakBerlaku> {
   const namaLokasi = lokasi?.name ?? null;
   const pdf = (data: Buffer): BerkasTersusun => ({
     items: [
@@ -435,12 +442,8 @@ async function susunBerkas(
     }
     case "buang":
       return { batal: "Pekerjaan buang tidak membuat berkas." };
-    case "dokumentasi": {
-      const { renderDokumentasiSarprasPdf } = await import("@/lib/pdf/dokumentasi-sarpras");
-      const hasil = await renderDokumentasiSarprasPdf(p.locationId!);
-      if (!hasil) return { batal: "Belum ada foto sarana prasarana untuk lokasi ini." };
-      return pdf(hasil.buffer);
-    }
+    case "dokumentasi":
+      return rencanaDokumentasi(p, pkg.contractId, namaLokasi);
   }
 }
 
@@ -482,7 +485,12 @@ export async function jalankanPekerjaanTermin(
     : null;
   if (p.locationId && !lokasi) return { batal: "Lokasinya sudah tidak ada." };
 
-  const berkas = await susunBerkas(p, { ...pkg, driveFolderId: pkg.driveFolderId }, lokasi, opts.baseUrl);
+  const berkas = await susunBerkas(
+    p,
+    { ...pkg, driveFolderId: pkg.driveFolderId, contractId: pkg.contract.id },
+    lokasi,
+    opts.baseUrl,
+  );
   if ("batal" in berkas) return berkas;
   // Pintasan ke berkas yang sudah tidak ada menunjuk ke kekosongan.
   if ("pintasan" in berkas && !(await metaBerkas(berkas.pintasan.targetId).catch(() => null))) {
@@ -521,15 +529,20 @@ export async function jalankanPekerjaanTermin(
     (await db.gDriveUpload.findMany({ where: { kind: "berkas_termin", refKey: job.refKey }, select: { id: true } })).map((r) => r.id),
   );
   const outcomes = [];
+  /** Foto yang berkas Drive-nya sudah tidak ada (DECISIONS 779). */
+  const fotoHilang: string[] = [];
   for (const kode of p.kode) {
     const jalur = [...butirBerkas(kode)!.jalur, ...subfolderLokasi(kode, berkas.lokasi)];
     outcomes.push(
       "pintasan" in berkas
         ? await pasangPintasan(target, jalur, berkas.pintasan)
-        : await uploadBatch(target, jalur, berkas.items, { jedaMs: opts.jedaMs }),
+        : "foto" in berkas
+          ? await pasangDokumentasi(target, jalur, berkas.foto, fotoHilang)
+          : await uploadBatch(target, jalur, berkas.items, { jedaMs: opts.jedaMs }),
     );
   }
-  const hasil = rangkum(labelPekerjaanTermin(p), outcomes, 0);
+  const hasil =
+    "foto" in berkas ? kabarDokumentasi(p, outcomes, berkas, fotoHilang.length) : rangkum(labelPekerjaanTermin(p), outcomes, 0);
   // Berlaku juga untuk salinan versi sendiri: dokumennya SAMA dan salinan
   // barunya sudah naik, jadi tidak ada yang hilang. Salinan yang dokumennya
   // dicabut tetap tidak dibuang otomatis (DECISIONS 722).
@@ -541,6 +554,181 @@ export async function jalankanPekerjaanTermin(
     // Unggahannya sudah naik; diulang = ditimpa berkas yang sama, lalu dicoba lagi.
     return { ...hasil, galat: galatDrive(err, "Versi lama gagal dibuang.") };
   }
+}
+
+/**
+ * DOKUMENTASI PEKERJAAN PER ITEM = FOTO LAPORAN HARIAN RENTANG TERMIN (DECISIONS 779).
+ *
+ * Permintaan user 2026-11-25: *"6.dokumentasi dengan 7.berkas termin -> 8
+ * dokumentasi pekerjaan per item. itu seharusnya terhubung, hanya yang masuk
+ * ke 8 dokumentasi pekerjaan per item, seharusnya menyesuaikan pekerjaan
+ * harian apa saja sampai progress 25%"* – lalu *"saat ini tidak terhubung,
+ * ini harus kamu selesaikan"*.
+ *
+ * Dulu isinya SATU PDF dokumentasi 0–50–100 per desa, tidak tersambung dengan
+ * foto di "6. DOKUMENTASI". Kini: foto pekerjaan dari laporan harian FINAL
+ * lokasi ini di rentang minggu termin (sesudah prestasi termin sebelumnya s.d.
+ * minggu prestasi termin ini – sama dengan laporan harian berkas termin),
+ * masing-masing sebagai PINTASAN ke berkas fotonya yang sudah ada di Drive –
+ * berkas yang sama yang ditunjuk "6. DOKUMENTASI". Dipilah per item pekerjaan
+ * menurut RAB aktif. Foto material & peralatan bukan dokumentasi pekerjaan.
+ */
+async function rencanaDokumentasi(
+  p: PekerjaanTermin,
+  contractId: string,
+  namaLokasi: string | null,
+): Promise<DokumentasiTersusun | TidakBerlaku> {
+  const k = await db.contract.findUnique({ where: { id: contractId }, select: { startDate: true, weekMode: true } });
+  if (!k?.startDate) return { batal: "Kontrak belum punya tanggal SPMK, jadi minggu termin belum punya tanggal." };
+  const prestasi = (
+    await db.terminProgresKonsultan.findMany({ where: { contractId }, select: { terminKe: true, mingguKe: true } })
+  ).flatMap((x) => (x.mingguKe == null ? [] : [{ terminKe: x.terminKe, mingguKe: x.mingguKe }]));
+  const r = rentangMingguTermin(p.terminKe, prestasi);
+  if (!r.ok) return { batal: r.alasan };
+  const awal = weekDateRange(k.startDate, r.rentang.awal, k.weekMode).start;
+  const akhir = weekDateRange(k.startDate, r.rentang.akhir, k.weekMode).end;
+
+  const laporan = await db.dailyReport.findMany({
+    where: { locationId: p.locationId!, status: "final", reportDate: { gte: awal, lte: akhir } },
+    orderBy: { reportDate: "asc" },
+    select: {
+      reportDate: true,
+      photos: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          reportItem: { select: { lineageKey: true, rabNode: { select: { id: true, code: true, name: true } } } },
+        },
+      },
+    },
+  });
+  // Nomor foto = urutan di laporannya (sama dengan nama pintasan "6. DOKUMENTASI").
+  const foto = laporan.flatMap((l) =>
+    l.photos.flatMap((ph, i) => (ph.reportItem ? [{ ph, urut: i + 1, dateKey: jakartaDateKey(l.reportDate) }] : [])),
+  );
+  if (foto.length === 0) {
+    return {
+      batal: `Belum ada foto pekerjaan dari laporan harian final minggu ke-${r.rentang.awal} s.d. ke-${r.rentang.akhir} untuk lokasi ini.`,
+    };
+  }
+
+  // Item menurut RAB AKTIF (nama & kode terbaru), menurut kunci BARIS laporan
+  // – baris yang dipasangkan sesudah aktivasi ikut item tujuannya (DECISIONS 777).
+  const aktif = await db.rabRevision.findFirst({ where: { locationId: p.locationId!, status: "aktif" }, select: { id: true } });
+  const kunci = [...new Set(foto.map((f) => f.ph.reportItem!.lineageKey))];
+  const nodeAktif = aktif
+    ? await db.rabNode.findMany({
+        where: { revisionId: aktif.id, lineageKey: { in: kunci } },
+        select: { id: true, name: true, code: true, lineageKey: true },
+      })
+    : [];
+  const perKunci = new Map(nodeAktif.map((n) => [n.lineageKey, n]));
+  const jalur = await jalurNodeById([
+    ...nodeAktif.map((n) => n.id),
+    ...foto.map((f) => f.ph.reportItem!.rabNode.id),
+  ]);
+
+  // Berkas Drive tiap foto: catatan unggah laporan harian (sejak 666 mencatat
+  // photoId), lalu peta pintasan "6. DOKUMENTASI" untuk unggahan lama.
+  const ids = foto.map((f) => f.ph.id);
+  const [unggah, petaLama] = await Promise.all([
+    db.gDriveUpload.findMany({
+      where: { kind: "laporan_harian", photoId: { in: ids }, status: "sukses", fileId: { not: null } },
+      orderBy: { createdAt: "asc" },
+      select: { photoId: true, fileId: true },
+    }),
+    db.gDrivePintasanFoto.findMany({ where: { photoId: { in: ids }, targetId: { not: null } }, select: { photoId: true, targetId: true } }),
+  ]);
+  const target = new Map<string, string>(petaLama.map((x) => [x.photoId, x.targetId!]));
+  for (const u of unggah) target.set(u.photoId!, u.fileId!);
+
+  return {
+    lokasi: namaLokasi,
+    rentang: r.rentang,
+    foto: foto.map(({ ph, urut, dateKey }) => {
+      const asal = ph.reportItem!.rabNode;
+      const n = perKunci.get(ph.reportItem!.lineageKey);
+      const nama = n?.name ?? asal.name;
+      const kode = jalur.get(n?.id ?? asal.id)?.kode ?? n?.code ?? asal.code;
+      return {
+        photoId: ph.id,
+        targetId: target.get(ph.id) ?? null,
+        folder: safeFileName(folderItemDokumentasi(kode, nama), "Pekerjaan"),
+        nama: namaPintasan(dateKey, nama, urut),
+      };
+    }),
+  };
+}
+
+/** Jeda antar pintasan baru – permintaan tulis Drive dibatasi laju. */
+const JEDA_PINTASAN_MS = 150;
+
+/**
+ * Pasang pintasan foto per folder item. Yang sudah menunjuk foto yang sama
+ * dipakai lagi. Semua dicatat seperti unggahan, jadi pintasan foto yang keluar
+ * rentang (minggu prestasi dibetulkan) dan PDF dokumentasi lama dibuang oleh
+ * `buangVersiLama` – hanya milik MARLIN (DECISIONS 723). Berhenti di galat
+ * pertama: yang sudah jadi dipakai lagi saat diulang.
+ */
+async function pasangDokumentasi(
+  target: UploadTarget,
+  jalurDasar: string[],
+  foto: FotoDokumentasi[],
+  hilang: string[],
+): Promise<UploadOutcome> {
+  const out: UploadOutcome = { ok: 0, failed: 0, updated: 0, firstError: null, firstErrorStatus: null, firstRetryAfter: null, webLink: null };
+  const perFolder = new Map<string, FotoDokumentasi[]>();
+  for (const f of foto) if (f.targetId) perFolder.set(f.folder, [...(perFolder.get(f.folder) ?? []), f]);
+  try {
+    for (const [folder, daftar] of perFolder) {
+      const folderId = await ensureFolderPath(target.rootFolderId, [...jalurDasar, folder]);
+      const ada = new Map((await daftarPintasan(folderId)).map((x) => [x.targetId, x.id]));
+      for (const f of daftar) {
+        let id = ada.get(f.targetId!);
+        if (id) out.updated++;
+        else {
+          try {
+            id = await buatPintasan({ folderId, name: f.nama, targetId: f.targetId! });
+          } catch (err) {
+            // Foto aslinya sudah dihapus dari Drive: lewati foto ini saja,
+            // jangan menahan seluruh pekerjaan (diulang pun tetap 404).
+            if (err instanceof GDriveError && err.status === 404) {
+              hilang.push(f.photoId);
+              continue;
+            }
+            throw err;
+          }
+          ada.set(f.targetId!, id);
+          await new Promise((r) => setTimeout(r, JEDA_PINTASAN_MS));
+        }
+        await catatUnggah(target, f.nama, "sukses", { fileId: id, photoId: f.photoId });
+        out.ok++;
+      }
+    }
+  } catch (err) {
+    const g = galatDrive(err, "Pintasan foto gagal dibuat.");
+    out.failed++;
+    out.firstError = g.pesan;
+    out.firstErrorStatus = g.status;
+    out.firstRetryAfter = g.retryAfter;
+  }
+  return out;
+}
+
+function kabarDokumentasi(p: PekerjaanTermin, outcomes: UploadOutcome[], b: DokumentasiTersusun, hilang: number): HasilUnggah {
+  const dasar = rangkum(labelPekerjaanTermin(p), outcomes, 0);
+  const ok = outcomes.reduce((t, o) => t + o.ok, 0);
+  const lama = outcomes.reduce((t, o) => t + o.updated, 0);
+  const tanpa = b.foto.filter((f) => !f.targetId).length;
+  return {
+    ...dasar,
+    ringkas:
+      `${labelPekerjaanTermin(p)} minggu ke-${b.rentang.awal}–${b.rentang.akhir}: ${ok} foto tersambung` +
+      (lama ? ` (${ok - lama} baru)` : "") +
+      (tanpa ? `, ${tanpa} foto belum ada di Drive` : "") +
+      (hilang ? `, ${hilang} foto aslinya sudah dihapus dari Drive` : "") +
+      ".",
+  };
 }
 
 /**

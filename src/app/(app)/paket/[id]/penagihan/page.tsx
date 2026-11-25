@@ -134,7 +134,9 @@ export default async function PenagihanPage({
             ? b.butir.tetapDi === "perusahaan"
               ? "sekali unggah, berlaku di semua paket perusahaan ini"
               : "sekali unggah, berlaku untuk semua termin"
-            : b.butir.laporan
+            : b.butir.kode === "8"
+              ? "pintasan ke foto laporan harian final per item pekerjaan, minggu termin ini – fotonya sama dengan di 6. DOKUMENTASI; lokasi yang diisi versi sendiri dilewati"
+              : b.butir.laporan
               ? "MARLIN membuatnya per lokasi saat berkas termin disiapkan, kecuali lokasi yang sudah diisi versi sendiri"
               : b.butir.kode === "12"
                 ? "RAB tiap lokasi diambil dari berkas Excel revisi RAB aktif lokasi itu"
