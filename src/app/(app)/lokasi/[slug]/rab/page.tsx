@@ -90,6 +90,10 @@ export default async function RabPage({
   const jumlahTidakTerbobot = active ? (await volumeTidakTerbobotByLineage(location.id)).size : 0;
   // Usulan pemasangan realisasi sesudah aktivasi yang menunggu dua persetujuan (DECISIONS 777).
   const usulanPasangMenunggu = active ? await jumlahUsulanMenunggu(location.id) : 0;
+  // Catatan pekerjaan di luar RAB yang belum dipadankan ke mana pun (DECISIONS 780).
+  const catatanLuarRab = active
+    ? await db.pekerjaanLuarRab.count({ where: { locationId: location.id, dibatalkanAt: null, reportItemId: null } })
+    : 0;
 
   /*
    * Pohon RAB HANYA diambil saat memang dipakai.
@@ -410,6 +414,20 @@ export default async function RabPage({
               <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
                 Lihat itemnya
               </ButtonLink>
+              <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                Pasangkan
+              </ButtonLink>
+            </span>
+          }
+        />
+      ) : null}
+      {catatanLuarRab > 0 ? (
+        <Banner
+          tone="info"
+          title={`${catatanLuarRab} catatan pekerjaan di luar RAB belum dipasangkan`}
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              <span>Belum masuk progres. Pasangkan ke item RAB aktif, atau padankan ke item draft adendum.</span>
               <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
                 Pasangkan
               </ButtonLink>

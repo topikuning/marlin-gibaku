@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { ForbiddenError, requireCapability, requireLocationAccess, requireUser } from "@/lib/auth/session";
 import {
   ajukanPadananAktif,
+  ajukanPadananLuarRab,
   lepasPadananAktif,
   PadananAktifError,
   setujuiPadananAktif,
@@ -25,7 +26,8 @@ import {
  * dari data usulan itu sendiri; alamat hanya membawa kode dan id. Galat tetap
  * di samping tombolnya – barisnya tidak pindah.
  *
- * - Ajukan, Batalkan, Lepas: `rab.manage` + akses lokasi.
+ * - Ajukan (item lama atau catatan di luar RAB), Batalkan, Lepas: `rab.manage`
+ *   + akses lokasi.
  * - Setujui, Tolak: JABATAN (PD/AM/PM/SM) + akses lokasi, bukan capability –
  *   sama dengan persetujuan aktivasi adendum (DECISIONS 234). Super admin
  *   punya rab.manage penuh dan tetap tidak boleh menandatangani.
@@ -40,7 +42,7 @@ function gagal(err: unknown): PasangkanState {
 }
 
 function segarkan(slug: string) {
-  for (const p of ["/rab/pasangkan", "/rab", "/rab/tidak-terbobot", "/progress", ""]) {
+  for (const p of ["/rab/pasangkan", "/rab", "/rab/tidak-terbobot", "/rab/adendum", "/progress", ""]) {
     revalidatePath(`/lokasi/${slug}${p}`);
   }
 }
@@ -91,6 +93,46 @@ export async function ajukanPadananAktifAction(_prev: PasangkanState, fd: FormDa
     const h = await ajukanPadananAktif({
       locationId: location.id,
       lineageLama: p.data.lineageLama,
+      lineageBaru: p.data.lineageBaru,
+      alasan: p.data.alasan,
+      userId: user.id,
+    });
+    segarkan(location.slug);
+    hasil = { slug: location.slug, id: h.id };
+  } catch (e) {
+    return gagal(e);
+  }
+  keMenu(hasil.slug, "diajukan", hasil.id);
+}
+
+const skemaAjukanLuar = z.object({
+  slug: z.string().trim().min(1),
+  luarRabIds: z
+    .string()
+    .trim()
+    .transform((v) => v.split(",").map((x) => x.trim()).filter(Boolean))
+    .pipe(z.array(z.uuid("Catatan tidak valid.")).min(1, "Tidak ada catatan yang bisa dipasangkan.").max(1000, "Catatan terlalu banyak.")),
+  lineageBaru: z.string().trim().min(1, "Pilih dulu item tujuannya."),
+  alasan,
+});
+
+/** Catatan pekerjaan di luar RAB → item RAB aktif (DECISIONS 780). */
+export async function ajukanPadananLuarRabAction(_prev: PasangkanState, fd: FormData): Promise<PasangkanState> {
+  const p = skemaAjukanLuar.safeParse({
+    slug: fd.get("slug"),
+    luarRabIds: fd.get("luarRabIds") ?? "",
+    lineageBaru: fd.get("lineageBaru"),
+    alasan: fd.get("alasan") ?? "",
+  });
+  if (!p.success) return { error: p.error.issues[0].message };
+  let hasil: { slug: string; id: string };
+  try {
+    const user = await requireCapability("rab.manage");
+    const location = await lokasiDariSlug(p.data.slug);
+    await requireLocationAccess(user, location.id);
+    const h = await ajukanPadananLuarRab({
+      locationId: location.id,
+      luarRabIds: p.data.luarRabIds,
       lineageBaru: p.data.lineageBaru,
       alasan: p.data.alasan,
       userId: user.id,

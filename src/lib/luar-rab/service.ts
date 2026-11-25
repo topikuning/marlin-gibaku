@@ -529,6 +529,7 @@ export async function lepasPadanan(id: string, userId: string) {
             basis: true,
             volumeDone: true,
             rabNodeId: true,
+            padananAktifId: true,
             report: { select: { status: true, reportDate: true } },
             rabNode: { select: { unitPrice: true, name: true } },
             luarRab: { select: { id: true, volume: true } },
@@ -539,6 +540,11 @@ export async function lepasPadanan(id: string, userId: string) {
     if (!c) throw new LuarRabError("Catatan tidak ditemukan.");
     const row = c.reportItem;
     if (!row) throw new LuarRabError("Catatan ini belum dipadankan.");
+    if (row.padananAktifId) {
+      throw new LuarRabError(
+        "Catatan ini dipasangkan ke item RAB aktif lewat RAB › Pasangkan realisasi. Lepas dari sana, dengan alasannya.",
+      );
+    }
     if (row.basis !== "draft_adendum") {
       throw new LuarRabError("Adendumnya sudah diaktifkan – baris ini sudah angka resmi dan tidak bisa dilepas dari sini.");
     }
@@ -586,6 +592,8 @@ export type CatatanSelesai = {
   /** Diisi untuk catatan yang dipadankan. */
   item: string | null;
   resmi: boolean;
+  /** Dipasangkan ke item RAB aktif lewat menu Pasangkan realisasi (DECISIONS 780). */
+  lewatPasangkan: boolean;
   /** Diisi untuk catatan yang dibatalkan. */
   alasan: string | null;
   oleh: string | null;
@@ -618,7 +626,7 @@ export async function rekapLuarRab(locationId: string, menunggu: readonly Catata
       dibatalkanById: true,
       dipadankanById: true,
       report: { select: { reportDate: true } },
-      reportItem: { select: { basis: true, rabNode: { select: { code: true, name: true } } } },
+      reportItem: { select: { basis: true, padananAktifId: true, rabNode: { select: { code: true, name: true } } } },
     },
     orderBy: [{ report: { reportDate: "desc" } }, { createdAt: "desc" }],
   });
@@ -633,6 +641,7 @@ export async function rekapLuarRab(locationId: string, menunggu: readonly Catata
     volume: Number(r.volume),
     item: r.reportItem ? `${r.reportItem.rabNode.code ? `${r.reportItem.rabNode.code} ` : ""}${r.reportItem.rabNode.name}` : null,
     resmi: r.reportItem?.basis === "aktif",
+    lewatPasangkan: !!r.reportItem?.padananAktifId,
     alasan: r.alasanBatal,
     oleh: olehId ? (nama.get(olehId) ?? null) : null,
     };

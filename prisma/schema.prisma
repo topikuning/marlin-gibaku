@@ -2239,8 +2239,10 @@ model RabPadananAktif {
   lineageLama    String    @map("lineage_lama")
   /// Kunci item RAB aktif yang menerima realisasinya.
   lineageBaru    String    @map("lineage_baru")
-  /// `hilang` | `dinolkan`
+  /// `hilang` | `dinolkan` | `luar_rab` (catatan pekerjaan di luar RAB, DECISIONS 780)
   jenis          String
+  /// Catatan pekerjaan di luar RAB yang dipadankan (jenis `luar_rab`); kosong untuk jenis lain.
+  luarRabIds     String[]  @default([]) @map("luar_rab_ids") @db.Uuid
   alasan         String
   /// Yang dilihat pengusul saat mengajukan (nama, satuan, volume, tanggal) – untuk penyetuju.
   ringkasan      Json

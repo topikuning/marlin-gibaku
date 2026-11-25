@@ -4,7 +4,6 @@ import {
   keadaanUsulan,
   periksaPasanganAktif,
   rencanaPulihNol,
-  ruangVolume,
 } from "@/lib/rab/padanan-aktif-aturan";
 
 /**
@@ -58,18 +57,6 @@ describe("periksaPasanganAktif", () => {
   });
 });
 
-describe("ruangVolume", () => {
-  it("terlapor + pindahan tidak boleh melebihi volume item sasaran", () => {
-    expect(ruangVolume({ volume: 12, terlapor: 7, pindahan: 5 })).toEqual({ cukup: true, kelebihan: 0, sisa: 5 });
-    expect(ruangVolume({ volume: 12, terlapor: 7, pindahan: 6.5 })).toEqual({ cukup: false, kelebihan: 1.5, sisa: 5 });
-  });
-
-  it("toleransi pembulatan Decimal(15,3)", () => {
-    expect(ruangVolume({ volume: 1.2, terlapor: 0.7, pindahan: 0.5 }).cukup).toBe(true);
-    expect(ruangVolume({ volume: 1, terlapor: 0.6, pindahan: 0.4004 }).cukup).toBe(true);
-  });
-});
-
 describe("rencanaPulihNol: volume yang dinolkan saat aktivasi dipulihkan dari jejak auditnya", () => {
   const jejak = [
     { tanggal: "2026-10-01", dari: 2.5, ke: 0 },
@@ -115,5 +102,87 @@ describe("barisDiubahSesudah – Lepas tidak boleh menimpa perubahan orang", () 
   });
   it("baris yang diubah lebih dari semenit sesudahnya dianggap diubah orang", () => {
     expect(barisDiubahSesudah(new Date("2026-11-25T04:00:00Z"), berlaku)).toBe(true);
+  });
+});
+
+/*
+ * KELEBIHAN DIPOTONG, TIDAK DITOLAK (DECISIONS 780). Keluhan user 2026-11-25
+ * (tangkapan layar "3 item cocok tetapi sisa volumenya kurang"): *"apa
+ * gunanya ini? gimana aku mau memasangkan ini ke rab aktif?"*.
+ */
+describe("bagiMasuk – yang masuk sebatas sisa volume, kelebihannya dipotong dibagi rata", () => {
+  it("muat: tidak ada yang dipotong", async () => {
+    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
+    expect(bagiMasuk([4, 3], { volume: 12, terlapor: 1 })).toEqual({ hasil: [4, 3], masuk: 7, dipotong: 0 });
+  });
+
+  it("tidak muat: dibagi rata ke sisa, totalnya persis sisa", async () => {
+    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
+    const r = bagiMasuk([40, 13.17], { volume: 45, terlapor: 5 })!;
+    expect(r.masuk).toBe(40);
+    expect(r.dipotong).toBe(13.17);
+    expect(Math.round(r.hasil.reduce((t, v) => t + v, 0) * 1000) / 1000).toBe(40);
+    expect(r.hasil[0]).toBeGreaterThan(r.hasil[1]!);
+  });
+
+  it("sisa 0: tidak bisa menampung apa pun", async () => {
+    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
+    expect(bagiMasuk([2], { volume: 10, terlapor: 10 })).toBeNull();
+    expect(bagiMasuk([2], { volume: 10, terlapor: 11 })).toBeNull();
+  });
+});
+
+/*
+ * CATATAN PEKERJAAN DI LUAR RAB → ITEM RAB AKTIF (DECISIONS 780). Keluhan user
+ * 2026-11-25: *"ada pekerjaan-pekerjaan di luar RAB yang sudah diinput manual,
+ * itu dimana matchingkan dengan RAB aktifnya?"*.
+ */
+describe("rencanaLuarRab – satu baris per laporan, menumpang di baris yang ada, kelebihan dipotong", () => {
+  const c = (id: string, reportId: string, tanggal: string, volume: number) => ({ id, reportId, tanggal, volume });
+
+  it("catatan di laporan yang sama digabung; laporan yang sudah punya baris item tujuan ditambah", async () => {
+    const { rencanaLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
+    const r = rencanaLuarRab(
+      [c("b", "R2", "2026-10-02", 1.5), c("a", "R1", "2026-10-01", 2), c("a2", "R1", "2026-10-01", 1)],
+      new Map([["R2", 4]]),
+      { volume: 20, terlapor: 5 },
+    )!;
+    expect(r.baris).toEqual([
+      { reportId: "R1", tanggal: "2026-10-01", catatanIds: ["a", "a2"], tambah: 3, adaVolume: null },
+      { reportId: "R2", tanggal: "2026-10-02", catatanIds: ["b"], tambah: 1.5, adaVolume: 4 },
+    ]);
+    expect([r.masuk, r.dipotong]).toEqual([4.5, 0]);
+  });
+
+  it("sisa kurang: dibagi rata per laporan, totalnya persis sisa; sisa 0 → null", async () => {
+    const { rencanaLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
+    const r = rencanaLuarRab([c("a", "R1", "2026-10-01", 6), c("b", "R2", "2026-10-02", 2)], new Map(), {
+      volume: 8,
+      terlapor: 3,
+    })!;
+    expect(r.baris.map((b) => b.tambah)).toEqual([3.75, 1.25]);
+    expect([r.masuk, r.dipotong]).toEqual([5, 3]);
+    expect(rencanaLuarRab([c("a", "R1", "2026-10-01", 1)], new Map(), { volume: 8, terlapor: 8 })).toBeNull();
+  });
+});
+
+describe("periksaSasaranLuarRab – catatan tanpa kategori: yang diperiksa item dan satuannya", () => {
+  const s = (o: Partial<Parameters<typeof periksaPasanganAktif>[1]> = {}) => sasaran({ lineageKey: "V#1", ...o });
+  it("satuan sama (penulisan berbeda) atau tidak diketahui → sah, lintas kategori boleh", async () => {
+    const { periksaSasaranLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
+    const aktif = new Set(["V#1"]);
+    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "m³" }], s(), aktif)).toBeNull();
+    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "-" }], s(), aktif)).toBeNull();
+    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "m3" }], s({ unit: null }), aktif)).toBeNull();
+  });
+  it("beda satuan, bukan item, berincian, volume 0, tidak di RAB aktif → ditolak dengan sebabnya", async () => {
+    const { periksaSasaranLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
+    const aktif = new Set(["V#1"]);
+    const cat = [{ uraian: "Urugan", satuan: "m3" }];
+    expect(periksaSasaranLuarRab([...cat, { uraian: "Plester", satuan: "m2" }], s(), aktif)).toMatch(/Beda satuan: catatan "Plester"/);
+    expect(periksaSasaranLuarRab(cat, s({ kind: "kategori" }), aktif)).toMatch(/bukan item pekerjaan/);
+    expect(periksaSasaranLuarRab(cat, s({ punyaAnak: true }), aktif)).toMatch(/rincian/);
+    expect(periksaSasaranLuarRab(cat, s({ volume: 0 }), aktif)).toMatch(/volume 0/);
+    expect(periksaSasaranLuarRab(cat, s({ lineageKey: "V#2" }), aktif)).toMatch(/tidak ada di RAB aktif/);
   });
 });

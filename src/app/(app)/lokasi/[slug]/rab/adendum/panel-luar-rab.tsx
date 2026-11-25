@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Banner, Button, Combobox, Input } from "@/components/ui";
+import { Banner, Button, ButtonLink, Combobox, Input } from "@/components/ui";
 import { formatNumber, formatTanggal, parseDateKey } from "@/lib/format";
 import { useAksi } from "@/lib/aksi-klien";
 import { statusPadanan, type KandidatDraft, type PilihanPadan, type StatusPadan, type UsulanCatatan, type BarisAda } from "@/lib/luar-rab/padanan";
@@ -65,7 +65,11 @@ export function PanelLuarRab({
         <p className="mt-0.5 text-sm text-ink">
           Dicatat pelaksana di laporan harian: sudah dikerjakan, tapi itemnya belum ada di RAB. Catatan ini tidak masuk
           progres. Setelah dipadankan, volumenya masuk draft adendum pada tanggal aslinya – angka resmi tetap tidak
-          berubah sampai adendumnya diaktifkan.
+          berubah sampai adendumnya diaktifkan. Kalau itemnya sudah ada di RAB aktif, pasangkan langsung lewat{" "}
+          <Link href={`/lokasi/${slug}/rab/pasangkan`} className="font-medium text-primary hover:underline">
+            Pasangkan realisasi
+          </Link>
+          .
         </p>
       </div>
 
@@ -76,8 +80,19 @@ export function PanelLuarRab({
           <>
             <Banner
               tone="info"
-              title="Buat draft adendum dulu untuk memadankan"
-              description="Rekap di bawah bisa dipakai sebagai bahan menyusun CCO. Begitu draftnya ada, sistem menyarankan item yang cocok untuk tiap catatan."
+              title="Belum ada draft adendum untuk memadankan"
+              description={
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    Kalau itemnya sudah ada di RAB aktif, pasangkan langsung lewat Pasangkan realisasi. Kalau belum,
+                    rekap di bawah bisa dipakai sebagai bahan menyusun CCO; begitu draftnya ada, sistem menyarankan item
+                    yang cocok untuk tiap catatan.
+                  </span>
+                  <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                    Pasangkan realisasi
+                  </ButtonLink>
+                </span>
+              }
             />
             <DaftarMenunggu slug={slug} catatan={catatan} />
           </>
@@ -399,7 +414,15 @@ function DaftarSelesai({
               </div>
               {jenis === "padan" && c.item ? (
                 <div className="text-xs text-ink-muted">
-                  {c.resmi ? "Sudah resmi" : "Di draft"}: {c.item}
+                  {c.lewatPasangkan ? "Dipasangkan ke RAB aktif" : c.resmi ? "Sudah resmi" : "Di draft"}: {c.item}
+                  {c.lewatPasangkan ? (
+                    <>
+                      {" · "}
+                      <Link href={`/lokasi/${slug}/rab/pasangkan`} className="text-primary hover:underline">
+                        Pasangkan realisasi
+                      </Link>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
               {jenis === "batal" && c.alasan ? <div className="text-xs text-ink-faint">Alasan: {c.alasan}</div> : null}
