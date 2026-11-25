@@ -48,6 +48,7 @@ function Sel({ p, unit, fotoPindah }: { p: PerubahanSel; unit: string | null; fo
           (barisnya tetap{fotoTinggal > 0 ? `, ${fotoTinggal} foto tetap di tempatnya` : ""})
         </span>
       ) : null}
+      {p.catatan && !p.ditahan ? <span className="text-ink-muted"> – {p.catatan}</span> : null}
       {p.ditahan ? <span className="text-warning"> – ditahan: {p.ditahan}</span> : null}
     </li>
   );
@@ -189,7 +190,8 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
             <CheckCircle2 aria-hidden className="size-5" />
             {selesai.tambah} ditambah, {selesai.ubah} disesuaikan, {selesai.nolkan} dinolkan
             {selesai.laporanBaru > 0 ? `, ${selesai.laporanBaru} laporan baru dikirim untuk verifikasi` : ""}
-            {selesai.fotoDipindah > 0 ? `, ${selesai.fotoDipindah} foto dipindah ke tanggal Excel` : ""}.
+            {selesai.fotoDipindah > 0 ? `, ${selesai.fotoDipindah} foto dipindah ke tanggal Excel` : ""}
+            {selesai.nihilDibatalkan > 0 ? `, ${selesai.nihilDibatalkan} pernyataan "tidak ada kegiatan" dibatalkan` : ""}.
           </p>
           {selesai.blankoDibangunUlang > 0 ? (
             <p className="text-ink-muted">{selesai.blankoDibangunUlang} blanko harian final ikut diperbarui.</p>

@@ -25,11 +25,16 @@ import type { LaporanMarlin, ModeImpor, PilihanBentrok, SelMarlin } from "./jeni
  *   berbeda), `melebihi_kontrak` (hasil akhirnya di atas volume RAB aktif).
  *   Pilihan: lewati (bawaan), ikuti Excel, jumlahkan, potong rata ke volume
  *   kontrak – hanya yang hasilnya sah yang ditawarkan.
- * - Yang DITAHAN, disebut sebabnya: laporan final (kecuali super admin),
- *   laporan terkirim (kecuali Site Manager ke atas), baris draft adendum,
- *   baris hasil pemasangan, hari nihil, lokasi yang sudah dicabut. Item yang
- *   sebagian perubahannya ditahan padahal ada yang dinolkan/diturunkan ditahan
- *   SELURUHNYA – supaya volumenya tidak terhitung dua kali.
+ * - "Ikut Excel" berarti ikut Excel (user 2026-11-25: *"perintah ikut excel ya
+ *   ikut excel"*). Yang dulu ditahan kini DITULIS dan akibatnya disebut per
+ *   tanggal: hari yang dinyatakan nihil (pernyataannya dibatalkan), baris draft
+ *   adendum (dijadikan baris kontrak), baris hasil pemasangan 777 (pasangannya
+ *   tidak bisa dilepas lagi).
+ * - Yang tetap DITAHAN hanya aturan hak dan kontrak: laporan terkirim,
+ *   disetujui, atau final yang diimpor oleh peran di bawah Site Manager
+ *   (`izinImpor`, DECISIONS 784), dan lokasi yang sudah dicabut. Item yang sebagian perubahannya ditahan padahal ada yang
+ *   dinolkan/diturunkan ditahan SELURUHNYA – supaya volumenya tidak terhitung
+ *   dua kali.
  * - Foto tidak pernah disentuh – kecuali orang MEMINTA "pindahkan foto ke
  *   tanggal Excel" (DECISIONS 783): foto di baris yang dinolkan ikut ke
  *   tanggal Excel item yang sama yang paling dekat dengan waktu jepretnya.
@@ -88,6 +93,8 @@ export type PerubahanSel = {
   foto: number;
   /** Sebab sel ini tidak ditulis; null = ditulis. */
   ditahan: string | null;
+  /** Akibat yang ikut terjadi bila sel ini ditulis (pernyataan nihil dibatalkan, …). */
+  catatan: string | null;
 };
 
 export type JenisBentrok = "beda_tanggal" | "melebihi_kontrak";
@@ -143,15 +150,35 @@ export type Rencana = {
 
 const TERKIRIM = new Set(["dikirim", "disetujui"]);
 
-function sebabDitahan(o: MasukanRencana, tanggal: string, sel: SelMarlin | undefined): string | null {
-  if (sel && sel.basis !== "aktif") return "baris ini tercatat terhadap draft adendum";
-  if (sel?.padanan) return "baris hasil pemasangan sesudah aktivasi – lepas dulu di RAB › Pasangkan realisasi";
+/** Yang menahan sel: hanya hak mengubah laporan dan lingkup kontrak lokasi. */
+function sebabDitahan(o: MasukanRencana, tanggal: string): string | null {
   const lap = o.laporan[tanggal];
   if (!lap) return o.tertutup[tanggal] ?? null;
-  if (lap.noActivity) return "laporan tanggal ini dinyatakan tidak ada kegiatan";
-  if (lap.status === "final" && !o.izin.ubahFinal) return "laporan sudah final – hanya super admin yang boleh mengubah isinya";
+  if (lap.status === "final" && !o.izin.ubahFinal) return "laporan sudah final – perlu Site Manager ke atas";
   if (TERKIRIM.has(lap.status) && !o.izin.ubahTerkirim) return "laporan sudah dikirim – perlu Site Manager ke atas";
   return null;
+}
+
+const LABEL_NIHIL: Record<string, string> = {
+  hujan: "hujan",
+  libur: "libur",
+  menunggu_material: "menunggu material",
+  menunggu_lahan_izin: "menunggu lahan/izin",
+  force_majeure: "force majeure",
+  lainnya: "lainnya",
+};
+
+/** Akibat yang ikut terjadi bila sel ini ditulis – disebut, bukan ditahan. */
+function akibatSel(o: MasukanRencana, tanggal: string, sel: SelMarlin | undefined, ke: number): string | null {
+  const akibat: string[] = [];
+  const lap = o.laporan[tanggal];
+  if (lap?.noActivity && ke > EPS) {
+    const sebab = lap.sebabNihil ? ` (${LABEL_NIHIL[lap.sebabNihil] ?? lap.sebabNihil})` : "";
+    akibat.push(`pernyataan "tidak ada kegiatan"${sebab} dibatalkan`);
+  }
+  if (sel && sel.basis !== "aktif") akibat.push("baris draft adendum dijadikan baris kontrak");
+  if (sel?.padanan) akibat.push("baris hasil pemasangan – pasangannya tidak bisa dilepas lagi");
+  return akibat.length > 0 ? akibat.join("; ") : null;
 }
 
 const jumlah = (m: Map<string, number>) => bulat3([...m.values()].reduce((t, v) => t + v, 0));
@@ -304,7 +331,8 @@ export function susunRencana(o: MasukanRencana): Rencana {
           reportId: s?.reportId ?? o.laporan[t]?.reportId ?? null,
           status: o.laporan[t]?.status ?? null,
           foto: s?.foto ?? 0,
-          ditahan: sebabDitahan(o, t, s),
+          ditahan: sebabDitahan(o, t),
+          catatan: akibatSel(o, t, s, ke),
         });
       }
     }
@@ -333,7 +361,7 @@ export function susunRencana(o: MasukanRencana): Rencana {
       // Tujuan: tanggal Excel yang sesudah impor bervolume dan boleh diubah orang ini.
       tujuan = [...excel.keys()]
         .filter((t) => (akhirTulis.get(t) ?? 0) > EPS)
-        .filter((t) => (tahanDi.has(t) ? !tahanDi.get(t) : !sebabDitahan(o, t, m[t])))
+        .filter((t) => (tahanDi.has(t) ? !tahanDi.get(t) : !sebabDitahan(o, t)))
         .sort();
       for (const p of perubahan) {
         if (p.aksi !== "nolkan" || p.ditahan) continue;

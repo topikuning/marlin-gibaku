@@ -132,20 +132,21 @@ describe("yang ditahan", () => {
     ]);
   });
 
-  it("baris draft adendum, baris hasil pemasangan, hari nihil, lokasi dicabut, tanggal yang belum terjadi", () => {
+  it("ikut Excel: hari nihil, baris draft adendum, baris hasil pemasangan DITULIS dengan akibatnya disebut; lokasi dicabut tetap ditahan", () => {
     const r = susunRencana(
       masukan({
         excel: [["2026-10-01", 1], ["2026-10-02", 1], ["2026-10-03", 1], ["2026-10-04", 1], ["2026-11-30", 1]],
-        ada: [sel("2026-10-01", 2, { basis: "draft_adendum" }), sel("2026-10-02", 2, { padanan: true })],
-        laporan: { "2026-10-03": { reportId: "N", status: "dikirim", noActivity: true } },
+        // Semua kenaikan (0,5 → 1), supaya aturan "pindahan sebagian ditahan seluruhnya" tidak ikut bermain.
+        ada: [sel("2026-10-01", 0.5, { basis: "draft_adendum" }), sel("2026-10-02", 0.5, { padanan: true })],
+        laporan: { "2026-10-03": { reportId: "N", status: "dikirim", noActivity: true, sebabNihil: "hujan" } },
         tertutup: { "2026-10-04": "Lokasi dicabut dari kontrak sejak 1 Oktober 2026." },
       }),
     );
-    const sebab = Object.fromEntries(r.item[0]!.perubahan.map((p) => [p.tanggal, p.ditahan]));
-    expect(sebab["2026-10-01"]).toMatch(/draft adendum/);
-    expect(sebab["2026-10-02"]).toMatch(/hasil pemasangan/);
-    expect(sebab["2026-10-03"]).toMatch(/tidak ada kegiatan/);
-    expect(sebab["2026-10-04"]).toMatch(/dicabut/);
+    const per = Object.fromEntries(r.item[0]!.perubahan.map((p) => [p.tanggal, p]));
+    expect([per["2026-10-01"]!.ditahan, per["2026-10-01"]!.catatan]).toEqual([null, "baris draft adendum dijadikan baris kontrak"]);
+    expect([per["2026-10-02"]!.ditahan, per["2026-10-02"]!.catatan]).toEqual([null, "baris hasil pemasangan – pasangannya tidak bisa dilepas lagi"]);
+    expect([per["2026-10-03"]!.ditahan, per["2026-10-03"]!.catatan]).toEqual([null, 'pernyataan "tidak ada kegiatan" (hujan) dibatalkan']);
+    expect(per["2026-10-04"]!.ditahan).toMatch(/dicabut/);
     expect(r.item[0]!.catatan.join(" ")).toMatch(/30 Nov 2026 belum terjadi/);
   });
 

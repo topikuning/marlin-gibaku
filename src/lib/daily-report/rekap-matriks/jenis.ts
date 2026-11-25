@@ -68,7 +68,13 @@ export type SelMarlin = {
   fotoWaktu: string[];
 };
 
-export type LaporanMarlin = { reportId: string; status: string; noActivity: boolean };
+export type LaporanMarlin = {
+  reportId: string;
+  status: string;
+  noActivity: boolean;
+  /** Sebab hari nihil (hujan, libur, …) – disebut saat pernyataannya dibatalkan impor. */
+  sebabNihil?: string | null;
+};
 
 export type ModeImpor = "tambah" | "timpa";
 

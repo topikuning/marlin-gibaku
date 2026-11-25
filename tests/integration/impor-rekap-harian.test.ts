@@ -27,8 +27,10 @@ let orgId = "";
 let userId = "";
 let n = 0;
 const D = (s: string) => new Date(`${s}T00:00:00.000Z`);
-const SM = { ubahTerkirim: true, ubahFinal: false };
-const SA = { ubahTerkirim: true, ubahFinal: true };
+const { izinImpor } = await import("@/lib/daily-report/rekap-matriks/izin");
+const SM = izinImpor("site_manager");
+const SA = izinImpor("super_admin");
+const PELAKSANA = izinImpor("field_supervisor");
 
 /** Berkas REKAP HARIAN: kolom O = 28 Okt, P = 29 Okt (disembunyikan), Q = 30 Okt, R = 31 Okt. */
 async function berkas(isi: { nama: string; sat: string | null; sel?: Record<string, number> }[]): Promise<Buffer> {
@@ -202,9 +204,18 @@ describe("mode tambah (Site Manager)", () => {
     expect(jejak).toBe(2);
   });
 
-  it("bentrok dipilih 'ikuti Excel' tapi 28 Okt laporan FINAL: Site Manager tidak boleh → seluruh item ditahan, tidak ada yang dipindah", async () => {
+  it("bentrok dipilih 'ikuti Excel' – 28 Okt laporan FINAL: Site Manager menimpanya (DECISIONS 784)", async () => {
     const L = await siapkan();
-    const { rencana } = await simpan(L, await BERKAS(), SM, "tambah", { "B#1": "excel" });
+    const { hasil } = await simpan(L, await BERKAS(), SM, "tambah", { "B#1": "excel" });
+    expect(hasil.blankoDibangunUlang).toBeGreaterThan(0);
+    const v = await volume(L);
+    expect([v["B#1@2026-10-28"], v["B#1@2026-10-30"]]).toEqual([0, 25]);
+    expect(await fotoAman(L)).toBe(true);
+  });
+
+  it("pelaksana: laporan final/terkirim tidak boleh ditimpanya → item yang dipindah ditahan seluruhnya", async () => {
+    const L = await siapkan();
+    const { rencana } = await simpan(L, await BERKAS(), PELAKSANA, "tambah", { "B#1": "excel" });
     expect(rencana.item.find((i) => i.lineageKey === "B#1")!.ditahanSemua).toMatch(/tidak terhitung dua kali/);
     expect((await volume(L))["B#1@2026-10-28"]).toBe(25);
     expect((await volume(L))["B#1@2026-10-30"]).toBeUndefined();
@@ -281,6 +292,40 @@ describe("pindahkan foto ke tanggal Excel (dicentang)", () => {
     await expect(terapkanImporRekap({ locationId: L.locationId, buf, userId, izin: SA, pilihan: p, sidik })).rejects.toThrow(/berubah sejak pratinjau/);
     expect((await volume(L))["B#1@2026-10-28"]).toBe(25);
     expect(await fotoAman(L)).toBe(true);
+  });
+});
+
+/* User 2026-11-25: *"perintah ikut excel ya ikut excel, jangan tolol"* (DECISIONS 784). */
+describe("ikut Excel: hari nihil dan baris draft adendum", () => {
+  it("hari yang dinyatakan nihil tetapi di Excel ada pekerjaan: pernyataannya dibatalkan, barisnya ditulis, jejaknya ada", async () => {
+    const L = await siapkan();
+    const nihil = await db.dailyReport.create({
+      data: { locationId: L.locationId, reportDate: D("2026-10-31"), status: "dikirim", createdById: userId, noActivity: true, noActivityReason: "hujan" },
+    });
+    const { rencana, hasil } = await simpan(L, await BERKAS(), SM, "tambah");
+    const sel = rencana.item.find((i) => i.lineageKey === "A#1")!.perubahan.find((p) => p.tanggal === "2026-10-31")!;
+    expect([sel.ditahan, sel.catatan]).toEqual([null, 'pernyataan "tidak ada kegiatan" (hujan) dibatalkan']);
+    expect(hasil.nihilDibatalkan).toBe(1);
+    expect(await db.dailyReport.findUniqueOrThrow({ where: { id: nihil.id }, select: { noActivity: true, noActivityReason: true, status: true } })).toEqual({
+      noActivity: false,
+      noActivityReason: null,
+      status: "dikirim",
+    });
+    expect((await volume(L))["A#1@2026-10-31"]).toBe(3);
+    expect(await db.auditLog.count({ where: { action: "daily_report.impor_rekap_batal_nihil", resourceId: nihil.id } })).toBe(1);
+  });
+
+  it("baris draft adendum di tanggal yang sama dijadikan baris kontrak dengan angka Excel", async () => {
+    const L = await siapkan();
+    const draft = await db.dailyReportItem.create({
+      data: { reportId: L.laporan["2026-10-30"]!, rabNodeId: L.node["A#1"]!, lineageKey: "A#1", basis: "draft_adendum", volumeDone: 4, valueDone: 400_000n },
+    });
+    await simpan(L, await BERKAS(), SM, "tambah");
+    expect(await db.dailyReportItem.findUniqueOrThrow({ where: { id: draft.id }, select: { basis: true, volumeDone: true } })).toEqual({
+      basis: "aktif",
+      volumeDone: expect.objectContaining({}),
+    });
+    expect((await volume(L))["A#1@2026-10-30"]).toBe(10);
   });
 });
 

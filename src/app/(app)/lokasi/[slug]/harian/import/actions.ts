@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { buildRecapPreview, commitRecap, type RecapPreview, type RecapCommitResult } from "@/lib/daily-report/recap-import";
 import { ImporRekapError, pratinjauImporRekap, terapkanImporRekap, type HasilImpor } from "@/lib/daily-report/rekap-matriks/impor";
 import { RekapMatriksError } from "@/lib/daily-report/rekap-matriks/baca";
+import { izinImpor } from "@/lib/daily-report/rekap-matriks/izin";
 import type { BahanPratinjau, PilihanImpor } from "@/lib/daily-report/rekap-matriks/masukan";
 import type { ModeImpor, PilihanBentrok } from "@/lib/daily-report/rekap-matriks/jenis";
 
@@ -94,11 +95,10 @@ const MAKS_REKAP = 25 * 1024 * 1024;
 
 /**
  * Gerbang: `daily_report.create` + akses lokasi untuk membaca dan menulis laporan
- * yang masih draft. Mengubah laporan yang SUDAH dikirim/disetujui butuh
- * `daily_report.review` (Site Manager ke atas), yang sudah FINAL butuh
- * `daily_report.unfinalize` (super admin) – sama dengan hak membuka laporan
- * final untuk diubah isinya. Yang tidak berhak tetap melihat perubahannya,
- * ditandai "ditahan" dengan sebabnya.
+ * yang masih draft. Laporan yang SUDAH dikirim, disetujui, atau final ikut
+ * ditulis oleh Site Manager ke atas (`izinImpor`, DECISIONS 784 – user: *"mode
+ * timpa ini menimpa semuanya, jangan ditahan meskipun laporan hari itu
+ * final"*). Pelaksana tetap melihat perubahannya, ditandai "ditahan".
  */
 async function bacaBerkasRekap(fd: FormData) {
   const locationId = String(fd.get("locationId") ?? "");
@@ -113,7 +113,7 @@ async function bacaBerkasRekap(fd: FormData) {
     user,
     location: loc,
     buf: Buffer.from(await file.arrayBuffer()),
-    izin: { ubahTerkirim: can(user.role, "daily_report.review"), ubahFinal: can(user.role, "daily_report.unfinalize") },
+    izin: izinImpor(user.role),
   };
 }
 
