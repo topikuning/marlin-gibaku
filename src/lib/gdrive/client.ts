@@ -2,7 +2,7 @@ import "server-only";
 import { getGDriveAuth } from "./config";
 import { buildMultipartBody } from "./parse";
 import { ALIAS_FOLDER_AKAR, samaNamaFolder, type KkpFolder } from "./folders";
-import type { MetaBerkasDrive } from "./milik";
+import type { MetaBerkasDrive, MetaFolderDrive } from "./milik";
 
 /**
  * Klien Google Drive v3 via fetch murni (tanpa SDK googleapis — hemat bundle).
@@ -174,7 +174,12 @@ export async function daftarSubfolder(parentId: string): Promise<{ id: string; n
   return out;
 }
 
-/** Buat SATU folder baru – tanpa memeriksa apakah sudah ada (pemanggil yang memastikan). */
+/**
+ * Buat SATU folder baru – tanpa memeriksa apakah sudah ada (pemanggil yang
+ * memastikan). Sejak DECISIONS 776 folder ikut diberi penanda terbitan MARLIN:
+ * tanpa itu, folder buatan MARLIN tidak bisa dibedakan dari buatan orang yang
+ * memakai akun Google yang sama.
+ */
 export async function buatFolder(parentId: string, name: string): Promise<string> {
   const token = await getAccessToken();
   const create = await fetch(
@@ -182,7 +187,7 @@ export async function buatFolder(parentId: string, name: string): Promise<string
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId] }),
+      body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId], appProperties: MARLIN_APP_PROPERTIES }),
       signal: AbortSignal.timeout(20_000),
     },
   );
@@ -374,6 +379,60 @@ export async function ubahPintasan(
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw await galatDrive(res, "Gagal memindahkan shortcut");
+}
+
+/** Pintasan langsung di sebuah folder, beserta tujuannya (DECISIONS 776). */
+export async function daftarPintasan(
+  parentId: string,
+): Promise<{ id: string; name: string; targetId: string | null }[]> {
+  const token = await getAccessToken();
+  const q = `mimeType = '${SHORTCUT_MIME}' and '${parentId}' in parents and trashed = false`;
+  const out: { id: string; name: string; targetId: string | null }[] = [];
+  let pageToken: string | null = null;
+  do {
+    const url: string =
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+      `&fields=${encodeURIComponent("nextPageToken,files(id,name,shortcutDetails(targetId))")}` +
+      `&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "");
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw await galatDrive(res, "Gagal membaca pintasan di folder");
+    const j = (await res.json()) as {
+      files?: { id: string; name: string; shortcutDetails?: { targetId?: string } }[];
+      nextPageToken?: string;
+    };
+    for (const f of j.files ?? []) out.push({ id: f.id, name: f.name, targetId: f.shortcutDetails?.targetId ?? null });
+    pageToken = j.nextPageToken ?? null;
+  } while (pageToken);
+  return out;
+}
+
+/**
+ * Keterangan kepemilikan satu FOLDER + apakah ia kosong (DECISIONS 776).
+ * null = sudah tidak ada atau bukan folder.
+ */
+export async function metaFolder(id: string): Promise<MetaFolderDrive | null> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true` +
+      `&fields=${encodeURIComponent(`${FIELDS_META},trashed,mimeType`)}`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw await galatDrive(res, "Gagal membaca keterangan folder");
+  const j = (await res.json()) as Parameters<typeof keMeta>[0] & { trashed?: boolean; mimeType?: string };
+  if (j.trashed || j.mimeType !== FOLDER_MIME) return null;
+
+  // Isi apa pun (berkas, folder, pintasan) di luar Sampah = tidak kosong.
+  const q = `'${id}' in parents and trashed = false`;
+  const isi = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1` +
+      "&supportsAllDrives=true&includeItemsFromAllDrives=true",
+    { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) },
+  );
+  if (!isi.ok) throw await galatDrive(isi, "Gagal membaca isi folder");
+  const kosong = (((await isi.json()) as { files?: unknown[] }).files ?? []).length === 0;
+  return { ...keMeta(j), kosong };
 }
 
 /** Buang shortcut ke Sampah (bukan hapus permanen – masih bisa dipulihkan dari Drive). */

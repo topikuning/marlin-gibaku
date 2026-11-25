@@ -5,8 +5,20 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
-import { GDriveError, buatFolder, daftarSubfolder, driveAbout, probeDriveFolder } from "./client";
-import { siapkanStruktur } from "./siapkan";
+import {
+  GDriveError,
+  buangKeSampah,
+  buatFolder,
+  buatPintasan,
+  daftarPintasan,
+  daftarSubfolder,
+  driveAbout,
+  metaFolder,
+  probeDriveFolder,
+} from "./client";
+import { folderMilikMarlin } from "./milik";
+import { kabarSiapkan, siapkanStruktur } from "./siapkan";
+import { KIND_BERKAS_TERMIN } from "@/lib/penagihan/berkas-termin-aturan";
 import { hitungSimpul, strukturDriveKkp } from "./struktur";
 import { clearGDriveToken, saveGDriveClient } from "./config";
 import { parseDriveFolderId } from "./parse";
@@ -176,9 +188,30 @@ export async function ulangiAntreanDriveAction(): Promise<GDriveActionState> {
 const TENGGAT_SIAPKAN_MS = 45_000;
 
 /**
+ * Saat-saat MARLIN tercatat menulis ke Drive paket: tombol Siapkan folder
+ * Drive dan unggahan berkas termin. Bukti bahwa folder ganda lama (belum
+ * bertanda) memang buatan MARLIN – lihat `folderMilikMarlin` (DECISIONS 776).
+ */
+async function waktuTulisMarlin(packageId: string): Promise<Date[]> {
+  const [siapkan, unggah] = await Promise.all([
+    db.auditLog.findMany({
+      where: { action: "gdrive.siapkan_folder", resourceType: "package", resourceId: packageId },
+      select: { createdAt: true },
+    }),
+    db.gDriveUpload.findMany({
+      where: { packageId, kind: KIND_BERKAS_TERMIN, status: "sukses" },
+      select: { createdAt: true },
+    }),
+  ]);
+  return [...siapkan, ...unggah].map((x) => x.createdAt);
+}
+
+/**
  * Buat kerangka folder baku KKP yang BELUM ada di folder Drive paket
  * (DECISIONS 715): 9 folder akar, sub-folder folder 1 & 2, folder per lokasi,
- * dan 4 folder termin lengkap dengan isinya. Yang sudah ada tidak disentuh.
+ * dan 4 folder termin lengkap dengan isinya. Yang sudah ada tidak disentuh,
+ * kecuali folder ganda lama BERKAS DOKUMEN TEKNIS yang kosong dan buatan
+ * MARLIN: diganti pintasan ke folder utama termin (DECISIONS 776).
  */
 export async function siapkanFolderDriveAction(
   _prev: GDriveActionState,
@@ -204,33 +237,35 @@ export async function siapkanFolderDriveAction(
       penyedia: pkg.contract?.vendor.name ?? null,
       lokasi: pkg.locations.map((l) => l.name),
     });
+    const waktuTulis = await waktuTulisMarlin(pkg.id);
     const hasil = await siapkanStruktur(
       pkg.driveFolderId,
       pohon,
-      { daftarSubfolder, buatFolder },
+      {
+        daftarSubfolder,
+        buatFolder,
+        daftarPintasan,
+        buatPintasan,
+        buangKeSampah: (id) => buangKeSampah(id, "folder ganda"),
+        folderBolehDiganti: async (id) => {
+          const meta = await metaFolder(id);
+          return meta !== null && folderMilikMarlin(meta, waktuTulis);
+        },
+      },
       { batasMs: TENGGAT_SIAPKAN_MS },
     );
     await audit(user.id, "gdrive.siapkan_folder", "package", pkg.id, {
       dibuat: hasil.dibuat.length,
+      pintasan: hasil.pintasan.length,
       sudahAda: hasil.sudahAda,
       selesai: hasil.selesai,
       contoh: hasil.dibuat.slice(0, 30),
+      // Jalur lengkap: folder yang dibuang harus bisa ditelusuri dari jejaknya.
+      diganti: hasil.diganti,
+      dibiarkan: hasil.dibiarkan,
     });
     revalidatePath(`/paket/${pkg.id}`);
-
-    const total = hitungSimpul(pohon);
-    if (hasil.dibuat.length === 0 && hasil.selesai) {
-      return { success: `Semua ${total} folder baku sudah ada. Tidak ada yang perlu dibuat.` };
-    }
-    return {
-      success:
-        `${hasil.dibuat.length} folder baru dibuat` +
-        (hasil.sudahAda > 0 ? `, ${hasil.sudahAda} sudah ada dan tidak diubah` : "") +
-        "." +
-        (hasil.selesai
-          ? ""
-          : " Belum semua sempat dibuat. Tekan Siapkan folder Drive sekali lagi untuk melanjutkan."),
-    };
+    return { success: kabarSiapkan(hasil, hitungSimpul(pohon)) };
   } catch (err) {
     return fail(err);
   }

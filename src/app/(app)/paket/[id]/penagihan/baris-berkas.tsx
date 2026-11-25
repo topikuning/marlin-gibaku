@@ -139,7 +139,7 @@ export function BarisBerkas({ baris, packageId, terminKe }: { baris: BarisKlien;
           <span className="min-w-0 text-sm text-ink-muted">{baris.nama}</span>
         </div>
         <div className="mt-0.5 text-[12px] text-ink-muted">
-          Berkas termin yang sudah lolos tidak mengulang folder ini; isinya cukup di butir {baris.cukupDi.nama}.
+          Di Drive, folder ini pintasan ke butir {baris.cukupDi.nama}. Isinya cukup diunggah sekali di sana.
         </div>
       </li>
     );

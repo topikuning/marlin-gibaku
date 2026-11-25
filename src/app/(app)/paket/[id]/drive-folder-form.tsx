@@ -74,7 +74,8 @@ export function DriveFolderForm({
 
 /**
  * Buat kerangka folder baku KKP yang belum ada (DECISIONS 715). Aman ditekan
- * berulang: folder yang sudah ada dilewati, tidak pernah diubah atau dihapus.
+ * berulang: folder yang sudah ada dilewati. Butir ganda BERKAS DOKUMEN TEKNIS
+ * = pintasan ke folder utama termin (DECISIONS 776).
  */
 export function SiapkanFolderDrive({ packageId }: { packageId: string }) {
   const [state, action, pending] = useAksi<GDriveActionState>(siapkanFolderDriveAction, undefined);
@@ -85,8 +86,10 @@ export function SiapkanFolderDrive({ packageId }: { packageId: string }) {
       <input type="hidden" name="packageId" value={packageId} />
       <p className="text-[13px] text-ink-muted">
         Membuat folder baku KKP yang belum ada: 9 folder utama, folder tiap lokasi untuk laporan dan
-        dokumentasi, dan TERMIN 1–4 lengkap dengan isinya (SPK, pemeriksaan, pembayaran, berkas dokumen
-        teknis, dan seterusnya). Folder yang sudah ada tidak diubah, dipindah, atau dihapus.
+        dokumentasi, dan TERMIN 1–4 lengkap dengan isinya. Di BERKAS DOKUMEN TEKNIS, butir yang sama
+        dengan folder utama termin (Kurva S, Laporan Mingguan, SSUK, dan lainnya) dibuat sebagai pintasan
+        ke folder itu, jadi isinya cukup sekali. Folder yang sudah ada tidak diubah atau dipindah, kecuali
+        folder ganda lama buatan MARLIN yang masih kosong: diganti pintasan.
       </p>
       <Button type="submit" size="sm" variant="secondary" loading={pending}>
         {pending ? null : <FolderTree aria-hidden className="size-4" />}

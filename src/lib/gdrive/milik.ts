@@ -38,3 +38,40 @@ export function milikMarlin(b: MetaBerkasDrive, unggahPertama: Date | null | und
   if (!b.terbitanMarlin || b.diubahOrangLain || !unggahPertama) return false;
   return b.createdTime.getTime() >= unggahPertama.getTime() - TOLERANSI_DIBUAT_MS;
 }
+
+/* ── Folder (DECISIONS 776) ─────────────────────────────────────────────── */
+
+export type MetaFolderDrive = {
+  id: string;
+  createdTime: Date;
+  /** appProperties `marlinTerbitan = 1` – dipasang sejak DECISIONS 776. */
+  terbitanMarlin: boolean;
+  /** Pengubah terakhirnya bukan akun Google MARLIN. */
+  diubahOrangLain: boolean;
+  /** Tidak berisi apa pun (berkas, folder, pintasan) di luar Sampah. */
+  kosong: boolean;
+};
+
+/** Selisih jam Drive dan server yang masih diterima (jejak bisa tampak sedikit lebih dulu). */
+const SELISIH_JAM_MS = 2 * 60_000;
+
+/**
+ * Folder boleh dibuang MARLIN – hanya untuk mengganti folder ganda lama di
+ * BERKAS DOKUMEN TEKNIS dengan pintasan (DECISIONS 776). Ketiganya wajib:
+ *  1. KOSONG – tidak ada isi yang ikut terbuang;
+ *  2. tidak diubah orang lain;
+ *  3. terbukti buatan MARLIN: bertanda (folder yang dibuat sejak 776), ATAU
+ *     dibuat pada saat MARLIN tercatat menulis ke Drive paket itu (`waktuTulis`:
+ *     tombol Siapkan folder Drive, unggahan berkas termin). Folder lama belum
+ *     bertanda, dan akun Google MARLIN bisa saja juga dipakai orang, jadi
+ *     "dibuat akun ini" saja bukan bukti.
+ * Jejak ditulis SESUDAH folder dibuat, jadi folder dibuat paling lama
+ * `TOLERANSI_DIBUAT_MS` sebelum jejaknya dan paling lambat sedikit sesudahnya
+ * (selisih jam Drive dan server).
+ */
+export function folderMilikMarlin(f: MetaFolderDrive, waktuTulis: readonly Date[]): boolean {
+  if (!f.kosong || f.diubahOrangLain) return false;
+  if (f.terbitanMarlin) return true;
+  const dibuat = f.createdTime.getTime();
+  return waktuTulis.some((t) => dibuat >= t.getTime() - TOLERANSI_DIBUAT_MS && dibuat <= t.getTime() + SELISIH_JAM_MS);
+}

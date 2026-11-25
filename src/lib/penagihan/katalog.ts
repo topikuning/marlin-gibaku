@@ -55,7 +55,8 @@ export type ButirBerkas = {
   /**
    * Butir BERKAS DOKUMEN TEKNIS yang hanya mengulang butir utama. Berkas yang
    * lolos tidak mengisinya sama sekali (T1–T4, T6, T8, T9, T12, T13), jadi
-   * tidak dihitung kurang dan tidak diisi ulang (DECISIONS 725).
+   * tidak dihitung kurang dan tidak diisi ulang (DECISIONS 725). Di Drive ia
+   * pintasan ke folder butir utama (`pintasanKe` di `ISI_TERMIN`, DECISIONS 776).
    */
   cukupDi?: string;
   /** Ada di berkas nyata tapi bukan folder baku `ISI_TERMIN` (mis. lepas di akar folder termin). */
