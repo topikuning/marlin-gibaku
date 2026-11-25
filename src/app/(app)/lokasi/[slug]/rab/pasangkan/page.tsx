@@ -6,6 +6,7 @@ import { can, ROLE_LABEL } from "@/lib/authz";
 import { formatTanggal } from "@/lib/format";
 import { dataPadananAktif, type UsulanPadanan } from "@/lib/rab/padanan-aktif";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
+import { akarLineage } from "@/lib/rab/padanan-draft-aturan";
 import { requireLocationPage } from "../../get-location";
 import {
   BarisBelum,
@@ -13,7 +14,7 @@ import {
   KartuBerlaku,
   KartuMenunggu,
   type BelumView,
-  type CalonLuarView,
+  type CalonView,
   type LuarRabView,
   type UsulanView,
 } from "./panel-pasangkan";
@@ -36,6 +37,9 @@ export const dynamic = "force-dynamic";
  * langsung ke item RAB aktif. Keluhan user 2026-11-25: *"ada pekerjaan-pekerjaan
  * di luar RAB yang sudah diinput manual, itu dimana matchingkan dengan RAB
  * aktifnya?"*.
+ *
+ * DECISIONS 781: tujuannya SEMUA item pekerjaan RAB aktif; satuan ikut item
+ * tujuan, volume yang masuk diisi orang paling banyak sebesar sisanya.
  */
 export default async function PasangkanPage({
   params,
@@ -48,7 +52,7 @@ export default async function PasangkanPage({
   const q = await searchParams;
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
-  const { aktif, belum, luarRab, calonLuarRab, usulan } = await dataPadananAktif(location.id);
+  const { aktif, calon, belum, luarRab, usulan } = await dataPadananAktif(location.id);
 
   const bolehKelola = can(user.role, "rab.manage");
   const bolehSetujui = bolehMenyetujui(user.role);
@@ -60,18 +64,23 @@ export default async function PasangkanPage({
     unit: b.unit,
     jalur: [b.kategori, b.jalur.split(" · ").slice(1).join(" · ")].filter(Boolean).join(" · "),
     kategori: b.kategori,
+    akar: akarLineage(b.lineageKey),
     jenis: b.jenis === "dinolkan" ? "dinolkan" : "hilang",
     volume: b.volume,
     jumlahLaporan: b.jumlahLaporan,
     rentang: b.pertama ? (tgl(b.pertama) === tgl(b.terakhir) ? tgl(b.pertama) : `${tgl(b.pertama)} – ${tgl(b.terakhir)}`) : null,
     keterangan: b.keterangan,
-    calon: b.calon.map((c) => ({
-      value: c.lineageKey,
-      label: `${c.jalur} ${c.name} – sisa ${fmt(c.sisa)}${c.unit ? ` ${c.unit}` : ""}`,
-      dipotong: c.dipotong,
-    })),
-    calonSisaKurang: b.calonSisaKurang,
+    saran: b.saran,
+    pilihan: b.pilihan,
     terhalang: b.terhalang,
+  }));
+  const calonView: CalonView[] = calon.map((c) => ({
+    value: c.lineageKey,
+    label: `${c.jalur} ${c.name} – ${c.unit ?? "tanpa satuan"}, sisa ${fmt(c.sisa)}`,
+    name: c.name,
+    unit: c.unit,
+    akar: c.akar,
+    sisa: c.sisa,
   }));
   const rentang = (a: string | null, z: string | null) => {
     if (!a) return null;
@@ -82,7 +91,6 @@ export default async function PasangkanPage({
     kunci: k.kunci,
     uraian: k.uraian,
     satuan: k.satuan,
-    satuanKunci: k.satuanKunci,
     catatanIds: k.catatanIds,
     volume: k.volume,
     jumlahLaporan: k.jumlahLaporan,
@@ -96,13 +104,6 @@ export default async function PasangkanPage({
     saran: k.saran,
     pilihan: k.pilihan,
   }));
-  const calonLuarView: CalonLuarView[] = calonLuarRab.map((c) => ({
-    value: c.lineageKey,
-    label: `${c.jalur} ${c.name} – sisa ${fmt(c.sisa)}${c.unit ? ` ${c.unit}` : ""}`,
-    satuanKunci: c.satuanKunci,
-    sisa: c.sisa,
-    unit: c.unit,
-  }));
 
   const keUsulan = (u: UsulanPadanan): UsulanView => ({
     id: u.id,
@@ -112,6 +113,8 @@ export default async function PasangkanPage({
     jalurBaru: u.jalurBaru,
     unit: u.unit,
     volume: u.volume,
+    volumeAsal: u.volumeAsal,
+    unitAsal: u.unitAsal,
     dipotong: u.dipotong,
     baris: u.baris,
     catatan: u.luarRabIds.length,
@@ -166,8 +169,9 @@ export default async function PasangkanPage({
                 berubah. Pasangan bisa dilepas lagi selama RAB aktifnya belum berganti.
               </p>
               <p>
-                Realisasi tidak boleh melebihi volume item tujuan. Kalau sisa volumenya kurang, kelebihannya dipotong
-                dibagi rata di laporan-laporannya, sama seperti saat adendum diaktifkan, dan disebut di usulannya.
+                Semua item pekerjaan RAB aktif bisa dipilih, apa pun kategori dan satuannya. Satuannya mengikuti item
+                tujuan: isi volume yang masuk, paling banyak sebesar sisanya. Volume itu dibagi ke laporan-laporannya
+                sesuai angka yang dicatat, dan angka aslinya kembali bila pasangan dilepas.
               </p>
             </>
           )}
@@ -207,7 +211,7 @@ export default async function PasangkanPage({
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
                 {belumView.map((b) => (
-                  <BarisBelum key={b.lineageKey} slug={slug} b={b} bolehAjukan={bolehKelola} />
+                  <BarisBelum key={b.lineageKey} slug={slug} b={b} calon={calonView} bolehAjukan={bolehKelola} />
                 ))}
               </ul>
             )}
@@ -235,7 +239,7 @@ export default async function PasangkanPage({
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
                 {luarView.map((k) => (
-                  <BarisLuarRab key={k.kunci} slug={slug} k={k} calon={calonLuarView} bolehAjukan={bolehKelola} />
+                  <BarisLuarRab key={k.kunci} slug={slug} k={k} calon={calonView} bolehAjukan={bolehKelola} />
                 ))}
               </ul>
             )}
@@ -288,7 +292,7 @@ function kabarAksi(q: Record<string, string | string[] | undefined>, usulan: Usu
   const v = `${fmt(u.volume)}${u.unit ? ` ${u.unit}` : ""}`;
   const blanko = typeof q.blanko === "string" && /^\d+$/.test(q.blanko) ? Number(q.blanko) : 0;
   const tambahanBlanko = blanko > 0 ? ` ${blanko} blanko harian final ikut diperbarui.` : "";
-  const potong = u.dipotong > 0 ? ` ${fmt(u.dipotong)}${u.unit ? ` ${u.unit}` : ""} dipotong karena sisa volumenya kurang.` : "";
+  const potong = u.dipotong > 0 ? ` ${fmt(u.dipotong)}${u.unit ? ` ${u.unit}` : ""} tidak ikut masuk.` : "";
   const asal = u.jenis === "luar_rab" ? `${u.luarRabIds.length} catatan "${u.namaLama}"` : `"${u.namaLama}"`;
   if (kode === "diajukan" && u.keadaan === "diajukan") {
     return `Usulan dikirim: ${v} dari ${asal} ke "${u.namaBaru}".${potong} Berlaku sesudah disetujui Program Director dan Area Manager, Project Manager, atau Site Manager.`;

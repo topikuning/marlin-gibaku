@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useAksi } from "@/lib/aksi-klien";
-import { Badge, Banner, Button, Combobox, ConfirmSubmit, Label, Textarea } from "@/components/ui";
+import { Badge, Banner, Button, Combobox, ConfirmSubmit, Input, Label, Textarea } from "@/components/ui";
 import { formatNumber } from "@/lib/format";
+import { kunciSatuan } from "@/lib/rab/padanan-draft-aturan";
 import {
   ajukanPadananAktifAction,
   ajukanPadananLuarRabAction,
@@ -18,12 +19,31 @@ import {
  *
  * Tiap baris punya formulir dan status prosesnya sendiri: menekan satu tombol
  * tidak boleh membuat seluruh daftar berputar (DECISIONS 751).
+ *
+ * DECISIONS 781: pilihan tujuannya SEMUA item pekerjaan RAB aktif, tanpa
+ * saring satuan atau kategori; volume yang masuk diisi dalam satuan item
+ * tujuan, paling banyak sebesar sisanya. Ketetapan user 2026-11-25: *"intinya
+ * kasih saja semua list pekerjaan di RAB aktif, untuk dipadankan, satuan dsb
+ * mengikuti rab aktif, hanya volume saja disesuaikan atau bisa diinput sesuai
+ * sisa."*
  */
+
+/** Item pekerjaan RAB aktif – dikirim sekali untuk seluruh halaman (781). */
+export type CalonView = {
+  value: string;
+  label: string;
+  name: string;
+  unit: string | null;
+  /** Kode kategori (akar kunci). */
+  akar: string;
+  sisa: number;
+};
 
 export type BelumView = {
   lineageKey: string;
   name: string;
   unit: string | null;
+  akar: string;
   jalur: string;
   kategori: string;
   jenis: "hilang" | "dinolkan";
@@ -31,9 +51,8 @@ export type BelumView = {
   jumlahLaporan: number;
   rentang: string | null;
   keterangan: string;
-  /** `dipotong` = volume yang dipotong bila item ini dipilih (sisanya kurang). */
-  calon: { value: string; label: string; dipotong: number }[];
-  calonSisaKurang: number;
+  saran: string[];
+  pilihan: string | null;
   terhalang: string | null;
 };
 
@@ -42,7 +61,6 @@ export type LuarRabView = {
   kunci: string;
   uraian: string;
   satuan: string;
-  satuanKunci: string | null;
   catatanIds: string[];
   volume: number;
   jumlahLaporan: number;
@@ -53,9 +71,6 @@ export type LuarRabView = {
   pilihan: string | null;
 };
 
-/** Item RAB aktif yang bisa menampung catatan – dikirim sekali, disaring per kelompok. */
-export type CalonLuarView = { value: string; label: string; satuanKunci: string | null; sisa: number; unit: string | null };
-
 export type UsulanView = {
   id: string;
   jenis: "hilang" | "dinolkan" | "luar_rab";
@@ -64,6 +79,8 @@ export type UsulanView = {
   jalurBaru: string;
   unit: string | null;
   volume: number;
+  volumeAsal: number;
+  unitAsal: string | null;
   dipotong: number;
   baris: number;
   catatan: number;
@@ -78,6 +95,14 @@ export type UsulanView = {
 };
 
 const sat = (u: string | null) => (u ? ` ${u}` : "");
+const bulat3 = (v: number) => Math.round(v * 1000) / 1000;
+
+/** Satuan dianggap sama bila bentuk bakunya sama, atau salah satunya tidak diketahui (sama dengan layanannya). */
+function satuanSama(a: string | null, b: string | null): boolean {
+  const ka = kunciSatuan(a);
+  const kb = kunciSatuan(b);
+  return ka == null || kb == null || ka === kb;
+}
 
 function Kabar({ state }: { state: PasangkanState }) {
   if (state?.error) return <Banner tone="error" title={state.error} />;
@@ -85,25 +110,152 @@ function Kabar({ state }: { state: PasangkanState }) {
   return null;
 }
 
-/* ── Belum dipasangkan ─────────────────────────────────────────────────── */
+/**
+ * Formulir tujuan bersama: pilih item RAB aktif (semua), isi volume yang
+ * masuk, tulis alasan. Bawaan volume = volume asal bila satuannya sama,
+ * dibatasi sisa; beda satuan dibiarkan kosong supaya diisi orang.
+ */
+function FormTujuan({
+  id,
+  calon,
+  saran,
+  pilihan,
+  kecuali,
+  asal,
+  tersembunyi,
+  aksi,
+}: {
+  id: string;
+  calon: readonly CalonView[];
+  saran: readonly string[];
+  pilihan: string | null;
+  kecuali: string | null;
+  asal: { volume: number; unit: string | null; akar: string | null };
+  tersembunyi: Record<string, string>;
+  aksi: (prev: PasangkanState, fd: FormData) => Promise<PasangkanState>;
+}) {
+  const bawaan = (v: string) => {
+    const c = calon.find((x) => x.value === v);
+    if (!c || !satuanSama(asal.unit, c.unit)) return "";
+    return String(bulat3(Math.min(asal.volume, c.sisa)));
+  };
+  const [pilih, setPilih] = useState(pilihan ?? "");
+  const [volume, setVolume] = useState(() => bawaan(pilihan ?? ""));
+  const [alasan, setAlasan] = useState("");
+  const [state, action, pending] = useAksi<PasangkanState>(aksi, undefined);
 
-/** Peringatan pemotongan untuk item tujuan yang sisanya kurang (DECISIONS 780). */
-function Dipotong({ dipotong, unit }: { dipotong: number; unit: string | null }) {
-  if (dipotong <= 0) return null;
+  const disarankan = new Set(saran);
+  const semua = calon.filter((c) => c.value !== kecuali);
+  const opsi = [
+    ...saran.map((v) => semua.find((c) => c.value === v)).filter((c): c is CalonView => !!c),
+    ...semua.filter((c) => !disarankan.has(c.value)),
+  ].map((c) => ({ value: c.value, label: disarankan.has(c.value) ? `${c.label} (disarankan)` : c.label }));
+  const t = semua.find((c) => c.value === pilih);
+  const angka = volume.trim() === "" ? null : Number(volume.replace(",", "."));
+  const sama = t ? satuanSama(asal.unit, t.unit) : true;
+  const melebihi = t != null && angka != null && angka > t.sisa + 0.0005;
+  const sah = !!t && angka != null && Number.isFinite(angka) && angka >= 0 && !melebihi;
+
   return (
-    <p className="text-xs text-warning">
-      Sisa volume item ini kurang. {formatNumber(dipotong)}
-      {sat(unit)} tidak ikut masuk: kelebihannya dipotong dibagi rata di laporan-laporannya, sama seperti saat adendum
-      diaktifkan. Angka aslinya kembali bila pasangan dilepas.
-    </p>
+    <form action={action} className="space-y-2">
+      {Object.entries(tersembunyi).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
+      <input type="hidden" name="lineageBaru" value={pilih} />
+      <div className="space-y-1">
+        <Label htmlFor={`tujuan-${id}`}>Pasangkan ke item RAB aktif</Label>
+        <Combobox
+          id={`tujuan-${id}`}
+          value={pilih}
+          onChange={(v) => {
+            setPilih(v);
+            setVolume(bawaan(v));
+          }}
+          options={opsi}
+          placeholder="Pilih item tujuan…"
+          disabled={pending}
+        />
+      </div>
+      {t ? (
+        <div className="space-y-1">
+          <Label htmlFor={`volume-${id}`}>Volume yang masuk{t.unit ? ` (${t.unit})` : ""}</Label>
+          <Input
+            id={`volume-${id}`}
+            name="volume"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={t.sisa}
+            step="0.001"
+            value={volume}
+            onChange={(e) => setVolume(e.target.value)}
+            invalid={melebihi}
+            disabled={pending}
+          />
+          <p className="text-xs text-ink-muted">
+            Sisa item ini {formatNumber(t.sisa)}
+            {sat(t.unit)}. Dicatat {formatNumber(asal.volume)}
+            {sat(asal.unit)}.
+          </p>
+          {melebihi ? (
+            <p className="text-xs text-danger">
+              Melebihi sisa. Paling banyak {formatNumber(t.sisa)}
+              {sat(t.unit)}.
+            </p>
+          ) : null}
+          {!sama ? (
+            <p className="text-xs text-warning">
+              Satuannya beda: dicatat dalam {asal.unit}, item ini dalam {t.unit}. Isi volumenya dalam {t.unit}.
+            </p>
+          ) : angka != null && !melebihi && angka < asal.volume - 0.0005 ? (
+            <p className="text-xs text-warning">
+              {formatNumber(bulat3(asal.volume - angka))}
+              {sat(t.unit)} tidak ikut masuk. Angka aslinya kembali bila pasangan dilepas.
+            </p>
+          ) : null}
+          {t.sisa <= 0.0005 ? (
+            <p className="text-xs text-warning">
+              Sisa item ini 0. Laporannya hanya dipetakan ke item ini; volumenya 0 dan progres tidak bertambah.
+            </p>
+          ) : null}
+          {asal.akar != null && t.akar !== asal.akar ? (
+            <p className="text-xs text-ink-muted">Beda kategori: realisasinya pindah ke kategori item ini di blanko KKP.</p>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="space-y-1">
+        <Label htmlFor={`alasan-${id}`}>Alasan</Label>
+        <Textarea
+          id={`alasan-${id}`}
+          name="alasan"
+          rows={2}
+          value={alasan}
+          onChange={(e) => setAlasan(e.target.value)}
+          placeholder="Mis. pekerjaan ini masuk item itu di adendum."
+          disabled={pending}
+        />
+      </div>
+      <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={!sah || alasan.trim().length < 10}>
+        Ajukan pemasangan
+      </Button>
+      <Kabar state={state} />
+    </form>
   );
 }
 
-export function BarisBelum({ slug, b, bolehAjukan }: { slug: string; b: BelumView; bolehAjukan: boolean }) {
-  const [pilih, setPilih] = useState("");
-  const [alasan, setAlasan] = useState("");
-  const [state, action, pending] = useAksi<PasangkanState>(ajukanPadananAktifAction, undefined);
-  const terpilih = b.calon.find((c) => c.value === pilih);
+/* ── Belum dipasangkan ─────────────────────────────────────────────────── */
+
+export function BarisBelum({
+  slug,
+  b,
+  calon,
+  bolehAjukan,
+}: {
+  slug: string;
+  b: BelumView;
+  calon: readonly CalonView[];
+  bolehAjukan: boolean;
+}) {
   return (
     <li className="space-y-2 px-3 py-3 text-[13px]">
       <div className="space-y-0.5">
@@ -119,51 +271,18 @@ export function BarisBelum({ slug, b, bolehAjukan }: { slug: string; b: BelumVie
       </div>
       {b.terhalang ? (
         <p className="text-xs text-warning">{b.terhalang}</p>
-      ) : !bolehAjukan ? null : b.calon.length > 0 ? (
-        <form action={action} className="space-y-2">
-          <input type="hidden" name="slug" value={slug} />
-          <input type="hidden" name="lineageLama" value={b.lineageKey} />
-          <input type="hidden" name="lineageBaru" value={pilih} />
-          <div className="space-y-1">
-            <Label htmlFor={`tujuan-${b.lineageKey}`}>Pasangkan ke item RAB aktif</Label>
-            <Combobox
-              id={`tujuan-${b.lineageKey}`}
-              value={pilih}
-              onChange={setPilih}
-              options={b.calon}
-              placeholder="Pilih item tujuan…"
-              disabled={pending}
-            />
-          </div>
-          {terpilih ? <Dipotong dipotong={terpilih.dipotong} unit={b.unit} /> : null}
-          <div className="space-y-1">
-            <Label htmlFor={`alasan-${b.lineageKey}`}>Alasan</Label>
-            <Textarea
-              id={`alasan-${b.lineageKey}`}
-              name="alasan"
-              rows={2}
-              value={alasan}
-              onChange={(e) => setAlasan(e.target.value)}
-              placeholder="Mis. pekerjaannya sama, namanya berubah di adendum."
-              disabled={pending}
-            />
-          </div>
-          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={!pilih || alasan.trim().length < 10}>
-            Ajukan pemasangan
-          </Button>
-        </form>
-      ) : (
-        <p className="text-xs text-warning">
-          {b.calonSisaKurang > 0
-            ? `${b.calonSisaKurang} item di kategori dan satuan yang sama sudah dilaporkan penuh, jadi tidak ada sisa untuk menampungnya. ` +
-              `Naikkan volume item itu lewat adendum, lalu pasangkan.`
-            : "Belum ada item di RAB aktif dengan kategori dan satuan yang sama."}
-        </p>
-      )}
-      {b.calon.length > 0 && b.calonSisaKurang > 0 && !b.terhalang && bolehAjukan ? (
-        <p className="text-xs text-ink-muted">{b.calonSisaKurang} item lain cocok tetapi sudah dilaporkan penuh, jadi tidak ditawarkan.</p>
+      ) : bolehAjukan ? (
+        <FormTujuan
+          id={b.lineageKey}
+          calon={calon}
+          saran={b.saran}
+          pilihan={b.pilihan}
+          kecuali={b.lineageKey}
+          asal={{ volume: b.volume, unit: b.unit, akar: b.akar }}
+          tersembunyi={{ slug, lineageLama: b.lineageKey }}
+          aksi={ajukanPadananAktifAction}
+        />
       ) : null}
-      <Kabar state={state} />
     </li>
   );
 }
@@ -178,20 +297,9 @@ export function BarisLuarRab({
 }: {
   slug: string;
   k: LuarRabView;
-  calon: readonly CalonLuarView[];
+  calon: readonly CalonView[];
   bolehAjukan: boolean;
 }) {
-  const [pilih, setPilih] = useState(k.pilihan ?? "");
-  const [alasan, setAlasan] = useState("");
-  const [state, action, pending] = useAksi<PasangkanState>(ajukanPadananLuarRabAction, undefined);
-  // Satuan harus sama; satuan yang tidak diketahui cocok dengan apa pun.
-  const cocok = calon.filter((c) => !k.satuanKunci || !c.satuanKunci || c.satuanKunci === k.satuanKunci);
-  const disarankan = new Set(k.saran);
-  const opsi = [
-    ...k.saran.map((v) => cocok.find((c) => c.value === v)).filter((c): c is CalonLuarView => !!c),
-    ...cocok.filter((c) => !disarankan.has(c.value)),
-  ].map((c) => ({ value: c.value, label: disarankan.has(c.value) ? `${c.label} (disarankan)` : c.label }));
-  const terpilih = cocok.find((c) => c.value === pilih);
   return (
     <li className="space-y-2 px-3 py-3 text-[13px]">
       <div className="space-y-0.5">
@@ -209,46 +317,18 @@ export function BarisLuarRab({
         ) : null}
         {k.tertahan ? <p className="text-xs text-warning">{k.tertahan}</p> : null}
       </div>
-      {!bolehAjukan || k.catatanIds.length === 0 ? null : opsi.length > 0 ? (
-        <form action={action} className="space-y-2">
-          <input type="hidden" name="slug" value={slug} />
-          <input type="hidden" name="luarRabIds" value={k.catatanIds.join(",")} />
-          <input type="hidden" name="lineageBaru" value={pilih} />
-          <div className="space-y-1">
-            <Label htmlFor={`luar-${k.kunci}`}>Pasangkan ke item RAB aktif</Label>
-            <Combobox
-              id={`luar-${k.kunci}`}
-              value={pilih}
-              onChange={setPilih}
-              options={opsi}
-              placeholder="Pilih item tujuan…"
-              disabled={pending}
-            />
-          </div>
-          {terpilih ? <Dipotong dipotong={Math.max(0, Math.round((k.volume - terpilih.sisa) * 1000) / 1000)} unit={terpilih.unit ?? k.satuan} /> : null}
-          <div className="space-y-1">
-            <Label htmlFor={`alasan-luar-${k.kunci}`}>Alasan</Label>
-            <Textarea
-              id={`alasan-luar-${k.kunci}`}
-              name="alasan"
-              rows={2}
-              value={alasan}
-              onChange={(e) => setAlasan(e.target.value)}
-              placeholder="Mis. pekerjaan ini masuk item itu di adendum."
-              disabled={pending}
-            />
-          </div>
-          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={!pilih || alasan.trim().length < 10}>
-            Ajukan pemasangan
-          </Button>
-        </form>
-      ) : (
-        <p className="text-xs text-warning">
-          Belum ada item di RAB aktif bersatuan {k.satuan} yang masih punya sisa volume. Naikkan volumenya lewat adendum, atau
-          padankan catatan ini ke item draft adendum.
-        </p>
-      )}
-      <Kabar state={state} />
+      {bolehAjukan && k.catatanIds.length > 0 ? (
+        <FormTujuan
+          id={`luar-${k.kunci}`}
+          calon={calon}
+          saran={k.saran}
+          pilihan={k.pilihan}
+          kecuali={null}
+          asal={{ volume: k.volume, unit: k.satuan, akar: null }}
+          tersembunyi={{ slug, luarRabIds: k.catatanIds.join(",") }}
+          aksi={ajukanPadananLuarRabAction}
+        />
+      ) : null}
     </li>
   );
 }
@@ -264,12 +344,12 @@ function Ringkas({ u }: { u: UsulanView }) {
       <p className="text-ink-muted">
         {u.jalurBaru ? `${u.jalurBaru} · ` : ""}
         {formatNumber(u.volume)}
-        {sat(u.unit)}
+        {sat(u.unit)} masuk
         {u.jenis === "luar_rab"
-          ? ` dari ${u.catatan} catatan di luar RAB, menjadi ${u.baris} baris laporan`
-          : ` dari ${u.baris} baris laporan`}
-        {u.jenis === "dinolkan" ? ", volumenya dipulihkan dari angka sebelum aktivasi" : ""}.
-        {u.dipotong > 0 ? ` ${formatNumber(u.dipotong)}${sat(u.unit)} dipotong karena sisa volume item tujuan kurang.` : ""}
+          ? ` dari ${u.catatan} catatan di luar RAB, di ${u.baris} laporan`
+          : ` dari ${u.baris} laporan`}
+        {` (dicatat ${formatNumber(u.volumeAsal)}${sat(u.unitAsal)}${u.jenis === "dinolkan" ? " sebelum dinolkan" : ""})`}.
+        {u.dipotong > 0 ? ` ${formatNumber(u.dipotong)}${sat(u.unit)} tidak ikut masuk.` : ""}
       </p>
       <p className="text-ink-muted">
         Alasan: {u.alasan} <span className="text-xs">({u.diajukan})</span>
@@ -309,7 +389,7 @@ export function KartuMenunggu({
             title="Setujui pemasangan ini?"
             description={
               `${formatNumber(u.volume)}${sat(u.unit)} dari "${u.namaLama}" masuk ke "${u.namaBaru}". ` +
-              (u.dipotong > 0 ? `${formatNumber(u.dipotong)}${sat(u.unit)} dipotong karena sisanya kurang. ` : "") +
+              (u.dipotong > 0 ? `${formatNumber(u.dipotong)}${sat(u.unit)} tidak ikut masuk. ` : "") +
               `Kalau persetujuan Anda melengkapi dua kursi, pemasangan langsung berlaku dan progres berubah. ` +
               `Semua syarat diperiksa ulang saat itu.`
             }
@@ -388,7 +468,7 @@ export function KartuBerlaku({ u, bolehKelola }: { u: UsulanView; bolehKelola: b
             description={
               (u.jenis === "luar_rab"
                 ? `Catatan "${u.namaLama}" kembali menunggu dipasangkan dan ${u.baris} baris laporannya dikembalikan seperti sebelum dipasangkan`
-                : `${u.baris} baris laporan kembali ke "${u.namaLama}"` +
+                : `Laporan di ${u.baris} tanggal kembali ke "${u.namaLama}"` +
                   (u.jenis === "dinolkan" ? " dengan volume 0 seperti sesudah aktivasi" : " dan tidak terhitung lagi di progres")) +
               `. Baris yang sudah diubah orang sesudah dipasangkan membuat pelepasan dibatalkan.`
             }

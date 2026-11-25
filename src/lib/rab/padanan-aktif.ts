@@ -5,63 +5,66 @@ import { formatTanggal, jakartaDateKey } from "@/lib/format";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
 import { valueDone as hitungNilai } from "@/lib/money";
 import { jalurNodeById } from "@/lib/rab/jalur";
-import { volumeNol } from "@/lib/rab/padanan-draft-aturan";
+import { akarLineage, kunciSatuan, volumeNol } from "@/lib/rab/padanan-draft-aturan";
 import { realisasiTidakTerbobot } from "@/lib/rab/tidak-terbobot";
 import { bolehMenyetujui, nilaiPersetujuan } from "@/lib/rab/persetujuan-aturan";
 import {
-  bagiMasuk,
+  bagiProporsional,
   barisDiubahSesudah,
+  bobotDinolkan,
   keadaanUsulan,
-  periksaPasanganAktif,
-  periksaSasaranLuarRab,
+  periksaSasaran,
   rencanaLuarRab,
-  rencanaPulihNol,
+  satuanSama,
+  tentukanMasuk,
   type BarisLuarRab,
-  type ItemSasaran,
   type KeadaanUsulan,
 } from "@/lib/rab/padanan-aktif-aturan";
-import { kunciSatuan } from "@/lib/rab/padanan-draft-aturan";
 import { usulkanPadanan, type KandidatDraft } from "@/lib/luar-rab/padanan";
 import { token } from "@/lib/daily-report/impor-pelaksana/cocok";
 import type { Prisma } from "@/generated/prisma/client";
 import type { UserRole } from "@/generated/prisma/enums";
 
 /**
- * PEMASANGAN REALISASI SESUDAH AKTIVASI ADENDUM (DECISIONS 777).
+ * PEMASANGAN REALISASI SESUDAH AKTIVASI ADENDUM (DECISIONS 777/780/781).
  *
  * Permintaan user 2026-11-25: *"buat bisa dipasangkan sesudah aktivasi, menu
  * khusus. mitigasi semua resiko dan penanganannya"*.
  *
- * Dua jenis item yang sampai sini tidak punya jalan pulang sesudah aktivasi:
- * - `hilang`: tidak ada lagi di RAB aktif. Laporannya tetap, volumenya tidak
- *   terhitung (halaman Tidak terbobot, DECISIONS 649).
- * - `dinolkan`: masih ada dengan volume 0. Laporannya diturunkan jadi 0 saat
- *   aktivasi (DECISIONS 745/756); angka lamanya hanya ada di jejak audit.
+ * Yang dipasangkan ke item RAB aktif:
+ * - `hilang`: item yang tidak ada lagi di RAB aktif. Laporannya tetap, volumenya
+ *   tidak terhitung (halaman Tidak terbobot, DECISIONS 649).
+ * - `dinolkan`: item yang masih ada dengan volume 0. Laporannya diturunkan jadi
+ *   0 saat aktivasi (DECISIONS 745/756); angka lamanya ada di jejak audit.
+ * - `luar_rab`: catatan pekerjaan di luar RAB (738), DECISIONS 780.
  *
- * CARANYA: kunci baris laporan item lama dipindah ke kunci item RAB aktif.
- * RAB aktif, kurva-S, dan dokumen CCO tidak disentuh. Untuk `dinolkan`, volume
- * yang diturunkan saat aktivasi dipulihkan dari jejak auditnya, hanya bila
- * angkanya belum diubah siapa pun sejak itu.
+ * TUJUANNYA SEMUA ITEM PEKERJAAN RAB AKTIF (781). Ketetapan user: *"intinya
+ * kasih saja semua list pekerjaan di RAB aktif, untuk dipadankan, satuan dsb
+ * mengikuti rab aktif, hanya volume saja disesuaikan atau bisa diinput sesuai
+ * sisa. mitigasi total masalah pemetaan manual ini."* Beda kategori dan beda
+ * satuan disebut, tidak ditolak. Volume yang masuk diisi orang dalam satuan
+ * item tujuan, paling banyak sebesar sisanya, lalu dibagi ke baris-baris
+ * laporannya sesuai volume asalnya (`bagiProporsional`).
+ *
+ * CARANYA: baris laporan item lama pindah KUNCI ke item tujuan (tanggal,
+ * pelapor, foto tetap); catatan di luar RAB menjadi baris item tujuan pada
+ * tanggal aslinya. Laporan yang sudah punya baris item tujuan MENAMPUNG
+ * volumenya di baris itu – baris item lamanya menjadi 0. RAB aktif, kurva-S,
+ * dan dokumen CCO tidak disentuh.
  *
  * PENGAMAN:
  * - Usulan baru BERLAKU sesudah dua persetujuan (Program Director + AM/PM/SM),
  *   sama dengan aktivasi adendum (DECISIONS 234). Super admin tidak bisa
  *   menyetujui.
  * - Semua syarat diperiksa ULANG saat usulan berlaku, di dalam kunci lokasi
- *   yang sama dengan pengiriman laporan: keadaan bisa berubah di antara
- *   diajukan dan disetujui.
- * - Ditolak, bukan diakali: beda kategori/satuan, satu laporan memuat
- *   keduanya, laporan item lama yang belum dikirim, item lama yang muncul lagi
- *   di draft, revisi aktif yang sudah berganti, item tujuan yang sisanya 0.
- * - Sisa volume item tujuan KURANG: kelebihannya DIPOTONG dibagi rata di
- *   baris pindahan (aturan aktivasi, DECISIONS 745), disebut di usulan dan
- *   kabarnya, dan dikembalikan saat Lepas (DECISIONS 780 – penolakan dulu
- *   membuat pemasangan buntu).
- * - Catatan pekerjaan di luar RAB (738) juga bisa dipasangkan ke item RAB
- *   aktif lewat usulan yang sama (jenis `luar_rab`, DECISIONS 780).
- * - Lepas mengembalikan keadaan persis seperti sesudah aktivasi – ditolak bila
- *   barisnya sudah diubah orang sesudah dipasangkan, atau revisi aktifnya
- *   sudah berganti.
+ *   yang sama dengan pengiriman laporan. Sisa yang berkurang sejak diajukan
+ *   memotong volumenya, dan disebut.
+ * - Ditolak hanya yang memang tidak bisa: laporan item lama yang belum dikirim,
+ *   baris draft adendum, item lama yang muncul lagi di draft, revisi aktif yang
+ *   sudah berganti, beda satuan tanpa isian volume, isian di atas sisa.
+ * - Angka asli tiap baris disimpan (`volumeSebelumPadanan`); Lepas
+ *   mengembalikannya – ditolak bila barisnya sudah diubah orang sesudah
+ *   dipasangkan, atau revisi aktifnya sudah berganti.
  * - Blanko harian final dibangun ulang sejak tanggal terawal yang berubah.
  */
 
@@ -78,20 +81,25 @@ const labelKategori = (code: string, name: string) => {
   const kode = code.replace(/(?:#\d+)+$/, "").trim().replace(/\.$/, "");
   return kode ? `${kode}. ${name.trim()}` : name.trim();
 };
+const fmt = (v: number) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(v);
+const sat = (u: string | null) => (u ? ` ${u}` : "");
 
 export type JenisPadanan = "hilang" | "dinolkan" | "luar_rab";
 
+/** Item pekerjaan RAB aktif – SEMUA bisa menjadi tujuan (781). */
 export type CalonAktif = {
   lineageKey: string;
   code: string;
   name: string;
   unit: string | null;
+  /** Bentuk baku satuan (`kunciSatuan`); null = tidak diketahui. */
+  satuanKunci: string | null;
   jalur: string;
+  /** Kode kategori (akar kunci), untuk menyebut "beda kategori". */
+  akar: string;
   volume: number;
-  /** Sisa volume item ini (volume − semua laporan basis aktif). */
+  /** Sisa volume item ini (volume − semua laporan basis aktif); 0 = hanya bisa dipetakan. */
   sisa: number;
-  /** Volume yang akan dipotong bila item ini dipilih (sisa kurang); 0 = muat. */
-  dipotong: number;
 };
 
 export type ItemBelumAktif = {
@@ -101,17 +109,17 @@ export type ItemBelumAktif = {
   jalur: string;
   kategori: string;
   jenis: JenisPadanan;
-  /** Volume yang akan pindah ke item sasaran (untuk `dinolkan`: volume yang dipulihkan). */
+  /** Volume asal (satuan item lama); untuk `dinolkan`: angka sebelum diturunkan. */
   volume: number;
   jumlahLaporan: number;
   pertama: Date | null;
   terakhir: Date | null;
   /** "Hilang di revisi #3" / "Dinolkan saat revisi #3 diaktifkan". */
   keterangan: string;
-  calon: CalonAktif[];
-  /** Calon yang sah tetapi sisa volumenya sudah 0 – disebut jumlahnya. */
-  calonSisaKurang: number;
-  /** Sebab item ini belum bisa diusulkan sekarang (laporan belum dikirim, sudah diusulkan, …). */
+  /** Kunci item yang disarankan, terbaik dulu; `pilihan` = dipilih otomatis (jelas unggul). */
+  saran: string[];
+  pilihan: string | null;
+  /** Sebab item ini belum bisa diusulkan sekarang (laporan belum dikirim, muncul lagi di draft). */
   terhalang: string | null;
 };
 
@@ -120,8 +128,6 @@ export type KelompokLuarRab = {
   kunci: string;
   uraian: string;
   satuan: string;
-  /** Bentuk baku satuan (`kunciSatuan`); null = tidak diketahui, cocok dengan apa pun. */
-  satuanKunci: string | null;
   /** Catatan yang bisa dipasangkan sekarang (laporannya sudah dikirim). */
   catatanIds: string[];
   volume: number;
@@ -132,19 +138,8 @@ export type KelompokLuarRab = {
   tertahan: { jumlah: number; tanggal: string } | null;
   /** Ada yang berasal dari draft adendum yang diganti (DECISIONS 755). */
   asalDraft: boolean;
-  /** Kunci item yang disarankan, terbaik dulu; `pilihan` = dipilih otomatis (jelas unggul). */
   saran: string[];
   pilihan: string | null;
-};
-
-/** Item RAB aktif yang bisa menampung catatan di luar RAB. */
-export type CalonLuarRab = {
-  lineageKey: string;
-  name: string;
-  unit: string | null;
-  satuanKunci: string | null;
-  jalur: string;
-  sisa: number;
 };
 
 export type UsulanPadanan = {
@@ -156,9 +151,14 @@ export type UsulanPadanan = {
   namaLama: string;
   namaBaru: string;
   jalurBaru: string;
+  /** Satuan item tujuan. */
   unit: string | null;
+  /** Volume yang masuk ke item tujuan, satuan item tujuan. */
   volume: number;
-  /** Volume yang dipotong karena sisa item tujuan kurang (DECISIONS 780). */
+  /** Volume asal dan satuannya (item lama / catatan). */
+  volumeAsal: number;
+  unitAsal: string | null;
+  /** Volume asal yang tidak ikut masuk (hanya bila satuannya sama). */
   dipotong: number;
   baris: number;
   /** Catatan di luar RAB yang ikut (jenis `luar_rab`). */
@@ -182,10 +182,14 @@ export type RingkasanUsulan = {
   namaLama: string;
   namaBaru: string;
   jalurBaru: string;
+  /** Satuan item tujuan. */
   unit: string | null;
-  /** Volume yang MASUK ke item tujuan (sesudah dipotong). */
+  /** Volume yang MASUK ke item tujuan (satuan item tujuan). */
   volume: number;
-  /** Volume yang dipotong karena sisa item tujuan kurang (DECISIONS 780). */
+  /** Volume asal + satuannya (781). Kosong di usulan sebelum 781 = sama dengan `volume` + `unit`. */
+  volumeAsal?: number;
+  unitAsal?: string | null;
+  /** Volume asal yang tidak ikut masuk (DECISIONS 780); hanya bila satuannya sama. */
   dipotong?: number;
   baris: number;
   /** Jumlah catatan di luar RAB yang ikut (jenis `luar_rab`). */
@@ -194,29 +198,7 @@ export type RingkasanUsulan = {
   terakhir: string | null;
 };
 
-/* ── Membaca keadaan satu pasangan ─────────────────────────────────────── */
-
-type RencanaPasang = {
-  aktif: { id: string; revisionNo: number };
-  jenis: JenisPadanan;
-  namaLama: string;
-  unitLama: string | null;
-  sasaran: { id: string; lineageKey: string; code: string; name: string; unit: string | null; volume: number };
-  /** Baris item lama, dengan volume sesudah dipasangkan. */
-  baris: {
-    id: string;
-    reportId: string;
-    tanggal: string;
-    status: string;
-    volumeKini: number;
-    volumeBaru: number;
-    harga: number;
-  }[];
-  /** Volume yang masuk ke item tujuan, dan yang dipotong karena sisanya kurang. */
-  pindahan: number;
-  dipotong: number;
-  terlapor: number;
-};
+/* ── Bersama ───────────────────────────────────────────────────────────── */
 
 async function revisiAktif(c: Tx | typeof db, locationId: string) {
   return c.rabRevision.findFirst({
@@ -263,24 +245,150 @@ async function semuaJejakNol(c: Tx | typeof db, revisionId: string): Promise<Map
   return peta;
 }
 
+type NodeAktif = {
+  id: string;
+  parentId: string | null;
+  kind: string;
+  code: string;
+  name: string;
+  unit: string | null;
+  volume: Prisma.Decimal | null;
+  unitPrice: Prisma.Decimal | null;
+  lineageKey: string;
+};
+
+async function nodeRevisi(c: Tx | typeof db, revisionId: string): Promise<NodeAktif[]> {
+  return c.rabNode.findMany({
+    where: { revisionId },
+    select: { id: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, unitPrice: true, lineageKey: true },
+    orderBy: { sortOrder: "asc" },
+  });
+}
+
+/** Item tujuan yang sudah diperiksa, dengan sisa volumenya saat ini. */
+type Sasaran = {
+  id: string;
+  lineageKey: string;
+  code: string;
+  name: string;
+  unit: string | null;
+  volume: number;
+  harga: number;
+  terlapor: number;
+  sisa: number;
+};
+
+/** Periksa item tujuan dan hitung sisanya (semua baris basis aktif, status apa pun). */
+async function bacaSasaran(
+  tx: Tx,
+  o: { locationId: string; nodeAktif: NodeAktif[]; lineageBaru: string; lineageLama: string | null },
+): Promise<Sasaran> {
+  const n = o.nodeAktif.find((x) => x.lineageKey === o.lineageBaru);
+  if (!n) throw new PadananAktifError("Item tujuan tidak ada di RAB aktif. Muat ulang halaman.");
+  const tolak = periksaSasaran(
+    { lineageKey: n.lineageKey, kind: n.kind, name: n.name, punyaAnak: o.nodeAktif.some((x) => x.parentId === n.id) },
+    new Set(o.nodeAktif.map((x) => x.lineageKey)),
+    o.lineageLama,
+  );
+  if (tolak) throw new PadananAktifError(tolak);
+  const terlapor = bulat3(
+    Number(
+      (
+        await tx.dailyReportItem.aggregate({
+          where: { lineageKey: o.lineageBaru, basis: "aktif", report: { locationId: o.locationId } },
+          _sum: { volumeDone: true },
+        })
+      )._sum.volumeDone ?? 0,
+    ),
+  );
+  const volume = Number(n.volume ?? 0);
+  return {
+    id: n.id,
+    lineageKey: n.lineageKey,
+    code: n.code,
+    name: n.name,
+    unit: n.unit,
+    volume,
+    harga: Number(n.unitPrice ?? 0),
+    terlapor,
+    sisa: bulat3(Math.max(0, volume - terlapor)),
+  };
+}
+
+/** Volume masuk, atau galat yang menyebut angkanya. */
+function hitungMasuk(o: {
+  asal: number;
+  diminta: number | null;
+  sasaran: Sasaran;
+  unitAsal: string | null;
+  namaAsal: string;
+  ketat: boolean;
+}): { masuk: number; dipotong: number } {
+  const sama = satuanSama(o.unitAsal, o.sasaran.unit);
+  const r = tentukanMasuk({ asal: o.asal, diminta: o.diminta, sisa: o.sasaran.sisa, satuanSama: sama, ketat: o.ketat });
+  if ("galat" in r) {
+    const u = sat(o.sasaran.unit);
+    if (r.galat === "isi_volume") {
+      throw new PadananAktifError(
+        `Satuan "${o.namaAsal}" (${o.unitAsal}) berbeda dengan "${o.sasaran.name}" (${o.sasaran.unit}). ` +
+          `Isi volume yang masuk dalam ${o.sasaran.unit}.`,
+      );
+    }
+    if (r.galat === "negatif") throw new PadananAktifError("Volume tidak boleh kurang dari 0.");
+    throw new PadananAktifError(
+      `Volume ${fmt(o.diminta ?? 0)}${u} melebihi sisa "${o.sasaran.name}" (${fmt(o.sasaran.sisa)}${u}).`,
+    );
+  }
+  return r;
+}
+
+/* ── Rencana: item lama (hilang / dinolkan) ────────────────────────────── */
+
+type BarisPasang = {
+  id: string;
+  reportId: string;
+  tanggal: string;
+  status: string;
+  volumeKini: number;
+  /** Volume yang masuk ke item tujuan dari baris ini (satuan item tujuan). */
+  volumeBaru: number;
+  /**
+   * Laporan yang SUDAH punya baris item tujuan: volumenya ditambahkan ke baris
+   * itu dan baris item lama menjadi 0 (satu laporan, satu baris per item).
+   */
+  tampung: { id: string; volume: number } | null;
+};
+
+type RencanaPasang = {
+  aktif: { id: string; revisionNo: number };
+  jenis: JenisPadanan;
+  namaLama: string;
+  unitLama: string | null;
+  sasaran: Sasaran;
+  baris: BarisPasang[];
+  asal: number;
+  pindahan: number;
+  dipotong: number;
+};
+
 /**
- * Periksa SEMUA syarat satu pasangan dan susun rencananya. Dipakai saat
- * mengajukan DAN saat berlaku (keadaan bisa berubah di antaranya).
- * Melempar `PadananAktifError` dengan kalimat yang menyebut sebabnya.
+ * Periksa syarat satu pasangan dan susun rencananya. Dipakai saat mengajukan
+ * (`ketat`) DAN saat berlaku. Melempar `PadananAktifError` dengan sebabnya.
  */
 async function rencanaPasang(
   tx: Tx,
-  o: { locationId: string; lineageLama: string; lineageBaru: string; abaikanUsulan?: string },
+  o: {
+    locationId: string;
+    lineageLama: string;
+    lineageBaru: string;
+    volumeDiminta: number | null;
+    ketat: boolean;
+    abaikanUsulan?: string;
+  },
 ): Promise<RencanaPasang> {
   const aktif = await revisiAktif(tx, o.locationId);
   if (!aktif) throw new PadananAktifError("Lokasi ini belum punya RAB aktif.");
-
-  const nodeAktif = await tx.rabNode.findMany({
-    where: { revisionId: aktif.id },
-    select: { id: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, lineageKey: true },
-  });
-  const beranak = new Set(nodeAktif.map((n) => n.parentId).filter((x): x is string => !!x));
-  const lineageAktif = new Set(nodeAktif.map((n) => n.lineageKey));
+  const nodeAktif = await nodeRevisi(tx, aktif.id);
 
   // Jenis item lama: hilang dari RAB aktif, atau masih ada dengan volume 0.
   const lamaDiAktif = nodeAktif.find((n) => n.lineageKey === o.lineageLama);
@@ -320,27 +428,18 @@ async function rencanaPasang(
     );
   }
 
-  const sasaranNode = nodeAktif.find((n) => n.lineageKey === o.lineageBaru);
-  if (!sasaranNode) throw new PadananAktifError("Item tujuan tidak ada di RAB aktif. Muat ulang halaman.");
+  // Item lama yang muncul lagi di draft tersambung sendiri saat draft itu aktif.
   const draft = await tx.rabRevision.findFirst({ where: { locationId: o.locationId, status: "draft" }, select: { id: true } });
-  const lineageDraft = draft
-    ? new Set((await tx.rabNode.findMany({ where: { revisionId: draft.id }, select: { lineageKey: true } })).map((n) => n.lineageKey))
-    : null;
-  const sasaran: ItemSasaran = {
-    lineageKey: sasaranNode.lineageKey,
-    kind: sasaranNode.kind,
-    name: sasaranNode.name,
-    unit: sasaranNode.unit,
-    punyaAnak: beranak.has(sasaranNode.id),
-    volume: sasaranNode.volume == null ? null : Number(sasaranNode.volume),
-  };
-  const tolak = periksaPasanganAktif({ lineageKey: o.lineageLama, name: namaLama, unit: unitLama }, sasaran, {
-    lineageAktif,
-    lineageDraft,
-  });
-  if (tolak) throw new PadananAktifError(tolak);
+  if (draft && (await tx.rabNode.count({ where: { revisionId: draft.id, lineageKey: o.lineageLama } })) > 0) {
+    throw new PadananAktifError(
+      `"${namaLama}" muncul lagi di draft adendum yang sedang berjalan. ` +
+        `Realisasinya tersambung sendiri saat draft itu aktif, jadi tidak perlu dipasangkan.`,
+    );
+  }
 
-  // Baris laporan item lama yang belum dipindah.
+  const sasaran = await bacaSasaran(tx, { locationId: o.locationId, nodeAktif, lineageBaru: o.lineageBaru, lineageLama: o.lineageLama });
+
+  // Baris laporan item lama.
   const barisLama = await tx.dailyReportItem.findMany({
     where: { lineageKey: o.lineageLama, report: { locationId: o.locationId } },
     select: {
@@ -348,7 +447,6 @@ async function rencanaPasang(
       reportId: true,
       basis: true,
       volumeDone: true,
-      rabNode: { select: { unitPrice: true } },
       report: { select: { reportDate: true, status: true } },
     },
   });
@@ -368,99 +466,100 @@ async function rencanaPasang(
     );
   }
 
-  // Satu laporan yang memuat keduanya: menggabungkan dua baris mengubah isi laporan.
+  // Laporan yang memuat keduanya: baris item tujuan menampung volumenya.
   const barisSasaran = await tx.dailyReportItem.findMany({
-    where: { lineageKey: o.lineageBaru, report: { locationId: o.locationId } },
-    select: { reportId: true, basis: true, volumeDone: true, report: { select: { reportDate: true } } },
+    where: { lineageKey: o.lineageBaru, reportId: { in: barisLama.map((b) => b.reportId) } },
+    select: { id: true, reportId: true, basis: true, volumeDone: true, padananAktifId: true, report: { select: { reportDate: true } } },
   });
-  const laporanSasaran = new Set(barisSasaran.map((b) => b.reportId));
-  const bentrok = barisLama.filter((b) => laporanSasaran.has(b.reportId));
-  if (bentrok.length > 0) {
+  const tampungDraft = barisSasaran.filter((b) => b.basis !== "aktif");
+  if (tampungDraft.length > 0) {
     throw new PadananAktifError(
-      `Laporan tanggal ${daftarTanggal(bentrok.map((b) => kunciTanggal(b.report.reportDate)))} memuat "${namaLama}" ` +
-        `DAN "${sasaranNode.name}" sekaligus. Satu laporan tidak bisa memuat item yang sama dua kali.`,
+      `Laporan tanggal ${daftarTanggal(tampungDraft.map((b) => kunciTanggal(b.report.reportDate)))} mencatat "${sasaran.name}" ` +
+        `terhadap draft adendum. Baris itu mengikuti draftnya, jadi tidak bisa menampung.`,
     );
   }
+  const tampungLain = barisSasaran.filter((b) => b.padananAktifId);
+  if (tampungLain.length > 0) {
+    throw new PadananAktifError(
+      `Baris "${sasaran.name}" di laporan tanggal ${daftarTanggal(tampungLain.map((b) => kunciTanggal(b.report.reportDate)))} ` +
+        `berasal dari pemasangan lain. Lepas dulu pasangan itu, atau pilih item lain.`,
+    );
+  }
+  const tampungPer = new Map(barisSasaran.map((b) => [b.reportId, b]));
 
-  // Volume sesudah dipasangkan: apa adanya, atau dipulihkan dari jejak aktivasi.
-  const volumeBaru = new Map<string, number>();
+  // Bobot tiap baris (satuan item lama): apa adanya, atau angka sebelum dinolkan.
+  const kini = barisLama.map((b) => ({ id: b.id, tanggal: kunciTanggal(b.report.reportDate), volume: Number(b.volumeDone) }));
+  let bobot = new Map(kini.map((b) => [b.id, b.volume]));
   if (jenis === "dinolkan") {
     const jejak = (await semuaJejakNol(tx, aktif.id)).get(o.lineageLama);
-    if (!jejak) {
-      throw new PadananAktifError(
-        `Tidak ada catatan angka "${namaLama}" sebelum dinolkan saat revisi #${aktif.revisionNo} diaktifkan, ` +
-          `jadi volumenya tidak bisa dipulihkan.`,
-      );
-    }
-    const r = rencanaPulihNol(
-      jejak,
-      barisLama.map((b) => ({ id: b.id, tanggal: kunciTanggal(b.report.reportDate), volume: Number(b.volumeDone) })),
-    );
-    if (!r.ok) {
-      throw new PadananAktifError(
-        `Angka "${namaLama}" di laporan tanggal ${daftarTanggal(r.tanggal)} sudah berubah sejak diturunkan saat aktivasi. ` +
-          `Volumenya tidak dipulihkan supaya angka itu tidak tertimpa.`,
-      );
-    }
-    for (const [id, v] of r.pulih) volumeBaru.set(id, v);
+    if (jejak) bobot = bobotDinolkan(jejak, kini);
   }
-  const baris = barisLama
-    .map((b) => {
-      const kini = Number(b.volumeDone);
-      return {
-        id: b.id,
-        reportId: b.reportId,
-        tanggal: kunciTanggal(b.report.reportDate),
-        status: b.report.status,
-        volumeKini: kini,
-        volumeBaru: volumeBaru.get(b.id) ?? kini,
-        harga: Number(b.rabNode.unitPrice ?? 0),
-      };
-    })
-    .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  const total = bulat3(baris.reduce((t, b) => t + b.volumeBaru, 0));
-  if (total <= 0) throw new PadananAktifError(`Tidak ada volume "${namaLama}" yang bisa dipindahkan.`);
+  const urut = [...barisLama].sort((a, b) => kunciTanggal(a.report.reportDate).localeCompare(kunciTanggal(b.report.reportDate)));
+  const asal = bulat3(urut.reduce((t, b) => t + (bobot.get(b.id) ?? 0), 0));
 
-  // Realisasi tidak boleh melebihi volume kontrak item tujuan: kelebihannya
-  // dipotong dibagi rata di baris pindahan, bukan ditolak (DECISIONS 780).
-  const terlapor = bulat3(barisSasaran.filter((b) => b.basis === "aktif").reduce((t, b) => t + Number(b.volumeDone), 0));
-  const volume = Number(sasaranNode.volume);
-  const bagi = bagiMasuk(
-    baris.map((b) => b.volumeBaru),
-    { volume, terlapor },
+  const { masuk, dipotong } = hitungMasuk({
+    asal,
+    diminta: o.volumeDiminta,
+    sasaran,
+    unitAsal: unitLama,
+    namaAsal: namaLama,
+    ketat: o.ketat,
+  });
+  const bagian = bagiProporsional(
+    urut.map((b) => bobot.get(b.id) ?? 0),
+    masuk,
   );
-  if (!bagi) {
-    const u = sasaranNode.unit ? ` ${sasaranNode.unit}` : "";
-    throw new PadananAktifError(
-      `"${sasaranNode.name}" sudah dilaporkan penuh (${fmt(terlapor)}${u} dari ${fmt(volume)}${u}), jadi tidak bisa menampung apa pun.`,
-    );
-  }
-  bagi.hasil.forEach((v, i) => (baris[i]!.volumeBaru = v));
-  const pindahan = bagi.masuk;
-
-  return {
-    aktif,
-    jenis,
-    namaLama,
-    unitLama,
-    sasaran: {
-      id: sasaranNode.id,
-      lineageKey: sasaranNode.lineageKey,
-      code: sasaranNode.code,
-      name: sasaranNode.name,
-      unit: sasaranNode.unit,
-      volume,
-    },
-    baris,
-    pindahan,
-    dipotong: bagi.dipotong,
-    terlapor,
-  };
+  const baris: BarisPasang[] = urut.map((b, i) => {
+    const t = tampungPer.get(b.reportId);
+    return {
+      id: b.id,
+      reportId: b.reportId,
+      tanggal: kunciTanggal(b.report.reportDate),
+      status: b.report.status,
+      volumeKini: Number(b.volumeDone),
+      volumeBaru: bagian[i]!,
+      tampung: t ? { id: t.id, volume: Number(t.volumeDone) } : null,
+    };
+  });
+  return { aktif, jenis, namaLama, unitLama, sasaran, baris, asal, pindahan: masuk, dipotong };
 }
 
-const fmt = (v: number) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(v);
+/** Tulis rencana item lama saat usulannya berlaku. */
+async function terapkanPasang(tx: Tx, padananId: string, r: RencanaPasang) {
+  for (const b of r.baris) {
+    if (b.tampung) {
+      // Baris item lama menjadi 0 (kuncinya tetap); baris item tujuan menampung.
+      await tx.dailyReportItem.update({
+        where: { id: b.id },
+        data: { padananAktifId: padananId, volumeSebelumPadanan: b.volumeKini, volumeDone: 0, valueDone: 0n },
+      });
+      const v = bulat3(b.tampung.volume + b.volumeBaru);
+      await tx.dailyReportItem.update({
+        where: { id: b.tampung.id },
+        data: {
+          padananAktifId: padananId,
+          volumeSebelumPadanan: b.tampung.volume,
+          volumeDone: v,
+          valueDone: hitungNilai(v, r.sasaran.harga),
+        },
+      });
+      continue;
+    }
+    const berubah = Math.abs(b.volumeBaru - b.volumeKini) > 0.0005;
+    await tx.dailyReportItem.update({
+      where: { id: b.id },
+      data: {
+        lineageKey: r.sasaran.lineageKey,
+        padananAktifId: padananId,
+        // Nilai baris mengikuti harga item tujuan; Lepas menghitungnya lagi dari node barisnya.
+        valueDone: hitungNilai(b.volumeBaru, r.sasaran.harga),
+        ...(berubah ? { volumeSebelumPadanan: b.volumeKini, volumeDone: b.volumeBaru } : {}),
+      },
+    });
+  }
+}
 
-/* ── Catatan pekerjaan di luar RAB → item RAB aktif (DECISIONS 780) ────── */
+/* ── Rencana: catatan pekerjaan di luar RAB (DECISIONS 780) ────────────── */
 
 /**
  * Kunci `lineageLama` usulan jenis `luar_rab`. Catatan tidak punya kunci item;
@@ -472,21 +571,24 @@ type RencanaLuar = {
   aktif: { id: string; revisionNo: number };
   namaLama: string;
   unitLama: string;
-  sasaran: { id: string; lineageKey: string; code: string; name: string; unit: string | null; volume: number; harga: number };
+  sasaran: Sasaran;
   catatan: { id: string; reportId: string; tanggal: string; volume: number; createdById: string; status: string }[];
   baris: (BarisLuarRab & { adaId: string | null; status: string })[];
+  asal: number;
   pindahan: number;
   dipotong: number;
-  terlapor: number;
 };
 
-/**
- * Periksa SEMUA syarat pemasangan catatan di luar RAB ke item RAB aktif dan
- * susun rencananya. Dipakai saat mengajukan DAN saat berlaku.
- */
 async function rencanaLuar(
   tx: Tx,
-  o: { locationId: string; luarRabIds: readonly string[]; lineageBaru: string; abaikanUsulan?: string },
+  o: {
+    locationId: string;
+    luarRabIds: readonly string[];
+    lineageBaru: string;
+    volumeDiminta: number | null;
+    ketat: boolean;
+    abaikanUsulan?: string;
+  },
 ): Promise<RencanaLuar> {
   const aktif = await revisiAktif(tx, o.locationId);
   if (!aktif) throw new PadananAktifError("Lokasi ini belum punya RAB aktif.");
@@ -545,25 +647,8 @@ async function rencanaLuar(
   });
   if (lain) throw new PadananAktifError("Sebagian catatan ini sudah diusulkan dan sedang menunggu persetujuan.");
 
-  const nodeAktif = await tx.rabNode.findMany({
-    where: { revisionId: aktif.id },
-    select: { id: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, unitPrice: true, lineageKey: true },
-  });
-  const sasaranNode = nodeAktif.find((n) => n.lineageKey === o.lineageBaru);
-  if (!sasaranNode) throw new PadananAktifError("Item tujuan tidak ada di RAB aktif. Muat ulang halaman.");
-  const tolak = periksaSasaranLuarRab(
-    rows,
-    {
-      lineageKey: sasaranNode.lineageKey,
-      kind: sasaranNode.kind,
-      name: sasaranNode.name,
-      unit: sasaranNode.unit,
-      punyaAnak: nodeAktif.some((n) => n.parentId === sasaranNode.id),
-      volume: sasaranNode.volume == null ? null : Number(sasaranNode.volume),
-    },
-    new Set(nodeAktif.map((n) => n.lineageKey)),
-  );
-  if (tolak) throw new PadananAktifError(tolak);
+  const nodeAktif = await nodeRevisi(tx, aktif.id);
+  const sasaran = await bacaSasaran(tx, { locationId: o.locationId, nodeAktif, lineageBaru: o.lineageBaru, lineageLama: null });
 
   // Baris item tujuan yang sudah ada di laporan-laporan catatan ini.
   const reportIds = [...new Set(rows.map((r) => r.reportId))];
@@ -574,31 +659,21 @@ async function rencanaLuar(
   const adaDraft = ada.filter((b) => b.basis !== "aktif");
   if (adaDraft.length > 0) {
     throw new PadananAktifError(
-      `Laporan tanggal ${daftarTanggal(adaDraft.map((b) => kunciTanggal(b.report.reportDate)))} mencatat "${sasaranNode.name}" ` +
+      `Laporan tanggal ${daftarTanggal(adaDraft.map((b) => kunciTanggal(b.report.reportDate)))} mencatat "${sasaran.name}" ` +
         `terhadap draft adendum. Baris itu mengikuti draftnya, jadi catatan tidak bisa ditambahkan ke sana.`,
     );
   }
   const adaPasangan = ada.filter((b) => b.padananAktifId);
   if (adaPasangan.length > 0) {
     throw new PadananAktifError(
-      `Baris "${sasaranNode.name}" di laporan tanggal ${daftarTanggal(adaPasangan.map((b) => kunciTanggal(b.report.reportDate)))} ` +
+      `Baris "${sasaran.name}" di laporan tanggal ${daftarTanggal(adaPasangan.map((b) => kunciTanggal(b.report.reportDate)))} ` +
         `berasal dari pemasangan lain. Lepas dulu pasangan itu, atau pilih item lain.`,
     );
   }
   const adaPer = new Map(ada.map((b) => [b.reportId, b]));
 
-  const terlapor = bulat3(
-    Number(
-      (
-        await tx.dailyReportItem.aggregate({
-          where: { lineageKey: o.lineageBaru, basis: "aktif", report: { locationId: o.locationId } },
-          _sum: { volumeDone: true },
-        })
-      )._sum.volumeDone ?? 0,
-    ),
-  );
-  const volume = Number(sasaranNode.volume);
-  const catatan = rows.map((r) => ({
+  const urut = [...rows].sort((a, b) => tgl(a).localeCompare(tgl(b)));
+  const catatan = urut.map((r) => ({
     id: r.id,
     reportId: r.reportId,
     tanggal: tgl(r),
@@ -606,37 +681,34 @@ async function rencanaLuar(
     createdById: r.createdById,
     status: r.report.status,
   }));
-  const r = rencanaLuarRab(
+  const asal = bulat3(catatan.reduce((t, c) => t + c.volume, 0));
+  // Satuan catatan dalam satu kelompok sama (kelompoknya uraian + satuan); yang
+  // berbeda dari item tujuan (bila ada) yang menentukan wajib-isi volumenya.
+  const unitLama = urut[0]!.satuan;
+  const { masuk, dipotong } = hitungMasuk({
+    asal,
+    diminta: o.volumeDiminta,
+    sasaran,
+    unitAsal: urut.find((r) => !satuanSama(r.satuan, sasaran.unit))?.satuan ?? unitLama,
+    namaAsal: urut[0]!.uraian,
+    ketat: o.ketat,
+  });
+  const baris = rencanaLuarRab(
     catatan,
     new Map([...adaPer].map(([k, b]) => [k, Number(b.volumeDone)])),
-    { volume, terlapor },
+    masuk,
   );
-  if (!r) {
-    const u = sasaranNode.unit ? ` ${sasaranNode.unit}` : "";
-    throw new PadananAktifError(
-      `"${sasaranNode.name}" sudah dilaporkan penuh (${fmt(terlapor)}${u} dari ${fmt(volume)}${u}), jadi tidak bisa menampung apa pun.`,
-    );
-  }
   const statusLaporan = new Map(rows.map((x) => [x.reportId, x.report.status]));
-  const urut = [...rows].sort((a, b) => tgl(a).localeCompare(tgl(b)));
   return {
     aktif,
     namaLama: urut[0]!.uraian,
-    unitLama: urut[0]!.satuan,
-    sasaran: {
-      id: sasaranNode.id,
-      lineageKey: sasaranNode.lineageKey,
-      code: sasaranNode.code,
-      name: sasaranNode.name,
-      unit: sasaranNode.unit,
-      volume,
-      harga: Number(sasaranNode.unitPrice ?? 0),
-    },
+    unitLama,
+    sasaran,
     catatan,
-    baris: r.baris.map((b) => ({ ...b, adaId: adaPer.get(b.reportId)?.id ?? null, status: statusLaporan.get(b.reportId)! })),
-    pindahan: r.masuk,
-    dipotong: r.dipotong,
-    terlapor,
+    baris: baris.map((b) => ({ ...b, adaId: adaPer.get(b.reportId)?.id ?? null, status: statusLaporan.get(b.reportId)! })),
+    asal,
+    pindahan: masuk,
+    dipotong,
   };
 }
 
@@ -696,35 +768,60 @@ function bacaAlasan(alasan: string, apa: string): string {
   return t;
 }
 
+function bacaVolume(v: number | null | undefined): number | null {
+  if (v == null) return null;
+  if (!Number.isFinite(v)) throw new PadananAktifError("Volume tidak valid.");
+  return bulat3(v);
+}
+
 async function kunciLokasi(tx: Tx, locationId: string) {
   // Antre dengan pengiriman laporan di lokasi yang sama (pola luar RAB, CALC-02).
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${locationId}::text, 0))`;
+}
+
+async function ringkas(
+  r: { sasaran: Sasaran; pindahan: number; asal: number; dipotong: number },
+  o: { namaLama: string; unitLama: string | null; baris: number; catatan?: number; pertama: string | null; terakhir: string | null },
+): Promise<RingkasanUsulan> {
+  const jalur = (await jalurNodeById([r.sasaran.id])).get(r.sasaran.id)?.kode ?? r.sasaran.code;
+  return {
+    namaLama: o.namaLama,
+    namaBaru: r.sasaran.name,
+    jalurBaru: jalur,
+    unit: r.sasaran.unit ?? o.unitLama,
+    volume: r.pindahan,
+    volumeAsal: r.asal,
+    unitAsal: o.unitLama,
+    dipotong: r.dipotong,
+    baris: o.baris,
+    ...(o.catatan != null ? { catatan: o.catatan } : {}),
+    pertama: o.pertama,
+    terakhir: o.terakhir,
+  };
 }
 
 export async function ajukanPadananAktif(o: {
   locationId: string;
   lineageLama: string;
   lineageBaru: string;
+  /** Volume yang masuk, satuan item tujuan (781). Kosong = volume asalnya (hanya bila satuannya sama). */
+  volume?: number | null;
   alasan: string;
   userId: string;
 }): Promise<{ id: string; ringkasan: RingkasanUsulan }> {
   const alasan = bacaAlasan(o.alasan, "pemasangannya");
+  const volumeDiminta = bacaVolume(o.volume);
   return db.$transaction(
     async (tx) => {
       await kunciLokasi(tx, o.locationId);
-      const r = await rencanaPasang(tx, o);
-      const jalur = (await jalurNodeById([r.sasaran.id])).get(r.sasaran.id)?.kode ?? r.sasaran.code;
-      const ringkasan: RingkasanUsulan = {
+      const r = await rencanaPasang(tx, { ...o, volumeDiminta, ketat: true });
+      const ringkasan = await ringkas(r, {
         namaLama: r.namaLama,
-        namaBaru: r.sasaran.name,
-        jalurBaru: jalur,
-        unit: r.sasaran.unit ?? r.unitLama,
-        volume: r.pindahan,
-        dipotong: r.dipotong,
+        unitLama: r.unitLama,
         baris: r.baris.length,
         pertama: r.baris[0]?.tanggal ?? null,
         terakhir: r.baris.at(-1)?.tanggal ?? null,
-      };
+      });
       const p = await tx.rabPadananAktif.create({
         data: {
           locationId: o.locationId,
@@ -732,6 +829,7 @@ export async function ajukanPadananAktif(o: {
           lineageLama: o.lineageLama,
           lineageBaru: o.lineageBaru,
           jenis: r.jenis,
+          volumeDiminta: r.pindahan,
           alasan,
           ringkasan,
           diajukanOlehId: o.userId,
@@ -744,6 +842,7 @@ export async function ajukanPadananAktif(o: {
         jenis: r.jenis,
         lineageLama: o.lineageLama,
         lineageBaru: o.lineageBaru,
+        volumeDiisi: volumeDiminta,
         alasan,
         ...ringkasan,
       });
@@ -758,27 +857,25 @@ export async function ajukanPadananLuarRab(o: {
   locationId: string;
   luarRabIds: readonly string[];
   lineageBaru: string;
+  /** Volume yang masuk, satuan item tujuan (781). Kosong = volume catatannya (hanya bila satuannya sama). */
+  volume?: number | null;
   alasan: string;
   userId: string;
 }): Promise<{ id: string; ringkasan: RingkasanUsulan }> {
   const alasan = bacaAlasan(o.alasan, "pemasangannya");
+  const volumeDiminta = bacaVolume(o.volume);
   return db.$transaction(
     async (tx) => {
       await kunciLokasi(tx, o.locationId);
-      const r = await rencanaLuar(tx, o);
-      const jalur = (await jalurNodeById([r.sasaran.id])).get(r.sasaran.id)?.kode ?? r.sasaran.code;
-      const ringkasan: RingkasanUsulan = {
+      const r = await rencanaLuar(tx, { ...o, volumeDiminta, ketat: true });
+      const ringkasan = await ringkas(r, {
         namaLama: r.namaLama,
-        namaBaru: r.sasaran.name,
-        jalurBaru: jalur,
-        unit: r.sasaran.unit ?? r.unitLama,
-        volume: r.pindahan,
-        dipotong: r.dipotong,
+        unitLama: r.unitLama,
         baris: r.baris.length,
         catatan: r.catatan.length,
         pertama: r.baris[0]?.tanggal ?? null,
         terakhir: r.baris.at(-1)?.tanggal ?? null,
-      };
+      });
       const ids = [...new Set(o.luarRabIds)];
       const p = await tx.rabPadananAktif.create({
         data: {
@@ -788,6 +885,7 @@ export async function ajukanPadananLuarRab(o: {
           lineageBaru: o.lineageBaru,
           jenis: "luar_rab",
           luarRabIds: ids,
+          volumeDiminta: r.pindahan,
           alasan,
           ringkasan,
           diajukanOlehId: o.userId,
@@ -800,6 +898,7 @@ export async function ajukanPadananLuarRab(o: {
         jenis: "luar_rab",
         luarRabIds: ids,
         lineageBaru: o.lineageBaru,
+        volumeDiisi: volumeDiminta,
         alasan,
         ...ringkasan,
       });
@@ -845,6 +944,7 @@ export async function setujuiPadananAktif(o: {
           lineageBaru: true,
           jenis: true,
           luarRabIds: true,
+          volumeDiminta: true,
           berlakuPada: true,
           ditutupPada: true,
           dilepasPada: true,
@@ -873,14 +973,19 @@ export async function setujuiPadananAktif(o: {
           "RAB aktif sudah berganti sejak usulan ini diajukan. Batalkan usulan ini, lalu ajukan ulang terhadap RAB yang berlaku.",
         );
       }
+      // Sisa bisa sudah berkurang sejak diajukan: volumenya dipotong ke sisa, tidak ditolak.
+      const volumeDiminta = p.volumeDiminta == null ? null : Number(p.volumeDiminta);
+      const sekarang = new Date();
+      const penyetuju = suara.map((s) => ({ userId: s.userId, role: s.role }));
       if (p.jenis === "luar_rab") {
         const r = await rencanaLuar(tx, {
           locationId: p.locationId,
           luarRabIds: p.luarRabIds,
           lineageBaru: p.lineageBaru,
+          volumeDiminta,
+          ketat: false,
           abaikanUsulan: p.id,
         });
-        const sekarang = new Date();
         await terapkanLuar(tx, p.id, r, o.user.id, sekarang);
         await tx.rabPadananAktif.update({ where: { id: p.id }, data: { berlakuPada: sekarang } });
         await auditIn(tx, o.user.id, "rab.padanan_aktif_berlaku", "rab_padanan_aktif", p.id, {
@@ -888,10 +993,13 @@ export async function setujuiPadananAktif(o: {
           revisionNo: r.aktif.revisionNo,
           jenis: "luar_rab",
           catatan: r.catatan.map((c) => ({ id: c.id, tanggal: c.tanggal, volume: c.volume })),
-          itemBaru: { lineageKey: r.sasaran.lineageKey, code: r.sasaran.code, name: r.sasaran.name },
+          itemBaru: { lineageKey: r.sasaran.lineageKey, code: r.sasaran.code, name: r.sasaran.name, unit: r.sasaran.unit },
+          volumeDiminta,
           volume: r.pindahan,
+          volumeAsal: r.asal,
+          unitAsal: r.unitLama,
           dipotong: r.dipotong,
-          terlaporSebelum: r.terlapor,
+          terlaporSebelum: r.sasaran.terlapor,
           volumeKontrak: r.sasaran.volume,
           baris: r.baris.map((b) => ({
             tanggal: b.tanggal,
@@ -900,7 +1008,7 @@ export async function setujuiPadananAktif(o: {
             dari: b.adaVolume ?? 0,
             ke: bulat3((b.adaVolume ?? 0) + b.tambah),
           })),
-          penyetuju: suara.map((s) => ({ userId: s.userId, role: s.role })),
+          penyetuju,
         });
         return {
           berlaku: true as const,
@@ -916,35 +1024,33 @@ export async function setujuiPadananAktif(o: {
         locationId: p.locationId,
         lineageLama: p.lineageLama,
         lineageBaru: p.lineageBaru,
+        volumeDiminta,
+        ketat: false,
         abaikanUsulan: p.id,
       });
-      const sekarang = new Date();
-      for (const b of r.baris) {
-        const berubah = Math.abs(b.volumeBaru - b.volumeKini) > 0.0005;
-        await tx.dailyReportItem.update({
-          where: { id: b.id },
-          data: {
-            lineageKey: r.sasaran.lineageKey,
-            padananAktifId: p.id,
-            ...(berubah
-              ? { volumeSebelumPadanan: b.volumeKini, volumeDone: b.volumeBaru, valueDone: hitungNilai(b.volumeBaru, b.harga) }
-              : {}),
-          },
-        });
-      }
+      await terapkanPasang(tx, p.id, r);
       await tx.rabPadananAktif.update({ where: { id: p.id }, data: { berlakuPada: sekarang } });
       await auditIn(tx, o.user.id, "rab.padanan_aktif_berlaku", "rab_padanan_aktif", p.id, {
         locationId: p.locationId,
         revisionNo: r.aktif.revisionNo,
         jenis: r.jenis,
-        itemLama: { lineageKey: p.lineageLama, name: r.namaLama },
-        itemBaru: { lineageKey: r.sasaran.lineageKey, code: r.sasaran.code, name: r.sasaran.name },
+        itemLama: { lineageKey: p.lineageLama, name: r.namaLama, unit: r.unitLama },
+        itemBaru: { lineageKey: r.sasaran.lineageKey, code: r.sasaran.code, name: r.sasaran.name, unit: r.sasaran.unit },
+        volumeDiminta,
         volume: r.pindahan,
+        volumeAsal: r.asal,
         dipotong: r.dipotong,
-        terlaporSebelum: r.terlapor,
+        terlaporSebelum: r.sasaran.terlapor,
         volumeKontrak: r.sasaran.volume,
-        baris: r.baris.map((b) => ({ id: b.id, tanggal: b.tanggal, status: b.status, dari: b.volumeKini, ke: b.volumeBaru })),
-        penyetuju: suara.map((s) => ({ userId: s.userId, role: s.role })),
+        baris: r.baris.map((b) => ({
+          id: b.id,
+          tanggal: b.tanggal,
+          status: b.status,
+          dari: b.volumeKini,
+          ke: b.volumeBaru,
+          ...(b.tampung ? { ditampung: { id: b.tampung.id, dari: b.tampung.volume, ke: bulat3(b.tampung.volume + b.volumeBaru) } } : {}),
+        })),
+        penyetuju,
       });
       return {
         berlaku: true as const,
@@ -1013,10 +1119,21 @@ export async function tutupPadananAktif(o: {
 
 /* ── Melepas ───────────────────────────────────────────────────────────── */
 
+type BarisLepas = {
+  id: string;
+  reportId: string;
+  lineageKey: string;
+  volumeDone: Prisma.Decimal;
+  volumeSebelumPadanan: Prisma.Decimal | null;
+  updatedAt: Date;
+  rabNode: { unitPrice: Prisma.Decimal | null };
+  report: { reportDate: Date };
+};
+
 /**
- * Lepas pemasangan yang sudah berlaku: baris kembali ke kunci item lama dan,
- * bila volumenya dulu dipulihkan, ke angka sesudah aktivasi. Hanya selama
- * revisi aktifnya masih sama, dan hanya bila barisnya belum diubah orang.
+ * Lepas pemasangan yang sudah berlaku: semua baris kembali ke angka dan kunci
+ * sebelum dipasangkan. Hanya selama revisi aktifnya masih sama, dan hanya bila
+ * barisnya belum diubah orang.
  */
 export async function lepasPadananAktif(o: {
   padananId: string;
@@ -1039,7 +1156,6 @@ export async function lepasPadananAktif(o: {
           lineageBaru: true,
           jenis: true,
           luarRabIds: true,
-          ringkasan: true,
           berlakuPada: true,
           ditutupPada: true,
           dilepasPada: true,
@@ -1052,7 +1168,7 @@ export async function lepasPadananAktif(o: {
           `RAB aktif sudah berganti (revisi #${aktif?.revisionNo ?? "?"}) dan pasangan ini sudah ikut menjadi dasarnya. Pasangan tidak bisa dilepas lagi.`,
         );
       }
-      const baris = await tx.dailyReportItem.findMany({
+      const baris: BarisLepas[] = await tx.dailyReportItem.findMany({
         where: { padananAktifId: p.id },
         select: {
           id: true,
@@ -1065,42 +1181,18 @@ export async function lepasPadananAktif(o: {
           report: { select: { reportDate: true } },
         },
       });
-      const diubah = baris.filter((b) => b.lineageKey !== p.lineageBaru || barisDiubahSesudah(b.updatedAt, p.berlakuPada!));
+      // Baris yang dipasangkan berkunci item tujuan; baris item lama yang
+      // dinolkan karena ditampung berkunci item lama.
+      const kunciSah = new Set([p.lineageBaru, p.lineageLama]);
+      const diubah = baris.filter((b) => !kunciSah.has(b.lineageKey) || barisDiubahSesudah(b.updatedAt, p.berlakuPada!));
       if (diubah.length > 0) {
         throw new PadananAktifError(
           `Laporan tanggal ${daftarTanggal(diubah.map((b) => kunciTanggal(b.report.reportDate)))} sudah diubah sesudah dipasangkan. ` +
             `Melepas akan menimpa perubahan itu, jadi dibatalkan.`,
         );
       }
-      if (p.jenis === "luar_rab") {
-        await lepasLuar(tx, p.luarRabIds, baris);
-      } else {
-        // Kunci item lama bisa sudah dipakai lagi di laporan yang sama (item lama dilaporkan ulang).
-        const bentrok = await tx.dailyReportItem.findMany({
-          where: { lineageKey: p.lineageLama, reportId: { in: baris.map((b) => b.reportId) } },
-          select: { report: { select: { reportDate: true } } },
-        });
-        if (bentrok.length > 0) {
-          throw new PadananAktifError(
-            `Laporan tanggal ${daftarTanggal(bentrok.map((b) => kunciTanggal(b.report.reportDate)))} sudah memuat item lamanya lagi. ` +
-              `Melepas akan membuat item yang sama dua kali di satu laporan.`,
-          );
-        }
-        for (const b of baris) {
-          const kembali = b.volumeSebelumPadanan == null ? null : Number(b.volumeSebelumPadanan);
-          await tx.dailyReportItem.update({
-            where: { id: b.id },
-            data: {
-              lineageKey: p.lineageLama,
-              padananAktifId: null,
-              volumeSebelumPadanan: null,
-              ...(kembali == null
-                ? {}
-                : { volumeDone: kembali, valueDone: hitungNilai(kembali, Number(b.rabNode.unitPrice ?? 0)) }),
-            },
-          });
-        }
-      }
+      if (p.jenis === "luar_rab") await lepasLuar(tx, p.luarRabIds, baris);
+      else await lepasPasang(tx, p, baris);
       await tx.rabPadananAktif.update({
         where: { id: p.id },
         data: { dilepasPada: new Date(), dilepasOlehId: o.userId, alasanLepas: alasan },
@@ -1125,7 +1217,7 @@ export async function lepasPadananAktif(o: {
         })),
       });
       const tanggal = baris.map((b) => kunciTanggal(b.report.reportDate)).sort();
-      return { baris: baris.length, locationId: p.locationId, tanggalTerawal: tanggal[0] ?? null };
+      return { baris: new Set(baris.map((b) => b.reportId)).size, locationId: p.locationId, tanggalTerawal: tanggal[0] ?? null };
     },
     { timeout: 60_000, maxWait: 15_000 },
   );
@@ -1133,16 +1225,45 @@ export async function lepasPadananAktif(o: {
   return { baris: hasil.baris, snapshotDibangunUlang };
 }
 
+/** Lepas pemasangan item lama: kunci dan angka setiap baris dikembalikan. */
+async function lepasPasang(tx: Tx, p: { lineageLama: string; lineageBaru: string }, baris: readonly BarisLepas[]) {
+  // Laporan tempat baris item tujuan MENAMPUNG: baris item lamanya ada (dinolkan) di sana.
+  const laporanTampung = new Set(baris.filter((b) => b.lineageKey === p.lineageLama).map((b) => b.reportId));
+  const pindah = baris.filter((b) => b.lineageKey === p.lineageBaru && !laporanTampung.has(b.reportId));
+  // Kunci item lama bisa sudah dipakai lagi di laporan yang sama (item lama dilaporkan ulang).
+  const bentrok = await tx.dailyReportItem.findMany({
+    where: { lineageKey: p.lineageLama, reportId: { in: pindah.map((b) => b.reportId) } },
+    select: { report: { select: { reportDate: true } } },
+  });
+  if (bentrok.length > 0) {
+    throw new PadananAktifError(
+      `Laporan tanggal ${daftarTanggal(bentrok.map((b) => kunciTanggal(b.report.reportDate)))} sudah memuat item lamanya lagi. ` +
+        `Melepas akan membuat item yang sama dua kali di satu laporan.`,
+    );
+  }
+  for (const b of baris) {
+    const kembali = b.volumeSebelumPadanan == null ? Number(b.volumeDone) : Number(b.volumeSebelumPadanan);
+    const dipindah = b.lineageKey === p.lineageBaru && !laporanTampung.has(b.reportId);
+    await tx.dailyReportItem.update({
+      where: { id: b.id },
+      data: {
+        ...(dipindah ? { lineageKey: p.lineageLama } : {}),
+        padananAktifId: null,
+        volumeSebelumPadanan: null,
+        volumeDone: kembali,
+        // Nilai diturunkan lagi dari node baris itu sendiri.
+        valueDone: hitungNilai(kembali, Number(b.rabNode.unitPrice ?? 0)),
+      },
+    });
+  }
+}
+
 /**
  * Lepas pemasangan catatan di luar RAB: baris yang dibuat dari catatan
  * dihapus, baris yang ditambah kembali ke angka sebelumnya; catatan kembali
  * menunggu dan fotonya kembali ke catatan.
  */
-async function lepasLuar(
-  tx: Tx,
-  luarRabIds: readonly string[],
-  baris: readonly { id: string; volumeSebelumPadanan: Prisma.Decimal | null; rabNode: { unitPrice: Prisma.Decimal | null } }[],
-) {
+async function lepasLuar(tx: Tx, luarRabIds: readonly string[], baris: readonly BarisLepas[]) {
   const ids = [...luarRabIds];
   for (const b of baris) {
     await tx.photo.updateMany({ where: { reportItemId: b.id, luarRabId: { in: ids } }, data: { reportItemId: null } });
@@ -1177,37 +1298,31 @@ export async function jumlahUsulanMenunggu(locationId: string): Promise<number> 
 }
 
 /**
- * Isi menu "Pasangkan realisasi": item yang belum dipasangkan beserta calon
- * tujuannya, dan semua usulan (menunggu, berlaku, ditutup, dilepas).
+ * Isi menu "Pasangkan realisasi": SEMUA item pekerjaan RAB aktif sebagai
+ * tujuan (781), item lama yang belum dipasangkan, catatan di luar RAB yang
+ * menunggu, dan semua usulan (menunggu, berlaku, ditutup, dilepas).
  */
 export async function dataPadananAktif(locationId: string): Promise<{
   aktif: { id: string; revisionNo: number } | null;
+  calon: CalonAktif[];
   belum: ItemBelumAktif[];
   luarRab: KelompokLuarRab[];
-  calonLuarRab: CalonLuarRab[];
   usulan: UsulanPadanan[];
 }> {
   const aktif = await revisiAktif(db, locationId);
   const usulan = await daftarUsulan(locationId, aktif?.id ?? null);
-  if (!aktif) return { aktif: null, belum: [], luarRab: [], calonLuarRab: [], usulan };
+  if (!aktif) return { aktif: null, calon: [], belum: [], luarRab: [], usulan };
 
   const hidup = new Set(usulan.filter((u) => u.keadaan === "diajukan" || u.keadaan === "berlaku").map((u) => u.lineageLama));
-  const nodeAktif = await db.rabNode.findMany({
-    where: { revisionId: aktif.id },
-    select: { id: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, lineageKey: true },
-    orderBy: { sortOrder: "asc" },
-  });
+  const nodeAktif = await nodeRevisi(db, aktif.id);
   const beranak = new Set(nodeAktif.map((n) => n.parentId).filter((x): x is string => !!x));
-  const lineageAktif = new Set(nodeAktif.map((n) => n.lineageKey));
   const draft = await db.rabRevision.findFirst({ where: { locationId, status: "draft" }, select: { id: true } });
   const lineageDraft = draft
     ? new Set((await db.rabNode.findMany({ where: { revisionId: draft.id }, select: { lineageKey: true } })).map((n) => n.lineageKey))
     : null;
 
-  // Calon tujuan: item pekerjaan RAB aktif tanpa rincian, bervolume.
-  const calonNode = nodeAktif.filter(
-    (n) => (n.kind === "item" || n.kind === "grup") && !beranak.has(n.id) && !volumeNol(n.volume == null ? null : Number(n.volume)),
-  );
+  // Tujuan: SEMUA item pekerjaan RAB aktif tanpa rincian (781).
+  const calonNode = nodeAktif.filter((n) => (n.kind === "item" || n.kind === "grup") && !beranak.has(n.id));
   const terlaporRows = calonNode.length
     ? await db.dailyReportItem.groupBy({
         by: ["lineageKey"],
@@ -1216,21 +1331,43 @@ export async function dataPadananAktif(locationId: string): Promise<{
       })
     : [];
   const terlapor = new Map(terlaporRows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));
-  const sisaCalon = new Map(
-    calonNode.map((n) => [n.lineageKey, bulat3(Math.max(0, Number(n.volume) - (terlapor.get(n.lineageKey) ?? 0)))]),
-  );
   const jalurCalon = await jalurNodeById(calonNode.map((n) => n.id));
+  const calon: CalonAktif[] = calonNode.map((n) => ({
+    lineageKey: n.lineageKey,
+    code: n.code,
+    name: n.name,
+    unit: n.unit,
+    satuanKunci: kunciSatuan(n.unit),
+    jalur: jalurCalon.get(n.id)?.kode ?? n.code,
+    akar: akarLineage(n.lineageKey),
+    volume: Number(n.volume ?? 0),
+    sisa: bulat3(Math.max(0, Number(n.volume ?? 0) - (terlapor.get(n.lineageKey) ?? 0))),
+  }));
+  // Saran: pencocok nama yang sama dengan padanan draft (738). Item yang sisanya
+  // 0 tidak disarankan – tetap bisa dipilih.
+  const kandidat: KandidatDraft[] = calonNode
+    .map((n, i) => ({ n, c: calon[i]! }))
+    .filter(({ c }) => c.sisa > 0.0005)
+    .map(({ n, c }) => ({
+      id: n.lineageKey,
+      lineageKey: n.lineageKey,
+      kode: n.code,
+      nama: n.name,
+      jalur: (jalurCalon.get(n.id)?.nama ?? "").split(" › ").filter(Boolean),
+      satuan: n.unit,
+      volumeDraft: c.volume,
+      sisa: c.sisa,
+      baru: false,
+    }));
+  const sarankan = (uraian: string, satuan: string | null, kecuali: string | null) => {
+    const u = usulkanPadanan({ uraian, satuan: satuan ?? "" }, kecuali ? kandidat.filter((k) => k.id !== kecuali) : kandidat);
+    return { saran: u.saran.map((x) => x.id), pilihan: u.kandidatId };
+  };
 
   // Item lama jenis `hilang`: dari halaman Tidak terbobot (calculation layer kanonik).
   const tidakTerbobot = (await realisasiTidakTerbobot(locationId)).filter((i) => !hidup.has(i.lineageKey));
   // Item lama jenis `dinolkan`: masih di RAB aktif dengan volume 0, berjejak penurunan saat aktivasi.
-  const nolAktif = nodeAktif.filter(
-    (n) =>
-      (n.kind === "item" || n.kind === "grup") &&
-      !beranak.has(n.id) &&
-      volumeNol(n.volume == null ? null : Number(n.volume)) &&
-      !hidup.has(n.lineageKey),
-  );
+  const nolAktif = calonNode.filter((n) => volumeNol(n.volume == null ? null : Number(n.volume)) && !hidup.has(n.lineageKey));
   const jalurNol = await jalurNodeById(nolAktif.map((n) => n.id));
   const jejakNol = nolAktif.length ? await semuaJejakNol(db, aktif.id) : new Map<string, Jejak>();
 
@@ -1243,18 +1380,6 @@ export async function dataPadananAktif(locationId: string): Promise<{
     : [];
   const perKunci = new Map<string, typeof barisLama>();
   for (const b of barisLama) perKunci.set(b.lineageKey, [...(perKunci.get(b.lineageKey) ?? []), b]);
-  const laporanPerKunci = new Map<string, Set<string>>();
-  const semuaBaris = calonNode.length
-    ? await db.dailyReportItem.findMany({
-        where: { lineageKey: { in: calonNode.map((n) => n.lineageKey) }, report: { locationId } },
-        select: { lineageKey: true, reportId: true },
-      })
-    : [];
-  for (const b of semuaBaris) {
-    const s = laporanPerKunci.get(b.lineageKey) ?? new Set<string>();
-    s.add(b.reportId);
-    laporanPerKunci.set(b.lineageKey, s);
-  }
 
   const susun = (o: {
     lineageKey: string;
@@ -1265,67 +1390,25 @@ export async function dataPadananAktif(locationId: string): Promise<{
     jenis: JenisPadanan;
     volume: number;
     keterangan: string;
-    terhalangAwal: string | null;
   }): ItemBelumAktif => {
     const baris = perKunci.get(o.lineageKey) ?? [];
     const tanggal = baris.map((b) => b.report.reportDate).sort((a, b) => a.getTime() - b.getTime());
-    const laporanLama = new Set(baris.map((b) => b.reportId));
     const belumDikirim = baris.filter((b) => !terhitung.has(b.report.status));
-    let terhalang = o.terhalangAwal;
-    if (!terhalang && belumDikirim.length > 0) {
+    let terhalang: string | null = null;
+    if (lineageDraft?.has(o.lineageKey)) {
+      terhalang =
+        "Item ini muncul lagi di draft adendum yang sedang berjalan. Realisasinya tersambung sendiri saat draft itu aktif.";
+    } else if (belumDikirim.length > 0) {
       terhalang =
         `Laporan tanggal ${daftarTanggal(belumDikirim.map((b) => kunciTanggal(b.report.reportDate)))} memuat item ini ` +
         `dan belum dikirim. Kirim atau perbaiki laporan itu dulu.`;
     }
-    let sisaKurang = 0;
-    const calon: CalonAktif[] = [];
-    for (const n of calonNode) {
-      const sasaran: ItemSasaran = {
-        lineageKey: n.lineageKey,
-        kind: n.kind,
-        name: n.name,
-        unit: n.unit,
-        punyaAnak: false,
-        volume: Number(n.volume),
-      };
-      if (periksaPasanganAktif({ lineageKey: o.lineageKey, name: o.name, unit: o.unit }, sasaran, { lineageAktif, lineageDraft })) {
-        continue;
-      }
-      // Satu laporan yang memuat keduanya tidak bisa dipasangkan – bukan calon.
-      const lap = laporanPerKunci.get(n.lineageKey);
-      if (lap && [...laporanLama].some((id) => lap.has(id))) continue;
-      // Sisa kurang tidak menghalangi: kelebihannya dipotong saat berlaku
-      // (DECISIONS 780). Hanya item yang sisanya 0 yang tidak ditawarkan.
-      const sisa = sisaCalon.get(n.lineageKey) ?? 0;
-      if (sisa <= 0.0005) {
-        sisaKurang++;
-        continue;
-      }
-      calon.push({
-        lineageKey: n.lineageKey,
-        code: n.code,
-        name: n.name,
-        unit: n.unit,
-        jalur: jalurCalon.get(n.id)?.kode ?? n.code,
-        volume: Number(n.volume),
-        sisa,
-        dipotong: bulat3(Math.max(0, o.volume - sisa)),
-      });
-    }
     return {
-      lineageKey: o.lineageKey,
-      name: o.name,
-      unit: o.unit,
-      jalur: o.jalur,
-      kategori: o.kategori,
-      jenis: o.jenis,
-      volume: o.volume,
-      jumlahLaporan: laporanLama.size,
+      ...o,
+      jumlahLaporan: new Set(baris.map((b) => b.reportId)).size,
       pertama: tanggal[0] ?? null,
       terakhir: tanggal.at(-1) ?? null,
-      keterangan: o.keterangan,
-      calon,
-      calonSisaKurang: sisaKurang,
+      ...sarankan(o.name, o.unit, o.lineageKey),
       terhalang,
     };
   };
@@ -1340,7 +1423,6 @@ export async function dataPadananAktif(locationId: string): Promise<{
       jenis: "hilang",
       volume: i.volume,
       keterangan: i.hilangDiRevisi ? `Hilang dari RAB di revisi #${i.hilangDiRevisi}` : "Tidak ada di RAB aktif",
-      terhalangAwal: null,
     }),
   );
 
@@ -1349,15 +1431,11 @@ export async function dataPadananAktif(locationId: string): Promise<{
     if (baris.length === 0) continue;
     const jejak = jejakNol.get(n.lineageKey);
     if (!jejak) continue; // tidak diturunkan saat aktivasi ini – tidak ada yang hilang
-    const r = rencanaPulihNol(
-      jejak,
-      baris.map((b) => ({ id: b.id, tanggal: kunciTanggal(b.report.reportDate), volume: Number(b.volumeDone) })),
-    );
-    const volume = bulat3(
-      baris.reduce((t, b) => t + (r.ok ? (r.pulih.get(b.id) ?? Number(b.volumeDone)) : Number(b.volumeDone)), 0),
-    );
-    if (r.ok && volume <= 0) continue;
-    const kategoriNode = nodeAktif.find((x) => x.kind === "kategori" && n.lineageKey.split("#")[0] === x.lineageKey.split("#")[0]);
+    const kini = baris.map((b) => ({ id: b.id, tanggal: kunciTanggal(b.report.reportDate), volume: Number(b.volumeDone) }));
+    const bobot = bobotDinolkan(jejak, kini);
+    const volume = bulat3([...bobot.values()].reduce((t, v) => t + v, 0));
+    if (volume <= 0) continue;
+    const kategoriNode = nodeAktif.find((x) => x.kind === "kategori" && akarLineage(n.lineageKey) === akarLineage(x.lineageKey));
     belum.push(
       susun({
         lineageKey: n.lineageKey,
@@ -1369,9 +1447,6 @@ export async function dataPadananAktif(locationId: string): Promise<{
         jenis: "dinolkan",
         volume,
         keterangan: `Volumenya 0 sejak revisi #${aktif.revisionNo}; laporannya diturunkan jadi 0 saat aktivasi`,
-        terhalangAwal: r.ok
-          ? null
-          : `Angka di laporan tanggal ${daftarTanggal(r.tanggal)} sudah berubah sejak aktivasi, jadi volumenya tidak bisa dipulihkan otomatis.`,
       }),
     );
   }
@@ -1381,27 +1456,15 @@ export async function dataPadananAktif(locationId: string): Promise<{
   // berlaku sudah punya baris; yang barisnya dihapus lewat koreksi laporan
   // muncul lagi di sini.
   const catatanDiUsulan = new Set(usulan.filter((u) => u.keadaan === "diajukan").flatMap((u) => u.luarRabIds));
-  const calonLuarRab: CalonLuarRab[] = calonNode
-    .map((n) => ({
-      lineageKey: n.lineageKey,
-      name: n.name,
-      unit: n.unit,
-      satuanKunci: kunciSatuan(n.unit),
-      jalur: jalurCalon.get(n.id)?.kode ?? n.code,
-      sisa: sisaCalon.get(n.lineageKey) ?? 0,
-    }))
-    .filter((c) => c.sisa > 0.0005);
-  const luarRab = await kelompokLuarRab(locationId, catatanDiUsulan, calonLuarRab, calonNode, jalurCalon);
+  const luarRab = await kelompokLuarRab(locationId, catatanDiUsulan, sarankan);
 
-  return { aktif, belum, luarRab, calonLuarRab, usulan };
+  return { aktif, calon, belum, luarRab, usulan };
 }
 
 async function kelompokLuarRab(
   locationId: string,
   kecuali: ReadonlySet<string>,
-  calon: readonly CalonLuarRab[],
-  calonNode: readonly { id: string; lineageKey: string; code: string; name: string; unit: string | null; volume: Prisma.Decimal | null }[],
-  jalurCalon: Map<string, { kode: string; nama: string }>,
+  sarankan: (uraian: string, satuan: string | null, kecuali: string | null) => { saran: string[]; pilihan: string | null },
 ): Promise<KelompokLuarRab[]> {
   const rows = (
     await db.pekerjaanLuarRab.findMany({
@@ -1420,22 +1483,6 @@ async function kelompokLuarRab(
   ).filter((r) => !kecuali.has(r.id));
   if (rows.length === 0) return [];
 
-  // Kandidat untuk saran: item yang masih bersisa, dinilai seperti padanan draft (738).
-  const masihAda = new Set(calon.map((c) => c.lineageKey));
-  const kandidat: KandidatDraft[] = calonNode
-    .filter((n) => masihAda.has(n.lineageKey))
-    .map((n) => ({
-      id: n.lineageKey,
-      lineageKey: n.lineageKey,
-      kode: n.code,
-      nama: n.name,
-      jalur: (jalurCalon.get(n.id)?.nama ?? "").split(" › ").filter(Boolean),
-      satuan: n.unit,
-      volumeDraft: Number(n.volume),
-      sisa: calon.find((c) => c.lineageKey === n.lineageKey)?.sisa ?? null,
-      baru: false,
-    }));
-
   const grup = new Map<string, (typeof rows)[number][]>();
   for (const r of rows) {
     const kunci = `${token(r.uraian).join(" ")}|${kunciSatuan(r.satuan) ?? "-"}`;
@@ -1446,12 +1493,10 @@ async function kelompokLuarRab(
     const siap = isi.filter((r) => terhitung.has(r.report.status));
     const tahan = isi.filter((r) => !terhitung.has(r.report.status));
     const tanggal = siap.map((r) => jakartaDateKey(r.report.reportDate)).sort();
-    const usul = usulkanPadanan({ uraian: isi[0]!.uraian, satuan: isi[0]!.satuan }, kandidat);
     hasil.push({
       kunci,
       uraian: isi[0]!.uraian,
       satuan: isi[0]!.satuan,
-      satuanKunci: kunciSatuan(isi[0]!.satuan),
       catatanIds: siap.map((r) => r.id),
       volume: bulat3(siap.reduce((t, r) => t + Number(r.volume), 0)),
       jumlahLaporan: new Set(siap.map((r) => r.reportId)).size,
@@ -1462,8 +1507,7 @@ async function kelompokLuarRab(
           ? { jumlah: tahan.length, tanggal: daftarTanggal(tahan.map((r) => jakartaDateKey(r.report.reportDate))) }
           : null,
       asalDraft: isi.some((r) => r.asalDraftNo != null),
-      saran: usul.saran.map((x) => x.id),
-      pilihan: usul.kandidatId,
+      ...sarankan(isi[0]!.uraian, isi[0]!.satuan, null),
     });
   }
   return hasil.sort((a, b) => a.uraian.localeCompare(b.uraian, "id"));
@@ -1493,7 +1537,6 @@ async function daftarUsulan(locationId: string, aktifId: string | null): Promise
         orderBy: { approvedAt: "asc" },
         select: { userId: true, role: true, approvedAt: true, user: { select: { fullName: true } } },
       },
-      _count: { select: { baris: true } },
     },
   });
   return rows.map((r) => {
@@ -1511,8 +1554,11 @@ async function daftarUsulan(locationId: string, aktifId: string | null): Promise
       jalurBaru: g.jalurBaru,
       unit: g.unit,
       volume: g.volume,
+      volumeAsal: g.volumeAsal ?? g.volume,
+      unitAsal: g.unitAsal !== undefined ? g.unitAsal : g.unit,
       dipotong: g.dipotong ?? 0,
-      baris: keadaan === "berlaku" ? r._count.baris : g.baris,
+      // Dari ringkasan: satu laporan bisa menyentuh dua baris (baris item lama dan baris yang menampung).
+      baris: g.baris,
       luarRabIds: r.luarRabIds,
       alasan: r.alasan,
       diajukanOleh: { id: r.diajukanOleh.id, nama: r.diajukanOleh.fullName },

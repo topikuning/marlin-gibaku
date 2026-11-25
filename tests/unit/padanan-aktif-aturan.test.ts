@@ -1,87 +1,119 @@
 import { describe, expect, it } from "vitest";
 import {
+  bagiProporsional,
   barisDiubahSesudah,
+  bobotDinolkan,
   keadaanUsulan,
-  periksaPasanganAktif,
-  rencanaPulihNol,
+  periksaSasaran,
+  rencanaLuarRab,
+  satuanSama,
+  tentukanMasuk,
 } from "@/lib/rab/padanan-aktif-aturan";
 
 /**
- * PEMASANGAN REALISASI SESUDAH AKTIVASI – aturan murni (DECISIONS 777).
+ * PEMASANGAN REALISASI SESUDAH AKTIVASI – aturan murni (DECISIONS 777/780/781).
  *
- * Permintaan user 2026-11-25: *"buat bisa dipasangkan sesudah aktivasi, menu
- * khusus. mitigasi semua resiko dan penanganannya"*.
+ * Ketetapan user 2026-11-25: *"intinya kasih saja semua list pekerjaan di RAB
+ * aktif, untuk dipadankan, satuan dsb mengikuti rab aktif, hanya volume saja
+ * disesuaikan atau bisa diinput sesuai sisa. mitigasi total masalah pemetaan
+ * manual ini."*
  */
 
-const lama = { lineageKey: "IV#3", name: "Urugan pasir", unit: "m3" };
-const sasaran = (o: Partial<Parameters<typeof periksaPasanganAktif>[1]> = {}) => ({
+const sasaran = (o: Partial<Parameters<typeof periksaSasaran>[0]> = {}) => ({
   lineageKey: "IV#7",
   kind: "item",
   name: "Urugan pasir t=5 cm",
-  unit: "M3",
   punyaAnak: false,
-  volume: 12,
   ...o,
 });
-const konteks = (o: Partial<Parameters<typeof periksaPasanganAktif>[2]> = {}) => ({
-  lineageAktif: new Set(["IV#7", "IV#8", "V#1"]),
-  lineageDraft: null,
-  ...o,
-});
+const aktif = new Set(["IV#7", "V#1"]);
 
-describe("periksaPasanganAktif", () => {
-  it("item baru di RAB aktif, kategori dan satuan sama → sah", () => {
-    expect(periksaPasanganAktif(lama, sasaran(), konteks())).toBeNull();
+describe("periksaSasaran – semua item pekerjaan RAB aktif boleh, apa pun kategori dan satuannya", () => {
+  it("item pekerjaan RAB aktif tanpa rincian → sah (kategori lain juga)", () => {
+    expect(periksaSasaran(sasaran(), aktif, "IV#3")).toBeNull();
+    expect(periksaSasaran(sasaran({ lineageKey: "V#1" }), aktif, "IV#3")).toBeNull();
+    expect(periksaSasaran(sasaran(), aktif, null)).toBeNull();
   });
 
-  it("sasaran harus item pekerjaan di RAB aktif, tanpa rincian, dan bervolume", () => {
-    expect(periksaPasanganAktif(lama, sasaran({ lineageKey: "IV#99" }), konteks())).toMatch(/tidak ada di RAB aktif/);
-    expect(periksaPasanganAktif(lama, sasaran({ kind: "kategori" }), konteks())).toMatch(/bukan item pekerjaan/);
-    expect(periksaPasanganAktif(lama, sasaran({ punyaAnak: true }), konteks())).toMatch(/rincian/);
-    expect(periksaPasanganAktif(lama, sasaran({ volume: 0 }), konteks())).toMatch(/volume 0/);
-    expect(periksaPasanganAktif(lama, sasaran({ volume: null }), konteks())).toMatch(/volume 0/);
-  });
-
-  it("beda kategori atau beda satuan ditolak – volume pindah apa adanya", () => {
-    expect(periksaPasanganAktif(lama, sasaran({ lineageKey: "V#1" }), konteks())).toMatch(/Beda kategori/);
-    expect(periksaPasanganAktif(lama, sasaran({ unit: "m2" }), konteks())).toMatch(/Beda satuan/);
-  });
-
-  it("item yang sama, atau item lama yang muncul lagi di draft adendum, ditolak", () => {
-    expect(
-      periksaPasanganAktif({ ...lama, lineageKey: "IV#7" }, sasaran(), konteks({ lineageAktif: new Set(["IV#7"]) })),
-    ).toMatch(/item yang sama/);
-    expect(periksaPasanganAktif(lama, sasaran(), konteks({ lineageDraft: new Set(["IV#3"]) }))).toMatch(
-      /draft adendum/,
-    );
+  it("yang tersisa hanya syarat bentuk: di RAB aktif, item pekerjaan, tanpa rincian, bukan item yang sama", () => {
+    expect(periksaSasaran(sasaran({ lineageKey: "IV#99" }), aktif)).toMatch(/tidak ada di RAB aktif/);
+    expect(periksaSasaran(sasaran({ kind: "kategori" }), aktif)).toMatch(/bukan item pekerjaan/);
+    expect(periksaSasaran(sasaran({ punyaAnak: true }), aktif)).toMatch(/rincian/);
+    expect(periksaSasaran(sasaran(), aktif, "IV#7")).toMatch(/item yang sama/);
   });
 });
 
-describe("rencanaPulihNol: volume yang dinolkan saat aktivasi dipulihkan dari jejak auditnya", () => {
+describe("satuanSama", () => {
+  it("penulisan berbeda dianggap sama; yang tidak diketahui cocok dengan apa pun", () => {
+    expect(satuanSama("m³", "M3")).toBe(true);
+    expect(satuanSama("-", "m2")).toBe(true);
+    expect(satuanSama(null, "m2")).toBe(true);
+    expect(satuanSama("m", "m2")).toBe(false);
+  });
+});
+
+describe("tentukanMasuk – volume yang masuk diisi orang, paling banyak sebesar sisa", () => {
+  it("kosong + satuan sama → volume asal, dibatasi sisa; kelebihannya disebut", () => {
+    expect(tentukanMasuk({ asal: 7, diminta: null, sisa: 12, satuanSama: true, ketat: true })).toEqual({ masuk: 7, dipotong: 0 });
+    expect(tentukanMasuk({ asal: 53.17, diminta: null, sisa: 30, satuanSama: true, ketat: true })).toEqual({
+      masuk: 30,
+      dipotong: 23.17,
+    });
+  });
+
+  it("beda satuan wajib diisi; isiannya dipakai dan tidak ada 'dipotong' (satuannya lain)", () => {
+    expect(tentukanMasuk({ asal: 1, diminta: null, sisa: 10, satuanSama: false, ketat: true })).toEqual({ galat: "isi_volume" });
+    expect(tentukanMasuk({ asal: 1, diminta: 2.5, sisa: 10, satuanSama: false, ketat: true })).toEqual({ masuk: 2.5, dipotong: 0 });
+  });
+
+  it("isian di atas sisa: ditolak saat diajukan, dipotong ke sisa saat berlaku", () => {
+    expect(tentukanMasuk({ asal: 7, diminta: 9, sisa: 8, satuanSama: true, ketat: true })).toEqual({ galat: "melebihi" });
+    expect(tentukanMasuk({ asal: 7, diminta: 7, sisa: 2, satuanSama: true, ketat: false })).toEqual({ masuk: 2, dipotong: 5 });
+    expect(tentukanMasuk({ asal: 7, diminta: -1, sisa: 8, satuanSama: true, ketat: true })).toEqual({ galat: "negatif" });
+  });
+
+  it("sisa 0 tetap boleh – hanya dipetakan, volumenya 0", () => {
+    expect(tentukanMasuk({ asal: 7, diminta: null, sisa: 0, satuanSama: true, ketat: true })).toEqual({ masuk: 0, dipotong: 7 });
+    expect(tentukanMasuk({ asal: 7, diminta: 0, sisa: 0, satuanSama: false, ketat: true })).toEqual({ masuk: 0, dipotong: 0 });
+  });
+});
+
+describe("bagiProporsional – naik atau turun, totalnya persis", () => {
+  const jumlah = (v: number[]) => Math.round(v.reduce((t, x) => t + x, 0) * 1000) / 1000;
+  it("target sama dengan bobot → bobotnya apa adanya", () => {
+    expect(bagiProporsional([4, 3], 7)).toEqual([4, 3]);
+    expect(bagiProporsional([0.1, 0.2, 0.3], 0.6)).toEqual([0.1, 0.2, 0.3]);
+  });
+  it("turun dan naik (beda satuan): sesuai porsi, Σ persis target", () => {
+    const turun = bagiProporsional([4, 3], 5.5);
+    expect(turun).toEqual([3.143, 2.357]);
+    const naik = bagiProporsional([4, 3], 10);
+    expect(jumlah(naik)).toBe(10);
+    expect(naik[0]).toBeGreaterThan(naik[1]!);
+  });
+  it("bobot semuanya 0 → dibagi sama rata; target 0 → semuanya 0", () => {
+    expect(bagiProporsional([0, 0], 3)).toEqual([1.5, 1.5]);
+    expect(bagiProporsional([4, 3], 0)).toEqual([0, 0]);
+    expect(bagiProporsional([], 3)).toEqual([]);
+  });
+});
+
+describe("bobotDinolkan – angka sebelum diturunkan saat aktivasi, kecuali yang sudah diubah orang", () => {
   const jejak = [
     { tanggal: "2026-10-01", dari: 2.5, ke: 0 },
     { tanggal: "2026-10-03", dari: 1.25, ke: 0 },
   ];
-
-  it("baris yang masih seperti sesudah aktivasi → dipulihkan ke angka sebelumnya", () => {
-    const r = rencanaPulihNol(jejak, [
-      { id: "a", tanggal: "2026-10-01", volume: 0 },
-      { id: "b", tanggal: "2026-10-03", volume: 0 },
-    ]);
-    expect(r).toEqual({ ok: true, pulih: new Map([["a", 2.5], ["b", 1.25]]) });
-  });
-
-  it("baris yang angkanya sudah berubah sesudah aktivasi → ditolak dengan tanggalnya, tidak ada yang dipulihkan", () => {
-    const r = rencanaPulihNol(jejak, [
+  it("baris yang masih seperti sesudah aktivasi → angka sebelumnya; yang diubah → angkanya sekarang", () => {
+    const b = bobotDinolkan(jejak, [
       { id: "a", tanggal: "2026-10-01", volume: 0 },
       { id: "b", tanggal: "2026-10-03", volume: 0.5 },
+      { id: "c", tanggal: "2026-11-01", volume: 0.7 },
     ]);
-    expect(r).toEqual({ ok: false, tanggal: ["2026-10-03"] });
-  });
-
-  it("baris yang tidak ada di jejak (tidak pernah diturunkan) tidak disentuh", () => {
-    const r = rencanaPulihNol(jejak, [{ id: "c", tanggal: "2026-11-01", volume: 0 }]);
-    expect(r).toEqual({ ok: true, pulih: new Map() });
+    expect([...b]).toEqual([
+      ["a", 2.5],
+      ["b", 0.5],
+      ["c", 0.7],
+    ]);
   });
 });
 
@@ -105,84 +137,25 @@ describe("barisDiubahSesudah – Lepas tidak boleh menimpa perubahan orang", () 
   });
 });
 
-/*
- * KELEBIHAN DIPOTONG, TIDAK DITOLAK (DECISIONS 780). Keluhan user 2026-11-25
- * (tangkapan layar "3 item cocok tetapi sisa volumenya kurang"): *"apa
- * gunanya ini? gimana aku mau memasangkan ini ke rab aktif?"*.
- */
-describe("bagiMasuk – yang masuk sebatas sisa volume, kelebihannya dipotong dibagi rata", () => {
-  it("muat: tidak ada yang dipotong", async () => {
-    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
-    expect(bagiMasuk([4, 3], { volume: 12, terlapor: 1 })).toEqual({ hasil: [4, 3], masuk: 7, dipotong: 0 });
-  });
-
-  it("tidak muat: dibagi rata ke sisa, totalnya persis sisa", async () => {
-    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
-    const r = bagiMasuk([40, 13.17], { volume: 45, terlapor: 5 })!;
-    expect(r.masuk).toBe(40);
-    expect(r.dipotong).toBe(13.17);
-    expect(Math.round(r.hasil.reduce((t, v) => t + v, 0) * 1000) / 1000).toBe(40);
-    expect(r.hasil[0]).toBeGreaterThan(r.hasil[1]!);
-  });
-
-  it("sisa 0: tidak bisa menampung apa pun", async () => {
-    const { bagiMasuk } = await import("@/lib/rab/padanan-aktif-aturan");
-    expect(bagiMasuk([2], { volume: 10, terlapor: 10 })).toBeNull();
-    expect(bagiMasuk([2], { volume: 10, terlapor: 11 })).toBeNull();
-  });
-});
-
-/*
- * CATATAN PEKERJAAN DI LUAR RAB → ITEM RAB AKTIF (DECISIONS 780). Keluhan user
- * 2026-11-25: *"ada pekerjaan-pekerjaan di luar RAB yang sudah diinput manual,
- * itu dimana matchingkan dengan RAB aktifnya?"*.
- */
-describe("rencanaLuarRab – satu baris per laporan, menumpang di baris yang ada, kelebihan dipotong", () => {
+describe("rencanaLuarRab – satu baris per laporan, menumpang di baris yang ada, volume masuk dibagi", () => {
   const c = (id: string, reportId: string, tanggal: string, volume: number) => ({ id, reportId, tanggal, volume });
 
-  it("catatan di laporan yang sama digabung; laporan yang sudah punya baris item tujuan ditambah", async () => {
-    const { rencanaLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
+  it("catatan di laporan yang sama digabung; laporan yang sudah punya baris item tujuan ditambah", () => {
     const r = rencanaLuarRab(
       [c("b", "R2", "2026-10-02", 1.5), c("a", "R1", "2026-10-01", 2), c("a2", "R1", "2026-10-01", 1)],
       new Map([["R2", 4]]),
-      { volume: 20, terlapor: 5 },
-    )!;
-    expect(r.baris).toEqual([
+      4.5,
+    );
+    expect(r).toEqual([
       { reportId: "R1", tanggal: "2026-10-01", catatanIds: ["a", "a2"], tambah: 3, adaVolume: null },
       { reportId: "R2", tanggal: "2026-10-02", catatanIds: ["b"], tambah: 1.5, adaVolume: 4 },
     ]);
-    expect([r.masuk, r.dipotong]).toEqual([4.5, 0]);
   });
 
-  it("sisa kurang: dibagi rata per laporan, totalnya persis sisa; sisa 0 → null", async () => {
-    const { rencanaLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
-    const r = rencanaLuarRab([c("a", "R1", "2026-10-01", 6), c("b", "R2", "2026-10-02", 2)], new Map(), {
-      volume: 8,
-      terlapor: 3,
-    })!;
-    expect(r.baris.map((b) => b.tambah)).toEqual([3.75, 1.25]);
-    expect([r.masuk, r.dipotong]).toEqual([5, 3]);
-    expect(rencanaLuarRab([c("a", "R1", "2026-10-01", 1)], new Map(), { volume: 8, terlapor: 8 })).toBeNull();
-  });
-});
-
-describe("periksaSasaranLuarRab – catatan tanpa kategori: yang diperiksa item dan satuannya", () => {
-  const s = (o: Partial<Parameters<typeof periksaPasanganAktif>[1]> = {}) => sasaran({ lineageKey: "V#1", ...o });
-  it("satuan sama (penulisan berbeda) atau tidak diketahui → sah, lintas kategori boleh", async () => {
-    const { periksaSasaranLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
-    const aktif = new Set(["V#1"]);
-    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "m³" }], s(), aktif)).toBeNull();
-    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "-" }], s(), aktif)).toBeNull();
-    expect(periksaSasaranLuarRab([{ uraian: "Urugan", satuan: "m3" }], s({ unit: null }), aktif)).toBeNull();
-  });
-  it("beda satuan, bukan item, berincian, volume 0, tidak di RAB aktif → ditolak dengan sebabnya", async () => {
-    const { periksaSasaranLuarRab } = await import("@/lib/rab/padanan-aktif-aturan");
-    const aktif = new Set(["V#1"]);
-    const cat = [{ uraian: "Urugan", satuan: "m3" }];
-    expect(periksaSasaranLuarRab([...cat, { uraian: "Plester", satuan: "m2" }], s(), aktif)).toMatch(/Beda satuan: catatan "Plester"/);
-    expect(periksaSasaranLuarRab(cat, s({ kind: "kategori" }), aktif)).toMatch(/bukan item pekerjaan/);
-    expect(periksaSasaranLuarRab(cat, s({ punyaAnak: true }), aktif)).toMatch(/rincian/);
-    expect(periksaSasaranLuarRab(cat, s({ volume: 0 }), aktif)).toMatch(/volume 0/);
-    expect(periksaSasaranLuarRab(cat, s({ lineageKey: "V#2" }), aktif)).toMatch(/tidak ada di RAB aktif/);
+  it("volume masuk lain dari catatan (dipotong, atau satuan lain): dibagi sesuai porsi catatannya", () => {
+    expect(rencanaLuarRab([c("a", "R1", "2026-10-01", 6), c("b", "R2", "2026-10-02", 2)], new Map(), 5).map((b) => b.tambah)).toEqual([
+      3.75, 1.25,
+    ]);
+    expect(rencanaLuarRab([c("a", "R1", "2026-10-01", 1)], new Map(), 2.5).map((b) => b.tambah)).toEqual([2.5]);
   });
 });

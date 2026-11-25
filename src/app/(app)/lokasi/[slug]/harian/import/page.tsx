@@ -8,6 +8,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getRecapLeaves } from "@/lib/daily-report/recap-import";
 import { RecapImportClient } from "./recap-import-client";
+import { RekapMatriksClient } from "./rekap-matriks-client";
 
 export const metadata: Metadata = { title: "Impor Rekap Harian" };
 export const dynamic = "force-dynamic";
@@ -16,6 +17,10 @@ export const dynamic = "force-dynamic";
  * Impor rekap laporan harian dari Excel — untuk backfill saat lapangan lupa
  * lapor. Membuat laporan harian per tanggal (status "dikirim" → menunggu
  * verifikasi); progress ikut naik otomatis setelah diverifikasi.
+ *
+ * Dua bentuk berkas: template MARLIN (satu baris = tanggal + pekerjaan,
+ * DECISIONS 114) dan berkas Excel lapangan dengan sheet REKAP HARIAN (matriks pekerjaan ×
+ * tanggal, mode tambah/timpa, DECISIONS 782).
  */
 export default async function ImporRekapHarianPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -39,8 +44,10 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
         Kembali ke Pelaksanaan Harian
       </ButtonLink>
 
+      <RekapMatriksClient locationId={location.id} slug={slug} hasRab={leaves.length > 0} />
+
       <Card>
-        <CardHeader title="Cara pakai" />
+        <CardHeader title="Atau pakai template MARLIN" />
         <CardBody className="space-y-2 text-sm text-ink-muted">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
