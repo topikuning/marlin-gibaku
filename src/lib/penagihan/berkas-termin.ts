@@ -3,11 +3,28 @@ import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth/session";
 import { addMonths } from "@/lib/periodic-report";
 import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
-import { buangKeSampah, buatFolder, daftarSubfolder, ensureFolderPath, GDriveError } from "@/lib/gdrive/client";
+import {
+  buangKeSampah,
+  buatFolder,
+  buatPintasan,
+  daftarPintasan,
+  daftarSubfolder,
+  ensureFolderPath,
+  GDriveError,
+  metaBerkas,
+} from "@/lib/gdrive/client";
 import { KKP_FOLDERS, kunciNamaFolder, safeFileName } from "@/lib/gdrive/folders";
 import { rangkum, type HasilUnggah, type Terhalang, type TidakBerlaku } from "@/lib/gdrive/kirim";
 import { namaFolderTermin, polaFolderTermin } from "@/lib/gdrive/struktur";
-import { bolehDibuang, documentItem, uploadBatch, type UploadItem, type UploadTarget } from "@/lib/gdrive/upload";
+import {
+  bolehDibuang,
+  catatUnggah,
+  documentItem,
+  uploadBatch,
+  type UploadItem,
+  type UploadOutcome,
+  type UploadTarget,
+} from "@/lib/gdrive/upload";
 import { ambangTermin, dataSuratTersimpan, muatKontrakSurat } from "@/lib/surat-penyedia/data";
 import {
   CARA_RAPAT_BAWAAN,
@@ -112,14 +129,17 @@ export async function antrekanBerkasTermin(
     bulan: bulanBeririsan(kontrak.startDate, kontrak.weekMode, r.rentang),
   });
   // Berkas yang DITARIK dari Drive KKP tidak diunggah balik ke Drive KKP
-  // (DECISIONS 197) – berkasnya sudah ada di sana.
+  // (DECISIONS 197) – berkasnya sudah ada di sana. Di folder termin ia
+  // dipasang sebagai PINTASAN ke berkas aslinya (DECISIONS 778): dulu ia
+  // dilewati begitu saja, jadi "1. SPK & Adendum" dan "3. SPMK" termin kosong
+  // walau SPK dan SPMK-nya ada di Drive.
   const idDokumen = semua.flatMap((p) => (p.jenis === "berkas" && p.sumber?.startsWith("d") ? [p.sumber.slice(1)] : []));
   const dariDrive = new Set(
     (
       await db.document.findMany({ where: { id: { in: idDokumen }, source: "drive_kkp" }, select: { id: true } })
     ).map((x) => x.id),
   );
-  const rencana = semua.filter((p) => !(p.jenis === "berkas" && p.sumber && dariDrive.has(p.sumber.slice(1))));
+  const rencana = semua;
 
   // Versi MARLIN yang sudah naik tapi kini keluar rencana (diganti unggahan
   // sendiri, minggu prestasi dibetulkan, lokasi dinonaktifkan) dibuang dari
@@ -288,13 +308,15 @@ type LokasiTermin = { name: string; slug: string } | null;
  * disusun. `lokasi` = desa pemilik berkas (untuk subfolder & nama), bila ada.
  */
 type BerkasTersusun = { items: UploadItem[]; lokasi: string | null };
+/** Dokumen yang ditarik dari Drive KKP: dipasang sebagai pintasan ke berkas aslinya (DECISIONS 778). */
+type PintasanTersusun = { pintasan: { targetId: string; fileName: string }; lokasi: string | null };
 
 async function susunBerkas(
   p: PekerjaanTermin,
   pkg: PaketTermin,
   lokasi: LokasiTermin,
   baseUrl: string | null,
-): Promise<BerkasTersusun | TidakBerlaku> {
+): Promise<BerkasTersusun | PintasanTersusun | TidakBerlaku> {
   const namaLokasi = lokasi?.name ?? null;
   const pdf = (data: Buffer): BerkasTersusun => ({
     items: [
@@ -319,6 +341,8 @@ async function susunBerkas(
             packageId: true,
             butirTermin: true,
             terminKe: true,
+            source: true,
+            driveFileId: true,
             location: { select: { name: true } },
           },
         });
@@ -331,6 +355,13 @@ async function susunBerkas(
               where: { id: { not: id }, status: "aktif", packageId: doc.packageId, butirTermin: doc.butirTermin, terminKe: doc.terminKe, fileName: doc.fileName },
             })
           : 0;
+        // Sudah ada di Drive KKP: pintasan ke berkas aslinya, bukan salinan (DECISIONS 197, 778).
+        if (doc.source === "drive_kkp" && doc.driveFileId) {
+          return {
+            pintasan: { targetId: doc.driveFileId, fileName: safeFileName(namaDenganLokasi(doc.fileName, desa), "dokumen") },
+            lokasi: desa,
+          };
+        }
         const item = await documentItem(doc);
         let nama = item.fileName;
         if (kembar) {
@@ -453,6 +484,14 @@ export async function jalankanPekerjaanTermin(
 
   const berkas = await susunBerkas(p, { ...pkg, driveFolderId: pkg.driveFolderId }, lokasi, opts.baseUrl);
   if ("batal" in berkas) return berkas;
+  // Pintasan ke berkas yang sudah tidak ada menunjuk ke kekosongan.
+  if ("pintasan" in berkas && !(await metaBerkas(berkas.pintasan.targetId).catch(() => null))) {
+    return {
+      batal:
+        `Berkas aslinya di Drive KKP ("${berkas.pintasan.fileName}") sudah tidak ada atau ada di Sampah. ` +
+        `Tarik ulang dari Drive, lalu tekan Siapkan berkas lagi.`,
+    };
+  }
 
   let akar: string;
   try {
@@ -484,7 +523,11 @@ export async function jalankanPekerjaanTermin(
   const outcomes = [];
   for (const kode of p.kode) {
     const jalur = [...butirBerkas(kode)!.jalur, ...subfolderLokasi(kode, berkas.lokasi)];
-    outcomes.push(await uploadBatch(target, jalur, berkas.items, { jedaMs: opts.jedaMs }));
+    outcomes.push(
+      "pintasan" in berkas
+        ? await pasangPintasan(target, jalur, berkas.pintasan)
+        : await uploadBatch(target, jalur, berkas.items, { jedaMs: opts.jedaMs }),
+    );
   }
   const hasil = rangkum(labelPekerjaanTermin(p), outcomes, 0);
   // Berlaku juga untuk salinan versi sendiri: dokumennya SAMA dan salinan
@@ -497,6 +540,38 @@ export async function jalankanPekerjaanTermin(
   } catch (err) {
     // Unggahannya sudah naik; diulang = ditimpa berkas yang sama, lalu dicoba lagi.
     return { ...hasil, galat: galatDrive(err, "Versi lama gagal dibuang.") };
+  }
+}
+
+/**
+ * Pasang PINTASAN di folder butir ke berkas Drive KKP aslinya (DECISIONS 778).
+ * Pintasan yang sudah menunjuk berkas yang sama dipakai lagi – menekan ulang
+ * tidak melahirkan kembaran. Dicatat seperti unggahan supaya kemajuan antrean
+ * dan pembuangan versi lama (milik MARLIN saja, DECISIONS 723) tetap bekerja.
+ */
+async function pasangPintasan(
+  target: UploadTarget,
+  jalur: string[],
+  p: { targetId: string; fileName: string },
+): Promise<UploadOutcome> {
+  try {
+    const folderId = await ensureFolderPath(target.rootFolderId, jalur);
+    const ada = (await daftarPintasan(folderId)).find((x) => x.targetId === p.targetId);
+    const id = ada?.id ?? (await buatPintasan({ folderId, name: p.fileName, targetId: p.targetId }));
+    await catatUnggah(target, p.fileName, "sukses", { fileId: id });
+    return { ok: 1, failed: 0, updated: ada ? 1 : 0, firstError: null, firstErrorStatus: null, firstRetryAfter: null, webLink: null };
+  } catch (err) {
+    const g = galatDrive(err, "Pintasan gagal dibuat.");
+    await catatUnggah(target, p.fileName, "gagal", { error: g.pesan });
+    return {
+      ok: 0,
+      failed: 1,
+      updated: 0,
+      firstError: g.pesan,
+      firstErrorStatus: g.status,
+      firstRetryAfter: g.retryAfter,
+      webLink: null,
+    };
   }
 }
 

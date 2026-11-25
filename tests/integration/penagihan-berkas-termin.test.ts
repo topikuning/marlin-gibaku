@@ -42,6 +42,8 @@ let dibuat: string[] = [];
 let naik: string[] = [];
 /** Berkas Drive yang dibuang ke Sampah. */
 let sampah: string[] = [];
+/** Pintasan yang dipasang MARLIN (DECISIONS 778). */
+let pintasan: { id: string; folderId: string; name: string; targetId: string }[] = [];
 /**
  * Isi Drive tiruan, setia pada Drive & `uploadToDrive` sungguhan: berkas
  * bernama sama bisa lebih dari satu; MARLIN hanya menimpa yang dipilih
@@ -90,6 +92,12 @@ vi.mock("@/lib/gdrive/client", () => {
       isiDrive.set(kunci, [...(isiDrive.get(kunci) ?? []), id]);
       metaDrive.set(id, { createdTime: new Date(), terbitanMarlin: true, diubahOrangLain: false });
       return { id, name: input.fileName, webViewLink: null, created: true };
+    },
+    daftarPintasan: async (folderId: string) => pintasan.filter((x) => x.folderId === folderId),
+    buatPintasan: async (i: { folderId: string; name: string; targetId: string }) => {
+      const id = `p-${++urutId}`;
+      pintasan.push({ id, ...i });
+      return id;
     },
     metaBerkas: async (id: string) => {
       const ada = [...isiDrive.values()].some((ids) => ids.includes(id));
@@ -236,6 +244,7 @@ beforeEach(() => {
   dibuat = [];
   naik = [];
   sampah = [];
+  pintasan = [];
   kurvaSampai = [];
   tertunda.length = 0;
   peran = "super_admin";
@@ -272,7 +281,7 @@ describe("antrekanBerkasTermin", () => {
     expect(j.some((x) => /\|(T4|T6|T8|T9)[|+]|\+(T4|T6|T8|T9)\|/.test(x.periode))).toBe(false);
   });
 
-  it("berkas yang ditarik DARI Drive KKP tidak diunggah balik (DECISIONS 197)", async () => {
+  it("berkas yang ditarik DARI Drive KKP tidak diunggah balik (DECISIONS 197), tapi tetap diantre untuk dipasang sebagai pintasan (DECISIONS 778)", async () => {
     const doc = await uploadDocument(
       {
         file: new File(["ba"], "ba-pemeriksaan.pdf", { type: "application/pdf" }),
@@ -286,9 +295,11 @@ describe("antrekanBerkasTermin", () => {
     );
     await db.document.update({ where: { id: doc.id }, data: { source: "drive_kkp" } });
     const r = await antrekanBerkasTermin(packageId, 1, sesi());
-    expect(r).toMatchObject({ ok: true, jumlah: 15, dariDrive: 1 });
-    expect((await pekerjaan()).some((x) => x.periode.includes("|9c|"))).toBe(false);
+    expect(r).toMatchObject({ ok: true, jumlah: 16, dariDrive: 1 });
+    expect((await pekerjaan()).some((x) => x.periode.includes("|9c|"))).toBe(true);
     await db.document.delete({ where: { id: doc.id } });
+    // Antre ulang tanpa dokumen itu: pekerjaannya ikut hilang, sisanya utuh.
+    expect(await antrekanBerkasTermin(packageId, 1, sesi())).toMatchObject({ ok: true, jumlah: 15, dariDrive: 0 });
   });
 
   it("tekan ulang: baris yang sama dipakai, tidak berlipat", async () => {
@@ -773,5 +784,68 @@ describe("lima surat otomatis dari tombol Siapkan berkas (DECISIONS 724)", () =>
     const r = await siapkanBerkasTerminAction(undefined, form(4, LIMA));
     expect(r?.success).toMatch(/perlu izin kelola kontrak/);
     expect(await suratTermin(4)).toEqual([]);
+  });
+});
+
+/*
+ * SPK, SPMK, SSUK, SSKK YANG SUDAH ADA DI DRIVE (DECISIONS 778). Keluhan user
+ * 2026-11-25: *"spk, spmk, ssuk, sskk yang sudah ada di drive, kenapa di termin
+ * tidak nyambung atau link?"*.
+ */
+describe("dokumen kontrak yang sudah ada di Drive KKP", () => {
+  const FOLDER1 = "akar/1. SPPBJ, SPK, SPMK, RAB, DED";
+  const dariDrive = async (judul: string, type: "kontrak" | "spmk", driveFileId: string) => {
+    const d = await uploadDocument(
+      { file: new File([`${judul} ${driveFileId} ${Math.random()}`], `${judul}.pdf`, { type: "application/pdf" }), packageId, phase: "kontrak", type, title: judul },
+      pengguna!.id,
+    );
+    await db.document.update({ where: { id: d.id }, data: { source: "drive_kkp", driveFileId } });
+    return d.id;
+  };
+
+  it("SSUK yang diimpor sebagai \"kontrak\" terhitung di butir 2, bukan SPK; SPK tetap di butir 1", async () => {
+    const spk = await dariDrive("SPK 001 Putera Fahlevi", "kontrak", taruhBerkasOrang(`${FOLDER1} :: SPK.pdf`));
+    const ssuk = await dariDrive("Syarat-Syarat Umum Kontrak", "kontrak", taruhBerkasOrang(`${FOLDER1} :: SSUK.pdf`));
+    const { muatPenagihan } = await import("@/lib/penagihan/data");
+    const d = (await muatPenagihan(packageId, sesi(), 1))!;
+    const butir = (k: string) => d.langkah.flatMap((l) => l.baris).find((b) => b.butir.kode === k)!;
+    expect(butir("1").sumber).toEqual([{ dokumenId: spk, locationId: null }]);
+    expect([butir("2").status, butir("2").sumber]).toEqual(["ada", [{ dokumenId: ssuk, locationId: null }]]);
+    await db.document.deleteMany({ where: { id: { in: [spk, ssuk] } } });
+  });
+
+  it("dipasang sebagai PINTASAN ke berkas aslinya di folder butirnya – tidak diunggah, dan menekan ulang tidak menggandakan", async () => {
+    const idSpk = taruhBerkasOrang(`${FOLDER1} :: SPK.pdf`);
+    const idSsuk = taruhBerkasOrang(`${FOLDER1} :: SSUK.pdf`);
+    const spk = await dariDrive("SPK 001 Putera Fahlevi", "kontrak", idSpk);
+    const ssuk = await dariDrive("SSUK Putera Fahlevi", "kontrak", idSsuk);
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    const h = await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(h.gagal).toBe(0);
+    const termin = `${INDUK}/TERMIN 1 (25%) ${VENDOR}`;
+    expect(pintasan.map((x) => [x.folderId, x.name, x.targetId]).sort()).toEqual(
+      [
+        [`${termin}/1. SPK & Adendum`, "SPK 001 Putera Fahlevi.pdf", idSpk],
+        [`${termin}/2. SSUK & SKK`, "SSUK Putera Fahlevi.pdf", idSsuk],
+      ].sort(),
+    );
+    expect(naik.some((x) => x.includes("SPK 001") || x.includes("SSUK"))).toBe(false);
+    // SPMK diunggah lewat MARLIN tetap disalin, seperti sebelumnya.
+    expect(naik).toContain(`${termin}/3. SPMK :: spmk.pdf`);
+
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(pintasan).toHaveLength(2);
+    await db.document.deleteMany({ where: { id: { in: [spk, ssuk] } } });
+  });
+
+  it("berkas aslinya sudah tidak ada di Drive: tidak dibuatkan pintasan kosong, sebabnya disebut", async () => {
+    const spk = await dariDrive("SPK 002", "kontrak", "drive-sudah-dihapus");
+    await antrekanBerkasTermin(packageId, 1, sesi());
+    await jalankanAntreanTermin({ packageId, terminKe: 1 });
+    expect(pintasan).toHaveLength(0);
+    const j = (await pekerjaan()).find((x) => x.periode.includes("|1|") && x.status !== "sukses");
+    expect(j?.lastError).toMatch(/sudah tidak ada atau ada di Sampah/);
+    await db.document.delete({ where: { id: spk } });
   });
 });
