@@ -10,17 +10,30 @@ import { siapkanStruktur, type OpsDrive } from "@/lib/gdrive/siapkan";
 const LOKASI = ["Asemdoyong", "Muarareja", "Purwahamba", "Tegalsari"];
 const pohon = () => strukturDriveKkp({ penyedia: "CV. Putera Fahlevi", lokasi: LOKASI });
 
-/** Drive tiruan di memori: id → { nama, induk }. */
+/** Drive tiruan di memori: id → { nama, induk, tujuan pintasan }. */
 function driveTiruan() {
   let n = 0;
-  const folder = new Map<string, { name: string; parent: string }>();
+  const folder = new Map<string, { name: string; parent: string; target?: string }>();
   const ops: OpsDrive = {
     daftarSubfolder: async (parentId) =>
-      [...folder.entries()].filter(([, f]) => f.parent === parentId).map(([id, f]) => ({ id, name: f.name })),
+      [...folder.entries()].filter(([, f]) => f.parent === parentId && !f.target).map(([id, f]) => ({ id, name: f.name })),
     buatFolder: async (parentId, name) => {
       const id = `f${++n}`;
       folder.set(id, { name, parent: parentId });
       return id;
+    },
+    daftarPintasan: async (parentId) =>
+      [...folder.entries()]
+        .filter(([, f]) => f.parent === parentId && f.target)
+        .map(([id, f]) => ({ id, name: f.name, targetId: f.target! })),
+    buatPintasan: async ({ folderId, name, targetId }) => {
+      const id = `p${++n}`;
+      folder.set(id, { name, parent: folderId, target: targetId });
+      return id;
+    },
+    folderBolehDiganti: async () => false,
+    buangKeSampah: async () => {
+      throw new Error("tidak boleh membuang apa pun di uji ini");
     },
   };
   const tambah = (parent: string, name: string) => {
@@ -108,13 +121,16 @@ describe("siapkanStruktur", () => {
     const p = pohon();
     const pertama = await siapkanStruktur("akar", p, d.ops, TANPA_BATAS);
     expect(pertama.selesai).toBe(true);
-    expect(pertama.dibuat).toHaveLength(hitungSimpul(p));
+    // 9 butir BERKAS DOKUMEN TEKNIS × 4 termin = pintasan, sisanya folder (DECISIONS 776).
+    expect(pertama.pintasan).toHaveLength(36);
+    expect(pertama.dibuat).toHaveLength(hitungSimpul(p) - 36);
     expect(pertama.dibuat).toContain(
       "7. BERKAS TERMIN/TERMIN 1 (25%) CV. Putera Fahlevi/10. Pembayaran/a. Surat Permohonan Pembayaran",
     );
 
     const kedua = await siapkanStruktur("akar", p, d.ops, TANPA_BATAS);
     expect(kedua.dibuat).toEqual([]);
+    expect(kedua.pintasan).toEqual([]);
     expect(kedua.sudahAda).toBe(hitungSimpul(p));
     expect(d.folder.size).toBe(hitungSimpul(p));
   });
@@ -146,6 +162,7 @@ describe("siapkanStruktur", () => {
     // Waktu berjalan per panggilan Drive – itulah yang mahal, bukan menelusuri pohon.
     let t = 0;
     const ops: OpsDrive = {
+      ...d.ops,
       daftarSubfolder: async (id) => {
         t++;
         return d.ops.daftarSubfolder(id);
@@ -161,11 +178,11 @@ describe("siapkanStruktur", () => {
     expect(satu.dibuat.length).toBeGreaterThan(0);
     expect(satu.dibuat.length).toBeLessThan(hitungSimpul(p));
 
-    let total = satu.dibuat.length;
+    let total = satu.dibuat.length + satu.pintasan.length;
     for (let i = 0; i < 200; i++) {
       t = 0;
       const lagi = await siapkanStruktur("akar", p, ops, lambat);
-      total += lagi.dibuat.length;
+      total += lagi.dibuat.length + lagi.pintasan.length;
       if (lagi.selesai) break;
     }
     expect(total).toBe(hitungSimpul(p));

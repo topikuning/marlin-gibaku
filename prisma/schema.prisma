@@ -494,6 +494,8 @@ model User {
   terminProgresDiubah  TerminProgresKonsultan[] @relation("TerminProgresPengubah")
   waPersetujuanUntuk   WaPersetujuan[]         @relation("WaPersetujuanUntuk")
   waPersetujuanPemohon WaPersetujuan[]         @relation("WaPersetujuanPemohon")
+  padananAktifDiajukan RabPadananAktif[]       @relation("PadananAktifDiajukan")
+  padananAktifSetuju   RabPadananAktifSetuju[] @relation("PadananAktifSetuju")
 
   @@index([orgId])
   @@index([role])
@@ -1702,6 +1704,7 @@ model Location {
   kawalSaranaMaps     KawalSaranaMap[]
   waLaporSesi         WaLaporSesi[]
   waUsulan            WaUsulan[]
+  padananAktif        RabPadananAktif[]
 
   @@index([packageId])
   @@index([province])
@@ -1845,6 +1848,7 @@ model RabRevision {
   hargaDasar     RabHargaDasar[]
   jadwalAi       RabJadwalAi?
   backupIsian    RabBackupIsian[]
+  padananAktif   RabPadananAktif[]
 
   @@unique([locationId, revisionNo])
   @@index([locationId, status])
@@ -2196,16 +2200,83 @@ model DailyReportItem {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  report  DailyReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  rabNode RabNode            @relation(fields: [rabNodeId], references: [id])
-  photos  Photo[]
+  /// Pemasangan sesudah aktivasi yang memindah baris ini ke item RAB aktif
+  /// (DECISIONS 777). Null = kuncinya asli dari laporan.
+  padananAktifId       String?  @map("padanan_aktif_id") @db.Uuid
+  /// Volume baris SEBELUM dipasangkan, bila pemasangan memulihkan volume yang
+  /// dinolkan saat aktivasi. Lepas mengembalikan angka ini.
+  volumeSebelumPadanan Decimal? @map("volume_sebelum_padanan") @db.Decimal(15, 3)
+
+  report       DailyReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  rabNode      RabNode            @relation(fields: [rabNodeId], references: [id])
+  padananAktif RabPadananAktif?   @relation(fields: [padananAktifId], references: [id], onDelete: Restrict)
+  photos       Photo[]
   /// Catatan pekerjaan di luar RAB yang dipadankan ke baris ini (DECISIONS 738).
-  luarRab PekerjaanLuarRab[]
+  luarRab      PekerjaanLuarRab[]
 
   @@unique([reportId, lineageKey])
   @@index([lineageKey])
   @@index([basis])
+  @@index([padananAktifId])
   @@map("daily_report_items")
+}
+
+/// PEMASANGAN REALISASI SESUDAH AKTIVASI ADENDUM (DECISIONS 777).
+///
+/// Item yang sudah dilaporkan tetapi tidak dipasangkan saat adendum aktif –
+/// hilang dari RAB (`hilang`) atau volumenya dinolkan (`dinolkan`) – diusulkan
+/// dipasangkan ke item RAB aktif. Usulan baru BERLAKU sesudah dua persetujuan
+/// (Program Director + AM/PM/SM), sama dengan aktivasi adendum (DECISIONS 234).
+///
+/// Keadaannya DITURUNKAN dari tanggal, bukan kolom status: diajukan →
+/// berlaku / ditutup (ditolak atau dibatalkan) → dilepas.
+model RabPadananAktif {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  /// Revisi aktif saat diajukan. Usulan tidak bisa berlaku bila revisi aktif sudah berganti.
+  revisionId     String    @map("revision_id") @db.Uuid
+  /// Kunci item yang realisasinya dipasangkan.
+  lineageLama    String    @map("lineage_lama")
+  /// Kunci item RAB aktif yang menerima realisasinya.
+  lineageBaru    String    @map("lineage_baru")
+  /// `hilang` | `dinolkan`
+  jenis          String
+  alasan         String
+  /// Yang dilihat pengusul saat mengajukan (nama, satuan, volume, tanggal) – untuk penyetuju.
+  ringkasan      Json
+  diajukanOlehId String    @map("diajukan_oleh_id") @db.Uuid
+  diajukanPada   DateTime  @default(now()) @map("diajukan_pada") @db.Timestamptz
+  berlakuPada    DateTime? @map("berlaku_pada") @db.Timestamptz
+  ditutupPada    DateTime? @map("ditutup_pada") @db.Timestamptz
+  ditutupOlehId  String?   @map("ditutup_oleh_id") @db.Uuid
+  alasanTutup    String?   @map("alasan_tutup")
+  dilepasPada    DateTime? @map("dilepas_pada") @db.Timestamptz
+  dilepasOlehId  String?   @map("dilepas_oleh_id") @db.Uuid
+  alasanLepas    String?   @map("alasan_lepas")
+
+  location     Location                @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  revision     RabRevision             @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  diajukanOleh User                    @relation("PadananAktifDiajukan", fields: [diajukanOlehId], references: [id], onDelete: Restrict)
+  persetujuan  RabPadananAktifSetuju[]
+  baris        DailyReportItem[]
+
+  @@index([locationId, lineageLama])
+  @@map("rab_padanan_aktif")
+}
+
+/// Satu suara persetujuan atas usulan pemasangan (DECISIONS 777). Peran disnapshot.
+model RabPadananAktifSetuju {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  padananId  String   @map("padanan_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  role       UserRole
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz
+
+  padanan RabPadananAktif @relation(fields: [padananId], references: [id], onDelete: Cascade)
+  user    User            @relation("PadananAktifSetuju", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([padananId, userId])
+  @@map("rab_padanan_aktif_setuju")
 }
 
 /// PEKERJAAN DI LUAR RAB (DECISIONS 738) – pekerjaan yang sudah dikerjakan di

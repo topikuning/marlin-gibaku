@@ -68,6 +68,12 @@ export default async function TidakTerbobotPage({ params }: { params: Promise<{ 
                 title={`${items.length} item dari ${jumlahLaporan} laporan harian tidak ikut dihitung di progres`}
                 description={`Dibandingkan dengan RAB aktif, revisi #${aktif.revisionNo}. Hanya laporan yang sudah dikirim, disetujui, atau final yang dihitung, sama seperti progres. Ketuk nama item untuk melihat tanggal-tanggal laporannya.`}
               />
+              <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-muted">
+                <span>Pekerjaannya pindah ke item lain di RAB aktif?</span>
+                <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                  Pasangkan realisasi
+                </ButtonLink>
+              </div>
               {[...perKategori].map(([kategori, daftar]) => (
                 <section key={kategori} className="space-y-2">
                   <h3 className="text-sm font-semibold text-ink">

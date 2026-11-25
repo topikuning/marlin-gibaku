@@ -12,6 +12,10 @@ import { ALIAS_FOLDER_AKAR, KKP_FOLDERS, SUB_FOLDER_2, cleanPath, kunciNamaFolde
  *   dokumentasi · 4 folder termin, masing-masing 12 bagian + rincian
  *   pemeriksaan (a–d), pembayaran (a–i), dan BERKAS DOKUMEN TEKNIS.
  *
+ * Sembilan butir BERKAS DOKUMEN TEKNIS yang isinya sama dengan folder utama
+ * termin (Kurva S, Laporan Mingguan, SSUK, …) dibuat sebagai PINTASAN Drive ke
+ * folder utama itu, bukan folder kosong kedua (DECISIONS 776).
+ *
  * Nama ditulis PERSIS seperti di Drive KKP. Pencocokan dengan folder yang sudah
  * ada dilakukan longgar (`kunciNamaFolder`), dan folder termin dikenali dari
  * nomornya saja – nama penyedia di folder buatan KKP tidak selalu sama ejaannya
@@ -25,20 +29,38 @@ export type SimpulFolder = {
   /** Pencocok khusus atas kunci nama (lihat `kunciNamaFolder`). */
   cocok?: RegExp;
   anak?: SimpulFolder[];
+  /**
+   * Bukan folder, melainkan PINTASAN Drive ke folder bernama ini yang sejajar
+   * dengan induknya (DECISIONS 776): "BERKAS DOKUMEN TEKNIS/9. Kurva S" →
+   * "5. Kurva S" di folder termin yang sama. Isinya satu, tempatnya dua.
+   */
+  pintasanKe?: string;
 };
 
 const daun = (...nama: string[]): SimpulFolder[] => nama.map((n) => ({ nama: n }));
 
+/** Folder utama termin yang juga diminta lagi di BERKAS DOKUMEN TEKNIS. */
+const SPK = "1. SPK & Adendum";
+const SSUK = "2. SSUK & SKK";
+const SHOP = "4. Shop Drawing";
+const KURVA = "5. Kurva S";
+const BACKUP = "6. Back Up Perhitungan Kemajuan Pekerjaan";
+const MINGGUAN = "7. Laporan Mingguan";
+const DOKUMENTASI = "8. Dokumentasi Pekerjaan Per Item";
+const RAB = "12. RAB";
+
+const pintas = (nama: string, ke: string): SimpulFolder => ({ nama, pintasanKe: ke });
+
 /** Isi satu folder termin – mengikuti TERMIN 1 (25%) CV. Putera Fahlevi. */
 export const ISI_TERMIN: SimpulFolder[] = [
-  { nama: "1. SPK & Adendum" },
-  { nama: "2. SSUK & SKK" },
+  { nama: SPK },
+  { nama: SSUK },
   { nama: "3. SPMK" },
-  { nama: "4. Shop Drawing" },
-  { nama: "5. Kurva S" },
-  { nama: "6. Back Up Perhitungan Kemajuan Pekerjaan" },
-  { nama: "7. Laporan Mingguan" },
-  { nama: "8. Dokumentasi Pekerjaan Per Item" },
+  { nama: SHOP },
+  { nama: KURVA },
+  { nama: BACKUP },
+  { nama: MINGGUAN },
+  { nama: DOKUMENTASI },
   {
     nama: "9. Pemeriksaan Pekerjaan",
     anak: daun(
@@ -58,31 +80,33 @@ export const ISI_TERMIN: SimpulFolder[] = [
     ],
   },
   { nama: "11. Nodin Permohonan Reviu" },
-  { nama: "12. RAB" },
+  { nama: RAB },
   {
     nama: "BERKAS DOKUMEN TEKNIS",
-    // Gabungan TERMIN 1 & 2 contoh; nomor 18 tidak ada di keduanya.
-    anak: daun(
-      "1. Kontrak Konstruksi dan CCO (jika ada)",
-      "2. RAB dan HPS",
-      "3. Gambar Perencanaan (Shop Drawing)",
-      "4. Backup Volume",
-      "5. Laporan Harian",
-      "6. Laporan Mingguan",
-      "7. Laporan Bulanan",
-      "8. Dokumentasi Pekerjaan",
-      "9. Kurva S",
-      "10. Hasil Pengujian Material",
-      "11. Spesifikasi Teknis dan Gambar",
-      "12. SSUK",
-      "13. SSKK",
-      "14. RKK",
-      "15. RMPK",
-      "16. RKS",
-      "17. Harga Timpang",
-      "19. Laporan Kemajuan Pekerjaan",
-      "20. Surat Perintah Pemeriksaan PPK",
-    ),
+    // Gabungan TERMIN 1 & 2 contoh; nomor 18 tidak ada di keduanya. Butir yang
+    // isinya sama dengan folder utama = pintasan ke sana (DECISIONS 725, 776).
+    anak: [
+      pintas("1. Kontrak Konstruksi dan CCO (jika ada)", SPK),
+      pintas("2. RAB dan HPS", RAB),
+      pintas("3. Gambar Perencanaan (Shop Drawing)", SHOP),
+      pintas("4. Backup Volume", BACKUP),
+      ...daun("5. Laporan Harian"),
+      pintas("6. Laporan Mingguan", MINGGUAN),
+      ...daun("7. Laporan Bulanan"),
+      pintas("8. Dokumentasi Pekerjaan", DOKUMENTASI),
+      pintas("9. Kurva S", KURVA),
+      ...daun("10. Hasil Pengujian Material", "11. Spesifikasi Teknis dan Gambar"),
+      pintas("12. SSUK", SSUK),
+      pintas("13. SSKK", SSUK),
+      ...daun(
+        "14. RKK",
+        "15. RMPK",
+        "16. RKS",
+        "17. Harga Timpang",
+        "19. Laporan Kemajuan Pekerjaan",
+        "20. Surat Perintah Pemeriksaan PPK",
+      ),
+    ],
   },
 ];
 
@@ -137,7 +161,7 @@ export function cocokSimpul(simpul: SimpulFolder, namaAda: string): boolean {
   return k === kunciNamaFolder(simpul.nama) || (simpul.alias ?? []).some((a) => k === kunciNamaFolder(a));
 }
 
-/** Jumlah seluruh folder di pohon (untuk kabar & uji). */
+/** Jumlah seluruh folder DAN pintasan di pohon (untuk kabar & uji). */
 export function hitungSimpul(pohon: readonly SimpulFolder[]): number {
   return pohon.reduce((n, s) => n + 1 + hitungSimpul(s.anak ?? []), 0);
 }

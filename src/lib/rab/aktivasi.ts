@@ -116,7 +116,9 @@ export async function jalankanAktivasi(o: {
       ` (${takDipasangkan.slice(0, 3).map((i) => i.name).join("; ")}${takDipasangkan.length > 3 ? "; …" : ""}):` +
       (hilang > 0 ? ` realisasi yang hilang dari draft tidak dihitung di progres dan tercatat di RAB › Tidak terbobot.` : "") +
       // DECISIONS 756: item yang volumenya 0 ikut diturunkan di rincian penyesuaian di bawah.
-      (nol > 0 ? ` Laporan ${nol} item yang volumenya 0 di draft diturunkan menjadi 0.` : "");
+      (nol > 0 ? ` Laporan ${nol} item yang volumenya 0 di draft diturunkan menjadi 0.` : "") +
+      // DECISIONS 777: masih bisa dipasangkan sesudah aktif, lewat dua persetujuan.
+      ` Masih bisa dipasangkan ke item RAB aktif lewat RAB › Pasangkan realisasi.`;
   }
   if (p.item > 0) {
     const contoh = p.rincian

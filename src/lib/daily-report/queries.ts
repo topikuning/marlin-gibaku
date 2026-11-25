@@ -970,7 +970,7 @@ export async function getKkpDailyData(
           r2Key: true,
           luarRabId: true,
           reportItemId: true,
-          reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
+          reportItem: { select: { lineageKey: true, rabNode: { select: { name: true, lineageKey: true } } } },
           // Bukti material & alat (DECISIONS 304) — dicetak di halamannya
           // sendiri, bukan dicampur ke foto pekerjaan.
           reportMaterial: { select: { name: true, unit: true, qtyReceived: true } },
@@ -1071,7 +1071,9 @@ export async function getKkpDailyData(
       // tanpa saringan ini fotonya terbaca "(tanpa item pekerjaan)".
       .filter((ph) => ph.reportMaterial == null && ph.reportEquipment == null && !(ph.luarRabId && !ph.reportItemId))
       .map((ph) => {
-        const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
+        // Kunci BARIS, bukan node asalnya: baris yang dipasangkan sesudah
+        // aktivasi (DECISIONS 777) terhitung di item tujuannya.
+        const kunci = ph.reportItem?.lineageKey ?? ph.reportItem?.rabNode?.lineageKey ?? null;
         return {
           id: ph.id,
           r2Key: ph.r2Key,

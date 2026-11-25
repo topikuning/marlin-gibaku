@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { tahapRevisi } from "@/lib/rab/tahap";
-import { Calculator, Download, FilePen, History, Unlink, Upload } from "lucide-react";
+import { Calculator, Download, FilePen, History, Link2, Unlink, Upload } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, SubTabs } from "@/components/ui";
 import { db } from "@/lib/db";
 import { analisaRevisi, sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
+import { jumlahUsulanMenunggu } from "@/lib/rab/padanan-aktif";
 import { can, ROLE_LABEL } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getLocationProgress, COUNTED_REPORT_STATUSES, volumeTidakTerbobotByLineage } from "@/lib/progress";
@@ -87,6 +88,8 @@ export default async function RabPage({
   // tidak dibobot (permintaan user 2026-10-04). Disebut di semua bagian karena
   // progres lokasi ini lebih rendah dari yang sudah dikerjakan.
   const jumlahTidakTerbobot = active ? (await volumeTidakTerbobotByLineage(location.id)).size : 0;
+  // Usulan pemasangan realisasi sesudah aktivasi yang menunggu dua persetujuan (DECISIONS 777).
+  const usulanPasangMenunggu = active ? await jumlahUsulanMenunggu(location.id) : 0;
 
   /*
    * Pohon RAB HANYA diambil saat memang dipakai.
@@ -407,6 +410,23 @@ export default async function RabPage({
               <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
                 Lihat itemnya
               </ButtonLink>
+              <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                Pasangkan
+              </ButtonLink>
+            </span>
+          }
+        />
+      ) : null}
+      {usulanPasangMenunggu > 0 ? (
+        <Banner
+          tone="info"
+          title={`${usulanPasangMenunggu} usulan pemasangan realisasi menunggu persetujuan`}
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              <span>Berlaku sesudah disetujui Program Director dan Area Manager, Project Manager, atau Site Manager.</span>
+              <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                Buka usulannya
+              </ButtonLink>
             </span>
           }
         />
@@ -467,6 +487,12 @@ export default async function RabPage({
                 <ButtonLink href={`/lokasi/${slug}/rab/tidak-terbobot`} variant="secondary" size="sm">
                   <Unlink aria-hidden className="size-4" />
                   {jumlahTidakTerbobot > 0 ? `Tidak terbobot (${jumlahTidakTerbobot})` : "Tidak terbobot"}
+                </ButtonLink>
+              ) : null}
+              {active ? (
+                <ButtonLink href={`/lokasi/${slug}/rab/pasangkan`} variant="secondary" size="sm">
+                  <Link2 aria-hidden className="size-4" />
+                  {usulanPasangMenunggu > 0 ? `Pasangkan realisasi (${usulanPasangMenunggu})` : "Pasangkan realisasi"}
                 </ButtonLink>
               ) : null}
               {canManage ? (
