@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * verifikasi); progress ikut naik otomatis setelah diverifikasi.
  *
  * Dua bentuk berkas: template MARLIN (satu baris = tanggal + pekerjaan,
- * DECISIONS 114) dan berkas KKP dengan sheet REKAP HARIAN (matriks pekerjaan ×
+ * DECISIONS 114) dan berkas Excel lapangan dengan sheet REKAP HARIAN (matriks pekerjaan ×
  * tanggal, mode tambah/timpa, DECISIONS 782).
  */
 export default async function ImporRekapHarianPage({ params }: { params: Promise<{ slug: string }> }) {

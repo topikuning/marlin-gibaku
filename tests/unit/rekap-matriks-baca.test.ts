@@ -6,7 +6,7 @@ const { bacaSheet } = await import("@/lib/daily-report/rekap-matriks/baca");
 
 /**
  * PEMBACA SHEET "REKAP HARIAN" (DECISIONS 782) – workbook buatan yang meniru
- * jebakan berkas KKP asli (DESA IYOK/JIKO/BUYAT 1): judul bertingkat
+ * jebakan berkas asli (DESA IYOK/JIKO/BUYAT 1): judul bertingkat
  * (Tanggal/Bulan/Minggu/Hari) dengan sel judul yang digabung ke bawah, kolom
  * harian yang disembunyikan sehingga yang terlihat "lompat", nama pekerjaan di
  * dua kolom, angka 0, baris tersembunyi.

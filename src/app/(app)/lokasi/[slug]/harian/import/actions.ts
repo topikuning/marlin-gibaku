@@ -89,7 +89,7 @@ export type RekapMatriksState =
   | { ok: false; error: string }
   | undefined;
 
-/** Berkas KKP (banyak sheet + gambar) lebih besar dari template rekap biasa. */
+/** Berkas rekap lapangan (banyak sheet + gambar) lebih besar dari template rekap biasa. */
 const MAKS_REKAP = 25 * 1024 * 1024;
 
 /**

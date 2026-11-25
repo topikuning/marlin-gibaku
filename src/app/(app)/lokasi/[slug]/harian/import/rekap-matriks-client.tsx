@@ -203,7 +203,7 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
   return (
     <Card>
       <CardHeader
-        title="Rekap harian dari berkas KKP (sheet REKAP HARIAN)"
+        title="Rekap harian dari Excel (sheet REKAP HARIAN)"
         subtitle="Satu baris per pekerjaan, satu kolom per tanggal. Hanya kolom dan baris yang terlihat yang dibaca."
       />
       <CardBody className="space-y-4 text-sm">
