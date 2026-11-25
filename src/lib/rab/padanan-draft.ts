@@ -362,7 +362,8 @@ export function kalimatBelumDipetakan(items: readonly ItemBelumDipetakan[], bata
   return (
     `${items.length} item yang sudah dilaporkan belum dipasangkan ke item draft: ${contoh}${sisa}. ` +
     (adaHilang ? `Sesudah aktivasi, realisasi yang hilang dari draft tidak ikut dihitung di progres (laporan dan fotonya tetap ada). ` : "") +
-    (adaNol ? `Laporan harian item yang volumenya 0 di draft diturunkan menjadi 0 saat aktivasi. ` : "")
+    (adaNol ? `Laporan harian item yang volumenya 0 di draft diturunkan menjadi 0 saat aktivasi. ` : "") +
+    `Sesudah aktif masih bisa dipasangkan lewat RAB › Pasangkan realisasi, dengan dua persetujuan.`
   ).trim();
 }
 
