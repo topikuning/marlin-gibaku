@@ -417,3 +417,61 @@ describe("pratinjau impor jadwal", () => {
     }
   });
 });
+
+// TERAPKAN TANPA MENGUNGGAH ULANG (DECISIONS 774). Pertanyaan user 2026-11-24:
+// *"kenapa import jadwal sangat lambat"* – Periksa dan Terapkan sama-sama
+// mengunggah & membaca berkas yang sama. Sekarang Terapkan mengirim tiket
+// hasil Periksa; berkasnya tidak dikirim lagi.
+describe("Terapkan memakai tiket hasil Periksa", () => {
+  const tiketDari = async (baris: typeof JADWAL_USER) => {
+    const pra = await pratinjauJadwalAction(undefined, fd(await workbook(baris)));
+    expect(pra?.error).toBeUndefined();
+    return pra!.data!;
+  };
+  const kirimTiket = (tiket: string) => {
+    const f = new FormData();
+    f.set("locationId", locId);
+    f.set("tiket", tiket);
+    return importJadwalAction(undefined, f);
+  };
+
+  it("Periksa menyebut ukuran berkas & lama proses, dan memberi tiket", async () => {
+    const d = await tiketDari(JADWAL_USER);
+    expect(d.tiket).toMatch(/^[\w-]+\.[\w-]+$/);
+    expect(d.ukuranBerkas).toBeGreaterThan(0);
+    expect(d.prosesMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("Terapkan tanpa berkas: baseline tersimpan persis seperti yang diperiksa", async () => {
+    const d = await tiketDari(JADWAL_USER);
+    const diramal = new Map(d.perubahan.map((r) => [r.minggu, r.baru]));
+    const res = await kirimTiket(d.tiket);
+    expect(res?.error).toBeUndefined();
+    expect(res?.success).toMatch(/berhasil diimpor/);
+    const b = await baselineAktif();
+    for (const [minggu, nilai] of diramal) expect(Number(b.points[minggu - 1].plannedPct)).toBeCloseTo(nilai, 2);
+    expect(bobotOf(b, "Pekerjaan Struktur")).toBeCloseTo(60, 2);
+  });
+
+  it("tiket yang diubah ditolak, tidak ada baseline dibuat", async () => {
+    const d = await tiketDari(JADWAL_USER);
+    const [badan, tanda] = d.tiket.split(".");
+    const isi = JSON.parse(Buffer.from(badan!, "base64url").toString("utf8"));
+    isi.input[0].weekly[0] = 90;
+    const res = await kirimTiket(`${Buffer.from(JSON.stringify(isi)).toString("base64url")}.${tanda}`);
+    expect(res?.error).toBe("Hasil pemeriksaan sudah kedaluwarsa. Tekan Periksa hasilnya lagi.");
+    expect(await db.baseline.count({ where: { locationId: locId } })).toBe(0);
+  });
+
+  it("tiket milik orang lain ditolak", async () => {
+    const d = await tiketDari(JADWAL_USER);
+    const asli = sessionUserId;
+    sessionUserId = "00000000-0000-4000-8000-000000000000";
+    try {
+      const res = await kirimTiket(d.tiket);
+      expect(res?.error).toMatch(/kedaluwarsa/);
+    } finally {
+      sessionUserId = asli;
+    }
+  });
+});

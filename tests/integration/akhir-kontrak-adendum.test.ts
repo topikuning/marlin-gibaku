@@ -16,6 +16,7 @@ vi.mock("server-only", () => ({}));
 const { db } = await import("@/lib/db");
 const { totalWeeksFor } = await import("@/lib/rab/import");
 const { getPeriodBounds, HEADER_LOCATION_SELECT, buildPeriodHeader } = await import("@/lib/periodic-report");
+const { updateBaselinePoints } = await import("@/lib/baseline");
 
 const suffix = `aka${Date.now().toString(36)}`;
 const t = (k: string) => new Date(`${k}T00:00:00.000Z`);
@@ -104,5 +105,39 @@ describe("sesudah CCO +21 hari", () => {
     const k = await db.contract.findUniqueOrThrow({ where: { id: kontrakId }, select: { endDate: true, durationDays: true } });
     expect(k.endDate).toEqual(t("2026-11-27"));
     expect(k.durationDays).toBe(135);
+  });
+});
+
+// EDITOR %-MINGGUAN (DECISIONS 775): keluhan user *"waktu di adendum sudah 23
+// minggu, tapi inputan ini cuma 20 minggu"*. Deret 23 minggu dari editor
+// disimpan sebagai baseline baru 23 titik, jadwal per pekerjaan ikut
+// diregangkan, masa kontrak baseline = masa yang berlaku (156 hari).
+describe("simpan kurva manual 23 minggu di atas baseline 20 minggu", () => {
+  it("baseline baru 23 titik, jadwal 23 kolom, masa 156 hari", async () => {
+    const u = await db.user.create({
+      data: { orgId: (await db.location.findUniqueOrThrow({ where: { id: lokasiId }, select: { package: { select: { orgId: true } } } })).package.orgId, username: `aka-${suffix}`, fullName: "Uji", passwordHash: "x", role: "super_admin" },
+    });
+    const lama = await db.baseline.create({
+      data: {
+        locationId: lokasiId,
+        baselineNo: 1,
+        source: "manual",
+        status: "aktif",
+        contractDays: 135,
+        points: { create: Array.from({ length: 20 }, (_, i) => ({ weekNumber: i + 1, plannedPct: (i + 1) * 5 })) },
+        scheduleItems: {
+          create: [{ lineageKey: "I", name: "Pekerjaan Persiapan", weightPct: 100, weekly: Array.from({ length: 20 }, () => 5) }],
+        },
+      },
+    });
+    const titik = [...Array.from({ length: 20 }, (_, i) => (i + 1) * 4.25), 90, 95, 100];
+    const baru = await updateBaselinePoints(lama.id, titik, u.id);
+    const b = await db.baseline.findUniqueOrThrow({
+      where: { id: baru.id },
+      select: { contractDays: true, points: { select: { weekNumber: true } }, scheduleItems: { select: { weekly: true } } },
+    });
+    expect(b.points).toHaveLength(23);
+    expect((b.scheduleItems[0]!.weekly as number[]).length).toBe(23);
+    expect(b.contractDays).toBe(156);
   });
 });

@@ -21,7 +21,8 @@ import { itemPlanFracDariJadwal, laggingItems } from "@/lib/progress-calc";
 import { bacaBagianProgress, hrefBagianProgress, type BagianProgress } from "@/lib/progress-bagian";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
-import { PROFIL_BASELINE_BAWAAN } from "@/lib/rab/import";
+import { PROFIL_BASELINE_BAWAAN, totalWeeksFor } from "@/lib/rab/import";
+import { titikUntukEditor } from "@/lib/scurve/titik-editor";
 import { PROFIL_KURVA_KETERANGAN, PROFIL_KURVA_LABEL } from "@/lib/scurve/profil";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort, formatTanggal } from "@/lib/format";
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
@@ -487,6 +488,14 @@ async function BagianBaseline({
     },
   });
   const activeBaseline = baselines.find((b) => b.status === "aktif");
+  // Editor %-mingguan sebanyak minggu kontrak YANG BERLAKU – adendum waktu ikut (DECISIONS 775).
+  const editor =
+    canManage && activeBaseline
+      ? titikUntukEditor(
+          activeBaseline.points.map((p) => Number(p.plannedPct)),
+          (await totalWeeksFor(locationId)).totalWeeks,
+        )
+      : null;
 
   const historyRows: BaselineHistoryRow[] = baselines.map((b) => ({
     id: b.id,
@@ -581,7 +590,8 @@ async function BagianBaseline({
               key={activeBaseline.id}
               locationId={locationId}
               baselineId={activeBaseline.id}
-              initial={activeBaseline.points.map((p) => Number(p.plannedPct))}
+              initial={editor?.titik ?? activeBaseline.points.map((p) => Number(p.plannedPct))}
+              mingguTambahan={editor?.tambahan ?? 0}
             />
           </div>
         </section>

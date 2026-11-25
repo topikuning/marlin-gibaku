@@ -93,7 +93,20 @@ export function PerbaruiKurvaS({
     aksi(fd);
   };
 
+  /*
+   * TERAPKAN TANPA MENGUNGGAH ULANG (DECISIONS 774): yang dikirim tiket hasil
+   * pemeriksaan (jadwal yang sudah terbaca, bertanda tangan server), bukan
+   * berkasnya. Di jaringan lapangan unggahan itulah yang lama.
+   */
+  const denganTiket = (fd: FormData) => {
+    fd.delete("file");
+    if (data?.tiket) fd.set("tiket", data.tiket);
+    terapkan(fd);
+  };
+
   const data = pratinjau?.data ?? null;
+  const ukuran = (b: number) =>
+    b >= 1024 * 1024 ? `${(b / 1024 / 1024).toLocaleString("id-ID", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
   const selesai = !!terap?.success;
 
   // Langkah berjalan = yang PALING AWAL belum tuntas. Dihitung dari keadaan
@@ -262,6 +275,12 @@ export function PerbaruiKurvaS({
             <p className="text-[12px] font-semibold text-ink">
               Hasil pemeriksaan – <span className="font-normal text-ink-muted">{data.namaBerkas}</span>
             </p>
+            {/* Supaya ketahuan di mana waktu habis: unggahan atau server (DECISIONS 774). */}
+            <p className="text-[10px] text-ink-muted">
+              {data.ukuranBerkas != null ? `Berkas ${ukuran(data.ukuranBerkas)} · ` : ""}diproses server{" "}
+              {(data.prosesMs / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} detik. Terapkan tidak
+              mengunggah berkasnya lagi.
+            </p>
 
             <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
               {data.periksa.map((p) => (
@@ -352,7 +371,7 @@ export function PerbaruiKurvaS({
                 />
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="submit" formAction={denganBerkas(terapkan)} size="sm" loading={menerapkan}>
+                  <Button type="submit" formAction={denganTiket} size="sm" loading={menerapkan}>
                     <Upload aria-hidden className="size-3.5" />
                     Terapkan sebagai baseline baru
                   </Button>

@@ -35,10 +35,13 @@ export function BaselineEditor({
   locationId,
   baselineId,
   initial,
+  mingguTambahan = 0,
 }: {
   locationId: string;
   baselineId: string;
   initial: number[];
+  /** Minggu yang ditambahkan karena kontrak (adendum waktu) lebih panjang dari baseline (DECISIONS 775). */
+  mingguTambahan?: number;
 }) {
   const [pts, setPts] = useState<number[]>(() => initial.map(r1));
   /** Kabar hasil tempel – jumlah nilai & minggu yang kena, atau sebab ditolak. */
@@ -51,9 +54,11 @@ export function BaselineEditor({
 
   const n = pts.length;
   const invalid = useMemo(() => validate(pts), [pts]);
+  // Minggu tambahan dari adendum = sudah berbeda dari baseline aktif, jadi
+  // boleh disimpan walau angkanya belum disentuh.
   const dirty = useMemo(
-    () => pts.some((p, i) => Math.abs(p - r1(initial[i] ?? 0)) > 1e-9),
-    [pts, initial],
+    () => mingguTambahan > 0 || pts.some((p, i) => Math.abs(p - r1(initial[i] ?? 0)) > 1e-9),
+    [pts, initial, mingguTambahan],
   );
 
   const setAt = (i: number, v: number) =>
@@ -161,6 +166,14 @@ export function BaselineEditor({
           Punya deret angka di Excel? Salin kolomnya, lalu tempel (Ctrl+V) di baris mana pun.
           Nilainya terisi ke bawah mulai dari baris itu. Koma desimal dan tanda % ikut terbaca.
         </p>
+        {mingguTambahan > 0 ? (
+          <Banner
+            tone="info"
+            className="mb-2"
+            title={`Kontrak sekarang ${n} minggu karena adendum waktu.`}
+            description={`Minggu ${n - mingguTambahan + 1}–${n} ditambahkan dengan angka minggu terakhir. Isi angkanya, lalu simpan.`}
+          />
+        ) : null}
         {kabarTempel ? (
           <Banner
             tone={tempelGagal ? "warning" : "info"}
