@@ -54,6 +54,17 @@ export function satuanSetara(a: string | null, b: string | null): boolean {
 }
 
 /**
+ * Bentuk baku satuan untuk dibandingkan (`satuanSetara`); `null` = tidak
+ * diketahui, cocok dengan satuan apa pun. "-" adalah satuan catatan di luar
+ * RAB yang item draft asalnya tidak bersatuan (DECISIONS 755).
+ */
+export function kunciSatuan(u: string | null): string | null {
+  const t = u?.trim();
+  if (!t || t === "-") return null;
+  return normalSatuan(t);
+}
+
+/**
  * Sebab pasangan ini TIDAK sah, atau `null` bila sah.
  *
  * `lama` = item di RAB aktif yang sudah dilaporkan; `draft` = item di draft

@@ -7,7 +7,16 @@ import { formatTanggal } from "@/lib/format";
 import { dataPadananAktif, type UsulanPadanan } from "@/lib/rab/padanan-aktif";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { requireLocationPage } from "../../get-location";
-import { BarisBelum, KartuBerlaku, KartuMenunggu, type BelumView, type UsulanView } from "./panel-pasangkan";
+import {
+  BarisBelum,
+  BarisLuarRab,
+  KartuBerlaku,
+  KartuMenunggu,
+  type BelumView,
+  type CalonLuarView,
+  type LuarRabView,
+  type UsulanView,
+} from "./panel-pasangkan";
 
 export const metadata: Metadata = { title: "Pasangkan realisasi" };
 export const dynamic = "force-dynamic";
@@ -22,6 +31,11 @@ export const dynamic = "force-dynamic";
  * diaktifkan – hilang dari RAB, atau dinolkan – dipasangkan ke item RAB aktif
  * lewat usulan yang berlaku sesudah dua persetujuan. Tanpa rupiah: yang
  * dipindah volume, dan halaman ini juga dibuka pelaksana.
+ *
+ * DECISIONS 780: catatan pekerjaan di luar RAB (738) juga dipasangkan di sini,
+ * langsung ke item RAB aktif. Keluhan user 2026-11-25: *"ada pekerjaan-pekerjaan
+ * di luar RAB yang sudah diinput manual, itu dimana matchingkan dengan RAB
+ * aktifnya?"*.
  */
 export default async function PasangkanPage({
   params,
@@ -34,7 +48,7 @@ export default async function PasangkanPage({
   const q = await searchParams;
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
-  const { aktif, belum, usulan } = await dataPadananAktif(location.id);
+  const { aktif, belum, luarRab, calonLuarRab, usulan } = await dataPadananAktif(location.id);
 
   const bolehKelola = can(user.role, "rab.manage");
   const bolehSetujui = bolehMenyetujui(user.role);
@@ -46,17 +60,48 @@ export default async function PasangkanPage({
     unit: b.unit,
     jalur: [b.kategori, b.jalur.split(" · ").slice(1).join(" · ")].filter(Boolean).join(" · "),
     kategori: b.kategori,
-    jenis: b.jenis,
+    jenis: b.jenis === "dinolkan" ? "dinolkan" : "hilang",
     volume: b.volume,
     jumlahLaporan: b.jumlahLaporan,
     rentang: b.pertama ? (tgl(b.pertama) === tgl(b.terakhir) ? tgl(b.pertama) : `${tgl(b.pertama)} – ${tgl(b.terakhir)}`) : null,
     keterangan: b.keterangan,
     calon: b.calon.map((c) => ({
       value: c.lineageKey,
-      label: `${c.jalur} ${c.name} – sisa ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(c.sisa)}${c.unit ? ` ${c.unit}` : ""}`,
+      label: `${c.jalur} ${c.name} – sisa ${fmt(c.sisa)}${c.unit ? ` ${c.unit}` : ""}`,
+      dipotong: c.dipotong,
     })),
     calonSisaKurang: b.calonSisaKurang,
     terhalang: b.terhalang,
+  }));
+  const rentang = (a: string | null, z: string | null) => {
+    if (!a) return null;
+    const d = (k: string) => formatTanggal(new Date(`${k}T00:00:00.000Z`), "d MMM yyyy");
+    return a === z || !z ? d(a) : `${d(a)} – ${d(z)}`;
+  };
+  const luarView: LuarRabView[] = luarRab.map((k) => ({
+    kunci: k.kunci,
+    uraian: k.uraian,
+    satuan: k.satuan,
+    satuanKunci: k.satuanKunci,
+    catatanIds: k.catatanIds,
+    volume: k.volume,
+    jumlahLaporan: k.jumlahLaporan,
+    rentang: rentang(k.pertama, k.terakhir),
+    tertahan: !k.tertahan
+      ? null
+      : k.catatanIds.length > 0
+        ? `${k.tertahan.jumlah} catatan lain ada di laporan yang belum dikirim (${k.tertahan.tanggal}), jadi belum ikut. Kirim laporannya dulu.`
+        : `${k.tertahan.jumlah} catatan ada di laporan yang belum dikirim (${k.tertahan.tanggal}). Kirim laporannya dulu, baru bisa dipasangkan.`,
+    asalDraft: k.asalDraft,
+    saran: k.saran,
+    pilihan: k.pilihan,
+  }));
+  const calonLuarView: CalonLuarView[] = calonLuarRab.map((c) => ({
+    value: c.lineageKey,
+    label: `${c.jalur} ${c.name} – sisa ${fmt(c.sisa)}${c.unit ? ` ${c.unit}` : ""}`,
+    satuanKunci: c.satuanKunci,
+    sisa: c.sisa,
+    unit: c.unit,
   }));
 
   const keUsulan = (u: UsulanPadanan): UsulanView => ({
@@ -67,7 +112,9 @@ export default async function PasangkanPage({
     jalurBaru: u.jalurBaru,
     unit: u.unit,
     volume: u.volume,
+    dipotong: u.dipotong,
     baris: u.baris,
+    catatan: u.luarRabIds.length,
     alasan: u.alasan,
     diajukan: `diajukan ${u.diajukanOleh.nama}, ${tgl(u.diajukanPada)}`,
     suara: u.suara.map((s) => `${s.nama} (${ROLE_LABEL[s.role]})`),
@@ -94,7 +141,7 @@ export default async function PasangkanPage({
       <Card>
         <CardHeader
           title="Pasangkan realisasi"
-          subtitle="Pekerjaan yang sudah dilaporkan tapi tidak terhitung sejak adendum diaktifkan. Pasangkan ke item di RAB aktif supaya realisasinya terhitung lagi."
+          subtitle="Pekerjaan yang sudah dilaporkan tapi tidak terhitung: item yang hilang atau dinolkan sejak adendum diaktifkan, dan catatan pekerjaan di luar RAB. Pasangkan ke item di RAB aktif supaya realisasinya terhitung."
           action={
             <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
               <ArrowLeft aria-hidden className="size-3.5" />
@@ -114,8 +161,13 @@ export default async function PasangkanPage({
               </p>
               <p>
                 Saat berlaku, baris laporan item lama pindah ke item tujuan. Tanggal, pelapor, dan fotonya tetap. Untuk
-                item yang dinolkan, volumenya dikembalikan ke angka sebelum aktivasi. RAB aktif, kurva-S, dan dokumen CCO
-                tidak berubah. Pasangan bisa dilepas lagi selama RAB aktifnya belum berganti.
+                item yang dinolkan, volumenya dikembalikan ke angka sebelum aktivasi. Catatan di luar RAB menjadi baris
+                laporan item tujuan pada tanggal aslinya, dengan fotonya. RAB aktif, kurva-S, dan dokumen CCO tidak
+                berubah. Pasangan bisa dilepas lagi selama RAB aktifnya belum berganti.
+              </p>
+              <p>
+                Realisasi tidak boleh melebihi volume item tujuan. Kalau sisa volumenya kurang, kelebihannya dipotong
+                dibagi rata di laporan-laporannya, sama seperti saat adendum diaktifkan, dan disebut di usulannya.
               </p>
             </>
           )}
@@ -156,6 +208,34 @@ export default async function PasangkanPage({
               <ul className="divide-y divide-border rounded-md border border-border">
                 {belumView.map((b) => (
                   <BarisBelum key={b.lineageKey} slug={slug} b={b} bolehAjukan={bolehKelola} />
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {aktif ? (
+        <Card>
+          <CardHeader
+            title={`Pekerjaan di luar RAB (${luarView.length})`}
+            subtitle={
+              luarView.length > 0
+                ? "Dicatat pelaksana di laporan harian karena itemnya belum ada di RAB. Catatan yang uraian dan satuannya sama dikelompokkan."
+                : undefined
+            }
+          />
+          <CardBody>
+            {luarView.length === 0 ? (
+              <Banner
+                tone="success"
+                title="Tidak ada catatan pekerjaan di luar RAB yang menunggu"
+                description="Yang sudah dipasangkan ada di bawah, yang dipadankan ke draft adendum ada di halaman Adendum."
+              />
+            ) : (
+              <ul className="divide-y divide-border rounded-md border border-border">
+                {luarView.map((k) => (
+                  <BarisLuarRab key={k.kunci} slug={slug} k={k} calon={calonLuarView} bolehAjukan={bolehKelola} />
                 ))}
               </ul>
             )}
@@ -208,26 +288,31 @@ function kabarAksi(q: Record<string, string | string[] | undefined>, usulan: Usu
   const v = `${fmt(u.volume)}${u.unit ? ` ${u.unit}` : ""}`;
   const blanko = typeof q.blanko === "string" && /^\d+$/.test(q.blanko) ? Number(q.blanko) : 0;
   const tambahanBlanko = blanko > 0 ? ` ${blanko} blanko harian final ikut diperbarui.` : "";
+  const potong = u.dipotong > 0 ? ` ${fmt(u.dipotong)}${u.unit ? ` ${u.unit}` : ""} dipotong karena sisa volumenya kurang.` : "";
+  const asal = u.jenis === "luar_rab" ? `${u.luarRabIds.length} catatan "${u.namaLama}"` : `"${u.namaLama}"`;
   if (kode === "diajukan" && u.keadaan === "diajukan") {
-    return `Usulan dikirim: ${v} dari "${u.namaLama}" ke "${u.namaBaru}". Berlaku sesudah disetujui Program Director dan Area Manager, Project Manager, atau Site Manager.`;
+    return `Usulan dikirim: ${v} dari ${asal} ke "${u.namaBaru}".${potong} Berlaku sesudah disetujui Program Director dan Area Manager, Project Manager, atau Site Manager.`;
   }
   if (kode === "setuju" && u.keadaan === "diajukan") {
     return `Persetujuan Anda tercatat. Masih menunggu ${u.kurang.join(" dan ")}.`;
   }
   if ((kode === "berlaku" || kode === "setuju") && u.keadaan === "berlaku") {
     return (
-      `Pemasangan berlaku: ${u.baris} baris laporan "${u.namaLama}" pindah ke "${u.namaBaru}", ${v}` +
-      (u.jenis === "dinolkan" ? `, dengan volume yang dulu dinolkan dikembalikan` : "") +
-      `. Progres sudah menghitungnya.${tambahanBlanko}`
+      (u.jenis === "luar_rab"
+        ? `Pemasangan berlaku: ${asal} masuk ke "${u.namaBaru}" di ${u.baris} laporan, ${v}`
+        : `Pemasangan berlaku: ${u.baris} baris laporan "${u.namaLama}" pindah ke "${u.namaBaru}", ${v}` +
+          (u.jenis === "dinolkan" ? `, dengan volume yang dulu dinolkan dikembalikan` : "")) +
+      `.${potong} Progres sudah menghitungnya.${tambahanBlanko}`
     );
   }
   if (kode === "ditutup" && u.keadaan === "ditutup") {
-    return `${u.alasanTutup?.startsWith("Ditolak") ? "Usulan ditolak" : "Usulan dibatalkan"}. "${u.namaLama}" kembali ke daftar yang belum dipasangkan.`;
+    return `${u.alasanTutup?.startsWith("Ditolak") ? "Usulan ditolak" : "Usulan dibatalkan"}. ${u.jenis === "luar_rab" ? `Catatan "${u.namaLama}"` : `"${u.namaLama}"`} kembali ke daftar yang belum dipasangkan.`;
   }
   if (kode === "dilepas" && u.keadaan === "dilepas") {
     return (
-      `Pasangan dilepas: laporan "${u.namaLama}" kembali ke item lamanya, persis seperti sesudah aktivasi.` +
-      tambahanBlanko
+      (u.jenis === "luar_rab"
+        ? `Pasangan dilepas: catatan "${u.namaLama}" kembali menunggu dipasangkan, baris laporannya kembali seperti sebelum dipasangkan.`
+        : `Pasangan dilepas: laporan "${u.namaLama}" kembali ke item lamanya, persis seperti sesudah aktivasi.`) + tambahanBlanko
     );
   }
   return null;

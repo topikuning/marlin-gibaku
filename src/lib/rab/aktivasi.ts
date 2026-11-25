@@ -120,6 +120,16 @@ export async function jalankanAktivasi(o: {
       // DECISIONS 777: masih bisa dipasangkan sesudah aktif, lewat dua persetujuan.
       ` Masih bisa dipasangkan ke item RAB aktif lewat RAB › Pasangkan realisasi.`;
   }
+  // DECISIONS 780: catatan di luar RAB yang belum dipadankan tidak ikut naik
+  // bersama draft – sebutkan jalannya, jangan didiamkan.
+  const catatanMenunggu = await db.pekerjaanLuarRab.count({
+    where: { locationId: rev.locationId, dibatalkanAt: null, reportItemId: null },
+  });
+  if (catatanMenunggu > 0) {
+    kabar +=
+      ` ${catatanMenunggu} catatan pekerjaan di luar RAB masih menunggu dan belum masuk progres.` +
+      ` Pasangkan ke item RAB aktif lewat RAB › Pasangkan realisasi.`;
+  }
   if (p.item > 0) {
     const contoh = p.rincian
       .slice(0, 3)

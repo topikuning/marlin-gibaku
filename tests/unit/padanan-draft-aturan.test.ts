@@ -130,3 +130,11 @@ describe("satuanSetara", () => {
     expect(satuanSetara("kg", "ton")).toBe(false);
   });
 });
+
+describe("kunciSatuan – bentuk baku untuk menyaring calon di layar (DECISIONS 780)", () => {
+  it("penulisan berbeda → kunci sama; kosong dan '-' → tidak diketahui", async () => {
+    const { kunciSatuan } = await import("@/lib/rab/padanan-draft-aturan");
+    expect([kunciSatuan("M³"), kunciSatuan("m 3"), kunciSatuan("m3.")]).toEqual(["m3", "m3", "m3"]);
+    expect([kunciSatuan(null), kunciSatuan("  "), kunciSatuan("-")]).toEqual([null, null, null]);
+  });
+});

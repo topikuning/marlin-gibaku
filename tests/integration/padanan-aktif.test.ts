@@ -12,9 +12,14 @@
 // 3. berlaku = baris laporan item lama pindah ke item aktif (foto tetap),
 //    volume yang dinolkan dipulihkan dari jejak aktivasi, progres menghitungnya;
 // 4. Lepas mengembalikan keadaan persis seperti sesudah aktivasi;
-// 5. semua penolakan: beda satuan, sisa volume, satu laporan memuat keduanya,
+// 5. semua penolakan: beda satuan, sisa volume 0, satu laporan memuat keduanya,
 //    laporan belum dikirim, usulan ganda, revisi aktif berganti, baris yang
 //    sudah diubah orang, peran yang tidak berhak.
+// 6. (DECISIONS 780) sisa volume KURANG tidak menolak: kelebihannya dipotong
+//    dibagi rata, Lepas mengembalikan angka aslinya;
+// 7. (DECISIONS 780) catatan pekerjaan di luar RAB dipasangkan ke item RAB
+//    aktif: jadi baris laporan pada tanggal aslinya (atau menumpang di baris
+//    yang sudah ada), fotonya ikut, Lepas mengembalikan catatannya menunggu.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -28,8 +33,10 @@ vi.mock("@/lib/auth/session", () => ({ requestIp: async () => null }));
 const { db } = await import("@/lib/db");
 const { activateRevision } = await import("@/lib/rab/import");
 const { cumulativeVolumeByLineage, volumeTidakTerbobotByLineage } = await import("@/lib/progress");
+const { lepasPadanan: lepasPadananDraft, batalkanLuarRab } = await import("@/lib/luar-rab/service");
 const {
   ajukanPadananAktif,
+  ajukanPadananLuarRab,
   dataPadananAktif,
   lepasPadananAktif,
   PadananAktifError,
@@ -201,7 +208,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE audit_logs, rab_padanan_aktif_setuju, rab_padanan_aktif, photos, daily_report_items, daily_reports, rab_nodes, rab_revisions, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE audit_logs, rab_padanan_aktif_setuju, rab_padanan_aktif, photos, pekerjaan_luar_rab, daily_report_items, daily_reports, rab_nodes, rab_revisions, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
   );
   await db.$disconnect();
 });
@@ -300,10 +307,10 @@ describe("penolakan", () => {
     await gagalDengan(ajukan(L, "I#3", "I#3"), /masih ada di RAB aktif dan bervolume/);
   });
 
-  it("sisa volume item tujuan tidak cukup – angkanya disebut", async () => {
+  it("item tujuan yang sudah dilaporkan penuh (sisa 0) ditolak dengan angkanya, dan tidak ditawarkan", async () => {
     const L = await siapkan();
-    await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 1.5 }]);
-    await gagalDengan(ajukan(L, "I#1", "I#3"), /Sisa volume "Pondasi batu belah" tidak cukup.*lebih 1,5 m3/);
+    await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 7 }]);
+    await gagalDengan(ajukan(L, "I#1", "I#3"), /"Pondasi batu belah" sudah dilaporkan penuh \(8 m3 dari 8 m3\)/);
     // Di menu: calonnya tidak ditawarkan, dan jumlah yang disembunyikan disebut.
     const b = (await dataPadananAktif(L.locationId)).belum.find((x) => x.lineageKey === "I#1")!;
     expect([b.calon.length, b.calonSisaKurang]).toEqual([0, 1]);
@@ -345,12 +352,12 @@ describe("penolakan", () => {
     const L = await siapkan();
     const { id } = await ajukan(L, "I#1", "I#3");
     await setujui(id, U.sm);
-    // Sesudah diajukan, I#3 dilaporkan lagi sehingga sisanya tidak cukup.
-    await L.lapor(9, [{ node: L.node.d3, lineageKey: "I#3", vol: 1.5 }]);
-    await gagalDengan(setujui(id, U.pd), /Sisa volume/);
+    // Sesudah diajukan, I#3 dilaporkan lagi sampai penuh.
+    await L.lapor(9, [{ node: L.node.d3, lineageKey: "I#3", vol: 7 }]);
+    await gagalDengan(setujui(id, U.pd), /sudah dilaporkan penuh/);
     const u = (await dataPadananAktif(L.locationId)).usulan.find((x) => x.id === id)!;
     expect([u.keadaan, u.suara.map((s) => s.role)]).toEqual(["diajukan", ["site_manager"]]);
-    expect(await kumulatif(L, "I#3")).toBe(2.5);
+    expect(await kumulatif(L, "I#3")).toBe(8);
   });
 
   it("revisi aktif berganti: usulan tidak bisa berlaku dan pasangan tidak bisa dilepas", async () => {
@@ -381,5 +388,172 @@ describe("penolakan", () => {
       lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Salah pilih item tujuan." }),
       /2 Oktober 2026 sudah diubah sesudah dipasangkan/,
     );
+  });
+});
+
+/*
+ * KELEBIHAN DIPOTONG, TIDAK DITOLAK (DECISIONS 780). Keluhan user 2026-11-25
+ * dengan tangkapan layar "3 item cocok tetapi sisa volumenya kurang": *"apa
+ * gunanya ini? gimana aku mau memasangkan ini ke rab aktif?"*.
+ */
+describe("sisa volume item tujuan kurang: kelebihannya dipotong dibagi rata, Lepas mengembalikan", () => {
+  it("I#1 7 m3 → I#3 yang sisanya 5,5: masuk 5,5, dipotong 1,5; dilepas kembali 4 + 3", async () => {
+    const L = await siapkan();
+    await L.lapor(6, [{ node: L.node.d3, lineageKey: "I#3", vol: 1.5 }]);
+    const b = (await dataPadananAktif(L.locationId)).belum.find((x) => x.lineageKey === "I#1")!;
+    expect(b.calon.map((c) => [c.lineageKey, c.sisa, c.dipotong])).toEqual([["I#3", 5.5, 1.5]]);
+
+    const { id, ringkasan } = await ajukan(L, "I#1", "I#3");
+    expect([ringkasan.volume, ringkasan.dipotong]).toEqual([5.5, 1.5]);
+    await setujui(id, U.sm);
+    expect(await setujui(id, U.pd)).toMatchObject({ berlaku: true, volume: 5.5, dipotong: 1.5 });
+    const rows = new Map((await db.dailyReportItem.findMany({ where: { id: { in: L.barisI1 } } })).map((r) => [r.id, r]));
+    expect(L.barisI1.map((k) => rows.get(k)!).map((r) => [Number(r.volumeDone), Number(r.volumeSebelumPadanan)])).toEqual([
+      [3.143, 4],
+      [2.357, 3],
+    ]);
+    expect(await kumulatif(L, "I#3")).toBe(8);
+
+    await lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Tunggu adendum menaikkan volume." });
+    const k = new Map((await db.dailyReportItem.findMany({ where: { id: { in: L.barisI1 } } })).map((r) => [r.id, r]));
+    expect(L.barisI1.map((x) => k.get(x)!).map((r) => [r.lineageKey, Number(r.volumeDone), r.volumeSebelumPadanan])).toEqual([
+      ["I#1", 4, null],
+      ["I#1", 3, null],
+    ]);
+    expect(await kumulatif(L, "I#3")).toBe(2.5);
+  });
+});
+
+/* ── Catatan pekerjaan di luar RAB → item RAB aktif (DECISIONS 780) ───── */
+
+const laporan = async (L: Lokasi, hari: number, status: "final" | "dikirim" | "draft" = "final") =>
+  (
+    await db.dailyReport.create({
+      data: { locationId: L.locationId, reportDate: tgl(hari), status, createdById: U.sm.id, weather: "cerah" },
+    })
+  ).id;
+const catat = async (L: Lokasi, reportId: string, uraian: string, satuan: string, volume: number) =>
+  (await db.pekerjaanLuarRab.create({ data: { locationId: L.locationId, reportId, uraian, satuan, volume, createdById: U.sm.id } })).id;
+const ajukanLuar = (L: Lokasi, ids: string[], baru: string) =>
+  ajukanPadananLuarRab({ locationId: L.locationId, luarRabIds: ids, lineageBaru: baru, alasan: ALASAN, userId: U.sm.id });
+
+describe("catatan pekerjaan di luar RAB dipasangkan ke item RAB aktif", () => {
+  it("dikelompokkan dan disarankan; berlaku jadi baris laporan pada tanggal aslinya dengan fotonya; Lepas mengembalikannya", async () => {
+    const L = await siapkan();
+    const r10 = await laporan(L, 10);
+    const r11 = await laporan(L, 11, "dikirim");
+    const r12 = await laporan(L, 12, "draft");
+    const c1 = await catat(L, r10, "Pondasi batu belah tambahan", "m3", 2);
+    const c2 = await catat(L, r10, "pondasi  batu belah tambahan", "M3", 1);
+    const c3 = await catat(L, r11, "Pondasi batu belah tambahan", "m3", 1.5);
+    await catat(L, r12, "Pondasi batu belah tambahan", "m3", 0.5);
+    const foto = await db.photo.create({
+      data: { locationId: L.locationId, reportId: r10, luarRabId: c1, r2Key: `uji/${suffix}/luar.webp`, sha256: `${suffix}-luar`, bytes: 10 },
+    });
+
+    const d = await dataPadananAktif(L.locationId);
+    expect(d.luarRab).toHaveLength(1);
+    const k = d.luarRab[0]!;
+    expect([k.catatanIds.sort(), k.volume, k.jumlahLaporan, k.tertahan?.jumlah]).toEqual([[c1, c2, c3].sort(), 4.5, 2, 1]);
+    expect(k.saran[0]).toBe("I#3");
+    // Calon: item RAB aktif yang masih bersisa; satuannya disaring di layar.
+    expect(d.calonLuarRab.map((c) => [c.lineageKey, c.sisa])).toEqual([
+      ["I#3", 7],
+      ["I#4", 12],
+      ["II#1", 40],
+      ["II#9", 3],
+    ]);
+
+    // Catatan di laporan yang belum dikirim tidak bisa ikut.
+    const draftId = (await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: r12 } })).id;
+    await gagalDengan(ajukanLuar(L, [c1, draftId], "I#3"), /belum dikirim/);
+
+    const { id, ringkasan } = await ajukanLuar(L, [c1, c2, c3], "I#3");
+    expect([ringkasan.volume, ringkasan.baris, ringkasan.catatan, ringkasan.dipotong]).toEqual([4.5, 2, 3, 0]);
+    // Sedang diusulkan: hilang dari daftar menunggu, yang di laporan draft tetap disebut.
+    expect((await dataPadananAktif(L.locationId)).luarRab.map((x) => [x.catatanIds.length, x.tertahan?.jumlah])).toEqual([[0, 1]]);
+    await gagalDengan(ajukanLuar(L, [c3], "I#3"), /sudah diusulkan/);
+
+    expect(await setujui(id, U.sm)).toMatchObject({ berlaku: false });
+    expect(await kumulatif(L, "I#3")).toBe(1);
+    expect(await setujui(id, U.pd)).toMatchObject({ berlaku: true, baris: 2, volume: 4.5, jenis: "luar_rab" });
+    expect(await kumulatif(L, "I#3")).toBe(5.5);
+    const baris = await db.dailyReportItem.findMany({ where: { padananAktifId: id }, orderBy: { volumeDone: "desc" } });
+    expect(baris.map((b) => [b.reportId, b.lineageKey, b.basis, Number(b.volumeDone), Number(b.valueDone), b.volumeSebelumPadanan])).toEqual([
+      [r10, "I#3", "aktif", 3, 300_000, null],
+      [r11, "I#3", "aktif", 1.5, 150_000, null],
+    ]);
+    const catatan = new Map((await db.pekerjaanLuarRab.findMany({ where: { id: { in: [c1, c2, c3] } } })).map((c) => [c.id, c]));
+    expect([c1, c2, c3].map((x) => catatan.get(x)!.reportItemId)).toEqual([baris[0]!.id, baris[0]!.id, baris[1]!.id]);
+    expect((await db.photo.findUniqueOrThrow({ where: { id: foto.id } })).reportItemId).toBe(baris[0]!.id);
+    // Lepas dari halaman Adendum (738) diarahkan ke menu ini.
+    await expect(lepasPadananDraft(c1, U.sm.id)).rejects.toThrow(/Pasangkan realisasi/);
+    expect((await dataPadananAktif(L.locationId)).usulan.find((u) => u.id === id)).toMatchObject({ keadaan: "berlaku", baris: 2 });
+
+    await lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Salah pilih item tujuan." });
+    expect(await db.dailyReportItem.count({ where: { id: { in: baris.map((b) => b.id) } } })).toBe(0);
+    expect(await kumulatif(L, "I#3")).toBe(1);
+    const kembali = await db.pekerjaanLuarRab.findMany({ where: { id: { in: [c1, c2, c3] } } });
+    expect(kembali.every((c) => c.reportItemId === null && c.dipadankanAt === null)).toBe(true);
+    expect(await db.photo.findUniqueOrThrow({ where: { id: foto.id } })).toMatchObject({ reportItemId: null, luarRabId: c1 });
+    expect((await dataPadananAktif(L.locationId)).luarRab[0]!.catatanIds).toHaveLength(3);
+  });
+
+  it("laporan yang sudah punya baris item tujuan: catatannya ditambahkan ke baris itu; sisa kurang → dipotong; Lepas mengembalikan angkanya", async () => {
+    const L = await siapkan();
+    const [ada] = await L.lapor(13, [{ node: L.node.d3, lineageKey: "I#3", vol: 2 }]);
+    const r13 = (await db.dailyReportItem.findUniqueOrThrow({ where: { id: ada! } })).reportId;
+    const r14 = await laporan(L, 14);
+    const c1 = await catat(L, r13, "Batu belah", "m3", 6);
+    const c2 = await catat(L, r14, "Batu belah", "m3", 2);
+    // I#3: volume 8, terlapor 1 + 2 = 3 → sisa 5. Catatan 8 → masuk 5, dipotong 3.
+    const { id, ringkasan } = await ajukanLuar(L, [c1, c2], "I#3");
+    expect([ringkasan.volume, ringkasan.dipotong]).toEqual([5, 3]);
+    await setujui(id, U.pm);
+    expect(await setujui(id, U.pd)).toMatchObject({ berlaku: true, volume: 5, dipotong: 3 });
+    const a = await db.dailyReportItem.findUniqueOrThrow({ where: { id: ada! } });
+    expect([Number(a.volumeDone), Number(a.volumeSebelumPadanan), a.padananAktifId]).toEqual([5.75, 2, id]);
+    const baru = await db.dailyReportItem.findFirstOrThrow({ where: { reportId: r14, lineageKey: "I#3" } });
+    expect(Number(baru.volumeDone)).toBe(1.25);
+    expect(await kumulatif(L, "I#3")).toBe(8);
+
+    await lepasPadananAktif({ padananId: id, userId: U.sm.id, alasan: "Volume menunggu adendum." });
+    const a2 = await db.dailyReportItem.findUniqueOrThrow({ where: { id: ada! } });
+    expect([Number(a2.volumeDone), a2.volumeSebelumPadanan, a2.padananAktifId, Number(a2.valueDone)]).toEqual([2, null, null, 200_000]);
+    expect(await db.dailyReportItem.count({ where: { reportId: r14 } })).toBe(0);
+    expect(await kumulatif(L, "I#3")).toBe(3);
+  });
+
+  it("baris hasil pemasangan dihapus lewat koreksi laporan: catatannya muncul lagi dan bisa dipasangkan ulang", async () => {
+    const L = await siapkan();
+    const r = await laporan(L, 17);
+    const c = await catat(L, r, "Batu belah", "m3", 1);
+    const { id } = await ajukanLuar(L, [c], "I#3");
+    await setujui(id, U.sm);
+    await setujui(id, U.pd);
+    expect((await dataPadananAktif(L.locationId)).luarRab).toEqual([]);
+    await db.dailyReportItem.deleteMany({ where: { padananAktifId: id } });
+    expect((await dataPadananAktif(L.locationId)).luarRab.map((k) => k.catatanIds)).toEqual([[c]]);
+    await expect(ajukanLuar(L, [c], "I#3")).resolves.toMatchObject({ ringkasan: { volume: 1 } });
+  });
+
+  it("penolakan: beda satuan, sisa 0, catatan yang dibatalkan di antara diajukan dan disetujui", async () => {
+    const L = await siapkan();
+    const r = await laporan(L, 15);
+    const c = await catat(L, r, "Plesteran dinding", "m3", 1);
+    await gagalDengan(ajukanLuar(L, [c], "I#4"), /Beda satuan/);
+    await gagalDengan(ajukanLuar(L, [c], "I#9"), /tidak ada di RAB aktif/);
+
+    const { id } = await ajukanLuar(L, [c], "II#9");
+    await setujui(id, U.sm);
+    await batalkanLuarRab(c, "Ternyata dobel dengan laporan lain.", U.sm.id);
+    await gagalDengan(setujui(id, U.pd), /sudah dibatalkan/);
+
+    const M = await siapkan();
+    const rm = await laporan(M, 15);
+    const cm = await catat(M, rm, "Batu belah", "m3", 1);
+    await M.lapor(16, [{ node: M.node.d3, lineageKey: "I#3", vol: 7 }]);
+    await gagalDengan(ajukanLuar(M, [cm], "I#3"), /sudah dilaporkan penuh/);
+    expect((await dataPadananAktif(M.locationId)).calonLuarRab.map((x) => x.lineageKey)).not.toContain("I#3");
   });
 });
