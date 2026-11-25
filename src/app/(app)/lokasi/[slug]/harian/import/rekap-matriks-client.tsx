@@ -32,7 +32,8 @@ const LABEL_PILIHAN: Record<PilihanBentrok, string> = {
 
 const LABEL_AKSI: Record<PerubahanSel["aksi"], string> = { tambah: "Ditambah", ubah: "Disesuaikan", nolkan: "Dinolkan" };
 
-function Sel({ p, unit }: { p: PerubahanSel; unit: string | null }) {
+function Sel({ p, unit, fotoPindah }: { p: PerubahanSel; unit: string | null; fotoPindah: number }) {
+  const fotoTinggal = p.foto - fotoPindah;
   return (
     <li className={p.ditahan ? "text-ink-faint" : "text-ink"}>
       <span className="tabular-nums">{tgl(p.tanggal)}</span> · {LABEL_AKSI[p.aksi]}{" "}
@@ -41,7 +42,12 @@ function Sel({ p, unit }: { p: PerubahanSel; unit: string | null }) {
         {formatNumber(p.ke)}
         {sat(unit)}
       </span>
-      {p.aksi === "nolkan" && p.foto > 0 ? <span className="text-ink-muted"> (barisnya tetap, {p.foto} foto tetap di tempatnya)</span> : null}
+      {p.aksi === "nolkan" ? (
+        <span className="text-ink-muted">
+          {" "}
+          (barisnya tetap{fotoTinggal > 0 ? `, ${fotoTinggal} foto tetap di tempatnya` : ""})
+        </span>
+      ) : null}
       {p.ditahan ? <span className="text-warning"> – ditahan: {p.ditahan}</span> : null}
     </li>
   );
@@ -109,12 +115,27 @@ function KartuItem({
       {it.perubahan.length > 0 ? (
         <ul className="space-y-0.5 text-xs">
           {it.perubahan.map((p) => (
-            <Sel key={p.tanggal} p={p} unit={it.unit} />
+            <Sel
+              key={p.tanggal}
+              p={p}
+              unit={it.unit}
+              fotoPindah={it.pindahFoto.filter((f) => f.dari === p.tanggal).reduce((t, f) => t + f.jumlah, 0)}
+            />
           ))}
         </ul>
       ) : it.bentrok.length === 0 ? (
         <p className="text-xs text-ink-muted">Sudah sama dengan Excel – tidak ada yang berubah.</p>
       ) : null}
+      {it.pindahFoto.map((f) => (
+        <p key={`${f.dari}-${f.ke}`} className="text-xs text-ink">
+          {f.jumlah} foto pindah dari {tgl(f.dari)} ke {tgl(f.ke)}.
+        </p>
+      ))}
+      {it.fotoTetap.map((f) => (
+        <p key={`${f.dari}-${f.sebab}`} className="text-xs text-ink-muted">
+          {f.jumlah} foto tetap di {tgl(f.dari)}: {f.sebab}.
+        </p>
+      ))}
       {it.catatan.map((c) => (
         <p key={c} className="text-xs text-ink-muted">
           {c}
@@ -128,6 +149,7 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<ModeImpor>("tambah");
+  const [pindahFoto, setPindahFoto] = useState(false);
   const [tujuan, setTujuan] = useState<Record<number, string>>({});
   const [pilihan, setPilihan] = useState<Record<string, PilihanBentrok>>({});
   const gagal = (pesan: string): RekapMatriksState => ({ ok: false, error: pesan });
@@ -137,8 +159,8 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
   const selesai = simpan?.ok && simpan.fase === "selesai" ? simpan.hasil : null;
   const bahan: BahanPratinjau | null = baca?.ok && baca.fase === "pratinjau" && !selesai ? baca.bahan : null;
   const rencana = useMemo(
-    () => (bahan ? susunRencana(masukanRencana(bahan, { mode, tujuan, pilihan })) : null),
-    [bahan, mode, tujuan, pilihan],
+    () => (bahan ? susunRencana(masukanRencana(bahan, { mode, tujuan, pilihan, pindahFoto })) : null),
+    [bahan, mode, tujuan, pilihan, pindahFoto],
   );
   const opsiItem = useMemo(
     () => [
@@ -166,7 +188,8 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
           <p className="flex items-center gap-2 font-medium text-success">
             <CheckCircle2 aria-hidden className="size-5" />
             {selesai.tambah} ditambah, {selesai.ubah} disesuaikan, {selesai.nolkan} dinolkan
-            {selesai.laporanBaru > 0 ? `, ${selesai.laporanBaru} laporan baru dikirim untuk verifikasi` : ""}.
+            {selesai.laporanBaru > 0 ? `, ${selesai.laporanBaru} laporan baru dikirim untuk verifikasi` : ""}
+            {selesai.fotoDipindah > 0 ? `, ${selesai.fotoDipindah} foto dipindah ke tanggal Excel` : ""}.
           </p>
           {selesai.blankoDibangunUlang > 0 ? (
             <p className="text-ink-muted">{selesai.blankoDibangunUlang} blanko harian final ikut diperbarui.</p>
@@ -252,6 +275,18 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
             </span>
           </label>
         </fieldset>
+
+        <label className="flex items-start gap-2 text-[13px]">
+          <input type="checkbox" checked={pindahFoto} onChange={(e) => setPindahFoto(e.target.checked)} className="mt-1" />
+          <span>
+            <strong className="text-ink">Pindahkan foto ke tanggal Excel</strong>
+            <span className="text-ink-muted">
+              {" "}
+              – foto di baris yang dinolkan ikut ke tanggal Excel pekerjaan yang sama yang paling dekat dengan waktu
+              jepretnya. Cap tanggal di foto tidak berubah. Tanpa centang, foto tetap di tanggal lamanya.
+            </span>
+          </span>
+        </label>
 
         {baca && !baca.ok ? <Banner tone="error" title={baca.error} /> : null}
         {simpan && !simpan.ok ? <Banner tone="error" title={simpan.error} /> : null}
@@ -381,7 +416,12 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                   Laporan baru dibuat dan dikirim untuk verifikasi: {rencana.ringkas.laporanBaru.map(tgl).join(", ")}.
                 </p>
               ) : null}
-              <p className="text-xs text-ink-muted">Foto yang sudah ada tidak disentuh. Baris laporan tidak ada yang dihapus.</p>
+              <p className="text-xs text-ink-muted">
+                {rencana.ringkas.fotoDipindah > 0
+                  ? `${rencana.ringkas.fotoDipindah} foto dipindah ke tanggal Excel, cap tanggalnya tetap. Foto lain tidak disentuh.`
+                  : "Foto yang sudah ada tidak disentuh."}{" "}
+                Baris laporan tidak ada yang dihapus.
+              </p>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -390,6 +430,7 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                   fd.set("tujuan", JSON.stringify(tujuan));
                   fd.set("pilihan", JSON.stringify(pilihan));
                   fd.set("sidik", rencana.sidik);
+                  if (pindahFoto) fd.set("pindahFoto", "1");
                   aksiSimpan(fd);
                 }}
               >
@@ -400,7 +441,10 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                     description={
                       `${rencana.ringkas.tambah} ditambah, ${rencana.ringkas.ubah} disesuaikan, ${rencana.ringkas.nolkan} dinolkan` +
                       (rencana.ringkas.laporanBaru.length > 0 ? `, ${rencana.ringkas.laporanBaru.length} laporan baru` : "") +
-                      `. Progres ikut berubah. Foto tidak disentuh.`
+                      `. Progres ikut berubah. ` +
+                      (rencana.ringkas.fotoDipindah > 0
+                        ? `${rencana.ringkas.fotoDipindah} foto dipindah ke tanggal Excel.`
+                        : "Foto tidak disentuh.")
                     }
                     variant="primary"
                     loading={menyimpan}

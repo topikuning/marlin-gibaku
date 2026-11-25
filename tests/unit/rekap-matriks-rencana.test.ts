@@ -11,7 +11,7 @@ import type { SelMarlin } from "@/lib/daily-report/rekap-matriks/jenis";
  */
 const sel = (tanggal: string, volume: number, o: Partial<SelMarlin> = {}): [string, SelMarlin] => [
   tanggal,
-  { rowId: `r-${tanggal}`, reportId: `L-${tanggal}`, status: "dikirim", basis: "aktif", volume, padanan: false, foto: 2, ...o },
+  { rowId: `r-${tanggal}`, reportId: `L-${tanggal}`, status: "dikirim", basis: "aktif", volume, padanan: false, foto: 2, fotoWaktu: [tanggal, tanggal], ...o },
 ];
 const masukan = (o: Partial<MasukanRencana> & { excel: [string, number][]; ada?: [string, SelMarlin][]; kontrak?: number }): MasukanRencana => {
   const ada = Object.fromEntries(o.ada ?? []);
@@ -175,5 +175,55 @@ describe("baris Excel", () => {
   it("sidik tetap sama untuk masukan yang sama", () => {
     const m = masukan({ excel: [["2026-10-30", 25]], ada: [sel("2026-10-30", 20)] });
     expect(susunRencana(m).sidik).toBe(susunRencana(m).sidik);
+  });
+});
+
+/*
+ * PINDAHKAN FOTO KE TANGGAL EXCEL (DECISIONS 783). Jawaban user 2026-11-25:
+ * *"ya, pindahkan foto ke tanggal excel jika ditentukan"*.
+ */
+describe("pindahkan foto ke tanggal Excel – hanya bila diminta", () => {
+  it("tujuanFoto: tanggal terdekat; sama dekat → tidak dipindah", async () => {
+    const { tujuanFoto } = await import("@/lib/daily-report/rekap-matriks/rencana");
+    expect(tujuanFoto("2026-10-26", ["2026-10-25", "2026-11-01"])).toBe("2026-10-25");
+    expect(tujuanFoto("2026-10-29", ["2026-10-25", "2026-11-01"])).toBe("2026-11-01");
+    expect(tujuanFoto("2026-10-28", ["2026-10-26", "2026-10-30"])).toBeNull();
+  });
+
+  it("tanpa centang foto tidak dipindah; dengan centang foto baris yang dinolkan ikut ke tanggal Excel", () => {
+    const m = masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 25)] });
+    expect(susunRencana(m).item[0]!.pindahFoto).toEqual([]);
+    const r = susunRencana({ ...m, pindahFoto: true });
+    expect(r.item[0]!.pindahFoto).toEqual([{ dari: "2026-10-28", ke: "2026-10-30", jumlah: 2 }]);
+    expect(r.ringkas.fotoDipindah).toBe(2);
+    expect(r.sidik).not.toBe(susunRencana(m).sidik);
+  });
+
+  it("dibagi menurut waktu jepret; yang sama dekat dan foto bukti catatan di luar RAB tetap, disebut sebabnya", () => {
+    const r = susunRencana({
+      ...masukan({
+        mode: "timpa",
+        // 28 Okt tepat di tengah 25 dan 31 Okt (3 hari ke masing-masing).
+        excel: [["2026-10-25", 10], ["2026-10-31", 10]],
+        ada: [sel("2026-10-28", 20, { foto: 4, fotoWaktu: ["2026-10-26", "2026-10-30", "2026-10-28"] })],
+      }),
+      pindahFoto: true,
+    });
+    expect(r.item[0]!.pindahFoto).toEqual([
+      { dari: "2026-10-28", ke: "2026-10-25", jumlah: 1 },
+      { dari: "2026-10-28", ke: "2026-10-31", jumlah: 1 },
+    ]);
+    expect(r.item[0]!.fotoTetap.map((f) => [f.jumlah, f.sebab])).toEqual([
+      [1, "foto bukti catatan di luar RAB, tetap bersama catatannya"],
+      [1, "jaraknya sama ke dua tanggal Excel"],
+    ]);
+  });
+
+  it("item yang ditahan seluruhnya tidak memindah foto", () => {
+    const r = susunRencana({
+      ...masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 25, { status: "final" })] }),
+      pindahFoto: true,
+    });
+    expect([r.item[0]!.ditahanSemua != null, r.item[0]!.pindahFoto]).toEqual([true, []]);
   });
 });

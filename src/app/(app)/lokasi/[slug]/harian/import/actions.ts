@@ -155,7 +155,7 @@ function bacaPilihan(fd: FormData): PilihanImpor {
   for (const [k, v] of Object.entries(parse("pilihan"))) {
     if (typeof v === "string" && PILIHAN.has(v as PilihanBentrok) && k.length <= 200) pilihan[k] = v as PilihanBentrok;
   }
-  return { mode, tujuan, pilihan };
+  return { mode, tujuan, pilihan, pindahFoto: fd.get("pindahFoto") === "1" };
 }
 
 export async function simpanRekapMatriksAction(_prev: RekapMatriksState, fd: FormData): Promise<RekapMatriksState> {

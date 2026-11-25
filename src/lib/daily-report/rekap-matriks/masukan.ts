@@ -34,6 +34,8 @@ export type PilihanImpor = {
   /** excelRow → kunci item pilihan orang, atau "lewati". Yang tidak disebut memakai hasil cocok otomatis. */
   tujuan: Record<number, string>;
   pilihan: Record<string, PilihanBentrok>;
+  /** Foto di baris yang dinolkan ikut pindah ke tanggal Excel terdekat (DECISIONS 783). */
+  pindahFoto?: boolean;
 };
 
 /** Bahan rencana dari bahan pratinjau + pilihan orang. Dipakai layar DAN server. */
@@ -51,6 +53,7 @@ export function masukanRencana(b: BahanPratinjau, p: PilihanImpor): MasukanRenca
         pilih === "lewati" ? null : pilih && daun.has(pilih) ? pilih : otomatis?.lineageKey ?? null;
       return { excelRow: x.excelRow, nama: x.nama, lineageKey, sel: x.sel.map((s) => ({ tanggal: s.tanggal, volume: s.volume })) };
     }),
+    pindahFoto: p.pindahFoto === true,
     rab: Object.fromEntries(b.daun.map((d) => [d.lineageKey, { name: d.name, unit: d.unit, volume: d.volume, jalur: d.jalur }])),
     marlin: b.marlin,
     laporan: b.laporan,

@@ -30,7 +30,11 @@ import type { LaporanMarlin, ModeImpor, PilihanBentrok, SelMarlin } from "./jeni
  *   baris hasil pemasangan, hari nihil, lokasi yang sudah dicabut. Item yang
  *   sebagian perubahannya ditahan padahal ada yang dinolkan/diturunkan ditahan
  *   SELURUHNYA – supaya volumenya tidak terhitung dua kali.
- * - Foto tidak pernah disentuh.
+ * - Foto tidak pernah disentuh – kecuali orang MEMINTA "pindahkan foto ke
+ *   tanggal Excel" (DECISIONS 783): foto di baris yang dinolkan ikut ke
+ *   tanggal Excel item yang sama yang paling dekat dengan waktu jepretnya.
+ *   Jaraknya sama ke dua tanggal → tidak dipindah, disebut. Cap tanggal di foto
+ *   TIDAK diubah: foto tetap menyebut kapan ia diambil (DECISIONS 197).
  */
 
 const EPS = 0.0005;
@@ -67,6 +71,8 @@ export type MasukanRencana = {
   tertutup: Record<string, string>;
   izin: { ubahTerkirim: boolean; ubahFinal: boolean };
   pilihan: Record<string, PilihanBentrok>;
+  /** Foto di baris yang dinolkan ikut pindah ke tanggal Excel (DECISIONS 783). */
+  pindahFoto?: boolean;
 };
 
 export type AksiSel = "tambah" | "ubah" | "nolkan";
@@ -109,6 +115,12 @@ export type RencanaItem = {
   catatan: string[];
   /** Seluruh item ditahan (sebabnya); perubahannya tidak ditulis. */
   ditahanSemua: string | null;
+  /** Foto yang dipindah dari baris yang dinolkan ke tanggal Excel (DECISIONS 783). */
+  pindahFoto: { dari: string; ke: string; jumlah: number }[];
+  /** Foto di baris yang dinolkan yang TIDAK dipindah, dengan sebabnya. */
+  fotoTetap: { dari: string; jumlah: number; sebab: string }[];
+  /** Tanggal Excel yang boleh menerima foto – server memakai daftar yang sama persis. */
+  tujuanFoto: string[];
 };
 
 export type Rencana = {
@@ -123,6 +135,7 @@ export type Rencana = {
     itemBerubah: number;
     itemBentrok: number;
     itemDilewati: number;
+    fotoDipindah: number;
   };
   /** Sidik jari perubahan yang akan ditulis – menyimpan menolak bila berbeda dari pratinjau. */
   sidik: string;
@@ -142,6 +155,29 @@ function sebabDitahan(o: MasukanRencana, tanggal: string, sel: SelMarlin | undef
 }
 
 const jumlah = (m: Map<string, number>) => bulat3([...m.values()].reduce((t, v) => t + v, 0));
+
+const HARI = 86_400_000;
+const jarak = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / HARI;
+
+/**
+ * Tanggal tujuan tiap foto: tanggal di `tujuan` yang paling dekat dengan waktu
+ * jepretnya. Sama dekat ke dua tanggal → `null` (tidak dipindah). Dipakai
+ * rencana DAN penulis di server, jadi keduanya pasti sama.
+ */
+export function tujuanFoto(waktu: string, tujuan: readonly string[]): string | null {
+  let terbaik: string | null = null;
+  let jarakTerbaik = Infinity;
+  let seri = false;
+  for (const t of tujuan) {
+    const d = jarak(waktu, t);
+    if (d < jarakTerbaik) {
+      terbaik = t;
+      jarakTerbaik = d;
+      seri = false;
+    } else if (d === jarakTerbaik) seri = true;
+  }
+  return seri ? null : terbaik;
+}
 
 /** FNV-1a 32 bit – cukup untuk mendeteksi rencana yang berubah, bukan untuk keamanan. */
 function fnv(s: string): string {
@@ -288,6 +324,40 @@ export function susunRencana(o: MasukanRencana): Rencana {
     const akhirTulis = new Map(kini);
     for (const p of perubahan) if (!p.ditahan) akhirTulis.set(p.tanggal, p.ke);
 
+    // Foto di baris yang dinolkan → tanggal Excel terdekat (hanya bila diminta).
+    const pindahFoto: RencanaItem["pindahFoto"] = [];
+    const fotoTetap: RencanaItem["fotoTetap"] = [];
+    let tujuan: string[] = [];
+    if (o.pindahFoto && !ditahanSemua) {
+      const tahanDi = new Map(perubahan.map((p) => [p.tanggal, p.ditahan]));
+      // Tujuan: tanggal Excel yang sesudah impor bervolume dan boleh diubah orang ini.
+      tujuan = [...excel.keys()]
+        .filter((t) => (akhirTulis.get(t) ?? 0) > EPS)
+        .filter((t) => (tahanDi.has(t) ? !tahanDi.get(t) : !sebabDitahan(o, t, m[t])))
+        .sort();
+      for (const p of perubahan) {
+        if (p.aksi !== "nolkan" || p.ditahan) continue;
+        const asal = m[p.tanggal];
+        const waktu = asal?.fotoWaktu ?? [];
+        const lain = (asal?.foto ?? 0) - waktu.length;
+        if (lain > 0) fotoTetap.push({ dari: p.tanggal, jumlah: lain, sebab: "foto bukti catatan di luar RAB, tetap bersama catatannya" });
+        if (waktu.length === 0) continue;
+        if (tujuan.length === 0) {
+          fotoTetap.push({ dari: p.tanggal, jumlah: waktu.length, sebab: "tidak ada tanggal Excel yang bisa menerimanya" });
+          continue;
+        }
+        const ke = new Map<string, number>();
+        let seri = 0;
+        for (const w of waktu) {
+          const t = tujuanFoto(w, tujuan);
+          if (t) ke.set(t, (ke.get(t) ?? 0) + 1);
+          else seri++;
+        }
+        for (const [t, n] of [...ke].sort()) pindahFoto.push({ dari: p.tanggal, ke: t, jumlah: n });
+        if (seri > 0) fotoTetap.push({ dari: p.tanggal, jumlah: seri, sebab: "jaraknya sama ke dua tanggal Excel" });
+      }
+    }
+
     item.push({
       lineageKey,
       nama: rab?.name ?? g.nama,
@@ -307,18 +377,24 @@ export function susunRencana(o: MasukanRencana): Rencana {
       perubahan,
       catatan,
       ditahanSemua,
+      pindahFoto,
+      fotoTetap,
+      tujuanFoto: tujuan,
     });
   }
 
   const ditulis = item.flatMap((i) => i.perubahan.filter((p) => !p.ditahan).map((p) => ({ i, p })));
   const laporanBaru = [...new Set(ditulis.filter(({ p }) => !o.laporan[p.tanggal]).map(({ p }) => p.tanggal))].sort();
+  const fotoPindah = item.flatMap((i) => i.pindahFoto.map((f) => `${i.lineageKey}#${f.dari}>${f.ke}:${f.jumlah}`));
   const sidik = fnv(
     o.mode +
       "|" +
       ditulis
         .map(({ i, p }) => `${i.lineageKey}@${p.tanggal}:${p.dari ?? "-"}>${p.ke}`)
         .sort()
-        .join(";"),
+        .join(";") +
+      "|" +
+      fotoPindah.sort().join(";"),
   );
   return {
     item: item.sort((a, b) => (a.excelRows[0] ?? 0) - (b.excelRows[0] ?? 0)),
@@ -331,6 +407,7 @@ export function susunRencana(o: MasukanRencana): Rencana {
       itemBerubah: new Set(ditulis.map(({ i }) => i.lineageKey)).size,
       itemBentrok: item.filter((i) => i.bentrok.length > 0).length,
       itemDilewati,
+      fotoDipindah: item.reduce((t, i) => t + i.pindahFoto.reduce((u, f) => u + f.jumlah, 0), 0),
     },
     sidik,
   };

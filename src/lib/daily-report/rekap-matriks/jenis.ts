@@ -60,6 +60,12 @@ export type SelMarlin = {
   /** Baris hasil pemasangan sesudah aktivasi (777) – tidak disentuh impor. */
   padanan: boolean;
   foto: number;
+  /**
+   * Tanggal jepret foto yang BOLEH ikut pindah (DECISIONS 783): waktu EXIF
+   * (zona Jakarta), atau tanggal laporannya bila foto tidak membawa waktu.
+   * Foto bukti catatan di luar RAB tidak ikut – milik catatannya.
+   */
+  fotoWaktu: string[];
 };
 
 export type LaporanMarlin = { reportId: string; status: string; noActivity: boolean };

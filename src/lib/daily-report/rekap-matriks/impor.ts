@@ -7,7 +7,7 @@ import { jalurNodeById } from "@/lib/rab/jalur";
 import type { Prisma } from "@/generated/prisma/client";
 import { bacaRekapMatriks } from "./baca";
 import { cocokkanRekap } from "./cocok";
-import { susunRencana, type Rencana } from "./rencana";
+import { susunRencana, tujuanFoto, type Rencana } from "./rencana";
 import { masukanRencana, type BahanPratinjau, type PilihanImpor } from "./masukan";
 import type { LaporanMarlin, NodeRab, RekapMatriks, SelMarlin } from "./jenis";
 
@@ -28,6 +28,9 @@ import type { LaporanMarlin, NodeRab, RekapMatriks, SelMarlin } from "./jenis";
  */
 
 export class ImporRekapError extends Error {}
+
+/** Tanggal jepret foto (Jakarta), atau tanggal laporannya bila foto tidak membawa waktu. */
+const waktuJepret = (exif: Date | null, tanggalLaporan: string) => (exif ? jakartaDateKey(exif) : tanggalLaporan);
 
 type Tx = Prisma.TransactionClient;
 
@@ -78,19 +81,21 @@ async function kumpulkanBahan(
       volumeDone: true,
       padananAktifId: true,
       report: { select: { reportDate: true, status: true } },
-      _count: { select: { photos: true } },
+      photos: { select: { exifTakenAt: true, luarRabId: true } },
     },
   });
   const marlin: Record<string, Record<string, SelMarlin>> = {};
   for (const r of rows) {
-    (marlin[r.lineageKey] ??= {})[jakartaDateKey(r.report.reportDate)] = {
+    const tanggal = jakartaDateKey(r.report.reportDate);
+    (marlin[r.lineageKey] ??= {})[tanggal] = {
       rowId: r.id,
       reportId: r.reportId,
       status: r.report.status,
       basis: r.basis,
       volume: Number(r.volumeDone),
       padanan: r.padananAktifId != null,
-      foto: r._count.photos,
+      foto: r.photos.length,
+      fotoWaktu: r.photos.filter((f) => f.luarRabId == null).map((f) => waktuJepret(f.exifTakenAt, tanggal)),
     };
   }
 
@@ -141,6 +146,7 @@ export type HasilImpor = {
   tambah: number;
   ubah: number;
   nolkan: number;
+  fotoDipindah: number;
   laporanBaru: number;
   laporanBaruTetapDraft: { tanggal: string; sebab: string }[];
   blankoDibangunUlang: number;
@@ -172,9 +178,14 @@ export async function terapkanImporRekap(o: {
       let tambah = 0;
       let ubah = 0;
       let nolkan = 0;
+      let fotoDipindah = 0;
       for (const it of rencana.item) {
         const tulis = it.perubahan.filter((p) => !p.ditahan);
         if (tulis.length === 0) continue;
+        // Baris item ini per tanggal sesudah ditulis (yang lama + yang baru dibuat).
+        const barisPer = new Map<string, { rowId: string; reportId: string }>(
+          Object.entries(bahan.marlin[it.lineageKey] ?? {}).map(([t, x]) => [t, { rowId: x.rowId, reportId: x.reportId }]),
+        );
         const node = bahan.nodeId[it.lineageKey];
         if (!node) throw new ImporRekapError(`Item "${it.nama}" tidak ada lagi di RAB aktif. Tekan Baca berkas lagi.`);
         for (const p of tulis) {
@@ -209,7 +220,7 @@ export async function terapkanImporRekap(o: {
             reportId = r.id;
             laporanBaru.set(p.tanggal, r.id);
           }
-          await tx.dailyReportItem.create({
+          const baru = await tx.dailyReportItem.create({
             data: {
               reportId,
               rabNodeId: node.id,
@@ -220,8 +231,45 @@ export async function terapkanImporRekap(o: {
               notes: "Dari impor rekap harian",
               reportedById: o.userId,
             },
+            select: { id: true },
           });
+          barisPer.set(p.tanggal, { rowId: baru.id, reportId });
           tambah++;
+        }
+
+        // Foto di baris yang dinolkan → tanggal Excel terdekat (DECISIONS 783).
+        // Aturan tujuan yang SAMA dengan rencana; jumlahnya harus sama persis.
+        const pindahan: { foto: string; dari: string; ke: string }[] = [];
+        if (it.pindahFoto.length > 0) {
+          for (const dari of [...new Set(it.pindahFoto.map((f) => f.dari))]) {
+            const asal = barisPer.get(dari);
+            if (!asal) throw new ImporRekapError(`Baris tanggal ${dari} tidak ditemukan saat memindah foto. Tekan Baca berkas lagi.`);
+            const foto = await tx.photo.findMany({
+              where: { reportItemId: asal.rowId, luarRabId: null },
+              select: { id: true, exifTakenAt: true },
+            });
+            const hitung = new Map<string, number>();
+            for (const f of foto) {
+              const ke = tujuanFoto(waktuJepret(f.exifTakenAt, dari), it.tujuanFoto);
+              if (!ke) continue;
+              hitung.set(ke, (hitung.get(ke) ?? 0) + 1);
+              pindahan.push({ foto: f.id, dari, ke });
+            }
+            const rencanaDari = it.pindahFoto.filter((x) => x.dari === dari);
+            const sama =
+              rencanaDari.length === hitung.size && rencanaDari.every((f) => (hitung.get(f.ke) ?? 0) === f.jumlah);
+            if (!sama) {
+              throw new ImporRekapError(`Foto tanggal ${dari} berubah sejak pratinjau. Tidak ada yang disimpan – tekan Baca berkas lagi.`);
+            }
+          }
+          for (const x of pindahan) {
+            const ke = barisPer.get(x.ke)!;
+            await tx.photo.update({ where: { id: x.foto }, data: { reportId: ke.reportId, reportItemId: ke.rowId } });
+            const st = (t: string) => bahan.laporan[t]?.status;
+            if (st(x.dari) === "final") tanggalFinal.push(x.dari);
+            if (st(x.ke) === "final") tanggalFinal.push(x.ke);
+          }
+          fotoDipindah += pindahan.length;
         }
         await auditIn(tx, o.userId, "daily_report.impor_rekap_harian", "location", o.locationId, {
           mode: o.pilihan.mode,
@@ -230,12 +278,13 @@ export async function terapkanImporRekap(o: {
           barisExcel: it.excelRows,
           pilihan: it.pilihan,
           perubahan: tulis.map((p) => ({ tanggal: p.tanggal, aksi: p.aksi, dari: p.dari, ke: p.ke, status: p.status, foto: p.foto })),
+          fotoDipindah: pindahan.map((x) => ({ photoId: x.foto, dari: x.dari, ke: x.ke })),
           totalSebelum: it.totalSekarang,
           totalSesudah: it.totalSesudah,
           diperbarui: sekarang.toISOString(),
         });
       }
-      return { tambah, ubah, nolkan, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
+      return { tambah, ubah, nolkan, fotoDipindah, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
     },
     { timeout: 120_000, maxWait: 15_000 },
   );
@@ -270,6 +319,7 @@ export async function terapkanImporRekap(o: {
     tambah: hasil.tambah,
     ubah: hasil.ubah,
     nolkan: hasil.nolkan,
+    fotoDipindah: hasil.fotoDipindah,
     laporanBaru: hasil.laporanBaru.size,
     laporanBaruTetapDraft: tetapDraft,
     blankoDibangunUlang: blanko,
