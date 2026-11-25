@@ -67,10 +67,12 @@ async function kumpulkanBahan(
   // Laporan dan baris MARLIN lokasi ini (semua tanggal – total item dihitung utuh).
   const reports = await c.dailyReport.findMany({
     where: { locationId },
-    select: { id: true, reportDate: true, status: true, noActivity: true },
+    select: { id: true, reportDate: true, status: true, noActivity: true, noActivityReason: true },
   });
   const laporan: Record<string, LaporanMarlin> = {};
-  for (const r of reports) laporan[jakartaDateKey(r.reportDate)] = { reportId: r.id, status: r.status, noActivity: r.noActivity };
+  for (const r of reports) {
+    laporan[jakartaDateKey(r.reportDate)] = { reportId: r.id, status: r.status, noActivity: r.noActivity, sebabNihil: r.noActivityReason };
+  }
   const rows = await c.dailyReportItem.findMany({
     where: { report: { locationId }, lineageKey: { in: daunNode.map((n) => n.lineageKey) } },
     select: {
@@ -147,6 +149,8 @@ export type HasilImpor = {
   ubah: number;
   nolkan: number;
   fotoDipindah: number;
+  /** Laporan yang pernyataan "tidak ada kegiatan"-nya dibatalkan karena Excel mencatat pekerjaan. */
+  nihilDibatalkan: number;
   laporanBaru: number;
   laporanBaruTetapDraft: { tanggal: string; sebab: string }[];
   blankoDibangunUlang: number;
@@ -179,6 +183,7 @@ export async function terapkanImporRekap(o: {
       let ubah = 0;
       let nolkan = 0;
       let fotoDipindah = 0;
+      const nihilDibatalkan = new Set<string>();
       for (const it of rencana.item) {
         const tulis = it.perubahan.filter((p) => !p.ditahan);
         if (tulis.length === 0) continue;
@@ -190,6 +195,22 @@ export async function terapkanImporRekap(o: {
         if (!node) throw new ImporRekapError(`Item "${it.nama}" tidak ada lagi di RAB aktif. Tekan Baca berkas lagi.`);
         for (const p of tulis) {
           if (p.status === "final") tanggalFinal.push(p.tanggal);
+          // Excel mencatat pekerjaan di hari yang dinyatakan nihil: pernyataannya dibatalkan.
+          const lap = bahan.laporan[p.tanggal];
+          if (lap?.noActivity && p.ke > 0.0005 && !nihilDibatalkan.has(lap.reportId)) {
+            const lama = await tx.dailyReport.update({
+              where: { id: lap.reportId },
+              data: { noActivity: false, noActivityReason: null, noActivityNote: null },
+              select: { id: true },
+            });
+            nihilDibatalkan.add(lama.id);
+            await auditIn(tx, o.userId, "daily_report.impor_rekap_batal_nihil", "daily_report", lap.reportId, {
+              locationId: o.locationId,
+              tanggal: p.tanggal,
+              sebabSebelumnya: lap.sebabNihil ?? null,
+            });
+          }
+          const basisLama = bahan.marlin[it.lineageKey]?.[p.tanggal]?.basis;
           if (p.rowId) {
             const row = await tx.dailyReportItem.findUniqueOrThrow({
               where: { id: p.rowId },
@@ -200,7 +221,12 @@ export async function terapkanImporRekap(o: {
             }
             await tx.dailyReportItem.update({
               where: { id: p.rowId },
-              data: { volumeDone: p.ke, valueDone: hitungNilai(p.ke, Number(row.rabNode.unitPrice ?? 0)) },
+              data: {
+                volumeDone: p.ke,
+                valueDone: hitungNilai(p.ke, Number(row.rabNode.unitPrice ?? 0)),
+                // Baris draft adendum yang diikutkan Excel menjadi baris kontrak.
+                ...(basisLama && basisLama !== "aktif" ? { basis: "aktif" } : {}),
+              },
             });
             if (p.aksi === "nolkan") nolkan++;
             else ubah++;
@@ -284,7 +310,7 @@ export async function terapkanImporRekap(o: {
           diperbarui: sekarang.toISOString(),
         });
       }
-      return { tambah, ubah, nolkan, fotoDipindah, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
+      return { tambah, ubah, nolkan, fotoDipindah, nihilDibatalkan: nihilDibatalkan.size, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
     },
     { timeout: 120_000, maxWait: 15_000 },
   );
@@ -320,6 +346,7 @@ export async function terapkanImporRekap(o: {
     ubah: hasil.ubah,
     nolkan: hasil.nolkan,
     fotoDipindah: hasil.fotoDipindah,
+    nihilDibatalkan: hasil.nihilDibatalkan,
     laporanBaru: hasil.laporanBaru.size,
     laporanBaruTetapDraft: tetapDraft,
     blankoDibangunUlang: blanko,
