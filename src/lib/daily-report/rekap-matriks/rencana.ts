@@ -1,0 +1,337 @@
+import { bagiProporsional } from "@/lib/rab/padanan-aktif-aturan";
+import { formatNumber, formatTanggal } from "@/lib/format";
+import type { LaporanMarlin, ModeImpor, PilihanBentrok, SelMarlin } from "./jenis";
+
+/**
+ * RENCANA IMPOR REKAP HARIAN (DECISIONS 782). MURNI – dihitung di server saat
+ * pratinjau DAN saat menyimpan (keduanya harus sama persis, dijaga `sidik`),
+ * dan di layar tiap kali orang mengubah pilihan.
+ *
+ * Permintaan user 2026-11-25: *"ada dua mode, apend dan overwrite, jika di
+ * tanggal yang sama itu tinggal penyesuaian, tapi jika ada tanggal yang tidak
+ * sama antara di excel dan di marlin, lalu bentrok jumlahnya, ini juga perlu
+ * dimitigasi, yang utama foto eksisting tidak boleh hilang dan harus aman."*
+ *
+ * Per item RAB:
+ * - Tanggal ada di keduanya → DISESUAIKAN ke angka Excel (kedua mode).
+ * - Hanya di Excel → DITAMBAH.
+ * - Hanya di MARLIN, di dalam periode Excel → TAMBAH: dibiarkan; TIMPA:
+ *   dinolkan. Barisnya TIDAK dihapus – foto tetap menempel di pekerjaannya.
+ *   Di luar periode Excel (laporan sesudah tanggal terakhir yang terisi)
+ *   tidak pernah disentuh.
+ * - BENTROK, ditanyakan per item, tidak diputuskan diam-diam:
+ *   `beda_tanggal` (mode tambah: Excel dan MARLIN sama-sama punya tanggal yang
+ *   tidak ada di pihak lain – bisa jadi pekerjaan yang sama dicatat di hari
+ *   berbeda), `melebihi_kontrak` (hasil akhirnya di atas volume RAB aktif).
+ *   Pilihan: lewati (bawaan), ikuti Excel, jumlahkan, potong rata ke volume
+ *   kontrak – hanya yang hasilnya sah yang ditawarkan.
+ * - Yang DITAHAN, disebut sebabnya: laporan final (kecuali super admin),
+ *   laporan terkirim (kecuali Site Manager ke atas), baris draft adendum,
+ *   baris hasil pemasangan, hari nihil, lokasi yang sudah dicabut. Item yang
+ *   sebagian perubahannya ditahan padahal ada yang dinolkan/diturunkan ditahan
+ *   SELURUHNYA – supaya volumenya tidak terhitung dua kali.
+ * - Foto tidak pernah disentuh.
+ */
+
+const EPS = 0.0005;
+const bulat3 = (v: number) => Math.round(v * 1000) / 1000;
+const tglOrang = (k: string) => formatTanggal(new Date(`${k}T00:00:00.000Z`), "d MMM yyyy");
+
+/**
+ * Selisih PEMBULATAN di atas volume kontrak: rekap lapangan diketik dua desimal
+ * (kontrak 0,1792 m³ ditulis 0,18 saat tuntas – berkas BUYAT 1 baris 273), jadi
+ * tiap sel bisa lebih paling banyak 0,005. Sebesar itu disamakan ke volume
+ * kontrak dan DISEBUT; lebih dari itu bentrok yang diputuskan orang
+ * (DECISIONS 203: penyesuaian kecil seragam dan dikatakan, yang besar tidak
+ * dibetulkan sendiri).
+ */
+const toleransiBulat = (sel: number) => 0.005 * Math.max(1, sel) + EPS;
+
+export type BarisMasuk = { excelRow: number; nama: string; lineageKey: string | null; sel: { tanggal: string; volume: number }[] };
+
+export type ItemRab = { name: string; unit: string | null; volume: number | null; jalur: string };
+
+export type MasukanRencana = {
+  mode: ModeImpor;
+  hariIni: string;
+  awalPeriode: string;
+  akhirPeriode: string | null;
+  baris: BarisMasuk[];
+  /** Daun RAB aktif per kunci item. */
+  rab: Record<string, ItemRab>;
+  /** Baris MARLIN per kunci item → per tanggal. */
+  marlin: Record<string, Record<string, SelMarlin>>;
+  /** Laporan MARLIN per tanggal. */
+  laporan: Record<string, LaporanMarlin>;
+  /** Tanggal tanpa laporan yang tidak boleh dibuatkan laporan (lokasi dicabut), dengan sebabnya. */
+  tertutup: Record<string, string>;
+  izin: { ubahTerkirim: boolean; ubahFinal: boolean };
+  pilihan: Record<string, PilihanBentrok>;
+};
+
+export type AksiSel = "tambah" | "ubah" | "nolkan";
+
+export type PerubahanSel = {
+  tanggal: string;
+  dari: number | null;
+  ke: number;
+  aksi: AksiSel;
+  rowId: string | null;
+  reportId: string | null;
+  status: string | null;
+  foto: number;
+  /** Sebab sel ini tidak ditulis; null = ditulis. */
+  ditahan: string | null;
+};
+
+export type JenisBentrok = "beda_tanggal" | "melebihi_kontrak";
+
+export type RencanaItem = {
+  lineageKey: string;
+  nama: string;
+  unit: string | null;
+  jalur: string;
+  volumeKontrak: number | null;
+  excelRows: number[];
+  totalExcel: number;
+  totalSekarang: number;
+  totalSesudah: number;
+  bentrok: JenisBentrok[];
+  /** Tanggal yang hanya ada di Excel / hanya ada di MARLIN (dalam periode Excel) – untuk menjelaskan bentrok. */
+  hanyaExcel: string[];
+  hanyaMarlin: string[];
+  /** Total bila diterapkan tanpa pilihan (dipakai menjelaskan "melebihi kontrak"). */
+  totalBawaan: number;
+  pilihanTersedia: PilihanBentrok[];
+  /** Pilihan yang dipakai untuk item bentrok; null = tidak bentrok. */
+  pilihan: PilihanBentrok | null;
+  perubahan: PerubahanSel[];
+  catatan: string[];
+  /** Seluruh item ditahan (sebabnya); perubahannya tidak ditulis. */
+  ditahanSemua: string | null;
+};
+
+export type Rencana = {
+  item: RencanaItem[];
+  ringkas: {
+    tambah: number;
+    ubah: number;
+    nolkan: number;
+    ditahan: number;
+    /** Tanggal yang akan dibuatkan laporan baru. */
+    laporanBaru: string[];
+    itemBerubah: number;
+    itemBentrok: number;
+    itemDilewati: number;
+  };
+  /** Sidik jari perubahan yang akan ditulis – menyimpan menolak bila berbeda dari pratinjau. */
+  sidik: string;
+};
+
+const TERKIRIM = new Set(["dikirim", "disetujui"]);
+
+function sebabDitahan(o: MasukanRencana, tanggal: string, sel: SelMarlin | undefined): string | null {
+  if (sel && sel.basis !== "aktif") return "baris ini tercatat terhadap draft adendum";
+  if (sel?.padanan) return "baris hasil pemasangan sesudah aktivasi – lepas dulu di RAB › Pasangkan realisasi";
+  const lap = o.laporan[tanggal];
+  if (!lap) return o.tertutup[tanggal] ?? null;
+  if (lap.noActivity) return "laporan tanggal ini dinyatakan tidak ada kegiatan";
+  if (lap.status === "final" && !o.izin.ubahFinal) return "laporan sudah final – hanya super admin yang boleh mengubah isinya";
+  if (TERKIRIM.has(lap.status) && !o.izin.ubahTerkirim) return "laporan sudah dikirim – perlu Site Manager ke atas";
+  return null;
+}
+
+const jumlah = (m: Map<string, number>) => bulat3([...m.values()].reduce((t, v) => t + v, 0));
+
+/** FNV-1a 32 bit – cukup untuk mendeteksi rencana yang berubah, bukan untuk keamanan. */
+function fnv(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+export function susunRencana(o: MasukanRencana): Rencana {
+  const dalamPeriode = (t: string) => t >= o.awalPeriode && (o.akhirPeriode == null || t <= o.akhirPeriode);
+  const perItem = new Map<string, { rows: number[]; nama: string; sel: Map<string, number>; catatan: string[] }>();
+  let itemDilewati = 0;
+  for (const b of o.baris) {
+    if (!b.lineageKey) {
+      itemDilewati++;
+      continue;
+    }
+    const g = perItem.get(b.lineageKey) ?? { rows: [], nama: b.nama, sel: new Map<string, number>(), catatan: [] };
+    g.rows.push(b.excelRow);
+    for (const s of b.sel) {
+      if (s.tanggal > o.hariIni) {
+        g.catatan.push(`Tanggal ${tglOrang(s.tanggal)} belum terjadi – dilewati.`);
+        continue;
+      }
+      if (s.volume < 0) {
+        g.catatan.push(`Baris ${b.excelRow} tanggal ${tglOrang(s.tanggal)}: volume negatif (${formatNumber(s.volume)}) – dilewati.`);
+        continue;
+      }
+      g.sel.set(s.tanggal, bulat3((g.sel.get(s.tanggal) ?? 0) + s.volume));
+    }
+    perItem.set(b.lineageKey, g);
+  }
+
+  const item: RencanaItem[] = [];
+  for (const [lineageKey, g] of perItem) {
+    const rab = o.rab[lineageKey];
+    const m = o.marlin[lineageKey] ?? {};
+    const catatan = [...g.catatan];
+    if (g.rows.length > 1) catatan.push(`Baris Excel ${g.rows.join(", ")} menunjuk item yang sama – angkanya dijumlahkan per tanggal.`);
+    const kontrak = rab?.volume ?? null;
+
+    // Keadaan MARLIN sekarang (baris basis aktif, semua status).
+    const kini = new Map<string, number>();
+    for (const [t, s] of Object.entries(m)) if (s.basis === "aktif") kini.set(t, s.volume);
+    const excel = g.sel;
+    const hanyaExcel = [...excel.keys()].filter((t) => !(t in m));
+    const hanyaMarlin = [...kini.entries()].filter(([t, v]) => !excel.has(t) && dalamPeriode(t) && v > EPS).map(([t]) => t);
+
+    // Hasil akhir per pilihan.
+    const akhirJumlahkan = new Map(kini);
+    for (const [t, v] of excel) akhirJumlahkan.set(t, v);
+    const akhirExcel = new Map(akhirJumlahkan);
+    for (const t of hanyaMarlin) akhirExcel.set(t, 0);
+    const tol = toleransiBulat(excel.size);
+    const lewatKontrak = (a: Map<string, number>) => kontrak != null && jumlah(a) > kontrak + tol;
+    const potong = (dasar: Map<string, number>): Map<string, number> | null => {
+      if (kontrak == null) return null;
+      const luar = bulat3([...dasar].filter(([t]) => !excel.has(t)).reduce((t, [, v]) => t + v, 0));
+      const ruang = bulat3(kontrak - luar);
+      if (ruang < 0) return null;
+      const tgl = [...excel.keys()].sort();
+      const hasil = new Map(dasar);
+      bagiProporsional(
+        tgl.map((t) => excel.get(t)!),
+        Math.min(ruang, jumlah(excel)),
+      ).forEach((v, i) => hasil.set(tgl[i]!, v));
+      return hasil;
+    };
+
+    const bentrok: JenisBentrok[] = [];
+    if (o.mode === "tambah" && hanyaExcel.length > 0 && hanyaMarlin.length > 0) bentrok.push("beda_tanggal");
+    const bawaan = o.mode === "timpa" ? akhirExcel : akhirJumlahkan;
+    if (lewatKontrak(bawaan)) bentrok.push("melebihi_kontrak");
+
+    let pilihan: PilihanBentrok | null = null;
+    const tersedia: PilihanBentrok[] = [];
+    let akhir: Map<string, number> | null = bawaan;
+    if (bentrok.length > 0) {
+      // Potong rata hanya bila dasarnya memang melebihi kontrak.
+      const dasarPotong = o.mode === "timpa" || bentrok.includes("beda_tanggal") ? akhirExcel : akhirJumlahkan;
+      const opsi = new Map<PilihanBentrok, Map<string, number> | null>([
+        ["lewati", null],
+        ["excel", lewatKontrak(akhirExcel) ? null : akhirExcel],
+        ["jumlahkan", o.mode === "tambah" && !lewatKontrak(akhirJumlahkan) ? akhirJumlahkan : null],
+        ["potong", lewatKontrak(dasarPotong) ? potong(dasarPotong) : null],
+      ]);
+      for (const [k, v] of opsi) if (k === "lewati" || v) tersedia.push(k);
+      const diminta = o.pilihan[lineageKey];
+      pilihan = diminta && tersedia.includes(diminta) ? diminta : "lewati";
+      akhir = pilihan === "lewati" ? null : opsi.get(pilihan)!;
+    }
+
+    // Selisih pembulatan di atas kontrak: disamakan ke volume kontrak, disebut.
+    if (akhir && kontrak != null && jumlah(akhir) > kontrak + EPS) {
+      const lebih = bulat3(jumlah(akhir) - kontrak);
+      const dipotong = potong(akhir);
+      if (dipotong) {
+        catatan.push(
+          `Total ${formatNumber(jumlah(akhir))} sedikit di atas volume kontrak ${formatNumber(kontrak)} ` +
+            `(selisih pembulatan ${formatNumber(lebih)}) – disamakan ke volume kontrak.`,
+        );
+        akhir = dipotong;
+      }
+    }
+
+    // Sel yang berubah.
+    const perubahan: PerubahanSel[] = [];
+    if (akhir) {
+      for (const t of [...new Set([...akhir.keys(), ...excel.keys()])].sort()) {
+        const ke = bulat3(akhir.get(t) ?? 0);
+        const s = m[t];
+        const dari = s ? s.volume : null;
+        if (dari != null && Math.abs(dari - ke) <= EPS && s!.basis === "aktif") continue;
+        if (dari == null && ke <= EPS) continue;
+        perubahan.push({
+          tanggal: t,
+          dari,
+          ke,
+          aksi: dari == null ? "tambah" : ke <= EPS ? "nolkan" : "ubah",
+          rowId: s?.rowId ?? null,
+          reportId: s?.reportId ?? o.laporan[t]?.reportId ?? null,
+          status: o.laporan[t]?.status ?? null,
+          foto: s?.foto ?? 0,
+          ditahan: sebabDitahan(o, t, s),
+        });
+      }
+    }
+    // Item yang angkanya DIPINDAH (ada yang naik dan ada yang turun) tidak boleh
+    // ditulis sebagian: separuh pindahan berarti terhitung dua kali, atau hilang.
+    const adaTahan = perubahan.some((p) => p.ditahan);
+    const adaTurun = perubahan.some((p) => p.dari != null && p.ke < p.dari - EPS);
+    const adaNaik = perubahan.some((p) => p.dari == null || p.ke > p.dari + EPS);
+    let ditahanSemua: string | null = null;
+    if (adaTahan && adaTurun && adaNaik) {
+      const sebab = perubahan.find((p) => p.ditahan)!;
+      ditahanSemua =
+        `Perubahan tanggal ${tglOrang(sebab.tanggal)} ditahan (${sebab.ditahan}), padahal angka di tanggal lain ikut dipindah. ` +
+        `Supaya volumenya tidak terhitung dua kali, seluruh item ini ditahan.`;
+      for (const p of perubahan) p.ditahan ??= "ikut ditahan bersama item ini";
+    }
+    const akhirTulis = new Map(kini);
+    for (const p of perubahan) if (!p.ditahan) akhirTulis.set(p.tanggal, p.ke);
+
+    item.push({
+      lineageKey,
+      nama: rab?.name ?? g.nama,
+      unit: rab?.unit ?? null,
+      jalur: rab?.jalur ?? "",
+      volumeKontrak: kontrak,
+      excelRows: g.rows,
+      totalExcel: jumlah(excel),
+      totalSekarang: jumlah(kini),
+      totalSesudah: jumlah(akhirTulis),
+      bentrok,
+      hanyaExcel: hanyaExcel.sort(),
+      hanyaMarlin: hanyaMarlin.sort(),
+      totalBawaan: jumlah(bawaan),
+      pilihanTersedia: tersedia,
+      pilihan,
+      perubahan,
+      catatan,
+      ditahanSemua,
+    });
+  }
+
+  const ditulis = item.flatMap((i) => i.perubahan.filter((p) => !p.ditahan).map((p) => ({ i, p })));
+  const laporanBaru = [...new Set(ditulis.filter(({ p }) => !o.laporan[p.tanggal]).map(({ p }) => p.tanggal))].sort();
+  const sidik = fnv(
+    o.mode +
+      "|" +
+      ditulis
+        .map(({ i, p }) => `${i.lineageKey}@${p.tanggal}:${p.dari ?? "-"}>${p.ke}`)
+        .sort()
+        .join(";"),
+  );
+  return {
+    item: item.sort((a, b) => (a.excelRows[0] ?? 0) - (b.excelRows[0] ?? 0)),
+    ringkas: {
+      tambah: ditulis.filter(({ p }) => p.aksi === "tambah").length,
+      ubah: ditulis.filter(({ p }) => p.aksi === "ubah").length,
+      nolkan: ditulis.filter(({ p }) => p.aksi === "nolkan").length,
+      ditahan: item.reduce((t, i) => t + i.perubahan.filter((p) => p.ditahan).length, 0),
+      laporanBaru,
+      itemBerubah: new Set(ditulis.map(({ i }) => i.lineageKey)).size,
+      itemBentrok: item.filter((i) => i.bentrok.length > 0).length,
+      itemDilewati,
+    },
+    sidik,
+  };
+}

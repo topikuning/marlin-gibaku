@@ -1,0 +1,179 @@
+import { describe, expect, it } from "vitest";
+import { susunRencana, type MasukanRencana } from "@/lib/daily-report/rekap-matriks/rencana";
+import type { SelMarlin } from "@/lib/daily-report/rekap-matriks/jenis";
+
+/**
+ * RENCANA IMPOR REKAP HARIAN (DECISIONS 782). Permintaan user 2026-11-25:
+ * *"ada dua mode, apend dan overwrite, jika di tanggal yang sama itu tinggal
+ * penyesuaian, tapi jika ada tanggal yang tidak sama antara di excel dan di
+ * marlin, lalu bentrok jumlahnya, ini juga perlu dimitigasi, yang utama foto
+ * eksisting tidak boleh hilang dan harus aman."*
+ */
+const sel = (tanggal: string, volume: number, o: Partial<SelMarlin> = {}): [string, SelMarlin] => [
+  tanggal,
+  { rowId: `r-${tanggal}`, reportId: `L-${tanggal}`, status: "dikirim", basis: "aktif", volume, padanan: false, foto: 2, ...o },
+];
+const masukan = (o: Partial<MasukanRencana> & { excel: [string, number][]; ada?: [string, SelMarlin][]; kontrak?: number }): MasukanRencana => {
+  const ada = Object.fromEntries(o.ada ?? []);
+  return {
+    mode: o.mode ?? "tambah",
+    hariIni: "2026-11-25",
+    awalPeriode: "2026-09-18",
+    akhirPeriode: o.akhirPeriode === undefined ? "2026-11-20" : o.akhirPeriode,
+    baris: o.baris ?? [{ excelRow: 27, nama: "Bedeng", lineageKey: "I#1", sel: o.excel.map(([tanggal, volume]) => ({ tanggal, volume })) }],
+    rab: { "I#1": { name: "Buat Bedeng", unit: "m2", volume: o.kontrak ?? 100, jalur: "I · 1" } },
+    marlin: { "I#1": ada },
+    laporan: {
+      ...Object.fromEntries(Object.entries(ada).map(([t, s]) => [t, { reportId: s.reportId, status: s.status, noActivity: false }])),
+      ...(o.laporan ?? {}),
+    },
+    tertutup: o.tertutup ?? {},
+    izin: o.izin ?? { ubahTerkirim: true, ubahFinal: false },
+    pilihan: o.pilihan ?? {},
+  };
+};
+const ubah = (r: ReturnType<typeof susunRencana>) =>
+  r.item[0]!.perubahan.map((p) => [p.tanggal, p.aksi, p.dari, p.ke, p.ditahan ? "ditahan" : "tulis"]);
+
+describe("mode tambah", () => {
+  it("tanggal yang sama disesuaikan, tanggal yang hanya di Excel ditambah", () => {
+    const r = susunRencana(masukan({ excel: [["2026-10-30", 25], ["2026-11-06", 25]], ada: [sel("2026-10-30", 20)] }));
+    expect(ubah(r)).toEqual([
+      ["2026-10-30", "ubah", 20, 25, "tulis"],
+      ["2026-11-06", "tambah", null, 25, "tulis"],
+    ]);
+    expect(r.ringkas).toMatchObject({ tambah: 1, ubah: 1, nolkan: 0, laporanBaru: ["2026-11-06"] });
+  });
+
+  it("beda tanggal (Excel 30 Okt, MARLIN 28 Okt) = BENTROK: bawaannya dilewati; ikuti Excel menolkan 28 Okt tanpa menghapus baris", () => {
+    const m = masukan({ excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 25)] });
+    const lewat = susunRencana(m);
+    expect(lewat.item[0]).toMatchObject({ bentrok: ["beda_tanggal"], pilihan: "lewati", perubahan: [], hanyaExcel: ["2026-10-30"], hanyaMarlin: ["2026-10-28"] });
+    expect(lewat.item[0]!.pilihanTersedia).toEqual(["lewati", "excel", "jumlahkan"]);
+    const excel = susunRencana({ ...m, pilihan: { "I#1": "excel" } });
+    expect(ubah(excel)).toEqual([
+      ["2026-10-28", "nolkan", 25, 0, "tulis"],
+      ["2026-10-30", "tambah", null, 25, "tulis"],
+    ]);
+    expect(excel.item[0]!.perubahan[0]).toMatchObject({ rowId: "r-2026-10-28", foto: 2 });
+    expect(excel.sidik).not.toBe(lewat.sidik);
+    const jumlah = susunRencana({ ...m, pilihan: { "I#1": "jumlahkan" } });
+    expect(jumlah.item[0]!.totalSesudah).toBe(50);
+  });
+
+  it("melebihi volume kontrak: jumlahkan tidak ditawarkan; potong rata sampai kontrak", () => {
+    const m = masukan({ excel: [["2026-10-30", 30], ["2026-11-06", 10]], ada: [sel("2026-10-28", 20)], kontrak: 50 });
+    const r = susunRencana(m);
+    expect(r.item[0]!.bentrok).toEqual(["beda_tanggal", "melebihi_kontrak"]);
+    expect(r.item[0]!.pilihanTersedia).toEqual(["lewati", "excel"]);
+    const k = susunRencana({ ...masukan({ excel: [["2026-10-30", 40], ["2026-11-06", 20]], kontrak: 50 }), pilihan: { "I#1": "potong" } });
+    expect(k.item[0]!.pilihanTersedia).toEqual(["lewati", "potong"]);
+    expect(ubah(k)).toEqual([
+      ["2026-10-30", "tambah", null, 33.333, "tulis"],
+      ["2026-11-06", "tambah", null, 16.667, "tulis"],
+    ]);
+    expect(k.item[0]!.totalSesudah).toBe(50);
+  });
+});
+
+describe("selisih pembulatan", () => {
+  it("rekap dua desimal sedikit di atas kontrak (0,18 untuk 0,179 – berkas BUYAT 1): bukan bentrok, disamakan ke kontrak dan disebut", () => {
+    const r = susunRencana(masukan({ excel: [["2026-11-20", 0.18]], kontrak: 0.179 }));
+    expect(r.item[0]!.bentrok).toEqual([]);
+    expect(ubah(r)).toEqual([["2026-11-20", "tambah", null, 0.179, "tulis"]]);
+    expect(r.item[0]!.catatan.join(" ")).toMatch(/selisih pembulatan 0,001\) – disamakan ke volume kontrak/);
+  });
+
+  it("lebih dari batas pembulatan tetap bentrok", () => {
+    const r = susunRencana(masukan({ excel: [["2026-11-20", 0.19]], kontrak: 0.179 }));
+    expect(r.item[0]!.bentrok).toEqual(["melebihi_kontrak"]);
+  });
+});
+
+describe("mode timpa", () => {
+  it("tanggal yang hanya di MARLIN dalam periode Excel dinolkan; sesudah periode Excel tidak disentuh", () => {
+    const r = susunRencana(
+      masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 10), sel("2026-11-24", 5)] }),
+    );
+    expect(r.item[0]!.bentrok).toEqual([]);
+    expect(ubah(r)).toEqual([
+      ["2026-10-28", "nolkan", 10, 0, "tulis"],
+      ["2026-10-30", "tambah", null, 25, "tulis"],
+    ]);
+    expect(r.item[0]!.totalSesudah).toBe(30);
+  });
+});
+
+describe("yang ditahan", () => {
+  it("laporan final tanpa hak super admin ditahan; pindahan sebagian → seluruh item ditahan", () => {
+    const r = susunRencana(
+      masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 25, { status: "final" })] }),
+    );
+    expect(r.item[0]!.ditahanSemua).toMatch(/tidak terhitung dua kali/);
+    expect(r.item[0]!.perubahan.every((p) => p.ditahan)).toBe(true);
+    expect(r.ringkas).toMatchObject({ tambah: 0, nolkan: 0 });
+    const boleh = susunRencana({
+      ...masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 25, { status: "final" })] }),
+      izin: { ubahTerkirim: true, ubahFinal: true },
+    });
+    expect(boleh.ringkas).toMatchObject({ tambah: 1, nolkan: 1, ditahan: 0 });
+  });
+
+  it("hanya menambah: sel yang ditahan tidak menahan sel lain", () => {
+    const r = susunRencana(
+      masukan({
+        excel: [["2026-10-30", 5], ["2026-11-06", 5]],
+        ada: [sel("2026-10-30", 1, { status: "final" })],
+      }),
+    );
+    expect(ubah(r)).toEqual([
+      ["2026-10-30", "ubah", 1, 5, "ditahan"],
+      ["2026-11-06", "tambah", null, 5, "tulis"],
+    ]);
+  });
+
+  it("baris draft adendum, baris hasil pemasangan, hari nihil, lokasi dicabut, tanggal yang belum terjadi", () => {
+    const r = susunRencana(
+      masukan({
+        excel: [["2026-10-01", 1], ["2026-10-02", 1], ["2026-10-03", 1], ["2026-10-04", 1], ["2026-11-30", 1]],
+        ada: [sel("2026-10-01", 2, { basis: "draft_adendum" }), sel("2026-10-02", 2, { padanan: true })],
+        laporan: { "2026-10-03": { reportId: "N", status: "dikirim", noActivity: true } },
+        tertutup: { "2026-10-04": "Lokasi dicabut dari kontrak sejak 1 Oktober 2026." },
+      }),
+    );
+    const sebab = Object.fromEntries(r.item[0]!.perubahan.map((p) => [p.tanggal, p.ditahan]));
+    expect(sebab["2026-10-01"]).toMatch(/draft adendum/);
+    expect(sebab["2026-10-02"]).toMatch(/hasil pemasangan/);
+    expect(sebab["2026-10-03"]).toMatch(/tidak ada kegiatan/);
+    expect(sebab["2026-10-04"]).toMatch(/dicabut/);
+    expect(r.item[0]!.catatan.join(" ")).toMatch(/30 Nov 2026 belum terjadi/);
+  });
+
+  it("laporan terkirim tanpa hak Site Manager ditahan", () => {
+    const r = susunRencana({ ...masukan({ excel: [["2026-10-30", 5]], ada: [sel("2026-10-30", 1)] }), izin: { ubahTerkirim: false, ubahFinal: false } });
+    expect(r.item[0]!.perubahan[0]!.ditahan).toMatch(/sudah dikirim/);
+  });
+});
+
+describe("baris Excel", () => {
+  it("dua baris menunjuk item yang sama dijumlahkan per tanggal dan disebut; baris tanpa tujuan dilewati", () => {
+    const r = susunRencana(
+      masukan({
+        excel: [],
+        baris: [
+          { excelRow: 27, nama: "A", lineageKey: "I#1", sel: [{ tanggal: "2026-10-30", volume: 2 }] },
+          { excelRow: 40, nama: "A lagi", lineageKey: "I#1", sel: [{ tanggal: "2026-10-30", volume: 3 }] },
+          { excelRow: 41, nama: "Tak dikenal", lineageKey: null, sel: [{ tanggal: "2026-10-30", volume: 3 }] },
+        ],
+      }),
+    );
+    expect(ubah(r)).toEqual([["2026-10-30", "tambah", null, 5, "tulis"]]);
+    expect(r.item[0]!.catatan.join(" ")).toMatch(/Baris Excel 27, 40/);
+    expect(r.ringkas.itemDilewati).toBe(1);
+  });
+
+  it("sidik tetap sama untuk masukan yang sama", () => {
+    const m = masukan({ excel: [["2026-10-30", 25]], ada: [sel("2026-10-30", 20)] });
+    expect(susunRencana(m).sidik).toBe(susunRencana(m).sidik);
+  });
+});
