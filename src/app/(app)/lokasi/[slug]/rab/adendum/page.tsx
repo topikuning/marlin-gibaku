@@ -19,6 +19,7 @@ import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
 import { CreateDraftForm, type AmendmentOption } from "./create-draft-form";
 import { DraftControls } from "./draft-controls";
+import { pratinjauKoreksiDraft } from "@/lib/rab/koreksi-timpa-simpan";
 import { sumberBackupRevisi } from "@/lib/rab/rincian/sumber-backup";
 import { DiffCard } from "../diff-card";
 import { ImportForm } from "../import/import-form";
@@ -255,6 +256,9 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
    * menunggu sebagai catatan di luar RAB (DECISIONS 755). Dipadankan di panel
    * catatan, jadi tidak masuk panel pemetaan.
    */
+  const bolehTanpaPersetujuan = can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA));
+  // Apa yang dilakukan "Terapkan sebagai koreksi" – hanya untuk yang boleh menekannya (DECISIONS 790).
+  const koreksiDraft = draft && active && bolehTanpaPersetujuan ? await pratinjauKoreksiDraft(draft.id) : null;
   const konfirmasiAktivasi = [
     ...belumDipetakan,
     ...(active ? await catatanAsalDraftMenunggu(location.id) : []).map((c) => ({
@@ -563,8 +567,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             ringkasan={ringkasan}
             adaPeringatan={peringatan.length > 0}
             persetujuan={persetujuan}
-            bolehTanpaPersetujuan={can(user.role, "rab.manage") && adalahAkar(user, parseAkar(env.SUPER_ADMIN_UTAMA))}
+            bolehTanpaPersetujuan={bolehTanpaPersetujuan}
             belumDipetakan={konfirmasiAktivasi}
+            pratinjauKoreksi={
+              koreksiDraft
+                ? { pindah: koreksiDraft.pindah, kunciPindah: koreksiDraft.kunciPindah, terhalang: koreksiDraft.terhalang }
+                : null
+            }
           />
         </CardBody>
       </Card>

@@ -10,6 +10,29 @@ import { activateDraftAction, type RabActionState } from "./actions";
 export type CaraTanpaPersetujuan = "aktifkan" | "koreksi";
 
 /**
+ * Yang akan dilakukan "Terapkan sebagai koreksi", dihitung server sebelum orang
+ * mengetik konfirmasi (DECISIONS 790): sub/grup yang pindah tempat bersama
+ * laporannya, kunci lama item yang ikut pindah, dan baris berlaporan yang akan
+ * hilang (koreksi ditolak bila ada).
+ */
+export type PratinjauKoreksiView = { pindah: string[]; kunciPindah: string[]; terhalang: string[] };
+
+/**
+ * Item terlapor yang belum dipasangkan, untuk panel jalan pintas. Untuk koreksi,
+ * item yang ikut pindah bersama sub/grupnya tidak dihitung: laporannya ikut
+ * (DECISIONS 790).
+ */
+export function belumUntuk<T extends { lineageKey: string }>(
+  cara: CaraTanpaPersetujuan | null,
+  belum: readonly T[],
+  pratinjau: PratinjauKoreksiView | null,
+): T[] {
+  if (cara !== "koreksi" || !pratinjau) return [...belum];
+  const pindah = new Set(pratinjau.kunciPindah);
+  return belum.filter((b) => !pindah.has(b.lineageKey));
+}
+
+/**
  * Draft TANPA dua persetujuan – hanya ditampilkan untuk super admin UTAMA.
  * `aktifkan` = draft berlaku sebagai adendum (MC-0/CCO); `koreksi` = isinya
  * menimpa RAB aktif di tempat. Pemanggil yang memutuskan kapan panel ini
@@ -21,6 +44,7 @@ export function PanelTanpaPersetujuan({
   revisionNo,
   kurang,
   belumDipetakan = 0,
+  pratinjauKoreksi = null,
   onBatal,
   onBerhasil,
 }: {
@@ -34,6 +58,8 @@ export function PanelTanpaPersetujuan({
    * atas panel ini; mengetik kalimat konfirmasi sekaligus mengonfirmasinya.
    */
   belumDipetakan?: number;
+  /** Hanya dipakai untuk `koreksi`. */
+  pratinjauKoreksi?: PratinjauKoreksiView | null;
   onBatal: () => void;
   onBerhasil?: (pesan: string) => void;
 }) {
@@ -45,6 +71,8 @@ export function PanelTanpaPersetujuan({
   }, undefined);
   const koreksi = cara === "koreksi";
   const wajib = koreksi ? konfirmasiKoreksi(revisionNo) : konfirmasiTanpaPersetujuan(revisionNo);
+  const pindah = koreksi ? (pratinjauKoreksi?.pindah ?? []) : [];
+  const terhalang = koreksi ? (pratinjauKoreksi?.terhalang ?? []) : [];
   return (
     <div className="ml-auto max-w-md space-y-2 rounded-md border border-warning-border bg-warning-soft p-3 text-left text-[13px]">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -62,6 +90,32 @@ export function PanelTanpaPersetujuan({
         {kurang.length > 0 ? ` Yang dilewati: ${kurang.join(" + ")}.` : ""} Tindakan ini tercatat di jejak audit atas
         nama Anda.
       </p>
+      {pindah.length > 0 ? (
+        <div className="text-ink">
+          <p>
+            Dikenali sebagai pekerjaan yang sama – isinya sama persis, hanya letak atau nomornya yang berbeda. Laporan
+            hariannya ikut, jadi tidak perlu dipasangkan:
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {pindah.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {terhalang.length > 0 ? (
+        <div className="text-danger">
+          <p>
+            Koreksi ini akan ditolak: {terhalang.length} baris yang sudah dipakai laporan tidak ada lagi di draft. Biarkan
+            baris itu tetap ada (volumenya boleh dinolkan), atau pindahkan dulu laporannya.
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {terhalang.slice(0, 8).map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {belumDipetakan > 0 ? (
         <p className="text-warning">
           {belumDipetakan} item yang sudah dilaporkan belum dipasangkan (daftarnya di atas). Realisasinya tidak dihitung
@@ -89,7 +143,7 @@ export function PanelTanpaPersetujuan({
             size="sm"
             variant="danger"
             loading={pending}
-            disabled={ketik.trim().replace(/\s+/g, " ").toUpperCase() !== wajib}
+            disabled={terhalang.length > 0 || ketik.trim().replace(/\s+/g, " ").toUpperCase() !== wajib}
           >
             {koreksi ? "Terapkan sebagai koreksi" : `Aktifkan revisi #${revisionNo}`}
           </Button>

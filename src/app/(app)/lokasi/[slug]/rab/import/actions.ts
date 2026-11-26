@@ -25,7 +25,7 @@ import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanPerItem, bandingkanTerhadapAktif, type BandingItem, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { pohonRingkas, pohonRingkasBanding, type SimpulBanding } from "@/lib/rab/pohon-ringkas";
 import { samakanLineage } from "@/lib/rab/cocok-lineage";
-import { kalimatUbah, rencanaKoreksiTimpa } from "@/lib/rab/koreksi-timpa";
+import { kalimatHasilPindah, kalimatPindah, kalimatUbah, rencanaKoreksiTimpa } from "@/lib/rab/koreksi-timpa";
 import { KoreksiTimpaError, kalimatTerhalang, simpulAktif, terapkanKoreksiTimpa, terhalangKoreksi } from "@/lib/rab/koreksi-timpa-simpan";
 import { cocokKonfirmasiKoreksi, konfirmasiKoreksi } from "@/lib/rab/persetujuan-aturan";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
@@ -115,6 +115,8 @@ export type ImportPreview = {
     contoh: string[];
     tambah: string[];
     hapus: string[];
+    /** Sub/grup yang pindah tempat bersama laporannya (DECISIONS 790), sudah berupa kalimat. */
+    pindah: string[];
     terhalang: string[];
   } | null;
   /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
@@ -1076,6 +1078,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           .map((u) => `${u.label}: ${kalimatUbah(u, fmt)}`),
         tambah: rencana.tambah.slice(0, 8).map((n) => [n.code, n.name].filter(Boolean).join(" ")),
         hapus: rencana.hapus.slice(0, 8).map((h) => h.label),
+        pindah: rencana.pindahAkar.map(kalimatPindah),
         terhalang: await terhalangKoreksi(rencana),
       };
     }
@@ -1391,6 +1394,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           `RAB aktif revisi #${h.revisionNo} dikoreksi dari ${file.name}` +
           (bagian.length ? `: ${bagian.join(", ")}.` : ", tidak ada angka yang berbeda.") +
           ` Tidak ada revisi baru, tidak dihitung sebagai adendum/CCO.` +
+          kalimatHasilPindah(h) +
           (h.barisHarian > 0 ? ` Nilai terpasang ${h.barisHarian} baris laporan harian dihitung ulang dengan harga baru.` : "") +
           (h.disesuaikan.length > 0
             ? ` PERHATIAN: realisasi ${h.disesuaikan.length} item diturunkan mengikuti volume barunya` +

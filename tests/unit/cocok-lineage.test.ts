@@ -212,3 +212,57 @@ describe("panel harga menyebut pemilik angkanya", () => {
     expect(formatRupiahSatuan(null)).toBe("–");
   });
 });
+
+/*
+ * NOMOR KEMBAR DI ANTARA SAUDARA (DECISIONS 790).
+ *
+ * BUYAT TENGAH, sub VII.1: dua grup bernomor "6" ("Pekerjaan Kolom Beton
+ * Pedestal" dan "Pekerjaan Lantai"), dan nama "Pekerjaan Lantai" muncul lagi di
+ * nomor 13. Pencocokan nama gugur (nama kembar), jalur kode "VII.1#6" sudah
+ * diambil grup pertama, dan grup kedua diberi kunci baru – "dihapus lalu
+ * ditambah" padahal berkasnya sama persis. Laporan hariannya terlepas.
+ */
+describe("nomor kembar di antara saudara", () => {
+  const g = (kode: string, kunci: string, nama: string, i: number): FlatNode => ({
+    kind: "grup",
+    code: kode,
+    name: nama,
+    volume: null,
+    unit: null,
+    unitPrice: null,
+    amount: 0n,
+    lineageKey: `V#${kunci}`,
+    parentLineageKey: "V",
+    sortOrder: i,
+    excelRow: null,
+  });
+  const BERKAS: FlatNode[] = [
+    fileBaru([])[0],
+    g("6", "6", "Pekerjaan Kolom Beton Pedestal 25/25", 1),
+    g("6", "6#2", "Pekerjaan Lantai", 2),
+    g("13", "13", "Pekerjaan Lantai", 3),
+  ];
+  const AKTIF: NodeLamaCocok[] = BERKAS.map((n) => ({
+    lineageKey: n.lineageKey,
+    parentLineageKey: n.parentLineageKey,
+    kind: n.kind,
+    code: n.code,
+    name: n.name,
+    unit: n.unit,
+  }));
+
+  it("berkas yang sama: tiap baris kembali ke kuncinya sendiri, termasuk nomor kembar yang kedua", () => {
+    const h = samakanLineage(BERKAS, AKTIF);
+    expect(h.nodes.map((n) => n.lineageKey)).toEqual(["V", "V#6", "V#6#2", "V#13"]);
+    expect(h.digeser).toEqual([]);
+  });
+
+  it("nomor kembar kedua yang namanya diganti tetap dipasangkan menurut urutannya – dan disebut", () => {
+    const h = samakanLineage(
+      BERKAS.map((n) => (n.lineageKey === "V#6#2" ? { ...n, name: "Pekerjaan Lantai Kerja" } : n)),
+      AKTIF,
+    );
+    expect(h.nodes.map((n) => n.lineageKey)).toEqual(["V", "V#6", "V#6#2", "V#13"]);
+    expect(h.namaBerbeda.map((x) => x.lineageKey)).toEqual(["V#6#2"]);
+  });
+});

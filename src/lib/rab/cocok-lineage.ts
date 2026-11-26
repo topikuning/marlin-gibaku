@@ -336,8 +336,22 @@ export function samakanLineage(
     for (const n of grup) {
       if (pilihan.has(n)) continue;
       const kunciKode = indukFinal === null ? n.code : `${indukFinal}#${n.code}`;
-      const byKey = cariKunci(kunciKode);
-      if (!byKey || dipakaiLama.has(byKey.lineageKey) || kelas(byKey.kind) !== kelas(n.kind)) continue;
+      /*
+       * NOMOR KEMBAR (DECISIONS 790): saudara kedua bernomor "6" di berkas
+       * berkunci "…#6#2" (`flatten`), dan begitu juga di RAB aktif. Jalur kode
+       * polos "…#6" milik yang pertama; yang kedua dicocokkan menurut urutan
+       * kembarnya – arti asli kunci itu. Kasus nyata BUYAT TENGAH sub VII.1.
+       */
+      const relatif = indukAsli === "" ? n.lineageKey : n.lineageKey.slice(indukAsli.length + 1);
+      const kunciUrut = relatif !== n.code && relatif.startsWith(`${n.code}#`)
+        ? (indukFinal === null ? relatif : `${indukFinal}#${relatif}`)
+        : null;
+      const sah = (x: NodeLamaCocok | undefined): x is NodeLamaCocok =>
+        !!x && !dipakaiLama.has(x.lineageKey) && kelas(x.kind) === kelas(n.kind);
+      const polos = cariKunci(kunciKode);
+      const urut = kunciUrut ? cariKunci(kunciUrut) : undefined;
+      const byKey = sah(urut) ? urut : polos;
+      if (!sah(byKey)) continue;
       pilihan.set(n, byKey);
       dipakaiLama.add(byKey.lineageKey);
       if (normalNama(byKey.name) !== normalNama(n.name))
@@ -355,8 +369,12 @@ export function samakanLineage(
       let kunciFinal: string;
       if (cocok) {
         kunciFinal = cocok.lineageKey;
-        // Beda huruf besar/kecil saja bukan nomor yang bergeser.
-        if (cocok.lineageKey.toLowerCase() !== kunciKode.toLowerCase())
+        // Beda huruf besar/kecil saja bukan nomor yang bergeser; begitu juga
+        // nomor kembar yang kembali ke urutan kembarnya sendiri (790).
+        const relatif = indukAsli === "" ? n.lineageKey : n.lineageKey.slice(indukAsli.length + 1);
+        const kunciSendiri = indukFinal === null ? relatif : `${indukFinal}#${relatif}`;
+        const k = cocok.lineageKey.toLowerCase();
+        if (k !== kunciKode.toLowerCase() && k !== kunciSendiri.toLowerCase())
           digeser.push({
             name: n.name,
             kode: n.code,
