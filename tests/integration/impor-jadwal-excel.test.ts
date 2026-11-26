@@ -40,6 +40,16 @@ vi.mock("@/lib/auth/session", async () => {
   };
 });
 
+/** Isi berkas sumber RAB aktif di penyimpanan (DECISIONS 794) – diisi per uji. */
+let isiBerkasSumber: Buffer | null = null;
+vi.mock("@/lib/penyimpanan/berkas", async (importAsli) => ({
+  ...(await importAsli<typeof import("@/lib/penyimpanan/berkas")>()),
+  ambilBerkas: async () => {
+    if (!isiBerkasSumber) throw new Error("tidak ada");
+    return isiBerkasSumber;
+  },
+}));
+
 const { db } = await import("@/lib/db");
 const { importJadwalAction, pratinjauJadwalAction } = await import(
   "@/app/(app)/lokasi/[slug]/rab/actions"
@@ -472,6 +482,62 @@ describe("Terapkan memakai tiket hasil Periksa", () => {
       expect(res?.error).toMatch(/kedaluwarsa/);
     } finally {
       sessionUserId = asli;
+    }
+  });
+});
+
+/*
+ * DARI BERKAS RAB AKTIF (DECISIONS 794): lembar Time Schedule di berkas sumber
+ * revisi aktif (jadwal CCO) diperiksa tanpa diunggah ulang. Keluhan user
+ * 2026-11-26: Tambatan Perahu (0 di RAB CCO) masih berbobot di kurva-S.
+ */
+describe("Time Schedule dari berkas RAB aktif", () => {
+  it("tanpa berkas sumber: ditolak dengan kalimat yang menyuruh mengunggah", async () => {
+    const f = new FormData();
+    f.set("locationId", locId);
+    f.set("dariRab", "1");
+    const r = await pratinjauJadwalAction(undefined, f);
+    expect(r?.error).toMatch(/tidak menyimpan berkas sumbernya/);
+  });
+
+  it("berkas sumber tersimpan: dibaca langsung, lalu diterapkan lewat tiket – tanpa unggah", async () => {
+    const file = await workbook(JADWAL_USER);
+    isiBerkasSumber = Buffer.from(await file.arrayBuffer());
+    const doc = await db.document.create({
+      data: {
+        orgId: sessionOrgId,
+        phase: "adendum",
+        type: "hps",
+        title: "HPS CCO",
+        r2Key: `uji/${suffix}/cco.xlsx`,
+        fileName: "BUYAT_CCO.xlsx",
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bytes: isiBerkasSumber.length,
+        sha256: suffix,
+        uploadedById: sessionUserId,
+      },
+    });
+    await db.rabRevision.update({ where: { id: revisionId }, data: { sourceDocumentId: doc.id } });
+    try {
+      const f = new FormData();
+      f.set("locationId", locId);
+      f.set("dariRab", "1");
+      const r = await pratinjauJadwalAction(undefined, f);
+      expect(r?.error).toBeUndefined();
+      expect(r?.data?.namaBerkas).toBe("BUYAT_CCO.xlsx");
+
+      const t = new FormData();
+      t.set("locationId", locId);
+      t.set("tiket", r!.data!.tiket);
+      const h = await importJadwalAction(undefined, t);
+      expect(h?.error).toBeUndefined();
+      const b = await baselineAktif();
+      expect(bobotOf(b, "Pekerjaan Persiapan")).toBeCloseTo(10, 3);
+      expect(bobotOf(b, "Pekerjaan Struktur")).toBeCloseTo(60, 3);
+    } finally {
+      isiBerkasSumber = null;
+      await db.rabRevision.update({ where: { id: revisionId }, data: { sourceDocumentId: null } });
+      await db.document.delete({ where: { id: doc.id } });
     }
   });
 });

@@ -51,6 +51,7 @@ import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
 import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
+import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
 
@@ -494,16 +495,43 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     return { user, location, input: t.input, catNodes, mode, namaBerkas: t.namaBerkas, ukuranBerkas: null };
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
-  if (file.size > 15 * 1024 * 1024) return { error: "File terlalu besar (maks 15 MB)." };
-  if (!IMPORT_XLSX_MIME.includes(file.type) && !/\.xlsx?$/i.test(file.name)) {
-    return { error: "File harus Excel (.xlsx)." };
+  /*
+   * DARI BERKAS RAB AKTIF (DECISIONS 794): lembar Time Schedule di berkas
+   * HPS/RAB yang menjadi sumber revisi aktif (mis. "TIME SCHEDULE (CCO 1)") –
+   * tanpa mengunggah ulang. Berkasnya diambil dari arsip dokumen lewat satu
+   * pintu penyimpanan.
+   */
+  let isi: Buffer;
+  let namaBerkas: string;
+  let ukuranBerkas: number | null;
+  if (formData.get("dariRab") === "1") {
+    const sumber = await db.rabRevision.findUnique({
+      where: { id: revision.id },
+      select: { sourceDocument: { select: { r2Key: true, fileName: true } } },
+    });
+    if (!sumber?.sourceDocument) return { error: "Revisi RAB aktif tidak menyimpan berkas sumbernya. Unggah berkas jadwalnya." };
+    try {
+      isi = await ambilBerkas(sumber.sourceDocument.r2Key);
+    } catch {
+      return { error: "Berkas sumber RAB aktif tidak bisa diambil dari penyimpanan. Unggah berkas jadwalnya." };
+    }
+    namaBerkas = sumber.sourceDocument.fileName;
+    ukuranBerkas = null;
+  } else {
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
+    if (file.size > 15 * 1024 * 1024) return { error: "File terlalu besar (maks 15 MB)." };
+    if (!IMPORT_XLSX_MIME.includes(file.type) && !/\.xlsx?$/i.test(file.name)) {
+      return { error: "File harus Excel (.xlsx)." };
+    }
+    isi = Buffer.from(await file.arrayBuffer());
+    namaBerkas = file.name;
+    ukuranBerkas = file.size;
   }
 
   let parsed;
   try {
-    parsed = await parseJadwalWorkbook(Buffer.from(await file.arrayBuffer()));
+    parsed = await parseJadwalWorkbook(isi);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
   }
@@ -517,7 +545,7 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
     return { error: "Tidak ada pekerjaan di Excel yang cocok dengan kategori RAB lokasi ini (dicocokkan lewat kode atau nama)." };
   }
 
-  return { user, location, input, catNodes, mode, namaBerkas: file.name, ukuranBerkas: file.size };
+  return { user, location, input, catNodes, mode, namaBerkas, ukuranBerkas };
 }
 
 export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {

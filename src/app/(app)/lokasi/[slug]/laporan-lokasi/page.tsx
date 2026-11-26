@@ -6,6 +6,7 @@ import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { KkpProgresKategori } from "@/components/knmp/kkp-progres-kategori";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
+import { PeringatanKurvaRab } from "@/components/knmp/peringatan-kurva-rab";
 import { PeriodFilter } from "./period-filter";
 import { MenuBerkas } from "@/components/ui";
 import { MenuLaporanPeriodik } from "./menu-laporan";
@@ -263,6 +264,12 @@ export default async function LaporanLokasiPage({
                     hasDrive={hasDrive}
                     wahaOn={wahaOn}
                     driveOn={driveOn}
+                  />
+                  {/* Jadwal tersimpan tidak cocok dengan RAB aktif – disebut, tidak dicetak (DECISIONS 794). */}
+                  <PeringatanKurvaRab
+                    takSesuai={report.kurvaTakSesuai}
+                    slug={slug}
+                    bolehUbah={can(user.role, "baseline.manage")}
                   />
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
