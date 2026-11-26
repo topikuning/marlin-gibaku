@@ -18,7 +18,7 @@ import { KumulatifItem, PenandaDraftAdendum } from "./kumulatif-item";
 import { TabelItemLipat } from "./tabel-item-lipat";
 import { PekerjaanLuarRab } from "./luar-rab";
 import { ImporLaporanPelaksana } from "./impor-pelaksana";
-import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
+import { bolehUrusFotoOrangLain, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
 import type { PhotoView } from "@/lib/photos";
 import type { SessionUser } from "@/lib/auth/session";
@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
  * Foto satu pekerjaan di laporan yang sudah dikirim. Foto SUSULAN (DECISIONS
  * 696) dipisah dan diberi keterangan supaya pemeriksa tahu bukti itu masuk
  * sesudah laporannya dikirim; tombol hapus hanya untuknya, dan hanya bagi
- * pengunggahnya, Site Manager, atau Super Admin.
+ * pengunggahnya, atau Site Manager dan atasannya (DECISIONS 792).
  */
 function FotoItemTerkirim({
   photos,
@@ -61,7 +61,7 @@ function FotoItemTerkirim({
   const susulan = photos.filter((p) => p.susulanAt);
   const dapatDihapus = bolehHapusSusulan
     ? susulan
-        .filter((p) => p.uploadedById === user.id || PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role))
+        .filter((p) => p.uploadedById === user.id || bolehUrusFotoOrangLain(user.role))
         .map((p) => p.id)
     : [];
   return (
@@ -169,7 +169,7 @@ export default async function HarianWorkspacePage({
    * Admin (DECISIONS 791). Server memeriksa ulang lewat `izinKembalikanFoto`.
    */
   const bolehKembalikan = (p: PhotoView) =>
-    canCreate && (p.uploadedById === user.id || PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role));
+    canCreate && (p.uploadedById === user.id || bolehUrusFotoOrangLain(user.role));
   const idKembali = (photos: PhotoView[]) => photos.filter(bolehKembalikan).map((p) => p.id);
   const barisTerkirim = (it: WorkspaceItem) => (
     <tr key={it.id}>

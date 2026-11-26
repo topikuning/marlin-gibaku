@@ -43,10 +43,15 @@ describe("izinKembalikanFoto", () => {
     }
   });
 
-  it("orang lain selain pengunggah: hanya Site Manager / Super Admin", () => {
+  it("orang lain selain pengunggah: Site Manager dan atasannya (PM, Area Manager, Program Director, Super Admin)", () => {
     const lain = { id: "u-lain", role: "field_supervisor" as const };
     expect(izin({ jenis: "item", volume: 0 }, "final", { user: lain }).boleh).toBe(false);
     expect(izin({ jenis: "item", volume: 0 }, "final", { user: sm }).boleh).toBe(true);
+    // Layar user 2026-11-26: Project Manager ditolak mengembalikan foto tanpa pekerjaan (DECISIONS 792).
+    for (const role of ["project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      expect([role, izin({ jenis: "yatim" }, "draft", { user: { id: "u-atas", role } }).boleh]).toEqual([role, true]);
+    }
+    expect(izin({ jenis: "yatim" }, "draft", { user: { id: "u-w", role: "wakil_ppk" } }).boleh).toBe(false);
     // Pengunggah tak diketahui (impor lama) – bukan "milik siapa saja".
     expect(izin({ jenis: "item", volume: 0 }, "final", { pengunggahId: null }).boleh).toBe(false);
   });
