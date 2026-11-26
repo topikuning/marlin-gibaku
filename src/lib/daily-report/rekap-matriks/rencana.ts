@@ -16,15 +16,23 @@ import type { LaporanMarlin, ModeImpor, PilihanBentrok, SelMarlin } from "./jeni
  * - Tanggal ada di keduanya → DISESUAIKAN ke angka Excel (kedua mode).
  * - Hanya di Excel → DITAMBAH.
  * - Hanya di MARLIN, di dalam periode Excel → TAMBAH: dibiarkan; TIMPA:
- *   dinolkan. Barisnya TIDAK dihapus – foto tetap menempel di pekerjaannya.
+ *   dinolkan. Baris yang sesudahnya tidak membawa apa-apa lagi (tanpa foto,
+ *   catatan, catatan luar RAB, atau pemasangan) DIBUANG – baris 0 tanpa isi
+ *   tidak ada gunanya di laporan (user 2026-11-26, DECISIONS 786). Yang masih
+ *   membawa foto/catatan tetap ada dengan volume 0, dan sebabnya disebut.
+ *   Baris 0 tanpa isi sisa impor sebelumnya ikut dibuang di mode timpa.
  *   Di luar periode Excel (laporan sesudah tanggal terakhir yang terisi)
  *   tidak pernah disentuh.
- * - BENTROK, ditanyakan per item, tidak diputuskan diam-diam:
+ * - Dua keadaan yang perlu keputusan (dulu sama-sama disebut "bentrok",
+ *   membingungkan – user 2026-11-26):
  *   `beda_tanggal` (mode tambah: Excel dan MARLIN sama-sama punya tanggal yang
  *   tidak ada di pihak lain – bisa jadi pekerjaan yang sama dicatat di hari
- *   berbeda), `melebihi_kontrak` (hasil akhirnya di atas volume RAB aktif).
- *   Pilihan: lewati (bawaan), ikuti Excel, jumlahkan, potong rata ke volume
- *   kontrak – hanya yang hasilnya sah yang ditawarkan.
+ *   berbeda): DITANYAKAN, bawaannya dilewati;
+ *   `melebihi_kontrak` (total Excel di atas volume RAB aktif): volume kontrak
+ *   adalah batasnya, jadi bawaannya angka Excel DIPOTONG RATA sampai pas
+ *   volume kontrak dan disebut; Lewati tetap bisa dipilih (DECISIONS 786).
+ *   Hanya pilihan yang hasilnya sah yang ditawarkan, masing-masing dengan
+ *   total hasilnya.
  * - "Ikut Excel" berarti ikut Excel (user 2026-11-25: *"perintah ikut excel ya
  *   ikut excel"*). Yang dulu ditahan kini DITULIS dan akibatnya disebut per
  *   tanggal: hari yang dinyatakan nihil (pernyataannya dibatalkan), baris draft
@@ -80,7 +88,8 @@ export type MasukanRencana = {
   pindahFoto?: boolean;
 };
 
-export type AksiSel = "tambah" | "ubah" | "nolkan";
+/** `hapus` = baris dinolkan yang tidak membawa apa-apa lagi, dibuang (786). */
+export type AksiSel = "tambah" | "ubah" | "nolkan" | "hapus";
 
 export type PerubahanSel = {
   tanggal: string;
@@ -95,6 +104,8 @@ export type PerubahanSel = {
   ditahan: string | null;
   /** Akibat yang ikut terjadi bila sel ini ditulis (pernyataan nihil dibatalkan, …). */
   catatan: string | null;
+  /** Baris dinolkan yang TIDAK dibuang: apa yang masih dibawanya (foto, catatan, …). */
+  tetapKarena: string | null;
 };
 
 export type JenisBentrok = "beda_tanggal" | "melebihi_kontrak";
@@ -115,7 +126,11 @@ export type RencanaItem = {
   hanyaMarlin: string[];
   /** Total bila diterapkan tanpa pilihan (dipakai menjelaskan "melebihi kontrak"). */
   totalBawaan: number;
+  /** Angka Excel per tanggal – supaya terlihat dari mana totalnya. */
+  excelPerTanggal: { tanggal: string; volume: number }[];
   pilihanTersedia: PilihanBentrok[];
+  /** Total sesudah impor untuk tiap pilihan yang tersedia. */
+  hasilPilihan: Partial<Record<PilihanBentrok, number>>;
   /** Pilihan yang dipakai untuk item bentrok; null = tidak bentrok. */
   pilihan: PilihanBentrok | null;
   perubahan: PerubahanSel[];
@@ -136,6 +151,8 @@ export type Rencana = {
     tambah: number;
     ubah: number;
     nolkan: number;
+    /** Baris dinolkan yang dibuang karena tidak membawa apa-apa lagi. */
+    hapus: number;
     ditahan: number;
     /** Tanggal yang akan dibuatkan laporan baru. */
     laporanBaru: string[];
@@ -204,6 +221,24 @@ export function tujuanFoto(waktu: string, tujuan: readonly string[]): string | n
     } else if (d === jarakTerbaik) seri = true;
   }
   return seri ? null : terbaik;
+}
+
+/** Penanda baris yang dibuat impor ini sendiri – bukan catatan orang. */
+export const CATATAN_IMPOR = "Dari impor rekap harian";
+
+/**
+ * Apa yang masih dibawa baris bila volumenya 0 (null = tidak ada, boleh
+ * dibuang). Pemasangan (777) dan catatan luar RAB (738) menunjuk barisnya;
+ * foto dan catatan orang adalah isi laporan.
+ */
+function isiBaris(s: SelMarlin, fotoSisa: number): string | null {
+  const isi: string[] = [];
+  if (fotoSisa > 0) isi.push(`${fotoSisa} foto`);
+  const cat = s.catatanBaris?.trim();
+  if (cat && cat !== CATATAN_IMPOR) isi.push("catatan");
+  if (s.luarRab) isi.push("catatan di luar RAB yang dipadankan");
+  if (s.padanan) isi.push("hasil pemasangan");
+  return isi.length > 0 ? isi.join(", ") : null;
 }
 
 /** FNV-1a 32 bit – cukup untuk mendeteksi rencana yang berubah, bukan untuk keamanan. */
@@ -284,6 +319,7 @@ export function susunRencana(o: MasukanRencana): Rencana {
 
     let pilihan: PilihanBentrok | null = null;
     const tersedia: PilihanBentrok[] = [];
+    const hasilPilihan: Partial<Record<PilihanBentrok, number>> = {};
     let akhir: Map<string, number> | null = bawaan;
     if (bentrok.length > 0) {
       // Potong rata hanya bila dasarnya memang melebihi kontrak.
@@ -295,8 +331,13 @@ export function susunRencana(o: MasukanRencana): Rencana {
         ["potong", lewatKontrak(dasarPotong) ? potong(dasarPotong) : null],
       ]);
       for (const [k, v] of opsi) if (k === "lewati" || v) tersedia.push(k);
+      for (const k of tersedia) hasilPilihan[k] = k === "lewati" ? jumlah(kini) : jumlah(opsi.get(k)!);
       const diminta = o.pilihan[lineageKey];
-      pilihan = diminta && tersedia.includes(diminta) ? diminta : "lewati";
+      // Melebihi kontrak saja: volume kontrak batasnya → bawaannya dipotong.
+      // Tanggal berbeda: tidak ditebak → bawaannya dilewati.
+      const bawaanPilihan: PilihanBentrok =
+        !bentrok.includes("beda_tanggal") && tersedia.includes("potong") ? "potong" : "lewati";
+      pilihan = diminta && tersedia.includes(diminta) ? diminta : bawaanPilihan;
       akhir = pilihan === "lewati" ? null : opsi.get(pilihan)!;
     }
 
@@ -320,13 +361,17 @@ export function susunRencana(o: MasukanRencana): Rencana {
         const ke = bulat3(akhir.get(t) ?? 0);
         const s = m[t];
         const dari = s ? s.volume : null;
-        if (dari != null && Math.abs(dari - ke) <= EPS && s!.basis === "aktif") continue;
+        // Baris 0 tanpa isi (sisa impor sebelumnya) dibuang di mode timpa (786).
+        const sisaKosong =
+          o.mode === "timpa" && s != null && dari != null && dari <= EPS && ke <= EPS && dalamPeriode(t) && !isiBaris(s, s.foto);
+        if (dari != null && Math.abs(dari - ke) <= EPS && s!.basis === "aktif" && !sisaKosong) continue;
         if (dari == null && ke <= EPS) continue;
         perubahan.push({
           tanggal: t,
           dari,
           ke,
           aksi: dari == null ? "tambah" : ke <= EPS ? "nolkan" : "ubah",
+          tetapKarena: null,
           rowId: s?.rowId ?? null,
           reportId: s?.reportId ?? o.laporan[t]?.reportId ?? null,
           status: o.laporan[t]?.status ?? null,
@@ -386,6 +431,18 @@ export function susunRencana(o: MasukanRencana): Rencana {
       }
     }
 
+    // Baris yang dinolkan: dibuang bila sesudah foto dipindah tidak membawa
+    // apa-apa lagi; yang masih membawa sesuatu tetap ada dan sebabnya disebut.
+    for (const p of perubahan) {
+      if (p.aksi !== "nolkan" || p.ditahan) continue;
+      const s = m[p.tanggal];
+      if (!s) continue;
+      const dipindah = pindahFoto.filter((f) => f.dari === p.tanggal).reduce((t, f) => t + f.jumlah, 0);
+      const isi = isiBaris(s, s.foto - dipindah);
+      if (isi) p.tetapKarena = isi;
+      else p.aksi = "hapus";
+    }
+
     item.push({
       lineageKey,
       nama: rab?.name ?? g.nama,
@@ -400,7 +457,9 @@ export function susunRencana(o: MasukanRencana): Rencana {
       hanyaExcel: hanyaExcel.sort(),
       hanyaMarlin: hanyaMarlin.sort(),
       totalBawaan: jumlah(bawaan),
+      excelPerTanggal: [...excel].sort(([a], [b]) => (a < b ? -1 : 1)).map(([tanggal, volume]) => ({ tanggal, volume })),
       pilihanTersedia: tersedia,
+      hasilPilihan,
       pilihan,
       perubahan,
       catatan,
@@ -418,7 +477,7 @@ export function susunRencana(o: MasukanRencana): Rencana {
     o.mode +
       "|" +
       ditulis
-        .map(({ i, p }) => `${i.lineageKey}@${p.tanggal}:${p.dari ?? "-"}>${p.ke}`)
+        .map(({ i, p }) => `${i.lineageKey}@${p.tanggal}:${p.dari ?? "-"}>${p.ke}:${p.aksi}`)
         .sort()
         .join(";") +
       "|" +
@@ -430,6 +489,7 @@ export function susunRencana(o: MasukanRencana): Rencana {
       tambah: ditulis.filter(({ p }) => p.aksi === "tambah").length,
       ubah: ditulis.filter(({ p }) => p.aksi === "ubah").length,
       nolkan: ditulis.filter(({ p }) => p.aksi === "nolkan").length,
+      hapus: ditulis.filter(({ p }) => p.aksi === "hapus").length,
       ditahan: item.reduce((t, i) => t + i.perubahan.filter((p) => p.ditahan).length, 0),
       laporanBaru,
       itemBerubah: new Set(ditulis.map(({ i }) => i.lineageKey)).size,

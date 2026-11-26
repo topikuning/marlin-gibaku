@@ -236,6 +236,53 @@ describe("mode timpa (super admin)", () => {
   });
 });
 
+/* User 2026-11-26 memotret baris 0 m¹ "Tanpa foto" sesudah impor: *"lalu ini maksudnya apa dinolkan tapi itemnya ada? apa gunanya ini?"* (DECISIONS 786). */
+describe("baris dinolkan tanpa isi dibuang (DECISIONS 786)", () => {
+  it("timpa: baris tanpa foto/catatan dihapus dari laporan final; baris berfoto tetap dengan volume 0; jejaknya menyebut baris yang dibuang", async () => {
+    const L = await siapkan();
+    const kosong = await db.dailyReportItem.create({
+      data: { reportId: L.laporan["2026-10-28"]!, rabNodeId: L.node["A#1"]!, lineageKey: "A#1", basis: "aktif", volumeDone: 4, valueDone: 400_000n },
+    });
+    const { rencana, hasil } = await simpan(L, await BERKAS(), SA, "timpa");
+    expect(rencana.item.find((i) => i.lineageKey === "A#1")!.perubahan.find((p) => p.tanggal === "2026-10-28")).toMatchObject({ aksi: "hapus" });
+    expect(hasil).toMatchObject({ hapus: 1, nolkan: 1 });
+    expect(hasil.blankoDibangunUlang).toBeGreaterThan(0);
+    expect(await db.dailyReportItem.count({ where: { id: kosong.id } })).toBe(0);
+    expect(await db.dailyReportItem.count({ where: { id: L.baris["B#1@2026-10-28"]! } })).toBe(1);
+    expect(await fotoAman(L)).toBe(true);
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "daily_report.impor_rekap_harian", resourceId: L.locationId, payload: { path: ["lineageKey"], equals: "A#1" } },
+    });
+    expect((jejak?.payload as { perubahan: { aksi: string; rowId: string | null }[] }).perubahan).toContainEqual(
+      expect.objectContaining({ aksi: "hapus", rowId: kosong.id }),
+    );
+  });
+
+  it("pindahkan foto: baris yang seluruh fotonya pindah ikut dibuang, fotonya selamat di tanggal Excel", async () => {
+    const L = await siapkan();
+    const { hasil } = await simpan(L, await BERKAS(), SA, "timpa", {}, true);
+    expect(hasil).toMatchObject({ fotoDipindah: 2, hapus: 1, nolkan: 0 });
+    expect(await db.dailyReportItem.count({ where: { id: L.baris["B#1@2026-10-28"]! } })).toBe(0);
+    const foto = await db.photo.findMany({ where: { id: { in: L.foto } }, select: { reportId: true } });
+    expect(foto.map((f) => f.reportId)).toEqual([L.laporan["2026-10-30"], L.laporan["2026-10-30"]]);
+  });
+
+  it("catatan ditulis orang di baris sesudah pratinjau → tidak ada yang dibuang, tidak ada yang ditulis", async () => {
+    const L = await siapkan();
+    const kosong = await db.dailyReportItem.create({
+      data: { reportId: L.laporan["2026-10-28"]!, rabNodeId: L.node["A#1"]!, lineageKey: "A#1", basis: "aktif", volumeDone: 4, valueDone: 400_000n },
+    });
+    const buf = await BERKAS();
+    const bahan = await pratinjauImporRekap(L.locationId, buf, SA);
+    const p = { mode: "timpa" as const, tujuan: {}, pilihan: {} };
+    const { sidik } = susunRencana(masukanRencana(bahan, p));
+    // Kunci pratinjau = sidik atas volume; catatan tidak mengubahnya – penulis harus memeriksa ulang.
+    await db.dailyReportItem.update({ where: { id: kosong.id }, data: { notes: "Galian sisi utara" } });
+    await expect(terapkanImporRekap({ locationId: L.locationId, buf, userId, izin: SA, pilihan: p, sidik })).rejects.toThrow(/berubah sejak pratinjau/);
+    expect(await db.dailyReportItem.count({ where: { id: kosong.id } })).toBe(1);
+  });
+});
+
 /* Jawaban user 2026-11-25: *"ya, pindahkan foto ke tanggal excel jika ditentukan"* (DECISIONS 783). */
 describe("pindahkan foto ke tanggal Excel (dicentang)", () => {
   it("dua foto baris 28 Okt yang dinolkan pindah ke baris B#1 30 Okt – laporan dan pekerjaannya ikut, fotonya tidak hilang", async () => {

@@ -15,7 +15,7 @@ import { pratinjauRekapMatriksAction, simpanRekapMatriksAction, type RekapMatrik
  * DECISIONS 782.
  *
  * Rencana disusun DI LAYAR dari bahan pratinjau tiap kali orang mengubah mode,
- * item tujuan, atau pilihan bentrok – berkasnya tidak diunggah ulang. Saat
+ * item tujuan, atau pilihan per item – berkasnya tidak diunggah ulang. Saat
  * menyimpan, server menyusunnya ulang dan menolak bila hasilnya berbeda dari
  * yang dilihat di sini.
  */
@@ -23,14 +23,28 @@ import { pratinjauRekapMatriksAction, simpanRekapMatriksAction, type RekapMatrik
 const tgl = (k: string) => formatTanggal(new Date(`${k}T00:00:00.000Z`), "d MMM yyyy");
 const sat = (u: string | null) => (u ? ` ${u}` : "");
 
-const LABEL_PILIHAN: Record<PilihanBentrok, string> = {
-  lewati: "Lewati – biarkan seperti di MARLIN",
-  excel: "Ikuti Excel – tanggal yang hanya ada di MARLIN dinolkan, fotonya tetap",
-  jumlahkan: "Jumlahkan – angka Excel ditambahkan, yang di MARLIN tetap",
-  potong: "Ikuti Excel, dipotong rata sampai volume kontrak",
-};
+/** Label pilihan berikut HASILNYA – orang memilih angka akhir, bukan istilah. */
+function labelPilihan(v: PilihanBentrok, it: RencanaItem): string {
+  const hasil = it.hasilPilihan[v];
+  const total = hasil == null ? "" : `${formatNumber(hasil)}${sat(it.unit)}`;
+  switch (v) {
+    case "lewati":
+      return `Lewati – tidak ada yang berubah, tetap ${total} seperti di MARLIN`;
+    case "excel":
+      return `Ikuti Excel – tanggal yang hanya ada di MARLIN dibuang, total jadi ${total}`;
+    case "jumlahkan":
+      return `Pakai keduanya – angka Excel ditambahkan ke yang di MARLIN, total jadi ${total}`;
+    case "potong":
+      return `Potong rata sampai volume kontrak – total jadi ${total}`;
+  }
+}
 
-const LABEL_AKSI: Record<PerubahanSel["aksi"], string> = { tambah: "Ditambah", ubah: "Disesuaikan", nolkan: "Dinolkan" };
+const LABEL_AKSI: Record<PerubahanSel["aksi"], string> = {
+  tambah: "Ditambah",
+  ubah: "Disesuaikan",
+  nolkan: "Dinolkan",
+  hapus: "Dibuang",
+};
 
 function Sel({ p, unit, fotoPindah }: { p: PerubahanSel; unit: string | null; fotoPindah: number }) {
   const fotoTinggal = p.foto - fotoPindah;
@@ -38,19 +52,49 @@ function Sel({ p, unit, fotoPindah }: { p: PerubahanSel; unit: string | null; fo
     <li className={p.ditahan ? "text-ink-faint" : "text-ink"}>
       <span className="tabular-nums">{tgl(p.tanggal)}</span> · {LABEL_AKSI[p.aksi]}{" "}
       <span className="tabular-nums">
-        {p.dari == null ? "" : `${formatNumber(p.dari)} → `}
-        {formatNumber(p.ke)}
-        {sat(unit)}
+        {p.aksi === "hapus" ? (
+          `${formatNumber(p.dari ?? 0)}${sat(unit)}`
+        ) : (
+          <>
+            {p.dari == null ? "" : `${formatNumber(p.dari)} → `}
+            {formatNumber(p.ke)}
+            {sat(unit)}
+          </>
+        )}
       </span>
       {p.aksi === "nolkan" ? (
         <span className="text-ink-muted">
           {" "}
-          (barisnya tetap{fotoTinggal > 0 ? `, ${fotoTinggal} foto tetap di tempatnya` : ""})
+          (barisnya tetap karena masih ada {p.tetapKarena ?? `${fotoTinggal} foto`})
         </span>
       ) : null}
+      {p.aksi === "hapus" ? <span className="text-ink-muted"> (baris tanpa foto, dihapus dari laporan)</span> : null}
       {p.catatan && !p.ditahan ? <span className="text-ink-muted"> – {p.catatan}</span> : null}
       {p.ditahan ? <span className="text-warning"> – ditahan: {p.ditahan}</span> : null}
     </li>
+  );
+}
+
+/** Dari mana total Excel datang dan kenapa tidak bisa masuk apa adanya. */
+function PenjelasanLebih({ it }: { it: RencanaItem }) {
+  const kontrak = it.volumeKontrak ?? 0;
+  const tampil = it.excelPerTanggal.slice(0, 6);
+  const sisa = it.excelPerTanggal.length - tampil.length;
+  const dariMarlin = Math.round((it.totalBawaan - it.totalExcel) * 1000) / 1000;
+  return (
+    <p className="text-xs text-warning">
+      Excel mencatat {tampil.map((x) => `${tgl(x.tanggal)}: ${formatNumber(x.volume)}${sat(it.unit)}`).join(" · ")}
+      {sisa > 0 ? ` dan ${sisa} tanggal lain` : ""}
+      {dariMarlin > 0.0005
+        ? `, ditambah ${formatNumber(dariMarlin)}${sat(it.unit)} yang sudah ada di MARLIN pada tanggal lain`
+        : ""}
+      . Jumlahnya {formatNumber(it.totalBawaan)}
+      {sat(it.unit)}, padahal volume kontrak {formatNumber(kontrak)}
+      {sat(it.unit)}. Volume kontrak adalah batasnya, jadi angka Excel tidak bisa masuk apa adanya.
+      {it.pilihanTersedia.includes("potong")
+        ? ""
+        : " Angka di MARLIN pada tanggal lain sudah memenuhi volume kontrak, jadi tidak ada ruang untuk angka Excel – item ini dilewati."}
+    </p>
   );
 }
 
@@ -69,31 +113,27 @@ function KartuItem({
       <div className="space-y-0.5">
         <div className="flex flex-wrap items-center gap-1.5">
           {it.jalur ? <span className="text-xs text-ink-muted">{it.jalur}</span> : null}
-          {it.bentrok.length > 0 ? <Badge tone="warning">Bentrok</Badge> : null}
+          {it.bentrok.includes("beda_tanggal") ? <Badge tone="warning">Tanggal berbeda</Badge> : null}
+          {it.bentrok.includes("melebihi_kontrak") ? <Badge tone="warning">Melebihi kontrak</Badge> : null}
           {it.ditahanSemua ? <Badge tone="neutral">Ditahan</Badge> : null}
         </div>
         <p className="font-medium text-ink">{it.nama}</p>
         <p className="text-xs text-ink-muted">
-          Baris Excel {it.excelRows.join(", ")} · Excel {formatNumber(it.totalExcel)}
-          {sat(it.unit)} · di MARLIN sekarang {formatNumber(it.totalSekarang)}
-          {sat(it.unit)} · sesudah impor {formatNumber(it.totalSesudah)}
+          {it.volumeKontrak != null ? `Kontrak ${formatNumber(it.volumeKontrak)}${sat(it.unit)} · ` : ""}
+          di MARLIN sekarang {formatNumber(it.totalSekarang)}
+          {sat(it.unit)} · di Excel {formatNumber(it.totalExcel)}
+          {sat(it.unit)} (baris {it.excelRows.join(", ")}) · sesudah impor {formatNumber(it.totalSesudah)}
           {sat(it.unit)}
-          {it.volumeKontrak != null ? ` · kontrak ${formatNumber(it.volumeKontrak)}${sat(it.unit)}` : ""}
         </p>
       </div>
       {it.bentrok.includes("beda_tanggal") ? (
         <p className="text-xs text-warning">
-          Excel mencatat {it.hanyaExcel.map(tgl).join(", ")}, MARLIN mencatat {it.hanyaMarlin.map(tgl).join(", ")}. Tanggalnya
-          berbeda: bisa jadi pekerjaan yang sama dicatat di hari yang berbeda.
+          Excel mencatat pekerjaan ini pada {it.hanyaExcel.map(tgl).join(", ")}, MARLIN pada{" "}
+          {it.hanyaMarlin.map(tgl).join(", ")}. Bisa jadi pekerjaan yang sama dicatat di hari yang berbeda – kalau
+          dua-duanya dipakai, volumenya terhitung dua kali. Pilih salah satu.
         </p>
       ) : null}
-      {it.bentrok.includes("melebihi_kontrak") ? (
-        <p className="text-xs text-warning">
-          Kalau diterapkan begitu saja hasilnya {formatNumber(it.totalBawaan)}
-          {sat(it.unit)}, di atas volume kontrak {formatNumber(it.volumeKontrak ?? 0)}
-          {sat(it.unit)}.
-        </p>
-      ) : null}
+      {it.bentrok.includes("melebihi_kontrak") ? <PenjelasanLebih it={it} /> : null}
       {it.bentrok.length > 0 ? (
         <fieldset className="space-y-1">
           <legend className="sr-only">Pilihan untuk {it.nama}</legend>
@@ -107,7 +147,7 @@ function KartuItem({
                 onChange={() => pilih(v)}
                 className="mt-0.5"
               />
-              <span>{LABEL_PILIHAN[v]}</span>
+              <span>{labelPilihan(v, it)}</span>
             </label>
           ))}
         </fieldset>
@@ -192,7 +232,9 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
         <CardBody className="space-y-3 text-sm">
           <p className="flex items-center gap-2 font-medium text-success">
             <CheckCircle2 aria-hidden className="size-5" />
-            {selesai.tambah} ditambah, {selesai.ubah} disesuaikan, {selesai.nolkan} dinolkan
+            {selesai.tambah} ditambah, {selesai.ubah} disesuaikan
+            {selesai.hapus > 0 ? `, ${selesai.hapus} baris dibuang` : ""}
+            {selesai.nolkan > 0 ? `, ${selesai.nolkan} dinolkan (masih berfoto/bercatatan)` : ""}
             {selesai.laporanBaru > 0 ? `, ${selesai.laporanBaru} laporan baru dikirim untuk verifikasi` : ""}
             {selesai.fotoDipindah > 0 ? `, ${selesai.fotoDipindah} foto dipindah ke tanggal Excel` : ""}
             {selesai.nihilDibatalkan > 0 ? `, ${selesai.nihilDibatalkan} pernyataan "tidak ada kegiatan" dibatalkan` : ""}.
@@ -224,10 +266,13 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
         return !(t ?? bahan.cocok[b.excelRow]?.lineageKey);
       })
     : [];
-  const bentrok = rencana?.item.filter((i) => i.bentrok.length > 0) ?? [];
+  const bedaTanggal = rencana?.item.filter((i) => i.bentrok.includes("beda_tanggal")) ?? [];
+  const lebihKontrak = rencana?.item.filter((i) => i.bentrok.includes("melebihi_kontrak") && !i.bentrok.includes("beda_tanggal")) ?? [];
   const berubah = rencana?.item.filter((i) => i.bentrok.length === 0 && i.perubahan.length > 0) ?? [];
   const sama = rencana?.item.filter((i) => i.bentrok.length === 0 && i.perubahan.length === 0).length ?? 0;
-  const jumlahTulis = rencana ? rencana.ringkas.tambah + rencana.ringkas.ubah + rencana.ringkas.nolkan : 0;
+  const jumlahTulis = rencana
+    ? rencana.ringkas.tambah + rencana.ringkas.ubah + rencana.ringkas.nolkan + rencana.ringkas.hapus
+    : 0;
 
   return (
     <Card>
@@ -277,7 +322,8 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
               <span className="text-ink-muted">
                 {" "}
                 – Excel jadi patokan untuk pekerjaan yang ada angkanya di Excel. Tanggal yang hanya ada di MARLIN (sampai
-                tanggal terakhir di Excel) dinolkan. Barisnya tidak dihapus.
+                tanggal terakhir di Excel) dibuang dari laporan. Baris yang masih membawa foto atau catatan tidak dibuang,
+                hanya volumenya dijadikan 0.
               </span>
             </span>
           </label>
@@ -381,10 +427,10 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
               </section>
             ) : null}
 
-            {bentrok.length > 0 ? (
+            {bedaTanggal.length > 0 ? (
               <section className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-[13px] font-semibold text-ink">Bentrok ({bentrok.length})</h3>
+                  <h3 className="text-[13px] font-semibold text-ink">Tanggal berbeda dengan MARLIN – perlu Anda pilih ({bedaTanggal.length})</h3>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -393,7 +439,7 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                       onClick={() =>
                         setPilihan((p) => ({
                           ...p,
-                          ...Object.fromEntries(bentrok.filter((i) => i.pilihanTersedia.includes("excel")).map((i) => [i.lineageKey, "excel"])),
+                          ...Object.fromEntries(bedaTanggal.filter((i) => i.pilihanTersedia.includes("excel")).map((i) => [i.lineageKey, "excel"])),
                         }))
                       }
                     >
@@ -403,15 +449,63 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                       type="button"
                       size="sm"
                       variant="secondary"
-                      onClick={() => setPilihan((p) => ({ ...p, ...Object.fromEntries(bentrok.map((i) => [i.lineageKey, "lewati"])) }))}
+                      onClick={() => setPilihan((p) => ({ ...p, ...Object.fromEntries(bedaTanggal.map((i) => [i.lineageKey, "lewati"])) }))}
                     >
                       Semua: lewati
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-ink-muted">Tidak diputuskan sendiri. Bawaannya dilewati sampai Anda memilih.</p>
+                <p className="text-xs text-ink-muted">
+                  Excel dan MARLIN mencatat pekerjaan yang sama di tanggal yang berbeda. MARLIN tidak menebak mana yang benar:
+                  sebelum Anda memilih, item ini dilewati.
+                </p>
                 <ul className="divide-y divide-border rounded-md border border-border">
-                  {bentrok.map((it) => (
+                  {bedaTanggal.map((it) => (
+                    <KartuItem
+                      key={it.lineageKey}
+                      it={it}
+                      nilai={it.pilihan}
+                      pilih={(v) => setPilihan((p) => ({ ...p, [it.lineageKey]: v }))}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {lebihKontrak.length > 0 ? (
+              <section className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-[13px] font-semibold text-ink">Melebihi volume kontrak ({lebihKontrak.length})</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setPilihan((p) => ({
+                          ...p,
+                          ...Object.fromEntries(lebihKontrak.filter((i) => i.pilihanTersedia.includes("potong")).map((i) => [i.lineageKey, "potong"])),
+                        }))
+                      }
+                    >
+                      Semua: potong ke kontrak
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setPilihan((p) => ({ ...p, ...Object.fromEntries(lebihKontrak.map((i) => [i.lineageKey, "lewati"])) }))}
+                    >
+                      Semua: lewati
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-ink-muted">
+                  Jumlah angka di Excel lebih besar dari volume kontrak. Volume kontrak adalah batasnya, jadi angka Excel dipotong
+                  rata sampai pas volume kontrak. Kalau angka Excel-nya keliru, pilih Lewati lalu betulkan berkasnya.
+                </p>
+                <ul className="divide-y divide-border rounded-md border border-border">
+                  {lebihKontrak.map((it) => (
                     <KartuItem
                       key={it.lineageKey}
                       it={it}
@@ -437,7 +531,9 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
 
             <div className="space-y-2 rounded-md border border-border bg-surface-muted px-3 py-2.5 text-[13px]">
               <p className="text-ink">
-                {rencana.ringkas.tambah} ditambah · {rencana.ringkas.ubah} disesuaikan · {rencana.ringkas.nolkan} dinolkan
+                {rencana.ringkas.tambah} ditambah · {rencana.ringkas.ubah} disesuaikan
+                {rencana.ringkas.hapus > 0 ? ` · ${rencana.ringkas.hapus} baris dibuang` : ""}
+                {rencana.ringkas.nolkan > 0 ? ` · ${rencana.ringkas.nolkan} dinolkan (masih berfoto/bercatatan)` : ""}
                 {rencana.ringkas.ditahan > 0 ? ` · ${rencana.ringkas.ditahan} ditahan` : ""}
                 {rencana.ringkas.itemDilewati > 0 ? ` · ${rencana.ringkas.itemDilewati} baris Excel dilewati` : ""}
               </p>
@@ -450,7 +546,9 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                 {rencana.ringkas.fotoDipindah > 0
                   ? `${rencana.ringkas.fotoDipindah} foto dipindah ke tanggal Excel, cap tanggalnya tetap. Foto lain tidak disentuh.`
                   : "Foto yang sudah ada tidak disentuh."}{" "}
-                Baris laporan tidak ada yang dihapus.
+                {rencana.ringkas.hapus > 0
+                  ? "Yang dibuang hanya baris yang volumenya jadi 0 dan tidak membawa foto atau catatan."
+                  : ""}
               </p>
               <form
                 onSubmit={(e) => {
@@ -469,7 +567,9 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
                     label={`Simpan ${jumlahTulis} perubahan`}
                     title={`Simpan ${jumlahTulis} perubahan ke laporan harian?`}
                     description={
-                      `${rencana.ringkas.tambah} ditambah, ${rencana.ringkas.ubah} disesuaikan, ${rencana.ringkas.nolkan} dinolkan` +
+                      `${rencana.ringkas.tambah} ditambah, ${rencana.ringkas.ubah} disesuaikan` +
+                      (rencana.ringkas.hapus > 0 ? `, ${rencana.ringkas.hapus} baris kosong dibuang` : "") +
+                      (rencana.ringkas.nolkan > 0 ? `, ${rencana.ringkas.nolkan} dinolkan` : "") +
                       (rencana.ringkas.laporanBaru.length > 0 ? `, ${rencana.ringkas.laporanBaru.length} laporan baru` : "") +
                       `. Progres ikut berubah. ` +
                       (rencana.ringkas.fotoDipindah > 0

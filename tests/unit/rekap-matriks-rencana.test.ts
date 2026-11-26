@@ -228,3 +228,78 @@ describe("pindahkan foto ke tanggal Excel – hanya bila diminta", () => {
     expect([r.item[0]!.ditahanSemua != null, r.item[0]!.pindahFoto]).toEqual([true, []]);
   });
 });
+
+describe("DECISIONS 786 – keputusan yang jelas, baris 0 tanpa isi dibuang", () => {
+  it("melebihi kontrak saja: bawaannya dipotong rata sampai pas kontrak; Lewati tetap bisa; hasil tiap pilihan disebut", () => {
+    const m = masukan({ excel: [["2026-10-30", 40], ["2026-11-06", 20]], kontrak: 50 });
+    const r = susunRencana(m);
+    expect(r.item[0]).toMatchObject({ bentrok: ["melebihi_kontrak"], pilihan: "potong", totalSesudah: 50 });
+    expect(r.item[0]!.hasilPilihan).toEqual({ lewati: 0, potong: 50 });
+    expect(r.item[0]!.excelPerTanggal).toEqual([
+      { tanggal: "2026-10-30", volume: 40 },
+      { tanggal: "2026-11-06", volume: 20 },
+    ]);
+    const lewat = susunRencana({ ...m, pilihan: { "I#1": "lewati" } });
+    expect(lewat.item[0]).toMatchObject({ pilihan: "lewati", perubahan: [], totalSesudah: 0 });
+  });
+
+  it("tanggal berbeda (meski juga melebihi kontrak) tetap tidak ditebak: bawaannya dilewati", () => {
+    const r = susunRencana(masukan({ excel: [["2026-10-30", 30], ["2026-11-06", 10]], ada: [sel("2026-10-28", 20)], kontrak: 50 }));
+    expect(r.item[0]).toMatchObject({ bentrok: ["beda_tanggal", "melebihi_kontrak"], pilihan: "lewati", perubahan: [] });
+  });
+
+  it("timpa: baris dinolkan tanpa foto/catatan DIBUANG; yang masih membawa foto, catatan orang, catatan luar RAB tetap dan disebut", () => {
+    const r = susunRencana(
+      masukan({
+        mode: "timpa",
+        excel: [["2026-10-30", 25]],
+        ada: [
+          sel("2026-10-24", 3, { foto: 0, fotoWaktu: [], catatanBaris: "Dari impor rekap harian" }),
+          sel("2026-10-25", 4, { foto: 0, fotoWaktu: [] }),
+          sel("2026-10-26", 5, { foto: 0, fotoWaktu: [], catatanBaris: "Pagar sisi barat" }),
+          sel("2026-10-27", 6, { foto: 1, fotoWaktu: ["2026-10-27"] }),
+          sel("2026-10-28", 7, { foto: 0, fotoWaktu: [], luarRab: true }),
+        ],
+      }),
+    );
+    expect(ubah(r)).toEqual([
+      ["2026-10-24", "hapus", 3, 0, "tulis"],
+      ["2026-10-25", "hapus", 4, 0, "tulis"],
+      ["2026-10-26", "nolkan", 5, 0, "tulis"],
+      ["2026-10-27", "nolkan", 6, 0, "tulis"],
+      ["2026-10-28", "nolkan", 7, 0, "tulis"],
+      ["2026-10-30", "tambah", null, 25, "tulis"],
+    ]);
+    expect(r.item[0]!.perubahan.map((p) => p.tetapKarena)).toEqual([
+      null,
+      null,
+      "catatan",
+      "1 foto",
+      "catatan di luar RAB yang dipadankan",
+      null,
+    ]);
+    expect(r.ringkas).toMatchObject({ hapus: 2, nolkan: 3, tambah: 1 });
+    expect(r.item[0]!.totalSesudah).toBe(25);
+  });
+
+  it("baris 0 tanpa isi sisa impor sebelumnya: dibuang di mode timpa, dibiarkan di mode tambah", () => {
+    const ada: [string, SelMarlin][] = [sel("2026-10-28", 0, { foto: 0, fotoWaktu: [] }), sel("2026-10-29", 0)];
+    const timpa = susunRencana(masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada }));
+    expect(ubah(timpa)).toEqual([
+      ["2026-10-28", "hapus", 0, 0, "tulis"],
+      ["2026-10-30", "tambah", null, 25, "tulis"],
+    ]);
+    const tambah = susunRencana(masukan({ excel: [["2026-10-30", 25]], ada }));
+    expect(ubah(tambah)).toEqual([["2026-10-30", "tambah", null, 25, "tulis"]]);
+  });
+
+  it("pindahkan foto: baris yang semua fotonya pindah ikut dibuang; sidik membedakan dibuang dan dinolkan", () => {
+    const m = masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada: [sel("2026-10-28", 10, { foto: 2, fotoWaktu: ["2026-10-29", "2026-10-29"] })] });
+    const tetap = susunRencana(m);
+    expect(ubah(tetap)[0]).toEqual(["2026-10-28", "nolkan", 10, 0, "tulis"]);
+    const pindah = susunRencana({ ...m, pindahFoto: true });
+    expect(pindah.item[0]!.pindahFoto).toEqual([{ dari: "2026-10-28", ke: "2026-10-30", jumlah: 2 }]);
+    expect(ubah(pindah)[0]).toEqual(["2026-10-28", "hapus", 10, 0, "tulis"]);
+    expect(pindah.sidik).not.toBe(tetap.sidik);
+  });
+});

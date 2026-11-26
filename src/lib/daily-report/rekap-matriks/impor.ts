@@ -7,7 +7,7 @@ import { jalurNodeById } from "@/lib/rab/jalur";
 import type { Prisma } from "@/generated/prisma/client";
 import { bacaRekapMatriks } from "./baca";
 import { cocokkanRekap } from "./cocok";
-import { susunRencana, tujuanFoto, type Rencana } from "./rencana";
+import { CATATAN_IMPOR, susunRencana, tujuanFoto, type Rencana } from "./rencana";
 import { masukanRencana, type BahanPratinjau, type PilihanImpor } from "./masukan";
 import type { LaporanMarlin, NodeRab, RekapMatriks, SelMarlin } from "./jenis";
 
@@ -22,9 +22,10 @@ import type { LaporanMarlin, NodeRab, RekapMatriks, SelMarlin } from "./jenis";
  *   tidak ada yang ditulis.
  *
  * Yang ditulis HANYA volume (dan nilai turunannya) baris laporan, dan laporan
- * baru untuk tanggal yang belum punya laporan. Baris tidak pernah dihapus –
- * "dinolkan" berarti volumenya 0 dan barisnya tetap, berikut fotonya. Foto
- * tidak disentuh sama sekali.
+ * baru untuk tanggal yang belum punya laporan. Baris yang dinolkan DIBUANG
+ * bila tidak membawa apa-apa lagi (tanpa foto, catatan, catatan luar RAB,
+ * pemasangan – DECISIONS 786); yang masih membawa sesuatu tetap ada dengan
+ * volume 0. Foto hanya dipindah bila diminta (783), sebelum barisnya dibuang.
  */
 
 export class ImporRekapError extends Error {}
@@ -82,8 +83,10 @@ async function kumpulkanBahan(
       basis: true,
       volumeDone: true,
       padananAktifId: true,
+      notes: true,
       report: { select: { reportDate: true, status: true } },
       photos: { select: { exifTakenAt: true, luarRabId: true } },
+      _count: { select: { luarRab: true } },
     },
   });
   const marlin: Record<string, Record<string, SelMarlin>> = {};
@@ -98,6 +101,8 @@ async function kumpulkanBahan(
       padanan: r.padananAktifId != null,
       foto: r.photos.length,
       fotoWaktu: r.photos.filter((f) => f.luarRabId == null).map((f) => waktuJepret(f.exifTakenAt, tanggal)),
+      catatanBaris: r.notes,
+      luarRab: r._count.luarRab > 0,
     };
   }
 
@@ -148,6 +153,8 @@ export type HasilImpor = {
   tambah: number;
   ubah: number;
   nolkan: number;
+  /** Baris dinolkan yang dibuang karena tidak membawa apa-apa lagi (786). */
+  hapus: number;
   fotoDipindah: number;
   /** Laporan yang pernyataan "tidak ada kegiatan"-nya dibatalkan karena Excel mencatat pekerjaan. */
   nihilDibatalkan: number;
@@ -182,6 +189,7 @@ export async function terapkanImporRekap(o: {
       let tambah = 0;
       let ubah = 0;
       let nolkan = 0;
+      let hapus = 0;
       let fotoDipindah = 0;
       const nihilDibatalkan = new Set<string>();
       for (const it of rencana.item) {
@@ -219,6 +227,8 @@ export async function terapkanImporRekap(o: {
             if (Math.abs(Number(row.volumeDone) - (p.dari ?? 0)) > 0.0005) {
               throw new ImporRekapError(`Laporan tanggal ${p.tanggal} berubah saat menyimpan. Tidak ada yang disimpan – tekan Baca berkas lagi.`);
             }
+            // Baris yang dibuang: dihapus SESUDAH fotonya dipindah (bawah).
+            if (p.aksi === "hapus") continue;
             await tx.dailyReportItem.update({
               where: { id: p.rowId },
               data: {
@@ -254,7 +264,7 @@ export async function terapkanImporRekap(o: {
               basis: "aktif",
               volumeDone: p.ke,
               valueDone: hitungNilai(p.ke, node.harga),
-              notes: "Dari impor rekap harian",
+              notes: CATATAN_IMPOR,
               reportedById: o.userId,
             },
             select: { id: true },
@@ -297,20 +307,49 @@ export async function terapkanImporRekap(o: {
           }
           fotoDipindah += pindahan.length;
         }
+
+        // Baris dinolkan yang tidak membawa apa-apa lagi → dibuang (786). Isinya
+        // diperiksa ulang di sini: foto, catatan, atau tautan yang muncul sejak
+        // pratinjau membatalkan seluruh impor, bukan ikut terbuang.
+        for (const p of tulis) {
+          if (p.aksi !== "hapus" || !p.rowId) continue;
+          const row = await tx.dailyReportItem.findUnique({
+            where: { id: p.rowId },
+            select: {
+              volumeDone: true,
+              notes: true,
+              padananAktifId: true,
+              _count: { select: { photos: true, luarRab: true } },
+            },
+          });
+          const catatan = row?.notes?.trim();
+          const masihBerisi =
+            !row ||
+            Math.abs(Number(row.volumeDone) - (p.dari ?? 0)) > 0.0005 ||
+            row._count.photos > 0 ||
+            row._count.luarRab > 0 ||
+            row.padananAktifId != null ||
+            (catatan && catatan !== CATATAN_IMPOR);
+          if (masihBerisi) {
+            throw new ImporRekapError(`Baris tanggal ${p.tanggal} berubah sejak pratinjau. Tidak ada yang disimpan – tekan Baca berkas lagi.`);
+          }
+          await tx.dailyReportItem.delete({ where: { id: p.rowId } });
+          hapus++;
+        }
         await auditIn(tx, o.userId, "daily_report.impor_rekap_harian", "location", o.locationId, {
           mode: o.pilihan.mode,
           lineageKey: it.lineageKey,
           item: it.nama,
           barisExcel: it.excelRows,
           pilihan: it.pilihan,
-          perubahan: tulis.map((p) => ({ tanggal: p.tanggal, aksi: p.aksi, dari: p.dari, ke: p.ke, status: p.status, foto: p.foto })),
+          perubahan: tulis.map((p) => ({ tanggal: p.tanggal, aksi: p.aksi, dari: p.dari, ke: p.ke, status: p.status, foto: p.foto, rowId: p.rowId })),
           fotoDipindah: pindahan.map((x) => ({ photoId: x.foto, dari: x.dari, ke: x.ke })),
           totalSebelum: it.totalSekarang,
           totalSesudah: it.totalSesudah,
           diperbarui: sekarang.toISOString(),
         });
       }
-      return { tambah, ubah, nolkan, fotoDipindah, nihilDibatalkan: nihilDibatalkan.size, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
+      return { tambah, ubah, nolkan, hapus, fotoDipindah, nihilDibatalkan: nihilDibatalkan.size, laporanBaru, tanggalFinal, ringkas: rencana.ringkas };
     },
     { timeout: 120_000, maxWait: 15_000 },
   );
@@ -336,6 +375,7 @@ export async function terapkanImporRekap(o: {
     tambah: hasil.tambah,
     ubah: hasil.ubah,
     nolkan: hasil.nolkan,
+    hapus: hasil.hapus,
     laporanBaru: hasil.laporanBaru.size,
     laporanBaruTetapDraft: tetapDraft,
     blankoDibangunUlang: blanko,
@@ -345,6 +385,7 @@ export async function terapkanImporRekap(o: {
     tambah: hasil.tambah,
     ubah: hasil.ubah,
     nolkan: hasil.nolkan,
+    hapus: hasil.hapus,
     fotoDipindah: hasil.fotoDipindah,
     nihilDibatalkan: hasil.nihilDibatalkan,
     laporanBaru: hasil.laporanBaru.size,

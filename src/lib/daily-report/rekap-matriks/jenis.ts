@@ -66,6 +66,13 @@ export type SelMarlin = {
    * Foto bukti catatan di luar RAB tidak ikut – milik catatannya.
    */
   fotoWaktu: string[];
+  /**
+   * Catatan yang ditulis orang di baris ini (bukan penanda impor). Baris
+   * bercatatan tidak dibuang saat dinolkan – catatannya isi laporan (786).
+   */
+  catatanBaris?: string | null;
+  /** Baris ini dipadankan dengan catatan pekerjaan di luar RAB (738) – tidak dibuang. */
+  luarRab?: boolean;
 };
 
 export type LaporanMarlin = {
