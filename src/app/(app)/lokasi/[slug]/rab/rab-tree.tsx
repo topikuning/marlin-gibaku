@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { formatRupiahSatuan, formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import { renameRabCategoryAction } from "./actions";
 import { kodeTampil } from "@/lib/rab/penomoran";
+import { simpulNol } from "@/lib/rab/pohon-nol";
 
 /** Node RAB tersalin ke client — BigInt/Decimal SUDAH diserialisasi di server. */
 export type RabNodeRow = {
@@ -171,6 +172,10 @@ export function RabTree({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
   const index = useMemo(() => buildIndex(nodes), [nodes]);
+  // Item bervolume 0 (dinolkan adendum/CCO) disembunyikan sebagai bawaan –
+  // tetap tersimpan untuk riwayat laporan dan Pasangkan realisasi (DECISIONS 788).
+  const { nol, daunNol } = useMemo(() => simpulNol(nodes), [nodes]);
+  const [tampilNol, setTampilNol] = useState(false);
 
   // Pencarian: node tampil bila dirinya ATAU salah satu turunannya cocok
   // (nama/kode); saat mencari, semua cabang yang tampil otomatis terbuka.
@@ -210,6 +215,7 @@ export function RabTree({
   const walk = (parentId: string | null, depth: number) => {
     for (const n of index.childrenOf.get(parentId) ?? []) {
       if (matchSet && !matchSet.has(n.id)) continue;
+      if (!tampilNol && nol.has(n.id)) continue;
       rows.push({ node: n, depth });
       const open = matchSet ? true : expanded.has(n.id);
       if (open) walk(n.id, depth + 1);
@@ -246,10 +252,26 @@ export function RabTree({
         >
           Tutup semua
         </button>
+        {daunNol > 0 ? (
+          <button
+            type="button"
+            onClick={() => setTampilNol((v) => !v)}
+            aria-pressed={tampilNol}
+            className="h-8 rounded-md border border-border bg-surface px-2.5 text-[13px] text-ink-muted hover:bg-surface-muted hover:text-ink"
+          >
+            {tampilNol ? "Sembunyikan item bervolume 0" : `Tampilkan item bervolume 0 (${daunNol})`}
+          </button>
+        ) : null}
         {matchSet ? (
           <span className="text-[13px] text-ink-muted">{rows.length} baris cocok</span>
         ) : null}
       </div>
+      {daunNol > 0 && !tampilNol ? (
+        <p className="mb-2 text-xs text-ink-muted">
+          {daunNol} item bervolume 0 di RAB ini disembunyikan. Item itu tetap tersimpan untuk riwayat laporan harian dan
+          Pasangkan realisasi, tetapi tidak dihitung di progres.
+        </p>
+      ) : null}
 
       <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full min-w-175 text-sm">
@@ -271,7 +293,9 @@ export function RabTree({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={tanpaUang ? 4 : 6} className="px-2 py-6 text-center text-ink-muted">
-                  Tidak ada item yang cocok dengan pencarian.
+                  {matchSet
+                    ? "Tidak ada item yang cocok dengan pencarian."
+                    : "Semua item di RAB ini bervolume 0. Tekan Tampilkan item bervolume 0 untuk melihatnya."}
                 </td>
               </tr>
             ) : (
@@ -279,7 +303,7 @@ export function RabTree({
                 const hasChildren = (index.childrenOf.get(node.id)?.length ?? 0) > 0;
                 const open = matchSet ? true : expanded.has(node.id);
                 return (
-                  <tr key={node.id} className={KIND_ROW_CLASS[node.kind]}>
+                  <tr key={node.id} className={cn(KIND_ROW_CLASS[node.kind], nol.has(node.id) && "text-ink-faint")}>
                     <td className="px-2 py-1.5 align-top text-xs text-ink-muted">{kodeTampil(node.code)}</td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-start gap-1" style={{ paddingLeft: `${depth * 16}px` }}>
