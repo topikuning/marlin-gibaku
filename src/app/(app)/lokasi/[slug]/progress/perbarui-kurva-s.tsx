@@ -2,7 +2,7 @@
 
 import { useAksi } from "@/lib/aksi-klien";
 
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 import { Check, Download, FileUp, PencilLine, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { Badge, Banner, Button, ButtonLink } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -52,10 +52,16 @@ export function PerbaruiKurvaS({
   locationId,
   slug,
   baselineAktif,
+  berkasRab = null,
 }: {
   locationId: string;
   slug: string;
   baselineAktif: number | null;
+  /**
+   * Nama berkas sumber RAB aktif; lembar Time Schedule-nya (mis. jadwal CCO)
+   * bisa diperiksa tanpa mengunggah ulang (DECISIONS 794). null = tidak ada.
+   */
+  berkasRab?: string | null;
 }) {
   const [pratinjau, periksa, memeriksa] = useAksi<PratinjauState>(
     pratinjauJadwalAction,
@@ -117,7 +123,7 @@ export function PerbaruiKurvaS({
     selesai ? true : n === 1 ? sudahUnduh : n === 2 ? !!namaBerkas : n === 3 ? !!data : false;
 
   return (
-    <section className="rounded-lg border border-primary-600/30 bg-primary-50/40">
+    <section id="perbarui-kurva-s" className="scroll-mt-20 rounded-lg border border-primary-600/30 bg-primary-50/40">
       <header className="border-b border-border px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[13px] font-semibold text-ink">Perbarui Kurva-S dari Excel</p>
@@ -199,9 +205,9 @@ export function PerbaruiKurvaS({
           {/* Yang SALAH diunggah adalah sumber kebingungan paling sering, jadi
               disebut di tempat orang akan membacanya — bukan di dokumentasi. */}
           <p className="mt-2 rounded border border-warning-border bg-warning-soft p-2 text-[11px] text-ink-muted">
-            <strong className="font-semibold text-ink">Jangan unggah berkas RAB</strong>{" "}
-            atau Excel buatan sendiri. Hanya template dari tombol di atas yang punya kolom minggu &amp; identitas
-            pekerjaan yang bisa dibaca sistem.
+            Yang terbaca: template dari tombol di atas, atau berkas RAB yang punya lembar Time Schedule berkolom
+            minggu M1, M2, …{" "}
+            <strong className="font-semibold text-ink">Excel buatan sendiri tanpa kolom minggu tidak terbaca.</strong>
           </p>
         </div>
 
@@ -261,6 +267,35 @@ export function PerbaruiKurvaS({
               </span>
             </span>
           </label>
+
+          {berkasRab ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="text-[11px] text-ink-muted">
+                Atau pakai lembar Time Schedule dari berkas RAB aktif{" "}
+                <span className="font-medium text-ink">{berkasRab}</span>, misalnya jadwal CCO. Tidak perlu
+                mengunggah apa pun.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-1.5 h-auto min-h-9 py-1.5 text-left whitespace-normal"
+                loading={memeriksa}
+                onClick={() => {
+                  const fd = new FormData();
+                  fd.set("locationId", locationId);
+                  fd.set("dariRab", "1");
+                  if (sesuaikan) fd.set("sesuaikanRab", "1");
+                  setBerkas(null);
+                  setNamaBerkas(berkasRab);
+                  startTransition(() => periksa(fd));
+                }}
+              >
+                <ShieldCheck aria-hidden className="size-3.5" />
+                Periksa jadwal dari berkas RAB aktif
+              </Button>
+            </div>
+          ) : null}
 
           {pratinjau?.error ? (
             <div className="mt-2">

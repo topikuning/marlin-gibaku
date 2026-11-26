@@ -3177,6 +3177,21 @@ model Alert {
 }
 
 /// Setting effective-dated (mis. ppn_percent default)
+/// HAK AKSES PER PERAN yang diatur Super Admin dari layar Sistem (DECISIONS 793).
+/// Hanya SELISIH dari bawaan kode (`ROLE_CAPABILITIES` di `src/lib/authz.ts`):
+/// baris yang sama dengan bawaan dibuang. Jenjang peran dan sel terkunci tetap
+/// dijaga kode (`hakAksesBerlaku`), bukan tabel ini. Setiap perubahan diaudit.
+model HakAksesPeran {
+  role         UserRole
+  capability   String
+  boleh        Boolean
+  diubahOlehId String   @map("diubah_oleh_id") @db.Uuid
+  diubahPada   DateTime @default(now()) @map("diubah_pada") @db.Timestamptz
+
+  @@id([role, capability])
+  @@map("hak_akses_peran")
+}
+
 model AppSetting {
   id            String   @id @default(uuid()) @db.Uuid
   key           String

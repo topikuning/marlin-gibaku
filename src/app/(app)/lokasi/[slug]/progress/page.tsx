@@ -488,6 +488,15 @@ async function BagianBaseline({
     },
   });
   const activeBaseline = baselines.find((b) => b.status === "aktif");
+  // Berkas sumber RAB aktif – lembar Time Schedule-nya bisa dipakai langsung (DECISIONS 794).
+  const berkasRabAktif = canManage
+    ? ((
+        await db.rabRevision.findFirst({
+          where: { locationId, status: "aktif" },
+          select: { sourceDocument: { select: { fileName: true } } },
+        })
+      )?.sourceDocument?.fileName ?? null)
+    : null;
   // Editor %-mingguan sebanyak minggu kontrak YANG BERLAKU – adendum waktu ikut (DECISIONS 775).
   const editor =
     canManage && activeBaseline
@@ -553,6 +562,7 @@ async function BagianBaseline({
           locationId={locationId}
           slug={slug}
           baselineAktif={activeBaseline?.baselineNo ?? null}
+          berkasRab={berkasRabAktif}
         />
       ) : null}
 

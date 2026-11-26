@@ -29,6 +29,7 @@ import {
 import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { jakartaDateKey } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
+import { cocokkanKurvaDenganRab, type KurvaTakSesuai } from "@/lib/scurve/kurva-vs-rab";
 import type {
   IssueSeverity,
   IssueStatus,
@@ -248,6 +249,12 @@ export type PeriodReport = {
   scurve: { planPct: number[]; actualPct: (number | null)[]; currentWeek: number };
   /** Jadwal per kategori untuk tabel KKP (bobot + jendela minggu) — sumber tunggal. */
   kurvaSchedule: { lineageKey: string; code: string; name: string; weekly: number[] }[];
+  /**
+   * Jadwal tersimpan tidak cocok dengan RAB aktif (DECISIONS 794): pekerjaan
+   * berbobot yang tidak ada/bernilai 0 di RAB, dan pekerjaan RAB tanpa jadwal.
+   * Disebut di layar laporan, tidak di lembar cetak. null = cocok.
+   */
+  kurvaTakSesuai?: KurvaTakSesuai | null;
   tenaga: { role: WorkerRole; label: string; count: number }[];
   material: { name: string; unit: string | null; qty: number }[];
   alat: { name: string; count: number }[];
@@ -868,6 +875,17 @@ export async function getPeriodReport(
     kategoriNodes.map((nd) => nd.lineageKey),
     (c) => c.lineageKey,
   );
+  /*
+   * Baris berbobot 0 untuk pekerjaan yang tidak ada/bernilai 0 di RAB aktif
+   * (kategori bayangan, pekerjaan yang dinolkan CCO) tidak ditampilkan; yang
+   * masih berbobot dilaporkan sebagai tidak cocok dengan RAB aktif (DECISIONS 794).
+   */
+  const cocokRab = cocokkanKurvaDenganRab(
+    kurvaSchedule,
+    kategoriNodes.map((nd) => ({ lineageKey: nd.lineageKey, code: nd.code, name: nd.name, amount: nd.amount })),
+  );
+  kurvaSchedule = cocokRab.tampil;
+  const kurvaTakSesuai = usableStored ? cocokRab.takSesuai : null;
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   /*
@@ -1096,6 +1114,7 @@ export async function getPeriodReport(
     deviationPct: actualPct - planPct,
     scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek: cutoffWeek },
     kurvaSchedule,
+    kurvaTakSesuai,
     tenaga: [...tenagaMap.entries()].map(([role, count]) => ({
       role,
       label: WORKER_ROLE_LABEL[role],
