@@ -352,7 +352,17 @@ export async function saveManualBaselineAction(_prev: RabActionState, formData: 
     const baseline = await updateBaselinePoints(baselineId, points, user.id);
     revalidateRab(ref.location.slug);
     revalidatePath(`/lokasi/${ref.location.slug}/progress`);
-    return { success: `Kurva-S manual disimpan. Baseline #${baseline.baselineNo} sekarang aktif.` };
+    const ikut = baseline.jadwalIkutRab;
+    return {
+      success:
+        `Kurva-S manual disimpan. Baseline #${baseline.baselineNo} sekarang aktif.` +
+        (ikut
+          ? " Jadwal per pekerjaan disusun ulang mengikuti RAB aktif" +
+            (ikut.keluar.length ? `; dikeluarkan karena tidak ada lagi di RAB: ${ikut.keluar.join(", ")}` : "") +
+            (ikut.masuk.length ? `; pekerjaan baru dijadwalkan otomatis: ${ikut.masuk.join(", ")}` : "") +
+            "."
+          : ""),
+    };
   } catch (err) {
     return fail(err);
   }
