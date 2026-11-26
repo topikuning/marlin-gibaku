@@ -56,8 +56,11 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
 
   // 1) Temukan baris header minggu: sel berturut "M1","M2",… Tentukan kolom awal & N.
   let weekRow = -1;
-  let weekCol0 = -1;
-  let totalWeeks = 0;
+  // Kolom tiap minggu, urut M1, M2, … Tidak selalu berdampingan: berkas
+  // lapangan menyisipkan kolom sela kosong (BUYAT TENGAH CCO: kolom J di
+  // antara M6 dan M7), dan kolom tersembunyi tidak pernah dibaca (604).
+  // Dulu pembaca berhenti di kolom sela itu: 6 dari 16 minggu (DECISIONS 789).
+  let weekCols: number[] = [];
   const maxScan = Math.min(ws.rowCount, 60);
   for (let r = 1; r <= maxScan && weekRow < 0; r++) {
     const row = ws.getRow(r);
@@ -65,16 +68,18 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
       // Sel minggu bisa memuat rentang tanggal di baris kedua ("M1\n5/6–11/6",
       // user 2026-08-24) — yang dicocokkan hanya token pertamanya.
       const tokenM = (v: unknown) => cellText(v as never).toUpperCase().split(/\s/)[0] ?? "";
-      if (tokenM(row.getCell(c).value) === "M1") {
-        // Hitung berapa banyak M{k} berurutan.
-        let n = 0;
-        while (tokenM(row.getCell(c + n).value) === `M${n + 1}`) n++;
-        if (n >= 1) {
-          weekRow = r;
-          weekCol0 = c;
-          totalWeeks = n;
-          break;
+      if (tokenM(row.getCell(c).value) === "M1" && !ws.getColumn(c).hidden) {
+        const kolom: number[] = [];
+        const batas = Math.max(ws.columnCount, c + 1);
+        for (let cc = c; cc <= batas && kolom.length < 400; cc++) {
+          if (ws.getColumn(cc).hidden) continue;
+          const t = tokenM(row.getCell(cc).value);
+          if (t === `M${kolom.length + 1}`) kolom.push(cc);
+          else if (t !== "") break; // judul lain (mis. KET) = akhir kolom minggu
         }
+        weekRow = r;
+        weekCols = kolom;
+        break;
       }
     }
   }
@@ -96,16 +101,14 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
     // minggunya, karena mengubah angka user tanpa memberi tahu adalah persoalan
     // yang sedang diperbaiki (DECISIONS 203).
     const weekly: number[] = [];
-    for (let i = 0; i < totalWeeks; i++) {
-      weekly.push(toNum(row.getCell(weekCol0 + i).value));
-    }
+    for (const c of weekCols) weekly.push(toNum(row.getCell(c).value));
     categories.push({ code: codeText, name: nameText, weekly });
   }
 
   if (categories.length === 0) {
     throw new Error("Tidak ada baris pekerjaan yang terbaca di bawah header minggu.");
   }
-  return { totalWeeks, categories };
+  return { totalWeeks: weekCols.length, categories };
 }
 
 /* ------------------------------------------------------------------ */
