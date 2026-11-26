@@ -809,3 +809,76 @@ describe("laporan bulanan – invarian yang sama", () => {
     }
   });
 });
+
+/*
+ * User 2026-11-26 (Kurva S bulan ke-2, periode 18 Okt – 17 Nov): *"kenapa
+ * progress realisasi kamu munculkan melebihi periode filternya"*. Kurva memakai
+ * minggu yang MEMUAT akhir periode, dan minggu itu terisi utuh – pekerjaan
+ * 18–22 Nov ikut masuk laporan "s/d 17 Nov" (DECISIONS 789).
+ */
+describe("laporan bulanan – realisasi berhenti di akhir periode (DECISIONS 789)", () => {
+  it("laporan sesudah akhir periode di minggu yang sama tidak ikut kurva; ujung kurva = kolom s/d tabel", async () => {
+    // Bulan ke-1 = 5 Jan – 4 Feb; 6 Feb ada di minggu 5 (2–8 Feb), SESUDAH akhir periode.
+    const sesudah = await db.dailyReport.create({
+      data: { locationId, reportDate: d("2026-02-06"), status: "final", createdById: userId, weather: "cerah" },
+    });
+    await db.dailyReportItem.create({
+      data: {
+        reportId: sesudah.id,
+        rabNodeId: nodeIdByLineage.get("II#2.2")!,
+        lineageKey: "II#2.2",
+        volumeDone: 50,
+        valueDone: BigInt(50 * 75_000),
+      },
+    });
+    try {
+      const r = await getPeriodReport(locationId, "bulanan", 1);
+      expect(r!.scurve.currentWeek).toBe(5);
+      const ujung = r!.scurve.actualPct.filter((v): v is number => v != null).at(-1)!;
+      expect(ujung).toBeCloseTo(r!.totals.bobotSd, 6);
+      expect(r!.actualPct).toBeCloseTo(r!.totals.bobotSd, 6);
+      // Realisasi per kategori (tambahan per minggu) juga berhenti di akhir periode.
+      const kat = r!.realisasiKategoriMingguan.reduce(
+        (t, k) => t + k.weekly.reduce<number>((a, v) => a + (v ?? 0), 0),
+        0,
+      );
+      expect(kat).toBeCloseTo(r!.totals.bobotSd, 6);
+    } finally {
+      await db.dailyReportItem.deleteMany({ where: { reportId: sesudah.id } });
+      await db.dailyReport.delete({ where: { id: sesudah.id } });
+    }
+  });
+});
+
+/*
+ * User 2026-11-26: *"kenapa volume kosong masih kamu tampilkan di laporan
+ * mingguan!"* – item yang volume kontraknya 0 (dinolkan adendum/CCO, mis.
+ * Tambatan Perahu BUYAT TENGAH) tercetak sebagai baris "0 m³" (DECISIONS 789).
+ */
+describe("laporan periodik – item bervolume kontrak 0 tidak dicetak (DECISIONS 789)", () => {
+  it("item 0 tidak jadi baris; kategori yang seluruh itemnya 0 tidak muncul; angka lain tidak berubah", async () => {
+    const rev = await db.rabRevision.findFirstOrThrow({ where: { locationId, status: "aktif" }, select: { id: true } });
+    const sebelum = await getPeriodReport(locationId, "mingguan", 4);
+    const katNol = await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "III", name: "PEKERJAAN TAMBATAN PERAHU", amount: 0n, lineageKey: "III", sortOrder: 50 },
+    });
+    const dibuat = [
+      await db.rabNode.create({
+        data: { revisionId: rev.id, kind: "item", code: "2.9", name: "Item dinolkan CCO", volume: 0, unit: "m3", unitPrice: 50_000, amount: 0n, lineageKey: "II#2.9", sortOrder: 40 },
+      }),
+      await db.rabNode.create({
+        data: { revisionId: rev.id, parentId: katNol.id, kind: "item", code: "1", name: "Perancah tambatan", volume: 0, unit: "m2", unitPrice: 1, amount: 0n, lineageKey: "III#1", sortOrder: 51 },
+      }),
+    ];
+    try {
+      const r = (await getPeriodReport(locationId, "mingguan", 4))!;
+      expect(allRows(r).map((x) => x.name)).not.toContain("Item dinolkan CCO");
+      expect(allRows(r).map((x) => x.name)).not.toContain("Perancah tambatan");
+      expect(r.categories.map((c) => c.code)).toEqual(["I", "II"]);
+      expect(r.totals).toEqual(sebelum!.totals);
+      expect(allRows(r)).toHaveLength(allRows(sebelum!).length);
+    } finally {
+      await db.rabNode.deleteMany({ where: { id: { in: [...dibuat.map((x) => x.id), katNol.id] } } });
+    }
+  });
+});

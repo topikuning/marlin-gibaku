@@ -56,3 +56,47 @@ describe("parseJadwalWorkbook (round-trip Time Schedule Excel – DECISIONS 103)
     expect(persiapan.weekly.reduce((s, v) => s + v, 0)).toBeCloseTo(20, 1);
   });
 });
+
+describe("Time Schedule berkas lapangan (DECISIONS 789)", () => {
+  /**
+   * Berkas BUYAT TENGAH CCO, sheet "Time Schedule": kolom J kosong di antara
+   * M6 dan M7 (judul tanpa isi). Pembaca dulu berhenti di sana – 6 dari 16
+   * minggu – sehingga hampir semua kategori terbaca 0.
+   */
+  async function berkas(o: { selaKosong?: boolean; tersembunyi?: boolean } = {}): Promise<Buffer> {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Time Schedule");
+    ws.getCell("A17").value = "No";
+    ws.getCell("B17").value = "Uraian Pekerjaan";
+    const kolom = o.selaKosong ? ["D", "E", "G", "H"] : ["D", "E", "F", "G"];
+    kolom.forEach((k, i) => (ws.getCell(`${k}18`).value = `M${i + 1}\n ${i + 1}/9`));
+    if (o.tersembunyi) {
+      ws.getCell("F18").value = "M3\n lama";
+      ws.getColumn("F").hidden = true;
+    }
+    ws.getCell("A19").value = 1;
+    ws.getCell("B19").value = "PEKERJAAN PERSIAPAN";
+    kolom.forEach((k, i) => (ws.getCell(`${k}19`).value = [1, 2, 3, 4][i]!));
+    ws.getCell("A20").value = 2;
+    ws.getCell("B20").value = "PEKERJAAN LEVELLING LAHAN";
+    kolom.forEach((k, i) => (ws.getCell(`${k}20`).value = [0, 0, 40, 50][i]!));
+    ws.getCell("B21").value = "RENCANA PRESTASI";
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+
+  it("kolom sela kosong di antara minggu dilewati – semua minggu terbaca", async () => {
+    const r = await parseJadwalWorkbook(await berkas({ selaKosong: true }));
+    expect(r.totalWeeks).toBe(4);
+    expect(r.categories.map((c) => c.weekly)).toEqual([
+      [1, 2, 3, 4],
+      [0, 0, 40, 50],
+    ]);
+  });
+
+  it("kolom tersembunyi tidak dibaca (DECISIONS 604), walau berjudul minggu", async () => {
+    const r = await parseJadwalWorkbook(await berkas({ selaKosong: true, tersembunyi: true }));
+    expect(r.totalWeeks).toBe(4);
+    expect(r.categories[0]!.weekly).toEqual([1, 2, 3, 4]);
+  });
+});

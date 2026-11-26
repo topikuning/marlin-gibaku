@@ -728,6 +728,12 @@ export async function getPeriodReport(
     cat.subtotalBobotLalu += bobotLalu;
     cat.subtotalBobotIni += bobotIni;
     cat.subtotalBobotSd += bobotSd;
+    // Item bervolume kontrak 0 dan bernilai 0 (dinolkan adendum/CCO, mis.
+    // Tambatan Perahu BUYAT TENGAH) TIDAK jadi baris: di kertas ia hanya
+    // "0 m³ · 0,00" yang membingungkan (user 2026-11-26, DECISIONS 789).
+    // Semua angkanya 0, jadi subtotal dan kurva tidak berubah; judulnya pun
+    // tidak tercetak karena penyusun judul tidak dipanggil untuknya.
+    if (vk <= 0.0005 && Number(it.amount) === 0) continue;
     const { kode, tingkat, judul } = nomorDariRab(it.id);
     const row: PeriodItemRow = {
       kode,
@@ -757,7 +763,8 @@ export async function getPeriodReport(
     const sub = subKategoriOf(it);
     if (sub) subKategoriRow.set(row, sub);
   }
-  const categories = [...catMap.values()];
+  // Kategori yang seluruh itemnya bervolume 0 ikut tidak dicetak (789).
+  const categories = [...catMap.values()].filter((c) => c.rows.length > 0);
 
   // Kurva-S: rencana dari baseline aktif; realisasi kumulatif per minggu dari VOLUME.
   const baseline = await db.baseline.findFirst({
@@ -882,6 +889,12 @@ export async function getPeriodReport(
   const weeklyVolume = new Map<string, number[]>();
   for (const r of realRows) {
     if (!itemLineages.has(r.lineageKey)) continue;
+    // Realisasi kurva BERHENTI di akhir periode yang diminta. Minggu terakhir
+    // laporan bulanan bisa melewati akhir bulan (bulan ke-2 s/d 17 Nov, minggu
+    // M10 = 16–22 Nov); dulu minggu itu terisi utuh, jadi pekerjaan 18–22 Nov
+    // ikut tercetak di laporan "s/d 17 Nov" dan ujung kurva berbeda dari kolom
+    // "s/d" tabel di halaman yang sama (user 2026-11-26, DECISIONS 789).
+    if (dateKey(r.report.reportDate) > eKey) continue;
     const wk = Math.min(seriesLen, Math.max(1, weekOfDate(startDate, r.report.reportDate, weekMode)));
     let arr = weeklyVolume.get(r.lineageKey);
     if (!arr) {
