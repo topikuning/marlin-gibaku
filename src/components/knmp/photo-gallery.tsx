@@ -34,6 +34,7 @@ export function PhotoGallery({
   deletableIds,
   deleteAction,
   reuse,
+  reusableIds,
   rotateAction,
   tataLetak = "kisi",
 }: {
@@ -58,6 +59,12 @@ export function PhotoGallery({
    */
   reuse?: { label: string; run: PhotoDeleteAction; confirm?: string };
   /**
+   * Bila diisi, tombol `reuse` HANYA untuk foto dengan id di sini – mis. foto
+   * yang diunggah orang lain tidak bisa dikembalikan pengguna biasa
+   * (DECISIONS 791). Server tetap penegaknya.
+   */
+  reusableIds?: string[];
+  /**
    * Tombol PUTAR di lightbox (DECISIONS 424) — jaring pengaman untuk foto yang
    * terlanjur miring. Kamera dalam aplikasi memotret lewat canvas yang tidak
    * punya EXIF, dan sebagian HP melaporkan sudut layarnya keliru sehingga
@@ -75,6 +82,7 @@ export function PhotoGallery({
   const [pending, startTransition] = useTransition();
   const removable = canDelete && !!deleteAction;
   const bolehHapus = (id: string) => removable && (!deletableIds || deletableIds.includes(id));
+  const bolehPakai = (id: string) => !!reuse && (!reusableIds || reusableIds.includes(id));
 
   const del = (photoId: string) => {
     if (typeof window !== "undefined" && !window.confirm("Hapus foto ini? Tidak bisa dibatalkan.")) return;
@@ -106,7 +114,9 @@ export function PhotoGallery({
     const fd = new FormData();
     fd.set("photoId", photoId);
     startTransition(async () => {
-      await reuse?.run(undefined, fd);
+      const hasil = await reuse?.run(undefined, fd);
+      // Penolakan server harus terbaca – tanpa ini tombolnya tampak tidak bekerja.
+      if (hasil?.error && typeof window !== "undefined") window.alert(hasil.error);
       setOpen(null);
     });
   };
@@ -132,7 +142,8 @@ export function PhotoGallery({
   if (!shown.length) return null;
 
   const active = open != null ? shown[open] : null;
-  const adaAksi = !!rotateAction || !!reuse || shown.some((p) => bolehHapus(p.id));
+  const adaPakai = shown.some((p) => bolehPakai(p.id));
+  const adaAksi = !!rotateAction || adaPakai || shown.some((p) => bolehHapus(p.id));
 
   return (
     <>
@@ -142,7 +153,7 @@ export function PhotoGallery({
             <li key={p.id} className="flex items-center gap-3">
               <Thumb p={p} className="h-24 w-24 shrink-0" onOpen={() => setOpen(i)} />
               <div className="flex min-w-0 flex-1 flex-col gap-2">
-                {reuse ? (
+                {reuse && bolehPakai(p.id) ? (
                   <Button
                     className="h-auto min-h-11 w-full py-1.5 leading-snug whitespace-normal"
                     disabled={pending}
@@ -176,7 +187,7 @@ export function PhotoGallery({
           </div>
           {adaAksi ? (
             <p className="mt-1 text-[11px] text-ink-muted">
-              Ketuk foto untuk {[rotateAction ? "memutar" : null, reuse ? "memakainya lagi" : null, removable ? "menghapus" : null]
+              Ketuk foto untuk {[rotateAction ? "memutar" : null, adaPakai ? "memakainya lagi" : null, removable ? "menghapus" : null]
                 .filter(Boolean)
                 .join(" atau ")}
               .
@@ -224,9 +235,9 @@ export function PhotoGallery({
 
             {/* Aksi di tampilan besar: berlabel dan setinggi 44 px – fotonya
                 terlihat jelas sebelum dihapus atau dipindah (DECISIONS 730). */}
-            {active && (rotateAction || reuse || bolehHapus(active.id)) ? (
+            {active && (rotateAction || bolehPakai(active.id) || bolehHapus(active.id)) ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                {reuse ? (
+                {reuse && bolehPakai(active.id) ? (
                   <button
                     type="button"
                     disabled={pending}

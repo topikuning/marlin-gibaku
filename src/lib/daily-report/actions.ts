@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { LuarRabError } from "@/lib/luar-rab/service";
+import { LuarRabError, statusCatatan } from "@/lib/luar-rab/service";
 import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -22,6 +22,7 @@ import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/wea
 import type { DailyReportStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import { izinHapusFotoLaporan, izinTambahFotoItem, PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN } from "./foto-susulan";
+import { izinKembalikanFoto, type AsalFotoLaporan } from "./foto-kembali";
 import { bacaKendalaKirim } from "./kirim-kendala";
 import { ALASAN_NIHIL, judulKendalaDariNihil } from "./nihil";
 import {
@@ -871,28 +872,24 @@ export async function removeReportPhotoAction(
 }
 
 /**
- * Kembalikan foto YATIM ke kantong Foto Cepat supaya bisa dipakai lagi.
+ * Kembalikan foto laporan ke kantong Foto Cepat supaya bisa dipakai lagi.
  *
  * Pertanyaan user 2026-08-07: *"item pekerjaan dihapus, foto jadi orphan...
- * kalau mau dipakai lagi bagaimana"*.
+ * kalau mau dipakai lagi bagaimana"*. Foto itu bukti lapangan yang koordinat
+ * dan waktunya benar; yang salah cuma pekerjaan yang ditempelinya. Menyuruh
+ * orang membuangnya lalu memotret ulang = menyuruh membuat bukti yang lebih buruk.
  *
- * Sebelum ini jawabannya: tidak bisa. Satu-satunya aksi yang ditawarkan pada
- * foto yatim adalah HAPUS — padahal foto itu bukti lapangan yang koordinat dan
- * waktunya benar; yang salah cuma pekerjaan yang ditempelinya. Menyuruh orang
- * membuangnya lalu memotret ulang adalah menyuruh membuat bukti yang lebih
- * buruk (dipotret belakangan, dari tempat lain).
+ * DECISIONS 791 (user 2026-11-26: *"foto yang digunakan pekerjaan diluar rab
+ * atau yang volume 0 … padahal pekerjaan tidak di rab"*): tidak lagi hanya
+ * foto yatim di laporan Draft/Perlu Koreksi. Yang boleh, di status APA PUN:
+ * foto tanpa pekerjaan, foto pekerjaan bervolume 0, foto catatan di luar RAB
+ * yang belum dipadankan. Aturannya di `izinKembalikanFoto`.
  *
- * Yang dilakukan: melepas fotonya dari laporan (`reportId = null`) sehingga ia
- * kembali muncul di kantong lokasi itu dan bisa dipilih untuk pekerjaan mana pun
- * lewat jalur "Foto Cepat" yang sudah ada — bukan jalur penautan baru.
- *
- * Batas yang dijaga:
- * - Hanya foto YATIM. Foto yang masih menempel pada satu pekerjaan tidak boleh
- *   dilepas lewat sini: itu akan mencabut bukti dari item tanpa mengatakannya.
- * - Jendela sunting & peran sama persis dengan hapus foto.
- * - Kalau lokasinya belum tercatat, diisi dari LOKASI LAPORAN tempat foto itu
- *   menempel — bukan tebakan: fotonya memang terlampir di laporan lokasi itu.
- *   Tetap disebutkan di pesan hasilnya, tidak diam-diam.
+ * Yang dilakukan: foto dilepas dari laporan (`reportId = null`) sehingga ia
+ * kembali ke kantong lokasi itu dan dipilih lewat jalur Foto Cepat yang sudah
+ * ada. Foto TERAKHIR catatan luar RAB membatalkan catatannya (foto wajib);
+ * laporan FINAL: salinan Drive dibuang, PDF diantrekan ulang, potretnya
+ * dibangun ulang.
  */
 export async function returnPhotoToKantongAction(
   _prev: DailyActionState,
@@ -910,6 +907,12 @@ export async function returnPhotoToKantongAction(
         uploadedById: true,
         locationId: true,
         reportItemId: true,
+        reportMaterialId: true,
+        reportEquipmentId: true,
+        luarRabId: true,
+        _count: { select: { evidenceLinks: true } },
+        reportItem: { select: { volumeDone: true } },
+        luarRab: { select: { id: true, reportItemId: true, dibatalkanAt: true, _count: { select: { photos: true } } } },
         report: {
           select: {
             id: true,
@@ -923,51 +926,98 @@ export async function returnPhotoToKantongAction(
     });
     if (!photo?.report) return { error: "Foto laporan tidak ditemukan." };
     await requireLocationAccess(user, photo.report.locationId);
-
-    if (photo.reportItemId) {
-      return {
-        error:
-          "Foto ini masih menempel pada satu pekerjaan. Hapus dulu fotonya dari pekerjaan itu kalau memang mau dipindah.",
-      };
-    }
-    if (!EDITABLE_STATUSES.includes(photo.report.status)) {
-      return { error: "Foto hanya bisa dipindah saat laporan berstatus Draft atau Perlu Koreksi." };
-    }
-    const miliknyaSendiri = photo.uploadedById !== null && photo.uploadedById === user.id;
-    if (!miliknyaSendiri && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role)) {
-      return {
-        error: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa memindahkan foto ini.",
-      };
+    if (photo.reportMaterialId || photo.reportEquipmentId) {
+      return { error: "Foto material atau peralatan tidak dikembalikan ke Foto Cepat – hapus dari isian material/alat-nya bila keliru." };
     }
 
+    const asal: AsalFotoLaporan = photo.luarRab
+      ? {
+          jenis: "luar_rab",
+          status: statusCatatan(photo.luarRab),
+          fotoLain: photo.luarRab._count.photos - 1,
+        }
+      : photo.reportItem
+        ? { jenis: "item", volume: Number(photo.reportItem.volumeDone) }
+        : { jenis: "yatim" };
+    const izin = izinKembalikanFoto({
+      asal,
+      status: photo.report.status,
+      pengunggahId: photo.uploadedById,
+      user,
+      dipakaiBukti: photo._count.evidenceLinks > 0,
+    });
+    if (!izin.boleh) return { error: izin.pesan };
+
+    const report = photo.report;
     const lokasiDiisi = photo.locationId == null;
-    await db.$transaction(async (tx) => {
+    const catatanDibatalkan = await db.$transaction(async (tx) => {
       await tx.photo.update({
         where: { id: photo.id },
         data: {
           reportId: null,
           reportItemId: null,
-          locationId: photo.locationId ?? photo.report!.locationId,
+          luarRabId: null,
+          addedAfterSubmitAt: null,
+          locationId: photo.locationId ?? report.locationId,
         },
       });
+      // Foto terakhir catatan luar RAB: catatan tanpa bukti tidak sah – dibatalkan,
+      // bisa diaktifkan lagi Site Manager. Dihitung ulang di dalam transaksi.
+      let batal = false;
+      if (izin.batalkanCatatan && photo.luarRab && (await tx.photo.count({ where: { luarRabId: photo.luarRab.id } })) === 0) {
+        await tx.pekerjaanLuarRab.update({
+          where: { id: photo.luarRab.id },
+          data: { dibatalkanAt: new Date(), dibatalkanById: user.id, alasanBatal: ALASAN_BATAL_FOTO_KEMBALI },
+        });
+        await auditIn(tx, user.id, "luar_rab.batalkan", "pekerjaan_luar_rab", photo.luarRab.id, {
+          locationId: report.locationId,
+          alasan: ALASAN_BATAL_FOTO_KEMBALI,
+        });
+        batal = true;
+      }
       await auditIn(tx, user.id, "daily_report.photo_to_kantong", "photo", photo.id, {
-        reportId: photo.report!.id,
-        locationId: photo.locationId ?? photo.report!.locationId,
+        reportId: report.id,
+        status: report.status,
+        asal: asal.jenis,
+        ...(asal.jenis === "item" ? { reportItemId: photo.reportItemId, volume: asal.volume } : {}),
+        ...(asal.jenis === "luar_rab" ? { luarRabId: photo.luarRabId, catatanDibatalkan: batal } : {}),
+        locationId: photo.locationId ?? report.locationId,
         lokasiDiisiDariLaporan: lokasiDiisi,
       });
+      return batal;
     });
 
-    revalidateReport(photo.report.location.slug, jakartaDateKey(photo.report.reportDate));
+    // Laporan FINAL: fotonya bisa sudah naik ke Drive dan tercetak di potret.
+    let peringatanDrive: string | undefined;
+    if (report.status === "final") {
+      const { buangFotoDariDrive } = await import("@/lib/gdrive/buang-foto");
+      const { antrekanPdfHarian } = await import("@/lib/gdrive/antrean");
+      const { bangunUlangSnapshotSatu } = await import("./snapshot-rebuild");
+      const drive = await buangFotoDariDrive(photo.id);
+      await antrekanPdfHarian(report.id);
+      await bangunUlangSnapshotSatu(report.id);
+      if (drive.galat) {
+        peringatanDrive =
+          "Foto sudah kembali ke Foto Cepat, tetapi salinannya di Google Drive gagal dibuang. Buang manual di folder Foto laporan itu.";
+      }
+    }
+
+    revalidateReport(report.location.slug, jakartaDateKey(report.reportDate));
     revalidatePath("/foto-cepat");
     return {
-      success: lokasiDiisi
-        ? "Foto kembali ke kantong Foto Cepat; lokasinya diisi dari lokasi laporan ini. Pilih lewat tombol “Foto Cepat” di pekerjaan yang dituju."
-        : "Foto kembali ke kantong Foto Cepat. Pilih lewat tombol “Foto Cepat” di pekerjaan yang dituju.",
+      success:
+        "Foto kembali ke kantong Foto Cepat. Pilih lewat tombol “Foto Cepat” di pekerjaan yang dituju." +
+        (lokasiDiisi ? " Lokasinya diisi dari lokasi laporan ini." : "") +
+        (catatanDibatalkan ? " Catatan di luar RAB-nya tidak punya foto lagi, jadi dibatalkan." : ""),
+      warning: peringatanDrive,
     };
   } catch (err) {
     return errState(err);
   }
 }
+
+/** Alasan pembatalan otomatis catatan luar RAB yang fotonya habis dikembalikan (DECISIONS 791). */
+const ALASAN_BATAL_FOTO_KEMBALI = "Semua fotonya dikembalikan ke Foto Cepat.";
 
 // ─────────────────────────────────────────────────────────────
 // Pelengkap KKP (draft / perlu_koreksi / dikirim)

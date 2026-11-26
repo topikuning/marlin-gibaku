@@ -4,7 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Banner, Button } from "@/components/ui";
 import { activateDraftAction, approveRevisionAction, discardDraftAction, type RabActionState } from "../actions";
-import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "../panel-tanpa-persetujuan";
+import {
+  belumUntuk,
+  PanelTanpaPersetujuan,
+  type CaraTanpaPersetujuan,
+  type PratinjauKoreksiView,
+} from "../panel-tanpa-persetujuan";
 import {
   jangkarPemetaan,
   kalimatKonfirmasiBelumDipetakan,
@@ -25,6 +30,7 @@ export function DraftControls({
   persetujuan,
   bolehTanpaPersetujuan = false,
   belumDipetakan = [],
+  pratinjauKoreksi = null,
 }: {
   revisionId: string;
   revisionNo: number;
@@ -48,6 +54,8 @@ export function DraftControls({
   bolehTanpaPersetujuan?: boolean;
   /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
   belumDipetakan?: BelumDipetakanRingkas[];
+  /** Pratinjau "Terapkan sebagai koreksi" (DECISIONS 790). */
+  pratinjauKoreksi?: PratinjauKoreksiView | null;
 }) {
   const [state, setState] = useState<RabActionState>(undefined);
   const [bukaTanpa, setBukaTanpa] = useState<CaraTanpaPersetujuan | null>(null);
@@ -143,7 +151,10 @@ export function DraftControls({
         </div>
       ) : null}
 
-      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan={jangkarPemetaan(belumDipetakan)} />
+      <PeringatanBelumDipetakan
+        items={belumUntuk(bukaTanpa, belumDipetakan, pratinjauKoreksi)}
+        hrefPemetaan={jangkarPemetaan(belumDipetakan)}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
       <Button
@@ -194,7 +205,8 @@ export function DraftControls({
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
-          belumDipetakan={belumDipetakan.length}
+          belumDipetakan={belumUntuk(bukaTanpa, belumDipetakan, pratinjauKoreksi).length}
+          pratinjauKoreksi={pratinjauKoreksi}
           onBatal={() => setBukaTanpa(null)}
           onBerhasil={() => router.push("../rab")}
         />

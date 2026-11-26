@@ -5,7 +5,7 @@ import { valueDone as hitungNilai } from "@/lib/money";
 import { formatTanggal } from "@/lib/format";
 import { grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import { sesuaikanRealisasiKeVolumeBaru } from "@/lib/rab/import";
-import { rencanaKoreksiTimpa, type RencanaTimpa, type SimpulAktifTimpa } from "@/lib/rab/koreksi-timpa";
+import { kalimatPindah, rencanaKoreksiTimpa, type PindahTimpa, type RencanaTimpa, type SimpulAktifTimpa } from "@/lib/rab/koreksi-timpa";
 
 export class KoreksiTimpaError extends Error {}
 
@@ -78,9 +78,124 @@ export function kalimatTerhalang(daftar: string[]): string {
   );
 }
 
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/** Berapa rujukan yang ikut berganti kunci, per tempat – masuk jejak audit. */
+export type RujukanDipindah = {
+  /** Baris RAB di revisi LAIN lokasi ini (riwayat dan draft) yang kuncinya sama. */
+  barisRevisiLain: number;
+  laporanHarian: number;
+  temuan: number;
+  usulanWa: number;
+  sesiWa: number;
+  rapl: number;
+  analisaAi: number;
+  pemasangan: number;
+  kurvaS: number;
+};
+
+/**
+ * Kunci baris yang PINDAH bersama sub/grupnya (DECISIONS 790) diganti di
+ * SEMUA tempat yang menyimpannya untuk lokasi ini – di dalam transaksi koreksi.
+ *
+ * `lineageKey` adalah identitas pekerjaan lintas revisi: realisasi dijumlah per
+ * kunci (`progress.ts`), temuan, RAPL, usulan WA, dan pemasangan realisasi
+ * menunjuk kunci, bukan id node. Kalau hanya node RAB aktif yang diganti,
+ * laporan lama terlepas dari pekerjaannya tanpa ada yang menghapusnya.
+ *
+ * Revisi lain (riwayat dan draft) ikut diganti supaya kunci yang sama tetap
+ * berarti pekerjaan yang sama di mana pun – kecuali revisi yang sudah memuat
+ * kunci barunya sendiri (draft yang dibuat dari berkas yang sudah benar):
+ * baris di sana dibiarkan. Backup volume, analisa, dan isian backup mengikuti
+ * sendiri (FK `ON UPDATE CASCADE`). Kunci kategori (Kawal) tidak tersentuh:
+ * kategori tidak pernah dipindah.
+ */
+async function pindahkanKunci(tx: Tx, locationId: string, pindah: readonly PindahTimpa[]): Promise<RujukanDipindah> {
+  const dari = pindah.map((p) => p.dari);
+  const ke = pindah.map((p) => p.ke);
+
+  // Satu laporan yang memuat pekerjaan yang sama dua kali (di RAB aktif dan di
+  // draft) tidak bisa digabung diam-diam: angkanya akan terhitung dua kali.
+  const ganda = await tx.$queryRaw<{ report_date: Date }[]>`
+    SELECT DISTINCT r.report_date
+    FROM daily_report_items a
+    JOIN daily_reports r ON r.id = a.report_id
+    JOIN unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke) ON a.lineage_key = m.dari
+    JOIN daily_report_items b ON b.report_id = a.report_id AND b.lineage_key = m.ke
+    WHERE r.location_id = ${locationId}::uuid
+    ORDER BY 1`;
+  if (ganda.length > 0) {
+    throw new KoreksiTimpaError(
+      `Laporan harian ${ganda.map((g) => formatTanggal(g.report_date)).join(", ")} memuat pekerjaan yang sama dua kali – ` +
+        `sekali di RAB aktif dan sekali di draft. Hapus salah satunya di laporan itu, lalu koreksi lagi.`,
+    );
+  }
+
+  const aktif = await tx.$executeRaw`
+    UPDATE rab_nodes n SET lineage_key = m.ke
+    FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke), rab_revisions v
+    WHERE n.revision_id = v.id AND v.location_id = ${locationId}::uuid AND n.lineage_key = m.dari
+      AND NOT EXISTS (SELECT 1 FROM rab_nodes x WHERE x.revision_id = n.revision_id AND x.lineage_key = m.ke)`;
+  await tx.$executeRaw`
+    UPDATE rab_nodes n SET lineage_tergeser = m.ke
+    FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke), rab_revisions v
+    WHERE n.revision_id = v.id AND v.location_id = ${locationId}::uuid AND n.lineage_tergeser = m.dari`;
+  await tx.$executeRaw`
+    UPDATE rab_nodes n SET lineage_semula = m.ke
+    FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke), rab_revisions v
+    WHERE n.revision_id = v.id AND v.location_id = ${locationId}::uuid AND n.lineage_semula = m.dari`;
+  const laporanHarian = await tx.$executeRaw`
+    UPDATE daily_report_items i SET lineage_key = m.ke
+    FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke), daily_reports r
+    WHERE i.report_id = r.id AND r.location_id = ${locationId}::uuid AND i.lineage_key = m.dari`;
+  const temuan = await tx.$executeRaw`
+    UPDATE findings t SET lineage_key = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_key = m.dari`;
+  const usulanWa = await tx.$executeRaw`
+    UPDATE wa_usulan t SET lineage_key = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_key = m.dari`;
+  const sesiWa = await tx.$executeRaw`
+    UPDATE wa_lapor_sesi t SET lineage_key = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_key = m.dari`;
+  const rapl = await tx.$executeRaw`
+    UPDATE rapl_rincian t SET lineage_key = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_key = m.dari
+      AND NOT EXISTS (SELECT 1 FROM rapl_rincian x WHERE x.location_id = t.location_id AND x.lineage_key = m.ke)`;
+  const analisaAi = await tx.$executeRaw`
+    UPDATE rapl_analisa_ai t SET lineage_key = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_key = m.dari
+      AND NOT EXISTS (SELECT 1 FROM rapl_analisa_ai x WHERE x.run_id = t.run_id AND x.lineage_key = m.ke)`;
+  const pemasanganLama = await tx.$executeRaw`
+    UPDATE rab_padanan_aktif t SET lineage_lama = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_lama = m.dari`;
+  const pemasanganBaru = await tx.$executeRaw`
+    UPDATE rab_padanan_aktif t SET lineage_baru = m.ke FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke)
+    WHERE t.location_id = ${locationId}::uuid AND t.lineage_baru = m.dari`;
+  const kurvaS = await tx.$executeRaw`
+    UPDATE baseline_schedule_items t SET lineage_key = m.ke
+    FROM unnest(${dari}::text[], ${ke}::text[]) AS m(dari, ke), baselines b
+    WHERE t.baseline_id = b.id AND b.location_id = ${locationId}::uuid AND t.lineage_key = m.dari
+      AND NOT EXISTS (SELECT 1 FROM baseline_schedule_items x WHERE x.baseline_id = t.baseline_id AND x.lineage_key = m.ke)`;
+
+  return {
+    barisRevisiLain: aktif - pindah.length,
+    laporanHarian,
+    temuan,
+    usulanWa,
+    sesiWa,
+    rapl,
+    analisaAi,
+    pemasangan: pemasanganLama + pemasanganBaru,
+    kurvaS,
+  };
+}
+
 export type HasilKoreksiTimpa = {
   revisionNo: number;
   ringkas: RencanaTimpa["ringkas"];
+  /** Sub/grup yang pindah bersama laporan hariannya (DECISIONS 790). */
+  pindahAkar: RencanaTimpa["pindahAkar"];
+  rujukanDipindah: RujukanDipindah | null;
   barisHarian: number;
   dipindahDariDraft: number;
   disesuaikan: { item: string; dari: number; ke: number; adaFinal: boolean }[];
@@ -123,8 +238,13 @@ export async function terapkanKoreksiTimpa(a: {
         throw new KoreksiTimpaError("RAB aktif sudah berganti sejak pratinjau. Pratinjau ulang, lalu simpan lagi.");
       }
 
+      // 0. Sub/grup yang pindah tempat: node tetap, kuncinya – dan semua yang
+      //    menunjuk kunci itu – berganti lebih dulu (DECISIONS 790).
+      const rujukanDipindah = rencana.pindah.length > 0 ? await pindahkanKunci(tx, a.locationId, rencana.pindah) : null;
+      const kunciBaru = new Map(rencana.pindah.map((p) => [p.dari, p.ke]));
+
       // 1. Baris baru, per jenjang – induknya bisa node lama atau node baru.
-      const idByKey = new Map(aktif.map((n) => [n.lineageKey, n.id]));
+      const idByKey = new Map(aktif.map((n) => [kunciBaru.get(n.lineageKey) ?? n.lineageKey, n.id]));
       const sisa = [...rencana.tambah];
       while (sisa.length > 0) {
         const batch = sisa.filter((n) => n.parentLineageKey === null || idByKey.has(n.parentLineageKey));
@@ -215,6 +335,15 @@ export async function terapkanKoreksiTimpa(a: {
       if (penyesuaian.tanggalTerawal && (tanggalTerawal === null || penyesuaian.tanggalTerawal < tanggalTerawal)) {
         tanggalTerawal = penyesuaian.tanggalTerawal;
       }
+      // Laporan final yang memuat baris pindah: kategorinya berganti, potretnya dibangun ulang.
+      if (rencana.pindah.length > 0) {
+        const awal = await tx.dailyReportItem.findFirst({
+          where: { lineageKey: { in: rencana.pindah.map((p) => p.ke) }, report: { locationId: a.locationId, status: "final" } },
+          orderBy: { report: { reportDate: "asc" } },
+          select: { report: { select: { reportDate: true } } },
+        });
+        if (awal && (tanggalTerawal === null || awal.report.reportDate < tanggalTerawal)) tanggalTerawal = awal.report.reportDate;
+      }
 
       await auditIn(tx, a.userId, "rab.koreksi", "rab_revision", a.revisionId, {
         locationId: a.locationId,
@@ -229,11 +358,15 @@ export async function terapkanKoreksiTimpa(a: {
         })),
         tambah: rencana.tambah.map((n) => ({ lineageKey: n.lineageKey, label: [n.code, n.name].filter(Boolean).join(" ") })),
         hapus: rencana.hapus.map(({ id: _id, ...h }) => h),
+        // Kunci lama → kunci baru, per baris: jejak untuk menelusuri laporan lama (790).
+        pindah: rencana.pindah.map(({ dari, ke }) => ({ dari, ke })),
+        pindahAkar: rencana.pindahAkar,
+        rujukanDipindah,
         barisHarian,
         dipindahDariDraft,
         itemDisesuaikan: penyesuaian.jumlahItem,
       });
-      return { revisionNo: rev.revisionNo, barisHarian, dipindahDariDraft, tanggalTerawal, penyesuaian };
+      return { revisionNo: rev.revisionNo, barisHarian, dipindahDariDraft, tanggalTerawal, penyesuaian, rujukanDipindah };
     },
     { timeout: 60_000, maxWait: 15_000 },
   );
@@ -253,6 +386,8 @@ export async function terapkanKoreksiTimpa(a: {
   return {
     revisionNo: hasil.revisionNo,
     ringkas: rencana.ringkas,
+    pindahAkar: rencana.pindahAkar,
+    rujukanDipindah: hasil.rujukanDipindah,
     barisHarian: hasil.barisHarian,
     dipindahDariDraft: hasil.dipindahDariDraft,
     disesuaikan: hasil.penyesuaian.rincian.map(({ item, dari, ke, adaFinal }) => ({ item, dari, ke, adaFinal })),
@@ -308,7 +443,44 @@ export async function koreksiDariDraft(a: { draftId: string; userId: string }): 
     select: { id: true },
   });
   if (!aktif) throw new KoreksiTimpaError("Lokasi ini belum punya RAB aktif untuk dikoreksi.");
-  const isi = await simpulAktif(draft.id);
+  return terapkanKoreksiTimpa({
+    revisionId: aktif.id,
+    locationId: draft.locationId,
+    nodes: await isiDraft(draft.id),
+    userId: a.userId,
+    berkas: `draft #${draft.revisionNo}`,
+    dariDraftId: draft.id,
+  });
+}
+
+/**
+ * Apa yang akan dilakukan "Terapkan sebagai koreksi" atas draft ini – dihitung
+ * sebelum orang mengetik konfirmasi: sub/grup yang pindah bersama laporannya
+ * (DECISIONS 790) dan baris berlaporan yang akan hilang. `null` bila bukan draft
+ * atau lokasinya belum ber-RAB aktif.
+ */
+export async function pratinjauKoreksiDraft(
+  draftId: string,
+): Promise<{ pindahAkar: RencanaTimpa["pindahAkar"]; pindah: string[]; kunciPindah: string[]; terhalang: string[] } | null> {
+  const draft = await db.rabRevision.findUnique({ where: { id: draftId }, select: { status: true, locationId: true } });
+  if (!draft || draft.status !== "draft") return null;
+  const aktif = await db.rabRevision.findFirst({
+    where: { locationId: draft.locationId, status: "aktif" },
+    select: { id: true },
+  });
+  if (!aktif) return null;
+  const rencana = rencanaKoreksiTimpa(await simpulAktif(aktif.id), await isiDraft(draftId));
+  return {
+    pindahAkar: rencana.pindahAkar,
+    pindah: rencana.pindahAkar.map(kalimatPindah),
+    kunciPindah: rencana.pindah.map((p) => p.dari),
+    terhalang: await terhalangKoreksi(rencana),
+  };
+}
+
+/** Isi draft sebagai baris berkas, urut dokumen (induk lebih dulu). */
+async function isiDraft(draftId: string): Promise<FlatNode[]> {
+  const isi = await simpulAktif(draftId);
   const nodes: FlatNode[] = isi.map((n) => ({
     kind: n.kind as FlatNode["kind"],
     code: n.code,
@@ -324,12 +496,5 @@ export async function koreksiDariDraft(a: { draftId: string; userId: string }): 
   }));
   // Induk lebih dulu: urutan dokumen draft, sama dengan saat ia dibuat.
   nodes.sort((x, y) => x.sortOrder - y.sortOrder);
-  return terapkanKoreksiTimpa({
-    revisionId: aktif.id,
-    locationId: draft.locationId,
-    nodes,
-    userId: a.userId,
-    berkas: `draft #${draft.revisionNo}`,
-    dariDraftId: draft.id,
-  });
+  return nodes;
 }

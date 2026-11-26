@@ -380,9 +380,11 @@ export function labelBelumDipetakan(i: Pick<ItemBelumDipetakan, "jalur" | "name"
 export async function tolakTanpaKonfirmasiPadanan(
   draftId: string,
   konfirmasi: FormDataEntryValue | null,
+  /** Kunci item yang laporannya sudah ikut lewat jalan lain (koreksi, DECISIONS 790). */
+  kecuali: ReadonlySet<string> = new Set(),
 ): Promise<string | null> {
   if (konfirmasi === "1") return null;
-  const kalimat = kalimatBelumDipetakan(await belumDipetakan(draftId));
+  const kalimat = kalimatBelumDipetakan((await belumDipetakan(draftId)).filter((i) => !kecuali.has(i.lineageKey)));
   if (!kalimat) return null;
   return `${kalimat} Pasangkan dulu di halaman draft adendum, atau centang konfirmasi untuk tetap mengaktifkan.`;
 }

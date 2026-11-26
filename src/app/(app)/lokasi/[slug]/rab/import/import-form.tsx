@@ -760,6 +760,25 @@ function BannerKoreksi({ koreksi }: { koreksi: NonNullable<ImportPreview["koreks
           </>
         }
       />
+      {koreksi.pindah.length > 0 ? (
+        <Banner
+          tone="info"
+          title="Dikenali sebagai pekerjaan yang sama"
+          description={
+            <>
+              <span className="block">
+                Isinya sama persis dengan yang ada di RAB aktif, hanya letak atau nomornya yang berbeda. Laporan harian,
+                foto, temuan, dan backup volumenya ikut, jadi tidak perlu dipasangkan satu per satu.
+              </span>
+              <ul className="mt-1 list-disc pl-5">
+                {koreksi.pindah.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </>
+          }
+        />
+      ) : null}
       {koreksi.terhalang.length > 0 ? (
         <Banner
           tone="error"

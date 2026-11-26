@@ -18,6 +18,7 @@ import { adalahAkar, parseAkar } from "@/lib/akar";
 import { env } from "@/lib/env";
 import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
 import { belumDipetakan as belumDipetakanDraft } from "@/lib/rab/padanan-draft";
+import { pratinjauKoreksiDraft } from "@/lib/rab/koreksi-timpa-simpan";
 import { permintaanWaMenunggu } from "@/lib/rab/persetujuan-wa";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
@@ -261,6 +262,8 @@ export default async function RabPage({
           sebab: b.sebab,
         }))
       : [];
+  // Apa yang dilakukan "Terapkan sebagai koreksi" – hanya untuk yang boleh menekannya (DECISIONS 790).
+  const koreksiDraft = draft && active && bolehTanpaPersetujuan ? await pratinjauKoreksiDraft(draft.id) : null;
 
   // ── Rencana mingguan (minggu terpilih, default berjalan) ─────────────────
   const parsedWeek = Number.parseInt(sp.minggu ?? "", 10);
@@ -623,6 +626,11 @@ export default async function RabPage({
                 hapus={hapusRevisi}
                 bolehTanpaPersetujuan={bolehTanpaPersetujuan}
                 belumDipetakan={belumDipetakan}
+                pratinjauKoreksi={
+                  koreksiDraft
+                    ? { pindah: koreksiDraft.pindah, kunciPindah: koreksiDraft.kunciPindah, terhalang: koreksiDraft.terhalang }
+                    : null
+                }
               />
             </div>
           ) : null}

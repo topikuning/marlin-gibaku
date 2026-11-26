@@ -12,7 +12,12 @@ import {
   discardDraftAction,
   type RabActionState,
 } from "./actions";
-import { PanelTanpaPersetujuan, type CaraTanpaPersetujuan } from "./panel-tanpa-persetujuan";
+import {
+  belumUntuk,
+  PanelTanpaPersetujuan,
+  type CaraTanpaPersetujuan,
+  type PratinjauKoreksiView,
+} from "./panel-tanpa-persetujuan";
 import { jangkarPemetaan, PeringatanBelumDipetakan, type BelumDipetakanRingkas } from "./belum-dipetakan";
 import type { RabRevisionSource, RevisionStatus } from "@/generated/prisma/enums";
 
@@ -75,6 +80,7 @@ function DraftActions({
   persetujuan,
   bolehTanpaPersetujuan,
   belumDipetakan,
+  pratinjauKoreksi,
   hrefPemetaan,
   onBerhasil,
 }: {
@@ -85,6 +91,8 @@ function DraftActions({
   bolehTanpaPersetujuan: boolean;
   /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
   belumDipetakan: BelumDipetakanRingkas[];
+  /** Pratinjau "Terapkan sebagai koreksi" (DECISIONS 790); null bila tidak dihitung. */
+  pratinjauKoreksi: PratinjauKoreksiView | null;
   hrefPemetaan: string | null;
   /** Pesan berhasil dinaikkan ke daftar: baris draft ini sendiri berganti begitu aktif. */
   onBerhasil: (pesan: string) => void;
@@ -160,7 +168,7 @@ function DraftActions({
           )}
         </div>
       ) : null}
-      <PeringatanBelumDipetakan items={belumDipetakan} hrefPemetaan={hrefPemetaan} />
+      <PeringatanBelumDipetakan items={belumUntuk(bukaTanpa, belumDipetakan, pratinjauKoreksi)} hrefPemetaan={hrefPemetaan} />
       {perluKonfirmasi && !terkunci ? (
         <label className="flex items-start justify-end gap-2 text-right text-xs text-ink">
           <input
@@ -213,7 +221,8 @@ function DraftActions({
           revisionId={revisionId}
           revisionNo={revisionNo}
           kurang={persetujuan?.kurang ?? []}
-          belumDipetakan={belumDipetakan.length}
+          belumDipetakan={belumUntuk(bukaTanpa, belumDipetakan, pratinjauKoreksi).length}
+          pratinjauKoreksi={pratinjauKoreksi}
           onBatal={() => setBukaTanpa(null)}
           onBerhasil={onBerhasil}
         />
@@ -345,8 +354,11 @@ export function RevisionList({
   slug,
   bolehTanpaPersetujuan = false,
   belumDipetakan = [],
+  pratinjauKoreksi = null,
 }: {
   revisions: RevisionRow[];
+  /** Pratinjau "Terapkan sebagai koreksi" atas draft (DECISIONS 790). */
+  pratinjauKoreksi?: PratinjauKoreksiView | null;
   /** Item terlapor yang belum dipasangkan ke item draft (DECISIONS 754). */
   belumDipetakan?: BelumDipetakanRingkas[];
   /** Untuk tautan backup volume & analisa per revisi (DECISIONS baru 2026-10-07). */
@@ -417,6 +429,7 @@ export function RevisionList({
                       persetujuan={persetujuan}
                       bolehTanpaPersetujuan={bolehTanpaPersetujuan}
                       belumDipetakan={belumDipetakan}
+                      pratinjauKoreksi={pratinjauKoreksi}
                       hrefPemetaan={slug ? `/lokasi/${slug}/rab/adendum${jangkarPemetaan(belumDipetakan)}` : null}
                       onBerhasil={setPesanHapus}
                     />

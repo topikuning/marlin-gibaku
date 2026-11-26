@@ -19,7 +19,7 @@ import { TabelItemLipat } from "./tabel-item-lipat";
 import { PekerjaanLuarRab } from "./luar-rab";
 import { ImporLaporanPelaksana } from "./impor-pelaksana";
 import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
-import { removeReportPhotoAction } from "@/lib/daily-report/actions";
+import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
 import type { PhotoView } from "@/lib/photos";
 import type { SessionUser } from "@/lib/auth/session";
 import { EnrichmentForm } from "./enrichment-form";
@@ -47,11 +47,16 @@ function FotoItemTerkirim({
   photos,
   user,
   bolehHapusSusulan,
+  kembalikanIds = [],
 }: {
   photos: PhotoView[];
   user: SessionUser;
   bolehHapusSusulan: boolean;
+  /** Foto yang boleh dikembalikan ke Foto Cepat (baris bervolume 0, DECISIONS 791). */
+  kembalikanIds?: string[];
 }) {
+  const kembalikan =
+    kembalikanIds.length > 0 ? { label: "Kembalikan ke Foto Cepat", run: returnPhotoToKantongAction } : undefined;
   const asli = photos.filter((p) => !p.susulanAt);
   const susulan = photos.filter((p) => p.susulanAt);
   const dapatDihapus = bolehHapusSusulan
@@ -63,7 +68,7 @@ function FotoItemTerkirim({
     <>
       {asli.length > 0 ? (
         <div className="mt-1.5">
-          <PhotoGallery photos={asli} thumbClass="h-14 w-14" />
+          <PhotoGallery photos={asli} thumbClass="h-14 w-14" reuse={kembalikan} reusableIds={kembalikanIds} />
         </div>
       ) : null}
       {susulan.length > 0 ? (
@@ -77,6 +82,8 @@ function FotoItemTerkirim({
             canDelete={dapatDihapus.length > 0}
             deletableIds={dapatDihapus}
             deleteAction={removeReportPhotoAction}
+            reuse={kembalikan}
+            reusableIds={kembalikanIds}
           />
         </div>
       ) : null}
@@ -156,6 +163,14 @@ export default async function HarianWorkspacePage({
   // Baris bervolume dulu; baris 0 dilipat di bawahnya (DECISIONS 787).
   const terkirim = pisahVolumeNol(report?.items ?? []);
   const fotoNol = terkirim.nol.filter((it) => it.photos.length > 0).length;
+  /*
+   * Foto yang tidak menopang angka resmi boleh kembali ke Foto Cepat di laporan
+   * yang sudah dikirim juga – oleh pengunggahnya, Site Manager, atau Super
+   * Admin (DECISIONS 791). Server memeriksa ulang lewat `izinKembalikanFoto`.
+   */
+  const bolehKembalikan = (p: PhotoView) =>
+    canCreate && (p.uploadedById === user.id || PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role));
+  const idKembali = (photos: PhotoView[]) => photos.filter(bolehKembalikan).map((p) => p.id);
   const barisTerkirim = (it: WorkspaceItem) => (
     <tr key={it.id}>
       <td className="py-2 pr-3 pl-4">
@@ -181,6 +196,7 @@ export default async function HarianWorkspacePage({
           photos={it.photos}
           user={user}
           bolehHapusSusulan={bisaFotoSusulan}
+          kembalikanIds={it.volumeDone <= 0.0005 ? idKembali(it.photos) : []}
         />
         {bisaFotoSusulan && it.photos.length === 0 ? (
           <TambahFotoSusulan reportId={report?.id ?? ""} itemId={it.id} locationId={data.location.id} />
@@ -306,6 +322,9 @@ export default async function HarianWorkspacePage({
               catatan={report?.luarRab ?? []}
               bisaCatat={!(report?.noActivity ?? false)}
               photoEnabled={isR2Configured()}
+              fotoBisaKembali={(report?.luarRab ?? [])
+                .filter((c) => c.status !== "dipadankan")
+                .flatMap((c) => idKembali(c.photos))}
             />
           }
         />
@@ -364,7 +383,25 @@ export default async function HarianWorkspacePage({
         </Card>
       ) : null}
 
-      {/* Catatan pekerjaan di luar RAB, baca saja (DECISIONS 738). */}
+      {/* Foto tanpa pekerjaan di laporan terkirim – bisa kembali ke Foto Cepat (DECISIONS 791). */}
+      {report && !editable && report.photosTanpaItem.length > 0 && idKembali(report.photosTanpaItem).length > 0 ? (
+        <Card>
+          <CardHeader
+            title={`Foto tanpa pekerjaan (${report.photosTanpaItem.length})`}
+            subtitle="Pekerjaannya sudah dihapus. Kembalikan ke Foto Cepat supaya bisa dipakai untuk pekerjaan lain."
+          />
+          <CardBody>
+            <PhotoGallery
+              photos={report.photosTanpaItem}
+              tataLetak="baris"
+              reuse={{ label: "Kembalikan ke Foto Cepat", run: returnPhotoToKantongAction }}
+              reusableIds={idKembali(report.photosTanpaItem)}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {/* Catatan pekerjaan di luar RAB, baca saja (DECISIONS 738); fotonya bisa kembali ke Foto Cepat (791). */}
       {report && !editable && report.luarRab.length > 0 ? (
         <PekerjaanLuarRab
           locationId={data.location.id}
@@ -373,6 +410,7 @@ export default async function HarianWorkspacePage({
           catatan={report.luarRab}
           bisaCatat={false}
           photoEnabled={isR2Configured()}
+          fotoBisaKembali={report.luarRab.filter((c) => c.status !== "dipadankan").flatMap((c) => idKembali(c.photos))}
         />
       ) : null}
 

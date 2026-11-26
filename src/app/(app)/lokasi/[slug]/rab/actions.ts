@@ -29,7 +29,8 @@ import {
   konfirmasiKoreksi,
   konfirmasiTanpaPersetujuan,
 } from "@/lib/rab/persetujuan-aturan";
-import { KoreksiTimpaError, koreksiDariDraft } from "@/lib/rab/koreksi-timpa-simpan";
+import { KoreksiTimpaError, koreksiDariDraft, pratinjauKoreksiDraft } from "@/lib/rab/koreksi-timpa-simpan";
+import { kalimatHasilPindah } from "@/lib/rab/koreksi-timpa";
 import { jalankanAktivasi } from "@/lib/rab/aktivasi";
 import { tolakTanpaKonfirmasiPadanan } from "@/lib/rab/padanan-draft";
 import { kirimPermintaanPd } from "@/lib/rab/persetujuan-wa";
@@ -136,7 +137,10 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     // dari progres begitu draft aktif. Pilihan user 2026-11-10: *"cukup minta
     // konfirmasi saat aktivasi"* – berlaku untuk ketiga cara di bawah.
     if (adendum) {
-      const tolakPadanan = await tolakTanpaKonfirmasiPadanan(rev.id, formData.get("konfirmasiBelumDipetakan"));
+      // Koreksi: sub/grup yang pindah tempat membawa laporannya sendiri (DECISIONS 790).
+      const koreksiDiminta = formData.get("tanpaPersetujuan") === "1" && formData.get("cara") === "koreksi";
+      const ikutPindah = koreksiDiminta ? new Set((await pratinjauKoreksiDraft(rev.id))?.kunciPindah ?? []) : undefined;
+      const tolakPadanan = await tolakTanpaKonfirmasiPadanan(rev.id, formData.get("konfirmasiBelumDipetakan"), ikutPindah);
       if (tolakPadanan) return { error: tolakPadanan };
     }
     // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
@@ -185,6 +189,7 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
           success:
             `Isi draft #${rev.revisionNo} diterapkan sebagai koreksi RAB aktif revisi #${h.revisionNo}. ` +
             `Tidak ada revisi baru dan tidak dihitung sebagai MC-0/CCO; draftnya sudah terpakai.` +
+            kalimatHasilPindah(h) +
             (h.dipindahDariDraft > 0 ? ` ${h.dipindahDariDraft} baris laporan harian yang diinput terhadap draft kini resmi.` : "") +
             (h.disesuaikan.length > 0 ? ` PERHATIAN: realisasi ${h.disesuaikan.length} item diturunkan mengikuti volume barunya.` : ""),
         };
