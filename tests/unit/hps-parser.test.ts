@@ -172,6 +172,47 @@ describe("kategori tanpa judul (mis. RAB_Nyamplung VIII) – infer dari sub-kode
   });
 });
 
+describe("sub-kode yang romawinya SUDAH dipakai kategori lain = salah tulis, bukan kategori baru (DECISIONS 788)", () => {
+  it("III.2 di bawah IV (berkas BUYAT TENGAH CCO): tetap di IV sesuai letak & JUMLAH berkas, tanpa kategori sisipan", async () => {
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["III", "PEKERJAAN TAMBATAN PERAHU", null, null, null, null, null, null, null],
+        ["III.2.", "Pekerjaan Struktur", null, null, null, null, null, null, null],
+        ["1", "Item III", null, null, 1, "ls", 100, 100, 1],
+        ["IV", "PEKERJAAN DINDING PENAHAN TANAH", null, null, null, null, null, null, null],
+        ["IV.1", "Pekerjaan Turap Beton", null, null, null, null, null, null, null],
+        ["1", "Item IV.1", null, null, 1, "ls", 200, 200, 1],
+        // Salah tulis di berkas: seharusnya IV.2 – JUMLAH IV dan REKAPITULASI menghitungnya di IV.
+        ["III.2", "Pekerjaan Pasangan Batu", null, null, null, null, null, null, null],
+        ["a", "Pekerjaan Galian Tanah keras", null, null, 1, "m3", 900, 900, 1],
+        ["V", "PEKERJAAN SHELTER", null, null, null, null, null, null, null],
+        ["1", "Item V", null, null, 1, "ls", 50, 50, 1],
+      ]),
+    );
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["III", "IV", "V"]);
+    expect(parsed.categories.some((c) => /judul tidak ada/i.test(c.name))).toBe(false);
+    expect(Math.round(parsed.categories[0].total_value)).toBe(100);
+    expect(Math.round(parsed.categories[1].total_value)).toBe(1100);
+    expect(parsed.categories[1].subcategories.map((s) => [s.code, s.name])).toEqual([
+      ["IV.1", "Pekerjaan Turap Beton"],
+      ["III.2", "Pekerjaan Pasangan Batu"],
+    ]);
+    expect(warnings.some((w) => /III\.2.*Pasangan Batu.*kategori IV/.test(w))).toBe(true);
+  });
+
+  it("romawi yang MUNDUR dan belum pernah ada juga dianggap salah tulis (tetap di kategori berjalan)", async () => {
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["V", "PEKERJAAN SHELTER", null, null, null, null, null, null, null],
+        ["II.1", "Pekerjaan Struktural", null, null, null, null, null, null, null],
+        ["1", "Item", null, null, 1, "ls", 10, 10, 1],
+      ]),
+    );
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["V"]);
+    expect(Math.round(parsed.categories[0].total_value)).toBe(10);
+  });
+});
+
 describe("nilai kontrak = HARGA NEGOSIASI bila ada (bukan HPS)", () => {
   it("baris header dgn kolom negosiasi → total pakai kolom JUMLAH HARGA (nego)", async () => {
     const { parsed, warnings } = await parseHpsBuffer(

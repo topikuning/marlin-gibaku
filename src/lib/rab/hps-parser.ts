@@ -1488,6 +1488,31 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
    * itu nyangkut ke kategori sebelumnya & menggelembungkan totalnya. Bila prefix
    * roman sub ≠ kategori berjalan, buka kategori baru (judul placeholder + warning).
    */
+  /**
+   * Sub-kode yang romawinya TIDAK sama dengan kategori berjalan. Kategori
+   * sisipan hanya dibuka bila romawi itu MAJU dan belum pernah dipakai
+   * kategori lain – itulah kategori tanpa baris judul (Nyamplung VIII).
+   *
+   * Romawi yang sudah dipakai atau mundur adalah SALAH TULIS nomor: berkas
+   * BUYAT TENGAH CCO (user 2026-11-26) menulis "III.2 Pekerjaan Pasangan Batu"
+   * di dalam kategori IV, padahal JUMLAH IV dan REKAPITULASI berkas
+   * menghitungnya di IV. Dulu baris itu membuka kategori sisipan "kategori III
+   * – judul tidak ada di file" di tengah RAB, terpisah dari III maupun IV.
+   * Sekarang ia tetap di kategori berjalan, kodenya ditulis apa adanya, dan
+   * disebut di peringatan (DECISIONS 788).
+   */
+  const subBedaRomawi = (rp: string, code: string, name: string): void => {
+    if (!cat) return;
+    const sudahAda = categories.some((c) => c.roman === rp);
+    if (!sudahAda && romanToInt(rp) > romanToInt(cat.roman)) {
+      openInferredCategory(rp);
+      return;
+    }
+    warnings.push(
+      `Sub-kode ${code} "${name}" ada di bawah kategori ${cat.roman} – dipasang di kategori ${cat.roman} sesuai letaknya di berkas ` +
+        `(JUMLAH kategorinya ikut menghitungnya). Kemungkinan salah tulis nomor; periksa berkasnya.`,
+    );
+  };
   const openInferredCategory = (roman: string): void => {
     romanTerakhir = roman;
     cat = {
@@ -1718,7 +1743,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     // Subkategori (roman.num, nama diawali "Pekerjaan")
     if (SUBCODE.test(code) && /^Pekerjaan/i.test(name)) {
       const rp = romanPrefixOf(code);
-      if (rp && cat && rp !== cat.roman) openInferredCategory(rp);
+      if (rp && cat && rp !== cat.roman) subBedaRomawi(rp, code, name);
       pushSub(code, name);
       return;
     }
@@ -1835,7 +1860,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
     // Pola lain (mis. subkategori tanpa prefix "Pekerjaan") — coba tebak
     if (SUBCODE.test(code)) {
       const rp = romanPrefixOf(code);
-      if (rp && cat && rp !== cat.roman) openInferredCategory(rp);
+      if (rp && cat && rp !== cat.roman) subBedaRomawi(rp, code, name);
       pushSub(code, name);
       return;
     }
