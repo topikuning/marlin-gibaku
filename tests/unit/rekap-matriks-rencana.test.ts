@@ -282,8 +282,8 @@ describe("DECISIONS 786 – keputusan yang jelas, baris 0 tanpa isi dibuang", ()
     expect(r.item[0]!.totalSesudah).toBe(25);
   });
 
-  it("baris 0 tanpa isi sisa impor sebelumnya: dibuang di mode timpa, dibiarkan di mode tambah", () => {
-    const ada: [string, SelMarlin][] = [sel("2026-10-28", 0, { foto: 0, fotoWaktu: [] }), sel("2026-10-29", 0)];
+  it("baris 0 tanpa isi yang DINOLKAN IMPOR SEBELUMNYA: dibuang di mode timpa, dibiarkan di mode tambah", () => {
+    const ada: [string, SelMarlin][] = [sel("2026-10-28", 0, { foto: 0, fotoWaktu: [], nolImpor: true }), sel("2026-10-29", 0, { nolImpor: true })];
     const timpa = susunRencana(masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada }));
     expect(ubah(timpa)).toEqual([
       ["2026-10-28", "hapus", 0, 0, "tulis"],
@@ -291,6 +291,23 @@ describe("DECISIONS 786 – keputusan yang jelas, baris 0 tanpa isi dibuang", ()
     ]);
     const tambah = susunRencana(masukan({ excel: [["2026-10-30", 25]], ada }));
     expect(ubah(tambah)).toEqual([["2026-10-30", "tambah", null, 25, "tulis"]]);
+  });
+
+  it("DECISIONS 787: baris 0 yang tidak terbukti dinolkan impor (mis. hasil aktivasi adendum) TIDAK dibuang", () => {
+    const ada: [string, SelMarlin][] = [sel("2026-10-28", 0, { foto: 0, fotoWaktu: [] })];
+    const r = susunRencana(masukan({ mode: "timpa", excel: [["2026-10-30", 25]], ada }));
+    expect(ubah(r)).toEqual([["2026-10-30", "tambah", null, 25, "tulis"]]);
+  });
+
+  it("DECISIONS 787: item bervolume kontrak 0 – barisnya bahan Pasangkan realisasi, dinolkan tapi tidak pernah dibuang", () => {
+    const ada: [string, SelMarlin][] = [
+      sel("2026-10-27", 0, { foto: 0, fotoWaktu: [], nolImpor: true }),
+      sel("2026-10-28", 4, { foto: 0, fotoWaktu: [] }),
+    ];
+    const r = susunRencana(masukan({ mode: "timpa", excel: [["2026-10-30", 0]], ada, kontrak: 0 }));
+    const p28 = r.item[0]!.perubahan.find((p) => p.tanggal === "2026-10-28")!;
+    expect(p28).toMatchObject({ aksi: "nolkan", tetapKarena: expect.stringMatching(/Pasangkan realisasi/) });
+    expect(r.item[0]!.perubahan.some((p) => p.aksi === "hapus")).toBe(false);
   });
 
   it("pindahkan foto: baris yang semua fotonya pindah ikut dibuang; sidik membedakan dibuang dan dinolkan", () => {

@@ -1,6 +1,10 @@
 import { bagiProporsional } from "@/lib/rab/padanan-aktif-aturan";
 import { formatNumber, formatTanggal } from "@/lib/format";
 import type { LaporanMarlin, ModeImpor, PilihanBentrok, SelMarlin } from "./jenis";
+import { isiBaris as isiSel, kontrakNol } from "./sisa-nol";
+
+/** Isi baris MARLIN sesudah impor (foto sisa, catatan, luar RAB, pemasangan). */
+const isiBaris = (s: SelMarlin, fotoSisa: number) => isiSel({ catatan: s.catatanBaris, luarRab: s.luarRab, padanan: s.padanan }, fotoSisa);
 
 /**
  * RENCANA IMPOR REKAP HARIAN (DECISIONS 782). MURNI – dihitung di server saat
@@ -223,24 +227,6 @@ export function tujuanFoto(waktu: string, tujuan: readonly string[]): string | n
   return seri ? null : terbaik;
 }
 
-/** Penanda baris yang dibuat impor ini sendiri – bukan catatan orang. */
-export const CATATAN_IMPOR = "Dari impor rekap harian";
-
-/**
- * Apa yang masih dibawa baris bila volumenya 0 (null = tidak ada, boleh
- * dibuang). Pemasangan (777) dan catatan luar RAB (738) menunjuk barisnya;
- * foto dan catatan orang adalah isi laporan.
- */
-function isiBaris(s: SelMarlin, fotoSisa: number): string | null {
-  const isi: string[] = [];
-  if (fotoSisa > 0) isi.push(`${fotoSisa} foto`);
-  const cat = s.catatanBaris?.trim();
-  if (cat && cat !== CATATAN_IMPOR) isi.push("catatan");
-  if (s.luarRab) isi.push("catatan di luar RAB yang dipadankan");
-  if (s.padanan) isi.push("hasil pemasangan");
-  return isi.length > 0 ? isi.join(", ") : null;
-}
-
 /** FNV-1a 32 bit – cukup untuk mendeteksi rencana yang berubah, bukan untuk keamanan. */
 function fnv(s: string): string {
   let h = 0x811c9dc5;
@@ -361,9 +347,19 @@ export function susunRencana(o: MasukanRencana): Rencana {
         const ke = bulat3(akhir.get(t) ?? 0);
         const s = m[t];
         const dari = s ? s.volume : null;
-        // Baris 0 tanpa isi (sisa impor sebelumnya) dibuang di mode timpa (786).
+        // Baris 0 tanpa isi yang DINOLKAN IMPOR SEBELUMNYA dibuang di mode timpa
+        // (786/787). Baris 0 lain tidak: yang diturunkan saat aktivasi adendum
+        // adalah bahan Pasangkan realisasi.
         const sisaKosong =
-          o.mode === "timpa" && s != null && dari != null && dari <= EPS && ke <= EPS && dalamPeriode(t) && !isiBaris(s, s.foto);
+          o.mode === "timpa" &&
+          s != null &&
+          s.nolImpor === true &&
+          !kontrakNol(kontrak) &&
+          dari != null &&
+          dari <= EPS &&
+          ke <= EPS &&
+          dalamPeriode(t) &&
+          !isiBaris(s, s.foto);
         if (dari != null && Math.abs(dari - ke) <= EPS && s!.basis === "aktif" && !sisaKosong) continue;
         if (dari == null && ke <= EPS) continue;
         perubahan.push({
@@ -438,7 +434,10 @@ export function susunRencana(o: MasukanRencana): Rencana {
       const s = m[p.tanggal];
       if (!s) continue;
       const dipindah = pindahFoto.filter((f) => f.dari === p.tanggal).reduce((t, f) => t + f.jumlah, 0);
-      const isi = isiBaris(s, s.foto - dipindah);
+      // Item bervolume kontrak 0: barisnya bahan Pasangkan realisasi, tidak dibuang (787).
+      const isi = kontrakNol(kontrak)
+        ? "item ini bervolume 0 di RAB aktif – barisnya dipakai Pasangkan realisasi"
+        : isiBaris(s, s.foto - dipindah);
       if (isi) p.tetapKarena = isi;
       else p.aksi = "hapus";
     }

@@ -205,12 +205,16 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
           · PEKERJAAN/LOKASI/TH. ANGGARAN membentang penuh sampai tepi kanan. */}
       <table className="w-full table-fixed border border-slate-500">
         <colgroup>
-          <col className="w-[9%]" /> {/* logo */}
-          <col className="w-[14%]" /> {/* label */}
-          <col className="w-[3%]" /> {/* titik dua */}
-          <col className="w-[18%]" /> {/* isi — kiri berakhir di 44% */}
-          <col className="w-[28%]" /> {/* konsultan pengawas */}
-          <col className="w-[28%]" /> {/* kontraktor pelaksana */}
+          {/* Lebar kolom: logo · label · titik dua · isi (kiri berakhir di 44%) ·
+              konsultan pengawas · kontraktor pelaksana. Komentar TIDAK di
+              samping <col>: spasi di antaranya jadi simpul teks di dalam
+              <colgroup> dan memicu galat hidrasi. */}
+          <col className="w-[9%]" />
+          <col className="w-[14%]" />
+          <col className="w-[3%]" />
+          <col className="w-[18%]" />
+          <col className="w-[28%]" />
+          <col className="w-[28%]" />
         </colgroup>
         <tbody>
           <tr>
@@ -537,6 +541,16 @@ export function teksRealisasi(it: KkpDailyItem): string {
   return bagian.join(" ");
 }
 
+/**
+ * Pekerjaan yang dicetak di blanko: yang hari ini bervolume. Baris 0 (sisa
+ * impor rekap, baris yang dinolkan karena masih berfoto) tidak dicetak – di
+ * kertas ia hanya "Pekerjaan X – 0 m¹" yang membingungkan pemeriksa
+ * (user 2026-11-26, DECISIONS 787). Layar harian melipatnya, tidak membuang.
+ */
+export function itemDicetak<T extends { volumeToday: number }>(items: readonly T[]): T[] {
+  return items.filter((it) => it.volumeToday > 0.0005);
+}
+
 /** Satu baris kolom REALISASI: judul bangunan/kategori, atau baris pekerjaan. */
 export type BarisRealisasi = { no: string; text: string; kategori: boolean };
 
@@ -557,7 +571,7 @@ export function barisRealisasiKkp(items: KkpDailyItem[]): BarisRealisasi[] {
   const out: BarisRealisasi[] = [];
   let kategoriBerjalan: string | null = null;
   let no = 0;
-  for (const it of items) {
+  for (const it of itemDicetak(items)) {
     const nama = it.categoryName ?? null;
     if (nama !== kategoriBerjalan) {
       if (nama) out.push({ no: "", text: it.categoryCode ? `${it.categoryCode}. ${nama}` : nama, kategori: true });
@@ -602,7 +616,7 @@ export function barisRencanaRealisasi(
   // Baris kosong di bawah daftar tetap bernomor (kotaknya memang untuk diisi
   // tangan), melanjutkan nomor PEKERJAAN terakhir — bukan nomor baris tabel,
   // yang sudah tidak sama lagi sejak ada judul kategori.
-  let lanjut = d.items.length;
+  let lanjut = itemDicetak(d.items).length;
   return Array.from({ length: n }, (_, i) => {
     const r = realisasi[i];
     if (!r) lanjut += 1;

@@ -7,7 +7,8 @@ import { jalurNodeById } from "@/lib/rab/jalur";
 import type { Prisma } from "@/generated/prisma/client";
 import { bacaRekapMatriks } from "./baca";
 import { cocokkanRekap } from "./cocok";
-import { CATATAN_IMPOR, susunRencana, tujuanFoto, type Rencana } from "./rencana";
+import { susunRencana, tujuanFoto, type Rencana } from "./rencana";
+import { buktiNolImpor, CATATAN_IMPOR } from "./sisa-nol";
 import { masukanRencana, type BahanPratinjau, type PilihanImpor } from "./masukan";
 import type { LaporanMarlin, NodeRab, RekapMatriks, SelMarlin } from "./jenis";
 
@@ -89,6 +90,15 @@ async function kumpulkanBahan(
       _count: { select: { luarRab: true } },
     },
   });
+  // Baris yang pernah dinolkan impor rekap (787): hanya ini yang boleh dibuang saat sudah 0.
+  const bukti = buktiNolImpor(
+    (
+      await c.auditLog.findMany({
+        where: { action: "daily_report.impor_rekap_harian", resourceType: "location", resourceId: locationId },
+        select: { payload: true },
+      })
+    ).map((a) => a.payload),
+  );
   const marlin: Record<string, Record<string, SelMarlin>> = {};
   for (const r of rows) {
     const tanggal = jakartaDateKey(r.report.reportDate);
@@ -103,6 +113,7 @@ async function kumpulkanBahan(
       fotoWaktu: r.photos.filter((f) => f.luarRabId == null).map((f) => waktuJepret(f.exifTakenAt, tanggal)),
       catatanBaris: r.notes,
       luarRab: r._count.luarRab > 0,
+      nolImpor: bukti.has(`${r.lineageKey}@${tanggal}`),
     };
   }
 
