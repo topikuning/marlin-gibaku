@@ -55,3 +55,20 @@ export async function bangunUlangSnapshotFinal(
   }
   return jadi;
 }
+
+/**
+ * Potret SATU laporan final dibangun ulang dari data hidup – dipakai saat isi
+ * laporan final berubah tanpa membuka kuncinya (foto yang dikembalikan ke
+ * Foto Cepat, DECISIONS 791). Bukan final → tidak ada yang dibangun.
+ */
+export async function bangunUlangSnapshotSatu(reportId: string): Promise<boolean> {
+  const r = await db.dailyReport.findUnique({ where: { id: reportId }, select: { status: true } });
+  if (r?.status !== "final") return false;
+  const { buildFinalSnapshot } = await import("./service");
+  const snapshot = await buildFinalSnapshot(reportId);
+  await db.dailyReport.update({
+    where: { id: reportId },
+    data: { finalSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+  });
+  return true;
+}

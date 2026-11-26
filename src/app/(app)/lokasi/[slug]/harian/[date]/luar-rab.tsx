@@ -5,7 +5,12 @@ import { Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { catatLuarRabAction, hapusLuarRabAction, type DailyActionState } from "@/lib/daily-report/actions";
+import {
+  catatLuarRabAction,
+  hapusLuarRabAction,
+  returnPhotoToKantongAction,
+  type DailyActionState,
+} from "@/lib/daily-report/actions";
 import type { CatatanLuarRabLaporan } from "@/lib/daily-report/queries";
 import { formatNumber, formatTanggal } from "@/lib/format";
 import { useAksi } from "@/lib/aksi-klien";
@@ -25,11 +30,18 @@ export function PekerjaanLuarRab({
   catatan,
   bisaCatat,
   photoEnabled,
+  fotoBisaKembali = [],
 }: {
   locationId: string;
   dateKey: string;
   reportId: string | null;
   catatan: CatatanLuarRabLaporan[];
+  /**
+   * Foto catatan yang boleh dikembalikan ke Foto Cepat oleh pengguna ini
+   * (DECISIONS 791): catatan belum dipadankan, fotonya miliknya atau ia Site
+   * Manager/Super Admin. Server memeriksa ulang.
+   */
+  fotoBisaKembali?: string[];
   /** Laporan masih Draft / Perlu Koreksi, pengguna boleh mengisi, dan hari ini tidak dinyatakan nihil. */
   bisaCatat: boolean;
   photoEnabled: boolean;
@@ -91,7 +103,7 @@ export function PekerjaanLuarRab({
       {catatan.length > 0 ? (
         <ul className="divide-y divide-luar-rab-border overflow-hidden rounded-md border border-luar-rab-border bg-surface">
           {catatan.map((c) => (
-            <BarisCatatan key={c.id} c={c} reportId={reportId} bisaHapus={bisaCatat} />
+            <BarisCatatan key={c.id} c={c} reportId={reportId} bisaHapus={bisaCatat} fotoBisaKembali={fotoBisaKembali} />
           ))}
         </ul>
       ) : null}
@@ -199,7 +211,18 @@ function FormCatat({ locationId, dateKey, onTutup }: { locationId: string; dateK
 
 const fmtWaktu = (iso: string) => formatTanggal(new Date(iso), "d MMM yyyy");
 
-function BarisCatatan({ c, reportId, bisaHapus }: { c: CatatanLuarRabLaporan; reportId: string | null; bisaHapus: boolean }) {
+function BarisCatatan({
+  c,
+  reportId,
+  bisaHapus,
+  fotoBisaKembali,
+}: {
+  c: CatatanLuarRabLaporan;
+  reportId: string | null;
+  bisaHapus: boolean;
+  fotoBisaKembali: string[];
+}) {
+  const kembaliIds = c.photos.filter((p) => fotoBisaKembali.includes(p.id)).map((p) => p.id);
   const [state, formAction, pending] = useAksi<DailyActionState>(hapusLuarRabAction, undefined);
   return (
     <li className="space-y-2 px-3 py-3">
@@ -229,7 +252,26 @@ function BarisCatatan({ c, reportId, bisaHapus }: { c: CatatanLuarRabLaporan; re
         ) : null}
       </div>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {c.photos.length > 0 ? <PhotoGallery photos={c.photos} thumbClass="h-14 w-14" /> : null}
+      {c.photos.length > 0 ? (
+        <PhotoGallery
+          photos={c.photos}
+          thumbClass="h-14 w-14"
+          reuse={
+            kembaliIds.length > 0
+              ? {
+                  label: "Kembalikan ke Foto Cepat",
+                  run: returnPhotoToKantongAction,
+                  // Foto terakhir: catatannya ikut dibatalkan – disebut sebelum terjadi.
+                  confirm:
+                    c.status === "tercatat" && c.photos.length === 1
+                      ? "Ini satu-satunya foto catatan ini. Catatan di luar RAB wajib berfoto, jadi catatannya ikut dibatalkan (Site Manager bisa mengaktifkannya lagi). Lanjutkan?"
+                      : undefined,
+                }
+              : undefined
+          }
+          reusableIds={kembaliIds}
+        />
+      ) : null}
     </li>
   );
 }

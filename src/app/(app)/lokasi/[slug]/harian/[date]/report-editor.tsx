@@ -922,6 +922,13 @@ function ItemRow({
           canDelete={bolehHapusFoto}
           deleteAction={removeReportPhotoAction}
           rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
+          // Pekerjaan bervolume 0: fotonya tidak menopang angka apa pun, jadi bisa
+          // dipakai lagi di pekerjaan lain (DECISIONS 791).
+          reuse={
+            bolehHapusFoto && item.volumeDone <= 0.0005
+              ? { label: "Kembalikan ke Foto Cepat", run: returnPhotoToKantongAction }
+              : undefined
+          }
         />
       ) : null}
       {/* Foto ketinggalan itu keadaan yang wajar — jalan memperbaikinya harus
