@@ -19,6 +19,8 @@ import { siapCetakA4 } from "@/lib/export/cetak-a4";
  * (dan supaya baris yang dihapus manual ikut mengoreksi total).
  */
 
+/** Nomor RAB murni angka ditulis sebagai angka – Excel tidak menandainya "angka sebagai teks". */
+const selNomor = (kode: string): string | number => (/^\d+$/.test(kode) ? Number(kode) : kode);
 const NUM_FMT = "#,##0.00";
 const RP_FMT = '"Rp"#,##0';
 const PCT_FMT = "0.00";
@@ -154,10 +156,10 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     if (r.tidakTuntas.length > 0) {
       const head = ws.addRow(["No", "Komitmen minggu lalu yang belum tuntas", "Satuan", "Target", "Terealisasi", "Kekurangan"]);
       styleHead(head, 6);
-      r.tidakTuntas.forEach((t, i) => {
+      r.tidakTuntas.forEach((t) => {
         const row = ws.addRow([
-          i + 1,
-          `${t.code} – ${t.name}`,
+          selNomor(t.kode),
+          t.name,
           t.unit ?? "",
           round2(t.target),
           round2(t.realisasi),
@@ -167,6 +169,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
           const cell = row.getCell(c);
           cell.border = box;
           cell.font = { size: 9 };
+          if (c === 1) cell.alignment = { horizontal: "center" };
           if (c >= 4) {
             cell.numFmt = NUM_FMT;
             cell.alignment = { horizontal: "right" };
@@ -194,22 +197,32 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   ]);
   styleHead(head, COL_COUNT);
 
-  // Nomor urut menerus lintas kelompok kategori — supaya bisa diacu di rapat.
-  let no = 1;
+  // Nomor dan susunan dari RAB (DECISIONS 785): baris sudah urut RAB, jadi
+  // tiap kategori dan judul kelompok tercetak sekali, tanpa angka.
   let kategori: string | null = null;
   const dataRows: number[] = [];
-  for (const b of r.baris) {
-    if (b.categoryName !== kategori) {
-      kategori = b.categoryName;
-      const g = ws.addRow([kategori]);
-      ws.mergeCells(g.number, 1, g.number, COL_COUNT);
-      g.getCell(1).font = { bold: true, size: 9 };
-      g.getCell(1).fill = GROUP_FILL;
-      for (let c = 1; c <= COL_COUNT; c++) g.getCell(c).border = box;
+  const barisJudul = (kode: string, nama: string, tingkat: number, isi?: ExcelJS.Fill) => {
+    const g = ws.addRow([selNomor(kode), nama]);
+    ws.mergeCells(g.number, 2, g.number, COL_COUNT);
+    for (let c = 1; c <= COL_COUNT; c++) {
+      const cell = g.getCell(c);
+      cell.border = box;
+      cell.font = { bold: true, size: 9 };
+      if (isi) cell.fill = isi;
     }
+    g.getCell(1).alignment = { horizontal: "center" };
+    if (tingkat > 0) g.getCell(2).alignment = { indent: tingkat };
+  };
+  for (const b of r.baris) {
+    const kunci = `${b.categoryCode}|${b.categoryName}`;
+    if (kunci !== kategori) {
+      kategori = kunci;
+      barisJudul(b.categoryCode, b.categoryName, 0, GROUP_FILL);
+    }
+    for (const j of b.judul) barisJudul(j.kode, j.nama, j.tingkat);
     const row = ws.addRow([
-      no++,
-      `${b.code} – ${b.name}`,
+      selNomor(b.kode),
+      b.name,
       b.unit ?? "",
       round2(b.volumeKontrak),
       round2(b.realisasi),
@@ -232,7 +245,9 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
         cell.numFmt = RP_FMT;
         cell.alignment = { horizontal: "right" };
       } else if (c === 2 || c === 11) {
-        cell.alignment = { wrapText: true, vertical: "top" };
+        cell.alignment = { wrapText: true, vertical: "top", ...(c === 2 && b.tingkat > 0 ? { indent: b.tingkat } : {}) };
+      } else if (c === 1) {
+        cell.alignment = { horizontal: "center", vertical: "top" };
       }
     }
   }

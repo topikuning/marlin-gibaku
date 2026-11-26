@@ -14,8 +14,10 @@ import { ringkasKelompok } from "@/lib/progress-calc";
 const PAKET =
   "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Provinsi Jawa Tengah – Paket 3";
 
-const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
+const item = (over: Partial<PeriodItemRow> & { kode: string; name: string }): PeriodItemRow => ({
   code: "",
+  tingkat: 0,
+  judul: [],
   volK: 100,
   unit: "m3",
   unitPrice: 250_000,
@@ -39,8 +41,8 @@ const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): Peri
 function fixture(): PeriodReport {
   const start = new Date(Date.UTC(2026, 6, 22));
   const rows = [
-    item({ no: 1, name: "Pembersihan lahan", volK: 120, volSd: 30, prestasiSd: 25, sisaVol: 90, sisaPrestasi: 75 }),
-    item({ no: 2, name: "Pengukuran & bouwplank", volK: 80, volSd: 80, prestasiSd: 100, sisaVol: 0, sisaPrestasi: 0 }),
+    item({ kode: "1", name: "Pembersihan lahan", volK: 120, volSd: 30, prestasiSd: 25, sisaVol: 90, sisaPrestasi: 75 }),
+    item({ kode: "2", name: "Pengukuran & bouwplank", volK: 80, volSd: 80, prestasiSd: 100, sisaVol: 0, sisaPrestasi: 0 }),
   ];
   return {
     kind: "mingguan",
@@ -244,5 +246,44 @@ describe("sheet PROGRES KATEGORI – laporan mingguan per kategori & sub-kategor
     });
     // Baris sub-kategori (baris+1, baris+2) TIDAK ikut dijumlah – sudah di kategorinya.
     expect(f(jumlah, 10)).toBe(`SUM(J${baris})`);
+  });
+});
+
+describe("sheet Laporan – nomor dari RAB, bukan urut 1…n (DECISIONS 785)", () => {
+  it("judul kelompok tercetak di atas itemnya, item bernomor huruf seperti di RAB", async () => {
+    const r = fixture();
+    const [a, b] = r.categories[0]!.rows;
+    r.categories[0]!.code = "VI#2";
+    r.categories[0]!.rows = [
+      { ...a!, kode: "a", tingkat: 1, judul: [{ kode: "1", nama: "Pekerjaan Pondasi", tingkat: 0 }] },
+      { ...b!, kode: "b", tingkat: 1, judul: [] },
+    ];
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildPeriodReportXlsx(r)) as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("Laporan")!;
+    let kat = 0;
+    ws.eachRow((row, n) => {
+      if (!kat && cellText(row.getCell(2).value) === "PEKERJAAN PERSIAPAN") kat = n;
+    });
+    expect(kat).toBeGreaterThan(0);
+    // Sufiks kode kembar bukan nomor berkas.
+    expect(ws.getRow(kat).getCell(1).value).toBe("VI");
+
+    const judul = ws.getRow(kat + 1);
+    expect(judul.getCell(1).value).toBe(1);
+    expect(cellText(judul.getCell(2).value)).toBe("Pekerjaan Pondasi");
+    expect(judul.getCell(2).font?.bold).toBe(true);
+    // Baris judul tanpa angka – tidak ada volume, bobot, atau rumus.
+    for (let c = 3; c <= 19; c++) expect(judul.getCell(c).value ?? null, `kolom ${c} baris judul`).toBeNull();
+
+    expect(ws.getRow(kat + 2).getCell(1).value).toBe("a");
+    expect(cellText(ws.getRow(kat + 2).getCell(2).value)).toBe("Pembersihan lahan");
+    expect(ws.getRow(kat + 2).getCell(2).alignment?.indent).toBe(1);
+    expect(ws.getRow(kat + 3).getCell(1).value).toBe("b");
+
+    // Subtotal tetap menjumlah item saja; baris judul kosong tidak mengubahnya.
+    const sub = ws.getRow(kat + 4);
+    expect(cellText(sub.getCell(2).value)).toBe("Subtotal PEKERJAAN PERSIAPAN");
+    expect((sub.getCell(7).value as { formula: string }).formula).toBe(`SUM(G${kat + 2}:G${kat + 3})`);
   });
 });

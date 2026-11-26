@@ -179,8 +179,10 @@ describe("laporan mingguan – invarian angka", () => {
     const r = await getPeriodReport(locationId, "mingguan", 4);
     expect(r!.categories.map((c) => c.code)).toEqual(["I", "II"]);
     expect(allRows(r!).map((x) => x.code)).toEqual(["1.1", "1.2", "2.1", "2.2"]);
-    // Penomoran urut tanpa lompat.
-    expect(allRows(r!).map((x) => x.no)).toEqual([1, 2, 3, 4]);
+    // Nomor dari RAB, bukan urut 1…n (DECISIONS 785). Item langsung di bawah
+    // kategori: tanpa baris judul, tanpa indentasi.
+    expect(allRows(r!).map((x) => x.kode)).toEqual(["1.1", "1.2", "2.1", "2.2"]);
+    expect(allRows(r!).every((x) => x.judul.length === 0 && x.tingkat === 0)).toBe(true);
     expect(r!.kurvaSchedule.map((k) => k.code)).toEqual(["I", "II"]);
   });
 

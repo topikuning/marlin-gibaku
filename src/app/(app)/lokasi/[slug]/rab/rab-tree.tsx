@@ -6,6 +6,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { formatRupiahSatuan, formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import { renameRabCategoryAction } from "./actions";
+import { kodeTampil } from "@/lib/rab/penomoran";
 
 /** Node RAB tersalin ke client — BigInt/Decimal SUDAH diserialisasi di server. */
 export type RabNodeRow = {
@@ -279,7 +280,7 @@ export function RabTree({
                 const open = matchSet ? true : expanded.has(node.id);
                 return (
                   <tr key={node.id} className={KIND_ROW_CLASS[node.kind]}>
-                    <td className="px-2 py-1.5 align-top text-xs text-ink-muted">{node.code}</td>
+                    <td className="px-2 py-1.5 align-top text-xs text-ink-muted">{kodeTampil(node.code)}</td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-start gap-1" style={{ paddingLeft: `${depth * 16}px` }}>
                         {hasChildren ? (

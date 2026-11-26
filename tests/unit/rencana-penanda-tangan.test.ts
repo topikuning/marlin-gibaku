@@ -157,8 +157,12 @@ function rencana(): RencanaMingguan {
     tidakTuntas: [],
     baris: [
       {
-        code: "1",
+        code: "1.a",
+        kode: "a",
+        tingkat: 1,
+        judul: [{ kode: "1", nama: "Pekerjaan Tanah Pondasi", tingkat: 0 }],
         name: "Galian tanah biasa",
+        categoryCode: "II",
         categoryName: "PEKERJAAN TANAH",
         unit: "m3",
         volumeKontrak: 1240,
@@ -197,6 +201,20 @@ async function selXlsx(buf: Buffer): Promise<string[]> {
 }
 
 describe("Excel formulir rencana mingguan", () => {
+  it("nomor dari RAB: kategori, judul kelompok, lalu item berhurufnya – bukan urut 1…n (DECISIONS 785)", async () => {
+    const sel = await selXlsx(await buildRencanaMingguanXlsx(rencana()));
+    const kat = sel.indexOf("PEKERJAAN TANAH");
+    expect(sel[kat - 1]).toBe("II");
+    const judul = sel.indexOf("Pekerjaan Tanah Pondasi");
+    expect(judul).toBeGreaterThan(kat);
+    expect(sel[judul - 1]).toBe("1");
+    const item = sel.indexOf("Galian tanah biasa");
+    expect(item).toBeGreaterThan(judul);
+    expect(sel[item - 1]).toBe("a");
+    // Kode tidak lagi ditempel di depan uraian.
+    expect(sel.some((t) => t.includes("– Galian tanah biasa"))).toBe(false);
+  });
+
   it("menandatangani dengan nama kontrak", async () => {
     const sel = await selXlsx(await buildRencanaMingguanXlsx(rencana()));
     expect(sel).toContain(PENANDA_KONTRAK);

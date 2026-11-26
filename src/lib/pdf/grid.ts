@@ -28,6 +28,8 @@ export type GridCell = {
   color?: string;
   /** Latar sel; kosong = tanpa latar (kepala tetap memakai latar bakunya). */
   bg?: string;
+  /** Indentasi teks dalam pt (uraian bertingkat RAB, DECISIONS 785). */
+  indent?: number;
 };
 
 export type GridOptions = {
@@ -55,7 +57,7 @@ export function gridRowHeight(doc: PdfDoc, cells: GridCell[], o: GridOptions): n
     for (let k = 0; k < span && ci + k < o.cols.length; k++) w += o.cols[ci + k];
     ci += span;
     doc.font(c.bold || c.head ? PDF_FONT.bold : PDF_FONT.regular).fontSize(fs);
-    const h = doc.heightOfString(c.text || " ", { width: Math.max(4, w - padX * 2) });
+    const h = doc.heightOfString(c.text || " ", { width: Math.max(4, w - padX * 2 - (c.indent ?? 0)) });
     if (h > max) max = h;
   }
   return Math.max(min, max + padY * 2);
@@ -86,8 +88,8 @@ export function gridRow(doc: PdfDoc, y: number, cells: GridCell[], o: GridOption
       .font(c.bold || c.head ? PDF_FONT.bold : PDF_FONT.regular)
       .fontSize(fs)
       .fillColor(c.color ?? (c.head ? PDF_COLORS.inkMuted : PDF_COLORS.ink))
-      .text(c.text || " ", x + padX, y + padY, {
-        width: Math.max(4, w - padX * 2),
+      .text(c.text || " ", x + padX + (c.indent ?? 0), y + padY, {
+        width: Math.max(4, w - padX * 2 - (c.indent ?? 0)),
         align: c.align ?? "left",
         lineBreak: true,
       });

@@ -14,7 +14,9 @@ process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test";
 process.env.SESSION_SECRET ??= "0123456789abcdef0123456789abcdef";
 
 const item = (no: number, name: string): PeriodItemRow => ({
-  no,
+  kode: String(no),
+  tingkat: 0,
+  judul: [],
   name,
   code: "",
   volK: 120,

@@ -31,6 +31,8 @@ const bobot = (n: number) => (n <= 0 ? "–" : n < 0.005 ? "< 0,01" : pctFmt.for
 const tgl = (d: Date) =>
   new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" }).format(d);
 const satuan = (n: number, unit: string | null) => `${volFmt.format(n)}${unit ? ` ${unit}` : ""}`;
+/** Indentasi uraian per tingkat di bawah kategori (DECISIONS 785). */
+const INDENT_PT = 6;
 
 export type RencanaKkpPdfResult = { buffer: Buffer; locationId: string };
 
@@ -185,7 +187,7 @@ export async function buildRencanaKkpPdf(
     );
 
     if (r.tidakTuntas.length > 0) {
-      const ttCols = colWidths(width, [0.4, 4, 1.1, 1.1, 1.1]);
+      const ttCols = colWidths(width, [0.55, 3.85, 1.1, 1.1, 1.1]);
       const ttOpt: GridOptions = { x, width, cols: ttCols, fontSize: 7 };
       const ttHead = () =>
         (y = gridRow(
@@ -202,10 +204,10 @@ export async function buildRencanaKkpPdf(
         ));
       fit(30, ttHead);
       ttHead();
-      r.tidakTuntas.forEach((t, i) => {
+      r.tidakTuntas.forEach((t) => {
         const cells: GridCell[] = [
-          { text: String(i + 1), align: "right" },
-          { text: `${t.code} · ${t.name}` },
+          { text: t.kode, align: "center" },
+          { text: t.name },
           { text: satuan(t.target, t.unit), align: "right" },
           { text: satuan(t.realisasi, t.unit), align: "right" },
           { text: satuan(Math.max(0, t.target - t.realisasi), t.unit), align: "right" },
@@ -227,7 +229,7 @@ export async function buildRencanaKkpPdf(
       fontSize: 7.5,
     });
   } else {
-    const kCols = colWidths(width, [0.4, 3.4, 0.6, 0.85, 0.85, 0.85, 0.9, 0.65, 1.4, 1]);
+    const kCols = colWidths(width, [0.55, 3.25, 0.6, 0.85, 0.85, 0.85, 0.9, 0.65, 1.4, 1]);
     const kOpt: GridOptions = { x, width, cols: kCols, fontSize: 6.8 };
     const kHead = () => {
       y = gridRow(
@@ -251,19 +253,31 @@ export async function buildRencanaKkpPdf(
     fit(34, kHead);
     kHead();
 
-    // Nomor urut MENERUS lintas kelompok kategori, supaya bisa diacu di rapat.
-    let no = 1;
+    // Nomor dan susunan dari RAB (DECISIONS 785): baris sudah urut RAB, jadi
+    // tiap kategori dan judul kelompok tercetak sekali.
     let kategori: string | null = null;
     for (const b of r.baris) {
-      if (b.categoryName !== kategori) {
-        kategori = b.categoryName;
-        const gCells: GridCell[] = [{ text: kategori, span: 10, bold: true }];
+      const kunci = `${b.categoryCode}|${b.categoryName}`;
+      if (kunci !== kategori) {
+        kategori = kunci;
+        const gCells: GridCell[] = [
+          { text: b.categoryCode, align: "center", bold: true },
+          { text: b.categoryName, span: 9, bold: true },
+        ];
         fit(gridRowHeight(doc, gCells, kOpt), kHead);
         y = gridRow(doc, y, gCells, kOpt);
       }
+      for (const j of b.judul) {
+        const jCells: GridCell[] = [
+          { text: j.kode, align: "center", bold: true },
+          { text: j.nama, span: 9, bold: true, indent: j.tingkat * INDENT_PT },
+        ];
+        fit(gridRowHeight(doc, jCells, kOpt), kHead);
+        y = gridRow(doc, y, jCells, kOpt);
+      }
       const cells: GridCell[] = [
-        { text: String(no++), align: "right" },
-        { text: `${b.code} · ${b.name}${b.note?.trim() ? `\nCatatan: ${b.note}` : ""}` },
+        { text: b.kode, align: "center" },
+        { text: `${b.name}${b.note?.trim() ? `\nCatatan: ${b.note}` : ""}`, indent: b.tingkat * INDENT_PT },
         { text: b.unit ?? "–", align: "center" },
         { text: volFmt.format(b.volumeKontrak), align: "right" },
         { text: b.realisasi > 0 ? volFmt.format(b.realisasi) : "–", align: "right" },
