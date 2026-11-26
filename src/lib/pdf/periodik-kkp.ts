@@ -4,6 +4,7 @@ import { penandatanganDokumen, peranSlot, type JenisDokumen } from "@/lib/lapora
 import { getBranding } from "@/lib/branding";
 import { getPeriodBounds, getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { kodeTampil } from "@/lib/rab/penomoran";
 import { formatTanggal } from "@/lib/format";
 import { keteranganDeviasi } from "@/lib/plan/rencana-format";
 import { kopProgresMingguan } from "@/lib/laporan/kop-progres";
@@ -37,6 +38,8 @@ const rupiah = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
 const p1 = (n: number) => `${f1.format(n)}%`;
 const p2 = (n: number) => f2.format(n);
 const dash = (n: number) => (n > 0 ? volFmt.format(n) : "–");
+/** Indentasi uraian per tingkat di bawah kategori (DECISIONS 785). */
+const INDENT_PT = 6;
 
 export type PeriodikKkpPdfResult = { buffer: Buffer };
 
@@ -587,7 +590,7 @@ async function susunPdfPeriodik(
   const rinci: GridOptions = {
     x,
     width,
-    cols: colWidths(width, [0.45, 4, 0.95, 0.75, 0.7, 0.85, 0.8, 0.7, 0.85, 0.8, 0.7, 0.85, 0.8, 0.7, 0.8, 0.8, 0.9]),
+    cols: colWidths(width, [0.62, 3.83, 0.95, 0.75, 0.7, 0.85, 0.8, 0.7, 0.85, 0.8, 0.7, 0.85, 0.8, 0.7, 0.8, 0.8, 0.9]),
     fontSize: 6.2,
   };
   const rinciHead = () => {
@@ -640,7 +643,7 @@ async function susunPdfPeriodik(
 
   for (const c of r.categories) {
     const catCells: GridCell[] = [
-      { text: c.code, align: "center", bold: true },
+      { text: kodeTampil(c.code), align: "center", bold: true },
       { text: c.name, span: 3, bold: true },
       { text: p2(c.subtotalBobot), align: "right", bold: true },
       { text: "", span: 12 },
@@ -649,9 +652,19 @@ async function susunPdfPeriodik(
     y = gridRow(doc, y, catCells, rinci);
 
     for (const it of c.rows) {
+      // Judul RAB (sub-kategori, kelompok) di atas item pertamanya – nomor dan
+      // susunannya dari RAB, bukan urut 1…n (DECISIONS 785).
+      for (const j of it.judul) {
+        const judul: GridCell[] = [
+          { text: j.kode, align: "center", bold: true },
+          { text: j.nama, span: 16, bold: true, indent: j.tingkat * INDENT_PT },
+        ];
+        fit(gridRowHeight(doc, judul, rinci), rinciHead);
+        y = gridRow(doc, y, judul, rinci);
+      }
       const cells: GridCell[] = [
-        { text: String(it.no), align: "right" },
-        { text: it.name },
+        { text: it.kode, align: "center" },
+        { text: it.name, indent: it.tingkat * INDENT_PT },
         { text: volFmt.format(it.volK), align: "right" },
         { text: it.unit, align: "center" },
         { text: p2(it.bobot), align: "right" },

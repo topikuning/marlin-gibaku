@@ -1,5 +1,6 @@
 import { allocateRounded } from "@/lib/round-alloc";
 import { weekDateRange, type WeekPeriodMode } from "@/lib/progress-calc";
+import { kodeTampil } from "@/lib/rab/penomoran";
 
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
@@ -135,7 +136,8 @@ export function buildKurvaSheet(input: {
   const rawCats = input.categories.map((c) => {
     const weekly = new Array<number>(n).fill(0);
     for (let i = 0; i < n && i < c.weekly.length; i++) weekly[i] = c.weekly[i];
-    return { code: c.code, name: c.name, bobot: weekly.reduce((s, v) => s + v, 0), weekly };
+    // Kode tampil – sufiks kode kembar bukan nomor berkas (DECISIONS 785).
+    return { code: kodeTampil(c.code), name: c.name, bobot: weekly.reduce((s, v) => s + v, 0), weekly };
   });
 
   // Angka TAMPIL (layar & Excel) dibulatkan sekali di sini, bukan di tiap

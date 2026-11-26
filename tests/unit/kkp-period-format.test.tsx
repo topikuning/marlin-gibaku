@@ -12,8 +12,10 @@ import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
 import { ringkasKelompok } from "@/lib/progress-calc";
 
-const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
+const item = (over: Partial<PeriodItemRow> & { kode: string; name: string }): PeriodItemRow => ({
   code: "",
+  tingkat: 0,
+  judul: [],
   volK: 120,
   unit: "m3",
   unitPrice: 250_000,
@@ -81,7 +83,7 @@ function fixture(): PeriodReport {
         lineageKey: "I",
         code: "I",
         name: "PEKERJAAN PERSIAPAN",
-        rows: [item({ no: 1, name: "Pembersihan lahan" })],
+        rows: [item({ kode: "1", name: "Pembersihan lahan" })],
         subtotalAmount: 30_000_000,
         subtotalBobot: 12.4,
         subtotalBobotLalu: 1.03,
@@ -134,5 +136,24 @@ describe("blanko periodik KKP – satu konvensi desimal (FMT-01)", () => {
     expect(t).toContain(">1,03<"); // bobot periode lalu
     expect(t).toContain(">1,55<"); // bobot periode ini
     expect(t).toContain(">3,75<"); // bobot rencana
+  });
+});
+
+describe("blanko periodik KKP – nomor dari RAB (DECISIONS 785)", () => {
+  it("judul kelompok tercetak di atas itemnya; item memakai nomornya sendiri, bukan urut", () => {
+    const r = fixture();
+    r.categories[0]!.code = "VI#2";
+    r.categories[0]!.rows = [
+      item({ kode: "a", tingkat: 1, judul: [{ kode: "1", nama: "Pekerjaan Pondasi", tingkat: 0 }], name: "Galian Tanah" }),
+      item({ kode: "b", tingkat: 1, name: "Batu Belah" }),
+    ];
+    const sel = [...renderToStaticMarkup(<KkpPeriodReport r={r} />).matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
+    const i = sel.indexOf("PEKERJAAN PERSIAPAN");
+    expect(sel[i - 1]).toBe("VI");
+    // Baris judul: nomor + nama, sisanya satu sel gabungan tanpa angka.
+    expect(sel.slice(i + 3, i + 6)).toEqual(["1", "Pekerjaan Pondasi", "a"]);
+    expect(sel[i + 6]).toBe("Galian Tanah");
+    expect(sel).toContain("b");
+    expect(sel).not.toContain("2");
   });
 });

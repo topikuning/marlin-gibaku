@@ -1,5 +1,6 @@
 import { formatRupiah } from "@/lib/format";
 import type { ImportPreview } from "./actions";
+import { kodeTampil } from "@/lib/rab/penomoran";
 
 type Baris = ImportPreview["categories"][number];
 
@@ -56,7 +57,7 @@ export function TabelKategori({
             {baris.map((c) => (
               <tr key={c.lineageKey} className={c.level === 0 ? "font-medium" : ""}>
                 <td className="py-1.5 pr-3 text-ink-muted">
-                  <span style={{ paddingLeft: c.level * 14 }}>{c.code}</span>
+                  <span style={{ paddingLeft: c.level * 14 }}>{kodeTampil(c.code)}</span>
                 </td>
                 <td className="py-1.5 pr-3">{c.name}</td>
                 <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{c.jumlahItem}</td>

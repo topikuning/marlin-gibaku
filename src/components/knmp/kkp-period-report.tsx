@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { penandatanganDokumen, peranSlot } from "@/lib/laporan/penandatangan";
+import { kodeTampil } from "@/lib/rab/penomoran";
 import type { PeriodCategory, PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
@@ -196,31 +197,41 @@ function CategoryBlock({ c }: { c: PeriodCategory }) {
   return (
     <>
       <tr className="bg-slate-50 font-semibold">
-        <Td>{c.code}</Td>
+        <Td>{kodeTampil(c.code)}</Td>
         <Td colSpan={3}>{c.name}</Td>
         <Td align="right">{p2(c.subtotalBobot)}</Td>
         <Td colSpan={12} />
       </tr>
-      {c.rows.map((it) => (
-        <tr key={it.no} className="border-b border-slate-100">
-          <Td align="right">{it.no}</Td>
-          <Td>{it.name}</Td>
-          <Td align="right">{volFmt.format(it.volK)}</Td>
-          <Td align="center">{it.unit}</Td>
-          <Td align="right">{d2(it.bobot)}</Td>
-          <Td align="right">{dash(it.volLalu)}</Td>
-          <Td align="right">{it.prestasiLalu > 0 ? p1(it.prestasiLalu) : "–"}</Td>
-          <Td align="right">{it.bobotLalu > 0 ? d2(it.bobotLalu) : "–"}</Td>
-          <Td align="right">{dash(it.volIni)}</Td>
-          <Td align="right">{it.prestasiIni > 0 ? p1(it.prestasiIni) : "–"}</Td>
-          <Td align="right">{it.bobotIni > 0 ? d2(it.bobotIni) : "–"}</Td>
-          <Td align="right">{dash(it.volSd)}</Td>
-          <Td align="right">{it.prestasiSd > 0 ? p1(it.prestasiSd) : "–"}</Td>
-          <Td align="right">{it.bobotSd > 0 ? d2(it.bobotSd) : "–"}</Td>
-          <Td align="right">{it.bobotRencana > 0 ? d2(it.bobotRencana) : "–"}</Td>
-          <Td align="right">{it.sisaPrestasi > 0 ? p1(it.sisaPrestasi) : "–"}</Td>
-          <Td align="right">{dash(it.sisaVol)}</Td>
-        </tr>
+      {c.rows.map((it, i) => (
+        <Fragment key={i}>
+          {it.judul.map((j) => (
+            <tr key={`j-${j.tingkat}`} className="border-b border-slate-100 font-medium">
+              <Td>{j.kode}</Td>
+              <Td colSpan={16} tingkat={j.tingkat}>
+                {j.nama}
+              </Td>
+            </tr>
+          ))}
+          <tr className="border-b border-slate-100">
+            <Td>{it.kode}</Td>
+            <Td tingkat={it.tingkat}>{it.name}</Td>
+            <Td align="right">{volFmt.format(it.volK)}</Td>
+            <Td align="center">{it.unit}</Td>
+            <Td align="right">{d2(it.bobot)}</Td>
+            <Td align="right">{dash(it.volLalu)}</Td>
+            <Td align="right">{it.prestasiLalu > 0 ? p1(it.prestasiLalu) : "–"}</Td>
+            <Td align="right">{it.bobotLalu > 0 ? d2(it.bobotLalu) : "–"}</Td>
+            <Td align="right">{dash(it.volIni)}</Td>
+            <Td align="right">{it.prestasiIni > 0 ? p1(it.prestasiIni) : "–"}</Td>
+            <Td align="right">{it.bobotIni > 0 ? d2(it.bobotIni) : "–"}</Td>
+            <Td align="right">{dash(it.volSd)}</Td>
+            <Td align="right">{it.prestasiSd > 0 ? p1(it.prestasiSd) : "–"}</Td>
+            <Td align="right">{it.bobotSd > 0 ? d2(it.bobotSd) : "–"}</Td>
+            <Td align="right">{it.bobotRencana > 0 ? d2(it.bobotRencana) : "–"}</Td>
+            <Td align="right">{it.sisaPrestasi > 0 ? p1(it.sisaPrestasi) : "–"}</Td>
+            <Td align="right">{dash(it.sisaVol)}</Td>
+          </tr>
+        </Fragment>
       ))}
     </>
   );
@@ -376,14 +387,18 @@ function Td({
   children,
   align = "left",
   colSpan,
+  tingkat,
 }: {
   children?: ReactNode;
   align?: "left" | "right" | "center";
   colSpan?: number;
+  /** Indentasi uraian per tingkat di bawah kategori (DECISIONS 785). */
+  tingkat?: number;
 }) {
   return (
     <td
       colSpan={colSpan}
+      style={tingkat ? { paddingLeft: `${4 + tingkat * 10}px` } : undefined}
       className={`border border-slate-200 px-1 py-0.5 ${align === "right" ? "text-right tabular-nums" : align === "center" ? "text-center" : "text-left"}`}
     >
       {children}

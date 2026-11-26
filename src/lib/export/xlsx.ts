@@ -3,6 +3,7 @@ import type { JenisDokumen } from "@/lib/laporan/penandatangan";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { kodeTampil } from "@/lib/rab/penomoran";
 import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/xlsx-chart";
 // TYPE-ONLY: `logo-laporan` menarik db + R2 (pemuatnya), sedangkan berkas ini
 // harus tetap murni — penulis workbook TIDAK boleh menyentuh basis data.
@@ -672,7 +673,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   const rowNums: number[] = [];
   r.categories.forEach((c, i) => {
     const row = ws.addRow([
-      c.code || String(i + 1),
+      kodeTampil(c.code) || String(i + 1),
       c.name,
       c.subtotalBobot,
       c.subtotalBobotLalu,
@@ -1377,13 +1378,28 @@ export async function buildPeriodReportXlsx(
   ] as const;
   const subRowNums: number[] = [];
 
+  // Nomor dari RAB, bukan urut 1…n (DECISIONS 785). Nomor murni angka ditulis
+  // sebagai angka supaya Excel tidak menandainya "angka disimpan sebagai teks".
+  const selNomor = (kode: string): string | number => (/^\d+$/.test(kode) ? Number(kode) : kode);
+  const rapikanNomor = (row: ExcelJS.Row, tingkat: number) => {
+    row.getCell(1).alignment = { horizontal: "center" };
+    if (tingkat > 0) row.getCell(2).alignment = { indent: tingkat };
+  };
+
   for (const cat of r.categories) {
-    const catRow = ws.addRow([cat.code, cat.name]);
+    const catRow = ws.addRow([selNomor(kodeTampil(cat.code)), cat.name]);
     let firstItemRow = 0;
     let lastItemRow = 0;
     for (const it of cat.rows) {
+      // Judul RAB (sub-kategori, kelompok) di atas item pertamanya, tanpa angka.
+      // SUM subtotal di bawah melewati sel kosongnya.
+      for (const j of it.judul) {
+        const judul = ws.addRow([selNomor(j.kode), j.nama]);
+        styleDataRow(judul, { bold: true });
+        rapikanNomor(judul, j.tingkat);
+      }
       const row = ws.addRow([
-        it.no,
+        selNomor(it.kode),
         it.name,
         it.volK,
         it.unit,
@@ -1423,6 +1439,7 @@ export async function buildPeriodReportXlsx(
       if (!firstItemRow) firstItemRow = row.number;
       lastItemRow = row.number;
       styleDataRow(row);
+      rapikanNomor(row, it.tingkat);
     }
     const subRow = ws.addRow([null, `Subtotal ${cat.name}`]);
     for (const { col, sub } of SUM_COLS) {
@@ -1438,6 +1455,7 @@ export async function buildPeriodReportXlsx(
     // Gaya dipasang SETELAH semua nilai terisi — supaya kolom yang baru diisi
     // lewat SUM_COLS ikut ber-format angka, bukan tampil polos.
     styleDataRow(catRow, { bold: true, fill: WARNA.kategori });
+    rapikanNomor(catRow, 0);
     styleDataRow(subRow, { bold: true, fill: WARNA.subtotal });
   }
 

@@ -24,8 +24,10 @@ import { ringkasKelompok } from "@/lib/progress-calc";
 import { ringkasCetak } from "./cetak-a4-bantu";
 
 
-const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
+const item = (over: Partial<PeriodItemRow> & { kode: string; name: string }): PeriodItemRow => ({
   code: "",
+  tingkat: 0,
+  judul: [],
   volK: 100,
   unit: "m3",
   unitPrice: 250_000,
@@ -49,8 +51,8 @@ const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): Peri
 function fixture(over?: Partial<PeriodReport>): PeriodReport {
   const start = new Date(Date.UTC(2026, 6, 22));
   const rows = [
-    item({ no: 1, name: "Pembersihan lahan", volK: 120, unitPrice: 250_000, amount: 30_000_000 }),
-    item({ no: 2, name: "Pengukuran & bouwplank", volK: 80, unitPrice: 250_000, amount: 20_000_000 }),
+    item({ kode: "1", name: "Pembersihan lahan", volK: 120, unitPrice: 250_000, amount: 30_000_000 }),
+    item({ kode: "2", name: "Pengukuran & bouwplank", volK: 80, unitPrice: 250_000, amount: 20_000_000 }),
   ];
   return {
     kind: "mingguan",

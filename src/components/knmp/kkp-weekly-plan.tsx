@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import type { BarisRencana, RencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
@@ -173,7 +173,7 @@ export function KkpWeeklyPlan({
             <table className="mt-1.5 w-full border-collapse text-[9.5px]">
               <thead>
                 <tr className="bg-slate-100 text-center">
-                  <Th w="26px">No</Th>
+                  <Th w="34px">No</Th>
                   <Th align="left">Komitmen minggu lalu yang belum tuntas</Th>
                   <Th align="right" w="90px">Target</Th>
                   <Th align="right" w="90px">Terealisasi</Th>
@@ -183,15 +183,9 @@ export function KkpWeeklyPlan({
               <tbody>
                 {r.tidakTuntas.map((t, i) => (
                   <tr key={`${t.code}-${i}`} className="border-b border-slate-100">
-                    <Td align="right">{i + 1}</Td>
-                    <Td>
-                      {/* Kode RAB dipisah tegas dari uraian: tanpa pemisah,
-                          "1 Buat Bedeng" terbaca sebagai satu kalimat dan kode
-                          item hilang justru saat dipakai mengacu ke RAB. */}
-                      <span className="text-slate-500">{t.code}</span>
-                      <span className="text-slate-400"> · </span>
-                      {t.name}
-                    </Td>
+                    {/* Nomor dari RAB (DECISIONS 785), bukan urut 1…n. */}
+                    <Td align="center">{t.kode}</Td>
+                    <Td>{t.name}</Td>
                     <Td align="right">{vol(t.target, t.unit)}</Td>
                     <Td align="right">{vol(t.realisasi, t.unit)}</Td>
                     <Td align="right">{vol(Math.max(0, t.target - t.realisasi), t.unit)}</Td>
@@ -217,7 +211,7 @@ export function KkpWeeklyPlan({
         <table className="w-full border-collapse text-[9.5px]">
           <thead>
             <tr className="bg-slate-100 text-center">
-              <Th rowSpan={2} w="26px">No</Th>
+              <Th rowSpan={2} w="34px">No</Th>
               <Th rowSpan={2} align="left">Uraian Pekerjaan</Th>
               <Th rowSpan={2} w="36px">Satuan</Th>
               <Th colSpan={3}>Posisi Volume</Th>
@@ -234,7 +228,7 @@ export function KkpWeeklyPlan({
           </thead>
           <tbody>
             {byCategory.map((c, ci) => (
-              <CategoryBlock key={ci} name={c.name} rows={c.rows} startNo={c.startNo} tanpaUang={tanpaUang} />
+              <CategoryBlock key={ci} code={c.code} name={c.name} rows={c.rows} tanpaUang={tanpaUang} />
             ))}
             <tr className="bg-slate-100 font-bold">
               <Td colSpan={6} align="right">
@@ -287,40 +281,35 @@ export function KkpWeeklyPlan({
 
 /* ── Pengelompokan ────────────────────────────────────────────────────────── */
 
-type Kelompok = { name: string; rows: BarisRencana[]; startNo: number };
+type Kelompok = { code: string; name: string; rows: BarisRencana[] };
 
 /**
- * Kelompokkan baris per kategori DENGAN MEMPERTAHANKAN URUTAN kemunculan.
- * Nomor urut dokumen berjalan menerus lintas kelompok supaya bisa diacu di
- * rapat ("item nomor 7") tanpa ambigu.
+ * Kelompokkan baris per kategori. Baris sudah urut susunan RAB
+ * (`rencana-mingguan.ts`), jadi tiap kategori muncul sekali. Nomornya dari RAB
+ * (DECISIONS 785) – sama dengan dokumen kontrak dan laporan mingguan.
  */
 function groupByCategory(baris: BarisRencana[]): Kelompok[] {
   const out: Kelompok[] = [];
-  let no = 1;
   for (const b of baris) {
-    let g = out.find((x) => x.name === b.categoryName);
+    let g = out.find((x) => x.code === b.categoryCode && x.name === b.categoryName);
     if (!g) {
-      g = { name: b.categoryName, rows: [], startNo: 0 };
+      g = { code: b.categoryCode, name: b.categoryName, rows: [] };
       out.push(g);
     }
     g.rows.push(b);
-  }
-  for (const g of out) {
-    g.startNo = no;
-    no += g.rows.length;
   }
   return out;
 }
 
 function CategoryBlock({
+  code,
   name,
   rows,
-  startNo,
   tanpaUang,
 }: {
+  code: string;
   name: string;
   rows: BarisRencana[];
-  startNo: number;
   tanpaUang: boolean;
 }) {
   const subtotalBobot = rows.reduce((s, r) => s + r.bobotTarget, 0);
@@ -328,33 +317,42 @@ function CategoryBlock({
   return (
     <>
       <tr className="bg-slate-50 font-semibold">
-        <Td colSpan={7}>{name}</Td>
+        <Td align="center">{code}</Td>
+        <Td colSpan={6}>{name}</Td>
         <Td align="right">{p2(subtotalBobot)}</Td>
         {tanpaUang ? null : <Td align="right">{rupiahFmt.format(subtotalNilai)}</Td>}
         <Td />
       </tr>
       {rows.map((b, i) => (
-        <tr key={`${b.code}-${i}`} className="border-b border-slate-100">
-          <Td align="right">{startNo + i}</Td>
-          <Td>
-            <span className="text-slate-500">{b.code}</span>
-            <span className="text-slate-400"> · </span>
-            {b.name}
-            {b.note?.trim() ? (
-              <span className="block text-[8.5px] text-slate-500">Catatan: {b.note}</span>
-            ) : null}
-          </Td>
-          <Td align="center">{b.unit ?? "–"}</Td>
-          <Td align="right">{volFmt.format(b.volumeKontrak)}</Td>
-          <Td align="right">{b.realisasi > 0 ? volFmt.format(b.realisasi) : "–"}</Td>
-          <Td align="right">{volFmt.format(b.sisa)}</Td>
-          <Td align="right" bold>
-            {volFmt.format(b.target)}
-          </Td>
-          <Td align="right">{bobot(b.bobotTarget)}</Td>
-          {tanpaUang ? null : <Td align="right">{rupiahFmt.format(b.nilaiTarget)}</Td>}
-          <Td>{b.picName ?? "–"}</Td>
-        </tr>
+        <Fragment key={i}>
+          {b.judul.map((j) => (
+            <tr key={`j-${j.tingkat}`} className="border-b border-slate-100 font-medium">
+              <Td align="center">{j.kode}</Td>
+              <Td colSpan={tanpaUang ? 8 : 9} tingkat={j.tingkat}>
+                {j.nama}
+              </Td>
+            </tr>
+          ))}
+          <tr className="border-b border-slate-100">
+            <Td align="center">{b.kode}</Td>
+            <Td tingkat={b.tingkat}>
+              {b.name}
+              {b.note?.trim() ? (
+                <span className="block text-[8.5px] text-slate-500">Catatan: {b.note}</span>
+              ) : null}
+            </Td>
+            <Td align="center">{b.unit ?? "–"}</Td>
+            <Td align="right">{volFmt.format(b.volumeKontrak)}</Td>
+            <Td align="right">{b.realisasi > 0 ? volFmt.format(b.realisasi) : "–"}</Td>
+            <Td align="right">{volFmt.format(b.sisa)}</Td>
+            <Td align="right" bold>
+              {volFmt.format(b.target)}
+            </Td>
+            <Td align="right">{bobot(b.bobotTarget)}</Td>
+            {tanpaUang ? null : <Td align="right">{rupiahFmt.format(b.nilaiTarget)}</Td>}
+            <Td>{b.picName ?? "–"}</Td>
+          </tr>
+        </Fragment>
       ))}
     </>
   );
@@ -433,15 +431,19 @@ function Td({
   align = "left",
   colSpan,
   bold,
+  tingkat,
 }: {
   children?: ReactNode;
   align?: "left" | "right" | "center";
   colSpan?: number;
   bold?: boolean;
+  /** Indentasi uraian per tingkat di bawah kategori (DECISIONS 785). */
+  tingkat?: number;
 }) {
   return (
     <td
       colSpan={colSpan}
+      style={tingkat ? { paddingLeft: `${4 + tingkat * 10}px` } : undefined}
       className={`border border-slate-200 px-1 py-0.5 ${align === "right" ? "text-right tabular-nums" : align === "center" ? "text-center" : "text-left"} ${bold ? "font-semibold" : ""}`}
     >
       {children}

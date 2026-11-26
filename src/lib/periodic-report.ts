@@ -5,6 +5,7 @@ import { withPpn } from "@/lib/money";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
+import { kodeTampil, penyusunJudul, type JudulBaris } from "@/lib/rab/penomoran";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import {
   modeKalender,
@@ -61,7 +62,20 @@ import type {
 export type PeriodKind = "mingguan" | "bulanan";
 
 export type PeriodItemRow = {
-  no: number;
+  /**
+   * Nomor yang dicetak = nomor dari RAB (DECISIONS 785), bukan urut 1…n.
+   * Huruf di bawah kelompoknya tampil sebagai hurufnya ("a"), karena
+   * kelompoknya tercetak di `judul`.
+   */
+  kode: string;
+  /** Kedalaman di bawah kategori – untuk indentasi uraian. */
+  tingkat: number;
+  /**
+   * Judul (sub-kategori, kelompok) yang dicetak SEBELUM baris ini, tanpa
+   * angka – susunan RAB ikut terbaca. Kosong bila sudah tercetak di atas.
+   */
+  judul: JudulBaris[];
+  /** Kode RAB apa adanya (kunci, bukan untuk dicetak). */
   code: string;
   name: string;
   volK: number;
@@ -633,7 +647,8 @@ export async function getPeriodReport(
       const catNode = catByRoot.get(root);
       cat = {
         lineageKey: root,
-        code: catNode?.code ?? root,
+        // Kode tampil: sufiks kode kembar "#2" bukan nomor berkas (DECISIONS 785).
+        code: catNode ? kodeTampil(catNode.code) : root,
         name: catNode?.name ?? "PEKERJAAN LAIN-LAIN",
         rows: [],
         subtotalAmount: 0,
@@ -682,6 +697,10 @@ export async function getPeriodReport(
   const curveBasis: { lineageKey: string; volK: number; bobot: number }[] = [];
   /** Basis yang sama, dikelompokkan per kategori – realisasi mingguan per kategori. */
   const itemsByCat = new Map<string, { lineageKey: string; volK: number; bobot: number }[]>();
+  // Nomor dan judul dari RAB (DECISIONS 785). Urutan panggil = urutan item di
+  // kategorinya (sortOrder), jadi tiap judul tercetak tepat di atas item
+  // pertamanya.
+  const nomorDariRab = penyusunJudul(nodes);
   for (const it of itemNodes) {
     const cat = catOf(it.lineageKey);
     const bobot = bobotPct(Number(it.amount), grandTotal);
@@ -709,8 +728,11 @@ export async function getPeriodReport(
     cat.subtotalBobotLalu += bobotLalu;
     cat.subtotalBobotIni += bobotIni;
     cat.subtotalBobotSd += bobotSd;
+    const { kode, tingkat, judul } = nomorDariRab(it.id);
     const row: PeriodItemRow = {
-      no: 0,
+      kode,
+      tingkat,
+      judul,
       code: it.code,
       name: it.name,
       volK: vk,
@@ -736,8 +758,6 @@ export async function getPeriodReport(
     if (sub) subKategoriRow.set(row, sub);
   }
   const categories = [...catMap.values()];
-  let seq = 0;
-  for (const c of categories) for (const row of c.rows) row.no = ++seq;
 
   // Kurva-S: rencana dari baseline aktif; realisasi kumulatif per minggu dari VOLUME.
   const baseline = await db.baseline.findFirst({
@@ -967,11 +987,11 @@ export async function getPeriodReport(
     // tetap terhitung di baris kategorinya; tidak dibuatkan baris sendiri.
     // Urutan = urutan RAB; sub tanpa item tetap ditulis sebagai judul.
     const subs = new Map<string, { code: string; name: string; rows: PeriodItemRow[] }>();
-    for (const sub of subKategoriNodes.get(cat.lineageKey) ?? []) subs.set(sub.id, { code: sub.code, name: sub.name, rows: [] });
+    for (const sub of subKategoriNodes.get(cat.lineageKey) ?? []) subs.set(sub.id, { code: kodeTampil(sub.code), name: sub.name, rows: [] });
     for (const row of cat.rows) {
       const sub = subKategoriRow.get(row);
       if (!sub) continue;
-      const g = subs.get(sub.id) ?? { code: sub.code, name: sub.name, rows: [] };
+      const g = subs.get(sub.id) ?? { code: kodeTampil(sub.code), name: sub.name, rows: [] };
       g.rows.push(row);
       subs.set(sub.id, g);
     }

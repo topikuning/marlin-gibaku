@@ -907,7 +907,10 @@ describe("dokumen kontrak yang sudah ada di Drive KKP", () => {
     await antrekanBerkasTermin(packageId, 1, sesi());
     await jalankanAntreanTermin({ packageId, terminKe: 1 });
     expect(pintasan.some((x) => x.targetId === "drive-sudah-dihapus")).toBe(false);
-    const j = (await pekerjaan()).find((x) => x.periode.includes("|1|") && x.status !== "sukses");
+    // Pekerjaan BERKAS termin 1 – bukan sembarang periode yang memuat "|1|":
+    // "2|bulanan|1|…" (termin 2, bulan ke-1) ikut cocok dan menunggu sejak
+    // tanggal uji melewati batas bulannya (gerbang 2026-11-26).
+    const j = (await pekerjaan()).find((x) => x.periode.startsWith("1|berkas|") && x.status !== "sukses");
     expect(j?.lastError).toMatch(/sudah tidak ada atau ada di Sampah/);
     await db.document.delete({ where: { id: spk } });
   });

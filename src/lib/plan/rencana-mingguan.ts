@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { kodeTampil, penyusunJudul, type JudulBaris } from "@/lib/rab/penomoran";
 import { bobotPct, weekDateRange } from "@/lib/progress-calc";
 import { cumulativeVolumeByLineage, getLocationProgress, planPctAtWeek } from "@/lib/progress";
 import {
@@ -32,8 +33,16 @@ import {
  */
 
 export type BarisRencana = {
+  /** Kode RAB apa adanya (kunci, bukan untuk dicetak). */
   code: string;
+  /** Nomor yang dicetak = nomor dari RAB, bukan urut 1…n (DECISIONS 785). */
+  kode: string;
+  /** Kedalaman di bawah kategori – untuk indentasi uraian. */
+  tingkat: number;
+  /** Judul RAB (sub-kategori, kelompok) yang dicetak sebelum baris ini. */
+  judul: JudulBaris[];
   name: string;
+  categoryCode: string;
   categoryName: string;
   unit: string | null;
   /** Volume kontrak (RAB aktif). */
@@ -69,6 +78,8 @@ export type RencanaMingguan = {
   /** Komitmen minggu lalu yang TIDAK tuntas — bahan pembahasan, bukan hiasan. */
   tidakTuntas: {
     code: string;
+    /** Nomor RAB lengkap ("1.a") – daftar ini tanpa baris judul. */
+    kode: string;
     name: string;
     unit: string | null;
     target: number;
@@ -84,13 +95,17 @@ export type RencanaMingguan = {
 
 /** Item RAB daun, dipakai dua kali (komitmen minggu ini & minggu lalu). */
 type Daun = {
+  id: string;
   lineageKey: string;
   code: string;
   name: string;
   unit: string | null;
   volume: number;
   unitPrice: number;
+  categoryCode: string;
   categoryName: string;
+  /** Urutan di RAB – formulir mengikuti susunan RAB, bukan urutan input. */
+  urutan: number;
 };
 
 const DAY = 24 * 3600 * 1000;
@@ -145,33 +160,48 @@ export async function getRencanaMingguan(
   const targetPct = planPctAtWeek(points, minggu);
   const deviationPct = actualPct - targetPct;
 
-  // Item RAB daun revisi aktif + induknya (nama kategori untuk pengelompokan).
+  // Seluruh simpul revisi aktif: item untuk komitmen, induknya untuk kategori
+  // dan baris judul (DECISIONS 785). Kategori dicari dengan menelusur induk
+  // sampai simpul `kategori` – bukan "induk dari induk", yang meleset untuk
+  // item di bawah kelompok di bawah sub-kategori.
   const nodes = await db.rabNode.findMany({
-    where: { revisionId: progress.activeRevisionId, kind: "item" },
+    where: { revisionId: progress.activeRevisionId },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,
+      parentId: true,
+      kind: true,
       code: true,
       name: true,
       unit: true,
       volume: true,
       unitPrice: true,
       lineageKey: true,
-      parent: { select: { name: true, parent: { select: { name: true } } } },
     },
   });
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const kategoriOf = (n: (typeof nodes)[number]) => {
+    let kini = n.parentId ? nodeById.get(n.parentId) : undefined;
+    for (let i = 0; kini && kini.kind !== "kategori" && i < 30; i++) kini = kini.parentId ? nodeById.get(kini.parentId) : undefined;
+    return kini?.kind === "kategori" ? kini : undefined;
+  };
   const daunById = new Map<string, Daun>();
-  for (const n of nodes) {
+  nodes.forEach((n, urutan) => {
+    if (n.kind !== "item") return;
+    const kat = kategoriOf(n);
     daunById.set(n.id, {
+      id: n.id,
       lineageKey: n.lineageKey,
       code: n.code,
       name: n.name,
       unit: n.unit,
       volume: n.volume != null ? Number(n.volume) : 0,
       unitPrice: n.unitPrice != null ? Number(n.unitPrice) : 0,
-      categoryName: n.parent?.parent?.name ?? n.parent?.name ?? "–",
+      categoryCode: kat ? kodeTampil(kat.code) : "",
+      categoryName: kat?.name ?? "–",
+      urutan,
     });
-  }
+  });
 
   const kumulatif = await cumulativeVolumeByLineage(locationId);
 
@@ -189,17 +219,24 @@ export async function getRencanaMingguan(
     },
   });
 
-  const baris: BarisRencana[] = [];
-  for (const it of plan?.items ?? []) {
-    const d = daunById.get(it.rabNodeId);
+  // Komitmen dicetak menurut susunan RAB (kategori → kelompok → item), seperti
+  // laporan mingguan – urutan prioritas membuat satu kategori muncul berkali-kali.
+  const komitmen = (plan?.items ?? [])
+    .map((it) => ({ it, d: daunById.get(it.rabNodeId) }))
     // Item dari revisi lain (mis. setelah adendum) — dilewati, bukan ditebak.
-    if (!d) continue;
+    .filter((x): x is { it: (typeof x)["it"]; d: Daun } => x.d != null)
+    .sort((a, b) => a.d.urutan - b.d.urutan || a.it.priority - b.it.priority);
+  const nomorDariRab = penyusunJudul(nodes);
+  const baris: BarisRencana[] = [];
+  for (const { it, d } of komitmen) {
     const target = Number(it.targetVolume);
     const realisasi = kumulatif.get(d.lineageKey) ?? 0;
     const nilaiTarget = Math.round(target * d.unitPrice);
     baris.push({
       code: d.code,
+      ...nomorDariRab(d.id),
       name: d.name,
+      categoryCode: d.categoryCode,
       categoryName: d.categoryName,
       unit: d.unit,
       volumeKontrak: d.volume,
@@ -248,8 +285,10 @@ export async function getRencanaMingguan(
       );
       tidakTuntas = dipakai
         .filter((x) => x.realisasi + 1e-6 < x.target)
+        .sort((a, b) => a.d.urutan - b.d.urutan)
         .map((x) => ({
           code: x.d.code,
+          kode: kodeTampil(x.d.code),
           name: x.d.name,
           unit: x.d.unit,
           target: x.target,

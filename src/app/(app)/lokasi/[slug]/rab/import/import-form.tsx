@@ -28,6 +28,7 @@ import { PanelBeda } from "./panel-beda";
 import { PilihBaca } from "./pilih-baca";
 import { TabelBanding } from "./tabel-banding";
 import { TabelKategori } from "./tabel-kategori";
+import { kodeTampil } from "@/lib/rab/penomoran";
 
 /**
  * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
@@ -611,7 +612,7 @@ function PanelPadanan({
     { value: "", label: "– tidak dipetakan –" },
     ...padanan.baru.map((b) => ({
       value: b.lineageAsli,
-      label: `${b.jalur ? `${b.jalur} › ` : ""}${b.code} ${b.name}${b.volume == null ? "" : ` – ${formatNumber(b.volume)}`}`,
+      label: `${b.jalur ? `${b.jalur} › ` : ""}${kodeTampil(b.code)} ${b.name}${b.volume == null ? "" : ` – ${formatNumber(b.volume)}`}`,
     })),
   ];
   const volumeBaru = new Map(padanan.baru.map((b) => [b.lineageAsli, b.volume]));
@@ -642,7 +643,7 @@ function PanelPadanan({
           <li key={l.lineageKey} className="space-y-1">
             {l.jalur ? <span className="block text-ink-muted">{l.jalur} ›</span> : null}
             <span className="block text-ink">
-              {l.code} {l.name}{" "}
+              {kodeTampil(l.code)} {l.name}{" "}
               <span className="text-ink-muted">
                 –{" "}
                 {l.sebab === "dinolkan"
