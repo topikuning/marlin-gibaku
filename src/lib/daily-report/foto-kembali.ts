@@ -1,6 +1,6 @@
 import type { DailyReportStatus, UserRole } from "@/generated/prisma/enums";
 import { EDITABLE_STATUSES } from "./constants";
-import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN } from "./foto-susulan";
+import { bolehUrusFotoOrangLain } from "./foto-susulan";
 
 /**
  * KEMBALIKAN FOTO LAPORAN KE FOTO CEPAT – aturan murni (DECISIONS 791).
@@ -21,7 +21,8 @@ import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN } from "./foto-susulan";
  * bukti baris RAB-nya. Foto yang ditautkan pemeriksa ke temuan/inspeksi juga
  * tetap (426).
  *
- * Siapa: sama dengan hapus foto – pengunggahnya, Site Manager, Super Admin.
+ * Siapa: sama dengan hapus foto – pengunggahnya, atau Site Manager dan
+ * atasannya (`bolehUrusFotoOrangLain`, DECISIONS 792).
  */
 
 export type AsalFotoLaporan =
@@ -52,10 +53,10 @@ export function izinKembalikanFoto(i: {
   dipakaiBukti: boolean;
 }): IzinKembaliFoto {
   const miliknya = i.pengunggahId !== null && i.pengunggahId === i.user.id;
-  if (!miliknya && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(i.user.role)) {
+  if (!miliknya && !bolehUrusFotoOrangLain(i.user.role)) {
     return {
       boleh: false,
-      pesan: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa mengembalikan foto ini ke Foto Cepat.",
+      pesan: "Hanya pengunggah foto, Site Manager, atau atasannya yang bisa mengembalikan foto ini ke Foto Cepat.",
     };
   }
   if (i.dipakaiBukti) {

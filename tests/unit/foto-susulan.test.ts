@@ -37,12 +37,19 @@ describe("izin menghapus foto laporan", () => {
     }
   });
 
-  it("foto SUSULAN: pengunggah & Site Manager boleh, orang lain tidak – sama dengan aturan hapus biasa", () => {
+  it("foto SUSULAN: pengunggah, Site Manager, DAN atasannya boleh; Pelaksana lain tidak (DECISIONS 792)", () => {
+    // Keluhan user 2026-11-26: "kamu ijinkan site manager tapi PM dan atasnya
+    // malah gak bisa". Daftar lama hanya [site_manager, super_admin].
     const dasar = { status: "final" as const, susulan: true, pengunggahId: "m" };
     expect(izinHapusFotoLaporan({ ...dasar, user: mandor }).boleh).toBe(true);
     expect(izinHapusFotoLaporan({ ...dasar, user: sm }).boleh).toBe(true);
+    expect(izinHapusFotoLaporan({ ...dasar, user: pm }).boleh).toBe(true);
+    expect(izinHapusFotoLaporan({ ...dasar, user: { id: "a", role: "regional_manager" } }).boleh).toBe(true);
+    expect(izinHapusFotoLaporan({ ...dasar, user: { id: "d", role: "program_director" } }).boleh).toBe(true);
     expect(izinHapusFotoLaporan({ ...dasar, user: lain }).boleh).toBe(false);
-    expect(izinHapusFotoLaporan({ ...dasar, user: pm }).boleh).toBe(false);
+    // Pemeriksa eksternal dan penonton tidak mengurus foto laporan.
+    expect(izinHapusFotoLaporan({ ...dasar, user: { id: "w", role: "wakil_ppk" } }).boleh).toBe(false);
+    expect(izinHapusFotoLaporan({ ...dasar, user: { id: "e", role: "exec_viewer" } }).boleh).toBe(false);
   });
 
   it("pengunggah tidak diketahui tidak pernah dianggap 'miliknya'", () => {

@@ -1,4 +1,5 @@
 import type { DailyReportStatus, UserRole } from "@/generated/prisma/enums";
+import { can } from "@/lib/authz";
 import { EDITABLE_STATUSES } from "./constants";
 
 /**
@@ -37,15 +38,27 @@ export function izinTambahFotoItem(status: DailyReportStatus, jumlahFoto: number
   return { boleh: true, susulan: true };
 }
 
-/** Peran yang boleh menghapus foto milik orang lain – sama dengan hapus foto biasa. */
-export const PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN: UserRole[] = ["site_manager", "super_admin"];
+/**
+ * Boleh mengurus foto milik ORANG LAIN (menghapus, mengembalikan ke Foto
+ * Cepat)? Semua pemeriksa laporan harian (`daily_report.review`): Site Manager
+ * dan atasannya – Project Manager, Area Manager, Program Director, Super Admin.
+ *
+ * Dulu daftar tulis tangan `[site_manager, super_admin]`: atasan Site Manager
+ * justru tertolak. Keluhan user 2026-11-26 (layar Project Manager ditolak
+ * "Kembalikan ke Foto Cepat"): *"kamu ijinkan site manager tapi PM dan atasnya
+ * malah gak bisa"*. Diturunkan dari capability supaya peran yang berubah di
+ * `authz.ts` tidak tertinggal di sini lagi (DECISIONS 792).
+ */
+export function bolehUrusFotoOrangLain(role: UserRole): boolean {
+  return can(role, "daily_report.review");
+}
 
 /**
  * Boleh menghapus SATU foto laporan?
  *
  * Selama laporan masih bisa disunting: aturan lama. Sesudah dikirim: hanya
  * foto SUSULAN – foto bukti asli tetap terkunci. Siapa-nya sama untuk
- * keduanya: pengunggah foto itu sendiri, Site Manager, atau Super Admin.
+ * keduanya: pengunggah foto itu sendiri, Site Manager, atau atasannya.
  */
 export function izinHapusFotoLaporan(input: {
   status: DailyReportStatus;
@@ -63,8 +76,8 @@ export function izinHapusFotoLaporan(input: {
     };
   }
   const miliknya = input.pengunggahId !== null && input.pengunggahId === input.user.id;
-  if (!miliknya && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(input.user.role)) {
-    return { boleh: false, pesan: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa menghapus foto ini." };
+  if (!miliknya && !bolehUrusFotoOrangLain(input.user.role)) {
+    return { boleh: false, pesan: "Hanya pengunggah foto, Site Manager, atau atasannya yang bisa menghapus foto ini." };
   }
   return { boleh: true };
 }

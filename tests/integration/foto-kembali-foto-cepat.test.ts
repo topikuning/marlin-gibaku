@@ -29,7 +29,7 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-type Peran = "field_supervisor" | "site_manager";
+type Peran = "field_supervisor" | "site_manager" | "project_manager" | "regional_manager" | "program_director";
 type UserUji = { id: string; orgId: string; username: string; role: Peran };
 let sebagai: UserUji;
 vi.mock("@/lib/auth/session", async (importAsli) => {
@@ -57,6 +57,7 @@ let nodeId: string;
 let pelaksana: UserUji;
 let pelaksanaLain: UserUji;
 let sm: UserUji;
+let atasan: UserUji[];
 
 beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org FK ${suffix}`, slug: `org-${suffix}` } });
@@ -68,6 +69,11 @@ beforeAll(async () => {
   pelaksana = await buat(`pel-${suffix}`, "field_supervisor");
   pelaksanaLain = await buat(`pel2-${suffix}`, "field_supervisor");
   sm = await buat(`sm-${suffix}`, "site_manager");
+  atasan = [
+    await buat(`pm-${suffix}`, "project_manager"),
+    await buat(`am-${suffix}`, "regional_manager"),
+    await buat(`pd-${suffix}`, "program_director"),
+  ];
   const pkg = await db.package.create({ data: { orgId, name: `Paket ${suffix}` } });
   const loc = await db.location.create({
     data: { packageId: pkg.id, name: `Lokasi ${suffix}`, slug: `lok-${suffix}`, village: "D", regency: "K", province: "P" },
@@ -206,9 +212,19 @@ describe("foto laporan kembali ke Foto Cepat", () => {
   it("foto unggahan orang lain: Pelaksana lain ditolak, Site Manager boleh", async () => {
     const { reportId, itemId } = await laporan("final", 0);
     const f = await foto({ reportId, reportItemId: itemId });
-    expect((await kembalikan(f.id, pelaksanaLain))?.error).toMatch(/Hanya pengunggah foto, Site Manager, atau Super Admin/);
+    expect((await kembalikan(f.id, pelaksanaLain))?.error).toMatch(/Hanya pengunggah foto, Site Manager, atau atasannya/);
     expect((await db.photo.findUniqueOrThrow({ where: { id: f.id } })).reportId).toBe(reportId);
     expect((await kembalikan(f.id, sm))?.error).toBeUndefined();
+  });
+
+  it("atasan Site Manager (PM, Area Manager, Program Director) juga boleh – layar user, DECISIONS 792", async () => {
+    for (const orang of atasan) {
+      const { reportId } = await laporan("draft", 0);
+      const f = await foto({ reportId });
+      const r = await kembalikan(f.id, orang);
+      expect([orang.role, r?.error]).toEqual([orang.role, undefined]);
+      expect((await db.photo.findUniqueOrThrow({ where: { id: f.id } })).reportId).toBeNull();
+    }
   });
 
   it("foto tanpa pekerjaan di laporan final: boleh kembali", async () => {

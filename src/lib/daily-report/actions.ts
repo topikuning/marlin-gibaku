@@ -21,7 +21,7 @@ import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { DailyReportStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
-import { izinHapusFotoLaporan, izinTambahFotoItem, PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN } from "./foto-susulan";
+import { izinHapusFotoLaporan, izinTambahFotoItem } from "./foto-susulan";
 import { izinKembalikanFoto, type AsalFotoLaporan } from "./foto-kembali";
 import { bacaKendalaKirim } from "./kirim-kendala";
 import { ALASAN_NIHIL, judulKendalaDariNihil } from "./nihil";
@@ -775,7 +775,7 @@ export async function removeItemAction(_prev: DailyActionState, formData: FormDa
  * - Saat laporan masih DRAFT atau PERLU KOREKSI. Begitu dikirim, foto sudah
  *   jadi dasar verifikasi — mengubah bukti setelah itu bukan koreksi. Satu
  *   pengecualian: foto SUSULAN yang salah tempel (`izinHapusFotoLaporan`).
- * - Yang boleh: PENGUNGGAH foto itu sendiri, Site Manager, atau Super Admin.
+ * - Yang boleh: PENGUNGGAH foto itu sendiri, atau Site Manager dan atasannya (792).
  */
 const photoIdSchema = z.object({ photoId: z.uuid("Foto tidak valid.") });
 
