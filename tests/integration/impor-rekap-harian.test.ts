@@ -283,6 +283,34 @@ describe("baris dinolkan tanpa isi dibuang (DECISIONS 786)", () => {
   });
 });
 
+/* DECISIONS 787: baris 0 yang sudah ada hanya dibuang bila terbukti dinolkan impor rekap sendiri. */
+describe("baris 0 lama: hanya yang dinolkan impor rekap yang dibuang (DECISIONS 787)", () => {
+  it("baris 0 berjejak impor dibuang; baris 0 tanpa jejak (mis. hasil aktivasi adendum) tetap", async () => {
+    const L = await siapkan();
+    const nolImpor = await db.dailyReportItem.create({
+      data: { reportId: L.laporan["2026-10-28"]!, rabNodeId: L.node["A#1"]!, lineageKey: "A#1", basis: "aktif", volumeDone: 0, valueDone: 0n },
+    });
+    const nolLain = await db.dailyReportItem.create({
+      data: { reportId: L.laporan["2026-10-28"]!, rabNodeId: L.node["A#2"]!, lineageKey: "A#2", basis: "aktif", volumeDone: 0, valueDone: 0n },
+    });
+    // Jejak impor rekap lama (sebelum 786) yang menolkan A#1 pada 28 Okt.
+    await db.auditLog.create({
+      data: {
+        userId,
+        action: "daily_report.impor_rekap_harian",
+        resourceType: "location",
+        resourceId: L.locationId,
+        payload: { lineageKey: "A#1", perubahan: [{ tanggal: "2026-10-28", aksi: "nolkan", dari: 4, ke: 0 }] },
+      },
+    });
+    const { rencana } = await simpan(L, await BERKAS(), SA, "timpa");
+    expect(rencana.item.find((i) => i.lineageKey === "A#1")!.perubahan.find((p) => p.tanggal === "2026-10-28")).toMatchObject({ aksi: "hapus", dari: 0 });
+    expect(rencana.item.find((i) => i.lineageKey === "A#2")!.perubahan.some((p) => p.tanggal === "2026-10-28")).toBe(false);
+    expect(await db.dailyReportItem.count({ where: { id: nolImpor.id } })).toBe(0);
+    expect(await db.dailyReportItem.count({ where: { id: nolLain.id } })).toBe(1);
+  });
+});
+
 /* Jawaban user 2026-11-25: *"ya, pindahkan foto ke tanggal excel jika ditentukan"* (DECISIONS 783). */
 describe("pindahkan foto ke tanggal Excel (dicentang)", () => {
   it("dua foto baris 28 Okt yang dinolkan pindah ke baris B#1 30 Okt – laporan dan pekerjaannya ikut, fotonya tidak hilang", async () => {
