@@ -40,17 +40,16 @@ export function izinTambahFotoItem(status: DailyReportStatus, jumlahFoto: number
 
 /**
  * Boleh mengurus foto milik ORANG LAIN (menghapus, mengembalikan ke Foto
- * Cepat)? Semua pemeriksa laporan harian (`daily_report.review`): Site Manager
- * dan atasannya – Project Manager, Area Manager, Program Director, Super Admin.
+ * Cepat)? Kewenangan `photo.manage_others`: bawaannya Site Manager dan
+ * atasannya, dan Super Admin bisa mengaturnya dari layar Sistem (DECISIONS 793).
  *
  * Dulu daftar tulis tangan `[site_manager, super_admin]`: atasan Site Manager
  * justru tertolak. Keluhan user 2026-11-26 (layar Project Manager ditolak
  * "Kembalikan ke Foto Cepat"): *"kamu ijinkan site manager tapi PM dan atasnya
- * malah gak bisa"*. Diturunkan dari capability supaya peran yang berubah di
- * `authz.ts` tidak tertinggal di sini lagi (DECISIONS 792).
+ * malah gak bisa"* (DECISIONS 792).
  */
 export function bolehUrusFotoOrangLain(role: UserRole): boolean {
-  return can(role, "daily_report.review");
+  return can(role, "photo.manage_others");
 }
 
 /**

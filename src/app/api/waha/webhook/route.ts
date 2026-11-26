@@ -5,6 +5,7 @@ import { ingestWaEvent } from "@/lib/waha/ingest";
 import { antreJawaban, prosesAntrean } from "@/lib/waha/antrean";
 import { isWaAckEvent, parseWaAck, parseWaEvent } from "@/lib/waha/ingest-parse";
 import { terapkanAck } from "@/lib/waha/gateway";
+import { pastikanHakAkses } from "@/lib/hak-akses/muat";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,8 @@ export function GET() {
 }
 
 export async function POST(req: Request) {
+  // Pesan WA memeriksa hak pengirimnya dengan `can()` tanpa sesi (DECISIONS 793).
+  await pastikanHakAkses();
   const expected = await getWahaWebhookSecret();
   const url = new URL(req.url);
   const provided = url.searchParams.get("token") ?? req.headers.get("x-webhook-secret");

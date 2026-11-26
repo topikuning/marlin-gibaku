@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { can, isCrossLocation, type Capability } from "@/lib/authz";
 import { diLatar } from "./latar";
+import { pastikanHakAkses } from "@/lib/hak-akses/muat";
 import type { UserRole } from "@/generated/prisma/enums";
 
 export const SESSION_COOKIE = "marlin_session";
@@ -78,6 +79,8 @@ export async function revokeAllSessions(userId: string) {
 
 /** User saat ini (di-cache per request). null bila tidak login/expired/revoked. */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  // Hak akses yang diatur Super Admin (DECISIONS 793) – sebelum `can()` dipakai.
+  await pastikanHakAkses();
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;

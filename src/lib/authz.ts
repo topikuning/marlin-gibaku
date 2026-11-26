@@ -120,6 +120,10 @@ export const CAPABILITIES = [
   // Hapus arsip berkas asli (melegakan penyimpanan). Setelah dihapus, cap foto
   // itu TIDAK bisa diperbaiki lagi — karena itu terpisah dari photo.restamp.
   "photo.archive_purge",
+  // Urus foto milik ORANG LAIN di laporan harian: hapus, hapus foto susulan,
+  // kembalikan ke Foto Cepat (DECISIONS 792/793). Pengunggah selalu boleh
+  // mengurus fotonya sendiri; ini untuk foto unggahan orang lain.
+  "photo.manage_others",
   "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA (sementara super_admin saja)
   // Tautan KELUAR ke folder Google Drive vendor ("Lihat di Drive") — super_admin
   // SAJA (permintaan user 2026-08-22). Di seberang tautan itu tidak ada lagi
@@ -273,6 +277,8 @@ const PELAKSANA: Capability[] = [
 
 const SITE_MANAGER: Capability[] = [
   ...PELAKSANA,
+  // Foto unggahan orang lain di laporan harian – Site Manager ke atas (792).
+  "photo.manage_others",
   // Uang mulai Site Manager – Pelaksana tidak melihat rupiah (DECISIONS 735).
   "money.view",
   // Dokumen unggahan mulai Site Manager (DECISIONS 736).
@@ -539,8 +545,82 @@ export const CROSS_LOCATION_ROLES: ReadonlySet<UserRole> = new Set([
   "program_director",
 ]);
 
+/* ── Hak akses yang DIATUR super admin dari layar Sistem (DECISIONS 793) ──
+ *
+ * Permintaan user 2026-11-26: *"jika ada levelling seperti ini lebih baik ada
+ * kontrol langsung di aplikasi yang aku tinggal atur siapa yang boleh dan tidak
+ * melalui login super admin"*. `ROLE_CAPABILITIES` di atas tetap BAWAAN; yang
+ * diatur dari layar disimpan sebagai selisihnya (tabel `hak_akses_peran`) dan
+ * dipasang di sini oleh `lib/hak-akses/muat.ts` (server).
+ *
+ * Dua pagar yang tidak bisa dilewati pengaturan:
+ * - JENJANG (DECISIONS 218, *"semua yang dilakukan di bawahnya bisa dilakukan
+ *   atasnya"*): hak satu peran berlaku juga untuk semua atasannya di
+ *   `TANGGA_PERAN`. Mencabut hak dari satu peran berarti mencabutnya juga dari
+ *   bawahannya – itu dikerjakan aksi penyimpannya;
+ * - SEL TERKUNCI (`kunciHakAkses`): selalu bawaan, apa pun isi tabelnya.
+ */
+
+/** Tangga jenjang, dari bawah ke atas. Executive View dan Wakil PPK di luar tangga. */
+export const TANGGA_PERAN: readonly UserRole[] = [
+  "field_supervisor",
+  "site_manager",
+  "project_manager",
+  "regional_manager",
+  "program_director",
+  "super_admin",
+];
+
+/** Selisih dari bawaan: peran → kewenangan → boleh/tidak. */
+export type PenggantiHakAkses = ReadonlyMap<UserRole, ReadonlyMap<Capability, boolean>>;
+
+/**
+ * Sel yang TIDAK bisa diubah dari layar, beserta alasannya (null = bisa).
+ * Sengaja sedikit: hanya pengaman sistem dan ketetapan user yang tertulis.
+ */
+export function kunciHakAkses(role: UserRole, capability: Capability): string | null {
+  if (role === "super_admin") {
+    return "Super Admin selalu memegang semua hak, supaya pengaturan ini tidak bisa mengunci semua orang di luar.";
+  }
+  if (capability === "system.manage") return "Pengaturan sistem, termasuk pengaturan hak akses ini, hanya untuk Super Admin.";
+  if (capability === "daily_report.reset_location" || capability === "rab.revision_purge") {
+    return "Tindakan ini juga menuntut super admin utama, jadi tidak diberikan ke peran lain.";
+  }
+  if (role === "field_supervisor" && (capability === "money.view" || capability.startsWith("finance."))) {
+    return "Pelaksana tidak melihat rupiah (DECISIONS 735).";
+  }
+  if (role === "wakil_ppk" && (capability.startsWith("ai.") || capability.startsWith("finance."))) {
+    return "Wakil PPK tanpa AI dan keuangan (DECISIONS 426).";
+  }
+  return null;
+}
+
+/** Hak satu peran SEBELUM jenjang diterapkan: pengaturan bila ada, selain itu bawaan. */
+function hakSendiri(role: UserRole, capability: Capability, p: PenggantiHakAkses): boolean {
+  const atur = kunciHakAkses(role, capability) ? undefined : p.get(role)?.get(capability);
+  return atur ?? ROLE_CAPABILITIES[role].has(capability);
+}
+
+/** Hak yang BERLAKU: pengaturan + bawaan, dengan jenjang dan sel terkunci. MURNI. */
+export function hakAksesBerlaku(role: UserRole, capability: Capability, p: PenggantiHakAkses): boolean {
+  if (kunciHakAkses(role, capability)) return ROLE_CAPABILITIES[role].has(capability);
+  const i = TANGGA_PERAN.indexOf(role);
+  if (i < 0) return hakSendiri(role, capability, p);
+  for (let j = 0; j <= i; j++) if (hakSendiri(TANGGA_PERAN[j], capability, p)) return true;
+  return false;
+}
+
+let pengganti: PenggantiHakAkses = new Map();
+
+/** Dipasang pemuat server (`lib/hak-akses/muat.ts`); kosong = bawaan murni. */
+export function pasangPenggantiHakAkses(p: PenggantiHakAkses): void {
+  pengganti = p;
+}
+
 export function can(role: UserRole, capability: Capability): boolean {
-  return ROLE_CAPABILITIES[role].has(capability);
+  // Bawaan sudah memenuhi jenjang (dijaga uji authz-jenjang).
+  if (pengganti.size === 0) return ROLE_CAPABILITIES[role].has(capability);
+  return hakAksesBerlaku(role, capability, pengganti);
 }
 
 export function isCrossLocation(role: UserRole): boolean {

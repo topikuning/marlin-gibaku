@@ -56,7 +56,19 @@ import { PengingatGrupPanel } from "./pengingat-grup-panel";
 import { getMingguanAktif } from "@/lib/mingguan/setelan";
 import { getPengingatGrupAktif } from "@/lib/harian/setelan-grup";
 import { pratinjauPengingat } from "@/lib/harian/pratinjau";
-import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
+import {
+  ALL_ROLES,
+  CAPABILITIES,
+  ROLE_CAPABILITIES,
+  ROLE_LABEL,
+  TANGGA_PERAN,
+  hakAksesBerlaku,
+  kunciHakAkses,
+  type PenggantiHakAkses,
+} from "@/lib/authz";
+import { bacaPenggantiHakAkses } from "@/lib/hak-akses/muat";
+import { LABEL_KEWENANGAN, URUTAN_KELOMPOK, kelompokKewenangan } from "@/lib/hak-akses/label";
+import { MatriksHakAkses, type BarisHakAksesView } from "./matriks-hak-akses";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
   R2TestPanel,
@@ -136,16 +148,6 @@ function IntegrationHeader({
   );
 }
 
-/** Kelompok kapabilitas untuk matriks hak akses (read-only). */
-const CAPABILITY_GROUPS: { title: string; match: (c: Capability) => boolean }[] = [
-  { title: "Portofolio & Paket", match: (c) => /^(portfolio|package|prospect|contract|amendment)\./.test(c) },
-  {
-    title: "Lokasi & Pelaksanaan",
-    match: (c) => /^(location|rab|baseline|weekly_plan|daily_report|field_activity|progress|issue)\./.test(c),
-  },
-  { title: "Keuangan & Dokumen", match: (c) => /^(finance|document|compliance|report)\./.test(c) },
-  { title: "Sistem & Akses", match: (c) => /^(wa|user|system|audit)\./.test(c) },
-];
 
 /* ── halaman ─────────────────────────────────────────────────────────────── */
 
@@ -154,6 +156,20 @@ export default async function SistemPage() {
   requireCapabilityPage(user.role, "system.manage");
 
   const todayStart = jakartaToday();
+  // Hak akses per peran: bawaan + pengaturan Super Admin (DECISIONS 793).
+  const penggantiHakAkses: PenggantiHakAkses = await bacaPenggantiHakAkses().catch(() => new Map());
+  const jumlahHakAksesDiatur = [...penggantiHakAkses.values()].reduce((n, m) => n + m.size, 0);
+  const barisHakAkses: BarisHakAksesView[] = CAPABILITIES.map((cap) => ({
+    cap,
+    label: LABEL_KEWENANGAN[cap],
+    kelompok: kelompokKewenangan(cap),
+    sel: ALL_ROLES.map((role) => ({
+      role,
+      berlaku: hakAksesBerlaku(role, cap, penggantiHakAkses),
+      bawaan: ROLE_CAPABILITIES[role].has(cap),
+      kunci: kunciHakAkses(role, cap),
+    })),
+  })).sort((x, y) => URUTAN_KELOMPOK.indexOf(x.kelompok) - URUTAN_KELOMPOK.indexOf(y.kelompok));
   const lokasiKembar = await laporanLokasiKembar(user.orgId);
   const [auditLogs, sessionCount, branding, wahaDisplay, photoStamp, activeUsers, auditToday, roleCounts] =
     await Promise.all([
@@ -743,61 +759,16 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Hak Akses per Peran"
-          subtitle="Daftar hak akses tiap peran (hanya bisa dilihat). Sumber: src/lib/authz.ts"
+          subtitle="Siapa boleh melakukan apa. Super Admin bisa mengaturnya di sini (DECISIONS 793)."
         />
         <CardBody>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-ink-muted">
-                  <th className="py-2 pr-3 font-medium">Kapabilitas</th>
-                  {ALL_ROLES.map((role) => (
-                    <th key={role} className="px-2 py-2 text-center font-medium whitespace-nowrap">
-                      {ROLE_LABEL[role]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CAPABILITY_GROUPS.map((group) => {
-                  const caps = CAPABILITIES.filter(group.match);
-                  return (
-                    <Fragment key={group.title}>
-                      <tr className="bg-surface-inset">
-                        <td
-                          colSpan={ALL_ROLES.length + 1}
-                          className="px-2 py-1.5 text-xs font-semibold text-ink-muted"
-                        >
-                          {group.title}
-                        </td>
-                      </tr>
-                      {caps.map((cap) => (
-                        <tr key={cap} className="border-b border-border">
-                          <td className="py-1.5 pr-3 font-mono text-[13px]">{cap}</td>
-                          {ALL_ROLES.map((role) => (
-                            <td key={role} className="px-2 py-1.5 text-center">
-                              {ROLE_CAPABILITIES[role].has(cap) ? (
-                                <span className="text-success" aria-label="ya">
-                                  ●
-                                </span>
-                              ) : (
-                                <span className="text-border-strong" aria-label="tidak">
-                                  ·
-                                </span>
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-[13px] text-ink-muted">
-            Hak akses ini ditetapkan di kode program dan belum bisa diubah dari layar ini.
-          </p>
+          <MatriksHakAkses
+            peran={ALL_ROLES.map((role) => ({ role, label: ROLE_LABEL[role] }))}
+            tangga={[...TANGGA_PERAN]}
+            baris={barisHakAkses}
+            bolehUbah={user.role === "super_admin"}
+            jumlahDiatur={jumlahHakAksesDiatur}
+          />
         </CardBody>
       </Card>
     </div>
